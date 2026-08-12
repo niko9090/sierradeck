@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.5.0',
+    righe: [
+      'Gli aggiornamenti li fa **SierraDeck Update**, un programma a sé: aspetta che SierraDeck sia uscito, installa, riapre il programma e si toglie. La finestra con il logo e la percentuale adesso c’è perché a mostrarla è un eseguibile vero, non uno script lanciato da chi stava per chiudersi.',
+      'L’updater si aggiorna da solo: quando cambia, viene ricostruito al primo avvio successivo — mai mentre sta lavorando.',
+      'La fascia in alto è stata rifatta: comandi più grandi e leggibili, il tasto del pannello aperto si riconosce, i workspace sono diventati linguette. Stessa disposizione di prima — un’interfaccia che si riorganizza sotto le mani costringe a reimparare dove sono le cose.'
+    ]
+  },
+  {
     versione: '0.4.5',
     righe: [
       'Il menu per spostare una chat si riempie prima di aprirsi: serviva premerlo due volte perché la richiesta partiva al clic e arrivava a menu già aperto.',

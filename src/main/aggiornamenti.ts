@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { avviaFinestraAggiornamento } from './finestra-aggiornamento'
+import { assicuraUpdater, avviaUpdater } from './updater/compila'
 
 /**
  * Com'è messo l'aggiornamento, per l'interfaccia.
@@ -62,6 +63,8 @@ export function creaAggiornamenti(
   preparaUscita?: () => Promise<void>
 ): Aggiornamenti {
   let stato: StatoAggiornamento = { fase: 'fermo' }
+  /** Dove electron-updater ha messo l'installer: lo esegue SierraDeck Update. */
+  let installerScaricato: string | undefined
 
   const annuncia = (nuovo: StatoAggiornamento): void => {
     stato = nuovo
@@ -128,51 +131,61 @@ export function creaAggiornamenti(
     async scarica() {
       annuncia({ ...stato, fase: 'scarico', percento: 0 })
       try {
-        await autoUpdater.downloadUpdate()
+        // I percorsi dei file scaricati: servono all'updater, che e' lui a
+        // eseguire l'installer. Senza, dovremmo indovinare dove sono.
+        const scaricati = await autoUpdater.downloadUpdate()
+        installerScaricato = Array.isArray(scaricati)
+          ? scaricati.find((f) => typeof f === 'string' && f.toLowerCase().endsWith('.exe'))
+          : undefined
       } catch (err) {
         annuncia({ fase: 'errore', errore: String(err) })
       }
     },
     installa() {
-      // La finestra vive in un processo suo: fra un attimo questo non c'e'
-      // piu', e una finestra aperta qui morirebbe con lui — che e' esattamente
-      // il difetto per cui l'utente restava a guardare uno schermo vuoto.
-      // Si aspetta che la finestra ci sia **davvero** prima di toccare
-      // qualunque cosa: chiudere il programma mentre sta ancora nascendo
-      // significa non farla nascere, ed e' esattamente quello che succedeva.
+      // Da qui in poi comanda SierraDeck Update, che e' un programma a se':
+      // aspetta che noi siamo usciti, lancia l'installer, aspetta che finisca,
+      // riapre il programma. Nessun pezzo di questa catena dipende da un
+      // processo che sta per sparire - che e' il difetto per cui la finestra
+      // non si vedeva, provato tre volte in tre modi diversi.
+      const updater = assicuraUpdater(cartellaUpdater())
+      const installer = installerScaricato
+      if (updater !== undefined && installer !== undefined) {
+        const partito = avviaUpdater(updater, {
+          installer,
+          eseguibile: app.getPath('exe'),
+          versione: stato.versione ?? '',
+          pid: process.pid
+        })
+        if (partito) {
+          console.log('[aggiornamenti] SierraDeck Update ha preso in carico l installazione')
+          void (preparaUscita?.() ?? Promise.resolve())
+            .catch((err: unknown) => console.error('[aggiornamenti] chiusura incompleta:', err))
+            // L'updater ci sta guardando: appena usciamo, comincia. Non serve
+            // `quitAndInstall`, e anzi farebbe partire un secondo installer.
+            .finally(() => setTimeout(() => app.quit(), 400))
+          return
+        }
+      }
+
+      // Senza updater si torna alla strada di prima: meglio un aggiornamento
+      // senza finestra che nessun aggiornamento.
+      console.warn('[aggiornamenti] updater non disponibile: installo alla vecchia maniera')
       const apertura = avviaFinestraAggiornamento({
         esePath: app.getPath('exe'),
         versione: stato.versione ?? '',
         pidVecchio: process.pid
       })
-      // Installer silenzioso: quello che si vede e' la nostra finestra, che ora
-      // segue davvero le tre fasi — chiusura, sostituzione, riavvio — e si
-      // toglie di mezzo solo quando la versione nuova e' partita.
-      //
-      // Le chat aperte muoiono con lui e tornano al riavvio dal salvataggio
-      // automatico, che è la stessa strada di ogni chiusura.
-      // Prima si libera il programma, poi si installa. L'ordine non e' un
-      // dettaglio: l'installer sostituisce i file che il PTY host tiene aperti,
-      // e con quelli in uso si ferma a meta' lasciando l'icona che riapre la
-      // versione vecchia.
-      //
-      // I due secondi valgono comunque: la finestra nasce attraverso un
-      // lanciatore e un servizio di sistema, e un avvio di PowerShell non e'
-      // istantaneo.
       void apertura
-        .then((viva) => {
-          console.log(`[aggiornamenti] finestra ${viva ? 'viva' : 'NON comparsa'}: installo la ${stato.versione ?? '?'}`)
-          return preparaUscita?.()
-        })
-        .catch((err: unknown) => {
-          console.error('[aggiornamenti] preparazione incompleta prima dell installazione:', err)
-        })
-        // Mezzo secondo dopo l'ultima cosa, non tre e mezzo: adesso l'attesa
-        // vera è quella della finestra, e questa serve solo a lasciar posare
-        // le scritture su disco.
+        .then(() => preparaUscita?.())
+        .catch((err: unknown) => console.error('[aggiornamenti] preparazione incompleta:', err))
         .finally(() => setTimeout(() => autoUpdater.quitAndInstall(true, true), 500))
     }
   }
+}
+
+/** L'updater vive accanto ai dati, non fra i file del programma: quelli l'installer li sostituisce. */
+function cartellaUpdater(): string {
+  return join(app.getPath('userData'), 'updater')
 }
 
 /**
