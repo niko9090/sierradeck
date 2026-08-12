@@ -63,8 +63,15 @@ class ClientActivity : AppCompatActivity() {
                     return@addOnSuccessListener
                 }
                 collegamento.indirizzo = letto
-                if (collegamento.pronto) mostraClient()
-                else mostraErrore("Quel codice non contiene un indirizzo.")
+                if (!collegamento.pronto) {
+                    mostraErrore("Quel codice non contiene un indirizzo.")
+                    return@addOnSuccessListener
+                }
+                if (!Indirizzi.accettabile(collegamento.indirizzo)) {
+                    mostraErrore("Quell’indirizzo è su Internet, non sulla tua rete: non ci parlo in chiaro.")
+                    return@addOnSuccessListener
+                }
+                mostraClient()
             }
             .addOnCanceledListener {
                 // Chi annulla non ha sbagliato niente: nessun messaggio.
@@ -126,7 +133,12 @@ class ClientActivity : AppCompatActivity() {
         if (collegamento.indirizzo.isNotBlank()) campo.setText(collegamento.indirizzo)
         findViewById<Button>(R.id.collega).setOnClickListener {
             collegamento.indirizzo = campo.text.toString()
-            if (collegamento.pronto) mostraClient() else mostraErrore("Serve un indirizzo, come 192.168.1.7")
+            when {
+                !collegamento.pronto -> mostraErrore("Serve un indirizzo, come 192.168.1.7")
+                !Indirizzi.accettabile(collegamento.indirizzo) ->
+                    mostraErrore("Quell’indirizzo è su Internet, non sulla tua rete: non ci parlo in chiaro.")
+                else -> mostraClient()
+            }
         }
     }
 
@@ -173,7 +185,20 @@ class ClientActivity : AppCompatActivity() {
                     // è una ragione per buttare fuori chi sta leggendo.
                     if (richiesta?.isForMainFrame != true) return
                     mostraIngresso()
-                    mostraErrore("Il computer non risponde a ${collegamento.indirizzo}. Controlla l’indirizzo o che SierraDeck sia acceso.")
+                    // Il motivo vero, non un'ipotesi. «Il computer non
+                    // risponde» era la spiegazione buona per un caso su tre, e
+                    // per gli altri due mandava a cercare dalla parte
+                    // sbagliata — una porta chiusa e un divieto del sistema si
+                    // riconoscono, e dirlo cambia cosa vai a controllare.
+                    val motivo = errore?.description?.toString() ?: ""
+                    mostraErrore(
+                        when {
+                            motivo.contains("CLEARTEXT", ignoreCase = true) ->
+                                "Android ha bloccato la connessione in chiaro verso ${collegamento.indirizzo}."
+                            motivo.isNotEmpty() -> "${collegamento.indirizzo} non risponde: $motivo"
+                            else -> "${collegamento.indirizzo} non risponde. Controlla l’indirizzo o che SierraDeck sia acceso."
+                        }
+                    )
                 }
             }
             setBackgroundColor(0xFF0B0C0E.toInt())

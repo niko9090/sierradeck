@@ -1,20 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Il computer di casa parla in HTTP semplice, e va bene così: il traffico non
-  esce dalla tua rete. Android dalla versione 9 vieta l'HTTP per impostazione
-  predefinita — giustamente, perché su Internet è indifendibile — e qui si fa
-  l'eccezione **solo** per gli indirizzi privati.
+  esce dalla tua rete. Android dalla versione 9 lo vieta per impostazione
+  predefinita — giustamente, perché su Internet è indifendibile.
 
-  Un indirizzo pubblico resta vietato: se un giorno qualcuno provasse a
-  puntare l'app fuori dalla rete di casa, lo farebbe in chiaro, e questa riga
-  glielo impedisce.
+  Qui l'HTTP è permesso, e **il muro sta nel codice**, in `Indirizzi.kt`: solo
+  gli indirizzi privati vengono accettati, gli altri l'app si rifiuta di
+  aprirli.
+
+  Non è una scorciatoia: è l'unico posto dove la regola si può esprimere.
+  Questo file conosce soltanto **nomi di dominio**, e un `<domain>192.168.0.0`
+  corrisponde all'host chiamato letteralmente così, non alla rete che comincia
+  per 192.168 — sintatticamente valido, praticamente inutile. È esattamente
+  quello che c'era scritto prima, ed è il motivo per cui l'app non riusciva ad
+  aprire nessun indirizzo, né di casa né in VPN: le eccezioni non
+  corrispondevano a niente e restava il divieto.
 -->
 <network-security-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">10.0.0.0</domain>
-        <domain includeSubdomains="true">172.16.0.0</domain>
-        <domain includeSubdomains="true">192.168.0.0</domain>
-        <domain includeSubdomains="true">localhost</domain>
-    </domain-config>
-    <base-config cleartextTrafficPermitted="false" />
+    <base-config cleartextTrafficPermitted="true" />
 </network-security-config>

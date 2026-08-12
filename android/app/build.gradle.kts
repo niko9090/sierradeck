@@ -17,8 +17,8 @@ android {
         // programmi che si aggiornano quando hanno qualcosa di nuovo da dare, e
         // legarli vorrebbe dire pubblicare un APK identico ogni volta che
         // cambia una riga di SierraDeck. Qui si alza quando cambia *questa* app.
-        versionCode = 6
-        versionName = "1.1.0"
+        versionCode = 7
+        versionName = "1.1.1"
     }
 
     // Serve `BuildConfig.VERSION_NAME`: l'app deve sapere quale versione è per
@@ -56,4 +56,7 @@ dependencies {
     // chiedere** (la schermata e' del sistema), e il modulo si aggiorna da
     // solo con i servizi Google invece di invecchiare dentro il nostro APK.
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+    // Per provare la regola degli indirizzi senza un telefono: e logica pura,
+    // ed e gia costata due volte un app che non si collegava a niente.
+    testImplementation("junit:junit:4.13.2")
 }
