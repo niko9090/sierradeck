@@ -31,6 +31,25 @@ describe('lo script della pagina', () => {
     expect(script).toContain('location.hash')
   })
 
+  it('ogni tasto della pagina esiste davvero', () => {
+    // Un onclick che chiama una funzione mai definita non dà errore finché
+    // qualcuno non lo preme: il tasto sembra esserci e non fa niente. Qui si
+    // raccolgono tutti i nomi chiamati negli onclick e si controlla che siano
+    // scritti da qualche parte.
+    const chiamati = new Set<string>()
+    for (const m of script.matchAll(/onclick="([a-zA-Z]+)\(/g)) chiamati.add(m[1] ?? '')
+    for (const nome of chiamati) {
+      const definita =
+        script.includes(`window.${nome} =`) || script.includes(`function ${nome}(`)
+      expect(definita, `${nome} non è definita`).toBe(true)
+    }
+    // E le tre cose che da fuori servono davvero: guardare dentro una chat,
+    // aprirne una nuova, e sapere dove.
+    expect(chiamati.has('guarda')).toBe(true)
+    expect(chiamati.has('scegliCartella')).toBe(true)
+    expect(chiamati.has('apriIn')).toBe(true)
+  })
+
   it('qualunque errore lascia qualcosa a schermo', () => {
     // Il nero è il peggior esito: non dice se manca la rete, se la chiave non
     // vale più o se c'è un difetto, e non lascia niente da premere.

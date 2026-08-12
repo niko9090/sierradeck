@@ -15,7 +15,8 @@ import {
   registerFinestreIpc,
   registerAutopilotaIpc,
   registerIstantaneeIpc,
-  registerPreparazioneIpc
+  registerPreparazioneIpc,
+  claudeRoot
 } from './ipc'
 import { preparaAmbiente } from './preparazione'
 import { decidiChiusura, vociArea, suggerimentoArea } from './area-notifica'
@@ -34,6 +35,7 @@ import {
 import { rotteClient, rotteLibere } from './client-rotte'
 import { immagineQr, indirizzoAccoppiamento } from './qr-accoppiamento'
 import { apkDisponibile } from './apk-disponibile'
+import { scanProjects } from './indexer/project-scanner'
 import type { Chat } from './client-rotte'
 import { apriProviderStore } from './provider-store'
 import { creaAggiornamenti } from './aggiornamenti'
@@ -423,6 +425,20 @@ if (!app.requestSingleInstanceLock()) {
               w.webContents.send('client:scrivi', { chat: idChat, testo })
             }
           }
+        },
+        apriChat: (cartella: string, modello?: string) => {
+          for (const w of BrowserWindow.getAllWindows()) {
+            if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+              w.webContents.send('client:apri', { cartella, modello })
+            }
+          }
+        },
+        // Le cartelle che Claude Code ha già visto: sono quelle in cui aprire
+        // ha senso, ed essendo un elenco chiuso è anche il muro che impedisce
+        // di far aprire una sessione in un percorso qualunque dalla rete.
+        cartelle: async () => {
+          const progetti = await scanProjects(claudeRoot()).catch(() => [])
+          return progetti.map((p) => p.path)
         },
         workspace: async () => {
           const a = workspaceStore?.leggi()

@@ -37,6 +37,10 @@ class GuardiaService : Service() {
 
     private var attiva = true
     private var ultimaDomandaVista = ""
+    /** Gli autopiloti gia annunciati come finiti: la stessa fine si dice una volta. */
+    private val finitiVisti = mutableSetOf<String>()
+    /** Al primo giro si tace: quelli finiti ieri non sono una notizia. */
+    private var primoGiro = true
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -107,6 +111,7 @@ class GuardiaService : Service() {
         try {
             if (connessione.responseCode != 200) return
             val stato = JSONObject(connessione.inputStream.bufferedReader().readText())
+            guardaFiniti(stato)
             val domande = stato.optJSONArray("domande") ?: return
             if (domande.length() == 0) {
                 ultimaDomandaVista = ""
@@ -125,7 +130,51 @@ class GuardiaService : Service() {
         }
     }
 
-    private fun avvisa(testo: String) {
+    /**
+     * Quando un lavoro finisce.
+     *
+     * È l'altra metà del motivo per cui questa app esiste: si lancia un
+     * autopilota e si esce di casa, e sapere che ha finito — senza controllare
+     * il telefono ogni dieci minuti — è tutto il valore della cosa.
+     *
+     * Ogni autopilota si annuncia una volta sola: l'insieme di quelli già
+     * annunciati impedisce che la stessa fine torni ogni cinque secondi finché
+     * non si spegne il computer.
+     */
+    private fun guardaFiniti(stato: JSONObject) {
+        try {
+            val autopiloti = stato.optJSONArray("autopiloti") ?: return
+            for (i in 0 until autopiloti.length()) {
+                val a = autopiloti.getJSONObject(i)
+                if (a.optString("stato") != "finito") continue
+                val id = a.optString("id")
+                if (id.isEmpty() || !finitiVisti.add(id)) continue
+                // Al primo giro dopo l'avvio si tace: quelli già finiti ieri
+                // non sono una notizia, e riceverne cinque all'apertura
+                // dell'app insegna a ignorarle tutte.
+                if (primoGiro) continue
+                avvisa(
+                    "${a.optString("nome", "Un autopilota")} ha finito",
+                    "SierraDeck ha finito un lavoro",
+                    // Un identificatore stabile e non la posizione nell'elenco:
+                    // due lavori che finiscono a distanza di minuti cambiano
+                    // posizione, e il secondo cancellerebbe il primo.
+                    ID_FINITO + (id.hashCode() and 0xFFF)
+                )
+            }
+        } finally {
+            // Il primo giro è passato comunque, anche quando non c'era niente
+            // da guardare: altrimenti il silenzio iniziale non finirebbe mai e
+            // nessuna fine verrebbe mai annunciata.
+            primoGiro = false
+        }
+    }
+
+    private fun avvisa(
+        testo: String,
+        titolo: String = "SierraDeck ti sta chiedendo una cosa",
+        id: Int = ID_DOMANDA
+    ) {
         val apri = PendingIntent.getActivity(
             this,
             0,
@@ -134,7 +183,7 @@ class GuardiaService : Service() {
         )
         val notifica = NotificationCompat.Builder(this, CANALE_DOMANDE)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("SierraDeck ti sta chiedendo una cosa")
+            .setContentTitle(titolo)
             .setContentText(testo)
             .setStyle(NotificationCompat.BigTextStyle().bigText(testo))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -142,7 +191,7 @@ class GuardiaService : Service() {
             .setAutoCancel(true)
             .build()
         (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
-            .notify(ID_DOMANDA, notifica)
+            .notify(id, notifica)
     }
 
     private fun notificaPresenza(): Notification =
@@ -177,6 +226,8 @@ class GuardiaService : Service() {
         private const val CANALE_DOMANDE = "domande"
         private const val ID_PRESENZA = 1
         private const val ID_DOMANDA = 2
+        /** Le notifiche di fine lavoro partono da qui, una per autopilota. */
+        private const val ID_FINITO = 100
 
         fun avvia(contesto: Context) {
             // Un servizio che non parte non deve portarsi dietro l'app: senza

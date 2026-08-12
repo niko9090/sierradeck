@@ -49,7 +49,10 @@ declare global {
         }>
         chiudiAccoppiamento: () => Promise<void>
         revoca: (id: string) => Promise<unknown[]>
-        annunciaChat: (chat: { id: string; titolo: string; cwd: string }[]) => void
+        annunciaChat: (
+          chat: { id: string; titolo: string; cwd: string; ultimaRiga?: string; coda?: string[] }[]
+        ) => void
+        suApertura: (cb: (m: { cartella: string; modello?: string }) => void) => () => void
         suScrittura: (cb: (m: { chat: string; testo: string }) => void) => () => void
         suWorkspace: (cb: (nome: string) => void) => () => void
       }

@@ -113,6 +113,20 @@ export function paginaClient(): string {
     font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: #9aa1a9;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
+  /* Le ultime righe, quando si chiede di guardare dentro. Qui il testo va a
+     capo davvero: non e' piu' un colpo d'occhio, e' la cosa che si sta
+     leggendo per decidere se serve intervenire. */
+  .dentro {
+    margin-top: 8px; padding: 10px; border-radius: 8px; background: #0d0f11;
+    font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: #c3c9d1;
+    white-space: pre-wrap; word-break: break-word; max-height: 45vh; overflow-y: auto; margin-bottom: 0;
+  }
+  /* Le cartelle in cui aprire: bersagli larghi, uno per riga - si sceglie con
+     il pollice, non con il mouse. */
+  .cartella {
+    display: block; width: 100%; text-align: left; margin-top: 6px;
+    font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+  }
   .numeri { display: flex; gap: 6px; }
   .numero { flex: 1; text-align: center; }
   .numero b { display: block; font-size: 26px; font-variant-numeric: tabular-nums; }
@@ -126,6 +140,14 @@ export function paginaClient(): string {
 const CHIAVE = 'sierradeck.chiave'
 let chiave = localStorage.getItem(CHIAVE) || ''
 const app = document.getElementById('app')
+// Quello che si sta guardando adesso. Con var e non let: i tasti della pagina
+// sono attributi onclick, e cercano i nomi su window.
+var dentro = null
+var righeDentro = []
+var cartelle = null
+// L'ultimo stato ricevuto: serve a ridisegnare subito quando si apre o si
+// chiude qualcosa, senza aspettare il prossimo giro da due secondi.
+var ultimoStato = { chat: [], autopiloti: [], domande: [] }
 const esc = (t) => String(t == null ? '' : t).replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))
 
 async function chiedi(percorso, corpo) {
@@ -179,6 +201,7 @@ let appAndroid = {}
 fetch('/api/app').then((r) => r.json()).then((a) => { appAndroid = a || {} }).catch(() => undefined)
 
 function pannello(s) {
+  ultimoStato = s
   const attivo = document.activeElement
   const staScrivendo = attivo && (attivo.tagName === 'INPUT' || attivo.tagName === 'TEXTAREA')
   // Chi sta scrivendo ha ragione: la pagina puo' aspettare due secondi.
@@ -233,12 +256,37 @@ function pannello(s) {
     <div class="piastrella">
       <div class="titolo">\${esc(c.titolo)}</div>
       <div class="sotto">\${esc(c.cwd)}</div>
-      \${c.ultimaRiga ? '<div class="battito">' + esc(c.ultimaRiga) + '</div>' : ''}
+      \${dentro === c.id
+        ? '<div class="dentro">' + (righeDentro.length ? esc(righeDentro.join(String.fromCharCode(10)))
+            : 'Ancora niente da mostrare.') + '</div>'
+        : (c.ultimaRiga ? '<div class="battito">' + esc(c.ultimaRiga) + '</div>' : '')}
       <div class="riga">
         <input id="t-\${esc(c.id)}" placeholder="scrivi qui e invia">
         <button onclick="scrivi('\${esc(c.id)}')">Invia</button>
       </div>
+      <div class="riga">
+        \${dentro === c.id
+          ? '<button onclick="chiudiDentro()">Basta guardare</button>'
+          : '<button onclick="guarda(\\'' + esc(c.id) + '\\')">Guarda dentro</button>'}
+      </div>
     </div>\`).join('')
+
+  // Aprire non distrugge niente: nel peggiore dei casi resta un riquadro in
+  // piu' da chiudere al computer. Ed e' la differenza fra guardare da fuori e
+  // poter cominciare qualcosa da fuori.
+  const nuova = cartelle === null
+    ? '<div class="piastrella"><div class="riga"><button onclick="scegliCartella()">Apri una chat nuova</button></div></div>'
+    : \`<div class="piastrella">
+         <div class="titolo">In quale cartella?</div>
+         <div class="sotto">Solo quelle che Claude Code conosce gia'.</div>
+         \${cartelle.length === 0 ? '<div class="sotto" style="margin-top:8px">Nessuna cartella conosciuta.</div>' : ''}
+         \${cartelle.map((c, i) =>
+           // Per indice, non per percorso: un percorso di Windows dentro
+           // un onclick vorrebbe dire raddoppiare i backslash e sperare che
+           // non contenga apici. L'indice non ha niente da sfuggire.
+           '<button class="cartella" onclick="apriIn(' + i + ')">' + esc(c) + '</button>').join('')}
+         <div class="riga"><button onclick="cartelle = null; pannello(ultimoStato)">Lascia stare</button></div>
+       </div>\`
 
   const ws = (s.workspace && s.workspace.nomi || []).map((n) => \`
     <button class="\${n === s.workspace.attivo ? 'attivo' : ''}" onclick="vaiA('\${esc(n)}')">\${esc(n)}</button>\`).join('')
@@ -275,12 +323,60 @@ function pannello(s) {
       \${ws ? '<div class="piastrella"><div class="titolo">Workspace</div><div class="ws" style="margin-top:10px">' + ws + '</div></div>' : ''}
       \${autopiloti || ''}
       \${chat || (autopiloti ? '' : '<div class="vuoto">Nessuna chat aperta sul computer.</div>')}
+      \${nuova}
     </main>\`
 
   for (const id in scritti) {
     const campo = document.getElementById(id)
     if (campo) campo.value = scritti[id]
   }
+}
+
+/**
+ * Guardare dentro una chat.
+ *
+ * Le righe si chiedono per **una** chat sola, quella che si sta guardando:
+ * mandarle tutte con l'elenco vorrebbe dire decine di kilobyte al minuto sulla
+ * rete del telefono per righe che nessuno legge.
+ */
+window.guarda = async (id) => {
+  dentro = id
+  righeDentro = []
+  await leggiDentro()
+  pannello(ultimoStato)
+}
+window.chiudiDentro = () => { dentro = null; righeDentro = []; pannello(ultimoStato) }
+
+async function leggiDentro() {
+  if (!dentro) return
+  try {
+    const r = await chiedi('/api/dentro', { chat: dentro })
+    righeDentro = r.righe || []
+  } catch (e) {
+    // Una chat chiusa al computer mentre la si guardava: si torna all'elenco
+    // invece di restare su un riquadro che non esiste piu'.
+    dentro = null
+    righeDentro = []
+  }
+}
+
+window.scegliCartella = async () => {
+  try {
+    const r = await chiedi('/api/cartelle')
+    cartelle = r.cartelle || []
+  } catch (e) {
+    cartelle = []
+  }
+  pannello(ultimoStato)
+}
+window.apriIn = async (i) => {
+  const scelta = (cartelle || [])[i]
+  if (!scelta) return
+  await chiedi('/api/apri', { cartella: scelta })
+  cartelle = null
+  // La chat nuova compare nell'elenco appena il computer la annuncia: un paio
+  // di secondi, il tempo del prossimo giro.
+  aggiorna()
 }
 
 window.rispondi = async (id) => {
@@ -336,7 +432,12 @@ async function aggiorna() {
   try {
     if (!chiave) { await accoppiaDalQr() }
     if (!chiave) { ingresso(); return }
-    pannello(await chiedi('/api/stato'))
+    const stato = await chiedi('/api/stato')
+    // Se si sta guardando dentro una chat, anche quelle righe si rinfrescano:
+    // guardare qualcosa di fermo mentre il resto si muove sarebbe peggio che
+    // non guardare.
+    await leggiDentro()
+    pannello(stato)
   } catch (e) {
     // Se non c'e' niente a schermo si mostra l'ingresso con il motivo: una
     // pagina vuota lascia solo la scelta di chiudere e riprovare alla cieca.

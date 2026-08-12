@@ -84,8 +84,15 @@ contextBridge.exposeInMainWorld('gestore', {
     chiudiAccoppiamento: (): Promise<void> => ipcRenderer.invoke('client:chiudiAccoppiamento'),
     revoca: (id: string): Promise<unknown[]> => ipcRenderer.invoke('client:revoca', id),
     /** Le chat aperte, che il Core da solo non conosce. */
-    annunciaChat: (chat: { id: string; titolo: string; cwd: string }[]): void =>
-      ipcRenderer.send('client:chat', chat),
+    annunciaChat: (
+      chat: { id: string; titolo: string; cwd: string; ultimaRiga?: string; coda?: string[] }[]
+    ): void => ipcRenderer.send('client:chat', chat),
+    /** Una chat nuova, chiesta da un telefono in una cartella già conosciuta. */
+    suApertura: (cb: (m: { cartella: string; modello?: string }) => void): (() => void) => {
+      const h = (_e: unknown, m: { cartella: string; modello?: string }): void => cb(m)
+      ipcRenderer.on('client:apri', h)
+      return () => { ipcRenderer.off('client:apri', h) }
+    },
     /** Testo mandato da un telefono a una chat. */
     suScrittura: (cb: (m: { chat: string; testo: string }) => void): (() => void) => {
       const h = (_e: unknown, m: { chat: string; testo: string }): void => cb(m)

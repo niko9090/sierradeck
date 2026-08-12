@@ -18,6 +18,8 @@ function deps(over: Partial<DipendenzeRotte> = {}): DipendenzeRotte {
     rispondi: () => Promise.resolve(),
     domande: () => Promise.resolve([{ id: 'd-1', autopilotaId: 'ap-1', testo: 'Quale chiave?' }]),
     scriviAChat: () => undefined,
+    apriChat: () => undefined,
+    cartelle: () => Promise.resolve(['C:\\lavoro', 'C:\\casa']),
     workspace: () => Promise.resolve({ nomi: ['lavoro', 'casa'], attivo: 'lavoro' }),
     cambiaWorkspace: () => Promise.resolve(),
     fermaAutopilota: () => Promise.resolve(),
@@ -144,6 +146,44 @@ describe('quello che il Client puo fare', () => {
       { metodo: 'POST', percorso: '/api/autopilota/ferma', corpo: { autopilota: 'ap-1' } }
     )
     expect(fermato).toBe('ap-1')
+  })
+
+  it('fa guardare dentro una chat, non solo il titolo', async () => {
+    // Sapere che «si muove» non basta per decidere se serve intervenire:
+    // servono le righe.
+    const chat = [{ id: 'p-1', titolo: 'Gestore', cwd: 'C:\\p', coda: ['npm test', '3 falliti'] }]
+    const r = await rotteClient(deps({ chat: () => chat }))(
+      { metodo: 'POST', percorso: '/api/dentro', corpo: { chat: 'p-1' } }
+    )
+    expect((r.corpo as { righe: string[] }).righe).toEqual(['npm test', '3 falliti'])
+  })
+
+  it('non manda le righe nell elenco, che si chiede ogni due secondi', async () => {
+    // Quattordici righe per chat ogni due secondi sono decine di kilobyte al
+    // minuto sulla rete del telefono, per righe che nessuno sta guardando.
+    const chat = [{ id: 'p-1', titolo: 'Gestore', cwd: 'C:\\p', coda: ['segreto lunghissimo'] }]
+    const r = await rotteClient(deps({ chat: () => chat }))(
+      { metodo: 'GET', percorso: '/api/stato', corpo: undefined }
+    )
+    expect(JSON.stringify(r.corpo)).not.toContain('segreto lunghissimo')
+  })
+
+  it('apre una chat solo in una cartella gia conosciuta', async () => {
+    // Un percorso qualunque arrivato dalla rete aprirebbe una sessione dove
+    // capita, e da un telefono nessuno se ne accorgerebbe.
+    let aperta = ''
+    const su = deps({ apriChat: (c) => { aperta = c } })
+    const buona = await rotteClient(su)(
+      { metodo: 'POST', percorso: '/api/apri', corpo: { cartella: 'C:\\lavoro' } }
+    )
+    expect(buona.stato).toBe(200)
+    expect(aperta).toBe('C:\\lavoro')
+
+    const cattiva = await rotteClient(su)(
+      { metodo: 'POST', percorso: '/api/apri', corpo: { cartella: 'C:\\Windows\\System32' } }
+    )
+    expect(cattiva.stato).toBe(403)
+    expect(aperta).toBe('C:\\lavoro')
   })
 
   it('non puo distruggere niente', async () => {

@@ -13,6 +13,7 @@ docs/superpowers/
 
 # Gli artefatti di compilazione di Android: si rifanno, non si conservano.
 android/app/build/
+android/build/
 android/.gradle/
 android/local.properties
 *.jks

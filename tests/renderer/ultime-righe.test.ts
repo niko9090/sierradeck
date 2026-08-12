@@ -61,5 +61,26 @@ describe('creaUltimeRighe', () => {
     r.aggiorna('p1', 'qualcosa\n')
     r.dimentica('p1')
     expect(r.di('p1')).toBe('')
+    expect(r.codaDi('p1')).toEqual([])
+  })
+
+  it('tiene le ultime righe, non solo l ultima', () => {
+    // Una riga dice che si muove, quattordici dicono **cosa** sta facendo: è
+    // la differenza fra guardare da fuori e poter decidere se intervenire.
+    const r = creaUltimeRighe()
+    r.aggiorna('p1', 'npm test\n\n3 falliti\nil quarto passa\n')
+    // Le righe vuote non contano: da un telefono occupano spazio e non dicono
+    // niente.
+    expect(r.codaDi('p1')).toEqual(['npm test', '3 falliti', 'il quarto passa'])
+  })
+
+  it('non tiene tutto quello che una chat ha mai scritto', () => {
+    // Conservare il flusso vorrebbe dire tenere in memoria ore di terminale
+    // per ogni chat aperta.
+    const r = creaUltimeRighe()
+    for (let i = 0; i < 100; i += 1) r.aggiorna('p1', `riga ${i}\n`)
+    const coda = r.codaDi('p1')
+    expect(coda.length).toBeLessThanOrEqual(14)
+    expect(coda[coda.length - 1]).toBe('riga 99')
   })
 })

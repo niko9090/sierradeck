@@ -22,6 +22,15 @@ export type Chat = {
   cwd: string
   /** L'ultima riga vista nel terminale: dice a colpo d'occhio se si muove. */
   ultimaRiga?: string
+  /**
+   * Le ultime righe, per chi vuole guardare dentro.
+   *
+   * Non viaggiano con l'elenco: si chiedono per **una** chat, quando la si
+   * apre. Mandarle tutte ogni due secondi vorrebbe dire spedire qualche decina
+   * di kilobyte al minuto sulla rete del telefono per righe che nessuno sta
+   * guardando.
+   */
+  coda?: string[]
 }
 
 export type DipendenzeRotte = {
@@ -35,11 +44,20 @@ export type DipendenzeRotte = {
   domande: () => Promise<{ id: string; autopilotaId: string; testo: string }[]>
   /** Manda del testo a una chat, come se fosse stato digitato. */
   scriviAChat: (idChat: string, testo: string) => void
+  /**
+   * Apre una chat nuova in una cartella già conosciuta.
+   *
+   * Aprire non distrugge niente: nel peggiore dei casi resta un riquadro in
+   * più, che si chiude al computer. È per questo che c'è, mentre chiudere no.
+   */
+  apriChat: (cartella: string, modello?: string) => void
   workspace: () => Promise<{ nomi: string[]; attivo: string }>
   cambiaWorkspace: (nome: string) => Promise<void>
   /** Ferma o riprende un autopilota: due gesti reversibili, quindi ammessi. */
   fermaAutopilota: (id: string) => Promise<void>
   riprendiAutopilota: (id: string) => Promise<void>
+  /** Le cartelle in cui si può aprire una chat: quelle già viste da Claude Code. */
+  cartelle: () => Promise<string[]>
   versione: string
   /** Qual è l'ultimo APK dell'app, per il tasto «Scarica». */
   apk?: () => Promise<{ versione: string; url: string } | undefined>
@@ -129,7 +147,9 @@ export function rotteClient(deps: DipendenzeRotte) {
         deps.workspace().catch(() => ({ nomi: [], attivo: '' }))
       ])
       return OK({
-        chat: deps.chat(),
+        // Senza la coda delle righe: l'elenco si chiede ogni due secondi, e
+        // quello che si guarda dentro è una chat sola, quando la si apre.
+        chat: deps.chat().map(({ coda: _coda, ...resto }) => resto),
         // Solo quello che serve a una piastrella: mandare tutto lo stato di un
         // autopilota su una rete di casa, ogni due secondi, sarebbe spedire un
         // libro per leggerne il titolo.
@@ -162,6 +182,37 @@ export function rotteClient(deps: DipendenzeRotte) {
       const testo = stringa(r.corpo, 'testo')
       if (chat === '' || testo === '') return { stato: 400, corpo: { errore: 'servono chat e testo' } }
       deps.scriviAChat(chat, testo.slice(0, TESTO_MAX))
+      return OK({ fatto: true })
+    }
+
+    // Guardare dentro una chat: le ultime righe del suo terminale. È la
+    // differenza fra sapere che «si muove» e sapere **cosa** sta facendo —
+    // l'unica cosa che da fuori permette di decidere se serve intervenire.
+    if (r.metodo === 'POST' && r.percorso === '/api/dentro') {
+      const id = stringa(r.corpo, 'chat')
+      const trovata = deps.chat().find((c) => c.id === id)
+      if (trovata === undefined) return { stato: 404, corpo: { errore: 'chat non trovata' } }
+      return OK({ chat: trovata.id, titolo: trovata.titolo, righe: trovata.coda ?? [] })
+    }
+
+    // Le cartelle in cui si può aprire: si chiedono solo quando servono, non
+    // ogni due secondi come lo stato — è una lettura del disco.
+    if (r.percorso === '/api/cartelle') {
+      return OK({ cartelle: await deps.cartelle().catch(() => [] as string[]) })
+    }
+
+    // Aprire una chat nuova. La cartella deve essere **una di quelle già
+    // conosciute**: un percorso qualunque arrivato dalla rete aprirebbe una
+    // sessione dove capita, e da un telefono nessuno se ne accorgerebbe.
+    if (r.metodo === 'POST' && r.percorso === '/api/apri') {
+      const cartella = stringa(r.corpo, 'cartella')
+      if (cartella === '') return { stato: 400, corpo: { errore: 'serve la cartella' } }
+      const ammesse = await deps.cartelle().catch(() => [] as string[])
+      if (!ammesse.includes(cartella)) {
+        return { stato: 403, corpo: { errore: 'cartella non conosciuta' } }
+      }
+      const modello = stringa(r.corpo, 'modello')
+      deps.apriChat(cartella, modello === '' ? undefined : modello)
       return OK({ fatto: true })
     }
 

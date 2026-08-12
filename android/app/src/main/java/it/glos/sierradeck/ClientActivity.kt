@@ -121,6 +121,9 @@ class ClientActivity : AppCompatActivity() {
         }
 
         val campo = findViewById<EditText>(R.id.indirizzo)
+        // Già scritto quello di prima: chi torna qui di solito deve correggere
+        // una cifra, non riscrivere tutto da capo su una tastiera del telefono.
+        if (collegamento.indirizzo.isNotBlank()) campo.setText(collegamento.indirizzo)
         findViewById<Button>(R.id.collega).setOnClickListener {
             collegamento.indirizzo = campo.text.toString()
             if (collegamento.pronto) mostraClient() else mostraErrore("Serve un indirizzo, come 192.168.1.7")
@@ -152,7 +155,27 @@ class ClientActivity : AppCompatActivity() {
             // La pagina tiene la chiave nel proprio archivio locale: senza
             // questo, ogni apertura ricomincerebbe dall'accoppiamento.
             settings.domStorageEnabled = true
-            webViewClient = WebViewClient()
+            webViewClient = object : WebViewClient() {
+                /**
+                 * Se il computer non risponde si torna all'ingresso.
+                 *
+                 * L'indirizzo di casa cambia — il router riassegna, si passa
+                 * dal wifi alla VPN — e senza questo l'app resta su una pagina
+                 * bianca per sempre, senza un campo dove correggerlo e senza
+                 * dire cosa è successo. Disinstallare era l'unica via.
+                 */
+                override fun onReceivedError(
+                    vista: WebView?,
+                    richiesta: android.webkit.WebResourceRequest?,
+                    errore: android.webkit.WebResourceError?
+                ) {
+                    // Solo la pagina principale: un'icona che non si carica non
+                    // è una ragione per buttare fuori chi sta leggendo.
+                    if (richiesta?.isForMainFrame != true) return
+                    mostraIngresso()
+                    mostraErrore("Il computer non risponde a ${collegamento.indirizzo}. Controlla l’indirizzo o che SierraDeck sia acceso.")
+                }
+            }
             setBackgroundColor(0xFF0B0C0E.toInt())
             loadUrl(collegamento.indirizzo)
         }

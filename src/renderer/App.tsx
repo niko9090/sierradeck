@@ -150,7 +150,9 @@ export function App(): React.JSX.Element {
           id: p.id,
           titolo: p.title !== undefined && p.title !== '' ? p.title : p.cwd,
           cwd: p.cwd,
-          ...(p.ptyId !== undefined ? { ultimaRiga: righe.current.di(p.ptyId) } : {})
+          ...(p.ptyId !== undefined
+            ? { ultimaRiga: righe.current.di(p.ptyId), coda: righe.current.codaDi(p.ptyId) }
+            : {})
         }))
       )
     }
@@ -161,6 +163,15 @@ export function App(): React.JSX.Element {
     const h = setInterval(manda, 2000)
     return () => clearInterval(h)
   }, [riquadriAperti])
+
+  // Una chat nuova chiesta dal telefono. Solo in una cartella che Claude Code
+  // conosce già — il controllo lo fa il Core, qui si apre e basta.
+  useEffect(() => window.gestore.client.suApertura(({ cartella, modello }) => {
+    // Il nome è l'ultimo pezzo del percorso: dal telefono non si scrive un
+    // titolo, e «Documenti\Progetto» dice più di «chat 4».
+    const nome = cartella.split(/[\\/]/).filter((p) => p !== '').pop() ?? cartella
+    useLayoutStore.getState().addPane(cartella, nome, modello)
+  }), [])
 
   // Quello che scrivi dal telefono arriva alla chat come se lo avessi digitato.
   useEffect(() => window.gestore.client.suScrittura(({ chat, testo }) => {
