@@ -86,6 +86,16 @@ class ClientActivity : AppCompatActivity() {
             }
         })
 
+        // La versione, in fondo e in piccolo: è la prima cosa che serve sapere
+        // quando qualcosa non funziona, e senza si tira a indovinare quale
+        // copia sia installata.
+        colonna.addView(TextView(this).apply {
+            text = "versione ${BuildConfig.VERSION_NAME}"
+            textSize = 12f
+            setTextColor(TESTO_QUIETO)
+            setPadding(0, 32, 0, 0)
+        })
+
         setContentView(colonna)
     }
 

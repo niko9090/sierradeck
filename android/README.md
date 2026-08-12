@@ -71,8 +71,14 @@ L'APK non firmato esce in `app/build/outputs/apk/release/`. Per firmarlo:
 
 ```bash
 SDK="$LOCALAPPDATA/Android/Sdk/build-tools/35.0.0"
-"$SDK/zipalign.exe" -p -f 4 app-release-unsigned.apk SierraDeck.apk
-"$SDK/apksigner.bat" sign --ks <la-tua-chiave.jks> SierraDeck.apk
+"$SDK/zipalign.exe" -p -f 4 app-release-unsigned.apk SierraDeck-<versione>.apk
+"$SDK/apksigner.bat" sign --ks <la-tua-chiave.jks> SierraDeck-<versione>.apk
+```
+
+Il nome porta la versione: un file che si chiama solo `SierraDeck.apk` non dice
+quale copia sia, e sul telefono se ne accumulano tre uguali.
+
+```bash
 ```
 
 **La chiave di firma non sta in questo repository**, e non deve starci: una
