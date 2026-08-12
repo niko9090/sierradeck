@@ -691,6 +691,8 @@ export function registerAutopilotaIpc(client: ClientAutopilota): void {
   })
   ipcMain.handle('autopilota:ferma', (_e, id: unknown) => client.ferma(validaIdAutopilota(id)))
   ipcMain.handle('autopilota:riprendi', (_e, id: unknown) => client.riprendi(validaIdAutopilota(id)))
+  ipcMain.handle('autopilota:riprendiAlRiavvio', (_e, id: unknown, riprendi: unknown) =>
+    client.riprendiAlRiavvio(validaIdAutopilota(id), riprendi === true))
   ipcMain.handle('autopilota:elimina', (_e, id: unknown) => client.elimina(validaIdAutopilota(id)))
   ipcMain.handle('autopilota:domande', () => client.domande())
 

@@ -14,12 +14,30 @@ import { ModaleConferma } from './ModaleConferma'
  * configurato in Claude Code, e imporne un altro di nostra iniziativa
  * sarebbe decidere al posto suo.
  */
+/**
+ * I modelli, con il nome per intero.
+ *
+ * Prima c'erano solo le famiglie — «Opus», «Sonnet» — e sceglierne una voleva
+ * dire lasciare a Claude Code la scelta della versione. Va bene finché non
+ * vuoi *proprio quella*: il nome intero è l'unico modo per dire «Opus 4.8» e
+ * ottenere Opus 4.8.
+ *
+ * Gli alias di famiglia restano in cima, perché seguono da soli quando esce
+ * qualcosa di nuovo: chi non vuole pensarci li usa e non ci pensa più.
+ */
 const MODELLI: { valore: string; etichetta: string }[] = [
-  { valore: 'default', etichetta: 'Modello predefinito' },
-  { valore: 'opus', etichetta: 'Opus — il più capace' },
-  { valore: 'sonnet', etichetta: 'Sonnet — equilibrato' },
-  { valore: 'haiku', etichetta: 'Haiku — il più rapido' },
-  { valore: 'opusplan', etichetta: 'Opus per pianificare, Sonnet per fare' }
+  { valore: 'default', etichetta: 'Predefinito (quello del tuo account)' },
+  { valore: 'opus', etichetta: 'Opus — sempre l’ultimo' },
+  { valore: 'sonnet', etichetta: 'Sonnet — sempre l’ultimo' },
+  { valore: 'haiku', etichetta: 'Haiku — sempre l’ultimo' },
+  { valore: 'opusplan', etichetta: 'Opus per pianificare, Sonnet per fare' },
+  { valore: 'claude-fable-5', etichetta: 'Fable 5' },
+  { valore: 'claude-opus-5', etichetta: 'Opus 5' },
+  { valore: 'claude-opus-5[1m]', etichetta: 'Opus 5 — contesto da 1M' },
+  { valore: 'claude-sonnet-5', etichetta: 'Sonnet 5' },
+  { valore: 'claude-opus-4-8', etichetta: 'Opus 4.8' },
+  { valore: 'claude-sonnet-4-5', etichetta: 'Sonnet 4.5' },
+  { valore: 'claude-haiku-4-5-20251001', etichetta: 'Haiku 4.5' }
 ]
 
 const PRESET: { nome: PresetName; etichetta: string; titolo: string }[] = [

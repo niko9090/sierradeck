@@ -23,6 +23,16 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.4.5',
+    righe: [
+      'Il menu per spostare una chat si riempie prima di aprirsi: serviva premerlo due volte perché la richiesta partiva al clic e arrivava a menu già aperto.',
+      'Le finestre si chiudono premendo fuori, tutte allo stesso modo — e si allargano tirando il bordo destro.',
+      'I modelli si scelgono per nome intero: Fable 5, Opus 5, Opus 5 con contesto da 1M, Opus 4.8, Sonnet 5 e gli altri. Gli alias di famiglia restano per chi non vuole pensarci.',
+      '«Riparti dopo un riavvio» è diventata una scelta del singolo autopilota, non del programma: uno che lavora tutta la notte riparte da solo, un altro che stava provando qualcosa no.',
+      'Il quaderno si può guardare per la chat che scegli, senza cambiare riquadro.'
+    ]
+  },
+  {
     versione: '0.4.4',
     righe: [
       'Le impostazioni ci sono: colore dell’interfaccia, chiarore del fondo, porte del Client e degli autopiloti, e cosa fare alla chiusura. I cambiamenti si vedono mentre li fai — scegliere un colore dovendo premere «Salva» per vederlo significa sceglierlo alla cieca.',

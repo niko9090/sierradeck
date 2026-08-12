@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { cerca, type Scheda } from '@shared/quaderno'
 
 type Props = {
-  /** La cartella di lavoro di cui si guarda il quaderno. */
+  /** La cartella di lavoro proposta all'apertura: quella del riquadro davanti. */
   cwd: string
+  /** Le chat aperte, per poter guardare il quaderno di un'altra senza chiuderla. */
+  cartelle: { cwd: string; titolo: string }[]
   onChiudi: () => void
 }
 
@@ -15,7 +17,13 @@ type Props = {
  * resta Markdown in `.sierradeck/quaderno` — se domani preferisci un altro
  * editor, le tue schede sono già lì e si aprono lo stesso.
  */
-export function PannelloQuaderno({ cwd, onChiudi }: Props): React.JSX.Element {
+export function PannelloQuaderno({ cwd, cartelle, onChiudi }: Props): React.JSX.Element {
+  // Il quaderno che si guarda puo' essere di un'altra chat: i progetti si
+  // richiamano a vicenda, e dover chiudere il pannello, cambiare riquadro e
+  // riaprirlo per leggere una nota di la' e' il modo piu' lungo di fare una
+  // cosa breve.
+  const [quale, setQuale] = useState(cwd)
+  useEffect(() => setQuale(cwd), [cwd])
   const [schede, setSchede] = useState<Scheda[]>([])
   const [aperta, setAperta] = useState<Scheda | undefined>(undefined)
   const [domanda, setDomanda] = useState('')
@@ -25,11 +33,11 @@ export function PannelloQuaderno({ cwd, onChiudi }: Props): React.JSX.Element {
 
   const ricarica = (): void => {
     window.gestore.quaderno
-      .elenca(cwd)
+      .elenca(quale)
       .then(setSchede)
       .catch((e: unknown) => setErrore(String(e)))
   }
-  useEffect(ricarica, [cwd])
+  useEffect(ricarica, [quale])
 
   const apri = (s: Scheda): void => {
     setAperta(s)
@@ -40,7 +48,7 @@ export function PannelloQuaderno({ cwd, onChiudi }: Props): React.JSX.Element {
   const salva = (): void => {
     if (aperta === undefined) return
     window.gestore.quaderno
-      .scrivi(cwd, { titolo: aperta.titolo, corpo: bozza, tag: aperta.tag, file: aperta.file })
+      .scrivi(quale, { titolo: aperta.titolo, corpo: bozza, tag: aperta.tag, file: aperta.file })
       .then(() => { setSalvata(true); ricarica() })
       .catch((e: unknown) => setErrore(String(e)))
   }
@@ -48,7 +56,7 @@ export function PannelloQuaderno({ cwd, onChiudi }: Props): React.JSX.Element {
   const nuova = (): void => {
     const titolo = `Nota del ${new Date().toLocaleDateString('it-IT')}`
     window.gestore.quaderno
-      .scrivi(cwd, { titolo, corpo: '' })
+      .scrivi(quale, { titolo, corpo: '' })
       .then((s) => { ricarica(); apri(s) })
       .catch((e: unknown) => setErrore(String(e)))
   }
@@ -59,7 +67,20 @@ export function PannelloQuaderno({ cwd, onChiudi }: Props): React.JSX.Element {
     <div className="pannello pannello--quaderno">
       <div className="pannello__testa">
         <strong>Quaderno</strong>
-        <span className="misura" title={cwd}>{cwd}</span>
+        {cartelle.length > 1 ? (
+          <select
+            className="quaderno__cerca"
+            value={quale}
+            onChange={(e) => setQuale(e.target.value)}
+            title="Di quale chat guardare il quaderno"
+          >
+            {cartelle.map((c) => (
+              <option key={c.cwd} value={c.cwd}>{c.titolo}</option>
+            ))}
+          </select>
+        ) : (
+          <span className="misura" title={quale}>{quale}</span>
+        )}
         <input
           className="quaderno__cerca"
           value={domanda}
@@ -69,7 +90,7 @@ export function PannelloQuaderno({ cwd, onChiudi }: Props): React.JSX.Element {
         />
         <span className="sezione--vuota" style={{ flex: 1 }} />
         <button className="tasto" onClick={nuova}>+ Scheda</button>
-        <button className="tasto" onClick={() => void window.gestore.quaderno.apri(cwd)}>
+        <button className="tasto" onClick={() => void window.gestore.quaderno.apri(quale)}>
           Apri cartella
         </button>
         <button className="tasto" onClick={onChiudi}>Chiudi</button>

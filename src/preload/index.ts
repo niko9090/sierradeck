@@ -199,6 +199,9 @@ contextBridge.exposeInMainWorld('gestore', {
     crea: (p: NuovoAutopilota): Promise<Autopilota> => ipcRenderer.invoke('autopilota:crea', p),
     ferma: (id: string): Promise<void> => ipcRenderer.invoke('autopilota:ferma', id),
     riprendi: (id: string): Promise<void> => ipcRenderer.invoke('autopilota:riprendi', id),
+    /** Se questo autopilota debba ripartire da solo dopo un riavvio del PC. */
+    riprendiAlRiavvio: (id: string, riprendi: boolean): Promise<void> =>
+      ipcRenderer.invoke('autopilota:riprendiAlRiavvio', id, riprendi),
     elimina: (id: string): Promise<void> => ipcRenderer.invoke('autopilota:elimina', id),
     domande: (): Promise<DomandaAperta[]> => ipcRenderer.invoke('autopilota:domande'),
     rispondi: (idDomanda: string, risposta: string): Promise<void> =>

@@ -664,6 +664,24 @@ export function creaServer(deps: Dipendenze): Server {
           return
         }
 
+        // La scelta «riprendi al riavvio», per questo autopilota soltanto.
+        const alRiavvio = /^\/autopiloti\/([^/]+)\/riavvio$/.exec(percorso)
+        if (metodo === 'POST' && alRiavvio !== null) {
+          const id = decodeURIComponent(alRiavvio[1]!)
+          const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
+          if (a === undefined) {
+            rispondi(res, 404, { errore: 'autopilota inesistente' })
+            return
+          }
+          const corpo = await leggiCorpo(req)
+          const voluto = typeof corpo === 'object' && corpo !== null
+            ? (corpo as Record<string, unknown>).riprendi === true
+            : false
+          salva({ ...a, riprendiAlRiavvio: voluto })
+          rispondi(res, 200, deps.archivio.leggi(id))
+          return
+        }
+
         const comando = /^\/autopiloti\/([^/]+)\/(ferma|riprendi)$/.exec(percorso)
         if (metodo === 'POST' && comando !== null) {
           const id = decodeURIComponent(comando[1]!)

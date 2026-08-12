@@ -13,6 +13,10 @@
 
 /** Di quanto si può spingere una finestra oltre il bordo prima che si fermi. */
 const MARGINE = 24
+/** La striscia sul bordo destro che allarga invece di spostare. */
+const MANIGLIA = 10
+/** Sotto questa larghezza una finestra smette di poter mostrare qualcosa. */
+const LARGHEZZA_MIN = 320
 
 export type Punto = { x: number; y: number }
 
@@ -41,12 +45,54 @@ export function posizioneLimitata(
  * Restituisce la funzione che stacca tutto: senza, un secondo montaggio
  * lascerebbe due ascoltatori a spostare la stessa finestra del doppio.
  */
+/**
+ * Chiude la finestra quando si preme fuori.
+ *
+ * È il gesto che tutti conoscono, e finora funzionava solo per alcuni pannelli:
+ * chi lo prova sull'uno e non sull'altro non impara la regola, impara che il
+ * programma è imprevedibile.
+ *
+ * Un clic dentro la finestra, o su un tasto della fascia, non chiude niente: il
+ * tasto della fascia è quello che l'ha aperta, e chiuderla da qui la farebbe
+ * riaprire subito dopo.
+ */
+export function attivaChiusuraFuori(chiudi: () => void, doc: Document = document): () => void {
+  const premuto = (e: MouseEvent): void => {
+    const bersaglio = e.target as HTMLElement | null
+    if (bersaglio === null) return
+    if (bersaglio.closest('.pannello') !== null) return
+    if (bersaglio.closest('.fascia') !== null) return
+    chiudi()
+  }
+  doc.addEventListener('mousedown', premuto)
+  return () => doc.removeEventListener('mousedown', premuto)
+}
+
 export function attivaTrascinamento(doc: Document = document): () => void {
   let mobile: HTMLElement | undefined
   let scarto: Punto = { x: 0, y: 0 }
+  let allargando: HTMLElement | undefined
+  let larghezzaIniziale = 0
+  let xIniziale = 0
 
   const premuto = (e: MouseEvent): void => {
     const bersaglio = e.target as HTMLElement | null
+
+    // Il bordo destro allarga invece di spostare: chi ha molte chat o un
+    // diario lungo vuole più spazio, e trascinare la finestra non gliene dà.
+    const daAllargare = bersaglio?.closest('.pannello') as HTMLElement | null
+    if (daAllargare !== null && daAllargare !== undefined) {
+      const bordi = daAllargare.getBoundingClientRect()
+      if (e.clientX > bordi.right - MANIGLIA) {
+        allargando = daAllargare
+        larghezzaIniziale = bordi.width
+        xIniziale = e.clientX
+        daAllargare.classList.add('pannello--in-mano')
+        e.preventDefault()
+        return
+      }
+    }
+
     const testa = bersaglio?.closest('.pannello__testa')
     if (testa === null || testa === undefined) return
     // Un tasto dentro la testa resta un tasto: chi preme «Chiudi» vuole
@@ -68,6 +114,11 @@ export function attivaTrascinamento(doc: Document = document): () => void {
   }
 
   const mosso = (e: MouseEvent): void => {
+    if (allargando !== undefined) {
+      const larghezza = larghezzaIniziale + (e.clientX - xIniziale)
+      allargando.style.width = `${Math.min(Math.max(larghezza, LARGHEZZA_MIN), doc.documentElement.clientWidth - 32)}px`
+      return
+    }
     if (mobile === undefined) return
     const bordi = mobile.getBoundingClientRect()
     const dove = posizioneLimitata(
@@ -83,7 +134,9 @@ export function attivaTrascinamento(doc: Document = document): () => void {
 
   const lasciato = (): void => {
     mobile?.classList.remove('pannello--in-mano')
+    allargando?.classList.remove('pannello--in-mano')
     mobile = undefined
+    allargando = undefined
   }
 
   doc.addEventListener('mousedown', premuto)

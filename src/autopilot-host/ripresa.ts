@@ -17,9 +17,15 @@ import type { Autopilota } from '@shared/autopilota'
  * - chi ha esaurito un tetto di cicli che si era dato: farlo ripartire
  *   aggirerebbe una protezione voluta. Senza tetto — il caso normale — non c'è
  *   niente da aggirare e si riprende.
+ * - chi è stato messo da parte con `riprendiAlRiavvio: false`: è una scelta
+ *   per singolo autopilota, perché uno che lavora tutta la notte deve
+ *   ripartire da solo e un altro che stava provando qualcosa no.
  */
 export function daRiprendere(tutti: Autopilota[]): Autopilota[] {
   return tutti.filter(
-    (a) => a.stato === 'lavoro' && (a.limiti.cicliMax === 0 || a.cicli < a.limiti.cicliMax)
+    (a) =>
+      a.stato === 'lavoro' &&
+      a.riprendiAlRiavvio !== false &&
+      (a.limiti.cicliMax === 0 || a.cicli < a.limiti.cicliMax)
   )
 }

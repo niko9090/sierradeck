@@ -56,3 +56,17 @@ describe('daRiprendere', () => {
     expect(daRiprendere(molti).map((a) => a.id)).toEqual(['a', 'c'])
   })
 })
+
+describe('la scelta per singolo autopilota', () => {
+  it('non riprende chi e stato messo da parte', () => {
+    // Uno che lavora tutta la notte deve ripartire da solo; un altro che stava
+    // provando qualcosa no. E' una scelta per autopilota, non per programma.
+    const fermo = ap({ stato: 'lavoro', riprendiAlRiavvio: false })
+    expect(daRiprendere([fermo])).toEqual([])
+  })
+
+  it('senza indicazione riprende, come ha sempre fatto', () => {
+    expect(daRiprendere([ap({ stato: 'lavoro' })])).toHaveLength(1)
+    expect(daRiprendere([ap({ stato: 'lavoro', riprendiAlRiavvio: true })])).toHaveLength(1)
+  })
+})

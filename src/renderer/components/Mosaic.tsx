@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { LayoutNode } from '@shared/layout-tree'
 import { computeGeometry } from '@shared/layout-geometry'
 import type { DividerBox } from '@shared/layout-geometry'
@@ -48,6 +48,10 @@ function ComandoSposta({ paneId }: { paneId: string }): React.JSX.Element {
       .catch(() => setWorkspace(undefined))
   }
 
+  // All'apparizione del riquadro, non al primo clic: il menu deve essere gia'
+  // pieno quando si apre.
+  useEffect(carica, [])
+
   /**
    * Manda la chat in un workspace che non è aperto.
    *
@@ -87,8 +91,11 @@ function ComandoSposta({ paneId }: { paneId: string }): React.JSX.Element {
   return (
     <select
       value=""
-      onFocus={() => { if (finestre === undefined) carica() }}
-      onMouseDown={() => { if (finestre === undefined) carica() }}
+      // Il ricarico al clic tiene fresco l'elenco; a riempirlo la prima volta
+      // ci pensa l'effetto qui sopra, perche' una richiesta che parte **al**
+      // clic arriva quando il menu e' gia' aperto e vuoto: era il difetto per
+      // cui serviva premere due volte.
+      onMouseDown={() => carica()}
       onChange={(e) => {
         const scelto = e.target.value
         if (scelto === '') return
@@ -305,7 +312,8 @@ export function Mosaic({
                   onChange={(e) => {
                     const scelto = e.target.value
                     if (scelto === '' || data.ptyId === undefined) return
-                    window.gestore.pty.write(data.ptyId, `/model ${scelto}`)
+                    window.gestore.pty.write(data.ptyId, `/model ${scelto}
+`)
                     e.target.value = ''
                   }}
                   title="Cambia il modello di questa chat"

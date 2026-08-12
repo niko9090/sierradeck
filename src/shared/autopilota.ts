@@ -100,6 +100,15 @@ export type Autopilota = {
   sessioneSupervisore?: string
   motivoSospensione?: string
   limiti: Limiti
+  /**
+   * Se riprendere **questo** autopilota quando il servizio torna su.
+   *
+   * Per autopilota e non per programma: uno che lavora tutta la notte deve
+   * ripartire da solo dopo un riavvio, un altro che stava provando qualcosa
+   * no. Assente vale «sì», che era il comportamento di prima e resta quello
+   * che ci si aspetta.
+   */
+  riprendiAlRiavvio?: boolean
   /** Quante chat può tenere aperte insieme. Uno è il caso normale. */
   tettoChat: number
   chats: ChatGovernata[]
@@ -342,6 +351,7 @@ export function parseAutopilota(raw: unknown): {
       ultimoEvento,
       decisioni,
       ...(stringaNonVuota(o.strategia) !== undefined ? { strategia: o.strategia as string } : {}),
+      ...(typeof o.riprendiAlRiavvio === 'boolean' ? { riprendiAlRiavvio: o.riprendiAlRiavvio } : {}),
       ...(stringaNonVuota(o.sessioneSupervisore) !== undefined
         ? { sessioneSupervisore: o.sessioneSupervisore as string }
         : {}),

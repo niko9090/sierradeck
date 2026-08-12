@@ -8,7 +8,7 @@ import { ledDi } from './autopilota-vista'
 import { giaSalvatoCome } from '@shared/doppioni'
 import type { Istantanea } from '@shared/istantanea'
 import { chiChiede, workspaceCheChiamano } from '@shared/dove-chiedono'
-import { attivaTrascinamento } from './trascina-finestre'
+import { attivaChiusuraFuori, attivaTrascinamento } from './trascina-finestre'
 import type { Autopilota } from '@shared/autopilota'
 import type { StatoWorkspace } from '../main/ipc'
 import { Mosaic } from './components/Mosaic'
@@ -126,6 +126,9 @@ export function App(): React.JSX.Element {
   // solo: ogni pannello, anche quelli che verranno, diventa mobile senza che
   // nessuno debba ricordarsene.
   useEffect(() => attivaTrascinamento(), [])
+  // Premere fuori chiude, per tutte allo stesso modo: chi lo prova su una e non
+  // sull'altra non impara la regola, impara che il programma e' imprevedibile.
+  useEffect(() => attivaChiusuraFuori(() => setAperto(undefined)), [])
 
   const [modale, setModale] = useState<'sessioni' | 'istantanee' | 'ripresa' | 'accesso' | 'preparazione' | undefined>(undefined)
   const [preparazione, setPreparazione] = useState<StatoPreparazione | undefined>(undefined)
@@ -548,6 +551,9 @@ export function App(): React.JSX.Element {
           // progetto, e il progetto e' quello in cui stai lavorando adesso.
           <PannelloQuaderno
             cwd={cartellaDavanti()}
+            cartelle={[...new Map(
+              Object.values(riquadriAperti).map((p) => [p.cwd, { cwd: p.cwd, titolo: p.title || p.cwd }])
+            ).values()]}
             onChiudi={() => setAperto(undefined)}
           />
         ) : null}
