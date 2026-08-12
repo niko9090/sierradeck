@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.4.3',
+    righe: [
+      'La finestra dell’aggiornamento adesso compare davvero, e resta finché serve. Non nasceva per una sola parola nel codice — `detached` —, che su Windows crea il processo senza console e fa morire PowerShell all’istante, in silenzio.',
+      'E non si dà più per scontato che sia comparsa: la finestra scrive di esserci, e l’installazione parte solo dopo. Se qualcosa va storto, resta un piccolo diario da leggere invece di un’ipotesi da fare.'
+    ]
+  },
+  {
     versione: '0.4.2',
     righe: [
       'Ogni cartella di lavoro ha il suo quaderno: schede in Markdown dentro `.sierradeck/quaderno`, una per argomento, con la più recente in cima. Si leggono e si correggono dal pannello «Quaderno», o con qualunque altro editor — restano tue anche senza SierraDeck.',

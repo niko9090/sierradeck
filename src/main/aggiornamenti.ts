@@ -137,7 +137,10 @@ export function creaAggiornamenti(
       // La finestra vive in un processo suo: fra un attimo questo non c'e'
       // piu', e una finestra aperta qui morirebbe con lui — che e' esattamente
       // il difetto per cui l'utente restava a guardare uno schermo vuoto.
-      avviaFinestraAggiornamento({
+      // Si aspetta che la finestra ci sia **davvero** prima di toccare
+      // qualunque cosa: chiudere il programma mentre sta ancora nascendo
+      // significa non farla nascere, ed e' esattamente quello che succedeva.
+      const apertura = avviaFinestraAggiornamento({
         esePath: app.getPath('exe'),
         versione: stato.versione ?? '',
         pidVecchio: process.pid
@@ -156,18 +159,18 @@ export function creaAggiornamenti(
       // I due secondi valgono comunque: la finestra nasce attraverso un
       // lanciatore e un servizio di sistema, e un avvio di PowerShell non e'
       // istantaneo.
-      const parti = (): void => {
-        setTimeout(() => autoUpdater.quitAndInstall(true, true), 3500)
-      }
-      if (preparaUscita === undefined) {
-        parti()
-        return
-      }
-      void preparaUscita()
-        .catch((err: unknown) => {
-          console.error('[aggiornamenti] chiusura incompleta prima dell installazione:', err)
+      void apertura
+        .then((viva) => {
+          console.log(`[aggiornamenti] finestra ${viva ? 'viva' : 'NON comparsa'}: installo la ${stato.versione ?? '?'}`)
+          return preparaUscita?.()
         })
-        .finally(parti)
+        .catch((err: unknown) => {
+          console.error('[aggiornamenti] preparazione incompleta prima dell installazione:', err)
+        })
+        // Mezzo secondo dopo l'ultima cosa, non tre e mezzo: adesso l'attesa
+        // vera è quella della finestra, e questa serve solo a lasciar posare
+        // le scritture su disco.
+        .finally(() => setTimeout(() => autoUpdater.quitAndInstall(true, true), 500))
     }
   }
 }

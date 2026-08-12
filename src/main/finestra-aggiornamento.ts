@@ -1,5 +1,5 @@
 import { spawn as spawnVero, type SpawnOptions, type ChildProcess } from 'node:child_process'
-import { existsSync, writeFileSync } from 'node:fs'
+import { existsSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -17,11 +17,17 @@ import { tmpdir } from 'node:os'
  * l'eseguibile viene sostituito mentre lei è viva, e un processo che lo tenesse
  * aperto bloccherebbe l'installazione che sta guardando.
  *
- * E non basta `detached`: su Windows un figlio eredita il *job* del padre, e
- * quando il job si chiude muore con lui — provato sul campo, la finestra
- * spariva insieme a SierraDeck nonostante il distacco. La strada che regge è
- * farla creare a qualcun altro: un lanciatore usa WMI, il processo nasce figlio
- * del servizio di sistema, e di noi non gli resta niente da ereditare.
+ * Due cose imparate sbattendoci la testa, e scritte qui perché non si ripetano:
+ *
+ * - **`detached` non si usa.** Sembra la cosa da chiedere per un processo che
+ *   deve sopravviverci, ma su Windows crea il processo senza console e
+ *   PowerShell muore subito, in silenzio. È il motivo per cui la finestra non
+ *   compariva.
+ * - **Non si dà per scontato che sia nata.** Fra il momento in cui la si chiede
+ *   e quello in cui esiste passano un avvio di PowerShell e il caricamento di
+ *   WinForms: chi chiama chiude il programma un istante dopo, e senza aspettare
+ *   la si spegne mentre sta nascendo. Ora la finestra scrive di esserci, e
+ *   l'installazione parte solo dopo.
  *
  * E la percentuale non è più una finta sul tempo: segue le tre cose che
  * succedono davvero, una dopo l'altra, e la finestra si chiude quando la nuova
@@ -34,6 +40,10 @@ export const TIMEOUT_S = 600
 const NOME_SCRIPT = 'sierradeck-aggiornamento.ps1'
 const NOME_DATI = 'sierradeck-aggiornamento.json'
 const NOME_LANCIO = 'sierradeck-lancio.ps1'
+const NOME_DIARIO = 'sierradeck-finestra.log'
+/** Quanto si aspetta, e a che passo, che la finestra si faccia viva. */
+const PASSO_MS = 250
+const TENTATIVI = 20
 
 export type Avvio = (
   comando: string,
@@ -70,6 +80,13 @@ $PidVecchio = [int]$dati.pidVecchio
 $TimeoutS = ${TIMEOUT_S}
 
 $ErrorActionPreference = 'SilentlyContinue'
+$diario = Join-Path $PSScriptRoot 'sierradeck-finestra.log'
+function Nota($testo) {
+  # Un giorno «non si vede la finestra» dovra' essere distinguibile da «non e'
+  # partita»: senza una traccia sono la stessa frase, e si tira a indovinare.
+  Add-Content -LiteralPath $diario -Value ((Get-Date -Format 'HH:mm:ss') + ' ' + $testo) -ErrorAction SilentlyContinue
+}
+Nota 'finestra avviata'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
@@ -152,34 +169,41 @@ $form.Controls.Add($percento)
 # Lo stato vive in una tabella condivisa: dentro il tick del timer le variabili
 # semplici sarebbero copie, e la percentuale non si muoverebbe mai.
 $s = @{ v = 0; fase = 1; giri = 0; finita = $false; nuovoPid = 0 }
+# Sotto questi giri non si chiude, qualunque cosa succeda: se l'installazione
+# vola - e a volte vola - la finestra farebbe in tempo solo a lampeggiare
+# mentre lo schermo e' occupato dall'installer, cioe' non sarebbe apparsa.
+$giriMinimi = 40
 
 $aggiorna = {
   $s.giri++
   # Un tetto per fase: la barra sale mentre si aspetta, ma non entra mai nel
   # territorio della fase successiva finche' quella non e' cominciata davvero.
   $tetto = switch ($s.fase) { 1 { 30 } 2 { 80 } 3 { 99 } default { 100 } }
-  if ($s.v -lt $tetto) { $s.v = [Math]::Min($tetto, $s.v + 1) }
+  # Un passo per volta, mai un salto: una barra che va da 0 a 100 in un
+  # fotogramma non dice niente a chi guarda, e sembra un difetto.
+  if ($s.v -lt $tetto) { $s.v = [Math]::Min($tetto, $s.v + 2) }
 
   switch ($s.fase) {
     1 {
       $fase.Text = 'Chiusura di SierraDeck...'
       $vecchio = Get-Process -Id $PidVecchio -ErrorAction SilentlyContinue
-      if ($null -eq $vecchio) { $s.fase = 2; $s.v = [Math]::Max($s.v, 30) }
+      if ($null -eq $vecchio) { $s.fase = 2 }
     }
     2 {
       $fase.Text = 'Installazione della versione ' + $Versione + '...'
       $installata = (Get-Item -LiteralPath $Exe -ErrorAction SilentlyContinue).VersionInfo.ProductVersion
-      if ($installata -and $installata.StartsWith($Versione)) { $s.fase = 3; $s.v = [Math]::Max($s.v, 80) }
+      if ($installata -and $installata.StartsWith($Versione)) { $s.fase = 3 }
     }
     3 {
       $fase.Text = 'Avvio della nuova versione...'
       $vivo = Get-Process -Name ([System.IO.Path]::GetFileNameWithoutExtension($Exe)) -ErrorAction SilentlyContinue |
         Where-Object { $_.Id -ne $PidVecchio }
-      if ($vivo) { $s.fase = 4; $s.v = 100 }
+      if ($vivo) { $s.fase = 4 }
     }
     4 {
+      if ($s.fase4 -ne $true) { $s.fase4 = $true; Nota 'la nuova versione e partita' }
       $fase.Text = 'Pronto.'
-      $s.finita = $true
+      if ($s.giri -ge $giriMinimi) { $s.finita = $true }
     }
   }
 
@@ -207,7 +231,9 @@ $timer.Interval = 200
 $timer.Add_Tick($aggiorna)
 $timer.Start()
 
+Nota 'mostro la finestra'
 [void]$form.ShowDialog()
+Nota 'finestra chiusa'
 `
 }
 
@@ -278,33 +304,85 @@ export function percorsoPowerShell(ambiente: NodeJS.ProcessEnv = process.env): s
   return join(radice, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
 }
 
-export function avviaFinestraAggiornamento(
+/** Dove la finestra scrive di essere viva: è così che si sa che c'è davvero. */
+export function percorsoDiario(cartellaTemp: string = tmpdir()): string {
+  return join(cartellaTemp, NOME_DIARIO)
+}
+
+/**
+ * Apre la finestra e **aspetta di vederla viva**.
+ *
+ * L'attesa non è prudenza: è la lezione di tre tentativi falliti. La finestra
+ * nasce in un processo suo, e fra il momento in cui la si chiede e quello in cui
+ * esiste passano un avvio di PowerShell e il caricamento di WinForms. Chi
+ * chiama, subito dopo, chiude il programma e lancia l'installer: se non si
+ * aspetta, si finisce per spegnere tutto mentre la finestra sta ancora
+ * nascendo — e non nasce più.
+ *
+ * Due strade, provate in ordine. Prima quella diretta, che è la più semplice e
+ * quella che funziona quando nessuno ci mette lo zampino. Poi, se non si è
+ * fatta viva, il lanciatore che passa dal servizio di sistema — serve dove un
+ * *job* di Windows ucciderebbe i figli insieme al padre.
+ */
+export async function avviaFinestraAggiornamento(
   dati: DatiFinestra,
   avvia: Avvio = spawnVero,
-  cartellaTemp?: string
-): boolean {
+  cartellaTemp?: string,
+  attendi: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms))
+): Promise<boolean> {
   try {
     writeFileSync(percorsoScript(cartellaTemp), scriptFinestraAggiornamento(), 'utf8')
     writeFileSync(percorsoDati(cartellaTemp), JSON.stringify(dati), 'utf8')
     writeFileSync(percorsoLancio(cartellaTemp), scriptLancio(), 'utf8')
+    // Il diario di un aggiornamento precedente direbbe che questa finestra è
+    // viva quando non è ancora nata.
+    try { rmSync(percorsoDiario(cartellaTemp), { force: true }) } catch { /* non c'era */ }
+
     const powershell = existsSync(percorsoPowerShell()) ? percorsoPowerShell() : 'powershell.exe'
-    const figlio = avvia(powershell, argomentiFinestra(percorsoLancio(cartellaTemp)), {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true
-    })
-    // `spawn` non solleva quando il comando non esiste: lo dice più tardi, su
-    // un evento. Senza questo ascolto il fallimento resta muto, e dal di fuori
-    // sembra soltanto una finestra che non compare.
-    figlio.on?.('error', (err: unknown) => {
-      console.error('[aggiornamenti] la finestra non e partita:', err)
-    })
-    figlio.unref()
-    return true
+    const parti = (script: string): void => {
+      const figlio = avvia(powershell, argomentiFinestra(script), {
+        // **Niente `detached`**, per quanto sembri la cosa giusta da chiedere
+        // per un processo che deve sopravviverci: su Windows quel flag crea il
+        // processo *senza console*, e PowerShell muore all'istante senza dire
+        // niente. È la ragione per cui la finestra non compariva — misurato:
+        // senza il flag nasce in 750 ms, con il flag non nasce mai.
+        //
+        // A sopravvivere ci pensa Windows, che non uccide i figli quando il
+        // padre esce; dove un *job* lo farebbe, c'è il lanciatore qui sotto.
+        stdio: 'ignore',
+        windowsHide: true
+      })
+      // `spawn` non solleva quando il comando non esiste: lo dice più tardi, su
+      // un evento. Senza questo ascolto il fallimento resta muto, e dal di
+      // fuori sembra soltanto una finestra che non compare.
+      figlio.on?.('error', (err: unknown) => {
+        console.error('[aggiornamenti] avvio della finestra fallito:', err)
+      })
+      figlio.unref()
+    }
+
+    parti(percorsoScript(cartellaTemp))
+    if (await viva(cartellaTemp, attendi)) return true
+
+    console.warn('[aggiornamenti] la finestra non si e fatta viva: provo dal servizio di sistema')
+    parti(percorsoLancio(cartellaTemp))
+    return await viva(cartellaTemp, attendi)
   } catch (err) {
     // Restare senza finestra è brutto; non aggiornarsi perché la finestra non
     // si è aperta sarebbe assurdo. Si va avanti lo stesso.
     console.error('[aggiornamenti] finestra di installazione non avviata:', err)
     return false
   }
+}
+
+/** Attende che la finestra scriva di esserci. Oltre l'attesa, non c'è. */
+async function viva(
+  cartellaTemp: string | undefined,
+  attendi: (ms: number) => Promise<void>
+): Promise<boolean> {
+  for (let i = 0; i < TENTATIVI; i += 1) {
+    await attendi(PASSO_MS)
+    if (existsSync(percorsoDiario(cartellaTemp))) return true
+  }
+  return false
 }
