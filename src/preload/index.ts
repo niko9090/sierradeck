@@ -179,6 +179,8 @@ contextBridge.exposeInMainWorld('gestore', {
   },
   workspace: {
     stato: (): Promise<StatoWorkspace> => ipcRenderer.invoke('workspace:stato'),
+    /** In quale workspace vive ogni chat: serve a dire da dove ti chiamano. */
+    dove: (): Promise<Record<string, string>> => ipcRenderer.invoke('workspace:dove'),
     crea: (nome: string): Promise<StatoWorkspace> => ipcRenderer.invoke('workspace:crea', nome),
     elimina: (nome: string): Promise<StatoWorkspace> =>
       ipcRenderer.invoke('workspace:elimina', nome),

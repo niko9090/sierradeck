@@ -1349,3 +1349,26 @@ select.comando-riquadro option {
   font-size: 10px;
   color: #6f767e;
 }
+
+/* Un workspace da cui qualcuno chiama: il punto pulsa piano, quanto basta a
+   prendere la coda dell'occhio senza diventare un lampeggio da sala giochi. */
+.ws__voce--chiama {
+  border-color: var(--ambra, #d8a13a);
+  color: var(--ambra, #d8a13a);
+}
+
+.ws__chiama {
+  margin-left: 6px;
+  font-size: 9px;
+  vertical-align: middle;
+  animation: respiro 1.8s ease-in-out infinite;
+}
+
+@keyframes respiro {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws__chiama { animation: none; }
+}

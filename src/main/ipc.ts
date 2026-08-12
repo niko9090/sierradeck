@@ -6,6 +6,7 @@ import { homedir } from 'node:os'
 import { PtyHostClient } from './pty-host-client'
 import type { HostToCore } from '@shared/protocol'
 import { openDatabase, listSessions, rimuoviSessioni, type Db } from './db'
+import { workspaceDelleSessioni } from '@shared/dove-chiedono'
 import { leggiAnteprima, type Anteprima } from './anteprima'
 import { indexAll } from './indexer/indexer'
 import { pathToSlug } from './indexer/project-scanner'
@@ -526,6 +527,12 @@ export function registerLayoutIpc(store: WorkspaceStore): void {
   })
 
   ipcMain.handle('workspace:stato', (): StatoWorkspace => statoDi(store.leggi()))
+
+  // Dove vive ogni chat: serve a dire *da quale workspace* ti stanno
+  // chiamando. Senza, un autopilota che aspetta una risposta in un workspace
+  // che non hai davanti resta invisibile.
+  ipcMain.handle('workspace:dove', (): Record<string, string> =>
+    workspaceDelleSessioni(store.leggi()))
 
   // Creare rende attivo il nuovo workspace, quindi le altre finestre devono
   // seguirlo come per un cambio: senza, continuerebbero a salvare il proprio

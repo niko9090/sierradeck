@@ -97,6 +97,7 @@ declare global {
       }
       workspace: {
         stato: () => Promise<StatoWorkspace>
+        dove: () => Promise<Record<string, string>>
         crea: (nome: string) => Promise<StatoWorkspace>
         elimina: (nome: string) => Promise<StatoWorkspace>
         cambia: (nome: string, layout: LayoutSalvato) => Promise<LayoutSalvato>

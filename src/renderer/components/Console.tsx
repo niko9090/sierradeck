@@ -41,6 +41,8 @@ type Props = {
   workspaceAttivo: string
   /** Dove si trova la finestra dopo un cambio chiesto da qui: l'annuncio non torna al mittente. */
   onStatoWorkspace?: (stato: { nomi: string[]; attivo: string }) => void
+  /** I workspace da cui qualcuno sta chiedendo una risposta. */
+  workspaceCheChiamano?: Set<string>
   /** Tutti i workspace: stanno nella fascia, non dietro un menu. */
   workspaceNomi: string[]
   /** I LED degli autopiloti: uno per autopilota, nell'ordine dell'elenco. */
@@ -64,7 +66,8 @@ export function Console({
   workspaceAttivo,
   workspaceNomi,
   ledAutopiloti,
-  onStatoWorkspace
+  onStatoWorkspace,
+  workspaceCheChiamano
 }: Props): React.JSX.Element {
   const applyPreset = useLayoutStore((s) => s.applyPreset)
   const addPane = useLayoutStore((s) => s.addPane)
@@ -228,11 +231,22 @@ export function Console({
           {(workspaceNomi.length > 0 ? workspaceNomi : [workspaceAttivo]).filter((x) => x !== '').map((n) => (
             <button
               key={n}
-              className={n === workspaceAttivo ? 'ws__voce ws__voce--attivo' : 'ws__voce'}
+              className={[
+                'ws__voce',
+                n === workspaceAttivo ? 'ws__voce--attivo' : '',
+                // Un autopilota che aspetta una risposta di la' e' invisibile:
+                // il pallino c'e', ma sta in un workspace che non hai davanti.
+                workspaceCheChiamano?.has(n) === true ? 'ws__voce--chiama' : ''
+              ].filter((c) => c !== '').join(' ')}
               onClick={() => cambiaWorkspace(n)}
-              title={n === workspaceAttivo ? `Sei in «${n}»` : `Passa a «${n}»`}
+              title={
+                workspaceCheChiamano?.has(n) === true
+                  ? `In «${n}» qualcuno aspetta una tua risposta`
+                  : n === workspaceAttivo ? `Sei in «${n}»` : `Passa a «${n}»`
+              }
             >
               {n}
+              {workspaceCheChiamano?.has(n) === true ? <span className="ws__chiama" aria-label="richiede il tuo intervento">●</span> : null}
             </button>
           ))}
           {erroreWs !== undefined ? (

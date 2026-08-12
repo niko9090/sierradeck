@@ -5,6 +5,7 @@ import { creaPersistenza } from './persistenza-layout'
 import { azioniDiFinestra } from './azioni-finestra'
 import type { AzioniWorkspace } from './workspace-azioni'
 import { ledDi } from './autopilota-vista'
+import { chiChiede, workspaceCheChiamano } from '@shared/dove-chiedono'
 import { attivaTrascinamento } from './trascina-finestre'
 import type { Autopilota } from '@shared/autopilota'
 import type { StatoWorkspace } from '../main/ipc'
@@ -145,6 +146,22 @@ export function App(): React.JSX.Element {
       // fra «non ci sono autopiloti» e «il servizio non risponde».
       .catch((e: unknown) => { setAutopiloti([]); setErroreAutopiloti(String(e)) })
   }, [])
+
+  // Da dove ti stanno chiamando. La mappa si rilegge insieme agli autopiloti:
+  // una chat spostata di workspace cambia l'indirizzo dell'avviso, e un avviso
+  // che indica il posto sbagliato e' peggio di nessun avviso.
+  const [doveSta, setDoveSta] = useState<Record<string, string>>({})
+  useEffect(() => {
+    const leggi = (): void => {
+      window.gestore.workspace.dove().then(setDoveSta).catch(() => undefined)
+    }
+    leggi()
+    const h = setInterval(leggi, RICARICA_AUTOPILOTI_MS)
+    return () => clearInterval(h)
+  }, [])
+
+  const chiamate = chiChiede(autopiloti, doveSta)
+  const workspaceChiamano = workspaceCheChiamano(chiamate)
 
   useEffect(() => {
     ricaricaAutopiloti()
@@ -380,6 +397,7 @@ export function App(): React.JSX.Element {
         workspaceAttivo={workspace.attivo}
         workspaceNomi={workspace.nomi}
         onStatoWorkspace={setWorkspace}
+        workspaceCheChiamano={workspaceChiamano}
         ledAutopiloti={autopiloti.map((a) => ({ id: a.id, ...ledDi(a) }))}
       />
 
