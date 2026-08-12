@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.7.3',
+    righe: [
+      'Il QR mostrato è quello **giusto**: l’indirizzo da cui il computer esce davvero, chiesto a Windows. Gli altri — VirtualBox, WSL, una VPN — restano lì sotto in una lista a scomparsa, perché a volte servono, ma non ti fanno più indovinare.',
+      'Un salvataggio dice quante chat contiene in tutti i workspace: chi ne aveva sei divise in tre leggeva «2 chat».',
+      'L’app Android è compilata e firmata: si scarica dai Release.'
+    ]
+  },
+  {
     versione: '0.7.2',
     righe: [
       'Un salvataggio dice quante chat contiene **in tutti i workspace**: chi ne aveva sei divise in tre leggeva «2 chat» e pensava, giustamente, che le altre fossero andate perse. La stessa chat su due monitor si conta una volta sola.',

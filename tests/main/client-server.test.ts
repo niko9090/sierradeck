@@ -94,15 +94,36 @@ describe('la chiave, dove viaggia', () => {
 })
 
 describe('indirizziLocali', () => {
+  const finte = {
+    'VirtualBox Host-Only Network': [{ address: '192.168.56.1', family: 'IPv4', internal: false }],
+    'Wi-Fi': [{ address: '192.168.1.7', family: 'IPv4', internal: false }],
+    'vEthernet (WSL)': [{ address: '172.20.0.1', family: 'IPv4', internal: false }],
+    'Loopback': [{ address: '127.0.0.1', family: 'IPv4', internal: true }],
+    'VPN': [{ address: '8.8.4.4', family: 'IPv4', internal: false }]
+  } as unknown as Parameters<typeof indirizziLocali>[0]
+
   it('mostra solo gli indirizzi privati, e non quelli interni', () => {
-    const finte = {
-      'Wi-Fi': [
-        { address: '192.168.1.7', family: 'IPv4', internal: false },
-        { address: 'fe80::1', family: 'IPv6', internal: false }
-      ],
-      'Loopback': [{ address: '127.0.0.1', family: 'IPv4', internal: true }],
-      'VPN': [{ address: '8.8.4.4', family: 'IPv4', internal: false }]
-    } as unknown as ReturnType<typeof indirizziLocali> extends never ? never : Parameters<typeof indirizziLocali>[0]
-    expect(indirizziLocali(finte)).toEqual(['192.168.1.7'])
+    expect(indirizziLocali(finte, undefined)).not.toContain('127.0.0.1')
+    expect(indirizziLocali(finte, undefined)).not.toContain('8.8.4.4')
+  })
+
+  it('mette per primo quello da cui il computer esce davvero', () => {
+    // Su una macchina di lavoro le schede sono cinque o sei e sono tutte
+    // «locali» allo stesso modo: senza un ordine si provano a una a una.
+    expect(indirizziLocali(finte, '192.168.1.7')[0]).toBe('192.168.1.7')
+  })
+
+  it('senza saperlo, preferisce le schede vere a quelle dei programmi', () => {
+    // VirtualBox e WSL sono locali quanto le altre, ma un telefono non le
+    // raggiunge quasi mai.
+    const ordinati = indirizziLocali(finte, undefined)
+    expect(ordinati[0]).toBe('192.168.1.7')
+    expect(ordinati.indexOf('192.168.56.1')).toBeGreaterThan(0)
+  })
+
+  it('non nasconde mai nessuno', () => {
+    // Una rete cablata, una VPN aziendale, un secondo wifi sono casi veri: chi
+    // ci si trova dentro sa quale gli serve, e deve poterlo leggere.
+    expect(indirizziLocali(finte, '192.168.1.7')).toHaveLength(3)
   })
 })

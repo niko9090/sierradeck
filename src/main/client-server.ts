@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { networkInterfaces } from 'node:os'
+import { execFileSync } from 'node:child_process'
 import { daReteLocale } from '@shared/rete-locale'
 import type { Dispositivi } from './dispositivi'
 
@@ -139,23 +140,88 @@ async function gestisci(req: IncomingMessage, res: ServerResponse, deps: Dipende
 }
 
 /**
- * Gli indirizzi da digitare sul telefono.
+ * L'indirizzo da cui il computer esce, chiesto al sistema.
  *
- * Si mostrano tutti quelli privati: quale sia quello giusto dipende da come è
- * fatta la rete, e chiederlo all'utente sarebbe chiedergli una cosa che il
- * computer sa già.
+ * Su una macchina di lavoro le schede di rete sono cinque o sei — VirtualBox,
+ * WSL, Hyper-V, una VPN — e sono tutte «locali» allo stesso modo: mostrarle in
+ * fila costringe a provarle a una a una, e il QR sbagliato non porta da nessuna
+ * parte.
+ *
+ * Lo si chiede a Windows, che la risposta ce l'ha nella tabella di routing. È
+ * una domanda che costa qualche decimo di secondo, e si fa una volta sola —
+ * quando si apre l'accoppiamento, non a ogni disegno della finestra.
+ *
+ * Se non risponde non è un guasto: sotto c'è l'ordinamento per nome, che
+ * riconosce le schede dei programmi e le mette in fondo.
  */
-export function indirizziLocali(interfacce = networkInterfaces()): string[] {
+export function indirizzoPrincipale(
+  esegui: () => string = () =>
+    execFileSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-Command',
+        '(Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null } |' +
+          ' Select-Object -First 1).IPv4Address.IPAddress'
+      ],
+      { encoding: 'utf8', windowsHide: true, timeout: 5000 }
+    )
+): string | undefined {
+  try {
+    const scelto = esegui().trim().split(/\s+/)[0] ?? ''
+    return daReteLocale(scelto) ? scelto : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Gli indirizzi da mostrare, il migliore per primo.
+ *
+ * Non si nascondono gli altri: una rete cablata, una VPN aziendale, un secondo
+ * wifi sono casi veri, e chi ci si trova dentro sa quale gli serve. Ma
+ * metterli tutti sullo stesso piano vuol dire farli provare tutti.
+ */
+export function indirizziLocali(
+  interfacce = networkInterfaces(),
+  // Senza valore predefinito, e non per pigrizia: in JavaScript un `undefined`
+  // esplicito fa scattare il default, e chi voleva dire «non lo so» finirebbe
+  // per eseguire il comando di sistema che stava cercando di evitare.
+  principale?: string
+): string[] {
   const trovati: string[] = []
-  for (const schede of Object.values(interfacce)) {
+  for (const [nome, schede] of Object.entries(interfacce)) {
     for (const scheda of schede ?? []) {
       if (scheda.internal) continue
       // Node ha cambiato idea nel tempo su come si chiama questa famiglia:
       // stringa in una versione, numero in un'altra. Si accettano entrambe.
       const famiglia = scheda.family as string | number
       if (famiglia !== 'IPv4' && famiglia !== 4) continue
-      if (daReteLocale(scheda.address)) trovati.push(scheda.address)
+      if (!daReteLocale(scheda.address)) continue
+      trovati.push(scheda.address)
+      // Il nome della scheda serve solo a ordinare, e mai a escludere: una
+      // scheda con un nome strano può essere l'unica che funziona.
+      pesi.set(scheda.address, peso(nome, scheda.address === principale))
     }
   }
-  return trovati
+  return trovati.sort((a, b) => (pesi.get(b) ?? 0) - (pesi.get(a) ?? 0))
+}
+
+const pesi = new Map<string, number>()
+
+/**
+ * Quanto è probabile che sia l'indirizzo giusto.
+ *
+ * Chi esce davvero vince su tutto. Poi le schede fisiche, e in fondo quelle
+ * che un programma ha creato per sé: VirtualBox, WSL, Hyper-V e le loro
+ * parenti sono locali quanto le altre, ma un telefono non le raggiunge quasi
+ * mai.
+ */
+function peso(nomeScheda: string, esceDaQui: boolean): number {
+  if (esceDaQui) return 100
+  const nome = nomeScheda.toLowerCase()
+  if (/virtualbox|vmware|hyper-v|vethernet|wsl|loopback|bluetooth|tap|tunnel/.test(nome)) return 1
+  if (/wi-?fi|wireless|wlan/.test(nome)) return 50
+  if (/ethernet|lan/.test(nome)) return 40
+  return 10
 }

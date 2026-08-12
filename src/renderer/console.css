@@ -1801,3 +1801,14 @@ select:focus-visible { outline: 2px solid var(--accento, #4aa3ff); outline-offse
 .consumo__cache { display: block; height: 100%; background: var(--verde, #54c07a); }
 
 .consumo__righe { display: flex; flex-direction: column; gap: 2px; line-height: 1.5; }
+
+/* L'indirizzo giusto si distingue dagli altri: è quello da cui il computer
+   esce davvero, e chiedere di provarli tutti è chiedere di indovinare. */
+.indirizzo-buono {
+  font-size: 14px;
+  color: var(--accento, #4aa3ff);
+  letter-spacing: 0.02em;
+}
+
+.altri-indirizzi { font-size: 11px; color: var(--testo-quieto); }
+.altri-indirizzi summary { cursor: pointer; padding: 6px 0; }

@@ -28,7 +28,7 @@ import { apriEtichetteStore } from './etichette-store'
 import { apriChiavi } from './chiavi'
 import { apriQuaderno } from './quaderno-store'
 import { apriDispositivi } from './dispositivi'
-import { creaServerClient, indirizziLocali } from './client-server'
+import { creaServerClient, indirizziLocali, indirizzoPrincipale } from './client-server'
 import { rotteClient, rotteLibere } from './client-rotte'
 import { immagineQr, indirizzoAccoppiamento } from './qr-accoppiamento'
 import type { Chat } from './client-rotte'
@@ -460,7 +460,7 @@ if (!app.requestSingleInstanceLock()) {
 
       ipcMain.handle('client:stato', () => ({
         porta,
-        indirizzi: indirizziLocali(),
+        indirizzi: indirizziLocali(undefined, indirizzoPrincipale()),
         dispositivi: dispositivi.elenca(),
         accoppiamento: dispositivi.accoppiamentoAperto()
       }))
@@ -469,7 +469,7 @@ if (!app.requestSingleInstanceLock()) {
         // Il quadrato da inquadrare, uno per indirizzo: quale sia quello giusto
         // dipende dalla rete, e il telefono lo scopre puntandolo.
         const qr = await Promise.all(
-          indirizziLocali().map(async (ind) => ({
+          indirizziLocali(undefined, indirizzoPrincipale()).map(async (ind) => ({
             indirizzo: `http://${ind}:${porta}`,
             immagine: await immagineQr(
               indirizzoAccoppiamento(`http://${ind}:${porta}`, aperto.codice)
