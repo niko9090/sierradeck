@@ -47,3 +47,20 @@ describe('daReteLocale', () => {
     for (const b of [0, 15, 32, 200]) expect(daReteLocale(`172.${b}.0.1`)).toBe(false)
   })
 })
+
+describe('le VPN a maglia', () => {
+  it('accetta lo spazio di Tailscale e ZeroTier', () => {
+    // Non e' solo questione di mostrarlo: escluderlo significava rifiutare chi
+    // arrivava da li', cioe' chi si collega da fuori casa nel modo piu' sicuro
+    // che ci sia.
+    expect(daReteLocale('100.64.0.1')).toBe(true)
+    expect(daReteLocale('100.101.102.103')).toBe(true)
+    expect(daReteLocale('100.127.255.254')).toBe(true)
+  })
+
+  it('ma non il resto del 100, che e Internet', () => {
+    expect(daReteLocale('100.0.0.1')).toBe(false)
+    expect(daReteLocale('100.63.255.255')).toBe(false)
+    expect(daReteLocale('100.128.0.1')).toBe(false)
+  })
+})

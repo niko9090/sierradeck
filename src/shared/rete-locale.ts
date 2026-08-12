@@ -29,6 +29,11 @@ export function daReteLocale(indirizzo: string): boolean {
     // 169.254: quando il DHCP non ha risposto e due macchine si parlano lo
     // stesso. È una rete locale a tutti gli effetti.
     if (a === 169 && b === 254) return true
+    // 100.64–100.127: lo spazio che usano Tailscale, ZeroTier e le VPN a maglia
+    // per le loro reti private. Escluderlo non significava soltanto non
+    // mostrare quell'indirizzo: significava **rifiutare** chi arrivava da lì,
+    // cioè proprio chi si collega da fuori casa nel modo più sicuro che ci sia.
+    if (a === 100 && b >= 64 && b <= 127) return true
     return false
   }
 

@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { networkInterfaces } from 'node:os'
-import { execFileSync } from 'node:child_process'
+import { execFile, execFileSync } from 'node:child_process'
 import { daReteLocale } from '@shared/rete-locale'
 import type { Dispositivi } from './dispositivi'
 
@@ -154,9 +154,29 @@ async function gestisci(req: IncomingMessage, res: ServerResponse, deps: Dipende
  * Se non risponde non è un guasto: sotto c'è l'ordinamento per nome, che
  * riconosce le schede dei programmi e le mette in fondo.
  */
-export function indirizzoPrincipale(
-  esegui: () => string = () =>
-    execFileSync(
+export async function indirizzoPrincipale(
+  esegui: () => Promise<string> = eseguiComando
+): Promise<string | undefined> {
+  try {
+    const scelto = (await esegui()).trim().split(/\s+/)[0] ?? ''
+    return daReteLocale(scelto) ? scelto : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Chiede a Windows da dove esce, **senza bloccare niente**.
+ *
+ * Era `execFileSync`, e su un processo che disegna l'interfaccia una
+ * chiamata sincrona a PowerShell è mezzo secondo in cui il programma non
+ * risponde: si apriva le impostazioni e tutto si piantava. Il fatto che duri
+ * poco non basta — l'unico processo che tiene viva la finestra non deve
+ * fermarsi per aspettare qualcuno.
+ */
+function eseguiComando(): Promise<string> {
+  return new Promise((risolvi, rifiuta) => {
+    execFile(
       'powershell.exe',
       [
         '-NoProfile',
@@ -164,15 +184,10 @@ export function indirizzoPrincipale(
         '(Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null } |' +
           ' Select-Object -First 1).IPv4Address.IPAddress'
       ],
-      { encoding: 'utf8', windowsHide: true, timeout: 5000 }
+      { encoding: 'utf8', windowsHide: true, timeout: 5000 },
+      (err, stdout) => (err === null ? risolvi(stdout) : rifiuta(err))
     )
-): string | undefined {
-  try {
-    const scelto = esegui().trim().split(/\s+/)[0] ?? ''
-    return daReteLocale(scelto) ? scelto : undefined
-  } catch {
-    return undefined
-  }
+  })
 }
 
 /**

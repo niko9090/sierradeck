@@ -30,7 +30,16 @@ function SezioneClient(): React.JSX.Element {
     return () => clearInterval(h)
   }, [])
 
-  if (stato === undefined) return <section className="impostazioni__gruppo"><h4>Client</h4></section>
+  if (stato === undefined) {
+    // Cercare le reti richiede un attimo: dirlo è meglio di una sezione vuota,
+    // che si legge come «non c'è niente» invece che «sto guardando».
+    return (
+      <section className="impostazioni__gruppo">
+        <h4>Client — telefono, tablet, touch</h4>
+        <div className="impostazioni__nota">Cerco le reti…</div>
+      </section>
+    )
+  }
 
   const codice = stato.accoppiamento?.codice
   return (

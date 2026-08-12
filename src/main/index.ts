@@ -460,21 +460,28 @@ if (!app.requestSingleInstanceLock()) {
         console.log(`[client] in ascolto sulla porta ${porta}: ${indirizziLocali().join(', ')}`)
       })
 
-      ipcMain.handle('client:stato', () => ({
-        porta,
-        indirizzi: indirizziLocali(undefined, indirizzoPrincipale()),
-        // Quali stanno davanti agli occhi: quasi sempre due — la rete di casa
-        // e la VPN — perché sono due risposte diverse alla stessa domanda.
-        inEvidenza: indirizziInEvidenza(indirizziLocali(undefined, indirizzoPrincipale())),
-        dispositivi: dispositivi.elenca(),
-        accoppiamento: dispositivi.accoppiamentoAperto()
-      }))
+      ipcMain.handle('client:stato', async () => {
+        // La domanda a Windows è asincrona: il processo che disegna la finestra
+        // non deve fermarsi ad aspettare nessuno, e mezzo secondo di attesa
+        // sincrona è mezzo secondo di programma che non risponde.
+        const indirizzi = indirizziLocali(undefined, await indirizzoPrincipale())
+        return {
+          porta,
+          indirizzi,
+          // Quali stanno davanti agli occhi: quasi sempre due — la rete di casa
+          // e la VPN — perché sono due risposte diverse alla stessa domanda.
+          inEvidenza: indirizziInEvidenza(indirizzi),
+          dispositivi: dispositivi.elenca(),
+          accoppiamento: dispositivi.accoppiamentoAperto()
+        }
+      })
       ipcMain.handle('client:apriAccoppiamento', async () => {
         const aperto = dispositivi.apriAccoppiamento()
         // Il quadrato da inquadrare, uno per indirizzo: quale sia quello giusto
         // dipende dalla rete, e il telefono lo scopre puntandolo.
+        const indirizzi = indirizziLocali(undefined, await indirizzoPrincipale())
         const qr = await Promise.all(
-          indirizziLocali(undefined, indirizzoPrincipale()).map(async (ind) => ({
+          indirizzi.map(async (ind) => ({
             indirizzo: `http://${ind}:${porta}`,
             immagine: await immagineQr(
               indirizzoAccoppiamento(`http://${ind}:${porta}`, aperto.codice)

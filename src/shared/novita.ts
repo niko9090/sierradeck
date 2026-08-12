@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.7.5',
+    righe: [
+      'Tailscale, ZeroTier e le VPN a maglia funzionano: i loro indirizzi (100.64–100.127) erano trattati come Internet, quindi non solo non comparivano — chi arrivava da lì veniva **respinto**. Adesso l’indirizzo Tailscale è in evidenza accanto a quello di casa.',
+      'Le impostazioni non bloccano più il programma: cercare le reti chiede mezzo secondo a Windows, e prima quel mezzo secondo era di silenzio totale. Ora si chiede senza fermare niente, e mentre cerca lo dice.'
+    ]
+  },
+  {
     versione: '0.7.4',
     righe: [
       'Gli indirizzi in evidenza sono due: la rete di casa e la VPN. Sono due risposte diverse alla stessa domanda — «da dove mi collego?» — ed entrambe giuste a seconda di dove sei.',
