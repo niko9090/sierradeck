@@ -38,6 +38,7 @@ declare global {
         stato: () => Promise<{
           porta: number
           indirizzi: string[]
+          inEvidenza: string[]
           dispositivi: { id: string; nome: string; collegatoIl: string; ultimoAccesso?: string }[]
           accoppiamento?: { codice: string; scadeIl: number }
         }>

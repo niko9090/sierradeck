@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.7.4',
+    righe: [
+      'Gli indirizzi in evidenza sono due: la rete di casa e la VPN. Sono due risposte diverse alla stessa domanda — «da dove mi collego?» — ed entrambe giuste a seconda di dove sei.',
+      'La VPN non è più trattata come una scheda virtuale da nascondere: era un errore, e chi lavora in VPN se ne accorgeva subito.'
+    ]
+  },
+  {
     versione: '0.7.3',
     righe: [
       'Il QR mostrato è quello **giusto**: l’indirizzo da cui il computer esce davvero, chiesto a Windows. Gli altri — VirtualBox, WSL, una VPN — restano lì sotto in una lista a scomparsa, perché a volte servono, ma non ti fanno più indovinare.',

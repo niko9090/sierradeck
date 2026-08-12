@@ -28,7 +28,9 @@ import { apriEtichetteStore } from './etichette-store'
 import { apriChiavi } from './chiavi'
 import { apriQuaderno } from './quaderno-store'
 import { apriDispositivi } from './dispositivi'
-import { creaServerClient, indirizziLocali, indirizzoPrincipale } from './client-server'
+import {
+  creaServerClient, indirizziInEvidenza, indirizziLocali, indirizzoPrincipale
+} from './client-server'
 import { rotteClient, rotteLibere } from './client-rotte'
 import { immagineQr, indirizzoAccoppiamento } from './qr-accoppiamento'
 import type { Chat } from './client-rotte'
@@ -461,6 +463,9 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('client:stato', () => ({
         porta,
         indirizzi: indirizziLocali(undefined, indirizzoPrincipale()),
+        // Quali stanno davanti agli occhi: quasi sempre due — la rete di casa
+        // e la VPN — perché sono due risposte diverse alla stessa domanda.
+        inEvidenza: indirizziInEvidenza(indirizziLocali(undefined, indirizzoPrincipale())),
         dispositivi: dispositivi.elenca(),
         accoppiamento: dispositivi.accoppiamentoAperto()
       }))

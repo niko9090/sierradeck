@@ -220,8 +220,28 @@ const pesi = new Map<string, number>()
 function peso(nomeScheda: string, esceDaQui: boolean): number {
   if (esceDaQui) return 100
   const nome = nomeScheda.toLowerCase()
-  if (/virtualbox|vmware|hyper-v|vethernet|wsl|loopback|bluetooth|tap|tunnel/.test(nome)) return 1
+  // Le schede che un programma ha creato per sé: locali quanto le altre, ma un
+  // telefono non le raggiunge quasi mai.
+  if (/virtualbox|vmware|hyper-v|vethernet|wsl|loopback|bluetooth/.test(nome)) return 1
   if (/wi-?fi|wireless|wlan/.test(nome)) return 50
   if (/ethernet|lan/.test(nome)) return 40
+  // Una VPN **serve**: è l'indirizzo da cui raggiungere il computer da fuori
+  // casa, ed è il secondo caso più utile dopo la rete di casa. Metterla fra le
+  // schede virtuali era un errore, e chi lavora in VPN se ne accorge subito.
+  if (/vpn|tap|tunnel|wireguard|openvpn|zerotier|tailscale/.test(nome)) return 45
   return 10
+}
+
+/**
+ * Quali indirizzi meritano di stare davanti agli occhi.
+ *
+ * Non uno soltanto: quasi sempre ce ne sono due che servono davvero — la rete
+ * di casa e la VPN — e sceglierne uno per l'utente vorrebbe dire decidere al
+ * suo posto da dove si collegherà. Le schede dei programmi restano sotto.
+ */
+export function indirizziInEvidenza(indirizzi: string[]): string[] {
+  const buoni = indirizzi.filter((i) => (pesi.get(i) ?? 0) >= 30)
+  // Se nessuno si è meritato la prima fila, si mostra comunque il primo: una
+  // schermata senza nemmeno un indirizzo non aiuta nessuno.
+  return buoni.length > 0 ? buoni.slice(0, 2) : indirizzi.slice(0, 1)
 }

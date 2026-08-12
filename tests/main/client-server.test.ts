@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import type { Server } from 'node:http'
 import {
-  autorizzata, chiaveDa, creaServerClient, indirizziLocali, type Rotta
+  autorizzata, chiaveDa, creaServerClient, indirizziInEvidenza, indirizziLocali, type Rotta
 } from '../../src/main/client-server'
 import { apriDispositivi } from '../../src/main/dispositivi'
 
@@ -125,5 +125,36 @@ describe('indirizziLocali', () => {
     // Una rete cablata, una VPN aziendale, un secondo wifi sono casi veri: chi
     // ci si trova dentro sa quale gli serve, e deve poterlo leggere.
     expect(indirizziLocali(finte, '192.168.1.7')).toHaveLength(3)
+  })
+})
+
+describe('indirizziInEvidenza', () => {
+  const conVpn = {
+    'VirtualBox Host-Only Network': [{ address: '192.168.56.1', family: 'IPv4', internal: false }],
+    'Wi-Fi': [{ address: '192.168.1.7', family: 'IPv4', internal: false }],
+    'WireGuard VPN': [{ address: '10.8.0.3', family: 'IPv4', internal: false }],
+    'vEthernet (WSL)': [{ address: '172.20.0.1', family: 'IPv4', internal: false }]
+  } as unknown as Parameters<typeof indirizziLocali>[0]
+
+  it('mostra la rete di casa e la VPN, che sono i due casi veri', () => {
+    // Sceglierne uno solo vorrebbe dire decidere per l'utente da dove si
+    // collegherà: da casa o da fuori sono due risposte diverse, entrambe giuste.
+    const evidenza = indirizziInEvidenza(indirizziLocali(conVpn, '192.168.1.7'))
+    expect(evidenza).toContain('192.168.1.7')
+    expect(evidenza).toContain('10.8.0.3')
+  })
+
+  it('le schede dei programmi restano fuori dalla prima fila', () => {
+    const evidenza = indirizziInEvidenza(indirizziLocali(conVpn, '192.168.1.7'))
+    expect(evidenza).not.toContain('192.168.56.1')
+    expect(evidenza).not.toContain('172.20.0.1')
+  })
+
+  it('quando non c e niente di buono mostra comunque qualcosa', () => {
+    // Una schermata senza nemmeno un indirizzo non aiuta nessuno.
+    const soloVirtuali = {
+      'VirtualBox Host-Only Network': [{ address: '192.168.56.1', family: 'IPv4', internal: false }]
+    } as unknown as Parameters<typeof indirizziLocali>[0]
+    expect(indirizziInEvidenza(indirizziLocali(soloVirtuali, undefined))).toHaveLength(1)
   })
 })

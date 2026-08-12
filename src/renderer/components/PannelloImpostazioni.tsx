@@ -47,17 +47,23 @@ function SezioneClient(): React.JSX.Element {
               esistono — una VPN, VirtualBox, WSL — ma un telefono non li
               raggiunge quasi mai, e metterli sullo stesso piano vuol dire
               farli provare tutti. */}
-          <div className="impostazioni__riga">
-            <code className="indirizzo-buono">http://{stato.indirizzi[0]}:{stato.porta}</code>
-          </div>
-          {stato.indirizzi.length > 1 ? (
+          {(stato.inEvidenza ?? stato.indirizzi.slice(0, 1)).map((ind) => (
+            <div key={ind} className="impostazioni__riga">
+              <code className="indirizzo-buono">http://{ind}:{stato.porta}</code>
+            </div>
+          ))}
+          {stato.indirizzi.length > (stato.inEvidenza?.length ?? 1) ? (
             <details className="altri-indirizzi">
-              <summary>Altri indirizzi ({stato.indirizzi.length - 1})</summary>
-              {stato.indirizzi.slice(1).map((ind) => (
-                <div key={ind} className="impostazioni__riga">
-                  <code>http://{ind}:{stato.porta}</code>
-                </div>
-              ))}
+              <summary>
+                Altri indirizzi ({stato.indirizzi.length - (stato.inEvidenza?.length ?? 1)})
+              </summary>
+              {stato.indirizzi
+                .filter((x) => !(stato.inEvidenza ?? []).includes(x))
+                .map((ind) => (
+                  <div key={ind} className="impostazioni__riga">
+                    <code>http://{ind}:{stato.porta}</code>
+                  </div>
+                ))}
             </details>
           ) : null}
         </>
@@ -76,18 +82,18 @@ function SezioneClient(): React.JSX.Element {
                 digitare niente. Se ci sono più reti, prova il primo che funziona.
               </div>
               <div className="qr-fila">
-                {qr.slice(0, 1).map((q) => (
+                {qr.slice(0, 2).map((q) => (
                   <figure key={q.indirizzo} className="qr">
                     <img src={q.immagine} alt={`codice per ${q.indirizzo}`} />
                     <figcaption>{q.indirizzo}</figcaption>
                   </figure>
                 ))}
               </div>
-              {qr.length > 1 ? (
+              {qr.length > 2 ? (
                 <details className="altri-indirizzi">
-                  <summary>Se questo non funziona, prova gli altri ({qr.length - 1})</summary>
+                  <summary>Se questi non funzionano, prova gli altri ({qr.length - 2})</summary>
                   <div className="qr-fila">
-                    {qr.slice(1).map((q) => (
+                    {qr.slice(2).map((q) => (
                       <figure key={q.indirizzo} className="qr">
                         <img src={q.immagine} alt={`codice per ${q.indirizzo}`} />
                         <figcaption>{q.indirizzo}</figcaption>
