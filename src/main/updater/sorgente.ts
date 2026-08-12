@@ -29,7 +29,7 @@
  * spazio aggiunto farebbe ricompilare per niente, e chi la alza qui sta anche
  * dicendo «ho cambiato qualcosa che conta».
  */
-export const VERSIONE_UPDATER = 7
+export const VERSIONE_UPDATER = 8
 
 export function sorgenteUpdater(): string {
   return `using System;
@@ -153,6 +153,13 @@ class Aggiornamento : Form {
         logo.Image = b;
         Controls.Add(logo);
 
+        // La stessa immagine come icona della finestra: senza, nella barra
+        // delle applicazioni compare il rettangolo bianco di Windows - che di
+        // tutto il programma e' l'unica cosa che si vede da laggiu'.
+        try {
+            Icon = System.Drawing.Icon.FromHandle(b.GetHicon());
+        } catch { }
+
         Label titolo = new Label();
         titolo.Text = "SIERRADECK UPDATE";
         titolo.ForeColor = tenue;
@@ -201,6 +208,20 @@ class Aggiornamento : Form {
         g.FillPolygon(new SolidBrush(c), punti);
     }
 
+    /**
+     * Fin dove puo' arrivare la barra in questa fase.
+     *
+     * I numeri non sono arbitrari: dicono quanto manca davvero. L'attesa piu'
+     * lunga e' l'installazione, e le si lascia lo spazio piu' largo.
+     */
+    int Tetto() {
+        if (passo == 0) return 20;   // chiusura del programma
+        if (passo == 1) return 70;   // installazione: la parte lunga
+        if (passo == 5) return 88;   // Claude Code, quando c'e' da aggiornarlo
+        if (passo == 2) return 97;   // avvio della versione nuova
+        return 100;
+    }
+
     void Batte(object mittente, EventArgs e) {
         giri++;
         int tetto = passo == 0 ? 25 : passo == 1 ? 65 : passo == 5 ? 85 : passo == 2 ? 97 : 100;
@@ -224,9 +245,9 @@ class Aggiornamento : Form {
                 passo = 1;
             }
         } else if (passo == 1) {
-            fase.Text = versione.Length > 0
+            fase.Text = (versione.Length > 0
                 ? "Installazione della versione " + versione + "..."
-                : "Installazione in corso...";
+                : "Installazione in corso...") + (giri > 50 ? " (" + (giri / 5) + "s)" : "");
             if (installazione == null || installazione.HasExited) {
                 Nota("installer terminato");
                 if (claude.Length > 0) { AggiornaClaude(); passo = 5; }
@@ -235,8 +256,9 @@ class Aggiornamento : Form {
         } else if (passo == 5) {
             // Claude Code: si aggiorna adesso, che nessuna chat lo tiene
             // aperto. E' l'unico momento in cui si puo' fare senza chiedere
-            // all'utente di chiudere tutto a mano.
-            fase.Text = "Aggiorno anche Claude Code...";
+            // all'utente di chiudere tutto a mano. Puo' durare un minuto: si
+            // dice da quanto, perche' un'attesa muta si legge come un blocco.
+            fase.Text = "Aggiorno anche Claude Code... (" + (giri / 5) + "s)";
             if (claudeInCorso == null || claudeInCorso.HasExited) {
                 Nota("claude code aggiornato");
                 Avvia();

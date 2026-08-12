@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Lo stesso fondo del programma sul computer: l'icona sulla schermata
-         Home e la finestra che si apre devono sembrare la stessa cosa. -->
+    <!-- Gli stessi colori del programma sul computer: l'app e la finestra
+         devono sembrare la stessa cosa, perché lo sono. -->
     <color name="fondo">#0B0C0E</color>
+    <color name="chassis">#1D2023</color>
+    <color name="incisione">#2F3439</color>
+    <color name="testo">#DFE3E7</color>
+    <color name="testo_quieto">#9AA1A9</color>
+    <color name="accento">#2F6FB5</color>
+    <color name="ambra">#E0A33C</color>
 </resources>

@@ -13,8 +13,8 @@ android {
         // un servizio in primo piano non si può nemmeno dichiarare.
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.7.6"
+        versionCode = 3
+        versionName = "0.8.0"
     }
 
     // Serve `BuildConfig.VERSION_NAME`: l'app deve sapere quale versione è per
@@ -42,4 +42,9 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("com.google.android.material:material:1.12.0")
+    // La scansione del QR: una libreria sola, che apre la sua schermata e
+    // restituisce il testo. Scriverla a mano vorrebbe dire mettere le mani
+    // sulla fotocamera per una cosa che qui e' un dettaglio.
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 }

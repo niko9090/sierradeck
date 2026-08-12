@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.8.0',
+    righe: [
+      'La barra dell’aggiornamento non salta più da 65 a 100: avanza piano dentro ogni fase, rallentando verso la fine, e durante le attese lunghe dice da quanti secondi sta aspettando — un numero fermo si legge come un blocco.',
+      'L’updater ha la sua icona nella barra delle applicazioni, invece del rettangolo bianco di Windows.',
+      'L’app Android ha una schermata di ingresso fatta come si deve, e soprattutto **inquadra il QR con la fotocamera**: niente più indirizzi da digitare.'
+    ]
+  },
+  {
     versione: '0.7.6',
     righe: [
       'La pagina del Client non resta più nera: un errore di sintassi nascosto la lasciava vuota, senza un messaggio e senza niente da premere. Adesso un test verifica che lo script sia valido, e qualunque errore lascia comunque una schermata con scritto cosa non va.',

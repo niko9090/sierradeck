@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Lo stesso fondo della pagina: senza, fra l'apertura dell'app e il
-         primo disegno si vedrebbe un lampo bianco. -->
-    <style name="Theme.SierraDeck" parent="Theme.AppCompat.NoActionBar">
-        <item name="android:windowBackground">#0B0C0E</item>
-        <item name="android:statusBarColor">#0B0C0E</item>
-        <item name="android:navigationBarColor">#0B0C0E</item>
+    <!-- Il tema di Material, che dà ai bottoni la forma che su Android ci si
+         aspetta. Lo stesso fondo della pagina: senza, fra l'apertura dell'app e
+         il primo disegno si vedrebbe un lampo bianco. -->
+    <style name="Theme.SierraDeck" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:windowBackground">@color/fondo</item>
+        <item name="android:statusBarColor">@color/fondo</item>
+        <item name="android:navigationBarColor">@color/fondo</item>
+        <item name="colorPrimary">@color/accento</item>
     </style>
 </resources>

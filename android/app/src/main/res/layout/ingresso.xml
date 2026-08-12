@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  La prima schermata: quella che si vede prima di avere qualunque cosa.
+
+  Era costruita a mano nel codice — campo, bottone, tutto attaccato al bordo —
+  e si vedeva. Qui c'è respiro: il logo che dice dove sei, una frase che spiega
+  cosa fare, e **due strade** per farlo — inquadrare, che non richiede di
+  digitare niente, o scrivere l'indirizzo se la fotocamera non è un'opzione.
+-->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/fondo"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:paddingHorizontal="28dp"
+        android:paddingTop="72dp"
+        android:paddingBottom="32dp">
+
+        <ImageView
+            android:layout_width="88dp"
+            android:layout_height="88dp"
+            android:src="@drawable/logo_cristallo"
+            android:contentDescription="SierraDeck" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:text="SierraDeck"
+            android:textColor="@color/testo"
+            android:textSize="26sp"
+            android:letterSpacing="0.02" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center"
+            android:lineSpacingMultiplier="1.3"
+            android:text="Sul computer apri Impostazioni → Client e premi «Collega un dispositivo»."
+            android:textColor="@color/testo_quieto"
+            android:textSize="14sp" />
+
+        <!-- Il gesto principale, grande e per primo: inquadrare non richiede di
+             digitare niente, ed è quello che si vuole fare in piedi. -->
+        <Button
+            android:id="@+id/inquadra"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="30dp"
+            android:text="Inquadra il codice"
+            android:textSize="16sp"
+            android:backgroundTint="@color/accento"
+            android:textColor="#FFFFFF" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:text="oppure scrivi l’indirizzo"
+            android:textColor="@color/testo_quieto"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/indirizzo"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/campo"
+            android:gravity="center"
+            android:hint="192.168.1.7"
+            android:importantForAutofill="no"
+            android:inputType="textUri"
+            android:paddingHorizontal="14dp"
+            android:textColor="@color/testo"
+            android:textColorHint="@color/testo_quieto"
+            android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/collega"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="10dp"
+            android:text="Collega"
+            android:backgroundTint="@color/chassis"
+            android:textColor="@color/testo" />
+
+        <TextView
+            android:id="@+id/errore"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:gravity="center"
+            android:textColor="@color/ambra"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <!-- Uno spazio che si allunga: tiene la versione in fondo allo schermo
+             invece che appiccicata all'ultimo bottone. -->
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/versione"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="36dp"
+            android:textColor="@color/testo_quieto"
+            android:textSize="11sp" />
+    </LinearLayout>
+</ScrollView>
