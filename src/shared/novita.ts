@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.5.5',
+    righe: [
+      'Il Client si apre davvero: la pagina era finita dietro la chiave, e per accoppiarsi bisognava essere già accoppiati. Chi apriva l’indirizzo leggeva soltanto «dispositivo non riconosciuto», senza un modo per diventarlo.',
+      'I dati restano protetti come prima: la pagina è un’interfaccia vuota, chat e autopiloti escono solo a chi si è fatto riconoscere.'
+    ]
+  },
+  {
     versione: '0.5.4',
     righe: [
       'SierraDeck Update chiude **tutte** le istanze aperte prima di installare: con una seconda finestra su un altro monitor, o una lasciata aperta per sbaglio, l’installer trovava i file in uso e si fermava.',

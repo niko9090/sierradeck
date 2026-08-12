@@ -54,6 +54,30 @@ describe('l ingresso', () => {
   })
 })
 
+describe('la pagina', () => {
+  it('si apre senza chiave, o non ci si potrebbe mai accoppiare', async () => {
+    // E' il cerchio chiuso in cui ero caduto: per accoppiarsi serve il campo
+    // dove scrivere il codice, e quel campo sta nella pagina. Chi apriva
+    // l'indirizzo leggeva solo «dispositivo non riconosciuto».
+    const r = await rotteLibere(deps())({ metodo: 'GET', percorso: '/', corpo: undefined })
+    expect(r.stato).toBe(200)
+    expect(String(r.corpo)).toContain('SierraDeck')
+    expect(r.tipo).toContain('text/html')
+  })
+
+  it('il manifesto pure: senza, non si aggiunge alla schermata Home', async () => {
+    const r = await rotteLibere(deps())({ metodo: 'GET', percorso: '/manifest.json', corpo: undefined })
+    expect(r.stato).toBe(200)
+  })
+
+  it('ma i dati restano dietro la chiave', async () => {
+    // La pagina e' un'interfaccia vuota: quello che conta - chat, autopiloti,
+    // comandi - non deve uscire senza essersi fatti riconoscere.
+    const r = await rotteLibere(deps())({ metodo: 'GET', percorso: '/api/stato', corpo: undefined })
+    expect(r.stato).toBe(404)
+  })
+})
+
 describe('lo stato', () => {
   it('manda solo quello che serve a una piastrella', async () => {
     // Mandare tutto lo stato di un autopilota ogni due secondi sarebbe spedire

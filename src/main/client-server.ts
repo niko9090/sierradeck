@@ -42,8 +42,19 @@ export type DipendenzeClient = {
   rottaLibera?: Rotta
 }
 
-/** Le rotte aperte: l'accoppiamento e il minimo per capire di essere nel posto giusto. */
-const LIBERE = new Set(['/api/ciao', '/api/accoppia'])
+/**
+ * Le rotte aperte: l'ingresso, e la pagina che lo mostra.
+ *
+ * La pagina **deve** stare qui. Tenerla dietro la chiave sembrava prudente —
+ * «chi non è accoppiato non ha niente da guardare» — ed era un cerchio chiuso:
+ * per accoppiarsi serve il campo dove scrivere il codice, e quel campo sta
+ * nella pagina. Chi apriva l'indirizzo sul telefono leggeva soltanto
+ * «dispositivo non riconosciuto», senza un modo per diventarlo.
+ *
+ * Non è una perdita: la pagina è un'interfaccia vuota. I dati — chat,
+ * autopiloti, comandi — restano tutti dietro la chiave, dove devono stare.
+ */
+const LIBERE = new Set(['/', '/index.html', '/manifest.json', '/api/ciao', '/api/accoppia'])
 
 export function autorizzata(percorso: string): boolean {
   return LIBERE.has(percorso)

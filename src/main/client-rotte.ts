@@ -62,6 +62,15 @@ function stringa(corpo: unknown, campo: string): string {
  */
 export function rotteLibere(deps: DipendenzeRotte) {
   return async (r: { metodo: string; percorso: string; corpo: unknown }): Promise<Esito> => {
+    // La pagina prima di tutto: è l'unica strada per arrivare al campo dove si
+    // scrive il codice di accoppiamento.
+    if (r.percorso === '/' || r.percorso === '/index.html') {
+      return TESTO(paginaClient(), 'text/html; charset=utf-8')
+    }
+    if (r.percorso === '/manifest.json') {
+      return TESTO(JSON.stringify(MANIFESTO), 'application/manifest+json; charset=utf-8')
+    }
+
     if (r.percorso === '/api/ciao') {
       const accoppiamento = deps.dispositivi.accoppiamentoAperto()
       return OK({
@@ -96,16 +105,6 @@ export function rotteClient(deps: DipendenzeRotte) {
     corpo: unknown
     dispositivo?: string
   }): Promise<Esito> => {
-    // La pagina e il manifesto stanno dietro la chiave come tutto il resto: chi
-    // non è accoppiato non ha niente da guardare, e servirgli l'interfaccia
-    // sarebbe mostrargli la forma di quello che non può avere.
-    if (r.percorso === '/' || r.percorso === '/index.html') {
-      return TESTO(paginaClient(), 'text/html; charset=utf-8')
-    }
-    if (r.percorso === '/manifest.json') {
-      return TESTO(JSON.stringify(MANIFESTO), 'application/manifest+json; charset=utf-8')
-    }
-
     if (r.percorso === '/api/stato') {
       const [autopiloti, domande, workspace] = await Promise.all([
         deps.autopiloti().catch(() => [] as Autopilota[]),
