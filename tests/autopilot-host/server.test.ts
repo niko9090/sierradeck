@@ -35,7 +35,7 @@ function ambiente(
   return creaServer({
     archivio,
     esegui: opts.esegui ?? (() => Promise.resolve({ codice: 0, uscita: 'ok' })),
-    interroga: opts.interroga ?? (() => Promise.resolve({ testo: '{"finito": true, "istruzioni": ""}' })),
+    interroga: opts.interroga ?? (() => Promise.resolve({ testo: '{"azione": "finito"}' })),
     avviaLavoro: (a, messaggio, chat) => {
       avviati.push(a.id)
       if (chat !== undefined) chatAvviate.push({ id: chat.id, compito: chat.compito })
@@ -250,7 +250,7 @@ describe('ferma e riprendi', () => {
     server = ambiente({
       interroga: (prompt) => {
         if (!prompt.includes('Stai preparando un autopilota')) {
-          return Promise.resolve({ testo: '{"finito": true, "istruzioni": ""}' })
+          return Promise.resolve({ testo: '{"azione": "finito"}' })
         }
         domande += 1
         return Promise.resolve({ testo: '{"domanda": "Quale formato?"}' })
@@ -289,7 +289,7 @@ describe('ferma e riprendi', () => {
           preparazioni += 1
           return Promise.resolve({ testo: '{"domanda": "Quale formato?"}' })
         }
-        return Promise.resolve({ testo: '{"finito": true}' })
+        return Promise.resolve({ testo: '{"azione": "finito"}' })
       },
       scadenzaInterviataMs: 60
     })
@@ -314,7 +314,7 @@ describe('ferma e riprendi', () => {
     server = ambiente({
       interroga: (prompt) => {
         if (!prompt.includes('Stai preparando un autopilota')) {
-          return Promise.resolve({ testo: '{"finito": true, "istruzioni": ""}' })
+          return Promise.resolve({ testo: '{"azione": "finito"}' })
         }
         giro += 1
         return Promise.resolve({
@@ -358,7 +358,7 @@ describe('ferma e riprendi', () => {
 
 describe('domande all utente', () => {
   const CHIEDE: Interrogazione = () => Promise.resolve({
-    testo: '{"finito": false, "istruzioni": "", "domandaUtente": "Quale chiave API uso?"}'
+    testo: '{"azione": "chiedi", "domanda": "Quale chiave API uso?"}'
   })
 
   it('apre una domanda, attende la risposta e la gira alla chat', async () => {
@@ -493,7 +493,7 @@ describe('avvisi verso l esterno', () => {
     // Avvisare dopo l'attesa significherebbe scrivere all'utente quando la
     // finestra utile per rispondere e' gia' chiusa.
     server = ambiente({
-      interroga: () => Promise.resolve({ testo: '{"finito": false, "istruzioni": "", "domandaUtente": "Quale chiave?"}' }),
+      interroga: () => Promise.resolve({ testo: '{"azione": "chiedi", "domanda": "Quale chiave?"}' }),
       scadenzaDomandaMs: 150
     })
     await avvia(server)
@@ -509,7 +509,7 @@ describe('flotta di chat', () => {
     Promise.resolve({
       testo: prompt.includes('spezzare')
         ? '{"compiti": ["scrivi i test", "aggiorna i documenti", "sistema il lettore"]}'
-        : '{"finito": true, "istruzioni": ""}'
+        : '{"azione": "finito"}'
     })
 
   async function attendi(condizione: () => boolean): Promise<void> {
@@ -521,7 +521,7 @@ describe('flotta di chat', () => {
   it('con tetto a uno non chiede nessuna scomposizione', async () => {
     const prompt: string[] = []
     server = ambiente({
-      interroga: (p) => { prompt.push(p); return Promise.resolve({ testo: '{"finito": true, "istruzioni": ""}' }) }
+      interroga: (p) => { prompt.push(p); return Promise.resolve({ testo: '{"azione": "finito"}' }) }
     })
     await avvia(server)
     await creaAp()
@@ -584,7 +584,7 @@ describe('flotta di chat', () => {
 
   it('una scomposizione illeggibile non impedisce di lavorare', async () => {
     server = ambiente({
-      interroga: (p) => Promise.resolve({ testo: p.includes('spezzare') ? 'non ho capito' : '{"finito": true}' })
+      interroga: (p) => Promise.resolve({ testo: p.includes('spezzare') ? 'non ho capito' : '{"azione": "finito"}' })
     })
     await avvia(server)
     await creaAp({ tettoChat: 3 })
@@ -659,7 +659,7 @@ describe('intervista di preparazione', () => {
     let giro = 0
     return (prompt) => {
       if (!prompt.includes('Stai preparando un autopilota')) {
-        return Promise.resolve({ testo: '{"finito": true, "istruzioni": ""}' })
+        return Promise.resolve({ testo: '{"azione": "finito"}' })
       }
       giro += 1
       return Promise.resolve({
@@ -719,7 +719,7 @@ describe('intervista di preparazione', () => {
     server = ambiente({
       interroga: (prompt) => {
         if (!prompt.includes('Stai preparando un autopilota')) {
-          return Promise.resolve({ testo: '{"finito": true, "istruzioni": ""}' })
+          return Promise.resolve({ testo: '{"azione": "finito"}' })
         }
         giri += 1
         if (prompt.includes('NON fare domande')) {
@@ -760,7 +760,7 @@ describe('intervista di preparazione', () => {
 
   it('una preparazione illeggibile sospende invece di partire a caso', async () => {
     server = ambiente({
-      interroga: (p) => Promise.resolve({ testo: p.includes('Stai preparando') ? 'boh' : '{"finito": true}' })
+      interroga: (p) => Promise.resolve({ testo: p.includes('Stai preparando') ? 'boh' : '{"azione": "finito"}' })
     })
     await avvia(server)
     await chiama('POST', '/autopiloti', { obiettivo: 'x', cwd: process.cwd(), criteri: [] })

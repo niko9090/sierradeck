@@ -90,6 +90,14 @@ export type Autopilota = {
    * dentro. Assente e' il caso normale: sta semplicemente lavorando.
    */
   strategia?: string
+  /**
+   * La sessione del supervisore, che si riusa giro dopo giro.
+   *
+   * E' cio' che gli fa ricordare il lavoro invece di ricostruirlo da capo a
+   * ogni fermata: la differenza fra chi segue il compito e chi lo vede per la
+   * prima volta ogni volta.
+   */
+  sessioneSupervisore?: string
   motivoSospensione?: string
   limiti: Limiti
   /** Quante chat può tenere aperte insieme. Uno è il caso normale. */
@@ -334,6 +342,9 @@ export function parseAutopilota(raw: unknown): {
       ultimoEvento,
       decisioni,
       ...(stringaNonVuota(o.strategia) !== undefined ? { strategia: o.strategia as string } : {}),
+      ...(stringaNonVuota(o.sessioneSupervisore) !== undefined
+        ? { sessioneSupervisore: o.sessioneSupervisore as string }
+        : {}),
       ...(motivoSospensione !== undefined ? { motivoSospensione } : {}),
       intervista: Array.isArray(o.intervista)
         ? o.intervista.flatMap((s) => {

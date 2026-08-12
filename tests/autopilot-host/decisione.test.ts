@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  decidi, decidiConGiudizio, riassuntoFallimenti,
+  decidi, decidiConGiudizio, riassuntoFallimenti, ripetizioniFinali,
   type EsitoVerifica, type EventoStop
 } from '../../src/autopilot-host/decisione'
 import { STRATEGIE } from '../../src/autopilot-host/strategie'
@@ -229,5 +229,30 @@ describe('decidiConGiudizio — quando serve l utente', () => {
   it('finito vince su tutto: un lavoro concluso non fa domande', () => {
     const d = decidiConGiudizio(ap(), { finito: true, istruzioni: '', domandaUtente: 'e questo?' })
     expect(d.tipo).toBe('finito')
+  })
+})
+
+describe('ripetizioniFinali', () => {
+  it('conta le tracce anche con altre righe in mezzo', () => {
+    // La storia raccoglie anche le note del supervisore e le risposte
+    // dell'utente: se una riga qualunque spezzasse la sequenza, un cerchio
+    // perfetto non verrebbe piu' riconosciuto e nessuna strategia scatterebbe.
+    const storia = [
+      { cosa: CERCHIO },
+      { cosa: 'supervisore -> prosegui: ho guardato il diff' },
+      { cosa: CERCHIO },
+      { cosa: 'risposta dell utente: vai avanti' },
+      { cosa: CERCHIO }
+    ]
+    expect(ripetizioniFinali(storia, CERCHIO)).toBe(3)
+  })
+
+  it('una traccia diversa azzera il conto', () => {
+    const storia = [
+      { cosa: CERCHIO },
+      { cosa: 'proseguito: i test passano - 7 test rossi' },
+      { cosa: CERCHIO }
+    ]
+    expect(ripetizioniFinali(storia, CERCHIO)).toBe(1)
   })
 })

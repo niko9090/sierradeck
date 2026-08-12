@@ -3,7 +3,11 @@ import { existsSync, statSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata, type Criterio } from '@shared/autopilota'
 import type { Archivio } from './archivio'
-import { decidi, decidiConGiudizio, nonMisurati, traccia, type EsitoVerifica } from './decisione'
+import {
+  decidi, decidiConGiudizio, nonMisurati, ripetizioniFinali, traccia, type EsitoVerifica
+} from './decisione'
+import { chiediDecisione } from './decisione-supervisore'
+import { applicaRete } from './rete-sicurezza'
 import { STRATEGIE } from './strategie'
 import { eseguiCriteri, type Esecutore } from './verifiche'
 import {
@@ -427,13 +431,54 @@ export function creaServer(deps: Dipendenze): Server {
       adesso: deps.adesso()
     }, esiti)
 
-    if (decisione.tipo === 'serveGiudizio') {
-      const { giudizio } = await chiediGiudizio(aggiornato, ultimoMessaggio, deps.interroga)
-      decisione = giudizio === undefined
-        // Un giudizio che non arriva non deve diventare «finito»: chiuderebbe da
-        // solo un lavoro incompleto, in silenzio.
-        ? { tipo: 'sospendi', motivo: 'il supervisore non ha dato un giudizio leggibile' }
-        : decidiConGiudizio(aggiornato, giudizio)
+    // Fin qui hanno parlato le regole, e per i tetti è giusto così: quelli li ha
+    // messi l'utente e non si discutono. Tutto il resto lo decide il
+    // supervisore, che è una sessione Claude Code viva e vede il quadro intero —
+    // criteri, storia, uscite, progetto. Le regole restano sotto come rete:
+    // `applicaRete` non lo lascia chiudere un lavoro che i comandi bocciano, né
+    // proseguire senza dire cosa fare.
+    if (decisione.tipo !== 'sospendi') {
+      const inCerchioDa = ripetizioniFinali(aggiornato.decisioni, traccia(esiti))
+      const { decisione: suggerita, sessionId: sessioneNuova } = await chiediDecisione(
+        aggiornato, esiti, ultimoMessaggio, inCerchioDa, deps.interroga, aggiornato.sessioneSupervisore
+      )
+      if (sessioneNuova !== undefined) aggiornato.sessioneSupervisore = sessioneNuova
+
+      const { mossa, nota } = applicaRete({ a: aggiornato, esiti, inCerchioDa }, suggerita)
+      decisione = mossa
+      const perche = nota ?? suggerita?.perche
+      if (perche !== undefined) {
+        console.log(`[autopilota] ${id} — ${mossa.tipo}: ${perche}`)
+        aggiornato.decisioni = [
+          ...aggiornato.decisioni,
+          { quando: deps.adesso(), cosa: `supervisore → ${mossa.tipo}: ${perche}` }
+        ]
+      }
+    }
+
+    // Il supervisore ha visto che un comando misura la cosa sbagliata e ne ha
+    // scritto uno giusto: si sostituisce e si riprende dal giro dopo, che lo
+    // eseguirà davvero. È la differenza fra correggere il lavoro e correggere
+    // la domanda.
+    if (decisione.tipo === 'correggiCriterio') {
+      const { descrizione, comando } = decisione
+      const conNuovoCriterio: Autopilota = {
+        ...aggiornato,
+        criteri: aggiornato.criteri.map((c) =>
+          c.descrizione === descrizione ? { ...c, comando, soddisfatto: false } : c
+        ),
+        decisioni: [
+          ...aggiornato.decisioni,
+          { quando: deps.adesso(), cosa: `criterio corretto — «${descrizione}»: ${comando}` }
+        ]
+      }
+      salva(conNuovoCriterio)
+      return {
+        decision: 'block',
+        reason:
+          `Il criterio «${descrizione}» era misurato male: il comando è stato sostituito con ` +
+          `\`${comando}\`.\n\nProsegui verso l'obiettivo: ${aggiornato.obiettivo}`
+      }
     }
 
     if (decisione.tipo === 'chiediUtente') {

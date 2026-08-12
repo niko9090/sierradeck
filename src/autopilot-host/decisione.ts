@@ -45,6 +45,8 @@ export type Decisione =
   | { tipo: 'prosegui'; istruzioni: string; strategia?: string }
   | { tipo: 'finito' }
   | { tipo: 'sospendi'; motivo: string }
+  /** Il comando di un criterio va sostituito: misurava la cosa sbagliata. */
+  | { tipo: 'correggiCriterio'; descrizione: string; comando: string }
   | { tipo: 'serveGiudizio' }
   | { tipo: 'chiediUtente'; domanda: string }
 
@@ -97,9 +99,15 @@ export function traccia(esiti: EsitoVerifica[]): string {
  * affrontato con la testa sgombra come la prima volta.
  */
 export function ripetizioniFinali(decisioni: { cosa: string }[], riga: string): number {
+  // Si contano solo le tracce, saltando tutto il resto che finisce nella storia
+  // — le note del supervisore, le risposte dell'utente, i criteri corretti.
+  // Senza questo filtro bastava una riga in mezzo per spezzare la sequenza, e
+  // un cerchio perfetto non veniva più riconosciuto: l'autopilota tornava a
+  // girare a vuoto senza che nessuna strategia scattasse mai.
+  const tracce = decisioni.filter((d) => d.cosa.startsWith('proseguito: '))
   let n = 0
-  for (let i = decisioni.length - 1; i >= 0; i -= 1) {
-    if (decisioni[i]?.cosa !== riga) break
+  for (let i = tracce.length - 1; i >= 0; i -= 1) {
+    if (tracce[i]?.cosa !== riga) break
     n += 1
   }
   return n
