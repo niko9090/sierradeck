@@ -16,6 +16,9 @@ type StatoClient = Awaited<ReturnType<typeof window.gestore.client.stato>>
  */
 function SezioneClient(): React.JSX.Element {
   const [stato, setStato] = useState<StatoClient | undefined>(undefined)
+  // I quadrati da inquadrare: arrivano insieme all'apertura dell'accoppiamento
+  // e valgono quanto lui. Scaduto quello, non servono più a niente.
+  const [qr, setQr] = useState<{ indirizzo: string; immagine: string }[]>([])
   const ricarica = (): void => {
     window.gestore.client.stato().then(setStato).catch(() => setStato(undefined))
   }
@@ -52,16 +55,42 @@ function SezioneClient(): React.JSX.Element {
             <span>Codice da digitare</span>
             <strong className="codice-accoppiamento">{codice}</strong>
           </div>
+          {qr.length > 0 ? (
+            <>
+              <div className="impostazioni__nota">
+                Inquadra con la fotocamera del telefono: si collega da solo, senza
+                digitare niente. Se ci sono più reti, prova il primo che funziona.
+              </div>
+              <div className="qr-fila">
+                {qr.map((q) => (
+                  <figure key={q.indirizzo} className="qr">
+                    <img src={q.immagine} alt={`codice per ${q.indirizzo}`} />
+                    <figcaption>{q.indirizzo}</figcaption>
+                  </figure>
+                ))}
+              </div>
+            </>
+          ) : null}
           <div className="impostazioni__nota">
-            Vale tre minuti e per un dispositivo solo. Non passa mai dalla rete:
-            si legge qui e si digita là.
+            Vale tre minuti e per un dispositivo solo. Il codice non passa mai
+            dalla rete: sta sullo schermo, e nel quadrato qui sopra.
           </div>
-          <button className="tasto" onClick={() => { void window.gestore.client.chiudiAccoppiamento().then(ricarica) }}>
+          <button
+            className="tasto"
+            onClick={() => { setQr([]); void window.gestore.client.chiudiAccoppiamento().then(ricarica) }}
+          >
             Chiudi l’accoppiamento
           </button>
         </>
       ) : (
-        <button className="tasto" onClick={() => { void window.gestore.client.apriAccoppiamento().then(ricarica) }}>
+        <button
+          className="tasto"
+          onClick={() => {
+            void window.gestore.client
+              .apriAccoppiamento()
+              .then((a) => { setQr(a.qr); ricarica() })
+          }}
+        >
           Collega un dispositivo
         </button>
       )}

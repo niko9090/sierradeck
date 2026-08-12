@@ -75,8 +75,11 @@ contextBridge.exposeInMainWorld('gestore', {
       dispositivi: { id: string; nome: string; collegatoIl: string; ultimoAccesso?: string }[]
       accoppiamento?: { codice: string; scadeIl: number }
     }> => ipcRenderer.invoke('client:stato'),
-    apriAccoppiamento: (): Promise<{ codice: string; scadeIl: number }> =>
-      ipcRenderer.invoke('client:apriAccoppiamento'),
+    apriAccoppiamento: (): Promise<{
+      codice: string
+      scadeIl: number
+      qr: { indirizzo: string; immagine: string }[]
+    }> => ipcRenderer.invoke('client:apriAccoppiamento'),
     chiudiAccoppiamento: (): Promise<void> => ipcRenderer.invoke('client:chiudiAccoppiamento'),
     revoca: (id: string): Promise<unknown[]> => ipcRenderer.invoke('client:revoca', id),
     /** Le chat aperte, che il Core da solo non conosce. */

@@ -41,7 +41,11 @@ declare global {
           dispositivi: { id: string; nome: string; collegatoIl: string; ultimoAccesso?: string }[]
           accoppiamento?: { codice: string; scadeIl: number }
         }>
-        apriAccoppiamento: () => Promise<{ codice: string; scadeIl: number }>
+        apriAccoppiamento: () => Promise<{
+          codice: string
+          scadeIl: number
+          qr: { indirizzo: string; immagine: string }[]
+        }>
         chiudiAccoppiamento: () => Promise<void>
         revoca: (id: string) => Promise<unknown[]>
         annunciaChat: (chat: { id: string; titolo: string; cwd: string }[]) => void

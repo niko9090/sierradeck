@@ -204,7 +204,30 @@ window.vaiA = async (nome) => { await chiedi('/api/workspace', { nome }); aggior
 window.fermaAp = async (id) => { await chiedi('/api/autopilota/ferma', { autopilota: id }); aggiorna() }
 window.riprendiAp = async (id) => { await chiedi('/api/autopilota/riprendi', { autopilota: id }); aggiorna() }
 
+/**
+ * Il codice arrivato inquadrando il QR.
+ *
+ * Sta dopo il cancelletto, quindi non e' mai uscito dal telefono: il server non
+ * lo ha visto passare. Si consuma subito e si toglie dall'indirizzo, cosi' non
+ * resta nella cronologia del browser.
+ */
+async function accoppiaDalQr() {
+  const trovato = /codice=(\d{6})/.exec(location.hash)
+  if (!trovato) return false
+  history.replaceState(null, '', location.pathname)
+  const r = await fetch('/api/accoppia', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ codice: trovato[1], nome: 'telefono' })
+  })
+  const dati = await r.json().catch(() => ({}))
+  if (!dati.chiave) return false
+  chiave = dati.chiave
+  localStorage.setItem(CHIAVE, chiave)
+  return true
+}
+
 async function aggiorna() {
+  if (!chiave) { await accoppiaDalQr() }
   if (!chiave) { ingresso(); return }
   try { pannello(await chiedi('/api/stato')) } catch (e) { /* l'ingresso e' gia' a schermo */ }
 }

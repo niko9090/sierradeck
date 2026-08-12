@@ -1744,3 +1744,10 @@ select optgroup {
 }
 
 select:focus-visible { outline: 2px solid var(--accento, #4aa3ff); outline-offset: 1px; }
+
+/* I quadrati da inquadrare: bianchi e grandi, perché una fotocamera li legge
+   da lontano e storti solo se hanno contrasto e margine. */
+.qr-fila { display: flex; gap: 14px; flex-wrap: wrap; }
+.qr { margin: 0; text-align: center; }
+.qr img { width: 180px; height: 180px; border-radius: 8px; background: #fff; padding: 6px; }
+.qr figcaption { font-size: 10px; color: var(--testo-quieto); margin-top: 5px; }

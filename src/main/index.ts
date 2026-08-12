@@ -30,6 +30,7 @@ import { apriQuaderno } from './quaderno-store'
 import { apriDispositivi } from './dispositivi'
 import { creaServerClient, indirizziLocali } from './client-server'
 import { rotteClient, rotteLibere } from './client-rotte'
+import { immagineQr, indirizzoAccoppiamento } from './qr-accoppiamento'
 import type { Chat } from './client-rotte'
 import { apriProviderStore } from './provider-store'
 import { creaAggiornamenti } from './aggiornamenti'
@@ -463,7 +464,20 @@ if (!app.requestSingleInstanceLock()) {
         dispositivi: dispositivi.elenca(),
         accoppiamento: dispositivi.accoppiamentoAperto()
       }))
-      ipcMain.handle('client:apriAccoppiamento', () => dispositivi.apriAccoppiamento())
+      ipcMain.handle('client:apriAccoppiamento', async () => {
+        const aperto = dispositivi.apriAccoppiamento()
+        // Il quadrato da inquadrare, uno per indirizzo: quale sia quello giusto
+        // dipende dalla rete, e il telefono lo scopre puntandolo.
+        const qr = await Promise.all(
+          indirizziLocali().map(async (ind) => ({
+            indirizzo: `http://${ind}:${porta}`,
+            immagine: await immagineQr(
+              indirizzoAccoppiamento(`http://${ind}:${porta}`, aperto.codice)
+            )
+          }))
+        ).catch(() => [])
+        return { ...aperto, qr }
+      })
       ipcMain.handle('client:chiudiAccoppiamento', () => { dispositivi.chiudiAccoppiamento() })
       ipcMain.handle('client:revoca', (_e, id: unknown) => {
         if (typeof id === 'string') dispositivi.revoca(id)

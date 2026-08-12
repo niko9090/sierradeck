@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.7.0',
+    righe: [
+      'Il telefono si collega **inquadrando un QR**: niente più sei cifre da ribattere. La fotocamera di sistema basta — nessuna app da installare per leggerlo — e la pagina si accoppia da sola.',
+      'Un salvataggio si può **aggiornare**: hai aggiunto una chat a «desk_1» e volevi salvarla lì dentro? Adesso c’è il tasto. Prima si poteva solo riprenderlo o buttarlo.',
+      'C’è l’app Android, nella cartella `android` del progetto: mostra la stessa pagina del Client e, con una notifica fissa, resta in ascolto **anche quando la chiudi** — cosa che nessuna pagina web può fare su una rete di casa.'
+    ]
+  },
+  {
     versione: '0.6.0',
     righe: [
       'L’aggiornamento aggiorna anche **Claude Code**, se è indietro: nello stesso viaggio, con la stessa finestra nera. È l’unico momento in cui si può fare, perché nessuna chat lo tiene aperto.',

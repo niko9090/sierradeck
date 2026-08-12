@@ -75,6 +75,22 @@ export function ModaleIstantanee({
       .finally(() => setInCorso(false))
   }
 
+  /**
+   * Salva sopra un salvataggio che esiste già.
+   *
+   * Era la cosa che mancava: chi aveva «desk_1» e aggiungeva una chat poteva
+   * solo riprenderlo o buttarlo. Aggiornare il proprio salvataggio è il gesto
+   * più naturale che ci sia, e non c'era.
+   */
+  const sovrascrivi = (i: Istantanea): void =>
+    esegui(async () => {
+      setElenco(await window.gestore.istantanee.salva(
+        i.nome,
+        useLayoutStore.getState().esporta(),
+        conAutopiloti
+      ))
+    })
+
   const salva = (): void => {
     const scelto = nome.trim()
     if (scelto === '') return
@@ -135,6 +151,14 @@ export function ModaleIstantanee({
                   disabled={inCorso}
                 >
                   Riprendi
+                </button>
+                <button
+                  className="tasto"
+                  onClick={() => sovrascrivi(i)}
+                  disabled={inCorso}
+                  title={`Salva le chat di adesso dentro «${i.nome}», al posto di quelle salvate`}
+                >
+                  Aggiorna
                 </button>
                 <button
                   className="tasto"
