@@ -41,6 +41,8 @@ export type DipendenzeRotte = {
   fermaAutopilota: (id: string) => Promise<void>
   riprendiAutopilota: (id: string) => Promise<void>
   versione: string
+  /** Qual è l'ultimo APK dell'app, per il tasto «Scarica». */
+  apk?: () => Promise<{ versione: string; url: string } | undefined>
 }
 
 const OK = (corpo: unknown): Esito => ({ stato: 200, corpo })
@@ -76,6 +78,14 @@ export function rotteLibere(deps: DipendenzeRotte) {
     if (r.percorso === '/favicon.ico') {
       // Il cristallo, come icona della scheda del browser.
       return TESTO(ICONA_SVG, 'image/svg+xml; charset=utf-8')
+    }
+
+    // Qual e' l'app da scaricare: si chiede senza chiave perche' e' la stessa
+    // informazione che sta su una pagina pubblica, e serve **prima** di
+    // essersi collegati - e' li' che si propone l'app.
+    if (r.percorso === '/api/app') {
+      const app = await deps.apk?.()
+      return app === undefined ? OK({}) : OK(app)
     }
 
     if (r.percorso === '/api/ciao') {

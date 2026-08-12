@@ -98,6 +98,14 @@ export function paginaClient(): string {
   .ingresso input { width: 100%; text-align: center; font-size: 26px; letter-spacing: .3em; margin: 16px 0; }
   .errore { color: #e0a33c; font-size: 13px; margin-top: 8px; }
   .panoramica { background: #131518; }
+  /* Un collegamento che sembra un tasto: l'attributo download fa partire il
+     file invece di aprire una pagina, e da un telefono e' la differenza fra
+     scaricare l'app e trovarsi davanti a un elenco di file da capire. */
+  .tasto-link {
+    display: flex; align-items: center; justify-content: center;
+    flex: 1; min-height: 48px; padding: 12px 14px; border-radius: 10px;
+    background: #2f6fb5; border: 1px solid #3d86d6; color: #fff; text-decoration: none;
+  }
   /* L'ultima riga del terminale: si guarda passando, quindi carattere fisso e
      una riga sola - se andasse a capo diventerebbe una lettura. */
   .battito {
@@ -163,6 +171,13 @@ function ingresso(messaggio) {
  * il ridisegno se hai un campo sotto le dita, e in ogni caso quello che c'era
  * scritto torna al suo posto.
  */
+// Qual e' l'app da scaricare: si chiede una volta all'apertura e si tiene, che
+// e' la stessa cosa che fa chi la scarica - una volta sola. Il nome non e'
+// «app» perche' quello e' gia' il riquadro della pagina, e due dichiarazioni
+// con lo stesso nome fermano tutto lo script.
+let appAndroid = {}
+fetch('/api/app').then((r) => r.json()).then((a) => { appAndroid = a || {} }).catch(() => undefined)
+
 function pannello(s) {
   const attivo = document.activeElement
   const staScrivendo = attivo && (attivo.tagName === 'INPUT' || attivo.tagName === 'TEXTAREA')
@@ -233,12 +248,12 @@ function pannello(s) {
   // ricorda la risposta - un invito che torna a ogni apertura e' un fastidio.
   const suAndroid = /Android/i.test(navigator.userAgent)
   const inApp = /SierraDeck/i.test(navigator.userAgent) || window.matchMedia('(display-mode: standalone)').matches
-  const invito = suAndroid && !inApp && !localStorage.getItem('sierradeck.nienteapp')
+  const invito = suAndroid && !inApp && !localStorage.getItem('sierradeck.nienteapp') && appAndroid.versione
     ? \`<div class="piastrella chiede">
          <div class="titolo">C’è l’app per Android</div>
          <div class="sotto">Avvisa anche quando è chiusa: il browser, su una rete di casa, non può farlo.</div>
          <div class="riga">
-           <button class="primario" onclick="window.open('https://github.com/niko9090/sierradeck/releases/latest','_blank')">Scarica</button>
+           <a class="tasto-link" href="\${esc(appAndroid.url)}" download>Scarica l’app \${esc(appAndroid.versione)}</a>
            <button onclick="localStorage.setItem('sierradeck.nienteapp','1'); aggiorna()">No, grazie</button>
          </div>
        </div>\`

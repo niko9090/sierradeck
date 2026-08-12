@@ -61,7 +61,7 @@ const LIBERE = new Set([
   // niente: rispondere «non riconosciuto» a una richiesta che nessuno ha fatto
   // riempie la console di errori che non sono errori.
   '/favicon.ico',
-  '/api/ciao', '/api/accoppia'
+  '/api/ciao', '/api/accoppia', '/api/app'
 ])
 
 export function autorizzata(percorso: string): boolean {

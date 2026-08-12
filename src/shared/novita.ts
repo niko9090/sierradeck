@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.8.3',
+    righe: [
+      'Il tasto per scaricare l’app dice quale versione è, e **scarica**: prima apriva GitHub e ti lasciava davanti a un elenco di file da capire — da un telefono è il momento in cui si rinuncia.'
+    ]
+  },
+  {
     versione: '0.8.2',
     righe: [
       'Il testo mandato dal telefono arriva davvero alla chat: si scriveva usando l’identificatore del riquadro invece di quello del terminale, e non succedeva niente — in silenzio, da entrambe le parti.',

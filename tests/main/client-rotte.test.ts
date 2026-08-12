@@ -23,6 +23,7 @@ function deps(over: Partial<DipendenzeRotte> = {}): DipendenzeRotte {
     fermaAutopilota: () => Promise.resolve(),
     riprendiAutopilota: () => Promise.resolve(),
     versione: '0.5.0',
+    apk: () => Promise.resolve({ versione: '1.0.2', url: 'https://x/SierraDeck-1.0.2.apk' }),
     ...over
   }
 }
@@ -77,6 +78,21 @@ describe('la pagina', () => {
     // comandi - non deve uscire senza essersi fatti riconoscere.
     const r = await rotteLibere(deps())({ metodo: 'GET', percorso: '/api/stato', corpo: undefined })
     expect(r.stato).toBe(404)
+  })
+})
+
+describe('l app da scaricare', () => {
+  it('si chiede senza chiave, perche' + "'" + ' serve prima di collegarsi', async () => {
+    const r = await rotteLibere(deps())({ metodo: 'GET', percorso: '/api/app', corpo: undefined })
+    expect(r.stato).toBe(200)
+    expect((r.corpo as Record<string, unknown>).versione).toBe('1.0.2')
+  })
+
+  it('senza APK risponde vuoto invece di rompersi', async () => {
+    const r = await rotteLibere(deps({ apk: () => Promise.resolve(undefined) }))(
+      { metodo: 'GET', percorso: '/api/app', corpo: undefined }
+    )
+    expect(r.corpo).toEqual({})
   })
 })
 

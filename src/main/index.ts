@@ -33,6 +33,7 @@ import {
 } from './client-server'
 import { rotteClient, rotteLibere } from './client-rotte'
 import { immagineQr, indirizzoAccoppiamento } from './qr-accoppiamento'
+import { apkDisponibile } from './apk-disponibile'
 import type { Chat } from './client-rotte'
 import { apriProviderStore } from './provider-store'
 import { creaAggiornamenti } from './aggiornamenti'
@@ -436,7 +437,8 @@ if (!app.requestSingleInstanceLock()) {
         },
         fermaAutopilota: (id: string) => clientAutopilota.ferma(id),
         riprendiAutopilota: (id: string) => clientAutopilota.riprendi(id),
-        versione: app.getVersion()
+        versione: app.getVersion(),
+        apk: () => apkDisponibile()
       }
 
       const porta = impostazioni.preferenze().portaClient
