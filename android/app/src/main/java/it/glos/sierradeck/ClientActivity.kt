@@ -11,6 +11,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -102,6 +103,20 @@ class ClientActivity : AppCompatActivity() {
         setContentView(vista)
         // La guardia parte quando c'è un computer da guardare, non prima.
         GuardiaService.avvia(this)
+
+        // Un'app installata a mano non riceve niente da sola: finché non vive
+        // sul Play Store, il controllo lo facciamo qui. Si propone, non si
+        // impone — a installare è Android, con la sua schermata di sempre.
+        Aggiornamenti.controlla(BuildConfig.VERSION_NAME) { nome, apk ->
+            runOnUiThread {
+                AlertDialog.Builder(this)
+                    .setTitle("C’è SierraDeck $nome")
+                    .setMessage("Vuoi scaricarla adesso? L’installazione la conferma Android.")
+                    .setPositiveButton("Scarica") { _, _ -> Aggiornamenti.scarica(this, apk) }
+                    .setNegativeButton("Più tardi", null)
+                    .show()
+            }
+        }
     }
 
     override fun onBackPressed() {

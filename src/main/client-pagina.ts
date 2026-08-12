@@ -16,6 +16,18 @@
  * due parole a una chat — raggiungibili senza cercare.
  */
 
+/** Il cristallo, per la scheda del browser e per la schermata Home. */
+export const ICONA_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">' +
+  '<rect width="512" height="512" fill="#0b0c0e"/>' +
+  '<path d="M268 92 L392 306 L268 306 Z" fill="#dfe3e7"/>' +
+  '<path d="M268 92 L132 306 L268 306 Z" fill="#7d858d"/>' +
+  '<path d="M132 306 L268 306 L200 412 Z" fill="#525a62"/>' +
+  '<path d="M268 306 L392 306 L326 412 Z" fill="#363d44"/>' +
+  '<path d="M200 412 L326 412 L268 306 Z" fill="#252b31"/>' +
+  '<path d="M268 92 L312 168 L268 168 Z" fill="#54c07a"/>' +
+  '</svg>'
+
 export const MANIFESTO = {
   name: 'SierraDeck Client',
   short_name: 'SierraDeck',
@@ -27,19 +39,7 @@ export const MANIFESTO = {
     {
       // Il cristallo in SVG: nessun file da servire, nessuna dimensione da
       // sbagliare, e resta nitido su qualunque schermo.
-      src:
-        'data:image/svg+xml,' +
-        encodeURIComponent(
-          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">' +
-            '<rect width="512" height="512" fill="#0b0c0e"/>' +
-            '<path d="M268 92 L392 306 L268 306 Z" fill="#dfe3e7"/>' +
-            '<path d="M268 92 L132 306 L268 306 Z" fill="#7d858d"/>' +
-            '<path d="M132 306 L268 306 L200 412 Z" fill="#525a62"/>' +
-            '<path d="M268 306 L392 306 L326 412 Z" fill="#363d44"/>' +
-            '<path d="M200 412 L326 412 L268 306 Z" fill="#252b31"/>' +
-            '<path d="M268 92 L312 168 L268 168 Z" fill="#54c07a"/>' +
-            '</svg>'
-        ),
+      src: `data:image/svg+xml,${encodeURIComponent(ICONA_SVG)}`,
       sizes: 'any',
       type: 'image/svg+xml'
     }
@@ -54,6 +54,7 @@ export function paginaClient(): string {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b0c0e">
 <link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/favicon.ico">
 <title>SierraDeck</title>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -160,8 +161,8 @@ function pannello(s) {
       <div class="barra"><i style="width:\${a.criteri ? Math.round(a.fatti / a.criteri * 100) : 0}%"></i></div>
       <div class="riga">
         \${a.stato === 'lavoro' || a.stato === 'attesa'
-          ? '<button onclick="fermaAp('' + esc(a.id) + '')">Ferma</button>'
-          : '<button onclick="riprendiAp('' + esc(a.id) + '')">Riprendi</button>'}
+          ? '<button onclick="fermaAp(\\'' + esc(a.id) + '\\')">Ferma</button>'
+          : '<button onclick="riprendiAp(\\'' + esc(a.id) + '\\')">Riprendi</button>'}
       </div>
     </div>\`).join('')
 
@@ -229,7 +230,10 @@ window.riprendiAp = async (id) => { await chiedi('/api/autopilota/riprendi', { a
  * resta nella cronologia del browser.
  */
 async function accoppiaDalQr() {
-  const trovato = /codice=(\d{6})/.exec(location.hash)
+  // Il backslash va raddoppiato: questo testo vive dentro un template
+  // JavaScript, e scritto una volta sola arriverebbe alla pagina come la
+  // lettera «d» — la scansione del QR non accoppierebbe niente.
+  const trovato = /codice=(\\d{6})/.exec(location.hash)
   if (!trovato) return false
   history.replaceState(null, '', location.pathname)
   const r = await fetch('/api/accoppia', {
@@ -243,11 +247,34 @@ async function accoppiaDalQr() {
   return true
 }
 
+/**
+ * Disegna quello che c'e' da disegnare, qualunque cosa succeda.
+ *
+ * Il nero e' il peggior esito possibile: non dice se manca la rete, se la
+ * chiave non vale piu' o se c'e' un difetto, e non lascia niente da premere.
+ * Qui dentro **ogni** strada finisce con qualcosa a schermo - anche solo la
+ * schermata di collegamento con scritto cosa non ha funzionato.
+ */
 async function aggiorna() {
-  if (!chiave) { await accoppiaDalQr() }
-  if (!chiave) { ingresso(); return }
-  try { pannello(await chiedi('/api/stato')) } catch (e) { /* l'ingresso e' gia' a schermo */ }
+  try {
+    if (!chiave) { await accoppiaDalQr() }
+    if (!chiave) { ingresso(); return }
+    pannello(await chiedi('/api/stato'))
+  } catch (e) {
+    // Se non c'e' niente a schermo si mostra l'ingresso con il motivo: una
+    // pagina vuota lascia solo la scelta di chiudere e riprovare alla cieca.
+    if (!app.innerHTML.trim()) ingresso('Non riesco a parlare con il computer: ' + (e && e.message ? e.message : e))
+  }
 }
+
+// Se qualcosa esplode prima ancora di disegnare - un errore di sintassi, una
+// funzione che non c'e' - almeno si vede perche', invece di uno schermo nero.
+window.addEventListener('error', (ev) => {
+  if (!app.innerHTML.trim()) {
+    app.innerHTML = '<div class="ingresso"><div style="font-size:19px">SierraDeck</div>' +
+      '<div class="errore">' + esc(ev.message) + '</div></div>'
+  }
+})
 
 aggiorna()
 // Due secondi: abbastanza da sembrare vivo, abbastanza poco da non tenere sveglia

@@ -13,8 +13,14 @@ android {
         // un servizio in primo piano non si può nemmeno dichiarare.
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.6.0"
+        versionCode = 2
+        versionName = "0.7.6"
+    }
+
+    // Serve `BuildConfig.VERSION_NAME`: l'app deve sapere quale versione è per
+    // poter dire se ce n'è una più nuova.
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {

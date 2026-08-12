@@ -55,7 +55,14 @@ export type DipendenzeClient = {
  * Non è una perdita: la pagina è un'interfaccia vuota. I dati — chat,
  * autopiloti, comandi — restano tutti dietro la chiave, dove devono stare.
  */
-const LIBERE = new Set(['/', '/index.html', '/manifest.json', '/api/ciao', '/api/accoppia'])
+const LIBERE = new Set([
+  '/', '/index.html', '/manifest.json',
+  // Il browser la chiede da solo, sempre, prima ancora che tu abbia fatto
+  // niente: rispondere «non riconosciuto» a una richiesta che nessuno ha fatto
+  // riempie la console di errori che non sono errori.
+  '/favicon.ico',
+  '/api/ciao', '/api/accoppia'
+])
 
 export function autorizzata(percorso: string): boolean {
   return LIBERE.has(percorso)

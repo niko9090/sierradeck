@@ -1,7 +1,7 @@
 import type { Esito } from './client-server'
 import type { Dispositivi } from './dispositivi'
 import type { Autopilota } from '@shared/autopilota'
-import { paginaClient, MANIFESTO } from './client-pagina'
+import { paginaClient, ICONA_SVG, MANIFESTO } from './client-pagina'
 
 /**
  * Cosa può fare il Client, e cosa no.
@@ -72,6 +72,10 @@ export function rotteLibere(deps: DipendenzeRotte) {
     }
     if (r.percorso === '/manifest.json') {
       return TESTO(JSON.stringify(MANIFESTO), 'application/manifest+json; charset=utf-8')
+    }
+    if (r.percorso === '/favicon.ico') {
+      // Il cristallo, come icona della scheda del browser.
+      return TESTO(ICONA_SVG, 'image/svg+xml; charset=utf-8')
     }
 
     if (r.percorso === '/api/ciao') {

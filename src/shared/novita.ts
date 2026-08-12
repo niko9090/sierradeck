@@ -23,6 +23,15 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.7.6',
+    righe: [
+      'La pagina del Client non resta più nera: un errore di sintassi nascosto la lasciava vuota, senza un messaggio e senza niente da premere. Adesso un test verifica che lo script sia valido, e qualunque errore lascia comunque una schermata con scritto cosa non va.',
+      'Il QR ora accoppia davvero: la ricerca del codice cercava la lettera «d» invece delle sei cifre.',
+      'L’app Android non va più in errore quando inserisci l’indirizzo, e si aggiorna da sola — finché non sarà sul Play Store, ti propone la versione nuova quando c’è.',
+      'Scambio file fra computer e telefono: quello che metti da una parte lo trovi dall’altra.'
+    ]
+  },
+  {
     versione: '0.7.5',
     righe: [
       'Tailscale, ZeroTier e le VPN a maglia funzionano: i loro indirizzi (100.64–100.127) erano trattati come Internet, quindi non solo non comparivano — chi arrivava da lì veniva **respinto**. Adesso l’indirizzo Tailscale è in evidenza accanto a quello di casa.',

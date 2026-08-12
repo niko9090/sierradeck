@@ -7,7 +7,10 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -40,7 +43,19 @@ class GuardiaService : Service() {
     override fun onCreate() {
         super.onCreate()
         creaCanali()
-        startForeground(ID_PRESENZA, notificaPresenza())
+        // Da Android 14 il tipo va dichiarato **anche qui**, non solo nel
+        // manifest: senza, il sistema chiude l'app con un'eccezione invece di
+        // avviare il servizio. È il crash che si vedeva appena inserito
+        // l'indirizzo, perché è lì che la guardia parte.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(
+                ID_PRESENZA,
+                notificaPresenza(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            )
+        } else {
+            startForeground(ID_PRESENZA, notificaPresenza())
+        }
         thread(start = true) { giro() }
     }
 
@@ -149,7 +164,13 @@ class GuardiaService : Service() {
         private const val ID_DOMANDA = 2
 
         fun avvia(contesto: Context) {
-            contesto.startForegroundService(Intent(contesto, GuardiaService::class.java))
+            // Un servizio che non parte non deve portarsi dietro l'app: senza
+            // guardia si vede lo stesso tutto, solo senza avvisi.
+            try {
+                contesto.startForegroundService(Intent(contesto, GuardiaService::class.java))
+            } catch (e: Exception) {
+                Log.e("SierraDeck", "guardia non avviata", e)
+            }
         }
     }
 }
