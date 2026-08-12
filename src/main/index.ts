@@ -33,6 +33,8 @@ import { rotteClient, rotteLibere } from './client-rotte'
 import type { Chat } from './client-rotte'
 import { apriProviderStore } from './provider-store'
 import { creaAggiornamenti } from './aggiornamenti'
+import { claudeDaAggiornare } from './claude-versione'
+import { resolveClaudeCommand } from './config'
 import { leggiAccesso } from './accesso'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
@@ -576,6 +578,18 @@ if (!app.requestSingleInstanceLock()) {
           area?.destroy()
           area = undefined
           await chiudiRisorse()
+        },
+        // Anche Claude Code, se è indietro: si aggiorna nello stesso viaggio,
+        // quando il programma è chiuso e nessuna chat lo tiene aperto.
+        () => {
+          try {
+            return claudeDaAggiornare(resolveClaudeCommand(process.env))
+          } catch (err) {
+            // Non sapere se Claude Code è aggiornato non deve impedire di
+            // aggiornare SierraDeck: si lascia stare e si va avanti.
+            console.error('[aggiornamenti] versione di Claude Code non verificata:', err)
+            return undefined
+          }
         }
       )
       ipcMain.handle('aggiornamenti:stato', () => aggiornamenti.stato())

@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.6.0',
+    righe: [
+      'L’aggiornamento aggiorna anche **Claude Code**, se è indietro: nello stesso viaggio, con la stessa finestra nera. È l’unico momento in cui si può fare, perché nessuna chat lo tiene aperto.',
+      'La barra arriva davvero al 100%: si fermava all’82 dicendo «Pronto» — l’ultimo disegno restava quello del giro prima, perché la finestra usciva prima di aggiornarlo.',
+      'E dice «Pronto» solo quando la nuova versione è davvero a schermo, non mentre sta ancora nascendo.'
+    ]
+  },
+  {
     versione: '0.5.8',
     righe: [
       'Dal telefono si vedono **tutte** le chat, anche quelle di altre finestre: prima l’ultima finestra che si annunciava copriva le altre, e se ne vedeva una sola.',

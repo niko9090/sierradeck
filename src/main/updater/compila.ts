@@ -134,6 +134,14 @@ export type AvvioUpdater = {
   eseguibile: string
   versione: string
   pid: number
+  /**
+   * Il comando di Claude Code da aggiornare, se lo si vuole aggiornare adesso.
+   *
+   * Si fa qui perché qui il programma è chiuso: Claude Code non si lascia
+   * sostituire mentre le sue chat lo tengono aperto, e chiederlo all'utente
+   * vorrebbe dire chiedergli di chiudere tutto a mano.
+   */
+  claude?: string
 }
 
 /**
@@ -163,7 +171,9 @@ export function avviaUpdater(percorso: string, dati: AvvioUpdater): boolean {
     const cartella = dirname(percorso)
     writeFileSync(
       join(cartella, 'aggiornamento.txt'),
-      [String(dati.pid), dati.installer, dati.eseguibile, dati.versione].join(String.fromCharCode(10)),
+      [
+        String(dati.pid), dati.installer, dati.eseguibile, dati.versione, dati.claude ?? ''
+      ].join(String.fromCharCode(10)),
       'utf8'
     )
     // Il diario di prima direbbe «è vivo» di un updater che non è ancora nato.

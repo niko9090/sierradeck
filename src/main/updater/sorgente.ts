@@ -29,7 +29,7 @@
  * spazio aggiunto farebbe ricompilare per niente, e chi la alza qui sta anche
  * dicendo «ho cambiato qualcosa che conta».
  */
-export const VERSIONE_UPDATER = 6
+export const VERSIONE_UPDATER = 7
 
 export function sorgenteUpdater(): string {
   return `using System;
@@ -39,7 +39,11 @@ using System.IO;
 using System.Windows.Forms;
 
 // SierraDeck Update - installa una versione nuova mentre il programma e' chiuso.
-// Argomenti: <pid> <installer> <eseguibile> <versione>
+// Argomenti: <pid> <installer> <eseguibile> <versione> [claude]
+//
+// L'ultimo, se c'e', e' il comando di Claude Code da aggiornare: si fa qui e
+// non nel programma perche' qui il programma e' gia' chiuso, e Claude Code non
+// si lascia sostituire mentre le sue chat lo tengono aperto.
 class Aggiornamento : Form {
     static string percorsoDiario;
     Label fase;
@@ -55,7 +59,9 @@ class Aggiornamento : Form {
     string installer;
     string eseguibile;
     string versione;
+    string claude;
     Process installazione;
+    Process claudeInCorso;
     // Sotto questi giri non si chiude comunque: una finestra che appare e
     // sparisce in un lampo, mentre lo schermo e' occupato dall'installer, non
     // e' apparsa.
@@ -117,6 +123,7 @@ class Aggiornamento : Form {
         installer = args[1];
         eseguibile = args[2];
         versione = args.Length > 3 ? args[3] : "";
+        claude = args.Length > 4 ? args[4] : "";
 
         Color sfondo = Color.FromArgb(11, 12, 14);
         Color chiaro = Color.FromArgb(223, 227, 231);
@@ -196,7 +203,7 @@ class Aggiornamento : Form {
 
     void Batte(object mittente, EventArgs e) {
         giri++;
-        int tetto = passo == 0 ? 25 : passo == 1 ? 80 : passo == 2 ? 97 : 100;
+        int tetto = passo == 0 ? 25 : passo == 1 ? 65 : passo == 5 ? 85 : passo == 2 ? 97 : 100;
         if (valore < tetto) valore = Math.Min(tetto, valore + 2);
 
         if (passo == 0) {
@@ -222,16 +229,39 @@ class Aggiornamento : Form {
                 : "Installazione in corso...";
             if (installazione == null || installazione.HasExited) {
                 Nota("installer terminato");
+                if (claude.Length > 0) { AggiornaClaude(); passo = 5; }
+                else { Avvia(); passo = 2; }
+            }
+        } else if (passo == 5) {
+            // Claude Code: si aggiorna adesso, che nessuna chat lo tiene
+            // aperto. E' l'unico momento in cui si puo' fare senza chiedere
+            // all'utente di chiudere tutto a mano.
+            fase.Text = "Aggiorno anche Claude Code...";
+            if (claudeInCorso == null || claudeInCorso.HasExited) {
+                Nota("claude code aggiornato");
                 Avvia();
                 passo = 2;
             }
         } else if (passo == 2) {
             fase.Text = "Avvio della nuova versione...";
-            if (giri > GIRI_MINIMI) passo = 3;
+            // Si aspetta che la nuova istanza sia davvero in piedi prima di
+            // dire «Pronto»: dirlo mentre sta ancora nascendo e' la stessa
+            // bugia della barra ferma all'82.
+            if (NuovaViva() || giri > GIRI_MINIMI) passo = 3;
         } else {
             fase.Text = "Pronto.";
             valore = 100;
-            if (giri > GIRI_MINIMI) { battito.Stop(); Nota("finito"); Chiudi(); return; }
+            if (giri > GIRI_MINIMI) {
+                battito.Stop();
+                // Si disegna il 100 **prima** di uscire: con il return subito
+                // dopo lo stop, l'ultimo disegno era quello del giro prima e la
+                // finestra si chiudeva dicendo «Pronto» accanto a un 82%.
+                barra.Width = 320;
+                percento.Text = "100%";
+                Nota("finito");
+                Chiudi();
+                return;
+            }
         }
 
         // Un'installazione che non finisce piu' non deve lasciare una finestra
@@ -239,6 +269,8 @@ class Aggiornamento : Form {
         if (giri > GIRI_MASSIMI) {
             fase.Text = "L'installazione sta impiegando troppo: controlla SierraDeck.";
             battito.Stop();
+            barra.Width = (int)(320.0 * valore / 100.0);
+            percento.Text = valore + "%";
             Nota("tempo scaduto");
             Chiudi();
             return;
@@ -325,6 +357,37 @@ class Aggiornamento : Form {
         } catch (Exception e) {
             Nota("installer non partito: " + e.Message);
             fase.Text = "Non sono riuscito a installare: apri l'installer a mano.";
+        }
+    }
+
+    /** La nuova versione e' gia' a schermo? */
+    bool NuovaViva() {
+        try {
+            string nome = Path.GetFileNameWithoutExtension(eseguibile);
+            if (nome == null || nome.Length == 0) return false;
+            return Process.GetProcessesByName(nome).Length > 0;
+        } catch { return false; }
+    }
+
+    /**
+     * Aggiorna Claude Code con il suo stesso comando.
+     *
+     * Non si reinstalla e non si scarica niente da noi: «claude update» sa
+     * come farlo, e affidarglielo significa non dover inseguire il modo in cui
+     * si aggiorna quando cambiera'.
+     */
+    void AggiornaClaude() {
+        try {
+            // Le virgolette doppie qui dentro vanno raddoppiate: questo testo
+            // vive in un template JavaScript, e una virgoletta scappata con la
+            // barra rovescia arriverebbe al compilatore C# senza la barra.
+            ProcessStartInfo p = new ProcessStartInfo("cmd.exe", "/c \\"" + claude + "\\" update");
+            p.UseShellExecute = false;
+            p.CreateNoWindow = true;
+            claudeInCorso = Process.Start(p);
+            Nota("aggiorno Claude Code: " + claude);
+        } catch (Exception e) {
+            Nota("Claude Code non aggiornato: " + e.Message);
         }
     }
 

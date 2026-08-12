@@ -60,7 +60,13 @@ export function creaAggiornamenti(
    * finestra. Chi lo chiama non deve sollevare: un'uscita imperfetta è meglio di
    * un aggiornamento che non parte.
    */
-  preparaUscita?: () => Promise<void>
+  preparaUscita?: () => Promise<void>,
+  /**
+   * Il comando di Claude Code da aggiornare insieme, quando ce n'è uno da
+   * aggiornare. Restituisce `undefined` se è già all'ultima versione o se non
+   * si è potuto stabilire: nel dubbio non si tocca niente.
+   */
+  claudeDaAggiornare?: () => string | undefined
 ): Aggiornamenti {
   let stato: StatoAggiornamento = { fase: 'fermo' }
   /** Dove electron-updater ha messo l'installer: lo esegue SierraDeck Update. */
@@ -172,7 +178,11 @@ export function creaAggiornamenti(
           installer,
           eseguibile: app.getPath('exe'),
           versione: stato.versione ?? '',
-          pid: process.pid
+          pid: process.pid,
+          // Claude Code si aggiorna nello stesso viaggio: e' l'unico momento in
+          // cui nessuna chat lo tiene aperto, e chiederlo all'utente vorrebbe
+          // dire chiedergli di chiudere tutto a mano.
+          ...(claudeDaAggiornare?.() !== undefined ? { claude: claudeDaAggiornare() } : {})
         })
         if (partito) {
           // Non si chiude niente finché l'updater non dice di esserci. Se lo
