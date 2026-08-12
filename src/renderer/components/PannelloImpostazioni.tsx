@@ -215,6 +215,35 @@ export function PannelloImpostazioni({ onChiudi }: Props): React.JSX.Element {
         <SezioneClient />
 
         <section className="impostazioni__gruppo">
+          <h4>Autopilota</h4>
+          <label className="impostazioni__riga">
+            <span>Dove mostrarlo</span>
+            <select
+              value={p.postoAutopilota}
+              onChange={(e) => cambia({ postoAutopilota: e.target.value as Preferenze['postoAutopilota'] })}
+            >
+              <option value="destra">A destra della chat</option>
+              <option value="sinistra">A sinistra</option>
+              <option value="sopra">Sopra</option>
+              <option value="sotto">Sotto</option>
+              <option value="finestra">In una finestra a parte</option>
+            </select>
+          </label>
+          {p.postoAutopilota !== 'finestra' ? (
+            <label className="impostazioni__riga">
+              <span>Quanto spazio prende</span>
+              <input
+                type="range"
+                min={15}
+                max={70}
+                value={p.larghezzaAutopilota}
+                onChange={(e) => cambia({ larghezzaAutopilota: Number(e.target.value) })}
+              />
+            </label>
+          ) : null}
+        </section>
+
+        <section className="impostazioni__gruppo">
           <h4>Comportamento</h4>
           <label className="impostazioni__riga impostazioni__riga--spunta">
             <input

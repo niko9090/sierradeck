@@ -124,3 +124,49 @@ describe('autopilotaDi', () => {
     expect(autopilotaDi([ap()], 'C:\\altro')).toBeUndefined()
   })
 })
+
+describe('il diario riordinato', () => {
+  const conStoria = (cose: string[]): Autopilota => ap({
+    decisioni: cose.map((cosa, i) => ({ quando: `2026-08-12T10:0${i}:00.000Z`, cosa }))
+  })
+
+  it('mette in chiaro il ragionamento del supervisore', () => {
+    // E' la voce piu' preziosa: l'unica che dice *perche'* invece di cosa.
+    const v = diario(conStoria(['supervisore → prosegui: il test X non copre il caso limite']))
+    expect(v[0]?.titolo).toContain('Ha deciso')
+    expect(v[0]?.dettaglio).toContain('caso limite')
+    expect(v[0]?.tipo).toBe('decisione')
+  })
+
+  it('riconosce una verifica corretta', () => {
+    const v = diario(conStoria(['criterio corretto — «i test passano»: npx vitest run']))
+    expect(v[0]?.titolo).toContain('corretto una verifica')
+    expect(v[0]?.tipo).toBe('correzione')
+  })
+
+  it('unisce i tentativi identici invece di ripeterli', () => {
+    // Dieci righe uguali per dieci tentativi sullo stesso errore facevano
+    // sparire dentro il rumore la riga che contava.
+    const v = diario(conStoria([
+      'proseguito: i test passano — 2 rossi',
+      'proseguito: i test passano — 2 rossi',
+      'proseguito: i test passano — 2 rossi'
+    ]))
+    expect(v).toHaveLength(1)
+    expect(v[0]?.volte).toBe(3)
+  })
+
+  it('non unisce due tentativi diversi', () => {
+    const v = diario(conStoria([
+      'proseguito: i test passano — 2 rossi',
+      'proseguito: i test passano — 7 rossi'
+    ]))
+    expect(v).toHaveLength(2)
+    expect(v[0]?.volte).toBeUndefined()
+  })
+
+  it('la preparazione si vede come tale', () => {
+    const v = diario(conStoria(['configurato da sé: quattro criteri']))
+    expect(v[0]?.tipo).toBe('preparazione')
+  })
+})

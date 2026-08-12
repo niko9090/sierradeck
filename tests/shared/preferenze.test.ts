@@ -78,3 +78,21 @@ describe('tavolozza', () => {
     for (const v of Object.values(t)) expect(v).toMatch(/^#[0-9a-f]{6}$/)
   })
 })
+
+describe('dove sta l autopilota', () => {
+  it('accetta le cinque posizioni e rifiuta le altre', () => {
+    for (const posto of ['destra', 'sinistra', 'sopra', 'sotto', 'finestra']) {
+      expect(normalizzaPreferenze({ postoAutopilota: posto }).postoAutopilota).toBe(posto)
+    }
+    expect(normalizzaPreferenze({ postoAutopilota: 'diagonale' }).postoAutopilota)
+      .toBe(PREFERENZE_PREDEFINITE.postoAutopilota)
+  })
+
+  it('la larghezza resta dove si vede qualcosa', () => {
+    // Sotto il 15% non ci sta niente di leggibile, sopra il 70% non resta
+    // chat: i due estremi sono due modi di non vedere quello che serve.
+    expect(normalizzaPreferenze({ larghezzaAutopilota: 5 }).larghezzaAutopilota).toBe(34)
+    expect(normalizzaPreferenze({ larghezzaAutopilota: 90 }).larghezzaAutopilota).toBe(34)
+    expect(normalizzaPreferenze({ larghezzaAutopilota: 50 }).larghezzaAutopilota).toBe(50)
+  })
+})

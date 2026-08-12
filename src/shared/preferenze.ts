@@ -32,6 +32,17 @@ export type Preferenze = {
    * diventano uno. Chi lo accende lo sta scegliendo, e il pannello glielo dice.
    */
   clientOltreLaRete: boolean
+  /**
+   * Dove sta il diario dell'autopilota rispetto alla chat che governa.
+   *
+   * Non c'è una risposta giusta per tutti: su uno schermo largo si vuole di
+   * fianco, su uno alto sotto, e chi ha due monitor lo vuole in una finestra
+   * sua. `finestra` lo stacca del tutto — è la stessa vista del Client, sul
+   * computer.
+   */
+  postoAutopilota: 'destra' | 'sinistra' | 'sopra' | 'sotto' | 'finestra'
+  /** Quanto spazio prende, in percentuale del riquadro. */
+  larghezzaAutopilota: number
 }
 
 export const PREFERENZE_PREDEFINITE: Preferenze = {
@@ -41,7 +52,9 @@ export const PREFERENZE_PREDEFINITE: Preferenze = {
   portaAutopiloti: 47630,
   salvaAllaChiusura: true,
   mostraAttesaChat: true,
-  clientOltreLaRete: false
+  clientOltreLaRete: false,
+  postoAutopilota: 'destra',
+  larghezzaAutopilota: 34
 }
 
 /** Le porte sotto la 1024 le tiene il sistema, e sopra la 65535 non esistono. */
@@ -85,7 +98,19 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
       : PREFERENZE_PREDEFINITE.mostraAttesaChat,
     // Il predefinito prudente vale anche quando il valore è scritto male: una
     // preferenza illeggibile non deve poter aprire una porta.
-    clientOltreLaRete: o.clientOltreLaRete === true
+    clientOltreLaRete: o.clientOltreLaRete === true,
+    postoAutopilota:
+      o.postoAutopilota === 'sinistra' || o.postoAutopilota === 'sopra' ||
+      o.postoAutopilota === 'sotto' || o.postoAutopilota === 'finestra'
+        ? o.postoAutopilota
+        : PREFERENZE_PREDEFINITE.postoAutopilota,
+    // Sotto il 15% non ci sta niente di leggibile, sopra il 70% non resta chat:
+    // i due estremi sono entrambi un modo di non vedere quello che serve.
+    larghezzaAutopilota:
+      typeof o.larghezzaAutopilota === 'number' &&
+      o.larghezzaAutopilota >= 15 && o.larghezzaAutopilota <= 70
+        ? Math.round(o.larghezzaAutopilota)
+        : PREFERENZE_PREDEFINITE.larghezzaAutopilota
   }
 }
 

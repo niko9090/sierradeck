@@ -6,6 +6,19 @@ export type VoceDiario = {
   titolo: string
   /** Su cosa, quando c'è qualcosa da aggiungere. */
   dettaglio?: string
+  /**
+   * Di che natura è la mossa: serve a chi guarda per distinguere a colpo
+   * d'occhio un ragionamento da un tentativo, senza leggere.
+   */
+  tipo?: 'lavoro' | 'decisione' | 'correzione' | 'tu' | 'preparazione'
+  /**
+   * Quante volte di fila è successa la stessa cosa.
+   *
+   * Le riprese identiche sono la parte più rumorosa del diario — dieci righe
+   * uguali per dieci tentativi sullo stesso errore — e comprimerle in una sola
+   * con un numero accanto è la differenza fra un elenco leggibile e un muro.
+   */
+  volte?: number
 }
 
 export type Completamento = {
@@ -56,13 +69,35 @@ export function diario(a: Autopilota): VoceDiario[] {
     if (cosa.startsWith('proseguito:')) {
       return {
         quando: d.quando,
+        tipo: 'lavoro' as const,
         titolo: 'Ha ripreso il lavoro',
         dettaglio: accorcia(`manca: ${cosa.slice('proseguito:'.length)}`)
+      }
+    }
+    // Il ragionamento del supervisore: è la voce più preziosa del diario,
+    // perché è l'unica che dice **perché** invece di cosa.
+    if (cosa.startsWith('supervisore →')) {
+      const dopo = cosa.slice(cosa.indexOf('→') + 1)
+      const duePunti = dopo.indexOf(':')
+      return {
+        quando: d.quando,
+        tipo: 'decisione' as const,
+        titolo: `Ha deciso: ${dopo.slice(0, duePunti === -1 ? undefined : duePunti).trim()}`,
+        dettaglio: duePunti === -1 ? undefined : accorcia(dopo.slice(duePunti + 1))
+      }
+    }
+    if (cosa.startsWith('criterio corretto') || cosa.startsWith('comando di verifica riparato')) {
+      return {
+        quando: d.quando,
+        tipo: 'correzione' as const,
+        titolo: 'Ha corretto una verifica che non funzionava',
+        dettaglio: accorcia(cosa.slice(cosa.indexOf('—') + 1 || 0))
       }
     }
     if (cosa.startsWith('configurato da sé:')) {
       return {
         quando: d.quando,
+        tipo: 'preparazione' as const,
         titolo: 'Si è configurato',
         dettaglio: accorcia(cosa.slice('configurato da sé:'.length))
       }
@@ -71,6 +106,7 @@ export function diario(a: Autopilota): VoceDiario[] {
       const dopoDuePunti = cosa.slice(cosa.indexOf(':') + 1)
       return {
         quando: d.quando,
+        tipo: 'tu' as const,
         titolo: 'Ha ricevuto una tua risposta',
         dettaglio: accorcia(dopoDuePunti)
       }
@@ -79,7 +115,31 @@ export function diario(a: Autopilota): VoceDiario[] {
   })
 
   // Dalla più recente: è quella che dice cosa sta succedendo adesso.
-  return voci.sort((x, y) => y.quando.localeCompare(x.quando))
+  return comprimi(voci.sort((x, y) => y.quando.localeCompare(x.quando)))
+}
+
+/**
+ * Unisce le voci consecutive identiche in una sola, con il numero delle volte.
+ *
+ * Dieci tentativi sullo stesso errore producevano dieci righe uguali: il diario
+ * diventava un muro, e la riga che contava — la decisione presa dopo — spariva
+ * dentro il rumore.
+ */
+export function comprimi(voci: VoceDiario[]): VoceDiario[] {
+  const uscita: VoceDiario[] = []
+  for (const voce of voci) {
+    const ultima = uscita[uscita.length - 1]
+    if (
+      ultima !== undefined &&
+      ultima.titolo === voce.titolo &&
+      ultima.dettaglio === voce.dettaglio
+    ) {
+      ultima.volte = (ultima.volte ?? 1) + 1
+      continue
+    }
+    uscita.push({ ...voce })
+  }
+  return uscita
 }
 
 /** Due percorsi che indicano la stessa cartella, scritti in modi diversi. */

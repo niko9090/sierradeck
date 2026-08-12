@@ -190,10 +190,15 @@ export function DiarioAutopilota({
           </p>
         ) : (
           voci.map((v, i) => (
-            <div key={`${v.quando}-${i}`} className="diario__voce">
+            <div key={`${v.quando}-${i}`} className={`diario__voce diario__voce--${v.tipo ?? 'altro'}`}>
               <span className="misura diario__quando">{ora(v.quando)}</span>
               <div>
-                <div className="diario__titolo">{v.titolo}</div>
+                <div className="diario__titolo">
+                  {v.titolo}
+                  {/* Le riprese identiche sono compresse: il numero dice quante
+                      volte senza riempire l'elenco di righe uguali. */}
+                  {v.volte !== undefined ? <span className="diario__volte">×{v.volte}</span> : null}
+                </div>
                 {v.dettaglio !== undefined ? <div className="diario__dettaglio">{v.dettaglio}</div> : null}
               </div>
             </div>

@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.5.3',
+    righe: [
+      'Il diario dell’autopilota si legge: i tentativi identici sono uniti in una riga sola con il numero delle volte, e ogni tipo di mossa ha il suo colore — le decisioni del supervisore, le verifiche corrette, le tue risposte, la preparazione.',
+      'Adesso si vede anche **perché** ha deciso quello che ha deciso: prima quella riga finiva nel mucchio insieme a tutto il resto.',
+      'Nelle impostazioni scegli dove mettere l’autopilota — a destra, a sinistra, sopra, sotto o in una finestra a parte — e quanto spazio prende.'
+    ]
+  },
+  {
     versione: '0.5.2',
     righe: [
       'La fascia in alto non esce più dalla finestra: il tentativo precedente l’aveva ingrandita troppo, e i comandi finivano oltre il bordo. Ora quando lo spazio non basta scorre di lato invece di sfondare.',

@@ -1692,3 +1692,30 @@ select.comando-riquadro option {
   font-variant-numeric: tabular-nums;
   color: var(--accento, #4aa3ff);
 }
+
+/* ───────────── il diario dell'autopilota, riordinato ───────────── */
+
+/* Ogni natura di mossa ha il suo filo di colore a sinistra: si distingue un
+   ragionamento da un tentativo senza leggere, che è quello che si fa quando si
+   guarda di sfuggita mentre si lavora ad altro. */
+.diario__voce { border-left: 2px solid transparent; padding-left: 8px; }
+.diario__voce--decisione { border-left-color: var(--accento, #4aa3ff); }
+.diario__voce--correzione { border-left-color: var(--ambra, #e0a33c); }
+.diario__voce--tu { border-left-color: var(--verde, #54c07a); }
+.diario__voce--preparazione { border-left-color: var(--luce-incisione); }
+.diario__voce--lavoro { border-left-color: var(--incisione); }
+
+.diario__volte {
+  margin-left: 7px;
+  padding: 1px 6px;
+  font-size: 10px;
+  border-radius: 8px;
+  background: var(--chassis-premuto);
+  color: var(--testo-quieto);
+}
+
+/* Il diario messo dove l'utente lo vuole: la classe la mette il riquadro, e il
+   posto arriva dalle preferenze. */
+.riquadro--autopilota-sinistra { flex-direction: row-reverse; }
+.riquadro--autopilota-sopra { flex-direction: column-reverse; }
+.riquadro--autopilota-sotto { flex-direction: column; }
