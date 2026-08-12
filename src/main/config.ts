@@ -45,11 +45,22 @@ export function buildClaudeArgs(
    * Claude Code»: imporne uno di nostra iniziativa sarebbe decidere al posto
    * dell'utente una cosa che lui ha già configurato altrove.
    */
-  model?: string
+  model?: string,
+  /**
+   * Le impostazioni della sessione, quando la chat è governata da un
+   * autopilota: sono gli hook con cui dice «ho finito di rispondere».
+   *
+   * Per singola sessione e non nel file di Claude Code: `~/.claude/settings.json`
+   * non si tocca, e le altre chat non si accorgono di nulla.
+   */
+  impostazioni?: string
 ): string[] {
   const args = riprendi
     ? ['--resume', sessionUuid, '--dangerously-skip-permissions']
     : ['--session-id', sessionUuid, '--dangerously-skip-permissions']
+  if (impostazioni !== undefined && impostazioni.trim() !== '') {
+    args.push('--settings', impostazioni)
+  }
   if (model !== undefined && model.trim() !== '') args.push('--model', model.trim())
   if (title !== undefined && title.trim() !== '') args.push('-n', title.trim())
   return args

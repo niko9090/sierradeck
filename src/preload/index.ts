@@ -85,8 +85,20 @@ contextBridge.exposeInMainWorld('gestore', {
     revoca: (id: string): Promise<unknown[]> => ipcRenderer.invoke('client:revoca', id),
     /** Le chat aperte, che il Core da solo non conosce. */
     annunciaChat: (
-      chat: { id: string; titolo: string; cwd: string; ultimaRiga?: string; coda?: string[] }[]
+      chat: { id: string; titolo: string; cwd: string; sessione?: string; ultimaRiga?: string; coda?: string[] }[]
     ): void => ipcRenderer.send('client:chat', chat),
+    /**
+     * Un'istruzione dell'autopilota da portare dentro una chat.
+     *
+     * Arriva a **una** finestra sola, scelta dal Core: consegnarla a tutte
+     * vorrebbe dire scrivere lo stesso messaggio due volte nella stessa
+     * conversazione.
+     */
+    suConsegna: (cb: (c: unknown) => void): (() => void) => {
+      const h = (_e: unknown, c: unknown): void => cb(c)
+      ipcRenderer.on('autopilota:consegna', h)
+      return () => { ipcRenderer.off('autopilota:consegna', h) }
+    },
     /** Una chat nuova, chiesta da un telefono in una cartella già conosciuta. */
     suApertura: (cb: (m: { cartella: string; modello?: string }) => void): (() => void) => {
       const h = (_e: unknown, m: { cartella: string; modello?: string }): void => cb(m)

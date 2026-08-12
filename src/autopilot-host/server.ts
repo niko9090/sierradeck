@@ -29,6 +29,14 @@ export type Dipendenze = {
    */
   avviaLavoro: (a: Autopilota, messaggio?: string, chat?: ChatGovernata) => Promise<void>
   fermaLavoro: (id: string, chatId?: string) => void
+  /**
+   * Le istruzioni che aspettano di essere portate dentro una chat.
+   *
+   * Il servizio non puo' chiamare il Gestore - fra i due il confine va in una
+   * direzione sola - quindi le mette qui e il Gestore le ritira quando passa.
+   * Assente quando l'autopilota lavora ancora per conto suo.
+   */
+  consegne?: { preleva: () => unknown[]; inAttesa: () => number }
   domande: RegistroDomande
   /** Quanto la chat resta ferma ad aspettare una risposta prima di lasciar perdere. */
   scadenzaDomandaMs: number
@@ -610,7 +618,10 @@ export function creaServer(deps: Dipendenze): Server {
     void (async () => {
       try {
         if (metodo === 'GET' && percorso === '/salute') {
-          rispondi(res, 200, { vivo: true })
+          // Quante istruzioni aspettano: il Gestore lo chiede prima di
+          // ritirare, perche' senza una finestra non avrebbe dove metterle -
+          // e ritirandole le perderebbe.
+          rispondi(res, 200, { vivo: true, consegneInAttesa: deps.consegne?.inAttesa() ?? 0 })
           return
         }
 
@@ -725,6 +736,13 @@ export function creaServer(deps: Dipendenze): Server {
             }
           }
           rispondi(res, 200, deps.archivio.leggi(id))
+          return
+        }
+
+        // Il Gestore passa a ritirare: quello che si porta via lo scrive dentro
+        // le chat, ed e' l'unico che puo' farlo.
+        if (metodo === 'GET' && percorso === '/consegne') {
+          rispondi(res, 200, { consegne: deps.consegne?.preleva() ?? [] })
           return
         }
 

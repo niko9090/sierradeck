@@ -10,6 +10,8 @@ import type { Istantanea } from '@shared/istantanea'
 import { chiChiede, workspaceCheChiamano } from '@shared/dove-chiedono'
 import { attivaChiusuraFuori, attivaTrascinamento } from './trascina-finestre'
 import { creaUltimeRighe } from './ultime-righe'
+import { eseguiConsegna, ponteReale } from './consegne-autopilota'
+import { leggiConsegne } from '../main/autopilota-consegne'
 import type { Autopilota } from '@shared/autopilota'
 import type { StatoWorkspace } from '../main/ipc'
 import { Mosaic } from './components/Mosaic'
@@ -159,6 +161,9 @@ export function App(): React.JSX.Element {
           id: p.id,
           titolo: p.title !== undefined && p.title !== '' ? p.title : p.cwd,
           cwd: p.cwd,
+          // Quale conversazione: il Core la usa per sapere a chi consegnare le
+          // istruzioni di un autopilota, e il telefono per guardarci dentro.
+          sessione: p.sessionUuid,
           ...(p.ptyId !== undefined
             ? { ultimaRiga: righe.current.di(p.ptyId), coda: righe.current.codaDi(p.ptyId) }
             : {})
@@ -172,6 +177,15 @@ export function App(): React.JSX.Element {
     const h = setInterval(manda, 2000)
     return () => clearInterval(h)
   }, [riquadriAperti])
+
+  // Le istruzioni dell'autopilota, portate dentro le chat vere.
+  //
+  // È il modo in cui l'autopilota lavora adesso: non esegue, coordina. Scrive
+  // nella chat come faresti tu, si vede tutto quello che succede, e si può
+  // intervenire in mezzo — perché per la chat i due messaggi sono uguali.
+  useEffect(() => window.gestore.client.suConsegna((grezza) => {
+    for (const c of leggiConsegne({ consegne: [grezza] })) eseguiConsegna(c, ponteReale())
+  }), [])
 
   // Una chat nuova chiesta dal telefono. Solo in una cartella che Claude Code
   // conosce già — il controllo lo fa il Core, qui si apre e basta.

@@ -346,6 +346,7 @@ export function Mosaic({
                   title={data.title}
                   ptyId={data.ptyId}
                   model={data.model}
+                  autopilota={data.autopilota}
                   onPtyId={setPtyId}
                 />
               </div>

@@ -21,6 +21,8 @@ import {
   type AutopilotaSalvato, type FinestraSalvata, type Istantanea
 } from '@shared/istantanea'
 import { resolveClaudeCommand, buildClaudeArgs } from './config'
+import { componiImpostazioni } from '@shared/hook-autopilota'
+import { PORTA_AUTOPILOTA } from '@shared/autopilota'
 import {
   isPtyId,
   validateListOptions,
@@ -176,7 +178,18 @@ export function registerPtyIpc(ambienteChat: () => Record<string, string> = () =
       sessionUuid: req.sessionUuid,
       cwd: req.cwd,
       command: resolveClaudeCommand(process.env),
-      args: buildClaudeArgs(req.sessionUuid, req.title, trascrizioneEsiste(req.cwd, req.sessionUuid), req.model),
+      // Gli hook li compone il Core, dagli identificatori che il renderer ha
+      // passato: è ciò che permette all'autopilota di sapere quando la chat ha
+      // finito di rispondere, senza toccare le impostazioni di nessun altro.
+      args: buildClaudeArgs(
+        req.sessionUuid,
+        req.title,
+        trascrizioneEsiste(req.cwd, req.sessionUuid),
+        req.model,
+        req.autopilota === undefined
+          ? undefined
+          : componiImpostazioni(req.autopilota.id, PORTA_AUTOPILOTA, req.autopilota.chat)
+      ),
       cols: req.cols,
       rows: req.rows,
       // L'API su cui parlare: di solito quella di Anthropic, e allora qui non

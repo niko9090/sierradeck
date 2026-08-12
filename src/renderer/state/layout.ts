@@ -15,12 +15,30 @@ export type PaneData = {
   ptyId?: string
   /** Il modello scelto per questa chat: assente vuol dire «il predefinito». */
   model?: string
+  /**
+   * Chi governa questa chat, quando e di un autopilota.
+   *
+   * Serve a farla nascere con gli hook: e cosi che l autopilota sa quando ha
+   * finito di rispondere, e puo scriverle l istruzione successiva.
+   */
+  autopilota?: { id: string; chat: string }
 }
 
 type State = {
   root: LayoutNode | undefined
   panes: Record<string, PaneData>
-  addPane: (cwd: string, title: string, model?: string) => string
+  addPane: (
+    cwd: string,
+    title: string,
+    model?: string,
+    /**
+     * La sessione e il padrone, quando la chat non nasce da un clic.
+     *
+     * L autopilota decide lui l identificatore: e cio che gli permette di
+     * scrivere in **quella** conversazione invece che in una qualunque.
+     */
+    extra?: { sessionUuid?: string; autopilota?: { id: string; chat: string } }
+  ) => string
   /** Il nome che l'utente dà a un riquadro: vince su quello di Claude Code. */
   rinominaPane: (id: string, title: string) => void
   closePane: (id: string) => void
@@ -128,10 +146,15 @@ export const useLayoutStore = create<State>((set, get) => ({
   // apribile a causa di un'etichetta che l'utente non ha scritto e non puo'
   // cambiare sarebbe un prezzo pagato sul percorso principale. La validazione
   // nel Core resta e continua a rifiutare: qui si evita di arrivarci.
-  addPane: (cwd, title, model) => {
+  addPane: (cwd, title, model, extra) => {
     const id = nextPaneId()
     const data: PaneData = {
-      id, sessionUuid: crypto.randomUUID(), cwd, title: normalizzaTitolo(title), ...(model !== undefined ? { model } : {})
+      id,
+      sessionUuid: extra?.sessionUuid ?? crypto.randomUUID(),
+      cwd,
+      title: normalizzaTitolo(title),
+      ...(model !== undefined ? { model } : {}),
+      ...(extra?.autopilota !== undefined ? { autopilota: extra.autopilota } : {})
     }
     const { root } = get()
     const esistenti = root ? listPaneIds(root) : []

@@ -9,7 +9,8 @@ import { apriQuaderno } from '../main/quaderno-store'
 import { creaServer } from './server'
 import { esecutoreReale } from './verifiche'
 import { interrogazioneReale } from './supervisore'
-import { avvioReale, creaLavori } from './lavoro'
+import { creaConsegne } from './consegne'
+import { esecutoreNelMosaico } from './nel-mosaico'
 import { creaRegistroDomande } from './domande'
 import { daRiprendere } from './ripresa'
 import { creaAvvisatore, invioReale, leggiConfigurazione } from './telegram'
@@ -128,27 +129,23 @@ export function avviaServizio(): void {
   }
   const avvisa = creaAvvisatore({ configurazione, manda: invioReale })
 
-  const lavori = creaLavori({
-    avvia: avvioReale(),
-    claudeCmd: claudeCmd(),
-    porta: PORTA_AUTOPILOTA,
-    // La stessa domanda che si fa il Gestore prima di aprire un riquadro: la
-    // trascrizione esiste? Allora si riprende, altrimenti si crea con l'id che
-    // le abbiamo dato. Si chiede al disco, non allo stato: una sessione nata
-    // cinque minuti fa non è ancora in nessun indice.
-    trascrizioneEsiste: (cwd, sessionId) =>
-      existsSync(join(cartellaClaude(), 'projects', percorsoInSlug(cwd), `${sessionId}.jsonl`)),
-    suUscitaAnomala: (id) => {
+  // Le istruzioni che il Gestore verra a ritirare per scriverle dentro le
+  // chat. Il servizio non puo chiamarlo: fra i due il confine va in una
+  // direzione sola, ed e questa coda a farlo attraversare.
+  const consegne = creaConsegne()
+
+  const lavori = esecutoreNelMosaico({
+    consegne,
+    // Il servizio da gia una sessione a ogni chat quando la crea: questo e il
+    // ripiego per il caso in cui non ci sia ancora arrivato.
+    ricorda: (id, chatId, sessionId) => {
       const a = archivio.leggi(id)
-      if (a === undefined || a.stato !== 'lavoro') return
-      // Senza questo, l'autopilota resterebbe «al lavoro» con nessuna chat viva:
-      // il pannello mostrerebbe attività dove non ce n'è.
+      if (a === undefined) return
+      if (chatId === id) { archivio.scrivi({ ...a, sessionId }); return }
       archivio.scrivi({
         ...a,
-        stato: 'sospeso',
-        motivoSospensione: 'la chat governata è terminata in modo anomalo'
+        chats: a.chats.map((c) => (c.id === chatId ? { ...c, sessionId } : c))
       })
-      console.error(`[autopilota] ${id}: chat terminata in modo anomalo, autopilota sospeso`)
     }
   })
 
@@ -156,8 +153,10 @@ export function avviaServizio(): void {
     archivio,
     esegui: esecutoreReale(),
     interroga: interrogazioneReale(claudeCmd()),
-    avviaLavoro: (a, messaggio) => lavori.avvia(a, messaggio),
-    fermaLavoro: (id) => lavori.ferma(id),
+    // Anche la chat: senza, il pezzo di lavoro della flotta si perdeva per
+    // strada e ogni chat riceveva l obiettivo intero.
+    avviaLavoro: (a, messaggio, chat) => lavori.avvia(a, messaggio, chat),
+    fermaLavoro: (id, chatId) => lavori.ferma(id, chatId),
     avvisa,
     domande,
     scadenzaDomandaMs: SCADENZA_DOMANDA_MS,
@@ -166,7 +165,8 @@ export function avviaServizio(): void {
     // Il resoconto del lavoro finisce nella cartella del progetto, accanto al
     // codice che descrive: e' li' che serve, ed e' li' che resta anche senza
     // questo programma.
-    quaderno: (cwd, scheda) => { apriQuaderno().scrivi(cwd, scheda) }
+    quaderno: (cwd, scheda) => { apriQuaderno().scrivi(cwd, scheda) },
+    consegne
   })
 
   server.on('error', (err: NodeJS.ErrnoException) => {

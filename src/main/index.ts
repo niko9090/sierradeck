@@ -36,6 +36,8 @@ import { rotteClient, rotteLibere } from './client-rotte'
 import { immagineQr, indirizzoAccoppiamento } from './qr-accoppiamento'
 import { apkDisponibile } from './apk-disponibile'
 import { scanProjects } from './indexer/project-scanner'
+import { get as httpGet } from 'node:http'
+import { avviaRitiro, finestraPerConsegna } from './autopilota-consegne'
 import type { Chat } from './client-rotte'
 import { apriProviderStore } from './provider-store'
 import { creaAggiornamenti } from './aggiornamenti'
@@ -68,6 +70,37 @@ let area: Tray | undefined
  * riuscirebbe a uscire nemmeno quando glielo si chiede.
  */
 let inUscita = false
+/** Smette di andare a ritirare le istruzioni dell'autopilota. */
+let fermaRitiroConsegne: (() => void) | undefined
+
+/**
+ * Una domanda al servizio dell'autopilota.
+ *
+ * Piccola e senza dipendenze: il client vero (`autopilot-client`) sa avviare il
+ * servizio e riprovare, ed è giusto per i comandi. Qui si tratta di passare a
+ * ritirare ogni secondo e mezzo — se il servizio non c'è, non c'è, e riprovare
+ * al giro dopo è tutta la gestione dell'errore che serve.
+ */
+function chiediAlServizio(percorso: string): Promise<unknown> {
+  return new Promise((risolvi, rifiuta) => {
+    const richiesta = httpGet(
+      { host: '127.0.0.1', port: PORTA_AUTOPILOTA, path: percorso, timeout: 4000 },
+      (res) => {
+        let dati = ''
+        res.on('data', (c) => { dati += c })
+        res.on('end', () => {
+          try {
+            risolvi(JSON.parse(dati))
+          } catch (err) {
+            rifiuta(err instanceof Error ? err : new Error('risposta illeggibile'))
+          }
+        })
+      }
+    )
+    richiesta.on('error', rifiuta)
+    richiesta.on('timeout', () => { richiesta.destroy(); rifiuta(new Error('scaduto')) })
+  })
+}
 
 const LARGHEZZA = 1600
 const ALTEZZA = 1000
@@ -543,6 +576,43 @@ if (!app.requestSingleInstanceLock()) {
         chatAperte = [...chatPerFinestra.values()].flat()
       })
 
+      // L'autopilota non esegue più: coordina. Le istruzioni che vuole far
+      // scrivere le mette in una coda nel suo servizio, e da qui si va a
+      // ritirarle — è il Gestore l'unico che ha le finestre, e quindi l'unico
+      // che può portarle dentro una chat vera.
+      fermaRitiroConsegne = avviaRitiro({
+        chiedi: async () => {
+          // **Non si ritira senza avere dove mettere.** Ritirare svuota la coda
+          // del servizio, e una consegna presa mentre non c'è nessuna finestra
+          // sarebbe un'istruzione persa: l'autopilota resterebbe ad aspettare
+          // per sempre la risposta a un messaggio che non è mai arrivato.
+          if (BrowserWindow.getAllWindows().some((w) => !w.isDestroyed())) {
+            return await chiediAlServizio('/consegne')
+          }
+          // Nessuna finestra e qualcosa da consegnare: se ne apre una. Il
+          // programma è vivo nell'area di notifica, e un autopilota che lavora
+          // di notte deve poterlo fare lo stesso.
+          if (((await chiediAlServizio('/salute')) as { consegneInAttesa?: number })
+            .consegneInAttesa === 0) return {}
+          try {
+            apriNuovaFinestra()
+          } catch (err) {
+            console.error('[autopilota] finestra non aperta per la consegna:', err)
+          }
+          return {}
+        },
+        consegna: (c) => {
+          const vive = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
+          const dove = finestraPerConsegna(c.sessionId, chatPerFinestra, vive.map((w) => w.id))
+          const finestra = vive.find((w) => w.id === dove)
+          if (finestra === undefined || finestra.webContents.isDestroyed()) {
+            console.error(`[autopilota] nessuna finestra per la consegna ${c.id}`)
+            return
+          }
+          finestra.webContents.send('autopilota:consegna', c)
+        }
+      })
+
       const quaderno = apriQuaderno()
       ipcMain.handle('quaderno:elenca', (_e, cwd: unknown) => {
         if (typeof cwd !== 'string' || cwd.trim() === '') return []
@@ -725,6 +795,11 @@ app.on('window-all-closed', () => {
  * chiusura, ma nessuno dei due sparisce in silenzio.
  */
 async function chiudiRisorse(): Promise<void> {
+  // Prima di tutto: ritirare un'istruzione mentre le finestre stanno
+  // chiudendo significherebbe toglierla dalla coda del servizio per non
+  // consegnarla a nessuno. L'autopilota la riproporrà quando torniamo.
+  fermaRitiroConsegne?.()
+  fermaRitiroConsegne = undefined
   try {
     await ptyClient?.stop()
   } catch (err) {

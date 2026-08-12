@@ -20,6 +20,14 @@ export type Chat = {
   id: string
   titolo: string
   cwd: string
+  /**
+   * La conversazione che c'è dentro.
+   *
+   * Serve al Core per sapere **quale finestra** ospita già una certa chat, e
+   * quindi a chi consegnare le istruzioni di un autopilota: mandarle a tutte
+   * significherebbe scrivere lo stesso messaggio due volte.
+   */
+  sessione?: string
   /** L'ultima riga vista nel terminale: dice a colpo d'occhio se si muove. */
   ultimaRiga?: string
   /**

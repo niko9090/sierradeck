@@ -16,10 +16,12 @@ type Props = {
   ptyId?: string
   /** Il modello scelto per questa chat, se non è quello predefinito. */
   model?: string
+  /** Chi la governa, quando è la chat di un autopilota: da qui nascono i suoi hook. */
+  autopilota?: { id: string; chat: string }
   onPtyId: (paneId: string, ptyId: string) => void
 }
 
-export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, onPtyId }: Props): React.JSX.Element {
+export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopilota, onPtyId }: Props): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Tutto ciò che serve una volta sola, all'avvio, passa da un ref e non dalle
@@ -29,8 +31,8 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, onPtyI
   // terminale e non uccide claude.exe. È il difetto che il commento in
   // Mosaic.tsx promette che non accade, e nel Task 5 diventerebbe raggiungibile
   // per davvero, perché `ptyId` cambia durante la vita del riquadro.
-  const avvio = useRef({ sessionUuid, cwd, title, ptyId, model, onPtyId })
-  avvio.current = { sessionUuid, cwd, title, ptyId, model, onPtyId }
+  const avvio = useRef({ sessionUuid, cwd, title, ptyId, model, autopilota, onPtyId })
+  avvio.current = { sessionUuid, cwd, title, ptyId, model, autopilota, onPtyId }
 
   useEffect(() => {
     const container = containerRef.current
@@ -63,7 +65,10 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, onPtyI
           title: iniziale.title,
           cols,
           rows,
-          ...(iniziale.model !== undefined ? { model: iniziale.model } : {})
+          ...(iniziale.model !== undefined ? { model: iniziale.model } : {}),
+          // Chi governa questa chat: il Core ne ricava gli hook con cui
+          // l'autopilota saprà che ha finito di rispondere.
+          ...(iniziale.autopilota !== undefined ? { autopilota: iniziale.autopilota } : {})
         }),
       attach: (id) => window.gestore.pty.attach(id),
       write: (id, data) => window.gestore.pty.write(id, data),

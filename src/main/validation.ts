@@ -20,6 +20,16 @@ export type SpawnRequest = {
   rows: number
   /** Il modello scelto per questa chat, se l'utente ne ha scelto uno. */
   model?: string
+  /**
+   * Chi governa questa chat, quando a chiederla è un autopilota.
+   *
+   * Arrivano **solo gli identificatori**: le impostazioni con gli hook le
+   * compone il Core. Il renderer dice quale sessione e dove, cosa eseguire lo
+   * decide chi ha il diritto di eseguire — lasciargli passare impostazioni già
+   * fatte vorrebbe dire accettare da una pagina la configurazione di un
+   * processo.
+   */
+  autopilota?: { id: string; chat: string }
 }
 
 /**
@@ -151,13 +161,25 @@ export function validateSpawnRequest(raw: unknown): SpawnRequest {
     ? r.model
     : undefined
 
+  // Gli identificatori dell'autopilota hanno la stessa forma stretta di
+  // sempre: finiscono dentro un URL, e un testo qualunque lì dentro sarebbe il
+  // modo per far parlare la chat con qualcun altro.
+  const gov = typeof r.autopilota === 'object' && r.autopilota !== null
+    ? (r.autopilota as Record<string, unknown>)
+    : undefined
+  const idAp = typeof gov?.id === 'string' && ID_AUTOPILOTA.test(gov.id) ? gov.id : undefined
+  const idChat = typeof gov?.chat === 'string' && ID_AUTOPILOTA.test(gov.chat) ? gov.chat : undefined
+
   return {
     sessionUuid: r.sessionUuid,
     cwd: validaCwd(r.cwd),
     title: validaTitolo(r.title),
     cols: validaDimensione('cols', r.cols),
     rows: validaDimensione('rows', r.rows),
-    ...(model !== undefined ? { model } : {})
+    ...(model !== undefined ? { model } : {}),
+    ...(idAp !== undefined && idChat !== undefined
+      ? { autopilota: { id: idAp, chat: idChat } }
+      : {})
   }
 }
 

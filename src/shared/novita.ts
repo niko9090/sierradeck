@@ -23,6 +23,15 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.0',
+    righe: [
+      '**L’autopilota non lavora più al posto delle chat: le coordina.** Le istruzioni le scrive dentro una chat vera, quella che vedi nel mosaico, e la risposta si legge mentre arriva — invece di sparire dentro un processo di cui restava una riga di riassunto.',
+      'Puoi intervenire mentre lavora: scrivi nella chat come faresti sempre. Per la conversazione il tuo messaggio e il suo sono indistinguibili, e la chat sa che quello che aggiungi vale più delle istruzioni che ha ricevuto.',
+      'Ogni chat governata nasce con la sua conversazione, e la ritrova al giro dopo: il lavoro fatto non si butta via a ogni istruzione.',
+      'Con una flotta, ogni chat ha il suo pezzo di lavoro — e adesso lo riceve davvero: il compito si perdeva per strada e ognuna leggeva l’obiettivo intero.'
+    ]
+  },
+  {
     versione: '0.8.5',
     righe: [
       'I salvataggi non perdono più i workspace: il campo veniva scritto sul disco e non lo rileggeva nessuno, così chi ne salvava tre ne ritrovava uno appena riaperto il programma — ed è anche il motivo per cui il conteggio diceva sempre «1».',

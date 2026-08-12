@@ -1,0 +1,105 @@
+import { describe, it, expect } from 'vitest'
+import { eseguiConsegna, type Consegna, type Ponte } from '../../src/renderer/consegne-autopilota'
+
+const INVIO = String.fromCharCode(13)
+const CTRL_C = String.fromCharCode(3)
+
+const consegna = (over: Partial<Consegna> = {}): Consegna => ({
+  id: 'c-1',
+  autopilotaId: 'ap-1',
+  chatId: 'ch-1',
+  cwd: 'C:\\progetto',
+  sessionId: 'sess-1',
+  titolo: 'Notte',
+  cosa: 'scrivi',
+  testo: 'continua da dove eri',
+  ...over
+})
+
+function banco(riquadri: Record<string, { paneId: string; ptyId?: string }> = {}) {
+  const scritti: { ptyId: string; testo: string }[] = []
+  const aperti: Consegna[] = []
+  const rinviati: (() => void)[] = []
+  const ponte: Ponte = {
+    riquadroDi: (s) => riquadri[s],
+    apri: (c) => {
+      aperti.push(c)
+      // Come nella realtà: il riquadro compare subito, il terminale più tardi.
+      riquadri[c.sessionId] = { paneId: 'p-nuovo' }
+      return 'p-nuovo'
+    },
+    scrivi: (ptyId, testo) => { scritti.push({ ptyId, testo }) }
+  }
+  const dopo = (_ms: number, cosa: () => void): void => { rinviati.push(cosa) }
+  return { ponte, scritti, aperti, riquadri, dopo, scadi: () => { rinviati.forEach((f) => f()) } }
+}
+
+describe('portare un istruzione dentro una chat', () => {
+  it('la scrive nel terminale, con l invio', () => {
+    // Lo stesso gesto che fai tu: per la chat i due messaggi sono
+    // indistinguibili, ed è la ragione per cui puoi intervenire in mezzo.
+    const b = banco({ 'sess-1': { paneId: 'p-1', ptyId: 'pty-1' } })
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
+    expect(b.scritti).toEqual([{ ptyId: 'pty-1', testo: 'continua da dove eri' + INVIO }])
+    expect(b.aperti).toEqual([])
+  })
+
+  it('senza invio il messaggio resterebbe nel campo', () => {
+    // È lo stesso inciampo che il Client aveva quando si scriveva dal telefono:
+    // la chat ferma, e l'autopilota ad aspettare una risposta mai chiesta.
+    const b = banco({ 'sess-1': { paneId: 'p-1', ptyId: 'pty-1' } })
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
+    expect(b.scritti[0]?.testo.endsWith(INVIO)).toBe(true)
+  })
+
+  it('se la chat non c e la apre, e scrive quando e nata', () => {
+    const b = banco()
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
+    expect(b.aperti.map((c) => c.sessionId)).toEqual(['sess-1'])
+    // Il terminale non è ancora nato: scrivere adesso finirebbe nel vuoto.
+    expect(b.scritti).toEqual([])
+    b.riquadri['sess-1'] = { paneId: 'p-nuovo', ptyId: 'pty-9' }
+    b.scadi()
+    expect(b.scritti).toEqual([{ ptyId: 'pty-9', testo: 'continua da dove eri' + INVIO }])
+  })
+
+  it('la apre con la sessione decisa dall autopilota', () => {
+    // È ciò che gli permette di scrivere in **quella** conversazione, anche
+    // dopo un riavvio: senza, ogni giro ricomincerebbe da capo.
+    const b = banco()
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
+    expect(b.aperti[0]?.sessionId).toBe('sess-1')
+    expect(b.aperti[0]?.cwd).toBe('C:\\progetto')
+  })
+
+  it('un riquadro che c e ma senza terminale non viene aperto due volte', () => {
+    const b = banco({ 'sess-1': { paneId: 'p-1' } })
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
+    expect(b.aperti).toEqual([])
+    b.riquadri['sess-1'] = { paneId: 'p-1', ptyId: 'pty-1' }
+    b.scadi()
+    expect(b.scritti).toHaveLength(1)
+  })
+
+  it('se la chat non nasce, non scrive nel vuoto', () => {
+    const b = banco()
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
+    b.scadi()
+    expect(b.scritti).toEqual([])
+  })
+
+  it('interrompere e un ctrl+c, non una chiusura', () => {
+    // La chat resta lì con dentro tutto il lavoro fatto: fermare un autopilota
+    // non deve costare la conversazione.
+    const b = banco({ 'sess-1': { paneId: 'p-1', ptyId: 'pty-1' } })
+    eseguiConsegna(consegna({ cosa: 'interrompi', testo: '' }), b.ponte, b.dopo)
+    expect(b.scritti).toEqual([{ ptyId: 'pty-1', testo: CTRL_C }])
+  })
+
+  it('interrompere una chat che non c e non apre niente', () => {
+    const b = banco()
+    eseguiConsegna(consegna({ cosa: 'interrompi', testo: '' }), b.ponte, b.dopo)
+    expect(b.aperti).toEqual([])
+    expect(b.scritti).toEqual([])
+  })
+})
