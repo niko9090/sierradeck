@@ -33,7 +33,11 @@ asarUnpack:
   - '**/node_modules/better-sqlite3/**'
 
 win:
-  icon: build/icon.png
+  # L'icona già in formato .ico, non il PNG da convertire: la conversione la
+  # fa uno strumento WebAssembly che su questa macchina fallisce con «could
+  # not allocate memory» e ferma tutta la pubblicazione. Il file è lo stesso
+  # che generava lui, prodotto una volta e messo qui.
+  icon: build/icon.ico
   target:
     - target: nsis
       arch: [x64]
