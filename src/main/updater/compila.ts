@@ -101,6 +101,31 @@ export function assicuraUpdater(cartella: string): string | undefined {
   }
 }
 
+/**
+ * C'è già un aggiornamento in corso?
+ *
+ * Il controllo è sul processo, non su una variabile: un secondo SierraDeck —
+ * un'altra finestra, un'istanza rimasta — non condivide la memoria del primo, e
+ * una variabile non lo fermerebbe.
+ */
+export function unoGiaInCorso(elenca: () => string = elencaProcessi): boolean {
+  try {
+    return elenca().toLowerCase().includes('sierradeckupdate.exe')
+  } catch {
+    // Non riuscire a guardare non è una ragione per moltiplicare: nel dubbio si
+    // lascia lavorare quello che potrebbe già esserci.
+    return true
+  }
+}
+
+function elencaProcessi(): string {
+  return execFileSync('tasklist.exe', ['/FI', 'IMAGENAME eq SierraDeckUpdate.exe', '/NH'], {
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 10_000
+  })
+}
+
 export type AvvioUpdater = {
   /** L'installer già scaricato da electron-updater. */
   installer: string
@@ -120,6 +145,13 @@ export type AvvioUpdater = {
  */
 export function avviaUpdater(percorso: string, dati: AvvioUpdater): boolean {
   try {
+    // Uno solo alla volta. Due updater che chiudono le stesse istanze e
+    // lanciano lo stesso installer si ostacolano a vicenda, e il risultato e'
+    // un programma che si riavvia all'infinito senza mai aggiornarsi.
+    if (unoGiaInCorso()) {
+      console.warn('[updater] ce n e gia uno in corso: non ne lancio un altro')
+      return true
+    }
     const figlio = spawn(
       percorso,
       [String(dati.pid), dati.installer, dati.eseguibile, dati.versione],

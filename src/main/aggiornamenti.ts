@@ -65,6 +65,8 @@ export function creaAggiornamenti(
   let stato: StatoAggiornamento = { fase: 'fermo' }
   /** Dove electron-updater ha messo l'installer: lo esegue SierraDeck Update. */
   let installerScaricato: string | undefined
+  /** Un'installazione per sessione: dopo, questo processo sta per morire comunque. */
+  let installazioneAvviata = false
 
   const annuncia = (nuovo: StatoAggiornamento): void => {
     stato = nuovo
@@ -142,6 +144,22 @@ export function creaAggiornamenti(
       }
     },
     installa() {
+      // Una volta sola per sessione. Premere due volte, o due finestre che
+      // premono insieme, facevano partire due updater: si chiudevano le
+      // istanze a vicenda e il programma si riavviava senza mai aggiornarsi.
+      if (installazioneAvviata) {
+        console.warn('[aggiornamenti] installazione gia avviata: ignoro')
+        return
+      }
+      // La versione che ho gia' non si installa: se l'installer scaricato e'
+      // per questa versione, installarlo riporterebbe allo stesso punto - ed e'
+      // il giro che si ripete all'infinito.
+      if (stato.versione !== undefined && stato.versione === app.getVersion()) {
+        console.warn(`[aggiornamenti] la ${stato.versione} e gia installata: non installo`)
+        annuncia({ fase: 'aggiornato' })
+        return
+      }
+      installazioneAvviata = true
       // Da qui in poi comanda SierraDeck Update, che e' un programma a se':
       // aspetta che noi siamo usciti, lancia l'installer, aspetta che finisca,
       // riapre il programma. Nessun pezzo di questa catena dipende da un

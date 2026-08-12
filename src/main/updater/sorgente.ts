@@ -270,7 +270,7 @@ class Aggiornamento : Form {
                 // lasciava aperte quelle che stavano ancora salvando - e' cosi'
                 // che ne restava una viva mentre l'installer partiva.
                 if (giri < GIRI_GENTILI) {
-                    // `CloseMainWindow` non fa niente quando la finestra
+                    // CloseMainWindow non fa niente quando la finestra
                     // principale non c'e' ancora - e non lo dice, restituisce
                     // false. Per questo si insiste a ogni giro e per questo, se
                     // il tempo di grazia passa, si chiude comunque.
