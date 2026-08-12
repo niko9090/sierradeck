@@ -1487,3 +1487,91 @@ select.comando-riquadro option {
   font-size: 12px;
   min-width: 200px;
 }
+
+/* ─────────────────────────── impostazioni ─────────────────────────── */
+
+.pannello--impostazioni { width: min(620px, calc(100vw - 48px)); }
+
+.impostazioni { display: flex; flex-direction: column; gap: 18px; }
+.impostazioni__gruppo { display: flex; flex-direction: column; gap: 10px; }
+.impostazioni__gruppo h4 {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--testo-quieto);
+}
+
+.impostazioni__riga {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  font-size: 13px;
+}
+
+.impostazioni__riga--spunta { justify-content: flex-start; }
+.impostazioni__riga input[type='number'] {
+  width: 110px;
+  padding: 5px 8px;
+  border: 1px solid var(--incisione);
+  border-radius: var(--raggio);
+  background: var(--chassis-premuto);
+  color: inherit;
+}
+.impostazioni__riga input[type='range'] { width: 220px; }
+
+.impostazioni__nota {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--testo-quieto);
+}
+
+.accenti { display: flex; align-items: center; gap: 6px; }
+.accento {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+}
+/* Il cerchio scelto si riconosce da un anello, non da un bordo colorato: il
+   bordo si confonderebbe proprio con il colore che sta mostrando. */
+.accento--scelto { border-color: var(--testo); }
+.accento--libero { background: none; border: 1px dashed var(--luce-incisione); }
+
+/* ───────────────────── attesa di una chat lunga ───────────────────── */
+
+.attesa-chat {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--fondo);
+  z-index: 4;
+}
+
+.attesa-chat__binario {
+  width: min(280px, 60%);
+  height: 4px;
+  border-radius: 2px;
+  background: var(--chassis-alto);
+  overflow: hidden;
+}
+
+.attesa-chat__barra {
+  height: 100%;
+  background: var(--accento, #4aa3ff);
+  transition: width 220ms linear;
+}
+
+.attesa-chat__testo {
+  font-size: 12px;
+  color: var(--testo-quieto);
+  text-align: center;
+  padding: 0 20px;
+}

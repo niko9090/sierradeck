@@ -3,6 +3,7 @@ import type { HostToCore } from '@shared/protocol'
 import type { Avanzamento, IndexOutcome, SessionSummary } from '@shared/types'
 import type { LayoutSalvato, PaneSalvato } from '@shared/workspace'
 import type { Scheda } from '@shared/quaderno'
+import type { Preferenze } from '@shared/preferenze'
 import type { Autopilota } from '@shared/autopilota'
 import type { StatoWorkspace } from '../main/ipc'
 import type { Istantanea } from '@shared/istantanea'
@@ -65,6 +66,16 @@ contextBridge.exposeInMainWorld('gestore', {
    * chiede se una parola va bene e ottiene sì o no.
    */
   /** Il quaderno della cartella di lavoro: cosa e' stato fatto, in schede. */
+  /** Colori, porte e comportamenti scelti dall'utente. */
+  preferenze: {
+    leggi: (): Promise<Preferenze> => ipcRenderer.invoke('preferenze:leggi'),
+    imposta: (p: Preferenze): Promise<Preferenze> => ipcRenderer.invoke('preferenze:imposta', p),
+    suCambio: (cb: (p: Preferenze) => void): (() => void) => {
+      const h = (_e: unknown, p: Preferenze): void => cb(p)
+      ipcRenderer.on('preferenze:cambiate', h)
+      return () => { ipcRenderer.off('preferenze:cambiate', h) }
+    }
+  },
   quaderno: {
     elenca: (cwd: string): Promise<Scheda[]> => ipcRenderer.invoke('quaderno:elenca', cwd),
     leggi: (cwd: string, file: string): Promise<Scheda | undefined> =>

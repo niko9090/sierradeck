@@ -30,7 +30,7 @@ const PRESET: { nome: PresetName; etichetta: string; titolo: string }[] = [
   { nome: 'unoPiuLaterale', etichetta: '1+L', titolo: 'Una grande più una laterale' }
 ]
 
-export type PannelloAperto = 'quaderno' | 'workspace' | 'autopiloti' | 'consumi' | 'provider' | undefined
+export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'consumi' | 'provider' | undefined
 
 type Props = {
   onApriSessioni: () => void
@@ -288,6 +288,14 @@ export function Console({
           title="Con quale AI parlano le chat"
         >
           ⚙ AI
+        </button>
+        <button
+          className="tasto tasto--icona"
+          onClick={() => commuta('impostazioni')}
+          aria-expanded={aperto === 'impostazioni'}
+          title="Impostazioni: colori, porte, comportamenti"
+        >
+          ⚙
         </button>
         <button
           className="tasto"

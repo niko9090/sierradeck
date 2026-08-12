@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
+import { normalizzaPreferenze, type Preferenze } from '@shared/preferenze'
 
 export const VERSIONE_IMPOSTAZIONI = 1
 
@@ -9,6 +10,8 @@ const NOME_FILE = 'impostazioni.json'
 export type Impostazioni = {
   /** L'ultima versione di cui l'utente ha letto le novità. */
   ultimaVersioneVista?: string
+  /** Quello che l'utente ha scelto: colori, porte, comportamenti. */
+  preferenze?: Preferenze
 }
 
 export type ImpostazioniStore = {
@@ -16,6 +19,9 @@ export type ImpostazioniStore = {
   leggi: () => Impostazioni
   /** Registra che le novità di quella versione sono state mostrate. */
   segnaNovitaViste: (versione: string) => void
+  /** Le preferenze, sempre complete: i buchi li riempiono i predefiniti. */
+  preferenze: () => Preferenze
+  impostaPreferenze: (raw: unknown) => Preferenze
 }
 
 /**
@@ -69,6 +75,23 @@ export function apriImpostazioniStore(dir: string): ImpostazioniStore {
         { ...leggiGrezzo(), versione: VERSIONE_IMPOSTAZIONI, ultimaVersioneVista: versione },
         'impostazioni'
       )
+    },
+
+    preferenze(): Preferenze {
+      // Sempre complete: chi legge non deve chiedersi se un campo c'è. I buchi
+      // — un file di una versione più vecchia, un valore scritto male a mano —
+      // li riempiono i predefiniti, uno per uno.
+      return normalizzaPreferenze(leggiGrezzo().preferenze)
+    },
+
+    impostaPreferenze(raw: unknown): Preferenze {
+      const preferenze = normalizzaPreferenze(raw)
+      scriviJsonAtomico(
+        percorso,
+        { ...leggiGrezzo(), versione: VERSIONE_IMPOSTAZIONI, preferenze },
+        'impostazioni'
+      )
+      return preferenze
     }
   }
 }

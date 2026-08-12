@@ -34,6 +34,11 @@ declare global {
         onProgress: (cb: (p: Avanzamento) => void) => () => void
         onOutcome: (cb: (e: IndexOutcome) => void) => () => void
       }
+      preferenze: {
+        leggi: () => Promise<import('@shared/preferenze').Preferenze>
+        imposta: (p: import('@shared/preferenze').Preferenze) => Promise<import('@shared/preferenze').Preferenze>
+        suCambio: (cb: (p: import('@shared/preferenze').Preferenze) => void) => () => void
+      }
       quaderno: {
         elenca: (cwd: string) => Promise<import('@shared/quaderno').Scheda[]>
         leggi: (cwd: string, file: string) => Promise<import('@shared/quaderno').Scheda | undefined>

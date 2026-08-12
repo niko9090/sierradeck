@@ -374,6 +374,19 @@ if (!app.requestSingleInstanceLock()) {
       // non cifra i file, e il programma lo dice invece di lasciarlo credere.
       // Il quaderno di ogni cartella di lavoro: schede scritte per essere lette
       // da una persona, e modificabili a mano.
+      // Le preferenze: colori, porte, comportamenti. Il renderer le legge
+      // all'avvio e le riapplica appena cambiano.
+      ipcMain.handle('preferenze:leggi', () => impostazioni.preferenze())
+      ipcMain.handle('preferenze:imposta', (_e, raw: unknown) => {
+        const nuove = impostazioni.impostaPreferenze(raw)
+        for (const w of BrowserWindow.getAllWindows()) {
+          if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+            w.webContents.send('preferenze:cambiate', nuove)
+          }
+        }
+        return nuove
+      })
+
       const quaderno = apriQuaderno()
       ipcMain.handle('quaderno:elenca', (_e, cwd: unknown) => {
         if (typeof cwd !== 'string' || cwd.trim() === '') return []

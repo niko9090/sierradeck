@@ -5,6 +5,8 @@ import { creaPersistenza } from './persistenza-layout'
 import { azioniDiFinestra } from './azioni-finestra'
 import type { AzioniWorkspace } from './workspace-azioni'
 import { ledDi } from './autopilota-vista'
+import { giaSalvatoCome } from '@shared/doppioni'
+import type { Istantanea } from '@shared/istantanea'
 import { chiChiede, workspaceCheChiamano } from '@shared/dove-chiedono'
 import { attivaTrascinamento } from './trascina-finestre'
 import type { Autopilota } from '@shared/autopilota'
@@ -17,6 +19,8 @@ import { PannelloWorkspace } from './components/PannelloWorkspace'
 import { PannelloAutopiloti } from './components/PannelloAutopiloti'
 import { PannelloConsumi } from './components/PannelloConsumi'
 import { PannelloQuaderno } from './components/PannelloQuaderno'
+import { PannelloImpostazioni } from './components/PannelloImpostazioni'
+import { tavolozza, type Preferenze } from '@shared/preferenze'
 import { PannelloProvider } from './components/PannelloProvider'
 import { ModaleAccesso } from './components/ModaleAccesso'
 import { ModalePreparazione } from './components/ModalePreparazione'
@@ -93,6 +97,19 @@ function usaRiquadriInArrivo(): void {
 
 export function App(): React.JSX.Element {
   const root = useLayoutStore((s) => s.root)
+  // I colori scelti dall'utente, applicati alla radice del documento: le
+  // variabili del foglio di stile esistono gia' — qui si limitano a cambiare
+  // valore, e tutto il resto segue senza sapere niente.
+  const applica = (p: Preferenze): void => {
+    for (const [nome, valore] of Object.entries(tavolozza(p))) {
+      document.documentElement.style.setProperty(nome, valore)
+    }
+  }
+  useEffect(() => {
+    window.gestore.preferenze.leggi().then(applica).catch(() => undefined)
+    return window.gestore.preferenze.suCambio(applica)
+  }, [])
+
   const riquadriAperti = useLayoutStore((s) => s.panes)
   /**
    * La cartella di cui parla il quaderno: quella di un riquadro aperto. Senza
@@ -346,10 +363,29 @@ export function App(): React.JSX.Element {
   // Alla chiusura, un salvataggio automatico sotto un nome riservato: se
   // l'utente non ha salvato di suo, al prossimo avvio trova comunque le chat di
   // ieri sera. Non sostituisce i salvataggi con nome, ci si affianca.
+  // L'elenco dei salvataggi, tenuto fresco: serve a non salvare due volte la
+  // stessa cosa. Si rilegge quando si apre la finestra dei salvataggi e
+  // all'avvio, che sono i due momenti in cui puo' essere cambiato.
+  const istantaneeNote = useRef<Istantanea[]>([])
+  useEffect(() => {
+    window.gestore.istantanee
+      .elenca()
+      .then((elenco) => { istantaneeNote.current = elenco })
+      .catch(() => { istantaneeNote.current = [] })
+  }, [modale])
+
   useEffect(() => {
     const allaChiusura = (): void => {
       const layout = useLayoutStore.getState().esporta()
       if (layout.panes.length === 0) return
+      // Se queste chat, in questa disposizione, sono gia' salvate sotto un nome
+      // tuo, non se ne fa una copia: due voci per la stessa cosa sono un
+      // programma che non presta attenzione.
+      const dove = giaSalvatoCome(layout, istantaneeNote.current)
+      if (dove !== undefined && dove !== NOME_AUTOMATICO) {
+        console.log(`[istantanee] gia' salvato come «${dove}»: non ne creo un altro`)
+        return
+      }
       void window.gestore.istantanee.salva(NOME_AUTOMATICO, layout, true)
     }
     window.addEventListener('beforeunload', allaChiusura)
@@ -503,6 +539,9 @@ export function App(): React.JSX.Element {
         ) : null}
         {aperto === 'consumi' ? (
           <PannelloConsumi onChiudi={() => setAperto(undefined)} />
+        ) : null}
+        {aperto === 'impostazioni' ? (
+          <PannelloImpostazioni onChiudi={() => setAperto(undefined)} />
         ) : null}
         {aperto === 'quaderno' ? (
           // La cartella del riquadro che hai davanti: il quaderno racconta un

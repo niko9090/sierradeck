@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.4.4',
+    righe: [
+      'Le impostazioni ci sono: colore dell’interfaccia, chiarore del fondo, porte del Client e degli autopiloti, e cosa fare alla chiusura. I cambiamenti si vedono mentre li fai — scegliere un colore dovendo premere «Salva» per vederlo significa sceglierlo alla cieca.',
+      'Alla chiusura non nascono più doppioni: se quelle chat, in quella disposizione, sono già salvate sotto un nome tuo, il salvataggio automatico non ne fa una copia. Il confronto guarda cosa c’è dentro, non come si chiama.',
+      'Una chat con molto storico adesso mostra a che punto è mentre si apre, e dice quanto pesa la conversazione: un riquadro nero per otto secondi non si legge come «sto caricando», si legge come «è rotto».'
+    ]
+  },
+  {
     versione: '0.4.3',
     righe: [
       'La finestra dell’aggiornamento adesso compare davvero, e resta finché serve. Non nasceva per una sola parola nel codice — `detached` —, che su Windows crea il processo senza console e fa morire PowerShell all’istante, in silenzio.',
