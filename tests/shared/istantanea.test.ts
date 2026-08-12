@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  parseIstantanee, nuovaIstantanea, scegliFinestre, daRiavviare, daSalvare, workspaceDaSalvare,
+  parseIstantanee, nuovaIstantanea, distribuisci, daRiavviare, daSalvare, workspaceDaSalvare,
   contaChat, contaWorkspace, VERSIONE_ISTANTANEE,
   type Istantanea, type FinestraSalvata, type AutopilotaSalvato
 } from '@shared/istantanea'
@@ -212,36 +212,101 @@ describe('piu finestre nella stessa istantanea', () => {
   })
 })
 
-describe('scegliFinestre', () => {
+describe('distribuisci', () => {
   const f = (monitor: string, titolo: string): FinestraSalvata => ({
     monitor,
-    layout: { root: { type: 'pane', id: 'p' }, panes: [{ id: 'p', sessionUuid: 'u', cwd: 'C:\p', title: titolo }] }
+    layout: {
+      root: { type: 'pane', id: 'p' },
+      panes: [{ id: 'p', sessionUuid: `u-${titolo}`, cwd: 'C:\\p', title: titolo }]
+    }
+  })
+  const titoli = (l: LayoutSalvato): (string | undefined)[] => l.panes.map((p) => p.title)
+
+  it('riempie le finestre che ci sono invece di aprirne altre', () => {
+    // È il difetto grave: si aprivano finestre nuove e quelle di prima
+    // restavano con dentro le loro chat, cioè le stesse chat due volte.
+    const e = distribuisci([f('m1', 'a'), f('m2', 'b')], [{ id: 7, monitor: 'm1' }, { id: 9, monitor: 'm2' }])
+    expect(e.daAprire).toEqual([])
+    expect(e.daSvuotare).toEqual([])
+    expect(e.aFinestre.map((x) => [x.id, titoli(x.layout)])).toEqual([[7, ['a']], [9, ['b']]])
   })
 
-  it('da alla finestra che ricarica quella del suo monitor', () => {
-    const { mia, altre } = scegliFinestre([f('m1', 'a'), f('m2', 'b')], 'm2')
-    expect(mia?.layout.panes[0]?.title).toBe('b')
-    expect(altre.map((x) => x.layout.panes[0]?.title)).toEqual(['a'])
+  it('apre solo quello che non ha una finestra dove stare', () => {
+    const e = distribuisci([f('m1', 'a'), f('m2', 'b')], [{ id: 7, monitor: 'm1' }])
+    expect(e.aFinestre).toHaveLength(1)
+    expect(e.daAprire.map(titoli)).toEqual([['b']])
   })
 
-  it('se il monitor non c e prende la prima, invece di aprire tutto altrove', () => {
+  it('svuota le finestre che il salvataggio non prevede', () => {
+    // Lasciarle com'erano è il doppione: un ripristino dice cosa ci deve
+    // essere, e quello che non c'è dentro non ci deve essere.
+    const e = distribuisci([f('m1', 'a')], [{ id: 7, monitor: 'm1' }, { id: 9, monitor: 'm2' }])
+    expect(e.daSvuotare).toEqual([9])
+  })
+
+  it('se il monitor non c e piu usa una finestra qualunque', () => {
     // Un salvataggio fatto su due schermi e ricaricato sul portatile deve
     // comunque tornare: meglio tutto qui che niente da nessuna parte.
-    const { mia, altre } = scegliFinestre([f('m1', 'a'), f('m2', 'b')], 'ignoto')
-    expect(mia?.layout.panes[0]?.title).toBe('a')
-    expect(altre).toHaveLength(1)
+    const e = distribuisci([f('m9', 'a')], [{ id: 7, monitor: 'm1' }])
+    expect(e.aFinestre).toEqual([{ id: 7, layout: f('m9', 'a').layout }])
+    expect(e.daAprire).toEqual([])
   })
 
-  it('con due finestre sullo stesso monitor ne tiene una e apre l altra', () => {
-    const { mia, altre } = scegliFinestre([f('m1', 'a'), f('m1', 'b')], 'm1')
-    expect(mia?.layout.panes[0]?.title).toBe('a')
-    expect(altre.map((x) => x.layout.panes[0]?.title)).toEqual(['b'])
+  it('due finestre sullo stesso monitor restano due', () => {
+    const e = distribuisci(
+      [f('m1', 'a'), f('m1', 'b')],
+      [{ id: 7, monitor: 'm1' }, { id: 9, monitor: 'm1' }]
+    )
+    expect(e.aFinestre.map((x) => x.id)).toEqual([7, 9])
+    expect(e.daAprire).toEqual([])
   })
 
-  it('senza finestre salvate non apre niente', () => {
-    const { mia, altre } = scegliFinestre([], 'm1')
-    expect(mia).toBeUndefined()
-    expect(altre).toEqual([])
+  it('senza niente da ripristinare svuota tutto invece di lasciare le chat di prima', () => {
+    const e = distribuisci([], [{ id: 7, monitor: 'm1' }])
+    expect(e.daSvuotare).toEqual([7])
+  })
+})
+
+describe('i workspace sopravvivono alla rilettura', () => {
+  const conWorkspace = {
+    versione: VERSIONE_ISTANTANEE,
+    istantanee: [{
+      nome: 'desk_1',
+      salvataIl: '2026-08-12T10:00:00.000Z',
+      finestre: [],
+      workspaceAttivo: 'lavoro',
+      workspace: [
+        { nome: 'lavoro', perMonitor: { m1: { root: { type: 'pane', id: 'p1' }, panes: [{ id: 'p1', sessionUuid: 'u1', cwd: 'C:\\a', title: 'una' }] } } },
+        { nome: 'casa', perMonitor: { m1: { root: { type: 'pane', id: 'p2' }, panes: [{ id: 'p2', sessionUuid: 'u2', cwd: 'C:\\b', title: 'due' }] } } }
+      ],
+      autopiloti: []
+    }]
+  }
+
+  it('li rilegge dal file, invece di buttarli via', () => {
+    // Il campo veniva scritto sul disco e non lo leggeva nessuno: chi salvava
+    // tre workspace ne ritrovava uno appena riaperto il programma, e i
+    // conteggi dicevano «1» a ogni riapertura della finestra dei salvataggi.
+    const { istantanee } = parseIstantanee(conWorkspace)
+    expect(istantanee[0]?.workspace).toHaveLength(2)
+    expect(contaWorkspace(istantanee[0] as Istantanea)).toBe(2)
+    expect(contaChat(istantanee[0] as Istantanea)).toBe(2)
+  })
+
+  it('ricorda quale si aveva davanti', () => {
+    // Senza, le chat ripristinate finivano nel workspace attivo di adesso: le
+    // stesse chat in due workspace diversi.
+    const { istantanee } = parseIstantanee(conWorkspace)
+    expect(istantanee[0]?.workspaceAttivo).toBe('lavoro')
+  })
+
+  it('un salvataggio vecchio senza workspace si legge lo stesso', () => {
+    const { istantanee } = parseIstantanee({
+      versione: VERSIONE_ISTANTANEE,
+      istantanee: [{ nome: 'vecchia', salvataIl: '2026-01-01T00:00:00.000Z', finestre: [], autopiloti: [] }]
+    })
+    expect(istantanee[0]?.workspace).toBeUndefined()
+    expect(istantanee[0]?.workspaceAttivo).toBeUndefined()
   })
 })
 

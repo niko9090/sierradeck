@@ -31,4 +31,19 @@ describe('prossimoSchermoLibero', () => {
   it('non solleva senza schermi', () => {
     expect(prossimoSchermoLibero([], [])).toBeUndefined()
   })
+
+  it('preferisce lo schermo dove c era del lavoro', () => {
+    // È lo schermo dove la finestra è stata chiusa: aprirla altrove la mostra
+    // sul monitor sbagliato **e vuota**, perché le sue chat sono archiviate
+    // sotto la chiave del monitor di allora.
+    expect(prossimoSchermoLibero([primario, secondario], [], ['b'])?.chiave).toBe('b')
+  })
+
+  it('se quello con il lavoro e occupato prende il primo libero', () => {
+    expect(prossimoSchermoLibero([primario, secondario], ['b'], ['b'])?.chiave).toBe('a')
+  })
+
+  it('senza lavoro salvato si comporta come sempre', () => {
+    expect(prossimoSchermoLibero([primario, secondario], [], [])?.chiave).toBe('a')
+  })
 })

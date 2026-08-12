@@ -39,7 +39,7 @@ import { scanProjects } from './indexer/project-scanner'
 import type { Chat } from './client-rotte'
 import { apriProviderStore } from './provider-store'
 import { creaAggiornamenti } from './aggiornamenti'
-import { claudeDaAggiornare } from './claude-versione'
+import { claudeDaAggiornare, notaClaude } from './claude-versione'
 import { resolveClaudeCommand } from './config'
 import { leggiAccesso } from './accesso'
 import { prossimoSchermoLibero } from './schermi'
@@ -97,7 +97,16 @@ export function apriNuovaFinestra(): void {
     chiave: chiaveMonitor({ bounds: d.bounds, scaleFactor: d.scaleFactor }),
     bounds: d.bounds
   }))
-  const scelto = prossimoSchermoLibero(disponibili, occupati)
+  // Su quali schermi c'erano chat quando si è chiuso. L'archivio le tiene già
+  // per monitor: è la memoria di dove stavano le finestre, senza doverne
+  // aggiungere una seconda che possa raccontare un'altra storia.
+  const archivio = workspaceStore?.leggi()
+  const conLavoro = Object.entries(
+    archivio?.workspace.find((w) => w.nome === archivio.attivo)?.perMonitor ?? {}
+  )
+    .filter(([, layout]) => layout.panes.length > 0)
+    .map(([chiave]) => chiave)
+  const scelto = prossimoSchermoLibero(disponibili, occupati, conLavoro)
 
   const win = new BrowserWindow({
     width: LARGHEZZA,
@@ -636,6 +645,15 @@ if (!app.requestSingleInstanceLock()) {
             // aggiornare SierraDeck: si lascia stare e si va avanti.
             console.error('[aggiornamenti] versione di Claude Code non verificata:', err)
             return undefined
+          }
+        },
+        // E quando non c'è niente da aggiornare lo si dice lo stesso: un
+        // controllo che non si vede, per chi guarda non è avvenuto.
+        () => {
+          try {
+            return notaClaude(resolveClaudeCommand(process.env))
+          } catch {
+            return ''
           }
         }
       )

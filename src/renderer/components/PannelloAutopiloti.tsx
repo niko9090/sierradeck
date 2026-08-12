@@ -127,6 +127,13 @@ export function PannelloAutopiloti({
               esegui(async () => {
                 const s = await window.gestore.autopilota.avvioAlLogin(attivare)
                 onAlLogin(s.installato)
+                // E li cambia tutti insieme: è l'interruttore generale, e
+                // lasciare i singoli come stavano vorrebbe dire accendere il
+                // servizio senza che ritrovi al lavoro nessuno.
+                for (const a of elenco) {
+                  await window.gestore.autopilota.riprendiAlRiavvio(a.id, attivare)
+                }
+                onRicarica()
               })
             }}
           />
@@ -291,6 +298,30 @@ export function PannelloAutopiloti({
                 {a.criteri.length === 0 ? 'Riprendi le domande' : 'Riprendi'}
               </button>
             ) : null}
+            {/* La sua spunta, non quella di tutti: un lavoro lungo deve poter
+                riprendere da solo dopo un riavvio, e quello che stavi provando
+                per curiosità no. L'interruttore qui sopra dice se il servizio
+                torna su; questo dice quali autopiloti ritrova al lavoro. */}
+            <label
+              className="serigrafia"
+              style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
+              title="Se riprendere questo autopilota da solo dopo un riavvio"
+            >
+              <input
+                type="checkbox"
+                // `!== false` e non `=== true`: chi non ha mai toccato la
+                // spunta riparte, ed è il comportamento vero. Mostrarla vuota
+                // direbbe il contrario di quello che poi succede.
+                checked={a.riprendiAlRiavvio !== false}
+                disabled={inCorso}
+                aria-label={`Riparti all’avvio: ${d.titolo}`}
+                onChange={(e) => {
+                  const acceso = e.target.checked
+                  esegui(() => window.gestore.autopilota.riprendiAlRiavvio(a.id, acceso))
+                }}
+              />
+              avvio
+            </label>
             <button
               className="tasto"
               onClick={() => esegui(() => window.gestore.autopilota.elimina(a.id))}

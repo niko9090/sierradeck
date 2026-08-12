@@ -66,7 +66,9 @@ export function creaAggiornamenti(
    * aggiornare. Restituisce `undefined` se è già all'ultima versione o se non
    * si è potuto stabilire: nel dubbio non si tocca niente.
    */
-  claudeDaAggiornare?: () => string | undefined
+  claudeDaAggiornare?: () => string | undefined,
+  /** Cosa mostrare quando Claude Code non ha bisogno di niente: la verifica si deve vedere. */
+  notaClaude?: () => string
 ): Aggiornamenti {
   let stato: StatoAggiornamento = { fase: 'fermo' }
   /** Dove electron-updater ha messo l'installer: lo esegue SierraDeck Update. */
@@ -182,7 +184,8 @@ export function creaAggiornamenti(
           // Claude Code si aggiorna nello stesso viaggio: e' l'unico momento in
           // cui nessuna chat lo tiene aperto, e chiederlo all'utente vorrebbe
           // dire chiedergli di chiudere tutto a mano.
-          ...(claudeDaAggiornare?.() !== undefined ? { claude: claudeDaAggiornare() } : {})
+          ...(claudeDaAggiornare?.() !== undefined ? { claude: claudeDaAggiornare() } : {}),
+          notaClaude: notaClaude?.() ?? ''
         })
         if (partito) {
           // Non si chiude niente finché l'updater non dice di esserci. Se lo

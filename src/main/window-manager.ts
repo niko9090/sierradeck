@@ -29,6 +29,8 @@ export type Registro = {
   proprietarioDi: (ptyId: string) => number | undefined
   /** `false` se il messaggio non è stato recapitato: nessun proprietario, o proprietario morto. */
   inviaAlProprietario: (ptyId: string, canale: string, msg: unknown) => boolean
+  /** A una finestra sola. `false` se non è collegata o non è più viva. */
+  inviaA: (finestraId: number, canale: string, msg: unknown) => boolean
   inviaATutte: (canale: string, msg: unknown) => void
   /**
    * Come `inviaATutte`, saltando una finestra. Serve agli annunci che seguono
@@ -120,6 +122,13 @@ export function creaRegistro(): Registro {
       const id = proprietario.get(ptyId)
       if (id === undefined) return false
       const d = viva(id)
+      if (d === undefined) return false
+      d.invia(canale, msg)
+      return true
+    },
+
+    inviaA(finestraId, canale, msg) {
+      const d = viva(finestraId)
       if (d === undefined) return false
       d.invia(canale, msg)
       return true

@@ -102,8 +102,11 @@ export function paginaClient(): string {
      file invece di aprire una pagina, e da un telefono e' la differenza fra
      scaricare l'app e trovarsi davanti a un elenco di file da capire. */
   .tasto-link {
-    display: flex; align-items: center; justify-content: center;
-    flex: 1; min-height: 48px; padding: 12px 14px; border-radius: 10px;
+    display: inline-flex; align-items: center; justify-content: center;
+    /* Largo quanto il suo testo, come tutti gli altri tasti: con flex: 1
+       prendeva tutto lo spazio che il tasto accanto non voleva, e diventava
+       una fascia azzurra larga quanto lo schermo. */
+    flex: 0 1 auto; min-width: 0; min-height: 48px; padding: 12px 14px; border-radius: 10px;
     background: #2f6fb5; border: 1px solid #3d86d6; color: #fff; text-decoration: none;
   }
   /* L'ultima riga del terminale: si guarda passando, quindi carattere fisso e

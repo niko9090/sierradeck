@@ -73,9 +73,18 @@ function usaPersistenzaLayout(): void {
       useLayoutStore.getState().esporta()
     )
 
+    // Un ripristino riempie le finestre che ci sono già invece di aprirne di
+    // nuove: quando tocca a questa, il layout arriva di qui. Prima le si
+    // affiancava una finestra nuova e questa restava con le chat di prima —
+    // le stesse chat due volte, in due finestre.
+    const smettiDiRicevere = window.gestore.layout.suApplica((l) => {
+      useLayoutStore.getState().carica(l)
+    })
+
     return () => {
       window.removeEventListener('beforeunload', salvaAllaChiusura)
       smettiDiRispondere()
+      smettiDiRicevere()
       persistenza.chiudi()
     }
   }, [])
@@ -187,7 +196,16 @@ export function App(): React.JSX.Element {
   }), [])
 
   useEffect(() => window.gestore.client.suWorkspace((nome) => {
-    void azioniDiFinestra(() => attivoOra.current).cambia(nome).catch(() => undefined)
+    void azioniDiFinestra(() => attivoOra.current)
+      .cambia(nome)
+      // E si aggiorna anche l'etichetta. Il cambio arriva dal telefono, quindi
+      // **ogni** finestra lo esegue: ognuna è mittente del proprio cambio, e
+      // l'annuncio che aggiorna l'elenco salta di proposito chi l'ha chiesto.
+      // Risultato: le chat cambiavano sotto gli occhi e il workspace scelto
+      // restava indicato quello di prima.
+      .then(() => window.gestore.workspace.stato())
+      .then(setWorkspace)
+      .catch(() => undefined)
   }), [])
   // Premere fuori chiude, per tutte allo stesso modo: chi lo prova su una e non
   // sull'altra non impara la regola, impara che il programma e' imprevedibile.

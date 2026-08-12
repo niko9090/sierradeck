@@ -29,7 +29,7 @@
  * spazio aggiunto farebbe ricompilare per niente, e chi la alza qui sta anche
  * dicendo «ho cambiato qualcosa che conta».
  */
-export const VERSIONE_UPDATER = 8
+export const VERSIONE_UPDATER = 9
 
 export function sorgenteUpdater(): string {
   return `using System;
@@ -39,7 +39,7 @@ using System.IO;
 using System.Windows.Forms;
 
 // SierraDeck Update - installa una versione nuova mentre il programma e' chiuso.
-// Argomenti: <pid> <installer> <eseguibile> <versione> [claude]
+// Argomenti: <pid> <installer> <eseguibile> <versione> [claude] [nota]
 //
 // L'ultimo, se c'e', e' il comando di Claude Code da aggiornare: si fa qui e
 // non nel programma perche' qui il programma e' gia' chiuso, e Claude Code non
@@ -60,6 +60,7 @@ class Aggiornamento : Form {
     string eseguibile;
     string versione;
     string claude;
+    string notaClaude;
     Process installazione;
     Process claudeInCorso;
     // Sotto questi giri non si chiude comunque: una finestra che appare e
@@ -71,8 +72,16 @@ class Aggiornamento : Form {
     const int GIRI_GENTILI = 25;
     bool chiestoGentilmente = false;
     int vuoti = 0;
+    // I giri passati **in questa fase**: la barra misura il tempo di ogni
+    // tratto, non quello totale.
+    int giriPasso = 0;
     int vistiUnaVolta = -1;
     const int GIRI_MASSIMI = 3000;
+    // Quanto si aspetta che la nuova istanza si faccia viva prima di dire
+    // «Pronto» comunque: trenta secondi. Oltre, o e' partita senza farsi
+    // riconoscere o non partira', e in entrambi i casi tenere la finestra
+    // ferma non aiuta nessuno.
+    const int GIRI_AVVIO = 150;
 
     /**
      * I parametri scritti accanto all'eseguibile: pid, installer, programma,
@@ -124,6 +133,7 @@ class Aggiornamento : Form {
         eseguibile = args[2];
         versione = args.Length > 3 ? args[3] : "";
         claude = args.Length > 4 ? args[4] : "";
+        notaClaude = args.Length > 5 ? args[5] : "";
 
         Color sfondo = Color.FromArgb(11, 12, 14);
         Color chiaro = Color.FromArgb(223, 227, 231);
@@ -209,23 +219,80 @@ class Aggiornamento : Form {
     }
 
     /**
-     * Fin dove puo' arrivare la barra in questa fase.
+     * Da dove parte e dove arriva la barra in ogni fase.
      *
-     * I numeri non sono arbitrari: dicono quanto manca davvero. L'attesa piu'
-     * lunga e' l'installazione, e le si lascia lo spazio piu' largo.
+     * Ogni fase comincia dove finisce la precedente: cosi' la barra non salta
+     * mai. I numeri non sono arbitrari - dicono quanto pesa davvero ciascuna
+     * attesa, e l'installazione, che e' la piu' lunga, prende lo spazio piu'
+     * largo.
      */
-    int Tetto() {
-        if (passo == 0) return 20;   // chiusura del programma
-        if (passo == 1) return 70;   // installazione: la parte lunga
-        if (passo == 5) return 88;   // Claude Code, quando c'e' da aggiornarlo
-        if (passo == 2) return 97;   // avvio della versione nuova
+    int Da() {
+        if (passo == 0) return 0;
+        if (passo == 1) return 15;
+        if (passo == 5) return 70;
+        if (passo == 2) return 90;
+        return 99;
+    }
+    int A() {
+        if (passo == 0) return 15;
+        if (passo == 1) return 70;
+        if (passo == 5) return 90;
+        if (passo == 2) return 99;
         return 100;
+    }
+    // Quanto dura di solito ogni fase, in giri da 200ms. Non e' una promessa:
+    // e' il ritmo con cui la barra attraversa il suo tratto.
+    int Previsti() {
+        if (passo == 0) return 20;    // 4s: chiudere le finestre
+        if (passo == 1) return 175;   // 35s: l'installer
+        if (passo == 5) return 90;    // 18s: Claude Code
+        if (passo == 2) return 25;    // 5s: la nuova istanza che nasce
+        return 5;
+    }
+
+    /**
+     * Dove sta la barra adesso.
+     *
+     * Cresce sempre e non si ferma mai: si avvicina alla fine del tratto senza
+     * raggiungerla, rallentando quando la fase dura piu' del previsto. La barra
+     * che restava ferma al 65 per trenta secondi e poi saltava al 100 diceva
+     * due bugie in fila - che fosse bloccata, e che avesse appena fatto un
+     * terzo del lavoro in un istante.
+     */
+    int Avanzamento() {
+        double t = giriPasso;
+        double previsti = Previsti();
+        // A t = previsti la frazione vale 0,8: il tratto e' quasi finito ma
+        // resta spazio per un'attesa piu' lunga, senza mai fermarsi.
+        double frazione = t / (t + previsti * 0.25);
+        int da = Da();
+        return da + (int)((A() - da) * frazione);
+    }
+
+    /**
+     * Passa a una fase nuova.
+     *
+     * Azzerare il cronometro della fase e' il punto di tutto: la barra misura
+     * quanto sta durando **questo** tratto, non quanto e' passato dall'inizio.
+     * Senza, la fase piu' lunga si mangiava il tempo di tutte le altre e loro
+     * comparivano gia' finite.
+     */
+    void Vai(int prossimo) {
+        passo = prossimo;
+        giriPasso = 0;
+        // La barra non torna indietro: il tratto nuovo comincia dove finisce
+        // quello vecchio, e se si era arrivati piu' avanti si resta li'.
+        if (valore < Da()) valore = Da();
     }
 
     void Batte(object mittente, EventArgs e) {
         giri++;
-        int tetto = passo == 0 ? 25 : passo == 1 ? 65 : passo == 5 ? 85 : passo == 2 ? 97 : 100;
-        if (valore < tetto) valore = Math.Min(tetto, valore + 2);
+        giriPasso++;
+        int calcolato = Avanzamento();
+        // Mai indietro: al cambio di fase il valore nuovo parte dal fondo del
+        // tratto precedente, e un attimo di aritmetica non deve far arretrare
+        // quello che si e' gia' visto.
+        if (calcolato > valore) valore = calcolato;
 
         if (passo == 0) {
             int rimasti = ChiudiTutte();
@@ -242,34 +309,55 @@ class Aggiornamento : Form {
             if (vuoti >= 3) {
                 Nota("nessuna istanza rimasta: lancio l'installer");
                 Installa();
-                passo = 1;
+                Vai(1);
             }
         } else if (passo == 1) {
-            fase.Text = (versione.Length > 0
+            fase.Text = versione.Length > 0
                 ? "Installazione della versione " + versione + "..."
-                : "Installazione in corso...") + (giri > 50 ? " (" + (giri / 5) + "s)" : "");
+                : "Installazione in corso...";
             if (installazione == null || installazione.HasExited) {
                 Nota("installer terminato");
-                if (claude.Length > 0) { AggiornaClaude(); passo = 5; }
-                else { Avvia(); passo = 2; }
+                // Claude Code prima della riapertura, sempre: quando c'e' da
+                // aggiornarlo lo si aggiorna, quando non c'e' lo si dice.
+                // Riaprire senza averlo guardato lascerebbe il dubbio, e il
+                // dubbio si risolve solo riaggiornando a mano.
+                AggiornaClaude();
+                Vai(5);
             }
         } else if (passo == 5) {
             // Claude Code: si aggiorna adesso, che nessuna chat lo tiene
             // aperto. E' l'unico momento in cui si puo' fare senza chiedere
-            // all'utente di chiudere tutto a mano. Puo' durare un minuto: si
-            // dice da quanto, perche' un'attesa muta si legge come un blocco.
-            fase.Text = "Aggiorno anche Claude Code... (" + (giri / 5) + "s)";
-            if (claudeInCorso == null || claudeInCorso.HasExited) {
-                Nota("claude code aggiornato");
-                Avvia();
-                passo = 2;
+            // all'utente di chiudere tutto a mano.
+            if (claudeInCorso == null) {
+                // Niente da aggiornare. Se la verifica c'e' stata la si mostra
+                // per un istante: un controllo che non si vede, per chi guarda
+                // non e' avvenuto. Se invece non si e' potuta fare, si tace -
+                // raccontare una verifica non riuscita e' peggio che non dirla.
+                if (notaClaude.Length > 0) fase.Text = notaClaude;
+                // Niente return: la barra va comunque ridisegnata in fondo a
+                // questo giro, altrimenti resta indietro di un battito.
+                if (notaClaude.Length == 0 || giriPasso >= 8) {
+                    Avvia();
+                    Vai(2);
+                }
+            } else {
+                fase.Text = "Controllo se Claude Code e' aggiornato...";
+                if (claudeInCorso.HasExited) {
+                    Nota("claude code aggiornato");
+                    Avvia();
+                    Vai(2);
+                }
             }
         } else if (passo == 2) {
             fase.Text = "Avvio della nuova versione...";
             // Si aspetta che la nuova istanza sia davvero in piedi prima di
             // dire «Pronto»: dirlo mentre sta ancora nascendo e' la stessa
             // bugia della barra ferma all'82.
-            if (NuovaViva() || giri > GIRI_MINIMI) passo = 3;
+            // I giri di questa fase e non quelli totali: con il totale, i giri
+            // minimi erano gia' passati da un pezzo e la finestra diceva
+            // «Pronto» nello stesso istante in cui cominciava ad aspettare -
+            // la bugia per cui restava al 82% dicendo di aver finito.
+            if (NuovaViva() || giriPasso > GIRI_AVVIO) Vai(3);
         } else {
             fase.Text = "Pronto.";
             valore = 100;
@@ -399,6 +487,10 @@ class Aggiornamento : Form {
      * si aggiorna quando cambiera'.
      */
     void AggiornaClaude() {
+        // Senza comando non c'e' niente da aggiornare: il programma ha gia'
+        // guardato e ha trovato Claude Code alla versione buona. Resta a null,
+        // e la finestra lo dice invece di tacere.
+        if (claude.Length == 0) { Nota("claude code gia aggiornato, niente da fare"); return; }
         try {
             // Le virgolette doppie qui dentro vanno raddoppiate: questo testo
             // vive in un template JavaScript, e una virgoletta scappata con la

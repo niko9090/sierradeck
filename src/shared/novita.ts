@@ -23,6 +23,19 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.8.5',
+    righe: [
+      'I salvataggi non perdono più i workspace: il campo veniva scritto sul disco e non lo rileggeva nessuno, così chi ne salvava tre ne ritrovava uno appena riaperto il programma — ed è anche il motivo per cui il conteggio diceva sempre «1».',
+      'Ricaricare un salvataggio **riempie le finestre che ci sono** invece di affiancarne di nuove: prima quelle di prima restavano aperte con dentro le loro chat, e le stesse chat comparivano due volte in due finestre. E ogni chat torna nel workspace da cui viene, non in quello che avevi davanti.',
+
+      'Ogni finestra si riapre sullo schermo dove l’avevi lasciata, invece che sempre sul primo: là dove ci sono le sue chat.',
+      'La barra dell’aggiornamento non salta più: ogni fase attraversa il suo tratto misurando il **proprio** tempo, e l’attesa lunga sta al 99, non al 65.',
+      'Prima di riaprire il programma si vede il controllo di Claude Code, anche quando è già aggiornato: un controllo che non si vede, per chi guarda non è avvenuto.',
+      'Ogni autopilota ha la sua spunta «riparti all’avvio», oltre a quella generale che li cambia tutti insieme.',
+      'Dal telefono si può guardare dentro una chat — le sue ultime righe, non solo l’ultima — e aprirne una nuova scegliendo fra le cartelle già conosciute. E cambiando workspace, anche le finestre del computer mostrano quello giusto.'
+    ]
+  },
+  {
     versione: '0.8.3',
     righe: [
       'Il tasto per scaricare l’app dice quale versione è, e **scarica**: prima apriva GitHub e ti lasciava davanti a un elenco di file da capire — da un telefono è il momento in cui si rinuncia.'

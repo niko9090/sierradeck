@@ -56,6 +56,17 @@ export type Istantanea = {
    * ricaricano come hanno sempre fatto.
    */
   workspace?: WorkspaceSalvato[]
+  /**
+   * Quale workspace si aveva davanti.
+   *
+   * Senza, un ripristino rimetteva a schermo le chat del workspace di allora
+   * lasciando nell'archivio il nome di quello di adesso: il primo salvataggio
+   * successivo le scriveva **dentro il workspace sbagliato**, dove comparivano
+   * accanto alle sue — le stesse chat in due workspace diversi.
+   *
+   * Assente nelle istantanee vecchie: quelle non toccano il workspace attivo.
+   */
+  workspaceAttivo?: string
   autopiloti: AutopilotaSalvato[]
 }
 
@@ -64,6 +75,7 @@ export function nuovaIstantanea(p: {
   salvataIl: string
   finestre: FinestraSalvata[]
   workspace?: WorkspaceSalvato[]
+  workspaceAttivo?: string
   autopiloti: AutopilotaSalvato[]
 }): Istantanea {
   return {
@@ -71,6 +83,9 @@ export function nuovaIstantanea(p: {
     salvataIl: p.salvataIl,
     finestre: p.finestre,
     ...(p.workspace !== undefined ? { workspace: p.workspace } : {}),
+    ...(p.workspaceAttivo !== undefined && p.workspaceAttivo !== ''
+      ? { workspaceAttivo: p.workspaceAttivo }
+      : {}),
     autopiloti: p.autopiloti
   }
 }
@@ -107,23 +122,55 @@ export function workspaceDaSalvare(
 }
 
 /**
- * Divide le finestre salvate fra quella che ricarica e quelle da aprire.
+ * A chi va ogni layout salvato, quando le finestre aperte non sono quelle di
+ * allora.
  *
- * Chi ricarica tiene la finestra del proprio schermo: se il salvataggio veniva
- * da due monitor e si ricarica sul portatile, quel monitor non esiste più e si
- * prende comunque la prima — meglio tutto su uno schermo che niente da nessuna
- * parte.
+ * Prima si riempiono le finestre che ci sono già — quella sullo stesso monitor
+ * se c'è, altrimenti una qualunque — e solo per quello che avanza se ne apre di
+ * nuove. Aprirne una per ogni finestra salvata, come si faceva, lasciava vive
+ * anche quelle di prima con dentro le chat di prima: **le stesse chat comparivano
+ * due volte**, in due finestre, e le si credeva perse quando invece erano di
+ * troppo.
+ *
+ * Le finestre aperte che il salvataggio non prevede vengono svuotate. Lasciarle
+ * com'erano è esattamente il doppione descritto sopra: un ripristino dice cosa
+ * ci deve essere, e quello che non c'è dentro non ci deve essere.
  */
-export function scegliFinestre(
+export function distribuisci(
   finestre: FinestraSalvata[],
-  monitorCorrente: string
-): { mia: FinestraSalvata | undefined; altre: FinestraSalvata[] } {
-  const indice = finestre.findIndex((f) => f.monitor === monitorCorrente)
-  const scelto = indice === -1 ? 0 : indice
-  return {
-    mia: finestre[scelto],
-    altre: finestre.filter((_, i) => i !== scelto)
+  aperte: { id: number; monitor: string }[]
+): {
+  aFinestre: { id: number; layout: LayoutSalvato }[]
+  daAprire: LayoutSalvato[]
+  daSvuotare: number[]
+} {
+  const libere = [...aperte]
+  const aFinestre: { id: number; layout: LayoutSalvato }[] = []
+  const senzaCasa: FinestraSalvata[] = []
+
+  // Primo giro, il monitor: una finestra che torna sullo schermo dove stava è
+  // l'unico esito che non sposta niente sotto gli occhi di chi guarda.
+  for (const f of finestre) {
+    const i = libere.findIndex((a) => a.monitor === f.monitor)
+    const presa = libere[i]
+    if (presa === undefined) {
+      senzaCasa.push(f)
+      continue
+    }
+    aFinestre.push({ id: presa.id, layout: f.layout })
+    libere.splice(i, 1)
   }
+
+  // Secondo giro, quello che resta: un monitor scollegato non deve far sparire
+  // le sue chat, e una finestra qualunque è meglio di nessuna finestra.
+  const daAprire: LayoutSalvato[] = []
+  for (const f of senzaCasa) {
+    const presa = libere.shift()
+    if (presa === undefined) daAprire.push(f.layout)
+    else aFinestre.push({ id: presa.id, layout: f.layout })
+  }
+
+  return { aFinestre, daAprire, daSvuotare: libere.map((a) => a.id) }
 }
 
 function stringaNonVuota(raw: unknown): string | undefined {
@@ -187,6 +234,41 @@ function parseAutopilota(raw: unknown, scartati: string[]): AutopilotaSalvato | 
     criteri,
     ...(tetto !== undefined ? { tettoChat: tetto } : {})
   }
+}
+
+/**
+ * I workspace di un salvataggio, riletti dal file.
+ *
+ * Un layout vuoto qui **si tiene**, al contrario di quelli delle finestre: là
+ * significa «una finestra vuota da non riaprire», qui significa «questo monitor
+ * di questo workspace non ha niente», che è un'informazione vera e va
+ * conservata com'era.
+ */
+function parseWorkspace(raw: unknown, scartati: string[]): WorkspaceSalvato[] | undefined {
+  if (raw === undefined) return undefined
+  if (!Array.isArray(raw)) {
+    scartati.push('workspace del salvataggio non e un elenco')
+    return undefined
+  }
+  const letti: WorkspaceSalvato[] = []
+  for (const w of raw) {
+    if (typeof w !== 'object' || w === null) continue
+    const o = w as Record<string, unknown>
+    const nome = stringaNonVuota(o.nome)
+    if (nome === undefined) {
+      scartati.push('workspace senza nome')
+      continue
+    }
+    const perMonitor: Record<string, LayoutSalvato> = {}
+    if (typeof o.perMonitor === 'object' && o.perMonitor !== null) {
+      for (const [chiave, layout] of Object.entries(o.perMonitor as Record<string, unknown>)) {
+        const letto = parseLayout(layout, scartati)
+        if (letto !== undefined) perMonitor[chiave] = letto
+      }
+    }
+    letti.push({ nome, perMonitor })
+  }
+  return letti
 }
 
 /**
@@ -254,10 +336,20 @@ export function parseIstantanee(raw: unknown): { istantanee: Istantanea[]; scart
         }
       }
 
+      // I workspace **vanno riletti**: senza questo venivano scritti sul disco
+      // e buttati via alla prima rilettura, e chi salvava tre workspace ne
+      // ritrovava uno appena riaperto il programma. Il campo c'era nel tipo e
+      // nel file, e non lo leggeva nessuno.
+      const workspace = parseWorkspace(g.workspace, scartati)
+
       const istantanea: Istantanea = {
         nome,
         salvataIl: stringaNonVuota(g.salvataIl) ?? new Date(0).toISOString(),
         finestre,
+        ...(workspace !== undefined ? { workspace } : {}),
+        ...(stringaNonVuota(g.workspaceAttivo) !== undefined
+          ? { workspaceAttivo: g.workspaceAttivo as string }
+          : {}),
         autopiloti
       }
       const esistente = perNome.get(nome)

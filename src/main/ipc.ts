@@ -17,7 +17,7 @@ import { aggiungiPaneA, type Archivio, type LayoutSalvato } from '@shared/worksp
 import type { WorkspaceStore } from './workspace-store'
 import type { IstantaneeStore } from './istantanee-store'
 import {
-  nuovaIstantanea, scegliFinestre, daRiavviare, daSalvare, workspaceDaSalvare,
+  nuovaIstantanea, distribuisci, daRiavviare, daSalvare, workspaceDaSalvare,
   type AutopilotaSalvato, type FinestraSalvata, type Istantanea
 } from '@shared/istantanea'
 import { resolveClaudeCommand, buildClaudeArgs } from './config'
@@ -859,6 +859,9 @@ export function registerIstantaneeIpc(
         salvataIl: new Date().toISOString(),
         finestre,
         ...(workspace !== undefined ? { workspace } : {}),
+        // Quale si aveva davanti: al ripristino le chat devono tornare nel
+        // workspace da cui vengono, non in quello aperto in quel momento.
+        ...(archivio !== undefined ? { workspaceAttivo: archivio.attivo } : {}),
         autopiloti
       }))
     }
@@ -890,6 +893,12 @@ export function registerIstantaneeIpc(
       const nomiSalvati = new Set(istantanea.workspace.map((w) => w.nome))
       workspaceStore.scrivi({
         ...archivio,
+        // E torna davanti quello che si aveva davanti. Senza, le chat
+        // ripristinate finivano nel workspace attivo **di adesso** al primo
+        // salvataggio del layout: le stesse chat in due workspace diversi.
+        ...(istantanea.workspaceAttivo !== undefined
+          ? { attivo: istantanea.workspaceAttivo }
+          : {}),
         workspace: [
           ...archivio.workspace.filter((w) => !nomiSalvati.has(w.nome)),
           ...istantanea.workspace
@@ -901,13 +910,40 @@ export function registerIstantaneeIpc(
     // Le finestre che non sono questa vanno riaperte, altrimenti le loro chat
     // restano nel salvataggio e non tornano sullo schermo. Ognuna, appena
     // pronta, chiedera' il proprio layout e lo trovera' in coda.
-    const { mia, altre } = scegliFinestre(istantanea.finestre, chiaveDellaFinestra(win))
-    // Le finestre di adesso non devono ricevere questi layout: se una di loro
-    // si ricaricasse prima che le nuove siano pronte, si ritroverebbe dentro le
-    // chat di un'altra finestra, in doppio.
-    const gia = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed()).map((w) => w.id)
-    for (const f of altre) {
-      codaLayout.accoda(f.layout, Date.now(), gia)
+    // Le finestre già aperte vengono **riempite**, non affiancate. Aprirne una
+    // nuova per ogni finestra salvata lasciava vive anche quelle di prima con
+    // dentro le chat di prima: le stesse chat comparivano due volte, in due
+    // finestre, ed è il motivo per cui il ripristino sembrava perderne alcune e
+    // duplicarne altre.
+    const aperte = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
+    const ordinate = [win, ...aperte.filter((w) => w.id !== win.id)]
+    const { aFinestre, daAprire, daSvuotare } = distribuisci(
+      istantanea.finestre,
+      ordinate.map((w) => ({ id: w.id, monitor: chiaveDellaFinestra(w) }))
+    )
+
+    let mio: LayoutSalvato | undefined
+    for (const a of aFinestre) {
+      if (a.id === win.id) {
+        // Il proprio torna come risposta: è la finestra che ha chiesto il
+        // ripristino, e lo applica lei appena questa chiamata rientra.
+        mio = a.layout
+        continue
+      }
+      registro.inviaA(a.id, 'layout:applica', a.layout)
+    }
+    // Quelle che il salvataggio non prevede restano vuote: lasciarle com'erano
+    // è esattamente il doppione descritto sopra.
+    for (const id of daSvuotare) {
+      if (id === win.id) mio = layoutVuoto()
+      else registro.inviaA(id, 'layout:applica', layoutVuoto())
+    }
+
+    // Solo quello che avanza apre finestre nuove. Ognuna, appena pronta,
+    // chiederà il proprio layout e lo troverà in coda.
+    const gia = aperte.map((w) => w.id)
+    for (const layout of daAprire) {
+      codaLayout.accoda(layout, Date.now(), gia)
       try {
         apriFinestra()
       } catch (err) {
@@ -943,7 +979,7 @@ export function registerIstantaneeIpc(
       }
     }
 
-    return mia?.layout ?? { root: undefined, panes: [] }
+    return mio ?? layoutVuoto()
   })
 }
 

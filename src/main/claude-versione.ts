@@ -68,6 +68,25 @@ export function piuVecchia(installata: string, ultima: string): boolean {
  * stabilire, proporre un aggiornamento sarebbe proporre di sostituire qualcosa
  * senza sapere se serve.
  */
+/**
+ * Cosa dire nella finestra dell'aggiornamento quando Claude Code è già a posto.
+ *
+ * Vuota quando c'è da aggiornarlo (lo dirà l'updater mentre lo fa) e quando non
+ * si è potuto stabilire: una verifica che non è riuscita non si racconta come
+ * riuscita. Serve perché il controllo, se non si vede, per chi guarda non è
+ * avvenuto — e la sola via per togliersi il dubbio sarebbe rifarlo a mano.
+ */
+export function notaClaude(
+  comando: string,
+  viste?: { installata?: string; ultima?: string }
+): string {
+  const installata = viste === undefined ? versioneInstallata(comando) : viste.installata
+  const ultima = viste === undefined ? versioneUltima() : viste.ultima
+  if (installata === undefined || ultima === undefined) return ''
+  if (piuVecchia(installata, ultima)) return ''
+  return `Claude Code e' gia' aggiornato (${installata}).`
+}
+
 export function claudeDaAggiornare(
   comando: string,
   // Le versioni si passano dentro un oggetto e non come parametri con un

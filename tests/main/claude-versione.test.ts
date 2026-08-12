@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  claudeDaAggiornare, piuVecchia, versioneInstallata, versioneUltima
+  claudeDaAggiornare, notaClaude, piuVecchia, versioneInstallata, versioneUltima
 } from '../../src/main/claude-versione'
 
 describe('piuVecchia', () => {
@@ -53,5 +53,24 @@ describe('claudeDaAggiornare', () => {
     // sostituire qualcosa sarebbe farlo senza sapere se serve.
     expect(claudeDaAggiornare('claude', { ultima: '2.2.0' })).toBeUndefined()
     expect(claudeDaAggiornare('claude', { installata: '2.1.0' })).toBeUndefined()
+  })
+})
+
+describe('notaClaude', () => {
+  it('dice che e gia aggiornato, con la versione', () => {
+    // Un controllo che non si vede, per chi guarda non e' avvenuto: la
+    // finestra passava dall'installazione all'avvio come se Claude Code non
+    // fosse mai stato guardato.
+    expect(notaClaude('claude', { installata: '2.2.0', ultima: '2.2.0' })).toContain('2.2.0')
+  })
+
+  it('tace quando c e da aggiornarlo: lo dira l updater mentre lo fa', () => {
+    expect(notaClaude('claude', { installata: '2.1.0', ultima: '2.2.0' })).toBe('')
+  })
+
+  it('tace quando la verifica non e riuscita', () => {
+    // Raccontare una verifica non riuscita come riuscita e' peggio che tacere.
+    expect(notaClaude('claude', { ultima: '2.2.0' })).toBe('')
+    expect(notaClaude('claude', { installata: '2.2.0' })).toBe('')
   })
 })

@@ -142,6 +142,14 @@ export type AvvioUpdater = {
    * vorrebbe dire chiedergli di chiudere tutto a mano.
    */
   claude?: string
+  /**
+   * Cosa mostrare quando Claude Code non ha bisogno di niente.
+   *
+   * Un controllo che non si vede, per chi guarda non è avvenuto: senza questa
+   * riga la finestra passava dall'installazione all'avvio come se Claude Code
+   * non fosse mai stato guardato.
+   */
+  notaClaude?: string
 }
 
 /**
@@ -172,7 +180,8 @@ export function avviaUpdater(percorso: string, dati: AvvioUpdater): boolean {
     writeFileSync(
       join(cartella, 'aggiornamento.txt'),
       [
-        String(dati.pid), dati.installer, dati.eseguibile, dati.versione, dati.claude ?? ''
+        String(dati.pid), dati.installer, dati.eseguibile, dati.versione,
+        dati.claude ?? '', dati.notaClaude ?? ''
       ].join(String.fromCharCode(10)),
       'utf8'
     )

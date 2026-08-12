@@ -199,6 +199,15 @@ contextBridge.exposeInMainWorld('gestore', {
       const h = (_e: unknown, id: number): void => ipcRenderer.send('layout:consegna', id, dai())
       ipcRenderer.on('layout:richiedi', h)
       return () => ipcRenderer.off('layout:richiedi', h)
+    },
+    /**
+     * Un layout che arriva da fuori: lo manda il Core quando un ripristino
+     * riempie questa finestra invece di aprirne una nuova.
+     */
+    suApplica: (cb: (l: LayoutSalvato) => void): (() => void) => {
+      const h = (_e: unknown, l: LayoutSalvato): void => cb(l)
+      ipcRenderer.on('layout:applica', h)
+      return () => ipcRenderer.off('layout:applica', h)
     }
   },
   finestre: {
