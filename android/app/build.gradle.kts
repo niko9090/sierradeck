@@ -17,8 +17,8 @@ android {
         // programmi che si aggiornano quando hanno qualcosa di nuovo da dare, e
         // legarli vorrebbe dire pubblicare un APK identico ogni volta che
         // cambia una riga di SierraDeck. Qui si alza quando cambia *questa* app.
-        versionCode = 3
-        versionName = "1.0.0"
+        versionCode = 4
+        versionName = "1.0.1"
     }
 
     // Serve `BuildConfig.VERSION_NAME`: l'app deve sapere quale versione è per
@@ -47,8 +47,13 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
-    // La scansione del QR: una libreria sola, che apre la sua schermata e
-    // restituisce il testo. Scriverla a mano vorrebbe dire mettere le mani
-    // sulla fotocamera per una cosa che qui e' un dettaglio.
-    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    // La scansione del QR la fa Google Play Services, con la sua schermata.
+    //
+    // La libreria che c'era prima - zxing-android-embedded, ferma al 2021 -
+    // registrava un receiver nel modo che Android 14 non permette piu': l'app
+    // si chiudeva nell'istante in cui si premeva «Inquadra». Qui non c'e'
+    // nessuna activity nostra da mantenere, **nessun permesso fotocamera da
+    // chiedere** (la schermata e' del sistema), e il modulo si aggiorna da
+    // solo con i servizi Google invece di invecchiare dentro il nostro APK.
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 }

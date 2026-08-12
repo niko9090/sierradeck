@@ -15,8 +15,11 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
+import com.google.android.gms.common.moduleinstall.ModuleInstall
+import com.google.android.gms.common.moduleinstall.ModuleInstallRequest
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 
 /**
  * L'app: la stessa pagina del Client, dentro una finestra sua.
@@ -36,17 +39,42 @@ class ClientActivity : AppCompatActivity() {
     private var vista: WebView? = null
 
     /**
-     * La scansione del QR.
+     * Apre la fotocamera e legge il codice.
      *
-     * Il codice inquadrato è un indirizzo completo — con il codice di
-     * accoppiamento dopo il cancelletto — quindi non c'è niente da digitare né
-     * da copiare: si salva l'indirizzo e la pagina si accoppia da sola.
+     * La schermata è di Google Play Services: non è una nostra activity da
+     * mantenere, e soprattutto **non chiede il permesso della fotocamera** —
+     * la fotocamera la usa il sistema, non noi. Il codice inquadrato è un
+     * indirizzo completo, con il codice di accoppiamento dopo il cancelletto:
+     * si salva e la pagina si accoppia da sola.
      */
-    private val scansione = registerForActivityResult(ScanContract()) { esito ->
-        val letto = esito.contents
-        if (letto.isNullOrBlank()) return@registerForActivityResult
-        collegamento.indirizzo = letto
-        if (collegamento.pronto) mostraClient() else mostraErrore("Quel codice non contiene un indirizzo.")
+    private fun inquadra() {
+        val scanner = GmsBarcodeScanning.getClient(
+            this,
+            GmsBarcodeScannerOptions.Builder()
+                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                .enableAutoZoom()
+                .build()
+        )
+        scanner.startScan()
+            .addOnSuccessListener { codice ->
+                val letto = codice.rawValue
+                if (letto.isNullOrBlank()) {
+                    mostraErrore("Il codice non conteneva niente.")
+                    return@addOnSuccessListener
+                }
+                collegamento.indirizzo = letto
+                if (collegamento.pronto) mostraClient()
+                else mostraErrore("Quel codice non contiene un indirizzo.")
+            }
+            .addOnCanceledListener {
+                // Chi annulla non ha sbagliato niente: nessun messaggio.
+            }
+            .addOnFailureListener { errore ->
+                // Il modulo di scansione si scarica alla prima volta: se non
+                // c'è ancora, si dice invece di lasciare un tasto che non fa
+                // niente — e resta il campo per scrivere l'indirizzo a mano.
+                mostraErrore("Non riesco ad aprire la fotocamera: ${errore.message}")
+            }
     }
 
     override fun onCreate(salvato: Bundle?) {
@@ -60,17 +88,20 @@ class ClientActivity : AppCompatActivity() {
         setContentView(R.layout.ingresso)
         findViewById<TextView>(R.id.versione).text = "versione ${BuildConfig.VERSION_NAME}"
 
-        findViewById<Button>(R.id.inquadra).setOnClickListener {
-            // Il permesso della fotocamera lo chiede la schermata di scansione,
-            // quando si preme: chiederlo all'avvio sarebbe chiederlo prima di
-            // averne bisogno, ed è così che si ottiene un «no».
-            scansione.launch(
-                ScanOptions()
-                    .setPrompt("Inquadra il codice che vedi sul computer")
-                    .setBeepEnabled(false)
-                    .setOrientationLocked(false)
-                    .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+        // Il modulo di scansione si scarica una volta sola: chiederlo adesso,
+        // in silenzio, evita l'attesa nel momento in cui si preme «Inquadra».
+        try {
+            ModuleInstall.getClient(this).installModules(
+                ModuleInstallRequest.newBuilder()
+                    .addApi(GmsBarcodeScanning.getClient(this))
+                    .build()
             )
+        } catch (e: Exception) {
+            // Senza servizi Google resta il campo per scrivere l'indirizzo.
+        }
+
+        findViewById<Button>(R.id.inquadra).setOnClickListener {
+            inquadra()
         }
 
         val campo = findViewById<EditText>(R.id.indirizzo)
