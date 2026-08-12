@@ -61,6 +61,8 @@ type Props = {
   onStatoWorkspace?: (stato: { nomi: string[]; attivo: string }) => void
   /** I workspace da cui qualcuno sta chiedendo una risposta. */
   workspaceCheChiamano?: Set<string>
+  /** Mostra le novità di questa versione: la si preme sul numero. */
+  onApriNovita: () => void
   /** Tutti i workspace: stanno nella fascia, non dietro un menu. */
   workspaceNomi: string[]
   /** I LED degli autopiloti: uno per autopilota, nell'ordine dell'elenco. */
@@ -85,7 +87,8 @@ export function Console({
   workspaceNomi,
   ledAutopiloti,
   onStatoWorkspace,
-  workspaceCheChiamano
+  workspaceCheChiamano,
+  onApriNovita
 }: Props): React.JSX.Element {
   const applyPreset = useLayoutStore((s) => s.applyPreset)
   const addPane = useLayoutStore((s) => s.addPane)
@@ -285,7 +288,13 @@ export function Console({
         {/* La versione e il modo di cercare un aggiornamento quando si vuole:
             l'attesa automatica è ogni sei ore, e chi ha appena pubblicato non
             ha voglia di aspettarle. */}
-        <span className="versione">v{versione}</span>
+        <button
+          className="versione"
+          onClick={onApriNovita}
+          title="Cosa è cambiato in questa versione"
+        >
+          v{versione}
+        </button>
         <button
           className="tasto tasto--icona"
           onClick={() => void window.gestore.aggiornamenti.cerca()}

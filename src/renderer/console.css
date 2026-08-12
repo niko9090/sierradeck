@@ -1588,67 +1588,75 @@ select.comando-riquadro option {
   cursor: ew-resize;
 }
 
-/* ═══════════════════ la fascia, rifatta ═══════════════════
+/* ═══════════════════ la fascia ═══════════════════
 
-   Era una striscia di 44px con tasti da 12px: minimale nel senso sbagliato —
-   piccola, piatta, e con tutto alla stessa importanza. Chi la guarda tutto il
-   giorno merita che i comandi si distinguano a colpo d'occhio e che il dito ci
-   arrivi senza mirare.
+   Il primo tentativo l'ha ingrandita troppo: i comandi uscivano dalla finestra.
+   Un'interfaccia che non ci sta e' peggio di una piccola, perche' quello che
+   esce non si puo' nemmeno premere.
 
-   Restano le stesse sezioni e gli stessi tasti: qui cambia il respiro, non la
-   struttura — un'interfaccia che si riorganizza sotto le mani costringe a
-   reimparare dove sono le cose. */
+   Qui si guadagna leggibilita' senza guadagnare ingombro: un filo piu' alta,
+   testi appena piu' grandi, e soprattutto **niente esce**. Quando lo spazio non
+   basta, la fascia scorre di lato invece di sfondare il bordo. */
 
-:root { --fascia-h: 54px; }
+:root { --fascia-h: 46px; }
 
 .console {
   background: linear-gradient(180deg, var(--chassis-alto) 0%, var(--chassis) 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.07),
-    0 3px 12px rgba(0, 0, 0, 0.5);
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 2px 8px rgba(0, 0, 0, 0.45);
+  /* La riga non va mai a capo e non sfonda: scorre. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
 }
 
-.sezione { gap: 7px; padding: 0 14px; }
+.console::-webkit-scrollbar { height: 0; }
+
+.sezione { gap: 5px; padding: 0 10px; flex: 0 0 auto; }
+
+/* I workspace sono la parte che puo' crescere all'infinito: e' li' che si
+   restringe per primo, invece di spingere fuori i comandi. */
+.sezione .ws { min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.sezione .ws::-webkit-scrollbar { height: 0; }
 
 .tasto {
-  font-size: 13px;
-  padding: 8px 13px;
-  border-radius: 6px;
-  letter-spacing: 0.01em;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 5px;
   transition: background 120ms var(--uscita), border-color 120ms var(--uscita);
 }
 
-.tasto--icona { padding: 8px 10px; font-size: 15px; }
+.tasto--icona { padding: 6px 8px; font-size: 13px; }
 
 /* Il tasto sotto il dito si illumina invece di limitarsi a schiarire: la
-   differenza fra «si può premere» e «lo stai per premere». */
+   differenza fra «si puo' premere» e «lo stai per premere». */
 .tasto:hover:not(:disabled) {
   border-color: var(--accento, #4aa3ff);
   background: color-mix(in srgb, var(--accento, #4aa3ff) 12%, var(--chassis-alto));
 }
 
 /* Il pannello aperto si vede dal suo tasto: senza, si preme due volte per
-   capire quale finestra era già lì. */
+   capire quale finestra era gia' li'. */
 .tasto[aria-expanded='true'] {
   background: color-mix(in srgb, var(--accento, #4aa3ff) 22%, var(--chassis-alto));
   border-color: var(--accento, #4aa3ff);
 }
 
-.serigrafia { font-size: 9px; letter-spacing: 0.16em; opacity: 0.75; }
+.serigrafia { font-size: 9px; letter-spacing: 0.14em; opacity: 0.75; }
 
-/* I workspace sono la scelta che si fa più spesso: meritano di sembrare
-   linguette, non testo cliccabile. */
-.ws { gap: 4px; }
+.ws { gap: 3px; }
 
 .ws__voce {
-  font-size: 12.5px;
-  padding: 7px 12px;
-  border-radius: 6px 6px 0 0;
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 5px 5px 0 0;
   border: 1px solid transparent;
   border-bottom: 2px solid transparent;
   background: none;
   color: var(--testo-quieto);
   cursor: pointer;
+  white-space: nowrap;
   transition: color 120ms var(--uscita), border-color 120ms var(--uscita);
 }
 
@@ -1661,12 +1669,20 @@ select.comando-riquadro option {
   border-bottom-color: var(--accento, #4aa3ff);
 }
 
+/* La versione si preme, e mostra cosa e' cambiato: un numero che non porta da
+   nessuna parte e' un numero che si ignora. */
 .versione {
   font-size: 11px;
   color: var(--testo-quieto);
-  letter-spacing: 0.04em;
-  opacity: 0.8;
+  letter-spacing: 0.03em;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
 }
+
+.versione:hover { color: var(--testo); background: var(--chassis-premuto); }
 
 /* Il codice di accoppiamento: grande e distanziato, perche' si legge da qui e
    si digita su un telefono tenuto nell'altra mano. */

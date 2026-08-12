@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.5.2',
+    righe: [
+      'La fascia in alto non esce più dalla finestra: il tentativo precedente l’aveva ingrandita troppo, e i comandi finivano oltre il bordo. Ora quando lo spazio non basta scorre di lato invece di sfondare.',
+      'Premendo il numero di versione tornano le novità: la finestrella che compare da sé si vede una volta, e chi la chiude per fretta non deve restare senza.',
+      'Il Client si può usare anche da fuori la rete locale — una VPN, un’altra sede — con una spunta nelle impostazioni. Resta spenta di suo: con quella accesa a difendere il programma c’è solo la chiave del dispositivo.'
+    ]
+  },
+  {
     versione: '0.5.1',
     righe: [
       'Il Client funziona: apri **Impostazioni → Client**, premi «Collega un dispositivo», e digita sul telefono le sei cifre che compaiono. Poi «Aggiungi alla schermata Home» e hai un’app — senza APK, quindi senza l’avviso di Android.',

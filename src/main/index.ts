@@ -433,6 +433,9 @@ if (!app.requestSingleInstanceLock()) {
       const porta = impostazioni.preferenze().portaClient
       serverClient = creaServerClient({
         dispositivi,
+        // Letta a ogni richiesta, non all'avvio: cambiarla nelle impostazioni
+        // deve valere subito, senza riaprire il programma.
+        oltreLaRete: () => impostazioni.preferenze().clientOltreLaRete,
         rotta: rotteClient(rotte),
         rottaLibera: rotteLibere(rotte)
       })

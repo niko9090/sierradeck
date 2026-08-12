@@ -23,6 +23,15 @@ export type Preferenze = {
   salvaAllaChiusura: boolean
   /** Mostrare la barra mentre una chat con molto storico si apre. */
   mostraAttesaChat: boolean
+  /**
+   * Accettare il Client anche da fuori la rete locale — una VPN, un altro
+   * ufficio.
+   *
+   * Spento è la scelta prudente: con questo acceso resta **solo** la chiave del
+   * dispositivo a difendere un programma che esegue codice, e i due muri
+   * diventano uno. Chi lo accende lo sta scegliendo, e il pannello glielo dice.
+   */
+  clientOltreLaRete: boolean
 }
 
 export const PREFERENZE_PREDEFINITE: Preferenze = {
@@ -31,7 +40,8 @@ export const PREFERENZE_PREDEFINITE: Preferenze = {
   portaClient: 47640,
   portaAutopiloti: 47630,
   salvaAllaChiusura: true,
-  mostraAttesaChat: true
+  mostraAttesaChat: true,
+  clientOltreLaRete: false
 }
 
 /** Le porte sotto la 1024 le tiene il sistema, e sopra la 65535 non esistono. */
@@ -72,7 +82,10 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
       : PREFERENZE_PREDEFINITE.salvaAllaChiusura,
     mostraAttesaChat: typeof o.mostraAttesaChat === 'boolean'
       ? o.mostraAttesaChat
-      : PREFERENZE_PREDEFINITE.mostraAttesaChat
+      : PREFERENZE_PREDEFINITE.mostraAttesaChat,
+    // Il predefinito prudente vale anche quando il valore è scritto male: una
+    // preferenza illeggibile non deve poter aprire una porta.
+    clientOltreLaRete: o.clientOltreLaRete === true
   }
 }
 

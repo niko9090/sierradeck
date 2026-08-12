@@ -198,6 +198,18 @@ export function PannelloImpostazioni({ onChiudi }: Props): React.JSX.Element {
             Le porte cambiate valgono al prossimo avvio: un servizio in ascolto non
             cambia porta mentre qualcuno ci sta parlando.
           </div>
+          <label className="impostazioni__riga impostazioni__riga--spunta">
+            <input
+              type="checkbox"
+              checked={p.clientOltreLaRete}
+              onChange={(e) => cambia({ clientOltreLaRete: e.target.checked })}
+            />
+            <span>Accetta il Client anche da fuori la rete locale (VPN, altra sede)</span>
+          </label>
+          <div className="impostazioni__nota">
+            Con questo acceso resta <b>solo</b> la chiave del dispositivo a difendere
+            un programma che esegue codice. Tienilo spento se non ti serve.
+          </div>
         </section>
 
         <SezioneClient />

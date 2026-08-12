@@ -25,7 +25,7 @@ import { PannelloProvider } from './components/PannelloProvider'
 import { ModaleAccesso } from './components/ModaleAccesso'
 import { ModalePreparazione } from './components/ModalePreparazione'
 import { ModaleNovita } from './components/ModaleNovita'
-import type { Novita } from '@shared/novita'
+import { novitaDi, type Novita } from '@shared/novita'
 import type { StatoPreparazione } from '../main/preparazione'
 import { BandaAvvisi } from './components/BandaAvvisi'
 import { componiAvvisi } from './avvisi'
@@ -139,7 +139,8 @@ export function App(): React.JSX.Element {
   useEffect(() => window.gestore.client.suScrittura(({ chat, testo }) => {
     // Con l'a capo in fondo: dal telefono si scrive per far ripartire il
     // lavoro, e un testo che resta nel campo senza essere inviato non lo fa.
-    window.gestore.pty.write(chat, `${testo}`)
+    window.gestore.pty.write(chat, `${testo}
+`)
   }), [])
 
   useEffect(() => window.gestore.client.suWorkspace((nome) => {
@@ -484,6 +485,15 @@ export function App(): React.JSX.Element {
         workspaceNomi={workspace.nomi}
         onStatoWorkspace={setWorkspace}
         workspaceCheChiamano={workspaceChiamano}
+        onApriNovita={() => {
+          // Le novità di *questa* versione, richieste apposta: la finestra che
+          // compare da sé all'aggiornamento si vede una volta, e chi la chiude
+          // per fretta non deve restare senza.
+          window.gestore.sistema
+            .versione()
+            .then((v) => setNovita({ versione: v, righe: novitaDi(v)?.righe ?? [] }))
+            .catch(() => undefined)
+        }}
         ledAutopiloti={autopiloti.map((a) => ({ id: a.id, ...ledDi(a) }))}
       />
 

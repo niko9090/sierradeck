@@ -30,6 +30,12 @@ export type Rotta = (
 
 export type DipendenzeClient = {
   dispositivi: Dispositivi
+  /**
+   * `true` per accettare anche da fuori la rete locale — una VPN che assegna
+   * indirizzi pubblici, un altro ufficio. Resta allora **solo** la chiave del
+   * dispositivo: due muri diventano uno, ed è una scelta di chi lo accende.
+   */
+  oltreLaRete?: () => boolean
   /** Le rotte del Client, già autenticate quando arrivano qui. */
   rotta: Rotta
   /** Le rotte che si possono chiamare **senza** chiave: solo quelle dell'ingresso. */
@@ -96,7 +102,7 @@ async function gestisci(req: IncomingMessage, res: ServerResponse, deps: Dipende
   const indirizzo = req.socket.remoteAddress ?? ''
   // Primo muro, prima di leggere qualunque cosa: una richiesta da fuori non
   // merita nemmeno la fatica di interpretarla.
-  if (!daReteLocale(indirizzo)) {
+  if (!daReteLocale(indirizzo) && deps.oltreLaRete?.() !== true) {
     console.warn(`[client] richiesta da fuori la rete locale, rifiutata: ${indirizzo}`)
     rispondi(res, { stato: 403, corpo: { errore: 'solo dalla rete locale' } })
     return
