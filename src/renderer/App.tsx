@@ -27,6 +27,7 @@ import { componiAvvisi } from './avvisi'
 import type { StatoAccesso } from '../main/accesso'
 import { DomandaModale } from './components/DomandaModale'
 import { SchermataAvvio } from './components/SchermataAvvio'
+import { Serratura } from './components/Serratura'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
 
 /**
@@ -109,6 +110,18 @@ export function App(): React.JSX.Element {
   const [alLogin, setAlLogin] = useState<boolean | undefined>(undefined)
   const [accesso, setAccesso] = useState<StatoAccesso>({ autenticato: true })
   const [pronto, setPronto] = useState(false)
+  // La serratura, per chi l'ha voluta. `undefined` finche' non si sa: aprire il
+  // programma e poi coprirlo con la richiesta sarebbe mostrare per un istante
+  // proprio cio' che si voleva chiudere.
+  const [chiuso, setChiuso] = useState<boolean | undefined>(undefined)
+  useEffect(() => {
+    window.gestore.chiavi
+      .stato()
+      .then((s) => setChiuso(s.allAvvio))
+      // Se non si riesce a sapere se c'e' una parola, si apre: una serratura
+      // rotta non deve diventare un muro fra l'utente e il suo lavoro.
+      .catch(() => setChiuso(false))
+  }, [])
   const [attesaVisibile, setAttesaVisibile] = useState(false)
   const [aggiornamento, setAggiornamento] = useState<StatoAggiornamento>({ fase: 'fermo' })
 
@@ -355,6 +368,11 @@ export function App(): React.JSX.Element {
       <div style={{ height: '100vh', background: 'var(--fondo)' }} />
     )
   }
+
+  // Prima di qualunque cosa: se c'e' una parola d'ordine, non si deve
+  // vedere nemmeno per un istante quello che protegge.
+  if (chiuso === undefined) return <div className="serratura" />
+  if (chiuso) return <Serratura onAperto={() => setChiuso(false)} />
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--fondo)' }}>

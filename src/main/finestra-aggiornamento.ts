@@ -1,5 +1,5 @@
 import { spawn as spawnVero, type SpawnOptions, type ChildProcess } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
+import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -39,7 +39,7 @@ export type Avvio = (
   comando: string,
   argomenti: string[],
   opzioni: SpawnOptions
-) => Pick<ChildProcess, 'unref'>
+) => Pick<ChildProcess, 'unref'> & { on?: ChildProcess['on'] }
 
 export type DatiFinestra = {
   /** L'eseguibile installato, quello che l'installer sostituirà. */
@@ -82,17 +82,45 @@ $blu    = [System.Drawing.Color]::FromArgb(74, 163, 255)
 $form = New-Object System.Windows.Forms.Form
 $form.FormBorderStyle = 'None'
 $form.StartPosition = 'CenterScreen'
-$form.Size = New-Object System.Drawing.Size(460, 240)
+$form.Size = New-Object System.Drawing.Size(460, 300)
 $form.BackColor = $sfondo
 $form.TopMost = $true
 $form.ShowInTaskbar = $false
+
+# Il logo, disegnato invece che caricato: un file da leggere sarebbe un file da
+# trovare, e durante un aggiornamento le cartelle del programma stanno cambiando
+# sotto i piedi. Sono gli stessi cinque piani del cristallo, con la scheggia
+# verde in cima.
+$logo = New-Object System.Windows.Forms.PictureBox
+$logo.SetBounds(198, 26, 64, 64)
+$logo.BackColor = [System.Drawing.Color]::Transparent
+$disegno = New-Object System.Drawing.Bitmap 64, 64
+$g = [System.Drawing.Graphics]::FromImage($disegno)
+$g.SmoothingMode = 'AntiAlias'
+$scala = 64.0 / 512.0
+function Faccia($punti, $colore) {
+  $poly = @()
+  foreach ($p in $punti) {
+    $poly += New-Object System.Drawing.PointF (($p[0] * $scala), ($p[1] * $scala))
+  }
+  $g.FillPolygon((New-Object System.Drawing.SolidBrush $colore), [System.Drawing.PointF[]]$poly)
+}
+Faccia @(@(268,92), @(392,306), @(268,306)) ([System.Drawing.Color]::FromArgb(223,227,231))
+Faccia @(@(268,92), @(132,306), @(268,306)) ([System.Drawing.Color]::FromArgb(125,133,141))
+Faccia @(@(132,306), @(268,306), @(200,412)) ([System.Drawing.Color]::FromArgb(82,90,98))
+Faccia @(@(268,306), @(392,306), @(326,412)) ([System.Drawing.Color]::FromArgb(54,61,68))
+Faccia @(@(200,412), @(326,412), @(268,306)) ([System.Drawing.Color]::FromArgb(37,43,49))
+Faccia @(@(268,92), @(312,168), @(268,168)) ([System.Drawing.Color]::FromArgb(84,192,122))
+$g.Dispose()
+$logo.Image = $disegno
+$form.Controls.Add($logo)
 
 $titolo = New-Object System.Windows.Forms.Label
 $titolo.Text = 'SIERRADECK UPDATE'
 $titolo.ForeColor = $tenue
 $titolo.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Regular)
 $titolo.TextAlign = 'MiddleCenter'
-$titolo.SetBounds(0, 46, 460, 24)
+$titolo.SetBounds(0, 100, 460, 24)
 $form.Controls.Add($titolo)
 
 $fase = New-Object System.Windows.Forms.Label
@@ -100,11 +128,11 @@ $fase.Text = 'Chiusura in corso...'
 $fase.ForeColor = $chiaro
 $fase.Font = New-Object System.Drawing.Font('Segoe UI', 11)
 $fase.TextAlign = 'MiddleCenter'
-$fase.SetBounds(0, 84, 460, 26)
+$fase.SetBounds(0, 138, 460, 26)
 $form.Controls.Add($fase)
 
 $binario = New-Object System.Windows.Forms.Panel
-$binario.SetBounds(70, 130, 320, 6)
+$binario.SetBounds(70, 186, 320, 6)
 $binario.BackColor = $scuro
 $form.Controls.Add($binario)
 
@@ -118,7 +146,7 @@ $percento.Text = '0%'
 $percento.ForeColor = $chiaro
 $percento.Font = New-Object System.Drawing.Font('Segoe UI', 20)
 $percento.TextAlign = 'MiddleCenter'
-$percento.SetBounds(0, 150, 460, 44)
+$percento.SetBounds(0, 206, 460, 44)
 $form.Controls.Add($percento)
 
 # Lo stato vive in una tabella condivisa: dentro il tick del timer le variabili
@@ -237,6 +265,19 @@ export function argomentiFinestra(lancio: string): string[] {
  * non viene tirato giù quando SierraDeck muore, che è esattamente ciò che
  * accade un istante dopo.
  */
+/**
+ * Dove sta PowerShell, per nome intero.
+ *
+ * Non `'powershell.exe'` e basta: quello si affida al `PATH` del processo, e il
+ * `PATH` di un'applicazione impacchettata non è quello del terminale in cui si
+ * fanno le prove. Un avvio che fallisce così non dà errore a schermo — la
+ * finestra semplicemente non compare, che è precisamente il sintomo osservato.
+ */
+export function percorsoPowerShell(ambiente: NodeJS.ProcessEnv = process.env): string {
+  const radice = ambiente.SystemRoot ?? ambiente.windir ?? 'C:\Windows'
+  return join(radice, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+}
+
 export function avviaFinestraAggiornamento(
   dati: DatiFinestra,
   avvia: Avvio = spawnVero,
@@ -246,10 +287,17 @@ export function avviaFinestraAggiornamento(
     writeFileSync(percorsoScript(cartellaTemp), scriptFinestraAggiornamento(), 'utf8')
     writeFileSync(percorsoDati(cartellaTemp), JSON.stringify(dati), 'utf8')
     writeFileSync(percorsoLancio(cartellaTemp), scriptLancio(), 'utf8')
-    const figlio = avvia('powershell.exe', argomentiFinestra(percorsoLancio(cartellaTemp)), {
+    const powershell = existsSync(percorsoPowerShell()) ? percorsoPowerShell() : 'powershell.exe'
+    const figlio = avvia(powershell, argomentiFinestra(percorsoLancio(cartellaTemp)), {
       detached: true,
       stdio: 'ignore',
       windowsHide: true
+    })
+    // `spawn` non solleva quando il comando non esiste: lo dice più tardi, su
+    // un evento. Senza questo ascolto il fallimento resta muto, e dal di fuori
+    // sembra soltanto una finestra che non compare.
+    figlio.on?.('error', (err: unknown) => {
+      console.error('[aggiornamenti] la finestra non e partita:', err)
     })
     figlio.unref()
     return true

@@ -34,6 +34,12 @@ declare global {
         onProgress: (cb: (p: Avanzamento) => void) => () => void
         onOutcome: (cb: (e: IndexOutcome) => void) => () => void
       }
+      chiavi: {
+        stato: () => Promise<{ allAvvio: boolean; workspace: string[] }>
+        impostaAvvio: (parola: string) => Promise<{ allAvvio: boolean; workspace: string[] }>
+        impostaWorkspace: (nome: string, parola: string) => Promise<{ allAvvio: boolean; workspace: string[] }>
+        verifica: (parola: string, workspace?: string) => Promise<boolean>
+      }
       sistema: {
         cartellaUtente: () => Promise<string>
         versione: () => Promise<string>

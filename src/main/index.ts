@@ -25,6 +25,7 @@ import { apriIstantaneeStore } from './istantanee-store'
 import { apriImpostazioniStore } from './impostazioni-store'
 import { novitaDaMostrare, type Novita } from '@shared/novita'
 import { apriEtichetteStore } from './etichette-store'
+import { apriChiavi } from './chiavi'
 import { apriProviderStore } from './provider-store'
 import { creaAggiornamenti } from './aggiornamenti'
 import { leggiAccesso } from './accesso'
@@ -367,6 +368,25 @@ if (!app.requestSingleInstanceLock()) {
       // l'indice delle sessioni è una cache che si butta e si rifà.
       const etichette = apriEtichetteStore(dati)
       ipcMain.handle('etichette:leggi', () => etichette.leggi())
+
+      // La parola d'ordine, per chi la vuole. Chiude l'accesso all'interfaccia:
+      // non cifra i file, e il programma lo dice invece di lasciarlo credere.
+      const chiavi = apriChiavi(dati)
+      ipcMain.handle('chiavi:stato', () => chiavi.stato())
+      ipcMain.handle('chiavi:impostaAvvio', (_e, parola: unknown) => {
+        if (typeof parola !== 'string') throw new Error('richiesta IPC non valida: parola non testo')
+        return chiavi.impostaAvvio(parola)
+      })
+      ipcMain.handle('chiavi:impostaWorkspace', (_e, nome: unknown, parola: unknown) => {
+        if (typeof nome !== 'string' || nome.trim() === '' || typeof parola !== 'string') {
+          throw new Error('richiesta IPC non valida: workspace o parola non validi')
+        }
+        return chiavi.impostaWorkspace(nome, parola)
+      })
+      ipcMain.handle('chiavi:verifica', (_e, parola: unknown, workspace: unknown) => {
+        if (typeof parola !== 'string') return false
+        return chiavi.verifica(parola, typeof workspace === 'string' ? workspace : undefined)
+      })
       ipcMain.handle('provider:leggi', () => providerStore?.leggi())
       ipcMain.handle('provider:imposta', (_e, raw: unknown) => {
         if (typeof raw !== 'object' || raw === null) {

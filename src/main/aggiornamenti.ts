@@ -157,7 +157,7 @@ export function creaAggiornamenti(
       // lanciatore e un servizio di sistema, e un avvio di PowerShell non e'
       // istantaneo.
       const parti = (): void => {
-        setTimeout(() => autoUpdater.quitAndInstall(true, true), 2000)
+        setTimeout(() => autoUpdater.quitAndInstall(true, true), 3500)
       }
       if (preparaUscita === undefined) {
         parti()

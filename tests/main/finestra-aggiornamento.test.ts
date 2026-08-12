@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   argomentiFinestra, avviaFinestraAggiornamento, percorsoDati, percorsoLancio,
-  percorsoScript, scriptFinestraAggiornamento, scriptLancio,
+  percorsoPowerShell, percorsoScript, scriptFinestraAggiornamento, scriptLancio,
   TIMEOUT_S, type Avvio, type DatiFinestra
 } from '../../src/main/finestra-aggiornamento'
 
@@ -32,7 +32,7 @@ describe('avviaFinestraAggiornamento', () => {
     const temp = mkdtempSync(join(tmpdir(), 'sd-agg-'))
     expect(avviaFinestraAggiornamento(DATI, avvia, temp)).toBe(true)
     const [comando, , opzioni] = chiamate[0] ?? []
-    expect(comando).toBe('powershell.exe')
+    expect(comando).toContain('powershell.exe')
     expect(opzioni).toMatchObject({ detached: true, stdio: 'ignore' })
     expect(unref).toHaveBeenCalled()
   })
@@ -130,5 +130,32 @@ describe('scriptFinestraAggiornamento', () => {
     // che sta guardando: lo si legge, non lo si esegue e non lo si apre.
     expect(script).not.toContain('Start-Process -FilePath $Exe')
     expect(script).not.toContain('& $Exe')
+  })
+})
+
+describe('percorsoPowerShell', () => {
+  it('usa il percorso intero, non il nome nudo', () => {
+    // `powershell.exe` da solo si affida al PATH del processo, e il PATH di
+    // un'applicazione impacchettata non e' quello del terminale di prova: un
+    // avvio fallito cosi' non dice niente, la finestra semplicemente non c'e'.
+    const p = percorsoPowerShell({ SystemRoot: 'C:\Windows' })
+    expect(p).toContain('System32')
+    expect(p).toContain('powershell.exe')
+  })
+
+  it('senza SystemRoot ripiega su una radice sensata', () => {
+    expect(percorsoPowerShell({})).toContain('Windows')
+  })
+})
+
+describe('avvio muto', () => {
+  it('ascolta l errore di spawn, che arriva dopo e non solleva', () => {
+    // Senza questo ascolto il fallimento resta invisibile, e dal di fuori
+    // sembra solo una finestra che non compare.
+    let ascoltato = ''
+    const avvia: Avvio = () => ({ unref: () => undefined, on: ((evento: string) => { ascoltato = evento; return undefined }) as never })
+    const temp = mkdtempSync(join(tmpdir(), 'sd-agg-'))
+    avviaFinestraAggiornamento(DATI, avvia, temp)
+    expect(ascoltato).toBe('error')
   })
 })

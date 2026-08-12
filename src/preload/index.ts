@@ -59,6 +59,20 @@ contextBridge.exposeInMainWorld('gestore', {
       return () => ipcRenderer.off('sessioni:esito', h)
     }
   },
+  /**
+   * La parola d'ordine, per chi la vuole. Il renderer non riceve mai un segno:
+   * chiede se una parola va bene e ottiene sì o no.
+   */
+  chiavi: {
+    stato: (): Promise<{ allAvvio: boolean; workspace: string[] }> =>
+      ipcRenderer.invoke('chiavi:stato'),
+    impostaAvvio: (parola: string): Promise<{ allAvvio: boolean; workspace: string[] }> =>
+      ipcRenderer.invoke('chiavi:impostaAvvio', parola),
+    impostaWorkspace: (nome: string, parola: string): Promise<{ allAvvio: boolean; workspace: string[] }> =>
+      ipcRenderer.invoke('chiavi:impostaWorkspace', nome, parola),
+    verifica: (parola: string, workspace?: string): Promise<boolean> =>
+      ipcRenderer.invoke('chiavi:verifica', parola, workspace)
+  },
   sistema: {
     cartellaUtente: (): Promise<string> => ipcRenderer.invoke('sistema:cartellaUtente'),
     versione: (): Promise<string> => ipcRenderer.invoke('sistema:versione'),

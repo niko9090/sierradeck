@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.4.1',
+    righe: [
+      'La finestra dell’aggiornamento adesso si vede davvero, con il logo, la barra e la percentuale: veniva avviata cercando PowerShell sul PATH, che dentro l’applicazione impacchettata non è quello del terminale — e quando non partiva non lo diceva nemmeno.',
+      'Una parola d’ordine, per chi la vuole: si può chiudere a chiave l’apertura del programma. Chi non la imposta non incontra nessuna richiesta. Chiude l’accesso all’interfaccia, non cifra i file, e il programma lo dice invece di lasciartelo credere.'
+    ]
+  },
+  {
     versione: '0.4.0',
     righe: [
       'A guidare gli autopiloti adesso c’è Claude, non più un semaforo. Il supervisore è una sessione viva che a ogni giro vede il quadro intero — obiettivo, criteri, storia, uscite dei comandi, il progetto — e decide lui la mossa: proseguire con istruzioni concrete, correggere un criterio che misura la cosa sbagliata, chiedere a te, o chiudere.',

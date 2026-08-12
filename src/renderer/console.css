@@ -1372,3 +1372,49 @@ select.comando-riquadro option {
 @media (prefers-reduced-motion: reduce) {
   .ws__chiama { animation: none; }
 }
+
+/* La serratura copre tutto: non deve lasciar vedere per un istante proprio
+   quello che si voleva chiudere. */
+.serratura {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--chassis, #141517);
+}
+
+.serratura__scheda {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(380px, calc(100vw - 48px));
+  padding: 26px 24px;
+  border: 1px solid var(--incisione, #24272b);
+  border-radius: 10px;
+  background: #0b0c0e;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+
+.serratura__titolo { font-size: 15px; text-align: center; }
+
+.serratura__campo {
+  padding: 9px 11px;
+  border: 1px solid var(--incisione, #24272b);
+  border-radius: 6px;
+  background: #141517;
+  color: inherit;
+  font-size: 14px;
+}
+
+.serratura__errore { color: var(--ambra, #d8a13a); font-size: 12px; text-align: center; }
+.serratura__tasti { display: flex; gap: 8px; justify-content: flex-end; }
+
+.serratura__nota {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--tenue, #9aa1a9);
+  border-top: 1px solid var(--incisione, #24272b);
+  padding-top: 10px;
+}
