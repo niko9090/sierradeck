@@ -9,6 +9,7 @@ import { giaSalvatoCome } from '@shared/doppioni'
 import type { Istantanea } from '@shared/istantanea'
 import { chiChiede, workspaceCheChiamano } from '@shared/dove-chiedono'
 import { attivaChiusuraFuori, attivaTrascinamento } from './trascina-finestre'
+import { creaUltimeRighe } from './ultime-righe'
 import type { Autopilota } from '@shared/autopilota'
 import type { StatoWorkspace } from '../main/ipc'
 import { Mosaic } from './components/Mosaic'
@@ -129,18 +130,49 @@ export function App(): React.JSX.Element {
 
   // Il Core non sa quali chat sono aperte: lo sa questa finestra, e glielo
   // dice a ogni cambiamento perche' il Client possa mostrarle.
+  // L'ultima riga di ogni terminale: dal telefono è l'unico modo per sapere se
+  // quello che si è mandato ha prodotto qualcosa. Senza, si scrive e si resta a
+  // fissare lo stesso titolo di prima.
+  const righe = useRef(creaUltimeRighe())
   useEffect(() => {
-    window.gestore.client.annunciaChat(
-      Object.values(riquadriAperti).map((p) => ({ id: p.id, titolo: p.title || p.cwd, cwd: p.cwd }))
-    )
+    // Direttamente dal canale, non dal bus: qui non interessa **quale**
+    // riquadro riceve, ma cosa scrivono tutti — e il bus è fatto apposta per
+    // consegnare a uno solo.
+    return window.gestore.pty.onEvent((msg) => {
+      if (msg.kind === 'data') righe.current.aggiorna(msg.id, msg.data)
+    })
+  }, [])
+
+  useEffect(() => {
+    const manda = (): void => {
+      window.gestore.client.annunciaChat(
+        Object.values(riquadriAperti).map((p) => ({
+          id: p.id,
+          titolo: p.title !== undefined && p.title !== '' ? p.title : p.cwd,
+          cwd: p.cwd,
+          ...(p.ptyId !== undefined ? { ultimaRiga: righe.current.di(p.ptyId) } : {})
+        }))
+      )
+    }
+    manda()
+    // Le righe cambiano di continuo mentre le chat lavorano: si rimandano a
+    // intervalli invece che a ogni carattere, che sarebbe un messaggio ogni
+    // pochi millisecondi per una cosa che si guarda ogni due secondi.
+    const h = setInterval(manda, 2000)
+    return () => clearInterval(h)
   }, [riquadriAperti])
 
   // Quello che scrivi dal telefono arriva alla chat come se lo avessi digitato.
   useEffect(() => window.gestore.client.suScrittura(({ chat, testo }) => {
+    // `chat` è l'identificatore del **riquadro**, non del terminale: scriverci
+    // dentro direttamente non faceva niente, in silenzio, ed è il motivo per
+    // cui dal telefono si scriveva nel vuoto. Il terminale sta nel riquadro, e
+    // solo questa finestra sa quale.
+    const riquadro = useLayoutStore.getState().panes[chat]
+    if (riquadro?.ptyId === undefined) return
     // Con l'a capo in fondo: dal telefono si scrive per far ripartire il
     // lavoro, e un testo che resta nel campo senza essere inviato non lo fa.
-    window.gestore.pty.write(chat, `${testo}
-`)
+    window.gestore.pty.write(riquadro.ptyId, testo + String.fromCharCode(13))
   }), [])
 
   useEffect(() => window.gestore.client.suWorkspace((nome) => {

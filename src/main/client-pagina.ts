@@ -98,6 +98,13 @@ export function paginaClient(): string {
   .ingresso input { width: 100%; text-align: center; font-size: 26px; letter-spacing: .3em; margin: 16px 0; }
   .errore { color: #e0a33c; font-size: 13px; margin-top: 8px; }
   .panoramica { background: #131518; }
+  /* L'ultima riga del terminale: si guarda passando, quindi carattere fisso e
+     una riga sola - se andasse a capo diventerebbe una lettura. */
+  .battito {
+    margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: #0d0f11;
+    font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: #9aa1a9;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   .numeri { display: flex; gap: 6px; }
   .numero { flex: 1; text-align: center; }
   .numero b { display: block; font-size: 26px; font-variant-numeric: tabular-nums; }
@@ -211,6 +218,7 @@ function pannello(s) {
     <div class="piastrella">
       <div class="titolo">\${esc(c.titolo)}</div>
       <div class="sotto">\${esc(c.cwd)}</div>
+      \${c.ultimaRiga ? '<div class="battito">' + esc(c.ultimaRiga) + '</div>' : ''}
       <div class="riga">
         <input id="t-\${esc(c.id)}" placeholder="scrivi qui e invia">
         <button onclick="scrivi('\${esc(c.id)}')">Invia</button>

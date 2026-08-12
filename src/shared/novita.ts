@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.8.2',
+    righe: [
+      'Il testo mandato dal telefono arriva davvero alla chat: si scriveva usando l’identificatore del riquadro invece di quello del terminale, e non succedeva niente — in silenzio, da entrambe le parti.',
+      'Nel Client ogni chat mostra la sua ultima riga: dal telefono era l’unica cosa che mancava per sapere se quello che hai mandato ha prodotto qualcosa.',
+      'L’app Android non va più in errore quando inquadri il QR: la libreria di scansione era ferma al 2021 e Android 14 non la accetta più. Ora la schermata è quella di Google Play Services — e non serve nemmeno il permesso della fotocamera.'
+    ]
+  },
+  {
     versione: '0.8.1',
     righe: [
       'Dal telefono si può scrivere davvero: la pagina si rifaceva da capo ogni due secondi e portava via quello che stavi scrivendo. Ora, mentre hai un campo sotto le dita, il ridisegno aspetta — e quello che avevi scritto torna comunque al suo posto.',

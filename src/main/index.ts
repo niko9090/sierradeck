@@ -497,6 +497,9 @@ if (!app.requestSingleInstanceLock()) {
       })
       // Le chat aperte le conosce il renderer, non il Core: gliele manda lui a
       // ogni cambiamento, e qui si conservano per chi le chiede dalla rete.
+      // L'ultima riga vista in ogni terminale: dal telefono è l'unico modo per
+      // sapere se quello che si è mandato ha prodotto qualcosa. Senza, si
+      // scrive e si resta a fissare lo stesso titolo di prima.
       ipcMain.on('client:chat', (e, raw: unknown) => {
         if (!Array.isArray(raw)) return
         // Per finestra, non una lista sola: ognuna racconta le proprie chat, e
