@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { riassumiConsumi, formattaToken } from '@shared/consumi'
+import {
+  riassumiConsumi, formattaToken, andamentoOggi, quotaCache, descriviQuota,
+  type Consumi, type Quota
+} from '@shared/consumi'
 import type { SessionSummary } from '@shared/types'
 
 const ADESSO = Date.parse('2026-08-09T20:00:00.000Z')
@@ -96,5 +99,36 @@ describe('nomi dei progetti', () => {
       s({ uuid: 'b', projectPath: 'C:\\' })
     ], ADESSO)
     expect(r.perProgetto.every((p) => p.progetto.trim() !== '')).toBe(true)
+  })
+})
+
+describe('leggere i consumi', () => {
+  const quota = (ingresso: number, uscita: number, cache = 0, chat = 1): Quota =>
+    ({ ingresso, uscita, cache, chat })
+
+  it('dice se oggi si sta consumando piu del solito', () => {
+    // «847k» e' tanto o poco? La risposta utile non e' un altro numero, e' il
+    // confronto con quello che si fa di solito.
+    const sopra: Consumi = {
+      oggi: quota(100, 100), settimana: quota(700, 0), totale: quota(0, 0), perProgetto: []
+    }
+    expect(andamentoOggi(sopra)).toBe('sopra')
+  })
+
+  it('una settimana vuota non fa sembrare tutto anomalo', () => {
+    const nuovo: Consumi = {
+      oggi: quota(100, 100), settimana: quota(0, 0), totale: quota(0, 0), perProgetto: []
+    }
+    expect(andamentoOggi(nuovo)).toBe('normale')
+  })
+
+  it('la cache si vede come percentuale, perche e la parte che costa meno', () => {
+    expect(quotaCache(quota(100, 100, 800))).toBe(80)
+    expect(quotaCache(quota(0, 0, 0))).toBe(0)
+  })
+
+  it('una quota si legge in una riga', () => {
+    expect(descriviQuota(quota(1500, 500, 0, 3))).toContain('3 chat')
+    expect(descriviQuota(quota(1500, 500, 0, 1))).toContain('1 chat')
   })
 })

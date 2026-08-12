@@ -178,9 +178,26 @@ function pannello(s) {
   const ws = (s.workspace && s.workspace.nomi || []).map((n) => \`
     <button class="\${n === s.workspace.attivo ? 'attivo' : ''}" onclick="vaiA('\${esc(n)}')">\${esc(n)}</button>\`).join('')
 
+  // Chi arriva da un telefono Android puo' avere l'app, che sa fare una cosa
+  // che il browser non puo': avvisare quando e' chiusa. Si dice una volta e si
+  // ricorda la risposta - un invito che torna a ogni apertura e' un fastidio.
+  const suAndroid = /Android/i.test(navigator.userAgent)
+  const inApp = /SierraDeck/i.test(navigator.userAgent) || window.matchMedia('(display-mode: standalone)').matches
+  const invito = suAndroid && !inApp && !localStorage.getItem('sierradeck.nienteapp')
+    ? \`<div class="piastrella chiede">
+         <div class="titolo">C’è l’app per Android</div>
+         <div class="sotto">Avvisa anche quando è chiusa: il browser, su una rete di casa, non può farlo.</div>
+         <div class="riga">
+           <button class="primario" onclick="window.open('https://github.com/niko9090/sierradeck/releases/latest','_blank')">Scarica</button>
+           <button onclick="localStorage.setItem('sierradeck.nienteapp','1'); aggiorna()">No, grazie</button>
+         </div>
+       </div>\`
+    : ''
+
   app.innerHTML = \`
     <header><b>SIERRADECK</b><span>\${(s.chat || []).length} chat · \${(s.autopiloti || []).length} autopiloti</span></header>
     <main>
+      \${invito}
       \${domande}
       \${ws ? '<div class="piastrella"><div class="titolo">Workspace</div><div class="ws" style="margin-top:10px">' + ws + '</div></div>' : ''}
       \${autopiloti || ''}

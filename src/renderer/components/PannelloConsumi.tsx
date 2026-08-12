@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Consumi } from '@shared/consumi'
-import { formattaToken } from '@shared/consumi'
+import { andamentoOggi, formattaToken, quotaCache } from '@shared/consumi'
 import type { StatoAccesso } from '../../main/accesso'
 
 /**
@@ -28,19 +28,27 @@ export function PannelloConsumi({ onChiudi }: { onChiudi: () => void }): React.J
   }, [onChiudi])
 
   const colonna = (titolo: string, q: Consumi['oggi'] | undefined): React.JSX.Element => (
-    <div style={{ flex: '1 1 150px' }}>
-      <div className="serigrafia" style={{ marginBottom: 6 }}>{titolo}</div>
-      <div style={{ fontSize: 22, color: 'var(--testo)', fontFamily: "'Cascadia Mono', monospace" }}>
+    <div className="consumo">
+      <div className="serigrafia">{titolo}</div>
+      <div className="consumo__numero">
         {q === undefined ? '—' : formattaToken(q.ingresso + q.uscita)}
       </div>
-      <div className="misura" style={{ marginTop: 4, lineHeight: 1.6 }}>
-        {q === undefined ? '' : (
-          <>
-            {formattaToken(q.ingresso)} in entrata · {formattaToken(q.uscita)} in uscita<br />
-            {formattaToken(q.cache)} dalla cache · {q.chat} chat
-          </>
-        )}
-      </div>
+      {q === undefined ? null : (
+        <>
+          {/* La barra dice a colpo d'occhio quanto di quel consumo è cache —
+              la parte che costa meno — senza far leggere due numeri e fare la
+              divisione a mente. */}
+          <div className="consumo__barra" title={`${quotaCache(q)}% dalla cache, che costa meno`}>
+            <span className="consumo__cache" style={{ width: `${quotaCache(q)}%` }} />
+          </div>
+          <div className="misura consumo__righe">
+            <span>{formattaToken(q.ingresso)} in entrata</span>
+            <span>{formattaToken(q.uscita)} in uscita</span>
+            <span>{formattaToken(q.cache)} dalla cache ({quotaCache(q)}%)</span>
+            <span>{q.chat === 1 ? '1 chat' : `${q.chat} chat`}</span>
+          </div>
+        </>
+      )}
     </div>
   )
 
@@ -62,7 +70,18 @@ export function PannelloConsumi({ onChiudi }: { onChiudi: () => void }): React.J
       {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
 
       <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', padding: '4px 0 12px' }}>
-        {colonna('Oggi', consumi?.oggi)}
+        {colonna(
+          // Il confronto con l'abitudine, non un altro numero: «847k» non dice
+          // a nessuno se è tanto o poco, «più del solito» sì.
+          consumi === undefined
+            ? 'Oggi'
+            : andamentoOggi(consumi) === 'sopra'
+              ? 'Oggi — più del solito'
+              : andamentoOggi(consumi) === 'sotto'
+                ? 'Oggi — meno del solito'
+                : 'Oggi',
+          consumi?.oggi
+        )}
         {colonna('Ultimi 7 giorni', consumi?.settimana)}
         {colonna('Da sempre', consumi?.totale)}
       </div>

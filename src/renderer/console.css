@@ -1751,3 +1751,53 @@ select:focus-visible { outline: 2px solid var(--accento, #4aa3ff); outline-offse
 .qr { margin: 0; text-align: center; }
 .qr img { width: 180px; height: 180px; border-radius: 8px; background: #fff; padding: 6px; }
 .qr figcaption { font-size: 10px; color: var(--testo-quieto); margin-top: 5px; }
+
+/* La domanda dentro il diario: si risponde dove si sta già guardando, invece
+   di aprire il pannello e cercarla mentre la chat aspetta. */
+.diario__domanda {
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid var(--ambra, #e0a33c);
+  border-radius: 8px;
+  background: rgba(224, 163, 60, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.diario__domanda-testo { font-size: 12px; line-height: 1.5; }
+
+.diario__risposta {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--incisione);
+  border-radius: 6px;
+  background: var(--chassis-premuto);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  resize: vertical;
+}
+
+/* ───────────── i consumi ───────────── */
+
+.consumo { flex: 1 1 170px; display: flex; flex-direction: column; gap: 6px; }
+
+.consumo__numero {
+  font-size: 24px;
+  color: var(--testo);
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Quanta parte del consumo è cache: la si legge invece di calcolarla. */
+.consumo__barra {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accento, #4aa3ff);
+  overflow: hidden;
+}
+
+.consumo__cache { display: block; height: 100%; background: var(--verde, #54c07a); }
+
+.consumo__righe { display: flex; flex-direction: column; gap: 2px; line-height: 1.5; }

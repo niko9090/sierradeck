@@ -39,6 +39,9 @@ export function DiarioAutopilota({
   // lui lavora di continuo.
   const [conversazione, setConversazione] = useState<Anteprima | undefined>(undefined)
   const [vista, setVista] = useState<'lavoro' | 'diario'>('lavoro')
+  const [risposta, setRisposta] = useState('')
+  const [inviando, setInviando] = useState(false)
+  const [errore, setErrore] = useState<string | undefined>(undefined)
 
   const sessioni = [
     ...autopilota.chats.filter((ch) => ch.sessionId !== undefined).map((ch) => ch.sessionId!),
@@ -121,6 +124,45 @@ export function DiarioAutopilota({
       <div className="diario__barra">
         <span className="diario__riempimento" style={{ width: `${c.percento}%` }} />
       </div>
+
+      {/* La domanda si risponde **qui**, dove si sta già guardando: prima
+          bisognava aprire il pannello degli autopiloti e cercarla, mentre la
+          chat restava ferma ad aspettare. */}
+      {autopilota.stato === 'attesa' ? (
+        <div className="diario__domanda">
+          <div className="diario__domanda-testo">
+            {autopilota.motivoSospensione ?? 'Ha bisogno di una tua risposta.'}
+          </div>
+          <textarea
+            className="diario__risposta"
+            rows={2}
+            value={risposta}
+            onChange={(e) => setRisposta(e.target.value)}
+            placeholder="la tua risposta"
+            aria-label="rispondi all autopilota"
+          />
+          <button
+            className="tasto tasto--primario"
+            disabled={risposta.trim() === '' || inviando}
+            onClick={() => {
+              setInviando(true)
+              window.gestore.autopilota
+                .domande()
+                .then((aperte) => {
+                  const mia = aperte.find((d) => d.autopilotaId === autopilota.id)
+                  if (mia === undefined) throw new Error('la domanda non è più aperta')
+                  return window.gestore.autopilota.rispondi(mia.id, risposta.trim())
+                })
+                .then(() => setRisposta(''))
+                .catch((e: unknown) => setErrore(String(e)))
+                .finally(() => setInviando(false))
+            }}
+          >
+            {inviando ? 'Mando…' : 'Rispondi'}
+          </button>
+          {errore !== undefined ? <div className="riga__stato">{errore}</div> : null}
+        </div>
+      ) : null}
 
       {c.totali > 0 ? (
         <ul className="diario__criteri">

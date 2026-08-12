@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.7.1',
+    righe: [
+      'Alle domande dell’autopilota si risponde **dentro il suo diario**, dove stai già guardando: prima bisognava aprire il pannello e cercarla mentre la chat restava ferma ad aspettare.',
+      'I consumi si leggono: una barra dice quanta parte è cache — quella che costa meno — e il titolo dice se oggi stai consumando più del solito. «847k» non dice a nessuno se è tanto o poco; «più del solito» sì.',
+      'Chi apre il Client da un telefono Android si vede proporre l’app, una volta sola.'
+    ]
+  },
+  {
     versione: '0.7.0',
     righe: [
       'Il telefono si collega **inquadrando un QR**: niente più sei cifre da ribattere. La fotocamera di sistema basta — nessuna app da installare per leggerlo — e la pagina si accoppia da sola.',

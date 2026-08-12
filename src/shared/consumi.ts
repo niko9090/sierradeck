@@ -108,3 +108,42 @@ export function formattaToken(n: number): string {
   if (n < 1_000_000) return `${(n / 1000).toFixed(1).replace('.', ',')}k`.replace(',0k', 'k')
   return `${(n / 1_000_000).toFixed(1).replace('.', ',')}M`.replace(',0M', 'M')
 }
+
+/**
+ * Quanto vale un consumo, in parole.
+ *
+ * I numeri di token non dicono niente a nessuno: «847k» è tanto o poco? La
+ * risposta utile non è un altro numero — è il confronto con quello che si fa di
+ * solito. Una giornata sopra la media si nota, e questo è ciò che serve sapere
+ * a colpo d'occhio.
+ */
+export type Andamento = 'sotto' | 'normale' | 'sopra'
+
+export function andamentoOggi(c: Consumi): Andamento {
+  const oggi = c.oggi.ingresso + c.oggi.uscita
+  // La media del periodo, non il totale: confrontare un giorno con una
+  // settimana direbbe sempre «poco», che è vero e inutile.
+  const media = (c.settimana.ingresso + c.settimana.uscita) / 7
+  if (media === 0) return 'normale'
+  if (oggi > media * 1.4) return 'sopra'
+  if (oggi < media * 0.6) return 'sotto'
+  return 'normale'
+}
+
+/** Quanto pesa la cache sul totale: è la parte che costa meno, e vederla consola. */
+export function quotaCache(q: Quota): number {
+  const tutto = q.ingresso + q.uscita + q.cache
+  return tutto === 0 ? 0 : Math.round((q.cache / tutto) * 100)
+}
+
+/**
+ * Il consumo di una quota in una riga sola.
+ *
+ * Ingresso e uscita separati perché costano diversamente, e il numero di chat
+ * perché è l'unica misura che una persona ha davvero in testa.
+ */
+export function descriviQuota(q: Quota): string {
+  const totale = formattaToken(q.ingresso + q.uscita)
+  const chat = q.chat === 1 ? '1 chat' : `${q.chat} chat`
+  return `${totale} in ${chat}`
+}
