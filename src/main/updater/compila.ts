@@ -1,6 +1,7 @@
 import { execFileSync, spawn } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { sorgenteUpdater, VERSIONE_UPDATER } from './sorgente'
 
 /**
@@ -136,32 +137,99 @@ export type AvvioUpdater = {
 }
 
 /**
- * Lancia l'updater e se ne va.
+ * Lancia l'updater **senza renderlo figlio nostro**.
  *
- * Qui non serve nessuna acrobazia per farlo sopravvivere: è un eseguibile, non
- * uno script dentro una shell, e Windows non uccide i processi quando il padre
- * esce. Le tre versioni precedenti hanno fallito proprio nel tentativo di
- * ottenere questa cosa per vie traverse.
+ * Qui sta il difetto che ha fatto fallire ogni tentativo precedente, ed è
+ * invisibile finché non lo si misura: Electron mette i processi che avvia in un
+ * *Job Object*, e quando l'ultima istanza del programma muore il job porta con
+ * sé tutto quello che contiene — updater compreso. Il diario si interrompeva a
+ * metà frase, subito dopo «istanze ancora aperte: 4», e nessuno capiva perché.
+ *
+ * La soluzione non è un flag: non esiste un flag per uscire da un job in Node.
+ * È far creare il processo **a qualcun altro** — Explorer o il servizio di
+ * sistema — così di noi non gli resta niente da ereditare. I parametri viaggiano
+ * in un file accanto all'eseguibile, perché chi lo lancia per noi non sa passare
+ * argomenti.
+ *
+ * Tre strade in ordine, e si accontenta della prima che funziona.
  */
 export function avviaUpdater(percorso: string, dati: AvvioUpdater): boolean {
   try {
-    // Uno solo alla volta. Due updater che chiudono le stesse istanze e
-    // lanciano lo stesso installer si ostacolano a vicenda, e il risultato e'
-    // un programma che si riavvia all'infinito senza mai aggiornarsi.
     if (unoGiaInCorso()) {
       console.warn('[updater] ce n e gia uno in corso: non ne lancio un altro')
       return true
     }
-    const figlio = spawn(
-      percorso,
-      [String(dati.pid), dati.installer, dati.eseguibile, dati.versione],
-      { stdio: 'ignore', windowsHide: false }
+
+    const cartella = dirname(percorso)
+    writeFileSync(
+      join(cartella, 'aggiornamento.txt'),
+      [String(dati.pid), dati.installer, dati.eseguibile, dati.versione].join(String.fromCharCode(10)),
+      'utf8'
     )
-    figlio.on('error', (err) => console.error('[updater] avvio fallito:', err))
-    figlio.unref()
-    return true
+    // Il diario di prima direbbe «è vivo» di un updater che non è ancora nato.
+    try { rmSync(diarioUpdater(), { force: true }) } catch { /* non c'era */ }
+
+    // 1. Explorer: nato da lui, di noi non gli resta niente.
+    if (prova(() => {
+      spawn('explorer.exe', [percorso], { stdio: 'ignore', windowsHide: true }).unref()
+    })) return true
+
+    // 2. Il servizio di sistema, per gli Explorer che non collaborano.
+    if (prova(() => {
+      const comando =
+        `Invoke-CimMethod -ClassName Win32_Process -MethodName Create ` +
+        `-Arguments @{ CommandLine = '"${percorso}"' } | Out-Null`
+      spawn(percorsoPowerShell(), ['-NoProfile', '-Command', comando], {
+        stdio: 'ignore',
+        windowsHide: true
+      }).unref()
+    })) return true
+
+    // 3. Direttamente. Muore con noi se siamo dentro un job, ma se le prime due
+    //    strade sono chiuse è meglio provarci che rinunciare.
+    return prova(() => {
+      spawn(percorso, [], { stdio: 'ignore', windowsHide: false }).unref()
+    })
   } catch (err) {
     console.error('[updater] non avviato:', err)
     return false
   }
+}
+
+/** Dove l'updater scrive di essere vivo. */
+export function diarioUpdater(ambiente: NodeJS.ProcessEnv = process.env): string {
+  return join(ambiente.TEMP ?? ambiente.TMP ?? tmpdir(), 'sierradeck-update.log')
+}
+
+function percorsoPowerShell(ambiente: NodeJS.ProcessEnv = process.env): string {
+  return join(ambiente.SystemRoot ?? 'C:\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+}
+
+function prova(azione: () => void): boolean {
+  try {
+    azione()
+    return true
+  } catch (err) {
+    console.warn('[updater] una strada di avvio non ha funzionato:', err)
+    return false
+  }
+}
+
+/**
+ * Attende che l'updater dichiari di essere vivo.
+ *
+ * Chi chiama sta per chiudere il programma: se lo facesse senza aspettare,
+ * chiuderebbe anche l'updater nel caso in cui sia nato figlio nostro — ed è
+ * esattamente il guasto da cui veniamo. Nessun segno entro l'attesa significa
+ * che non è partito, e allora **non si chiude niente**.
+ */
+export async function updaterVivo(
+  attendi: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+  esiste: (p: string) => boolean = existsSync
+): Promise<boolean> {
+  for (let i = 0; i < 24; i += 1) {
+    await attendi(250)
+    if (esiste(diarioUpdater())) return true
+  }
+  return false
 }

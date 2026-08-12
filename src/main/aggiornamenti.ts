@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { avviaFinestraAggiornamento } from './finestra-aggiornamento'
-import { assicuraUpdater, avviaUpdater } from './updater/compila'
+import { assicuraUpdater, avviaUpdater, updaterVivo } from './updater/compila'
 
 /**
  * Com'è messo l'aggiornamento, per l'interfaccia.
@@ -175,12 +175,26 @@ export function creaAggiornamenti(
           pid: process.pid
         })
         if (partito) {
-          console.log('[aggiornamenti] SierraDeck Update ha preso in carico l installazione')
-          void (preparaUscita?.() ?? Promise.resolve())
-            .catch((err: unknown) => console.error('[aggiornamenti] chiusura incompleta:', err))
-            // L'updater ci sta guardando: appena usciamo, comincia. Non serve
-            // `quitAndInstall`, e anzi farebbe partire un secondo installer.
-            .finally(() => setTimeout(() => app.quit(), 400))
+          // Non si chiude niente finché l'updater non dice di esserci. Se lo
+          // facessimo prima, e lui fosse nato figlio nostro, lo chiuderemmo
+          // insieme a noi — è il guasto per cui l'aggiornamento si interrompeva
+          // sempre a metà, con il diario che finiva in mezzo a una frase.
+          void updaterVivo()
+            .then(async (vivo) => {
+              if (!vivo) {
+                console.error('[aggiornamenti] l updater non si e fatto vivo: non chiudo niente')
+                annuncia({ fase: 'errore', errore: 'L’aggiornamento non è partito. Riprova.' })
+                installazioneAvviata = false
+                return
+              }
+              console.log('[aggiornamenti] SierraDeck Update e vivo: mi tolgo di mezzo')
+              await preparaUscita?.()
+              setTimeout(() => app.quit(), 400)
+            })
+            .catch((err: unknown) => {
+              console.error('[aggiornamenti] chiusura incompleta:', err)
+              setTimeout(() => app.quit(), 400)
+            })
           return
         }
       }

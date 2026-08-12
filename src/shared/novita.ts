@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.5.6',
+    righe: [
+      'L’aggiornamento adesso arriva in fondo. L’updater moriva insieme a SierraDeck: essendo un processo figlio ereditava il contenitore di Electron, e quando l’ultima finestra si chiudeva veniva portato via anche lui — il suo diario si interrompeva sempre a metà frase.',
+      'Ora lo fa nascere Explorer, così di noi non gli resta niente da ereditare, e i suoi parametri viaggiano in un file invece che sulla riga di comando.',
+      'E il programma non si chiude più finché l’updater non dice di esserci: se non parte, non si chiude niente e te lo dice, invece di lasciarti senza programma e senza aggiornamento.'
+    ]
+  },
+  {
     versione: '0.5.5',
     righe: [
       'Il Client si apre davvero: la pagina era finita dietro la chiave, e per accoppiarsi bisognava essere già accoppiati. Chi apriva l’indirizzo leggeva soltanto «dispositivo non riconosciuto», senza un modo per diventarlo.',

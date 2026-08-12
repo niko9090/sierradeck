@@ -29,7 +29,7 @@
  * spazio aggiunto farebbe ricompilare per niente, e chi la alza qui sta anche
  * dicendo «ho cambiato qualcosa che conta».
  */
-export const VERSIONE_UPDATER = 5
+export const VERSIONE_UPDATER = 6
 
 export function sorgenteUpdater(): string {
   return `using System;
@@ -68,6 +68,24 @@ class Aggiornamento : Form {
     int vistiUnaVolta = -1;
     const int GIRI_MASSIMI = 3000;
 
+    /**
+     * I parametri scritti accanto all'eseguibile: pid, installer, programma,
+     * versione, uno per riga.
+     */
+    static string[] DaFile() {
+        try {
+            string mio = Path.GetDirectoryName(Application.ExecutablePath);
+            string f = Path.Combine(mio, "aggiornamento.txt");
+            if (!File.Exists(f)) { Nota("nessun aggiornamento.txt accanto a me"); return new string[0]; }
+            string[] righe = File.ReadAllLines(f);
+            Nota("parametri letti dal file: " + righe.Length);
+            return righe;
+        } catch (Exception e) {
+            Nota("parametri non letti: " + e.Message);
+            return new string[0];
+        }
+    }
+
     static void Nota(string testo) {
         try {
             if (percorsoDiario != null) {
@@ -80,7 +98,11 @@ class Aggiornamento : Form {
     static void Main(string[] args) {
         percorsoDiario = Path.Combine(Path.GetTempPath(), "sierradeck-update.log");
         Nota("avviato con " + args.Length + " argomenti");
-        if (args.Length < 3) { Nota("argomenti insufficienti: esco"); return; }
+        // Senza argomenti si leggono dal file accanto. E' cio' che permette di
+        // farlo lanciare da explorer, che non sa passarne - e farlo lanciare da
+        // qualcun altro e' l'unico modo perche' non muoia con chi lo chiama.
+        if (args.Length < 3) args = DaFile();
+        if (args.Length < 3) { Nota("parametri mancanti: esco"); return; }
         Application.EnableVisualStyles();
         try {
             Application.Run(new Aggiornamento(args));
