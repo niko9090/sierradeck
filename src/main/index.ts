@@ -48,6 +48,8 @@ let inChiusura = false
 let serverClient: import('node:http').Server | undefined
 /** Le chat aperte, come le racconta il renderer: servono al Client. */
 let chatAperte: Chat[] = []
+/** Quali chat ha ogni finestra: unite formano l'elenco che vede il telefono. */
+const chatPerFinestra = new Map<number, Chat[]>()
 /** L'icona nell'area di notifica, quando è stato possibile crearla. */
 let area: Tray | undefined
 /**
@@ -427,6 +429,8 @@ if (!app.requestSingleInstanceLock()) {
             }
           }
         },
+        fermaAutopilota: (id: string) => clientAutopilota.ferma(id),
+        riprendiAutopilota: (id: string) => clientAutopilota.riprendi(id),
         versione: app.getVersion()
       }
 
@@ -465,8 +469,20 @@ if (!app.requestSingleInstanceLock()) {
       })
       // Le chat aperte le conosce il renderer, non il Core: gliele manda lui a
       // ogni cambiamento, e qui si conservano per chi le chiede dalla rete.
-      ipcMain.on('client:chat', (_e, raw: unknown) => {
-        if (Array.isArray(raw)) chatAperte = raw as typeof chatAperte
+      ipcMain.on('client:chat', (e, raw: unknown) => {
+        if (!Array.isArray(raw)) return
+        // Per finestra, non una lista sola: ognuna racconta le proprie chat, e
+        // assegnare la lista intera faceva vincere l'ultima che parlava - dal
+        // telefono se ne vedeva una sola.
+        const win = BrowserWindow.fromWebContents(e.sender)
+        if (win === null) return
+        chatPerFinestra.set(win.id, raw as Chat[])
+        for (const id of [...chatPerFinestra.keys()]) {
+          const w = BrowserWindow.getAllWindows().find((x) => x.id === id)
+          // Una finestra chiusa non deve lasciare le sue chat nell'elenco.
+          if (w === undefined || w.isDestroyed()) chatPerFinestra.delete(id)
+        }
+        chatAperte = [...chatPerFinestra.values()].flat()
       })
 
       const quaderno = apriQuaderno()

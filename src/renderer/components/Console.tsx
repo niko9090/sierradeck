@@ -6,6 +6,7 @@ import { ModaleNuovaChat } from './ModaleNuovaChat'
 import { azioniDiFinestra } from '../azioni-finestra'
 import { capienzaPreset, type PresetName } from '@shared/layout-tree'
 import { ModaleConferma } from './ModaleConferma'
+import { MODELLI } from '../modelli'
 
 /**
  * I modelli che si possono scegliere.
@@ -25,20 +26,6 @@ import { ModaleConferma } from './ModaleConferma'
  * Gli alias di famiglia restano in cima, perché seguono da soli quando esce
  * qualcosa di nuovo: chi non vuole pensarci li usa e non ci pensa più.
  */
-const MODELLI: { valore: string; etichetta: string }[] = [
-  { valore: 'default', etichetta: 'Predefinito (quello del tuo account)' },
-  { valore: 'opus', etichetta: 'Opus — sempre l’ultimo' },
-  { valore: 'sonnet', etichetta: 'Sonnet — sempre l’ultimo' },
-  { valore: 'haiku', etichetta: 'Haiku — sempre l’ultimo' },
-  { valore: 'opusplan', etichetta: 'Opus per pianificare, Sonnet per fare' },
-  { valore: 'claude-fable-5', etichetta: 'Fable 5' },
-  { valore: 'claude-opus-5', etichetta: 'Opus 5' },
-  { valore: 'claude-opus-5[1m]', etichetta: 'Opus 5 — contesto da 1M' },
-  { valore: 'claude-sonnet-5', etichetta: 'Sonnet 5' },
-  { valore: 'claude-opus-4-8', etichetta: 'Opus 4.8' },
-  { valore: 'claude-sonnet-4-5', etichetta: 'Sonnet 4.5' },
-  { valore: 'claude-haiku-4-5-20251001', etichetta: 'Haiku 4.5' }
-]
 
 const PRESET: { nome: PresetName; etichetta: string; titolo: string }[] = [
   { nome: 'uno', etichetta: '1', titolo: 'Una chat sola' },

@@ -1719,3 +1719,28 @@ select.comando-riquadro option {
 .riquadro--autopilota-sinistra { flex-direction: row-reverse; }
 .riquadro--autopilota-sopra { flex-direction: column-reverse; }
 .riquadro--autopilota-sotto { flex-direction: column; }
+
+
+/* ───────────── i menu a discesa ─────────────
+
+   Le `option` le disegna Windows, non noi, e con un fondo chiaro ereditato dal
+   sistema il testo chiaro spariva. Si dice il colore su entrambi: sul menu e
+   sulle sue voci, perche' il sistema le tratta come due cose diverse. */
+
+select,
+.campo,
+.quaderno__cerca,
+.impostazioni__riga select {
+  background: var(--chassis-premuto);
+  color: var(--testo);
+  border: 1px solid var(--incisione);
+  border-radius: var(--raggio);
+}
+
+select option,
+select optgroup {
+  background: #16181b;
+  color: #dfe3e7;
+}
+
+select:focus-visible { outline: 2px solid var(--accento, #4aa3ff); outline-offset: 1px; }

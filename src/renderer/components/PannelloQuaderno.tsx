@@ -67,15 +67,15 @@ export function PannelloQuaderno({ cwd, cartelle, onChiudi }: Props): React.JSX.
     <div className="pannello pannello--quaderno">
       <div className="pannello__testa">
         <strong>Quaderno</strong>
-        {cartelle.length > 1 ? (
+        {cartelle.length > 0 ? (
           <select
             className="quaderno__cerca"
             value={quale}
             onChange={(e) => setQuale(e.target.value)}
             title="Di quale chat guardare il quaderno"
           >
-            {cartelle.map((c) => (
-              <option key={c.cwd} value={c.cwd}>{c.titolo}</option>
+            {cartelle.map((c, i) => (
+              <option key={`${c.cwd}-${i}`} value={c.cwd}>{c.titolo}</option>
             ))}
           </select>
         ) : (

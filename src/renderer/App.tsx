@@ -580,9 +580,12 @@ export function App(): React.JSX.Element {
           // progetto, e il progetto e' quello in cui stai lavorando adesso.
           <PannelloQuaderno
             cwd={cartellaDavanti()}
-            cartelle={[...new Map(
-              Object.values(riquadriAperti).map((p) => [p.cwd, { cwd: p.cwd, titolo: p.title || p.cwd }])
-            ).values()]}
+            // Tutte le chat aperte, ognuna con il suo nome: due chat nella
+            // stessa cartella sono due voci, perche' e' cosi' che le riconosci.
+            cartelle={Object.values(riquadriAperti).map((p) => ({
+              cwd: p.cwd,
+              titolo: p.title !== undefined && p.title !== '' ? p.title : p.cwd
+            }))}
             onChiudi={() => setAperto(undefined)}
           />
         ) : null}

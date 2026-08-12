@@ -20,6 +20,8 @@ function deps(over: Partial<DipendenzeRotte> = {}): DipendenzeRotte {
     scriviAChat: () => undefined,
     workspace: () => Promise.resolve({ nomi: ['lavoro', 'casa'], attivo: 'lavoro' }),
     cambiaWorkspace: () => Promise.resolve(),
+    fermaAutopilota: () => Promise.resolve(),
+    riprendiAutopilota: () => Promise.resolve(),
     versione: '0.5.0',
     ...over
   }
@@ -118,10 +120,20 @@ describe('quello che il Client puo fare', () => {
     expect(dove).toBe('p-1')
   })
 
+  it('ferma e riprende un autopilota, che sono gesti reversibili', async () => {
+    // Un tocco sbagliato costa un secondo tocco, non il lavoro della notte:
+    // per questo ci sono, mentre chiudere ed eliminare no.
+    let fermato = ''
+    await rotteClient(deps({ fermaAutopilota: (id) => { fermato = id; return Promise.resolve() } }))(
+      { metodo: 'POST', percorso: '/api/autopilota/ferma', corpo: { autopilota: 'ap-1' } }
+    )
+    expect(fermato).toBe('ap-1')
+  })
+
   it('non puo distruggere niente', async () => {
     // Un tocco sbagliato in tram non deve poter buttare via il lavoro della
     // notte: le rotte che chiudono o cancellano non esistono proprio.
-    for (const percorso of ['/api/chiudi', '/api/elimina', '/api/ferma']) {
+    for (const percorso of ['/api/chiudi', '/api/elimina', '/api/chat/chiudi']) {
       const r = await rotteClient(deps())({ metodo: 'POST', percorso, corpo: {} })
       expect(r.stato).toBe(404)
     }

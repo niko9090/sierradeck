@@ -158,6 +158,11 @@ function pannello(s) {
       <div class="titolo"><span class="led \${led(a.stato)}"></span>\${esc(a.nome)}</div>
       <div class="sotto">\${esc(a.strategia ? 'bloccato, provo: ' + a.strategia : a.stato)} · \${a.fatti}/\${a.criteri} criteri · \${a.cicli} interventi</div>
       <div class="barra"><i style="width:\${a.criteri ? Math.round(a.fatti / a.criteri * 100) : 0}%"></i></div>
+      <div class="riga">
+        \${a.stato === 'lavoro' || a.stato === 'attesa'
+          ? '<button onclick="fermaAp('' + esc(a.id) + '')">Ferma</button>'
+          : '<button onclick="riprendiAp('' + esc(a.id) + '')">Riprendi</button>'}
+      </div>
     </div>\`).join('')
 
   const chat = (s.chat || []).map((c) => \`
@@ -196,6 +201,8 @@ window.scrivi = async (id) => {
   campo.value = ''
 }
 window.vaiA = async (nome) => { await chiedi('/api/workspace', { nome }); aggiorna() }
+window.fermaAp = async (id) => { await chiedi('/api/autopilota/ferma', { autopilota: id }); aggiorna() }
+window.riprendiAp = async (id) => { await chiedi('/api/autopilota/riprendi', { autopilota: id }); aggiorna() }
 
 async function aggiorna() {
   if (!chiave) { ingresso(); return }

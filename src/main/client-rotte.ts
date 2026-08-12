@@ -37,6 +37,9 @@ export type DipendenzeRotte = {
   scriviAChat: (idChat: string, testo: string) => void
   workspace: () => Promise<{ nomi: string[]; attivo: string }>
   cambiaWorkspace: (nome: string) => Promise<void>
+  /** Ferma o riprende un autopilota: due gesti reversibili, quindi ammessi. */
+  fermaAutopilota: (id: string) => Promise<void>
+  riprendiAutopilota: (id: string) => Promise<void>
   versione: string
 }
 
@@ -145,6 +148,23 @@ export function rotteClient(deps: DipendenzeRotte) {
       const testo = stringa(r.corpo, 'testo')
       if (chat === '' || testo === '') return { stato: 400, corpo: { errore: 'servono chat e testo' } }
       deps.scriviAChat(chat, testo.slice(0, TESTO_MAX))
+      return OK({ fatto: true })
+    }
+
+    // Fermare e riprendere sono reversibili: un tocco sbagliato costa un
+    // secondo tocco, non il lavoro della notte. Per questo ci sono, mentre
+    // chiudere ed eliminare no.
+    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/ferma') {
+      const id = stringa(r.corpo, 'autopilota')
+      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
+      await deps.fermaAutopilota(id)
+      return OK({ fatto: true })
+    }
+
+    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/riprendi') {
+      const id = stringa(r.corpo, 'autopilota')
+      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
+      await deps.riprendiAutopilota(id)
       return OK({ fatto: true })
     }
 

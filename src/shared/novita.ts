@@ -23,6 +23,16 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.5.8',
+    righe: [
+      'Dal telefono si vedono **tutte** le chat, anche quelle di altre finestre: prima l’ultima finestra che si annunciava copriva le altre, e se ne vedeva una sola.',
+      'Dal telefono si possono anche fermare e riprendere gli autopiloti — gesti reversibili, quindi ammessi. Chiudere ed eliminare restano fuori.',
+      'I modelli specifici (Opus 5, Opus 4.8, Fable 5…) ora ci sono anche nel menu dentro la chat: erano due elenchi diversi, e quello dei riquadri era rimasto indietro.',
+      'I menu a discesa si leggono: le voci le disegna Windows, e con il fondo chiaro ereditato dal sistema il testo spariva.',
+      'Il quaderno elenca tutte le chat aperte, non solo le cartelle diverse.'
+    ]
+  },
+  {
     versione: '0.5.7',
     righe: [
       'Un salvataggio contiene **tutti** i workspace, non solo quello che avevi davanti: le finestre raccontano l’attivo, ed era l’unica cosa che finiva nel file — chi ne aveva tre se ne ritrovava uno.',

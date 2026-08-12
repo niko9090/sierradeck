@@ -4,6 +4,7 @@ import { computeGeometry } from '@shared/layout-geometry'
 import type { DividerBox } from '@shared/layout-geometry'
 import { useLayoutStore } from '../state/layout'
 import { spostaRiquadro } from '../spostamento'
+import { MODELLI_IN_CHAT } from '../modelli'
 import { Terminal } from './Terminal'
 import { DiarioAutopilota } from './DiarioAutopilota'
 import { autopilotaDi } from '../diario-autopilota'
@@ -319,9 +320,9 @@ export function Mosaic({
                   title="Cambia il modello di questa chat"
                 >
                   <option value="">modello…</option>
-                  <option value="opus">opus</option>
-                  <option value="sonnet">sonnet</option>
-                  <option value="haiku">haiku</option>
+                  {MODELLI_IN_CHAT.map((m) => (
+                    <option key={m.valore} value={m.valore}>{m.etichetta}</option>
+                  ))}
                 </select>
                 <ComandoSposta paneId={paneId} />
                 <button
