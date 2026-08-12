@@ -26,6 +26,7 @@ import { apriImpostazioniStore } from './impostazioni-store'
 import { novitaDaMostrare, type Novita } from '@shared/novita'
 import { apriEtichetteStore } from './etichette-store'
 import { apriChiavi } from './chiavi'
+import { apriQuaderno } from './quaderno-store'
 import { apriProviderStore } from './provider-store'
 import { creaAggiornamenti } from './aggiornamenti'
 import { leggiAccesso } from './accesso'
@@ -371,6 +372,39 @@ if (!app.requestSingleInstanceLock()) {
 
       // La parola d'ordine, per chi la vuole. Chiude l'accesso all'interfaccia:
       // non cifra i file, e il programma lo dice invece di lasciarlo credere.
+      // Il quaderno di ogni cartella di lavoro: schede scritte per essere lette
+      // da una persona, e modificabili a mano.
+      const quaderno = apriQuaderno()
+      ipcMain.handle('quaderno:elenca', (_e, cwd: unknown) => {
+        if (typeof cwd !== 'string' || cwd.trim() === '') return []
+        return quaderno.elenca(cwd)
+      })
+      ipcMain.handle('quaderno:leggi', (_e, cwd: unknown, file: unknown) => {
+        if (typeof cwd !== 'string' || typeof file !== 'string') return undefined
+        return quaderno.leggi(cwd, file)
+      })
+      ipcMain.handle('quaderno:scrivi', (_e, cwd: unknown, raw: unknown) => {
+        if (typeof cwd !== 'string' || cwd.trim() === '' || typeof raw !== 'object' || raw === null) {
+          throw new Error('richiesta IPC non valida: cartella o scheda mancanti')
+        }
+        const o = raw as Record<string, unknown>
+        if (typeof o.titolo !== 'string' || o.titolo.trim() === '' || typeof o.corpo !== 'string') {
+          throw new Error('richiesta IPC non valida: una scheda ha titolo e corpo')
+        }
+        return quaderno.scrivi(cwd, {
+          titolo: o.titolo,
+          corpo: o.corpo,
+          ...(Array.isArray(o.tag) ? { tag: o.tag.filter((t): t is string => typeof t === 'string') } : {}),
+          ...(typeof o.file === 'string' ? { file: o.file } : {})
+        })
+      })
+      ipcMain.handle('quaderno:apri', async (_e, cwd: unknown) => {
+        if (typeof cwd !== 'string' || cwd.trim() === '') return
+        const cartella = quaderno.cartella(cwd)
+        mkdirSync(cartella, { recursive: true })
+        await shell.openPath(cartella)
+      })
+
       const chiavi = apriChiavi(dati)
       ipcMain.handle('chiavi:stato', () => chiavi.stato())
       ipcMain.handle('chiavi:impostaAvvio', (_e, parola: unknown) => {

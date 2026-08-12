@@ -2,6 +2,7 @@ import { clipboard, contextBridge, ipcRenderer } from 'electron'
 import type { HostToCore } from '@shared/protocol'
 import type { Avanzamento, IndexOutcome, SessionSummary } from '@shared/types'
 import type { LayoutSalvato, PaneSalvato } from '@shared/workspace'
+import type { Scheda } from '@shared/quaderno'
 import type { Autopilota } from '@shared/autopilota'
 import type { StatoWorkspace } from '../main/ipc'
 import type { Istantanea } from '@shared/istantanea'
@@ -63,6 +64,16 @@ contextBridge.exposeInMainWorld('gestore', {
    * La parola d'ordine, per chi la vuole. Il renderer non riceve mai un segno:
    * chiede se una parola va bene e ottiene sì o no.
    */
+  /** Il quaderno della cartella di lavoro: cosa e' stato fatto, in schede. */
+  quaderno: {
+    elenca: (cwd: string): Promise<Scheda[]> => ipcRenderer.invoke('quaderno:elenca', cwd),
+    leggi: (cwd: string, file: string): Promise<Scheda | undefined> =>
+      ipcRenderer.invoke('quaderno:leggi', cwd, file),
+    scrivi: (cwd: string, scheda: { titolo: string; corpo: string; tag?: string[]; file?: string }): Promise<Scheda> =>
+      ipcRenderer.invoke('quaderno:scrivi', cwd, scheda),
+    /** Apre la cartella delle schede in Esplora risorse. */
+    apri: (cwd: string): Promise<void> => ipcRenderer.invoke('quaderno:apri', cwd)
+  },
   chiavi: {
     stato: (): Promise<{ allAvvio: boolean; workspace: string[] }> =>
       ipcRenderer.invoke('chiavi:stato'),

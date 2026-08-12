@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.4.2',
+    righe: [
+      'Ogni cartella di lavoro ha il suo quaderno: schede in Markdown dentro `.sierradeck/quaderno`, una per argomento, con la più recente in cima. Si leggono e si correggono dal pannello «Quaderno», o con qualunque altro editor — restano tue anche senza SierraDeck.',
+      'Quando un autopilota finisce lascia la sua scheda: obiettivo, criteri raggiunti, le mosse che contano. Domani ritrovi cosa aveva deciso senza riaprire la chat, e senza ripagare in token un contesto che si legge in dieci righe.'
+    ]
+  },
+  {
     versione: '0.4.1',
     righe: [
       'La finestra dell’aggiornamento adesso si vede davvero, con il logo, la barra e la percentuale: veniva avviata cercando PowerShell sul PATH, che dentro l’applicazione impacchettata non è quello del terminale — e quando non partiva non lo diceva nemmeno.',

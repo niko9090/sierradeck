@@ -8,6 +8,7 @@ import {
 } from './decisione'
 import { chiediDecisione } from './decisione-supervisore'
 import { applicaRete } from './rete-sicurezza'
+import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
 import { STRATEGIE } from './strategie'
 import { eseguiCriteri, type Esecutore } from './verifiche'
 import {
@@ -43,6 +44,14 @@ export type Dipendenze = {
   avvisa: (tipo: TipoAvviso, a: Autopilota, domanda?: string) => Promise<void>
   /** Il momento attuale in ISO. Iniettato perché i test non aspettino sei ore. */
   adesso: () => string
+  /**
+   * Scrive una scheda nel quaderno della cartella di lavoro. Facoltativa: senza,
+   * l'autopilota lavora identico e non lascia il suo resoconto.
+   */
+  quaderno?: (
+    cwd: string,
+    scheda: { titolo: string; corpo: string; tag?: string[]; sessione?: string }
+  ) => void
 }
 
 /** La stessa forma che l'archivio accetta: qui si ferma prima di arrivarci. */
@@ -552,6 +561,20 @@ export function creaServer(deps: Dipendenze): Server {
       chats: aggiornato.chats.map((c) => ({ ...c, stato: 'finita' as const }))
     }
     salva(finito)
+    // La scheda si scrive adesso, che il lavoro e' ancora tutto qui e nessuno
+    // l'ha dimenticato: domani la stessa ricostruzione costerebbe una rilettura
+    // della chat, cioe' token pagati per sapere una cosa scrivibile in dieci
+    // righe. Un quaderno che non si riesce a scrivere non ferma niente.
+    try {
+      deps.quaderno?.(finito.cwd, {
+        titolo: titoloScheda(finito),
+        corpo: corpoScheda(finito),
+        tag: tagScheda(finito),
+        ...(finito.sessionId !== undefined ? { sessione: finito.sessionId } : {})
+      })
+    } catch (err) {
+      console.error(`[autopilota] scheda di ${id} non scritta:`, err)
+    }
     // Le altre chat della flotta stanno ancora lavorando a pezzi di un obiettivo
     // gia' raggiunto: lasciarle andare consumerebbe per niente.
     if (aggiornato.chats.length > 0) deps.fermaLavoro(id)

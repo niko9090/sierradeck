@@ -5,6 +5,7 @@ import { get } from 'node:http'
 import { PORTA_AUTOPILOTA } from '@shared/autopilota'
 import { APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
 import { apriArchivio } from './archivio'
+import { apriQuaderno } from '../main/quaderno-store'
 import { creaServer } from './server'
 import { esecutoreReale } from './verifiche'
 import { interrogazioneReale } from './supervisore'
@@ -161,7 +162,11 @@ export function avviaServizio(): void {
     domande,
     scadenzaDomandaMs: SCADENZA_DOMANDA_MS,
     scadenzaInterviataMs: SCADENZA_INTERVISTA_MS,
-    adesso: () => new Date().toISOString()
+    adesso: () => new Date().toISOString(),
+    // Il resoconto del lavoro finisce nella cartella del progetto, accanto al
+    // codice che descrive: e' li' che serve, ed e' li' che resta anche senza
+    // questo programma.
+    quaderno: (cwd, scheda) => { apriQuaderno().scrivi(cwd, scheda) }
   })
 
   server.on('error', (err: NodeJS.ErrnoException) => {

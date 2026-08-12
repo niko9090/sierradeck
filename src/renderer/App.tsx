@@ -16,6 +16,7 @@ import { Console, type PannelloAperto } from './components/Console'
 import { PannelloWorkspace } from './components/PannelloWorkspace'
 import { PannelloAutopiloti } from './components/PannelloAutopiloti'
 import { PannelloConsumi } from './components/PannelloConsumi'
+import { PannelloQuaderno } from './components/PannelloQuaderno'
 import { PannelloProvider } from './components/PannelloProvider'
 import { ModaleAccesso } from './components/ModaleAccesso'
 import { ModalePreparazione } from './components/ModalePreparazione'
@@ -92,6 +93,15 @@ function usaRiquadriInArrivo(): void {
 
 export function App(): React.JSX.Element {
   const root = useLayoutStore((s) => s.root)
+  const riquadriAperti = useLayoutStore((s) => s.panes)
+  /**
+   * La cartella di cui parla il quaderno: quella di un riquadro aperto. Senza
+   * riquadri non c'e' un progetto davanti, e si torna alla cartella dell'utente.
+   */
+  const cartellaDavanti = (): string => {
+    const primo = Object.values(riquadriAperti)[0]
+    return primo?.cwd ?? ''
+  }
   usaPersistenzaLayout()
   usaRiquadriInArrivo()
 
@@ -493,6 +503,14 @@ export function App(): React.JSX.Element {
         ) : null}
         {aperto === 'consumi' ? (
           <PannelloConsumi onChiudi={() => setAperto(undefined)} />
+        ) : null}
+        {aperto === 'quaderno' ? (
+          // La cartella del riquadro che hai davanti: il quaderno racconta un
+          // progetto, e il progetto e' quello in cui stai lavorando adesso.
+          <PannelloQuaderno
+            cwd={cartellaDavanti()}
+            onChiudi={() => setAperto(undefined)}
+          />
         ) : null}
         {aperto === 'autopiloti' ? (
           <PannelloAutopiloti

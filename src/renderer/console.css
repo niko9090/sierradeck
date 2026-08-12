@@ -1418,3 +1418,72 @@ select.comando-riquadro option {
   border-top: 1px solid var(--incisione, #24272b);
   padding-top: 10px;
 }
+
+/* Il quaderno: l'elenco a sinistra, la scheda aperta a destra. Piu' largo degli
+   altri pannelli perche' qui si legge e si scrive, non si preme un tasto. */
+.pannello--quaderno {
+  width: min(1080px, calc(100vw - 48px));
+  max-height: min(78vh, 820px);
+}
+
+.quaderno {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  gap: 14px;
+  min-height: 320px;
+}
+
+.quaderno__elenco {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  max-height: 60vh;
+  border-right: 1px solid var(--incisione, #24272b);
+  padding-right: 10px;
+}
+
+.quaderno__elenco .riga {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: inherit;
+  cursor: pointer;
+}
+
+.quaderno__elenco .riga--attiva {
+  border-color: var(--incisione, #24272b);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.quaderno__scheda { display: flex; flex-direction: column; gap: 10px; }
+
+.quaderno__corpo {
+  flex: 1;
+  min-height: 320px;
+  padding: 12px 14px;
+  border: 1px solid var(--incisione, #24272b);
+  border-radius: 8px;
+  background: #0b0c0e;
+  color: inherit;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: none;
+}
+
+.quaderno__tasti { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+
+.quaderno__cerca {
+  padding: 5px 9px;
+  border: 1px solid var(--incisione, #24272b);
+  border-radius: 6px;
+  background: #0b0c0e;
+  color: inherit;
+  font-size: 12px;
+  min-width: 200px;
+}

@@ -34,6 +34,12 @@ declare global {
         onProgress: (cb: (p: Avanzamento) => void) => () => void
         onOutcome: (cb: (e: IndexOutcome) => void) => () => void
       }
+      quaderno: {
+        elenca: (cwd: string) => Promise<import('@shared/quaderno').Scheda[]>
+        leggi: (cwd: string, file: string) => Promise<import('@shared/quaderno').Scheda | undefined>
+        scrivi: (cwd: string, scheda: { titolo: string; corpo: string; tag?: string[]; file?: string }) => Promise<import('@shared/quaderno').Scheda>
+        apri: (cwd: string) => Promise<void>
+      }
       chiavi: {
         stato: () => Promise<{ allAvvio: boolean; workspace: string[] }>
         impostaAvvio: (parola: string) => Promise<{ allAvvio: boolean; workspace: string[] }>
