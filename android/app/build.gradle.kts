@@ -13,8 +13,12 @@ android {
         // un servizio in primo piano non si può nemmeno dichiarare.
         minSdk = 26
         targetSdk = 35
+        // La versione dell'app **non insegue** quella del computer: sono due
+        // programmi che si aggiornano quando hanno qualcosa di nuovo da dare, e
+        // legarli vorrebbe dire pubblicare un APK identico ogni volta che
+        // cambia una riga di SierraDeck. Qui si alza quando cambia *questa* app.
         versionCode = 3
-        versionName = "0.8.0"
+        versionName = "1.0.0"
     }
 
     // Serve `BuildConfig.VERSION_NAME`: l'app deve sapere quale versione è per

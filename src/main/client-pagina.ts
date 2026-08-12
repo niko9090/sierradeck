@@ -97,6 +97,12 @@ export function paginaClient(): string {
   .ingresso { max-width: 380px; margin: 40px auto; padding: 0 18px; text-align: center; }
   .ingresso input { width: 100%; text-align: center; font-size: 26px; letter-spacing: .3em; margin: 16px 0; }
   .errore { color: #e0a33c; font-size: 13px; margin-top: 8px; }
+  .panoramica { background: #131518; }
+  .numeri { display: flex; gap: 6px; }
+  .numero { flex: 1; text-align: center; }
+  .numero b { display: block; font-size: 26px; font-variant-numeric: tabular-nums; }
+  .numero b.v { color: #54c07a } .numero b.a { color: #e0a33c }
+  .numero span { font-size: 11px; color: #9aa1a9; }
 </style>
 </head>
 <body>
@@ -142,8 +148,43 @@ function ingresso(messaggio) {
   }
 }
 
+/**
+ * Ridisegna, ma **non mentre stai scrivendo**.
+ *
+ * Il giro ogni due secondi rifaceva la pagina da capo, e con lei i campi: due
+ * parole scritte in una chat sparivano prima di poterle mandare. Qui si salta
+ * il ridisegno se hai un campo sotto le dita, e in ogni caso quello che c'era
+ * scritto torna al suo posto.
+ */
 function pannello(s) {
+  const attivo = document.activeElement
+  const staScrivendo = attivo && (attivo.tagName === 'INPUT' || attivo.tagName === 'TEXTAREA')
+  // Chi sta scrivendo ha ragione: la pagina puo' aspettare due secondi.
+  if (staScrivendo) return
+
   const led = (st) => st === 'lavoro' ? 'lavoro' : st === 'attesa' ? 'attesa' : 'fermo'
+  // La panoramica: quello che si vuole sapere prima di leggere qualunque
+  // dettaglio - sta lavorando qualcosa? qualcuno mi sta aspettando? A quale
+  // punto siamo? Tre numeri, in cima, senza dover contare le piastrelle.
+  const aps = s.autopiloti || []
+  const alLavoro = aps.filter((a) => a.stato === 'lavoro').length
+  const inAttesa = aps.filter((a) => a.stato === 'attesa').length
+  const finiti = aps.filter((a) => a.stato === 'finito').length
+  const criteriTot = aps.reduce((t, a) => t + (a.criteri || 0), 0)
+  const criteriFatti = aps.reduce((t, a) => t + (a.fatti || 0), 0)
+  const avanzamento = criteriTot ? Math.round(criteriFatti / criteriTot * 100) : 0
+  const panoramica = \`
+    <div class="piastrella panoramica">
+      <div class="numeri">
+        <div class="numero"><b>\${(s.chat || []).length}</b><span>chat</span></div>
+        <div class="numero"><b class="v">\${alLavoro}</b><span>al lavoro</span></div>
+        <div class="numero"><b class="\${inAttesa ? 'a' : ''}">\${inAttesa}</b><span>ti aspettano</span></div>
+        <div class="numero"><b>\${finiti}</b><span>finiti</span></div>
+      </div>
+      \${criteriTot ? '<div class="barra"><i style="width:' + avanzamento + '%"></i></div>' +
+        '<div class="sotto" style="margin-top:6px">' + criteriFatti + ' criteri su ' + criteriTot + ' — ' + avanzamento + '%</div>' : ''}
+    </div>\`
+
   const domande = (s.domande || []).map((d) => \`
     <div class="piastrella chiede">
       <div class="titolo">Ti stanno chiedendo una cosa</div>
@@ -195,15 +236,28 @@ function pannello(s) {
        </div>\`
     : ''
 
+  // Quello che c'era nei campi si conserva e si rimette: un ridisegno che
+  // arriva un istante prima dell'invio non deve portarsi via il testo.
+  const scritti = {}
+  for (const campo of app.querySelectorAll('input, textarea')) {
+    if (campo.id && campo.value) scritti[campo.id] = campo.value
+  }
+
   app.innerHTML = \`
     <header><b>SIERRADECK</b><span>\${(s.chat || []).length} chat · \${(s.autopiloti || []).length} autopiloti</span></header>
     <main>
       \${invito}
+      \${panoramica}
       \${domande}
       \${ws ? '<div class="piastrella"><div class="titolo">Workspace</div><div class="ws" style="margin-top:10px">' + ws + '</div></div>' : ''}
       \${autopiloti || ''}
       \${chat || (autopiloti ? '' : '<div class="vuoto">Nessuna chat aperta sul computer.</div>')}
     </main>\`
+
+  for (const id in scritti) {
+    const campo = document.getElementById(id)
+    if (campo) campo.value = scritti[id]
+  }
 }
 
 window.rispondi = async (id) => {

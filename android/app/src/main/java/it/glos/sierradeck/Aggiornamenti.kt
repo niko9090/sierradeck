@@ -28,6 +28,17 @@ object Aggiornamenti {
         "https://api.github.com/repos/niko9090/sierradeck/releases/latest"
 
     /**
+     * La versione dell'app si legge **dal nome dell'APK**, non dal tag.
+     *
+     * Il tag è la versione del programma sul computer, e le due cose vivono
+     * separate: un APK allegato a «SierraDeck 0.9.2» può essere ancora la
+     * 1.0.0 dell'app, perché non è cambiato niente qui dentro. Prendere il tag
+     * proporrebbe un aggiornamento a ogni pubblicazione, e dopo tre volte
+     * nessuno ci crede più.
+     */
+    private val VERSIONE_NEL_NOME = Regex("""SierraDeck-([0-9]+\.[0-9]+\.[0-9]+)\.apk""")
+
+    /**
      * Guarda se c'è una versione più nuova e, se c'è, chiama `quandoTrovata`
      * con il suo nome e l'indirizzo dell'APK.
      *
@@ -45,14 +56,13 @@ object Aggiornamenti {
                 try {
                     if (connessione.responseCode != 200) return@thread
                     val release = JSONObject(connessione.inputStream.bufferedReader().readText())
-                    val nome = release.optString("tag_name").removePrefix("v")
-                    if (nome.isEmpty() || !piuNuova(mia, nome)) return@thread
-
                     val allegati = release.optJSONArray("assets") ?: return@thread
                     for (i in 0 until allegati.length()) {
                         val allegato = allegati.getJSONObject(i)
-                        if (!allegato.optString("name").endsWith(".apk")) continue
-                        quandoTrovata(nome, allegato.optString("browser_download_url"))
+                        val nomeFile = allegato.optString("name")
+                        val trovata = VERSIONE_NEL_NOME.find(nomeFile)?.groupValues?.get(1) ?: continue
+                        if (!piuNuova(mia, trovata)) return@thread
+                        quandoTrovata(trovata, allegato.optString("browser_download_url"))
                         return@thread
                     }
                 } finally {

@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.8.1',
+    righe: [
+      'Dal telefono si può scrivere davvero: la pagina si rifaceva da capo ogni due secondi e portava via quello che stavi scrivendo. Ora, mentre hai un campo sotto le dita, il ridisegno aspetta — e quello che avevi scritto torna comunque al suo posto.',
+      'In cima c’è la panoramica: quante chat, quanti autopiloti al lavoro, quanti ti stanno aspettando, e a che punto sono nel complesso.',
+      'L’app Android ha una versione sua (1.0.0) che non insegue quella del computer: sono due programmi, e si aggiornano quando hanno qualcosa di nuovo da dare.'
+    ]
+  },
+  {
     versione: '0.8.0',
     righe: [
       'La barra dell’aggiornamento non salta più da 65 a 100: avanza piano dentro ogni fase, rallentando verso la fine, e durante le attese lunghe dice da quanti secondi sta aspettando — un numero fermo si legge come un blocco.',
