@@ -126,6 +126,25 @@ export function App(): React.JSX.Element {
   // solo: ogni pannello, anche quelli che verranno, diventa mobile senza che
   // nessuno debba ricordarsene.
   useEffect(() => attivaTrascinamento(), [])
+
+  // Il Core non sa quali chat sono aperte: lo sa questa finestra, e glielo
+  // dice a ogni cambiamento perche' il Client possa mostrarle.
+  useEffect(() => {
+    window.gestore.client.annunciaChat(
+      Object.values(riquadriAperti).map((p) => ({ id: p.id, titolo: p.title || p.cwd, cwd: p.cwd }))
+    )
+  }, [riquadriAperti])
+
+  // Quello che scrivi dal telefono arriva alla chat come se lo avessi digitato.
+  useEffect(() => window.gestore.client.suScrittura(({ chat, testo }) => {
+    // Con l'a capo in fondo: dal telefono si scrive per far ripartire il
+    // lavoro, e un testo che resta nel campo senza essere inviato non lo fa.
+    window.gestore.pty.write(chat, `${testo}`)
+  }), [])
+
+  useEffect(() => window.gestore.client.suWorkspace((nome) => {
+    void azioniDiFinestra(() => attivoOra.current).cambia(nome).catch(() => undefined)
+  }), [])
   // Premere fuori chiude, per tutte allo stesso modo: chi lo prova su una e non
   // sull'altra non impara la regola, impara che il programma e' imprevedibile.
   useEffect(() => attivaChiusuraFuori(() => setAperto(undefined)), [])

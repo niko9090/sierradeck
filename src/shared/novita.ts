@@ -23,6 +23,15 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.5.1',
+    righe: [
+      'Il Client funziona: apri **Impostazioni → Client**, premi «Collega un dispositivo», e digita sul telefono le sei cifre che compaiono. Poi «Aggiungi alla schermata Home» e hai un’app — senza APK, quindi senza l’avviso di Android.',
+      'Dal telefono vedi le chat aperte e gli autopiloti con il loro avanzamento, **rispondi alle domande che li tengono fermi**, mandi due parole a una chat e cambi workspace.',
+      'Non può distruggere niente: non chiude chat, non elimina, non cambia cartelle. Un tocco sbagliato in tram non deve poter buttare via il lavoro della notte.',
+      'Risponde solo dalla rete locale, e solo a dispositivi accoppiati. Ogni dispositivo si revoca da solo, dalle impostazioni.'
+    ]
+  },
+  {
     versione: '0.5.0',
     righe: [
       'Gli aggiornamenti li fa **SierraDeck Update**, un programma a sé: aspetta che SierraDeck sia uscito, installa, riapre il programma e si toglie. La finestra con il logo e la percentuale adesso c’è perché a mostrarla è un eseguibile vero, non uno script lanciato da chi stava per chiudersi.',

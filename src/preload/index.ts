@@ -67,6 +67,33 @@ contextBridge.exposeInMainWorld('gestore', {
    */
   /** Il quaderno della cartella di lavoro: cosa e' stato fatto, in schede. */
   /** Colori, porte e comportamenti scelti dall'utente. */
+  /** Il Client sulla rete locale: chi puo' entrare e da dove. */
+  client: {
+    stato: (): Promise<{
+      porta: number
+      indirizzi: string[]
+      dispositivi: { id: string; nome: string; collegatoIl: string; ultimoAccesso?: string }[]
+      accoppiamento?: { codice: string; scadeIl: number }
+    }> => ipcRenderer.invoke('client:stato'),
+    apriAccoppiamento: (): Promise<{ codice: string; scadeIl: number }> =>
+      ipcRenderer.invoke('client:apriAccoppiamento'),
+    chiudiAccoppiamento: (): Promise<void> => ipcRenderer.invoke('client:chiudiAccoppiamento'),
+    revoca: (id: string): Promise<unknown[]> => ipcRenderer.invoke('client:revoca', id),
+    /** Le chat aperte, che il Core da solo non conosce. */
+    annunciaChat: (chat: { id: string; titolo: string; cwd: string }[]): void =>
+      ipcRenderer.send('client:chat', chat),
+    /** Testo mandato da un telefono a una chat. */
+    suScrittura: (cb: (m: { chat: string; testo: string }) => void): (() => void) => {
+      const h = (_e: unknown, m: { chat: string; testo: string }): void => cb(m)
+      ipcRenderer.on('client:scrivi', h)
+      return () => { ipcRenderer.off('client:scrivi', h) }
+    },
+    suWorkspace: (cb: (nome: string) => void): (() => void) => {
+      const h = (_e: unknown, nome: string): void => cb(nome)
+      ipcRenderer.on('client:workspace', h)
+      return () => { ipcRenderer.off('client:workspace', h) }
+    }
+  },
   preferenze: {
     leggi: (): Promise<Preferenze> => ipcRenderer.invoke('preferenze:leggi'),
     imposta: (p: Preferenze): Promise<Preferenze> => ipcRenderer.invoke('preferenze:imposta', p),

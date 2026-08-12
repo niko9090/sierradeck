@@ -1667,3 +1667,12 @@ select.comando-riquadro option {
   letter-spacing: 0.04em;
   opacity: 0.8;
 }
+
+/* Il codice di accoppiamento: grande e distanziato, perche' si legge da qui e
+   si digita su un telefono tenuto nell'altra mano. */
+.codice-accoppiamento {
+  font-size: 26px;
+  letter-spacing: 0.32em;
+  font-variant-numeric: tabular-nums;
+  color: var(--accento, #4aa3ff);
+}

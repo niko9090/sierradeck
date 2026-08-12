@@ -27,6 +27,10 @@ import { novitaDaMostrare, type Novita } from '@shared/novita'
 import { apriEtichetteStore } from './etichette-store'
 import { apriChiavi } from './chiavi'
 import { apriQuaderno } from './quaderno-store'
+import { apriDispositivi } from './dispositivi'
+import { creaServerClient, indirizziLocali } from './client-server'
+import { rotteClient, rotteLibere } from './client-rotte'
+import type { Chat } from './client-rotte'
 import { apriProviderStore } from './provider-store'
 import { creaAggiornamenti } from './aggiornamenti'
 import { leggiAccesso } from './accesso'
@@ -40,6 +44,10 @@ let db: Db | undefined
 let workspaceStore: WorkspaceStore | undefined
 let providerStore: ReturnType<typeof apriProviderStore> | undefined
 let inChiusura = false
+/** Il server del Client, quando e' in ascolto. */
+let serverClient: import('node:http').Server | undefined
+/** Le chat aperte, come le racconta il renderer: servono al Client. */
+let chatAperte: Chat[] = []
 /** L'icona nell'area di notifica, quando è stato possibile crearla. */
 let area: Tray | undefined
 /**
@@ -385,6 +393,77 @@ if (!app.requestSingleInstanceLock()) {
           }
         }
         return nuove
+      })
+
+      // Il Client: un server sulla rete di casa che serve la sua pagina e
+      // risponde alle poche cose che si fanno da un telefono. Non parte se non
+      // c'e' nessun dispositivo accoppiato **e** nessun accoppiamento aperto?
+      // No: parte sempre, perche' e' da li' che si ottiene il primo
+      // accoppiamento. A proteggerlo ci sono i due muri, non il silenzio.
+      const dispositivi = apriDispositivi(dati)
+      const rotte = {
+        dispositivi,
+        chat: () => chatAperte,
+        autopiloti: () => clientAutopilota.elenca(),
+        rispondi: async (idDomanda: string, risposta: string) => {
+          await clientAutopilota.rispondi(idDomanda, risposta)
+        },
+        domande: () => clientAutopilota.domande(),
+        scriviAChat: (idChat: string, testo: string) => {
+          for (const w of BrowserWindow.getAllWindows()) {
+            if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+              w.webContents.send('client:scrivi', { chat: idChat, testo })
+            }
+          }
+        },
+        workspace: async () => {
+          const a = workspaceStore?.leggi()
+          return { nomi: (a?.workspace ?? []).map((w) => w.nome), attivo: a?.attivo ?? '' }
+        },
+        cambiaWorkspace: async (nome: string) => {
+          for (const w of BrowserWindow.getAllWindows()) {
+            if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+              w.webContents.send('client:workspace', nome)
+            }
+          }
+        },
+        versione: app.getVersion()
+      }
+
+      const porta = impostazioni.preferenze().portaClient
+      serverClient = creaServerClient({
+        dispositivi,
+        rotta: rotteClient(rotte),
+        rottaLibera: rotteLibere(rotte)
+      })
+      serverClient.on('error', (err) => {
+        // Una porta occupata non deve impedire al programma di aprirsi: si dice
+        // e si va avanti, e chi vuole il Client la cambia nelle impostazioni.
+        console.error(`[client] non in ascolto sulla ${porta}:`, err)
+      })
+      // Su tutte le interfacce, perche' il telefono arriva dal wifi: a chiudere
+      // la porta ci pensa il controllo della rete locale, richiesta per
+      // richiesta, che e' un muro piu' solido di un bind.
+      serverClient.listen(porta, () => {
+        console.log(`[client] in ascolto sulla porta ${porta}: ${indirizziLocali().join(', ')}`)
+      })
+
+      ipcMain.handle('client:stato', () => ({
+        porta,
+        indirizzi: indirizziLocali(),
+        dispositivi: dispositivi.elenca(),
+        accoppiamento: dispositivi.accoppiamentoAperto()
+      }))
+      ipcMain.handle('client:apriAccoppiamento', () => dispositivi.apriAccoppiamento())
+      ipcMain.handle('client:chiudiAccoppiamento', () => { dispositivi.chiudiAccoppiamento() })
+      ipcMain.handle('client:revoca', (_e, id: unknown) => {
+        if (typeof id === 'string') dispositivi.revoca(id)
+        return dispositivi.elenca()
+      })
+      // Le chat aperte le conosce il renderer, non il Core: gliele manda lui a
+      // ogni cambiamento, e qui si conservano per chi le chiede dalla rete.
+      ipcMain.on('client:chat', (_e, raw: unknown) => {
+        if (Array.isArray(raw)) chatAperte = raw as typeof chatAperte
       })
 
       const quaderno = apriQuaderno()

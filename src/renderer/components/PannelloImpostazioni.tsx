@@ -5,6 +5,89 @@ import {
 
 type Props = { onChiudi: () => void }
 
+type StatoClient = Awaited<ReturnType<typeof window.gestore.client.stato>>
+
+/**
+ * Il Client: come ci si collega, e chi si e' collegato.
+ *
+ * Il codice sta **qui**, sullo schermo del computer, e non viaggia mai sulla
+ * rete: è tutta la sicurezza dell'accoppiamento. Chi lo legge è seduto davanti
+ * al tuo computer — e a quel punto ha già il tuo computer.
+ */
+function SezioneClient(): React.JSX.Element {
+  const [stato, setStato] = useState<StatoClient | undefined>(undefined)
+  const ricarica = (): void => {
+    window.gestore.client.stato().then(setStato).catch(() => setStato(undefined))
+  }
+  useEffect(() => {
+    ricarica()
+    // Il codice scade da solo dopo tre minuti: senza un giro regolare, resterebbe
+    // scritto a schermo quando non vale piu' niente.
+    const h = setInterval(ricarica, 5000)
+    return () => clearInterval(h)
+  }, [])
+
+  if (stato === undefined) return <section className="impostazioni__gruppo"><h4>Client</h4></section>
+
+  const codice = stato.accoppiamento?.codice
+  return (
+    <section className="impostazioni__gruppo">
+      <h4>Client — telefono, tablet, touch</h4>
+      <div className="impostazioni__nota">
+        Apri sul telefono uno di questi indirizzi, poi «Aggiungi alla schermata Home».
+      </div>
+      {stato.indirizzi.length === 0 ? (
+        <div className="impostazioni__nota">Nessuna rete locale trovata.</div>
+      ) : (
+        stato.indirizzi.map((ind) => (
+          <div key={ind} className="impostazioni__riga">
+            <code>http://{ind}:{stato.porta}</code>
+          </div>
+        ))
+      )}
+
+      {codice !== undefined ? (
+        <>
+          <div className="impostazioni__riga">
+            <span>Codice da digitare</span>
+            <strong className="codice-accoppiamento">{codice}</strong>
+          </div>
+          <div className="impostazioni__nota">
+            Vale tre minuti e per un dispositivo solo. Non passa mai dalla rete:
+            si legge qui e si digita là.
+          </div>
+          <button className="tasto" onClick={() => { void window.gestore.client.chiudiAccoppiamento().then(ricarica) }}>
+            Chiudi l’accoppiamento
+          </button>
+        </>
+      ) : (
+        <button className="tasto" onClick={() => { void window.gestore.client.apriAccoppiamento().then(ricarica) }}>
+          Collega un dispositivo
+        </button>
+      )}
+
+      {stato.dispositivi.length > 0 ? (
+        <>
+          <div className="impostazioni__nota">Dispositivi collegati</div>
+          {stato.dispositivi.map((d) => (
+            <div key={d.id} className="impostazioni__riga">
+              <span>
+                {d.nome}
+                <span className="riga__stato">
+                  {d.ultimoAccesso !== undefined ? ` · visto ${d.ultimoAccesso.slice(0, 16).replace('T', ' ')}` : ''}
+                </span>
+              </span>
+              <button className="tasto" onClick={() => { void window.gestore.client.revoca(d.id).then(ricarica) }}>
+                Revoca
+              </button>
+            </div>
+          ))}
+        </>
+      ) : null}
+    </section>
+  )
+}
+
 /** I colori proposti: chi non ha voglia di sceglierne uno preme e va avanti. */
 const ACCENTI = ['#4aa3ff', '#54c07a', '#e0a33c', '#dc5f5f', '#b18cf0', '#37c8c3']
 
@@ -116,6 +199,8 @@ export function PannelloImpostazioni({ onChiudi }: Props): React.JSX.Element {
             cambia porta mentre qualcuno ci sta parlando.
           </div>
         </section>
+
+        <SezioneClient />
 
         <section className="impostazioni__gruppo">
           <h4>Comportamento</h4>

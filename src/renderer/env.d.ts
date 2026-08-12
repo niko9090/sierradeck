@@ -34,6 +34,20 @@ declare global {
         onProgress: (cb: (p: Avanzamento) => void) => () => void
         onOutcome: (cb: (e: IndexOutcome) => void) => () => void
       }
+      client: {
+        stato: () => Promise<{
+          porta: number
+          indirizzi: string[]
+          dispositivi: { id: string; nome: string; collegatoIl: string; ultimoAccesso?: string }[]
+          accoppiamento?: { codice: string; scadeIl: number }
+        }>
+        apriAccoppiamento: () => Promise<{ codice: string; scadeIl: number }>
+        chiudiAccoppiamento: () => Promise<void>
+        revoca: (id: string) => Promise<unknown[]>
+        annunciaChat: (chat: { id: string; titolo: string; cwd: string }[]) => void
+        suScrittura: (cb: (m: { chat: string; testo: string }) => void) => () => void
+        suWorkspace: (cb: (nome: string) => void) => () => void
+      }
       preferenze: {
         leggi: () => Promise<import('@shared/preferenze').Preferenze>
         imposta: (p: import('@shared/preferenze').Preferenze) => Promise<import('@shared/preferenze').Preferenze>
