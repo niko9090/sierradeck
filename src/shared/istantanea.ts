@@ -316,3 +316,30 @@ export function daRiavviare(
 export function daSalvare<T extends { stato: string }>(autopiloti: T[]): T[] {
   return autopiloti.filter((a) => a.stato !== 'finito' && a.stato !== 'fallito')
 }
+
+/**
+ * Quante chat contiene un salvataggio, in tutti i workspace.
+ *
+ * Contare i riquadri delle finestre — l'unica cosa che si faceva — dice quante
+ * chat si avevano *davanti*, non quante ne contiene il salvataggio: chi ne
+ * aveva sei divise in tre workspace leggeva «2 chat» e pensava, giustamente,
+ * che gli altri quattro fossero andati persi.
+ *
+ * La stessa chat aperta in due monitor si conta una volta sola: è una
+ * conversazione, non due.
+ */
+export function contaChat(i: Istantanea): number {
+  const viste = new Set<string>()
+  for (const f of i.finestre) for (const p of f.layout.panes) viste.add(p.sessionUuid)
+  for (const w of i.workspace ?? []) {
+    for (const layout of Object.values(w.perMonitor)) {
+      for (const p of layout.panes) viste.add(p.sessionUuid)
+    }
+  }
+  return viste.size
+}
+
+/** Quanti workspace contiene: si dice solo quando sono più d'uno. */
+export function contaWorkspace(i: Istantanea): number {
+  return i.workspace?.length ?? 0
+}

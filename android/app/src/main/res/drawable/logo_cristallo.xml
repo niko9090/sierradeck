@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Il cristallo, disegnato invece che ritagliato in cinque dimensioni di PNG:
+  un vettore resta nitido su qualunque schermo e non ha copie da tenere
+  allineate quando il logo cambia.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <path android:fillColor="#DFE3E7" android:pathData="M268,92 L392,306 L268,306 Z" />
+    <path android:fillColor="#7D858D" android:pathData="M268,92 L132,306 L268,306 Z" />
+    <path android:fillColor="#525A62" android:pathData="M132,306 L268,306 L200,412 Z" />
+    <path android:fillColor="#363D44" android:pathData="M268,306 L392,306 L326,412 Z" />
+    <path android:fillColor="#252B31" android:pathData="M200,412 L326,412 L268,306 Z" />
+    <path android:fillColor="#54C07A" android:pathData="M268,92 L312,168 L268,168 Z" />
+</vector>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Istantanea } from '@shared/istantanea'
+import { contaChat, contaWorkspace, type Istantanea } from '@shared/istantanea'
 import { useLayoutStore } from '../state/layout'
 
 /** Il nome sotto cui finisce il salvataggio automatico alla chiusura. */
@@ -14,8 +14,13 @@ function quando(iso: string): string {
 }
 
 function descrivi(i: Istantanea): string {
-  const chat = i.finestre.reduce((tot, f) => tot + f.layout.panes.length, 0)
-  const parti = [`${chat} chat`]
+  // Le chat di **tutti** i workspace: contare i riquadri delle finestre diceva
+  // quante se ne avevano davanti, e chi ne aveva sei divise in tre workspace
+  // leggeva «2 chat» e pensava che le altre fossero perse.
+  const chat = contaChat(i)
+  const workspace = contaWorkspace(i)
+  const parti = [chat === 1 ? '1 chat' : `${chat} chat`]
+  if (workspace > 1) parti.push(`${workspace} workspace`)
   // Le finestre si nominano solo quando sono piu' d'una: «1 finestra» su ogni
   // riga sarebbe rumore, ma sapere che un salvataggio ne riaprira' due cambia
   // cosa ci si aspetta premendo «Riprendi».

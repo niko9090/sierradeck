@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseIstantanee, nuovaIstantanea, scegliFinestre, daRiavviare, daSalvare, workspaceDaSalvare,
-  VERSIONE_ISTANTANEE,
+  contaChat, contaWorkspace, VERSIONE_ISTANTANEE,
   type Istantanea, type FinestraSalvata, type AutopilotaSalvato
 } from '@shared/istantanea'
 import type { LayoutSalvato } from '@shared/workspace'
@@ -397,5 +397,56 @@ describe('salvare tutti i workspace', () => {
     // illeggibile perche' e' stato preso prima.
     const i = nuovaIstantanea({ nome: 'x', salvataIl: 'oggi', finestre: [], autopiloti: [] })
     expect(i.workspace).toBeUndefined()
+  })
+})
+
+describe('contare cosa contiene un salvataggio', () => {
+  const conPane = (uuid: string): LayoutSalvato => ({
+    root: { type: 'pane', id: `p-${uuid}` },
+    panes: [{ id: `p-${uuid}`, sessionUuid: uuid, cwd: 'C:\p', title: uuid }]
+  })
+
+  it('conta le chat di tutti i workspace, non solo quelle davanti', () => {
+    // Chi ne aveva sei divise in tre workspace leggeva «2 chat» e pensava,
+    // giustamente, che le altre fossero andate perse.
+    const i = nuovaIstantanea({
+      nome: 'desk_1',
+      salvataIl: 'oggi',
+      finestre: [{ monitor: 'm-1', layout: conPane('a') }],
+      workspace: [
+        { nome: 'lavoro', perMonitor: { 'm-1': conPane('a') } },
+        { nome: 'casa', perMonitor: { 'm-1': conPane('b') } },
+        { nome: 'studio', perMonitor: { 'm-1': conPane('c') } }
+      ],
+      autopiloti: []
+    })
+    expect(contaChat(i)).toBe(3)
+    expect(contaWorkspace(i)).toBe(3)
+  })
+
+  it('la stessa chat su due monitor si conta una volta', () => {
+    // E' una conversazione, non due: contarla doppia gonfierebbe il numero
+    // proprio a chi ha due schermi.
+    const i = nuovaIstantanea({
+      nome: 'x',
+      salvataIl: 'oggi',
+      finestre: [
+        { monitor: 'm-1', layout: conPane('a') },
+        { monitor: 'm-2', layout: conPane('a') }
+      ],
+      autopiloti: []
+    })
+    expect(contaChat(i)).toBe(1)
+  })
+
+  it('un salvataggio vecchio, senza workspace, conta quello che ha', () => {
+    const i = nuovaIstantanea({
+      nome: 'vecchio',
+      salvataIl: 'ieri',
+      finestre: [{ monitor: 'm-1', layout: conPane('a') }],
+      autopiloti: []
+    })
+    expect(contaChat(i)).toBe(1)
+    expect(contaWorkspace(i)).toBe(0)
   })
 })

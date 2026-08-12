@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.7.2',
+    righe: [
+      'Un salvataggio dice quante chat contiene **in tutti i workspace**: chi ne aveva sei divise in tre leggeva «2 chat» e pensava, giustamente, che le altre fossero andate perse. La stessa chat su due monitor si conta una volta sola.',
+      'L’app Android è compilata e firmata: si scarica dai Release e si installa sul telefono.'
+    ]
+  },
+  {
     versione: '0.7.1',
     righe: [
       'Alle domande dell’autopilota si risponde **dentro il suo diario**, dove stai già guardando: prima bisognava aprire il pannello e cercarla mentre la chat restava ferma ad aspettare.',

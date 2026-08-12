@@ -57,3 +57,24 @@ non deve esserci: una chiave di firma in git è una chiave persa).
 - **Le notifiche quando il telefono non è sulla stessa rete.** Fuori casa
   servirebbe un ponte su Internet, che è una scelta di sicurezza diversa e va
   fatta apposta, non di nascosto.
+
+## Compilarla (verificato su questa macchina)
+
+```bash
+cd android
+JAVA_HOME="C:/Program Files/Eclipse Adoptium/jdk-21.0.10.7-hotspot" \
+ANDROID_HOME="$LOCALAPPDATA/Android/Sdk" \
+  gradle assembleRelease --no-daemon
+```
+
+L'APK non firmato esce in `app/build/outputs/apk/release/`. Per firmarlo:
+
+```bash
+SDK="$LOCALAPPDATA/Android/Sdk/build-tools/35.0.0"
+"$SDK/zipalign.exe" -p -f 4 app-release-unsigned.apk SierraDeck.apk
+"$SDK/apksigner.bat" sign --ks <la-tua-chiave.jks> SierraDeck.apk
+```
+
+**La chiave di firma non sta in questo repository**, e non deve starci: una
+chiave di firma in git è una chiave persa, e chiunque l'abbia può pubblicare
+aggiornamenti che i telefoni accetteranno come tuoi.
