@@ -42,6 +42,21 @@ class GuardiaService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        // **Tutto** dentro un try: un servizio vive nello stesso processo
+        // dell'app, e un'eccezione qui chiude l'app - non il servizio. E'
+        // esattamente cosi' che si tornava alla schermata iniziale appena
+        // inserito l'indirizzo, senza una parola da nessuna parte.
+        try {
+            avviaDavvero()
+        } catch (e: Exception) {
+            Log.e("SierraDeck", "guardia non avviata", e)
+            // Senza guardia si vede tutto lo stesso, solo senza avvisi: e'
+            // infinitamente meglio di un'app che non si apre.
+            stopSelf()
+        }
+    }
+
+    private fun avviaDavvero() {
         creaCanali()
         // Da Android 14 il tipo va dichiarato **anche qui**, non solo nel
         // manifest: senza, il sistema chiude l'app con un'eccezione invece di

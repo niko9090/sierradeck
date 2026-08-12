@@ -79,8 +79,24 @@ class ClientActivity : AppCompatActivity() {
 
     override fun onCreate(salvato: Bundle?) {
         super.onCreate(salvato)
+        // Prima di tutto: da qui in avanti un errore che chiuderebbe l'app
+        // lascia una traccia da leggere al riavvio, invece di far tornare alla
+        // schermata iniziale senza una parola.
+        Guasti.prendiNota(applicationContext)
         collegamento = Collegamento(this)
         chiediPermessoNotifiche()
+
+        // Un guasto **non deve** impedire di riprovare: se l'ultima volta è
+        // andata male, si riparte dall'ingresso con scritto cosa è successo,
+        // invece di rientrare nella stessa strada che ha già fallito.
+        val guasto = Guasti.ultimo(applicationContext)
+        if (guasto != null) {
+            Guasti.dimentica(applicationContext)
+            mostraIngresso()
+            mostraErrore(guasto.lineSequence().first())
+            return
+        }
+
         if (collegamento.pronto) mostraClient() else mostraIngresso()
     }
 
@@ -119,6 +135,18 @@ class ClientActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun mostraClient() {
+        try {
+            apriPagina()
+        } catch (e: Exception) {
+            // Meglio l'ingresso con un messaggio che una chiusura muta: da qui
+            // si può correggere l'indirizzo e riprovare.
+            mostraIngresso()
+            mostraErrore("Non riesco ad aprire: ${e.message}")
+        }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun apriPagina() {
         val web = WebView(this).apply {
             settings.javaScriptEnabled = true
             // La pagina tiene la chiave nel proprio archivio locale: senza
@@ -130,12 +158,19 @@ class ClientActivity : AppCompatActivity() {
         }
         vista = web
         setContentView(web)
-        GuardiaService.avvia(this)
+        // La guardia è un di più: se non parte si vede tutto lo stesso, solo
+        // senza avvisi. Non deve mai portarsi dietro l'app.
+        try {
+            GuardiaService.avvia(this)
+        } catch (e: Exception) {
+            // Già registrato nel log del servizio: qui basta non morire.
+        }
 
         // Un'app installata a mano non riceve niente da sola: finché non vive
         // sul Play Store, il controllo lo facciamo qui. Si propone, non si
         // impone — a installare è Android, con la sua schermata di sempre.
-        Aggiornamenti.controlla(BuildConfig.VERSION_NAME) { nome, apk ->
+        try {
+            Aggiornamenti.controlla(BuildConfig.VERSION_NAME) { nome, apk ->
             runOnUiThread {
                 AlertDialog.Builder(this)
                     .setTitle("C’è SierraDeck $nome")
@@ -143,7 +178,11 @@ class ClientActivity : AppCompatActivity() {
                     .setPositiveButton("Scarica") { _, _ -> Aggiornamenti.scarica(this, apk) }
                     .setNegativeButton("Più tardi", null)
                     .show()
+                }
             }
+        } catch (e: Exception) {
+            // Non sapere se c'è una versione nuova non è una ragione per non
+            // usare quella che si ha.
         }
     }
 
