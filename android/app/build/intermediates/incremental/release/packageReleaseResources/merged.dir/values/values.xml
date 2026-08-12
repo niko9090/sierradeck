@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <color name="fondo">#0B0C0E</color>
-    <style name="Theme.SierraDeck" parent="Theme.AppCompat.NoActionBar">
-        <item name="android:windowBackground">#0B0C0E</item>
-        <item name="android:statusBarColor">#0B0C0E</item>
-        <item name="android:navigationBarColor">#0B0C0E</item>
-    </style>
-</resources>

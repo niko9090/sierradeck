@@ -10,3 +10,9 @@ note/
 # I documenti di lavoro restano miei: piani, specifiche e appunti non hanno
 # motivo di stare in un repository pubblico.
 docs/superpowers/
+
+# Gli artefatti di compilazione di Android: si rifanno, non si conservano.
+android/app/build/
+android/.gradle/
+android/local.properties
+*.jks
