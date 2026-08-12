@@ -17,7 +17,7 @@ import { aggiungiPaneA, type Archivio, type LayoutSalvato } from '@shared/worksp
 import type { WorkspaceStore } from './workspace-store'
 import type { IstantaneeStore } from './istantanee-store'
 import {
-  nuovaIstantanea, scegliFinestre, daRiavviare, daSalvare,
+  nuovaIstantanea, scegliFinestre, daRiavviare, daSalvare, workspaceDaSalvare,
   type AutopilotaSalvato, type FinestraSalvata, type Istantanea
 } from '@shared/istantanea'
 import { resolveClaudeCommand, buildClaudeArgs } from './config'
@@ -785,7 +785,13 @@ export function registerFinestreIpc(apri: () => void): void {
 export function registerIstantaneeIpc(
   store: IstantaneeStore,
   client: ClientAutopilota,
-  apriFinestra: () => void
+  apriFinestra: () => void,
+  /**
+   * L'archivio dei workspace: senza, un salvataggio conterrebbe solo quello che
+   * si ha davanti — ed è precisamente il difetto che questo parametro esiste
+   * per togliere.
+   */
+  workspaceStore?: WorkspaceStore
 ): void {
   ipcMain.handle('istantanee:elenca', (): Istantanea[] => store.elenca())
 
@@ -841,10 +847,18 @@ export function registerIstantaneeIpc(
         })
       ]
 
+      // Tutti i workspace, non solo quello davanti: le finestre raccontano
+      // l'attivo, e chi ne aveva tre se ne ritrovava uno solo.
+      const archivio = workspaceStore?.leggi()
+      const workspace = archivio === undefined
+        ? undefined
+        : workspaceDaSalvare({ attivo: archivio.attivo, workspace: archivio.workspace }, finestre)
+
       return store.salva(nuovaIstantanea({
         nome,
         salvataIl: new Date().toISOString(),
         finestre,
+        ...(workspace !== undefined ? { workspace } : {}),
         autopiloti
       }))
     }
@@ -864,6 +878,25 @@ export function registerIstantaneeIpc(
     if (win === null) throw new Error('caricamento da una finestra sconosciuta')
     const istantanea = store.elenca().find((i) => i.nome === nome)
     if (istantanea === undefined) throw new Error(`istantanea «${nome}» non trovata`)
+
+    // Prima di tutto i workspace: quelli che non si hanno davanti tornano
+    // nell'archivio così come erano, e li si ritrova cambiando workspace.
+    // Senza questo il salvataggio restituiva soltanto il workspace attivo -
+    // cioè un terzo del lavoro, per chi ne ha tre.
+    if (istantanea.workspace !== undefined && workspaceStore !== undefined) {
+      const archivio = workspaceStore.leggi()
+      // I workspace che esistono adesso e non erano nel salvataggio restano:
+      // un ripristino non deve cancellare il lavoro fatto dopo.
+      const nomiSalvati = new Set(istantanea.workspace.map((w) => w.nome))
+      workspaceStore.scrivi({
+        ...archivio,
+        workspace: [
+          ...archivio.workspace.filter((w) => !nomiSalvati.has(w.nome)),
+          ...istantanea.workspace
+        ]
+      })
+      console.log(`[istantanee] ripristinati ${istantanea.workspace.length} workspace`)
+    }
 
     // Le finestre che non sono questa vanno riaperte, altrimenti le loro chat
     // restano nel salvataggio e non tornano sullo schermo. Ognuna, appena

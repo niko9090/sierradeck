@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
-  parseIstantanee, nuovaIstantanea, scegliFinestre, daRiavviare, daSalvare, VERSIONE_ISTANTANEE,
+  parseIstantanee, nuovaIstantanea, scegliFinestre, daRiavviare, daSalvare, workspaceDaSalvare,
+  VERSIONE_ISTANTANEE,
   type Istantanea, type FinestraSalvata, type AutopilotaSalvato
 } from '@shared/istantanea'
+import type { LayoutSalvato } from '@shared/workspace'
 
 function layout(id = 'pane-1'): { root: { type: 'pane'; id: string }; panes: { id: string; sessionUuid: string; cwd: string; title: string }[] } {
   return {
@@ -342,5 +344,58 @@ describe('autopiloti da salvare', () => {
 
   it('non salva quelli falliti', () => {
     expect(daSalvare([vivo('Fallito', 'fallito')])).toEqual([])
+  })
+})
+
+describe('salvare tutti i workspace', () => {
+  const conChat = (chat: string): LayoutSalvato => ({
+    root: { type: 'pane', id: `p-${chat}` },
+    panes: [{ id: `p-${chat}`, sessionUuid: chat, cwd: 'C:\p', title: chat }]
+  })
+
+  const archivio = {
+    attivo: 'lavoro',
+    workspace: [
+      { nome: 'lavoro', perMonitor: { 'm-1': conChat('vecchia') } },
+      { nome: 'casa', perMonitor: { 'm-1': conChat('di-casa') } },
+      { nome: 'studio', perMonitor: { 'm-1': conChat('di-studio') } }
+    ]
+  }
+
+  it('porta con se anche i workspace che non hai davanti', () => {
+    // Le finestre raccontano il solo workspace attivo: era l'unica cosa che
+    // finiva nel salvataggio, e chi ne aveva tre ne ritrovava uno.
+    const w = workspaceDaSalvare(archivio, [{ monitor: 'm-1', layout: conChat('adesso') }])
+    expect(w.map((x) => x.nome).sort()).toEqual(['casa', 'lavoro', 'studio'])
+  })
+
+  it('per quello attivo vale cio che hai davanti, non la copia su disco', () => {
+    // L'archivio conosce l'attivo com'era all'ultimo cambio: le chat aperte
+    // adesso stanno nelle finestre.
+    const w = workspaceDaSalvare(archivio, [{ monitor: 'm-1', layout: conChat('adesso') }])
+    const attivo = w.find((x) => x.nome === 'lavoro')
+    expect(attivo?.perMonitor['m-1']?.panes[0]?.sessionUuid).toBe('adesso')
+  })
+
+  it('gli altri workspace restano come erano', () => {
+    const w = workspaceDaSalvare(archivio, [{ monitor: 'm-1', layout: conChat('adesso') }])
+    expect(w.find((x) => x.nome === 'casa')?.perMonitor['m-1']?.panes[0]?.sessionUuid).toBe('di-casa')
+  })
+
+  it('un monitor senza finestra aperta non viene cancellato', () => {
+    // Nessuno lo sta guardando adesso: non e' una ragione per buttarlo via.
+    const dueMonitor = {
+      attivo: 'lavoro',
+      workspace: [{ nome: 'lavoro', perMonitor: { 'm-1': conChat('uno'), 'm-2': conChat('due') } }]
+    }
+    const w = workspaceDaSalvare(dueMonitor, [{ monitor: 'm-1', layout: conChat('adesso') }])
+    expect(Object.keys(w[0]?.perMonitor ?? {}).sort()).toEqual(['m-1', 'm-2'])
+  })
+
+  it('un istantanea vecchia senza workspace resta valida', () => {
+    // Si ricaricano come hanno sempre fatto: nessun salvataggio diventa
+    // illeggibile perche' e' stato preso prima.
+    const i = nuovaIstantanea({ nome: 'x', salvataIl: 'oggi', finestre: [], autopiloti: [] })
+    expect(i.workspace).toBeUndefined()
   })
 })

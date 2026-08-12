@@ -1,4 +1,7 @@
-import { parseArchivio, VERSIONE_ARCHIVIO, NOME_PREDEFINITO, type LayoutSalvato } from './workspace'
+import {
+  parseArchivio, VERSIONE_ARCHIVIO, NOME_PREDEFINITO,
+  type LayoutSalvato, type WorkspaceSalvato
+} from './workspace'
 
 /**
  * La versione della forma su disco. Va alzata solo insieme a una migrazione
@@ -42,6 +45,17 @@ export type Istantanea = {
   salvataIl: string
   /** Le finestre aperte quando l'istantanea è stata presa, nell'ordine. */
   finestre: FinestraSalvata[]
+  /**
+   * **Tutti** i workspace, non solo quello che si aveva davanti.
+   *
+   * Le finestre raccontano il workspace attivo, ed era l'unica cosa che
+   * finiva nel salvataggio: chi aveva tre workspace ne ritrovava uno. Un
+   * salvataggio che dimentica due terzi del lavoro non è un salvataggio.
+   *
+   * Assente nelle istantanee prese prima che questo esistesse: quelle si
+   * ricaricano come hanno sempre fatto.
+   */
+  workspace?: WorkspaceSalvato[]
   autopiloti: AutopilotaSalvato[]
 }
 
@@ -49,9 +63,47 @@ export function nuovaIstantanea(p: {
   nome: string
   salvataIl: string
   finestre: FinestraSalvata[]
+  workspace?: WorkspaceSalvato[]
   autopiloti: AutopilotaSalvato[]
 }): Istantanea {
-  return { nome: p.nome, salvataIl: p.salvataIl, finestre: p.finestre, autopiloti: p.autopiloti }
+  return {
+    nome: p.nome,
+    salvataIl: p.salvataIl,
+    finestre: p.finestre,
+    ...(p.workspace !== undefined ? { workspace: p.workspace } : {}),
+    autopiloti: p.autopiloti
+  }
+}
+
+/**
+ * I workspace da mettere nel salvataggio, con quello attivo aggiornato.
+ *
+ * L'archivio su disco conosce tutti i workspace, ma la sua copia di quello
+ * **attivo** è vecchia di quanto tempo è passato dall'ultimo cambio: le chat
+ * aperte adesso stanno nelle finestre, non lì. Si prende quindi l'archivio per
+ * gli altri e le finestre per l'attivo — che è l'unico modo perché il
+ * salvataggio contenga insieme il lavoro di là e quello che si ha davanti.
+ */
+export function workspaceDaSalvare(
+  archivio: { attivo: string; workspace: WorkspaceSalvato[] },
+  finestre: FinestraSalvata[]
+): WorkspaceSalvato[] {
+  const perMonitorVivo: Record<string, LayoutSalvato> = {}
+  for (const f of finestre) perMonitorVivo[f.monitor] = f.layout
+
+  const aggiornato: WorkspaceSalvato = {
+    nome: archivio.attivo,
+    // Quello che si ha davanti vince sulla copia su disco, ma solo per i
+    // monitor che hanno davvero una finestra aperta: gli altri restano come
+    // erano, invece di sparire perché in questo momento nessuno li guarda.
+    perMonitor: {
+      ...(archivio.workspace.find((w) => w.nome === archivio.attivo)?.perMonitor ?? {}),
+      ...perMonitorVivo
+    }
+  }
+
+  const altri = archivio.workspace.filter((w) => w.nome !== archivio.attivo)
+  return archivio.attivo === '' ? archivio.workspace : [...altri, aggiornato]
 }
 
 /**

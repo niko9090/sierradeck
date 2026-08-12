@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.5.7',
+    righe: [
+      'Un salvataggio contiene **tutti** i workspace, non solo quello che avevi davanti: le finestre raccontano l’attivo, ed era l’unica cosa che finiva nel file — chi ne aveva tre se ne ritrovava uno.',
+      'Per il workspace attivo vale quello che hai davanti, per gli altri quello che era stato lasciato: così il salvataggio contiene insieme il lavoro di là e quello di qua.',
+      'Ricaricando, i workspace tornano al loro posto — e quelli creati dopo il salvataggio non vengono cancellati.'
+    ]
+  },
+  {
     versione: '0.5.6',
     righe: [
       'L’aggiornamento adesso arriva in fondo. L’updater moriva insieme a SierraDeck: essendo un processo figlio ereditava il contenitore di Electron, e quando l’ultima finestra si chiudeva veniva portato via anche lui — il suo diario si interrompeva sempre a metà frase.',

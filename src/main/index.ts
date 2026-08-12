@@ -542,7 +542,10 @@ if (!app.requestSingleInstanceLock()) {
         clientAutopilota,
         // Un salvataggio con più finestre le riapre tutte: senza questo,
         // tornavano solo le chat della finestra da cui si era premuto Salva.
-        apriNuovaFinestra
+        apriNuovaFinestra,
+        // E con l'archivio dei workspace il salvataggio comprende anche quelli
+        // che non si hanno davanti.
+        workspaceStore
       )
       // Gli aggiornamenti: cercare si fa da soli, scaricare e installare li
       // decide l'utente. Il secondo «sì» esiste perché installare chiude il
