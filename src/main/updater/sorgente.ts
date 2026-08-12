@@ -29,7 +29,7 @@
  * spazio aggiunto farebbe ricompilare per niente, e chi la alza qui sta anche
  * dicendo «ho cambiato qualcosa che conta».
  */
-export const VERSIONE_UPDATER = 2
+export const VERSIONE_UPDATER = 5
 
 export function sorgenteUpdater(): string {
   return `using System;
@@ -60,6 +60,12 @@ class Aggiornamento : Form {
     // sparisce in un lampo, mentre lo schermo e' occupato dall'installer, non
     // e' apparsa.
     const int GIRI_MINIMI = 45;
+    // Quanto si aspetta prima di smettere di chiedere per favore: cinque
+    // secondi bastano a una finestra per salvare e sparire.
+    const int GIRI_GENTILI = 25;
+    bool chiestoGentilmente = false;
+    int vuoti = 0;
+    int vistiUnaVolta = -1;
     const int GIRI_MASSIMI = 3000;
 
     static void Nota(string testo) {
@@ -172,9 +178,19 @@ class Aggiornamento : Form {
         if (valore < tetto) valore = Math.Min(tetto, valore + 2);
 
         if (passo == 0) {
-            fase.Text = "Chiusura di SierraDeck...";
-            if (!VivoIlVecchio()) {
-                Nota("il programma e' uscito: lancio l'installer");
+            int rimasti = ChiudiTutte();
+            fase.Text = rimasti > 1
+                ? "Chiusura di SierraDeck (" + rimasti + " finestre)..."
+                : "Chiusura di SierraDeck...";
+            // Due giri a zero, non uno: un processo che sta uscendo sparisce
+            // dall'elenco un istante prima di rilasciare davvero i suoi file, e
+            // partire in quell'istante e' esattamente il conflitto da evitare.
+            if (rimasti == 0) vuoti++; else vuoti = 0;
+            // Tre giri a zero di fila: un processo che sta uscendo sparisce
+            // dall'elenco un istante prima di rilasciare i suoi file, e
+            // partire in quell'istante e' il conflitto da evitare.
+            if (vuoti >= 3) {
+                Nota("nessuna istanza rimasta: lancio l'installer");
                 Installa();
                 passo = 1;
             }
@@ -217,9 +233,61 @@ class Aggiornamento : Form {
         fine.Start();
     }
 
-    bool VivoIlVecchio() {
-        if (pidVecchio <= 0) return false;
-        try { Process.GetProcessById(pidVecchio); return true; } catch { return false; }
+    /**
+     * Chiude ogni istanza di SierraDeck e dice quante ne restano.
+     *
+     * Non basta aspettare quella che ci ha lanciati: una seconda finestra
+     * aperta su un altro monitor, o un'istanza dimenticata, tiene aperti gli
+     * stessi file - e l'installer si ferma con «impossibile disinstallare i
+     * vecchi file». E' successo, ed e' il motivo per cui questo metodo esiste.
+     *
+     * Prima si chiede con gentilezza, cosi' il programma salva quello che deve;
+     * dopo qualche secondo, chi non se ne va viene chiuso comunque. Aspettare
+     * all'infinito una finestra che non risponde vorrebbe dire non aggiornare
+     * mai.
+     */
+    int ChiudiTutte() {
+        string nome = Path.GetFileNameWithoutExtension(eseguibile);
+        if (nome == null || nome.Length == 0) nome = "SierraDeck";
+        Process[] trovati;
+        // Se non si riesce a contarle, si assume che ce ne sia una: «non lo so»
+        // deve fermare, non far partire. Rispondere zero qui significherebbe
+        // lanciare l'installer su file che potrebbero essere in uso, ed e'
+        // precisamente il conflitto che questo metodo esiste per evitare.
+        try { trovati = Process.GetProcessesByName(nome); } catch { return 1; }
+
+        int mio = Process.GetCurrentProcess().Id;
+        int vivi = 0;
+        foreach (Process p in trovati) {
+            try {
+                if (p.HasExited) continue;
+                // Se stessi non ci si chiude: l'updater ha un nome diverso, ma
+                // un confronto in piu' costa nulla e vale per sempre.
+                if (p.Id == mio) continue;
+                vivi++;
+                // La richiesta gentile si ripete a ogni giro finche' serve: una
+                // sola volta bastava per la finestra che risponde subito, e
+                // lasciava aperte quelle che stavano ancora salvando - e' cosi'
+                // che ne restava una viva mentre l'installer partiva.
+                if (giri < GIRI_GENTILI) {
+                    // `CloseMainWindow` non fa niente quando la finestra
+                    // principale non c'e' ancora - e non lo dice, restituisce
+                    // false. Per questo si insiste a ogni giro e per questo, se
+                    // il tempo di grazia passa, si chiude comunque.
+                    p.CloseMainWindow();
+                } else {
+                    Nota("chiudo a forza il processo " + p.Id + " (" + nome + ")");
+                    p.Kill();
+                }
+            } catch { }
+        }
+        // Quante ne ha viste, scritto una volta sola: e' l'informazione che
+        // mancava quando «ne ha chiusa una sola» e' rimasto un mistero.
+        if (vivi != vistiUnaVolta) {
+            Nota("istanze di " + nome + " ancora aperte: " + vivi);
+            vistiUnaVolta = vivi;
+        }
+        return vivi;
     }
 
     void Installa() {

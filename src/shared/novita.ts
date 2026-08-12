@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.5.4',
+    righe: [
+      'SierraDeck Update chiude **tutte** le istanze aperte prima di installare: con una seconda finestra su un altro monitor, o una lasciata aperta per sbaglio, l’installer trovava i file in uso e si fermava.',
+      'Chiede prima con garbo — le finestre fanno in tempo a salvare — e insiste a ogni giro; solo dopo cinque secondi chiude d’autorità chi non se n’è andato.',
+      'E se non riesce a contare le istanze aspetta invece di procedere: «non lo so» deve fermare, non far partire.'
+    ]
+  },
+  {
     versione: '0.5.3',
     righe: [
       'Il diario dell’autopilota si legge: i tentativi identici sono uniti in una riga sola con il numero delle volte, e ogni tipo di mossa ha il suo colore — le decisioni del supervisore, le verifiche corrette, le tue risposte, la preparazione.',
