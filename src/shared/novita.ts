@@ -23,6 +23,15 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.4.0',
+    righe: [
+      'A guidare gli autopiloti adesso c’è Claude, non più un semaforo. Il supervisore è una sessione viva che a ogni giro vede il quadro intero — obiettivo, criteri, storia, uscite dei comandi, il progetto — e decide lui la mossa: proseguire con istruzioni concrete, correggere un criterio che misura la cosa sbagliata, chiedere a te, o chiudere.',
+      'Le vecchie regole restano sotto come rete di sicurezza: un criterio verificabile che fallisce batte qualunque «ho finito», e senza il supervisore il lavoro non si chiude da solo in silenzio.',
+      'Il supervisore ricorda: la sua sessione si riusa giro dopo giro, invece di ricostruire il compito da capo a ogni fermata.',
+      'Il workspace da cui qualcuno ti sta chiedendo una risposta si accende nella fascia: prima un autopilota in attesa in un altro workspace era invisibile.'
+    ]
+  },
+  {
     versione: '0.3.8',
     righe: [
       'L’aggiornamento andava in errore («Impossibile disinstallare i vecchi file») e l’icona riapriva la versione vecchia: da quando il programma resta acceso nell’area di notifica, i suoi file erano ancora in uso quando partiva l’installer. Ora si chiude tutto prima di installare.',
