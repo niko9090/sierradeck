@@ -1,0 +1,12 @@
+node_modules/
+dist/
+out/
+*.log
+.DS_Store
+
+# Le note di lavoro restano sul PC: non sono roba da pubblicare.
+note/
+
+# I documenti di lavoro restano miei: piani, specifiche e appunti non hanno
+# motivo di stare in un repository pubblico.
+docs/superpowers/

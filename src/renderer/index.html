@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      Il rinvio deciso al Task 1 («solo contenuto locale, da rivalutare quando
+      il PTY porta dati reali nel renderer») e' scaduto in questo stesso ramo:
+      qui confluiscono ora output PTY grezzo e titoli di sessione letti da
+      disco. Con `sandbox: false`, che serve al preload, il renderer non ha
+      altra rete di sicurezza.
+
+      `default-src 'none'` e' la base: tutto cio' che non e' elencato sotto e'
+      negato. `style-src 'unsafe-inline'` non e' eludibile — l'interfaccia usa
+      attributi `style` ovunque e xterm crea fogli di stile a runtime — ma gli
+      script restano confinati agli asset costruiti, e `connect-src 'self'`
+      impedisce che qualunque cosa finisca nel riquadro possa parlare con la
+      rete.
+
+      Lo sviluppo non ha bisogno di deroghe, ed e' stato verificato invece che
+      dedotto: con questa politica intatta il renderer registra «[vite]
+      connected.» e «[vite] hot updated», quindi ne' il websocket dell'HMR
+      (`'self'` copre `ws://` verso la stessa origine) ne' il preambolo inline
+      di react-refresh vengono bloccati. Il preambolo sopravvive perche' Vite
+      lo inietta in cima a <head>, *sopra* questo tag, e un CSP consegnato via
+      <meta> governa solo cio' che lo segue. Se una versione futura di Vite lo
+      inserisse piu' in basso, in sviluppo servirebbe `'unsafe-inline'` su
+      script-src — e comparirebbe in console detto per esteso.
+
+      `frame-ancestors` non c'e' di proposito: consegnata da un <meta> la
+      direttiva viene ignorata da Chromium, che lo dichiara in console a ogni
+      avvio (verificato sull'artefatto costruito). Qui non aggiungerebbe nulla
+      — la finestra non e' incorniciabile — e lascerebbe solo un avviso fisso.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'"
+    />
+    <title>SierraDeck</title>
+  </head>
+  <body style="margin:0;background:#1e1e1e;color:#ddd;font-family:system-ui">
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>

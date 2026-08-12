@@ -1,0 +1,302 @@
+import { useEffect, useState } from 'react'
+import { useLayoutStore } from '../state/layout'
+import { useSessionStore } from '../state/sessions'
+import { proponiNuovaChat, type PropostaChat } from '../nuova-chat'
+import { ModaleNuovaChat } from './ModaleNuovaChat'
+import { azioniDiFinestra } from '../azioni-finestra'
+import { capienzaPreset, type PresetName } from '@shared/layout-tree'
+import { ModaleConferma } from './ModaleConferma'
+
+/**
+ * I modelli che si possono scegliere.
+ *
+ * «Predefinito» non è una scelta mancata: è quello che l'utente ha già
+ * configurato in Claude Code, e imporne un altro di nostra iniziativa
+ * sarebbe decidere al posto suo.
+ */
+const MODELLI: { valore: string; etichetta: string }[] = [
+  { valore: 'default', etichetta: 'Modello predefinito' },
+  { valore: 'opus', etichetta: 'Opus — il più capace' },
+  { valore: 'sonnet', etichetta: 'Sonnet — equilibrato' },
+  { valore: 'haiku', etichetta: 'Haiku — il più rapido' },
+  { valore: 'opusplan', etichetta: 'Opus per pianificare, Sonnet per fare' }
+]
+
+const PRESET: { nome: PresetName; etichetta: string; titolo: string }[] = [
+  { nome: 'uno', etichetta: '1', titolo: 'Una chat sola' },
+  { nome: 'due', etichetta: '2', titolo: 'Due chat affiancate' },
+  { nome: 'duePerDue', etichetta: '2×2', titolo: 'Quattro chat' },
+  { nome: 'trePerDue', etichetta: '3×2', titolo: 'Sei chat' },
+  { nome: 'unoPiuLaterale', etichetta: '1+L', titolo: 'Una grande più una laterale' }
+]
+
+export type PannelloAperto = 'workspace' | 'autopiloti' | 'consumi' | 'provider' | undefined
+
+type Props = {
+  onApriSessioni: () => void
+  onApriIstantanee: () => void
+  aperto: PannelloAperto
+  onApri: (quale: PannelloAperto) => void
+  /** Il nome del workspace attivo. */
+  workspaceAttivo: string
+  /** Dove si trova la finestra dopo un cambio chiesto da qui: l'annuncio non torna al mittente. */
+  onStatoWorkspace?: (stato: { nomi: string[]; attivo: string }) => void
+  /** Tutti i workspace: stanno nella fascia, non dietro un menu. */
+  workspaceNomi: string[]
+  /** I LED degli autopiloti: uno per autopilota, nell'ordine dell'elenco. */
+  ledAutopiloti: { id: string; classe: string; titolo: string }[]
+}
+
+/**
+ * La fascia di comandi: una sola, con i quattro gesti quotidiani in sezioni
+ * separate da incisioni.
+ *
+ * Workspace e autopiloti non stanno sempre aperti — sono tasti che aprono un
+ * pannello sopra il mosaico — ma il loro **stato** resta sempre visibile qui:
+ * il nome del workspace attivo e i LED degli autopiloti. È la differenza fra
+ * nascondere una funzione e riporla.
+ */
+export function Console({
+  onApriSessioni,
+  onApriIstantanee,
+  aperto,
+  onApri,
+  workspaceAttivo,
+  workspaceNomi,
+  ledAutopiloti,
+  onStatoWorkspace
+}: Props): React.JSX.Element {
+  const applyPreset = useLayoutStore((s) => s.applyPreset)
+  const addPane = useLayoutStore((s) => s.addPane)
+  const quanteChat = useLayoutStore((s) => Object.keys(s.panes).length)
+  const riquadri = useLayoutStore((s) => s.panes)
+  const sessioni = useSessionStore((s) => s.sessions)
+  // La cartella dell'utente arriva dal sistema e serve solo come ultima
+  // spiaggia: quando non c'è né un riquadro aperto né un progetto conosciuto.
+  const [casa, setCasa] = useState('')
+  // Il modello vale per le chat che si apriranno da qui in avanti: cambiarlo
+  // non tocca quelle già aperte, che hanno il loro processo avviato.
+  const [modello, setModello] = useState('default')
+  // La versione accanto al nome: sapere cosa si sta usando non deve costare
+  // l'apertura di un pannello, e serve appena si parla di aggiornamenti.
+  const [versione, setVersione] = useState('')
+  const [erroreWs, setErroreWs] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    window.gestore.sistema.versione().then(setVersione).catch(() => setVersione(''))
+  }, [])
+
+  /**
+   * Cambia workspace dalla fascia.
+   *
+   * Le stesse azioni del pannello — il layout di adesso va salvato sotto il
+   * workspace che si lascia, altrimenti tornandoci si troverebbe vuoto — solo
+   * senza dover aprire niente.
+   */
+  const cambiaWorkspace = (nome: string): void => {
+    if (nome === workspaceAttivo) return
+    // L'errore non si ingoia: se il cambio non riesce, premere il nome del
+    // workspace non farebbe niente e nessuno saprebbe perche'.
+    void azioniDiFinestra(() => workspaceAttivo)
+      .cambia(nome)
+      // L'annuncio del cambio non torna a chi lo ha chiesto — di proposito, o
+      // riscriverebbe il layout appena salvato — quindi questa finestra deve
+      // rileggere da se' dove si trova. Senza, restava evidenziato il workspace
+      // di prima mentre le chat erano gia' quelle nuove.
+      .then(() => window.gestore.workspace.stato())
+      .then((stato) => onStatoWorkspace?.(stato))
+      .catch((err: unknown) => setErroreWs(String(err)))
+  }
+  useEffect(() => {
+    window.gestore.sistema.cartellaUtente().then(setCasa).catch(() => setCasa(''))
+  }, [])
+  const [daConfermare, setDaConfermare] = useState<PresetName | undefined>(undefined)
+  // La proposta con cui si apre la finestra della chat nuova. Assente: nessuna
+  // finestra aperta.
+  const [nuovaChat, setNuovaChat] = useState<PropostaChat | undefined>(undefined)
+
+  /**
+   * I preset troncano: quello che non ci sta viene chiuso, processo compreso.
+   * Con sei chat aperte, premere «2» ne chiude quattro — e finora succedeva
+   * senza che nessuno lo dicesse, con un clic solo.
+   */
+  const chiediPoiApplica = (nome: PresetName): void => {
+    if (quanteChat > capienzaPreset(nome)) setDaConfermare(nome)
+    else applyPreset(nome)
+  }
+
+  const commuta = (quale: Exclude<PannelloAperto, undefined>): void =>
+    onApri(aperto === quale ? undefined : quale)
+
+  const inAttesa = ledAutopiloti.some((l) => l.classe === 'led--attesa')
+
+  const chiuse = daConfermare === undefined ? 0 : quanteChat - capienzaPreset(daConfermare)
+
+  return (
+    <>
+      {/* Dove lavorare e come chiamarla, prima di aprirla. La cartella resta
+          legata alla chat: da lì in poi non cambia più. */}
+      {nuovaChat !== undefined ? (
+        <ModaleNuovaChat
+          proposta={nuovaChat}
+          onAnnulla={() => setNuovaChat(undefined)}
+          onApri={(cartella, nome) => {
+            addPane(cartella, nome, modello === 'default' ? undefined : modello)
+            setNuovaChat(undefined)
+          }}
+        />
+      ) : null}
+
+      {daConfermare !== undefined ? (
+        <ModaleConferma
+          titolo="Questa disposizione chiude delle chat"
+          testo={
+            `«${PRESET.find((p) => p.nome === daConfermare)?.titolo ?? ''}» tiene ` +
+            `${capienzaPreset(daConfermare)} chat delle ${quanteChat} aperte: ` +
+            `${chiuse === 1 ? 'l’altra verrà chiusa' : `le altre ${chiuse} verranno chiuse`}, ` +
+            'e il loro claude.exe terminato. Le conversazioni restano su disco e si possono riprendere.'
+          }
+          etichettaAzione={chiuse === 1 ? 'Chiudi 1 chat' : `Chiudi ${chiuse} chat`}
+          onConferma={() => { applyPreset(daConfermare); setDaConfermare(undefined) }}
+          onAnnulla={() => setDaConfermare(undefined)}
+        />
+      ) : null}
+    <div className="console">
+      <div className="sezione">
+        <button
+          className="tasto"
+          onClick={onApriSessioni}
+          title="Riprendi una conversazione già esistente"
+        >
+          ▣ Riprendi
+        </button>
+        <button
+          className="tasto"
+          onClick={onApriIstantanee}
+          title="Salva tutte le chat aperte, o ricaricane un salvataggio"
+        >
+          ⤓ Salvataggi
+        </button>
+      </div>
+
+      <div className="sezione">
+        <button
+          className="tasto tasto--primario"
+          onClick={() => setNuovaChat(proponiNuovaChat(Object.values(riquadri), sessioni, casa))}
+          title="Apre una chat nuova: prima chiede dove lavorare e come chiamarla"
+        >
+          + Nuova chat
+        </button>
+        <select
+          className="campo campo--compatto"
+          value={modello}
+          onChange={(e) => setModello(e.target.value)}
+          title="Con quale modello partiranno le prossime chat"
+        >
+          {MODELLI.map((m) => (
+            <option key={m.valore} value={m.valore}>{m.etichetta}</option>
+          ))}
+        </select>
+        {PRESET.map((p) => (
+          <button
+            key={p.nome}
+            className="tasto tasto--icona"
+            onClick={() => chiediPoiApplica(p.nome)}
+            title={p.titolo}
+          >
+            {p.etichetta}
+          </button>
+        ))}
+        <button
+          className="tasto"
+          onClick={() => window.gestore.finestre.nuova()}
+          title="Apre una finestra sul primo monitor libero"
+        >
+          ⧉ Finestra
+        </button>
+      </div>
+
+      {/* Lo spazio vuoto sta qui, fra i comandi e lo stato: cosi' i tasti che
+          si premono restano ancorati a sinistra dove l'occhio li cerca, e lo
+          stato di workspace e autopiloti resta ancorato a destra. */}
+      <div className="sezione sezione--vuota" />
+
+      <div className="sezione">
+        <span className="serigrafia">Workspace</span>
+        {/* Tutti in vista, non uno dietro un menu: si passa da un insieme di
+            chat all'altro con un clic, e si vede sempre dove si è. */}
+        <div className="ws">
+          {(workspaceNomi.length > 0 ? workspaceNomi : [workspaceAttivo]).filter((x) => x !== '').map((n) => (
+            <button
+              key={n}
+              className={n === workspaceAttivo ? 'ws__voce ws__voce--attivo' : 'ws__voce'}
+              onClick={() => cambiaWorkspace(n)}
+              title={n === workspaceAttivo ? `Sei in «${n}»` : `Passa a «${n}»`}
+            >
+              {n}
+            </button>
+          ))}
+          {erroreWs !== undefined ? (
+            <span className="misura" style={{ color: 'var(--ambra)' }} title={erroreWs}>⚠</span>
+          ) : null}
+          <button
+            className="tasto tasto--icona"
+            onClick={() => commuta('workspace')}
+            aria-expanded={aperto === 'workspace'}
+            title="Crea o elimina un workspace"
+          >
+            ⋯
+          </button>
+        </div>
+      </div>
+
+      <div className="sezione">
+        {/* La versione e il modo di cercare un aggiornamento quando si vuole:
+            l'attesa automatica è ogni sei ore, e chi ha appena pubblicato non
+            ha voglia di aspettarle. */}
+        <span className="versione">v{versione}</span>
+        <button
+          className="tasto tasto--icona"
+          onClick={() => void window.gestore.aggiornamenti.cerca()}
+          title="Cerca ora un aggiornamento"
+        >
+          ⟳
+        </button>
+      </div>
+
+      <div className="sezione">
+        {/* Niente fila di LED qui: lo stesso stato si legge nella colonna di
+            fianco e nel pannello, e in alto toglieva soltanto spazio alle chat.
+            Il numero sul tasto basta a dire quanti stanno lavorando. */}
+        <button
+          className="tasto"
+          onClick={() => commuta('provider')}
+          aria-expanded={aperto === 'provider'}
+          title="Con quale AI parlano le chat"
+        >
+          ⚙ AI
+        </button>
+        <button
+          className="tasto"
+          onClick={() => commuta('consumi')}
+          aria-expanded={aperto === 'consumi'}
+          title="Quanto hai consumato, e con quale account"
+        >
+          ◔ Consumi
+        </button>
+        <button
+          className="tasto"
+          onClick={() => commuta('autopiloti')}
+          aria-expanded={aperto === 'autopiloti'}
+          title={
+            inAttesa
+              ? 'Un autopilota aspetta una tua risposta'
+              : 'Avvia e governa gli autopiloti'
+          }
+        >
+          Autopiloti{ledAutopiloti.length > 0 ? ` ${ledAutopiloti.length}` : ''} ▾
+        </button>
+      </div>
+    </div>
+    </>
+  )
+}

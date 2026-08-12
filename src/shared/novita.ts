@@ -1,0 +1,79 @@
+export type Novita = {
+  versione: string
+  /**
+   * Poche righe, scritte per chi usa il programma.
+   *
+   * Non è l'elenco dei commit: «I workspace si cambiano dalla fascia», non
+   * «rifattorizzato il componente Console». Chi apre SierraDeck dopo un
+   * aggiornamento vuole sapere cosa può fare oggi che ieri non poteva, e una
+   * lista di nomi di file non glielo dice.
+   */
+  righe: string[]
+}
+
+/**
+ * Le novità, versione per versione.
+ *
+ * Vivono qui, nel sorgente, e non in un file di dati o in una pagina remota:
+ * si scrivono **quando si fa la cosa**, nello stesso commit, non dopo mentre si
+ * cerca di ricordare cos'era cambiato. Le stesse righe finiscono nelle note del
+ * Release su GitHub, che così non sono mai una seconda stesura.
+ *
+ * La più recente in cima, come si legge.
+ */
+export const NOVITA: Novita[] = [
+  {
+    versione: '0.3.8',
+    righe: [
+      'L’aggiornamento andava in errore («Impossibile disinstallare i vecchi file») e l’icona riapriva la versione vecchia: da quando il programma resta acceso nell’area di notifica, i suoi file erano ancora in uso quando partiva l’installer. Ora si chiude tutto prima di installare.',
+      'Gli autopiloti verificano davvero: i comandi di controllo passavano da una shell che spezzava le pipe, e criteri già soddisfatti risultavano falliti per sempre. Ora un comando che non parte viene riconosciuto per quello che è — e riparato — invece di mandare la chat a cercare un difetto che non c’è.',
+      'I pannelli sono diventati finestre: compaiono al centro, si spostano prendendole per la testa, e non coprono più le chat con una banda a tutta larghezza.',
+      'La barra del titolo dice versione e workspace: con più finestre aperte si capisce al volo quale è quale.',
+      'Il workspace evidenziato è quello in cui ti trovi davvero: cambiandolo dalla fascia restava acceso il precedente.',
+      'La fila di lampadine degli autopiloti non occupa più spazio in alto: lo stesso stato si legge di fianco e nel pannello.'
+    ]
+  },
+  {
+    versione: '0.3.7',
+    righe: [
+      'Gli autopiloti non hanno più un tetto di tempo: prima si spegnevano dopo sei ore anche a lavoro avviato. Un limite si può ancora mettere, ma è una scelta tua.',
+      'Quando un autopilota gira a vuoto non si ferma: se ne accorge e cambia strada, provando un approccio diverso a ogni tentativo — capire l’errore, dubitare del comando di verifica, cambiare metodo, tornare a uno stato che funziona. Solo se le strade finiscono chiede a te, e riparte con la tua risposta.',
+      'Nel pannello si legge quando un autopilota è bloccato e quale strada sta provando, invece di un generico «al lavoro».',
+      'La finestra dell’aggiornamento non sparisce più a metà: vive per conto suo, segue davvero chiusura, installazione e riavvio, e si toglie quando la versione nuova è partita.'
+    ]
+  },
+  {
+    versione: '0.3.6',
+    righe: [
+      'Cambiare workspace non spegne più le chat: passare da «lavoro» a «casa» cambia cosa guardi, mentre di là gli autopiloti continuano a lavorare. Per liberare davvero le risorse c’è «Spegni», nel pannello dei workspace.',
+      'I workspace ritrovano le chat che avevi lasciato: prima tornavano vuoti.',
+      'Tutto viene salvato nell’istante in cui lo fai. Prima si aspettava mezzo secondo, e un blackout in quel mezzo secondo portava via l’ultima cosa fatta.',
+      'Al primo avvio SierraDeck cerca Claude Code da solo, e se non c’è si offre di installarlo. Prima chi lo aveva fuori dal PATH vedeva i riquadri aprirsi vuoti, senza una spiegazione.',
+      'Chiudendo la finestra il programma resta acceso in basso a destra, accanto all’orologio: gli autopiloti stanno girando, e chiudere una finestra non è dire «smetti». Dal tasto destro sull’icona si esce davvero.',
+      'Aprendo una chat nuova ti si chiede dove lavorare e come chiamarla, prima di aprirla: la cartella resta legata alla chat.'
+    ]
+  }
+]
+
+export function novitaDi(versione: string): Novita | undefined {
+  return NOVITA.find((n) => n.versione === versione)
+}
+
+/**
+ * Le novità da mostrare adesso, se ce ne sono.
+ *
+ * Due condizioni, entrambe necessarie: che per questa versione qualcosa sia
+ * stato scritto, e che non sia già stato letto. Una finestra che ricompare a
+ * ogni avvio diventa un ostacolo fra l'utente e la prima chat, ed è il motivo
+ * per cui si smette di leggere anche quella che conta.
+ *
+ * Una versione senza righe scritte non mostra niente: meglio il silenzio di una
+ * finestra vuota che si apre per dire che non ha niente da dire.
+ */
+export function novitaDaMostrare(
+  versione: string,
+  ultimaVista: string | undefined
+): Novita | undefined {
+  if (versione === ultimaVista) return undefined
+  return novitaDi(versione)
+}

@@ -1,0 +1,266 @@
+import { parseArchivio, VERSIONE_ARCHIVIO, NOME_PREDEFINITO, type LayoutSalvato } from './workspace'
+
+/**
+ * La versione della forma su disco. Va alzata solo insieme a una migrazione
+ * scritta: un archivio di versione superiore viene rifiutato, non interpretato
+ * a caso.
+ */
+export const VERSIONE_ISTANTANEE = 2
+
+/**
+ * Un autopilota così com'era quando l'istantanea è stata presa.
+ *
+ * Si salva **la richiesta**, non lo stato: al ricarico l'autopilota riparte da
+ * capo sull'obiettivo, con la propria chat nuova. Rimettere in vita lo stato di
+ * uno vecchio significherebbe farlo riprendere una sessione che nel frattempo
+ * è morta con l'applicazione, e fingere una continuità che non c'è.
+ */
+export type AutopilotaSalvato = {
+  nome: string
+  obiettivo: string
+  cwd: string
+  criteri: { descrizione: string; comando?: string }[]
+  tettoChat?: number
+}
+
+/**
+ * Una finestra del Gestore così com'era.
+ *
+ * `monitor` dice su quale schermo stava, e serve a rimetterla dov'era quando
+ * gli schermi sono ancora quelli. Ma la finestra resta l'unità: la forma
+ * precedente teneva **un layout per monitor**, e due finestre sullo stesso
+ * schermo si sovrascrivevano — chi ne aveva sei in due finestre se ne ritrovava
+ * quattro.
+ */
+export type FinestraSalvata = {
+  monitor: string
+  layout: LayoutSalvato
+}
+
+export type Istantanea = {
+  nome: string
+  salvataIl: string
+  /** Le finestre aperte quando l'istantanea è stata presa, nell'ordine. */
+  finestre: FinestraSalvata[]
+  autopiloti: AutopilotaSalvato[]
+}
+
+export function nuovaIstantanea(p: {
+  nome: string
+  salvataIl: string
+  finestre: FinestraSalvata[]
+  autopiloti: AutopilotaSalvato[]
+}): Istantanea {
+  return { nome: p.nome, salvataIl: p.salvataIl, finestre: p.finestre, autopiloti: p.autopiloti }
+}
+
+/**
+ * Divide le finestre salvate fra quella che ricarica e quelle da aprire.
+ *
+ * Chi ricarica tiene la finestra del proprio schermo: se il salvataggio veniva
+ * da due monitor e si ricarica sul portatile, quel monitor non esiste più e si
+ * prende comunque la prima — meglio tutto su uno schermo che niente da nessuna
+ * parte.
+ */
+export function scegliFinestre(
+  finestre: FinestraSalvata[],
+  monitorCorrente: string
+): { mia: FinestraSalvata | undefined; altre: FinestraSalvata[] } {
+  const indice = finestre.findIndex((f) => f.monitor === monitorCorrente)
+  const scelto = indice === -1 ? 0 : indice
+  return {
+    mia: finestre[scelto],
+    altre: finestre.filter((_, i) => i !== scelto)
+  }
+}
+
+function stringaNonVuota(raw: unknown): string | undefined {
+  return typeof raw === 'string' && raw.trim() !== '' ? raw : undefined
+}
+
+/**
+ * Riusa il parser dei workspace per i layout.
+ *
+ * Due validatori per la stessa forma divergerebbero, ed è il genere di
+ * divergenza che si scopre quando è tardi: un layout che il gestore accetta e
+ * l'istantanea rifiuta, o il contrario.
+ */
+function parseLayout(raw: unknown, scartati: string[]): LayoutSalvato | undefined {
+  const { archivio, scartati: loro } = parseArchivio({
+    versione: VERSIONE_ARCHIVIO,
+    attivo: NOME_PREDEFINITO,
+    workspace: [{ nome: NOME_PREDEFINITO, perMonitor: { x: raw } }]
+  })
+  for (const motivo of loro) scartati.push(motivo)
+  return archivio.workspace[0]?.perMonitor['x']
+}
+
+function parseAutopilota(raw: unknown, scartati: string[]): AutopilotaSalvato | undefined {
+  if (typeof raw !== 'object' || raw === null) {
+    scartati.push('autopilota salvato non oggetto')
+    return undefined
+  }
+  const o = raw as Record<string, unknown>
+  const obiettivo = stringaNonVuota(o.obiettivo)
+  const cwd = stringaNonVuota(o.cwd)
+  if (obiettivo === undefined || cwd === undefined) {
+    scartati.push(`autopilota salvato senza obiettivo o cartella: ${String(o.nome)}`)
+    return undefined
+  }
+
+  const criteri: { descrizione: string; comando?: string }[] = []
+  if (Array.isArray(o.criteri)) {
+    for (const c of o.criteri) {
+      if (typeof c !== 'object' || c === null) continue
+      const co = c as Record<string, unknown>
+      const descrizione = stringaNonVuota(co.descrizione)
+      if (descrizione === undefined) continue
+      const comando = stringaNonVuota(co.comando)
+      criteri.push({ descrizione, ...(comando !== undefined ? { comando } : {}) })
+    }
+  }
+  // I criteri possono mancare: da quando l'autopilota si configura da sé, è la
+  // preparazione a produrli, e al ricarico riparte proprio da lì. Scartarlo qui
+  // faceva sparire dal salvataggio un autopilota ancora in preparazione — cioè
+  // quello appena creato, il caso più probabile di tutti.
+
+  const tetto = typeof o.tettoChat === 'number' && Number.isInteger(o.tettoChat) && o.tettoChat > 1
+    ? o.tettoChat
+    : undefined
+
+  return {
+    nome: stringaNonVuota(o.nome) ?? obiettivo.slice(0, 40),
+    obiettivo,
+    cwd,
+    criteri,
+    ...(tetto !== undefined ? { tettoChat: tetto } : {})
+  }
+}
+
+/**
+ * Legge l'archivio delle istantanee da un valore qualunque.
+ *
+ * Non solleva mai. Due istantanee con lo stesso nome sono un **aggiornamento**,
+ * non un duplicato: resta la più recente, così l'elenco non cresce a ogni
+ * salvataggio e la scelta al riavvio resta corta.
+ */
+export function parseIstantanee(raw: unknown): { istantanee: Istantanea[]; scartati: string[] } {
+  const scartati: string[] = []
+
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    scartati.push('archivio delle istantanee non e un oggetto')
+    return { istantanee: [], scartati }
+  }
+  const o = raw as Record<string, unknown>
+
+  if (typeof o.versione !== 'number' || o.versione > VERSIONE_ISTANTANEE) {
+    scartati.push(`versione non gestita: ${String(o.versione)} (attesa <= ${VERSIONE_ISTANTANEE})`)
+    return { istantanee: [], scartati }
+  }
+
+  const perNome = new Map<string, Istantanea>()
+  if (Array.isArray(o.istantanee)) {
+    for (const grezza of o.istantanee) {
+      if (typeof grezza !== 'object' || grezza === null) {
+        scartati.push('istantanea non oggetto')
+        continue
+      }
+      const g = grezza as Record<string, unknown>
+      const nome = stringaNonVuota(g.nome)
+      if (nome === undefined) {
+        scartati.push('istantanea senza nome')
+        continue
+      }
+
+      const finestre: FinestraSalvata[] = []
+      if (Array.isArray(g.finestre)) {
+        for (const f of g.finestre) {
+          if (typeof f !== 'object' || f === null) continue
+          const fo = f as Record<string, unknown>
+          const letto = parseLayout(fo.layout, scartati)
+          // Una finestra senza riquadri non e' una finestra da riaprire: e'
+          // una finestra vuota che comparirebbe sullo schermo senza contenere
+          // niente, e va scartata invece che ricreata.
+          if (letto !== undefined && letto.panes.length > 0) {
+            finestre.push({ monitor: stringaNonVuota(fo.monitor) ?? '', layout: letto })
+          }
+        }
+      } else if (typeof g.perMonitor === 'object' && g.perMonitor !== null) {
+        // La forma precedente: un layout per monitor, cioè una finestra per
+        // schermo. Chi ha già dei salvataggi non deve perderli.
+        for (const [chiave, layout] of Object.entries(g.perMonitor as Record<string, unknown>)) {
+          const letto = parseLayout(layout, scartati)
+          if (letto !== undefined && letto.panes.length > 0) finestre.push({ monitor: chiave, layout: letto })
+        }
+      }
+
+      const autopiloti: AutopilotaSalvato[] = []
+      if (Array.isArray(g.autopiloti)) {
+        for (const a of g.autopiloti) {
+          const letto = parseAutopilota(a, scartati)
+          if (letto !== undefined) autopiloti.push(letto)
+        }
+      }
+
+      const istantanea: Istantanea = {
+        nome,
+        salvataIl: stringaNonVuota(g.salvataIl) ?? new Date(0).toISOString(),
+        finestre,
+        autopiloti
+      }
+      const esistente = perNome.get(nome)
+      if (esistente === undefined || esistente.salvataIl <= istantanea.salvataIl) {
+        perNome.set(nome, istantanea)
+      }
+    }
+  } else if (o.istantanee !== undefined) {
+    scartati.push('istantanee non e un elenco')
+  }
+
+  const istantanee = [...perNome.values()].sort((a, b) => b.salvataIl.localeCompare(a.salvataIl))
+  return { istantanee, scartati }
+}
+
+/** Due cartelle scritte in modi diversi sono la stessa cartella. */
+function chiaveLavoro(cwd: string, obiettivo: string): string {
+  const cartella = cwd.replace(/[\\/]+$/, '').replace(/\//g, '\\').toLowerCase()
+  return `${cartella}|${obiettivo.replace(/\s+/g, ' ').trim().toLowerCase()}`
+}
+
+/**
+ * Quali autopiloti salvati vanno davvero rimessi in moto.
+ *
+ * Il ripristino li ricreava tutti, ogni volta. Ricaricare due volte lo stesso
+ * salvataggio produceva due copie dello stesso autopilota, che ripartivano
+ * dalla preparazione e rifacevano all'utente le domande a cui aveva già
+ * risposto: da uno solo se ne sono trovati sei, nati a coppie a sei secondi di
+ * distanza. Un autopilota è identificato da **cosa fa e dove**: se uno così
+ * c'è già, non se ne fa un altro.
+ */
+export function daRiavviare(
+  salvati: AutopilotaSalvato[],
+  esistenti: { cwd: string; obiettivo: string }[]
+): AutopilotaSalvato[] {
+  const gia = new Set(esistenti.map((e) => chiaveLavoro(e.cwd, e.obiettivo)))
+  const risultato: AutopilotaSalvato[] = []
+  for (const a of salvati) {
+    const chiave = chiaveLavoro(a.cwd, a.obiettivo)
+    if (gia.has(chiave)) continue
+    gia.add(chiave)
+    risultato.push(a)
+  }
+  return risultato
+}
+
+/**
+ * Quali autopiloti vale la pena mettere in un salvataggio.
+ *
+ * Uno che ha **finito** non si riprende: il suo lavoro è fatto, e rimetterlo in
+ * moto al prossimo ricarico vuol dire una chat nuova che gira per scoprire che
+ * non c'è niente da fare. Stessa cosa per uno fallito. Restano quelli fermi a
+ * metà — al lavoro, in attesa, in preparazione, sospesi — che sono esattamente
+ * il motivo per cui si salva una sessione.
+ */
+export function daSalvare<T extends { stato: string }>(autopiloti: T[]): T[] {
+  return autopiloti.filter((a) => a.stato !== 'finito' && a.stato !== 'fallito')
+}

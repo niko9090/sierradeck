@@ -1,0 +1,58 @@
+import { describe, it, expect } from 'vitest'
+import { daRiprendere } from '../../src/autopilot-host/ripresa'
+import { nuovoAutopilota, type Autopilota , limitiPredefiniti } from '@shared/autopilota'
+
+function ap(over: Partial<Autopilota> = {}): Autopilota {
+  return {
+    ...nuovoAutopilota({
+      id: 'ap-1', nome: 'n', obiettivo: 'o', cwd: 'C:\\p',
+      criteri: [{ descrizione: 'c', comando: 'npm test', soddisfatto: false }],
+      iniziatoIl: '2026-08-09T10:00:00.000Z'
+    }),
+    ...over
+  }
+}
+
+describe('daRiprendere', () => {
+  it('riprende gli autopiloti che risultavano al lavoro', () => {
+    // Nessuno li ha fermati: si sono interrotti perche' il PC si e' spento.
+    expect(daRiprendere([ap({ id: 'ap-1', stato: 'lavoro' })]).map((a) => a.id)).toEqual(['ap-1'])
+  })
+
+  it('non riprende cio che era sospeso, finito o fallito', () => {
+    const fermi = [
+      ap({ id: 'a', stato: 'sospeso' }),
+      ap({ id: 'b', stato: 'finito' }),
+      ap({ id: 'c', stato: 'fallito' })
+    ]
+    expect(daRiprendere(fermi)).toEqual([])
+  })
+
+  it('non riprende chi aspetta una risposta', () => {
+    // Riprenderlo significherebbe rimandarlo a lavorare senza la risposta che
+    // stava aspettando: rifarebbe la stessa domanda.
+    expect(daRiprendere([ap({ stato: 'attesa' })])).toEqual([])
+  })
+
+  it('non riprende chi ha gia consumato un tetto di cicli che si era dato', () => {
+    // Il tetto e' stato raggiunto prima dello spegnimento: farlo ripartire
+    // disferebbe una scelta di chi lo ha messo.
+    const conTetto = ap({ stato: 'lavoro', cicli: 50, limiti: { ...limitiPredefiniti(), cicliMax: 50 } })
+    expect(daRiprendere([conTetto])).toEqual([])
+  })
+
+  it('senza tetto di cicli riprende comunque, per quanti giri abbia fatto', () => {
+    // Il tetto predefinito non c'e': fermarsi a un numero che nessuno ha
+    // scelto e' proprio il guasto che si voleva togliere.
+    expect(daRiprendere([ap({ stato: 'lavoro', cicli: 9999 })])).toHaveLength(1)
+  })
+
+  it('riprende piu autopiloti insieme', () => {
+    const molti = [
+      ap({ id: 'a', stato: 'lavoro' }),
+      ap({ id: 'b', stato: 'sospeso' }),
+      ap({ id: 'c', stato: 'lavoro' })
+    ]
+    expect(daRiprendere(molti).map((a) => a.id)).toEqual(['a', 'c'])
+  })
+})

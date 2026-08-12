@@ -1,0 +1,134 @@
+import { describe, it, expect, vi } from 'vitest'
+import { mkdtempSync, readFileSync, existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import {
+  argomentiFinestra, avviaFinestraAggiornamento, percorsoDati, percorsoLancio,
+  percorsoScript, scriptFinestraAggiornamento, scriptLancio,
+  TIMEOUT_S, type Avvio, type DatiFinestra
+} from '../../src/main/finestra-aggiornamento'
+
+const DATI: DatiFinestra = {
+  esePath: 'C:\\Users\\qualcuno\\Programs\\SierraDeck\\SierraDeck.exe',
+  versione: '0.3.7',
+  pidVecchio: 4242
+}
+
+function finto(): { avvia: Avvio; chiamate: Parameters<Avvio>[]; unref: () => void } {
+  const chiamate: Parameters<Avvio>[] = []
+  const unref = vi.fn()
+  const avvia: Avvio = (comando, argomenti, opzioni) => {
+    chiamate.push([comando, argomenti, opzioni])
+    return { unref }
+  }
+  return { avvia, chiamate, unref }
+}
+
+describe('avviaFinestraAggiornamento', () => {
+  it('lascia il processo staccato da chi lo apre', () => {
+    // E' tutto il punto: un istante dopo SierraDeck muore, e una finestra
+    // legata al suo processo morirebbe con lui — che e' il difetto da togliere.
+    const { avvia, chiamate, unref } = finto()
+    const temp = mkdtempSync(join(tmpdir(), 'sd-agg-'))
+    expect(avviaFinestraAggiornamento(DATI, avvia, temp)).toBe(true)
+    const [comando, , opzioni] = chiamate[0] ?? []
+    expect(comando).toBe('powershell.exe')
+    expect(opzioni).toMatchObject({ detached: true, stdio: 'ignore' })
+    expect(unref).toHaveBeenCalled()
+  })
+
+  it('scrive lo script prima di avviarlo', () => {
+    const { avvia } = finto()
+    const temp = mkdtempSync(join(tmpdir(), 'sd-agg-'))
+    avviaFinestraAggiornamento(DATI, avvia, temp)
+    expect(readFileSync(percorsoScript(temp), 'utf8')).toContain('System.Windows.Forms')
+    expect(readFileSync(percorsoLancio(temp), 'utf8')).toContain('Win32_Process')
+    // I dati vanno scritti prima dell'avvio: la finestra li legge appena nasce,
+    // e trovarli a meta' sarebbe peggio che non trovarli.
+    expect(JSON.parse(readFileSync(percorsoDati(temp), 'utf8'))).toEqual(DATI)
+    expect(existsSync(percorsoScript(temp))).toBe(true)
+  })
+
+  it('un avvio fallito non impedisce l aggiornamento', () => {
+    // Restare senza finestra e' brutto; non aggiornarsi perche' la finestra non
+    // si e' aperta sarebbe assurdo.
+    const rotto: Avvio = () => { throw new Error('powershell non trovato') }
+    const temp = mkdtempSync(join(tmpdir(), 'sd-agg-'))
+    expect(avviaFinestraAggiornamento(DATI, rotto, temp)).toBe(false)
+  })
+})
+
+describe('argomentiFinestra', () => {
+  it('avvia il lanciatore, non la finestra', () => {
+    // La finestra la crea WMI: se la avviassimo noi tornerebbe a essere una
+    // nostra figlia, ed e' proprio la parentela che la uccideva.
+    const argomenti = argomentiFinestra('C:\\temp\\lancio.ps1')
+    expect(argomenti[argomenti.indexOf('-File') + 1]).toBe('C:\\temp\\lancio.ps1')
+  })
+
+  it('parte anche dove la politica di esecuzione vieta gli script', () => {
+    const argomenti = argomentiFinestra('C:\\temp\\lancio.ps1')
+    expect(argomenti[argomenti.indexOf('-ExecutionPolicy') + 1]).toBe('Bypass')
+    expect(argomenti).toContain('-NoProfile')
+  })
+
+  it('non mostra una console nera accanto alla finestra', () => {
+    expect(argomentiFinestra('C:\\temp\\lancio.ps1')).toContain('Hidden')
+  })
+
+  it('i dati non entrano nel testo degli script', () => {
+    // Un percorso di Windows contiene di tutto: se finisse dentro il codice per
+    // interpolazione, potrebbe smettere di essere un percorso e diventare
+    // istruzioni. Viaggia in un file di dati, e lo script lo legge.
+    expect(scriptFinestraAggiornamento()).not.toContain(DATI.esePath)
+    expect(scriptLancio()).not.toContain(DATI.esePath)
+    expect(scriptFinestraAggiornamento()).toContain('ConvertFrom-Json')
+  })
+})
+
+describe('scriptLancio', () => {
+  it('fa creare la finestra al servizio di sistema', () => {
+    // E' l'unico modo perche' non erediti il nostro job: creata da WMI, di noi
+    // non le resta niente da ereditare, e sopravvive alla nostra chiusura.
+    expect(scriptLancio()).toContain('Win32_Process')
+    expect(scriptLancio()).toContain('Invoke-CimMethod')
+  })
+
+  it('se WMI non risponde ripiega su un avvio normale', () => {
+    // Una finestra che forse sopravvive e' meglio di nessuna finestra.
+    expect(scriptLancio()).toContain('Start-Process powershell.exe')
+  })
+})
+
+describe('scriptFinestraAggiornamento', () => {
+  const script = scriptFinestraAggiornamento()
+
+  it('comincia con il BOM, o gli accenti arrivano storti', () => {
+    expect(script.startsWith('\ufeff')).toBe(true)
+  })
+
+  it('aspetta le tre cose che succedono davvero', () => {
+    // La percentuale non e' piu' una finta sul tempo: chiusura del vecchio,
+    // sostituzione dell'eseguibile, avvio del nuovo.
+    expect(script).toContain('Get-Process -Id $PidVecchio')
+    expect(script).toContain('ProductVersion')
+    expect(script).toContain('StartsWith($Versione)')
+  })
+
+  it('si chiude quando la nuova versione e partita, non prima', () => {
+    expect(script).toContain('$s.fase = 4')
+    expect(script).toContain('$form.Close()')
+  })
+
+  it('ha un tempo massimo, per non restare orfana per sempre', () => {
+    expect(script).toContain(`$TimeoutS = ${TIMEOUT_S}`)
+    expect(script).toContain('$TimeoutS * 5')
+  })
+
+  it('non tiene aperto l eseguibile che l installer deve sostituire', () => {
+    // Un processo che lo tenesse aperto bloccherebbe proprio l'installazione
+    // che sta guardando: lo si legge, non lo si esegue e non lo si apre.
+    expect(script).not.toContain('Start-Process -FilePath $Exe')
+    expect(script).not.toContain('& $Exe')
+  })
+})

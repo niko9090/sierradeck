@@ -1,0 +1,69 @@
+# Come si impacchetta il Gestore.
+#
+# Un installer e non una cartella da copiare: il programma va nel menu Start,
+# si disinstalla dal pannello di Windows, e — soprattutto — sa aggiornarsi da
+# solo, cosa che una cartella copiata a mano non può fare.
+appId: it.glos.sierradeck
+productName: SierraDeck
+copyright: Copyright © 2026
+
+# I moduli nativi — node-pty e better-sqlite3 — sono gia' compilati per questa
+# versione di Electron: e' cosi' che il programma gira da settimane. Ricompilarli
+# richiederebbe Visual Studio su ogni macchina che fa un pacchetto, per ottenere
+# esattamente gli stessi binari.
+npmRebuild: false
+
+directories:
+  output: dist
+  buildResources: build
+
+# Solo ciò che serve a eseguire: le sorgenti e i test resterebbero nel pacchetto
+# senza servire a niente, e node-pty e better-sqlite3 vanno lasciati fuori
+# dall'asar perché sono binari nativi che il sistema deve poter caricare.
+files:
+  - out/**/*
+  - package.json
+  # L'icona serve **a runtime**, non solo all'installer: e' quella che compare
+  # nell'area di notifica quando si chiude la finestra. Senza, il programma
+  # partirebbe lo stesso ma la X tornerebbe a chiudere — che e' il ripiego
+  # previsto, non il comportamento voluto.
+  - build/icon.png
+asarUnpack:
+  - '**/node_modules/node-pty/**'
+  - '**/node_modules/better-sqlite3/**'
+
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch: [x64]
+
+nsis:
+  # Per utente e non per macchina: non chiede l'amministratore, e il Gestore
+  # lavora comunque solo sui file di chi lo usa.
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: SierraDeck
+  # Chiudere il programma prima di sovrascriverlo: senza, l'aggiornamento
+  # fallirebbe sui file in uso — e con le chat aperte è la norma.
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+
+# Dove il programma cerca gli aggiornamenti. `generic` e non un servizio: basta
+# una cartella raggiungibile via HTTP — anche sulla rete di casa — dove si
+# copiano i file prodotti da `npm run pacchetto`.
+# Gli aggiornamenti passano dai Release di GitHub: nessun server da tenere in
+# piedi, nessuna password da custodire. Con un repository **pubblico** il
+# programma scarica senza credenziali di nessun tipo — che e' esattamente cio'
+# che si vuole per un aggiornamento automatico.
+#
+# Il token per *pubblicare* (GH_TOKEN) resta fuori da qui: si passa dall'ambiente
+# al momento di `npm run pubblica`. Un token in un repository e' un token perso.
+publish:
+  - provider: github
+    owner: niko9090
+    repo: sierradeck
+    releaseType: release

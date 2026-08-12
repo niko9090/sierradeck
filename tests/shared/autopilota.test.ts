@@ -1,0 +1,248 @@
+import { describe, it, expect } from 'vitest'
+import {
+  parseAutopilota, nuovoAutopilota, limitiPredefiniti, VERSIONE_AUTOPILOTA
+} from '@shared/autopilota'
+
+function valido(): unknown {
+  return {
+    versione: VERSIONE_AUTOPILOTA,
+    id: 'ap-1',
+    nome: 'Test verdi',
+    obiettivo: 'Fai passare la suite',
+    cwd: 'C:\\progetto',
+    criteri: [{ descrizione: 'i test passano', comando: 'npm test', soddisfatto: false }],
+    stato: 'lavoro',
+    cicli: 0,
+    iniziatoIl: '2026-08-09T10:00:00.000Z',
+    ultimoEvento: '2026-08-09T10:00:00.000Z',
+    decisioni: [],
+    limiti: { cicliMax: 50, minutiMax: 360, stalloMax: 3 }
+  }
+}
+
+describe('parseAutopilota', () => {
+  it('legge un autopilota ben formato', () => {
+    const { autopilota, scartati } = parseAutopilota(valido())
+    expect(scartati).toEqual([])
+    expect(autopilota?.id).toBe('ap-1')
+    expect(autopilota?.criteri[0]?.comando).toBe('npm test')
+  })
+
+  it('rifiuta cio che non e un oggetto', () => {
+    for (const raw of [null, undefined, 42, 'niente', []]) {
+      const { autopilota, scartati } = parseAutopilota(raw)
+      expect(autopilota).toBeUndefined()
+      expect(scartati.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('rifiuta un autopilota senza id, obiettivo o cwd', () => {
+    for (const campo of ['id', 'obiettivo', 'cwd']) {
+      const rotto = { ...(valido() as Record<string, unknown>) }
+      delete rotto[campo]
+      const { autopilota, scartati } = parseAutopilota(rotto)
+      expect(autopilota).toBeUndefined()
+      expect(scartati.some((s) => s.includes(campo))).toBe(true)
+    }
+  })
+
+  it('rifiuta un file di versione futura invece di interpretarlo a caso', () => {
+    const { autopilota, scartati } = parseAutopilota({
+      ...(valido() as Record<string, unknown>), versione: VERSIONE_AUTOPILOTA + 1
+    })
+    expect(autopilota).toBeUndefined()
+    expect(scartati.some((s) => s.includes('versione'))).toBe(true)
+  })
+
+  it('scarta un criterio malformato conservando i validi', () => {
+    const { autopilota, scartati } = parseAutopilota({
+      ...(valido() as Record<string, unknown>),
+      criteri: [
+        { descrizione: 'buono', soddisfatto: false },
+        { comando: 'npm test' },
+        'non sono un criterio'
+      ]
+    })
+    expect(autopilota?.criteri.map((c) => c.descrizione)).toEqual(['buono'])
+    expect(scartati.length).toBe(2)
+  })
+
+  it('ferma un autopilota rimasto senza criteri invece di buttarlo', () => {
+    // Senza criteri non esiste un modo di sapere quando fermarsi: l'autopilota
+    // lavorerebbe fino al tetto, cioe' per ore, e chiamerebbe finito un lavoro
+    // che nessuno ha definito. Ma rifiutare il file lo faceva mettere da parte
+    // come illeggibile, e l'autopilota spariva dall'elenco: la stessa
+    // protezione si ottiene fermandolo, e cosi' l'utente lo vede e sa perche'.
+    const { autopilota, scartati } = parseAutopilota({
+      ...(valido() as Record<string, unknown>), criteri: []
+    })
+    expect(autopilota?.stato).toBe('sospeso')
+    expect(autopilota?.motivoSospensione).toContain('criteri')
+    expect(scartati.some((s) => s.includes('criteri'))).toBe(true)
+  })
+
+  it('riporta uno stato sconosciuto a sospeso invece di inventarlo', () => {
+    // 'lavoro' sarebbe la scelta pericolosa: farebbe ripartire da solo un
+    // autopilota il cui stato non sappiamo leggere.
+    const { autopilota, scartati } = parseAutopilota({
+      ...(valido() as Record<string, unknown>), stato: 'danzante'
+    })
+    expect(autopilota?.stato).toBe('sospeso')
+    expect(scartati.some((s) => s.includes('stato'))).toBe(true)
+  })
+
+  it('rimpiazza limiti assurdi con quelli predefiniti', () => {
+    const { autopilota } = parseAutopilota({
+      ...(valido() as Record<string, unknown>),
+      limiti: { cicliMax: -5, minutiMax: 'molti', stalloMax: 0 }
+    })
+    expect(autopilota?.limiti).toEqual(limitiPredefiniti())
+  })
+
+  it('normalizza cicli e decisioni mancanti', () => {
+    const senza = { ...(valido() as Record<string, unknown>) }
+    delete senza.cicli
+    delete senza.decisioni
+    const { autopilota } = parseAutopilota(senza)
+    expect(autopilota?.cicli).toBe(0)
+    expect(autopilota?.decisioni).toEqual([])
+  })
+})
+
+describe('nuovoAutopilota', () => {
+  it('e valido secondo il proprio parser', () => {
+    const a = nuovoAutopilota({
+      id: 'ap-2', nome: 'Nuovo', obiettivo: 'Obiettivo', cwd: 'C:\\p',
+      criteri: [{ descrizione: 'fatto', soddisfatto: false }],
+      iniziatoIl: '2026-08-09T10:00:00.000Z'
+    })
+    const { autopilota, scartati } = parseAutopilota({ ...a, versione: VERSIONE_AUTOPILOTA })
+    expect(scartati).toEqual([])
+    expect(autopilota?.stato).toBe('lavoro')
+    expect(autopilota?.cicli).toBe(0)
+  })
+})
+
+describe('flotta di chat', () => {
+  it('un autopilota nuovo governa una chat sola', () => {
+    // Il caso normale resta il piu' semplice: chi non chiede parallelismo non
+    // deve ritrovarsi sei claude.exe aperti.
+    const a = nuovoAutopilota({
+      id: 'ap-1', nome: 'n', obiettivo: 'o', cwd: 'C:\\p',
+      criteri: [{ descrizione: 'c', soddisfatto: false }],
+      iniziatoIl: '2026-08-09T10:00:00.000Z'
+    })
+    expect(a.tettoChat).toBe(1)
+    expect(a.chats).toEqual([])
+    expect(a.compitiDaFare).toEqual([])
+  })
+
+  it('accetta un tetto di chat superiore a uno', () => {
+    const a = nuovoAutopilota({
+      id: 'ap-1', nome: 'n', obiettivo: 'o', cwd: 'C:\\p',
+      criteri: [{ descrizione: 'c', soddisfatto: false }],
+      iniziatoIl: '2026-08-09T10:00:00.000Z',
+      tettoChat: 3
+    })
+    expect(a.tettoChat).toBe(3)
+  })
+
+  it('legge chat e compiti salvati', () => {
+    const { autopilota, scartati } = parseAutopilota({
+      ...(valido() as Record<string, unknown>),
+      tettoChat: 2,
+      chats: [{ id: 'c-1', compito: 'scrivi i test', stato: 'lavoro', cicli: 2, sessionId: 's-1' }],
+      compitiDaFare: ['aggiorna la documentazione']
+    })
+    expect(scartati).toEqual([])
+    expect(autopilota?.tettoChat).toBe(2)
+    expect(autopilota?.chats[0]?.compito).toBe('scrivi i test')
+    expect(autopilota?.compitiDaFare).toEqual(['aggiorna la documentazione'])
+  })
+
+  it('scarta una chat malformata e tiene le buone', () => {
+    const { autopilota, scartati } = parseAutopilota({
+      ...(valido() as Record<string, unknown>),
+      chats: [{ id: 'c-1', compito: 'buona', stato: 'lavoro', cicli: 0 }, { compito: 'senza id' }, 42]
+    })
+    expect(autopilota?.chats.map((c) => c.id)).toEqual(['c-1'])
+    expect(scartati.length).toBe(2)
+  })
+
+  it('riporta a uno un tetto di chat assurdo', () => {
+    for (const tetto of [0, -3, 'molte', 99]) {
+      const { autopilota } = parseAutopilota({ ...(valido() as Record<string, unknown>), tettoChat: tetto })
+      expect(autopilota?.tettoChat).toBe(tetto === 99 ? 8 : 1)
+    }
+  })
+
+  it('riporta a lavoro uno stato di chat sconosciuto', () => {
+    // Al contrario dell'autopilota, qui «lavoro» e' la scelta prudente: una chat
+    // che risulta finita per sbaglio verrebbe dimenticata con il suo processo
+    // ancora vivo.
+    const { autopilota } = parseAutopilota({
+      ...(valido() as Record<string, unknown>),
+      chats: [{ id: 'c-1', compito: 'x', stato: 'danzante', cicli: 0 }]
+    })
+    expect(autopilota?.chats[0]?.stato).toBe('lavoro')
+  })
+})
+
+describe('autopilota in intervista', () => {
+  it('e valido anche senza criteri, perche sara l intervista a produrli', () => {
+    const { autopilota, scartati } = parseAutopilota({
+      ...(valido() as Record<string, unknown>),
+      stato: 'intervista',
+      criteri: []
+    })
+    expect(autopilota?.stato).toBe('intervista')
+    expect(scartati).toEqual([])
+  })
+
+  it('conserva le domande gia fatte, cosi un riavvio non le ripete', () => {
+    const { autopilota } = parseAutopilota({
+      ...(valido() as Record<string, unknown>),
+      stato: 'intervista',
+      criteri: [],
+      intervista: [{ domanda: 'Quale formato?', risposta: 'YAML' }, { domanda: 'senza risposta' }]
+    })
+    expect(autopilota?.intervista).toEqual([{ domanda: 'Quale formato?', risposta: 'YAML' }])
+  })
+
+  it('senza criteri e senza intervista non lavora', () => {
+    // In ogni altro stato l'assenza di criteri e' il difetto che era: nessun
+    // modo di sapere quando fermarsi. Si ferma, e resta li' da guardare.
+    const { autopilota } = parseAutopilota({
+      ...(valido() as Record<string, unknown>), stato: 'lavoro', criteri: []
+    })
+    expect(autopilota?.stato).toBe('sospeso')
+  })
+})
+
+describe('criteri e stati che non lavorano', () => {
+  it('un intervista fallita resta leggibile invece di sparire', () => {
+    // Rifiutare il file lo farebbe mettere da parte come illeggibile: l'utente
+    // resterebbe senza autopilota e senza sapere perche'.
+    const { autopilota } = parseAutopilota({
+      ...(valido() as Record<string, unknown>),
+      stato: 'sospeso',
+      criteri: [],
+      motivoSospensione: 'la preparazione non ha prodotto una configurazione leggibile'
+    })
+    expect(autopilota?.stato).toBe('sospeso')
+    expect(autopilota?.motivoSospensione).toContain('preparazione')
+  })
+
+  it('ma uno al lavoro senza criteri viene fermato', () => {
+    // Li' l'assenza e' il difetto che era: nessun modo di sapere quando finire.
+    // Osservato sul campo: il tasto «Riprendi» premuto su un autopilota in
+    // intervista lo portava a «lavoro» senza criteri, e al giro dopo il file
+    // veniva messo da parte come illeggibile — l'autopilota spariva.
+    expect(parseAutopilota({
+      ...(valido() as Record<string, unknown>), stato: 'lavoro', criteri: []
+    }).autopilota?.stato).toBe('sospeso')
+    expect(parseAutopilota({
+      ...(valido() as Record<string, unknown>), stato: 'attesa', criteri: []
+    }).autopilota?.stato).toBe('sospeso')
+  })
+})

@@ -1,0 +1,1351 @@
+/*
+ * THESIS: l'interfaccia è la testata di una console di regia che governa canali
+ * paralleli, e rifiuta le tre barre impilate da cui nasce questo redesign.
+ * OWN-WORLD: chassis grigio strumento, tasti in rilievo sotto luce da soffitto,
+ * sezioni separate da incisioni, LED verde/ambra/rosso come unico colore.
+ * STORY: l'utente vede a due metri se il lavoro procede, e trova i quattro gesti
+ * quotidiani nella stessa fascia senza aprire menu.
+ * FIRST VIEWPORT: una fascia di 44px in alto — sessioni, chat e disposizione,
+ * workspace, autopiloti con i loro LED — e sotto il mosaico, a tutta altezza.
+ * FORM: console di regia, 4ª della lista ordinata, seed 70227ec9.
+ */
+
+:root {
+  /* I menu a discesa delle `select` li disegna il sistema, non noi: senza
+     questa riga si aprono bianchi con testo chiaro, e dentro non si legge
+     niente. Dirgli che siamo un'interfaccia scura basta a farglieli fare
+     scuri. */
+  color-scheme: dark;
+
+  --fondo: #141517;
+  --chassis: #232629;
+  --chassis-alto: #2b2f33;
+  --chassis-premuto: #1b1e21;
+  --incisione: #131517;
+  --luce-incisione: #3a3f45;
+
+  --testo: #dfe3e7;
+  --testo-quieto: #9aa1a9;
+
+  --verde: #54c07a;
+  --ambra: #e0a33c;
+  --rosso: #dc5f5f;
+  --spento: #4a5058;
+
+  --fascia-h: 44px;
+  --raggio: 4px;
+
+  /* Decelerazione esponenziale: lo sportello di rack che si apre e si posa. */
+  --uscita: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--fondo);
+  color: var(--testo);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  /* Il puntatore serve al terminale e ai divisori: fuori di lì niente
+     selezione accidentale di etichette mentre si trascina un riquadro. */
+  user-select: none;
+}
+
+/* ─────────────────────────── la fascia ─────────────────────────── */
+
+.console {
+  display: flex;
+  align-items: stretch;
+  height: var(--fascia-h);
+  background: var(--chassis);
+  /* Il filo di luce sul bordo alto e l'ombra sotto: la fascia è un pannello
+     davanti al mosaico, non una striscia disegnata sopra. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 2px 6px rgba(0, 0, 0, 0.45);
+  position: relative;
+  z-index: 10;
+  flex: 0 0 auto;
+}
+
+/* Una sezione della console: un gruppo di comandi che stanno insieme. */
+.sezione {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  position: relative;
+}
+
+/* Il solco fra due sezioni: scuro e poi chiaro, come un'incisione vera. */
+.sezione + .sezione::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 7px;
+  bottom: 7px;
+  width: 2px;
+  background: linear-gradient(to right, var(--incisione) 50%, var(--luce-incisione) 50%);
+}
+
+/* Il vuoto fra i comandi e lo stato: non porta comandi, quindi non porta
+   nemmeno un solco — un'incisione intorno al nulla sarebbe un ornamento. */
+.sezione--vuota {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+}
+
+.sezione--vuota::before {
+  display: none;
+}
+
+/* La serigrafia: maiuscole tracciate, come stampate sul metallo. Vive solo
+   sulle sezioni e sulle intestazioni dei pannelli. */
+.serigrafia {
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--testo-quieto);
+  white-space: nowrap;
+}
+
+/* ─────────────────────────── i tasti ─────────────────────────── */
+
+.tasto {
+  font: inherit;
+  font-size: 12px;
+  color: var(--testo);
+  background: var(--chassis-alto);
+  border: 1px solid #15181b;
+  border-top-color: #3d4348;
+  border-radius: var(--raggio);
+  padding: 5px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.tasto:hover:not(:disabled) {
+  background: #33383d;
+}
+
+/* Premuto il tasto inverte: la luce viene da sopra, quindi un tasto affondato
+   ha il bordo scuro in alto e non proietta ombra. */
+.tasto:active:not(:disabled) {
+  background: var(--chassis-premuto);
+  border-top-color: #15181b;
+  box-shadow: none;
+  transform: translateY(1px);
+}
+
+.tasto:disabled {
+  color: #6b7178;
+  background: #24272a;
+  border-top-color: #2e3236;
+  box-shadow: none;
+  cursor: default;
+}
+
+.tasto:focus-visible {
+  outline: 2px solid var(--verde);
+  outline-offset: 1px;
+}
+
+/* Il tasto premuto e rimasto giù: un gruppo aperto, una vista attiva. */
+.tasto[aria-pressed='true'],
+.tasto[aria-expanded='true'] {
+  background: var(--chassis-premuto);
+  border-top-color: #15181b;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+  color: #fff;
+}
+
+/* L'azione primaria si distingue per materiale, non per colore: più chiara e
+   con un rilievo più netto. */
+.tasto--primario {
+  background: #3a4046;
+  border-top-color: #545c64;
+  font-weight: 600;
+}
+
+.tasto--primario:hover:not(:disabled) {
+  background: #444b52;
+}
+
+/* I preset di disposizione: quadratini, non parole. */
+.tasto--icona {
+  padding: 5px 8px;
+  font-family: 'Cascadia Mono', 'Consolas', monospace;
+  font-size: 11px;
+}
+
+/* ─────────────────────────── i LED ─────────────────────────── */
+
+.led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--spento);
+  flex: 0 0 auto;
+  /* Alone stretto: un LED vero illumina il proprio bordo, non mezza console. */
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.6) inset;
+}
+
+.led--lavoro {
+  background: var(--verde);
+  box-shadow: 0 0 4px rgba(84, 192, 122, 0.7);
+}
+
+.led--attesa {
+  background: var(--ambra);
+  box-shadow: 0 0 4px rgba(224, 163, 60, 0.7);
+  /* L'unico lampeggio dell'applicazione: un autopilota aspetta te. */
+  animation: pulsa 1.6s ease-in-out infinite;
+}
+
+.led--fermo {
+  background: var(--rosso);
+  box-shadow: 0 0 4px rgba(220, 95, 95, 0.6);
+}
+
+.led--finito {
+  background: var(--spento);
+}
+
+@keyframes pulsa {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .led--attesa { animation: none; }
+}
+
+.fila-led {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ─────────────────────────── i pannelli ─────────────────────────── */
+
+/* Scorrono sopra il mosaico invece di spingerlo: chiudendoli, nessun riquadro
+   si è mosso di un pixel. */
+/* Finestre, non bande: compaiono al centro dello schermo, larghe quanto basta
+   al loro contenuto, e si spostano prendendole per la testa. Una banda a tutta
+   larghezza copriva le chat proprio dove si guarda, e non si poteva scansare. */
+.pannello {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(760px, calc(100vw - 48px));
+  max-height: min(70vh, 720px);
+  z-index: 9;
+  background: var(--chassis);
+  border: 1px solid var(--incisione);
+  border-radius: 10px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.62), 0 2px 8px rgba(0, 0, 0, 0.4);
+  padding: 14px 16px 16px;
+  overflow-y: auto;
+  animation: comparsa 160ms var(--uscita);
+}
+
+/* Mentre è in mano non deve né animarsi né selezionare il testo sotto il
+   puntatore: entrambe le cose fanno sembrare il trascinamento rotto. */
+.pannello--in-mano {
+  animation: none;
+  user-select: none;
+  cursor: grabbing;
+  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.7);
+}
+
+@keyframes comparsa {
+  from { transform: translate(-50%, calc(-50% + 10px)); opacity: 0; }
+  to { transform: translate(-50%, -50%); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pannello { animation: none; }
+}
+
+/* La testa è la maniglia: si prende di lì e si sposta. Il cursore lo dice
+   prima ancora che si provi. */
+.pannello__testa {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -14px -16px 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--incisione);
+  border-radius: 10px 10px 0 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
+  cursor: grab;
+}
+
+.pannello__testa button,
+.pannello__testa input,
+.pannello__testa select {
+  cursor: default;
+}
+
+/* ─────────────────────────── righe di stato ─────────────────────────── */
+
+.riga {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: var(--raggio);
+}
+
+.riga:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.riga__nome {
+  color: var(--testo);
+  font-weight: 600;
+  min-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.riga__stato {
+  color: var(--testo-quieto);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* I valori misurati in mono: contatori e conteggi, non decorazione. */
+.misura {
+  font-family: 'Cascadia Mono', 'Consolas', monospace;
+  font-size: 11px;
+  color: var(--testo-quieto);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─────────────────────────── campi ─────────────────────────── */
+
+.campo {
+  font: inherit;
+  font-size: 12px;
+  color: var(--testo);
+  background: var(--chassis-premuto);
+  border: 1px solid #15181b;
+  border-top-color: #101214;
+  border-radius: var(--raggio);
+  padding: 5px 8px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.campo::placeholder {
+  /* 4.6:1 sul fondo del campo: leggibile davvero, non un grigio decorativo. */
+  color: #868d94;
+}
+
+.campo:focus {
+  outline: none;
+  border-color: var(--luce-incisione);
+  border-top-color: var(--luce-incisione);
+}
+
+.campo:focus-visible {
+  outline: 2px solid var(--verde);
+  outline-offset: 1px;
+}
+
+.etichetta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* ─────────────────────────── avvisi ─────────────────────────── */
+
+.avviso {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ambra);
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vuoto {
+  color: var(--testo-quieto);
+  font-size: 12px;
+  padding: 10px 8px;
+}
+
+/* ─────────────────────────── elenco sessioni ─────────────────────────── */
+
+.voce-sessione {
+  padding: 8px 10px;
+  border-bottom: 1px solid #1c1f22;
+  cursor: pointer;
+}
+
+.voce-sessione:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+/* Il doppio clic apre la chat: il feedback del clic singolo dice che la voce
+   risponde, e la differenza fra le due cose sta nel titolo del riquadro. */
+.voce-sessione:active {
+  background: var(--chassis-premuto);
+}
+
+/* ─────────────────────────── riquadri ─────────────────────────── */
+
+.testata-riquadro {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--chassis);
+  color: var(--testo-quieto);
+  font-size: 12px;
+  padding: 3px 6px 3px 4px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.testata-riquadro__titolo {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--testo);
+}
+
+.presa {
+  color: #4d545b;
+  font-size: 10px;
+  letter-spacing: -2px;
+  opacity: 0;
+}
+
+.testata-riquadro:hover .presa {
+  opacity: 1;
+}
+
+.comando-riquadro {
+  font: inherit;
+  font-size: 12px;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  color: var(--testo-quieto);
+  padding: 1px 5px;
+  cursor: pointer;
+}
+
+.comando-riquadro:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--testo);
+}
+
+.comando-riquadro:focus-visible {
+  outline: 2px solid var(--verde);
+  outline-offset: 1px;
+}
+
+/* ─────────────────────────── la domanda ─────────────────────────── */
+
+/* Il velo deve **spegnere** cio' che c'e' sotto, non velarlo: dietro una
+   finestra di dialogo c'e' quasi sempre un terminale, cioe' testo su nero che
+   continua a scorrere, e a 0.62 di opacita' le due cose si mescolavano fino a
+   non capire piu' quale testo appartenesse a quale. La sfocatura toglie la
+   leggibilita' al fondo, che e' esattamente il punto: mentre la finestra e'
+   aperta, sotto non c'e' niente da leggere. */
+.velo {
+  position: fixed;
+  inset: 0;
+  /* Un po' d'aria intorno: una finestra che tocca i bordi dello schermo non
+     sembra piu' una finestra. */
+  padding: 5vh 24px;
+  z-index: 30;
+  background: rgba(6, 7, 8, 0.82);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: appari 140ms var(--uscita);
+}
+
+@keyframes appari {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Un pannello che sta davanti, con un bordo suo: senza, il grigio del dialogo
+   e il grigio del fondo si toccavano e il confine si perdeva. */
+.dialogo {
+  /* Centrata davvero: senza un tetto all'altezza una finestra lunga cresce
+     verso il basso e finisce schiacciata in alto, con il contenuto che esce
+     dallo schermo. Cosi' resta al centro e scorre dentro di se'. */
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  margin: auto;
+  background: var(--chassis);
+  border: 1px solid #3a4046;
+  border-radius: 6px;
+  padding: 14px 16px 16px;
+  width: min(560px, 90vw);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 24px 60px rgba(0, 0, 0, 0.75);
+}
+
+/* La finestra che aspetta una risposta: porta in cima il colore dell'attesa,
+   lo stesso del LED nella fascia. */
+.dialogo--attesa {
+  border-top: 2px solid var(--ambra);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 0 0 1px rgba(224, 163, 60, 0.14),
+    0 24px 60px rgba(0, 0, 0, 0.78);
+}
+
+.dialogo__testa {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--incisione);
+  box-shadow: 0 1px 0 var(--luce-incisione);
+  margin-bottom: 12px;
+}
+
+.dialogo__domanda {
+  font-size: 14px;
+  line-height: 1.5;
+  /* La domanda si legge e a volte si copia: qui la selezione serve. */
+  user-select: text;
+  white-space: pre-wrap;
+  margin-bottom: 12px;
+}
+
+/* Il richiamo in basso a destra quando la domanda è stata rimandata. */
+.richiamo {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--chassis);
+  border-radius: var(--raggio);
+  padding: 7px 10px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+/* Il campo di testo della risposta accetta la selezione, come la domanda. */
+textarea.campo,
+input.campo {
+  user-select: text;
+}
+
+/* ─────────────────────────── barre di scorrimento ─────────────────────────── */
+
+/* Quelle di sistema sono chiare e bucano la console: qui diventano parte del
+   telaio, visibili quanto basta per prenderle. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--chassis-premuto);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3b4046;
+  border: 2px solid var(--chassis-premuto);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4a5057;
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--chassis-premuto);
+}
+
+/* ─────────────────────────── elenco delle chat ─────────────────────────── */
+
+.dialogo--largo {
+  width: min(820px, 92vw);
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.elenco-chat {
+  overflow-y: auto;
+  /* Il dialogo ha un'altezza massima: è questo elenco a scorrere, non la
+     finestra intera, così ricerca e intestazione restano sempre raggiungibili. */
+  min-height: 0;
+  margin: 0 -6px;
+  padding: 0 6px;
+}
+
+/* Una riga della lista: il titolo con la sua misura a sinistra, la data a
+   destra, e in mezzo lo spazio per il contatore delle esecuzioni. */
+.voce-chat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #1c1f22;
+  padding: 8px 8px;
+  cursor: pointer;
+  color: var(--testo);
+}
+
+.voce-chat:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.voce-chat:focus-visible {
+  outline: 2px solid var(--verde);
+  outline-offset: -2px;
+}
+
+.voce-chat__titolo {
+  grid-area: titolo;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voce-chat__meta {
+  grid-area: meta;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voce-chat__data {
+  grid-area: data;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* La schermata che si vede mentre il programma si prepara. Occupa tutto perché
+   in quel momento non c'è altro da fare che aspettare, e una finestra a metà
+   costruita mentre l'indice si popola è peggio di una sola cosa fatta bene. */
+.avvio {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: var(--fondo);
+}
+
+.avvio__corpo {
+  width: min(460px, 82vw);
+}
+
+.avvio__marchio {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 26px;
+}
+
+/* Il simbolo respira piano: dice che c'è qualcosa di vivo dietro l'attesa,
+   senza la frenesia di uno spinner che gira a vuoto. */
+.avvio__segno {
+  width: 26px;
+  height: 26px;
+  animation: respiro 2.4s ease-in-out infinite;
+}
+
+@keyframes respiro {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.avvio__nome {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+}
+
+.avvio__titolo {
+  margin: 0 0 12px;
+  font-size: 17px;
+  color: var(--testo);
+}
+
+.avvio__barra {
+  height: 3px;
+  background: var(--incisione);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.avvio__riempimento {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--verde);
+  /* La barra non salta da un valore all'altro: la corsa continua si legge come
+     avanzamento, uno scatto secco come un blocco che si è sbloccato. */
+  transition: width 220ms var(--uscita);
+}
+
+.avvio__riempimento--incerto {
+  width: 30%;
+  animation: scorre 1.4s ease-in-out infinite;
+}
+
+@keyframes scorre {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(340%); }
+}
+
+.avvio__numeri {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.avvio__percento {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  color: var(--testo);
+}
+
+.avvio__dove {
+  margin: 14px 0 0;
+  min-height: 1em;
+  font-size: 12px;
+  color: var(--testo-quieto);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Le chat stanno sotto il progetto a cui appartengono. L'intestazione resta
+   incollata in cima mentre si scorre: dopo trenta righe non si sa più dentro
+   quale progetto si sta guardando, e senza quel nome le righe si somigliano
+   tutte. */
+.progetto__testa {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 6px 5px;
+  margin: 0 -6px;
+  font: inherit;
+  text-align: left;
+  color: var(--testo);
+  background: var(--fondo);
+  border: 0;
+  border-bottom: 1px solid var(--luce-incisione);
+  cursor: pointer;
+}
+
+.progetto__testa:hover {
+  color: var(--verde);
+}
+
+.progetto__testa:focus-visible {
+  outline: 2px solid var(--verde);
+  outline-offset: -2px;
+}
+
+.progetto__freccia {
+  width: 10px;
+  color: var(--testo-quieto);
+}
+
+.progetto__nome {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+/* Le chat rientrano sotto il loro progetto: il gradino dice a colpo d'occhio
+   dove finisce una sezione e comincia la successiva. */
+.progetto .voce-chat {
+  padding-left: 18px;
+}
+
+/* La riga di una chat è divisa in due comandi: il grosso apre la conversazione,
+   il contatore apre le sue esecuzioni. Erano un unico bottone, e chi voleva
+   scegliere quale esecuzione riaprire non aveva dove premere. */
+.voce-chat__apri {
+  display: grid;
+  grid-template-areas:
+    'titolo'
+    'meta';
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.voce-chat__quante {
+  font: inherit;
+  font-size: 11px;
+  color: var(--testo-quieto);
+  background: var(--incisione);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 2px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.voce-chat__quante:hover {
+  color: var(--testo);
+  border-color: var(--luce-incisione);
+}
+
+/* Le singole esecuzioni: rientrate ancora e più quiete della chat che le
+   contiene, perché sono un dettaglio di quella riga, non righe di pari grado. */
+.progetto .voce-chat--esecuzione {
+  padding-left: 34px;
+  opacity: 0.78;
+}
+
+.dialogo--medio {
+  width: min(680px, 92vw);
+}
+
+/* Un collegamento dentro una frase: è testo che si preme, non un tasto. */
+.collegamento {
+  font: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--testo);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.collegamento:hover {
+  color: #fff;
+}
+
+/* ─────────────────────────── la conversazione ─────────────────────────── */
+
+.scambio {
+  max-height: 34vh;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  padding-right: 4px;
+}
+
+.scambio__nota {
+  margin: 0 0 10px;
+  color: var(--testo-quieto);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.scambio__giro {
+  margin-bottom: 10px;
+}
+
+/* La domanda dell'autopilota e la risposta dell'utente si distinguono per
+   allineamento e materiale, non per due colori diversi: qui il colore appartiene
+   allo stato, e una conversazione non è uno stato. */
+.scambio__domanda {
+  color: var(--testo-quieto);
+  font-size: 12px;
+  line-height: 1.5;
+  padding-left: 10px;
+  border-left: 1px solid var(--luce-incisione);
+  user-select: text;
+}
+
+.scambio__risposta {
+  color: var(--testo);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 4px;
+  margin-left: 10px;
+  padding: 5px 8px;
+  background: var(--chassis-premuto);
+  border-radius: var(--raggio);
+  user-select: text;
+}
+
+/* ─────────────────────────── banda degli avvisi ─────────────────────────── */
+
+.banda {
+  background: var(--chassis-premuto);
+  border-bottom: 1px solid var(--incisione);
+  box-shadow: inset 0 -1px 0 var(--luce-incisione);
+  flex: 0 0 auto;
+}
+
+.banda__voce {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.banda__voce + .banda__voce {
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.banda__voce--blocco .banda__testo {
+  color: var(--testo);
+}
+
+.banda__testo {
+  flex: 1;
+  min-width: 0;
+  color: var(--testo-quieto);
+  /* Una riga sola, sempre. Un avviso che si espande su otto righe non e' piu'
+     un avviso: e' una schermata di errore, e all'avvio fa credere che il
+     programma sia rotto. Il testo intero sta dietro il tasto «Vedi». */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─────────────────────────── barre dei consumi ─────────────────────────── */
+
+.barra {
+  display: block;
+  height: 6px;
+  background: var(--chassis-premuto);
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.barra__pieno {
+  display: block;
+  height: 100%;
+  background: #4a5058;
+  border-radius: 3px;
+}
+
+/* ─────────────────── il diario dell'autopilota ─────────────────── */
+
+/* Di lato al terminale, non sopra: il terminale dice cosa scrive la chat,
+   questa colonna dice cosa sta pensando chi la governa. Sono due meta' della
+   stessa storia e si guardano insieme. */
+/* Il riquadro si misura da sé: quanto spazio può prendersi il diario dipende
+   da quanto è largo *questo* riquadro, non la finestra. */
+.riquadro {
+  container-type: inline-size;
+}
+
+.diario {
+  /* Su un riquadro largo sono 244px comodi; su uno stretto il terminale resta
+     comunque la cosa principale, ed è lui a tenersi i due terzi. */
+  width: clamp(140px, 32%, 244px);
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 8px 10px 10px;
+  background: var(--chassis);
+  border-left: 1px solid var(--incisione);
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.04);
+}
+
+.diario__testa {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.diario__nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.diario__misura {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.diario__percento {
+  font-size: 26px;
+  font-variant-numeric: tabular-nums;
+  color: var(--testo);
+  line-height: 1.1;
+}
+
+.diario__barra {
+  height: 3px;
+  margin: 6px 0 10px;
+  background: var(--incisione);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.diario__riempimento {
+  display: block;
+  height: 100%;
+  background: var(--verde);
+  transition: width 300ms var(--uscita);
+}
+
+.diario__criteri {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+  color: var(--testo-quieto);
+}
+
+.diario__criterio {
+  display: flex;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+/* Un criterio raggiunto non si cancella: resta leggibile, perche' e' la parte
+   di lavoro gia' fatta e sapere quale e' stata fatta conta quanto sapere
+   quanta ne manca. */
+.diario__criterio--fatto {
+  color: var(--verde);
+}
+
+.diario__sezione {
+  padding: 6px 0 4px;
+  border-top: 1px solid var(--incisione);
+}
+
+.diario__voci {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 -10px;
+  padding: 0 10px;
+}
+
+.diario__voce {
+  display: flex;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid #1c1f22;
+}
+
+.diario__quando {
+  flex: 0 0 auto;
+  padding-top: 1px;
+}
+
+.diario__titolo {
+  font-size: 12px;
+  color: var(--testo);
+}
+
+.diario__dettaglio {
+  font-size: 11px;
+  color: var(--testo-quieto);
+  line-height: 1.35;
+}
+
+.diario__vuoto {
+  margin: 0;
+  font-size: 11px;
+  color: var(--testo-quieto);
+  line-height: 1.4;
+}
+
+/* Chiuso, resta una linguetta con la percentuale: sparire del tutto
+   toglierebbe l'unico segno che quella chat ha qualcuno che la governa. */
+.diario__linguetta {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 30px;
+  padding: 8px 0;
+  font: inherit;
+  color: var(--testo-quieto);
+  background: var(--chassis);
+  border: 0;
+  border-left: 1px solid var(--incisione);
+  cursor: pointer;
+}
+
+.diario__linguetta:hover {
+  color: var(--testo);
+}
+
+.diario__linguetta-testo {
+  font-family: 'Cascadia Mono', 'Consolas', monospace;
+  font-size: 10px;
+  writing-mode: vertical-rl;
+}
+
+/* Sotto una certa larghezza restano il numero e la barra: sono quelli che si
+   guardano di sfuggita, mentre criteri e diario vogliono righe intere per
+   essere letti — e qui le righe intere non ci sono. */
+@container (max-width: 520px) {
+  .diario__criteri,
+  .diario__sezione,
+  .diario__voci {
+    display: none;
+  }
+}
+
+/* ─────────────────── l'assaggio di una conversazione ─────────────────── */
+
+/* Sotto la riga della chat: gli ultimi scambi, per riconoscerla senza aprirla.
+   Il fondo più scuro dice che è materiale citato, non una riga dell'elenco. */
+.anteprima {
+  margin: 0 -6px;
+  padding: 8px 12px 10px 34px;
+  background: rgba(0, 0, 0, 0.25);
+  border-bottom: 1px solid #1c1f22;
+}
+
+.anteprima__riga {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--testo-quieto);
+}
+
+/* Chi ha parlato, in una colonna sua: leggendo in verticale si segue il
+   botta e risposta senza rileggere ogni riga. */
+.anteprima__chi {
+  flex: 0 0 44px;
+  font-family: 'Cascadia Mono', 'Consolas', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding-top: 2px;
+  color: #6f767e;
+}
+
+.anteprima__riga--utente {
+  color: var(--testo);
+}
+
+.anteprima__azioni {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #1c1f22;
+}
+
+.anteprima__azione {
+  padding: 1px 0;
+  color: var(--testo-quieto);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Il tasto che apre l'assaggio: piccolo, accanto alla data. */
+.voce-chat__sbircia {
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--testo-quieto);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 3px 5px;
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.voce-chat__sbircia:hover,
+.voce-chat__sbircia[aria-expanded='true'] {
+  opacity: 1;
+  border-color: var(--luce-incisione);
+}
+
+/* Le due viste del diario: cosa sta facendo, cosa ha deciso. */
+.diario__schede {
+  display: flex;
+  gap: 2px;
+  margin: 4px 0 6px;
+  border-bottom: 1px solid var(--incisione);
+}
+
+.diario__scheda {
+  font: inherit;
+  font-size: 11px;
+  color: var(--testo-quieto);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.diario__scheda--attiva {
+  color: var(--testo);
+  border-bottom-color: var(--verde);
+}
+
+/* Una chat segnata per il cestino: si vede che è scelta, ma resta leggibile
+   finché non si conferma — è ancora lì, e si può ripensarci. */
+.voce-chat--segnata {
+  background: rgba(220, 95, 95, 0.09);
+}
+
+.voce-chat__sbircia--segnata {
+  opacity: 1;
+  border-color: var(--rosso);
+  color: var(--rosso);
+}
+
+/* Il nome del riquadro mentre lo si cambia: occupa il posto del titolo, senza
+   far saltare la testata. */
+.testata-riquadro__campo {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 2px 6px;
+}
+
+/* Una tendina che sta in una fascia o in una testata: stessa altezza dei tasti,
+   senza il respiro di un campo di modulo. */
+.campo--compatto {
+  font-size: 11px;
+  padding: 4px 6px;
+  max-width: 190px;
+}
+
+.testata-riquadro__modello {
+  max-width: 92px;
+  font-size: 10px;
+  padding: 1px 3px;
+  opacity: 0.6;
+}
+
+.testata-riquadro__modello:hover {
+  opacity: 1;
+}
+
+/* Il diario a tutta larghezza: qui i passaggi si leggono come in una chat, e
+   il terminale — che intanto non ha niente da mostrare, perché la chat
+   dell'autopilota gira altrove — si fa da parte. */
+.diario--largo {
+  width: 100%;
+  border-left: 0;
+}
+
+.diario--largo .anteprima__riga {
+  font-size: 13px;
+  padding: 5px 0;
+}
+
+.diario--largo .diario__voci {
+  padding-right: 20%;
+}
+
+/* L'aggiornamento disponibile: non è un guasto, quindi non ha il colore degli
+   avvisi — è una riga quieta con un tasto che aspetta un sì. */
+.avviso--aggiornamento {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: var(--chassis);
+  border-bottom: 1px solid var(--incisione);
+  color: var(--testo);
+  white-space: normal;
+}
+
+/* Le voci del menu, per i sistemi che non seguono `color-scheme`: sfondo del
+   pannello e testo chiaro, come il resto dell'applicazione. */
+select.campo option,
+select.comando-riquadro option {
+  background: var(--chassis);
+  color: var(--testo);
+}
+
+/* I workspace nella fascia: si vedono e si cambiano senza aprire niente. */
+.ws {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ws__voce {
+  font: inherit;
+  font-size: 11px;
+  color: var(--testo-quieto);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ws__voce:hover {
+  color: var(--testo);
+  border-color: var(--luce-incisione);
+}
+
+/* Quello attivo è premuto e resta giù: si vede dove sei senza leggere. */
+.ws__voce--attivo {
+  color: #fff;
+  background: var(--chassis-premuto);
+  border-color: #15181b;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.versione {
+  font-family: 'Cascadia Mono', 'Consolas', monospace;
+  font-size: 10px;
+  color: #6f767e;
+}
