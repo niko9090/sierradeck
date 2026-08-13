@@ -162,6 +162,12 @@ export function avviaServizio(): void {
     scadenzaDomandaMs: SCADENZA_DOMANDA_MS,
     scadenzaInterviataMs: SCADENZA_INTERVISTA_MS,
     adesso: () => new Date().toISOString(),
+    // La versione gliela dice chi lo avvia: il servizio gira come Node puro e
+    // non ha un'applicazione Electron a cui chiederla. Assente vuol dire
+    // «avviato a mano», e allora nessuno lo sostituisce.
+    ...(process.env.SIERRADECK_VERSIONE !== undefined
+      ? { versione: process.env.SIERRADECK_VERSIONE }
+      : {}),
     // Il resoconto del lavoro finisce nella cartella del progetto, accanto al
     // codice che descrive: e' li' che serve, ed e' li' che resta anche senza
     // questo programma.

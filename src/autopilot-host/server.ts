@@ -54,6 +54,15 @@ export type Dipendenze = {
   /** Il momento attuale in ISO. Iniettato perché i test non aspettino sei ore. */
   adesso: () => string
   /**
+   * La versione dell'applicazione che ha avviato questo servizio.
+   *
+   * Il servizio sopravvive alla chiusura del Gestore: senza questo dato, dopo
+   * un aggiornamento resterebbe in memoria la versione vecchia — che risponde,
+   * quindi nessuno la rimpiazza — e le correzioni installate non entrerebbero
+   * mai in funzione.
+   */
+  versione?: string
+  /**
    * Scrive una scheda nel quaderno della cartella di lavoro. Facoltativa: senza,
    * l'autopilota lavora identico e non lascia il suo resoconto.
    */
@@ -678,7 +687,27 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           // Quante istruzioni aspettano: il Gestore lo chiede prima di
           // ritirare, perche' senza una finestra non avrebbe dove metterle -
           // e ritirandole le perderebbe.
-          rispondi(res, 200, { vivo: true, consegneInAttesa: deps.consegne?.inAttesa() ?? 0 })
+          rispondi(res, 200, {
+            vivo: true,
+            consegneInAttesa: deps.consegne?.inAttesa() ?? 0,
+            // Con quale versione dell'applicazione è nato: è così che il
+            // Gestore riconosce un servizio rimasto indietro a un
+            // aggiornamento e lo sostituisce, invece di lasciarlo lì perché
+            // «risponde».
+            ...(deps.versione !== undefined ? { versione: deps.versione } : {})
+          })
+          return
+        }
+
+        // Il congedo. Il servizio deve sopravvivere alla chiusura del Gestore,
+        // ma non a un aggiornamento: questa è l'unica porta da cui esce, e la
+        // apre soltanto chi gira sulla stessa macchina.
+        if (metodo === 'POST' && percorso === '/spegni') {
+          rispondi(res, 200, { spengo: true })
+          console.info('[autopilota] mi spengo: il Gestore ha una versione più nuova')
+          // Dopo la risposta, non prima: chi ha chiesto deve sapere che è
+          // stata accolta, altrimenti aspetta un servizio che è già morto.
+          setTimeout(() => process.exit(0), 150)
           return
         }
 

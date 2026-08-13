@@ -37,6 +37,13 @@ export function creaClientAutopilota(p: {
   porta: number
   avviaServizio: () => void
   attesaMs?: number
+  /**
+   * La versione di **questa** applicazione.
+   *
+   * Serve a riconoscere un servizio rimasto indietro. Senza, il comportamento
+   * è quello di prima: un servizio vivo va bene com'è.
+   */
+  versione?: string
 }): ClientAutopilota {
   const attesaMs = p.attesaMs ?? ATTESA_PREDEFINITA_MS
   const base = `http://127.0.0.1:${p.porta}`
@@ -82,14 +89,41 @@ export function creaClientAutopilota(p: {
     },
 
     async assicuraServizio() {
-      const vivo = async (): Promise<boolean> => {
+      const salute = async (): Promise<{ vivo?: unknown; versione?: unknown } | undefined> => {
         try {
-          return ((await chiama('/salute', 'GET')) as { vivo?: unknown }).vivo === true
+          return (await chiama('/salute', 'GET')) as { vivo?: unknown; versione?: unknown }
         } catch {
-          return false
+          return undefined
         }
       }
-      if (await vivo()) return true
+      const vivo = async (): Promise<boolean> => (await salute())?.vivo === true
+
+      const stato = await salute()
+      if (stato?.vivo === true) {
+        // **Un servizio rimasto indietro va cambiato.** Sopravvive alla
+        // chiusura dell'applicazione — è tutto il suo mestiere — e l'app lo
+        // riavviava solo quando la porta era libera: dopo un aggiornamento
+        // restava in memoria quello vecchio, per giorni, e le correzioni
+        // appena installate non entravano mai in funzione. Il caso peggiore è
+        // proprio quello che si è visto: si aggiorna per riparare l'autopilota
+        // e l'autopilota continua a comportarsi come prima.
+        if (p.versione === undefined || stato.versione === p.versione) return true
+        console.info(
+          `[autopilota] il servizio è alla versione ${String(stato.versione ?? 'sconosciuta')},` +
+          ` questa è la ${p.versione}: lo sostituisco`
+        )
+        try {
+          await chiama('/spegni', 'POST')
+        } catch {
+          // Un servizio così vecchio da non conoscere questa rotta: nulla da
+          // fare qui, si prova comunque a rifarlo — se la porta resta occupata
+          // il nuovo esce da solo, e resta quello di prima.
+        }
+        await new Promise((r) => setTimeout(r, 800))
+        p.avviaServizio()
+        await new Promise((r) => setTimeout(r, attesaMs))
+        return vivo()
+      }
       p.avviaServizio()
       // Un solo tentativo di riavvio: se non risale, insistere non cambierebbe
       // niente e il pannello deve poterlo dire subito invece di restare in

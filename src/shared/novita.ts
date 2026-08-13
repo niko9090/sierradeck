@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.9',
+    righe: [
+      '**Gli aggiornamenti arrivavano a metà.** Il servizio degli autopiloti vive fuori dall’applicazione e sopravvive alla sua chiusura — è tutto il suo mestiere, così il lavoro prosegue mentre non ci sei. Ma l’app lo riavviava solo se la porta era libera: dopo un aggiornamento restava in memoria quello vecchio, per giorni, e le correzioni appena installate non entravano mai in funzione. Si aggiornava per riparare l’autopilota, e l’autopilota continuava a comportarsi come prima.',
+      'Adesso il servizio dice con quale versione è nato, e chi ne trova uno rimasto indietro lo congeda e ne fa uno nuovo. Gli autopiloti al lavoro riprendono da soli, come dopo qualunque riavvio.'
+    ]
+  },
+  {
     versione: '0.9.8',
     righe: [
       '**Un autopilota che si stava preparando non resta più fermo per sempre.** Se il servizio si riavviava durante la preparazione — un aggiornamento, uno spegnimento — sul disco restava scritto «si prepara», ma nessuno la stava più conducendo: niente domande a cui rispondere, niente da premere, e l’autopilota lì per ore. Adesso le preparazioni interrotte ripartono insieme al lavoro; e se la preparazione si guasta lo dice, invece di tacere.',

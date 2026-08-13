@@ -292,7 +292,9 @@ function avviaServizioAutopilota(): void {
     const figlio = spawn(process.execPath, [join(__dirname, 'autopilot-host.js')], {
       detached: true,
       stdio: 'ignore',
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
+      // La versione viaggia con lui: è come il Gestore riconosce, al prossimo
+      // avvio, un servizio rimasto indietro a un aggiornamento.
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', SIERRADECK_VERSIONE: app.getVersion() }
     })
     figlio.unref()
   } catch (err) {
@@ -364,7 +366,8 @@ if (!app.requestSingleInstanceLock()) {
       registerFinestreIpc(apriNuovaFinestra)
       const clientAutopilota = creaClientAutopilota({
         porta: PORTA_AUTOPILOTA,
-        avviaServizio: avviaServizioAutopilota
+        avviaServizio: avviaServizioAutopilota,
+        versione: app.getVersion()
       })
       registerAutopilotaIpc(clientAutopilota)
       // L'accesso si legge dai file di Claude Code, senza lanciarlo: una
