@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { daRiprendere } from '../../src/autopilot-host/ripresa'
+import { daRiprendere, intervisteDaRiprendere } from '../../src/autopilot-host/ripresa'
 import { nuovoAutopilota, type Autopilota , limitiPredefiniti } from '@shared/autopilota'
 
 function ap(over: Partial<Autopilota> = {}): Autopilota {
@@ -68,5 +68,30 @@ describe('la scelta per singolo autopilota', () => {
   it('senza indicazione riprende, come ha sempre fatto', () => {
     expect(daRiprendere([ap({ stato: 'lavoro' })])).toHaveLength(1)
     expect(daRiprendere([ap({ stato: 'lavoro', riprendiAlRiavvio: true })])).toHaveLength(1)
+  })
+})
+
+describe('intervisteDaRiprendere', () => {
+  it('riprende chi si e interrotto mentre si preparava', () => {
+    // Sul campo: un autopilota creato alle 10:25 e' rimasto «sta preparando»
+    // per un'ora, perche' l'app e' stata riavviata mentre l'intervista era in
+    // corso e nessuno la riprendeva. Non aveva nemmeno una domanda aperta a cui
+    // rispondere: non c'era alcun modo di sbloccarlo.
+    const fermo = ap({ id: 'ap-1', stato: 'intervista', criteri: [] })
+    expect(intervisteDaRiprendere([fermo]).map((a) => a.id)).toEqual(['ap-1'])
+  })
+
+  it('lascia stare chi non si stava preparando', () => {
+    const altri = [
+      ap({ id: 'a', stato: 'lavoro' }),
+      ap({ id: 'b', stato: 'attesa' }),
+      ap({ id: 'c', stato: 'sospeso' }),
+      ap({ id: 'd', stato: 'finito' })
+    ]
+    expect(intervisteDaRiprendere(altri)).toEqual([])
+  })
+
+  it('rispetta la scelta di non ripartire al riavvio', () => {
+    expect(intervisteDaRiprendere([ap({ stato: 'intervista', riprendiAlRiavvio: false })])).toEqual([])
   })
 })

@@ -185,6 +185,13 @@ export function avviaServizio(): void {
   server.listen(PORTA_AUTOPILOTA, '127.0.0.1', () => {
     console.info(`[autopilota] in ascolto su 127.0.0.1:${PORTA_AUTOPILOTA}`)
 
+    // Anche le preparazioni interrotte, e prima del lavoro: chi era fermo su
+    // «sta preparando» non ha ancora nulla che giri, e finché nessuno la
+    // riprende la sua intervista non riparte da sé — nemmeno rispondendo,
+    // perché la domanda che aspettava era in memoria e con il processo se n'è
+    // andata.
+    server.riprendiInterviste()
+
     // La ripresa avviene **dopo** che il servizio è in ascolto, non prima: le
     // chat riprese emettono hook verso questa stessa porta, e trovarla chiusa
     // le lascerebbe fermarsi al primo turno.

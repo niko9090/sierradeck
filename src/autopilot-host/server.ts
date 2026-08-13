@@ -16,6 +16,7 @@ import {
 } from './supervisore'
 import { pianificaFlotta } from './flotta'
 import { componiPromptIntervista, giaChiesta, leggiEsitoIntervista, SCAMBI_MAX } from './intervista'
+import { intervisteDaRiprendere } from './ripresa'
 import type { RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
 
@@ -114,7 +115,13 @@ function criteriDa(raw: unknown): Criterio[] {
   return criteri
 }
 
-export function creaServer(deps: Dipendenze): Server {
+/**
+ * Il server, più l'unica cosa che si può chiedergli dall'esterno oltre alle
+ * rotte: far ripartire le preparazioni che uno spegnimento ha interrotto.
+ */
+export type ServerAutopiloti = Server & { riprendiInterviste: () => void }
+
+export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const salva = (a: Autopilota): void => deps.archivio.scrivi({ ...a, ultimoEvento: deps.adesso() })
 
   /** Di chi è ogni domanda, e cosa chiedeva: serve alla risposta tardiva. */
@@ -220,6 +227,43 @@ export function creaServer(deps: Dipendenze): Server {
    * delegato può benissimo essersi alzato.
    */
   const conduciIntervista = async (iniziale: Autopilota): Promise<void> => {
+    try {
+      await svolgiIntervista(iniziale)
+    } catch (err) {
+      // Un guasto qui non deve restare fra il servizio e sé stesso. Sul campo è
+      // successo — claude.exe che non partiva — e l'autopilota è rimasto «sta
+      // preparando» per un'ora: nessuno raccoglieva l'errore, e senza una
+      // domanda aperta non c'era niente su cui l'utente potesse agire.
+      console.error(`[autopilota] preparazione di ${iniziale.id} fallita:`, err)
+      const rotto = deps.archivio.leggi(iniziale.id)
+      if (rotto === undefined || rotto.stato !== 'intervista') return
+      const motivo = err instanceof Error ? err.message : String(err)
+      const sospeso: Autopilota = {
+        ...rotto,
+        stato: 'sospeso',
+        motivoSospensione: `la preparazione si e guastata: ${motivo}`.slice(0, MOTIVO_MAX)
+      }
+      salva(sospeso)
+      void deps.avvisa('sospeso', sospeso)
+    }
+  }
+
+  /**
+   * Rimette in moto le preparazioni che uno spegnimento ha interrotto.
+   *
+   * Sta qui e non in `index.ts` — dove si riprende il lavoro — perché
+   * l'intervista si conduce da dentro il server: riprenderla come fosse lavoro
+   * avvierebbe una chat senza criteri, cioè un autopilota che non sa quando
+   * fermarsi.
+   */
+  const riprendiInterviste = (): void => {
+    const fermi = intervisteDaRiprendere(deps.archivio.elenca())
+    if (fermi.length === 0) return
+    console.info(`[autopilota] riprendo ${fermi.length} preparazioni interrotte`)
+    for (const a of fermi) void conduciIntervista(a)
+  }
+
+  const svolgiIntervista = async (iniziale: Autopilota): Promise<void> => {
     let corrente = iniziale
 
     for (let giro = 0; giro <= SCAMBI_MAX; giro += 1) {
@@ -610,7 +654,7 @@ export function creaServer(deps: Dipendenze): Server {
     return {}
   }
 
-  return createServer((req, res) => {
+  const server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1')
     const percorso = url.pathname
     const metodo = req.method ?? 'GET'
@@ -819,4 +863,6 @@ export function creaServer(deps: Dipendenze): Server {
       }
     })()
   })
+
+  return Object.assign(server, { riprendiInterviste })
 }

@@ -29,3 +29,18 @@ export function daRiprendere(tutti: Autopilota[]): Autopilota[] {
       (a.limiti.cicliMax === 0 || a.cicli < a.limiti.cicliMax)
   )
 }
+
+/**
+ * Quali **preparazioni** far ripartire quando il servizio torna su.
+ *
+ * Chi si stava preparando non è al lavoro, ma è altrettanto interrotto: la sua
+ * intervista viveva in un processo che non c'è più. Restava «sta preparando»
+ * per sempre — e senza nemmeno una domanda aperta a cui rispondere, perché le
+ * domande stanno in memoria e con il processo se ne vanno, non c'era alcun
+ * modo di sbloccarlo. Riprendere l'intervista è indolore: le risposte già date
+ * sono negli atti, quindi non si ricomincia da capo e non si richiede due volte
+ * la stessa cosa.
+ */
+export function intervisteDaRiprendere(tutti: Autopilota[]): Autopilota[] {
+  return tutti.filter((a) => a.stato === 'intervista' && a.riprendiAlRiavvio !== false)
+}

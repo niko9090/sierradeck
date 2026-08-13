@@ -4,14 +4,17 @@ import { mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { Server } from 'node:http'
-import { creaServer } from '../../src/autopilot-host/server'
-import { apriArchivio } from '../../src/autopilot-host/archivio'
+import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
+import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import type { Esecutore } from '../../src/autopilot-host/verifiche'
 import type { Interrogazione } from '../../src/autopilot-host/supervisore'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
+import { nuovoAutopilota } from '@shared/autopilota'
 
-let server: Server
+let server: ServerAutopiloti
 let porta: number
+/** L'archivio del server in prova: serve a simulare cio che c'era su disco. */
+let archivio: Archivio
 let avviati: string[]
 let fermati: string[]
 let messaggiDiRipresa: string[]
@@ -25,8 +28,8 @@ function ambiente(
     scadenzaDomandaMs?: number
     scadenzaInterviataMs?: number
   } = {}
-): Server {
-  const archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-server-')))
+): ServerAutopiloti {
+  archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-server-')))
   avviati = []
   fermati = []
   messaggiDiRipresa = []
@@ -768,6 +771,62 @@ describe('intervista di preparazione', () => {
     await attendi(async () => (await chiama('GET', '/autopiloti')).dati[0].stato === 'sospeso')
     expect((await chiama('GET', '/autopiloti')).dati[0].motivoSospensione).toContain('configurazione')
     expect(avviati).toEqual([])
+  })
+
+  it('una preparazione interrotta riparte quando il servizio torna su', async () => {
+    // Il caso vero: l'app viene riavviata mentre l'autopilota si prepara. Sul
+    // disco resta «intervista», ma nessun processo la sta piu' conducendo e non
+    // c'e' nemmeno una domanda aperta a cui rispondere per sbloccarlo. Restava
+    // fermo per sempre, con scritto «sta preparando».
+    server = ambiente({ interroga: intervistatore(), scadenzaInterviataMs: 5000 })
+    await avvia(server)
+    archivio.scrivi({
+      ...nuovoAutopilota({
+        id: 'ap-interrotto',
+        nome: 'x',
+        obiettivo: 'Sistema il lettore',
+        cwd: process.cwd(),
+        criteri: [],
+        iniziatoIl: '2026-08-09T10:00:00.000Z'
+      }),
+      stato: 'intervista'
+    })
+
+    server.riprendiInterviste()
+
+    await attendi(async () => (await chiama('GET', '/domande')).dati.length > 0)
+    expect((await chiama('GET', '/domande')).dati[0].testo).toContain('YAML')
+  })
+
+  it('una preparazione che si guasta lo dice, invece di restare ferma per sempre', async () => {
+    // Quando claude.exe non parte, l'interrogazione solleva. Nessuno lo
+    // raccoglieva: l'autopilota restava «sta preparando» e l'utente non aveva
+    // niente da leggere ne' a cui rispondere.
+    server = ambiente({
+      interroga: (p) => p.includes('Stai preparando')
+        ? Promise.reject(new Error('claude.exe: File not found'))
+        : Promise.resolve({ testo: '{"azione": "finito"}' })
+    })
+    await avvia(server)
+    archivio.scrivi({
+      ...nuovoAutopilota({
+        id: 'ap-guasto',
+        nome: 'x',
+        obiettivo: 'y',
+        cwd: process.cwd(),
+        criteri: [],
+        iniziatoIl: '2026-08-09T10:00:00.000Z'
+      }),
+      stato: 'intervista'
+    })
+
+    server.riprendiInterviste()
+
+    await attendi(async () => (await chiama('GET', '/autopiloti')).dati[0].stato === 'sospeso')
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.motivoSospensione).toContain('File not found')
+    // E l'utente lo viene a sapere anche se e' altrove.
+    expect(avvisi.map((a) => a.tipo)).toContain('sospeso')
   })
 
   it('senza risposta resta in intervista, con la domanda aperta', async () => {
