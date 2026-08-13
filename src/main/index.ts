@@ -24,6 +24,9 @@ import { decidiChiusura, vociArea, suggerimentoArea } from './area-notifica'
 import { espandiTilde } from './validation'
 import { creaClientAutopilota } from './autopilot-client'
 import { apriIstantaneeStore } from './istantanee-store'
+import { listSessions } from './db'
+import { creaWorkspace, eliminaWorkspace } from './workspace-operazioni'
+import type { SessionSummary } from '@shared/types'
 import { apriImpostazioniStore } from './impostazioni-store'
 import { novitaDaMostrare, type Novita } from '@shared/novita'
 import { apriEtichetteStore } from './etichette-store'
@@ -557,7 +560,53 @@ if (!app.requestSingleInstanceLock()) {
         versione: app.getVersion(),
         apk: () => apkDisponibile(),
         // I colori del computer, per vestire il telefono allo stesso modo.
-        preferenze: () => impostazioni.preferenze()
+        preferenze: () => impostazioni.preferenze(),
+        // Le conversazioni che si possono riprendere: le ultime trenta, che su
+        // un telefono sono gia' piu' di quante se ne scorrano.
+        sessioni: async () => {
+          if (db === undefined) return []
+          return listSessions(db, { limit: 30 }).map((x: SessionSummary) => ({
+            id: x.uuid,
+            cwd: x.cwd ?? x.projectPath,
+            titolo: x.aiTitle ?? x.projectPath.split(/[\/]/).filter((p: string) => p !== '').pop() ?? x.uuid,
+            quando: x.lastTimestamp ?? ''
+          }))
+        },
+        // Riaprire **quella** conversazione: e' la finestra a saperlo fare, e la
+        // sessione viaggia con l'apertura come per una chat nuova.
+        riprendiSessione: (cwd: string, sessione: string) => {
+          for (const w of BrowserWindow.getAllWindows()) {
+            if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+              w.webContents.send('client:apri', { cartella: cwd, sessione })
+            }
+          }
+        },
+        creaWorkspace: async (nome: string) => {
+          const store = workspaceStore
+          if (store === undefined) return
+          store.scrivi(creaWorkspace(store.leggi(), nome))
+          for (const w of BrowserWindow.getAllWindows()) {
+            if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('client:workspace', nome)
+          }
+        },
+        eliminaWorkspace: async (nome: string) => {
+          const store = workspaceStore
+          if (store === undefined) return
+          store.scrivi(eliminaWorkspace(store.leggi(), nome))
+        },
+        salvataggi: async () =>
+          apriIstantaneeStore(dati).elenca().map((i) => ({
+            nome: i.nome,
+            quando: i.salvataIl,
+            chat: i.finestre.reduce((t, f) => t + f.layout.panes.length, 0)
+          })),
+        caricaIstantanea: async (nome: string) => {
+          for (const w of BrowserWindow.getAllWindows()) {
+            if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+              w.webContents.send('client:caricaSalvataggio', nome)
+            }
+          }
+        }
       }
 
       const porta = impostazioni.preferenze().portaClient

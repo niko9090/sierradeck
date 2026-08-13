@@ -118,6 +118,10 @@ var righeGrezze = []
 /** L'autopilota che si sta guardando dentro, e tutto quello che si sa di lui. */
 var dentroAp = null
 var apDettaglio = null
+/** Il pannello aperto in fondo: le conversazioni, i salvataggi, o niente. */
+var pannelloAperto = null
+var sessioniViste = null
+var salvataggiVisti = null
 // Il modulo per affidare un lavoro: aperto o no, e quale cartella e' scelta.
 var delegando = false
 var delegaCartella = -1
@@ -308,6 +312,32 @@ function pannello(s) {
          </div>
        </div>`
 
+  const elencoSessioni = pannelloAperto !== 'sessioni' ? '' : `
+    <div class="piastrella">
+      <div class="titolo">Riprendi una conversazione</div>
+      <div class="sotto">Quelle che il computer conosce, dalla piu' recente.</div>
+      ${(sessioniViste || []).length === 0
+        ? '<div class="sotto" style="margin-top:8px">Nessuna conversazione trovata.</div>'
+        : (sessioniViste || []).slice(0, 20).map((x, i) =>
+            '<button class="cartella" onclick="riprendiSessione(' + i + ')">' +
+            esc(x.titolo) + '<br><span class="sotto">' + esc(x.cwd) + '</span></button>').join('')}
+      <div class="riga"><button onclick="apriPannello('sessioni')">Chiudi</button></div>
+    </div>`
+
+  const elencoSalvataggi = pannelloAperto !== 'salvataggi' ? '' : `
+    <div class="piastrella">
+      <div class="titolo">Salvataggi</div>
+      <div class="sotto">Rimettono in piedi un insieme di chat, tutte insieme.</div>
+      ${(salvataggiVisti || []).length === 0
+        ? '<div class="sotto" style="margin-top:8px">Nessun salvataggio.</div>'
+        : (salvataggiVisti || []).map((x, i) =>
+            '<button class="cartella ' + (confermando === 'sal-' + x.nome ? 'pericolo' : '') +
+            '" onclick="caricaSalvataggio(' + i + ')">' +
+            (confermando === 'sal-' + x.nome ? 'Sicuro? Sostituisce le chat aperte' : esc(x.nome)) +
+            '<br><span class="sotto">' + x.chat + ' chat</span></button>').join('')}
+      <div class="riga"><button onclick="apriPannello('salvataggi')">Chiudi</button></div>
+    </div>`
+
   const ws = (s.workspace && s.workspace.nomi || []).map((n) => `
     <button class="${n === s.workspace.attivo ? 'attivo' : ''}" onclick="vaiA('${esc(n)}')">${esc(n)}</button>`).join('')
 
@@ -340,11 +370,21 @@ function pannello(s) {
       ${invito}
       ${panoramica}
       ${domande}
-      ${ws ? '<div class="piastrella"><div class="titolo">Workspace</div><div class="ws" style="margin-top:10px">' + ws + '</div></div>' : ''}
+      ${ws ? '<div class="piastrella"><div class="titolo">Workspace</div><div class="ws" style="margin-top:10px">' + ws + '</div>' +
+        '<div class="riga"><input id="ws-nuovo" placeholder="un workspace nuovo">' +
+        '<button onclick="creaWorkspace()">Crea</button></div></div>' : ''}
       ${autopiloti || ''}
       ${chat || (autopiloti ? '' : '<div class="vuoto">Nessuna chat aperta sul computer.</div>')}
       ${nuova}
       ${delega}
+      <div class="piastrella">
+        <div class="riga">
+          <button onclick="apriPannello('sessioni')">Riprendi una conversazione</button>
+          <button onclick="apriPannello('salvataggi')">Salvataggi</button>
+        </div>
+      </div>
+      ${elencoSessioni}
+      ${elencoSalvataggi}
     </main>`
 
   for (const id in scritti) {
@@ -536,6 +576,51 @@ window.rinomina = async (id) => {
   if (!campo || !campo.value.trim()) return
   await chiedi('/api/chat/nome', { chat: id, nome: campo.value.trim() })
   campo.value = ''
+  aggiorna()
+}
+
+window.apriPannello = async (quale) => {
+  pannelloAperto = pannelloAperto === quale ? null : quale
+  if (pannelloAperto === 'sessioni' && !sessioniViste) {
+    try { sessioniViste = (await chiedi('/api/sessioni')).sessioni || [] } catch (e) { sessioniViste = [] }
+  }
+  if (pannelloAperto === 'salvataggi' && !salvataggiVisti) {
+    try { salvataggiVisti = (await chiedi('/api/salvataggi')).salvataggi || [] } catch (e) { salvataggiVisti = [] }
+  }
+  pannello(ultimoStato)
+}
+
+/** Riprende **quella** conversazione, con la sua storia dentro. */
+window.riprendiSessione = async (i) => {
+  const s = (sessioniViste || [])[i]
+  if (!s) return
+  await chiedi('/api/sessioni/riprendi', { cartella: s.cwd, sessione: s.id })
+  pannelloAperto = null
+  aggiorna()
+}
+
+window.caricaSalvataggio = async (i) => {
+  const s = (salvataggiVisti || [])[i]
+  if (!s) return
+  if (confermando !== 'sal-' + s.nome) { chiedeConferma('sal-' + s.nome); return }
+  confermando = null
+  await chiedi('/api/salvataggi/carica', { nome: s.nome })
+  pannelloAperto = null
+  aggiorna()
+}
+
+window.creaWorkspace = async () => {
+  const campo = document.getElementById('ws-nuovo')
+  if (!campo || !campo.value.trim()) return
+  await chiedi('/api/workspace/crea', { nome: campo.value.trim() })
+  campo.value = ''
+  aggiorna()
+}
+
+window.eliminaWorkspace = async (nome) => {
+  if (confermando !== 'ws-' + nome) { chiedeConferma('ws-' + nome); return }
+  confermando = null
+  await chiedi('/api/workspace/elimina', { nome: nome })
   aggiorna()
 }
 

@@ -33,6 +33,11 @@ app.whenReady().then(async () => {
       domande: [{ id: 'd-1', autopilotaId: 'ap-2', testo: 'Tengo la fisica attuale o la rifaccio da capo?' }],
       workspace: { nomi: ['casa', 'lavoro', 'giochi'], attivo: 'giochi' }
     }
+    pannelloAperto = 'sessioni'
+    sessioniViste = [
+      { id: 's-1', cwd: 'C:\\Users\\nikof\\Documents\\Game_ascensore', titolo: 'Debug del gioco', quando: '' },
+      { id: 's-2', cwd: 'C:\\Users\\nikof\\Documents\\Portfolio', titolo: 'Il bot del portfolio', quando: '' }
+    ]
     dentroAp = 'ap-1'
     apDettaglio = {
       passaggi: [

@@ -52,7 +52,8 @@ declare global {
         annunciaChat: (
           chat: { id: string; titolo: string; cwd: string; sessione?: string; ultimaRiga?: string; coda?: string[]; codaGrezza?: string[] }[]
         ) => void
-        suApertura: (cb: (m: { cartella: string; modello?: string }) => void) => () => void
+        suApertura: (cb: (m: { cartella: string; modello?: string; sessione?: string }) => void) => () => void
+        suSalvataggio: (cb: (nome: string) => void) => () => void
         suConsegna: (cb: (c: unknown) => void) => () => void
         suChatArrivata: (cb: (m: { workspace: string; pane: PaneSalvato }) => void) => () => void
         suChiusura: (cb: (idChat: string) => void) => () => void

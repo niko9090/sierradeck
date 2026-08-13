@@ -100,10 +100,16 @@ contextBridge.exposeInMainWorld('gestore', {
       return () => { ipcRenderer.off('autopilota:consegna', h) }
     },
     /** Una chat nuova, chiesta da un telefono in una cartella già conosciuta. */
-    suApertura: (cb: (m: { cartella: string; modello?: string }) => void): (() => void) => {
-      const h = (_e: unknown, m: { cartella: string; modello?: string }): void => cb(m)
+    suApertura: (cb: (m: { cartella: string; modello?: string; sessione?: string }) => void): (() => void) => {
+      const h = (_e: unknown, m: { cartella: string; modello?: string; sessione?: string }): void => cb(m)
       ipcRenderer.on('client:apri', h)
       return () => { ipcRenderer.off('client:apri', h) }
+    },
+    /** Un salvataggio che il telefono chiede di rimettere in piedi. */
+    suSalvataggio: (cb: (nome: string) => void): (() => void) => {
+      const h = (_e: unknown, nome: string): void => cb(nome)
+      ipcRenderer.on('client:caricaSalvataggio', h)
+      return () => { ipcRenderer.off('client:caricaSalvataggio', h) }
     },
     /** Una chat che il telefono chiede di chiudere. La conversazione resta. */
     suChiusura: (cb: (idChat: string) => void): (() => void) => {

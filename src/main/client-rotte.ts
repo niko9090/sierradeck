@@ -98,6 +98,21 @@ export type DipendenzeRotte = {
   chiudiChat: (idChat: string) => void
   /** Il nome che dai tu a una chat, che vince su quello di Claude Code. */
   rinominaChat: (idChat: string, nome: string) => void
+  /**
+   * Le conversazioni che si possono riprendere.
+   *
+   * Al computer è il tasto «Riprendi»; dal telefono non c'era, e si apriva una
+   * conversazione nuova nella cartella — con tutto quello che c'era dentro
+   * rimasto da un'altra parte.
+   */
+  sessioni: () => Promise<{ id: string; cwd: string; titolo: string; quando: string }[]>
+  /** Riapre **quella** conversazione, con la sua storia. */
+  riprendiSessione: (cwd: string, sessione: string) => void
+  creaWorkspace: (nome: string) => Promise<void>
+  eliminaWorkspace: (nome: string) => Promise<void>
+  /** I salvataggi: insiemi di chat da rimettere in piedi tutti insieme. */
+  salvataggi: () => Promise<{ nome: string; quando: string; chat: number }[]>
+  caricaIstantanea: (nome: string) => Promise<void>
   /** Le cartelle in cui si può aprire una chat: quelle già viste da Claude Code. */
   cartelle: () => Promise<string[]>
   versione: string
@@ -329,6 +344,52 @@ export function rotteClient(deps: DipendenzeRotte) {
       }
       const creato = await deps.creaAutopilota(obiettivo.slice(0, TESTO_MAX), cartella)
       return OK({ fatto: true, autopilota: creato.id })
+    }
+
+    if (r.percorso === '/api/sessioni') {
+      return OK({ sessioni: await deps.sessioni().catch(() => []) })
+    }
+
+    // Riprendere una conversazione: la stessa regola di «apri» sulla cartella,
+    // perche' un percorso qualunque arrivato dalla rete aprirebbe una sessione
+    // dove capita.
+    if (r.metodo === 'POST' && r.percorso === '/api/sessioni/riprendi') {
+      const cartella = stringa(r.corpo, 'cartella')
+      const sessione = stringa(r.corpo, 'sessione')
+      if (cartella === '' || sessione === '') {
+        return { stato: 400, corpo: { errore: 'servono la cartella e la conversazione' } }
+      }
+      const ammesse = await deps.cartelle().catch(() => [] as string[])
+      if (!ammesse.includes(cartella)) {
+        return { stato: 403, corpo: { errore: 'cartella non conosciuta' } }
+      }
+      deps.riprendiSessione(cartella, sessione)
+      return OK({ fatto: true })
+    }
+
+    if (r.metodo === 'POST' && r.percorso === '/api/workspace/crea') {
+      const nome = stringa(r.corpo, 'nome')
+      if (nome === '') return { stato: 400, corpo: { errore: 'serve il nome' } }
+      await deps.creaWorkspace(nome)
+      return OK({ fatto: true })
+    }
+
+    if (r.metodo === 'POST' && r.percorso === '/api/workspace/elimina') {
+      const nome = stringa(r.corpo, 'nome')
+      if (nome === '') return { stato: 400, corpo: { errore: 'serve il nome' } }
+      await deps.eliminaWorkspace(nome)
+      return OK({ fatto: true })
+    }
+
+    if (r.percorso === '/api/salvataggi') {
+      return OK({ salvataggi: await deps.salvataggi().catch(() => []) })
+    }
+
+    if (r.metodo === 'POST' && r.percorso === '/api/salvataggi/carica') {
+      const nome = stringa(r.corpo, 'nome')
+      if (nome === '') return { stato: 400, corpo: { errore: 'serve il nome' } }
+      await deps.caricaIstantanea(nome)
+      return OK({ fatto: true })
     }
 
     if (r.metodo === 'POST' && r.percorso === '/api/autopilota/elimina') {

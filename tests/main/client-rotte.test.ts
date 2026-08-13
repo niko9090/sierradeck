@@ -29,6 +29,14 @@ function deps(over: Partial<DipendenzeRotte> = {}): DipendenzeRotte {
     riprendiAlRiavvio: () => Promise.resolve(),
     chiudiChat: () => undefined,
     rinominaChat: () => undefined,
+    sessioni: () => Promise.resolve([
+      { id: 's-1', cwd: 'C:\\lavoro', titolo: 'Il lettore di CSV', quando: '2026-08-13T10:00:00.000Z' }
+    ]),
+    riprendiSessione: () => undefined,
+    creaWorkspace: () => Promise.resolve(),
+    eliminaWorkspace: () => Promise.resolve(),
+    salvataggi: () => Promise.resolve([{ nome: 'Ultima chiusura', quando: '2026-08-13T09:32:00.000Z', chat: 8 }]),
+    caricaIstantanea: () => Promise.resolve(),
     versione: '0.5.0',
     apk: () => Promise.resolve({ versione: '1.0.2', url: 'https://x/SierraDeck-1.0.2.apk' }),
     ...over
@@ -331,5 +339,58 @@ describe('fare tutto, anche le cose che si disfano', () => {
       const r = await rotteClient(deps())({ metodo: 'POST', percorso, corpo })
       expect(r.stato, percorso).toBe(400)
     }
+  })
+})
+
+describe('riprendere una conversazione, e i workspace per intero', () => {
+  it('elenca le conversazioni che si possono riprendere', async () => {
+    // Al computer si riprende una chat esistente con «Riprendi». Dal telefono
+    // non si poteva: si apriva una conversazione nuova nella cartella, e tutto
+    // quello che c'era dentro restava da un'altra parte.
+    const r = await rotteClient(deps())({ metodo: 'GET', percorso: '/api/sessioni', corpo: undefined })
+    const c = r.corpo as { sessioni: { id: string; cwd: string; titolo: string }[] }
+    expect(r.stato).toBe(200)
+    expect(c.sessioni[0]).toMatchObject({ id: 's-1', cwd: 'C:\\lavoro' })
+  })
+
+  it('riprende una conversazione in una cartella conosciuta', async () => {
+    const riprese: { cwd: string; sessione: string }[] = []
+    const su = deps({
+      riprendiSessione: (cwd, sessione) => { riprese.push({ cwd, sessione }) }
+    })
+    const r = await rotteClient(su)({
+      metodo: 'POST', percorso: '/api/sessioni/riprendi', corpo: { cartella: 'C:\\lavoro', sessione: 's-1' }
+    })
+    expect(r.stato).toBe(200)
+    expect(riprese).toEqual([{ cwd: 'C:\\lavoro', sessione: 's-1' }])
+  })
+
+  it('non riprende una conversazione in una cartella che il computer non conosce', async () => {
+    // La stessa regola di «apri»: un percorso qualunque arrivato dalla rete
+    // aprirebbe una sessione dove capita.
+    const r = await rotteClient(deps())({
+      metodo: 'POST', percorso: '/api/sessioni/riprendi', corpo: { cartella: 'C:\\Windows', sessione: 's-1' }
+    })
+    expect(r.stato).toBe(403)
+  })
+
+  it('crea ed elimina un workspace', async () => {
+    const fatti: string[] = []
+    const su = deps({
+      creaWorkspace: (n) => { fatti.push('crea:' + n); return Promise.resolve() },
+      eliminaWorkspace: (n) => { fatti.push('elimina:' + n); return Promise.resolve() }
+    })
+    await rotteClient(su)({ metodo: 'POST', percorso: '/api/workspace/crea', corpo: { nome: 'sera' } })
+    await rotteClient(su)({ metodo: 'POST', percorso: '/api/workspace/elimina', corpo: { nome: 'sera' } })
+    expect(fatti).toEqual(['crea:sera', 'elimina:sera'])
+  })
+
+  it('elenca i salvataggi e ne carica uno', async () => {
+    const caricati: string[] = []
+    const su = deps({ caricaIstantanea: (n) => { caricati.push(n); return Promise.resolve() } })
+    const elenco = await rotteClient(su)({ metodo: 'GET', percorso: '/api/salvataggi', corpo: undefined })
+    expect((elenco.corpo as { salvataggi: unknown[] }).salvataggi).toBeInstanceOf(Array)
+    await rotteClient(su)({ metodo: 'POST', percorso: '/api/salvataggi/carica', corpo: { nome: 'Ultima chiusura' } })
+    expect(caricati).toEqual(['Ultima chiusura'])
   })
 })

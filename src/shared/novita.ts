@@ -23,6 +23,15 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.19',
+    righe: [
+      '**Dal telefono si riprende una conversazione**, invece di aprirne una nuova nella stessa cartella e lasciare tutto quello che c’era dentro da un’altra parte. Le ultime trenta, con il loro titolo, come dal tasto «Riprendi» del computer.',
+      '**E si governano i workspace e i salvataggi**: crearne uno, eliminarlo, rimettere in piedi un insieme di chat salvato. Le cose che sostituiscono quello che hai davanti chiedono conferma.',
+      '**L’app Android avvisa anche quando un autopilota si ferma** — non solo per le domande e i lavori finiti. Finché non lo guardi quel lavoro non prosegue, e prima lo scoprivi la mattina dopo.',
+      '**E l’app si aggiorna da sé**: il file arriva dentro l’app con la percentuale che avanza, poi si apre la schermata di installazione di Android. Prima apriva il browser e ti lasciava cercare il file scaricato.'
+    ]
+  },
+  {
     versione: '0.9.18',
     righe: [
       '**Dal telefono si vede l’autopilota come lo vedi qui.** Il suo percorso con i LED, la percentuale del passo in cui si trova, i criteri che si è dato con le spunte, le ultime cose che ha deciso: prima erano un nome e due numeri. E i colori non sono una copia somigliante — arrivano dal computer, con il chiarore e lo stile che hai scelto nelle impostazioni.',

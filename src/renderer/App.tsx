@@ -208,11 +208,27 @@ export function App(): React.JSX.Element {
 
   // Una chat nuova chiesta dal telefono. Solo in una cartella che Claude Code
   // conosce già — il controllo lo fa il Core, qui si apre e basta.
-  useEffect(() => window.gestore.client.suApertura(({ cartella, modello }) => {
+  useEffect(() => window.gestore.client.suApertura(({ cartella, modello, sessione }) => {
     // Il nome è l'ultimo pezzo del percorso: dal telefono non si scrive un
     // titolo, e «Documenti\Progetto» dice più di «chat 4».
     const nome = cartella.split(/[\\/]/).filter((p) => p !== '').pop() ?? cartella
-    useLayoutStore.getState().addPane(cartella, nome, modello)
+    // Con una sessione e' una conversazione che si riprende: nasce con il suo
+    // identificatore e Claude Code la riapre com'era, invece di cominciarne una
+    // nuova nella stessa cartella - che e' quello che succedeva dal telefono.
+    useLayoutStore.getState().addPane(
+      cartella,
+      nome,
+      modello,
+      sessione !== undefined && sessione !== '' ? { sessionUuid: sessione } : undefined
+    )
+  }), [])
+
+  // Un salvataggio rimesso in piedi dal telefono: e' lo stesso gesto del
+  // pannello «Salvataggi», e passa per la stessa strada.
+  useEffect(() => window.gestore.client.suSalvataggio((nome) => {
+    window.gestore.istantanee
+      .carica(nome)
+      .catch((e: unknown) => console.error('[client] salvataggio non caricato:', e))
   }), [])
 
   // Chiudere una chat dal telefono: il riquadro sparisce, la conversazione
