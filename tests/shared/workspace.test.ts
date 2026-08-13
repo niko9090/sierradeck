@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  parseArchivio, archivioVuoto, aggiungiPaneA, layoutPerFinestra, monitorConLavoro, recuperaOrfani,
+  parseArchivio, archivioVuoto, aggiungiPaneA, layoutPerFinestra, unicoLayout,
   VERSIONE_ARCHIVIO, NOME_PREDEFINITO, type LayoutSalvato
 } from '@shared/workspace'
 
@@ -235,26 +235,8 @@ describe('il layout che spetta a una finestra', () => {
     expect(layoutPerFinestra(per, 'm1').panes).toHaveLength(1)
   })
 
-  it('se il suo monitor non ha niente, prende le chat di un altro', () => {
-    // Si stacca il secondo schermo, si lavora dal portatile: il layout di quel
-    // monitor resta nell'archivio sotto una chiave che nessuno chiede più. Le
-    // chat sono lì, intatte, e non le vede nessuno — è il modo in cui un
-    // workspace con quattro chat ne mostra una e sembra averne perse tre.
-    const per = { m1: vuoto, 'monitor-di-ieri': conChat(3) }
-    expect(layoutPerFinestra(per, 'm1').panes).toHaveLength(3)
-  })
 
-  it('nemmeno il suo monitor esiste nell archivio', () => {
-    const per = { 'monitor-di-ieri': conChat(2) }
-    expect(layoutPerFinestra(per, 'nuovo').panes).toHaveLength(2)
-  })
 
-  it('non prende quello che un altra finestra sta gia mostrando', () => {
-    // Altrimenti due finestre mostrerebbero le stesse chat, che è il doppione
-    // da cui si è appena usciti.
-    const per = { m1: vuoto, m2: conChat(2), m3: conChat(1) }
-    expect(layoutPerFinestra(per, 'm1', ['m2']).panes).toHaveLength(1)
-  })
 
   it('quando davvero non c e niente, non inventa', () => {
     expect(layoutPerFinestra({ m1: vuoto }, 'm1').panes).toEqual([])
@@ -262,66 +244,48 @@ describe('il layout che spetta a una finestra', () => {
   })
 })
 
-describe('quante finestre servono per far vedere tutto', () => {
-  const conChat: LayoutSalvato = {
-    root: { type: 'pane', id: 'p' },
-    panes: [{ id: 'p', sessionUuid: 'u', cwd: 'C:\p', title: 'x' }]
-  }
-  const vuoto: LayoutSalvato = { root: undefined, panes: [] }
 
-  it('una per ogni monitor che ha delle chat', () => {
-    // Chi lavorava su due schermi e riapriva con una finestra sola vedeva metà
-    // del suo workspace e credeva di aver perso l'altra metà.
-    expect(monitorConLavoro({ m1: conChat, m2: conChat }, ['m1', 'm2'])).toEqual(['m1', 'm2'])
+describe('un workspace, una disposizione', () => {
+  const con = (id: string): LayoutSalvato => ({
+    root: { type: 'pane', id },
+    panes: [{ id, sessionUuid: 'u-' + id, cwd: 'C:\p', title: id }]
   })
 
-  it('i monitor vuoti non aprono niente', () => {
-    expect(monitorConLavoro({ m1: conChat, m2: vuoto }, ['m1', 'm2'])).toEqual(['m1'])
+  it('mette tutte le chat in un posto solo', () => {
+    // Il layout per monitor chiedeva di sapere **sotto quale schermo** vive una
+    // chat: una domanda che nessuno dovrebbe doversi porre, e la causa di quasi
+    // tutti i guasti - chat invisibili, chat doppie, salvataggi che si
+    // cancellavano a vicenda.
+    const dopo = unicoLayout({ m1: con('a'), m2: con('b'), vecchio: con('c') }, 'm1')
+    expect(Object.keys(dopo)).toEqual(['m1'])
+    expect(dopo.m1?.panes.map((p) => p.id).sort()).toEqual(['a', 'b', 'c'])
   })
 
-  it('e nemmeno le postazioni che non ci sono piu', () => {
-    // Per quelle ci pensa layoutPerFinestra: aprire una finestra su uno schermo
-    // che non esiste la metterebbe fuori dallo spazio visibile.
-    expect(monitorConLavoro({ 'schermo-di-ieri': conChat }, ['m1'])).toEqual([])
+  it('funziona anche quando la casa non aveva niente', () => {
+    const dopo = unicoLayout({ altrove: con('b') }, 'm1')
+    expect(dopo.m1?.panes.map((p) => p.id)).toEqual(['b'])
+  })
+
+  it('non tocca niente quando c e gia un posto solo', () => {
+    // Chi confronta per identita deve poter sapere che non e cambiato niente,
+    // ed e come si evita di riscrivere il file a ogni avvio.
+    const prima = { m1: con('a') }
+    expect(unicoLayout(prima, 'm1')).toBe(prima)
+  })
+
+  it('nemmeno quando gli altri monitor sono vuoti', () => {
+    const prima = { m1: con('a'), m2: { root: undefined, panes: [] } }
+    expect(unicoLayout(prima, 'm1')).toBe(prima)
   })
 })
 
-describe('le chat rimaste su postazioni sparite', () => {
-  const con = (id: string): LayoutSalvato => ({
-    root: { type: 'pane', id },
-    panes: [{ id, sessionUuid: `u-${id}`, cwd: 'C:\p', title: id }]
-  })
-
-  it('tornano su uno schermo che esiste', () => {
-    // La chiave di un monitor cambia se lo si sposta, se ne cambia la scala, o
-    // perché una versione precedente la scriveva in un altro modo. Il layout
-    // archiviato sotto quella chiave non lo chiede più nessuno: le chat sono
-    // lì, per sempre, invisibili.
-    const dopo = recuperaOrfani({ m1: con('a'), 'schermo-di-ieri': con('b') }, ['m1'])
-    expect(Object.keys(dopo)).toEqual(['m1'])
-    expect(dopo.m1?.panes.map((p) => p.id).sort()).toEqual(['a', 'b'])
-  })
-
-  it('non tocca niente quando non c e niente da recuperare', () => {
-    const prima = { m1: con('a') }
-    expect(recuperaOrfani(prima, ['m1'])).toBe(prima)
-  })
-
-  it('un monitor orfano ma vuoto non e una chat da salvare', () => {
-    const prima = { m1: con('a'), sparito: { root: undefined, panes: [] } }
-    expect(recuperaOrfani(prima, ['m1'])).toBe(prima)
-  })
-
-  it('senza uno schermo dove metterle, non le butta via', () => {
-    // Meglio lasciarle dove sono che perderle: al prossimo avvio, con uno
-    // schermo, si recuperano.
-    const prima = { sparito: con('b') }
-    expect(recuperaOrfani(prima, [])).toBe(prima)
-  })
-
-  it('le mette dove l archivio ha gia qualcosa, non su uno schermo a caso', () => {
-    const dopo = recuperaOrfani({ m2: con('a'), sparito: con('b') }, ['m1', 'm2'])
-    expect(dopo.m2?.panes).toHaveLength(2)
-    expect(dopo.m1).toBeUndefined()
+describe('il layout di una finestra', () => {
+  it('e quello del suo monitor, e basta', () => {
+    // Prendere quello di un altro schermo quando il proprio era vuoto sembrava
+    // generoso: faceva mostrare a due finestre la stessa chat, perche
+    // l'assegnazione non veniva registrata da nessuna parte.
+    const l: LayoutSalvato = { root: { type: 'pane', id: 'p' }, panes: [{ id: 'p', sessionUuid: 'u', cwd: 'C:\p', title: 'x' }] }
+    expect(layoutPerFinestra({ m1: l }, 'm1').panes).toHaveLength(1)
+    expect(layoutPerFinestra({ m1: l }, 'm2').panes).toEqual([])
   })
 })

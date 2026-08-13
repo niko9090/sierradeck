@@ -154,34 +154,3 @@ describe('componiAvvisi — preparazione', () => {
   })
 })
 
-describe('le chat che sono su un altro monitor', () => {
-  it('si dicono, invece di lasciarle credere perse', () => {
-    // Il programma non apre finestre da solo — disporre lo schermo al posto di
-    // chi lo usa è invadente anche quando si ha ragione — ma tacere lascerebbe
-    // credere che quelle chat siano andate.
-    const avvisi = componiAvvisi({
-      accesso: { autenticato: true },
-      servizioRaggiungibile: true,
-      autopiloti: [],
-      chatAltrove: 3
-    })
-    const suo = avvisi.find((a) => a.id === 'chat-altrove')
-    expect(suo?.testo).toContain('3 chat')
-    expect(suo?.azione).toBe('apriFinestra')
-  })
-
-  it('al singolare dice una', () => {
-    const avvisi = componiAvvisi({
-      accesso: { autenticato: true }, servizioRaggiungibile: true, autopiloti: [], chatAltrove: 1
-    })
-    expect(avvisi.find((a) => a.id === 'chat-altrove')?.testo).toContain('Una chat')
-  })
-
-  it('quando si vede tutto non si dice niente', () => {
-    // Un avviso permanente smette di essere un avviso e diventa arredamento.
-    const avvisi = componiAvvisi({
-      accesso: { autenticato: true }, servizioRaggiungibile: true, autopiloti: [], chatAltrove: 0
-    })
-    expect(avvisi.some((a) => a.id === 'chat-altrove')).toBe(false)
-  })
-})

@@ -46,7 +46,7 @@ import { resolveClaudeCommand } from './config'
 import { leggiAccesso } from './accesso'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
-import { monitorConLavoro, recuperaOrfani } from '@shared/workspace'
+import { unicoLayout } from '@shared/workspace'
 import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
 
@@ -101,6 +101,12 @@ function chiediAlServizio(percorso: string): Promise<unknown> {
     richiesta.on('error', rifiuta)
     richiesta.on('timeout', () => { richiesta.destroy(); rifiuta(new Error('scaduto')) })
   })
+}
+
+/** La chiave del monitor su cui sta una finestra: la stessa regola del Core. */
+function chiaveDiFinestra(win: BrowserWindow): string {
+  const d = screen.getDisplayMatching(win.getBounds())
+  return chiaveMonitor({ bounds: d.bounds, scaleFactor: d.scaleFactor })
 }
 
 const LARGHEZZA = 1600
@@ -771,35 +777,38 @@ if (!app.requestSingleInstanceLock()) {
         chiaveMonitor({ bounds: d.bounds, scaleFactor: d.scaleFactor })
       )
 
-      // Prima di tutto, le chat rimaste su postazioni che non esistono più:
-      // tornano su uno schermo vero invece di restare invisibili per sempre.
-      // Una volta sola, perché dopo la chiave morta non c'è più.
-      const daPulire = workspaceStore?.leggi()
-      if (daPulire !== undefined && schermi.length > 0) {
-        const ripuliti = daPulire.workspace.map((w) => ({
+      // **Un workspace, una disposizione.**
+      //
+      // Il layout per monitor sembrava naturale e ha prodotto quasi tutti i
+      // guasti di questi giorni: chat archiviate sotto uno schermo che nessuna
+      // finestra chiedeva, la stessa chat mostrata da due finestre, un
+      // salvataggio che ne cancellava un altro. Ogni rattoppo ne apriva uno
+      // nuovo, perché il modello chiedeva di sapere **sotto quale monitor**
+      // vive una chat: una domanda che nessuno dovrebbe doversi porre.
+      //
+      // Qui, una volta per tutte, ogni workspace mette le sue chat in un posto
+      // solo — lo schermo su cui si è aperta la prima finestra. Si perde la
+      // disposizione separata per schermo; si guadagna che le chat ci sono
+      // sempre tutte, e chiunque le cerchi le trova.
+      const prima = BrowserWindow.getAllWindows()[0]
+      const casa = prima === undefined ? schermi[0] : chiaveDiFinestra(prima)
+      const daUnire = workspaceStore?.leggi()
+      if (daUnire !== undefined && casa !== undefined) {
+        const uniti = daUnire.workspace.map((w) => ({
           ...w,
-          perMonitor: recuperaOrfani(w.perMonitor, schermi)
+          perMonitor: unicoLayout(w.perMonitor, casa)
         }))
-        const cambiati = ripuliti.filter(
-          (w, i) => Object.keys(w.perMonitor).length !== Object.keys(daPulire.workspace[i]?.perMonitor ?? {}).length
-        )
+        const cambiati = uniti.filter((w, i) => w.perMonitor !== daUnire.workspace[i]?.perMonitor)
         if (cambiati.length > 0) {
-          console.log(`[avvio] recuperate le chat di ${cambiati.length} workspace da postazioni sparite`)
-          workspaceStore?.scrivi({ ...daPulire, workspace: ripuliti })
+          console.log(`[avvio] ${cambiati.length} workspace avevano le chat divise fra piu monitor: unite`)
+          workspaceStore?.scrivi({ ...daUnire, workspace: uniti })
+          // La finestra è già aperta e ha già chiesto il suo layout: glielo si
+          // rimanda, altrimenti le chat unite si vedono solo al prossimo avvio.
+          const suo = uniti.find((w) => w.nome === daUnire.attivo)?.perMonitor[casa]
+          if (suo !== undefined && prima !== undefined && !prima.webContents.isDestroyed()) {
+            prima.webContents.send('layout:applica', suo)
+          }
         }
-      }
-
-      // Nessuna finestra in più aperta da sola. Aprirle era il modo più
-      // diretto per far tornare a schermo tutte le chat, ed è anche il modo
-      // per ritrovarsi due finestre quando se ne era lasciata una: un
-      // programma che all'avvio dispone lo schermo a modo suo è invadente,
-      // anche quando ha ragione. Le chat che restano su un altro monitor si
-      // vedono aprendo una finestra, e il programma lo dice invece di farlo.
-      const archivioAvvio = workspaceStore?.leggi()
-      const suoLayout = archivioAvvio?.workspace.find((w) => w.nome === archivioAvvio.attivo)
-      const conLavoro = monitorConLavoro(suoLayout?.perMonitor ?? {}, schermi)
-      if (conLavoro.length > 1) {
-        console.log(`[avvio] ci sono chat su ${conLavoro.length} monitor: una finestra le mostra tutte tranne quelle degli altri`)
       }
 
       app.on('activate', () => {

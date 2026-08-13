@@ -27,15 +27,6 @@ export type FontiAvvisi = {
    * si deve gridare che manca tutto.
    */
   preparazione?: StatoPreparazione
-  /**
-   * Quante chat del workspace attivo nessuna finestra sta mostrando.
-   *
-   * Stanno su un monitor che esiste ma non ha una finestra sopra. Il programma
-   * non ne apre una da solo — disporre lo schermo al posto di chi lo usa è
-   * invadente anche quando si ha ragione — ma tacere lascerebbe credere che
-   * quelle chat siano perse, ed è esattamente quello che si è visto succedere.
-   */
-  chatAltrove?: number
 }
 
 /**
@@ -146,22 +137,6 @@ export function componiAvvisi(fonti: FontiAvvisi): Avviso[] {
         : `${mancanti.length} programmi di sistema non risultano installati: alcune cose non funzioneranno.`,
       azione: 'apriPreparazione',
       etichettaAzione: 'Vedi'
-    })
-  }
-
-  // Per ultimo, perché non è un guasto: è lavoro che c'è e non si vede.
-  // Restare zitti sarebbe però la cosa peggiore — chi non le trova le crede
-  // perse, e sono le chat, non la disposizione delle finestre.
-  const altrove = fonti.chatAltrove ?? 0
-  if (altrove > 0) {
-    avvisi.push({
-      id: 'chat-altrove',
-      gravita: 'attenzione',
-      testo: altrove === 1
-        ? 'Una chat di questo workspace è su un altro monitor: apri una finestra per vederla.'
-        : `${altrove} chat di questo workspace sono su un altro monitor: apri una finestra per vederle.`,
-      azione: 'apriFinestra',
-      etichettaAzione: 'Apri una finestra'
     })
   }
 

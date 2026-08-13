@@ -23,6 +23,15 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.6',
+    righe: [
+      '**Un workspace, una disposizione.** Il layout era archiviato per monitor, e da lì venivano quasi tutti i guasti di questi giorni: chat che non tornavano perché archiviate sotto uno schermo che nessuna finestra chiedeva, la stessa chat mostrata da due finestre, un salvataggio che ne cancellava un altro. Ogni rattoppo ne apriva uno nuovo, perché il modello chiedeva di sapere **sotto quale monitor** vive una chat — una domanda che nessuno dovrebbe doversi porre.',
+      'Al primo avvio le chat di ogni workspace si uniscono in un posto solo. Si perde la disposizione separata per schermo; si guadagna che le chat ci sono sempre tutte, e chiunque le cerchi le trova.',
+      'Via l’avviso «una chat è su un altro monitor» e il tasto che apriva una finestra: mostrava la stessa chat che avevi già davanti e continuava a insistere. Era il rattoppo di un difetto che adesso non c’è più.',
+      'Le finestre in più restano finestre in più: si aprono vuote, e ci si portano dentro le chat con il comando ⇄ del riquadro.'
+    ]
+  },
+  {
     versione: '0.9.5',
     righe: [
       '**Spostare una chat in un altro workspace non la perde più.** Il Core la scriveva sul disco, ma ogni finestra tiene in memoria i workspace che ha visitato — e la memoria vince sul disco. Tornando lì, la copia in memoria non sapeva dell’arrivo: la chat non compariva, e il primo salvataggio la cancellava anche dal file. Non «spostata male»: persa.',

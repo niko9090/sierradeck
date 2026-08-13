@@ -74,19 +74,42 @@ export type Archivio = {
  */
 export function layoutPerFinestra(
   perMonitor: Record<string, LayoutSalvato>,
-  chiave: string,
-  occupate: string[] = []
+  chiave: string
 ): LayoutSalvato {
-  const suo = perMonitor[chiave]
-  if (suo !== undefined && suo.panes.length > 0) return suo
-  const prese = new Set([...occupate, chiave])
-  for (const [k, layout] of Object.entries(perMonitor)) {
-    if (prese.has(k) || layout.panes.length === 0) continue
-    return layout
+  return perMonitor[chiave] ?? { root: undefined, panes: [] }
+}
+
+/**
+ * Tutte le chat di un workspace in un layout solo.
+ *
+ * Un layout per monitor sembrava naturale — due schermi, due disposizioni — e
+ * ha prodotto quasi tutti i guasti di questi giorni: chat che non tornavano
+ * perché archiviate sotto un monitor che nessuna finestra chiedeva, la stessa
+ * chat mostrata due volte da due finestre, un salvataggio che ne cancellava un
+ * altro. Ogni rattoppo ne apriva uno nuovo, perché il modello chiedeva a chi
+ * lo usa di sapere **sotto quale monitor** vive una chat: una domanda che
+ * nessuno dovrebbe doversi porre.
+ *
+ * Un workspace ha una disposizione. Le finestre in più restano finestre in
+ * più — utili, vuote all'apertura, e ci si porta dentro le chat a mano. Si
+ * perde la disposizione separata per schermo, e si guadagna che le chat ci
+ * sono sempre tutte, in un posto solo, dove chiunque le cerchi le trova.
+ */
+export function unicoLayout(
+  perMonitor: Record<string, LayoutSalvato>,
+  chiave: string
+): Record<string, LayoutSalvato> {
+  const altri = Object.entries(perMonitor).filter(([k]) => k !== chiave)
+  if (altri.every(([, l]) => l.panes.length === 0)) {
+    // Niente da unire: si restituisce l'originale così com'è, e chi confronta
+    // per identità sa che non è cambiato niente.
+    return perMonitor
   }
-  // Il proprio, anche se vuoto: è comunque la risposta giusta quando davvero
-  // non c'è niente da mostrare.
-  return suo ?? { root: undefined, panes: [] }
+  let insieme = perMonitor[chiave] ?? { root: undefined, panes: [] }
+  for (const [, layout] of altri) {
+    for (const pane of layout.panes) insieme = aggiungiPaneA(insieme, pane)
+  }
+  return { [chiave]: insieme }
 }
 
 /**
