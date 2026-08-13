@@ -64,6 +64,14 @@ describe('tavolozza', () => {
     expect(t['--chassis']).toMatch(/^#[0-9a-f]{6}$/)
   })
 
+  it('la larghezza del diario esce dalla preferenza, non dal foglio di stile', () => {
+    // La preferenza esisteva e non arrivava a nessuno: il pannello aveva una
+    // larghezza scritta nel CSS, e il cursore delle impostazioni non muoveva
+    // niente. E' il token che la porta fin li'.
+    expect(tavolozza({ ...PREFERENZE_PREDEFINITE, larghezzaAutopilota: 50 })['--diario-largh'])
+      .toBe('50%')
+  })
+
   it('il chassis resta piu chiaro del fondo, sempre', () => {
     // E' cio' che tiene leggibile l'interfaccia: se si invertissero, i comandi
     // sparirebbero dentro lo sfondo.
@@ -78,7 +86,9 @@ describe('tavolozza', () => {
     // lo stile — ma quelli che sono colori devono restare colori validi a
     // qualunque chiarore, agli estremi compresi: un `#1a2` di troppo o un
     // valore negativo lascerebbe la console senza fondo.
-    const misure = new Set(['--separazione', '--raggio', '--fascia-h', '--testata-h', '--rilievo'])
+    const misure = new Set([
+      '--separazione', '--raggio', '--fascia-h', '--testata-h', '--rilievo', '--diario-largh'
+    ])
     for (const chiarore of [0, 20, 50, 100]) {
       for (const stile of ['banco', 'foglio'] as const) {
         const t = tavolozza({ ...PREFERENZE_PREDEFINITE, chiarore, stile })

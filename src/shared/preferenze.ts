@@ -84,6 +84,16 @@ export const PREFERENZE_PREDEFINITE: Preferenze = {
   stile: 'banco'
 }
 
+/**
+ * Quanto può stringersi e allargarsi il diario dell'autopilota.
+ *
+ * Sotto il 15% non ci sta più niente di leggibile; sopra il 70% il terminale —
+ * che resta la cosa principale — diventa una striscia. Il numero sta qui perché
+ * lo usano in tre: chi normalizza, il cursore delle impostazioni e la maniglia
+ * sul bordo del pannello, e tre limiti diversi sarebbero tre comportamenti.
+ */
+export const LARGHEZZA_DIARIO = { min: 15, max: 70 } as const
+
 /** Le porte sotto la 1024 le tiene il sistema, e sopra la 65535 non esistono. */
 const PORTA_MIN = 1024
 const PORTA_MAX = 65535
@@ -136,7 +146,7 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
     // i due estremi sono entrambi un modo di non vedere quello che serve.
     larghezzaAutopilota:
       typeof o.larghezzaAutopilota === 'number' &&
-      o.larghezzaAutopilota >= 15 && o.larghezzaAutopilota <= 70
+      o.larghezzaAutopilota >= LARGHEZZA_DIARIO.min && o.larghezzaAutopilota <= LARGHEZZA_DIARIO.max
         ? Math.round(o.larghezzaAutopilota)
         : PREFERENZE_PREDEFINITE.larghezzaAutopilota,
     // Solo i due nomi che conosciamo: uno stile inventato lascerebbe la console
@@ -164,7 +174,12 @@ export function tavolozza(p: Preferenze): Record<string, string> {
     '--chassis': grigio(base + 15),
     '--chassis-alto': grigio(base + 23),
     '--chassis-premuto': grigio(base + 7),
-    '--accento': p.accento
+    '--accento': p.accento,
+    // Quanto spazio prende il diario dell'autopilota dentro il suo riquadro.
+    // Sta qui perché è di qui che passano tutte le misure che l'utente sceglie:
+    // il cursore delle impostazioni e la maniglia sul bordo scrivono lo stesso
+    // numero, e il foglio di stile non ne conosce nessun altro.
+    '--diario-largh': `${p.larghezzaAutopilota}%`
   }
 
   // Le due vesti cambiano **gli stessi** token, ed è la ragione per cui

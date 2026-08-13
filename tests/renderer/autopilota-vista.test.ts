@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { descriviAutopilota, ledDi } from '../../src/renderer/autopilota-vista'
+import { descriviAutopilota, ledDi, passaggi } from '../../src/renderer/autopilota-vista'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 
 function ap(over: Partial<Autopilota> = {}): Autopilota {
@@ -122,6 +122,18 @@ describe('ledDi', () => {
     expect(t).toContain('Test verdi')
     expect(t).toContain('Quale chiave?')
   })
+
+  it('chi si prepara lavora: verde finche non chiede davvero qualcosa', () => {
+    // Lampeggiare mentre nessuno e' atteso e' il difetto che si e' gia' tolto
+    // dalla banda in cima: un LED ambra dice «tocca a te», e se lo dice quando
+    // non e' vero insegna a non fidarsi di quando lo e'.
+    expect(ledDi(ap({ stato: 'intervista', criteri: [] })).classe).toBe('led--lavoro')
+  })
+
+  it('chi si prepara e ha fatto una domanda aspetta te', () => {
+    const chiede = ap({ stato: 'intervista', criteri: [], motivoSospensione: 'Anche YAML?' })
+    expect(ledDi(chiede).classe).toBe('led--attesa')
+  })
 })
 
 describe('autopilota in intervista', () => {
@@ -140,8 +152,73 @@ describe('autopilota in intervista', () => {
     expect(descriviAutopilota(ap({ stato: 'intervista', criteri: [] })).avanzamento).toBe('—')
   })
 
-  it('il LED di chi si prepara e quello dell attesa', () => {
-    // Sta aspettando l'utente: e' la stessa cosa, e il colore deve dirlo.
-    expect(ledDi(ap({ stato: 'intervista', criteri: [] })).classe).toBe('led--attesa')
+  it('il LED di chi si prepara dice se sta lavorando o se aspetta te', () => {
+    // Prima erano la stessa cosa. Non lo sono: mentre guarda il progetto non
+    // aspetta nessuno, e un LED ambra che lampeggia a vuoto e' il modo piu'
+    // rapido per far smettere di guardare i LED.
+    expect(ledDi(ap({ stato: 'intervista', criteri: [] })).classe).toBe('led--lavoro')
+    expect(ledDi(ap({ stato: 'intervista', criteri: [], motivoSospensione: 'Anche YAML?' })).classe)
+      .toBe('led--attesa')
+  })
+})
+
+describe('passaggi', () => {
+  /** Il passo che l'autopilota sta vivendo adesso, comunque si chiami. */
+  function adesso(a: Autopilota): { nome: string; stato: string; nota?: string } {
+    const qui = passaggi(a).find((p) => p.stato !== 'fatto' && p.stato !== 'davanti')
+    return qui ?? { nome: '', stato: '' }
+  }
+
+  it('sono sempre tre, dalla preparazione alla fine', () => {
+    // Il percorso e' quello e non cambia: chi guarda deve poter vedere dove si
+    // trova, non solo cosa sta facendo. Prima se ne raccontavano due su sei.
+    expect(passaggi(ap()).map((p) => p.nome)).toEqual(['Prepara', 'Lavora', 'Fine'])
+  })
+
+  it('in preparazione il primo passo e quello corrente e gli altri sono davanti', () => {
+    const p = passaggi(ap({ stato: 'intervista', criteri: [] }))
+    expect(p.map((x) => x.stato)).toEqual(['corrente', 'davanti', 'davanti'])
+  })
+
+  it('la domanda della preparazione si vede nel suo passo', () => {
+    const p = adesso(ap({ stato: 'intervista', criteri: [], motivoSospensione: 'Anche YAML?' }))
+    expect(p.nome).toBe('Prepara')
+    expect(p.stato).toBe('attesa')
+    expect(p.nota).toContain('Anche YAML?')
+  })
+
+  it('al lavoro la preparazione risulta fatta', () => {
+    const p = passaggi(ap({ stato: 'lavoro', cicli: 3 }))
+    expect(p[0]!.stato).toBe('fatto')
+    expect(p[1]!.stato).toBe('corrente')
+    expect(p[1]!.nota).toContain('3')
+  })
+
+  it('chi aspetta una risposta lo dice nel passo del lavoro', () => {
+    const p = adesso(ap({ stato: 'attesa', motivoSospensione: 'Quale chiave?' }))
+    expect(p.nome).toBe('Lavora')
+    expect(p.stato).toBe('attesa')
+    expect(p.nota).toContain('Quale chiave?')
+  })
+
+  it('una preparazione fermata resta ferma sul suo passo, non su quello del lavoro', () => {
+    // Senza criteri non ha mai lavorato: dire «fermo al lavoro» manderebbe a
+    // cercare una chat che non e' mai partita.
+    const p = adesso(ap({ stato: 'sospeso', criteri: [], motivoSospensione: 'claude.exe non parte' }))
+    expect(p.nome).toBe('Prepara')
+    expect(p.stato).toBe('fermo')
+    expect(p.nota).toContain('claude.exe')
+  })
+
+  it('un lavoro fallito si ferma sul passo del lavoro', () => {
+    const p = adesso(ap({ stato: 'fallito', motivoSospensione: 'la verifica non parte' }))
+    expect(p.nome).toBe('Lavora')
+    expect(p.stato).toBe('fermo')
+  })
+
+  it('finito accende l ultimo passo e lascia fatti i primi due', () => {
+    const p = passaggi(ap({ stato: 'finito', cicli: 7 }))
+    expect(p.map((x) => x.stato)).toEqual(['fatto', 'fatto', 'corrente'])
+    expect(p[2]!.nota).toContain('7')
   })
 })

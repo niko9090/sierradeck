@@ -773,6 +773,38 @@ describe('intervista di preparazione', () => {
     expect(avviati).toEqual([])
   })
 
+  it('dopo la risposta smette di dire che sta chiedendo', async () => {
+    // La domanda aperta vive nel motivo, ed e' da li' che il pannello capisce
+    // se l'autopilota aspetta l'utente. Lasciarcela dopo la risposta significa
+    // un LED ambra che lampeggia mentre lui sta gia' lavorando - e
+    // l'interrogazione successiva puo' durare minuti.
+    let riparti: () => void = () => undefined
+    const lunga = new Promise<{ testo: string }>((r) => {
+      riparti = () => r({ testo: '{"pronto": true, "criteri": [{"descrizione": "fatto"}]}' })
+    })
+    let giro = 0
+    server = ambiente({
+      interroga: (prompt) => {
+        if (!prompt.includes('Stai preparando')) return Promise.resolve({ testo: '{"azione": "finito"}' })
+        giro += 1
+        return giro === 1 ? Promise.resolve({ testo: '{"domanda": "Anche YAML?"}' }) : lunga
+      },
+      scadenzaInterviataMs: 5000
+    })
+    await avvia(server)
+    await chiama('POST', '/autopiloti', { obiettivo: 'x', cwd: process.cwd(), criteri: [] })
+
+    await attendi(async () => (await chiama('GET', '/domande')).dati.length > 0)
+    const domanda = (await chiama('GET', '/domande')).dati[0]
+    await chiama('POST', `/domande/${domanda.id}/risposta`, { risposta: 'si' })
+
+    await attendi(async () => (await chiama('GET', '/autopiloti')).dati[0].intervista.length === 1)
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.stato).toBe('intervista')
+    expect(stato.motivoSospensione).toBeUndefined()
+    riparti()
+  })
+
   it('una preparazione interrotta riparte quando il servizio torna su', async () => {
     // Il caso vero: l'app viene riavviata mentre l'autopilota si prepara. Sul
     // disco resta «intervista», ma nessun processo la sta piu' conducendo e non

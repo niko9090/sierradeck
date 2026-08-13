@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Anteprima } from '../../main/anteprima'
 import type { Autopilota } from '@shared/autopilota'
+import { LARGHEZZA_DIARIO } from '@shared/preferenze'
 import { completamento, diario } from '../diario-autopilota'
-import { ledDi } from '../autopilota-vista'
+import { ledDi, passaggi } from '../autopilota-vista'
 
 function ora(iso: string): string {
   const d = new Date(iso)
@@ -42,6 +43,7 @@ export function DiarioAutopilota({
   const [risposta, setRisposta] = useState('')
   const [inviando, setInviando] = useState(false)
   const [errore, setErrore] = useState<string | undefined>(undefined)
+  const colonna = useRef<HTMLElement | null>(null)
 
   const sessioni = [
     ...autopilota.chats.filter((ch) => ch.sessionId !== undefined).map((ch) => ch.sessionId!),
@@ -68,22 +70,107 @@ export function DiarioAutopilota({
   const c = completamento(autopilota)
   const voci = diario(autopilota)
   const led = ledDi(autopilota)
+  const percorso = passaggi(autopilota)
+  const qui = percorso.find((p) => p.stato !== 'fatto' && p.stato !== 'davanti')
+
+  // La domanda si risponde anche mentre si prepara: è lì che l'autopilota
+  // chiede quasi sempre, e prima bisognava andarla a cercare nel pannello
+  // sopra il mosaico — cioè smettere di guardare quello che si stava guardando.
+  const chiede = autopilota.stato === 'attesa' ||
+    (autopilota.stato === 'intervista' && autopilota.motivoSospensione !== undefined)
+
+  /**
+   * La maniglia sul bordo: trascina la larghezza del pannello.
+   *
+   * Il numero è la stessa preferenza del cursore nelle impostazioni — che
+   * finora non muoveva niente — così le due strade non si contraddicono. Il
+   * riscontro è immediato sul token, il salvataggio arriva al rilascio: salvare
+   * a ogni pixel scriverebbe il file cento volte per un gesto solo.
+   */
+  const trascinaLargh = (e: React.PointerEvent<HTMLDivElement>): void => {
+    const riquadro = colonna.current?.parentElement
+    if (riquadro == null) return
+    e.preventDefault()
+    const zona = riquadro.getBoundingClientRect()
+    const bersaglio = e.currentTarget
+    bersaglio.setPointerCapture(e.pointerId)
+    let ultima: number = LARGHEZZA_DIARIO.min
+
+    const misura = (x: number): number => {
+      const percento = Math.round(((zona.right - x) / zona.width) * 100)
+      return Math.min(LARGHEZZA_DIARIO.max, Math.max(LARGHEZZA_DIARIO.min, percento))
+    }
+    const muovi = (ev: PointerEvent): void => {
+      ultima = misura(ev.clientX)
+      document.documentElement.style.setProperty('--diario-largh', `${ultima}%`)
+    }
+    const molla = (): void => {
+      bersaglio.removeEventListener('pointermove', muovi)
+      bersaglio.removeEventListener('pointerup', molla)
+      bersaglio.removeEventListener('pointercancel', molla)
+      salvaLargh(ultima)
+    }
+    ultima = misura(e.clientX)
+    bersaglio.addEventListener('pointermove', muovi)
+    bersaglio.addEventListener('pointerup', molla)
+    bersaglio.addEventListener('pointercancel', molla)
+  }
+
+  const salvaLargh = (percento: number): void => {
+    document.documentElement.style.setProperty('--diario-largh', `${percento}%`)
+    window.gestore.preferenze
+      .leggi()
+      .then((p) => window.gestore.preferenze.imposta({ ...p, larghezzaAutopilota: percento }))
+      .catch(() => undefined)
+  }
+
+  /** Le frecce muovono la maniglia: un bordo trascinabile solo col mouse è mezzo comando. */
+  const tastiLargh = (e: React.KeyboardEvent<HTMLDivElement>): void => {
+    const passo = e.key === 'ArrowLeft' ? 2 : e.key === 'ArrowRight' ? -2 : 0
+    if (passo === 0) return
+    e.preventDefault()
+    const attuale = Number.parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--diario-largh'),
+      10
+    )
+    const partenza = Number.isNaN(attuale) ? 34 : attuale
+    salvaLargh(Math.min(LARGHEZZA_DIARIO.max, Math.max(LARGHEZZA_DIARIO.min, partenza + passo)))
+  }
 
   if (!aperto) {
     return (
       <button
         className="diario__linguetta"
         onClick={() => setAperto(true)}
-        title={`${autopilota.nome}: ${c.percento}% — riapre il diario dell’autopilota`}
+        title={`${autopilota.nome}: ${qui?.nota ?? led.titolo} — riapre il diario dell’autopilota`}
       >
         <span className={`led ${led.classe}`} />
-        <span className="diario__linguetta-testo">{c.percento}%</span>
+        {/* Senza criteri non c'è percentuale da dare: al suo posto il passo, che
+            a pannello chiuso è l'unica cosa che si riesce comunque a leggere. */}
+        <span className="diario__linguetta-testo">
+          {c.totali > 0 ? `${c.percento}%` : qui?.nome ?? '—'}
+        </span>
       </button>
     )
   }
 
   return (
-    <aside className={largo ? 'diario diario--largo' : 'diario'}>
+    <aside className={largo ? 'diario diario--largo' : 'diario'} ref={colonna}>
+      {/* Il solco fra terminale e diario è anche il comando che li divide: si
+          afferra dove già si guarda, senza andare nelle impostazioni. */}
+      {largo ? null : (
+        <div
+          className="diario__maniglia"
+          onPointerDown={trascinaLargh}
+          onKeyDown={tastiLargh}
+          onDoubleClick={() => salvaLargh(34)}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Quanto spazio prende il diario"
+          tabIndex={0}
+          title="Trascina per cambiare la larghezza · doppio clic per rimetterla com’era"
+        />
+      )}
       <div className="diario__testa">
         <span className={`led ${led.classe}`} title={led.titolo} />
         <span className="serigrafia diario__nome">{autopilota.nome}</span>
@@ -107,28 +194,40 @@ export function DiarioAutopilota({
         </button>
       </div>
 
+      {/* Il percorso intero, non solo il punto in cui si trova: sei stati
+          raccontati da una percentuale e una riga erano due. Qui si vede se
+          «fermo» è successo prima o dopo che si mettesse al lavoro — che è la
+          differenza fra rispondergli e andare a vedere la chat. */}
+      <ol className="passi" aria-label="A che punto è">
+        {percorso.map((p) => (
+          <li key={p.nome} className={`passo passo--${p.stato}`}>
+            <span className="passo__led" aria-hidden="true" />
+            <span className="passo__nome">{p.nome}</span>
+          </li>
+        ))}
+      </ol>
+      {qui?.nota !== undefined ? <p className="passi__nota">{qui.nota}</p> : null}
+
       {/* La percentuale non è una stima: sono i criteri di fine che
-          l'autopilota verifica a ogni intervento. */}
-      <div className="diario__misura">
-        <span className="diario__percento">{c.percento}%</span>
-        {/* Senza criteri la percentuale non misura niente, e il motivo cambia:
-            in preparazione non ci sono ancora, altrove non ci sono più. */}
-        <span className="misura">
-          {c.totali > 0
-            ? `${c.fatti} di ${c.totali} criteri`
-            : autopilota.stato === 'intervista'
-              ? 'si sta preparando'
-              : 'nessun criterio'}
-        </span>
-      </div>
-      <div className="diario__barra">
-        <span className="diario__riempimento" style={{ width: `${c.percento}%` }} />
-      </div>
+          l'autopilota verifica a ogni intervento. Senza criteri non misura
+          niente — e un «0%» dove i passi dicono già «Prepara» è solo un numero
+          che spaventa. */}
+      {c.totali > 0 ? (
+        <>
+          <div className="diario__misura">
+            <span className="diario__percento">{c.percento}%</span>
+            <span className="misura">{c.fatti} di {c.totali} criteri</span>
+          </div>
+          <div className="diario__barra">
+            <span className="diario__riempimento" style={{ width: `${c.percento}%` }} />
+          </div>
+        </>
+      ) : null}
 
       {/* La domanda si risponde **qui**, dove si sta già guardando: prima
           bisognava aprire il pannello degli autopiloti e cercarla, mentre la
           chat restava ferma ad aspettare. */}
-      {autopilota.stato === 'attesa' ? (
+      {chiede ? (
         <div className="diario__domanda">
           <div className="diario__domanda-testo">
             {autopilota.motivoSospensione ?? 'Ha bisogno di una tua risposta.'}

@@ -1,19 +1,32 @@
 import type { Autopilota } from '@shared/autopilota'
 
 /**
+ * Se sta aspettando una risposta *adesso*, mentre si prepara.
+ *
+ * Durante l'intervista la domanda aperta è scritta nel motivo: finché non c'è,
+ * l'autopilota sta guardando il progetto per conto suo e non aspetta nessuno.
+ */
+function stachiedendo(a: Autopilota): boolean {
+  return a.motivoSospensione !== undefined && a.motivoSospensione.trim() !== ''
+}
+
+/**
  * Il LED di un autopilota: la sua classe e cosa dice a chi ci passa sopra.
  *
  * Quattro colori e nient'altro, perché a due metri si distinguono quattro
  * colori e non otto sfumature. «Finito» si **spegne** invece di diventare
  * verde: un lavoro concluso non deve chiamare l'attenzione come uno in corso,
  * e verde ovunque significherebbe verde da nessuna parte.
+ *
+ * Verde vuol dire **una macchina in moto**, ambra **tocca a te**: per questo
+ * chi si prepara è verde finché non ha davvero fatto una domanda. Prima era
+ * ambra sempre — lampeggiava anche mentre leggeva i file per conto suo — ed è
+ * il modo più rapido per insegnare a non guardare più i LED.
  */
 export function ledDi(a: Autopilota): { classe: string; titolo: string } {
   const classe =
-    a.stato === 'lavoro'
+    a.stato === 'lavoro' || (a.stato === 'intervista' && !stachiedendo(a))
       ? 'led--lavoro'
-      // Chi si prepara sta aspettando una risposta come chi e' in attesa: e'
-      // la stessa cosa per l'utente, e il colore deve dire quella.
       : a.stato === 'attesa' || a.stato === 'intervista'
         ? 'led--attesa'
         : a.stato === 'finito'
@@ -25,6 +38,70 @@ export function ledDi(a: Autopilota): { classe: string; titolo: string } {
     ? ` — ${a.motivoSospensione}`
     : ''
   return { classe, titolo: `${nome}: ${a.stato}${coda}` }
+}
+
+export type Passo = {
+  /** Il nome serigrafato del passo: sempre lo stesso, comunque vada. */
+  nome: string
+  /**
+   * Dove si trova l'autopilota rispetto a questo passo.
+   *
+   * `fatto` è alle spalle, `davanti` non è ancora cominciato; gli altri tre
+   * sono il passo che sta vivendo adesso, e dicono in che modo lo sta vivendo.
+   */
+  stato: 'fatto' | 'corrente' | 'attesa' | 'fermo' | 'davanti'
+  /** Cosa sta succedendo qui: solo sul passo corrente, e solo se c'è. */
+  nota?: string
+}
+
+const NOMI_PASSI = ['Prepara', 'Lavora', 'Fine'] as const
+
+/**
+ * Il percorso dell'autopilota, in tre passi, con l'indicazione di dov'è.
+ *
+ * La macchina a stati ne ha sei, ma il pannello ne raccontava due: una
+ * percentuale e una riga di testo. Chi guardava non poteva sapere se «si sta
+ * preparando» fosse l'inizio di tutto o l'ultimo respiro prima di finire — né,
+ * davanti a un autopilota fermo, se si fosse fermato prima o dopo aver
+ * lavorato. I sei stati stanno tutti qui dentro: tre passi che dicono **dove**,
+ * e la forma del passo corrente che dice **come**.
+ *
+ * Il confine fra il primo e il secondo passo sono i criteri: finché non ci
+ * sono, l'autopilota non è mai partito, e un guasto va mostrato lì — non sul
+ * lavoro, che manderebbe a cercare una chat che non è mai esistita.
+ */
+export function passaggi(a: Autopilota): Passo[] {
+  const preparato = a.criteri.length > 0
+  const passi: Passo[] = NOMI_PASSI.map((nome) => ({ nome, stato: 'davanti' }))
+  const segna = (i: number, stato: Passo['stato'], nota?: string): void => {
+    for (let k = 0; k < i; k += 1) passi[k]!.stato = 'fatto'
+    passi[i] = { nome: NOMI_PASSI[i]!, stato, ...(nota !== undefined ? { nota } : {}) }
+  }
+
+  const motivo = a.motivoSospensione
+  const interventi = `${a.cicli} ${a.cicli === 1 ? 'intervento' : 'interventi'}`
+
+  switch (a.stato) {
+    case 'intervista':
+      segna(0, motivo !== undefined ? 'attesa' : 'corrente', motivo ?? 'guarda il progetto')
+      break
+    case 'lavoro':
+      segna(1, 'corrente', a.strategia !== undefined
+        ? `${interventi} · prova un'altra strada: ${a.strategia}`
+        : interventi)
+      break
+    case 'attesa':
+      segna(1, 'attesa', motivo ?? 'aspetta una tua risposta')
+      break
+    case 'finito':
+      segna(2, 'corrente', interventi)
+      break
+    default:
+      // Sospeso o fallito: il passo dove si è fermato, che è il primo finché
+      // non si è dato dei criteri.
+      segna(preparato ? 1 : 0, 'fermo', motivo ?? 'fermo')
+  }
+  return passi
 }
 
 /**

@@ -371,6 +371,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       if (dopo === undefined || dopo.stato !== 'intervista') return
       corrente = {
         ...dopo,
+        // La domanda è stata risposta: toglierla dal motivo è ciò che spegne il
+        // LED ambra. Restandoci, il pannello continuerebbe a dire «ti sta
+        // chiedendo» per tutta l'interrogazione successiva — che dura minuti.
+        motivoSospensione: undefined,
         intervista: [...dopo.intervista, { domanda: esito.testo, risposta: risposta.risposta }]
       }
       salva(corrente)
