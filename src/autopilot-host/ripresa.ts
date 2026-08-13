@@ -1,4 +1,4 @@
-import type { Autopilota } from '@shared/autopilota'
+import type { Autopilota, ChatGovernata } from '@shared/autopilota'
 
 /**
  * Quali autopiloti far ripartire quando il servizio torna su.
@@ -28,6 +28,26 @@ export function daRiprendere(tutti: Autopilota[]): Autopilota[] {
       a.riprendiAlRiavvio !== false &&
       (a.limiti.cicliMax === 0 || a.cicli < a.limiti.cicliMax)
   )
+}
+
+/**
+ * Quali chat rimettere in moto di un autopilota che riprende.
+ *
+ * Chi governa una chat sola ha `undefined`: quella chat non ha un id suo,
+ * perché non c'è nessun'altra da cui distinguerla. Una flotta ha invece le sue,
+ * e vanno riprese **tutte**.
+ *
+ * Riprendere una flotta come se avesse una chat sola era il difetto peggiore
+ * della ripresa: le chat vere restavano orfane — vive nel mosaico ma senza
+ * nessuno che le governasse — e se ne apriva una terza con l'obiettivo intero,
+ * cioè un lavoro già diviso in due rifatto da capo in parallelo.
+ *
+ * Le chat che hanno finito non tornano: il loro pezzo è fatto, e riaprirle
+ * significherebbe rifarlo.
+ */
+export function chatDaRiprendere(a: Autopilota): (ChatGovernata | undefined)[] {
+  if (a.chats.length === 0) return [undefined]
+  return a.chats.filter((c) => c.stato !== 'finita')
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { daRiprendere, intervisteDaRiprendere } from '../../src/autopilot-host/ripresa'
+import { chatDaRiprendere, daRiprendere, intervisteDaRiprendere } from '../../src/autopilot-host/ripresa'
 import { nuovoAutopilota, type Autopilota , limitiPredefiniti } from '@shared/autopilota'
 
 function ap(over: Partial<Autopilota> = {}): Autopilota {
@@ -93,5 +93,51 @@ describe('intervisteDaRiprendere', () => {
 
   it('rispetta la scelta di non ripartire al riavvio', () => {
     expect(intervisteDaRiprendere([ap({ stato: 'intervista', riprendiAlRiavvio: false })])).toEqual([])
+  })
+})
+
+describe('quali chat riprendere di un autopilota', () => {
+  it('senza flotta, la sua unica chat', () => {
+    // `undefined` vuol dire «la chat dell'autopilota», quella che non ha un id
+    // suo perche' non ce n'e' un'altra da cui distinguerla.
+    expect(chatDaRiprendere(ap({ stato: 'lavoro' }))).toEqual([undefined])
+  })
+
+  it('con una flotta, ognuna delle sue chat vive', () => {
+    // Riprenderlo come se avesse una chat sola lasciava orfane quelle della
+    // flotta e ne apriva una terza con l'obiettivo intero: tre conversazioni
+    // per un lavoro diviso in due.
+    const flotta = ap({
+      stato: 'lavoro',
+      tettoChat: 3,
+      chats: [
+        { id: 'c-1', compito: 'i bug', stato: 'lavoro', cicli: 2, sessionId: 's-1' },
+        { id: 'c-2', compito: 'le proposte', stato: 'lavoro', cicli: 1, sessionId: 's-2' }
+      ]
+    })
+    expect(chatDaRiprendere(flotta).map((c) => c?.id)).toEqual(['c-1', 'c-2'])
+  })
+
+  it('non riprende una chat che aveva gia finito', () => {
+    const mista = ap({
+      stato: 'lavoro',
+      tettoChat: 2,
+      chats: [
+        { id: 'c-1', compito: 'a', stato: 'finita', cicli: 5 },
+        { id: 'c-2', compito: 'b', stato: 'lavoro', cicli: 1 }
+      ]
+    })
+    expect(chatDaRiprendere(mista).map((c) => c?.id)).toEqual(['c-2'])
+  })
+
+  it('una flotta le cui chat hanno finito tutte non riparte a mani vuote', () => {
+    // Nessuna chat da riprendere e nessun compito in coda: aprirne una con
+    // l'obiettivo intero rifarebbe da capo un lavoro gia' fatto.
+    const finita = ap({
+      stato: 'lavoro',
+      tettoChat: 2,
+      chats: [{ id: 'c-1', compito: 'a', stato: 'finita', cicli: 5 }]
+    })
+    expect(chatDaRiprendere(finita)).toEqual([])
   })
 })

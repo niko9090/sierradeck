@@ -12,7 +12,7 @@ import { interrogazioneReale } from './supervisore'
 import { creaConsegne } from './consegne'
 import { esecutoreNelMosaico } from './nel-mosaico'
 import { creaRegistroDomande } from './domande'
-import { daRiprendere } from './ripresa'
+import { chatDaRiprendere, daRiprendere } from './ripresa'
 import { creaAvvisatore, invioReale, leggiConfigurazione } from './telegram'
 
 /** Dove Claude Code tiene le trascrizioni. La stessa regola del Gestore. */
@@ -205,12 +205,20 @@ export function avviaServizio(): void {
     if (daRiavviare.length === 0) return
     console.info(`[autopilota] riprendo ${daRiavviare.length} autopiloti interrotti`)
     for (const a of daRiavviare) {
-      void lavori.avvia(a).then(
-        () => avvisa('ripreso', a),
-        (err: unknown) => {
+      // Tutte le sue chat, non una: una flotta ripresa come chat singola
+      // lasciava orfane quelle vere e ne apriva un'altra con l'obiettivo
+      // intero — lo stesso lavoro, gia' diviso, rifatto da capo in parallelo.
+      const chats = chatDaRiprendere(a)
+      if (chats.length === 0) {
+        console.info(`[autopilota] ${a.id} non ha chat da riprendere: le sue hanno gia' finito`)
+        continue
+      }
+      for (const chat of chats) {
+        void lavori.avvia(a, undefined, chat).catch((err: unknown) => {
           console.error(`[autopilota] ripresa di ${a.id} fallita:`, err)
-        }
-      )
+        })
+      }
+      void avvisa('ripreso', a)
     }
   })
 }

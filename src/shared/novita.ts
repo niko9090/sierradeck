@@ -23,8 +23,9 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
-    versione: '0.9.13',
+    versione: '0.9.14',
     righe: [
+      '**Una flotta ripresa dopo un riavvio tornava sbagliata.** L’autopilota riprendeva come se avesse una chat sola: quelle vere restavano vive nel mosaico ma senza nessuno che le governasse, e se ne apriva un’altra con l’obiettivo intero — lo stesso lavoro, già diviso in due, rifatto da capo in parallelo. Ora riprendono tutte le sue chat, e quelle che avevano finito il loro pezzo non tornano.',
       '**Gli autopiloti scrivevano il compito nella chat senza mandarlo.** Il testo compariva per intero nel campo, la chat restava ferma e l’autopilota aspettava una risposta che nessuno stava scrivendo. Per Claude Code un testo che arriva tutto insieme è un incollaggio, e dentro un incollaggio l’invio finale conta come un altro a capo: adesso il messaggio e il suo invio sono due gesti separati.',
       '**Un solo pannello dell’autopilota, anche quando le sue chat sono tante.** Il diario si trova per cartella, e una flotta ne apre più d’una lì dentro: compariva accanto a ognuna, identico, con la stessa percentuale — e sembravano tre autopiloti diversi. Ora sta accanto alla prima, e se quella chat si chiude passa alla successiva.',
       '**La finestra torna sul monitor dove l’avevi lasciata.** Quella memoria la teneva l’archivio dei layout, che archiviava le chat per monitor; da quando i layout sono uno solo per workspace — era il difetto per cui le chat sparivano — nessuno sapeva più dov’era la finestra, e all’avvio finiva sul primo schermo libero: su due monitor, quello che capitava. Ora se lo ricorda, e se quel monitor non c’è più non ci prova nemmeno.',
