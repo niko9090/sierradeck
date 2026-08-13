@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Solo la cache dell'app, e solo per l'APK dell'aggiornamento: niente
+     documenti, niente foto, niente che non sia nostro. -->
+<paths>
+    <cache-path name="aggiornamenti" path="." />
+</paths>

@@ -17,8 +17,8 @@ android {
         // programmi che si aggiornano quando hanno qualcosa di nuovo da dare, e
         // legarli vorrebbe dire pubblicare un APK identico ogni volta che
         // cambia una riga di SierraDeck. Qui si alza quando cambia *questa* app.
-        versionCode = 8
-        versionName = "1.2.0"
+        versionCode = 9
+        versionName = "1.3.0"
     }
 
     // Serve `BuildConfig.VERSION_NAME`: l'app deve sapere quale versione è per
@@ -59,4 +59,12 @@ dependencies {
     // Per provare la regola degli indirizzi senza un telefono: e logica pura,
     // ed e gia costata due volte un app che non si collegava a niente.
     testImplementation("junit:junit:4.13.2")
+    // Il vero org.json, per i test.
+    //
+    // Android sostituisce quella libreria con un finto che **solleva a ogni
+    // chiamata**: i test della regola degli avvisi - che legge lo stato del
+    // computer, cioe' del JSON - fallivano tutti con «not mocked», che sembra
+    // un difetto del codice e non lo e'. Qui si usa l'implementazione vera, la
+    // stessa che gira sul telefono.
+    testImplementation("org.json:json:20240303")
 }

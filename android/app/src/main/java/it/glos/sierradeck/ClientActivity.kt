@@ -224,18 +224,55 @@ class ClientActivity : AppCompatActivity() {
         // impone — a installare è Android, con la sua schermata di sempre.
         try {
             Aggiornamenti.controlla(BuildConfig.VERSION_NAME) { nome, apk ->
-            runOnUiThread {
-                AlertDialog.Builder(this)
-                    .setTitle("C’è SierraDeck $nome")
-                    .setMessage("Vuoi scaricarla adesso? L’installazione la conferma Android.")
-                    .setPositiveButton("Scarica") { _, _ -> Aggiornamenti.scarica(this, apk) }
-                    .setNegativeButton("Più tardi", null)
-                    .show()
-                }
+                runOnUiThread { proponiAggiornamento(nome, apk) }
             }
         } catch (e: Exception) {
             // Non sapere se c'è una versione nuova non è una ragione per non
             // usare quella che si ha.
+        }
+    }
+
+    /**
+     * L'avviso che c'è una versione nuova, e l'aggiornamento senza uscire.
+     *
+     * Prima si apriva il browser e si lasciava l'utente a cercare il file
+     * scaricato: tre passaggi per una cosa che deve costarne uno. Qui il file
+     * arriva dentro l'app, con la percentuale che avanza, e alla fine Android
+     * apre la **sua** schermata di installazione — quella resta, ed è giusto:
+     * a installare un'app deve essere il sistema, con te che confermi.
+     */
+    private fun proponiAggiornamento(nome: String, apk: String) {
+        val avanzamento = TextView(this).apply {
+            setPadding(56, 32, 56, 0)
+            text = "Scarico… 0%"
+            visibility = View.GONE
+        }
+        val finestra = AlertDialog.Builder(this)
+            .setTitle("C’è SierraDeck $nome")
+            .setMessage("La scarico e la installo da qui. A confermare l’installazione sarà Android.")
+            .setView(avanzamento)
+            .setPositiveButton("Aggiorna", null)
+            .setNegativeButton("Più tardi", null)
+            .create()
+        finestra.show()
+        finestra.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { tasto ->
+            // Non si chiude alla prima pressione: chi ha premuto deve vedere il
+            // lavoro procedere, altrimenti non sa se sta succedendo qualcosa.
+            tasto.isEnabled = false
+            avanzamento.visibility = View.VISIBLE
+            Scaricamento.apk(
+                this,
+                apk,
+                avanzamento = { percento ->
+                    runOnUiThread { avanzamento.text = "Scarico… $percento%" }
+                },
+                guasto = { motivo ->
+                    runOnUiThread {
+                        avanzamento.text = "Non ce l’ho fatta: $motivo"
+                        tasto.isEnabled = true
+                    }
+                }
+            )
         }
     }
 

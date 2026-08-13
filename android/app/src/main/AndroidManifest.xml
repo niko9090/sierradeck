@@ -13,6 +13,11 @@
          di Google Play Services, che la fotocamera la usa per conto suo. Un
          permesso in meno da chiedere e' un permesso in meno da giustificare. -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Per installare l'aggiornamento dell'app senza passare dal browser.
+         Non installa niente di nascosto: apre la schermata di Android, dove sei
+         tu a confermare. Finche' l'app non vive sul Play Store, questo e' il
+         modo per non restare fermi a una versione per sempre. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:label="SierraDeck"
@@ -31,6 +36,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Il file dell'aggiornamento viaggia come content://, non come
+             percorso: dalla 24 in poi Android rifiuta un file:// che attraversa
+             le app, e il rifiuto arriva a installazione gia' annunciata. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.file"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/cartelle_condivise" />
+        </provider>
 
         <service
             android:name=".GuardiaService"
