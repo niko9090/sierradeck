@@ -393,3 +393,71 @@ describe('cambio di vista fra workspace', () => {
     expect(useLayoutStore.getState().ceduti.has(a)).toBe(false)
   })
 })
+
+describe('ibernare una chat', () => {
+  beforeEach(() => useLayoutStore.getState().reset())
+
+  it('la fa dormire e dice quale terminale chiudere', () => {
+    // Ogni chat aperta tiene acceso un claude.exe: con qualche workspace pieno
+    // se ne tengono dieci per guardarne due.
+    const s = useLayoutStore.getState()
+    const id = s.addPane('C:\p', 'Progetto')
+    s.setPtyId(id, 'pty-1')
+    expect(useLayoutStore.getState().iberna(id)).toBe('pty-1')
+    const dopo = useLayoutStore.getState().panes[id]
+    expect(dopo?.ibernata).toBe(true)
+    // Il ptyId sparisce con il processo: tenerlo vorrebbe dire provare a
+    // riagganciare un terminale che non c'è più, e la chat resterebbe vuota
+    // senza dire perché.
+    expect(dopo?.ptyId).toBeUndefined()
+  })
+
+  it('non dice niente da chiudere se non era acceso niente', () => {
+    const s = useLayoutStore.getState()
+    const id = s.addPane('C:\p', 'Progetto')
+    expect(useLayoutStore.getState().iberna(id)).toBeUndefined()
+    expect(useLayoutStore.getState().panes[id]?.ibernata).toBe(true)
+  })
+
+  it('ibernare due volte non chiude due volte', () => {
+    const s = useLayoutStore.getState()
+    const id = s.addPane('C:\p', 'Progetto')
+    s.setPtyId(id, 'pty-1')
+    useLayoutStore.getState().iberna(id)
+    expect(useLayoutStore.getState().iberna(id)).toBeUndefined()
+  })
+
+  it('la conversazione resta: si sveglia dov era', () => {
+    const s = useLayoutStore.getState()
+    const id = s.addPane('C:\p', 'Progetto')
+    const sessione = useLayoutStore.getState().panes[id]?.sessionUuid
+    useLayoutStore.getState().iberna(id)
+    useLayoutStore.getState().sveglia(id)
+    const dopo = useLayoutStore.getState().panes[id]
+    expect(dopo?.ibernata).toBe(false)
+    // La stessa sessione: al risveglio si riprende con --resume, non si
+    // ricomincia da capo.
+    expect(dopo?.sessionUuid).toBe(sessione)
+  })
+
+  it('una chat che dorme resta a dormire anche dopo il salvataggio', () => {
+    // Riaprire il programma e ritrovarsele tutte accese sarebbe disfare la
+    // scelta.
+    const s = useLayoutStore.getState()
+    const id = s.addPane('C:\p', 'Progetto')
+    useLayoutStore.getState().iberna(id)
+    const salvato = useLayoutStore.getState().esporta()
+    expect(salvato.panes.find((p) => p.id === id)?.ibernata).toBe(true)
+
+    useLayoutStore.getState().reset()
+    useLayoutStore.getState().carica(salvato)
+    expect(useLayoutStore.getState().panes[id]?.ibernata).toBe(true)
+  })
+
+  it('una chat sveglia non porta il campo nel salvataggio', () => {
+    const s = useLayoutStore.getState()
+    const id = s.addPane('C:\p', 'Progetto')
+    const salvato = useLayoutStore.getState().esporta()
+    expect(salvato.panes.find((p) => p.id === id)).not.toHaveProperty('ibernata')
+  })
+})

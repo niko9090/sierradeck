@@ -23,6 +23,15 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.1',
+    righe: [
+      '**Le chat si possono mettere a dormire.** Il tasto ⏸ nella testata del riquadro chiude il suo claude.exe e conserva la conversazione: al risveglio riprende da dove era. Il riquadro resta al suo posto — sparire sarebbe indistinguibile dall’averlo chiuso, e la differenza è tutto il punto.',
+      'Nelle impostazioni si può chiedere che le chat vadano a dormire quando cambi workspace. Spento resta il comportamento di sempre, con il ritorno istantaneo; acceso, si smette di tenere accesi dieci processi per guardarne due.',
+      'Una chat messa a dormire resta a dormire anche dopo aver riaperto il programma.',
+      '**L’app Android non riusciva ad aprire nessun indirizzo, né di casa né in VPN**: le eccezioni per l’HTTP erano scritte come nomi di dominio e non corrispondevano a nessuna rete vera. Ora il muro sta nel codice, accetta solo indirizzi privati (Tailscale compreso), e quando qualcosa non va dice il motivo invece di indovinare.'
+    ]
+  },
+  {
     versione: '0.9.0',
     righe: [
       '**L’autopilota non lavora più al posto delle chat: le coordina.** Le istruzioni le scrive dentro una chat vera, quella che vedi nel mosaico, e la risposta si legge mentre arriva — invece di sparire dentro un processo di cui restava una riga di riassunto.',

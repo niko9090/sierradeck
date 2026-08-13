@@ -325,6 +325,21 @@ export function Mosaic({
                   ))}
                 </select>
                 <ComandoSposta paneId={paneId} />
+                {/* Dormire non è chiudere: la conversazione resta, e quello che
+                    si libera è il claude.exe che la teneva in piedi. Con
+                    qualche workspace pieno se ne tengono accesi dieci per
+                    guardarne due. */}
+                <button
+                  onClick={() => {
+                    const daChiudere = useLayoutStore.getState().iberna(paneId)
+                    if (daChiudere !== undefined) window.gestore.pty.kill(daChiudere)
+                  }}
+                  className="comando-riquadro"
+                  title="Mette la chat a dormire: chiude il suo claude.exe e conserva la conversazione"
+                  aria-label={`Iberna ${data.title}`}
+                >
+                  ⏸
+                </button>
                 <button
                   onClick={() => closePane(paneId)}
                   className="comando-riquadro"
@@ -339,6 +354,24 @@ export function Mosaic({
                 questa stessa cartella: le due meta' della stessa storia. */}
             <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
               <div style={{ flex: 1, minWidth: 0, display: diarioLargo.has(paneId) ? 'none' : 'block' }}>
+                {data.ibernata === true ? (
+                  // Il riquadro resta al suo posto: farlo sparire sarebbe
+                  // indistinguibile dall'averlo chiuso, e la differenza è
+                  // esattamente il punto — la conversazione c'è ancora.
+                  <div className="chat-dorme">
+                    <div className="chat-dorme__titolo">Questa chat dorme</div>
+                    <div className="chat-dorme__spiega">
+                      Il suo claude.exe è chiuso e non occupa memoria. La conversazione è al
+                      suo posto: si riprende da dove era.
+                    </div>
+                    <button
+                      className="tasto"
+                      onClick={() => useLayoutStore.getState().sveglia(paneId)}
+                    >
+                      Svegliala
+                    </button>
+                  </div>
+                ) : (
                 <Terminal
                   paneId={paneId}
                   sessionUuid={data.sessionUuid}
@@ -349,6 +382,7 @@ export function Mosaic({
                   autopilota={data.autopilota}
                   onPtyId={setPtyId}
                 />
+                )}
               </div>
               {(() => {
                 const suo = autopilotaDi(autopiloti, data.cwd)

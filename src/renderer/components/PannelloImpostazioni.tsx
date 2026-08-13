@@ -281,6 +281,19 @@ export function PannelloImpostazioni({ onChiudi }: Props): React.JSX.Element {
             Con questo acceso resta <b>solo</b> la chiave del dispositivo a difendere
             un programma che esegue codice. Tienilo spento se non ti serve.
           </div>
+          <label className="impostazioni__riga impostazioni__riga--spunta">
+            <input
+              type="checkbox"
+              checked={p.ibernaCambiandoWorkspace}
+              onChange={(e) => cambia({ ibernaCambiandoWorkspace: e.target.checked })}
+            />
+            <span>Cambiando workspace, manda a dormire le chat che lasci</span>
+          </label>
+          <div className="impostazioni__nota">
+            Ogni chat aperta tiene acceso un <b>claude.exe</b>. Spento, restano tutte
+            vive e tornare e istantaneo; acceso, si chiudono e la conversazione
+            riparte da dove era con un tocco.
+          </div>
         </section>
 
         <SezioneClient />

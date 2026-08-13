@@ -13,6 +13,13 @@ export type PaneData = {
   title: string
   /** Il terminale attualmente agganciato a questo riquadro, se avviato. */
   ptyId?: string
+  /**
+   * La chat dorme: c e, ma senza un claude.exe acceso.
+   *
+   * Il riquadro resta al suo posto nel mosaico - sparire sarebbe indistinguibile
+   * dall averla chiusa - e mostra da cosa si sveglia.
+   */
+  ibernata?: boolean
   /** Il modello scelto per questa chat: assente vuol dire «il predefinito». */
   model?: string
   /**
@@ -46,6 +53,16 @@ type State = {
   resize: (splitId: string, index: number, delta: number) => void
   applyPreset: (name: PresetName) => void
   setPtyId: (paneId: string, ptyId: string) => void
+  /**
+   * Manda a dormire una chat: chiude il suo claude.exe e conserva la
+   * conversazione, che al risveglio si riprende con --resume.
+   *
+   * Restituisce il terminale da chiudere - chiuderlo non spetta allo store,
+   * che non parla con il Core - o undefined se non ce n era uno acceso.
+   */
+  iberna: (paneId: string) => string | undefined
+  /** La rimette in piedi: al prossimo disegno il terminale riparte da solo. */
+  sveglia: (paneId: string) => void
   reset: () => void
   esporta: () => LayoutSalvato
   carica: (l: LayoutSalvato) => void
@@ -126,7 +143,10 @@ function statoDa(l: LayoutSalvato): { root: LayoutNode | undefined; panes: Recor
       // sono pubbliche e un domani potrebbero essere chiamate da un'altra
       // strada.
       title: normalizzaTitolo(p.title),
-      ...(p.ptyId !== undefined ? { ptyId: p.ptyId } : {})
+      ...(p.ptyId !== undefined ? { ptyId: p.ptyId } : {}),
+      // Chi dormiva continua a dormire: ritrovarsele tutte accese alla
+      // riapertura sarebbe disfare la scelta di chi le aveva messe a riposo.
+      ...(p.ibernata === true ? { ibernata: true } : {})
     }
   }
   return { root: l.root, panes }
@@ -235,6 +255,28 @@ export const useLayoutStore = create<State>((set, get) => ({
 
   reset: () => set({ root: undefined, panes: {}, ceduti: new Set() }),
 
+  iberna: (paneId) => {
+    const p = get().panes[paneId]
+    if (p === undefined || p.ibernata === true) return undefined
+    set((s) => ({
+      panes: {
+        ...s.panes,
+        // Il ptyId sparisce con il processo: tenerlo vorrebbe dire che al
+        // risveglio si proverebbe a riagganciare un terminale che non c e piu,
+        // e la chat resterebbe vuota senza dire perche.
+        [paneId]: { ...p, ibernata: true, ptyId: undefined }
+      }
+    }))
+    return p.ptyId
+  },
+
+  sveglia: (paneId) =>
+    set((s) => {
+      const p = s.panes[paneId]
+      if (p === undefined) return {}
+      return { panes: { ...s.panes, [paneId]: { ...p, ibernata: false } } }
+    }),
+
   esporta: () => {
     const { root, panes } = get()
     if (root === undefined) return { root: undefined, panes: [] }
@@ -251,7 +293,8 @@ export const useLayoutStore = create<State>((set, get) => ({
         sessionUuid: p.sessionUuid,
         cwd: p.cwd,
         title: p.title,
-        ...(p.ptyId !== undefined ? { ptyId: p.ptyId } : {})
+        ...(p.ptyId !== undefined ? { ptyId: p.ptyId } : {}),
+        ...(p.ibernata === true ? { ibernata: true } : {})
       })
     }
     return { root, panes: salvati }

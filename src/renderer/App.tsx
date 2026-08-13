@@ -348,8 +348,20 @@ export function App(): React.JSX.Element {
   // che l'attivo aveva all'apertura della finestra.
   const attivoOra = useRef(workspace.attivo)
   attivoOra.current = workspace.attivo
+  // La preferenza puo cambiare mentre il programma gira: si legge quando serve.
+  const ibernaLasciando = useRef(false)
+  useEffect(() => {
+    const prendi = (p: Preferenze): void => { ibernaLasciando.current = p.ibernaCambiandoWorkspace }
+    window.gestore.preferenze.leggi().then(prendi).catch(() => undefined)
+    return window.gestore.preferenze.suCambio(prendi)
+  }, [])
   const azioniWorkspace = useRef<AzioniWorkspace | undefined>(undefined)
-  azioniWorkspace.current ??= azioniDiFinestra(() => attivoOra.current)
+  // Le azioni nascono una volta sola, e la preferenza puo cambiare dopo: si
+  // legge da un riferimento, non da una copia catturata alla nascita.
+  azioniWorkspace.current ??= azioniDiFinestra(
+    () => attivoOra.current,
+    () => ibernaLasciando.current
+  )
 
   // La barra del titolo dice versione e workspace: con piu' finestre aperte su
   // workspace diversi e' l'unico posto che le distingue da fuori — in Alt+Tab,

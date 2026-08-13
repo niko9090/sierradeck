@@ -33,6 +33,14 @@ export type Preferenze = {
    */
   clientOltreLaRete: boolean
   /**
+   * Le chat che si lasciano cambiando workspace vanno a dormire.
+   *
+   * Spento vuol dire che restano accese, ed e il predefinito: il ritorno e
+   * istantaneo. Con qualche workspace pieno pero sono dieci claude.exe accesi
+   * per guardarne due, e allora conviene il contrario.
+   */
+  ibernaCambiandoWorkspace: boolean
+  /**
    * Dove sta il diario dell'autopilota rispetto alla chat che governa.
    *
    * Non c'è una risposta giusta per tutti: su uno schermo largo si vuole di
@@ -53,6 +61,7 @@ export const PREFERENZE_PREDEFINITE: Preferenze = {
   salvaAllaChiusura: true,
   mostraAttesaChat: true,
   clientOltreLaRete: false,
+  ibernaCambiandoWorkspace: false,
   postoAutopilota: 'destra',
   larghezzaAutopilota: 34
 }
@@ -99,6 +108,7 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
     // Il predefinito prudente vale anche quando il valore è scritto male: una
     // preferenza illeggibile non deve poter aprire una porta.
     clientOltreLaRete: o.clientOltreLaRete === true,
+    ibernaCambiandoWorkspace: o.ibernaCambiandoWorkspace === true,
     postoAutopilota:
       o.postoAutopilota === 'sinistra' || o.postoAutopilota === 'sopra' ||
       o.postoAutopilota === 'sotto' || o.postoAutopilota === 'finestra'

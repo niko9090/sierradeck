@@ -30,6 +30,18 @@ export type AzioniDeps = {
   chiudiTerminali: (ptyIds: string[]) => void
   /** Toglie dai ceduti dei riquadri i cui terminali sono ormai chiusi. */
   dimenticaCeduti: (paneIds: string[]) => void
+  /**
+   * Se le chat che si lasciano devono andare a dormire invece di restare
+   * accese. Assente vuol dire no: il ritorno istantaneo è il predefinito.
+   */
+  ibernaLasciando?: () => boolean
+  /**
+   * Manda a dormire tutte le chat a schermo e dice quali terminali chiudere.
+   *
+   * Arriva da fuori perché parla con lo store, che questo modulo non conosce —
+   * ed è la ragione per cui l'ordine qui dentro resta verificabile.
+   */
+  ibernaTutte?: () => string[]
 }
 
 export type AzioniWorkspace = {
@@ -100,6 +112,13 @@ export function creaAzioniWorkspace(deps: AzioniDeps): AzioniWorkspace {
 
     async cambia(nome) {
       const da = deps.attivo()
+      // Chi vuole la memoria libera lascia dormire quello che si sta lasciando.
+      // Non è il comportamento predefinito: tenere i terminali vivi rende il
+      // ritorno istantaneo, e per due workspace è la scelta giusta. Per sei
+      // non lo è più — sono sei `claude.exe` accesi per guardarne uno.
+      if (deps.ibernaLasciando?.() === true) {
+        deps.chiudiTerminali(deps.ibernaTutte?.() ?? [])
+      }
       const corrente = deps.esporta()
       // Ricordare **prima** di chiedere: la richiesta attraversa due processi, e
       // una finestra che si chiudesse nel frattempo porterebbe via con sé

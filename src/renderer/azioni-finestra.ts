@@ -17,7 +17,15 @@ import { creaAzioniWorkspace, type AzioniWorkspace } from './workspace-azioni'
  * leggerlo qui da una copia nostra vorrebbe dire ricordare i riquadri sotto un
  * nome vecchio.
  */
-export function azioniDiFinestra(attivo: () => string): AzioniWorkspace {
+export function azioniDiFinestra(
+  attivo: () => string,
+  /**
+   * Se le chat che si lasciano devono dormire. Arriva dalle preferenze, e non
+   * si legge qui dentro: questo modulo e la colla fra tre pezzi, e una lettura
+   * asincrona in mezzo lo renderebbe un quarto pezzo da capire.
+   */
+  ibernaLasciando: () => boolean = () => false
+): AzioniWorkspace {
   return creaAzioniWorkspace({
     stato: () => window.gestore.workspace.stato(),
     attivo,
@@ -31,6 +39,22 @@ export function azioniDiFinestra(attivo: () => string): AzioniWorkspace {
     chiudiTerminali: (ptyIds) => {
       for (const id of ptyIds) window.gestore.pty.kill(id)
     },
-    dimenticaCeduti: (paneIds) => useLayoutStore.getState().dimenticaCeduti(paneIds)
+    dimenticaCeduti: (paneIds) => useLayoutStore.getState().dimenticaCeduti(paneIds),
+    ibernaLasciando,
+    /**
+     * Manda a dormire tutto quello che è a schermo e dice cosa chiudere.
+     *
+     * Una a una e non in blocco: `iberna` restituisce il terminale di quella
+     * chat, e chi non ne aveva uno acceso non ne fa chiudere nessuno.
+     */
+    ibernaTutte: () => {
+      const store = useLayoutStore.getState()
+      const chiusi: string[] = []
+      for (const id of Object.keys(store.panes)) {
+        const pty = store.iberna(id)
+        if (pty !== undefined) chiusi.push(pty)
+      }
+      return chiusi
+    }
   })
 }

@@ -24,6 +24,18 @@ export type PaneSalvato = {
    * non ne ha.
    */
   ptyId?: string
+  /**
+   * La chat dorme: c'è, ma non ha un `claude.exe` acceso.
+   *
+   * Ogni chat aperta tiene in vita un processo, e con qualche workspace pieno
+   * si arriva a tenerne accesi dieci per guardarne due. Ibernare chiude il
+   * processo e conserva la conversazione: al risveglio si riprende con
+   * `--resume`, che è la stessa strada di ogni ripartenza dopo un riavvio.
+   *
+   * Si salva perché una chat messa a dormire deve restare a dormire: riaprire
+   * il programma e ritrovarsele tutte accese sarebbe disfare la scelta.
+   */
+  ibernata?: boolean
 }
 
 export type LayoutSalvato = {
@@ -160,7 +172,10 @@ function parsePane(raw: unknown, scartati: string[]): PaneSalvato | undefined {
     sessionUuid,
     cwd,
     title: normalizzaTitolo(typeof o.title === 'string' ? o.title : ''),
-    ...(ptyId !== undefined ? { ptyId } : {})
+    ...(ptyId !== undefined ? { ptyId } : {}),
+    // Una chat messa a dormire deve restare a dormire: ritrovarsele tutte
+    // accese alla riapertura sarebbe disfare la scelta.
+    ...(o.ibernata === true ? { ibernata: true } : {})
   }
 }
 

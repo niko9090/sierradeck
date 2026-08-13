@@ -1812,3 +1812,21 @@ select:focus-visible { outline: 2px solid var(--accento, #4aa3ff); outline-offse
 
 .altri-indirizzi { font-size: 11px; color: var(--testo-quieto); }
 .altri-indirizzi summary { cursor: pointer; padding: 6px 0; }
+
+/* Una chat che dorme. Il riquadro resta dov'era — farlo sparire sarebbe
+   indistinguibile dall'averlo chiuso, e la differenza è tutto il punto: la
+   conversazione c'è ancora, è solo il processo a non esserci. */
+.chat-dorme {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  background: #1a1c1e;
+  color: var(--testo-quieto);
+}
+.chat-dorme__titolo { font-size: 15px; color: var(--testo); }
+.chat-dorme__spiega { font-size: 12px; max-width: 34ch; line-height: 1.5; }
