@@ -182,6 +182,28 @@ describe('un diario solo, anche quando le chat sono tante', () => {
     ...over
   })
 
+  it('sta sulla chat principale dell autopilota, non sulla prima che capita', () => {
+    // Si e' visto: il diario e' saltato via dalla chat principale ed e'
+    // comparso in un'altra, perche' sceglieva per ordine di identificativo del
+    // riquadro - un ordine che non vuol dire niente per chi guarda. La chat
+    // principale e' la prima dell'autopilota, quella del suo primo compito.
+    const conFlotta = suo({
+      tettoChat: 3,
+      chats: [
+        { id: 'c-1', compito: 'i bug', stato: 'lavoro', cicli: 0 },
+        { id: 'c-2', compito: 'le proposte', stato: 'lavoro', cicli: 0 }
+      ]
+    })
+    // Il riquadro della seconda chat ha un identificativo che viene prima in
+    // ordine alfabetico: non deve contare.
+    const riquadri = [
+      { id: 'p-9', cwd: 'C:\gioco', autopilota: { id: 'ap-1', chat: 'c-1' } },
+      { id: 'p-2', cwd: 'C:\gioco', autopilota: { id: 'ap-1', chat: 'c-2' } }
+    ]
+    expect(diarioDelRiquadro([conFlotta], riquadri, riquadri[0]!)?.id).toBe('ap-1')
+    expect(diarioDelRiquadro([conFlotta], riquadri, riquadri[1]!)).toBeUndefined()
+  })
+
   it('lo mostra nel primo riquadro, e in nessun altro', () => {
     // Una flotta apre piu' chat nella stessa cartella: il pannello e' uno solo
     // e le raccontava tutte, quindi comparve tre volte identico, tre volte la

@@ -16,7 +16,7 @@ const consegna = (over: Partial<Consegna> = {}): Consegna => ({
   ...over
 })
 
-function banco(riquadri: Record<string, { paneId: string; ptyId?: string }> = {}) {
+function banco(riquadri: Record<string, { paneId: string; ptyId?: string }> = {}, pronto = true) {
   const scritti: { ptyId: string; testo: string }[] = []
   const aperti: Consegna[] = []
   const rinviati: (() => void)[] = []
@@ -28,7 +28,10 @@ function banco(riquadri: Record<string, { paneId: string; ptyId?: string }> = {}
       riquadri[c.sessionId] = { paneId: 'p-nuovo' }
       return 'p-nuovo'
     },
-    scrivi: (ptyId, testo) => { scritti.push({ ptyId, testo }) }
+    scrivi: (ptyId, testo) => { scritti.push({ ptyId, testo }) },
+    // Nel banco il terminale ascolta sempre: quando *non* ascolta lo dice il
+    // suo test, in ultime-righe.
+    prontoARicevere: () => pronto
   }
   const dopo = (_ms: number, cosa: () => void): void => { rinviati.push(cosa) }
   // Far scadere un'attesa puo' aprirne un'altra - il testo prima, l'invio
@@ -141,6 +144,26 @@ describe('l invio che non arrivava', () => {
     const b = banco()
     eseguiConsegna(consegna(), b.ponte, b.dopo)
     b.riquadri['sess-1'] = { paneId: 'p-nuovo', ptyId: 'pty-9' }
+    b.scadi()
+    expect(b.scritti.map((s) => s.testo)).toEqual(['continua da dove eri', INVIO])
+  })
+})
+
+describe('aspettare che la chat sia pronta a ricevere', () => {
+  it('non scrive finche il terminale non ascolta', () => {
+    // Provato sul campo: scrivere mentre Claude Code si sta ancora disegnando
+    // lascia il testo nel campo e perde l'invio. La chat resta ferma con il
+    // compito davanti, e l'autopilota aspetta una risposta che nessuno scrive.
+    const b = banco({ 'sess-1': { paneId: 'p-1' } }, false)
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
+    b.riquadri['sess-1'] = { paneId: 'p-1', ptyId: 'pty-1' }
+    b.scadi()
+    expect(b.scritti).toEqual([])
+  })
+
+  it('appena ascolta, consegna', () => {
+    const b = banco({ 'sess-1': { paneId: 'p-1', ptyId: 'pty-1' } })
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
     b.scadi()
     expect(b.scritti.map((s) => s.testo)).toEqual(['continua da dove eri', INVIO])
   })

@@ -30,6 +30,12 @@ export type Ponte = {
   riquadroDi: (sessionId: string) => { paneId: string; ptyId?: string } | undefined
   apri: (c: Consegna) => string
   scrivi: (ptyId: string, testo: string) => void
+  /**
+   * Se quel terminale sta davvero ascoltando: ha disegnato il suo prompt e ha
+   * smesso di scrivere. È la differenza fra un messaggio consegnato e un
+   * messaggio che resta nel campo.
+   */
+  prontoARicevere: (ptyId: string) => boolean
 }
 
 /**
@@ -56,14 +62,23 @@ const INVIO = String.fromCharCode(13)
 export const PAUSA_INVIO_MS = 200
 
 /**
- * Quanto si aspetta prima di scrivere in una chat appena aperta.
+ * Ogni quanto si torna a vedere se la chat è pronta a ricevere.
  *
- * `claude.exe` deve nascere, leggere la sessione e disegnare la sua interfaccia:
- * il testo mandato prima finirebbe in un terminale che non sta ancora
- * ascoltando, cioè da nessuna parte, e l'autopilota resterebbe in attesa di una
- * risposta a un messaggio mai arrivato.
+ * Prima erano quattro secondi fissi, e su un progetto con degli hook e una
+ * memoria da leggere **non bastavano**: il testo entrava nel campo e l'invio si
+ * perdeva, perché Claude Code stava ancora disegnandosi. Provato sul campo con
+ * un terminale vero: a due secondi il messaggio non parte, a sei sì — cioè il
+ * numero giusto non esiste, e va guardato il terminale invece di contare.
  */
-export const ATTESA_AVVIO_MS = 4000
+export const RIPROVA_MS = 400
+
+/**
+ * Oltre questo, la chat non nascerà più.
+ *
+ * Un autopilota che aspetta in silenzio è il difetto peggiore: meglio dirlo
+ * dopo un minuto che restare fermi per sempre.
+ */
+export const RESA_MS = 90_000
 
 export function eseguiConsegna(
   c: Consegna,
@@ -89,15 +104,42 @@ export function eseguiConsegna(
   // Il riquadro c'è ma il terminale non è ancora nato — è il caso del riquadro
   // appena aperto — oppure non c'è affatto e va aperto adesso.
   if (gia === undefined) ponte.apri(c)
-  dopo(ATTESA_AVVIO_MS, () => {
+  attendiEConsegna(c, ponte, dopo, 0)
+}
+
+/**
+ * Aspetta che la chat sia **pronta a ricevere**, poi consegna.
+ *
+ * Non un tempo: il terminale. Claude Code nasce, legge la sessione, disegna la
+ * sua interfaccia in più riprese — e quanto ci mette dipende dal progetto, dagli
+ * hook, dalla memoria che carica. Un'attesa fissa che basta su un progetto è
+ * corta su un altro, e quando è corta il messaggio entra nel campo e non parte:
+ * la chat resta ferma con il compito scritto davanti, e l'autopilota aspetta una
+ * risposta che nessuno sta scrivendo.
+ */
+function attendiEConsegna(
+  c: Consegna,
+  ponte: Ponte,
+  dopo: (ms: number, cosa: () => void) => void,
+  aspettato: number
+): void {
+  dopo(RIPROVA_MS, () => {
     const ora = ponte.riquadroDi(c.sessionId)
-    if (ora?.ptyId === undefined) {
-      // La chat non è nata: meglio dirlo che lasciare l'autopilota ad
-      // aspettare in silenzio una risposta che non arriverà.
-      console.error(`[autopilota] la chat ${c.chatId} non si è aperta: istruzione non consegnata`)
+    const passato = aspettato + RIPROVA_MS
+    if (ora?.ptyId !== undefined && ponte.prontoARicevere(ora.ptyId)) {
+      scriviEInvia(ora.ptyId, c.testo, ponte, dopo)
       return
     }
-    scriviEInvia(ora.ptyId, c.testo, ponte, dopo)
+    if (passato >= RESA_MS) {
+      // Meglio dirlo che lasciare l'autopilota ad aspettare in silenzio una
+      // risposta che non arriverà.
+      console.error(
+        `[autopilota] la chat ${c.chatId} non è pronta dopo ${Math.round(passato / 1000)}s:` +
+        ' istruzione non consegnata'
+      )
+      return
+    }
+    attendiEConsegna(c, ponte, dopo, passato)
   })
 }
 
@@ -112,9 +154,16 @@ function scriviEInvia(
   dopo(PAUSA_INVIO_MS, () => { ponte.scrivi(ptyId, INVIO) })
 }
 
-/** Il ponte vero: lo store dei riquadri e i terminali di questa finestra. */
-export function ponteReale(): Ponte {
+/**
+ * Il ponte vero: lo store dei riquadri e i terminali di questa finestra.
+ *
+ * La prontezza gliela dice chi ascolta il flusso dei terminali — è la finestra
+ * a riceverlo — perché sapere *se* si può scrivere è cosa si legge dal
+ * terminale, non cosa si deduce dall'orologio.
+ */
+export function ponteReale(prontezza: (ptyId: string) => boolean): Ponte {
   return {
+    prontoARicevere: prontezza,
     riquadroDi: (sessionId) => {
       const riquadri = Object.values(useLayoutStore.getState().panes)
       const trovato = riquadri.find((p) => p.sessionUuid === sessionId)

@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { creaUltimeRighe, senzaColori, ultimaRigaUtile } from '../../src/renderer/ultime-righe'
+import {
+  creaUltimeRighe, senzaColori, terminalePronto, ultimaRigaUtile
+} from '../../src/renderer/ultime-righe'
 
 const ESC = String.fromCharCode(27)
 
@@ -82,5 +84,39 @@ describe('creaUltimeRighe', () => {
     const coda = r.codaDi('p1')
     expect(coda.length).toBeLessThanOrEqual(14)
     expect(coda[coda.length - 1]).toBe('riga 99')
+  })
+})
+
+describe('quando il terminale e pronto a ricevere', () => {
+  it('non lo e finche non ha disegnato il suo prompt', () => {
+    // Provato sul campo: scrivendo dopo due secondi il messaggio entra nel
+    // campo e l'invio si perde, perche' Claude Code sta ancora nascendo. Il
+    // silenzio dei primi secondi non e' attesa: e' un programma che non ha
+    // ancora cominciato a disegnarsi.
+    const r = creaUltimeRighe()
+    r.aggiorna('pty-1', 'Claude Code v2.1\n')
+    expect(terminalePronto(r.attivitaDi('pty-1'), 10_000)).toBe(false)
+  })
+
+  it('lo e quando ha disegnato il prompt e poi ha taciuto', () => {
+    const r = creaUltimeRighe()
+    r.aggiorna('pty-1', 'bypass permissions on (shift+tab to cycle)\n')
+    const a = r.attivitaDi('pty-1')
+    // Appena scritto: sta ancora disegnando.
+    expect(terminalePronto(a, a.ultimoDato + 100)).toBe(false)
+    // Un secondo di silenzio dopo il prompt: adesso ascolta.
+    expect(terminalePronto(a, a.ultimoDato + 1000)).toBe(true)
+  })
+
+  it('riconosce il prompt anche dal suo segno', () => {
+    const r = creaUltimeRighe()
+    r.aggiorna('pty-2', '\u276f ')
+    const a = r.attivitaDi('pty-2')
+    expect(terminalePronto(a, a.ultimoDato + 1000)).toBe(true)
+  })
+
+  it('un terminale mai visto non e pronto', () => {
+    const r = creaUltimeRighe()
+    expect(terminalePronto(r.attivitaDi('mai-nato'), 99_999)).toBe(false)
   })
 })

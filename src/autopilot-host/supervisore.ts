@@ -208,7 +208,7 @@ export function componiPromptGiudizio(a: Autopilota, ultimoMessaggio: string): s
  */
 export function componiPromptScomposizione(a: Autopilota, quanti: number): string {
   return [
-    `Devi spezzare un obiettivo in al massimo ${quanti} compiti che possano procedere in parallelo.`,
+    'Devi decidere **se** questo lavoro va diviso fra piu chat, e in caso quante.',
     '',
     `Obiettivo: ${a.obiettivo}`,
     `Cartella di lavoro: ${a.cwd}`,
@@ -216,14 +216,22 @@ export function componiPromptScomposizione(a: Autopilota, quanti: number): strin
     'Criteri di fine dell’insieme:',
     ...a.criteri.map((c) => `- ${c.descrizione}${c.comando !== undefined ? ` (si verifica con: ${c.comando})` : ''}`),
     '',
+    '**Il caso normale è una chat sola.** Dentro una conversazione puoi già lanciare i tuoi',
+    'agenti e portare avanti più cose insieme: aprirne un’altra serve solo quando il lavoro',
+    'ha parti che devono procedere per strade separate e non possono aspettarsi a vicenda.',
+    '',
     'Regole:',
-    `- al massimo ${quanti} compiti, anche meno se il lavoro non si divide bene;`,
+    `- da uno a ${quanti} compiti. Il numero non è un obiettivo da raggiungere: ${quanti} è`,
+    '  il tetto che l’utente ha concesso, non quello che si aspetta di vedere;',
+    '- dividi **solo** se ogni pezzo vale una conversazione a sé — un lavoro suo, che',
+    '  procede da solo per parecchi minuti senza dover sapere cosa fa l’altro;',
     '- i compiti non devono toccare gli stessi file: due chat che si sovrappongono',
     '  si sovrascrivono a vicenda e fanno perdere più tempo di quanto ne facciano guadagnare;',
-    '- se il lavoro è indivisibile, restituisci un solo compito.',
+    '- nel dubbio, **un compito solo**. Una chat che si apre è una conversazione da seguire,',
+    '  da leggere e da chiudere per chi guarda: se non serve, è solo rumore.',
     '',
     'Rispondi con un solo oggetto JSON, senza altro testo:',
-    '{"compiti": ["primo compito", "secondo compito"]}'
+    '{"compiti": ["il lavoro, se non va diviso"]}'
   ].join('\n')
 }
 

@@ -179,14 +179,46 @@ export function autopilotaDi(autopiloti: Autopilota[], cwd: string): Autopilota 
  */
 export function diarioDelRiquadro(
   autopiloti: Autopilota[],
-  riquadri: { id: string; cwd: string }[],
-  questo: { id: string; cwd: string }
+  riquadri: Riquadro[],
+  questo: Riquadro
 ): Autopilota | undefined {
   const suo = autopilotaDi(autopiloti, questo.cwd)
   if (suo === undefined) return undefined
-  const fratelli = riquadri
-    .filter((r) => autopilotaDi(autopiloti, r.cwd)?.id === suo.id)
-    .map((r) => r.id)
-    .sort()
-  return fratelli[0] === questo.id ? suo : undefined
+  const fratelli = riquadri.filter((r) => autopilotaDi(autopiloti, r.cwd)?.id === suo.id)
+  return primoFra(fratelli, suo)?.id === questo.id ? suo : undefined
+}
+
+export type Riquadro = {
+  id: string
+  cwd: string
+  /** Di quale chat dell'autopilota è, quando è stato aperto da lui. */
+  autopilota?: { id: string; chat: string }
+}
+
+/**
+ * Quale riquadro è «la chat principale» di quell'autopilota.
+ *
+ * L'ordine giusto è **il suo**: la prima delle sue chat, quella del primo
+ * pezzo di lavoro. L'ordine degli identificativi dei riquadri non vuol dire
+ * niente per chi guarda — si è visto il diario saltare via dalla chat
+ * principale e comparire in un'altra soltanto perché quel riquadro era stato
+ * aperto prima.
+ *
+ * Quando nessun riquadro dichiara di appartenergli — chat aperte a mano nella
+ * stessa cartella — si ripiega sull'ordine degli identificativi, che almeno
+ * non cambia mentre si guarda.
+ */
+function primoFra(riquadri: Riquadro[], a: Autopilota): Riquadro | undefined {
+  const ordineChat = a.chats.map((c) => c.id)
+  const suoi = riquadri.filter((r) => r.autopilota?.id === a.id)
+  if (suoi.length > 0) {
+    const conPosto = suoi.map((r) => ({
+      r,
+      posto: ordineChat.indexOf(r.autopilota?.chat ?? ''),
+    }))
+    // Una chat che l'autopilota non elenca più viene dopo quelle che elenca.
+    conPosto.sort((x, y) => (x.posto < 0 ? 99 : x.posto) - (y.posto < 0 ? 99 : y.posto))
+    return conPosto[0]?.r
+  }
+  return [...riquadri].sort((x, y) => x.id.localeCompare(y.id))[0]
 }

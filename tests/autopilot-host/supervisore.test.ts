@@ -216,3 +216,23 @@ describe('l ambiente con cui parte il supervisore', () => {
     expect(env).toEqual({ ANTHROPIC_BASE_URL: 'https://x', LANG: 'it_IT' })
   })
 })
+
+describe('quando conviene dividere il lavoro fra piu chat', () => {
+  it('dice che il caso normale e una chat sola', () => {
+    // L'utente: «le chat le deve aprire se obbligato per dividere i compiti,
+    // ma se non e' necessario puo' far andare gli agenti nella chat
+    // principale». Il tetto e' un permesso, non un traguardo: chiedere di
+    // spezzare in N faceva aprire N conversazioni da seguire per un lavoro che
+    // ne voleva una.
+    const p = componiPromptScomposizione(ap(), 3)
+    expect(p).toContain('Il caso normale è una chat sola')
+    expect(p).toContain('nel dubbio')
+    expect(p).toContain('agenti')
+  })
+
+  it('dice qual e il tetto senza farne un obiettivo', () => {
+    const p = componiPromptScomposizione(ap(), 4)
+    expect(p).toContain('da uno a 4 compiti')
+    expect(p).toContain('non è un obiettivo da raggiungere')
+  })
+})

@@ -9,7 +9,7 @@ import { giaSalvatoCome } from '@shared/doppioni'
 import type { Istantanea } from '@shared/istantanea'
 import { chiChiede, workspaceCheChiamano } from '@shared/dove-chiedono'
 import { attivaChiusuraFuori, attivaTrascinamento } from './trascina-finestre'
-import { creaUltimeRighe } from './ultime-righe'
+import { creaUltimeRighe, terminalePronto } from './ultime-righe'
 import { eseguiConsegna, ponteReale } from './consegne-autopilota'
 import { memoriaWorkspace } from './memoria-workspace'
 import { leggiConsegne } from '../main/autopilota-consegne'
@@ -191,7 +191,12 @@ export function App(): React.JSX.Element {
   // nella chat come faresti tu, si vede tutto quello che succede, e si può
   // intervenire in mezzo — perché per la chat i due messaggi sono uguali.
   useEffect(() => window.gestore.client.suConsegna((grezza) => {
-    for (const c of leggiConsegne({ consegne: [grezza] })) eseguiConsegna(c, ponteReale())
+    for (const c of leggiConsegne({ consegne: [grezza] })) {
+      // La prontezza la legge dal flusso dei terminali, che passa di qui: un
+      // messaggio scritto mentre Claude Code si sta ancora disegnando resta nel
+      // campo, e la chat non parte.
+      eseguiConsegna(c, ponteReale((ptyId) => terminalePronto(righe.current.attivitaDi(ptyId), Date.now())))
+    }
   }), [])
 
   // Una chat arrivata in un workspace da un altra finestra. Va messa nella

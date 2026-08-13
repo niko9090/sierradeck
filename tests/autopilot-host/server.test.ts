@@ -510,7 +510,7 @@ describe('avvisi verso l esterno', () => {
 describe('flotta di chat', () => {
   const SCOMPONE: Interrogazione = (prompt) =>
     Promise.resolve({
-      testo: prompt.includes('spezzare')
+      testo: prompt.includes('va diviso fra')
         ? '{"compiti": ["scrivi i test", "aggiorna i documenti", "sistema il lettore"]}'
         : '{"azione": "finito"}'
     })
@@ -531,7 +531,7 @@ describe('flotta di chat', () => {
     await attendi(() => avviati.length > 0)
     // Chiedere come dividere un lavoro che non va diviso costerebbe un minuto
     // di attesa per sapere che la risposta e' «uno».
-    expect(prompt.some((p) => p.includes('spezzare'))).toBe(false)
+    expect(prompt.some((p) => p.includes('va diviso fra'))).toBe(false)
     expect(chatAvviate).toEqual([])
   })
 
@@ -587,7 +587,7 @@ describe('flotta di chat', () => {
 
   it('una scomposizione illeggibile non impedisce di lavorare', async () => {
     server = ambiente({
-      interroga: (p) => Promise.resolve({ testo: p.includes('spezzare') ? 'non ho capito' : '{"azione": "finito"}' })
+      interroga: (p) => Promise.resolve({ testo: p.includes('va diviso fra') ? 'non ho capito' : '{"azione": "finito"}' })
     })
     await avvia(server)
     await creaAp({ tettoChat: 3 })

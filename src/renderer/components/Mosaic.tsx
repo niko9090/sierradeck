@@ -398,8 +398,16 @@ export function Mosaic({
                 // nella stessa cartella, e il pannello le racconta gia' tutte.
                 const suo = diarioDelRiquadro(
                   autopiloti,
-                  Object.values(panes).map((p) => ({ id: p.id, cwd: p.cwd })),
-                  { id: data.id, cwd: data.cwd }
+                  Object.values(panes).map((p) => ({
+                    id: p.id,
+                    cwd: p.cwd,
+                    ...(p.autopilota !== undefined ? { autopilota: p.autopilota } : {})
+                  })),
+                  {
+                    id: data.id,
+                    cwd: data.cwd,
+                    ...(data.autopilota !== undefined ? { autopilota: data.autopilota } : {})
+                  }
                 )
                 if (suo === undefined) return null
                 return (
