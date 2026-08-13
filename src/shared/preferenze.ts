@@ -51,6 +51,21 @@ export type Preferenze = {
   postoAutopilota: 'destra' | 'sinistra' | 'sopra' | 'sotto' | 'finestra'
   /** Quanto spazio prende, in percentuale del riquadro. */
   larghezzaAutopilota: number
+  /**
+   * Come si veste la console.
+   *
+   * Due risposte opposte alla stessa domanda - cosa deve fare la cornice
+   * mentre guardi le chat lavorare - e nessuna delle due e giusta per tutti.
+   *
+   *  prende sul serio il mestiere che la console imita: metallo, solchi
+   * incisi al posto degli spazi, densita alta. Si impara per posizione, e su
+   * uno schermo pieno rende quattro righe di terminale in piu per riquadro.
+   *
+   *  toglie la cornice: superfici piatte separate dal solo contrasto,
+   * angoli morbidi, aria. Costa quelle righe e le restituisce in riposo per
+   * gli occhi, che dopo otto ore non e poco.
+   */
+  stile: 'banco' | 'foglio'
 }
 
 export const PREFERENZE_PREDEFINITE: Preferenze = {
@@ -63,7 +78,10 @@ export const PREFERENZE_PREDEFINITE: Preferenze = {
   clientOltreLaRete: false,
   ibernaCambiandoWorkspace: false,
   postoAutopilota: 'destra',
-  larghezzaAutopilota: 34
+  larghezzaAutopilota: 34,
+  // Il banco e quello che c e sempre stato: chi non sceglie non deve
+  // ritrovarsi un programma diverso da quello di ieri.
+  stile: 'banco'
 }
 
 /** Le porte sotto la 1024 le tiene il sistema, e sopra la 65535 non esistono. */
@@ -120,7 +138,11 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
       typeof o.larghezzaAutopilota === 'number' &&
       o.larghezzaAutopilota >= 15 && o.larghezzaAutopilota <= 70
         ? Math.round(o.larghezzaAutopilota)
-        : PREFERENZE_PREDEFINITE.larghezzaAutopilota
+        : PREFERENZE_PREDEFINITE.larghezzaAutopilota,
+    // Solo i due nomi che conosciamo: uno stile inventato lascerebbe la console
+    // senza token e con essa senza colori, che è il modo peggiore di scoprire
+    // che il file era stato scritto a mano.
+    stile: o.stile === 'foglio' ? 'foglio' : PREFERENZE_PREDEFINITE.stile
   }
 }
 
@@ -137,13 +159,44 @@ export function tavolozza(p: Preferenze): Record<string, string> {
     const v = Math.max(0, Math.min(255, livello))
     return `#${v.toString(16).padStart(2, '0').repeat(3)}`
   }
-  return {
+  const comuni = {
     '--fondo': grigio(base),
     '--chassis': grigio(base + 15),
     '--chassis-alto': grigio(base + 23),
     '--chassis-premuto': grigio(base + 7),
+    '--accento': p.accento
+  }
+
+  // Le due vesti cambiano **gli stessi** token, ed è la ragione per cui
+  // possono convivere: nessun componente sa quale dei due stili ha addosso.
+  // Chi disegna guarda `--incisione` e `--raggio`, non «banco» o «foglio».
+  if (p.stile === 'foglio') {
+    return {
+      ...comuni,
+      // Il foglio non ha solchi: al loro posto c'è aria e un bordo quieto.
+      // La variabile resta, perché il CSS la chiede — cambia cosa contiene.
+      '--incisione': 'transparent',
+      '--luce-incisione': grigio(base + 18),
+      '--bordo': grigio(base + 18),
+      '--separazione': '10px',
+      '--raggio': '10px',
+      '--fascia-h': '46px',
+      '--testata-h': '34px',
+      '--rilievo': 'none'
+    }
+  }
+
+  return {
+    ...comuni,
+    // Il banco separa con un solco inciso largo un pixel: ogni pixel non speso
+    // in cornice è un pixel di conversazione.
     '--incisione': grigio(Math.max(0, base - 5)),
     '--luce-incisione': grigio(base + 38),
-    '--accento': p.accento
+    '--bordo': grigio(Math.max(0, base - 5)),
+    '--separazione': '1px',
+    '--raggio': '2px',
+    '--fascia-h': '40px',
+    '--testata-h': '26px',
+    '--rilievo': `inset 0 1px 0 ${grigio(base + 38)}`
   }
 }

@@ -35,6 +35,15 @@
   --fascia-h: 44px;
   --raggio: 4px;
 
+  /* Questi vestono lo stile scelto e arrivano da `tavolozza()`. I valori qui
+     sono il ripiego per l'istante in cui la finestra disegna prima che le
+     preferenze siano state lette: senza, il primo fotogramma sarebbe una
+     console senza cornice. Sono quelli del banco, che è il predefinito. */
+  --testata-h: 26px;
+  --separazione: 1px;
+  --bordo: #131517;
+  --rilievo: inset 0 1px 0 var(--luce-incisione);
+
   /* Decelerazione esponenziale: lo sportello di rack che si apre e si posa. */
   --uscita: cubic-bezier(0.16, 1, 0.3, 1);
 }

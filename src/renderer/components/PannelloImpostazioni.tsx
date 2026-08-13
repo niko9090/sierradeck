@@ -299,6 +299,23 @@ export function PannelloImpostazioni({ onChiudi }: Props): React.JSX.Element {
         <SezioneClient />
 
         <section className="impostazioni__gruppo">
+          <h4>Come si veste</h4>
+          <label className="impostazioni__riga">
+            <span>Stile della console</span>
+            <select
+              value={p.stile}
+              onChange={(e) => cambia({ stile: e.target.value as Preferenze['stile'] })}
+            >
+              <option value="banco">Banco — metallo, solchi, densa</option>
+              <option value="foglio">Foglio — piatta, arieggiata, morbida</option>
+            </select>
+          </label>
+          <div className="impostazioni__nota">
+            {p.stile === 'banco'
+              ? 'Cornice sottile e riquadri a filo: su uno schermo pieno sono quattro righe di terminale in piu per chat. Si impara per posizione.'
+              : 'Piu aria e angoli morbidi: quattro righe in meno, restituite in riposo per gli occhi dopo otto ore davanti allo schermo.'}
+          </div>
+
           <h4>Autopilota</h4>
           <label className="impostazioni__riga">
             <span>Dove mostrarlo</span>

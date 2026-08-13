@@ -73,9 +73,22 @@ describe('tavolozza', () => {
     }
   })
 
-  it('nessun valore esce dai colori possibili', () => {
-    const t = tavolozza({ ...PREFERENZE_PREDEFINITE, chiarore: 100 })
-    for (const v of Object.values(t)) expect(v).toMatch(/^#[0-9a-f]{6}$/)
+  it('nessun colore esce dai valori possibili, a nessun chiarore', () => {
+    // I token non sono più tutti colori — ci sono anche le misure che vestono
+    // lo stile — ma quelli che sono colori devono restare colori validi a
+    // qualunque chiarore, agli estremi compresi: un `#1a2` di troppo o un
+    // valore negativo lascerebbe la console senza fondo.
+    const misure = new Set(['--separazione', '--raggio', '--fascia-h', '--testata-h', '--rilievo'])
+    for (const chiarore of [0, 20, 50, 100]) {
+      for (const stile of ['banco', 'foglio'] as const) {
+        const t = tavolozza({ ...PREFERENZE_PREDEFINITE, chiarore, stile })
+        for (const [nome, v] of Object.entries(t)) {
+          if (misure.has(nome)) continue
+          if (v === 'transparent') continue
+          expect(v, `${nome} allo stile ${stile}`).toMatch(/^#[0-9a-f]{6}$/)
+        }
+      }
+    }
   })
 })
 
@@ -94,5 +107,54 @@ describe('dove sta l autopilota', () => {
     expect(normalizzaPreferenze({ larghezzaAutopilota: 5 }).larghezzaAutopilota).toBe(34)
     expect(normalizzaPreferenze({ larghezzaAutopilota: 90 }).larghezzaAutopilota).toBe(34)
     expect(normalizzaPreferenze({ larghezzaAutopilota: 50 }).larghezzaAutopilota).toBe(50)
+  })
+})
+
+describe('lo stile della console', () => {
+  const con = (stile: 'banco' | 'foglio'): Record<string, string> =>
+    tavolozza({ ...PREFERENZE_PREDEFINITE, stile })
+
+  it('veste gli stessi token, cosi nessun componente sa quale ha addosso', () => {
+    // È la ragione per cui i due stili possono convivere: chi disegna guarda
+    // `--incisione` e `--raggio`, non «banco» o «foglio».
+    expect(Object.keys(con('banco')).sort()).toEqual(Object.keys(con('foglio')).sort())
+  })
+
+  it('il banco separa con un solco, il foglio con l aria', () => {
+    expect(con('banco')['--separazione']).toBe('1px')
+    expect(con('foglio')['--separazione']).toBe('10px')
+    // Il solco è un colore vero; nel foglio non c'è proprio.
+    expect(con('banco')['--incisione']).toMatch(/^#/)
+    expect(con('foglio')['--incisione']).toBe('transparent')
+  })
+
+  it('il banco ha angoli quasi vivi e il foglio morbidi', () => {
+    expect(con('banco')['--raggio']).toBe('2px')
+    expect(con('foglio')['--raggio']).toBe('10px')
+  })
+
+  it('il banco e piu denso: guadagna righe di terminale', () => {
+    // Fascia e testate più basse valgono quattro righe per riquadro su uno
+    // schermo pieno, ed è il vero argomento a favore del banco.
+    expect(Number.parseInt(con('banco')['--fascia-h'] ?? '', 10))
+      .toBeLessThan(Number.parseInt(con('foglio')['--fascia-h'] ?? '', 10))
+    expect(Number.parseInt(con('banco')['--testata-h'] ?? '', 10))
+      .toBeLessThan(Number.parseInt(con('foglio')['--testata-h'] ?? '', 10))
+  })
+
+  it('solo il rilievo del banco proietta luce', () => {
+    expect(con('foglio')['--rilievo']).toBe('none')
+    expect(con('banco')['--rilievo']).toContain('inset')
+  })
+
+  it('chi non sceglie resta dove era', () => {
+    // Un aggiornamento non deve consegnare un programma diverso da quello di
+    // ieri a chi non ha chiesto niente.
+    expect(PREFERENZE_PREDEFINITE.stile).toBe('banco')
+    expect(normalizzaPreferenze({}).stile).toBe('banco')
+  })
+
+  it('uno stile inventato non lascia la console senza colori', () => {
+    expect(normalizzaPreferenze({ stile: 'neon' }).stile).toBe('banco')
   })
 })
