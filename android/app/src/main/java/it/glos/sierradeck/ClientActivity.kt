@@ -167,6 +167,11 @@ class ClientActivity : AppCompatActivity() {
             // La pagina tiene la chiave nel proprio archivio locale: senza
             // questo, ogni apertura ricomincerebbe dall'accoppiamento.
             settings.domStorageEnabled = true
+            // Il ponte: da qui la pagina fa sapere all app la chiave che ha
+            // ottenuto, e l app gliela restituisce quando si torna sullo stesso
+            // indirizzo. Senza, la guardia mandava le sue richieste con una
+            // chiave vuota e non avvisava mai nessuno.
+            addJavascriptInterface(Ponte(collegamento), "SierraDeckApp")
             webViewClient = object : WebViewClient() {
                 /**
                  * Se il computer non risponde si torna all'ingresso.

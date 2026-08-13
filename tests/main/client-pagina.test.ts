@@ -64,3 +64,32 @@ describe('il manifesto', () => {
     expect(MANIFESTO.display).toBe('standalone')
   })
 })
+
+describe('la chiave che non si riscrive ogni volta', () => {
+  it('la pagina la fa sapere all app quando si accoppia', () => {
+    // La chiave nasce nella pagina e finiva solo nel suo archivio locale:
+    // l'app non la vedeva, e la guardia mandava le sue richieste con una
+    // chiave vuota. Il servizio che esiste per avvisarti non ha mai avvisato.
+    expect(script).toContain('SierraDeckApp.ricorda')
+  })
+
+  it('e la richiede all app quando non ce l ha', () => {
+    expect(script).toContain('chiaveSalvata()')
+  })
+
+  it('senza il ponte funziona lo stesso: nel browser non c e', () => {
+    // Il try attorno è ciò che permette alla stessa pagina di vivere in un
+    // browser qualunque, dove `SierraDeckApp` non esiste.
+    const riga = script.slice(script.indexOf('chiaveSalvata()') - 200, script.indexOf('chiaveSalvata()') + 80)
+    expect(riga).toContain('try')
+  })
+})
+
+describe('il logo', () => {
+  it('c e anche nella schermata del codice', () => {
+    // Si arriva da un QR o da un link e la prima cosa che si vede è un campo
+    // con sei puntini: senza un segno, non si sa nemmeno dove si è finiti.
+    const ingresso = html.slice(html.indexOf('function ingresso('), html.indexOf('function ingresso(') + 600)
+    expect(ingresso).toContain('data:image/svg+xml')
+  })
+})

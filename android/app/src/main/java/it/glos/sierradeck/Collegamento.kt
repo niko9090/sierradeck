@@ -23,8 +23,34 @@ class Collegamento(contesto: Context) {
         set(valore) = preferenze.edit().putString(CHIAVE_INDIRIZZO, pulisci(valore)).apply()
 
     var chiave: String
-        get() = preferenze.getString(CHIAVE_SEGRETO, "") ?: ""
-        set(valore) = preferenze.edit().putString(CHIAVE_SEGRETO, valore.trim()).apply()
+        get() = chiaveDi(indirizzo)
+        set(valore) = ricordaChiave(indirizzo, valore)
+
+    /**
+     * La chiave di un indirizzo preciso.
+     *
+     * Una per indirizzo e non una sola: il computer di casa e quello raggiunto
+     * in VPN sono due accoppiamenti diversi, e tornare dall'uno all'altro non
+     * deve costare sei cifre ogni volta. Quello che si è già fatto una volta
+     * non si chiede due volte.
+     */
+    fun chiaveDi(indirizzo: String): String =
+        preferenze.getString("$CHIAVE_SEGRETO:$indirizzo", "") ?: ""
+
+    fun ricordaChiave(indirizzo: String, chiave: String) {
+        if (indirizzo.isBlank() || chiave.isBlank()) return
+        preferenze.edit().putString("$CHIAVE_SEGRETO:$indirizzo", chiave.trim()).apply()
+        val noti = indirizziNoti().toMutableList()
+        if (!noti.contains(indirizzo)) {
+            noti.add(0, indirizzo)
+            // Otto bastano: oltre non è più una scelta, è un elenco da leggere.
+            preferenze.edit().putString(NOTI, noti.take(8).joinToString("|")).apply()
+        }
+    }
+
+    /** Gli indirizzi con cui ci si è già collegati, dal più recente. */
+    fun indirizziNoti(): List<String> =
+        (preferenze.getString(NOTI, "") ?: "").split("|").filter { it.isNotBlank() }
 
     /** C'è tutto quello che serve per parlare con il computer? */
     val pronto: Boolean
@@ -59,5 +85,6 @@ class Collegamento(contesto: Context) {
         const val PORTA_PREDEFINITA = 47640
         private const val CHIAVE_INDIRIZZO = "indirizzo"
         private const val CHIAVE_SEGRETO = "chiave"
+        private const val NOTI = "indirizzi-noti"
     }
 }

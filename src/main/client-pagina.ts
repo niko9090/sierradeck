@@ -46,6 +46,18 @@ export const MANIFESTO = {
   ]
 }
 
+/**
+ * Il cristallo dentro la pagina, come immagine incorporata.
+ *
+ * Nella schermata del codice non c'era: si arrivava da un QR o da un link e la
+ * prima cosa che si vedeva era un campo con sei puntini, senza un segno che
+ * dicesse **dove si è finiti**. Un logo lì è la differenza fra «cos'è questa
+ * pagina» e «ci sono».
+ */
+const LOGO =
+  '<img alt="" width="56" height="56" style="margin-bottom:10px" ' +
+  `src="data:image/svg+xml,${encodeURIComponent(ICONA_SVG)}">`
+
 export function paginaClient(): string {
   return `<!doctype html>
 <html lang="it">
@@ -142,6 +154,14 @@ export function paginaClient(): string {
 <script>
 const CHIAVE = 'sierradeck.chiave'
 let chiave = localStorage.getItem(CHIAVE) || ''
+// Quella che l app si ricorda per questo indirizzo: e cio che permette di
+// tornare su un computer gia accoppiato senza rifare niente.
+if (!chiave) {
+  try {
+    chiave = (window.SierraDeckApp && window.SierraDeckApp.chiaveSalvata()) || ''
+    if (chiave) localStorage.setItem(CHIAVE, chiave)
+  } catch (e) { /* nel browser il ponte non c e, ed e normale */ }
+}
 const app = document.getElementById('app')
 // Quello che si sta guardando adesso. Con var e non let: i tasti della pagina
 // sono attributi onclick, e cercano i nomi su window.
@@ -166,6 +186,7 @@ async function chiedi(percorso, corpo) {
 function ingresso(messaggio) {
   app.innerHTML = \`
     <div class="ingresso">
+      ${LOGO}
       <div style="font-size:19px;margin-bottom:6px">SierraDeck</div>
       <div class="sotto">Sul computer apri <b>Impostazioni → Client</b> e leggi il codice.</div>
       <input id="codice" inputmode="numeric" maxlength="6" placeholder="······" aria-label="codice">
@@ -184,6 +205,9 @@ function ingresso(messaggio) {
     if (!dati.chiave) { document.getElementById('errore').textContent = 'Codice non valido o scaduto.'; return }
     chiave = dati.chiave
     localStorage.setItem(CHIAVE, chiave)
+    // E la sa anche l app, che la conserva per questo indirizzo: reinstallare
+    // o cambiare rete non deve costare di nuovo sei cifre.
+    try { window.SierraDeckApp && window.SierraDeckApp.ricorda(chiave) } catch (e) {}
     aggiorna()
   }
 }

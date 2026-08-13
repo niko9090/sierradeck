@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.4',
+    righe: [
+      '**L’app si ricorda le credenziali, e una per indirizzo.** Il computer di casa e quello in VPN sono due accoppiamenti diversi: adesso tornare dall’uno all’altro non costa più sei cifre ogni volta.',
+      '**La guardia dell’app non aveva mai avvisato nessuno.** La chiave nasceva dentro la pagina e finiva solo nel suo archivio: l’app, che è un programma diverso, non la vedeva e mandava le sue richieste con una chiave vuota. Riceveva 401 e taceva — il servizio che esiste per avvisarti quando una chat ha bisogno di te non ha mai funzionato, e non c’era modo di accorgersene.',
+      'Il logo c’è anche nella schermata del codice: si arrivava da un QR e la prima cosa che si vedeva era un campo con sei puntini, senza un segno che dicesse dove si era finiti.'
+    ]
+  },
+  {
     versione: '0.9.3',
     righe: [
       '**Il programma non apre più finestre da solo all’avvio.** Nella 0.9.2 ne apriva una per ogni monitor con delle chat: faceva vedere tutto, ma chi ne aveva lasciata una se ne ritrovava due. Adesso lo **dice** — una riga in cima con scritto quante chat sono su un altro monitor, e un tasto per aprire la finestra che le mostra.',
