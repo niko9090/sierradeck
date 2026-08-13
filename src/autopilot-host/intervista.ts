@@ -21,6 +21,22 @@ export type EsitoIntervista =
  */
 export const SCAMBI_MAX = 2
 
+/**
+ * Quanto tempo ha ogni giro di preparazione prima che lo si consideri perso.
+ *
+ * Venti minuti, non i cinque di un giudizio. La differenza non è di prudenza ma
+ * di mestiere: un giudizio guarda un esito già misurato e c'è una chat ferma
+ * che aspetta la risposta, mentre qui l'autopilota deve **leggersi un progetto
+ * che non ha mai visto** per capire quando il lavoro sarà finito — e non c'è
+ * nessuno in attesa, perché chi ha delegato si è alzato dalla scrivania.
+ *
+ * Sul campo si è visto cosa costa sbagliarlo: la preparazione veniva uccisa a
+ * metà, tre volte di fila, e l'unica cosa che l'utente leggeva era «la
+ * preparazione si è guastata». Non era guasta: non le era stato dato il tempo
+ * di fare quello che le era stato chiesto.
+ */
+export const TEMPO_PREPARAZIONE_MS = 20 * 60_000
+
 /** Parole che due domande qualsiasi hanno in comune: non dicono nulla. */
 const PAROLE_VUOTE = new Set([
   'il', 'lo', 'la', 'i', 'gli', 'le', 'un', 'uno', 'una', 'di', 'a', 'da', 'in', 'con', 'su',

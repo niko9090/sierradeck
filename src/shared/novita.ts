@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.11',
+    righe: [
+      '**«La preparazione si è guastata» non era un guasto: era il tempo.** Ogni giro di preparazione veniva ucciso dopo cinque minuti — il tempo di un giudizio, dove però c’è una chat ferma che aspetta la risposta. Qui invece l’autopilota deve leggersi un progetto che non ha mai visto per capire quando il lavoro sarà finito, e nessuno lo sta aspettando: adesso ha venti minuti, e l’errore dice sempre quanti ne ha avuti.',
+      'E ogni interrogazione perdeva tre secondi ad aspettare qualcosa che nessuno le avrebbe mai scritto: adesso le si chiude l’ingresso invece di lasciarla in attesa.'
+    ]
+  },
+  {
     versione: '0.9.10',
     righe: [
       '**Dal telefono si affida un lavoro.** Si dice cosa si vuole, si sceglie la cartella, e l’autopilota parte: le domande che gli servono arrivano sulla stessa pagina, dove c’è già il campo per rispondere. Era la cosa che aveva più senso poter fare da fermi, in piedi, con una mano sola — e mancava.',

@@ -15,7 +15,9 @@ import {
   chiediGiudizio, componiPromptScomposizione, leggiCompiti, riparaComando, type Interrogazione
 } from './supervisore'
 import { pianificaFlotta } from './flotta'
-import { componiPromptIntervista, giaChiesta, leggiEsitoIntervista, SCAMBI_MAX } from './intervista'
+import {
+  componiPromptIntervista, giaChiesta, leggiEsitoIntervista, SCAMBI_MAX, TEMPO_PREPARAZIONE_MS
+} from './intervista'
 import { intervisteDaRiprendere } from './ripresa'
 import type { RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
@@ -292,7 +294,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         componiPromptIntervista(corrente.obiettivo, corrente.cwd, corrente.intervista, { senzaDomande }),
         corrente.cwd,
         undefined,
-        sessione
+        // Il tempo di leggersi un progetto, non quello di dare un giudizio: qui
+        // non c'e' nessuna chat ferma che aspetta.
+        { nuovaSessione: sessione, timeoutMs: TEMPO_PREPARAZIONE_MS }
       )
       const esito = leggiEsitoIntervista(testo)
 
@@ -336,7 +340,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           componiPromptIntervista(corrente.obiettivo, corrente.cwd, corrente.intervista, { senzaDomande: true }),
           corrente.cwd,
           undefined,
-          randomUUID()
+          { nuovaSessione: randomUUID(), timeoutMs: TEMPO_PREPARAZIONE_MS }
         )
         const forzato = leggiEsitoIntervista(secondo)
         if (forzato !== undefined && forzato.tipo === 'pronto') {

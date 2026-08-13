@@ -805,6 +805,28 @@ describe('intervista di preparazione', () => {
     riparti()
   })
 
+  it('la preparazione chiede il tempo di leggersi il progetto', async () => {
+    // Sul campo e' stata uccisa a cinque minuti tre volte di fila, e l'utente
+    // leggeva «la preparazione si e guastata». Non era guasta: cinque minuti
+    // sono il tempo di un giudizio - dove c'e' una chat ferma che aspetta - e
+    // qui invece bisogna leggersi un progetto mai visto.
+    const tempi: (number | undefined)[] = []
+    server = ambiente({
+      interroga: (prompt, _cwd, _sessione, opzioni) => {
+        if (!prompt.includes('Stai preparando')) return Promise.resolve({ testo: '{"azione": "finito"}' })
+        tempi.push(opzioni?.timeoutMs)
+        return Promise.resolve({
+          testo: '{"pronto": true, "criteri": [{"descrizione": "fatto", "comando": "npm test"}]}'
+        })
+      }
+    })
+    await avvia(server)
+    await chiama('POST', '/autopiloti', { obiettivo: 'x', cwd: process.cwd(), criteri: [] })
+
+    await attendi(async () => (await chiama('GET', '/autopiloti')).dati[0].stato === 'lavoro')
+    expect(tempi[0]).toBeGreaterThanOrEqual(15 * 60_000)
+  })
+
   it('una preparazione interrotta riparte quando il servizio torna su', async () => {
     // Il caso vero: l'app viene riavviata mentre l'autopilota si prepara. Sul
     // disco resta «intervista», ma nessun processo la sta piu' conducendo e non

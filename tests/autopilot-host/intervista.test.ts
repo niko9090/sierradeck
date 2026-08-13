@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  componiPromptIntervista, leggiEsitoIntervista, giaChiesta, type EsitoIntervista
-} from '../../src/autopilot-host/intervista'
+  componiPromptIntervista, leggiEsitoIntervista, giaChiesta, type EsitoIntervista, TEMPO_PREPARAZIONE_MS } from '../../src/autopilot-host/intervista'
 
 const OBIETTIVO = 'Sistema il lettore dei file di configurazione'
 const CWD = 'C:\\progetto'
@@ -167,5 +166,17 @@ describe('prompt che non ammette domande', () => {
 
   it('normalmente le domande restano possibili', () => {
     expect(componiPromptIntervista('obiettivo', 'C:/p', [])).toContain('{"domanda"')
+  })
+})
+
+describe('quanto tempo ha per prepararsi', () => {
+  it('molto piu di un giudizio, perche qui non aspetta nessuno', () => {
+    // Sul campo: la preparazione di un autopilota su un progetto vero e' stata
+    // uccisa a cinque minuti, tre volte di fila, e quello che si leggeva era
+    // «la preparazione si e guastata». Non era guasta: doveva leggersi un
+    // progetto intero prima di sapere quando il lavoro sara' finito, e cinque
+    // minuti sono il tempo di un giudizio - dove pero' c'e' una chat ferma che
+    // aspetta, e qui no.
+    expect(TEMPO_PREPARAZIONE_MS).toBeGreaterThanOrEqual(15 * 60_000)
   })
 })

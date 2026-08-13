@@ -8,8 +8,16 @@ export type Interrogazione = (
   prompt: string,
   cwd: string,
   sessionId: string | undefined,
-  /** L'id con cui far nascere la sessione, quando la si vuole poter guardare. */
-  nuovaSessione?: string
+  opzioni?: {
+    /** L'id con cui far nascere la sessione, quando la si vuole poter guardare. */
+    nuovaSessione?: string
+    /**
+     * Quanto la si aspetta. Assente vale il tempo di un giudizio: pochi minuti,
+     * perché di là c'è una chat ferma. Chi non ha nessuno che aspetta — la
+     * preparazione — chiede il suo, e lo chiede esplicitamente.
+     */
+    timeoutMs?: number
+  }
 ) => Promise<{ testo: string; sessionId?: string }>
 
 const TIMEOUT_MS = 5 * 60_000
@@ -86,7 +94,7 @@ export function ambientePulito(base: NodeJS.ProcessEnv): Record<string, string> 
 }
 
 export function interrogazioneReale(claudeCmd: string): Interrogazione {
-  return (prompt, cwd, sessionId, nuovaSessione) =>
+  return (prompt, cwd, sessionId, opzioni) =>
     new Promise((risolvi, rifiuta) => {
       // Una cartella che non c'è fa fallire `execFile` con lo stesso «Command
       // failed» di qualunque altro guasto, e manda a cercare dalla parte
@@ -99,13 +107,15 @@ export function interrogazioneReale(claudeCmd: string): Interrogazione {
         return
       }
       let args: string[] = []
-      argomentiSupervisore(claudeCmd, prompt, cwd, sessionId, (_c, a) => { args = a }, nuovaSessione)
-      execFile(
+      argomentiSupervisore(
+        claudeCmd, prompt, cwd, sessionId, (_c, a) => { args = a }, opzioni?.nuovaSessione
+      )
+      const figlio = execFile(
         claudeCmd,
         args,
         {
           cwd,
-          timeout: TIMEOUT_MS,
+          timeout: opzioni?.timeoutMs ?? TIMEOUT_MS,
           windowsHide: true,
           maxBuffer: 10 * 1024 * 1024,
           env: ambientePulito(process.env)
@@ -123,7 +133,9 @@ export function interrogazioneReale(claudeCmd: string): Interrogazione {
             // — e di un motivo se ne leggono i primi cinquecento: si vedeva il
             // prompt, che era già noto, e mai la ragione. Del messaggio resta
             // solo la parte che dice qualcosa.
-            const scaduto = err.killed === true ? `scaduto dopo ${TIMEOUT_MS / 60_000} minuti` : ''
+            const scaduto = err.killed === true
+              ? `scaduto dopo ${Math.round((opzioni?.timeoutMs ?? TIMEOUT_MS) / 60_000)} minuti`
+              : ''
             const causa = err.message.startsWith('Command failed')
               ? `${err.code !== undefined ? `uscito con ${String(err.code)}` : 'non è partito'}`
               : err.message.split('\n')[0]!.slice(0, 200)
@@ -150,6 +162,12 @@ export function interrogazioneReale(claudeCmd: string): Interrogazione {
           }
         }
       )
+      // **Niente da leggere sull ingresso.** Senza questa riga Claude Code
+      // resta tre secondi ad aspettare che qualcuno gli scriva qualcosa, lo
+      // annuncia sul suo stderr - «no stdin data received in 3s» - e quei tre
+      // secondi li paga ogni interrogazione. Nessuno gli scrivera mai niente:
+      // il prompt e gia negli argomenti.
+      figlio.stdin?.end()
     })
 }
 
