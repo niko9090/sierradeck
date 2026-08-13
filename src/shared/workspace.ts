@@ -55,6 +55,104 @@ export type Archivio = {
   workspace: WorkspaceSalvato[]
 }
 
+/**
+ * Il layout che spetta a una finestra dentro un workspace.
+ *
+ * La domanda sembra banale — «quello del suo monitor» — e per una postazione
+ * che non cambia mai lo è. Ma i monitor cambiano: si stacca il secondo schermo,
+ * si lavora dal portatile, si sposta la finestra. E il layout di quel monitor
+ * resta nell'archivio, sotto una chiave che **nessuno chiede più**: le chat
+ * sono lì, intatte, e non le vede nessuno. È il modo in cui un workspace con
+ * quattro chat ne mostra una e sembra averne perse tre.
+ *
+ * Quindi: il proprio monitor se ha qualcosa; altrimenti il primo layout non
+ * vuoto che nessun'altra finestra sta già mostrando. Meglio le chat su uno
+ * schermo diverso da quello di ieri che nessuna chat.
+ *
+ * `occupate` sono le chiavi che le altre finestre stanno già usando: senza,
+ * due finestre mostrerebbero le stesse chat e sarebbero i doppioni di sempre.
+ */
+export function layoutPerFinestra(
+  perMonitor: Record<string, LayoutSalvato>,
+  chiave: string,
+  occupate: string[] = []
+): LayoutSalvato {
+  const suo = perMonitor[chiave]
+  if (suo !== undefined && suo.panes.length > 0) return suo
+  const prese = new Set([...occupate, chiave])
+  for (const [k, layout] of Object.entries(perMonitor)) {
+    if (prese.has(k) || layout.panes.length === 0) continue
+    return layout
+  }
+  // Il proprio, anche se vuoto: è comunque la risposta giusta quando davvero
+  // non c'è niente da mostrare.
+  return suo ?? { root: undefined, panes: [] }
+}
+
+/**
+ * Quante finestre servono per far vedere tutto quello che c'è.
+ *
+ * Il layout è archiviato **per monitor**, e una finestra ne mostra uno: chi
+ * lavorava su due schermi e riapre il programma con una finestra sola vede
+ * metà del suo workspace e crede di aver perso l'altra. Non l'ha persa — non
+ * c'è nessuno a chiederla.
+ *
+ * Si contano quindi i monitor che hanno davvero delle chat, e per ciascuno si
+ * apre una finestra, **se quello schermo esiste ancora**. Per i layout rimasti
+ * sotto chiavi di postazioni che non ci sono più non si apre niente: ci pensa
+ * `layoutPerFinestra`, che li dà a una finestra che non ha niente da mostrare.
+ */
+export function monitorConLavoro(
+  perMonitor: Record<string, LayoutSalvato>,
+  schermiPresenti: string[]
+): string[] {
+  const presenti = new Set(schermiPresenti)
+  return Object.entries(perMonitor)
+    .filter(([chiave, layout]) => layout.panes.length > 0 && presenti.has(chiave))
+    .map(([chiave]) => chiave)
+}
+
+/**
+ * Riporta a casa le chat rimaste su postazioni che non esistono più.
+ *
+ * Una chiave di monitor descrive risoluzione, posizione e scalatura. Cambia se
+ * si sposta uno schermo, se ne cambia la scala, o semplicemente perché una
+ * versione precedente del programma la scriveva in un altro modo — e nel file
+ * di chi usa SierraDeck da mesi ce ne sono di entrambe le forme. Il layout
+ * archiviato sotto una di quelle chiavi **non lo chiede più nessuno**: le chat
+ * sono lì, per sempre, invisibili.
+ *
+ * Qui i loro riquadri passano al primo monitor che esiste davvero, e la chiave
+ * morta sparisce. Si perde la disposizione — quei riquadri si affiancano agli
+ * altri invece di stare dov'erano — e va bene così: la disposizione si
+ * ricompone in dieci secondi, una conversazione perduta no.
+ */
+export function recuperaOrfani(
+  perMonitor: Record<string, LayoutSalvato>,
+  schermiPresenti: string[]
+): Record<string, LayoutSalvato> {
+  const presenti = new Set(schermiPresenti)
+  const orfani = Object.entries(perMonitor).filter(
+    ([chiave, layout]) => !presenti.has(chiave) && layout.panes.length > 0
+  )
+  if (orfani.length === 0) return perMonitor
+
+  // Dove metterli: il primo schermo presente che l'archivio già conosce,
+  // altrimenti il primo presente in assoluto. Serve una destinazione vera,
+  // perché metterli sotto un'altra chiave morta non risolverebbe niente.
+  const casa = schermiPresenti.find((s) => perMonitor[s] !== undefined) ?? schermiPresenti[0]
+  if (casa === undefined) return perMonitor
+
+  const nuovo: Record<string, LayoutSalvato> = { ...perMonitor }
+  let destinazione = nuovo[casa] ?? { root: undefined, panes: [] }
+  for (const [chiave, layout] of orfani) {
+    for (const pane of layout.panes) destinazione = aggiungiPaneA(destinazione, pane)
+    delete nuovo[chiave]
+  }
+  nuovo[casa] = destinazione
+  return nuovo
+}
+
 export function archivioVuoto(): Archivio {
   return { versione: VERSIONE_ARCHIVIO, attivo: NOME_PREDEFINITO, workspace: [] }
 }

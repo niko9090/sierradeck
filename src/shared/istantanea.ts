@@ -136,6 +136,34 @@ export function workspaceDaSalvare(
  * com'erano è esattamente il doppione descritto sopra: un ripristino dice cosa
  * ci deve essere, e quello che non c'è dentro non ci deve essere.
  */
+/**
+ * In quale workspace vivono le chat che un salvataggio rimette a schermo.
+ *
+ * I salvataggi presi prima che questo campo esistesse non lo dicono, e sono
+ * quelli che la gente ha già sul disco. Senza saperlo, il ripristino rimette a
+ * schermo le chat di allora lasciando nell'archivio il nome del workspace di
+ * adesso: il primo salvataggio automatico le scrive **là dentro**, sopra le sue.
+ * Un salvataggio che corrompe il lavoro che trova è peggio di un salvataggio
+ * che non funziona.
+ *
+ * Si deduce da dove stanno: il workspace che contiene le stesse conversazioni
+ * che il salvataggio rimette a schermo. È una risposta certa quando c'è, perché
+ * una chat vive in un workspace solo.
+ */
+export function workspaceDelleFinestre(
+  finestre: FinestraSalvata[],
+  workspace: WorkspaceSalvato[]
+): string | undefined {
+  const aSchermo = new Set(finestre.flatMap((f) => f.layout.panes.map((p) => p.sessionUuid)))
+  if (aSchermo.size === 0) return undefined
+  for (const w of workspace) {
+    for (const layout of Object.values(w.perMonitor)) {
+      if (layout.panes.some((p) => aSchermo.has(p.sessionUuid))) return w.nome
+    }
+  }
+  return undefined
+}
+
 export function distribuisci(
   finestre: FinestraSalvata[],
   aperte: { id: number; monitor: string }[]

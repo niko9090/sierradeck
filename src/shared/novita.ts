@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.2',
+    righe: [
+      '**Le chat dei salvataggi tornano tutte.** Il layout è archiviato per monitor e una finestra ne mostra uno: chi lavorava su due schermi e riapriva con una finestra sola vedeva metà del suo workspace e credeva di aver perso l’altra metà. Adesso all’avvio si apre una finestra per ogni monitor che ha delle chat, e una finestra senza niente da mostrare prende quelle rimaste senza casa.',
+      '**Recuperate le chat rimaste su postazioni che non esistono più.** La chiave di un monitor cambia se lo sposti, se ne cambi la scala, o perché una versione precedente la scriveva diversamente: quei layout non li chiedeva più nessuno e le loro chat erano invisibili per sempre. Al primo avvio tornano su uno schermo vero.',
+      'Ricaricando un salvataggio, le chat tornano nel workspace da cui vengono anche quando il salvataggio è vecchio e non lo dice: si deduce da dove stanno. Senza, il primo salvataggio automatico le scriveva nel workspace sbagliato, sopra le sue.'
+    ]
+  },
+  {
     versione: '0.9.1',
     righe: [
       '**Le chat si possono mettere a dormire.** Il tasto ⏸ nella testata del riquadro chiude il suo claude.exe e conserva la conversazione: al risveglio riprende da dove era. Il riquadro resta al suo posto — sparire sarebbe indistinguibile dall’averlo chiuso, e la differenza è tutto il punto.',

@@ -13,11 +13,12 @@ import { pathToSlug } from './indexer/project-scanner'
 import type { Avanzamento, IndexOutcome } from '@shared/types'
 import { APP_DATA_DIR_NAME } from '@shared/version'
 import { chiaveMonitor } from '@shared/display-key'
-import { aggiungiPaneA, type Archivio, type LayoutSalvato } from '@shared/workspace'
+import { aggiungiPaneA, layoutPerFinestra, type Archivio, type LayoutSalvato } from '@shared/workspace'
 import type { WorkspaceStore } from './workspace-store'
 import type { IstantaneeStore } from './istantanee-store'
 import {
   nuovaIstantanea, distribuisci, daRiavviare, daSalvare, workspaceDaSalvare,
+  workspaceDelleFinestre,
   type AutopilotaSalvato, type FinestraSalvata, type Istantanea
 } from '@shared/istantanea'
 import { resolveClaudeCommand, buildClaudeArgs } from './config'
@@ -514,7 +515,13 @@ export function registerLayoutIpc(store: WorkspaceStore): void {
     if (inAttesa !== undefined) return inAttesa
     const archivio = store.leggi()
     const attivo = archivio.workspace.find((w) => w.nome === archivio.attivo)
-    return attivo?.perMonitor[chiaveDellaFinestra(win)] ?? layoutVuoto()
+    if (attivo === undefined) return layoutVuoto()
+    // Le chiavi che le altre finestre stanno già mostrando: senza, due
+    // finestre finirebbero sulle stesse chat.
+    const occupate = BrowserWindow.getAllWindows()
+      .filter((w) => !w.isDestroyed() && w.id !== win.id)
+      .map((w) => chiaveDellaFinestra(w))
+    return layoutPerFinestra(attivo.perMonitor, chiaveDellaFinestra(win), occupate)
   })
 
   ipcMain.on('layout:salva', (event, raw: unknown) => {
@@ -909,9 +916,17 @@ export function registerIstantaneeIpc(
         // E torna davanti quello che si aveva davanti. Senza, le chat
         // ripristinate finivano nel workspace attivo **di adesso** al primo
         // salvataggio del layout: le stesse chat in due workspace diversi.
-        ...(istantanea.workspaceAttivo !== undefined
-          ? { attivo: istantanea.workspaceAttivo }
-          : {}),
+        //
+        // I salvataggi vecchi non lo dicono, e sono quelli che la gente ha già
+        // sul disco: lì si deduce da dove stanno le chat che tornano a schermo.
+        ...(() => {
+          const davanti =
+            istantanea.workspaceAttivo ??
+            workspaceDelleFinestre(istantanea.finestre, istantanea.workspace ?? [])
+          if (davanti === undefined) return {}
+          console.log(`[istantanee] torna davanti il workspace «${davanti}»`)
+          return { attivo: davanti }
+        })(),
         workspace: [
           ...archivio.workspace.filter((w) => !nomiSalvati.has(w.nome)),
           ...istantanea.workspace

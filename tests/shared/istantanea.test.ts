@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseIstantanee, nuovaIstantanea, distribuisci, daRiavviare, daSalvare, workspaceDaSalvare,
+  workspaceDelleFinestre,
   contaChat, contaWorkspace, VERSIONE_ISTANTANEE,
   type Istantanea, type FinestraSalvata, type AutopilotaSalvato
 } from '@shared/istantanea'
@@ -513,5 +514,37 @@ describe('contare cosa contiene un salvataggio', () => {
     })
     expect(contaChat(i)).toBe(1)
     expect(contaWorkspace(i)).toBe(0)
+  })
+})
+
+describe('in quale workspace vivono le chat che tornano a schermo', () => {
+  const chat = (u: string): LayoutSalvato => ({
+    root: { type: 'pane', id: 'p' },
+    panes: [{ id: 'p', sessionUuid: u, cwd: 'C:\p', title: 'x' }]
+  })
+
+  it('lo deduce da dove stanno, per i salvataggi che non lo dicono', () => {
+    // Sono quelli che la gente ha gia sul disco. Senza saperlo, il ripristino
+    // rimette a schermo le chat di allora lasciando nell archivio il nome del
+    // workspace di adesso: il primo salvataggio automatico le scrive la
+    // dentro, sopra le sue.
+    const dove = workspaceDelleFinestre(
+      [{ monitor: 'm1', layout: chat('u-2') }],
+      [
+        { nome: 'lavoro', perMonitor: { m1: chat('u-1') } },
+        { nome: 'casa', perMonitor: { m1: chat('u-2') } }
+      ]
+    )
+    expect(dove).toBe('casa')
+  })
+
+  it('non indovina quando non lo sa', () => {
+    // Un nome sbagliato qui vorrebbe dire scrivere le chat nel workspace di
+    // qualcun altro: meglio non dire niente e lasciare le cose come stanno.
+    expect(workspaceDelleFinestre([{ monitor: 'm1', layout: chat('u-9') }], [
+      { nome: 'lavoro', perMonitor: { m1: chat('u-1') } }
+    ])).toBeUndefined()
+    expect(workspaceDelleFinestre([], [{ nome: 'lavoro', perMonitor: { m1: chat('u-1') } }]))
+      .toBeUndefined()
   })
 })

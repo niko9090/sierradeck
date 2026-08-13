@@ -46,6 +46,7 @@ import { resolveClaudeCommand } from './config'
 import { leggiAccesso } from './accesso'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
+import { monitorConLavoro, recuperaOrfani } from '@shared/workspace'
 import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
 
@@ -757,6 +758,47 @@ if (!app.requestSingleInstanceLock()) {
       })
 
       apriNuovaFinestra()
+
+      // Una finestra per ogni monitor che ha delle chat. Il layout è
+      // archiviato per monitor e una finestra ne mostra uno: chi lavorava su
+      // due schermi e riapriva con una finestra sola vedeva metà del suo
+      // workspace e credeva di aver perso l'altra metà. Non l'aveva persa —
+      // non c'era nessuno a chiederla.
+      const schermi = screen.getAllDisplays().map((d) =>
+        chiaveMonitor({ bounds: d.bounds, scaleFactor: d.scaleFactor })
+      )
+
+      // Prima di tutto, le chat rimaste su postazioni che non esistono più:
+      // tornano su uno schermo vero invece di restare invisibili per sempre.
+      // Una volta sola, perché dopo la chiave morta non c'è più.
+      const daPulire = workspaceStore?.leggi()
+      if (daPulire !== undefined && schermi.length > 0) {
+        const ripuliti = daPulire.workspace.map((w) => ({
+          ...w,
+          perMonitor: recuperaOrfani(w.perMonitor, schermi)
+        }))
+        const cambiati = ripuliti.filter(
+          (w, i) => Object.keys(w.perMonitor).length !== Object.keys(daPulire.workspace[i]?.perMonitor ?? {}).length
+        )
+        if (cambiati.length > 0) {
+          console.log(`[avvio] recuperate le chat di ${cambiati.length} workspace da postazioni sparite`)
+          workspaceStore?.scrivi({ ...daPulire, workspace: ripuliti })
+        }
+      }
+
+      const archivioAvvio = workspaceStore?.leggi()
+      const suoLayout = archivioAvvio?.workspace.find((w) => w.nome === archivioAvvio.attivo)
+      const conLavoro = monitorConLavoro(suoLayout?.perMonitor ?? {}, schermi)
+      for (let i = 1; i < conLavoro.length; i += 1) {
+        try {
+          apriNuovaFinestra()
+        } catch (err) {
+          // Una finestra in meno mostra meno chat, ma non impedisce di lavorare
+          // con quelle che ci sono.
+          console.error('[avvio] finestra per il secondo monitor non aperta:', err)
+        }
+      }
+
       app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) apriNuovaFinestra()
       })
