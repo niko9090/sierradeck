@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.22',
+    righe: [
+      '**La chat presa in prestito adesso rinasce davvero.** Veniva spenta e riaccesa nello stesso istante: il riquadro non se ne accorgeva e restava con un terminale morto in mano, dove il compito finiva perduto — «terminale inesistente: 10965 caratteri non consegnati». Adesso fra lo spegnere e il riaccendere passa un disegno, che è quanto basta perché il riquadro rifaccia il suo terminale.',
+      'E un terminale finito non è più considerato pronto a ricevere: prima sembrava il più pronto di tutti, perché aveva visto il prompt e da allora taceva.',
+      '**L’app Android 1.3.0 è pubblicata**, con la firma automatica: da adesso ogni versione esce già firmata. Attenzione: la chiave è nuova, quindi va disinstallata la 1.2.0 prima di installarla — una volta sola.'
+    ]
+  },
+  {
     versione: '0.9.21',
     righe: [
       '**L’autopilota restava a zero cicli nella chat che aveva preso in prestito.** Prendersi una chat già aperta non bastava: l’aggancio che le fa dire «ho finito di rispondere» si mette **quando il terminale nasce**, e quella era nata prima. Il compito arrivava, la chat lavorava, e l’autopilota aspettava un segnale che non sarebbe mai arrivato — fermo per sempre, con l’aria di stare lavorando.',

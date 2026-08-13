@@ -113,6 +113,15 @@ export const TENTATIVI_INVIO = 3
 export const RIPROVA_MS = 400
 
 /**
+ * Quanto passa fra lo spegnere il terminale di una chat adottata e il riaccenderlo.
+ *
+ * Deve starci in mezzo un disegno dell'interfaccia: è così che il riquadro si
+ * accorge di non avere più un terminale e ne fa uno nuovo, con gli agganci
+ * dell'autopilota.
+ */
+const RISVEGLIO_MS = 60
+
+/**
  * Oltre questo, la chat non nascerà più.
  *
  * Un autopilota che aspetta in silenzio è il difetto peggiore: meglio dirlo
@@ -334,7 +343,13 @@ export function ponteReale(prontezza: (ptyId: string) => boolean): Ponte {
       // a zero cicli per un pomeriggio.
       const vecchio = stato.iberna(paneId)
       if (vecchio !== undefined) window.gestore.pty.kill(vecchio)
-      stato.sveglia(paneId)
+      // **Il risveglio al giro dopo, non adesso.** Fra i due deve passare un
+      // disegno: il riquadro rifa' il suo terminale quando lo vede sparire, e
+      // se sparizione e ritorno avvengono nello stesso istante non se ne
+      // accorge — resta li' con un terminale morto, e il compito finisce in un
+      // processo che non c'e' piu'. E' successo davvero: «terminale
+      // inesistente: 10965 caratteri non consegnati».
+      setTimeout(() => { useLayoutStore.getState().sveglia(paneId) }, RISVEGLIO_MS)
     },
 
     apri: (c) =>

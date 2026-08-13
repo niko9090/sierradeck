@@ -120,3 +120,18 @@ describe('quando il terminale e pronto a ricevere', () => {
     expect(terminalePronto(r.attivitaDi('mai-nato'), 99_999)).toBe(false)
   })
 })
+
+describe('un terminale che e morto', () => {
+  it('non e piu un posto dove scrivere', () => {
+    // Senza, sembra il piu' pronto di tutti: ha visto il prompt e da allora
+    // tace. Il compito ci finiva dentro - «terminale inesistente: 10965
+    // caratteri non consegnati» - e l'autopilota restava fermo.
+    const r = creaUltimeRighe()
+    r.aggiorna('pty-1', 'bypass permissions on\n')
+    const vivo = r.attivitaDi('pty-1')
+    expect(terminalePronto(vivo, vivo.ultimoDato + 5000)).toBe(true)
+    r.segnaMorto('pty-1')
+    const morto = r.attivitaDi('pty-1')
+    expect(terminalePronto(morto, morto.ultimoDato + 5000)).toBe(false)
+  })
+})

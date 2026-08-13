@@ -4,6 +4,32 @@ plugins {
 }
 
 android {
+    /**
+     * La firma dell'APK, senza chiedere niente a nessuno.
+     *
+     * La chiave e la sua password vivono **fuori dal repository**, nella
+     * cartella dell'utente: `~/.sierradeck-chiave.jks` e il file accanto che
+     * contiene solo la password. Nel codice non entra nessuna delle due — una
+     * chiave privata versionata e' una chiave regalata a chiunque cloni il
+     * progetto.
+     *
+     * Se i due file non ci sono, la compilazione non fallisce: esce un APK non
+     * firmato, che e' quello che serve a chi vuole solo provare a compilare.
+     */
+    val chiave = File(System.getProperty("user.home"), ".sierradeck-chiave.jks")
+    val passwordFile = File(System.getProperty("user.home"), ".sierradeck-chiave.pass")
+    val passwordChiave = if (passwordFile.exists()) passwordFile.readText().trim() else null
+
+    signingConfigs {
+        if (chiave.exists() && passwordChiave != null) {
+            create("propria") {
+                storeFile = chiave
+                storePassword = passwordChiave
+                keyAlias = "sierradeck"
+                keyPassword = passwordChiave
+            }
+        }
+    }
     namespace = "it.glos.sierradeck"
     compileSdk = 35
 
@@ -29,6 +55,9 @@ android {
 
     buildTypes {
         release {
+            // Firmato all'uscita dal forno: nessun passaggio a mano, nessuna password
+            // da ricordare fra una versione e l'altra.
+            signingConfig = signingConfigs.findByName("propria")
             isMinifyEnabled = false
         }
     }

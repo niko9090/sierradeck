@@ -152,6 +152,10 @@ export function App(): React.JSX.Element {
     // consegnare a uno solo.
     return window.gestore.pty.onEvent((msg) => {
       if (msg.kind === 'data') righe.current.aggiorna(msg.id, msg.data)
+      // Un terminale finito non e' un posto dove scrivere: senza questa riga
+      // sembrerebbe il piu' pronto di tutti - ha visto il prompt e da allora
+      // tace - e il compito ci finirebbe dentro, perduto.
+      if (msg.kind === 'exit') righe.current.segnaMorto(msg.id)
     })
   }, [])
 
