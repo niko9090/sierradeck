@@ -1,5 +1,5 @@
-import { execFile } from 'node:child_process'
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { spawn } from 'node:child_process'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { Criterio } from '@shared/autopilota'
@@ -74,11 +74,31 @@ export function nonMisurabile(codice: number, uscita: string): boolean {
 }
 
 /**
+ * Quanto si aspetta l'uscita del comando prima di prendere quello che c'è.
+ *
+ * Fra «il processo è uscito» e «le sue pipe si sono chiuse» normalmente non
+ * passa niente. Passa quando il comando ha lasciato qualcosa in background:
+ * quel figlio eredita `stdout` e `stderr` e le tiene aperte finché vive. Questo
+ * è il tempo che si concede alle pipe per svuotarsi, dopo di che si risponde
+ * con l'uscita raccolta fino a lì.
+ */
+const GRAZIA_CHIUSURA_MS = 200
+
+/**
  * Esegue davvero un comando, con un tetto di tempo.
  *
  * Il tetto non è prudenza generica: l'hook che attende questa risposta ha un
  * limite, e un comando appeso lo consumerebbe tutto lasciando la chat immobile
  * senza che nessuno sappia perché.
+ *
+ * **Si risponde all'uscita del processo, non alla chiusura delle sue pipe** — e
+ * questa è la differenza fra dieci secondi e dieci minuti. `execFile` chiamava
+ * la sua callback alla chiusura delle pipe: un criterio come
+ * `npm run dev -- --port 8977 & sleep 6; curl …` lascia vivo un albero di
+ * processi che eredita `stdout` e `stderr`, quelle pipe non si chiudono mai, e
+ * la risposta arrivava **al timeout**. Provato sul campo: la parte utile del
+ * criterio finiva in un secondo, l'autopilota ripartiva dieci minuti dopo, e i
+ * criteri successivi — che sono seriali per scelta — aspettavano dietro.
  */
 export function esecutoreReale(timeoutMs: number = TIMEOUT_PREDEFINITO_MS): Esecutore {
   const bash = trovaBash()
@@ -90,28 +110,72 @@ export function esecutoreReale(timeoutMs: number = TIMEOUT_PREDEFINITO_MS): Esec
       // Windows e li legge come parte dell'ultimo argomento.
       writeFileSync(script, bash !== undefined ? `${comando}\n` : `@echo off\r\n${comando}\r\n`, 'utf8')
       const { file, argomenti } = comandoShell(bash, script)
-      execFile(
-        file,
-        argomenti,
-        { cwd, timeout: timeoutMs, windowsHide: true, maxBuffer: 10 * 1024 * 1024 },
-        (err, stdout, stderr) => {
-          const uscita = `${stdout}${stderr}`.trim()
-          if (err === null) {
-            risolvi({ codice: 0, uscita })
-            return
-          }
-          // `killed` con un timeout impostato significa che l'abbiamo interrotto
-          // noi: va detto, altrimenti sembra un fallimento del comando e la chat
-          // andrebbe a cercare un difetto che non c'è.
-          const interrotto = (err as { killed?: boolean }).killed === true
-          risolvi({
-            codice: typeof err.code === 'number' ? err.code : 1,
-            uscita: interrotto
-              ? `${uscita}\n[comando interrotto dopo ${Math.round(timeoutMs / 1000)}s]`
-              : `${uscita}\n${err.message}`
-          })
+      const figlio = spawn(file, argomenti, {
+        cwd,
+        windowsHide: true,
+        // Niente ingresso: un criterio che chiedesse qualcosa resterebbe lì per
+        // sempre, e non c'è nessuno che possa rispondergli.
+        stdio: ['ignore', 'pipe', 'pipe']
+      })
+
+      let uscita = ''
+      const raccogli = (pezzo: Buffer): void => {
+        // Si smette di accumulare, non di leggere: una pipe che nessuno svuota
+        // blocca chi ci scrive dentro.
+        if (uscita.length < USCITA_MAX * 4) uscita += pezzo.toString()
+      }
+      figlio.stdout.on('data', raccogli)
+      figlio.stderr.on('data', raccogli)
+
+      let risposto = false
+      let interrotto = false
+      const orologio = setTimeout(() => {
+        interrotto = true
+        figlio.kill()
+      }, timeoutMs)
+
+      const rispondi = (codice: number, coda = ''): void => {
+        if (risposto) return
+        risposto = true
+        clearTimeout(orologio)
+        // Le pipe si lasciano andare: se un processo in background le tiene
+        // aperte, restare in ascolto significherebbe tenere vivo un pezzo di
+        // servizio per un lavoro di cui non ci importa più niente.
+        figlio.stdout.destroy()
+        figlio.stderr.destroy()
+        figlio.unref()
+        try {
+          // La cartella del criterio non serve più: senza questo ne restava una
+          // per esecuzione, e se ne sono contate 637 in una sera sola.
+          rmSync(cartella, { recursive: true, force: true })
+        } catch {
+          // Un file ancora aperto da un processo in background: si riproverà
+          // dopo, e nel frattempo una cartella in temp non fa danno.
         }
-      )
+        risolvi({ codice, uscita: `${uscita.trim()}${coda}`.trim() })
+      }
+
+      figlio.on('error', (err) => { rispondi(1, `\n${err.message}`) })
+
+      figlio.on('exit', (codice, segnale) => {
+        const esito = codice ?? (segnale !== null ? 1 : 0)
+        // L'uscita è già decisa: quello che resta è dare alle pipe il tempo di
+        // svuotarsi. Se qualcuno le tiene aperte, dopo la grazia si risponde
+        // lo stesso — è il caso del comando che lascia un server acceso.
+        const grazia = setTimeout(() => {
+          rispondi(
+            esito,
+            interrotto ? `\n[comando interrotto dopo ${Math.round(timeoutMs / 1000)}s]` : ''
+          )
+        }, GRAZIA_CHIUSURA_MS)
+        figlio.on('close', () => {
+          clearTimeout(grazia)
+          rispondi(
+            esito,
+            interrotto ? `\n[comando interrotto dopo ${Math.round(timeoutMs / 1000)}s]` : ''
+          )
+        })
+      })
     })
 }
 

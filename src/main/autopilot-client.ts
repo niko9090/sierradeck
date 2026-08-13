@@ -7,6 +7,14 @@ export type NuovoAutopilota = {
   criteri: { descrizione: string; comando?: string }[]
   /** Quante chat può aprire insieme. Uno è il caso normale. */
   tettoChat?: number
+  /**
+   * Il workspace da cui viene avviato: è lì che le sue chat devono nascere.
+   *
+   * Lo dice chi lo avvia, perché è l'unico che lo sa nel momento in cui conta.
+   * Cercarlo dopo, quando la consegna arriva, vuol dire cercare una chat che
+   * non esiste ancora — e farla nascere nel workspace sbagliato.
+   */
+  workspace?: string
 }
 
 export type DomandaAperta = {

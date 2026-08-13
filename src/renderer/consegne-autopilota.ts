@@ -23,6 +23,12 @@ export type Consegna = {
   titolo: string
   cosa: 'scrivi' | 'interrompi'
   testo: string
+  /**
+   * Il workspace in cui questo lavoro deve stare, quando l'autopilota lo ha
+   * deciso. La finestra ci è già andata prima di consegnare: qui serve a non
+   * adottare una chat che sta da un'altra parte, se quel viaggio è fallito.
+   */
+  workspace?: string
 }
 
 export type Ponte = {
@@ -42,8 +48,18 @@ export type Ponte = {
    * Libera vuol dire: non governata da un altro autopilota. Quella di un
    * collega non si tocca — due padroni che scrivono nella stessa conversazione
    * si darebbero ordini a vicenda.
+   *
+   * `workspace` è dove l'autopilota vuole lavorare, quando lo ha deciso. Il
+   * criterio era la cartella e basta: due chat sulla stessa cartella in due
+   * workspace diversi erano indistinguibili, e veniva presa quella che avevi
+   * davanti — cioè una conversazione tua, in un altro posto, con il suo
+   * terminale fatto rinascere sotto i tuoi occhi.
    */
-  adottabile: (cwd: string, autopilotaId: string) => { paneId: string; ptyId?: string } | undefined
+  adottabile: (
+    cwd: string,
+    autopilotaId: string,
+    workspace?: string
+  ) => { paneId: string; ptyId?: string } | undefined
   /**
    * Prende una chat aperta e la fa diventare **sua**.
    *
@@ -158,7 +174,7 @@ export function eseguiConsegna(
   // conversazione nuova aperta accanto lascerebbe due cose da seguire per un
   // lavoro solo, e quella che si stava guardando ferma.
   if (gia === undefined) {
-    const ospite = ponte.adottabile(c.cwd, c.autopilotaId)
+    const ospite = ponte.adottabile(c.cwd, c.autopilotaId, c.workspace)
     if (ospite !== undefined) {
       ponte.adotta(ospite.paneId, c)
       // **Sempre l'attesa**, mai il terminale che c'era: adottare lo fa
@@ -309,7 +325,18 @@ function premiInvio(
  * a riceverlo — perché sapere *se* si può scrivere è cosa si legge dal
  * terminale, non cosa si deduce dall'orologio.
  */
-export function ponteReale(prontezza: (ptyId: string) => boolean): Ponte {
+export function ponteReale(
+  prontezza: (ptyId: string) => boolean,
+  /**
+   * Il workspace che questa finestra sta mostrando adesso.
+   *
+   * Si chiede al momento dell'uso e non si passa per valore: fra il ritiro di
+   * una consegna e la sua esecuzione la finestra cambia workspace — è
+   * esattamente quello che fa per andare dove l'autopilota vuole — e un nome
+   * fotografato prima sarebbe già vecchio.
+   */
+  workspaceAttivo: () => string
+): Ponte {
   return {
     prontoARicevere: prontezza,
     riquadroDi: (sessionId) => {
@@ -323,7 +350,20 @@ export function ponteReale(prontezza: (ptyId: string) => boolean): Ponte {
     // Una chat gia' aperta su quella cartella, se non e' di un altro
     // autopilota. Il primo per identificativo: l'ordine non cambia mentre si
     // guarda, e con una chat sola - il caso normale - e' quella.
-    adottabile: (cwd, autopilotaId) => {
+    //
+    // **Ma solo se siamo dove il lavoro deve stare.** Lo store contiene i
+    // riquadri del workspace che questa finestra sta mostrando: se il viaggio
+    // verso il workspace dell'autopilota non e' riuscito, quelle chat sono di
+    // un altro posto. Adottarne una vorrebbe dire prendersi una conversazione
+    // tua, in un workspace che l'autopilota non ha mai chiesto, e farle
+    // rinascere il terminale sotto gli occhi.
+    adottabile: (cwd, autopilotaId, workspace) => {
+      if (workspace !== undefined && workspace !== workspaceAttivo()) {
+        console.warn(
+          `[autopilota] non sono in ${workspace}: non adotto nessuna chat di ${workspaceAttivo()}`
+        )
+        return undefined
+      }
       const riquadri = Object.values(useLayoutStore.getState().panes)
         .filter((p) => p.cwd === cwd)
         .filter((p) => p.autopilota === undefined || p.autopilota.id === autopilotaId)

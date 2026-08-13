@@ -75,6 +75,19 @@ export type Autopilota = {
   nome: string
   obiettivo: string
   cwd: string
+  /**
+   * Il workspace dove il suo lavoro deve comparire.
+   *
+   * Lo decide lui, alla nascita: è il workspace da cui l'utente lo ha avviato.
+   * Prima si deduceva cercando la sua sessione in `workspaces.json` — che
+   * funziona per una chat **ripresa** e mai per una che deve **nascere**: quella
+   * sessione lì dentro non c'è ancora, la ricerca torna a vuoto, e la chat
+   * compare nel workspace che hai davanti invece che nel suo.
+   *
+   * Assente per gli autopiloti nati prima di questo campo: la loro chat nasce
+   * dove sei, come faceva prima.
+   */
+  workspace?: string
   criteri: Criterio[]
   /** Le domande già fatte in intervista: sopravvivono a un riavvio del servizio. */
   intervista: ScambioSalvato[]
@@ -137,6 +150,8 @@ export function nuovoAutopilota(p: {
   criteri: Criterio[]
   iniziatoIl: string
   tettoChat?: number
+  /** Il workspace da cui è stato avviato: è lì che il suo lavoro deve andare. */
+  workspace?: string
   /** Senza criteri si parte in intervista: sarà lei a produrli. */
   stato?: StatoAutopilota
 }): Autopilota {
@@ -145,6 +160,7 @@ export function nuovoAutopilota(p: {
     nome: p.nome,
     obiettivo: p.obiettivo,
     cwd: p.cwd,
+    ...(p.workspace !== undefined && p.workspace.trim() !== '' ? { workspace: p.workspace } : {}),
     criteri: p.criteri,
     stato: p.stato ?? 'lavoro',
     cicli: 0,
@@ -352,6 +368,9 @@ export function parseAutopilota(raw: unknown): {
       nome: stringaNonVuota(o.nome) ?? id,
       obiettivo,
       cwd,
+      // Il workspace sopravvive a un riavvio del servizio: senza, un autopilota
+      // ripreso tornerebbe a far nascere le sue chat dove capita.
+      ...(stringaNonVuota(o.workspace) !== undefined ? { workspace: o.workspace as string } : {}),
       criteri,
       stato,
       ...(sessionId !== undefined ? { sessionId } : {}),

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { eseguiConsegna, type Consegna, type Ponte } from '../../src/renderer/consegne-autopilota'
+import { eseguiConsegna, ponteReale, type Consegna, type Ponte } from '../../src/renderer/consegne-autopilota'
+import { useLayoutStore } from '../../src/renderer/state/layout'
 
 const INVIO = String.fromCharCode(13)
 const APRI = '[200~'
@@ -231,6 +232,7 @@ describe('la chat che c e gia', () => {
     const scritti: { ptyId: string; testo: string }[] = []
     const aperti: Consegna[] = []
     const adottati: string[] = []
+    const chiesti: { cwd: string; autopilotaId: string; workspace?: string }[] = []
     const rinviati: (() => void)[] = []
     let partita = false
     const ponte: Ponte = {
@@ -238,7 +240,8 @@ describe('la chat che c e gia', () => {
       apri: (c) => { aperti.push(c); riquadri[c.sessionId] = { paneId: 'p-nuovo' }; return 'p-nuovo' },
       scrivi: (ptyId, testo) => { scritti.push({ ptyId, testo }); if (testo === INVIO) partita = true },
       prontoARicevere: () => !partita,
-      adottabile: (cwd, autopilotaId) => {
+      adottabile: (cwd, autopilotaId, workspace) => {
+        chiesti.push({ cwd, autopilotaId, workspace })
         const libera = aperte.find(
           (c) => c.cwd === cwd && (c.padrone === undefined || c.padrone === autopilotaId)
         )
@@ -255,7 +258,7 @@ describe('la chat che c e gia', () => {
         for (const f of rinviati.splice(0, rinviati.length)) f()
       }
     }
-    return { ponte, scritti, aperti, adottati, riquadri, dopo, scadi }
+    return { ponte, scritti, aperti, adottati, chiesti, riquadri, dopo, scadi }
   }
 
   it('scrive nella chat gia aperta su quella cartella, invece di aprirne una', () => {
@@ -268,6 +271,16 @@ describe('la chat che c e gia', () => {
     expect(b.aperti).toEqual([])
     expect(b.adottati).toEqual(['p-1'])
     expect(b.scritti.map((s) => s.ptyId)).toContain('pty-1')
+  })
+
+  it('chi cerca la chat da adottare sa anche dove deve stare', () => {
+    // Il criterio era la cartella e basta: due chat sulla stessa cartella in
+    // due workspace diversi erano indistinguibili, e l'autopilota si prendeva
+    // quella che ti trovavi davanti.
+    const b = bancoConChat([{ paneId: 'p-1', ptyId: 'pty-1', cwd: CARTELLA }])
+    eseguiConsegna(consegna({ workspace: 'lavoro' }), b.ponte, b.dopo)
+    b.scadi()
+    expect(b.chiesti[0]?.workspace).toBe('lavoro')
   })
 
   it('non ruba la chat di un altro autopilota', () => {
@@ -335,5 +348,33 @@ describe('dopo l adozione, il terminale e un altro', () => {
     b.scadi()
     expect(b.scritti.map((s) => s.ptyId)).toContain('pty-nuovo')
     expect(b.scritti.map((s) => s.ptyId)).not.toContain('pty-vecchio')
+  })
+})
+
+describe('il ponte vero, davanti ai workspace', () => {
+  // Lo store contiene i riquadri del workspace che la finestra sta mostrando:
+  // se il viaggio verso quello dell'autopilota non e' riuscito, quelle chat
+  // sono di un altro posto e non sono sue.
+  const conUnaChat = (): void => {
+    useLayoutStore.getState().reset()
+    useLayoutStore.getState().addPane('C:\progetto', 'La tua')
+  }
+
+  it('adotta quando siamo dove il lavoro deve stare', () => {
+    conUnaChat()
+    const ponte = ponteReale(() => true, () => 'lavoro')
+    expect(ponte.adottabile('C:\progetto', 'ap-1', 'lavoro')).toBeDefined()
+  })
+
+  it('non adotta niente quando siamo altrove', () => {
+    conUnaChat()
+    const ponte = ponteReale(() => true, () => 'home')
+    expect(ponte.adottabile('C:\progetto', 'ap-1', 'lavoro')).toBeUndefined()
+  })
+
+  it('un autopilota che non ha scelto adotta dove sei, come prima', () => {
+    conUnaChat()
+    const ponte = ponteReale(() => true, () => 'home')
+    expect(ponte.adottabile('C:\progetto', 'ap-1', undefined)).toBeDefined()
   })
 })

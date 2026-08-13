@@ -200,7 +200,10 @@ export function App(): React.JSX.Element {
       // messaggio scritto mentre Claude Code si sta ancora disegnando resta nel
       // campo, e la chat non parte.
       const porta = (): void => {
-        eseguiConsegna(c, ponteReale((ptyId) => terminalePronto(righe.current.attivitaDi(ptyId), Date.now())))
+        eseguiConsegna(c, ponteReale(
+          (ptyId) => terminalePronto(righe.current.attivitaDi(ptyId), Date.now()),
+          () => attivoOra.current
+        ))
       }
       // **Prima si va dove la chat vive.** La sua conversazione puo' essere
       // salvata in un altro workspace: consegnare qui aprirebbe una seconda
@@ -758,6 +761,7 @@ export function App(): React.JSX.Element {
             onErrore={setErroreAutopiloti}
             onAlLogin={setAlLogin}
             onChiudi={() => setAperto(undefined)}
+            workspaceAttivo={workspace.attivo}
           />
         ) : null}
 

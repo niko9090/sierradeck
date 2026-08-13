@@ -35,6 +35,13 @@ export type Consegna = {
   cosa: 'scrivi' | 'interrompi'
   /** Il testo da scrivere nella chat. Vuoto per «interrompi». */
   testo: string
+  /**
+   * Il workspace in cui la chat deve stare, deciso dall'autopilota.
+   *
+   * Da qui il Gestore sa dove andare **prima** di consegnare. Assente per gli
+   * autopiloti nati senza: la chat nasce dove si sta guardando.
+   */
+  workspace?: string
 }
 
 export type Consegne = {

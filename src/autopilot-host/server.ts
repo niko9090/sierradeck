@@ -51,6 +51,16 @@ export type Dipendenze = {
    * delegato può essersi alzato dalla scrivania.
    */
   scadenzaInterviataMs: number
+  /**
+   * Quanto una chat al lavoro può restare in silenzio prima di essere
+   * considerata bloccata.
+   *
+   * Il silenzio si misura dall'ultimo `Stop`, cioè dall'ultima volta che la
+   * chat ha **chiuso un turno**. Un turno lungo è normale in questo mestiere;
+   * un turno che non finisce mai no — ed è quello che succede quando la chat
+   * aspetta una shell che ha lanciato lei in background.
+   */
+  silenzioMassimoMs?: number
   /** Avvisa l'utente dove non è davanti allo schermo. Non deve mai sollevare. */
   avvisa: (tipo: TipoAvviso, a: Autopilota, domanda?: string) => Promise<void>
   /** Il momento attuale in ISO. Iniettato perché i test non aspettino sei ore. */
@@ -130,10 +140,48 @@ function criteriDa(raw: unknown): Criterio[] {
  * Il server, più l'unica cosa che si può chiedergli dall'esterno oltre alle
  * rotte: far ripartire le preparazioni che uno spegnimento ha interrotto.
  */
-export type ServerAutopiloti = Server & { riprendiInterviste: () => void }
+export type ServerAutopiloti = Server & {
+  riprendiInterviste: () => void
+  /** Il giro di guardia sulle chat che non chiudono più un turno. */
+  controllaChatFerme: () => void
+}
+
+/**
+ * Mezz'ora senza chiudere un turno: allora la chat non sta lavorando, è ferma.
+ *
+ * Il numero viene da come si è manifestato il difetto: una chat rimasta muta
+ * **34 minuti** ad aspettare una shell che aveva lanciato lei, con l'autopilota
+ * che diceva «al lavoro, 0 interventi». Sotto la mezz'ora ci stanno i turni
+ * lunghi veri — leggere un progetto, far girare una suite — e sospenderli
+ * sarebbe fermare un autopilota **perché** sta facendo il suo lavoro.
+ */
+const SILENZIO_MASSIMO_MS = 30 * 60_000
 
 export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const salva = (a: Autopilota): void => deps.archivio.scrivi({ ...a, ultimoEvento: deps.adesso() })
+
+  /**
+   * L'ultima volta che ognuno ha chiuso un turno.
+   *
+   * Non basta `ultimoEvento`: quello si aggiorna a ogni salvataggio, anche
+   * quando è il servizio a muoversi. Qui si segna soltanto ciò che dice «la
+   * chat è viva e ha finito di rispondere», che è esattamente il segnale
+   * mancante nel difetto.
+   *
+   * Vive in memoria: dopo un riavvio del servizio si ricade su `ultimoEvento`,
+   * che è una stima prudente e sbaglia al più una volta.
+   */
+  const ultimoTurno = new Map<string, number>()
+
+  /**
+   * Chi ha una fermata in lavorazione adesso.
+   *
+   * Verificare i criteri — seriali, fino a dieci minuti l'uno — riparare un
+   * comando, chiedere un giudizio al supervisore: è lavoro, non silenzio.
+   * Senza questo insieme il guardiano sospenderebbe proprio gli autopiloti che
+   * stanno facendo quello che gli è stato chiesto.
+   */
+  const inLavorazione = new Set<string>()
 
   /** Di chi è ogni domanda, e cosa chiedeva: serve alla risposta tardiva. */
   const contesto = new Map<string, { autopilotaId: string; testo: string }>()
@@ -267,6 +315,48 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * avvierebbe una chat senza criteri, cioè un autopilota che non sa quando
    * fermarsi.
    */
+  /**
+   * Il guardiano delle chat che non chiudono più un turno.
+   *
+   * Esiste perché finora **non c'era nessuno che guardasse**. `RESA_MS` copre
+   * la consegna — novanta secondi per far arrivare l'istruzione dentro la chat
+   * — e dopo un invio riuscito nessuno controllava più niente. Una chat che
+   * riceveva il compito, si metteva al lavoro e restava appesa a una shell in
+   * background lasciava l'autopilota «al lavoro, 0 interventi» **per sempre**:
+   * l'hook `Stop` scatta alla fine di un turno, e quel turno non finiva.
+   *
+   * Il silenzio si misura dall'ultimo turno chiuso, non dall'ultimo
+   * salvataggio: quello si muove anche quando è il servizio a lavorare, e
+   * misurerebbe la nostra attività invece della sua.
+   *
+   * Sospende e lo dice. Non interrompe la chat: dentro c'è del lavoro vero, e
+   * chi guarda deve poter decidere se riprenderla o fermarla davvero.
+   */
+  const controllaChatFerme = (): void => {
+    const limite = deps.silenzioMassimoMs ?? SILENZIO_MASSIMO_MS
+    const ora = Date.parse(deps.adesso())
+    if (Number.isNaN(ora)) return
+    for (const a of deps.archivio.elenca()) {
+      if (a.stato !== 'lavoro' || inLavorazione.has(a.id)) continue
+      // Dopo un riavvio del servizio la memoria è vuota: si ricade
+      // sull'ultimo evento, che è una stima prudente — sbaglia al più una
+      // volta, e per eccesso di pazienza.
+      const riferimento = ultimoTurno.get(a.id) ?? Date.parse(a.ultimoEvento)
+      if (Number.isNaN(riferimento) || ora - riferimento <= limite) continue
+      const minuti = Math.round((ora - riferimento) / 60_000)
+      const sospeso: Autopilota = {
+        ...a,
+        stato: 'sospeso',
+        motivoSospensione:
+          `nessun segnale dalla chat da ${minuti} minuti: forse è ferma su un comando` +
+          ' che non finisce. Guardala, poi riprendila o fermala.'
+      }
+      salva(sospeso)
+      console.warn(`[autopilota] ${a.id} muto da ${minuti} minuti: sospeso`)
+      void deps.avvisa('sospeso', sospeso)
+    }
+  }
+
   const riprendiInterviste = (): void => {
     const fermi = intervisteDaRiprendere(deps.archivio.elenca())
     if (fermi.length === 0) return
@@ -472,6 +562,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       ...(sessionId !== undefined && chatId === undefined ? { sessionId } : {}),
       cicli: a.cicli + 1
     }
+
+    // **Il ciclo si scrive adesso, prima dei criteri.** Erano l'unica cosa
+    // fra il conto e il salvataggio, e possono durare minuti: per tutto quel
+    // tempo l'autopilota diceva «al lavoro, 0 interventi» — su disco e
+    // nell'API — e chi guardava lo credeva fermo. Il valore è già giusto qui:
+    // l'hook è arrivato, il giro è stato fatto.
+    salva(conSessione)
+    // La chat ha appena chiuso un turno: è viva, e il guardiano deve saperlo.
+    ultimoTurno.set(id, Date.parse(deps.adesso()))
 
     let esiti: EsitoVerifica[] = await eseguiCriteri(conSessione.criteri, conSessione.cwd, deps.esegui)
 
@@ -740,6 +839,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             nome: typeof corpo?.nome === 'string' && corpo.nome.trim() !== '' ? corpo.nome : obiettivo.slice(0, 40),
             obiettivo,
             cwd,
+            // Il workspace da cui è stato avviato: è lì che le sue chat devono
+            // nascere, e da qui in poi se lo porta la consegna.
+            ...(typeof corpo?.workspace === 'string' && corpo.workspace.trim() !== ''
+              ? { workspace: corpo.workspace }
+              : {}),
             criteri,
             // Senza criteri si comincia dall'intervista: sarà lei a produrli,
             // guardando il progetto e facendo all'utente solo le domande a cui
@@ -890,12 +994,31 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             return
           }
           const chatGrezza = url.searchParams.get('chat') ?? undefined
-          const chatId = chatGrezza !== undefined && ID_VALIDO.test(chatGrezza) ? chatGrezza : undefined
-          rispondi(
-            res,
-            200,
-            hook[1] === 'stop' ? await suStop(id, chatId, corpo) : suNotification(id, corpo)
-          )
+          // **Il proprio id non è l'id di una chat.** Un autopilota senza
+          // flotta manda sé stesso come `chat`: è la convenzione con cui il
+          // servizio lo ricorda — `ricorda` fa lo stesso confronto. Preso per
+          // l'id di una chat della flotta, il giro finiva su un elenco vuoto:
+          // la sessione non veniva scritta da nessuna parte, e il contatore
+          // per chat non poteva salire **per costruzione**.
+          const chatId =
+            chatGrezza !== undefined && chatGrezza !== id && ID_VALIDO.test(chatGrezza)
+              ? chatGrezza
+              : undefined
+          if (hook[1] !== 'stop') {
+            rispondi(res, 200, suNotification(id, corpo))
+            return
+          }
+          // Finché la fermata è in lavorazione, quell'autopilota **sta
+          // lavorando**: criteri seriali da minuti, un comando da riparare, un
+          // giudizio del supervisore. Il guardiano deve saltarlo, o
+          // sospenderebbe proprio chi sta facendo quello che gli è stato
+          // chiesto.
+          inLavorazione.add(id)
+          try {
+            rispondi(res, 200, await suStop(id, chatId, corpo))
+          } finally {
+            inLavorazione.delete(id)
+          }
           return
         }
 
@@ -910,5 +1033,5 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     })()
   })
 
-  return Object.assign(server, { riprendiInterviste })
+  return Object.assign(server, { riprendiInterviste, controllaChatFerme })
 }

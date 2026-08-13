@@ -154,7 +154,11 @@ function statoDa(l: LayoutSalvato): { root: LayoutNode | undefined; panes: Recor
       ...(p.ptyId !== undefined ? { ptyId: p.ptyId } : {}),
       // Chi dormiva continua a dormire: ritrovarsele tutte accese alla
       // riapertura sarebbe disfare la scelta di chi le aveva messe a riposo.
-      ...(p.ibernata === true ? { ibernata: true } : {})
+      ...(p.ibernata === true ? { ibernata: true } : {}),
+      // E chi aveva un padrone lo ritrova: e' da qui che il terminale rinasce
+      // con `--settings`, cioe' con gli hook che dicono all'autopilota quando
+      // la chat ha finito di rispondere.
+      ...(p.autopilota !== undefined ? { autopilota: p.autopilota } : {})
     }
   }
   return { root: l.root, panes }
@@ -309,7 +313,11 @@ export const useLayoutStore = create<State>((set, get) => ({
         cwd: p.cwd,
         title: p.title,
         ...(p.ptyId !== undefined ? { ptyId: p.ptyId } : {}),
-        ...(p.ibernata === true ? { ibernata: true } : {})
+        ...(p.ibernata === true ? { ibernata: true } : {}),
+        // Senza questo il legame moriva con la finestra, e al riavvio
+        // l'autopilota ritrovava la sua chat muta: nessun hook `Stop`, zero
+        // cicli, per sempre.
+        ...(p.autopilota !== undefined ? { autopilota: p.autopilota } : {})
       })
     }
     return { root, panes: salvati }
@@ -370,7 +378,10 @@ export const useLayoutStore = create<State>((set, get) => ({
       sessionUuid: p.sessionUuid,
       cwd: p.cwd,
       title: p.title,
-      ...(p.ptyId !== undefined ? { ptyId: p.ptyId } : {})
+      ...(p.ptyId !== undefined ? { ptyId: p.ptyId } : {}),
+      // Spostare una chat non la toglie al suo autopilota: e' lo stesso
+      // lavoro, guardato da un'altra finestra.
+      ...(p.autopilota !== undefined ? { autopilota: p.autopilota } : {})
     }
     const rimanenti = { ...panes }
     delete rimanenti[paneId]
@@ -400,7 +411,10 @@ export const useLayoutStore = create<State>((set, get) => ({
         // Il titolo arriva da un'altra finestra e finira' sulla riga di comando
         // se il terminale va rilanciato: vale la stessa regola di `addPane`.
         title: normalizzaTitolo(pane.title),
-        ...(pane.ptyId !== undefined ? { ptyId: pane.ptyId } : {})
+        ...(pane.ptyId !== undefined ? { ptyId: pane.ptyId } : {}),
+        // Il padrone arriva con la chat: chi la accoglie deve saperlo, o al
+        // primo rilancio del terminale gli hook non ci sarebbero piu'.
+        ...(pane.autopilota !== undefined ? { autopilota: pane.autopilota } : {})
       }
       const esistenti = s.root ? listPaneIds(s.root) : []
       const ultimo = esistenti[esistenti.length - 1]

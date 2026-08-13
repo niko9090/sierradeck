@@ -37,6 +37,35 @@ export type Consegna = {
 export const ATTESA_RITIRO_MS = 1500
 
 /**
+ * La consegna, con dentro il workspace dove deve andare.
+ *
+ * Due sorgenti, e l'ordine conta.
+ *
+ * 1. **Quella dell'autopilota**, che se la porta dalla nascita. È una
+ *    decisione: chi lo ha avviato sapeva da dove, e quel «da dove» resta vero
+ *    anche fra tre ore, quando starà guardando un altro workspace.
+ * 2. **Dove la chat è già salvata**, cercandone la sessione. È un ripiego, e
+ *    per gli autopiloti nati prima di questo campo è l'unica cosa che c'è.
+ *
+ * La deduzione da sola non bastava, ed è il difetto che tre rilasci non hanno
+ * chiuso: per una chat che deve **nascere** quella sessione non è in nessun
+ * layout, la ricerca torna a vuoto, e la conversazione compare nel workspace
+ * che hai davanti — mentre l'autopilota lavora sotto gli occhi di chi stava
+ * facendo altro.
+ *
+ * `cerca` non viene chiamata quando la decisione c'è già: legge il file dei
+ * workspace, e questo percorso passa ogni secondo e mezzo.
+ */
+export function versoIlSuoWorkspace(
+  c: Consegna,
+  cerca: (sessionId: string) => string | undefined
+): Consegna {
+  if (c.workspace !== undefined) return c
+  const dedotto = cerca(c.sessionId)
+  return dedotto === undefined ? c : { ...c, workspace: dedotto }
+}
+
+/**
  * Legge le consegne da un valore qualunque, senza mai sollevare.
  *
  * Il servizio è nostro, ma la risposta arriva da un altro processo attraverso

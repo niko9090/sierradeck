@@ -297,6 +297,7 @@ export function validaNuovoAutopilota(raw: unknown): {
   cwd: string
   criteri: { descrizione: string; comando?: string }[]
   tettoChat?: number
+  workspace?: string
 } {
   if (typeof raw !== 'object' || raw === null) rifiuta('la richiesta', 'deve essere un oggetto', raw)
   const r = raw as Record<string, unknown>
@@ -341,7 +342,11 @@ export function validaNuovoAutopilota(raw: unknown): {
     obiettivo,
     cwd: validaCwd(r.cwd),
     criteri,
-    ...(tettoChat !== undefined ? { tettoChat } : {})
+    ...(tettoChat !== undefined ? { tettoChat } : {}),
+    // Il workspace di destinazione passa dallo stesso validatore dei nomi di
+    // workspace: è la stessa cosa, e finirà nello stesso file. Assente vale
+    // «dove sei», che è il comportamento di prima.
+    ...(r.workspace !== undefined ? { workspace: validateNomeWorkspace(r.workspace) } : {})
   }
 }
 

@@ -461,3 +461,52 @@ describe('ibernare una chat', () => {
     expect(salvato.panes.find((p) => p.id === id)).not.toHaveProperty('ibernata')
   })
 })
+
+describe('il padrone di un riquadro sopravvive', () => {
+  // Il legame chat-autopilota viveva solo in memoria: al riavvio il riquadro
+  // tornava senza padrone, claude.exe ripartiva senza `--settings` e quindi
+  // senza hook `Stop`, e l'autopilota restava a zero cicli per sempre.
+  const suo = { id: 'ap-1', chat: 'ap-1-3075' }
+  beforeEach(() => useLayoutStore.getState().reset())
+
+  it('al salvataggio', () => {
+    const id = useLayoutStore.getState().addPane('C:\p', 'Governata', undefined, { autopilota: suo })
+    expect(useLayoutStore.getState().esporta().panes[0]?.autopilota).toEqual(suo)
+  })
+
+  it('anche quando gli viene consegnata una chat gia aperta', () => {
+    const id = useLayoutStore.getState().addPane('C:\p', 'Mia')
+    useLayoutStore.getState().assegnaAutopilota(id, suo)
+    expect(useLayoutStore.getState().esporta().panes[0]?.autopilota).toEqual(suo)
+  })
+
+  it('e al ritorno da disco', () => {
+    const id = useLayoutStore.getState().addPane('C:\p', 'Governata', undefined, { autopilota: suo })
+    const salvato = useLayoutStore.getState().esporta()
+    useLayoutStore.getState().reset()
+    useLayoutStore.getState().carica(salvato)
+    expect(useLayoutStore.getState().panes[id]?.autopilota).toEqual(suo)
+  })
+
+  it('al cambio di workspace', () => {
+    const id = useLayoutStore.getState().addPane('C:\p', 'Governata', undefined, { autopilota: suo })
+    const salvato = useLayoutStore.getState().esporta()
+    useLayoutStore.getState().reset()
+    useLayoutStore.getState().cambiaVista(salvato)
+    expect(useLayoutStore.getState().panes[id]?.autopilota).toEqual(suo)
+  })
+
+  it('e allo spostamento in un altra finestra', () => {
+    const id = useLayoutStore.getState().addPane('C:\p', 'Governata', undefined, { autopilota: suo })
+    const dati = useLayoutStore.getState().staccaPane(id)!
+    expect(dati.autopilota).toEqual(suo)
+    useLayoutStore.getState().reset()
+    useLayoutStore.getState().accogliPane(dati)
+    expect(useLayoutStore.getState().panes[id]?.autopilota).toEqual(suo)
+  })
+
+  it('una chat senza padrone non se ne inventa uno', () => {
+    useLayoutStore.getState().addPane('C:\p', 'Libera')
+    expect(useLayoutStore.getState().esporta().panes[0]?.autopilota).toBeUndefined()
+  })
+})

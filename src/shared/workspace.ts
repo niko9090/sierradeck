@@ -36,6 +36,17 @@ export type PaneSalvato = {
    * il programma e ritrovarsele tutte accese sarebbe disfare la scelta.
    */
   ibernata?: boolean
+  /**
+   * Chi governa questa chat, quando è di un autopilota.
+   *
+   * Si salva perché il legame deve sopravvivere a un riavvio, e l'applicazione
+   * si riavvia da sola per aggiornarsi. Senza, il riquadro torna senza padrone:
+   * `pty:spawn` riceve `autopilota: undefined`, non compone le impostazioni, e
+   * `claude.exe` nasce **senza `--settings`, quindi senza hook `Stop`**. È la
+   * ragione per cui un autopilota resta «al lavoro, 0 interventi» per sempre —
+   * il difetto si autoricreava a ogni riavvio.
+   */
+  autopilota?: { id: string; chat: string }
 }
 
 export type LayoutSalvato = {
@@ -233,8 +244,39 @@ function parsePane(raw: unknown, scartati: string[]): PaneSalvato | undefined {
     ...(ptyId !== undefined ? { ptyId } : {}),
     // Una chat messa a dormire deve restare a dormire: ritrovarsele tutte
     // accese alla riapertura sarebbe disfare la scelta.
-    ...(o.ibernata === true ? { ibernata: true } : {})
+    ...(o.ibernata === true ? { ibernata: true } : {}),
+    // Il padrone segue la chat oltre il riavvio: e' cio' che le fa rinascere
+    // gli hook. A meta' non serve a niente e finirebbe comunque sulla riga di
+    // comando, quindi si scarta il campo, non il riquadro: meglio una chat
+    // senza padrone che una chat che non si apre.
+    ...(padrone(o.autopilota, id, scartati) ?? {})
   }
+}
+
+/**
+ * Legge `autopilota` da un riquadro venuto da disco.
+ *
+ * Restituisce l'oggetto già nella forma da spargere — `{ autopilota }` oppure
+ * `undefined` — perché il campo è opzionale e assente deve restare assente.
+ */
+function padrone(
+  raw: unknown,
+  paneId: string,
+  scartati: string[]
+): { autopilota: { id: string; chat: string } } | undefined {
+  if (raw === undefined) return undefined
+  if (typeof raw !== 'object' || raw === null) {
+    scartati.push(`riquadro ${paneId}: autopilota non e un oggetto, scartato`)
+    return undefined
+  }
+  const o = raw as Record<string, unknown>
+  const id = stringaNonVuota(o.id)
+  const chat = stringaNonVuota(o.chat)
+  if (id === undefined || chat === undefined) {
+    scartati.push(`riquadro ${paneId}: autopilota incompleto, scartato`)
+    return undefined
+  }
+  return { autopilota: { id, chat } }
 }
 
 /**

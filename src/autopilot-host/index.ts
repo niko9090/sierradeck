@@ -15,6 +15,9 @@ import { creaRegistroDomande } from './domande'
 import { chatDaRiprendere, daRiprendere } from './ripresa'
 import { creaAvvisatore, invioReale, leggiConfigurazione } from './telegram'
 
+/** Ogni quanto si passa a vedere se qualche chat ha smesso di parlare. */
+const GUARDIA_MS = 60_000
+
 /** Dove Claude Code tiene le trascrizioni. La stessa regola del Gestore. */
 function cartellaClaude(): string {
   return process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
@@ -197,6 +200,12 @@ export function avviaServizio(): void {
     // perché la domanda che aspettava era in memoria e con il processo se n'è
     // andata.
     server.riprendiInterviste()
+
+    // Il giro di guardia sulle chat che non chiudono più un turno. Un minuto
+    // è abbastanza fitto per accorgersene e abbastanza rado da non pesare: il
+    // controllo legge lo stato in memoria e non tocca nessuna chat.
+    // `unref` perché questo timer non deve tenere vivo il processo da solo.
+    setInterval(() => { server.controllaChatFerme() }, GUARDIA_MS).unref()
 
     // La ripresa avviene **dopo** che il servizio è in ascolto, non prima: le
     // chat riprese emettono hook verso questa stessa porta, e trovarla chiusa

@@ -42,7 +42,7 @@ import { immagineQr, indirizzoAccoppiamento } from './qr-accoppiamento'
 import { apkDisponibile } from './apk-disponibile'
 import { scanProjects } from './indexer/project-scanner'
 import { get as httpGet } from 'node:http'
-import { avviaRitiro, finestraPerConsegna } from './autopilota-consegne'
+import { avviaRitiro, finestraPerConsegna, versoIlSuoWorkspace } from './autopilota-consegne'
 import type { Chat } from './client-rotte'
 import { apriProviderStore } from './provider-store'
 import { creaAggiornamenti } from './aggiornamenti'
@@ -756,14 +756,15 @@ if (!app.requestSingleInstanceLock()) {
             console.error(`[autopilota] nessuna finestra per la consegna ${c.id}`)
             return
           }
-          // **Dove vive quella conversazione**, se e' gia' salvata da qualche
-          // parte: riprendendo un autopilota, la sua chat nasceva nel workspace
-          // che avevi davanti invece che in quello dov'era, e ne restavano due -
-          // con il lavoro dentro quella che non stavi guardando.
-          const suo = workspaceStore === undefined
-            ? undefined
-            : workspaceDellaSessione(workspaceStore.leggi(), c.sessionId)
-          finestra.webContents.send('autopilota:consegna', suo === undefined ? c : { ...c, workspace: suo })
+          // **Dove deve andare**: la decisione dell'autopilota se ce l'ha,
+          // altrimenti dove quella conversazione e' gia' salvata. La seconda da
+          // sola non bastava - per una chat che deve ancora nascere non trova
+          // niente, e il lavoro finiva nel workspace che avevi davanti.
+          const conDestinazione = versoIlSuoWorkspace(c, (sessionId) =>
+            workspaceStore === undefined
+              ? undefined
+              : workspaceDellaSessione(workspaceStore.leggi(), sessionId))
+          finestra.webContents.send('autopilota:consegna', conDestinazione)
         }
       })
 

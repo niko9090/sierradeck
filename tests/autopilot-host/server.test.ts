@@ -27,6 +27,8 @@ function ambiente(
     interroga?: Interrogazione
     scadenzaDomandaMs?: number
     scadenzaInterviataMs?: number
+    silenzioMassimoMs?: number
+    adesso?: () => string
   } = {}
 ): ServerAutopiloti {
   archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-server-')))
@@ -53,7 +55,8 @@ function ambiente(
     domande: creaRegistroDomande({ adesso: () => Date.now() }),
     scadenzaDomandaMs: opts.scadenzaDomandaMs ?? 5000,
     scadenzaInterviataMs: opts.scadenzaInterviataMs ?? 5000,
-    adesso: () => '2026-08-09T10:05:00.000Z'
+    ...(opts.silenzioMassimoMs !== undefined ? { silenzioMassimoMs: opts.silenzioMassimoMs } : {}),
+    adesso: opts.adesso ?? (() => '2026-08-09T10:05:00.000Z')
   })
 }
 
@@ -213,6 +216,23 @@ describe('hook Stop', () => {
     const r = await fetch(`http://127.0.0.1:${porta}/hook/stop?ap=x`, { method: 'POST', body: 'non sono JSON' })
     expect(r.status).toBe(200)
     expect((await chiama('GET', '/salute')).stato).toBe(200)
+  })
+
+  it('la chat sola manda il proprio id come chat, e la sessione resta sull autopilota', async () => {
+    // Visto sul campo: `ap-a78e774e-…` con `chats: []` e l'URL dell'hook che
+    // portava `chat=ap-a78e774e-…`, cioe' l'id dell'autopilota. Cercandolo fra
+    // le chat della flotta il giro finiva su un elenco vuoto: sessione mai
+    // scritta — quindi nessuna ripresa possibile — e contatore per chat che non
+    // poteva salire per costruzione.
+    server = ambiente({ esegui: () => Promise.resolve({ codice: 1, uscita: 'ancora rosso' }) })
+    await avvia(server)
+    const id = await creaAp()
+
+    await chiama('POST', `/hook/stop?ap=${id}&chat=${id}`, eventoStop())
+
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.sessionId).toBe('s-1')
+    expect(stato.cicli).toBe(1)
   })
 
   it('una chat di un autopilota gia fermato puo fermarsi senza consumare cicli', async () => {
@@ -893,5 +913,128 @@ describe('intervista di preparazione', () => {
     expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('intervista')
     // La domanda resta: rispondendo piu' tardi, anche da Telegram, riprende.
     expect((await chiama('GET', '/domande')).dati).toHaveLength(1)
+  })
+})
+
+describe('il workspace di destinazione', () => {
+  beforeEach(async () => { server = ambiente(); await avvia(server) })
+
+  it('si ricorda quello da cui l autopilota e stato avviato', async () => {
+    // Serve alla consegna: e' l'autopilota a sapere dove deve andare il lavoro,
+    // non chi lo cerca dentro `workspaces.json` quando la chat non e' ancora
+    // nata da nessuna parte.
+    const { dati } = await chiama('POST', '/autopiloti', {
+      obiettivo: 'x', cwd: process.cwd(), criteri: [{ descrizione: 'y' }], workspace: 'lavoro'
+    })
+    expect(dati.workspace).toBe('lavoro')
+    expect((await chiama('GET', '/autopiloti')).dati[0].workspace).toBe('lavoro')
+  })
+
+  it('senza workspace resta senza, e non e un errore', async () => {
+    const { stato, dati } = await chiama('POST', '/autopiloti', {
+      obiettivo: 'x', cwd: process.cwd(), criteri: [{ descrizione: 'y' }]
+    })
+    expect(stato).toBe(200)
+    expect(dati.workspace).toBeUndefined()
+  })
+})
+
+describe('il ciclo si vede subito', () => {
+  it('e non alla fine dei criteri', async () => {
+    // Il conto era calcolato all'arrivo dell'hook e scritto su disco **dopo**
+    // i criteri. Con un criterio lento — e ce n'erano da dieci minuti — per
+    // tutto quel tempo l'autopilota diceva «al lavoro, 0 interventi»: e' la
+    // riga che l'utente ha guardato per un pomeriggio credendo che fosse fermo.
+    let sblocca: () => void = () => {}
+    const inCorso = new Promise<void>((ris) => { sblocca = ris })
+    server = ambiente({
+      esegui: async () => {
+        await inCorso
+        return { codice: 1, uscita: 'rosso' }
+      }
+    })
+    await avvia(server)
+    const id = await creaAp()
+
+    // L'hook non si aspetta: e' esattamente il tempo in cui i criteri girano.
+    const hook = chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    // Un giro dell'event loop perche' la richiesta arrivi al server e il
+    // salvataggio avvenga, prima che i criteri finiscano.
+    await new Promise((ris) => setTimeout(ris, 150))
+
+    expect((await chiama('GET', '/autopiloti')).dati[0].cicli).toBe(1)
+    sblocca()
+    await hook
+  })
+})
+
+describe('la chat viva che non finisce mai', () => {
+  // Il difetto che tre correzioni non hanno visto: l'hook `Stop` scatta solo
+  // alla fine di un turno, e una chat ferma ad aspettare una shell che ha
+  // lanciato lei un turno non lo chiude mai. Nessun `Stop`, nessun ciclo, e
+  // l'autopilota resta «al lavoro, 0 interventi» **per sempre** — 34 minuti
+  // veri, misurati su una trascrizione, senza che nessuno se ne accorgesse.
+  let ora = Date.parse('2026-08-09T10:00:00.000Z')
+  const adesso = (): string => new Date(ora).toISOString()
+
+  it('viene sospesa e detta, invece di restare al lavoro per sempre', async () => {
+    ora = Date.parse('2026-08-09T10:00:00.000Z')
+    server = ambiente({ silenzioMassimoMs: 30 * 60_000, adesso })
+    await avvia(server)
+    const id = await creaAp()
+
+    // Mezz'ora di silenzio: nessun hook, nessun segnale.
+    ora += 31 * 60_000
+    server.controllaChatFerme()
+
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.stato).toBe('sospeso')
+    expect(stato.motivoSospensione).toMatch(/nessun segnale|ferma/i)
+    expect(avvisi.some((v) => v.tipo === 'sospeso' && v.id === id)).toBe(true)
+  })
+
+  it('una chat che parla non viene toccata', async () => {
+    ora = Date.parse('2026-08-09T10:00:00.000Z')
+    server = ambiente({
+      silenzioMassimoMs: 30 * 60_000,
+      adesso,
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' })
+    })
+    await avvia(server)
+    const id = await creaAp()
+
+    ora += 20 * 60_000
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    ora += 20 * 60_000
+    server.controllaChatFerme()
+
+    // Venti minuti dall'ultimo `Stop`: sta lavorando, e un turno lungo e' la
+    // cosa normale in questo mestiere.
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('lavoro')
+  })
+
+  it('non sospende chi sta verificando i criteri', async () => {
+    // I criteri sono seriali e possono durare minuti: sono lavoro, non
+    // silenzio. Sospendere qui vorrebbe dire fermare un autopilota **perche**
+    // sta facendo quello che gli abbiamo chiesto.
+    ora = Date.parse('2026-08-09T10:00:00.000Z')
+    let sblocca: () => void = () => {}
+    const inCorso = new Promise<void>((ris) => { sblocca = ris })
+    server = ambiente({
+      silenzioMassimoMs: 30 * 60_000,
+      adesso,
+      esegui: async () => { await inCorso; return { codice: 1, uscita: 'rosso' } }
+    })
+    await avvia(server)
+    const id = await creaAp()
+    const hook = chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    await new Promise((ris) => setTimeout(ris, 150))
+
+    ora += 60 * 60_000
+    server.controllaChatFerme()
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('lavoro')
+
+    sblocca()
+    await hook
   })
 })

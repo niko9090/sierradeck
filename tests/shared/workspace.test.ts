@@ -289,3 +289,51 @@ describe('il layout di una finestra', () => {
     expect(layoutPerFinestra({ m1: l }, 'm2').panes).toEqual([])
   })
 })
+
+describe('il padrone di un riquadro', () => {
+  // Un riquadro governato da un autopilota che torna senza padrone e' il modo
+  // in cui il difetto «zero cicli» si autoricrea a ogni riavvio: senza
+  // `autopilota`, `pty:spawn` non compone le impostazioni, claude.exe nasce
+  // senza `--settings`, e l'hook `Stop` non arriva mai a nessuno.
+  const conAutopilota = (autopilota: unknown): unknown =>
+    archivioMinimo({
+      root: { type: 'pane', id: 'p1' },
+      panes: [{ id: 'p1', sessionUuid: 'u1', cwd: 'C:\p', title: 'a', autopilota }]
+    })
+
+  const paneLetto = (raw: unknown): { autopilota?: { id: string; chat: string } } | undefined =>
+    parseArchivio(raw).archivio.workspace[0]?.perMonitor['m1']?.panes[0]
+
+  it('sopravvive al salvataggio', () => {
+    expect(paneLetto(conAutopilota({ id: 'ap-1', chat: 'ap-1-3075' }))?.autopilota)
+      .toEqual({ id: 'ap-1', chat: 'ap-1-3075' })
+  })
+
+  it('assente resta assente', () => {
+    expect(paneLetto(archivioMinimo({
+      root: { type: 'pane', id: 'p1' },
+      panes: [{ id: 'p1', sessionUuid: 'u1', cwd: 'C:\p', title: 'a' }]
+    }))?.autopilota).toBeUndefined()
+  })
+
+  it('mal scritto viene scartato, e il riquadro resta', () => {
+    // Il file e' un ingresso non fidato quanto gli altri: un padrone a meta'
+    // arriverebbe fino alla riga di comando di claude.exe. Meglio un riquadro
+    // senza padrone che un riquadro non disegnabile.
+    for (const rotto of [42, 'ap-1', null, {}, { id: 'ap-1' }, { chat: 'c' }, { id: '', chat: 'c' }]) {
+      const letto = paneLetto(conAutopilota(rotto))
+      expect(letto).toBeDefined()
+      expect(letto?.autopilota).toBeUndefined()
+    }
+  })
+
+  it('viaggia con la chat spostata in un altro workspace', () => {
+    // Spostare una chat non la toglie al suo autopilota: e' lo stesso lavoro,
+    // guardato da un'altra parte.
+    const dopo = aggiungiPaneA({ root: undefined, panes: [] }, {
+      id: 'p-nuovo', sessionUuid: 'u', cwd: 'C:\p', title: 'x',
+      autopilota: { id: 'ap-1', chat: 'ap-1-3075' }
+    })
+    expect(dopo.panes[0]?.autopilota).toEqual({ id: 'ap-1', chat: 'ap-1-3075' })
+  })
+})

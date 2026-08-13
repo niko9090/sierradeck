@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { leggiConsegne, avviaRitiro, type Consegna } from '../../src/main/autopilota-consegne'
+import { leggiConsegne, avviaRitiro, versoIlSuoWorkspace, type Consegna } from '../../src/main/autopilota-consegne'
 
 const buona = {
   id: 'c-1',
@@ -87,5 +87,37 @@ describe('il ritiro', () => {
     await new Promise((r) => setTimeout(r, 30))
     // Al più il giro già cominciato: nessuno nuovo.
     expect(giri).toBeLessThanOrEqual(dopoLoStop + 1)
+  })
+})
+
+describe('dove va consegnata', () => {
+  // Due sorgenti, e un ordine che conta. Quella dell'autopilota vale sempre:
+  // e' una decisione, non una deduzione. Cercare la sessione nei workspace
+  // salvati e' un ripiego per gli autopiloti nati prima, e per una chat che
+  // deve ancora nascere non trova niente — che e' esattamente come le chat
+  // finivano nel workspace che avevi davanti.
+  const c: Consegna = { ...buona, cosa: 'scrivi' } as Consegna
+
+  it('dove ha deciso l autopilota', () => {
+    const suo = versoIlSuoWorkspace({ ...c, workspace: 'lavoro' }, () => 'finanza')
+    expect(suo.workspace).toBe('lavoro')
+  })
+
+  it('e se non ha deciso, dove la chat e gia salvata', () => {
+    expect(versoIlSuoWorkspace(c, () => 'finanza').workspace).toBe('finanza')
+  })
+
+  it('e se non e salvata da nessuna parte, da nessuna parte', () => {
+    // Nasce dove sei: e' il comportamento di sempre per una chat nuova aperta
+    // da chi non ha detto dove volerla.
+    expect(versoIlSuoWorkspace(c, () => undefined).workspace).toBeUndefined()
+  })
+
+  it('non si cerca la sessione quando la decisione c e gia', () => {
+    // Non e' un risparmio: leggere `workspaces.json` a ogni consegna e' I/O su
+    // un percorso che scatta ogni secondo e mezzo.
+    const cerca = vi.fn(() => 'finanza')
+    versoIlSuoWorkspace({ ...c, workspace: 'lavoro' }, cerca)
+    expect(cerca).not.toHaveBeenCalled()
   })
 })

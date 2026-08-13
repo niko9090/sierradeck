@@ -34,8 +34,12 @@ export function esecutoreNelMosaico(p: {
   attivi: () => string[]
 } {
   const nuovaSessione = p.nuovaSessione ?? ((): string => randomUUID())
-  /** Le chat che stiamo governando adesso, con la sessione che hanno preso. */
-  const vive = new Map<string, { autopilotaId: string; sessionId: string }>()
+  /**
+   * Le chat che stiamo governando adesso, con la sessione che hanno preso e il
+   * workspace in cui devono stare. Il workspace serve anche a `ferma`, che
+   * scrive nella chat come `avvia` e senza non saprebbe dove trovarla.
+   */
+  const vive = new Map<string, { autopilotaId: string; sessionId: string; workspace?: string }>()
 
   const chiave = (autopilotaId: string, chatId?: string): string =>
     chatId === undefined ? autopilotaId : `${autopilotaId}::${chatId}`
@@ -52,7 +56,11 @@ export function esecutoreNelMosaico(p: {
       const gia = vive.get(k)?.sessionId ?? chat?.sessionId ?? (chat === undefined ? a.sessionId : undefined)
       const sessionId = gia ?? nuovaSessione()
       if (gia === undefined) p.ricorda(a.id, chatId, sessionId)
-      vive.set(k, { autopilotaId: a.id, sessionId })
+      vive.set(k, {
+        autopilotaId: a.id,
+        sessionId,
+        ...(a.workspace !== undefined ? { workspace: a.workspace } : {})
+      })
 
       p.consegne.metti({
         autopilotaId: a.id,
@@ -61,7 +69,11 @@ export function esecutoreNelMosaico(p: {
         sessionId,
         titolo: a.nome !== '' ? a.nome : a.obiettivo.slice(0, 40),
         cosa: 'scrivi',
-        testo: messaggio ?? primoCompito(a, chat)
+        testo: messaggio ?? primoCompito(a, chat),
+        // **Dove**, deciso da lui. Dedurlo cercando la sessione nei workspace
+        // salvati funziona solo per una chat ripresa: quella che deve ancora
+        // nascere lì dentro non c'è, e finiva nel workspace che avevi davanti.
+        ...(a.workspace !== undefined ? { workspace: a.workspace } : {})
       })
       return Promise.resolve()
     },
@@ -84,7 +96,10 @@ export function esecutoreNelMosaico(p: {
           sessionId: viva.sessionId,
           titolo: '',
           cosa: 'interrompi',
-          testo: ''
+          testo: '',
+          // Interrompere vuol dire scrivere dentro quella chat: senza sapere
+          // dov'è, il messaggio finirebbe in una copia aperta altrove.
+          ...(viva.workspace !== undefined ? { workspace: viva.workspace } : {})
         })
       }
     },

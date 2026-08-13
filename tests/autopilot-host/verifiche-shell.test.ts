@@ -71,4 +71,21 @@ describe('esecutoreReale', () => {
     const { codice } = await esecutoreReale(60_000)('[ 1 -eq 2 ]', process.cwd())
     expect(codice).not.toBe(0)
   })
+
+  it('non aspetta i processi che il criterio lascia in background', async () => {
+    // Riprodotto sul campo: un criterio che avvia un server con `&` finiva la
+    // sua parte in un secondo, ma la risposta arrivava al **timeout** - dieci
+    // minuti, con tutti i criteri successivi fermi dietro. La ragione e' che
+    // il figlio in background eredita `stdout`/`stderr` e le tiene aperte, e
+    // la callback di `execFile` scatta alla chiusura delle pipe, non
+    // all'uscita del processo.
+    const t0 = Date.now()
+    const { uscita } = await esecutoreReale(10_000)(
+      ['sleep 30 &', 'sleep 1', 'echo fatto'].join('\n'), process.cwd()
+    )
+    const passato = Date.now() - t0
+    expect(uscita).toContain('fatto')
+    // Largo di proposito: il punto e' «secondi, non il timeout».
+    expect(passato).toBeLessThan(5000)
+  }, 20_000)
 })

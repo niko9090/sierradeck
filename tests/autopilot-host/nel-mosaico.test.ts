@@ -127,3 +127,34 @@ describe('il primo messaggio', () => {
     expect(testo).toContain('Il tuo compito, dentro questo obiettivo: solo i test')
   })
 })
+
+describe('dove va il lavoro', () => {
+  // Il workspace lo decide l'autopilota alla nascita, e la consegna se lo
+  // porta. Dedurlo cercando la sessione in `workspaces.json` funziona solo per
+  // una chat **ripresa**: per una che deve **nascere** quella sessione non c'e'
+  // ancora, la ricerca torna a vuoto, e la chat compare nel workspace che hai
+  // davanti — non nel suo.
+  it('la consegna porta il workspace dell autopilota', async () => {
+    const { consegne, esecutore } = banco()
+    await esecutore.avvia(autopilota({ workspace: 'lavoro' }))
+    expect(consegne.preleva()[0]?.workspace).toBe('lavoro')
+  })
+
+  it('un autopilota senza workspace non ne inventa uno', async () => {
+    // Gli autopiloti nati prima di questo campo restano validi: la consegna
+    // arriva senza destinazione e la chat nasce dove sei, come faceva prima.
+    const { consegne, esecutore } = banco()
+    await esecutore.avvia(autopilota())
+    expect(consegne.preleva()[0]?.workspace).toBeUndefined()
+  })
+
+  it('anche l interruzione sa dove andare', async () => {
+    // Fermare una chat vuol dire scriverle dentro: se la finestra non va prima
+    // nel suo workspace, l'interruzione finisce in una copia aperta altrove.
+    const { consegne, esecutore } = banco()
+    await esecutore.avvia(autopilota({ workspace: 'lavoro' }))
+    consegne.preleva()
+    esecutore.ferma('ap-1')
+    expect(consegne.preleva()[0]?.workspace).toBe('lavoro')
+  })
+})

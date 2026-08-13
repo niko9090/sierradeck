@@ -20,6 +20,16 @@ type Props = {
   onErrore: (e: string | undefined) => void
   onAlLogin: (v: boolean | undefined) => void
   onChiudi: () => void
+  /**
+   * Il workspace da cui si sta avviando: l'autopilota se lo ricorda e ci fa
+   * nascere le sue chat.
+   *
+   * Va detto adesso perché adesso è l'unico momento in cui si sa. Dopo, quando
+   * la consegna arriva, la sua conversazione non esiste ancora da nessuna
+   * parte: cercarla nei workspace salvati non dà niente, e la chat compariva
+   * sotto gli occhi di chi guardava altro.
+   */
+  workspaceAttivo: string
 }
 
 /**
@@ -36,7 +46,8 @@ export function PannelloAutopiloti({
   onRicarica,
   onErrore,
   onAlLogin,
-  onChiudi
+  onChiudi,
+  workspaceAttivo
 }: Props): React.JSX.Element {
   const [bozza, setBozza] = useState<Bozza | undefined>(undefined)
   const [inCorso, setInCorso] = useState(false)
@@ -87,7 +98,10 @@ export function PannelloAutopiloti({
         obiettivo: bozza.obiettivo.trim(),
         cwd: bozza.cwd.trim(),
         criteri: [],
-        ...(Number.isInteger(chat) && chat > 1 ? { tettoChat: chat } : {})
+        ...(Number.isInteger(chat) && chat > 1 ? { tettoChat: chat } : {}),
+        // Da dove sta partendo: è lì che il suo lavoro dovrà comparire, anche
+        // fra tre ore, quando chi lo ha avviato starà guardando altro.
+        ...(workspaceAttivo.trim() !== '' ? { workspace: workspaceAttivo.trim() } : {})
       })
       setBozza(undefined)
     })
