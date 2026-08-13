@@ -23,14 +23,35 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.17',
+    righe: [
+      '**L’autopilota lavora nella chat che hai già aperto.** Ne apriva una sua accanto, e ti lasciava due conversazioni da seguire per un lavoro solo — con quella che stavi guardando ferma. Adesso, se sulla cartella c’è già una chat e non è di un altro autopilota, prende quella: chi attiva un autopilota smette di operare lui, ed è sua.'
+    ]
+  },
+  {
     versione: '0.9.16',
     righe: [
       '**Il compito adesso parte, e se non parte si riprova.** Restava nel campo della chat, con l’autopilota ad aspettare una risposta che nessuno stava scrivendo. Tre precauzioni, ognuna provata su un terminale vero: il testo si dichiara come incollato — così i suoi a capo restano a capo e l’invio non diventa l’ennesima riga; l’invio aspetta che il terminale abbia finito di disegnare, invece di un decimo di secondo fisso; e dopo l’invio si guarda se la chat è partita davvero, premendo di nuovo se è rimasta ferma.',
-      '**La fascia dei comandi non esce più dalla finestra.** Misurata: a schermo intero occupava 1996 pixel contro i 1904 disponibili, e «Autopiloti» restava oltre il bordo; stringendo la finestra restavano fuori quattordici comandi su ventiquattro, irraggiungibili. Adesso è la sezione dei workspace a cedere — sono tanti e si raggiungono scorrendo — mentre gli altri comandi restano dove la mano li cerca.',
+      '**La fascia dei comandi non esce più dalla finestra.** Misurata: a schermo intero occupava 1996 pixel contro i 1904 disponibili, e «Autopiloti» restava oltre il bordo; stringendo la finestra restavano fuori quattordici comandi su ventiquattro, irraggiungibili. Adesso è la sezione dei workspace a cedere — sono tanti e si raggiungono scorrendo — mentre gli altri comandi restano dove la mano li cerca.'
+    ]
+  },
+  {
+    versione: '0.9.15',
+    righe: [
       '**Il compito non partiva perché veniva scritto un decimo di secondo troppo presto.** L’app aspettava quattro secondi fissi che la chat nascesse, e su questo progetto Claude Code è pronto dopo quattro secondi e un decimo: il testo entrava nel campo e l’invio si perdeva. Adesso non si contano i secondi — si aspetta che il terminale abbia disegnato il suo prompt e abbia smesso di scrivere, quanto tempo ci voglia lo dice lui. Provato su un terminale vero: a due secondi il messaggio non parte, a sei sì, e il numero giusto non esiste.',
       '**Il pannello dell’autopilota torna sulla chat principale.** Sceglieva per ordine di identificativo del riquadro — un ordine che non vuol dire niente per chi guarda — e saltava via dalla chat principale per comparire in un’altra. Adesso segue l’ordine dell’autopilota: la prima delle sue chat.',
-      '**Una chat sola è il caso normale.** L’autopilota spezzava il lavoro perché gli era stato chiesto di spezzarlo: il tetto che gli dai è un permesso, non un traguardo. Dentro una conversazione può già lanciare i suoi agenti, e ne apre un’altra solo quando il lavoro ha parti che devono procedere per strade separate. Nel dubbio, una.',
-      '**Una flotta ripresa dopo un riavvio tornava sbagliata.** L’autopilota riprendeva come se avesse una chat sola: quelle vere restavano vive nel mosaico ma senza nessuno che le governasse, e se ne apriva un’altra con l’obiettivo intero — lo stesso lavoro, già diviso in due, rifatto da capo in parallelo. Ora riprendono tutte le sue chat, e quelle che avevano finito il loro pezzo non tornano.',
+      '**Una chat sola è il caso normale.** L’autopilota spezzava il lavoro perché gli era stato chiesto di spezzarlo: il tetto che gli dai è un permesso, non un traguardo. Dentro una conversazione può già lanciare i suoi agenti, e ne apre un’altra solo quando il lavoro ha parti che devono procedere per strade separate. Nel dubbio, una.'
+    ]
+  },
+  {
+    versione: '0.9.14',
+    righe: [
+      '**Una flotta ripresa dopo un riavvio tornava sbagliata.** L’autopilota riprendeva come se avesse una chat sola: quelle vere restavano vive nel mosaico ma senza nessuno che le governasse, e se ne apriva un’altra con l’obiettivo intero — lo stesso lavoro, già diviso in due, rifatto da capo in parallelo. Ora riprendono tutte le sue chat, e quelle che avevano finito il loro pezzo non tornano.'
+    ]
+  },
+  {
+    versione: '0.9.13',
+    righe: [
       '**Gli autopiloti scrivevano il compito nella chat senza mandarlo.** Il testo compariva per intero nel campo, la chat restava ferma e l’autopilota aspettava una risposta che nessuno stava scrivendo. Per Claude Code un testo che arriva tutto insieme è un incollaggio, e dentro un incollaggio l’invio finale conta come un altro a capo: adesso il messaggio e il suo invio sono due gesti separati.',
       '**Un solo pannello dell’autopilota, anche quando le sue chat sono tante.** Il diario si trova per cartella, e una flotta ne apre più d’una lì dentro: compariva accanto a ognuna, identico, con la stessa percentuale — e sembravano tre autopiloti diversi. Ora sta accanto alla prima, e se quella chat si chiude passa alla successiva.',
       '**La finestra torna sul monitor dove l’avevi lasciata.** Quella memoria la teneva l’archivio dei layout, che archiviava le chat per monitor; da quando i layout sono uno solo per workspace — era il difetto per cui le chat sparivano — nessuno sapeva più dov’era la finestra, e all’avvio finiva sul primo schermo libero: su due monitor, quello che capitava. Ora se lo ricorda, e se quel monitor non c’è più non ci prova nemmeno.',

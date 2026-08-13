@@ -36,6 +36,18 @@ export type Ponte = {
    * messaggio che resta nel campo.
    */
   prontoARicevere: (ptyId: string) => boolean
+  /**
+   * Una chat già aperta su quella cartella, che l'autopilota può prendersi.
+   *
+   * Libera vuol dire: non governata da un altro autopilota. Quella di un
+   * collega non si tocca — due padroni che scrivono nella stessa conversazione
+   * si darebbero ordini a vicenda.
+   */
+  adottabile: (cwd: string, autopilotaId: string) => { paneId: string; ptyId?: string } | undefined
+  /** Segna che da adesso quella chat è di quell'autopilota. */
+  adotta: (paneId: string, c: Consegna) => void
+  /** Il terminale di un riquadro, quando è nato. */
+  terminaleDi: (paneId: string) => string | undefined
 }
 
 /**
@@ -119,9 +131,55 @@ export function eseguiConsegna(
   }
 
   // Il riquadro c'è ma il terminale non è ancora nato — è il caso del riquadro
-  // appena aperto — oppure non c'è affatto e va aperto adesso.
-  if (gia === undefined) ponte.apri(c)
+  // appena aperto — oppure non c'è affatto: allora, prima di aprirne uno, si
+  // guarda se una chat su quella cartella c'è già.
+  //
+  // **Chi attiva un autopilota smette di operare lui**: quella chat è sua. Una
+  // conversazione nuova aperta accanto lascerebbe due cose da seguire per un
+  // lavoro solo, e quella che si stava guardando ferma.
+  if (gia === undefined) {
+    const ospite = ponte.adottabile(c.cwd, c.autopilotaId)
+    if (ospite !== undefined) {
+      ponte.adotta(ospite.paneId, c)
+      if (ospite.ptyId !== undefined && ponte.prontoARicevere(ospite.ptyId)) {
+        scriviEInvia(ospite.ptyId, c.testo, ponte, dopo)
+        return
+      }
+      attendiInQuesto(ospite.paneId, c, ponte, dopo, 0)
+      return
+    }
+    ponte.apri(c)
+  }
   attendiEConsegna(c, ponte, dopo, 0)
+}
+
+/**
+ * Aspetta che **quel** riquadro sia pronto, e ci consegna.
+ *
+ * Serve alla chat adottata: la si conosce per riquadro, non per sessione — la
+ * sua conversazione è quella che aveva già, e sarà il primo hook a dire al
+ * servizio come si chiama.
+ */
+function attendiInQuesto(
+  paneId: string,
+  c: Consegna,
+  ponte: Ponte,
+  dopo: (ms: number, cosa: () => void) => void,
+  aspettato: number
+): void {
+  dopo(RIPROVA_MS, () => {
+    const ora = ponte.terminaleDi(paneId)
+    const passato = aspettato + RIPROVA_MS
+    if (ora !== undefined && ponte.prontoARicevere(ora)) {
+      scriviEInvia(ora, c.testo, ponte, dopo)
+      return
+    }
+    if (passato >= RESA_MS) {
+      console.error(`[autopilota] la chat ${c.chatId} non è pronta: istruzione non consegnata`)
+      return
+    }
+    attendiInQuesto(paneId, c, ponte, dopo, passato)
+  })
 }
 
 /**
@@ -241,6 +299,25 @@ export function ponteReale(prontezza: (ptyId: string) => boolean): Ponte {
       if (trovato === undefined) return undefined
       return { paneId: trovato.id, ...(trovato.ptyId !== undefined ? { ptyId: trovato.ptyId } : {}) }
     },
+    terminaleDi: (paneId) => useLayoutStore.getState().panes[paneId]?.ptyId,
+
+    // Una chat gia' aperta su quella cartella, se non e' di un altro
+    // autopilota. Il primo per identificativo: l'ordine non cambia mentre si
+    // guarda, e con una chat sola - il caso normale - e' quella.
+    adottabile: (cwd, autopilotaId) => {
+      const riquadri = Object.values(useLayoutStore.getState().panes)
+        .filter((p) => p.cwd === cwd)
+        .filter((p) => p.autopilota === undefined || p.autopilota.id === autopilotaId)
+        .sort((a, b) => a.id.localeCompare(b.id))
+      const scelto = riquadri[0]
+      if (scelto === undefined) return undefined
+      return { paneId: scelto.id, ...(scelto.ptyId !== undefined ? { ptyId: scelto.ptyId } : {}) }
+    },
+
+    adotta: (paneId, c) => {
+      useLayoutStore.getState().assegnaAutopilota(paneId, { id: c.autopilotaId, chat: c.chatId })
+    },
+
     apri: (c) =>
       useLayoutStore.getState().addPane(c.cwd, c.titolo, undefined, {
         // La sessione la decide l'autopilota: è ciò che gli permette di

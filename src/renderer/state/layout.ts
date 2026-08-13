@@ -48,6 +48,14 @@ type State = {
   ) => string
   /** Il nome che l'utente dà a un riquadro: vince su quello di Claude Code. */
   rinominaPane: (id: string, title: string) => void
+  /**
+   * Consegna una chat gia' aperta a un autopilota.
+   *
+   * Chi attiva un autopilota smette di operare lui: la chat che stava
+   * guardando diventa quella dove lavora l'autopilota, invece di restare ferma
+   * accanto a una conversazione nuova aperta apposta.
+   */
+  assegnaAutopilota: (paneId: string, autopilota: { id: string; chat: string }) => void
   closePane: (id: string) => void
   split: (targetId: string, direction: Direction) => void
   resize: (splitId: string, index: number, delta: number) => void
@@ -189,6 +197,13 @@ export const useLayoutStore = create<State>((set, get) => ({
     }))
     return id
   },
+
+  assegnaAutopilota: (paneId, autopilota) =>
+    set((s) => {
+      const pane = s.panes[paneId]
+      if (pane === undefined) return s
+      return { panes: { ...s.panes, [paneId]: { ...pane, autopilota } } }
+    }),
 
   closePane: (id) =>
     set((s) => {

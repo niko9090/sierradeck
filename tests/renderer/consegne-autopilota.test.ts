@@ -46,7 +46,12 @@ function banco(
     },
     // Nel banco il terminale ascolta sempre: quando *non* ascolta lo dice il
     // suo test, in ultime-righe.
-    prontoARicevere: () => (partita && parteDavvero ? false : pronto)
+    prontoARicevere: () => (partita && parteDavvero ? false : pronto),
+    // Nel banco base non c'e' nessuna chat da adottare: quel caso ha i suoi
+    // test, che il ponte se lo costruiscono.
+    adottabile: () => undefined,
+    adotta: () => undefined,
+    terminaleDi: (paneId) => Object.values(riquadri).find((r) => r.paneId === paneId)?.ptyId
   }
   const dopo = (_ms: number, cosa: () => void): void => { rinviati.push(cosa) }
   // Far scadere un'attesa puo' aprirne un'altra - il testo prima, l'invio
@@ -210,5 +215,85 @@ describe('quando l invio non basta', () => {
     eseguiConsegna(consegna(), b.ponte, b.dopo)
     b.scadi()
     expect(b.scritti.filter((s) => s.testo === INVIO)).toHaveLength(1)
+  })
+})
+
+describe('la chat che c e gia', () => {
+  /** La stessa cartella della consegna di prova, senza doppi sensi di escape. */
+  const CARTELLA = consegna().cwd
+  const ALTROVE = 'D:\altrove'
+
+  /** Un banco con delle chat gia' aperte, e un ponte che sa adottarle. */
+  function bancoConChat(
+    aperte: { paneId: string; ptyId?: string; cwd: string; padrone?: string }[],
+    riquadri: Record<string, { paneId: string; ptyId?: string }> = {}
+  ) {
+    const scritti: { ptyId: string; testo: string }[] = []
+    const aperti: Consegna[] = []
+    const adottati: string[] = []
+    const rinviati: (() => void)[] = []
+    let partita = false
+    const ponte: Ponte = {
+      riquadroDi: (s) => riquadri[s],
+      apri: (c) => { aperti.push(c); riquadri[c.sessionId] = { paneId: 'p-nuovo' }; return 'p-nuovo' },
+      scrivi: (ptyId, testo) => { scritti.push({ ptyId, testo }); if (testo === INVIO) partita = true },
+      prontoARicevere: () => !partita,
+      adottabile: (cwd, autopilotaId) => {
+        const libera = aperte.find(
+          (c) => c.cwd === cwd && (c.padrone === undefined || c.padrone === autopilotaId)
+        )
+        return libera === undefined
+          ? undefined
+          : { paneId: libera.paneId, ...(libera.ptyId !== undefined ? { ptyId: libera.ptyId } : {}) }
+      },
+      adotta: (paneId) => { adottati.push(paneId) },
+      terminaleDi: (paneId) => aperte.find((c) => c.paneId === paneId)?.ptyId
+    }
+    const dopo = (_ms: number, cosa: () => void): void => { rinviati.push(cosa) }
+    const scadi = (): void => {
+      for (let giro = 0; giro < 10 && rinviati.length > 0; giro += 1) {
+        for (const f of rinviati.splice(0, rinviati.length)) f()
+      }
+    }
+    return { ponte, scritti, aperti, adottati, riquadri, dopo, scadi }
+  }
+
+  it('scrive nella chat gia aperta su quella cartella, invece di aprirne una', () => {
+    // «Se attivo l'autopilota non opero io»: quella chat e' sua. Aprirne una
+    // nuova accanto lascia due conversazioni da seguire per un lavoro solo, e
+    // quella che si stava guardando resta ferma.
+    const b = bancoConChat([{ paneId: 'p-1', ptyId: 'pty-1', cwd: CARTELLA }])
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
+    b.scadi()
+    expect(b.aperti).toEqual([])
+    expect(b.adottati).toEqual(['p-1'])
+    expect(b.scritti.map((s) => s.ptyId)).toContain('pty-1')
+  })
+
+  it('non ruba la chat di un altro autopilota', () => {
+    const b = bancoConChat([
+      { paneId: 'p-1', ptyId: 'pty-1', cwd: CARTELLA, padrone: 'ap-altro' }
+    ])
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
+    expect(b.aperti.map((c) => c.sessionId)).toEqual(['sess-1'])
+    expect(b.adottati).toEqual([])
+  })
+
+  it('se non ce n e nessuna su quella cartella, la apre come prima', () => {
+    const b = bancoConChat([{ paneId: 'p-9', ptyId: 'pty-9', cwd: 'C:\altrove' }])
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
+    expect(b.aperti.map((c) => c.cwd)).toEqual([CARTELLA])
+    expect(b.adottati).toEqual([])
+  })
+
+  it('la sua chat, quando c e gia, viene prima di qualunque adozione', () => {
+    const b = bancoConChat(
+      [{ paneId: 'p-1', ptyId: 'pty-1', cwd: CARTELLA }],
+      { 'sess-1': { paneId: 'p-sua', ptyId: 'pty-sua' } }
+    )
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
+    b.scadi()
+    expect(b.adottati).toEqual([])
+    expect(b.scritti.map((s) => s.ptyId)).toContain('pty-sua')
   })
 })
