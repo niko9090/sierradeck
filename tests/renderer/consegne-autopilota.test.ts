@@ -31,7 +31,15 @@ function banco(riquadri: Record<string, { paneId: string; ptyId?: string }> = {}
     scrivi: (ptyId, testo) => { scritti.push({ ptyId, testo }) }
   }
   const dopo = (_ms: number, cosa: () => void): void => { rinviati.push(cosa) }
-  return { ponte, scritti, aperti, riquadri, dopo, scadi: () => { rinviati.forEach((f) => f()) } }
+  // Far scadere un'attesa puo' aprirne un'altra - il testo prima, l'invio
+  // subito dopo - e vanno eseguite tutte, come farebbe il tempo vero.
+  const scadi = (): void => {
+    for (let giro = 0; giro < 10 && rinviati.length > 0; giro += 1) {
+      const ora = rinviati.splice(0, rinviati.length)
+      for (const f of ora) f()
+    }
+  }
+  return { ponte, scritti, aperti, riquadri, dopo, scadi }
 }
 
 describe('portare un istruzione dentro una chat', () => {
@@ -40,7 +48,11 @@ describe('portare un istruzione dentro una chat', () => {
     // indistinguibili, ed è la ragione per cui puoi intervenire in mezzo.
     const b = banco({ 'sess-1': { paneId: 'p-1', ptyId: 'pty-1' } })
     eseguiConsegna(consegna(), b.ponte, b.dopo)
-    expect(b.scritti).toEqual([{ ptyId: 'pty-1', testo: 'continua da dove eri' + INVIO }])
+    b.scadi()
+    expect(b.scritti).toEqual([
+      { ptyId: 'pty-1', testo: 'continua da dove eri' },
+      { ptyId: 'pty-1', testo: INVIO }
+    ])
     expect(b.aperti).toEqual([])
   })
 
@@ -49,7 +61,8 @@ describe('portare un istruzione dentro una chat', () => {
     // la chat ferma, e l'autopilota ad aspettare una risposta mai chiesta.
     const b = banco({ 'sess-1': { paneId: 'p-1', ptyId: 'pty-1' } })
     eseguiConsegna(consegna(), b.ponte, b.dopo)
-    expect(b.scritti[0]?.testo.endsWith(INVIO)).toBe(true)
+    b.scadi()
+    expect(b.scritti[b.scritti.length - 1]?.testo).toBe(INVIO)
   })
 
   it('se la chat non c e la apre, e scrive quando e nata', () => {
@@ -60,7 +73,10 @@ describe('portare un istruzione dentro una chat', () => {
     expect(b.scritti).toEqual([])
     b.riquadri['sess-1'] = { paneId: 'p-nuovo', ptyId: 'pty-9' }
     b.scadi()
-    expect(b.scritti).toEqual([{ ptyId: 'pty-9', testo: 'continua da dove eri' + INVIO }])
+    expect(b.scritti).toEqual([
+      { ptyId: 'pty-9', testo: 'continua da dove eri' },
+      { ptyId: 'pty-9', testo: INVIO }
+    ])
   })
 
   it('la apre con la sessione decisa dall autopilota', () => {
@@ -78,7 +94,8 @@ describe('portare un istruzione dentro una chat', () => {
     expect(b.aperti).toEqual([])
     b.riquadri['sess-1'] = { paneId: 'p-1', ptyId: 'pty-1' }
     b.scadi()
-    expect(b.scritti).toHaveLength(1)
+    // Una consegna sola: il testo e il suo invio, non due messaggi.
+    expect(b.scritti.map((x) => x.testo)).toEqual(['continua da dove eri', INVIO])
   })
 
   it('se la chat non nasce, non scrive nel vuoto', () => {
@@ -101,5 +118,30 @@ describe('portare un istruzione dentro una chat', () => {
     eseguiConsegna(consegna({ cosa: 'interrompi', testo: '' }), b.ponte, b.dopo)
     expect(b.aperti).toEqual([])
     expect(b.scritti).toEqual([])
+  })
+})
+
+describe('l invio che non arrivava', () => {
+  it('manda il testo e l invio in due volte, non in un blocco solo', () => {
+    // Sul campo: tre chat aperte, il compito scritto per intero nel campo di
+    // ognuna, e nessuna che partiva. Claude Code riceve un testo che arriva
+    // tutto insieme come **incollato**, e dentro un incollaggio l'invio finale
+    // e' un altro a capo del testo, non il gesto che manda il messaggio.
+    const b = banco({ 'sess-1': { paneId: 'p-1', ptyId: 'pty-1' } })
+    eseguiConsegna(consegna({ testo: 'prima riga\nseconda riga' }), b.ponte, b.dopo)
+
+    // Prima il testo, senza invio appiccicato.
+    expect(b.scritti).toEqual([{ ptyId: 'pty-1', testo: 'prima riga\nseconda riga' }])
+    // L'invio arriva staccato, quando l'incollaggio e' finito.
+    b.scadi()
+    expect(b.scritti[1]).toEqual({ ptyId: 'pty-1', testo: INVIO })
+  })
+
+  it('anche nella chat che deve ancora nascere', () => {
+    const b = banco()
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
+    b.riquadri['sess-1'] = { paneId: 'p-nuovo', ptyId: 'pty-9' }
+    b.scadi()
+    expect(b.scritti.map((s) => s.testo)).toEqual(['continua da dove eri', INVIO])
   })
 })

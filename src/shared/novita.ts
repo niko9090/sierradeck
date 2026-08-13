@@ -23,8 +23,10 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
-    versione: '0.9.12',
+    versione: '0.9.13',
     righe: [
+      '**Gli autopiloti scrivevano il compito nella chat senza mandarlo.** Il testo compariva per intero nel campo, la chat restava ferma e l’autopilota aspettava una risposta che nessuno stava scrivendo. Per Claude Code un testo che arriva tutto insieme è un incollaggio, e dentro un incollaggio l’invio finale conta come un altro a capo: adesso il messaggio e il suo invio sono due gesti separati.',
+      '**Un solo pannello dell’autopilota, anche quando le sue chat sono tante.** Il diario si trova per cartella, e una flotta ne apre più d’una lì dentro: compariva accanto a ognuna, identico, con la stessa percentuale — e sembravano tre autopiloti diversi. Ora sta accanto alla prima, e se quella chat si chiude passa alla successiva.',
       '**La finestra torna sul monitor dove l’avevi lasciata.** Quella memoria la teneva l’archivio dei layout, che archiviava le chat per monitor; da quando i layout sono uno solo per workspace — era il difetto per cui le chat sparivano — nessuno sapeva più dov’era la finestra, e all’avvio finiva sul primo schermo libero: su due monitor, quello che capitava. Ora se lo ricorda, e se quel monitor non c’è più non ci prova nemmeno.',
       '**La preparazione non esegue più la suite di test.** Su un progetto vero ha speso 188 secondi dei suoi 265 dentro un comando solo: i test, che su quel progetto non finivano affatto. Le basta sapere che il comando esiste — a vederlo passare ci pensa l’autopilota mentre lavora, ed è il suo mestiere.'
     ]

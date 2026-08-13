@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { diario, completamento, autopilotaDi } from '../../src/renderer/diario-autopilota'
+import { diario, completamento, autopilotaDi, diarioDelRiquadro } from '../../src/renderer/diario-autopilota'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 
 function ap(over: Partial<Autopilota> = {}): Autopilota {
@@ -168,5 +168,49 @@ describe('il diario riordinato', () => {
   it('la preparazione si vede come tale', () => {
     const v = diario(conStoria(['configurato da sé: quattro criteri']))
     expect(v[0]?.tipo).toBe('preparazione')
+  })
+})
+
+describe('un diario solo, anche quando le chat sono tante', () => {
+  const suo = (over: Partial<Autopilota> = {}): Autopilota => ({
+    ...nuovoAutopilota({
+      id: 'ap-1', nome: 'Revisione', obiettivo: 'o', cwd: 'C:\gioco',
+      criteri: [{ descrizione: 'x', soddisfatto: false }],
+      iniziatoIl: '2026-08-13T10:00:00.000Z'
+    }),
+    stato: 'lavoro' as const,
+    ...over
+  })
+
+  it('lo mostra nel primo riquadro, e in nessun altro', () => {
+    // Una flotta apre piu' chat nella stessa cartella: il pannello e' uno solo
+    // e le raccontava tutte, quindi comparve tre volte identico, tre volte la
+    // stessa percentuale. Chi guarda pensa che siano tre autopiloti.
+    const riquadri = [
+      { id: 'p-1', cwd: 'C:\gioco' },
+      { id: 'p-2', cwd: 'C:\gioco' },
+      { id: 'p-3', cwd: 'C:\gioco' }
+    ]
+    expect(diarioDelRiquadro([suo()], riquadri, riquadri[0]!)?.id).toBe('ap-1')
+    expect(diarioDelRiquadro([suo()], riquadri, riquadri[1]!)).toBeUndefined()
+    expect(diarioDelRiquadro([suo()], riquadri, riquadri[2]!)).toBeUndefined()
+  })
+
+  it('due autopiloti in due cartelle hanno ognuno il suo', () => {
+    const altro = suo({ id: 'ap-2', cwd: 'C:\altro' })
+    const riquadri = [{ id: 'p-1', cwd: 'C:\gioco' }, { id: 'p-2', cwd: 'C:\altro' }]
+    expect(diarioDelRiquadro([suo(), altro], riquadri, riquadri[0]!)?.id).toBe('ap-1')
+    expect(diarioDelRiquadro([suo(), altro], riquadri, riquadri[1]!)?.id).toBe('ap-2')
+  })
+
+  it('un riquadro senza autopilota non mostra niente', () => {
+    const riquadri = [{ id: 'p-1', cwd: 'C:\altrove' }]
+    expect(diarioDelRiquadro([suo()], riquadri, riquadri[0]!)).toBeUndefined()
+  })
+
+  it('chiuso il primo riquadro, il diario passa al successivo', () => {
+    // Altrimenti sparirebbe proprio mentre l'autopilota lavora.
+    const rimasti = [{ id: 'p-2', cwd: 'C:\gioco' }, { id: 'p-3', cwd: 'C:\gioco' }]
+    expect(diarioDelRiquadro([suo()], rimasti, rimasti[0]!)?.id).toBe('ap-1')
   })
 })

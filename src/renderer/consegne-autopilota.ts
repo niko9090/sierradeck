@@ -42,6 +42,20 @@ export type Ponte = {
 const INVIO = String.fromCharCode(13)
 
 /**
+ * Quanto passa fra il testo e l'invio.
+ *
+ * **Non è cerimonia: senza questa pausa il messaggio non parte.** Un testo che
+ * arriva tutto insieme, per Claude Code, è un incollaggio — e dentro un
+ * incollaggio l'invio finale conta come un altro a capo del testo, non come il
+ * gesto che manda il messaggio. Sul campo si sono viste tre chat aperte, con il
+ * compito scritto per intero nel campo di ognuna, e nessuna che partiva.
+ *
+ * Un quinto di secondo separa le due cose abbastanza da farle leggere come due
+ * gesti diversi, ed è impercettibile per chi guarda.
+ */
+export const PAUSA_INVIO_MS = 200
+
+/**
  * Quanto si aspetta prima di scrivere in una chat appena aperta.
  *
  * `claude.exe` deve nascere, leggere la sessione e disegnare la sua interfaccia:
@@ -68,7 +82,7 @@ export function eseguiConsegna(
   }
 
   if (gia?.ptyId !== undefined) {
-    ponte.scrivi(gia.ptyId, c.testo + INVIO)
+    scriviEInvia(gia.ptyId, c.testo, ponte, dopo)
     return
   }
 
@@ -83,8 +97,19 @@ export function eseguiConsegna(
       console.error(`[autopilota] la chat ${c.chatId} non si è aperta: istruzione non consegnata`)
       return
     }
-    ponte.scrivi(ora.ptyId, c.testo + INVIO)
+    scriviEInvia(ora.ptyId, c.testo, ponte, dopo)
   })
+}
+
+/** Il testo, e un istante dopo l'invio: due gesti, non un blocco solo. */
+function scriviEInvia(
+  ptyId: string,
+  testo: string,
+  ponte: Ponte,
+  dopo: (ms: number, cosa: () => void) => void
+): void {
+  ponte.scrivi(ptyId, testo)
+  dopo(PAUSA_INVIO_MS, () => { ponte.scrivi(ptyId, INVIO) })
 }
 
 /** Il ponte vero: lo store dei riquadri e i terminali di questa finestra. */

@@ -8,7 +8,7 @@ import { memoriaWorkspace } from '../memoria-workspace'
 import { MODELLI_IN_CHAT } from '../modelli'
 import { Terminal } from './Terminal'
 import { DiarioAutopilota } from './DiarioAutopilota'
-import { autopilotaDi } from '../diario-autopilota'
+import { diarioDelRiquadro } from '../diario-autopilota'
 import type { Autopilota } from '@shared/autopilota'
 import { DropOverlay } from './DropOverlay'
 
@@ -394,7 +394,13 @@ export function Mosaic({
                 )}
               </div>
               {(() => {
-                const suo = autopilotaDi(autopiloti, data.cwd)
+                // Un diario solo per autopilota: una flotta apre piu' chat
+                // nella stessa cartella, e il pannello le racconta gia' tutte.
+                const suo = diarioDelRiquadro(
+                  autopiloti,
+                  Object.values(panes).map((p) => ({ id: p.id, cwd: p.cwd })),
+                  { id: data.id, cwd: data.cwd }
+                )
                 if (suo === undefined) return null
                 return (
                   <DiarioAutopilota

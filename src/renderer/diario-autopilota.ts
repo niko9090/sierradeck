@@ -163,3 +163,30 @@ export function autopilotaDi(autopiloti: Autopilota[], cwd: string): Autopilota 
   const vivi = candidati.filter((a) => a.stato === 'lavoro' || a.stato === 'attesa' || a.stato === 'intervista')
   return vivi[0] ?? candidati[0]
 }
+
+/**
+ * L'autopilota di **questo** riquadro, se è a lui che tocca mostrarne il diario.
+ *
+ * Il diario si trova per cartella, e una flotta apre più chat nella stessa: il
+ * pannello — che è uno solo, e le racconta tutte insieme — compariva accanto a
+ * ognuna, tre volte identico, tre volte la stessa percentuale. Chi guarda pensa
+ * che siano tre autopiloti diversi, e cerca la differenza fra tre pannelli che
+ * non ce l'hanno.
+ *
+ * Tocca al primo riquadro di quella cartella, in ordine di identificativo:
+ * l'ordine non cambia mentre si guarda, e chiudendo quel riquadro il diario
+ * passa al successivo invece di sparire proprio mentre l'autopilota lavora.
+ */
+export function diarioDelRiquadro(
+  autopiloti: Autopilota[],
+  riquadri: { id: string; cwd: string }[],
+  questo: { id: string; cwd: string }
+): Autopilota | undefined {
+  const suo = autopilotaDi(autopiloti, questo.cwd)
+  if (suo === undefined) return undefined
+  const fratelli = riquadri
+    .filter((r) => autopilotaDi(autopiloti, r.cwd)?.id === suo.id)
+    .map((r) => r.id)
+    .sort()
+  return fratelli[0] === questo.id ? suo : undefined
+}
