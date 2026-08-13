@@ -173,7 +173,10 @@ export function DiarioAutopilota({
       )}
       <div className="diario__testa">
         <span className={`led ${led.classe}`} title={led.titolo} />
-        <span className="serigrafia diario__nome">{autopilota.nome}</span>
+        {/* Il nome non è serigrafato: sotto ci sono già i passi, che lo sono
+            per natura — le etichette incise sotto i LED — e due righe di
+            maiuscole tracciate di fila si annullano a vicenda. */}
+        <span className="diario__nome" title={autopilota.nome}>{autopilota.nome}</span>
         {/* A tutta larghezza si leggono i passaggi come in una chat; stretto,
             resta di fianco al terminale. */}
         <button
