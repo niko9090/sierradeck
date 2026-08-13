@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process'
 import { APP_NAME, APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
 import { cartellaDati } from './migra-dati'
 import { chiaveMonitor } from '@shared/display-key'
+import { apriFinestreStore, type FinestreStore } from './finestre-store'
 import { PORTA_AUTOPILOTA } from '@shared/autopilota'
 import {
   collegaFinestra,
@@ -59,6 +60,8 @@ let inChiusura = false
 let serverClient: import('node:http').Server | undefined
 /** Le chat aperte, come le racconta il renderer: servono al Client. */
 let chatAperte: Chat[] = []
+/** Su quali monitor stavano le finestre: e' cosi che ci ritornano. */
+let finestreStore: FinestreStore | undefined
 /** Quali chat ha ogni finestra: unite formano l'elenco che vede il telefono. */
 const chatPerFinestra = new Map<number, Chat[]>()
 /** L'icona nell'area di notifica, quando è stato possibile crearla. */
@@ -137,15 +140,24 @@ export function apriNuovaFinestra(): void {
     chiave: chiaveMonitor({ bounds: d.bounds, scaleFactor: d.scaleFactor }),
     bounds: d.bounds
   }))
-  // Su quali schermi c'erano chat quando si è chiuso. L'archivio le tiene già
-  // per monitor: è la memoria di dove stavano le finestre, senza doverne
-  // aggiungere una seconda che possa raccontare un'altra storia.
+  // Dove stavano le finestre l'ultima volta. Questa memoria la teneva
+  // l'archivio dei layout, che archiviava le chat per monitor; da quando i
+  // layout sono uno solo per workspace — era il difetto per cui le chat
+  // sparivano — quel dato non c'e' piu', e la finestra si riapriva sul primo
+  // schermo libero: su due monitor, quello che capita.
+  //
+  // Restano le chat per monitor dei workspace vecchi, che valgono ancora per
+  // chi non ha ancora aggiornato il suo archivio: le due memorie si sommano,
+  // la piu' recente per prima.
   const archivio = workspaceStore?.leggi()
-  const conLavoro = Object.entries(
-    archivio?.workspace.find((w) => w.nome === archivio.attivo)?.perMonitor ?? {}
-  )
-    .filter(([, layout]) => layout.panes.length > 0)
-    .map(([chiave]) => chiave)
+  const conLavoro = [
+    ...(finestreStore?.leggi() ?? []),
+    ...Object.entries(
+      archivio?.workspace.find((w) => w.nome === archivio.attivo)?.perMonitor ?? {}
+    )
+      .filter(([, layout]) => layout.panes.length > 0)
+      .map(([chiave]) => chiave)
+  ]
   const scelto = prossimoSchermoLibero(disponibili, occupati, conLavoro)
 
   const win = new BrowserWindow({
@@ -182,6 +194,9 @@ export function apriNuovaFinestra(): void {
   // dentro le sue chat, e riaprirla e' istantaneo invece di essere un
   // ripristino dal file.
   win.on('close', (event) => {
+    // Dov'era, finche' c'e' ancora: a 'closed' la finestra non ha piu' una
+    // posizione da cui leggere il monitor.
+    finestreStore?.ricorda(chiaveDiFinestra(win))
     if (decidiChiusura({ inUscita, areaDisponibile: area !== undefined }) === 'chiudi') return
     event.preventDefault()
     win.hide()
@@ -362,6 +377,9 @@ if (!app.requestSingleInstanceLock()) {
       }
       db = registerSessionIpc(dati)
       workspaceStore = apriWorkspaceStore(dati)
+      // Dove stavano le finestre: va aperto prima che ne nasca una, perche' e'
+      // la prima ad avere bisogno di sapere dove tornare.
+      finestreStore = apriFinestreStore(dati)
       registerLayoutIpc(workspaceStore)
       registerFinestreIpc(apriNuovaFinestra)
       const clientAutopilota = creaClientAutopilota({

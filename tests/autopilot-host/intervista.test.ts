@@ -180,3 +180,14 @@ describe('quanto tempo ha per prepararsi', () => {
     expect(TEMPO_PREPARAZIONE_MS).toBeGreaterThanOrEqual(15 * 60_000)
   })
 })
+
+describe('cosa il prompt vieta di fare mentre si prepara', () => {
+  it('dice di non eseguire la suite di test', () => {
+    // Sul campo: 188 secondi dei 265 di una preparazione sono finiti in un solo
+    // comando - la suite di test del progetto, che su quel progetto non finiva
+    // affatto. Sapere che il comando esiste basta: a vederlo passare ci pensa
+    // l'autopilota mentre lavora.
+    const p = componiPromptIntervista('Sistema il lettore', 'C:\p', [])
+    expect(p).toContain('Non eseguire la suite di test')
+  })
+})

@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.12',
+    righe: [
+      '**La finestra torna sul monitor dove l’avevi lasciata.** Quella memoria la teneva l’archivio dei layout, che archiviava le chat per monitor; da quando i layout sono uno solo per workspace — era il difetto per cui le chat sparivano — nessuno sapeva più dov’era la finestra, e all’avvio finiva sul primo schermo libero: su due monitor, quello che capitava. Ora se lo ricorda, e se quel monitor non c’è più non ci prova nemmeno.',
+      '**La preparazione non esegue più la suite di test.** Su un progetto vero ha speso 188 secondi dei suoi 265 dentro un comando solo: i test, che su quel progetto non finivano affatto. Le basta sapere che il comando esiste — a vederlo passare ci pensa l’autopilota mentre lavora, ed è il suo mestiere.'
+    ]
+  },
+  {
     versione: '0.9.11',
     righe: [
       '**«La preparazione si è guastata» non era un guasto: era il tempo.** Ogni giro di preparazione veniva ucciso dopo cinque minuti — il tempo di un giudizio, dove però c’è una chat ferma che aspetta la risposta. Qui invece l’autopilota deve leggersi un progetto che non ha mai visto per capire quando il lavoro sarà finito, e nessuno lo sta aspettando: adesso ha venti minuti, e l’errore dice sempre quanti ne ha avuti.',
