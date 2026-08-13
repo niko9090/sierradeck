@@ -238,3 +238,41 @@ describe('quello che il Client puo fare', () => {
     }
   })
 })
+
+describe('vedere le stesse cose, con gli stessi colori', () => {
+  it('dice al telefono i colori del computer', async () => {
+    // «Voglio vedere TUTTO nello stesso modo e con la stessa grafica»: i colori
+    // non si riscrivono a mano nella pagina, si chiedono. Cosi' il telefono
+    // segue il chiarore e lo stile scelti nelle impostazioni, invece di essere
+    // una copia somigliante che invecchia da sola.
+    const r = await rotteClient(deps())({ metodo: 'GET', percorso: '/api/stile', corpo: undefined })
+    const c = r.corpo as Record<string, unknown>
+    expect(r.stato).toBe(200)
+    const token = c.token as Record<string, string>
+    expect(token['--fondo']).toMatch(/^#[0-9a-f]{6}$/)
+    expect(token['--verde']).toBeDefined()
+    expect(c.stile).toBeDefined()
+  })
+
+  it('manda lo stato intero di un autopilota, non solo il titolo', async () => {
+    // Sul telefono si vedeva nome, stato e due numeri. Per capire davvero cosa
+    // sta succedendo servono i criteri, cosa ha deciso e a che punto e': le
+    // stesse cose che il pannello mostra al computer.
+    const r = await rotteClient(deps())({
+      metodo: 'POST', percorso: '/api/autopilota', corpo: { autopilota: 'ap-1' }
+    })
+    const a = r.corpo as Record<string, unknown>
+    expect(r.stato).toBe(200)
+    expect(a.criteri).toBeInstanceOf(Array)
+    expect(a.decisioni).toBeInstanceOf(Array)
+    expect(a.passaggi).toBeInstanceOf(Array)
+    expect(a.misura).toMatchObject({ percento: expect.any(Number) })
+  })
+
+  it('di un autopilota che non c e lo dice, invece di mandare niente', async () => {
+    const r = await rotteClient(deps())({
+      metodo: 'POST', percorso: '/api/autopilota', corpo: { autopilota: 'mai-esistito' }
+    })
+    expect(r.stato).toBe(404)
+  })
+})

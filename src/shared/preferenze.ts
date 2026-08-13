@@ -183,6 +183,16 @@ export function tavolozza(p: Preferenze): Record<string, string> {
     '--primario': grigio(base + 38),
     '--primario-alto': grigio(base + 50),
     '--testo-spento': grigio(base + 73),
+    // Il testo e i colori di stato. Non dipendono dal chiarore — verde è verde
+    // — ma stanno qui lo stesso: la tavolozza è ciò che veste l'interfaccia, e
+    // chi la chiede (il telefono, per avere gli stessi colori del computer) non
+    // deve andare a cercarne una metà dentro un foglio di stile.
+    '--testo': grigio(223),
+    '--testo-quieto': grigio(154),
+    '--verde': '#54c07a',
+    '--ambra': '#e0a33c',
+    '--rosso': '#dc5f5f',
+    '--spento': grigio(74),
     '--accento': p.accento,
     // Quanto spazio prende il diario dell'autopilota dentro il suo riquadro.
     // Sta qui perché è di qui che passano tutte le misure che l'utente sceglie:

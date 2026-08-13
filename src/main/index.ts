@@ -536,7 +536,9 @@ if (!app.requestSingleInstanceLock()) {
           return { id: a.id }
         },
         versione: app.getVersion(),
-        apk: () => apkDisponibile()
+        apk: () => apkDisponibile(),
+        // I colori del computer, per vestire il telefono allo stesso modo.
+        preferenze: () => impostazioni.preferenze()
       }
 
       const porta = impostazioni.preferenze().portaClient

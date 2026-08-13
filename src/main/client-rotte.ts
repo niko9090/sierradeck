@@ -2,6 +2,8 @@ import type { Esito } from './client-server'
 import type { Dispositivi } from './dispositivi'
 import type { Autopilota } from '@shared/autopilota'
 import { paginaClient, ICONA_SVG, MANIFESTO } from './client-pagina'
+import { misuraPasso, passaggi } from '@shared/autopilota-vista'
+import { PREFERENZE_PREDEFINITE, tavolozza, type Preferenze } from '@shared/preferenze'
 
 /**
  * Cosa può fare il Client, e cosa no.
@@ -86,6 +88,14 @@ export type DipendenzeRotte = {
   versione: string
   /** Qual è l'ultimo APK dell'app, per il tasto «Scarica». */
   apk?: () => Promise<{ versione: string; url: string } | undefined>
+  /**
+   * Le preferenze del computer: da lì il telefono prende i suoi colori.
+   *
+   * Non una tavolozza scritta a mano nella pagina — che invecchierebbe da sola
+   * e mostrerebbe un programma diverso da quello che hai davanti — ma la
+   * stessa, con lo stesso chiarore e lo stesso stile.
+   */
+  preferenze?: () => Preferenze
 }
 
 const OK = (corpo: unknown): Esito => ({ stato: 200, corpo })
@@ -189,6 +199,30 @@ export function rotteClient(deps: DipendenzeRotte) {
         })),
         domande,
         workspace
+      })
+    }
+
+    // I colori del computer, per vestire la pagina con la stessa grafica.
+    if (r.percorso === '/api/stile') {
+      const p = deps.preferenze?.() ?? PREFERENZE_PREDEFINITE
+      return OK({ token: tavolozza(p), stile: p.stile })
+    }
+
+    // Tutto di un autopilota, come lo vede il pannello del computer: dove si
+    // trova nel suo percorso, quanto manca, i criteri che si e' dato e cosa ha
+    // deciso. L'elenco ne manda un riassunto perche' viaggia ogni due secondi;
+    // questo si chiede quando se ne apre uno.
+    if (r.metodo === 'POST' && r.percorso === '/api/autopilota') {
+      const id = stringa(r.corpo, 'autopilota')
+      const tutti = await deps.autopiloti().catch(() => [] as Autopilota[])
+      const a = tutti.find((x) => x.id === id)
+      if (a === undefined) return { stato: 404, corpo: { errore: 'autopilota inesistente' } }
+      return OK({
+        ...a,
+        // Calcolati qui e non nella pagina: sono le stesse funzioni che
+        // disegnano il pannello al computer, e due copie divergerebbero.
+        passaggi: passaggi(a),
+        misura: misuraPasso(a)
       })
     }
 

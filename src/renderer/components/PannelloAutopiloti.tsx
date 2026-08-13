@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
-import { descriviAutopilota, ledDi } from '../autopilota-vista'
+import { descriviAutopilota, ledDi } from '@shared/autopilota-vista'
 import { destinazioni } from '../destinazioni-autopilota'
 import { useLayoutStore } from '../state/layout'
 import { useSessionStore } from '../state/sessions'

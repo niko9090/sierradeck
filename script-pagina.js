@@ -1,222 +1,101 @@
-/**
- * Il Client: una pagina sola, servita da SierraDeck.
- *
- * Niente da installare, niente APK, quindi niente avviso «questa app potrebbe
- * essere dannosa» — quello Android lo mette a ogni installazione fuori dal Play
- * Store e nessuna firma lo toglie. Si apre nel browser del telefono e si
- * aggiunge alla schermata iniziale: da lì ha icona, schermo intero e si comporta
- * come un'app, perché per chi la usa lo è.
- *
- * Tutto in un file, senza dipendenze: una pagina che deve funzionare su una rete
- * di casa mentre il computer sta lavorando non è il posto per un framework da
- * scaricare.
- *
- * Il disegno è pensato per il pollice: piastrelle grandi, poche cose per
- * schermata, e le due azioni che contano — rispondere a una domanda, mandare
- * due parole a una chat — raggiungibili senza cercare.
- */
 
-import { ansiInHtml } from '@shared/ansi-html'
-
-/** Il cristallo, per la scheda del browser e per la schermata Home. */
-export const ICONA_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">' +
-  '<rect width="512" height="512" fill="#0b0c0e"/>' +
-  '<path d="M268 92 L392 306 L268 306 Z" fill="#dfe3e7"/>' +
-  '<path d="M268 92 L132 306 L268 306 Z" fill="#7d858d"/>' +
-  '<path d="M132 306 L268 306 L200 412 Z" fill="#525a62"/>' +
-  '<path d="M268 306 L392 306 L326 412 Z" fill="#363d44"/>' +
-  '<path d="M200 412 L326 412 L268 306 Z" fill="#252b31"/>' +
-  '<path d="M268 92 L312 168 L268 168 Z" fill="#54c07a"/>' +
-  '</svg>'
-
-export const MANIFESTO = {
-  name: 'SierraDeck Client',
-  short_name: 'SierraDeck',
-  start_url: '/',
-  display: 'standalone',
-  background_color: '#0b0c0e',
-  theme_color: '#0b0c0e',
-  icons: [
-    {
-      // Il cristallo in SVG: nessun file da servire, nessuna dimensione da
-      // sbagliare, e resta nitido su qualunque schermo.
-      src: `data:image/svg+xml,${encodeURIComponent(ICONA_SVG)}`,
-      sizes: 'any',
-      type: 'image/svg+xml'
-    }
-  ]
-}
-
-/**
- * Il cristallo dentro la pagina, come immagine incorporata.
- *
- * Nella schermata del codice non c'era: si arrivava da un QR o da un link e la
- * prima cosa che si vedeva era un campo con sei puntini, senza un segno che
- * dicesse **dove si è finiti**. Un logo lì è la differenza fra «cos'è questa
- * pagina» e «ci sono».
- */
-const LOGO =
-  '<img alt="" width="56" height="56" style="margin-bottom:10px" ' +
-  `src="data:image/svg+xml,${encodeURIComponent(ICONA_SVG)}">`
-
-export function paginaClient(): string {
-  return `<!doctype html>
-<html lang="it">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b0c0e">
-<link rel="manifest" href="/manifest.json">
-<link rel="icon" href="/favicon.ico">
-<title>SierraDeck</title>
-<style>
-  /* I colori arrivano dal computer — sono gli stessi della console, con il
-     chiarore e lo stile che hai scelto lì. Questi sono il ripiego per
-     l'istante prima che la risposta arrivi: senza, la prima schermata sarebbe
-     senza fondo. */
-  :root {
-    --fondo: #141517; --fondo-cupo: #0b0c0e; --chassis: #16181b;
-    --chassis-alto: #23272b; --chassis-premuto: #1d2023; --bordo: #24272b;
-    --luce-incisione: #2f3439; --testo: #dfe3e7; --testo-quieto: #9aa1a9;
-    --verde: #54c07a; --ambra: #e0a33c; --rosso: #dc5f5f; --spento: #4a5058;
-    --accento: #4aa3ff;
-  }
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  body {
-    margin: 0; background: var(--fondo-cupo); color: var(--testo);
-    font: 16px/1.5 'Segoe UI', system-ui, -apple-system, sans-serif;
-    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
-  }
-  header {
-    position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px;
-    padding: 14px 16px; background: var(--fondo); border-bottom: 1px solid var(--bordo);
-  }
-  header b { font-size: 15px; letter-spacing: .04em; }
-  header span { margin-left: auto; font-size: 12px; color: var(--testo-quieto); }
-  main { padding: 14px; display: grid; gap: 12px; }
-  .piastrella {
-    background: var(--chassis); border: 1px solid var(--bordo); border-radius: 14px; padding: 14px 16px;
-  }
-  .titolo { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
-  .sotto { font-size: 13px; color: var(--testo-quieto); }
-  .barra { height: 5px; border-radius: 3px; background: var(--bordo); margin-top: 10px; overflow: hidden; }
-  .barra > i { display: block; height: 100%; background: var(--verde); }
-  .led { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 7px; }
-  .lavoro { background: var(--verde) } .attesa { background: var(--ambra) } .fermo { background: var(--spento) }
-  .chiede { border-color: var(--ambra); }
-  /* Bersagli grandi: si usa in piedi, con una mano, e un tasto piccolo su un
-     telefono e' un tasto che si sbaglia. */
-  button, input, textarea {
-    font: inherit; border-radius: 10px; border: 1px solid var(--luce-incisione);
-    background: var(--chassis-premuto); color: inherit; padding: 12px 14px;
-  }
-  button { background: var(--chassis-alto); min-height: 48px; }
-  button.primario {
-    background: var(--primario, #3a4046); border-color: var(--primario-alto, #4a5057);
-    color: var(--testo); font-weight: 600; width: 100%;
-  }
-  .riga { display: flex; gap: 8px; margin-top: 10px; }
-  .riga > input, .riga > textarea { flex: 1; min-width: 0; }
-  .ws { display: flex; gap: 8px; flex-wrap: wrap; }
-  .ws button { padding: 10px 14px; min-height: 44px; }
-  .ws button.attivo { border-color: var(--accento); color: #fff; }
-  .vuoto { color: var(--testo-quieto); text-align: center; padding: 30px 10px; }
-  .ingresso { max-width: 380px; margin: 40px auto; padding: 0 18px; text-align: center; }
-  .ingresso input { width: 100%; text-align: center; font-size: 26px; letter-spacing: .3em; margin: 16px 0; }
-  .errore { color: var(--ambra); font-size: 13px; margin-top: 8px; }
-  .panoramica { background: #131518; }
-  /* Un collegamento che sembra un tasto: l'attributo download fa partire il
-     file invece di aprire una pagina, e da un telefono e' la differenza fra
-     scaricare l'app e trovarsi davanti a un elenco di file da capire. */
-  .tasto-link {
-    display: inline-flex; align-items: center; justify-content: center;
-    /* Largo quanto il suo testo, come tutti gli altri tasti: con flex: 1
-       prendeva tutto lo spazio che il tasto accanto non voleva, e diventava
-       una fascia azzurra larga quanto lo schermo. */
-    flex: 0 1 auto; min-width: 0; min-height: 48px; padding: 12px 14px; border-radius: 10px;
-    background: var(--accento); border: 1px solid var(--accento); color: #fff; text-decoration: none;
-  }
-  /* L'ultima riga del terminale: si guarda passando, quindi carattere fisso e
-     una riga sola - se andasse a capo diventerebbe una lettura. */
-  .battito {
-    margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--fondo-cupo);
-    font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--testo-quieto);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  /* Le ultime righe, quando si chiede di guardare dentro. Qui il testo va a
-     capo davvero: non e' piu' un colpo d'occhio, e' la cosa che si sta
-     leggendo per decidere se serve intervenire. */
-  .dentro {
-    margin-top: 8px; padding: 10px; border-radius: 8px; background: var(--fondo-cupo);
-    font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--testo);
-    white-space: pre-wrap; word-break: break-word; max-height: 45vh; overflow-y: auto; margin-bottom: 0;
-  }
-  /* Le cartelle in cui aprire: bersagli larghi, uno per riga - si sceglie con
-     il pollice, non con il mouse. */
-  .cartella {
-    display: block; width: 100%; text-align: left; margin-top: 6px;
-    font-family: ui-monospace, Consolas, monospace; font-size: 12px;
-  }
-  /* ── il pannello dell'autopilota, come al computer ── */
-
-  .dettaglio { margin-top: 12px; border-top: 1px solid var(--bordo); padding-top: 12px; }
-
-  /* I passaggi: gli stessi tre del pannello sul PC, con i loro LED. Da un
-     telefono si guardano di sfuggita, quindi i nomi restano leggibili anche
-     senza toccarli. */
-  .passi { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .passo {
-    display: inline-flex; align-items: center; gap: 6px;
-    font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
-    color: var(--testo-quieto);
-  }
-  .passo-led {
-    width: 9px; height: 9px; border-radius: 50%; display: inline-block;
-    background: var(--spento);
-  }
-  .passo-filo { width: 12px; height: 1px; background: var(--bordo); }
-  .passo--davanti .passo-led { background: transparent; box-shadow: inset 0 0 0 1px var(--luce-incisione); }
-  .passo--davanti { opacity: .55; }
-  .passo--corrente .passo-led { background: var(--verde); box-shadow: 0 0 5px var(--verde); }
-  .passo--attesa .passo-led { background: var(--ambra); box-shadow: 0 0 5px var(--ambra); animation: pulsa 1.6s ease-in-out infinite; }
-  .passo--fermo .passo-led { background: var(--rosso); box-shadow: 0 0 5px var(--rosso); }
-  .passo--corrente, .passo--attesa, .passo--fermo { color: var(--testo); }
-  @keyframes pulsa { 0%, 100% { opacity: 1 } 50% { opacity: .35 } }
-
-  .nota { margin-top: 8px; }
-
-  /* La percentuale, con il colore di cio' che misura: i giri della
-     preparazione non sono i criteri del lavoro. */
-  .misura { display: flex; align-items: baseline; gap: 10px; margin-top: 12px; }
-  .misura b { font-size: 26px; font-variant-numeric: tabular-nums; }
-  .misura--preparazione b { color: var(--accento) }
-  .misura--lavoro b { color: var(--verde) }
-  .misura--attesa b { color: var(--ambra) }
-  .misura--fermo b { color: var(--rosso) }
-
-  .criteri { list-style: none; margin: 12px 0 0; padding: 0; font-size: 13px; color: var(--testo-quieto); }
-  .criteri li { padding: 3px 0; }
-  .criteri li.fatto { color: var(--verde); }
-
-  .serigrafia { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--testo-quieto); }
-  .voce { font-size: 12px; color: var(--testo-quieto); padding: 4px 0; display: flex; gap: 8px; }
-  .voce .quando { font-family: ui-monospace, Consolas, monospace; color: var(--spento); }
-
-  .numeri { display: flex; gap: 6px; }
-  .numero { flex: 1; text-align: center; }
-  .numero b { display: block; font-size: 26px; font-variant-numeric: tabular-nums; }
-  .numero b.v { color: var(--verde) } .numero b.a { color: var(--ambra) }
-  .numero span { font-size: 11px; color: var(--testo-quieto); }
-</style>
-</head>
-<body>
-<div id="app"></div>
-<script>
 // L'interprete dei colori del terminale. Vive in un modulo suo, con i suoi
 // test, e qui dentro ci arriva per intero: quello che gira nel telefono e'
 // esattamente il codice che e' stato verificato.
-${ansiInHtml.toString()}
+function ansiInHtml(grezzo) {
+  const COLORI = [
+    "#2b2f33",
+    "#dc5f5f",
+    "#54c07a",
+    "#e0a33c",
+    "#5b9bd5",
+    "#b48ead",
+    "#4db6ac",
+    "#c8ced4",
+    "#5a6169",
+    "#e87d7d",
+    "#7fd3a0",
+    "#f0bc63",
+    "#7fb8e8",
+    "#cba6c3",
+    "#6fd0c6",
+    "#eef2f6"
+  ];
+  const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  let colore = "";
+  let sfondo = "";
+  let grassetto = false;
+  let tenue = false;
+  let aperti = 0;
+  let fuori = "";
+  const stile = () => {
+    const parti2 = [];
+    if (colore !== "") parti2.push(`color:${colore}`);
+    if (sfondo !== "") parti2.push(`background:${sfondo}`);
+    if (grassetto) parti2.push("font-weight:600");
+    if (tenue) parti2.push("opacity:.65");
+    return parti2.join(";");
+  };
+  const apri = () => {
+    const s = stile();
+    if (s === "") return;
+    fuori += `<span style="${s}">`;
+    aperti += 1;
+  };
+  const chiudi = () => {
+    while (aperti > 0) {
+      fuori += "</span>";
+      aperti -= 1;
+    }
+  };
+  const parti = grezzo.split(/\[/);
+  fuori += esc(parti[0] ?? "");
+  for (let i = 1; i < parti.length; i += 1) {
+    const pezzo = parti[i] ?? "";
+    const fine = /[a-zA-Z]/.exec(pezzo);
+    if (fine === null) {
+      fuori += esc(pezzo);
+      continue;
+    };
+    const comando = pezzo[fine.index];
+    const codici = pezzo.slice(0, fine.index);
+    const resto = pezzo.slice(fine.index + 1);
+    if (comando === "m") {
+      chiudi();
+      const numeri = codici === "" ? [0] : codici.split(";").map((n) => Number.parseInt(n, 10) || 0);
+      for (let k = 0; k < numeri.length; k += 1) {
+        const n = numeri[k];
+        if (n === 0) {
+          colore = "";
+          sfondo = "";
+          grassetto = false;
+          tenue = false;
+        } else if (n === 1) grassetto = true;
+        else if (n === 2) tenue = true;
+        else if (n === 22) {
+          grassetto = false;
+          tenue = false;
+        } else if (n === 39) colore = "";
+        else if (n === 49) sfondo = "";
+        else if (n >= 30 && n <= 37) colore = COLORI[n - 30];
+        else if (n >= 90 && n <= 97) colore = COLORI[n - 90 + 8];
+        else if (n >= 40 && n <= 47) sfondo = COLORI[n - 40];
+        else if (n >= 100 && n <= 107) sfondo = COLORI[n - 100 + 8];
+        else if ((n === 38 || n === 48) && numeri[k + 1] === 5) {
+          const indice = numeri[k + 2] ?? 0;
+          const scelto = indice < 16 ? COLORI[indice] : indice < 232 ? COLORI[8 + indice % 8] : indice < 244 ? COLORI[8] : COLORI[15];
+          if (n === 38) colore = scelto;
+          else sfondo = scelto;
+          k += 2;
+        }
+      };
+      apri();
+    };
+    fuori += esc(resto);
+  };
+  chiudi();
+  return fuori;
+}
 
 const CHIAVE = 'sierradeck.chiave'
 let chiave = localStorage.getItem(CHIAVE) || ''
@@ -258,16 +137,16 @@ async function chiedi(percorso, corpo) {
 }
 
 function ingresso(messaggio) {
-  app.innerHTML = \`
+  app.innerHTML = `
     <div class="ingresso">
-      ${LOGO}
+      <img alt="" width="56" height="56" style="margin-bottom:10px" src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20512%20512%22%3E%3Crect%20width%3D%22512%22%20height%3D%22512%22%20fill%3D%22%230b0c0e%22%2F%3E%3Cpath%20d%3D%22M268%2092%20L392%20306%20L268%20306%20Z%22%20fill%3D%22%23dfe3e7%22%2F%3E%3Cpath%20d%3D%22M268%2092%20L132%20306%20L268%20306%20Z%22%20fill%3D%22%237d858d%22%2F%3E%3Cpath%20d%3D%22M132%20306%20L268%20306%20L200%20412%20Z%22%20fill%3D%22%23525a62%22%2F%3E%3Cpath%20d%3D%22M268%20306%20L392%20306%20L326%20412%20Z%22%20fill%3D%22%23363d44%22%2F%3E%3Cpath%20d%3D%22M200%20412%20L326%20412%20L268%20306%20Z%22%20fill%3D%22%23252b31%22%2F%3E%3Cpath%20d%3D%22M268%2092%20L312%20168%20L268%20168%20Z%22%20fill%3D%22%2354c07a%22%2F%3E%3C%2Fsvg%3E">
       <div style="font-size:19px;margin-bottom:6px">SierraDeck</div>
       <div class="sotto">Sul computer apri <b>Impostazioni → Client</b> e leggi il codice.</div>
       <input id="codice" inputmode="numeric" maxlength="6" placeholder="······" aria-label="codice">
       <input id="nome" placeholder="nome di questo dispositivo" style="font-size:15px;letter-spacing:normal">
       <button class="primario" id="entra" style="margin-top:12px">Collega</button>
-      <div class="errore" id="errore">\${esc(messaggio || '')}</div>
-    </div>\`
+      <div class="errore" id="errore">${esc(messaggio || '')}</div>
+    </div>`
   document.getElementById('entra').onclick = async () => {
     const codice = document.getElementById('codice').value.trim()
     const nome = document.getElementById('nome').value.trim() || 'telefono'
@@ -319,52 +198,52 @@ function pannello(s) {
   const criteriTot = aps.reduce((t, a) => t + (a.criteri || 0), 0)
   const criteriFatti = aps.reduce((t, a) => t + (a.fatti || 0), 0)
   const avanzamento = criteriTot ? Math.round(criteriFatti / criteriTot * 100) : 0
-  const panoramica = \`
+  const panoramica = `
     <div class="piastrella panoramica">
       <div class="numeri">
-        <div class="numero"><b>\${(s.chat || []).length}</b><span>chat</span></div>
-        <div class="numero"><b class="v">\${alLavoro}</b><span>al lavoro</span></div>
-        <div class="numero"><b class="\${inAttesa ? 'a' : ''}">\${inAttesa}</b><span>ti aspettano</span></div>
-        <div class="numero"><b>\${finiti}</b><span>finiti</span></div>
+        <div class="numero"><b>${(s.chat || []).length}</b><span>chat</span></div>
+        <div class="numero"><b class="v">${alLavoro}</b><span>al lavoro</span></div>
+        <div class="numero"><b class="${inAttesa ? 'a' : ''}">${inAttesa}</b><span>ti aspettano</span></div>
+        <div class="numero"><b>${finiti}</b><span>finiti</span></div>
       </div>
-      \${criteriTot ? '<div class="barra"><i style="width:' + avanzamento + '%"></i></div>' +
+      ${criteriTot ? '<div class="barra"><i style="width:' + avanzamento + '%"></i></div>' +
         '<div class="sotto" style="margin-top:6px">' + criteriFatti + ' criteri su ' + criteriTot + ' — ' + avanzamento + '%</div>' : ''}
-    </div>\`
+    </div>`
 
-  const domande = (s.domande || []).map((d) => \`
+  const domande = (s.domande || []).map((d) => `
     <div class="piastrella chiede">
       <div class="titolo">Ti stanno chiedendo una cosa</div>
-      <div class="sotto">\${esc(d.testo)}</div>
+      <div class="sotto">${esc(d.testo)}</div>
       <div class="riga">
-        <textarea id="r-\${esc(d.id)}" rows="2" placeholder="la tua risposta"></textarea>
+        <textarea id="r-${esc(d.id)}" rows="2" placeholder="la tua risposta"></textarea>
       </div>
-      <div class="riga"><button class="primario" onclick="rispondi('\${esc(d.id)}')">Rispondi</button></div>
-    </div>\`).join('')
+      <div class="riga"><button class="primario" onclick="rispondi('${esc(d.id)}')">Rispondi</button></div>
+    </div>`).join('')
 
   const autopiloti = (s.autopiloti || []).map((a) => {
     const dentro = dentroAp === a.id && apDettaglio ? vistaAutopilota(apDettaglio) : ''
-    return \`
+    return `
     <div class="piastrella">
-      <div class="titolo"><span class="led \${led(a.stato)}"></span>\${esc(a.nome)}</div>
-      <div class="sotto">\${esc(a.strategia ? 'bloccato, provo: ' + a.strategia : a.stato)} · \${a.fatti}/\${a.criteri} criteri · \${a.cicli} interventi</div>
-      <div class="barra"><i style="width:\${a.criteri ? Math.round(a.fatti / a.criteri * 100) : 0}%"></i></div>
-      \${dentro}
+      <div class="titolo"><span class="led ${led(a.stato)}"></span>${esc(a.nome)}</div>
+      <div class="sotto">${esc(a.strategia ? 'bloccato, provo: ' + a.strategia : a.stato)} · ${a.fatti}/${a.criteri} criteri · ${a.cicli} interventi</div>
+      <div class="barra"><i style="width:${a.criteri ? Math.round(a.fatti / a.criteri * 100) : 0}%"></i></div>
+      ${dentro}
       <div class="riga">
-        \${a.stato === 'lavoro' || a.stato === 'attesa'
-          ? '<button onclick="fermaAp(\\'' + esc(a.id) + '\\')">Ferma</button>'
-          : '<button onclick="riprendiAp(\\'' + esc(a.id) + '\\')">Riprendi</button>'}
-        \${dentroAp === a.id
+        ${a.stato === 'lavoro' || a.stato === 'attesa'
+          ? '<button onclick="fermaAp(\'' + esc(a.id) + '\')">Ferma</button>'
+          : '<button onclick="riprendiAp(\'' + esc(a.id) + '\')">Riprendi</button>'}
+        ${dentroAp === a.id
           ? '<button onclick="chiudiAp()">Basta guardare</button>'
-          : '<button onclick="guardaAp(\\'' + esc(a.id) + '\\')">Guarda dentro</button>'}
+          : '<button onclick="guardaAp(\'' + esc(a.id) + '\')">Guarda dentro</button>'}
       </div>
-    </div>\`
+    </div>`
   }).join('')
 
-  const chat = (s.chat || []).map((c) => \`
+  const chat = (s.chat || []).map((c) => `
     <div class="piastrella">
-      <div class="titolo">\${esc(c.titolo)}</div>
-      <div class="sotto">\${esc(c.cwd)}</div>
-      \${dentro === c.id
+      <div class="titolo">${esc(c.titolo)}</div>
+      <div class="sotto">${esc(c.cwd)}</div>
+      ${dentro === c.id
         ? '<div class="dentro">' + (righeGrezze.length
             // Vestite: il verde di un test passato e il rosso di uno fallito
             // sono meta' di quello che dice come sta andando.
@@ -373,32 +252,32 @@ function pannello(s) {
             : 'Ancora niente da mostrare.') + '</div>'
         : (c.ultimaRiga ? '<div class="battito">' + esc(c.ultimaRiga) + '</div>' : '')}
       <div class="riga">
-        <input id="t-\${esc(c.id)}" placeholder="scrivi qui e invia">
-        <button onclick="scrivi('\${esc(c.id)}')">Invia</button>
+        <input id="t-${esc(c.id)}" placeholder="scrivi qui e invia">
+        <button onclick="scrivi('${esc(c.id)}')">Invia</button>
       </div>
       <div class="riga">
-        \${dentro === c.id
+        ${dentro === c.id
           ? '<button onclick="chiudiDentro()">Basta guardare</button>'
-          : '<button onclick="guarda(\\'' + esc(c.id) + '\\')">Guarda dentro</button>'}
+          : '<button onclick="guarda(\'' + esc(c.id) + '\')">Guarda dentro</button>'}
       </div>
-    </div>\`).join('')
+    </div>`).join('')
 
   // Aprire non distrugge niente: nel peggiore dei casi resta un riquadro in
   // piu' da chiudere al computer. Ed e' la differenza fra guardare da fuori e
   // poter cominciare qualcosa da fuori.
   const nuova = cartelle === null || delegando
     ? '<div class="piastrella"><div class="riga"><button onclick="scegliCartella()">Apri una chat nuova</button></div></div>'
-    : \`<div class="piastrella">
+    : `<div class="piastrella">
          <div class="titolo">In quale cartella?</div>
          <div class="sotto">Solo quelle che Claude Code conosce gia'.</div>
-         \${cartelle.length === 0 ? '<div class="sotto" style="margin-top:8px">Nessuna cartella conosciuta.</div>' : ''}
-         \${cartelle.map((c, i) =>
+         ${cartelle.length === 0 ? '<div class="sotto" style="margin-top:8px">Nessuna cartella conosciuta.</div>' : ''}
+         ${cartelle.map((c, i) =>
            // Per indice, non per percorso: un percorso di Windows dentro
            // un onclick vorrebbe dire raddoppiare i backslash e sperare che
            // non contenga apici. L'indice non ha niente da sfuggire.
            '<button class="cartella" onclick="apriIn(' + i + ')">' + esc(c) + '</button>').join('')}
          <div class="riga"><button onclick="cartelle = null; pannello(ultimoStato)">Lascia stare</button></div>
-       </div>\`
+       </div>`
 
   // Affidare un lavoro. È il gesto che ha più senso da fermi, in piedi, con una
   // mano sola: si dice cosa si vuole e si va, e le domande della preparazione
@@ -406,14 +285,14 @@ function pannello(s) {
   // sarebbe il modo più sicuro per non delegare mai niente da un telefono.
   const delega = !delegando
     ? '<div class="piastrella"><div class="riga"><button onclick="apriDelega()">Affida un lavoro</button></div></div>'
-    : \`<div class="piastrella chiede">
+    : `<div class="piastrella chiede">
          <div class="titolo">Cosa vuoi che faccia?</div>
          <div class="sotto">Descrivilo con parole tue. Ti farà le domande che gli servono, qui.</div>
          <div class="riga">
            <textarea id="delega-obiettivo" rows="3" placeholder="es. trova e sistema i test che falliscono a caso"></textarea>
          </div>
          <div class="sotto" style="margin-top:10px">In quale cartella?</div>
-         \${(cartelle || []).length === 0
+         ${(cartelle || []).length === 0
            ? '<div class="sotto" style="margin-top:8px">Nessuna cartella conosciuta.</div>'
            : (cartelle || []).map((c, i) =>
                '<button class="cartella' + (delegaCartella === i ? ' attivo' : '') + '" onclick="scegliPer(' + i + ')">' + esc(c) + '</button>').join('')}
@@ -421,10 +300,10 @@ function pannello(s) {
            <button class="primario" onclick="affida()">Affida</button>
            <button onclick="delegando = false; delegaCartella = -1; pannello(ultimoStato)">Lascia stare</button>
          </div>
-       </div>\`
+       </div>`
 
-  const ws = (s.workspace && s.workspace.nomi || []).map((n) => \`
-    <button class="\${n === s.workspace.attivo ? 'attivo' : ''}" onclick="vaiA('\${esc(n)}')">\${esc(n)}</button>\`).join('')
+  const ws = (s.workspace && s.workspace.nomi || []).map((n) => `
+    <button class="${n === s.workspace.attivo ? 'attivo' : ''}" onclick="vaiA('${esc(n)}')">${esc(n)}</button>`).join('')
 
   // Chi arriva da un telefono Android puo' avere l'app, che sa fare una cosa
   // che il browser non puo': avvisare quando e' chiusa. Si dice una volta e si
@@ -432,14 +311,14 @@ function pannello(s) {
   const suAndroid = /Android/i.test(navigator.userAgent)
   const inApp = /SierraDeck/i.test(navigator.userAgent) || window.matchMedia('(display-mode: standalone)').matches
   const invito = suAndroid && !inApp && !localStorage.getItem('sierradeck.nienteapp') && appAndroid.versione
-    ? \`<div class="piastrella chiede">
+    ? `<div class="piastrella chiede">
          <div class="titolo">C’è l’app per Android</div>
          <div class="sotto">Avvisa anche quando è chiusa: il browser, su una rete di casa, non può farlo.</div>
          <div class="riga">
-           <a class="tasto-link" href="\${esc(appAndroid.url)}" download>Scarica l’app \${esc(appAndroid.versione)}</a>
+           <a class="tasto-link" href="${esc(appAndroid.url)}" download>Scarica l’app ${esc(appAndroid.versione)}</a>
            <button onclick="localStorage.setItem('sierradeck.nienteapp','1'); aggiorna()">No, grazie</button>
          </div>
-       </div>\`
+       </div>`
     : ''
 
   // Quello che c'era nei campi si conserva e si rimette: un ridisegno che
@@ -449,18 +328,18 @@ function pannello(s) {
     if (campo.id && campo.value) scritti[campo.id] = campo.value
   }
 
-  app.innerHTML = \`
-    <header><b>SIERRADECK</b><span>\${(s.chat || []).length} chat · \${(s.autopiloti || []).length} autopiloti</span></header>
+  app.innerHTML = `
+    <header><b>SIERRADECK</b><span>${(s.chat || []).length} chat · ${(s.autopiloti || []).length} autopiloti</span></header>
     <main>
-      \${invito}
-      \${panoramica}
-      \${domande}
-      \${ws ? '<div class="piastrella"><div class="titolo">Workspace</div><div class="ws" style="margin-top:10px">' + ws + '</div></div>' : ''}
-      \${autopiloti || ''}
-      \${chat || (autopiloti ? '' : '<div class="vuoto">Nessuna chat aperta sul computer.</div>')}
-      \${nuova}
-      \${delega}
-    </main>\`
+      ${invito}
+      ${panoramica}
+      ${domande}
+      ${ws ? '<div class="piastrella"><div class="titolo">Workspace</div><div class="ws" style="margin-top:10px">' + ws + '</div></div>' : ''}
+      ${autopiloti || ''}
+      ${chat || (autopiloti ? '' : '<div class="vuoto">Nessuna chat aperta sul computer.</div>')}
+      ${nuova}
+      ${delega}
+    </main>`
 
   for (const id in scritti) {
     const campo = document.getElementById(id)
@@ -633,7 +512,7 @@ async function accoppiaDalQr() {
   // Il backslash va raddoppiato: questo testo vive dentro un template
   // JavaScript, e scritto una volta sola arriverebbe alla pagina come la
   // lettera «d» — la scansione del QR non accoppierebbe niente.
-  const trovato = /codice=(\\d{6})/.exec(location.hash)
+  const trovato = /codice=(\d{6})/.exec(location.hash)
   if (!trovato) return false
   history.replaceState(null, '', location.pathname)
   const r = await fetch('/api/accoppia', {
@@ -751,7 +630,3 @@ aggiorna()
 // Due secondi: abbastanza da sembrare vivo, abbastanza poco da non tenere sveglia
 // la radio del telefono per niente.
 setInterval(() => { if (chiave && !document.hidden) aggiorna() }, 2000)
-</script>
-</body>
-</html>`
-}

@@ -3,7 +3,7 @@ import type { Anteprima } from '../../main/anteprima'
 import type { Autopilota } from '@shared/autopilota'
 import { LARGHEZZA_DIARIO } from '@shared/preferenze'
 import { diario } from '../diario-autopilota'
-import { ledDi, misuraPasso, passaggi } from '../autopilota-vista'
+import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
 
 function ora(iso: string): string {
   const d = new Date(iso)

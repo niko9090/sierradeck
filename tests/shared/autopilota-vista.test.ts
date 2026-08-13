@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { descriviAutopilota, ledDi, misuraPasso, passaggi } from '../../src/renderer/autopilota-vista'
+import { descriviAutopilota, ledDi, misuraPasso, passaggi } from '../../src/shared/autopilota-vista'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 
 function ap(over: Partial<Autopilota> = {}): Autopilota {
