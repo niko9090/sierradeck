@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.21',
+    righe: [
+      '**L’autopilota restava a zero cicli nella chat che aveva preso in prestito.** Prendersi una chat già aperta non bastava: l’aggancio che le fa dire «ho finito di rispondere» si mette **quando il terminale nasce**, e quella era nata prima. Il compito arrivava, la chat lavorava, e l’autopilota aspettava un segnale che non sarebbe mai arrivato — fermo per sempre, con l’aria di stare lavorando.',
+      'Adesso adottare una chat la fa rinascere con i suoi agganci, riprendendo la conversazione da dove stava: quella è su disco e non si perde niente.'
+    ]
+  },
+  {
     versione: '0.9.20',
     righe: [
       '**Dal telefono si vede e si governa anche il resto**: i consumi di oggi, della settimana e del mese; il quaderno con le schede che l’autopilota lascia accanto al codice; lo stile della console e il chiarore, che cambiano il computer **e** il telefono nello stesso istante; e l’aggiornamento del computer — a che punto è, scaricarlo, installarlo.',

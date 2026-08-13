@@ -297,3 +297,43 @@ describe('la chat che c e gia', () => {
     expect(b.scritti.map((s) => s.ptyId)).toContain('pty-sua')
   })
 })
+
+describe('la chat adottata deve diventare governata', () => {
+  it('la fa rinascere, invece di scriverci dentro e basta', () => {
+    // Il difetto trovato sul campo: l'hook che dice all'autopilota «la chat ha
+    // finito di rispondere» si attacca **quando il terminale nasce**. Una chat
+    // gia' aperta non ce l'ha: il compito arrivava, la chat lavorava, e
+    // l'autopilota restava a zero cicli in attesa di un segnale che non
+    // sarebbe mai arrivato. Adottare vuol dire far rinascere il terminale con
+    // i suoi hook - la conversazione resta, e' su disco.
+    const rinati: string[] = []
+    const b = banco({ 'sess-1': { paneId: 'p-1', ptyId: 'pty-1' } })
+    b.ponte.adottabile = () => ({ paneId: 'p-2', ptyId: 'pty-2' })
+    b.ponte.adotta = (paneId) => { rinati.push(paneId) }
+    // La sua chat non c'e': si adotta quella aperta.
+    delete b.riquadri['sess-1']
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
+    expect(rinati).toEqual(['p-2'])
+  })
+})
+
+describe('dopo l adozione, il terminale e un altro', () => {
+  it('non scrive in quello che e stato ucciso', () => {
+    // Adottare fa rinascere il terminale: quello di prima non c'e' piu, e
+    // scriverci dentro manderebbe il compito a un processo morto - in silenzio.
+    const b = banco()
+    let terminale: string | undefined = 'pty-vecchio'
+    b.ponte.adottabile = () => ({ paneId: 'p-2', ptyId: 'pty-vecchio' })
+    b.ponte.adotta = () => { terminale = undefined }
+    b.ponte.terminaleDi = () => terminale
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
+    b.scadi()
+    // Nessuno scrive: il terminale nuovo non e ancora nato.
+    expect(b.scritti).toEqual([])
+    // Appena nasce, il compito ci arriva.
+    terminale = 'pty-nuovo'
+    b.scadi()
+    expect(b.scritti.map((s) => s.ptyId)).toContain('pty-nuovo')
+    expect(b.scritti.map((s) => s.ptyId)).not.toContain('pty-vecchio')
+  })
+})

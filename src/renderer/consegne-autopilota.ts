@@ -44,7 +44,18 @@ export type Ponte = {
    * si darebbero ordini a vicenda.
    */
   adottabile: (cwd: string, autopilotaId: string) => { paneId: string; ptyId?: string } | undefined
-  /** Segna che da adesso quella chat è di quell'autopilota. */
+  /**
+   * Prende una chat aperta e la fa diventare **sua**.
+   *
+   * Non basta segnarla: l'hook che dice all'autopilota «ho finito di
+   * rispondere» si attacca quando il terminale nasce, e una chat già aperta non
+   * ce l'ha. Senza, il compito arriva, la chat lavora, e l'autopilota resta a
+   * zero cicli aspettando un segnale che non arriverà mai — fermo per sempre,
+   * con l'aria di stare lavorando.
+   *
+   * Quindi il terminale rinasce, con i suoi hook e la sua conversazione: quella
+   * è su disco e si riprende, non si perde niente.
+   */
   adotta: (paneId: string, c: Consegna) => void
   /** Il terminale di un riquadro, quando è nato. */
   terminaleDi: (paneId: string) => string | undefined
@@ -141,10 +152,9 @@ export function eseguiConsegna(
     const ospite = ponte.adottabile(c.cwd, c.autopilotaId)
     if (ospite !== undefined) {
       ponte.adotta(ospite.paneId, c)
-      if (ospite.ptyId !== undefined && ponte.prontoARicevere(ospite.ptyId)) {
-        scriviEInvia(ospite.ptyId, c.testo, ponte, dopo)
-        return
-      }
+      // **Sempre l'attesa**, mai il terminale che c'era: adottare lo fa
+      // rinascere con i suoi hook, e quello di prima e' gia' morto. Scriverci
+      // dentro vorrebbe dire mandare il compito a un processo che non c'e'.
       attendiInQuesto(ospite.paneId, c, ponte, dopo, 0)
       return
     }
@@ -315,7 +325,16 @@ export function ponteReale(prontezza: (ptyId: string) => boolean): Ponte {
     },
 
     adotta: (paneId, c) => {
-      useLayoutStore.getState().assegnaAutopilota(paneId, { id: c.autopilotaId, chat: c.chatId })
+      const stato = useLayoutStore.getState()
+      stato.assegnaAutopilota(paneId, { id: c.autopilotaId, chat: c.chatId })
+      // E poi la si fa rinascere: il terminale riparte con gli hook
+      // dell'autopilota e riprende la sua conversazione da dove stava. Senza
+      // questo, il compito arriverebbe in una chat che non ha modo di dire
+      // «ho finito» — ed e' esattamente cosi' che due autopiloti sono rimasti
+      // a zero cicli per un pomeriggio.
+      const vecchio = stato.iberna(paneId)
+      if (vecchio !== undefined) window.gestore.pty.kill(vecchio)
+      stato.sveglia(paneId)
     },
 
     apri: (c) =>
