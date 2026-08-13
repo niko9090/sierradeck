@@ -23,8 +23,10 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
-    versione: '0.9.15',
+    versione: '0.9.16',
     righe: [
+      '**Il compito adesso parte, e se non parte si riprova.** Restava nel campo della chat, con l’autopilota ad aspettare una risposta che nessuno stava scrivendo. Tre precauzioni, ognuna provata su un terminale vero: il testo si dichiara come incollato — così i suoi a capo restano a capo e l’invio non diventa l’ennesima riga; l’invio aspetta che il terminale abbia finito di disegnare, invece di un decimo di secondo fisso; e dopo l’invio si guarda se la chat è partita davvero, premendo di nuovo se è rimasta ferma.',
+      '**La fascia dei comandi non esce più dalla finestra.** Misurata: a schermo intero occupava 1996 pixel contro i 1904 disponibili, e «Autopiloti» restava oltre il bordo; stringendo la finestra restavano fuori quattordici comandi su ventiquattro, irraggiungibili. Adesso è la sezione dei workspace a cedere — sono tanti e si raggiungono scorrendo — mentre gli altri comandi restano dove la mano li cerca.',
       '**Il compito non partiva perché veniva scritto un decimo di secondo troppo presto.** L’app aspettava quattro secondi fissi che la chat nascesse, e su questo progetto Claude Code è pronto dopo quattro secondi e un decimo: il testo entrava nel campo e l’invio si perdeva. Adesso non si contano i secondi — si aspetta che il terminale abbia disegnato il suo prompt e abbia smesso di scrivere, quanto tempo ci voglia lo dice lui. Provato su un terminale vero: a due secondi il messaggio non parte, a sei sì, e il numero giusto non esiste.',
       '**Il pannello dell’autopilota torna sulla chat principale.** Sceglieva per ordine di identificativo del riquadro — un ordine che non vuol dire niente per chi guarda — e saltava via dalla chat principale per comparire in un’altra. Adesso segue l’ordine dell’autopilota: la prima delle sue chat.',
       '**Una chat sola è il caso normale.** L’autopilota spezzava il lavoro perché gli era stato chiesto di spezzarlo: il tetto che gli dai è un permesso, non un traguardo. Dentro una conversazione può già lanciare i suoi agenti, e ne apre un’altra solo quando il lavoro ha parti che devono procedere per strade separate. Nel dubbio, una.',

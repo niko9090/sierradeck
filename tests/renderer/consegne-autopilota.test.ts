@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest'
 import { eseguiConsegna, type Consegna, type Ponte } from '../../src/renderer/consegne-autopilota'
 
 const INVIO = String.fromCharCode(13)
+const APRI = '[200~'
+const CHIUDI = '[201~'
+/** Il testo com'e' che arriva al terminale: dichiarato come incollato. */
+const incollato = (t: string): string => APRI + t + CHIUDI
 const CTRL_C = String.fromCharCode(3)
 
 const consegna = (over: Partial<Consegna> = {}): Consegna => ({
@@ -16,10 +20,18 @@ const consegna = (over: Partial<Consegna> = {}): Consegna => ({
   ...over
 })
 
-function banco(riquadri: Record<string, { paneId: string; ptyId?: string }> = {}, pronto = true) {
+function banco(
+  riquadri: Record<string, { paneId: string; ptyId?: string }> = {},
+  pronto = true,
+  /** Come nella realta': ricevuto l'invio la chat si mette a lavorare, e
+      smette di essere «pronta a ricevere». Con `false` resta ferma, che e' il
+      difetto contro cui esiste il ritentativo. */
+  parteDavvero = true
+) {
   const scritti: { ptyId: string; testo: string }[] = []
   const aperti: Consegna[] = []
   const rinviati: (() => void)[] = []
+  let partita = false
   const ponte: Ponte = {
     riquadroDi: (s) => riquadri[s],
     apri: (c) => {
@@ -28,10 +40,13 @@ function banco(riquadri: Record<string, { paneId: string; ptyId?: string }> = {}
       riquadri[c.sessionId] = { paneId: 'p-nuovo' }
       return 'p-nuovo'
     },
-    scrivi: (ptyId, testo) => { scritti.push({ ptyId, testo }) },
+    scrivi: (ptyId, testo) => {
+      scritti.push({ ptyId, testo })
+      if (testo === INVIO) partita = true
+    },
     // Nel banco il terminale ascolta sempre: quando *non* ascolta lo dice il
     // suo test, in ultime-righe.
-    prontoARicevere: () => pronto
+    prontoARicevere: () => (partita && parteDavvero ? false : pronto)
   }
   const dopo = (_ms: number, cosa: () => void): void => { rinviati.push(cosa) }
   // Far scadere un'attesa puo' aprirne un'altra - il testo prima, l'invio
@@ -53,7 +68,7 @@ describe('portare un istruzione dentro una chat', () => {
     eseguiConsegna(consegna(), b.ponte, b.dopo)
     b.scadi()
     expect(b.scritti).toEqual([
-      { ptyId: 'pty-1', testo: 'continua da dove eri' },
+      { ptyId: 'pty-1', testo: incollato('continua da dove eri') },
       { ptyId: 'pty-1', testo: INVIO }
     ])
     expect(b.aperti).toEqual([])
@@ -77,7 +92,7 @@ describe('portare un istruzione dentro una chat', () => {
     b.riquadri['sess-1'] = { paneId: 'p-nuovo', ptyId: 'pty-9' }
     b.scadi()
     expect(b.scritti).toEqual([
-      { ptyId: 'pty-9', testo: 'continua da dove eri' },
+      { ptyId: 'pty-9', testo: incollato('continua da dove eri') },
       { ptyId: 'pty-9', testo: INVIO }
     ])
   })
@@ -98,7 +113,7 @@ describe('portare un istruzione dentro una chat', () => {
     b.riquadri['sess-1'] = { paneId: 'p-1', ptyId: 'pty-1' }
     b.scadi()
     // Una consegna sola: il testo e il suo invio, non due messaggi.
-    expect(b.scritti.map((x) => x.testo)).toEqual(['continua da dove eri', INVIO])
+    expect(b.scritti.map((x) => x.testo)).toEqual([incollato('continua da dove eri'), INVIO])
   })
 
   it('se la chat non nasce, non scrive nel vuoto', () => {
@@ -133,8 +148,8 @@ describe('l invio che non arrivava', () => {
     const b = banco({ 'sess-1': { paneId: 'p-1', ptyId: 'pty-1' } })
     eseguiConsegna(consegna({ testo: 'prima riga\nseconda riga' }), b.ponte, b.dopo)
 
-    // Prima il testo, senza invio appiccicato.
-    expect(b.scritti).toEqual([{ ptyId: 'pty-1', testo: 'prima riga\nseconda riga' }])
+    // Prima il testo, dichiarato come incollato e senza invio appiccicato.
+    expect(b.scritti).toEqual([{ ptyId: 'pty-1', testo: incollato('prima riga\nseconda riga') }])
     // L'invio arriva staccato, quando l'incollaggio e' finito.
     b.scadi()
     expect(b.scritti[1]).toEqual({ ptyId: 'pty-1', testo: INVIO })
@@ -145,7 +160,7 @@ describe('l invio che non arrivava', () => {
     eseguiConsegna(consegna(), b.ponte, b.dopo)
     b.riquadri['sess-1'] = { paneId: 'p-nuovo', ptyId: 'pty-9' }
     b.scadi()
-    expect(b.scritti.map((s) => s.testo)).toEqual(['continua da dove eri', INVIO])
+    expect(b.scritti.map((s) => s.testo)).toEqual([incollato('continua da dove eri'), INVIO])
   })
 })
 
@@ -165,6 +180,35 @@ describe('aspettare che la chat sia pronta a ricevere', () => {
     const b = banco({ 'sess-1': { paneId: 'p-1', ptyId: 'pty-1' } })
     eseguiConsegna(consegna(), b.ponte, b.dopo)
     b.scadi()
-    expect(b.scritti.map((s) => s.testo)).toEqual(['continua da dove eri', INVIO])
+    expect(b.scritti.map((s) => s.testo)).toEqual([incollato('continua da dove eri'), INVIO])
+  })
+})
+
+describe('quando l invio non basta', () => {
+  it('se la chat resta ferma, preme di nuovo', () => {
+    // Il difetto peggiore visto sul campo: il compito scritto nel campo, la
+    // chat ferma, e l'autopilota che aspetta una risposta che nessuno sta
+    // scrivendo. Se dopo l'invio la chat e' ancora li' che ascolta, l'invio
+    // non e' arrivato dove doveva.
+    const b = banco({ 'sess-1': { paneId: 'p-1', ptyId: 'pty-1' } }, true, false)
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
+    b.scadi()
+    const invii = b.scritti.filter((s) => s.testo === INVIO)
+    expect(invii.length).toBeGreaterThan(1)
+  })
+
+  it('ma non all infinito: dopo qualche tentativo lo dice', () => {
+    const b = banco({ 'sess-1': { paneId: 'p-1', ptyId: 'pty-1' } }, true, false)
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
+    b.scadi()
+    const invii = b.scritti.filter((s) => s.testo === INVIO)
+    expect(invii.length).toBeLessThanOrEqual(4)
+  })
+
+  it('quando parte, non insiste', () => {
+    const b = banco({ 'sess-1': { paneId: 'p-1', ptyId: 'pty-1' } })
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
+    b.scadi()
+    expect(b.scritti.filter((s) => s.testo === INVIO)).toHaveLength(1)
   })
 })

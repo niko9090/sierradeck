@@ -62,6 +62,23 @@ const INVIO = String.fromCharCode(13)
 export const PAUSA_INVIO_MS = 200
 
 /**
+ * I marcatori con cui un terminale dice «questo è testo incollato».
+ *
+ * Fra i due, il terminale sa che quello che arriva non è qualcuno che digita:
+ * gli a capo restano a capo, e l'invio che viene dopo la chiusura è un invio
+ * vero. Senza, un compito di cinquemila caratteri che arriva a pezzi si
+ * confonde con una digitazione, e il suo invio diventa l'ennesima riga.
+ */
+const INIZIO_INCOLLA = '[200~'
+const FINE_INCOLLA = '[201~'
+
+/** Dopo quanto si guarda se l'invio è servito. */
+export const CONTROLLO_INVIO_MS = 2500
+
+/** Quante volte si riprova a premere invio prima di dirlo. */
+export const TENTATIVI_INVIO = 3
+
+/**
  * Ogni quanto si torna a vedere se la chat è pronta a ricevere.
  *
  * Prima erano quattro secondi fissi, e su un progetto con degli hook e una
@@ -143,15 +160,69 @@ function attendiEConsegna(
   })
 }
 
-/** Il testo, e un istante dopo l'invio: due gesti, non un blocco solo. */
+/**
+ * Il testo, e poi l'invio — con tre precauzioni, ognuna imparata sul campo.
+ *
+ * 1. **Il testo si dichiara come incollato**, fra i marcatori con cui un
+ *    terminale annuncia un incollaggio. Senza, un testo lungo che arriva a
+ *    pezzi si confonde con qualcuno che digita, e l'invio finale diventa un
+ *    altro a capo dentro il campo.
+ * 2. **L'invio aspetta la quiete**, non un tempo: cinquemila caratteri in un
+ *    riquadro vero si disegnano in più di un decimo di secondo, e quanto ci
+ *    mettano dipende dalla finestra, non da noi.
+ * 3. **Se non è partito, si riprova.** È la precauzione che rende il resto
+ *    superfluo: dopo l'invio si guarda se la chat ha reagito, e se è rimasta
+ *    ferma con il compito nel campo si preme di nuovo. Tre volte, poi si
+ *    smette e lo si dice — meglio un errore che una chat ferma in silenzio.
+ */
 function scriviEInvia(
   ptyId: string,
   testo: string,
   ponte: Ponte,
   dopo: (ms: number, cosa: () => void) => void
 ): void {
-  ponte.scrivi(ptyId, testo)
-  dopo(PAUSA_INVIO_MS, () => { ponte.scrivi(ptyId, INVIO) })
+  ponte.scrivi(ptyId, `${INIZIO_INCOLLA}${testo}${FINE_INCOLLA}`)
+  premiInvio(ptyId, ponte, dopo, 0)
+}
+
+/**
+ * Preme invio quando il terminale ha finito di disegnare, e controlla che sia
+ * servito.
+ *
+ * Un autopilota che ha scritto senza mandare è il difetto peggiore di tutti:
+ * la chat resta ferma con il compito davanti, sembra che stia lavorando, e non
+ * sta facendo niente.
+ */
+function premiInvio(
+  ptyId: string,
+  ponte: Ponte,
+  dopo: (ms: number, cosa: () => void) => void,
+  tentativi: number
+): void {
+  dopo(PAUSA_INVIO_MS, () => {
+    // Il terminale sta ancora ridisegnando l'incollaggio: si lascia finire.
+    if (!ponte.prontoARicevere(ptyId)) {
+      if (tentativi >= TENTATIVI_INVIO * 10) return
+      premiInvio(ptyId, ponte, dopo, tentativi + 1)
+      return
+    }
+    ponte.scrivi(ptyId, INVIO)
+    dopo(CONTROLLO_INVIO_MS, () => {
+      // Se ha ricevuto l'invio, la chat si è messa a lavorare e sta scrivendo:
+      // «pronta a ricevere» torna falso. Se è ancora lì che aspetta, l'invio
+      // non è arrivato dove doveva.
+      if (!ponte.prontoARicevere(ptyId)) return
+      if (tentativi >= TENTATIVI_INVIO) {
+        console.error(
+          `[autopilota] il compito è nel campo della chat ma non parte,` +
+          ` dopo ${TENTATIVI_INVIO} tentativi di invio`
+        )
+        return
+      }
+      console.warn('[autopilota] la chat non è partita: premo invio di nuovo')
+      premiInvio(ptyId, ponte, dopo, tentativi + 1)
+    })
+  })
 }
 
 /**
