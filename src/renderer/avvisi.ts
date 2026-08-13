@@ -88,7 +88,12 @@ export function componiAvvisi(fonti: FontiAvvisi): Avviso[] {
     }]
   }
 
-  const inAttesa = fonti.autopiloti.filter((a) => a.stato === 'attesa' || a.stato === 'intervista')
+  // **Aspettare e prepararsi non sono la stessa cosa**, e contarli insieme
+  // faceva dire alla banda «aspetta una tua risposta» a chi non aveva ancora
+  // niente da chiedere: si premeva «Rispondi» e si trovava scritto «si sta
+  // preparando». Un avviso che manda dove non c'è niente da fare insegna a non
+  // fidarsi di quelli veri.
+  const inAttesa = fonti.autopiloti.filter((a) => a.stato === 'attesa')
   if (inAttesa.length > 0) {
     avvisi.push({
       id: 'domande',
@@ -98,6 +103,22 @@ export function componiAvvisi(fonti: FontiAvvisi): Avviso[] {
         : `${inAttesa.length} autopiloti aspettano una tua risposta.`,
       azione: 'apriDomanda',
       etichettaAzione: 'Rispondi'
+    })
+  }
+
+  // La preparazione si dice, perché è lì che nascono le domande e chi ha appena
+  // creato un autopilota vuole sapere che sta succedendo qualcosa. Ma con le
+  // parole giuste: non c'è niente da rispondere finché non chiede.
+  const inPreparazione = fonti.autopiloti.filter((a) => a.stato === 'intervista')
+  if (inPreparazione.length > 0) {
+    avvisi.push({
+      id: 'preparazione-autopiloti',
+      gravita: 'attenzione',
+      testo: inPreparazione.length === 1
+        ? `${inPreparazione[0]?.nome} si sta preparando: ti farà qualche domanda.`
+        : `${inPreparazione.length} autopiloti si stanno preparando.`,
+      azione: 'apriAutopiloti',
+      etichettaAzione: 'Vedi'
     })
   }
 
