@@ -106,21 +106,11 @@ export function componiAvvisi(fonti: FontiAvvisi): Avviso[] {
     })
   }
 
-  // La preparazione si dice, perché è lì che nascono le domande e chi ha appena
-  // creato un autopilota vuole sapere che sta succedendo qualcosa. Ma con le
-  // parole giuste: non c'è niente da rispondere finché non chiede.
-  const inPreparazione = fonti.autopiloti.filter((a) => a.stato === 'intervista')
-  if (inPreparazione.length > 0) {
-    avvisi.push({
-      id: 'preparazione-autopiloti',
-      gravita: 'attenzione',
-      testo: inPreparazione.length === 1
-        ? `${inPreparazione[0]?.nome} si sta preparando: ti farà qualche domanda.`
-        : `${inPreparazione.length} autopiloti si stanno preparando.`,
-      azione: 'apriAutopiloti',
-      etichettaAzione: 'Vedi'
-    })
-  }
+  // La preparazione **non** compare qui. È lavoro che procede da solo, e si
+  // guarda nel pannello dell'autopilota, che è il posto dove uno va quando
+  // vuole sapere a che punto è. La banda in cima ha un solo mestiere: dire che
+  // serve te. Riempirla di cose che vanno avanti per conto loro la trasforma in
+  // arredamento, e il giorno che chiede davvero qualcosa nessuno la legge.
 
   if (!fonti.servizioRaggiungibile) {
     avvisi.push({

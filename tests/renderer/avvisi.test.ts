@@ -155,44 +155,39 @@ describe('componiAvvisi — preparazione', () => {
 })
 
 
-describe('aspettare e prepararsi non sono la stessa cosa', () => {
+describe('la banda parla solo quando serve qualcuno', () => {
   const ap = (stato: string, nome: string): never =>
     ({ stato, nome, criteri: [], chats: [] }) as never
 
-  it('chi si prepara non dice di aspettare una risposta', () => {
-    // Contarli insieme faceva dire «aspetta una tua risposta» a chi non aveva
-    // ancora niente da chiedere: si premeva «Rispondi» e si trovava scritto
-    // «si sta preparando».
+  it('chi si prepara non compare in cima', () => {
+    // La preparazione e lavoro che procede da solo: si guarda nel pannello
+    // dell autopilota, che e il posto dove uno va quando vuole sapere a che
+    // punto e. Prima diceva «aspetta una tua risposta» a chi non aveva ancora
+    // niente da chiedere - si premeva «Rispondi» e si trovava «si sta
+    // preparando».
     const a = componiAvvisi({
       accesso: { autenticato: true },
       servizioRaggiungibile: true,
       autopiloti: [ap('intervista', 'notte')]
     })
-    expect(a.some((x) => x.id === 'domande')).toBe(false)
-    const suo = a.find((x) => x.id === 'preparazione-autopiloti')
-    expect(suo?.testo).toContain('si sta preparando')
-    // E il tasto porta dove c'è qualcosa da vedere, non dove non c'è niente
-    // da rispondere.
-    expect(suo?.azione).toBe('apriAutopiloti')
+    expect(a).toEqual([])
   })
 
-  it('chi aspetta davvero manda a rispondere', () => {
+  it('chi aspetta davvero una risposta si', () => {
     const a = componiAvvisi({
       accesso: { autenticato: true },
       servizioRaggiungibile: true,
       autopiloti: [ap('attesa', 'notte')]
     })
     expect(a.find((x) => x.id === 'domande')?.azione).toBe('apriDomanda')
-    expect(a.some((x) => x.id === 'preparazione-autopiloti')).toBe(false)
   })
 
-  it('i due insieme restano due righe distinte', () => {
-    const a = componiAvvisi({
+  it('un autopilota che lavora non e una notizia', () => {
+    // Una banda che si vede sempre smette di essere una banda.
+    expect(componiAvvisi({
       accesso: { autenticato: true },
       servizioRaggiungibile: true,
-      autopiloti: [ap('attesa', 'uno'), ap('intervista', 'due')]
-    })
-    expect(a.map((x) => x.id)).toContain('domande')
-    expect(a.map((x) => x.id)).toContain('preparazione-autopiloti')
+      autopiloti: [ap('lavoro', 'notte'), ap('finito', 'ieri')]
+    })).toEqual([])
   })
 })
