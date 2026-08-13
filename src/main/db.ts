@@ -225,28 +225,6 @@ export function scriviSessioni(db: Db, sessions: SessionSummary[]): void {
   })(sessions)
 }
 
-/**
- * Sostituisce l'intero contenuto dell'indice, in una transazione sola.
- *
- * L'indicizzazione faceva solo upsert: nessuna riga veniva mai rimossa, quindi
- * una sessione cancellata da disco restava nell'elenco per sempre e un
- * `index.db` costruito per aggiornamenti successivi conteneva righe diverse da
- * uno ricostruito da zero — il contrario del vincolo «cache interamente
- * ricostruibile dai .jsonl». Svuotare e riscrivere rende il percorso normale e
- * quello di ricostruzione **lo stesso percorso**, quindi non possono divergere.
- *
- * La transazione non e' un dettaglio di prestazioni: senza, un fallimento a
- * meta' lascerebbe l'utente con un elenco vuoto o mutilato al posto di quello
- * che aveva. Cosi' invece o entra tutto, o resta intatto cio' che c'era.
- */
-export function replaceAllSessions(db: Db, sessions: SessionSummary[]): void {
-  const sostituisci = db.transaction((righe: SessionSummary[]) => {
-    db.prepare('DELETE FROM sessions').run()
-    for (const s of righe) upsertSession(db, s)
-  })
-  sostituisci(sessions)
-}
-
 export function listSessions(
   db: Db,
   opts: { projectSlug?: string; limit?: number } = {}

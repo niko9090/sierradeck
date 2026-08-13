@@ -29,7 +29,7 @@
  * spazio aggiunto farebbe ricompilare per niente, e chi la alza qui sta anche
  * dicendo «ho cambiato qualcosa che conta».
  */
-export const VERSIONE_UPDATER = 10
+export const VERSIONE_UPDATER = 11
 
 export function sorgenteUpdater(): string {
   return `using System;
@@ -106,7 +106,11 @@ class Aggiornamento : Form {
             if (percorsoDiario != null) {
                 File.AppendAllText(percorsoDiario, DateTime.Now.ToString("HH:mm:ss") + " " + testo + Environment.NewLine);
             }
-        } catch { }
+        } catch {
+            // Il diario e la sola voce che questo programma ha: se non si puo
+            // scrivere, non c e nessun altro posto dove dirlo. Fallire qui non
+            // deve fermare un aggiornamento che per il resto sta andando bene.
+        }
     }
 
     [STAThread]
@@ -168,7 +172,10 @@ class Aggiornamento : Form {
         // tutto il programma e' l'unica cosa che si vede da laggiu'.
         try {
             Icon = System.Drawing.Icon.FromHandle(b.GetHicon());
-        } catch { }
+        } catch {
+            // Senza icona resta il rettangolo bianco di Windows: brutto, non
+            // grave. Un aggiornamento non si ferma per un ornamento.
+        }
 
         Label titolo = new Label();
         titolo.Text = "SIERRADECK UPDATE";
@@ -442,7 +449,11 @@ class Aggiornamento : Form {
                     Nota("chiudo a forza il processo " + p.Id + " (" + nome + ")");
                     p.Kill();
                 }
-            } catch { }
+            } catch {
+                // Un processo che sparisce fra l elenco e la chiusura: e
+                // esattamente quello che stiamo aspettando che succeda, e
+                // segnalarlo come guasto sarebbe segnalare un successo.
+            }
         }
         // Quante ne ha viste, scritto una volta sola: e' l'informazione che
         // mancava quando «ne ha chiusa una sola» e' rimasto un mistero.
