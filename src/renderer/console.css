@@ -32,6 +32,16 @@
   --rosso: #dc5f5f;
   --spento: #4a5058;
 
+  /* Gli altri grigi dello chassis. Stanno qui come ripiego — li veste
+     `tavolozza()` come tutti gli altri — e finiscono i trentadue valori che
+     il foglio di stile si scriveva a mano, fermi mentre il chiarore si
+     muoveva. */
+  --fondo-cupo: #0b0c0e;
+  --chassis-acceso: #33383d;
+  --primario: #3a4046;
+  --primario-alto: #4a5057;
+  --testo-spento: #6f767e;
+
   --fascia-h: 44px;
   --raggio: 4px;
 
@@ -43,6 +53,32 @@
   --separazione: 1px;
   --bordo: #131517;
   --rilievo: inset 0 1px 0 var(--luce-incisione);
+
+  /* Le cinque misure di testo e i quattro passi di spazio, sempre del banco:
+     senza questi il primo fotogramma avrebbe testi di dimensione ereditata e
+     margini a zero — una console che si assesta sotto gli occhi. */
+  --t0: 10px;
+  --t1: 11px;
+  --t2: 12px;
+  --t3: 14px;
+  --t4: 19px;
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 20px;
+
+  /* I materiali: la luce che cade sui bordi alti e l'ombra che i pannelli
+     proiettano. Erano ventidue trasparenze diverse decise una per una — e
+     due ombre che differiscono di cinque centesimi non sono due ombre, sono
+     la stessa ombra scritta due volte. */
+  --luce-tenue: rgba(255, 255, 255, 0.04);
+  --luce-viva: rgba(255, 255, 255, 0.07);
+  --ombra-corta: rgba(0, 0, 0, 0.45);
+  --ombra-media: rgba(0, 0, 0, 0.62);
+  --ombra-lunga: rgba(0, 0, 0, 0.78);
+  /* Il velo dietro una finestra modale: più fitto delle ombre, perché deve
+     spegnere quello che copre, non ombreggiarlo. */
+  --velo: rgba(6, 7, 8, 0.82);
 
   /* Decelerazione esponenziale: lo sportello di rack che si apre e si posa. */
   --uscita: cubic-bezier(0.16, 1, 0.3, 1);
@@ -57,7 +93,7 @@ body {
   background: var(--fondo);
   color: var(--testo);
   font-family: 'Segoe UI', system-ui, sans-serif;
-  font-size: 13px;
+  font-size: var(--t3);
   /* Il puntatore serve al terminale e ai divisori: fuori di lì niente
      selezione accidentale di etichette mentre si trascina un riquadro. */
   user-select: none;
@@ -73,8 +109,8 @@ body {
   /* Il filo di luce sul bordo alto e l'ombra sotto: la fascia è un pannello
      davanti al mosaico, non una striscia disegnata sopra. */
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 2px 6px rgba(0, 0, 0, 0.45);
+    inset 0 1px 0 var(--luce-tenue),
+    0 2px 6px var(--ombra-corta);
   position: relative;
   z-index: 10;
   flex: 0 0 auto;
@@ -84,8 +120,8 @@ body {
 .sezione {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 12px;
+  gap: var(--s2);
+  padding: 0 var(--s3);
   position: relative;
 }
 
@@ -115,7 +151,7 @@ body {
 /* La serigrafia: maiuscole tracciate, come stampate sul metallo. Vive solo
    sulle sezioni e sulle intestazioni dei pannelli. */
 .serigrafia {
-  font-size: 10px;
+  font-size: var(--t0);
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--testo-quieto);
@@ -126,35 +162,35 @@ body {
 
 .tasto {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--t2);
   color: var(--testo);
   background: var(--chassis-alto);
-  border: 1px solid #15181b;
-  border-top-color: #3d4348;
+  border: 1px solid var(--bordo);
+  border-top-color: var(--luce-incisione);
   border-radius: var(--raggio);
-  padding: 5px 10px;
+  padding: var(--s1) var(--s3);
   cursor: pointer;
   white-space: nowrap;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 1px 2px var(--ombra-corta);
 }
 
 .tasto:hover:not(:disabled) {
-  background: #33383d;
+  background: var(--chassis-acceso);
 }
 
 /* Premuto il tasto inverte: la luce viene da sopra, quindi un tasto affondato
    ha il bordo scuro in alto e non proietta ombra. */
 .tasto:active:not(:disabled) {
   background: var(--chassis-premuto);
-  border-top-color: #15181b;
+  border-top-color: var(--bordo);
   box-shadow: none;
   transform: translateY(1px);
 }
 
 .tasto:disabled {
-  color: #6b7178;
-  background: #24272a;
-  border-top-color: #2e3236;
+  color: var(--testo-spento);
+  background: var(--chassis);
+  border-top-color: var(--chassis-alto);
   box-shadow: none;
   cursor: default;
 }
@@ -168,28 +204,28 @@ body {
 .tasto[aria-pressed='true'],
 .tasto[aria-expanded='true'] {
   background: var(--chassis-premuto);
-  border-top-color: #15181b;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
-  color: #fff;
+  border-top-color: var(--bordo);
+  box-shadow: inset 0 1px 3px var(--ombra-corta);
+  color: var(--testo);
 }
 
 /* L'azione primaria si distingue per materiale, non per colore: più chiara e
    con un rilievo più netto. */
 .tasto--primario {
-  background: #3a4046;
-  border-top-color: #545c64;
+  background: var(--primario);
+  border-top-color: var(--primario-alto);
   font-weight: 600;
 }
 
 .tasto--primario:hover:not(:disabled) {
-  background: #444b52;
+  background: var(--primario-alto);
 }
 
 /* I preset di disposizione: quadratini, non parole. */
 .tasto--icona {
-  padding: 5px 8px;
+  padding: var(--s1) var(--s2);
   font-family: 'Cascadia Mono', 'Consolas', monospace;
-  font-size: 11px;
+  font-size: var(--t1);
 }
 
 /* ─────────────────────────── i LED ─────────────────────────── */
@@ -201,24 +237,24 @@ body {
   background: var(--spento);
   flex: 0 0 auto;
   /* Alone stretto: un LED vero illumina il proprio bordo, non mezza console. */
-  box-shadow: 0 0 3px rgba(0, 0, 0, 0.6) inset;
+  box-shadow: 0 0 3px var(--ombra-media) inset;
 }
 
 .led--lavoro {
   background: var(--verde);
-  box-shadow: 0 0 4px rgba(84, 192, 122, 0.7);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--verde) 70%, transparent);
 }
 
 .led--attesa {
   background: var(--ambra);
-  box-shadow: 0 0 4px rgba(224, 163, 60, 0.7);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--ambra) 70%, transparent);
   /* L'unico lampeggio dell'applicazione: un autopilota aspetta te. */
   animation: pulsa 1.6s ease-in-out infinite;
 }
 
 .led--fermo {
   background: var(--rosso);
-  box-shadow: 0 0 4px rgba(220, 95, 95, 0.6);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--rosso) 60%, transparent);
 }
 
 .led--finito {
@@ -237,7 +273,7 @@ body {
 .fila-led {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--s1);
 }
 
 /* ─────────────────────────── i pannelli ─────────────────────────── */
@@ -257,9 +293,9 @@ body {
   z-index: 9;
   background: var(--chassis);
   border: 1px solid var(--incisione);
-  border-radius: 10px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.62), 0 2px 8px rgba(0, 0, 0, 0.4);
-  padding: 14px 16px 16px;
+  border-radius: var(--raggio);
+  box-shadow: 0 24px 64px var(--ombra-media), 0 2px 8px var(--ombra-corta);
+  padding: var(--s3) var(--s4) var(--s4);
   overflow-y: auto;
   animation: comparsa 160ms var(--uscita);
 }
@@ -270,7 +306,7 @@ body {
   animation: none;
   user-select: none;
   cursor: grabbing;
-  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 28px 72px var(--ombra-media);
 }
 
 @keyframes comparsa {
@@ -287,12 +323,12 @@ body {
 .pannello__testa {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: -14px -16px 10px;
-  padding: 10px 16px;
+  gap: var(--s3);
+  margin: calc(var(--s3) * -1) calc(var(--s4) * -1) var(--s3);
+  padding: var(--s3) var(--s4);
   border-bottom: 1px solid var(--incisione);
-  border-radius: 10px 10px 0 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
+  border-radius: var(--raggio) var(--raggio) 0 0;
+  background: linear-gradient(180deg, var(--luce-tenue), transparent);
   cursor: grab;
 }
 
@@ -307,13 +343,13 @@ body {
 .riga {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 8px;
+  gap: var(--s3);
+  padding: var(--s2) var(--s2);
   border-radius: var(--raggio);
 }
 
 .riga:nth-child(odd) {
-  background: rgba(255, 255, 255, 0.022);
+  background: var(--luce-tenue);
 }
 
 .riga__nome {
@@ -337,7 +373,7 @@ body {
 /* I valori misurati in mono: contatori e conteggi, non decorazione. */
 .misura {
   font-family: 'Cascadia Mono', 'Consolas', monospace;
-  font-size: 11px;
+  font-size: var(--t1);
   color: var(--testo-quieto);
   font-variant-numeric: tabular-nums;
 }
@@ -346,19 +382,19 @@ body {
 
 .campo {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--t2);
   color: var(--testo);
   background: var(--chassis-premuto);
-  border: 1px solid #15181b;
-  border-top-color: #101214;
+  border: 1px solid var(--bordo);
+  border-top-color: var(--incisione);
   border-radius: var(--raggio);
-  padding: 5px 8px;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+  padding: var(--s1) var(--s2);
+  box-shadow: inset 0 1px 2px var(--ombra-corta);
 }
 
 .campo::placeholder {
   /* 4.6:1 sul fondo del campo: leggibile davvero, non un grigio decorativo. */
-  color: #868d94;
+  color: var(--testo-spento);
 }
 
 .campo:focus {
@@ -375,7 +411,7 @@ body {
 .etichetta {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--s1);
 }
 
 /* ─────────────────────────── avvisi ─────────────────────────── */
@@ -383,9 +419,9 @@ body {
 .avviso {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--s2);
   color: var(--ambra);
-  font-size: 12px;
+  font-size: var(--t2);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -394,20 +430,20 @@ body {
 
 .vuoto {
   color: var(--testo-quieto);
-  font-size: 12px;
-  padding: 10px 8px;
+  font-size: var(--t2);
+  padding: var(--s3) var(--s2);
 }
 
 /* ─────────────────────────── elenco sessioni ─────────────────────────── */
 
 .voce-sessione {
-  padding: 8px 10px;
-  border-bottom: 1px solid #1c1f22;
+  padding: var(--s2) var(--s3);
+  border-bottom: 1px solid var(--bordo);
   cursor: pointer;
 }
 
 .voce-sessione:hover {
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--luce-tenue);
 }
 
 /* Il doppio clic apre la chat: il feedback del clic singolo dice che la voce
@@ -421,12 +457,12 @@ body {
 .testata-riquadro {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--s2);
   background: var(--chassis);
   color: var(--testo-quieto);
-  font-size: 12px;
-  padding: 3px 6px 3px 4px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  font-size: var(--t2);
+  padding: var(--s1) var(--s2) var(--s1) var(--s1);
+  box-shadow: inset 0 1px 0 var(--luce-tenue);
 }
 
 .testata-riquadro__titolo {
@@ -439,8 +475,8 @@ body {
 }
 
 .presa {
-  color: #4d545b;
-  font-size: 10px;
+  color: var(--testo-spento);
+  font-size: var(--t0);
   letter-spacing: -2px;
   opacity: 0;
 }
@@ -451,17 +487,17 @@ body {
 
 .comando-riquadro {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--t2);
   background: transparent;
   border: 0;
-  border-radius: 3px;
+  border-radius: var(--raggio);
   color: var(--testo-quieto);
-  padding: 1px 5px;
+  padding: 1px var(--s1);
   cursor: pointer;
 }
 
 .comando-riquadro:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--luce-viva);
   color: var(--testo);
 }
 
@@ -483,9 +519,9 @@ body {
   inset: 0;
   /* Un po' d'aria intorno: una finestra che tocca i bordi dello schermo non
      sembra piu' una finestra. */
-  padding: 5vh 24px;
+  padding: 5vh var(--s4);
   z-index: 30;
-  background: rgba(6, 7, 8, 0.82);
+  background: var(--velo);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -509,13 +545,13 @@ body {
   flex-direction: column;
   margin: auto;
   background: var(--chassis);
-  border: 1px solid #3a4046;
-  border-radius: 6px;
-  padding: 14px 16px 16px;
+  border: 1px solid var(--primario);
+  border-radius: var(--raggio);
+  padding: var(--s3) var(--s4) var(--s4);
   width: min(560px, 90vw);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.07),
-    0 24px 60px rgba(0, 0, 0, 0.75);
+    inset 0 1px 0 var(--luce-viva),
+    0 24px 60px var(--ombra-lunga);
 }
 
 /* La finestra che aspetta una risposta: porta in cima il colore dell'attesa,
@@ -523,28 +559,28 @@ body {
 .dialogo--attesa {
   border-top: 2px solid var(--ambra);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.07),
-    0 0 0 1px rgba(224, 163, 60, 0.14),
-    0 24px 60px rgba(0, 0, 0, 0.78);
+    inset 0 1px 0 var(--luce-viva),
+    0 0 0 1px color-mix(in srgb, var(--ambra) 14%, transparent),
+    0 24px 60px var(--ombra-lunga);
 }
 
 .dialogo__testa {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding-bottom: 10px;
+  gap: var(--s2);
+  padding-bottom: var(--s3);
   border-bottom: 1px solid var(--incisione);
   box-shadow: 0 1px 0 var(--luce-incisione);
-  margin-bottom: 12px;
+  margin-bottom: var(--s3);
 }
 
 .dialogo__domanda {
-  font-size: 14px;
+  font-size: var(--t3);
   line-height: 1.5;
   /* La domanda si legge e a volte si copia: qui la selezione serve. */
   user-select: text;
   white-space: pre-wrap;
-  margin-bottom: 12px;
+  margin-bottom: var(--s3);
 }
 
 /* Il richiamo in basso a destra quando la domanda è stata rimandata. */
@@ -555,13 +591,13 @@ body {
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s2);
   background: var(--chassis);
   border-radius: var(--raggio);
-  padding: 7px 10px;
+  padding: var(--s2) var(--s3);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 6px 16px rgba(0, 0, 0, 0.5);
+    inset 0 1px 0 var(--luce-viva),
+    0 6px 16px var(--ombra-corta);
 }
 
 /* Il campo di testo della risposta accetta la selezione, come la domanda. */
@@ -584,13 +620,13 @@ input.campo {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #3b4046;
+  background: var(--primario);
   border: 2px solid var(--chassis-premuto);
-  border-radius: 5px;
+  border-radius: var(--raggio);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #4a5057;
+  background: var(--primario-alto);
 }
 
 ::-webkit-scrollbar-corner {
@@ -611,8 +647,8 @@ input.campo {
   /* Il dialogo ha un'altezza massima: è questo elenco a scorrere, non la
      finestra intera, così ricerca e intestazione restano sempre raggiungibili. */
   min-height: 0;
-  margin: 0 -6px;
-  padding: 0 6px;
+  margin: 0 calc(var(--s2) * -1);
+  padding: 0 var(--s2);
 }
 
 /* Una riga della lista: il titolo con la sua misura a sinistra, la data a
@@ -620,20 +656,20 @@ input.campo {
 .voce-chat {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--s3);
   width: 100%;
   text-align: left;
   font: inherit;
   background: transparent;
   border: 0;
-  border-bottom: 1px solid #1c1f22;
-  padding: 8px 8px;
+  border-bottom: 1px solid var(--bordo);
+  padding: var(--s2) var(--s2);
   cursor: pointer;
   color: var(--testo);
 }
 
 .voce-chat:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--luce-tenue);
 }
 
 .voce-chat:focus-visible {
@@ -682,8 +718,8 @@ input.campo {
 .avvio__marchio {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 26px;
+  gap: var(--s3);
+  margin-bottom: var(--s4);
 }
 
 /* Il simbolo respira piano: dice che c'è qualcosa di vivo dietro l'attesa,
@@ -700,20 +736,20 @@ input.campo {
 }
 
 .avvio__nome {
-  font-size: 11px;
+  font-size: var(--t1);
   letter-spacing: 0.16em;
 }
 
 .avvio__titolo {
-  margin: 0 0 12px;
-  font-size: 17px;
+  margin: 0 0 var(--s3);
+  font-size: var(--t4);
   color: var(--testo);
 }
 
 .avvio__barra {
   height: 3px;
   background: var(--incisione);
-  border-radius: 2px;
+  border-radius: var(--raggio);
   overflow: hidden;
 }
 
@@ -740,20 +776,20 @@ input.campo {
 .avvio__numeri {
   display: flex;
   align-items: baseline;
-  gap: 10px;
-  margin-top: 10px;
+  gap: var(--s3);
+  margin-top: var(--s3);
 }
 
 .avvio__percento {
-  font-size: 22px;
+  font-size: var(--t4);
   font-variant-numeric: tabular-nums;
   color: var(--testo);
 }
 
 .avvio__dove {
-  margin: 14px 0 0;
+  margin: var(--s3) 0 0;
   min-height: 1em;
-  font-size: 12px;
+  font-size: var(--t2);
   color: var(--testo-quieto);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -770,10 +806,10 @@ input.campo {
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s2);
   width: 100%;
-  padding: 7px 6px 5px;
-  margin: 0 -6px;
+  padding: var(--s2) var(--s2) var(--s1);
+  margin: 0 calc(var(--s2) * -1);
   font: inherit;
   text-align: left;
   color: var(--testo);
@@ -802,7 +838,7 @@ input.campo {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: var(--t1);
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }
@@ -810,7 +846,7 @@ input.campo {
 /* Le chat rientrano sotto il loro progetto: il gradino dice a colpo d'occhio
    dove finisce una sezione e comincia la successiva. */
 .progetto .voce-chat {
-  padding-left: 18px;
+  padding-left: var(--s4);
 }
 
 /* La riga di una chat è divisa in due comandi: il grosso apre la conversazione,
@@ -835,12 +871,12 @@ input.campo {
 
 .voce-chat__quante {
   font: inherit;
-  font-size: 11px;
+  font-size: var(--t1);
   color: var(--testo-quieto);
   background: var(--incisione);
   border: 1px solid transparent;
-  border-radius: 3px;
-  padding: 2px 6px;
+  border-radius: var(--raggio);
+  padding: var(--s1) var(--s2);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -853,7 +889,7 @@ input.campo {
 /* Le singole esecuzioni: rientrate ancora e più quiete della chat che le
    contiene, perché sono un dettaglio di quella riga, non righe di pari grado. */
 .progetto .voce-chat--esecuzione {
-  padding-left: 34px;
+  padding-left: var(--s4);
   opacity: 0.78;
 }
 
@@ -874,7 +910,7 @@ input.campo {
 }
 
 .collegamento:hover {
-  color: #fff;
+  color: var(--testo);
 }
 
 /* ─────────────────────────── la conversazione ─────────────────────────── */
@@ -882,19 +918,19 @@ input.campo {
 .scambio {
   max-height: 34vh;
   overflow-y: auto;
-  margin-bottom: 12px;
-  padding-right: 4px;
+  margin-bottom: var(--s3);
+  padding-right: var(--s1);
 }
 
 .scambio__nota {
-  margin: 0 0 10px;
+  margin: 0 0 var(--s3);
   color: var(--testo-quieto);
-  font-size: 12px;
+  font-size: var(--t2);
   line-height: 1.5;
 }
 
 .scambio__giro {
-  margin-bottom: 10px;
+  margin-bottom: var(--s3);
 }
 
 /* La domanda dell'autopilota e la risposta dell'utente si distinguono per
@@ -902,20 +938,20 @@ input.campo {
    allo stato, e una conversazione non è uno stato. */
 .scambio__domanda {
   color: var(--testo-quieto);
-  font-size: 12px;
+  font-size: var(--t2);
   line-height: 1.5;
-  padding-left: 10px;
+  padding-left: var(--s3);
   border-left: 1px solid var(--luce-incisione);
   user-select: text;
 }
 
 .scambio__risposta {
   color: var(--testo);
-  font-size: 12px;
+  font-size: var(--t2);
   line-height: 1.5;
-  margin-top: 4px;
-  margin-left: 10px;
-  padding: 5px 8px;
+  margin-top: var(--s1);
+  margin-left: var(--s3);
+  padding: var(--s1) var(--s2);
   background: var(--chassis-premuto);
   border-radius: var(--raggio);
   user-select: text;
@@ -933,13 +969,13 @@ input.campo {
 .banda__voce {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  font-size: 12px;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  font-size: var(--t2);
 }
 
 .banda__voce + .banda__voce {
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid var(--luce-tenue);
 }
 
 .banda__voce--blocco .banda__testo {
@@ -964,16 +1000,16 @@ input.campo {
   display: block;
   height: 6px;
   background: var(--chassis-premuto);
-  border-radius: 3px;
+  border-radius: var(--raggio);
   overflow: hidden;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+  box-shadow: inset 0 1px 2px var(--ombra-corta);
 }
 
 .barra__pieno {
   display: block;
   height: 100%;
-  background: #4a5058;
-  border-radius: 3px;
+  background: var(--spento);
+  border-radius: var(--raggio);
 }
 
 /* ─────────────────── il diario dell'autopilota ─────────────────── */
@@ -991,24 +1027,24 @@ input.campo {
   /* La misura la decide l'utente — dal cursore delle impostazioni o dalla
      maniglia sul bordo — e arriva qui come token. Il minimo in pixel resta:
      sotto quello non ci sta niente di leggibile, per quanto si stringa. */
-  width: var(--diario-largh, 34%);
+  width: var(--diario-largh);
   min-width: 140px;
   position: relative;
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 8px 10px 10px;
+  padding: var(--s2) var(--s3) var(--s3);
   background: var(--chassis);
   border-left: 1px solid var(--incisione);
-  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.04);
+  box-shadow: inset 1px 0 0 var(--luce-tenue);
 }
 
 .diario__testa {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding-bottom: 8px;
+  gap: var(--s2);
+  padding-bottom: var(--s2);
 }
 
 /* ── la maniglia: il solco fra terminale e diario, che si afferra ── */
@@ -1045,8 +1081,8 @@ input.campo {
 .passi {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin: 0 0 6px;
+  gap: var(--s1);
+  margin: 0 0 var(--s2);
   padding: 0;
   list-style: none;
   min-width: 0;
@@ -1055,7 +1091,7 @@ input.campo {
 .passo {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--s1);
   min-width: 0;
   flex: 0 1 auto;
 }
@@ -1066,8 +1102,8 @@ input.campo {
   content: '';
   width: 10px;
   height: 1px;
-  margin-left: 3px;
-  background: var(--incisione, #131517);
+  margin-left: var(--s1);
+  background: var(--incisione, var(--incisione));
   box-shadow: 0 1px 0 var(--luce-incisione);
   flex: 0 0 auto;
 }
@@ -1078,11 +1114,11 @@ input.campo {
   border-radius: 50%;
   flex: 0 0 auto;
   background: var(--spento);
-  box-shadow: 0 0 3px rgba(0, 0, 0, 0.6) inset;
+  box-shadow: 0 0 3px var(--ombra-media) inset;
 }
 
 .passo__nome {
-  font-size: 10px;
+  font-size: var(--t0);
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--testo-quieto);
@@ -1109,12 +1145,12 @@ input.campo {
 
 .passo--corrente .passo__led {
   background: var(--verde);
-  box-shadow: 0 0 4px rgba(84, 192, 122, 0.7);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--verde) 70%, transparent);
 }
 
 .passo--attesa .passo__led {
   background: var(--ambra);
-  box-shadow: 0 0 4px rgba(224, 163, 60, 0.7);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--ambra) 70%, transparent);
   /* Lo stesso lampeggio dei LED, per la stessa ragione e per nessun'altra:
      qui l'autopilota aspetta te. */
   animation: pulsa 1.6s ease-in-out infinite;
@@ -1122,7 +1158,7 @@ input.campo {
 
 .passo--fermo .passo__led {
   background: var(--rosso);
-  box-shadow: 0 0 4px rgba(220, 95, 95, 0.6);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--rosso) 60%, transparent);
 }
 
 .passo--corrente .passo__nome,
@@ -1138,8 +1174,8 @@ input.campo {
 /* Cosa sta succedendo nel passo corrente: una riga, dove prima c'era una
    percentuale che in preparazione misurava zero su zero. */
 .passi__nota {
-  margin: 0 0 10px;
-  font-size: 11px;
+  margin: 0 0 var(--s3);
+  font-size: var(--t1);
   line-height: 1.35;
   color: var(--testo-quieto);
   overflow-wrap: anywhere;
@@ -1163,18 +1199,18 @@ input.campo {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--t2);
   color: var(--testo);
 }
 
 .diario__misura {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--s2);
 }
 
 .diario__percento {
-  font-size: 26px;
+  font-size: var(--t4);
   font-variant-numeric: tabular-nums;
   color: var(--testo);
   line-height: 1.1;
@@ -1182,9 +1218,9 @@ input.campo {
 
 .diario__barra {
   height: 3px;
-  margin: 6px 0 10px;
+  margin: var(--s2) 0 var(--s3);
   background: var(--incisione);
-  border-radius: 2px;
+  border-radius: var(--raggio);
   overflow: hidden;
 }
 
@@ -1212,17 +1248,17 @@ input.campo {
 .diario__linguetta-testo.diario__misura--fermo { color: var(--rosso); }
 
 .diario__criteri {
-  margin: 0 0 12px;
+  margin: 0 0 var(--s3);
   padding: 0;
   list-style: none;
-  font-size: 11px;
+  font-size: var(--t1);
   color: var(--testo-quieto);
 }
 
 .diario__criterio {
   display: flex;
-  gap: 6px;
-  padding: 2px 0;
+  gap: var(--s2);
+  padding: var(--s1) 0;
 }
 
 /* Un criterio raggiunto non si cancella: resta leggibile, perche' e' la parte
@@ -1233,7 +1269,7 @@ input.campo {
 }
 
 .diario__sezione {
-  padding: 6px 0 4px;
+  padding: var(--s2) 0 var(--s1);
   border-top: 1px solid var(--incisione);
 }
 
@@ -1241,15 +1277,15 @@ input.campo {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  margin: 0 -10px;
-  padding: 0 10px;
+  margin: 0 calc(var(--s3) * -1);
+  padding: 0 var(--s3);
 }
 
 .diario__voce {
   display: flex;
-  gap: 8px;
-  padding: 5px 0;
-  border-bottom: 1px solid #1c1f22;
+  gap: var(--s2);
+  padding: var(--s1) 0;
+  border-bottom: 1px solid var(--bordo);
 }
 
 .diario__quando {
@@ -1258,19 +1294,19 @@ input.campo {
 }
 
 .diario__titolo {
-  font-size: 12px;
+  font-size: var(--t2);
   color: var(--testo);
 }
 
 .diario__dettaglio {
-  font-size: 11px;
+  font-size: var(--t1);
   color: var(--testo-quieto);
   line-height: 1.35;
 }
 
 .diario__vuoto {
   margin: 0;
-  font-size: 11px;
+  font-size: var(--t1);
   color: var(--testo-quieto);
   line-height: 1.4;
 }
@@ -1282,9 +1318,9 @@ input.campo {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: var(--s2);
   width: 30px;
-  padding: 8px 0;
+  padding: var(--s2) 0;
   font: inherit;
   color: var(--testo-quieto);
   background: var(--chassis);
@@ -1299,7 +1335,7 @@ input.campo {
 
 .diario__linguetta-testo {
   font-family: 'Cascadia Mono', 'Consolas', monospace;
-  font-size: 10px;
+  font-size: var(--t0);
   writing-mode: vertical-rl;
 }
 
@@ -1319,17 +1355,17 @@ input.campo {
 /* Sotto la riga della chat: gli ultimi scambi, per riconoscerla senza aprirla.
    Il fondo più scuro dice che è materiale citato, non una riga dell'elenco. */
 .anteprima {
-  margin: 0 -6px;
-  padding: 8px 12px 10px 34px;
-  background: rgba(0, 0, 0, 0.25);
-  border-bottom: 1px solid #1c1f22;
+  margin: 0 calc(var(--s2) * -1);
+  padding: var(--s2) var(--s3) var(--s3) var(--s4);
+  background: var(--ombra-corta);
+  border-bottom: 1px solid var(--bordo);
 }
 
 .anteprima__riga {
   display: flex;
-  gap: 8px;
-  padding: 3px 0;
-  font-size: 12px;
+  gap: var(--s2);
+  padding: var(--s1) 0;
+  font-size: var(--t2);
   line-height: 1.45;
   color: var(--testo-quieto);
 }
@@ -1339,11 +1375,11 @@ input.campo {
 .anteprima__chi {
   flex: 0 0 44px;
   font-family: 'Cascadia Mono', 'Consolas', monospace;
-  font-size: 10px;
+  font-size: var(--t0);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding-top: 2px;
-  color: #6f767e;
+  padding-top: var(--s1);
+  color: var(--testo-spento);
 }
 
 .anteprima__riga--utente {
@@ -1351,9 +1387,9 @@ input.campo {
 }
 
 .anteprima__azioni {
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid #1c1f22;
+  margin-top: var(--s2);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--bordo);
 }
 
 .anteprima__azione {
@@ -1367,13 +1403,13 @@ input.campo {
 /* Il tasto che apre l'assaggio: piccolo, accanto alla data. */
 .voce-chat__sbircia {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--t2);
   line-height: 1;
   color: var(--testo-quieto);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 3px;
-  padding: 3px 5px;
+  border-radius: var(--raggio);
+  padding: var(--s1) var(--s1);
   cursor: pointer;
   opacity: 0.55;
 }
@@ -1387,19 +1423,19 @@ input.campo {
 /* Le due viste del diario: cosa sta facendo, cosa ha deciso. */
 .diario__schede {
   display: flex;
-  gap: 2px;
-  margin: 4px 0 6px;
+  gap: var(--s1);
+  margin: var(--s1) 0 var(--s2);
   border-bottom: 1px solid var(--incisione);
 }
 
 .diario__scheda {
   font: inherit;
-  font-size: 11px;
+  font-size: var(--t1);
   color: var(--testo-quieto);
   background: transparent;
   border: 0;
   border-bottom: 2px solid transparent;
-  padding: 4px 8px;
+  padding: var(--s1) var(--s2);
   cursor: pointer;
 }
 
@@ -1411,7 +1447,7 @@ input.campo {
 /* Una chat segnata per il cestino: si vede che è scelta, ma resta leggibile
    finché non si conferma — è ancora lì, e si può ripensarci. */
 .voce-chat--segnata {
-  background: rgba(220, 95, 95, 0.09);
+  background: color-mix(in srgb, var(--rosso) 9%, transparent);
 }
 
 .voce-chat__sbircia--segnata {
@@ -1425,22 +1461,22 @@ input.campo {
 .testata-riquadro__campo {
   flex: 1;
   min-width: 0;
-  font-size: 12px;
-  padding: 2px 6px;
+  font-size: var(--t2);
+  padding: var(--s1) var(--s2);
 }
 
 /* Una tendina che sta in una fascia o in una testata: stessa altezza dei tasti,
    senza il respiro di un campo di modulo. */
 .campo--compatto {
-  font-size: 11px;
-  padding: 4px 6px;
+  font-size: var(--t1);
+  padding: var(--s1) var(--s2);
   max-width: 190px;
 }
 
 .testata-riquadro__modello {
   max-width: 92px;
-  font-size: 10px;
-  padding: 1px 3px;
+  font-size: var(--t0);
+  padding: 1px var(--s1);
   opacity: 0.6;
 }
 
@@ -1457,8 +1493,8 @@ input.campo {
 }
 
 .diario--largo .anteprima__riga {
-  font-size: 13px;
-  padding: 5px 0;
+  font-size: var(--t3);
+  padding: var(--s1) 0;
 }
 
 .diario--largo .diario__voci {
@@ -1470,8 +1506,8 @@ input.campo {
 .avviso--aggiornamento {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
   background: var(--chassis);
   border-bottom: 1px solid var(--incisione);
   color: var(--testo);
@@ -1490,17 +1526,17 @@ select.comando-riquadro option {
 .ws {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--s1);
 }
 
 .ws__voce {
   font: inherit;
-  font-size: 11px;
+  font-size: var(--t1);
   color: var(--testo-quieto);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 3px;
-  padding: 3px 8px;
+  border-radius: var(--raggio);
+  padding: var(--s1) var(--s2);
   cursor: pointer;
   white-space: nowrap;
   max-width: 120px;
@@ -1515,28 +1551,28 @@ select.comando-riquadro option {
 
 /* Quello attivo è premuto e resta giù: si vede dove sei senza leggere. */
 .ws__voce--attivo {
-  color: #fff;
+  color: var(--testo);
   background: var(--chassis-premuto);
-  border-color: #15181b;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+  border-color: var(--bordo);
+  box-shadow: inset 0 1px 3px var(--ombra-corta);
 }
 
 .versione {
   font-family: 'Cascadia Mono', 'Consolas', monospace;
-  font-size: 10px;
-  color: #6f767e;
+  font-size: var(--t0);
+  color: var(--testo-spento);
 }
 
 /* Un workspace da cui qualcuno chiama: il punto pulsa piano, quanto basta a
    prendere la coda dell'occhio senza diventare un lampeggio da sala giochi. */
 .ws__voce--chiama {
-  border-color: var(--ambra, #d8a13a);
-  color: var(--ambra, #d8a13a);
+  border-color: var(--ambra);
+  color: var(--ambra);
 }
 
 .ws__chiama {
-  margin-left: 6px;
-  font-size: 9px;
+  margin-left: var(--s2);
+  font-size: var(--t0);
   vertical-align: middle;
   animation: respiro 1.8s ease-in-out infinite;
 }
@@ -1559,41 +1595,41 @@ select.comando-riquadro option {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--chassis, #141517);
+  background: var(--chassis, var(--fondo));
 }
 
 .serratura__scheda {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--s3);
   width: min(380px, calc(100vw - 48px));
-  padding: 26px 24px;
-  border: 1px solid var(--incisione, #24272b);
-  border-radius: 10px;
-  background: #0b0c0e;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  padding: var(--s4) var(--s4);
+  border: 1px solid var(--incisione);
+  border-radius: var(--raggio);
+  background: var(--fondo-cupo);
+  box-shadow: 0 24px 64px var(--ombra-media);
 }
 
-.serratura__titolo { font-size: 15px; text-align: center; }
+.serratura__titolo { font-size: var(--t3); text-align: center; }
 
 .serratura__campo {
-  padding: 9px 11px;
-  border: 1px solid var(--incisione, #24272b);
-  border-radius: 6px;
-  background: #141517;
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--incisione);
+  border-radius: var(--raggio);
+  background: var(--fondo);
   color: inherit;
-  font-size: 14px;
+  font-size: var(--t3);
 }
 
-.serratura__errore { color: var(--ambra, #d8a13a); font-size: 12px; text-align: center; }
-.serratura__tasti { display: flex; gap: 8px; justify-content: flex-end; }
+.serratura__errore { color: var(--ambra); font-size: var(--t2); text-align: center; }
+.serratura__tasti { display: flex; gap: var(--s2); justify-content: flex-end; }
 
 .serratura__nota {
-  font-size: 11px;
+  font-size: var(--t1);
   line-height: 1.5;
-  color: var(--tenue, #9aa1a9);
-  border-top: 1px solid var(--incisione, #24272b);
-  padding-top: 10px;
+  color: var(--testo-quieto);
+  border-top: 1px solid var(--incisione);
+  padding-top: var(--s3);
 }
 
 /* Il quaderno: l'elenco a sinistra, la scheda aperta a destra. Piu' largo degli
@@ -1606,62 +1642,62 @@ select.comando-riquadro option {
 .quaderno {
   display: grid;
   grid-template-columns: minmax(220px, 320px) 1fr;
-  gap: 14px;
+  gap: var(--s3);
   min-height: 320px;
 }
 
 .quaderno__elenco {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--s1);
   overflow-y: auto;
   max-height: 60vh;
-  border-right: 1px solid var(--incisione, #24272b);
-  padding-right: 10px;
+  border-right: 1px solid var(--incisione);
+  padding-right: var(--s3);
 }
 
 .quaderno__elenco .riga {
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  gap: var(--s1);
   text-align: left;
   background: none;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--raggio);
   color: inherit;
   cursor: pointer;
 }
 
 .quaderno__elenco .riga--attiva {
-  border-color: var(--incisione, #24272b);
-  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--incisione);
+  background: var(--luce-tenue);
 }
 
-.quaderno__scheda { display: flex; flex-direction: column; gap: 10px; }
+.quaderno__scheda { display: flex; flex-direction: column; gap: var(--s3); }
 
 .quaderno__corpo {
   flex: 1;
   min-height: 320px;
-  padding: 12px 14px;
-  border: 1px solid var(--incisione, #24272b);
-  border-radius: 8px;
-  background: #0b0c0e;
+  padding: var(--s3) var(--s3);
+  border: 1px solid var(--incisione);
+  border-radius: var(--raggio);
+  background: var(--fondo-cupo);
   color: inherit;
   font-family: 'Cascadia Mono', Consolas, monospace;
-  font-size: 13px;
+  font-size: var(--t3);
   line-height: 1.6;
   resize: none;
 }
 
-.quaderno__tasti { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+.quaderno__tasti { display: flex; align-items: center; gap: var(--s3); justify-content: flex-end; }
 
 .quaderno__cerca {
-  padding: 5px 9px;
-  border: 1px solid var(--incisione, #24272b);
-  border-radius: 6px;
-  background: #0b0c0e;
+  padding: var(--s1) var(--s2);
+  border: 1px solid var(--incisione);
+  border-radius: var(--raggio);
+  background: var(--fondo-cupo);
   color: inherit;
-  font-size: 12px;
+  font-size: var(--t2);
   min-width: 200px;
 }
 
@@ -1669,11 +1705,11 @@ select.comando-riquadro option {
 
 .pannello--impostazioni { width: min(620px, calc(100vw - 48px)); }
 
-.impostazioni { display: flex; flex-direction: column; gap: 18px; }
-.impostazioni__gruppo { display: flex; flex-direction: column; gap: 10px; }
+.impostazioni { display: flex; flex-direction: column; gap: var(--s4); }
+.impostazioni__gruppo { display: flex; flex-direction: column; gap: var(--s3); }
 .impostazioni__gruppo h4 {
   margin: 0;
-  font-size: 11px;
+  font-size: var(--t1);
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--testo-quieto);
@@ -1683,14 +1719,14 @@ select.comando-riquadro option {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  font-size: 13px;
+  gap: var(--s3);
+  font-size: var(--t3);
 }
 
 .impostazioni__riga--spunta { justify-content: flex-start; }
 .impostazioni__riga input[type='number'] {
   width: 110px;
-  padding: 5px 8px;
+  padding: var(--s1) var(--s2);
   border: 1px solid var(--incisione);
   border-radius: var(--raggio);
   background: var(--chassis-premuto);
@@ -1699,12 +1735,12 @@ select.comando-riquadro option {
 .impostazioni__riga input[type='range'] { width: 220px; }
 
 .impostazioni__nota {
-  font-size: 11px;
+  font-size: var(--t1);
   line-height: 1.5;
   color: var(--testo-quieto);
 }
 
-.accenti { display: flex; align-items: center; gap: 6px; }
+.accenti { display: flex; align-items: center; gap: var(--s2); }
 .accento {
   width: 22px;
   height: 22px;
@@ -1727,7 +1763,7 @@ select.comando-riquadro option {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: var(--s3);
   background: var(--fondo);
   z-index: 4;
 }
@@ -1735,22 +1771,22 @@ select.comando-riquadro option {
 .attesa-chat__binario {
   width: min(280px, 60%);
   height: 4px;
-  border-radius: 2px;
+  border-radius: var(--raggio);
   background: var(--chassis-alto);
   overflow: hidden;
 }
 
 .attesa-chat__barra {
   height: 100%;
-  background: var(--accento, #4aa3ff);
+  background: var(--accento);
   transition: width 220ms linear;
 }
 
 .attesa-chat__testo {
-  font-size: 12px;
+  font-size: var(--t2);
   color: var(--testo-quieto);
   text-align: center;
-  padding: 0 20px;
+  padding: 0 var(--s4);
 }
 
 /* Il bordo destro allarga: il cursore lo dice prima che si provi. */
@@ -1790,7 +1826,7 @@ select.comando-riquadro option {
 
 .console::-webkit-scrollbar { height: 0; }
 
-.sezione { gap: 5px; padding: 0 10px; flex: 0 0 auto; }
+.sezione { gap: var(--s1); padding: 0 var(--s3); flex: 0 0 auto; }
 
 /* I workspace sono la parte che puo' crescere all'infinito: e' li' che si
    restringe per primo, invece di spingere fuori i comandi. */
@@ -1798,36 +1834,36 @@ select.comando-riquadro option {
 .sezione .ws::-webkit-scrollbar { height: 0; }
 
 .tasto {
-  font-size: 12px;
-  padding: 6px 10px;
-  border-radius: 5px;
+  font-size: var(--t2);
+  padding: var(--s2) var(--s3);
+  border-radius: var(--raggio);
   transition: background 120ms var(--uscita), border-color 120ms var(--uscita);
 }
 
-.tasto--icona { padding: 6px 8px; font-size: 13px; }
+.tasto--icona { padding: var(--s2) var(--s2); font-size: var(--t3); }
 
 /* Il tasto sotto il dito si illumina invece di limitarsi a schiarire: la
    differenza fra «si puo' premere» e «lo stai per premere». */
 .tasto:hover:not(:disabled) {
-  border-color: var(--accento, #4aa3ff);
-  background: color-mix(in srgb, var(--accento, #4aa3ff) 12%, var(--chassis-alto));
+  border-color: var(--accento);
+  background: color-mix(in srgb, var(--accento) 12%, var(--chassis-alto));
 }
 
 /* Il pannello aperto si vede dal suo tasto: senza, si preme due volte per
    capire quale finestra era gia' li'. */
 .tasto[aria-expanded='true'] {
-  background: color-mix(in srgb, var(--accento, #4aa3ff) 22%, var(--chassis-alto));
-  border-color: var(--accento, #4aa3ff);
+  background: color-mix(in srgb, var(--accento) 22%, var(--chassis-alto));
+  border-color: var(--accento);
 }
 
-.serigrafia { font-size: 9px; letter-spacing: 0.14em; opacity: 0.75; }
+.serigrafia { font-size: var(--t0); letter-spacing: 0.14em; opacity: 0.75; }
 
-.ws { gap: 3px; }
+.ws { gap: var(--s1); }
 
 .ws__voce {
-  font-size: 12px;
-  padding: 5px 10px;
-  border-radius: 5px 5px 0 0;
+  font-size: var(--t2);
+  padding: var(--s1) var(--s3);
+  border-radius: var(--raggio) var(--raggio) 0 0;
   border: 1px solid transparent;
   border-bottom: 2px solid transparent;
   background: none;
@@ -1843,20 +1879,20 @@ select.comando-riquadro option {
   color: var(--testo);
   background: var(--chassis-premuto);
   border-color: var(--incisione);
-  border-bottom-color: var(--accento, #4aa3ff);
+  border-bottom-color: var(--accento);
 }
 
 /* La versione si preme, e mostra cosa e' cambiato: un numero che non porta da
    nessuna parte e' un numero che si ignora. */
 .versione {
-  font-size: 11px;
+  font-size: var(--t1);
   color: var(--testo-quieto);
   letter-spacing: 0.03em;
   background: none;
   border: none;
   cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
+  padding: var(--s1) var(--s2);
+  border-radius: var(--raggio);
 }
 
 .versione:hover { color: var(--testo); background: var(--chassis-premuto); }
@@ -1864,10 +1900,10 @@ select.comando-riquadro option {
 /* Il codice di accoppiamento: grande e distanziato, perche' si legge da qui e
    si digita su un telefono tenuto nell'altra mano. */
 .codice-accoppiamento {
-  font-size: 26px;
+  font-size: var(--t4);
   letter-spacing: 0.32em;
   font-variant-numeric: tabular-nums;
-  color: var(--accento, #4aa3ff);
+  color: var(--accento);
 }
 
 /* ───────────── il diario dell'autopilota, riordinato ───────────── */
@@ -1875,18 +1911,18 @@ select.comando-riquadro option {
 /* Ogni natura di mossa ha il suo filo di colore a sinistra: si distingue un
    ragionamento da un tentativo senza leggere, che è quello che si fa quando si
    guarda di sfuggita mentre si lavora ad altro. */
-.diario__voce { border-left: 2px solid transparent; padding-left: 8px; }
-.diario__voce--decisione { border-left-color: var(--accento, #4aa3ff); }
-.diario__voce--correzione { border-left-color: var(--ambra, #e0a33c); }
-.diario__voce--tu { border-left-color: var(--verde, #54c07a); }
+.diario__voce { border-left: 2px solid transparent; padding-left: var(--s2); }
+.diario__voce--decisione { border-left-color: var(--accento); }
+.diario__voce--correzione { border-left-color: var(--ambra); }
+.diario__voce--tu { border-left-color: var(--verde); }
 .diario__voce--preparazione { border-left-color: var(--luce-incisione); }
 .diario__voce--lavoro { border-left-color: var(--incisione); }
 
 .diario__volte {
-  margin-left: 7px;
-  padding: 1px 6px;
-  font-size: 10px;
-  border-radius: 8px;
+  margin-left: var(--s2);
+  padding: 1px var(--s2);
+  font-size: var(--t0);
+  border-radius: var(--raggio);
   background: var(--chassis-premuto);
   color: var(--testo-quieto);
 }
@@ -1916,52 +1952,52 @@ select,
 
 select option,
 select optgroup {
-  background: #16181b;
-  color: #dfe3e7;
+  background: var(--fondo);
+  color: var(--testo);
 }
 
-select:focus-visible { outline: 2px solid var(--accento, #4aa3ff); outline-offset: 1px; }
+select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 
 /* I quadrati da inquadrare: bianchi e grandi, perché una fotocamera li legge
    da lontano e storti solo se hanno contrasto e margine. */
-.qr-fila { display: flex; gap: 14px; flex-wrap: wrap; }
+.qr-fila { display: flex; gap: var(--s3); flex-wrap: wrap; }
 .qr { margin: 0; text-align: center; }
-.qr img { width: 180px; height: 180px; border-radius: 8px; background: #fff; padding: 6px; }
-.qr figcaption { font-size: 10px; color: var(--testo-quieto); margin-top: 5px; }
+.qr img { width: 180px; height: 180px; border-radius: var(--raggio); background: var(--testo); padding: var(--s2); }
+.qr figcaption { font-size: var(--t0); color: var(--testo-quieto); margin-top: var(--s1); }
 
 /* La domanda dentro il diario: si risponde dove si sta già guardando, invece
    di aprire il pannello e cercarla mentre la chat aspetta. */
 .diario__domanda {
-  margin: 10px 0;
-  padding: 10px;
-  border: 1px solid var(--ambra, #e0a33c);
-  border-radius: 8px;
-  background: rgba(224, 163, 60, 0.07);
+  margin: var(--s3) 0;
+  padding: var(--s3);
+  border: 1px solid var(--ambra);
+  border-radius: var(--raggio);
+  background: color-mix(in srgb, var(--ambra) 7%, transparent);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--s2);
 }
 
-.diario__domanda-testo { font-size: 12px; line-height: 1.5; }
+.diario__domanda-testo { font-size: var(--t2); line-height: 1.5; }
 
 .diario__risposta {
   width: 100%;
-  padding: 8px 10px;
+  padding: var(--s2) var(--s3);
   border: 1px solid var(--incisione);
-  border-radius: 6px;
+  border-radius: var(--raggio);
   background: var(--chassis-premuto);
   color: inherit;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--t2);
   resize: vertical;
 }
 
 /* ───────────── i consumi ───────────── */
 
-.consumo { flex: 1 1 170px; display: flex; flex-direction: column; gap: 6px; }
+.consumo { flex: 1 1 170px; display: flex; flex-direction: column; gap: var(--s2); }
 
 .consumo__numero {
-  font-size: 24px;
+  font-size: var(--t4);
   color: var(--testo);
   font-family: 'Cascadia Mono', Consolas, monospace;
   font-variant-numeric: tabular-nums;
@@ -1970,25 +2006,25 @@ select:focus-visible { outline: 2px solid var(--accento, #4aa3ff); outline-offse
 /* Quanta parte del consumo è cache: la si legge invece di calcolarla. */
 .consumo__barra {
   height: 4px;
-  border-radius: 2px;
-  background: var(--accento, #4aa3ff);
+  border-radius: var(--raggio);
+  background: var(--accento);
   overflow: hidden;
 }
 
-.consumo__cache { display: block; height: 100%; background: var(--verde, #54c07a); }
+.consumo__cache { display: block; height: 100%; background: var(--verde); }
 
-.consumo__righe { display: flex; flex-direction: column; gap: 2px; line-height: 1.5; }
+.consumo__righe { display: flex; flex-direction: column; gap: var(--s1); line-height: 1.5; }
 
 /* L'indirizzo giusto si distingue dagli altri: è quello da cui il computer
    esce davvero, e chiedere di provarli tutti è chiedere di indovinare. */
 .indirizzo-buono {
-  font-size: 14px;
-  color: var(--accento, #4aa3ff);
+  font-size: var(--t3);
+  color: var(--accento);
   letter-spacing: 0.02em;
 }
 
-.altri-indirizzi { font-size: 11px; color: var(--testo-quieto); }
-.altri-indirizzi summary { cursor: pointer; padding: 6px 0; }
+.altri-indirizzi { font-size: var(--t1); color: var(--testo-quieto); }
+.altri-indirizzi summary { cursor: pointer; padding: var(--s2) 0; }
 
 /* Una chat che dorme. Il riquadro resta dov'era — farlo sparire sarebbe
    indistinguibile dall'averlo chiuso, e la differenza è tutto il punto: la
@@ -1999,11 +2035,11 @@ select:focus-visible { outline: 2px solid var(--accento, #4aa3ff); outline-offse
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 24px;
+  gap: var(--s3);
+  padding: var(--s4);
   text-align: center;
-  background: #1a1c1e;
+  background: var(--chassis-premuto);
   color: var(--testo-quieto);
 }
-.chat-dorme__titolo { font-size: 15px; color: var(--testo); }
-.chat-dorme__spiega { font-size: 12px; max-width: 34ch; line-height: 1.5; }
+.chat-dorme__titolo { font-size: var(--t3); color: var(--testo); }
+.chat-dorme__spiega { font-size: var(--t2); max-width: 34ch; line-height: 1.5; }

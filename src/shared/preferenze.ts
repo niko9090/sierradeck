@@ -174,6 +174,15 @@ export function tavolozza(p: Preferenze): Record<string, string> {
     '--chassis': grigio(base + 15),
     '--chassis-alto': grigio(base + 23),
     '--chassis-premuto': grigio(base + 7),
+    // I grigi che mancavano alla tavolozza, e che il foglio di stile si
+    // scriveva a mano uno per uno: trentadue valori che **non seguivano il
+    // cursore del chiarore**, perché nessuno li ricavava dal fondo. Sono gli
+    // stessi di prima, ma adesso si muovono con gli altri.
+    '--fondo-cupo': grigio(Math.max(0, base - 8)),
+    '--chassis-acceso': grigio(base + 31),
+    '--primario': grigio(base + 38),
+    '--primario-alto': grigio(base + 50),
+    '--testo-spento': grigio(base + 73),
     '--accento': p.accento,
     // Quanto spazio prende il diario dell'autopilota dentro il suo riquadro.
     // Sta qui perché è di qui che passano tutte le misure che l'utente sceglie:
@@ -188,6 +197,21 @@ export function tavolozza(p: Preferenze): Record<string, string> {
   if (p.stile === 'foglio') {
     return {
       ...comuni,
+      // Cinque misure di testo, rapporto costante 1.25: il Foglio si legge, e
+      // il testo è la sua unica gerarchia — non avendo né rilievi né solchi.
+      '--t0': '11px',
+      '--t1': '13px',
+      '--t2': '15px',
+      '--t3': '19px',
+      '--t4': '26px',
+      // Quattro passi, mezzo passo più larghi di quelli del banco: è l'aria a
+      // separare le cose, dove là separava un solco. Non il doppio — la fascia
+      // porta gli stessi comandi, e raddoppiarne i margini li spingerebbe
+      // fuori dallo schermo su una finestra stretta.
+      '--s1': '6px',
+      '--s2': '12px',
+      '--s3': '18px',
+      '--s4': '26px',
       // Il foglio non ha solchi: al loro posto c'è aria e un bordo quieto.
       // La variabile resta, perché il CSS la chiede — cambia cosa contiene.
       '--incisione': 'transparent',
@@ -203,6 +227,20 @@ export function tavolozza(p: Preferenze): Record<string, string> {
 
   return {
     ...comuni,
+    // Cinque misure e non undici. Il banco le tiene strette — 9 per la
+    // serigrafia, 12 per i comandi — perché ogni pixel non speso in cornice è
+    // un pixel di conversazione.
+    '--t0': '10px',
+    '--t1': '11px',
+    '--t2': '12px',
+    '--t3': '14px',
+    '--t4': '19px',
+    // Quattro passi su griglia da 4, scelti fra i valori che il banco già
+    // usava: consolidare non deve voler dire cambiargli faccia.
+    '--s1': '4px',
+    '--s2': '8px',
+    '--s3': '12px',
+    '--s4': '20px',
     // Il banco separa con un solco inciso largo un pixel: ogni pixel non speso
     // in cornice è un pixel di conversazione.
     '--incisione': grigio(Math.max(0, base - 5)),

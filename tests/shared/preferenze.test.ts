@@ -64,6 +64,33 @@ describe('tavolozza', () => {
     expect(t['--chassis']).toMatch(/^#[0-9a-f]{6}$/)
   })
 
+  it('cinque misure di testo e quattro passi di spazio, in tutti e due gli stili', () => {
+    // La misura era il difetto: undici dimensioni di testo e ventitre
+    // spaziature decise una per volta. L'occhio non conta i pixel, ma sente
+    // quando due cose che dovrebbero somigliarsi non si somigliano.
+    for (const stile of ['banco', 'foglio'] as const) {
+      const t = tavolozza({ ...PREFERENZE_PREDEFINITE, stile })
+      const testi = ['--t0', '--t1', '--t2', '--t3', '--t4'].map((n) => Number.parseInt(t[n]!, 10))
+      const spazi = ['--s1', '--s2', '--s3', '--s4'].map((n) => Number.parseInt(t[n]!, 10))
+      expect(testi.every((v) => Number.isFinite(v)), `misure di testo dello stile ${stile}`).toBe(true)
+      // Ogni passo è più grande del precedente: una scala che torna indietro
+      // non è una scala.
+      expect(testi).toEqual([...testi].sort((a, b) => a - b))
+      expect(spazi).toEqual([...spazi].sort((a, b) => a - b))
+      expect(new Set(testi).size).toBe(5)
+      expect(new Set(spazi).size).toBe(4)
+    }
+  })
+
+  it('il foglio respira piu del banco, ed e la differenza fra i due', () => {
+    const banco = tavolozza({ ...PREFERENZE_PREDEFINITE, stile: 'banco' })
+    const foglio = tavolozza({ ...PREFERENZE_PREDEFINITE, stile: 'foglio' })
+    for (const passo of ['--s1', '--s2', '--s3', '--s4']) {
+      expect(Number.parseInt(foglio[passo]!, 10), `${passo} del foglio`)
+        .toBeGreaterThan(Number.parseInt(banco[passo]!, 10))
+    }
+  })
+
   it('la larghezza del diario esce dalla preferenza, non dal foglio di stile', () => {
     // La preferenza esisteva e non arrivava a nessuno: il pannello aveva una
     // larghezza scritta nel CSS, e il cursore delle impostazioni non muoveva
@@ -87,7 +114,8 @@ describe('tavolozza', () => {
     // qualunque chiarore, agli estremi compresi: un `#1a2` di troppo o un
     // valore negativo lascerebbe la console senza fondo.
     const misure = new Set([
-      '--separazione', '--raggio', '--fascia-h', '--testata-h', '--rilievo', '--diario-largh'
+      '--separazione', '--raggio', '--fascia-h', '--testata-h', '--rilievo', '--diario-largh',
+      '--t0', '--t1', '--t2', '--t3', '--t4', '--s1', '--s2', '--s3', '--s4'
     ])
     for (const chiarore of [0, 20, 50, 100]) {
       for (const stile of ['banco', 'foglio'] as const) {
