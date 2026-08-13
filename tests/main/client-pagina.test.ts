@@ -123,3 +123,71 @@ describe('il terminale, con i suoi colori', () => {
     expect(p).toContain('righeDentro.length')
   })
 })
+
+describe('l invito a installare l app', () => {
+  /**
+   * Le funzioni vere della pagina, prese dallo script e rese chiamabili.
+   *
+   * Non una riscrittura: un secondo esemplare divergerebbe al primo ritocco, e
+   * questo difetto e' nato proprio da un controllo che sembrava giusto e non
+   * lo era.
+   */
+  const estrai = (nome: string): string => {
+    const inizio = script.indexOf(`function ${nome}(`)
+    expect(inizio, `${nome} non e nella pagina`).toBeGreaterThan(-1)
+    let profondita = 0
+    for (let i = script.indexOf('{', inizio); i < script.length; i++) {
+      if (script[i] === '{') profondita++
+      else if (script[i] === '}' && --profondita === 0) return script.slice(inizio, i + 1)
+    }
+    throw new Error(`${nome} non si chiude`)
+  }
+  const decidi = new Function(
+    `${estrai('versioneApp')}\n${estrai('piuNuovaApp')}\n${estrai('proponeApp')}
+     return { proponeApp, versioneApp, piuNuovaApp }`
+  ) as () => {
+    proponeApp: (ua: string, disponibile: string, rifiutato: unknown, comeApp: boolean) => boolean
+    versioneApp: (ua: string) => string
+    piuNuovaApp: (mia: string, trovata: string) => boolean
+  }
+  const { proponeApp, versioneApp, piuNuovaApp } = decidi()
+
+  const CHROME = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/126'
+  const DENTRO = `${CHROME} SierraDeck/1.3.0`
+
+  it('legge dallo user agent la versione dell app che sta guardando', () => {
+    // Una WebView non e' mai `display-mode: standalone`: senza questa
+    // dichiarazione la pagina non ha nessun modo di sapere dove gira.
+    expect(versioneApp(DENTRO)).toBe('1.3.0')
+    expect(versioneApp(CHROME)).toBe('')
+  })
+
+  it('non propone a chi ha gia quella versione installata', () => {
+    // Il difetto vero, provato sul telefono: la banda offriva di scaricare la
+    // 1.3.0 a chi stava usando la 1.3.0, e premere non faceva niente.
+    expect(proponeApp(DENTRO, '1.3.0', null, false)).toBe(false)
+  })
+
+  it('propone dentro l app solo un sorpasso vero', () => {
+    expect(proponeApp(`${CHROME} SierraDeck/1.2.0`, '1.3.0', null, false)).toBe(true)
+    expect(proponeApp(`${CHROME} SierraDeck/1.3.0`, '1.2.9', null, false)).toBe(false)
+    expect(piuNuovaApp('0.9.0', '0.10.0')).toBe(true)
+  })
+
+  it('nel browser Android l app si propone ancora: li non ce l ha', () => {
+    expect(proponeApp(CHROME, '1.3.0', null, false)).toBe(true)
+  })
+
+  it('tace su un computer, a chi ha detto no, e se non c e niente da scaricare', () => {
+    expect(proponeApp('Mozilla/5.0 (Windows NT 10.0)', '1.3.0', null, false)).toBe(false)
+    expect(proponeApp(CHROME, '1.3.0', '1', false)).toBe(false)
+    expect(proponeApp(CHROME, undefined as unknown as string, null, false)).toBe(false)
+  })
+
+  it('il no vale per quella versione, non per sempre', () => {
+    // Altrimenti un «No, grazie» premuto una volta spegneva ogni avviso
+    // futuro: chi l'ha premuto non saprebbe piu' di nessun aggiornamento.
+    expect(proponeApp(DENTRO, '1.3.0', '1.3.0', false)).toBe(false)
+    expect(proponeApp(`${CHROME} SierraDeck/1.2.0`, '1.4.0', '1.3.0', false)).toBe(true)
+  })
+})

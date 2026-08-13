@@ -167,11 +167,24 @@ class ClientActivity : AppCompatActivity() {
             // La pagina tiene la chiave nel proprio archivio locale: senza
             // questo, ogni apertura ricomincerebbe dall'accoppiamento.
             settings.domStorageEnabled = true
+            // **L'app si dichiara.** Senza, la pagina non sa di girare qui
+            // dentro — una WebView non è mai in display-mode standalone — e
+            // proponeva di scaricare l'app a chi la stava già usando.
+            settings.userAgentString =
+                Identita.userAgent(settings.userAgentString, BuildConfig.VERSION_NAME)
             // Il ponte: da qui la pagina fa sapere all app la chiave che ha
             // ottenuto, e l app gliela restituisce quando si torna sullo stesso
             // indirizzo. Senza, la guardia mandava le sue richieste con una
             // chiave vuota e non avvisava mai nessuno.
             addJavascriptInterface(Ponte(collegamento), "SierraDeckApp")
+            // **Il tasto che scarica.** Nella pagina è un `<a download>`, e una
+            // WebView non lo naviga: lo passa di qui. Senza un ascoltatore
+            // registrato **lo butta via in silenzio** — niente download, niente
+            // errore, niente browser. Il tasto sembrava rotto e non c'era modo
+            // di capire perché.
+            setDownloadListener { indirizzo, _, _, _, _ ->
+                runOnUiThread { scarica(indirizzo) }
+            }
             webViewClient = object : WebViewClient() {
                 /**
                  * Se il computer non risponde si torna all'ingresso.
@@ -241,12 +254,44 @@ class ClientActivity : AppCompatActivity() {
      * apre la **sua** schermata di installazione — quella resta, ed è giusto:
      * a installare un'app deve essere il sistema, con te che confermi.
      */
-    private fun proponiAggiornamento(nome: String, apk: String) {
-        val avanzamento = TextView(this).apply {
+    /** La riga «Scarico… 42%» da mettere dentro una finestra. */
+    private fun rigaAvanzamento(): TextView =
+        TextView(this).apply {
             setPadding(56, 32, 56, 0)
             text = "Scarico… 0%"
-            visibility = View.GONE
         }
+
+    /**
+     * Scarica quello che la pagina ha chiesto di scaricare.
+     *
+     * L'APK lo prendiamo noi, con la percentuale sotto gli occhi e la schermata
+     * di installazione di Android alla fine — la stessa strada dell'aggiornamento
+     * proposto dall'app, che è provata e funziona. Qualunque altro file lo apre
+     * il sistema: non è lavoro nostro.
+     */
+    private fun scarica(indirizzo: String) {
+        if (!indirizzo.substringBefore('?').endsWith(".apk", ignoreCase = true)) {
+            Aggiornamenti.scarica(this, indirizzo)
+            return
+        }
+        val riga = rigaAvanzamento()
+        AlertDialog.Builder(this)
+            .setTitle("Scarico SierraDeck")
+            .setMessage("A confermare l’installazione sarà Android.")
+            .setView(riga)
+            .setNegativeButton("Chiudi", null)
+            .create()
+            .show()
+        Scaricamento.apk(
+            this,
+            indirizzo,
+            avanzamento = { percento -> runOnUiThread { riga.text = "Scarico… $percento%" } },
+            guasto = { motivo -> runOnUiThread { riga.text = "Non ce l’ho fatta: $motivo" } }
+        )
+    }
+
+    private fun proponiAggiornamento(nome: String, apk: String) {
+        val avanzamento = rigaAvanzamento().apply { visibility = View.GONE }
         val finestra = AlertDialog.Builder(this)
             .setTitle("C’è SierraDeck $nome")
             .setMessage("La scarico e la installo da qui. A confermare l’installazione sarà Android.")

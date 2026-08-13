@@ -322,6 +322,59 @@ function ingresso(messaggio) {
 let appAndroid = {}
 fetch('/api/app').then((r) => r.json()).then((a) => { appAndroid = a || {} }).catch(() => undefined)
 
+/**
+ * La versione dell'app che sta guardando questa pagina, se e' l'app.
+ *
+ * La WebView si dichiara nel proprio user agent — «SierraDeck/1.3.0» — e senza
+ * quella dichiarazione la pagina non aveva **nessun** modo di sapere di girare
+ * dentro l'app: una WebView non e' mai in display-mode standalone. Cosi'
+ * l'invito «C'e' l'app per Android» compariva proprio a chi l'app ce l'aveva
+ * gia' aperta davanti.
+ */
+function versioneApp(ua) {
+  const trovata = /SierraDeck\\/([0-9]+\\.[0-9]+\\.[0-9]+)/.exec(ua || '')
+  return trovata ? trovata[1] : ''
+}
+
+/** Confronto numero per numero: «0.9.0» viene dopo «0.10.0» in ordine alfabetico. */
+function piuNuovaApp(mia, trovata) {
+  const a = String(mia || '').split('.').map(Number)
+  const b = String(trovata || '').split('.').map(Number)
+  for (let i = 0; i < 3; i++) {
+    const x = Number.isFinite(a[i]) ? a[i] : 0
+    const y = Number.isFinite(b[i]) ? b[i] : 0
+    if (x !== y) return y > x
+  }
+  return false
+}
+
+/**
+ * Si propone l'app? Solo se serve davvero.
+ *
+ * Tre no, e ognuno e' un difetto visto: non su un telefono Android; a chi ha
+ * gia' detto no; e — questo e' il nuovo — a chi ha **gia' installata** una
+ * versione che non e' piu' vecchia di quella pubblicata. Prima l'invito
+ * compariva dentro l'app stessa, offrendo di scaricare la versione che stavi
+ * usando: si preme, non succede niente, e si smette di credere agli
+ * aggiornamenti.
+ */
+function proponeApp(ua, disponibile, rifiutato, comeApp) {
+  if (!/Android/i.test(ua || '')) return false
+  if (!disponibile) return false
+  // Chi ha detto no ha detto no **a quella versione**: si tace finche' non ne
+  // esce una piu' nuova. Il vecchio «1» valeva per sempre, e chi l'aveva
+  // premuto una volta non avrebbe piu' saputo di nessun aggiornamento.
+  if (rifiutato === '1') return false
+  if (rifiutato && !piuNuovaApp(rifiutato, disponibile)) return false
+  const mia = versioneApp(ua)
+  // Dentro l'app la versione installata la sappiamo: si propone solo il
+  // sorpasso vero.
+  if (mia) return piuNuovaApp(mia, disponibile)
+  // Fuori dall'app: se e' una pagina installata come app web l'invito e' gia'
+  // stato accolto a modo suo, altrimenti l'app non c'e' e vale la pena dirlo.
+  return !comeApp
+}
+
 function pannello(s) {
   ultimoStato = s
   const attivo = document.activeElement
@@ -536,15 +589,20 @@ function pannello(s) {
   // Chi arriva da un telefono Android puo' avere l'app, che sa fare una cosa
   // che il browser non puo': avvisare quando e' chiusa. Si dice una volta e si
   // ricorda la risposta - un invito che torna a ogni apertura e' un fastidio.
-  const suAndroid = /Android/i.test(navigator.userAgent)
-  const inApp = /SierraDeck/i.test(navigator.userAgent) || window.matchMedia('(display-mode: standalone)').matches
-  const invito = suAndroid && !inApp && !localStorage.getItem('sierradeck.nienteapp') && appAndroid.versione
+  const invito = proponeApp(
+    navigator.userAgent,
+    appAndroid.versione,
+    localStorage.getItem('sierradeck.nienteapp'),
+    window.matchMedia('(display-mode: standalone)').matches
+  )
     ? \`<div class="piastrella chiede">
-         <div class="titolo">C’è l’app per Android</div>
-         <div class="sotto">Avvisa anche quando è chiusa: il browser, su una rete di casa, non può farlo.</div>
+         <div class="titolo">\${versioneApp(navigator.userAgent) ? 'C’è l’app ' + esc(appAndroid.versione) : 'C’è l’app per Android'}</div>
+         <div class="sotto">\${versioneApp(navigator.userAgent)
+           ? 'Hai la ' + esc(versioneApp(navigator.userAgent)) + ': questa è più nuova.'
+           : 'Avvisa anche quando è chiusa: il browser, su una rete di casa, non può farlo.'}</div>
          <div class="riga">
            <a class="tasto-link" href="\${esc(appAndroid.url)}" download>Scarica l’app \${esc(appAndroid.versione)}</a>
-           <button onclick="localStorage.setItem('sierradeck.nienteapp','1'); aggiorna()">No, grazie</button>
+           <button onclick="localStorage.setItem('sierradeck.nienteapp', appAndroid.versione || '1'); aggiorna()">No, grazie</button>
          </div>
        </div>\`
     : ''
