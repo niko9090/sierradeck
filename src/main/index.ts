@@ -802,8 +802,11 @@ if (!app.requestSingleInstanceLock()) {
         if (cambiati.length > 0) {
           console.log(`[avvio] ${cambiati.length} workspace avevano le chat divise fra piu monitor: unite`)
           workspaceStore?.scrivi({ ...daUnire, workspace: uniti })
-          // La finestra è già aperta e ha già chiesto il suo layout: glielo si
-          // rimanda, altrimenti le chat unite si vedono solo al prossimo avvio.
+          // Alla finestra, se nel frattempo è pronta a ricevere. Di solito non
+          // lo è — sta ancora caricando — e allora questo messaggio si perde
+          // senza far danni: quando chiederà il suo layout troverà l'archivio
+          // già unito. Serve per il caso opposto, quando l'unione è lenta
+          // perché i workspace sono molti.
           const suo = uniti.find((w) => w.nome === daUnire.attivo)?.perMonitor[casa]
           if (suo !== undefined && prima !== undefined && !prima.webContents.isDestroyed()) {
             prima.webContents.send('layout:applica', suo)
