@@ -231,7 +231,10 @@ export function Console({
           stato di workspace e autopiloti resta ancorato a destra. */}
       <div className="sezione sezione--vuota" />
 
-      <div className="sezione">
+      {/* L'unica sezione che cede: quando la finestra si stringe e' questa a
+          stringersi e a scorrere, perche' i workspace sono tanti e cambiano di
+          numero, mentre i comandi delle altre sezioni sono sempre quelli. */}
+      <div className="sezione sezione--cede">
         <span className="serigrafia">Workspace</span>
         {/* Tutti in vista, non uno dietro un menu: si passa da un insieme di
             chat all'altro con un clic, e si vede sempre dove si è. */}

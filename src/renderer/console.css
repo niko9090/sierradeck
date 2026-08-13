@@ -114,6 +114,20 @@ body {
   position: relative;
   z-index: 10;
   flex: 0 0 auto;
+  /* Misurata nel motore vero: a finestra intera la fascia era larga 1996px
+     contro 1904 disponibili — «Autopiloti» finiva fuori dallo schermo — e
+     stringendo la finestra restavano fuori quattordici comandi su ventiquattro,
+     irraggiungibili. Adesso scorre invece di sconfinare: l'ultima risorsa,
+     dopo che la sezione elastica ha ceduto tutto quello che poteva. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+/* La barra di scorrimento della fascia non si disegna: ruberebbe altezza al
+   mosaico, ed e' proprio l'altezza che qui si difende. Si scorre con la rotella
+   o con il trascinamento del touchpad. */
+.console::-webkit-scrollbar {
+  display: none;
 }
 
 /* Una sezione della console: un gruppo di comandi che stanno insieme. */
@@ -123,6 +137,28 @@ body {
   gap: var(--s2);
   padding: 0 var(--s3);
   position: relative;
+  /* I comandi non si schiacciano: un tasto stretto a meta' non e' leggibile e
+     non e' nemmeno un bersaglio. Sono le sezioni a cedere, non i tasti. */
+  flex: 0 0 auto;
+}
+
+/**
+ * La sezione che cede per prima.
+ *
+ * Quando lo spazio non basta, qualcosa deve stringersi: sono i workspace, che
+ * sono tanti, cambiano di numero e si raggiungono comunque scorrendo. I
+ * comandi delle altre sezioni restano dove sono — la mano ci arriva da sola, ed
+ * e' tutto il vantaggio di una console.
+ */
+.sezione--cede {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.sezione--cede::-webkit-scrollbar {
+  display: none;
 }
 
 /* Il solco fra due sezioni: scuro e poi chiaro, come un'incisione vera. */
@@ -1829,7 +1865,14 @@ select.comando-riquadro option {
 .sezione { gap: var(--s1); padding: 0 var(--s3); flex: 0 0 auto; }
 
 /* I workspace sono la parte che puo' crescere all'infinito: e' li' che si
-   restringe per primo, invece di spingere fuori i comandi. */
+   restringe per primo, invece di spingere fuori i comandi.
+   **Non bastava far scorrere il di dentro**: finche' la sezione tiene la
+   larghezza del suo contenuto, quello che sta dentro non ha motivo di
+   stringersi, e i comandi delle altre sezioni continuano a essere spinti fuori.
+   Misurato nel motore vero: a finestra intera la fascia occupava 1996px contro
+   1904, e «Autopiloti» restava oltre il bordo. */
+.console .sezione--cede { flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.console .sezione--cede::-webkit-scrollbar { height: 0; }
 .sezione .ws { min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .sezione .ws::-webkit-scrollbar { height: 0; }
 
