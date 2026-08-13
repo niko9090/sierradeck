@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Anteprima } from '../../main/anteprima'
 import type { Autopilota } from '@shared/autopilota'
 import { LARGHEZZA_DIARIO } from '@shared/preferenze'
-import { completamento, diario } from '../diario-autopilota'
-import { ledDi, passaggi } from '../autopilota-vista'
+import { diario } from '../diario-autopilota'
+import { ledDi, misuraPasso, passaggi } from '../autopilota-vista'
 
 function ora(iso: string): string {
   const d = new Date(iso)
@@ -49,7 +49,12 @@ export function DiarioAutopilota({
     ...autopilota.chats.filter((ch) => ch.sessionId !== undefined).map((ch) => ch.sessionId!),
     ...(autopilota.sessionId !== undefined ? [autopilota.sessionId] : [])
   ]
-  const sessione = sessioni[0]
+  // Mentre si prepara la conversazione è quella dell'intervista: dura minuti in
+  // cui legge il progetto, e senza questa riga il pannello diceva soltanto «la
+  // chat non è ancora partita» — che è vero e non serve a niente.
+  const sessione = autopilota.stato === 'intervista' && autopilota.sessioneIntervista !== undefined
+    ? autopilota.sessioneIntervista
+    : sessioni[0]
 
   const aggiorna = useCallback((): void => {
     if (sessione === undefined) return
@@ -67,10 +72,10 @@ export function DiarioAutopilota({
     return () => clearInterval(h)
   }, [aggiorna])
 
-  const c = completamento(autopilota)
   const voci = diario(autopilota)
   const led = ledDi(autopilota)
   const percorso = passaggi(autopilota)
+  const m = misuraPasso(autopilota)
   const qui = percorso.find((p) => p.stato !== 'fatto' && p.stato !== 'davanti')
 
   // La domanda si risponde anche mentre si prepara: è lì che l'autopilota
@@ -145,10 +150,10 @@ export function DiarioAutopilota({
         title={`${autopilota.nome}: ${qui?.nota ?? led.titolo} — riapre il diario dell’autopilota`}
       >
         <span className={`led ${led.classe}`} />
-        {/* Senza criteri non c'è percentuale da dare: al suo posto il passo, che
-            a pannello chiuso è l'unica cosa che si riesce comunque a leggere. */}
-        <span className="diario__linguetta-testo">
-          {c.totali > 0 ? `${c.percento}%` : qui?.nome ?? '—'}
+        {/* La percentuale del passo in cui si trova, con il suo colore: a
+            pannello chiuso sono gli unici due segni che restano. */}
+        <span className={`diario__linguetta-testo diario__misura--${m.tono}`}>
+          {m.percento}%
         </span>
       </button>
     )
@@ -211,21 +216,17 @@ export function DiarioAutopilota({
       </ol>
       {qui?.nota !== undefined ? <p className="passi__nota">{qui.nota}</p> : null}
 
-      {/* La percentuale non è una stima: sono i criteri di fine che
-          l'autopilota verifica a ogni intervento. Senza criteri non misura
-          niente — e un «0%» dove i passi dicono già «Prepara» è solo un numero
-          che spaventa. */}
-      {c.totali > 0 ? (
-        <>
-          <div className="diario__misura">
-            <span className="diario__percento">{c.percento}%</span>
-            <span className="misura">{c.fatti} di {c.totali} criteri</span>
-          </div>
-          <div className="diario__barra">
-            <span className="diario__riempimento" style={{ width: `${c.percento}%` }} />
-          </div>
-        </>
-      ) : null}
+      {/* La percentuale è del passo in cui si trova: i criteri quando lavora,
+          i giri dell'intervista quando si prepara. Il colore dice quale delle
+          due — un 33% verde e un 33% blu non misurano la stessa cosa, e
+          confonderli è peggio che non mostrarli. */}
+      <div className={`diario__misura diario__misura--${m.tono}`}>
+        <span className="diario__percento">{m.percento}%</span>
+        <span className="misura">{m.dettaglio} · {m.di}</span>
+      </div>
+      <div className={`diario__barra diario__barra--${m.tono}`}>
+        <span className="diario__riempimento" style={{ width: `${m.percento}%` }} />
+      </div>
 
       {/* La domanda si risponde **qui**, dove si sta già guardando: prima
           bisognava aprire il pannello degli autopiloti e cercarla, mentre la
@@ -266,7 +267,7 @@ export function DiarioAutopilota({
         </div>
       ) : null}
 
-      {c.totali > 0 ? (
+      {autopilota.criteri.length > 0 ? (
         <ul className="diario__criteri">
           {autopilota.criteri.map((cr, i) => (
             <li key={i} className={cr.soddisfatto ? 'diario__criterio diario__criterio--fatto' : 'diario__criterio'}>

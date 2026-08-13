@@ -1195,6 +1195,22 @@ input.campo {
   transition: width 300ms var(--uscita);
 }
 
+/* Il colore della misura dice **cosa** sta misurando. La preparazione non è
+   il lavoro: contarne i giri con lo stesso verde dei criteri farebbe leggere
+   un avanzamento verso la fine che non è ancora cominciato. Per questo prende
+   l'accento — l'unico colore che qui non significa già uno stato. */
+.diario__misura--preparazione .diario__percento { color: var(--accento); }
+.diario__barra--preparazione .diario__riempimento { background: var(--accento); }
+.diario__linguetta-testo.diario__misura--preparazione { color: var(--accento); }
+
+.diario__misura--attesa .diario__percento { color: var(--ambra); }
+.diario__barra--attesa .diario__riempimento { background: var(--ambra); }
+.diario__linguetta-testo.diario__misura--attesa { color: var(--ambra); }
+
+.diario__misura--fermo .diario__percento { color: var(--rosso); }
+.diario__barra--fermo .diario__riempimento { background: var(--rosso); }
+.diario__linguetta-testo.diario__misura--fermo { color: var(--rosso); }
+
 .diario__criteri {
   margin: 0 0 12px;
   padding: 0;

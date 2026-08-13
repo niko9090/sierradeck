@@ -7,7 +7,9 @@ import type { Giudizio } from './decisione'
 export type Interrogazione = (
   prompt: string,
   cwd: string,
-  sessionId: string | undefined
+  sessionId: string | undefined,
+  /** L'id con cui far nascere la sessione, quando la si vuole poter guardare. */
+  nuovaSessione?: string
 ) => Promise<{ testo: string; sessionId?: string }>
 
 const TIMEOUT_MS = 5 * 60_000
@@ -33,7 +35,16 @@ export function argomentiSupervisore(
   prompt: string,
   cwd: string,
   sessionId: string | undefined,
-  avvia: (comando: string, args: string[]) => void
+  avvia: (comando: string, args: string[]) => void,
+  /**
+   * L'id da dare a una sessione che nasce adesso.
+   *
+   * Serve a poterla **guardare mentre lavora**: senza, la sessione si conosce
+   * solo dalla risposta finale, e nel frattempo — minuti, durante la
+   * preparazione — non c'è nessuna trascrizione da mostrare. È la stessa
+   * tecnica delle chat governate, che l'id se lo danno da sé alla nascita.
+   */
+  nuovaSessione?: string
 ): void {
   avvia(claudeCmd, [
     '-p', prompt,
@@ -45,7 +56,11 @@ export function argomentiSupervisore(
     // allo scadere del timeout — cioè mai, e l'autopilota si sospenderebbe per
     // un giudizio mancato invece che per un problema vero.
     '--dangerously-skip-permissions',
-    ...(sessionId !== undefined ? ['--resume', sessionId] : [])
+    // O si riprende quella che c'è, o se ne apre una con l'id che abbiamo
+    // scelto: tutte e due insieme sarebbero due sessioni per un discorso solo.
+    ...(sessionId !== undefined
+      ? ['--resume', sessionId]
+      : nuovaSessione !== undefined ? ['--session-id', nuovaSessione] : [])
   ])
 }
 
@@ -71,7 +86,7 @@ export function ambientePulito(base: NodeJS.ProcessEnv): Record<string, string> 
 }
 
 export function interrogazioneReale(claudeCmd: string): Interrogazione {
-  return (prompt, cwd, sessionId) =>
+  return (prompt, cwd, sessionId, nuovaSessione) =>
     new Promise((risolvi, rifiuta) => {
       // Una cartella che non c'è fa fallire `execFile` con lo stesso «Command
       // failed» di qualunque altro guasto, e manda a cercare dalla parte
@@ -84,7 +99,7 @@ export function interrogazioneReale(claudeCmd: string): Interrogazione {
         return
       }
       let args: string[] = []
-      argomentiSupervisore(claudeCmd, prompt, cwd, sessionId, (_c, a) => { args = a })
+      argomentiSupervisore(claudeCmd, prompt, cwd, sessionId, (_c, a) => { args = a }, nuovaSessione)
       execFile(
         claudeCmd,
         args,
@@ -103,10 +118,20 @@ export function interrogazioneReale(claudeCmd: string): Interrogazione {
             // e un timeout. Il motivo vero lo scrive il comando sul suo stderr,
             // e buttarlo via lasciava l'autopilota fermo con un messaggio che
             // non permetteva di capire niente — nemmeno da dove ricominciare.
+            // **Prima lo stderr, e senza la riga di comando.** `err.message`
+            // ripete il comando intero — prompt compreso, migliaia di caratteri
+            // — e di un motivo se ne leggono i primi cinquecento: si vedeva il
+            // prompt, che era già noto, e mai la ragione. Del messaggio resta
+            // solo la parte che dice qualcosa.
+            const scaduto = err.killed === true ? `scaduto dopo ${TIMEOUT_MS / 60_000} minuti` : ''
+            const causa = err.message.startsWith('Command failed')
+              ? `${err.code !== undefined ? `uscito con ${String(err.code)}` : 'non è partito'}`
+              : err.message.split('\n')[0]!.slice(0, 200)
             const dettaglio = [
-              err.message,
-              stderr.trim() === '' ? '' : `stderr: ${stderr.trim().slice(0, 600)}`,
-              stdout.trim() === '' ? '' : `uscita: ${stdout.trim().slice(0, 300)}`
+              scaduto,
+              stderr.trim() === '' ? '' : stderr.trim().slice(0, 400),
+              stdout.trim() === '' ? '' : `uscita: ${stdout.trim().slice(0, 200)}`,
+              causa
             ].filter((r) => r !== '').join(' | ')
             rifiuta(new Error(`interrogazione del supervisore fallita: ${dettaglio}`))
             return

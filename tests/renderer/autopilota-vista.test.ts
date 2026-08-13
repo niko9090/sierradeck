@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { descriviAutopilota, ledDi, passaggi } from '../../src/renderer/autopilota-vista'
+import { descriviAutopilota, ledDi, misuraPasso, passaggi } from '../../src/renderer/autopilota-vista'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 
 function ap(over: Partial<Autopilota> = {}): Autopilota {
@@ -220,5 +220,50 @@ describe('passaggi', () => {
     const p = passaggi(ap({ stato: 'finito', cicli: 7 }))
     expect(p.map((x) => x.stato)).toEqual(['fatto', 'fatto', 'corrente'])
     expect(p[2]!.nota).toContain('7')
+  })
+})
+
+describe('la misura del passo corrente', () => {
+  it('durante la preparazione misura la preparazione, non i criteri', () => {
+    // I criteri non ci sono ancora: misurarli darebbe zero su zero. Quello che
+    // avanza qui sono i giri dell'intervista, e sono quelli da mostrare.
+    const m = misuraPasso(ap({ stato: 'intervista', criteri: [] }))
+    expect(m.di).toBe('preparazione')
+    expect(m.percento).toBeGreaterThan(0)
+    expect(m.percento).toBeLessThan(100)
+  })
+
+  it('ogni risposta manda avanti la preparazione', () => {
+    const primo = misuraPasso(ap({ stato: 'intervista', criteri: [] })).percento
+    const dopoUna = misuraPasso(ap({
+      stato: 'intervista', criteri: [], intervista: [{ domanda: 'd', risposta: 'r' }]
+    })).percento
+    expect(dopoUna).toBeGreaterThan(primo)
+  })
+
+  it('al lavoro misura i criteri', () => {
+    const m = misuraPasso(ap({ stato: 'lavoro' }))
+    expect(m.di).toBe('criteri')
+    expect(m.percento).toBe(50)
+    expect(m.dettaglio).toBe('1 di 2')
+  })
+
+  it('finito e cento per cento, comunque siano andati i criteri', () => {
+    expect(misuraPasso(ap({ stato: 'finito' })).percento).toBe(100)
+  })
+
+  it('il tono segue il passo: verde chi lavora, ambra chi aspetta, rosso chi e fermo', () => {
+    expect(misuraPasso(ap({ stato: 'lavoro' })).tono).toBe('lavoro')
+    expect(misuraPasso(ap({ stato: 'attesa' })).tono).toBe('attesa')
+    expect(misuraPasso(ap({ stato: 'sospeso' })).tono).toBe('fermo')
+    // La preparazione ha un tono suo: cosi la percentuale non si confonde con
+    // quella dei criteri, che misura un'altra cosa.
+    expect(misuraPasso(ap({ stato: 'intervista', criteri: [] })).tono).toBe('preparazione')
+  })
+
+  it('senza criteri e fuori dalla preparazione non inventa una misura', () => {
+    const m = misuraPasso(ap({ stato: 'sospeso', criteri: [] }))
+    expect(m.percento).toBeGreaterThanOrEqual(0)
+    expect(m.di).toBe('preparazione')
   })
 })

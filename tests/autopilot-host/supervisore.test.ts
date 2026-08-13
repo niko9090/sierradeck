@@ -143,6 +143,22 @@ describe('permessi del supervisore', () => {
     argomentiSupervisore('claude.exe', 'p', 'C:\p', 's-9', (_c, args) => { visti.push(args) })
     expect(visti[0]?.[visti[0].indexOf('--resume') + 1]).toBe('s-9')
   })
+
+  it('sa nascere con una sessione decisa da noi, per poterla guardare mentre lavora', () => {
+    // Senza, la sessione si conosce solo alla fine: durante la preparazione -
+    // che dura minuti - il pannello non ha niente da mostrare e dice soltanto
+    // «la chat non e' ancora partita».
+    const visti: string[][] = []
+    argomentiSupervisore('claude.exe', 'p', 'C:\p', undefined, (_c, args) => { visti.push(args) }, 's-nuova')
+    expect(visti[0]?.[visti[0].indexOf('--session-id') + 1]).toBe('s-nuova')
+  })
+
+  it('non impone un id quando sta riprendendo: sarebbero due sessioni', () => {
+    const visti: string[][] = []
+    argomentiSupervisore('claude.exe', 'p', 'C:\p', 's-9', (_c, args) => { visti.push(args) }, 's-nuova')
+    expect(visti[0]).not.toContain('--session-id')
+    expect(visti[0]).toContain('--resume')
+  })
 })
 
 describe('riparazione di un comando che non parte', () => {

@@ -98,6 +98,15 @@ export type Autopilota = {
    * prima volta ogni volta.
    */
   sessioneSupervisore?: string
+  /**
+   * La sessione con cui si sta preparando, decisa **prima** di aprirla.
+   *
+   * La preparazione dura minuti in cui l'autopilota legge il progetto, e senza
+   * questo id non c'è niente da guardare: la sua conversazione esiste, ma il
+   * suo nome si conoscerebbe solo alla fine. Deciderlo alla nascita la rende
+   * visibile dal primo istante — è la stessa cosa che fanno le chat governate.
+   */
+  sessioneIntervista?: string
   motivoSospensione?: string
   limiti: Limiti
   /**
@@ -354,6 +363,9 @@ export function parseAutopilota(raw: unknown): {
       ...(typeof o.riprendiAlRiavvio === 'boolean' ? { riprendiAlRiavvio: o.riprendiAlRiavvio } : {}),
       ...(stringaNonVuota(o.sessioneSupervisore) !== undefined
         ? { sessioneSupervisore: o.sessioneSupervisore as string }
+        : {}),
+      ...(stringaNonVuota(o.sessioneIntervista) !== undefined
+        ? { sessioneIntervista: o.sessioneIntervista as string }
         : {}),
       ...(motivoSospensione !== undefined ? { motivoSospensione } : {}),
       intervista: Array.isArray(o.intervista)

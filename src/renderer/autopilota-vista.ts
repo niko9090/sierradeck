@@ -104,6 +104,70 @@ export function passaggi(a: Autopilota): Passo[] {
   return passi
 }
 
+export type MisuraPasso = {
+  /** Da 0 a 100. */
+  percento: number
+  /** Che cosa sta misurando: è la parola che va scritta accanto al numero. */
+  di: 'preparazione' | 'criteri'
+  /** Il conto esatto, quando c'è: «1 di 2». */
+  dettaglio: string
+  /** Il colore del numero e della barra, per stato — non per decorazione. */
+  tono: 'preparazione' | 'lavoro' | 'attesa' | 'fermo'
+}
+
+/**
+ * Quanti giri d'intervista può fare la preparazione prima di dover decidere.
+ *
+ * Lo sa il servizio (`SCAMBI_MAX` più il giro finale, quello in cui non si
+ * chiede più e si conclude); qui serve per misurare, e il numero è quello.
+ */
+const GIRI_PREPARAZIONE = 3
+
+/**
+ * La percentuale del **passo in cui si trova**, non una sola per tutti.
+ *
+ * Un autopilota che si prepara non ha criteri, e misurarli dava «0%» in cima a
+ * un pannello dove non era ancora andato storto niente. Ma un'attesa senza
+ * misura è peggio: mentre si prepara qualcosa avanza — i giri dell'intervista —
+ * ed è quello il progresso di quel momento. Il tono lo distingue: la
+ * percentuale della preparazione non è dello stesso colore di quella dei
+ * criteri, perché non misura la stessa cosa.
+ */
+export function misuraPasso(a: Autopilota): MisuraPasso {
+  const tono: MisuraPasso['tono'] =
+    a.stato === 'sospeso' || a.stato === 'fallito'
+      ? 'fermo'
+      : a.stato === 'attesa' || (a.stato === 'intervista' && stachiedendo(a))
+        ? 'attesa'
+        : a.criteri.length === 0 && a.stato !== 'finito'
+          ? 'preparazione'
+          : 'lavoro'
+
+  // Senza criteri l'autopilota è ancora dentro la preparazione, comunque sia
+  // il suo stato: è quella che va misurata, anche se si è fermata.
+  if (a.criteri.length === 0 && a.stato !== 'finito') {
+    const giro = Math.min(a.intervista.length + 1, GIRI_PREPARAZIONE)
+    return {
+      percento: Math.round((giro / GIRI_PREPARAZIONE) * 100),
+      di: 'preparazione',
+      dettaglio: `giro ${giro} di ${GIRI_PREPARAZIONE}`,
+      tono
+    }
+  }
+
+  const totali = a.criteri.length
+  const fatti = a.criteri.filter((c) => c.soddisfatto).length
+  if (a.stato === 'finito') {
+    return { percento: 100, di: 'criteri', dettaglio: `${totali} di ${totali}`, tono: 'lavoro' }
+  }
+  return {
+    percento: totali === 0 ? 0 : Math.round((fatti / totali) * 100),
+    di: 'criteri',
+    dettaglio: `${fatti} di ${totali}`,
+    tono
+  }
+}
+
 /**
  * Il testo con cui un autopilota compare nel pannello.
  *

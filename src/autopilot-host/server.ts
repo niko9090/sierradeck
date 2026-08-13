@@ -272,10 +272,18 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // delegato si ritrova a rispondere a tutto — cioè a fare il lavoro che
       // aveva delegato.
       const senzaDomande = giro >= SCAMBI_MAX
+      // Ogni giro apre la sua sessione, e l'id lo decidiamo qui: è ciò che la
+      // rende visibile **mentre** lavora. Un'interrogazione dura minuti in cui
+      // legge il progetto, e senza un nome saputo in anticipo non c'è nulla da
+      // mostrare a chi guarda il pannello.
+      const sessione = randomUUID()
+      corrente = { ...corrente, sessioneIntervista: sessione }
+      salva(corrente)
       const { testo } = await deps.interroga(
         componiPromptIntervista(corrente.obiettivo, corrente.cwd, corrente.intervista, { senzaDomande }),
         corrente.cwd,
-        undefined
+        undefined,
+        sessione
       )
       const esito = leggiEsitoIntervista(testo)
 
@@ -318,7 +326,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         const { testo: secondo } = await deps.interroga(
           componiPromptIntervista(corrente.obiettivo, corrente.cwd, corrente.intervista, { senzaDomande: true }),
           corrente.cwd,
-          undefined
+          undefined,
+          randomUUID()
         )
         const forzato = leggiEsitoIntervista(secondo)
         if (forzato !== undefined && forzato.tipo === 'pronto') {
