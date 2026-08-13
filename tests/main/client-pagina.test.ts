@@ -13,6 +13,18 @@ describe('lo script della pagina', () => {
     expect(() => new Function(script)).not.toThrow()
   })
 
+  it('si puo affidare un lavoro, e la cartella si sceglie dalla lista', () => {
+    // Delegare e' il gesto che ha piu' senso da un telefono: si dice cosa si
+    // vuole e si va. Le domande della preparazione arrivano sulla stessa
+    // pagina, dove c'e' gia' il campo per rispondere.
+    const p = paginaClient()
+    expect(p).toContain('/api/autopilota/crea')
+    expect(p).toContain('Affida un lavoro')
+    // Per indice, come per l'apertura di una chat: un percorso di Windows
+    // dentro un onclick vorrebbe dire raddoppiare i backslash e sperare.
+    expect(p).toContain('scegliPer(')
+  })
+
   it('la regex del codice cerca sei cifre, non la lettera d', () => {
     // `\d` scritto una volta sola dentro un template arriva alla pagina come
     // una «d»: la scansione del QR non accoppiava niente e nessuno capiva
@@ -91,5 +103,23 @@ describe('il logo', () => {
     // con sei puntini: senza un segno, non si sa nemmeno dove si è finiti.
     const ingresso = html.slice(html.indexOf('function ingresso('), html.indexOf('function ingresso(') + 600)
     expect(ingresso).toContain('data:image/svg+xml')
+  })
+})
+
+describe('il terminale, con i suoi colori', () => {
+  it('la pagina porta dentro l interprete dei colori, per intero', () => {
+    // Non una copia riscritta a mano: la stessa funzione che i test verificano,
+    // incollata dentro. Due copie divergono al primo ritocco.
+    const p = paginaClient()
+    expect(p).toContain('function ansiInHtml')
+    expect(p).toContain('#54c07a')
+  })
+
+  it('mostra le righe vestite, e ripiega su quelle ripulite', () => {
+    // Una versione vecchia dell'app puo' non mandarle: meglio un terminale
+    // sbiancato che uno schermo vuoto.
+    const p = paginaClient()
+    expect(p).toContain('righeGrezze')
+    expect(p).toContain('righeDentro.length')
   })
 })

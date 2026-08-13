@@ -505,6 +505,18 @@ if (!app.requestSingleInstanceLock()) {
         },
         fermaAutopilota: (id: string) => clientAutopilota.ferma(id),
         riprendiAutopilota: (id: string) => clientAutopilota.riprendi(id),
+        // Senza criteri: li ricava l'autopilota nella preparazione, guardando
+        // il progetto. Da un telefono, un modulo da compilare sarebbe il modo
+        // piu' sicuro per non delegare mai niente.
+        creaAutopilota: async (obiettivo: string, cartella: string) => {
+          const a = await clientAutopilota.crea({
+            nome: obiettivo.slice(0, 40),
+            obiettivo,
+            cwd: cartella,
+            criteri: []
+          })
+          return { id: a.id }
+        },
         versione: app.getVersion(),
         apk: () => apkDisponibile()
       }

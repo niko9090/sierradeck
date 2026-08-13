@@ -24,6 +24,7 @@ function deps(over: Partial<DipendenzeRotte> = {}): DipendenzeRotte {
     cambiaWorkspace: () => Promise.resolve(),
     fermaAutopilota: () => Promise.resolve(),
     riprendiAutopilota: () => Promise.resolve(),
+    creaAutopilota: () => Promise.resolve({ id: 'ap-9' }),
     versione: '0.5.0',
     apk: () => Promise.resolve({ versione: '1.0.2', url: 'https://x/SierraDeck-1.0.2.apk' }),
     ...over
@@ -184,6 +185,48 @@ describe('quello che il Client puo fare', () => {
     )
     expect(cattiva.stato).toBe(403)
     expect(aperta).toBe('C:\\lavoro')
+  })
+
+  it('crea un autopilota, nella sola cartella che il computer conosce', async () => {
+    // Delegare un lavoro e' la cosa piu' utile che si possa fare da fermi, in
+    // piedi, con una mano sola: le domande della preparazione arrivano poi
+    // sullo stesso telefono, e si risponde da li'.
+    const creati: { obiettivo: string; cartella: string }[] = []
+    const su = deps({
+      creaAutopilota: (obiettivo, cartella) => {
+        creati.push({ obiettivo, cartella })
+        return Promise.resolve({ id: 'ap-9' })
+      }
+    })
+    const buona = await rotteClient(su)({
+      metodo: 'POST',
+      percorso: '/api/autopilota/crea',
+      corpo: { obiettivo: 'Sistema il lettore di CSV', cartella: 'C:\\lavoro' }
+    })
+    expect(buona.stato).toBe(200)
+    expect(creati).toEqual([{ obiettivo: 'Sistema il lettore di CSV', cartella: 'C:\\lavoro' }])
+
+    // La stessa regola di «apri»: una cartella qualunque arrivata dalla rete
+    // manderebbe un agente a lavorare dove capita.
+    const fuori = await rotteClient(su)({
+      metodo: 'POST',
+      percorso: '/api/autopilota/crea',
+      corpo: { obiettivo: 'x', cartella: 'C:\Windows\System32' }
+    })
+    expect(fuori.stato).toBe(403)
+    expect(creati).toHaveLength(1)
+  })
+
+  it('senza obiettivo non crea niente', async () => {
+    const creati: string[] = []
+    const su = deps({
+      creaAutopilota: (o) => { creati.push(o); return Promise.resolve({ id: 'ap-9' }) }
+    })
+    const r = await rotteClient(su)({
+      metodo: 'POST', percorso: '/api/autopilota/crea', corpo: { cartella: 'C:\lavoro' }
+    })
+    expect(r.stato).toBe(400)
+    expect(creati).toEqual([])
   })
 
   it('non puo distruggere niente', async () => {

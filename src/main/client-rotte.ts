@@ -39,6 +39,14 @@ export type Chat = {
    * guardando.
    */
   coda?: string[]
+  /**
+   * Le stesse righe come le ha scritte il terminale, colori compresi.
+   *
+   * Costano pochi byte in piu' delle ripulite e viaggiano per la stessa strada
+   * — una chat sola, quando la si apre — ma dall'altra parte fanno la
+   * differenza fra un terminale e la sua trascrizione sbiancata.
+   */
+  codaGrezza?: string[]
 }
 
 export type DipendenzeRotte = {
@@ -64,6 +72,15 @@ export type DipendenzeRotte = {
   /** Ferma o riprende un autopilota: due gesti reversibili, quindi ammessi. */
   fermaAutopilota: (id: string) => Promise<void>
   riprendiAutopilota: (id: string) => Promise<void>
+  /**
+   * Affida un lavoro nuovo a un autopilota.
+   *
+   * È l'unica cosa che *crea* qualcosa da qui, e ci sta: delegare è il gesto
+   * che ha più senso da fermi, in piedi, con una mano sola — e non distrugge
+   * niente, perché l'autopilota prima di partire chiede. Le sue domande
+   * arrivano su questo stesso telefono.
+   */
+  creaAutopilota: (obiettivo: string, cartella: string) => Promise<{ id: string }>
   /** Le cartelle in cui si può aprire una chat: quelle già viste da Claude Code. */
   cartelle: () => Promise<string[]>
   versione: string
@@ -157,7 +174,7 @@ export function rotteClient(deps: DipendenzeRotte) {
       return OK({
         // Senza la coda delle righe: l'elenco si chiede ogni due secondi, e
         // quello che si guarda dentro è una chat sola, quando la si apre.
-        chat: deps.chat().map(({ coda: _coda, ...resto }) => resto),
+        chat: deps.chat().map(({ coda: _coda, codaGrezza: _grezza, ...resto }) => resto),
         // Solo quello che serve a una piastrella: mandare tutto lo stato di un
         // autopilota su una rete di casa, ogni due secondi, sarebbe spedire un
         // libro per leggerne il titolo.
@@ -200,7 +217,14 @@ export function rotteClient(deps: DipendenzeRotte) {
       const id = stringa(r.corpo, 'chat')
       const trovata = deps.chat().find((c) => c.id === id)
       if (trovata === undefined) return { stato: 404, corpo: { errore: 'chat non trovata' } }
-      return OK({ chat: trovata.id, titolo: trovata.titolo, righe: trovata.coda ?? [] })
+      return OK({
+        chat: trovata.id,
+        titolo: trovata.titolo,
+        righe: trovata.coda ?? [],
+        // Le righe vestite. Restano anche quelle ripulite: una versione vecchia
+        // dell'app Android legge quelle, e non deve trovarsi lo schermo vuoto.
+        grezze: trovata.codaGrezza ?? []
+      })
     }
 
     // Le cartelle in cui si può aprire: si chiedono solo quando servono, non
@@ -239,6 +263,23 @@ export function rotteClient(deps: DipendenzeRotte) {
       if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
       await deps.riprendiAutopilota(id)
       return OK({ fatto: true })
+    }
+
+    // Affidare un lavoro. La cartella passa dallo stesso muro di «apri»: un
+    // percorso qualunque arrivato dalla rete manderebbe un agente a lavorare
+    // dove capita, e con un autopilota nessuno se ne accorgerebbe per ore.
+    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/crea') {
+      const obiettivo = stringa(r.corpo, 'obiettivo')
+      const cartella = stringa(r.corpo, 'cartella')
+      if (obiettivo === '' || cartella === '') {
+        return { stato: 400, corpo: { errore: 'servono l obiettivo e la cartella' } }
+      }
+      const ammesse = await deps.cartelle().catch(() => [] as string[])
+      if (!ammesse.includes(cartella)) {
+        return { stato: 403, corpo: { errore: 'cartella non conosciuta' } }
+      }
+      const creato = await deps.creaAutopilota(obiettivo.slice(0, TESTO_MAX), cartella)
+      return OK({ fatto: true, autopilota: creato.id })
     }
 
     if (r.metodo === 'POST' && r.percorso === '/api/workspace') {

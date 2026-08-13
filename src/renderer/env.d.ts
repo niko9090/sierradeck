@@ -50,7 +50,7 @@ declare global {
         chiudiAccoppiamento: () => Promise<void>
         revoca: (id: string) => Promise<unknown[]>
         annunciaChat: (
-          chat: { id: string; titolo: string; cwd: string; sessione?: string; ultimaRiga?: string; coda?: string[] }[]
+          chat: { id: string; titolo: string; cwd: string; sessione?: string; ultimaRiga?: string; coda?: string[]; codaGrezza?: string[] }[]
         ) => void
         suApertura: (cb: (m: { cartella: string; modello?: string }) => void) => () => void
         suConsegna: (cb: (c: unknown) => void) => () => void

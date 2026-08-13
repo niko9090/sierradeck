@@ -166,7 +166,13 @@ export function App(): React.JSX.Element {
           // istruzioni di un autopilota, e il telefono per guardarci dentro.
           sessione: p.sessionUuid,
           ...(p.ptyId !== undefined
-            ? { ultimaRiga: righe.current.di(p.ptyId), coda: righe.current.codaDi(p.ptyId) }
+            ? {
+                ultimaRiga: righe.current.di(p.ptyId),
+                coda: righe.current.codaDi(p.ptyId),
+                // Le stesse righe com'erano: e' il telefono a rimetterci i
+                // colori, e senza queste li' si legge un terminale sbiancato.
+                codaGrezza: righe.current.codaGrezzaDi(p.ptyId)
+              }
             : {})
         }))
       )

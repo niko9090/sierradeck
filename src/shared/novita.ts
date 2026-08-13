@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.10',
+    righe: [
+      '**Dal telefono si affida un lavoro.** Si dice cosa si vuole, si sceglie la cartella, e l’autopilota parte: le domande che gli servono arrivano sulla stessa pagina, dove c’è già il campo per rispondere. Era la cosa che aveva più senso poter fare da fermi, in piedi, con una mano sola — e mancava.',
+      '**E il terminale si guarda con i suoi colori.** Le righe arrivavano sbiancate: il testo giusto, senza il verde di un test passato o il rosso di uno fallito, che sono metà di quello che dice come sta andando.',
+      '**Lo stile Foglio è diventato uno stile vero**, invece di un Banco addolcito. Sotto c’è il lavoro che lo rende possibile: il foglio di stile aveva 51 colori scritti a mano, 11 dimensioni di testo e 23 spaziature decise una per una, e adesso ha cinque misure, quattro passi di spazio e i colori della sola tavolozza. Trentadue di quei grigi non seguivano nemmeno il cursore del chiarore.'
+    ]
+  },
+  {
     versione: '0.9.9',
     righe: [
       '**Gli aggiornamenti arrivavano a metà.** Il servizio degli autopiloti vive fuori dall’applicazione e sopravvive alla sua chiusura — è tutto il suo mestiere, così il lavoro prosegue mentre non ci sei. Ma l’app lo riavviava solo se la porta era libera: dopo un aggiornamento restava in memoria quello vecchio, per giorni, e le correzioni appena installate non entravano mai in funzione. Si aggiornava per riparare l’autopilota, e l’autopilota continuava a comportarsi come prima.',

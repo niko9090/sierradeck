@@ -16,6 +16,8 @@
  * due parole a una chat — raggiungibili senza cercare.
  */
 
+import { ansiInHtml } from '@shared/ansi-html'
+
 /** Il cristallo, per la scheda del browser e per la schermata Home. */
 export const ICONA_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">' +
@@ -152,6 +154,11 @@ export function paginaClient(): string {
 <body>
 <div id="app"></div>
 <script>
+// L'interprete dei colori del terminale. Vive in un modulo suo, con i suoi
+// test, e qui dentro ci arriva per intero: quello che gira nel telefono e'
+// esattamente il codice che e' stato verificato.
+${ansiInHtml.toString()}
+
 const CHIAVE = 'sierradeck.chiave'
 let chiave = localStorage.getItem(CHIAVE) || ''
 // Quella che l app si ricorda per questo indirizzo: e cio che permette di
@@ -168,6 +175,11 @@ const app = document.getElementById('app')
 var dentro = null
 var righeDentro = []
 var cartelle = null
+// Le stesse righe con i loro colori: si vestono qui, nel telefono.
+var righeGrezze = []
+// Il modulo per affidare un lavoro: aperto o no, e quale cartella e' scelta.
+var delegando = false
+var delegaCartella = -1
 // L'ultimo stato ricevuto: serve a ridisegnare subito quando si apre o si
 // chiude qualcosa, senza aspettare il prossimo giro da due secondi.
 var ultimoStato = { chat: [], autopiloti: [], domande: [] }
@@ -284,7 +296,11 @@ function pannello(s) {
       <div class="titolo">\${esc(c.titolo)}</div>
       <div class="sotto">\${esc(c.cwd)}</div>
       \${dentro === c.id
-        ? '<div class="dentro">' + (righeDentro.length ? esc(righeDentro.join(String.fromCharCode(10)))
+        ? '<div class="dentro">' + (righeGrezze.length
+            // Vestite: il verde di un test passato e il rosso di uno fallito
+            // sono meta' di quello che dice come sta andando.
+            ? ansiInHtml(righeGrezze.join(String.fromCharCode(10)))
+            : righeDentro.length ? esc(righeDentro.join(String.fromCharCode(10)))
             : 'Ancora niente da mostrare.') + '</div>'
         : (c.ultimaRiga ? '<div class="battito">' + esc(c.ultimaRiga) + '</div>' : '')}
       <div class="riga">
@@ -301,7 +317,7 @@ function pannello(s) {
   // Aprire non distrugge niente: nel peggiore dei casi resta un riquadro in
   // piu' da chiudere al computer. Ed e' la differenza fra guardare da fuori e
   // poter cominciare qualcosa da fuori.
-  const nuova = cartelle === null
+  const nuova = cartelle === null || delegando
     ? '<div class="piastrella"><div class="riga"><button onclick="scegliCartella()">Apri una chat nuova</button></div></div>'
     : \`<div class="piastrella">
          <div class="titolo">In quale cartella?</div>
@@ -313,6 +329,29 @@ function pannello(s) {
            // non contenga apici. L'indice non ha niente da sfuggire.
            '<button class="cartella" onclick="apriIn(' + i + ')">' + esc(c) + '</button>').join('')}
          <div class="riga"><button onclick="cartelle = null; pannello(ultimoStato)">Lascia stare</button></div>
+       </div>\`
+
+  // Affidare un lavoro. È il gesto che ha più senso da fermi, in piedi, con una
+  // mano sola: si dice cosa si vuole e si va, e le domande della preparazione
+  // arrivano qui sopra, dove si risponde. Un modulo con i criteri da compilare
+  // sarebbe il modo più sicuro per non delegare mai niente da un telefono.
+  const delega = !delegando
+    ? '<div class="piastrella"><div class="riga"><button onclick="apriDelega()">Affida un lavoro</button></div></div>'
+    : \`<div class="piastrella chiede">
+         <div class="titolo">Cosa vuoi che faccia?</div>
+         <div class="sotto">Descrivilo con parole tue. Ti farà le domande che gli servono, qui.</div>
+         <div class="riga">
+           <textarea id="delega-obiettivo" rows="3" placeholder="es. trova e sistema i test che falliscono a caso"></textarea>
+         </div>
+         <div class="sotto" style="margin-top:10px">In quale cartella?</div>
+         \${(cartelle || []).length === 0
+           ? '<div class="sotto" style="margin-top:8px">Nessuna cartella conosciuta.</div>'
+           : (cartelle || []).map((c, i) =>
+               '<button class="cartella' + (delegaCartella === i ? ' attivo' : '') + '" onclick="scegliPer(' + i + ')">' + esc(c) + '</button>').join('')}
+         <div class="riga">
+           <button class="primario" onclick="affida()">Affida</button>
+           <button onclick="delegando = false; delegaCartella = -1; pannello(ultimoStato)">Lascia stare</button>
+         </div>
        </div>\`
 
   const ws = (s.workspace && s.workspace.nomi || []).map((n) => \`
@@ -351,6 +390,7 @@ function pannello(s) {
       \${autopiloti || ''}
       \${chat || (autopiloti ? '' : '<div class="vuoto">Nessuna chat aperta sul computer.</div>')}
       \${nuova}
+      \${delega}
     </main>\`
 
   for (const id in scritti) {
@@ -369,21 +409,24 @@ function pannello(s) {
 window.guarda = async (id) => {
   dentro = id
   righeDentro = []
+  righeGrezze = []
   await leggiDentro()
   pannello(ultimoStato)
 }
-window.chiudiDentro = () => { dentro = null; righeDentro = []; pannello(ultimoStato) }
+window.chiudiDentro = () => { dentro = null; righeDentro = []; righeGrezze = []; pannello(ultimoStato) }
 
 async function leggiDentro() {
   if (!dentro) return
   try {
     const r = await chiedi('/api/dentro', { chat: dentro })
     righeDentro = r.righe || []
+    righeGrezze = r.grezze || []
   } catch (e) {
     // Una chat chiusa al computer mentre la si guardava: si torna all'elenco
     // invece di restare su un riquadro che non esiste piu'.
     dentro = null
     righeDentro = []
+    righeGrezze = []
   }
 }
 
@@ -403,6 +446,34 @@ window.apriIn = async (i) => {
   cartelle = null
   // La chat nuova compare nell'elenco appena il computer la annuncia: un paio
   // di secondi, il tempo del prossimo giro.
+  aggiorna()
+}
+
+window.apriDelega = async () => {
+  delegando = true
+  delegaCartella = -1
+  try {
+    const r = await chiedi('/api/cartelle')
+    cartelle = r.cartelle || []
+  } catch (e) {
+    cartelle = []
+  }
+  // Una sola cartella conosciuta e' gia' la scelta: chiedere di toccarla
+  // sarebbe un gesto per niente.
+  if (cartelle.length === 1) delegaCartella = 0
+  pannello(ultimoStato)
+}
+window.scegliPer = (i) => { delegaCartella = i; pannello(ultimoStato) }
+window.affida = async () => {
+  const campo = document.getElementById('delega-obiettivo')
+  const obiettivo = campo && campo.value.trim()
+  const cartella = (cartelle || [])[delegaCartella]
+  if (!obiettivo || !cartella) return
+  await chiedi('/api/autopilota/crea', { obiettivo: obiettivo, cartella: cartella })
+  delegando = false
+  delegaCartella = -1
+  cartelle = null
+  // Compare fra gli autopiloti al prossimo giro, e comincia a prepararsi.
   aggiorna()
 }
 
