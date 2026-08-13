@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.7',
+    righe: [
+      '**Gli autopiloti ripartono.** Si fermavano subito con «interrogazione del supervisore fallita: Command failed», prima ancora di aprire la loro chat. Il servizio nasce con una variabile che lo fa girare come Node, e quella variabile proseguiva fino a Claude Code facendolo partire nel modo sbagliato: usciva con un errore, e da fuori si vedeva solo una frase generica. Le chat non ne soffrivano perché quel percorso la ripuliva già — la regola c’era, non era applicata qui.',
+      'E quando qualcosa va storto, adesso l’errore dice **cosa**: prima si teneva solo «Command failed», che è la stessa frase per una cartella che non esiste, un accesso scaduto o un comando andato in timeout. Il motivo lo scriveva Claude Code, e lo buttavamo via.',
+      'Lo stile della console si sceglie nelle impostazioni: **Banco** (metallo, solchi, densa) o **Foglio** (piatta, arieggiata, morbida).'
+    ]
+  },
+  {
     versione: '0.9.6',
     righe: [
       '**Un workspace, una disposizione.** Il layout era archiviato per monitor, e da lì venivano quasi tutti i guasti di questi giorni: chat che non tornavano perché archiviate sotto uno schermo che nessuna finestra chiedeva, la stessa chat mostrata da due finestre, un salvataggio che ne cancellava un altro. Ogni rattoppo ne apriva uno nuovo, perché il modello chiedeva di sapere **sotto quale monitor** vive una chat — una domanda che nessuno dovrebbe doversi porre.',

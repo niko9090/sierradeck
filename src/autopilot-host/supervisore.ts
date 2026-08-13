@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { NON_EREDITATE } from '../pty-host/pty-manager'
 import type { Autopilota } from '@shared/autopilota'
 import type { Giudizio } from './decisione'
 
@@ -48,6 +49,27 @@ export function argomentiSupervisore(
   ])
 }
 
+/**
+ * L ambiente con cui parte il supervisore.
+ *
+ * **Il servizio nasce con ** - serve a farlo girare
+ * come Node - e quella variabile prosegue in ogni processo che lancia. Arrivata
+ * a , lo fa partire come Node puro: esce con un errore, e tutto
+ * quello che si vede da fuori e «Command failed».
+ *
+ * Le chat non ne soffrono perche il PTY host ripulisce gia lo stesso elenco -
+ * la regola c era, documentata, e non era applicata a questo percorso. Un
+ * difetto che non si manifesta mai eseguendo lo stesso comando a mano.
+ */
+export function ambientePulito(base: NodeJS.ProcessEnv): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const [nome, valore] of Object.entries(base)) {
+    if (valore === undefined || NON_EREDITATE.includes(nome)) continue
+    env[nome] = valore
+  }
+  return env
+}
+
 export function interrogazioneReale(claudeCmd: string): Interrogazione {
   return (prompt, cwd, sessionId) =>
     new Promise((risolvi, rifiuta) => {
@@ -66,7 +88,13 @@ export function interrogazioneReale(claudeCmd: string): Interrogazione {
       execFile(
         claudeCmd,
         args,
-        { cwd, timeout: TIMEOUT_MS, windowsHide: true, maxBuffer: 10 * 1024 * 1024 },
+        {
+          cwd,
+          timeout: TIMEOUT_MS,
+          windowsHide: true,
+          maxBuffer: 10 * 1024 * 1024,
+          env: ambientePulito(process.env)
+        },
         (err, stdout, stderr) => {
           if (err !== null) {
             // **Anche lo stderr.** `err.message` di execFile dice soltanto

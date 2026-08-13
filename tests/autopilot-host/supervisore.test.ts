@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   componiPromptGiudizio, leggiGiudizio, chiediGiudizio, componiPromptScomposizione, leggiCompiti,
-  argomentiSupervisore, componiPromptRiparazione, leggiComandoRiparato,
+  argomentiSupervisore, componiPromptRiparazione, leggiComandoRiparato, ambientePulito,
   type Interrogazione
 } from '../../src/autopilot-host/supervisore'
 import { nuovoAutopilota } from '@shared/autopilota'
@@ -169,5 +169,34 @@ describe('riparazione di un comando che non parte', () => {
     expect(p).toContain('i test passano')
     expect(p).toContain('unexpected EOF')
     expect(p).toContain('uscire con 0')
+  })
+})
+
+describe('l ambiente con cui parte il supervisore', () => {
+  it('non consegna ELECTRON_RUN_AS_NODE a claude.exe', () => {
+    // Il servizio nasce con quella variabile a 1 — serve a farlo girare come
+    // Node — e prosegue in ogni processo che lancia. Arrivata a claude.exe lo
+    // fa partire come Node puro: esce con un errore, e da fuori si vede solo
+    // «Command failed». Le chat non ne soffrivano perché il PTY host ripulisce
+    // già lo stesso elenco: la regola c'era e non era applicata qui.
+    const env = ambientePulito({ ELECTRON_RUN_AS_NODE: '1', PATH: '/usr/bin' })
+    expect(env.ELECTRON_RUN_AS_NODE).toBeUndefined()
+    expect(env.PATH).toBe('/usr/bin')
+  })
+
+  it('nemmeno i marcatori della sessione che ha lanciato il gestore', () => {
+    // Ereditandoli, la chat del supervisore non salverebbe la trascrizione.
+    const env = ambientePulito({
+      CLAUDE_CODE_SESSION_ID: 'x',
+      CLAUDE_CODE_CHILD_SESSION: 'y',
+      CLAUDE_PID: '123',
+      HOME: '/casa'
+    })
+    expect(Object.keys(env)).toEqual(['HOME'])
+  })
+
+  it('tutto il resto passa: e l ambiente dell utente, non il nostro', () => {
+    const env = ambientePulito({ ANTHROPIC_BASE_URL: 'https://x', LANG: 'it_IT' })
+    expect(env).toEqual({ ANTHROPIC_BASE_URL: 'https://x', LANG: 'it_IT' })
   })
 })

@@ -26,7 +26,7 @@ type ExitListener = (id: string, code: number) => void
  * toglierle sarebbe la stessa classe di difetto vista al contrario — il
  * gestore che altera in silenzio l'ambiente dei terminali che ospita.
  */
-const NON_EREDITATE = [
+export const NON_EREDITATE = [
   'ELECTRON_RUN_AS_NODE',
   'ELECTRON_RENDERER_URL',
   // I marcatori della sessione Claude Code che ha lanciato il gestore.
