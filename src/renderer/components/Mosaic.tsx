@@ -4,6 +4,7 @@ import { computeGeometry } from '@shared/layout-geometry'
 import type { DividerBox } from '@shared/layout-geometry'
 import { useLayoutStore } from '../state/layout'
 import { spostaRiquadro } from '../spostamento'
+import { memoriaWorkspace } from '../memoria-workspace'
 import { MODELLI_IN_CHAT } from '../modelli'
 import { Terminal } from './Terminal'
 import { DiarioAutopilota } from './DiarioAutopilota'
@@ -66,7 +67,15 @@ function ComandoSposta({ paneId }: { paneId: string }): React.JSX.Element {
     if (pane === undefined) return
     window.gestore.workspace
       .spostaChat(nome, pane)
-      .then(() => chiudiPane(paneId))
+      .then(() => {
+        // **Anche alla memoria.** Il Core l'ha scritta sul disco, ma tornando
+        // in quel workspace vince la copia che questa finestra tiene viva — e
+        // quella non sa dello spostamento. Senza questa riga la chat spariva al
+        // ritorno, e il primo salvataggio la cancellava anche dal file: non
+        // «spostata male», proprio persa.
+        memoriaWorkspace().aggiungi(nome, pane)
+        chiudiPane(paneId)
+      })
       .catch((err: unknown) => {
         // Se non è arrivata a destinazione deve restare dov'era: staccarla e
         // basta vorrebbe dire farla sparire da tutt'e due le parti.

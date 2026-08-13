@@ -11,6 +11,7 @@ import { chiChiede, workspaceCheChiamano } from '@shared/dove-chiedono'
 import { attivaChiusuraFuori, attivaTrascinamento } from './trascina-finestre'
 import { creaUltimeRighe } from './ultime-righe'
 import { eseguiConsegna, ponteReale } from './consegne-autopilota'
+import { memoriaWorkspace } from './memoria-workspace'
 import { leggiConsegne } from '../main/autopilota-consegne'
 import type { Autopilota } from '@shared/autopilota'
 import type { StatoWorkspace } from '../main/ipc'
@@ -185,6 +186,13 @@ export function App(): React.JSX.Element {
   // intervenire in mezzo — perché per la chat i due messaggi sono uguali.
   useEffect(() => window.gestore.client.suConsegna((grezza) => {
     for (const c of leggiConsegne({ consegne: [grezza] })) eseguiConsegna(c, ponteReale())
+  }), [])
+
+  // Una chat arrivata in un workspace da un altra finestra. Va messa nella
+  // memoria di questa: la memoria vince sul disco, e una copia vecchia che non
+  // sa dell arrivo cancellerebbe la chat al primo salvataggio.
+  useEffect(() => window.gestore.client.suChatArrivata(({ workspace: dove, pane }) => {
+    memoriaWorkspace().aggiungi(dove, pane)
   }), [])
 
   // Una chat nuova chiesta dal telefono. Solo in una cartella che Claude Code

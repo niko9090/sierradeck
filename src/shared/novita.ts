@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.5',
+    righe: [
+      '**Spostare una chat in un altro workspace non la perde più.** Il Core la scriveva sul disco, ma ogni finestra tiene in memoria i workspace che ha visitato — e la memoria vince sul disco. Tornando lì, la copia in memoria non sapeva dell’arrivo: la chat non compariva, e il primo salvataggio la cancellava anche dal file. Non «spostata male»: persa.',
+      'Adesso lo spostamento entra nella memoria della finestra che l’ha fatto, e viene annunciato a tutte le altre — che hanno la stessa copia, e lo stesso potere di cancellarla.'
+    ]
+  },
+  {
     versione: '0.9.4',
     righe: [
       '**L’app si ricorda le credenziali, e una per indirizzo.** Il computer di casa e quello in VPN sono due accoppiamenti diversi: adesso tornare dall’uno all’altro non costa più sei cifre ogni volta.',

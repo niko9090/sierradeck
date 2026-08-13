@@ -1,4 +1,4 @@
-import type { LayoutSalvato } from '@shared/workspace'
+import { aggiungiPaneA, type LayoutSalvato, type PaneSalvato } from '@shared/workspace'
 
 export type MemoriaWorkspace = {
   /** Registra com'è disposto adesso un workspace, terminali vivi compresi. */
@@ -10,6 +10,18 @@ export type MemoriaWorkspace = {
    * c'è niente — cioè al primo passaggio dopo l'avvio, o dopo uno spegnimento.
    */
   recupera: (nome: string, dalDisco: LayoutSalvato) => LayoutSalvato
+  /**
+   * Una chat arrivata in un workspace che questa finestra tiene in memoria.
+   *
+   * Senza, spostare una chat la faceva **sparire**: il Core la scriveva sul
+   * disco, ma al ritorno in quel workspace vinceva la copia in memoria - che
+   * non la contiene - e il primo salvataggio la cancellava anche dal file.
+   * La memoria vince sul disco: se non sa dello spostamento, lo disfa.
+   *
+   *  se quel workspace non e in memoria: li non c e niente da
+   * aggiornare, e il disco basta a se stesso.
+   */
+  aggiungi: (nome: string, pane: PaneSalvato) => boolean
   /** Dice se quel workspace sta occupando risorse in questa finestra. */
   acceso: (nome: string) => boolean
   /**
@@ -64,6 +76,13 @@ export function creaMemoriaWorkspace(): MemoriaWorkspace {
 
     recupera(nome, dalDisco) {
       return vivi.get(nome) ?? dalDisco
+    },
+
+    aggiungi(nome, pane) {
+      const vivo = vivi.get(nome)
+      if (vivo === undefined) return false
+      vivi.set(nome, aggiungiPaneA(vivo, pane))
+      return true
     },
 
     acceso(nome) {

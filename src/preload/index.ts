@@ -111,6 +111,17 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.on('client:scrivi', h)
       return () => { ipcRenderer.off('client:scrivi', h) }
     },
+    /**
+     * Una chat arrivata in un workspace da un'altra finestra: va messa nella
+     * memoria di questa, o al ritorno la sua copia vecchia la cancellerebbe.
+     */
+    suChatArrivata: (
+      cb: (m: { workspace: string; pane: PaneSalvato }) => void
+    ): (() => void) => {
+      const h = (_e: unknown, m: { workspace: string; pane: PaneSalvato }): void => cb(m)
+      ipcRenderer.on('workspace:chatArrivata', h)
+      return () => { ipcRenderer.off('workspace:chatArrivata', h) }
+    },
     suWorkspace: (cb: (nome: string) => void): (() => void) => {
       const h = (_e: unknown, nome: string): void => cb(nome)
       ipcRenderer.on('client:workspace', h)

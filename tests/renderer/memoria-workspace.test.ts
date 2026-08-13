@@ -99,3 +99,39 @@ describe('terminaliDi', () => {
     expect(terminaliDi(layoutCon('pane-a'))).toEqual([])
   })
 })
+
+describe('una chat che arriva in un workspace tenuto in memoria', () => {
+  const pane = { id: 'p-9', sessionUuid: 'u-9', cwd: 'C:\p', title: 'arrivata' }
+  const layout = {
+    root: { type: 'pane' as const, id: 'p-1' },
+    panes: [{ id: 'p-1', sessionUuid: 'u-1', cwd: 'C:\p', title: 'c era gia' }]
+  }
+
+  it('entra nella copia viva, altrimenti al ritorno sparisce', () => {
+    // È il difetto per cui spostare una chat la faceva perdere: il Core la
+    // scriveva sul disco, ma tornando in quel workspace vinceva la copia in
+    // memoria — che non la conteneva — e il primo salvataggio la cancellava
+    // anche dal file.
+    const m = creaMemoriaWorkspace()
+    m.ricorda('casa', layout)
+    expect(m.aggiungi('casa', pane)).toBe(true)
+    const dopo = m.recupera('casa', { root: undefined, panes: [] })
+    expect(dopo.panes.map((p) => p.id).sort()).toEqual(['p-1', 'p-9'])
+  })
+
+  it('su un workspace che non e in memoria non fa niente', () => {
+    // Lì non c'è niente da aggiornare: al ritorno si legge dal disco, dove la
+    // chat è già arrivata.
+    const m = creaMemoriaWorkspace()
+    expect(m.aggiungi('mai-vista', pane)).toBe(false)
+    expect(m.recupera('mai-vista', { root: undefined, panes: [] }).panes).toEqual([])
+  })
+
+  it('la stessa chat due volte resta una', () => {
+    const m = creaMemoriaWorkspace()
+    m.ricorda('casa', layout)
+    m.aggiungi('casa', pane)
+    m.aggiungi('casa', pane)
+    expect(m.recupera('casa', { root: undefined, panes: [] }).panes).toHaveLength(2)
+  })
+})

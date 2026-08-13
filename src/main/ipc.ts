@@ -651,6 +651,13 @@ export function registerLayoutIpc(store: WorkspaceStore): void {
       ...archivio,
       workspace: aggiornaWorkspace(archivio, nome, chiave, aggiungiPaneA(attuale, pane))
     })
+
+    // E lo si dice alle altre finestre. Ognuna tiene in memoria i workspace
+    // che ha visitato, e **la memoria vince sul disco**: una finestra che non
+    // sapesse dello spostamento, tornando li', rimetterebbe a schermo la sua
+    // copia vecchia - senza la chat arrivata - e il primo salvataggio la
+    // cancellerebbe anche dal file. Non «spostata male»: persa.
+    registro.inviaATutteTranne(win.id, 'workspace:chatArrivata', { workspace: nome, pane })
     return true
   })
 

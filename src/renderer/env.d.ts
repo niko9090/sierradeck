@@ -54,6 +54,7 @@ declare global {
         ) => void
         suApertura: (cb: (m: { cartella: string; modello?: string }) => void) => () => void
         suConsegna: (cb: (c: unknown) => void) => () => void
+        suChatArrivata: (cb: (m: { workspace: string; pane: PaneSalvato }) => void) => () => void
         suScrittura: (cb: (m: { chat: string; testo: string }) => void) => () => void
         suWorkspace: (cb: (nome: string) => void) => () => void
       }
