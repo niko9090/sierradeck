@@ -708,13 +708,16 @@ if (!app.requestSingleInstanceLock()) {
         },
         // Anche Claude Code, se è indietro: si aggiorna nello stesso viaggio,
         // quando il programma è chiuso e nessuna chat lo tiene aperto.
+        // **Sempre**, non solo quando risulta indietro: la ricerca la fa
+        // `claude update`, che è anche l'unico a saperlo per certo, e farla lì
+        // dentro è ciò che la rende visibile. Chiedere prima e passare oltre in
+        // silenzio lasciava il dubbio, e il dubbio si toglie solo rifacendo
+        // tutto a mano — che è il contrario del punto.
         () => {
           try {
-            return claudeDaAggiornare(resolveClaudeCommand(process.env))
+            return resolveClaudeCommand(process.env)
           } catch (err) {
-            // Non sapere se Claude Code è aggiornato non deve impedire di
-            // aggiornare SierraDeck: si lascia stare e si va avanti.
-            console.error('[aggiornamenti] versione di Claude Code non verificata:', err)
+            console.error('[aggiornamenti] comando di Claude Code non risolto:', err)
             return undefined
           }
         },
@@ -786,17 +789,17 @@ if (!app.requestSingleInstanceLock()) {
         }
       }
 
+      // Nessuna finestra in più aperta da sola. Aprirle era il modo più
+      // diretto per far tornare a schermo tutte le chat, ed è anche il modo
+      // per ritrovarsi due finestre quando se ne era lasciata una: un
+      // programma che all'avvio dispone lo schermo a modo suo è invadente,
+      // anche quando ha ragione. Le chat che restano su un altro monitor si
+      // vedono aprendo una finestra, e il programma lo dice invece di farlo.
       const archivioAvvio = workspaceStore?.leggi()
       const suoLayout = archivioAvvio?.workspace.find((w) => w.nome === archivioAvvio.attivo)
       const conLavoro = monitorConLavoro(suoLayout?.perMonitor ?? {}, schermi)
-      for (let i = 1; i < conLavoro.length; i += 1) {
-        try {
-          apriNuovaFinestra()
-        } catch (err) {
-          // Una finestra in meno mostra meno chat, ma non impedisce di lavorare
-          // con quelle che ci sono.
-          console.error('[avvio] finestra per il secondo monitor non aperta:', err)
-        }
+      if (conLavoro.length > 1) {
+        console.log(`[avvio] ci sono chat su ${conLavoro.length} monitor: una finestra le mostra tutte tranne quelle degli altri`)
       }
 
       app.on('activate', () => {

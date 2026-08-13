@@ -383,7 +383,19 @@ function layoutVuoto(): LayoutSalvato {
   return { root: undefined, panes: [] }
 }
 
-export type StatoWorkspace = { nomi: string[]; attivo: string }
+export type StatoWorkspace = {
+  nomi: string[]
+  attivo: string
+  /**
+   * Quante chat del workspace attivo non le sta mostrando nessuna finestra.
+   *
+   * Sono quelle archiviate sotto un monitor che esiste ma non ha una finestra
+   * sopra: ci sono e nessuno le vede. Il programma non apre finestre da solo -
+   * disporre lo schermo al posto di chi lo usa e invadente anche quando si ha
+   * ragione - ma tacerlo significherebbe lasciar credere che siano perse.
+   */
+  altrove?: number
+}
 
 /** Oltre questo una risposta non è più una risposta a una domanda puntuale. */
 const RISPOSTA_MAX = 4000
@@ -397,7 +409,20 @@ function validaIdDomanda(raw: unknown): string {
 }
 
 function statoDi(a: Archivio): StatoWorkspace {
-  return { nomi: a.workspace.map((w) => w.nome), attivo: a.attivo }
+  const suo = a.workspace.find((w) => w.nome === a.attivo)
+  const mostrate = new Set(
+    BrowserWindow.getAllWindows()
+      .filter((w) => !w.isDestroyed())
+      .map((w) => chiaveDellaFinestra(w))
+  )
+  const altrove = Object.entries(suo?.perMonitor ?? {})
+    .filter(([chiave]) => !mostrate.has(chiave))
+    .reduce((tot, [, layout]) => tot + layout.panes.length, 0)
+  return {
+    nomi: a.workspace.map((w) => w.nome),
+    attivo: a.attivo,
+    ...(altrove > 0 ? { altrove } : {})
+  }
 }
 
 /**

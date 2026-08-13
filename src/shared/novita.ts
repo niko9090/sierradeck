@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.3',
+    righe: [
+      '**Il programma non apre più finestre da solo all’avvio.** Nella 0.9.2 ne apriva una per ogni monitor con delle chat: faceva vedere tutto, ma chi ne aveva lasciata una se ne ritrovava due. Adesso lo **dice** — una riga in cima con scritto quante chat sono su un altro monitor, e un tasto per aprire la finestra che le mostra.',
+      '**La ricerca degli aggiornamenti di Claude Code si vede.** Prima si chiedeva prima di chiudere il programma e, quando non c’era niente da fare, la finestra nera passava oltre in silenzio: un controllo che non si vede, per chi guarda, non è avvenuto. Adesso la ricerca la fa l’updater a programma chiuso, con la sua console in vista: si legge cosa scarica e cosa installa, riga per riga, e al termine l’aggiornamento riprende da solo.'
+    ]
+  },
+  {
     versione: '0.9.2',
     righe: [
       '**Le chat dei salvataggi tornano tutte.** Il layout è archiviato per monitor e una finestra ne mostra uno: chi lavorava su due schermi e riapriva con una finestra sola vedeva metà del suo workspace e credeva di aver perso l’altra metà. Adesso all’avvio si apre una finestra per ogni monitor che ha delle chat, e una finestra senza niente da mostrare prende quelle rimaste senza casa.',

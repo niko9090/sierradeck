@@ -630,13 +630,17 @@ export function App(): React.JSX.Element {
           accesso,
           servizioRaggiungibile: erroreAutopiloti === undefined,
           autopiloti,
-          ...(preparazione !== undefined ? { preparazione } : {})
+          ...(preparazione !== undefined ? { preparazione } : {}),
+          ...(workspace.altrove !== undefined ? { chatAltrove: workspace.altrove } : {})
         })}
         onAzione={(azione) => {
           if (azione === 'riavviaServizio') ricaricaAutopiloti()
           else if (azione === 'apriAutopiloti') setAperto('autopiloti')
           else if (azione === 'apriAccesso') setModale('accesso')
           else if (azione === 'apriPreparazione') setModale('preparazione')
+          // Una finestra in più: le chat che sono su un altro monitor si
+          // vedono così, e la decisione resta di chi guarda.
+          else if (azione === 'apriFinestra') window.gestore.finestre.nuova()
           // «apriDomanda» non ha bisogno di niente: la finestra della domanda
           // compare da sé, e il tasto serve solo a chi l'aveva rimandata.
           else setAperto(undefined)

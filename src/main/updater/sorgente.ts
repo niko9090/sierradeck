@@ -29,7 +29,7 @@
  * spazio aggiunto farebbe ricompilare per niente, e chi la alza qui sta anche
  * dicendo «ho cambiato qualcosa che conta».
  */
-export const VERSIONE_UPDATER = 9
+export const VERSIONE_UPDATER = 10
 
 export function sorgenteUpdater(): string {
   return `using System;
@@ -245,7 +245,7 @@ class Aggiornamento : Form {
     int Previsti() {
         if (passo == 0) return 20;    // 4s: chiudere le finestre
         if (passo == 1) return 175;   // 35s: l'installer
-        if (passo == 5) return 90;    // 18s: Claude Code
+        if (passo == 5) return 150;   // 30s: la ricerca e l aggiornamento di Claude Code
         if (passo == 2) return 25;    // 5s: la nuova istanza che nasce
         return 5;
     }
@@ -329,19 +329,18 @@ class Aggiornamento : Form {
             // aperto. E' l'unico momento in cui si puo' fare senza chiedere
             // all'utente di chiudere tutto a mano.
             if (claudeInCorso == null) {
-                // Niente da aggiornare. Se la verifica c'e' stata la si mostra
-                // per un istante: un controllo che non si vede, per chi guarda
-                // non e' avvenuto. Se invece non si e' potuta fare, si tace -
-                // raccontare una verifica non riuscita e' peggio che non dirla.
-                if (notaClaude.Length > 0) fase.Text = notaClaude;
+                // Nessun comando da eseguire: non si e' potuto nemmeno cercare.
+                // Lo si dice - una fase che passa in silenzio si legge come una
+                // fase che non e' avvenuta, ed e' proprio il dubbio da togliere.
+                fase.Text = notaClaude.Length > 0 ? notaClaude : "Claude Code non verificato.";
                 // Niente return: la barra va comunque ridisegnata in fondo a
                 // questo giro, altrimenti resta indietro di un battito.
-                if (notaClaude.Length == 0 || giriPasso >= 8) {
+                if (giriPasso >= 10) {
                     Avvia();
                     Vai(2);
                 }
             } else {
-                fase.Text = "Controllo se Claude Code e' aggiornato...";
+                fase.Text = "Cerco aggiornamenti di Claude Code...";
                 if (claudeInCorso.HasExited) {
                     Nota("claude code aggiornato");
                     Avvia();
@@ -497,7 +496,12 @@ class Aggiornamento : Form {
             // barra rovescia arriverebbe al compilatore C# senza la barra.
             ProcessStartInfo p = new ProcessStartInfo("cmd.exe", "/c \\"" + claude + "\\" update");
             p.UseShellExecute = false;
-            p.CreateNoWindow = true;
+            // La console si vede. Un aggiornamento che scarica e installa per
+            // mezzo minuto dietro una scritta ferma non si distingue da un
+            // blocco: qui si legge cosa sta facendo, riga per riga, ed e'
+            // l'unico punto di tutta la procedura in cui c'e' qualcosa da
+            // leggere che non abbiamo scritto noi.
+            p.CreateNoWindow = false;
             claudeInCorso = Process.Start(p);
             Nota("aggiorno Claude Code: " + claude);
         } catch (Exception e) {
