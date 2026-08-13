@@ -522,6 +522,25 @@ if (!app.requestSingleInstanceLock()) {
           }
         },
         fermaAutopilota: (id: string) => clientAutopilota.ferma(id),
+        eliminaAutopilota: (id: string) => clientAutopilota.elimina(id),
+        riprendiAlRiavvio: (id: string, riprendi: boolean) =>
+          clientAutopilota.riprendiAlRiavvio(id, riprendi),
+        // Chiudere e rinominare una chat le sa fare la finestra, che e' l'unica
+        // a conoscere i suoi riquadri: qui si annuncia, come per «apri».
+        chiudiChat: (idChat: string) => {
+          for (const w of BrowserWindow.getAllWindows()) {
+            if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+              w.webContents.send('client:chiudiChat', idChat)
+            }
+          }
+        },
+        rinominaChat: (idChat: string, nome: string) => {
+          for (const w of BrowserWindow.getAllWindows()) {
+            if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+              w.webContents.send('client:rinominaChat', { chat: idChat, nome })
+            }
+          }
+        },
         riprendiAutopilota: (id: string) => clientAutopilota.riprendi(id),
         // Senza criteri: li ricava l'autopilota nella preparazione, guardando
         // il progetto. Da un telefono, un modulo da compilare sarebbe il modo

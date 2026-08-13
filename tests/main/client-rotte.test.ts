@@ -25,6 +25,10 @@ function deps(over: Partial<DipendenzeRotte> = {}): DipendenzeRotte {
     fermaAutopilota: () => Promise.resolve(),
     riprendiAutopilota: () => Promise.resolve(),
     creaAutopilota: () => Promise.resolve({ id: 'ap-9' }),
+    eliminaAutopilota: () => Promise.resolve(),
+    riprendiAlRiavvio: () => Promise.resolve(),
+    chiudiChat: () => undefined,
+    rinominaChat: () => undefined,
     versione: '0.5.0',
     apk: () => Promise.resolve({ versione: '1.0.2', url: 'https://x/SierraDeck-1.0.2.apk' }),
     ...over
@@ -229,12 +233,18 @@ describe('quello che il Client puo fare', () => {
     expect(creati).toEqual([])
   })
 
-  it('non puo distruggere niente', async () => {
-    // Un tocco sbagliato in tram non deve poter buttare via il lavoro della
-    // notte: le rotte che chiudono o cancellano non esistono proprio.
-    for (const percorso of ['/api/chiudi', '/api/elimina', '/api/chat/chiudi']) {
-      const r = await rotteClient(deps())({ metodo: 'POST', percorso, corpo: {} })
-      expect(r.stato).toBe(404)
+  it('non cancella niente che non si possa riavere', async () => {
+    // La regola e' cambiata, e non e' un cedimento: da un telefono adesso si
+    // governa tutto - si chiude una chat, si elimina un autopilota - perche' un
+    // telefono da cui non si puo' togliere niente e' mezzo strumento. Il muro
+    // sta nel gesto, che la pagina chiede due volte.
+    //
+    // Quello che resta impossibile e' cio' che non si puo' riavere: nessuna
+    // rotta cancella una conversazione dal disco, e chiudere una chat la lascia
+    // li' dov'e' - la si riprende quando si vuole.
+    for (const percorso of ['/api/sessione/elimina', '/api/cancella', '/api/chat/distruggi']) {
+      const r = await rotteClient(deps())({ metodo: 'POST', percorso, corpo: { chat: 'p-1' } })
+      expect(r.stato, percorso).toBe(404)
     }
   })
 })
@@ -274,5 +284,52 @@ describe('vedere le stesse cose, con gli stessi colori', () => {
       metodo: 'POST', percorso: '/api/autopilota', corpo: { autopilota: 'mai-esistito' }
     })
     expect(r.stato).toBe(404)
+  })
+})
+
+describe('fare tutto, anche le cose che si disfano', () => {
+  it('elimina un autopilota', async () => {
+    // Prima non si poteva: «un tocco sbagliato in tram non deve buttare via il
+    // lavoro della notte». Adesso si puo', ma la pagina lo chiede due volte —
+    // il muro sta nel gesto, non nell'assenza del comando.
+    const eliminati: string[] = []
+    const r = await rotteClient(deps({ eliminaAutopilota: (id) => { eliminati.push(id); return Promise.resolve() } }))(
+      { metodo: 'POST', percorso: '/api/autopilota/elimina', corpo: { autopilota: 'ap-1' } }
+    )
+    expect(r.stato).toBe(200)
+    expect(eliminati).toEqual(['ap-1'])
+  })
+
+  it('decide se un autopilota riparte da solo dopo un riavvio', async () => {
+    const scelte: { id: string; riprendi: boolean }[] = []
+    const su = deps({ riprendiAlRiavvio: (id, riprendi) => { scelte.push({ id, riprendi }); return Promise.resolve() } })
+    await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/riavvio', corpo: { autopilota: 'ap-1', riprendi: false } })
+    expect(scelte).toEqual([{ id: 'ap-1', riprendi: false }])
+  })
+
+  it('chiude una chat', async () => {
+    const chiuse: string[] = []
+    const su = deps({ chiudiChat: (id) => { chiuse.push(id) } })
+    const r = await rotteClient(su)({ metodo: 'POST', percorso: '/api/chat/chiudi', corpo: { chat: 'p-1' } })
+    expect(r.stato).toBe(200)
+    expect(chiuse).toEqual(['p-1'])
+  })
+
+  it('da un nome a una chat', async () => {
+    const nomi: { chat: string; nome: string }[] = []
+    const su = deps({ rinominaChat: (chat, nome) => { nomi.push({ chat, nome }) } })
+    await rotteClient(su)({ metodo: 'POST', percorso: '/api/chat/nome', corpo: { chat: 'p-1', nome: 'Il gioco' } })
+    expect(nomi).toEqual([{ chat: 'p-1', nome: 'Il gioco' }])
+  })
+
+  it('senza il pezzo che serve, rifiuta invece di fare danni', async () => {
+    for (const [percorso, corpo] of [
+      ['/api/autopilota/elimina', {}],
+      ['/api/chat/chiudi', {}],
+      ['/api/chat/nome', { chat: 'p-1' }]
+    ] as [string, unknown][]) {
+      const r = await rotteClient(deps())({ metodo: 'POST', percorso, corpo })
+      expect(r.stato, percorso).toBe(400)
+    }
   })
 })

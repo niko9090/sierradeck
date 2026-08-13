@@ -83,6 +83,21 @@ export type DipendenzeRotte = {
    * arrivano su questo stesso telefono.
    */
   creaAutopilota: (obiettivo: string, cartella: string) => Promise<{ id: string }>
+  /**
+   * Elimina un autopilota. È la prima cosa che *disfa* qualcosa da qui.
+   *
+   * Prima non c'era, per la regola «un tocco sbagliato in tram non deve buttare
+   * via il lavoro della notte». Ma un telefono da cui si governa tutto e da cui
+   * non si può togliere niente è mezzo strumento: il muro giusto è il gesto —
+   * la pagina lo chiede due volte — non l'assenza del comando.
+   */
+  eliminaAutopilota: (id: string) => Promise<void>
+  /** Se quell'autopilota debba ripartire da solo dopo un riavvio. */
+  riprendiAlRiavvio: (id: string, riprendi: boolean) => Promise<void>
+  /** Chiude una chat del mosaico: la conversazione resta su disco. */
+  chiudiChat: (idChat: string) => void
+  /** Il nome che dai tu a una chat, che vince su quello di Claude Code. */
+  rinominaChat: (idChat: string, nome: string) => void
   /** Le cartelle in cui si può aprire una chat: quelle già viste da Claude Code. */
   cartelle: () => Promise<string[]>
   versione: string
@@ -314,6 +329,38 @@ export function rotteClient(deps: DipendenzeRotte) {
       }
       const creato = await deps.creaAutopilota(obiettivo.slice(0, TESTO_MAX), cartella)
       return OK({ fatto: true, autopilota: creato.id })
+    }
+
+    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/elimina') {
+      const id = stringa(r.corpo, 'autopilota')
+      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
+      await deps.eliminaAutopilota(id)
+      return OK({ fatto: true })
+    }
+
+    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/riavvio') {
+      const id = stringa(r.corpo, 'autopilota')
+      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
+      const corpo = r.corpo as Record<string, unknown> | undefined
+      await deps.riprendiAlRiavvio(id, corpo?.riprendi === true)
+      return OK({ fatto: true })
+    }
+
+    // Chiudere una chat non chiude la conversazione: quella resta su disco e si
+    // riprende. È la ragione per cui questo comando può stare su un telefono.
+    if (r.metodo === 'POST' && r.percorso === '/api/chat/chiudi') {
+      const id = stringa(r.corpo, 'chat')
+      if (id === '') return { stato: 400, corpo: { errore: 'serve la chat' } }
+      deps.chiudiChat(id)
+      return OK({ fatto: true })
+    }
+
+    if (r.metodo === 'POST' && r.percorso === '/api/chat/nome') {
+      const id = stringa(r.corpo, 'chat')
+      const nome = stringa(r.corpo, 'nome')
+      if (id === '' || nome === '') return { stato: 400, corpo: { errore: 'servono chat e nome' } }
+      deps.rinominaChat(id, nome.slice(0, 80))
+      return OK({ fatto: true })
     }
 
     if (r.metodo === 'POST' && r.percorso === '/api/workspace') {

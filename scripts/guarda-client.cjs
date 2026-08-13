@@ -18,7 +18,7 @@ app.whenReady().then(async () => {
   const file = join(require('node:os').tmpdir(), 'sierradeck-client.html')
   writeFileSync(file, html)
 
-  const win = new BrowserWindow({ width: 412, height: 915, show: false })
+  const win = new BrowserWindow({ width: 412, height: 1500, show: false })
   await win.loadFile(file)
   // Lo stato finto: la pagina crede di essere collegata e disegna tutto.
   await win.webContents.executeJavaScript(`
@@ -27,7 +27,7 @@ app.whenReady().then(async () => {
     ultimoStato = {
       chat: [{ id: 'p-1', titolo: 'Revisione VERTIGO', cwd: 'C:\\Users\\nikof\\Documents\\Game_ascensore', ultimaRiga: 'npm test — 106 verdi' }],
       autopiloti: [
-        { id: 'ap-1', nome: 'Revisione VERTIGO', stato: 'lavoro', cicli: 3, fatti: 2, criteri: 6 },
+        { id: 'ap-1', nome: 'Revisione VERTIGO', stato: 'lavoro', cicli: 3, fatti: 2, criteri: 6, riprendiAlRiavvio: true },
         { id: 'ap-2', nome: 'Audit del gioco', stato: 'attesa', cicli: 1, fatti: 0, criteri: 4 }
       ],
       domande: [{ id: 'd-1', autopilotaId: 'ap-2', testo: 'Tengo la fisica attuale o la rifaccio da capo?' }],
@@ -55,6 +55,37 @@ app.whenReady().then(async () => {
     'fatto'
   `)
   await new Promise((r) => setTimeout(r, 600))
+  const m = await win.webContents.executeJavaScript(`(() => {
+    const d = document.documentElement
+    const largo = [...document.querySelectorAll('main *')].filter(
+      (e) => e.getBoundingClientRect().right > d.clientWidth + 0.5
+    )
+    return {
+      finestra: d.clientWidth,
+      contenuto: d.scrollWidth,
+      debordaDi: Math.max(0, d.scrollWidth - d.clientWidth),
+      elementiFuori: largo.length,
+      primoFuori: largo[0] ? largo[0].className + ' | ' + largo[0].textContent.trim().slice(0, 30) : '-',
+      // Chi e' piu' largo del suo contenitore: e' quello che spinge, non chi
+      // viene spinto.
+      strati: ['body', '#app', 'header', 'main'].map((sel) => {
+        const e = document.querySelector(sel)
+        return e ? sel + ': ' + Math.round(e.getBoundingClientRect().width) +
+          ' (scroll ' + e.scrollWidth + ')' : sel + ': assente'
+      }),
+      piuADestra: [...document.querySelectorAll('*')]
+        .map((e) => ({ e, r: e.getBoundingClientRect().right }))
+        .sort((a, b) => b.r - a.r)
+        .slice(0, 4)
+        .map((x) => Math.round(x.r) + 'px ' + x.e.tagName + '.' + x.e.className.slice(0, 24)),
+      colpevoli: [...document.querySelectorAll('main *')]
+        .filter((e) => e.scrollWidth > (e.parentElement ? e.parentElement.clientWidth : 9999) + 0.5)
+        .slice(0, 5)
+        .map((e) => e.tagName + '.' + e.className + ' largo ' + Math.round(e.scrollWidth) +
+          ' dentro ' + (e.parentElement ? e.parentElement.clientWidth : 0))
+    }
+  })()`)
+  console.log('MISURA', JSON.stringify(m))
   const img = await win.webContents.capturePage()
   writeFileSync(FUORI, img.toPNG())
   console.log('salvato', FUORI)

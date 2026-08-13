@@ -105,6 +105,18 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.on('client:apri', h)
       return () => { ipcRenderer.off('client:apri', h) }
     },
+    /** Una chat che il telefono chiede di chiudere. La conversazione resta. */
+    suChiusura: (cb: (idChat: string) => void): (() => void) => {
+      const h = (_e: unknown, id: string): void => cb(id)
+      ipcRenderer.on('client:chiudiChat', h)
+      return () => { ipcRenderer.off('client:chiudiChat', h) }
+    },
+    /** Il nome che il telefono da' a una chat. */
+    suRinomina: (cb: (m: { chat: string; nome: string }) => void): (() => void) => {
+      const h = (_e: unknown, m: { chat: string; nome: string }): void => cb(m)
+      ipcRenderer.on('client:rinominaChat', h)
+      return () => { ipcRenderer.off('client:rinominaChat', h) }
+    },
     /** Testo mandato da un telefono a una chat. */
     suScrittura: (cb: (m: { chat: string; testo: string }) => void): (() => void) => {
       const h = (_e: unknown, m: { chat: string; testo: string }): void => cb(m)

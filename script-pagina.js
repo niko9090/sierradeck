@@ -260,6 +260,12 @@ function pannello(s) {
           ? '<button onclick="chiudiDentro()">Basta guardare</button>'
           : '<button onclick="guarda(\'' + esc(c.id) + '\')">Guarda dentro</button>'}
       </div>
+      <div class="riga">
+        <input id="n-${esc(c.id)}" placeholder="dalle un nome">
+        <button onclick="rinomina('${esc(c.id)}')">Nome</button>
+        <button class="${confermando === 'chat-' + c.id ? 'pericolo' : ''}"
+          onclick="chiudiChat('${esc(c.id)}')">${confermando === 'chat-' + c.id ? 'Sicuro? Chiudi' : 'Chiudi'}</button>
+      </div>
     </div>`).join('')
 
   // Aprire non distrugge niente: nel peggiore dei casi resta un riquadro in
@@ -483,6 +489,54 @@ function vistaAutopilota(a) {
     (criteri ? '<ul class="criteri">' + criteri + '</ul>' : '') +
     (decisioni ? '<div class="serigrafia" style="margin-top:10px">Ha deciso</div>' + decisioni : '') +
     '</div>'
+}
+
+/**
+ * Le cose che si disfano si chiedono due volte.
+ *
+ * Non un dialogo di sistema - che blocca la pagina e su un telefono compare
+ * dove capita - ma il tasto stesso che cambia parola: il secondo tocco e' la
+ * conferma. Un tocco sbagliato in tram non deve buttare via il lavoro della
+ * notte, e questo e' il muro giusto: sta nel gesto, non nell'assenza del
+ * comando.
+ */
+var confermando = null
+window.chiedeConferma = (chiave) => {
+  confermando = confermando === chiave ? null : chiave
+  pannello(ultimoStato)
+  // Chi ci ripensa non deve restare con un tasto rosso addosso: dopo qualche
+  // secondo la domanda decade da sola.
+  setTimeout(() => { if (confermando === chiave) { confermando = null; pannello(ultimoStato) } }, 6000)
+}
+
+window.eliminaAp = async (id) => {
+  if (confermando !== 'ap-' + id) { chiedeConferma('ap-' + id); return }
+  confermando = null
+  if (dentroAp === id) { dentroAp = null; apDettaglio = null }
+  await chiedi('/api/autopilota/elimina', { autopilota: id })
+  aggiorna()
+}
+
+window.riavvioAp = async (id, riprendi) => {
+  await chiedi('/api/autopilota/riavvio', { autopilota: id, riprendi: riprendi })
+  if (dentroAp === id) await leggiAp()
+  aggiorna()
+}
+
+window.chiudiChat = async (id) => {
+  if (confermando !== 'chat-' + id) { chiedeConferma('chat-' + id); return }
+  confermando = null
+  if (dentro === id) { dentro = null; righeDentro = []; righeGrezze = [] }
+  await chiedi('/api/chat/chiudi', { chat: id })
+  aggiorna()
+}
+
+window.rinomina = async (id) => {
+  const campo = document.getElementById('n-' + id)
+  if (!campo || !campo.value.trim()) return
+  await chiedi('/api/chat/nome', { chat: id, nome: campo.value.trim() })
+  campo.value = ''
+  aggiorna()
 }
 
 window.rispondi = async (id) => {

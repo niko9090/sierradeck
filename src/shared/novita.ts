@@ -23,6 +23,15 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.18',
+    righe: [
+      '**Dal telefono si vede l’autopilota come lo vedi qui.** Il suo percorso con i LED, la percentuale del passo in cui si trova, i criteri che si è dato con le spunte, le ultime cose che ha deciso: prima erano un nome e due numeri. E i colori non sono una copia somigliante — arrivano dal computer, con il chiarore e lo stile che hai scelto nelle impostazioni.',
+      '**E si fa tutto**: eliminare un autopilota, decidere se riparte da solo dopo un riavvio, chiudere una chat, darle un nome. Le cose che si disfano le chiede due volte, con il tasto che cambia parola: il muro sta nel gesto, non nell’assenza del comando — un telefono da cui non si può togliere niente è mezzo strumento.',
+      '**Il telefono avvisa anche dal browser**, quando una domanda aspetta o un autopilota si è fermato. Ad app chiusa continua a pensarci la guardia dell’app Android, che è la ragione per cui l’app esiste.',
+      'La pagina, sullo schermo di un telefono, usciva di quarantatré pixel: bastava una riga di terminale che non andava a capo perché **tutte** le piastrelle diventassero più larghe dello schermo.'
+    ]
+  },
+  {
     versione: '0.9.17',
     righe: [
       '**L’autopilota lavora nella chat che hai già aperto.** Ne apriva una sua accanto, e ti lasciava due conversazioni da seguire per un lavoro solo — con quella che stavi guardando ferma. Adesso, se sulla cartella c’è già una chat e non è di un altro autopilota, prende quella: chi attiva un autopilota smette di operare lui, ed è sua.'

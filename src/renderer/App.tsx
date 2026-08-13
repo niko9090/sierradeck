@@ -215,6 +215,21 @@ export function App(): React.JSX.Element {
     useLayoutStore.getState().addPane(cartella, nome, modello)
   }), [])
 
+  // Chiudere una chat dal telefono: il riquadro sparisce, la conversazione
+  // resta su disco e si riprende quando si vuole. E' la ragione per cui questo
+  // comando puo' stare su un telefono senza essere pericoloso.
+  useEffect(() => window.gestore.client.suChiusura((idChat) => {
+    const stato = useLayoutStore.getState()
+    const pty = stato.panes[idChat]?.ptyId
+    if (pty !== undefined) window.gestore.pty.kill(pty)
+    stato.closePane(idChat)
+  }), [])
+
+  // Il nome che dai a una chat dal telefono: lo stesso che daresti qui.
+  useEffect(() => window.gestore.client.suRinomina(({ chat, nome }) => {
+    useLayoutStore.getState().rinominaPane(chat, nome)
+  }), [])
+
   // Quello che scrivi dal telefono arriva alla chat come se lo avessi digitato.
   useEffect(() => window.gestore.client.suScrittura(({ chat, testo }) => {
     // `chat` è l'identificatore del **riquadro**, non del terminale: scriverci

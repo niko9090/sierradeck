@@ -94,7 +94,13 @@ export function paginaClient(): string {
   }
   header b { font-size: 15px; letter-spacing: .04em; }
   header span { margin-left: auto; font-size: 12px; color: var(--testo-quieto); }
-  main { padding: 14px; display: grid; gap: 12px; }
+  /* «minmax(0, 1fr)» e non «1fr»: in una griglia la colonna cresce fino al
+     contenuto piu' largo, e basta una riga di terminale che non va a capo
+     perche' **tutte** le piastrelle diventino piu' larghe dello schermo. Cosi'
+     invece la colonna resta quella del telefono, e chi ha bisogno di piu'
+     spazio scorre dentro di se'. */
+  main { padding: 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .piastrella { min-width: 0; }
   .piastrella {
     background: var(--chassis); border: 1px solid var(--bordo); border-radius: 14px; padding: 14px 16px;
   }
@@ -202,6 +208,12 @@ export function paginaClient(): string {
   .serigrafia { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--testo-quieto); }
   .voce { font-size: 12px; color: var(--testo-quieto); padding: 4px 0; display: flex; gap: 8px; }
   .voce .quando { font-family: ui-monospace, Consolas, monospace; color: var(--spento); }
+
+  /* Il tasto che sta per disfare qualcosa lo dice, per un attimo: il secondo
+     tocco e' la conferma, e il colore e' quello di uno stato, non un ornamento. */
+  button.pericolo { border-color: var(--rosso); color: var(--rosso); }
+  .spunta { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--testo-quieto); }
+  .spunta input { width: 20px; height: 20px; }
 
   .numeri { display: flex; gap: 6px; }
   .numero { flex: 1; text-align: center; }
@@ -380,6 +392,12 @@ function pannello(s) {
         \${dentro === c.id
           ? '<button onclick="chiudiDentro()">Basta guardare</button>'
           : '<button onclick="guarda(\\'' + esc(c.id) + '\\')">Guarda dentro</button>'}
+      </div>
+      <div class="riga">
+        <input id="n-\${esc(c.id)}" placeholder="dalle un nome">
+        <button onclick="rinomina('\${esc(c.id)}')">Nome</button>
+        <button class="\${confermando === 'chat-' + c.id ? 'pericolo' : ''}"
+          onclick="chiudiChat('\${esc(c.id)}')">\${confermando === 'chat-' + c.id ? 'Sicuro? Chiudi' : 'Chiudi'}</button>
       </div>
     </div>\`).join('')
 
@@ -604,6 +622,54 @@ function vistaAutopilota(a) {
     (criteri ? '<ul class="criteri">' + criteri + '</ul>' : '') +
     (decisioni ? '<div class="serigrafia" style="margin-top:10px">Ha deciso</div>' + decisioni : '') +
     '</div>'
+}
+
+/**
+ * Le cose che si disfano si chiedono due volte.
+ *
+ * Non un dialogo di sistema - che blocca la pagina e su un telefono compare
+ * dove capita - ma il tasto stesso che cambia parola: il secondo tocco e' la
+ * conferma. Un tocco sbagliato in tram non deve buttare via il lavoro della
+ * notte, e questo e' il muro giusto: sta nel gesto, non nell'assenza del
+ * comando.
+ */
+var confermando = null
+window.chiedeConferma = (chiave) => {
+  confermando = confermando === chiave ? null : chiave
+  pannello(ultimoStato)
+  // Chi ci ripensa non deve restare con un tasto rosso addosso: dopo qualche
+  // secondo la domanda decade da sola.
+  setTimeout(() => { if (confermando === chiave) { confermando = null; pannello(ultimoStato) } }, 6000)
+}
+
+window.eliminaAp = async (id) => {
+  if (confermando !== 'ap-' + id) { chiedeConferma('ap-' + id); return }
+  confermando = null
+  if (dentroAp === id) { dentroAp = null; apDettaglio = null }
+  await chiedi('/api/autopilota/elimina', { autopilota: id })
+  aggiorna()
+}
+
+window.riavvioAp = async (id, riprendi) => {
+  await chiedi('/api/autopilota/riavvio', { autopilota: id, riprendi: riprendi })
+  if (dentroAp === id) await leggiAp()
+  aggiorna()
+}
+
+window.chiudiChat = async (id) => {
+  if (confermando !== 'chat-' + id) { chiedeConferma('chat-' + id); return }
+  confermando = null
+  if (dentro === id) { dentro = null; righeDentro = []; righeGrezze = [] }
+  await chiedi('/api/chat/chiudi', { chat: id })
+  aggiorna()
+}
+
+window.rinomina = async (id) => {
+  const campo = document.getElementById('n-' + id)
+  if (!campo || !campo.value.trim()) return
+  await chiedi('/api/chat/nome', { chat: id, nome: campo.value.trim() })
+  campo.value = ''
+  aggiorna()
 }
 
 window.rispondi = async (id) => {
