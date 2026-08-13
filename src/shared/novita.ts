@@ -23,6 +23,16 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.8',
+    righe: [
+      '**Un autopilota che si stava preparando non resta più fermo per sempre.** Se il servizio si riavviava durante la preparazione — un aggiornamento, uno spegnimento — sul disco restava scritto «si prepara», ma nessuno la stava più conducendo: niente domande a cui rispondere, niente da premere, e l’autopilota lì per ore. Adesso le preparazioni interrotte ripartono insieme al lavoro; e se la preparazione si guasta lo dice, invece di tacere.',
+      '**Si vede a che punto è.** Il pannello mostrava una percentuale e due schede su sei stati possibili: ora c’è il percorso intero — prepara, lavora, fine — e la forma del passo in cui si trova dice come lo sta vivendo. Davanti a uno fermo si capisce subito se si è fermato prima o dopo essersi messo al lavoro.',
+      '**E si vede cosa sta facendo mentre si prepara**, con i file che apre e i comandi che prova: prima erano minuti di silenzio. La percentuale è quella del passo in cui si trova — i giri della preparazione o i criteri del lavoro — con un colore diverso per ciascuno, perché non misurano la stessa cosa.',
+      'I LED dicevano «tocca a te» anche quando l’autopilota stava solo leggendo il progetto. Adesso lampeggiano solo se c’è davvero una domanda, e smettono appena si risponde. Alle domande della preparazione si risponde dal pannello, dov’è già lo sguardo.',
+      'La larghezza del pannello si trascina dal suo bordo — e il cursore nelle impostazioni, che finora non muoveva niente, adesso la muove davvero.'
+    ]
+  },
+  {
     versione: '0.9.7',
     righe: [
       '**Gli autopiloti ripartono.** Si fermavano subito con «interrogazione del supervisore fallita: Command failed», prima ancora di aprire la loro chat. Il servizio nasce con una variabile che lo fa girare come Node, e quella variabile proseguiva fino a Claude Code facendolo partire nel modo sbagliato: usciva con un errore, e da fuori si vedeva solo una frase generica. Le chat non ne soffrivano perché quel percorso la ripuliva già — la regola c’era, non era applicata qui.',
