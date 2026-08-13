@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.20',
+    righe: [
+      '**Dal telefono si vede e si governa anche il resto**: i consumi di oggi, della settimana e del mese; il quaderno con le schede che l’autopilota lascia accanto al codice; lo stile della console e il chiarore, che cambiano il computer **e** il telefono nello stesso istante; e l’aggiornamento del computer — a che punto è, scaricarlo, installarlo.',
+      'Installare da fuori chiude il programma con le chat aperte dentro: per questo lo chiede due volte, come ogni cosa che si disfa.'
+    ]
+  },
+  {
     versione: '0.9.19',
     righe: [
       '**Dal telefono si riprende una conversazione**, invece di aprirne una nuova nella stessa cartella e lasciare tutto quello che c’era dentro da un’altra parte. Le ultime trenta, con il loro titolo, come dal tasto «Riprendi» del computer.',

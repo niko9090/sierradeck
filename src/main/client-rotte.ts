@@ -113,6 +113,17 @@ export type DipendenzeRotte = {
   /** I salvataggi: insiemi di chat da rimettere in piedi tutti insieme. */
   salvataggi: () => Promise<{ nome: string; quando: string; chat: number }[]>
   caricaIstantanea: (nome: string) => Promise<void>
+  /** Quanto si è consumato: una delle cose che si guardano più volentieri da fuori. */
+  consumi: () => Promise<unknown>
+  /** Le schede del quaderno di una cartella: il resoconto che l'autopilota lascia. */
+  quaderno: (cwd: string) => { file: string; titolo: string; quando: string }[]
+  scheda: (cwd: string, file: string) => { file: string; titolo: string; corpo: string; quando: string } | undefined
+  /** Cambiare le preferenze da fuori: i colori del computer si scelgono anche da qui. */
+  impostaPreferenze: (parziali: Record<string, unknown>) => Promise<void>
+  /** L'aggiornamento del **computer**: a che punto è, e i due comandi. */
+  aggiornamento: () => { fase: string; versione?: string; percento?: number; errore?: string }
+  scaricaAggiornamento: () => void
+  installaAggiornamento: () => void
   /** Le cartelle in cui si può aprire una chat: quelle già viste da Claude Code. */
   cartelle: () => Promise<string[]>
   versione: string
@@ -344,6 +355,61 @@ export function rotteClient(deps: DipendenzeRotte) {
       }
       const creato = await deps.creaAutopilota(obiettivo.slice(0, TESTO_MAX), cartella)
       return OK({ fatto: true, autopilota: creato.id })
+    }
+
+    if (r.percorso === '/api/consumi') {
+      return OK(await deps.consumi().catch(() => ({})))
+    }
+
+    // Il quaderno di una cartella: le schede che l'autopilota lascia accanto al
+    // codice. Solo per le cartelle conosciute, come tutto il resto.
+    if (r.metodo === 'POST' && r.percorso === '/api/quaderno') {
+      const cartella = stringa(r.corpo, 'cartella')
+      if (cartella === '') return { stato: 400, corpo: { errore: 'serve la cartella' } }
+      const ammesse = await deps.cartelle().catch(() => [] as string[])
+      if (!ammesse.includes(cartella)) return { stato: 403, corpo: { errore: 'cartella non conosciuta' } }
+      return OK({ schede: deps.quaderno(cartella) })
+    }
+
+    if (r.metodo === 'POST' && r.percorso === '/api/quaderno/scheda') {
+      const cartella = stringa(r.corpo, 'cartella')
+      const file = stringa(r.corpo, 'file')
+      if (cartella === '' || file === '') return { stato: 400, corpo: { errore: 'servono cartella e scheda' } }
+      const ammesse = await deps.cartelle().catch(() => [] as string[])
+      if (!ammesse.includes(cartella)) return { stato: 403, corpo: { errore: 'cartella non conosciuta' } }
+      const s = deps.scheda(cartella, file)
+      return s === undefined ? { stato: 404, corpo: { errore: 'scheda inesistente' } } : OK(s)
+    }
+
+    if (r.percorso === '/api/preferenze' && r.metodo !== 'POST') {
+      return OK({ preferenze: deps.preferenze?.() ?? PREFERENZE_PREDEFINITE })
+    }
+
+    // Cambiarne una non deve poter cancellare le altre: arriva un pezzo, e il
+    // computer lo mescola con quelle che ha gia'.
+    if (r.metodo === 'POST' && r.percorso === '/api/preferenze') {
+      const corpo = r.corpo
+      if (typeof corpo !== 'object' || corpo === null) {
+        return { stato: 400, corpo: { errore: 'servono le preferenze da cambiare' } }
+      }
+      await deps.impostaPreferenze(corpo as Record<string, unknown>)
+      return OK({ fatto: true })
+    }
+
+    if (r.percorso === '/api/aggiornamento') {
+      return OK(deps.aggiornamento())
+    }
+
+    if (r.metodo === 'POST' && r.percorso === '/api/aggiornamento/scarica') {
+      deps.scaricaAggiornamento()
+      return OK({ fatto: true })
+    }
+
+    // Installare **riavvia il computer di casa**: e' la cosa piu' invasiva che
+    // si possa chiedere da un telefono, e la pagina la chiede due volte.
+    if (r.metodo === 'POST' && r.percorso === '/api/aggiornamento/installa') {
+      deps.installaAggiornamento()
+      return OK({ fatto: true })
     }
 
     if (r.percorso === '/api/sessioni') {

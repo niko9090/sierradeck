@@ -255,6 +255,11 @@ var apDettaglio = null
 var pannelloAperto = null
 var sessioniViste = null
 var salvataggiVisti = null
+var consumiVisti = null
+var schedeViste = null
+var schedaAperta = null
+var prefViste = null
+var aggiornamentoVisto = null
 // Il modulo per affidare un lavoro: aperto o no, e quale cartella e' scelta.
 var delegando = false
 var delegaCartella = -1
@@ -471,6 +476,60 @@ function pannello(s) {
       <div class="riga"><button onclick="apriPannello('salvataggi')">Chiudi</button></div>
     </div>\`
 
+  const vistaConsumi = pannelloAperto !== 'consumi' ? '' : \`
+    <div class="piastrella">
+      <div class="titolo">Consumi</div>
+      \${consumiVisti === null
+        ? '<div class="sotto">Non sono riuscito a leggerli.</div>'
+        : '<div class="numeri" style="margin-top:12px">' +
+          '<div class="numero"><b>' + esc(soldi(consumiVisti.oggi)) + '</b><span>oggi</span></div>' +
+          '<div class="numero"><b>' + esc(soldi(consumiVisti.settimana)) + '</b><span>7 giorni</span></div>' +
+          '<div class="numero"><b>' + esc(soldi(consumiVisti.mese)) + '</b><span>30 giorni</span></div>' +
+          '</div>'}
+      <div class="riga"><button onclick="apriPannello('consumi')">Chiudi</button></div>
+    </div>\`
+
+  const vistaQuaderno = pannelloAperto !== 'quaderno' ? '' : \`
+    <div class="piastrella">
+      <div class="titolo">Quaderno</div>
+      <div class="sotto">Le schede che l'autopilota lascia accanto al codice.</div>
+      \${schedaAperta
+        ? '<div class="dettaglio"><div class="titolo">' + esc(schedaAperta.titolo) + '</div>' +
+          '<div class="dentro" style="max-height:50vh">' + esc(schedaAperta.corpo) + '</div>' +
+          '<div class="riga"><button onclick="chiudiScheda()">Torna all elenco</button></div></div>'
+        : ((schedeViste || []).length === 0
+            ? '<div class="sotto" style="margin-top:8px">Nessuna scheda in questa cartella.</div>'
+            : (schedeViste || []).map((x) =>
+                '<button class="cartella" onclick="apriScheda(\\'' + esc(cartellaPrima()) + '\\', \\'' +
+                esc(x.file) + '\\')">' + esc(x.titolo) + '</button>').join(''))}
+      <div class="riga"><button onclick="apriPannello('quaderno')">Chiudi</button></div>
+    </div>\`
+
+  const vistaImpostazioni = pannelloAperto !== 'impostazioni' ? '' : \`
+    <div class="piastrella">
+      <div class="titolo">Impostazioni</div>
+      \${prefViste === null ? '<div class="sotto">Non sono riuscito a leggerle.</div>' : \`
+        <div class="sotto" style="margin-top:10px">Stile della console</div>
+        <div class="ws" style="margin-top:8px">
+          <button class="\${prefViste.stile === 'banco' ? 'attivo' : ''}" onclick="cambiaPref('stile', 'banco')">Banco</button>
+          <button class="\${prefViste.stile === 'foglio' ? 'attivo' : ''}" onclick="cambiaPref('stile', 'foglio')">Foglio</button>
+        </div>
+        <div class="sotto" style="margin-top:14px">Chiarore: \${prefViste.chiarore}</div>
+        <input type="range" min="0" max="100" value="\${prefViste.chiarore}" style="width:100%"
+          onchange="cambiaPref('chiarore', Number(this.value))">
+      \`}
+      <div class="sotto" style="margin-top:16px">Aggiornamento del computer</div>
+      <div class="sotto">\${esc(descriviAggiornamento())}</div>
+      <div class="riga">
+        \${aggiornamentoVisto && aggiornamentoVisto.fase === 'disponibile'
+          ? '<button onclick="scaricaAggiornamento()">Scarica</button>' : ''}
+        \${aggiornamentoVisto && aggiornamentoVisto.fase === 'pronto'
+          ? '<button class="' + (confermando === 'agg' ? 'pericolo' : '') + '" onclick="installaAggiornamento()">' +
+            (confermando === 'agg' ? 'Sicuro? Chiude le chat' : 'Installa') + '</button>' : ''}
+        <button onclick="apriPannello('impostazioni')">Chiudi</button>
+      </div>
+    </div>\`
+
   const ws = (s.workspace && s.workspace.nomi || []).map((n) => \`
     <button class="\${n === s.workspace.attivo ? 'attivo' : ''}" onclick="vaiA('\${esc(n)}')">\${esc(n)}</button>\`).join('')
 
@@ -512,12 +571,20 @@ function pannello(s) {
       \${delega}
       <div class="piastrella">
         <div class="riga">
-          <button onclick="apriPannello('sessioni')">Riprendi una conversazione</button>
+          <button onclick="apriPannello('sessioni')">Riprendi</button>
           <button onclick="apriPannello('salvataggi')">Salvataggi</button>
+          <button onclick="apriPannello('consumi')">Consumi</button>
+        </div>
+        <div class="riga">
+          <button onclick="apriPannello('quaderno')">Quaderno</button>
+          <button onclick="apriPannello('impostazioni')">Impostazioni</button>
         </div>
       </div>
       \${elencoSessioni}
       \${elencoSalvataggi}
+      \${vistaConsumi}
+      \${vistaQuaderno}
+      \${vistaImpostazioni}
     </main>\`
 
   for (const id in scritti) {
@@ -720,6 +787,13 @@ window.apriPannello = async (quale) => {
   if (pannelloAperto === 'salvataggi' && !salvataggiVisti) {
     try { salvataggiVisti = (await chiedi('/api/salvataggi')).salvataggi || [] } catch (e) { salvataggiVisti = [] }
   }
+  if (pannelloAperto === 'consumi') await leggiConsumi()
+  if (pannelloAperto === 'impostazioni') { await leggiPreferenze(); await leggiAggiornamento() }
+  if (pannelloAperto === 'quaderno') {
+    schedaAperta = null
+    const prima = (ultimoStato.chat || [])[0]
+    if (prima) await leggiQuaderno(prima.cwd)
+  }
   pannello(ultimoStato)
 }
 
@@ -755,6 +829,89 @@ window.eliminaWorkspace = async (nome) => {
   confermando = null
   await chiedi('/api/workspace/elimina', { nome: nome })
   aggiorna()
+}
+
+/** Il pannello in fondo che si apre: uno per volta, e il tasto lo richiude. */
+window.apriPannello = window.apriPannello
+
+/** Una cifra in euro, o un trattino se non c'e' niente da dire. */
+function soldi(v) {
+  if (!v && v !== 0) return '—'
+  const n = typeof v === 'object' ? (v.costo != null ? v.costo : v.totale) : v
+  if (typeof n !== 'number') return '—'
+  return '$' + (n < 10 ? n.toFixed(2) : Math.round(n))
+}
+
+/** La cartella della prima chat aperta: e' quella di cui si guarda il quaderno. */
+function cartellaPrima() {
+  const prima = ((ultimoStato || {}).chat || [])[0]
+  return prima ? prima.cwd : ''
+}
+
+/** A che punto e' l'aggiornamento del computer, detto in italiano. */
+function descriviAggiornamento() {
+  const a = aggiornamentoVisto
+  if (!a) return 'Non lo so.'
+  if (a.fase === 'disponibile') return 'C’è la ' + (a.versione || 'versione nuova') + '.'
+  if (a.fase === 'scarico') return 'Sto scaricando… ' + (a.percento || 0) + '%'
+  if (a.fase === 'pronto') return 'Pronta da installare: ' + (a.versione || '') + '.'
+  if (a.fase === 'errore') return 'Qualcosa non ha funzionato: ' + (a.errore || '')
+  if (a.fase === 'cerco') return 'Sto guardando se ce n’è una nuova…'
+  return 'Sei alla versione più recente.'
+}
+
+window.leggiConsumi = async () => {
+  try { consumiVisti = await chiedi('/api/consumi') } catch (e) { consumiVisti = null }
+}
+
+window.leggiQuaderno = async (cartella) => {
+  try { schedeViste = (await chiedi('/api/quaderno', { cartella: cartella })).schede || [] }
+  catch (e) { schedeViste = [] }
+}
+
+window.apriScheda = async (cartella, file) => {
+  try { schedaAperta = await chiedi('/api/quaderno/scheda', { cartella: cartella, file: file }) }
+  catch (e) { schedaAperta = null }
+  pannello(ultimoStato)
+}
+window.chiudiScheda = () => { schedaAperta = null; pannello(ultimoStato) }
+
+window.leggiPreferenze = async () => {
+  try { prefViste = (await chiedi('/api/preferenze')).preferenze } catch (e) { prefViste = null }
+}
+
+/** Cambiare una preferenza: il computer la mescola con quelle che ha gia'. */
+window.cambiaPref = async (nome, valore) => {
+  const parziale = {}
+  parziale[nome] = valore
+  await chiedi('/api/preferenze', parziale)
+  await leggiPreferenze()
+  // I colori sono cambiati anche qui: la pagina si riveste subito, altrimenti
+  // si vedrebbe il computer cambiato e il telefono no.
+  await vestiti()
+  pannello(ultimoStato)
+}
+
+window.leggiAggiornamento = async () => {
+  try { aggiornamentoVisto = await chiedi('/api/aggiornamento') } catch (e) { aggiornamentoVisto = null }
+}
+
+window.scaricaAggiornamento = async () => {
+  await chiedi('/api/aggiornamento/scarica', {})
+  await leggiAggiornamento()
+  pannello(ultimoStato)
+}
+
+/**
+ * Installare chiude il programma sul computer, con le chat aperte dentro: e' la
+ * cosa piu' invasiva che si possa chiedere da un telefono, e infatti si chiede
+ * due volte.
+ */
+window.installaAggiornamento = async () => {
+  if (confermando !== 'agg') { chiedeConferma('agg'); return }
+  confermando = null
+  await chiedi('/api/aggiornamento/installa', {})
+  pannello(ultimoStato)
 }
 
 window.rispondi = async (id) => {

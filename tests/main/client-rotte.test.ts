@@ -37,6 +37,13 @@ function deps(over: Partial<DipendenzeRotte> = {}): DipendenzeRotte {
     eliminaWorkspace: () => Promise.resolve(),
     salvataggi: () => Promise.resolve([{ nome: 'Ultima chiusura', quando: '2026-08-13T09:32:00.000Z', chat: 8 }]),
     caricaIstantanea: () => Promise.resolve(),
+    consumi: () => Promise.resolve({ oggi: { costo: 3.2, token: 120000 } }),
+    quaderno: () => [{ file: 'notte.md', titolo: 'Come e andata la notte', quando: '2026-08-13T06:00:00.000Z' }],
+    scheda: () => ({ file: 'notte.md', titolo: 'Come e andata la notte', corpo: 'tutto verde alle 4', quando: '' }),
+    impostaPreferenze: () => Promise.resolve(),
+    aggiornamento: () => ({ fase: 'fermo' as const }),
+    scaricaAggiornamento: () => undefined,
+    installaAggiornamento: () => undefined,
     versione: '0.5.0',
     apk: () => Promise.resolve({ versione: '1.0.2', url: 'https://x/SierraDeck-1.0.2.apk' }),
     ...over
@@ -392,5 +399,62 @@ describe('riprendere una conversazione, e i workspace per intero', () => {
     expect((elenco.corpo as { salvataggi: unknown[] }).salvataggi).toBeInstanceOf(Array)
     await rotteClient(su)({ metodo: 'POST', percorso: '/api/salvataggi/carica', corpo: { nome: 'Ultima chiusura' } })
     expect(caricati).toEqual(['Ultima chiusura'])
+  })
+})
+
+describe('i consumi, il quaderno, le preferenze e l aggiornamento', () => {
+  it('dice quanto si e consumato', async () => {
+    // È una delle cose che si guardano più volentieri da fuori: quanto sta
+    // costando la giornata mentre gli autopiloti lavorano da soli.
+    const r = await rotteClient(deps())({ metodo: 'GET', percorso: '/api/consumi', corpo: undefined })
+    expect(r.stato).toBe(200)
+    expect(r.corpo).toMatchObject({ oggi: expect.anything() })
+  })
+
+  it('elenca le schede del quaderno di una cartella conosciuta', async () => {
+    const r = await rotteClient(deps())({
+      metodo: 'POST', percorso: '/api/quaderno', corpo: { cartella: 'C:\\lavoro' }
+    })
+    const c = r.corpo as { schede: { titolo: string }[] }
+    expect(r.stato).toBe(200)
+    expect(c.schede[0]).toMatchObject({ titolo: 'Come e andata la notte' })
+  })
+
+  it('e ne legge una', async () => {
+    const r = await rotteClient(deps())({
+      metodo: 'POST', percorso: '/api/quaderno/scheda', corpo: { cartella: 'C:\\lavoro', file: 'notte.md' }
+    })
+    expect(r.stato).toBe(200)
+    expect((r.corpo as { corpo: string }).corpo).toContain('tutto verde')
+  })
+
+  it('il quaderno solo delle cartelle che il computer conosce', async () => {
+    const r = await rotteClient(deps())({
+      metodo: 'POST', percorso: '/api/quaderno', corpo: { cartella: 'C:\\Windows' }
+    })
+    expect(r.stato).toBe(403)
+  })
+
+  it('legge e cambia le preferenze', async () => {
+    const cambi: unknown[] = []
+    const su = deps({ impostaPreferenze: (p) => { cambi.push(p); return Promise.resolve() } })
+    const letto = await rotteClient(su)({ metodo: 'GET', percorso: '/api/preferenze', corpo: undefined })
+    expect((letto.corpo as { preferenze: { stile: string } }).preferenze.stile).toBeDefined()
+    await rotteClient(su)({ metodo: 'POST', percorso: '/api/preferenze', corpo: { stile: 'foglio', chiarore: 40 } })
+    expect(cambi[0]).toMatchObject({ stile: 'foglio', chiarore: 40 })
+  })
+
+  it('dice se il computer ha un aggiornamento, e lo installa', async () => {
+    const fatti: string[] = []
+    const su = deps({
+      aggiornamento: () => ({ fase: 'disponibile', versione: '0.9.20' }),
+      scaricaAggiornamento: () => { fatti.push('scarica') },
+      installaAggiornamento: () => { fatti.push('installa') }
+    })
+    const stato = await rotteClient(su)({ metodo: 'GET', percorso: '/api/aggiornamento', corpo: undefined })
+    expect(stato.corpo).toMatchObject({ fase: 'disponibile', versione: '0.9.20' })
+    await rotteClient(su)({ metodo: 'POST', percorso: '/api/aggiornamento/scarica', corpo: {} })
+    await rotteClient(su)({ metodo: 'POST', percorso: '/api/aggiornamento/installa', corpo: {} })
+    expect(fatti).toEqual(['scarica', 'installa'])
   })
 })

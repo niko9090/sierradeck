@@ -33,7 +33,9 @@ app.whenReady().then(async () => {
       domande: [{ id: 'd-1', autopilotaId: 'ap-2', testo: 'Tengo la fisica attuale o la rifaccio da capo?' }],
       workspace: { nomi: ['casa', 'lavoro', 'giochi'], attivo: 'giochi' }
     }
-    pannelloAperto = 'sessioni'
+    pannelloAperto = 'impostazioni'
+    prefViste = { stile: 'banco', chiarore: 20, accento: '#4aa3ff' }
+    aggiornamentoVisto = { fase: 'disponibile', versione: '0.9.20' }
     sessioniViste = [
       { id: 's-1', cwd: 'C:\\Users\\nikof\\Documents\\Game_ascensore', titolo: 'Debug del gioco', quando: '' },
       { id: 's-2', cwd: 'C:\\Users\\nikof\\Documents\\Portfolio', titolo: 'Il bot del portfolio', quando: '' }
@@ -59,6 +61,12 @@ app.whenReady().then(async () => {
     pannello(ultimoStato)
     'fatto'
   `)
+  // In fondo alla pagina: i pannelli che si aprono stanno li', e una
+  // fotografia della sola prima schermata non li mostrerebbe mai.
+  if (process.argv.includes('--fondo')) {
+    await win.webContents.executeJavaScript('window.scrollTo(0, document.body.scrollHeight)')
+    await new Promise((r) => setTimeout(r, 300))
+  }
   await new Promise((r) => setTimeout(r, 600))
   const m = await win.webContents.executeJavaScript(`(() => {
     const d = document.documentElement

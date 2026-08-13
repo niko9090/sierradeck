@@ -25,6 +25,7 @@ import { espandiTilde } from './validation'
 import { creaClientAutopilota } from './autopilot-client'
 import { apriIstantaneeStore } from './istantanee-store'
 import { listSessions } from './db'
+import { riassumiConsumi } from '@shared/consumi'
 import { creaWorkspace, eliminaWorkspace } from './workspace-operazioni'
 import type { SessionSummary } from '@shared/types'
 import { apriImpostazioniStore } from './impostazioni-store'
@@ -65,6 +66,13 @@ let serverClient: import('node:http').Server | undefined
 let chatAperte: Chat[] = []
 /** Su quali monitor stavano le finestre: e' cosi che ci ritornano. */
 let finestreStore: FinestreStore | undefined
+/**
+ * Gli aggiornamenti del programma.
+ *
+ * Vive qui perche' nasce dopo le rotte del Client, che pero' lo cercano solo
+ * quando qualcuno le chiama - cioe' a programma gia' avviato.
+ */
+let aggiornamenti: ReturnType<typeof creaAggiornamenti> | undefined
 /** Quali chat ha ogni finestra: unite formano l'elenco che vede il telefono. */
 const chatPerFinestra = new Map<number, Chat[]>()
 /** L'icona nell'area di notifica, quando è stato possibile crearla. */
@@ -600,6 +608,35 @@ if (!app.requestSingleInstanceLock()) {
             quando: i.salvataIl,
             chat: i.finestre.reduce((t, f) => t + f.layout.panes.length, 0)
           })),
+        consumi: async () => (db === undefined ? {} : riassumiConsumi(listSessions(db), Date.now())),
+        // Il quaderno di una cartella: le schede che l'autopilota lascia
+        // accanto al codice che descrivono.
+        quaderno: (cwd: string) =>
+          apriQuaderno().elenca(cwd).map((s) => ({
+            file: s.file,
+            titolo: s.titolo,
+            quando: s.quando
+          })),
+        scheda: (cwd: string, file: string) => {
+          const s = apriQuaderno().leggi(cwd, file)
+          return s === undefined
+            ? undefined
+            : { file: s.file, titolo: s.titolo, corpo: s.corpo, quando: s.quando }
+        },
+        // Un pezzo per volta: cambiarne una non deve cancellare le altre.
+        impostaPreferenze: async (parziali: Record<string, unknown>) => {
+          const nuove = impostazioni.impostaPreferenze({ ...impostazioni.preferenze(), ...parziali })
+          for (const w of BrowserWindow.getAllWindows()) {
+            if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+              w.webContents.send('preferenze:cambiate', nuove)
+            }
+          }
+        },
+        aggiornamento: () => aggiornamenti?.stato() ?? { fase: 'fermo' },
+        scaricaAggiornamento: () => { void aggiornamenti?.scarica() },
+        // Installare chiude il programma con le chat aperte dentro: dal telefono
+        // la pagina lo chiede due volte, come al computer.
+        installaAggiornamento: () => { aggiornamenti?.installa() },
         caricaIstantanea: async (nome: string) => {
           for (const w of BrowserWindow.getAllWindows()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
@@ -804,7 +841,7 @@ if (!app.requestSingleInstanceLock()) {
       // Gli aggiornamenti: cercare si fa da soli, scaricare e installare li
       // decide l'utente. Il secondo «sì» esiste perché installare chiude il
       // programma con le chat aperte dentro.
-      const aggiornamenti = creaAggiornamenti(
+      aggiornamenti = creaAggiornamenti(
         () => BrowserWindow.getAllWindows(),
         dati,
         // L'installer sostituisce i file che questi processi tengono aperti:
@@ -840,10 +877,10 @@ if (!app.requestSingleInstanceLock()) {
           }
         }
       )
-      ipcMain.handle('aggiornamenti:stato', () => aggiornamenti.stato())
-      ipcMain.handle('aggiornamenti:cerca', () => aggiornamenti.cerca())
-      ipcMain.handle('aggiornamenti:scarica', () => aggiornamenti.scarica())
-      ipcMain.handle('aggiornamenti:installa', () => { aggiornamenti.installa() })
+      ipcMain.handle('aggiornamenti:stato', () => aggiornamenti?.stato() ?? { fase: 'fermo' })
+      ipcMain.handle('aggiornamenti:cerca', () => aggiornamenti?.cerca())
+      ipcMain.handle('aggiornamenti:scarica', () => aggiornamenti?.scarica())
+      ipcMain.handle('aggiornamenti:installa', () => { aggiornamenti?.installa() })
 
       // L'icona prima della finestra: `apriNuovaFinestra` registra il gestore
       // della X, che deve poter sapere se l'area c'è o no.
