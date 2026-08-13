@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import type { Autopilota } from '@shared/autopilota'
 import type { Giudizio } from './decisione'
 
@@ -50,15 +51,36 @@ export function argomentiSupervisore(
 export function interrogazioneReale(claudeCmd: string): Interrogazione {
   return (prompt, cwd, sessionId) =>
     new Promise((risolvi, rifiuta) => {
+      // Una cartella che non c'è fa fallire `execFile` con lo stesso «Command
+      // failed» di qualunque altro guasto, e manda a cercare dalla parte
+      // sbagliata: qui si dice **quale** cartella e che è quella il problema.
+      if (!existsSync(cwd)) {
+        rifiuta(new Error(
+          `interrogazione del supervisore fallita: la cartella «${cwd}» non esiste. ` +
+          'È quella che l’autopilota ha ricevuto quando è stato creato.'
+        ))
+        return
+      }
       let args: string[] = []
       argomentiSupervisore(claudeCmd, prompt, cwd, sessionId, (_c, a) => { args = a })
       execFile(
         claudeCmd,
         args,
         { cwd, timeout: TIMEOUT_MS, windowsHide: true, maxBuffer: 10 * 1024 * 1024 },
-        (err, stdout) => {
+        (err, stdout, stderr) => {
           if (err !== null) {
-            rifiuta(new Error(`interrogazione del supervisore fallita: ${err.message}`))
+            // **Anche lo stderr.** `err.message` di execFile dice soltanto
+            // «Command failed: <comando>», che è la stessa frase per una
+            // cartella che non esiste, un accesso scaduto, un modello rifiutato
+            // e un timeout. Il motivo vero lo scrive il comando sul suo stderr,
+            // e buttarlo via lasciava l'autopilota fermo con un messaggio che
+            // non permetteva di capire niente — nemmeno da dove ricominciare.
+            const dettaglio = [
+              err.message,
+              stderr.trim() === '' ? '' : `stderr: ${stderr.trim().slice(0, 600)}`,
+              stdout.trim() === '' ? '' : `uscita: ${stdout.trim().slice(0, 300)}`
+            ].filter((r) => r !== '').join(' | ')
+            rifiuta(new Error(`interrogazione del supervisore fallita: ${dettaglio}`))
             return
           }
           try {
