@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.23',
+    righe: [
+      '**La chat di un autopilota torna dov’era, non dove sei tu.** Riprendendone uno mentre guardavi un altro workspace, la sua conversazione nasceva lì: due chat per la stessa cosa, e quella con dentro il lavoro ferma in un posto che non stavi guardando. Adesso la finestra va nel workspace dove quella conversazione è salvata, e consegna lì.',
+      'Una chat che non esiste ancora continua a nascere dove sei: è solo quando ha già una casa che ci si va.'
+    ]
+  },
+  {
     versione: '0.9.22',
     righe: [
       '**La chat presa in prestito adesso rinasce davvero.** Veniva spenta e riaccesa nello stesso istante: il riquadro non se ne accorgeva e restava con un terminale morto in mano, dove il compito finiva perduto — «terminale inesistente: 10965 caratteri non consegnati». Adesso fra lo spegnere e il riaccendere passa un disegno, che è quanto basta perché il riquadro rifaccia il suo terminale.',

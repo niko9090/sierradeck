@@ -199,7 +199,26 @@ export function App(): React.JSX.Element {
       // La prontezza la legge dal flusso dei terminali, che passa di qui: un
       // messaggio scritto mentre Claude Code si sta ancora disegnando resta nel
       // campo, e la chat non parte.
-      eseguiConsegna(c, ponteReale((ptyId) => terminalePronto(righe.current.attivitaDi(ptyId), Date.now())))
+      const porta = (): void => {
+        eseguiConsegna(c, ponteReale((ptyId) => terminalePronto(righe.current.attivitaDi(ptyId), Date.now())))
+      }
+      // **Prima si va dove la chat vive.** La sua conversazione puo' essere
+      // salvata in un altro workspace: consegnare qui aprirebbe una seconda
+      // copia sotto i tuoi occhi, e il lavoro andrebbe in quella - mentre
+      // quella vera resta ferma in un posto che non stai guardando.
+      if (c.workspace !== undefined && c.workspace !== attivoOra.current) {
+        void azioniDiFinestra(() => attivoOra.current)
+          .cambia(c.workspace)
+          .then(() => window.gestore.workspace.stato())
+          .then(setWorkspace)
+          .then(porta)
+          .catch((e: unknown) => {
+            console.error('[autopilota] non sono riuscito ad andare nel suo workspace:', e)
+            porta()
+          })
+        continue
+      }
+      porta()
     }
   }), [])
 

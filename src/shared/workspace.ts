@@ -386,3 +386,26 @@ export function aggiungiPaneA(layout: LayoutSalvato, pane: PaneSalvato): LayoutS
     panes
   }
 }
+
+/**
+ * In quale workspace vive una conversazione.
+ *
+ * Serve a non aprirne una seconda copia dove capita: riprendendo un autopilota,
+ * la sua chat nasceva nel workspace che avevi davanti invece che in quello dove
+ * era gia' salvata — due chat per la stessa conversazione, e quella con dentro
+ * il lavoro in un posto che non stavi guardando.
+ *
+ * `undefined` vuol dire che quella conversazione non e' in nessun layout: e'
+ * una chat nuova, e nasce dove sei.
+ */
+export function workspaceDellaSessione(
+  archivio: { workspace: { nome: string; perMonitor: Record<string, { panes: { sessionUuid?: string }[] }> }[] },
+  sessione: string
+): string | undefined {
+  for (const w of archivio.workspace) {
+    for (const layout of Object.values(w.perMonitor)) {
+      if (layout.panes.some((p) => p.sessionUuid === sessione)) return w.nome
+    }
+  }
+  return undefined
+}

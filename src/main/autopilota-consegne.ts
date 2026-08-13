@@ -22,6 +22,15 @@ export type Consegna = {
   titolo: string
   cosa: 'scrivi' | 'interrompi'
   testo: string
+  /**
+   * Il workspace dove quella conversazione e' gia' salvata.
+   *
+   * Assente per una chat nuova, che nasce dove sei. Quando c'e', e' li' che il
+   * lavoro deve andare: aprirne una seconda copia nel workspace che hai davanti
+   * lascia due chat per la stessa conversazione, e quella con dentro il lavoro
+   * in un posto che non stai guardando.
+   */
+  workspace?: string
 }
 
 /** Quanto spesso si passa a ritirare. */
@@ -61,7 +70,8 @@ export function leggiConsegne(raw: unknown): Consegna[] {
       sessionId,
       titolo: testo('titolo'),
       cosa,
-      testo: testo('testo')
+      testo: testo('testo'),
+      ...(testo('workspace') !== '' ? { workspace: testo('workspace') } : {})
     })
   }
   return buone

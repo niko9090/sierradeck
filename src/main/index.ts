@@ -51,7 +51,7 @@ import { resolveClaudeCommand } from './config'
 import { leggiAccesso } from './accesso'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
-import { unicoLayout } from '@shared/workspace'
+import { unicoLayout, workspaceDellaSessione } from '@shared/workspace'
 import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
 
@@ -756,7 +756,14 @@ if (!app.requestSingleInstanceLock()) {
             console.error(`[autopilota] nessuna finestra per la consegna ${c.id}`)
             return
           }
-          finestra.webContents.send('autopilota:consegna', c)
+          // **Dove vive quella conversazione**, se e' gia' salvata da qualche
+          // parte: riprendendo un autopilota, la sua chat nasceva nel workspace
+          // che avevi davanti invece che in quello dov'era, e ne restavano due -
+          // con il lavoro dentro quella che non stavi guardando.
+          const suo = workspaceStore === undefined
+            ? undefined
+            : workspaceDellaSessione(workspaceStore.leggi(), c.sessionId)
+          finestra.webContents.send('autopilota:consegna', suo === undefined ? c : { ...c, workspace: suo })
         }
       })
 
