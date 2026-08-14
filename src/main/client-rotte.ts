@@ -2,7 +2,7 @@ import type { Esito } from './client-server'
 import type { Dispositivi } from './dispositivi'
 import type { Autopilota } from '@shared/autopilota'
 import { paginaClient, ICONA_SVG, MANIFESTO } from './client-pagina'
-import { misuraPasso, passaggi } from '@shared/autopilota-vista'
+import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
 import { PREFERENZE_PREDEFINITE, tavolozza, type Preferenze } from '@shared/preferenze'
 
 /**
@@ -235,8 +235,20 @@ export function rotteClient(deps: DipendenzeRotte) {
           id: a.id,
           nome: a.nome !== '' ? a.nome : a.obiettivo,
           stato: a.stato,
+          // Il colore del suo LED, deciso dalla **stessa** funzione della
+          // console. Il telefono ne aveva una sua, scritta a mano, e sbagliava
+          // dove conta: fallito e finito avevano lo stesso puntino grigio.
+          led: ledDi(a).classe,
           cicli: a.cicli,
           strategia: a.strategia,
+          // Perche' si e' fermato. «Sospeso» da solo manda a cercare altrove:
+          // la parte utile e' sempre stata il motivo, e dal telefono non
+          // arrivava.
+          motivo: a.motivoSospensione,
+          // Dove lavora: serve al Quaderno, che e' quello che **lui** produce.
+          // Dal telefono si leggeva la cartella della prima chat dell'elenco,
+          // che con piu' progetti aperti e' semplicemente un'altra cosa.
+          cwd: a.cwd,
           fatti: a.criteri.filter((c) => c.soddisfatto).length,
           criteri: a.criteri.length
         })),

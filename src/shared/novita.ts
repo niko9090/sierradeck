@@ -23,6 +23,19 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.26',
+    righe: [
+      '**L\u2019interfaccia del telefono \u00e8 rifatta.** Non ritoccata: era un elenco di cose che il programma sa fare, ordinate come sono state scritte. Adesso risponde a una domanda sola \u2014 *serve qualcosa da me?* \u2014 e tiene tutto il resto a un tocco, sotto il pollice.',
+      '**Una fascia fissa in basso, quattro destinazioni**: Adesso, Chat, Lavori, Computer. Il menu di prima era un riquadro alla fine di uno scorrimento infinito che apriva i suoi pannelli ancora pi\u00f9 sotto: con sei chat aperte, \u00abConsumi\u00bb era a dodici schermate dal pollice. E la fascia \u00e8 anche la fila dei LED: sei dentro una chat e vedi lampeggiare in fondo che qualcuno ti aspetta.',
+      '**Si pu\u00f2 finalmente leggere una chat.** La pagina si ricostruiva tutta ogni due secondi, e lo scorrimento del terminale tornava a zero due volte al secondo: leggere l\u2019output dal telefono era materialmente impossibile. Adesso si ridisegna solo quando \u00e8 cambiato qualcosa, e lo scorrimento resta dov\u2019era.',
+      '**E non pu\u00f2 pi\u00f9 mentire.** Se il computer smette di rispondere lo dice \u2014 \u00abnon parlo con il computer da 40 secondi\u00bb \u2014 e spegne tutti i LED: nessun verde su dati di mezz\u2019ora prima.',
+      '**Adesso ha una gerarchia**: una domanda in attesa \u00e8 la schermata, con il suo testo alla misura pi\u00f9 grande della pagina e la risposta dove arriva il pollice; un lavoro fermo \u00e8 rosso e dice **perch\u00e9**; quando non serve niente, domina il vuoto: \u00abTutto in moto. Nessuno ti aspetta.\u00bb',
+      '**Ha i materiali del banco**: le misure arrivano dal computer come i colori \u2014 scegliere il Foglio adesso cambia anche il telefono \u2014 i tasti hanno rilievo e si premono, e il raggio degli angoli \u00e8 quello della console. Erano 14 pixel: la ragione singola per cui sembrava un modulo web.',
+      '**Un elenco \u00e8 un elenco**: una riga per chat, e chi vuole entrare entra. Prima ogni chat portava sempre sei comandi \u2014 con sei chat, trenta bersagli in colonna. E il tasto indietro di Android non esce più dall’app: torna dove eri.',
+      'La stessa pagina aperta da un computer mette la fascia a sinistra e ferma la colonna dove finisce la lettura comoda: stessa struttura, seduta invece che in piedi.'
+    ]
+  },
+  {
     versione: '0.9.25',
     righe: [
       '**Adesso si capisce cosa sta facendo un autopilota, e glielo si può dire.** Di ognuno si vedeva un LED, uno stato e «3 criteri su 5»: quali fossero quei cinque, come venissero misurati e come cambiarli non si sapeva — si poteva solo fermarlo e rifarlo da capo.',

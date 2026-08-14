@@ -80,7 +80,19 @@ export function paginaClient(): string {
     --chassis-alto: #23272b; --chassis-premuto: #1d2023; --bordo: #24272b;
     --luce-incisione: #2f3439; --testo: #dfe3e7; --testo-quieto: #9aa1a9;
     --verde: #54c07a; --ambra: #e0a33c; --rosso: #dc5f5f; --spento: #4a5058;
-    --accento: #4aa3ff;
+    --accento: #4aa3ff; --primario: #3a4046; --primario-alto: #4a5057;
+    --incisione: #0e1013; --rilievo: inset 0 1px 0 rgba(255,255,255,.06);
+    /* Le misure sono token, non numeri scritti a mano. Arrivavano dal computer
+       e venivano buttate: il foglio di stile aveva i pixel a mano, e scegliere
+       il Foglio sul computer non cambiava niente qui. Questi sono i valori del
+       telefono - piu' grandi, perche' 10px a braccio teso non si leggono - e
+       vestiti() li rimette sopra quelli del computer, sugli stessi nomi. */
+    --t0: 11px; --t1: 13px; --t2: 15px; --t3: 17px; --t4: 22px;
+    --s1: 6px; --s2: 12px; --s3: 18px; --s4: 28px;
+    /* Il raggio arriva come arriva: l'identita' non si adatta. I 14px di prima
+       erano la ragione singola per cui questa pagina sembrava un modulo web
+       invece del banco, che ha --raggio 2px. */
+    --raggio: 2px;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body {
@@ -99,38 +111,199 @@ export function paginaClient(): string {
      perche' **tutte** le piastrelle diventino piu' larghe dello schermo. Cosi'
      invece la colonna resta quella del telefono, e chi ha bisogno di piu'
      spazio scorre dentro di se'. */
-  main { padding: 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  main { padding: var(--s3); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s2); }
+  /* Lo spazio per la fascia: senza, l'ultima piastrella finisce **sotto** i
+     tasti, ed e' proprio quella che si stava andando a leggere. */
+  main.schermata { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+  /* La fascia: fissa, sempre visibile, mai nascosta dallo scorrimento. E' anche
+     la fila dei LED — la navigazione **e'** il display di stato: sei dentro una
+     chat e vedi lampeggiare in fondo che qualcuno ti aspetta. */
+  .fascia {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    background: var(--fondo); border-top: 1px solid var(--bordo);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .fascia__voce {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    min-height: 56px; border: 0; border-radius: 0; background: none; color: var(--testo-quieto);
+  }
+  .fascia__voce--qui { color: var(--testo); background: var(--chassis); }
+  .fascia__nome { font-size: var(--t0); letter-spacing: .1em; }
+  .fascia .led { margin-right: 0; }
+  /* Una destinazione senza niente da segnalare non porta un puntino grigio:
+     porta il vuoto. Un LED spento acceso su tutto e' rumore. */
+  .led.nessuno { background: transparent; box-shadow: none; }
+  .led.rosso { background: var(--rosso); box-shadow: 0 0 6px color-mix(in srgb, var(--rosso) 70%, transparent); }
   .piastrella { min-width: 0; }
   .piastrella {
-    background: var(--chassis); border: 1px solid var(--bordo); border-radius: 14px; padding: 14px 16px;
+    background: var(--chassis); border: 1px solid var(--bordo);
+    border-radius: var(--raggio); padding: var(--s3);
   }
-  .titolo { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
-  .sotto { font-size: 13px; color: var(--testo-quieto); }
+  .titolo { font-size: var(--t3); font-weight: 600; margin-bottom: var(--s1); }
+  .sotto { font-size: var(--t1); color: var(--testo-quieto); }
+  /* La serigrafia: le lettere incise sotto i LED di un banco. E' la sola
+     struttura di questa pagina, e non si usa da nessun'altra parte. */
+  .serigrafia {
+    font-size: var(--t0); letter-spacing: .12em; text-transform: uppercase;
+    color: var(--testo-quieto);
+  }
+  /* Il solco al posto del bordo piatto: due pixel, scuro con un filo di luce
+     sotto. E' quello che separa le cose sul banco. */
+  .solco {
+    height: 2px; margin: var(--s3) 0;
+    background: linear-gradient(180deg, var(--incisione) 50%, var(--luce-incisione) 50%);
+  }
   .barra { height: 5px; border-radius: 3px; background: var(--bordo); margin-top: 10px; overflow: hidden; }
   .barra > i { display: block; height: 100%; background: var(--verde); }
   .led { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 7px; }
-  .lavoro { background: var(--verde) } .attesa { background: var(--ambra) } .fermo { background: var(--spento) }
-  .chiede { border-color: var(--ambra); }
+  .lavoro { background: var(--verde); box-shadow: 0 0 5px color-mix(in srgb, var(--verde) 70%, transparent); }
+  /* L'ambra **pulsa**, e pulsa qui: nell'elenco, dove si guarda da lontano. Il
+     lampeggio esisteva solo dentro il dettaglio — cioe' mancava proprio dove
+     serve. In tutto il programma significa una cosa sola: aspetta te. */
+  .attesa { background: var(--ambra); box-shadow: 0 0 6px var(--ambra); animation: pulsa 1.6s ease-in-out infinite; }
+  /* Un lavoro concluso non chiama l'attenzione come uno in corso: si spegne. */
+  .finito { background: var(--spento); opacity: .6 }
+  .fermo { background: var(--spento) }
+  @keyframes pulsa { 0%, 100% { opacity: 1 } 50% { opacity: .35 } }
+  @media (prefers-reduced-motion: reduce) { .attesa { animation: none } }
+  /* ── La stessa pagina, aperta da un computer ────────────────────────────
+     Il Client non e' solo per il telefono: si apre dal browser di un portatile
+     sulla stessa rete, e li' una colonna larga quanto lo schermo con i tasti
+     in fondo e' sbagliata due volte — le righe diventano illeggibili e il
+     pollice non c'entra piu' niente.
+     **La struttura non cambia**: quattro destinazioni, un livello di
+     profondita', gli stessi token. Cambia dove sta la fascia — a sinistra,
+     dove sta un menu quando c'e' un puntatore — e quanto e' larga la colonna
+     del contenuto. Nessuna schermata nuova, nessun contenuto diverso: la
+     stessa pagina, seduta invece che in piedi. */
+  @media (min-width: 900px) {
+    body { display: flex; }
+    /* La fascia diventa una colonna: stesse voci, stessi LED, stesso ordine.
+       Chi passa dal telefono al portatile ritrova le stesse quattro parole. */
+    .fascia {
+      position: sticky; top: 0; bottom: auto; left: 0; right: auto;
+      width: 200px; height: 100vh; align-content: start;
+      grid-template-columns: 1fr; border-top: 0; border-right: 1px solid var(--bordo);
+      padding-bottom: 0;
+    }
+    .fascia__voce { flex-direction: row; justify-content: flex-start; gap: var(--s2); padding: 0 var(--s3); }
+    /* Una riga di testo larga mezzo metro non si legge: la colonna si ferma
+       dove finisce la lettura comoda, come sul telefono. */
+    main.schermata { flex: 1; max-width: 760px; padding-bottom: var(--s4); }
+    /* Il campo ancorato non ha piu' una fascia sotto da scavalcare. */
+    .ancorata { bottom: 0; }
+    /* Con il puntatore torna il sorvolo, che su un telefono non esiste. */
+    .voce:hover, button:hover { border-color: var(--luce-incisione); background: var(--chassis-acceso, var(--chassis-alto)); }
+  }
+
+  /* Quando il computer non risponde. Non un avviso fra gli altri: cambia il
+     significato di tutto quello che sta sotto, quindi sta sopra tutto. */
+  .scollegato {
+    padding: var(--s2) var(--s3); border: 1px solid var(--rosso); border-radius: var(--raggio);
+    background: color-mix(in srgb, var(--rosso) 12%, transparent); font-size: var(--t2);
+  }
+  .scollegato span { font-size: var(--t1); color: var(--testo-quieto); }
+  /* Una domanda in attesa non e' una piastrella fra le altre: e' la
+     schermata. Bordo ambra di due pixel, e il suo testo alla misura piu'
+     grande della pagina. */
+  .chiede { border-color: var(--ambra); border-width: 2px; }
+  /* Un elenco e' un elenco: una riga densa per cosa, e chi vuole entrare
+     entra. Prima ogni chat portava sempre sei comandi — trenta bersagli con
+     sei chat aperte. */
+  .voce {
+    display: flex; align-items: center; gap: var(--s2); width: 100%; text-align: left;
+    padding: var(--s2) var(--s3); min-height: 56px; background: var(--chassis);
+    border: 1px solid var(--bordo); border-radius: var(--raggio);
+  }
+  .voce__testo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .voce__nome { font-size: var(--t3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .voce__sotto {
+    font-size: var(--t1); color: var(--testo-quieto);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .voce__freccia { color: var(--testo-quieto); }
+  /* Dentro qualcosa: una freccia sola in alto a sinistra, come si torna
+     indietro dappertutto. */
+  .testata-dentro { display: flex; align-items: center; gap: var(--s2); }
+  .testata-dentro__nome { flex: 1; min-width: 0; font-size: var(--t3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .indietro, .altro {
+    min-width: 44px; min-height: 44px; padding: 0; font-size: var(--t4);
+    background: none; border: 0; box-shadow: none; color: var(--testo-quieto);
+  }
+  /* Il percorso e' un dettaglio, non un titolo: tagliato **da sinistra**,
+     perche' la parte che distingue due cartelle sta in fondo. */
+  .percorso {
+    font-family: ui-monospace, Consolas, monospace; direction: rtl; text-align: left;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  /* Il terminale a tutta altezza: qui si legge, non si sbircia. */
+  .dentro--alto { max-height: none; height: 58vh; }
+  /* Il campo di risposta e' l'unico testo che si scrive da un telefono, e sta
+     dove arriva il pollice. */
+  .ancorata {
+    position: sticky; bottom: calc(60px + env(safe-area-inset-bottom));
+    background: var(--fondo-cupo); padding: var(--s2) 0;
+  }
+  .grande { font-size: var(--t4); line-height: 1.35; margin: var(--s2) 0; }
+  /* Si e' fermato: rosso, e il LED **non** pulsa. Il lampeggio in tutto il
+     programma significa una cosa sola — aspetta te — e «si e' fermato» non lo
+     sta dicendo. */
+  .si-e-fermato { border-color: var(--rosso); border-width: 2px; }
+  .misura-riga {
+    font-family: ui-monospace, Consolas, monospace; font-size: var(--t1);
+    color: var(--spento); margin-top: var(--s1);
+  }
+  /* La calma. Il lavoro del disegno qui e' farti rimettere via il telefono in
+     un secondo e mezzo: lo spazio vuoto **e'** il messaggio. */
+  .calma { padding: var(--s4) 0; }
+  .calma__grande { font-size: var(--t4); line-height: 1.4; }
+  /* Il polso: una riga per cosa, non un cruscotto di numeri. */
+  .riga-polso { display: flex; justify-content: space-between; margin-bottom: var(--s2); }
+  .polso { display: flex; align-items: center; gap: var(--s2); padding: var(--s1) 0; font-size: var(--t2); }
+  .polso__nome { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .polso__misura { font-family: ui-monospace, Consolas, monospace; font-size: var(--t1); color: var(--testo-quieto); }
+  /* Quando domina una domanda, tutto il resto collassa qui dentro. */
+  .riga-altro {
+    width: 100%; text-align: left; background: none; border: 0; box-shadow: none;
+    color: var(--testo-quieto); font-size: var(--t2); padding: var(--s2) 0; min-height: 44px;
+  }
   /* Bersagli grandi: si usa in piedi, con una mano, e un tasto piccolo su un
      telefono e' un tasto che si sbaglia. */
   button, input, textarea {
-    font: inherit; border-radius: 10px; border: 1px solid var(--luce-incisione);
-    background: var(--chassis-premuto); color: inherit; padding: 12px 14px;
+    font: inherit; font-size: var(--t2); border-radius: var(--raggio);
+    border: 1px solid var(--luce-incisione);
+    background: var(--chassis-premuto); color: inherit; padding: var(--s2) var(--s3);
   }
-  button { background: var(--chassis-alto); min-height: 48px; }
+  /* Un tasto che si sente. Su un telefono non c'e' hover: il rilievo e la
+     pressione sono tutto il ritorno che si puo' dare, e senza non erano tasti
+     - erano rettangoli con dentro una parola. */
+  button {
+    background: var(--chassis-alto); min-height: 48px;
+    border-top-color: var(--chassis-acceso, var(--luce-incisione));
+    box-shadow: var(--rilievo), 0 1px 0 var(--incisione);
+  }
+  button:active {
+    background: var(--chassis-premuto); box-shadow: none; transform: translateY(1px);
+  }
   button.primario {
     background: var(--primario, #3a4046); border-color: var(--primario-alto, #4a5057);
     color: var(--testo); font-weight: 600; width: 100%;
   }
-  .riga { display: flex; gap: 8px; margin-top: 10px; }
+  /* Il fuoco da tastiera: chi arriva con una tastiera collegata, o con
+     l'accessibilita', deve sapere dov'e'. */
+  button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible {
+    outline: 2px solid var(--accento); outline-offset: 2px;
+  }
+  .riga { display: flex; gap: var(--s2); margin-top: var(--s2); }
   .riga > input, .riga > textarea { flex: 1; min-width: 0; }
-  .ws { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ws { display: flex; gap: var(--s2); flex-wrap: wrap; }
   .ws button { padding: 10px 14px; min-height: 44px; }
-  .ws button.attivo { border-color: var(--accento); color: #fff; }
-  .vuoto { color: var(--testo-quieto); text-align: center; padding: 30px 10px; }
+  .ws button.attivo { border-color: var(--accento); color: var(--testo); }
+  .vuoto { color: var(--testo-quieto); text-align: center; padding: var(--s4) var(--s2); font-size: var(--t2); }
   .ingresso { max-width: 380px; margin: 40px auto; padding: 0 18px; text-align: center; }
   .ingresso input { width: 100%; text-align: center; font-size: 26px; letter-spacing: .3em; margin: 16px 0; }
-  .errore { color: var(--ambra); font-size: 13px; margin-top: 8px; }
+  .errore { color: var(--ambra); font-size: var(--t1); margin-top: var(--s2); }
   .panoramica { background: #131518; }
   /* Un collegamento che sembra un tasto: l'attributo download fa partire il
      file invece di aprire una pagina, e da un telefono e' la differenza fra
@@ -140,29 +313,51 @@ export function paginaClient(): string {
     /* Largo quanto il suo testo, come tutti gli altri tasti: con flex: 1
        prendeva tutto lo spazio che il tasto accanto non voleva, e diventava
        una fascia azzurra larga quanto lo schermo. */
-    flex: 0 1 auto; min-width: 0; min-height: 48px; padding: 12px 14px; border-radius: 10px;
-    background: var(--accento); border: 1px solid var(--accento); color: #fff; text-decoration: none;
+    flex: 0 1 auto; min-width: 0; min-height: 48px; padding: var(--s2) var(--s3);
+    border-radius: var(--raggio);
+    /* Niente riempimento di accento: il colore e' riservato allo stato. Un
+       tasto pieno d'azzurro per scaricare un file diceva "urgente" a una cosa
+       che non lo e', e toglieva forza all'ambra che significa "tocca a te". */
+    background: var(--chassis-alto); border: 1px solid var(--luce-incisione);
+    color: var(--testo); text-decoration: none;
+    box-shadow: var(--rilievo), 0 1px 0 var(--incisione);
   }
   /* L'ultima riga del terminale: si guarda passando, quindi carattere fisso e
      una riga sola - se andasse a capo diventerebbe una lettura. */
   .battito {
-    margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--fondo-cupo);
-    font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--testo-quieto);
+    margin-top: var(--s2); padding: var(--s2); border-radius: var(--raggio); background: var(--fondo-cupo);
+    font-family: ui-monospace, Consolas, monospace; font-size: var(--t1); color: var(--testo-quieto);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   /* Le ultime righe, quando si chiede di guardare dentro. Qui il testo va a
      capo davvero: non e' piu' un colpo d'occhio, e' la cosa che si sta
      leggendo per decidere se serve intervenire. */
   .dentro {
-    margin-top: 8px; padding: 10px; border-radius: 8px; background: var(--fondo-cupo);
-    font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--testo);
+    margin-top: var(--s2); padding: var(--s2); border-radius: var(--raggio); background: var(--fondo-cupo);
+    font-family: ui-monospace, Consolas, monospace; font-size: var(--t1); color: var(--testo);
     white-space: pre-wrap; word-break: break-word; max-height: 45vh; overflow-y: auto; margin-bottom: 0;
   }
   /* Le cartelle in cui aprire: bersagli larghi, uno per riga - si sceglie con
      il pollice, non con il mouse. */
   .cartella {
-    display: block; width: 100%; text-align: left; margin-top: 6px;
-    font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    width: 100%; text-align: left; margin-top: var(--s1); min-height: 56px;
+  }
+  .cartella__nome { font-size: var(--t2); }
+  /* Il percorso tagliato da sinistra: «…\\progetti\\sierradeck» dice quello che
+     serve, «C:\\Users\\nikof\\Documents\\…» non dice niente. */
+  .cartella__dove {
+    font-family: ui-monospace, Consolas, monospace; font-size: var(--t0);
+    color: var(--testo-quieto); direction: rtl; text-align: left;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  /* L'unico momento autoriale: il dettaglio entra da destra. Il cambio di
+     scheda no, e niente si anima intorno al terminale. */
+  .testata-dentro { animation: entra 180ms ease-out; }
+  @keyframes entra { from { transform: translateX(12px); opacity: 0 } to { transform: none; opacity: 1 } }
+  @media (prefers-reduced-motion: reduce) {
+    .testata-dentro { animation: none }
+    button:active { transform: none }
   }
   /* ── il pannello dell'autopilota, come al computer ── */
 
@@ -266,6 +461,42 @@ var delegaCartella = -1
 // L'ultimo stato ricevuto: serve a ridisegnare subito quando si apre o si
 // chiude qualcosa, senza aspettare il prossimo giro da due secondi.
 var ultimoStato = { chat: [], autopiloti: [], domande: [] }
+/**
+ * Quando il computer ha risposto l'ultima volta, e da quanti giri non risponde.
+ *
+ * Senza questi due numeri la pagina puo' **mentire**: se il computer va in
+ * sospensione o cade il wi-fi, il catch non faceva niente e restavi a guardare
+ * LED verdi di mezz'ora prima. Un LED verde su dati vecchi e' peggio di nessun
+ * LED: e' la differenza fra uno strumento e una fotografia.
+ */
+var ultimoContatto = 0
+var giriFalliti = 0
+/**
+ * L'impronta dell'ultimo disegno.
+ *
+ * La pagina si rifaceva **tutta** ogni due secondi, anche quando non era
+ * cambiato niente: lo scorrimento di una chat tornava a zero due volte al
+ * secondo, e leggere l'output dal telefono era materialmente impossibile.
+ */
+var ultimaImpronta = ''
+/**
+ * Dove sei: adesso, chat, lavori, computer.
+ *
+ * La barra in basso non era il problema — **quella** barra lo era: un riquadro
+ * di bottoni alla fine di uno scorrimento infinito, che apriva i suoi pannelli
+ * ancora piu' sotto. In basso e' il posto giusto, e' dove arriva il pollice.
+ * La cura e' una fascia fissa, non una fascia in meno.
+ */
+var scheda = 'adesso'
+/**
+ * La chat di cui e' aperto il menu «altro».
+ *
+ * Rinominare e chiudere una chat si fanno una volta nella vita: tenerne i
+ * comandi sempre a schermo, accanto al battito del terminale, voleva dire sei
+ * bersagli per chat — trenta con sei chat aperte.
+ */
+var altroAperto = null
+/** Il tasto che sta chiedendo conferma, se ce n'e' uno. */
 const esc = (t) => String(t == null ? '' : t).replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))
 
 async function chiedi(percorso, corpo) {
@@ -375,18 +606,115 @@ function proponeApp(ua, disponibile, rifiutato, comeApp) {
   return !comeApp
 }
 
+/**
+ * Cosa c'e' a schermo, ridotto a una stringa.
+ *
+ * Serve a rispondere a una domanda sola: e' cambiato qualcosa? Se no, non si
+ * tocca il documento — e uno scorrimento a meta' di una chat resta dov'e'.
+ * Delle righe del terminale bastano quante sono e l'ultima: se ne arriva una
+ * nuova l'impronta cambia comunque.
+ */
+function impronta(s) {
+  const chat = (s.chat || []).map((c) => c.id + '|' + c.titolo + '|' + (c.ultimaRiga || '')).join('~')
+  const aps = (s.autopiloti || []).map((a) =>
+    a.id + '|' + a.stato + '|' + a.cicli + '|' + a.fatti + '|' + a.criteri + '|' + (a.strategia || '')
+  ).join('~')
+  const dom = (s.domande || []).map((d) => d.id + '|' + d.testo).join('~')
+  const ws = s.workspace ? (s.workspace.nomi || []).join(',') + '>' + s.workspace.attivo : ''
+  // Anche quello che sta aperto **qui**: un pannello che si apre non cambia lo
+  // stato del computer, ma cambia la pagina.
+  const qui = [
+    dentro, dentroAp, pannelloAperto, schedaAperta && schedaAperta.file,
+    scheda, altroAperto, delegando, delegaCartella, confermando, righeDentro.length,
+    righeDentro[righeDentro.length - 1] || '', giriFalliti >= 2
+  ].join('|')
+  return chat + '#' + aps + '#' + dom + '#' + ws + '#' + qui
+}
+
+/** Dov'era arrivato lo scorrimento, prima di rifare il documento. */
+function segnaScorrimento() {
+  const dove = { finestra: window.scrollY }
+  const d = app.querySelector('.dentro')
+  if (d) dove.dentro = d.scrollTop
+  return dove
+}
+
+function rimettiScorrimento(dove) {
+  window.scrollTo(0, dove.finestra)
+  const d = app.querySelector('.dentro')
+  // «dentro» puo' essere assente: si stava guardando dentro qualcosa e adesso
+  // no. In quel caso non c'e' niente da rimettere.
+  if (d && dove.dentro !== undefined) d.scrollTop = dove.dentro
+}
+
+/**
+ * Il LED di una destinazione: il piu' urgente di quello che contiene.
+ *
+ * L'idea che tiene insieme tutta la pagina: **la fascia in basso e' la fila di
+ * LED**, quindi la navigazione e' anche il display di stato. Sei dentro una
+ * chat e vedi lampeggiare in fondo che qualcuno ti aspetta.
+ */
+function ledDestinazione(nome, s) {
+  if (giriFalliti >= 2) return nome === 'computer' ? 'rosso' : 'fermo'
+  const aps = s.autopiloti || []
+  const chiede = (s.domande || []).length > 0 ||
+    aps.some((a) => a.stato === 'attesa' || a.stato === 'pronto')
+  const fermi = aps.some((a) => a.stato === 'sospeso' || a.stato === 'fallito')
+  const moto = aps.some((a) => a.stato === 'lavoro')
+  if (nome === 'adesso') return chiede ? 'attesa' : fermi ? 'rosso' : moto ? 'lavoro' : ''
+  if (nome === 'lavori') return chiede ? 'attesa' : fermi ? 'rosso' : moto ? 'lavoro' : ''
+  if (nome === 'chat') return (s.chat || []).length > 0 ? 'lavoro' : ''
+  // Il computer normalmente non ha LED, e lo accende solo quando c'e' qualcosa
+  // che riguarda **la macchina**: un aggiornamento pronto, o il silenzio.
+  return aggiornamentoVisto && aggiornamentoVisto.fase === 'pronto' ? 'attesa' : ''
+}
+
+/** La fascia fissa, sempre visibile, mai nascosta dallo scorrimento. */
+function fascia(s) {
+  const voci = [
+    ['adesso', 'ADESSO'], ['chat', 'CHAT'], ['lavori', 'LAVORI'], ['computer', 'COMPUTER']
+  ]
+  return '<nav class="fascia">' + voci.map((v) => {
+    const l = ledDestinazione(v[0], s)
+    return '<button class="fascia__voce' + (scheda === v[0] ? ' fascia__voce--qui' : '') + '"' +
+      (scheda === v[0] ? ' aria-current="page"' : '') +
+      ' onclick="vaiScheda(\\'' + v[0] + '\\')">' +
+      '<span class="led ' + (l || 'nessuno') + '"></span>' +
+      '<span class="fascia__nome">' + v[1] + '</span></button>'
+  }).join('') + '</nav>'
+}
+
 function pannello(s) {
   ultimoStato = s
   const attivo = document.activeElement
   const staScrivendo = attivo && (attivo.tagName === 'INPUT' || attivo.tagName === 'TEXTAREA')
   // Chi sta scrivendo ha ragione: la pagina puo' aspettare due secondi.
   if (staScrivendo) return
+  // Niente e' cambiato: non si tocca il documento. E' questa riga a rendere
+  // leggibile una chat dal telefono.
+  const adesso = impronta(s)
+  if (adesso === ultimaImpronta && app.innerHTML.trim()) return
+  ultimaImpronta = adesso
 
-  // «pronto» e' ambra come l'attesa, ed e' la stessa cosa: la macchina e' ferma
-  // e aspetta te. Verde direbbe che sta lavorando, e non ha ancora scritto una
-  // riga.
-  const led = (st) =>
-    st === 'lavoro' ? 'lavoro' : (st === 'attesa' || st === 'pronto') ? 'attesa' : 'fermo'
+  /**
+   * Il LED di un autopilota: **quello che ha deciso il computer**.
+   *
+   * Il colore arriva gia' calcolato (a.led), dalla stessa funzione che lo
+   * decide nella console. Qui c'era una seconda mappatura scritta a mano, e
+   * sbagliava dove conta: un autopilota **fallito** aveva lo stesso puntino
+   * grigio di uno **finito**. Due copie della stessa regola divergono al primo
+   * ritocco — e questa era gia' divergente.
+   *
+   * Quando il computer non risponde sono tutti spenti: meglio nessuna
+   * informazione che una vecchia spacciata per fresca.
+   */
+  const led = (a) => {
+    if (giriFalliti >= 2) return 'fermo'
+    const classe = typeof a === 'object' && a ? a.led : undefined
+    if (typeof classe === 'string' && classe.indexOf('led--') === 0) return classe.slice(5)
+    const st = typeof a === 'object' && a ? a.stato : a
+    return st === 'lavoro' ? 'lavoro' : (st === 'attesa' || st === 'pronto') ? 'attesa' : 'fermo'
+  }
   // La panoramica: quello che si vuole sapere prima di leggere qualunque
   // dettaglio - sta lavorando qualcosa? qualcuno mi sta aspettando? A quale
   // punto siamo? Tre numeri, in cima, senza dover contare le piastrelle.
@@ -397,77 +725,141 @@ function pannello(s) {
   const criteriTot = aps.reduce((t, a) => t + (a.criteri || 0), 0)
   const criteriFatti = aps.reduce((t, a) => t + (a.fatti || 0), 0)
   const avanzamento = criteriTot ? Math.round(criteriFatti / criteriTot * 100) : 0
-  const panoramica = \`
-    <div class="piastrella panoramica">
-      <div class="numeri">
-        <div class="numero"><b>\${(s.chat || []).length}</b><span>chat</span></div>
-        <div class="numero"><b class="v">\${alLavoro}</b><span>al lavoro</span></div>
-        <div class="numero"><b class="\${inAttesa ? 'a' : ''}">\${inAttesa}</b><span>ti aspettano</span></div>
-        <div class="numero"><b>\${finiti}</b><span>finiti</span></div>
-      </div>
-      \${criteriTot ? '<div class="barra"><i style="width:' + avanzamento + '%"></i></div>' +
-        '<div class="sotto" style="margin-top:6px">' + criteriFatti + ' criteri su ' + criteriTot + ' — ' + avanzamento + '%</div>' : ''}
-    </div>\`
+  // ── La gerarchia di Adesso ──────────────────────────────────────────────
+  // Una cosa sola domina alla volta. Prima c'erano quattro numeri giganti che
+  // rispondevano alla domanda sbagliata: «0 ti aspettano» e «2 ti aspettano»
+  // differiscono di un carattere, mentre la domanda del colpo d'occhio e'
+  // **serve qualcosa da me, si' o no**.
+  const inMoto = (s.autopiloti || []).filter((a) => a.stato === 'lavoro')
+  const fermi = (s.autopiloti || []).filter((a) => a.stato === 'sospeso' || a.stato === 'fallito')
 
-  const domande = (s.domande || []).map((d) => \`
+  /** Il polso: una riga per cosa, non un cruscotto. */
+  const polso =
+    '<div class="solco"></div><div class="serigrafia riga-polso">IN MOTO<span>' +
+    (inMoto.length + (s.chat || []).length) + '</span></div>' +
+    inMoto.map((a) =>
+      '<div class="polso"><span class="led ' + led(a) + '"></span>' +
+      '<span class="polso__nome">' + esc(a.nome) + '</span>' +
+      '<span class="polso__misura">' + (a.criteri ? Math.round(a.fatti / a.criteri * 100) : 0) + '%</span></div>'
+    ).join('') +
+    (s.chat || []).map((c) =>
+      '<div class="polso"><span class="led lavoro"></span>' +
+      '<span class="polso__nome">' + esc(c.titolo) + '</span></div>' +
+      (c.ultimaRiga ? '<div class="battito">' + esc(c.ultimaRiga) + '</div>' : '')
+    ).join('')
+
+  /** Quando non c'e' niente da fare: il vuoto **e'** il messaggio. */
+  const calma =
+    '<div class="calma"><div class="calma__grande">Tutto in moto.<br>Nessuno ti aspetta.</div></div>'
+
+  /** Qualcosa si e' fermato: rosso, e il LED **non** pulsa. */
+  const bloccati = fermi.map((a) =>
+    '<div class="piastrella si-e-fermato">' +
+    '<div class="serigrafia"><span class="led rosso"></span>SI E FERMATO</div>' +
+    '<div class="grande">' + esc(a.nome) + '</div>' +
+    '<div class="sotto">' + esc(a.strategia ? 'bloccato, provo: ' + a.strategia : (a.motivo || 'fermo')) + '</div>' +
+    '<div class="misura-riga">' + a.fatti + ' criteri su ' + a.criteri + ' · ' + a.cicli + ' interventi</div>' +
+    '<div class="riga">' +
+    '<button onclick="riprendiAp(\\'' + esc(a.id) + '\\')">Riprendi</button>' +
+    '<button onclick="vaiScheda(\\'lavori\\')">Guarda</button></div></div>'
+  ).join('')
+
+  const panoramica = (s.domande || []).length > 0 || fermi.length > 0 || inMoto.length > 0 || (s.chat || []).length > 0
+    ? ''
+    : calma
+
+  // Una domanda in attesa **e'** la prima schermata, non una piastrella fra le
+  // altre: il suo testo e' la cosa piu' grande della pagina, e la risposta sta
+  // in fondo, dove arriva il pollice. Con due domande cambia solo la
+  // serigrafia — la seconda aspetta il suo turno.
+  const quante = (s.domande || []).length
+  const domande = (s.domande || []).slice(0, 1).map((d) => \`
     <div class="piastrella chiede">
-      <div class="titolo">Ti stanno chiedendo una cosa</div>
-      <div class="sotto">\${esc(d.testo)}</div>
+      <div class="serigrafia"><span class="led attesa"></span>TI STA CHIEDENDO\${quante > 1 ? ' — 1 DI ' + quante : ''}</div>
+      <div class="grande">\${esc(d.testo)}</div>
       <div class="riga">
-        <textarea id="r-\${esc(d.id)}" rows="2" placeholder="la tua risposta"></textarea>
+        <textarea id="r-\${esc(d.id)}" rows="3" placeholder="la tua risposta"></textarea>
       </div>
       <div class="riga"><button class="primario" onclick="rispondi('\${esc(d.id)}')">Rispondi</button></div>
     </div>\`).join('')
 
-  const autopiloti = (s.autopiloti || []).map((a) => {
-    const dentro = dentroAp === a.id && apDettaglio ? vistaAutopilota(apDettaglio) : ''
-    return \`
+  const apAperto = (s.autopiloti || []).find((a) => a.id === dentroAp)
+  const autopiloti = apAperto
+    ? \`
+    <div class="testata-dentro">
+      <button class="indietro" onclick="chiudiAp()" aria-label="Torna all elenco">‹</button>
+      <div class="testata-dentro__nome"><span class="led \${led(apAperto)}"></span>\${esc(apAperto.nome)}</div>
+    </div>
     <div class="piastrella">
-      <div class="titolo"><span class="led \${led(a.stato)}"></span>\${esc(a.nome)}</div>
-      <div class="sotto">\${esc(a.strategia ? 'bloccato, provo: ' + a.strategia : a.stato)} · \${a.fatti}/\${a.criteri} criteri · \${a.cicli} interventi</div>
-      <div class="barra"><i style="width:\${a.criteri ? Math.round(a.fatti / a.criteri * 100) : 0}%"></i></div>
-      \${dentro}
+      <div class="sotto">\${esc(apAperto.strategia ? 'bloccato, provo: ' + apAperto.strategia : (apAperto.motivo || apAperto.stato))}</div>
+      <div class="misura-riga">\${apAperto.fatti} criteri su \${apAperto.criteri} · \${apAperto.cicli} interventi</div>
+      <div class="barra"><i style="width:\${apAperto.criteri ? Math.round(apAperto.fatti / apAperto.criteri * 100) : 0}%"></i></div>
+      \${apDettaglio ? vistaAutopilota(apDettaglio) : ''}
       <div class="riga">
-        \${a.stato === 'pronto'
-          ? '<button onclick="vaiAp(\\'' + esc(a.id) + '\\')">Vai</button>'
-          : a.stato === 'lavoro' || a.stato === 'attesa'
-            ? '<button onclick="fermaAp(\\'' + esc(a.id) + '\\')">Ferma</button>'
-            : '<button onclick="riprendiAp(\\'' + esc(a.id) + '\\')">Riprendi</button>'}
-        \${dentroAp === a.id
-          ? '<button onclick="chiudiAp()">Basta guardare</button>'
-          : '<button onclick="guardaAp(\\'' + esc(a.id) + '\\')">Guarda dentro</button>'}
+        \${apAperto.stato === 'pronto'
+          ? '<button class="primario" onclick="vaiAp(\\'' + esc(apAperto.id) + '\\')">Vai</button>'
+          : apAperto.stato === 'lavoro' || apAperto.stato === 'attesa'
+            ? '<button onclick="fermaAp(\\'' + esc(apAperto.id) + '\\')">Ferma</button>'
+            : '<button onclick="riprendiAp(\\'' + esc(apAperto.id) + '\\')">Riprendi</button>'}
+        <button onclick="leggiQuaderno(null)">Quaderno</button>
       </div>
     </div>\`
-  }).join('')
+    : (s.autopiloti || []).map((a) => \`
+    <button class="voce" onclick="guardaAp('\${esc(a.id)}')">
+      <span class="led \${led(a)}"></span>
+      <span class="voce__testo">
+        <span class="voce__nome">\${esc(a.nome)}</span>
+        <span class="voce__sotto">\${esc(a.strategia ? 'bloccato, provo: ' + a.strategia : (a.motivo || a.stato))} · \${a.fatti}/\${a.criteri}</span>
+      </span>
+      <span class="voce__freccia">›</span>
+    </button>\`).join('')
 
-  const chat = (s.chat || []).map((c) => \`
-    <div class="piastrella">
-      <div class="titolo">\${esc(c.titolo)}</div>
-      <div class="sotto">\${esc(c.cwd)}</div>
-      \${dentro === c.id
-        ? '<div class="dentro">' + (righeGrezze.length
-            // Vestite: il verde di un test passato e il rosso di uno fallito
-            // sono meta' di quello che dice come sta andando.
-            ? ansiInHtml(righeGrezze.join(String.fromCharCode(10)))
-            : righeDentro.length ? esc(righeDentro.join(String.fromCharCode(10)))
-            : 'Ancora niente da mostrare.') + '</div>'
-        : (c.ultimaRiga ? '<div class="battito">' + esc(c.ultimaRiga) + '</div>' : '')}
-      <div class="riga">
-        <input id="t-\${esc(c.id)}" placeholder="scrivi qui e invia">
-        <button onclick="scrivi('\${esc(c.id)}')">Invia</button>
-      </div>
-      <div class="riga">
-        \${dentro === c.id
-          ? '<button onclick="chiudiDentro()">Basta guardare</button>'
-          : '<button onclick="guarda(\\'' + esc(c.id) + '\\')">Guarda dentro</button>'}
-      </div>
-      <div class="riga">
-        <input id="n-\${esc(c.id)}" placeholder="dalle un nome">
-        <button onclick="rinomina('\${esc(c.id)}')">Nome</button>
-        <button class="\${confermando === 'chat-' + c.id ? 'pericolo' : ''}"
-          onclick="chiudiChat('\${esc(c.id)}')">\${confermando === 'chat-' + c.id ? 'Sicuro? Chiudi' : 'Chiudi'}</button>
-      </div>
-    </div>\`).join('')
+  // ── Le chat ─────────────────────────────────────────────────────────────
+  // Prima ogni chat portava sempre sei comandi: campo, Invia, Guarda dentro,
+  // campo nome, Nome, Chiudi. Con sei chat erano **trenta bersagli** in una
+  // colonna, e il campo per rinominare — cosa che si fa una volta nella vita —
+  // occupava spazio permanente accanto al battito del terminale.
+  // Adesso l'elenco e' un elenco: una riga densa per chat, e chi vuole entrare
+  // entra.
+  const aperta = (s.chat || []).find((c) => c.id === dentro)
+  const chat = aperta
+    ? \`
+    <div class="testata-dentro">
+      <button class="indietro" onclick="chiudiDentro()" aria-label="Torna all elenco">‹</button>
+      <div class="testata-dentro__nome">\${esc(aperta.titolo)}</div>
+      <button class="altro" onclick="apriAltro('\${esc(aperta.id)}')" aria-label="Altro">⋯</button>
+    </div>
+    <div class="sotto percorso">\${esc(aperta.cwd)}</div>
+    \${altroAperto === aperta.id ? \`
+      <div class="piastrella">
+        <div class="riga">
+          <input id="n-\${esc(aperta.id)}" placeholder="dalle un nome">
+          <button onclick="rinomina('\${esc(aperta.id)}')">Nome</button>
+        </div>
+        <div class="riga">
+          <button class="\${confermando === 'chat-' + aperta.id ? 'pericolo' : ''}"
+            onclick="chiudiChat('\${esc(aperta.id)}')">\${confermando === 'chat-' + aperta.id ? 'Sicuro? Chiudi' : 'Chiudi la chat'}</button>
+        </div>
+      </div>\` : ''}
+    <div class="dentro dentro--alto">\${righeGrezze.length
+        // Vestite: il verde di un test passato e il rosso di uno fallito sono
+        // meta' di quello che dice come sta andando.
+        ? ansiInHtml(righeGrezze.join(String.fromCharCode(10)))
+        : righeDentro.length ? esc(righeDentro.join(String.fromCharCode(10)))
+        : 'Ancora niente da mostrare.'}</div>
+    <div class="riga ancorata">
+      <input id="t-\${esc(aperta.id)}" placeholder="scrivi qui e invia">
+      <button onclick="scrivi('\${esc(aperta.id)}')">Invia</button>
+    </div>\`
+    : (s.chat || []).map((c) => \`
+    <button class="voce" onclick="guarda('\${esc(c.id)}')">
+      <span class="led lavoro"></span>
+      <span class="voce__testo">
+        <span class="voce__nome">\${esc(c.titolo)}</span>
+        \${c.ultimaRiga ? '<span class="voce__sotto">' + esc(c.ultimaRiga) + '</span>' : ''}
+      </span>
+      <span class="voce__freccia">›</span>
+    </button>\`).join('')
 
   // Aprire non distrugge niente: nel peggiore dei casi resta un riquadro in
   // piu' da chiudere al computer. Ed e' la differenza fra guardare da fuori e
@@ -482,7 +874,12 @@ function pannello(s) {
            // Per indice, non per percorso: un percorso di Windows dentro
            // un onclick vorrebbe dire raddoppiare i backslash e sperare che
            // non contenga apici. L'indice non ha niente da sfuggire.
-           '<button class="cartella" onclick="apriIn(' + i + ')">' + esc(c) + '</button>').join('')}
+           // Il nome della cartella e' quello che si cerca; il percorso e' il
+           // dettaglio che lo distingue da un omonimo, e si taglia **da
+           // sinistra**: la parte che distingue due cartelle sta in fondo.
+           '<button class="cartella" onclick="apriIn(' + i + ')">' +
+           '<span class="cartella__nome">' + esc(c.split(/[\\\\/]/).filter(Boolean).pop() || c) + '</span>' +
+           '<span class="cartella__dove">' + esc(c) + '</span></button>').join('')}
          <div class="riga"><button onclick="cartelle = null; pannello(ultimoStato)">Lascia stare</button></div>
        </div>\`
 
@@ -619,42 +1016,63 @@ function pannello(s) {
   for (const campo of app.querySelectorAll('input, textarea')) {
     if (campo.id && campo.value) scritti[campo.id] = campo.value
   }
+  // Dov'era lo scorrimento: si rimette appena il documento e' rifatto.
+  const dove = segnaScorrimento()
+
+  // Il filo rosso: quello che stai guardando non e' di adesso. Sta in cima
+  // perche' cambia il significato di tutto quello che c'e' sotto.
+  const fermo = giriFalliti >= 2
+    ? '<div class="scollegato">Non parlo con il computer da ' + daQuando(ultimoContatto) +
+      '.<br><span>Quello che vedi e’ di prima.</span></div>'
+    : ''
+
+  // ── Le quattro destinazioni ────────────────────────────────────────────
+  // Gli stessi contenuti di prima, smistati. Il riquadro dei cinque bottoni
+  // non c'e' piu': era un menu alla **fine** di uno scorrimento infinito, che
+  // apriva i suoi pannelli ancora piu' sotto — con sei chat aperte, «Consumi»
+  // era a dodici schermate dal pollice.
+  const paneWorkspace = ws
+    ? '<div class="piastrella"><div class="titolo">Workspace</div><div class="ws" style="margin-top:10px">' + ws + '</div>' +
+      '<div class="riga"><input id="ws-nuovo" placeholder="un workspace nuovo">' +
+      '<button onclick="creaWorkspace()">Crea</button></div></div>'
+    : ''
+
+  const schermate = {
+    // Uno solo domina alla volta: una domanda, poi un lavoro fermo, poi il
+    // polso, poi la calma. Quando domina una domanda tutto il resto collassa
+    // in una riga: e' la ragione per cui questa schermata si legge in un
+    // secondo e mezzo invece che scorrerla.
+    adesso: fermo + invito + domande + bloccati + panoramica +
+      (domande
+        ? '<div class="solco"></div><button class="riga-altro" onclick="vaiScheda(\\'lavori\\')">altre cose in moto ›</button>'
+        : (inMoto.length + (s.chat || []).length > 0 ? polso : '')),
+    chat:
+      (chat || '<div class="vuoto">Nessuna chat aperta sul computer.</div>') + nuova +
+      '<div class="riga"><button onclick="apriPannello(\\'sessioni\\')">Riprendi una conversazione</button></div>' +
+      elencoSessioni,
+    lavori:
+      (autopiloti || '<div class="vuoto">Nessun lavoro affidato.</div>') + delega +
+      '<div class="riga"><button onclick="apriPannello(\\'quaderno\\')">Quaderno</button></div>' +
+      vistaQuaderno,
+    computer:
+      paneWorkspace +
+      '<div class="riga"><button onclick="apriPannello(\\'salvataggi\\')">Salvataggi</button>' +
+      '<button onclick="apriPannello(\\'consumi\\')">Consumi</button>' +
+      '<button onclick="apriPannello(\\'impostazioni\\')">Impostazioni</button></div>' +
+      elencoSalvataggi + vistaConsumi + vistaImpostazioni
+  }
 
   app.innerHTML = \`
-    <header><b>SIERRADECK</b><span>\${(s.chat || []).length} chat · \${(s.autopiloti || []).length} autopiloti</span></header>
-    <main>
-      \${invito}
-      \${panoramica}
-      \${domande}
-      \${ws ? '<div class="piastrella"><div class="titolo">Workspace</div><div class="ws" style="margin-top:10px">' + ws + '</div>' +
-        '<div class="riga"><input id="ws-nuovo" placeholder="un workspace nuovo">' +
-        '<button onclick="creaWorkspace()">Crea</button></div></div>' : ''}
-      \${autopiloti || ''}
-      \${chat || (autopiloti ? '' : '<div class="vuoto">Nessuna chat aperta sul computer.</div>')}
-      \${nuova}
-      \${delega}
-      <div class="piastrella">
-        <div class="riga">
-          <button onclick="apriPannello('sessioni')">Riprendi</button>
-          <button onclick="apriPannello('salvataggi')">Salvataggi</button>
-          <button onclick="apriPannello('consumi')">Consumi</button>
-        </div>
-        <div class="riga">
-          <button onclick="apriPannello('quaderno')">Quaderno</button>
-          <button onclick="apriPannello('impostazioni')">Impostazioni</button>
-        </div>
-      </div>
-      \${elencoSessioni}
-      \${elencoSalvataggi}
-      \${vistaConsumi}
-      \${vistaQuaderno}
-      \${vistaImpostazioni}
-    </main>\`
+    <main class="schermata">
+      \${schermate[scheda] || schermate.adesso}
+    </main>
+    \${fascia(s)}\`
 
   for (const id in scritti) {
     const campo = document.getElementById(id)
     if (campo) campo.value = scritti[id]
   }
+  rimettiScorrimento(dove)
 }
 
 /**
@@ -899,6 +1317,15 @@ window.eliminaWorkspace = async (nome) => {
 window.apriPannello = window.apriPannello
 
 /** Una cifra in euro, o un trattino se non c'e' niente da dire. */
+/** Da quanto tempo, detto come lo direbbe una persona. */
+function daQuando(quando) {
+  if (!quando) return 'un po’'
+  const s = Math.round((Date.now() - quando) / 1000)
+  if (s < 90) return s + ' secondi'
+  const m = Math.round(s / 60)
+  return m < 60 ? m + ' minuti' : Math.round(m / 60) + ' ore'
+}
+
 function soldi(v) {
   if (!v && v !== 0) return '—'
   const n = typeof v === 'object' ? (v.costo != null ? v.costo : v.totale) : v
@@ -907,7 +1334,17 @@ function soldi(v) {
 }
 
 /** La cartella della prima chat aperta: e' quella di cui si guarda il quaderno. */
+/**
+ * Di quale cartella parla il Quaderno.
+ *
+ * Di quella dell'autopilota che stai guardando, quando ne stai guardando uno:
+ * il quaderno e' cio' che **lui** produce, e sta accanto al lavoro che l'ha
+ * scritto. Prima prendeva sempre la cartella della prima chat dell'elenco, che
+ * con due progetti aperti e' semplicemente un'altra cosa.
+ */
 function cartellaPrima() {
+  const suo = ((ultimoStato || {}).autopiloti || []).find((a) => a.id === dentroAp)
+  if (suo && suo.cwd) return suo.cwd
   const prima = ((ultimoStato || {}).chat || [])[0]
   return prima ? prima.cwd : ''
 }
@@ -990,6 +1427,40 @@ window.scrivi = async (id) => {
   await chiedi('/api/scrivi', { chat: id, testo: campo.value })
   campo.value = ''
 }
+/**
+ * Cambia destinazione.
+ *
+ * Ogni cambio lascia una traccia nella cronologia: senza, il tasto indietro di
+ * Android **esce dall'app**, che da una WebView e' brutale — si perde quello
+ * che si stava guardando per un gesto che tutti fanno per «torna su».
+ */
+window.apriAltro = (id) => { altroAperto = altroAperto === id ? null : id; pannello(ultimoStato) }
+
+window.vaiScheda = (nome) => {
+  if (scheda === nome) return
+  scheda = nome
+  // Un pannello aperto appartiene alla schermata in cui e' stato aperto: se lo
+  // si lascia aperto cambiando destinazione, ricompare dove non c'entra.
+  pannelloAperto = null
+  dentro = null
+  dentroAp = null
+  try { history.pushState({ scheda: nome }, '') } catch (e) { /* niente cronologia, pazienza */ }
+  pannello(ultimoStato)
+}
+
+window.addEventListener('popstate', (ev) => {
+  // Indietro: prima si chiude quello che si sta guardando, poi si torna alla
+  // destinazione precedente. Uscire dall'app resta l'ultima delle possibilita'.
+  if (dentro || dentroAp || schedaAperta || pannelloAperto) {
+    dentro = null; dentroAp = null; schedaAperta = null; pannelloAperto = null
+    pannello(ultimoStato)
+    return
+  }
+  const dove = (ev.state && ev.state.scheda) || 'adesso'
+  scheda = dove
+  pannello(ultimoStato)
+})
+
 window.vaiA = async (nome) => { await chiedi('/api/workspace', { nome }); aggiorna() }
 window.fermaAp = async (id) => { await chiedi('/api/autopilota/ferma', { autopilota: id }); aggiorna() }
 window.riprendiAp = async (id) => { await chiedi('/api/autopilota/riprendi', { autopilota: id }); aggiorna() }
@@ -1037,12 +1508,39 @@ async function accoppiaDalQr() {
  * mostrerebbe un programma diverso da quello che hai davanti - ma la stessa,
  * con il chiarore e lo stile scelti nelle impostazioni.
  */
+/**
+ * Le misure del telefono, sugli stessi nomi del computer.
+ *
+ * I colori arrivano e si applicano come sono - verde e' verde, e il chiarore
+ * che hai scelto vale per tutt'e due gli schermi. Le **misure** no: 10px di
+ * serigrafia a braccio teso non si leggono, e senza puntatore serve piu' aria
+ * fra le cose. Stessi nomi, valori rimappati: il foglio di stile resta scritto
+ * in token e non sa niente di questa differenza.
+ */
+const MISURE = {
+  banco: {
+    '--t0': '11px', '--t1': '13px', '--t2': '15px', '--t3': '17px', '--t4': '22px',
+    '--s1': '6px', '--s2': '12px', '--s3': '18px', '--s4': '28px'
+  },
+  // Il Foglio sale con lo stesso rapporto: la sua gerarchia e' il testo, non
+  // avendo ne' rilievi ne' solchi, e comprimerla lo renderebbe illeggibile.
+  foglio: {
+    '--t0': '12px', '--t1': '14px', '--t2': '16px', '--t3': '19px', '--t4': '26px',
+    '--s1': '6px', '--s2': '12px', '--s3': '18px', '--s4': '28px'
+  }
+}
+
 async function vestiti() {
   try {
     const s = await chiedi('/api/stile')
     for (const nome in (s.token || {})) {
       document.documentElement.style.setProperty(nome, s.token[nome])
     }
+    // Le misure del telefono **dopo** quelle del computer, sugli stessi nomi.
+    // Il raggio no: quello arriva come arriva, perche' l'identita' non si
+    // adatta - ed e' il token che fa la differenza fra un banco e un modulo.
+    const mie = MISURE[s.stile === 'foglio' ? 'foglio' : 'banco']
+    for (const nome in mie) document.documentElement.style.setProperty(nome, mie[nome])
   } catch (e) {
     // Senza risposta restano i colori di ripiego: identici a quelli del banco.
   }
@@ -1055,12 +1553,14 @@ async function vestiti() {
  * ad app chiusa c'e' l'app Android, che ha una guardia sua - ma anche cosi'
  * cambia tutto: il telefono sul tavolo che si illumina mentre guardi altrove.
  */
-function chiediDiAvvisare() {
-  try {
-    if (typeof Notification === 'undefined') return
-    if (Notification.permission === 'default') Notification.requestPermission()
-  } catch (e) { }
-}
+/**
+ * Non si chiede piu' niente all'apertura.
+ *
+ * Il permesso di avvisare lo chiede avvisaSeServe, alla prima domanda vera:
+ * la richiesta arriva quando c'e' un motivo per accettarla, e non come dazio
+ * d'ingresso di una pagina appena aperta.
+ */
+function chiediDiAvvisare() { }
 
 /** Gli avvisi gia' dati: la stessa domanda non si annuncia due volte. */
 var avvisati = {}
@@ -1075,7 +1575,15 @@ var avvisati = {}
  */
 function avvisaSeServe(stato) {
   try {
-    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+    if (typeof Notification === 'undefined') return
+    // Il permesso si chiede alla **prima domanda vera**, non al primo disegno.
+    // Chiederlo appena aperta la pagina significa chiederlo prima che esista un
+    // motivo per dire di si' - e chi dice di no, dice di no per sempre.
+    if (Notification.permission === 'default' && (stato.domande || []).length > 0) {
+      Notification.requestPermission()
+      return
+    }
+    if (Notification.permission !== 'granted') return
     for (const d of (stato.domande || [])) {
       if (avvisati['d-' + d.id]) continue
       avvisati['d-' + d.id] = true
@@ -1095,6 +1603,9 @@ async function aggiorna() {
     if (!chiave) { await accoppiaDalQr() }
     if (!chiave) { ingresso(); return }
     const stato = await chiedi('/api/stato')
+    // Ha risposto: da qui in poi quello che si vede e' di adesso.
+    ultimoContatto = Date.now()
+    giriFalliti = 0
     avvisaSeServe(stato)
     if (dentroAp) await leggiAp()
     // Se si sta guardando dentro una chat, anche quelle righe si rinfrescano:
@@ -1105,7 +1616,17 @@ async function aggiorna() {
   } catch (e) {
     // Se non c'e' niente a schermo si mostra l'ingresso con il motivo: una
     // pagina vuota lascia solo la scelta di chiudere e riprovare alla cieca.
-    if (!app.innerHTML.trim()) ingresso('Non riesco a parlare con il computer: ' + (e && e.message ? e.message : e))
+    if (!app.innerHTML.trim()) {
+      ingresso('Non riesco a parlare con il computer: ' + (e && e.message ? e.message : e))
+      return
+    }
+    // C'e' gia' qualcosa a schermo, ed e' **vecchio**. Prima non succedeva
+    // niente: restavi a guardare LED verdi di mezz'ora prima, senza un segno
+    // che dicesse che quella era una fotografia. Due giri di tolleranza — una
+    // richiesta persa capita — e poi lo si dice.
+    giriFalliti += 1
+    if (giriFalliti === 2) ultimaImpronta = ''
+    if (giriFalliti >= 2) pannello(ultimoStato)
   }
 }
 
