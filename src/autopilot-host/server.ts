@@ -697,17 +697,25 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // «npm test · 3 test rossi» che, letta sotto «i test passano tutti»,
       // spiega cosa sia un criterio senza doverlo definire. Prima l'uscita dei
       // comandi viveva un istante dentro il giro che la produceva e spariva.
-      return esito === undefined
-        ? c
-        : {
-            ...c,
-            soddisfatto: esito.passato,
-            ultimaVerifica: {
-              quando: deps.adesso(),
-              codice: esito.passato ? 0 : 1,
-              uscita: esito.uscita.slice(0, USCITA_RICORDATA)
-            }
-          }
+      if (esito === undefined) return c
+      // **Quando** è stato raggiunto, non solo che lo è. Una spunta senza data
+      // non dice se è successo adesso o tre ore fa, e su un lavoro che dura una
+      // notte è la differenza fra «sta procedendo» e «è fermo da stamattina».
+      // Se torna rosso la data se ne va: «raggiunto alle 14:32» scritto accanto
+      // a una cosa che adesso non è più vera è una bugia.
+      const gia = c.soddisfatto ? c.raggiuntoIl : undefined
+      const aggiornato: Criterio = {
+        ...c,
+        soddisfatto: esito.passato,
+        ultimaVerifica: {
+          quando: deps.adesso(),
+          codice: esito.passato ? 0 : 1,
+          uscita: esito.uscita.slice(0, USCITA_RICORDATA)
+        }
+      }
+      if (esito.passato) aggiornato.raggiuntoIl = gia ?? deps.adesso()
+      else delete aggiornato.raggiuntoIl
+      return aggiornato
     })
     const aggiornato: Autopilota = { ...conSessione, criteri }
 

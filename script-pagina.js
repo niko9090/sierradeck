@@ -415,7 +415,10 @@ function pannello(s) {
       '<span class="polso__misura">' + (a.criteri ? Math.round(a.fatti / a.criteri * 100) : 0) + '%</span></div>'
     ).join('') +
     (s.chat || []).map((c) =>
-      '<div class="polso"><span class="led lavoro"></span>' +
+      // Anche il LED di una chat si spegne quando il computer tace: scritto a
+      // mano restava **verde** su dati di mezz'ora prima, che è esattamente
+      // ciò che questo stato esiste per impedire. Visto in fotografia.
+      '<div class="polso"><span class="led ' + (giriFalliti >= 2 ? 'fermo' : 'lavoro') + '"></span>' +
       '<span class="polso__nome">' + esc(c.titolo) + '</span></div>' +
       (c.ultimaRiga ? '<div class="battito">' + esc(c.ultimaRiga) + '</div>' : '')
     ).join('')
@@ -427,7 +430,7 @@ function pannello(s) {
   /** Qualcosa si e' fermato: rosso, e il LED **non** pulsa. */
   const bloccati = fermi.map((a) =>
     '<div class="piastrella si-e-fermato">' +
-    '<div class="serigrafia"><span class="led rosso"></span>SI E FERMATO</div>' +
+    '<div class="serigrafia"><span class="led rosso"></span>SI È FERMATO</div>' +
     '<div class="grande">' + esc(a.nome) + '</div>' +
     '<div class="sotto">' + esc(a.strategia ? 'bloccato, provo: ' + a.strategia : (a.motivo || 'fermo')) + '</div>' +
     '<div class="misura-riga">' + a.fatti + ' criteri su ' + a.criteri + ' · ' + a.cicli + ' interventi</div>' +
@@ -525,7 +528,7 @@ function pannello(s) {
     </div>`
     : (s.chat || []).map((c) => `
     <button class="voce" onclick="guarda('${esc(c.id)}')">
-      <span class="led lavoro"></span>
+      <span class="led ${giriFalliti >= 2 ? 'fermo' : 'lavoro'}"></span>
       <span class="voce__testo">
         <span class="voce__nome">${esc(c.titolo)}</span>
         ${c.ultimaRiga ? '<span class="voce__sotto">' + esc(c.ultimaRiga) + '</span>' : ''}
@@ -695,7 +698,7 @@ function pannello(s) {
   // perche' cambia il significato di tutto quello che c'e' sotto.
   const fermo = giriFalliti >= 2
     ? '<div class="scollegato">Non parlo con il computer da ' + daQuando(ultimoContatto) +
-      '.<br><span>Quello che vedi e’ di prima.</span></div>'
+      '.<br><span>Quello che vedi è di prima.</span></div>'
     : ''
 
   // ── Le quattro destinazioni ────────────────────────────────────────────
@@ -862,6 +865,11 @@ async function leggiAp() {
  * stessa regola divergono al primo ritocco, e allora il telefono racconta un
  * programma diverso da quello che hai davanti.
  */
+function primaRigaUscita(uscita) {
+  const riga = String(uscita || '').split(String.fromCharCode(10)).map((r) => r.trim()).find((r) => r !== '') || ''
+  return riga.length > 60 ? riga.slice(0, 60) + '…' : riga
+}
+
 function vistaAutopilota(a) {
   const passi = (a.passaggi || []).map((p) => {
     const cl = 'passo passo--' + p.stato
@@ -869,19 +877,52 @@ function vistaAutopilota(a) {
   }).join('<span class="passo-filo"></span>')
   const qui = (a.passaggi || []).find((p) => p.stato !== 'fatto' && p.stato !== 'davanti')
   const m = a.misura || { percento: 0, dettaglio: '', di: '', tono: 'lavoro' }
+  // Cosa gli hai chiesto, e cosa ne ha capito. La preparazione riscrive
+  // l'obiettivo con parole sue: senza le tue accanto non c'e' modo di
+  // accorgersi che sta andando a fare un'altra cosa.
+  const capito = a.obiettivoTuo
+    ? '<div class="serigrafia" style="margin-top:10px">Gli hai chiesto</div>' +
+      '<div class="sotto tue-parole">' + esc(a.obiettivoTuo) + '</div>' +
+      (a.obiettivo && a.obiettivo !== a.obiettivoTuo
+        ? '<div class="serigrafia" style="margin-top:8px">Ha capito cosi</div>' +
+          '<div class="sotto sue-parole">' + esc(a.obiettivo) + '</div>'
+        : '')
+    : ''
+  // I criteri, con **quando** li ha raggiunti: una spunta senza ora non dice
+  // se e' successo adesso o tre ore fa.
   const criteri = (a.criteri || []).map((c) =>
-    '<li class="' + (c.soddisfatto ? 'fatto' : '') + '">' + (c.soddisfatto ? '✓ ' : '· ') + esc(c.descrizione) + '</li>'
+    '<li class="' + (c.soddisfatto ? 'fatto' : '') + '">' + (c.soddisfatto ? '✓ ' : '· ') + esc(c.descrizione) +
+    (c.soddisfatto && c.raggiuntoIl
+      ? '<span class="quando-criterio"> raggiunto alle ' + esc(String(c.raggiuntoIl).slice(11, 16)) + '</span>'
+      : '') +
+    (c.comando ? '<div class="prova-criterio">' + esc(c.comando) +
+      (c.ultimaVerifica ? ' · ' + (c.ultimaVerifica.codice === 0 ? 'passato' : esc(primaRigaUscita(c.ultimaVerifica.uscita))) : '') +
+      '</div>' : '') +
+    '</li>'
   ).join('')
+  // «supervisore →» e' come il servizio marca le proprie decisioni per
+  // ritrovarle: e' una sigla interna, e letta da fuori sembra un errore. Qui
+  // resta la sola cosa che conta — cosa ha deciso, e perche'.
+  const senzaSigla = (cosa) => {
+    // Senza espressioni regolari: dentro questo template le barre si perdono, e
+    // una regex mangiata a meta' non fallisce — smette semplicemente di
+    // trovare, in silenzio. Successo, e si vedeva in fotografia.
+    const t = String(cosa || '')
+    const freccia = t.indexOf(String.fromCharCode(8594))
+    return freccia === -1 || freccia > 20 ? t : t.slice(freccia + 1).trim()
+  }
   const decisioni = (a.decisioni || []).slice(-6).reverse().map((d) =>
-    '<div class="voce"><span class="quando">' + esc(String(d.quando || '').slice(11, 16)) + '</span>' + esc(d.cosa) + '</div>'
+    '<div class="voce"><span class="quando">' + esc(String(d.quando || '').slice(11, 16)) + '</span>' +
+    esc(senzaSigla(d.cosa)) + '</div>'
   ).join('')
   return '<div class="dettaglio">' +
     '<div class="passi">' + passi + '</div>' +
     (qui && qui.nota ? '<div class="sotto nota">' + esc(qui.nota) + '</div>' : '') +
     '<div class="misura misura--' + esc(m.tono) + '"><b>' + m.percento + '%</b>' +
       '<span class="sotto">' + esc(m.dettaglio) + ' · ' + esc(m.di) + '</span></div>' +
-    (criteri ? '<ul class="criteri">' + criteri + '</ul>' : '') +
-    (decisioni ? '<div class="serigrafia" style="margin-top:10px">Ha deciso</div>' + decisioni : '') +
+    capito +
+    (criteri ? '<div class="serigrafia" style="margin-top:10px">Finisce quando</div><ul class="criteri">' + criteri + '</ul>' : '') +
+    (decisioni ? '<div class="serigrafia" style="margin-top:10px">Sta ragionando cosi</div>' + decisioni : '') +
     '</div>'
 }
 

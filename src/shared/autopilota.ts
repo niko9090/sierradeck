@@ -40,6 +40,15 @@ export type Criterio = {
   comando?: string
   soddisfatto: boolean
   /**
+   * Quando e' stato raggiunto, se lo e'.
+   *
+   * «Puntare quelli che riesce a raggiungere» vuol dire vedere **quando**: una
+   * spunta senza data non dice se e' successo adesso o tre ore fa, e con un
+   * lavoro che dura una notte e' la differenza fra «sta procedendo» e «e'
+   * fermo da stamattina».
+   */
+  raggiuntoIl?: string
+  /**
    * L'esito dell'ultima misura, per poterlo mostrare accanto al criterio.
    *
    * È la riga che spiega cosa sia un criterio senza doverlo definire: sotto «i
@@ -121,7 +130,22 @@ export type ScambioSalvato = { domanda: string; risposta: string }
 export type Autopilota = {
   id: string
   nome: string
+  /**
+   * L'obiettivo come lo capisce lui: riscritto dalla preparazione, piu' preciso.
+   *
+   * E' questo che finisce nei prompt, ed e' giusto che sia il suo. Ma non e'
+   * quello che hai chiesto tu — vedi `obiettivoTuo`.
+   */
   obiettivo: string
+  /**
+   * Le tue parole, come le hai scritte, e che nessuno riscrive mai.
+   *
+   * La preparazione riformula l'obiettivo con parole sue: piu' precise, e
+   * **sue**. Quello che avevi scritto tu spariva, e con lui l'unico modo di
+   * giudicare se aveva capito bene o se stava andando a fare un'altra cosa.
+   * Assente per gli autopiloti nati prima di questo campo.
+   */
+  obiettivoTuo?: string
   cwd: string
   /**
    * Il workspace dove il suo lavoro deve comparire.
@@ -209,6 +233,9 @@ export function nuovoAutopilota(p: {
     id: p.id,
     nome: p.nome,
     obiettivo: p.obiettivo,
+    // Le tue parole si mettono da parte **adesso**: dopo la preparazione non
+    // esistono piu' da nessuna parte.
+    obiettivoTuo: p.obiettivo,
     cwd: p.cwd,
     ...(p.workspace !== undefined && p.workspace.trim() !== '' ? { workspace: p.workspace } : {}),
     criteri: p.criteri,
@@ -291,6 +318,9 @@ function parseCriterio(raw: unknown, scartati: string[]): Criterio | undefined {
     descrizione,
     ...(comando !== undefined ? { comando } : {}),
     soddisfatto: o.soddisfatto === true,
+    ...(stringaNonVuota(o.raggiuntoIl) !== undefined
+      ? { raggiuntoIl: o.raggiuntoIl as string }
+      : {}),
     // Una verifica illeggibile sparisce da sola: e' un di piu' che serve a
     // raccontare, e portarsi via il criterio per colpa sua sarebbe togliere
     // all'autopilota un pezzo della sua fine.
@@ -475,6 +505,9 @@ export function parseAutopilota(raw: unknown): {
       id,
       nome: stringaNonVuota(o.nome) ?? id,
       obiettivo,
+      ...(stringaNonVuota(o.obiettivoTuo) !== undefined
+        ? { obiettivoTuo: o.obiettivoTuo as string }
+        : {}),
       cwd,
       // Il workspace sopravvive a un riavvio del servizio: senza, un autopilota
       // ripreso tornerebbe a far nascere le sue chat dove capita.

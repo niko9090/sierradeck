@@ -1254,3 +1254,67 @@ describe('la prova di ogni criterio, scritta accanto al criterio', () => {
     expect(a.criteri[0].ultimaVerifica.quando).toBeTruthy()
   })
 })
+
+describe('cosa ha capito, e cosa ha raggiunto', () => {
+  it('conserva le tue parole anche dopo che la preparazione le riscrive', async () => {
+    // La preparazione riformula l'obiettivo con parole sue. Senza le tue
+    // accanto non c'e' modo di giudicare se ha capito bene o se sta andando a
+    // fare un'altra cosa.
+    server = ambiente({
+      interroga: (prompt) => Promise.resolve({
+        testo: prompt.includes('Stai preparando')
+          ? '{"pronto": true, "obiettivo": "Rendere verde la suite senza saltare test", "criteri": [{"descrizione": "i test passano", "comando": "npm test"}]}'
+          : '{"azione": "finito"}'
+      }),
+      scadenzaInterviataMs: 5000
+    })
+    await avvia(server)
+    await chiama('POST', '/autopiloti', {
+      obiettivo: 'fai passare i test', cwd: process.cwd(), criteri: []
+    })
+
+    for (let i = 0; i < 120; i += 1) {
+      if ((await chiama('GET', '/autopiloti')).dati[0].stato === 'pronto') break
+      await new Promise((r) => setTimeout(r, 25))
+    }
+    const a = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(a.obiettivo).toContain('Rendere verde la suite')
+    expect(a.obiettivoTuo).toBe('fai passare i test')
+  })
+
+  it('segna quando un criterio viene raggiunto, e lo toglie se torna indietro', async () => {
+    // Una spunta senza data non dice se e' successo adesso o tre ore fa. Il
+    // secondo criterio resta rosso di proposito: serve a tenere l'autopilota al
+    // lavoro, cosi' il giro successivo avviene davvero.
+    let passa = true
+    server = ambiente({
+      esegui: (comando) => Promise.resolve(
+        comando === 'npm test'
+          ? (passa ? { codice: 0, uscita: 'ok' } : { codice: 1, uscita: '2 rossi' })
+          : { codice: 1, uscita: 'lint sporco' }
+      )
+    })
+    await avvia(server)
+    const id = await creaAp({
+      criteri: [
+        { descrizione: 'i test passano', comando: 'npm test' },
+        { descrizione: 'lint pulito', comando: 'npm run lint' }
+      ]
+    })
+
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    const dopoIlVerde = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(dopoIlVerde.criteri[0].soddisfatto).toBe(true)
+    expect(dopoIlVerde.criteri[0].raggiuntoIl).toBeTruthy()
+    // Quello rosso non ha nessuna data addosso.
+    expect(dopoIlVerde.criteri[1].raggiuntoIl).toBeUndefined()
+
+    passa = false
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    const dopoIlRosso = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(dopoIlRosso.criteri[0].soddisfatto).toBe(false)
+    // Se non e' piu' vero, la data se ne va: «raggiunto alle 14:32» accanto a
+    // una cosa adesso rossa e' una bugia.
+    expect(dopoIlRosso.criteri[0].raggiuntoIl).toBeUndefined()
+  })
+})

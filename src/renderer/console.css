@@ -2265,3 +2265,48 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 @media (prefers-reduced-motion: reduce) {
   .testata-riquadro__battito { animation: none; }
 }
+
+/* Cosa gli hai chiesto, e cosa ne ha capito. Due righe una sotto l'altra: e'
+   l'unico modo di accorgersi che sta andando a fare un'altra cosa — la
+   preparazione riscrive l'obiettivo con parole sue, e le tue sparivano. */
+.scheda__capito-obiettivo { margin-bottom: var(--s3); }
+
+.scheda__tue-parole {
+  margin: 0 0 var(--s2);
+  color: var(--testo);
+  font-size: var(--t2);
+}
+
+/* Le sue parole si distinguono dalle tue: rientrate e piu' quiete, come una
+   citazione di seconda mano. */
+.scheda__sue-parole {
+  margin: 0;
+  padding-left: var(--s2);
+  border-left: 2px solid var(--bordo);
+  color: var(--testo-quieto);
+  font-size: var(--t1);
+}
+
+/* Come ragiona davanti a un problema: la voce piu' preziosa che il servizio
+   produce — l'unica che dice **perche'** invece di cosa — e viveva sepolta in
+   una scheda che si apre solo se sai che esiste. */
+.scheda__ragiona {
+  margin-bottom: var(--s3);
+  padding-bottom: var(--s2);
+  border-bottom: 1px solid var(--bordo);
+}
+
+.scheda__pensiero {
+  display: flex;
+  gap: var(--s2);
+  padding: var(--s1) 0;
+  font-size: var(--t1);
+}
+
+/* I precedenti restano leggibili ma si tolgono di mezzo: quello che conta e'
+   l'ultimo, gli altri dicono da dove viene. */
+.scheda__pensiero--vecchio { opacity: .6; }
+
+.scheda__quando { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.scheda__pensiero-titolo { color: var(--testo); }
+.scheda__pensiero-testo { color: var(--testo-quieto); }

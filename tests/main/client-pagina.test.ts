@@ -407,7 +407,7 @@ describe('la gerarchia di Adesso', () => {
   it('quello che si e fermato e rosso, e il suo LED non pulsa', () => {
     // Il lampeggio in tutto il programma significa una cosa sola — aspetta te —
     // e «si e' fermato» non lo sta dicendo.
-    expect(script).toContain('SI E FERMATO')
+    expect(script).toContain('SI È FERMATO')
     expect(script).toContain('class="led rosso"')
     expect(stile).toMatch(/\.led\.rosso\s*\{(?![^}]*animation)/)
   })
@@ -502,5 +502,64 @@ describe('la stessa pagina, aperta da un computer', () => {
     // Una riga larga mezzo metro non si legge.
     const largo = stile.slice(stile.indexOf('@media (min-width: 900px)'))
     expect(largo).toMatch(/main\.schermata\s*\{[^}]*max-width/)
+  })
+})
+
+describe('capire cosa combina un autopilota', () => {
+  it('mostra le tue parole accanto alle sue', () => {
+    // La preparazione riscrive l'obiettivo: senza le due righe una accanto
+    // all'altra non c'e' modo di accorgersi che sta facendo un'altra cosa.
+    const v = script.slice(script.indexOf('function vistaAutopilota('))
+    expect(v.slice(0, 1600)).toContain('Gli hai chiesto')
+    expect(v.slice(0, 1600)).toContain('Ha capito cosi')
+    expect(v.slice(0, 1600)).toContain('a.obiettivoTuo')
+  })
+
+  it('punta i criteri raggiunti con l ora, e dice come li misura', () => {
+    const v = script.slice(script.indexOf('function vistaAutopilota('))
+    expect(v.slice(0, 2200)).toContain('raggiunto alle')
+    expect(v.slice(0, 2200)).toContain('c.raggiuntoIl')
+    expect(v.slice(0, 2200)).toContain('prova-criterio')
+  })
+
+  it('e chiama le decisioni con il loro nome: sta ragionando', () => {
+    const v = script.slice(script.indexOf('function vistaAutopilota('))
+    expect(v.slice(0, 3200)).toContain('Sta ragionando')
+    expect(v.slice(0, 3200)).toContain('Finisce quando')
+    // E senza la sigla interna con cui il servizio marca le proprie decisioni:
+    // letta da fuori, «supervisore →» sembra un errore.
+    expect(v.slice(0, 3200)).toContain('senzaSigla')
+  })
+})
+
+describe('quando il computer tace, nessun LED resta verde', () => {
+  it('nemmeno quelli delle chat', () => {
+    // Trovato **in fotografia**, non da un test: la banda rossa diceva «non
+    // parlo con il computer», e sotto le chat avevano ancora il puntino verde.
+    // Un LED verde su dati vecchi e' precisamente cio' che questo stato esiste
+    // per impedire.
+    const polso = script.slice(script.indexOf('const polso ='))
+    expect(polso.slice(0, 1400)).toContain("giriFalliti >= 2 ? 'fermo' : 'lavoro'")
+    const voci = script.slice(script.indexOf('class="voce" onclick="guarda('))
+    expect(voci.slice(0, 400)).toContain("giriFalliti >= 2 ? 'fermo' : 'lavoro'")
+    // E non resta nessun LED scritto a mano come sempre verde.
+    expect(script).not.toContain('<span class="led lavoro"></span>')
+  })
+})
+
+describe('la sigla interna non arriva a chi legge', () => {
+  it('toglie il marcatore davanti a una decisione', () => {
+    // Il servizio marca le proprie decisioni con «supervisore →» per
+    // ritrovarle: e' una sigla interna, e letta da fuori sembra un errore.
+    // La prima versione usava una regex, e il template si e' mangiato le barre:
+    // non falliva, smetteva di trovare — in silenzio.
+    const inizio = script.indexOf('const senzaSigla =')
+    expect(inizio).toBeGreaterThan(-1)
+    const corpo = script.slice(inizio, script.indexOf('const decisioni =', inizio))
+    const senzaSigla = new Function(`${corpo}\nreturn senzaSigla`)() as (c: string) => string
+    expect(senzaSigla('supervisore → prosegui: mancano due test')).toBe('prosegui: mancano due test')
+    // Una freccia dentro il testo vero non si tocca.
+    expect(senzaSigla('ho spostato il file da qui → a lì')).toBe('ho spostato il file da qui → a lì')
+    expect(senzaSigla('')).toBe('')
   })
 })

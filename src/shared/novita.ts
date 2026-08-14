@@ -23,6 +23,16 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.27',
+    righe: [
+      '**Adesso si capisce che diamine sta combinando un autopilota.** Tre cose che mancavano, e sono quelle che servono per fidarsi.',
+      '**Le tue parole restano.** La preparazione riscriveva l\u2019obiettivo con parole sue \u2014 pi\u00f9 precise, e **sue** \u2014 e quello che avevi scritto tu spariva: senza, non c\u2019era modo di accorgersi che stava andando a fare un\u2019altra cosa. Adesso la scheda dice **Gli hai chiesto** e sotto **Ha capito cos\u00ec**, una sopra l\u2019altra.',
+      '**I criteri raggiunti sono puntati, con l\u2019ora.** \u00abRaggiunto alle 14:32\u00bb: su un lavoro che dura una notte \u00e8 la differenza fra \u00absta procedendo\u00bb e \u00ab\u00e8 fermo da stamattina\u00bb. E se una cosa torna rossa, la data se ne va.',
+      '**Si vedono i suoi ragionamenti**, dove sta guardando invece che sepolti in un pannello: \u00abriprovare lo stesso comando non porta da nessuna parte, isolo auth.spec e lo faccio girare da solo\u00bb. Sul computer e sul telefono.',
+      'E due difetti trovati **guardando la pagina**, non da un test: a computer scollegato i LED delle chat restavano verdi \u2014 un verde su dati di mezz\u2019ora prima \u2014 e le decisioni mostravano la sigla interna con cui il servizio se le marca.'
+    ]
+  },
+  {
     versione: '0.9.26',
     righe: [
       '**L\u2019interfaccia del telefono \u00e8 rifatta.** Non ritoccata: era un elenco di cose che il programma sa fare, ordinate come sono state scritte. Adesso risponde a una domanda sola \u2014 *serve qualcosa da me?* \u2014 e tiene tutto il resto a un tocco, sotto il pollice.',

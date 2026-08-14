@@ -331,3 +331,52 @@ describe('le modifiche dette a parole', () => {
     expect(parseAutopilota({ ...a, versione: VERSIONE_AUTOPILOTA }).scartati).toEqual([])
   })
 })
+
+describe('cosa gli hai chiesto, e cosa ne ha capito', () => {
+  it('conserva le tue parole accanto a quelle sue', () => {
+    // La preparazione riscrive l'obiettivo con parole sue — piu' precise, ma
+    // **sue**. Quello che avevi scritto tu spariva, e con lui l'unico modo di
+    // giudicare se aveva capito bene.
+    const { autopilota, scartati } = parseAutopilota({
+      ...(valido() as object),
+      obiettivo: 'Fare passare la suite di test senza saltarne nessuno',
+      obiettivoTuo: 'fai passare i test'
+    })
+    expect(scartati).toEqual([])
+    expect(autopilota?.obiettivoTuo).toBe('fai passare i test')
+    expect(autopilota?.obiettivo).toBe('Fare passare la suite di test senza saltarne nessuno')
+  })
+
+  it('un autopilota nuovo nasce con le tue parole gia dentro', () => {
+    const a = nuovoAutopilota({
+      id: 'ap-1', nome: 'x', obiettivo: 'fai passare i test', cwd: 'C:\p',
+      criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-08-14T00:00:00.000Z'
+    })
+    expect(a.obiettivoTuo).toBe('fai passare i test')
+  })
+})
+
+describe('quando un criterio e stato raggiunto', () => {
+  it('si ricorda il momento, non solo la spunta', () => {
+    // «Puntarli» vuol dire vedere quali ha raggiunto e **quando**: una spunta
+    // senza data non dice se e' successo adesso o tre ore fa.
+    const { autopilota, scartati } = parseAutopilota({
+      ...(valido() as object),
+      criteri: [{
+        descrizione: 'i test passano', comando: 'npm test',
+        soddisfatto: true, raggiuntoIl: '2026-08-14T14:32:00.000Z'
+      }]
+    })
+    expect(scartati).toEqual([])
+    expect(autopilota?.criteri[0]?.raggiuntoIl).toBe('2026-08-14T14:32:00.000Z')
+  })
+
+  it('una data illeggibile sparisce senza portarsi via il criterio', () => {
+    const { autopilota } = parseAutopilota({
+      ...(valido() as object),
+      criteri: [{ descrizione: 'x', soddisfatto: true, raggiuntoIl: 42 }]
+    })
+    expect(autopilota?.criteri).toHaveLength(1)
+    expect(autopilota?.criteri[0]?.raggiuntoIl).toBeUndefined()
+  })
+})

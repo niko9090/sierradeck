@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Autopilota, Criterio } from '@shared/autopilota'
+import { diario } from '../diario-autopilota'
 
 /**
  * La scheda di un autopilota: cosa deve ottenere, come lo misura, cosa farà —
@@ -101,6 +102,18 @@ export function SchedaAutopilota({
   }
 
   const ultima = autopilota.modifiche[autopilota.modifiche.length - 1]
+  /**
+   * Gli ultimi ragionamenti, dal piu' recente.
+   *
+   * Tre e non tutti: qui si risponde a «cosa sta pensando adesso», e la storia
+   * intera sta nel diario sotto. Sono le voci che dicono **perche'** — la
+   * decisione del supervisore e il cambio di strada — non quelle che dicono
+   * cosa e' stato eseguito.
+   */
+  const ragionamenti = diario(autopilota)
+    .filter((v) => v.tipo === 'decisione' || v.tipo === 'correzione')
+    .slice(-3)
+    .reverse()
 
   return (
     <div className="scheda">
@@ -116,6 +129,41 @@ export function SchedaAutopilota({
           >
             Vai
           </button>
+        </div>
+      ) : null}
+
+      {/* Quello che hai scritto tu, e quello che lui ne ha fatto. La
+          preparazione riformula l'obiettivo con parole sue — piu' precise, e
+          **sue** — e le tue sparivano: senza le due righe una accanto all'altra
+          non c'e' modo di accorgersi che sta andando a fare un'altra cosa. */}
+      {autopilota.obiettivoTuo !== undefined ? (
+        <div className="scheda__capito-obiettivo">
+          <div className="serigrafia scheda__titolo">Gli hai chiesto</div>
+          <p className="scheda__tue-parole">{autopilota.obiettivoTuo}</p>
+          {autopilota.obiettivo !== autopilota.obiettivoTuo ? (
+            <>
+              <div className="serigrafia scheda__titolo">Ha capito così</div>
+              <p className="scheda__sue-parole">{autopilota.obiettivo}</p>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Come ragiona davanti a un problema. E' la voce piu' preziosa che il
+          servizio produce — l'unica che dice **perche'** invece di cosa — e
+          viveva sepolta in una scheda che si apre solo se sai che esiste. */}
+      {ragionamenti.length > 0 ? (
+        <div className="scheda__ragiona">
+          <div className="serigrafia scheda__titolo">Sta ragionando così</div>
+          {ragionamenti.map((r, i) => (
+            <div key={i} className={i === 0 ? 'scheda__pensiero' : 'scheda__pensiero scheda__pensiero--vecchio'}>
+              <span className="misura scheda__quando">{orario(r.quando)}</span>
+              <div>
+                <div className="scheda__pensiero-titolo">{r.titolo}</div>
+                {r.dettaglio !== undefined ? <div className="scheda__pensiero-testo">{r.dettaglio}</div> : null}
+              </div>
+            </div>
+          ))}
         </div>
       ) : null}
 
@@ -162,6 +210,11 @@ export function SchedaAutopilota({
                   com'è andata. Senza comando lo giudica il supervisore, e
                   tacerlo lasciava credere che ci fosse una misura anche lì. */}
               <div className="misura scheda__prova">
+                {/* Raggiunto **quando**: su un lavoro che dura una notte e' la
+                    differenza fra «sta procedendo» e «e' fermo da stamattina». */}
+                {c.soddisfatto && c.raggiuntoIl !== undefined ? (
+                  <span className="scheda__esito--verde">raggiunto alle {orario(c.raggiuntoIl)} · </span>
+                ) : null}
                 {c.comando ?? 'lo giudica lui, guardando il lavoro'}
                 {c.ultimaVerifica !== undefined ? (
                   <span
@@ -288,6 +341,12 @@ export function SchedaAutopilota({
       {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
     </div>
   )
+}
+
+/** Solo l'ora: dentro una giornata di lavoro il giorno lo si sa. */
+function orario(iso: string): string {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
 }
 
 /** L'ora di una verifica, o la data se non è di oggi. */
