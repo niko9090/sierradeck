@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.28',
+    righe: [
+      '**Gli aggiornamenti non li devi installare tu.** Si scaricano da soli in secondo piano e si installano **quando chiudi SierraDeck**: mai mentre stai lavorando, perche\u0301 quello e\u0300 il momento in cui non c\u2019e\u0300 niente da interrompere. Il tasto \u00abInstalla\u00bb resta, per chi la vuole subito.',
+      '**Un salvataggio non torna piu\u0300 vuoto.** Ne e\u0300 stato trovato uno sul disco \u2014 \u00abUltima chiusura\u00bb \u2014 con dentro una finestra senza riquadri: al ricarico non tornava **niente**, mentre le chat erano nello stesso file, nell\u2019archivio dei workspace. Adesso le finestre vuote non si salvano e, se un salvataggio vecchio ne ha una, il ripristino pesca dal workspace che avevi davanti.',
+      '**Via i cinque tasti degli ingombri** (1, 2, 2\u00d72, 3\u00d72, 1+L) dalla fascia in alto: occupavano spazio e non servivano.'
+    ]
+  },
+  {
     versione: '0.9.27',
     righe: [
       '**Adesso si capisce che diamine sta combinando un autopilota.** Tre cose che mancavano, e sono quelle che servono per fidarsi.',

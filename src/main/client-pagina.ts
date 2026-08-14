@@ -1408,7 +1408,7 @@ function descriviAggiornamento() {
   if (!a) return 'Non lo so.'
   if (a.fase === 'disponibile') return 'C’è la ' + (a.versione || 'versione nuova') + '.'
   if (a.fase === 'scarico') return 'Sto scaricando… ' + (a.percento || 0) + '%'
-  if (a.fase === 'pronto') return 'Pronta da installare: ' + (a.versione || '') + '.'
+  if (a.fase === 'pronto') return 'La ' + (a.versione || 'nuova') + ' si installa da sola alla prossima chiusura.'
   if (a.fase === 'errore') return 'Qualcosa non ha funzionato: ' + (a.errore || '')
   if (a.fase === 'cerco') return 'Sto guardando se ce n’è una nuova…'
   return 'Sei alla versione più recente.'

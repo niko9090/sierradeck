@@ -85,10 +85,27 @@ export function creaAggiornamenti(
     }
   }
 
-  // Scarica solo quando glielo diciamo noi, e non chiude niente da sé: le due
-  // decisioni che riguardano l'utente restano dell'utente.
-  autoUpdater.autoDownload = false
-  autoUpdater.autoInstallOnAppQuit = false
+  /**
+   * **Si scarica da solo, e si installa quando chiudi.**
+   *
+   * Prima nessuna delle due: bisognava premere «Scarica» e poi «Installa», e
+   * di conseguenza il programma restava indietro per giorni — una correzione
+   * pubblicata e non installata e' una correzione che non esiste. Il difetto
+   * peggiore della giornata del 13 agosto e' stato esattamente questo: si
+   * cercava un guasto dentro un binario che l'utente non stava eseguendo.
+   *
+   * Le due decisioni non sono uguali, e per questo hanno risposte diverse:
+   * - **scaricare** non toglie niente a nessuno: succede in secondo piano, e
+   *   averlo gia' pronto e' l'unica differenza fra un aggiornamento fatto e
+   *   uno rimandato;
+   * - **installare** chiude il programma con le chat aperte dentro, quindi non
+   *   avviene mai mentre stai lavorando: avviene **quando chiudi tu**, che e'
+   *   il momento in cui non c'e' niente da interrompere.
+   *
+   * Il tasto «Installa» resta per chi la vuole adesso.
+   */
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
 
   // L'accesso al server, quando ne chiede uno. Si legge una volta all'avvio:
   // cambiare le credenziali vuol dire riavviare, che è il gesto giusto per una

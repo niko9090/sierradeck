@@ -4,8 +4,6 @@ import { useSessionStore } from '../state/sessions'
 import { proponiNuovaChat, type PropostaChat } from '../nuova-chat'
 import { ModaleNuovaChat } from './ModaleNuovaChat'
 import { azioniDiFinestra } from '../azioni-finestra'
-import { capienzaPreset, type PresetName } from '@shared/layout-tree'
-import { ModaleConferma } from './ModaleConferma'
 import { MODELLI } from '../modelli'
 
 /**
@@ -26,14 +24,6 @@ import { MODELLI } from '../modelli'
  * Gli alias di famiglia restano in cima, perché seguono da soli quando esce
  * qualcosa di nuovo: chi non vuole pensarci li usa e non ci pensa più.
  */
-
-const PRESET: { nome: PresetName; etichetta: string; titolo: string }[] = [
-  { nome: 'uno', etichetta: '1', titolo: 'Una chat sola' },
-  { nome: 'due', etichetta: '2', titolo: 'Due chat affiancate' },
-  { nome: 'duePerDue', etichetta: '2×2', titolo: 'Quattro chat' },
-  { nome: 'trePerDue', etichetta: '3×2', titolo: 'Sei chat' },
-  { nome: 'unoPiuLaterale', etichetta: '1+L', titolo: 'Una grande più una laterale' }
-]
 
 export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'consumi' | 'provider' | undefined
 
@@ -77,9 +67,7 @@ export function Console({
   workspaceCheChiamano,
   onApriNovita
 }: Props): React.JSX.Element {
-  const applyPreset = useLayoutStore((s) => s.applyPreset)
   const addPane = useLayoutStore((s) => s.addPane)
-  const quanteChat = useLayoutStore((s) => Object.keys(s.panes).length)
   const riquadri = useLayoutStore((s) => s.panes)
   const sessioni = useSessionStore((s) => s.sessions)
   // La cartella dell'utente arriva dal sistema e serve solo come ultima
@@ -120,27 +108,15 @@ export function Console({
   useEffect(() => {
     window.gestore.sistema.cartellaUtente().then(setCasa).catch(() => setCasa(''))
   }, [])
-  const [daConfermare, setDaConfermare] = useState<PresetName | undefined>(undefined)
   // La proposta con cui si apre la finestra della chat nuova. Assente: nessuna
   // finestra aperta.
   const [nuovaChat, setNuovaChat] = useState<PropostaChat | undefined>(undefined)
-
-  /**
-   * I preset troncano: quello che non ci sta viene chiuso, processo compreso.
-   * Con sei chat aperte, premere «2» ne chiude quattro — e finora succedeva
-   * senza che nessuno lo dicesse, con un clic solo.
-   */
-  const chiediPoiApplica = (nome: PresetName): void => {
-    if (quanteChat > capienzaPreset(nome)) setDaConfermare(nome)
-    else applyPreset(nome)
-  }
 
   const commuta = (quale: Exclude<PannelloAperto, undefined>): void =>
     onApri(aperto === quale ? undefined : quale)
 
   const inAttesa = ledAutopiloti.some((l) => l.classe === 'led--attesa')
 
-  const chiuse = daConfermare === undefined ? 0 : quanteChat - capienzaPreset(daConfermare)
 
   return (
     <>
@@ -157,20 +133,6 @@ export function Console({
         />
       ) : null}
 
-      {daConfermare !== undefined ? (
-        <ModaleConferma
-          titolo="Questa disposizione chiude delle chat"
-          testo={
-            `«${PRESET.find((p) => p.nome === daConfermare)?.titolo ?? ''}» tiene ` +
-            `${capienzaPreset(daConfermare)} chat delle ${quanteChat} aperte: ` +
-            `${chiuse === 1 ? 'l’altra verrà chiusa' : `le altre ${chiuse} verranno chiuse`}, ` +
-            'e il loro claude.exe terminato. Le conversazioni restano su disco e si possono riprendere.'
-          }
-          etichettaAzione={chiuse === 1 ? 'Chiudi 1 chat' : `Chiudi ${chiuse} chat`}
-          onConferma={() => { applyPreset(daConfermare); setDaConfermare(undefined) }}
-          onAnnulla={() => setDaConfermare(undefined)}
-        />
-      ) : null}
     <div className="console">
       <div className="sezione">
         <button
@@ -207,16 +169,6 @@ export function Console({
             <option key={m.valore} value={m.valore}>{m.etichetta}</option>
           ))}
         </select>
-        {PRESET.map((p) => (
-          <button
-            key={p.nome}
-            className="tasto tasto--icona"
-            onClick={() => chiediPoiApplica(p.nome)}
-            title={p.titolo}
-          >
-            {p.etichetta}
-          </button>
-        ))}
         <button
           className="tasto"
           onClick={() => window.gestore.finestre.nuova()}

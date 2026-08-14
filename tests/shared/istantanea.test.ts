@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseIstantanee, nuovaIstantanea, distribuisci, daRiavviare, daSalvare, workspaceDaSalvare,
-  workspaceDelleFinestre,
+  workspaceDelleFinestre, finestreDaRiaprire,
   contaChat, contaWorkspace, VERSIONE_ISTANTANEE,
   type Istantanea, type FinestraSalvata, type AutopilotaSalvato
 } from '@shared/istantanea'
@@ -546,5 +546,59 @@ describe('in quale workspace vivono le chat che tornano a schermo', () => {
     ])).toBeUndefined()
     expect(workspaceDelleFinestre([], [{ nome: 'lavoro', perMonitor: { m1: chat('u-1') } }]))
       .toBeUndefined()
+  })
+})
+
+describe('finestreDaRiaprire', () => {
+  const pieno = (id: string): LayoutSalvato => ({
+    root: { type: 'pane', id },
+    panes: [{ id, sessionUuid: '11111111-2222-3333-4444-555555555555', cwd: 'C:\p', title: 'La chat' }]
+  })
+  const vuoto: LayoutSalvato = { root: undefined, panes: [] }
+
+  it('normalmente riapre le finestre come sono state salvate', () => {
+    const i = nuovaIstantanea({
+      nome: 'x', salvataIl: 'ieri', autopiloti: [],
+      finestre: [{ monitor: 'm1', layout: pieno('p-1') }]
+    })
+    expect(finestreDaRiaprire(i)).toHaveLength(1)
+    expect(finestreDaRiaprire(i)[0]?.layout.panes[0]?.id).toBe('p-1')
+  })
+
+  it('salta le finestre vuote invece di riaprirle come schermate bianche', () => {
+    const i = nuovaIstantanea({
+      nome: 'x', salvataIl: 'ieri', autopiloti: [],
+      finestre: [{ monitor: 'm1', layout: vuoto }, { monitor: 'm2', layout: pieno('p-1') }]
+    })
+    expect(finestreDaRiaprire(i).map((f) => f.monitor)).toEqual(['m2'])
+  })
+
+  it('se le finestre sono tutte vuote pesca dal workspace che si aveva davanti', () => {
+    // Il caso trovato su disco: «Ultima chiusura» salvata con una finestra
+    // senza riquadri. Al ricarico non tornava **niente** — mentre le chat
+    // erano li' dentro, nell'archivio dei workspace dello stesso salvataggio.
+    const i = nuovaIstantanea({
+      nome: 'Ultima chiusura', salvataIl: 'ieri', autopiloti: [],
+      finestre: [{ monitor: 'm1', layout: vuoto }],
+      workspaceAttivo: 'lavoro',
+      workspace: [
+        { nome: 'casa', perMonitor: { m1: pieno('p-casa') } },
+        { nome: 'lavoro', perMonitor: { m1: pieno('p-lavoro'), m2: vuoto } }
+      ]
+    })
+    const f = finestreDaRiaprire(i)
+    expect(f).toHaveLength(1)
+    expect(f[0]?.monitor).toBe('m1')
+    expect(f[0]?.layout.panes[0]?.id).toBe('p-lavoro')
+  })
+
+  it('e se non c e proprio niente, non inventa niente', () => {
+    const i = nuovaIstantanea({
+      nome: 'x', salvataIl: 'ieri', autopiloti: [],
+      finestre: [{ monitor: 'm1', layout: vuoto }],
+      workspaceAttivo: 'lavoro',
+      workspace: [{ nome: 'lavoro', perMonitor: { m1: vuoto } }]
+    })
+    expect(finestreDaRiaprire(i)).toEqual([])
   })
 })

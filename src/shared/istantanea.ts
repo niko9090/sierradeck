@@ -91,6 +91,35 @@ export function nuovaIstantanea(p: {
 }
 
 /**
+ * Le finestre da riaprire davvero, quando si ricarica un salvataggio.
+ *
+ * Due difetti, e tutt'e due si vedono su un file vero trovato sul disco:
+ *
+ * 1. **Una finestra senza riquadri non si riapre.** Comparirebbe bianca, e
+ *    peggio: nel giro del ripristino prende il posto di una che avrebbe
+ *    dovuto riempirsi.
+ * 2. **Se sono vuote tutte, si pesca dal workspace che si aveva davanti.**
+ *    «Ultima chiusura» era stata salvata con la sua unica finestra vuota — al
+ *    ricarico non tornava **niente**, mentre le chat erano lì dentro, nello
+ *    stesso file, nell'archivio dei workspace. Un salvataggio che contiene il
+ *    lavoro e non lo restituisce è la forma peggiore di guasto: sembra che il
+ *    lavoro sia perduto, e invece è lì.
+ *
+ * Non inventa niente: se non ci sono chat da nessuna parte, torna vuoto.
+ */
+export function finestreDaRiaprire(i: Istantanea): FinestraSalvata[] {
+  const conChat = i.finestre.filter((f) => f.layout.panes.length > 0)
+  if (conChat.length > 0) return conChat
+
+  const salvati = i.workspace ?? []
+  const davanti = salvati.find((w) => w.nome === i.workspaceAttivo) ?? salvati[0]
+  if (davanti === undefined) return []
+  return Object.entries(davanti.perMonitor)
+    .filter(([, layout]) => layout.panes.length > 0)
+    .map(([monitor, layout]) => ({ monitor, layout }))
+}
+
+/**
  * I workspace da mettere nel salvataggio, con quello attivo aggiornato.
  *
  * L'archivio su disco conosce tutti i workspace, ma la sua copia di quello

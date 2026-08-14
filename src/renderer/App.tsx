@@ -702,8 +702,9 @@ export function App(): React.JSX.Element {
           ) : (
             <>
               <span>
-                La versione {aggiornamento.versione} è pronta. Installandola SierraDeck si chiude e
-                riparte: le chat aperte tornano dal salvataggio automatico.
+                La versione {aggiornamento.versione} è pronta: <b>si installa da sola</b> la prossima
+                volta che chiudi SierraDeck. Se la vuoi adesso, il programma si chiude e riparte —
+                le chat aperte tornano dal salvataggio automatico.
               </span>
               <button
                 className="tasto tasto--primario"

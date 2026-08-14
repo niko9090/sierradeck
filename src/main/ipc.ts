@@ -18,7 +18,7 @@ import type { WorkspaceStore } from './workspace-store'
 import type { IstantaneeStore } from './istantanee-store'
 import {
   nuovaIstantanea, distribuisci, daRiavviare, daSalvare, workspaceDaSalvare,
-  workspaceDelleFinestre,
+  workspaceDelleFinestre, finestreDaRiaprire,
   type AutopilotaSalvato, type FinestraSalvata, type Istantanea
 } from '@shared/istantanea'
 import { resolveClaudeCommand, buildClaudeArgs } from './config'
@@ -874,8 +874,16 @@ export function registerIstantaneeIpc(
       // ritrovava quattro. Quella che salva porta il proprio layout con se',
       // gia' aggiornato all'istante del clic; le altre lo consegnano adesso.
       const altre = (await raccogliLayout()).filter((r) => r.winId !== win.id)
+      // Anche la finestra che salva passa dalla stessa regola delle altre: una
+      // senza riquadri non si riapre. Prima entrava sempre, e bastava salvare da
+      // una finestra vuota — o con un layout che la riconciliazione svuota —
+      // perche' il salvataggio contenesse **una finestra bianca** e, al
+      // ricarico, non tornasse niente. Trovato su disco in «Ultima chiusura».
+      if (layout.panes.length === 0) {
+        console.warn(`[istantanee] «${nome}»: la finestra che salva non ha riquadri, non la salvo`)
+      }
       const finestre: FinestraSalvata[] = [
-        { monitor: chiaveDellaFinestra(win), layout },
+        ...(layout.panes.length > 0 ? [{ monitor: chiaveDellaFinestra(win), layout }] : []),
         ...altre.flatMap((r) => {
           const w = BrowserWindow.getAllWindows().find((x) => x.id === r.winId)
           if (w === undefined || w.isDestroyed()) return []
@@ -963,8 +971,11 @@ export function registerIstantaneeIpc(
     // duplicarne altre.
     const aperte = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
     const ordinate = [win, ...aperte.filter((w) => w.id !== win.id)]
+    // Le finestre **da riaprire davvero**: quelle vuote si saltano, e se sono
+    // vuote tutte si pesca dal workspace che si aveva davanti. Un salvataggio
+    // che contiene il lavoro e non lo restituisce sembra lavoro perduto.
     const { aFinestre, daAprire, daSvuotare } = distribuisci(
-      istantanea.finestre,
+      finestreDaRiaprire(istantanea),
       ordinate.map((w) => ({ id: w.id, monitor: chiaveDellaFinestra(w) }))
     )
 
