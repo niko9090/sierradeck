@@ -14,20 +14,68 @@ export const VERSIONE_AUTOPILOTA = 1
  */
 export type StatoAutopilota =
   | 'intervista'
+  | 'pronto'
   | 'lavoro'
   | 'attesa'
   | 'sospeso'
   | 'finito'
   | 'fallito'
 
-const STATI: StatoAutopilota[] = ['intervista', 'lavoro', 'attesa', 'sospeso', 'finito', 'fallito']
+const STATI: StatoAutopilota[] = [
+  'intervista', 'pronto', 'lavoro', 'attesa', 'sospeso', 'finito', 'fallito'
+]
+
+/** Com'è andata l'ultima volta che si è provato a misurare un criterio. */
+export type Verifica = {
+  quando: string
+  /** Zero è passato. Qualunque altro numero è il codice con cui il comando è uscito. */
+  codice: number
+  /** Quello che ha stampato, tagliato: serve a capire, non ad archiviare. */
+  uscita: string
+}
 
 export type Criterio = {
   descrizione: string
   /** Il comando che lo verifica, quando esiste. Senza, lo giudica il supervisore. */
   comando?: string
   soddisfatto: boolean
+  /**
+   * L'esito dell'ultima misura, per poterlo mostrare accanto al criterio.
+   *
+   * È la riga che spiega cosa sia un criterio senza doverlo definire: sotto «i
+   * test passano tutti» si legge `npm test` e come è finita l'ultima volta.
+   * Prima l'uscita dei comandi viveva solo dentro il giro che la produceva, e
+   * dall'esterno restava una spunta senza storia.
+   */
+  ultimaVerifica?: Verifica
 }
+
+/** Obiettivo, criteri e compiti com'erano prima di una modifica. */
+export type Istantanea = {
+  obiettivo: string
+  criteri: Criterio[]
+  compitiDaFare: string[]
+}
+
+/**
+ * Una modifica chiesta a parole, e cosa ne è stato fatto.
+ *
+ * Si applica subito — è la scelta di chi la usa: un passaggio in meno vale più
+ * di una conferma — e proprio per questo porta con sé la fotografia di prima.
+ * Senza `prima`, «applica subito» sarebbe una porta a senso unico, e un
+ * fraintendimento costerebbe di rifare tutto a mano.
+ */
+export type Modifica = {
+  quando: string
+  /** Quello che hai scritto tu, parola per parola. */
+  testo: string
+  /** Come l'ha capito, scritto per essere letto: è la parte che insegna. */
+  capito: string
+  prima: Istantanea
+}
+
+/** Oltre queste, le più vecchie si dimenticano: il file non deve crescere per sempre. */
+export const MODIFICHE_RICORDATE = 10
 
 export type Decisione = { quando: string; cosa: string }
 
@@ -136,6 +184,8 @@ export type Autopilota = {
   chats: ChatGovernata[]
   /** I pezzi di lavoro non ancora affidati a nessuna chat. */
   compitiDaFare: string[]
+  /** Le ultime modifiche dette a parole, con com'era prima di ognuna. */
+  modifiche: Modifica[]
 }
 
 export function limitiPredefiniti(): Limiti {
@@ -171,7 +221,8 @@ export function nuovoAutopilota(p: {
     limiti: limitiPredefiniti(),
     tettoChat: normalizzaTetto(p.tettoChat),
     chats: [],
-    compitiDaFare: []
+    compitiDaFare: [],
+    modifiche: []
   }
 }
 
@@ -239,7 +290,62 @@ function parseCriterio(raw: unknown, scartati: string[]): Criterio | undefined {
   return {
     descrizione,
     ...(comando !== undefined ? { comando } : {}),
-    soddisfatto: o.soddisfatto === true
+    soddisfatto: o.soddisfatto === true,
+    // Una verifica illeggibile sparisce da sola: e' un di piu' che serve a
+    // raccontare, e portarsi via il criterio per colpa sua sarebbe togliere
+    // all'autopilota un pezzo della sua fine.
+    ...(parseVerifica(o.ultimaVerifica) !== undefined
+      ? { ultimaVerifica: parseVerifica(o.ultimaVerifica) as Verifica }
+      : {})
+  }
+}
+
+function parseVerifica(raw: unknown): Verifica | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const o = raw as Record<string, unknown>
+  const quando = stringaNonVuota(o.quando)
+  if (quando === undefined || typeof o.codice !== 'number' || !Number.isFinite(o.codice)) {
+    return undefined
+  }
+  return {
+    quando,
+    codice: Math.trunc(o.codice),
+    uscita: typeof o.uscita === 'string' ? o.uscita : ''
+  }
+}
+
+function parseModifica(raw: unknown): Modifica | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const o = raw as Record<string, unknown>
+  const quando = stringaNonVuota(o.quando)
+  const testo = stringaNonVuota(o.testo)
+  const capito = stringaNonVuota(o.capito)
+  const prima = o.prima
+  // Senza la fotografia di prima la modifica non si potrebbe disfare, e una
+  // riga con un tasto che non funziona e' peggio della riga mancante.
+  if (quando === undefined || testo === undefined || capito === undefined) return undefined
+  if (typeof prima !== 'object' || prima === null) return undefined
+  const p = prima as Record<string, unknown>
+  const obiettivo = stringaNonVuota(p.obiettivo)
+  if (obiettivo === undefined) return undefined
+  const criteri: Criterio[] = []
+  if (Array.isArray(p.criteri)) {
+    for (const c of p.criteri) {
+      const criterio = parseCriterio(c, [])
+      if (criterio !== undefined) criteri.push(criterio)
+    }
+  }
+  return {
+    quando,
+    testo,
+    capito,
+    prima: {
+      obiettivo,
+      criteri,
+      compitiDaFare: Array.isArray(p.compitiDaFare)
+        ? p.compitiDaFare.filter((c): c is string => typeof c === 'string' && c.trim() !== '')
+        : []
+    }
   }
 }
 
@@ -325,7 +431,9 @@ export function parseAutopilota(raw: unknown): {
   // lei a produrli — e in un'intervista fallita non esisteranno mai: rifiutare
   // quel file lo farebbe **sparire dall'elenco**, e l'utente resterebbe senza
   // il suo autopilota e senza sapere perché.
-  const STATI_CHE_LAVORANO: StatoAutopilota[] = ['lavoro', 'attesa']
+  // «pronto» è fra questi: è lo stato di chi sta per partire, e partire senza
+  // una fine da raggiungere è precisamente ciò da cui questo controllo difende.
+  const STATI_CHE_LAVORANO: StatoAutopilota[] = ['pronto', 'lavoro', 'attesa']
   const senzaFine = criteri.length === 0 && STATI_CHE_LAVORANO.includes(stato)
   if (senzaFine) {
     // Fermato, non buttato. Rifiutare il file lo faceva mettere da parte come
@@ -401,6 +509,14 @@ export function parseAutopilota(raw: unknown): {
       chats,
       compitiDaFare: Array.isArray(o.compitiDaFare)
         ? o.compitiDaFare.filter((c): c is string => typeof c === 'string' && c.trim() !== '')
+        : [],
+      modifiche: Array.isArray(o.modifiche)
+        ? o.modifiche
+            .flatMap((m) => {
+              const modifica = parseModifica(m)
+              return modifica !== undefined ? [modifica] : []
+            })
+            .slice(-MODIFICHE_RICORDATE)
         : []
     },
     scartati

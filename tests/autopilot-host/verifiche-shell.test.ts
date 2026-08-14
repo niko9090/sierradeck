@@ -79,13 +79,19 @@ describe('esecutoreReale', () => {
     // il figlio in background eredita `stdout`/`stderr` e le tiene aperte, e
     // la callback di `execFile` scatta alla chiusura delle pipe, non
     // all'uscita del processo.
+    const TETTO_MS = 20_000
     const t0 = Date.now()
-    const { uscita } = await esecutoreReale(10_000)(
+    const { uscita } = await esecutoreReale(TETTO_MS)(
       ['sleep 30 &', 'sleep 1', 'echo fatto'].join('\n'), process.cwd()
     )
     const passato = Date.now() - t0
     expect(uscita).toContain('fatto')
-    // Largo di proposito: il punto e' «secondi, non il timeout».
-    expect(passato).toBeLessThan(5000)
-  }, 20_000)
+    // La misura e' contro il **tetto**, non contro un numero assoluto: senza la
+    // correzione questo comando ci mette esattamente `TETTO_MS`, con la
+    // correzione il tempo del comando piu' l'avvio della shell. Un margine
+    // largo perche' la suite intera gira in parallelo e su una macchina carica
+    // aprire `bash` puo' costare qualche secondo: e' la distanza dal tetto a
+    // dire se la correzione c'e', non il valore preciso.
+    expect(passato).toBeLessThan(TETTO_MS / 2)
+  }, 40_000)
 })

@@ -387,3 +387,130 @@ export async function riparaComando(
     return undefined
   }
 }
+
+/**
+ * Quello che l'utente ha chiesto a parole, tradotto in un cambio da applicare.
+ *
+ * `capito` è la parte che conta quanto le altre: è quella che si legge nella
+ * scheda, e che insegna cosa sia un criterio a chi non lo sapeva. I tre campi
+ * assenti vogliono dire «questo lascialo com'era» — chiedere di riscrivere
+ * tutto per aggiungere un compito farebbe perdere per strada quello che c'era.
+ */
+export type CambioChiesto = {
+  capito: string
+  obiettivo?: string
+  criteri?: { descrizione: string; comando?: string }[]
+  compitiDaFare?: string[]
+}
+
+export function componiPromptCambio(a: Autopilota, testo: string): string {
+  return [
+    'Sei l autopilota che sta portando avanti questo lavoro. Chi te lo ha affidato',
+    'ti ha scritto adesso, mentre lavori, e vuole cambiare qualcosa.',
+    '',
+    `Obiettivo attuale: ${a.obiettivo}`,
+    `Cartella: ${a.cwd}`,
+    'Finisce quando:',
+    ...a.criteri.map((c) => `- ${c.descrizione}${c.comando !== undefined ? ` (si misura con: ${c.comando})` : ' (lo giudichi tu, guardando)'}`),
+    ...(a.compitiDaFare.length > 0
+      ? ['Compiti ancora in coda:', ...a.compitiDaFare.map((c) => `- ${c}`)]
+      : []),
+    '',
+    'Ti ha scritto:',
+    testo.slice(0, 2000),
+    '',
+    'Rispondi **solo** con questo JSON, senza altro testo. Metti soltanto i campi che',
+    'cambiano: quelli che ometti restano come sono. Gli elenchi vanno scritti **interi**,',
+    'non a pezzi — quello che non riscrivi sparisce.',
+    '{',
+    '  "capito": "una frase in italiano che dice cosa hai cambiato, per chi legge",',
+    '  "obiettivo": "...",',
+    '  "criteri": [{"descrizione": "...", "comando": "..."}],',
+    '  "compitiDaFare": ["..."]',
+    '}',
+    '',
+    'Regole: un criterio senza `comando` è legittimo e vuol dire che lo giudichi tu',
+    'guardando il lavoro. I comandi girano su Windows dentro `bash` (Git Bash), su una',
+    'riga sola, ed escono con 0 quando il criterio è soddisfatto. Non lasciare mai',
+    'l elenco dei criteri vuoto: senza, non sapresti quando hai finito.',
+    'Se non hai capito cosa vuole, rispondi solo con {"capito": "...", "dubbio": true}',
+    'e non cambiare niente.'
+  ].join('\n')
+}
+
+/**
+ * Legge il cambio chiesto. `undefined` vale «non ho capito», e allora non si
+ * tocca niente: applicare un fraintendimento costa più di una domanda in più.
+ */
+export function leggiCambio(testo: string): CambioChiesto | undefined {
+  const apertura = testo.indexOf('{')
+  const chiusura = testo.lastIndexOf('}')
+  if (apertura === -1 || chiusura <= apertura) return undefined
+  let grezzo: Record<string, unknown>
+  try {
+    grezzo = JSON.parse(testo.slice(apertura, chiusura + 1)) as Record<string, unknown>
+  } catch {
+    return undefined
+  }
+  const capito = typeof grezzo.capito === 'string' ? grezzo.capito.trim() : ''
+  if (capito === '') return undefined
+  // Il dubbio dichiarato è una risposta valida, e la sua conseguenza è non
+  // cambiare niente: si restituisce solo ciò che ha capito, da mostrare.
+  if (grezzo.dubbio === true) return { capito }
+
+  const criteri = leggiCriteriChiesti(grezzo.criteri)
+  const compiti = Array.isArray(grezzo.compitiDaFare)
+    ? grezzo.compitiDaFare.filter((c): c is string => typeof c === 'string' && c.trim() !== '')
+    : undefined
+  const obiettivo = typeof grezzo.obiettivo === 'string' && grezzo.obiettivo.trim() !== ''
+    ? grezzo.obiettivo.trim()
+    : undefined
+  return {
+    capito,
+    ...(obiettivo !== undefined ? { obiettivo } : {}),
+    ...(criteri !== undefined ? { criteri } : {}),
+    ...(compiti !== undefined ? { compitiDaFare: compiti } : {})
+  }
+}
+
+function leggiCriteriChiesti(
+  raw: unknown
+): { descrizione: string; comando?: string }[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const criteri: { descrizione: string; comando?: string }[] = []
+  for (const c of raw) {
+    if (typeof c !== 'object' || c === null) continue
+    const o = c as Record<string, unknown>
+    const descrizione = typeof o.descrizione === 'string' ? o.descrizione.trim() : ''
+    if (descrizione === '') continue
+    const comando = typeof o.comando === 'string' ? o.comando.trim() : ''
+    criteri.push({ descrizione, ...(comando !== '' ? { comando } : {}) })
+  }
+  // Un elenco che si svuota per strada non è un cambio: è una perdita. Meglio
+  // lasciare i criteri di prima che un autopilota senza una fine.
+  return criteri.length === 0 ? undefined : criteri
+}
+
+/**
+ * Chiede al supervisore di tradurre in un cambio quello che gli hai scritto.
+ *
+ * Un guasto non deve diventare una modifica: senza risposta si torna indietro
+ * con `undefined`, e l'autopilota resta esattamente com'era.
+ */
+export async function chiediCambio(
+  a: Autopilota,
+  testo: string,
+  interroga: Interrogazione
+): Promise<CambioChiesto | undefined> {
+  try {
+    const risposta = await interroga(
+      componiPromptCambio(a, testo),
+      a.cwd,
+      a.sessioneSupervisore
+    )
+    return leggiCambio(risposta.testo)
+  } catch (err) {
+    console.error('[autopilota] cambio non capito:', err)
+    return undefined
+  }
+}

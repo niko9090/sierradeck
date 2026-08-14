@@ -5,7 +5,9 @@ import type { LayoutSalvato, PaneSalvato } from '@shared/workspace'
 import type { Autopilota } from '@shared/autopilota'
 import type { StatoWorkspace } from '../main/ipc'
 import type { Istantanea } from '@shared/istantanea'
-import type { NuovoAutopilota, DomandaAperta } from '../main/autopilot-client'
+import type {
+  NuovoAutopilota, DomandaAperta, CambioAutopilota, RispostaParlata
+} from '../main/autopilot-client'
 import type { StatoAccesso } from '../main/accesso'
 import type { StatoPreparazione } from '../main/preparazione'
 import type { Novita } from '@shared/novita'
@@ -127,6 +129,14 @@ declare global {
       autopilota: {
         elenca: () => Promise<Autopilota[]>
         crea: (p: NuovoAutopilota) => Promise<Autopilota>
+        /** Il via a chi si è preparato e aspetta di essere letto. */
+        vai: (id: string) => Promise<Autopilota>
+        /** Cambia obiettivo, criteri o compiti. Quello che non nomini resta com'era. */
+        modifica: (id: string, cambio: CambioAutopilota) => Promise<Autopilota>
+        /** Glielo dici a parole: traduce lui in criteri e compiti, e lo applica. */
+        parla: (id: string, testo: string) => Promise<RispostaParlata>
+        /** Rimette com'era prima dell'ultima cosa che gli hai detto. */
+        disfa: (id: string) => Promise<Autopilota>
         ferma: (id: string) => Promise<void>
         riprendi: (id: string) => Promise<void>
         riprendiAlRiavvio: (id: string, riprendi: boolean) => Promise<void>

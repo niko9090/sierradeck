@@ -28,6 +28,7 @@ import {
   isPtyId,
   validateListOptions,
   validaIdAutopilota,
+  validaCambioAutopilota,
   validaNuovoAutopilota,
   validateIdFinestra,
   validateLayoutSalvato,
@@ -711,6 +712,21 @@ export function registerAutopilotaIpc(client: ClientAutopilota): void {
     await client.assicuraServizio()
     return client.crea(richiesta)
   })
+  ipcMain.handle('autopilota:vai', (_e, id: unknown) => client.vai(validaIdAutopilota(id)))
+  ipcMain.handle('autopilota:modifica', (_e, id: unknown, cambio: unknown) =>
+    client.modifica(validaIdAutopilota(id), validaCambioAutopilota(cambio)))
+  ipcMain.handle('autopilota:parla', (_e, id: unknown, testo: unknown) => {
+    // Lo stesso metro della risposta a una domanda: è testo che l'utente scrive
+    // e che finisce dentro un prompt, e la lunghezza si limita qui.
+    if (typeof testo !== 'string' || testo.trim() === '') {
+      throw new Error('richiesta IPC non valida: non hai scritto niente')
+    }
+    if (testo.length > RISPOSTA_MAX) {
+      throw new Error(`richiesta IPC non valida: messaggio oltre ${RISPOSTA_MAX} caratteri`)
+    }
+    return client.parla(validaIdAutopilota(id), testo.trim())
+  })
+  ipcMain.handle('autopilota:disfa', (_e, id: unknown) => client.disfa(validaIdAutopilota(id)))
   ipcMain.handle('autopilota:ferma', (_e, id: unknown) => client.ferma(validaIdAutopilota(id)))
   ipcMain.handle('autopilota:riprendi', (_e, id: unknown) => client.riprendi(validaIdAutopilota(id)))
   ipcMain.handle('autopilota:riprendiAlRiavvio', (_e, id: unknown, riprendi: unknown) =>

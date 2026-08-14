@@ -25,9 +25,37 @@ export type DomandaAperta = {
   scadeIl: number
 }
 
+/**
+ * Un cambio a un autopilota. Ciò che non è nominato resta com'era.
+ *
+ * Vale per tutt'e due le strade — le mani sulla scheda e le parole scritte nel
+ * campo — perché è lo stesso cambio: cambia solo chi lo ha composto.
+ */
+export type CambioAutopilota = {
+  obiettivo?: string
+  criteri?: { descrizione: string; comando?: string }[]
+  compitiDaFare?: string[]
+}
+
+/** Cosa risponde quando gli parli: cosa ha capito, e se l'ha applicato. */
+export type RispostaParlata = {
+  applicato: boolean
+  capito: string
+  errore?: string
+  autopilota?: Autopilota
+}
+
 export type ClientAutopilota = {
   elenca: () => Promise<Autopilota[]>
   crea: (p: NuovoAutopilota) => Promise<Autopilota>
+  /** Il via, dopo aver letto cosa ha deciso in preparazione. */
+  vai: (id: string) => Promise<Autopilota>
+  /** Cambia obiettivo, criteri o compiti mettendoci le mani. */
+  modifica: (id: string, cambio: CambioAutopilota) => Promise<Autopilota>
+  /** Glielo dici a parole: è lui a tradurlo in criteri e compiti. */
+  parla: (id: string, testo: string) => Promise<RispostaParlata>
+  /** Rimette com'era prima dell'ultima cosa che gli hai detto. */
+  disfa: (id: string) => Promise<Autopilota>
   ferma: (id: string) => Promise<void>
   riprendi: (id: string) => Promise<void>
   /** Se questo autopilota debba ripartire da solo dopo un riavvio. */
@@ -83,6 +111,14 @@ export function creaClientAutopilota(p: {
   return {
     elenca: async () => (await chiama('/autopiloti', 'GET')) as Autopilota[],
     crea: async (nuovo) => (await chiama('/autopiloti', 'POST', nuovo)) as Autopilota,
+    vai: async (id) =>
+      (await chiama(`/autopiloti/${encodeURIComponent(id)}/vai`, 'POST')) as Autopilota,
+    modifica: async (id, cambio) =>
+      (await chiama(`/autopiloti/${encodeURIComponent(id)}`, 'PATCH', cambio)) as Autopilota,
+    parla: async (id, testo) =>
+      (await chiama(`/autopiloti/${encodeURIComponent(id)}/parla`, 'POST', { testo })) as RispostaParlata,
+    disfa: async (id) =>
+      (await chiama(`/autopiloti/${encodeURIComponent(id)}/disfa`, 'POST')) as Autopilota,
     ferma: async (id) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/ferma`, 'POST') },
     riprendi: async (id) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/riprendi`, 'POST') },
     riprendiAlRiavvio: async (id, riprendi) => {

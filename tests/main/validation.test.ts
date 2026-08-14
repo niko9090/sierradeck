@@ -14,6 +14,7 @@ import {
   validateWriteArgs,
   validaIdAutopilota,
   validaNuovoAutopilota,
+  validaCambioAutopilota,
   NOME_WORKSPACE_MAX
 ,
   validaPercorsoTrascrizione
@@ -404,5 +405,55 @@ describe('un riquadro solo, senza albero', () => {
     const pane = { id: 'p-1', sessionUuid: '11111111-2222-3333-4444-555555555555', cwd: 'C:\p', title: 'La chat' }
     const { layout } = validateLayoutSalvato({ root: undefined, panes: [pane] })
     expect(layout.panes).toHaveLength(0)
+  })
+})
+
+describe('validaCambioAutopilota', () => {
+  it('lascia passare un cambio ben fatto e ripulisce gli spazi', () => {
+    const c = validaCambioAutopilota({
+      obiettivo: '  Fai partire l installer  ',
+      criteri: [{ descrizione: ' risponde 200 ', comando: ' curl -sI x ' }, { descrizione: 'lo giudichi tu' }],
+      compitiDaFare: [' caricare il file ', '', '   ']
+    })
+    expect(c.obiettivo).toBe('Fai partire l installer')
+    expect(c.criteri).toEqual([
+      { descrizione: 'risponde 200', comando: 'curl -sI x' },
+      { descrizione: 'lo giudichi tu' }
+    ])
+    // Le righe vuote spariscono: sono il residuo di un campo lasciato a meta',
+    // non un compito da fare.
+    expect(c.compitiDaFare).toEqual(['caricare il file'])
+  })
+
+  it('quello che non nomini non compare', () => {
+    const c = validaCambioAutopilota({ compitiDaFare: ['solo questo'] })
+    expect(c.obiettivo).toBeUndefined()
+    expect(c.criteri).toBeUndefined()
+  })
+
+  it('rifiuta un obiettivo vuoto invece di cancellarlo', () => {
+    expect(() => validaCambioAutopilota({ obiettivo: '   ' })).toThrow()
+  })
+
+  it('rifiuta un criterio senza descrizione invece di saltarlo in silenzio', () => {
+    // Saltarlo lascerebbe l'utente con un criterio in meno di quanti ne ha
+    // scritti, e nessun modo di accorgersene.
+    expect(() => validaCambioAutopilota({ criteri: [{ comando: 'npm test' }] })).toThrow()
+  })
+
+  it('rifiuta un elenco di criteri vuoto: senza, non c e una fine', () => {
+    expect(() => validaCambioAutopilota({ criteri: [] })).toThrow()
+  })
+
+  it('rifiuta un comando su piu righe', () => {
+    // E' il difetto da cui vengono i comandi che non partono mai: un ritorno a
+    // capo dentro la stringa, e la shell riceve mezza riga.
+    expect(() => validaCambioAutopilota({
+      criteri: [{ descrizione: 'x', comando: 'npm test\nrm -rf /' }]
+    })).toThrow()
+  })
+
+  it('rifiuta una richiesta che non e un oggetto', () => {
+    expect(() => validaCambioAutopilota('cambia tutto')).toThrow()
   })
 })

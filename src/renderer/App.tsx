@@ -10,6 +10,7 @@ import type { Istantanea } from '@shared/istantanea'
 import { chiChiede, workspaceCheChiamano } from '@shared/dove-chiedono'
 import { attivaChiusuraFuori, attivaTrascinamento } from './trascina-finestre'
 import { creaUltimeRighe, terminalePronto } from './ultime-righe'
+import { creaBattito, stessiAttivi } from './battito'
 import { eseguiConsegna, ponteReale } from './consegne-autopilota'
 import { memoriaWorkspace } from './memoria-workspace'
 import { leggiConsegne } from '../main/autopilota-consegne'
@@ -146,12 +147,30 @@ export function App(): React.JSX.Element {
   // quello che si è mandato ha prodotto qualcosa. Senza, si scrive e si resta a
   // fissare lo stesso titolo di prima.
   const righe = useRef(creaUltimeRighe())
+  // Quali terminali si stanno muovendo adesso. Si ricalcola a intervalli e non
+  // a ogni pezzo di output: mentre una chat scrive arrivano decine di eventi al
+  // secondo, e ridisegnare il mosaico a ognuno costerebbe piu' del terminale.
+  const battito = useRef(creaBattito())
+  const [pensano, setPensano] = useState<ReadonlySet<string>>(new Set())
+  useEffect(() => {
+    const h = setInterval(() => {
+      const vivi = battito.current.attivi(Date.now())
+      setPensano((prima) => (stessiAttivi(prima, vivi) ? prima : vivi))
+    }, 400)
+    return () => clearInterval(h)
+  }, [])
   useEffect(() => {
     // Direttamente dal canale, non dal bus: qui non interessa **quale**
     // riquadro riceve, ma cosa scrivono tutti — e il bus è fatto apposta per
     // consegnare a uno solo.
     return window.gestore.pty.onEvent((msg) => {
-      if (msg.kind === 'data') righe.current.aggiorna(msg.id, msg.data)
+      if (msg.kind === 'data') {
+        righe.current.aggiorna(msg.id, msg.data)
+        // Lo stesso passaggio dice anche **chi si sta muovendo**: finche' da un
+        // terminale arriva qualcosa, quella chat sta lavorando. Prima una chat
+        // al lavoro e una ferma sul prompt erano lo stesso riquadro fermo.
+        battito.current.segna(msg.id, Date.now())
+      }
       // Un terminale finito non e' un posto dove scrivere: senza questa riga
       // sembrerebbe il piu' pronto di tutti - ha visto il prompt e da allora
       // tace - e il compito ci finirebbe dentro, perduto.
@@ -767,7 +786,12 @@ export function App(): React.JSX.Element {
 
         <div style={{ flex: 1, display: 'flex', minWidth: 0 }}>
           {root ? (
-            <Mosaic node={root} autopiloti={autopiloti} />
+            <Mosaic
+              node={root}
+              autopiloti={autopiloti}
+              onRicaricaAutopiloti={ricaricaAutopiloti}
+              pensano={pensano}
+            />
           ) : (
             <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--testo-quieto)' }}>
               <div style={{ fontSize: 14, marginBottom: 6 }}>Nessuna chat aperta</div>

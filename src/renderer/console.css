@@ -2086,3 +2086,182 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 }
 .chat-dorme__titolo { font-size: var(--t3); color: var(--testo); }
 .chat-dorme__spiega { font-size: var(--t2); max-width: 34ch; line-height: 1.5; }
+
+/* ── La scheda dell'autopilota ─────────────────────────────────────────────
+   Cosa deve ottenere, come lo misura, cosa fara', e il posto dove dirgli di
+   cambiare. Vive dentro il diario, a fianco della chat che governa: la stessa
+   colonna che prima raccontava e basta. */
+
+.scheda {
+  margin: 0 0 var(--s3);
+  font-size: var(--t1);
+}
+
+/* Il cancello. Sta in cima e si vede da lontano: finche' non lo premi, quel
+   lavoro non e' cominciato, ed e' l'unica cosa che conta sapere. */
+.scheda__via {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  padding: var(--s2);
+  margin-bottom: var(--s3);
+  border: 1px solid var(--ambra);
+  border-radius: var(--raggio);
+  background: color-mix(in srgb, var(--ambra) 10%, transparent);
+}
+
+.scheda__titolo {
+  display: block;
+  margin: var(--s3) 0 var(--s1);
+}
+
+.scheda__criteri,
+.scheda__compiti {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--testo-quieto);
+}
+
+.scheda__criterio {
+  padding: var(--s1) 0;
+  border-bottom: 1px solid var(--bordo);
+}
+
+.scheda__criterio--fatto > .scheda__riga {
+  color: var(--verde);
+}
+
+/* La riga del criterio e' un tasto: si clicca dove si legge, e si riscrive
+   li'. Un'icona «modifica» in fondo alla riga sarebbe un bersaglio piu'
+   piccolo e una cosa in piu' da cercare. */
+.scheda__riga {
+  display: flex;
+  gap: var(--s2);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.scheda__riga:hover {
+  color: var(--testo);
+}
+
+/* La riga che insegna cosa sia un criterio: il comando che lo misura, e com'e'
+   andata l'ultima volta. In cifre tabulari, cosi' gli orari non ballano. */
+.scheda__prova {
+  padding-left: calc(var(--s2) + 1ch);
+  font-size: var(--t0);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+  word-break: break-word;
+}
+
+.scheda__esito--verde { color: var(--verde); }
+.scheda__esito--rosso { color: var(--rosso); }
+
+.scheda__criterio--aperto {
+  display: grid;
+  gap: var(--s1);
+  padding: var(--s2) 0;
+}
+
+.scheda__comando {
+  font-family: 'Cascadia Mono', 'Consolas', monospace;
+  font-size: var(--t0);
+}
+
+.scheda__aggiungi {
+  margin-top: var(--s1);
+}
+
+.scheda__compito {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  padding: var(--s1) 0;
+}
+
+.scheda__nuovo-compito {
+  margin-top: var(--s1);
+}
+
+/* Il posto dove gli si parla. Sta in fondo, dove finisce la lettura: prima si
+   guarda cosa fa, poi eventualmente gli si dice di cambiare. */
+.scheda__parla {
+  display: grid;
+  gap: var(--s1);
+  margin-top: var(--s3);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--bordo);
+}
+
+/* Cosa ha capito. Si legge sempre, anche quando ha gia' applicato: e' il
+   patto che rende accettabile «applica subito». */
+.scheda__capito {
+  margin: 0;
+  padding: var(--s2);
+  border-radius: var(--raggio);
+  background: color-mix(in srgb, var(--verde) 8%, transparent);
+  color: var(--testo);
+  font-size: var(--t0);
+}
+
+/* Non ha capito, e non ha toccato niente: lo stesso colore dell'attesa, perche'
+   e' quello che e' — tocca di nuovo a te. */
+.scheda__capito--fermo {
+  color: var(--ambra);
+}
+
+/* ── Il fuoco da tastiera ──────────────────────────────────────────────────
+   Chi lavora con Tab deve sapere dov'e'. I singoli comandi avevano gia' il
+   loro contorno, ma tutto il resto — le voci di un elenco, un'intestazione
+   cliccabile, un collegamento — restava senza: si premeva Tab e il fuoco
+   spariva dentro la pagina. Questa e' la rete sotto: chi ha un contorno suo lo
+   tiene, chi non ce l'ha smette di essere invisibile.
+   `:focus-visible` e non `:focus`: con il mouse non deve comparire niente. */
+:where(a, button, [role='button'], [tabindex]:not([tabindex='-1'])):focus-visible {
+  outline: 2px solid var(--accento);
+  outline-offset: 2px;
+  border-radius: var(--raggio);
+}
+
+/* Le righe dei consumi in cifre tabulari, come il numero grande sopra: senza,
+   ogni cifra ha la sua larghezza e i quattro valori incolonnati sotto la barra
+   si spostano a ogni aggiornamento — si legge un numero che balla. */
+.consumo__righe {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Il segno che una chat si sta muovendo: un punto che pulsa nella testata,
+   accanto al nome. Non una barra e non una scritta — a due metri si vede il
+   movimento, non si legge una parola — e si spegne da solo appena il terminale
+   tace. */
+.testata-riquadro__battito {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  margin-left: var(--s1);
+  border-radius: 50%;
+  background: var(--verde);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--verde) 70%, transparent);
+  animation: battito 1.2s ease-in-out infinite;
+}
+
+@keyframes battito {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+/* Chi ha chiesto di non vedere animazioni non deve perdere l'informazione:
+   resta il punto, fermo. */
+@media (prefers-reduced-motion: reduce) {
+  .testata-riquadro__battito { animation: none; }
+}

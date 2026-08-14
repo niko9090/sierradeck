@@ -215,11 +215,29 @@ function Divider({ box, containerRef }: {
 
 export function Mosaic({
   node,
-  autopiloti
+  autopiloti,
+  onRicaricaAutopiloti,
+  pensano
 }: {
   node: LayoutNode
   /** Servono al riquadro per sapere se qualcuno sta governando la sua chat. */
   autopiloti: Autopilota[]
+  /**
+   * Rilegge gli autopiloti adesso, senza aspettare il giro.
+   *
+   * Dalla scheda si cambiano criteri e compiti: aspettare il prossimo giro
+   * significherebbe premere «Salva» e vedere per qualche secondo quello che
+   * c'era prima — cioè dubitare di aver premuto.
+   */
+  onRicaricaAutopiloti: () => void
+  /**
+   * I terminali da cui sta arrivando qualcosa adesso.
+   *
+   * Una chat al lavoro e una ferma sul prompt erano lo stesso riquadro immobile:
+   * chi tornava dopo dieci minuti non sapeva se aspettare, ne' quale delle chat
+   * aperte stesse facendo qualcosa.
+   */
+  pensano: ReadonlySet<string>
 }): React.JSX.Element {
   const panes = useLayoutStore((s) => s.panes)
   const closePane = useLayoutStore((s) => s.closePane)
@@ -310,6 +328,17 @@ export function Mosaic({
                   {data.title}
                 </span>
               )}
+              {/* Si sta muovendo. Una chat al lavoro e una ferma sul prompt
+                  erano lo stesso riquadro immobile: chi tornava dopo dieci
+                  minuti non sapeva se aspettare, ne' quale delle chat aperte
+                  stesse facendo qualcosa. */}
+              {data.ptyId !== undefined && pensano.has(data.ptyId) ? (
+                <span
+                  className="testata-riquadro__battito"
+                  title="Sta lavorando: da qui sta arrivando qualcosa adesso"
+                  aria-label="sta lavorando"
+                />
+              ) : null}
               <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 {/* Il modello di **questa** chat, cambiabile mentre lavora: si
                     manda il comando `/model` nel terminale, che è lo stesso
@@ -422,6 +451,7 @@ export function Mosaic({
                         return dopo
                       })
                     }
+                    onCambiato={onRicaricaAutopiloti}
                   />
                 )
               })()}

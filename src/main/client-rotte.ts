@@ -74,6 +74,8 @@ export type DipendenzeRotte = {
   /** Ferma o riprende un autopilota: due gesti reversibili, quindi ammessi. */
   fermaAutopilota: (id: string) => Promise<void>
   riprendiAutopilota: (id: string) => Promise<void>
+  /** Il via a un autopilota che si e preparato e aspetta di essere letto. */
+  vaiAutopilota: (id: string) => Promise<void>
   /**
    * Affida un lavoro nuovo a un autopilota.
    *
@@ -337,6 +339,16 @@ export function rotteClient(deps: DipendenzeRotte) {
       const id = stringa(r.corpo, 'autopilota')
       if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
       await deps.riprendiAutopilota(id)
+      return OK({ fatto: true })
+    }
+
+    // Il via a chi si è preparato. Sta qui perché è dal telefono che si scopre
+    // di averlo pronto: l'avviso arriva mentre si è altrove, e senza questo
+    // tasto il lavoro resterebbe fermo fino al ritorno alla scrivania.
+    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/vai') {
+      const id = stringa(r.corpo, 'autopilota')
+      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
+      await deps.vaiAutopilota(id)
       return OK({ fatto: true })
     }
 

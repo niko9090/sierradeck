@@ -24,6 +24,7 @@ function deps(over: Partial<DipendenzeRotte> = {}): DipendenzeRotte {
     cambiaWorkspace: () => Promise.resolve(),
     fermaAutopilota: () => Promise.resolve(),
     riprendiAutopilota: () => Promise.resolve(),
+    vaiAutopilota: () => Promise.resolve(),
     creaAutopilota: () => Promise.resolve({ id: 'ap-9' }),
     eliminaAutopilota: () => Promise.resolve(),
     riprendiAlRiavvio: () => Promise.resolve(),
@@ -456,5 +457,27 @@ describe('i consumi, il quaderno, le preferenze e l aggiornamento', () => {
     await rotteClient(su)({ metodo: 'POST', percorso: '/api/aggiornamento/scarica', corpo: {} })
     await rotteClient(su)({ metodo: 'POST', percorso: '/api/aggiornamento/installa', corpo: {} })
     expect(fatti).toEqual(['scarica', 'installa'])
+  })
+})
+
+describe('il via dal telefono', () => {
+  it('da il via a un autopilota pronto', async () => {
+    // L'avviso «pronto, aspetto il tuo via» arriva mentre si e' fuori: senza
+    // questo tasto il lavoro resterebbe fermo fino al ritorno alla scrivania.
+    let partito: string | undefined
+    const r = await rotteClient(deps({ vaiAutopilota: (id) => { partito = id; return Promise.resolve() } }))(
+      { metodo: 'POST', percorso: '/api/autopilota/vai', corpo: { autopilota: 'ap-1' } } as never
+    )
+    expect(r?.stato).toBe(200)
+    expect(partito).toBe('ap-1')
+  })
+
+  it('senza autopilota non fa niente', async () => {
+    let chiamato = false
+    const r = await rotteClient(deps({ vaiAutopilota: () => { chiamato = true; return Promise.resolve() } }))(
+      { metodo: 'POST', percorso: '/api/autopilota/vai', corpo: {} } as never
+    )
+    expect(r?.stato).toBe(400)
+    expect(chiamato).toBe(false)
   })
 })

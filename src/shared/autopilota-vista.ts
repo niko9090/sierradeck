@@ -27,7 +27,10 @@ export function ledDi(a: Autopilota): { classe: string; titolo: string } {
   const classe =
     a.stato === 'lavoro' || (a.stato === 'intervista' && !stachiedendo(a))
       ? 'led--lavoro'
-      : a.stato === 'attesa' || a.stato === 'intervista'
+      // «pronto» è ambra come l'attesa, ed è la stessa cosa: la macchina è
+      // ferma e aspetta te. Verde direbbe che sta lavorando, e non ha ancora
+      // scritto una riga.
+      : a.stato === 'attesa' || a.stato === 'intervista' || a.stato === 'pronto'
         ? 'led--attesa'
         : a.stato === 'finito'
           ? 'led--finito'
@@ -85,6 +88,11 @@ export function passaggi(a: Autopilota): Passo[] {
     case 'intervista':
       segna(0, motivo !== undefined ? 'attesa' : 'corrente', motivo ?? 'guarda il progetto')
       break
+    case 'pronto':
+      // La preparazione è finita davvero — i criteri ci sono — e il lavoro non
+      // è cominciato: sta sulla soglia del secondo passo, ad aspettare te.
+      segna(1, 'attesa', 'pronto: aspetta il tuo via')
+      break
     case 'lavoro':
       segna(1, 'corrente', a.strategia !== undefined
         ? `${interventi} · prova un'altra strada: ${a.strategia}`
@@ -137,7 +145,7 @@ export function misuraPasso(a: Autopilota): MisuraPasso {
   const tono: MisuraPasso['tono'] =
     a.stato === 'sospeso' || a.stato === 'fallito'
       ? 'fermo'
-      : a.stato === 'attesa' || (a.stato === 'intervista' && stachiedendo(a))
+      : a.stato === 'attesa' || a.stato === 'pronto' || (a.stato === 'intervista' && stachiedendo(a))
         ? 'attesa'
         : a.criteri.length === 0 && a.stato !== 'finito'
           ? 'preparazione'
@@ -202,6 +210,13 @@ export function descriviAutopilota(a: Autopilota): {
         ? `si prepara — ti sta chiedendo: ${motivo}`
         : 'si prepara — sta guardando il progetto'
       break
+    case 'pronto': {
+      // Si dice cosa ha deciso, non che è fermo: è la riga che invita ad
+      // aprirlo e leggere i criteri prima che comincino ore di lavoro.
+      const quante = a.criteri.length
+      sottotitolo = `pronto — ${quante} ${quante === 1 ? 'cosa' : 'cose'} da raggiungere, aspetta il tuo via`
+      break
+    }
     case 'lavoro':
       // Quando sta cercando di uscire da un cerchio va detto: dall'esterno
       // «al lavoro» e «al lavoro ma bloccato» si somigliano troppo, e la

@@ -364,14 +364,16 @@ describe('ferma e riprendi', () => {
     await chiama('POST', `/domande/${domanda.id}/risposta`, { risposta: 'YAML' })
 
     for (let i = 0; i < 80; i += 1) {
-      if ((await chiama('GET', '/autopiloti')).dati[0].stato === 'lavoro') break
+      if ((await chiama('GET', '/autopiloti')).dati[0].stato === 'pronto') break
       await new Promise((r) => setTimeout(r, 25))
     }
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
-    expect(stato.stato).toBe('lavoro')
+    // La risposta tardiva fa **finire la preparazione**, non partire il lavoro:
+    // quello aspetta il via, come ogni autopilota appena configurato.
+    expect(stato.stato).toBe('pronto')
     expect(stato.criteri).toHaveLength(1)
     expect(stato.intervista[0]).toMatchObject({ risposta: 'YAML' })
-    expect(avviati).toEqual([dati.id])
+    expect(stato.id).toBe(dati.id)
   })
 
   it('fermare un autopilota inesistente risponde 404', async () => {
@@ -712,7 +714,7 @@ describe('intervista di preparazione', () => {
     expect(avviati).toEqual([])
   })
 
-  it('dopo la risposta si configura da se e parte', async () => {
+  it('dopo la risposta si configura da se e aspetta il tuo via', async () => {
     server = ambiente({ interroga: intervistatore(), scadenzaInterviataMs: 5000 })
     await avvia(server)
     const { dati } = await chiama('POST', '/autopiloti', {
@@ -723,14 +725,49 @@ describe('intervista di preparazione', () => {
     const domanda = (await chiama('GET', '/domande')).dati[0]
     await chiama('POST', `/domande/${domanda.id}/risposta`, { risposta: 'Sì, anche YAML' })
 
-    await attendi(async () => (await chiama('GET', '/autopiloti')).dati[0].stato === 'lavoro')
+    await attendi(async () => (await chiama('GET', '/autopiloti')).dati[0].stato === 'pronto')
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
     expect(stato.id).toBe(dati.id)
     expect(stato.nome).toBe('Lettore')
     expect(stato.criteri[0]).toMatchObject({ descrizione: 'i test passano', comando: 'npm test' })
     // La risposta resta negli atti: un riavvio non deve rifare la stessa domanda.
     expect(stato.intervista[0]).toMatchObject({ risposta: 'Sì, anche YAML' })
+    // **Non parte da solo.** Sono ore di lavoro che comincerebbero su criteri
+    // che l'utente non ha mai letto: si ferma qui, e lo dice.
+    expect(avviati).toEqual([])
+    expect(avvisi.map((a) => a.tipo)).toContain('pronto')
+  })
+
+  it('e con il tuo via parte, una volta sola', async () => {
+    server = ambiente({ interroga: intervistatore(), scadenzaInterviataMs: 5000 })
+    await avvia(server)
+    const { dati } = await chiama('POST', '/autopiloti', {
+      obiettivo: 'Sistema il lettore', cwd: process.cwd(), criteri: []
+    })
+    await attendi(async () => (await chiama('GET', '/domande')).dati.length > 0)
+    const domanda = (await chiama('GET', '/domande')).dati[0]
+    await chiama('POST', `/domande/${domanda.id}/risposta`, { risposta: 'Sì' })
+    await attendi(async () => (await chiama('GET', '/autopiloti')).dati[0].stato === 'pronto')
+
+    const r = await chiama('POST', `/autopiloti/${dati.id}/vai`)
+
+    expect(r.stato).toBe(200)
+    expect(r.dati.stato).toBe('lavoro')
     expect(avviati).toEqual([dati.id])
+  })
+
+  it('il via a chi non e pronto non fa niente, e lo dice', async () => {
+    // Un secondo clic, o un tasto rimasto su una schermata vecchia: deve
+    // rispondere di no, non far ripartire una chat che sta gia' lavorando.
+    server = ambiente()
+    await avvia(server)
+    const id = await creaAp()
+    avviati.length = 0
+
+    const r = await chiama('POST', `/autopiloti/${id}/vai`)
+
+    expect(r.stato).toBe(400)
+    expect(avviati).toEqual([])
   })
 
   it('non ripropone all utente una domanda gia fatta', async () => {
@@ -770,11 +807,11 @@ describe('intervista di preparazione', () => {
     await chiama('POST', `/domande/${domanda.id}/risposta`, { risposta: 'si, 3 kW' })
 
     for (let i = 0; i < 120; i += 1) {
-      if ((await chiama('GET', '/autopiloti')).dati[0].stato === 'lavoro') break
+      if ((await chiama('GET', '/autopiloti')).dati[0].stato === 'pronto') break
       await new Promise((r) => setTimeout(r, 25))
     }
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
-    expect(stato.stato).toBe('lavoro')
+    expect(stato.stato).toBe('pronto')
     expect(stato.id).toBe(dati.id)
     // La seconda domanda non e' mai arrivata all'utente.
     expect((await chiama('GET', '/domande')).dati).toEqual([])
@@ -843,7 +880,7 @@ describe('intervista di preparazione', () => {
     await avvia(server)
     await chiama('POST', '/autopiloti', { obiettivo: 'x', cwd: process.cwd(), criteri: [] })
 
-    await attendi(async () => (await chiama('GET', '/autopiloti')).dati[0].stato === 'lavoro')
+    await attendi(async () => (await chiama('GET', '/autopiloti')).dati[0].stato === 'pronto')
     expect(tempi[0]).toBeGreaterThanOrEqual(15 * 60_000)
   })
 
@@ -1036,5 +1073,184 @@ describe('la chat viva che non finisce mai', () => {
 
     sblocca()
     await hook
+  })
+})
+
+describe('metterci le mani: modificare a mano', () => {
+  beforeEach(async () => { server = ambiente(); await avvia(server) })
+
+  it('cambia obiettivo, criteri e compiti', async () => {
+    const id = await creaAp()
+
+    const r = await chiama('PATCH', `/autopiloti/${id}`, {
+      obiettivo: 'Fai partire l installer',
+      criteri: [
+        { descrizione: 'l installer risponde 200', comando: 'curl -sI x' },
+        { descrizione: 'lo dice il supervisore' }
+      ],
+      compitiDaFare: ['caricare il file', 'controllare il latest.yml']
+    })
+
+    expect(r.stato).toBe(200)
+    const a = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(a.obiettivo).toBe('Fai partire l installer')
+    expect(a.criteri.map((c: any) => c.descrizione)).toEqual([
+      'l installer risponde 200', 'lo dice il supervisore'
+    ])
+    // Un criterio senza comando e' legittimo: lo giudica il supervisore.
+    expect(a.criteri[1].comando).toBeUndefined()
+    expect(a.compitiDaFare).toEqual(['caricare il file', 'controllare il latest.yml'])
+    // Resta scritto che ci hai messo mano: il diario e' la memoria di chi
+    // torna a guardare domani.
+    expect(JSON.stringify(a.decisioni)).toContain('mano')
+  })
+
+  it('un criterio che cambia riparte da non soddisfatto', async () => {
+    // Tenere la spunta di prima direbbe che una cosa mai misurata e' gia'
+    // vera, ed e' esattamente cosi' che un autopilota si dichiara finito
+    // senza aver fatto niente.
+    const id = await creaAp()
+    await chiama('PATCH', `/autopiloti/${id}`, {
+      criteri: [{ descrizione: 'i test passano', comando: 'npm run test:ci', soddisfatto: true }]
+    })
+    const a = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(a.criteri[0].soddisfatto).toBe(false)
+  })
+
+  it('rifiuta di lasciarlo senza una fine da raggiungere', async () => {
+    const id = await creaAp()
+    const r = await chiama('PATCH', `/autopiloti/${id}`, { criteri: [] })
+    expect(r.stato).toBe(400)
+    expect((await chiama('GET', '/autopiloti')).dati[0].criteri).toHaveLength(1)
+  })
+
+  it('rifiuta un criterio senza descrizione invece di scriverne uno vuoto', async () => {
+    const id = await creaAp()
+    const r = await chiama('PATCH', `/autopiloti/${id}`, { criteri: [{ comando: 'npm test' }] })
+    expect(r.stato).toBe(400)
+  })
+
+  it('quello che non nomini resta com era', async () => {
+    const id = await creaAp()
+    await chiama('PATCH', `/autopiloti/${id}`, { compitiDaFare: ['solo questo'] })
+    const a = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(a.obiettivo).toBe('Fai passare la suite')
+    expect(a.criteri).toHaveLength(1)
+  })
+})
+
+describe('parlargli, e disfare', () => {
+  /** Un supervisore che capisce la richiesta e restituisce il cambio. */
+  function capisce(cambio: unknown): Interrogazione {
+    return (prompt) =>
+      Promise.resolve({
+        testo: prompt.includes('ti ha scritto')
+          ? JSON.stringify(cambio)
+          : '{"azione": "continua"}'
+      })
+  }
+
+  it('applica subito, e racconta cosa ha capito', async () => {
+    server = ambiente({
+      interroga: capisce({
+        capito: 'tolto i test, aggiunto l installer',
+        criteri: [{ descrizione: 'l installer risponde 200', comando: 'curl -sI x' }],
+        compitiDaFare: ['sistemare l installer']
+      })
+    })
+    await avvia(server)
+    const id = await creaAp()
+
+    const r = await chiama('POST', `/autopiloti/${id}/parla`, {
+      testo: 'lascia stare i test, pensa all installer'
+    })
+
+    expect(r.stato).toBe(200)
+    expect(r.dati.capito).toContain('installer')
+    const a = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(a.criteri.map((c: any) => c.descrizione)).toEqual(['l installer risponde 200'])
+    expect(a.compitiDaFare).toEqual(['sistemare l installer'])
+    // La fotografia di prima: e' cio' che rende «disfa» un tasto vero.
+    expect(a.modifiche).toHaveLength(1)
+    expect(a.modifiche[0].testo).toBe('lascia stare i test, pensa all installer')
+    expect(a.modifiche[0].prima.criteri[0].descrizione).toBe('i test passano')
+  })
+
+  it('se non ha capito non tocca niente, e lo dice', async () => {
+    // Meglio una domanda in piu' che un autopilota che cambia strada per un
+    // fraintendimento: qui «applica subito» sarebbe un danno.
+    server = ambiente({ interroga: () => Promise.resolve({ testo: 'boh, non ho capito' }) })
+    await avvia(server)
+    const id = await creaAp()
+
+    const r = await chiama('POST', `/autopiloti/${id}/parla`, { testo: 'fai la cosa giusta' })
+
+    expect(r.stato).toBe(200)
+    expect(r.dati.applicato).toBe(false)
+    const a = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(a.criteri.map((c: any) => c.descrizione)).toEqual(['i test passano'])
+    expect(a.modifiche).toEqual([])
+  })
+
+  it('disfa rimette esattamente com era', async () => {
+    server = ambiente({
+      interroga: capisce({
+        capito: 'cambiato tutto',
+        obiettivo: 'Un altro obiettivo',
+        criteri: [{ descrizione: 'un altro criterio' }],
+        compitiDaFare: ['un altro compito']
+      })
+    })
+    await avvia(server)
+    const id = await creaAp()
+    await chiama('POST', `/autopiloti/${id}/parla`, { testo: 'cambia tutto' })
+
+    const r = await chiama('POST', `/autopiloti/${id}/disfa`)
+
+    expect(r.stato).toBe(200)
+    const a = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(a.obiettivo).toBe('Fai passare la suite')
+    expect(a.criteri.map((c: any) => c.descrizione)).toEqual(['i test passano'])
+    expect(a.compitiDaFare).toEqual([])
+    // La modifica disfatta se ne va: lasciarla lascerebbe un tasto che disfa
+    // due volte la stessa cosa.
+    expect(a.modifiche).toEqual([])
+  })
+
+  it('disfare quando non c e niente da disfare non rompe niente', async () => {
+    server = ambiente()
+    await avvia(server)
+    const id = await creaAp()
+    const r = await chiama('POST', `/autopiloti/${id}/disfa`)
+    expect(r.stato).toBe(400)
+  })
+
+  it('un messaggio vuoto non arriva al supervisore', async () => {
+    let interrogato = false
+    server = ambiente({
+      interroga: () => { interrogato = true; return Promise.resolve({ testo: '{}' }) }
+    })
+    await avvia(server)
+    const id = await creaAp()
+    const r = await chiama('POST', `/autopiloti/${id}/parla`, { testo: '   ' })
+    expect(r.stato).toBe(400)
+    expect(interrogato).toBe(false)
+  })
+})
+
+describe('la prova di ogni criterio, scritta accanto al criterio', () => {
+  it('dopo un giro si sa com e andata, non solo se e passata', async () => {
+    // E' la riga che insegna cosa sia un criterio: sotto «i test passano» si
+    // legge il comando e cosa ha risposto l'ultima volta.
+    server = ambiente({ esegui: () => Promise.resolve({ codice: 1, uscita: '3 test rossi' }) })
+    await avvia(server)
+    const id = await creaAp()
+
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+
+    const a = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(a.criteri[0].ultimaVerifica.codice).toBe(1)
+    expect(a.criteri[0].ultimaVerifica.uscita).toContain('3 test rossi')
+    expect(a.criteri[0].ultimaVerifica.quando).toBeTruthy()
   })
 })

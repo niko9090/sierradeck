@@ -351,6 +351,82 @@ export function validaNuovoAutopilota(raw: unknown): {
 }
 
 /**
+ * Un cambio a un autopilota già esistente: obiettivo, criteri, compiti.
+ *
+ * Diverso dalla creazione in una cosa sola, che però cambia tutto: qui
+ * **l'assenza è un significato**. Un campo che non c'è vuol dire «lascialo
+ * com'era», non «svuotalo» — e per questo un campo che c'è ma è vuoto viene
+ * rifiutato invece di essere accolto come una cancellazione.
+ *
+ * Un criterio senza descrizione non si salta in silenzio come nella creazione:
+ * lì l'elenco lo scriveva l'autopilota, qui lo sta scrivendo l'utente, e
+ * restituirgliene uno in meno senza dirlo è il modo migliore per fargli
+ * credere di aver chiesto una cosa che non ha ottenuto.
+ */
+export function validaCambioAutopilota(raw: unknown): {
+  obiettivo?: string
+  criteri?: { descrizione: string; comando?: string }[]
+  compitiDaFare?: string[]
+} {
+  if (typeof raw !== 'object' || raw === null) rifiuta('il cambio', 'deve essere un oggetto', raw)
+  const r = raw as Record<string, unknown>
+
+  let obiettivo: string | undefined
+  if (r.obiettivo !== undefined) {
+    if (typeof r.obiettivo !== 'string' || r.obiettivo.trim() === '') {
+      rifiuta('obiettivo', 'deve essere una stringa non vuota', r.obiettivo)
+    }
+    obiettivo = (r.obiettivo as string).trim()
+    if (obiettivo.length > OBIETTIVO_MAX) {
+      rifiuta('obiettivo', `non puo' superare ${OBIETTIVO_MAX} caratteri`, r.obiettivo)
+    }
+  }
+
+  let criteri: { descrizione: string; comando?: string }[] | undefined
+  if (r.criteri !== undefined) {
+    if (!Array.isArray(r.criteri)) rifiuta('criteri', 'devono essere un elenco', r.criteri)
+    const elenco = r.criteri as unknown[]
+    // Senza criteri non c'è una fine da raggiungere: è l'unico cambio che non
+    // si può accettare, perché lascerebbe un autopilota che non sa fermarsi.
+    if (elenco.length === 0) rifiuta('criteri', 'non possono essere zero', r.criteri)
+    criteri = elenco.map((c) => {
+      if (typeof c !== 'object' || c === null) rifiuta('criterio', 'deve essere un oggetto', c)
+      const o = c as Record<string, unknown>
+      if (typeof o.descrizione !== 'string' || o.descrizione.trim() === '') {
+        rifiuta('descrizione del criterio', 'deve essere una stringa non vuota', o.descrizione)
+      }
+      if (o.comando !== undefined && typeof o.comando !== 'string') {
+        rifiuta('comando', 'deve essere una stringa', o.comando)
+      }
+      const comando = typeof o.comando === 'string' ? o.comando.trim() : ''
+      // Un comando su più righe è il difetto da cui vengono le verifiche che
+      // non partono: la shell ne riceve mezza e il criterio resta immisurabile.
+      if (comando.includes('\n')) rifiuta('comando', 'deve stare su una riga sola', o.comando)
+      return {
+        descrizione: (o.descrizione as string).trim(),
+        ...(comando !== '' ? { comando } : {})
+      }
+    })
+  }
+
+  let compitiDaFare: string[] | undefined
+  if (r.compitiDaFare !== undefined) {
+    if (!Array.isArray(r.compitiDaFare)) rifiuta('compiti', 'devono essere un elenco', r.compitiDaFare)
+    // Le righe vuote spariscono: sono il residuo di un campo lasciato a metà,
+    // non un compito da fare. Qui l'indulgenza non nasconde niente.
+    compitiDaFare = (r.compitiDaFare as unknown[])
+      .filter((c): c is string => typeof c === 'string' && c.trim() !== '')
+      .map((c) => c.trim())
+  }
+
+  return {
+    ...(obiettivo !== undefined ? { obiettivo } : {}),
+    ...(criteri !== undefined ? { criteri } : {}),
+    ...(compitiDaFare !== undefined ? { compitiDaFare } : {})
+  }
+}
+
+/**
  * Valida un layout in arrivo dal renderer riusando il parser dell'archivio.
  *
  * Non c'è una seconda logica di validazione: il layout viene incartato in un

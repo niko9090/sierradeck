@@ -267,3 +267,32 @@ describe('la misura del passo corrente', () => {
     expect(m.di).toBe('preparazione')
   })
 })
+
+describe('pronto: preparato, aspetta il tuo via', () => {
+  it('lo racconta come una cosa che tocca a te, non come un lavoro in corso', () => {
+    const d = descriviAutopilota(ap({ stato: 'pronto' }))
+    expect(d.sottotitolo).toContain('pronto')
+    expect(d.sottotitolo).toContain('via')
+    // «al lavoro» sarebbe una bugia: non ha ancora scritto una riga.
+    expect(d.sottotitolo).not.toContain('al lavoro')
+  })
+
+  it('il LED e ambra: tocca a te', () => {
+    // Verde vuol dire «una macchina in moto». Qui la macchina e' ferma e
+    // aspetta un clic: e' esattamente il caso dell'ambra.
+    expect(ledDi(ap({ stato: 'pronto' })).classe).toBe('led--attesa')
+  })
+
+  it('la preparazione e alle spalle, il lavoro non e cominciato', () => {
+    const p = passaggi(ap({ stato: 'pronto' }))
+    expect(p[0]?.stato).toBe('fatto')
+    expect(p[1]?.stato).toBe('attesa')
+    expect(p[2]?.stato).toBe('davanti')
+  })
+
+  it('misura i criteri, con il tono di chi aspetta', () => {
+    const m = misuraPasso(ap({ stato: 'pronto' }))
+    expect(m.di).toBe('criteri')
+    expect(m.tono).toBe('attesa')
+  })
+})

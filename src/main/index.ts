@@ -553,6 +553,7 @@ if (!app.requestSingleInstanceLock()) {
           }
         },
         riprendiAutopilota: (id: string) => clientAutopilota.riprendi(id),
+        vaiAutopilota: async (id: string) => { await clientAutopilota.vai(id) },
         // Senza criteri: li ricava l'autopilota nella preparazione, guardando
         // il progetto. Da un telefono, un modulo da compilare sarebbe il modo
         // piu' sicuro per non delegare mai niente.

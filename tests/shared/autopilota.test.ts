@@ -246,3 +246,88 @@ describe('criteri e stati che non lavorano', () => {
     }).autopilota?.stato).toBe('sospeso')
   })
 })
+
+describe('pronto: il cancello prima di partire', () => {
+  it('e uno stato leggibile come gli altri', () => {
+    // Finita la preparazione l'autopilota non parte piu' da solo: si mette qui
+    // e aspetta un clic. Sono ore di lavoro che cominciano su criteri che
+    // l'utente non ha mai letto — dieci secondi di lettura le valgono.
+    const { autopilota, scartati } = parseAutopilota({ ...(valido() as object), stato: 'pronto' })
+    expect(scartati).toEqual([])
+    expect(autopilota?.stato).toBe('pronto')
+  })
+
+  it('senza criteri non puo essere pronto: non ha una fine da raggiungere', () => {
+    const { autopilota } = parseAutopilota({ ...(valido() as object), stato: 'pronto', criteri: [] })
+    expect(autopilota?.stato).toBe('sospeso')
+  })
+})
+
+describe('la prova di ogni criterio', () => {
+  it('ricorda com e andata l ultima volta', () => {
+    // E' la riga che spiega cosa sia un criterio senza definirlo: accanto a «i
+    // test passano» si legge `npm test` e come e' finita ieri sera.
+    const { autopilota, scartati } = parseAutopilota({
+      ...(valido() as object),
+      criteri: [{
+        descrizione: 'i test passano',
+        comando: 'npm test',
+        soddisfatto: false,
+        ultimaVerifica: { quando: '2026-08-13T23:14:00.000Z', codice: 1, uscita: '3 test rossi' }
+      }]
+    })
+    expect(scartati).toEqual([])
+    expect(autopilota?.criteri[0]?.ultimaVerifica?.uscita).toBe('3 test rossi')
+    expect(autopilota?.criteri[0]?.ultimaVerifica?.codice).toBe(1)
+  })
+
+  it('una verifica malformata sparisce senza portarsi via il criterio', () => {
+    const { autopilota } = parseAutopilota({
+      ...(valido() as object),
+      criteri: [{ descrizione: 'i test passano', soddisfatto: false, ultimaVerifica: 'ieri' }]
+    })
+    expect(autopilota?.criteri).toHaveLength(1)
+    expect(autopilota?.criteri[0]?.ultimaVerifica).toBeUndefined()
+  })
+})
+
+describe('le modifiche dette a parole', () => {
+  it('conserva cosa hai chiesto, cosa ha capito, e com era prima', () => {
+    // La fotografia di prima e' cio' che rende «disfa» un tasto vero: senza,
+    // «applica subito» sarebbe una porta a senso unico.
+    const { autopilota, scartati } = parseAutopilota({
+      ...(valido() as object),
+      modifiche: [{
+        quando: '2026-08-14T00:41:00.000Z',
+        testo: 'lascia stare i test, pensa all installer',
+        capito: 'tolto «i test passano», aggiunto «l installer risponde 200»',
+        prima: {
+          obiettivo: 'Fai passare la suite',
+          criteri: [{ descrizione: 'i test passano', comando: 'npm test', soddisfatto: false }],
+          compitiDaFare: ['correggere i test']
+        }
+      }]
+    })
+    expect(scartati).toEqual([])
+    expect(autopilota?.modifiche).toHaveLength(1)
+    expect(autopilota?.modifiche[0]?.prima.criteri[0]?.descrizione).toBe('i test passano')
+    expect(autopilota?.modifiche[0]?.prima.compitiDaFare).toEqual(['correggere i test'])
+  })
+
+  it('una modifica senza la fotografia di prima si scarta: non si potrebbe disfare', () => {
+    const { autopilota } = parseAutopilota({
+      ...(valido() as object),
+      modifiche: [{ quando: '2026-08-14T00:41:00.000Z', testo: 'x', capito: 'y' }]
+    })
+    expect(autopilota?.modifiche).toEqual([])
+  })
+
+  it('un autopilota nuovo non ne ha nessuna', () => {
+    const a = nuovoAutopilota({
+      id: 'ap-1', nome: 'x', obiettivo: 'y', cwd: 'C:\p',
+      criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-08-14T00:00:00.000Z'
+    })
+    expect(a.modifiche).toEqual([])
+    expect(parseAutopilota({ ...a, versione: VERSIONE_AUTOPILOTA }).scartati).toEqual([])
+  })
+})

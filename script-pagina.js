@@ -249,13 +249,17 @@ function pannello(s) {
   // Chi sta scrivendo ha ragione: la pagina puo' aspettare due secondi.
   if (staScrivendo) return
 
-  const led = (st) => st === 'lavoro' ? 'lavoro' : st === 'attesa' ? 'attesa' : 'fermo'
+  // «pronto» e' ambra come l'attesa, ed e' la stessa cosa: la macchina e' ferma
+  // e aspetta te. Verde direbbe che sta lavorando, e non ha ancora scritto una
+  // riga.
+  const led = (st) =>
+    st === 'lavoro' ? 'lavoro' : (st === 'attesa' || st === 'pronto') ? 'attesa' : 'fermo'
   // La panoramica: quello che si vuole sapere prima di leggere qualunque
   // dettaglio - sta lavorando qualcosa? qualcuno mi sta aspettando? A quale
   // punto siamo? Tre numeri, in cima, senza dover contare le piastrelle.
   const aps = s.autopiloti || []
   const alLavoro = aps.filter((a) => a.stato === 'lavoro').length
-  const inAttesa = aps.filter((a) => a.stato === 'attesa').length
+  const inAttesa = aps.filter((a) => a.stato === 'attesa' || a.stato === 'pronto').length
   const finiti = aps.filter((a) => a.stato === 'finito').length
   const criteriTot = aps.reduce((t, a) => t + (a.criteri || 0), 0)
   const criteriFatti = aps.reduce((t, a) => t + (a.fatti || 0), 0)
@@ -291,9 +295,11 @@ function pannello(s) {
       <div class="barra"><i style="width:${a.criteri ? Math.round(a.fatti / a.criteri * 100) : 0}%"></i></div>
       ${dentro}
       <div class="riga">
-        ${a.stato === 'lavoro' || a.stato === 'attesa'
-          ? '<button onclick="fermaAp(\'' + esc(a.id) + '\')">Ferma</button>'
-          : '<button onclick="riprendiAp(\'' + esc(a.id) + '\')">Riprendi</button>'}
+        ${a.stato === 'pronto'
+          ? '<button onclick="vaiAp(\'' + esc(a.id) + '\')">Vai</button>'
+          : a.stato === 'lavoro' || a.stato === 'attesa'
+            ? '<button onclick="fermaAp(\'' + esc(a.id) + '\')">Ferma</button>'
+            : '<button onclick="riprendiAp(\'' + esc(a.id) + '\')">Riprendi</button>'}
         ${dentroAp === a.id
           ? '<button onclick="chiudiAp()">Basta guardare</button>'
           : '<button onclick="guardaAp(\'' + esc(a.id) + '\')">Guarda dentro</button>'}
@@ -854,6 +860,9 @@ window.scrivi = async (id) => {
 window.vaiA = async (nome) => { await chiedi('/api/workspace', { nome }); aggiorna() }
 window.fermaAp = async (id) => { await chiedi('/api/autopilota/ferma', { autopilota: id }); aggiorna() }
 window.riprendiAp = async (id) => { await chiedi('/api/autopilota/riprendi', { autopilota: id }); aggiorna() }
+// Il via a chi si e' preparato: dal telefono come dal computer, perche' e' li'
+// che si scopre di averlo pronto mentre si e' altrove.
+window.vaiAp = async (id) => { await chiedi('/api/autopilota/vai', { autopilota: id }); aggiorna() }
 
 /**
  * Il codice arrivato inquadrando il QR.

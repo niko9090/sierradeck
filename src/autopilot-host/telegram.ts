@@ -4,7 +4,7 @@ import type { Autopilota } from '@shared/autopilota'
 
 export type ConfigurazioneTelegram = { token: string; chat: string }
 
-export type TipoAvviso = 'finito' | 'stallo' | 'domanda' | 'ripreso' | 'sospeso'
+export type TipoAvviso = 'finito' | 'stallo' | 'domanda' | 'ripreso' | 'sospeso' | 'pronto'
 
 /** Telegram taglia a 4096 caratteri: si sta sotto, con margine. */
 const MESSAGGIO_MAX = 4000
@@ -70,6 +70,17 @@ export function componiAvviso(tipo: TipoAvviso, a: Autopilota, domanda?: string)
       break
     case 'sospeso':
       righe.push(`${testa} — sospeso ⏸`, obiettivo, tronca(a.motivoSospensione ?? '', 800))
+      break
+    case 'pronto':
+      // Si è preparato e aspetta il via. Va detto anche a chi non è davanti
+      // allo schermo, altrimenti il lavoro delegato resta fermo per ore senza
+      // che nessuno sappia che bastava un clic.
+      righe.push(
+        `${testa} — pronto, aspetto il tuo via 🚦`,
+        obiettivo,
+        'Finisce quando:',
+        ...a.criteri.slice(0, 8).map((c) => `• ${tronca(c.descrizione, 120)}`)
+      )
       break
     case 'ripreso':
       righe.push(`${testa} — ripreso dopo un riavvio ▶️`, obiettivo, `Interventi finora: ${a.cicli}`)

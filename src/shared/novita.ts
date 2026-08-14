@@ -23,6 +23,29 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.25',
+    righe: [
+      '**Adesso si capisce cosa sta facendo un autopilota, e glielo si può dire.** Di ognuno si vedeva un LED, uno stato e «3 criteri su 5»: quali fossero quei cinque, come venissero misurati e come cambiarli non si sapeva — si poteva solo fermarlo e rifarlo da capo.',
+      '**Accanto alla chat che governa c’è la sua scheda**: cosa deve ottenere, come lo misura — il comando, e com’è andato l’ultima volta — e cosa farà dopo. È leggendo `npm test` accanto a «i test passano tutti» che si capisce cos’è un criterio, molto meglio che leggendone la spiegazione.',
+      '**Ogni riga si può riscrivere**: cambiare un criterio, correggerne il comando, aggiungerne uno, togliere un compito dalla coda.',
+      '**Oppure glielo dici a parole.** «Lascia stare i test, pensa all’installer»: traduce lui in criteri e compiti, lo applica subito, e scrive cosa ha capito. Se non ha capito non tocca niente e te lo dice, e in ogni caso c’è **Disfa**, che rimette esattamente com’era.',
+      '**Non parte più da solo appena si è preparato**: si mette in «pronto» e aspetta il tuo via — dieci secondi di lettura prima di ore di lavoro. Se sei fuori te lo dice, e il via si dà anche dal telefono.',
+      '**Una chat che sta lavorando non sembra più ferma**: un punto pulsa nella sua testata finché da lì arriva qualcosa.',
+      'E due rifiniture della console: il fuoco della tastiera adesso si vede — chi lavora con Tab sa dov’è — e i numeri dei consumi non ballano più.'
+    ]
+  },
+  {
+    versione: '0.9.24',
+    righe: [
+      '**Gli autopiloti lavorano.** Il legame fra un autopilota e la sua chat non veniva salvato: al riavvio il riquadro tornava senza padrone e la chat rinasceva **senza gli agganci** — cioè un autopilota fermo a zero interventi per sempre. E siccome il programma si riavvia da solo per aggiornarsi, il guasto si ricreava da sé.',
+      '**Le chat nascono nel workspace del loro autopilota**, deciso da lui, non in quello che stai guardando.',
+      '**Un comando di verifica che lascia qualcosa acceso non blocca più il giro per dieci minuti**: si aspetta l’uscita del comando, non la chiusura delle sue scie. E le cartelle temporanee dei controlli adesso si cancellano — se ne erano contate 637 in una sera.',
+      '**Il numero degli interventi si vede appena arriva**, non dopo le verifiche: per tutto quel tempo l’autopilota diceva «al lavoro, 0 interventi» mentre stava lavorando.',
+      '**Una chat che non chiude più un turno viene segnalata.** Prima non c’era nessuno che guardasse: una chat rimasta appesa a un comando in background è stata muta 34 minuti senza che niente lo dicesse.',
+      '**App Android 1.3.1**: l’app si dichiara alla pagina, così non ti propone più di scaricare l’app che stai usando — e il tasto per scaricarla adesso scarica davvero, invece di non fare niente in silenzio.'
+    ]
+  },
+  {
     versione: '0.9.23',
     righe: [
       '**La chat di un autopilota torna dov’era, non dove sei tu.** Riprendendone uno mentre guardavi un altro workspace, la sua conversazione nasceva lì: due chat per la stessa cosa, e quella con dentro il lavoro ferma in un posto che non stavi guardando. Adesso la finestra va nel workspace dove quella conversazione è salvata, e consegna lì.',

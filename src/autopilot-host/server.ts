@@ -1,7 +1,10 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { existsSync, statSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
-import { nuovoAutopilota, type Autopilota, type ChatGovernata, type Criterio } from '@shared/autopilota'
+import {
+  MODIFICHE_RICORDATE, nuovoAutopilota,
+  type Autopilota, type ChatGovernata, type Criterio, type Istantanea
+} from '@shared/autopilota'
 import type { Archivio } from './archivio'
 import {
   decidi, decidiConGiudizio, nonMisurati, ripetizioniFinali, traccia, type EsitoVerifica
@@ -12,7 +15,8 @@ import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
 import { STRATEGIE } from './strategie'
 import { eseguiCriteri, type Esecutore } from './verifiche'
 import {
-  chiediGiudizio, componiPromptScomposizione, leggiCompiti, riparaComando, type Interrogazione
+  chiediCambio, chiediGiudizio, componiPromptScomposizione, leggiCompiti, riparaComando,
+  type Interrogazione
 } from './supervisore'
 import { pianificaFlotta } from './flotta'
 import {
@@ -136,6 +140,69 @@ function criteriDa(raw: unknown): Criterio[] {
   return criteri
 }
 
+/** Obiettivo, criteri e compiti come sono adesso: la fotografia da cui si disfa. */
+function istantaneaDi(a: Autopilota): Istantanea {
+  return { obiettivo: a.obiettivo, criteri: a.criteri, compitiDaFare: a.compitiDaFare }
+}
+
+/**
+ * Applica un cambio a un autopilota, o dice perché non si può.
+ *
+ * Un solo posto per tutt'e due le strade — la modifica fatta a mano e quella
+ * dettata a parole — perché i controlli che contano sono gli stessi, e due
+ * copie divergerebbero al primo ritocco. Restituisce una stringa quando il
+ * cambio va rifiutato: è il messaggio da mostrare, scritto per essere letto.
+ *
+ * Quello che non viene nominato resta com'era: chiedere di riscrivere tutto per
+ * correggere una parola è il modo più sicuro per perdere il resto per strada.
+ */
+function applicaCambio(
+  a: Autopilota,
+  cambio: { obiettivo?: unknown; criteri?: unknown; compitiDaFare?: unknown }
+): Autopilota | string {
+  let obiettivo = a.obiettivo
+  if (cambio.obiettivo !== undefined) {
+    if (typeof cambio.obiettivo !== 'string' || cambio.obiettivo.trim() === '') {
+      return 'l obiettivo non può restare vuoto'
+    }
+    obiettivo = cambio.obiettivo.trim()
+  }
+
+  let criteri = a.criteri
+  if (cambio.criteri !== undefined) {
+    if (!Array.isArray(cambio.criteri)) return 'i criteri devono essere un elenco'
+    const letti = criteriDa(cambio.criteri)
+    // Un elenco arrivato con dentro qualcosa che non è un criterio si rifiuta
+    // invece di essere ripulito in silenzio: la differenza fra i due numeri è
+    // esattamente ciò che l'utente non vedrebbe più.
+    if (letti.length !== cambio.criteri.length) {
+      return 'ogni criterio ha bisogno di una descrizione'
+    }
+    // Senza criteri l'autopilota non ha una fine da raggiungere, e nessuno
+    // saprebbe più quando ha finito: è il solo cambio che non si accetta.
+    if (letti.length === 0) return 'senza criteri non saprebbe quando ha finito'
+    // Un criterio che cambia riparte da non soddisfatto — anche quando la
+    // descrizione resta la stessa e cambia il comando: tenere la spunta di
+    // prima direbbe che una cosa mai misurata è già vera.
+    criteri = letti.map((nuovo) => {
+      const vecchio = a.criteri.find(
+        (c) => c.descrizione === nuovo.descrizione && c.comando === nuovo.comando
+      )
+      return vecchio ?? nuovo
+    })
+  }
+
+  let compitiDaFare = a.compitiDaFare
+  if (cambio.compitiDaFare !== undefined) {
+    if (!Array.isArray(cambio.compitiDaFare)) return 'i compiti devono essere un elenco'
+    compitiDaFare = cambio.compitiDaFare.filter(
+      (c): c is string => typeof c === 'string' && c.trim() !== ''
+    )
+  }
+
+  return { ...a, obiettivo, criteri, compitiDaFare }
+}
+
 /**
  * Il server, più l'unica cosa che si può chiedergli dall'esterno oltre alle
  * rotte: far ripartire le preparazioni che uno spegnimento ha interrotto.
@@ -156,6 +223,15 @@ export type ServerAutopiloti = Server & {
  * sarebbe fermare un autopilota **perché** sta facendo il suo lavoro.
  */
 const SILENZIO_MASSIMO_MS = 30 * 60_000
+
+/**
+ * Quanta uscita di un comando si tiene accanto al criterio.
+ *
+ * Serve a capire a colpo d'occhio com'è andata — «3 test rossi» — non ad
+ * archiviare un log: il file di un autopilota si riscrive a ogni giro, e una
+ * suite verbosa lo farebbe crescere di megabyte al minuto.
+ */
+const USCITA_RICORDATA = 600
 
 export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const salva = (a: Autopilota): void => deps.archivio.scrivi({ ...a, ultimoEvento: deps.adesso() })
@@ -403,20 +479,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
 
       if (esito.tipo === 'pronto') {
-        const configurato: Autopilota = {
-          ...corrente,
-          stato: 'lavoro',
-          ...(esito.nome !== undefined ? { nome: esito.nome } : {}),
-          ...(esito.obiettivo !== undefined ? { obiettivo: esito.obiettivo } : {}),
-          criteri: esito.criteri.map((c) => ({ ...c, soddisfatto: false })),
-          motivoSospensione: undefined,
-          decisioni: [
-            ...corrente.decisioni,
-            { quando: deps.adesso(), cosa: `configurato da sé: ${esito.criteri.map((c) => c.descrizione).join(' · ')}` }
-          ]
-        }
-        salva(configurato)
-        await avviaAutopilota(configurato)
+        mettiInPronto(corrente, esito)
         return
       }
 
@@ -434,20 +497,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         )
         const forzato = leggiEsitoIntervista(secondo)
         if (forzato !== undefined && forzato.tipo === 'pronto') {
-          const configurato: Autopilota = {
-            ...corrente,
-            stato: 'lavoro',
-            ...(forzato.nome !== undefined ? { nome: forzato.nome } : {}),
-            ...(forzato.obiettivo !== undefined ? { obiettivo: forzato.obiettivo } : {}),
-            criteri: forzato.criteri.map((c) => ({ ...c, soddisfatto: false })),
-            motivoSospensione: undefined,
-            decisioni: [
-              ...corrente.decisioni,
-              { quando: deps.adesso(), cosa: `configurato da sé: ${forzato.criteri.map((c) => c.descrizione).join(' · ')}` }
-            ]
-          }
-          salva(configurato)
-          await avviaAutopilota(configurato)
+          mettiInPronto(corrente, forzato)
           return
         }
         // Nemmeno così ne è uscita una configurazione: meglio fermarsi e dirlo
@@ -509,6 +559,43 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * normale, e chiedere una scomposizione costerebbe un minuto di attesa per
    * sapere che il lavoro è uno solo.
    */
+  /**
+   * Preparato, ma fermo sulla soglia: aspetta il via.
+   *
+   * Prima partiva da solo appena finita l'intervista, e l'utente si trovava
+   * ore di lavoro già cominciate su criteri che non aveva mai letto — la
+   * ragione per cui «criterio» era rimasta una parola senza significato. Dieci
+   * secondi di lettura, una volta sola, sono il prezzo giusto: e sono anche il
+   * momento in cui si impara cosa siano quei criteri, perché si vedono scritti
+   * sul proprio progetto.
+   *
+   * Lo dice anche a chi non è davanti allo schermo: un lavoro delegato che
+   * resta fermo perché nessuno sa che basta un clic è peggio di uno partito
+   * male.
+   */
+  const mettiInPronto = (
+    corrente: Autopilota,
+    esito: { nome?: string; obiettivo?: string; criteri: { descrizione: string; comando?: string }[] }
+  ): void => {
+    const pronto: Autopilota = {
+      ...corrente,
+      stato: 'pronto',
+      ...(esito.nome !== undefined ? { nome: esito.nome } : {}),
+      ...(esito.obiettivo !== undefined ? { obiettivo: esito.obiettivo } : {}),
+      criteri: esito.criteri.map((c) => ({ ...c, soddisfatto: false })),
+      motivoSospensione: undefined,
+      decisioni: [
+        ...corrente.decisioni,
+        {
+          quando: deps.adesso(),
+          cosa: `configurato da sé: ${esito.criteri.map((c) => c.descrizione).join(' · ')}`
+        }
+      ]
+    }
+    salva(pronto)
+    void deps.avvisa('pronto', pronto)
+  }
+
   const avviaAutopilota = async (a: Autopilota): Promise<void> => {
     if (a.tettoChat <= 1) {
       // L'id della sessione lo decidiamo noi, prima di partire: è così che il
@@ -606,7 +693,21 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
 
     const criteri = conSessione.criteri.map((c) => {
       const esito = esiti.find((e) => e.descrizione === c.descrizione)
-      return esito === undefined ? c : { ...c, soddisfatto: esito.passato }
+      // L'esito si conserva accanto al criterio, non solo la spunta: è la riga
+      // «npm test · 3 test rossi» che, letta sotto «i test passano tutti»,
+      // spiega cosa sia un criterio senza doverlo definire. Prima l'uscita dei
+      // comandi viveva un istante dentro il giro che la produceva e spariva.
+      return esito === undefined
+        ? c
+        : {
+            ...c,
+            soddisfatto: esito.passato,
+            ultimaVerifica: {
+              quando: deps.adesso(),
+              codice: esito.passato ? 0 : 1,
+              uscita: esito.uscita.slice(0, USCITA_RICORDATA)
+            }
+          }
     })
     const aggiornato: Autopilota = { ...conSessione, criteri }
 
@@ -883,6 +984,156 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             ? (corpo as Record<string, unknown>).riprendi === true
             : false
           salva({ ...a, riprendiAlRiavvio: voluto })
+          rispondi(res, 200, deps.archivio.leggi(id))
+          return
+        }
+
+        // Il via, dopo aver letto cosa ha deciso.
+        const via = /^\/autopiloti\/([^/]+)\/vai$/.exec(percorso)
+        if (metodo === 'POST' && via !== null) {
+          const id = decodeURIComponent(via[1]!)
+          const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
+          if (a === undefined) {
+            rispondi(res, 404, { errore: 'autopilota inesistente' })
+            return
+          }
+          // Un secondo clic, o un tasto rimasto su una schermata vecchia: deve
+          // rispondere di no, non far ripartire chat che stanno già lavorando.
+          if (a.stato !== 'pronto') {
+            rispondi(res, 400, { errore: `non è in attesa del via: è ${a.stato}` })
+            return
+          }
+          const partito: Autopilota = { ...a, stato: 'lavoro', motivoSospensione: undefined }
+          salva(partito)
+          await avviaAutopilota(partito)
+          rispondi(res, 200, deps.archivio.leggi(id))
+          return
+        }
+
+        // Metterci le mani: obiettivo, criteri, compiti. Quello che non nomini
+        // resta com'era — chiedere di riscrivere tutto per correggere una
+        // parola è il modo più sicuro per perdere il resto per strada.
+        const modifica = /^\/autopiloti\/([^/]+)$/.exec(percorso)
+        if (metodo === 'PATCH' && modifica !== null) {
+          const id = decodeURIComponent(modifica[1]!)
+          const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
+          if (a === undefined) {
+            rispondi(res, 404, { errore: 'autopilota inesistente' })
+            return
+          }
+          const corpo = await leggiCorpo(req) as Record<string, unknown> | undefined
+          const cambiato = applicaCambio(a, {
+            ...(typeof corpo?.obiettivo === 'string' ? { obiettivo: corpo.obiettivo } : {}),
+            ...(corpo?.criteri !== undefined ? { criteri: corpo.criteri } : {}),
+            ...(corpo?.compitiDaFare !== undefined ? { compitiDaFare: corpo.compitiDaFare } : {})
+          })
+          if (typeof cambiato === 'string') {
+            rispondi(res, 400, { errore: cambiato })
+            return
+          }
+          salva({
+            ...cambiato,
+            decisioni: [
+              ...cambiato.decisioni,
+              { quando: deps.adesso(), cosa: 'modificato a mano dall utente' }
+            ]
+          })
+          rispondi(res, 200, deps.archivio.leggi(id))
+          return
+        }
+
+        // Parlargli. Il supervisore traduce quello che hai scritto in un cambio
+        // e lo applica subito: è la scelta di chi lo usa — un passaggio in meno
+        // vale più di una conferma — e per questo si conserva com'era prima.
+        const parlata = /^\/autopiloti\/([^/]+)\/parla$/.exec(percorso)
+        if (metodo === 'POST' && parlata !== null) {
+          const id = decodeURIComponent(parlata[1]!)
+          const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
+          if (a === undefined) {
+            rispondi(res, 404, { errore: 'autopilota inesistente' })
+            return
+          }
+          const corpo = await leggiCorpo(req) as Record<string, unknown> | undefined
+          const testo = typeof corpo?.testo === 'string' ? corpo.testo.trim() : ''
+          if (testo === '') {
+            rispondi(res, 400, { errore: 'non hai scritto niente' })
+            return
+          }
+          const chiesto = await chiediCambio(a, testo, deps.interroga)
+          if (chiesto === undefined) {
+            // Non ha capito: non si tocca niente e lo si dice. Applicare un
+            // fraintendimento costa più di una domanda in più.
+            rispondi(res, 200, {
+              applicato: false,
+              capito: 'Non ho capito cosa vuoi che cambi. Riprova dicendolo in un altro modo.'
+            })
+            return
+          }
+          const cambiato = applicaCambio(a, {
+            ...(chiesto.obiettivo !== undefined ? { obiettivo: chiesto.obiettivo } : {}),
+            ...(chiesto.criteri !== undefined ? { criteri: chiesto.criteri } : {}),
+            ...(chiesto.compitiDaFare !== undefined ? { compitiDaFare: chiesto.compitiDaFare } : {})
+          })
+          if (typeof cambiato === 'string') {
+            rispondi(res, 200, { applicato: false, capito: chiesto.capito, errore: cambiato })
+            return
+          }
+          const tocca = chiesto.obiettivo !== undefined
+            || chiesto.criteri !== undefined
+            || chiesto.compitiDaFare !== undefined
+          if (!tocca) {
+            // Ha capito ma non c'era niente da cambiare — o ha dichiarato il
+            // proprio dubbio: si riporta quello che ha detto, senza toccare
+            // niente e senza scrivere una modifica che non c'è stata.
+            rispondi(res, 200, { applicato: false, capito: chiesto.capito })
+            return
+          }
+          salva({
+            ...cambiato,
+            modifiche: [
+              ...cambiato.modifiche,
+              { quando: deps.adesso(), testo, capito: chiesto.capito, prima: istantaneaDi(a) }
+            ].slice(-MODIFICHE_RICORDATE),
+            decisioni: [
+              ...cambiato.decisioni,
+              { quando: deps.adesso(), cosa: `su tua richiesta: ${chiesto.capito}` }
+            ]
+          })
+          rispondi(res, 200, {
+            applicato: true,
+            capito: chiesto.capito,
+            autopilota: deps.archivio.leggi(id)
+          })
+          return
+        }
+
+        // Disfa l'ultima modifica detta a parole, rimettendo esattamente com'era.
+        const disfatta = /^\/autopiloti\/([^/]+)\/disfa$/.exec(percorso)
+        if (metodo === 'POST' && disfatta !== null) {
+          const id = decodeURIComponent(disfatta[1]!)
+          const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
+          if (a === undefined) {
+            rispondi(res, 404, { errore: 'autopilota inesistente' })
+            return
+          }
+          const ultima = a.modifiche[a.modifiche.length - 1]
+          if (ultima === undefined) {
+            rispondi(res, 400, { errore: 'non c è niente da disfare' })
+            return
+          }
+          salva({
+            ...a,
+            obiettivo: ultima.prima.obiettivo,
+            criteri: ultima.prima.criteri,
+            compitiDaFare: ultima.prima.compitiDaFare,
+            // La modifica disfatta se ne va: lasciarla lascerebbe un tasto che
+            // disfa due volte la stessa cosa.
+            modifiche: a.modifiche.slice(0, -1),
+            decisioni: [
+              ...a.decisioni,
+              { quando: deps.adesso(), cosa: `disfatto: ${ultima.capito}` }
+            ]
+          })
           rispondi(res, 200, deps.archivio.leggi(id))
           return
         }

@@ -4,6 +4,7 @@ import type { Autopilota } from '@shared/autopilota'
 import { LARGHEZZA_DIARIO } from '@shared/preferenze'
 import { diario } from '../diario-autopilota'
 import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
+import { SchedaAutopilota } from './SchedaAutopilota'
 
 function ora(iso: string): string {
   const d = new Date(iso)
@@ -26,12 +27,15 @@ function ora(iso: string): string {
 export function DiarioAutopilota({
   autopilota,
   largo,
-  onLargo
+  onLargo,
+  onCambiato
 }: {
   autopilota: Autopilota
   /** A tutta larghezza del riquadro: il terminale si fa da parte. */
   largo: boolean
   onLargo: (v: boolean) => void
+  /** Dalla scheda si e cambiato qualcosa: va riletto adesso, non fra due secondi. */
+  onCambiato: () => void
 }): React.JSX.Element {
   const [aperto, setAperto] = useState(true)
   // Cosa sta scrivendo la sua chat, adesso. Quella chat gira in un processo
@@ -267,15 +271,11 @@ export function DiarioAutopilota({
         </div>
       ) : null}
 
+      {/* La scheda: cosa deve ottenere, come lo misura, cosa farà, e il posto
+          dove dirgli di cambiare. Prima qui c'era il solo elenco dei nomi dei
+          criteri — si leggeva «3 su 5» e non si poteva toccare niente. */}
       {autopilota.criteri.length > 0 ? (
-        <ul className="diario__criteri">
-          {autopilota.criteri.map((cr, i) => (
-            <li key={i} className={cr.soddisfatto ? 'diario__criterio diario__criterio--fatto' : 'diario__criterio'}>
-              <span aria-hidden="true">{cr.soddisfatto ? '✓' : '·'}</span>
-              <span>{cr.descrizione}</span>
-            </li>
-          ))}
-        </ul>
+        <SchedaAutopilota autopilota={autopilota} onCambiato={onCambiato} />
       ) : null}
 
       {/* Due viste: cosa sta scrivendo adesso, e cosa ha deciso finora. La
