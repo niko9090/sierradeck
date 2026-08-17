@@ -49,9 +49,23 @@ function tronca(testo: string, quanto: number): string {
   return testo.length > quanto ? `${testo.slice(0, quanto)}…` : testo
 }
 
+/**
+ * Il testo dell'utente, reso innocuo dentro un messaggio `parse_mode: 'HTML'`.
+ *
+ * Telegram legge il messaggio come HTML: un `<`, un `>` o una `&` nel nome,
+ * nell'obiettivo o nella domanda gli fanno rifiutare **l'intero** messaggio con
+ * «can't parse entities», e allora non arriva nessun avviso — nemmeno la domanda
+ * a cui l'utente doveva rispondere. Un obiettivo come «usa `Promise<void>`»
+ * bastava. I tag che vogliamo davvero — `<b>`, `<code>` — li mettiamo noi qui
+ * attorno, attorno al testo già sfuggito.
+ */
+function esc(testo: string): string {
+  return testo.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 export function componiAvviso(tipo: TipoAvviso, a: Autopilota, domanda?: string): string {
-  const testa = `🤖 <b>${tronca(a.nome, 60)}</b>`
-  const obiettivo = `Obiettivo: ${tronca(a.obiettivo, 300)}`
+  const testa = `🤖 <b>${esc(tronca(a.nome, 60))}</b>`
+  const obiettivo = `Obiettivo: ${esc(tronca(a.obiettivo, 300))}`
 
   const righe: string[] = []
   switch (tipo) {
@@ -65,11 +79,11 @@ export function componiAvviso(tipo: TipoAvviso, a: Autopilota, domanda?: string)
       righe.push(
         `${testa} — sono bloccato, provo un'altra strada ⚠️`,
         obiettivo,
-        a.strategia !== undefined ? `Ora provo a: ${a.strategia}` : 'Cerco un altro approccio.'
+        a.strategia !== undefined ? `Ora provo a: ${esc(a.strategia)}` : 'Cerco un altro approccio.'
       )
       break
     case 'sospeso':
-      righe.push(`${testa} — sospeso ⏸`, obiettivo, tronca(a.motivoSospensione ?? '', 800))
+      righe.push(`${testa} — sospeso ⏸`, obiettivo, esc(tronca(a.motivoSospensione ?? '', 800)))
       break
     case 'pronto':
       // Si è preparato e aspetta il via. Va detto anche a chi non è davanti
@@ -79,7 +93,7 @@ export function componiAvviso(tipo: TipoAvviso, a: Autopilota, domanda?: string)
         `${testa} — pronto, aspetto il tuo via 🚦`,
         obiettivo,
         'Finisce quando:',
-        ...a.criteri.slice(0, 8).map((c) => `• ${tronca(c.descrizione, 120)}`)
+        ...a.criteri.slice(0, 8).map((c) => `• ${esc(tronca(c.descrizione, 120))}`)
       )
       break
     case 'ripreso':
@@ -90,21 +104,25 @@ export function componiAvviso(tipo: TipoAvviso, a: Autopilota, domanda?: string)
         `${testa} — ho bisogno di te ❓`,
         obiettivo,
         '',
-        tronca(domanda ?? '', 1500),
+        esc(tronca(domanda ?? '', 1500)),
         '',
         // Senza questa riga l'utente riceve una domanda e non sa come si
         // risponde: il comando è l'unica strada da telefono.
-        `Rispondi con: <code>/rispondi ${a.id} la tua risposta</code>`
+        `Rispondi con: <code>/rispondi ${esc(a.id)} la tua risposta</code>`
       )
   }
 
   if (tipo === 'finito' && a.decisioni.length > 0) {
     righe.push('', 'Decisioni prese al posto tuo:')
-    for (const d of a.decisioni.slice(-DECISIONI_MOSTRATE)) righe.push(`• ${tronca(d.cosa, 200)}`)
+    for (const d of a.decisioni.slice(-DECISIONI_MOSTRATE)) righe.push(`• ${esc(tronca(d.cosa, 200))}`)
   }
 
   return tronca(righe.join('\n'), MESSAGGIO_MAX)
 }
+
+/** Oltre questo l'invio si considera perso: meglio un avviso mancato che una
+ * promessa che non si risolve mai e blocca chi la aspetta. */
+const TIMEOUT_INVIO_MS = 10_000
 
 /** L'invio vero, isolato perché i test non parlino con Telegram. */
 export function invioReale(url: string, corpo: unknown): Promise<boolean> {
@@ -112,13 +130,20 @@ export function invioReale(url: string, corpo: unknown): Promise<boolean> {
     const dati = JSON.stringify(corpo)
     const req = request(
       url,
-      { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(dati) } },
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(dati) },
+        timeout: TIMEOUT_INVIO_MS
+      },
       (res) => {
         res.resume()
         risolvi((res.statusCode ?? 0) >= 200 && (res.statusCode ?? 0) < 300)
       }
     )
     req.on('error', () => risolvi(false))
+    // `timeout` arma il contatore ma non chiude niente da solo: senza questo, una
+    // rete che apre la connessione e poi tace terrebbe la promise pendente.
+    req.on('timeout', () => { req.destroy(); risolvi(false) })
     req.write(dati)
     req.end()
   })

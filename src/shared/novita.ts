@@ -23,6 +23,15 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.30',
+    righe: [
+      '**L’autopilota non resta più bloccato, e non “resuscita”.** Quando una chat si fermava aspettando una risposta poteva restare in attesa per sempre: ora te la ripropone come domanda — nella modale, sul telefono, su Telegram — e appena rispondi riparte. E se lo fermi o lo elimini proprio mentre sta controllando il lavoro, adesso la tua scelta vince, invece di vederlo ripartire da solo.',
+      '**Gli avvisi su Telegram tornano ad arrivare.** Bastava un simbolo come < o & nell’obiettivo perché Telegram rifiutasse il messaggio, e non arrivava niente — nemmeno le domande. Adesso il testo passa intero.',
+      '**I tasti dei pannelli si chiudono ripremendoli.** In alto, premere di nuovo «Quaderno» (o un altro pannello) adesso lo chiude, invece di riaprirlo subito.',
+      '**I Consumi dal telefono mostrano i numeri veri.** Prima erano tre trattini, e per giunta in dollari: adesso sono i token — oggi, sette giorni, totale — con ingresso, uscita e cache.'
+    ]
+  },
+  {
     versione: '0.9.29',
     righe: [
       '**L’accoppiamento del telefono è più al sicuro.** Dopo qualche codice sbagliato di fila la finestra si chiude da sola, così nessuno può provare i codici a raffica finché indovina; e il computer non lascia più capire da fuori se sta aspettando un dispositivo.',

@@ -44,9 +44,16 @@ export function leggiApkDalRelease(json: string): AppScaricabile | undefined {
  */
 export async function apkDisponibile(adesso = Date.now()): Promise<AppScaricabile | undefined> {
   if (ricordata !== undefined && adesso - ricordata.quando < VALIDA_MS) return ricordata.app
-  const app = await chiedi().catch(() => undefined)
-  ricordata = { quando: adesso, app }
-  return app
+  try {
+    // Si ricorda solo una risposta vera — anche «non c'è nessun APK». Un errore
+    // di rete no: memorizzarlo terrebbe il Client a bocca asciutta per sei ore
+    // anche a rete tornata. Meglio riprovare alla prossima apertura.
+    const app = await chiedi()
+    ricordata = { quando: adesso, app }
+    return app
+  } catch {
+    return undefined
+  }
 }
 
 function chiedi(): Promise<AppScaricabile | undefined> {

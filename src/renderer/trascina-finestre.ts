@@ -52,16 +52,16 @@ export function posizioneLimitata(
  * chi lo prova sull'uno e non sull'altro non impara la regola, impara che il
  * programma è imprevedibile.
  *
- * Un clic dentro la finestra, o su un tasto della fascia, non chiude niente: il
- * tasto della fascia è quello che l'ha aperta, e chiuderla da qui la farebbe
- * riaprire subito dopo.
+ * Un clic dentro la finestra, o su un tasto della barra comandi, non chiude
+ * niente: il tasto della barra è quello che l'ha aperta, e chiuderla da qui la
+ * farebbe riaprire subito dopo.
  */
 export function attivaChiusuraFuori(chiudi: () => void, doc: Document = document): () => void {
   const premuto = (e: MouseEvent): void => {
     const bersaglio = e.target as HTMLElement | null
     if (bersaglio === null) return
     if (bersaglio.closest('.pannello') !== null) return
-    if (bersaglio.closest('.fascia') !== null) return
+    if (bersaglio.closest('.console') !== null) return
     chiudi()
   }
   doc.addEventListener('mousedown', premuto)

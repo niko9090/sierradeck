@@ -79,6 +79,20 @@ describe('componiAvviso', () => {
     expect(testo).toContain('ap-1')
   })
 
+  it('sfugge il testo dell utente, cosi Telegram non rifiuta tutto il messaggio', () => {
+    // Un < o una & nell'obiettivo facevano rispondere a Telegram «can't parse
+    // entities»: l'avviso non arrivava, nemmeno la domanda. Il testo dinamico va
+    // sfuggito; i tag che mettiamo noi (<b>, <code>) restano.
+    const testo = componiAvviso('domanda', ap({ nome: 'A & B', obiettivo: 'usa Promise<void>' }), 'e <script>?')
+    expect(testo).toContain('Promise&lt;void&gt;')
+    expect(testo).toContain('A &amp; B')
+    expect(testo).toContain('&lt;script&gt;')
+    expect(testo).toContain('<b>')
+    expect(testo).toContain('<code>')
+    // Nessun < grezzo dal testo dell'utente deve sopravvivere.
+    expect(testo).not.toContain('Promise<void>')
+  })
+
   it('non manda un messaggio sterminato', () => {
     const lungo = ap({
       obiettivo: 'x'.repeat(6000),

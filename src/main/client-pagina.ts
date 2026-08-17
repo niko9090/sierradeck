@@ -953,10 +953,11 @@ function pannello(s) {
       \${consumiVisti === null
         ? '<div class="sotto">Non sono riuscito a leggerli.</div>'
         : '<div class="numeri" style="margin-top:12px">' +
-          '<div class="numero"><b>' + esc(soldi(consumiVisti.oggi)) + '</b><span>oggi</span></div>' +
-          '<div class="numero"><b>' + esc(soldi(consumiVisti.settimana)) + '</b><span>7 giorni</span></div>' +
-          '<div class="numero"><b>' + esc(soldi(consumiVisti.mese)) + '</b><span>30 giorni</span></div>' +
-          '</div>'}
+          '<div class="numero"><b>' + esc(token(consumiVisti.oggi)) + '</b><span>oggi</span></div>' +
+          '<div class="numero"><b>' + esc(token(consumiVisti.settimana)) + '</b><span>7 giorni</span></div>' +
+          '<div class="numero"><b>' + esc(token(consumiVisti.totale)) + '</b><span>totale</span></div>' +
+          '</div>' +
+          '<div class="sotto" style="margin-top:10px">Token, non denaro. Oggi: ' + esc(quote(consumiVisti.oggi)) + '.</div>'}
       <div class="riga"><button onclick="apriPannello('consumi')">Chiudi</button></div>
     </div>\`
 
@@ -1369,7 +1370,6 @@ window.eliminaWorkspace = async (nome) => {
 /** Il pannello in fondo che si apre: uno per volta, e il tasto lo richiude. */
 window.apriPannello = window.apriPannello
 
-/** Una cifra in euro, o un trattino se non c'e' niente da dire. */
 /** Da quanto tempo, detto come lo direbbe una persona. */
 function daQuando(quando) {
   if (!quando) return 'un po’'
@@ -1379,11 +1379,28 @@ function daQuando(quando) {
   return m < 60 ? m + ' minuti' : Math.round(m / 60) + ' ore'
 }
 
-function soldi(v) {
-  if (!v && v !== 0) return '—'
-  const n = typeof v === 'object' ? (v.costo != null ? v.costo : v.totale) : v
+/**
+ * I token consumati in una quota, in forma leggibile.
+ *
+ * Sono token e non denaro: con un abbonamento il costo di una chat non e' una
+ * moltiplicazione, e una cifra in euro sarebbe falsa con l'aria di essere vera.
+ * Si conta l'ingresso piu' l'uscita — le due parti che pesano — e si separano
+ * le migliaia, cosi' «12.400» si legge a colpo d'occhio.
+ */
+function token(q) {
+  if (!q) return '—'
+  const n = typeof q === 'object' ? (q.ingresso || 0) + (q.uscita || 0) : q
   if (typeof n !== 'number') return '—'
-  return '$' + (n < 10 ? n.toFixed(2) : Math.round(n))
+  return n.toLocaleString('it-IT')
+}
+
+/** Le quote di una giornata in una riga: ingresso, uscita, cache e chat. */
+function quote(q) {
+  if (!q) return '—'
+  const num = (n) => (n || 0).toLocaleString('it-IT')
+  const chat = q.chat === 1 ? '1 chat' : num(q.chat) + ' chat'
+  return num(q.ingresso) + ' in ingresso · ' + num(q.uscita) + ' in uscita · ' +
+    num(q.cache) + ' dalla cache · ' + chat
 }
 
 /** La cartella della prima chat aperta: e' quella di cui si guarda il quaderno. */
