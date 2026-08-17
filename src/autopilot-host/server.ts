@@ -751,6 +751,19 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
     }
 
+    // Fra la lettura in cima e qui sono passati i criteri — seriali, fino a
+    // dieci minuti l'uno — e la decisione del supervisore. In tutto quel tempo
+    // l'utente può aver premuto «Ferma» (stato 'sospeso') o «Elimina» (il file
+    // non c'è più). I salvataggi qui sotto partono dalla copia letta all'inizio:
+    // scriverla adesso resusciterebbe un autopilota fermato, o ne ricreerebbe uno
+    // eliminato — con la chat ancora governata. Si rilegge e, se non è più «in
+    // lavoro», la volontà dell'utente vince e si lascia fermare la chat.
+    const ancora = deps.archivio.leggi(id)
+    if (ancora === undefined || ancora.stato !== 'lavoro') {
+      console.warn(`[autopilota] ${id} non è più in lavoro (${ancora?.stato ?? 'eliminato'}) durante la fermata: non lo risuscito`)
+      return {}
+    }
+
     // Il supervisore ha visto che un comando misura la cosa sbagliata e ne ha
     // scritto uno giusto: si sostituisce e si riprende dal giro dopo, che lo
     // eseguirà davvero. È la differenza fra correggere il lavoro e correggere
@@ -884,7 +897,23 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (a === undefined || a.stato !== 'lavoro') return {}
     const tipo = typeof corpo.notification_type === 'string' ? corpo.notification_type : 'sconosciuta'
     const messaggio = typeof corpo.message === 'string' ? corpo.message : ''
-    salva({ ...a, stato: 'attesa', motivoSospensione: `${tipo}: ${messaggio}`.slice(0, MOTIVO_MAX) })
+    const testo = `${tipo}: ${messaggio}`.slice(0, MOTIVO_MAX)
+    // L'attesa deve avere una via d'uscita. Prima si salvava solo `stato:
+    // 'attesa'` e ci si fermava lì: ma il guardiano guarda solo le chat «in
+    // lavoro» e la ripresa al riavvio pure, e senza una domanda aperta non c'era
+    // nemmeno una risposta possibile — la chat restava parcheggiata per sempre,
+    // sbloccabile solo con un «riprendi» a mano. Ora la notifica apre una domanda
+    // vera, con scadenza e avviso: l'utente risponde dal pannello o da Telegram
+    // e la chat riprende dal meccanismo di risposta già esistente. La notifica
+    // non blocca l'hook — a differenza di `Stop`, non è da lì che si riparte.
+    const domanda = deps.domande.apri({
+      autopilotaId: a.id,
+      testo,
+      scadenzaMs: deps.scadenzaDomandaMs
+    })
+    contesto.set(domanda.id, { autopilotaId: a.id, testo })
+    salva({ ...a, stato: 'attesa', motivoSospensione: testo })
+    void deps.avvisa('domanda', a, testo)
     return {}
   }
 

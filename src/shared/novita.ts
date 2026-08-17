@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.29',
+    righe: [
+      '**L’accoppiamento del telefono è più al sicuro.** Dopo qualche codice sbagliato di fila la finestra si chiude da sola, così nessuno può provare i codici a raffica finché indovina; e il computer non lascia più capire da fuori se sta aspettando un dispositivo.',
+      '**L’aggiornamento non ti lascia a metà.** Parte solo quando c’è davvero qualcosa di pronto, invece di rischiare di chiudere le chat e fermarsi a metà; e quando c’è, aggiorna Claude Code nello stesso viaggio.',
+      '**Gli autopiloti tornano a controllare il proprio lavoro** anche quando Git è installato in una cartella fuori dal solito: prima, in quel caso, i controlli fallivano sempre e l’autopilota girava a vuoto tutta la notte cercando un guasto che non c’era.'
+    ]
+  },
+  {
     versione: '0.9.28',
     righe: [
       '**Gli aggiornamenti non li devi installare tu.** Si scaricano da soli in secondo piano e si installano **quando chiudi SierraDeck**: mai mentre stai lavorando, perche\u0301 quello e\u0300 il momento in cui non c\u2019e\u0300 niente da interrompere. Il tasto \u00abInstalla\u00bb resta, per chi la vuole subito.',

@@ -192,6 +192,48 @@ describe('hook Stop', () => {
     expect(stato.motivoSospensione).toContain('quale chiave uso?')
   })
 
+  it('l attesa da notifica ha una via d uscita: apre una domanda e rispondere riprende il lavoro', async () => {
+    // Prima la notifica lasciava 'attesa' senza domanda: il guardiano guarda solo
+    // le chat «in lavoro», la ripresa al riavvio pure, e nessuno la sbloccava piu'.
+    server = ambiente()
+    await avvia(server)
+    const id = await creaAp()
+    const avviatiPrima = avviati.length
+    await chiama('POST', `/hook/notification?ap=${id}`, {
+      session_id: 's-1', hook_event_name: 'Notification',
+      notification_type: 'permission_prompt', message: 'quale chiave uso?'
+    })
+    // La notifica avvisa e apre una domanda vera.
+    expect(avvisi.some((v) => v.tipo === 'domanda')).toBe(true)
+    const domande = (await chiama('GET', `/domande?ap=${id}`)).dati
+    expect(domande.length).toBe(1)
+    // Rispondere fa riprendere il lavoro, invece di lasciare la chat parcheggiata.
+    const esito = await chiama('POST', `/domande/${domande[0].id}/risposta`, { risposta: 'usa la chiave A', da: 'modale' })
+    expect(esito.stato).toBe(200)
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.stato).toBe('lavoro')
+    expect(avviati.length).toBeGreaterThan(avviatiPrima)
+    expect(messaggiDiRipresa.some((m) => m.includes('usa la chiave A'))).toBe(true)
+  })
+
+  it('non ricrea un autopilota eliminato mentre verificava i criteri', async () => {
+    // I criteri durano minuti: se l'utente elimina l'autopilota nel frattempo, il
+    // salvataggio finale — che parte dalla copia letta all'inizio — non deve farlo
+    // rinascere (con la chat ancora governata).
+    let idAp = ''
+    server = ambiente({
+      esegui: async () => {
+        if (idAp !== '') await chiama('DELETE', `/autopiloti/${idAp}`)
+        return { codice: 0, uscita: 'ok' }
+      }
+    })
+    await avvia(server)
+    idAp = await creaAp()
+    await chiama('POST', `/hook/stop?ap=${idAp}`, eventoStop())
+    const elenco = (await chiama('GET', '/autopiloti')).dati
+    expect(elenco.find((a: any) => a.id === idAp)).toBeUndefined()
+  })
+
   it('risponde vuoto per un autopilota sconosciuto invece di sollevare', async () => {
     // Succede davvero: una chat sopravvissuta a un autopilota eliminato. Deve
     // potersi fermare, non restare appesa.
