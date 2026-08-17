@@ -24,6 +24,19 @@ export type Preferenze = {
   /** Mostrare la barra mentre una chat con molto storico si apre. */
   mostraAttesaChat: boolean
   /**
+   * Scaricare da soli un aggiornamento appena lo si trova.
+   *
+   * Acceso (il predefinito) è la scelta che tiene il programma al passo: lo
+   * scaricamento è in secondo piano e non interrompe niente, e averlo già
+   * pronto è l'unica differenza fra un aggiornamento fatto e uno rimandato per
+   * giorni. Installare — che chiude il programma con le chat aperte — resta
+   * comunque un gesto a parte, e avviene solo quando chiudi tu.
+   *
+   * Spento: non si scarica niente finché non premi «Scarica». Chi ha una
+   * connessione a consumo, o vuole decidere lui il momento, lo spegne.
+   */
+  scaricaAggiornamentiAutomatico: boolean
+  /**
    * Accettare il Client anche da fuori la rete locale — una VPN, un altro
    * ufficio.
    *
@@ -75,6 +88,9 @@ export const PREFERENZE_PREDEFINITE: Preferenze = {
   portaAutopiloti: 47630,
   salvaAllaChiusura: true,
   mostraAttesaChat: true,
+  // Acceso: è il comportamento che c'è sempre stato, e quello che tiene il
+  // programma al passo senza chiedere niente.
+  scaricaAggiornamentiAutomatico: true,
   clientOltreLaRete: false,
   ibernaCambiandoWorkspace: false,
   postoAutopilota: 'destra',
@@ -133,6 +149,11 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
     mostraAttesaChat: typeof o.mostraAttesaChat === 'boolean'
       ? o.mostraAttesaChat
       : PREFERENZE_PREDEFINITE.mostraAttesaChat,
+    // Il predefinito è acceso: un valore scritto male non deve far smettere di
+    // aggiornarsi da soli, che è la scelta prudente per stare al passo.
+    scaricaAggiornamentiAutomatico: typeof o.scaricaAggiornamentiAutomatico === 'boolean'
+      ? o.scaricaAggiornamentiAutomatico
+      : PREFERENZE_PREDEFINITE.scaricaAggiornamentiAutomatico,
     // Il predefinito prudente vale anche quando il valore è scritto male: una
     // preferenza illeggibile non deve poter aprire una porta.
     clientOltreLaRete: o.clientOltreLaRete === true,

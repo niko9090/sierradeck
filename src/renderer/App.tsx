@@ -367,6 +367,15 @@ export function App(): React.JSX.Element {
   }, [])
   const [attesaVisibile, setAttesaVisibile] = useState(false)
   const [aggiornamento, setAggiornamento] = useState<StatoAggiornamento>({ fase: 'fermo' })
+  // Se gli aggiornamenti si scaricano da soli: quando sì, il tasto «Scarica»
+  // non serve — lo scaricamento è già partito — e sparisce. Si legge dalle
+  // preferenze e si tiene allineato ai cambi, come i colori.
+  const [scaricaAuto, setScaricaAuto] = useState(true)
+  useEffect(() => {
+    const leggi = (p: Preferenze): void => setScaricaAuto(p.scaricaAggiornamentiAutomatico)
+    window.gestore.preferenze.leggi().then(leggi).catch(() => undefined)
+    return window.gestore.preferenze.suCambio(leggi)
+  }, [])
 
   // Lo stato dell'aggiornamento arriva dal Core: cercare si fa da soli,
   // scaricare e installare li decide l'utente da questa banda.
@@ -730,10 +739,18 @@ export function App(): React.JSX.Element {
           <span className="led led--lavoro" />
           {aggiornamento.fase === 'disponibile' ? (
             <>
-              <span>C’è una versione nuova ({aggiornamento.versione}).</span>
-              <button className="tasto" onClick={() => void window.gestore.aggiornamenti.scarica()}>
-                Scarica
-              </button>
+              <span>
+                C’è una versione nuova ({aggiornamento.versione}).
+                {scaricaAuto ? ' La sto scaricando…' : ''}
+              </span>
+              {/* Il tasto solo in manuale: con lo scaricamento automatico è già
+                  partito da solo, e un «Scarica» che non fa partire niente
+                  confonde. L'interruttore è in Impostazioni → Comportamento. */}
+              {!scaricaAuto ? (
+                <button className="tasto" onClick={() => void window.gestore.aggiornamenti.scarica()}>
+                  Scarica
+                </button>
+              ) : null}
             </>
           ) : aggiornamento.fase === 'scarico' ? (
             <span>Scarico la versione {aggiornamento.versione}… {aggiornamento.percento ?? 0}%</span>

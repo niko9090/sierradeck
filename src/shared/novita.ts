@@ -23,6 +23,20 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.36',
+    righe: [
+      '**Decidi tu se gli aggiornamenti si scaricano da soli.** In Impostazioni → Comportamento c’è un interruttore. Acceso (com’è sempre stato) lo scaricamento parte da solo in secondo piano e l’aggiornamento si installa quando chiudi; spento, non si scarica niente finché non premi «Scarica» nella banda in alto. E quando è acceso, il tasto «Scarica» — che tanto non faceva partire niente, era già partito — non compare più.'
+    ]
+  },
+  {
+    versione: '0.9.35',
+    righe: [
+      '**Niente più chat duplicate, né workspace che tornano da soli.** La stessa conversazione non può più finire in due workspace insieme: a ogni salvataggio resta in quello che hai davanti e sparisce dagli altri. E riprendere un salvataggio vecchio non fa più ricomparire un workspace che avevi cancellato.',
+      '**Riprendere un salvataggio non svuota più le altre chat.** Prima, caricare un salvataggio che non conteneva tutte le finestre azzerava quelle scoperte — e una chat aperta spariva, da riaprire a mano. Ora le chat che non sono nel salvataggio restano dov’erano: si toglie solo ciò che il salvataggio rimette altrove.',
+      '**Il menu del modello è stato tolto dall’intestazione delle chat.** Il modello si sceglie all’apertura, dalla fascia in alto; lo spazio nella testata di ogni chat serviva a comandi più utili, che arrivano.'
+    ]
+  },
+  {
     versione: '0.9.34',
     righe: [
       '**La chat su cui lavori non sparisce più dopo un aggiornamento.** Quando l’app si chiudeva per aggiornarsi, l’ultimo stato poteva non fare in tempo a salvarsi: alla riapertura la chat su cui stavi lavorando «mancava», e a volte al suo posto compariva quella di un altro workspace. Ora, prima di chiudersi — per un aggiornamento o quando esci — SierraDeck salva il layout di tutte le finestre e aspetta che sia davvero sul disco, poi spegne i terminali. Quello che avevi davanti lo ritrovi identico.'

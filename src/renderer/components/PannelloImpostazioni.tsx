@@ -362,6 +362,19 @@ export function PannelloImpostazioni({ onChiudi }: Props): React.JSX.Element {
             />
             <span>Mostra l’avanzamento mentre una chat lunga si apre</span>
           </label>
+          <label className="impostazioni__riga impostazioni__riga--spunta">
+            <input
+              type="checkbox"
+              checked={p.scaricaAggiornamentiAutomatico}
+              onChange={(e) => cambia({ scaricaAggiornamentiAutomatico: e.target.checked })}
+            />
+            <span>Scarica gli aggiornamenti da solo appena li trova</span>
+          </label>
+          <div className="impostazioni__nota">
+            Acceso, scarica in secondo piano e non interrompe niente: l’aggiornamento
+            si installa quando chiudi. Spento, non scarica finché non premi «Scarica»
+            nella banda in alto — e quel tasto compare solo quando questo è spento.
+          </div>
         </section>
       </div>
     </div>

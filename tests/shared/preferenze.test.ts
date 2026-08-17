@@ -27,6 +27,19 @@ describe('normalizzaPreferenze', () => {
     expect(p.chiarore).toBe(40)
     expect(p.salvaAllaChiusura).toBe(false)
   })
+
+  it('lo scaricamento automatico degli aggiornamenti è acceso di default', () => {
+    // Il predefinito è il comportamento di sempre: chi non apre le impostazioni
+    // continua ad aggiornarsi da solo.
+    expect(normalizzaPreferenze(undefined).scaricaAggiornamentiAutomatico).toBe(true)
+    expect(normalizzaPreferenze({}).scaricaAggiornamentiAutomatico).toBe(true)
+    // Un valore scritto male non lo spegne: si torna al predefinito acceso.
+    expect(normalizzaPreferenze({ scaricaAggiornamentiAutomatico: 'no' }).scaricaAggiornamentiAutomatico).toBe(true)
+  })
+
+  it('rispetta lo spegnimento esplicito dello scaricamento automatico', () => {
+    expect(normalizzaPreferenze({ scaricaAggiornamentiAutomatico: false }).scaricaAggiornamentiAutomatico).toBe(false)
+  })
 })
 
 describe('portaValida', () => {

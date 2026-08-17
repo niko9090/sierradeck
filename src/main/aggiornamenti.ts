@@ -30,6 +30,14 @@ export type Aggiornamenti = {
   scarica: () => Promise<void>
   /** Chiude il programma e installa. L'utente ha detto di sì una seconda volta. */
   installa: () => void
+  /**
+   * Cambia a caldo se gli aggiornamenti si scaricano da soli.
+   *
+   * Lo decide l'utente dalle impostazioni. Accendendolo con un aggiornamento
+   * già trovato e in attesa, lo scaricamento parte adesso: altrimenti resterebbe
+   * fermo su «disponibile» senza più il tasto «Scarica» a farlo partire.
+   */
+  impostaScaricoAutomatico: (attivo: boolean) => void
 }
 
 /** Ogni quanto si guarda da soli: una volta all'avvio e poi ogni sei ore. */
@@ -68,7 +76,13 @@ export function creaAggiornamenti(
    */
   claudeDaAggiornare?: () => string | undefined,
   /** Cosa mostrare quando Claude Code non ha bisogno di niente: la verifica si deve vedere. */
-  notaClaude?: () => string
+  notaClaude?: () => string,
+  /**
+   * Se scaricare da soli gli aggiornamenti, secondo le preferenze dell'utente.
+   * Letto all'avvio; poi lo cambia `impostaScaricoAutomatico` quando l'utente
+   * tocca l'interruttore. Assente = acceso, il comportamento di sempre.
+   */
+  scaricaAutomatico?: () => boolean
 ): Aggiornamenti {
   let stato: StatoAggiornamento = { fase: 'fermo' }
   /** Dove electron-updater ha messo l'installer: lo esegue SierraDeck Update. */
@@ -104,7 +118,9 @@ export function creaAggiornamenti(
    *
    * Il tasto «Installa» resta per chi la vuole adesso.
    */
-  autoUpdater.autoDownload = true
+  // Da solo o su richiesta, lo sceglie l'utente: `scaricaAutomatico` porta la
+  // preferenza, e `impostaScaricoAutomatico` la cambia a caldo. Assente = acceso.
+  autoUpdater.autoDownload = scaricaAutomatico?.() ?? true
   autoUpdater.autoInstallOnAppQuit = true
 
   // L'accesso al server, quando ne chiede uno. Si legge una volta all'avvio:
@@ -160,22 +176,31 @@ export function creaAggiornamenti(
   setTimeout(() => void cerca(), 10_000)
   setInterval(() => void cerca(), RICONTROLLA_MS)
 
+  /**
+   * Avvia lo scaricamento della versione trovata.
+   *
+   * Uno solo, condiviso: lo chiama il tasto «Scarica» e lo chiama anche
+   * `impostaScaricoAutomatico` quando l'utente accende l'automatico con un
+   * aggiornamento già in attesa. Due copie della stessa cosa divergerebbero.
+   */
+  const avviaScaricamento = async (): Promise<void> => {
+    annuncia({ ...stato, fase: 'scarico', percento: 0 })
+    try {
+      // I percorsi dei file scaricati: servono all'updater, che e' lui a
+      // eseguire l'installer. Senza, dovremmo indovinare dove sono.
+      const scaricati = await autoUpdater.downloadUpdate()
+      installerScaricato = Array.isArray(scaricati)
+        ? scaricati.find((f) => typeof f === 'string' && f.toLowerCase().endsWith('.exe'))
+        : undefined
+    } catch (err) {
+      annuncia({ fase: 'errore', errore: String(err) })
+    }
+  }
+
   return {
     stato: () => stato,
     cerca,
-    async scarica() {
-      annuncia({ ...stato, fase: 'scarico', percento: 0 })
-      try {
-        // I percorsi dei file scaricati: servono all'updater, che e' lui a
-        // eseguire l'installer. Senza, dovremmo indovinare dove sono.
-        const scaricati = await autoUpdater.downloadUpdate()
-        installerScaricato = Array.isArray(scaricati)
-          ? scaricati.find((f) => typeof f === 'string' && f.toLowerCase().endsWith('.exe'))
-          : undefined
-      } catch (err) {
-        annuncia({ fase: 'errore', errore: String(err) })
-      }
-    },
+    scarica: avviaScaricamento,
     installa() {
       // Una volta sola per sessione. Premere due volte, o due finestre che
       // premono insieme, facevano partire due updater: si chiudevano le
@@ -270,6 +295,14 @@ export function creaAggiornamenti(
         .then(() => preparaUscita?.())
         .catch((err: unknown) => console.error('[aggiornamenti] preparazione incompleta:', err))
         .finally(() => setTimeout(() => autoUpdater.quitAndInstall(true, true), 500))
+    },
+    impostaScaricoAutomatico(attivo) {
+      autoUpdater.autoDownload = attivo
+      // Acceso adesso, con un aggiornamento già trovato e fermo su «disponibile»:
+      // parte lo scaricamento. Senza, resterebbe fermo — e il tasto «Scarica»
+      // sparisce proprio quando l'automatico è acceso, quindi non ci sarebbe più
+      // modo di avviarlo a mano fino al prossimo controllo.
+      if (attivo && stato.fase === 'disponibile') void avviaScaricamento()
     }
   }
 }

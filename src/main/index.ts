@@ -479,6 +479,10 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('preferenze:leggi', () => impostazioni.preferenze())
       ipcMain.handle('preferenze:imposta', (_e, raw: unknown) => {
         const nuove = impostazioni.impostaPreferenze(raw)
+        // Lo scaricamento automatico degli aggiornamenti si applica subito, senza
+        // riavviare: `autoUpdater` vive nel Core, e questa è la sua unica finestra
+        // per sapere che l'utente ha cambiato idea.
+        aggiornamenti?.impostaScaricoAutomatico(nuove.scaricaAggiornamentiAutomatico)
         for (const w of BrowserWindow.getAllWindows()) {
           if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
             w.webContents.send('preferenze:cambiate', nuove)
@@ -885,7 +889,10 @@ if (!app.requestSingleInstanceLock()) {
           } catch {
             return ''
           }
-        }
+        },
+        // Se scaricare da soli: lo decide l'utente dalle impostazioni. Letto qui
+        // all'avvio, e ricambiato a caldo dall'handler `preferenze:imposta`.
+        () => impostazioni.preferenze().scaricaAggiornamentiAutomatico
       )
       ipcMain.handle('aggiornamenti:stato', () => aggiornamenti?.stato() ?? { fase: 'fermo' })
       ipcMain.handle('aggiornamenti:cerca', () => aggiornamenti?.cerca())
