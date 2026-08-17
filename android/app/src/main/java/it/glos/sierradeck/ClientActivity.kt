@@ -62,13 +62,17 @@ class ClientActivity : AppCompatActivity() {
                     mostraErrore("Il codice non conteneva niente.")
                     return@addOnSuccessListener
                 }
+                // Si valida **prima** di salvare. Assegnare a `collegamento.indirizzo`
+                // scrive subito nelle preferenze: se poi la validazione fallisse,
+                // l'indirizzo rifiutato resterebbe sul disco e si riaprirebbe al
+                // riavvio, aggirando il muro con un semplice restart.
+                if (!Indirizzi.accettabile(letto)) {
+                    mostraErrore("Quell’indirizzo è su Internet, non sulla tua rete: non ci parlo in chiaro.")
+                    return@addOnSuccessListener
+                }
                 collegamento.indirizzo = letto
                 if (!collegamento.pronto) {
                     mostraErrore("Quel codice non contiene un indirizzo.")
-                    return@addOnSuccessListener
-                }
-                if (!Indirizzi.accettabile(collegamento.indirizzo)) {
-                    mostraErrore("Quell’indirizzo è su Internet, non sulla tua rete: non ci parlo in chiaro.")
                     return@addOnSuccessListener
                 }
                 mostraClient()
@@ -104,7 +108,14 @@ class ClientActivity : AppCompatActivity() {
             return
         }
 
-        if (collegamento.pronto) mostraClient() else mostraIngresso()
+        // Non basta che ci sia un indirizzo: deve anche essere uno che accettiamo.
+        // Se sul disco ne fosse rimasto uno pubblico — da una versione che salvava
+        // prima di validare — non lo si apre: si torna all'ingresso per correggerlo.
+        if (collegamento.pronto && Indirizzi.accettabile(collegamento.indirizzo)) {
+            mostraClient()
+        } else {
+            mostraIngresso()
+        }
     }
 
     private fun mostraIngresso() {
@@ -132,12 +143,17 @@ class ClientActivity : AppCompatActivity() {
         // una cifra, non riscrivere tutto da capo su una tastiera del telefono.
         if (collegamento.indirizzo.isNotBlank()) campo.setText(collegamento.indirizzo)
         findViewById<Button>(R.id.collega).setOnClickListener {
-            collegamento.indirizzo = campo.text.toString()
+            // Si valida quello che è stato scritto **prima** di salvarlo: un
+            // indirizzo rifiutato non deve restare persistito e riaprirsi al riavvio.
+            val scritto = campo.text.toString()
             when {
-                !collegamento.pronto -> mostraErrore("Serve un indirizzo, come 192.168.1.7")
-                !Indirizzi.accettabile(collegamento.indirizzo) ->
+                scritto.isBlank() -> mostraErrore("Serve un indirizzo, come 192.168.1.7")
+                !Indirizzi.accettabile(scritto) ->
                     mostraErrore("Quell’indirizzo è su Internet, non sulla tua rete: non ci parlo in chiaro.")
-                else -> mostraClient()
+                else -> {
+                    collegamento.indirizzo = scritto
+                    mostraClient()
+                }
             }
         }
     }
@@ -150,6 +166,14 @@ class ClientActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun mostraClient() {
+        // L'ultima porta prima della WebView, che è quella col ponte JS agganciato:
+        // qui passano tutte le aperture, e nessuna carica un indirizzo che non
+        // accettiamo — nemmeno uno arrivato sul disco per altre strade.
+        if (!Indirizzi.accettabile(collegamento.indirizzo)) {
+            mostraIngresso()
+            mostraErrore("Quell’indirizzo è su Internet, non sulla tua rete: non ci parlo in chiaro.")
+            return
+        }
         try {
             apriPagina()
         } catch (e: Exception) {
@@ -186,6 +210,39 @@ class ClientActivity : AppCompatActivity() {
                 runOnUiThread { scarica(indirizzo) }
             }
             webViewClient = object : WebViewClient() {
+                /**
+                 * Solo la pagina del computer accoppiato resta qui dentro.
+                 *
+                 * Dentro questa WebView è agganciato `SierraDeckApp`, il ponte che
+                 * risponde `chiaveSalvata()`: se un link — dentro un messaggio di
+                 * chat, o un redirect — portasse la WebView su un sito qualunque,
+                 * quel sito potrebbe leggere la chiave del computer e mandarla via.
+                 * Quindi resta nella WebView solo ciò che è sullo **stesso host**
+                 * dell'indirizzo accoppiato e che accettiamo; tutto il resto esce
+                 * nel browser di sistema, dove il ponte non c'è.
+                 */
+                override fun shouldOverrideUrlLoading(
+                    vista: WebView?,
+                    richiesta: android.webkit.WebResourceRequest?
+                ): Boolean {
+                    val destinazione = richiesta?.url ?: return false
+                    val url = destinazione.toString()
+                    val nostro = Indirizzi.hostDi(collegamento.indirizzo)
+                    if (nostro.isNotBlank() &&
+                        Indirizzi.hostDi(url).equals(nostro, ignoreCase = true) &&
+                        Indirizzi.accettabile(url)
+                    ) {
+                        return false
+                    }
+                    try {
+                        startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, destinazione))
+                    } catch (e: Exception) {
+                        // Nessun browser che sappia aprirlo: si lascia cadere, ma
+                        // non lo si carica qui dentro.
+                    }
+                    return true
+                }
+
                 /**
                  * Se il computer non risponde si torna all'ingresso.
                  *
