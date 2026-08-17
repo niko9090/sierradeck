@@ -13,7 +13,13 @@ import { pathToSlug } from './indexer/project-scanner'
 import type { Avanzamento, IndexOutcome } from '@shared/types'
 import { APP_DATA_DIR_NAME } from '@shared/version'
 import { chiaveMonitor } from '@shared/display-key'
-import { aggiungiPaneA, layoutPerFinestra, type Archivio, type LayoutSalvato } from '@shared/workspace'
+import {
+  aggiungiPaneA,
+  layoutPerFinestra,
+  unaChatUnWorkspace,
+  type Archivio,
+  type LayoutSalvato
+} from '@shared/workspace'
 import type { WorkspaceStore } from './workspace-store'
 import type { IstantaneeStore } from './istantanee-store'
 import {
@@ -43,6 +49,7 @@ import {
   cambiaWorkspace,
   creaWorkspace,
   eliminaWorkspace,
+  rinominaWorkspace,
   salvaLayoutAttivo
 } from './workspace-operazioni'
 import type { ClientAutopilota } from './autopilot-client'
@@ -576,6 +583,30 @@ export function registerLayoutIpc(store: WorkspaceStore): void {
     return statoDi(a)
   })
 
+  // Rinominare è solo un'etichetta: le chat e i loro terminali non si toccano,
+  // quindi — a differenza di crea/elimina — non passa da `annunciaCambio`, che
+  // farebbe traslocare i layout. Si dice a tutte le finestre com'è cambiato il
+  // nome, così aggiornano le linguette e spostano la chiave della loro memoria.
+  ipcMain.handle('workspace:rinomina', (_event, rawVecchio: unknown, rawNuovo: unknown): StatoWorkspace => {
+    const vecchio = validateNomeWorkspace(rawVecchio)
+    const nuovo = validateNomeWorkspace(rawNuovo)
+    const precedente = store.leggi()
+    if (!precedente.workspace.some((w) => w.nome === vecchio)) {
+      throw new Error(`il workspace «${vecchio}» non esiste`)
+    }
+    // Il nome dev'essere libero: due workspace omonimi sarebbero indistinguibili,
+    // e il salvataggio del layout non saprebbe sotto quale dei due scrivere.
+    if (nuovo !== vecchio && precedente.workspace.some((w) => w.nome === nuovo)) {
+      throw new Error(`«${nuovo}» esiste già: scegli un altro nome`)
+    }
+    const a = rinominaWorkspace(precedente, vecchio, nuovo)
+    store.scrivi(a)
+    if (nuovo !== vecchio) {
+      registro.inviaATutte('workspace:rinominato', { vecchio, nuovo, attivo: a.attivo })
+    }
+    return statoDi(a)
+  })
+
   // Prende il layout corrente e restituisce quello nuovo: un solo giro, quindi
   // non esiste un momento in cui il layout corrente non è salvato da nessuna
   // parte. Con due canali distinti quel momento esisterebbe, e una chiusura in
@@ -625,9 +656,17 @@ export function registerLayoutIpc(store: WorkspaceStore): void {
     const destinazione = archivio.workspace.find((w) => w.nome === nome)
     const attuale = destinazione?.perMonitor[chiave] ?? { root: undefined, panes: [] }
 
+    // Invariante «una chat, un workspace»: la conversazione entra nella
+    // destinazione e sparisce da ogni altro workspace (la sorgente compresa —
+    // la finestra l'ha già staccata). Con `nome` prioritario vince la
+    // destinazione: senza, un residuo della stessa chat in un altro workspace la
+    // farebbe ricomparire di là, ed è la radice dei workspace incrociati.
     store.scrivi({
       ...archivio,
-      workspace: aggiornaWorkspace(archivio, nome, chiave, aggiungiPaneA(attuale, pane))
+      workspace: unaChatUnWorkspace(
+        aggiornaWorkspace(archivio, nome, chiave, aggiungiPaneA(attuale, pane)),
+        nome
+      )
     })
 
     // E lo si dice alle altre finestre. Ognuna tiene in memoria i workspace

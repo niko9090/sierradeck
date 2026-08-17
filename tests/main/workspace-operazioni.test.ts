@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   creaWorkspace,
   eliminaWorkspace,
+  rinominaWorkspace,
   cambiaWorkspace,
   salvaLayoutAttivo
 } from '../../src/main/workspace-operazioni'
@@ -57,6 +58,54 @@ describe('eliminaWorkspace', () => {
   it('ignora un nome inesistente', () => {
     const prima = archivioCon(['Uno', 'Due'])
     expect(eliminaWorkspace(prima, 'Tre')).toEqual(prima)
+  })
+})
+
+describe('rinominaWorkspace', () => {
+  it('cambia il nome conservando il layout', () => {
+    const prima: Archivio = {
+      ...archivioVuoto(),
+      attivo: 'Uno',
+      workspace: [{ nome: 'Uno', perMonitor: { [M]: layoutCon('pane-a') } }]
+    }
+    const dopo = rinominaWorkspace(prima, 'Uno', 'Lavoro')
+    expect(dopo.workspace.map((w) => w.nome)).toEqual(['Lavoro'])
+    // Le chat non si toccano: stesso layout, sotto il nome nuovo.
+    expect(dopo.workspace[0]?.perMonitor[M]?.panes[0]?.id).toBe('pane-a')
+  })
+
+  it('sposta anche l attivo se era quello rinominato', () => {
+    const dopo = rinominaWorkspace(archivioCon(['Uno', 'Due'], 'Uno'), 'Uno', 'Lavoro')
+    expect(dopo.attivo).toBe('Lavoro')
+    expect(dopo.workspace.map((w) => w.nome)).toEqual(['Lavoro', 'Due'])
+  })
+
+  it('non tocca l attivo se a rinominare e un altro', () => {
+    const dopo = rinominaWorkspace(archivioCon(['Uno', 'Due'], 'Uno'), 'Due', 'Casa')
+    expect(dopo.attivo).toBe('Uno')
+  })
+
+  it('rifiuta un nome gia in uso: due omonimi sarebbero indistinguibili', () => {
+    const prima = archivioCon(['Uno', 'Due'], 'Uno')
+    expect(rinominaWorkspace(prima, 'Uno', 'Due')).toBe(prima)
+  })
+
+  it('ignora una sorgente inesistente', () => {
+    const prima = archivioCon(['Uno'])
+    expect(rinominaWorkspace(prima, 'Fantasma', 'Nuovo')).toBe(prima)
+  })
+
+  it('un nome uguale o vuoto non cambia niente', () => {
+    const prima = archivioCon(['Uno'])
+    expect(rinominaWorkspace(prima, 'Uno', 'Uno')).toBe(prima)
+    expect(rinominaWorkspace(prima, 'Uno', '   ')).toBe(prima)
+  })
+
+  it('non muta l archivio ricevuto', () => {
+    const originale = archivioCon(['Uno', 'Due'], 'Uno')
+    const copia = structuredClone(originale)
+    rinominaWorkspace(originale, 'Uno', 'Lavoro')
+    expect(originale).toEqual(copia)
   })
 })
 

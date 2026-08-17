@@ -507,6 +507,20 @@ export function App(): React.JSX.Element {
     })
   }, [])
 
+  // Un workspace rinominato: solo un'etichetta cambia, le chat restano dov'erano.
+  // Qui si sposta la chiave della memoria — perché i riquadri vivi del workspace
+  // rinominato non restino sotto un nome che nessuno chiede più — e si rilegge lo
+  // stato, che porta i nomi nuovi e l'attivo aggiornato.
+  useEffect(() => {
+    return window.gestore.workspace.onRinominato(({ vecchio, nuovo, attivo }) => {
+      memoriaWorkspace().rinomina(vecchio, nuovo)
+      setWorkspace((s) => ({
+        nomi: s.nomi.map((n) => (n === vecchio ? nuovo : n)),
+        attivo: s.attivo === vecchio ? attivo : s.attivo
+      }))
+    })
+  }, [])
+
   // La lettura delle trascrizioni, con la sua schermata di attesa.
   //
   // Sta qui e non nella finestra delle sessioni perché comincia all'avvio del

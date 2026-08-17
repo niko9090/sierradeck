@@ -25,6 +25,13 @@ export type MemoriaWorkspace = {
   /** Dice se quel workspace sta occupando risorse in questa finestra. */
   acceso: (nome: string) => boolean
   /**
+   * Sposta la memoria di un workspace sotto il nome nuovo, quando viene
+   * rinominato. Senza, i suoi riquadri vivi resterebbero sotto il nome vecchio —
+   * che nessuno chiede più — e al ritorno ripartirebbero da disco con `--resume`
+   * invece di riprendere dal terminale ancora acceso.
+   */
+  rinomina: (vecchio: string, nuovo: string) => void
+  /**
    * Lo dimentica e restituisce ciò che teneva vivo, perché il chiamante possa
    * chiuderne i terminali. `undefined` se non c'era niente di acceso.
    */
@@ -87,6 +94,14 @@ export function creaMemoriaWorkspace(): MemoriaWorkspace {
 
     acceso(nome) {
       return vivi.has(nome)
+    },
+
+    rinomina(vecchio, nuovo) {
+      if (vecchio === nuovo) return
+      const vivo = vivi.get(vecchio)
+      if (vivo === undefined) return
+      vivi.delete(vecchio)
+      vivi.set(nuovo, vivo)
     },
 
     spegni(nome) {

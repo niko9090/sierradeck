@@ -49,6 +49,14 @@ type State = {
   /** Il nome che l'utente dà a un riquadro: vince su quello di Claude Code. */
   rinominaPane: (id: string, title: string) => void
   /**
+   * Il modello di una chat, dopo che l'utente l'ha cambiato dall'intestazione.
+   *
+   * Aggiornarlo qui è ciò che lo fa **salvare** (`esporta` lo include) e quindi
+   * riaprire con lo stesso modello: senza, il cambio viveva solo nel terminale e
+   * spariva al riavvio. `undefined` = il predefinito dell'account.
+   */
+  impostaModello: (id: string, model: string | undefined) => void
+  /**
    * Consegna una chat gia' aperta a un autopilota.
    *
    * Chi attiva un autopilota smette di operare lui: la chat che stava
@@ -155,6 +163,9 @@ function statoDa(l: LayoutSalvato): { root: LayoutNode | undefined; panes: Recor
       // Chi dormiva continua a dormire: ritrovarsele tutte accese alla
       // riapertura sarebbe disfare la scelta di chi le aveva messe a riposo.
       ...(p.ibernata === true ? { ibernata: true } : {}),
+      // Il modello torna con la chat: e' cio' che fa ripartire il resume con
+      // `--model <quello>` invece che con il predefinito dell'account.
+      ...(p.model !== undefined ? { model: p.model } : {}),
       // E chi aveva un padrone lo ritrova: e' da qui che il terminale rinasce
       // con `--settings`, cioe' con gli hook che dicono all'autopilota quando
       // la chat ha finito di rispondere.
@@ -262,6 +273,17 @@ export const useLayoutStore = create<State>((set, get) => ({
       return { panes: { ...s.panes, [id]: { ...pane, title: pulito } } }
     }),
 
+  impostaModello: (id, model) =>
+    set((s) => {
+      const pane = s.panes[id]
+      if (pane === undefined) return s
+      const pulito = model !== undefined && model.trim() !== '' ? model.trim() : undefined
+      const { model: _vecchio, ...resto } = pane
+      return {
+        panes: { ...s.panes, [id]: pulito === undefined ? resto : { ...resto, model: pulito } }
+      }
+    }),
+
   setPtyId: (paneId, ptyId) =>
     set((s) => {
       const pane = s.panes[paneId]
@@ -314,6 +336,9 @@ export const useLayoutStore = create<State>((set, get) => ({
         title: p.title,
         ...(p.ptyId !== undefined ? { ptyId: p.ptyId } : {}),
         ...(p.ibernata === true ? { ibernata: true } : {}),
+        // Il modello scelto viaggia col riquadro: senza, al riavvio la chat
+        // riprendeva con il predefinito dell'account e la scelta andava persa.
+        ...(p.model !== undefined ? { model: p.model } : {}),
         // Senza questo il legame moriva con la finestra, e al riavvio
         // l'autopilota ritrovava la sua chat muta: nessun hook `Stop`, zero
         // cicli, per sempre.

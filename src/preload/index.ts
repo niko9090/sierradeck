@@ -324,6 +324,8 @@ contextBridge.exposeInMainWorld('gestore', {
     crea: (nome: string): Promise<StatoWorkspace> => ipcRenderer.invoke('workspace:crea', nome),
     elimina: (nome: string): Promise<StatoWorkspace> =>
       ipcRenderer.invoke('workspace:elimina', nome),
+    rinomina: (vecchio: string, nuovo: string): Promise<StatoWorkspace> =>
+      ipcRenderer.invoke('workspace:rinomina', vecchio, nuovo),
     cambia: (nome: string, layout: LayoutSalvato): Promise<LayoutSalvato> =>
       ipcRenderer.invoke('workspace:cambia', nome, layout),
     migra: (da: string, nome: string, layout: LayoutSalvato): Promise<LayoutSalvato> =>
@@ -335,6 +337,13 @@ contextBridge.exposeInMainWorld('gestore', {
       const h = (_e: unknown, s: StatoWorkspace & { precedente: string }): void => cb(s)
       ipcRenderer.on('workspace:cambiato', h)
       return () => ipcRenderer.off('workspace:cambiato', h)
+    },
+    onRinominato: (
+      cb: (r: { vecchio: string; nuovo: string; attivo: string }) => void
+    ): (() => void) => {
+      const h = (_e: unknown, r: { vecchio: string; nuovo: string; attivo: string }): void => cb(r)
+      ipcRenderer.on('workspace:rinominato', h)
+      return () => ipcRenderer.off('workspace:rinominato', h)
     }
   },
   // Gli appunti passano dal modulo `clipboard` di Electron e non da

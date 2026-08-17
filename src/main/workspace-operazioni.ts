@@ -74,6 +74,32 @@ export function creaWorkspace(a: Archivio, nome: string): Archivio {
   return { ...a, attivo: nome, workspace: [...a.workspace, { nome, perMonitor: {} }] }
 }
 
+/**
+ * Cambia nome a un workspace, senza toccare le sue chat.
+ *
+ * Rinominare è solo un'etichetta: i riquadri, le conversazioni e i loro
+ * terminali restano dov'erano — è la differenza con `crea`/`elimina`, che
+ * spostano il lavoro. Se il workspace era l'attivo, lo resta col nome nuovo.
+ *
+ * Rifiuta in silenzio (restituisce l'archivio invariato) quando non c'è niente
+ * da fare o si romperebbe qualcosa: nome nuovo uguale al vecchio, sorgente
+ * inesistente, o **destinazione già presa** — due workspace con lo stesso nome
+ * sarebbero indistinguibili, e il salvataggio del layout non saprebbe sotto
+ * quale dei due scrivere. Chi chiama controlla l'esito confrontando i nomi, e
+ * l'IPC trasforma il rifiuto in un errore leggibile.
+ */
+export function rinominaWorkspace(a: Archivio, vecchio: string, nuovo: string): Archivio {
+  const nome = nuovo.trim()
+  if (nome === '' || nome === vecchio) return a
+  if (!a.workspace.some((w) => w.nome === vecchio)) return a
+  if (a.workspace.some((w) => w.nome === nome)) return a
+  return {
+    ...a,
+    attivo: a.attivo === vecchio ? nome : a.attivo,
+    workspace: a.workspace.map((w) => (w.nome === vecchio ? { ...w, nome } : w))
+  }
+}
+
 export function eliminaWorkspace(a: Archivio, nome: string): Archivio {
   // Restare senza workspace significherebbe non avere dove salvare il layout, e
   // il salvataggio successivo ne creerebbe uno con un nome inventato: meglio

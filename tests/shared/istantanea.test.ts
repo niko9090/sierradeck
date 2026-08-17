@@ -464,6 +464,23 @@ describe('salvare tutti i workspace', () => {
     const i = nuovaIstantanea({ nome: 'x', salvataIl: 'oggi', finestre: [], autopiloti: [] })
     expect(i.workspace).toBeUndefined()
   })
+
+  it('la stessa chat in due workspace finisce in uno solo, quello attivo', () => {
+    // La radice del «1 chat, 2 workspace»: un archivio incrociato aveva la
+    // stessa conversazione in due workspace. Salvando, deve restare dove la si
+    // ha davvero davanti — l'attivo — e sparire dall'altro, altrimenti al
+    // ricarico ricompare di qua e di la sotto due nomi diversi.
+    const incrociato = {
+      attivo: 'lavoro',
+      workspace: [
+        { nome: 'lavoro', perMonitor: { 'm-1': conChat('condivisa') } },
+        { nome: 'casa', perMonitor: { 'm-1': conChat('condivisa') } }
+      ]
+    }
+    const w = workspaceDaSalvare(incrociato, [{ monitor: 'm-1', layout: conChat('condivisa') }])
+    expect(w.find((x) => x.nome === 'lavoro')?.perMonitor['m-1']?.panes[0]?.sessionUuid).toBe('condivisa')
+    expect(w.find((x) => x.nome === 'casa')?.perMonitor['m-1']?.panes).toEqual([])
+  })
 })
 
 describe('contare cosa contiene un salvataggio', () => {

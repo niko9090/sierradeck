@@ -37,6 +37,16 @@ export type PaneSalvato = {
    */
   ibernata?: boolean
   /**
+   * Il modello con cui la chat è stata avviata: `claude --model <questo>`.
+   *
+   * Si salva perché al riavvio la chat deve riaprirsi con **lo stesso** modello:
+   * senza, il resume ripartiva con il modello predefinito dell'account, e la
+   * scelta fatta all'apertura andava persa a ogni riavvio — che l'applicazione
+   * fa da sola per aggiornarsi. Assente vuol dire «il predefinito dell'account»,
+   * e allora non si passa nessun `--model`.
+   */
+  model?: string
+  /**
    * Chi governa questa chat, quando è di un autopilota.
    *
    * Si salva perché il legame deve sopravvivere a un riavvio, e l'applicazione
@@ -234,6 +244,10 @@ function parsePane(raw: unknown, scartati: string[]): PaneSalvato | undefined {
     return undefined
   }
   const ptyId = stringaNonVuota(o.ptyId)
+  // Il modello finisce come singolo elemento di argv dopo `--model` (nessuna
+  // shell di mezzo, quindi non inietta altri argomenti): basta una stringa non
+  // vuota. Un valore assurdo lo rifiuta Claude Code, non noi.
+  const model = stringaNonVuota(o.model)
   // Il titolo passa da normalizzaTitolo: questo file e' un ingresso non fidato
   // quanto i .jsonl, e finisce sulla riga di comando di claude.exe.
   return {
@@ -242,6 +256,9 @@ function parsePane(raw: unknown, scartati: string[]): PaneSalvato | undefined {
     cwd,
     title: normalizzaTitolo(typeof o.title === 'string' ? o.title : ''),
     ...(ptyId !== undefined ? { ptyId } : {}),
+    // Il modello scelto all'apertura, per riaprire la chat con lo stesso: senza,
+    // il resume ripartiva col predefinito dell'account.
+    ...(model !== undefined ? { model } : {}),
     // Una chat messa a dormire deve restare a dormire: ritrovarsele tutte
     // accese alla riapertura sarebbe disfare la scelta.
     ...(o.ibernata === true ? { ibernata: true } : {}),
@@ -427,6 +444,66 @@ export function aggiungiPaneA(layout: LayoutSalvato, pane: PaneSalvato): LayoutS
     },
     panes
   }
+}
+
+/**
+ * Toglie da un layout le conversazioni indicate, potando l'albero di conseguenza.
+ *
+ * È il mattone dell'invariante **«una chat, un workspace»**: quando una
+ * conversazione entra (o viene salvata) in un workspace, non deve restare in
+ * nessun altro. La chat è identificata dalla conversazione (`sessionUuid`), non
+ * dal riquadro (`id`): la stessa conversazione può avere id di riquadro diversi
+ * in workspace diversi, ed è proprio il caso da ripulire.
+ */
+export function rimuoviSessioni(layout: LayoutSalvato, sessioni: Set<string>): LayoutSalvato {
+  const restano = layout.panes.filter((p) => !sessioni.has(p.sessionUuid))
+  if (restano.length === layout.panes.length) return layout
+  let root: LayoutNode | undefined = layout.root
+  for (const p of layout.panes) {
+    if (sessioni.has(p.sessionUuid) && root !== undefined) root = removePane(root, p.id)
+  }
+  return { root, panes: restano }
+}
+
+/**
+ * Fa valere l'invariante **«una chat, un workspace»** su un elenco di workspace:
+ * ogni `sessionUuid` resta in un solo posto.
+ *
+ * Quando la stessa conversazione compare in più workspace — per un salvataggio
+ * finito sotto il nome sbagliato, o per dati vecchi già incrociati sul disco —
+ * la si tiene in **uno** e la si toglie dagli altri. Vince chi viene prima
+ * nell'ordine dato: chi chiama mette per primo il workspace autoritativo (quello
+ * attivo, o la destinazione di uno spostamento). L'ordine originale dell'elenco
+ * non cambia: si decide solo *dove* vive ogni chat, non come sono ordinati i
+ * workspace.
+ *
+ * Non crea né elimina workspace: uno che resta senza riquadri resta, vuoto —
+ * cancellarlo qui sarebbe una decisione che non spetta a una normalizzazione.
+ */
+export function unaChatUnWorkspace(
+  workspace: WorkspaceSalvato[],
+  prioritario?: string
+): WorkspaceSalvato[] {
+  const ordine =
+    prioritario === undefined
+      ? workspace
+      : [...workspace].sort((a, b) => (a.nome === prioritario ? -1 : b.nome === prioritario ? 1 : 0))
+  const viste = new Set<string>()
+  const perNome = new Map<string, WorkspaceSalvato>()
+  for (const w of ordine) {
+    const perMonitor: Record<string, LayoutSalvato> = {}
+    for (const [chiave, layout] of Object.entries(w.perMonitor)) {
+      const doppie = new Set(
+        layout.panes.filter((p) => viste.has(p.sessionUuid)).map((p) => p.sessionUuid)
+      )
+      const pulito = doppie.size > 0 ? rimuoviSessioni(layout, doppie) : layout
+      for (const p of pulito.panes) viste.add(p.sessionUuid)
+      perMonitor[chiave] = pulito
+    }
+    perNome.set(w.nome, { nome: w.nome, perMonitor })
+  }
+  // L'ordine originale, con i contenuti normalizzati.
+  return workspace.map((w) => perNome.get(w.nome) ?? w)
 }
 
 /**

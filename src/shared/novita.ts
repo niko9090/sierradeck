@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.33',
+    righe: [
+      '**I workspace si rinominano.** Nel pannello dei workspace (il ⋯ in alto) c’è «✎ Rinomina»: cambia solo l’etichetta, le chat e i loro terminali restano dov’erano. Serve quando i nomi non dicono più cosa contengono.',
+      '**Una chat vive in un solo workspace, sempre.** Era la radice di parecchi guai: la stessa conversazione poteva finire in due workspace insieme — nomi che sembravano incrociati, e un salvataggio che diceva «1 chat, 2 workspace» su una chat sola. Adesso quando una chat entra (o si sposta) in un workspace sparisce da ogni altro, e i salvataggi non contano più due volte la stessa conversazione.',
+      '**Il modello di ogni chat si vede, si salva e si riapre uguale.** Nell’intestazione del riquadro il menu del modello ora mostra **quello in uso**, non un generico «modello…»; la scelta viene salvata col riquadro; e al riavvio la chat riprende con lo stesso modello invece che con il predefinito dell’account. Prima quella scelta si perdeva a ogni riavvio — che l’app fa da sola per aggiornarsi.'
+    ]
+  },
+  {
     versione: '0.9.32',
     righe: [
       '**Dopo un aggiornamento il programma si riapre una volta sola.** Si chiudeva e riapriva un paio di volte — la versione di partenza, poi quella nuova — perché sullo stesso momento partivano due installatori: SierraDeck Update e quello di riserva di Electron, che credeva ancora di dover installare da sé alla chiusura. Adesso, quando l’installazione la guida SierraDeck Update, l’altro si tira indietro: un padrone solo.'

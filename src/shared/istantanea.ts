@@ -1,5 +1,5 @@
 import {
-  parseArchivio, VERSIONE_ARCHIVIO, NOME_PREDEFINITO,
+  parseArchivio, unaChatUnWorkspace, VERSIONE_ARCHIVIO, NOME_PREDEFINITO,
   type LayoutSalvato, type WorkspaceSalvato
 } from './workspace'
 
@@ -147,7 +147,15 @@ export function workspaceDaSalvare(
   }
 
   const altri = archivio.workspace.filter((w) => w.nome !== archivio.attivo)
-  return archivio.attivo === '' ? archivio.workspace : [...altri, aggiornato]
+  // Prima di salvare, l'invariante «una chat, un workspace»: se una
+  // conversazione risultasse in più workspace — dati vecchi già incrociati, o un
+  // salvataggio finito sotto il nome sbagliato — nel salvataggio deve stare in
+  // uno solo, altrimenti al ricarico ricompare di là e di qua (ed è il conteggio
+  // «1 chat, 2 workspace» su una chat sola). Vince l'attivo, che è quello che si
+  // ha davvero davanti.
+  return archivio.attivo === ''
+    ? unaChatUnWorkspace(archivio.workspace)
+    : unaChatUnWorkspace([...altri, aggiornato], archivio.attivo)
 }
 
 /**

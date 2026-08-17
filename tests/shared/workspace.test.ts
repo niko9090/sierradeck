@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseArchivio, archivioVuoto, aggiungiPaneA, layoutPerFinestra, unicoLayout,
-  VERSIONE_ARCHIVIO, NOME_PREDEFINITO, type LayoutSalvato
+  rimuoviSessioni, unaChatUnWorkspace,
+  VERSIONE_ARCHIVIO, NOME_PREDEFINITO, type LayoutSalvato, type WorkspaceSalvato
 } from '@shared/workspace'
 
 function archivioMinimo(layout: unknown): unknown {
@@ -221,6 +222,90 @@ describe('aggiungiPaneA', () => {
   })
 })
 
+describe('rimuoviSessioni', () => {
+  const conDue: LayoutSalvato = {
+    root: { type: 'split', id: 's', direction: 'horizontal', children: [
+      { type: 'pane', id: 'p-a' }, { type: 'pane', id: 'p-b' }
+    ], sizes: [0.5, 0.5] },
+    panes: [
+      { id: 'p-a', sessionUuid: 'u-a', cwd: 'C:\\p', title: 'A' },
+      { id: 'p-b', sessionUuid: 'u-b', cwd: 'C:\\p', title: 'B' }
+    ]
+  }
+
+  it('toglie la conversazione e pota l albero sul riquadro rimasto', () => {
+    const dopo = rimuoviSessioni(conDue, new Set(['u-a']))
+    expect(dopo.panes.map((p) => p.sessionUuid)).toEqual(['u-b'])
+    expect(dopo.root).toEqual({ type: 'pane', id: 'p-b' })
+  })
+
+  it('svuota il layout se se ne va l ultima', () => {
+    const uno: LayoutSalvato = {
+      root: { type: 'pane', id: 'p-a' },
+      panes: [{ id: 'p-a', sessionUuid: 'u-a', cwd: 'C:\\p', title: 'A' }]
+    }
+    const dopo = rimuoviSessioni(uno, new Set(['u-a']))
+    expect(dopo).toEqual({ root: undefined, panes: [] })
+  })
+
+  it('non tocca niente se la conversazione non c e', () => {
+    expect(rimuoviSessioni(conDue, new Set(['u-z']))).toBe(conDue)
+  })
+})
+
+describe('unaChatUnWorkspace', () => {
+  const conChat = (chat: string): LayoutSalvato => ({
+    root: { type: 'pane', id: `p-${chat}` },
+    panes: [{ id: `p-${chat}`, sessionUuid: chat, cwd: 'C:\\p', title: chat }]
+  })
+
+  it('tiene una chat doppia nel workspace prioritario e la toglie dagli altri', () => {
+    const incrociato: WorkspaceSalvato[] = [
+      { nome: 'uno', perMonitor: { m: conChat('condivisa') } },
+      { nome: 'due', perMonitor: { m: conChat('condivisa') } }
+    ]
+    const dopo = unaChatUnWorkspace(incrociato, 'due')
+    expect(dopo.find((w) => w.nome === 'due')?.perMonitor.m?.panes[0]?.sessionUuid).toBe('condivisa')
+    expect(dopo.find((w) => w.nome === 'uno')?.perMonitor.m?.panes).toEqual([])
+  })
+
+  it('conserva l ordine originale dei workspace', () => {
+    const incrociato: WorkspaceSalvato[] = [
+      { nome: 'uno', perMonitor: { m: conChat('x') } },
+      { nome: 'due', perMonitor: { m: conChat('x') } }
+    ]
+    expect(unaChatUnWorkspace(incrociato, 'due').map((w) => w.nome)).toEqual(['uno', 'due'])
+  })
+
+  it('senza prioritario vince il primo che la contiene', () => {
+    const incrociato: WorkspaceSalvato[] = [
+      { nome: 'uno', perMonitor: { m: conChat('x') } },
+      { nome: 'due', perMonitor: { m: conChat('x') } }
+    ]
+    const dopo = unaChatUnWorkspace(incrociato)
+    expect(dopo.find((w) => w.nome === 'uno')?.perMonitor.m?.panes[0]?.sessionUuid).toBe('x')
+    expect(dopo.find((w) => w.nome === 'due')?.perMonitor.m?.panes).toEqual([])
+  })
+
+  it('non crea ne elimina workspace: uno svuotato resta, vuoto', () => {
+    const incrociato: WorkspaceSalvato[] = [
+      { nome: 'uno', perMonitor: { m: conChat('x') } },
+      { nome: 'due', perMonitor: { m: conChat('x') } }
+    ]
+    expect(unaChatUnWorkspace(incrociato, 'uno').map((w) => w.nome)).toEqual(['uno', 'due'])
+  })
+
+  it('lascia stare chat diverse in workspace diversi', () => {
+    const distinti: WorkspaceSalvato[] = [
+      { nome: 'uno', perMonitor: { m: conChat('a') } },
+      { nome: 'due', perMonitor: { m: conChat('b') } }
+    ]
+    const dopo = unaChatUnWorkspace(distinti, 'uno')
+    expect(dopo.find((w) => w.nome === 'uno')?.perMonitor.m?.panes[0]?.sessionUuid).toBe('a')
+    expect(dopo.find((w) => w.nome === 'due')?.perMonitor.m?.panes[0]?.sessionUuid).toBe('b')
+  })
+})
+
 describe('il layout che spetta a una finestra', () => {
   const conChat = (n: number): LayoutSalvato => ({
     root: { type: 'pane', id: 'p1' },
@@ -287,6 +372,37 @@ describe('il layout di una finestra', () => {
     const l: LayoutSalvato = { root: { type: 'pane', id: 'p' }, panes: [{ id: 'p', sessionUuid: 'u', cwd: 'C:\p', title: 'x' }] }
     expect(layoutPerFinestra({ m1: l }, 'm1').panes).toHaveLength(1)
     expect(layoutPerFinestra({ m1: l }, 'm2').panes).toEqual([])
+  })
+})
+
+describe('il modello di un riquadro', () => {
+  const paneLetto = (raw: unknown): { model?: string } | undefined =>
+    parseArchivio(raw).archivio.workspace[0]?.perMonitor['m1']?.panes[0]
+
+  it('sopravvive al salvataggio, per riaprire la chat con lo stesso modello', () => {
+    const letto = paneLetto(archivioMinimo({
+      root: { type: 'pane', id: 'p1' },
+      panes: [{ id: 'p1', sessionUuid: 'u1', cwd: 'C:\\p', title: 'a', model: 'claude-opus-4-8' }]
+    }))
+    expect(letto?.model).toBe('claude-opus-4-8')
+  })
+
+  it('assente resta assente: nessun --model, vale il predefinito dell account', () => {
+    const letto = paneLetto(archivioMinimo({
+      root: { type: 'pane', id: 'p1' },
+      panes: [{ id: 'p1', sessionUuid: 'u1', cwd: 'C:\\p', title: 'a' }]
+    }))
+    expect(letto?.model).toBeUndefined()
+  })
+
+  it('un modello vuoto o non stringa viene ignorato', () => {
+    for (const model of ['', '   ', 42, null]) {
+      const letto = paneLetto(archivioMinimo({
+        root: { type: 'pane', id: 'p1' },
+        panes: [{ id: 'p1', sessionUuid: 'u1', cwd: 'C:\\p', title: 'a', model }]
+      }))
+      expect(letto?.model).toBeUndefined()
+    }
   })
 })
 

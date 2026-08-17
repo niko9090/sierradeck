@@ -20,6 +20,9 @@ export function PannelloWorkspace({ stato, onStato, onChiudi }: Props): React.JS
   const [ultimoSpento, setUltimoSpento] = useState<string | undefined>(undefined)
   const [inCorso, setInCorso] = useState(false)
   const [nuovoNome, setNuovoNome] = useState<string | undefined>(undefined)
+  // Il nuovo nome mentre si rinomina l'attivo. `undefined` = non si sta
+  // rinominando; una stringa (anche vuota) = campo aperto.
+  const [rinomina, setRinomina] = useState<string | undefined>(undefined)
   // Quali workspace risultano accesi non è uno stato di React: vive nella
   // memoria della finestra, che nessun `set` notifica. Questo contatore è come
   // il pannello si accorge di doverlo rileggere dopo uno spegnimento.
@@ -39,11 +42,11 @@ export function PannelloWorkspace({ stato, onStato, onChiudi }: Props): React.JS
   // poterlo togliere senza cercare il tasto.
   useEffect(() => {
     const suTasto = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape' && nuovoNome === undefined) onChiudi()
+      if (e.key === 'Escape' && nuovoNome === undefined && rinomina === undefined) onChiudi()
     }
     window.addEventListener('keydown', suTasto)
     return () => window.removeEventListener('keydown', suTasto)
-  }, [onChiudi, nuovoNome])
+  }, [onChiudi, nuovoNome, rinomina])
 
   const esegui = (op: () => Promise<unknown>): void => {
     if (inCorso) return
@@ -96,6 +99,22 @@ export function PannelloWorkspace({ stato, onStato, onChiudi }: Props): React.JS
       const s = await azioni.current?.crea(nome)
       if (s !== undefined) onStato(s)
       setNuovoNome(undefined)
+    })
+  }
+
+  // Rinominare è solo un'etichetta: le chat e i loro terminali non si toccano,
+  // quindi non passa dalle azioni della finestra (che traslocano i layout) ma
+  // dritto al Core, che poi lo annuncia a tutte le finestre.
+  const confermaRinomina = (): void => {
+    const nome = (rinomina ?? '').trim()
+    if (nome === '' || nome === stato.attivo) {
+      setRinomina(undefined)
+      return
+    }
+    esegui(async () => {
+      const s = await window.gestore.workspace.rinomina(stato.attivo, nome)
+      onStato(s)
+      setRinomina(undefined)
     })
   }
 
@@ -157,6 +176,15 @@ export function PannelloWorkspace({ stato, onStato, onChiudi }: Props): React.JS
 
         <button
           className="tasto"
+          onClick={() => setRinomina(stato.attivo)}
+          disabled={inCorso || stato.nomi.length === 0 || rinomina !== undefined}
+          title={`Cambia nome a «${stato.attivo}». Le sue chat restano dove sono.`}
+        >
+          ✎ Rinomina
+        </button>
+
+        <button
+          className="tasto"
           onClick={() =>
             esegui(async () => {
               const s = await azioni.current?.elimina(stato.attivo)
@@ -173,6 +201,32 @@ export function PannelloWorkspace({ stato, onStato, onChiudi }: Props): React.JS
           Elimina
         </button>
       </div>
+
+      {/* Rinominare l'attivo: le chat non si toccano, cambia solo l'etichetta —
+          utile quando i nomi non dicono più cosa contengono. */}
+      {rinomina !== undefined ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 10 }}>
+          <span className="serigrafia">Rinomina «{stato.attivo}»</span>
+          <input
+            autoFocus
+            className="campo"
+            value={rinomina}
+            placeholder="Nome nuovo"
+            onChange={(e) => setRinomina(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') confermaRinomina()
+              else if (e.key === 'Escape') setRinomina(undefined)
+            }}
+            style={{ width: 200 }}
+          />
+          <button className="tasto tasto--primario" onClick={confermaRinomina} disabled={inCorso}>
+            Rinomina
+          </button>
+          <button className="tasto" onClick={() => setRinomina(undefined)} disabled={inCorso}>
+            Annulla
+          </button>
+        </div>
+      ) : null}
 
       {/* Cambiare workspace non spegne più niente: le chat che si lasciano
           continuano a lavorare, e i loro claude.exe restano in piedi. È la

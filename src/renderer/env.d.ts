@@ -156,10 +156,14 @@ declare global {
         dove: () => Promise<Record<string, string>>
         crea: (nome: string) => Promise<StatoWorkspace>
         elimina: (nome: string) => Promise<StatoWorkspace>
+        rinomina: (vecchio: string, nuovo: string) => Promise<StatoWorkspace>
         cambia: (nome: string, layout: LayoutSalvato) => Promise<LayoutSalvato>
         migra: (da: string, nome: string, layout: LayoutSalvato) => Promise<LayoutSalvato>
         spostaChat: (nome: string, pane: PaneSalvato) => Promise<boolean>
         onCambiato: (cb: (s: StatoWorkspace & { precedente: string }) => void) => () => void
+        onRinominato: (
+          cb: (r: { vecchio: string; nuovo: string; attivo: string }) => void
+        ) => () => void
       }
       novita: {
         daMostrare: () => Promise<Novita | undefined>
