@@ -54,6 +54,16 @@ export type Dispositivi = {
 const VERSIONE = 1
 /** Quanto resta aperta la finestra di accoppiamento: il tempo di prendere il telefono. */
 export const DURATA_CODICE_MS = 3 * 60_000
+/**
+ * Quanti codici sbagliati si tollerano prima di chiudere la finestra.
+ *
+ * Sei cifre sono un milione di possibilità, e tre minuti bastano a provarne
+ * moltissime se nessuno conta i tentativi: chi è sulla stessa rete potrebbe
+ * indovinare il codice a forza bruta e ottenere una chiave permanente. Dieci
+ * tentativi lasciano spazio a chi sbaglia a digitare, e chiudono la porta a chi
+ * tira a indovinare — che deve aspettare una nuova finestra aperta a mano.
+ */
+export const MAX_TENTATIVI = 10
 const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/
 const NOME_MAX = 40
 
@@ -83,6 +93,8 @@ export function apriDispositivi(
   mkdirSync(cartella, { recursive: true })
   const percorso = join(cartella, 'dispositivi.json')
   let accoppiamento: CodiceAccoppiamento | undefined
+  // Codici sbagliati contati per la finestra corrente: si azzera a ogni apertura.
+  let tentativiFalliti = 0
 
   const leggi = (): Dispositivo[] => {
     if (!existsSync(percorso)) return []
@@ -123,6 +135,7 @@ export function apriDispositivi(
 
     apriAccoppiamento() {
       accoppiamento = { codice: nuovoCodice(), scadeIl: adesso() + DURATA_CODICE_MS }
+      tentativiFalliti = 0
       return accoppiamento
     },
 
@@ -138,7 +151,17 @@ export function apriDispositivi(
       const aperto = accoppiamento
       // Scaduto vale come chiuso: il codice di ieri non apre niente.
       if (aperto === undefined || adesso() > aperto.scadeIl) return undefined
-      if (!confronta(codice.trim(), aperto.codice)) return undefined
+      if (!confronta(codice.trim(), aperto.codice)) {
+        // Ogni errore avvicina la chiusura: raggiunta la soglia la finestra si
+        // chiude, così una raffica di tentativi non può setacciare il milione di
+        // codici. Va riaperta a mano dallo schermo del PC.
+        tentativiFalliti += 1
+        if (tentativiFalliti >= MAX_TENTATIVI) {
+          accoppiamento = undefined
+          console.error(`[dispositivi] finestra di accoppiamento chiusa dopo ${MAX_TENTATIVI} codici errati`)
+        }
+        return undefined
+      }
 
       // Un codice serve per un dispositivo solo: se restasse valido, chi lo ha
       // visto sullo schermo potrebbe collegarne altri quando gli pare.

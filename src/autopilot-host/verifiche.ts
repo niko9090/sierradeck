@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { delimiter, dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { Criterio } from '@shared/autopilota'
 import type { EsitoVerifica } from './decisione'
@@ -19,6 +19,67 @@ const BASH_NOTI = [
 ]
 
 /**
+ * La `bash.exe` che appartiene alla stessa installazione di un dato `git.exe`.
+ *
+ * Git per Windows mette `git.exe` in **due** posti — `<radice>\cmd\git.exe` e
+ * `<radice>\mingw64\bin\git.exe` — e la bash non sta mai accanto a git, ma in
+ * `<radice>\bin\bash.exe` e `<radice>\usr\bin\bash.exe`. Non sapendo da quale
+ * dei due git si parte, si risale di qualche livello e per ogni cartella
+ * antenata si propongono le due possibili bash: quella giusta esiste, le altre
+ * no, e `trovaBash` prende la prima che c'è davvero.
+ */
+export function bashDaGit(gitExe: string): string[] {
+  const candidati: string[] = []
+  let dir = dirname(gitExe)
+  for (let i = 0; i < 3 && dir !== dirname(dir); i++) {
+    candidati.push(join(dir, 'bin', 'bash.exe'), join(dir, 'usr', 'bin', 'bash.exe'))
+    dir = dirname(dir)
+  }
+  return candidati
+}
+
+/**
+ * Cerca `git.exe` fra le cartelle del PATH.
+ *
+ * Non si presume dove Git sia installato: su questa macchina sta in
+ * `E:\Programs\Git`, non sotto `C:\Program Files`, ed è proprio l'assunzione
+ * sbagliata che mandava i criteri a cadere su `cmd`. Il PATH invece dice dov'è
+ * davvero il git che l'utente usa.
+ */
+export function trovaGit(
+  pathEnv: string = process.env.PATH ?? '',
+  esiste: (percorso: string) => boolean = (p) => existsSync(p)
+): string | undefined {
+  for (const cartella of pathEnv.split(delimiter)) {
+    if (cartella === '') continue
+    const candidato = join(cartella, 'git.exe')
+    if (esiste(candidato)) return candidato
+  }
+  return undefined
+}
+
+/**
+ * L'elenco dei posti dove cercare bash, in ordine di preferenza.
+ *
+ * Prima la bash dell'installazione di Git trovata nel PATH — quella che l'utente
+ * usa davvero — poi i percorsi standard come rete di sicurezza.
+ */
+export function bashCandidati(
+  pathEnv: string = process.env.PATH ?? '',
+  esiste: (percorso: string) => boolean = (p) => existsSync(p)
+): string[] {
+  const cartelle = pathEnv.split(delimiter).filter((c) => c !== '')
+  // 1. `bash.exe` direttamente in una cartella del PATH: è il caso quando il
+  //    programma è avviato da dentro Git Bash, che mette `usr\bin` nel PATH.
+  const diretti = cartelle.map((c) => join(c, 'bash.exe'))
+  // 2. la bash che appartiene al git trovato nel PATH: il caso normale, quando
+  //    nel PATH c'è solo `<radice>\cmd` ma non le cartelle con la bash.
+  const git = trovaGit(pathEnv, esiste)
+  const daGit = git !== undefined ? bashDaGit(git) : []
+  return [...diretti, ...daGit, ...BASH_NOTI]
+}
+
+/**
  * La shell con cui eseguire i criteri.
  *
  * `cmd.exe` non conosce l'apice singolo: davanti a
@@ -31,7 +92,7 @@ const BASH_NOTI = [
  * meglio di niente ma va detto: chi scrive i criteri deve saperlo.
  */
 export function trovaBash(
-  candidati: string[] = BASH_NOTI,
+  candidati: string[] = bashCandidati(),
   esiste: (percorso: string) => boolean = (p) => existsSync(p)
 ): string | undefined {
   return candidati.find((c) => esiste(c))

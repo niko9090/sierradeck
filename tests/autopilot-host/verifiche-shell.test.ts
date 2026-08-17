@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  comandoShell, esecutoreReale, nomeScript, nonMisurabile, trovaBash
+  bashCandidati, bashDaGit, comandoShell, esecutoreReale, nomeScript,
+  nonMisurabile, trovaBash, trovaGit
 } from '../../src/autopilot-host/verifiche'
 
 describe('trovaBash', () => {
@@ -12,6 +13,59 @@ describe('trovaBash', () => {
 
   it('senza bash non inventa un percorso', () => {
     expect(trovaBash(['C:\\niente\\bash.exe'], () => false)).toBeUndefined()
+  })
+})
+
+describe('bashDaGit', () => {
+  it('propone la bash della radice partendo da git in cmd', () => {
+    // Il caso reale su questa macchina: git non è sotto C:\Program Files.
+    const c = bashDaGit('E:\\Programs\\Git\\cmd\\git.exe')
+    expect(c).toContain('E:\\Programs\\Git\\bin\\bash.exe')
+    expect(c).toContain('E:\\Programs\\Git\\usr\\bin\\bash.exe')
+  })
+
+  it('trova la radice anche partendo dalla git di mingw64', () => {
+    // Dentro Git Bash il PATH mette per primo <radice>\mingw64\bin\git.exe:
+    // la bash sta due livelli più su, non accanto a git.
+    const c = bashDaGit('E:\\Programs\\Git\\mingw64\\bin\\git.exe')
+    expect(c).toContain('E:\\Programs\\Git\\bin\\bash.exe')
+    expect(c).toContain('E:\\Programs\\Git\\usr\\bin\\bash.exe')
+  })
+})
+
+describe('trovaGit', () => {
+  it('trova git scandendo le cartelle del PATH', () => {
+    const path = 'C:\\altro;E:\\Programs\\Git\\cmd;C:\\ancora'
+    const esiste = (p: string): boolean => p === 'E:\\Programs\\Git\\cmd\\git.exe'
+    expect(trovaGit(path, esiste)).toBe('E:\\Programs\\Git\\cmd\\git.exe')
+  })
+
+  it('senza git nel PATH torna indefinito', () => {
+    expect(trovaGit('C:\\niente;D:\\nemmeno', () => false)).toBeUndefined()
+  })
+})
+
+describe('bashCandidati', () => {
+  it('include la bash derivata dal git nel PATH e i percorsi noti', () => {
+    const path = 'E:\\Programs\\Git\\cmd'
+    const esiste = (p: string): boolean => p === 'E:\\Programs\\Git\\cmd\\git.exe'
+    const candidati = bashCandidati(path, esiste)
+    expect(candidati).toContain('E:\\Programs\\Git\\bin\\bash.exe')
+    expect(candidati).toContain('C:\\Program Files\\Git\\bin\\bash.exe')
+  })
+
+  it('propone anche la bash direttamente presente in una cartella del PATH', () => {
+    // Dentro Git Bash `usr\bin` è nel PATH e contiene bash.exe.
+    const path = 'E:\\Programs\\Git\\usr\\bin'
+    const candidati = bashCandidati(path, () => false)
+    expect(candidati).toContain('E:\\Programs\\Git\\usr\\bin\\bash.exe')
+  })
+
+  it('senza git nel PATH restano comunque i percorsi noti', () => {
+    const candidati = bashCandidati('C:\\niente', () => false)
+    expect(candidati).toContain('C:\\Program Files\\Git\\bin\\bash.exe')
+    expect(candidati).toContain('C:\\Program Files (x86)\\Git\\bin\\bash.exe')
+    expect(candidati).toContain('C:\\Program Files\\Git\\usr\\bin\\bash.exe')
   })
 })
 

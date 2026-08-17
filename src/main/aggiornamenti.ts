@@ -130,6 +130,14 @@ export function creaAggiornamenti(
     annuncia({ ...stato, fase: 'scarico', percento: Math.round(p.percent) })
   })
   autoUpdater.on('update-downloaded', (info) => {
+    // Con l'auto-download l'installer arriva qui, non da `scarica()`: senza
+    // raccoglierne il percorso, il ramo con SierraDeck Update (che aggiorna
+    // anche Claude Code) non partirebbe mai nel flusso normale, e si ripiegherebbe
+    // sempre su `quitAndInstall`. `downloadedFile` è il file che ha appena scritto.
+    const scaricato = (info as { downloadedFile?: string }).downloadedFile
+    if (typeof scaricato === 'string' && scaricato.toLowerCase().endsWith('.exe')) {
+      installerScaricato = scaricato
+    }
     annuncia({ fase: 'pronto', versione: String(info.version) })
   })
   autoUpdater.on('error', (err) => {
@@ -174,6 +182,16 @@ export function creaAggiornamenti(
       // istanze a vicenda e il programma si riavviava senza mai aggiornarsi.
       if (installazioneAvviata) {
         console.warn('[aggiornamenti] installazione gia avviata: ignoro')
+        return
+      }
+      // Si installa **solo** quando c'è davvero qualcosa di pronto. Senza questa
+      // guardia una chiamata fuori tempo — anche da un dispositivo accoppiato che
+      // colpisce l'API — imboccava il ramo di riserva, chiudeva il PTY host e il
+      // DB (uccidendo tutte le chat) e poi `quitAndInstall` falliva «No valid
+      // update available» **senza chiudere l'app**: programma vivo ma svuotato, e
+      // `installazioneAvviata` bloccava per sempre anche un'installazione futura.
+      if (stato.fase !== 'pronto') {
+        console.warn(`[aggiornamenti] nessun aggiornamento pronto (fase: ${stato.fase}): non installo`)
         return
       }
       // La versione che ho gia' non si installa: se l'installer scaricato e'

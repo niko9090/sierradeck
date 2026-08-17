@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { apriDispositivi, DURATA_CODICE_MS, nuovoCodice } from '../../src/main/dispositivi'
+import { apriDispositivi, DURATA_CODICE_MS, MAX_TENTATIVI, nuovoCodice } from '../../src/main/dispositivi'
 
 let cartella: string
 let ora = 1_000_000
@@ -48,6 +48,29 @@ describe('il codice di accoppiamento', () => {
     const { codice } = d.apriAccoppiamento()
     expect(d.accoppia(codice, 'primo')).toBeDefined()
     expect(d.accoppia(codice, 'secondo')).toBeUndefined()
+  })
+
+  it('dopo troppi codici sbagliati la finestra si chiude', () => {
+    // Sei cifre si indovinano a forza bruta in tre minuti se nessuno conta i
+    // tentativi: raggiunta la soglia la porta si chiude e il codice giusto non
+    // vale piu' finche' non la riapri.
+    const d = apri()
+    const { codice } = d.apriAccoppiamento()
+    const sbagliato = codice === '000000' ? '111111' : '000000'
+    for (let i = 0; i < MAX_TENTATIVI; i++) expect(d.accoppia(sbagliato, 'ladro')).toBeUndefined()
+    expect(d.accoppiamentoAperto()).toBeUndefined()
+    expect(d.accoppia(codice, 'telefono')).toBeUndefined()
+  })
+
+  it('riaprire azzera il conto dei tentativi', () => {
+    // Chi sbaglia a digitare non deve restare chiuso fuori: una nuova finestra
+    // riparte da zero.
+    const d = apri()
+    const primo = d.apriAccoppiamento()
+    const sbagliato = primo.codice === '000000' ? '111111' : '000000'
+    for (let i = 0; i < MAX_TENTATIVI - 1; i++) d.accoppia(sbagliato, 'x')
+    const secondo = d.apriAccoppiamento()
+    expect(d.accoppia(secondo.codice, 'telefono')).toBeDefined()
   })
 })
 

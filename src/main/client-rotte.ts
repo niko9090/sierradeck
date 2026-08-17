@@ -185,13 +185,14 @@ export function rotteLibere(deps: DipendenzeRotte) {
     }
 
     if (r.percorso === '/api/ciao') {
-      const accoppiamento = deps.dispositivi.accoppiamentoAperto()
+      // Solo chi è: nome e versione. **Non** se la finestra di accoppiamento è
+      // aperta — dirlo a chi non ha la chiave significa dire a un estraneo sulla
+      // rete quando vale la pena provare a indovinare il codice. Il telefono
+      // legittimo tenta l'accoppiamento e basta: è /api/accoppia a dirgli com'è
+      // andata, ed è protetto dal limite sui tentativi.
       return OK({
         programma: 'SierraDeck',
-        versione: deps.versione,
-        // Se è aperto lo dice, ma **non dice il codice**: quello si legge sullo
-        // schermo del computer, ed è tutta la sicurezza che c'è.
-        accoppiamentoAperto: accoppiamento !== undefined
+        versione: deps.versione
       })
     }
 

@@ -60,14 +60,15 @@ describe('l ingresso', () => {
     expect(JSON.stringify(c)).not.toContain('codice')
   })
 
-  it('non rivela mai il codice di accoppiamento', async () => {
+  it('non rivela mai il codice di accoppiamento ne se la finestra e aperta', async () => {
     // Il codice si legge sullo schermo del computer: e' tutta la sicurezza che
-    // c'e', e servirlo dalla rete la annullerebbe.
+    // c'e', e servirlo dalla rete la annullerebbe. Nemmeno il fatto che la
+    // finestra sia aperta va detto: e' il segnale a un estraneo di quando provare.
     const d = deps()
     const { codice } = d.dispositivi.apriAccoppiamento()
     const r = await rotteLibere(d)({ metodo: 'GET', percorso: '/api/ciao', corpo: undefined })
     expect(JSON.stringify(r.corpo)).not.toContain(codice)
-    expect((r.corpo as Record<string, unknown>).accoppiamentoAperto).toBe(true)
+    expect((r.corpo as Record<string, unknown>).accoppiamentoAperto).toBeUndefined()
   })
 
   it('accoppia con il codice giusto e rifiuta gli altri', async () => {
