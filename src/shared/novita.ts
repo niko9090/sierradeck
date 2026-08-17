@@ -23,6 +23,18 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.32',
+    righe: [
+      '**Dopo un aggiornamento il programma si riapre una volta sola.** Si chiudeva e riapriva un paio di volte — la versione di partenza, poi quella nuova — perché sullo stesso momento partivano due installatori: SierraDeck Update e quello di riserva di Electron, che credeva ancora di dover installare da sé alla chiusura. Adesso, quando l’installazione la guida SierraDeck Update, l’altro si tira indietro: un padrone solo.'
+    ]
+  },
+  {
+    versione: '0.9.31',
+    righe: [
+      '**Le chat restano nel loro workspace, anche subito dopo un aggiornamento.** Al riavvio poteva capitare che la chat di un workspace comparisse in un altro, sopra quella che c’era: il salvataggio del layout finiva sotto il workspace **attivo** dell’applicazione, ma le finestre si ricaricano in ordine incerto e una poteva scrivere mentre l’attivo era ancora un altro. Adesso ogni finestra salva sotto il workspace che sta mostrando davvero.'
+    ]
+  },
+  {
     versione: '0.9.30',
     righe: [
       '**L’autopilota non resta più bloccato, e non “resuscita”.** Quando una chat si fermava aspettando una risposta poteva restare in attesa per sempre: ora te la ripropone come domanda — nella modale, sul telefono, su Telegram — e appena rispondi riparte. E se lo fermi o lo elimini proprio mentre sta controllando il lavoro, adesso la tua scelta vince, invece di vederlo ripartire da solo.',

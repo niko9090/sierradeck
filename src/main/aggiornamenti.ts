@@ -203,6 +203,17 @@ export function creaAggiornamenti(
         return
       }
       installazioneAvviata = true
+      // **Un solo installer.** Da qui in poi l'aggiornamento lo fa SierraDeck
+      // Update (il nostro updater C#). Ma electron-updater, a ogni scaricamento,
+      // registra un gestore su `quit` che — se `autoInstallOnAppQuit` e' vero —
+      // lancia un SECONDO installer sullo stesso file (`install(true, false)` in
+      // BaseUpdater). L'`app.quit()` qui sotto lo farebbe scattare: due installer
+      // sugli stessi file, l'app che si chiude e riapre due volte, la versione
+      // vecchia che ricompare prima della nuova. Spento qui, il gestore di
+      // electron-updater si tira indietro (controlla `autoInstallOnAppQuit` al
+      // momento del quit) e resta un padrone solo. La strada di riserva in fondo
+      // chiama `quitAndInstall` di suo, quindi non ne resta scoperta.
+      autoUpdater.autoInstallOnAppQuit = false
       // Da qui in poi comanda SierraDeck Update, che e' un programma a se':
       // aspetta che noi siamo usciti, lancia l'installer, aspetta che finisca,
       // riapre il programma. Nessun pezzo di questa catena dipende da un
