@@ -462,6 +462,51 @@ async function raccogliLayout(attesaMs = 700): Promise<{ winId: number; layout: 
   })
 }
 
+/** Le conferme dei salvataggi forzati alla chiusura, per numero di richiesta. */
+let prossimoFlusso = 1
+const flussi = new Map<number, (winId: number) => void>()
+
+ipcMain.on('layout:salvato', (event, rawId: unknown) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (win === null || typeof rawId !== 'number') return
+  flussi.get(rawId)?.(win.id)
+})
+
+/**
+ * Chiede a **tutte** le finestre di salvare il layout adesso, e aspetta che
+ * l'abbiano fatto.
+ *
+ * Il salvataggio normale è a debounce: ogni modifica finisce sul disco poco
+ * dopo. Ma la chiusura — e in particolare quella che un aggiornamento fa da sé —
+ * può arrivare prima che l'ultimo stato sia stato scritto: allora la chat su cui
+ * si stava lavorando non c'era nel file, e alla riapertura «mancava». Qui il
+ * Core forza il salvataggio e aspetta la conferma, così spegne i terminali e il
+ * database solo quando il layout vivo è già al sicuro. Ogni finestra salva sotto
+ * il proprio workspace (è la stessa strada del salvataggio normale, col nome che
+ * la finestra mostra), e la `layout:salva` è sincrona: quando arriva la conferma
+ * la scrittura è già fatta. L'attesa massima esiste perché una finestra bloccata
+ * non deve impedire di chiudere.
+ */
+export async function salvaLayoutDiTutteLeFinestre(attesaMs = 1500): Promise<void> {
+  const finestre = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
+  if (finestre.length === 0) return
+  const id = prossimoFlusso++
+  const mancano = new Set(finestre.map((w) => w.id))
+  await new Promise<void>((risolvi) => {
+    const chiudi = (): void => {
+      flussi.delete(id)
+      clearTimeout(orologio)
+      risolvi()
+    }
+    const orologio = setTimeout(chiudi, attesaMs)
+    flussi.set(id, (winId) => {
+      mancano.delete(winId)
+      if (mancano.size === 0) chiudi()
+    })
+    for (const w of finestre) w.webContents.send('layout:salvaSubito', id)
+  })
+}
+
 /**
  * Cosa serve per lavorare, e i due comandi che ci portano ad averlo.
  *

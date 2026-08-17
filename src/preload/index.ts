@@ -245,6 +245,21 @@ contextBridge.exposeInMainWorld('gestore', {
       return () => ipcRenderer.off('layout:richiedi', h)
     },
     /**
+     * Il Core chiede a questa finestra di salvare il layout **subito** e aspetta
+     * la conferma: è la rete di sicurezza alla chiusura (anche quella di un
+     * aggiornamento). Il salvataggio normale è a debounce, e senza questo giro
+     * la chat su cui si lavorava poteva non essere ancora sul disco quando
+     * l'app si chiude — e alla riapertura «mancava».
+     */
+    suSalvaSubito: (salva: () => void): (() => void) => {
+      const h = (_e: unknown, id: number): void => {
+        salva()
+        ipcRenderer.send('layout:salvato', id)
+      }
+      ipcRenderer.on('layout:salvaSubito', h)
+      return () => ipcRenderer.off('layout:salvaSubito', h)
+    },
+    /**
      * Un layout che arriva da fuori: lo manda il Core quando un ripristino
      * riempie questa finestra invece di aprirne una nuova.
      */

@@ -87,6 +87,13 @@ function usaPersistenzaLayout(workspaceOra: () => string): void {
       useLayoutStore.getState().esporta()
     )
 
+    // Alla chiusura il Core chiede di salvare subito e aspetta: `beforeunload`
+    // da solo non basta quando è un aggiornamento a chiudere l'app, e l'ultimo
+    // stato — la chat su cui si lavorava — poteva non essere ancora sul disco.
+    const smettiDiSalvareSubito = window.gestore.layout.suSalvaSubito(() =>
+      persistenza.salvaSubito()
+    )
+
     // Un ripristino riempie le finestre che ci sono già invece di aprirne di
     // nuove: quando tocca a questa, il layout arriva di qui. Prima le si
     // affiancava una finestra nuova e questa restava con le chat di prima —
@@ -98,6 +105,7 @@ function usaPersistenzaLayout(workspaceOra: () => string): void {
     return () => {
       window.removeEventListener('beforeunload', salvaAllaChiusura)
       smettiDiRispondere()
+      smettiDiSalvareSubito()
       smettiDiRicevere()
       persistenza.chiudi()
     }

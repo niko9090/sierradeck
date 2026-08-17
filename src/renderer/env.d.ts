@@ -115,6 +115,7 @@ declare global {
         carica: () => Promise<LayoutSalvato>
         salva: (l: LayoutSalvato, workspace?: string) => void
         suRichiesta: (dai: () => LayoutSalvato) => () => void
+        suSalvaSubito: (salva: () => void) => () => void
         suApplica: (cb: (l: LayoutSalvato) => void) => () => void
       }
       finestre: {

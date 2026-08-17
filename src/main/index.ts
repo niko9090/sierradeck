@@ -17,7 +17,8 @@ import {
   registerAutopilotaIpc,
   registerIstantaneeIpc,
   registerPreparazioneIpc,
-  claudeRoot
+  claudeRoot,
+  salvaLayoutDiTutteLeFinestre
 } from './ipc'
 import { preparaAmbiente } from './preparazione'
 import { decidiChiusura, vociArea, suggerimentoArea } from './area-notifica'
@@ -1041,5 +1042,14 @@ app.on('before-quit', (event) => {
   // sembra un programma che si rifiuta di chiudere.
   area?.destroy()
   area = undefined
-  void chiudiRisorse().finally(() => app.quit())
+  // Prima di spegnere i terminali e il database: forzare il salvataggio del
+  // layout vivo e aspettare che sia sul disco. Senza, una chiusura guidata da un
+  // aggiornamento poteva partire prima dell'ultimo salvataggio a debounce, e la
+  // chat su cui si lavorava «mancava» alla riapertura. `chiudiRisorse` uccide i
+  // claude.exe delle finestre, quindi il salvataggio va per forza prima.
+  void salvaLayoutDiTutteLeFinestre()
+    .catch((err) => console.error('[chiusura] salvataggio del layout fallito:', err))
+    .finally(() => {
+      void chiudiRisorse().finally(() => app.quit())
+    })
 })

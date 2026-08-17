@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.34',
+    righe: [
+      '**La chat su cui lavori non sparisce più dopo un aggiornamento.** Quando l’app si chiudeva per aggiornarsi, l’ultimo stato poteva non fare in tempo a salvarsi: alla riapertura la chat su cui stavi lavorando «mancava», e a volte al suo posto compariva quella di un altro workspace. Ora, prima di chiudersi — per un aggiornamento o quando esci — SierraDeck salva il layout di tutte le finestre e aspetta che sia davvero sul disco, poi spegne i terminali. Quello che avevi davanti lo ritrovi identico.'
+    ]
+  },
+  {
     versione: '0.9.33',
     righe: [
       '**I workspace si rinominano.** Nel pannello dei workspace (il ⋯ in alto) c’è «✎ Rinomina»: cambia solo l’etichetta, le chat e i loro terminali restano dov’erano. Serve quando i nomi non dicono più cosa contengono.',
