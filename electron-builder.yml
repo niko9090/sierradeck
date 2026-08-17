@@ -51,9 +51,14 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: SierraDeck
-  # Chiudere il programma prima di sovrascriverlo: senza, l'aggiornamento
-  # fallirebbe sui file in uso — e con le chat aperte è la norma.
-  runAfterFinish: true
+  # A riaprire il programma dopo l'aggiornamento ci pensa SierraDeck Update (il
+  # nostro updater C#, in `updater/sorgente.ts` `Avvia()`): aspetta che l'app
+  # sia uscita, installa, e la rilancia una volta sola. Se anche l'installer la
+  # rilanciasse da solo (`runAfterFinish: true`), i due lanci si accavallerebbero
+  # — il `requestSingleInstanceLock` fa uscire una delle due istanze — e a
+  # schermo la finestra compare e sparisce, costringendo a riaprirla a mano. Per
+  # questo qui è `false`: un solo padrone del riavvio.
+  runAfterFinish: false
   deleteAppDataOnUninstall: false
 
 # Dove il programma cerca gli aggiornamenti. `generic` e non un servizio: basta

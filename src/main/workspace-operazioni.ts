@@ -19,14 +19,29 @@ function conLayout(w: WorkspaceSalvato, chiave: string, layout: LayoutSalvato): 
 }
 
 /**
- * Scrive il layout di un monitor sotto il workspace **attivo**.
+ * Scrive il layout di un monitor sotto il workspace che la **finestra** mostra.
  *
  * È il salvataggio ordinario, quello che parte a ogni modifica del mosaico, ed
  * è il primo sospetto del difetto 0-quater: in `workspaces.json` tutti i
  * workspace risultavano senza riquadri, compreso quello attivo mentre sullo
- * schermo c'erano chat aperte. Se il layout non finisce sotto `attivo`,
- * cambiare workspace non può che riportare il vuoto — e la perdita è
+ * schermo c'erano chat aperte. Se il layout non finisce sotto il workspace
+ * giusto, cambiare workspace non può che riportare il vuoto — e la perdita è
  * silenziosa, perché nessun errore la segnala.
+ *
+ * **Sotto quale nome.** L'attivo è dell'applicazione, la finestra è una: le due
+ * cose divergono per un istante a ogni cambio di workspace, e molto di più al
+ * riavvio dopo un aggiornamento, quando le finestre si ricaricano in ordine
+ * incerto. In quella finestra di divergenza un salvataggio scritto sotto
+ * `attivo` finiva sotto il workspace **sbagliato**, riscrivendo le chat di uno
+ * sopra quelle di un altro — «ha messo la chat di Wdeck in Predefinito». La
+ * finestra sa qual è il suo workspace: lo dice, e si scrive lì. `nomeFinestra`
+ * è quel nome.
+ *
+ * Ripiega su `attivo` in due casi, ed entrambi sono prudenza: nome vuoto (la
+ * finestra non ha ancora saputo il suo workspace) e nome che nell'archivio non
+ * esiste più (un'altra finestra l'ha eliminato o rinominato). Scrivere sotto un
+ * nome inesistente creerebbe un workspace fantasma, o ne resusciterebbe uno
+ * cancellato: meglio l'euristica di prima.
  *
  * Sta qui accanto a `cambiaWorkspace` e non dentro `ipcMain.on` per la stessa
  * ragione: ciò che può sbagliare è dove si scrive, e dove si scrive si verifica
@@ -36,13 +51,21 @@ function conLayout(w: WorkspaceSalvato, chiave: string, layout: LayoutSalvato): 
  * `attivo` vale già «Predefinito», e senza questo ramo il primo salvataggio non
  * troverebbe dove scrivere.
  */
-export function salvaLayoutAttivo(a: Archivio, chiave: string, layout: LayoutSalvato): Archivio {
-  if (!a.workspace.some((w) => w.nome === a.attivo)) {
-    return { ...a, workspace: [...a.workspace, { nome: a.attivo, perMonitor: { [chiave]: layout } }] }
+export function salvaLayoutAttivo(
+  a: Archivio,
+  chiave: string,
+  layout: LayoutSalvato,
+  nomeFinestra?: string
+): Archivio {
+  const dichiarato = nomeFinestra?.trim() ?? ''
+  const nome =
+    dichiarato !== '' && a.workspace.some((w) => w.nome === dichiarato) ? dichiarato : a.attivo
+  if (!a.workspace.some((w) => w.nome === nome)) {
+    return { ...a, workspace: [...a.workspace, { nome, perMonitor: { [chiave]: layout } }] }
   }
   return {
     ...a,
-    workspace: a.workspace.map((w) => (w.nome === a.attivo ? conLayout(w, chiave, layout) : w))
+    workspace: a.workspace.map((w) => (w.nome === nome ? conLayout(w, chiave, layout) : w))
   }
 }
 

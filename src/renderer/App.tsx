@@ -53,11 +53,21 @@ const RICARICA_AUTOPILOTI_MS = 5000
  * Collega la persistenza del layout — la cui logica sta in `persistenza-layout`,
  * fuori da React — al ciclo di vita del componente.
  */
-function usaPersistenzaLayout(): void {
+function usaPersistenzaLayout(workspaceOra: () => string): void {
+  // L'effetto nasce una volta sola, ma il workspace attivo cambia dopo: si legge
+  // da un riferimento sempre aggiornato, non dalla chiusura catturata al primo
+  // render.
+  const leggiWorkspace = useRef(workspaceOra)
+  leggiWorkspace.current = workspaceOra
   useEffect(() => {
     const persistenza = creaPersistenza({
       carica: () => window.gestore.layout.carica(),
-      salva: (l) => window.gestore.layout.salva(l),
+      // Col layout viaggia il nome del workspace che *questa* finestra mostra:
+      // il Core lo scrive lì e non sotto l'attivo dell'archivio, che al riavvio
+      // dopo un aggiornamento puo' essere ancora un altro. Senza, le chat di un
+      // workspace finivano sopra quelle di un altro. Letto al momento del
+      // salvataggio, non alla nascita dell'effetto: l'attivo cambia sotto.
+      salva: (l) => window.gestore.layout.salva(l, leggiWorkspace.current()),
       esporta: () => useLayoutStore.getState().esporta(),
       applica: (l) => useLayoutStore.getState().carica(l),
       sottoscrivi: (cb) => useLayoutStore.subscribe(cb)
@@ -133,7 +143,12 @@ export function App(): React.JSX.Element {
     const primo = Object.values(riquadriAperti)[0]
     return primo?.cwd ?? ''
   }
-  usaPersistenzaLayout()
+  // Il nome del workspace che questa finestra mostra, in un riferimento sempre
+  // aggiornato (lo si allinea allo stato più sotto, quando `workspace` esiste).
+  // La persistenza lo legge a ogni salvataggio per scrivere il layout sotto il
+  // workspace giusto invece che sotto l'attivo dell'archivio.
+  const attivoOra = useRef('')
+  usaPersistenzaLayout(() => attivoOra.current)
   usaRiquadriInArrivo()
 
   // Le finestre si spostano prendendole per la testa. Per delega e in un posto
@@ -440,8 +455,9 @@ export function App(): React.JSX.Element {
 
   // Il nome del workspace attivo cambia sotto le azioni, che nascono una volta
   // sola: senza questo riferimento ricorderebbero i riquadri vivi sotto il nome
-  // che l'attivo aveva all'apertura della finestra.
-  const attivoOra = useRef(workspace.attivo)
+  // che l'attivo aveva all'apertura della finestra. Il riferimento è dichiarato
+  // in cima — lo legge anche la persistenza del layout — e qui lo si allinea allo
+  // stato a ogni render.
   attivoOra.current = workspace.attivo
   // La preferenza puo cambiare mentre il programma gira: si legge quando serve.
   const ibernaLasciando = useRef(false)

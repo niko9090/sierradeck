@@ -189,4 +189,33 @@ describe('salvaLayoutAttivo', () => {
     salvaLayoutAttivo(originale, M, layoutCon('pane-a'))
     expect(originale).toEqual(copia)
   })
+
+  it('scrive sotto il workspace della finestra, non sotto l attivo dell archivio', () => {
+    // Il difetto vero: la finestra mostra 'Uno' mentre per l'archivio l'attivo
+    // e' gia' 'Due' (una race a ogni cambio, e molto di piu' al riavvio dopo un
+    // aggiornamento). Senza il nome della finestra, il layout di 'Uno' finiva
+    // sotto 'Due', riscrivendone le chat — «ha messo la chat di Wdeck in
+    // Predefinito».
+    const prima = archivioCon(['Uno', 'Due'], 'Due')
+    const dopo = salvaLayoutAttivo(prima, M, layoutCon('pane-a'), 'Uno')
+    expect(dopo.workspace.find((w) => w.nome === 'Uno')?.perMonitor[M]?.panes[0]?.id).toBe('pane-a')
+    expect(dopo.workspace.find((w) => w.nome === 'Due')?.perMonitor[M]).toBeUndefined()
+  })
+
+  it('ripiega sull attivo se il nome della finestra e vuoto', () => {
+    const prima = archivioCon(['Uno', 'Due'], 'Due')
+    const dopo = salvaLayoutAttivo(prima, M, layoutCon('pane-a'), '   ')
+    expect(dopo.workspace.find((w) => w.nome === 'Due')?.perMonitor[M]?.panes[0]?.id).toBe('pane-a')
+    expect(dopo.workspace.find((w) => w.nome === 'Uno')?.perMonitor[M]).toBeUndefined()
+  })
+
+  it('ripiega sull attivo se il workspace nominato non esiste piu', () => {
+    // Un'altra finestra l'ha eliminato o rinominato: scrivere sotto un nome che
+    // nell'archivio non c'e' piu' resusciterebbe un workspace cancellato. Meglio
+    // l'attivo, che esiste di sicuro.
+    const prima = archivioCon(['Uno', 'Due'], 'Due')
+    const dopo = salvaLayoutAttivo(prima, M, layoutCon('pane-a'), 'Sparito')
+    expect(dopo.workspace.map((w) => w.nome)).toEqual(['Uno', 'Due'])
+    expect(dopo.workspace.find((w) => w.nome === 'Due')?.perMonitor[M]?.panes[0]?.id).toBe('pane-a')
+  })
 })

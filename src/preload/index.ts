@@ -232,7 +232,8 @@ contextBridge.exposeInMainWorld('gestore', {
   },
   layout: {
     carica: (): Promise<LayoutSalvato> => ipcRenderer.invoke('layout:carica'),
-    salva: (l: LayoutSalvato): void => ipcRenderer.send('layout:salva', l),
+    salva: (l: LayoutSalvato, workspace?: string): void =>
+      ipcRenderer.send('layout:salva', l, workspace),
     /**
      * Il Core chiede a questa finestra com'è disposta adesso: succede quando si
      * salva una sessione, che deve contenere **tutte** le finestre e non solo

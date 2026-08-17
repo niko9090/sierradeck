@@ -520,7 +520,7 @@ export function registerLayoutIpc(store: WorkspaceStore): void {
     return layoutPerFinestra(attivo.perMonitor, chiaveDellaFinestra(win))
   })
 
-  ipcMain.on('layout:salva', (event, raw: unknown) => {
+  ipcMain.on('layout:salva', (event, raw: unknown, rawNome: unknown) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win === null) {
       console.error('[layout] salvataggio da una finestra sconosciuta, ignorato')
@@ -529,6 +529,13 @@ export function registerLayoutIpc(store: WorkspaceStore): void {
     const { layout, scartati } = validateLayoutSalvato(raw)
     for (const motivo of scartati) console.warn(`[layout:salva] scartato: ${motivo}`)
     const chiave = chiaveDellaFinestra(win)
+    // Sotto quale workspace: quello che *questa* finestra mostra, non l'attivo
+    // dell'archivio. I due divergono per un istante a ogni cambio, e al riavvio
+    // dopo un aggiornamento la finestra puo' salvare mentre l'attivo memorizzato
+    // e' ancora un altro — e le chat di un workspace finivano sopra quelle di un
+    // altro. `salvaLayoutAttivo` ripiega sull'attivo se il nome e' vuoto o non
+    // esiste piu'.
+    const nomeFinestra = typeof rawNome === 'string' ? rawNome : undefined
     const archivio = store.leggi()
 
     // Leggi-modifica-scrivi a ogni salvataggio, invece di tenere l'archivio in
@@ -539,7 +546,7 @@ export function registerLayoutIpc(store: WorkspaceStore): void {
     // Dove si scrive lo decide `salvaLayoutAttivo`, che è puro: è la parte che
     // il difetto 0-quater metteva in dubbio, ed è l'unica qui dentro che si può
     // sbagliare in silenzio.
-    store.scrivi(salvaLayoutAttivo(archivio, chiave, layout))
+    store.scrivi(salvaLayoutAttivo(archivio, chiave, layout, nomeFinestra))
   })
 
   ipcMain.handle('workspace:stato', (): StatoWorkspace => statoDi(store.leggi()))
