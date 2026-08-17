@@ -16,6 +16,7 @@ import { chiaveMonitor } from '@shared/display-key'
 import {
   aggiungiPaneA,
   layoutPerFinestra,
+  rimuoviSessioni as rimuoviSessioniDalLayout,
   unaChatUnWorkspace,
   type Archivio,
   type LayoutSalvato
@@ -24,7 +25,7 @@ import type { WorkspaceStore } from './workspace-store'
 import type { IstantaneeStore } from './istantanee-store'
 import {
   nuovaIstantanea, distribuisci, daRiavviare, daSalvare, workspaceDaSalvare,
-  workspaceDelleFinestre, finestreDaRiaprire,
+  workspaceDopoRipristino, finestreDaRiaprire,
   type AutopilotaSalvato, type FinestraSalvata, type Istantanea
 } from '@shared/istantanea'
 import { resolveClaudeCommand, buildClaudeArgs } from './config'
@@ -1025,31 +1026,14 @@ export function registerIstantaneeIpc(
     // cioè un terzo del lavoro, per chi ne ha tre.
     if (istantanea.workspace !== undefined && workspaceStore !== undefined) {
       const archivio = workspaceStore.leggi()
-      // I workspace che esistono adesso e non erano nel salvataggio restano:
-      // un ripristino non deve cancellare il lavoro fatto dopo.
-      const nomiSalvati = new Set(istantanea.workspace.map((w) => w.nome))
-      workspaceStore.scrivi({
-        ...archivio,
-        // E torna davanti quello che si aveva davanti. Senza, le chat
-        // ripristinate finivano nel workspace attivo **di adesso** al primo
-        // salvataggio del layout: le stesse chat in due workspace diversi.
-        //
-        // I salvataggi vecchi non lo dicono, e sono quelli che la gente ha già
-        // sul disco: lì si deduce da dove stanno le chat che tornano a schermo.
-        ...(() => {
-          const davanti =
-            istantanea.workspaceAttivo ??
-            workspaceDelleFinestre(istantanea.finestre, istantanea.workspace ?? [])
-          if (davanti === undefined) return {}
-          console.log(`[istantanee] torna davanti il workspace «${davanti}»`)
-          return { attivo: davanti }
-        })(),
-        workspace: [
-          ...archivio.workspace.filter((w) => !nomiSalvati.has(w.nome)),
-          ...istantanea.workspace
-        ]
-      })
-      console.log(`[istantanee] ripristinati ${istantanea.workspace.length} workspace`)
+      // Il merge, l'invariante «una chat un workspace» e la potatura dei
+      // workspace-fantasma stanno in una funzione pura: è la parte che può
+      // sbagliare in silenzio — reintrodurre un «Predefinito» cancellato, o la
+      // stessa chat in due posti — e lì si verifica senza avviare Electron.
+      const { workspace, attivo } = workspaceDopoRipristino(archivio, istantanea)
+      if (attivo !== archivio.attivo) console.log(`[istantanee] torna davanti il workspace «${attivo}»`)
+      workspaceStore.scrivi({ ...archivio, attivo, workspace })
+      console.log(`[istantanee] ripristinati ${workspace.length} workspace`)
     }
 
     // Le finestre che non sono questa vanno riaperte, altrimenti le loro chat
@@ -1065,8 +1049,9 @@ export function registerIstantaneeIpc(
     // Le finestre **da riaprire davvero**: quelle vuote si saltano, e se sono
     // vuote tutte si pesca dal workspace che si aveva davanti. Un salvataggio
     // che contiene il lavoro e non lo restituisce sembra lavoro perduto.
+    const riaperte = finestreDaRiaprire(istantanea)
     const { aFinestre, daAprire, daSvuotare } = distribuisci(
-      finestreDaRiaprire(istantanea),
+      riaperte,
       ordinate.map((w) => ({ id: w.id, monitor: chiaveDellaFinestra(w) }))
     )
 
@@ -1080,11 +1065,24 @@ export function registerIstantaneeIpc(
       }
       registro.inviaA(a.id, 'layout:applica', a.layout)
     }
-    // Quelle che il salvataggio non prevede restano vuote: lasciarle com'erano
-    // è esattamente il doppione descritto sopra.
-    for (const id of daSvuotare) {
-      if (id === win.id) mio = layoutVuoto()
-      else registro.inviaA(id, 'layout:applica', layoutVuoto())
+    // Le finestre che il salvataggio non copre **non si svuotano**: si tolgono
+    // solo le chat che il salvataggio rimette altrove — quelle comparirebbero due
+    // volte, ed era il doppione da evitare — e tutto il resto resta dov'è. Prima
+    // le si azzerava del tutto, e una finestra che mostrava una chat non
+    // contenuta nel salvataggio la perdeva: è il «ho dovuto riaprirla» dopo aver
+    // ripreso un salvataggio parziale. Le chat vive che il salvataggio non
+    // nomina sono lavoro, non un doppione.
+    if (daSvuotare.length > 0) {
+      const sessioniRimesse = new Set(
+        riaperte.flatMap((f) => f.layout.panes.map((p) => p.sessionUuid))
+      )
+      const correnti = new Map((await raccogliLayout()).map((r) => [r.winId, r.layout]))
+      for (const id of daSvuotare) {
+        const attuale = correnti.get(id) ?? layoutVuoto()
+        const ridotto = rimuoviSessioniDalLayout(attuale, sessioniRimesse)
+        if (id === win.id) mio = ridotto
+        else registro.inviaA(id, 'layout:applica', ridotto)
+      }
     }
 
     // Solo quello che avanza apre finestre nuove. Ognuna, appena pronta,

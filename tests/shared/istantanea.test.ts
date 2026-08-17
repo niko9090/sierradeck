@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseIstantanee, nuovaIstantanea, distribuisci, daRiavviare, daSalvare, workspaceDaSalvare,
-  workspaceDelleFinestre, finestreDaRiaprire,
+  workspaceDelleFinestre, finestreDaRiaprire, workspaceDopoRipristino,
   contaChat, contaWorkspace, VERSIONE_ISTANTANEE,
   type Istantanea, type FinestraSalvata, type AutopilotaSalvato
 } from '@shared/istantanea'
-import type { LayoutSalvato } from '@shared/workspace'
+import type { LayoutSalvato, WorkspaceSalvato } from '@shared/workspace'
 
 function layout(id = 'pane-1'): { root: { type: 'pane'; id: string }; panes: { id: string; sessionUuid: string; cwd: string; title: string }[] } {
   return {
@@ -308,6 +308,28 @@ describe('i workspace sopravvivono alla rilettura', () => {
     })
     expect(istantanee[0]?.workspace).toBeUndefined()
     expect(istantanee[0]?.workspaceAttivo).toBeUndefined()
+  })
+
+  it('il modello di una chat sopravvive al salvataggio', () => {
+    // «Voglio che nelle chat ci sia scritto il modello che stiamo usando»: il
+    // modello scelto viaggia col riquadro (finestre e workspace), e al ricarico
+    // la chat riprende con lo stesso invece che col predefinito dell'account.
+    const conModello = {
+      versione: VERSIONE_ISTANTANEE,
+      istantanee: [{
+        nome: 'con-modello', salvataIl: '2026-08-12T10:00:00.000Z',
+        finestre: [{
+          monitor: 'm1',
+          layout: { root: { type: 'pane', id: 'p1' }, panes: [{ id: 'p1', sessionUuid: 'u1', cwd: 'C:\\a', title: 'una', model: 'opus' }] }
+        }],
+        workspaceAttivo: 'lavoro',
+        workspace: [{ nome: 'lavoro', perMonitor: { m1: { root: { type: 'pane', id: 'p1' }, panes: [{ id: 'p1', sessionUuid: 'u1', cwd: 'C:\\a', title: 'una', model: 'opus' }] } } }],
+        autopiloti: []
+      }]
+    }
+    const { istantanee } = parseIstantanee(conModello)
+    expect(istantanee[0]?.finestre[0]?.layout.panes[0]?.model).toBe('opus')
+    expect(istantanee[0]?.workspace?.[0]?.perMonitor.m1?.panes[0]?.model).toBe('opus')
   })
 })
 
@@ -617,5 +639,96 @@ describe('finestreDaRiaprire', () => {
       workspace: [{ nome: 'lavoro', perMonitor: { m1: vuoto } }]
     })
     expect(finestreDaRiaprire(i)).toEqual([])
+  })
+})
+
+describe('workspaceDopoRipristino', () => {
+  // La chat con id di riquadro `id` e conversazione `sess`. Serve la stessa
+  // `sess` in due workspace per riprodurre i «workspace incrociati».
+  const chat = (id: string, sess: string): WorkspaceSalvato['perMonitor'] => ({
+    m1: { root: { type: 'pane', id }, panes: [{ id, sessionUuid: sess, cwd: 'C:\p', title: id }] }
+  })
+  const vuoto: WorkspaceSalvato['perMonitor'] = { m1: { root: undefined, panes: [] } }
+
+  it('non resuscita un «Predefinito» cancellato che conteneva solo un doppione', () => {
+    // Il bug esatto trovato sul disco: cancellato «Predefinito», ma un
+    // salvataggio vecchio (Deck_1) lo conteneva ancora, col doppione della chat
+    // di Wdeck. Ripristinarlo lo rimetteva nell'archivio.
+    const archivio = {
+      attivo: 'SierraDeck',
+      workspace: [
+        { nome: 'SierraDeck', perMonitor: chat('p-sd', 'sess-sd') },
+        { nome: 'Wdeck', perMonitor: chat('p-wd', 'sess-wd') }
+      ]
+    }
+    const i = nuovaIstantanea({
+      nome: 'Deck_1', salvataIl: 'ieri', autopiloti: [],
+      finestre: [{ monitor: 'm1', layout: chat('p-wd', 'sess-wd').m1! }],
+      workspaceAttivo: 'Wdeck',
+      workspace: [
+        { nome: 'Predefinito', perMonitor: chat('p-wd', 'sess-wd') },
+        { nome: 'Wdeck', perMonitor: chat('p-wd', 'sess-wd') }
+      ]
+    })
+    const { workspace, attivo } = workspaceDopoRipristino(archivio, i)
+    // Predefinito potato: vuoto dopo il dedup e introdotto dal salvataggio.
+    expect(workspace.map((w) => w.nome).sort()).toEqual(['SierraDeck', 'Wdeck'])
+    // La chat di Wdeck vive in un solo posto.
+    const dove = workspace.filter((w) =>
+      Object.values(w.perMonitor).some((l) => l.panes.some((p) => p.sessionUuid === 'sess-wd')))
+    expect(dove.map((w) => w.nome)).toEqual(['Wdeck'])
+    expect(attivo).toBe('Wdeck')
+  })
+
+  it('tiene i workspace del salvataggio che dopo il dedup restano pieni', () => {
+    const archivio = { attivo: 'Main', workspace: [{ nome: 'Main', perMonitor: chat('p-m', 'sess-m') }] }
+    const i = nuovaIstantanea({
+      nome: 'x', salvataIl: 'ieri', autopiloti: [],
+      finestre: [{ monitor: 'm1', layout: chat('p-e', 'sess-e').m1! }],
+      workspaceAttivo: 'Extra',
+      workspace: [{ nome: 'Extra', perMonitor: chat('p-e', 'sess-e') }]
+    })
+    const { workspace, attivo } = workspaceDopoRipristino(archivio, i)
+    expect(workspace.map((w) => w.nome).sort()).toEqual(['Extra', 'Main'])
+    expect(attivo).toBe('Extra')
+  })
+
+  it('non tocca un workspace vuoto che c era già: non è stato introdotto ora', () => {
+    // Se «Bozza» esisteva vuoto anche prima, non è un fantasma del salvataggio:
+    // potarlo cancellerebbe una scelta dell'utente.
+    const archivio = {
+      attivo: 'Main',
+      workspace: [
+        { nome: 'Main', perMonitor: chat('p-m', 'sess-m') },
+        { nome: 'Bozza', perMonitor: vuoto }
+      ]
+    }
+    const i = nuovaIstantanea({
+      nome: 'x', salvataIl: 'ieri', autopiloti: [],
+      finestre: [{ monitor: 'm1', layout: chat('p-m', 'sess-m').m1! }],
+      workspaceAttivo: 'Main',
+      workspace: [{ nome: 'Bozza', perMonitor: vuoto }]
+    })
+    const { workspace } = workspaceDopoRipristino(archivio, i)
+    expect(workspace.map((w) => w.nome).sort()).toEqual(['Bozza', 'Main'])
+  })
+
+  it('i workspace di adesso che il salvataggio non nomina restano', () => {
+    const archivio = {
+      attivo: 'Main',
+      workspace: [
+        { nome: 'Main', perMonitor: chat('p-m', 'sess-m') },
+        { nome: 'Nuovo', perMonitor: chat('p-n', 'sess-n') }
+      ]
+    }
+    const i = nuovaIstantanea({
+      nome: 'x', salvataIl: 'ieri', autopiloti: [],
+      finestre: [{ monitor: 'm1', layout: chat('p-m', 'sess-m').m1! }],
+      workspaceAttivo: 'Main',
+      workspace: [{ nome: 'Main', perMonitor: chat('p-m', 'sess-m') }]
+    })
+    const { workspace } = workspaceDopoRipristino(archivio, i)
+    // «Nuovo», creato dopo il salvataggio, non sparisce.
+    expect(workspace.map((w) => w.nome).sort()).toEqual(['Main', 'Nuovo'])
   })
 })

@@ -5,7 +5,6 @@ import type { DividerBox } from '@shared/layout-geometry'
 import { useLayoutStore } from '../state/layout'
 import { spostaRiquadro } from '../spostamento'
 import { memoriaWorkspace } from '../memoria-workspace'
-import { MODELLI } from '../modelli'
 import { Terminal } from './Terminal'
 import { DiarioAutopilota } from './DiarioAutopilota'
 import { diarioDelRiquadro } from '../diario-autopilota'
@@ -243,7 +242,6 @@ export function Mosaic({
   const closePane = useLayoutStore((s) => s.closePane)
   const setPtyId = useLayoutStore((s) => s.setPtyId)
   const rinominaPane = useLayoutStore((s) => s.rinominaPane)
-  const impostaModello = useLayoutStore((s) => s.impostaModello)
   // Quale riquadro si sta rinominando, e con che testo: il nome si cambia dove
   // lo si legge, con due clic sulla sua testata.
   const [rinominando, setRinominando] = useState<string | undefined>(undefined)
@@ -341,35 +339,10 @@ export function Mosaic({
                 />
               ) : null}
               <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                {/* Il modello di **questa** chat: si vede sempre (è il valore
-                    selezionato), si salva, e la chat riapre con questo. Cambiarlo
-                    manda `/model` nel terminale — lo stesso gesto che si farebbe
-                    a mano, così la conversazione non riparte — e insieme aggiorna
-                    il riquadro, che è ciò che lo fa salvare e riaprire uguale. */}
-                <select
-                  className="campo campo--compatto testata-riquadro__modello"
-                  value={data.model ?? 'default'}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => {
-                    const scelto = e.target.value
-                    const nuovo = scelto === 'default' ? undefined : scelto
-                    // Salvato subito: è ciò che fa riaprire la chat con questo
-                    // modello dopo un riavvio.
-                    impostaModello(paneId, nuovo)
-                    // E alla chat viva, se è accesa e non è un ritorno al
-                    // predefinito (a cui `/model` non saprebbe tornare): la
-                    // conversazione non si interrompe.
-                    if (nuovo !== undefined && data.ptyId !== undefined) {
-                      window.gestore.pty.write(data.ptyId, `/model ${nuovo}
-`)
-                    }
-                  }}
-                  title="Il modello di questa chat: si vede sempre, si salva, e la chat riapre con questo"
-                >
-                  {MODELLI.map((m) => (
-                    <option key={m.valore} value={m.valore}>{m.etichetta}</option>
-                  ))}
-                </select>
+                {/* Il selettore del modello per-chat è stato tolto da qui: il
+                    modello si sceglie all'apertura (dalla fascia) e resta quello.
+                    Cambiarlo a chat aperta si fa con `/model` nel terminale, che è
+                    il gesto vero — lo spazio della testata va a comandi più utili. */}
                 <ComandoSposta paneId={paneId} />
                 {/* Dormire non è chiudere: la conversazione resta, e quello che
                     si libera è il claude.exe che la teneva in piedi. Con

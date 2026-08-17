@@ -1,5 +1,6 @@
 import {
   NOME_PREDEFINITO,
+  unaChatUnWorkspace,
   type Archivio,
   type LayoutSalvato,
   type WorkspaceSalvato
@@ -60,13 +61,18 @@ export function salvaLayoutAttivo(
   const dichiarato = nomeFinestra?.trim() ?? ''
   const nome =
     dichiarato !== '' && a.workspace.some((w) => w.nome === dichiarato) ? dichiarato : a.attivo
-  if (!a.workspace.some((w) => w.nome === nome)) {
-    return { ...a, workspace: [...a.workspace, { nome, perMonitor: { [chiave]: layout } }] }
-  }
-  return {
-    ...a,
-    workspace: a.workspace.map((w) => (w.nome === nome ? conLayout(w, chiave, layout) : w))
-  }
+  const conWorkspace = !a.workspace.some((w) => w.nome === nome)
+    ? [...a.workspace, { nome, perMonitor: { [chiave]: layout } }]
+    : a.workspace.map((w) => (w.nome === nome ? conLayout(w, chiave, layout) : w))
+  // Invariante «una chat, un workspace» a **ogni** salvataggio, non solo quando
+  // si sposta una chat a mano. Una conversazione appena scritta qui non deve
+  // restare anche in un altro workspace: succede al riavvio dopo un
+  // aggiornamento, quando una finestra salva sotto un nome mentre la stessa chat
+  // è ancora ferma nel layout di un altro. Vince `nome`, il workspace in cui si
+  // sta scrivendo: è quello che si ha davvero davanti. Senza questa riga, la
+  // stessa chat finiva in due (o tre) workspace, e ricompariva di là a ogni
+  // cambio — la radice dei workspace incrociati e dei doppioni.
+  return { ...a, workspace: unaChatUnWorkspace(conWorkspace, nome) }
 }
 
 export function creaWorkspace(a: Archivio, nome: string): Archivio {

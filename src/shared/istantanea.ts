@@ -159,6 +159,51 @@ export function workspaceDaSalvare(
 }
 
 /**
+ * I workspace dell'archivio dopo aver ripristinato un salvataggio.
+ *
+ * Tre regole, e ognuna toglie un guasto vero visto sul disco:
+ *
+ * 1. **I workspace di adesso che il salvataggio non nomina restano.** Un
+ *    ripristino non deve cancellare il lavoro fatto dopo averlo salvato.
+ * 2. **Una chat, un workspace.** Un salvataggio poteva contenere la stessa
+ *    conversazione in due workspace — un «Predefinito» che teneva il doppione di
+ *    una chat di un altro workspace. Si tiene in quello che torna davanti e la si
+ *    toglie dagli altri, o al ricarico ricompare di qua e di là.
+ * 3. **Un workspace del salvataggio rimasto vuoto dopo il dedup non si
+ *    reintroduce**, se non c'era già: la sua unica chat viveva anche altrove e ha
+ *    vinto quell'altro. È così che ripristinare un salvataggio vecchio non
+ *    resuscita un «Predefinito» cancellato che conteneva solo un doppione.
+ *
+ * `attivo` torna a quello che si aveva davanti quando si è salvato — dedotto da
+ * dove stanno le chat, per i salvataggi vecchi che non lo dicono — a meno che
+ * quel workspace non sia stato potato: allora resta l'attivo di adesso.
+ */
+export function workspaceDopoRipristino(
+  archivio: { attivo: string; workspace: WorkspaceSalvato[] },
+  istantanea: Istantanea
+): { workspace: WorkspaceSalvato[]; attivo: string } {
+  const salvati = istantanea.workspace ?? []
+  const nomiSalvati = new Set(salvati.map((w) => w.nome))
+  const nomiPrima = new Set(archivio.workspace.map((w) => w.nome))
+  const davanti =
+    istantanea.workspaceAttivo ?? workspaceDelleFinestre(istantanea.finestre, salvati)
+
+  const fusi = unaChatUnWorkspace(
+    [...archivio.workspace.filter((w) => !nomiSalvati.has(w.nome)), ...salvati],
+    davanti
+  )
+  const finale = fusi.filter((w) => {
+    const introdotto = nomiSalvati.has(w.nome) && !nomiPrima.has(w.nome)
+    const vuoto = Object.values(w.perMonitor).every((l) => l.panes.length === 0)
+    return !(introdotto && vuoto)
+  })
+
+  const attivo =
+    davanti !== undefined && finale.some((w) => w.nome === davanti) ? davanti : archivio.attivo
+  return { workspace: finale, attivo }
+}
+
+/**
  * A chi va ogni layout salvato, quando le finestre aperte non sono quelle di
  * allora.
  *
@@ -169,9 +214,12 @@ export function workspaceDaSalvare(
  * due volte**, in due finestre, e le si credeva perse quando invece erano di
  * troppo.
  *
- * Le finestre aperte che il salvataggio non prevede vengono svuotate. Lasciarle
- * com'erano è esattamente il doppione descritto sopra: un ripristino dice cosa
- * ci deve essere, e quello che non c'è dentro non ci deve essere.
+ * Le finestre aperte che il salvataggio non prevede finiscono in `daSvuotare`,
+ * ma chi ripristina **non le azzera**: toglie solo le chat che il salvataggio
+ * rimette altrove — quelle sì comparirebbero due volte — e lascia il resto. Una
+ * finestra che mostra una chat viva non contenuta nel salvataggio la
+ * conserverebbe: azzerarla del tutto è il «ho dovuto riaprirla» dopo aver ripreso
+ * un salvataggio parziale. Il doppione lo si evita col dedup, non con la ruspa.
  */
 /**
  * In quale workspace vivono le chat che un salvataggio rimette a schermo.

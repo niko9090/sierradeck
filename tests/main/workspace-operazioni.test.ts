@@ -267,4 +267,59 @@ describe('salvaLayoutAttivo', () => {
     expect(dopo.workspace.map((w) => w.nome)).toEqual(['Uno', 'Due'])
     expect(dopo.workspace.find((w) => w.nome === 'Due')?.perMonitor[M]?.panes[0]?.id).toBe('pane-a')
   })
+
+  it('toglie la stessa chat dagli altri workspace: una chat, un workspace', () => {
+    // La radice dei «workspace incrociati»: la stessa conversazione (stesso
+    // sessionUuid) risulta in due workspace — un salvataggio finito sotto il
+    // nome sbagliato al riavvio dopo un aggiornamento. Salvandola nel workspace
+    // che si ha davanti, deve sparire dall'altro, non restare a comparire di la'.
+    const condivisa: LayoutSalvato = {
+      root: { type: 'pane', id: 'p1' },
+      panes: [{ id: 'p1', sessionUuid: 'sess-condivisa', cwd: 'C:\\p', title: 'Chat' }]
+    }
+    const prima: Archivio = {
+      ...archivioVuoto(),
+      attivo: 'Uno',
+      workspace: [
+        { nome: 'Uno', perMonitor: {} },
+        { nome: 'Due', perMonitor: { [M]: condivisa } }
+      ]
+    }
+    // La stessa chat (altro id di riquadro, stessa sessione) viene salvata in 'Uno'.
+    const arrivo: LayoutSalvato = {
+      root: { type: 'pane', id: 'p2' },
+      panes: [{ id: 'p2', sessionUuid: 'sess-condivisa', cwd: 'C:\\p', title: 'Chat' }]
+    }
+    const dopo = salvaLayoutAttivo(prima, M, arrivo, 'Uno')
+    expect(dopo.workspace.find((w) => w.nome === 'Uno')?.perMonitor[M]?.panes[0]?.sessionUuid)
+      .toBe('sess-condivisa')
+    // Sparita da 'Due': non vive piu' in due posti.
+    expect(dopo.workspace.find((w) => w.nome === 'Due')?.perMonitor[M]?.panes ?? []).toHaveLength(0)
+  })
+
+  it('NON tocca una chat di un altro workspace quando salvo un layout che non la contiene', () => {
+    // La cautela della 0.9.33: uno spostamento mette per un istante la chat in
+    // due workspace, e un dedup cieco potrebbe strapparla via. Ma il dedup
+    // guarda il layout che si sta salvando: se la chat NON è in questo layout,
+    // non viene toccata da nessuna parte. È ciò che rende sicuro lo spostamento
+    // — la sorgente stacca il pane e salva senza la chat, quindi non la
+    // riprende alla destinazione.
+    const altrove: LayoutSalvato = {
+      root: { type: 'pane', id: 'p-x' },
+      panes: [{ id: 'p-x', sessionUuid: 'sess-mossa', cwd: 'C:\\p', title: 'X' }]
+    }
+    const prima: Archivio = {
+      ...archivioVuoto(),
+      attivo: 'Sorgente',
+      workspace: [
+        { nome: 'Sorgente', perMonitor: {} },
+        { nome: 'Destinazione', perMonitor: { [M]: altrove } }
+      ]
+    }
+    // La sorgente salva il proprio layout (una chat diversa, la mossa non c'è più).
+    const dopo = salvaLayoutAttivo(prima, M, layoutCon('pane-altra'), 'Sorgente')
+    // La chat spostata resta a Destinazione: intatta.
+    expect(dopo.workspace.find((w) => w.nome === 'Destinazione')?.perMonitor[M]?.panes[0]?.sessionUuid)
+      .toBe('sess-mossa')
+  })
 })
