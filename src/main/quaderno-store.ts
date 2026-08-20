@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import {
   CARTELLA_QUADERNO, SOTTOCARTELLA, componiScheda, leggiScheda, nomeFile, ordinaSchede,
@@ -20,6 +20,8 @@ export type QuadernoStore = {
   leggi: (cwd: string, file: string) => Scheda | undefined
   /** Scrive una scheda nuova, o riscrive quella con lo stesso nome. */
   scrivi: (cwd: string, s: { titolo: string; corpo: string; tag?: string[]; sessione?: string; file?: string }) => Scheda
+  /** Cancella una scheda. `false` se non c'era già. Il file `.md` sparisce dalla cartella. */
+  elimina: (cwd: string, file: string) => boolean
 }
 
 /** Solo file `.md` senza percorso dentro: un nome che risale le cartelle non è un nome. */
@@ -80,6 +82,15 @@ export function apriQuaderno(adesso: () => string = () => new Date().toISOString
       }
       writeFileSync(percorsoDi(cwd, file), componiScheda(scheda), 'utf8')
       return scheda
+    },
+
+    elimina(cwd, file) {
+      // `percorsoDi` valida il nome e impedisce di uscire dalla cartella del
+      // quaderno: cancellare è l'operazione dove quella cintura conta di più.
+      const percorso = percorsoDi(cwd, file)
+      if (!existsSync(percorso)) return false
+      rmSync(percorso)
+      return true
     }
   }
 }

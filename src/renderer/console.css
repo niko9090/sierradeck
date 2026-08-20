@@ -1737,6 +1737,123 @@ select.comando-riquadro option {
   min-width: 200px;
 }
 
+/* Una voce dell'elenco: titolo, un assaggio del corpo, e in fondo data e tag —
+   così a colpo d'occhio si riconosce una scheda senza aprirla. */
+.scheda-voce {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  padding: var(--s2);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--raggio);
+  color: inherit;
+  cursor: pointer;
+}
+.scheda-voce:hover { background: var(--luce-tenue); }
+.scheda-voce--attiva { border-color: var(--incisione); background: var(--luce-tenue); }
+.scheda-voce__titolo { font-weight: 600; font-size: var(--t2); }
+.scheda-voce__assaggio {
+  font-size: var(--t1);
+  color: var(--testo-quieto);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.scheda-voce__riga { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1); margin-top: 2px; }
+.scheda-voce__data { font-size: var(--t1); color: var(--testo-quieto); }
+
+/* Un tag: piccola etichetta con la cornice, uguale nell'elenco e nella scheda. */
+.tag {
+  font-size: var(--t1);
+  padding: 1px var(--s1);
+  border: 1px solid var(--incisione);
+  border-radius: 999px;
+  color: var(--testo-quieto);
+  white-space: nowrap;
+}
+
+/* La testa della scheda aperta: titolo a sinistra, stato e comandi a destra. */
+.scheda__testa { display: flex; align-items: center; gap: var(--s2); }
+.scheda__titolo { margin: 0; font-size: var(--t4); }
+.scheda__titolo-modifica {
+  flex: 1;
+  padding: var(--s1) var(--s2);
+  border: 1px solid var(--incisione);
+  border-radius: var(--raggio);
+  background: var(--fondo-cupo);
+  color: inherit;
+  font-size: var(--t3);
+  font-weight: 600;
+}
+.scheda__tag-modifica {
+  padding: var(--s1) var(--s2);
+  border: 1px solid var(--incisione);
+  border-radius: var(--raggio);
+  background: var(--fondo-cupo);
+  color: inherit;
+  font-size: var(--t2);
+}
+.scheda__tag { display: flex; flex-wrap: wrap; gap: var(--s1); margin-bottom: var(--s2); }
+.scheda__lettura {
+  flex: 1;
+  min-height: 320px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: var(--s3);
+  border: 1px solid var(--incisione);
+  border-radius: var(--raggio);
+  background: var(--fondo-cupo);
+}
+
+.tasto--pericolo { border-color: var(--rosso); color: var(--rosso); }
+.tasto--pericolo:hover:not(:disabled) { background: color-mix(in srgb, var(--rosso) 16%, transparent); }
+
+/* Il Markdown reso: leggibile, con una gerarchia chiara e coerente. Non è mai
+   HTML che arriva dal testo — sono elementi costruiti dal parser — quindi qui si
+   decide solo come appare, mai cosa può fare. */
+.md { font-size: var(--t3); line-height: 1.65; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md__titolo { margin: var(--s4) 0 var(--s2); line-height: 1.25; font-weight: 700; }
+.md__titolo--1 { font-size: 1.5em; }
+.md__titolo--2 { font-size: 1.3em; }
+.md__titolo--3 { font-size: 1.12em; }
+.md__titolo--4, .md__titolo--5, .md__titolo--6 { font-size: 1em; color: var(--testo-quieto); }
+.md__paragrafo { margin: var(--s2) 0; }
+.md__codice {
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.92em;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--luce-tenue);
+}
+.md__blocco {
+  margin: var(--s3) 0;
+  padding: var(--s3);
+  border: 1px solid var(--incisione);
+  border-radius: var(--raggio);
+  background: rgba(0, 0, 0, 0.25);
+  overflow-x: auto;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.92em;
+  line-height: 1.5;
+}
+.md__blocco code { white-space: pre; }
+.md__citazione {
+  margin: var(--s3) 0;
+  padding: var(--s1) var(--s3);
+  border-left: 3px solid var(--incisione);
+  color: var(--testo-quieto);
+}
+.md__elenco { margin: var(--s2) 0; padding-left: var(--s4); }
+.md__elenco li { margin: 2px 0; }
+.md__riga { margin: var(--s4) 0; border: none; border-top: 1px solid var(--incisione); }
+.md__link { color: var(--accento); text-decoration: underline; cursor: pointer; }
+
 /* ─────────────────────────── impostazioni ─────────────────────────── */
 
 .pannello--impostazioni { width: min(620px, calc(100vw - 48px)); }

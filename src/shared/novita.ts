@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.40',
+    righe: [
+      '**Il quaderno è diventato un vero blocco note.** Le schede ora si leggono con il Markdown formattato — titoli, elenchi, codice, grassetto, link — invece che come testo grezzo, e con un interruttore passi da «Leggi» a «Modifica». In modifica puoi cambiare anche il **titolo e i tag** (prima solo il corpo), e si salva **da solo** mentre scrivi. Puoi **eliminare** una scheda (con conferma), e l’elenco mostra a colpo d’occhio titolo, un assaggio del contenuto, la data e i tag, così ritrovi quello che cerchi senza aprirlo. I link si aprono nel browser di sistema, e tutto è reso in modo sicuro: una scheda non può eseguire codice. I file restano Markdown in «.sierradeck/quaderno» dentro il progetto, come prima.'
+    ]
+  },
+  {
     versione: '0.9.39',
     righe: [
       '**Le flotte di autopiloti sono più solide.** Tre cose insieme: se cambi l’obiettivo o i compiti a mano (con «modifica» o «parla») mentre una chat sta chiudendo un turno, la tua modifica non viene più cancellata in silenzio; due chat che finiscono un turno nello stesso istante non si sovrascrivono più a vicenda la conversazione (prima una poteva restare «orfana», senza sessione); e i compiti non finiscono più in una coda che non verrà mai lavorata — le chat di una flotta puntano tutte allo stesso obiettivo, quello misurato dai criteri, e si aprono fino al numero massimo che hai scelto, senza accumulare lavoro che poi si perde.',

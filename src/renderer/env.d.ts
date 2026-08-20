@@ -73,6 +73,7 @@ declare global {
         leggi: (cwd: string, file: string) => Promise<import('@shared/quaderno').Scheda | undefined>
         scrivi: (cwd: string, scheda: { titolo: string; corpo: string; tag?: string[]; file?: string }) => Promise<import('@shared/quaderno').Scheda>
         apri: (cwd: string) => Promise<void>
+        elimina: (cwd: string, file: string) => Promise<boolean>
       }
       chiavi: {
         stato: () => Promise<{ allAvvio: boolean; workspace: string[] }>
@@ -85,6 +86,7 @@ declare global {
         versione: () => Promise<string>
         cartellaScambio: () => Promise<string>
         apriScambio: () => Promise<string>
+        apriEsterno: (url: string) => Promise<void>
         autopilotiAlLavoro: (quanti: number) => void
         scegliCartella: () => Promise<string | undefined>
         cartellaEsiste: (percorso: string) => Promise<boolean>

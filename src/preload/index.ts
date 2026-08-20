@@ -164,7 +164,10 @@ contextBridge.exposeInMainWorld('gestore', {
     scrivi: (cwd: string, scheda: { titolo: string; corpo: string; tag?: string[]; file?: string }): Promise<Scheda> =>
       ipcRenderer.invoke('quaderno:scrivi', cwd, scheda),
     /** Apre la cartella delle schede in Esplora risorse. */
-    apri: (cwd: string): Promise<void> => ipcRenderer.invoke('quaderno:apri', cwd)
+    apri: (cwd: string): Promise<void> => ipcRenderer.invoke('quaderno:apri', cwd),
+    /** Cancella una scheda: il file `.md` sparisce dalla cartella. */
+    elimina: (cwd: string, file: string): Promise<boolean> =>
+      ipcRenderer.invoke('quaderno:elimina', cwd, file)
   },
   chiavi: {
     stato: (): Promise<{ allAvvio: boolean; workspace: string[] }> =>
@@ -181,6 +184,8 @@ contextBridge.exposeInMainWorld('gestore', {
     versione: (): Promise<string> => ipcRenderer.invoke('sistema:versione'),
     cartellaScambio: (): Promise<string> => ipcRenderer.invoke('sistema:cartellaScambio'),
     apriScambio: (): Promise<string> => ipcRenderer.invoke('sistema:apriScambio'),
+    /** Apre un link http/https/mailto nel browser di sistema, non dentro l'app. */
+    apriEsterno: (url: string): Promise<void> => ipcRenderer.invoke('sistema:apriEsterno', url),
     /**
      * Quanti autopiloti stanno lavorando, per il testo dell'icona nell'area di
      * notifica. Lo sa il renderer, che li interroga già ogni pochi secondi: un

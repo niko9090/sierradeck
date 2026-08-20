@@ -60,6 +60,26 @@ describe('scrivere e rileggere', () => {
   })
 })
 
+describe('eliminare una scheda', () => {
+  it('cancella il file e la toglie dall elenco', () => {
+    const q = quaderno()
+    const s = q.scrivi(cwd, { titolo: 'Da buttare', corpo: 'non serve piu' })
+    expect(existsSync(join(q.cartella(cwd), s.file))).toBe(true)
+    expect(q.elimina(cwd, s.file)).toBe(true)
+    expect(existsSync(join(q.cartella(cwd), s.file))).toBe(false)
+    expect(q.elenca(cwd)).toHaveLength(0)
+  })
+
+  it('eliminare una scheda che non c e restituisce false, senza errori', () => {
+    expect(quaderno().elimina(cwd, '2026-01-01-mai-esistita.md')).toBe(false)
+  })
+
+  it('un nome che risale le cartelle viene rifiutato anche per eliminare', () => {
+    // È l'operazione dove la cintura anti-traversal conta di più.
+    expect(() => quaderno().elimina(cwd, '..\\..\\importante.md')).toThrow()
+  })
+})
+
 describe('note messe lì a mano', () => {
   it('un file scritto a mano entra nell elenco come le altre', () => {
     const q = quaderno()

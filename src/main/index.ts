@@ -464,6 +464,14 @@ if (!app.requestSingleInstanceLock()) {
       mkdirSync(scambio, { recursive: true })
       ipcMain.handle('sistema:cartellaScambio', () => scambio)
       ipcMain.handle('sistema:apriScambio', () => shell.openPath(scambio))
+      // Apre un link nel browser di sistema, non dentro l'app. Solo http/https e
+      // mailto: `shell.openExternal` con uno schema qualunque potrebbe lanciare
+      // programmi (es. un URL di protocollo registrato), e il link arriva da una
+      // scheda del quaderno, che può averla scritta un autopilota.
+      ipcMain.handle('sistema:apriEsterno', async (_e, raw: unknown) => {
+        if (typeof raw !== 'string' || !/^(https?:|mailto:)/i.test(raw.trim())) return
+        await shell.openExternal(raw.trim())
+      })
 
       // I nomi che l'utente dà alle sue chat: vivono in un file loro, perché
       // l'indice delle sessioni è una cache che si butta e si rifà.
@@ -823,6 +831,10 @@ if (!app.requestSingleInstanceLock()) {
         const cartella = quaderno.cartella(cwd)
         mkdirSync(cartella, { recursive: true })
         await shell.openPath(cartella)
+      })
+      ipcMain.handle('quaderno:elimina', (_e, cwd: unknown, file: unknown) => {
+        if (typeof cwd !== 'string' || cwd.trim() === '' || typeof file !== 'string') return false
+        return quaderno.elimina(cwd, file)
       })
 
       const chiavi = apriChiavi(dati)
