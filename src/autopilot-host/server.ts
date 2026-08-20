@@ -138,6 +138,50 @@ function conStatoChat(a: Autopilota, chatId: string, stato: ChatGovernata['stato
   return { ...a, chats: a.chats.map((c) => (c.id === chatId ? { ...c, stato } : c)) }
 }
 
+/**
+ * Riporta sui campi che l'UTENTE possiede (obiettivo, compiti, criteri, modifiche)
+ * la versione più fresca dell'archivio, tenendo il resto dal calcolo di `suStop`.
+ *
+ * `suStop` legge l'autopilota all'inizio e poi lavora per minuti — criteri
+ * seriali, giudizio del supervisore — prima di salvare. In quella finestra
+ * l'utente può aver premuto «parla» o «modifica» e cambiato obiettivo, compiti o
+ * criteri: se `suStop` salvasse la sua fotografia vecchia, quella modifica
+ * sparirebbe **in silenzio**. Qui i campi dell'utente vincono dalla rilettura
+ * (`fresco`); ciò che è di `suStop` — stato, decisioni, cicli, sessioni, e la
+ * **verifica** dei criteri — resta suo. La verifica si riporta sui criteri freschi
+ * per descrizione **e** comando: se l'utente ha cambiato il comando, la spunta di
+ * prima non vale più (misurava un'altra cosa).
+ */
+function conservaCambiUtente(calcolato: Autopilota, fresco: Autopilota, chatId?: string): Autopilota {
+  const verifica = new Map(calcolato.criteri.map((c) => [c.descrizione, c]))
+  const criteri = fresco.criteri.map((c) => {
+    const v = verifica.get(c.descrizione)
+    if (v === undefined || v.comando !== c.comando) return c
+    const con: Criterio = { ...c, soddisfatto: v.soddisfatto }
+    if (v.ultimaVerifica !== undefined) con.ultimaVerifica = v.ultimaVerifica
+    if (v.raggiuntoIl !== undefined) con.raggiuntoIl = v.raggiuntoIl
+    else delete con.raggiuntoIl
+    return con
+  })
+  // La chat di questo turno com'è dopo il calcolo di suStop (cicli, sessione).
+  // Una chat è governata da un solo claude.exe, quindi solo QUESTO turno la
+  // tocca: applicarla sulle chat fresche non perde l'aggiornamento di nessun'altra
+  // — è la rete contro la chat orfana (#4), due suStop di flotta che si
+  // sovrascrivevano la sessione. La sezione di chi chiama (rilettura→merge→salva)
+  // è sincrona, quindi atomica.
+  const mia = chatId !== undefined ? calcolato.chats.find((c) => c.id === chatId) : undefined
+  const chats = mia === undefined ? calcolato.chats : fresco.chats.map((c) => (c.id === chatId ? mia : c))
+  return {
+    ...calcolato,
+    obiettivo: fresco.obiettivo,
+    ...(fresco.obiettivoTuo !== undefined ? { obiettivoTuo: fresco.obiettivoTuo } : {}),
+    compitiDaFare: fresco.compitiDaFare,
+    modifiche: fresco.modifiche,
+    criteri,
+    chats
+  }
+}
+
 function criteriDa(raw: unknown): Criterio[] {
   if (!Array.isArray(raw)) return []
   const criteri: Criterio[] = []
@@ -650,7 +694,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const { testo } = await deps.interroga(componiPromptScomposizione(a, a.tettoChat), a.cwd, undefined)
     // Una scomposizione illeggibile non deve impedire di lavorare: si ripiega
     // sull'obiettivo intero, che è esattamente il comportamento a una chat.
-    const compiti = leggiCompiti(testo) ?? [a.obiettivo]
+    //
+    // Si tiene al massimo un compito per posto (il tetto): le chat lavorano tutte
+    // verso lo STESSO obiettivo, misurato dai criteri (globali) che dicono quando
+    // è fatto — i compiti sono l'angolo da cui ciascuna parte, non un lavoro con
+    // una fine propria. Un compito oltre il tetto non avrebbe mai una chat che lo
+    // apre (una chat non «finisce» da sola per liberargli il posto: va avanti
+    // finché l'obiettivo intero non è raggiunto) e resterebbe nella coda finché il
+    // «finito» globale non la butta — il difetto per cui «il compito si perdeva».
+    // Tenendone al più `tettoChat`, la coda resta vuota e non c'è niente da perdere.
+    const compiti = (leggiCompiti(testo) ?? [a.obiettivo]).slice(0, a.tettoChat)
     const conCompiti: Autopilota = { ...a, compitiDaFare: compiti }
     salva(conCompiti)
     await apriChatMancanti(conCompiti)
@@ -801,6 +854,20 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       console.warn(`[autopilota] ${id} non è più in lavoro (${ancora?.stato ?? 'eliminato'}) durante la fermata: non lo risuscito`)
       return {}
     }
+    // Mentre suStop lavorava (minuti), l'utente può aver cambiato obiettivo,
+    // compiti o criteri con «parla»/«modifica»: si riportano dalla rilettura, o i
+    // salvataggi qui sotto li cancellerebbero con la fotografia letta all'inizio —
+    // la modifica sparirebbe in silenzio. Tutti i rami dopo partono da
+    // `aggiornato`, quindi basta correggerlo qui, una volta.
+    const conCambiUtente = conservaCambiUtente(aggiornato, ancora, chatId)
+    aggiornato.obiettivo = conCambiUtente.obiettivo
+    aggiornato.obiettivoTuo = conCambiUtente.obiettivoTuo
+    aggiornato.compitiDaFare = conCambiUtente.compitiDaFare
+    aggiornato.modifiche = conCambiUtente.modifiche
+    aggiornato.criteri = conCambiUtente.criteri
+    // Le chat fresche (con l'aggiornamento di un'eventuale sorella concorrente) e
+    // solo la mia applicata sopra: chiude la chat orfana (#4).
+    aggiornato.chats = conCambiUtente.chats
 
     // Il supervisore ha visto che un comando misura la cosa sbagliata e ne ha
     // scritto uno giusto: si sostituisce e si riprende dal giro dopo, che lo

@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.39',
+    righe: [
+      '**Le flotte di autopiloti sono più solide.** Tre cose insieme: se cambi l’obiettivo o i compiti a mano (con «modifica» o «parla») mentre una chat sta chiudendo un turno, la tua modifica non viene più cancellata in silenzio; due chat che finiscono un turno nello stesso istante non si sovrascrivono più a vicenda la conversazione (prima una poteva restare «orfana», senza sessione); e i compiti non finiscono più in una coda che non verrà mai lavorata — le chat di una flotta puntano tutte allo stesso obiettivo, quello misurato dai criteri, e si aprono fino al numero massimo che hai scelto, senza accumulare lavoro che poi si perde.',
+      'Nota su come rendono al meglio: più chat sulla **stessa cartella** tendono a pestarsi i piedi sugli stessi file. Una flotta lavora meglio con un tetto basso e compiti che si sovrappongono poco.'
+    ]
+  },
+  {
     versione: '0.9.38',
     righe: [
       '**Una flotta di autopiloti non si ferma più tutta quando una chat fa una domanda.** Se lavori con più chat sotto lo stesso autopilota e una si blocca per chiederti qualcosa, ora si ferma **solo lei**: resta in attesa della tua risposta mentre le altre continuano a lavorare. Prima una singola domanda metteva in pausa l’intera flotta — bastava un bivio per fermare tutto. Quando rispondi, riprende solo la chat che aveva chiesto. Con una chat sola non cambia niente.'

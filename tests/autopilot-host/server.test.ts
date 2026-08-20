@@ -599,7 +599,7 @@ describe('flotta di chat', () => {
     expect(chatAvviate).toEqual([])
   })
 
-  it('con tetto a due apre due chat sui primi due compiti', async () => {
+  it('con tetto a due apre due chat, e non tiene una coda oltre il tetto', async () => {
     server = ambiente({ interroga: SCOMPONE })
     await avvia(server)
     const id = await creaAp({ tettoChat: 2 })
@@ -608,8 +608,11 @@ describe('flotta di chat', () => {
     expect(chatAvviate.map((c) => c.compito)).toEqual(['scrivi i test', 'aggiorna i documenti'])
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
     expect(stato.chats).toHaveLength(2)
-    // Il terzo compito resta in coda: le chat non superano mai il tetto.
-    expect(stato.compitiDaFare).toEqual(['sistema il lettore'])
+    // Le chat lavorano tutte verso lo stesso obiettivo (criteri globali): un
+    // compito oltre il tetto non avrebbe mai una chat che lo apre e resterebbe
+    // in coda finché il «finito» globale non lo butta — «il compito si perdeva».
+    // Si tiene al più `tettoChat` compiti: la coda resta vuota, niente da perdere.
+    expect(stato.compitiDaFare).toEqual([])
     expect(stato.id).toBe(id)
   })
 
@@ -736,6 +739,71 @@ describe('flotta di chat', () => {
     expect(chatAvviate.map((c) => c.id)).toEqual(['c-2'])
     expect(messaggiDiRipresa[0]).toContain('usa la chiave X')
     expect((await chiama('GET', '/autopiloti')).dati[0].chats.find((c: any) => c.id === 'c-2').stato).toBe('lavoro')
+  })
+
+  it('due chat che chiudono un turno insieme non si perdono la sessione', async () => {
+    // Il difetto #4: due chat entravano in suStop insieme, leggevano la stessa
+    // copia e salvavano l'una sull'altra — la sessione appena scritta da una
+    // spariva e quella chat restava orfana. Ora la sezione rilettura→salva e'
+    // atomica e riparte dalle chat fresche.
+    const porte: Array<() => void> = []
+    server = ambiente({
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'ancora rosso' }),
+      interroga: (p) =>
+        p.includes('va diviso fra')
+          ? Promise.resolve({ testo: '{"compiti": ["scrivi i test", "aggiorna i documenti"]}' })
+          : new Promise((r) => porte.push(() => r({ testo: '{"azione": "prosegui", "istruzioni": "vai"}' })))
+    })
+    await avvia(server)
+    const id = await creaAp({ tettoChat: 2 })
+    await attendi(() => chatAvviate.length >= 2)
+
+    // Le due chiudono un turno "insieme": entrambe entrano in suStop e si fermano
+    // al supervisore, ciascuna con la propria sessione.
+    const s1 = chiama('POST', `/hook/stop?ap=${id}&chat=c-1`, eventoStop({ session_id: 'sess-uno' }))
+    const s2 = chiama('POST', `/hook/stop?ap=${id}&chat=c-2`, eventoStop({ session_id: 'sess-due' }))
+    await attendi(() => porte.length >= 2)
+
+    porte.forEach((p) => p())
+    await Promise.all([s1, s2])
+
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.chats.find((c: any) => c.id === 'c-1').sessionId).toBe('sess-uno')
+    expect(stato.chats.find((c: any) => c.id === 'c-2').sessionId).toBe('sess-due')
+  })
+})
+
+describe('modificare a mano mentre un turno si chiude', () => {
+  it('un modifica arrivato durante suStop non viene sovrascritto (RMW)', async () => {
+    // suStop legge l'autopilota all'inizio e salva minuti dopo (criteri seriali,
+    // supervisore). In quella finestra l'utente puo' aver cambiato l'obiettivo con
+    // «modifica»: se suStop salvasse la sua fotografia vecchia, la modifica
+    // sparirebbe in silenzio. Si blocca il supervisore, si modifica, si rilascia.
+    let rilascia: () => void = () => {}
+    const bloccato = new Promise<void>((r) => { rilascia = r })
+    server = ambiente({
+      interroga: async (p) => {
+        if (p.includes('va diviso fra')) return { testo: '{"azione": "finito"}' }
+        await bloccato
+        return { testo: '{"azione": "finito"}' }
+      }
+    })
+    await avvia(server)
+    const id = await creaAp()
+
+    // Lo Stop entra in suStop e si ferma dentro il supervisore (interroga bloccato).
+    const stop = chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    await new Promise((r) => setTimeout(r, 80))
+
+    // Nel frattempo l'utente cambia l'obiettivo a mano.
+    const m = await chiama('PATCH', `/autopiloti/${id}`, { obiettivo: 'obiettivo nuovo dell utente' })
+    expect(m.stato).toBe(200)
+
+    // Ora suStop finisce e salva: NON deve cancellare la modifica.
+    rilascia()
+    await stop
+
+    expect((await chiama('GET', '/autopiloti')).dati[0].obiettivo).toBe('obiettivo nuovo dell utente')
   })
 })
 
