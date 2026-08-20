@@ -3,6 +3,21 @@ import { memoriaWorkspace } from './memoria-workspace'
 import { creaAzioniWorkspace, type AzioniWorkspace } from './workspace-azioni'
 
 /**
+ * La preferenza «manda a dormire le chat che lasci», tenuta in un posto solo.
+ *
+ * Le azioni sui workspace si creano in quattro punti — la fascia, il pannello,
+ * l'autopilota, il telefono — e finora solo l'istanza che ascolta i cambi altrui
+ * riceveva la preferenza: cambiare workspace da un pulsante non la rispettava, e
+ * l'interruttore risultava morto. Invece di passarla in ognuno dei quattro punti
+ * (quattro occasioni di dimenticarla, che è come è nato il difetto), la si tiene
+ * qui e la si aggiorna dal solo posto che legge le preferenze — `App`.
+ */
+let ibernaLasciandoGlobale = false
+export function impostaIbernaLasciando(valore: boolean): void {
+  ibernaLasciandoGlobale = valore
+}
+
+/**
  * Collega le azioni sui workspace a questa finestra: il ponte verso il Core, lo
  * store del layout e la memoria dei riquadri vivi.
  *
@@ -20,11 +35,11 @@ import { creaAzioniWorkspace, type AzioniWorkspace } from './workspace-azioni'
 export function azioniDiFinestra(
   attivo: () => string,
   /**
-   * Se le chat che si lasciano devono dormire. Arriva dalle preferenze, e non
-   * si legge qui dentro: questo modulo e la colla fra tre pezzi, e una lettura
-   * asincrona in mezzo lo renderebbe un quarto pezzo da capire.
+   * Se le chat che si lasciano devono dormire. Il predefinito legge la
+   * preferenza globale tenuta in questo modulo (aggiornata da `App`), così ogni
+   * istanza la rispetta senza che ciascun chiamante debba passarla.
    */
-  ibernaLasciando: () => boolean = () => false
+  ibernaLasciando: () => boolean = () => ibernaLasciandoGlobale
 ): AzioniWorkspace {
   return creaAzioniWorkspace({
     stato: () => window.gestore.workspace.stato(),

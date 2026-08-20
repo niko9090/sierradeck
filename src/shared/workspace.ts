@@ -77,21 +77,21 @@ export type Archivio = {
 }
 
 /**
- * Il layout che spetta a una finestra dentro un workspace.
+ * Il layout che spetta a una finestra dentro un workspace: quello del suo
+ * monitor, e basta.
  *
- * La domanda sembra banale — «quello del suo monitor» — e per una postazione
- * che non cambia mai lo è. Ma i monitor cambiano: si stacca il secondo schermo,
- * si lavora dal portatile, si sposta la finestra. E il layout di quel monitor
- * resta nell'archivio, sotto una chiave che **nessuno chiede più**: le chat
- * sono lì, intatte, e non le vede nessuno. È il modo in cui un workspace con
- * quattro chat ne mostra una e sembra averne perse tre.
+ * Un tempo, quando il proprio monitor era vuoto, si ripiegava sul primo layout
+ * non vuoto di un altro schermo — sembrava generoso, «meglio le chat di ieri che
+ * nessuna chat». Ma faceva mostrare a **due** finestre la stessa chat: quale
+ * finestra stia guardando quale schermo non è registrato da nessuna parte, e senza
+ * quel dato il ripiego non poteva evitare il doppione. È lo stesso male dei
+ * layout-per-monitor, e per questo il ripiego è stato tolto.
  *
- * Quindi: il proprio monitor se ha qualcosa; altrimenti il primo layout non
- * vuoto che nessun'altra finestra sta già mostrando. Meglio le chat su uno
- * schermo diverso da quello di ieri che nessuna chat.
- *
- * `occupate` sono le chiavi che le altre finestre stanno già usando: senza,
- * due finestre mostrerebbero le stesse chat e sarebbero i doppioni di sempre.
+ * Il caso che il ripiego voleva coprire — chat archiviate sotto una chiave che
+ * nessuna finestra chiede più (schermo staccato, cambio di risoluzione o DPI che
+ * cambia la chiave) — lo risolve `unicoLayout` all'avvio, che raccoglie le chat di
+ * ogni monitor sotto la chiave della prima finestra: dopo, sono tutte sotto una
+ * chiave sola, dove chi le cerca le trova. Qui non serve indovinare.
  */
 export function layoutPerFinestra(
   perMonitor: Record<string, LayoutSalvato>,

@@ -211,6 +211,16 @@ describe('creaAzioniWorkspace — segui', () => {
     expect(a.chiamate).toEqual([])
     expect(a.applicati).toEqual([])
   })
+
+  it('con la preferenza accesa, traslocare manda a dormire le chat che lascia', async () => {
+    // `segui`/`crea`/`elimina` passano tutti da `trasloca`: prima l'interruttore
+    // «manda a dormire le chat che lasci» non aveva effetto su nessuna di queste
+    // strade, solo su `cambia`. Ora vale anche qui.
+    const a = ambiente({ nomi: ['Uno', 'Due'], attivo: 'Uno' })
+    const deps = { ...a.deps, ibernaLasciando: () => true, ibernaTutte: () => ['pty-x', 'pty-y'] }
+    await creaAzioniWorkspace(deps).segui('Uno', 'Due')
+    expect(a.uccisi).toEqual(['pty-x', 'pty-y'])
+  })
 })
 
 describe('creaAzioniWorkspace — spegni', () => {

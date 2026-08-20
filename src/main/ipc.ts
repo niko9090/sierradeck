@@ -51,7 +51,8 @@ import {
   creaWorkspace,
   eliminaWorkspace,
   rinominaWorkspace,
-  salvaLayoutAttivo
+  salvaLayoutAttivo,
+  seguiAttivoDellaPrincipale
 } from './workspace-operazioni'
 import type { ClientAutopilota } from './autopilot-client'
 import {
@@ -599,7 +600,21 @@ export function registerLayoutIpc(store: WorkspaceStore): void {
     // Dove si scrive lo decide `salvaLayoutAttivo`, che è puro: è la parte che
     // il difetto 0-quater metteva in dubbio, ed è l'unica qui dentro che si può
     // sbagliare in silenzio.
-    store.scrivi(salvaLayoutAttivo(archivio, chiave, layout, nomeFinestra))
+    const conLayout = salvaLayoutAttivo(archivio, chiave, layout, nomeFinestra)
+
+    // E `attivo` segue la finestra **principale** (la più vecchia ancora viva):
+    // così al riavvio — che l'aggiornamento fa da sé — si riapre l'ultimo desktop
+    // visto e non quello scritto in `attivo` chissà quando (difetto A). Solo la
+    // principale muove `attivo`: se lo facesse ogni finestra, due finestre su
+    // workspace diversi se lo contenderebbero a ogni salvataggio. `find` sul
+    // primo non distrutto, non `[0]`, perché la finestra originaria può essere
+    // già chiusa.
+    const principale = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
+    const finale =
+      principale !== undefined && principale.id === win.id
+        ? seguiAttivoDellaPrincipale(conLayout, nomeFinestra)
+        : conLayout
+    store.scrivi(finale)
   })
 
   ipcMain.handle('workspace:stato', (): StatoWorkspace => statoDi(store.leggi()))
@@ -1032,8 +1047,24 @@ export function registerIstantaneeIpc(
       // stessa chat in due posti — e lì si verifica senza avviare Electron.
       const { workspace, attivo } = workspaceDopoRipristino(archivio, istantanea)
       if (attivo !== archivio.attivo) console.log(`[istantanee] torna davanti il workspace «${attivo}»`)
-      workspaceStore.scrivi({ ...archivio, attivo, workspace })
+      const ripristinato = { ...archivio, attivo, workspace }
+      workspaceStore.scrivi(ripristinato)
       console.log(`[istantanee] ripristinati ${workspace.length} workspace`)
+
+      // E ogni finestra deve saperlo **subito**, prima di applicare il layout
+      // ripristinato. Il salvataggio del layout nel renderer è sincrono
+      // (persistenza-layout): una finestra con `attivoOra` ancora sul workspace
+      // di prima risalverebbe il layout ripristinato sotto quel nome, e
+      // l'invariante «una chat, un workspace» trascinerebbe lì le chat appena
+      // rimesse a posto — il ripristino disfatto entro un tick. L'annuncio viaggia
+      // prima dei `layout:applica` (che partono più sotto) e prima che la finestra
+      // che ha chiesto il ripristino riceva la risposta, così `attivoOra` è già
+      // aggiornato quando il layout arriva. Va a **tutte**, compresa la
+      // richiedente: qui, a differenza di un cambio normale, anche lei deve
+      // riallinearsi. È un canale a parte da `workspace:cambiato` di proposito —
+      // non deve far scattare `segui`/`trasloca`, che risalverebbe il layout sotto
+      // il nome vecchio, cioè la migrazione da evitare.
+      registro.inviaATutte('workspace:ripristinato', statoDi(ripristinato))
     }
 
     // Le finestre che non sono questa vanno riaperte, altrimenti le loro chat

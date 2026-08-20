@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLayoutStore } from './state/layout'
 import { useSessionStore } from './state/sessions'
 import { creaPersistenza } from './persistenza-layout'
-import { azioniDiFinestra } from './azioni-finestra'
+import { azioniDiFinestra, impostaIbernaLasciando } from './azioni-finestra'
 import type { AzioniWorkspace } from './workspace-azioni'
 import { ledDi } from '@shared/autopilota-vista'
 import { giaSalvatoCome } from '@shared/doppioni'
@@ -200,6 +200,21 @@ export function App(): React.JSX.Element {
       if (msg.kind === 'exit') righe.current.segnaMorto(msg.id)
     })
   }, [])
+
+  // Le mappe di `ultime-righe` crescono per **ogni** terminale che passa dal
+  // flusso, rilanci compresi: a ogni `--resume` l'id cambia, e il vecchio
+  // resterebbe li' per sempre. Qui si tengono solo i terminali che un riquadro
+  // aperto ha ancora in mano, e il resto — chat chiuse, ibernate, id vecchi di un
+  // resume — se ne va. Gira quando i riquadri cambiano: e' esattamente il momento
+  // in cui un id smette di servire (una chiusura, o un rilancio che lo sostituisce).
+  useEffect(() => {
+    const vivi = new Set(
+      Object.values(riquadriAperti)
+        .map((p) => p.ptyId)
+        .filter((x): x is string => x !== undefined)
+    )
+    righe.current.pota(vivi)
+  }, [riquadriAperti])
 
   useEffect(() => {
     const manda = (): void => {
@@ -477,19 +492,26 @@ export function App(): React.JSX.Element {
   // stato a ogni render.
   attivoOra.current = workspace.attivo
   // La preferenza puo cambiare mentre il programma gira: si legge quando serve.
-  const ibernaLasciando = useRef(false)
+  // Se salvare da soli un'istantanea alla chiusura: l'interruttore c'era ma non
+  // lo leggeva nessuno, e il salvataggio automatico partiva comunque. Ora lo
+  // rispetta. Predefinito acceso, come l'impostazione.
+  const salvaAllaChiusura = useRef(true)
   useEffect(() => {
-    const prendi = (p: Preferenze): void => { ibernaLasciando.current = p.ibernaCambiandoWorkspace }
+    const prendi = (p: Preferenze): void => {
+      // La preferenza «iberna lasciando» vive in un posto solo (azioni-finestra),
+      // così ogni istanza delle azioni la rispetta senza doverla passare in giro.
+      impostaIbernaLasciando(p.ibernaCambiandoWorkspace)
+      salvaAllaChiusura.current = p.salvaAllaChiusura
+    }
     window.gestore.preferenze.leggi().then(prendi).catch(() => undefined)
     return window.gestore.preferenze.suCambio(prendi)
   }, [])
   const azioniWorkspace = useRef<AzioniWorkspace | undefined>(undefined)
-  // Le azioni nascono una volta sola, e la preferenza puo cambiare dopo: si
-  // legge da un riferimento, non da una copia catturata alla nascita.
-  azioniWorkspace.current ??= azioniDiFinestra(
-    () => attivoOra.current,
-    () => ibernaLasciando.current
-  )
+  // Le azioni nascono una volta sola. La preferenza «iberna lasciando» non si
+  // passa più qui: la legge il predefinito di `azioniDiFinestra` dal valore
+  // globale, aggiornato sopra a ogni cambio — così vale per tutte le istanze, non
+  // solo per questa.
+  azioniWorkspace.current ??= azioniDiFinestra(() => attivoOra.current)
 
   // La barra del titolo dice versione e workspace: con piu' finestre aperte su
   // workspace diversi e' l'unico posto che le distingue da fuori — in Alt+Tab,
@@ -523,6 +545,19 @@ export function App(): React.JSX.Element {
         .catch((err: unknown) => console.error('[workspace] cambio non seguito:', err))
     })
   }, [])
+
+  // Un ripristino di istantanea riporta davanti un workspace: la finestra vi si
+  // riallinea **subito** e in modo sincrono — `attivoOra.current` prima ancora
+  // dello stato React — perché il salvataggio del layout è sincrono e il layout
+  // ripristinato arriva un attimo dopo. Senza, la finestra risalverebbe quel
+  // layout sotto il workspace di prima e l'invariante «una chat, un workspace»
+  // trascinerebbe via le chat appena rimesse a posto (il ripristino disfatto
+  // entro un tick). Niente `segui`/`trasloca`: l'archivio è già cambiato nel
+  // Core, traslocare risalverebbe il layout sotto il nome vecchio.
+  useEffect(() => window.gestore.workspace.onRipristinato((s) => {
+    attivoOra.current = s.attivo
+    setWorkspace({ nomi: s.nomi, attivo: s.attivo })
+  }), [])
 
   // Un workspace rinominato: solo un'etichetta cambia, le chat restano dov'erano.
   // Qui si sposta la chiave della memoria — perché i riquadri vivi del workspace
@@ -628,6 +663,9 @@ export function App(): React.JSX.Element {
 
   useEffect(() => {
     const allaChiusura = (): void => {
+      // L'interruttore «salva alla chiusura» ora conta davvero: chi lo spegne non
+      // vuole il salvataggio automatico «Ultima chiusura», e va rispettato.
+      if (!salvaAllaChiusura.current) return
       const layout = useLayoutStore.getState().esporta()
       if (layout.panes.length === 0) return
       // Se queste chat, in questa disposizione, sono gia' salvate sotto un nome

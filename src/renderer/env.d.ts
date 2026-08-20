@@ -165,6 +165,7 @@ declare global {
         onRinominato: (
           cb: (r: { vecchio: string; nuovo: string; attivo: string }) => void
         ) => () => void
+        onRipristinato: (cb: (s: StatoWorkspace) => void) => () => void
       }
       novita: {
         daMostrare: () => Promise<Novita | undefined>

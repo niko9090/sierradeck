@@ -167,9 +167,17 @@ export function creaRegistro(): Registro {
  * e l'ordine delle due operazioni che questa funzione esegue — instradare, poi
  * rilasciare — non sarebbe verificabile da nessun test.
  *
- * L'ordine è vincolante: `assente` significa «quel terminale non esiste più,
- * rilancia», e il riquadro deve riceverlo. Rilasciando prima, il messaggio non
- * troverebbe più un proprietario e il riquadro resterebbe agganciato al nulla.
+ * L'ordine è vincolante: `assente` ed `exit` significano entrambi «quel
+ * terminale non c'è più», e il riquadro deve riceverli. Rilasciando prima, il
+ * messaggio non troverebbe più un proprietario e il riquadro resterebbe
+ * agganciato al nulla.
+ *
+ * Si rilascia dopo l'invio anche su `exit`, non solo su `assente`: un pty uscito
+ * non riceve più eventi, e la sua associazione `id→finestra` resterebbe nel
+ * registro per tutta la vita del processo — una voce morta a ogni chat
+ * chiusa/ibernata/rilanciata (a ogni `--resume` l'id cambia). Se il riquadro
+ * riaggancia più tardi quel vecchio id (un Ctrl+R prima del rilancio), `pty:attach`
+ * ri-assegna la proprietà, quindi rilasciare qui non gli toglie niente.
  *
  * Restituisce `false` se il messaggio non è stato recapitato, perché il
  * chiamante possa registrarlo: un evento senza destinatario è normale fra la
@@ -181,6 +189,6 @@ export function instradaEventoHost(registro: Registro, msg: HostToCore): boolean
   // Dopo l'invio, mai prima. Il riquadro rilancerà e riceverà un id nuovo:
   // tenere l'associazione vecchia lascerebbe voci morte nel registro per tutta
   // la vita del processo.
-  if (msg.kind === 'assente') registro.rilascia(msg.id)
+  if (msg.kind === 'assente' || msg.kind === 'exit') registro.rilascia(msg.id)
   return recapitato
 }

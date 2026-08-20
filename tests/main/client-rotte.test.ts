@@ -170,6 +170,23 @@ describe('quello che il Client puo fare', () => {
     expect(fermato).toBe('ap-1')
   })
 
+  it('non lascia cambiare dalla rete le preferenze di rete', async () => {
+    // Un dispositivo accoppiato non deve poter aprire il muro (clientOltreLaRete)
+    // o spostare le porte: sono le impostazioni che difendono un programma che
+    // esegue codice, e si cambiano solo dal computer. Le altre — tema, viste —
+    // restano libere.
+    let ricevute: Record<string, unknown> | undefined
+    const r = await rotteClient(deps({
+      impostaPreferenze: (p) => { ricevute = p; return Promise.resolve() }
+    }))({
+      metodo: 'POST',
+      percorso: '/api/preferenze',
+      corpo: { tema: 'scuro', clientOltreLaRete: true, portaClient: 1, portaAutopiloti: 2 }
+    })
+    expect(r.stato).toBe(200)
+    expect(ricevute).toEqual({ tema: 'scuro' })
+  })
+
   it('fa guardare dentro una chat, non solo il titolo', async () => {
     // Sapere che «si muove» non basta per decidere se serve intervenire:
     // servono le righe.

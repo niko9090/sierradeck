@@ -52,13 +52,30 @@ describe('il sorgente dell updater', () => {
     }
   })
 
-  it('guarda Claude Code prima di riaprire il programma', () => {
+  it('guarda Claude Code prima di riaprire il programma (nel percorso riuscito)', () => {
     // L'ordine conta: aggiornarlo dopo la riapertura vorrebbe dire farlo
-    // mentre le chat lo tengono aperto, cioè non farlo.
+    // mentre le chat lo tengono aperto, cioè non farlo. Quindi dopo
+    // `AggiornaClaude()` ci dev'essere la riapertura della nuova versione.
+    // Un `Avvia()` *prima* è lecito ed è un percorso diverso: la riapertura
+    // della versione VECCHIA quando l'installazione fallisce (Fix #2), dove
+    // Claude non si tocca perché l'aggiornamento non c'è stato.
     const claude = sorgente.indexOf('AggiornaClaude();')
-    const avvio = sorgente.indexOf('Avvia();')
     expect(claude).toBeGreaterThan(-1)
-    expect(claude).toBeLessThan(avvio)
+    expect(sorgente.indexOf('Avvia();', claude)).toBeGreaterThan(claude)
+  })
+
+  it('non scambia un installer fallito per riuscito: guarda il codice d uscita', () => {
+    // Il difetto «si è riavviato ancora con la versione vecchia»: prima si
+    // considerava l'installazione finita con `installazione == null ||
+    // installazione.HasExited`, senza mai guardare `ExitCode`. Un installer
+    // fallito usciva comunque, e il programma riapriva il binario vecchio dicendo
+    // «Pronto». Ora solo `ExitCode == 0` è un successo; null o codice ≠ 0 è un
+    // fallimento dichiarato.
+    expect(sorgente).toContain('installazione.ExitCode')
+    // La vecchia condizione che trattava «uscito comunque» come successo non c'è più.
+    expect(sorgente).not.toContain('installazione == null || installazione.HasExited')
+    // Il fallimento riapre la versione attuale (meglio del nulla) ma NON dice «Pronto».
+    expect(sorgente).toContain('ExitCode != 0')
   })
 
   it('misura il tempo di ogni fase, non quello totale', () => {

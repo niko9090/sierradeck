@@ -4,6 +4,7 @@ import type { Autopilota } from '@shared/autopilota'
 import { paginaClient, ICONA_SVG, MANIFESTO } from './client-pagina'
 import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
 import { PREFERENZE_PREDEFINITE, tavolozza, type Preferenze } from '@shared/preferenze'
+import { validateNomeWorkspace } from './validation'
 
 /**
  * Cosa può fare il Client, e cosa no.
@@ -417,7 +418,22 @@ export function rotteClient(deps: DipendenzeRotte) {
       if (typeof corpo !== 'object' || corpo === null) {
         return { stato: 400, corpo: { errore: 'servono le preferenze da cambiare' } }
       }
-      await deps.impostaPreferenze(corpo as Record<string, unknown>)
+      // Le impostazioni che governano la RETE non si cambiano DALLA rete. Un
+      // dispositivo accoppiato che potesse impostare `clientOltreLaRete=true`
+      // toglierebbe il primo muro (accettazione dai soli IP locali) all'intero
+      // server, lasciando la sola chiave a difesa di un programma che esegue
+      // codice; e spostare le porte lo renderebbe irraggiungibile. Aprire il muro
+      // o cambiare porta deve passare dal computer, con la scelta davanti. Le
+      // altre preferenze — tema, viste, comodità — restano cambiabili dal telefono.
+      const parziali = corpo as Record<string, unknown>
+      const ammesse: Record<string, unknown> = {}
+      for (const [chiave, valore] of Object.entries(parziali)) {
+        if (chiave === 'clientOltreLaRete' || chiave === 'portaClient' || chiave === 'portaAutopiloti') {
+          continue
+        }
+        ammesse[chiave] = valore
+      }
+      await deps.impostaPreferenze(ammesse)
       return OK({ fatto: true })
     }
 
@@ -459,15 +475,22 @@ export function rotteClient(deps: DipendenzeRotte) {
     }
 
     if (r.metodo === 'POST' && r.percorso === '/api/workspace/crea') {
-      const nome = stringa(r.corpo, 'nome')
-      if (nome === '') return { stato: 400, corpo: { errore: 'serve il nome' } }
+      // Stessa validazione del percorso desktop (IPC): il nome viene dalla rete,
+      // e finora questa rotta lo passava grezzo — lunghezza illimitata e caratteri
+      // di controllo che il percorso IPC invece rifiuta. È anche la precondizione
+      // che, insieme all'escaping degli onclick, toglie ogni residuo all'XSS via
+      // nome workspace.
+      let nome: string
+      try { nome = validateNomeWorkspace(stringa(r.corpo, 'nome')) }
+      catch { return { stato: 400, corpo: { errore: 'nome non valido' } } }
       await deps.creaWorkspace(nome)
       return OK({ fatto: true })
     }
 
     if (r.metodo === 'POST' && r.percorso === '/api/workspace/elimina') {
-      const nome = stringa(r.corpo, 'nome')
-      if (nome === '') return { stato: 400, corpo: { errore: 'serve il nome' } }
+      let nome: string
+      try { nome = validateNomeWorkspace(stringa(r.corpo, 'nome')) }
+      catch { return { stato: 400, corpo: { errore: 'nome non valido' } } }
       await deps.eliminaWorkspace(nome)
       return OK({ fatto: true })
     }

@@ -322,8 +322,34 @@ class Aggiornamento : Form {
             fase.Text = versione.Length > 0
                 ? "Installazione della versione " + versione + "..."
                 : "Installazione in corso...";
-            if (installazione == null || installazione.HasExited) {
-                Nota("installer terminato");
+            // Uscire non e' riuscire. Un'installazione nulla vuol dire che
+            // Installa() non e' nemmeno partito (Process.Start ha lanciato); un
+            // codice d'uscita diverso da zero vuol dire che l'installer e' uscito
+            // ma ha fallito (file in uso, disinstallazione non riuscita). In
+            // entrambi i casi proseguire riaprirebbe il binario VECCHIO dicendo
+            // «Pronto», e l'utente resterebbe indietro senza saperlo: e' il difetto
+            // per cui «si e' riavviato ancora con la versione vecchia». Solo il
+            // codice d'uscita zero e' un successo.
+            if (installazione == null || (installazione.HasExited && installazione.ExitCode != 0)) {
+                battito.Stop();
+                string dettaglio = installazione == null
+                    ? "Non sono riuscito ad avviare l'installazione."
+                    : "L'aggiornamento non e' riuscito (codice " + installazione.ExitCode + ").";
+                fase.Text = dettaglio + " Riapro la versione attuale.";
+                Nota(installazione == null
+                    ? "installer non avviato: aggiornamento fallito"
+                    : "installer fallito, codice " + installazione.ExitCode);
+                // Si ridA' all'utente la sua versione: l'installazione fallita non
+                // l'ha toccata, ed e' meglio del nulla dopo aver chiuso tutto. La
+                // barra resta al valore vero, non 100: niente bugia «Pronto».
+                Avvia();
+                barra.Width = (int)(320.0 * valore / 100.0);
+                percento.Text = valore + "%";
+                Chiudi();
+                return;
+            }
+            if (installazione.HasExited) {
+                Nota("installer terminato (codice 0)");
                 // Claude Code prima della riapertura, sempre: quando c'e' da
                 // aggiornarlo lo si aggiorna, quando non c'e' lo si dice.
                 // Riaprire senza averlo guardato lascerebbe il dubbio, e il

@@ -23,6 +23,16 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.37',
+    righe: [
+      '**Dopo un aggiornamento torni sull’ultimo desktop, non su un altro.** Il workspace attivo ora segue la finestra principale: al riavvio — che l’app fa da sola per aggiornarsi — riapre quello che avevi davvero davanti, e la chat su cui lavoravi non resta nascosta in un altro desktop.',
+      '**Riprendere un salvataggio non sposta più le chat nel workspace sbagliato.** Prima, caricare un’istantanea mentre eri su un altro workspace poteva trascinare le chat appena ripristinate sotto il nome di prima, disfacendo il ripristino in un lampo. Ora ogni finestra si allinea al workspace giusto prima di rimettere a schermo il layout.',
+      '**Un aggiornamento fallito non finge più di essere riuscito.** Se l’installazione non va a buon fine, l’app te lo dice e riapre la versione che hai, invece di dire «Pronto» e riavviarsi con quella vecchia come se niente fosse.',
+      '**Sicurezza.** Un nome di workspace non può più essere usato per rubare la chiave del telefono, e le impostazioni che riguardano la rete (chi può collegarsi, le porte) non si cambiano più dal telefono: solo dal computer.',
+      '**Meno memoria sprecata, e due interruttori che ora funzionano.** Le chat aperte e chiuse a ripetizione non lasciano più residui che gonfiano la memoria col passare delle ore. E «salva alla chiusura» e «manda a dormire le chat che lasci» ora fanno davvero quello che dicono, comunque tu cambi workspace.'
+    ]
+  },
+  {
     versione: '0.9.36',
     righe: [
       '**Decidi tu se gli aggiornamenti si scaricano da soli.** In Impostazioni → Comportamento c’è un interruttore. Acceso (com’è sempre stato) lo scaricamento parte da solo in secondo piano e l’aggiornamento si installa quando chiudi; spento, non si scarica niente finché non premi «Scarica» nella banda in alto. E quando è acceso, il tasto «Scarica» — che tanto non faceva partire niente, era già partito — non compare più.'

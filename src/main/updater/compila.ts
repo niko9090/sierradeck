@@ -195,9 +195,14 @@ export function avviaUpdater(percorso: string, dati: AvvioUpdater): boolean {
 
     // 2. Il servizio di sistema, per gli Explorer che non collaborano.
     if (prova(() => {
+      // L'apice nel percorso va raddoppiato: e' la fuga di PowerShell per una
+      // stringa a apici singoli. Senza, un percorso con un apice — un utente
+      // Windows «O'Brien» in %APPDATA% — spezzerebbe la stringa e permetterebbe
+      // di iniettare comandi nel contesto dell'utente.
+      const sicuro = percorso.replace(/'/g, "''")
       const comando =
         `Invoke-CimMethod -ClassName Win32_Process -MethodName Create ` +
-        `-Arguments @{ CommandLine = '"${percorso}"' } | Out-Null`
+        `-Arguments @{ CommandLine = '"${sicuro}"' } | Out-Null`
       spawn(percorsoPowerShell(), ['-NoProfile', '-Command', comando], {
         stdio: 'ignore',
         windowsHide: true
@@ -221,7 +226,7 @@ export function diarioUpdater(ambiente: NodeJS.ProcessEnv = process.env): string
 }
 
 function percorsoPowerShell(ambiente: NodeJS.ProcessEnv = process.env): string {
-  return join(ambiente.SystemRoot ?? 'C:\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+  return join(ambiente.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
 }
 
 function prova(azione: () => void): boolean {

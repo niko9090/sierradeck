@@ -157,6 +157,19 @@ describe('instradaEventoHost', () => {
     expect(r.proprietarioDi('p1')).toBeUndefined()
   })
 
+  it('consegna exit al proprietario PRIMA di rilasciare l associazione', () => {
+    // Un pty uscito non riceve più eventi: la sua associazione è peso morto, e
+    // senza rilasciarla il registro accumula una voce per ogni chat chiusa o
+    // rilanciata. Ma prima il riquadro deve ricevere l'exit (è ciò che gli dice
+    // che il terminale è morto), poi si rilascia.
+    const r = creaRegistro()
+    const a = finestraFinta(1)
+    r.collega(a); r.assegna('p1', 1)
+    expect(instradaEventoHost(r, { id: 'p1', kind: 'exit', code: 0 })).toBe(true)
+    expect(a.ricevuti).toHaveLength(1)
+    expect(r.proprietarioDi('p1')).toBeUndefined()
+  })
+
   it('non rilascia l associazione per gli altri eventi', () => {
     const r = creaRegistro()
     r.collega(finestraFinta(1)); r.assegna('p1', 1)

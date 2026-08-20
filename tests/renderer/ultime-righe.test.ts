@@ -66,6 +66,35 @@ describe('creaUltimeRighe', () => {
     expect(r.codaDi('p1')).toEqual([])
   })
 
+  it('pota tiene i terminali vivi e scorda gli altri', () => {
+    // Il difetto del leak: il flusso scrive per ogni id che passa — rilanci
+    // compresi, con un id nuovo a ogni resume — e senza potare le mappe crescono
+    // per sempre. `pota` tiene solo gli id che un riquadro aperto ha ancora in mano.
+    const r = creaUltimeRighe()
+    r.aggiorna('vivo', 'lavoro\n')
+    r.aggiorna('vecchio-resume', 'ero questo prima\n')
+    r.aggiorna('chat-chiusa', 'addio\n')
+    r.pota(new Set(['vivo']))
+    expect(r.di('vivo')).toBe('lavoro')
+    expect(r.di('vecchio-resume')).toBe('')
+    expect(r.di('chat-chiusa')).toBe('')
+    expect(r.codaDi('vecchio-resume')).toEqual([])
+    // Anche l'attivita' se ne va: niente voci morte che restano «quasi pronte».
+    expect(r.attivitaDi('chat-chiusa')).toEqual({ ultimoDato: 0, prontoVisto: false })
+  })
+
+  it('un dato in ritardo dopo l exit non fa resuscitare il terminale', () => {
+    // Il PTY puo' sputare i suoi ultimi byte **dopo** l'exit (coda, o eventi
+    // riordinati): se `aggiorna` dimenticasse `morto`, il terminale tornerebbe
+    // «pronto» e un compito ci finirebbe dentro, perduto.
+    const r = creaUltimeRighe()
+    r.aggiorna('p1', '❯ pronto\n')
+    r.segnaMorto('p1')
+    r.aggiorna('p1', 'byte in ritardo\n')
+    expect(r.attivitaDi('p1').morto).toBe(true)
+    expect(terminalePronto(r.attivitaDi('p1'), 10_000)).toBe(false)
+  })
+
   it('tiene le ultime righe, non solo l ultima', () => {
     // Una riga dice che si muove, quattordici dicono **cosa** sta facendo: è
     // la differenza fra guardare da fuori e poter decidere se intervenire.

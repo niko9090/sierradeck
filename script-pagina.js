@@ -170,6 +170,19 @@ var scheda = 'adesso'
 var altroAperto = null
 /** Il tasto che sta chiedendo conferma, se ce n'e' uno. */
 const esc = (t) => String(t == null ? '' : t).replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))
+// Per un valore che finisce dentro una stringa JS a apici singoli, dentro un
+// attributo HTML a doppi apici: gli onclick di questa pagina, tipo
+// onclick="vaiA('...')". Sono due contesti annidati e servono due fughe. Solo
+// esc non basta: HTML-scappare l'apice non protegge, perche' il browser decodifica
+// l'attributo PRIMA che il JS lo legga, e l'apice torna apice — cioe' il valore
+// torna a essere codice. Era la radice dell'XSS via nome workspace (un dispositivo
+// accoppiato piantava un nome col payload, e al clic girava nell'origine della
+// pagina, con la chiave a portata). Qui prima la fuga JS — barra e apice, o il
+// valore esce dalla stringa — poi quella HTML di esc, per non uscire
+// dall'attributo. La barra si prende da fromCharCode(92) per non scriverne
+// nessuna nel sorgente: questa pagina vive dentro un template JavaScript, dove una
+// barra letterale verrebbe mangiata e la fuga arriverebbe rotta al browser.
+const escJs = (t) => { const b = String.fromCharCode(92); return esc(String(t == null ? '' : t).split(b).join(b + b).split("'").join(b + "'")) }
 
 async function chiedi(percorso, corpo) {
   const r = await fetch(percorso, {
@@ -455,7 +468,7 @@ function pannello(s) {
       <div class="riga">
         <textarea id="r-${esc(d.id)}" rows="3" placeholder="la tua risposta"></textarea>
       </div>
-      <div class="riga"><button class="primario" onclick="rispondi('${esc(d.id)}')">Rispondi</button></div>
+      <div class="riga"><button class="primario" onclick="rispondi('${escJs(d.id)}')">Rispondi</button></div>
     </div>`).join('')
 
   const apAperto = (s.autopiloti || []).find((a) => a.id === dentroAp)
@@ -480,7 +493,7 @@ function pannello(s) {
       </div>
     </div>`
     : (s.autopiloti || []).map((a) => `
-    <button class="voce" onclick="guardaAp('${esc(a.id)}')">
+    <button class="voce" onclick="guardaAp('${escJs(a.id)}')">
       <span class="led ${led(a)}"></span>
       <span class="voce__testo">
         <span class="voce__nome">${esc(a.nome)}</span>
@@ -502,18 +515,18 @@ function pannello(s) {
     <div class="testata-dentro">
       <button class="indietro" onclick="chiudiDentro()" aria-label="Torna all elenco">‹</button>
       <div class="testata-dentro__nome">${esc(aperta.titolo)}</div>
-      <button class="altro" onclick="apriAltro('${esc(aperta.id)}')" aria-label="Altro">⋯</button>
+      <button class="altro" onclick="apriAltro('${escJs(aperta.id)}')" aria-label="Altro">⋯</button>
     </div>
     <div class="sotto percorso">${esc(aperta.cwd)}</div>
     ${altroAperto === aperta.id ? `
       <div class="piastrella">
         <div class="riga">
           <input id="n-${esc(aperta.id)}" placeholder="dalle un nome">
-          <button onclick="rinomina('${esc(aperta.id)}')">Nome</button>
+          <button onclick="rinomina('${escJs(aperta.id)}')">Nome</button>
         </div>
         <div class="riga">
           <button class="${confermando === 'chat-' + aperta.id ? 'pericolo' : ''}"
-            onclick="chiudiChat('${esc(aperta.id)}')">${confermando === 'chat-' + aperta.id ? 'Sicuro? Chiudi' : 'Chiudi la chat'}</button>
+            onclick="chiudiChat('${escJs(aperta.id)}')">${confermando === 'chat-' + aperta.id ? 'Sicuro? Chiudi' : 'Chiudi la chat'}</button>
         </div>
       </div>` : ''}
     <div class="dentro dentro--alto">${righeGrezze.length
@@ -524,10 +537,10 @@ function pannello(s) {
         : 'Ancora niente da mostrare.'}</div>
     <div class="riga ancorata">
       <input id="t-${esc(aperta.id)}" placeholder="scrivi qui e invia">
-      <button onclick="scrivi('${esc(aperta.id)}')">Invia</button>
+      <button onclick="scrivi('${escJs(aperta.id)}')">Invia</button>
     </div>`
     : (s.chat || []).map((c) => `
-    <button class="voce" onclick="guarda('${esc(c.id)}')">
+    <button class="voce" onclick="guarda('${escJs(c.id)}')">
       <span class="led ${giriFalliti >= 2 ? 'fermo' : 'lavoro'}"></span>
       <span class="voce__testo">
         <span class="voce__nome">${esc(c.titolo)}</span>
@@ -632,8 +645,8 @@ function pannello(s) {
         : ((schedeViste || []).length === 0
             ? '<div class="sotto" style="margin-top:8px">Nessuna scheda in questa cartella.</div>'
             : (schedeViste || []).map((x) =>
-                '<button class="cartella" onclick="apriScheda(\'' + esc(cartellaPrima()) + '\', \'' +
-                esc(x.file) + '\')">' + esc(x.titolo) + '</button>').join(''))}
+                '<button class="cartella" onclick="apriScheda(\'' + escJs(cartellaPrima()) + '\', \'' +
+                escJs(x.file) + '\')">' + esc(x.titolo) + '</button>').join(''))}
       <div class="riga"><button onclick="apriPannello('quaderno')">Chiudi</button></div>
     </div>`
 
@@ -663,7 +676,7 @@ function pannello(s) {
     </div>`
 
   const ws = (s.workspace && s.workspace.nomi || []).map((n) => `
-    <button class="${n === s.workspace.attivo ? 'attivo' : ''}" onclick="vaiA('${esc(n)}')">${esc(n)}</button>`).join('')
+    <button class="${n === s.workspace.attivo ? 'attivo' : ''}" onclick="vaiA('${escJs(n)}')">${esc(n)}</button>`).join('')
 
   // Chi arriva da un telefono Android puo' avere l'app, che sa fare una cosa
   // che il browser non puo': avvisare quando e' chiusa. Si dice una volta e si

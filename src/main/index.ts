@@ -606,7 +606,23 @@ if (!app.requestSingleInstanceLock()) {
         eliminaWorkspace: async (nome: string) => {
           const store = workspaceStore
           if (store === undefined) return
-          store.scrivi(eliminaWorkspace(store.leggi(), nome))
+          const precedente = store.leggi()
+          const dopo = eliminaWorkspace(precedente, nome)
+          store.scrivi(dopo)
+          // Se si è cancellato il workspace ATTIVO, l'attivo si è spostato su un
+          // altro: le finestre che mostravano quello cancellato devono seguirlo,
+          // o resterebbero su un nome che non esiste più e il salvataggio
+          // successivo scriverebbe il loro layout sopra un altro workspace. Si usa
+          // lo stesso canale del cambio dal telefono (`client:workspace`), che ogni
+          // finestra sa già seguire. Il percorso IPC lo fa con `annunciaCambio`;
+          // questo, di rete, non ci arriva, ed era la parte scoperta.
+          if (dopo.attivo !== precedente.attivo) {
+            for (const w of BrowserWindow.getAllWindows()) {
+              if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+                w.webContents.send('client:workspace', dopo.attivo)
+              }
+            }
+          }
         },
         salvataggi: async () =>
           apriIstantaneeStore(dati).elenca().map((i) => ({
@@ -644,11 +660,15 @@ if (!app.requestSingleInstanceLock()) {
         // la pagina lo chiede due volte, come al computer.
         installaAggiornamento: () => { aggiornamenti?.installa() },
         caricaIstantanea: async (nome: string) => {
-          for (const w of BrowserWindow.getAllWindows()) {
-            if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
-              w.webContents.send('client:caricaSalvataggio', nome)
-            }
-          }
+          // A UNA finestra sola, non a tutte. `istantanee:carica` orchestra già
+          // l'intero ripristino: riempie le altre finestre (`layout:applica`) e ne
+          // apre di nuove per ciò che avanza. Mandandolo a ogni finestra, ognuna
+          // rifaceva l'intero ripristino in parallelo — finestre e chat in doppio
+          // o triplo. È la stessa strada della modale, dove a chiamare è una sola.
+          const prima = BrowserWindow.getAllWindows().find(
+            (w) => !w.isDestroyed() && !w.webContents.isDestroyed()
+          )
+          prima?.webContents.send('client:caricaSalvataggio', nome)
         }
       }
 

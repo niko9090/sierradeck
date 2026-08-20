@@ -4,7 +4,8 @@ import {
   eliminaWorkspace,
   rinominaWorkspace,
   cambiaWorkspace,
-  salvaLayoutAttivo
+  salvaLayoutAttivo,
+  seguiAttivoDellaPrincipale
 } from '../../src/main/workspace-operazioni'
 import { archivioVuoto, NOME_PREDEFINITO, type Archivio, type LayoutSalvato } from '@shared/workspace'
 
@@ -321,5 +322,71 @@ describe('salvaLayoutAttivo', () => {
     // La chat spostata resta a Destinazione: intatta.
     expect(dopo.workspace.find((w) => w.nome === 'Destinazione')?.perMonitor[M]?.panes[0]?.sessionUuid)
       .toBe('sess-mossa')
+  })
+
+  it('con nome finestra VUOTO non migra: la chat resta nell altro workspace (difetto B)', () => {
+    // In avvio la finestra non sa ancora il suo workspace (nomeFinestra vuoto) e
+    // mostra il layout di `attivo`, caricato all'avvio. Se salvasse migrando, la
+    // stessa conversazione presente in un altro workspace verrebbe strappata via
+    // e traslocata sotto `attivo` sulla sola base del ripiego — è il difetto B,
+    // la chat che finiva nel workspace sbagliato al riavvio. Il ripiego scrive il
+    // layout e basta: non tocca gli altri workspace.
+    const condivisa: LayoutSalvato = {
+      root: { type: 'pane', id: 'p1' },
+      panes: [{ id: 'p1', sessionUuid: 'sess-condivisa', cwd: 'C:\\p', title: 'Chat' }]
+    }
+    const prima: Archivio = {
+      ...archivioVuoto(),
+      attivo: 'Attivo',
+      workspace: [
+        { nome: 'Attivo', perMonitor: {} },
+        { nome: 'Altro', perMonitor: { [M]: condivisa } }
+      ]
+    }
+    // Stessa sessione, altro id di riquadro, salvata senza dichiarare il workspace.
+    const arrivo: LayoutSalvato = {
+      root: { type: 'pane', id: 'p2' },
+      panes: [{ id: 'p2', sessionUuid: 'sess-condivisa', cwd: 'C:\\p', title: 'Chat' }]
+    }
+    const dopo = salvaLayoutAttivo(prima, M, arrivo, '')
+    // Scritta sotto l'attivo (il ripiego resta), ma NON tolta dall'altro workspace.
+    expect(dopo.workspace.find((w) => w.nome === 'Attivo')?.perMonitor[M]?.panes[0]?.sessionUuid)
+      .toBe('sess-condivisa')
+    expect(dopo.workspace.find((w) => w.nome === 'Altro')?.perMonitor[M]?.panes[0]?.sessionUuid)
+      .toBe('sess-condivisa')
+  })
+})
+
+describe('seguiAttivoDellaPrincipale', () => {
+  it('porta attivo sul workspace che la finestra principale dichiara (difetto A)', () => {
+    // Eri su «Wdeck» e l'aggiornamento ha riavviato: senza far seguire attivo alla
+    // finestra principale, al riavvio riaprivi «SierraDeck» (il vecchio attivo).
+    const prima = archivioCon(['SierraDeck', 'Wdeck'], 'SierraDeck')
+    const dopo = seguiAttivoDellaPrincipale(prima, 'Wdeck')
+    expect(dopo.attivo).toBe('Wdeck')
+  })
+
+  it('non tocca attivo se il nome e vuoto (avvio, finestra che non sa ancora il suo workspace)', () => {
+    const prima = archivioCon(['SierraDeck', 'Wdeck'], 'SierraDeck')
+    expect(seguiAttivoDellaPrincipale(prima, '').attivo).toBe('SierraDeck')
+    expect(seguiAttivoDellaPrincipale(prima, '   ').attivo).toBe('SierraDeck')
+    expect(seguiAttivoDellaPrincipale(prima, undefined).attivo).toBe('SierraDeck')
+  })
+
+  it('non tocca attivo se il workspace dichiarato non esiste', () => {
+    const prima = archivioCon(['SierraDeck', 'Wdeck'], 'SierraDeck')
+    expect(seguiAttivoDellaPrincipale(prima, 'Sparito').attivo).toBe('SierraDeck')
+  })
+
+  it('e identita quando il nome coincide gia con attivo', () => {
+    const prima = archivioCon(['SierraDeck', 'Wdeck'], 'Wdeck')
+    expect(seguiAttivoDellaPrincipale(prima, 'Wdeck')).toBe(prima)
+  })
+
+  it('non muta l archivio ricevuto', () => {
+    const originale = archivioCon(['Uno', 'Due'], 'Uno')
+    const copia = structuredClone(originale)
+    seguiAttivoDellaPrincipale(originale, 'Due')
+    expect(originale).toEqual(copia)
   })
 })

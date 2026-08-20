@@ -359,6 +359,13 @@ contextBridge.exposeInMainWorld('gestore', {
       const h = (_e: unknown, r: { vecchio: string; nuovo: string; attivo: string }): void => cb(r)
       ipcRenderer.on('workspace:rinominato', h)
       return () => ipcRenderer.off('workspace:rinominato', h)
+    },
+    // Il workspace tornato davanti da un ripristino: la finestra vi si riallinea
+    // SUBITO, senza seguirlo con una traslocazione — l'archivio è già a posto.
+    onRipristinato: (cb: (s: StatoWorkspace) => void): (() => void) => {
+      const h = (_e: unknown, s: StatoWorkspace): void => cb(s)
+      ipcRenderer.on('workspace:ripristinato', h)
+      return () => ipcRenderer.off('workspace:ripristinato', h)
     }
   },
   // Gli appunti passano dal modulo `clipboard` di Electron e non da

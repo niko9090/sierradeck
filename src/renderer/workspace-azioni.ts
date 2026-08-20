@@ -91,6 +91,14 @@ export function creaAzioniWorkspace(deps: AzioniDeps): AzioniWorkspace {
    */
   const trasloca = async (da: string, a: string): Promise<void> => {
     if (da === a) return
+    // Come `cambia`: chi vuole la memoria libera lascia dormire le chat che
+    // lascia. Prima mancava qui — e siccome `crea`, `elimina` e il seguire il
+    // cambio di un'altra finestra passano tutti da `trasloca`, l'interruttore
+    // «manda a dormire le chat che lasci» non aveva effetto su nessuna di queste
+    // strade. Prima di `esporta`, così il layout ricordato è già quello ibernato.
+    if (deps.ibernaLasciando?.() === true) {
+      deps.chiudiTerminali(deps.ibernaTutte?.() ?? [])
+    }
     const corrente = deps.esporta()
     deps.memoria.ricorda(da, corrente)
     deps.cambiaVista(deps.memoria.recupera(a, await deps.migra(da, a, corrente)))

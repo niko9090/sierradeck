@@ -13,6 +13,34 @@ describe('lo script della pagina', () => {
     expect(() => new Function(script)).not.toThrow()
   })
 
+  it('escJs neutralizza l apice: niente XSS dal nome workspace', () => {
+    // La vulnerabilità: `esc` HTML-scappava ma lasciava l'apice, e dentro un
+    // onclick="vaiA('...')" un nome col payload usciva dalla stringa e diventava
+    // codice — un dispositivo accoppiato piantava un nome, e al clic girava
+    // nell'origine della pagina, con la chiave in localStorage a portata. La prova
+    // non è che il testo "escJs" compaia: è che, ESEGUITO, un payload con apice
+    // esca neutralizzato. Si ricostruiscono `esc` + `escJs` dalla pagina e si
+    // corrono davvero.
+    const riga = (inizio: string): string =>
+      script.split(String.fromCharCode(10)).find((r) => r.trimStart().startsWith(inizio)) ?? ''
+    const fabbrica = new Function(riga('const esc =') + ';' + riga('const escJs =') + ';return escJs')
+    const escJs = fabbrica() as (t: unknown) => string
+
+    const payload = "x')-alert(document.cookie)-('"
+    const uscita = escJs(payload)
+    // Ogni apice è preceduto da una barra: non può chiudere la stringa JS.
+    expect(uscita).not.toMatch(/(^|[^\\])'/)
+    // Messo dentro l'onclick, resta UNA invocazione con un solo argomento stringa,
+    // uguale al payload: niente `alert`, niente codice.
+    const eseguito = new Function("function vaiA(s){return s}; return vaiA('" + uscita + "')")
+    expect(eseguito).not.toThrow()
+    expect(eseguito()).toBe(payload)
+    // La barra si raddoppia (o l'apice successivo resterebbe scoperto), e il
+    // doppio apice resta murato nell'attributo HTML.
+    expect(escJs('a' + String.fromCharCode(92) + 'b')).toContain(String.fromCharCode(92, 92))
+    expect(escJs('a"b')).toContain('&quot;')
+  })
+
   it('si puo affidare un lavoro, e la cartella si sceglie dalla lista', () => {
     // Delegare e' il gesto che ha piu' senso da un telefono: si dice cosa si
     // vuole e si va. Le domande della preparazione arrivano sulla stessa

@@ -59,20 +59,57 @@ export function salvaLayoutAttivo(
   nomeFinestra?: string
 ): Archivio {
   const dichiarato = nomeFinestra?.trim() ?? ''
-  const nome =
-    dichiarato !== '' && a.workspace.some((w) => w.nome === dichiarato) ? dichiarato : a.attivo
+  // `autorevole`: la finestra ha **dichiarato** un workspace che esiste davvero.
+  // Solo allora `nome` racconta con certezza dove la finestra si trova. Se invece
+  // ci si ripiega su `attivo` — nome vuoto o inesistente — `nome` è un'ipotesi,
+  // non un fatto.
+  const autorevole = dichiarato !== '' && a.workspace.some((w) => w.nome === dichiarato)
+  const nome = autorevole ? dichiarato : a.attivo
   const conWorkspace = !a.workspace.some((w) => w.nome === nome)
     ? [...a.workspace, { nome, perMonitor: { [chiave]: layout } }]
     : a.workspace.map((w) => (w.nome === nome ? conLayout(w, chiave, layout) : w))
-  // Invariante «una chat, un workspace» a **ogni** salvataggio, non solo quando
-  // si sposta una chat a mano. Una conversazione appena scritta qui non deve
-  // restare anche in un altro workspace: succede al riavvio dopo un
-  // aggiornamento, quando una finestra salva sotto un nome mentre la stessa chat
-  // è ancora ferma nel layout di un altro. Vince `nome`, il workspace in cui si
-  // sta scrivendo: è quello che si ha davvero davanti. Senza questa riga, la
-  // stessa chat finiva in due (o tre) workspace, e ricompariva di là a ogni
-  // cambio — la radice dei workspace incrociati e dei doppioni.
-  return { ...a, workspace: unaChatUnWorkspace(conWorkspace, nome) }
+  // Invariante «una chat, un workspace» — ma **solo** quando `nome` è autorevole.
+  // Con una dichiarazione valida, una conversazione appena scritta qui non deve
+  // restare anche in un altro workspace: vince `nome`, il workspace che la
+  // finestra ha davvero davanti. È la radice dei workspace incrociati chiusa in
+  // 0.9.35.
+  //
+  // Ma quando si ripiega su `attivo` perché la finestra **non sa ancora** il suo
+  // workspace — nomeFinestra vuoto, la finestra in avvio prima che
+  // `workspace.stato()` risolva — migrare sarebbe il difetto B: la chat che la
+  // finestra mostra (il layout di `attivo`, caricato all'avvio) verrebbe «tolta
+  // dagli altri» sulla base di un'ipotesi, e una conversazione traslocherebbe nel
+  // workspace sbagliato durante la finestra di divergenza al riavvio. Senza
+  // dichiarazione si scrive il layout e basta, senza rubare nulla a nessuno: al
+  // primo salvataggio con il nome dichiarato l'invariante tornerà a valere.
+  return { ...a, workspace: autorevole ? unaChatUnWorkspace(conWorkspace, nome) : conWorkspace }
+}
+
+/**
+ * Fa seguire `attivo` al workspace che la finestra **principale** mostra.
+ *
+ * `attivo` è dell'applicazione, non della singola finestra, e finché lo
+ * cambiavano soltanto i cambi espliciti (`cambia`/`crea`/`elimina`) poteva
+ * restare indietro rispetto a ciò che si aveva davvero davanti — soprattutto al
+ * riavvio, che l'aggiornamento fa da sé: la finestra riapriva il workspace scritto
+ * in `attivo` invece dell'ultimo visto. È il difetto A, «desktop sbagliato
+ * all'avvio».
+ *
+ * Facendo seguire `attivo` alla finestra principale a ogni salvataggio, al
+ * riavvio si riparte sempre sull'ultimo desktop. Le finestre mostrano tutte lo
+ * stesso workspace (l'annuncio `workspace:cambiato` le allinea), quindi di norma
+ * questo non cambia nulla — riafferma solo ciò che già valeva; conta nei momenti
+ * in cui `attivo` era rimasto indietro.
+ *
+ * Solo con un nome **autorevole**, esattamente come `salvaLayoutAttivo`: in avvio
+ * la finestra non sa ancora il suo workspace (nome vuoto) e allora `attivo` non va
+ * toccato — cambiarlo su un'ipotesi sarebbe il gemello del difetto B.
+ */
+export function seguiAttivoDellaPrincipale(a: Archivio, nomeFinestra?: string): Archivio {
+  const dichiarato = nomeFinestra?.trim() ?? ''
+  if (dichiarato === '' || dichiarato === a.attivo) return a
+  if (!a.workspace.some((w) => w.nome === dichiarato)) return a
+  return { ...a, attivo: dichiarato }
 }
 
 export function creaWorkspace(a: Archivio, nome: string): Archivio {
