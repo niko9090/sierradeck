@@ -124,6 +124,20 @@ function componiRisposta(domanda: string, risposta: string): string {
   return `Hai chiesto: «${domanda}»\n\nL'utente risponde: ${risposta}\n\nProsegui con questa indicazione.`
 }
 
+/**
+ * Cambia lo stato di UNA chat della flotta, lasciando le altre e l'autopilota
+ * com'erano.
+ *
+ * È il mattone della flotta senza congelamento: una chat che pone una domanda si
+ * marca `bloccata` (e `chiatteAttive` la esclude), mentre lo `stato` globale
+ * dell'autopilota resta `lavoro` — così le sorelle continuano a lavorare invece
+ * di fermarsi tutte perché una sola aspetta. Alla risposta la stessa chat torna
+ * `lavoro`. Puro: la decisione su chi si ferma si prova senza avviare processi.
+ */
+function conStatoChat(a: Autopilota, chatId: string, stato: ChatGovernata['stato']): Autopilota {
+  return { ...a, chats: a.chats.map((c) => (c.id === chatId ? { ...c, stato } : c)) }
+}
+
 function criteriDa(raw: unknown): Criterio[] {
   if (!Array.isArray(raw)) return []
   const criteri: Criterio[] = []
@@ -260,7 +274,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const inLavorazione = new Set<string>()
 
   /** Di chi è ogni domanda, e cosa chiedeva: serve alla risposta tardiva. */
-  const contesto = new Map<string, { autopilotaId: string; testo: string }>()
+  const contesto = new Map<string, { autopilotaId: string; testo: string; chatId?: string }>()
 
   /**
    * Una risposta arrivata dopo che la chat si era già fermata.
@@ -290,6 +304,30 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       salva(ripreso)
       void conduciIntervista(ripreso).catch((err: unknown) => {
         console.error(`[autopilota] ripresa dell intervista di ${dati.autopilotaId} fallita:`, err)
+      })
+      return
+    }
+
+    // Flotta: la domanda era di UNA chat (dati.chatId), e la risposta riprende
+    // solo lei. La si ritrova, la si rimette `lavoro` e la si rilancia con la
+    // risposta; le sorelle non si toccano e l'autopilota non era mai uscito da
+    // `lavoro`. Se quella chat non è più bloccata (già ripresa, finita, o
+    // l'autopilota fermato) non si fa niente.
+    if (dati.chatId !== undefined) {
+      const chat = a.chats.find((c) => c.id === dati.chatId)
+      if (a.stato !== 'lavoro' || chat === undefined || chat.stato !== 'bloccata') return
+      const ripresa = conStatoChat(a, dati.chatId, 'lavoro')
+      salva({
+        ...ripresa,
+        motivoSospensione: undefined,
+        decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: `risposta tardiva (${dati.chatId}): ${risposta}` }]
+      })
+      void deps.avviaLavoro(
+        ripresa,
+        componiRisposta(dati.testo, risposta),
+        { ...chat, stato: 'lavoro' }
+      ).catch((err: unknown) => {
+        console.error(`[autopilota] ripresa della chat ${dati.chatId} di ${dati.autopilotaId} fallita:`, err)
       })
       return
     }
@@ -799,8 +837,23 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         testo: decisione.domanda,
         scadenzaMs: deps.scadenzaDomandaMs
       })
-      contesto.set(domanda.id, { autopilotaId: aggiornato.id, testo: decisione.domanda })
-      salva({ ...aggiornato, stato: 'attesa', motivoSospensione: decisione.domanda.slice(0, MOTIVO_MAX) })
+      contesto.set(domanda.id, {
+        autopilotaId: aggiornato.id,
+        testo: decisione.domanda,
+        // Di quale chat era la domanda: serve a riprendere **solo lei** se la
+        // risposta arriva tardi (vedi suRispostaTardiva). C'è solo per le flotte.
+        ...(chatId !== undefined ? { chatId } : {})
+      })
+      // Con una flotta la domanda ferma **solo** la chat che l'ha posta: si marca
+      // quella `bloccata` e l'autopilota resta `lavoro`, così le sorelle
+      // continuano invece di fermarsi tutte. Con una chat sola vale il vecchio
+      // stato globale `attesa`. In entrambi i casi l'hook resta trattenuto qui
+      // sotto: è ciò che blocca il claude.exe di QUESTA chat, non le altre.
+      salva(
+        chatId !== undefined
+          ? { ...conStatoChat(aggiornato, chatId, 'bloccata'), motivoSospensione: decisione.domanda.slice(0, MOTIVO_MAX) }
+          : { ...aggiornato, stato: 'attesa', motivoSospensione: decisione.domanda.slice(0, MOTIVO_MAX) }
+      )
       // L'avviso parte **prima** dell'attesa: mandarlo dopo significherebbe
       // avvisare l'utente quando l'attesa e' gia' finita, cioe' quando la
       // risposta costa una ripresa invece di una continuazione.
@@ -809,15 +862,20 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const risposta = await deps.domande.attendi(domanda.id)
       if (risposta === undefined) {
         // Nessuno ha risposto in tempo: la chat si ferma, ma la domanda resta
-        // aperta e una risposta tardiva farà riprendere il lavoro.
+        // aperta e una risposta tardiva farà riprendere il lavoro. La chat resta
+        // `bloccata` (flotta) o l'autopilota `attesa` (chat sola): non si tocca.
         console.warn(`[autopilota] ${id} in attesa di risposta: ${decisione.domanda}`)
         return {}
       }
 
       const dopoRisposta = deps.archivio.leggi(id) ?? aggiornato
+      // Risposta in tempo: riprende **questa** chat. Con una flotta torna
+      // `lavoro` solo lei (l'autopilota non era mai uscito da `lavoro`); con una
+      // chat sola torna `lavoro` l'autopilota.
       salva({
-        ...dopoRisposta,
-        stato: 'lavoro',
+        ...(chatId !== undefined
+          ? conStatoChat(dopoRisposta, chatId, 'lavoro')
+          : { ...dopoRisposta, stato: 'lavoro' as const }),
         motivoSospensione: undefined,
         decisioni: [
           ...dopoRisposta.decisioni,
@@ -892,7 +950,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * aspettare, perché deciderebbe al posto dell'utente proprio nel caso in cui
    * si è stabilito di chiederglielo.
    */
-  const suNotification = (id: string, corpo: Record<string, unknown>): unknown => {
+  const suNotification = (id: string, chatId: string | undefined, corpo: Record<string, unknown>): unknown => {
     const a = deps.archivio.leggi(id)
     if (a === undefined || a.stato !== 'lavoro') return {}
     const tipo = typeof corpo.notification_type === 'string' ? corpo.notification_type : 'sconosciuta'
@@ -911,8 +969,21 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       testo,
       scadenzaMs: deps.scadenzaDomandaMs
     })
-    contesto.set(domanda.id, { autopilotaId: a.id, testo })
-    salva({ ...a, stato: 'attesa', motivoSospensione: testo })
+    contesto.set(domanda.id, {
+      autopilotaId: a.id,
+      testo,
+      ...(chatId !== undefined ? { chatId } : {})
+    })
+    // Come per una domanda dello Stop: con una flotta la notifica ferma **solo**
+    // la chat che l'ha mandata (marcata `bloccata`, autopilota ancora `lavoro`),
+    // così le sorelle non si fermano; con una chat sola vale il vecchio `attesa`
+    // globale. La notifica non trattiene l'hook, quindi la chat riprende dalla
+    // risposta tardiva (suRispostaTardiva), che ora sa riprendere la singola chat.
+    salva(
+      chatId !== undefined
+        ? { ...conStatoChat(a, chatId, 'bloccata'), motivoSospensione: testo }
+        : { ...a, stato: 'attesa', motivoSospensione: testo }
+    )
     void deps.avvisa('domanda', a, testo)
     return {}
   }
@@ -1293,7 +1364,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
               ? chatGrezza
               : undefined
           if (hook[1] !== 'stop') {
-            rispondi(res, 200, suNotification(id, corpo))
+            rispondi(res, 200, suNotification(id, chatId, corpo))
             return
           }
           // Finché la fermata è in lavorazione, quell'autopilota **sta

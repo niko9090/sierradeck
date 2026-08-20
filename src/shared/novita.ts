@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.38',
+    righe: [
+      '**Una flotta di autopiloti non si ferma più tutta quando una chat fa una domanda.** Se lavori con più chat sotto lo stesso autopilota e una si blocca per chiederti qualcosa, ora si ferma **solo lei**: resta in attesa della tua risposta mentre le altre continuano a lavorare. Prima una singola domanda metteva in pausa l’intera flotta — bastava un bivio per fermare tutto. Quando rispondi, riprende solo la chat che aveva chiesto. Con una chat sola non cambia niente.'
+    ]
+  },
+  {
     versione: '0.9.37',
     righe: [
       '**Dopo un aggiornamento torni sull’ultimo desktop, non su un altro.** Il workspace attivo ora segue la finestra principale: al riavvio — che l’app fa da sola per aggiornarsi — riapre quello che avevi davvero davanti, e la chat su cui lavoravi non resta nascosta in un altro desktop.',

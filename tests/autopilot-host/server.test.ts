@@ -673,6 +673,70 @@ describe('flotta di chat', () => {
 
     expect(chatAvviate.map((c) => c.id).sort()).toEqual(['c-1', 'c-2'])
   })
+
+  // Fase 1: una domanda (o notifica) di UNA chat non congela le sorelle. Prima
+  // metteva l'intero autopilota in `attesa`, e la guardia scartava lo Stop di
+  // tutte le altre — un solo bivio fermava la flotta.
+  const CHIEDE_FLOTTA: Interrogazione = (p) => Promise.resolve({
+    testo: p.includes('va diviso fra')
+      ? '{"compiti": ["scrivi i test", "aggiorna i documenti"]}'
+      : '{"azione": "chiedi", "domanda": "Quale chiave uso?"}'
+  })
+
+  it('una domanda ferma solo la chat che l ha posta, non la flotta', async () => {
+    server = ambiente({ interroga: CHIEDE_FLOTTA, scadenzaDomandaMs: 120 })
+    await avvia(server)
+    const id = await creaAp({ tettoChat: 2 })
+    await attendi(() => chatAvviate.length >= 2)
+
+    // c-2 chiede e nessuno risponde in tempo: la SUA chat si ferma.
+    const r = await chiama('POST', `/hook/stop?ap=${id}&chat=c-2`, eventoStop())
+    expect(r.dati).toEqual({})
+
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    // L'autopilota resta AL LAVORO — non 'attesa' — quindi la guardia non scarta
+    // piu' lo Stop delle sorelle: la flotta non e' congelata.
+    expect(stato.stato).toBe('lavoro')
+    expect(stato.chats.find((c: any) => c.id === 'c-2').stato).toBe('bloccata')
+    expect(stato.chats.find((c: any) => c.id === 'c-1').stato).toBe('lavoro')
+  })
+
+  it('lo Stop di una sorella viene lavorato mentre un altra chat e bloccata', async () => {
+    server = ambiente({ interroga: CHIEDE_FLOTTA, scadenzaDomandaMs: 120 })
+    await avvia(server)
+    const id = await creaAp({ tettoChat: 2 })
+    await attendi(() => chatAvviate.length >= 2)
+
+    await chiama('POST', `/hook/stop?ap=${id}&chat=c-2`, eventoStop()) // c-2 bloccata
+    // Ora c-1 chiude un turno: prima veniva scartato ({}), il suo giro perso.
+    await chiama('POST', `/hook/stop?ap=${id}&chat=c-1`, eventoStop({ session_id: 's-uno' }))
+
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    const c1 = stato.chats.find((c: any) => c.id === 'c-1')
+    // Il suo Stop e' stato lavorato: il ciclo per-chat e' salito e la sessione
+    // e' stata registrata. Con il congelamento sarebbe rimasto a zero.
+    expect(c1.cicli).toBe(1)
+    expect(c1.sessionId).toBe('s-uno')
+  })
+
+  it('la risposta tardiva riprende solo la chat che aveva chiesto', async () => {
+    server = ambiente({ interroga: CHIEDE_FLOTTA, scadenzaDomandaMs: 100 })
+    await avvia(server)
+    const id = await creaAp({ tettoChat: 2 })
+    await attendi(() => chatAvviate.length >= 2)
+    await chiama('POST', `/hook/stop?ap=${id}&chat=c-2`, eventoStop()) // timeout -> c-2 bloccata
+    chatAvviate.length = 0
+    messaggiDiRipresa.length = 0
+
+    const domanda = (await chiama('GET', '/domande')).dati[0]
+    await chiama('POST', `/domande/${domanda.id}/risposta`, { risposta: 'usa la chiave X' })
+    await attendi(() => chatAvviate.length > 0)
+
+    // Solo c-2 viene rilanciata, con la risposta; c-1 non si tocca.
+    expect(chatAvviate.map((c) => c.id)).toEqual(['c-2'])
+    expect(messaggiDiRipresa[0]).toContain('usa la chiave X')
+    expect((await chiama('GET', '/autopiloti')).dati[0].chats.find((c: any) => c.id === 'c-2').stato).toBe('lavoro')
+  })
 })
 
 describe('eliminazione', () => {
