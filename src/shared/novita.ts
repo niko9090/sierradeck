@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.44',
+    righe: [
+      '**La conferma della registrazione ora è a codice.** Invece di un link (che su un programma installato non porta da nessuna parte), la mail ti manda un **codice**: lo scrivi nell’app e sei dentro. È la via giusta per un’applicazione desktop.'
+    ]
+  },
+  {
     versione: '0.9.43',
     righe: [
       '**La schermata d’ingresso è nuova.** All’avvio ti accoglie il cristallo di SierraDeck in grande, con un’aurora che scorre piano sullo sfondo e la luce che attraversa il logo — e la scelta chiara: entra, registrati, o usa senza account.',

@@ -23,6 +23,16 @@ export function esci(): Promise<void> {
   return window.gestore.account.esci()
 }
 
+/** Conferma la registrazione col codice ricevuto per email. */
+export function verificaCodice(email: string, codice: string): Promise<EsitoAccesso> {
+  return window.gestore.account.verifica(email, codice)
+}
+
+/** Rimanda il codice di conferma. */
+export function reinviaCodice(email: string): Promise<{ ok: boolean; messaggio?: string }> {
+  return window.gestore.account.reinvia(email)
+}
+
 export function utenteCorrente(): Promise<Utente | undefined> {
   return window.gestore.account.utente()
 }

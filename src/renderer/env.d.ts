@@ -80,6 +80,8 @@ declare global {
         entra: (email: string, password: string) => Promise<import('@shared/account').EsitoAccesso>
         esci: () => Promise<void>
         utente: () => Promise<import('@shared/account').Utente | undefined>
+        verifica: (email: string, codice: string) => Promise<import('@shared/account').EsitoAccesso>
+        reinvia: (email: string) => Promise<{ ok: boolean; messaggio?: string }>
         onCambiato: (cb: (utente: import('@shared/account').Utente | null) => void) => () => void
       }
       chiavi: {

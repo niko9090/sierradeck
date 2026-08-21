@@ -29,7 +29,9 @@ import {
   entra as entraAccount,
   esci as esciAccount,
   utenteCorrente as utenteAccount,
-  suCambioAccesso as suCambioAccount
+  suCambioAccesso as suCambioAccount,
+  verificaCodice as verificaCodiceAccount,
+  reinviaCodice as reinviaCodiceAccount
 } from './accesso-supabase'
 import { creaClientAutopilota } from './autopilot-client'
 import { apriIstantaneeStore } from './istantanee-store'
@@ -419,6 +421,14 @@ if (!app.requestSingleInstanceLock()) {
           : Promise.resolve(rispostaErrore))
       ipcMain.handle('account:esci', () => esciAccount())
       ipcMain.handle('account:utente', () => utenteAccount())
+      ipcMain.handle('account:verifica', (_e, email: unknown, codice: unknown) =>
+        typeof email === 'string' && typeof codice === 'string'
+          ? verificaCodiceAccount(email, codice)
+          : Promise.resolve(rispostaErrore))
+      ipcMain.handle('account:reinvia', (_e, email: unknown) =>
+        typeof email === 'string'
+          ? reinviaCodiceAccount(email)
+          : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
       suCambioAccount((utente) => {
         for (const w of BrowserWindow.getAllWindows()) {
           if (!w.isDestroyed() && !w.webContents.isDestroyed()) {

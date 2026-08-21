@@ -83,6 +83,29 @@ export async function registra(email: string, password: string): Promise<EsitoAc
   return { stato: 'confermaEmail' }
 }
 
+/**
+ * Conferma la registrazione con il **codice** ricevuto per email.
+ *
+ * È la via giusta per un'app desktop: niente link da aprire in un browser (che
+ * per noi punterebbe a `localhost`, nessun posto), ma un codice a sei cifre che
+ * l'utente digita qui dentro. Il template della mail su Supabase mostra
+ * `{{ .Token }}` invece di un link, e questo lo verifica.
+ */
+export async function verificaCodice(email: string, codice: string): Promise<EsitoAccesso> {
+  const { data, error } = await c().auth.verifyOtp({ email, token: codice.trim(), type: 'signup' })
+  if (error !== null) return { stato: 'errore', messaggio: error.message }
+  const utente = utenteDa(data.user)
+  return utente !== undefined
+    ? { stato: 'entrato', utente }
+    : { stato: 'errore', messaggio: 'codice non valido' }
+}
+
+/** Rimanda il codice, se il primo non è arrivato o è scaduto. */
+export async function reinviaCodice(email: string): Promise<{ ok: boolean; messaggio?: string }> {
+  const { error } = await c().auth.resend({ type: 'signup', email })
+  return error === null ? { ok: true } : { ok: false, messaggio: error.message }
+}
+
 export async function entra(email: string, password: string): Promise<EsitoAccesso> {
   const { data, error } = await c().auth.signInWithPassword({ email, password })
   if (error !== null) return { stato: 'errore', messaggio: error.message }

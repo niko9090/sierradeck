@@ -2059,6 +2059,15 @@ select.comando-riquadro option {
 .accesso-regola--ok .accesso-regola__segno { opacity: 1; }
 .accesso-regola--no { color: var(--rosso); }
 
+/* Il passo del codice di conferma. */
+.accesso-conferma { margin: 0; font-size: var(--t2); color: var(--testo-quieto); line-height: 1.5; text-align: center; }
+.accesso-codice {
+  text-align: center;
+  font-size: var(--t4);
+  letter-spacing: 0.35em;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+}
+
 /* Chi non vuole animazioni non le subisce: resta la stessa scena, ferma. */
 @media (prefers-reduced-motion: reduce) {
   .accesso-aurora, .accesso-logo, .accesso-logo__alone, .accesso-logo__luce::before, .accesso-contenuto {

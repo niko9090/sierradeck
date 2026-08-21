@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  registra, entra, esci, utenteCorrente, suCambioAccesso, type Utente
+  registra, entra, esci, utenteCorrente, suCambioAccesso, verificaCodice, reinviaCodice, type Utente
 } from '../accesso-supabase'
 import { valutaPassword, REGOLE_PASSWORD } from '@shared/password'
 
@@ -16,9 +16,11 @@ type Props = { onChiudi: () => void }
 export function PannelloAccount({ onChiudi }: Props): React.JSX.Element {
   const [utente, setUtente] = useState<Utente | undefined>(undefined)
   const [modo, setModo] = useState<'entra' | 'registra'>('entra')
+  const [fase, setFase] = useState<'form' | 'codice'>('form')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
+  const [codice, setCodice] = useState('')
   const [messaggio, setMessaggio] = useState<string | undefined>(undefined)
   const [inCorso, setInCorso] = useState(false)
 
@@ -40,12 +42,30 @@ export function PannelloAccount({ onChiudi }: Props): React.JSX.Element {
     void azione(email.trim(), password)
       .then((esito) => {
         if (esito.stato === 'entrato') { setUtente(esito.utente); setPassword('') }
-        else if (esito.stato === 'confermaEmail') {
-          setMessaggio('Ti abbiamo scritto: conferma l’email dal link, poi entra.')
-        } else setMessaggio(esito.messaggio)
+        else if (esito.stato === 'confermaEmail') { setCodice(''); setFase('codice') }
+        else setMessaggio(esito.messaggio)
       })
       .catch((e: unknown) => setMessaggio(String(e)))
       .finally(() => setInCorso(false))
+  }
+
+  const verifica = (): void => {
+    if (inCorso || codice.trim() === '') return
+    setInCorso(true)
+    setMessaggio(undefined)
+    void verificaCodice(email.trim(), codice)
+      .then((esito) => {
+        if (esito.stato === 'entrato') { setUtente(esito.utente); setFase('form'); setPassword(''); setCodice('') }
+        else setMessaggio(esito.stato === 'errore' ? esito.messaggio : 'codice non valido')
+      })
+      .catch((e: unknown) => setMessaggio(String(e)))
+      .finally(() => setInCorso(false))
+  }
+
+  const reinvia = (): void => {
+    void reinviaCodice(email.trim())
+      .then((r) => setMessaggio(r.ok ? 'Ti abbiamo rimandato il codice.' : (r.messaggio ?? 'invio non riuscito')))
+      .catch((e: unknown) => setMessaggio(String(e)))
   }
 
   return (
@@ -72,6 +92,36 @@ export function PannelloAccount({ onChiudi }: Props): React.JSX.Element {
         </div>
       ) : (
         <div className="account">
+          {fase === 'codice' ? (
+            <>
+              <p className="account__chi">
+                Ti abbiamo mandato un <strong>codice</strong> a <strong>{email.trim()}</strong>. Scrivilo per confermare.
+              </p>
+              <input
+                className="account__campo"
+                value={codice}
+                onChange={(e) => setCodice(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') verifica() }}
+                placeholder="codice"
+                aria-label="codice di conferma"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
+              />
+              {messaggio !== undefined ? <div className="riga__stato">{messaggio}</div> : null}
+              <div className="account__tasti">
+                <button className="tasto" onClick={reinvia}>Rimanda</button>
+                <button
+                  className="tasto tasto--primario"
+                  onClick={verifica}
+                  disabled={inCorso || codice.trim() === ''}
+                >
+                  {inCorso ? 'un attimo…' : 'Conferma'}
+                </button>
+              </div>
+            </>
+          ) : (
+          <>
           <div className="account__scelta">
             <button
               className={modo === 'entra' ? 'tasto tasto--primario' : 'tasto'}
@@ -158,6 +208,8 @@ export function PannelloAccount({ onChiudi }: Props): React.JSX.Element {
               {inCorso ? 'un attimo…' : modo === 'registra' ? 'Crea l’account' : 'Entra'}
             </button>
           </div>
+          </>
+          )}
         </div>
       )}
     </div>

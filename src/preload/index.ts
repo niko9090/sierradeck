@@ -178,6 +178,12 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('account:entra', email, password),
     esci: (): Promise<void> => ipcRenderer.invoke('account:esci'),
     utente: (): Promise<Utente | undefined> => ipcRenderer.invoke('account:utente'),
+    /** Conferma la registrazione col codice ricevuto per email. */
+    verifica: (email: string, codice: string): Promise<EsitoAccesso> =>
+      ipcRenderer.invoke('account:verifica', email, codice),
+    /** Rimanda il codice di conferma. */
+    reinvia: (email: string): Promise<{ ok: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('account:reinvia', email),
     /** Avvisa quando l'accesso cambia (entra/esce/token rinnovato). */
     onCambiato: (cb: (utente: Utente | null) => void): (() => void) => {
       const h = (_e: unknown, u: Utente | null): void => cb(u)
