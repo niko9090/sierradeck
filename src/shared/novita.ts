@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.45',
+    righe: [
+      '**All’avvio ora c’è una vera schermata d’ingresso.** Prima del programma parte un’intro con il cristallo e un caricamento al centro, poi — se non sei già entrato — l’accesso. **L’accesso è obbligatorio**: niente più «usa senza account». E se provi a entrare senza aver confermato l’email, l’app ti porta a inserire il codice e te lo rimanda.'
+    ]
+  },
+  {
     versione: '0.9.44',
     righe: [
       '**La conferma della registrazione ora è a codice.** Invece di un link (che su un programma installato non porta da nessuna parte), la mail ti manda un **codice**: lo scrivi nell’app e sei dentro. È la via giusta per un’applicazione desktop.'

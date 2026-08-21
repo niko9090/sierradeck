@@ -371,19 +371,23 @@ export function App(): React.JSX.Element {
   const [alLogin, setAlLogin] = useState<boolean | undefined>(undefined)
   const [accesso, setAccesso] = useState<StatoAccesso>({ autenticato: true })
   const [pronto, setPronto] = useState(false)
-  // L'accesso, deciso all'avvio: 'controllo' finché non si sa se c'è una
-  // sessione, 'gate' per la schermata di scelta (entra / usa senza account),
-  // 'dentro' quando si prosegue. Chi ha già una sessione salta la schermata.
-  const [statoAccesso, setStatoAccesso] = useState<'controllo' | 'gate' | 'dentro'>('controllo')
+  // L'accesso all'avvio: 'caricamento' mostra l'intro con lo spinner (almeno 3s,
+  // anche se già loggati), 'gate' la schermata di accesso — obbligatoria, non c'è
+  // un «senza account» — e 'dentro' quando si prosegue.
+  const [statoAccesso, setStatoAccesso] = useState<'caricamento' | 'gate' | 'dentro'>('caricamento')
   useEffect(() => {
     let vivo = true
-    utenteCorrente()
-      .then((u) => { if (vivo) setStatoAccesso(u !== undefined ? 'dentro' : 'gate') })
-      .catch(() => { if (vivo) setStatoAccesso('gate') })
-    // Se si entra mentre l'app è aperta (dal pannello Account), si prosegue.
-    // Uscendo NON si torna alla schermata: la scelta è dell'avvio, e buttar fuori
-    // qualcuno mentre lavora sarebbe sgarbato — da dentro l'uscita è nel pannello.
-    const stop = suCambioAccesso((u) => { if (u !== undefined) setStatoAccesso('dentro') })
+    // Si aspettano INSIEME la verifica della sessione e un tempo minimo d'intro:
+    // così l'avvio ha sempre il suo respiro, non un lampo di caricamento.
+    Promise.all([
+      utenteCorrente().catch(() => undefined),
+      new Promise<void>((r) => setTimeout(r, 3000))
+    ]).then(([u]) => { if (vivo) setStatoAccesso(u !== undefined ? 'dentro' : 'gate') })
+    // Entrando dal pannello o dalla schermata si prosegue — ma solo da 'gate', per
+    // non tagliare l'intro. Uscendo NON si torna fuori mentre si lavora.
+    const stop = suCambioAccesso((u) => {
+      if (u !== undefined) setStatoAccesso((s) => (s === 'gate' ? 'dentro' : s))
+    })
     return () => { vivo = false; stop() }
   }, [])
   // La serratura, per chi l'ha voluta. `undefined` finche' non si sa: aprire il
@@ -728,9 +732,9 @@ export function App(): React.JSX.Element {
   if (chiuso === undefined) return <div className="serratura" />
   if (chiuso) return <Serratura onAperto={() => setChiuso(false)} />
 
-  // La scelta dell'accesso, all'avvio: chi ha una sessione la salta (va a
-  // 'dentro' da sé); gli altri decidono — entra, registrati, o usa senza account.
-  if (statoAccesso === 'controllo') return <div style={{ height: '100vh', background: 'var(--fondo)' }} />
+  // L'accesso all'avvio: prima l'intro con lo spinner (almeno 3s), poi — se non
+  // c'è una sessione — la schermata di accesso, obbligatoria.
+  if (statoAccesso === 'caricamento') return <SchermataAccesso caricamento onDentro={() => setStatoAccesso('dentro')} />
   if (statoAccesso === 'gate') return <SchermataAccesso onDentro={() => setStatoAccesso('dentro')} />
 
   return (

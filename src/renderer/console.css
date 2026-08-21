@@ -2037,6 +2037,18 @@ select.comando-riquadro option {
 }
 .accesso-offline:hover { color: inherit; }
 
+/* Lo spinner dell'intro: un cerchio che gira, al posto dei campi mentre si
+   controlla la sessione. */
+.accesso-spinner {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 3px solid var(--incisione);
+  border-top-color: var(--accento);
+  animation: accesso-gira 0.9s linear infinite;
+}
+@keyframes accesso-gira { to { transform: rotate(360deg); } }
+
 /* I requisiti della password, che si accendono man mano che si digita. */
 .accesso-regole {
   list-style: none;

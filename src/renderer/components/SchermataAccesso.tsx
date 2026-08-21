@@ -3,8 +3,10 @@ import { registra, entra, verificaCodice, reinviaCodice } from '../accesso-supab
 import { valutaPassword, REGOLE_PASSWORD } from '@shared/password'
 
 type Props = {
-  /** Chiamata quando l'utente ha deciso: è entrato, oppure ha scelto di usare senza account. */
+  /** Chiamata quando l'utente è entrato: l'accesso ora è obbligatorio, non c'è un «senza account». */
   onDentro: () => void
+  /** Mostra solo l'intro con lo spinner, senza i campi: l'avvio, prima di sapere se c'è una sessione. */
+  caricamento?: boolean
 }
 
 /** Il marchio: lo stesso cristallo dell'icona, in grande. SVG, quindi nitido a ogni misura. */
@@ -34,7 +36,7 @@ function Cristallo(): React.JSX.Element {
  * L'animazione è tutta di trasformazioni e opacità (aurora, il cristallo che
  * fluttua, la luce che lo attraversa): scivola a 60fps e resta nitida.
  */
-export function SchermataAccesso({ onDentro }: Props): React.JSX.Element {
+export function SchermataAccesso({ onDentro, caricamento = false }: Props): React.JSX.Element {
   const [fase, setFase] = useState<'form' | 'codice'>('form')
   const [modo, setModo] = useState<'entra' | 'registra'>('entra')
   const [email, setEmail] = useState('')
@@ -58,7 +60,17 @@ export function SchermataAccesso({ onDentro }: Props): React.JSX.Element {
       .then((esito) => {
         if (esito.stato === 'entrato') onDentro()
         else if (esito.stato === 'confermaEmail') { setCodice(''); setFase('codice') }
-        else setMessaggio(esito.messaggio)
+        else {
+          // Provi a entrare ma non hai confermato l'email: si va al codice e lo
+          // si rimanda, invece di lasciarti su un errore che non sai risolvere.
+          const m = esito.messaggio.toLowerCase()
+          if (modo === 'entra' && (m.includes('confirm') || m.includes('conferma'))) {
+            setCodice('')
+            setFase('codice')
+            setMessaggio('Prima devi confermare l’email: ti ho rimandato il codice.')
+            void reinviaCodice(email.trim())
+          } else setMessaggio(esito.messaggio)
+        }
       })
       .catch((e: unknown) => setMessaggio(String(e)))
       .finally(() => setInCorso(false))
@@ -100,6 +112,9 @@ export function SchermataAccesso({ onDentro }: Props): React.JSX.Element {
           <p className="accesso-frase">Riprendi da dove eri. Su qualsiasi schermo.</p>
         </div>
 
+        {caricamento ? (
+          <div className="accesso-spinner" role="status" aria-label="caricamento" />
+        ) : (
         <div className="accesso-carta">
           {fase === 'codice' ? (
             <>
@@ -224,12 +239,7 @@ export function SchermataAccesso({ onDentro }: Props): React.JSX.Element {
             </>
           )}
         </div>
-
-        {fase === 'form' ? (
-          <button className="accesso-offline" onClick={onDentro}>
-            Usa senza account, per ora
-          </button>
-        ) : null}
+        )}
       </div>
     </div>
   )
