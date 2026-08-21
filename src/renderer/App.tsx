@@ -25,6 +25,7 @@ import { PannelloAutopiloti } from './components/PannelloAutopiloti'
 import { PannelloConsumi } from './components/PannelloConsumi'
 import { PannelloQuaderno } from './components/PannelloQuaderno'
 import { PannelloImpostazioni } from './components/PannelloImpostazioni'
+import { PannelloAccount } from './components/PannelloAccount'
 import { tavolozza, type Preferenze } from '@shared/preferenze'
 import { PannelloProvider } from './components/PannelloProvider'
 import { ModaleAccesso } from './components/ModaleAccesso'
@@ -850,6 +851,9 @@ export function App(): React.JSX.Element {
         ) : null}
         {aperto === 'impostazioni' ? (
           <PannelloImpostazioni onChiudi={() => setAperto(undefined)} />
+        ) : null}
+        {aperto === 'account' ? (
+          <PannelloAccount onChiudi={() => setAperto(undefined)} />
         ) : null}
         {aperto === 'quaderno' ? (
           // La cartella del riquadro che hai davanti: il quaderno racconta un

@@ -25,7 +25,7 @@ import { MODELLI } from '../modelli'
  * qualcosa di nuovo: chi non vuole pensarci li usa e non ci pensa più.
  */
 
-export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'consumi' | 'provider' | undefined
+export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'consumi' | 'provider' | 'account' | undefined
 
 type Props = {
   onApriSessioni: () => void
@@ -273,6 +273,14 @@ export function Console({
           title="Cosa e' stato fatto in questa cartella, in schede"
         >
           ▤ Quaderno
+        </button>
+        <button
+          className="tasto"
+          onClick={() => commuta('account')}
+          aria-expanded={aperto === 'account'}
+          title="Accesso: la chiave per ritrovare i tuoi dati su un altro computer"
+        >
+          ◍ Account
         </button>
         <button
           className="tasto"

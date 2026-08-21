@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.41',
+    righe: [
+      '**È arrivato l’Account (primo pezzo).** Nella barra in basso trovi «◍ Account»: da lì puoi **registrarti ed entrare**. Per ora è solo l’accesso — è la chiave su cui costruiamo il recupero fra computer: presto, da entrato, i tuoi dati (chat, quaderno, workspace) si sincronizzeranno **cifrati** nel tuo cloud, così su un altro PC basterà accedere per ritrovare tutto, e la cifratura resta tua (nemmeno noi possiamo leggerli). Non blocca niente: se non ti registri, il programma funziona come prima.'
+    ]
+  },
+  {
     versione: '0.9.40',
     righe: [
       '**Il quaderno è diventato un vero blocco note.** Le schede ora si leggono con il Markdown formattato — titoli, elenchi, codice, grassetto, link — invece che come testo grezzo, e con un interruttore passi da «Leggi» a «Modifica». In modifica puoi cambiare anche il **titolo e i tag** (prima solo il corpo), e si salva **da solo** mentre scrivi. Puoi **eliminare** una scheda (con conferma), e l’elenco mostra a colpo d’occhio titolo, un assaggio del contenuto, la data e i tag, così ritrovi quello che cerchi senza aprirlo. I link si aprono nel browser di sistema, e tutto è reso in modo sicuro: una scheda non può eseguire codice. I file restano Markdown in «.sierradeck/quaderno» dentro il progetto, come prima.'
