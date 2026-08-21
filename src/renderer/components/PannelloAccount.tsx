@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   registra, entra, esci, utenteCorrente, suCambioAccesso, type Utente
 } from '../accesso-supabase'
+import { valutaPassword, REGOLE_PASSWORD } from '@shared/password'
 
 type Props = { onChiudi: () => void }
 
@@ -17,6 +18,7 @@ export function PannelloAccount({ onChiudi }: Props): React.JSX.Element {
   const [modo, setModo] = useState<'entra' | 'registra'>('entra')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [password2, setPassword2] = useState('')
   const [messaggio, setMessaggio] = useState<string | undefined>(undefined)
   const [inCorso, setInCorso] = useState(false)
 
@@ -25,8 +27,13 @@ export function PannelloAccount({ onChiudi }: Props): React.JSX.Element {
     return suCambioAccesso(setUtente)
   }, [])
 
+  const regole = valutaPassword(password)
+  const coincidono = password2 === password
+  const puoInviare =
+    email.trim() !== '' && password !== '' && (modo === 'entra' || (regole.ok && coincidono))
+
   const invia = (): void => {
-    if (inCorso || email.trim() === '' || password === '') return
+    if (inCorso || !puoInviare) return
     setInCorso(true)
     setMessaggio(undefined)
     const azione = modo === 'registra' ? registra : entra
@@ -68,13 +75,13 @@ export function PannelloAccount({ onChiudi }: Props): React.JSX.Element {
           <div className="account__scelta">
             <button
               className={modo === 'entra' ? 'tasto tasto--primario' : 'tasto'}
-              onClick={() => { setModo('entra'); setMessaggio(undefined) }}
+              onClick={() => { setModo('entra'); setMessaggio(undefined); setPassword2('') }}
             >
               Entra
             </button>
             <button
               className={modo === 'registra' ? 'tasto tasto--primario' : 'tasto'}
-              onClick={() => { setModo('registra'); setMessaggio(undefined) }}
+              onClick={() => { setModo('registra'); setMessaggio(undefined); setPassword2('') }}
             >
               Registrati
             </button>
@@ -100,13 +107,53 @@ export function PannelloAccount({ onChiudi }: Props): React.JSX.Element {
             autoComplete={modo === 'registra' ? 'new-password' : 'current-password'}
           />
 
+          {modo === 'registra' ? (
+            <>
+              <input
+                className="account__campo"
+                type="password"
+                value={password2}
+                onChange={(e) => setPassword2(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') invia() }}
+                placeholder="ripeti la password"
+                aria-label="ripeti la password"
+                autoComplete="new-password"
+              />
+              <ul className="accesso-regole" aria-label="requisiti della password">
+                {REGOLE_PASSWORD.map((r) => (
+                  <li
+                    key={r.chiave}
+                    className={regole[r.chiave] ? 'accesso-regola accesso-regola--ok' : 'accesso-regola'}
+                  >
+                    <span className="accesso-regola__segno">{regole[r.chiave] ? '✓' : '○'}</span>
+                    {r.testo}
+                  </li>
+                ))}
+                <li
+                  className={
+                    password2 === ''
+                      ? 'accesso-regola'
+                      : coincidono
+                        ? 'accesso-regola accesso-regola--ok'
+                        : 'accesso-regola accesso-regola--no'
+                  }
+                >
+                  <span className="accesso-regola__segno">
+                    {password2 === '' ? '○' : coincidono ? '✓' : '✗'}
+                  </span>
+                  le due password coincidono
+                </li>
+              </ul>
+            </>
+          ) : null}
+
           {messaggio !== undefined ? <div className="riga__stato">{messaggio}</div> : null}
 
           <div className="account__tasti">
             <button
               className="tasto tasto--primario"
               onClick={invia}
-              disabled={inCorso || email.trim() === '' || password === ''}
+              disabled={inCorso || !puoInviare}
             >
               {inCorso ? 'un attimo…' : modo === 'registra' ? 'Crea l’account' : 'Entra'}
             </button>

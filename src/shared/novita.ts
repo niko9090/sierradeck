@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.43',
+    righe: [
+      '**La schermata d’ingresso è nuova.** All’avvio ti accoglie il cristallo di SierraDeck in grande, con un’aurora che scorre piano sullo sfondo e la luce che attraversa il logo — e la scelta chiara: entra, registrati, o usa senza account.',
+      '**Registrazione più sicura.** Ora la password si digita due volte (per non sbagliarla) e deve rispettare delle regole — almeno 8 caratteri, una lettera e un numero — che si accendono man mano che scrivi.'
+    ]
+  },
+  {
     versione: '0.9.42',
     righe: [
       '**L’accesso ora compare all’avvio, e funziona.** All’apertura scegli tu: **entra**, **registrati**, oppure **usa senza account** — così l’account non è più una cosa nascosta che nessuno vede, ma una scelta consapevole, e chi ha già fatto l’accesso entra dritto. E soprattutto: prima, nell’app installata, il login dava «errore di rete» — l’accesso ora avviene nel motore del programma (dove non c’è il muro di sicurezza della pagina), quindi va davvero.'
