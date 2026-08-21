@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.42',
+    righe: [
+      '**L’accesso ora compare all’avvio, e funziona.** All’apertura scegli tu: **entra**, **registrati**, oppure **usa senza account** — così l’account non è più una cosa nascosta che nessuno vede, ma una scelta consapevole, e chi ha già fatto l’accesso entra dritto. E soprattutto: prima, nell’app installata, il login dava «errore di rete» — l’accesso ora avviene nel motore del programma (dove non c’è il muro di sicurezza della pagina), quindi va davvero.'
+    ]
+  },
+  {
     versione: '0.9.41',
     righe: [
       '**È arrivato l’Account (primo pezzo).** Nella barra in basso trovi «◍ Account»: da lì puoi **registrarti ed entrare**. Per ora è solo l’accesso — è la chiave su cui costruiamo il recupero fra computer: presto, da entrato, i tuoi dati (chat, quaderno, workspace) si sincronizzeranno **cifrati** nel tuo cloud, così su un altro PC basterà accedere per ritrovare tutto, e la cifratura resta tua (nemmeno noi possiamo leggerli). Non blocca niente: se non ti registri, il programma funziona come prima.'

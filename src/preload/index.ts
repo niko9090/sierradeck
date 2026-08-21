@@ -6,6 +6,7 @@ import type { Scheda } from '@shared/quaderno'
 import type { Preferenze } from '@shared/preferenze'
 import type { Autopilota } from '@shared/autopilota'
 import type { StatoWorkspace } from '../main/ipc'
+import type { Utente, EsitoAccesso } from '@shared/account'
 import type { Istantanea } from '@shared/istantanea'
 import type {
   NuovoAutopilota, DomandaAperta, CambioAutopilota, RispostaParlata
@@ -168,6 +169,21 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Cancella una scheda: il file `.md` sparisce dalla cartella. */
     elimina: (cwd: string, file: string): Promise<boolean> =>
       ipcRenderer.invoke('quaderno:elimina', cwd, file)
+  },
+  /** L'account: registrazione e accesso, che vivono nel main (la rete la fa lui). */
+  account: {
+    registra: (email: string, password: string): Promise<EsitoAccesso> =>
+      ipcRenderer.invoke('account:registra', email, password),
+    entra: (email: string, password: string): Promise<EsitoAccesso> =>
+      ipcRenderer.invoke('account:entra', email, password),
+    esci: (): Promise<void> => ipcRenderer.invoke('account:esci'),
+    utente: (): Promise<Utente | undefined> => ipcRenderer.invoke('account:utente'),
+    /** Avvisa quando l'accesso cambia (entra/esce/token rinnovato). */
+    onCambiato: (cb: (utente: Utente | null) => void): (() => void) => {
+      const h = (_e: unknown, u: Utente | null): void => cb(u)
+      ipcRenderer.on('account:cambiato', h)
+      return () => ipcRenderer.off('account:cambiato', h)
+    }
   },
   chiavi: {
     stato: (): Promise<{ allAvvio: boolean; workspace: string[] }> =>

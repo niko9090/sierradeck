@@ -38,6 +38,8 @@ import { componiAvvisi } from './avvisi'
 import type { StatoAccesso } from '../main/accesso'
 import { DomandaModale } from './components/DomandaModale'
 import { SchermataAvvio } from './components/SchermataAvvio'
+import { SchermataAccesso } from './components/SchermataAccesso'
+import { utenteCorrente, suCambioAccesso } from './accesso-supabase'
 import { Serratura } from './components/Serratura'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
 
@@ -369,6 +371,21 @@ export function App(): React.JSX.Element {
   const [alLogin, setAlLogin] = useState<boolean | undefined>(undefined)
   const [accesso, setAccesso] = useState<StatoAccesso>({ autenticato: true })
   const [pronto, setPronto] = useState(false)
+  // L'accesso, deciso all'avvio: 'controllo' finché non si sa se c'è una
+  // sessione, 'gate' per la schermata di scelta (entra / usa senza account),
+  // 'dentro' quando si prosegue. Chi ha già una sessione salta la schermata.
+  const [statoAccesso, setStatoAccesso] = useState<'controllo' | 'gate' | 'dentro'>('controllo')
+  useEffect(() => {
+    let vivo = true
+    utenteCorrente()
+      .then((u) => { if (vivo) setStatoAccesso(u !== undefined ? 'dentro' : 'gate') })
+      .catch(() => { if (vivo) setStatoAccesso('gate') })
+    // Se si entra mentre l'app è aperta (dal pannello Account), si prosegue.
+    // Uscendo NON si torna alla schermata: la scelta è dell'avvio, e buttar fuori
+    // qualcuno mentre lavora sarebbe sgarbato — da dentro l'uscita è nel pannello.
+    const stop = suCambioAccesso((u) => { if (u !== undefined) setStatoAccesso('dentro') })
+    return () => { vivo = false; stop() }
+  }, [])
   // La serratura, per chi l'ha voluta. `undefined` finche' non si sa: aprire il
   // programma e poi coprirlo con la richiesta sarebbe mostrare per un istante
   // proprio cio' che si voleva chiudere.
@@ -710,6 +727,11 @@ export function App(): React.JSX.Element {
   // vedere nemmeno per un istante quello che protegge.
   if (chiuso === undefined) return <div className="serratura" />
   if (chiuso) return <Serratura onAperto={() => setChiuso(false)} />
+
+  // La scelta dell'accesso, all'avvio: chi ha una sessione la salta (va a
+  // 'dentro' da sé); gli altri decidono — entra, registrati, o usa senza account.
+  if (statoAccesso === 'controllo') return <div style={{ height: '100vh', background: 'var(--fondo)' }} />
+  if (statoAccesso === 'gate') return <SchermataAccesso onDentro={() => setStatoAccesso('dentro')} />
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--fondo)' }}>

@@ -1870,6 +1870,41 @@ select.comando-riquadro option {
 }
 .account__tasti { display: flex; justify-content: flex-end; gap: var(--s2); }
 
+/* La schermata dell'accesso all'avvio: a tutto schermo, la carta al centro. */
+.accesso-schermata {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--fondo);
+  padding: var(--s4);
+}
+.accesso-carta {
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s5, 28px);
+  border: 1px solid var(--incisione);
+  border-radius: calc(var(--raggio) * 1.5);
+  background: var(--fondo-cupo);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
+}
+.accesso-marchio { font-size: var(--t5, 22px); font-weight: 700; letter-spacing: 0.5px; }
+.accesso-intro { margin: 0; font-size: var(--t2); color: var(--testo-quieto); line-height: 1.5; }
+.accesso-invia { margin-top: var(--s1); }
+.accesso-offline {
+  margin-top: var(--s1);
+  background: none;
+  border: none;
+  color: var(--testo-quieto);
+  font-size: var(--t2);
+  cursor: pointer;
+  text-decoration: underline;
+  align-self: center;
+}
+.accesso-offline:hover { color: inherit; }
+
 /* ─────────────────────────── impostazioni ─────────────────────────── */
 
 .pannello--impostazioni { width: min(620px, calc(100vw - 48px)); }

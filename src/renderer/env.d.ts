@@ -75,6 +75,13 @@ declare global {
         apri: (cwd: string) => Promise<void>
         elimina: (cwd: string, file: string) => Promise<boolean>
       }
+      account: {
+        registra: (email: string, password: string) => Promise<import('@shared/account').EsitoAccesso>
+        entra: (email: string, password: string) => Promise<import('@shared/account').EsitoAccesso>
+        esci: () => Promise<void>
+        utente: () => Promise<import('@shared/account').Utente | undefined>
+        onCambiato: (cb: (utente: import('@shared/account').Utente | null) => void) => () => void
+      }
       chiavi: {
         stato: () => Promise<{ allAvvio: boolean; workspace: string[] }>
         impostaAvvio: (parola: string) => Promise<{ allAvvio: boolean; workspace: string[] }>

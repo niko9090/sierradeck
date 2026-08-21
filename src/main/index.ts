@@ -23,6 +23,14 @@ import {
 import { preparaAmbiente } from './preparazione'
 import { decidiChiusura, vociArea, suggerimentoArea } from './area-notifica'
 import { espandiTilde } from './validation'
+import {
+  avviaAccesso,
+  registra as registraAccount,
+  entra as entraAccount,
+  esci as esciAccount,
+  utenteCorrente as utenteAccount,
+  suCambioAccesso as suCambioAccount
+} from './accesso-supabase'
 import { creaClientAutopilota } from './autopilot-client'
 import { apriIstantaneeStore } from './istantanee-store'
 import { listSessions } from './db'
@@ -394,6 +402,30 @@ if (!app.requestSingleInstanceLock()) {
       finestreStore = apriFinestreStore(dati)
       registerLayoutIpc(workspaceStore)
       registerFinestreIpc(apriNuovaFinestra)
+
+      // L'account (Supabase) vive nel MAIN: il renderer ha la CSP severa
+      // (`connect-src 'self'`) e non può chiamare la rete esterna — la sessione e
+      // le chiamate le fa qui. Prefisso `account:` per non confondersi con
+      // `accesso:` (il login di Claude Code, tutt'altra cosa).
+      avviaAccesso(dati)
+      const rispostaErrore = { stato: 'errore' as const, messaggio: 'richiesta non valida' }
+      ipcMain.handle('account:registra', (_e, email: unknown, password: unknown) =>
+        typeof email === 'string' && typeof password === 'string'
+          ? registraAccount(email, password)
+          : Promise.resolve(rispostaErrore))
+      ipcMain.handle('account:entra', (_e, email: unknown, password: unknown) =>
+        typeof email === 'string' && typeof password === 'string'
+          ? entraAccount(email, password)
+          : Promise.resolve(rispostaErrore))
+      ipcMain.handle('account:esci', () => esciAccount())
+      ipcMain.handle('account:utente', () => utenteAccount())
+      suCambioAccount((utente) => {
+        for (const w of BrowserWindow.getAllWindows()) {
+          if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+            w.webContents.send('account:cambiato', utente ?? null)
+          }
+        }
+      })
       const clientAutopilota = creaClientAutopilota({
         porta: PORTA_AUTOPILOTA,
         avviaServizio: avviaServizioAutopilota,
