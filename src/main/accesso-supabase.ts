@@ -80,6 +80,13 @@ export async function registra(email: string, password: string): Promise<EsitoAc
   if (error !== null) return { stato: 'errore', messaggio: error.message }
   const utente = utenteDa(data.user)
   if (data.session !== null && utente !== undefined) return { stato: 'entrato', utente }
+  // Email già registrata: Supabase, per non rivelarlo, risponde «ok» ma con
+  // `identities` VUOTE — nessun utente nuovo, nessuna mail. Se non lo dicessimo,
+  // l'utente resterebbe su un passo-codice per una mail che non arriverà mai
+  // (era esattamente il sintomo «nada, nessun messaggio»).
+  if (utente !== undefined && (data.user?.identities?.length ?? 0) === 0) {
+    return { stato: 'errore', messaggio: 'Questa email è già registrata: prova a entrare.' }
+  }
   return { stato: 'confermaEmail' }
 }
 

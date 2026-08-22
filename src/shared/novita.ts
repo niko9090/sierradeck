@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.46',
+    righe: [
+      '**Se provi a registrarti con un’email già usata, ora te lo dice.** Prima Supabase rispondeva «ok» in silenzio (per non rivelare che l’email esiste) e restavi ad aspettare una mail col codice che non sarebbe mai arrivata. Adesso l’app te lo scrive chiaro: «Questa email è già registrata: prova a entrare.»'
+    ]
+  },
+  {
     versione: '0.9.45',
     righe: [
       '**All’avvio ora c’è una vera schermata d’ingresso.** Prima del programma parte un’intro con il cristallo e un caricamento al centro, poi — se non sei già entrato — l’accesso. **L’accesso è obbligatorio**: niente più «usa senza account». E se provi a entrare senza aver confermato l’email, l’app ti porta a inserire il codice e te lo rimanda.'
