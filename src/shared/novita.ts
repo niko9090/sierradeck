@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.47',
+    righe: [
+      '**Ora le chat scrivono nel quaderno da sole.** Ogni chat aperta in SierraDeck ha l’obbligo di annotare nel quaderno del progetto (in `.sierradeck/quaderno/`) le cose utili che impara — decisioni, vincoli, come funziona una parte, un errore risolto e perché — e di ricontrollare di averlo fatto prima di finire. Il quaderno smette di riempirsi solo a mano: si riempie mentre lavori.'
+    ]
+  },
+  {
     versione: '0.9.46',
     righe: [
       '**Se provi a registrarti con un’email già usata, ora te lo dice.** Prima Supabase rispondeva «ok» in silenzio (per non rivelare che l’email esiste) e restavi ad aspettare una mail col codice che non sarebbe mai arrivata. Adesso l’app te lo scrive chiaro: «Questa email è già registrata: prova a entrare.»'

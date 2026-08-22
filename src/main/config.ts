@@ -1,3 +1,5 @@
+import { DIRETTIVA_QUADERNO } from '@shared/quaderno-istruzioni'
+
 // Quale eseguibile lanciare lo decide il Core, non il renderer. Il renderer e'
 // il processo meno affidabile dei tre — vi confluiscono output PTY grezzo e
 // titoli di sessione letti da disco — e con `sandbox: false` qualunque
@@ -58,6 +60,11 @@ export function buildClaudeArgs(
   const args = riprendi
     ? ['--resume', sessionUuid, '--dangerously-skip-permissions']
     : ['--session-id', sessionUuid, '--dangerously-skip-permissions']
+  // L'obbligo del quaderno vale per OGNI chat, nuova o ripresa, governata o no:
+  // è ciò che dà un senso al quaderno. Va nel prompt di sistema di questa
+  // sessione, non nei file dell'utente. Gli argomenti arrivano a node-pty come
+  // array, quindi il testo con a capo e virgolette passa senza rischi di shell.
+  args.push('--append-system-prompt', DIRETTIVA_QUADERNO)
   if (impostazioni !== undefined && impostazioni.trim() !== '') {
     args.push('--settings', impostazioni)
   }
