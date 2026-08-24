@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.56',
+    righe: [
+      '**Il menu Account è nuovo, chiaro e più completo.** Ora è diviso in sezioni — **Google Drive**, **Cassaforte**, **Sincronizzazione** — ognuna con il suo stato a colpo d’occhio. E puoi **cambiare la passphrase** quando vuoi (la chiave di recupero resta valida, i dati non si ricifrano).'
+    ]
+  },
+  {
     versione: '0.9.55',
     righe: [
       '**Anche la compressione non blocca più l’app.** Prima, per preparare il salvataggio, univa tutti i file in un unico blocco enorme in un colpo solo (sincrono) e l’app si piantava. Ora scrive i dati a flusso dentro la compressione, un file alla volta, e mostra «Comprimo — 500/1200» che avanza. Niente più freeze.'

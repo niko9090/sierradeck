@@ -106,6 +106,28 @@ describe('sincronia: giro completo fra due PC', () => {
     expect(secondo.messaggio).toMatch(/esiste già/i)
   })
 
+  it('cambia la passphrase: la nuova apre, la vecchia no, il recupero resta valido', async () => {
+    const drive = driveCondiviso()
+    const a = pc('A'); traccia(a)
+    const syncA = apriSincronia({ dati: a.dati, radiceClaude: a.claude, driveConnesso: () => true, magazzino: drive })
+    const { chiaveRecupero } = await syncA.creaPassphrase('vecchia-passphrase-x')
+
+    // Vecchia sbagliata: rifiutata. Giusta: cambia.
+    expect((await syncA.cambiaPassphrase('non-e-questa', 'nuova-passphrase-y')).ok).toBe(false)
+    expect((await syncA.cambiaPassphrase('vecchia-passphrase-x', 'nuova-passphrase-y')).ok).toBe(true)
+
+    // Su un PC nuovo: la vecchia non apre più, la nuova sì.
+    const b = pc('B'); traccia(b)
+    const syncB = apriSincronia({ dati: b.dati, radiceClaude: b.claude, driveConnesso: () => true, magazzino: drive })
+    expect((await syncB.sblocca('vecchia-passphrase-x')).ok).toBe(false)
+    expect((await syncB.sblocca('nuova-passphrase-y')).ok).toBe(true)
+
+    // La chiave di recupero, invariata, apre ancora.
+    const c = pc('C'); traccia(c)
+    const syncC = apriSincronia({ dati: c.dati, radiceClaude: c.claude, driveConnesso: () => true, magazzino: drive })
+    expect((await syncC.sbloccaConRecupero(chiaveRecupero!)).ok).toBe(true)
+  })
+
   it('senza sblocco non salva né ripristina', async () => {
     const drive = driveCondiviso()
     const a = pc('A'); traccia(a)

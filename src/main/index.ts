@@ -486,6 +486,10 @@ if (!app.requestSingleInstanceLock()) {
         typeof pw === 'string' ? sincronia.sblocca(pw) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
       ipcMain.handle('sync:sbloccaRecupero', (_e, codice: unknown) =>
         typeof codice === 'string' ? sincronia.sbloccaConRecupero(codice) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
+      ipcMain.handle('sync:cambiaPassphrase', (_e, vecchia: unknown, nuova: unknown) =>
+        typeof vecchia === 'string' && typeof nuova === 'string'
+          ? sincronia.cambiaPassphrase(vecchia, nuova)
+          : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
       ipcMain.handle('sync:blocca', () => { sincronia.blocca() })
       ipcMain.handle('sync:salva', () => sincronia.salva())
       ipcMain.handle('sync:ripristina', () => sincronia.ripristina())

@@ -211,6 +211,8 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('sync:sblocca', passphrase),
     sbloccaRecupero: (codice: string): Promise<{ ok: boolean; messaggio?: string }> =>
       ipcRenderer.invoke('sync:sbloccaRecupero', codice),
+    cambiaPassphrase: (vecchia: string, nuova: string): Promise<{ ok: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('sync:cambiaPassphrase', vecchia, nuova),
     blocca: (): Promise<void> => ipcRenderer.invoke('sync:blocca'),
     salva: (): Promise<{ ok: boolean; voci?: number; messaggio?: string }> =>
       ipcRenderer.invoke('sync:salva'),

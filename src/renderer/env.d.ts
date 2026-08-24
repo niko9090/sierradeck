@@ -97,6 +97,7 @@ declare global {
         creaPassphrase: (passphrase: string) => Promise<{ ok: boolean; chiaveRecupero?: string; messaggio?: string }>
         sblocca: (passphrase: string) => Promise<{ ok: boolean; messaggio?: string }>
         sbloccaRecupero: (codice: string) => Promise<{ ok: boolean; messaggio?: string }>
+        cambiaPassphrase: (vecchia: string, nuova: string) => Promise<{ ok: boolean; messaggio?: string }>
         blocca: () => Promise<void>
         salva: () => Promise<{ ok: boolean; voci?: number; messaggio?: string }>
         ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string }>
