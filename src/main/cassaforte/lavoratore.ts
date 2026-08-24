@@ -37,7 +37,7 @@ type Risposta =
  * sbagliato in un pacchetto, ambiente strano — si **ripiega** su quello in
  * processo: meglio un blocco momentaneo che una sincronizzazione che non parte.
  */
-export function esecutoreSuThread(percorsoWorker: string): Esecutore {
+export function esecutoreSuThread(percorsoWorker: string, log?: (m: string) => void): Esecutore {
   const nelWorker = <T>(
     messaggio: Record<string, unknown>,
     trasferibili: readonly ArrayBuffer[],
@@ -65,31 +65,41 @@ export function esecutoreSuThread(percorsoWorker: string): Esecutore {
     async prepara(req, onProgresso) {
       // maestra è piccola: la si clona (non si trasferisce, o si staccherebbe
       // dall'originale che il main tiene in memoria).
+      const t0 = Date.now()
       try {
-        return await nelWorker(
+        const r = await nelWorker(
           { tipo: 'prepara', dati: req.dati, radiceClaude: req.radiceClaude, maestra: copiaArrayBuffer(req.maestra), adesso: req.adesso },
           [],
           onProgresso,
           (m) => ({ cifrato: Buffer.from(m.cifrato as ArrayBuffer), voci: m.voci ?? 0 })
         )
+        log?.(`prepara: THREAD ok in ${((Date.now() - t0) / 1000).toFixed(1)}s (${r.voci} file → ${(r.cifrato.length / 1048576).toFixed(1)} MB cifrati)`)
+        return r
       } catch (e) {
-        console.error('[sync] worker non disponibile, uso in processo:', e)
-        return esecutoreInProcesso.prepara(req, onProgresso)
+        log?.(`prepara: THREAD non disponibile (${e instanceof Error ? e.message : String(e)}) → uso in processo (può bloccare)`)
+        const r = await esecutoreInProcesso.prepara(req, onProgresso)
+        log?.(`prepara: in processo finito in ${((Date.now() - t0) / 1000).toFixed(1)}s`)
+        return r
       }
     },
     async applica(req, onProgresso) {
       // Il blocco è grande e il main non lo usa più: lo si trasferisce.
       const bloccoAb = copiaArrayBuffer(req.blocco)
+      const t0 = Date.now()
       try {
-        return await nelWorker(
+        const r = await nelWorker(
           { tipo: 'applica', dati: req.dati, radiceClaude: req.radiceClaude, maestra: copiaArrayBuffer(req.maestra), blocco: bloccoAb },
           [bloccoAb],
           onProgresso,
           (m) => m.esito as EsitoApplica
         )
+        log?.(`applica: THREAD ok in ${((Date.now() - t0) / 1000).toFixed(1)}s (${r.scritti} file scritti)`)
+        return r
       } catch (e) {
-        console.error('[sync] worker non disponibile, uso in processo:', e)
-        return esecutoreInProcesso.applica(req, onProgresso)
+        log?.(`applica: THREAD non disponibile (${e instanceof Error ? e.message : String(e)}) → uso in processo (può bloccare)`)
+        const r = await esecutoreInProcesso.applica(req, onProgresso)
+        log?.(`applica: in processo finito in ${((Date.now() - t0) / 1000).toFixed(1)}s`)
+        return r
       }
     }
   }

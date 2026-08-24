@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.61',
+    righe: [
+      '**Ora c’è un registro delle operazioni, da allegare quando qualcosa non va.** In **Account** trovi «Apri i log»: un file di testo con la versione che sta girando, se la sincronizzazione usa il thread separato, i tempi e gli eventuali errori. Serve a capire i problemi con i fatti, senza tirare a indovinare.'
+    ]
+  },
+  {
     versione: '0.9.60',
     righe: [
       '**Il thread separato ora parte davvero, anche nell’app installata.** Nella versione impacchettata il worker della sincronizzazione non riusciva ad avviarsi (restava nel file compresso dell’app) e si ricadeva sul metodo che bloccava. Ora viene messo su disco e caricato da lì: salva e ripristina restano fluidi per davvero.'

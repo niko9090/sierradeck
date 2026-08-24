@@ -63,6 +63,7 @@ import { leggiAccesso } from './accesso'
 import { apriContoDrive } from './cassaforte/conto-drive'
 import { apriSincronia } from './cassaforte/sincronia'
 import { esecutoreSuThread } from './cassaforte/lavoratore'
+import { apriRegistro } from './registro'
 
 /**
  * Copia il worker della sincronizzazione dall'asar (dove `new Worker` non sempre
@@ -70,7 +71,7 @@ import { esecutoreSuThread } from './cassaforte/lavoratore'
  * Copia anche i `chunks` che il worker importa. Se la copia fallisce, ripiega sul
  * percorso originale — e a valle scatta comunque il ripiego in-processo.
  */
-function percorsoWorkerSuDisco(dati: string): string {
+function percorsoWorkerSuDisco(dati: string, log?: (m: string) => void): string {
   const sorgente = __dirname
   const dest = join(dati, 'sync-worker')
   try {
@@ -82,9 +83,10 @@ function percorsoWorkerSuDisco(dati: string): string {
         if (f.endsWith('.js')) writeFileSync(join(dest, 'chunks', f), readFileSync(join(cartellaChunks, f)))
       }
     }
+    log?.(`worker copiato su disco: ${join(dest, 'sync-worker.js')}`)
     return join(dest, 'sync-worker.js')
   } catch (err) {
-    console.error('[sync] copia del worker fallita, uso il percorso originale:', err)
+    log?.(`copia del worker fallita (${err instanceof Error ? err.message : String(err)}), uso il percorso originale: ${join(sorgente, 'sync-worker.js')}`)
     return join(sorgente, 'sync-worker.js')
   }
 }
@@ -405,6 +407,9 @@ if (!app.requestSingleInstanceLock()) {
       // La cartella dei dati, portandosi dietro quella del nome precedente:
       // cambiare nome al programma non deve far sparire autopiloti e salvataggi.
       const dati = cartellaDati(app.getPath('appData'), APP_DATA_DIR_PRECEDENTE, APP_DATA_DIR_NAME)
+      // Il registro della sessione: prima riga = versione e ambiente, così un
+      // log allegato dice subito «quale versione stava girando davvero».
+      const registro = apriRegistro(dati, app.getVersion())
       // Dove parlano le chat: Anthropic, o l'API che l'utente ha configurato.
       providerStore = apriProviderStore(dati)
       ptyClient = registerPtyIpc(() => providerStore?.env() ?? {})
@@ -470,11 +475,15 @@ if (!app.requestSingleInstanceLock()) {
       const contoDrive = apriContoDrive(dati)
       ipcMain.handle('drive:stato', () => contoDrive.stato())
       ipcMain.handle('drive:connetti', async () => {
+        registro.info('Drive: connessione richiesta')
         try {
           await contoDrive.connetti((url) => { void shell.openExternal(url) })
+          registro.info('Drive: connesso ✓')
           return { ok: true }
         } catch (err) {
-          return { ok: false, messaggio: err instanceof Error ? err.message : String(err) }
+          const m = err instanceof Error ? err.message : String(err)
+          registro.errore(`Drive: connessione fallita: ${m}`)
+          return { ok: false, messaggio: m }
         }
       })
       ipcMain.handle('drive:disconnetti', () => { contoDrive.disconnetti() })
@@ -508,8 +517,10 @@ if (!app.requestSingleInstanceLock()) {
         // bloccano mai l'app. Il file del worker può stare dentro l'asar del
         // pacchetto, da cui `new Worker` non sempre si avvia: lo copiamo su disco
         // vero (userData) e lo carichiamo da lì.
-        esecutore: esecutoreSuThread(percorsoWorkerSuDisco(dati))
+        esecutore: esecutoreSuThread(percorsoWorkerSuDisco(dati, registro.info), registro.info),
+        log: registro.info
       })
+      registro.info(`Drive configurato: ${contoDrive.stato().configurato}, connesso: ${contoDrive.stato().connesso}`)
       ipcMain.handle('sync:stato', () => sincronia.stato())
       ipcMain.handle('sync:info', () => sincronia.info())
       ipcMain.handle('sync:creaPassphrase', (_e, pw: unknown) =>
@@ -525,6 +536,9 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('sync:blocca', () => { sincronia.blocca() })
       ipcMain.handle('sync:salva', (_e, forza: unknown) => sincronia.salva(forza === true))
       ipcMain.handle('sync:ripristina', () => sincronia.ripristina())
+      // Il registro della sessione: aprirne la cartella, o sapere dov'è il file.
+      ipcMain.handle('log:apri', () => shell.openPath(registro.cartella()))
+      ipcMain.handle('log:percorso', () => registro.file())
 
       const clientAutopilota = creaClientAutopilota({
         porta: PORTA_AUTOPILOTA,

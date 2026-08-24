@@ -107,6 +107,10 @@ declare global {
           fatto?: number; totale?: number
         }) => void) => () => void
       }
+      log: {
+        apri: () => Promise<string>
+        percorso: () => Promise<string>
+      }
       chiavi: {
         stato: () => Promise<{ allAvvio: boolean; workspace: string[] }>
         impostaAvvio: (parola: string) => Promise<{ allAvvio: boolean; workspace: string[] }>

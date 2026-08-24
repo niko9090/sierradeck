@@ -356,6 +356,8 @@ export function PannelloAccount({ onChiudi }: Props): React.JSX.Element {
           </p>
           <SezioneSync />
           <div className="account__tasti">
+            <button className="tasto" onClick={() => void window.gestore.log.apri()}>Apri i log</button>
+            <span style={{ flex: 1 }} />
             <button className="tasto" onClick={() => void esci()}>Esci</button>
           </div>
         </div>

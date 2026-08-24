@@ -67,9 +67,12 @@ export function apriSincronia(deps: {
   emettiProgresso?: (p: Progresso) => void
   /** Chi fa il lavoro pesante: di norma il thread separato; in-processo per i test. */
   esecutore?: Esecutore
+  /** Dove annotare cosa succede, per il registro della sessione. */
+  log?: (m: string) => void
 }): Sincronia {
   const adesso = deps.adesso ?? ((): string => new Date().toISOString())
   const esecutore = deps.esecutore ?? esecutoreInProcesso
+  const log = deps.log ?? ((): void => {})
   const fileCassaforte = join(deps.dati, 'cassaforte.json')
   const fileStato = join(deps.dati, 'sync-stato.json')
 
@@ -203,6 +206,7 @@ export function apriSincronia(deps: {
     blocca() { maestra = undefined },
 
     async salva(forza = false) {
+      log(`SALVA richiesto${forza ? ' (sovrascrivi)' : ''}`)
       if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
       if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
       const s = leggiStato()
@@ -219,39 +223,48 @@ export function apriSincronia(deps: {
         const prog = (fatto: number, totale: number): void => deps.emettiProgresso?.({ fase: 'carico', fatto, totale })
         let versione: string
         try {
+          log(`carico sul Drive (${(cifrato.length / 1048576).toFixed(1)} MB)…`)
           versione = (await mag.carica(cifrato, s.versione, prog)).versione
         } catch (e) {
           if (!(e instanceof ConflittoMagazzino)) throw e
           if (!forza) {
+            log('CONFLITTO: sul Drive c’è una versione che questo PC non conosce (serve «Sovrascrivi» o «Ripristina»)')
             return { ok: false, conflitto: true, messaggio: 'Sul Drive c’è già un salvataggio che questo PC non conosce.' }
           }
+          log('sovrascrivo la versione presente sul Drive')
           versione = (await mag.carica(cifrato, e.versioneAttuale, prog)).versione
         }
         scriviStato({ versione, ultimoSalvataggio: adesso() })
+        log(`SALVA ok (versione ${versione})`)
         return { ok: true, voci }
       } catch (e) {
+        log(`SALVA fallito: ${messaggioDi(e)}`)
         return { ok: false, messaggio: messaggioDi(e) }
       }
     },
 
     async ripristina() {
+      log('RIPRISTINA richiesto')
       if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
       if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
       try {
         const contenuto = await deps.magazzino().scarica(
           (fatto, totale) => deps.emettiProgresso?.({ fase: 'scarico', fatto, totale })
         )
-        if (contenuto === undefined) return { ok: true, niente: true }
+        if (contenuto === undefined) { log('RIPRISTINA: niente sul Drive'); return { ok: true, niente: true } }
         const esito = await esecutore.applica(
           { dati: deps.dati, radiceClaude: deps.radiceClaude, maestra, blocco: contenuto.blocco },
           deps.emettiProgresso
         )
         if (esito.illeggibile) {
+          log('RIPRISTINA: il blocco sul Drive non si decifra con questa chiave')
           return { ok: false, messaggio: 'I dati sul Drive non si aprono con questa chiave (forse di un altro account).' }
         }
         scriviStato({ ...leggiStato(), versione: contenuto.versione })
+        log(`RIPRISTINA ok (${esito.scritti} file, versione ${contenuto.versione})`)
         return { ok: true, scritti: esito.scritti }
       } catch (e) {
+        log(`RIPRISTINA fallito: ${messaggioDi(e)}`)
         return { ok: false, messaggio: messaggioDi(e) }
       }
     }

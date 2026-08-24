@@ -229,6 +229,11 @@ contextBridge.exposeInMainWorld('gestore', {
       return () => ipcRenderer.off('sync:progresso', h)
     }
   },
+  /** Il registro della sessione: aprirne la cartella o sapere dov'è il file. */
+  log: {
+    apri: (): Promise<string> => ipcRenderer.invoke('log:apri'),
+    percorso: (): Promise<string> => ipcRenderer.invoke('log:percorso')
+  },
   chiavi: {
     stato: (): Promise<{ allAvvio: boolean; workspace: string[] }> =>
       ipcRenderer.invoke('chiavi:stato'),
