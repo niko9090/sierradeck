@@ -457,11 +457,27 @@ if (!app.requestSingleInstanceLock()) {
       // La chiave-maestra sbloccata resta qui nel main, in memoria. Le radici da
       // sincronizzare includono le trascrizioni di Claude Code, sotto la sua root.
       const radiceClaude = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
+      // Il progresso arriva a raffica (un evento per file): lo si diluisce a
+      // ~6/sec, ma sempre al cambio fase e all'ultimo passo, così la barra non
+      // resta incollata al 99%.
+      let ultimoProgresso = 0
+      let ultimaFase = ''
+      const emettiProgresso = (p: import('./cassaforte/motore').Progresso): void => {
+        const ora = Date.now()
+        const finePasso = 'totale' in p && p.fatto >= p.totale
+        if (p.fase === ultimaFase && !finePasso && ora - ultimoProgresso < 150) return
+        ultimoProgresso = ora
+        ultimaFase = p.fase
+        for (const w of BrowserWindow.getAllWindows()) {
+          if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('sync:progresso', p)
+        }
+      }
       const sincronia = apriSincronia({
         dati,
         radiceClaude,
         driveConnesso: () => contoDrive.stato().connesso,
-        magazzino: (nomeFile) => contoDrive.magazzino(nomeFile)
+        magazzino: (nomeFile) => contoDrive.magazzino(nomeFile),
+        emettiProgresso
       })
       ipcMain.handle('sync:stato', () => sincronia.stato())
       ipcMain.handle('sync:creaPassphrase', (_e, pw: unknown) =>

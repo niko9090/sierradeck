@@ -10,9 +10,9 @@ const VOCI: Voce[] = [
 ]
 
 describe('il pacchetto', () => {
-  it('impacchetta e rilegge, contenuti identici, byte binari compresi', () => {
-    const blocco = componiPacchetto(VOCI, '2026-08-21T10:00:00.000Z')
-    const riletto = leggiPacchetto(blocco)
+  it('impacchetta e rilegge, contenuti identici, byte binari compresi', async () => {
+    const blocco = await componiPacchetto(VOCI, '2026-08-21T10:00:00.000Z')
+    const riletto = await leggiPacchetto(blocco)
     expect(riletto?.creatoIl).toBe('2026-08-21T10:00:00.000Z')
     expect(riletto?.voci.map((v) => v.percorso)).toEqual(VOCI.map((v) => v.percorso))
     for (let i = 0; i < VOCI.length; i += 1) {
@@ -20,14 +20,14 @@ describe('il pacchetto', () => {
     }
   })
 
-  it('un blocco corrotto o non nostro non solleva, restituisce undefined', () => {
-    expect(leggiPacchetto(Buffer.from('non sono un pacchetto', 'utf8'))).toBeUndefined()
-    expect(leggiPacchetto(Buffer.alloc(0))).toBeUndefined()
+  it('un blocco corrotto o non nostro non solleva, restituisce undefined', async () => {
+    expect(await leggiPacchetto(Buffer.from('non sono un pacchetto', 'utf8'))).toBeUndefined()
+    expect(await leggiPacchetto(Buffer.alloc(0))).toBeUndefined()
   })
 
-  it('comprime: testo ripetitivo sta in molto meno del suo grezzo', () => {
+  it('comprime: testo ripetitivo sta in molto meno del suo grezzo', async () => {
     const grosso: Voce[] = [{ percorso: 'log', contenuto: Buffer.from('riga uguale\n'.repeat(1000), 'utf8') }]
-    const blocco = componiPacchetto(grosso, '2026-08-21T10:00:00.000Z')
+    const blocco = await componiPacchetto(grosso, '2026-08-21T10:00:00.000Z')
     expect(blocco.length).toBeLessThan(grosso[0]!.contenuto.length / 5)
   })
 })
@@ -67,7 +67,7 @@ describe('il giro completo: pacchetto → cifra → magazzino → decifra → pa
   it('quello che carico cifrato su un PC lo ritrovo identico sull altro', async () => {
     // PC A: compone, cifra con la sua maestra, carica nel magazzino (il «Drive»).
     const { maestra, cassaforte } = creaCassaforte('la-mia-passphrase')
-    const blocco = componiPacchetto(VOCI, '2026-08-21T10:00:00.000Z')
+    const blocco = await componiPacchetto(VOCI, '2026-08-21T10:00:00.000Z')
     const cifrato = cifra(maestra, blocco)
 
     const magazzino = magazzinoInMemoria()
@@ -80,7 +80,7 @@ describe('il giro completo: pacchetto → cifra → magazzino → decifra → pa
     const { sblocca } = await import('../../src/main/cassaforte/cifratura')
     const maestraB = sblocca(cassaforte, 'la-mia-passphrase')
     const inChiaro = decifra(maestraB!, giu!.blocco)
-    const riletto = leggiPacchetto(inChiaro!)
+    const riletto = await leggiPacchetto(inChiaro!)
     expect(riletto?.voci.map((v) => v.percorso)).toEqual(VOCI.map((v) => v.percorso))
     expect(riletto!.voci[0]!.contenuto.toString('utf8')).toContain('SierraDeck')
   })

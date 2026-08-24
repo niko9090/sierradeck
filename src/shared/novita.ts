@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.52',
+    righe: [
+      '**Salvataggio e ripristino non bloccano più l’app, e mostrano a che punto sono.** Prima la compressione girava in modo sincrono e congelava tutto (chat comprese); ora è asincrona e resta tutto reattivo. In **Account** vedi una **barra di avanzamento a fasi** — raccolgo i file (con «237/1200»), comprimo, cifro, carico sul Drive — così sai che sta lavorando, non che è bloccato.'
+    ]
+  },
+  {
     versione: '0.9.51',
     righe: [
       '**Il salvataggio ora regge anche tante chat.** Con molte trascrizioni il «Salva ora» si fermava con «invalid string length»: il pacchetto costruiva una sola stringa enorme oltre il limite di JavaScript. Ora impacchetta in binario — niente più tetto dei 512 MB, si sale all’ordine dei GB.'

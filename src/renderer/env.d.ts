@@ -100,6 +100,10 @@ declare global {
         blocca: () => Promise<void>
         salva: () => Promise<{ ok: boolean; voci?: number; messaggio?: string }>
         ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string }>
+        onProgresso: (cb: (p: {
+          fase: 'raccolgo' | 'comprimo' | 'cifro' | 'carico' | 'scarico' | 'decifro' | 'ripristino'
+          fatto?: number; totale?: number
+        }) => void) => () => void
       }
       chiavi: {
         stato: () => Promise<{ allAvvio: boolean; workspace: string[] }>

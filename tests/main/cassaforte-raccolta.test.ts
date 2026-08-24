@@ -89,10 +89,10 @@ describe('il giro completo con cifratura', () => {
     // PC A: raccoglie, impacchetta, cifra.
     const voci = await raccogli(radiciDaSincronizzare(dati, claude))
     const { maestra } = creaCassaforte('passphrase-utente')
-    const cifrato = cifra(maestra, componiPacchetto(voci, '2026-08-21T12:00:00.000Z'))
+    const cifrato = cifra(maestra, await componiPacchetto(voci, '2026-08-21T12:00:00.000Z'))
 
     // PC B: decifra, rilegge, ripristina in cartelle vuote.
-    const pacchetto = leggiPacchetto(decifra(maestra, cifrato)!)
+    const pacchetto = await leggiPacchetto(decifra(maestra, cifrato)!)
     const dati2 = join(radice, 'b-dati')
     const claude2 = join(radice, 'b-claude')
     await ripristina(pacchetto!.voci, radiciDaSincronizzare(dati2, claude2))

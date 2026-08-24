@@ -215,7 +215,16 @@ contextBridge.exposeInMainWorld('gestore', {
     salva: (): Promise<{ ok: boolean; voci?: number; messaggio?: string }> =>
       ipcRenderer.invoke('sync:salva'),
     ripristina: (): Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string }> =>
-      ipcRenderer.invoke('sync:ripristina')
+      ipcRenderer.invoke('sync:ripristina'),
+    /** Il progresso di salva/ripristina, a fasi. Restituisce come disiscriversi. */
+    onProgresso: (cb: (p: {
+      fase: 'raccolgo' | 'comprimo' | 'cifro' | 'carico' | 'scarico' | 'decifro' | 'ripristino'
+      fatto?: number; totale?: number
+    }) => void): (() => void) => {
+      const h = (_e: unknown, p: { fase: 'raccolgo' | 'comprimo' | 'cifro' | 'carico' | 'scarico' | 'decifro' | 'ripristino'; fatto?: number; totale?: number }): void => cb(p)
+      ipcRenderer.on('sync:progresso', h)
+      return () => ipcRenderer.off('sync:progresso', h)
+    }
   },
   chiavi: {
     stato: (): Promise<{ allAvvio: boolean; workspace: string[] }> =>

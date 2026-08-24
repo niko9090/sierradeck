@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { creaCassaforte, sblocca as sbloccaCassaforte, sbloccaConRecupero as sbloccaConRecuperoCassaforte, type Cassaforte } from './cifratura'
-import { caricaStato, ripristinaStato, CassaforteIlleggibile } from './motore'
+import { caricaStato, ripristinaStato, CassaforteIlleggibile, type Progresso } from './motore'
 import { radiciDaSincronizzare } from './raccolta'
 import { ConflittoMagazzino, type Magazzino } from './magazzino'
 
@@ -59,6 +59,8 @@ export function apriSincronia(deps: {
   driveConnesso: () => boolean
   magazzino: (nomeFile?: string) => Magazzino
   adesso?: () => string
+  /** Dove far arrivare il progresso di salva/ripristina (verso l'interfaccia). */
+  emettiProgresso?: (p: Progresso) => void
 }): Sincronia {
   const adesso = deps.adesso ?? ((): string => new Date().toISOString())
   const fileCassaforte = join(deps.dati, 'cassaforte.json')
@@ -177,7 +179,8 @@ export function apriSincronia(deps: {
       try {
         const esito = await caricaStato({
           radici, maestra, magazzino: deps.magazzino(), adesso,
-          ...(s.versione !== undefined ? { versioneVista: s.versione } : {})
+          ...(s.versione !== undefined ? { versioneVista: s.versione } : {}),
+          ...(deps.emettiProgresso !== undefined ? { onProgresso: deps.emettiProgresso } : {})
         })
         scriviStato({ versione: esito.versione, ultimoSalvataggio: adesso() })
         return { ok: true, voci: esito.voci }
@@ -194,7 +197,10 @@ export function apriSincronia(deps: {
       if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
       const radici = radiciDaSincronizzare(deps.dati, deps.radiceClaude)
       try {
-        const esito = await ripristinaStato({ radici, maestra, magazzino: deps.magazzino() })
+        const esito = await ripristinaStato({
+          radici, maestra, magazzino: deps.magazzino(),
+          ...(deps.emettiProgresso !== undefined ? { onProgresso: deps.emettiProgresso } : {})
+        })
         if (!esito.trovato) return { ok: true, niente: true }
         if (esito.versione !== undefined) scriviStato({ ...leggiStato(), versione: esito.versione })
         return { ok: true, scritti: esito.scritti }

@@ -1,4 +1,12 @@
-import { gzipSync, gunzipSync } from 'node:zlib'
+import { gzip, gunzip } from 'node:zlib'
+import { promisify } from 'node:util'
+
+// **Asincroni**, non `...Sync`: la versione sincrona blocca il processo principale
+// per tutto il tempo della compressione — con molte trascrizioni, secondi in cui
+// l'intera app si congela (le chat comprese). Così invece il lavoro va sul pool
+// di libuv e l'interfaccia resta viva, libera di mostrare il progresso.
+const comprimi = promisify(gzip)
+const decomprimi = promisify(gunzip)
 
 /**
  * Il pacchetto: tutto ciò che di un utente si porta da un PC all'altro, in un
@@ -48,7 +56,7 @@ function campo(byte: Buffer): Buffer {
 }
 
 /** Impacchetta le voci in un blocco compresso. `creatoIl` arriva da fuori (niente orologio qui). */
-export function componiPacchetto(voci: Voce[], creatoIl: string): Buffer {
+export async function componiPacchetto(voci: Voce[], creatoIl: string): Promise<Buffer> {
   const conta = Buffer.allocUnsafe(4)
   conta.writeUInt32BE(voci.length, 0)
   const pezzi: Buffer[] = [MAGIC, campo(Buffer.from(creatoIl, 'utf8')), conta]
@@ -56,7 +64,7 @@ export function componiPacchetto(voci: Voce[], creatoIl: string): Buffer {
     pezzi.push(campo(Buffer.from(v.percorso, 'utf8')))
     pezzi.push(campo(v.contenuto))
   }
-  return gzipSync(Buffer.concat(pezzi))
+  return comprimi(Buffer.concat(pezzi))
 }
 
 /**
@@ -64,10 +72,10 @@ export function componiPacchetto(voci: Voce[], creatoIl: string): Buffer {
  * corrotto, di una versione futura, o non nostro. Non solleva: chi ripristina
  * decide cosa fare di un pacchetto illeggibile, non lo scopre da un'eccezione.
  */
-export function leggiPacchetto(blocco: Buffer): Pacchetto | undefined {
+export async function leggiPacchetto(blocco: Buffer): Promise<Pacchetto | undefined> {
   let dati: Buffer
   try {
-    dati = gunzipSync(blocco)
+    dati = await decomprimi(blocco)
   } catch {
     return undefined
   }

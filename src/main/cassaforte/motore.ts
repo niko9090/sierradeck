@@ -22,6 +22,21 @@ import type { Magazzino } from './magazzino'
  * peggiore. Chi chiama decide — riscaricare, fondere, riprovare.
  */
 
+/**
+ * A che punto è un caricamento o un ripristino, per l'interfaccia. Le fasi con
+ * `fatto`/`totale` hanno una percentuale vera (leggere/scrivere file); le altre —
+ * comprimere, cifrare, la rete — sono passaggi singoli, si mostrano come «in
+ * corso», non come una barra che finge di avanzare.
+ */
+export type Progresso =
+  | { fase: 'raccolgo'; fatto: number; totale: number }
+  | { fase: 'comprimo' }
+  | { fase: 'cifro' }
+  | { fase: 'carico' }
+  | { fase: 'scarico' }
+  | { fase: 'decifro' }
+  | { fase: 'ripristino'; fatto: number; totale: number }
+
 export type EsitoCarica = {
   /** La versione nuova sul magazzino: chi chiama la ricorda per il prossimo caricamento. */
   versione: string
@@ -60,9 +75,14 @@ export async function caricaStato(deps: {
   magazzino: Magazzino
   adesso: () => string
   versioneVista?: string
+  onProgresso?: (p: Progresso) => void
 }): Promise<EsitoCarica> {
-  const voci = await raccogli(deps.radici)
-  const cifrato = cifra(deps.maestra, componiPacchetto(voci, deps.adesso()))
+  const voci = await raccogli(deps.radici, (fatto, totale) => deps.onProgresso?.({ fase: 'raccolgo', fatto, totale }))
+  deps.onProgresso?.({ fase: 'comprimo' })
+  const pacchetto = await componiPacchetto(voci, deps.adesso())
+  deps.onProgresso?.({ fase: 'cifro' })
+  const cifrato = cifra(deps.maestra, pacchetto)
+  deps.onProgresso?.({ fase: 'carico' })
   const { versione } = await deps.magazzino.carica(cifrato, deps.versioneVista)
   return { versione, voci: voci.length }
 }
@@ -78,15 +98,21 @@ export async function ripristinaStato(deps: {
   radici: Radice[]
   maestra: Buffer
   magazzino: Magazzino
+  onProgresso?: (p: Progresso) => void
 }): Promise<EsitoRipristina & { versione?: string }> {
+  deps.onProgresso?.({ fase: 'scarico' })
   const contenuto = await deps.magazzino.scarica()
   if (contenuto === undefined) {
     return { trovato: false, scritti: 0, saltati: [], creatoIl: '' }
   }
+  deps.onProgresso?.({ fase: 'decifro' })
   const inChiaro = decifra(deps.maestra, contenuto.blocco)
   if (inChiaro === undefined) throw new CassaforteIlleggibile()
-  const pacchetto = leggiPacchetto(inChiaro)
+  const pacchetto = await leggiPacchetto(inChiaro)
   if (pacchetto === undefined) throw new CassaforteIlleggibile()
-  const { scritti, saltati } = await ripristina(pacchetto.voci, deps.radici)
+  const { scritti, saltati } = await ripristina(
+    pacchetto.voci, deps.radici,
+    (fatto, totale) => deps.onProgresso?.({ fase: 'ripristino', fatto, totale })
+  )
   return { trovato: true, scritti, saltati, creatoIl: pacchetto.creatoIl, versione: contenuto.versione }
 }

@@ -47,13 +47,30 @@ async function elencaFile(cartella: string): Promise<string[]> {
   return fuori
 }
 
-/** Legge le radici in voci di pacchetto. I percorsi nel pacchetto usano sempre `/`. */
-export async function raccogli(radici: Radice[]): Promise<Voce[]> {
-  const voci: Voce[] = []
+/**
+ * Legge le radici in voci di pacchetto. I percorsi nel pacchetto usano sempre `/`.
+ *
+ * Prima elenca **tutti** i file (per sapere il totale), poi li legge: così il
+ * progresso può dire «237 di 1200», non solo «sto leggendo». `onProgresso` scatta
+ * a ogni file — chi lo riceve lo diluisce, non lo mostra mille volte al secondo.
+ */
+export async function raccogli(
+  radici: Radice[],
+  onProgresso?: (fatto: number, totale: number) => void
+): Promise<Voce[]> {
+  const elenchi: { r: Radice; file: string[] }[] = []
   for (const r of radici) {
-    for (const rel of await elencaFile(r.cartella)) {
-      if (r.includi !== undefined && !r.includi(rel)) continue
+    const file = (await elencaFile(r.cartella)).filter((rel) => r.includi === undefined || r.includi(rel))
+    elenchi.push({ r, file })
+  }
+  const totale = elenchi.reduce((n, e) => n + e.file.length, 0)
+  const voci: Voce[] = []
+  let fatto = 0
+  for (const { r, file } of elenchi) {
+    for (const rel of file) {
       const contenuto = await readFile(join(r.cartella, ...rel.split('/'))).catch(() => undefined)
+      fatto += 1
+      onProgresso?.(fatto, totale)
       if (contenuto === undefined) continue
       voci.push({ percorso: `${r.prefisso}/${rel}`, contenuto })
     }
@@ -85,12 +102,15 @@ export function percorsoSicuro(cartella: string, relativo: string): string | und
  */
 export async function ripristina(
   voci: Voce[],
-  radici: Radice[]
+  radici: Radice[],
+  onProgresso?: (fatto: number, totale: number) => void
 ): Promise<{ scritti: number; saltati: string[] }> {
   const perPrefisso = new Map(radici.map((r) => [r.prefisso, r.cartella]))
   const saltati: string[] = []
   let scritti = 0
+  let fatto = 0
   for (const v of voci) {
+    onProgresso?.(++fatto, voci.length)
     const barra = v.percorso.indexOf('/')
     const prefisso = barra === -1 ? v.percorso : v.percorso.slice(0, barra)
     const rel = barra === -1 ? '' : v.percorso.slice(barra + 1)

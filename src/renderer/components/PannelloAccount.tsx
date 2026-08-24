@@ -6,6 +6,16 @@ import { valutaPassword, REGOLE_PASSWORD } from '@shared/password'
 
 type Props = { onChiudi: () => void }
 
+const ETICHETTA_FASE: Record<string, string> = {
+  raccolgo: 'Raccolgo i file',
+  comprimo: 'Comprimo',
+  cifro: 'Cifro',
+  carico: 'Carico sul Drive',
+  scarico: 'Scarico dal Drive',
+  decifro: 'Decifro',
+  ripristino: 'Ripristino i file'
+}
+
 type StatoDrive = { configurato: boolean; connesso: boolean }
 type StatoSync = {
   driveConnesso: boolean; haCassaforte: boolean; sbloccato: boolean
@@ -28,16 +38,18 @@ function SezioneSync(): React.JSX.Element | null {
   const [chiaveRecupero, setChiaveRecupero] = useState<string | undefined>(undefined)
   const [inCorso, setInCorso] = useState(false)
   const [msg, setMsg] = useState<string | undefined>(undefined)
+  const [progresso, setProgresso] = useState<{ fase: string; fatto?: number; totale?: number } | undefined>(undefined)
 
   const aggiorna = (): void => {
     void window.gestore.drive.stato().then(setDrive).catch(() => {})
     void window.gestore.sync.stato().then(setSync).catch(() => {})
   }
   useEffect(aggiorna, [])
+  useEffect(() => window.gestore.sync.onProgresso(setProgresso), [])
 
   const conInCorso = (p: Promise<unknown>): void => {
-    setInCorso(true); setMsg(undefined)
-    void p.finally(() => { setInCorso(false); aggiorna() })
+    setInCorso(true); setMsg(undefined); setProgresso(undefined)
+    void p.finally(() => { setInCorso(false); setProgresso(undefined); aggiorna() })
   }
 
   const connetti = (): void => conInCorso(
@@ -83,6 +95,25 @@ function SezioneSync(): React.JSX.Element | null {
       </div>
 
       {msg !== undefined ? <div className="riga__stato">{msg}</div> : null}
+
+      {inCorso && progresso !== undefined ? (
+        <div className="account__prog">
+          <div className="account__prog-testo">
+            {ETICHETTA_FASE[progresso.fase] ?? progresso.fase}
+            {progresso.totale !== undefined && progresso.fatto !== undefined
+              ? ` — ${progresso.fatto}/${progresso.totale} (${Math.round((progresso.fatto / Math.max(1, progresso.totale)) * 100)}%)`
+              : '…'}
+          </div>
+          <div className="account__barra">
+            <div
+              className={progresso.totale !== undefined ? 'account__barra-riemp' : 'account__barra-riemp account__barra-riemp--indet'}
+              style={progresso.totale !== undefined && progresso.fatto !== undefined
+                ? { width: `${Math.round((progresso.fatto / Math.max(1, progresso.totale)) * 100)}%` }
+                : undefined}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {/* 1) Drive da collegare */}
       {!drive.connesso ? (
