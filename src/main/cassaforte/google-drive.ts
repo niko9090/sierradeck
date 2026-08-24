@@ -43,11 +43,30 @@ export function creaMagazzinoDrive(deps: DriveDeps): Magazzino {
   const nomeFile = deps.nomeFile ?? NOME_FILE_PREDEFINITO
   const intestazioni = (tk: string): Record<string, string> => ({ Authorization: `Bearer ${tk}` })
 
+  // Google spiega il perché nel CORPO della risposta (`error.message`): un 403
+  // «API non abilitata» e un 403 «scope insufficiente» sono lo stesso numero ma
+  // due problemi diversi. Senza il corpo, l'utente resta con un codice muto.
+  const errore = async (r: Response, cosa: string): Promise<Error> => {
+    let dettaglio = ''
+    try {
+      const testo = (await r.text()).trim()
+      try {
+        const j = JSON.parse(testo) as { error?: { message?: string } }
+        dettaglio = j.error?.message ?? testo
+      } catch {
+        dettaglio = testo
+      }
+    } catch {
+      // nessun corpo da leggere: resta solo il codice
+    }
+    return new Error(`Drive: ${cosa} fallito (${r.status})${dettaglio !== '' ? ` — ${dettaglio.slice(0, 300)}` : ''}`)
+  }
+
   const trovaFile = async (tk: string): Promise<FileDrive | undefined> => {
     const q = encodeURIComponent(`name='${nomeFile}'`)
     const url = `${API}/files?spaces=appDataFolder&fields=${encodeURIComponent('files(id,version)')}&q=${q}`
     const r = await f(url, { headers: intestazioni(tk) })
-    if (!r.ok) throw new Error(`Drive: elenco fallito (${r.status})`)
+    if (!r.ok) throw await errore(r, 'elenco')
     const j = (await r.json()) as { files?: Array<{ id?: string; version?: string | number }> }
     const primo = j.files?.[0]
     if (primo?.id === undefined) return undefined
@@ -61,7 +80,7 @@ export function creaMagazzinoDrive(deps: DriveDeps): Magazzino {
       headers: { ...intestazioni(tk), 'Content-Type': 'application/octet-stream' },
       body: blocco as unknown as BodyInit
     })
-    if (!r.ok) throw new Error(`Drive: scrittura fallita (${r.status})`)
+    if (!r.ok) throw await errore(r, 'scrittura')
     const j = (await r.json()) as { version?: string | number }
     return { versione: String(j.version ?? '') }
   }
@@ -72,7 +91,7 @@ export function creaMagazzinoDrive(deps: DriveDeps): Magazzino {
       const file = await trovaFile(tk)
       if (file === undefined) return undefined
       const r = await f(`${API}/files/${file.id}?alt=media`, { headers: intestazioni(tk) })
-      if (!r.ok) throw new Error(`Drive: scaricamento fallito (${r.status})`)
+      if (!r.ok) throw await errore(r, 'scaricamento')
       return { blocco: Buffer.from(await r.arrayBuffer()), versione: file.version }
     },
 
@@ -88,7 +107,7 @@ export function creaMagazzinoDrive(deps: DriveDeps): Magazzino {
           headers: { ...intestazioni(tk), 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: nomeFile, parents: ['appDataFolder'] })
         })
-        if (!r.ok) throw new Error(`Drive: creazione fallita (${r.status})`)
+        if (!r.ok) throw await errore(r, 'creazione')
         const { id } = (await r.json()) as { id?: string }
         if (id === undefined) throw new Error('Drive: creazione senza id')
         return scriviMedia(tk, id, blocco)

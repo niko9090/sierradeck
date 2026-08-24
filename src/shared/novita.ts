@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.53',
+    righe: [
+      '**Gli errori del Google Drive ora dicono il perché.** Prima leggevi solo «elenco fallito (403)»; adesso c’è anche la spiegazione di Google (API non abilitata, permesso mancante, ecc.), così si capisce al volo cosa sistemare.'
+    ]
+  },
+  {
     versione: '0.9.52',
     righe: [
       '**Salvataggio e ripristino non bloccano più l’app, e mostrano a che punto sono.** Prima la compressione girava in modo sincrono e congelava tutto (chat comprese); ora è asincrona e resta tutto reattivo. In **Account** vedi una **barra di avanzamento a fasi** — raccolgo i file (con «237/1200»), comprimo, cifro, carico sul Drive — così sai che sta lavorando, non che è bloccato.'
