@@ -89,6 +89,18 @@ declare global {
         connetti: () => Promise<{ ok: boolean; messaggio?: string }>
         disconnetti: () => Promise<void>
       }
+      sync: {
+        stato: () => Promise<{
+          driveConnesso: boolean; haCassaforte: boolean; sbloccato: boolean
+          versione?: string; ultimoSalvataggio?: string
+        }>
+        creaPassphrase: (passphrase: string) => Promise<{ ok: boolean; chiaveRecupero?: string; messaggio?: string }>
+        sblocca: (passphrase: string) => Promise<{ ok: boolean; messaggio?: string }>
+        sbloccaRecupero: (codice: string) => Promise<{ ok: boolean; messaggio?: string }>
+        blocca: () => Promise<void>
+        salva: () => Promise<{ ok: boolean; voci?: number; messaggio?: string }>
+        ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string }>
+      }
       chiavi: {
         stato: () => Promise<{ allAvvio: boolean; workspace: string[] }>
         impostaAvvio: (parola: string) => Promise<{ allAvvio: boolean; workspace: string[] }>

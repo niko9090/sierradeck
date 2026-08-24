@@ -199,6 +199,24 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('drive:connetti'),
     disconnetti: (): Promise<void> => ipcRenderer.invoke('drive:disconnetti')
   },
+  /** La sincronizzazione cifrata: passphrase (cassaforte E2E) + salva/ripristina. */
+  sync: {
+    stato: (): Promise<{
+      driveConnesso: boolean; haCassaforte: boolean; sbloccato: boolean
+      versione?: string; ultimoSalvataggio?: string
+    }> => ipcRenderer.invoke('sync:stato'),
+    creaPassphrase: (passphrase: string): Promise<{ ok: boolean; chiaveRecupero?: string; messaggio?: string }> =>
+      ipcRenderer.invoke('sync:creaPassphrase', passphrase),
+    sblocca: (passphrase: string): Promise<{ ok: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('sync:sblocca', passphrase),
+    sbloccaRecupero: (codice: string): Promise<{ ok: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('sync:sbloccaRecupero', codice),
+    blocca: (): Promise<void> => ipcRenderer.invoke('sync:blocca'),
+    salva: (): Promise<{ ok: boolean; voci?: number; messaggio?: string }> =>
+      ipcRenderer.invoke('sync:salva'),
+    ripristina: (): Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('sync:ripristina')
+  },
   chiavi: {
     stato: (): Promise<{ allAvvio: boolean; workspace: string[] }> =>
       ipcRenderer.invoke('chiavi:stato'),

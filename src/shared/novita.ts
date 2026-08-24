@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.50',
+    righe: [
+      '**La sincronizzazione cifrata è viva: salva e ritrova le tue chat su un altro PC.** In **Account**, dopo aver collegato il Drive, scegli una **passphrase di cifratura** (con una chiave di recupero da conservare) e premi **Salva ora**: chat, quaderno e workspace finiscono cifrati nel tuo Drive. Su un altro PC fai accesso, sblocchi con la passphrase e premi **Ripristina** — ritrovi tutto. La cifratura è tua: né noi né Google possiamo leggere quei dati.'
+    ]
+  },
+  {
     versione: '0.9.49',
     righe: [
       '**«Connetti Google Drive» ora funziona su qualsiasi PC.** Le credenziali dell’app viaggiano dentro il programma, così basta installarlo e agganciare il proprio Drive con un clic — non serve nessuna configurazione su nessuna macchina.'

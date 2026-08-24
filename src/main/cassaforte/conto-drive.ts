@@ -30,8 +30,11 @@ export type ContoDrive = {
   connetti: (apriBrowser: (url: string) => void) => Promise<void>
   /** Dimentica i token: il prossimo uso richiederà di riconnettere. */
   disconnetti: () => void
-  /** Il magazzino cifrato su Drive per il motore. Lancia se non configurato. */
-  magazzino: () => Magazzino
+  /**
+   * Un magazzino su Drive per un file dentro appDataFolder. Senza nome, il file
+   * dei dati; con nome (es. le chiavi), quel file. Lancia se non configurato.
+   */
+  magazzino: (nomeFile?: string) => Magazzino
 }
 
 export function apriContoDrive(dati: string): ContoDrive {
@@ -82,11 +85,11 @@ export function apriContoDrive(dati: string): ContoDrive {
       }
     },
 
-    magazzino() {
+    magazzino(nomeFile) {
       const c = config()
       if (c === undefined) throw new Error('Google Drive non configurato: mancano le credenziali OAuth dell’app')
       const token = creaFornitoreToken({ config: c, leggi, scrivi })
-      return creaMagazzinoDrive({ token })
+      return creaMagazzinoDrive({ token, ...(nomeFile !== undefined ? { nomeFile } : {}) })
     }
   }
 }

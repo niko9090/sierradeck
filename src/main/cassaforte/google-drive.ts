@@ -21,7 +21,7 @@ import { ConflittoMagazzino, type Contenuto, type Magazzino } from './magazzino'
  * «un PC poi l'altro»; il caso simultaneo si raffina dopo.
  */
 
-const NOME_FILE = 'sierradeck.cassaforte'
+const NOME_FILE_PREDEFINITO = 'sierradeck.cassaforte'
 const API = 'https://www.googleapis.com/drive/v3'
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3'
 
@@ -30,6 +30,8 @@ type Fetch = typeof fetch
 export type DriveDeps = {
   /** Un access token valido per lo scope drive.appdata. Chi lo dà lo rinnova. */
   token: () => Promise<string>
+  /** Quale file dentro appDataFolder: i dati cifrati, o le chiavi. Predefinito: i dati. */
+  nomeFile?: string
   /** Iniettabile per i test; di default il `fetch` dell'ambiente. */
   fetch?: Fetch
 }
@@ -38,10 +40,11 @@ type FileDrive = { id: string; version: string }
 
 export function creaMagazzinoDrive(deps: DriveDeps): Magazzino {
   const f: Fetch = deps.fetch ?? fetch
+  const nomeFile = deps.nomeFile ?? NOME_FILE_PREDEFINITO
   const intestazioni = (tk: string): Record<string, string> => ({ Authorization: `Bearer ${tk}` })
 
   const trovaFile = async (tk: string): Promise<FileDrive | undefined> => {
-    const q = encodeURIComponent(`name='${NOME_FILE}'`)
+    const q = encodeURIComponent(`name='${nomeFile}'`)
     const url = `${API}/files?spaces=appDataFolder&fields=${encodeURIComponent('files(id,version)')}&q=${q}`
     const r = await f(url, { headers: intestazioni(tk) })
     if (!r.ok) throw new Error(`Drive: elenco fallito (${r.status})`)
@@ -83,7 +86,7 @@ export function creaMagazzinoDrive(deps: DriveDeps): Magazzino {
         const r = await f(`${API}/files?fields=id`, {
           method: 'POST',
           headers: { ...intestazioni(tk), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: NOME_FILE, parents: ['appDataFolder'] })
+          body: JSON.stringify({ name: nomeFile, parents: ['appDataFolder'] })
         })
         if (!r.ok) throw new Error(`Drive: creazione fallita (${r.status})`)
         const { id } = (await r.json()) as { id?: string }

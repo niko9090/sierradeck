@@ -1880,6 +1880,19 @@ select.comando-riquadro option {
 .account__driga { display: flex; align-items: center; justify-content: space-between; font-size: var(--t2); }
 .account__pallino { font-size: var(--t1); opacity: .7; }
 .account__pallino--ok { color: #57d38c; opacity: 1; }
+.account__recupero { display: flex; flex-direction: column; gap: var(--s2); }
+.account__codice {
+  display: block;
+  padding: var(--s2);
+  border: 1px solid var(--incisione);
+  border-radius: var(--raggio);
+  background: var(--fondo-cupo);
+  font-family: ui-monospace, monospace;
+  font-size: var(--t3);
+  letter-spacing: 1px;
+  word-break: break-all;
+  user-select: all;
+}
 
 /* ─── la schermata dell'accesso all'avvio: a tutto schermo, viva ─── */
 .accesso-schermata {

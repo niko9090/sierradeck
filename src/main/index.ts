@@ -61,6 +61,7 @@ import { claudeDaAggiornare, notaClaude } from './claude-versione'
 import { resolveClaudeCommand } from './config'
 import { leggiAccesso } from './accesso'
 import { apriContoDrive } from './cassaforte/conto-drive'
+import { apriSincronia } from './cassaforte/sincronia'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { unicoLayout, workspaceDellaSessione } from '@shared/workspace'
@@ -451,6 +452,27 @@ if (!app.requestSingleInstanceLock()) {
         }
       })
       ipcMain.handle('drive:disconnetti', () => { contoDrive.disconnetti() })
+
+      // La sincronizzazione cifrata: passphrase (cassaforte E2E) + salva/ripristina.
+      // La chiave-maestra sbloccata resta qui nel main, in memoria. Le radici da
+      // sincronizzare includono le trascrizioni di Claude Code, sotto la sua root.
+      const radiceClaude = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
+      const sincronia = apriSincronia({
+        dati,
+        radiceClaude,
+        driveConnesso: () => contoDrive.stato().connesso,
+        magazzino: (nomeFile) => contoDrive.magazzino(nomeFile)
+      })
+      ipcMain.handle('sync:stato', () => sincronia.stato())
+      ipcMain.handle('sync:creaPassphrase', (_e, pw: unknown) =>
+        typeof pw === 'string' ? sincronia.creaPassphrase(pw) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
+      ipcMain.handle('sync:sblocca', (_e, pw: unknown) =>
+        typeof pw === 'string' ? sincronia.sblocca(pw) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
+      ipcMain.handle('sync:sbloccaRecupero', (_e, codice: unknown) =>
+        typeof codice === 'string' ? sincronia.sbloccaConRecupero(codice) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
+      ipcMain.handle('sync:blocca', () => { sincronia.blocca() })
+      ipcMain.handle('sync:salva', () => sincronia.salva())
+      ipcMain.handle('sync:ripristina', () => sincronia.ripristina())
 
       const clientAutopilota = creaClientAutopilota({
         porta: PORTA_AUTOPILOTA,
