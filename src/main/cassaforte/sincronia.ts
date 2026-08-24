@@ -78,6 +78,9 @@ export function apriSincronia(deps: {
 
   // La sola cosa in chiaro, e sola in memoria: sparisce alla chiusura o con `blocca`.
   let maestra: Buffer | undefined
+  // Il blocco cifrato dell'ultimo salvataggio finito in conflitto: lo si tiene
+  // per far riusare «Sovrascrivi col mio» senza rifare compressione+cifratura.
+  let cacheBlocco: { cifrato: Buffer; voci: number } | undefined
 
   const leggiLocale = (): Cassaforte | undefined => {
     if (!existsSync(fileCassaforte)) return undefined
@@ -212,13 +215,25 @@ export function apriSincronia(deps: {
       const s = leggiStato()
       try {
         // Il lavoro pesante (raccolta+compressione+cifratura) va nell'esecutore
-        // (il thread separato): il main resta reattivo.
-        const { cifrato, voci } = await esecutore.prepara(
-          { dati: deps.dati, radiceClaude: deps.radiceClaude, maestra, adesso: adesso() },
-          deps.emettiProgresso
-        )
-        // La rete la fa il main. Sul conflitto: o si dice a chi chiama, o — con
-        // `forza` — si sovrascrive adottando la versione presente.
+        // (il thread separato). Ma se si sta **sovrascrivendo** subito dopo un
+        // conflitto, il blocco è già pronto in cache: si riusa, niente 33 secondi
+        // rifatti.
+        let cifrato: Buffer
+        let voci: number
+        if (forza && cacheBlocco !== undefined) {
+          log('riuso il blocco già preparato (nessun nuovo lavoro pesante)')
+          cifrato = cacheBlocco.cifrato
+          voci = cacheBlocco.voci
+        } else {
+          const pronto = await esecutore.prepara(
+            { dati: deps.dati, radiceClaude: deps.radiceClaude, maestra, adesso: adesso() },
+            deps.emettiProgresso
+          )
+          cifrato = pronto.cifrato
+          voci = pronto.voci
+        }
+        // La rete la fa il main. Sul conflitto: o si dice a chi chiama (tenendo il
+        // blocco in cache per «Sovrascrivi»), o — con `forza` — si sovrascrive.
         const mag = deps.magazzino()
         const prog = (fatto: number, totale: number): void => deps.emettiProgresso?.({ fase: 'carico', fatto, totale })
         let versione: string
@@ -228,12 +243,14 @@ export function apriSincronia(deps: {
         } catch (e) {
           if (!(e instanceof ConflittoMagazzino)) throw e
           if (!forza) {
+            cacheBlocco = { cifrato, voci }
             log('CONFLITTO: sul Drive c’è una versione che questo PC non conosce (serve «Sovrascrivi» o «Ripristina»)')
             return { ok: false, conflitto: true, messaggio: 'Sul Drive c’è già un salvataggio che questo PC non conosce.' }
           }
           log('sovrascrivo la versione presente sul Drive')
           versione = (await mag.carica(cifrato, e.versioneAttuale, prog)).versione
         }
+        cacheBlocco = undefined
         scriviStato({ versione, ultimoSalvataggio: adesso() })
         log(`SALVA ok (versione ${versione})`)
         return { ok: true, voci }
