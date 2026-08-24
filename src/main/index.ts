@@ -62,6 +62,7 @@ import { resolveClaudeCommand } from './config'
 import { leggiAccesso } from './accesso'
 import { apriContoDrive } from './cassaforte/conto-drive'
 import { apriSincronia } from './cassaforte/sincronia'
+import { esecutoreSuThread } from './cassaforte/lavoratore'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { unicoLayout, workspaceDellaSessione } from '@shared/workspace'
@@ -477,9 +478,13 @@ if (!app.requestSingleInstanceLock()) {
         radiceClaude,
         driveConnesso: () => contoDrive.stato().connesso,
         magazzino: (nomeFile) => contoDrive.magazzino(nomeFile),
-        emettiProgresso
+        emettiProgresso,
+        // Il lavoro pesante gira in un thread separato (out/main/sync-worker.js,
+        // accanto a questo file): così salva/ripristina non bloccano mai l'app.
+        esecutore: esecutoreSuThread(join(__dirname, 'sync-worker.js'))
       })
       ipcMain.handle('sync:stato', () => sincronia.stato())
+      ipcMain.handle('sync:info', () => sincronia.info())
       ipcMain.handle('sync:creaPassphrase', (_e, pw: unknown) =>
         typeof pw === 'string' ? sincronia.creaPassphrase(pw) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
       ipcMain.handle('sync:sblocca', (_e, pw: unknown) =>

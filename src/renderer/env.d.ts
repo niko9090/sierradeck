@@ -94,6 +94,7 @@ declare global {
           driveConnesso: boolean; haCassaforte: boolean; sbloccato: boolean
           versione?: string; ultimoSalvataggio?: string
         }>
+        info: () => Promise<{ file: number; byte: number }>
         creaPassphrase: (passphrase: string) => Promise<{ ok: boolean; chiaveRecupero?: string; messaggio?: string }>
         sblocca: (passphrase: string) => Promise<{ ok: boolean; messaggio?: string }>
         sbloccaRecupero: (codice: string) => Promise<{ ok: boolean; messaggio?: string }>

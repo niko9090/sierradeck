@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.59',
+    righe: [
+      '**Salvataggio e ripristino ora girano su un thread separato: l’app non si blocca MAI, per quanti dati tu abbia.** Tutto il lavoro pesante (compressione, cifratura, disco) è fuori dal processo dell’interfaccia — niente più «Non risponde».',
+      '**Il menu Account dice anche cosa stai sincronizzando** («417 file · 135 MB») e ha le sezioni con le icone. Altre opzioni in arrivo.'
+    ]
+  },
+  {
     versione: '0.9.58',
     righe: [
       '**Se il salvataggio sul Drive è «sporco» (l’app si era chiusa male), ora puoi sovrascriverlo senza ripristinare.** Quando compare «Sul Drive c’è già un salvataggio che questo PC non conosce», hai due scelte chiare: **«Sovrascrivi col mio»** (carica questo PC, butta quello vecchio) oppure **«Ripristina quello sul Drive»**. Niente più vicolo cieco.'

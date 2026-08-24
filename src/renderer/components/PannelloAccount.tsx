@@ -43,11 +43,13 @@ function SezioneSync(): React.JSX.Element | null {
   const [inCorso, setInCorso] = useState(false)
   const [msg, setMsg] = useState<string | undefined>(undefined)
   const [conflitto, setConflitto] = useState(false)
+  const [info, setInfo] = useState<{ file: number; byte: number } | undefined>(undefined)
   const [progresso, setProgresso] = useState<{ fase: string; fatto?: number; totale?: number } | undefined>(undefined)
 
   const aggiorna = (): void => {
     void window.gestore.drive.stato().then(setDrive).catch(() => {})
     void window.gestore.sync.stato().then(setSync).catch(() => {})
+    void window.gestore.sync.info().then(setInfo).catch(() => {})
   }
   useEffect(aggiorna, [])
   useEffect(() => window.gestore.sync.onProgresso(setProgresso), [])
@@ -130,7 +132,7 @@ function SezioneSync(): React.JSX.Element | null {
       {/* ─── Google Drive ─── */}
       <section className="account__sez">
         <div className="account__sez-tit">
-          <span>Google Drive</span>
+          <span>☁️ Google Drive</span>
           <span className={drive.connesso ? 'account__pallino account__pallino--ok' : 'account__pallino'}>
             {!drive.configurato ? 'non configurato' : drive.connesso ? 'collegato ✓' : 'non collegato'}
           </span>
@@ -150,7 +152,7 @@ function SezioneSync(): React.JSX.Element | null {
       {drive.connesso ? (
         <section className="account__sez">
           <div className="account__sez-tit">
-            <span>Cassaforte</span>
+            <span>🔒 Cassaforte</span>
             <span className={sync.sbloccato ? 'account__pallino account__pallino--ok' : 'account__pallino'}>
               {!sync.haCassaforte ? 'da creare' : sync.sbloccato ? 'aperta ✓' : 'chiusa'}
             </span>
@@ -232,7 +234,12 @@ function SezioneSync(): React.JSX.Element | null {
       {/* ─── Sincronizzazione ─── solo a cassaforte aperta */}
       {drive.connesso && sync.sbloccato && !cambiaAperto && chiaveRecupero === undefined ? (
         <section className="account__sez">
-          <div className="account__sez-tit"><span>Sincronizzazione</span></div>
+          <div className="account__sez-tit">
+            <span>🔄 Sincronizzazione</span>
+            {info !== undefined ? (
+              <span className="account__pallino">{info.file} file · {(info.byte / 1048576).toFixed(0)} MB</span>
+            ) : null}
+          </div>
           {conflitto ? (
             <>
               <p className="riga__stato account__nota">

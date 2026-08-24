@@ -205,6 +205,7 @@ contextBridge.exposeInMainWorld('gestore', {
       driveConnesso: boolean; haCassaforte: boolean; sbloccato: boolean
       versione?: string; ultimoSalvataggio?: string
     }> => ipcRenderer.invoke('sync:stato'),
+    info: (): Promise<{ file: number; byte: number }> => ipcRenderer.invoke('sync:info'),
     creaPassphrase: (passphrase: string): Promise<{ ok: boolean; chiaveRecupero?: string; messaggio?: string }> =>
       ipcRenderer.invoke('sync:creaPassphrase', passphrase),
     sblocca: (passphrase: string): Promise<{ ok: boolean; messaggio?: string }> =>

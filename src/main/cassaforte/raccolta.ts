@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readdir, readFile, writeFile, mkdir, stat } from 'node:fs/promises'
 import { join, resolve, sep, dirname } from 'node:path'
 import type { Voce } from './pacchetto'
 
@@ -129,6 +129,29 @@ export async function ripristina(
     scritti += 1
   }
   return { scritti, saltati }
+}
+
+/**
+ * Quanto pesa ciò che si sincronizza, senza leggerne il contenuto: solo il
+ * conteggio dei file e la somma delle dimensioni. Serve a dire all'utente «417
+ * chat, ~135 MB» prima di salvare, non a caricare niente.
+ */
+export async function pesaRadici(radici: Radice[]): Promise<{ file: number; byte: number }> {
+  let file = 0
+  let byte = 0
+  for (const r of radici) {
+    for (const rel of await elencaFile(r.cartella)) {
+      if (r.includi !== undefined && !r.includi(rel)) continue
+      try {
+        const s = await stat(join(r.cartella, ...rel.split('/')))
+        file += 1
+        byte += s.size
+      } catch {
+        // un file sparito fra l'elenco e lo stat: semplicemente non lo si conta
+      }
+    }
+  }
+  return { file, byte }
 }
 
 /** I file dell'assetto SierraDeck che si sincronizzano: l'allowlist tiene fuori cache e roba per-macchina. */

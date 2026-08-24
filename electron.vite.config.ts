@@ -50,7 +50,10 @@ export default defineConfig({
           // Il servizio autopilota vive fuori dal ciclo di vita dell'app, ma si
           // compila con gli altri: e' lo stesso codice, con lo stesso alias
           // @shared, e l'artefatto finisce accanto agli altri in out/main.
-          'autopilot-host': resolve('src/autopilot-host/avvio.ts')
+          'autopilot-host': resolve('src/autopilot-host/avvio.ts'),
+          // Il thread separato della sincronizzazione: si compila accanto agli
+          // altri e finisce in out/main, dove il main lo carica come Worker.
+          'sync-worker': resolve('src/main/cassaforte/sync-worker.ts')
         }
       }
     },

@@ -1,8 +1,9 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { creaCassaforte, sblocca as sbloccaCassaforte, sbloccaConRecupero as sbloccaConRecuperoCassaforte, cambiaPassphrase as cambiaPassphraseCassaforte, type Cassaforte } from './cifratura'
-import { caricaStato, ripristinaStato, CassaforteIlleggibile, type Progresso } from './motore'
-import { radiciDaSincronizzare } from './raccolta'
+import type { Progresso } from './motore'
+import { esecutoreInProcesso, type Esecutore } from './lavoratore'
+import { pesaRadici, radiciDaSincronizzare } from './raccolta'
 import { ConflittoMagazzino, type Magazzino } from './magazzino'
 
 /**
@@ -45,6 +46,8 @@ function messaggioDi(e: unknown): string {
 
 export type Sincronia = {
   stato: () => Promise<StatoSync>
+  /** Quanto si sincronizza: numero di file (chat + assetto) e byte totali. */
+  info: () => Promise<{ file: number; byte: number }>
   creaPassphrase: (passphrase: string) => Promise<{ ok: boolean; chiaveRecupero?: string; messaggio?: string }>
   sblocca: (passphrase: string) => Promise<EsitoSemplice>
   sbloccaConRecupero: (codice: string) => Promise<EsitoSemplice>
@@ -62,8 +65,11 @@ export function apriSincronia(deps: {
   adesso?: () => string
   /** Dove far arrivare il progresso di salva/ripristina (verso l'interfaccia). */
   emettiProgresso?: (p: Progresso) => void
+  /** Chi fa il lavoro pesante: di norma il thread separato; in-processo per i test. */
+  esecutore?: Esecutore
 }): Sincronia {
   const adesso = deps.adesso ?? ((): string => new Date().toISOString())
+  const esecutore = deps.esecutore ?? esecutoreInProcesso
   const fileCassaforte = join(deps.dati, 'cassaforte.json')
   const fileStato = join(deps.dati, 'sync-stato.json')
 
@@ -133,6 +139,10 @@ export function apriSincronia(deps: {
       }
     },
 
+    info() {
+      return pesaRadici(radiciDaSincronizzare(deps.dati, deps.radiceClaude))
+    },
+
     async creaPassphrase(passphrase) {
       if ((await ottieniCassaforte()) !== undefined) {
         return { ok: false, messaggio: 'Esiste già una cassaforte: sbloccala con la passphrase.' }
@@ -195,23 +205,31 @@ export function apriSincronia(deps: {
     async salva(forza = false) {
       if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
       if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
-      const radici = radiciDaSincronizzare(deps.dati, deps.radiceClaude)
       const s = leggiStato()
       try {
-        const esito = await caricaStato({
-          radici, maestra, magazzino: deps.magazzino(), adesso,
-          ...(s.versione !== undefined ? { versioneVista: s.versione } : {}),
-          ...(forza ? { sovrascrivi: true } : {}),
-          ...(deps.emettiProgresso !== undefined ? { onProgresso: deps.emettiProgresso } : {})
-        })
-        scriviStato({ versione: esito.versione, ultimoSalvataggio: adesso() })
-        return { ok: true, voci: esito.voci }
-      } catch (e) {
-        if (e instanceof ConflittoMagazzino) {
-          // Non un errore secco: c'è un salvataggio sul Drive che questo PC non
-          // conosce. Chi chiama può ripristinarlo o sovrascriverlo (`forza`).
-          return { ok: false, conflitto: true, messaggio: 'Sul Drive c’è già un salvataggio che questo PC non conosce.' }
+        // Il lavoro pesante (raccolta+compressione+cifratura) va nell'esecutore
+        // (il thread separato): il main resta reattivo.
+        const { cifrato, voci } = await esecutore.prepara(
+          { dati: deps.dati, radiceClaude: deps.radiceClaude, maestra, adesso: adesso() },
+          deps.emettiProgresso
+        )
+        // La rete la fa il main. Sul conflitto: o si dice a chi chiama, o — con
+        // `forza` — si sovrascrive adottando la versione presente.
+        const mag = deps.magazzino()
+        const prog = (fatto: number, totale: number): void => deps.emettiProgresso?.({ fase: 'carico', fatto, totale })
+        let versione: string
+        try {
+          versione = (await mag.carica(cifrato, s.versione, prog)).versione
+        } catch (e) {
+          if (!(e instanceof ConflittoMagazzino)) throw e
+          if (!forza) {
+            return { ok: false, conflitto: true, messaggio: 'Sul Drive c’è già un salvataggio che questo PC non conosce.' }
+          }
+          versione = (await mag.carica(cifrato, e.versioneAttuale, prog)).versione
         }
+        scriviStato({ versione, ultimoSalvataggio: adesso() })
+        return { ok: true, voci }
+      } catch (e) {
         return { ok: false, messaggio: messaggioDi(e) }
       }
     },
@@ -219,19 +237,21 @@ export function apriSincronia(deps: {
     async ripristina() {
       if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
       if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
-      const radici = radiciDaSincronizzare(deps.dati, deps.radiceClaude)
       try {
-        const esito = await ripristinaStato({
-          radici, maestra, magazzino: deps.magazzino(),
-          ...(deps.emettiProgresso !== undefined ? { onProgresso: deps.emettiProgresso } : {})
-        })
-        if (!esito.trovato) return { ok: true, niente: true }
-        if (esito.versione !== undefined) scriviStato({ ...leggiStato(), versione: esito.versione })
-        return { ok: true, scritti: esito.scritti }
-      } catch (e) {
-        if (e instanceof CassaforteIlleggibile) {
+        const contenuto = await deps.magazzino().scarica(
+          (fatto, totale) => deps.emettiProgresso?.({ fase: 'scarico', fatto, totale })
+        )
+        if (contenuto === undefined) return { ok: true, niente: true }
+        const esito = await esecutore.applica(
+          { dati: deps.dati, radiceClaude: deps.radiceClaude, maestra, blocco: contenuto.blocco },
+          deps.emettiProgresso
+        )
+        if (esito.illeggibile) {
           return { ok: false, messaggio: 'I dati sul Drive non si aprono con questa chiave (forse di un altro account).' }
         }
+        scriviStato({ ...leggiStato(), versione: contenuto.versione })
+        return { ok: true, scritti: esito.scritti }
+      } catch (e) {
         return { ok: false, messaggio: messaggioDi(e) }
       }
     }
