@@ -1,6 +1,6 @@
 import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, screen, shell } from 'electron'
 import { join } from 'node:path'
-import { existsSync, mkdirSync, statSync, readFileSync, writeFileSync, readdirSync } from 'node:fs'
+import { existsSync, mkdirSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { spawn } from 'node:child_process'
 import { APP_NAME, APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
@@ -62,34 +62,7 @@ import { resolveClaudeCommand } from './config'
 import { leggiAccesso } from './accesso'
 import { apriContoDrive } from './cassaforte/conto-drive'
 import { apriSincronia } from './cassaforte/sincronia'
-import { esecutoreSuThread } from './cassaforte/lavoratore'
 import { apriRegistro } from './registro'
-
-/**
- * Copia il worker della sincronizzazione dall'asar (dove `new Worker` non sempre
- * riesce ad avviarlo) a una cartella su disco vero, e ne restituisce il percorso.
- * Copia anche i `chunks` che il worker importa. Se la copia fallisce, ripiega sul
- * percorso originale — e a valle scatta comunque il ripiego in-processo.
- */
-function percorsoWorkerSuDisco(dati: string, log?: (m: string) => void): string {
-  const sorgente = __dirname
-  const dest = join(dati, 'sync-worker')
-  try {
-    mkdirSync(join(dest, 'chunks'), { recursive: true })
-    writeFileSync(join(dest, 'sync-worker.js'), readFileSync(join(sorgente, 'sync-worker.js')))
-    const cartellaChunks = join(sorgente, 'chunks')
-    if (existsSync(cartellaChunks)) {
-      for (const f of readdirSync(cartellaChunks)) {
-        if (f.endsWith('.js')) writeFileSync(join(dest, 'chunks', f), readFileSync(join(cartellaChunks, f)))
-      }
-    }
-    log?.(`worker copiato su disco: ${join(dest, 'sync-worker.js')}`)
-    return join(dest, 'sync-worker.js')
-  } catch (err) {
-    log?.(`copia del worker fallita (${err instanceof Error ? err.message : String(err)}), uso il percorso originale: ${join(sorgente, 'sync-worker.js')}`)
-    return join(sorgente, 'sync-worker.js')
-  }
-}
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { unicoLayout, workspaceDellaSessione } from '@shared/workspace'
@@ -511,13 +484,11 @@ if (!app.requestSingleInstanceLock()) {
         dati,
         radiceClaude,
         driveConnesso: () => contoDrive.stato().connesso,
+        // Il magazzino a blocco unico serve alle CHIAVI; l'archivio a più file ai
+        // DATI (sincronizzazione incrementale: solo ciò che cambia).
         magazzino: (nomeFile) => contoDrive.magazzino(nomeFile),
+        archivio: () => contoDrive.archivio(),
         emettiProgresso,
-        // Il lavoro pesante gira in un thread separato: così salva/ripristina non
-        // bloccano mai l'app. Il file del worker può stare dentro l'asar del
-        // pacchetto, da cui `new Worker` non sempre si avvia: lo copiamo su disco
-        // vero (userData) e lo carichiamo da lì.
-        esecutore: esecutoreSuThread(percorsoWorkerSuDisco(dati, registro.info), registro.info),
         log: registro.info
       })
       registro.info(`Drive configurato: ${contoDrive.stato().configurato}, connesso: ${contoDrive.stato().connesso}`)

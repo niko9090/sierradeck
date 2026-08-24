@@ -163,6 +163,31 @@ export async function ripristina(
  * conteggio dei file e la somma delle dimensioni. Serve a dire all'utente «417
  * chat, ~135 MB» prima di salvare, non a caricare niente.
  */
+/**
+ * La **firma** di ogni file da sincronizzare: percorso logico → dimensione,
+ * data di modifica e percorso su disco. È la base della sincronizzazione
+ * incrementale: confrontando dimensione+mtime con l'ultima volta si sa **quali**
+ * file sono cambiati, senza leggerne il contenuto.
+ */
+export async function firmaRadici(
+  radici: Radice[]
+): Promise<Map<string, { size: number; mtime: number; disco: string }>> {
+  const firma = new Map<string, { size: number; mtime: number; disco: string }>()
+  for (const r of radici) {
+    for (const rel of await elencaFile(r.cartella)) {
+      if (r.includi !== undefined && !r.includi(rel)) continue
+      const disco = join(r.cartella, ...rel.split('/'))
+      try {
+        const s = await stat(disco)
+        firma.set(`${r.prefisso}/${rel}`, { size: s.size, mtime: s.mtimeMs, disco })
+      } catch {
+        // file sparito fra l'elenco e lo stat: lo si ignora
+      }
+    }
+  }
+  return firma
+}
+
 export async function pesaRadici(radici: Radice[]): Promise<{ file: number; byte: number }> {
   let file = 0
   let byte = 0

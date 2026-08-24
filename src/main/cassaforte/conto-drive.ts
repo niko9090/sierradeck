@@ -2,8 +2,9 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { configGoogle } from '../google-config'
 import { connetti as connettiOAuth, creaFornitoreToken, type Gettoni } from './oauth-google'
-import { creaMagazzinoDrive } from './google-drive'
+import { creaMagazzinoDrive, creaArchivioDrive } from './google-drive'
 import type { Magazzino } from './magazzino'
+import type { Archivio } from './archivio'
 
 /**
  * Il «conto Drive» del programma: tiene i token dell'utente su file e offre i
@@ -35,6 +36,8 @@ export type ContoDrive = {
    * dei dati; con nome (es. le chiavi), quel file. Lancia se non configurato.
    */
   magazzino: (nomeFile?: string) => Magazzino
+  /** L'archivio a più file (per la sincronizzazione incrementale). Lancia se non configurato. */
+  archivio: () => Archivio
 }
 
 export function apriContoDrive(dati: string): ContoDrive {
@@ -90,6 +93,13 @@ export function apriContoDrive(dati: string): ContoDrive {
       if (c === undefined) throw new Error('Google Drive non configurato: mancano le credenziali OAuth dell’app')
       const token = creaFornitoreToken({ config: c, leggi, scrivi })
       return creaMagazzinoDrive({ token, ...(nomeFile !== undefined ? { nomeFile } : {}) })
+    },
+
+    archivio() {
+      const c = config()
+      if (c === undefined) throw new Error('Google Drive non configurato: mancano le credenziali OAuth dell’app')
+      const token = creaFornitoreToken({ config: c, leggi, scrivi })
+      return creaArchivioDrive({ token })
     }
   }
 }

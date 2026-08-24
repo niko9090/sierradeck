@@ -1,4 +1,5 @@
 import { ConflittoMagazzino, type Contenuto, type Magazzino, type SegnaProgresso } from './magazzino'
+import type { Archivio, VoceArchivio } from './archivio'
 
 /**
  * Il magazzino su Google Drive dell'utente (bring-your-own-storage).
@@ -170,6 +171,110 @@ export function creaMagazzinoDrive(deps: DriveDeps): Magazzino {
         tk, `${UPLOAD}/files/${file.id}?uploadType=resumable&fields=version`, 'PATCH', blocco.length
       )
       return caricaSessione(sessione, blocco, onProgresso)
+    }
+  }
+}
+
+/**
+ * L'**archivio** su Drive: molti file dentro appDataFolder, indirizzati per nome.
+ * È ciò che serve alla sincronizzazione incrementale — un file cifrato per
+ * trascrizione, più il manifesto — dove `creaMagazzinoDrive` (un blocco solo) non
+ * basta. Upload semplice (`uploadType=media`) col Buffer come corpo: la lunghezza
+ * la mette fetch, e i singoli file sono piccoli (una trascrizione, non i GB
+ * interi), quindi niente flusso ripristinabile qui.
+ */
+export function creaArchivioDrive(deps: DriveDeps): Archivio {
+  const f: Fetch = deps.fetch ?? fetch
+  const intestazioni = (tk: string): Record<string, string> => ({ Authorization: `Bearer ${tk}` })
+
+  const errore = async (r: Response, cosa: string): Promise<Error> => {
+    let dettaglio = ''
+    try {
+      const testo = (await r.text()).trim()
+      try {
+        const j = JSON.parse(testo) as { error?: { message?: string } }
+        dettaglio = j.error?.message ?? testo
+      } catch { dettaglio = testo }
+    } catch { /* niente corpo */ }
+    return new Error(`Drive: ${cosa} fallito (${r.status})${dettaglio !== '' ? ` — ${dettaglio.slice(0, 300)}` : ''}`)
+  }
+
+  const trovaPerNome = async (tk: string, nome: string): Promise<{ id: string } | undefined> => {
+    const q = encodeURIComponent(`name='${nome}'`)
+    const url = `${API}/files?spaces=appDataFolder&fields=${encodeURIComponent('files(id)')}&q=${q}`
+    const r = await f(url, { headers: intestazioni(tk) })
+    if (!r.ok) throw await errore(r, 'ricerca')
+    const j = (await r.json()) as { files?: Array<{ id?: string }> }
+    const id = j.files?.[0]?.id
+    return id === undefined ? undefined : { id }
+  }
+
+  const scriviMediaSu = async (tk: string, id: string, blocco: Buffer): Promise<void> => {
+    const r = await f(`${UPLOAD}/files/${id}?uploadType=media`, {
+      method: 'PATCH',
+      headers: { ...intestazioni(tk), 'Content-Type': 'application/octet-stream' },
+      body: blocco as unknown as BodyInit
+    })
+    if (!r.ok) throw await errore(r, 'scrittura')
+  }
+
+  return {
+    async elenca() {
+      const tk = await deps.token()
+      const mappa = new Map<string, VoceArchivio>()
+      let pageToken: string | undefined
+      do {
+        const campi = encodeURIComponent('nextPageToken,files(id,name,version)')
+        const url = `${API}/files?spaces=appDataFolder&pageSize=1000&fields=${campi}${pageToken !== undefined ? `&pageToken=${pageToken}` : ''}`
+        const r = await f(url, { headers: intestazioni(tk) })
+        if (!r.ok) throw await errore(r, 'elenco')
+        const j = (await r.json()) as { nextPageToken?: string; files?: Array<{ id?: string; name?: string; version?: string | number }> }
+        for (const file of j.files ?? []) {
+          if (file.id !== undefined && file.name !== undefined) {
+            mappa.set(file.name, { id: file.id, versione: String(file.version ?? '') })
+          }
+        }
+        pageToken = j.nextPageToken
+      } while (pageToken !== undefined)
+      return mappa
+    },
+
+    async scarica(nome, onProgresso) {
+      const tk = await deps.token()
+      const file = await trovaPerNome(tk, nome)
+      if (file === undefined) return undefined
+      const r = await f(`${API}/files/${file.id}?alt=media`, { headers: intestazioni(tk) })
+      if (!r.ok) throw await errore(r, 'scaricamento')
+      const b = Buffer.from(await r.arrayBuffer())
+      onProgresso?.(b.length, b.length)
+      return b
+    },
+
+    async carica(nome, blocco, onProgresso) {
+      const tk = await deps.token()
+      const file = await trovaPerNome(tk, nome)
+      if (file !== undefined) {
+        await scriviMediaSu(tk, file.id, blocco)
+      } else {
+        const r = await f(`${API}/files?fields=id`, {
+          method: 'POST',
+          headers: { ...intestazioni(tk), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: nome, parents: ['appDataFolder'] })
+        })
+        if (!r.ok) throw await errore(r, 'creazione')
+        const { id } = (await r.json()) as { id?: string }
+        if (id === undefined) throw new Error('Drive: creazione senza id')
+        await scriviMediaSu(tk, id, blocco)
+      }
+      onProgresso?.(blocco.length, blocco.length)
+    },
+
+    async cancella(nome) {
+      const tk = await deps.token()
+      const file = await trovaPerNome(tk, nome)
+      if (file === undefined) return
+      const r = await f(`${API}/files/${file.id}`, { method: 'DELETE', headers: intestazioni(tk) })
+      if (!r.ok && r.status !== 404) throw await errore(r, 'cancellazione')
     }
   }
 }

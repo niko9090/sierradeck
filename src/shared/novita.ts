@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.65',
+    righe: [
+      '**Sincronizzazione incrementale: si salva solo ciò che è cambiato.** Prima ogni salvataggio rimandava TUTTO (per chi ha migliaia di chat, un paio di GB ogni volta). Ora ogni trascrizione è un file cifrato a sé, e si caricano **solo quelle nuove o modificate**: dopo il primo salvataggio, i successivi durano **secondi**, non minuti. È il salto che serviva a chi ha tante chat.',
+      'Sparisce anche il «conflitto»: con i file separati, «Salva ora» aggiorna e basta.'
+    ]
+  },
+  {
     versione: '0.9.64',
     righe: [
       '**Nuovo menu Account, a cruscotto.** In cima il riepilogo a colpo d’occhio («Tutto al sicuro · ultimo salvataggio»), poi le schede Drive e Cassaforte, e la Sincronizzazione con i suoi pulsanti. Più ordinato e più da prodotto.',

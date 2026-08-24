@@ -2,9 +2,10 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { creaCassaforte, sblocca as sbloccaCassaforte, sbloccaConRecupero as sbloccaConRecuperoCassaforte, cambiaPassphrase as cambiaPassphraseCassaforte, type Cassaforte } from './cifratura'
 import type { Progresso } from './motore'
-import { esecutoreInProcesso, type Esecutore } from './lavoratore'
 import { pesaRadici, radiciDaSincronizzare } from './raccolta'
-import { ConflittoMagazzino, type Magazzino } from './magazzino'
+import type { Magazzino } from './magazzino'
+import type { Archivio } from './archivio'
+import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto } from './incrementale'
 
 /**
  * La **politica** della sincronizzazione: mette insieme cassaforte (cifratura),
@@ -65,26 +66,35 @@ export function apriSincronia(deps: {
   dati: string
   radiceClaude: string
   driveConnesso: () => boolean
+  /** Il magazzino a blocco unico, per le CHIAVI (la cassaforte). */
   magazzino: (nomeFile?: string) => Magazzino
+  /** L'archivio a più file, per i DATI (sincronizzazione incrementale). */
+  archivio: () => Archivio
   adesso?: () => string
   /** Dove far arrivare il progresso di salva/ripristina (verso l'interfaccia). */
   emettiProgresso?: (p: Progresso) => void
-  /** Chi fa il lavoro pesante: di norma il thread separato; in-processo per i test. */
-  esecutore?: Esecutore
   /** Dove annotare cosa succede, per il registro della sessione. */
   log?: (m: string) => void
 }): Sincronia {
   const adesso = deps.adesso ?? ((): string => new Date().toISOString())
-  const esecutore = deps.esecutore ?? esecutoreInProcesso
   const log = deps.log ?? ((): void => {})
   const fileCassaforte = join(deps.dati, 'cassaforte.json')
   const fileStato = join(deps.dati, 'sync-stato.json')
+  const fileManifesto = join(deps.dati, 'sync-manifesto.json')
+
+  // Il manifesto locale: l'idea di questo PC di cosa c'è già sul Drive. Serve a
+  // sapere, al prossimo salvataggio, quali file sono cambiati — è ciò che rende
+  // la sincronizzazione incrementale.
+  const leggiManifestoLocale = (): Manifesto => {
+    if (!existsSync(fileManifesto)) return manifestoVuoto()
+    try { return JSON.parse(readFileSync(fileManifesto, 'utf8')) as Manifesto } catch { return manifestoVuoto() }
+  }
+  const scriviManifestoLocale = (m: Manifesto): void => {
+    try { writeFileSync(fileManifesto, JSON.stringify(m), 'utf8') } catch (err) { console.error('[sync] manifesto non salvato:', err) }
+  }
 
   // La sola cosa in chiaro, e sola in memoria: sparisce alla chiusura o con `blocca`.
   let maestra: Buffer | undefined
-  // Il blocco cifrato dell'ultimo salvataggio finito in conflitto: lo si tiene
-  // per far riusare «Sovrascrivi col mio» senza rifare compressione+cifratura.
-  let cacheBlocco: { cifrato: Buffer; voci: number } | undefined
 
   const leggiLocale = (): Cassaforte | undefined => {
     if (!existsSync(fileCassaforte)) return undefined
@@ -220,61 +230,32 @@ export function apriSincronia(deps: {
 
     blocca() { maestra = undefined },
 
-    async salva(forza = false) {
-      log(`SALVA richiesto${forza ? ' (sovrascrivi)' : ''}`)
+    async salva() {
+      log('SALVA richiesto')
       if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
       if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
       const s = leggiStato()
       try {
-        // Niente da salvare se i dati non sono cambiati dall'ultima volta (stesso
-        // numero di file e stessi byte): si evita di rimandare centinaia di MB a
-        // vuoto. Il «sovrascrivi» invece va sempre.
-        const firma = await pesaRadici(radiciDaSincronizzare(deps.dati, deps.radiceClaude))
-        if (!forza && cacheBlocco === undefined && s.firma !== undefined &&
-            s.firma.file === firma.file && s.firma.byte === firma.byte) {
-          log(`niente da salvare: invariato (${firma.file} file, ${(firma.byte / 1048576).toFixed(0)} MB)`)
-          return { ok: true, invariato: true, voci: firma.file }
+        // Sincronizzazione **incrementale**: si mandano solo i file cambiati dal
+        // manifesto locale. Niente conflitto a versione unica — non c'è più un
+        // blocco solo — quindi «Salva ora» semplicemente aggiorna ciò che è nuovo.
+        const esito = await salvaIncrementale({
+          radici: radiciDaSincronizzare(deps.dati, deps.radiceClaude),
+          maestra,
+          archivio: deps.archivio(),
+          manifestoPrec: leggiManifestoLocale(),
+          adesso: adesso(),
+          ...(deps.emettiProgresso !== undefined ? { onProgresso: deps.emettiProgresso } : {})
+        })
+        scriviManifestoLocale(esito.manifesto)
+        const totali = Object.keys(esito.manifesto.file).length
+        if (esito.caricati === 0 && esito.cancellati === 0) {
+          log('niente da salvare: nessun file cambiato')
+          return { ok: true, invariato: true, voci: totali }
         }
-        // Il lavoro pesante (raccolta+compressione+cifratura) va nell'esecutore
-        // (il thread separato). Ma se si sta **sovrascrivendo** subito dopo un
-        // conflitto, il blocco è già pronto in cache: si riusa, niente 33 secondi
-        // rifatti.
-        let cifrato: Buffer
-        let voci: number
-        if (forza && cacheBlocco !== undefined) {
-          log('riuso il blocco già preparato (nessun nuovo lavoro pesante)')
-          cifrato = cacheBlocco.cifrato
-          voci = cacheBlocco.voci
-        } else {
-          const pronto = await esecutore.prepara(
-            { dati: deps.dati, radiceClaude: deps.radiceClaude, maestra, adesso: adesso() },
-            deps.emettiProgresso
-          )
-          cifrato = pronto.cifrato
-          voci = pronto.voci
-        }
-        // La rete la fa il main. Sul conflitto: o si dice a chi chiama (tenendo il
-        // blocco in cache per «Sovrascrivi»), o — con `forza` — si sovrascrive.
-        const mag = deps.magazzino()
-        const prog = (fatto: number, totale: number): void => deps.emettiProgresso?.({ fase: 'carico', fatto, totale })
-        let versione: string
-        try {
-          log(`carico sul Drive (${(cifrato.length / 1048576).toFixed(1)} MB)…`)
-          versione = (await mag.carica(cifrato, s.versione, prog)).versione
-        } catch (e) {
-          if (!(e instanceof ConflittoMagazzino)) throw e
-          if (!forza) {
-            cacheBlocco = { cifrato, voci }
-            log('CONFLITTO: sul Drive c’è una versione che questo PC non conosce (serve «Sovrascrivi» o «Ripristina»)')
-            return { ok: false, conflitto: true, messaggio: 'Sul Drive c’è già un salvataggio che questo PC non conosce.' }
-          }
-          log('sovrascrivo la versione presente sul Drive')
-          versione = (await mag.carica(cifrato, e.versioneAttuale, prog)).versione
-        }
-        cacheBlocco = undefined
-        scriviStato({ versione, ultimoSalvataggio: adesso(), firma, auto: s.auto })
-        log(`SALVA ok (versione ${versione})`)
-        return { ok: true, voci }
+        scriviStato({ ...s, ultimoSalvataggio: adesso() })
+        log(`SALVA ok (${esito.caricati} caricati, ${esito.cancellati} rimossi, ${totali} in tutto)`)
+        return { ok: true, voci: esito.caricati }
       } catch (e) {
         log(`SALVA fallito: ${messaggioDi(e)}`)
         return { ok: false, messaggio: messaggioDi(e) }
@@ -306,20 +287,21 @@ export function apriSincronia(deps: {
       if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
       if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
       try {
-        const contenuto = await deps.magazzino().scarica(
-          (fatto, totale) => deps.emettiProgresso?.({ fase: 'scarico', fatto, totale })
-        )
-        if (contenuto === undefined) { log('RIPRISTINA: niente sul Drive'); return { ok: true, niente: true } }
-        const esito = await esecutore.applica(
-          { dati: deps.dati, radiceClaude: deps.radiceClaude, maestra, blocco: contenuto.blocco },
-          deps.emettiProgresso
-        )
-        if (esito.illeggibile) {
-          log('RIPRISTINA: il blocco sul Drive non si decifra con questa chiave')
+        const esito = await ripristinaIncrementale({
+          radici: radiciDaSincronizzare(deps.dati, deps.radiceClaude),
+          maestra,
+          archivio: deps.archivio(),
+          ...(deps.emettiProgresso !== undefined ? { onProgresso: deps.emettiProgresso } : {})
+        })
+        if (esito.illeggibile === true) {
+          log('RIPRISTINA: il manifesto sul Drive non si decifra con questa chiave')
           return { ok: false, messaggio: 'I dati sul Drive non si aprono con questa chiave (forse di un altro account).' }
         }
-        scriviStato({ ...leggiStato(), versione: contenuto.versione })
-        log(`RIPRISTINA ok (${esito.scritti} file, versione ${contenuto.versione})`)
+        if (!esito.trovato) { log('RIPRISTINA: niente sul Drive'); return { ok: true, niente: true } }
+        // Da qui questo PC sa cosa c'è sul Drive: i prossimi salvataggi sono incrementali.
+        if (esito.manifesto !== undefined) scriviManifestoLocale(esito.manifesto)
+        scriviStato({ ...leggiStato(), ultimoSalvataggio: adesso() })
+        log(`RIPRISTINA ok (${esito.scritti} file scritti)`)
         return { ok: true, scritti: esito.scritti }
       } catch (e) {
         log(`RIPRISTINA fallito: ${messaggioDi(e)}`)
