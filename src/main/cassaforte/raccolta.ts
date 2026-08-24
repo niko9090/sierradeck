@@ -79,6 +79,33 @@ export async function raccogli(
 }
 
 /**
+ * Come `raccogli`, ma **a flusso**: elenca i file (solo i percorsi, a buon
+ * mercato) e poi ne legge **uno alla volta**, restituendolo e passando al
+ * successivo. Chi comprime lo consuma e lo scarta subito: così non si tengono
+ * mai in memoria tutti i contenuti insieme — la differenza fra reggere due giga
+ * di trascrizioni e mandare il PC in swap.
+ */
+export async function* raccogliFlusso(
+  radici: Radice[],
+  onProgresso?: (fatto: number, totale: number) => void
+): AsyncGenerator<Voce> {
+  const elenco: { r: Radice; rel: string }[] = []
+  for (const r of radici) {
+    for (const rel of await elencaFile(r.cartella)) {
+      if (r.includi === undefined || r.includi(rel)) elenco.push({ r, rel })
+    }
+  }
+  const totale = elenco.length
+  let fatto = 0
+  for (const { r, rel } of elenco) {
+    const contenuto = await readFile(join(r.cartella, ...rel.split('/'))).catch(() => undefined)
+    onProgresso?.(++fatto, totale)
+    if (contenuto === undefined) continue
+    yield { percorso: `${r.prefisso}/${rel}`, contenuto }
+  }
+}
+
+/**
  * Il percorso su disco di una voce, **solo se resta dentro la cartella**.
  *
  * `undefined` per un relativo che risale (`..`), che è assoluto, o che con un

@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.62',
+    righe: [
+      '**Salvataggio a memoria bassa: niente più «Non risponde» anche con tantissime chat.** Prima, per salvare, il programma teneva in memoria *tutte* le trascrizioni insieme (per te erano un paio di GB) e il PC andava in affanno. Ora le legge e comprime **una alla volta**, buttando via ogni file appena fatto: la memoria resta bassa, l’app respira, e la barra avanza fino in fondo. Il lavoro resta comunque nel thread separato.'
+    ]
+  },
+  {
     versione: '0.9.61',
     righe: [
       '**Ora c’è un registro delle operazioni, da allegare quando qualcosa non va.** In **Account** trovi «Apri i log»: un file di testo con la versione che sta girando, se la sincronizzazione usa il thread separato, i tempi e gli eventuali errori. Serve a capire i problemi con i fatti, senza tirare a indovinare.'

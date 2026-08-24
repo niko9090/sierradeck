@@ -1,6 +1,6 @@
 import { cifra, decifra } from './cifratura'
 import { componiPacchetto, leggiPacchetto } from './pacchetto'
-import { raccogli, ripristina, radiciDaSincronizzare } from './raccolta'
+import { raccogliFlusso, ripristina, radiciDaSincronizzare } from './raccolta'
 import type { Progresso } from './motore'
 
 /**
@@ -34,12 +34,17 @@ export async function preparaBlocco(
   onProgresso?: (p: Progresso) => void
 ): Promise<{ cifrato: Buffer; voci: number }> {
   const radici = radiciDaSincronizzare(req.dati, req.radiceClaude)
-  const voci = await raccogli(radici, (fatto, totale) => onProgresso?.({ fase: 'raccolgo', fatto, totale }))
-  onProgresso?.({ fase: 'comprimo' })
-  const pacchetto = await componiPacchetto(voci, req.adesso, (fatto, totale) => onProgresso?.({ fase: 'comprimo', fatto, totale }))
+  // A flusso: i file entrano nella compressione uno alla volta, senza tenerli
+  // tutti in memoria. `conteggio` segue quanti ne sono passati (per l'esito).
+  let conteggio = 0
+  const flusso = raccogliFlusso(radici, (fatto, totale) => {
+    conteggio = fatto
+    onProgresso?.({ fase: 'comprimo', fatto, totale })
+  })
+  const pacchetto = await componiPacchetto(flusso, req.adesso)
   onProgresso?.({ fase: 'cifro' })
   const cifrato = await cifra(req.maestra, pacchetto, (fatto, totale) => onProgresso?.({ fase: 'cifro', fatto, totale }))
-  return { cifrato, voci: voci.length }
+  return { cifrato, voci: conteggio }
 }
 
 export async function applicaBlocco(

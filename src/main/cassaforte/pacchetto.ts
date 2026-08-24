@@ -62,9 +62,8 @@ function testa(lung: number): Buffer {
  * resta viva e i contenuti dei file non vengono nemmeno ricopiati.
  */
 export async function componiPacchetto(
-  voci: Voce[],
-  creatoIl: string,
-  onProgresso?: (fatto: number, totale: number) => void
+  voci: Iterable<Voce> | AsyncIterable<Voce>,
+  creatoIl: string
 ): Promise<Buffer> {
   const gz = createGzip()
   const usciti: Buffer[] = []
@@ -80,12 +79,12 @@ export async function componiPacchetto(
 
   await scrivi(MAGIC)
   await scriviCampo(Buffer.from(creatoIl, 'utf8'))
-  await scrivi(testa(voci.length))
-  let fatto = 0
-  for (const v of voci) {
+  // Niente conteggio a monte: le voci arrivano **una alla volta** (anche da un
+  // generatore che le legge pigramente dal disco), così non serve tenerle tutte
+  // in memoria insieme. In lettura si va avanti finché il blocco finisce.
+  for await (const v of voci as AsyncIterable<Voce>) {
     await scriviCampo(Buffer.from(v.percorso, 'utf8'))
     await scriviCampo(v.contenuto)
-    onProgresso?.(++fatto, voci.length)
   }
   gz.end()
   await finito
@@ -121,12 +120,11 @@ export async function leggiPacchetto(blocco: Buffer): Promise<Pacchetto | undefi
 
   const creatoIlB = leggiCampo()
   if (creatoIlB === undefined) return undefined
-  if (pos + 4 > dati.length) return undefined
-  const quante = dati.readUInt32BE(pos)
-  pos += 4
 
+  // Si legge finché il blocco finisce: niente conteggio davanti (il pacchetto si
+  // scrive in streaming e non lo conosce). Un campo troncato = blocco corrotto.
   const voci: Voce[] = []
-  for (let i = 0; i < quante; i++) {
+  while (pos < dati.length) {
     const percorsoB = leggiCampo()
     const contenuto = leggiCampo()
     if (percorsoB === undefined || contenuto === undefined) return undefined

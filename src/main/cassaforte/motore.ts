@@ -87,10 +87,7 @@ export async function caricaStato(deps: {
 }): Promise<EsitoCarica> {
   const voci = await raccogli(deps.radici, (fatto, totale) => deps.onProgresso?.({ fase: 'raccolgo', fatto, totale }))
   deps.onProgresso?.({ fase: 'comprimo' })
-  const pacchetto = await componiPacchetto(
-    voci, deps.adesso(),
-    (fatto, totale) => deps.onProgresso?.({ fase: 'comprimo', fatto, totale })
-  )
+  const pacchetto = await componiPacchetto(voci, deps.adesso())
   deps.onProgresso?.({ fase: 'cifro' })
   const cifrato = await cifra(
     deps.maestra, pacchetto,
