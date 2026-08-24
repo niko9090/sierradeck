@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.64',
+    righe: [
+      '**Nuovo menu Account, a cruscotto.** In cima il riepilogo a colpo d’occhio («Tutto al sicuro · ultimo salvataggio»), poi le schede Drive e Cassaforte, e la Sincronizzazione con i suoi pulsanti. Più ordinato e più da prodotto.',
+      '**Arriva il salvataggio automatico.** Un interruttore: acceso, ogni 15 minuti salva da solo nel tuo Drive — ma **solo se qualcosa è cambiato** (niente ricarichi a vuoto). Puoi sempre salvare a mano quando vuoi.',
+      '**Registro attività** a portata di clic, e «Salva ora» che ti dice «già tutto salvato» quando non c’è nulla di nuovo.'
+    ]
+  },
+  {
     versione: '0.9.63',
     righe: [
       '**«Sovrascrivi col mio» ora è immediato.** Dopo un conflitto, non rifà daccapo compressione e cifratura: riusa il blocco già pronto e passa subito a caricare. E basta farlo **una volta**: da lì in poi questo PC conosce la versione e i salvataggi successivi non danno più conflitto.'

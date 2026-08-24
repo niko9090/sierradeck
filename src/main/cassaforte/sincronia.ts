@@ -53,7 +53,11 @@ export type Sincronia = {
   sbloccaConRecupero: (codice: string) => Promise<EsitoSemplice>
   cambiaPassphrase: (vecchia: string, nuova: string) => Promise<EsitoSemplice>
   blocca: () => void
-  salva: (forza?: boolean) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; messaggio?: string }>
+  salva: (forza?: boolean) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string }>
+  /** Accende/spegne il salvataggio automatico, e dice com'è ora. */
+  auto: (attivo?: boolean) => boolean
+  /** Salva solo se serve (dati cambiati, sbloccato, connesso): per l'automatico. */
+  salvaSeServe: () => Promise<void>
   ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string }>
 }
 
@@ -93,15 +97,23 @@ export function apriSincronia(deps: {
   const scriviLocale = (c: Cassaforte): void => {
     try { writeFileSync(fileCassaforte, JSON.stringify(c), 'utf8') } catch (err) { console.error('[sync] cassaforte non salvata:', err) }
   }
-  const leggiStato = (): { versione?: string; ultimoSalvataggio?: string } => {
+  type StatoFile = {
+    versione?: string
+    ultimoSalvataggio?: string
+    /** La «firma» dei dati all'ultimo salvataggio: se non cambia, non si risalva. */
+    firma?: { file: number; byte: number }
+    /** L'utente ha acceso il salvataggio automatico? */
+    auto?: boolean
+  }
+  const leggiStato = (): StatoFile => {
     if (!existsSync(fileStato)) return {}
     try {
-      return JSON.parse(readFileSync(fileStato, 'utf8')) as { versione?: string; ultimoSalvataggio?: string }
+      return JSON.parse(readFileSync(fileStato, 'utf8')) as StatoFile
     } catch {
       return {}
     }
   }
-  const scriviStato = (s: { versione?: string; ultimoSalvataggio?: string }): void => {
+  const scriviStato = (s: StatoFile): void => {
     try { writeFileSync(fileStato, JSON.stringify(s), 'utf8') } catch (err) { console.error('[sync] stato non salvato:', err) }
   }
 
@@ -214,6 +226,15 @@ export function apriSincronia(deps: {
       if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
       const s = leggiStato()
       try {
+        // Niente da salvare se i dati non sono cambiati dall'ultima volta (stesso
+        // numero di file e stessi byte): si evita di rimandare centinaia di MB a
+        // vuoto. Il «sovrascrivi» invece va sempre.
+        const firma = await pesaRadici(radiciDaSincronizzare(deps.dati, deps.radiceClaude))
+        if (!forza && cacheBlocco === undefined && s.firma !== undefined &&
+            s.firma.file === firma.file && s.firma.byte === firma.byte) {
+          log(`niente da salvare: invariato (${firma.file} file, ${(firma.byte / 1048576).toFixed(0)} MB)`)
+          return { ok: true, invariato: true, voci: firma.file }
+        }
         // Il lavoro pesante (raccolta+compressione+cifratura) va nell'esecutore
         // (il thread separato). Ma se si sta **sovrascrivendo** subito dopo un
         // conflitto, il blocco è già pronto in cache: si riusa, niente 33 secondi
@@ -251,13 +272,33 @@ export function apriSincronia(deps: {
           versione = (await mag.carica(cifrato, e.versioneAttuale, prog)).versione
         }
         cacheBlocco = undefined
-        scriviStato({ versione, ultimoSalvataggio: adesso() })
+        scriviStato({ versione, ultimoSalvataggio: adesso(), firma, auto: s.auto })
         log(`SALVA ok (versione ${versione})`)
         return { ok: true, voci }
       } catch (e) {
         log(`SALVA fallito: ${messaggioDi(e)}`)
         return { ok: false, messaggio: messaggioDi(e) }
       }
+    },
+
+    auto(attivo?: boolean) {
+      const s = leggiStato()
+      if (attivo !== undefined && attivo !== (s.auto ?? false)) {
+        scriviStato({ ...s, auto: attivo })
+        log(`salvataggio automatico ${attivo ? 'ACCESO' : 'spento'}`)
+        return attivo
+      }
+      return s.auto ?? false
+    },
+
+    async salvaSeServe() {
+      // L'automatico non disturba mai: se non è sbloccato, non connesso, o i dati
+      // non sono cambiati, `salva` se ne accorge e non fa nulla di pesante.
+      if (maestra === undefined || !deps.driveConnesso()) return
+      const s = leggiStato()
+      if (s.auto !== true) return
+      const r = await this.salva()
+      if (!r.ok && r.conflitto !== true) log(`automatico: salvataggio non riuscito (${r.messaggio ?? '?'})`)
     },
 
     async ripristina() {

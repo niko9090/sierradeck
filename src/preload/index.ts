@@ -215,8 +215,10 @@ contextBridge.exposeInMainWorld('gestore', {
     cambiaPassphrase: (vecchia: string, nuova: string): Promise<{ ok: boolean; messaggio?: string }> =>
       ipcRenderer.invoke('sync:cambiaPassphrase', vecchia, nuova),
     blocca: (): Promise<void> => ipcRenderer.invoke('sync:blocca'),
-    salva: (forza?: boolean): Promise<{ ok: boolean; voci?: number; conflitto?: boolean; messaggio?: string }> =>
+    salva: (forza?: boolean): Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string }> =>
       ipcRenderer.invoke('sync:salva', forza === true),
+    /** Legge (senza argomento) o imposta il salvataggio automatico. */
+    auto: (attivo?: boolean): Promise<boolean> => ipcRenderer.invoke('sync:auto', attivo),
     ripristina: (): Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string }> =>
       ipcRenderer.invoke('sync:ripristina'),
     /** Il progresso di salva/ripristina, a fasi. Restituisce come disiscriversi. */

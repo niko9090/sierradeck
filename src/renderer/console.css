@@ -1871,6 +1871,42 @@ select.comando-riquadro option {
 .account__tasti { display: flex; justify-content: flex-end; gap: var(--s2); }
 
 .account__sync { display: flex; flex-direction: column; gap: var(--s3); }
+
+/* ─── cruscotto dell'account ─── */
+.account__dash { display: flex; flex-direction: column; gap: var(--s3); }
+.account__hero {
+  padding: var(--s3) var(--s4);
+  border-radius: var(--raggio);
+  background: linear-gradient(135deg, rgba(87, 211, 140, .10), rgba(87, 211, 140, .02));
+  border: 1px solid var(--incisione);
+}
+.account__hero-stato { font-size: var(--t4); font-weight: 700; }
+.account__hero-stato--ok { color: #57d38c; }
+.account__hero-sub { font-size: var(--t2); opacity: .8; margin-top: 2px; }
+.account__schede { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
+.account__scheda {
+  display: flex; flex-direction: column; gap: var(--s2);
+  padding: var(--s3);
+  border: 1px solid var(--incisione);
+  border-radius: var(--raggio);
+  background: var(--fondo-cupo);
+}
+.account__scheda--largo { grid-column: 1 / -1; }
+.account__scheda-tit { font-size: var(--t2); font-weight: 600; }
+.account__scheda-tasti { display: flex; gap: var(--s2); flex-wrap: wrap; }
+.tasto--mini { padding: 4px 10px; font-size: var(--t1); }
+.account__salva { min-width: 120px; }
+.account__opzioni {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
+  padding: var(--s2) var(--s3);
+}
+.account__toggle { display: flex; align-items: center; gap: var(--s2); cursor: pointer; font-size: var(--t2); }
+.account__toggle input { width: 16px; height: 16px; accent-color: #57d38c; cursor: pointer; }
+.account__link {
+  background: none; border: none; color: inherit; opacity: .8;
+  cursor: pointer; font-size: var(--t2); padding: 0;
+}
+.account__link:hover { opacity: 1; text-decoration: underline; }
 .account__sez {
   display: flex; flex-direction: column; gap: var(--s2);
   padding: var(--s3);

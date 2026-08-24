@@ -44,13 +44,17 @@ function SezioneSync(): React.JSX.Element | null {
   const [msg, setMsg] = useState<string | undefined>(undefined)
   const [conflitto, setConflitto] = useState(false)
   const [info, setInfo] = useState<{ file: number; byte: number } | undefined>(undefined)
+  const [auto, setAuto] = useState(false)
   const [progresso, setProgresso] = useState<{ fase: string; fatto?: number; totale?: number } | undefined>(undefined)
 
   const aggiorna = (): void => {
     void window.gestore.drive.stato().then(setDrive).catch(() => {})
     void window.gestore.sync.stato().then(setSync).catch(() => {})
     void window.gestore.sync.info().then(setInfo).catch(() => {})
+    void window.gestore.sync.auto().then(setAuto).catch(() => {})
   }
+  const commutaAuto = (): void => { void window.gestore.sync.auto(!auto).then(setAuto).catch(() => {}) }
+  const apriLog = (): void => { void window.gestore.log.apri() }
   useEffect(aggiorna, [])
   useEffect(() => window.gestore.sync.onProgresso(setProgresso), [])
 
@@ -76,7 +80,8 @@ function SezioneSync(): React.JSX.Element | null {
   )
   const salva = (forza = false): void => conInCorso(
     window.gestore.sync.salva(forza).then((r) => {
-      if (r.ok) { setConflitto(false); setMsg(`Salvato ✓ (${r.voci ?? 0} file cifrati)`) }
+      if (r.ok && r.invariato === true) { setConflitto(false); setMsg('Già tutto salvato: niente di cambiato.') }
+      else if (r.ok) { setConflitto(false); setMsg(`Salvato ✓ (${r.voci ?? 0} file)`) }
       else if (r.conflitto === true) { setConflitto(true); setMsg(r.messaggio ?? 'conflitto sul Drive') }
       else setMsg(r.messaggio ?? 'salvataggio non riuscito')
     })
@@ -103,9 +108,12 @@ function SezioneSync(): React.JSX.Element | null {
   const regole = valutaPassword(pw)
   const coincidono = pw2 === pw
   const regoleNuova = valutaPassword(pwNuova)
+  // «Pronto» = tutto in ordine per lavorare: Drive collegato, cassaforte aperta,
+  // e nessun passo di configurazione in mezzo. È lo stato del cruscotto vero.
+  const pronto = drive.connesso && sync.sbloccato && chiaveRecupero === undefined && !cambiaAperto
 
   return (
-    <div className="account__sync">
+    <div className="account__dash">
       {msg !== undefined ? <div className="riga__stato">{msg}</div> : null}
 
       {inCorso && progresso !== undefined ? ((): React.JSX.Element => {
@@ -129,146 +137,155 @@ function SezioneSync(): React.JSX.Element | null {
         )
       })() : null}
 
-      {/* ─── Google Drive ─── */}
-      <section className="account__sez">
-        <div className="account__sez-tit">
-          <span>☁️ Google Drive</span>
-          <span className={drive.connesso ? 'account__pallino account__pallino--ok' : 'account__pallino'}>
-            {!drive.configurato ? 'non configurato' : drive.connesso ? 'collegato ✓' : 'non collegato'}
-          </span>
+      {/* Riepilogo a colpo d'occhio, quando è tutto pronto */}
+      {pronto ? (
+        <div className="account__hero">
+          <div className={sync.ultimoSalvataggio !== undefined ? 'account__hero-stato account__hero-stato--ok' : 'account__hero-stato'}>
+            {sync.ultimoSalvataggio !== undefined ? '✓ Tutto al sicuro' : '○ Non hai ancora salvato'}
+          </div>
+          {sync.ultimoSalvataggio !== undefined ? (
+            <div className="account__hero-sub">Ultimo salvataggio: {new Date(sync.ultimoSalvataggio).toLocaleString()}</div>
+          ) : null}
+          {info !== undefined ? (
+            <div className="account__hero-sub">{info.file} chat · {(info.byte / 1048576).toFixed(0)} MB</div>
+          ) : null}
         </div>
-        <div className="account__tasti">
+      ) : null}
+
+      {/* Le due schede: Drive e Cassaforte, sempre visibili */}
+      <div className="account__schede">
+        <div className="account__scheda">
+          <div className="account__scheda-tit">☁️ Drive</div>
+          <div className={drive.connesso ? 'account__pallino account__pallino--ok' : 'account__pallino'}>
+            {!drive.configurato ? 'non configurato' : drive.connesso ? 'collegato ✓' : 'non collegato'}
+          </div>
           {drive.connesso ? (
-            <button className="tasto" onClick={scollega} disabled={inCorso}>Scollega</button>
+            <button className="tasto tasto--mini" onClick={scollega} disabled={inCorso}>Scollega</button>
           ) : (
-            <button className="tasto tasto--primario" onClick={connetti} disabled={inCorso || !drive.configurato}>
-              {inCorso ? 'apri il browser e approva…' : 'Connetti Google Drive'}
+            <button className="tasto tasto--primario tasto--mini" onClick={connetti} disabled={inCorso || !drive.configurato}>
+              {inCorso ? 'nel browser…' : 'Connetti'}
             </button>
           )}
         </div>
-      </section>
-
-      {/* ─── Cassaforte (cifratura) ─── solo con Drive collegato */}
-      {drive.connesso ? (
-        <section className="account__sez">
-          <div className="account__sez-tit">
-            <span>🔒 Cassaforte</span>
-            <span className={sync.sbloccato ? 'account__pallino account__pallino--ok' : 'account__pallino'}>
-              {!sync.haCassaforte ? 'da creare' : sync.sbloccato ? 'aperta ✓' : 'chiusa'}
-            </span>
+        <div className="account__scheda">
+          <div className="account__scheda-tit">🔒 Cassaforte</div>
+          <div className={sync.sbloccato ? 'account__pallino account__pallino--ok' : 'account__pallino'}>
+            {!sync.haCassaforte ? 'da creare' : sync.sbloccato ? 'aperta ✓' : 'chiusa'}
           </div>
+          {pronto ? (
+            <div className="account__scheda-tasti">
+              <button className="tasto tasto--mini" onClick={() => { setCambiaAperto(true); setMsg(undefined) }}>Cambia passphrase</button>
+              <button className="tasto tasto--mini" onClick={blocca} disabled={inCorso}>Blocca</button>
+            </div>
+          ) : null}
+        </div>
+      </div>
 
-          {chiaveRecupero !== undefined ? (
-            <div className="account__recupero">
-              <p className="riga__stato"><strong>Salva la tua chiave di recupero.</strong> È l’unico modo per rientrare se dimentichi la passphrase — non te la mostreremo di nuovo, e senza di essa (e senza passphrase) i dati non si recuperano.</p>
-              <code className="account__codice">{chiaveRecupero}</code>
-              <div className="account__tasti">
-                <button className="tasto" onClick={() => void navigator.clipboard?.writeText(chiaveRecupero)}>Copia</button>
-                <button className="tasto tasto--primario" onClick={() => { setChiaveRecupero(undefined); aggiorna() }}>L’ho salvata</button>
-              </div>
-            </div>
-          ) : !sync.haCassaforte ? (
-            <>
-              <p className="riga__stato account__nota">Scegli una <strong>passphrase di cifratura</strong>: protegge i tuoi dati sul Drive. È diversa dalla password dell’account, e nemmeno noi la conosciamo.</p>
-              <input className="account__campo" type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="passphrase" aria-label="passphrase" autoComplete="new-password" />
-              <input className="account__campo" type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="ripeti la passphrase" aria-label="ripeti la passphrase" autoComplete="new-password" />
-              <ul className="accesso-regole">
-                {REGOLE_PASSWORD.map((r) => (
-                  <li key={r.chiave} className={regole[r.chiave] ? 'accesso-regola accesso-regola--ok' : 'accesso-regola'}>
-                    <span className="accesso-regola__segno">{regole[r.chiave] ? '✓' : '○'}</span>{r.testo}
-                  </li>
-                ))}
-              </ul>
-              <div className="account__tasti">
-                <button className="tasto tasto--primario" onClick={crea} disabled={inCorso || !regole.ok || !coincidono}>
-                  {inCorso ? 'un attimo…' : 'Crea la passphrase'}
-                </button>
-              </div>
-            </>
-          ) : !sync.sbloccato ? (
-            <>
-              <p className="riga__stato account__nota">Sblocca la cassaforte per salvare o ripristinare i tuoi dati.</p>
-              {modoSblocco === 'pass' ? (
-                <input className="account__campo" type="password" value={pw} onChange={(e) => setPw(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sblocca() }} placeholder="passphrase" aria-label="passphrase" autoComplete="current-password" autoFocus />
-              ) : (
-                <input className="account__campo" value={recupero} onChange={(e) => setRecupero(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sblocca() }} placeholder="chiave di recupero (XXXX-XXXX-…)" aria-label="chiave di recupero" autoFocus />
-              )}
-              <div className="account__tasti">
-                <button className="tasto" onClick={() => { setModoSblocco(modoSblocco === 'pass' ? 'recupero' : 'pass'); setMsg(undefined) }}>
-                  {modoSblocco === 'pass' ? 'Usa la chiave di recupero' : 'Usa la passphrase'}
-                </button>
-                <button className="tasto tasto--primario" onClick={sblocca} disabled={inCorso || (modoSblocco === 'pass' ? pw === '' : recupero.trim() === '')}>
-                  {inCorso ? 'un attimo…' : 'Sblocca'}
-                </button>
-              </div>
-            </>
-          ) : cambiaAperto ? (
-            <>
-              <p className="riga__stato account__nota">Cambia la passphrase. La chiave di recupero resta valida.</p>
-              <input className="account__campo" type="password" value={pwVecchia} onChange={(e) => setPwVecchia(e.target.value)} placeholder="passphrase attuale" aria-label="passphrase attuale" autoComplete="current-password" />
-              <input className="account__campo" type="password" value={pwNuova} onChange={(e) => setPwNuova(e.target.value)} placeholder="nuova passphrase" aria-label="nuova passphrase" autoComplete="new-password" />
-              <input className="account__campo" type="password" value={pwNuova2} onChange={(e) => setPwNuova2(e.target.value)} placeholder="ripeti la nuova passphrase" aria-label="ripeti la nuova passphrase" autoComplete="new-password" />
-              <ul className="accesso-regole">
-                {REGOLE_PASSWORD.map((r) => (
-                  <li key={r.chiave} className={regoleNuova[r.chiave] ? 'accesso-regola accesso-regola--ok' : 'accesso-regola'}>
-                    <span className="accesso-regola__segno">{regoleNuova[r.chiave] ? '✓' : '○'}</span>{r.testo}
-                  </li>
-                ))}
-              </ul>
-              <div className="account__tasti">
-                <button className="tasto" onClick={() => { setCambiaAperto(false); setPwVecchia(''); setPwNuova(''); setPwNuova2(''); setMsg(undefined) }}>Annulla</button>
-                <button className="tasto tasto--primario" onClick={cambia} disabled={inCorso || pwVecchia === '' || !regoleNuova.ok || pwNuova !== pwNuova2}>
-                  {inCorso ? 'un attimo…' : 'Cambia passphrase'}
-                </button>
-              </div>
-            </>
+      {/* L'area che cambia: chiave di recupero / crea / sblocca / cambia / cruscotto */}
+      {chiaveRecupero !== undefined ? (
+        <div className="account__scheda account__scheda--largo account__recupero">
+          <p className="riga__stato"><strong>Salva la tua chiave di recupero.</strong> È l’unico modo per rientrare se dimentichi la passphrase — non te la mostreremo di nuovo, e senza di essa (e senza passphrase) i dati non si recuperano.</p>
+          <code className="account__codice">{chiaveRecupero}</code>
+          <div className="account__tasti">
+            <button className="tasto" onClick={() => void navigator.clipboard?.writeText(chiaveRecupero)}>Copia</button>
+            <button className="tasto tasto--primario" onClick={() => { setChiaveRecupero(undefined); aggiorna() }}>L’ho salvata</button>
+          </div>
+        </div>
+      ) : drive.connesso && !sync.haCassaforte ? (
+        <div className="account__scheda account__scheda--largo">
+          <p className="account__nota">Scegli una <strong>passphrase di cifratura</strong>: protegge i tuoi dati sul Drive. È diversa dalla password dell’account, e nemmeno noi la conosciamo.</p>
+          <input className="account__campo" type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="passphrase" aria-label="passphrase" autoComplete="new-password" />
+          <input className="account__campo" type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="ripeti la passphrase" aria-label="ripeti la passphrase" autoComplete="new-password" />
+          <ul className="accesso-regole">
+            {REGOLE_PASSWORD.map((r) => (
+              <li key={r.chiave} className={regole[r.chiave] ? 'accesso-regola accesso-regola--ok' : 'accesso-regola'}>
+                <span className="accesso-regola__segno">{regole[r.chiave] ? '✓' : '○'}</span>{r.testo}
+              </li>
+            ))}
+          </ul>
+          <div className="account__tasti">
+            <button className="tasto tasto--primario" onClick={crea} disabled={inCorso || !regole.ok || !coincidono}>
+              {inCorso ? 'un attimo…' : 'Crea la passphrase'}
+            </button>
+          </div>
+        </div>
+      ) : drive.connesso && !sync.sbloccato ? (
+        <div className="account__scheda account__scheda--largo">
+          <p className="account__nota">Sblocca la cassaforte per salvare o ripristinare i tuoi dati.</p>
+          {modoSblocco === 'pass' ? (
+            <input className="account__campo" type="password" value={pw} onChange={(e) => setPw(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sblocca() }} placeholder="passphrase" aria-label="passphrase" autoComplete="current-password" autoFocus />
           ) : (
-            <div className="account__tasti">
-              <button className="tasto" onClick={() => { setCambiaAperto(true); setMsg(undefined) }}>Cambia passphrase</button>
-              <button className="tasto" onClick={blocca} disabled={inCorso}>Blocca</button>
-            </div>
+            <input className="account__campo" value={recupero} onChange={(e) => setRecupero(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sblocca() }} placeholder="chiave di recupero (XXXX-XXXX-…)" aria-label="chiave di recupero" autoFocus />
           )}
-        </section>
-      ) : null}
-
-      {/* ─── Sincronizzazione ─── solo a cassaforte aperta */}
-      {drive.connesso && sync.sbloccato && !cambiaAperto && chiaveRecupero === undefined ? (
-        <section className="account__sez">
-          <div className="account__sez-tit">
-            <span>🔄 Sincronizzazione</span>
-            {info !== undefined ? (
-              <span className="account__pallino">{info.file} file · {(info.byte / 1048576).toFixed(0)} MB</span>
-            ) : null}
+          <div className="account__tasti">
+            <button className="tasto" onClick={() => { setModoSblocco(modoSblocco === 'pass' ? 'recupero' : 'pass'); setMsg(undefined) }}>
+              {modoSblocco === 'pass' ? 'Usa la chiave di recupero' : 'Usa la passphrase'}
+            </button>
+            <button className="tasto tasto--primario" onClick={sblocca} disabled={inCorso || (modoSblocco === 'pass' ? pw === '' : recupero.trim() === '')}>
+              {inCorso ? 'un attimo…' : 'Sblocca'}
+            </button>
           </div>
-          {conflitto ? (
-            <>
-              <p className="riga__stato account__nota">
-                Sul Drive c’è già un salvataggio che questo PC non conosce — capita se l’app si è chiusa male.
-                Puoi <strong>caricare questo PC sovrascrivendolo</strong>, oppure portarti giù quello che c’è.
-              </p>
-              <div className="account__tasti">
-                <button className="tasto" onClick={ripristina} disabled={inCorso}>Ripristina quello sul Drive</button>
-                <button className="tasto tasto--primario" onClick={() => salva(true)} disabled={inCorso}>
-                  {inCorso ? 'un attimo…' : 'Sovrascrivi col mio'}
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="riga__stato account__nota">
-                {sync.ultimoSalvataggio !== undefined
-                  ? `Ultimo salvataggio: ${new Date(sync.ultimoSalvataggio).toLocaleString()}.`
-                  : 'Non hai ancora salvato. Premi «Salva ora» per mettere le tue chat al sicuro nel Drive.'}
-              </p>
+        </div>
+      ) : cambiaAperto ? (
+        <div className="account__scheda account__scheda--largo">
+          <p className="account__nota">Cambia la passphrase. La chiave di recupero resta valida.</p>
+          <input className="account__campo" type="password" value={pwVecchia} onChange={(e) => setPwVecchia(e.target.value)} placeholder="passphrase attuale" aria-label="passphrase attuale" autoComplete="current-password" />
+          <input className="account__campo" type="password" value={pwNuova} onChange={(e) => setPwNuova(e.target.value)} placeholder="nuova passphrase" aria-label="nuova passphrase" autoComplete="new-password" />
+          <input className="account__campo" type="password" value={pwNuova2} onChange={(e) => setPwNuova2(e.target.value)} placeholder="ripeti la nuova passphrase" aria-label="ripeti la nuova passphrase" autoComplete="new-password" />
+          <ul className="accesso-regole">
+            {REGOLE_PASSWORD.map((r) => (
+              <li key={r.chiave} className={regoleNuova[r.chiave] ? 'accesso-regola accesso-regola--ok' : 'accesso-regola'}>
+                <span className="accesso-regola__segno">{regoleNuova[r.chiave] ? '✓' : '○'}</span>{r.testo}
+              </li>
+            ))}
+          </ul>
+          <div className="account__tasti">
+            <button className="tasto" onClick={() => { setCambiaAperto(false); setPwVecchia(''); setPwNuova(''); setPwNuova2(''); setMsg(undefined) }}>Annulla</button>
+            <button className="tasto tasto--primario" onClick={cambia} disabled={inCorso || pwVecchia === '' || !regoleNuova.ok || pwNuova !== pwNuova2}>
+              {inCorso ? 'un attimo…' : 'Cambia passphrase'}
+            </button>
+          </div>
+        </div>
+      ) : pronto ? (
+        <>
+          <div className="account__scheda account__scheda--largo">
+            <div className="account__scheda-tit">🔄 Sincronizzazione</div>
+            {conflitto ? (
+              <>
+                <p className="account__nota">
+                  Sul Drive c’è già un salvataggio che questo PC non conosce — capita se l’app si è chiusa male.
+                  Puoi <strong>caricare questo PC sovrascrivendolo</strong>, oppure portarti giù quello che c’è.
+                </p>
+                <div className="account__tasti">
+                  <button className="tasto" onClick={ripristina} disabled={inCorso}>Ripristina quello sul Drive</button>
+                  <button className="tasto tasto--primario" onClick={() => salva(true)} disabled={inCorso}>
+                    {inCorso ? 'un attimo…' : 'Sovrascrivi col mio'}
+                  </button>
+                </div>
+              </>
+            ) : (
               <div className="account__tasti">
                 <button className="tasto" onClick={ripristina} disabled={inCorso}>Ripristina</button>
-                <button className="tasto tasto--primario" onClick={() => salva()} disabled={inCorso}>
+                <button className="tasto tasto--primario account__salva" onClick={() => salva()} disabled={inCorso}>
                   {inCorso ? 'un attimo…' : 'Salva ora'}
                 </button>
               </div>
-            </>
-          )}
-        </section>
+            )}
+          </div>
+
+          <div className="account__opzioni">
+            <label className="account__toggle">
+              <input type="checkbox" checked={auto} onChange={commutaAuto} />
+              <span>Salvataggio automatico</span>
+              <span className="account__nota">{auto ? 'ogni 15 min, se cambia qualcosa' : 'spento'}</span>
+            </label>
+            <button className="account__link" onClick={apriLog}>Registro attività ▸</button>
+          </div>
+        </>
+      ) : !drive.connesso ? (
+        <div className="account__scheda account__scheda--largo">
+          <p className="account__nota">Collega il tuo Google Drive qui sopra per iniziare a mettere le chat al sicuro.</p>
+        </div>
       ) : null}
     </div>
   )
@@ -346,14 +363,7 @@ export function PannelloAccount({ onChiudi }: Props): React.JSX.Element {
 
       {utente !== undefined ? (
         <div className="account">
-          <p className="account__chi">
-            Sei entrato come <strong>{utente.email}</strong>.
-          </p>
-          <p className="riga__stato">
-            Il tuo account è la chiave del recupero fra computer: i tuoi dati
-            (chat, quaderno, workspace) si sincronizzano cifrati nel tuo Google Drive, così su un
-            altro PC accedi e ritrovi tutto. La cifratura è tua: nemmeno noi o Google possiamo leggerli.
-          </p>
+          <p className="account__chi">Entrato come <strong>{utente.email}</strong></p>
           <SezioneSync />
           <div className="account__tasti">
             <button className="tasto" onClick={() => void window.gestore.log.apri()}>Apri i log</button>

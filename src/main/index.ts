@@ -536,6 +536,14 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('sync:blocca', () => { sincronia.blocca() })
       ipcMain.handle('sync:salva', (_e, forza: unknown) => sincronia.salva(forza === true))
       ipcMain.handle('sync:ripristina', () => sincronia.ripristina())
+      ipcMain.handle('sync:auto', (_e, attivo: unknown) =>
+        sincronia.auto(typeof attivo === 'boolean' ? attivo : undefined))
+      // Il salvataggio automatico: ogni 15 minuti prova a salvare, ma solo se
+      // serve davvero (acceso, sbloccato, Drive connesso, e dati cambiati) —
+      // `salvaSeServe` non fa nulla di pesante negli altri casi. Gira nel thread,
+      // non blocca. `unref` così non tiene in vita il processo da solo.
+      const timerAuto = setInterval(() => { void sincronia.salvaSeServe() }, 15 * 60_000)
+      timerAuto.unref?.()
       // Il registro della sessione: aprirne la cartella, o sapere dov'è il file.
       ipcMain.handle('log:apri', () => shell.openPath(registro.cartella()))
       ipcMain.handle('log:percorso', () => registro.file())
