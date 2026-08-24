@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.66',
+    righe: [
+      '**Il primo salvataggio (quello che carica tutto una volta) ora è molto più veloce e robusto.** I file vanno sul Drive **in parallelo** (sei alla volta) invece di uno per uno, e se la rete fa i capricci si **riprova da sola** senza far fallire tutto. Dopo quel primo giro, i salvataggi seguenti restano di pochi secondi.'
+    ]
+  },
+  {
     versione: '0.9.65',
     righe: [
       '**Sincronizzazione incrementale: si salva solo ciò che è cambiato.** Prima ogni salvataggio rimandava TUTTO (per chi ha migliaia di chat, un paio di GB ogni volta). Ora ogni trascrizione è un file cifrato a sé, e si caricano **solo quelle nuove o modificate**: dopo il primo salvataggio, i successivi durano **secondi**, non minuti. È il salto che serviva a chi ha tante chat.',

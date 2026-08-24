@@ -41,6 +41,24 @@ function nomeDi(percorso: string): string {
   return `f_${createHash('sha256').update(percorso).digest('hex')}`
 }
 
+/** Quanti file lavorare in parallelo: molte piccole chiamate al Drive si fanno
+ * a gruppi, o il primo salvataggio (migliaia di file, uno per volta) durerebbe
+ * minuti inutili. Sei è un buon compromesso senza infastidire i limiti di Drive. */
+const PARALLELI = 6
+
+/** Esegue `fn` su ogni elemento con al massimo `limite` in corso insieme. */
+async function conLimite<T>(items: T[], limite: number, fn: (x: T) => Promise<void>): Promise<void> {
+  let prossimo = 0
+  const lavoratore = async (): Promise<void> => {
+    while (prossimo < items.length) {
+      const i = prossimo
+      prossimo += 1
+      await fn(items[i] as T)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limite, items.length) }, () => lavoratore()))
+}
+
 async function scriviManifesto(archivio: Archivio, maestra: Buffer, manifesto: Manifesto): Promise<void> {
   const blob = await cifra(maestra, Buffer.from(JSON.stringify(manifesto), 'utf8'))
   await archivio.carica(NOME_MANIFESTO, blob)
@@ -91,24 +109,25 @@ export async function salvaIncrementale(deps: {
   }
 
   let fatto = 0
-  for (const percorso of cambiati) {
+  await conLimite(cambiati, PARALLELI, async (percorso) => {
     const f = firma.get(percorso)
-    if (f === undefined) { fatto += 1; continue }
+    if (f === undefined) { fatto += 1; return }
     const contenuto = await readFile(f.disco).catch(() => undefined)
-    if (contenuto === undefined) { fatto += 1; continue }
+    if (contenuto === undefined) { fatto += 1; return }
     const nome = nomeDi(percorso)
     const blob = await cifra(deps.maestra, contenuto)
     await deps.archivio.carica(nome, blob)
+    // Mutazione fra due `await`: JS è a thread singolo, non c'è corsa vera.
     nuovo.file[percorso] = { nome, size: f.size, mtime: f.mtime }
     fatto += 1
     deps.onProgresso?.({ fase: 'comprimo', fatto, totale: cambiati.length })
-  }
+  })
 
-  for (const percorso of cancellati) {
+  await conLimite(cancellati, PARALLELI, async (percorso) => {
     const prec = deps.manifestoPrec.file[percorso]
     if (prec !== undefined) await deps.archivio.cancella(prec.nome)
     delete nuovo.file[percorso]
-  }
+  })
 
   await scriviManifesto(deps.archivio, deps.maestra, nuovo)
   return { manifesto: nuovo, caricati: cambiati.length, cancellati: cancellati.length }
@@ -128,17 +147,17 @@ export async function ripristinaIncrementale(deps: {
   const percorsi = Object.keys(manifesto.file)
   const voci: Voce[] = []
   let fatto = 0
-  for (const percorso of percorsi) {
+  await conLimite(percorsi, PARALLELI, async (percorso) => {
     const voce = manifesto.file[percorso]
-    if (voce === undefined) continue
+    if (voce === undefined) return
     const blob = await deps.archivio.scarica(voce.nome)
     fatto += 1
     deps.onProgresso?.({ fase: 'scarico', fatto, totale: percorsi.length })
-    if (blob === undefined) continue
+    if (blob === undefined) return
     const chiaro = await decifra(deps.maestra, blob)
-    if (chiaro === undefined) continue
+    if (chiaro === undefined) return
     voci.push({ percorso, contenuto: chiaro })
-  }
+  })
 
   const { scritti, saltati } = await ripristina(
     voci, deps.radici,

@@ -187,7 +187,7 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
   const f: Fetch = deps.fetch ?? fetch
   const intestazioni = (tk: string): Record<string, string> => ({ Authorization: `Bearer ${tk}` })
 
-  const errore = async (r: Response, cosa: string): Promise<Error> => {
+  const errore = async (r: Response, cosa: string): Promise<Error & { stato?: number }> => {
     let dettaglio = ''
     try {
       const testo = (await r.text()).trim()
@@ -196,26 +196,50 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
         dettaglio = j.error?.message ?? testo
       } catch { dettaglio = testo }
     } catch { /* niente corpo */ }
-    return new Error(`Drive: ${cosa} fallito (${r.status})${dettaglio !== '' ? ` — ${dettaglio.slice(0, 300)}` : ''}`)
+    const e: Error & { stato?: number } = new Error(`Drive: ${cosa} fallito (${r.status})${dettaglio !== '' ? ` — ${dettaglio.slice(0, 300)}` : ''}`)
+    e.stato = r.status
+    return e
+  }
+
+  const pausa = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+  const transitorio = (stato: number): boolean => stato === 429 || stato === 408 || stato >= 500
+  const RITENTI = 4
+
+  // Con migliaia di file, un intoppo di rete o un limite momentaneo di Drive
+  // capitano: si riprova con attesa che raddoppia. Solo per le chiamate
+  // idempotenti (ricerca, download, scrittura per id, cancellazione): rifarle non
+  // crea doppioni. La creazione (POST) no — quella la protegge `carica`.
+  const conRitenta = async (fai: () => Promise<Response>, cosa: string): Promise<Response> => {
+    let attesa = 600
+    for (let i = 0; ; i += 1) {
+      let r: Response
+      try {
+        r = await fai()
+      } catch (e) {
+        if (i >= RITENTI) throw e
+        await pausa(attesa); attesa *= 2; continue
+      }
+      if (!r.ok && transitorio(r.status) && i < RITENTI) { await pausa(attesa); attesa *= 2; continue }
+      if (!r.ok) throw await errore(r, cosa)
+      return r
+    }
   }
 
   const trovaPerNome = async (tk: string, nome: string): Promise<{ id: string } | undefined> => {
     const q = encodeURIComponent(`name='${nome}'`)
     const url = `${API}/files?spaces=appDataFolder&fields=${encodeURIComponent('files(id)')}&q=${q}`
-    const r = await f(url, { headers: intestazioni(tk) })
-    if (!r.ok) throw await errore(r, 'ricerca')
+    const r = await conRitenta(() => f(url, { headers: intestazioni(tk) }), 'ricerca')
     const j = (await r.json()) as { files?: Array<{ id?: string }> }
     const id = j.files?.[0]?.id
     return id === undefined ? undefined : { id }
   }
 
   const scriviMediaSu = async (tk: string, id: string, blocco: Buffer): Promise<void> => {
-    const r = await f(`${UPLOAD}/files/${id}?uploadType=media`, {
+    await conRitenta(() => f(`${UPLOAD}/files/${id}?uploadType=media`, {
       method: 'PATCH',
       headers: { ...intestazioni(tk), 'Content-Type': 'application/octet-stream' },
       body: blocco as unknown as BodyInit
-    })
-    if (!r.ok) throw await errore(r, 'scrittura')
+    }), 'scrittura')
   }
 
   return {
@@ -226,8 +250,7 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
       do {
         const campi = encodeURIComponent('nextPageToken,files(id,name,version)')
         const url = `${API}/files?spaces=appDataFolder&pageSize=1000&fields=${campi}${pageToken !== undefined ? `&pageToken=${pageToken}` : ''}`
-        const r = await f(url, { headers: intestazioni(tk) })
-        if (!r.ok) throw await errore(r, 'elenco')
+        const r = await conRitenta(() => f(url, { headers: intestazioni(tk) }), 'elenco')
         const j = (await r.json()) as { nextPageToken?: string; files?: Array<{ id?: string; name?: string; version?: string | number }> }
         for (const file of j.files ?? []) {
           if (file.id !== undefined && file.name !== undefined) {
@@ -243,8 +266,7 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
       const tk = await deps.token()
       const file = await trovaPerNome(tk, nome)
       if (file === undefined) return undefined
-      const r = await f(`${API}/files/${file.id}?alt=media`, { headers: intestazioni(tk) })
-      if (!r.ok) throw await errore(r, 'scaricamento')
+      const r = await conRitenta(() => f(`${API}/files/${file.id}?alt=media`, { headers: intestazioni(tk) }), 'scaricamento')
       const b = Buffer.from(await r.arrayBuffer())
       onProgresso?.(b.length, b.length)
       return b
@@ -252,29 +274,47 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
 
     async carica(nome, blocco, onProgresso) {
       const tk = await deps.token()
-      const file = await trovaPerNome(tk, nome)
-      if (file !== undefined) {
-        await scriviMediaSu(tk, file.id, blocco)
-      } else {
-        const r = await f(`${API}/files?fields=id`, {
-          method: 'POST',
-          headers: { ...intestazioni(tk), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: nome, parents: ['appDataFolder'] })
-        })
-        if (!r.ok) throw await errore(r, 'creazione')
-        const { id } = (await r.json()) as { id?: string }
-        if (id === undefined) throw new Error('Drive: creazione senza id')
-        await scriviMediaSu(tk, id, blocco)
+      // La creazione (POST) non è idempotente: rifarla creerebbe un doppione. Per
+      // questo il ritentativo è QUI, attorno a «cerca → crea/scrivi»: a ogni giro
+      // si ricerca, così un POST andato a metà viene ritrovato e aggiornato invece
+      // di duplicato.
+      let attesa = 600
+      for (let i = 0; ; i += 1) {
+        try {
+          const file = await trovaPerNome(tk, nome)
+          if (file !== undefined) {
+            await scriviMediaSu(tk, file.id, blocco)
+          } else {
+            const r = await f(`${API}/files?fields=id`, {
+              method: 'POST',
+              headers: { ...intestazioni(tk), 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: nome, parents: ['appDataFolder'] })
+            })
+            if (!r.ok) throw await errore(r, 'creazione')
+            const { id } = (await r.json()) as { id?: string }
+            if (id === undefined) throw new Error('Drive: creazione senza id')
+            await scriviMediaSu(tk, id, blocco)
+          }
+          onProgresso?.(blocco.length, blocco.length)
+          return
+        } catch (e) {
+          const stato = (e as { stato?: number }).stato
+          if (i >= RITENTI || stato === undefined || !transitorio(stato)) throw e
+          await pausa(attesa); attesa *= 2
+        }
       }
-      onProgresso?.(blocco.length, blocco.length)
     },
 
     async cancella(nome) {
       const tk = await deps.token()
       const file = await trovaPerNome(tk, nome)
       if (file === undefined) return
-      const r = await f(`${API}/files/${file.id}`, { method: 'DELETE', headers: intestazioni(tk) })
-      if (!r.ok && r.status !== 404) throw await errore(r, 'cancellazione')
+      try {
+        await conRitenta(() => f(`${API}/files/${file.id}`, { method: 'DELETE', headers: intestazioni(tk) }), 'cancellazione')
+      } catch (e) {
+        // Un 404 va bene: era già sparito. Il resto risale.
+        if ((e as { stato?: number }).stato !== 404) throw e
+      }
     }
   }
 }
