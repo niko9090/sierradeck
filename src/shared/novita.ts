@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.54',
+    righe: [
+      '**Il caricamento e il ripristino ora mostrano la percentuale, e non bloccano più l’app.** Il trasferimento sul Google Drive va a pezzi (upload ripristinabile ufficiale): vedi «Carico sul Drive — 12,4 / 48,0 MB (26%)» che sale, invece di un’attesa muta con l’app che sembra non rispondere.'
+    ]
+  },
+  {
     versione: '0.9.53',
     righe: [
       '**Gli errori del Google Drive ora dicono il perché.** Prima leggevi solo «elenco fallito (403)»; adesso c’è anche la spiegazione di Google (API non abilitata, permesso mancante, ecc.), così si capisce al volo cosa sistemare.'

@@ -1,4 +1,4 @@
-import { ConflittoMagazzino, type Contenuto, type Magazzino } from './magazzino'
+import { ConflittoMagazzino, type Contenuto, type Magazzino, type SegnaProgresso } from './magazzino'
 
 /**
  * Il magazzino su Google Drive dell'utente (bring-your-own-storage).
@@ -73,48 +73,103 @@ export function creaMagazzinoDrive(deps: DriveDeps): Magazzino {
     return { id: primo.id, version: String(primo.version ?? '') }
   }
 
-  const scriviMedia = async (tk: string, id: string, blocco: Buffer): Promise<{ versione: string }> => {
-    const url = `${UPLOAD}/files/${id}?uploadType=media&fields=version`
-    const r = await f(url, {
-      method: 'PATCH',
-      headers: { ...intestazioni(tk), 'Content-Type': 'application/octet-stream' },
-      body: blocco as unknown as BodyInit
-    })
-    if (!r.ok) throw await errore(r, 'scrittura')
-    const j = (await r.json()) as { version?: string | number }
-    return { versione: String(j.version ?? '') }
+  // L'upload **ripristinabile** di Google: prima si apre una sessione (che dice
+  // quanti byte arriveranno), poi si mandano i dati a pezzi, ognuno con la sua
+  // `Content-Range`. È il metodo ufficiale per i file grossi, e ogni pezzo che
+  // parte è un aggiornamento di progresso — senza il rischio di un corpo «a
+  // flusso» che qualche server rifiuta perché senza lunghezza.
+  const PEZZO = 8 * 1024 * 1024 // multiplo di 256 KB, come richiede Drive
+
+  const iniziaSessione = async (
+    tk: string, url: string, metodo: 'POST' | 'PATCH', totale: number, metadati?: unknown
+  ): Promise<string> => {
+    const intest: Record<string, string> = { ...intestazioni(tk), 'X-Upload-Content-Length': String(totale) }
+    const init: RequestInit = { method: metodo, headers: intest }
+    if (metadati !== undefined) {
+      intest['Content-Type'] = 'application/json'
+      init.body = JSON.stringify(metadati)
+    }
+    const r = await f(url, init)
+    if (!r.ok) throw await errore(r, 'avvio caricamento')
+    const sessione = r.headers.get('location')
+    if (sessione === null) throw new Error('Drive: sessione di caricamento senza URL (Location assente)')
+    return sessione
+  }
+
+  const caricaSessione = async (
+    sessione: string, blocco: Buffer, onProgresso?: SegnaProgresso
+  ): Promise<{ versione: string }> => {
+    const totale = blocco.length
+    let off = 0
+    for (;;) {
+      const fine = Math.min(off + PEZZO, totale)
+      const pezzo = blocco.subarray(off, fine)
+      const r = await f(sessione, {
+        method: 'PUT',
+        headers: { 'Content-Length': String(pezzo.length), 'Content-Range': `bytes ${off}-${fine - 1}/${totale}` },
+        body: pezzo as unknown as BodyInit
+      })
+      // 308 = «continua», il pezzo è arrivato; 200/201 = finito, con la risorsa.
+      if (r.status === 308) {
+        off = fine
+        onProgresso?.(off, totale)
+        continue
+      }
+      if (r.ok) {
+        const j = (await r.json()) as { version?: string | number }
+        onProgresso?.(totale, totale)
+        return { versione: String(j.version ?? '') }
+      }
+      throw await errore(r, 'caricamento')
+    }
   }
 
   return {
-    async scarica(): Promise<Contenuto | undefined> {
+    async scarica(onProgresso?: SegnaProgresso): Promise<Contenuto | undefined> {
       const tk = await deps.token()
       const file = await trovaFile(tk)
       if (file === undefined) return undefined
       const r = await f(`${API}/files/${file.id}?alt=media`, { headers: intestazioni(tk) })
       if (!r.ok) throw await errore(r, 'scaricamento')
-      return { blocco: Buffer.from(await r.arrayBuffer()), versione: file.version }
+      // Legge il corpo a pezzi per contare il progresso; se non c'è un flusso da
+      // leggere (test, o risposte senza body streamabile), si ripiega su un colpo solo.
+      const totale = Number(r.headers.get('content-length') ?? '0')
+      if (r.body === null) {
+        return { blocco: Buffer.from(await r.arrayBuffer()), versione: file.version }
+      }
+      const lettore = r.body.getReader()
+      const pezzi: Buffer[] = []
+      let ricevuti = 0
+      for (;;) {
+        const { done, value } = await lettore.read()
+        if (done) break
+        const b = Buffer.from(value)
+        pezzi.push(b)
+        ricevuti += b.length
+        onProgresso?.(ricevuti, totale > 0 ? totale : ricevuti)
+      }
+      return { blocco: Buffer.concat(pezzi), versione: file.version }
     },
 
-    async carica(blocco: Buffer, seVersione?: string): Promise<{ versione: string }> {
+    async carica(blocco: Buffer, seVersione?: string, onProgresso?: SegnaProgresso): Promise<{ versione: string }> {
       const tk = await deps.token()
       const file = await trovaFile(tk)
       if (file === undefined) {
         // Primo caricamento: ci si aspetta un magazzino vuoto. Se invece un file
         // c'è già (un altro PC), `seVersione` sarebbe definito → conflitto.
         if (seVersione !== undefined) throw new ConflittoMagazzino(undefined)
-        const r = await f(`${API}/files?fields=id`, {
-          method: 'POST',
-          headers: { ...intestazioni(tk), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: nomeFile, parents: ['appDataFolder'] })
-        })
-        if (!r.ok) throw await errore(r, 'creazione')
-        const { id } = (await r.json()) as { id?: string }
-        if (id === undefined) throw new Error('Drive: creazione senza id')
-        return scriviMedia(tk, id, blocco)
+        const sessione = await iniziaSessione(
+          tk, `${UPLOAD}/files?uploadType=resumable&fields=version`, 'POST', blocco.length,
+          { name: nomeFile, parents: ['appDataFolder'] }
+        )
+        return caricaSessione(sessione, blocco, onProgresso)
       }
       // Esiste: si riscrive solo se la versione combacia con quella vista.
       if (seVersione !== file.version) throw new ConflittoMagazzino(file.version)
-      return scriviMedia(tk, file.id, blocco)
+      const sessione = await iniziaSessione(
+        tk, `${UPLOAD}/files/${file.id}?uploadType=resumable&fields=version`, 'PATCH', blocco.length
+      )
+      return caricaSessione(sessione, blocco, onProgresso)
     }
   }
 }

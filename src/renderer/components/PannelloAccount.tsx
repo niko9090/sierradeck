@@ -96,24 +96,26 @@ function SezioneSync(): React.JSX.Element | null {
 
       {msg !== undefined ? <div className="riga__stato">{msg}</div> : null}
 
-      {inCorso && progresso !== undefined ? (
-        <div className="account__prog">
-          <div className="account__prog-testo">
-            {ETICHETTA_FASE[progresso.fase] ?? progresso.fase}
-            {progresso.totale !== undefined && progresso.fatto !== undefined
-              ? ` — ${progresso.fatto}/${progresso.totale} (${Math.round((progresso.fatto / Math.max(1, progresso.totale)) * 100)}%)`
-              : '…'}
+      {inCorso && progresso !== undefined ? ((): React.JSX.Element => {
+        const trasferimento = progresso.fase === 'carico' || progresso.fase === 'scarico'
+        const haQuota = progresso.totale !== undefined && progresso.fatto !== undefined && progresso.totale > 0
+        const perc = haQuota ? Math.round((progresso.fatto! / progresso.totale!) * 100) : undefined
+        const quota = (n: number): string => trasferimento ? `${(n / 1048576).toFixed(1)} MB` : String(n)
+        return (
+          <div className="account__prog">
+            <div className="account__prog-testo">
+              {ETICHETTA_FASE[progresso.fase] ?? progresso.fase}
+              {haQuota ? ` — ${quota(progresso.fatto!)} / ${quota(progresso.totale!)} (${perc}%)` : '…'}
+            </div>
+            <div className="account__barra">
+              <div
+                className={perc !== undefined ? 'account__barra-riemp' : 'account__barra-riemp account__barra-riemp--indet'}
+                style={perc !== undefined ? { width: `${perc}%` } : undefined}
+              />
+            </div>
           </div>
-          <div className="account__barra">
-            <div
-              className={progresso.totale !== undefined ? 'account__barra-riemp' : 'account__barra-riemp account__barra-riemp--indet'}
-              style={progresso.totale !== undefined && progresso.fatto !== undefined
-                ? { width: `${Math.round((progresso.fatto / Math.max(1, progresso.totale)) * 100)}%` }
-                : undefined}
-            />
-          </div>
-        </div>
-      ) : null}
+        )
+      })() : null}
 
       {/* 1) Drive da collegare */}
       {!drive.connesso ? (

@@ -32,8 +32,8 @@ export type Progresso =
   | { fase: 'raccolgo'; fatto: number; totale: number }
   | { fase: 'comprimo' }
   | { fase: 'cifro' }
-  | { fase: 'carico' }
-  | { fase: 'scarico' }
+  | { fase: 'carico'; fatto?: number; totale?: number }
+  | { fase: 'scarico'; fatto?: number; totale?: number }
   | { fase: 'decifro' }
   | { fase: 'ripristino'; fatto: number; totale: number }
 
@@ -83,7 +83,10 @@ export async function caricaStato(deps: {
   deps.onProgresso?.({ fase: 'cifro' })
   const cifrato = cifra(deps.maestra, pacchetto)
   deps.onProgresso?.({ fase: 'carico' })
-  const { versione } = await deps.magazzino.carica(cifrato, deps.versioneVista)
+  const { versione } = await deps.magazzino.carica(
+    cifrato, deps.versioneVista,
+    (fatto, totale) => deps.onProgresso?.({ fase: 'carico', fatto, totale })
+  )
   return { versione, voci: voci.length }
 }
 
@@ -101,7 +104,9 @@ export async function ripristinaStato(deps: {
   onProgresso?: (p: Progresso) => void
 }): Promise<EsitoRipristina & { versione?: string }> {
   deps.onProgresso?.({ fase: 'scarico' })
-  const contenuto = await deps.magazzino.scarica()
+  const contenuto = await deps.magazzino.scarica(
+    (fatto, totale) => deps.onProgresso?.({ fase: 'scarico', fatto, totale })
+  )
   if (contenuto === undefined) {
     return { trovato: false, scritti: 0, saltati: [], creatoIl: '' }
   }

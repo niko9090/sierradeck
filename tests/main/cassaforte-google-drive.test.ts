@@ -7,6 +7,21 @@ import { ConflittoMagazzino } from '../../src/main/cassaforte/magazzino'
  * risponde alle quattro chiamate dell'adattatore. Registra anche le richieste,
  * per controllare che vadano nel posto giusto con il token giusto.
  */
+/** Legge un corpo di richiesta che può essere un flusso (upload con progresso) o un Buffer. */
+async function leggiCorpo(body: unknown): Promise<Buffer> {
+  if (body !== null && typeof body === 'object' && 'getReader' in body) {
+    const lettore = (body as ReadableStream<Uint8Array>).getReader()
+    const parti: Buffer[] = []
+    for (;;) {
+      const { done, value } = await lettore.read()
+      if (done) break
+      parti.push(Buffer.from(value))
+    }
+    return Buffer.concat(parti)
+  }
+  return Buffer.from((body ?? new Uint8Array()) as Uint8Array)
+}
+
 function driveFinto() {
   let file: { id: string; version: number; content: Buffer } | undefined
   const richieste: { url: string; metodo: string; auth?: string }[] = []
@@ -26,14 +41,15 @@ function driveFinto() {
     if (metodo === 'GET' && /\/drive\/v3\/files\/[^?]+\?alt=media/.test(u)) {
       return new Response(new Uint8Array(file!.content), { status: 200 })
     }
-    // Creo il file (solo metadati).
-    if (metodo === 'POST' && u.startsWith('https://www.googleapis.com/drive/v3/files?')) {
-      file = { id: 'file-1', version: 1, content: Buffer.alloc(0) }
-      return new Response(JSON.stringify({ id: file.id }), { status: 200 })
+    // Apro una sessione di upload ripristinabile (create = POST, aggiorna = PATCH):
+    // rispondo con la Location della sessione, come fa Google.
+    if ((metodo === 'POST' || metodo === 'PATCH') && u.includes('uploadType=resumable')) {
+      if (metodo === 'POST') file = { id: 'file-1', version: file?.version ?? 0, content: Buffer.alloc(0) }
+      return new Response(null, { status: 200, headers: { Location: 'https://upload.local/session/file-1' } })
     }
-    // Riscrivo il contenuto.
-    if (metodo === 'PATCH' && u.includes('/upload/drive/v3/files/')) {
-      file!.content = Buffer.from(init!.body as unknown as Uint8Array)
+    // Ricevo i dati della sessione (un pezzo solo, nei test): li leggo e salvo.
+    if (metodo === 'PUT' && u.includes('/session/')) {
+      file!.content = await leggiCorpo(init?.body)
       file!.version += 1
       return new Response(JSON.stringify({ version: file!.version }), { status: 200 })
     }
@@ -64,8 +80,11 @@ describe('il magazzino su Google Drive', () => {
 
     // L'elenco cerca in appDataFolder, e la creazione mette il file lì.
     expect(drive.richieste.some((r) => r.url.includes('spaces=appDataFolder'))).toBe(true)
-    // Ogni chiamata porta il Bearer token.
-    expect(drive.richieste.every((r) => r.auth === 'Bearer TK-123')).toBe(true)
+    // Ogni chiamata alle API porta il Bearer token. Il PUT alla sessione di upload
+    // no, ed è giusto: l'URL di sessione ripristinabile è già autorizzato da Google.
+    expect(
+      drive.richieste.filter((r) => !r.url.includes('/session/')).every((r) => r.auth === 'Bearer TK-123')
+    ).toBe(true)
   })
 
   it('rifiuta di sovrascrivere se la versione è cambiata (concorrenza ottimista)', async () => {

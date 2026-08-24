@@ -25,16 +25,19 @@ export type Contenuto = {
   versione: string
 }
 
+/** Avanzamento di un trasferimento, in byte: quanti su quanti. Per la barra. */
+export type SegnaProgresso = (fatto: number, totale: number) => void
+
 export interface Magazzino {
   /** Il blocco più recente, o `undefined` se questo utente non ha ancora caricato niente. */
-  scarica: () => Promise<Contenuto | undefined>
+  scarica: (onProgresso?: SegnaProgresso) => Promise<Contenuto | undefined>
   /**
    * Carica il blocco. `seVersione` è l'ultima versione vista da questo PC: se sul
    * magazzino ce n'è una diversa, si rifiuta con `ConflittoMagazzino`. Omesso (o
    * `undefined`) vuol dire «primo caricamento»: si rifiuta se invece qualcosa c'è
    * già, così due primi-avvii non si cancellano a vicenda.
    */
-  carica: (blocco: Buffer, seVersione?: string) => Promise<{ versione: string }>
+  carica: (blocco: Buffer, seVersione?: string, onProgresso?: SegnaProgresso) => Promise<{ versione: string }>
 }
 
 /** Sollevato quando il magazzino ha una versione più nuova di quella attesa: non si sovrascrive. */
@@ -59,20 +62,20 @@ export function magazzinoInMemoria(): Magazzino & { versioneCorrente: () => stri
   }
 
   return {
-    scarica: () =>
-      Promise.resolve(
-        contenuto === undefined
-          ? undefined
-          : { blocco: Buffer.from(contenuto.blocco), versione: contenuto.versione }
-      ),
+    scarica: (onProgresso) => {
+      if (contenuto === undefined) return Promise.resolve(undefined)
+      onProgresso?.(contenuto.blocco.length, contenuto.blocco.length)
+      return Promise.resolve({ blocco: Buffer.from(contenuto.blocco), versione: contenuto.versione })
+    },
 
-    carica: (blocco, seVersione) => {
+    carica: (blocco, seVersione, onProgresso) => {
       const attuale = contenuto?.versione
       // Deve combaciare con quello che c'è: `seVersione` con la versione presente,
       // oppure entrambi assenti (primo caricamento su un magazzino ancora vuoto).
       if (seVersione !== attuale) return Promise.reject(new ConflittoMagazzino(attuale))
       const versione = prossimaVersione()
       contenuto = { blocco: Buffer.from(blocco), versione }
+      onProgresso?.(blocco.length, blocco.length)
       return Promise.resolve({ versione })
     },
 

@@ -464,7 +464,7 @@ if (!app.requestSingleInstanceLock()) {
       let ultimaFase = ''
       const emettiProgresso = (p: import('./cassaforte/motore').Progresso): void => {
         const ora = Date.now()
-        const finePasso = 'totale' in p && p.fatto >= p.totale
+        const finePasso = 'totale' in p && p.totale !== undefined && p.fatto !== undefined && p.fatto >= p.totale
         if (p.fase === ultimaFase && !finePasso && ora - ultimoProgresso < 150) return
         ultimoProgresso = ora
         ultimaFase = p.fase
