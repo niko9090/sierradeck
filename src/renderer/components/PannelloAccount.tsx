@@ -101,7 +101,7 @@ function SezioneSync(): React.JSX.Element | null {
       {msg !== undefined ? <div className="riga__stato">{msg}</div> : null}
 
       {inCorso && progresso !== undefined ? ((): React.JSX.Element => {
-        const trasferimento = progresso.fase === 'carico' || progresso.fase === 'scarico'
+        const trasferimento = ['carico', 'scarico', 'cifro', 'decifro'].includes(progresso.fase)
         const haQuota = progresso.totale !== undefined && progresso.fatto !== undefined && progresso.totale > 0
         const perc = haQuota ? Math.round((progresso.fatto! / progresso.totale!) * 100) : undefined
         const quota = (n: number): string => trasferimento ? `${(n / 1048576).toFixed(1)} MB` : String(n)

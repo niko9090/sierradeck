@@ -68,7 +68,7 @@ describe('il giro completo: pacchetto → cifra → magazzino → decifra → pa
     // PC A: compone, cifra con la sua maestra, carica nel magazzino (il «Drive»).
     const { maestra, cassaforte } = creaCassaforte('la-mia-passphrase')
     const blocco = await componiPacchetto(VOCI, '2026-08-21T10:00:00.000Z')
-    const cifrato = cifra(maestra, blocco)
+    const cifrato = await cifra(maestra, blocco)
 
     const magazzino = magazzinoInMemoria()
     await magazzino.carica(cifrato)
@@ -79,7 +79,7 @@ describe('il giro completo: pacchetto → cifra → magazzino → decifra → pa
     // PC B: stesso account, sblocca con la passphrase, scarica, decifra, rilegge.
     const { sblocca } = await import('../../src/main/cassaforte/cifratura')
     const maestraB = sblocca(cassaforte, 'la-mia-passphrase')
-    const inChiaro = decifra(maestraB!, giu!.blocco)
+    const inChiaro = await decifra(maestraB!, giu!.blocco)
     const riletto = await leggiPacchetto(inChiaro!)
     expect(riletto?.voci.map((v) => v.percorso)).toEqual(VOCI.map((v) => v.percorso))
     expect(riletto!.voci[0]!.contenuto.toString('utf8')).toContain('SierraDeck')

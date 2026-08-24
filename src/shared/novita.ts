@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.57',
+    righe: [
+      '**Ora anche la cifratura non blocca più l’app.** Era l’ultimo pezzo che girava tutto in un colpo: con tanti dati l’app risultava «Non risponde». Ora cifra e decifra a blocchi, cedendo il controllo, e mostrano «Cifro — 30 / 120 MB». Salvataggio e ripristino restano reattivi dall’inizio alla fine.'
+    ]
+  },
+  {
     versione: '0.9.56',
     righe: [
       '**Il menu Account è nuovo, chiaro e più completo.** Ora è diviso in sezioni — **Google Drive**, **Cassaforte**, **Sincronizzazione** — ognuna con il suo stato a colpo d’occhio. E puoi **cambiare la passphrase** quando vuoi (la chiave di recupero resta valida, i dati non si ricifrano).'

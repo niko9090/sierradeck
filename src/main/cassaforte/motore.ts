@@ -31,10 +31,10 @@ import type { Magazzino } from './magazzino'
 export type Progresso =
   | { fase: 'raccolgo'; fatto: number; totale: number }
   | { fase: 'comprimo'; fatto?: number; totale?: number }
-  | { fase: 'cifro' }
+  | { fase: 'cifro'; fatto?: number; totale?: number }
   | { fase: 'carico'; fatto?: number; totale?: number }
   | { fase: 'scarico'; fatto?: number; totale?: number }
-  | { fase: 'decifro' }
+  | { fase: 'decifro'; fatto?: number; totale?: number }
   | { fase: 'ripristino'; fatto: number; totale: number }
 
 export type EsitoCarica = {
@@ -84,7 +84,10 @@ export async function caricaStato(deps: {
     (fatto, totale) => deps.onProgresso?.({ fase: 'comprimo', fatto, totale })
   )
   deps.onProgresso?.({ fase: 'cifro' })
-  const cifrato = cifra(deps.maestra, pacchetto)
+  const cifrato = await cifra(
+    deps.maestra, pacchetto,
+    (fatto, totale) => deps.onProgresso?.({ fase: 'cifro', fatto, totale })
+  )
   deps.onProgresso?.({ fase: 'carico' })
   const { versione } = await deps.magazzino.carica(
     cifrato, deps.versioneVista,
@@ -114,7 +117,10 @@ export async function ripristinaStato(deps: {
     return { trovato: false, scritti: 0, saltati: [], creatoIl: '' }
   }
   deps.onProgresso?.({ fase: 'decifro' })
-  const inChiaro = decifra(deps.maestra, contenuto.blocco)
+  const inChiaro = await decifra(
+    deps.maestra, contenuto.blocco,
+    (fatto, totale) => deps.onProgresso?.({ fase: 'decifro', fatto, totale })
+  )
   if (inChiaro === undefined) throw new CassaforteIlleggibile()
   const pacchetto = await leggiPacchetto(inChiaro)
   if (pacchetto === undefined) throw new CassaforteIlleggibile()

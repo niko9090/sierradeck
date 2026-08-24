@@ -5,6 +5,7 @@ import {
   createDecipheriv,
   timingSafeEqual
 } from 'node:crypto'
+import { setImmediate as cediControllo } from 'node:timers/promises'
 
 /**
  * La cifratura end-to-end della cassaforte.
@@ -194,14 +195,63 @@ export function cambiaPassphrase(cassaforte: Cassaforte, maestra: Buffer, nuova:
   }
 }
 
-/** Cifra dei dati con la chiave-maestra sbloccata. È ciò che si carica nella cassaforte. */
-export function cifra(maestra: Buffer, dati: Buffer): Buffer {
-  return avvolgi(maestra, dati)
+/** Quanto AES si fa in un colpo prima di cedere il controllo: 4 MB tiene fluida la barra senza pesare. */
+const PEZZO_AES = 4 * 1024 * 1024
+
+/**
+ * Cifra dei dati con la chiave-maestra, **a pezzi e cedendo il controllo**.
+ *
+ * `avvolgi` (sincrono) va bene per la chiave-maestra, che è piccola; ma i dati
+ * veri possono essere centinaia di MB, e cifrarli in un unico `update` sincrono
+ * **bloccava** il processo. Qui si procede a blocchi da 4 MB, restituendo il
+ * controllo all'event loop fra uno e l'altro: l'app resta viva e mostra il
+ * progresso. Il formato è identico (`iv+tag+cifrato`), così `decifra` non cambia
+ * logica.
+ */
+export async function cifra(
+  maestra: Buffer, dati: Buffer, onProgresso?: (fatto: number, totale: number) => void
+): Promise<Buffer> {
+  const iv = randomBytes(LUNG_IV)
+  const cifratore = createCipheriv('aes-256-gcm', maestra, iv)
+  const pezzi: Buffer[] = []
+  let off = 0
+  while (off < dati.length) {
+    const fine = Math.min(off + PEZZO_AES, dati.length)
+    pezzi.push(cifratore.update(dati.subarray(off, fine)))
+    off = fine
+    onProgresso?.(off, dati.length)
+    await cediControllo()
+  }
+  pezzi.push(cifratore.final())
+  const tag = cifratore.getAuthTag()
+  return Buffer.concat([iv, tag, ...pezzi])
 }
 
-/** Decifra un blocco con la chiave-maestra. `undefined` se manomesso o con la chiave sbagliata. */
-export function decifra(maestra: Buffer, blocco: Buffer): Buffer | undefined {
-  return svolgi(maestra, blocco)
+/** Decifra un blocco con la chiave-maestra, a pezzi. `undefined` se manomesso o con la chiave sbagliata. */
+export async function decifra(
+  maestra: Buffer, blocco: Buffer, onProgresso?: (fatto: number, totale: number) => void
+): Promise<Buffer | undefined> {
+  if (blocco.length < LUNG_IV + LUNG_TAG) return undefined
+  const iv = blocco.subarray(0, LUNG_IV)
+  const tag = blocco.subarray(LUNG_IV, LUNG_IV + LUNG_TAG)
+  const cifrato = blocco.subarray(LUNG_IV + LUNG_TAG)
+  try {
+    const decifratore = createDecipheriv('aes-256-gcm', maestra, iv)
+    decifratore.setAuthTag(tag)
+    const pezzi: Buffer[] = []
+    let off = 0
+    while (off < cifrato.length) {
+      const fine = Math.min(off + PEZZO_AES, cifrato.length)
+      pezzi.push(decifratore.update(cifrato.subarray(off, fine)))
+      off = fine
+      onProgresso?.(off, cifrato.length)
+      await cediControllo()
+    }
+    pezzi.push(decifratore.final()) // solleva se il tag non combacia (dati manomessi o chiave sbagliata)
+    return Buffer.concat(pezzi)
+  } catch {
+    return undefined
+  }
 }
 
 /** Vero se due chiavi-maestra sono la stessa, in tempo costante: per i test e per i controlli di coerenza. */
