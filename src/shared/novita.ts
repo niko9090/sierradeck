@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.60',
+    righe: [
+      '**Il thread separato ora parte davvero, anche nell’app installata.** Nella versione impacchettata il worker della sincronizzazione non riusciva ad avviarsi (restava nel file compresso dell’app) e si ricadeva sul metodo che bloccava. Ora viene messo su disco e caricato da lì: salva e ripristina restano fluidi per davvero.'
+    ]
+  },
+  {
     versione: '0.9.59',
     righe: [
       '**Salvataggio e ripristino ora girano su un thread separato: l’app non si blocca MAI, per quanti dati tu abbia.** Tutto il lavoro pesante (compressione, cifratura, disco) è fuori dal processo dell’interfaccia — niente più «Non risponde».',
