@@ -7,13 +7,19 @@ import { gzipSync, gunzipSync } from 'node:zlib'
  * È volutamente **generico**: un elenco di voci `percorso → contenuto`, non uno
  * schema rigido. Cosa ci vada dentro — le trascrizioni delle chat, il quaderno,
  * i workspace, le impostazioni — lo decide chi lo compone leggendo i file giusti;
- * qui si tiene solo il contenitore. Così aggiungere qualcosa domani non cambia il
- * formato, e il formato resta provabile senza toccare il disco.
+ * qui si tiene solo il contenitore.
  *
- * Un blocco solo perché è quello che la cassaforte cifra e il magazzino carica:
- * un file cifrato opaco. Compresso (gzip) prima di cifrare, perché trascrizioni e
- * note sono testo e si stringono parecchio — e comprimere **dopo** aver cifrato
- * non servirebbe a niente (il cifrato è incomprimibile).
+ * Formato **binario**, non JSON. La prima versione impacchettava in JSON con i
+ * contenuti in base64: elegante, ma costruiva **una sola stringa gigante** con
+ * dentro tutto, e con molte trascrizioni si superava il limite massimo di una
+ * stringa JavaScript (~512 MB) → «Invalid string length», e il salvataggio
+ * falliva. Qui si concatenano Buffer con lunghezze davanti: nessuna stringa da
+ * far crescere, nessun base64 (che gonfiava del 33%), e il tetto diventa quello
+ * dei Buffer (ordine dei GB), non dei mezzo giga.
+ *
+ * Compresso (gzip) prima di cifrare, perché trascrizioni e note sono testo e si
+ * stringono parecchio — e comprimere **dopo** aver cifrato non servirebbe (il
+ * cifrato è incomprimibile).
  */
 
 export type Voce = {
@@ -29,14 +35,28 @@ export type Pacchetto = {
   voci: Voce[]
 }
 
+// Un marcatore che dice «questo è un pacchetto SierraDeck, versione 1»: leggerlo
+// per primo scarta subito un blocco che non è nostro senza tentare di
+// interpretarlo. La cifra è la versione del formato.
+const MAGIC = Buffer.from('SDPK\x01', 'binary')
+
+/** Un campo con la lunghezza (uint32 big-endian) davanti: così in lettura si sa dove finisce. */
+function campo(byte: Buffer): Buffer {
+  const testa = Buffer.allocUnsafe(4)
+  testa.writeUInt32BE(byte.length, 0)
+  return Buffer.concat([testa, byte])
+}
+
 /** Impacchetta le voci in un blocco compresso. `creatoIl` arriva da fuori (niente orologio qui). */
 export function componiPacchetto(voci: Voce[], creatoIl: string): Buffer {
-  const grezzo = {
-    versione: 1 as const,
-    creatoIl,
-    voci: voci.map((v) => ({ percorso: v.percorso, contenuto: v.contenuto.toString('base64') }))
+  const conta = Buffer.allocUnsafe(4)
+  conta.writeUInt32BE(voci.length, 0)
+  const pezzi: Buffer[] = [MAGIC, campo(Buffer.from(creatoIl, 'utf8')), conta]
+  for (const v of voci) {
+    pezzi.push(campo(Buffer.from(v.percorso, 'utf8')))
+    pezzi.push(campo(v.contenuto))
   }
-  return gzipSync(Buffer.from(JSON.stringify(grezzo), 'utf8'))
+  return gzipSync(Buffer.concat(pezzi))
 }
 
 /**
@@ -45,28 +65,41 @@ export function componiPacchetto(voci: Voce[], creatoIl: string): Buffer {
  * decide cosa fare di un pacchetto illeggibile, non lo scopre da un'eccezione.
  */
 export function leggiPacchetto(blocco: Buffer): Pacchetto | undefined {
-  let grezzo: unknown
+  let dati: Buffer
   try {
-    grezzo = JSON.parse(gunzipSync(blocco).toString('utf8'))
+    dati = gunzipSync(blocco)
   } catch {
     return undefined
   }
-  if (typeof grezzo !== 'object' || grezzo === null) return undefined
-  const o = grezzo as Record<string, unknown>
-  // Una versione più alta di quella che conosciamo si rifiuta, non si interpreta
-  // a caso: potrebbe avere campi con lo stesso nome e significato diverso.
-  if (o.versione !== 1 || !Array.isArray(o.voci)) return undefined
+  if (dati.length < MAGIC.length || !dati.subarray(0, MAGIC.length).equals(MAGIC)) return undefined
+
+  let pos = MAGIC.length
+  // Legge un campo lunghezza+byte, controllando di non uscire dal buffer: un
+  // blocco corrotto non deve leggere memoria a caso, deve arrendersi.
+  const leggiCampo = (): Buffer | undefined => {
+    if (pos + 4 > dati.length) return undefined
+    const lung = dati.readUInt32BE(pos)
+    pos += 4
+    if (pos + lung > dati.length) return undefined
+    const b = dati.subarray(pos, pos + lung)
+    pos += lung
+    return b
+  }
+
+  const creatoIlB = leggiCampo()
+  if (creatoIlB === undefined) return undefined
+  if (pos + 4 > dati.length) return undefined
+  const quante = dati.readUInt32BE(pos)
+  pos += 4
 
   const voci: Voce[] = []
-  for (const v of o.voci) {
-    if (typeof v !== 'object' || v === null) continue
-    const vo = v as Record<string, unknown>
-    if (typeof vo.percorso !== 'string' || typeof vo.contenuto !== 'string') continue
-    voci.push({ percorso: vo.percorso, contenuto: Buffer.from(vo.contenuto, 'base64') })
+  for (let i = 0; i < quante; i++) {
+    const percorsoB = leggiCampo()
+    const contenuto = leggiCampo()
+    if (percorsoB === undefined || contenuto === undefined) return undefined
+    // Copia il contenuto: `subarray` è una vista sul buffer decompresso, e
+    // tenerne viva una fetta terrebbe vivo tutto il blocco.
+    voci.push({ percorso: percorsoB.toString('utf8'), contenuto: Buffer.from(contenuto) })
   }
-  return {
-    versione: 1,
-    creatoIl: typeof o.creatoIl === 'string' ? o.creatoIl : '',
-    voci
-  }
+  return { versione: 1, creatoIl: creatoIlB.toString('utf8'), voci }
 }
