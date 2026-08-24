@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.55',
+    righe: [
+      '**Anche la compressione non blocca più l’app.** Prima, per preparare il salvataggio, univa tutti i file in un unico blocco enorme in un colpo solo (sincrono) e l’app si piantava. Ora scrive i dati a flusso dentro la compressione, un file alla volta, e mostra «Comprimo — 500/1200» che avanza. Niente più freeze.'
+    ]
+  },
+  {
     versione: '0.9.54',
     righe: [
       '**Il caricamento e il ripristino ora mostrano la percentuale, e non bloccano più l’app.** Il trasferimento sul Google Drive va a pezzi (upload ripristinabile ufficiale): vedi «Carico sul Drive — 12,4 / 48,0 MB (26%)» che sale, invece di un’attesa muta con l’app che sembra non rispondere.'

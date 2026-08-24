@@ -1,11 +1,8 @@
-import { gzip, gunzip } from 'node:zlib'
+import { createGzip, gunzip } from 'node:zlib'
+import { once } from 'node:events'
 import { promisify } from 'node:util'
 
-// **Asincroni**, non `...Sync`: la versione sincrona blocca il processo principale
-// per tutto il tempo della compressione — con molte trascrizioni, secondi in cui
-// l'intera app si congela (le chat comprese). Così invece il lavoro va sul pool
-// di libuv e l'interfaccia resta viva, libera di mostrare il progresso.
-const comprimi = promisify(gzip)
+// La decompressione la fa la versione asincrona (sul pool di libuv, non blocca).
 const decomprimi = promisify(gunzip)
 
 /**
@@ -48,23 +45,51 @@ export type Pacchetto = {
 // interpretarlo. La cifra è la versione del formato.
 const MAGIC = Buffer.from('SDPK\x01', 'binary')
 
-/** Un campo con la lunghezza (uint32 big-endian) davanti: così in lettura si sa dove finisce. */
-function campo(byte: Buffer): Buffer {
-  const testa = Buffer.allocUnsafe(4)
-  testa.writeUInt32BE(byte.length, 0)
-  return Buffer.concat([testa, byte])
+/** Una lunghezza uint32 big-endian, come intestazione di un campo. */
+function testa(lung: number): Buffer {
+  const b = Buffer.allocUnsafe(4)
+  b.writeUInt32BE(lung, 0)
+  return b
 }
 
-/** Impacchetta le voci in un blocco compresso. `creatoIl` arriva da fuori (niente orologio qui). */
-export async function componiPacchetto(voci: Voce[], creatoIl: string): Promise<Buffer> {
-  const conta = Buffer.allocUnsafe(4)
-  conta.writeUInt32BE(voci.length, 0)
-  const pezzi: Buffer[] = [MAGIC, campo(Buffer.from(creatoIl, 'utf8')), conta]
-  for (const v of voci) {
-    pezzi.push(campo(Buffer.from(v.percorso, 'utf8')))
-    pezzi.push(campo(v.contenuto))
+/**
+ * Impacchetta le voci in un blocco compresso. `creatoIl` arriva da fuori.
+ *
+ * Scrive i dati **a flusso dentro la gzip**, un file alla volta, invece di
+ * concatenare prima tutto in un unico buffer gigante: quel `Buffer.concat` era
+ * sincrono e con centinaia di MB **bloccava** il processo per secondi. Qui ogni
+ * `write` cede il controllo quando la gzip è piena (`drain`), così l'interfaccia
+ * resta viva e i contenuti dei file non vengono nemmeno ricopiati.
+ */
+export async function componiPacchetto(
+  voci: Voce[],
+  creatoIl: string,
+  onProgresso?: (fatto: number, totale: number) => void
+): Promise<Buffer> {
+  const gz = createGzip()
+  const usciti: Buffer[] = []
+  gz.on('data', (c: Buffer) => usciti.push(c))
+  const finito = once(gz, 'end')
+
+  // Scrive rispettando la contropressione: se il buffer della gzip è pieno,
+  // aspetta che si svuoti — ed è lì che l'event loop respira.
+  const scrivi = async (b: Buffer): Promise<void> => {
+    if (!gz.write(b)) await once(gz, 'drain')
   }
-  return comprimi(Buffer.concat(pezzi))
+  const scriviCampo = async (b: Buffer): Promise<void> => { await scrivi(testa(b.length)); await scrivi(b) }
+
+  await scrivi(MAGIC)
+  await scriviCampo(Buffer.from(creatoIl, 'utf8'))
+  await scrivi(testa(voci.length))
+  let fatto = 0
+  for (const v of voci) {
+    await scriviCampo(Buffer.from(v.percorso, 'utf8'))
+    await scriviCampo(v.contenuto)
+    onProgresso?.(++fatto, voci.length)
+  }
+  gz.end()
+  await finito
+  return Buffer.concat(usciti)
 }
 
 /**

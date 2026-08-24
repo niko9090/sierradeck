@@ -30,7 +30,7 @@ import type { Magazzino } from './magazzino'
  */
 export type Progresso =
   | { fase: 'raccolgo'; fatto: number; totale: number }
-  | { fase: 'comprimo' }
+  | { fase: 'comprimo'; fatto?: number; totale?: number }
   | { fase: 'cifro' }
   | { fase: 'carico'; fatto?: number; totale?: number }
   | { fase: 'scarico'; fatto?: number; totale?: number }
@@ -79,7 +79,10 @@ export async function caricaStato(deps: {
 }): Promise<EsitoCarica> {
   const voci = await raccogli(deps.radici, (fatto, totale) => deps.onProgresso?.({ fase: 'raccolgo', fatto, totale }))
   deps.onProgresso?.({ fase: 'comprimo' })
-  const pacchetto = await componiPacchetto(voci, deps.adesso())
+  const pacchetto = await componiPacchetto(
+    voci, deps.adesso(),
+    (fatto, totale) => deps.onProgresso?.({ fase: 'comprimo', fatto, totale })
+  )
   deps.onProgresso?.({ fase: 'cifro' })
   const cifrato = cifra(deps.maestra, pacchetto)
   deps.onProgresso?.({ fase: 'carico' })
