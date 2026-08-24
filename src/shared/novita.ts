@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.58',
+    righe: [
+      '**Se il salvataggio sul Drive è «sporco» (l’app si era chiusa male), ora puoi sovrascriverlo senza ripristinare.** Quando compare «Sul Drive c’è già un salvataggio che questo PC non conosce», hai due scelte chiare: **«Sovrascrivi col mio»** (carica questo PC, butta quello vecchio) oppure **«Ripristina quello sul Drive»**. Niente più vicolo cieco.'
+    ]
+  },
+  {
     versione: '0.9.57',
     righe: [
       '**Ora anche la cifratura non blocca più l’app.** Era l’ultimo pezzo che girava tutto in un colpo: con tanti dati l’app risultava «Non risponde». Ora cifra e decifra a blocchi, cedendo il controllo, e mostrano «Cifro — 30 / 120 MB». Salvataggio e ripristino restano reattivi dall’inizio alla fine.'

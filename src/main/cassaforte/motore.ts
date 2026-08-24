@@ -1,7 +1,7 @@
 import { cifra, decifra } from './cifratura'
 import { componiPacchetto, leggiPacchetto } from './pacchetto'
 import { raccogli, ripristina, type Radice } from './raccolta'
-import type { Magazzino } from './magazzino'
+import { ConflittoMagazzino, type Magazzino } from './magazzino'
 
 /**
  * Il motore: mette in fila cifratura, pacchetto, raccolta e magazzino nei due
@@ -75,6 +75,14 @@ export async function caricaStato(deps: {
   magazzino: Magazzino
   adesso: () => string
   versioneVista?: string
+  /**
+   * Se il magazzino ha una versione diversa da quella attesa e `sovrascrivi` è
+   * vero, si carica lo stesso adottando la versione presente — invece di
+   * sollevare `ConflittoMagazzino`. È la scelta esplicita «il salvataggio sul
+   * Drive è mio e sporco (ho chiuso male l'app): buttalo, vale questo PC». Il
+   * blocco già cifrato si riusa: niente doppio lavoro.
+   */
+  sovrascrivi?: boolean
   onProgresso?: (p: Progresso) => void
 }): Promise<EsitoCarica> {
   const voci = await raccogli(deps.radici, (fatto, totale) => deps.onProgresso?.({ fase: 'raccolgo', fatto, totale }))
@@ -89,11 +97,18 @@ export async function caricaStato(deps: {
     (fatto, totale) => deps.onProgresso?.({ fase: 'cifro', fatto, totale })
   )
   deps.onProgresso?.({ fase: 'carico' })
-  const { versione } = await deps.magazzino.carica(
-    cifrato, deps.versioneVista,
-    (fatto, totale) => deps.onProgresso?.({ fase: 'carico', fatto, totale })
-  )
-  return { versione, voci: voci.length }
+  const suProgresso = (fatto: number, totale: number): void => deps.onProgresso?.({ fase: 'carico', fatto, totale })
+  try {
+    const { versione } = await deps.magazzino.carica(cifrato, deps.versioneVista, suProgresso)
+    return { versione, voci: voci.length }
+  } catch (e) {
+    if (deps.sovrascrivi === true && e instanceof ConflittoMagazzino) {
+      // Riprova adottando la versione che c'è sul magazzino: sovrascrive.
+      const { versione } = await deps.magazzino.carica(cifrato, e.versioneAttuale, suProgresso)
+      return { versione, voci: voci.length }
+    }
+    throw e
+  }
 }
 
 /**

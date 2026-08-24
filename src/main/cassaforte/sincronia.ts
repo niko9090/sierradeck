@@ -50,7 +50,7 @@ export type Sincronia = {
   sbloccaConRecupero: (codice: string) => Promise<EsitoSemplice>
   cambiaPassphrase: (vecchia: string, nuova: string) => Promise<EsitoSemplice>
   blocca: () => void
-  salva: () => Promise<{ ok: boolean; voci?: number; messaggio?: string }>
+  salva: (forza?: boolean) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; messaggio?: string }>
   ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string }>
 }
 
@@ -192,7 +192,7 @@ export function apriSincronia(deps: {
 
     blocca() { maestra = undefined },
 
-    async salva() {
+    async salva(forza = false) {
       if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
       if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
       const radici = radiciDaSincronizzare(deps.dati, deps.radiceClaude)
@@ -201,13 +201,16 @@ export function apriSincronia(deps: {
         const esito = await caricaStato({
           radici, maestra, magazzino: deps.magazzino(), adesso,
           ...(s.versione !== undefined ? { versioneVista: s.versione } : {}),
+          ...(forza ? { sovrascrivi: true } : {}),
           ...(deps.emettiProgresso !== undefined ? { onProgresso: deps.emettiProgresso } : {})
         })
         scriviStato({ versione: esito.versione, ultimoSalvataggio: adesso() })
         return { ok: true, voci: esito.voci }
       } catch (e) {
         if (e instanceof ConflittoMagazzino) {
-          return { ok: false, messaggio: 'Un altro PC ha salvato dopo di te: ripristina prima, poi risalva.' }
+          // Non un errore secco: c'è un salvataggio sul Drive che questo PC non
+          // conosce. Chi chiama può ripristinarlo o sovrascriverlo (`forza`).
+          return { ok: false, conflitto: true, messaggio: 'Sul Drive c’è già un salvataggio che questo PC non conosce.' }
         }
         return { ok: false, messaggio: messaggioDi(e) }
       }

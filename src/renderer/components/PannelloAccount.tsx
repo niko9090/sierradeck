@@ -42,6 +42,7 @@ function SezioneSync(): React.JSX.Element | null {
   const [pwNuova2, setPwNuova2] = useState('')
   const [inCorso, setInCorso] = useState(false)
   const [msg, setMsg] = useState<string | undefined>(undefined)
+  const [conflitto, setConflitto] = useState(false)
   const [progresso, setProgresso] = useState<{ fase: string; fatto?: number; totale?: number } | undefined>(undefined)
 
   const aggiorna = (): void => {
@@ -71,15 +72,20 @@ function SezioneSync(): React.JSX.Element | null {
       : window.gestore.sync.sblocca(pw)
     ).then((r) => { if (r.ok) { setPw(''); setRecupero('') } else setMsg(r.messaggio ?? 'sblocco non riuscito') })
   )
-  const salva = (): void => conInCorso(
-    window.gestore.sync.salva().then((r) =>
-      setMsg(r.ok ? `Salvato ✓ (${r.voci ?? 0} file cifrati)` : (r.messaggio ?? 'salvataggio non riuscito')))
+  const salva = (forza = false): void => conInCorso(
+    window.gestore.sync.salva(forza).then((r) => {
+      if (r.ok) { setConflitto(false); setMsg(`Salvato ✓ (${r.voci ?? 0} file cifrati)`) }
+      else if (r.conflitto === true) { setConflitto(true); setMsg(r.messaggio ?? 'conflitto sul Drive') }
+      else setMsg(r.messaggio ?? 'salvataggio non riuscito')
+    })
   )
   const ripristina = (): void => conInCorso(
-    window.gestore.sync.ripristina().then((r) =>
+    window.gestore.sync.ripristina().then((r) => {
+      setConflitto(false)
       setMsg(r.ok
         ? (r.niente === true ? 'Niente da ripristinare (ancora nessun salvataggio).' : `Ripristinato ✓ (${r.scritti ?? 0} file). Riavvia per vedere tutto.`)
-        : (r.messaggio ?? 'ripristino non riuscito')))
+        : (r.messaggio ?? 'ripristino non riuscito'))
+    })
   )
   const blocca = (): void => conInCorso(window.gestore.sync.blocca())
   const scollega = (): void => conInCorso(window.gestore.drive.disconnetti())
@@ -227,17 +233,34 @@ function SezioneSync(): React.JSX.Element | null {
       {drive.connesso && sync.sbloccato && !cambiaAperto && chiaveRecupero === undefined ? (
         <section className="account__sez">
           <div className="account__sez-tit"><span>Sincronizzazione</span></div>
-          <p className="riga__stato account__nota">
-            {sync.ultimoSalvataggio !== undefined
-              ? `Ultimo salvataggio: ${new Date(sync.ultimoSalvataggio).toLocaleString()}.`
-              : 'Non hai ancora salvato. Premi «Salva ora» per mettere le tue chat al sicuro nel Drive.'}
-          </p>
-          <div className="account__tasti">
-            <button className="tasto" onClick={ripristina} disabled={inCorso}>Ripristina</button>
-            <button className="tasto tasto--primario" onClick={salva} disabled={inCorso}>
-              {inCorso ? 'un attimo…' : 'Salva ora'}
-            </button>
-          </div>
+          {conflitto ? (
+            <>
+              <p className="riga__stato account__nota">
+                Sul Drive c’è già un salvataggio che questo PC non conosce — capita se l’app si è chiusa male.
+                Puoi <strong>caricare questo PC sovrascrivendolo</strong>, oppure portarti giù quello che c’è.
+              </p>
+              <div className="account__tasti">
+                <button className="tasto" onClick={ripristina} disabled={inCorso}>Ripristina quello sul Drive</button>
+                <button className="tasto tasto--primario" onClick={() => salva(true)} disabled={inCorso}>
+                  {inCorso ? 'un attimo…' : 'Sovrascrivi col mio'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="riga__stato account__nota">
+                {sync.ultimoSalvataggio !== undefined
+                  ? `Ultimo salvataggio: ${new Date(sync.ultimoSalvataggio).toLocaleString()}.`
+                  : 'Non hai ancora salvato. Premi «Salva ora» per mettere le tue chat al sicuro nel Drive.'}
+              </p>
+              <div className="account__tasti">
+                <button className="tasto" onClick={ripristina} disabled={inCorso}>Ripristina</button>
+                <button className="tasto tasto--primario" onClick={() => salva()} disabled={inCorso}>
+                  {inCorso ? 'un attimo…' : 'Salva ora'}
+                </button>
+              </div>
+            </>
+          )}
         </section>
       ) : null}
     </div>

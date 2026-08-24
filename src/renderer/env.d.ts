@@ -99,7 +99,7 @@ declare global {
         sbloccaRecupero: (codice: string) => Promise<{ ok: boolean; messaggio?: string }>
         cambiaPassphrase: (vecchia: string, nuova: string) => Promise<{ ok: boolean; messaggio?: string }>
         blocca: () => Promise<void>
-        salva: () => Promise<{ ok: boolean; voci?: number; messaggio?: string }>
+        salva: (forza?: boolean) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; messaggio?: string }>
         ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string }>
         onProgresso: (cb: (p: {
           fase: 'raccolgo' | 'comprimo' | 'cifro' | 'carico' | 'scarico' | 'decifro' | 'ripristino'

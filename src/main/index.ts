@@ -491,7 +491,7 @@ if (!app.requestSingleInstanceLock()) {
           ? sincronia.cambiaPassphrase(vecchia, nuova)
           : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
       ipcMain.handle('sync:blocca', () => { sincronia.blocca() })
-      ipcMain.handle('sync:salva', () => sincronia.salva())
+      ipcMain.handle('sync:salva', (_e, forza: unknown) => sincronia.salva(forza === true))
       ipcMain.handle('sync:ripristina', () => sincronia.ripristina())
 
       const clientAutopilota = creaClientAutopilota({

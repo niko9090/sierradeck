@@ -128,6 +128,35 @@ describe('sincronia: giro completo fra due PC', () => {
     expect((await syncC.sbloccaConRecupero(chiaveRecupero!)).ok).toBe(true)
   })
 
+  it('su un salvataggio sul Drive che questo PC non conosce: conflitto, poi «sovrascrivi» carica lo stesso', async () => {
+    const drive = driveCondiviso()
+    // PC A salva (crea il file sul Drive).
+    const a = pc('A'); traccia(a)
+    writeFileSync(join(a.dati, 'workspaces.json'), '{"da":"A"}', 'utf8')
+    const syncA = apriSincronia({ dati: a.dati, radiceClaude: a.claude, driveConnesso: () => true, magazzino: drive })
+    await syncA.creaPassphrase('passphrase-conflitto')
+    expect((await syncA.salva()).ok).toBe(true)
+
+    // PC B: stessa cassaforte (scaricata), ma senza versione locale → salvare dà conflitto.
+    const b = pc('B'); traccia(b)
+    writeFileSync(join(b.dati, 'workspaces.json'), '{"da":"B"}', 'utf8')
+    const syncB = apriSincronia({ dati: b.dati, radiceClaude: b.claude, driveConnesso: () => true, magazzino: drive })
+    await syncB.sblocca('passphrase-conflitto')
+    const primo = await syncB.salva()
+    expect(primo.ok).toBe(false)
+    expect(primo.conflitto).toBe(true)
+
+    // Con «forza» sovrascrive.
+    expect((await syncB.salva(true)).ok).toBe(true)
+
+    // Ora sul Drive c'è la versione di B: un PC C che ripristina vede «da B».
+    const c = pc('C'); traccia(c)
+    const syncC = apriSincronia({ dati: c.dati, radiceClaude: c.claude, driveConnesso: () => true, magazzino: drive })
+    await syncC.sblocca('passphrase-conflitto')
+    await syncC.ripristina()
+    expect(readFileSync(join(c.dati, 'workspaces.json'), 'utf8')).toBe('{"da":"B"}')
+  })
+
   it('senza sblocco non salva né ripristina', async () => {
     const drive = driveCondiviso()
     const a = pc('A'); traccia(a)
