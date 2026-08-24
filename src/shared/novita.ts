@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.48',
+    righe: [
+      '**Primo passo della sincronizzazione: collega il tuo Google Drive.** Da **Account**, un clic su «Connetti Google Drive» apre il consenso nel browser e aggancia il tuo Drive — dove, cifrati, vivranno i tuoi dati per ritrovarli su un altro PC. Per ora si connette e basta: salvataggio e ripristino arrivano subito dopo.'
+    ]
+  },
+  {
     versione: '0.9.47',
     righe: [
       '**Ora le chat scrivono nel quaderno da sole.** Ogni chat aperta in SierraDeck ha l’obbligo di annotare nel quaderno del progetto (in `.sierradeck/quaderno/`) le cose utili che impara — decisioni, vincoli, come funziona una parte, un errore risolto e perché — e di ricontrollare di averlo fatto prima di finire. Il quaderno smette di riempirsi solo a mano: si riempie mentre lavori.'

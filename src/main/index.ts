@@ -60,6 +60,7 @@ import { creaAggiornamenti } from './aggiornamenti'
 import { claudeDaAggiornare, notaClaude } from './claude-versione'
 import { resolveClaudeCommand } from './config'
 import { leggiAccesso } from './accesso'
+import { apriContoDrive } from './cassaforte/conto-drive'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { unicoLayout, workspaceDellaSessione } from '@shared/workspace'
@@ -436,6 +437,21 @@ if (!app.requestSingleInstanceLock()) {
           }
         }
       })
+      // Il Drive dell'utente (BYOS): connessione e stato. Il consenso apre il
+      // browser di sistema — è il main a poterlo fare (shell.openExternal) e a
+      // custodire i token, come per l'account e la cassaforte.
+      const contoDrive = apriContoDrive(dati)
+      ipcMain.handle('drive:stato', () => contoDrive.stato())
+      ipcMain.handle('drive:connetti', async () => {
+        try {
+          await contoDrive.connetti((url) => { void shell.openExternal(url) })
+          return { ok: true }
+        } catch (err) {
+          return { ok: false, messaggio: err instanceof Error ? err.message : String(err) }
+        }
+      })
+      ipcMain.handle('drive:disconnetti', () => { contoDrive.disconnetti() })
+
       const clientAutopilota = creaClientAutopilota({
         porta: PORTA_AUTOPILOTA,
         avviaServizio: avviaServizioAutopilota,

@@ -1870,6 +1870,17 @@ select.comando-riquadro option {
 }
 .account__tasti { display: flex; justify-content: flex-end; gap: var(--s2); }
 
+.account__drive {
+  display: flex; flex-direction: column; gap: var(--s2);
+  padding: var(--s3);
+  border: 1px solid var(--incisione);
+  border-radius: var(--raggio);
+  background: var(--fondo-cupo);
+}
+.account__driga { display: flex; align-items: center; justify-content: space-between; font-size: var(--t2); }
+.account__pallino { font-size: var(--t1); opacity: .7; }
+.account__pallino--ok { color: #57d38c; opacity: 1; }
+
 /* ─── la schermata dell'accesso all'avvio: a tutto schermo, viva ─── */
 .accesso-schermata {
   position: fixed;

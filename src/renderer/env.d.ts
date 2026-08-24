@@ -84,6 +84,11 @@ declare global {
         reinvia: (email: string) => Promise<{ ok: boolean; messaggio?: string }>
         onCambiato: (cb: (utente: import('@shared/account').Utente | null) => void) => () => void
       }
+      drive: {
+        stato: () => Promise<{ configurato: boolean; connesso: boolean }>
+        connetti: () => Promise<{ ok: boolean; messaggio?: string }>
+        disconnetti: () => Promise<void>
+      }
       chiavi: {
         stato: () => Promise<{ allAvvio: boolean; workspace: string[] }>
         impostaAvvio: (parola: string) => Promise<{ allAvvio: boolean; workspace: string[] }>

@@ -191,6 +191,14 @@ contextBridge.exposeInMainWorld('gestore', {
       return () => ipcRenderer.off('account:cambiato', h)
     }
   },
+  /** Il Drive dell'utente (BYOS): stato, connessione (consenso via browser), distacco. */
+  drive: {
+    stato: (): Promise<{ configurato: boolean; connesso: boolean }> =>
+      ipcRenderer.invoke('drive:stato'),
+    connetti: (): Promise<{ ok: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('drive:connetti'),
+    disconnetti: (): Promise<void> => ipcRenderer.invoke('drive:disconnetti')
+  },
   chiavi: {
     stato: (): Promise<{ allAvvio: boolean; workspace: string[] }> =>
       ipcRenderer.invoke('chiavi:stato'),

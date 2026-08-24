@@ -7,6 +7,58 @@ import { valutaPassword, REGOLE_PASSWORD } from '@shared/password'
 type Props = { onChiudi: () => void }
 
 /**
+ * Il collegamento al Google Drive dell'utente (il «magazzino» BYOS).
+ *
+ * Un clic apre il consenso nel browser di sistema; da lì i dati cifrati vivranno
+ * nel Drive dell'utente. Qui, per ora, si connette e si vede lo stato: il
+ * salvataggio/ripristino veri si agganciano subito dopo, quando c'è la passphrase.
+ */
+function SezioneDrive(): React.JSX.Element | null {
+  const [stato, setStato] = useState<{ configurato: boolean; connesso: boolean } | undefined>(undefined)
+  const [inCorso, setInCorso] = useState(false)
+  const [msg, setMsg] = useState<string | undefined>(undefined)
+
+  const aggiorna = (): void => { void window.gestore.drive.stato().then(setStato).catch(() => {}) }
+  useEffect(aggiorna, [])
+
+  const connetti = (): void => {
+    if (inCorso) return
+    setInCorso(true); setMsg(undefined)
+    void window.gestore.drive.connetti()
+      .then((r) => { if (!r.ok) setMsg(r.messaggio ?? 'connessione non riuscita'); aggiorna() })
+      .catch((e: unknown) => setMsg(String(e)))
+      .finally(() => setInCorso(false))
+  }
+  const disconnetti = (): void => { void window.gestore.drive.disconnetti().then(aggiorna) }
+
+  if (stato === undefined) return null
+  return (
+    <div className="account__drive">
+      <div className="account__driga">
+        <span>Google Drive</span>
+        <span className={stato.connesso ? 'account__pallino account__pallino--ok' : 'account__pallino'}>
+          {!stato.configurato ? 'non configurato' : stato.connesso ? 'collegato ✓' : 'non collegato'}
+        </span>
+      </div>
+      {msg !== undefined ? <div className="riga__stato">{msg}</div> : null}
+      <div className="account__tasti">
+        {stato.connesso ? (
+          <button className="tasto" onClick={disconnetti}>Scollega</button>
+        ) : (
+          <button
+            className="tasto tasto--primario"
+            onClick={connetti}
+            disabled={inCorso || !stato.configurato}
+          >
+            {inCorso ? 'apri il browser e approva…' : 'Connetti Google Drive'}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
  * L'accesso, e cosa sblocca.
  *
  * Non blocca il programma: è un pannello come gli altri. Da qui ci si registra e
@@ -82,10 +134,11 @@ export function PannelloAccount({ onChiudi }: Props): React.JSX.Element {
             Sei entrato come <strong>{utente.email}</strong>.
           </p>
           <p className="riga__stato">
-            Il tuo account è la chiave del recupero fra computer: presto, da qui, i tuoi dati
-            (chat, quaderno, workspace) si sincronizzano cifrati, così su un altro PC accedi e
-            ritrovi tutto. La cifratura è tua: nemmeno noi possiamo leggerli.
+            Il tuo account è la chiave del recupero fra computer: i tuoi dati
+            (chat, quaderno, workspace) si sincronizzano cifrati nel tuo Google Drive, così su un
+            altro PC accedi e ritrovi tutto. La cifratura è tua: nemmeno noi o Google possiamo leggerli.
           </p>
+          <SezioneDrive />
           <div className="account__tasti">
             <button className="tasto" onClick={() => void esci()}>Esci</button>
           </div>
