@@ -25,6 +25,15 @@ export function configGoogle(dati: string): ConfigOAuth | undefined {
   if (idEnv !== undefined && idEnv !== '' && segretoEnv !== undefined && segretoEnv !== '') {
     return { clientId: idEnv, clientSecret: segretoEnv }
   }
+  // Incastonate nel build (electron-vite `define`): il caso normale per chi
+  // installa l'app su un PC qualsiasi. `typeof` perche' nei test e in dev senza
+  // `define` questi nomi non esistono affatto.
+  if (
+    typeof __GOOGLE_CLIENT_ID__ !== 'undefined' && __GOOGLE_CLIENT_ID__ !== '' &&
+    typeof __GOOGLE_CLIENT_SECRET__ !== 'undefined' && __GOOGLE_CLIENT_SECRET__ !== ''
+  ) {
+    return { clientId: __GOOGLE_CLIENT_ID__, clientSecret: __GOOGLE_CLIENT_SECRET__ }
+  }
   const file = join(dati, 'google-oauth.json')
   if (existsSync(file)) {
     try {

@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.49',
+    righe: [
+      '**«Connetti Google Drive» ora funziona su qualsiasi PC.** Le credenziali dell’app viaggiano dentro il programma, così basta installarlo e agganciare il proprio Drive con un clic — non serve nessuna configurazione su nessuna macchina.'
+    ]
+  },
+  {
     versione: '0.9.48',
     righe: [
       '**Primo passo della sincronizzazione: collega il tuo Google Drive.** Da **Account**, un clic su «Connetti Google Drive» apre il consenso nel browser e aggancia il tuo Drive — dove, cifrati, vivranno i tuoi dati per ritrovarli su un altro PC. Per ora si connette e basta: salvataggio e ripristino arrivano subito dopo.'
