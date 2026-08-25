@@ -139,6 +139,8 @@ declare global {
         rimuoviMarketplace: (nome: string) => Promise<{ ok: boolean; messaggio?: string }>
         aggiornaMarketplace: (nome?: string) => Promise<{ ok: boolean; messaggio?: string }>
         rivela: (percorso: string) => Promise<void>
+        scope: (cwd: string) => Promise<{ pluginSpenti: string[]; skillSpente: string[]; mcpSpenti: string[] }>
+        impostaScope: (cwd: string, scope: { pluginSpenti: string[]; skillSpente: string[]; mcpSpenti: string[] }) => Promise<{ ok: boolean; messaggio?: string }>
       }
       chiavi: {
         stato: () => Promise<{ allAvvio: boolean; workspace: string[] }>

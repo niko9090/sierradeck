@@ -127,7 +127,16 @@ export function collegaFinestra(win: BrowserWindow, client: PtyHostClient): void
   // della finestra, qui sopra, li chiude.
 }
 
-export function registerPtyIpc(ambienteChat: () => Record<string, string> = () => ({})): PtyHostClient {
+export function registerPtyIpc(
+  ambienteChat: () => Record<string, string> = () => ({}),
+  /**
+   * Le impostazioni `--settings` per la chat che nasce in quella cartella: parte
+   * da quelle dell'autopilota (gli hook, se c'è) e vi sovrappone lo scoping del
+   * Negozio. Il default le lascia com'erano — così senza scope non cambia nulla.
+   */
+  impostazioniPerChat: (cwd: string, autopilotaJson: string | undefined) => string | undefined =
+    (_cwd, autopilotaJson) => autopilotaJson
+): PtyHostClient {
   const client = new PtyHostClient({
     nodePath: process.execPath,
     hostScript: join(__dirname, 'pty-host.js')
@@ -197,9 +206,15 @@ export function registerPtyIpc(ambienteChat: () => Record<string, string> = () =
         req.title,
         trascrizioneEsiste(req.cwd, req.sessionUuid),
         req.model,
-        req.autopilota === undefined
-          ? undefined
-          : componiImpostazioni(req.autopilota.id, PORTA_AUTOPILOTA, req.autopilota.chat)
+        // Prima gli hook dell'autopilota (se c'è), poi lo scoping del Negozio
+        // per questa cartella: `impostazioniPerChat` fonde i due in un solo
+        // `--settings`, o restituisce quello che gli passi se non c'è scope.
+        impostazioniPerChat(
+          req.cwd,
+          req.autopilota === undefined
+            ? undefined
+            : componiImpostazioni(req.autopilota.id, PORTA_AUTOPILOTA, req.autopilota.chat)
+        )
       ),
       cols: req.cols,
       rows: req.rows,

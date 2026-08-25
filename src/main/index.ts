@@ -68,6 +68,10 @@ import {
 } from './negozio/cli'
 import { skillDisponibili, mcpDiProgetto, agentiDisponibili } from './negozio/lettura'
 import { commutaSkill, commutaMcp } from './negozio/azioni'
+import {
+  apriScopeStore, scopeVuoto, scopeInerte, componiScope, fondiImpostazioni, leggiGlobaliPerScope,
+  type ScopeChat, type ScopeStore
+} from './negozio/scope'
 import { apriRegistro } from './registro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
@@ -86,6 +90,8 @@ let serverClient: import('node:http').Server | undefined
 let chatAperte: Chat[] = []
 /** Su quali monitor stavano le finestre: e' cosi che ci ritornano. */
 let finestreStore: FinestreStore | undefined
+/** Lo scoping per-chat del Negozio: cosa spegnere per le chat di una cartella. */
+let scopeStore: ScopeStore | undefined
 /**
  * Gli aggiornamenti del programma.
  *
@@ -414,7 +420,22 @@ if (!app.requestSingleInstanceLock()) {
       const registro = apriRegistro(dati, app.getVersion())
       // Dove parlano le chat: Anthropic, o l'API che l'utente ha configurato.
       providerStore = apriProviderStore(dati)
-      ptyClient = registerPtyIpc(() => providerStore?.env() ?? {})
+      // Lo scoping per-chat del Negozio: quali plugin/skill/MCP spegnere per le
+      // chat di una certa cartella. Va creato prima di `registerPtyIpc`, che lo
+      // consulta a ogni avvio di chat per comporre le `--settings`.
+      scopeStore = apriScopeStore(dati)
+      ptyClient = registerPtyIpc(
+        () => providerStore?.env() ?? {},
+        (cwd, autopilotaJson) => {
+          const scope = scopeStore?.leggi(cwd) ?? scopeVuoto()
+          // Nessun override per questa cartella: si lascia tutto com'era, senza
+          // nemmeno leggere i file. È il caso normale, e non deve costare nulla.
+          if (scopeInerte(scope)) return autopilotaJson
+          const radice = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
+          const globali = leggiGlobaliPerScope({ radiceClaude: radice, fileClaudeJson: join(homedir(), '.claude.json'), cwd })
+          return fondiImpostazioni(autopilotaJson, componiScope({ scope, ...globali }))
+        }
+      )
       registerPreparazioneIpc(ptyClient, () => homedir())
       // Trovare claude.exe al posto dell'utente, prima che si apra la prima
       // chat. Chi lo ha fuori dal PATH — l'installatore nativo ce lo mette e
@@ -584,6 +605,24 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('negozio:rivela', (_e, percorso: unknown) => {
         const p = soloStringa(percorso)
         if (p !== undefined && existsSync(p)) shell.showItemInFolder(p)
+      })
+      // Lo scoping per-chat: quali plugin/skill/MCP spegnere per le chat di
+      // questa cartella. Vale dal prossimo avvio della chat (le --settings si
+      // decidono allo spawn).
+      ipcMain.handle('negozio:scope', (_e, cwd: unknown) =>
+        soloStringa(cwd) !== undefined ? (scopeStore?.leggi(cwd as string) ?? scopeVuoto()) : scopeVuoto())
+      ipcMain.handle('negozio:impostaScope', (_e, cwd: unknown, grezzo: unknown) => {
+        const c = soloStringa(cwd)
+        if (c === undefined || scopeStore === undefined) return { ok: false, messaggio: 'richiesta non valida' }
+        const o = (grezzo !== null && typeof grezzo === 'object' ? grezzo : {}) as Record<string, unknown>
+        const lista = (v: unknown): string[] => Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+        const scope: ScopeChat = {
+          pluginSpenti: lista(o.pluginSpenti),
+          skillSpente: lista(o.skillSpente),
+          mcpSpenti: lista(o.mcpSpenti)
+        }
+        scopeStore.imposta(c, scope)
+        return { ok: true }
       })
 
       const clientAutopilota = creaClientAutopilota({

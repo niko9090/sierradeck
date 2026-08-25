@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.11.0',
+    righe: [
+      '**Il Negozio, rifatto e molto più ricco.** Adesso **scorre solo la lista** (prima si muoveva tutta la finestra) e ha una scheda **«In uso»** con tutto ciò che hai installato e attivo a colpo d’occhio. Puoi **aggiungere store di terze parti** (un repo GitHub, un indirizzo, una cartella), sfogliare gli **Agenti**, vedere **cosa contiene e quanto pesa** un plugin, e **cercare in tutto** da una casella sola.',
+      '**«Questa chat»: scegli cosa vale solo qui.** Una nuova scheda dove decidi quali plugin, skill e MCP sono attivi **per le chat di questa cartella**, senza toccare le altre. Togli una spunta e quella cosa è spenta solo qui, dalla prossima apertura della chat — comodo per tenere una chat leggera e un’altra con tutto acceso.'
+    ]
+  },
+  {
     versione: '0.10.0',
     righe: [
       '**La finestra si riapre com’era.** SierraDeck torna sullo **stesso schermo** da cui l’hai chiuso, della **stessa dimensione**, e nello stesso stato: se l’avevi ingrandita o a schermo intero, la ritrovi così. Se quel monitor non c’è più (un portatile staccato dal secondo schermo), torna al centro senza sparire nel nulla.',

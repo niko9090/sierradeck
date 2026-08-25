@@ -25,8 +25,9 @@ type Agente = {
 }
 type Mcp = { nome: string; come: string; abilitato: boolean }
 type Marketplace = { nome: string; tipo: string; riferimento: string; ufficiale: boolean }
+type Scope = { pluginSpenti: string[]; skillSpente: string[]; mcpSpenti: string[] }
 
-type Scheda = 'uso' | 'plugin' | 'skill' | 'agenti' | 'mcp' | 'store'
+type Scheda = 'uso' | 'chat' | 'plugin' | 'skill' | 'agenti' | 'mcp' | 'store'
 
 /** Senza una ricerca il catalogo plugin è un muro di centinaia di righe: si
  * mostra a blocchi, e una parola nella casella toglie il tetto. */
@@ -56,6 +57,7 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
   const [avviso, setAvviso] = useState<string | undefined>(undefined)
   const [dettagli, setDettagli] = useState<Record<string, { aperto: boolean; caricando?: boolean; testo?: string; errore?: string }>>({})
   const [nuovoStore, setNuovoStore] = useState('')
+  const [scope, setScope] = useState<Scope>({ pluginSpenti: [], skillSpente: [], mcpSpenti: [] })
 
   const caricaPlugin = (): void => {
     setPlugin(undefined); setErrorePlugin(undefined)
@@ -74,7 +76,22 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
       .catch((e: unknown) => { setStore([]); setErroreStore(String(e)) })
   }
 
-  useEffect(() => { caricaPlugin(); caricaSkill(); caricaAgenti(); caricaMcp(); caricaStore() }, [cwd]) // eslint-disable-line react-hooks/exhaustive-deps
+  const caricaScope = (): void => {
+    if (cwd === undefined) { setScope({ pluginSpenti: [], skillSpente: [], mcpSpenti: [] }); return }
+    window.gestore.negozio.scope(cwd).then(setScope).catch(() => setScope({ pluginSpenti: [], skillSpente: [], mcpSpenti: [] }))
+  }
+
+  useEffect(() => { caricaPlugin(); caricaSkill(); caricaAgenti(); caricaMcp(); caricaStore(); caricaScope() }, [cwd]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Accende o spegne una voce per QUESTA cartella (via --settings all'avvio). */
+  const commutaScope = (campo: keyof Scope, valore: string, attivo: boolean): void => {
+    if (cwd === undefined) return
+    const set = new Set(scope[campo])
+    if (attivo) set.delete(valore); else set.add(valore)
+    const nuovo: Scope = { ...scope, [campo]: [...set] }
+    setScope(nuovo)
+    window.gestore.negozio.impostaScope(cwd, nuovo).catch((e: unknown) => setAvviso(String(e)))
+  }
 
   useEffect(() => {
     const suTasto = (e: KeyboardEvent): void => { if (e.key === 'Escape') onChiudi() }
@@ -299,6 +316,7 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
           value={cerca} onChange={(e) => setCerca(e.target.value)} />
         <div className="negozio__tabs">
           {tasto('uso', 'In uso')}
+          {tasto('chat', 'Questa chat', scope.pluginSpenti.length + scope.skillSpente.length + scope.mcpSpenti.length)}
           {tasto('plugin', 'Plugin', installati)}
           {tasto('skill', 'Skill', skillAttive)}
           {tasto('agenti', 'Agenti', agenti?.length)}
@@ -339,6 +357,49 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
               </>
             ) : null}
           </div>
+        ) : null}
+
+        {scheda === 'chat' ? (
+          cwd === undefined ? vuoto('Apri una chat per scegliere cosa attivare solo per lei.')
+            : (
+              <div className="negozio__lista">
+                <p className="misura negozio__vuoto">
+                  Qui scegli cosa è attivo <b>solo per le chat di questa cartella</b>, senza toccare le altre.
+                  Togli la spunta per spegnere una cosa qui: vale dalla prossima apertura della chat.
+                </p>
+                {(() => {
+                  const pluginAttivi = (plugin ?? []).filter((p) => p.installato && p.abilitato)
+                  const skillAttiveL = (skill ?? []).filter((s) => s.abilitata)
+                  const mcpAttiviL = (mcp ?? []).filter((m) => m.abilitato)
+                  const spunta = (campo: keyof Scope, valore: string, nome: string, sotto?: string): React.JSX.Element => {
+                    const attivo = !scope[campo].includes(valore)
+                    return (
+                      <label key={`${campo}:${valore}`} className="negozio__voce negozio__scope">
+                        <div className="negozio__info">
+                          <div className="negozio__nome">{nome}{!attivo ? <span className="negozio__stato">spento qui</span> : null}</div>
+                          {sotto !== undefined && sotto !== '' ? <div className="negozio__desc">{sotto}</div> : null}
+                        </div>
+                        <input type="checkbox" className="negozio__spunta" checked={attivo}
+                          onChange={(e) => commutaScope(campo, valore, e.target.checked)} />
+                      </label>
+                    )
+                  }
+                  return (
+                    <>
+                      <div className="negozio__titsez">Plugin</div>
+                      {pluginAttivi.length === 0 ? vuoto('Nessun plugin attivo da limitare.')
+                        : pluginAttivi.map((p) => spunta('pluginSpenti', p.id, p.nome, p.marketplace))}
+                      <div className="negozio__titsez">Skill</div>
+                      {skillAttiveL.length === 0 ? vuoto('Nessuna skill attiva.')
+                        : skillAttiveL.map((s) => spunta('skillSpente', s.nome, s.nome, s.origine))}
+                      <div className="negozio__titsez">MCP</div>
+                      {mcpAttiviL.length === 0 ? vuoto('Nessun MCP attivo in questa cartella.')
+                        : mcpAttiviL.map((m) => spunta('mcpSpenti', m.nome, m.nome, m.come))}
+                    </>
+                  )
+                })()}
+              </div>
+            )
         ) : null}
 
         {scheda === 'plugin' ? (

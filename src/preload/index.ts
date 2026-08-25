@@ -273,7 +273,11 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('negozio:rimuoviMarketplace', nome),
     aggiornaMarketplace: (nome?: string): Promise<{ ok: boolean; messaggio?: string }> =>
       ipcRenderer.invoke('negozio:aggiornaMarketplace', nome),
-    rivela: (percorso: string): Promise<void> => ipcRenderer.invoke('negozio:rivela', percorso)
+    rivela: (percorso: string): Promise<void> => ipcRenderer.invoke('negozio:rivela', percorso),
+    scope: (cwd: string): Promise<{ pluginSpenti: string[]; skillSpente: string[]; mcpSpenti: string[] }> =>
+      ipcRenderer.invoke('negozio:scope', cwd),
+    impostaScope: (cwd: string, scope: { pluginSpenti: string[]; skillSpente: string[]; mcpSpenti: string[] }): Promise<{ ok: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('negozio:impostaScope', cwd, scope)
   },
   chiavi: {
     stato: (): Promise<{ allAvvio: boolean; workspace: string[] }> =>

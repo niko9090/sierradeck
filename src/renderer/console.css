@@ -2065,6 +2065,8 @@ select.comando-riquadro option {
 }
 .negozio__aggiungi { display: flex; gap: var(--s2); margin-bottom: var(--s3); flex-wrap: wrap; }
 .negozio__aggiungi .campo { flex: 1; min-width: 220px; }
+.negozio__scope { cursor: pointer; }
+.negozio__spunta { width: 18px; height: 18px; accent-color: #57d38c; cursor: pointer; flex-shrink: 0; }
 
 /* ─── la schermata dell'accesso all'avvio: a tutto schermo, viva ─── */
 .accesso-schermata {
