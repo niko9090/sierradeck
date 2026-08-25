@@ -257,7 +257,23 @@ contextBridge.exposeInMainWorld('gestore', {
     mcp: (cwd: string): Promise<Array<{ nome: string; come: string; abilitato: boolean }>> =>
       ipcRenderer.invoke('negozio:mcp', cwd),
     commutaMcp: (cwd: string, nome: string, on: boolean): Promise<{ ok: boolean; messaggio?: string }> =>
-      ipcRenderer.invoke('negozio:commutaMcp', cwd, nome, on)
+      ipcRenderer.invoke('negozio:commutaMcp', cwd, nome, on),
+    agenti: (cwd?: string): Promise<Array<{
+      nome: string; descrizione: string; origine: 'utente' | 'progetto'
+      percorso: string; strumenti?: string; modello?: string
+    }>> => ipcRenderer.invoke('negozio:agenti', cwd),
+    dettagliPlugin: (id: string): Promise<{ testo: string; errore?: string }> =>
+      ipcRenderer.invoke('negozio:dettagliPlugin', id),
+    marketplace: (): Promise<{ marketplace: Array<{
+      nome: string; tipo: string; riferimento: string; ufficiale: boolean
+    }>; errore?: string }> => ipcRenderer.invoke('negozio:marketplace'),
+    aggiungiMarketplace: (sorgente: string): Promise<{ ok: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('negozio:aggiungiMarketplace', sorgente),
+    rimuoviMarketplace: (nome: string): Promise<{ ok: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('negozio:rimuoviMarketplace', nome),
+    aggiornaMarketplace: (nome?: string): Promise<{ ok: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('negozio:aggiornaMarketplace', nome),
+    rivela: (percorso: string): Promise<void> => ipcRenderer.invoke('negozio:rivela', percorso)
   },
   chiavi: {
     stato: (): Promise<{ allAvvio: boolean; workspace: string[] }> =>

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { commutaSkill, commutaMcp } from '../../src/main/negozio/azioni'
-import { skillDisponibili, mcpDiProgetto } from '../../src/main/negozio/lettura'
+import { skillDisponibili, mcpDiProgetto, agentiDisponibili } from '../../src/main/negozio/lettura'
 
 /**
  * Il negozio tocca i file più delicati dell'utente (`~/.claude.json`,
@@ -100,5 +100,47 @@ describe('commutaSkill', () => {
     const dopo = JSON.parse(readFileSync(join(radice, 'settings.json'), 'utf8'))
     expect(dopo.skillOverrides).toBeUndefined()
     expect(skillDisponibili(radice).find((s) => s.nome === 'alfa')?.abilitata).toBe(true)
+  })
+})
+
+describe('agentiDisponibili', () => {
+  function creaAgente(nome: string, testa: string): void {
+    const d = join(radice, 'agents')
+    mkdirSync(d, { recursive: true })
+    writeFileSync(join(d, `${nome}.md`), `---\n${testa}\n---\ncorpo dell'agente\n`, 'utf8')
+  }
+
+  it('legge nome, descrizione, strumenti e modello dall’intestazione', () => {
+    creaAgente('revisore', 'name: code-reviewer\ndescription: Rivede il codice\ntools: Read, Grep\nmodel: sonnet')
+    const a = agentiDisponibili(radice).find((x) => x.percorso.endsWith('revisore.md'))
+    expect(a).toBeDefined()
+    expect(a?.nome).toBe('code-reviewer')
+    expect(a?.descrizione).toBe('Rivede il codice')
+    expect(a?.strumenti).toBe('Read, Grep')
+    expect(a?.modello).toBe('sonnet')
+    expect(a?.origine).toBe('utente')
+  })
+
+  it('senza intestazione usa il nome del file, e i campi assenti restano vuoti', () => {
+    const d = join(radice, 'agents')
+    mkdirSync(d, { recursive: true })
+    writeFileSync(join(d, 'nudo.md'), 'solo corpo, niente frontmatter\n', 'utf8')
+    const a = agentiDisponibili(radice).find((x) => x.percorso.endsWith('nudo.md'))
+    expect(a?.nome).toBe('nudo')
+    expect(a?.strumenti).toBeUndefined()
+    expect(a?.modello).toBeUndefined()
+  })
+
+  it('una cartella agenti che non c’è è «niente», non un errore', () => {
+    expect(agentiDisponibili(radice)).toEqual([])
+  })
+
+  it('ignora i file che non sono .md', () => {
+    const d = join(radice, 'agents')
+    mkdirSync(d, { recursive: true })
+    writeFileSync(join(d, 'note.txt'), 'non un agente', 'utf8')
+    creaAgente('vero', 'name: vero\ndescription: x')
+    const nomi = agentiDisponibili(radice).map((a) => a.nome)
+    expect(nomi).toEqual(['vero'])
   })
 })

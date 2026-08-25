@@ -62,8 +62,11 @@ import { resolveClaudeCommand } from './config'
 import { leggiAccesso } from './accesso'
 import { apriContoDrive } from './cassaforte/conto-drive'
 import { apriSincronia } from './cassaforte/sincronia'
-import { elencoPlugin, installaPlugin, disinstallaPlugin, commutaPlugin } from './negozio/cli'
-import { skillDisponibili, mcpDiProgetto } from './negozio/lettura'
+import {
+  elencoPlugin, installaPlugin, disinstallaPlugin, commutaPlugin,
+  elencoMarketplace, aggiungiMarketplace, rimuoviMarketplace, aggiornaMarketplace, dettagliPlugin
+} from './negozio/cli'
+import { skillDisponibili, mcpDiProgetto, agentiDisponibili } from './negozio/lettura'
 import { commutaSkill, commutaMcp } from './negozio/azioni'
 import { apriRegistro } from './registro'
 import { prossimoSchermoLibero } from './schermi'
@@ -566,6 +569,22 @@ if (!app.requestSingleInstanceLock()) {
         soloStringa(cwd) !== undefined && soloStringa(nome) !== undefined
           ? commutaMcp(fileClaudeJson, cwd as string, nome as string, on === true)
           : { ok: false, messaggio: 'richiesta non valida' })
+      ipcMain.handle('negozio:agenti', (_e, cwd: unknown) => agentiDisponibili(radiceClaude, soloStringa(cwd)))
+      ipcMain.handle('negozio:dettagliPlugin', (_e, id: unknown) =>
+        soloStringa(id) !== undefined ? dettagliPlugin(id as string) : Promise.resolve({ testo: '', errore: 'richiesta non valida' }))
+      ipcMain.handle('negozio:marketplace', () => elencoMarketplace())
+      ipcMain.handle('negozio:aggiungiMarketplace', (_e, sorgente: unknown) =>
+        soloStringa(sorgente) !== undefined ? aggiungiMarketplace(sorgente as string) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
+      ipcMain.handle('negozio:rimuoviMarketplace', (_e, nome: unknown) =>
+        soloStringa(nome) !== undefined ? rimuoviMarketplace(nome as string) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
+      ipcMain.handle('negozio:aggiornaMarketplace', (_e, nome: unknown) => aggiornaMarketplace(soloStringa(nome)))
+      // Rivelare un file (una skill, un agente) nella cartella: solo roba nostra,
+      // e solo se il percorso esiste davvero. `showItemInFolder` non esegue
+      // niente, apre l'esplora-risorse sul file — nessun rischio di comando.
+      ipcMain.handle('negozio:rivela', (_e, percorso: unknown) => {
+        const p = soloStringa(percorso)
+        if (p !== undefined && existsSync(p)) shell.showItemInFolder(p)
+      })
 
       const clientAutopilota = creaClientAutopilota({
         porta: PORTA_AUTOPILOTA,

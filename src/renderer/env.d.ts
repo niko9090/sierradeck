@@ -127,6 +127,18 @@ declare global {
         commutaSkill: (nome: string, on: boolean) => Promise<{ ok: boolean; messaggio?: string }>
         mcp: (cwd: string) => Promise<Array<{ nome: string; come: string; abilitato: boolean }>>
         commutaMcp: (cwd: string, nome: string, on: boolean) => Promise<{ ok: boolean; messaggio?: string }>
+        agenti: (cwd?: string) => Promise<Array<{
+          nome: string; descrizione: string; origine: 'utente' | 'progetto'
+          percorso: string; strumenti?: string; modello?: string
+        }>>
+        dettagliPlugin: (id: string) => Promise<{ testo: string; errore?: string }>
+        marketplace: () => Promise<{ marketplace: Array<{
+          nome: string; tipo: string; riferimento: string; ufficiale: boolean
+        }>; errore?: string }>
+        aggiungiMarketplace: (sorgente: string) => Promise<{ ok: boolean; messaggio?: string }>
+        rimuoviMarketplace: (nome: string) => Promise<{ ok: boolean; messaggio?: string }>
+        aggiornaMarketplace: (nome?: string) => Promise<{ ok: boolean; messaggio?: string }>
+        rivela: (percorso: string) => Promise<void>
       }
       chiavi: {
         stato: () => Promise<{ allAvvio: boolean; workspace: string[] }>

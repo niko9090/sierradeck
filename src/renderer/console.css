@@ -1948,11 +1948,41 @@ select.comando-riquadro option {
   user-select: all;
 }
 
-/* ─── il negozio: plugin, skill, MCP ─── */
+/* ─── il negozio: plugin, skill, agenti, MCP, store ─── */
 .tasto--fantasma { border-color: transparent; opacity: .75; }
 .tasto--fantasma:hover:not(:disabled) { opacity: 1; border-color: var(--incisione); }
 
-.negozio__tabs { display: flex; gap: var(--s2); margin-bottom: var(--s3); }
+/* La chiave dello scorrimento: il pannello è una colonna con testa e piè
+   fissi, e SOLO il corpo scorre. Prima scorreva tutta la finestra — testa,
+   schede e ricerca sparivano su in alto — ed era il difetto da togliere. */
+.pannello--negozio {
+  display: flex; flex-direction: column;
+  width: min(940px, calc(100vw - 48px));
+  height: min(82vh, 780px);
+  max-height: min(82vh, 780px);
+  padding: 0;
+  overflow: hidden;
+}
+.negozio__testa {
+  flex-shrink: 0;
+  padding: var(--s3) var(--s4) var(--s2);
+  border-bottom: 1px solid var(--incisione);
+  display: flex; flex-direction: column; gap: var(--s2);
+}
+.negozio__testa-riga { display: flex; align-items: center; gap: var(--s2); }
+.negozio__cerca-globale { width: 100%; }
+.negozio__corpo {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: var(--s3) var(--s4);
+}
+.negozio__pie-fisso {
+  flex-shrink: 0;
+  padding: var(--s2) var(--s4);
+  border-top: 1px solid var(--incisione);
+  opacity: .7; line-height: 1.45;
+}
+
+.negozio__tabs { display: flex; gap: var(--s2); flex-wrap: wrap; }
 .negozio__tab {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 14px;
@@ -1976,8 +2006,26 @@ select.comando-riquadro option {
 }
 .negozio__tab--attiva .negozio__conta { background: rgba(87, 211, 140, .35); }
 
-.negozio__cerca { display: flex; gap: var(--s2); margin-bottom: var(--s2); }
-.negozio__cerca .campo { flex: 1; }
+.negozio__filtri { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: var(--s3); }
+.negozio__chip {
+  padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--incisione); background: var(--fondo-cupo);
+  color: inherit; cursor: pointer; font-size: var(--t1); opacity: .8;
+}
+.negozio__chip:hover { opacity: 1; }
+.negozio__chip--on { border-color: #57d38c; opacity: 1; background: rgba(87, 211, 140, .12); }
+
+.negozio__sommario {
+  display: flex; gap: var(--s3); flex-wrap: wrap;
+  padding: var(--s2) var(--s3); margin-bottom: var(--s2);
+  border: 1px solid var(--incisione); border-radius: var(--raggio);
+  background: var(--fondo-cupo); font-size: var(--t2);
+}
+.negozio__sommario b { color: #57d38c; }
+.negozio__titsez {
+  font-size: var(--t1); text-transform: uppercase; letter-spacing: .08em;
+  opacity: .6; margin: var(--s3) 0 4px;
+}
 
 .negozio__lista { display: flex; flex-direction: column; gap: 6px; }
 .negozio__voce {
@@ -1987,6 +2035,8 @@ select.comando-riquadro option {
   border-radius: var(--raggio);
   background: var(--fondo-cupo);
 }
+.negozio__voce--colonna { flex-direction: column; align-items: stretch; }
+.negozio__riga { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
 .negozio__info { min-width: 0; flex: 1; }
 .negozio__nome {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -2006,7 +2056,15 @@ select.comando-riquadro option {
 .negozio__desc--mono { font-family: ui-monospace, monospace; -webkit-line-clamp: 1; opacity: .65; }
 .negozio__azioni { display: flex; gap: var(--s2); flex-shrink: 0; }
 .negozio__vuoto { padding: var(--s3); line-height: 1.5; }
-.negozio__pie { margin: var(--s3) 0 0; opacity: .7; line-height: 1.5; }
+
+.negozio__dettagli { margin-top: var(--s2); border-top: 1px solid var(--incisione); padding-top: var(--s2); }
+.negozio__pre {
+  margin: 0; max-height: 220px; overflow: auto;
+  font-family: ui-monospace, monospace; font-size: var(--t1); line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word; opacity: .85;
+}
+.negozio__aggiungi { display: flex; gap: var(--s2); margin-bottom: var(--s3); flex-wrap: wrap; }
+.negozio__aggiungi .campo { flex: 1; min-width: 220px; }
 
 /* ─── la schermata dell'accesso all'avvio: a tutto schermo, viva ─── */
 .accesso-schermata {

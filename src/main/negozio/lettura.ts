@@ -41,6 +41,18 @@ export type Skill = {
   abilitata: boolean
 }
 
+export type Agente = {
+  nome: string
+  descrizione: string
+  /** Da dove arriva: personale (utente) o di progetto. */
+  origine: 'utente' | 'progetto'
+  percorso: string
+  /** Quali strumenti può usare, se dichiarati nell'intestazione. */
+  strumenti?: string
+  /** Con quale modello gira, se dichiarato. */
+  modello?: string
+}
+
 function leggiJson<T>(percorso: string): T | undefined {
   if (!existsSync(percorso)) return undefined
   try {
@@ -159,5 +171,61 @@ export function skillDisponibili(radiceClaude: string, cwd?: string): Skill[] {
   const spente = skillSpente(radiceClaude)
   const utente = skillInCartella(join(radiceClaude, 'skills'), 'utente', spente)
   const progetto = cwd !== undefined ? skillInCartella(join(cwd, '.claude', 'skills'), 'progetto', spente) : []
+  return [...utente, ...progetto]
+}
+
+/** Legge le voci volute dall'intestazione YAML di un file agente. */
+function leggiTestaAgente(percorso: string): { nome?: string; descrizione?: string; strumenti?: string; modello?: string } {
+  const fuori: { nome?: string; descrizione?: string; strumenti?: string; modello?: string } = {}
+  try {
+    const testo = readFileSync(percorso, 'utf8')
+    if (!testo.startsWith('---')) return fuori
+    const fine = testo.indexOf('\n---', 3)
+    const testa = fine === -1 ? testo.slice(3) : testo.slice(3, fine)
+    for (const riga of testa.split('\n')) {
+      const m = /^\s*(name|description|tools|model)\s*:\s*(.+?)\s*$/.exec(riga)
+      if (m === null) continue
+      const val = (m[2] ?? '').replace(/^["']|["']$/g, '')
+      if (m[1] === 'name') fuori.nome = val
+      else if (m[1] === 'description') fuori.descrizione = val
+      else if (m[1] === 'tools') fuori.strumenti = val
+      else if (m[1] === 'model') fuori.modello = val
+    }
+  } catch {
+    // niente intestazione leggibile: resta il nome del file
+  }
+  return fuori
+}
+
+/** Gli agenti di una cartella `agents/`: ogni file `.md` è un agente. */
+function agentiInCartella(cartella: string, origine: Agente['origine']): Agente[] {
+  if (!existsSync(cartella)) return []
+  let voci: string[]
+  try {
+    voci = readdirSync(cartella)
+  } catch {
+    return []
+  }
+  const fuori: Agente[] = []
+  for (const file of voci) {
+    if (!file.endsWith('.md')) continue
+    const percorso = join(cartella, file)
+    const t = leggiTestaAgente(percorso)
+    fuori.push({
+      nome: t.nome ?? file.replace(/\.md$/, ''),
+      descrizione: t.descrizione ?? '',
+      origine,
+      percorso,
+      ...(t.strumenti !== undefined ? { strumenti: t.strumenti } : {}),
+      ...(t.modello !== undefined ? { modello: t.modello } : {})
+    })
+  }
+  return fuori
+}
+
+/** Gli agenti (subagent) disponibili: personali (utente) e del progetto. */
+export function agentiDisponibili(radiceClaude: string, cwd?: string): Agente[] {
+  const utente = agentiInCartella(join(radiceClaude, 'agents'), 'utente')
+  const progetto = cwd !== undefined ? agentiInCartella(join(cwd, '.claude', 'agents'), 'progetto') : []
   return [...utente, ...progetto]
 }

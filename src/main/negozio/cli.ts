@@ -141,3 +141,64 @@ export async function commutaPlugin(id: string, abilita: boolean): Promise<Esito
   const r = await esegui(['plugin', abilita ? 'enable' : 'disable', id], TIMEOUT_LETTURA)
   return r.ok ? { ok: true } : { ok: false, messaggio: (r.stderr || r.stdout || 'operazione fallita').trim().slice(0, 400) }
 }
+
+export type Marketplace = {
+  nome: string
+  /** Che tipo di sorgente: github, url, path… — per farlo capire a colpo d'occhio. */
+  tipo: string
+  /** Il riferimento vero: il repo, l'indirizzo, o il percorso. */
+  riferimento: string
+  /** Quello ufficiale non si toglie: farne a meno vorrebbe dire un negozio vuoto. */
+  ufficiale: boolean
+}
+
+const MARKETPLACE_UFFICIALE = 'claude-plugins-official'
+
+/** I marketplace configurati (lo store ufficiale più quelli aggiunti a mano). */
+export async function elencoMarketplace(): Promise<{ marketplace: Marketplace[]; errore?: string }> {
+  const r = await esegui(['plugin', 'marketplace', 'list', '--json'], TIMEOUT_LETTURA)
+  if (!r.ok) return { marketplace: [], errore: (r.stderr || r.stdout || 'elenco marketplace fallito').trim().slice(0, 400) }
+  try {
+    const arr = JSON.parse(r.stdout) as Array<{ name?: string; source?: string; repo?: string; url?: string; path?: string }>
+    const marketplace = (Array.isArray(arr) ? arr : [])
+      .filter((m): m is { name: string } & typeof m => typeof m.name === 'string' && m.name !== '')
+      .map((m) => ({
+        nome: m.name,
+        tipo: typeof m.source === 'string' ? m.source : '?',
+        riferimento: m.repo ?? m.url ?? m.path ?? '',
+        ufficiale: m.name === MARKETPLACE_UFFICIALE
+      }))
+    return { marketplace }
+  } catch {
+    return { marketplace: [], errore: 'risposta del CLI non leggibile' }
+  }
+}
+
+export async function aggiungiMarketplace(sorgente: string): Promise<Esito> {
+  const r = await esegui(['plugin', 'marketplace', 'add', sorgente], TIMEOUT_INSTALLA)
+  return r.ok ? { ok: true } : { ok: false, messaggio: (r.stderr || r.stdout || 'aggiunta fallita').trim().slice(0, 400) }
+}
+
+export async function rimuoviMarketplace(nome: string): Promise<Esito> {
+  const r = await esegui(['plugin', 'marketplace', 'remove', nome], TIMEOUT_LETTURA)
+  return r.ok ? { ok: true } : { ok: false, messaggio: (r.stderr || r.stdout || 'rimozione fallita').trim().slice(0, 400) }
+}
+
+export async function aggiornaMarketplace(nome?: string): Promise<Esito> {
+  const args = nome !== undefined && nome !== '' ? ['plugin', 'marketplace', 'update', nome] : ['plugin', 'marketplace', 'update']
+  const r = await esegui(args, TIMEOUT_INSTALLA)
+  return r.ok ? { ok: true } : { ok: false, messaggio: (r.stderr || r.stdout || 'aggiornamento fallito').trim().slice(0, 400) }
+}
+
+/**
+ * Cosa contiene un plugin e quanti token pesa: l'inventario che `claude plugin
+ * details` sa dare — ma solo per un plugin **installato** (per gli altri non c'è
+ * ancora niente su disco da ispezionare). Testo grezzo del CLI: è già scritto
+ * per essere letto, e riscriverlo vorrebbe dire inseguirne il formato.
+ */
+export async function dettagliPlugin(id: string): Promise<{ testo: string; errore?: string }> {
+  const r = await esegui(['plugin', 'details', id], TIMEOUT_LETTURA)
+  const testo = (r.stdout || '').trim()
+  if (!r.ok) return { testo: '', errore: (r.stderr || testo || 'dettagli non disponibili').trim().slice(0, 400) }
+  return { testo }
+}
