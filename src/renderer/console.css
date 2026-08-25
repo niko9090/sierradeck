@@ -2068,6 +2068,26 @@ select.comando-riquadro option {
 .negozio__scope { cursor: pointer; }
 .negozio__spunta { width: 18px; height: 18px; accent-color: #57d38c; cursor: pointer; flex-shrink: 0; }
 
+/* La barra di caricamento: indeterminata, perché «claude plugin install»
+   scarica dalla rete e non dice a che punto è — un nastro che scorre dice
+   «sto lavorando» meglio di un tasto disabilitato che sembra fermo. */
+.negozio__prog {
+  height: 4px; margin-top: var(--s2);
+  border-radius: 999px; background: var(--incisione); overflow: hidden;
+}
+.negozio__prog-riemp {
+  display: block; width: 35%; height: 100%;
+  border-radius: 999px; background: #57d38c;
+  animation: negozio-scorre 1.1s ease-in-out infinite;
+}
+@keyframes negozio-scorre {
+  0% { margin-left: -35%; }
+  100% { margin-left: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .negozio__prog-riemp { animation: none; width: 100%; opacity: .5; }
+}
+
 /* ─── la schermata dell'accesso all'avvio: a tutto schermo, viva ─── */
 .accesso-schermata {
   position: fixed;

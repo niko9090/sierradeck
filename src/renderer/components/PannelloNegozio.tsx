@@ -225,6 +225,11 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
             )}
           </div>
         </div>
+        {occupato ? (
+          <div className="negozio__prog" role="progressbar" aria-label="operazione in corso">
+            <span className="negozio__prog-riemp" />
+          </div>
+        ) : null}
         {d?.aperto === true ? (
           <div className="negozio__dettagli">
             {d.caricando === true ? <span className="misura">Leggo l’inventario…</span>
@@ -472,6 +477,11 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
                 {inCorso.has('mkt:upd') ? 'Aggiorno…' : 'Aggiorna tutti'}
               </button>
             </div>
+            {inCorso.has('mkt:add') || inCorso.has('mkt:upd') ? (
+              <div className="negozio__prog" role="progressbar" aria-label="operazione in corso">
+                <span className="negozio__prog-riemp" />
+              </div>
+            ) : null}
             {erroreStore !== undefined ? <div className="avviso">⚠ {erroreStore}</div> : null}
             {store === undefined ? vuoto('Carico…')
               : store.length === 0 ? vuoto('Nessuno store configurato.')

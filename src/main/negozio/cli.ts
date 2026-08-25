@@ -53,6 +53,8 @@ function esegui(args: string[], timeout: number): Promise<{ ok: boolean; stdout:
 
 type VoceCli = {
   pluginId?: string
+  /** Gli elementi *installati* usano `id`, non `pluginId`. */
+  id?: string
   name?: string
   description?: string
   marketplaceName?: string
@@ -62,10 +64,31 @@ type VoceCli = {
   status?: string
 }
 
+/** L'identificatore `nome@marketplace` di una voce, da qualunque campo arrivi:
+ * gli elementi del catalogo hanno `pluginId`, quelli installati `id`. */
+export function idDi(v: { pluginId?: string; id?: string; name?: string; marketplaceName?: string }): string | undefined {
+  if (typeof v.pluginId === 'string' && v.pluginId !== '') return v.pluginId
+  if (typeof v.id === 'string' && v.id !== '') return v.id
+  if (typeof v.name === 'string' && typeof v.marketplaceName === 'string') return `${v.name}@${v.marketplaceName}`
+  return undefined
+}
+
+/**
+ * L'esito di un comando che *stampa* ✔/✘ ma esce **sempre con 0**, anche quando
+ * fallisce (è così che si comporta `claude plugin install/uninstall`): il glifo
+ * è più affidabile del codice d'uscita. Con ✘ è un fallimento e si riporta cosa
+ * ha detto; con ✔ è fatto; senza né l'uno né l'altro si ripiega sul codice.
+ */
+export function interpreta(r: { ok: boolean; stdout: string; stderr: string }, azioneFallita: string): Esito {
+  const out = `${r.stdout}\n${r.stderr}`.trim()
+  const pulito = out.replace(/[✔✘]/g, '').trim().slice(0, 400)
+  if (/✘/.test(out)) return { ok: false, messaggio: pulito || azioneFallita }
+  if (/✔/.test(out)) return { ok: true }
+  return r.ok ? { ok: true } : { ok: false, messaggio: pulito || azioneFallita }
+}
+
 function normalizza(v: VoceCli, installato: boolean, abilitato: boolean): Plugin | undefined {
-  const id = v.pluginId ?? (typeof v.name === 'string' && typeof v.marketplaceName === 'string'
-    ? `${v.name}@${v.marketplaceName}`
-    : undefined)
+  const id = idDi(v)
   if (id === undefined) return undefined
   const nome = v.name ?? id.split('@')[0] ?? id
   const marketplace = v.marketplaceName ?? id.split('@')[1] ?? ''
@@ -105,12 +128,12 @@ export async function elencoPlugin(): Promise<{ plugin: Plugin[]; errore?: strin
   }
   const statoInstallati = new Map<string, boolean>()
   for (const v of dati.installed ?? []) {
-    const id = v.pluginId ?? (v.name !== undefined && v.marketplaceName !== undefined ? `${v.name}@${v.marketplaceName}` : undefined)
+    const id = idDi(v)
     if (id !== undefined) statoInstallati.set(id, abilitatoDa(v))
   }
   const plugin: Plugin[] = []
   for (const v of dati.available ?? []) {
-    const id = v.pluginId ?? (v.name !== undefined && v.marketplaceName !== undefined ? `${v.name}@${v.marketplaceName}` : '')
+    const id = idDi(v) ?? ''
     const installato = statoInstallati.has(id)
     const p = normalizza(v, installato, installato ? statoInstallati.get(id) === true : false)
     if (p !== undefined) plugin.push(p)
@@ -118,7 +141,7 @@ export async function elencoPlugin(): Promise<{ plugin: Plugin[]; errore?: strin
   // Un installato che non è più nel catalogo (marketplace rimosso) va mostrato
   // lo stesso: è roba dell'utente, non deve sparire perché la vetrina è cambiata.
   for (const v of dati.installed ?? []) {
-    const id = v.pluginId ?? ''
+    const id = idDi(v) ?? ''
     if (id !== '' && !plugin.some((p) => p.id === id)) {
       const p = normalizza(v, true, abilitatoDa(v))
       if (p !== undefined) plugin.push(p)
@@ -128,18 +151,15 @@ export async function elencoPlugin(): Promise<{ plugin: Plugin[]; errore?: strin
 }
 
 export async function installaPlugin(id: string): Promise<Esito> {
-  const r = await esegui(['plugin', 'install', id, '--yes'], TIMEOUT_INSTALLA)
-  return r.ok ? { ok: true } : { ok: false, messaggio: (r.stderr || r.stdout || 'installazione fallita').trim().slice(0, 400) }
+  return interpreta(await esegui(['plugin', 'install', id, '--yes'], TIMEOUT_INSTALLA), 'installazione fallita')
 }
 
 export async function disinstallaPlugin(id: string): Promise<Esito> {
-  const r = await esegui(['plugin', 'uninstall', id], TIMEOUT_INSTALLA)
-  return r.ok ? { ok: true } : { ok: false, messaggio: (r.stderr || r.stdout || 'disinstallazione fallita').trim().slice(0, 400) }
+  return interpreta(await esegui(['plugin', 'uninstall', id], TIMEOUT_INSTALLA), 'disinstallazione fallita')
 }
 
 export async function commutaPlugin(id: string, abilita: boolean): Promise<Esito> {
-  const r = await esegui(['plugin', abilita ? 'enable' : 'disable', id], TIMEOUT_LETTURA)
-  return r.ok ? { ok: true } : { ok: false, messaggio: (r.stderr || r.stdout || 'operazione fallita').trim().slice(0, 400) }
+  return interpreta(await esegui(['plugin', abilita ? 'enable' : 'disable', id], TIMEOUT_LETTURA), 'operazione fallita')
 }
 
 export type Marketplace = {
@@ -175,19 +195,16 @@ export async function elencoMarketplace(): Promise<{ marketplace: Marketplace[];
 }
 
 export async function aggiungiMarketplace(sorgente: string): Promise<Esito> {
-  const r = await esegui(['plugin', 'marketplace', 'add', sorgente], TIMEOUT_INSTALLA)
-  return r.ok ? { ok: true } : { ok: false, messaggio: (r.stderr || r.stdout || 'aggiunta fallita').trim().slice(0, 400) }
+  return interpreta(await esegui(['plugin', 'marketplace', 'add', sorgente], TIMEOUT_INSTALLA), 'aggiunta fallita')
 }
 
 export async function rimuoviMarketplace(nome: string): Promise<Esito> {
-  const r = await esegui(['plugin', 'marketplace', 'remove', nome], TIMEOUT_LETTURA)
-  return r.ok ? { ok: true } : { ok: false, messaggio: (r.stderr || r.stdout || 'rimozione fallita').trim().slice(0, 400) }
+  return interpreta(await esegui(['plugin', 'marketplace', 'remove', nome], TIMEOUT_LETTURA), 'rimozione fallita')
 }
 
 export async function aggiornaMarketplace(nome?: string): Promise<Esito> {
   const args = nome !== undefined && nome !== '' ? ['plugin', 'marketplace', 'update', nome] : ['plugin', 'marketplace', 'update']
-  const r = await esegui(args, TIMEOUT_INSTALLA)
-  return r.ok ? { ok: true } : { ok: false, messaggio: (r.stderr || r.stdout || 'aggiornamento fallito').trim().slice(0, 400) }
+  return interpreta(await esegui(args, TIMEOUT_INSTALLA), 'aggiornamento fallito')
 }
 
 /**

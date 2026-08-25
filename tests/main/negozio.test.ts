@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { commutaSkill, commutaMcp } from '../../src/main/negozio/azioni'
 import { skillDisponibili, mcpDiProgetto, agentiDisponibili } from '../../src/main/negozio/lettura'
+import { idDi, interpreta } from '../../src/main/negozio/cli'
 
 /**
  * Il negozio tocca i file più delicati dell'utente (`~/.claude.json`,
@@ -142,5 +143,35 @@ describe('agentiDisponibili', () => {
     creaAgente('vero', 'name: vero\ndescription: x')
     const nomi = agentiDisponibili(radice).map((a) => a.nome)
     expect(nomi).toEqual(['vero'])
+  })
+})
+
+describe('idDi (l’id di un plugin, da qualunque campo)', () => {
+  it('il catalogo usa pluginId', () => {
+    expect(idDi({ pluginId: 'x@m' })).toBe('x@m')
+  })
+  it('gli INSTALLATI usano id (era il bug: la riga non passava a «installato»)', () => {
+    expect(idDi({ id: 'x@m', name: 'x', marketplaceName: 'm', enabled: true } as never)).toBe('x@m')
+  })
+  it('in mancanza, ricompone da name@marketplace', () => {
+    expect(idDi({ name: 'x', marketplaceName: 'm' })).toBe('x@m')
+  })
+  it('senza niente di utile è undefined', () => {
+    expect(idDi({})).toBeUndefined()
+  })
+})
+
+describe('interpreta (esito di un CLI che esce 0 anche fallendo)', () => {
+  it('con ✔ è riuscito', () => {
+    expect(interpreta({ ok: true, stdout: '✔ Successfully installed plugin: x@m', stderr: '' }, 'ko')).toEqual({ ok: true })
+  })
+  it('con ✘ è fallito ANCHE se il codice d’uscita è 0', () => {
+    const r = interpreta({ ok: true, stdout: '✘ Failed to install plugin "x": not found', stderr: '' }, 'ko')
+    expect(r.ok).toBe(false)
+    expect(r.messaggio).toContain('Failed to install')
+  })
+  it('senza glifi ripiega sul codice d’uscita', () => {
+    expect(interpreta({ ok: false, stdout: '', stderr: 'boom' }, 'ko').ok).toBe(false)
+    expect(interpreta({ ok: true, stdout: 'fatto', stderr: '' }, 'ko')).toEqual({ ok: true })
   })
 })

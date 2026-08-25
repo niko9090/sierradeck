@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.1',
+    righe: [
+      '**Installare un plugin adesso si vede.** Compare una **barra di caricamento** mentre l’operazione è in corso, e appena finisce la riga passa a «installato». Prima il plugin veniva installato ma la vetrina non se ne accorgeva (sembrava non succedere niente), e se un’installazione falliva poteva persino sembrare riuscita: ora un errore te lo dice chiaramente.'
+    ]
+  },
+  {
     versione: '0.12.0',
     righe: [
       '**Un solo menu Impostazioni, a schede.** Prima in alto c’erano quattro tasti separati (impostazioni, AI, Account, Consumi) che affollavano la barra. Ora è **un menu unico** con l’etichetta «Impostazioni» e dentro le schede **Generali · AI · Account · Consumi**: tutto in un posto, più pulito e comodo. La testa e le schede restano ferme, scorre solo il contenuto.'
