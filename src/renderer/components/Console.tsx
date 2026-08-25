@@ -25,7 +25,7 @@ import { MODELLI } from '../modelli'
  * qualcosa di nuovo: chi non vuole pensarci li usa e non ci pensa più.
  */
 
-export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'consumi' | 'provider' | 'account' | 'negozio' | undefined
+export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | undefined
 
 type Props = {
   onApriSessioni: () => void
@@ -250,21 +250,15 @@ export function Console({
         {/* Niente fila di LED qui: lo stesso stato si legge nella colonna di
             fianco e nel pannello, e in alto toglieva soltanto spazio alle chat.
             Il numero sul tasto basta a dire quanti stanno lavorando. */}
+        {/* AI, Account e Consumi vivono ora DENTRO le Impostazioni, a schede:
+            un menu solo invece di quattro tasti che affollavano la barra. */}
         <button
           className="tasto"
-          onClick={() => commuta('provider')}
-          aria-expanded={aperto === 'provider'}
-          title="Con quale AI parlano le chat"
-        >
-          ⚙ AI
-        </button>
-        <button
-          className="tasto tasto--icona"
           onClick={() => commuta('impostazioni')}
           aria-expanded={aperto === 'impostazioni'}
-          title="Impostazioni: colori, porte, comportamenti"
+          title="Impostazioni: aspetto, rete, AI, account, consumi"
         >
-          ⚙
+          ⚙ Impostazioni
         </button>
         <button
           className="tasto"
@@ -281,22 +275,6 @@ export function Console({
           title="Plugin, skill e MCP di Claude Code — installa e attiva a clic"
         >
           ▣ Negozio
-        </button>
-        <button
-          className="tasto"
-          onClick={() => commuta('account')}
-          aria-expanded={aperto === 'account'}
-          title="Accesso: la chiave per ritrovare i tuoi dati su un altro computer"
-        >
-          ◍ Account
-        </button>
-        <button
-          className="tasto"
-          onClick={() => commuta('consumi')}
-          aria-expanded={aperto === 'consumi'}
-          title="Quanto hai consumato, e con quale account"
-        >
-          ◔ Consumi
         </button>
         <button
           className="tasto"

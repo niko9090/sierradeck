@@ -22,13 +22,10 @@ import { ModaleIstantanee, NOME_AUTOMATICO } from './components/ModaleIstantanee
 import { Console, type PannelloAperto } from './components/Console'
 import { PannelloWorkspace } from './components/PannelloWorkspace'
 import { PannelloAutopiloti } from './components/PannelloAutopiloti'
-import { PannelloConsumi } from './components/PannelloConsumi'
 import { PannelloQuaderno } from './components/PannelloQuaderno'
 import { PannelloImpostazioni } from './components/PannelloImpostazioni'
-import { PannelloAccount } from './components/PannelloAccount'
 import { PannelloNegozio } from './components/PannelloNegozio'
 import { tavolozza, type Preferenze } from '@shared/preferenze'
-import { PannelloProvider } from './components/PannelloProvider'
 import { ModaleAccesso } from './components/ModaleAccesso'
 import { ModalePreparazione } from './components/ModalePreparazione'
 import { ModaleNovita } from './components/ModaleNovita'
@@ -870,17 +867,8 @@ export function App(): React.JSX.Element {
             onChiudi={() => setAperto(undefined)}
           />
         ) : null}
-        {aperto === 'provider' ? (
-          <PannelloProvider onChiudi={() => setAperto(undefined)} />
-        ) : null}
-        {aperto === 'consumi' ? (
-          <PannelloConsumi onChiudi={() => setAperto(undefined)} />
-        ) : null}
         {aperto === 'impostazioni' ? (
           <PannelloImpostazioni onChiudi={() => setAperto(undefined)} />
-        ) : null}
-        {aperto === 'account' ? (
-          <PannelloAccount onChiudi={() => setAperto(undefined)} />
         ) : null}
         {aperto === 'negozio' ? (
           // Skill e MCP sono legati alla cartella della chat davanti: le mostri

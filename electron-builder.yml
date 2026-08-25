@@ -5,7 +5,7 @@
 # solo, cosa che una cartella copiata a mano non può fare.
 appId: it.glos.sierradeck
 productName: SierraDeck
-copyright: Copyright © 2026
+copyright: Copyright © 2026 Ferrari Consulenze
 
 # I moduli nativi — node-pty e better-sqlite3 — sono gia' compilati per questa
 # versione di Electron: e' cosi' che il programma gira da settimane. Ricompilarli

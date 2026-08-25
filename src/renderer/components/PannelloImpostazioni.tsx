@@ -2,8 +2,12 @@ import { useEffect, useState } from 'react'
 import {
   coloreValido, portaValida, PREFERENZE_PREDEFINITE, type Preferenze
 } from '@shared/preferenze'
+import { PannelloProvider } from './PannelloProvider'
+import { PannelloAccount } from './PannelloAccount'
+import { PannelloConsumi } from './PannelloConsumi'
 
-type Props = { onChiudi: () => void }
+/** Le schede del menu Impostazioni. */
+export type TabImpostazioni = 'generali' | 'ai' | 'account' | 'consumi'
 
 type StatoClient = Awaited<ReturnType<typeof window.gestore.client.stato>>
 
@@ -163,14 +167,12 @@ function SezioneClient(): React.JSX.Element {
 const ACCENTI = ['#4aa3ff', '#54c07a', '#e0a33c', '#dc5f5f', '#b18cf0', '#37c8c3']
 
 /**
- * Le impostazioni: quello che finora decideva il codice.
- *
- * Ogni valore aveva un predefinito scelto da chi ha scritto il programma — che
- * va benissimo finché la porta non è occupata o il grigio non stanca gli occhi.
- * Le modifiche si applicano mentre le fai: cambiare colore e dover premere
- * «Salva» per vedere com'è significa sceglierlo alla cieca.
+ * La scheda «Generali»: aspetto, rete, client, comportamento — quello che
+ * finora decideva il codice, ora a portata di mano. Le modifiche si applicano
+ * mentre le fai: cambiare colore e dover premere «Salva» per vedere com'è
+ * significa sceglierlo alla cieca.
  */
-export function PannelloImpostazioni({ onChiudi }: Props): React.JSX.Element {
+function SchedaGenerali(): React.JSX.Element {
   const [p, setP] = useState<Preferenze>(PREFERENZE_PREDEFINITE)
   const [errore, setErrore] = useState<string | undefined>(undefined)
   const [salvato, setSalvato] = useState(false)
@@ -198,15 +200,13 @@ export function PannelloImpostazioni({ onChiudi }: Props): React.JSX.Element {
   }
 
   return (
-    <div className="pannello pannello--impostazioni">
-      <div className="pannello__testa">
-        <strong>Impostazioni</strong>
+    <div className="impostazioni-scheda">
+      <div className="impostazioni__barra">
         {salvato ? <span className="riga__stato">salvate</span> : null}
         <span style={{ flex: 1 }} />
         <button className="tasto" onClick={() => cambia(PREFERENZE_PREDEFINITE)}>
           Torna ai valori di fabbrica
         </button>
-        <button className="tasto" onClick={onChiudi}>Chiudi</button>
       </div>
 
       {errore !== undefined ? <div className="riga__stato" style={{ color: 'var(--ambra)' }}>{errore}</div> : null}
@@ -376,6 +376,61 @@ export function PannelloImpostazioni({ onChiudi }: Props): React.JSX.Element {
             nella banda in alto — e quel tasto compare solo quando questo è spento.
           </div>
         </section>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Il menu **Impostazioni**, a schede: tutto in un posto solo, diviso in tab.
+ *
+ * Prima erano quattro tasti separati nella barra in alto — AI, Account, Consumi,
+ * e le impostazioni vere e proprie — e la barra si affollava. Ora è un menu
+ * unico: «Generali» per aspetto/rete/comportamento, e le altre tre come schede
+ * dentro, con la stessa testa e lo stesso Chiudi. La testa e le schede restano
+ * ferme, scorre solo il corpo.
+ */
+export function PannelloImpostazioni(
+  { onChiudi, tabIniziale = 'generali' }: { onChiudi: () => void; tabIniziale?: TabImpostazioni }
+): React.JSX.Element {
+  const [tab, setTab] = useState<TabImpostazioni>(tabIniziale)
+  useEffect(() => { setTab(tabIniziale) }, [tabIniziale])
+  useEffect(() => {
+    const suTasto = (e: KeyboardEvent): void => { if (e.key === 'Escape') onChiudi() }
+    window.addEventListener('keydown', suTasto)
+    return () => window.removeEventListener('keydown', suTasto)
+  }, [onChiudi])
+
+  const bottone = (t: TabImpostazioni, testo: string): React.JSX.Element => (
+    <button
+      className={`impostazioni__tab${tab === t ? ' impostazioni__tab--attiva' : ''}`}
+      onClick={() => setTab(t)}
+      aria-pressed={tab === t}
+    >
+      {testo}
+    </button>
+  )
+
+  return (
+    <div className="pannello pannello--impostazioni">
+      <div className="impostazioni__testa">
+        <div className="impostazioni__testa-riga">
+          <strong>Impostazioni</strong>
+          <span style={{ flex: 1 }} />
+          <button className="tasto" onClick={onChiudi}>Chiudi</button>
+        </div>
+        <div className="impostazioni__tabs">
+          {bottone('generali', 'Generali')}
+          {bottone('ai', 'AI')}
+          {bottone('account', 'Account')}
+          {bottone('consumi', 'Consumi')}
+        </div>
+      </div>
+      <div className="impostazioni__corpo">
+        {tab === 'generali' ? <SchedaGenerali /> : null}
+        {tab === 'ai' ? <PannelloProvider incorporato /> : null}
+        {tab === 'account' ? <PannelloAccount incorporato /> : null}
+        {tab === 'consumi' ? <PannelloConsumi incorporato /> : null}
       </div>
     </div>
   )

@@ -4,7 +4,7 @@ import {
 } from '../accesso-supabase'
 import { valutaPassword, REGOLE_PASSWORD } from '@shared/password'
 
-type Props = { onChiudi: () => void }
+type Props = { onChiudi?: () => void; incorporato?: boolean }
 
 const ETICHETTA_FASE: Record<string, string> = {
   raccolgo: 'Raccolgo i file',
@@ -298,7 +298,7 @@ function SezioneSync(): React.JSX.Element | null {
  * si entra; da entrato, l'account è la chiave del recupero fra PC — la
  * sincronizzazione cifrata dei propri dati — che si aggancia qui man mano.
  */
-export function PannelloAccount({ onChiudi }: Props): React.JSX.Element {
+export function PannelloAccount({ onChiudi, incorporato = false }: Props): React.JSX.Element {
   const [utente, setUtente] = useState<Utente | undefined>(undefined)
   const [modo, setModo] = useState<'entra' | 'registra'>('entra')
   const [fase, setFase] = useState<'form' | 'codice'>('form')
@@ -353,15 +353,8 @@ export function PannelloAccount({ onChiudi }: Props): React.JSX.Element {
       .catch((e: unknown) => setMessaggio(String(e)))
   }
 
-  return (
-    <div className="pannello pannello--account">
-      <div className="pannello__testa">
-        <strong>Account</strong>
-        <span className="sezione--vuota" style={{ flex: 1 }} />
-        <button className="tasto" onClick={onChiudi}>Chiudi</button>
-      </div>
-
-      {utente !== undefined ? (
+  const corpo = (
+    utente !== undefined ? (
         <div className="account">
           <p className="account__chi">Entrato come <strong>{utente.email}</strong></p>
           <SezioneSync />
@@ -492,7 +485,18 @@ export function PannelloAccount({ onChiudi }: Props): React.JSX.Element {
           </>
           )}
         </div>
-      )}
+      )
+  )
+
+  if (incorporato) return <div className="impostazioni-scheda">{corpo}</div>
+  return (
+    <div className="pannello pannello--account">
+      <div className="pannello__testa">
+        <strong>Account</strong>
+        <span className="sezione--vuota" style={{ flex: 1 }} />
+        <button className="tasto" onClick={onChiudi}>Chiudi</button>
+      </div>
+      {corpo}
     </div>
   )
 }

@@ -11,7 +11,7 @@ import type { StatoAccesso } from '../../main/accesso'
  * I token sono ciò che si consuma davvero, e si confrontano fra un giorno e
  * l'altro — che è la domanda vera: «oggi sto andando più forte del solito?».
  */
-export function PannelloConsumi({ onChiudi }: { onChiudi: () => void }): React.JSX.Element {
+export function PannelloConsumi({ onChiudi, incorporato = false }: { onChiudi?: () => void; incorporato?: boolean }): React.JSX.Element {
   const [consumi, setConsumi] = useState<Consumi | undefined>(undefined)
   const [accesso, setAccesso] = useState<StatoAccesso | undefined>(undefined)
   const [errore, setErrore] = useState<string | undefined>(undefined)
@@ -22,10 +22,13 @@ export function PannelloConsumi({ onChiudi }: { onChiudi: () => void }): React.J
   }, [])
 
   useEffect(() => {
-    const suTasto = (e: KeyboardEvent): void => { if (e.key === 'Escape') onChiudi() }
+    // Incorporato dentro le Impostazioni, l'Escape lo gestisce il guscio: non
+    // deve chiudere due volte.
+    if (incorporato) return
+    const suTasto = (e: KeyboardEvent): void => { if (e.key === 'Escape') onChiudi?.() }
     window.addEventListener('keydown', suTasto)
     return () => window.removeEventListener('keydown', suTasto)
-  }, [onChiudi])
+  }, [onChiudi, incorporato])
 
   const colonna = (titolo: string, q: Consumi['oggi'] | undefined): React.JSX.Element => (
     <div className="consumo">
@@ -52,20 +55,15 @@ export function PannelloConsumi({ onChiudi }: { onChiudi: () => void }): React.J
     </div>
   )
 
-  return (
-    <div className="pannello">
-      <div className="pannello__testa">
-        <span className="serigrafia">Consumi</span>
-        {accesso?.email !== undefined ? (
-          <span className="misura">
-            {accesso.email}
-            {accesso.piano !== undefined ? ` · ${accesso.piano}` : ''}
-            {accesso.organizzazione !== undefined ? ` · ${accesso.organizzazione}` : ''}
-          </span>
-        ) : null}
-        <span style={{ flex: 1 }} />
-        <button className="tasto" onClick={onChiudi}>Chiudi</button>
-      </div>
+  const corpo = (
+    <>
+      {accesso?.email !== undefined ? (
+        <p className="misura" style={{ margin: '0 0 10px' }}>
+          {accesso.email}
+          {accesso.piano !== undefined ? ` · ${accesso.piano}` : ''}
+          {accesso.organizzazione !== undefined ? ` · ${accesso.organizzazione}` : ''}
+        </p>
+      ) : null}
 
       {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
 
@@ -110,6 +108,18 @@ export function PannelloConsumi({ onChiudi }: { onChiudi: () => void }): React.J
         Token letti dalle trascrizioni di Claude Code, non una stima di spesa: con un abbonamento il
         costo di una chat non è una moltiplicazione, e una cifra in euro sarebbe inventata.
       </p>
+    </>
+  )
+
+  if (incorporato) return <div className="impostazioni-scheda">{corpo}</div>
+  return (
+    <div className="pannello">
+      <div className="pannello__testa">
+        <span className="serigrafia">Consumi</span>
+        <span style={{ flex: 1 }} />
+        <button className="tasto" onClick={onChiudi}>Chiudi</button>
+      </div>
+      {corpo}
     </div>
   )
 }

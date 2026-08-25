@@ -2287,7 +2287,41 @@ select.comando-riquadro option {
 
 /* ─────────────────────────── impostazioni ─────────────────────────── */
 
-.pannello--impostazioni { width: min(620px, calc(100vw - 48px)); }
+/* A schede: testa e tab fissi in alto, scorre solo il corpo — come il Negozio. */
+.pannello--impostazioni {
+  width: min(680px, calc(100vw - 48px));
+  height: min(82vh, 760px);
+  max-height: min(82vh, 760px);
+  display: flex; flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+.impostazioni__testa {
+  flex-shrink: 0;
+  padding: var(--s3) var(--s4) var(--s2);
+  border-bottom: 1px solid var(--incisione);
+  display: flex; flex-direction: column; gap: var(--s2);
+}
+.impostazioni__testa-riga { display: flex; align-items: center; gap: var(--s2); }
+.impostazioni__tabs { display: flex; gap: var(--s2); flex-wrap: wrap; }
+.impostazioni__tab {
+  padding: 6px 16px;
+  border: 1px solid var(--incisione);
+  border-radius: 999px;
+  background: var(--fondo-cupo);
+  color: inherit;
+  cursor: pointer;
+  font-size: var(--t2);
+}
+.impostazioni__tab:hover { border-color: var(--luce-tenue); }
+.impostazioni__tab--attiva {
+  background: linear-gradient(135deg, rgba(87, 211, 140, .16), rgba(87, 211, 140, .04));
+  border-color: #57d38c;
+}
+.impostazioni__corpo { flex: 1; min-height: 0; overflow-y: auto; padding: var(--s3) var(--s4); }
+.impostazioni__barra { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
+/* Una scheda incorporata non ha cornice propria: la dà il guscio. */
+.impostazioni-scheda { display: block; }
 
 .impostazioni { display: flex; flex-direction: column; gap: var(--s4); }
 .impostazioni__gruppo { display: flex; flex-direction: column; gap: var(--s3); }

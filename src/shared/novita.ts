@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.0',
+    righe: [
+      '**Un solo menu Impostazioni, a schede.** Prima in alto c’erano quattro tasti separati (impostazioni, AI, Account, Consumi) che affollavano la barra. Ora è **un menu unico** con l’etichetta «Impostazioni» e dentro le schede **Generali · AI · Account · Consumi**: tutto in un posto, più pulito e comodo. La testa e le schede restano ferme, scorre solo il contenuto.'
+    ]
+  },
+  {
     versione: '0.11.0',
     righe: [
       '**Il Negozio, rifatto e molto più ricco.** Adesso **scorre solo la lista** (prima si muoveva tutta la finestra) e ha una scheda **«In uso»** con tutto ciò che hai installato e attivo a colpo d’occhio. Puoi **aggiungere store di terze parti** (un repo GitHub, un indirizzo, una cartella), sfogliare gli **Agenti**, vedere **cosa contiene e quanto pesa** un plugin, e **cercare in tutto** da una casella sola.',

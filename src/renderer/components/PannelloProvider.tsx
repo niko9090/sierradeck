@@ -14,7 +14,7 @@ type Stato = { attivo: boolean; baseUrl: string; modello: string; haToken: boole
  * n'è una salvata, e lasciarlo vuoto non la cancella. Toglierla è un gesto a
  * parte, perché è irreversibile.
  */
-export function PannelloProvider({ onChiudi }: { onChiudi: () => void }): React.JSX.Element {
+export function PannelloProvider({ onChiudi, incorporato = false }: { onChiudi?: () => void; incorporato?: boolean }): React.JSX.Element {
   const [stato, setStato] = useState<Stato | undefined>(undefined)
   const [baseUrl, setBaseUrl] = useState('')
   const [token, setToken] = useState('')
@@ -45,14 +45,8 @@ export function PannelloProvider({ onChiudi }: { onChiudi: () => void }): React.
       .catch((err: unknown) => setErrore(String(err)))
   }
 
-  return (
-    <div className="pannello">
-      <div className="pannello__testa">
-        <span className="serigrafia">Con quale AI parlano le chat</span>
-        <span style={{ flex: 1 }} />
-        <button className="tasto" onClick={onChiudi}>Chiudi</button>
-      </div>
-
+  const corpo = (
+    <>
       <p style={{ margin: '0 0 10px', color: 'var(--testo-quieto)', fontSize: 12, lineHeight: 1.5 }}>
         Vuoto vuol dire <strong>Claude</strong>, con l’accesso che hai già fatto. Indicando un
         indirizzo, le chat nuove parleranno con quel servizio — deve capire il protocollo di
@@ -112,6 +106,18 @@ export function PannelloProvider({ onChiudi }: { onChiudi: () => void }): React.
           : 'Adesso le chat parlano con Claude.'}
         {' '}La chiave resta su questo computer, nei dati di SierraDeck.
       </p>
+    </>
+  )
+
+  if (incorporato) return <div className="impostazioni-scheda">{corpo}</div>
+  return (
+    <div className="pannello">
+      <div className="pannello__testa">
+        <span className="serigrafia">Con quale AI parlano le chat</span>
+        <span style={{ flex: 1 }} />
+        <button className="tasto" onClick={onChiudi}>Chiudi</button>
+      </div>
+      {corpo}
     </div>
   )
 }
