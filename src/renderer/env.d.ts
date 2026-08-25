@@ -112,6 +112,22 @@ declare global {
         apri: () => Promise<string>
         percorso: () => Promise<string>
       }
+      negozio: {
+        plugin: () => Promise<{ plugin: Array<{
+          id: string; nome: string; descrizione: string; marketplace: string
+          installato: boolean; abilitato: boolean; installazioni?: number
+        }>; errore?: string }>
+        installaPlugin: (id: string) => Promise<{ ok: boolean; messaggio?: string }>
+        disinstallaPlugin: (id: string) => Promise<{ ok: boolean; messaggio?: string }>
+        commutaPlugin: (id: string, on: boolean) => Promise<{ ok: boolean; messaggio?: string }>
+        skill: (cwd?: string) => Promise<Array<{
+          nome: string; descrizione: string; origine: 'utente' | 'progetto' | 'plugin'
+          percorso: string; abilitata: boolean
+        }>>
+        commutaSkill: (nome: string, on: boolean) => Promise<{ ok: boolean; messaggio?: string }>
+        mcp: (cwd: string) => Promise<Array<{ nome: string; come: string; abilitato: boolean }>>
+        commutaMcp: (cwd: string, nome: string, on: boolean) => Promise<{ ok: boolean; messaggio?: string }>
+      }
       chiavi: {
         stato: () => Promise<{ allAvvio: boolean; workspace: string[] }>
         impostaAvvio: (parola: string) => Promise<{ allAvvio: boolean; workspace: string[] }>

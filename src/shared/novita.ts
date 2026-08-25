@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.9.67',
+    righe: [
+      '**Arriva il Negozio.** Un nuovo tasto «▣ Negozio» nella barra: plugin, skill e MCP di Claude Code gestiti **a clic**, senza più aprire il terminale. Sfoglia il catalogo dei plugin (centinaia, con ricerca), **installa**, **attiva** o **disattiva**; accendi o spegni le tue **skill**; disattiva un **MCP** per la cartella su cui stai lavorando.',
+      'I plugin passano dal comando vero di Claude Code, così è esattamente quello che faresti da terminale — solo più comodo. Skill e MCP mostrati sono quelli della **cartella della chat che hai davanti**, dove valgono.'
+    ]
+  },
+  {
     versione: '0.9.66',
     righe: [
       '**Il primo salvataggio (quello che carica tutto una volta) ora è molto più veloce e robusto.** I file vanno sul Drive **in parallelo** (sei alla volta) invece di uno per uno, e se la rete fa i capricci si **riprova da sola** senza far fallire tutto. Dopo quel primo giro, i salvataggi seguenti restano di pochi secondi.'

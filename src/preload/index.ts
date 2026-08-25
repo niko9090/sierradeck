@@ -236,6 +236,29 @@ contextBridge.exposeInMainWorld('gestore', {
     apri: (): Promise<string> => ipcRenderer.invoke('log:apri'),
     percorso: (): Promise<string> => ipcRenderer.invoke('log:percorso')
   },
+  /** Il negozio: plugin, skill e MCP di Claude Code, gestiti a clic. */
+  negozio: {
+    plugin: (): Promise<{ plugin: Array<{
+      id: string; nome: string; descrizione: string; marketplace: string
+      installato: boolean; abilitato: boolean; installazioni?: number
+    }>; errore?: string }> => ipcRenderer.invoke('negozio:plugin'),
+    installaPlugin: (id: string): Promise<{ ok: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('negozio:installaPlugin', id),
+    disinstallaPlugin: (id: string): Promise<{ ok: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('negozio:disinstallaPlugin', id),
+    commutaPlugin: (id: string, on: boolean): Promise<{ ok: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('negozio:commutaPlugin', id, on),
+    skill: (cwd?: string): Promise<Array<{
+      nome: string; descrizione: string; origine: 'utente' | 'progetto' | 'plugin'
+      percorso: string; abilitata: boolean
+    }>> => ipcRenderer.invoke('negozio:skill', cwd),
+    commutaSkill: (nome: string, on: boolean): Promise<{ ok: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('negozio:commutaSkill', nome, on),
+    mcp: (cwd: string): Promise<Array<{ nome: string; come: string; abilitato: boolean }>> =>
+      ipcRenderer.invoke('negozio:mcp', cwd),
+    commutaMcp: (cwd: string, nome: string, on: boolean): Promise<{ ok: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('negozio:commutaMcp', cwd, nome, on)
+  },
   chiavi: {
     stato: (): Promise<{ allAvvio: boolean; workspace: string[] }> =>
       ipcRenderer.invoke('chiavi:stato'),

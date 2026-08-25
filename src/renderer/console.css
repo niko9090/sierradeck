@@ -1948,6 +1948,66 @@ select.comando-riquadro option {
   user-select: all;
 }
 
+/* ─── il negozio: plugin, skill, MCP ─── */
+.tasto--fantasma { border-color: transparent; opacity: .75; }
+.tasto--fantasma:hover:not(:disabled) { opacity: 1; border-color: var(--incisione); }
+
+.negozio__tabs { display: flex; gap: var(--s2); margin-bottom: var(--s3); }
+.negozio__tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--incisione);
+  border-radius: 999px;
+  background: var(--fondo-cupo);
+  color: inherit;
+  cursor: pointer;
+  font-size: var(--t2);
+}
+.negozio__tab:hover { border-color: var(--luce-tenue); }
+.negozio__tab--attiva {
+  background: linear-gradient(135deg, rgba(87, 211, 140, .16), rgba(87, 211, 140, .04));
+  border-color: #57d38c;
+}
+.negozio__conta {
+  min-width: 18px; padding: 0 5px;
+  border-radius: 999px;
+  background: var(--incisione);
+  font-size: var(--t1); text-align: center;
+}
+.negozio__tab--attiva .negozio__conta { background: rgba(87, 211, 140, .35); }
+
+.negozio__cerca { display: flex; gap: var(--s2); margin-bottom: var(--s2); }
+.negozio__cerca .campo { flex: 1; }
+
+.negozio__lista { display: flex; flex-direction: column; gap: 6px; }
+.negozio__voce {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--incisione);
+  border-radius: var(--raggio);
+  background: var(--fondo-cupo);
+}
+.negozio__info { min-width: 0; flex: 1; }
+.negozio__nome {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: var(--t2); font-weight: 600;
+}
+.negozio__mkt { font-size: var(--t1); font-weight: 400; opacity: .6; }
+.negozio__stato {
+  font-size: var(--t1); font-weight: 600;
+  padding: 1px 7px; border-radius: 999px;
+  background: var(--incisione); opacity: .85;
+}
+.negozio__stato--on { background: rgba(87, 211, 140, .22); color: #57d38c; opacity: 1; }
+.negozio__desc {
+  font-size: var(--t1); opacity: .75; margin-top: 3px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.negozio__desc--mono { font-family: ui-monospace, monospace; -webkit-line-clamp: 1; opacity: .65; }
+.negozio__azioni { display: flex; gap: var(--s2); flex-shrink: 0; }
+.negozio__vuoto { padding: var(--s3); line-height: 1.5; }
+.negozio__pie { margin: var(--s3) 0 0; opacity: .7; line-height: 1.5; }
+
 /* ─── la schermata dell'accesso all'avvio: a tutto schermo, viva ─── */
 .accesso-schermata {
   position: fixed;

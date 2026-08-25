@@ -1,0 +1,104 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { commutaSkill, commutaMcp } from '../../src/main/negozio/azioni'
+import { skillDisponibili, mcpDiProgetto } from '../../src/main/negozio/lettura'
+
+/**
+ * Il negozio tocca i file più delicati dell'utente (`~/.claude.json`,
+ * `settings.json`). La cosa che DEVE valere: cambia una chiave e non graffia
+ * nient'altro. Questi test lo dimostrano su file veri in una cartella usa-e-getta.
+ */
+
+let radice: string
+let claudeJson: string
+
+beforeEach(() => {
+  radice = mkdtempSync(join(tmpdir(), 'sd-negozio-'))
+  claudeJson = join(radice, '.claude.json')
+})
+afterEach(() => { rmSync(radice, { recursive: true, force: true }) })
+
+function scriviJson(percorso: string, dati: unknown): void {
+  writeFileSync(percorso, JSON.stringify(dati, null, 2), 'utf8')
+}
+
+describe('commutaMcp', () => {
+  it('disattiva un MCP senza toccare il resto di .claude.json', () => {
+    scriviJson(claudeJson, {
+      numStartups: 42,
+      mcpServers: { globale: { command: 'x' } },
+      projects: {
+        '/altro': { mcpServers: { suo: { url: 'http://a' } } },
+        '/mio': { mcpServers: { uno: { command: 'a' }, due: { url: 'http://b' } }, allowedTools: ['Read'] }
+      }
+    })
+
+    const esito = commutaMcp(claudeJson, '/mio', 'uno', false)
+    expect(esito.ok).toBe(true)
+
+    const dopo = JSON.parse(readFileSync(claudeJson, 'utf8'))
+    // La chiave voluta è cambiata…
+    expect(dopo.projects['/mio'].disabledMcpjsonServers).toEqual(['uno'])
+    // …e tutto il resto è identico.
+    expect(dopo.numStartups).toBe(42)
+    expect(dopo.mcpServers).toEqual({ globale: { command: 'x' } })
+    expect(dopo.projects['/altro']).toEqual({ mcpServers: { suo: { url: 'http://a' } } })
+    expect(dopo.projects['/mio'].mcpServers).toEqual({ uno: { command: 'a' }, due: { url: 'http://b' } })
+    expect(dopo.projects['/mio'].allowedTools).toEqual(['Read'])
+  })
+
+  it('riattivare toglie la voce dai disabilitati, e la lettura lo riflette', () => {
+    scriviJson(claudeJson, {
+      projects: { '/mio': { mcpServers: { uno: { command: 'a' } }, disabledMcpjsonServers: ['uno'] } }
+    })
+    expect(mcpDiProgetto(claudeJson, '/mio')[0]?.abilitato).toBe(false)
+
+    commutaMcp(claudeJson, '/mio', 'uno', true)
+    const dopo = JSON.parse(readFileSync(claudeJson, 'utf8'))
+    expect(dopo.projects['/mio'].disabledMcpjsonServers).toBeUndefined()
+    expect(mcpDiProgetto(claudeJson, '/mio')[0]?.abilitato).toBe(true)
+  })
+
+  it('non scrive e segnala se il file è illeggibile', () => {
+    writeFileSync(claudeJson, '{ rotto', 'utf8')
+    const esito = commutaMcp(claudeJson, '/mio', 'uno', false)
+    expect(esito.ok).toBe(false)
+    // Il file resta com'era: meglio un'azione mancata che una corrotta.
+    expect(readFileSync(claudeJson, 'utf8')).toBe('{ rotto')
+  })
+})
+
+describe('commutaSkill', () => {
+  function creaSkill(nome: string): void {
+    const d = join(radice, 'skills', nome)
+    mkdirSync(d, { recursive: true })
+    writeFileSync(join(d, 'SKILL.md'), `---\nname: ${nome}\ndescription: prova\n---\ncorpo\n`, 'utf8')
+  }
+
+  it('spegne una skill via skillOverrides e la lettura la vede spenta', () => {
+    creaSkill('alfa')
+    scriviJson(join(radice, 'settings.json'), { model: 'opus', skillOverrides: { beta: 'off' } })
+
+    expect(skillDisponibili(radice).find((s) => s.nome === 'alfa')?.abilitata).toBe(true)
+
+    const esito = commutaSkill(radice, 'alfa', false)
+    expect(esito.ok).toBe(true)
+
+    const dopo = JSON.parse(readFileSync(join(radice, 'settings.json'), 'utf8'))
+    expect(dopo.skillOverrides).toEqual({ beta: 'off', alfa: 'off' })
+    expect(dopo.model).toBe('opus') // il resto intatto
+    expect(skillDisponibili(radice).find((s) => s.nome === 'alfa')?.abilitata).toBe(false)
+  })
+
+  it('riaccendere rimuove la voce, e svuota skillOverrides se resta vuoto', () => {
+    creaSkill('alfa')
+    scriviJson(join(radice, 'settings.json'), { skillOverrides: { alfa: 'off' } })
+
+    commutaSkill(radice, 'alfa', true)
+    const dopo = JSON.parse(readFileSync(join(radice, 'settings.json'), 'utf8'))
+    expect(dopo.skillOverrides).toBeUndefined()
+    expect(skillDisponibili(radice).find((s) => s.nome === 'alfa')?.abilitata).toBe(true)
+  })
+})

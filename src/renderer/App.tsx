@@ -26,6 +26,7 @@ import { PannelloConsumi } from './components/PannelloConsumi'
 import { PannelloQuaderno } from './components/PannelloQuaderno'
 import { PannelloImpostazioni } from './components/PannelloImpostazioni'
 import { PannelloAccount } from './components/PannelloAccount'
+import { PannelloNegozio } from './components/PannelloNegozio'
 import { tavolozza, type Preferenze } from '@shared/preferenze'
 import { PannelloProvider } from './components/PannelloProvider'
 import { ModaleAccesso } from './components/ModaleAccesso'
@@ -880,6 +881,11 @@ export function App(): React.JSX.Element {
         ) : null}
         {aperto === 'account' ? (
           <PannelloAccount onChiudi={() => setAperto(undefined)} />
+        ) : null}
+        {aperto === 'negozio' ? (
+          // Skill e MCP sono legati alla cartella della chat davanti: le mostri
+          // dove valgono. I plugin valgono per tutte, e non dipendono da questa.
+          <PannelloNegozio cwd={cartellaDavanti() || undefined} onChiudi={() => setAperto(undefined)} />
         ) : null}
         {aperto === 'quaderno' ? (
           // La cartella del riquadro che hai davanti: il quaderno racconta un

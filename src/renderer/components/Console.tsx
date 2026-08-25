@@ -25,7 +25,7 @@ import { MODELLI } from '../modelli'
  * qualcosa di nuovo: chi non vuole pensarci li usa e non ci pensa più.
  */
 
-export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'consumi' | 'provider' | 'account' | undefined
+export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'consumi' | 'provider' | 'account' | 'negozio' | undefined
 
 type Props = {
   onApriSessioni: () => void
@@ -273,6 +273,14 @@ export function Console({
           title="Cosa e' stato fatto in questa cartella, in schede"
         >
           ▤ Quaderno
+        </button>
+        <button
+          className="tasto"
+          onClick={() => commuta('negozio')}
+          aria-expanded={aperto === 'negozio'}
+          title="Plugin, skill e MCP di Claude Code — installa e attiva a clic"
+        >
+          ▣ Negozio
         </button>
         <button
           className="tasto"

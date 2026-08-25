@@ -62,6 +62,9 @@ import { resolveClaudeCommand } from './config'
 import { leggiAccesso } from './accesso'
 import { apriContoDrive } from './cassaforte/conto-drive'
 import { apriSincronia } from './cassaforte/sincronia'
+import { elencoPlugin, installaPlugin, disinstallaPlugin, commutaPlugin } from './negozio/cli'
+import { skillDisponibili, mcpDiProgetto } from './negozio/lettura'
+import { commutaSkill, commutaMcp } from './negozio/azioni'
 import { apriRegistro } from './registro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
@@ -518,6 +521,28 @@ if (!app.requestSingleInstanceLock()) {
       // Il registro della sessione: aprirne la cartella, o sapere dov'è il file.
       ipcMain.handle('log:apri', () => shell.openPath(registro.cartella()))
       ipcMain.handle('log:percorso', () => registro.file())
+
+      // Il negozio: plugin (via il CLI di Claude Code, fonte di verità), skill e
+      // MCP (letti dai file, spenti/accesi con un tocco chirurgico). Fare a clic
+      // ciò che si farebbe da terminale, senza uscire dal gestore.
+      const fileClaudeJson = join(homedir(), '.claude.json')
+      const soloStringa = (x: unknown): string | undefined => (typeof x === 'string' && x.trim() !== '' ? x : undefined)
+      ipcMain.handle('negozio:plugin', () => elencoPlugin())
+      ipcMain.handle('negozio:installaPlugin', (_e, id: unknown) =>
+        soloStringa(id) !== undefined ? installaPlugin(id as string) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
+      ipcMain.handle('negozio:disinstallaPlugin', (_e, id: unknown) =>
+        soloStringa(id) !== undefined ? disinstallaPlugin(id as string) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
+      ipcMain.handle('negozio:commutaPlugin', (_e, id: unknown, on: unknown) =>
+        soloStringa(id) !== undefined ? commutaPlugin(id as string, on === true) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
+      ipcMain.handle('negozio:skill', (_e, cwd: unknown) => skillDisponibili(radiceClaude, soloStringa(cwd)))
+      ipcMain.handle('negozio:commutaSkill', (_e, nome: unknown, on: unknown) =>
+        soloStringa(nome) !== undefined ? commutaSkill(radiceClaude, nome as string, on === true) : { ok: false, messaggio: 'richiesta non valida' })
+      ipcMain.handle('negozio:mcp', (_e, cwd: unknown) =>
+        soloStringa(cwd) !== undefined ? mcpDiProgetto(fileClaudeJson, cwd as string) : [])
+      ipcMain.handle('negozio:commutaMcp', (_e, cwd: unknown, nome: unknown, on: unknown) =>
+        soloStringa(cwd) !== undefined && soloStringa(nome) !== undefined
+          ? commutaMcp(fileClaudeJson, cwd as string, nome as string, on === true)
+          : { ok: false, messaggio: 'richiesta non valida' })
 
       const clientAutopilota = creaClientAutopilota({
         porta: PORTA_AUTOPILOTA,
