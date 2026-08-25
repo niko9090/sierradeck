@@ -150,11 +150,14 @@ const ALTEZZA = 1000
  * configurazione: chi ha due schermi preme «Nuova finestra» e la trova sul
  * secondo, senza spostarla a mano.
  *
- * La posizione **non** viene mai letta dall'archivio: si ricalcola sempre dagli
- * schermi presenti in questo momento. È deliberato — l'archivio ricorda il
- * *contenuto* per monitor, non la geometria della finestra — e impedisce il caso
- * peggiore, una finestra ripristinata su un monitor scollegato e quindi
- * invisibile.
+ * La geometria si ripristina, ma con giudizio. La chiave del monitor codifica
+ * posizione, risoluzione e scalatura: si riapre la finestra con la dimensione e
+ * lo stato (finestra / ingrandita / schermo intero) di quando fu chiusa **solo
+ * se** quella chiave combacia con un monitor presente adesso — cioè solo se è
+ * davvero lo stesso schermo. Se il monitor non c'è più, la chiave non combacia,
+ * niente geometria salvata, e si torna al centro del primo schermo libero: è la
+ * salvaguardia contro il caso peggiore, una finestra riaperta su uno schermo
+ * scollegato e quindi invisibile.
  */
 export function apriNuovaFinestra(): void {
   // Le risorse esistono gia': qui la finestra si limita ad agganciarvisi.
@@ -187,19 +190,26 @@ export function apriNuovaFinestra(): void {
       .map(([chiave]) => chiave)
   ]
   const scelto = prossimoSchermoLibero(disponibili, occupati, conLavoro)
+  // Se su quel monitor c'era una finestra, la si riapre com'era: stessa
+  // dimensione e (piu' sotto) stesso stato. `geometria` la restituisce solo se
+  // la chiave combacia con un monitor presente: quindi le coordinate sono valide.
+  const ricordata = scelto !== undefined ? finestreStore?.geometria(scelto.chiave) : undefined
+
+  const posizioneDefault = scelto !== undefined
+    ? {
+        x: scelto.bounds.x + Math.round((scelto.bounds.width - LARGHEZZA) / 2),
+        y: scelto.bounds.y + Math.round((scelto.bounds.height - ALTEZZA) / 2)
+      }
+    : {}
 
   const win = new BrowserWindow({
-    width: LARGHEZZA,
-    height: ALTEZZA,
-    // Centrata sullo schermo scelto. Quando sono tutti occupati `scelto` e'
-    // undefined e si lascia decidere a Electron, che sovrappone: e' il
-    // comportamento giusto per la terza finestra su due monitor.
-    ...(scelto !== undefined
-      ? {
-          x: scelto.bounds.x + Math.round((scelto.bounds.width - LARGHEZZA) / 2),
-          y: scelto.bounds.y + Math.round((scelto.bounds.height - ALTEZZA) / 2)
-        }
-      : {}),
+    // La dimensione ricordata quando c'e', altrimenti quella di sempre centrata
+    // sullo schermo scelto. Quando sono tutti occupati `scelto` e' undefined e
+    // si lascia decidere a Electron, che sovrappone: e' il comportamento giusto
+    // per la terza finestra su due monitor.
+    ...(ricordata !== undefined
+      ? { x: ricordata.bounds.x, y: ricordata.bounds.y, width: ricordata.bounds.width, height: ricordata.bounds.height }
+      : { width: LARGHEZZA, height: ALTEZZA, ...posizioneDefault }),
     title: APP_NAME,
     // Il fondo della console, non quello del terminale: è ciò che si vede per
     // un istante prima che il renderer disegni, e un lampo più chiaro della
@@ -217,14 +227,27 @@ export function apriNuovaFinestra(): void {
     }
   })
 
+  // Lo stato di quando fu chiusa: ingrandita o a schermo intero. La dimensione
+  // «da finestra» e' gia' quella passata sopra, cosi' de-ingrandendo si torna
+  // giusti. Solo se c'era una geometria ricordata per questo monitor.
+  if (ricordata?.stato === 'ingrandita') win.maximize()
+  else if (ricordata?.stato === 'schermo-intero') win.setFullScreen(true)
+
   // La X non chiude il programma: lo manda nell'area di notifica, dove
   // continua a lavorare. `hide` e non `close`: la finestra resta viva con
   // dentro le sue chat, e riaprirla e' istantaneo invece di essere un
   // ripristino dal file.
   win.on('close', (event) => {
-    // Dov'era, finche' c'e' ancora: a 'closed' la finestra non ha piu' una
-    // posizione da cui leggere il monitor.
-    finestreStore?.ricorda(chiaveDiFinestra(win))
+    // Dov'era, quanto grande e come stava — finche' c'e' ancora: a 'closed' la
+    // finestra non ha piu' ne' posizione ne' stato da cui leggere. `getNormalBounds`
+    // e non `getBounds`: se e' ingrandita o a schermo intero, si ricorda la
+    // dimensione «da finestra», quella a cui tornera' de-ingrandendo — piu' lo
+    // stato a parte, per poterla ri-ingrandire com'era.
+    finestreStore?.ricorda({
+      chiave: chiaveDiFinestra(win),
+      bounds: win.getNormalBounds(),
+      stato: win.isFullScreen() ? 'schermo-intero' : win.isMaximized() ? 'ingrandita' : 'normale'
+    })
     if (decidiChiusura({ inUscita, areaDisponibile: area !== undefined }) === 'chiudi') return
     event.preventDefault()
     win.hide()

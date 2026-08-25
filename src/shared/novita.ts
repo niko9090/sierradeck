@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.10.0',
+    righe: [
+      '**La finestra si riapre com’era.** SierraDeck torna sullo **stesso schermo** da cui l’hai chiuso, della **stessa dimensione**, e nello stesso stato: se l’avevi ingrandita o a schermo intero, la ritrovi così. Se quel monitor non c’è più (un portatile staccato dal secondo schermo), torna al centro senza sparire nel nulla.',
+      '**L’aggiornamento di Claude Code non apre più la sua finestra nera.** Prima, durante un aggiornamento, sfilava accanto una console di terminale. Ora avviene **in silenzio** e il suo stato si legge nella finestra dell’aggiornamento — «Cerco aggiornamenti…», «Aggiornamento alla versione x.x.xxx…», «Aggiornato» — con la sua parte di percentuale.'
+    ]
+  },
+  {
     versione: '0.9.67',
     righe: [
       '**Arriva il Negozio.** Un nuovo tasto «▣ Negozio» nella barra: plugin, skill e MCP di Claude Code gestiti **a clic**, senza più aprire il terminale. Sfoglia il catalogo dei plugin (centinaia, con ricerca), **installa**, **attiva** o **disattiva**; accendi o spegni le tue **skill**; disattiva un **MCP** per la cartella su cui stai lavorando.',

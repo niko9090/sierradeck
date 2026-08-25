@@ -29,13 +29,14 @@
  * spazio aggiunto farebbe ricompilare per niente, e chi la alza qui sta anche
  * dicendo «ho cambiato qualcosa che conta».
  */
-export const VERSIONE_UPDATER = 11
+export const VERSIONE_UPDATER = 12
 
 export function sorgenteUpdater(): string {
   return `using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
 // SierraDeck Update - installa una versione nuova mentre il programma e' chiuso.
@@ -63,6 +64,13 @@ class Aggiornamento : Form {
     string notaClaude;
     Process installazione;
     Process claudeInCorso;
+    // La versione che «claude update» dice di installare, letta dal suo output
+    // (la sua verita', non una nostra ipotesi). La piu' alta vista: il numero
+    // bersaglio e' sempre maggiore di quello attuale.
+    string claudeVersioneVista = "";
+    // A che giro «claude update» ha finito: serve a tenere un istante la scritta
+    // «aggiornato» prima di passare oltre, o non si leggerebbe.
+    int claudeFinitoAGiro = -1;
     // Sotto questi giri non si chiude comunque: una finestra che appare e
     // sparisce in un lampo, mentre lo schermo e' occupato dall'installer, non
     // e' apparsa.
@@ -372,13 +380,28 @@ class Aggiornamento : Form {
                     Avvia();
                     Vai(2);
                 }
-            } else {
-                fase.Text = "Cerco aggiornamenti di Claude Code...";
-                if (claudeInCorso.HasExited) {
-                    Nota("claude code aggiornato");
+            } else if (claudeInCorso.HasExited) {
+                // Finito: si tiene un istante la scritta «aggiornato» - con la
+                // versione se l'abbiamo letta dall'output - o passerebbe troppo
+                // in fretta per leggerla, e il terzo passo non si vedrebbe.
+                if (claudeFinitoAGiro < 0) {
+                    claudeFinitoAGiro = giri;
+                    Nota("claude code aggiornato" + (claudeVersioneVista.Length > 0 ? " alla " + claudeVersioneVista : ""));
+                }
+                fase.Text = claudeVersioneVista.Length > 0
+                    ? "Claude Code aggiornato alla versione " + claudeVersioneVista + "."
+                    : "Claude Code aggiornato.";
+                if (giri - claudeFinitoAGiro >= 8) {
                     Avvia();
                     Vai(2);
                 }
+            } else {
+                // Prima «cerco», poi - appena l'output rivela il numero nuovo -
+                // «aggiornamento alla versione X». La console non si vede piu':
+                // e' questa riga a raccontare cosa sta succedendo la' dietro.
+                fase.Text = claudeVersioneVista.Length > 0
+                    ? "Aggiornamento di Claude Code alla versione " + claudeVersioneVista + "..."
+                    : "Cerco aggiornamenti di Claude Code...";
             }
         } else if (passo == 2) {
             fase.Text = "Avvio della nuova versione...";
@@ -533,17 +556,59 @@ class Aggiornamento : Form {
             // barra rovescia arriverebbe al compilatore C# senza la barra.
             ProcessStartInfo p = new ProcessStartInfo("cmd.exe", "/c \\"" + claude + "\\" update");
             p.UseShellExecute = false;
-            // La console si vede. Un aggiornamento che scarica e installa per
-            // mezzo minuto dietro una scritta ferma non si distingue da un
-            // blocco: qui si legge cosa sta facendo, riga per riga, ed e'
-            // l'unico punto di tutta la procedura in cui c'e' qualcosa da
-            // leggere che non abbiamo scritto noi.
-            p.CreateNoWindow = false;
-            claudeInCorso = Process.Start(p);
-            Nota("aggiorno Claude Code: " + claude);
+            // NIENTE console. Prima si vedeva la finestra nera di «claude update»
+            // sfilare accanto alla nostra: due finestre per una cosa sola. Ora
+            // gira nascosta e cio' che fa lo raccontiamo noi, nella stessa
+            // finestra, con lo stato e la versione lette dal suo output.
+            p.CreateNoWindow = true;
+            p.RedirectStandardOutput = true;
+            p.RedirectStandardError = true;
+            // Lo stdin chiuso subito: se «claude update» provasse a leggere da
+            // tastiera — non lo fa, ma per prudenza — troverebbe la fine e non
+            // resterebbe appeso ad aspettare una risposta che non arriva.
+            p.RedirectStandardInput = true;
+            claudeInCorso = new Process();
+            claudeInCorso.StartInfo = p;
+            claudeInCorso.OutputDataReceived += new DataReceivedEventHandler(RigaClaude);
+            claudeInCorso.ErrorDataReceived += new DataReceivedEventHandler(RigaClaude);
+            claudeInCorso.Start();
+            claudeInCorso.BeginOutputReadLine();
+            claudeInCorso.BeginErrorReadLine();
+            try { claudeInCorso.StandardInput.Close(); } catch { }
+            Nota("aggiorno Claude Code (nascosto): " + claude);
         } catch (Exception e) {
             Nota("Claude Code non aggiornato: " + e.Message);
         }
+    }
+
+    /**
+     * Una riga dall'output di «claude update». Gira su un thread del pool, non
+     * su quello della finestra: qui si tocca solo un campo stringa (assegnarlo
+     * e' atomico), e la finestra lo legge al suo battito. Niente controlli da
+     * aggiornare da qui, o servirebbe un Invoke.
+     */
+    void RigaClaude(object mittente, DataReceivedEventArgs ev) {
+        if (ev == null || ev.Data == null) return;
+        Nota("claude> " + ev.Data);
+        // La versione bersaglio: il numero piu' alto che compare. «claude update»
+        // stampa sia l'attuale sia la nuova, e la nuova e' sempre la maggiore.
+        foreach (Match m in Regex.Matches(ev.Data, "\\\\d+\\\\.\\\\d+\\\\.\\\\d+")) {
+            if (PiuGrande(m.Value, claudeVersioneVista)) claudeVersioneVista = m.Value;
+        }
+    }
+
+    /** true se la prima versione «x.y.z» e' maggiore della seconda ("" = nessuna). */
+    static bool PiuGrande(string a, string b) {
+        if (b.Length == 0) return a.Length > 0;
+        string[] pa = a.Split('.');
+        string[] pb = b.Split('.');
+        for (int i = 0; i < 3; i++) {
+            int na = 0; int nb = 0;
+            if (i < pa.Length) int.TryParse(pa[i], out na);
+            if (i < pb.Length) int.TryParse(pb[i], out nb);
+            if (na != nb) return na > nb;
+        }
+        return false;
     }
 
     void Avvia() {
