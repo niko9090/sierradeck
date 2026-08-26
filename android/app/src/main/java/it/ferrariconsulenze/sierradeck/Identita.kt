@@ -1,4 +1,4 @@
-package it.glos.sierradeck
+package it.ferrariconsulenze.sierradeck
 
 /**
  * Come l'app si presenta alla pagina che serve.

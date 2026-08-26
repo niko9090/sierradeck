@@ -1,4 +1,4 @@
-package it.glos.sierradeck
+package it.ferrariconsulenze.sierradeck
 
 import android.content.Context
 import java.io.File

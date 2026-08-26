@@ -1,4 +1,4 @@
-package it.glos.sierradeck
+package it.ferrariconsulenze.sierradeck
 
 import org.json.JSONObject
 

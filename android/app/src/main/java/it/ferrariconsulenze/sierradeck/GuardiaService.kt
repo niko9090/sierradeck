@@ -1,4 +1,4 @@
-package it.glos.sierradeck
+package it.ferrariconsulenze.sierradeck
 
 import android.app.Notification
 import android.app.NotificationChannel

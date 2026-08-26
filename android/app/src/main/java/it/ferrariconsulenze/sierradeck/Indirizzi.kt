@@ -1,4 +1,4 @@
-package it.glos.sierradeck
+package it.ferrariconsulenze.sierradeck
 
 /**
  * Dove l'app accetta di parlare in chiaro.

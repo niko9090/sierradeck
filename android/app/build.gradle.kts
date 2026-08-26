@@ -1,6 +1,8 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 android {
@@ -30,11 +32,11 @@ android {
             }
         }
     }
-    namespace = "it.glos.sierradeck"
+    namespace = "it.ferrariconsulenze.sierradeck"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "it.glos.sierradeck"
+        applicationId = "it.ferrariconsulenze.sierradeck"
         // Android 8: sotto non esistono i canali di notifica, e senza quelli
         // un servizio in primo piano non si può nemmeno dichiarare.
         minSdk = 26
@@ -48,9 +50,10 @@ android {
     }
 
     // Serve `BuildConfig.VERSION_NAME`: l'app deve sapere quale versione è per
-    // poter dire se ce n'è una più nuova.
+    // poter dire se ce n'è una più nuova. `compose` accende il toolkit nativo.
     buildFeatures {
         buildConfig = true
+        compose = true
     }
 
     buildTypes {
@@ -74,8 +77,28 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
+    // Ancora necessario finché sopravvive la vecchia ClientActivity (WebView,
+    // AppCompatActivity): si toglierà quando sarà tutta Compose.
+    implementation("androidx.appcompat:appcompat:1.7.0")
+
+    // ─── Jetpack Compose: l'interfaccia nativa, dichiarativa ───
+    // Il BOM fissa in un colpo solo le versioni coerenti di tutti i moduli Compose.
+    val compose = platform("androidx.compose:compose-bom:2024.10.01")
+    implementation(compose)
+    implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
+
+    // ─── Rete e dati ───
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
     // La scansione del QR la fa Google Play Services, con la sua schermata.
     //
     // La libreria che c'era prima - zxing-android-embedded, ferma al 2021 -

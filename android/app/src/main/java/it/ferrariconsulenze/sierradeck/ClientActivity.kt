@@ -1,4 +1,4 @@
-package it.glos.sierradeck
+package it.ferrariconsulenze.sierradeck
 
 import android.Manifest
 import android.annotation.SuppressLint
