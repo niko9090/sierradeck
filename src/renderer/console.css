@@ -1949,8 +1949,29 @@ select.comando-riquadro option {
 }
 
 /* ─── il negozio: plugin, skill, agenti, MCP, store ─── */
-.tasto--fantasma { border-color: transparent; opacity: .75; }
-.tasto--fantasma:hover:not(:disabled) { opacity: 1; border-color: var(--incisione); }
+/* Il «fantasma» è secondario, non spento: niente riempimento, ma bordo visibile
+   e testo pieno, così si legge come un tasto vero e cliccabile. */
+.tasto--fantasma { background: transparent; box-shadow: none; }
+.tasto--fantasma:hover:not(:disabled) { background: var(--chassis-alto); }
+
+/* Lo stato «sto lavorando»: uno spinner che gira + una parola, al posto dei
+   tasti. Inequivocabile — molto meglio di tasti grigi che sembrano rotti. */
+.negozio__caricando {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: var(--t2); font-weight: 600; color: #57d38c;
+  padding: var(--s1) var(--s2);
+}
+.negozio__spinner {
+  width: 15px; height: 15px; flex-shrink: 0;
+  border: 2px solid var(--incisione);
+  border-top-color: #57d38c;
+  border-radius: 50%;
+  animation: negozio-gira .7s linear infinite;
+}
+@keyframes negozio-gira { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .negozio__spinner { animation-duration: 2s; }
+}
 
 /* La chiave dello scorrimento: il pannello è una colonna con testa e piè
    fissi, e SOLO il corpo scorre. Prima scorreva tutta la finestra — testa,
@@ -2081,12 +2102,15 @@ select.comando-riquadro option {
 .negozio__lavoro { display: flex; align-items: center; gap: var(--s2); margin-top: var(--s2); }
 .negozio__lavoro .negozio__prog { flex: 1; margin-top: 0; }
 .negozio__prog {
-  height: 4px; margin-top: var(--s2);
-  border-radius: 999px; background: var(--incisione); overflow: hidden;
+  height: 6px; margin-top: var(--s2);
+  border-radius: 999px;
+  background: color-mix(in srgb, #57d38c 18%, var(--incisione));
+  overflow: hidden;
 }
 .negozio__prog-riemp {
-  display: block; width: 35%; height: 100%;
+  display: block; width: 40%; height: 100%;
   border-radius: 999px; background: #57d38c;
+  box-shadow: 0 0 8px rgba(87, 211, 140, .6);
   animation: negozio-scorre 1.1s ease-in-out infinite;
 }
 @keyframes negozio-scorre {

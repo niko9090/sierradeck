@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.6',
+    righe: [
+      '**Tasti del Negozio più chiari e caricamento visibile.** I tasti secondari (Dettagli, Rimuovi…) non sembrano più spenti: si leggono come tasti veri, e «Rimuovi» è ora ben riconoscibile in rosso.',
+      '**Ora si vede quando sta lavorando.** Durante installazione, rimozione o attivazione, al posto dei tasti compare uno **spinner che gira** con la scritta di cosa sta facendo («Installazione…»), e sotto una **barra ben visibile**. Niente più dubbi se ha recepito il clic.'
+    ]
+  },
+  {
     versione: '0.12.5',
     righe: [
       '**Installa e disinstalla: niente più «sembra bloccato».** Nel catalogo le righe ora hanno un **ordine stabile**: quando installi o rimuovi, la riga **non salta più di posto** (prima poteva finire fuori dai primi mostrati e sembrare sparita, o dare l’impressione di essere piantata). Cambia solo lo stato, dove sta.',

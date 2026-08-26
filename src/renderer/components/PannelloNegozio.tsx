@@ -62,6 +62,9 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
   const [nuovoStore, setNuovoStore] = useState('')
   const [scope, setScope] = useState<Scope>({ pluginSpenti: [], skillSpente: [], mcpSpenti: [] })
   const [mostraTutti, setMostraTutti] = useState(false)
+  // Cosa sta facendo ogni riga occupata («Installazione…»), per la scritta
+  // accanto allo spinner.
+  const [lavoro, setLavoro] = useState<Record<string, string>>({})
 
   // La conferma verde «✓ fatto» si toglie da sola dopo un momento: deve dire
   // «riuscito», non restare lì per sempre come un cartello dimenticato.
@@ -142,9 +145,12 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
     azione: () => Promise<{ ok: boolean; messaggio?: string }>,
     dopo: () => void,
     /** Cosa dire quando è andata bene: una conferma verde, o l'op «non si vede». */
-    fatto = 'Fatto'
+    fatto = 'Fatto',
+    /** Cosa mostrare accanto allo spinner mentre lavora. */
+    lavorando = 'Un attimo…'
   ): Promise<void> => {
     segna(chiave, true); setAvviso(undefined); setNota(undefined)
+    setLavoro((l) => ({ ...l, [chiave]: lavorando }))
     try {
       const r = await azione()
       if (!r.ok) setAvviso(r.messaggio ?? 'operazione non riuscita')
@@ -153,6 +159,7 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
       setAvviso(String(e))
     } finally {
       segna(chiave, false)
+      setLavoro((l) => { const n = { ...l }; delete n[chiave]; return n })
     }
   }
 
@@ -245,43 +252,50 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
             {p.descrizione !== '' ? <div className="negozio__desc">{p.descrizione}</div> : null}
           </div>
           <div className="negozio__azioni">
-            <button className="tasto tasto--fantasma" disabled={occupato} onClick={() => apriDettagli(p)}>
-              {d?.aperto === true ? 'Nascondi' : 'Dettagli'}
-            </button>
-            {p.installato ? (
-              <>
-                <button className="tasto" disabled={occupato}
-                  onClick={() => void conEsito(p.id,
-                    () => window.gestore.negozio.commutaPlugin(p.id, !p.abilitato),
-                    () => { aggiornaLocale(p.id, { abilitato: !p.abilitato }); caricaPlugin(true) },
-                    p.abilitato ? 'disattivato' : 'attivato')}>
-                  {occupato ? '…' : p.abilitato ? 'Disattiva' : 'Attiva'}
-                </button>
-                <button className="tasto tasto--fantasma" disabled={occupato}
-                  onClick={() => void conEsito(p.id,
-                    () => window.gestore.negozio.disinstallaPlugin(p.id),
-                    () => { aggiornaLocale(p.id, { installato: false, abilitato: false }); caricaPlugin(true) },
-                    'rimosso')}>
-                  {occupato ? '…' : 'Rimuovi'}
-                </button>
-              </>
+            {occupato ? (
+              <span className="negozio__caricando">
+                <span className="negozio__spinner" aria-hidden="true" />
+                {lavoro[p.id] ?? 'Un attimo…'}
+              </span>
             ) : (
-              <button className="tasto tasto--primario" disabled={occupato}
-                onClick={() => void conEsito(p.id,
-                  () => window.gestore.negozio.installaPlugin(p.id),
-                  () => { aggiornaLocale(p.id, { installato: true, abilitato: true }); caricaPlugin(true) },
-                  'installato')}>
-                {occupato ? 'Installo…' : 'Installa'}
-              </button>
+              <>
+                <button className="tasto tasto--fantasma" onClick={() => apriDettagli(p)}>
+                  {d?.aperto === true ? 'Nascondi' : 'Dettagli'}
+                </button>
+                {p.installato ? (
+                  <>
+                    <button className="tasto"
+                      onClick={() => void conEsito(p.id,
+                        () => window.gestore.negozio.commutaPlugin(p.id, !p.abilitato),
+                        () => { aggiornaLocale(p.id, { abilitato: !p.abilitato }); caricaPlugin(true) },
+                        p.abilitato ? 'disattivato' : 'attivato',
+                        p.abilitato ? 'Disattivazione…' : 'Attivazione…')}>
+                      {p.abilitato ? 'Disattiva' : 'Attiva'}
+                    </button>
+                    <button className="tasto tasto--pericolo"
+                      onClick={() => void conEsito(p.id,
+                        () => window.gestore.negozio.disinstallaPlugin(p.id),
+                        () => { aggiornaLocale(p.id, { installato: false, abilitato: false }); caricaPlugin(true) },
+                        'rimosso', 'Rimozione…')}>
+                      Rimuovi
+                    </button>
+                  </>
+                ) : (
+                  <button className="tasto tasto--primario"
+                    onClick={() => void conEsito(p.id,
+                      () => window.gestore.negozio.installaPlugin(p.id),
+                      () => { aggiornaLocale(p.id, { installato: true, abilitato: true }); caricaPlugin(true) },
+                      'installato', 'Installazione…')}>
+                    Installa
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
         {occupato ? (
-          <div className="negozio__lavoro">
-            <div className="negozio__prog" role="progressbar" aria-label="operazione in corso">
-              <span className="negozio__prog-riemp" />
-            </div>
-            <span className="misura">un attimo… (può volerci qualche secondo)</span>
+          <div className="negozio__prog" role="progressbar" aria-label="operazione in corso">
+            <span className="negozio__prog-riemp" />
           </div>
         ) : null}
         {d?.aperto === true ? (
@@ -308,14 +322,20 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
           {s.descrizione !== '' ? <div className="negozio__desc">{s.descrizione}</div> : null}
         </div>
         <div className="negozio__azioni">
-          <button className="tasto tasto--fantasma" onClick={() => void window.gestore.negozio.rivela(s.percorso)}>Apri cartella</button>
-          <button className="tasto" disabled={occupato}
-            onClick={() => void conEsito(`skill:${s.nome}`,
-              () => window.gestore.negozio.commutaSkill(s.nome, !s.abilitata),
-              () => { aggiornaSkillLocale(s.nome, !s.abilitata); caricaSkill() },
-              s.abilitata ? 'disattivata' : 'attivata')}>
-            {s.abilitata ? 'Disattiva' : 'Attiva'}
-          </button>
+          {occupato ? (
+            <span className="negozio__caricando"><span className="negozio__spinner" aria-hidden="true" /> Un attimo…</span>
+          ) : (
+            <>
+              <button className="tasto tasto--fantasma" onClick={() => void window.gestore.negozio.rivela(s.percorso)}>Apri cartella</button>
+              <button className="tasto"
+                onClick={() => void conEsito(`skill:${s.nome}`,
+                  () => window.gestore.negozio.commutaSkill(s.nome, !s.abilitata),
+                  () => { aggiornaSkillLocale(s.nome, !s.abilitata); caricaSkill() },
+                  s.abilitata ? 'disattivata' : 'attivata')}>
+                {s.abilitata ? 'Disattiva' : 'Attiva'}
+              </button>
+            </>
+          )}
         </div>
       </div>
     )
@@ -347,13 +367,17 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
           <div className="negozio__desc negozio__desc--mono">{m.come}</div>
         </div>
         <div className="negozio__azioni">
-          <button className="tasto" disabled={occupato || cwd === undefined}
-            onClick={() => cwd !== undefined && void conEsito(`mcp:${m.nome}`,
-              () => window.gestore.negozio.commutaMcp(cwd, m.nome, !m.abilitato),
-              () => { aggiornaMcpLocale(m.nome, !m.abilitato); caricaMcp() },
-              m.abilitato ? 'disattivato' : 'attivato')}>
-            {m.abilitato ? 'Disattiva' : 'Attiva'}
-          </button>
+          {occupato ? (
+            <span className="negozio__caricando"><span className="negozio__spinner" aria-hidden="true" /> Un attimo…</span>
+          ) : (
+            <button className="tasto" disabled={cwd === undefined}
+              onClick={() => cwd !== undefined && void conEsito(`mcp:${m.nome}`,
+                () => window.gestore.negozio.commutaMcp(cwd, m.nome, !m.abilitato),
+                () => { aggiornaMcpLocale(m.nome, !m.abilitato); caricaMcp() },
+                m.abilitato ? 'disattivato' : 'attivato')}>
+              {m.abilitato ? 'Disattiva' : 'Attiva'}
+            </button>
+          )}
         </div>
       </div>
     )
