@@ -2078,6 +2078,8 @@ select.comando-riquadro option {
 /* La barra di caricamento: indeterminata, perché «claude plugin install»
    scarica dalla rete e non dice a che punto è — un nastro che scorre dice
    «sto lavorando» meglio di un tasto disabilitato che sembra fermo. */
+.negozio__lavoro { display: flex; align-items: center; gap: var(--s2); margin-top: var(--s2); }
+.negozio__lavoro .negozio__prog { flex: 1; margin-top: 0; }
 .negozio__prog {
   height: 4px; margin-top: var(--s2);
   border-radius: 999px; background: var(--incisione); overflow: hidden;

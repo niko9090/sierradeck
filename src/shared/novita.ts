@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.5',
+    righe: [
+      '**Installa e disinstalla: niente più «sembra bloccato».** Nel catalogo le righe ora hanno un **ordine stabile**: quando installi o rimuovi, la riga **non salta più di posto** (prima poteva finire fuori dai primi mostrati e sembrare sparita, o dare l’impressione di essere piantata). Cambia solo lo stato, dove sta.',
+      'Durante l’operazione il tasto mostra «…» e compare **«un attimo…»** accanto alla barra, così si capisce che sta lavorando e non è bloccato. Gli installati restano raggruppati nella scheda **«In uso»**.'
+    ]
+  },
+  {
     versione: '0.12.4',
     righe: [
       '**Negozio: revisione completa.** Attivare/disattivare **skill e MCP** è ora istantaneo come i plugin; la conferma verde «✓ fatto» sparisce da sola; i messaggi d’errore sono più puliti (solo il motivo, senza rumore); e i «Dettagli» si aggiornano dopo aver installato o rimosso.',

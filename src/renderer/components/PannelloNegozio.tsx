@@ -61,7 +61,6 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
   const [dettagli, setDettagli] = useState<Record<string, { aperto: boolean; caricando?: boolean; testo?: string; errore?: string }>>({})
   const [nuovoStore, setNuovoStore] = useState('')
   const [scope, setScope] = useState<Scope>({ pluginSpenti: [], skillSpente: [], mcpSpenti: [] })
-  const [aggiornando, setAggiornando] = useState(false)
   const [mostraTutti, setMostraTutti] = useState(false)
 
   // La conferma verde «✓ fatto» si toglie da sola dopo un momento: deve dire
@@ -77,10 +76,8 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
   // paio di secondi — che è esattamente il «non si capisce cosa fa».
   const caricaPlugin = (silenzioso = false): void => {
     if (!silenzioso) { setPlugin(undefined); setErrorePlugin(undefined) }
-    else setAggiornando(true)
     window.gestore.negozio.plugin().then((r) => { setPlugin(r.plugin); setErrorePlugin(r.errore) })
       .catch((e: unknown) => { if (!silenzioso) setPlugin([]); setErrorePlugin(String(e)) })
-      .finally(() => setAggiornando(false))
   }
   const caricaSkill = (): void => { window.gestore.negozio.skill(cwd).then(setSkill).catch(() => setSkill([])) }
   const caricaAgenti = (): void => { window.gestore.negozio.agenti(cwd).then(setAgenti).catch(() => setAgenti([])) }
@@ -202,10 +199,11 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
     let f = plugin
     if (filtroMkt !== 'tutti') f = f.filter((p) => p.marketplace === filtroMkt)
     if (q !== '') f = f.filter((p) => contiene(p.nome, q) || contiene(p.descrizione, q))
-    return [...f].sort((a, b) => {
-      if (a.installato !== b.installato) return a.installato ? -1 : 1
-      return (b.installazioni ?? 0) - (a.installazioni ?? 0)
-    })
+    // Ordine STABILE per popolarità, non «installati in cima»: se la riga
+    // saltasse di posto appena installi/disinstalli — e su disinstalla finisse
+    // oltre i primi mostrati — sembrerebbe sparita o bloccata. Gli installati si
+    // vedono raggruppati nella scheda «In uso»; qui conta che non si muovano.
+    return [...f].sort((a, b) => (b.installazioni ?? 0) - (a.installazioni ?? 0) || a.nome.localeCompare(b.nome))
   }, [plugin, filtroMkt, q])
 
   // Senza ricerca né filtro si mostra un blocco (o tutto, se hai premuto
@@ -257,14 +255,14 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
                     () => window.gestore.negozio.commutaPlugin(p.id, !p.abilitato),
                     () => { aggiornaLocale(p.id, { abilitato: !p.abilitato }); caricaPlugin(true) },
                     p.abilitato ? 'disattivato' : 'attivato')}>
-                  {p.abilitato ? 'Disattiva' : 'Attiva'}
+                  {occupato ? '…' : p.abilitato ? 'Disattiva' : 'Attiva'}
                 </button>
                 <button className="tasto tasto--fantasma" disabled={occupato}
                   onClick={() => void conEsito(p.id,
                     () => window.gestore.negozio.disinstallaPlugin(p.id),
                     () => { aggiornaLocale(p.id, { installato: false, abilitato: false }); caricaPlugin(true) },
                     'rimosso')}>
-                  Rimuovi
+                  {occupato ? '…' : 'Rimuovi'}
                 </button>
               </>
             ) : (
@@ -279,8 +277,11 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
           </div>
         </div>
         {occupato ? (
-          <div className="negozio__prog" role="progressbar" aria-label="operazione in corso">
-            <span className="negozio__prog-riemp" />
+          <div className="negozio__lavoro">
+            <div className="negozio__prog" role="progressbar" aria-label="operazione in corso">
+              <span className="negozio__prog-riemp" />
+            </div>
+            <span className="misura">un attimo… (può volerci qualche secondo)</span>
           </div>
         ) : null}
         {d?.aperto === true ? (
@@ -478,7 +479,6 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
               </div>
             ) : null}
             {errorePlugin !== undefined ? <div className="avviso">⚠ Il negozio non risponde: {errorePlugin}</div> : null}
-            {aggiornando ? <div className="misura negozio__aggiorno">↻ aggiorno l’elenco…</div> : null}
             {plugin !== undefined && plugin.length > 0 ? (
               <div className="misura negozio__conteggio">
                 {pluginFiltrati.length} plugin{filtroMkt !== 'tutti' || q !== '' ? ' trovati' : ' nel catalogo'} · {installati} installati
