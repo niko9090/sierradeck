@@ -118,6 +118,65 @@ class Api(private val indirizzo: String, private val chiave: String?) {
             put("cartella", cartella); put("sessione", sessione)
         }))
 
+    // ─── autopiloti: dettaglio, crea, elimina, riavvio ───
+    suspend fun autopilota(id: String): AutopilotaDettaglio =
+        json.decodeFromString(corpoTesto("/api/autopilota", oggetto { put("autopilota", id) }))
+
+    suspend fun creaAutopilota(obiettivo: String, cartella: String): Fatto =
+        json.decodeFromString(corpoTesto("/api/autopilota/crea", oggetto {
+            put("obiettivo", obiettivo); put("cartella", cartella)
+        }))
+
+    suspend fun eliminaAutopilota(id: String): Fatto =
+        json.decodeFromString(corpoTesto("/api/autopilota/elimina", oggetto { put("autopilota", id) }))
+
+    suspend fun riavvioAutopilota(id: String, riprendi: Boolean): Fatto =
+        json.decodeFromString(corpoTesto("/api/autopilota/riavvio", oggetto {
+            put("autopilota", id); put("riprendi", riprendi)
+        }))
+
+    // ─── quaderno ───
+    suspend fun quaderno(cartella: String): Schede =
+        json.decodeFromString(corpoTesto("/api/quaderno", oggetto { put("cartella", cartella) }))
+
+    suspend fun scheda(cartella: String, file: String): SchedaPiena =
+        json.decodeFromString(corpoTesto("/api/quaderno/scheda", oggetto {
+            put("cartella", cartella); put("file", file)
+        }))
+
+    // ─── workspace: crea / elimina ───
+    suspend fun creaWorkspace(nome: String): Fatto =
+        json.decodeFromString(corpoTesto("/api/workspace/crea", oggetto { put("nome", nome) }))
+
+    suspend fun eliminaWorkspace(nome: String): Fatto =
+        json.decodeFromString(corpoTesto("/api/workspace/elimina", oggetto { put("nome", nome) }))
+
+    // ─── salvataggi (istantanee) ───
+    suspend fun salvataggi(): Salvataggi = json.decodeFromString(corpoTesto("/api/salvataggi", null))
+
+    suspend fun caricaSalvataggio(nome: String): Fatto =
+        json.decodeFromString(corpoTesto("/api/salvataggi/carica", oggetto { put("nome", nome) }))
+
+    // ─── preferenze (stile / chiarore) ───
+    suspend fun preferenze(): PreferenzeInvolucro =
+        json.decodeFromString(corpoTesto("/api/preferenze", null))
+
+    suspend fun impostaStile(stile: String): Fatto =
+        json.decodeFromString(corpoTesto("/api/preferenze", oggetto { put("stile", stile) }))
+
+    suspend fun impostaChiarore(chiarore: Int): Fatto =
+        json.decodeFromString(corpoTesto("/api/preferenze", oggetto { put("chiarore", chiarore) }))
+
+    // ─── aggiornamento del COMPUTER ───
+    suspend fun aggiornamento(): Aggiornamento =
+        json.decodeFromString(corpoTesto("/api/aggiornamento", null))
+
+    suspend fun scaricaAggiornamento(): Fatto =
+        json.decodeFromString(corpoTesto("/api/aggiornamento/scarica", oggetto { }))
+
+    suspend fun installaAggiornamento(): Fatto =
+        json.decodeFromString(corpoTesto("/api/aggiornamento/installa", oggetto { }))
+
     // ─── consumi ───
     suspend fun consumi(): Consumi = json.decodeFromString(corpoTesto("/api/consumi", null))
 

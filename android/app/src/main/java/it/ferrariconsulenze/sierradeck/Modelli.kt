@@ -95,12 +95,102 @@ data class Quota(
     val chat: Int = 0
 )
 
-// ─── /api/cartelle ───
+// ─── /api/cartelle ───  (è una lista di percorsi, non di oggetti)
 @Serializable
-data class Cartelle(val cartelle: List<Cartella> = emptyList())
+data class Cartelle(val cartelle: List<String> = emptyList())
+
+// ─── /api/autopilota (dettaglio) = tutto l'autopilota + passaggi + misura ───
+@Serializable
+data class AutopilotaDettaglio(
+    val id: String = "",
+    val nome: String = "",
+    /** L'obiettivo come l'ha capito lui (riscritto dalla preparazione). */
+    val obiettivo: String = "",
+    /** L'obiettivo come l'hai chiesto tu (assente = coincide con `obiettivo`). */
+    val obiettivoTuo: String? = null,
+    val stato: String = "",
+    val cicli: Int = 0,
+    val strategia: String? = null,
+    val motivoSospensione: String? = null,
+    /** Assente vale «sì». */
+    val riprendiAlRiavvio: Boolean? = null,
+    val criteri: List<Criterio> = emptyList(),
+    val decisioni: List<Decisione> = emptyList(),
+    val passaggi: List<Passo> = emptyList(),
+    val misura: MisuraPasso = MisuraPasso()
+)
 
 @Serializable
-data class Cartella(val cwd: String = "", val titolo: String = "")
+data class Criterio(
+    val descrizione: String = "",
+    val comando: String? = null,
+    val soddisfatto: Boolean = false,
+    val raggiuntoIl: String? = null
+)
+
+@Serializable
+data class Decisione(val quando: String = "", val cosa: String = "")
+
+@Serializable
+data class Passo(
+    /** fatto | corrente | attesa | fermo | davanti */
+    val stato: String = "davanti",
+    val nome: String = "",
+    val nota: String? = null
+)
+
+@Serializable
+data class MisuraPasso(
+    val percento: Int = 0,
+    /** preparazione | criteri */
+    val di: String = "",
+    val dettaglio: String = "",
+    /** preparazione | lavoro | attesa | fermo */
+    val tono: String = ""
+)
+
+// ─── /api/quaderno ───
+@Serializable
+data class Schede(val schede: List<SchedaBreve> = emptyList())
+
+@Serializable
+data class SchedaBreve(val file: String = "", val titolo: String = "", val quando: String = "")
+
+@Serializable
+data class SchedaPiena(
+    val file: String = "",
+    val titolo: String = "",
+    val corpo: String = "",
+    val quando: String = ""
+)
+
+// ─── /api/preferenze ───
+@Serializable
+data class PreferenzeInvolucro(val preferenze: Preferenze = Preferenze())
+
+@Serializable
+data class Preferenze(
+    /** banco | foglio */
+    val stile: String = "banco",
+    /** Chiarore del fondo, 0..100. */
+    val chiarore: Int = 20
+)
+
+// ─── /api/aggiornamento (del computer) ───
+@Serializable
+data class Aggiornamento(
+    val fase: String = "",
+    val versione: String? = null,
+    val percento: Int? = null,
+    val errore: String? = null
+)
+
+// ─── /api/salvataggi ───
+@Serializable
+data class Salvataggi(val salvataggi: List<Salvataggio> = emptyList())
+
+@Serializable
+data class Salvataggio(val nome: String = "", val quando: String = "", val chat: Int = 0)
 
 // ─── /api/sessioni ───
 @Serializable

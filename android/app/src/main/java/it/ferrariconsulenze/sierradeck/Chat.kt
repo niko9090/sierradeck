@@ -258,7 +258,7 @@ private fun RinominaChat(api: Api, chat: Chat, onChiudi: () -> Unit) {
 /** Sceglie una cartella conosciuta e apre lì una chat nuova. */
 @Composable
 private fun SceltaCartella(api: Api, onChiudi: () -> Unit) {
-    var cartelle by remember { mutableStateOf<List<Cartella>?>(null) }
+    var cartelle by remember { mutableStateOf<List<String>?>(null) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { cartelle = try { api.cartelle().cartelle } catch (_: Exception) { emptyList() } }
 
@@ -271,14 +271,15 @@ private fun SceltaCartella(api: Api, onChiudi: () -> Unit) {
                     cartelle == null -> Text("Carico…", color = Banco.testoQuieto)
                     cartelle!!.isEmpty() -> Text("Nessuna cartella conosciuta.", color = Banco.testoQuieto)
                     else -> for (c in cartelle!!) {
-                        Text(
-                            c.titolo.ifBlank { c.cwd },
-                            color = Banco.testo,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).clickableCartella {
+                        Column(
+                            Modifier.fillMaxWidth().padding(vertical = 8.dp).clickableCartella {
                                 onChiudi()
-                                scope.launch { try { api.apri(c.cwd) } catch (_: Exception) {} }
+                                scope.launch { try { api.apri(c) } catch (_: Exception) {} }
                             }
-                        )
+                        ) {
+                            Text(c.substringAfterLast('\\').substringAfterLast('/'), color = Banco.testo, maxLines = 1)
+                            Text(c, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                        }
                         HorizontalDivider(color = Banco.incisione)
                     }
                 }

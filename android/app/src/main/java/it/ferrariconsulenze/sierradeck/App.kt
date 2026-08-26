@@ -110,8 +110,8 @@ fun Principale(api: Api, onScollega: () -> Unit) {
             when (scheda) {
                 Scheda.ADESSO -> Adesso(api, stato, connesso)
                 Scheda.CHAT -> Chat(api, stato)
-                Scheda.LAVORI -> Prossimamente("Lavori")
-                Scheda.COMPUTER -> Prossimamente("Computer")
+                Scheda.LAVORI -> Lavori(api, stato)
+                Scheda.COMPUTER -> Computer(api, stato)
             }
         }
     }
