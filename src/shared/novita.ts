@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.3',
+    righe: [
+      '**Installare, attivare e disattivare si vede subito.** Prima la riga cambiava stato solo dopo un paio di secondi (il tempo di ricaricare tutto il catalogo) e sembrava «non succede niente». Ora cambia **al clic** — «attivo/spento», «installato» — con una conferma verde «✓ fatto».',
+      '**«Dettagli» anche per i plugin non ancora installati.** Prima era solo per quelli installati: ora anche gli altri mostrano la descrizione dal catalogo. (Il testo dei plugin è quello scritto dai loro autori, quasi sempre in inglese: non è nostro e non lo traduciamo.)'
+    ]
+  },
+  {
     versione: '0.12.2',
     righe: [
       '**Il Negozio si apre sul catalogo.** Prima si apriva su «In uso» e sembrava non ci fosse nessuno store da sfogliare: ora la prima cosa che vedi è l’elenco dei plugin da installare («In uso» resta una scheda a parte).',

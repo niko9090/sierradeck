@@ -57,6 +57,7 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
   const [filtroMkt, setFiltroMkt] = useState<string>('tutti')
   const [inCorso, setInCorso] = useState<Set<string>>(new Set())
   const [avviso, setAvviso] = useState<string | undefined>(undefined)
+  const [nota, setNota] = useState<string | undefined>(undefined)
   const [dettagli, setDettagli] = useState<Record<string, { aperto: boolean; caricando?: boolean; testo?: string; errore?: string }>>({})
   const [nuovoStore, setNuovoStore] = useState('')
   const [scope, setScope] = useState<Scope>({ pluginSpenti: [], skillSpente: [], mcpSpenti: [] })
@@ -115,16 +116,25 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
     })
   }
 
+  /** Cambia SUBITO la riga di un plugin in locale, prima che il ricarico
+   * canonico arrivi: enable/disable e install/uninstall si aggiornano al clic,
+   * non dopo un paio di secondi (che è il «non cambia stato»). */
+  const aggiornaLocale = (id: string, patch: Partial<Plugin>): void => {
+    setPlugin((prev) => prev?.map((p) => (p.id === id ? { ...p, ...patch } : p)))
+  }
+
   const conEsito = async (
     chiave: string,
     azione: () => Promise<{ ok: boolean; messaggio?: string }>,
-    dopo: () => void
+    dopo: () => void,
+    /** Cosa dire quando è andata bene: una conferma verde, o l'op «non si vede». */
+    fatto = 'Fatto'
   ): Promise<void> => {
-    segna(chiave, true); setAvviso(undefined)
+    segna(chiave, true); setAvviso(undefined); setNota(undefined)
     try {
       const r = await azione()
       if (!r.ok) setAvviso(r.messaggio ?? 'operazione non riuscita')
-      else dopo()
+      else { dopo(); setNota(`✓ ${fatto}`) }
     } catch (e) {
       setAvviso(String(e))
     } finally {
@@ -132,12 +142,19 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
     }
   }
 
-  const apriDettagli = (id: string): void => {
+  const apriDettagli = (p: Plugin): void => {
+    const id = p.id
     setDettagli((prec) => {
       const attuale = prec[id]
       if (attuale?.aperto === true) return { ...prec, [id]: { ...attuale, aperto: false } }
-      // Prima apertura: si va a chiedere l'inventario e il peso.
-      if (attuale?.testo === undefined && attuale?.errore === undefined) {
+      if (attuale?.testo !== undefined || attuale?.errore !== undefined) {
+        return { ...prec, [id]: { ...attuale, aperto: true } }
+      }
+      // L'inventario e il peso in token li sa solo `claude plugin details`, e
+      // solo per un plugin INSTALLATO (per gli altri non c'è niente su disco).
+      // Per quelli del catalogo si mostra la descrizione piena del marketplace,
+      // così «Dettagli» dice sempre qualcosa.
+      if (p.installato) {
         window.gestore.negozio.dettagliPlugin(id).then((r) => {
           setDettagli((p2) => ({ ...p2, [id]: { aperto: true, testo: r.testo, errore: r.errore } }))
         }).catch((e: unknown) => {
@@ -145,7 +162,7 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
         })
         return { ...prec, [id]: { aperto: true, caricando: true } }
       }
-      return { ...prec, [id]: { ...attuale, aperto: true } }
+      return { ...prec, [id]: { aperto: true, testo: p.descrizione === '' ? 'Nessuna descrizione.' : p.descrizione } }
     })
   }
 
@@ -210,24 +227,32 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
             {p.descrizione !== '' ? <div className="negozio__desc">{p.descrizione}</div> : null}
           </div>
           <div className="negozio__azioni">
+            <button className="tasto tasto--fantasma" disabled={occupato} onClick={() => apriDettagli(p)}>
+              {d?.aperto === true ? 'Nascondi' : 'Dettagli'}
+            </button>
             {p.installato ? (
               <>
                 <button className="tasto" disabled={occupato}
-                  onClick={() => void conEsito(p.id, () => window.gestore.negozio.commutaPlugin(p.id, !p.abilitato), () => caricaPlugin(true))}>
+                  onClick={() => void conEsito(p.id,
+                    () => window.gestore.negozio.commutaPlugin(p.id, !p.abilitato),
+                    () => { aggiornaLocale(p.id, { abilitato: !p.abilitato }); caricaPlugin(true) },
+                    p.abilitato ? 'disattivato' : 'attivato')}>
                   {p.abilitato ? 'Disattiva' : 'Attiva'}
                 </button>
                 <button className="tasto tasto--fantasma" disabled={occupato}
-                  onClick={() => apriDettagli(p.id)}>
-                  {d?.aperto === true ? 'Nascondi' : 'Dettagli'}
-                </button>
-                <button className="tasto tasto--fantasma" disabled={occupato}
-                  onClick={() => void conEsito(p.id, () => window.gestore.negozio.disinstallaPlugin(p.id), () => caricaPlugin(true))}>
+                  onClick={() => void conEsito(p.id,
+                    () => window.gestore.negozio.disinstallaPlugin(p.id),
+                    () => { aggiornaLocale(p.id, { installato: false, abilitato: false }); caricaPlugin(true) },
+                    'rimosso')}>
                   Rimuovi
                 </button>
               </>
             ) : (
               <button className="tasto tasto--primario" disabled={occupato}
-                onClick={() => void conEsito(p.id, () => window.gestore.negozio.installaPlugin(p.id), () => caricaPlugin(true))}>
+                onClick={() => void conEsito(p.id,
+                  () => window.gestore.negozio.installaPlugin(p.id),
+                  () => { aggiornaLocale(p.id, { installato: true, abilitato: true }); caricaPlugin(true) },
+                  'installato')}>
                 {occupato ? 'Installo…' : 'Installa'}
               </button>
             )}
@@ -337,6 +362,7 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
           {tasto('store', 'Store', store?.length)}
         </div>
         {avviso !== undefined ? <div className="avviso">⚠ {avviso}</div> : null}
+        {nota !== undefined ? <div className="negozio__ok">{nota}</div> : null}
       </div>
 
       <div className="negozio__corpo">
