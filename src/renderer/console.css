@@ -2066,6 +2066,8 @@ select.comando-riquadro option {
 .negozio__aggiungi { display: flex; gap: var(--s2); margin-bottom: var(--s3); flex-wrap: wrap; }
 .negozio__aggiungi .campo { flex: 1; min-width: 220px; }
 .negozio__aggiorno { padding: 2px 0 8px; opacity: .7; }
+.negozio__conteggio { padding: 0 2px 8px; opacity: .7; }
+.negozio__mostra-tutti { align-self: center; margin-top: var(--s2); }
 .negozio__ok {
   font-size: var(--t2); font-weight: 600; color: #57d38c;
   padding: 4px 0;

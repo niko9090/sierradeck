@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.4',
+    righe: [
+      '**Negozio: revisione completa.** Attivare/disattivare **skill e MCP** è ora istantaneo come i plugin; la conferma verde «✓ fatto» sparisce da sola; i messaggi d’errore sono più puliti (solo il motivo, senza rumore); e i «Dettagli» si aggiornano dopo aver installato o rimosso.',
+      '**Più facile da usare.** La scheda «Store» ora si chiama **«Fonti»** (da dove arrivano i plugin), per non confonderla col catalogo. Nel catalogo vedi **quanti plugin** ci sono e un tasto **«Mostra tutti»** senza dover per forza cercare. E la casella di ricerca è già pronta appena apri.'
+    ]
+  },
+  {
     versione: '0.12.3',
     righe: [
       '**Installare, attivare e disattivare si vede subito.** Prima la riga cambiava stato solo dopo un paio di secondi (il tempo di ricaricare tutto il catalogo) e sembrava «non succede niente». Ora cambia **al clic** — «attivo/spento», «installato» — con una conferma verde «✓ fatto».',

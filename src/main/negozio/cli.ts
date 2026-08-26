@@ -80,11 +80,15 @@ export function idDi(v: { pluginId?: string; id?: string; name?: string; marketp
  * ha detto; con ✔ è fatto; senza né l'uno né l'altro si ripiega sul codice.
  */
 export function interpreta(r: { ok: boolean; stdout: string; stderr: string }, azioneFallita: string): Esito {
-  const out = `${r.stdout}\n${r.stderr}`.trim()
-  const pulito = out.replace(/[✔✘]/g, '').trim().slice(0, 400)
-  if (/✘/.test(out)) return { ok: false, messaggio: pulito || azioneFallita }
-  if (/✔/.test(out)) return { ok: true }
-  return r.ok ? { ok: true } : { ok: false, messaggio: pulito || azioneFallita }
+  const out = `${r.stdout}\n${r.stderr}`
+  if (/✔/.test(out) && !/✘/.test(out)) return { ok: true }
+  const fallito = /✘/.test(out) || !r.ok
+  if (!fallito) return { ok: true }
+  // Il messaggio buono è la riga che spiega il perché («Failed to…», «Error…»),
+  // non tutto l'output col rumore tipo «Installing plugin…».
+  const righe = out.split('\n').map((x) => x.replace(/[✔✘]/g, '').trim()).filter((x) => x !== '')
+  const rilevante = righe.find((x) => /fail|error|not found|impossibile|non /i.test(x)) ?? righe[righe.length - 1]
+  return { ok: false, messaggio: (rilevante ?? azioneFallita).slice(0, 400) }
 }
 
 function normalizza(v: VoceCli, installato: boolean, abilitato: boolean): Plugin | undefined {

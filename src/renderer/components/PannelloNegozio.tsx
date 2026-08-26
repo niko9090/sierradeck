@@ -62,6 +62,15 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
   const [nuovoStore, setNuovoStore] = useState('')
   const [scope, setScope] = useState<Scope>({ pluginSpenti: [], skillSpente: [], mcpSpenti: [] })
   const [aggiornando, setAggiornando] = useState(false)
+  const [mostraTutti, setMostraTutti] = useState(false)
+
+  // La conferma verde «✓ fatto» si toglie da sola dopo un momento: deve dire
+  // «riuscito», non restare lì per sempre come un cartello dimenticato.
+  useEffect(() => {
+    if (nota === undefined) return
+    const h = setTimeout(() => setNota(undefined), 2500)
+    return () => clearTimeout(h)
+  }, [nota])
 
   // `silenzioso`: dopo un'operazione si ricarica SENZA svuotare la lista, o la
   // vetrina lampeggia su «Carico…» e il plugin appena toccato «sparisce» per un
@@ -118,9 +127,17 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
 
   /** Cambia SUBITO la riga di un plugin in locale, prima che il ricarico
    * canonico arrivi: enable/disable e install/uninstall si aggiornano al clic,
-   * non dopo un paio di secondi (che è il «non cambia stato»). */
+   * non dopo un paio di secondi (che è il «non cambia stato»). Si scordano anche
+   * i dettagli in cache: cambiando lo stato, l'inventario va riletto. */
   const aggiornaLocale = (id: string, patch: Partial<Plugin>): void => {
     setPlugin((prev) => prev?.map((p) => (p.id === id ? { ...p, ...patch } : p)))
+    setDettagli((prev) => { const n = { ...prev }; delete n[id]; return n })
+  }
+  const aggiornaSkillLocale = (nome: string, abilitata: boolean): void => {
+    setSkill((prev) => prev?.map((s) => (s.nome === nome ? { ...s, abilitata } : s)))
+  }
+  const aggiornaMcpLocale = (nome: string, abilitato: boolean): void => {
+    setMcp((prev) => prev?.map((m) => (m.nome === nome ? { ...m, abilitato } : m)))
   }
 
   const conEsito = async (
@@ -191,7 +208,10 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
     })
   }, [plugin, filtroMkt, q])
 
-  const pluginVisibili = q === '' && filtroMkt === 'tutti' ? pluginFiltrati.slice(0, TETTO) : pluginFiltrati
+  // Senza ricerca né filtro si mostra un blocco (o tutto, se hai premuto
+  // «Mostra tutti»); con una ricerca o un filtro si mostra tutto ciò che resta.
+  const limitato = q === '' && filtroMkt === 'tutti' && !mostraTutti
+  const pluginVisibili = limitato ? pluginFiltrati.slice(0, TETTO) : pluginFiltrati
 
   const skillFiltrate = useMemo(
     () => (skill ?? []).filter((s) => q === '' || contiene(s.nome, q) || contiene(s.descrizione, q)),
@@ -289,7 +309,10 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
         <div className="negozio__azioni">
           <button className="tasto tasto--fantasma" onClick={() => void window.gestore.negozio.rivela(s.percorso)}>Apri cartella</button>
           <button className="tasto" disabled={occupato}
-            onClick={() => void conEsito(`skill:${s.nome}`, () => window.gestore.negozio.commutaSkill(s.nome, !s.abilitata), caricaSkill)}>
+            onClick={() => void conEsito(`skill:${s.nome}`,
+              () => window.gestore.negozio.commutaSkill(s.nome, !s.abilitata),
+              () => { aggiornaSkillLocale(s.nome, !s.abilitata); caricaSkill() },
+              s.abilitata ? 'disattivata' : 'attivata')}>
             {s.abilitata ? 'Disattiva' : 'Attiva'}
           </button>
         </div>
@@ -324,7 +347,10 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
         </div>
         <div className="negozio__azioni">
           <button className="tasto" disabled={occupato || cwd === undefined}
-            onClick={() => cwd !== undefined && void conEsito(`mcp:${m.nome}`, () => window.gestore.negozio.commutaMcp(cwd, m.nome, !m.abilitato), caricaMcp)}>
+            onClick={() => cwd !== undefined && void conEsito(`mcp:${m.nome}`,
+              () => window.gestore.negozio.commutaMcp(cwd, m.nome, !m.abilitato),
+              () => { aggiornaMcpLocale(m.nome, !m.abilitato); caricaMcp() },
+              m.abilitato ? 'disattivato' : 'attivato')}>
             {m.abilitato ? 'Disattiva' : 'Attiva'}
           </button>
         </div>
@@ -351,7 +377,7 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
           <button className="tasto" onClick={onChiudi}>Chiudi</button>
         </div>
         <input className="campo negozio__cerca-globale" placeholder="Cerca in tutto il negozio…"
-          value={cerca} onChange={(e) => setCerca(e.target.value)} />
+          value={cerca} onChange={(e) => setCerca(e.target.value)} autoFocus />
         <div className="negozio__tabs">
           {tasto('uso', 'In uso')}
           {tasto('chat', 'Questa chat', scope.pluginSpenti.length + scope.skillSpente.length + scope.mcpSpenti.length)}
@@ -359,7 +385,7 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
           {tasto('skill', 'Skill', skillAttive)}
           {tasto('agenti', 'Agenti', agenti?.length)}
           {tasto('mcp', 'MCP', mcpAttivi)}
-          {tasto('store', 'Store', store?.length)}
+          {tasto('store', 'Fonti', store?.length)}
         </div>
         {avviso !== undefined ? <div className="avviso">⚠ {avviso}</div> : null}
         {nota !== undefined ? <div className="negozio__ok">{nota}</div> : null}
@@ -453,14 +479,21 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
             ) : null}
             {errorePlugin !== undefined ? <div className="avviso">⚠ Il negozio non risponde: {errorePlugin}</div> : null}
             {aggiornando ? <div className="misura negozio__aggiorno">↻ aggiorno l’elenco…</div> : null}
+            {plugin !== undefined && plugin.length > 0 ? (
+              <div className="misura negozio__conteggio">
+                {pluginFiltrati.length} plugin{filtroMkt !== 'tutti' || q !== '' ? ' trovati' : ' nel catalogo'} · {installati} installati
+              </div>
+            ) : null}
             {plugin === undefined ? vuoto('Carico il catalogo…')
               : pluginVisibili.length === 0 ? vuoto(q === '' ? 'Nessun plugin.' : 'Nessun plugin trovato.')
                 : (
                   <div className="negozio__lista">
                     {pluginVisibili.map(rigaPlugin)}
-                    {q === '' && filtroMkt === 'tutti' && pluginFiltrati.length > TETTO
-                      ? vuoto(`…e altri ${pluginFiltrati.length - TETTO}. Cerca per nome, o filtra per store.`)
-                      : null}
+                    {limitato && pluginFiltrati.length > TETTO ? (
+                      <button className="tasto negozio__mostra-tutti" onClick={() => setMostraTutti(true)}>
+                        Mostra tutti ({pluginFiltrati.length})
+                      </button>
+                    ) : null}
                   </div>
                 )}
           </>
