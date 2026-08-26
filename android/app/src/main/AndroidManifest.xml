@@ -28,7 +28,7 @@
         android:networkSecurityConfig="@xml/rete">
 
         <activity
-            android:name=".ClientActivity"
+            android:name=".MainActivity"
             android:exported="true"
             android:configChanges="orientation|screenSize|keyboardHidden">
             <intent-filter>
