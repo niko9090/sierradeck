@@ -72,13 +72,14 @@ chiuso. Body max 256KB. **Niente streaming**: tutto polling.
 - **Stadio 3a FATTO** (commit c3a57f3): **Chat** — Ansi.kt (parser SGR→AnnotatedString,
   16/256/truecolor), elenco→dettaglio terminale (polling /api/dentro), invio,
   rinomina/chiudi, apri-nuova (/api/cartelle+/apri), riprendi (/api/sessioni+/riprendi).
-- **Stadio 3b DA FARE**: **Lavori** (autopiloti: dettaglio da `vistaAutopilota` —
-  passaggi/%/obiettivo/criteri/decisioni, tutto dal desktop; Vai/Ferma/Riprendi;
-  Affida un lavoro /api/autopilota/crea; Quaderno /api/quaderno) + **Computer**
-  (workspace, salvataggi, consumi, preferenze stile/chiarore, update PC). Servono
-  metodi Api ancora da aggiungere: autopilota(dettaglio), crea, elimina, riavvio,
-  quaderno+scheda, preferenze GET/POST, aggiornamento GET/scarica/installa,
-  workspace crea/elimina, salvataggi+carica, stile.
+- **Stadio 3b FATTO** (commit de41e17): **Lavori** (dettaglio passaggi/misura/
+  criteri/decisioni dal desktop, Vai/Ferma/Riprendi, riparti-al-riavvio, Elimina,
+  Affida un lavoro, Quaderno) + **Computer** (workspace, consumi, salvataggi,
+  Banco/Foglio + chiarore 0..100, update PC). Tutte e 4 le schede native + ingresso.
+  Note apprese: `/api/cartelle` = List<String> (non oggetti); `Criterio` =
+  {descrizione, comando?, soddisfatto, raggiuntoIl?}; flag `riprendiAlRiavvio?`
+  (assente=sì); `chiarore` intero 0..100 (default 20); dettaglio autopilota =
+  tutto l'Autopilota + `passaggi` (Passo[]) + `misura` (MisuraPasso).
 - **Stadio 4 DA FARE**: portare auto-update APK (Aggiornamenti/Scaricamento) in
   MainActivity, RIMUOVERE ClientActivity+Ponte (WebView) e la dipendenza appcompat;
   restyling/rifinitura; tema vivo da /api/stile.
