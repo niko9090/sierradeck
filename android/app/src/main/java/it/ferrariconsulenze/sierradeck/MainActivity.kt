@@ -6,6 +6,11 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.gms.common.moduleinstall.ModuleInstall
@@ -36,9 +41,42 @@ class MainActivity : ComponentActivity() {
         val deposito = Collegamento(this)
         setContent {
             TemaSierraDeck {
+                // L'aggiornamento dell'app: un'app installata a mano non riceve
+                // niente da sola, quindi si guarda l'ultima su GitHub e, se è più
+                // nuova, la si propone. Il controllo è su un thread suo; qui si
+                // porta l'esito sul thread dell'interfaccia.
+                var aggiornamento by remember { mutableStateOf<Pair<String, String>?>(null) }
+                LaunchedEffect(Unit) {
+                    try {
+                        Aggiornamenti.controlla(BuildConfig.VERSION_NAME) { nome, apk ->
+                            runOnUiThread { aggiornamento = nome to apk }
+                        }
+                    } catch (_: Exception) {
+                    }
+                }
+
                 App(deposito = deposito, scansionaQr = ::scansionaQr)
+
+                aggiornamento?.let { (nome, apk) ->
+                    DialogoAggiornamentoApp(
+                        nome = nome,
+                        apk = apk,
+                        avviaScarico = ::scaricaApk,
+                        onChiudi = { aggiornamento = null }
+                    )
+                }
             }
         }
+    }
+
+    /** Scarica l'APK nuovo e apre l'installazione di Android, riportando i
+     *  progressi sul thread dell'interfaccia. */
+    private fun scaricaApk(apk: String, onProgresso: (Int) -> Unit, onGuasto: (String) -> Unit) {
+        Scaricamento.apk(
+            this, apk,
+            avanzamento = { p -> runOnUiThread { onProgresso(p) } },
+            guasto = { m -> runOnUiThread { onGuasto(m) } }
+        )
     }
 
     /**

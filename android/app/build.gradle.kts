@@ -77,10 +77,10 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
+    // `material` resta per il tema XML (Theme.Material3.Dark) su cui si appoggia
+    // l'Activity; l'interfaccia però è tutta Compose. `appcompat` è stato tolto
+    // con la vecchia ClientActivity (WebView).
     implementation("com.google.android.material:material:1.12.0")
-    // Ancora necessario finché sopravvive la vecchia ClientActivity (WebView,
-    // AppCompatActivity): si toglierà quando sarà tutta Compose.
-    implementation("androidx.appcompat:appcompat:1.7.0")
 
     // ─── Jetpack Compose: l'interfaccia nativa, dichiarativa ───
     // Il BOM fissa in un colpo solo le versioni coerenti di tutti i moduli Compose.

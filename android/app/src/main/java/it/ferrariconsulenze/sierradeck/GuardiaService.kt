@@ -131,7 +131,7 @@ class GuardiaService : Service() {
         val apri = PendingIntent.getActivity(
             this,
             0,
-            Intent(this, ClientActivity::class.java),
+            Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notifica = NotificationCompat.Builder(this, CANALE_DOMANDE)
