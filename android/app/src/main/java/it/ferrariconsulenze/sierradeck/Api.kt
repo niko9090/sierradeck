@@ -103,6 +103,21 @@ class Api(private val indirizzo: String, private val chiave: String?) {
     suspend fun cambiaWorkspace(nome: String): Fatto =
         json.decodeFromString(corpoTesto("/api/workspace", oggetto { put("nome", nome) }))
 
+    // ─── aprire / riprendere chat ───
+    suspend fun cartelle(): Cartelle = json.decodeFromString(corpoTesto("/api/cartelle", null))
+
+    suspend fun apri(cartella: String, modello: String? = null): Fatto =
+        json.decodeFromString(corpoTesto("/api/apri", oggetto {
+            put("cartella", cartella); if (modello != null) put("modello", modello)
+        }))
+
+    suspend fun sessioni(): Sessioni = json.decodeFromString(corpoTesto("/api/sessioni", null))
+
+    suspend fun riprendiSessione(cartella: String, sessione: String): Fatto =
+        json.decodeFromString(corpoTesto("/api/sessioni/riprendi", oggetto {
+            put("cartella", cartella); put("sessione", sessione)
+        }))
+
     // ─── consumi ───
     suspend fun consumi(): Consumi = json.decodeFromString(corpoTesto("/api/consumi", null))
 

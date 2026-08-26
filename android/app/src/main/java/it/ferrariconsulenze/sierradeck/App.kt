@@ -109,7 +109,7 @@ fun Principale(api: Api, onScollega: () -> Unit) {
         Box(Modifier.padding(pad).fillMaxSize()) {
             when (scheda) {
                 Scheda.ADESSO -> Adesso(api, stato, connesso)
-                Scheda.CHAT -> Prossimamente("Chat")
+                Scheda.CHAT -> Chat(api, stato)
                 Scheda.LAVORI -> Prossimamente("Lavori")
                 Scheda.COMPUTER -> Prossimamente("Computer")
             }
