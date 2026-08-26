@@ -80,12 +80,25 @@ chiuso. Body max 256KB. **Niente streaming**: tutto polling.
   {descrizione, comando?, soddisfatto, raggiuntoIl?}; flag `riprendiAlRiavvio?`
   (assente=sì); `chiarore` intero 0..100 (default 20); dettaglio autopilota =
   tutto l'Autopilota + `passaggi` (Passo[]) + `misura` (MisuraPasso).
-- **Stadio 4 DA FARE**: portare auto-update APK (Aggiornamenti/Scaricamento) in
-  MainActivity, RIMUOVERE ClientActivity+Ponte (WebView) e la dipendenza appcompat;
-  restyling/rifinitura; tema vivo da /api/stile.
-- **Stadio 5 DA FARE**: build APK firmato (`~/.sierradeck-chiave.jks`+`.pass`,
-  `gradle assembleRelease`, bump versionName a 2.0.0/versionCode) + pubblicazione +
-  aggiornare `/api/app` del desktop perché serva il nuovo APK.
+- **Stadio 4 FATTO** (commit d71bc02): app 100% Compose. Rimossi ClientActivity+
+  Ponte (WebView), layout ingresso.xml, dipendenza appcompat. Auto-update APK
+  portato in Compose (DialogoAggiornamentoApp + Aggiornamenti.controlla in
+  MainActivity + Scaricamento). GuardiaService → tap notifica apre MainActivity.
+  Logo cristallo nell'Ingresso. Test unitari Android verdi. Tema «vivo» da
+  /api/stile: NON ancora fatto (l'app usa la tavolozza statica del Banco).
+- **Stadio 5 DA FARE (rilascio)**:
+  1. bump `versionName` 1.3.1→2.0.0 e `versionCode` 10→20 in app/build.gradle.kts.
+  2. `gradle assembleRelease` (firma con `~/.sierradeck-chiave.jks`+`.pass`, alias
+     "sierradeck" — indipendente dall'appId, ok). APK in app/build/outputs/apk/release/.
+  3. Pubblicare l'APK su una release GitHub, RINOMINATO `SierraDeck-2.0.0.apk`
+     (Aggiornamenti.controlla cerca l'asset con quel pattern nella *latest*).
+  4. Aggiornare `/api/app` del desktop (src/main/apk-disponibile.ts) perché serva
+     il nuovo APK/versione al telefono.
+  ⚠️ Cambio appId: l'app vecchia `it.glos.*` NON si auto-aggiorna a `it.ferrariconsulenze.*`
+  (package diverso) → va installata a mano la prima volta. Accettato (la vecchia
+  non funziona comunque).
+- **Restyling completo** (roadmap punto 3): l'app ora ha una grafica pulita e
+  coerente (palette Banco), ma un redesign visivo completo è un lavoro a sé.
 
 ## Build da questa sessione (le variabili User NON sono nell'ambiente della chat)
 `export JAVA_HOME="C:/Program Files/Microsoft/jdk-21.0.12.8-hotspot"; export
