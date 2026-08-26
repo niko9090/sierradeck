@@ -43,7 +43,9 @@ function contiene(testo: string, q: string): boolean {
 }
 
 export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () => void }): React.JSX.Element {
-  const [scheda, setScheda] = useState<Scheda>('uso')
+  // Si apre sul catalogo (lo «store»): è un negozio, la prima cosa da vedere è
+  // la merce. «In uso» è una scheda a parte per ciò che hai già.
+  const [scheda, setScheda] = useState<Scheda>('plugin')
   const [plugin, setPlugin] = useState<Plugin[] | undefined>(undefined)
   const [errorePlugin, setErrorePlugin] = useState<string | undefined>(undefined)
   const [skill, setSkill] = useState<Skill[] | undefined>(undefined)
@@ -58,11 +60,17 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
   const [dettagli, setDettagli] = useState<Record<string, { aperto: boolean; caricando?: boolean; testo?: string; errore?: string }>>({})
   const [nuovoStore, setNuovoStore] = useState('')
   const [scope, setScope] = useState<Scope>({ pluginSpenti: [], skillSpente: [], mcpSpenti: [] })
+  const [aggiornando, setAggiornando] = useState(false)
 
-  const caricaPlugin = (): void => {
-    setPlugin(undefined); setErrorePlugin(undefined)
+  // `silenzioso`: dopo un'operazione si ricarica SENZA svuotare la lista, o la
+  // vetrina lampeggia su «Carico…» e il plugin appena toccato «sparisce» per un
+  // paio di secondi — che è esattamente il «non si capisce cosa fa».
+  const caricaPlugin = (silenzioso = false): void => {
+    if (!silenzioso) { setPlugin(undefined); setErrorePlugin(undefined) }
+    else setAggiornando(true)
     window.gestore.negozio.plugin().then((r) => { setPlugin(r.plugin); setErrorePlugin(r.errore) })
-      .catch((e: unknown) => { setPlugin([]); setErrorePlugin(String(e)) })
+      .catch((e: unknown) => { if (!silenzioso) setPlugin([]); setErrorePlugin(String(e)) })
+      .finally(() => setAggiornando(false))
   }
   const caricaSkill = (): void => { window.gestore.negozio.skill(cwd).then(setSkill).catch(() => setSkill([])) }
   const caricaAgenti = (): void => { window.gestore.negozio.agenti(cwd).then(setAgenti).catch(() => setAgenti([])) }
@@ -70,10 +78,10 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
     if (cwd === undefined) { setMcp([]); return }
     window.gestore.negozio.mcp(cwd).then(setMcp).catch(() => setMcp([]))
   }
-  const caricaStore = (): void => {
-    setStore(undefined); setErroreStore(undefined)
+  const caricaStore = (silenzioso = false): void => {
+    if (!silenzioso) { setStore(undefined); setErroreStore(undefined) }
     window.gestore.negozio.marketplace().then((r) => { setStore(r.marketplace); setErroreStore(r.errore) })
-      .catch((e: unknown) => { setStore([]); setErroreStore(String(e)) })
+      .catch((e: unknown) => { if (!silenzioso) setStore([]); setErroreStore(String(e)) })
   }
 
   const caricaScope = (): void => {
@@ -205,7 +213,7 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
             {p.installato ? (
               <>
                 <button className="tasto" disabled={occupato}
-                  onClick={() => void conEsito(p.id, () => window.gestore.negozio.commutaPlugin(p.id, !p.abilitato), caricaPlugin)}>
+                  onClick={() => void conEsito(p.id, () => window.gestore.negozio.commutaPlugin(p.id, !p.abilitato), () => caricaPlugin(true))}>
                   {p.abilitato ? 'Disattiva' : 'Attiva'}
                 </button>
                 <button className="tasto tasto--fantasma" disabled={occupato}
@@ -213,13 +221,13 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
                   {d?.aperto === true ? 'Nascondi' : 'Dettagli'}
                 </button>
                 <button className="tasto tasto--fantasma" disabled={occupato}
-                  onClick={() => void conEsito(p.id, () => window.gestore.negozio.disinstallaPlugin(p.id), caricaPlugin)}>
+                  onClick={() => void conEsito(p.id, () => window.gestore.negozio.disinstallaPlugin(p.id), () => caricaPlugin(true))}>
                   Rimuovi
                 </button>
               </>
             ) : (
               <button className="tasto tasto--primario" disabled={occupato}
-                onClick={() => void conEsito(p.id, () => window.gestore.negozio.installaPlugin(p.id), caricaPlugin)}>
+                onClick={() => void conEsito(p.id, () => window.gestore.negozio.installaPlugin(p.id), () => caricaPlugin(true))}>
                 {occupato ? 'Installo…' : 'Installa'}
               </button>
             )}
@@ -418,6 +426,7 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
               </div>
             ) : null}
             {errorePlugin !== undefined ? <div className="avviso">⚠ Il negozio non risponde: {errorePlugin}</div> : null}
+            {aggiornando ? <div className="misura negozio__aggiorno">↻ aggiorno l’elenco…</div> : null}
             {plugin === undefined ? vuoto('Carico il catalogo…')
               : pluginVisibili.length === 0 ? vuoto(q === '' ? 'Nessun plugin.' : 'Nessun plugin trovato.')
                 : (
@@ -464,15 +473,15 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
                 value={nuovoStore} onChange={(e) => setNuovoStore(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && nuovoStore.trim() !== '') {
-                    void conEsito('mkt:add', () => window.gestore.negozio.aggiungiMarketplace(nuovoStore.trim()), () => { setNuovoStore(''); caricaStore(); caricaPlugin() })
+                    void conEsito('mkt:add', () => window.gestore.negozio.aggiungiMarketplace(nuovoStore.trim()), () => { setNuovoStore(''); caricaStore(true); caricaPlugin(true) })
                   }
                 }} />
               <button className="tasto tasto--primario" disabled={nuovoStore.trim() === '' || inCorso.has('mkt:add')}
-                onClick={() => void conEsito('mkt:add', () => window.gestore.negozio.aggiungiMarketplace(nuovoStore.trim()), () => { setNuovoStore(''); caricaStore(); caricaPlugin() })}>
+                onClick={() => void conEsito('mkt:add', () => window.gestore.negozio.aggiungiMarketplace(nuovoStore.trim()), () => { setNuovoStore(''); caricaStore(true); caricaPlugin(true) })}>
                 {inCorso.has('mkt:add') ? 'Aggiungo…' : 'Aggiungi store'}
               </button>
               <button className="tasto tasto--fantasma" disabled={inCorso.has('mkt:upd')}
-                onClick={() => void conEsito('mkt:upd', () => window.gestore.negozio.aggiornaMarketplace(), () => { caricaStore(); caricaPlugin() })}
+                onClick={() => void conEsito('mkt:upd', () => window.gestore.negozio.aggiornaMarketplace(), () => { caricaStore(true); caricaPlugin(true) })}
                 title="Riscarica gli store dalle loro sorgenti">
                 {inCorso.has('mkt:upd') ? 'Aggiorno…' : 'Aggiorna tutti'}
               </button>
@@ -499,7 +508,7 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
                       <div className="negozio__azioni">
                         {m.ufficiale ? <span className="misura">non rimovibile</span> : (
                           <button className="tasto tasto--fantasma" disabled={occupato}
-                            onClick={() => void conEsito(`mkt:${m.nome}`, () => window.gestore.negozio.rimuoviMarketplace(m.nome), () => { caricaStore(); caricaPlugin() })}>
+                            onClick={() => void conEsito(`mkt:${m.nome}`, () => window.gestore.negozio.rimuoviMarketplace(m.nome), () => { caricaStore(true); caricaPlugin(true) })}>
                             Rimuovi
                           </button>
                         )}

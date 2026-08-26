@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.2',
+    righe: [
+      '**Il Negozio si apre sul catalogo.** Prima si apriva su «In uso» e sembrava non ci fosse nessuno store da sfogliare: ora la prima cosa che vedi è l’elenco dei plugin da installare («In uso» resta una scheda a parte).',
+      '**Installando, la lista non sparisce più.** Prima, appena installato, tutto l’elenco lampeggiava su «Carico…» e il plugin spariva per un paio di secondi. Ora resta al suo posto e passa a «installato», con un discreto «aggiorno l’elenco».'
+    ]
+  },
+  {
     versione: '0.12.1',
     righe: [
       '**Installare un plugin adesso si vede.** Compare una **barra di caricamento** mentre l’operazione è in corso, e appena finisce la riga passa a «installato». Prima il plugin veniva installato ma la vetrina non se ne accorgeva (sembrava non succedere niente), e se un’installazione falliva poteva persino sembrare riuscita: ora un errore te lo dice chiaramente.'
