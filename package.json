@@ -17,8 +17,9 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "icona": "electron scripts/genera-icona.mjs",
-    "pacchetto": "npm run build && electron-builder --win --publish never",
-    "pubblica": "npm run build && electron-builder --win --publish always"
+    "pulisci-dist": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "pacchetto": "npm run build && npm run pulisci-dist && electron-builder --win --publish never",
+    "pubblica": "npm run build && npm run pulisci-dist && electron-builder --win --publish always"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",
