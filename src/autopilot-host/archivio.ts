@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import {
-  existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync
+  existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync
 } from 'node:fs'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { parseAutopilota, VERSIONE_AUTOPILOTA, type Autopilota } from '@shared/autopilota'
@@ -62,6 +62,19 @@ export function apriArchivio(cartella: string): Archivio {
   /** Gli avvisi già dati, per non ripeterli a ogni rilettura. */
   const gia = new Set<string>()
 
+  /**
+   * L'elenco viene chiesto ogni pochi secondi (la pagina del telefono sonda lo
+   * stato ogni 2s, la guardia ogni 60s): senza cache, ogni giro rileggeva e
+   * ri-parsava da disco **tutti** i file autopilota, anche quando nessuno era
+   * cambiato — l'I/O sincrono più caldo dell'app. Qui si tiene il parsed di ogni
+   * file e lo si riusa finché `mtime`+`size` non cambiano; un `statSync` (syscall
+   * economica) al posto di `readFileSync`+`JSON.parse`+`parseAutopilota`. Poiché
+   * i salvataggi sono atomici (scrittura su temp + rename → l'mtime cambia), la
+   * cache si invalida da sola: nessun rischio di stato stantìo, e regge anche una
+   * modifica esterna al file. È lo stesso schema dell'indexer.
+   */
+  const cache = new Map<string, { mtimeMs: number; size: number; auto: Autopilota }>()
+
   const leggiFile = (percorso: string): Autopilota | undefined => {
     let testo: string
     try {
@@ -103,13 +116,37 @@ export function apriArchivio(cartella: string): Archivio {
 
     elenca() {
       const trovati: Autopilota[] = []
+      const vistiOra = new Set<string>()
       for (const nome of readdirSync(cartella)) {
         // Solo i file che abbiamo scritto noi: accanto possono esserci i
         // .illeggibile messi da parte, e non vanno riletti a ogni giro.
         if (!nome.endsWith('.json')) continue
-        const a = leggiFile(join(cartella, nome))
-        if (a !== undefined) trovati.push(a)
+        const percorso = join(cartella, nome)
+        vistiOra.add(percorso)
+        let st
+        try {
+          st = statSync(percorso)
+        } catch {
+          // Sparito fra il readdir e lo stat: lo si salta, la cache lo perde sotto.
+          continue
+        }
+        const voce = cache.get(percorso)
+        if (voce !== undefined && voce.mtimeMs === st.mtimeMs && voce.size === st.size) {
+          trovati.push(voce.auto)
+          continue
+        }
+        const a = leggiFile(percorso)
+        if (a !== undefined) {
+          cache.set(percorso, { mtimeMs: st.mtimeMs, size: st.size, auto: a })
+          trovati.push(a)
+        } else {
+          // File illeggibile (già messo da parte da leggiFile): via dalla cache.
+          cache.delete(percorso)
+        }
       }
+      // I file spariti (eliminati, o rinominati in .illeggibile) escono dalla cache,
+      // o crescerebbe per tutta la vita del servizio.
+      for (const p of cache.keys()) if (!vistiOra.has(p)) cache.delete(p)
       return trovati
     },
 

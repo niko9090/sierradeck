@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.8',
+    righe: [
+      '**SierraDeck consuma meno quando è ferma.** A riposo il programma faceva parecchio lavoro inutile in sottofondo: ridisegnava l’interfaccia ogni secondo, rileggeva di continuo file dal disco, e controllava in rete ogni secondo e mezzo anche senza nessun autopilota. Ora tutto questo si accende **solo quando serve** — meno CPU e meno batteria a riposo, con la stessa prontezza quando c’è lavoro in corso (appena arriva qualcosa da fare, torna reattivo all’istante).',
+      '**Le chat si aprono un po’ più svelte.** Le impostazioni che ogni nuova chat mette insieme non vengono più rilette e ri-analizzate da capo a ogni apertura: se non sono cambiate, si riusano.'
+    ]
+  },
+  {
     versione: '0.12.7',
     righe: [
       '**Se qualcosa si rompe nell’interfaccia, il programma non si chiude più a schermo vuoto.** Prima un errore in un punto qualunque della plancia poteva far sparire tutto — la barra dei workspace compresa — e sembrava che l’app «si fosse chiusa da sola», senza lasciare traccia. Ora al suo posto compare una schermata di recupero con **«Ricarica»**, che rimette in piedi la plancia **senza chiudere il programma** (le chat aperte tornano dal salvataggio automatico).',

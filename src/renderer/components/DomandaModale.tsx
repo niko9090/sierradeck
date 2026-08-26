@@ -50,9 +50,18 @@ export function DomandaModale({ autopiloti }: { autopiloti: Autopilota[] }): Rea
   useEffect(() => {
     ricarica()
     const sondaggio = setInterval(ricarica, SONDAGGIO_MS)
-    const orologio = setInterval(() => setAdesso(Date.now()), OROLOGIO_MS)
-    return () => { clearInterval(sondaggio); clearInterval(orologio) }
+    return () => clearInterval(sondaggio)
   }, [ricarica])
+
+  // L'orologio serve solo al conto alla rovescia di una domanda a schermo: senza
+  // domande aperte, batteva comunque ogni secondo — un re-render al secondo, per
+  // sempre, a vuoto. Ora parte solo quando c'è almeno una domanda da mostrare, e
+  // si ferma appena spariscono.
+  useEffect(() => {
+    if (domande.length === 0) return
+    const orologio = setInterval(() => setAdesso(Date.now()), OROLOGIO_MS)
+    return () => clearInterval(orologio)
+  }, [domande.length])
 
   const domanda = daMostrare(domande, adesso)
   const autopilota = domanda === undefined

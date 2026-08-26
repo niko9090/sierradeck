@@ -430,30 +430,60 @@ export function App(): React.JSX.Element {
 
   const { progress, setProgress, setEsito, load: caricaSessioni } = useSessionStore()
 
+  // L'elenco arriva **nuovo** a ogni giro di polling (5s): senza confronto,
+  // `setAutopiloti` cambierebbe l'identità dello stato anche quando nulla è
+  // cambiato, e siccome `autopiloti` scende in mezza interfaccia (console, banda,
+  // mosaico, modale) ridisegnerebbe tutto ogni 5 secondi a vuoto. Si tiene la
+  // firma dell'ultimo elenco e si aggiorna solo se è diversa — come già fa il
+  // battito con `setPensano`. Stessa cosa per il conteggio nell'icona in basso.
+  const firmaAutopiloti = useRef('')
+  const contoAlLavoro = useRef(-1)
   const ricaricaAutopiloti = useCallback((): void => {
     window.gestore.autopilota
       .elenca()
       .then((a) => {
-        setAutopiloti(a)
         setErroreAutopiloti(undefined)
+        const firma = JSON.stringify(a)
+        if (firma !== firmaAutopiloti.current) {
+          firmaAutopiloti.current = firma
+          setAutopiloti(a)
+        }
         // Chi ha appena chiuso la finestra si chiede una cosa sola: sta ancora
-        // lavorando? La risposta sta nel testo dell'icona in basso a destra.
-        window.gestore.sistema.autopilotiAlLavoro(
-          a.filter((x) => x.stato === 'lavoro' || x.stato === 'attesa').length
-        )
+        // lavorando? La risposta sta nel testo dell'icona in basso a destra —
+        // che si aggiorna solo quando il numero cambia davvero.
+        const conto = a.filter((x) => x.stato === 'lavoro' || x.stato === 'attesa').length
+        if (conto !== contoAlLavoro.current) {
+          contoAlLavoro.current = conto
+          window.gestore.sistema.autopilotiAlLavoro(conto)
+        }
       })
       // Il messaggio del client nomina il servizio e la porta: è la differenza
-      // fra «non ci sono autopiloti» e «il servizio non risponde».
-      .catch((e: unknown) => { setAutopiloti([]); setErroreAutopiloti(String(e)) })
+      // fra «non ci sono autopiloti» e «il servizio non risponde». Anche qui si
+      // svuota una volta sola, non a ogni giro finché il servizio è giù.
+      .catch((e: unknown) => {
+        setErroreAutopiloti(String(e))
+        if (firmaAutopiloti.current !== '__errore__') {
+          firmaAutopiloti.current = '__errore__'
+          setAutopiloti([])
+          contoAlLavoro.current = 0
+          window.gestore.sistema.autopilotiAlLavoro(0)
+        }
+      })
   }, [])
 
   // Da dove ti stanno chiamando. La mappa si rilegge insieme agli autopiloti:
   // una chat spostata di workspace cambia l'indirizzo dell'avviso, e un avviso
   // che indica il posto sbagliato e' peggio di nessun avviso.
   const [doveSta, setDoveSta] = useState<Record<string, string>>({})
+  const firmaDoveSta = useRef('')
   useEffect(() => {
     const leggi = (): void => {
-      window.gestore.workspace.dove().then(setDoveSta).catch(() => undefined)
+      // Come per l'elenco: la mappa torna nuova ogni 5s, si aggiorna lo stato
+      // solo quando cambia davvero, o si ridisegnerebbe a vuoto.
+      window.gestore.workspace.dove().then((d) => {
+        const firma = JSON.stringify(d)
+        if (firma !== firmaDoveSta.current) { firmaDoveSta.current = firma; setDoveSta(d) }
+      }).catch(() => undefined)
     }
     leggi()
     const h = setInterval(leggi, RICARICA_AUTOPILOTI_MS)

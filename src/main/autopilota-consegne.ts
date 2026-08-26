@@ -33,8 +33,18 @@ export type Consegna = {
   workspace?: string
 }
 
-/** Quanto spesso si passa a ritirare. */
+/** Quanto spesso si passa a ritirare quando c'è lavoro: reattivo. */
 export const ATTESA_RITIRO_MS = 1500
+/**
+ * Il tetto a cui si rallenta quando non c'è niente da ritirare.
+ *
+ * A vuoto — nessun autopilota, o tutti fermi — ritirare ogni 1,5s è un
+ * round-trip HTTP che tiene svegli main e servizio 40 volte al minuto per
+ * sentirsi dire «niente». Si rallenta piano fino a questo tetto e si torna
+ * istantaneamente a 1,5s appena arriva una consegna: la reattività si paga solo
+ * quando serve, e il primo ritiro dopo un periodo di quiete attende al più tanto.
+ */
+export const ATTESA_RITIRO_MAX_MS = 6000
 
 /**
  * La consegna, con dentro il workspace dove deve andare.
@@ -139,18 +149,27 @@ export function avviaRitiro(p: {
   chiedi: () => Promise<unknown>
   consegna: (c: Consegna) => void
   attesaMs?: number
+  attesaMaxMs?: number
 }): () => void {
   let vivo = true
-  const attesa = p.attesaMs ?? ATTESA_RITIRO_MS
+  const base = p.attesaMs ?? ATTESA_RITIRO_MS
+  const max = Math.max(base, p.attesaMaxMs ?? ATTESA_RITIRO_MAX_MS)
+  // Si parte reattivi; si rallenta solo dopo aver trovato il vuoto.
+  let attesa = base
 
   const giro = async (): Promise<void> => {
     while (vivo) {
+      let ricevute = 0
       try {
-        for (const c of leggiConsegne(await p.chiedi())) p.consegna(c)
+        for (const c of leggiConsegne(await p.chiedi())) { p.consegna(c); ricevute += 1 }
       } catch {
         // Il servizio spento non è un guasto: è lo stato normale finché
-        // nessuno ha creato un autopilota.
+        // nessuno ha creato un autopilota. Conta come «vuoto»: si rallenta.
       }
+      // Con lavoro in arrivo si torna subito a 1,5s; a vuoto si sale piano fino
+      // al tetto — così durante il lavoro vero non si perde un colpo, e a riposo
+      // non si martella il servizio.
+      attesa = ricevute > 0 ? base : Math.min(max, Math.round(attesa * 1.5))
       await new Promise((r) => setTimeout(r, attesa))
     }
   }

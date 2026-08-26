@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync } from 'node:fs'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { parseArchivio, archivioVuoto, type Archivio } from '@shared/workspace'
 
@@ -43,11 +43,32 @@ export function apriWorkspaceStore(dir: string): WorkspaceStore {
   mkdirSync(dir, { recursive: true })
   const percorso = join(dir, NOME_FILE)
 
+  // `workspaces.json` viene riletto di continuo — a ogni `/api/stato` del telefono
+  // (2s) e a ogni consegna d'autopilota (~1,5s) — ma cambia di rado. Senza cache,
+  // ogni giro rifaceva `readFileSync`+`JSON.parse`+`parseArchivio` sul thread main.
+  // Si riusa il parsed finché `mtime`+`size` non cambiano; le scritture sono
+  // atomiche (temp + rename → l'mtime cambia), così la cache si invalida da sola e
+  // regge anche una modifica esterna. Restituire il riferimento condiviso è sicuro:
+  // le operazioni sui workspace sono tutte pure (creano un nuovo archivio, non
+  // mutano quello letto).
+  let cache: { mtimeMs: number; size: number; archivio: Archivio } | undefined
+
   return {
     percorso,
 
     leggi(): Archivio {
-      if (!existsSync(percorso)) return archivioVuoto()
+      if (!existsSync(percorso)) { cache = undefined; return archivioVuoto() }
+
+      // Se il file non è cambiato dall'ultima lettura, si riusa il parsed.
+      let st: ReturnType<typeof statSync> | undefined
+      try {
+        st = statSync(percorso)
+      } catch {
+        st = undefined
+      }
+      if (st !== undefined && cache !== undefined && cache.mtimeMs === st.mtimeMs && cache.size === st.size) {
+        return cache.archivio
+      }
 
       let testo: string
       try {
@@ -80,7 +101,13 @@ export function apriWorkspaceStore(dir: string): WorkspaceStore {
         if (salvato !== undefined) {
           console.error(`[workspace] archivio inutilizzabile, conservato in ${salvato}`)
         }
+        // Il file è stato spostato: niente da mettere in cache (al prossimo giro
+        // esistsSync sarà falso e si tornerà l'archivio vuoto).
+        cache = undefined
+        return archivio
       }
+      // Si mette in cache solo un file valido e ancora al suo posto.
+      if (st !== undefined) cache = { mtimeMs: st.mtimeMs, size: st.size, archivio }
       return archivio
     },
 

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 /**
@@ -169,14 +169,35 @@ export function leggiGlobaliPerScope(deps: {
   }
 }
 
+/**
+ * `leggiOgg` scatta a **ogni apertura di chat** (compone le `--settings`) su
+ * `settings.json` e soprattutto `.claude.json`, che può essere grosso: parsarlo
+ * ogni volta rallenta l'apertura. Si riusa il parsed finché mtime+size non
+ * cambiano. Sono file di Claude Code, modificati da fuori: lo `statSync` coglie
+ * comunque la modifica, quindi niente cache stantìa. Il risultato è solo letto
+ * (i chiamanti fanno copie con lo spread), quindi il riferimento condiviso è
+ * sicuro.
+ */
+const cacheOgg = new Map<string, { mtimeMs: number; size: number; valore: Record<string, unknown> }>()
 function leggiOgg(percorso: string): Record<string, unknown> {
-  if (!existsSync(percorso)) return {}
+  let st: ReturnType<typeof statSync> | undefined
+  try {
+    st = existsSync(percorso) ? statSync(percorso) : undefined
+  } catch {
+    st = undefined
+  }
+  if (st === undefined) { cacheOgg.delete(percorso); return {} }
+  const voce = cacheOgg.get(percorso)
+  if (voce !== undefined && voce.mtimeMs === st.mtimeMs && voce.size === st.size) return voce.valore
+  let valore: Record<string, unknown> = {}
   try {
     const v: unknown = JSON.parse(readFileSync(percorso, 'utf8'))
-    return v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {}
+    if (v !== null && typeof v === 'object' && !Array.isArray(v)) valore = v as Record<string, unknown>
   } catch {
-    return {}
+    valore = {}
   }
+  cacheOgg.set(percorso, { mtimeMs: st.mtimeMs, size: st.size, valore })
+  return valore
 }
 
 function soloBool(v: unknown): Record<string, boolean> {
