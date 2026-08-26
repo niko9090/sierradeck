@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.7',
+    righe: [
+      '**Se qualcosa si rompe nell’interfaccia, il programma non si chiude più a schermo vuoto.** Prima un errore in un punto qualunque della plancia poteva far sparire tutto — la barra dei workspace compresa — e sembrava che l’app «si fosse chiusa da sola», senza lasciare traccia. Ora al suo posto compare una schermata di recupero con **«Ricarica»**, che rimette in piedi la plancia **senza chiudere il programma** (le chat aperte tornano dal salvataggio automatico).',
+      '**E si capisce cos’è successo.** Il motivo vero dell’errore viene ora scritto nel **registro** (Account → «Apri i log»), sia che nasca nell’interfaccia sia nel motore: prima moriva in silenzio, ed era la ragione per cui certi guasti erano impossibili da spiegare.'
+    ]
+  },
+  {
     versione: '0.12.6',
     righe: [
       '**Tasti del Negozio più chiari e caricamento visibile.** I tasti secondari (Dettagli, Rimuovi…) non sembrano più spenti: si leggono come tasti veri, e «Rimuovi» è ora ben riconoscibile in rosso.',

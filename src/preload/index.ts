@@ -234,7 +234,10 @@ contextBridge.exposeInMainWorld('gestore', {
   /** Il registro della sessione: aprirne la cartella o sapere dov'è il file. */
   log: {
     apri: (): Promise<string> => ipcRenderer.invoke('log:apri'),
-    percorso: (): Promise<string> => ipcRenderer.invoke('log:percorso')
+    percorso: (): Promise<string> => ipcRenderer.invoke('log:percorso'),
+    /** Scrive nel registro un errore visto nel renderer, dove altrimenti
+     *  morirebbe nella sola console (invisibile a chi non la tiene aperta). */
+    errore: (messaggio: string): Promise<void> => ipcRenderer.invoke('log:errore', messaggio)
   },
   /** Il negozio: plugin, skill e MCP di Claude Code, gestiti a clic. */
   negozio: {

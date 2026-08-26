@@ -72,7 +72,7 @@ import {
   apriScopeStore, scopeVuoto, scopeInerte, componiScope, fondiImpostazioni, leggiGlobaliPerScope,
   type ScopeChat, type ScopeStore
 } from './negozio/scope'
-import { apriRegistro } from './registro'
+import { apriRegistro, type Registro } from './registro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { unicoLayout, workspaceDellaSessione } from '@shared/workspace'
@@ -92,6 +92,24 @@ let chatAperte: Chat[] = []
 let finestreStore: FinestreStore | undefined
 /** Lo scoping per-chat del Negozio: cosa spegnere per le chat di una cartella. */
 let scopeStore: ScopeStore | undefined
+// Il registro della sessione, visibile anche ai gestori globali qui sotto: loro
+// nascono al caricamento del modulo, prima che la sessione sia aperta, quindi
+// finché resta `undefined` ripiegano sulla sola console.
+let registroGlobale: Registro | undefined
+
+// Un'eccezione non gestita nel main, senza questi gestori, fa **chiudere** l'app
+// di colpo e senza lasciare una riga da nessuna parte: è esattamente il «si
+// chiude da solo e non si capisce perché». Qui invece la si scrive nel registro
+// e si tiene in piedi il programma. Non è ingoiare l'errore — è renderlo visibile
+// invece di farlo sparire con tutta l'applicazione.
+process.on('uncaughtException', (err) => {
+  const m = err instanceof Error ? `${err.name}: ${err.message}\n${err.stack ?? ''}` : String(err)
+  ;(registroGlobale?.errore ?? ((s: string) => console.error(s)))(`[main] eccezione non gestita — ${m}`)
+})
+process.on('unhandledRejection', (motivo) => {
+  const m = motivo instanceof Error ? `${motivo.name}: ${motivo.message}\n${motivo.stack ?? ''}` : String(motivo)
+  ;(registroGlobale?.errore ?? ((s: string) => console.error(s)))(`[main] promise rifiutata senza catch — ${m}`)
+})
 /**
  * Gli aggiornamenti del programma.
  *
@@ -418,6 +436,8 @@ if (!app.requestSingleInstanceLock()) {
       // Il registro della sessione: prima riga = versione e ambiente, così un
       // log allegato dice subito «quale versione stava girando davvero».
       const registro = apriRegistro(dati, app.getVersion())
+      // Da qui in poi i gestori globali scrivono nel file, non solo in console.
+      registroGlobale = registro
       // Dove parlano le chat: Anthropic, o l'API che l'utente ha configurato.
       providerStore = apriProviderStore(dati)
       // Lo scoping per-chat del Negozio: quali plugin/skill/MCP spegnere per le
@@ -568,6 +588,7 @@ if (!app.requestSingleInstanceLock()) {
       // Il registro della sessione: aprirne la cartella, o sapere dov'è il file.
       ipcMain.handle('log:apri', () => shell.openPath(registro.cartella()))
       ipcMain.handle('log:percorso', () => registro.file())
+      ipcMain.handle('log:errore', (_e, messaggio: string) => registro.errore(String(messaggio)))
 
       // Il negozio: plugin (via il CLI di Claude Code, fonte di verità), skill e
       // MCP (letti dai file, spenti/accesi con un tocco chirurgico). Fare a clic

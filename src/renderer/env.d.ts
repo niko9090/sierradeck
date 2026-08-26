@@ -111,6 +111,7 @@ declare global {
       log: {
         apri: () => Promise<string>
         percorso: () => Promise<string>
+        errore: (messaggio: string) => Promise<void>
       }
       negozio: {
         plugin: () => Promise<{ plugin: Array<{
