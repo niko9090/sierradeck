@@ -41,6 +41,18 @@ class Collegamento(contesto: Context) {
      * mano**: lo stesso banco si guarda su un telefono piccolo e su un tablet, e
      * la misura giusta non e' la stessa. Il computer non deve saperne niente.
      */
+    /**
+     * Il controllo continuo: cinque secondi invece di due minuti.
+     *
+     * Spento di partenza, e non è un dettaglio: acceso obbliga Android a
+     * mostrare una riga fissa nelle notifiche, e una riga che nessuno ha
+     * chiesto è esattamente ciò che questa app non deve fare. Lo si accende
+     * quando si sta aspettando qualcosa **adesso**.
+     */
+    var controlloContinuo: Boolean
+        get() = preferenze.getBoolean(CHIAVE_CONTINUO, false)
+        set(valore) = preferenze.edit().putBoolean(CHIAVE_CONTINUO, valore).apply()
+
     var dimensioneTerminale: Int
         get() = preferenze.getInt(CHIAVE_DIMENSIONE, DIMENSIONE_PREDEFINITA).coerceIn(DIMENSIONE_MIN, DIMENSIONE_MAX)
         set(valore) = preferenze.edit()
@@ -100,6 +112,7 @@ class Collegamento(contesto: Context) {
         private const val CHIAVE_SEGRETO = "chiave"
         private const val NOTI = "indirizzi-noti"
         private const val CHIAVE_DIMENSIONE = "dimensione-terminale"
+        private const val CHIAVE_CONTINUO = "controllo-continuo"
         const val DIMENSIONE_PREDEFINITA = 13
         // Sotto i nove non si legge, sopra i ventidue ci stanno sei parole per
         // riga: fuori da questi due non e' piu' una scelta, e' un guasto.

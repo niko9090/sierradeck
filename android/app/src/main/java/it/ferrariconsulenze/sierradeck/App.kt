@@ -96,7 +96,12 @@ fun Principale(api: Api, deposito: Collegamento, onScollega: () -> Unit) {
     // pagina — avvisa anche quando l'app è chiusa.
     LaunchedEffect(Unit) {
         try {
-            GuardiaService.avvia(contesto)
+            // La sveglia, non il servizio: guardare come va il computer non
+            // richiede di restare vivi, e quindi non richiede la riga fissa
+            // che Android pretende in cambio. Il servizio continuo lo accende
+            // chi lo vuole, dalla scheda Computer.
+            Sentinella.programma(contesto)
+            if (Collegamento(contesto).controlloContinuo) GuardiaService.avvia(contesto)
         } catch (_: Exception) {
         }
     }

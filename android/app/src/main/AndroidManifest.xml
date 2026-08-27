@@ -19,6 +19,7 @@
          modo per non restare fermi a una versione per sempre. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <application
         android:label="SierraDeck"
         android:icon="@mipmap/ic_launcher"
@@ -65,5 +66,18 @@
         <receiver
             android:name=".RispostaVeloce"
             android:exported="false" />
+
+        <!--
+          La sveglia periodica: e cio che ha permesso di togliere la riga fissa
+          dalle notifiche. Non esportata, la fa scattare solo il sistema.
+        -->
+        <receiver android:name=".Sentinella" android:exported="false" />
+        <receiver
+            android:name=".SentinellaAlRiavvio"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

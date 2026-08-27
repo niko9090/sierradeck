@@ -233,3 +233,33 @@ Uno stato con N valori e una vista che ne gestisce N-2 **non fallisce**: cade ne
 ramo `else` e racconta una bugia plausibile. È peggio di un errore, perché
 nessuno va a cercarlo. Quando si legge una macchina a stati altrui, elencare
 tutti i casi — anche quelli «che non capitano».
+
+## 2.6.0 (28/08): via la notifica fissa — si poteva, e la risposta di prima era sbagliata
+Alla richiesta «non voglio la notifica permanente» avevo risposto che Android la
+impone. **Era vero solo per la strada scelta**, non in assoluto: un
+foreground-service resta vivo per sempre e in cambio Android pretende la riga
+fissa. Ma per guardare come va il computer **non serve restare vivi**.
+
+- **`Sentinella.kt`** — `BroadcastReceiver` + `AlarmManager.setAndAllowWhileIdle`
+  ogni **2 minuti**: si sveglia, fa una domanda che dura meno di un secondo,
+  riprogramma la prossima e torna a dormire. Nessuna notifica, nessun permesso
+  speciale (la sveglia *esatta* da Android 12 ne vorrebbe uno: non vale).
+  ⚠️ `goAsync()` è obbligatorio — senza, il processo può morire mentre la
+  risposta è per strada. E la sveglia si riprogramma **dopo** ogni giro, non con
+  un `setRepeating`: una ripetuta che il sistema salta non si rimette da sola e
+  la guardia morirebbe in silenzio. `SentinellaAlRiavvio` la rimette dopo il boot.
+- **`Ronda.kt`** — il giro (leggi `/api/stato`, decidi con `Avvisi`, notifica con
+  risposta rapida) estratto in un posto solo: lo usano sia la sveglia sia il
+  servizio continuo. Due modi di svegliarsi, **una** idea di cosa guardare —
+  altrimenti divergono e gli avvisi arrivano diversi da spenta e da accesa.
+- **`GuardiaService`** non parte più da solo: è il **controllo continuo** (5s),
+  acceso a mano dall'interruttore in «Computer → Avvisi» per quando si aspetta
+  qualcosa *adesso*. Con lui torna la riga fissa, ma è il prezzo di una cosa
+  chiesta, e si spegne quando si vuole.
+- **Costo accettato**: a telefono fermo Android dirada le sveglie, quindi un
+  avviso può arrivare con qualche minuto di ritardo invece che in cinque secondi.
+
+### Regola
+Quando una richiesta dell'utente sembra impossibile per un vincolo di
+piattaforma, il vincolo va riletto: quasi sempre riguarda **il modo** scelto, non
+l'obiettivo. Qui bastava smettere di restare vivi.

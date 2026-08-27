@@ -45,8 +45,8 @@ android {
         // programmi che si aggiornano quando hanno qualcosa di nuovo da dare, e
         // legarli vorrebbe dire pubblicare un APK identico ogni volta che
         // cambia una riga di SierraDeck. Qui si alza quando cambia *questa* app.
-        versionCode = 28
-        versionName = "2.5.0"
+        versionCode = 29
+        versionName = "2.6.0"
     }
 
     // Serve `BuildConfig.VERSION_NAME`: l'app deve sapere quale versione è per

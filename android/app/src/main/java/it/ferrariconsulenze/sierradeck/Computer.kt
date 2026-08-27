@@ -44,6 +44,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Switch
 
 /** Numeri di token leggibili: 12.4k, 3.1M. */
 private fun tokenBrevi(n: Long): String = when {
@@ -62,6 +63,9 @@ fun Computer(api: Api, stato: Stato?) {
     var consumi by remember { mutableStateOf<Consumi?>(null) }
     var account by remember { mutableStateOf<Account?>(null) }
     var versionePc by remember { mutableStateOf<String?>(null) }
+    val contesto = androidx.compose.ui.platform.LocalContext.current
+    val deposito = remember(contesto) { Collegamento(contesto) }
+    var continuo by remember { mutableStateOf(deposito.controlloContinuo) }
     var salvataggi by remember { mutableStateOf<List<Salvataggio>>(emptyList()) }
     var pref by remember { mutableStateOf<Preferenze?>(null) }
     var aggiornamento by remember { mutableStateOf<Aggiornamento?>(null) }
@@ -138,6 +142,46 @@ fun Computer(api: Api, stato: Stato?) {
                         }
                     ) { Text("Crea") }
                 }
+            }
+        }
+
+        Divisore()
+
+        // ─── Avvisi ───
+        Sezione("Avvisi")
+        Tessera(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp)) {
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Controllo continuo", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text(
+                            if (continuo) "Guardo ogni cinque secondi. Android in cambio mostra una riga fissa nelle notifiche."
+                            else "Guardo ogni paio di minuti, senza lasciare niente nelle notifiche.",
+                            color = Banco.testoQuieto,
+                            fontSize = 12.sp
+                        )
+                    }
+                    Switch(
+                        checked = continuo,
+                        onCheckedChange = { acceso ->
+                            continuo = acceso
+                            deposito.controlloContinuo = acceso
+                            if (acceso) {
+                                Sentinella.ferma(contesto)
+                                GuardiaService.avvia(contesto)
+                            } else {
+                                GuardiaService.ferma(contesto)
+                                Sentinella.programma(contesto)
+                            }
+                        }
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Accendilo quando stai aspettando qualcosa adesso: un avviso arriva in cinque secondi invece che in qualche minuto. Spegnendolo la riga fissa sparisce.",
+                    color = Banco.testoQuieto,
+                    fontSize = 11.sp
+                )
             }
         }
 
