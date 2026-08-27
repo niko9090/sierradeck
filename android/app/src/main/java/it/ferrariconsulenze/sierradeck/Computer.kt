@@ -37,6 +37,11 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 
 /** Numeri di token leggibili: 12.4k, 3.1M. */
 private fun tokenBrevi(n: Long): String = when {
@@ -75,34 +80,59 @@ fun Computer(api: Api, stato: Stato?) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
 
         // ─── Workspace ───
+        // Tutto dentro una tessera sola: prima i workspace erano chip sospesi e
+        // sotto, staccato, un campo con una scritta di fianco — tre cose che non
+        // sembravano la stessa cosa. Qui si vede subito dove sei e dove puoi
+        // andare, e il campo per crearne uno sta nello stesso pannello.
         Sezione("Workspace")
         val ws = stato?.workspace
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (nome in ws?.nomi ?: emptyList()) {
-                FilterChip(
-                    selected = nome == ws?.attivo,
-                    onClick = { scope.launch { try { api.cambiaWorkspace(nome) } catch (_: Exception) {} } },
-                    label = { Text(nome) }
-                )
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = nuovoWs,
-                onValueChange = { nuovoWs = it.take(40) },
-                label = { Text("Nuovo workspace") },
-                singleLine = true,
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(Modifier.width(8.dp))
-            TextButton(
-                enabled = nuovoWs.isNotBlank(),
-                onClick = {
-                    val n = nuovoWs.trim(); nuovoWs = ""
-                    scope.launch { try { api.creaWorkspace(n) } catch (_: Exception) {} }
+        Tessera(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(12.dp)) {
+                if ((ws?.nomi ?: emptyList()).isEmpty()) {
+                    Text("Nessun workspace.", color = Banco.testoQuieto, fontSize = 13.sp)
+                } else {
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        for (nome in ws?.nomi ?: emptyList()) {
+                            VoceWorkspace(
+                                nome = nome,
+                                attivo = nome == ws?.attivo,
+                                onClick = { scope.launch { try { api.cambiaWorkspace(nome) } catch (_: Exception) {} } }
+                            )
+                        }
+                    }
                 }
-            ) { Text("Crea") }
+                Spacer(Modifier.height(12.dp))
+                HorizontalDivider(color = Banco.incisione)
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = nuovoWs,
+                        onValueChange = { nuovoWs = it.take(40) },
+                        placeholder = { Text("Nome del nuovo", color = Banco.testoQuieto, fontSize = 14.sp) },
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Banco.accento,
+                            unfocusedBorderColor = Banco.incisione,
+                            focusedContainerColor = Banco.fondo,
+                            unfocusedContainerColor = Banco.fondo
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Button(
+                        enabled = nuovoWs.isNotBlank(),
+                        shape = MaterialTheme.shapes.small,
+                        onClick = {
+                            val n = nuovoWs.trim(); nuovoWs = ""
+                            scope.launch { try { api.creaWorkspace(n) } catch (_: Exception) {} }
+                        }
+                    ) { Text("Crea") }
+                }
+            }
         }
 
         Divisore()
@@ -233,4 +263,29 @@ private fun Divisore() {
     Spacer(Modifier.height(16.dp))
     HorizontalDivider(color = Banco.incisione)
     Spacer(Modifier.height(16.dp))
+}
+
+/**
+ * Un workspace nell'elenco.
+ *
+ * Quello in cui sei ha il pieno dell'accento, gli altri il contorno inciso: si
+ * capisce dove sei senza leggere, che e' il punto di guardarli tutti insieme.
+ * Il chip di Material non lo diceva abbastanza — due grigi appena diversi.
+ */
+@Composable
+private fun VoceWorkspace(nome: String, attivo: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        color = if (attivo) Banco.accento else Banco.fondo,
+        contentColor = if (attivo) Banco.fondo else Banco.testo,
+        shape = MaterialTheme.shapes.small,
+        border = BorderStroke(1.dp, if (attivo) Banco.accento else Banco.incisione)
+    ) {
+        Text(
+            nome,
+            fontSize = 13.sp,
+            fontWeight = if (attivo) FontWeight.Bold else FontWeight.Normal,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+        )
+    }
 }

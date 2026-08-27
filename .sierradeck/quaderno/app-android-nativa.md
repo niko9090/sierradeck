@@ -116,3 +116,27 @@ chiuso. Body max 256KB. **Niente streaming**: tutto polling.
 ## Build da questa sessione (le variabili User NON sono nell'ambiente della chat)
 `export JAVA_HOME="C:/Program Files/Microsoft/jdk-21.0.12.8-hotspot"; export
 ANDROID_HOME="E:/Android/Sdk"; export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:/e/Programs/Gradle/gradle-8.11.1/bin:$PATH"; cd android && gradle assembleDebug --no-daemon --console=plain`. Niente gradle wrapper. Vedi [[sierradeck-app-mobile-indietro]] [[sierradeck-proprieta]].
+
+## Grafica del telefono (2.0.2, 27/08)
+Riscontro dal campo sulla 2.0.1: la chat «usciva in larghezza», stava tutta in
+alto senza scorrere, e i comandi sembravano «divisi» — sospesi sul fondo invece
+che dentro qualcosa.
+
+- **`Terminale.kt`**: due letture dello stesso schermo, con un tasto in testata.
+  **Adatta** (predefinita) manda il testo a capo e *toglie la cornice* — le
+  stanghette servono a disegnare un riquadro largo cento colonne, su un telefono
+  sono rumore che spinge fuori il resto. **Griglia** è la fotografia esatta che
+  scorre di lato, per quando conta l'allineamento (tabelle, diff, barre).
+  Il taglio della cornice lavora sull'`AnnotatedString` già vestita
+  (`subSequence`), quindi **i colori restano**. Funzioni pure (`soloCornice`,
+  `estremiDelTesto`) con i loro test.
+- **Scorrimento in fondo**: la chiave era `grezze.size`, che ora è sempre 24 e
+  quindi non cambiava mai → non scorreva più. Adesso la chiave è l'**impronta
+  del contenuto**: scorre quando cambia davvero, e non strappa di mano lo
+  scorrimento a chi sta leggendo più su.
+- **Fascia** e **TastoContorno** (in `Chat.kt`): fondo chassis + solco sotto, la
+  stessa modanatura della console. L'invio è un disco pieno d'accento che si
+  spegne quando non c'è niente da mandare.
+- **Workspace** (`Computer.kt`): tutto dentro una `Tessera`, quello attivo a
+  pieno accento invece di due grigi appena diversi (il `FilterChip` non lo
+  diceva abbastanza).

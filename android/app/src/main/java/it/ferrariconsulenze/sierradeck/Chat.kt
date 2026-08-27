@@ -48,6 +48,16 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.ui.draw.clip
 
 /**
  * «Chat»: l'elenco delle conversazioni aperte, e dentro ciascuna il terminale.
@@ -81,14 +91,16 @@ private fun ElencoChat(api: Api, chat: List<Chat>, onApri: (Chat) -> Unit) {
     var mostraRiprendi by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            TextButton(onClick = { mostraNuova = true }) { Text("+ Nuova chat") }
-            TextButton(onClick = { mostraRiprendi = true }) { Text("Riprendi") }
+        // La fascia dell'elenco: l'etichetta a stencil dice dove sei, i due
+        // gesti stanno a destra dentro un contorno — prima erano due scritte
+        // sospese in mezzo al nulla, e non sembravano nemmeno premibili.
+        Fascia {
+            Serigrafia("Chat")
+            Spacer(Modifier.weight(1f))
+            TastoContorno("+ Nuova") { mostraNuova = true }
+            Spacer(Modifier.width(8.dp))
+            TastoContorno("Riprendi") { mostraRiprendi = true }
         }
-        HorizontalDivider(color = Banco.incisione)
         if (chat.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Nessuna chat aperta.", color = Banco.testoQuieto)
@@ -132,8 +144,9 @@ private fun DettaglioChat(api: Api, chat: Chat, onIndietro: () -> Unit) {
     var rinominando by remember { mutableStateOf(false) }
     var chiudendo by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val vscroll = rememberScrollState()
-    val hscroll = rememberScrollState()
+    // Come si legge lo schermo: adattato alla larghezza, o la griglia esatta.
+    // Sta qui e non dentro la vista perche' il tasto che lo cambia e' in testata.
+    var modo by remember { mutableStateOf(ModoTerminale.ADATTA) }
 
     LaunchedEffect(chat.id) {
         while (isActive) {
@@ -141,23 +154,35 @@ private fun DettaglioChat(api: Api, chat: Chat, onIndietro: () -> Unit) {
             delay(2000)
         }
     }
-    // Ogni volta che arrivano righe nuove, si scende in fondo: si guarda l'ultima
-    // cosa che ha scritto, non la prima.
-    LaunchedEffect(dentro?.grezze?.size) { vscroll.scrollTo(vscroll.maxValue) }
 
     Column(Modifier.fillMaxSize()) {
         // ─── testata ───
-        Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onIndietro) {
+        // Il titolo su due piani: il nome della chat, e sotto la cartella in cui
+        // lavora. Da lontano sapere *dove* sta lavorando conta quanto il nome.
+        Fascia {
+            IconButton(onClick = onIndietro, modifier = Modifier.size(36.dp)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Indietro", tint = Banco.testo)
             }
-            Text(
-                dentro?.titolo?.ifBlank { chat.titolo }?.ifBlank { chat.cwd } ?: chat.titolo.ifBlank { chat.cwd },
-                color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1,
-                modifier = Modifier.weight(1f)
-            )
+            Spacer(Modifier.width(4.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    dentro?.titolo?.ifBlank { chat.titolo }?.ifBlank { chat.cwd } ?: chat.titolo.ifBlank { chat.cwd },
+                    color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1, fontSize = 15.sp
+                )
+                if (chat.cwd.isNotBlank()) {
+                    Text(
+                        chat.cwd.substringAfterLast(Char(92)).substringAfterLast('/'),
+                        color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1
+                    )
+                }
+            }
+            // Le due letture dello schermo. Il tasto dice **dove vai**, non dove
+            // sei: e' l'unico modo perche' si capisca senza provarlo.
+            TastoContorno(if (modo == ModoTerminale.ADATTA) "Griglia" else "Adatta") {
+                modo = if (modo == ModoTerminale.ADATTA) ModoTerminale.GRIGLIA else ModoTerminale.ADATTA
+            }
             Box {
-                IconButton(onClick = { menuAperto = true }) {
+                IconButton(onClick = { menuAperto = true }, modifier = Modifier.size(36.dp)) {
                     Icon(Icons.Filled.MoreVert, "Altro", tint = Banco.testo)
                 }
                 DropdownMenu(expanded = menuAperto, onDismissRequest = { menuAperto = false }) {
@@ -166,46 +191,59 @@ private fun DettaglioChat(api: Api, chat: Chat, onIndietro: () -> Unit) {
                 }
             }
         }
-        HorizontalDivider(color = Banco.incisione)
 
         // ─── terminale ───
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            Column(
-                Modifier.fillMaxSize().verticalScroll(vscroll).horizontalScroll(hscroll).padding(10.dp)
-            ) {
-                for (riga in dentro?.grezze ?: emptyList()) {
-                    Text(
-                        ansiAnnotato(riga),
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
-                        softWrap = false,
-                        maxLines = 1
-                    )
-                }
-            }
-        }
+        VistaTerminale(
+            grezze = dentro?.grezze ?: emptyList(),
+            modo = modo,
+            modifier = Modifier.weight(1f).fillMaxWidth()
+        )
         HorizontalDivider(color = Banco.incisione)
 
         // ─── campo di scrittura ───
+        // Campo e invio dentro la stessa fascia, allineati in mezzo: prima erano
+        // un riquadro alto e un'icona che gli galleggiava di fianco.
         Row(
-            Modifier.fillMaxWidth().padding(8.dp),
+            Modifier.fillMaxWidth().background(Banco.chassis).padding(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedTextField(
                 value = testo,
                 onValueChange = { testo = it.take(2000) },
-                placeholder = { Text("Scrivi alla chat…") },
+                placeholder = { Text("Scrivi alla chat…", color = Banco.testoQuieto, fontSize = 14.sp) },
+                textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                maxLines = 5,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Banco.accento,
+                    unfocusedBorderColor = Banco.incisione,
+                    focusedContainerColor = Banco.fondo,
+                    unfocusedContainerColor = Banco.fondo
+                ),
                 modifier = Modifier.weight(1f)
             )
-            Spacer(Modifier.width(6.dp))
-            IconButton(
-                enabled = testo.isNotBlank(),
-                onClick = {
-                    val da = testo
-                    testo = ""
-                    scope.launch { try { api.scrivi(chat.id, da) } catch (_: Exception) {} }
-                }
-            ) { Icon(Icons.AutoMirrored.Filled.Send, "Invia", tint = Banco.accento) }
+            Spacer(Modifier.width(10.dp))
+            // Il pulsante e' un disco pieno quando c'e' qualcosa da mandare e si
+            // spegne quando non c'e': lo stato si legge senza provarlo.
+            val puoInviare = testo.isNotBlank()
+            Box(
+                Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(if (puoInviare) Banco.accento else Banco.incisione)
+                    .clickable(enabled = puoInviare) {
+                        val da = testo
+                        testo = ""
+                        scope.launch { try { api.scrivi(chat.id, da) } catch (_: Exception) {} }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Send,
+                    "Invia",
+                    tint = if (puoInviare) Banco.fondo else Banco.testoQuieto,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 
@@ -327,3 +365,41 @@ private fun SceltaSessione(api: Api, onChiudi: () -> Unit) {
 /** Un click semplice su una riga di elenco. */
 private fun Modifier.clickableCartella(onClick: () -> Unit): Modifier =
     this.clickable(onClick = onClick)
+
+/**
+ * La fascia in cima a una schermata.
+ *
+ * Fondo chassis e un solco sotto: e' la stessa modanatura della console sul
+ * computer, ed e' cio' che tiene insieme i comandi invece di lasciarli
+ * galleggiare sul fondo.
+ */
+@Composable
+private fun Fascia(contenuto: @Composable RowScope.() -> Unit) {
+    Column {
+        Row(
+            Modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            content = contenuto
+        )
+        HorizontalDivider(color = Banco.incisione)
+    }
+}
+
+/** Un tasto con il contorno inciso: si vede che e' un tasto anche da fermo. */
+@Composable
+private fun TastoContorno(testo: String, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        color = Banco.fondo,
+        contentColor = Banco.testo,
+        shape = MaterialTheme.shapes.small,
+        border = BorderStroke(1.dp, Banco.incisione)
+    ) {
+        Text(
+            testo,
+            color = Banco.testo,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+        )
+    }
+}
