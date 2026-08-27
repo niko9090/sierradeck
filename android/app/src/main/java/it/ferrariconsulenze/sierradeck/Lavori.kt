@@ -92,9 +92,8 @@ fun Lavori(api: Api, stato: Stato?) {
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
                     items(lista, key = { it.id }) { ap ->
-                        Card(
+                        Tessera(
                             onClick = { aperto = ap.id },
-                            colors = CardDefaults.cardColors(containerColor = Banco.chassis),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
                         ) {
                             Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -305,7 +304,7 @@ private fun Criterio(c: Criterio) {
 
 @Composable
 private fun Etichetta(testo: String) {
-    Text(testo, color = Banco.accento, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    Serigrafia(testo)
     Spacer(Modifier.height(4.dp))
 }
 

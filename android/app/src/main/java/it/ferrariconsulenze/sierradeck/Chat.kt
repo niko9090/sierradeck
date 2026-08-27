@@ -96,9 +96,8 @@ private fun ElencoChat(api: Api, chat: List<Chat>, onApri: (Chat) -> Unit) {
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
                 items(chat, key = { it.id }) { c ->
-                    Card(
+                    Tessera(
                         onClick = { onApri(c) },
-                        colors = CardDefaults.cardColors(containerColor = Banco.chassis),
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Column(Modifier.padding(14.dp)) {

@@ -88,6 +88,15 @@ fun Principale(api: Api, onScollega: () -> Unit) {
         }
     }
 
+    // Si veste con i colori scelti sul computer: stesso accento, stesso chiarore,
+    // stesso stile (Banco/Foglio). Da qui in poi tutta l'app cambia con lui.
+    LaunchedEffect(api) {
+        try {
+            Banco.applica(api.stile())
+        } catch (_: Exception) {
+        }
+    }
+
     LaunchedEffect(api) {
         while (isActive) {
             try {

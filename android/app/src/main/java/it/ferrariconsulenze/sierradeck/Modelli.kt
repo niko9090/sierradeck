@@ -20,6 +20,15 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class Accoppiamento(val id: String = "", val chiave: String = "")
 
+// ─── /api/stile ───  (la tavolozza del computer, per vestirsi uguale)
+@Serializable
+data class Stile(
+    /** I token CSS del desktop: `--fondo`, `--accento`, `--incisione`, `--raggio`… */
+    val token: Map<String, String> = emptyMap(),
+    /** banco | foglio */
+    val stile: String = "banco"
+)
+
 // ─── /api/stato ───
 @Serializable
 data class Stato(

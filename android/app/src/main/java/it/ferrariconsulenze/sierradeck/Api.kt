@@ -65,6 +65,9 @@ class Api(private val indirizzo: String, private val chiave: String?) {
     // ─── stato e stile ───
     suspend fun stato(): Stato = json.decodeFromString(corpoTesto("/api/stato", null))
 
+    /** La tavolozza scelta sul computer, per vestirsi con gli stessi colori. */
+    suspend fun stile(): Stile = json.decodeFromString(corpoTesto("/api/stile", null))
+
     // ─── terminale di una chat ───
     suspend fun dentro(chat: String): Dentro =
         json.decodeFromString(corpoTesto("/api/dentro", oggetto { put("chat", chat) }))

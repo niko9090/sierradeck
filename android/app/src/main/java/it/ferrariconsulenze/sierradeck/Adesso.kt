@@ -86,7 +86,7 @@ private fun Domande(api: Api, domande: List<Domanda>) {
         Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Center
     ) {
-        Text("TI STA CHIEDENDO", color = Banco.ambra, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Serigrafia("Ti sta chiedendo", Banco.ambra)
         Spacer(Modifier.height(12.dp))
         Text(domanda.testo, color = Banco.testo, fontSize = 22.sp)
         Spacer(Modifier.height(20.dp))
@@ -120,9 +120,9 @@ private fun Fermi(api: Api, fermi: List<AutopilotaBreve>) {
     ) {
         Spacer(Modifier.height(4.dp))
         for (ap in fermi) {
-            Card(colors = CardDefaults.cardColors(containerColor = Banco.chassis)) {
+            Tessera(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("SI È FERMATO", color = Banco.rosso, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Serigrafia("Si è fermato", Banco.rosso)
                     Spacer(Modifier.height(6.dp))
                     Text(ap.nome, color = Banco.testo, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     if (ap.motivo.isNotBlank()) {
@@ -148,9 +148,9 @@ private fun InMoto(stato: Stato) {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Spacer(Modifier.height(4.dp))
-        Text("IN MOTO", color = Banco.verde, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Serigrafia("In moto", Banco.verde)
         for (ap in alLavoro) {
-            Card(colors = CardDefaults.cardColors(containerColor = Banco.chassis)) {
+            Tessera(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.padding(end = 8.dp)) {
                         Text(ap.nome, color = Banco.testo, fontWeight = FontWeight.Bold)
@@ -160,7 +160,7 @@ private fun InMoto(stato: Stato) {
             }
         }
         for (c in stato.chat) {
-            Card(colors = CardDefaults.cardColors(containerColor = Banco.chassis)) {
+            Tessera(Modifier.fillMaxWidth()) {
                 Column(Modifier.fillMaxWidth().padding(14.dp)) {
                     Text(c.titolo.ifBlank { c.cwd }, color = Banco.testo, fontWeight = FontWeight.Bold)
                     if (!c.ultimaRiga.isNullOrBlank()) {

@@ -123,7 +123,7 @@ fun Computer(api: Api, stato: Stato?) {
         Sezione("Salvataggi")
         if (salvataggi.isEmpty()) Text("Nessun salvataggio.", color = Banco.testoQuieto)
         else for (s in salvataggi) {
-            Card(colors = CardDefaults.cardColors(containerColor = Banco.chassis), modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Tessera(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 Row(Modifier.padding(12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(s.nome, color = Banco.testo, maxLines = 1)
@@ -224,7 +224,7 @@ private fun QuotaRiga(nome: String, q: Quota) {
 
 @Composable
 private fun Sezione(titolo: String) {
-    Text(titolo, color = Banco.accento, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+    Serigrafia(titolo)
     Spacer(Modifier.height(8.dp))
 }
 
