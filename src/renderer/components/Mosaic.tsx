@@ -375,8 +375,22 @@ export function Mosaic({
             </div>
             {/* Il terminale e, di lato, cio' che l'autopilota sta pensando di
                 questa stessa cartella: le due meta' della stessa storia. */}
-            <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-              <div style={{ flex: 1, minWidth: 0, display: diarioLargo.has(paneId) ? 'none' : 'block' }}>
+            {/* La direzione la decide il foglio di stile da `data-diario`: il
+                diario va dove l'utente l'ha messo, e l'intestazione resta
+                sopra in ogni caso — per questo la classe sta qui e non sul
+                riquadro, che contiene anche la testata. */}
+            <div className="riquadro__corpo">
+              <div
+                style={{
+                  flex: 1,
+                  // Tutti e due i minimi: con il diario sopra o sotto l'asse
+                  // principale è verticale, e un `min-height` implicito
+                  // impedirebbe al terminale di restringersi.
+                  minWidth: 0,
+                  minHeight: 0,
+                  display: diarioLargo.has(paneId) ? 'none' : 'block'
+                }}
+              >
                 {data.ibernata === true ? (
                   // Il riquadro resta al suo posto: farlo sparire sarebbe
                   // indistinguibile dall'averlo chiuso, e la differenza è

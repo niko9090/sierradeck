@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  parseAutopilota, nuovoAutopilota, limitiPredefiniti, VERSIONE_AUTOPILOTA
+  parseAutopilota, nuovoAutopilota, limitiPredefiniti, VERSIONE_AUTOPILOTA,
+  portaAutopilotiDa, AMBIENTE_PORTA_AUTOPILOTI, PORTA_AUTOPILOTA
 } from '@shared/autopilota'
 
 function valido(): unknown {
@@ -378,5 +379,27 @@ describe('quando un criterio e stato raggiunto', () => {
     })
     expect(autopilota?.criteri).toHaveLength(1)
     expect(autopilota?.criteri[0]?.raggiuntoIl).toBeUndefined()
+  })
+})
+
+describe('portaAutopilotiDa', () => {
+  // Il servizio autopiloti e un processo a parte: non vede le preferenze, e la
+  // porta gli arriva nell'ambiente. Finche' importava la costante e basta, il
+  // campo «Porta degli autopiloti» si poteva cambiare senza che cambiasse nulla.
+  it('legge la porta che il Gestore le ha passato', () => {
+    expect(portaAutopilotiDa({ [AMBIENTE_PORTA_AUTOPILOTI]: '51000' })).toBe(51000)
+  })
+
+  it('senza indicazioni usa il predefinito', () => {
+    expect(portaAutopilotiDa({})).toBe(PORTA_AUTOPILOTA)
+  })
+
+  it('un valore assurdo non impedisce al servizio di partire', () => {
+    // Un autopilota che non parte perche' qualcuno ha scritto «ottomila» in un
+    // campo sarebbe un prezzo sproporzionato — e il Gestore cerca comunque sul
+    // predefinito, quindi i due si ritrovano.
+    for (const brutta of ['ottomila', '', '0', '80', '70000', '5000.5', '-1']) {
+      expect(portaAutopilotiDa({ [AMBIENTE_PORTA_AUTOPILOTI]: brutta })).toBe(PORTA_AUTOPILOTA)
+    }
   })
 })

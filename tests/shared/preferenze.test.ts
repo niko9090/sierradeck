@@ -144,11 +144,19 @@ describe('tavolozza', () => {
 })
 
 describe('dove sta l autopilota', () => {
-  it('accetta le cinque posizioni e rifiuta le altre', () => {
-    for (const posto of ['destra', 'sinistra', 'sopra', 'sotto', 'finestra']) {
+  it('accetta i quattro posti e rifiuta gli altri', () => {
+    for (const posto of ['destra', 'sinistra', 'sopra', 'sotto']) {
       expect(normalizzaPreferenze({ postoAutopilota: posto }).postoAutopilota).toBe(posto)
     }
     expect(normalizzaPreferenze({ postoAutopilota: 'diagonale' }).postoAutopilota)
+      .toBe(PREFERENZE_PREDEFINITE.postoAutopilota)
+  })
+
+  it('«finestra» torna al predefinito: era fra le scelte ma non e mai stato costruito', () => {
+    // Un file di preferenze scritto quando l'opzione c'era non deve chiedere al
+    // foglio di stile una direzione che non esiste: il riquadro resterebbe
+    // senza diario e senza spiegazione.
+    expect(normalizzaPreferenze({ postoAutopilota: 'finestra' }).postoAutopilota)
       .toBe(PREFERENZE_PREDEFINITE.postoAutopilota)
   })
 

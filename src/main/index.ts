@@ -7,7 +7,7 @@ import { APP_NAME, APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/ve
 import { cartellaDati } from './migra-dati'
 import { chiaveMonitor } from '@shared/display-key'
 import { apriFinestreStore, type FinestreStore } from './finestre-store'
-import { PORTA_AUTOPILOTA } from '@shared/autopilota'
+import { AMBIENTE_PORTA_AUTOPILOTI, PORTA_AUTOPILOTA } from '@shared/autopilota'
 import {
   collegaFinestra,
   registerPtyIpc,
@@ -143,7 +143,7 @@ let fermaRitiroConsegne: (() => void) | undefined
 function chiediAlServizio(percorso: string): Promise<unknown> {
   return new Promise((risolvi, rifiuta) => {
     const richiesta = httpGet(
-      { host: '127.0.0.1', port: PORTA_AUTOPILOTA, path: percorso, timeout: 4000 },
+      { host: '127.0.0.1', port: portaAutopiloti, path: percorso, timeout: 4000 },
       (res) => {
         let dati = ''
         res.on('data', (c) => { dati += c })
@@ -160,6 +160,20 @@ function chiediAlServizio(percorso: string): Promise<unknown> {
     richiesta.on('timeout', () => { richiesta.destroy(); rifiuta(new Error('scaduto')) })
   })
 }
+
+/**
+ * La porta del servizio autopiloti, per questa esecuzione.
+ *
+ * Parte dal predefinito e viene fissata all'avvio su quella scelta nelle
+ * impostazioni. Una `let` di modulo e non un parametro perche' la leggono tre
+ * punti lontani fra loro — il sondaggio dello stato, l'avvio del servizio e gli
+ * hook di ogni chat d'autopilota — e passarla a mano in tre firme diverse
+ * sarebbe la stessa distrazione che ha tenuto morto il campo per mesi.
+ *
+ * Si fissa una volta sola: un servizio in ascolto non cambia porta mentre
+ * qualcuno ci sta parlando, ed e' quello che dice la nota sotto il campo.
+ */
+let portaAutopiloti = PORTA_AUTOPILOTA
 
 /** La chiave del monitor su cui sta una finestra: la stessa regola del Core. */
 function chiaveDiFinestra(win: BrowserWindow): string {
@@ -387,7 +401,15 @@ function avviaServizioAutopilota(): void {
       stdio: 'ignore',
       // La versione viaggia con lui: è come il Gestore riconosce, al prossimo
       // avvio, un servizio rimasto indietro a un aggiornamento.
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', SIERRADECK_VERSIONE: app.getVersion() }
+      env: {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: '1',
+        SIERRADECK_VERSIONE: app.getVersion(),
+        // La porta viaggia con lui: e' un processo a parte e le preferenze
+        // dell'utente non le vede. Senza questa riga il campo «Porta degli
+        // autopiloti» si poteva cambiare senza che cambiasse niente.
+        [AMBIENTE_PORTA_AUTOPILOTI]: String(portaAutopiloti)
+      }
     })
     figlio.unref()
   } catch (err) {
@@ -436,6 +458,11 @@ if (!app.requestSingleInstanceLock()) {
       // Il registro della sessione: prima riga = versione e ambiente, così un
       // log allegato dice subito «quale versione stava girando davvero».
       const registro = apriRegistro(dati, app.getVersion())
+      // Le preferenze si aprono qui e non piu' avanti: la porta degli
+      // autopiloti serve gia' al registro dei canali delle chat, che nasce
+      // prima — e una porta letta dopo averla usata e' una porta ignorata.
+      const impostazioni = apriImpostazioniStore(dati)
+      portaAutopiloti = impostazioni.preferenze().portaAutopiloti
       // Da qui in poi i gestori globali scrivono nel file, non solo in console.
       registroGlobale = registro
       // Dove parlano le chat: Anthropic, o l'API che l'utente ha configurato.
@@ -454,7 +481,10 @@ if (!app.requestSingleInstanceLock()) {
           const radice = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
           const globali = leggiGlobaliPerScope({ radiceClaude: radice, fileClaudeJson: join(homedir(), '.claude.json'), cwd })
           return fondiImpostazioni(autopilotaJson, componiScope({ scope, ...globali }))
-        }
+        },
+        // La porta arriva come lettura e non come numero: gli hook di una chat
+        // si compongono al momento dello spawn, molto dopo questa riga.
+        () => portaAutopiloti
       )
       registerPreparazioneIpc(ptyClient, () => homedir())
       // Trovare claude.exe al posto dell'utente, prima che si apra la prima
@@ -647,7 +677,7 @@ if (!app.requestSingleInstanceLock()) {
       })
 
       const clientAutopilota = creaClientAutopilota({
-        porta: PORTA_AUTOPILOTA,
+        porta: portaAutopiloti,
         avviaServizio: avviaServizioAutopilota,
         versione: app.getVersion()
       })
@@ -698,7 +728,6 @@ if (!app.requestSingleInstanceLock()) {
       // due, e chi ne chiude una si ritroverebbe la stessa finestrella
       // nell'altra. Chi chiede per primo la mostra, e per gli altri non c'è
       // più niente da mostrare.
-      const impostazioni = apriImpostazioniStore(dati)
       ipcMain.handle('novita:daMostrare', (): Novita | undefined => {
         const versione = app.getVersion()
         const novita = novitaDaMostrare(versione, impostazioni.leggi().ultimaVersioneVista)

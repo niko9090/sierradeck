@@ -327,21 +327,23 @@ function SchedaGenerali(): React.JSX.Element {
               <option value="sinistra">A sinistra</option>
               <option value="sopra">Sopra</option>
               <option value="sotto">Sotto</option>
-              <option value="finestra">In una finestra a parte</option>
             </select>
           </label>
-          {p.postoAutopilota !== 'finestra' ? (
-            <label className="impostazioni__riga">
-              <span>Quanto spazio prende</span>
-              <input
-                type="range"
-                min={15}
-                max={70}
-                value={p.larghezzaAutopilota}
-                onChange={(e) => cambia({ larghezzaAutopilota: Number(e.target.value) })}
-              />
-            </label>
-          ) : null}
+          <label className="impostazioni__riga">
+            <span>Quanto spazio prende</span>
+            <input
+              type="range"
+              min={15}
+              max={70}
+              value={p.larghezzaAutopilota}
+              onChange={(e) => cambia({ larghezzaAutopilota: Number(e.target.value) })}
+            />
+          </label>
+          <div className="impostazioni__nota">
+            Di lato è larghezza, sopra o sotto è altezza: è sempre la stessa
+            misura, presa sull’asse su cui il diario cresce. Si può anche
+            trascinare il solco fra terminale e diario.
+          </div>
         </section>
 
         <section className="impostazioni__gruppo">

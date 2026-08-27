@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Anteprima } from '../../main/anteprima'
 import type { Autopilota } from '@shared/autopilota'
 import { LARGHEZZA_DIARIO } from '@shared/preferenze'
+import { passoDaTasto, postoDalDocumento, quotaDiario } from '../diario-misura'
 import { diario } from '../diario-autopilota'
 import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
 import { SchedaAutopilota } from './SchedaAutopilota'
@@ -105,12 +106,14 @@ export function DiarioAutopilota({
     bersaglio.setPointerCapture(e.pointerId)
     let ultima: number = LARGHEZZA_DIARIO.min
 
-    const misura = (x: number): number => {
-      const percento = Math.round(((zona.right - x) / zona.width) * 100)
-      return Math.min(LARGHEZZA_DIARIO.max, Math.max(LARGHEZZA_DIARIO.min, percento))
-    }
+    // Lungo quale asse ci si muove lo dice il posto scelto dall'utente, letto
+    // dalla radice del documento — la stessa sorgente da cui il foglio di stile
+    // prende la direzione del riquadro. Prenderlo altrove vorrebbe dire poter
+    // divergere: la maniglia lungo un asse e il diario lungo un altro.
+    const posto = postoDalDocumento(document.documentElement)
+    const misura = (x: number, y: number): number => quotaDiario(posto, zona, { x, y })
     const muovi = (ev: PointerEvent): void => {
-      ultima = misura(ev.clientX)
+      ultima = misura(ev.clientX, ev.clientY)
       document.documentElement.style.setProperty('--diario-largh', `${ultima}%`)
     }
     const molla = (): void => {
@@ -119,7 +122,7 @@ export function DiarioAutopilota({
       bersaglio.removeEventListener('pointercancel', molla)
       salvaLargh(ultima)
     }
-    ultima = misura(e.clientX)
+    ultima = misura(e.clientX, e.clientY)
     bersaglio.addEventListener('pointermove', muovi)
     bersaglio.addEventListener('pointerup', molla)
     bersaglio.addEventListener('pointercancel', molla)
@@ -133,9 +136,16 @@ export function DiarioAutopilota({
       .catch(() => undefined)
   }
 
-  /** Le frecce muovono la maniglia: un bordo trascinabile solo col mouse è mezzo comando. */
+  /**
+   * Le frecce muovono la maniglia: un bordo trascinabile solo col mouse è mezzo
+   * comando.
+   *
+   * Quali frecce dipende da dove sta il diario — con il diario sotto, «su» deve
+   * allargarlo, e sinistra/destra su una maniglia orizzontale non vogliono dire
+   * niente.
+   */
   const tastiLargh = (e: React.KeyboardEvent<HTMLDivElement>): void => {
-    const passo = e.key === 'ArrowLeft' ? 2 : e.key === 'ArrowRight' ? -2 : 0
+    const passo = passoDaTasto(postoDalDocumento(document.documentElement), e.key)
     if (passo === 0) return
     e.preventDefault()
     const attuale = Number.parseInt(

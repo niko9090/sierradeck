@@ -564,3 +564,26 @@ export function parseAutopilota(raw: unknown): {
  * accorge.
  */
 export const PORTA_AUTOPILOTA = 47630
+
+/**
+ * La porta su cui il servizio autopiloti ascolta davvero.
+ *
+ * Il servizio è un **processo a parte**: non vede le preferenze dell'utente, e
+ * finché si limitava a importare la costante qui sopra l'impostazione «Porta
+ * degli autopiloti» era un campo che si poteva cambiare senza che cambiasse
+ * niente. Il Gestore gliela passa nell'ambiente quando lo avvia, e questa
+ * funzione è l'unico posto che la legge — di qua e di là, così i due processi
+ * non possono divergere.
+ *
+ * Un valore assente o assurdo non ferma il servizio: si torna al predefinito.
+ * Un autopilota che non parte perché qualcuno ha scritto «ottomila» in un campo
+ * sarebbe un prezzo sproporzionato, e il Gestore cerca comunque qui.
+ */
+export const AMBIENTE_PORTA_AUTOPILOTI = 'SIERRADECK_PORTA_AUTOPILOTI'
+
+export function portaAutopilotiDa(ambiente: Record<string, string | undefined>): number {
+  const grezzo = ambiente[AMBIENTE_PORTA_AUTOPILOTI]
+  if (grezzo === undefined) return PORTA_AUTOPILOTA
+  const n = Number(grezzo)
+  return Number.isInteger(n) && n >= 1024 && n <= 65535 ? n : PORTA_AUTOPILOTA
+}

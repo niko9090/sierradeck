@@ -14,6 +14,7 @@ import { creaBattito, stessiAttivi } from './battito'
 import { eseguiConsegna, ponteReale } from './consegne-autopilota'
 import { memoriaWorkspace } from './memoria-workspace'
 import { impostaWorkspaceCorrente, workspaceCorrente } from './workspace-corrente'
+import { impostaMostraAttesa } from './preferenze-vive'
 import { leggiConsegne } from '../main/autopilota-consegne'
 import type { Autopilota } from '@shared/autopilota'
 import type { StatoWorkspace } from '../main/ipc'
@@ -137,6 +138,14 @@ export function App(): React.JSX.Element {
     for (const [nome, valore] of Object.entries(tavolozza(p))) {
       document.documentElement.style.setProperty(nome, valore)
     }
+    // Dove va il diario dell'autopilota non è un colore ma una direzione, e
+    // arriva come attributo invece che come token: il foglio di stile deve
+    // poterci cambiare **quattro** regole insieme — il verso del riquadro, il
+    // lato del bordo, il bordo su cui sta la maniglia e il verso del cursore —
+    // e un `var()` da solo non ci arriva. È anche l'unico posto da cui la
+    // maniglia legge il proprio asse: una verità sola, o si muoverebbero
+    // lungo assi diversi.
+    document.documentElement.dataset.diario = p.postoAutopilota
   }
   useEffect(() => {
     window.gestore.preferenze.leggi().then(applica).catch(() => undefined)
@@ -557,6 +566,11 @@ export function App(): React.JSX.Element {
       // La preferenza «iberna lasciando» vive in un posto solo (azioni-finestra),
       // così ogni istanza delle azioni la rispetta senza doverla passare in giro.
       impostaIbernaLasciando(p.ibernaCambiandoWorkspace)
+      // Stessa strada, stesso motivo: il terminale sta in fondo all'albero e la
+      // preferenza si legge qui. Finche' non passava di qui, l'interruttore
+      // «mostra l'avanzamento mentre una chat lunga si apre» si salvava e non
+      // lo leggeva nessuno.
+      impostaMostraAttesa(p.mostraAttesaChat)
       salvaAllaChiusura.current = p.salvaAllaChiusura
     }
     window.gestore.preferenze.leggi().then(prendi).catch(() => undefined)

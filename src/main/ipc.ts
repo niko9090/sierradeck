@@ -135,7 +135,18 @@ export function registerPtyIpc(
    * Negozio. Il default le lascia com'erano — così senza scope non cambia nulla.
    */
   impostazioniPerChat: (cwd: string, autopilotaJson: string | undefined) => string | undefined =
-    (_cwd, autopilotaJson) => autopilotaJson
+    (_cwd, autopilotaJson) => autopilotaJson,
+  /**
+   * La porta del servizio autopiloti, letta al momento dello spawn.
+   *
+   * Una lettura e non un numero: gli hook di una chat si compongono quando la
+   * chat si apre, molto dopo la registrazione di questo canale, e devono
+   * puntare alla porta su cui il servizio ascolta **davvero**. Sbagliarla
+   * significa un autopilota che resta «al lavoro, 0 interventi» per sempre:
+   * gli hook nascono, ma bussano a una porta dove non c'è nessuno. Assente vuol
+   * dire il predefinito, che è il caso dei test.
+   */
+  portaAutopiloti: () => number = () => PORTA_AUTOPILOTA
 ): PtyHostClient {
   const client = new PtyHostClient({
     nodePath: process.execPath,
@@ -213,7 +224,7 @@ export function registerPtyIpc(
           req.cwd,
           req.autopilota === undefined
             ? undefined
-            : componiImpostazioni(req.autopilota.id, PORTA_AUTOPILOTA, req.autopilota.chat)
+            : componiImpostazioni(req.autopilota.id, portaAutopiloti(), req.autopilota.chat)
         )
       ),
       cols: req.cols,

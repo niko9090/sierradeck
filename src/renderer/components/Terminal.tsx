@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -6,6 +6,9 @@ import { ptyBus } from '../pty-bus'
 import { creaAggancio } from '../aggancio'
 import { decidiAzioneAppunti } from '../appunti'
 import { useLayoutStore } from '../state/layout'
+import { useSessionStore } from '../state/sessions'
+import { attesaPrevistaMs, avanzamento, descriviAttesa } from '../attesa-chat'
+import { mostraAttesa } from '../preferenze-vive'
 
 type Props = {
   paneId: string
@@ -21,8 +24,48 @@ type Props = {
   onPtyId: (paneId: string, ptyId: string) => void
 }
 
+/** Ogni quanto avanza la barra dell'attesa: abbastanza da sembrare viva. */
+const PASSO_ATTESA_MS = 150
+
 export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopilota, onPtyId }: Props): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * Il peso della conversazione, dall'indice.
+   *
+   * È l'unica cosa onesta da dire mentre si aspetta: spiega **perché** ci mette.
+   * Se l'indice non la conosce ancora vale zero, e allora l'attesa si limita a
+   * dire «apro la chat» — una stima inventata sarebbe peggio di nessuna stima.
+   */
+  const peso = useSessionStore(
+    (s) => s.sessions.find((x) => x.uuid === sessionUuid)?.sizeBytes ?? 0
+  )
+  /**
+   * Da quando si aspetta. `undefined` = la chat è a schermo, non c'è niente da
+   * aspettare.
+   *
+   * Una conversazione lunga tiene il riquadro nero per secondi — `claude.exe`
+   * sta rileggendo megabyte di trascrizione — e un riquadro nero non si legge
+   * come «sto caricando»: si legge come «è rotto».
+   */
+  const [attesaDa, setAttesaDa] = useState<number | undefined>(() =>
+    mostraAttesa() ? Date.now() : undefined
+  )
+  const [adesso, setAdesso] = useState(() => Date.now())
+  // Il setter dentro un ref: l'effetto del terminale nasce una volta sola
+  // (`[paneId]`) e non deve rinascere perché lo stato è cambiato — rinascere
+  // significherebbe ricreare l'xterm e, con lui, uccidere claude.exe.
+  const finitaAttesa = useRef(setAttesaDa)
+  finitaAttesa.current = setAttesaDa
+
+  // L'orologio gira solo mentre si aspetta: a chat aperta non c'è niente da
+  // ridisegnare, e un intervallo per riquadro acceso per sempre sarebbe il
+  // lavoro inutile a riposo che la 0.12.8 aveva appena tolto.
+  useEffect(() => {
+    if (attesaDa === undefined) return
+    const t = setInterval(() => setAdesso(Date.now()), PASSO_ATTESA_MS)
+    return () => clearInterval(t)
+  }, [attesaDa])
 
   // Tutto ciò che serve una volta sola, all'avvio, passa da un ref e non dalle
   // dipendenze dell'effetto. L'identità dell'effetto è `paneId` e nient'altro,
@@ -76,7 +119,14 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
       kill: (id) => window.gestore.pty.kill(id),
       ascolta: (id, cb) => bus.ascolta(id, cb),
       scarta: (id) => bus.scarta(id),
-      scrivi: (testo) => term.write(testo),
+      scrivi: (testo) => {
+        // La prima cosa che arriva **è** la chat che compare: da lì in poi non
+        // c'è più niente da aspettare, e l'attesa se ne va. Vale sia per lo
+        // scrollback di un riaggancio sia per il primo disegno di Claude Code,
+        // che è esattamente quello che si stava aspettando.
+        if (testo !== '') finitaAttesa.current(undefined)
+        term.write(testo)
+      },
       annunciaId: (id) => avvio.current.onPtyId(paneId, id)
     })
 
@@ -142,5 +192,25 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
     }
   }, [paneId])
 
-  return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+  const previsto = attesaPrevistaMs(peso)
+  const trascorso = attesaDa === undefined ? 0 : Math.max(0, adesso - attesaDa)
+
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      {attesaDa !== undefined ? (
+        // Sopra il terminale, non al suo posto: sotto c'è già l'xterm montato e
+        // dimensionato, e sostituirlo vorrebbe dire rimisurarlo alla comparsa.
+        <div className="attesa-chat" role="status" aria-live="polite">
+          <div className="attesa-chat__barra">
+            <div
+              className="attesa-chat__pieno"
+              style={{ width: `${avanzamento(trascorso, previsto)}%` }}
+            />
+          </div>
+          <div className="attesa-chat__testo">{descriviAttesa(peso, trascorso)}</div>
+        </div>
+      ) : null}
+    </div>
+  )
 }

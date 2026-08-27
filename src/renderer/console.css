@@ -1059,21 +1059,68 @@ input.campo {
   container-type: inline-size;
 }
 
+/* Il corpo del riquadro: terminale e diario, affiancati o impilati.
+   La direzione la decide `data-diario` sulla radice — la stessa scelta che
+   legge la maniglia per sapere lungo quale asse muoversi. Sta qui e non su
+   `.riquadro` perche' `.riquadro` contiene anche la testata, che deve restare
+   sopra comunque si giri il resto. */
+.riquadro__corpo {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+}
+
+:root[data-diario='sinistra'] .riquadro__corpo { flex-direction: row-reverse; }
+:root[data-diario='sopra'] .riquadro__corpo { flex-direction: column-reverse; }
+:root[data-diario='sotto'] .riquadro__corpo { flex-direction: column; }
+
 .diario {
   /* La misura la decide l'utente — dal cursore delle impostazioni o dalla
-     maniglia sul bordo — e arriva qui come token. Il minimo in pixel resta:
-     sotto quello non ci sta niente di leggibile, per quanto si stringa. */
-  width: var(--diario-largh);
+     maniglia sul bordo — e arriva qui come token.
+
+     `flex-basis` e non `width`: la base e' la misura lungo l'**asse
+     principale**, quindi diventa larghezza quando il diario sta di lato e
+     altezza quando sta sopra o sotto. Una preferenza sola, senza doverla dire
+     due volte ne' sapere qui com'e' girato il riquadro. */
+  flex: 0 0 var(--diario-largh);
   min-width: 140px;
   position: relative;
-  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
   padding: var(--s2) var(--s3) var(--s3);
   background: var(--chassis);
+  /* Il bordo va sul lato da cui il diario confina col terminale: dall'altra
+     parte c'e' il bordo del riquadro, e due righe adiacenti si vedono. */
   border-left: 1px solid var(--incisione);
   box-shadow: inset 1px 0 0 var(--luce-tenue);
+}
+
+:root[data-diario='sinistra'] .diario {
+  border-left: none;
+  border-right: 1px solid var(--incisione);
+  box-shadow: inset -1px 0 0 var(--luce-tenue);
+}
+
+:root[data-diario='sopra'] .diario {
+  /* Sopra e sotto il minimo in pixel va sull'altezza: `min-width` terrebbe
+     larga una colonna che ormai e' una fascia, e la fascia potrebbe schiacciarsi
+     fino a sparire. */
+  min-width: 0;
+  min-height: 120px;
+  border-left: none;
+  border-bottom: 1px solid var(--incisione);
+  box-shadow: inset 0 -1px 0 var(--luce-tenue);
+}
+
+:root[data-diario='sotto'] .diario {
+  min-width: 0;
+  min-height: 120px;
+  border-left: none;
+  border-top: 1px solid var(--incisione);
+  box-shadow: inset 0 1px 0 var(--luce-tenue);
 }
 
 .diario__testa {
@@ -1090,7 +1137,9 @@ input.campo {
   top: 0;
   bottom: 0;
   left: -4px;
+  right: auto;
   width: 8px;
+  height: auto;
   cursor: col-resize;
   /* Trasparente a riposo: il bordo del pannello è già il segno visibile, e una
      barra in più sarebbe una cornice in un mondo che non ne ha. */
@@ -2605,11 +2654,32 @@ select.comando-riquadro option {
   color: var(--testo-quieto);
 }
 
-/* Il diario messo dove l'utente lo vuole: la classe la mette il riquadro, e il
-   posto arriva dalle preferenze. */
-.riquadro--autopilota-sinistra { flex-direction: row-reverse; }
-.riquadro--autopilota-sopra { flex-direction: column-reverse; }
-.riquadro--autopilota-sotto { flex-direction: column; }
+/* La maniglia sta sempre sul solco fra terminale e diario, che cambia lato
+   insieme al diario. Il cursore lo dice: una freccia orizzontale su un bordo
+   che si muove in verticale e' un comando che mente. */
+:root[data-diario='sinistra'] .diario__maniglia {
+  left: auto;
+  right: -4px;
+}
+
+:root[data-diario='sopra'] .diario__maniglia,
+:root[data-diario='sotto'] .diario__maniglia {
+  left: 0;
+  right: 0;
+  width: auto;
+  height: 8px;
+  cursor: row-resize;
+}
+
+:root[data-diario='sopra'] .diario__maniglia {
+  top: auto;
+  bottom: -4px;
+}
+
+:root[data-diario='sotto'] .diario__maniglia {
+  top: -4px;
+  bottom: auto;
+}
 
 
 /* ───────────── i menu a discesa ─────────────
@@ -2945,3 +3015,48 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .scheda__quando { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
 .scheda__pensiero-titolo { color: var(--testo); }
 .scheda__pensiero-testo { color: var(--testo-quieto); }
+
+/* ───────────── l'attesa di una chat che si apre ─────────────
+
+   Una conversazione lunga tiene il riquadro nero per secondi: claude.exe sta
+   rileggendo megabyte di trascrizione, e un riquadro nero non si legge come
+   «sto caricando», si legge come «e' rotto». Questo velo sta **sopra** il
+   terminale gia' montato e se ne va da solo alla prima cosa che arriva. */
+
+.attesa-chat {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  padding: var(--s4);
+  /* Opaco: sotto c'e' il nero dell'xterm, e una trasparenza mostrerebbe un
+     cursore che lampeggia dietro al testo dell'attesa. */
+  background: var(--chassis);
+  z-index: 3;
+}
+
+.attesa-chat__barra {
+  width: min(320px, 70%);
+  height: 4px;
+  border-radius: 2px;
+  background: var(--chassis-premuto);
+  overflow: hidden;
+}
+
+.attesa-chat__pieno {
+  height: 100%;
+  background: var(--accento);
+  /* La barra non salta: il passo e' di 150ms e la transizione lo copre, cosi'
+     si muove invece di scattare. */
+  transition: width 150ms linear;
+}
+
+.attesa-chat__testo {
+  font-size: var(--t1);
+  color: var(--testo-quieto);
+  text-align: center;
+  max-width: 90%;
+}

@@ -57,12 +57,18 @@ export type Preferenze = {
    * Dove sta il diario dell'autopilota rispetto alla chat che governa.
    *
    * Non c'è una risposta giusta per tutti: su uno schermo largo si vuole di
-   * fianco, su uno alto sotto, e chi ha due monitor lo vuole in una finestra
-   * sua. `finestra` lo stacca del tutto — è la stessa vista del Client, sul
-   * computer.
+   * fianco, su uno alto sopra o sotto. La scelta arriva al foglio di stile come
+   * `data-diario` sulla radice del documento, ed è di lì che la prende anche la
+   * maniglia che lo ridimensiona — una verità sola, o maniglia e diario si
+   * muoverebbero lungo assi diversi.
    */
-  postoAutopilota: 'destra' | 'sinistra' | 'sopra' | 'sotto' | 'finestra'
-  /** Quanto spazio prende, in percentuale del riquadro. */
+  postoAutopilota: PostoDiario
+  /**
+   * Quanto spazio prende, in percentuale del riquadro.
+   *
+   * È una misura sull'asse principale, non una larghezza: di lato è larghezza,
+   * sopra o sotto è altezza. Il nome resta quello di quando i posti erano due.
+   */
   larghezzaAutopilota: number
   /**
    * Come si veste la console.
@@ -109,6 +115,9 @@ export const PREFERENZE_PREDEFINITE: Preferenze = {
  * sul bordo del pannello, e tre limiti diversi sarebbero tre comportamenti.
  */
 export const LARGHEZZA_DIARIO = { min: 15, max: 70 } as const
+
+/** Dove sta il diario dell'autopilota dentro il riquadro della sua chat. */
+export type PostoDiario = 'destra' | 'sinistra' | 'sopra' | 'sotto'
 
 /** Le porte sotto la 1024 le tiene il sistema, e sopra la 65535 non esistono. */
 const PORTA_MIN = 1024
@@ -158,9 +167,12 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
     // preferenza illeggibile non deve poter aprire una porta.
     clientOltreLaRete: o.clientOltreLaRete === true,
     ibernaCambiandoWorkspace: o.ibernaCambiandoWorkspace === true,
+    // `finestra` era fra le scelte ma non è mai stato costruito: un file di
+    // preferenze che ce l'ha dentro torna al predefinito invece di chiedere al
+    // foglio di stile una direzione che non esiste.
     postoAutopilota:
       o.postoAutopilota === 'sinistra' || o.postoAutopilota === 'sopra' ||
-      o.postoAutopilota === 'sotto' || o.postoAutopilota === 'finestra'
+      o.postoAutopilota === 'sotto' || o.postoAutopilota === 'destra'
         ? o.postoAutopilota
         : PREFERENZE_PREDEFINITE.postoAutopilota,
     // Sotto il 15% non ci sta niente di leggibile, sopra il 70% non resta chat:

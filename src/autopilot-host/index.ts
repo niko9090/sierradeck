@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { existsSync } from 'node:fs'
 import { get } from 'node:http'
-import { PORTA_AUTOPILOTA } from '@shared/autopilota'
+import { portaAutopilotiDa } from '@shared/autopilota'
 import { APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
 import { apriArchivio } from './archivio'
 import { apriQuaderno } from '../main/quaderno-store'
@@ -16,6 +16,16 @@ import { chatDaRiprendere, daRiprendere } from './ripresa'
 import { creaAvvisatore, invioReale, leggiConfigurazione } from './telegram'
 
 /** Ogni quanto si passa a vedere se qualche chat ha smesso di parlare. */
+/**
+ * La porta su cui questo servizio ascolta.
+ *
+ * Gliela passa il Gestore nell'ambiente, presa dalle preferenze dell'utente;
+ * senza, il predefinito. Si legge **una volta sola** all'avvio: un servizio in
+ * ascolto non cambia porta mentre qualcuno ci sta parlando, ed e' esattamente
+ * quello che dice la nota sotto il campo nelle impostazioni.
+ */
+const PORTA = portaAutopilotiDa(process.env)
+
 const GUARDIA_MS = 60_000
 
 /** Dove Claude Code tiene le trascrizioni. La stessa regola del Gestore. */
@@ -183,7 +193,7 @@ export function avviaServizio(): void {
       // Istanza unica: qualcun altro è già in ascolto. Uscire è la risposta
       // giusta — è la stessa tecnica del daemon Telegram — ma va detto,
       // altrimenti sembra che il servizio non sia mai partito.
-      console.error(`[autopilota] porta ${PORTA_AUTOPILOTA} gia occupata: un altro servizio e vivo, esco`)
+      console.error(`[autopilota] porta ${PORTA} gia occupata: un altro servizio e vivo, esco`)
       process.exit(0)
     }
     console.error('[autopilota] errore del server:', err)
@@ -191,8 +201,8 @@ export function avviaServizio(): void {
   })
 
   // Solo 127.0.0.1: un servizio che avvia processi non va esposto alla rete.
-  server.listen(PORTA_AUTOPILOTA, '127.0.0.1', () => {
-    console.info(`[autopilota] in ascolto su 127.0.0.1:${PORTA_AUTOPILOTA}`)
+  server.listen(PORTA, '127.0.0.1', () => {
+    console.info(`[autopilota] in ascolto su 127.0.0.1:${PORTA}`)
 
     // Anche le preparazioni interrotte, e prima del lavoro: chi era fermo su
     // «sta preparando» non ha ancora nulla che giri, e finché nessuno la
