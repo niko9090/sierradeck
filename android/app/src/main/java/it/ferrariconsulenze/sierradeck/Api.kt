@@ -148,6 +148,15 @@ class Api(private val indirizzo: String, private val chiave: String?) {
         }))
 
     // ─── workspace: crea / elimina ───
+    /**
+     * Chiede al computer di cercare **adesso** un suo aggiornamento.
+     *
+     * Un computer piu' vecchio non conosce questa strada e risponde «non
+     * trovato»: non e' un guasto, e chi chiama lo distingue per dirlo com'e'.
+     */
+    suspend fun cercaAggiornamentoPc(): Fatto =
+        json.decodeFromString(corpoTesto("/api/aggiornamento/cerca", oggetto { }))
+
     suspend fun creaWorkspace(nome: String): Fatto =
         json.decodeFromString(corpoTesto("/api/workspace/crea", oggetto { put("nome", nome) }))
 

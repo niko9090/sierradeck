@@ -43,6 +43,7 @@ function deps(over: Partial<DipendenzeRotte> = {}): DipendenzeRotte {
     scheda: () => ({ file: 'notte.md', titolo: 'Come e andata la notte', corpo: 'tutto verde alle 4', quando: '' }),
     impostaPreferenze: () => Promise.resolve(),
     aggiornamento: () => ({ fase: 'fermo' as const }),
+    cercaAggiornamento: () => undefined,
     scaricaAggiornamento: () => undefined,
     installaAggiornamento: () => undefined,
     versione: '0.5.0',
@@ -467,14 +468,19 @@ describe('i consumi, il quaderno, le preferenze e l aggiornamento', () => {
     const fatti: string[] = []
     const su = deps({
       aggiornamento: () => ({ fase: 'disponibile', versione: '0.9.20' }),
+      cercaAggiornamento: () => { fatti.push('cerca') },
       scaricaAggiornamento: () => { fatti.push('scarica') },
       installaAggiornamento: () => { fatti.push('installa') }
     })
     const stato = await rotteClient(su)({ metodo: 'GET', percorso: '/api/aggiornamento', corpo: undefined })
     expect(stato.corpo).toMatchObject({ fase: 'disponibile', versione: '0.9.20' })
+    // Cercare a comando: il computer guarda da se' ogni sei ore, ma da un
+    // telefono quell'attesa e' cieca — non si vede il tasto del computer, e
+    // non si sa nemmeno se stia guardando.
+    await rotteClient(su)({ metodo: 'POST', percorso: '/api/aggiornamento/cerca', corpo: {} })
     await rotteClient(su)({ metodo: 'POST', percorso: '/api/aggiornamento/scarica', corpo: {} })
     await rotteClient(su)({ metodo: 'POST', percorso: '/api/aggiornamento/installa', corpo: {} })
-    expect(fatti).toEqual(['scarica', 'installa'])
+    expect(fatti).toEqual(['cerca', 'scarica', 'installa'])
   })
 })
 

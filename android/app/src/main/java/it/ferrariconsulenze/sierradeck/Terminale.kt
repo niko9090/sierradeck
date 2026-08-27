@@ -101,7 +101,12 @@ fun righeAdattate(grezze: List<String>): List<AnnotatedString> {
  * l'elenco tornerebbe in fondo strappandolo di mano a chi sta leggendo più su.
  */
 @Composable
-fun VistaTerminale(grezze: List<String>, modo: ModoTerminale, modifier: Modifier = Modifier) {
+fun VistaTerminale(
+    grezze: List<String>,
+    modo: ModoTerminale,
+    dimensione: Int,
+    modifier: Modifier = Modifier
+) {
     val vscroll = rememberScrollState()
     val hscroll = rememberScrollState()
     val impronta = grezze.joinToString("\n").hashCode()
@@ -122,8 +127,8 @@ fun VistaTerminale(grezze: List<String>, modo: ModoTerminale, modifier: Modifier
                         Text(
                             riga,
                             fontFamily = FontFamily.Monospace,
-                            fontSize = 13.sp,
-                            lineHeight = 19.sp,
+                            fontSize = dimensione.sp,
+                            lineHeight = (dimensione * 1.45f).sp,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -142,8 +147,10 @@ fun VistaTerminale(grezze: List<String>, modo: ModoTerminale, modifier: Modifier
                     Text(
                         ansiAnnotato(grezza),
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        lineHeight = 15.sp,
+                        // In griglia si sta due punti piu' stretti: li' conta
+                        // quante colonne entrano, non quanto e' comodo leggere.
+                        fontSize = (dimensione - 2).coerceAtLeast(8).sp,
+                        lineHeight = ((dimensione - 2).coerceAtLeast(8) * 1.35f).sp,
                         softWrap = false,
                         maxLines = 1
                     )

@@ -140,3 +140,29 @@ che dentro qualcosa.
 - **Workspace** (`Computer.kt`): tutto dentro una `Tessera`, quello attivo a
   pieno accento invece di due grigi appena diversi (il `FilterChip` non lo
   diceva abbastanza).
+
+## 2.1.0 (27/08): misura, «Adesso» che si spiega, aggiornamenti a comando
+- **Dimensione del carattere** (`Collegamento.dimensioneTerminale`, 9..22, default
+  13): sta sul **telefono**, non sul computer — è una cosa dello schermo che hai
+  in mano, e lo stesso banco si guarda su un telefono e su un tablet. I comandi
+  (A piccola / A grande) sono in una **barra sotto la testata**, non dentro: in
+  testata c'erano già quattro cose. In «Griglia» il carattere sta due punti più
+  stretto: lì conta quante colonne entrano, non quanto è comodo leggere.
+- **«Adesso» non si capiva a cosa servisse** — sembrava un secondo elenco di
+  chat. La sua ragione non è *cosa* mostra ma **l'ordine** in cui lo mostra
+  (scollegato → domanda in attesa → autopilota fermo → in moto → calma). Adesso
+  una testata fissa lo dice: «Adesso — serve qualcosa da te?», con il conto di
+  chat e autopiloti; e la sezione delle chat è etichettata «Cosa stanno
+  scrivendo · un colpo d'occhio; per entrarci, Chat qui sotto».
+- **Aggiornamenti, sezione unica** nella scheda Computer, due riquadri di forma
+  identica (`RiquadroAggiornamento`): *l'app su questo telefono* (con la versione
+  installata, che prima non era scritta da nessuna parte) e *SierraDeck sul
+  computer*. Tutti e due con **«Cerca ora»** — prima l'app controllava solo
+  all'avvio e **in silenzio**: senza avviso non si sapeva se fosse aggiornata o
+  se il controllo fosse fallito. `Aggiornamenti.cerca` ha un esito esplicito
+  (`Trovata` / `GiaAggiornata` / `NonRiuscita`), mentre `controlla` resta muta —
+  all'avvio un «tutto a posto» ogni volta sarebbe rumore.
+- **Nuova rotta sul PC**: `POST /api/aggiornamento/cerca` → `aggiornamenti.cerca()`.
+  Un computer più vecchio risponde «non trovato» e l'app lo dice com'è («non sa
+  ancora cercare a comando»), senza chiamarlo errore. **Richiede il rilascio
+  desktop successivo alla 0.12.11.**

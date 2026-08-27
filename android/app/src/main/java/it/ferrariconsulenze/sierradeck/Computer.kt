@@ -42,6 +42,7 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.ui.platform.LocalContext
 
 /** Numeri di token leggibili: 12.4k, 3.1M. */
 private fun tokenBrevi(n: Long): String = when {
@@ -195,8 +196,13 @@ fun Computer(api: Api, stato: Stato?) {
 
         Divisore()
 
-        // ─── Aggiornamento del computer ───
-        Sezione("Aggiornamento del computer")
+        // ─── Aggiornamenti ───
+        // Due programmi, due aggiornamenti, e prima ce n'era uno solo: si
+        // vedeva quello del computer e dell'app non si sapeva niente —
+        // nemmeno quale versione si avesse in mano.
+        Sezione("Aggiornamenti")
+        AggiornamentoApp()
+        Spacer(Modifier.height(10.dp))
         AggiornamentoPc(api, aggiornamento)
 
         Spacer(Modifier.height(24.dp))
@@ -223,20 +229,146 @@ fun Computer(api: Api, stato: Stato?) {
 @Composable
 private fun AggiornamentoPc(api: Api, a: Aggiornamento?) {
     val scope = rememberCoroutineScope()
-    when (a?.fase) {
-        "disponibile" -> {
-            Text("C’è la versione ${a.versione ?: ""}.", color = Banco.testo)
-            Spacer(Modifier.height(8.dp))
-            Button(onClick = { scope.launch { try { api.scaricaAggiornamento() } catch (_: Exception) {} } }) { Text("Scarica") }
+    var cercando by remember { mutableStateOf(false) }
+    var nota by remember { mutableStateOf<String?>(null) }
+
+    RiquadroAggiornamento(
+        titolo = "SierraDeck sul computer",
+        versione = "il programma sul PC",
+        stato = when (a?.fase) {
+            "disponibile" -> "C'è la ${a.versione ?: "versione nuova"}, pronta da scaricare."
+            "scarico" -> "Sto scaricando la ${a.versione ?: ""} — ${a.percento ?: 0}%."
+            "pronto" -> "La ${a.versione ?: ""} è scaricata. Installandola, il computer si chiude e riparte da solo."
+            "aggiornato" -> "È aggiornato. Controlla da sé ogni sei ore."
+            else -> nota ?: "Nessun aggiornamento in sospeso. Controlla da sé ogni sei ore."
+        },
+        colore = when (a?.fase) {
+            "disponibile", "pronto" -> Banco.accento
+            "scarico" -> Banco.ambra
+            else -> Banco.testoQuieto
         }
-        "scarico" -> Text("Scarico ${a.versione ?: ""}… ${a.percento ?: 0}%", color = Banco.testoQuieto)
-        "pronto" -> {
-            Text("La ${a.versione ?: ""} è pronta. Installandola, il computer si chiude e riparte.", color = Banco.testo)
-            Spacer(Modifier.height(8.dp))
-            Button(onClick = { scope.launch { try { api.installaAggiornamento() } catch (_: Exception) {} } }) { Text("Installa e riavvia") }
+    ) {
+        when (a?.fase) {
+            "disponibile" -> Button(
+                shape = MaterialTheme.shapes.small,
+                onClick = { scope.launch { try { api.scaricaAggiornamento() } catch (_: Exception) {} } }
+            ) { Text("Scarica") }
+            "scarico" -> Text("${a.percento ?: 0}%", color = Banco.ambra, fontSize = 13.sp)
+            "pronto" -> Button(
+                shape = MaterialTheme.shapes.small,
+                onClick = { scope.launch { try { api.installaAggiornamento() } catch (_: Exception) {} } }
+            ) { Text("Installa e riavvia") }
+            else -> OutlinedButton(
+                enabled = !cercando,
+                shape = MaterialTheme.shapes.small,
+                onClick = {
+                    cercando = true; nota = "Sto cercando…"
+                    scope.launch {
+                        nota = try {
+                            api.cercaAggiornamentoPc()
+                            "Ho chiesto al computer di guardare adesso."
+                        } catch (e: Exception) {
+                            // Un computer più vecchio non conosce questa strada:
+                            // non è un guasto, e chiamarlo errore spaventerebbe.
+                            "Questo computer non sa ancora cercare a comando: aggiornalo dal suo schermo."
+                        }
+                        cercando = false
+                    }
+                }
+            ) { Text(if (cercando) "Cerco…" else "Cerca ora") }
         }
-        "aggiornato" -> Text("Il computer è già aggiornato.", color = Banco.testoQuieto)
-        else -> Text("Nessun aggiornamento in sospeso.", color = Banco.testoQuieto)
+    }
+}
+
+/**
+ * L'aggiornamento **dell'app**.
+ *
+ * Prima esisteva solo all'avvio, e in silenzio: se non compariva niente non
+ * si sapeva se fosse aggiornata o se il controllo non avesse funzionato — e la
+ * versione che si ha in mano non era scritta da nessuna parte.
+ */
+@Composable
+private fun AggiornamentoApp() {
+    val contesto = LocalContext.current
+    var cercando by remember { mutableStateOf(false) }
+    var nota by remember { mutableStateOf("Controlla da sé a ogni apertura.") }
+    var trovata by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var colore by remember { mutableStateOf(Banco.testoQuieto) }
+
+    RiquadroAggiornamento(
+        titolo = "L'app su questo telefono",
+        versione = "versione ${BuildConfig.VERSION_NAME}",
+        stato = nota,
+        colore = colore
+    ) {
+        OutlinedButton(
+            enabled = !cercando,
+            shape = MaterialTheme.shapes.small,
+            onClick = {
+                cercando = true
+                nota = "Sto cercando…"
+                colore = Banco.testoQuieto
+                Aggiornamenti.cerca(BuildConfig.VERSION_NAME) { esito ->
+                    when (esito) {
+                        is Aggiornamenti.Esito.Trovata -> {
+                            nota = "C'è la ${esito.nome}."
+                            colore = Banco.accento
+                            trovata = esito.nome to esito.apk
+                        }
+                        is Aggiornamenti.Esito.GiaAggiornata -> {
+                            nota = "È l'ultima. Non c'è niente di nuovo."
+                            colore = Banco.verde
+                        }
+                        is Aggiornamenti.Esito.NonRiuscita -> {
+                            nota = "Non ci sono riuscito: ${esito.motivo}."
+                            colore = Banco.ambra
+                        }
+                    }
+                    cercando = false
+                }
+            }
+        ) { Text(if (cercando) "Cerco…" else "Cerca ora") }
+    }
+
+    trovata?.let { (nome, apk) ->
+        DialogoAggiornamentoApp(
+            nome = nome,
+            apk = apk,
+            avviaScarico = { indirizzo, onProgresso, onGuasto ->
+                Scaricamento.apk(contesto, indirizzo, onProgresso, onGuasto)
+            },
+            onChiudi = { trovata = null }
+        )
+    }
+}
+
+/**
+ * Il riquadro di un aggiornamento: chi è, che versione ha, come sta, e il gesto.
+ *
+ * Uno solo per tutti e due, perché sono la stessa cosa detta di due programmi —
+ * e quando due riquadri hanno la stessa forma il secondo si legge senza doverlo
+ * rileggere.
+ */
+@Composable
+private fun RiquadroAggiornamento(
+    titolo: String,
+    versione: String,
+    stato: String,
+    colore: androidx.compose.ui.graphics.Color,
+    azione: @Composable () -> Unit
+) {
+    Tessera(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(titolo, color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text(versione, color = Banco.testoQuieto, fontSize = 12.sp)
+                }
+                azione()
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(stato, color = colore, fontSize = 13.sp)
+        }
     }
 }
 

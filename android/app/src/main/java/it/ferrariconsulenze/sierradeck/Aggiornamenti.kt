@@ -55,6 +55,49 @@ object Aggiornamenti {
      * l'interfaccia significherebbe un'app che si blocca all'avvio ogni volta
      * che la rete è lenta.
      */
+    /**
+     * Com'e' andata la ricerca.
+     *
+     * `controlla` tace quando non c'e' niente di nuovo, ed e' giusto all'avvio:
+     * nessuno vuole un avviso che dice «tutto a posto» ogni volta che apre
+     * l'app. Ma quando la ricerca la chiedi **tu**, il silenzio e' la risposta
+     * sbagliata — non sai se e' aggiornata o se non ha funzionato niente.
+     */
+    sealed interface Esito {
+        data class Trovata(val nome: String, val apk: String) : Esito
+        data object GiaAggiornata : Esito
+        data class NonRiuscita(val motivo: String) : Esito
+    }
+
+    /** La ricerca chiesta a mano: riferisce sempre, anche quando non c'e' niente. */
+    fun cerca(mia: String, esito: (Esito) -> Unit) {
+        thread(start = true) {
+            try {
+                val connessione = (URL(ULTIME).openConnection() as HttpURLConnection)
+                connessione.setRequestProperty("Accept", "application/vnd.github+json")
+                connessione.connectTimeout = 10_000
+                connessione.readTimeout = 10_000
+                val corpo = try {
+                    if (connessione.responseCode != 200) {
+                        esito(Esito.NonRiuscita("GitHub ha risposto ${connessione.responseCode}"))
+                        return@thread
+                    }
+                    connessione.inputStream.bufferedReader().readText()
+                } finally {
+                    connessione.disconnect()
+                }
+                val migliore = piuRecenteFra(corpo)
+                when {
+                    migliore == null -> esito(Esito.NonRiuscita("nessuna app pubblicata"))
+                    piuNuova(mia, migliore.first) -> esito(Esito.Trovata(migliore.first, migliore.second))
+                    else -> esito(Esito.GiaAggiornata)
+                }
+            } catch (e: Exception) {
+                esito(Esito.NonRiuscita(e.message ?: "non raggiungo GitHub"))
+            }
+        }
+    }
+
     fun controlla(mia: String, quandoTrovata: (nome: String, apk: String) -> Unit) {
         thread(start = true) {
             try {

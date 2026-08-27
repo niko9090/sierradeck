@@ -125,6 +125,14 @@ export type DipendenzeRotte = {
   impostaPreferenze: (parziali: Record<string, unknown>) => Promise<void>
   /** L'aggiornamento del **computer**: a che punto è, e i due comandi. */
   aggiornamento: () => { fase: string; versione?: string; percento?: number; errore?: string }
+  /**
+   * Cercare un aggiornamento **adesso**.
+   *
+   * Il computer guarda da se' ogni sei ore, che va bene finche' non hai appena
+   * pubblicato e vuoi sapere se e' arrivato. Da un telefono l'attesa e' cieca:
+   * non si vede il tasto del computer e non si sa nemmeno se stia guardando.
+   */
+  cercaAggiornamento: () => void
   scaricaAggiornamento: () => void
   installaAggiornamento: () => void
   /** Le cartelle in cui si può aprire una chat: quelle già viste da Claude Code. */
@@ -439,6 +447,13 @@ export function rotteClient(deps: DipendenzeRotte) {
 
     if (r.percorso === '/api/aggiornamento') {
       return OK(deps.aggiornamento())
+    }
+
+    // Cercare non scarica e non installa: e' la piu' innocua delle tre, e non
+    // chiede conferme.
+    if (r.metodo === 'POST' && r.percorso === '/api/aggiornamento/cerca') {
+      deps.cercaAggiornamento()
+      return OK({ fatto: true })
     }
 
     if (r.metodo === 'POST' && r.percorso === '/api/aggiornamento/scarica') {

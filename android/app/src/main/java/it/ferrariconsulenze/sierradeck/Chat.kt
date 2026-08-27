@@ -67,7 +67,7 @@ import androidx.compose.ui.draw.clip
  * dove si sta scrivendo è il modo più veloce per perdere quello che si scrive).
  */
 @Composable
-fun Chat(api: Api, stato: Stato?) {
+fun Chat(api: Api, stato: Stato?, deposito: Collegamento) {
     var aperta by remember { mutableStateOf<String?>(null) }
     val chat = stato?.chat ?: emptyList()
 
@@ -79,7 +79,7 @@ fun Chat(api: Api, stato: Stato?) {
     val corrente = chat.firstOrNull { it.id == aperta }
     if (corrente != null) {
         BackHandler { aperta = null }
-        DettaglioChat(api, corrente, onIndietro = { aperta = null })
+        DettaglioChat(api, corrente, deposito, onIndietro = { aperta = null })
     } else {
         ElencoChat(api, chat, onApri = { aperta = it.id })
     }
@@ -137,7 +137,7 @@ private fun ElencoChat(api: Api, chat: List<Chat>, onApri: (Chat) -> Unit) {
 
 /** Il dettaglio: il terminale a polling e il campo per scrivere. */
 @Composable
-private fun DettaglioChat(api: Api, chat: Chat, onIndietro: () -> Unit) {
+private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndietro: () -> Unit) {
     var dentro by remember(chat.id) { mutableStateOf<Dentro?>(null) }
     var testo by remember(chat.id) { mutableStateOf("") }
     var menuAperto by remember { mutableStateOf(false) }
@@ -147,6 +147,9 @@ private fun DettaglioChat(api: Api, chat: Chat, onIndietro: () -> Unit) {
     // Come si legge lo schermo: adattato alla larghezza, o la griglia esatta.
     // Sta qui e non dentro la vista perche' il tasto che lo cambia e' in testata.
     var modo by remember { mutableStateOf(ModoTerminale.ADATTA) }
+    // La misura del carattere: si ricorda sul telefono, non sul computer — e'
+    // una cosa dello schermo che hai in mano.
+    var dimensione by remember { mutableStateOf(deposito.dimensioneTerminale) }
 
     LaunchedEffect(chat.id) {
         while (isActive) {
@@ -176,11 +179,6 @@ private fun DettaglioChat(api: Api, chat: Chat, onIndietro: () -> Unit) {
                     )
                 }
             }
-            // Le due letture dello schermo. Il tasto dice **dove vai**, non dove
-            // sei: e' l'unico modo perche' si capisca senza provarlo.
-            TastoContorno(if (modo == ModoTerminale.ADATTA) "Griglia" else "Adatta") {
-                modo = if (modo == ModoTerminale.ADATTA) ModoTerminale.GRIGLIA else ModoTerminale.ADATTA
-            }
             Box {
                 IconButton(onClick = { menuAperto = true }, modifier = Modifier.size(36.dp)) {
                     Icon(Icons.Filled.MoreVert, "Altro", tint = Banco.testo)
@@ -192,10 +190,44 @@ private fun DettaglioChat(api: Api, chat: Chat, onIndietro: () -> Unit) {
             }
         }
 
+        // ─── barra degli strumenti ───
+        // Come si legge e quanto grande. Sta sotto la testata e non dentro:
+        // in testata c'erano gia' quattro cose, e la quinta le avrebbe schiacciate.
+        Row(
+            Modifier.fillMaxWidth().background(Banco.fondo).padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Il tasto dice **dove vai**, non dove sei: e' l'unico modo perche'
+            // si capisca senza doverlo provare.
+            TastoContorno(if (modo == ModoTerminale.ADATTA) "Griglia" else "Adatta") {
+                modo = if (modo == ModoTerminale.ADATTA) ModoTerminale.GRIGLIA else ModoTerminale.ADATTA
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                if (modo == ModoTerminale.ADATTA) "testo a capo" else "schermo esatto",
+                color = Banco.testoQuieto, fontSize = 11.sp
+            )
+            Spacer(Modifier.weight(1f))
+            TastoMisura("A", 13.sp, dimensione > Collegamento.DIMENSIONE_MIN) {
+                dimensione -= 1; deposito.dimensioneTerminale = dimensione
+            }
+            Text(
+                "$dimensione",
+                color = Banco.testoQuieto,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+            TastoMisura("A", 18.sp, dimensione < Collegamento.DIMENSIONE_MAX) {
+                dimensione += 1; deposito.dimensioneTerminale = dimensione
+            }
+        }
+        HorizontalDivider(color = Banco.incisione)
+
         // ─── terminale ───
         VistaTerminale(
             grezze = dentro?.grezze ?: emptyList(),
             modo = modo,
+            dimensione = dimensione,
             modifier = Modifier.weight(1f).fillMaxWidth()
         )
         HorizontalDivider(color = Banco.incisione)
@@ -401,5 +433,37 @@ private fun TastoContorno(testo: String, onClick: () -> Unit) {
             fontSize = 13.sp,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
         )
+    }
+}
+
+/**
+ * Il tasto che cambia la misura del carattere.
+ *
+ * Una «A» piccola e una grande, invece di «meno» e «piu'»: si capisce cosa fa
+ * senza leggere niente, ed e' la convenzione che tutti hanno gia' visto.
+ */
+@Composable
+private fun TastoMisura(
+    lettera: String,
+    misura: androidx.compose.ui.unit.TextUnit,
+    attivo: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        enabled = attivo,
+        color = Banco.chassis,
+        contentColor = if (attivo) Banco.testo else Banco.testoQuieto,
+        shape = MaterialTheme.shapes.small,
+        border = BorderStroke(1.dp, Banco.incisione)
+    ) {
+        Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+            Text(
+                lettera,
+                fontSize = misura,
+                fontWeight = FontWeight.Bold,
+                color = if (attivo) Banco.testo else Banco.incisione
+            )
+        }
     }
 }

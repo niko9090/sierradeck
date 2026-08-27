@@ -30,6 +30,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.background
+import androidx.compose.material3.HorizontalDivider
 
 /**
  * «Adesso»: una cosa sola domina, in ordine di urgenza.
@@ -40,6 +42,49 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun Adesso(api: Api, stato: Stato?, connesso: Boolean) {
+    // Una fascia che dice **a cosa serve questa schermata**, sempre, anche
+    // quando non c'e' niente da fare. Senza, «Adesso» sembrava un secondo
+    // elenco di chat, e nessuno capiva perche' esistesse: la sua ragione non e'
+    // cosa mostra, e' l'ordine in cui lo mostra.
+    Column(Modifier.fillMaxSize()) {
+        Testata(stato, connesso)
+        Corpo(api, stato, connesso)
+    }
+}
+
+/** La fascia: il nome della schermata e cosa risponde. */
+@Composable
+private fun Testata(stato: Stato?, connesso: Boolean) {
+    val chat = stato?.chat?.size ?: 0
+    val ap = stato?.autopiloti?.size ?: 0
+    Column {
+        Row(
+            Modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Serigrafia("Adesso")
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    "Serve qualcosa da te?",
+                    color = Banco.testoQuieto,
+                    fontSize = 12.sp
+                )
+            }
+            if (stato != null && connesso) {
+                Text(
+                    "$chat chat · $ap autopiloti",
+                    color = Banco.testoQuieto,
+                    fontSize = 11.sp
+                )
+            }
+        }
+        HorizontalDivider(color = Banco.incisione)
+    }
+}
+
+@Composable
+private fun Corpo(api: Api, stato: Stato?, connesso: Boolean) {
     when {
         !connesso && stato == null -> Attesa()
         !connesso -> Avviso("Non parlo con il computer.", "Controlla che SierraDeck sia acceso sulla stessa rete.")
@@ -148,7 +193,7 @@ private fun InMoto(stato: Stato) {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Spacer(Modifier.height(4.dp))
-        Serigrafia("In moto", Banco.verde)
+        if (alLavoro.isNotEmpty()) Serigrafia("Al lavoro per te", Banco.verde)
         for (ap in alLavoro) {
             Tessera(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -158,6 +203,19 @@ private fun InMoto(stato: Stato) {
                     }
                 }
             }
+        }
+        if (stato.chat.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            // Detto per esteso: qui le chat ci sono per **dire come vanno**, non
+            // per aprirle. Ad aprirle c'e' la scheda «Chat», ed e' la differenza
+            // fra le due che non si capiva.
+            Serigrafia("Cosa stanno scrivendo")
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "Un colpo d'occhio. Per entrarci, «Chat» qui sotto.",
+                color = Banco.testoQuieto,
+                fontSize = 11.sp
+            )
         }
         for (c in stato.chat) {
             Tessera(Modifier.fillMaxWidth()) {
@@ -180,8 +238,13 @@ private fun Calma() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text("Tutto in moto.", color = Banco.testo, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text("Nessuno ti aspetta.", color = Banco.testo, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(6.dp))
-        Text("Nessuno ti aspetta.", color = Banco.testoQuieto, fontSize = 16.sp)
+        Text(
+            "Quando un autopilota si ferma o ti fa una domanda, lo trovi qui — e il telefono te lo dice anche ad app chiusa.",
+            color = Banco.testoQuieto,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center
+        )
     }
 }

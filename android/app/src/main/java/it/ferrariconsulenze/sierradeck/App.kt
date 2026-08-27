@@ -59,6 +59,7 @@ fun App(deposito: Collegamento, scansionaQr: ((String) -> Unit, (String) -> Unit
         } else {
             Principale(
                 api = remember(indirizzo, chiave) { Api(indirizzo, chiave) },
+                deposito = deposito,
                 onScollega = { deposito.dimentica(); indirizzo = ""; chiave = "" }
             )
         }
@@ -72,7 +73,7 @@ fun App(deposito: Collegamento, scansionaQr: ((String) -> Unit, (String) -> Unit
  * di mostrare dati vecchi come se fossero freschi.
  */
 @Composable
-fun Principale(api: Api, onScollega: () -> Unit) {
+fun Principale(api: Api, deposito: Collegamento, onScollega: () -> Unit) {
     val contesto = LocalContext.current
     var scheda by remember { mutableStateOf(Scheda.ADESSO) }
     var stato by remember { mutableStateOf<Stato?>(null) }
@@ -118,7 +119,7 @@ fun Principale(api: Api, onScollega: () -> Unit) {
         Box(Modifier.padding(pad).fillMaxSize()) {
             when (scheda) {
                 Scheda.ADESSO -> Adesso(api, stato, connesso)
-                Scheda.CHAT -> Chat(api, stato)
+                Scheda.CHAT -> Chat(api, stato, deposito)
                 Scheda.LAVORI -> Lavori(api, stato)
                 Scheda.COMPUTER -> Computer(api, stato)
             }

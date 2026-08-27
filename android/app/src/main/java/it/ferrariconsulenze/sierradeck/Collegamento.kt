@@ -34,6 +34,19 @@ class Collegamento(contesto: Context) {
      * deve costare sei cifre ogni volta. Quello che si è già fatto una volta
      * non si chiede due volte.
      */
+    /**
+     * Quanto grande si legge il terminale, in `sp`.
+     *
+     * Sta qui e non sul computer perche' e' una cosa dello **schermo che hai in
+     * mano**: lo stesso banco si guarda su un telefono piccolo e su un tablet, e
+     * la misura giusta non e' la stessa. Il computer non deve saperne niente.
+     */
+    var dimensioneTerminale: Int
+        get() = preferenze.getInt(CHIAVE_DIMENSIONE, DIMENSIONE_PREDEFINITA).coerceIn(DIMENSIONE_MIN, DIMENSIONE_MAX)
+        set(valore) = preferenze.edit()
+            .putInt(CHIAVE_DIMENSIONE, valore.coerceIn(DIMENSIONE_MIN, DIMENSIONE_MAX))
+            .apply()
+
     fun chiaveDi(indirizzo: String): String =
         preferenze.getString("$CHIAVE_SEGRETO:$indirizzo", "") ?: ""
 
@@ -86,5 +99,11 @@ class Collegamento(contesto: Context) {
         private const val CHIAVE_INDIRIZZO = "indirizzo"
         private const val CHIAVE_SEGRETO = "chiave"
         private const val NOTI = "indirizzi-noti"
+        private const val CHIAVE_DIMENSIONE = "dimensione-terminale"
+        const val DIMENSIONE_PREDEFINITA = 13
+        // Sotto i nove non si legge, sopra i ventidue ci stanno sei parole per
+        // riga: fuori da questi due non e' piu' una scelta, e' un guasto.
+        const val DIMENSIONE_MIN = 9
+        const val DIMENSIONE_MAX = 22
     }
 }
