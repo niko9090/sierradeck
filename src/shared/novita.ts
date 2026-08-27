@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.15',
+    righe: [
+      '**Il telefono ti avvisa quando una chat ha finito e aspetta te.** Prima avvisava solo per gli autopiloti: una chat che finiva di scrivere non lo diceva a nessuno. Ora il computer dice anche questo, e l’app lo annuncia — una volta sola, al momento in cui succede. Le chat governate da un autopilota tacciono: è lui a parlare per loro.',
+      '**Dalla notifica si risponde, senza aprire l’app.** Una domanda si risponde e a una chat che aspetta si scrive, direttamente dal campo dentro la notifica.',
+      '**L’aggiornamento del computer visto dal telefono adesso dice la verità.** Due fasi su sette non erano gestite: «sto cercando» e «è andata male» finivano nello stesso silenzio di «non c’è niente», e sembrava che il tasto non facesse nulla. Ora si vede cosa sta succedendo, l’errore quando c’è, e quale versione ha il computer.'
+    ]
+  },
+  {
     versione: '0.12.14',
     righe: [
       '**Il negozio e l’account si vedono dal telefono.** L’app ha una scheda «Negozio» nuova: plugin, skill, agenti e MCP, con l’interruttore per accendere e spegnere e il tasto per installare un plugin. E nella scheda Computer c’è con quale account sta lavorando il PC — in sola lettura, perché entrare e uscire sono cose da fare davanti allo schermo, non in tram.',

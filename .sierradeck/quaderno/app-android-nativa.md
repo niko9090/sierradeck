@@ -201,3 +201,35 @@ che dentro qualcosa.
    il negozio vive solo su IPC).
 3. **Account** sul telefono: idem, serve esporlo.
 4. Leggibilità della chat: continuare (colori, spaziatura, evidenza dei turni).
+
+## 2.4.0 + PC 0.12.15 (28/08): notifiche che servono, e risposta dalla notifica
+- **Il computer dice `aspetta` per ogni chat** (`App.tsx` → `terminalePronto`, lo
+  stesso giudizio con cui l'autopilota decide quando può parlare) e `governata`
+  (la chat ha un autopilota). Da lì l'app annuncia **il passaggio** a «aspetta
+  te», non lo stato: una chat ferma al prompt lo è per ore, e ripeterlo ogni
+  cinque secondi insegna a spegnere le notifiche. Chi riprende a lavorare torna
+  annunciabile. Le governate tacciono — parla l'autopilota per loro.
+- **Risposta dentro la notifica** (`RispostaVeloce.kt`, `BroadcastReceiver` non
+  esportato + `RemoteInput`): una domanda va a `/api/rispondi`, una chat che
+  aspetta va a `/api/scrivi`. ⚠️ Il `PendingIntent` **deve** essere `FLAG_MUTABLE`:
+  è Android a scriverci dentro il testo digitato, e con `IMMUTABLE` arriva vuoto.
+  L'escape JSON è scritto a mano (`virgolette`) perché una risposta contiene
+  virgolette e a capo più spesso di quanto sembri.
+- **La notifica fissa** non si può nascondere (Android la impone a ogni
+  foreground service) ma ora **serve**: dice quante chat ci sono e quante
+  aspettano te, ed è `PRIORITY_MIN` + `setSilent` + `setShowWhen(false)`, canale
+  senza badge, senza suono, senza vibrazione, con una descrizione che spiega
+  come silenziarla del tutto.
+- **Aggiornamento del PC dal telefono: era mezzo cieco.** Delle sette fasi
+  (`fermo|cerco|aggiornato|disponibile|scarico|pronto|errore`) l'app ne gestiva
+  quattro: `cerco` ed `errore` cadevano nell'`else` insieme a «non c'è niente»,
+  quindi premere «Cerca ora» non sembrava fare nulla e un guasto non si vedeva
+  affatto. Ora ci sono tutte, l'errore si legge, e si vede la versione del PC
+  (`/api/ciao`). **Il difetto era nella presentazione, non nella catena** —
+  scarica e installa funzionavano già, con le loro guardie.
+
+## Regola imparata (vale oltre Android)
+Uno stato con N valori e una vista che ne gestisce N-2 **non fallisce**: cade nel
+ramo `else` e racconta una bugia plausibile. È peggio di un errore, perché
+nessuno va a cercarlo. Quando si legge una macchina a stati altrui, elencare
+tutti i casi — anche quelli «che non capitano».

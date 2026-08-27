@@ -31,6 +31,17 @@ export type Chat = {
    * significherebbe scrivere lo stesso messaggio due volte.
    */
   sessione?: string
+  /**
+   * Ha finito di scrivere e aspetta te.
+   *
+   * Il prompt si è visto e poi c’è stato silenzio: è lo stesso giudizio con
+   * cui l’autopilota decide quando può parlare a una chat. Da un telefono è
+   * la sola notizia che valga una notifica — «sta lavorando» non chiede
+   * niente a nessuno.
+   */
+  aspetta?: boolean
+  /** Se la governa un autopilota: allora è lui ad avvisare, non lei. */
+  governata?: boolean
   /** L'ultima riga vista nel terminale: dice a colpo d'occhio se si muove. */
   ultimaRiga?: string
   /**

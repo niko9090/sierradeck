@@ -257,6 +257,18 @@ export function App(): React.JSX.Element {
           // Quale conversazione: il Core la usa per sapere a chi consegnare le
           // istruzioni di un autopilota, e il telefono per guardarci dentro.
           sessione: p.sessionUuid,
+          // Se ha finito di scrivere e sta aspettando te. È lo stesso
+          // giudizio che usa l’autopilota per sapere quando può parlare —
+          // il prompt visto, e poi un po’ di silenzio — e da un telefono è
+          // *la* notizia: «ha finito, tocca a te».
+          aspetta:
+            p.ptyId === undefined
+              ? false
+              : terminalePronto(righe.current.attivitaDi(p.ptyId), Date.now()),
+          // Chi è governata da un autopilota non deve avvisare per conto
+          // suo: l’autopilota le parla da sé, e due notifiche per lo stesso
+          // fatto sono una di troppo.
+          governata: p.autopilota !== undefined,
           ...(p.ptyId !== undefined
             ? (() => {
                 // Prima si prova a leggere lo **schermo disegnato**: Claude Code

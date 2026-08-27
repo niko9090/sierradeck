@@ -107,4 +107,54 @@ class AvvisiTest {
     fun `uno stato senza niente dentro non fa danni`() {
         assertEquals(0, Avvisi.daAnnunciare(stato("{}"), mutableSetOf(), primoGiro = false).size)
     }
+
+    /**
+     * Una chat che ha finito di scrivere avvisa **una volta**.
+     *
+     * E il passaggio che conta, non lo stato: una chat ferma al prompt lo e
+     * per ore, e dirlo ogni cinque secondi e il modo piu veloce per far
+     * spegnere le notifiche.
+     */
+    @Test
+    fun `una chat che aspetta avvisa una volta sola`() {
+        val gia = mutableSetOf<String>()
+        val stato = JSONObject(
+            """{"chat":[{"id":"c1","titolo":"prova","aspetta":true}],"autopiloti":[]}"""
+        )
+        val primo = Avvisi.daAnnunciare(stato, gia, false)
+        assertEquals(1, primo.size)
+        assertEquals("c1", primo[0].chat)
+        val secondo = Avvisi.daAnnunciare(stato, gia, false)
+        assertTrue(secondo.isEmpty())
+    }
+
+    /** Quando riprende a lavorare torna annunciabile: la prossima volta e notizia. */
+    @Test
+    fun `una chat che riparte torna annunciabile`() {
+        val gia = mutableSetOf<String>()
+        val ferma = JSONObject("""{"chat":[{"id":"c1","aspetta":true}],"autopiloti":[]}""")
+        val lavora = JSONObject("""{"chat":[{"id":"c1","aspetta":false}],"autopiloti":[]}""")
+        assertEquals(1, Avvisi.daAnnunciare(ferma, gia, false).size)
+        Avvisi.daAnnunciare(lavora, gia, false)
+        assertEquals(1, Avvisi.daAnnunciare(ferma, gia, false).size)
+    }
+
+    /** Una chat governata da un autopilota tace: parla lui per lei. */
+    @Test
+    fun `una chat governata non avvisa per conto suo`() {
+        val gia = mutableSetOf<String>()
+        val stato = JSONObject(
+            """{"chat":[{"id":"c1","aspetta":true,"governata":true}],"autopiloti":[]}"""
+        )
+        assertTrue(Avvisi.daAnnunciare(stato, gia, false).isEmpty())
+    }
+
+    /** La domanda porta con se il suo identificatore: senza, non si risponde. */
+    @Test
+    fun `la domanda porta con se come rispondere`() {
+        val gia = mutableSetOf<String>()
+        val stato = JSONObject("""{"domande":[{"id":"d9","testo":"quale?"}]}""")
+        val avvisi = Avvisi.daAnnunciare(stato, gia, false)
+        assertEquals("d9", avvisi[0].domanda)
+    }
 }

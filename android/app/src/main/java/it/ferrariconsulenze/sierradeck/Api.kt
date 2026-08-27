@@ -206,6 +206,9 @@ class Api(private val indirizzo: String, private val chiave: String?) {
 
     // ─── consumi ───
     /** Cosa c’è in dotazione sul computer. */
+    /** Che versione ha il computer. Serve a dire «sei alla X» invece di niente. */
+    suspend fun ciao(): Ciao = json.decodeFromString(corpoTesto("/api/ciao", null))
+
     suspend fun negozio(): DatiNegozio =
         json.decodeFromString(corpoTesto("/api/negozio", null))
 

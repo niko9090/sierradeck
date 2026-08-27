@@ -60,6 +60,7 @@ fun Computer(api: Api, stato: Stato?) {
     val scope = rememberCoroutineScope()
     var consumi by remember { mutableStateOf<Consumi?>(null) }
     var account by remember { mutableStateOf<Account?>(null) }
+    var versionePc by remember { mutableStateOf<String?>(null) }
     var salvataggi by remember { mutableStateOf<List<Salvataggio>>(emptyList()) }
     var pref by remember { mutableStateOf<Preferenze?>(null) }
     var aggiornamento by remember { mutableStateOf<Aggiornamento?>(null) }
@@ -69,6 +70,7 @@ fun Computer(api: Api, stato: Stato?) {
     LaunchedEffect(Unit) {
         consumi = try { api.consumi() } catch (_: Exception) { null }
         account = try { api.account() } catch (_: Exception) { null }
+        versionePc = try { api.ciao().versione } catch (_: Exception) { null }
         salvataggi = try { api.salvataggi().salvataggi } catch (_: Exception) { emptyList() }
         pref = try { api.preferenze().preferenze } catch (_: Exception) { null }
     }
@@ -233,7 +235,7 @@ fun Computer(api: Api, stato: Stato?) {
         Sezione("Aggiornamenti")
         AggiornamentoApp()
         Spacer(Modifier.height(10.dp))
-        AggiornamentoPc(api, aggiornamento)
+        AggiornamentoPc(api, aggiornamento, versionePc)
 
         Spacer(Modifier.height(24.dp))
     }
@@ -257,26 +259,37 @@ fun Computer(api: Api, stato: Stato?) {
 }
 
 @Composable
-private fun AggiornamentoPc(api: Api, a: Aggiornamento?) {
+private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
     val scope = rememberCoroutineScope()
     var cercando by remember { mutableStateOf(false) }
     var nota by remember { mutableStateOf<String?>(null) }
 
+    // **Tutte** le fasi, non quattro su sette. «cerco» ed «errore» finivano
+    // nell'else insieme a «non c'è niente», quindi premere «Cerca ora» non
+    // sembrava fare nulla e un guasto non si vedeva affatto: da qui l’idea
+    // che l’aggiornamento del computer dal telefono non funzionasse.
+    val descrizione = when (a?.fase) {
+        "cerco" -> "Sto guardando se c’è qualcosa di nuovo…"
+        "disponibile" -> "C'è la ${a.versione ?: "versione nuova"}. Scaricala quando vuoi."
+        "scarico" -> "Sto scaricando la ${a.versione ?: ""} — ${a.percento ?: 0}%."
+        "pronto" -> "La ${a.versione ?: ""} è scaricata. Installandola, il computer si chiude e riparte da solo."
+        "aggiornato" -> "È all’ultima versione."
+        "errore" -> "Non ci sono riuscito: ${a.errore ?: "errore sconosciuto"}"
+        else -> nota ?: "Controlla da sé ogni sei ore. Puoi anche chiederglielo adesso."
+    }
+    val colore = when (a?.fase) {
+        "disponibile", "pronto" -> Banco.accento
+        "scarico", "cerco" -> Banco.ambra
+        "errore" -> Banco.rosso
+        "aggiornato" -> Banco.verde
+        else -> Banco.testoQuieto
+    }
+
     RiquadroAggiornamento(
         titolo = "SierraDeck sul computer",
-        versione = "il programma sul PC",
-        stato = when (a?.fase) {
-            "disponibile" -> "C'è la ${a.versione ?: "versione nuova"}, pronta da scaricare."
-            "scarico" -> "Sto scaricando la ${a.versione ?: ""} — ${a.percento ?: 0}%."
-            "pronto" -> "La ${a.versione ?: ""} è scaricata. Installandola, il computer si chiude e riparte da solo."
-            "aggiornato" -> "È aggiornato. Controlla da sé ogni sei ore."
-            else -> nota ?: "Nessun aggiornamento in sospeso. Controlla da sé ogni sei ore."
-        },
-        colore = when (a?.fase) {
-            "disponibile", "pronto" -> Banco.accento
-            "scarico" -> Banco.ambra
-            else -> Banco.testoQuieto
-        }
+        versione = if (versionePc == null) "il programma sul PC" else "versione $versionePc",
+        stato = descrizione,
+        colore = colore
     ) {
         when (a?.fase) {
             "disponibile" -> Button(
@@ -284,10 +297,11 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?) {
                 onClick = { scope.launch { try { api.scaricaAggiornamento() } catch (_: Exception) {} } }
             ) { Text("Scarica") }
             "scarico" -> Text("${a.percento ?: 0}%", color = Banco.ambra, fontSize = 13.sp)
+            "cerco" -> Text("cerco…", color = Banco.ambra, fontSize = 13.sp)
             "pronto" -> Button(
                 shape = MaterialTheme.shapes.small,
                 onClick = { scope.launch { try { api.installaAggiornamento() } catch (_: Exception) {} } }
-            ) { Text("Installa e riavvia") }
+            ) { Text("Installa") }
             else -> OutlinedButton(
                 enabled = !cercando,
                 shape = MaterialTheme.shapes.small,
@@ -296,10 +310,8 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?) {
                     scope.launch {
                         nota = try {
                             api.cercaAggiornamentoPc()
-                            "Ho chiesto al computer di guardare adesso."
+                            null
                         } catch (e: Exception) {
-                            // Un computer più vecchio non conosce questa strada:
-                            // non è un guasto, e chiamarlo errore spaventerebbe.
                             "Questo computer non sa ancora cercare a comando: aggiornalo dal suo schermo."
                         }
                         cercando = false

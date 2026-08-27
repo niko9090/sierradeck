@@ -54,5 +54,16 @@
             android:name=".GuardiaService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
+
+        <!--
+          Chi riceve la risposta scritta dentro la notifica.
+
+          Non esportato: lo chiama solo il sistema per conto nostro, e una
+          risposta a una domanda del proprio computer non e cosa che altre app
+          debbano poter far partire.
+        -->
+        <receiver
+            android:name=".RispostaVeloce"
+            android:exported="false" />
     </application>
 </manifest>

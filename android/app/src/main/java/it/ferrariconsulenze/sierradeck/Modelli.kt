@@ -282,3 +282,7 @@ data class EsitoNegozio(val ok: Boolean = false, val messaggio: String? = null)
 /** Chi è entrato sul computer. Sola lettura. */
 @Serializable
 data class Account(val entrato: Boolean = false, val email: String? = null)
+
+/** Chi risponde dall’altra parte, e con quale versione. */
+@Serializable
+data class Ciao(val programma: String = "", val versione: String = "")

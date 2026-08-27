@@ -22,6 +22,16 @@ object Avvisi {
         val chiave: String,
         val titolo: String,
         val testo: String,
+        /**
+         * L'identificatore della domanda, quando l'avviso è una domanda.
+         *
+         * Serve a rispondere **dalla notifica**: senza, il testo si legge e
+         * poi bisogna aprire l’app, trovare la chat, e a quel punto la
+         * risposta l’hai già pensata due volte.
+         */
+        val domanda: String? = null,
+        /** La chat a cui scrivere dalla notifica, quando è una chat che aspetta. */
+        val chat: String? = null,
         /** Le notifiche con lo stesso numero si sostituiscono a vicenda. */
         val id: Int
     )
@@ -29,6 +39,7 @@ object Avvisi {
     const val ID_DOMANDA = 2
     const val ID_FINITO = 100
     const val ID_FERMO = 500
+    const val ID_ASPETTA = 900
 
     /**
      * Cosa annunciare, dato lo stato del computer e ciò che si è già detto.
@@ -56,7 +67,42 @@ object Avvisi {
                         chiave = "d:$id",
                         titolo = "SierraDeck ti sta chiedendo una cosa",
                         testo = d.optString("testo", "Serve una tua risposta"),
+                        domanda = id,
                         id = ID_DOMANDA
+                    )
+                )
+            }
+        }
+
+        // Le chat che hanno finito di scrivere e aspettano te.
+        //
+        // Si annuncia il **passaggio**, non lo stato: una chat ferma al
+        // prompt lo è per ore, e dirlo ogni cinque secondi è il modo più
+        // veloce per far spegnere le notifiche. Quando riprende a lavorare
+        // torna annunciabile, perché la prossima volta che si ferma è di
+        // nuovo una notizia.
+        //
+        // Quelle governate da un autopilota tacciono: è lui a parlare per
+        // loro, e due avvisi per lo stesso fatto sono uno di troppo.
+        val chat = stato.optJSONArray("chat")
+        if (chat != null) {
+            for (i in 0 until chat.length()) {
+                val c = chat.getJSONObject(i)
+                val id = c.optString("id")
+                if (id.isEmpty() || c.optBoolean("governata", false)) continue
+                if (!c.optBoolean("aspetta", false)) {
+                    giaVisti.remove("c:$id")
+                    continue
+                }
+                if (!giaVisti.add("c:$id") || primoGiro) continue
+                val titolo = c.optString("titolo").ifBlank { c.optString("cwd") }
+                avvisi.add(
+                    Avviso(
+                        chiave = "c:$id",
+                        titolo = "«$titolo» aspetta te",
+                        testo = c.optString("ultimaRiga").ifBlank { "Ha finito di scrivere." },
+                        chat = id,
+                        id = ID_ASPETTA + (id.hashCode() and 0xFFF)
                     )
                 )
             }
