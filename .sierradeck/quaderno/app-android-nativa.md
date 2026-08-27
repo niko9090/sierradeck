@@ -166,3 +166,38 @@ che dentro qualcosa.
   Un computer più vecchio risponde «non trovato» e l'app lo dice com'è («non sa
   ancora cercare a comando»), senza chiamarlo errore. **Richiede il rilascio
   desktop successivo alla 0.12.11.**
+
+## 2.2.0 + PC 0.12.12 (28/08): la conversazione intera, e via «Adesso»
+- **`/api/storia`**: qualunque finestra dello scrollback, con il `totale`. Sotto
+  c'è **l'unico canale che va dal Core al renderer e torna** (`client:chiediRighe`
+  → `client:righe`, promessa con scadenza a 3s): lo scrollback vive dentro
+  l'`xterm` di un riquadro, e il riquadro lo conosce solo la finestra che lo
+  disegna. Il Core lo chiede a tutte; chi non ha quella chat **tace**, e il
+  silenzio di tutte è la risposta (si torna a `coda`/`codaGrezza` dell'elenco).
+  `finestraDiPty(ptyId, da, quante)` in `schermo-terminale.ts`; `da < 0` = «le
+  ultime `quante`».
+- **App**: la finestra resta attaccata al fondo e cresce **verso l'alto** solo
+  su richiesta («Mostra quello di prima», +150, tetto 600). Lo scorrimento
+  automatico ora scende **solo se eri già in fondo** (meno di 160px): prima
+  strappava la pagina di mano a chi stava leggendo più su.
+- **«Adesso» eliminata** (`Adesso.kt` cancellato, `Scheda` da 4 a 3 voci). Era
+  vuota nove volte su dieci, e quando non lo era metteva le urgenze in una
+  stanza in fondo al corridoio. Al suo posto `Urgenze.kt` → `BandaUrgenze`: una
+  banda in cima a **qualunque** schermata, colorata per gravità (scollegato →
+  domanda in attesa → autopiloti fermi), con il gesto fatto lì (dialogo di
+  risposta, «Riprendi») senza cambiare pagina. **Regola: le urgenze si portano a
+  chi guarda, non si mettono in una scheda.**
+- `Ansi.kt`: `defaultTesto` è ora `get()` e non un valore letto una volta —
+  altrimenti il testo senza vestito restava del grigio di partenza mentre tutto
+  il resto si rivestiva con lo stile del computer.
+- ⚠️ **Rilascio 0.12.12: la race di electron-builder è scattata** (422 «Published
+  releases must have a valid tag»): release col solo exe. Recupero fatto come da
+  [[sierradeck-ambiente-build]] — sha512 dell'exe locale, `latest.yml` scritto a
+  mano, blockmap rinominato a trattini, upload, poi push + `git tag -f`.
+
+## Ancora da fare (chiesto il 28/08)
+1. **Autopiloti** (`Lavori`): «non si usa molto bene» — da ripensare.
+2. **Negozio** sul telefono: serve una famiglia di rotte `/api/negozio/*` (oggi
+   il negozio vive solo su IPC).
+3. **Account** sul telefono: idem, serve esporlo.
+4. Leggibilità della chat: continuare (colori, spaziatura, evidenza dei turni).
