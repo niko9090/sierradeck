@@ -1037,8 +1037,8 @@ if (!app.requestSingleInstanceLock()) {
           }
         },
         aggiornamento: () => aggiornamenti?.stato() ?? { fase: 'fermo' },
-        cercaAggiornamento: () => { void aggiornamenti?.cerca() },
-        scaricaAggiornamento: () => { void aggiornamenti?.scarica() },
+        cercaAggiornamento: () => { void aggiornamenti?.cerca(true) },
+        scaricaAggiornamento: () => { void aggiornamenti?.scarica(true) },
         // Installare chiude il programma con le chat aperte dentro: dal telefono
         // la pagina lo chiede due volte, come al computer.
         installaAggiornamento: () => { aggiornamenti?.installa() },

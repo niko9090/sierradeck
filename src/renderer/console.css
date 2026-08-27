@@ -3060,3 +3060,52 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   text-align: center;
   max-width: 90%;
 }
+
+/* La spia dell'aggiornamento, accanto al numero di versione.
+   Piccola e incisa come tutto il resto della fascia: deve farsi notare quando
+   c'e' qualcosa in corso, non gridare. Il colore dice cosa sta succedendo senza
+   che si legga la parola. */
+.spia-agg {
+  font-size: var(--t0);
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: var(--raggio);
+  border: 1px solid var(--incisione);
+  background: var(--chassis);
+  color: var(--testo-quieto);
+  white-space: nowrap;
+}
+.spia-agg--cerco { color: var(--ambra); border-color: color-mix(in srgb, var(--ambra) 40%, var(--incisione)); }
+.spia-agg--scarico { color: var(--ambra); border-color: color-mix(in srgb, var(--ambra) 40%, var(--incisione)); }
+.spia-agg--disponibile,
+.spia-agg--pronto {
+  color: var(--accento);
+  border-color: color-mix(in srgb, var(--accento) 45%, var(--incisione));
+  /* Pronta da installare e' l'unico stato che chiede qualcosa a te: pulsa
+     piano, quel tanto che basta perche' l'occhio ci torni. */
+  animation: spia-respiro 2.4s ease-in-out infinite;
+}
+.spia-agg--errore { color: var(--rosso); border-color: color-mix(in srgb, var(--rosso) 45%, var(--incisione)); }
+
+@keyframes spia-respiro {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* La barra dello scaricamento dentro la banda: un avanzamento si legge con la
+   coda dell'occhio, una percentuale va letta. */
+.barra-agg {
+  display: inline-block;
+  width: 120px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--incisione);
+  overflow: hidden;
+  vertical-align: middle;
+}
+.barra-agg__pieno {
+  display: block;
+  height: 100%;
+  background: var(--accento);
+  transition: width 0.3s ease;
+}

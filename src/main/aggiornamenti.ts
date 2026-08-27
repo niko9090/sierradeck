@@ -16,6 +16,15 @@ export type StatoAggiornamento = {
   fase: 'fermo' | 'cerco' | 'aggiornato' | 'disponibile' | 'scarico' | 'pronto' | 'errore'
   /** La versione che si può installare, quando ce n'è una. */
   versione?: string
+  /**
+   * Chi ha chiesto quest'azione: il computer, o un telefono accoppiato.
+   *
+   * Da un telefono si preme «Scarica» e poi si guarda il computer da
+   * lontano, o si torna alla scrivania mezz’ora dopo: senza questo, sullo
+   * schermo compare un aggiornamento in corso che nessuno lì ha chiesto, e
+   * la prima reazione è chiedersi cosa stia succedendo.
+   */
+  daTelefono?: boolean
   /** Da 0 a 100 mentre scarica. */
   percento?: number
   /** Che cosa è andato storto, se è andato storto. */
@@ -25,9 +34,9 @@ export type StatoAggiornamento = {
 export type Aggiornamenti = {
   stato: () => StatoAggiornamento
   /** Guarda se c'è qualcosa di nuovo. Non scarica niente. */
-  cerca: () => Promise<void>
+  cerca: (dalTelefono?: boolean) => Promise<void>
   /** Scarica la versione trovata. L'utente ha detto di sì. */
-  scarica: () => Promise<void>
+  scarica: (dalTelefono?: boolean) => Promise<void>
   /** Chiude il programma e installa. L'utente ha detto di sì una seconda volta. */
   installa: () => void
   /**
@@ -91,6 +100,7 @@ export function creaAggiornamenti(
   let installazioneAvviata = false
 
   const annuncia = (nuovo: StatoAggiornamento): void => {
+    if (daTelefono) nuovo = { ...nuovo, daTelefono: true }
     stato = nuovo
     for (const w of finestre()) {
       if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
@@ -163,7 +173,16 @@ export function creaAggiornamenti(
     annuncia({ fase: 'errore', errore: String(err) })
   })
 
-  const cerca = async (): Promise<void> => {
+  /**
+   * Da dove è arrivata la richiesta in corso.
+   *
+   * Si accende quando la muove un telefono e si spegne appena l'azione è
+   * finita: è un’etichetta sul lavoro in corso, non una preferenza.
+   */
+  let daTelefono = false
+
+  const cerca = async (dalTelefono = false): Promise<void> => {
+    daTelefono = dalTelefono
     if (process.env.ELECTRON_RENDERER_URL !== undefined) return
     annuncia({ ...stato, fase: 'cerco' })
     try {
@@ -183,7 +202,8 @@ export function creaAggiornamenti(
    * `impostaScaricoAutomatico` quando l'utente accende l'automatico con un
    * aggiornamento già in attesa. Due copie della stessa cosa divergerebbero.
    */
-  const avviaScaricamento = async (): Promise<void> => {
+  const avviaScaricamento = async (dalTelefono = false): Promise<void> => {
+    if (dalTelefono) daTelefono = true
     annuncia({ ...stato, fase: 'scarico', percento: 0 })
     try {
       // I percorsi dei file scaricati: servono all'updater, che e' lui a

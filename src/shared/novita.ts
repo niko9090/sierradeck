@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.16',
+    righe: [
+      '**Adesso si vede cosa sta facendo l’aggiornamento, sempre.** Accanto al numero di versione c’è una spia: «cerco…», «c’è la 0.12.17», «scarico 42%», «pronta da installare». Prima due fasi su sette non comparivano da nessuna parte — chi premeva il tasto restava a guardare uno schermo che non diceva niente.',
+      '**Se l’aggiornamento parte dal telefono, il computer lo dice.** Premi «Scarica» in tram e torni alla scrivania mezz’ora dopo: sullo schermo trovi scritto che la richiesta è arrivata dal telefono, invece di un lavoro in corso che nessuno lì ha chiesto. E lo scaricamento ha la sua barra, che si legge con la coda dell’occhio invece di una percentuale da leggere.',
+      '**Quando non riesce, lo dice.** L’errore prima era invisibile: restava tutto fermo senza un motivo. Ora c’è scritto cosa è andato storto, con il tasto per riprovare.'
+    ]
+  },
+  {
     versione: '0.12.15',
     righe: [
       '**Il telefono ti avvisa quando una chat ha finito e aspetta te.** Prima avvisava solo per gli autopiloti: una chat che finiva di scrivere non lo diceva a nessuno. Ora il computer dice anche questo, e l’app lo annuncia — una volta sola, al momento in cui succede. Le chat governate da un autopilota tacciono: è lui a parlare per loro.',

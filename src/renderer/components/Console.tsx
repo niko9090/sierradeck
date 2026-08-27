@@ -42,6 +42,15 @@ type Props = {
   onApriNovita: () => void
   /** Tutti i workspace: stanno nella fascia, non dietro un menu. */
   workspaceNomi: string[]
+  /**
+   * Com'è messo l'aggiornamento del programma, adesso.
+   *
+   * Sta qui e non solo nella banda in fondo perché l'aggiornamento può
+   * partire **da un telefono**: chi torna alla scrivania trova il programma
+   * che sta facendo qualcosa e non ha modo di sapere cosa. Una spia accanto
+   * al numero di versione è il posto dove l’occhio va già a cercare.
+   */
+  aggiornamento?: { fase: string; versione?: string; percento?: number; daTelefono?: boolean }
   /** I LED degli autopiloti: uno per autopilota, nell'ordine dell'elenco. */
   ledAutopiloti: { id: string; classe: string; titolo: string }[]
 }
@@ -63,6 +72,7 @@ export function Console({
   workspaceAttivo,
   workspaceNomi,
   ledAutopiloti,
+  aggiornamento,
   onStatoWorkspace,
   workspaceCheChiamano,
   onApriNovita
@@ -240,6 +250,21 @@ export function Console({
         >
           v{versione}
         </button>
+        {/* Cosa sta facendo l’aggiornamento, in due parole. Assente quando
+            non c’è niente da dire: una spia che è sempre accesa non è una
+            spia, è decorazione. */}
+        {spiaAggiornamento(aggiornamento) !== undefined ? (
+          <span
+            className={`spia-agg spia-agg--${aggiornamento?.fase ?? "fermo"}`}
+            title={
+              aggiornamento?.daTelefono === true
+                ? 'Richiesto da un telefono accoppiato'
+                : 'Aggiornamento del programma'
+            }
+          >
+            {spiaAggiornamento(aggiornamento)}
+          </span>
+        ) : null}
         <button
           className="tasto tasto--icona"
           onClick={() => void window.gestore.aggiornamenti.cerca()}
@@ -295,4 +320,31 @@ export function Console({
     </div>
     </>
   )
+}
+
+
+/**
+ * Cosa dice la spia, o niente.
+ *
+ * Le fasi tranquille — non sto facendo nulla, sei aggiornato — non hanno
+ * bisogno di occupare spazio: la spia esiste per i momenti in cui **sta
+ * succedendo qualcosa**, e se restasse accesa sempre smetteresti di vederla.
+ */
+function spiaAggiornamento(
+  a?: { fase: string; versione?: string; percento?: number }
+): string | undefined {
+  switch (a?.fase) {
+    case 'cerco':
+      return 'cerco…'
+    case 'disponibile':
+      return `c'è la ${a.versione ?? 'nuova'}`
+    case 'scarico':
+      return `scarico ${a.percento ?? 0}%`
+    case 'pronto':
+      return 'pronta da installare'
+    case 'errore':
+      return 'non riuscito'
+    default:
+      return undefined
+  }
 }

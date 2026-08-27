@@ -907,6 +907,7 @@ export function App(): React.JSX.Element {
             .then((v) => setNovita({ versione: v, righe: novitaDi(v)?.righe ?? [] }))
             .catch(() => undefined)
         }}
+            aggiornamento={aggiornamento}
         ledAutopiloti={autopiloti.map((a) => ({ id: a.id, ...ledDi(a) }))}
       />
 
@@ -918,18 +919,44 @@ export function App(): React.JSX.Element {
           <span>SierraDeck è già aggiornato.</span>
         </div>
       ) : null}
+      {/* «Sto cercando» e «è andata male» prima non si vedevano: cadevano
+          fuori da questa condizione insieme a «non c’è niente», e chi aveva
+          appena premuto il tasto — qui o dal telefono — restava a guardare
+          uno schermo che non diceva nulla. */}
+      {aggiornamento.fase === 'cerco' ? (
+        <div className="avviso avviso--aggiornamento">
+          <span className="led led--attesa" />
+          <span>
+            Sto guardando se c’è una versione nuova…
+            {aggiornamento.daTelefono === true ? ' (chiesto dal telefono)' : ''}
+          </span>
+        </div>
+      ) : null}
+      {aggiornamento.fase === 'errore' ? (
+        <div className="avviso avviso--aggiornamento">
+          <span className="led led--fermo" />
+          <span>L’aggiornamento non è riuscito: {aggiornamento.errore ?? "motivo sconosciuto"}</span>
+          <span style={{ flex: 1 }} />
+          <button className="tasto" onClick={() => void window.gestore.aggiornamenti.cerca()}>
+            Riprova
+          </button>
+        </div>
+      ) : null}
       {aggiornamento.fase === 'disponibile' || aggiornamento.fase === 'scarico' || aggiornamento.fase === 'pronto' ? (
         <div className="avviso avviso--aggiornamento">
           <span className="led led--lavoro" />
+          {/* Chi ha chiesto: da un telefono si preme «Scarica» e poi si torna
+              alla scrivania mezz’ora dopo. Senza dirlo, sullo schermo compare
+              un aggiornamento che nessuno lì ha chiesto. */}
+          {aggiornamento.daTelefono === true ? (
+            <span className="serigrafia" title="La richiesta è arrivata da un dispositivo accoppiato">dal telefono</span>
+          ) : null}
           {aggiornamento.fase === 'disponibile' ? (
             <>
               <span>
                 C’è una versione nuova ({aggiornamento.versione}).
                 {scaricaAuto ? ' La sto scaricando…' : ''}
               </span>
-              {/* Il tasto solo in manuale: con lo scaricamento automatico è già
-                  partito da solo, e un «Scarica» che non fa partire niente
-                  confonde. L'interruttore è in Impostazioni → Comportamento. */}
               {!scaricaAuto ? (
                 <button className="tasto" onClick={() => void window.gestore.aggiornamenti.scarica()}>
                   Scarica
@@ -937,7 +964,14 @@ export function App(): React.JSX.Element {
               ) : null}
             </>
           ) : aggiornamento.fase === 'scarico' ? (
-            <span>Scarico la versione {aggiornamento.versione}… {aggiornamento.percento ?? 0}%</span>
+            <>
+              <span>Scarico la versione {aggiornamento.versione}… {aggiornamento.percento ?? 0}%</span>
+              {/* La barra, non solo il numero: un avanzamento si legge con
+                  la coda dell’occhio, una percentuale va letta. */}
+              <span className="barra-agg">
+                <span className="barra-agg__pieno" style={{ width: `${aggiornamento.percento ?? 0}%` }} />
+              </span>
+            </>
           ) : (
             <>
               <span>
