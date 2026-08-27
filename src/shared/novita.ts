@@ -23,6 +23,15 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.11',
+    righe: [
+      '**Le chat sono tornate a colori.** Erano diventate tutte grigie: il programma, quando lo si avviava da dentro un terminale di Claude Code, si portava dietro il divieto di colorare di quel terminale e lo passava a ogni chat. Adesso non lo eredita più, e dichiara quello che il suo terminale sa davvero fare — i 256 colori e il colore pieno. Nello stesso giro non finiscono più dentro le chat il canale privato e il gettone della sessione che aveva avviato il programma.',
+      '**Dal telefono la chat si legge davvero.** Prima arrivava a pezzi sovrapposti, con parole bucate e testo vecchio incollato al nuovo: il computer spezzava alle righe un flusso che invece è un disegno, e Claude Code si riscrive in posizione. Ora il telefono riceve lo **schermo come lo vedi tu**, letto dal riquadro che hai davanti — stesse righe, stessi colori, niente da rimettere insieme. E se ne vede di più: ventiquattro righe invece di quattordici.',
+      '**Un messaggio scritto dal telefono adesso parte.** Arrivava nel campo della chat, andava a capo e restava lì: testo e invio viaggiavano in un blocco solo, e Claude Code lo leggeva come un incollato — dove un a capo è una riga nuova, non un invio. Ora l’invio è un tasto premuto dopo, come lo premeresti tu.',
+      '**C’è l’app Android nuova, ed è un’app vera.** Non più una pagina dentro un guscio: quattro schermate native — Adesso, Chat, Lavori, Computer — che indossano l’accento e il chiarore scelti sul computer. Si aggiorna da sola, e quando qualcosa va storto adesso te lo dice invece di sparire in silenzio. La prima volta va installata a mano: la trovi dal telefono aprendo l’indirizzo del computer.'
+    ]
+  },
+  {
     versione: '0.12.10',
     righe: [
       '**Le tre impostazioni che non facevano niente adesso fanno quello che dicono.** «Dove mostrare l’autopilota» sposta davvero il diario — a destra, a sinistra, sopra o sotto — e il solco che lo ridimensiona cambia lato e verso insieme a lui. «Mostra l’avanzamento mentre una chat lunga si apre» adesso lo mostra: al posto del riquadro nero c’è una barra che dice quanto pesa la conversazione che sta rileggendo. «Porta degli autopiloti» arriva finalmente al servizio, che è un programma a parte e prima non la vedeva.',
