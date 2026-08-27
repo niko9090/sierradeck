@@ -37,18 +37,38 @@ private val base16 = arrayOf(
     Color(0xFFFFFFFF)  // 15 bianco acceso
 )
 
-/** Un colore della tavolozza xterm a 256, ricavato dal numero. */
-private fun colore256(n: Int): Color = when {
-    n < 16 -> base16[n]
-    n in 16..231 -> {
-        val c = n - 16
-        val r = c / 36; val g = (c % 36) / 6; val b = c % 6
-        fun v(x: Int) = if (x == 0) 0 else 55 + x * 40
-        Color(v(r), v(g), v(b))
-    }
-    else -> {
-        val g = 8 + (n - 232) * 10
-        Color(g, g, g)
+/**
+ * Un canale di colore, riportato dentro i suoi argini.
+ *
+ * `Color(r, g, b)` accetta 0..255 e **solleva** su tutto il resto. I numeri qui
+ * dentro non li scriviamo noi: arrivano dal flusso di un terminale, dove una
+ * sequenza troncata o malformata produce numeri qualunque. Un `38;2;300;10;10`
+ * bastava a chiudere l'app mentre si guardava una chat.
+ */
+private fun canale(x: Int): Int = x.coerceIn(0, 255)
+
+/**
+ * Un colore della tavolozza xterm a 256, ricavato dal numero.
+ *
+ * Il numero si riporta prima in 0..255: fuori di lì non è un colore della
+ * tavolozza, è spazzatura arrivata dalla rete. `n` negativo cercava una casella
+ * prima dell'inizio dell'elenco, e `38;5;999` calcolava un grigio da 7678 — due
+ * modi diversi di far cadere la stessa riga.
+ */
+private fun colore256(grezzo: Int): Color {
+    val n = grezzo.coerceIn(0, 255)
+    return when {
+        n < 16 -> base16[n]
+        n in 16..231 -> {
+            val c = n - 16
+            val r = c / 36; val g = (c % 36) / 6; val b = c % 6
+            fun v(x: Int) = if (x == 0) 0 else 55 + x * 40
+            Color(v(r), v(g), v(b))
+        }
+        else -> {
+            val g = 8 + (n - 232) * 10
+            Color(canale(g), canale(g), canale(g))
+        }
     }
 }
 
@@ -69,7 +89,9 @@ private fun applica(stile: SpanStyle, codici: List<Int>): SpanStyle {
                     5 -> { codici.getOrNull(i + 2)?.let { s = s.copy(color = colore256(it)) }; i += 2 }
                     2 -> {
                         val r = codici.getOrNull(i + 2); val g = codici.getOrNull(i + 3); val b = codici.getOrNull(i + 4)
-                        if (r != null && g != null && b != null) s = s.copy(color = Color(r, g, b))
+                        if (r != null && g != null && b != null) {
+                            s = s.copy(color = Color(canale(r), canale(g), canale(b)))
+                        }
                         i += 4
                     }
                 }
@@ -81,7 +103,41 @@ private fun applica(stile: SpanStyle, codici: List<Int>): SpanStyle {
     return s
 }
 
-fun ansiAnnotato(riga: String): AnnotatedString {
+/**
+ * La riga vestita, e in nessun caso un'app che si chiude.
+ *
+ * L'interpretazione dei codici lavora su testo che arriva dalla rete: qualunque
+ * cosa le sfugga qui dentro diventerebbe un'app che sparisce mentre stai
+ * leggendo una chat, senza una parola. Una riga che non si sa vestire si mostra
+ * nuda — si perde il colore di una riga, non la conversazione.
+ */
+fun ansiAnnotato(riga: String): AnnotatedString =
+    try {
+        vestiRiga(riga)
+    } catch (e: Exception) {
+        AnnotatedString(senzaSequenze(riga))
+    }
+
+/** Toglie i comandi e lascia il testo: si usa quando si rinuncia a vestire. */
+private fun senzaSequenze(riga: String): String {
+    val fuori = StringBuilder()
+    var i = 0
+    while (i < riga.length) {
+        if (riga[i] == Char(27)) {
+            // Si salta fino alla lettera che chiude il comando, compresa.
+            var j = i + 1
+            if (j < riga.length && riga[j] == Char(91)) j += 1
+            while (j < riga.length && !riga[j].isLetter()) j += 1
+            i = if (j < riga.length) j + 1 else riga.length
+        } else {
+            fuori.append(riga[i])
+            i += 1
+        }
+    }
+    return fuori.toString()
+}
+
+private fun vestiRiga(riga: String): AnnotatedString {
     val b = AnnotatedString.Builder()
     var stile = SpanStyle(color = defaultTesto)
     val esc = ''

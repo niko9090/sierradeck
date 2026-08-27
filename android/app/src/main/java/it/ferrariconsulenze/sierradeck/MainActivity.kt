@@ -57,6 +57,17 @@ class MainActivity : ComponentActivity() {
 
                 App(deposito = deposito, scansionaQr = ::scansionaQr)
 
+                // La nota dell'ultima caduta. La si scriveva gia' e non la
+                // leggeva nessuno: l'app spariva, e al riavvio non restava una
+                // parola. Adesso si vede, si copia, e si archivia.
+                var guasto by remember { mutableStateOf(Guasti.ultimo(applicationContext)) }
+                guasto?.let { nota ->
+                    DialogoGuasto(nota = nota) {
+                        Guasti.dimentica(applicationContext)
+                        guasto = null
+                    }
+                }
+
                 aggiornamento?.let { (nome, apk) ->
                     DialogoAggiornamentoApp(
                         nome = nome,
