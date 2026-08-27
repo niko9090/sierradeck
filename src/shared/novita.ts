@@ -23,6 +23,15 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.10',
+    righe: [
+      '**Le tre impostazioni che non facevano niente adesso fanno quello che dicono.** «Dove mostrare l’autopilota» sposta davvero il diario — a destra, a sinistra, sopra o sotto — e il solco che lo ridimensiona cambia lato e verso insieme a lui. «Mostra l’avanzamento mentre una chat lunga si apre» adesso lo mostra: al posto del riquadro nero c’è una barra che dice quanto pesa la conversazione che sta rileggendo. «Porta degli autopiloti» arriva finalmente al servizio, che è un programma a parte e prima non la vedeva.',
+      '**Spostare una chat in un altro workspace non lascia più un processo acceso.** Il suo claude.exe restava vivo e senza padrone: invisibile in ogni finestra, e nessun pulsante poteva chiuderlo. Uno per spostamento. Nello stesso giro: la chat spostata **non perde più il modello** che le avevi scelto, e una che dormiva non si risveglia da sola.',
+      '**Gli autopiloti a più chat non si strozzano più.** Se una chat non riusciva a partire, restava registrata come «al lavoro» pur non girando — e teneva quel posto per sempre: tre avvii falliti e l’autopilota non apriva più niente, vivo e fermo. Ora il posto si libera e il compito torna in coda. In più il conto dei giri non torna più indietro e il diario non perde più quello che ha deciso l’altra chat.',
+      '**Due file che si potevano rompere restando a metà** — dove stavano le finestre e le schede del quaderno — ora si scrivono per intero o non si scrivono. Quello delle finestre si salva proprio alla chiusura, cioè nel momento in cui un’interruzione è più probabile.'
+    ]
+  },
+  {
     versione: '0.12.9',
     righe: [
       '**I workspace non perdono piu’ le chat.** Creando o cambiando workspace, il programma salvava la disposizione **sotto il nome sbagliato**: quello che si stava lasciando veniva svuotato, oppure si ritrovava dentro le chat dell’altro — e quelle sparivano di la’. Nella stessa sessione il danno restava nascosto (le chat aperte continuavano a vedersi), e riaprendo il programma non c’erano piu’. Adesso il workspace in primo piano viene dichiarato **prima** che la disposizione nuova arrivi a schermo, e il salvataggio finisce sempre dove deve.',
