@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { spostaRiquadro, type SpostamentoDeps } from '../../src/renderer/spostamento'
+import { spostaRiquadro, spostaInWorkspace, type SpostamentoDeps } from '../../src/renderer/spostamento'
 import type { PaneSalvato } from '@shared/workspace'
 
 const PANE: PaneSalvato = {
@@ -51,5 +51,74 @@ describe('spostaRiquadro', () => {
     const a = ambiente({ staccato: undefined })
     await spostaRiquadro(a.deps, 'sparito', 7)
     expect(a.chiamate).toEqual(['stacca:sparito'])
+  })
+})
+
+describe('spostaInWorkspace', () => {
+  function ambiente(opts: { ptyId?: string; fallisce?: boolean } = {}) {
+    const fatti: string[] = []
+    const pane: PaneSalvato = {
+      id: 'p1',
+      sessionUuid: 'u1',
+      cwd: 'C:\p',
+      title: 'chat',
+      ...(opts.ptyId !== undefined ? { ptyId: opts.ptyId } : {})
+    }
+    const deps = {
+      stacca: (id: string) => {
+        fatti.push(`stacca:${id}`)
+        return pane
+      },
+      consegna: (dove: string, p: PaneSalvato) => {
+        fatti.push(`consegna:${dove}:${p.id}`)
+        return opts.fallisce === true
+          ? Promise.reject(new Error('destinazione inesistente'))
+          : Promise.resolve(true)
+      },
+      ricorda: (dove: string) => { fatti.push(`ricorda:${dove}`) },
+      chiudiTerminale: (ptyId: string) => { fatti.push(`chiudi:${ptyId}`) },
+      dimentica: (id: string) => { fatti.push(`dimentica:${id}`) },
+      accogli: (p: PaneSalvato) => { fatti.push(`accogli:${p.id}`) },
+      segnala: () => { fatti.push('segnala') }
+    }
+    return { deps, fatti, pane }
+  }
+
+  it('chiude il terminale della chat spostata: senza, resta un claude.exe senza padrone', async () => {
+    // `staccaPane` mette il riquadro fra i «ceduti», che dicono al Terminal di
+    // staccare invece di chiudere: giusto verso un'altra finestra, dove qualcuno
+    // riprende subito il pty; qui non lo riprende nessuno, perche' a
+    // destinazione il riquadro arriva senza ptyId e ripartira' con --resume.
+    const a = ambiente({ ptyId: 'pty-1' })
+    await spostaInWorkspace(a.deps, 'p1', 'Altro')
+    expect(a.fatti).toEqual([
+      'stacca:p1',
+      'consegna:Altro:p1',
+      'ricorda:Altro',
+      'chiudi:pty-1',
+      'dimentica:p1'
+    ])
+  })
+
+  it('chiude dopo la consegna, non prima', async () => {
+    // Chiudendo prima, un fallimento lascerebbe la chat al suo posto ma morta.
+    const a = ambiente({ ptyId: 'pty-1' })
+    await spostaInWorkspace(a.deps, 'p1', 'Altro')
+    expect(a.fatti.indexOf('chiudi:pty-1')).toBeGreaterThan(a.fatti.indexOf('consegna:Altro:p1'))
+  })
+
+  it('se la consegna fallisce rimette la chat dov era, terminale compreso', async () => {
+    const a = ambiente({ ptyId: 'pty-1', fallisce: true })
+    await spostaInWorkspace(a.deps, 'p1', 'Altro')
+    expect(a.fatti).toEqual(['stacca:p1', 'consegna:Altro:p1', 'accogli:p1', 'segnala'])
+    expect(a.fatti).not.toContain('chiudi:pty-1')
+  })
+
+  it('una chat senza terminale acceso non fa chiudere niente', async () => {
+    // Un ptyId che non c'e' manderebbe al Core un id inesistente.
+    const a = ambiente()
+    await spostaInWorkspace(a.deps, 'p1', 'Altro')
+    expect(a.fatti.some((f) => f.startsWith('chiudi:'))).toBe(false)
+    expect(a.fatti).toContain('dimentica:p1')
   })
 })

@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
 
 /**
@@ -103,11 +104,13 @@ export function apriFinestreStore(cartellaDati: string): FinestreStore {
       // La più recente davanti, e una sola volta per monitor: due finestre
       // chiuse sullo stesso monitor non devono occuparne due posti in memoria.
       const prima = tutte().filter((x) => x.chiave !== g.chiave)
-      try {
-        writeFileSync(file, JSON.stringify({ finestre: [g, ...prima].slice(0, QUANTE) }, null, 2))
-      } catch (err) {
-        console.error('[finestre] non ho potuto ricordare dov era la finestra:', err)
-      }
+      // Atomica come ogni altro file dei dati. Questo scriveva diretto, ed era
+      // l'ultimo rimasto insieme al quaderno: una chiusura brutale a metà
+      // scrittura — ed è **proprio alla chiusura** che questo file si scrive —
+      // lasciava un JSON troncato, che alla riapertura vale come «non so dove
+      // stavano le finestre». Il temporaneo porta un nome diverso a ogni giro,
+      // così due finestre che si chiudono insieme non se lo contendono.
+      scriviJsonAtomico(file, { finestre: [g, ...prima].slice(0, QUANTE) }, 'finestre')
     }
   }
 }

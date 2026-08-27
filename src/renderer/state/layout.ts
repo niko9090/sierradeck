@@ -404,6 +404,13 @@ export const useLayoutStore = create<State>((set, get) => ({
       cwd: p.cwd,
       title: p.title,
       ...(p.ptyId !== undefined ? { ptyId: p.ptyId } : {}),
+      // Il modello segue la chat. Senza, spostarla la riportava al predefinito
+      // dell'account: la scelta fatta all'apertura si perdeva nel tragitto, ed
+      // e' lo stesso difetto gia' chiuso per il riavvio, qui rimasto aperto.
+      ...(p.model !== undefined ? { model: p.model } : {}),
+      // E chi dormiva continua a dormire: una chat ibernata che si risveglia da
+      // sola perche' l'hai spostata accende un claude.exe che non avevi chiesto.
+      ...(p.ibernata === true ? { ibernata: true } : {}),
       // Spostare una chat non la toglie al suo autopilota: e' lo stesso
       // lavoro, guardato da un'altra finestra.
       ...(p.autopilota !== undefined ? { autopilota: p.autopilota } : {})

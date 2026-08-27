@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join, resolve } from 'node:path'
 import {
   CARTELLA_QUADERNO, SOTTOCARTELLA, componiScheda, leggiScheda, nomeFile, ordinaSchede,
@@ -80,7 +81,18 @@ export function apriQuaderno(adesso: () => string = () => new Date().toISOString
         ...(s.sessione !== undefined ? { sessione: s.sessione } : {}),
         corpo: s.corpo
       }
-      writeFileSync(percorsoDi(cwd, file), componiScheda(scheda), 'utf8')
+      // Atomica: una scheda del quaderno è scritta a mano e nessuna sorgente la
+      // rigenera. Una scrittura interrotta a metà — corrente che va via, disco
+      // pieno — lasciava un file troncato **al posto** di quello di prima: la
+      // versione precedente non c'era più e la nuova era monca.
+      //
+      // `scriviAtomico` non solleva mai (chi la chiama di solito è dentro un
+      // canale a senso unico), ma qui il chiamante è un `invoke` che aspetta una
+      // risposta: se il salvataggio non è riuscito deve saperlo, o crederebbe
+      // salvata una scheda che non c'è.
+      if (!scriviAtomico(percorsoDi(cwd, file), componiScheda(scheda), 'quaderno')) {
+        throw new Error(`non sono riuscito a salvare la scheda «${scheda.titolo}»`)
+      }
       return scheda
     },
 

@@ -40,3 +40,71 @@ export async function spostaRiquadro(
     deps.segnala(err)
   }
 }
+
+export type VersoWorkspaceDeps = {
+  /** Toglie il riquadro da questa finestra senza chiuderne il terminale. */
+  stacca: (paneId: string) => PaneSalvato | undefined
+  /** Lo scrive nel workspace di destinazione, che nessuna finestra sta mostrando. */
+  consegna: (nome: string, pane: PaneSalvato) => Promise<boolean>
+  /**
+   * Lo aggiunge alla memoria di questa finestra, se quel workspace ce l'ha.
+   *
+   * La memoria vince sul disco: una copia che non sapesse dell'arrivo, al
+   * ritorno, rimetterebbe a schermo la versione di prima — senza la chat — e il
+   * primo salvataggio la cancellerebbe anche dal file.
+   */
+  ricorda: (nome: string, pane: PaneSalvato) => void
+  /** Chiude il terminale della chat spostata. */
+  chiudiTerminale: (ptyId: string) => void
+  /** Toglie il riquadro dai «ceduti» e dall'albero. */
+  dimentica: (paneId: string) => void
+  /** Rimette il riquadro dov'era. */
+  accogli: (pane: PaneSalvato) => void
+  segnala: (err: unknown) => void
+}
+
+/**
+ * Manda una chat in un workspace che nessuna finestra sta mostrando.
+ *
+ * È il gemello di `spostaRiquadro`, e differisce in un punto solo — ma è il
+ * punto che conta: **qui il terminale si chiude**. Verso un'altra finestra la
+ * chat resta viva e cambia solo chi la disegna; verso un altro workspace esce di
+ * scena, e a destinazione il riquadro arriva senza `ptyId` (`aggiungiPaneA` lo
+ * toglie apposta, perché un riquadro che punta a un pty di un'altra finestra
+ * all'apertura non trova niente). Riprenderà con `--resume`, come ogni chat che
+ * torna da un cambio di workspace.
+ *
+ * Finché quel `kill` non c'era, `staccaPane` metteva il riquadro fra i `ceduti`
+ * — che dicono al `Terminal` di *staccare* invece di chiudere — e nessuno
+ * chiudeva più quel processo: un `claude.exe` acceso e senza padrone per ogni
+ * chat spostata, invisibile in ogni finestra e non chiudibile da nessun
+ * pulsante. È l'orfano che il resto del progetto lavora per non produrre.
+ *
+ * L'ordine è tutto, ed è la ragione per cui questa funzione sta fuori dal
+ * componente: si chiude **dopo** che la consegna è riuscita. Chiudendo prima, un
+ * fallimento lascerebbe la chat al suo posto ma morta, e chi la riprende non
+ * capirebbe perché.
+ */
+export async function spostaInWorkspace(
+  deps: VersoWorkspaceDeps,
+  paneId: string,
+  nome: string
+): Promise<void> {
+  const dati = deps.stacca(paneId)
+  if (dati === undefined) return
+
+  try {
+    await deps.consegna(nome, dati)
+  } catch (err) {
+    // Se non è arrivata a destinazione deve restare dov'era, terminale
+    // compreso: staccarla e ucciderla vorrebbe dire perderla da tutt'e due le
+    // parti.
+    deps.accogli(dati)
+    deps.segnala(err)
+    return
+  }
+
+  deps.ricorda(nome, dati)
+  if (dati.ptyId !== undefined) deps.chiudiTerminale(dati.ptyId)
+  deps.dimentica(paneId)
+}

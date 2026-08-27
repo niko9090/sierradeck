@@ -3,7 +3,7 @@ import type { LayoutNode } from '@shared/layout-tree'
 import { computeGeometry } from '@shared/layout-geometry'
 import type { DividerBox } from '@shared/layout-geometry'
 import { useLayoutStore } from '../state/layout'
-import { spostaRiquadro } from '../spostamento'
+import { spostaRiquadro, spostaInWorkspace } from '../spostamento'
 import { memoriaWorkspace } from '../memoria-workspace'
 import { Terminal } from './Terminal'
 import { DiarioAutopilota } from './DiarioAutopilota'
@@ -31,7 +31,6 @@ function ComandoSposta({ paneId }: { paneId: string }): React.JSX.Element {
   const [workspace, setWorkspace] = useState<{ nomi: string[]; attivo: string } | undefined>(undefined)
   const [errore, setErrore] = useState<string | undefined>(undefined)
   const chiudiPane = useLayoutStore((s) => s.closePane)
-  const staccaPane = useLayoutStore((s) => s.staccaPane)
 
   const carica = (): void => {
     window.gestore.finestre
@@ -62,25 +61,30 @@ function ComandoSposta({ paneId }: { paneId: string }): React.JSX.Element {
    * l'utente conosce già.
    */
   const versoWorkspace = (nome: string): void => {
-    const pane = staccaPane(paneId)
-    if (pane === undefined) return
-    window.gestore.workspace
-      .spostaChat(nome, pane)
-      .then(() => {
-        // **Anche alla memoria.** Il Core l'ha scritta sul disco, ma tornando
-        // in quel workspace vince la copia che questa finestra tiene viva — e
-        // quella non sa dello spostamento. Senza questa riga la chat spariva al
-        // ritorno, e il primo salvataggio la cancellava anche dal file: non
-        // «spostata male», proprio persa.
-        memoriaWorkspace().aggiungi(nome, pane)
-        chiudiPane(paneId)
-      })
-      .catch((err: unknown) => {
-        // Se non è arrivata a destinazione deve restare dov'era: staccarla e
-        // basta vorrebbe dire farla sparire da tutt'e due le parti.
-        useLayoutStore.getState().accogliPane(pane)
-        setErrore(String(err))
-      })
+    setErrore(undefined)
+    void spostaInWorkspace(
+      {
+        stacca: (id) => useLayoutStore.getState().staccaPane(id),
+        consegna: (dove, pane) => window.gestore.workspace.spostaChat(dove, pane),
+        // La memoria vince sul disco: una copia che non sapesse dell'arrivo, al
+        // ritorno in quel workspace, rimetterebbe a schermo la versione di prima
+        // — senza la chat — e il primo salvataggio la cancellerebbe anche dal
+        // file. Non «spostata male»: proprio persa.
+        ricorda: (dove, pane) => memoriaWorkspace().aggiungi(dove, pane),
+        chiudiTerminale: (ptyId) => window.gestore.pty.kill(ptyId),
+        dimentica: (id) => {
+          // Fuori dai «ceduti» e fuori dall'albero: il riquadro non torna, e
+          // lasciarlo fra i ceduti farebbe crescere quell'insieme di una voce
+          // per spostamento, per tutta la sessione.
+          useLayoutStore.getState().dimenticaCeduti([id])
+          chiudiPane(id)
+        },
+        accogli: (pane) => useLayoutStore.getState().accogliPane(pane),
+        segnala: (err) => setErrore(String(err))
+      },
+      paneId,
+      nome
+    )
   }
 
   const sposta = (finestraId: number): void => {
