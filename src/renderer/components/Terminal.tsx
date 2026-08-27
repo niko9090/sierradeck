@@ -8,6 +8,7 @@ import { decidiAzioneAppunti } from '../appunti'
 import { useLayoutStore } from '../state/layout'
 import { useSessionStore } from '../state/sessions'
 import { attesaPrevistaMs, avanzamento, descriviAttesa } from '../attesa-chat'
+import { registraSchermo, dimenticaSchermo } from '../schermo-terminale'
 import { mostraAttesa } from '../preferenze-vive'
 
 type Props = {
@@ -127,7 +128,14 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
         if (testo !== '') finitaAttesa.current(undefined)
         term.write(testo)
       },
-      annunciaId: (id) => avvio.current.onPtyId(paneId, id)
+      annunciaId: (id) => {
+        // Chi guarda da lontano legge lo **schermo disegnato**, non il flusso:
+        // un'interfaccia a tutto schermo si ridisegna in posizione, e rimetterne
+        // insieme i pezzi in fila dava le scritte mischiate che si vedevano dal
+        // telefono. La griglia di xterm quel lavoro l'ha gia' fatto.
+        registraSchermo(id, () => term.buffer.active, () => term.rows)
+        avvio.current.onPtyId(paneId, id)
+      }
     })
 
     aggancio.avvia()
@@ -188,6 +196,11 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
       // continuare a vivere invece di essere uccisa un istante dopo la cessione.
       if (useLayoutStore.getState().ceduti.has(paneId)) aggancio.stacca()
       else aggancio.chiudi()
+      // Prima di `dispose`: leggere la griglia di un terminale smontato non ha
+      // senso, e continuare a offrirla mostrerebbe al telefono una chat che qui
+      // non c'e' piu'.
+      const idVivo = useLayoutStore.getState().panes[paneId]?.ptyId
+      if (idVivo !== undefined) dimenticaSchermo(idVivo)
       term.dispose()
     }
   }, [paneId])

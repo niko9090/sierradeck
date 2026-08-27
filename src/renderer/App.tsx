@@ -42,6 +42,28 @@ import { SchermataAccesso } from './components/SchermataAccesso'
 import { utenteCorrente, suCambioAccesso } from './accesso-supabase'
 import { Serratura } from './components/Serratura'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
+import { righeDiPty } from './schermo-terminale'
+
+/**
+ * Quante righe dello schermo vanno al telefono.
+ *
+ * Piu' delle quattordici che si tenevano prima, e non e' un capriccio: quelle
+ * erano righe **accumulate** dal flusso, quindi in buona parte ridisegni della
+ * stessa cosa. Queste sono righe di schermo vero, ognuna diversa dall'altra, e
+ * ci sta dentro il riquadro di Claude Code per intero invece che tagliato a
+ * meta'.
+ */
+const RIGHE_PER_IL_TELEFONO = 24
+
+/**
+ * Quanto si aspetta, fra il testo e l'invio, per un messaggio venuto da fuori.
+ *
+ * Serve a far arrivare le due cose in blocchi distinti: e' la distanza che
+ * distingue «ho incollato del testo che contiene un a capo» da «ho scritto e
+ * poi ho premuto invio». Abbondante di proposito — nessuno sta a guardare il
+ * decimo di secondo, e un invio perso costa un messaggio che non parte.
+ */
+const PAUSA_PRIMA_DELL_INVIO_MS = 150
 
 /**
  * Ogni quanto si chiede lo stato degli autopiloti.
@@ -236,13 +258,23 @@ export function App(): React.JSX.Element {
           // istruzioni di un autopilota, e il telefono per guardarci dentro.
           sessione: p.sessionUuid,
           ...(p.ptyId !== undefined
-            ? {
-                ultimaRiga: righe.current.di(p.ptyId),
-                coda: righe.current.codaDi(p.ptyId),
-                // Le stesse righe com'erano: e' il telefono a rimetterci i
-                // colori, e senza queste li' si legge un terminale sbiancato.
-                codaGrezza: righe.current.codaGrezzaDi(p.ptyId)
-              }
+            ? (() => {
+                // Prima si prova a leggere lo **schermo disegnato**: Claude Code
+                // e' un'interfaccia a tutto schermo, si riscrive in posizione, e
+                // rimettere in fila i pezzi del flusso dava dal telefono le
+                // scritte mischiate — riscritture diventate righe nuove, e testo
+                // vecchio incollato al nuovo dove c'era un ritorno a capo da solo.
+                // Se il riquadro non c'e' (chat appena ceduta, terminale che sta
+                // nascendo) si torna al modo di prima invece di mostrare il vuoto.
+                const schermo = righeDiPty(p.ptyId, RIGHE_PER_IL_TELEFONO)
+                return {
+                  ultimaRiga: righe.current.di(p.ptyId),
+                  coda: schermo?.pulite ?? righe.current.codaDi(p.ptyId),
+                  // Le stesse righe vestite: e' il telefono a rimetterci i
+                  // colori, e senza queste li' si legge un terminale sbiancato.
+                  codaGrezza: schermo?.grezze ?? righe.current.codaGrezzaDi(p.ptyId)
+                }
+              })()
             : {})
         }))
       )
@@ -346,9 +378,18 @@ export function App(): React.JSX.Element {
     // solo questa finestra sa quale.
     const riquadro = useLayoutStore.getState().panes[chat]
     if (riquadro?.ptyId === undefined) return
-    // Con l'a capo in fondo: dal telefono si scrive per far ripartire il
-    // lavoro, e un testo che resta nel campo senza essere inviato non lo fa.
-    window.gestore.pty.write(riquadro.ptyId, testo + String.fromCharCode(13))
+    // Il testo e l'invio **separati**, con una pausa in mezzo.
+    //
+    // Mandandoli insieme, Claude Code li riceve in un solo blocco e li legge per
+    // quello che sembrano: del testo incollato che finisce con un a capo. Un a
+    // capo dentro un incollato non e' un invio — e' una riga nuova — quindi il
+    // messaggio arrivava nel campo, andava a capo, e restava li' senza partire.
+    // E' lo stesso motivo per cui gli appunti passano da `term.paste`.
+    // Separandoli, l'invio e' un tasto premuto dopo, come lo premerebbe una
+    // persona.
+    const idPty = riquadro.ptyId
+    window.gestore.pty.write(idPty, testo)
+    setTimeout(() => window.gestore.pty.write(idPty, String.fromCharCode(13)), PAUSA_PRIMA_DELL_INVIO_MS)
   }), [])
 
   useEffect(() => window.gestore.client.suWorkspace((nome) => {
