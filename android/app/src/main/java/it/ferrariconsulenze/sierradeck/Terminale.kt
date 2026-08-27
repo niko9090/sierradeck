@@ -114,6 +114,7 @@ fun VistaTerminale(
     dimensione: Int,
     piuSopra: Boolean = false,
     caricando: Boolean = false,
+    guasto: String? = null,
     onPiuSopra: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -136,13 +137,21 @@ fun VistaTerminale(
                 .then(if (modo == ModoTerminale.GRIGLIA) Modifier.horizontalScroll(hscroll) else Modifier)
                 .padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
+            if (guasto != null && grezze.isNotEmpty()) {
+                Text(
+                    guasto,
+                    color = Banco.ambra,
+                    fontSize = 11.sp,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                )
+            }
             if (piuSopra) {
                 TastoRisali(caricando = caricando, onClick = onPiuSopra)
                 Box(Modifier.height(10.dp))
             }
             if (modo == ModoTerminale.ADATTA) {
                 val righe = righeAdattate(grezze)
-                if (righe.isEmpty()) VuotoInAttesa()
+                if (righe.isEmpty()) VuotoInAttesa(guasto)
                 for (riga in righe) {
                     if (riga.text.isEmpty()) {
                         Box(Modifier.height(8.dp))
@@ -157,7 +166,7 @@ fun VistaTerminale(
                     }
                 }
             } else {
-                if (grezze.isEmpty()) VuotoInAttesa()
+                if (grezze.isEmpty()) VuotoInAttesa(guasto)
                 val stretto = (dimensione - 2).coerceAtLeast(8)
                 for (grezza in grezze) {
                     Text(
@@ -198,11 +207,24 @@ private fun TastoRisali(caricando: Boolean, onClick: () -> Unit) {
     }
 }
 
+/**
+ * Quando non c’è ancora niente da mostrare.
+ *
+ * «Sto leggendo» va bene per due secondi; oltre, se qualcosa non funziona, è
+ * una bugia che lascia fermi a fissare uno schermo nero. Il motivo, quando
+ * c’è, si dice.
+ */
 @Composable
-private fun VuotoInAttesa() {
-    Text(
-        "Sto leggendo il terminale…",
-        color = Banco.testoQuieto,
-        fontSize = 13.sp
-    )
+private fun VuotoInAttesa(guasto: String?) {
+    Column {
+        Text(
+            if (guasto == null) "Sto leggendo il terminale…" else "Non riesco a leggere questa chat",
+            color = if (guasto == null) Banco.testoQuieto else Banco.ambra,
+            fontSize = 13.sp
+        )
+        if (guasto != null) {
+            Box(Modifier.height(6.dp))
+            Text(guasto, color = Banco.testoQuieto, fontSize = 12.sp)
+        }
+    }
 }

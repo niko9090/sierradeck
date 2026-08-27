@@ -156,6 +156,10 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
     var storia by remember(chat.id) { mutableStateOf<Storia?>(null) }
     var quante by remember(chat.id) { mutableStateOf(RIGHE_ALL_APERTURA) }
     var caricando by remember(chat.id) { mutableStateOf(false) }
+    // Cosa è andato storto, detto a schermo invece che taciuto: un’attesa
+    // che non finisce non si distingue da un guasto, e chi guarda non ha
+    // modo di sapere quale delle due sta vedendo.
+    var guasto by remember(chat.id) { mutableStateOf<String?>(null) }
     var testo by remember(chat.id) { mutableStateOf("") }
     var menuAperto by remember { mutableStateOf(false) }
     var rinominando by remember { mutableStateOf(false) }
@@ -178,7 +182,25 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                 // attaccata al fondo mentre la chat scrive, e cresce verso
                 // l'alto solo quando sei tu a chiederlo.
                 storia = api.storia(chat.id, -1, quante)
-            } catch (_: Exception) {
+                guasto = null
+            } catch (e: Exception) {
+                // Un computer più vecchio non conosce la cronologia: si
+                // ripiega sullo schermo di adesso, che ha sempre saputo dare.
+                // Senza questo l’app restava per sempre su «sto leggendo»,
+                // che è il modo peggiore di dire «non ci parliamo».
+                try {
+                    val d = api.dentro(chat.id)
+                    storia = Storia(
+                        chat = chat.id,
+                        totale = d.grezze.size,
+                        da = 0,
+                        righe = d.righe,
+                        grezze = d.grezze
+                    )
+                    guasto = "Questo computer non sa ancora dare la conversazione intera: aggiornalo e potrai risalirla."
+                } catch (e2: Exception) {
+                    guasto = "Non riesco a leggere questa chat: ${e2.message ?: "il computer non risponde"}"
+                }
             }
             delay(2000)
         }
@@ -256,6 +278,7 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
             dimensione = dimensione,
             piuSopra = (storia?.da ?: 0) > 0,
             caricando = caricando,
+            guasto = guasto,
             onPiuSopra = {
                 caricando = true
                 quante = (quante + PASSO_RISALITA).coerceAtMost(RIGHE_MASSIME)

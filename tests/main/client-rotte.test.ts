@@ -505,3 +505,50 @@ describe('il via dal telefono', () => {
     expect(chiamato).toBe(false)
   })
 })
+
+
+describe('la storia di una chat', () => {
+  it('da la finestra chiesta, con il totale', async () => {
+    const su = deps({
+      chat: () => [{ id: 'c1', titolo: 'x', cwd: '/p' }],
+      righeDi: async (_id: string, da: number, quante: number) => ({
+        totale: 900,
+        da: da < 0 ? 900 - quante : da,
+        pulite: ['una', 'due'],
+        grezze: ['una', 'due']
+      })
+    })
+    const esito = await rotteClient(su)({
+      metodo: 'POST',
+      percorso: '/api/storia',
+      corpo: { chat: 'c1', da: -1, quante: 150 }
+    })
+    expect(esito.stato).toBe(200)
+    expect(esito.corpo).toMatchObject({ totale: 900, da: 750, righe: ['una', 'due'] })
+  })
+
+  it('senza una finestra che risponda, torna quello che ha l elenco', async () => {
+    // Nessuna finestra ha quella chat: e meglio le ultime righe gia note che
+    // un errore, per una cosa che si guarda scorrendo.
+    const su = deps({
+      chat: () => [{ id: 'c1', titolo: 'x', cwd: '/p', coda: ['ultima'], codaGrezza: ['ultima'] }],
+      righeDi: async () => undefined
+    })
+    const esito = await rotteClient(su)({
+      metodo: 'POST',
+      percorso: '/api/storia',
+      corpo: { chat: 'c1' }
+    })
+    expect(esito.corpo).toMatchObject({ totale: 1, da: 0, righe: ['ultima'] })
+  })
+
+  it('una chat che non c e non si inventa', async () => {
+    const su = deps({ chat: () => [] })
+    const esito = await rotteClient(su)({
+      metodo: 'POST',
+      percorso: '/api/storia',
+      corpo: { chat: 'mai-vista' }
+    })
+    expect(esito.stato).toBe(404)
+  })
+})

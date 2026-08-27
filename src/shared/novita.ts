@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.13',
+    righe: [
+      '**La chat sul telefono non resta più su «sto leggendo il terminale».** La strada nuova per la cronologia era finita dentro quella vecchia, quindi non ci arrivava nessuno: il telefono chiedeva e riceveva «non trovato», per sempre. Adesso c’è, e l’app ha comunque un ripiego — se il computer è più vecchio mostra lo schermo di adesso e te lo dice, invece di restare appesa.'
+    ]
+  },
+  {
     versione: '0.12.12',
     righe: [
       '**Dal telefono si scorre tutta la conversazione, non più le ultime righe.** Prima arrivavano ventiquattro righe — lo schermo di adesso — e di tutto quello che c’era prima, niente. Ora il computer sa dare qualunque pezzo della cronologia, e sull’app c’è «Mostra quello di prima» per risalire.',

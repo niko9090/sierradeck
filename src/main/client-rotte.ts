@@ -340,6 +340,7 @@ export function rotteClient(deps: DipendenzeRotte) {
         // dell'app Android legge quelle, e non deve trovarsi lo schermo vuoto.
         grezze: trovata.codaGrezza ?? []
       })
+    }
 
     // La cronologia di una chat, a finestre.
     //
@@ -367,7 +368,6 @@ export function rotteClient(deps: DipendenzeRotte) {
         righe: finestra?.pulite ?? pulite,
         grezze: finestra?.grezze ?? vestite
       })
-    }
     }
 
     // Le cartelle in cui si può aprire: si chiedono solo quando servono, non
