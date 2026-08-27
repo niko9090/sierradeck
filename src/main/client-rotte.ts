@@ -124,6 +124,15 @@ export type DipendenzeRotte = {
   /** Cambiare le preferenze da fuori: i colori del computer si scelgono anche da qui. */
   impostaPreferenze: (parziali: Record<string, unknown>) => Promise<void>
   /** L'aggiornamento del **computer**: a che punto è, e i due comandi. */
+  /**
+   * Un pezzo di cronologia di una chat: `da` righe in giù, `quante` righe.
+   *
+   * Serve a scorrere **tutta** la conversazione da un telefono, non solo le
+   * ultime che stanno a schermo. Assente vuol dire che nessuna finestra ha
+   * quella chat: si torna a quello che c’è nell’elenco invece di far
+   * aspettare.
+   */
+  righeDi?: (idChat: string, da: number, quante: number) => Promise<unknown>
   aggiornamento: () => { fase: string; versione?: string; percento?: number; errore?: string }
   /**
    * Cercare un aggiornamento **adesso**.
@@ -160,6 +169,13 @@ function stringa(corpo: unknown, campo: string): string {
   if (typeof corpo !== 'object' || corpo === null) return ''
   const v = (corpo as Record<string, unknown>)[campo]
   return typeof v === 'string' ? v.trim() : ''
+}
+
+/** Un numero dal corpo di una richiesta, con il suo ripiego. */
+function numero(corpo: unknown, campo: string, ripiego: number): number {
+  if (typeof corpo !== 'object' || corpo === null) return ripiego
+  const v = (corpo as Record<string, unknown>)[campo]
+  return typeof v === 'number' && Number.isFinite(v) ? v : ripiego
 }
 
 /**
@@ -324,6 +340,34 @@ export function rotteClient(deps: DipendenzeRotte) {
         // dell'app Android legge quelle, e non deve trovarsi lo schermo vuoto.
         grezze: trovata.codaGrezza ?? []
       })
+
+    // La cronologia di una chat, a finestre.
+    //
+    // `/api/dentro` da’ lo schermo di adesso, che è quello che serve entrando.
+    // Questa da’ **qualunque** pezzo, e con esso il totale: è ciò che permette
+    // di risalire una conversazione dal telefono invece di vederne la coda.
+    if (r.metodo === 'POST' && r.percorso === '/api/storia') {
+      const id = stringa(r.corpo, 'chat')
+      const trovata = deps.chat().find((c) => c.id === id)
+      if (trovata === undefined) return { stato: 404, corpo: { errore: 'chat non trovata' } }
+      // Quello che l'elenco ha gia': e' il ripiego se nessuna finestra
+      // risponde — una chat appena chiusa, una finestra che sta partendo — ed
+      // e' meglio di un errore per una cosa che si guarda scorrendo.
+      const pulite = trovata?.coda ?? []
+      const vestite = trovata?.codaGrezza ?? []
+      const da = numero(r.corpo, 'da', -1)
+      const quante = Math.max(1, Math.min(numero(r.corpo, 'quante', 120), 400))
+      const finestra = (await deps.righeDi?.(id, da, quante)) as
+        | { totale: number; da: number; pulite: string[]; grezze: string[] }
+        | undefined
+      return OK({
+        chat: id,
+        totale: finestra?.totale ?? vestite.length,
+        da: finestra?.da ?? 0,
+        righe: finestra?.pulite ?? pulite,
+        grezze: finestra?.grezze ?? vestite
+      })
+    }
     }
 
     // Le cartelle in cui si può aprire: si chiedono solo quando servono, non

@@ -60,6 +60,10 @@ declare global {
         suChatArrivata: (cb: (m: { workspace: string; pane: PaneSalvato }) => void) => () => void
         suChiusura: (cb: (idChat: string) => void) => () => void
         suRinomina: (cb: (m: { chat: string; nome: string }) => void) => () => void
+        suRichiestaRighe: (
+          cb: (m: { id: string; chat: string; da: number; quante: number }) => void
+        ) => () => void
+        rispondiRighe: (id: string, dati: unknown) => void
         suScrittura: (cb: (m: { chat: string; testo: string }) => void) => () => void
         suWorkspace: (cb: (nome: string) => void) => () => void
       }

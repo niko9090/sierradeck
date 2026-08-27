@@ -32,9 +32,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import androidx.compose.foundation.layout.Column
 
-/** Le quattro destinazioni della fascia in basso. */
-enum class Scheda { ADESSO, CHAT, LAVORI, COMPUTER }
+/**
+ * Le tre destinazioni della fascia in basso.
+ *
+ * «Adesso» non c'è più, ed è stata una rimozione, non una perdita: nove volte
+ * su dieci era vuota, e quando non lo era diceva cose che dovevi **andare a
+ * cercare** proprio mentre erano urgenti. Ciò che conteneva — una domanda che
+ * aspetta, un autopilota fermo — adesso compare come una banda in cima a
+ * qualunque schermata tu stia guardando. Le urgenze si portano a chi guarda;
+ * non si mettono in una stanza in fondo al corridoio.
+ */
+enum class Scheda { CHAT, LAVORI, COMPUTER }
 
 /**
  * La radice dell'app: prima il muro dell'accoppiamento, poi il resto.
@@ -75,7 +85,8 @@ fun App(deposito: Collegamento, scansionaQr: ((String) -> Unit, (String) -> Unit
 @Composable
 fun Principale(api: Api, deposito: Collegamento, onScollega: () -> Unit) {
     val contesto = LocalContext.current
-    var scheda by remember { mutableStateOf(Scheda.ADESSO) }
+    // Si apre sulle chat: e' quello per cui si prende in mano il telefono.
+    var scheda by remember { mutableStateOf(Scheda.CHAT) }
     var stato by remember { mutableStateOf<Stato?>(null) }
     var connesso by remember { mutableStateOf(true) }
     var giriFalliti by remember { mutableIntStateOf(0) }
@@ -114,14 +125,18 @@ fun Principale(api: Api, deposito: Collegamento, onScollega: () -> Unit) {
 
     Scaffold(
         containerColor = Banco.fondo,
-        bottomBar = { Fascia(scheda, stato, connesso) { scheda = it } }
+        bottomBar = { Fascia(scheda, stato) { scheda = it } }
     ) { pad ->
-        Box(Modifier.padding(pad).fillMaxSize()) {
-            when (scheda) {
-                Scheda.ADESSO -> Adesso(api, stato, connesso)
-                Scheda.CHAT -> Chat(api, stato, deposito)
-                Scheda.LAVORI -> Lavori(api, stato)
-                Scheda.COMPUTER -> Computer(api, stato)
+        Column(Modifier.padding(pad).fillMaxSize()) {
+            // Quello che non può aspettare, sopra tutto il resto: non è un
+            // avviso qualunque, è la ragione per cui questo telefono esiste.
+            BandaUrgenze(api, stato, connesso)
+            Box(Modifier.weight(1f).fillMaxSize()) {
+                when (scheda) {
+                    Scheda.CHAT -> Chat(api, stato, deposito)
+                    Scheda.LAVORI -> Lavori(api, stato)
+                    Scheda.COMPUTER -> Computer(api, stato)
+                }
             }
         }
     }
@@ -133,14 +148,11 @@ fun Principale(api: Api, deposito: Collegamento, onScollega: () -> Unit) {
 private fun Fascia(
     attuale: Scheda,
     stato: Stato?,
-    connesso: Boolean,
     onScegli: (Scheda) -> Unit
 ) {
-    val domande = stato?.domande?.isNotEmpty() == true
     val fermi = stato?.autopiloti?.any { it.stato == "sospeso" || it.stato == "fallito" } == true
 
     NavigationBar(containerColor = Banco.chassis) {
-        voce(attuale, Scheda.ADESSO, "Adesso", Icons.Filled.Bolt, allarme = domande || fermi, onScegli)
         voce(attuale, Scheda.CHAT, "Chat", Icons.Filled.Forum, allarme = false, onScegli)
         voce(attuale, Scheda.LAVORI, "Lavori", Icons.Filled.SmartToy, allarme = fermi, onScegli)
         voce(attuale, Scheda.COMPUTER, "Computer", Icons.Filled.Computer, allarme = false, onScegli)

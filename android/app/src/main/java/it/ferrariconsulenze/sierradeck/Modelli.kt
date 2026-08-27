@@ -216,3 +216,20 @@ data class SessioneRipresa(
 // ─── risposta generica delle azioni ───
 @Serializable
 data class Fatto(val fatto: Boolean = false, val autopilota: String? = null)
+
+
+/**
+ * Un pezzo di conversazione, e quanto ce n’è in tutto.
+ *
+ * `da` è l’indice della prima riga di questo pezzo dentro tutta la
+ * cronologia: con quello e `totale` si sa se sopra c’è ancora roba, e quindi
+ * se ha senso offrire di risalire.
+ */
+@Serializable
+data class Storia(
+    val chat: String = "",
+    val totale: Int = 0,
+    val da: Int = 0,
+    val righe: List<String> = emptyList(),
+    val grezze: List<String> = emptyList()
+)

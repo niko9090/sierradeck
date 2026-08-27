@@ -79,6 +79,50 @@ import { unicoLayout, workspaceDellaSessione } from '@shared/workspace'
 import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
 
+/**
+ * Le domande di cronologia in volo, e chi le sta aspettando.
+ *
+ * Una domanda sola può arrivare a più finestre e riceverne una risposta
+ * sola: la prima che arriva vince e la voce sparisce, così una seconda
+ * risposta non risolve due volte. Chi non ha quella chat tace, ed è per
+ * questo che serve un tempo massimo: il silenzio di tutti è una risposta.
+ */
+const righeInVolo = new Map<string, (dati: unknown) => void>()
+
+/** Oltre questo non è più una risposta, è un’attesa. */
+const ATTESA_RIGHE_MS = 3000
+
+ipcMain.on(
+  'client:righe',
+  (_e, m: { id?: unknown; dati?: unknown }) => {
+    const id = typeof m?.id === 'string' ? m.id : ''
+    const attesa = righeInVolo.get(id)
+    if (attesa === undefined) return
+    righeInVolo.delete(id)
+    attesa(m.dati)
+  }
+)
+
+function chiediRigheAlleFinestre(
+  chat: string,
+  da: number,
+  quante: number
+): Promise<unknown> {
+  return new Promise((risolvi) => {
+    const finestre = BrowserWindow.getAllWindows().filter(
+      (w) => !w.isDestroyed() && !w.webContents.isDestroyed()
+    )
+    if (finestre.length === 0) { risolvi(undefined); return }
+    const id = `righe-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const scadenza = setTimeout(() => {
+      righeInVolo.delete(id)
+      risolvi(undefined)
+    }, ATTESA_RIGHE_MS)
+    righeInVolo.set(id, (dati) => { clearTimeout(scadenza); risolvi(dati) })
+    for (const w of finestre) w.webContents.send('client:chiediRighe', { id, chat, da, quante })
+  })
+}
+
 let ptyClient: PtyHostClient | undefined
 let db: Db | undefined
 let workspaceStore: WorkspaceStore | undefined
@@ -794,6 +838,18 @@ if (!app.requestSingleInstanceLock()) {
           await clientAutopilota.rispondi(idDomanda, risposta)
         },
         domande: () => clientAutopilota.domande(),
+        /**
+         * Un pezzo di cronologia di una chat, chiesto dal telefono.
+         *
+         * Lo scrollback vive dentro l’xterm del riquadro, che sta in una
+         * finestra: il Core non ce l’ha. Quindi lo chiede a tutte e aspetta
+         * che risponda quella che ha la chat. Se non risponde nessuno — chat
+         * appena chiusa, finestra che sta partendo — si torna indietro con
+         * niente invece di far aspettare il telefono.
+         */
+        righeDi: (idChat: string, da: number, quante: number) =>
+          chiediRigheAlleFinestre(idChat, da, quante),
+
         scriviAChat: (idChat: string, testo: string) => {
           for (const w of BrowserWindow.getAllWindows()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) {

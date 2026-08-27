@@ -127,6 +127,28 @@ contextBridge.exposeInMainWorld('gestore', {
       return () => { ipcRenderer.off('client:rinominaChat', h) }
     },
     /** Testo mandato da un telefono a una chat. */
+    /**
+     * Il Core chiede a questa finestra un pezzo di cronologia di una chat.
+     *
+     * È l'unico canale che va **dal Core al renderer e torna**: lo scrollback
+     * vive dentro l'xterm di un riquadro, e il riquadro lo conosce soltanto la
+     * finestra che lo disegna. Chi non ha quella chat non risponde e basta —
+     * risponde l’altra, e a nessuna tocca sapere cosa fanno le altre.
+     */
+    suRichiestaRighe: (
+      cb: (m: { id: string; chat: string; da: number; quante: number }) => void
+    ): (() => void) => {
+      const h = (
+        _e: unknown,
+        m: { id: string; chat: string; da: number; quante: number }
+      ): void => cb(m)
+      ipcRenderer.on('client:chiediRighe', h)
+      return () => { ipcRenderer.off('client:chiediRighe', h) }
+    },
+    /** La risposta. Non rispondere vuol dire «questa chat non è mia». */
+    rispondiRighe: (id: string, dati: unknown): void => {
+      ipcRenderer.send('client:righe', { id, dati })
+    },
     suScrittura: (cb: (m: { chat: string; testo: string }) => void): (() => void) => {
       const h = (_e: unknown, m: { chat: string; testo: string }): void => cb(m)
       ipcRenderer.on('client:scrivi', h)

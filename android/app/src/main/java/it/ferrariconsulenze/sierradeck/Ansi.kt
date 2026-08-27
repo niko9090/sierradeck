@@ -15,7 +15,15 @@ import androidx.compose.ui.text.font.FontWeight
  * conosciamo si saltano, senza mai far cadere la riga.
  */
 
-private val defaultTesto = Banco.testo
+/**
+ * Il colore del testo senza vestito.
+ *
+ * Con `get()` e non un valore fisso: `Banco.testo` cambia quando arriva lo
+ * stile dal computer, e un valore letto una volta sola all avvio avrebbe
+ * tenuto il grigio di partenza per sempre — con tutto il resto dell app
+ * rivestito intorno.
+ */
+private val defaultTesto: Color get() = Banco.testo
 
 /** La tavolozza a 16 colori del terminale, in tinte che stanno sul fondo scuro. */
 private val base16 = arrayOf(

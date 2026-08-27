@@ -72,6 +72,21 @@ class Api(private val indirizzo: String, private val chiave: String?) {
     suspend fun dentro(chat: String): Dentro =
         json.decodeFromString(corpoTesto("/api/dentro", oggetto { put("chat", chat) }))
 
+    /**
+     * Un pezzo di conversazione, non solo lo schermo di adesso.
+     *
+     * `da` negativo vuol dire «le ultime `quante`», che è come si entra in una
+     * chat: si parte dal fondo e si risale.
+     */
+    suspend fun storia(chat: String, da: Int, quante: Int): Storia =
+        json.decodeFromString(
+            corpoTesto("/api/storia", oggetto {
+                put("chat", chat)
+                put("da", da)
+                put("quante", quante)
+            })
+        )
+
     suspend fun scrivi(chat: String, testo: String): Fatto =
         json.decodeFromString(corpoTesto("/api/scrivi", oggetto {
             put("chat", chat); put("testo", testo)

@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.12',
+    righe: [
+      '**Dal telefono si scorre tutta la conversazione, non più le ultime righe.** Prima arrivavano ventiquattro righe — lo schermo di adesso — e di tutto quello che c’era prima, niente. Ora il computer sa dare qualunque pezzo della cronologia, e sull’app c’è «Mostra quello di prima» per risalire.',
+      '**Il computer cerca un aggiornamento anche quando glielo chiedi tu.** Guardava da sé ogni sei ore e basta: dal telefono l’attesa era cieca. Adesso il tasto c’è, e sta nell’app accanto a quello dell’app stessa.'
+    ]
+  },
+  {
     versione: '0.12.11',
     righe: [
       '**Le chat sono tornate a colori.** Erano diventate tutte grigie: il programma, quando lo si avviava da dentro un terminale di Claude Code, si portava dietro il divieto di colorare di quel terminale e lo passava a ogni chat. Adesso non lo eredita più, e dichiara quello che il suo terminale sa davvero fare — i 256 colori e il colore pieno. Nello stesso giro non finiscono più dentro le chat il canale privato e il gettone della sessione che aveva avviato il programma.',

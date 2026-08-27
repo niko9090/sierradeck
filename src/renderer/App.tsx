@@ -42,7 +42,7 @@ import { SchermataAccesso } from './components/SchermataAccesso'
 import { utenteCorrente, suCambioAccesso } from './accesso-supabase'
 import { Serratura } from './components/Serratura'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
-import { righeDiPty } from './schermo-terminale'
+import { righeDiPty, finestraDiPty } from './schermo-terminale'
 
 /**
  * Quante righe dello schermo vanno al telefono.
@@ -371,6 +371,18 @@ export function App(): React.JSX.Element {
   }), [])
 
   // Quello che scrivi dal telefono arriva alla chat come se lo avessi digitato.
+  // Un pezzo di cronologia chiesto dal telefono. Risponde **solo** la finestra
+  // che ha quella chat: le altre tacciono, e chi ha chiesto aspetta la prima
+  // che parla. Senza questo, dal telefono si vedevano le ultime righe e basta,
+  // mentre la conversazione intera era qui, dentro l’xterm del riquadro.
+  useEffect(() => window.gestore.client.suRichiestaRighe(({ id, chat, da, quante }) => {
+    const riquadro = useLayoutStore.getState().panes[chat]
+    if (riquadro?.ptyId === undefined) return
+    const finestra = finestraDiPty(riquadro.ptyId, da, quante)
+    if (finestra === undefined) return
+    window.gestore.client.rispondiRighe(id, finestra)
+  }), [])
+
   useEffect(() => window.gestore.client.suScrittura(({ chat, testo }) => {
     // `chat` è l'identificatore del **riquadro**, non del terminale: scriverci
     // dentro direttamente non faceva niente, in silenzio, ed è il motivo per

@@ -242,3 +242,42 @@ export function righeDiPty(
     return undefined
   }
 }
+
+/**
+ * Una finestra qualunque dello scrollback, non solo ciò che si vede.
+ *
+ * Dal telefono si leggevano ventiquattro righe: lo schermo di adesso, e niente
+ * di quello che c'era prima. Ma la conversazione è tutta lì — `xterm` la
+ * cronologia la tiene — e da un telefono «cosa aveva detto tre risposte fa» è
+ * una domanda normale quanto «cosa sta facendo».
+ *
+ * `da` è l'indice assoluto nel buffer, cronologia compresa. Negativo vuol dire
+ * «le ultime `quante`», che è come si entra in una chat: si parte dal fondo e
+ * si risale.
+ */
+export function finestraDiPty(
+  ptyId: string,
+  da: number,
+  quante: number
+): { totale: number; da: number; pulite: string[]; grezze: string[] } | undefined {
+  const voce = schermi.get(ptyId)
+  if (voce === undefined) return undefined
+  try {
+    const schermo = voce.schermo()
+    const totale = schermo.length
+    const passo = Math.max(1, Math.min(quante, 500))
+    const inizio = da < 0 ? Math.max(0, totale - passo) : Math.max(0, Math.min(da, totale))
+    const fine = Math.min(totale, inizio + passo)
+    const pulite: string[] = []
+    const grezze: string[] = []
+    for (let y = inizio; y < fine; y += 1) {
+      const riga = schermo.getLine(y)
+      if (riga === undefined) continue
+      pulite.push(testoDiRiga(riga))
+      grezze.push(rigaVestita(riga))
+    }
+    return { totale, da: inizio, pulite, grezze }
+  } catch {
+    return undefined
+  }
+}

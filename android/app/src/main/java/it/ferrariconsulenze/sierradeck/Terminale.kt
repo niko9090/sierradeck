@@ -17,6 +17,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.material3.Text
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.text.style.TextAlign
 
 /**
  * Il terminale di una chat, su uno schermo che è largo un terzo.
@@ -95,29 +99,48 @@ fun righeAdattate(grezze: List<String>): List<AnnotatedString> {
 /**
  * Lo schermo della chat.
  *
- * Scorre in fondo da sé quando arriva qualcosa di nuovo — si guarda l'ultima
- * cosa che ha scritto, non la prima — e **solo** quando cambia davvero: la
- * chiave è il contenuto, non il giro di lettura, altrimenti ogni due secondi
- * l'elenco tornerebbe in fondo strappandolo di mano a chi sta leggendo più su.
+ * Scorre in fondo da sé quando arriva qualcosa di nuovo — si guarda l’ultima
+ * cosa che ha scritto, non la prima — ma **solo se ci stavi già**: se ti sei
+ * fermato a leggere venti righe più su, un ridisegno non deve strapparti la
+ * pagina di mano. È la differenza fra un terminale che ti segue e uno che ti
+ * insegue.
+ *
+ * In cima, quando sopra c’è ancora conversazione, il gesto per risalire.
  */
 @Composable
 fun VistaTerminale(
     grezze: List<String>,
     modo: ModoTerminale,
     dimensione: Int,
+    piuSopra: Boolean = false,
+    caricando: Boolean = false,
+    onPiuSopra: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val vscroll = rememberScrollState()
     val hscroll = rememberScrollState()
     val impronta = grezze.joinToString("\n").hashCode()
 
-    LaunchedEffect(impronta, modo) { vscroll.scrollTo(vscroll.maxValue) }
+    LaunchedEffect(impronta, modo) {
+        // «Ci stavi già» vuol dire: a meno di un dito dal fondo. Sopra quella
+        // soglia stai leggendo, e chi legge non va spostato.
+        val attaccato = vscroll.maxValue - vscroll.value < 160 || vscroll.maxValue == 0
+        if (attaccato) vscroll.scrollTo(vscroll.maxValue)
+    }
 
     Box(modifier) {
-        if (modo == ModoTerminale.ADATTA) {
-            Column(
-                Modifier.fillMaxSize().verticalScroll(vscroll).padding(horizontal = 12.dp, vertical = 10.dp)
-            ) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(vscroll)
+                .then(if (modo == ModoTerminale.GRIGLIA) Modifier.horizontalScroll(hscroll) else Modifier)
+                .padding(horizontal = 12.dp, vertical = 10.dp)
+        ) {
+            if (piuSopra) {
+                TastoRisali(caricando = caricando, onClick = onPiuSopra)
+                Box(Modifier.height(10.dp))
+            }
+            if (modo == ModoTerminale.ADATTA) {
                 val righe = righeAdattate(grezze)
                 if (righe.isEmpty()) VuotoInAttesa()
                 for (riga in righe) {
@@ -128,35 +151,50 @@ fun VistaTerminale(
                             riga,
                             fontFamily = FontFamily.Monospace,
                             fontSize = dimensione.sp,
-                            lineHeight = (dimensione * 1.45f).sp,
+                            lineHeight = (dimensione * 1.5f).sp,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
-            }
-        } else {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(vscroll)
-                    .horizontalScroll(hscroll)
-                    .padding(horizontal = 12.dp, vertical = 10.dp)
-            ) {
+            } else {
                 if (grezze.isEmpty()) VuotoInAttesa()
+                val stretto = (dimensione - 2).coerceAtLeast(8)
                 for (grezza in grezze) {
                     Text(
                         ansiAnnotato(grezza),
                         fontFamily = FontFamily.Monospace,
-                        // In griglia si sta due punti piu' stretti: li' conta
-                        // quante colonne entrano, non quanto e' comodo leggere.
-                        fontSize = (dimensione - 2).coerceAtLeast(8).sp,
-                        lineHeight = ((dimensione - 2).coerceAtLeast(8) * 1.35f).sp,
+                        // In griglia si sta due punti più stretti: lì conta
+                        // quante colonne entrano, non quanto è comodo leggere.
+                        fontSize = stretto.sp,
+                        lineHeight = (stretto * 1.35f).sp,
                         softWrap = false,
                         maxLines = 1
                     )
                 }
             }
         }
+    }
+}
+
+/** Il gesto per risalire: dice quanto prende, così non è un salto nel buio. */
+@Composable
+private fun TastoRisali(caricando: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        enabled = !caricando,
+        color = Banco.chassis,
+        contentColor = Banco.testo,
+        shape = MaterialTheme.shapes.small,
+        border = BorderStroke(1.dp, Banco.incisione),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            if (caricando) "Risalgo…" else "↑  Mostra quello di prima",
+            color = if (caricando) Banco.testoQuieto else Banco.accento,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp)
+        )
     }
 }
 

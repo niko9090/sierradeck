@@ -60,6 +60,18 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.draw.clip
 
 /**
+ * Quante righe si chiedono entrando, e quante se ne aggiungono risalendo.
+ *
+ * Centocinquanta sono più di uno schermo e meno di un peso: viaggiano ogni due
+ * secondi sulla rete di casa, e sono la conversazione che si ricorda a mente.
+ * Il tetto esiste perché sopra un certo punto non stai più leggendo una chat,
+ * stai scaricando un registro — e per quello c’è il computer.
+ */
+private const val RIGHE_ALL_APERTURA = 150
+private const val PASSO_RISALITA = 150
+private const val RIGHE_MASSIME = 600
+
+/**
  * «Chat»: l'elenco delle conversazioni aperte, e dentro ciascuna il terminale.
  *
  * Un solo livello di profondità: dall'elenco si entra in una chat, e da lì il
@@ -138,7 +150,12 @@ private fun ElencoChat(api: Api, chat: List<Chat>, onApri: (Chat) -> Unit) {
 /** Il dettaglio: il terminale a polling e il campo per scrivere. */
 @Composable
 private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndietro: () -> Unit) {
-    var dentro by remember(chat.id) { mutableStateOf<Dentro?>(null) }
+    // La finestra sulla conversazione: sempre attaccata al fondo, e alta
+    // quanto le si chiede. Prima si vedevano ventiquattro righe — lo schermo
+    // di adesso — e di tutto quello che c'era prima, niente.
+    var storia by remember(chat.id) { mutableStateOf<Storia?>(null) }
+    var quante by remember(chat.id) { mutableStateOf(RIGHE_ALL_APERTURA) }
+    var caricando by remember(chat.id) { mutableStateOf(false) }
     var testo by remember(chat.id) { mutableStateOf("") }
     var menuAperto by remember { mutableStateOf(false) }
     var rinominando by remember { mutableStateOf(false) }
@@ -151,9 +168,18 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
     // una cosa dello schermo che hai in mano.
     var dimensione by remember { mutableStateOf(deposito.dimensioneTerminale) }
 
-    LaunchedEffect(chat.id) {
+    // Il tasto «più sopra» si spegne quando le righe nuove sono arrivate.
+    LaunchedEffect(storia?.da, storia?.totale) { caricando = false }
+
+    LaunchedEffect(chat.id, quante) {
         while (isActive) {
-            try { dentro = api.dentro(chat.id) } catch (_: Exception) {}
+            try {
+                // `-1` vuol dire «le ultime `quante`»: la finestra resta
+                // attaccata al fondo mentre la chat scrive, e cresce verso
+                // l'alto solo quando sei tu a chiederlo.
+                storia = api.storia(chat.id, -1, quante)
+            } catch (_: Exception) {
+            }
             delay(2000)
         }
     }
@@ -169,7 +195,7 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
             Spacer(Modifier.width(4.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    dentro?.titolo?.ifBlank { chat.titolo }?.ifBlank { chat.cwd } ?: chat.titolo.ifBlank { chat.cwd },
+                    chat.titolo.ifBlank { chat.cwd },
                     color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1, fontSize = 15.sp
                 )
                 if (chat.cwd.isNotBlank()) {
@@ -225,9 +251,15 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
 
         // ─── terminale ───
         VistaTerminale(
-            grezze = dentro?.grezze ?: emptyList(),
+            grezze = storia?.grezze ?: emptyList(),
             modo = modo,
             dimensione = dimensione,
+            piuSopra = (storia?.da ?: 0) > 0,
+            caricando = caricando,
+            onPiuSopra = {
+                caricando = true
+                quante = (quante + PASSO_RISALITA).coerceAtMost(RIGHE_MASSIME)
+            },
             modifier = Modifier.weight(1f).fillMaxWidth()
         )
         HorizontalDivider(color = Banco.incisione)
