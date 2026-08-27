@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { pianificaFlotta, chiatteAttive, type StatoChat } from '../../src/autopilot-host/flotta'
+import {
+  pianificaFlotta, chiatteAttive, dopoAvvioFallito, tentativiDi, TENTATIVI_AVVIO_MAX,
+  type StatoChat
+} from '../../src/autopilot-host/flotta'
 
 function chat(over: Partial<StatoChat> = {}): StatoChat {
   return { id: 'c-1', compito: 'compito', stato: 'lavoro', cicli: 0, ...over }
@@ -82,5 +85,62 @@ describe('pianificaFlotta', () => {
     })
     expect(piano.daAprire).toEqual(['uno'])
     expect(piano.concluso).toBe(false)
+  })
+})
+
+describe('dopoAvvioFallito', () => {
+  // Il difetto: `apriChatMancanti` toglie i compiti dalla coda e registra le
+  // chat **prima** di avviare i processi (giusto: una chat viva e non registrata
+  // resterebbe orfana per sempre). Se poi l'avvio falliva, il catch scriveva nel
+  // log e basta — il compito era gia' uscito dalla coda e restava una chat in
+  // «lavoro» che non girava. E siccome `chiatteAttive` conta proprio quelle, il
+  // fantasma teneva un posto della flotta per sempre.
+  const chat = (id: string, compito: string, stato: StatoChat['stato'] = 'lavoro'): StatoChat =>
+    ({ id, compito, stato, cicli: 0 })
+
+  it('chiude la chat fantasma, cosi il posto torna libero', () => {
+    const prima = { chats: [chat('c-1', 'A'), chat('c-2', 'B')], compitiDaFare: ['C'] }
+    const dopo = dopoAvvioFallito(prima, 'c-2')
+    expect(dopo.chats.find((c) => c.id === 'c-2')?.stato).toBe('finita')
+    // Il posto e' tornato libero: prima erano due attive, ora una.
+    expect(chiatteAttive(dopo.chats)).toHaveLength(1)
+    // E l'altra non e' stata toccata.
+    expect(dopo.chats.find((c) => c.id === 'c-1')?.stato).toBe('lavoro')
+  })
+
+  it('rimette il compito in coda, in fondo', () => {
+    // In fondo e non in testa: ritentarlo subito vorrebbe dire ritentarlo contro
+    // la stessa causa che l'ha appena fatto fallire.
+    const prima = { chats: [chat('c-1', 'A')], compitiDaFare: ['B', 'C'] }
+    const dopo = dopoAvvioFallito(prima, 'c-1')
+    expect(dopo.compitiDaFare).toEqual(['B', 'C', 'A'])
+    expect(dopo.abbandonato).toBe(false)
+  })
+
+  it('dopo troppi tentativi lo lascia, invece di riprovare per sempre', () => {
+    // Se la causa e' stabile — claude.exe che non parte, una cartella sparita —
+    // rimettere il compito in coda all'infinito aprirebbe una chat al secondo,
+    // per sempre, senza che niente lo dica.
+    const storia = Array.from({ length: TENTATIVI_AVVIO_MAX }, (_, i) => chat(`c-${i + 1}`, 'A', 'finita'))
+    const prima = { chats: [...storia, chat('c-x', 'A')], compitiDaFare: [] }
+    const dopo = dopoAvvioFallito(prima, 'c-x')
+    expect(dopo.abbandonato).toBe(true)
+    expect(dopo.compitiDaFare).toEqual([])
+    expect(dopo.chats.find((c) => c.id === 'c-x')?.stato).toBe('finita')
+  })
+
+  it('un id che non c e non cambia niente', () => {
+    const prima = { chats: [chat('c-1', 'A')], compitiDaFare: ['B'] }
+    const dopo = dopoAvvioFallito(prima, 'c-9')
+    expect(dopo.chats).toBe(prima.chats)
+    expect(dopo.compitiDaFare).toBe(prima.compitiDaFare)
+  })
+
+  it('i tentativi si contano dalla storia delle chat, senza campi nuovi su disco', () => {
+    // Le chat non si tolgono mai dall'elenco: l'elenco **e'** la storia.
+    const chats = [chat('c-1', 'A', 'finita'), chat('c-2', 'B'), chat('c-3', 'A')]
+    expect(tentativiDi(chats, 'A')).toBe(2)
+    expect(tentativiDi(chats, 'B')).toBe(1)
+    expect(tentativiDi(chats, 'Z')).toBe(0)
   })
 })

@@ -3,7 +3,7 @@ import { existsSync, statSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import {
   MODIFICHE_RICORDATE, nuovoAutopilota,
-  type Autopilota, type ChatGovernata, type Criterio, type Istantanea
+  type Autopilota, type ChatGovernata, type Criterio, type Decisione, type Istantanea
 } from '@shared/autopilota'
 import type { Archivio } from './archivio'
 import {
@@ -18,7 +18,7 @@ import {
   chiediCambio, chiediGiudizio, componiPromptScomposizione, leggiCompiti, riparaComando,
   type Interrogazione
 } from './supervisore'
-import { pianificaFlotta } from './flotta'
+import { dopoAvvioFallito, pianificaFlotta } from './flotta'
 import {
   componiPromptIntervista, giaChiesta, leggiEsitoIntervista, SCAMBI_MAX, TEMPO_PREPARAZIONE_MS
 } from './intervista'
@@ -152,7 +152,37 @@ function conStatoChat(a: Autopilota, chatId: string, stato: ChatGovernata['stato
  * per descrizione **e** comando: se l'utente ha cambiato il comando, la spunta di
  * prima non vale più (misurava un'altra cosa).
  */
-function conservaCambiUtente(calcolato: Autopilota, fresco: Autopilota, chatId?: string): Autopilota {
+/**
+ * Le decisioni che non sono già nel registro fresco.
+ *
+ * Il confronto è sul contenuto — quando e cosa — perché la stessa decisione può
+ * trovarsi in posizioni diverse nei due elenchi: fra la lettura di questo turno
+ * e adesso una chat sorella può averne inserite delle sue.
+ */
+function soloNuove(mie: Decisione[], gia: Decisione[]): Decisione[] {
+  const viste = new Set(gia.map((d) => `${d.quando}|${d.cosa}`))
+  return mie.filter((d) => !viste.has(`${d.quando}|${d.cosa}`))
+}
+
+export function conservaCambiUtente(
+  calcolato: Autopilota,
+  fresco: Autopilota,
+  chatId: string | undefined,
+  /**
+   * Quante decisioni c'erano quando questo turno ha letto l'autopilota.
+   *
+   * Serve a distinguere le decisioni **che questo turno ha aggiunto** da quelle
+   * che aveva già trovato: le prime vanno riportate, le seconde ci sono già
+   * nella versione fresca — insieme a quelle che nel frattempo ha scritto una
+   * chat sorella, che è proprio ciò che non deve andare perso.
+   *
+   * Senza valore predefinito apposta: qualunque scelta sarebbe sbagliata in
+   * silenzio — la lunghezza del calcolato butterebbe via le decisioni di questo
+   * turno, zero le duplicherebbe tutte — e un difetto di questa famiglia si
+   * vede solo mesi dopo, in un diario che non torna.
+   */
+  decisioniBase: number
+): Autopilota {
   const verifica = new Map(calcolato.criteri.map((c) => [c.descrizione, c]))
   const criteri = fresco.criteri.map((c) => {
     const v = verifica.get(c.descrizione)
@@ -178,7 +208,26 @@ function conservaCambiUtente(calcolato: Autopilota, fresco: Autopilota, chatId?:
     compitiDaFare: fresco.compitiDaFare,
     modifiche: fresco.modifiche,
     criteri,
-    chats
+    chats,
+    // **Il conto dei giri viene dal disco, non dal calcolo.** `suStop` lo
+    // incrementa e lo scrive subito, in un giro sincrono: quando arriva qui,
+    // il suo `+1` è già dentro `fresco`, insieme a quello di ogni chat sorella
+    // che si è fermata nel frattempo. Riscrivere il valore calcolato all'inizio
+    // lo farebbe **tornare indietro** — e i giri non contano solo per la
+    // vetrina: `cicliMax` è uno dei freni dell'utente, e un conto che
+    // arretra è un freno che non scatta.
+    cicli: fresco.cicli,
+    // Le decisioni sono un registro, e due chat che ragionano insieme ci
+    // scrivono tutte e due. Si tengono quelle di adesso — le proprie e quelle
+    // della sorella — e sopra si rimettono soltanto quelle che **questo** turno
+    // ha aggiunto. Prima si riscriveva l'elenco letto all'inizio con in coda le
+    // proprie, e il ragionamento della sorella spariva dal diario.
+    //
+    // Confrontate per contenuto e non solo per posizione: un turno salva anche
+    // a metà strada (la riparazione di un comando), quindi alcune delle proprie
+    // decisioni sono già dentro `fresco`, e rimetterle in coda le farebbe
+    // comparire due volte nel diario.
+    decisioni: [...fresco.decisioni, ...soloNuove(calcolato.decisioni.slice(decisioniBase), fresco.decisioni)]
   }
 }
 
@@ -423,12 +472,34 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
     salva(aggiornato)
 
+    let corrente = aggiornato
     for (const chat of nuove) {
-      await deps.avviaLavoro(aggiornato, undefined, chat).catch((err: unknown) => {
+      try {
+        await deps.avviaLavoro(corrente, undefined, chat)
+      } catch (err: unknown) {
         console.error(`[autopilota] avvio della chat ${chat.id} fallito:`, err)
-      })
+        // **E si rimette a posto la flotta.** Prima qui c'era solo la riga di
+        // log, e bastava: il compito era gia uscito dalla coda e restava una
+        // chat in `lavoro` che non girava. Siccome `chiatteAttive` conta proprio
+        // quelle, il fantasma teneva un posto **per sempre** — tre avvii falliti
+        // con il tetto a tre e l'autopilota non apriva piu' niente, restando
+        // «al lavoro» e fermo.
+        //
+        // Si rilegge da disco invece di modificare `corrente`: fra la richiesta
+        // di avvio e questo punto sono passati due processi, e nel frattempo
+        // qualcos'altro puo' aver scritto.
+        const fresco = deps.archivio.leggi(corrente.id) ?? corrente
+        const esito = dopoAvvioFallito(fresco, chat.id)
+        if (esito.abbandonato) {
+          console.error(
+            `[autopilota] il compito «${chat.compito}» non riesce a partire: lo lascio`
+          )
+        }
+        corrente = { ...fresco, chats: esito.chats, compitiDaFare: esito.compitiDaFare }
+        salva(corrente)
+      }
     }
-    return aggiornato
+    return corrente
   }
 
   /**
@@ -859,7 +930,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // salvataggi qui sotto li cancellerebbero con la fotografia letta all'inizio —
     // la modifica sparirebbe in silenzio. Tutti i rami dopo partono da
     // `aggiornato`, quindi basta correggerlo qui, una volta.
-    const conCambiUtente = conservaCambiUtente(aggiornato, ancora, chatId)
+    const conCambiUtente = conservaCambiUtente(aggiornato, ancora, chatId, a.decisioni.length)
     aggiornato.obiettivo = conCambiUtente.obiettivo
     aggiornato.obiettivoTuo = conCambiUtente.obiettivoTuo
     aggiornato.compitiDaFare = conCambiUtente.compitiDaFare
@@ -868,6 +939,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // Le chat fresche (con l'aggiornamento di un'eventuale sorella concorrente) e
     // solo la mia applicata sopra: chiude la chat orfana (#4).
     aggiornato.chats = conCambiUtente.chats
+    // I due residui dello stesso difetto: il conto dei giri veniva riscritto con
+    // il valore letto all'inizio — tornando indietro di quanto avevano contato
+    // le sorelle — e il registro delle decisioni veniva riscritto senza le loro.
+    aggiornato.cicli = conCambiUtente.cicli
+    aggiornato.decisioni = conCambiUtente.decisioni
 
     // Il supervisore ha visto che un comando misura la cosa sbagliata e ne ha
     // scritto uno giusto: si sostituisce e si riprende dal giro dopo, che lo
