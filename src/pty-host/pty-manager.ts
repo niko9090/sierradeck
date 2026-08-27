@@ -41,8 +41,45 @@ export const NON_EREDITATE = [
   'CLAUDE_CODE_CHILD_SESSION',
   'CLAUDE_CODE_SESSION_ID',
   'CLAUDE_CODE_BRIDGE_SESSION_ID',
-  'CLAUDE_PID'
+  'CLAUDE_PID',
+  // Gli altri marcatori della sessione che ha lanciato il gestore. `CLAUDECODE`
+  // e `CLAUDE_CODE_ENTRYPOINT` dicono a chiunque parta di qui «sei dentro Claude
+  // Code», e chi li legge cambia comportamento — a partire da Claude Code
+  // stesso, che smette di colorare l'interfaccia perche' si crede incanalato in
+  // un altro programma. `CLAUDE_EFFORT` deciderebbe lo sforzo delle chat di
+  // rimbalzo, senza che nessuno l'abbia chiesto.
+  'CLAUDECODE',
+  'CLAUDE_CODE_ENTRYPOINT',
+  'CLAUDE_CODE_EXECPATH',
+  'CLAUDE_EFFORT',
+  // Il canale privato della sessione che ci ha lanciati, con il suo gettone.
+  // Non e' una questione di comportamento ma di segreti: passarlo a ogni
+  // terminale dell'utente lo consegna a qualunque cosa vi giri dentro.
+  'CLAUDE_CODE_MESSAGING_SOCKET',
+  'CLAUDE_CODE_MESSAGING_TOKEN',
+  // Il divieto di colorare, ereditato da chi ci ha avviati.
+  //
+  // Un terminale che *non* sa colorare lo dichiara, e i programmi seri
+  // ubbidiscono. Ma il terminale che offriamo noi e' xterm.js: sa i 256 colori e
+  // anche il colore pieno. Ereditare il divieto di un altro guscio significa
+  // mentire sulle proprie capacita', e il sintomo e' identico a un guasto —
+  // chat improvvisamente tutte grigie, senza un errore e senza un motivo
+  // visibile. Succede ogni volta che il gestore parte da dentro una sessione di
+  // Claude Code, che imposta NO_COLOR per i comandi che lancia.
+  'NO_COLOR'
 ]
+
+/**
+ * Quello che il nostro terminale sa fare, detto a chi ci gira dentro.
+ *
+ * Non e' un'opinione: `xterm.js` disegna il colore pieno, e dichiararlo e'
+ * l'unico modo perche' i programmi lo usino. Sta fra l'ambiente ereditato e le
+ * aggiunte esplicite, cosi' chi vuole davvero il grigio puo' ancora imporlo.
+ */
+const CAPACITA_TERMINALE: Record<string, string> = {
+  TERM: 'xterm-256color',
+  COLORTERM: 'truecolor'
+}
 
 /**
  * L'ambiente di un pty: quello del processo corrente, meno cio' che appartiene
@@ -59,6 +96,7 @@ export function ambientePty(
     if (valore === undefined || NON_EREDITATE.includes(nome)) continue
     env[nome] = valore
   }
+  for (const [nome, valore] of Object.entries(CAPACITA_TERMINALE)) env[nome] = valore
   env.CLAUDE_SESSION_UUID = sessionUuid
   // Le aggiunte vengono per ultime: sono una scelta esplicita dell'utente e
   // devono vincere su ciò che si trovava già nell'ambiente del Gestore.

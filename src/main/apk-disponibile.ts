@@ -21,15 +21,48 @@ const VERSIONE_NEL_NOME = /SierraDeck-(\d+\.\d+\.\d+)\.apk$/
 
 let ricordata: { quando: number; app: AppScaricabile | undefined } | undefined
 
+type Release = { assets?: { name?: string; browser_download_url?: string }[] }
+
+/** Confronto numero per numero: «0.9.0» è **prima** di «0.10.0», non dopo. */
+function piuNuova(a: string, b: string): boolean {
+  const x = a.split('.').map((n) => Number(n) || 0)
+  const y = b.split('.').map((n) => Number(n) || 0)
+  for (let i = 0; i < 3; i += 1) {
+    const p = x[i] ?? 0
+    const q = y[i] ?? 0
+    if (p !== q) return q > p
+  }
+  return false
+}
+
+/**
+ * L'APK più recente fra quelli allegati alle pubblicazioni.
+ *
+ * Non solo l'ultima: l'app e il programma escono quando hanno qualcosa da dare,
+ * e quasi mai insieme. Guardando solo l'ultima pubblicazione, il primo rilascio
+ * del programma **senza** APK allegato faceva sparire l'app dal telefono —
+ * niente da scaricare, niente da aggiornare, e nessun errore da nessuna parte.
+ * Qui si scorrono le ultime pubblicazioni e si tiene la versione più alta.
+ *
+ * Accetta sia l'elenco delle pubblicazioni sia una sola: chi ha già una
+ * risposta di `/releases/latest` non deve cambiare nulla.
+ */
 export function leggiApkDalRelease(json: string): AppScaricabile | undefined {
   try {
-    const release = JSON.parse(json) as { assets?: { name?: string; browser_download_url?: string }[] }
-    for (const allegato of release.assets ?? []) {
-      const trovata = VERSIONE_NEL_NOME.exec(allegato.name ?? '')
-      if (trovata?.[1] === undefined || allegato.browser_download_url === undefined) continue
-      return { versione: trovata[1], url: allegato.browser_download_url }
+    const letto = JSON.parse(json) as Release | Release[]
+    const releases = Array.isArray(letto) ? letto : [letto]
+    let migliore: AppScaricabile | undefined
+    for (const release of releases) {
+      for (const allegato of release.assets ?? []) {
+        const trovata = VERSIONE_NEL_NOME.exec(allegato.name ?? '')
+        if (trovata?.[1] === undefined || allegato.browser_download_url === undefined) continue
+        const candidata = { versione: trovata[1], url: allegato.browser_download_url }
+        if (migliore === undefined || piuNuova(migliore.versione, candidata.versione)) {
+          migliore = candidata
+        }
+      }
     }
-    return undefined
+    return migliore
   } catch {
     return undefined
   }
@@ -59,7 +92,7 @@ export async function apkDisponibile(adesso = Date.now()): Promise<AppScaricabil
 function chiedi(): Promise<AppScaricabile | undefined> {
   return new Promise((risolvi, rifiuta) => {
     const richiesta = get(
-      'https://api.github.com/repos/niko9090/sierradeck/releases/latest',
+      'https://api.github.com/repos/niko9090/sierradeck/releases?per_page=20',
       { headers: { 'User-Agent': 'SierraDeck', Accept: 'application/vnd.github+json' }, timeout: 10_000 },
       (risposta) => {
         let corpo = ''

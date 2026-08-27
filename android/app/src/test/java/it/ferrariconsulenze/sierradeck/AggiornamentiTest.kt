@@ -119,4 +119,46 @@ class AggiornamentiTest {
         assertEquals(200, codice)
         assertTrue("deve superare il megabyte del controllo di Scaricamento", presi > 1_000_000)
     }
+
+    /**
+     * L'APK si cerca anche nelle pubblicazioni precedenti.
+     *
+     * L'app e il programma sul computer escono quando hanno qualcosa da dare, e
+     * quasi mai insieme: guardando solo l'ultima pubblicazione, il primo
+     * rilascio del programma senza APK allegato faceva sparire l'aggiornamento
+     * dal telefono — e nessun errore lo diceva.
+     */
+    @Test
+    fun `trova l APK anche se l ultima pubblicazione non ne ha`() {
+        val corpo = """
+            [
+              { "tag_name": "v0.12.10", "assets": [
+                  { "name": "SierraDeck-Setup-0.12.10.exe", "browser_download_url": "https://x/exe" } ] },
+              { "tag_name": "v0.12.8", "assets": [
+                  { "name": "SierraDeck-2.0.0.apk", "browser_download_url": "https://x/apk" } ] }
+            ]
+        """.trimIndent()
+        val trovato = Aggiornamenti.piuRecenteFra(corpo)
+        assertEquals("2.0.0", trovato?.first)
+        assertEquals("https://x/apk", trovato?.second)
+    }
+
+    /** Fra piu' APK vince il numero piu' alto, non l'ordine alfabetico. */
+    @Test
+    fun `fra piu APK tiene il piu recente`() {
+        val corpo = """
+            [
+              { "assets": [ { "name": "SierraDeck-2.9.0.apk", "browser_download_url": "https://x/vecchia" } ] },
+              { "assets": [ { "name": "SierraDeck-2.10.0.apk", "browser_download_url": "https://x/nuova" } ] }
+            ]
+        """.trimIndent()
+        assertEquals("2.10.0", Aggiornamenti.piuRecenteFra(corpo)?.first)
+    }
+
+    /** Una risposta illeggibile non fa esplodere niente: si resta alla versione di adesso. */
+    @Test
+    fun `una risposta illeggibile non propone niente`() {
+        assertEquals(null, Aggiornamenti.piuRecenteFra("non e json"))
+    }
 }
+

@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
-import org.json.JSONObject
+import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
@@ -24,8 +24,17 @@ import kotlin.concurrent.thread
  */
 object Aggiornamenti {
 
-    private const val ULTIMA =
-        "https://api.github.com/repos/niko9090/sierradeck/releases/latest"
+    /**
+     * Le ultime pubblicazioni, non solo l'ultima.
+     *
+     * L'app e il programma sul computer escono quando hanno qualcosa da dare, e
+     * quasi mai insieme: la prima pubblicazione del programma **senza** APK
+     * allegato faceva sparire l'aggiornamento dal telefono — niente da
+     * scaricare, e nessun errore che lo dicesse. Si scorrono le ultime venti e
+     * si tiene la versione più alta.
+     */
+    private const val ULTIME =
+        "https://api.github.com/repos/niko9090/sierradeck/releases?per_page=20"
 
     /**
      * La versione dell'app si legge **dal nome dell'APK**, non dal tag.
@@ -49,31 +58,55 @@ object Aggiornamenti {
     fun controlla(mia: String, quandoTrovata: (nome: String, apk: String) -> Unit) {
         thread(start = true) {
             try {
-                val connessione = (URL(ULTIMA).openConnection() as HttpURLConnection)
+                val connessione = (URL(ULTIME).openConnection() as HttpURLConnection)
                 connessione.setRequestProperty("Accept", "application/vnd.github+json")
                 connessione.connectTimeout = 10_000
                 connessione.readTimeout = 10_000
-                try {
+                val corpo = try {
                     if (connessione.responseCode != 200) return@thread
-                    val release = JSONObject(connessione.inputStream.bufferedReader().readText())
-                    val allegati = release.optJSONArray("assets") ?: return@thread
-                    for (i in 0 until allegati.length()) {
-                        val allegato = allegati.getJSONObject(i)
-                        val nomeFile = allegato.optString("name")
-                        val trovata = VERSIONE_NEL_NOME.find(nomeFile)?.groupValues?.get(1) ?: continue
-                        if (!piuNuova(mia, trovata)) return@thread
-                        quandoTrovata(trovata, allegato.optString("browser_download_url"))
-                        return@thread
-                    }
+                    connessione.inputStream.bufferedReader().readText()
                 } finally {
                     connessione.disconnect()
                 }
+                val migliore = piuRecenteFra(corpo) ?: return@thread
+                if (!piuNuova(mia, migliore.first)) return@thread
+                quandoTrovata(migliore.first, migliore.second)
             } catch (e: Exception) {
                 // Senza rete, o con GitHub irraggiungibile, non si aggiorna e
                 // basta: non è una ragione per disturbare chi sta lavorando.
                 Log.i("SierraDeck", "aggiornamento non verificato: ${e.message}")
             }
         }
+    }
+
+    /**
+     * L'APK con la versione più alta fra tutte le pubblicazioni lette.
+     *
+     * Separata dalla rete perché così si può provare: il difetto che conta —
+     * scegliere la versione sbagliata — non ha niente a che vedere con GitHub.
+     */
+    fun piuRecenteFra(corpo: String): Pair<String, String>? {
+        val elenco = try {
+            JSONArray(corpo)
+        } catch (e: Exception) {
+            return null
+        }
+        var migliore: Pair<String, String>? = null
+        for (r in 0 until elenco.length()) {
+            val allegati = elenco.optJSONObject(r)?.optJSONArray("assets") ?: continue
+            for (i in 0 until allegati.length()) {
+                val allegato = allegati.optJSONObject(i) ?: continue
+                val versione = VERSIONE_NEL_NOME.find(allegato.optString("name"))
+                    ?.groupValues?.get(1) ?: continue
+                val url = allegato.optString("browser_download_url")
+                if (url.isEmpty()) continue
+                val attuale = migliore
+                if (attuale == null || piuNuova(attuale.first, versione)) {
+                    migliore = versione to url
+                }
+            }
+        }
+        return migliore
     }
 
     /**

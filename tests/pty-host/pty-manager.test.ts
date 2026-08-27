@@ -227,4 +227,34 @@ describe('ambientePty — marcatori di sessione ereditati', () => {
     expect(env.PATH).toBe('C:\Windows')
     expect(env.CLAUDE_CONFIG_DIR).toBe('D:\altro')
   })
+
+  it('non eredita il divieto di colorare, e dichiara cosa sa fare il terminale', () => {
+    // Chi lancia il gestore da dentro una sessione di Claude Code gli passa
+    // NO_COLOR: ereditandolo, ogni chat nasceva grigia — nessun errore, nessun
+    // motivo visibile, e il sintomo identico a un guasto del terminale. Ma il
+    // terminale che offriamo e' xterm.js, che il colore pieno lo disegna: il
+    // divieto era di un altro guscio, non nostro.
+    const env = ambientePty({ NO_COLOR: '1', CLAUDECODE: '1', PATH: 'C:\Windows' }, 'u-1')
+    expect(env.NO_COLOR).toBeUndefined()
+    expect(env.CLAUDECODE).toBeUndefined()
+    expect(env.COLORTERM).toBe('truecolor')
+    expect(env.TERM).toBe('xterm-256color')
+  })
+
+  it('non consegna ai terminali dell utente il canale privato di chi ci ha lanciati', () => {
+    const env = ambientePty(
+      { CLAUDE_CODE_MESSAGING_SOCKET: 'un-canale', CLAUDE_CODE_MESSAGING_TOKEN: 'segreto' },
+      'u-1'
+    )
+    expect(env.CLAUDE_CODE_MESSAGING_SOCKET).toBeUndefined()
+    expect(env.CLAUDE_CODE_MESSAGING_TOKEN).toBeUndefined()
+  })
+
+  it('le aggiunte esplicite vincono anche sulle capacita dichiarate', () => {
+    // Chi vuole davvero il grigio deve poterlo imporre: le aggiunte sono una
+    // scelta dell'utente e vengono per ultime.
+    const env = ambientePty({}, 'u-1', { COLORTERM: '' })
+    expect(env.COLORTERM).toBe('')
+  })
 })
+

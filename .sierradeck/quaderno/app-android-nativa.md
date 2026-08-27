@@ -86,17 +86,24 @@ chiuso. Body max 256KB. **Niente streaming**: tutto polling.
   MainActivity + Scaricamento). GuardiaService → tap notifica apre MainActivity.
   Logo cristallo nell'Ingresso. Test unitari Android verdi. Tema «vivo» da
   /api/stile: NON ancora fatto (l'app usa la tavolozza statica del Banco).
-- **Stadio 5 DA FARE (rilascio)**:
-  1. bump `versionName` 1.3.1→2.0.0 e `versionCode` 10→20 in app/build.gradle.kts.
-  2. `gradle assembleRelease` (firma con `~/.sierradeck-chiave.jks`+`.pass`, alias
-     "sierradeck" — indipendente dall'appId, ok). APK in app/build/outputs/apk/release/.
-  3. Pubblicare l'APK su una release GitHub, RINOMINATO `SierraDeck-2.0.0.apk`
-     (Aggiornamenti.controlla cerca l'asset con quel pattern nella *latest*).
-  4. Aggiornare `/api/app` del desktop (src/main/apk-disponibile.ts) perché serva
-     il nuovo APK/versione al telefono.
-  ⚠️ Cambio appId: l'app vecchia `it.glos.*` NON si auto-aggiorna a `it.ferrariconsulenze.*`
-  (package diverso) → va installata a mano la prima volta. Accettato (la vecchia
-  non funziona comunque).
+- **Stadio 5 FATTO (rilascio, 27/08)**: `versionName` 2.0.0 / `versionCode` 20;
+  `gradle assembleRelease` verde; APK firmato e pubblicato come
+  **`SierraDeck-2.0.0.apk`** sulla release GitHub *latest* (allora v0.12.8).
+  - ⚠️ **Il keystore non esisteva su questo PC**: creato ora
+    `~/.sierradeck-chiave.jks` (JKS, alias `sierradeck`, RSA 4096, 30 anni,
+    `CN=Nicholas Ferrari, O=Ferrari Consulenze`), password casuale in
+    `~/.sierradeck-chiave.pass`. **Quei due file vanno conservati e copiati
+    altrove**: persi, nessun aggiornamento futuro dell'app si installa più sopra
+    questa — Android rifiuta un APK firmato con un'altra chiave, e l'unica
+    uscita è disinstallare e reinstallare a mano. SHA-256 del certificato:
+    `8c5054aa6efbaed4fcb3a7dfbf4b0c13cbcb00e37034ccdf9aefd24f770e5d2b`.
+  - **Trappola tolta**: sia il PC (`apk-disponibile.ts`) sia il telefono
+    (`Aggiornamenti.kt`) guardavano solo `/releases/latest`. Il primo rilascio
+    del programma **senza** APK allegato avrebbe fatto sparire l'app dal
+    telefono, in silenzio. Ora entrambi scorrono `/releases?per_page=20` e
+    tengono la **versione più alta** fra tutti gli APK allegati.
+  - ⚠️ Cambio appId: la vecchia `it.glos.*` NON si auto-aggiorna a
+    `it.ferrariconsulenze.*` (package diverso) → prima installazione a mano.
 - **Restyling FATTO** (commit c3fd521): tema **vivo** da `/api/stile` — l'app
   indossa accento/chiarore/stile scelti sul PC; `Banco` è ora stato reattivo
   (mutableStateOf), si riveste da solo. Raggio della console globale (2px banco),
