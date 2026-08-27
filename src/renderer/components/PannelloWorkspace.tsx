@@ -27,16 +27,13 @@ export function PannelloWorkspace({ stato, onStato, onChiudi }: Props): React.JS
   // memoria della finestra, che nessun `set` notifica. Questo contatore è come
   // il pannello si accorge di doverlo rileggere dopo uno spegnimento.
   const [giro, setGiro] = useState(0)
-  // Il nome dell'attivo cambia sotto le azioni, che vengono create una volta
-  // sola: senza questo riferimento resterebbero ferme al nome di quando il
-  // pannello si è aperto, e ricorderebbero i riquadri vivi sotto un workspace
-  // sbagliato.
-  const attivo = useRef(stato.attivo)
-  attivo.current = stato.attivo
   // Le azioni leggono lo store al momento della chiamata: ricrearle a ogni
-  // rirender le farebbe catturare un layout vecchio.
+  // rirender le farebbe catturare un layout vecchio. Il nome del workspace in
+  // primo piano non si passa più: lo tiene `workspace-corrente`, che le azioni
+  // aggiornano da sé — una prop, ferma al render, le faceva ricordare i riquadri
+  // vivi sotto il workspace sbagliato.
   const azioni = useRef<AzioniWorkspace | undefined>(undefined)
-  azioni.current ??= azioniDiFinestra(() => attivo.current)
+  azioni.current ??= azioniDiFinestra()
 
   // Esc chiude il pannello: è sopra il mosaico, e chi lo apre per sbaglio deve
   // poterlo togliere senza cercare il tasto.

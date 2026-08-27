@@ -13,6 +13,7 @@ import { creaUltimeRighe, terminalePronto } from './ultime-righe'
 import { creaBattito, stessiAttivi } from './battito'
 import { eseguiConsegna, ponteReale } from './consegne-autopilota'
 import { memoriaWorkspace } from './memoria-workspace'
+import { impostaWorkspaceCorrente, workspaceCorrente } from './workspace-corrente'
 import { leggiConsegne } from '../main/autopilota-consegne'
 import type { Autopilota } from '@shared/autopilota'
 import type { StatoWorkspace } from '../main/ipc'
@@ -54,21 +55,20 @@ const RICARICA_AUTOPILOTI_MS = 5000
  * Collega la persistenza del layout — la cui logica sta in `persistenza-layout`,
  * fuori da React — al ciclo di vita del componente.
  */
-function usaPersistenzaLayout(workspaceOra: () => string): void {
-  // L'effetto nasce una volta sola, ma il workspace attivo cambia dopo: si legge
-  // da un riferimento sempre aggiornato, non dalla chiusura catturata al primo
-  // render.
-  const leggiWorkspace = useRef(workspaceOra)
-  leggiWorkspace.current = workspaceOra
+function usaPersistenzaLayout(): void {
   useEffect(() => {
     const persistenza = creaPersistenza({
       carica: () => window.gestore.layout.carica(),
       // Col layout viaggia il nome del workspace che *questa* finestra mostra:
       // il Core lo scrive lì e non sotto l'attivo dell'archivio, che al riavvio
       // dopo un aggiornamento puo' essere ancora un altro. Senza, le chat di un
-      // workspace finivano sopra quelle di un altro. Letto al momento del
-      // salvataggio, non alla nascita dell'effetto: l'attivo cambia sotto.
-      salva: (l) => window.gestore.layout.salva(l, leggiWorkspace.current()),
+      // workspace finivano sopra quelle di un altro.
+      //
+      // Il nome si legge da `workspace-corrente`, non dallo stato di React,
+      // perché questo salvataggio parte **sincrono** dentro `cambiaVista`:
+      // React è ancora fermo al workspace di prima, e con quel nome il Core
+      // riscriveva il layout nuovo sopra le chat di quello appena lasciato.
+      salva: (l) => window.gestore.layout.salva(l, workspaceCorrente()),
       esporta: () => useLayoutStore.getState().esporta(),
       applica: (l) => useLayoutStore.getState().carica(l),
       sottoscrivi: (cb) => useLayoutStore.subscribe(cb)
@@ -152,12 +152,11 @@ export function App(): React.JSX.Element {
     const primo = Object.values(riquadriAperti)[0]
     return primo?.cwd ?? ''
   }
-  // Il nome del workspace che questa finestra mostra, in un riferimento sempre
-  // aggiornato (lo si allinea allo stato più sotto, quando `workspace` esiste).
-  // La persistenza lo legge a ogni salvataggio per scrivere il layout sotto il
-  // workspace giusto invece che sotto l'attivo dell'archivio.
-  const attivoOra = useRef('')
-  usaPersistenzaLayout(() => attivoOra.current)
+  // Dove questa finestra si trova vive in `workspace-corrente`, fuori da React:
+  // la persistenza lo legge a ogni salvataggio, e deve poterlo vedere cambiare
+  // **prima** che il layout nuovo arrivi a schermo — cosa che uno stato di React
+  // non può fare, perché si aggiorna solo al render successivo.
+  usaPersistenzaLayout()
   usaRiquadriInArrivo()
 
   // Le finestre si spostano prendendole per la testa. Per delega e in un posto
@@ -260,18 +259,18 @@ export function App(): React.JSX.Element {
       const porta = (): void => {
         eseguiConsegna(c, ponteReale(
           (ptyId) => terminalePronto(righe.current.attivitaDi(ptyId), Date.now()),
-          () => attivoOra.current
+          workspaceCorrente
         ))
       }
       // **Prima si va dove la chat vive.** La sua conversazione puo' essere
       // salvata in un altro workspace: consegnare qui aprirebbe una seconda
       // copia sotto i tuoi occhi, e il lavoro andrebbe in quella - mentre
       // quella vera resta ferma in un posto che non stai guardando.
-      if (c.workspace !== undefined && c.workspace !== attivoOra.current) {
-        void azioniDiFinestra(() => attivoOra.current)
+      if (c.workspace !== undefined && c.workspace !== workspaceCorrente()) {
+        void azioniDiFinestra()
           .cambia(c.workspace)
           .then(() => window.gestore.workspace.stato())
-          .then(setWorkspace)
+          .then(aggiornaWorkspace)
           .then(porta)
           .catch((e: unknown) => {
             console.error('[autopilota] non sono riuscito ad andare nel suo workspace:', e)
@@ -344,7 +343,7 @@ export function App(): React.JSX.Element {
   }), [])
 
   useEffect(() => window.gestore.client.suWorkspace((nome) => {
-    void azioniDiFinestra(() => attivoOra.current)
+    void azioniDiFinestra()
       .cambia(nome)
       // E si aggiorna anche l'etichetta. Il cambio arriva dal telefono, quindi
       // **ogni** finestra lo esegue: ognuna è mittente del proprio cambio, e
@@ -352,7 +351,7 @@ export function App(): React.JSX.Element {
       // Risultato: le chat cambiavano sotto gli occhi e il workspace scelto
       // restava indicato quello di prima.
       .then(() => window.gestore.workspace.stato())
-      .then(setWorkspace)
+      .then(aggiornaWorkspace)
       .catch(() => undefined)
   }), [])
   // Premere fuori chiude, per tutte allo stesso modo: chi lo prova su una e non
@@ -364,6 +363,19 @@ export function App(): React.JSX.Element {
   const [novita, setNovita] = useState<Novita | undefined>(undefined)
   const [aperto, setAperto] = useState<PannelloAperto>(undefined)
   const [workspace, setWorkspace] = useState<StatoWorkspace>({ nomi: [], attivo: '' })
+  /**
+   * L'unico modo di dire «questa finestra ora mostra quel workspace».
+   *
+   * Aggiorna **insieme** lo stato di React (che disegna la fascia) e
+   * `workspace-corrente` (che il salvataggio del layout legge in modo sincrono).
+   * Tenerli separati è come nasceva il guasto: si aggiornava solo React, il
+   * salvataggio partiva col nome di prima, e il layout nuovo finiva scritto
+   * sopra le chat del workspace appena lasciato.
+   */
+  const aggiornaWorkspace = useCallback((s: StatoWorkspace): void => {
+    impostaWorkspaceCorrente(s.attivo)
+    setWorkspace(s)
+  }, [])
   const [autopiloti, setAutopiloti] = useState<Autopilota[]>([])
   const [erroreAutopiloti, setErroreAutopiloti] = useState<string | undefined>(undefined)
   const [alLogin, setAlLogin] = useState<boolean | undefined>(undefined)
@@ -535,12 +547,6 @@ export function App(): React.JSX.Element {
       .catch(() => setAccesso({ autenticato: true }))
   }, [])
 
-  // Il nome del workspace attivo cambia sotto le azioni, che nascono una volta
-  // sola: senza questo riferimento ricorderebbero i riquadri vivi sotto il nome
-  // che l'attivo aveva all'apertura della finestra. Il riferimento è dichiarato
-  // in cima — lo legge anche la persistenza del layout — e qui lo si allinea allo
-  // stato a ogni render.
-  attivoOra.current = workspace.attivo
   // La preferenza puo cambiare mentre il programma gira: si legge quando serve.
   // Se salvare da soli un'istantanea alla chiusura: l'interruttore c'era ma non
   // lo leggeva nessuno, e il salvataggio automatico partiva comunque. Ora lo
@@ -561,7 +567,7 @@ export function App(): React.JSX.Element {
   // passa più qui: la legge il predefinito di `azioniDiFinestra` dal valore
   // globale, aggiornato sopra a ogni cambio — così vale per tutte le istanze, non
   // solo per questa.
-  azioniWorkspace.current ??= azioniDiFinestra(() => attivoOra.current)
+  azioniWorkspace.current ??= azioniDiFinestra()
 
   // La barra del titolo dice versione e workspace: con piu' finestre aperte su
   // workspace diversi e' l'unico posto che le distingue da fuori — in Alt+Tab,
@@ -579,8 +585,8 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     window.gestore.workspace
       .stato()
-      .then(setWorkspace)
-      .catch(() => setWorkspace({ nomi: [], attivo: '' }))
+      .then(aggiornaWorkspace)
+      .catch(() => aggiornaWorkspace({ nomi: [], attivo: '' }))
     // Il workspace attivo è dell'applicazione, non della finestra: quando
     // un'altra lo cambia, questa deve **seguirla** e non limitarsi a cambiare
     // etichetta. Finché non lo faceva, i suoi riquadri restavano a schermo
@@ -589,7 +595,7 @@ export function App(): React.JSX.Element {
     // modo in cui, con due finestre aperte, i layout finivano per svuotarsi
     // tutti — il sintomo del difetto 0-quater.
     return window.gestore.workspace.onCambiato((s) => {
-      setWorkspace({ nomi: s.nomi, attivo: s.attivo })
+      aggiornaWorkspace({ nomi: s.nomi, attivo: s.attivo })
       void azioniWorkspace.current
         ?.segui(s.precedente, s.attivo)
         .catch((err: unknown) => console.error('[workspace] cambio non seguito:', err))
@@ -597,7 +603,7 @@ export function App(): React.JSX.Element {
   }, [])
 
   // Un ripristino di istantanea riporta davanti un workspace: la finestra vi si
-  // riallinea **subito** e in modo sincrono — `attivoOra.current` prima ancora
+  // riallinea **subito** e in modo sincrono — `workspace-corrente` prima ancora
   // dello stato React — perché il salvataggio del layout è sincrono e il layout
   // ripristinato arriva un attimo dopo. Senza, la finestra risalverebbe quel
   // layout sotto il workspace di prima e l'invariante «una chat, un workspace»
@@ -605,8 +611,7 @@ export function App(): React.JSX.Element {
   // entro un tick). Niente `segui`/`trasloca`: l'archivio è già cambiato nel
   // Core, traslocare risalverebbe il layout sotto il nome vecchio.
   useEffect(() => window.gestore.workspace.onRipristinato((s) => {
-    attivoOra.current = s.attivo
-    setWorkspace({ nomi: s.nomi, attivo: s.attivo })
+    aggiornaWorkspace({ nomi: s.nomi, attivo: s.attivo })
   }), [])
 
   // Un workspace rinominato: solo un'etichetta cambia, le chat restano dov'erano.
@@ -616,10 +621,17 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     return window.gestore.workspace.onRinominato(({ vecchio, nuovo, attivo }) => {
       memoriaWorkspace().rinomina(vecchio, nuovo)
-      setWorkspace((s) => ({
-        nomi: s.nomi.map((n) => (n === vecchio ? nuovo : n)),
-        attivo: s.attivo === vecchio ? attivo : s.attivo
-      }))
+      // Anche `workspace-corrente` deve seguire il nome nuovo: il salvataggio
+      // del layout lo legge, e con il nome vecchio il Core non riconoscerebbe
+      // più il workspace dichiarato.
+      setWorkspace((s) => {
+        const dopo = {
+          nomi: s.nomi.map((n) => (n === vecchio ? nuovo : n)),
+          attivo: s.attivo === vecchio ? attivo : s.attivo
+        }
+        impostaWorkspaceCorrente(dopo.attivo)
+        return dopo
+      })
     })
   }, [])
 
@@ -805,7 +817,7 @@ export function App(): React.JSX.Element {
         onApri={setAperto}
         workspaceAttivo={workspace.attivo}
         workspaceNomi={workspace.nomi}
-        onStatoWorkspace={setWorkspace}
+        onStatoWorkspace={aggiornaWorkspace}
         workspaceCheChiamano={workspaceChiamano}
         onApriNovita={() => {
           // Le novità di *questa* versione, richieste apposta: la finestra che
@@ -893,7 +905,7 @@ export function App(): React.JSX.Element {
         {aperto === 'workspace' ? (
           <PannelloWorkspace
             stato={workspace}
-            onStato={setWorkspace}
+            onStato={aggiornaWorkspace}
             onChiudi={() => setAperto(undefined)}
           />
         ) : null}

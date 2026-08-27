@@ -393,15 +393,50 @@ export function registerSessionIpc(cartella?: string): Db {
 }
 
 /**
- * La chiave del monitor su cui si trova una finestra.
+ * La chiave del monitor su cui si trova una finestra **adesso**.
  *
  * `getDisplayMatching` restituisce lo schermo che contiene la porzione maggiore
  * della finestra: è la risposta giusta anche per una finestra a cavallo di due
  * monitor, che altrimenti non ne avrebbe nessuna.
+ *
+ * Serve a rimettere le finestre dove stavano quando si ricarica un salvataggio:
+ * lì la domanda «su quale schermo sei?» va posta ogni volta, perché la risposta
+ * deve essere quella di adesso.
  */
-function chiaveDellaFinestra(win: BrowserWindow): string {
+function monitorDellaFinestra(win: BrowserWindow): string {
   const d = screen.getDisplayMatching(win.getBounds())
   return chiaveMonitor({ bounds: d.bounds, scaleFactor: d.scaleFactor })
+}
+
+/**
+ * La chiave sotto cui una finestra archivia il proprio layout — decisa **una
+ * volta sola**, alla prima domanda, e non più cambiata finché la finestra vive.
+ *
+ * L'archivio tiene i layout in una mappa per monitor, e la chiave è la geometria
+ * dello schermo (posizione, risoluzione, scalatura). Ricalcolarla a ogni
+ * richiesta significa che basta trascinare la finestra su un altro monitor,
+ * cambiare risoluzione o cambiare scalatura perché la stessa finestra cominci a
+ * chiedere una chiave diversa da quella sotto cui ha salvato: il layout è ancora
+ * lì, ma sotto un nome che nessuno chiede più. In interfaccia si vede così —
+ * *cambio workspace e le chat non ci sono*. Non erano perse: non c'era nessuno a
+ * chiederle.
+ *
+ * Congelarla toglie tutta la classe di guasti, e non ne apre nessuno: le chat
+ * restano dov'erano, e chi sposta la finestra continua a trovarle. All'avvio
+ * successivo `unicoLayout` raccoglie comunque sotto un'unica chiave quello che
+ * fosse rimasto sparso.
+ */
+const chiaviCongelate = new Map<number, string>()
+
+function chiaveDellaFinestra(win: BrowserWindow): string {
+  const gia = chiaviCongelate.get(win.id)
+  if (gia !== undefined) return gia
+  const chiave = monitorDellaFinestra(win)
+  chiaviCongelate.set(win.id, chiave)
+  // Gli id delle finestre si riciclano: senza questa pulizia una finestra nuova
+  // erediterebbe la chiave di una morta.
+  win.once('closed', () => chiaviCongelate.delete(win.id))
+  return chiave
 }
 
 function layoutVuoto(): LayoutSalvato {
@@ -1005,13 +1040,13 @@ export function registerIstantaneeIpc(
         console.warn(`[istantanee] «${nome}»: la finestra che salva non ha riquadri, non la salvo`)
       }
       const finestre: FinestraSalvata[] = [
-        ...(layout.panes.length > 0 ? [{ monitor: chiaveDellaFinestra(win), layout }] : []),
+        ...(layout.panes.length > 0 ? [{ monitor: monitorDellaFinestra(win), layout }] : []),
         ...altre.flatMap((r) => {
           const w = BrowserWindow.getAllWindows().find((x) => x.id === r.winId)
           if (w === undefined || w.isDestroyed()) return []
           // Una finestra senza riquadri non e' da riaprire: comparirebbe vuota.
           if (r.layout.panes.length === 0) return []
-          return [{ monitor: chiaveDellaFinestra(w), layout: r.layout }]
+          return [{ monitor: monitorDellaFinestra(w), layout: r.layout }]
         })
       ]
 
@@ -1098,7 +1133,7 @@ export function registerIstantaneeIpc(
     const riaperte = finestreDaRiaprire(istantanea)
     const { aFinestre, daAprire, daSvuotare } = distribuisci(
       riaperte,
-      ordinate.map((w) => ({ id: w.id, monitor: chiaveDellaFinestra(w) }))
+      ordinate.map((w) => ({ id: w.id, monitor: monitorDellaFinestra(w) }))
     )
 
     let mio: LayoutSalvato | undefined

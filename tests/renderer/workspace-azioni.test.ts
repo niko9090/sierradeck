@@ -21,17 +21,30 @@ function layoutCon(id: string, ptyId?: string): LayoutSalvato {
 function ambiente(opts: { nomi?: string[]; attivo?: string; corrente?: LayoutSalvato } = {}) {
   const chiamate: { azione: string; args: unknown[] }[] = []
   const applicati: LayoutSalvato[] = []
+  // Il workspace dichiarato dalla finestra **nell'istante** in cui il layout
+  // nuovo arriva a schermo. E' quello che la persistenza legge per decidere
+  // sotto quale nome salvare, e il salvataggio parte sincrono dentro
+  // `cambiaVista`: se qui resta il nome vecchio, il layout nuovo viene scritto
+  // sopra le chat del workspace che si sta lasciando.
+  const dichiaratoAllaVista: string[] = []
   const uccisi: string[] = []
   const dimenticati: string[] = []
   let nomi = opts.nomi ?? ['Uno']
+  // Due cose diverse, ed e' tutto il punto di questo file:
+  //  - `attivo` e' l'attivo **dell'archivio**, che il Core cambia rispondendo;
+  //  - `dichiarato` e' il workspace che **la finestra dice** di mostrare, cioe'
+  //    quello sotto cui la persistenza salva il layout.
+  // La risposta del Core non aggiorna il secondo: lo aggiorna solo
+  // `annunciaAttivo`. Confonderli nel finto ambiente nasconderebbe il guasto.
   let attivo = opts.attivo ?? 'Uno'
+  let dichiarato = attivo
   // Cio' che la destinazione restituisce, per verificare che venga applicato.
   const daRestituire = new Map<string, LayoutSalvato>()
   const memoria = creaMemoriaWorkspace()
 
   const deps: AzioniDeps = {
     stato: () => Promise.resolve({ nomi, attivo }),
-    attivo: () => attivo,
+    attivo: () => dichiarato,
     crea: (nome) => {
       chiamate.push({ azione: 'crea', args: [nome] })
       nomi = [...nomi, nome]
@@ -54,7 +67,11 @@ function ambiente(opts: { nomi?: string[]; attivo?: string; corrente?: LayoutSal
       return Promise.resolve(daRestituire.get(nome) ?? { root: undefined, panes: [] })
     },
     esporta: () => opts.corrente ?? layoutCon('pane-corrente'),
-    cambiaVista: (l) => { applicati.push(l) },
+    annunciaAttivo: (nome) => { dichiarato = nome },
+    cambiaVista: (l) => {
+      dichiaratoAllaVista.push(dichiarato)
+      applicati.push(l)
+    },
     memoria,
     chiudiTerminali: (id) => { uccisi.push(...id) },
     dimenticaCeduti: (id) => { dimenticati.push(...id) }
@@ -64,6 +81,7 @@ function ambiente(opts: { nomi?: string[]; attivo?: string; corrente?: LayoutSal
     deps,
     chiamate,
     applicati,
+    dichiaratoAllaVista,
     uccisi,
     dimenticati,
     daRestituire,
@@ -265,5 +283,68 @@ describe('creaAzioniWorkspace — spegni', () => {
     // svuotare il layout salvato senza che nessuno l'abbia chiesto.
     const a = ambiente({ nomi: ['Uno', 'Due'], attivo: 'Uno' })
     expect(() => creaAzioniWorkspace(a.deps).spegni('Uno')).toThrow(/primo piano/)
+  })
+})
+
+describe('creaAzioniWorkspace — dove si trova la finestra, quando il layout cambia', () => {
+  // La radice del guasto «creo o cambio workspace e le chat spariscono».
+  //
+  // `cambiaVista` fa un `set` sullo store, zustand avvisa i sottoscritti nello
+  // stesso istante e la persistenza manda subito `layout:salva(layout, nome)`.
+  // Finché quel nome veniva dallo stato di React — aggiornato solo *dopo* che
+  // la promessa rientrava — il Core riceveva «il layout di B, salvalo sotto A»
+  // e obbediva: A si ritrovava le chat di B (o si svuotava, creando), e
+  // l'invariante «una chat, un workspace» le toglieva a B. Dopo un riavvio non
+  // c'erano più.
+
+  it('cambiando, la finestra dichiara il workspace nuovo prima di mostrarlo', async () => {
+    const a = ambiente()
+    a.daRestituire.set('Due', layoutCon('pane-due'))
+    await creaAzioniWorkspace(a.deps).cambia('Due')
+    expect(a.dichiaratoAllaVista).toEqual(['Due'])
+  })
+
+  it('creando, la finestra dichiara il workspace nuovo prima di svuotare lo schermo', async () => {
+    // Il caso peggiore: il layout della destinazione è vuoto, quindi il
+    // salvataggio col nome vecchio **azzerava** il workspace che si lasciava.
+    const a = ambiente()
+    await creaAzioniWorkspace(a.deps).crea('Due')
+    expect(a.applicati).toEqual([{ root: undefined, panes: [] }])
+    expect(a.dichiaratoAllaVista).toEqual(['Due'])
+  })
+
+  it('seguendo il cambio di un altra finestra, dichiara la destinazione prima di mostrarla', async () => {
+    const a = ambiente({ nomi: ['Uno', 'Due'] })
+    a.daRestituire.set('Due', layoutCon('pane-due'))
+    await creaAzioniWorkspace(a.deps).segui('Uno', 'Due')
+    expect(a.dichiaratoAllaVista).toEqual(['Due'])
+  })
+
+  it('eliminando quello davanti, dichiara quello che resta prima di mostrarlo', async () => {
+    const a = ambiente({ nomi: ['Uno', 'Due'], attivo: 'Due' })
+    a.daRestituire.set('Uno', layoutCon('pane-uno'))
+    await creaAzioniWorkspace(a.deps).elimina('Due')
+    expect(a.dichiaratoAllaVista).toEqual(['Uno'])
+  })
+})
+
+describe('creaAzioniWorkspace — da dove si parte', () => {
+  it('crea: parte dal workspace di questa finestra, non dall attivo dell archivio', async () => {
+    // Con due finestre su workspace diversi, l'attivo dell'archivio e' quello
+    // dell'**altra**: partendo da li' il layout di questa finestra verrebbe
+    // salvato sopra le chat di un workspace che non sta guardando.
+    const a = ambiente({ nomi: ['Uno', 'Due'], attivo: 'Due' })
+    a.deps.attivo = () => 'Uno'
+    await creaAzioniWorkspace(a.deps).crea('Tre')
+    const migra = a.chiamate.find((c) => c.azione === 'migra')
+    expect(migra?.args[0]).toBe('Uno')
+  })
+
+  it('crea: se la finestra non sa ancora dove si trova, ripiega sull archivio', async () => {
+    const a = ambiente({ nomi: ['Uno'], attivo: 'Uno' })
+    a.deps.attivo = () => ''
+    await creaAzioniWorkspace(a.deps).crea('Due')
+    const migra = a.chiamate.find((c) => c.azione === 'migra')
+    expect(migra?.args[0]).toBe('Uno')
   })
 })

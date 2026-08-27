@@ -1,5 +1,6 @@
 import { useLayoutStore } from './state/layout'
 import { memoriaWorkspace } from './memoria-workspace'
+import { impostaWorkspaceCorrente, workspaceCorrente } from './workspace-corrente'
 import { creaAzioniWorkspace, type AzioniWorkspace } from './workspace-azioni'
 
 /**
@@ -27,13 +28,15 @@ export function impostaIbernaLasciando(valore: boolean): void {
  * dove va `cambiaVista` perché cambiare workspace tornasse a uccidere i
  * claude.exe, e nessun errore lo direbbe.
  *
- * `attivo` arriva da fuori perché il nome del workspace in primo piano vive
- * nello stato di React, dove lo aggiorna anche l'annuncio di un'altra finestra:
- * leggerlo qui da una copia nostra vorrebbe dire ricordare i riquadri sotto un
- * nome vecchio.
+ * Dove la finestra si trova non arriva più da fuori: lo tiene
+ * `workspace-corrente`, un modulo solo, letto e scritto in modo sincrono.
+ * Passarlo da fuori significava leggerlo dallo stato di React, che si aggiorna
+ * **dopo** il cambio: le azioni ricordavano i riquadri — e la persistenza
+ * salvava il layout — sotto il nome di prima. Con quattro punti di creazione
+ * (fascia, pannello, autopilota, telefono) erano quattro occasioni di passare la
+ * copia sbagliata; adesso non c'è più niente da passare.
  */
 export function azioniDiFinestra(
-  attivo: () => string,
   /**
    * Se le chat che si lasciano devono dormire. Il predefinito legge la
    * preferenza globale tenuta in questo modulo (aggiornata da `App`), così ogni
@@ -43,7 +46,11 @@ export function azioniDiFinestra(
 ): AzioniWorkspace {
   return creaAzioniWorkspace({
     stato: () => window.gestore.workspace.stato(),
-    attivo,
+    attivo: workspaceCorrente,
+    // Dichiarare dove si è arrivati **prima** di mettere a schermo il layout
+    // nuovo: fra le due cose c'è il salvataggio sincrono, ed è lì che il nome
+    // vecchio riscriveva il workspace lasciato.
+    annunciaAttivo: impostaWorkspaceCorrente,
     crea: (nome) => window.gestore.workspace.crea(nome),
     elimina: (nome) => window.gestore.workspace.elimina(nome),
     cambia: (nome, layout) => window.gestore.workspace.cambia(nome, layout),

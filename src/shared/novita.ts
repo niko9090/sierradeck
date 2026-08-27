@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.9',
+    righe: [
+      '**I workspace non perdono piu’ le chat.** Creando o cambiando workspace, il programma salvava la disposizione **sotto il nome sbagliato**: quello che si stava lasciando veniva svuotato, oppure si ritrovava dentro le chat dell’altro — e quelle sparivano di la’. Nella stessa sessione il danno restava nascosto (le chat aperte continuavano a vedersi), e riaprendo il programma non c’erano piu’. Adesso il workspace in primo piano viene dichiarato **prima** che la disposizione nuova arrivi a schermo, e il salvataggio finisce sempre dove deve.',
+      '**E non spariscono piu’ spostando la finestra.** La disposizione era archiviata per schermo, con una chiave che teneva conto di posizione, risoluzione e scalatura: bastava trascinare la finestra sull’altro monitor o cambiare risoluzione perche’ la stessa finestra cercasse le chat in un posto dove non le aveva mai messe. Ora ogni finestra usa la stessa chiave per tutta la sua vita: le chat restano dove sono, comunque la si sposti.',
+      '**Con due finestre aperte, ognuna sa dov’e’.** Creare o eliminare un workspace partiva dal workspace che aveva davanti **l’altra** finestra, e la disposizione di questa finiva sopra le chat di quella. Adesso ogni finestra parte da se’.'
+    ]
+  },
+  {
     versione: '0.12.8',
     righe: [
       '**SierraDeck consuma meno quando è ferma.** A riposo il programma faceva parecchio lavoro inutile in sottofondo: ridisegnava l’interfaccia ogni secondo, rileggeva di continuo file dal disco, e controllava in rete ogni secondo e mezzo anche senza nessun autopilota. Ora tutto questo si accende **solo quando serve** — meno CPU e meno batteria a riposo, con la stessa prontezza quando c’è lavoro in corso (appena arriva qualcosa da fare, torna reattivo all’istante).',

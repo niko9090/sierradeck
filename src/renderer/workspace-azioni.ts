@@ -24,6 +24,22 @@ export type AzioniDeps = {
    * ucciderebbe di nuovo il claude.exe di ogni chat — e nessun errore lo direbbe.
    */
   cambiaVista: (l: LayoutSalvato) => void
+  /**
+   * Dichiara dove la finestra si trova adesso, **prima** di `cambiaVista`.
+   *
+   * Non è un dettaglio di interfaccia: `cambiaVista` fa un `set` sullo store, i
+   * sottoscritti vengono avvisati nello stesso istante e la persistenza manda
+   * subito `layout:salva` col nome del workspace che la finestra dichiara di
+   * mostrare. Se quel nome è ancora quello di prima — ed era sempre così, perché
+   * lo stato di React si aggiorna solo dopo che la promessa rientra — il Core
+   * scrive **il layout nuovo sotto il workspace vecchio**: creando un workspace
+   * si svuotava quello che si lasciava, cambiandone uno le sue chat venivano
+   * portate via all'altro dall'invariante «una chat, un workspace».
+   *
+   * Deve essere sincrona e avere effetto immediato: è l'unica ragione per cui
+   * `workspace-corrente` esiste fuori da React.
+   */
+  annunciaAttivo: (nome: string) => void
   /** I riquadri tenuti vivi in questa finestra, uno per workspace. */
   memoria: MemoriaWorkspace
   /** Chiude i terminali elencati: è tutto ciò che «spegnere» significa. */
@@ -101,7 +117,25 @@ export function creaAzioniWorkspace(deps: AzioniDeps): AzioniWorkspace {
     }
     const corrente = deps.esporta()
     deps.memoria.ricorda(da, corrente)
-    deps.cambiaVista(deps.memoria.recupera(a, await deps.migra(da, a, corrente)))
+    const dalDisco = await deps.migra(da, a, corrente)
+    // Prima si dichiara dove si è arrivati, poi si mette a schermo: fra le due
+    // righe c'è il salvataggio sincrono del layout, e invertirle significa
+    // scrivere il layout nuovo sotto il workspace appena lasciato.
+    deps.annunciaAttivo(a)
+    deps.cambiaVista(deps.memoria.recupera(a, dalDisco))
+  }
+
+  /**
+   * Il workspace da cui questa finestra sta partendo.
+   *
+   * Se non lo sa ancora — avvio, prima che `workspace:stato` risponda — si
+   * ripiega sull'archivio: e' un'ipotesi, ma e' meglio di una stringa vuota, che
+   * nel Core non corrisponde a nessun workspace e farebbe perdere il layout
+   * appena lasciato.
+   */
+  const daDove = async (): Promise<string> => {
+    const suo = deps.attivo().trim()
+    return suo !== '' ? suo : (await deps.stato()).attivo
   }
 
   const spegni = (nome: string): number => {
@@ -136,18 +170,29 @@ export function creaAzioniWorkspace(deps: AzioniDeps): AzioniWorkspace {
       // chiamate distinte esisterebbe un istante in cui il lavoro non è salvato
       // da nessuna parte, e una chiusura lì in mezzo lo perderebbe.
       const dalDisco = await deps.cambia(nome, corrente)
+      // Dichiarare **prima** di mostrare: `cambiaVista` fa scattare il
+      // salvataggio del layout nello stesso istante, e con il nome vecchio
+      // quel salvataggio riscrive il workspace che si sta lasciando con le
+      // chat di quello che si sta prendendo.
+      deps.annunciaAttivo(nome)
       deps.cambiaVista(deps.memoria.recupera(nome, dalDisco))
     },
 
     async crea(nome) {
-      const precedente = (await deps.stato()).attivo
+      // Da dove si parte lo dice **questa finestra**, non l'archivio: l'attivo
+      // dell'archivio e' dell'applicazione, e con due finestre su workspace
+      // diversi e' quello dell'altra. Il layout di qui verrebbe salvato sotto un
+      // workspace che questa finestra non sta mostrando — cioe' sopra le chat di
+      // qualcun altro. Si ripiega sull'archivio solo se la finestra non sa
+      // ancora dove si trova (avvio).
+      const precedente = await daDove()
       const stato = await deps.crea(nome)
       await trasloca(precedente, stato.attivo)
       return stato
     },
 
     async elimina(nome) {
-      const precedente = (await deps.stato()).attivo
+      const precedente = await daDove()
       const stato = await deps.elimina(nome)
       // Se il workspace eliminato era l'attivo, il layout viene salvato sotto un
       // nome che non esiste più: è un no-op voluto lato Core, non un caso

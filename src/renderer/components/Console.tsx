@@ -95,7 +95,10 @@ export function Console({
     if (nome === workspaceAttivo) return
     // L'errore non si ingoia: se il cambio non riesce, premere il nome del
     // workspace non farebbe niente e nessuno saprebbe perche'.
-    void azioniDiFinestra(() => workspaceAttivo)
+    // Dove la finestra si trova lo sa `workspace-corrente`, non questa prop: la
+    // prop è ferma al render, e le azioni la aggiornano da sé prima di mettere a
+    // schermo il layout nuovo.
+    void azioniDiFinestra()
       .cambia(nome)
       // L'annuncio del cambio non torna a chi lo ha chiesto — di proposito, o
       // riscriverebbe il layout appena salvato — quindi questa finestra deve
