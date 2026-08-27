@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.17',
+    righe: [
+      '**Dal telefono si vede lo scaricamento davvero.** C’è la barra che avanza accanto alla percentuale, e sotto il nome del computer c’è scritto che versione ha adesso — così si capisce a colpo d’occhio se quella scaricata è più nuova o è ferma lì da ieri.',
+      '**Si può cercare una versione più nuova anche quando ce n’è già una scaricata.** Prima il tasto spariva: se nel frattempo ne usciva una migliore, l’unica cosa che potevi fare era installare quella vecchia. E cercare non butta via quello che è già stato scaricato — se non c’è niente di più nuovo, il tasto «Installa» torna dov’era.'
+    ]
+  },
+  {
     versione: '0.12.16',
     righe: [
       '**Adesso si vede cosa sta facendo l’aggiornamento, sempre.** Accanto al numero di versione c’è una spia: «cerco…», «c’è la 0.12.17», «scarico 42%», «pronta da installare». Prima due fasi su sette non comparivano da nessuna parte — chi premeva il tasto restava a guardare uno schermo che non diceva niente.',

@@ -43,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.LinearProgressIndicator
 
 /** Numeri di token leggibili: 12.4k, 3.1M. */
 private fun tokenBrevi(n: Long): String = when {
@@ -264,15 +265,11 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
     var cercando by remember { mutableStateOf(false) }
     var nota by remember { mutableStateOf<String?>(null) }
 
-    // **Tutte** le fasi, non quattro su sette. «cerco» ed «errore» finivano
-    // nell'else insieme a «non c'è niente», quindi premere «Cerca ora» non
-    // sembrava fare nulla e un guasto non si vedeva affatto: da qui l’idea
-    // che l’aggiornamento del computer dal telefono non funzionasse.
     val descrizione = when (a?.fase) {
         "cerco" -> "Sto guardando se c’è qualcosa di nuovo…"
-        "disponibile" -> "C'è la ${a.versione ?: "versione nuova"}. Scaricala quando vuoi."
-        "scarico" -> "Sto scaricando la ${a.versione ?: ""} — ${a.percento ?: 0}%."
-        "pronto" -> "La ${a.versione ?: ""} è scaricata. Installandola, il computer si chiude e riparte da solo."
+        "disponibile" -> "C'è la ${a.versione ?: "versione nuova"}, da scaricare."
+        "scarico" -> "Sto scaricando la ${a.versione ?: ""}."
+        "pronto" -> "La ${a.versione ?: ""} è già scaricata e aspetta solo di essere installata."
         "aggiornato" -> "È all’ultima versione."
         "errore" -> "Non ci sono riuscito: ${a.errore ?: "errore sconosciuto"}"
         else -> nota ?: "Controlla da sé ogni sei ore. Puoi anche chiederglielo adesso."
@@ -285,18 +282,32 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
         else -> Banco.testoQuieto
     }
 
+    fun cerca() {
+        cercando = true; nota = "Sto cercando…"
+        scope.launch {
+            nota = try {
+                api.cercaAggiornamentoPc()
+                null
+            } catch (e: Exception) {
+                "Questo computer non sa ancora cercare a comando: aggiornalo dal suo schermo."
+            }
+            cercando = false
+        }
+    }
+
     RiquadroAggiornamento(
         titolo = "SierraDeck sul computer",
-        versione = if (versionePc == null) "il programma sul PC" else "versione $versionePc",
+        versione = if (versionePc == null) "il programma sul PC" else "adesso ha la $versionePc",
         stato = descrizione,
-        colore = colore
+        colore = colore,
+        percento = if (a?.fase == "scarico") (a.percento ?: 0) else null
     ) {
         when (a?.fase) {
             "disponibile" -> Button(
                 shape = MaterialTheme.shapes.small,
                 onClick = { scope.launch { try { api.scaricaAggiornamento() } catch (_: Exception) {} } }
             ) { Text("Scarica") }
-            "scarico" -> Text("${a.percento ?: 0}%", color = Banco.ambra, fontSize = 13.sp)
+            "scarico" -> Text("${a.percento ?: 0}%", color = Banco.ambra, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             "cerco" -> Text("cerco…", color = Banco.ambra, fontSize = 13.sp)
             "pronto" -> Button(
                 shape = MaterialTheme.shapes.small,
@@ -305,19 +316,25 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
             else -> OutlinedButton(
                 enabled = !cercando,
                 shape = MaterialTheme.shapes.small,
-                onClick = {
-                    cercando = true; nota = "Sto cercando…"
-                    scope.launch {
-                        nota = try {
-                            api.cercaAggiornamentoPc()
-                            null
-                        } catch (e: Exception) {
-                            "Questo computer non sa ancora cercare a comando: aggiornalo dal suo schermo."
-                        }
-                        cercando = false
-                    }
-                }
+                onClick = { cerca() }
             ) { Text(if (cercando) "Cerco…" else "Cerca ora") }
+        }
+    }
+
+    // «Cerca» **sempre**, anche quando una versione è già pronta.
+    //
+    // Prima il tasto spariva appena qualcosa era stato scaricato: se nel
+    // frattempo ne usciva una più nuova, l’unica cosa che potevi fare era
+    // installare quella vecchia. Cercare non cancella ciò che è già
+    // scaricato — se non c’è niente di più nuovo, il tasto «Installa» torna.
+    if (a?.fase == "pronto" || a?.fase == "disponibile" || a?.fase == "errore") {
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            OutlinedButton(
+                enabled = !cercando,
+                shape = MaterialTheme.shapes.small,
+                onClick = { cerca() }
+            ) { Text(if (cercando) "Cerco…" else "Cerca se ce n’è una più nuova") }
         }
     }
 }
@@ -397,6 +414,8 @@ private fun RiquadroAggiornamento(
     versione: String,
     stato: String,
     colore: androidx.compose.ui.graphics.Color,
+    /** Da 0 a 100 mentre scarica; assente quando non sta scaricando. */
+    percento: Int? = null,
     azione: @Composable () -> Unit
 ) {
     Tessera(Modifier.fillMaxWidth()) {
@@ -410,6 +429,18 @@ private fun RiquadroAggiornamento(
             }
             Spacer(Modifier.height(10.dp))
             Text(stato, color = colore, fontSize = 13.sp)
+            // La barra c’è solo mentre scarica. Prima si vedeva la sola
+            // percentuale dentro una frase, e da un telefono — dove guardi
+            // per due secondi — non sembrava che stesse succedendo niente.
+            if (percento != null) {
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = { percento / 100f },
+                    color = colore,
+                    trackColor = Banco.incisione,
+                    modifier = Modifier.fillMaxWidth().height(6.dp)
+                )
+            }
         }
     }
 }

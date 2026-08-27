@@ -14,6 +14,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.LinearProgressIndicator
 
 /**
  * L'avviso che c'è una versione nuova **dell'app**, e l'aggiornamento senza
@@ -44,6 +46,16 @@ fun DialogoAggiornamentoApp(
                 if (scaricando) {
                     Spacer(Modifier.height(10.dp))
                     Text("Scarico… $percento%", color = Banco.testoQuieto)
+                    Spacer(Modifier.height(8.dp))
+                    // La barra e non il solo numero: mentre scarica si guarda
+                    // lo schermo per due secondi, e una percentuale va letta
+                    // mentre un avanzamento si vede.
+                    LinearProgressIndicator(
+                        progress = { percento / 100f },
+                        color = Banco.accento,
+                        trackColor = Banco.incisione,
+                        modifier = Modifier.fillMaxWidth().height(6.dp)
+                    )
                 }
                 if (errore != null) {
                     Spacer(Modifier.height(10.dp))

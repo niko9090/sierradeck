@@ -150,6 +150,15 @@ export function creaAggiornamenti(
     annuncia({ fase: 'disponibile', versione: String(info.version) })
   })
   autoUpdater.on('update-not-available', () => {
+    // Una ricerca che non trova niente **non cancella** una versione gia
+    // scaricata e in attesa: dicendo «sei aggiornato» sparirebbe il tasto
+    // «Installa» di qualcosa che sta li', pronta, sul disco. Chi cerca di
+    // nuovo lo fa proprio per sapere se ce n'e' una piu' nuova di quella —
+    // e la risposta «no» deve lasciargli quella di prima.
+    if (installerScaricato !== undefined && stato.fase !== 'aggiornato') {
+      annuncia({ ...stato, fase: 'pronto' })
+      return
+    }
     annuncia({ fase: 'aggiornato' })
   })
   autoUpdater.on('download-progress', (p) => {
