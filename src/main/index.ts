@@ -975,6 +975,43 @@ if (!app.requestSingleInstanceLock()) {
             quando: i.salvataIl,
             chat: i.finestre.reduce((t, f) => t + f.layout.panes.length, 0)
           })),
+        /**
+         * Il negozio da lontano.
+         *
+         * Skill e MCP dipendono da **dove** stai lavorando, e da un telefono
+         * quella cartella non la scegli: si prende quella della prima chat
+         * aperta, che è la cosa più vicina a «il progetto su cui sto».
+         */
+        negozio: async () => {
+          const cwd = chatAperte[0]?.cwd
+          const [plugin, skill, agenti, mcp] = await Promise.all([
+            elencoPlugin().catch(() => []),
+            Promise.resolve(skillDisponibili(radiceClaude, cwd)).catch(() => []),
+            Promise.resolve(agentiDisponibili(radiceClaude, cwd)).catch(() => []),
+            Promise.resolve(
+              cwd === undefined ? [] : mcpDiProgetto(join(homedir(),'.claude.json'), cwd)
+            ).catch(() => [])
+          ])
+          return {
+            plugin: plugin as unknown[],
+            skill: skill as unknown[],
+            agenti: agenti as unknown[],
+            mcp: mcp as unknown[]
+          }
+        },
+        installaPlugin: (id: string) => installaPlugin(id),
+        commutaPlugin: (id: string, attivo: boolean) => commutaPlugin(id, attivo),
+        commutaSkill: (nome: string, attivo: boolean) => commutaSkill(radiceClaude, nome, attivo),
+        commutaMcp: (nome: string, attivo: boolean) => {
+          const cwd = chatAperte[0]?.cwd
+          if (cwd === undefined) return { ok: false, messaggio: 'nessuna chat aperta: non so in quale progetto' }
+          return commutaMcp(join(homedir(), '.claude.json'), cwd, nome, attivo)
+        },
+        account: async () => {
+          const utente = await utenteAccount().catch(() => undefined)
+          const email = (utente as { email?: string } | undefined)?.email
+          return email === undefined ? { entrato: false } : { entrato: true, email }
+        },
         consumi: async () => (db === undefined ? {} : riassumiConsumi(listSessions(db), Date.now())),
         // Il quaderno di una cartella: le schede che l'autopilota lascia
         // accanto al codice che descrivono.

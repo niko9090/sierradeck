@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Computer
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Badge
@@ -44,7 +45,7 @@ import androidx.compose.foundation.layout.Column
  * qualunque schermata tu stia guardando. Le urgenze si portano a chi guarda;
  * non si mettono in una stanza in fondo al corridoio.
  */
-enum class Scheda { CHAT, LAVORI, COMPUTER }
+enum class Scheda { CHAT, LAVORI, NEGOZIO, COMPUTER }
 
 /**
  * La radice dell'app: prima il muro dell'accoppiamento, poi il resto.
@@ -135,6 +136,7 @@ fun Principale(api: Api, deposito: Collegamento, onScollega: () -> Unit) {
                 when (scheda) {
                     Scheda.CHAT -> Chat(api, stato, deposito)
                     Scheda.LAVORI -> Lavori(api, stato)
+                    Scheda.NEGOZIO -> Negozio(api)
                     Scheda.COMPUTER -> Computer(api, stato)
                 }
             }
@@ -155,6 +157,7 @@ private fun Fascia(
     NavigationBar(containerColor = Banco.chassis) {
         voce(attuale, Scheda.CHAT, "Chat", Icons.Filled.Forum, allarme = false, onScegli)
         voce(attuale, Scheda.LAVORI, "Lavori", Icons.Filled.SmartToy, allarme = fermi, onScegli)
+        voce(attuale, Scheda.NEGOZIO, "Negozio", Icons.Filled.Extension, allarme = false, onScegli)
         voce(attuale, Scheda.COMPUTER, "Computer", Icons.Filled.Computer, allarme = false, onScegli)
     }
 }

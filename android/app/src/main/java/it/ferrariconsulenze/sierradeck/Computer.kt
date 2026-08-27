@@ -59,6 +59,7 @@ private fun tokenBrevi(n: Long): String = when {
 fun Computer(api: Api, stato: Stato?) {
     val scope = rememberCoroutineScope()
     var consumi by remember { mutableStateOf<Consumi?>(null) }
+    var account by remember { mutableStateOf<Account?>(null) }
     var salvataggi by remember { mutableStateOf<List<Salvataggio>>(emptyList()) }
     var pref by remember { mutableStateOf<Preferenze?>(null) }
     var aggiornamento by remember { mutableStateOf<Aggiornamento?>(null) }
@@ -67,6 +68,7 @@ fun Computer(api: Api, stato: Stato?) {
 
     LaunchedEffect(Unit) {
         consumi = try { api.consumi() } catch (_: Exception) { null }
+        account = try { api.account() } catch (_: Exception) { null }
         salvataggi = try { api.salvataggi().salvataggi } catch (_: Exception) { emptyList() }
         pref = try { api.preferenze().preferenze } catch (_: Exception) { null }
     }
@@ -132,6 +134,34 @@ fun Computer(api: Api, stato: Stato?) {
                             scope.launch { try { api.creaWorkspace(n) } catch (_: Exception) {} }
                         }
                     ) { Text("Crea") }
+                }
+            }
+        }
+
+        Divisore()
+
+        // ─── Account ───
+        // Sola lettura, e di proposito: entrare da un telefono vuol dire
+        // scrivere una password su una tastiera che qualcuno guarda, e uscire
+        // vuol dire togliere l’accesso al **computer** con un tocco fatto in
+        // tram. Sapere con quale account stai lavorando, invece, serve.
+        Sezione("Account")
+        Tessera(Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        account?.email ?: if (account?.entrato == true) "entrato" else "Nessun account",
+                        color = Banco.testo,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        maxLines = 1
+                    )
+                    Text(
+                        if (account?.entrato == true) "Il computer sta lavorando con questo account."
+                        else "Il computer lavora senza account. Si entra dal suo schermo.",
+                        color = Banco.testoQuieto,
+                        fontSize = 12.sp
+                    )
                 }
             }
         }

@@ -51,6 +51,14 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.text.style.TextAlign
 
 /** Il colore che riassume lo stato di un autopilota (un punto, non una teoria). */
 fun coloreStato(stato: String): Color = when (stato) {
@@ -81,32 +89,30 @@ fun Lavori(api: Api, stato: Stato?) {
         DettaglioAutopilota(api, breve, onIndietro = { aperto = null })
     } else {
         Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().padding(12.dp)) {
-                TextButton(onClick = { delega = true }) { Text("+ Affida un lavoro") }
-            }
-            HorizontalDivider(color = Banco.incisione)
+            FasciaLavori(lista) { delega = true }
             if (lista.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Nessun autopilota.", color = Banco.testoQuieto)
+                Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Nessun autopilota.", color = Banco.testo, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Un autopilota è un lavoro che porti a termine da solo: gli dici l’obiettivo e la cartella, e lui apre le chat che servono.",
+                            color = Banco.testoQuieto,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Button(onClick = { delega = true }) { Text("Affida un lavoro") }
+                    }
                 }
             } else {
-                LazyColumn(Modifier.fillMaxSize()) {
-                    items(lista, key = { it.id }) { ap ->
-                        Tessera(
-                            onClick = { aperto = ap.id },
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Punto(coloreStato(ap.stato))
-                                Spacer(Modifier.size(10.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(ap.nome, color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1)
-                                    val riga = ap.motivo.ifBlank { ap.stato }
-                                    Text(riga, color = Banco.testoQuieto, fontSize = 13.sp, maxLines = 1)
-                                }
-                                Text("${ap.fatti}/${ap.criteri}", color = Banco.testoQuieto, fontSize = 13.sp)
-                            }
-                        }
+                // Prima quelli che aspettano te, poi quelli che lavorano, poi il
+                // resto: da un telefono si guarda per sapere se serve qualcosa,
+                // e la risposta non deve stare in fondo a una lista.
+                val ordinati = lista.sortedBy { urgenzaDi(it.stato) }
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 6.dp)) {
+                    items(ordinati, key = { it.id }) { ap ->
+                        VoceAutopilota(ap) { aperto = ap.id }
                     }
                 }
             }
@@ -135,21 +141,42 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
     }
 
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onIndietro) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Indietro", tint = Banco.testo)
+        Column {
+            Row(
+                Modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onIndietro, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Indietro", tint = Banco.testo)
+                }
+                Spacer(Modifier.width(6.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        breve.nome,
+                        color = Banco.testo,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        fontSize = 15.sp
+                    )
+                    val s = d?.stato ?: breve.stato
+                    Text(statoInParole(s), color = coloreStato(s), fontSize = 12.sp)
+                }
+                Punto(coloreStato(d?.stato ?: breve.stato))
             }
-            Punto(coloreStato(d?.stato ?: breve.stato))
-            Spacer(Modifier.size(8.dp))
-            Text(breve.nome, color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
+            HorizontalDivider(color = Banco.incisione)
+        }
+
+        // Il gesto principale sta **fuori** dallo scorrimento: prima era in cima
+        // al contenuto, quindi spariva appena leggevi i criteri — e il momento
+        // in cui vuoi premere «Riprendi» e' proprio dopo aver letto perche' si e'
+        // fermato.
+        Column(Modifier.fillMaxWidth().background(Banco.fondo).padding(horizontal = 16.dp, vertical = 10.dp)) {
+            AzioniAutopilota(api, breve.id, d?.stato ?: breve.stato)
         }
         HorizontalDivider(color = Banco.incisione)
 
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
             val det = d
-            // ─── azioni contestuali ───
-            AzioniAutopilota(api, breve.id, det?.stato ?: breve.stato)
-
             Spacer(Modifier.height(16.dp))
             // ─── i tre passi ───
             if (det != null && det.passaggi.isNotEmpty()) {
@@ -222,19 +249,38 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
 @Composable
 private fun AzioniAutopilota(api: Api, id: String, stato: String) {
     val scope = rememberCoroutineScope()
+    var inCorso by remember(id, stato) { mutableStateOf(false) }
+    fun fai(azione: suspend () -> Unit) {
+        inCorso = true
+        scope.launch {
+            try { azione() } catch (_: Exception) {}
+            inCorso = false
+        }
+    }
     when (stato) {
         "pronto" -> Button(
-            onClick = { scope.launch { try { api.vaiAutopilota(id) } catch (_: Exception) {} } },
+            enabled = !inCorso,
+            shape = MaterialTheme.shapes.small,
+            onClick = { fai { api.vaiAutopilota(id) } },
             modifier = Modifier.fillMaxWidth()
-        ) { Text("Vai") }
+        ) { Text(if (inCorso) "Parto…" else "Vai — comincia a lavorare") }
         "lavoro", "attesa" -> OutlinedButton(
-            onClick = { scope.launch { try { api.fermaAutopilota(id) } catch (_: Exception) {} } },
+            enabled = !inCorso,
+            shape = MaterialTheme.shapes.small,
+            onClick = { fai { api.fermaAutopilota(id) } },
             modifier = Modifier.fillMaxWidth()
-        ) { Text("Ferma") }
+        ) { Text(if (inCorso) "Fermo…" else "Ferma — riprende quando vuoi") }
+        "finito" -> Text(
+            "Ha finito. Non c’è altro da fare.",
+            color = Banco.testoQuieto,
+            fontSize = 13.sp
+        )
         else -> Button(
-            onClick = { scope.launch { try { api.riprendiAutopilota(id) } catch (_: Exception) {} } },
+            enabled = !inCorso,
+            shape = MaterialTheme.shapes.small,
+            onClick = { fai { api.riprendiAutopilota(id) } },
             modifier = Modifier.fillMaxWidth()
-        ) { Text("Riprendi") }
+        ) { Text(if (inCorso) "Riprendo…" else "Riprendi da dove si è fermato") }
     }
 }
 
@@ -396,4 +442,124 @@ private fun Quaderno(api: Api, cwd: String, onChiudi: () -> Unit) {
             }
         }
     )
+}
+
+
+/**
+ * Quanto conta adesso, dal più al meno.
+ *
+ * Non è un giudizio sull’autopilota: è l’ordine in cui vuoi vederli quando
+ * prendi in mano il telefono. Prima chi si è fermato — perché senza di te non
+ * riparte — poi chi aspetta una risposta, poi chi sta lavorando.
+ */
+fun urgenzaDi(stato: String): Int = when (stato) {
+    "sospeso", "fallito" -> 0
+    "attesa" -> 1
+    "pronto" -> 2
+    "lavoro" -> 3
+    "finito" -> 5
+    else -> 4
+}
+
+/** Lo stato in una parola, quella che diresti tu. */
+fun statoInParole(stato: String): String = when (stato) {
+    "lavoro" -> "al lavoro"
+    "attesa" -> "aspetta te"
+    "pronto" -> "pronto a partire"
+    "sospeso" -> "fermo"
+    "fallito" -> "si è arreso"
+    "finito" -> "finito"
+    else -> stato
+}
+
+/** La fascia dell’elenco: quanti sono, e il gesto per aggiungerne uno. */
+@Composable
+private fun FasciaLavori(lista: List<AutopilotaBreve>, onDelega: () -> Unit) {
+    val fermi = lista.count { it.stato == "sospeso" || it.stato == "fallito" }
+    Column {
+        Row(
+            Modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Serigrafia("Lavori")
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    if (fermi > 0) "$fermi in attesa di te" else "${lista.size} affidati",
+                    color = if (fermi > 0) Banco.rosso else Banco.testoQuieto,
+                    fontSize = 12.sp
+                )
+            }
+            Surface(
+                onClick = onDelega,
+                color = Banco.fondo,
+                contentColor = Banco.testo,
+                shape = MaterialTheme.shapes.small,
+                border = BorderStroke(1.dp, Banco.incisione)
+            ) {
+                Text(
+                    "+ Affida",
+                    color = Banco.accento,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                )
+            }
+        }
+        HorizontalDivider(color = Banco.incisione)
+    }
+}
+
+/**
+ * Un autopilota nell’elenco.
+ *
+ * Prima era un nome, una riga di stato e «3/7» in fondo: tre informazioni
+ * senza gerarchia, e quel rapporto non diceva niente a colpo d’occhio. Ora lo
+ * stato è una parola tua («aspetta te», «si è arreso»), i criteri sono una
+ * barra — che è come si legge un avanzamento — e il colore del filetto a
+ * sinistra si riconosce prima di leggere.
+ */
+@Composable
+private fun VoceAutopilota(ap: AutopilotaBreve, onApri: () -> Unit) {
+    val colore = coloreStato(ap.stato)
+    Tessera(
+        onClick = onApri,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp)
+    ) {
+        Row(Modifier.height(IntrinsicSize.Min)) {
+            Box(Modifier.width(3.dp).fillMaxHeight().background(colore))
+            Column(Modifier.weight(1f).padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        ap.nome,
+                        color = Banco.testo,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(statoInParole(ap.stato), color = colore, fontSize = 12.sp)
+                }
+                if (ap.motivo.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(ap.motivo, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 2)
+                }
+                if (ap.criteri > 0) {
+                    Spacer(Modifier.height(10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        LinearProgressIndicator(
+                            progress = { ap.fatti.toFloat() / ap.criteri.toFloat() },
+                            color = colore,
+                            trackColor = Banco.incisione,
+                            modifier = Modifier.weight(1f).height(5.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            "${ap.fatti} di ${ap.criteri}",
+                            color = Banco.testoQuieto,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

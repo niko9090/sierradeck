@@ -146,6 +146,34 @@ export type DipendenzeRotte = {
   installaAggiornamento: () => void
   /** Le cartelle in cui si può aprire una chat: quelle già viste da Claude Code. */
   cartelle: () => Promise<string[]>
+  /**
+   * Il negozio, da un telefono.
+   *
+   * Sul computer è un pannello a schede; qui è meno, e di proposito: si
+   * **guarda** cosa c’è installato e si accende o si spegne. Installare un
+   * plugin passa dal CLI di Claude Code e ci mette qualche secondo, ma resta
+   * un gesto reversibile — disinstallare no dal telefono, quello si fa al
+   * computer, dove vedi cosa stai togliendo.
+   */
+  negozio?: () => Promise<{
+    plugin: unknown[]
+    skill: unknown[]
+    agenti: unknown[]
+    mcp: unknown[]
+  }>
+  installaPlugin?: (id: string) => Promise<{ ok: boolean; messaggio?: string }>
+  commutaPlugin?: (id: string, attivo: boolean) => Promise<{ ok: boolean; messaggio?: string }>
+  commutaSkill?: (nome: string, attivo: boolean) => { ok: boolean; messaggio?: string }
+  commutaMcp?: (nome: string, attivo: boolean) => { ok: boolean; messaggio?: string }
+  /**
+   * Chi è entrato, e basta.
+   *
+   * Sola lettura: entrare da un telefono vuol dire scrivere una password su
+   * una tastiera che qualcuno guarda, e uscire vuol dire togliere l’accesso
+   * al **computer** con un tocco fatto in tram. Nessuna delle due merita il
+   * rischio; sapere con quale account stai lavorando sì.
+   */
+  account?: () => Promise<{ email?: string; entrato: boolean }>
   versione: string
   /** Qual è l'ultimo APK dell'app, per il tasto «Scarica». */
   apk?: () => Promise<{ versione: string; url: string } | undefined>
@@ -433,6 +461,41 @@ export function rotteClient(deps: DipendenzeRotte) {
       }
       const creato = await deps.creaAutopilota(obiettivo.slice(0, TESTO_MAX), cartella)
       return OK({ fatto: true, autopilota: creato.id })
+    }
+
+    // Il negozio: cosa c'è, e cosa è acceso.
+    if (r.percorso === '/api/negozio') {
+      const dati = await deps.negozio?.().catch(() => undefined)
+      return OK(dati ?? { plugin: [], skill: [], agenti: [], mcp: [] })
+    }
+
+    if (r.metodo === 'POST' && r.percorso === '/api/negozio/installa') {
+      const id = stringa(r.corpo, 'id')
+      if (id === '') return { stato: 400, corpo: { errore: 'serve l id' } }
+      const esito = await deps.installaPlugin?.(id)
+      return OK(esito ?? { ok: false, messaggio: 'questo computer non sa installare da qui' })
+    }
+
+    // Accendere e spegnere: tre cose diverse dietro lo stesso gesto, e da qui
+    // si distinguono solo per il «cosa».
+    if (r.metodo === 'POST' && r.percorso === '/api/negozio/commuta') {
+      const cosa = stringa(r.corpo, 'cosa')
+      const nome = stringa(r.corpo, 'nome')
+      const corpo = r.corpo as Record<string, unknown> | undefined
+      const attivo = corpo?.attivo === true
+      if (nome === '') return { stato: 400, corpo: { errore: 'serve il nome' } }
+      const esito =
+        cosa === 'plugin' ? await deps.commutaPlugin?.(nome, attivo)
+        : cosa === 'skill' ? deps.commutaSkill?.(nome, attivo)
+        : cosa === 'mcp' ? deps.commutaMcp?.(nome, attivo)
+        : undefined
+      return OK(esito ?? { ok: false, messaggio: 'non so accendere questa cosa' })
+    }
+
+    // Chi sei. Sola lettura: da qui non si entra e non si esce.
+    if (r.percorso === '/api/account') {
+      const chi = await deps.account?.().catch(() => undefined)
+      return OK(chi ?? { entrato: false })
     }
 
     if (r.percorso === '/api/consumi') {

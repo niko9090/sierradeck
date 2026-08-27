@@ -205,6 +205,28 @@ class Api(private val indirizzo: String, private val chiave: String?) {
         json.decodeFromString(corpoTesto("/api/aggiornamento/installa", oggetto { }))
 
     // ─── consumi ───
+    /** Cosa c’è in dotazione sul computer. */
+    suspend fun negozio(): DatiNegozio =
+        json.decodeFromString(corpoTesto("/api/negozio", null))
+
+    /** Accende o spegne un plugin, una skill o un MCP. */
+    suspend fun commutaNegozio(cosa: String, nome: String, attivo: Boolean): EsitoNegozio =
+        json.decodeFromString(
+            corpoTesto("/api/negozio/commuta", oggetto {
+                put("cosa", cosa)
+                put("nome", nome)
+                put("attivo", attivo)
+            })
+        )
+
+    /** Installa un plugin. Passa dal CLI di Claude Code: ci mette qualche secondo. */
+    suspend fun installaPlugin(id: String): EsitoNegozio =
+        json.decodeFromString(corpoTesto("/api/negozio/installa", oggetto { put("id", id) }))
+
+    /** Con quale account sta lavorando il computer. */
+    suspend fun account(): Account =
+        json.decodeFromString(corpoTesto("/api/account", null))
+
     suspend fun consumi(): Consumi = json.decodeFromString(corpoTesto("/api/consumi", null))
 
     companion object {

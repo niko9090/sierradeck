@@ -552,3 +552,58 @@ describe('la storia di una chat', () => {
     expect(esito.stato).toBe(404)
   })
 })
+
+describe('il negozio e l account, da un telefono', () => {
+  it('dice cosa c e in dotazione', async () => {
+    const su = deps({
+      negozio: async () => ({
+        plugin: [{ id: 'a@m', nome: 'a', installato: true, abilitato: true }],
+        skill: [{ nome: 's', abilitata: false }],
+        agenti: [],
+        mcp: []
+      })
+    })
+    const esito = await rotteClient(su)({ metodo: 'GET', percorso: '/api/negozio', corpo: undefined })
+    expect(esito.stato).toBe(200)
+    expect((esito.corpo as { plugin: unknown[] }).plugin).toHaveLength(1)
+  })
+
+  it('senza negozio non esplode: torna quattro elenchi vuoti', async () => {
+    // Un computer piu vecchio non conosce questa strada, e il telefono deve
+    // trovarsi una schermata vuota, non un errore.
+    const su = deps({})
+    const esito = await rotteClient(su)({ metodo: 'GET', percorso: '/api/negozio', corpo: undefined })
+    expect(esito.corpo).toEqual({ plugin: [], skill: [], agenti: [], mcp: [] })
+  })
+
+  it('accende la cosa giusta a seconda del «cosa»', async () => {
+    const fatti: string[] = []
+    const su = deps({
+      commutaPlugin: async (nome: string, attivo: boolean) => { fatti.push(`plugin:${nome}:${attivo}`); return { ok: true } },
+      commutaSkill: (nome: string, attivo: boolean) => { fatti.push(`skill:${nome}:${attivo}`); return { ok: true } },
+      commutaMcp: (nome: string, attivo: boolean) => { fatti.push(`mcp:${nome}:${attivo}`); return { ok: true } }
+    })
+    await rotteClient(su)({ metodo: 'POST', percorso: '/api/negozio/commuta', corpo: { cosa: 'plugin', nome: 'a@m', attivo: true } })
+    await rotteClient(su)({ metodo: 'POST', percorso: '/api/negozio/commuta', corpo: { cosa: 'skill', nome: 's', attivo: false } })
+    await rotteClient(su)({ metodo: 'POST', percorso: '/api/negozio/commuta', corpo: { cosa: 'mcp', nome: 'm', attivo: true } })
+    expect(fatti).toEqual(['plugin:a@m:true', 'skill:s:false', 'mcp:m:true'])
+  })
+
+  it('senza nome non tocca niente', async () => {
+    const su = deps({ commutaSkill: () => ({ ok: true }) })
+    const esito = await rotteClient(su)({ metodo: 'POST', percorso: '/api/negozio/commuta', corpo: { cosa: 'skill', attivo: true } })
+    expect(esito.stato).toBe(400)
+  })
+
+  it('dice con quale account lavora il computer', async () => {
+    const su = deps({ account: async () => ({ entrato: true, email: 'x@y.z' }) })
+    const esito = await rotteClient(su)({ metodo: 'GET', percorso: '/api/account', corpo: undefined })
+    expect(esito.corpo).toEqual({ entrato: true, email: 'x@y.z' })
+  })
+
+  it('senza account non inventa nessuno', async () => {
+    const su = deps({})
+    const esito = await rotteClient(su)({ metodo: 'GET', percorso: '/api/account', corpo: undefined })
+    expect(esito.corpo).toEqual({ entrato: false })
+  })
+})

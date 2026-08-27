@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.padding
 
 /**
  * I due gesti grafici del banco, in un posto solo.
@@ -61,4 +62,29 @@ fun Serigrafia(testo: String, colore: Color = Banco.accento, modifier: Modifier 
         letterSpacing = 1.5.sp,
         modifier = modifier
     )
+}
+
+/**
+ * Una pastiglia: si preme, e quando è quella scelta si vede da lontano.
+ *
+ * Scelta a pieno accento contro contorno inciso, non due grigi appena diversi —
+ * il chip di Material lo diceva troppo piano, e su uno schermo tenuto in mano,
+ * di sera, non lo diceva affatto.
+ */
+@Composable
+fun Voce(testo: String, attiva: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        color = if (attiva) Banco.accento else Banco.fondo,
+        contentColor = if (attiva) Banco.fondo else Banco.testo,
+        shape = MaterialTheme.shapes.small,
+        border = BorderStroke(1.dp, if (attiva) Banco.accento else Banco.incisione)
+    ) {
+        Text(
+            testo,
+            fontSize = 13.sp,
+            fontWeight = if (attiva) FontWeight.Bold else FontWeight.Normal,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+        )
+    }
 }

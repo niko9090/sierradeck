@@ -233,3 +233,52 @@ data class Storia(
     val righe: List<String> = emptyList(),
     val grezze: List<String> = emptyList()
 )
+
+/** Quello che il computer ha in dotazione. */
+@Serializable
+data class DatiNegozio(
+    val plugin: List<PluginVoce> = emptyList(),
+    val skill: List<SkillVoce> = emptyList(),
+    val agenti: List<AgenteVoce> = emptyList(),
+    val mcp: List<McpVoce> = emptyList()
+)
+
+@Serializable
+data class PluginVoce(
+    val id: String = "",
+    val nome: String = "",
+    val descrizione: String = "",
+    val marketplace: String = "",
+    val installato: Boolean = false,
+    val abilitato: Boolean = false
+)
+
+@Serializable
+data class SkillVoce(
+    val nome: String = "",
+    val descrizione: String = "",
+    val origine: String = "",
+    val abilitata: Boolean = true
+)
+
+@Serializable
+data class AgenteVoce(
+    val nome: String = "",
+    val descrizione: String = "",
+    val origine: String = ""
+)
+
+@Serializable
+data class McpVoce(
+    val nome: String = "",
+    val come: String = "",
+    val abilitato: Boolean = true
+)
+
+/** Com’è andata un’azione del negozio. */
+@Serializable
+data class EsitoNegozio(val ok: Boolean = false, val messaggio: String? = null)
+
+/** Chi è entrato sul computer. Sola lettura. */
+@Serializable
+data class Account(val entrato: Boolean = false, val email: String? = null)

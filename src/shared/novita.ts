@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.14',
+    righe: [
+      '**Il negozio e l’account si vedono dal telefono.** L’app ha una scheda «Negozio» nuova: plugin, skill, agenti e MCP, con l’interruttore per accendere e spegnere e il tasto per installare un plugin. E nella scheda Computer c’è con quale account sta lavorando il PC — in sola lettura, perché entrare e uscire sono cose da fare davanti allo schermo, non in tram.',
+      '**Gli autopiloti si leggono meglio.** In elenco: prima chi si è fermato, poi chi aspetta te, poi chi lavora; lo stato scritto a parole («aspetta te», «si è arreso») invece del gergo, e i criteri come barra invece che «3/7». Nel dettaglio il tasto principale resta sotto la testata mentre scorri — prima spariva proprio quando avevi finito di leggere perché si era fermato — e dice cosa succede, non solo un verbo.'
+    ]
+  },
+  {
     versione: '0.12.13',
     righe: [
       '**La chat sul telefono non resta più su «sto leggendo il terminale».** La strada nuova per la cronologia era finita dentro quella vecchia, quindi non ci arrivava nessuno: il telefono chiedeva e riceveva «non trovato», per sempre. Adesso c’è, e l’app ha comunque un ripiego — se il computer è più vecchio mostra lo schermo di adesso e te lo dice, invece di restare appesa.'
