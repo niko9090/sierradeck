@@ -97,8 +97,14 @@ chiuso. Body max 256KB. **Niente streaming**: tutto polling.
   ⚠️ Cambio appId: l'app vecchia `it.glos.*` NON si auto-aggiorna a `it.ferrariconsulenze.*`
   (package diverso) → va installata a mano la prima volta. Accettato (la vecchia
   non funziona comunque).
-- **Restyling completo** (roadmap punto 3): l'app ora ha una grafica pulita e
-  coerente (palette Banco), ma un redesign visivo completo è un lavoro a sé.
+- **Restyling FATTO** (commit c3fd521): tema **vivo** da `/api/stile` — l'app
+  indossa accento/chiarore/stile scelti sul PC; `Banco` è ora stato reattivo
+  (mutableStateOf), si riveste da solo. Raggio della console globale (2px banco),
+  componenti condivisi `Tessera` (pannello inciso) e `Serigrafia` (etichetta
+  stencil) in `Componenti.kt`. Api.stile()+modello Stile. Ulteriori rifiniture
+  possibili (non fatte): bordo superiore della fascia, scala tipografica dai
+  token `--t0..t4`, colore default del terminale reattivo (ora statico in Ansi.kt),
+  pulsazione dei LED.
 
 ## Build da questa sessione (le variabili User NON sono nell'ambiente della chat)
 `export JAVA_HOME="C:/Program Files/Microsoft/jdk-21.0.12.8-hotspot"; export
