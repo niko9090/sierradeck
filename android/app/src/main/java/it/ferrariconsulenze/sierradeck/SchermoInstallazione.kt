@@ -52,7 +52,6 @@ fun SchermoInstallazione(
     api: Api,
     versionePrima: String,
     da: Long,
-    onFinito: (String) -> Unit,
     onEsci: () -> Unit
 ) {
     /** Il computer ha smesso di rispondere almeno una volta: si sta chiudendo. */
@@ -72,7 +71,6 @@ fun SchermoInstallazione(
                 // non è ancora cominciato.
                 if (v != null && v.isNotBlank() && v != versionePrima) {
                     fatto = v
-                    onFinito(v)
                     break
                 }
             } catch (e: Exception) {

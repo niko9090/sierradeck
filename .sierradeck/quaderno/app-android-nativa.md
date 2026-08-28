@@ -345,3 +345,33 @@ in cui si può ancora parlare.
 E `/api/stato` ora porta anche l'aggiornamento: costa niente (è già in memoria) ed
 è l'unico modo perché il telefono sappia che sta per cominciare un silenzio
 giusto.
+
+### 2.11.0 — la schermata c'era e non si vedeva
+La 2.10.0 non mostrava niente premendo «Installa». Due cause sovrapposte, e
+tutte e due dello stesso tipo: **il dato c'era, e nessuno lo stava guardando.**
+
+1. `App.kt` leggeva `Installazione.da(contesto)` dentro un `remember`, cioè
+   **una volta sola** alla prima composizione. Il tasto «Installa» sta nella
+   scheda Computer e scriveva nelle preferenze: su disco il dato c'era, e la
+   schermata non se ne accorgeva mai.
+2. L'unica altra strada era vedere passare la fase `installo` nel giro di
+   polling da due secondi — cioè un testa o croce contro un computer che sta
+   già chiudendo. E per giunta quella fase arriva in `/api/stato`, che la porta
+   **solo dalla 0.12.21**: aggiornando *alla* 0.12.21 il computer era ancora
+   alla 0.12.20, quindi quel campo non esisteva. Nessuna delle due strade
+   poteva funzionare, e la prima volta che si provava era esattamente il caso
+   in cui entrambe erano chiuse.
+
+Adesso `Installazione` tiene il dato come **stato di Compose** (più le
+preferenze, per sopravvivere alla chiusura dell'app): premere il tasto ridisegna
+la schermata nello stesso istante, senza dipendere né dal polling né dalla
+versione del computer.
+
+**Regola.** Una funzionalità che ha bisogno delle due metà aggiornate insieme va
+progettata perché la metà che l'utente tocca per prima funzioni da sola. Qui la
+prima cosa che si fa con l'aggiornamento è **usarlo per aggiornare**, e in quel
+momento l'altra metà è per definizione ancora vecchia.
+
+Corollario pratico, che vale per ogni `remember`: **`remember { leggiQualcosa() }`
+è una fotografia, non un collegamento.** Va bene per ciò che non cambia; per
+tutto il resto il dato deve essere osservabile, o non lo si vedrà cambiare.

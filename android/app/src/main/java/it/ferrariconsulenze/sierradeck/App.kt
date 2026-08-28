@@ -116,8 +116,11 @@ fun Principale(api: Api, deposito: Collegamento, onScollega: () -> Unit) {
      * dallo schermo del computer, e da fuori quei trenta secondi di silenzio
      * sono identici a un guasto.
      */
-    var installazioneDa by remember { mutableStateOf(Installazione.da(contesto)) }
-    var versionePrimaDellInstallazione by remember { mutableStateOf(Installazione.versionePrima(contesto)) }
+    // Niente `remember`: quello leggeva una volta sola, e premere «Installa»
+    // nella scheda Computer scriveva su disco senza che qui se ne accorgesse
+    // nessuno. Adesso `Installazione` e' stato di Compose e questa schermata si
+    // ridisegna nell'istante del tocco.
+    LaunchedEffect(Unit) { Installazione.riprendi(contesto) }
 
     // La guardia in background: è ciò per cui l'app esiste invece della sola
     // pagina — avvisa anche quando l'app è chiusa.
@@ -148,11 +151,11 @@ fun Principale(api: Api, deposito: Collegamento, onScollega: () -> Unit) {
                 val letto = api.stato()
                 // L'ultima parola prima del silenzio. Va colta **mentre** il
                 // computer la dice: fra un istante non risponde piu'.
-                if (letto.aggiornamento?.fase == "installo" && installazioneDa == null) {
+                // L'aggiornamento puo' partire anche dallo schermo del
+                // computer: questa e' l'unica strada per accorgersene da qui.
+                if (letto.aggiornamento?.fase == "installo" && Installazione.da == null) {
                     val prima = try { api.ciao().versione } catch (e: Exception) { "" }
                     Installazione.iniziata(contesto, prima)
-                    versionePrimaDellInstallazione = prima
-                    installazioneDa = Installazione.da(contesto)
                 }
                 stato = letto; connesso = true; giriFalliti = 0; rifiuti = 0
             } catch (e: Api.Errore) {
@@ -167,14 +170,13 @@ fun Principale(api: Api, deposito: Collegamento, onScollega: () -> Unit) {
 
     // Sopra tutto il resto: mentre il computer si sostituisce non c'e' niente
     // altro da guardare, e le altre schermate direbbero solo «non risponde».
-    val quando = installazioneDa
+    val quando = Installazione.da
     if (quando != null) {
         SchermoInstallazione(
             api = api,
-            versionePrima = versionePrimaDellInstallazione,
+            versionePrima = Installazione.versionePrima,
             da = quando,
-            onFinito = { Installazione.finita(contesto) },
-            onEsci = { Installazione.finita(contesto); installazioneDa = null }
+            onEsci = { Installazione.finita(contesto) }
         )
         return
     }
