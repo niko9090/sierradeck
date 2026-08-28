@@ -79,3 +79,10 @@ minimo utile e' raccontare il tentativo — indirizzo, rete, esito — perche' e
 l'unica cosa che chi ha scritto il codice sa e chi legge lo schermo no.
 
 Vedi anche [[telefono-schermo-e-invio]] e [[telefono-si-scollega-da-solo]].
+
+## Ancora da fare
+La **scoperta automatica**: il telefono che trova il computer da solo con un
+annuncio in broadcast sulla rete locale, invece di fidarsi di un indirizzo
+scritto a mano. Toglie di mezzo tutta questa classe di problemi — indirizzo
+sbagliato, indirizzo vecchio, il QR giusto fra tre — e l'indirizzo non si digita
+piu'. Circa ottanta righe per parte, nessuna dipendenza nuova.
