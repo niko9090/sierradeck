@@ -1,5 +1,5 @@
 import { randomBytes, timingSafeEqual, createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 
@@ -64,6 +64,14 @@ export const DURATA_CODICE_MS = 3 * 60_000
  * tira a indovinare — che deve aspettare una nuova finestra aperta a mano.
  */
 export const MAX_TENTATIVI = 10
+/**
+ * Ogni quanto si riscrive l'ora dell'ultimo accesso di un dispositivo.
+ *
+ * Serve a riconoscere il telefono che non si usa da mesi: un minuto di
+ * approssimazione non toglie niente a quella domanda, e toglie migliaia di
+ * riscritture al giorno a un file che deve soprattutto stare fermo.
+ */
+export const PASSO_ACCESSO_MS = 60_000
 const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/
 const NOME_MAX = 40
 
@@ -96,33 +104,108 @@ export function apriDispositivi(
   // Codici sbagliati contati per la finestra corrente: si azzera a ogni apertura.
   let tentativiFalliti = 0
 
+  /**
+   * L'ultimo elenco letto per intero.
+   *
+   * Non è un'ottimizzazione: è la differenza fra «questo telefono non è dei
+   * nostri» e «in questo istante non riesco a leggere il file». Le due cose
+   * finivano nello stesso posto — un elenco vuoto — e un elenco vuoto risponde
+   * 401, che sul telefono voleva dire **buttare via l'accoppiamento**. Bastava
+   * un istante sfortunato, con il file preso da una rinomina, per far
+   * ricominciare tutto dal codice QR.
+   */
+  let ricordati: Dispositivo[] | undefined
+  /** Firma del file all'ultima lettura riuscita: dimensione e data di scrittura. */
+  let firma = ''
+
+  const interpreta = (testo: string): Dispositivo[] => {
+    const grezzo = JSON.parse(testo) as Record<string, unknown>
+    const elenco = Array.isArray(grezzo.dispositivi) ? grezzo.dispositivi : []
+    return elenco.flatMap((d): Dispositivo[] => {
+      if (typeof d !== 'object' || d === null) return []
+      const o = d as Record<string, unknown>
+      if (typeof o.id !== 'string' || typeof o.segno !== 'string' || o.segno === '') return []
+      return [{
+        id: o.id,
+        nome: typeof o.nome === 'string' ? o.nome : o.id,
+        segno: o.segno,
+        collegatoIl: typeof o.collegatoIl === 'string' ? o.collegatoIl : '',
+        ...(typeof o.ultimoAccesso === 'string' ? { ultimoAccesso: o.ultimoAccesso } : {})
+      }]
+    })
+  }
+
+  /**
+   * L'elenco dei dispositivi, riletto dal disco solo quando il file è cambiato.
+   *
+   * Ogni richiesta che arriva da fuori passa di qui, e sono parecchie al
+   * secondo: rileggere — e riscrivere — ogni volta teneva il file in movimento
+   * perpetuo, e prima o poi una lettura cadeva dentro una rinomina. Adesso si
+   * rilegge quando dimensione o data dicono che c'è qualcosa di nuovo, e se la
+   * lettura non riesce si risponde con quello che si sapeva.
+   */
   const leggi = (): Dispositivo[] => {
-    if (!existsSync(percorso)) return []
+    let attuale: string
     try {
-      const grezzo = JSON.parse(readFileSync(percorso, 'utf8')) as Record<string, unknown>
-      const elenco = Array.isArray(grezzo.dispositivi) ? grezzo.dispositivi : []
-      return elenco.flatMap((d): Dispositivo[] => {
-        if (typeof d !== 'object' || d === null) return []
-        const o = d as Record<string, unknown>
-        if (typeof o.id !== 'string' || typeof o.segno !== 'string' || o.segno === '') return []
-        return [{
-          id: o.id,
-          nome: typeof o.nome === 'string' ? o.nome : o.id,
-          segno: o.segno,
-          collegatoIl: typeof o.collegatoIl === 'string' ? o.collegatoIl : '',
-          ...(typeof o.ultimoAccesso === 'string' ? { ultimoAccesso: o.ultimoAccesso } : {})
-        }]
-      })
+      if (!existsSync(percorso)) {
+        // Il file che non c'è è una risposta certa, non un incidente: nessuno
+        // si è mai accoppiato, o sono stati revocati tutti.
+        ricordati = []
+        firma = ''
+        return []
+      }
+      const s = statSync(percorso)
+      attuale = `${s.size}:${s.mtimeMs}`
     } catch (err) {
-      // Un elenco illeggibile vale come nessun dispositivo: si torna a nessun
-      // accesso da fuori, che è la posizione prudente.
+      if (ricordati !== undefined) return ricordati
+      console.error(`[dispositivi] ${percorso} non e raggiungibile:`, err)
+      return []
+    }
+
+    if (attuale === firma && ricordati !== undefined) return ricordati
+
+    let testo: string
+    try {
+      testo = readFileSync(percorso, 'utf8')
+    } catch (err) {
+      // Lettura caduta mentre il file veniva sostituito. Il contenuto di prima
+      // vale ancora: rispondere «nessun dispositivo» qui scollegava il
+      // telefono per sempre.
+      if (ricordati !== undefined) return ricordati
+      console.error(`[dispositivi] ${percorso} non e leggibile:`, err)
+      return []
+    }
+
+    try {
+      const elenco = interpreta(testo)
+      ricordati = elenco
+      firma = attuale
+      return elenco
+    } catch (err) {
+      // Questo invece è un file **rotto**, non un file occupato: il contenuto
+      // c'è e non è JSON. Qui la posizione prudente resta quella di sempre —
+      // nessun accesso da fuori — perché non si sa più chi sia autorizzato.
       console.error(`[dispositivi] ${percorso} non e leggibile, nessun dispositivo attivo:`, err)
+      ricordati = []
+      firma = attuale
       return []
     }
   }
 
   const salva = (d: Dispositivo[]): void => {
-    scriviJsonAtomico(percorso, { versione: VERSIONE, dispositivi: d }, 'dispositivi', { mode: 0o600 })
+    const scritto = scriviJsonAtomico(
+      percorso,
+      { versione: VERSIONE, dispositivi: d },
+      'dispositivi',
+      { mode: 0o600 }
+    )
+    // Quello che si è appena scritto è la verità: si aggiorna il ricordo
+    // subito, e si azzera la firma perché la prossima lettura vada comunque a
+    // vedere il file vero.
+    if (scritto) {
+      ricordati = d
+      firma = ''
+    }
   }
 
   const senzaSegno = (d: Dispositivo): Omit<Dispositivo, 'segno'> => {
@@ -185,9 +268,17 @@ export function apriDispositivi(
       const tutti = leggi()
       const trovato = tutti.find((d) => confronta(d.segno, segno))
       if (trovato === undefined) return undefined
-      salva(tutti.map((d) =>
-        d.id === trovato.id ? { ...d, ultimoAccesso: new Date(adesso()).toISOString() } : d
-      ))
+      // L'ora dell'ultimo accesso serve a riconoscere il dispositivo che non si
+      // usa più: al minuto è già una precisione superflua. Prima si riscriveva
+      // il file **a ogni richiesta** — più di una al secondo con l'app aperta —
+      // e quel viavai era esattamente ciò che faceva cadere le letture.
+      const ora = adesso()
+      const ultimo = Date.parse(trovato.ultimoAccesso ?? '')
+      if (Number.isNaN(ultimo) || ora - ultimo >= PASSO_ACCESSO_MS) {
+        salva(tutti.map((d) =>
+          d.id === trovato.id ? { ...d, ultimoAccesso: new Date(ora).toISOString() } : d
+        ))
+      }
       return senzaSegno(trovato)
     },
 

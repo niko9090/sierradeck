@@ -620,7 +620,35 @@ export function registerPreparazioneIpc(client: PtyHostClient, casa: () => strin
   })
 }
 
-export function registerLayoutIpc(store: WorkspaceStore): void {
+/**
+ * Le chat che ogni workspace contiene, per nome: serve a **vedere** un
+ * trasloco invece di scoprirlo un'ora dopo.
+ */
+function chatPerWorkspace(a: Archivio): Map<string, Set<string>> {
+  const m = new Map<string, Set<string>>()
+  for (const w of a.workspace) {
+    const dentro = new Set<string>()
+    for (const layout of Object.values(w.perMonitor)) {
+      for (const p of layout.panes) dentro.add(p.sessionUuid)
+    }
+    m.set(w.nome, dentro)
+  }
+  return m
+}
+
+export function registerLayoutIpc(
+  store: WorkspaceStore,
+  /**
+   * Dove annotare i salvataggi sospetti.
+   *
+   * Due volte le chat si sono ritrovate sotto il workspace sbagliato dopo un
+   * aggiornamento, e le due volte non c'era **niente** da leggere: né quale
+   * finestra avesse salvato, né sotto quale nome, né cosa fosse stato tolto a
+   * chi. Si poteva solo ragionare sul codice e sperare. Da qui in poi ogni
+   * trasloco lascia una riga nel registro della sessione.
+   */
+  registra: (messaggio: string) => void = () => {}
+): void {
   ipcMain.handle('layout:carica', (event): LayoutSalvato => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win === null) return layoutVuoto()
@@ -662,6 +690,30 @@ export function registerLayoutIpc(store: WorkspaceStore): void {
     // il difetto 0-quater metteva in dubbio, ed è l'unica qui dentro che si può
     // sbagliare in silenzio.
     const conLayout = salvaLayoutAttivo(archivio, chiave, layout, nomeFinestra)
+
+    // Cosa è cambiato per **gli altri**: l'invariante «una chat, un workspace»
+    // può togliere una conversazione a un workspace che non c'entra niente con
+    // questo salvataggio, ed è esattamente la forma che ha il difetto quando si
+    // manifesta. Se succede, si scrive chi, cosa e sotto quale nome.
+    const prima = chatPerWorkspace(archivio)
+    const dopo = chatPerWorkspace(conLayout)
+    const dichiarato = typeof rawNome === 'string' ? rawNome.trim() : ''
+    for (const [nome, avevano] of prima) {
+      const restano = dopo.get(nome)
+      if (restano === undefined) continue
+      const perse = [...avevano].filter((u) => !restano.has(u))
+      if (perse.length === 0) continue
+      registra(
+        `[layout] «${nome}» perde ${perse.length} chat salvando la finestra ${win.id} ` +
+        `(monitor ${chiave}, dichiara «${dichiarato === '' ? '—' : dichiarato}», attivo «${archivio.attivo}»): ` +
+        perse.join(', ')
+      )
+    }
+    if (dichiarato === '') {
+      registra(`[layout] la finestra ${win.id} salva senza dichiarare il workspace: va sotto l'attivo «${archivio.attivo}»`)
+    } else if (!archivio.workspace.some((w) => w.nome === dichiarato)) {
+      registra(`[layout] la finestra ${win.id} dichiara «${dichiarato}», che nell'archivio non esiste: va sotto «${archivio.attivo}»`)
+    }
 
     // E `attivo` segue la finestra **principale** (la più vecchia ancora viva):
     // così al riavvio — che l'aggiornamento fa da sé — si riapre l'ultimo desktop

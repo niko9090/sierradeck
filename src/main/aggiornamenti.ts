@@ -1,5 +1,5 @@
 import { autoUpdater } from 'electron-updater'
-import { readFileSync } from 'node:fs'
+import { copyFileSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
@@ -257,6 +257,15 @@ export function creaAggiornamenti(
         return
       }
       installazioneAvviata = true
+      // Una copia dei layout **prima** di riavviare.
+      //
+      // Due volte, dopo un aggiornamento, le chat si sono ritrovate sotto il
+      // workspace sbagliato. La causa non è ancora chiusa; questo non la
+      // risolve, ma toglie il pezzo peggiore del danno — che era
+      // l'irreversibilità. Il riavvio per aggiornamento è l'unico momento in
+      // cui è successo, ed è anche l'unico in cui si sa in anticipo di stare
+      // per riavviare.
+      copiaDiSicurezzaLayout()
       // **Un solo installer.** Da qui in poi l'aggiornamento lo fa SierraDeck
       // Update (il nostro updater C#). Ma electron-updater, a ogni scaricamento,
       // registra un gestore su `quit` che — se `autoInstallOnAppQuit` e' vero —
@@ -411,4 +420,25 @@ export function feedAlternativo(
 
   const url = typeof grezzo.url === 'string' ? grezzo.url.trim() : ''
   return url === '' ? undefined : { provider: 'generic', url }
+}
+
+/**
+ * Mette da parte `workspaces.json` prima di un riavvio per aggiornamento.
+ *
+ * Una sola copia, sovrascritta ogni volta: serve a tornare a **ieri sera**, non
+ * a tenere un archivio. Il nome è leggibile di proposito — chi apre la cartella
+ * dei dati deve capire cos'è senza chiederlo a nessuno.
+ *
+ * Non solleva mai: un aggiornamento non si ferma perché una copia di sicurezza
+ * non è riuscita.
+ */
+function copiaDiSicurezzaLayout(): void {
+  try {
+    const dati = app.getPath('userData')
+    const sorgente = join(dati, 'workspaces.json')
+    if (!existsSync(sorgente)) return
+    copyFileSync(sorgente, join(dati, 'workspaces.prima-dell-aggiornamento.json'))
+  } catch (err) {
+    console.error('[aggiornamenti] copia di sicurezza dei layout non riuscita:', err)
+  }
 }

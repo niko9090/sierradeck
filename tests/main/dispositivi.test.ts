@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { chmodSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { apriDispositivi, DURATA_CODICE_MS, MAX_TENTATIVI, nuovoCodice } from '../../src/main/dispositivi'
+import { apriDispositivi, DURATA_CODICE_MS, MAX_TENTATIVI, PASSO_ACCESSO_MS, nuovoCodice } from '../../src/main/dispositivi'
 
 let cartella: string
 let ora = 1_000_000
@@ -135,5 +135,107 @@ describe('l elenco', () => {
     const d = apri()
     d.accoppia(d.apriAccoppiamento().codice, 'telefono')
     expect(JSON.stringify(d.elenca())).not.toContain('segno')
+  })
+})
+
+/**
+ * Il difetto che ha scollegato un telefono vero.
+ *
+ * `riconosci` riscriveva l'elenco a **ogni** richiesta, per aggiornare l'ora
+ * dell'ultimo accesso. Con l'app aperta le richieste sono più di una al
+ * secondo, quindi il file era in rinomina quasi di continuo — e una lettura
+ * caduta dentro una di quelle rinomine tornava «nessun dispositivo», cioè 401,
+ * cioè un telefono che butta via l'accoppiamento e torna al codice QR.
+ */
+describe('un file che per un istante non si legge non revoca nessuno', () => {
+  it('non riscrive l elenco a ogni riconoscimento', () => {
+    const d = apri()
+    d.apriAccoppiamento()
+    const codice = d.accoppiamentoAperto()?.codice ?? ''
+    const chiave = d.accoppia(codice, 'telefono')?.chiave ?? ''
+
+    const percorso = join(cartella, 'dispositivi.json')
+    d.riconosci(chiave)
+    const dopoIlPrimo = statSync(percorso).mtimeMs
+
+    // Cento richieste nello stesso minuto: il file non si deve muovere.
+    for (let i = 0; i < 100; i += 1) {
+      ora += 100
+      expect(d.riconosci(chiave)).toBeDefined()
+    }
+    expect(statSync(percorso).mtimeMs).toBe(dopoIlPrimo)
+  })
+
+  it('passato il minuto l ora dell ultimo accesso si aggiorna lo stesso', () => {
+    const d = apri()
+    d.apriAccoppiamento()
+    const codice = d.accoppiamentoAperto()?.codice ?? ''
+    const chiave = d.accoppia(codice, 'telefono')?.chiave ?? ''
+    d.riconosci(chiave)
+    const primo = d.elenca()[0]?.ultimoAccesso
+
+    ora += PASSO_ACCESSO_MS + 1
+    d.riconosci(chiave)
+    expect(d.elenca()[0]?.ultimoAccesso).not.toBe(primo)
+  })
+
+  it('se il file diventa illeggibile il dispositivo resta riconosciuto', () => {
+    const d = apri()
+    d.apriAccoppiamento()
+    const codice = d.accoppiamentoAperto()?.codice ?? ''
+    const chiave = d.accoppia(codice, 'telefono')?.chiave ?? ''
+    expect(d.riconosci(chiave)).toBeDefined()
+
+    // Il caso vero è una rinomina in corso, che qui non si riproduce a comando:
+    // un file senza permessi di lettura provoca la stessa cosa — l'errore di
+    // I/O nel bel mezzo di una richiesta autentica.
+    const percorso = join(cartella, 'dispositivi.json')
+    chmodSync(percorso, 0o000)
+    try {
+      const letto = (() => {
+        try {
+          readFileSync(percorso, 'utf8')
+          return true
+        } catch {
+          return false
+        }
+      })()
+      // Su Windows i permessi POSIX non mordono: là il test non ha nulla da
+      // dire, e saltarlo è meglio che affermare il falso.
+      if (!letto) expect(d.riconosci(chiave)).toBeDefined()
+    } finally {
+      chmodSync(percorso, 0o600)
+    }
+  })
+
+  it('un file rotto invece toglie l accesso a tutti', () => {
+    // Occupato e rotto non sono la stessa cosa: se il contenuto c'è e non è
+    // JSON non si sa più chi era autorizzato, e la risposta prudente è nessuno.
+    const d = apri()
+    d.apriAccoppiamento()
+    const codice = d.accoppiamentoAperto()?.codice ?? ''
+    const chiave = d.accoppia(codice, 'telefono')?.chiave ?? ''
+    expect(d.riconosci(chiave)).toBeDefined()
+
+    writeFileSync(join(cartella, 'dispositivi.json'), 'non sono json', 'utf8')
+    ora += PASSO_ACCESSO_MS + 1
+    expect(d.riconosci(chiave)).toBeUndefined()
+  })
+
+  it('un dispositivo revocato da un altra finestra smette di entrare', () => {
+    // Il ricordo non deve diventare una memoria che non si aggiorna: la revoca
+    // arriva scrivendo il file, e va vista al primo giro successivo.
+    const d = apri()
+    d.apriAccoppiamento()
+    const codice = d.accoppiamentoAperto()?.codice ?? ''
+    const chiave = d.accoppia(codice, 'telefono')?.chiave ?? ''
+    expect(d.riconosci(chiave)).toBeDefined()
+
+    writeFileSync(
+      join(cartella, 'dispositivi.json'),
+      JSON.stringify({ versione: 1, dispositivi: [] }),
+      'utf8'
+    )
+    expect(d.riconosci(chiave)).toBeUndefined()
   })
 })

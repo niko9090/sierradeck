@@ -2,6 +2,8 @@ package it.ferrariconsulenze.sierradeck
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
@@ -10,6 +12,8 @@ import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Badge
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -91,6 +95,19 @@ fun Principale(api: Api, deposito: Collegamento, onScollega: () -> Unit) {
     var stato by remember { mutableStateOf<Stato?>(null) }
     var connesso by remember { mutableStateOf(true) }
     var giriFalliti by remember { mutableIntStateOf(0) }
+    /**
+     * Quanti «non ti riconosco» di fila sono arrivati dal computer.
+     *
+     * Prima ne bastava **uno** per dimenticare indirizzo e chiave e tornare al
+     * codice QR. Sembrava logico — la chiave non vale più, tanto vale
+     * ricominciare — ed era il modo più veloce di perdere l'accoppiamento per
+     * un errore che sarebbe passato da solo: al computer bastava un istante
+     * sfortunato mentre riscriveva l'elenco dei dispositivi per rispondere 401
+     * a un telefono perfettamente autorizzato. Ora ne servono parecchi di fila,
+     * e comunque non si butta via niente da soli: lo si dice, e lo decide chi
+     * ha il telefono in mano.
+     */
+    var rifiuti by remember { mutableIntStateOf(0) }
 
     // La guardia in background: è ciò per cui l'app esiste invece della sola
     // pagina — avvisa anche quando l'app è chiusa.
@@ -118,15 +135,23 @@ fun Principale(api: Api, deposito: Collegamento, onScollega: () -> Unit) {
     LaunchedEffect(api) {
         while (isActive) {
             try {
-                stato = api.stato(); connesso = true; giriFalliti = 0
+                stato = api.stato(); connesso = true; giriFalliti = 0; rifiuti = 0
             } catch (e: Api.Errore) {
-                if (e.daRiaccoppiare) { onScollega(); break }
+                if (e.daRiaccoppiare) rifiuti += 1
                 giriFalliti += 1; if (giriFalliti >= 2) connesso = false
             } catch (e: Exception) {
                 giriFalliti += 1; if (giriFalliti >= 2) connesso = false
             }
             delay(2000)
         }
+    }
+
+    if (rifiuti >= RIFIUTI_PER_ARRENDERSI) {
+        NonRiconosciuto(
+            onRiprova = { rifiuti = 0 },
+            onRiaccoppia = onScollega
+        )
+        return
     }
 
     Scaffold(
@@ -209,5 +234,51 @@ private fun Prossimamente(nome: String) {
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(32.dp)
         )
+    }
+}
+
+/**
+ * Quanti rifiuti di fila prima di dire che c'è un problema.
+ *
+ * Il giro è di due secondi: cinque sono dieci secondi di «non ti riconosco»
+ * ininterrotti, che nessun inciampo momentaneo del computer produce. Una revoca
+ * vera, invece, dura per sempre e li raggiunge in dieci secondi.
+ */
+private const val RIFIUTI_PER_ARRENDERSI = 5
+
+/**
+ * «Il computer non ti riconosce più.»
+ *
+ * Al posto di quello che c'era prima, cioè niente: l'app cancellava chiave e
+ * indirizzo e si ritrovava alla schermata del codice QR, senza dire perché.
+ * Chi guardava vedeva un'app che si era dimenticata di tutto da sola.
+ *
+ * Qui si dice cosa è successo e si lasciano due strade, senza prenderne
+ * nessuna al posto di chi legge: riprovare — perché il computer potrebbe essere
+ * appena tornato — o rifare l'accoppiamento, che è l'unica cosa che serve se il
+ * telefono è stato tolto davvero dall'elenco.
+ */
+@Composable
+private fun NonRiconosciuto(onRiprova: () -> Unit, onRiaccoppia: () -> Unit) {
+    Box(Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                "Il computer non ti riconosce",
+                color = Banco.testo,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Da qualche secondo risponde che questo telefono non è fra i suoi. " +
+                    "Può essere passeggero: riprova. Se è stato tolto dall'elenco dei " +
+                    "dispositivi, serve rifare l'accoppiamento con il codice QR.",
+                color = Banco.testoQuieto,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(20.dp))
+            Button(onClick = onRiprova) { Text("Riprova") }
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = onRiaccoppia) { Text("Rifai l'accoppiamento") }
+        }
     }
 }

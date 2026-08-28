@@ -110,3 +110,62 @@ Guardiano per-chat (#6); `rete-sicurezza` (criteri non misurati, kill non ad alb
 (minore: fondere due id di sessione non ha un significato ovvio); i `ceduti` che
 crescono ancora per lo spostamento **fra finestre**; i quattro difetti Android, che
 per essere distribuiti vogliono una build firmata.
+
+---
+
+## 2026-08-28 — è successo di nuovo, e la causa non è chiusa
+
+**Il fatto.** Aggiornamento 0.12.15 → 0.12.17 alle 07:56 (log: due «sessione
+avviata» a due minuti di distanza). Dopo il riavvio, `workspaces.json`:
+
+| workspace | cosa contiene | cosa doveva contenere |
+|---|---|---|
+| DDJ-Dj_Deck | la chat DDJ | giusto |
+| Wdeck | la chat **HomeAssistant** | la chat Wdeck |
+| HA | vuoto | la chat HomeAssistant |
+| SierraDeck | la chat SierraDeck **e** la chat Wdeck | la sola chat SierraDeck |
+
+Le chat si sono spostate **verso** altri workspace, e quello di partenza è
+rimasto vuoto: la firma di `unaChatUnWorkspace`, che dopo un salvataggio
+autorevole toglie una conversazione a tutti i workspace tranne il primo che la
+contiene. Cioè: qualcuno ha salvato un layout *contenente chat altrui* sotto un
+nome che l'archivio considerava autorevole.
+
+**Cosa NON era.** Le difese già in piedi funzionano e sono state rilette una per
+una: `workspace-corrente` (il nome dichiarato prima di `cambiaVista`),
+`salvaLayoutAttivo` (che migra **solo** con nome autorevole),
+`seguiAttivoDellaPrincipale` (solo la finestra più vecchia muove `attivo`). Il
+buco è a monte: **come fa una finestra a mostrare i riquadri di un altro
+workspace mentre ne dichiara uno valido.** Sospetti non verificati, in ordine di
+plausibilità:
+
+1. `chiaveDiFinestra` (`screen.getDisplayMatching`) al riavvio: due finestre, una
+   per monitor, e per un istante possono risolvere alla stessa chiave prima di
+   essere posizionate. Il layout del monitor 1 finirebbe caricato nella finestra
+   del monitor 2, e riscritto sotto la chiave del monitor 2. Nei dati di oggi la
+   chat «Wdeck» sta in `SierraDeck` **sotto la chiave del secondo monitor**,
+   mentre in `Wdeck` il secondo monitor è vuoto: coerente.
+2. La finestra di divergenza fra `layout:carica` e la prima
+   `workspace:stato` risolta, se in mezzo scatta un `layout:salva`.
+
+**Cosa è stato fatto (0.12.18), che non è la correzione.**
+
+- **Copia di sicurezza prima di installare.** `aggiornamenti.ts`, al momento in
+  cui `installazioneAvviata` diventa vero, copia `workspaces.json` in
+  `workspaces.prima-dell-aggiornamento.json` nella cartella dei dati. Il riavvio
+  per aggiornamento è l'unico momento in cui il guasto si è visto, ed è anche
+  l'unico in cui si sa **in anticipo** di stare per riavviare.
+- **I traslochi lasciano una riga.** `registerLayoutIpc` prende ora il registro
+  della sessione e scrive, a ogni `layout:salva`: quale workspace ha **perso**
+  chat, quante, l'id della finestra, la chiave del monitor, il nome dichiarato e
+  l'attivo. Più le righe per i salvataggi non autorevoli.
+
+Le due volte precedenti non c'era **niente** da leggere: né quale finestra avesse
+salvato, né sotto quale nome, né cosa fosse stato tolto a chi. Si poteva solo
+ragionare sul codice e sperare — ed è così che questa scheda è arrivata a
+centoventi righe senza chiudere il difetto. La prossima volta si guarda il log.
+
+**Regola generale.** Quando un difetto si ripresenta dopo due correzioni
+ragionate, la terza mossa non è una terza correzione ragionata: è **rendere
+osservabile il momento del danno** e renderlo **reversibile**. Una teoria in più
+su un guasto che non lascia tracce vale meno di una riga di log.

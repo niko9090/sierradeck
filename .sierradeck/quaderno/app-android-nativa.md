@@ -263,3 +263,25 @@ fissa. Ma per guardare come va il computer **non serve restare vivi**.
 Quando una richiesta dell'utente sembra impossibile per un vincolo di
 piattaforma, il vincolo va riletto: quasi sempre riguarda **il modo** scelto, non
 l'obiettivo. Qui bastava smettere di restare vivi.
+
+## 2.7.0 — un 401 non è più una condanna
+Il difetto vero sta lato computer ed è raccontato in
+[[telefono-si-scollega-da-solo]]. Qui resta la parte dell'app:
+
+- `RIFIUTI_PER_ARRENDERSI = 5`: il giro è di due secondi, quindi servono dieci
+  secondi ininterrotti di «non ti riconosco» prima di dire che c'è un problema.
+  Nessun inciampo momentaneo del computer li produce; una revoca vera li
+  raggiunge lo stesso, in dieci secondi.
+- E arrivati lì **non si cancella niente**: compare `NonRiconosciuto`, che
+  spiega cosa sta succedendo e lascia due strade — «Riprova» e «Rifai
+  l'accoppiamento». Prima l'app decideva da sola, e la decisione era la più
+  costosa possibile per chi la subiva.
+- «Cerca ora» dell'aggiornamento PC ora lascia una traccia: `Ho cercato alle
+  HH:mm`, più un attimo di «Cerco…» anche quando la risposta è immediata. Se il
+  computer è già all'ultima versione la ricerca finisce prima del giro di
+  polling, e il riquadro resta identico: il tasto sembrava rotto e aveva invece
+  già finito.
+
+**Regola.** Un'azione che non cambia niente sullo schermo deve comunque lasciare
+un segno del fatto che è avvenuta. Su un telefono, dove si guarda per due
+secondi, «nulla è cambiato» e «non ha funzionato» sono indistinguibili.

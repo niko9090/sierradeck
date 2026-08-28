@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.18',
+    righe: [
+      '**Il telefono non si scollega più da solo.** Bastava un istante sfortunato — il computer che riscriveva l\u2019elenco dei dispositivi proprio mentre arrivava una richiesta — per rispondere «non ti conosco» a un telefono autorizzato, e l\u2019app rispondeva buttando via l\u2019accoppiamento: si tornava al codice QR senza sapere perché. Adesso quell\u2019elenco sta fermo (si riscrive al massimo una volta al minuto invece che a ogni richiesta), e una lettura che non riesce non vale più come una revoca.',
+      '**Prima di installare un aggiornamento, i layout si mettono da parte.** Nella cartella dei dati resta una copia di `workspaces.json` chiamata `workspaces.prima-dell-aggiornamento.json`: se dopo un riavvio le chat si ritrovano sotto il workspace sbagliato, c\u2019è da dove tornare indietro.',
+      '**E se una chat cambia workspace da sola, adesso lascia una riga nel registro.** Chi, quando, sotto quale nome e cosa è stato tolto a chi: è la traccia che le due volte precedenti mancava del tutto.'
+    ]
+  },
+  {
     versione: '0.12.17',
     righe: [
       '**Dal telefono si vede lo scaricamento davvero.** C’è la barra che avanza accanto alla percentuale, e sotto il nome del computer c’è scritto che versione ha adesso — così si capisce a colpo d’occhio se quella scaricata è più nuova o è ferma lì da ieri.',

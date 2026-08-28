@@ -308,6 +308,16 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
     val scope = rememberCoroutineScope()
     var cercando by remember { mutableStateOf(false) }
     var nota by remember { mutableStateOf<String?>(null) }
+    /**
+     * L'ora dell'ultima ricerca chiesta da qui.
+     *
+     * Se il computer è già all'ultima versione, premere «Cerca» non cambia
+     * niente sullo schermo: la ricerca dura meno del giro di due secondi con
+     * cui il telefono rilegge lo stato, e chi ha premuto vede esattamente lo
+     * stesso riquadro di prima. Sembra un tasto rotto, ed era invece un tasto
+     * che aveva già finito. Una riga con l'ora è la prova che è successo.
+     */
+    var cercatoAlle by remember { mutableStateOf<String?>(null) }
 
     val descrizione = when (a?.fase) {
         "cerco" -> "Sto guardando se c’è qualcosa di nuovo…"
@@ -327,14 +337,19 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
     }
 
     fun cerca() {
-        cercando = true; nota = "Sto cercando…"
+        cercando = true; nota = "Sto cercando…"; cercatoAlle = null
         scope.launch {
             nota = try {
                 api.cercaAggiornamentoPc()
+                cercatoAlle = oraDiAdesso()
                 null
             } catch (e: Exception) {
                 "Questo computer non sa ancora cercare a comando: aggiornalo dal suo schermo."
             }
+            // Un attimo di «Cerco…» anche quando la risposta è immediata: sotto
+            // il mezzo secondo il tasto cambia e torna prima che l'occhio se ne
+            // accorga, e il gesto sembra non essere arrivato.
+            delay(900)
             cercando = false
         }
     }
@@ -344,7 +359,8 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
         versione = if (versionePc == null) "il programma sul PC" else "adesso ha la $versionePc",
         stato = descrizione,
         colore = colore,
-        percento = if (a?.fase == "scarico") (a.percento ?: 0) else null
+        percento = if (a?.fase == "scarico") (a.percento ?: 0) else null,
+        poscritto = cercatoAlle?.let { "Ho cercato alle $it." }
     ) {
         when (a?.fase) {
             "disponibile" -> Button(
@@ -460,6 +476,8 @@ private fun RiquadroAggiornamento(
     colore: androidx.compose.ui.graphics.Color,
     /** Da 0 a 100 mentre scarica; assente quando non sta scaricando. */
     percento: Int? = null,
+    /** Una riga in coda, per dire che una cosa che non si vede è comunque successa. */
+    poscritto: String? = null,
     azione: @Composable () -> Unit
 ) {
     Tessera(Modifier.fillMaxWidth()) {
@@ -485,9 +503,17 @@ private fun RiquadroAggiornamento(
                     modifier = Modifier.fillMaxWidth().height(6.dp)
                 )
             }
+            if (poscritto != null) {
+                Spacer(Modifier.height(6.dp))
+                Text(poscritto, color = Banco.testoQuieto, fontSize = 11.sp)
+            }
         }
     }
 }
+
+/** L'ora di adesso, ore e minuti. Serve solo a dire «è successo, ed è successo ora». */
+private fun oraDiAdesso(): String =
+    java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
 
 @Composable
 private fun QuotaRiga(nome: String, q: Quota) {

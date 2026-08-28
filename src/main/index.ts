@@ -552,7 +552,7 @@ if (!app.requestSingleInstanceLock()) {
       // Dove stavano le finestre: va aperto prima che ne nasca una, perche' e'
       // la prima ad avere bisogno di sapere dove tornare.
       finestreStore = apriFinestreStore(dati)
-      registerLayoutIpc(workspaceStore)
+      registerLayoutIpc(workspaceStore, registro.info)
       registerFinestreIpc(apriNuovaFinestra)
 
       // L'account (Supabase) vive nel MAIN: il renderer ha la CSP severa
