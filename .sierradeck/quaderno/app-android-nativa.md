@@ -375,3 +375,35 @@ momento l'altra metà è per definizione ancora vecchia.
 Corollario pratico, che vale per ogni `remember`: **`remember { leggiQualcosa() }`
 è una fotografia, non un collegamento.** Va bene per ciò che non cambia; per
 tutto il resto il dato deve essere osservabile, o non lo si vedrà cambiare.
+
+### 2.13.0 — la percentuale, la stessa del computer
+Mancava il numero. La domanda vera non era «come inventiamo una percentuale»,
+ma **da dove la prende quella del computer**: e la risposta stava già scritta in
+`finestra-aggiornamento.ts` — non è una finta sul tempo, segue tre cose che
+succedono davvero, con un tetto per ciascuna (30 / 80 / 99) così la barra sale
+mentre si aspetta ma non entra mai nel territorio della fase successiva finché
+quella non è cominciata sul serio.
+
+Quelle tre cose il telefono le vede tutte, solo da un'altra angolazione:
+
+| fase | sul computer | dal telefono | tetto |
+|---|---|---|---|
+| 1 · chiusura | il vecchio processo è vivo | risponde ancora | 30 |
+| 2 · installazione | l'exe non è ancora sostituito | non risponde | 80 |
+| 3 · avvio | exe nuovo, processo non ancora su | risponde di nuovo, versione vecchia | 99 |
+| 4 · pronto | il nuovo processo c'è | risponde con la versione **nuova** | 100 |
+
+Quindi non è una seconda percentuale scritta per far contento l'occhio: è la
+**stessa**, calcolata dalla stessa regola su osservazioni equivalenti — due punti
+per volta e mai un salto, come là. Le due schermate raccontano la stessa storia
+con gli stessi numeri.
+
+Dettaglio che conta: la percentuale ha **un timer suo** (200 ms), più fitto della
+rete (1,5 s). Legata al giro di rete si muoverebbe a scatti di un secondo e mezzo
+e sembrerebbe piantata.
+
+**Regola.** Prima di inventare un indicatore per una seconda interfaccia, si va a
+leggere **come lo calcola la prima**. Quasi sempre non è magia: è una regola
+osservabile anche da dove si sta, e riusarla vale molto più che avvicinarsi a
+occhio — perché due numeri diversi per la stessa cosa sono peggio di un numero
+solo.
