@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.20',
+    righe: [
+      '**Dal telefono si vedono di nuovo tutte le chat.** Una chat poteva restare per sempre su «Sto leggendo il terminale…» mentre sul computer si vedeva benissimo: succedeva a ogni riquadro che si **riagganciava** a un terminale gia’ vivo — dopo un ricarico della finestra, un cambio di workspace, uno spostamento fra finestre. Il riquadro non diceva a nessuno dove si trovava la sua griglia, e da fuori risultava vuoto.',
+      '**E quando davvero non c’è niente da mostrare, l’app lo dice invece di far finta di leggere.**'
+    ]
+  },
+  {
     versione: '0.12.19',
     righe: [
       '**Dal telefono si esce dall\u2019account, e si passa da uno all\u2019altro.** Prima la scheda Account era in sola lettura: si vedeva con quale account stava lavorando il computer e non si poteva fare nient\u2019altro. Chi ne ha due doveva alzarsi e andare al computer per cambiarlo. Ora ci sono «Esci» (con la conferma, perché l’accesso lo perde il computer e non solo il telefono) e «Passa a un altro account», che esce e rientra in un gesto solo.'

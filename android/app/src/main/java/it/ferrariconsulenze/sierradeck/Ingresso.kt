@@ -79,7 +79,14 @@ fun Ingresso(
                 errore = if (e.codice == 403) "Codice sbagliato o scaduto: guardane uno nuovo sul computer."
                 else "Il computer ha risposto ${e.codice}."
             } catch (e: Exception) {
-                errore = "${completo} non risponde. Controlla l’indirizzo o che SierraDeck sia acceso."
+                // Non piu' il vicolo cieco di prima. «Controlla l'indirizzo o
+                // che SierraDeck sia acceso» manda a guardare le due cose che
+                // quasi sempre stanno bene, e lascia fuori quella che quasi
+                // sempre non va: da quale rete il telefono ci ha provato.
+                val dove = Rete.comeSiamoMessi()
+                errore = "${completo} non risponde." +
+                    (if (dove.isBlank()) "" else " " + dove) +
+                    " Prova ad aprire ${completo} col browser del telefono: se non si apre neanche li, il problema e' la rete e non l'app."
             } finally {
                 inCorso = false
             }

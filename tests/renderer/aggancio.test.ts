@@ -232,3 +232,44 @@ describe('creaAggancio — cessione a un altra finestra', () => {
     expect(a.inviati).toContainEqual({ tipo: 'kill', id: 'tardivo' })
   })
 })
+
+/**
+ * Il difetto per cui dal telefono una chat restava su «Sto leggendo il
+ * terminale…» all'infinito, mentre sul computer si vedeva benissimo.
+ *
+ * `annunciaId` sembrava una cosa dello spawn, e nel riaggancio l'id si sapeva
+ * gia'. Ma da quando quell'annuncio registra anche **la griglia di xterm** da
+ * cui il telefono legge, un riquadro riagganciato — dopo un ricarico della
+ * finestra, un cambio di workspace, uno spostamento fra finestre — restava
+ * invisibile da fuori: pty vivo, testo a schermo, e nessuno che avesse detto
+ * dove guardare.
+ */
+describe('annunciare l id', () => {
+  it('anche riagganciandosi a un pty che c era gia', () => {
+    const a = ambiente({ ptyIdIniziale: 'vecchio' })
+    creaAggancio(a.deps).avvia()
+    expect(a.deps.annunciaId).toHaveBeenCalledWith('vecchio')
+  })
+
+  it('e l annuncio precede lo scrollback, non lo segue', () => {
+    // Se arrivasse dopo, fra l'attach e la risposta ci sarebbe una finestra in
+    // cui il riquadro sta gia' scrivendo e da fuori non esiste ancora.
+    const a = ambiente({ ptyIdIniziale: 'vecchio' })
+    creaAggancio(a.deps).avvia()
+    const quando = (a.deps.annunciaId as unknown as { mock: { calls: unknown[] } }).mock.calls.length
+    expect(quando).toBe(1)
+    expect(a.inviati.map((i) => i.tipo)).toContain('attach')
+  })
+
+  it('un pty sparito rilancia, e annuncia il nuovo', () => {
+    // Il ramo `assente`: l'id vecchio non c'e' piu', se ne fa uno nuovo. Deve
+    // annunciare quello, non restare con l'annuncio del morto.
+    const a = ambiente({ ptyIdIniziale: 'sparito' })
+    creaAggancio(a.deps).avvia()
+    a.consegna({ kind: 'assente', id: 'sparito' } as never)
+    a.risolviSpawn('rinato')
+    return Promise.resolve().then(() => {
+      expect(a.deps.annunciaId).toHaveBeenCalledWith('rinato')
+    })
+  })
+})

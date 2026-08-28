@@ -291,6 +291,13 @@ export const useLayoutStore = create<State>((set, get) => ({
       // risolve: scrivere qui ricreerebbe una voce fantasma in `panes`, con un
       // ptyId che nessuno chiuderà mai.
       if (pane === undefined) return s
+      // Lo stesso id di prima non e' un cambiamento. Conta da quando anche il
+      // **riaggancio** annuncia il proprio id: senza questa guardia ogni
+      // riquadro riagganciato produrrebbe uno stato nuovo identico al
+      // precedente, e con lui un salvataggio del layout che non ha niente da
+      // salvare. I salvataggi inutili non sono gratis: sono proprio quelli che
+      // capitano nei momenti sbagliati.
+      if (pane.ptyId === ptyId) return s
       return { panes: { ...s.panes, [paneId]: { ...pane, ptyId } } }
     }),
 

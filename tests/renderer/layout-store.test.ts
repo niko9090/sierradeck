@@ -510,3 +510,21 @@ describe('il padrone di un riquadro sopravvive', () => {
     expect(useLayoutStore.getState().esporta().panes[0]?.autopilota).toBeUndefined()
   })
 })
+
+describe('setPtyId', () => {
+  it('lo stesso id non produce uno stato nuovo', () => {
+    // Conta da quando anche il riaggancio annuncia il proprio id: senza questa
+    // guardia ogni riquadro riagganciato genererebbe un salvataggio del layout
+    // che non ha niente da salvare.
+    const store = useLayoutStore.getState()
+    store.reset()
+    useLayoutStore.setState({
+      panes: { p1: { id: 'p1', cwd: 'c', title: 't', sessionUuid: 's', ptyId: 'x' } as never }
+    })
+    const prima = useLayoutStore.getState().panes
+    useLayoutStore.getState().setPtyId('p1', 'x')
+    expect(useLayoutStore.getState().panes).toBe(prima)
+    useLayoutStore.getState().setPtyId('p1', 'y')
+    expect(useLayoutStore.getState().panes).not.toBe(prima)
+  })
+})

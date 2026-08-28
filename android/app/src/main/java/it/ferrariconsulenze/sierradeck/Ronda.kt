@@ -41,6 +41,7 @@ object Ronda {
 
     /** Un giro solo. Torna lo stato letto, o `null` se non si è potuto leggere. */
     fun giro(contesto: Context): JSONObject? {
+        Rete.ricorda(contesto)
         val collegamento = Collegamento(contesto)
         if (!collegamento.pronto) return null
         val stato = leggiStato(collegamento) ?: return null

@@ -176,13 +176,27 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
     LaunchedEffect(storia?.da, storia?.totale) { caricando = false }
 
     LaunchedEffect(chat.id, quante) {
+        // Quante risposte **riuscite ma vuote** di fila.
+        //
+        // Una risposta vuota non solleva, quindi non finiva in nessun `catch` e
+        // l'app restava su «Sto leggendo il terminale…» all'infinito — che è
+        // una bugia, perché non stava leggendo niente: aveva letto, e non c'era
+        // niente. Vuoto e in attesa sono due stati diversi e vanno detti in due
+        // modi diversi.
+        var vuoti = 0
         while (isActive) {
             try {
                 // `-1` vuol dire «le ultime `quante`»: la finestra resta
                 // attaccata al fondo mentre la chat scrive, e cresce verso
                 // l'alto solo quando sei tu a chiederlo.
-                storia = api.storia(chat.id, -1, quante)
-                guasto = null
+                val letta = api.storia(chat.id, -1, quante)
+                storia = letta
+                vuoti = if (letta.grezze.isEmpty() && letta.righe.isEmpty()) vuoti + 1 else 0
+                // Tre giri sono sei secondi: il tempo che un terminale ci mette
+                // a disegnarsi dopo essere stato aperto, e non uno di piu'.
+                guasto = if (vuoti >= 3)
+                    "Il computer risponde, ma per questa chat non manda niente. Succede se il riquadro non è a schermo sul computer: portalo in primo piano nel suo workspace."
+                else null
             } catch (e: Exception) {
                 // Un computer più vecchio non conosce la cronologia: si
                 // ripiega sullo schermo di adesso, che ha sempre saputo dare.

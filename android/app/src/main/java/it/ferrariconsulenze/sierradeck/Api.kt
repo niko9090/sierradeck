@@ -8,11 +8,9 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.util.concurrent.TimeUnit
 
 /**
  * Il computer, visto dal telefono: una chiamata per endpoint, tutte JSON.
@@ -45,7 +43,13 @@ class Api(private val indirizzo: String, private val chiave: String?) {
 
     private suspend fun corpoTesto(percorso: String, corpo: RequestBody?): String =
         withContext(Dispatchers.IO) {
-            client.newCall(richiesta(percorso, corpo)).execute().use { r ->
+            // Non un client solo: **quello legato alla rete giusta**. Un
+            // indirizzo di casa deve uscire dal wifi, e Android da solo sceglie
+            // la rete che porta a Internet — che con una VPN accesa, o con un
+            // wifi che giudica scadente, non e' la stessa cosa. Il perche' sta
+            // per intero in `Rete`.
+            Rete.clientePer(Indirizzi.hostDi(indirizzo))
+                .newCall(richiesta(percorso, corpo)).execute().use { r ->
                 val testo = r.body?.string() ?: ""
                 if (!r.isSuccessful) throw Errore(r.code, testo)
                 testo
@@ -261,13 +265,7 @@ class Api(private val indirizzo: String, private val chiave: String?) {
             encodeDefaults = true
         }
 
-        /** Un client solo, condiviso: apre poche connessioni e le riusa. I timeout
-         *  sono corti perché è rete locale — se il computer non risponde in fretta,
-         *  non risponde. */
-        private val client = OkHttpClient.Builder()
-            .connectTimeout(8, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
-            .writeTimeout(15, TimeUnit.SECONDS)
-            .build()
+        // I client vivono in `Rete`, uno per rete: i timeout sono corti perche'
+        // e' rete locale — se il computer non risponde in fretta, non risponde.
     }
 }

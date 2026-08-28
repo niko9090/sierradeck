@@ -34,6 +34,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(salvato)
         // Da qui in avanti un errore che chiuderebbe l'app lascia una traccia da
         // leggere al riavvio, invece di sparire senza una parola.
+        Rete.ricorda(this)
         Guasti.prendiNota(applicationContext)
         chiediPermessoNotifiche()
         preparaScanner()

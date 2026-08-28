@@ -117,6 +117,22 @@ export function creaAggancio(deps: AggancioDeps): Aggancio {
         }
         mostra(msg)
       })
+      // **Anche il riaggancio annuncia il suo id**, e per mesi non l'ha fatto.
+      //
+      // `annunciaId` sembrava una cosa dello spawn — «e' nato un pty, ecco il
+      // suo numero» — e nel riaggancio il numero si sapeva gia', quindi non
+      // c'era niente da annunciare. Ma da quando chi guarda da lontano legge
+      // **lo schermo disegnato**, quell'annuncio fa un secondo lavoro: registra
+      // la griglia di xterm di questo riquadro. Senza, un riquadro riagganciato
+      // — cioe' ogni riquadro dopo un ricarico della finestra, dopo un cambio
+      // di workspace, dopo uno spostamento fra finestre — resta **invisibile al
+      // telefono**: nessuna griglia registrata, nessuna riga da mandare, e
+      // sull'app «Sto leggendo il terminale...» per sempre, mentre sul computer
+      // la stessa chat si vede benissimo.
+      //
+      // Il pty c'e', il testo c'e', e l'unico pezzo che manca e' che qualcuno
+      // abbia detto dove guardare.
+      deps.annunciaId(daRiagganciare)
       // L'ascolto precede la richiesta: la risposta attraversa due processi, ma
       // il bus tiene gli arretrati per id, quindi anche invertendo l'ordine non
       // si perderebbe nulla. Resta questo l'ordine giusto da leggere.
