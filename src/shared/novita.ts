@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.19',
+    righe: [
+      '**Dal telefono si esce dall\u2019account, e si passa da uno all\u2019altro.** Prima la scheda Account era in sola lettura: si vedeva con quale account stava lavorando il computer e non si poteva fare nient\u2019altro. Chi ne ha due doveva alzarsi e andare al computer per cambiarlo. Ora ci sono «Esci» (con la conferma, perché l’accesso lo perde il computer e non solo il telefono) e «Passa a un altro account», che esce e rientra in un gesto solo.'
+    ]
+  },
+  {
     versione: '0.12.18',
     righe: [
       '**Il telefono non si scollega più da solo.** Bastava un istante sfortunato — il computer che riscriveva l\u2019elenco dei dispositivi proprio mentre arrivava una richiesta — per rispondere «non ti conosco» a un telefono autorizzato, e l\u2019app rispondeva buttando via l\u2019accoppiamento: si tornava al codice QR senza sapere perché. Adesso quell\u2019elenco sta fermo (si riscrive al massimo una volta al minuto invece che a ogni richiesta), e una lettura che non riesce non vale più come una revoca.',

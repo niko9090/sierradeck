@@ -1012,6 +1012,15 @@ if (!app.requestSingleInstanceLock()) {
           const email = (utente as { email?: string } | undefined)?.email
           return email === undefined ? { entrato: false } : { entrato: true, email }
         },
+        entraAccount: async (email: string, password: string) => {
+          const esito = await entraAccount(email, password)
+          // Le finestre lo sanno per il canale `account:cambiato`, che scatta da
+          // sé: qui basta dire com'è andata a chi l'ha chiesto.
+          return esito.stato === 'entrato'
+            ? { ok: true }
+            : { ok: false, messaggio: esito.stato === 'errore' ? esito.messaggio : 'da confermare per email' }
+        },
+        esciAccount: async () => { await esciAccount() },
         consumi: async () => (db === undefined ? {} : riassumiConsumi(listSessions(db), Date.now())),
         // Il quaderno di una cartella: le schede che l'autopilota lascia
         // accanto al codice che descrivono.

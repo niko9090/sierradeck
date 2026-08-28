@@ -177,14 +177,21 @@ export type DipendenzeRotte = {
   commutaSkill?: (nome: string, attivo: boolean) => { ok: boolean; messaggio?: string }
   commutaMcp?: (nome: string, attivo: boolean) => { ok: boolean; messaggio?: string }
   /**
-   * Chi è entrato, e basta.
+   * Chi è entrato.
    *
-   * Sola lettura: entrare da un telefono vuol dire scrivere una password su
-   * una tastiera che qualcuno guarda, e uscire vuol dire togliere l’accesso
-   * al **computer** con un tocco fatto in tram. Nessuna delle due merita il
-   * rischio; sapere con quale account stai lavorando sì.
+   * Era in sola lettura, e il ragionamento era che entrare da un telefono
+   * vuol dire scrivere una password su una tastiera che qualcuno guarda.
+   * Regge per l'inizio, non per il seguito: un account in cui **non si può
+   * uscire** non è prudenza, è una trappola — e chi ne ha due non ha nessun
+   * modo di passare dall'uno all'altro se non alzarsi e andare al computer.
+   * La prudenza vera è chiedere conferma prima di uscire, non togliere il
+   * comando.
    */
   account?: () => Promise<{ email?: string; entrato: boolean }>
+  /** Entra con questo account: la stessa chiamata del pannello sul computer. */
+  entraAccount?: (email: string, password: string) => Promise<{ ok: boolean; messaggio?: string }>
+  /** Esce. Vale per il computer, non solo per il telefono che l'ha chiesto. */
+  esciAccount?: () => Promise<void>
   versione: string
   /** Qual è l'ultimo APK dell'app, per il tasto «Scarica». */
   apk?: () => Promise<{ versione: string; url: string } | undefined>
@@ -503,10 +510,35 @@ export function rotteClient(deps: DipendenzeRotte) {
       return OK(esito ?? { ok: false, messaggio: 'non so accendere questa cosa' })
     }
 
-    // Chi sei. Sola lettura: da qui non si entra e non si esce.
     if (r.percorso === '/api/account') {
       const chi = await deps.account?.().catch(() => undefined)
       return OK(chi ?? { entrato: false })
+    }
+
+    // Entrare da lontano. Cambiare account è questo più «esci» prima: non
+    // serve un comando a parte, e uno in meno è uno in meno che può sbagliare.
+    if (r.metodo === 'POST' && r.percorso === '/api/account/entra') {
+      if (deps.entraAccount === undefined) {
+        return { stato: 501, corpo: { errore: 'questo computer non sa ancora entrare da fuori' } }
+      }
+      const email = stringa(r.corpo, 'email')
+      const password = stringa(r.corpo, 'password')
+      if (email === '' || password === '') {
+        return { stato: 400, corpo: { errore: 'servono email e password' } }
+      }
+      const esito = await deps.entraAccount(email, password).catch((err: unknown) => ({
+        ok: false,
+        messaggio: String(err)
+      }))
+      return OK(esito)
+    }
+
+    if (r.metodo === 'POST' && r.percorso === '/api/account/esci') {
+      if (deps.esciAccount === undefined) {
+        return { stato: 501, corpo: { errore: 'questo computer non sa ancora uscire da fuori' } }
+      }
+      await deps.esciAccount().catch(() => undefined)
+      return OK({ fatto: true })
     }
 
     if (r.percorso === '/api/consumi') {

@@ -285,3 +285,28 @@ Il difetto vero sta lato computer ed è raccontato in
 **Regola.** Un'azione che non cambia niente sullo schermo deve comunque lasciare
 un segno del fatto che è avvenuta. Su un telefono, dove si guarda per due
 secondi, «nulla è cambiato» e «non ha funzionato» sono indistinguibili.
+
+## 2.8.0 — l'account si può lasciare
+La scheda Account era in sola lettura, e la motivazione scritta nel codice era:
+«entrare da un telefono vuol dire scrivere una password su una tastiera che
+qualcuno guarda, uscire vuol dire togliere l'accesso al computer con un tocco
+fatto in tram». Regge per l'inizio, non per il seguito.
+
+**Un account da cui non si può uscire non è prudenza, è una trappola.** E chi ne
+ha due non aveva nessun modo di passare dall'uno all'altro se non alzarsi e
+andare al computer — che è esattamente ciò che questa app esiste per evitare. La
+prudenza vera è **chiedere conferma prima di uscire**, non togliere il comando.
+
+- Desktop: `POST /api/account/entra` (email+password) e `POST /api/account/esci`,
+  che riusano `entra`/`esci` di `accesso-supabase` — le stesse del pannello sul
+  computer, non una seconda strada. `501` quando il computer è più vecchio delle
+  rotte, così l'app dice «aggiornalo» invece di mostrare un errore di rete.
+- App: «Esci» con conferma (che dice chiaro che l'accesso lo perde **il
+  computer**), e «Passa a un altro account» — che è esci + entra in un gesto
+  solo. Non c'è un comando «cambia» a parte perché non serve, e un comando in
+  meno è uno in meno che può sbagliare.
+
+**Regola generale, che vale oltre l'account.** Quando si toglie un comando «per
+prudenza», va scritto anche **come si fa la stessa cosa altrimenti**. Se la
+risposta è «andando fisicamente al computer», non era prudenza: era il difetto
+rimandato.

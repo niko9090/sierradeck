@@ -606,4 +606,70 @@ describe('il negozio e l account, da un telefono', () => {
     const esito = await rotteClient(su)({ metodo: 'GET', percorso: '/api/account', corpo: undefined })
     expect(esito.corpo).toEqual({ entrato: false })
   })
+
+  it('si esce da lontano', async () => {
+    let uscito = false
+    const su = deps({ esciAccount: async () => { uscito = true } })
+    const esito = await rotteClient(su)({ metodo: 'POST', percorso: '/api/account/esci', corpo: {} })
+    expect(esito.stato).toBe(200)
+    expect(uscito).toBe(true)
+  })
+
+  it('si entra da lontano', async () => {
+    const visti: string[] = []
+    const su = deps({
+      entraAccount: async (email, password) => {
+        visti.push(email, password)
+        return { ok: true }
+      }
+    })
+    const esito = await rotteClient(su)({
+      metodo: 'POST',
+      percorso: '/api/account/entra',
+      corpo: { email: 'x@y.z', password: 'segreta' }
+    })
+    expect(esito.stato).toBe(200)
+    expect(esito.corpo).toEqual({ ok: true })
+    expect(visti).toEqual(['x@y.z', 'segreta'])
+  })
+
+  it('senza email o password non prova nemmeno', async () => {
+    let provato = false
+    const su = deps({ entraAccount: async () => { provato = true; return { ok: true } } })
+    const esito = await rotteClient(su)({
+      metodo: 'POST',
+      percorso: '/api/account/entra',
+      corpo: { email: 'x@y.z' }
+    })
+    expect(esito.stato).toBe(400)
+    expect(provato).toBe(false)
+  })
+
+  it('una password sbagliata torna il motivo, non un errore di rete', async () => {
+    // Il telefono deve poter distinguere «non sei tu» da «non ti sento»: la
+    // prima si corregge digitando meglio, la seconda no.
+    const su = deps({ entraAccount: async () => ({ ok: false, messaggio: 'credenziali non valide' }) })
+    const esito = await rotteClient(su)({
+      metodo: 'POST',
+      percorso: '/api/account/entra',
+      corpo: { email: 'x@y.z', password: 'sbagliata' }
+    })
+    expect(esito.stato).toBe(200)
+    expect(esito.corpo).toEqual({ ok: false, messaggio: 'credenziali non valide' })
+  })
+
+  it('un computer piu vecchio lo dice invece di fingere', async () => {
+    // Le rotte nuove arrivano prima sull'app che sul computer di chi non ha
+    // ancora aggiornato: senza questo l'app mostrerebbe un errore di rete per
+    // una funzione che semplicemente non c'e' ancora.
+    const su = deps({})
+    for (const percorso of ['/api/account/entra', '/api/account/esci']) {
+      const esito = await rotteClient(su)({
+        metodo: 'POST',
+        percorso,
+        corpo: { email: 'x@y.z', password: 'p' }
+      })
+      expect(esito.stato).toBe(501)
+    }
+  })
 })

@@ -230,6 +230,24 @@ class Api(private val indirizzo: String, private val chiave: String?) {
     suspend fun account(): Account =
         json.decodeFromString(corpoTesto("/api/account", null))
 
+    /**
+     * Entra con un altro account.
+     *
+     * Cambiare account è questo preceduto da [esciAccount]: non c'è un comando
+     * apposta, e uno in meno è uno in meno che può sbagliare.
+     */
+    suspend fun entraAccount(email: String, password: String): EsitoNegozio =
+        json.decodeFromString(
+            corpoTesto("/api/account/entra", oggetto {
+                put("email", email)
+                put("password", password)
+            })
+        )
+
+    /** Esce. Vale per il computer, non solo per il telefono che l'ha chiesto. */
+    suspend fun esciAccount(): Fatto =
+        json.decodeFromString(corpoTesto("/api/account/esci", oggetto { }))
+
     suspend fun consumi(): Consumi = json.decodeFromString(corpoTesto("/api/consumi", null))
 
     companion object {

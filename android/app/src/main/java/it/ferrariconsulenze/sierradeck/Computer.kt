@@ -45,6 +45,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Switch
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 
 /** Numeri di token leggibili: 12.4k, 3.1M. */
 private fun tokenBrevi(n: Long): String = when {
@@ -188,30 +191,18 @@ fun Computer(api: Api, stato: Stato?) {
         Divisore()
 
         // ─── Account ───
-        // Sola lettura, e di proposito: entrare da un telefono vuol dire
-        // scrivere una password su una tastiera che qualcuno guarda, e uscire
-        // vuol dire togliere l’accesso al **computer** con un tocco fatto in
-        // tram. Sapere con quale account stai lavorando, invece, serve.
+        // Era in sola lettura, e il ragionamento era che una password scritta
+        // su un telefono la può leggere chi ti sta accanto. Regge per l'inizio
+        // e non per il seguito: un account da cui **non si può uscire** non è
+        // prudenza, è una trappola, e chi ne ha due non aveva nessun modo di
+        // passare dall'uno all'altro senza andare al computer. La prudenza
+        // vera è chiedere conferma prima di uscire, non togliere il comando.
         Sezione("Account")
-        Tessera(Modifier.fillMaxWidth()) {
-            Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        account?.email ?: if (account?.entrato == true) "entrato" else "Nessun account",
-                        color = Banco.testo,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        maxLines = 1
-                    )
-                    Text(
-                        if (account?.entrato == true) "Il computer sta lavorando con questo account."
-                        else "Il computer lavora senza account. Si entra dal suo schermo.",
-                        color = Banco.testoQuieto,
-                        fontSize = 12.sp
-                    )
-                }
-            }
-        }
+        Account(
+            account = account,
+            onCambiato = { scope.launch { account = try { api.account() } catch (_: Exception) { account } } },
+            api = api
+        )
 
         Divisore()
 
@@ -561,6 +552,170 @@ private fun VoceWorkspace(nome: String, attivo: Boolean, onClick: () -> Unit) {
             fontSize = 13.sp,
             fontWeight = if (attivo) FontWeight.Bold else FontWeight.Normal,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+        )
+    }
+}
+
+
+/**
+ * Con quale account sta lavorando il computer — e i due gesti per cambiarlo.
+ *
+ * Uscire chiede conferma, ed è l'unica cosa qui che merita una domanda: tolto
+ * l'accesso, il computer resta senza account finché qualcuno non rientra, e chi
+ * ha premuto potrebbe essere in tram.
+ *
+ * Entrare è anche il modo di **cambiare** account: si esce e si rientra con
+ * l'altro. Non c'è un comando apposta perché non serve, e un comando in meno è
+ * uno in meno che può sbagliare.
+ */
+@Composable
+private fun Account(account: Account?, api: Api, onCambiato: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var chiedeUscita by remember { mutableStateOf(false) }
+    var apreIngresso by remember { mutableStateOf(false) }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var occupato by remember { mutableStateOf(false) }
+    var nota by remember { mutableStateOf<String?>(null) }
+
+    Tessera(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        account?.email ?: if (account?.entrato == true) "entrato" else "Nessun account",
+                        color = Banco.testo,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        maxLines = 1
+                    )
+                    Text(
+                        if (account?.entrato == true) "Il computer sta lavorando con questo account."
+                        else "Il computer lavora senza account.",
+                        color = Banco.testoQuieto,
+                        fontSize = 12.sp
+                    )
+                }
+                if (account?.entrato == true) {
+                    OutlinedButton(
+                        enabled = !occupato,
+                        shape = MaterialTheme.shapes.small,
+                        onClick = { chiedeUscita = true }
+                    ) { Text("Esci") }
+                } else {
+                    Button(
+                        enabled = !occupato,
+                        shape = MaterialTheme.shapes.small,
+                        onClick = { apreIngresso = true; nota = null }
+                    ) { Text("Entra") }
+                }
+            }
+
+            if (account?.entrato == true) {
+                Spacer(Modifier.height(10.dp))
+                TextButton(onClick = { apreIngresso = true; nota = null }) {
+                    Text("Passa a un altro account", fontSize = 13.sp)
+                }
+            }
+
+            if (nota != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(nota ?: "", color = Banco.testoQuieto, fontSize = 12.sp)
+            }
+        }
+    }
+
+    if (chiedeUscita) {
+        AlertDialog(
+            onDismissRequest = { chiedeUscita = false },
+            title = { Text("Esco dall'account?") },
+            text = {
+                Text(
+                    "L'accesso lo perde il computer, non solo questo telefono: " +
+                        "finché qualcuno non rientra, lavora senza account.",
+                    color = Banco.testoQuieto,
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    chiedeUscita = false; occupato = true; nota = "Sto uscendo…"
+                    scope.launch {
+                        nota = try {
+                            api.esciAccount(); null
+                        } catch (e: Exception) {
+                            "Questo computer non sa ancora uscire da fuori: aggiornalo."
+                        }
+                        occupato = false
+                        onCambiato()
+                    }
+                }) { Text("Esci") }
+            },
+            dismissButton = { TextButton(onClick = { chiedeUscita = false }) { Text("Annulla") } }
+        )
+    }
+
+    if (apreIngresso) {
+        AlertDialog(
+            onDismissRequest = { if (!occupato) apreIngresso = false },
+            title = { Text(if (account?.entrato == true) "Passa a un altro account" else "Entra") },
+            text = {
+                Column {
+                    if (account?.entrato == true) {
+                        Text(
+                            "Esce da quello di adesso e entra con questo.",
+                            color = Banco.testoQuieto,
+                            fontSize = 12.sp
+                        )
+                        Spacer(Modifier.height(10.dp))
+                    }
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it.trim() },
+                        singleLine = true,
+                        label = { Text("Email") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        singleLine = true,
+                        label = { Text("Password") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !occupato && email.isNotBlank() && password.isNotBlank(),
+                    onClick = {
+                        occupato = true; nota = "Sto entrando…"
+                        val e = email
+                        val pw = password
+                        password = ""
+                        scope.launch {
+                            nota = try {
+                                // Uscire prima: entrare con un altro senza uscire
+                                // lascerebbe due sessioni a contendersi lo stesso
+                                // computer, e vincerebbe quella che risponde prima.
+                                if (account?.entrato == true) api.esciAccount()
+                                val esito = api.entraAccount(e, pw)
+                                if (esito.ok) { apreIngresso = false; null }
+                                else esito.messaggio ?: "Email o password non vanno."
+                            } catch (ex: Exception) {
+                                "Questo computer non sa ancora entrare da fuori: aggiornalo."
+                            }
+                            occupato = false
+                            onCambiato()
+                        }
+                    }
+                ) { Text(if (occupato) "…" else "Entra") }
+            },
+            dismissButton = {
+                TextButton(enabled = !occupato, onClick = { apreIngresso = false }) { Text("Annulla") }
+            }
         )
     }
 }
