@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.24',
+    righe: [
+      '**Dal telefono si legge l’installazione con le parole dell’installer, non con parole sue.** Prima l’app raccontava una storia parallela, dedotta dal silenzio: percentuali che non coincidevano con quelle sullo schermo del computer, e nessuna traccia dei passi veri — l’aggiornamento di Claude Code, per esempio. Adesso è **l’installer stesso** a rispondere al telefono: mentre SierraDeck è chiuso la porta è libera, e se la prende lui. Stessa riga, stesso numero, sui due schermi.',
+      '**La porta torna a SierraDeck prima che riapra**, perché un aggiornamento che rompe il collegamento col telefono sarebbe il contrario di quello che serve.'
+    ]
+  },
+  {
     versione: '0.12.23',
     righe: [
       '**Dal telefono si passa da un computer all’altro con un tocco.** Chi ne ha più di uno in casa restava legato al primo con cui si era accoppiato: per cambiarlo bisognava buttare via l’accoppiamento e rifarlo col QR. Ora c’è l’elenco delle **postazioni** — in cima a ogni schermata, con il nome del computer che stai guardando — e tornare a uno già visto non chiede nessun codice: la chiave di ognuno era già salvata, mancava solo il modo di sceglierla.',

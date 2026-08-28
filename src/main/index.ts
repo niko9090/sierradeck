@@ -1329,7 +1329,10 @@ if (!app.requestSingleInstanceLock()) {
         },
         // Se scaricare da soli: lo decide l'utente dalle impostazioni. Letto qui
         // all'avvio, e ricambiato a caldo dall'handler `preferenze:imposta`.
-        () => impostazioni.preferenze().scaricaAggiornamentiAutomatico
+        () => impostazioni.preferenze().scaricaAggiornamentiAutomatico,
+        // La porta su cui il Client sta ascoltando adesso: e' quella che
+        // l'updater prendera' in prestito mentre noi non ci siamo.
+        () => porta
       )
       ipcMain.handle('aggiornamenti:stato', () => aggiornamenti?.stato() ?? { fase: 'fermo' })
       ipcMain.handle('aggiornamenti:cerca', () => aggiornamenti?.cerca())

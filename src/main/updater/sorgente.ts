@@ -29,13 +29,16 @@
  * spazio aggiunto farebbe ricompilare per niente, e chi la alza qui sta anche
  * dicendo «ho cambiato qualcosa che conta».
  */
-export const VERSIONE_UPDATER = 12
+export const VERSIONE_UPDATER = 13
 
 export function sorgenteUpdater(): string {
   return `using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
@@ -55,6 +58,18 @@ class Aggiornamento : Form {
 
     int passo = 0;      // 0 attesa uscita, 1 installazione, 2 avvio, 3 finito
     int valore = 0;
+
+    /**
+     * Quello che la spia racconta a chi guarda da fuori.
+     *
+     * 'volatile' perche' li scrive il thread dell'interfaccia e li legge quello
+     * della spia: senza, il secondo potrebbe leggere all'infinito una copia
+     * ferma nella sua cache.
+     */
+    static volatile string spiaTesto = "Chiusura di SierraDeck...";
+    static volatile int spiaPercento = 0;
+    static volatile string spiaVersione = "";
+    static volatile bool spiaViva = true;
     int giri = 0;
     int pidVecchio;
     string installer;
@@ -146,6 +161,10 @@ class Aggiornamento : Form {
         versione = args.Length > 3 ? args[3] : "";
         claude = args.Length > 4 ? args[4] : "";
         notaClaude = args.Length > 5 ? args[5] : "";
+        int porta = 47640;
+        if (args.Length > 6) int.TryParse(args[6], out porta);
+        spiaVersione = versione;
+        AvviaSpia(porta);
 
         Color sfondo = Color.FromArgb(11, 12, 14);
         Color chiaro = Color.FromArgb(223, 227, 231);
@@ -443,12 +462,127 @@ class Aggiornamento : Form {
 
         barra.Width = (int)(320.0 * valore / 100.0);
         percento.Text = valore + "%";
+        spiaTesto = fase.Text;
+        spiaPercento = valore;
+    }
+
+    /**
+     * La spia: **questo** programma risponde al telefono mentre SierraDeck e' morto.
+     *
+     * E' l'idea che risolve un problema che sembrava insolubile. Dal telefono,
+     * durante l'installazione, non c'era nessuno a cui chiedere a che punto si
+     * fosse: SierraDeck e' chiuso, ed e' proprio lui che parla col telefono. La
+     * schermata sull'app raccontava quindi una storia **parallela**, dedotta dal
+     * silenzio — e le due percentuali non coincidevano mai.
+     *
+     * Ma c'e' un programma vivo esattamente in quei trenta secondi, ed e'
+     * questo. La porta del Client e' libera proprio perche' SierraDeck l'ha
+     * lasciata. Quindi la si prende in prestito: stessa porta, stesso indirizzo,
+     * stessa rotta '/api/aggiornamento'. Il telefono continua a chiedere le
+     * stesse cose allo stesso posto, e per quei trenta secondi risponde
+     * l'installer con **le sue** parole e la **sua** percentuale. Non piu' due
+     * racconti da tenere allineati: uno solo, con due schermi davanti.
+     *
+     * Un 'TcpListener' e non 'HttpListener': il secondo, su Windows, vuole una
+     * prenotazione dell'URL o i diritti di amministratore, e un aggiornamento
+     * non e' il momento di chiederli. La risposta e' abbastanza semplice da
+     * scriverla a mano.
+     *
+     * Non dice niente di segreto — un testo e un numero — e vive un minuto. Ma
+     * soprattutto **non puo' far fallire l'aggiornamento**: gira in un thread a
+     * parte, in un try che ingoia tutto, e se la porta non si prende nessuno se
+     * ne accorge. Un aggiornamento che si rompe per mostrare una percentuale
+     * sarebbe il peggior baratto possibile.
+     */
+    static void AvviaSpia(int porta) {
+        try {
+            System.Threading.Thread t = new System.Threading.Thread(delegate() { Spia(porta); });
+            t.IsBackground = true;
+            t.Start();
+        } catch (Exception e) {
+            Nota("spia non avviata: " + e.Message);
+        }
+    }
+
+    static void Spia(int porta) {
+        TcpListener ascolto = null;
+        // La porta puo' essere ancora di SierraDeck, che sta uscendo: si
+        // riprova finche' non la lascia, e non piu' di un minuto.
+        for (int tentativi = 0; tentativi < 120 && ascolto == null && spiaViva; tentativi++) {
+            try {
+                ascolto = new TcpListener(IPAddress.Any, porta);
+                ascolto.Start();
+            } catch (Exception) {
+                ascolto = null;
+                System.Threading.Thread.Sleep(500);
+            }
+        }
+        if (ascolto == null) { Nota("spia: porta mai libera"); return; }
+        Nota("spia in ascolto sulla porta " + porta);
+        while (spiaViva) {
+            try {
+                if (!ascolto.Pending()) { System.Threading.Thread.Sleep(100); continue; }
+                using (TcpClient cliente = ascolto.AcceptTcpClient()) {
+                    cliente.ReceiveTimeout = 1500;
+                    cliente.SendTimeout = 1500;
+                    NetworkStream flusso = cliente.GetStream();
+                    byte[] entrata = new byte[2048];
+                    try { flusso.Read(entrata, 0, entrata.Length); } catch (Exception) { }
+                    string richiesta = Encoding.UTF8.GetString(entrata);
+                    string corpo = richiesta.Contains("/api/aggiornamento") ? Stato() : "{}";
+                    string testa =
+                        "HTTP/1.1 200 OK" + CRLF +
+                        "Content-Type: application/json; charset=utf-8" + CRLF +
+                        "Content-Length: " + Encoding.UTF8.GetByteCount(corpo) + CRLF +
+                        "Connection: close" + CRLF + CRLF;
+                    byte[] uscita = Encoding.UTF8.GetBytes(testa + corpo);
+                    flusso.Write(uscita, 0, uscita.Length);
+                    flusso.Flush();
+                }
+            } catch (Exception) {
+                // Una richiesta storta non e' un motivo per smettere di
+                // rispondere alle prossime.
+            }
+        }
+        try { ascolto.Stop(); } catch (Exception) { }
+    }
+
+    /**
+     * Lo stato, nella stessa forma che manda SierraDeck.
+     *
+     * Costruito con VIRG e BARRA invece che con le sequenze di fuga: questo
+     * sorgente C# vive dentro una stringa TypeScript, quindi ogni barra
+     * rovesciata attraversa due linguaggi prima di arrivare al compilatore e
+     * ne perde uno strato per strada. E' successo, e il risultato erano dieci
+     * errori di "nuova riga nella costante". Con i caratteri per numero non
+     * c'e' niente da far sopravvivere al viaggio.
+     */
+    static readonly char VIRG = (char)34;
+    static readonly char BARRA = (char)92;
+    static readonly string CRLF = ((char)13).ToString() + ((char)10).ToString();
+
+    static string Stato() {
+        return "{" + Campo("fase") + Testo("installo") + "," +
+            Campo("versione") + Testo(spiaVersione) + "," +
+            Campo("percento") + spiaPercento + "," +
+            Campo("testo") + Testo(spiaTesto) + "}";
+    }
+
+    static string Campo(string nome) { return VIRG + nome + VIRG + ":"; }
+    static string Testo(string valore) { return VIRG + Fuggi(valore) + VIRG; }
+
+    /** Le virgolette e le barre nel JSON scritto a mano. */
+    static string Fuggi(string testo) {
+        if (testo == null) return "";
+        string b = BARRA.ToString();
+        string uno = testo.Replace(b, b + b);
+        return uno.Replace(VIRG.ToString(), b + VIRG.ToString());
     }
 
     void Chiudi() {
         Timer fine = new Timer();
         fine.Interval = 1600;
-        fine.Tick += delegate { fine.Stop(); Close(); };
+        fine.Tick += delegate { fine.Stop(); spiaViva = false; Close(); };
         fine.Start();
     }
 
@@ -612,6 +746,20 @@ class Aggiornamento : Form {
     }
 
     void Avvia() {
+        // **La porta si molla prima di riaprire**, e non alla fine.
+        //
+        // La spia sta in ascolto sulla porta del Client, che e' libera solo
+        // perche' SierraDeck e' chiuso. Se la tenesse ancora mentre la nuova
+        // versione parte, quella troverebbe la porta occupata e resterebbe senza
+        // Client: il telefono non lo vedrebbe piu' fino al riavvio successivo.
+        // Un aggiornamento che rompe la cosa che stavi guardando dal telefono e'
+        // esattamente il contrario di quello che questa spia doveva fare.
+        //
+        // Il ciclo della spia controlla questo flag ogni decimo di secondo,
+        // quindi la porta e' libera molto prima che il programma nuovo arrivi a
+        // chiederla.
+        spiaViva = false;
+        Nota("spia spenta: la porta torna a SierraDeck");
         try {
             if (File.Exists(eseguibile)) {
                 ProcessStartInfo p = new ProcessStartInfo(eseguibile);

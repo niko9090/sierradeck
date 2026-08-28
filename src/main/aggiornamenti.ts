@@ -102,7 +102,9 @@ export function creaAggiornamenti(
    * Letto all'avvio; poi lo cambia `impostaScaricoAutomatico` quando l'utente
    * tocca l'interruttore. Assente = acceso, il comportamento di sempre.
    */
-  scaricaAutomatico?: () => boolean
+  scaricaAutomatico?: () => boolean,
+  /** La porta del Client: l'updater la prende in prestito per raccontarsi al telefono. */
+  portaClient?: () => number
 ): Aggiornamenti {
   let stato: StatoAggiornamento = { fase: 'fermo' }
   /** Dove electron-updater ha messo l'installer: lo esegue SierraDeck Update. */
@@ -305,6 +307,7 @@ export function creaAggiornamenti(
           eseguibile: app.getPath('exe'),
           versione: stato.versione ?? '',
           pid: process.pid,
+          portaClient: portaClient?.() ?? 47640,
           // Claude Code si aggiorna nello stesso viaggio: e' l'unico momento in
           // cui nessuna chat lo tiene aperto, e chiederlo all'utente vorrebbe
           // dire chiedergli di chiudere tutto a mano.

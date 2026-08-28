@@ -205,7 +205,16 @@ data class Aggiornamento(
     val fase: String = "",
     val versione: String? = null,
     val percento: Int? = null,
-    val errore: String? = null
+    val errore: String? = null,
+    /**
+     * Quello che l'installer sta scrivendo **adesso**, parola per parola.
+     *
+     * Arriva solo mentre il computer si sta aggiornando, e non lo manda
+     * SierraDeck — che in quel momento e' chiuso — ma l'installer stesso, che
+     * prende in prestito la porta rimasta libera. Quando c'e', questa e' la
+     * verita' e non si deduce piu' niente dal silenzio.
+     */
+    val testo: String? = null
 )
 
 // ─── /api/salvataggi ───

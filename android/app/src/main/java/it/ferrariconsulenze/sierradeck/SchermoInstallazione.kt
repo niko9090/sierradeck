@@ -1,5 +1,6 @@
 package it.ferrariconsulenze.sierradeck
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +21,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -34,35 +34,35 @@ import kotlinx.coroutines.isActive
  * I trenta secondi in cui il computer non c'è.
  *
  * Premuto «Installa», SierraDeck si chiude, l'installer lavora, e il programma
- * riparte da solo. Dal telefono, prima, non si vedeva **niente** fino alla
- * fine: la stessa schermata di un computer scollegato. Un aggiornamento che sta
- * andando bene e un cavo staccato erano indistinguibili, e l'unica cosa da fare
- * era aspettare senza sapere cosa.
+ * riparte da solo. Dal telefono, prima, non si vedeva **niente** fino alla fine:
+ * la stessa schermata di un computer scollegato.
  *
- * ## La percentuale, e perché non è una finta
+ * ## Chi racconta
  *
- * Sul computer la finestra dell'aggiornamento mostra una percentuale, e non la
- * inventa sul tempo: segue **tre cose che succedono davvero**, una dopo
- * l'altra, con un tetto per ciascuna — 30, 80, 99 — così la barra sale mentre
- * si aspetta ma non entra mai nel territorio della fase successiva finché
- * quella non è cominciata sul serio.
+ * Il primo tentativo era un racconto **parallelo**: dedurre a che punto fosse
+ * l'installazione dal silenzio, e disegnare una percentuale con la stessa regola
+ * della finestra sul computer. Sembrava ragionevole, e non lo era: le due
+ * schermate dicevano parole diverse e numeri che non coincidevano, perché la
+ * finestra vera ha cinque passi — c'è anche l'aggiornamento di Claude Code — e
+ * una curva sua. Due indicatori della stessa cosa che non concordano tolgono
+ * fiducia a **entrambi**.
  *
- * Da qui quelle tre cose si vedono tutte, solo da un'altra angolazione:
+ * La soluzione è che a raccontare sia **uno solo**, e che sia quello che sa. Il
+ * programma che lavora in quei trenta secondi esiste — è l'installer — ed è vivo
+ * proprio mentre SierraDeck è morto. Quindi la porta del Client, rimasta libera
+ * perché SierraDeck l'ha lasciata, se la prende lui: stessa porta, stesso
+ * indirizzo, stessa rotta `/api/aggiornamento`. Il telefono continua a chiedere
+ * le stesse cose allo stesso posto, e per quei trenta secondi gli risponde
+ * l'installer con le sue parole e la sua percentuale.
  *
- * | fase | il computer | tetto |
- * |---|---|---|
- * | 1 · chiusura | risponde ancora | 30 |
- * | 2 · installazione | non risponde | 80 |
- * | 3 · avvio | risponde di nuovo, versione vecchia | 99 |
- * | 4 · pronto | risponde con la versione **nuova** | 100 |
+ * Qui dentro quindi non si deduce più niente: si mostra quello che arriva.
  *
- * Quindi non è una seconda percentuale scritta per far contento l'occhio: è la
- * **stessa**, calcolata dalla stessa regola su osservazioni equivalenti. Le due
- * schermate raccontano la stessa storia con gli stessi numeri, ed è l'unico
- * modo perché guardare il telefono invece del computer non sia una rinuncia.
+ * ## E quando la spia non c'è
  *
- * La prova finale resta la sola che non si può fingere: `/api/ciao` che risponde
- * con un numero di versione **diverso** da quello di prima.
+ * Un installer più vecchio, o la porta che non si libera in tempo: allora si
+ * torna a raccontare dal silenzio — risponde ancora, non risponde, è tornato —
+ * con una percentuale prudente. È un ripiego dichiarato, non la strada
+ * principale, e si vede: senza spia i numeri sono pochi e tondi.
  */
 @Composable
 fun SchermoInstallazione(
@@ -71,83 +71,94 @@ fun SchermoInstallazione(
     da: Long,
     onEsci: () -> Unit
 ) {
-    /** 1 chiusura · 2 installazione · 3 avvio · 4 pronto. Come sul computer. */
-    var fase by remember { mutableIntStateOf(1) }
-    var percento by remember { mutableIntStateOf(0) }
+    /** Quello che dice l'installer, quando c'è. È la verità, non una stima. */
+    var testoVero by remember { mutableStateOf<String?>(null) }
+    var percentoVero by remember { mutableStateOf<Int?>(null) }
+    /** Il ripiego, per quando non risponde nessuno: 0 chiusura · 1 lavoro · 2 avvio. */
+    var passo by remember { mutableIntStateOf(0) }
+    var stima by remember { mutableIntStateOf(0) }
     var versioneOra by remember { mutableStateOf<String?>(null) }
     var secondi by remember { mutableIntStateOf(0) }
-    var fatto by remember { mutableStateOf<String?>(null) }
-    /** Ha smesso di rispondere almeno una volta: l'installer ha preso il campo. */
+    var finito by remember { mutableStateOf(false) }
     var sparito by remember { mutableStateOf(false) }
 
-    // ─── che fase è: lo dice il computer, rispondendo o tacendo ───
     LaunchedEffect(Unit) {
         while (isActive) {
             secondi = ((System.currentTimeMillis() - da) / 1000L).toInt()
+
+            // 1. Chi sta lavorando adesso? Se c'è la spia dell'installer, è lei
+            //    a dire tutto — parole comprese.
+            try {
+                val a = api.aggiornamento()
+                val suo = a.testo
+                if (!suo.isNullOrBlank()) {
+                    testoVero = suo
+                    percentoVero = a.percento
+                    sparito = true
+                }
+            } catch (e: Exception) {
+                // Nessuno risponde: si continua col ripiego.
+            }
+
+            // 2. È tornato? La prova è una sola e non si può fingere: la
+            //    versione nuova che risponde a `/api/ciao`.
             try {
                 val v = api.ciao().versione
                 versioneOra = v
                 when {
-                    v.isNotBlank() && v != versionePrima -> { fatto = v; fase = 4 }
-                    // Risponde di nuovo dopo essere sparito, ma con la versione
-                    // di prima: l'eseguibile e' stato sostituito e sta partendo.
-                    sparito -> fase = 3
-                    // Non se n'e' ancora andato: sta chiudendo le chat.
-                    else -> fase = 1
+                    v.isNotBlank() && v != versionePrima -> { finito = true; passo = 3 }
+                    v.isNotBlank() -> if (!sparito) passo = 0
                 }
             } catch (e: Exception) {
-                // Il silenzio qui è la cosa giusta, non un guasto: il programma
-                // si è chiuso per farsi sostituire.
                 sparito = true
-                fase = 2
+                if (passo < 1) passo = 1
             }
-            if (fase == 4) break
-            delay(1500)
+
+            if (finito) break
+            delay(1200)
         }
     }
 
-    // ─── la percentuale sale da sola fino al tetto della sua fase ───
-    //
-    // Un timer suo, piu' fitto della rete: la barra deve muoversi anche mentre
-    // si aspetta la prossima risposta, o sembrerebbe piantata. Due punti per
-    // volta e mai un salto — una barra che va da 0 a 100 in un fotogramma non
-    // dice niente a chi guarda, e sembra un difetto. E' la stessa regola della
-    // finestra sul computer, numeri compresi.
+    // Il ripiego sale piano verso il tetto del suo passo, e non oltre: una barra
+    // che entra nel territorio di una fase non ancora cominciata è una bugia.
     LaunchedEffect(Unit) {
         while (isActive) {
-            val tetto = when (fase) {
-                1 -> 30
-                2 -> 80
-                3 -> 99
+            val tetto = when (passo) {
+                0 -> 15
+                1 -> 90
+                2 -> 99
                 else -> 100
             }
-            if (percento < tetto) percento = minOf(tetto, percento + 2)
-            if (percento >= 100) break
-            delay(200)
+            if (stima < tetto) stima = minOf(tetto, stima + 1)
+            if (stima >= 100) break
+            delay(400)
         }
     }
 
+    val percento = if (finito) 100 else (percentoVero ?: stima)
     val larghezza by animateFloatAsState(percento / 100f, label = "avanzamento")
     val troppo = secondi * 1000L > Installazione.TROPPO_MS
+    val pronto = finito || percento >= 100
 
+    // La riga grande è **letteralmente** quella dell'installer, quando parla.
     val titolo = when {
-        fatto != null -> "Pronto"
+        pronto -> "Pronto."
         troppo -> "Ci sta mettendo troppo"
-        fase == 1 -> "Chiusura di SierraDeck"
-        fase == 3 -> "Avvio della nuova versione"
-        else -> "Installazione in corso"
+        testoVero != null -> testoVero ?: ""
+        passo == 0 -> "Chiusura di SierraDeck..."
+        else -> "Installazione in corso..."
     }
 
     val racconto = when {
-        fatto != null -> "Il computer è ripartito con la $fatto."
+        pronto -> "Il computer è ripartito con la ${versioneOra ?: ""}."
         troppo ->
             "Sono passati più di dieci minuti e il computer non è ancora tornato. " +
                 "Può essere che l'installer stia aspettando qualcosa sullo schermo del computer: vai a vedere."
-        fase == 1 ->
+        testoVero != null ->
+            "Te lo sta dicendo l'installer stesso: quello che leggi qui è la stessa riga che compare sul computer."
+        passo == 0 ->
             "Il computer risponde ancora: sta chiudendo le chat e si prepara a sostituirsi. " +
                 "Fra pochi secondi sparirà, ed è quello che deve fare."
-        fase == 3 ->
-            "L'installazione è finita e il programma nuovo sta partendo. Ci siamo."
         else ->
             "Il computer si è chiuso e l'installer sta lavorando. Riparte da solo: " +
                 "non c'è niente da fare, né qui né lì."
@@ -160,19 +171,16 @@ fun SchermoInstallazione(
         ) {
             Text(
                 titolo,
-                color = if (fatto != null) Banco.verde else if (troppo) Banco.ambra else Banco.testo,
+                color = if (pronto) Banco.verde else if (troppo) Banco.ambra else Banco.testo,
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp,
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(18.dp))
 
-            // Il numero grande, come sul computer: è la cosa che si guarda per
-            // prima, e da un telefono tenuto in mano dev'essere leggibile
-            // dall'altra parte della stanza.
             Text(
                 "$percento%",
-                color = if (fatto != null) Banco.verde else Banco.accento,
+                color = if (pronto) Banco.verde else Banco.accento,
                 fontWeight = FontWeight.Bold,
                 fontSize = 44.sp
             )
@@ -180,29 +188,24 @@ fun SchermoInstallazione(
 
             LinearProgressIndicator(
                 progress = { larghezza },
-                color = if (fatto != null) Banco.verde else Banco.accento,
+                color = if (pronto) Banco.verde else Banco.accento,
                 trackColor = Banco.incisione,
                 modifier = Modifier.fillMaxWidth().height(8.dp)
             )
             Spacer(Modifier.height(18.dp))
 
-            Text(
-                racconto,
-                color = Banco.testoQuieto,
-                fontSize = 14.sp,
-                textAlign = TextAlign.Center
-            )
+            Text(racconto, color = Banco.testoQuieto, fontSize = 14.sp, textAlign = TextAlign.Center)
             Spacer(Modifier.height(14.dp))
 
             Text(
-                riga(secondi, versionePrima, versioneOra, fase),
+                riga(secondi, versionePrima, testoVero != null, sparito),
                 color = Banco.testoQuieto,
                 fontSize = 12.sp,
                 textAlign = TextAlign.Center
             )
 
             Spacer(Modifier.height(26.dp))
-            if (fatto != null) {
+            if (pronto) {
                 Button(shape = MaterialTheme.shapes.small, onClick = onEsci) { Text("Torna alle chat") }
             } else {
                 // Una schermata a tutto schermo deve sempre avere una porta:
@@ -214,18 +217,14 @@ fun SchermoInstallazione(
     }
 }
 
-/** La riga dei fatti nudi: da quanto, da che versione, a che punto del viaggio. */
-private fun riga(secondi: Int, prima: String, ora: String?, fase: Int): String {
+/** La riga dei fatti nudi: da quanto, da che versione, chi sta parlando. */
+private fun riga(secondi: Int, prima: String, conSpia: Boolean, sparito: Boolean): String {
     val tempo = if (secondi < 60) "${secondi}s" else "${secondi / 60}m ${secondi % 60}s"
     val versioni = if (prima.isBlank()) "" else " · partito dalla $prima"
-    val passo = when (fase) {
-        1 -> " · risponde ancora"
-        2 -> " · non risponde"
-        3 -> " · è tornato"
-        else -> ""
+    val chi = when {
+        conSpia -> " · lo dice l'installer"
+        sparito -> " · non risponde"
+        else -> " · risponde ancora"
     }
-    // `ora` serve a distinguere «tornato con la stessa versione» da «tornato
-    // con quella nuova», che e' l'unica differenza che conta davvero.
-    val quale = if (fase == 3 && ora != null && ora == prima) " (ancora la $prima)" else ""
-    return tempo + versioni + passo + quale
+    return tempo + versioni + chi
 }

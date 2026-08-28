@@ -135,6 +135,16 @@ export type AvvioUpdater = {
   versione: string
   pid: number
   /**
+   * La porta del Client, che l'updater prende in prestito mentre lavora.
+   *
+   * SierraDeck e' chiuso, quindi quella porta e' libera: l'updater ci si mette
+   * in ascolto e risponde a `/api/aggiornamento` con le **sue** parole e la
+   * **sua** percentuale. Il telefono continua a chiedere le stesse cose allo
+   * stesso indirizzo, e per trenta secondi gli risponde qualcun altro — invece
+   * di dover indovinare cosa stia succedendo dal silenzio.
+   */
+  portaClient?: number
+  /**
    * Il comando di Claude Code da aggiornare, se lo si vuole aggiornare adesso.
    *
    * Si fa qui perché qui il programma è chiuso: Claude Code non si lascia
@@ -181,7 +191,7 @@ export function avviaUpdater(percorso: string, dati: AvvioUpdater): boolean {
       join(cartella, 'aggiornamento.txt'),
       [
         String(dati.pid), dati.installer, dati.eseguibile, dati.versione,
-        dati.claude ?? '', dati.notaClaude ?? ''
+        dati.claude ?? '', dati.notaClaude ?? '', String(dati.portaClient ?? 47640)
       ].join(String.fromCharCode(10)),
       'utf8'
     )
