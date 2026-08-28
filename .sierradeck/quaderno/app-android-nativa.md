@@ -310,3 +310,38 @@ prudenza vera è **chiedere conferma prima di uscire**, non togliere il comando.
 prudenza», va scritto anche **come si fa la stessa cosa altrimenti**. Se la
 risposta è «andando fisicamente al computer», non era prudenza: era il difetto
 rimandato.
+
+## 2.10.0 — i trenta secondi in cui il computer non c'è
+Premuto «Installa», dal telefono non si vedeva più niente fino alla fine.
+Un aggiornamento che stava andando bene e un cavo staccato erano **identici**.
+
+Il punto che rendeva il problema apparentemente insolubile: mentre si aggiorna,
+il computer **è spento**. Non c'è nessuno a cui chiedere a che punto è. Da lì la
+soluzione, che è tutta di prospettiva: l'unico che può raccontare quei secondi è
+chi guarda, e l'unica cosa che può fare è **ricordarsi che sono cominciati**.
+
+- `Installazione` (sul telefono, nelle preferenze): quando è cominciata e che
+  versione c'era prima. Sopravvive alla chiusura dell'app — si preme «Installa»,
+  si mette via il telefono, e riaprendolo si vuole ancora sapere com'è finita.
+  Scade da sé dopo dieci minuti: una schermata che dice «sto installando» per
+  sempre è peggio di una che ammette di non sapere.
+- `SchermoInstallazione`: racconta il **viaggio**, non una percentuale. «Risponde
+  ancora» → «non risponde, l'installer sta lavorando» → «è tornato con la X».
+  La barra è indeterminata di proposito: quanto manca lo sa solo l'installer, che
+  non parla con nessuno, e una barra che avanza da sola sarebbe una bugia detta
+  bene. La prova finale è l'unica che non si può fingere: `/api/ciao` che
+  risponde con una versione **diversa** da quella di prima.
+- Si accende in due modi: premendo «Installa» da qui, e vedendo passare la fase
+  `installo` nello stato — perché l'aggiornamento può partire anche dallo schermo
+  del computer.
+- E ha sempre una porta d'uscita: una schermata a tutto schermo che non si può
+  lasciare è una trappola, anche quando ha ragione.
+
+Sul computer è nata la fase `installo`, che non esisteva: fra «pronto» e il
+programma nuovo che riparte c'erano trenta secondi muti — **l'unica fase su sette
+di cui nessuno diceva niente**. Annunciarla prima di chiudere è l'ultimo istante
+in cui si può ancora parlare.
+
+E `/api/stato` ora porta anche l'aggiornamento: costa niente (è già in memoria) ed
+è l'unico modo perché il telefono sappia che sta per cominciare un silenzio
+giusto.

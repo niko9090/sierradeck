@@ -691,23 +691,43 @@ export function registerLayoutIpc(
     // sbagliare in silenzio.
     const conLayout = salvaLayoutAttivo(archivio, chiave, layout, nomeFinestra)
 
-    // Cosa è cambiato per **gli altri**: l'invariante «una chat, un workspace»
-    // può togliere una conversazione a un workspace che non c'entra niente con
-    // questo salvataggio, ed è esattamente la forma che ha il difetto quando si
-    // manifesta. Se succede, si scrive chi, cosa e sotto quale nome.
+    // Cosa è cambiato, e **soltanto quello che conta**.
+    //
+    // La prima versione di questo registro segnalava ogni workspace che perdeva
+    // una chat, e su due casi veri si è rivelata inutilizzabile: erano tutti e
+    // due traslochi legittimi — una chat spostata fra due finestre, che esce da
+    // un workspace e rientra in un altro nello stesso istante — annunciati come
+    // perdite. Uno strumento che grida a ogni gesto normale non si legge più.
+    //
+    // Quindi si guarda l'archivio **intero**: una chat che dopo la scrittura non
+    // sta più in nessun workspace è sparita davvero; una che ha solo cambiato
+    // posto è un trasloco, e si annota come tale — piano, perché serve a
+    // ricostruire una sequenza, non a dare l'allarme.
     const prima = chatPerWorkspace(archivio)
     const dopo = chatPerWorkspace(conLayout)
     const dichiarato = typeof rawNome === 'string' ? rawNome.trim() : ''
-    for (const [nome, avevano] of prima) {
-      const restano = dopo.get(nome)
-      if (restano === undefined) continue
-      const perse = [...avevano].filter((u) => !restano.has(u))
-      if (perse.length === 0) continue
-      registra(
-        `[layout] «${nome}» perde ${perse.length} chat salvando la finestra ${win.id} ` +
-        `(monitor ${chiave}, dichiara «${dichiarato === '' ? '—' : dichiarato}», attivo «${archivio.attivo}»): ` +
-        perse.join(', ')
-      )
+    const chi = `finestra ${win.id}, monitor ${chiave}, dichiara «${dichiarato === '' ? '—' : dichiarato}», attivo «${archivio.attivo}»`
+
+    const ovunquePrima = new Map<string, string>()
+    for (const [nome, insieme] of prima) for (const u of insieme) ovunquePrima.set(u, nome)
+    const ovunqueDopo = new Map<string, string>()
+    for (const [nome, insieme] of dopo) for (const u of insieme) ovunqueDopo.set(u, nome)
+
+    const sparite: string[] = []
+    const traslochi: string[] = []
+    for (const [sessione, dove] of ovunquePrima) {
+      const adesso = ovunqueDopo.get(sessione)
+      if (adesso === undefined) sparite.push(`${sessione} (era in «${dove}»)`)
+      else if (adesso !== dove) traslochi.push(`${sessione}: «${dove}» → «${adesso}»`)
+    }
+
+    // Questa è la riga che conta, ed è quella che nessuno ha mai potuto leggere
+    // le tre volte in cui il lavoro si è incrociato.
+    if (sparite.length > 0) {
+      registra(`[layout] ATTENZIONE — ${sparite.length} chat non stanno più in nessun workspace (${chi}): ${sparite.join(', ')}`)
+    }
+    if (traslochi.length > 0) {
+      registra(`[layout] trasloco (${chi}): ${traslochi.join(', ')}`)
     }
     if (dichiarato === '') {
       registra(`[layout] la finestra ${win.id} salva senza dichiarare il workspace: va sotto l'attivo «${archivio.attivo}»`)

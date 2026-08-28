@@ -325,7 +325,12 @@ export function rotteClient(deps: DipendenzeRotte) {
           criteri: a.criteri.length
         })),
         domande,
-        workspace
+        workspace,
+        // **Anche l'aggiornamento**, che costa niente: e' gia' in memoria. Senza
+        // di lui il telefono non puo' accorgersi che il computer si sta per
+        // chiudere, e un'installazione avviata dallo schermo del computer, vista
+        // da fuori, e' indistinguibile da un cavo staccato.
+        aggiornamento: deps.aggiornamento()
       })
     }
 

@@ -35,7 +35,16 @@ data class Stato(
     val chat: List<Chat> = emptyList(),
     val autopiloti: List<AutopilotaBreve> = emptyList(),
     val domande: List<Domanda> = emptyList(),
-    val workspace: Workspace = Workspace()
+    val workspace: Workspace = Workspace(),
+    /**
+     * Come sta l'aggiornamento del computer.
+     *
+     * Viaggia con lo stato perche' e' l'unico modo di accorgersi che il
+     * computer si sta per **chiudere**: la fase «installo» e' l'ultima cosa che
+     * dice prima di sparire, e senza di lei il silenzio che segue e'
+     * indistinguibile da un cavo staccato.
+     */
+    val aggiornamento: Aggiornamento? = null
 )
 
 @Serializable

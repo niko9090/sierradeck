@@ -297,6 +297,7 @@ fun Computer(api: Api, stato: Stato?) {
 @Composable
 private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
     val scope = rememberCoroutineScope()
+    val contesto = LocalContext.current
     var cercando by remember { mutableStateOf(false) }
     var nota by remember { mutableStateOf<String?>(null) }
     /**
@@ -315,13 +316,14 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
         "disponibile" -> "C'è la ${a.versione ?: "versione nuova"}, da scaricare."
         "scarico" -> "Sto scaricando la ${a.versione ?: ""}."
         "pronto" -> "La ${a.versione ?: ""} è già scaricata e aspetta solo di essere installata."
+        "installo" -> "Sto installando: il computer si chiude e riparte da solo."
         "aggiornato" -> "È all’ultima versione."
         "errore" -> "Non ci sono riuscito: ${a.errore ?: "errore sconosciuto"}"
         else -> nota ?: "Controlla da sé ogni sei ore. Puoi anche chiederglielo adesso."
     }
     val colore = when (a?.fase) {
         "disponibile", "pronto" -> Banco.accento
-        "scarico", "cerco" -> Banco.ambra
+        "scarico", "cerco", "installo" -> Banco.ambra
         "errore" -> Banco.rosso
         "aggiornato" -> Banco.verde
         else -> Banco.testoQuieto
@@ -362,7 +364,16 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
             "cerco" -> Text("cerco…", color = Banco.ambra, fontSize = 13.sp)
             "pronto" -> Button(
                 shape = MaterialTheme.shapes.small,
-                onClick = { scope.launch { try { api.installaAggiornamento() } catch (_: Exception) {} } }
+                onClick = {
+                    scope.launch {
+                        // Prima si segna, poi si chiede: fra la richiesta e la
+                        // chiusura del computer possono passare pochi
+                        // millisecondi, e segnare dopo vorrebbe dire non
+                        // segnare affatto.
+                        Installazione.iniziata(contesto, versionePc)
+                        try { api.installaAggiornamento() } catch (_: Exception) {}
+                    }
+                }
             ) { Text("Installa") }
             else -> OutlinedButton(
                 enabled = !cercando,

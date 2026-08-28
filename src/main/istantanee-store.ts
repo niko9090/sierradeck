@@ -64,8 +64,31 @@ export function apriIstantaneeStore(dir: string): IstantaneeStore {
     return istantanee
   }
 
+  /**
+   * Scrive, e **verifica di aver scritto**.
+   *
+   * `scriviJsonAtomico` non solleva mai: registra e torna `false`. Qui il
+   * valore veniva buttato via, e una scrittura non riuscita — un file occupato,
+   * un disco pieno, un antivirus che tiene aperto il file un istante di troppo —
+   * era indistinguibile da una riuscita: l'interfaccia diceva «salvato» e sul
+   * disco restava il salvataggio di prima. Chi poi lo ricaricava ritrovava il
+   * lavoro di **due ore prima** senza nessuna spiegazione possibile.
+   *
+   * La rilettura costa niente (il file è piccolo) e chiude anche il caso in cui
+   * la scrittura riesce ma il contenuto non è quello: e' l'unica prova che
+   * quello che si voleva salvare c'e' davvero.
+   */
   const scriviTutte = (istantanee: Istantanea[]): void => {
-    scriviJsonAtomico(percorso, { versione: VERSIONE_ISTANTANEE, istantanee }, 'istantanee')
+    const scritto = scriviJsonAtomico(
+      percorso, { versione: VERSIONE_ISTANTANEE, istantanee }, 'istantanee'
+    )
+    if (!scritto) throw new Error('il salvataggio non e stato scritto su disco')
+    const riletto = elenca()
+    for (const attesa of istantanee) {
+      if (!riletto.some((i) => i.nome === attesa.nome && i.salvataIl === attesa.salvataIl)) {
+        throw new Error(`il salvataggio «${attesa.nome}» non si rilegge da ${percorso}`)
+      }
+    }
   }
 
   return {

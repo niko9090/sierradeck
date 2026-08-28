@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, writeFileSync, readdirSync, readFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { apriIstantaneeStore } from '../../src/main/istantanee-store'
@@ -107,5 +107,41 @@ describe('un archivio piu nuovo di questa versione', () => {
     const conservato = JSON.parse(readFileSync(join(d, messiDaParte[0]!), 'utf8'))
     expect(conservato.versione).toBe(999)
     expect(s.elenca().map((x) => x.nome)).toEqual(['nuova'])
+  })
+})
+
+/**
+ * Un salvataggio che non arriva sul disco **deve** farlo sapere.
+ *
+ * `scriviJsonAtomico` non solleva mai: registra e torna `false`. Quel valore
+ * veniva buttato via, quindi una scrittura non riuscita — file occupato, disco
+ * pieno, un antivirus che tiene aperto il file un istante di troppo — era
+ * indistinguibile da una riuscita. L'interfaccia diceva «salvato» e sul disco
+ * restava quello di prima: chi lo ricaricava ritrovava il lavoro di due ore
+ * prima, e non c'era nessuna spiegazione possibile.
+ */
+describe('un salvataggio che non si scrive non e un salvataggio', () => {
+  it('un ostacolo al posto del file viene tolto di mezzo, e il salvataggio passa', () => {
+    // Cercando un modo di far fallire la scrittura si e' scoperto che non
+    // fallisce: `elenca` trova qualcosa di illeggibile, lo mette da parte, e il
+    // salvataggio successivo trova la strada libera. E' il comportamento
+    // giusto — il lavoro dell'utente vince su un file rotto — e va fissato,
+    // perche' nessuno se lo aspettava leggendo il codice.
+    const cartella = dir()
+    mkdirSync(join(cartella, 'istantanee.json'))
+    const store = apriIstantaneeStore(cartella)
+    expect(() => store.salva(esempio())).not.toThrow()
+    expect(store.elenca().map((i) => i.nome)).toEqual(['Lavoro'])
+    expect(readdirSync(cartella).some((f) => f.includes('illeggibile'))).toBe(true)
+  })
+
+  it('quando invece si scrive, si rilegge', () => {
+    const store = apriIstantaneeStore(dir())
+    store.salva(esempio({ nome: 'Deck_1', salvataIl: '2026-08-28T12:00:00.000Z' }))
+    // Aggiornare lo stesso nome e' il gesto normale, e deve lasciare l'ora nuova.
+    store.salva(esempio({ nome: 'Deck_1', salvataIl: '2026-08-28T13:00:00.000Z' }))
+    const dentro = store.elenca().filter((i) => i.nome === 'Deck_1')
+    expect(dentro).toHaveLength(1)
+    expect(dentro[0]?.salvataIl).toBe('2026-08-28T13:00:00.000Z')
   })
 })

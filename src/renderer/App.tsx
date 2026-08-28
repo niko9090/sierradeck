@@ -942,6 +942,19 @@ export function App(): React.JSX.Element {
           </button>
         </div>
       ) : null}
+      {/* L'installazione e' l'unica fase che non finisce: dopo di lei il
+          programma si chiude. Va detta, o l'ultima cosa che si vede prima che
+          tutto sparisca e' un tasto premuto e nient'altro. */}
+      {aggiornamento.fase === 'installo' ? (
+        <div className="avviso avviso--aggiornamento">
+          <span className="led led--lavoro" />
+          <span>
+            Sto installando la {aggiornamento.versione ?? 'versione nuova'}. Il programma si chiude e
+            riparte da solo: non serve fare niente.
+          </span>
+        </div>
+      ) : null}
+
       {aggiornamento.fase === 'disponibile' || aggiornamento.fase === 'scarico' || aggiornamento.fase === 'pronto' ? (
         <div className="avviso avviso--aggiornamento">
           <span className="led led--lavoro" />

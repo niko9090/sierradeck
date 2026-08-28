@@ -13,7 +13,18 @@ import { assicuraUpdater, avviaUpdater, updaterVivo } from './updater/compila'
  * vedere a che punto è, e un flusso di eventi passati non glielo direbbe.
  */
 export type StatoAggiornamento = {
-  fase: 'fermo' | 'cerco' | 'aggiornato' | 'disponibile' | 'scarico' | 'pronto' | 'errore'
+  /**
+   * `installo` e' l'ultima, e per mesi non e' esistita.
+   *
+   * Fra «pronto» e il programma nuovo che riparte ci sono venti o trenta
+   * secondi in cui l'installer lavora e SierraDeck e' gia' chiuso: nessuno
+   * annunciava niente, e chi guardava — al computer o da un telefono — vedeva
+   * sparire tutto senza sapere se stesse andando bene. Annunciarla **prima** di
+   * chiudere e' l'unico momento in cui si puo' ancora dire qualcosa: da li' in
+   * poi il server e' morto, e chi guarda da fuori ha almeno l'ultima parola
+   * giusta da cui aspettare.
+   */
+  fase: 'fermo' | 'cerco' | 'aggiornato' | 'disponibile' | 'scarico' | 'pronto' | 'installo' | 'errore'
   /** La versione che si può installare, quando ce n'è una. */
   versione?: string
   /**
@@ -257,6 +268,10 @@ export function creaAggiornamenti(
         return
       }
       installazioneAvviata = true
+      // L'ultima parola prima del silenzio: da qui a poco il server non
+      // risponde piu', e chi sta guardando da un telefono deve sapere che il
+      // silenzio che sta per arrivare e' quello giusto.
+      annuncia({ ...stato, fase: 'installo' })
       // Una copia dei layout **prima** di riavviare.
       //
       // Due volte, dopo un aggiornamento, le chat si sono ritrovate sotto il

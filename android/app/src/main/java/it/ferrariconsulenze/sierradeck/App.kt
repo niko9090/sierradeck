@@ -108,6 +108,16 @@ fun Principale(api: Api, deposito: Collegamento, onScollega: () -> Unit) {
      * ha il telefono in mano.
      */
     var rifiuti by remember { mutableIntStateOf(0) }
+    /**
+     * Da quando il computer si sta installando, o `null`.
+     *
+     * Si accende in due modi: premendo «Installa» da qui, e vedendo passare la
+     * fase «installo» nello stato — perche' l'aggiornamento puo' partire anche
+     * dallo schermo del computer, e da fuori quei trenta secondi di silenzio
+     * sono identici a un guasto.
+     */
+    var installazioneDa by remember { mutableStateOf(Installazione.da(contesto)) }
+    var versionePrimaDellInstallazione by remember { mutableStateOf(Installazione.versionePrima(contesto)) }
 
     // La guardia in background: è ciò per cui l'app esiste invece della sola
     // pagina — avvisa anche quando l'app è chiusa.
@@ -135,7 +145,16 @@ fun Principale(api: Api, deposito: Collegamento, onScollega: () -> Unit) {
     LaunchedEffect(api) {
         while (isActive) {
             try {
-                stato = api.stato(); connesso = true; giriFalliti = 0; rifiuti = 0
+                val letto = api.stato()
+                // L'ultima parola prima del silenzio. Va colta **mentre** il
+                // computer la dice: fra un istante non risponde piu'.
+                if (letto.aggiornamento?.fase == "installo" && installazioneDa == null) {
+                    val prima = try { api.ciao().versione } catch (e: Exception) { "" }
+                    Installazione.iniziata(contesto, prima)
+                    versionePrimaDellInstallazione = prima
+                    installazioneDa = Installazione.da(contesto)
+                }
+                stato = letto; connesso = true; giriFalliti = 0; rifiuti = 0
             } catch (e: Api.Errore) {
                 if (e.daRiaccoppiare) rifiuti += 1
                 giriFalliti += 1; if (giriFalliti >= 2) connesso = false
@@ -144,6 +163,20 @@ fun Principale(api: Api, deposito: Collegamento, onScollega: () -> Unit) {
             }
             delay(2000)
         }
+    }
+
+    // Sopra tutto il resto: mentre il computer si sostituisce non c'e' niente
+    // altro da guardare, e le altre schermate direbbero solo «non risponde».
+    val quando = installazioneDa
+    if (quando != null) {
+        SchermoInstallazione(
+            api = api,
+            versionePrima = versionePrimaDellInstallazione,
+            da = quando,
+            onFinito = { Installazione.finita(contesto) },
+            onEsci = { Installazione.finita(contesto); installazioneDa = null }
+        )
+        return
     }
 
     if (rifiuti >= RIFIUTI_PER_ARRENDERSI) {

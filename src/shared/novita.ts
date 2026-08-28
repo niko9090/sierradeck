@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.21',
+    righe: [
+      '**Dal telefono si guarda il computer che si aggiorna, a tutto schermo.** Premuto «Installa» non si vedeva piu’ niente fino alla fine: un aggiornamento che andava bene e un cavo staccato erano identici. Ora c’è una schermata che racconta il viaggio — il computer risponde ancora, si è chiuso, sta tornando — e finisce con la prova che non si può fingere: la versione nuova che risponde. Vale anche per un aggiornamento avviato dallo schermo del computer.',
+      '**E anche sul computer l’installazione adesso si annuncia**, invece di essere l’unica fase muta di sette.',
+      '**Un salvataggio che non arriva sul disco lo dice.** Prima l’esito della scrittura veniva buttato via: se non riusciva, l’interfaccia diceva lo stesso «salvato» e sul disco restava quello di prima. Ora si rilegge, e se non c’è si vede un errore.'
+    ]
+  },
+  {
     versione: '0.12.20',
     righe: [
       '**Dal telefono si vedono di nuovo tutte le chat.** Una chat poteva restare per sempre su «Sto leggendo il terminale…» mentre sul computer si vedeva benissimo: succedeva a ogni riquadro che si **riagganciava** a un terminale gia’ vivo — dopo un ricarico della finestra, un cambio di workspace, uno spostamento fra finestre. Il riquadro non diceva a nessuno dove si trovava la sua griglia, e da fuori risultava vuoto.',

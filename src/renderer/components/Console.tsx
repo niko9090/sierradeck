@@ -342,6 +342,8 @@ function spiaAggiornamento(
       return `scarico ${a.percento ?? 0}%`
     case 'pronto':
       return 'pronta da installare'
+    case 'installo':
+      return 'installo…'
     case 'errore':
       return 'non riuscito'
     default:
