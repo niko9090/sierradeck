@@ -249,7 +249,11 @@ data class DatiNegozio(
     val plugin: List<PluginVoce> = emptyList(),
     val skill: List<SkillVoce> = emptyList(),
     val agenti: List<AgenteVoce> = emptyList(),
-    val mcp: List<McpVoce> = emptyList()
+    val mcp: List<McpVoce> = emptyList(),
+    /** Il computer non ha potuto rispondere: diverso da «non c'è niente». */
+    val errore: String? = null,
+    /** La spiegazione di un vuoto legittimo, tipo «nessuna chat aperta». */
+    val nota: String? = null
 )
 
 @Serializable

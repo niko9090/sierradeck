@@ -171,6 +171,10 @@ export type DipendenzeRotte = {
     skill: unknown[]
     agenti: unknown[]
     mcp: unknown[]
+    /** Il negozio non ha potuto rispondere. Diverso da «non c'è niente». */
+    errore?: string
+    /** La spiegazione di un vuoto legittimo, tipo «nessuna chat aperta». */
+    nota?: string
   }>
   installaPlugin?: (id: string) => Promise<{ ok: boolean; messaggio?: string }>
   commutaPlugin?: (id: string, attivo: boolean) => Promise<{ ok: boolean; messaggio?: string }>

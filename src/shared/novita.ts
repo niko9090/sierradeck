@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.22',
+    righe: [
+      '**Il negozio, dal telefono, adesso c’è.** Era sempre vuoto, e diceva «questo computer non sa aprire il negozio: aggiornalo» — a un computer che era già all’ultima versione. La risposta arrivava: era il **formato** a non tornare, e bastava a far saltare tutta la lettura, non solo i plugin.',
+      '**E quando qualcosa non risponde, adesso si distingue da «non c’è niente».** Se il catalogo dei plugin non parte, skill e agenti restano visibili con una riga che spiega cosa manca, invece di sparire tutti insieme.'
+    ]
+  },
+  {
     versione: '0.12.21',
     righe: [
       '**Dal telefono si guarda il computer che si aggiorna, a tutto schermo.** Premuto «Installa» non si vedeva piu’ niente fino alla fine: un aggiornamento che andava bene e un cavo staccato erano identici. Ora c’è una schermata che racconta il viaggio — il computer risponde ancora, si è chiuso, sta tornando — e finisce con la prova che non si può fingere: la versione nuova che risponde. Vale anche per un aggiornamento avviato dallo schermo del computer.',

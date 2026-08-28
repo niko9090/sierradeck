@@ -595,6 +595,38 @@ describe('il negozio e l account, da un telefono', () => {
     expect(esito.stato).toBe(400)
   })
 
+  /**
+   * La forma della risposta del negozio.
+   *
+   * `elencoPlugin` del modulo torna `{ plugin, errore }`, non un elenco: il CLI
+   * puo' fallire e il modulo lo dice invece di fingere un negozio vuoto. Quel
+   * oggetto finiva **intero** dentro il campo `plugin`, e un `as unknown[]`
+   * nascondeva lo scambio al compilatore. Dall'altra parte il telefono aspetta
+   * una lista: la conversione saltava, e con lei tutta la risposta — non solo i
+   * plugin. Il negozio sul telefono era vuoto per questo, e nessun test lo
+   * vedeva perche' nessuno guardava la **forma**.
+   */
+  it('il negozio manda elenchi, non oggetti travestiti da elenchi', async () => {
+    const su = deps({
+      negozio: async () => ({
+        plugin: [{ id: 'a@b', nome: 'a' }],
+        skill: [],
+        agenti: [],
+        mcp: []
+      })
+    })
+    const esito = await rotteClient(su)({ metodo: 'GET', percorso: '/api/negozio', corpo: undefined })
+    const corpo = esito.corpo as Record<string, unknown>
+    for (const campo of ['plugin', 'skill', 'agenti', 'mcp']) {
+      expect(Array.isArray(corpo[campo])).toBe(true)
+    }
+  })
+
+  it('senza negozio non finge uno scaffale pieno', async () => {
+    const esito = await rotteClient(deps({}))({ metodo: 'GET', percorso: '/api/negozio', corpo: undefined })
+    expect(esito.corpo).toEqual({ plugin: [], skill: [], agenti: [], mcp: [] })
+  })
+
   it('dice con quale account lavora il computer', async () => {
     const su = deps({ account: async () => ({ entrato: true, email: 'x@y.z' }) })
     const esito = await rotteClient(su)({ metodo: 'GET', percorso: '/api/account', corpo: undefined })

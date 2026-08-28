@@ -48,14 +48,29 @@ fun Negozio(api: Api) {
     var famiglia by remember { mutableStateOf(Famiglia.PLUGIN) }
     var inCorso by remember { mutableStateOf<String?>(null) }
     var nota by remember { mutableStateOf<String?>(null) }
+    /** Quello che ha da dire il computer, che non e' il risultato di un tocco:
+     *  vive a parte, o l'esito della prossima azione lo cancellerebbe. */
+    var notaDelComputer by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     suspend fun ricarica() {
         try {
-            dati = api.negozio()
-            guasto = null
+            val letto = api.negozio()
+            dati = letto
+            // Il computer puo' rispondere benissimo e avere comunque qualcosa
+            // da dire: il CLI dei plugin che non parte, o nessuna chat aperta
+            // — nel qual caso non sa nemmeno in quale progetto guardare.
+            guasto = letto.errore
+            notaDelComputer = letto.nota
         } catch (e: Exception) {
-            guasto = "Questo computer non sa ancora aprire il negozio da qui: aggiornalo."
+            // Non piu' «aggiornalo». Per un mese questo messaggio ha mandato ad
+            // aggiornare un computer che era gia' all'ultima versione: la
+            // risposta arrivava, ed era il **formato** a non tornare. Adesso si
+            // dice cosa e' successo davvero, e si distingue un computer vecchio
+            // (404) da una risposta che non si riesce a leggere.
+            val e404 = (e as? Api.Errore)?.codice == 404
+            guasto = if (e404) "Questo computer non sa ancora aprire il negozio da qui: aggiornalo."
+            else "Il negozio non risponde come dovrebbe: ${e.message ?: "errore sconosciuto"}"
         }
     }
 
@@ -97,9 +112,18 @@ fun Negozio(api: Api) {
         }
         HorizontalDivider(color = Banco.incisione)
 
-        nota?.let {
+        if (guasto != null && dati != null) {
             Text(
-                it,
+                guasto!!,
+                color = Banco.rosso,
+                fontSize = 12.sp,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)
+            )
+        }
+
+        for (riga in listOfNotNull(notaDelComputer, nota)) {
+            Text(
+                riga,
                 color = Banco.ambra,
                 fontSize = 12.sp,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)
@@ -107,7 +131,11 @@ fun Negozio(api: Api) {
         }
 
         when {
-            guasto != null -> Vuoto(guasto!!)
+            // Un guasto **con** dei dati e' una banda, non uno schermo vuoto: se
+            // il CLI dei plugin non parte, skill e agenti ci sono lo stesso e
+            // nasconderli sarebbe togliere quello che funziona insieme a quello
+            // che non funziona.
+            guasto != null && dati == null -> Vuoto(guasto!!)
             dati == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Banco.accento)
             }

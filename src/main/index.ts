@@ -984,8 +984,15 @@ if (!app.requestSingleInstanceLock()) {
          */
         negozio: async () => {
           const cwd = chatAperte[0]?.cwd
-          const [plugin, skill, agenti, mcp] = await Promise.all([
-            elencoPlugin().catch(() => []),
+          // `elencoPlugin` torna **un oggetto** — `{ plugin, errore }` — non un
+          // elenco: il CLI puo' fallire, e il modulo lo dice invece di fingere
+          // un negozio vuoto. Qui quell'oggetto finiva intero nel campo
+          // `plugin`, e un `as unknown[]` nascondeva lo scambio al compilatore.
+          // Dall'altra parte il telefono si aspetta una lista: la conversione
+          // saltava, e con lei **tutta** la risposta — non solo i plugin. Il
+          // negozio sul telefono era vuoto per questo.
+          const [daCli, skill, agenti, mcp] = await Promise.all([
+            elencoPlugin().catch(() => ({ plugin: [], errore: 'elenco plugin non riuscito' })),
             Promise.resolve(skillDisponibili(radiceClaude, cwd)).catch(() => []),
             Promise.resolve(agentiDisponibili(radiceClaude, cwd)).catch(() => []),
             Promise.resolve(
@@ -993,10 +1000,17 @@ if (!app.requestSingleInstanceLock()) {
             ).catch(() => [])
           ])
           return {
-            plugin: plugin as unknown[],
+            plugin: daCli.plugin as unknown[],
             skill: skill as unknown[],
             agenti: agenti as unknown[],
-            mcp: mcp as unknown[]
+            mcp: mcp as unknown[],
+            // «Non risponde» e «non c'e' niente» sono due cose diverse, e da un
+            // telefono si vedevano identiche: uno scaffale vuoto.
+            ...(daCli.errore !== undefined ? { errore: daCli.errore } : {}),
+            // Senza una chat aperta il computer non sa **in quale progetto**
+            // guardare: MCP e skill di progetto sono per forza vuoti, e dirlo
+            // evita di far cercare un guasto che non c'e'.
+            ...(cwd === undefined ? { nota: 'Nessuna chat aperta sul computer: posso mostrare solo le cose personali, non quelle del progetto.' } : {})
           }
         },
         installaPlugin: (id: string) => installaPlugin(id),
