@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.25',
+    righe: [
+      '**Dal telefono si apre una chat in una cartella qualunque, sfogliando.** Prima si potevano scegliere solo le cartelle già conosciute: un progetto nuovo non c’era modo di aprirlo. E la risposta non poteva essere un campo di testo — nessuno digita un percorso di Windows su una tastiera del telefono. Adesso si sfoglia, partendo dai posti che contano: i dischi, la tua cartella, i progetti già noti.'
+    ]
+  },
+  {
     versione: '0.12.24',
     righe: [
       '**Dal telefono si legge l’installazione con le parole dell’installer, non con parole sue.** Prima l’app raccontava una storia parallela, dedotta dal silenzio: percentuali che non coincidevano con quelle sullo schermo del computer, e nessuna traccia dei passi veri — l’aggiornamento di Claude Code, per esempio. Adesso è **l’installer stesso** a rispondere al telefono: mentre SierraDeck è chiuso la porta è libera, e se la prende lui. Stessa riga, stesso numero, sui due schermi.',

@@ -313,3 +313,25 @@ data class Account(val entrato: Boolean = false, val email: String? = null)
 /** Chi risponde dall’altra parte, e con quale versione. */
 @Serializable
 data class Ciao(val programma: String = "", val versione: String = "")
+
+/** Una cartella dentro cui si può scendere. */
+@Serializable
+data class VoceCartella(val nome: String = "", val percorso: String = "")
+
+/**
+ * Un giro di sfoglio del disco del computer.
+ *
+ * Senza percorso arrivano i punti di partenza — dischi, cartella dell'utente,
+ * progetti già noti — perché su un telefono risalire una gerarchia dalla radice
+ * è l'unica cosa peggiore che digitare un percorso di Windows a mano.
+ */
+@Serializable
+data class Sfoglia(
+    val percorso: String = "",
+    /** La cartella che contiene questa: il tasto «su». Assente in cima. */
+    val su: String? = null,
+    val voci: List<VoceCartella> = emptyList(),
+    val radici: Boolean = false,
+    /** Qui dentro c'è già un progetto Claude Code. */
+    val progetto: Boolean = false
+)

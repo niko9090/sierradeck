@@ -199,6 +199,25 @@ export type DipendenzeRotte = {
   versione: string
   /** Il nome della macchina: serve al telefono per distinguere piu' computer. */
   nomeComputer?: () => string
+  /**
+   * Le cartelle dentro una cartella, per scegliere dove aprire una chat nuova.
+   *
+   * Senza `dove` torna i punti di partenza — dischi, la cartella dell'utente,
+   * i progetti noti — perche' su un telefono risalire una gerarchia dalla radice
+   * e' l'unica cosa peggiore che digitare il percorso a mano.
+   */
+  sfoglia?: (dove: string) => Promise<{
+    percorso: string
+    /** La cartella che la contiene, per il tasto «su». Assente in cima. */
+    su?: string
+    voci: { nome: string; percorso: string }[]
+    /** Siamo ai punti di partenza, non dentro una cartella vera. */
+    radici?: boolean
+    /** Qui dentro c'e' gia' un progetto Claude Code: si vede, e aiuta. */
+    progetto?: boolean
+  }>
+  /** Quella cartella esiste davvero? Il solo controllo che ha senso fare qui. */
+  cartellaEsiste?: (percorso: string) => Promise<boolean>
   /** Qual è l'ultimo APK dell'app, per il tasto «Scarica». */
   apk?: () => Promise<{ versione: string; url: string } | undefined>
   /**
@@ -440,15 +459,46 @@ export function rotteClient(deps: DipendenzeRotte) {
       return OK({ cartelle: await deps.cartelle().catch(() => [] as string[]) })
     }
 
-    // Aprire una chat nuova. La cartella deve essere **una di quelle già
-    // conosciute**: un percorso qualunque arrivato dalla rete aprirebbe una
-    // sessione dove capita, e da un telefono nessuno se ne accorgerebbe.
+    /**
+     * Sfogliare il disco per trovare una cartella nuova.
+     *
+     * Serviva perche' dal telefono si potevano aprire chat **solo** nelle
+     * cartelle gia' conosciute: un progetto nuovo, o uno vecchio mai aperto da
+     * qui, non c'era modo di sceglierlo. E digitare a mano un percorso di
+     * Windows su una tastiera del telefono non e' una risposta.
+     *
+     * Senza `percorso` torna i punti di partenza: i dischi, la cartella
+     * dell'utente, e i progetti gia' noti — quelli si raggiungono con un tocco
+     * invece di risalire una gerarchia.
+     */
+    if (r.metodo === 'POST' && r.percorso === '/api/sfoglia') {
+      const dove = stringa(r.corpo, 'percorso')
+      const esito = await deps.sfoglia?.(dove).catch(() => undefined)
+      return OK(esito ?? { percorso: '', voci: [], radici: true })
+    }
+
+    /**
+     * Aprire una chat nuova.
+     *
+     * La cartella doveva essere una di quelle **gia' conosciute**, e la
+     * motivazione era che un percorso qualunque arrivato dalla rete aprirebbe
+     * una sessione dove capita. A guardarla bene non reggeva: chi ha la chiave
+     * di questo computer puo' gia' **scrivere in una chat**, cioe' far eseguire
+     * qualunque comando in qualunque cartella. L'elenco chiuso non era un muro,
+     * era un impaccio — e impediva la cosa piu' normale del mondo, aprire un
+     * progetto nuovo.
+     *
+     * Il muro vero resta dov'e' sempre stato: l'accoppiamento. Qui si controlla
+     * quello che si puo' controllare davvero — che la cartella **esista** e sia
+     * una cartella, cosi' un errore di battitura non crea una chat nel vuoto.
+     */
     if (r.metodo === 'POST' && r.percorso === '/api/apri') {
       const cartella = stringa(r.corpo, 'cartella')
       if (cartella === '') return { stato: 400, corpo: { errore: 'serve la cartella' } }
       const ammesse = await deps.cartelle().catch(() => [] as string[])
-      if (!ammesse.includes(cartella)) {
-        return { stato: 403, corpo: { errore: 'cartella non conosciuta' } }
+      const esiste = ammesse.includes(cartella) || (await deps.cartellaEsiste?.(cartella).catch(() => false)) === true
+      if (!esiste) {
+        return { stato: 404, corpo: { errore: 'cartella inesistente' } }
       }
       const modello = stringa(r.corpo, 'modello')
       deps.apriChat(cartella, modello === '' ? undefined : modello)

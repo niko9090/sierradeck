@@ -208,22 +208,33 @@ describe('quello che il Client puo fare', () => {
     expect(JSON.stringify(r.corpo)).not.toContain('segreto lunghissimo')
   })
 
-  it('apre una chat solo in una cartella gia conosciuta', async () => {
-    // Un percorso qualunque arrivato dalla rete aprirebbe una sessione dove
-    // capita, e da un telefono nessuno se ne accorgerebbe.
+  it('apre una chat in una cartella conosciuta, e rifiuta quelle che non esistono', async () => {
+    // **La regola e' cambiata di proposito.** Prima erano ammesse solo le
+    // cartelle gia' conosciute, e la motivazione era che un percorso qualunque
+    // arrivato dalla rete aprirebbe una sessione dove capita. A guardarla bene
+    // non reggeva: chi ha la chiave puo' gia' scrivere in una chat, cioe' far
+    // eseguire qualunque comando in qualunque cartella. Non era un muro, era un
+    // impaccio — e impediva di aprire un progetto nuovo dal telefono.
+    //
+    // Il muro resta l'accoppiamento. Qui si controlla quello che si puo'
+    // controllare davvero: che la cartella esista.
     let aperta = ''
     const su = deps({ apriChat: (c) => { aperta = c } })
+    const conosciuta = 'C:' + String.fromCharCode(92) + 'lavoro'
+    const inventata = 'C:' + String.fromCharCode(92) + 'non-esiste'
     const buona = await rotteClient(su)(
-      { metodo: 'POST', percorso: '/api/apri', corpo: { cartella: 'C:\\lavoro' } }
+      { metodo: 'POST', percorso: '/api/apri', corpo: { cartella: conosciuta } }
     )
     expect(buona.stato).toBe(200)
-    expect(aperta).toBe('C:\\lavoro')
+    expect(aperta).toBe(conosciuta)
 
+    // Senza `cartellaEsiste` fra le dipendenze una cartella non conosciuta non
+    // si puo' verificare: non si apre, e si dice che non c'e'.
     const cattiva = await rotteClient(su)(
-      { metodo: 'POST', percorso: '/api/apri', corpo: { cartella: 'C:\\Windows\\System32' } }
+      { metodo: 'POST', percorso: '/api/apri', corpo: { cartella: inventata } }
     )
-    expect(cattiva.stato).toBe(403)
-    expect(aperta).toBe('C:\\lavoro')
+    expect(cattiva.stato).toBe(404)
+    expect(aperta).toBe(conosciuta)
   })
 
   it('crea un autopilota, nella sola cartella che il computer conosce', async () => {
@@ -606,6 +617,55 @@ describe('il negozio e l account, da un telefono', () => {
    * plugin. Il negozio sul telefono era vuoto per questo, e nessun test lo
    * vedeva perche' nessuno guardava la **forma**.
    */
+  /**
+   * Aprire una chat in una cartella **nuova**.
+   *
+   * L'elenco chiuso delle cartelle note sembrava un muro di sicurezza e non lo
+   * era: chi ha la chiave di questo computer puo' gia' scrivere in una chat,
+   * cioe' far eseguire qualunque comando in qualunque cartella. Era solo un
+   * impaccio, e impediva la cosa piu' normale del mondo — aprire un progetto
+   * nuovo dal telefono. Il muro vero e' l'accoppiamento; qui si controlla
+   * quello che si puo' controllare davvero, cioe' che la cartella esista.
+   */
+  it('apre anche una cartella non ancora conosciuta, se esiste', async () => {
+    const su = deps({ cartelle: async () => [], cartellaEsiste: async () => true })
+    const esito = await rotteClient(su)({
+      metodo: 'POST', percorso: '/api/apri', corpo: { cartella: 'E:/Progetti/Nuovo' }
+    })
+    expect(esito.stato).toBe(200)
+  })
+
+  it('una cartella che non esiste non apre niente', async () => {
+    let aperta = false
+    const su = deps({
+      cartelle: async () => [],
+      cartellaEsiste: async () => false,
+      apriChat: () => { aperta = true }
+    })
+    const esito = await rotteClient(su)({
+      metodo: 'POST', percorso: '/api/apri', corpo: { cartella: 'E:/non/esiste' }
+    })
+    expect(esito.stato).toBe(404)
+    expect(aperta).toBe(false)
+  })
+
+  it('sfogliare senza percorso torna i punti di partenza', async () => {
+    const su = deps({
+      sfoglia: async (dove) => ({
+        percorso: dove,
+        voci: [{ nome: 'La tua cartella', percorso: 'C:/Users/x' }],
+        radici: dove === ''
+      })
+    })
+    const esito = await rotteClient(su)({ metodo: 'POST', percorso: '/api/sfoglia', corpo: {} })
+    expect((esito.corpo as { radici?: boolean }).radici).toBe(true)
+  })
+
+  it('un computer che non sa sfogliare non finge un disco vuoto', async () => {
+    const esito = await rotteClient(deps({}))({ metodo: 'POST', percorso: '/api/sfoglia', corpo: {} })
+    expect(esito.corpo).toEqual({ percorso: '', voci: [], radici: true })
+  })
+
   it('il negozio manda elenchi, non oggetti travestiti da elenchi', async () => {
     const su = deps({
       negozio: async () => ({

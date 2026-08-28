@@ -1,6 +1,6 @@
 import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, screen, shell } from 'electron'
-import { join } from 'node:path'
-import { existsSync, mkdirSync, statSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
+import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs'
 import { homedir, hostname } from 'node:os'
 import { spawn } from 'node:child_process'
 import { APP_NAME, APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
@@ -870,6 +870,69 @@ if (!app.requestSingleInstanceLock()) {
         cartelle: async () => {
           const progetti = await scanProjects(claudeRoot()).catch(() => [])
           return progetti.map((p) => p.path)
+        },
+        cartellaEsiste: async (percorso: string) => {
+          try {
+            return statSync(percorso).isDirectory()
+          } catch {
+            return false
+          }
+        },
+        sfoglia: async (dove: string) => {
+          // Senza percorso: i punti di partenza. I dischi, la cartella
+          // dell'utente e i progetti gia' noti — perche' risalire una gerarchia
+          // dalla radice, su un telefono, e' l'unica cosa peggiore che digitare.
+          if (dove.trim() === '') {
+            const progetti = await scanProjects(claudeRoot()).catch(() => [])
+            const voci: { nome: string; percorso: string }[] = []
+            voci.push({ nome: 'La tua cartella', percorso: homedir() })
+            for (const lettera of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
+              // La barra rovesciata per numero: questa riga vive dentro un
+              // template literal, e una barra sola li' dentro sfugge il
+              // backtick invece del percorso — la stringa si chiude dove
+              // non deve e il file non compila piu'.
+              const disco = lettera + ':' + String.fromCharCode(92)
+              try {
+                if (statSync(disco).isDirectory()) voci.push({ nome: `Disco ${lettera}:`, percorso: disco })
+              } catch {
+                // Un disco che non c'e' non e' un errore: sono ventisei tentativi.
+              }
+            }
+            for (const p of progetti.map((x) => x.path)) {
+              voci.push({ nome: basename(p) || p, percorso: p })
+            }
+            return { percorso: '', voci, radici: true }
+          }
+          let dentro: string[] = []
+          try {
+            dentro = readdirSync(dove)
+          } catch {
+            return { percorso: dove, voci: [] }
+          }
+          const voci: { nome: string; percorso: string }[] = []
+          for (const nome of dentro) {
+            // I nomi che cominciano per punto sono roba di sistema o di git:
+            // in un elenco da telefono sono rumore fra sé e la cartella giusta.
+            if (nome.startsWith('.')) continue
+            const intero = join(dove, nome)
+            try {
+              if (!statSync(intero).isDirectory()) continue
+            } catch {
+              continue
+            }
+            voci.push({ nome, percorso: intero })
+            // Una cartella con dentro mille sottocartelle non si scorre su un
+            // telefono: si taglia, e chi cerca piu' in la' scrive il percorso.
+            if (voci.length >= 300) break
+          }
+          voci.sort((a, b) => a.nome.localeCompare(b.nome, 'it'))
+          const su = dirname(dove)
+          return {
+            percorso: dove,
+            ...(su !== dove ? { su } : {}),
+            voci,
+            progetto: existsSync(join(dove, '.claude')) || existsSync(join(dove, 'CLAUDE.md'))
+          }
         },
         workspace: async () => {
           const a = workspaceStore?.leggi()

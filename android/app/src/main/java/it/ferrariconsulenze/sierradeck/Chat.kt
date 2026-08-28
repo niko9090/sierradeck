@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -393,32 +394,99 @@ private fun RinominaChat(api: Api, chat: Chat, onChiudi: () -> Unit) {
     )
 }
 
-/** Sceglie una cartella conosciuta e apre lì una chat nuova. */
+/**
+ * Dove aprire una chat nuova: fra quelle note, **o sfogliando il disco**.
+ *
+ * Prima c'era solo l'elenco delle cartelle già conosciute, e un progetto nuovo
+ * — o uno vecchio mai aperto dal telefono — non c'era modo di sceglierlo. La
+ * risposta non poteva essere un campo di testo: nessuno digita
+ * `E:\Users\nikof\Documents\Qualcosa` su una tastiera del telefono. Quindi si
+ * sfoglia, partendo dai posti che contano — i dischi, la tua cartella, i
+ * progetti già noti — invece che dalla radice.
+ */
 @Composable
 private fun SceltaCartella(api: Api, onChiudi: () -> Unit) {
-    var cartelle by remember { mutableStateOf<List<String>?>(null) }
+    var giro by remember { mutableStateOf<Sfoglia?>(null) }
+    var caricando by remember { mutableStateOf(true) }
+    var guasto by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) { cartelle = try { api.cartelle().cartelle } catch (_: Exception) { emptyList() } }
 
+    fun vaiA(dove: String) {
+        caricando = true
+        scope.launch {
+            try {
+                giro = api.sfoglia(dove)
+                guasto = null
+            } catch (e: Exception) {
+                guasto = "Questo computer non sa ancora sfogliare le cartelle da qui: aggiornalo."
+            }
+            caricando = false
+        }
+    }
+
+    LaunchedEffect(Unit) { vaiA("") }
+
+    val g = giro
     AlertDialog(
         onDismissRequest = onChiudi,
-        title = { Text("Apri una chat in…") },
+        title = {
+            Column {
+                Text("Apri una chat in…")
+                if (g != null && !g.radici) {
+                    Text(
+                        g.percorso,
+                        color = Banco.testoQuieto,
+                        fontSize = 11.sp,
+                        maxLines = 2
+                    )
+                }
+            }
+        },
         text = {
-            Column(Modifier.fillMaxWidth().height(320.dp).verticalScroll(rememberScrollState())) {
-                when {
-                    cartelle == null -> Text("Carico…", color = Banco.testoQuieto)
-                    cartelle!!.isEmpty() -> Text("Nessuna cartella conosciuta.", color = Banco.testoQuieto)
-                    else -> for (c in cartelle!!) {
-                        Column(
-                            Modifier.fillMaxWidth().padding(vertical = 8.dp).clickableCartella {
-                                onChiudi()
-                                scope.launch { try { api.apri(c) } catch (_: Exception) {} }
-                            }
-                        ) {
-                            Text(c.substringAfterLast('\\').substringAfterLast('/'), color = Banco.testo, maxLines = 1)
-                            Text(c, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+            Column(Modifier.fillMaxWidth().height(340.dp)) {
+                // «Su» e «apri qui» stanno **fuori** dall'elenco che scorre: sono
+                // i due gesti che servono sempre, e cercarli in fondo a
+                // duecento cartelle vorrebbe dire non averli.
+                if (g != null && !g.radici) {
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        if (g.su != null) {
+                            TextButton(onClick = { vaiA(g.su) }) { Text("↑  Su") }
                         }
-                        HorizontalDivider(color = Banco.incisione)
+                        Spacer(Modifier.weight(1f))
+                        Button(
+                            shape = MaterialTheme.shapes.small,
+                            onClick = {
+                                onChiudi()
+                                scope.launch { try { api.apri(g.percorso) } catch (_: Exception) {} }
+                            }
+                        ) { Text(if (g.progetto) "Apri qui (progetto)" else "Apri qui") }
+                    }
+                    HorizontalDivider(color = Banco.incisione)
+                }
+                Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())) {
+                    when {
+                        guasto != null -> Text(guasto!!, color = Banco.ambra, fontSize = 13.sp)
+                        caricando && g == null -> Text("Carico…", color = Banco.testoQuieto)
+                        g == null || g.voci.isEmpty() ->
+                            Text(
+                                if (g?.radici == true) "Nessun punto di partenza."
+                                else "Qui dentro non ci sono altre cartelle. Usa «Apri qui».",
+                                color = Banco.testoQuieto,
+                                fontSize = 13.sp
+                            )
+                        else -> for (v in g.voci) {
+                            Column(
+                                Modifier.fillMaxWidth().padding(vertical = 8.dp).clickableCartella {
+                                    vaiA(v.percorso)
+                                }
+                            ) {
+                                Text(v.nome, color = Banco.testo, maxLines = 1)
+                                if (g.radici) {
+                                    Text(v.percorso, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                                }
+                            }
+                            HorizontalDivider(color = Banco.incisione)
+                        }
                     }
                 }
             }

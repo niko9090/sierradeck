@@ -407,3 +407,27 @@ leggere **come lo calcola la prima**. Quasi sempre non è magia: è una regola
 osservabile anche da dove si sta, e riusarla vale molto più che avvicinarsi a
 occhio — perché due numeri diversi per la stessa cosa sono peggio di un numero
 solo.
+
+### 2.16.0 — una chat in una cartella qualunque
+Dal telefono si potevano aprire chat **solo** nelle cartelle già conosciute. Un
+progetto nuovo, o uno vecchio mai aperto da lì, non c'era modo di sceglierlo.
+
+Il muro era in `/api/apri`, e la motivazione era scritta nel codice: «un percorso
+qualunque arrivato dalla rete aprirebbe una sessione dove capita». **Non
+reggeva.** Chi ha la chiave di quel computer può già *scrivere in una chat* —
+cioè far eseguire qualunque comando in qualunque cartella. L'elenco chiuso non
+era un muro di sicurezza, era un impaccio travestito da prudenza.
+
+Il muro vero è, ed è sempre stato, l'accoppiamento. Adesso si controlla quello
+che si può controllare davvero: che la cartella **esista** e sia una cartella,
+così un errore di battitura non crea una chat nel vuoto.
+
+E la risposta non poteva essere un campo di testo: nessuno digita
+`E:\Users\...\Documents\Qualcosa` su una tastiera del telefono. Quindi
+`POST /api/sfoglia`, che senza percorso torna **i punti di partenza** — i dischi,
+la cartella dell'utente, i progetti già noti — e poi scende. Su un telefono
+partire dalla radice è l'unica cosa peggiore che digitare.
+
+**Regola.** Quando un limite si giustifica con la sicurezza, va verificato che
+sia davvero un muro: se chi lo supera aveva già una strada più larga accanto,
+non stava proteggendo niente — stava solo togliendo una funzione.

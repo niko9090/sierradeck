@@ -230,6 +230,16 @@ class Api(private val indirizzo: String, private val chiave: String?) {
     suspend fun installaPlugin(id: String): EsitoNegozio =
         json.decodeFromString(corpoTesto("/api/negozio/installa", oggetto { put("id", id) }))
 
+    /**
+     * Le cartelle dentro una cartella del computer.
+     *
+     * Senza percorso torna i punti di partenza. Serve ad aprire una chat in un
+     * progetto **nuovo**: prima si potevano scegliere solo le cartelle gia'
+     * conosciute, e un progetto mai aperto da qui non c'era modo di sceglierlo.
+     */
+    suspend fun sfoglia(percorso: String = ""): Sfoglia =
+        json.decodeFromString(corpoTesto("/api/sfoglia", oggetto { put("percorso", percorso) }))
+
     /** Con quale account sta lavorando il computer. */
     suspend fun account(): Account =
         json.decodeFromString(corpoTesto("/api/account", null))
