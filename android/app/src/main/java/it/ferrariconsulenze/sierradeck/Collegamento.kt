@@ -81,8 +81,32 @@ class Collegamento(contesto: Context) {
     val pronto: Boolean
         get() = indirizzo.isNotEmpty()
 
+    /**
+     * Smette di usare **questo** computer, senza toccare gli altri.
+     *
+     * Prima era `clear()`, cioè si buttava via tutto: le chiavi di ogni
+     * computer accoppiato, l'elenco di quelli noti, la misura del carattere.
+     * Con un computer solo la differenza non si vedeva; con tre in casa
+     * «scollegati da questo» voleva dire perdere anche gli altri due, e
+     * rifare tre accoppiamenti col QR per averne cambiato uno.
+     *
+     * La chiave di questo computer **resta**: si torna alla schermata
+     * d'ingresso, ma sceglierlo di nuovo dall'elenco non richiede un nuovo
+     * codice. Per togliere davvero un accesso c'è `Postazioni.dimentica`, che
+     * è un gesto esplicito e cancella anche la chiave.
+     */
     fun dimentica() {
-        preferenze.edit().clear().apply()
+        preferenze.edit().remove(CHIAVE_INDIRIZZO).apply()
+    }
+
+    /** Toglie la chiave di un indirizzo: l'accesso a quel computer finisce qui. */
+    fun scordaChiaveDi(indirizzo: String) {
+        val restanti = indirizziNoti().filter { it != indirizzo }
+        preferenze.edit()
+            .remove("$CHIAVE_SEGRETO:$indirizzo")
+            .putString(NOTI, restanti.joinToString("|"))
+            .apply()
+        if (this.indirizzo == indirizzo) preferenze.edit().remove(CHIAVE_INDIRIZZO).apply()
     }
 
     /**

@@ -64,6 +64,21 @@ fun App(deposito: Collegamento, scansionaQr: ((String) -> Unit, (String) -> Unit
     var chiave by remember { mutableStateOf(deposito.chiave) }
     val collegato = indirizzo.isNotBlank() && chiave.isNotBlank()
 
+    /**
+     * Passa a un altro computer.
+     *
+     * Non e' un nuovo accoppiamento: la chiave di ogni computer e' sempre stata
+     * salvata **per indirizzo**, quindi tornare a uno gia' visto e' istantaneo e
+     * non chiede nessun codice. Un indirizzo mai visto ha chiave vuota, e allora
+     * `collegato` diventa falso e si finisce sulla schermata del QR — che e'
+     * esattamente quello che serve in quel caso, senza un ramo apposta.
+     */
+    fun vaiA(nuovo: String) {
+        deposito.indirizzo = nuovo
+        indirizzo = deposito.indirizzo
+        chiave = deposito.chiave
+    }
+
     Surface(color = Banco.fondo) {
         if (!collegato) {
             Ingresso(
@@ -75,6 +90,8 @@ fun App(deposito: Collegamento, scansionaQr: ((String) -> Unit, (String) -> Unit
             Principale(
                 api = remember(indirizzo, chiave) { Api(indirizzo, chiave) },
                 deposito = deposito,
+                indirizzo = indirizzo,
+                onVaiA = { vaiA(it) },
                 onScollega = { deposito.dimentica(); indirizzo = ""; chiave = "" }
             )
         }
@@ -88,7 +105,15 @@ fun App(deposito: Collegamento, scansionaQr: ((String) -> Unit, (String) -> Unit
  * di mostrare dati vecchi come se fossero freschi.
  */
 @Composable
-fun Principale(api: Api, deposito: Collegamento, onScollega: () -> Unit) {
+fun Principale(
+    api: Api,
+    deposito: Collegamento,
+    /** L'indirizzo di adesso: serve al selettore per sapere quale e' in uso. */
+    indirizzo: String,
+    /** Passa a un altro computer, o all'ingresso se gli si da' una stringa vuota. */
+    onVaiA: (String) -> Unit,
+    onScollega: () -> Unit
+) {
     val contesto = LocalContext.current
     // Si apre sulle chat: e' quello per cui si prende in mano il telefono.
     var scheda by remember { mutableStateOf(Scheda.CHAT) }
@@ -121,6 +146,8 @@ fun Principale(api: Api, deposito: Collegamento, onScollega: () -> Unit) {
     // nessuno. Adesso `Installazione` e' stato di Compose e questa schermata si
     // ridisegna nell'istante del tocco.
     LaunchedEffect(Unit) { Installazione.riprendi(contesto) }
+    /** Il selettore dei computer e' aperto. */
+    var scegliComputer by remember { mutableStateOf(false) }
 
     // La guardia in background: è ciò per cui l'app esiste invece della sola
     // pagina — avvisa anche quando l'app è chiusa.
@@ -158,6 +185,11 @@ fun Principale(api: Api, deposito: Collegamento, onScollega: () -> Unit) {
                     Installazione.iniziata(contesto, prima)
                 }
                 stato = letto; connesso = true; giriFalliti = 0; rifiuti = 0
+                // Ogni giro riuscito aggiorna la postazione: quando si e' usata
+                // l'ultima volta, e come si chiama davvero — il nome della
+                // macchina lo sa solo lei, e un elenco di indirizzi IP non si
+                // legge.
+                Postazioni.usata(contesto, indirizzo, letto.computer?.nome)
             } catch (e: Api.Errore) {
                 if (e.daRiaccoppiare) rifiuti += 1
                 giriFalliti += 1; if (giriFalliti >= 2) connesso = false
@@ -189,11 +221,31 @@ fun Principale(api: Api, deposito: Collegamento, onScollega: () -> Unit) {
         return
     }
 
+    if (scegliComputer) {
+        SelettoreComputer(
+            correnteIndirizzo = indirizzo,
+            onScegli = { scegliComputer = false; onVaiA(it) },
+            onAggiungi = { scegliComputer = false; onVaiA("") },
+            onChiudi = { scegliComputer = false }
+        )
+    }
+
     Scaffold(
         containerColor = Banco.fondo,
         bottomBar = { Fascia(scheda, stato) { scheda = it } }
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
+            // Con quale computer stai parlando. Sopra ogni schermata e non
+            // dentro «Computer», perche' cambiare macchina e' un gesto che si fa
+            // **mentre** si sta facendo altro: guardi una chat, ti accorgi che e'
+            // dell'altro banco, cambi e continui.
+            PillolaComputer(
+                nome = stato?.computer?.nome?.takeIf { it.isNotBlank() }
+                    ?: Postazioni.corrente(contesto)?.nome
+                    ?: Postazioni.hostDi(indirizzo),
+                connesso = connesso,
+                onApri = { scegliComputer = true }
+            )
             // Quello che non può aspettare, sopra tutto il resto: non è un
             // avviso qualunque, è la ragione per cui questo telefono esiste.
             BandaUrgenze(api, stato, connesso)

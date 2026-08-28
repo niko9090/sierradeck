@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.23',
+    righe: [
+      '**Dal telefono si passa da un computer all’altro con un tocco.** Chi ne ha più di uno in casa restava legato al primo con cui si era accoppiato: per cambiarlo bisognava buttare via l’accoppiamento e rifarlo col QR. Ora c’è l’elenco delle **postazioni** — in cima a ogni schermata, con il nome del computer che stai guardando — e tornare a uno già visto non chiede nessun codice: la chiave di ognuno era già salvata, mancava solo il modo di sceglierla.',
+      '**Le postazioni spuntate non si dimenticano mai**, quelle di passaggio si potano da sole. E ognuna si può rinominare: «studio» si legge, `192.168.1.191` no.',
+      '**Il computer dice come si chiama** (dietro la chiave, non a chiunque sia sulla rete), così l’elenco sul telefono porta nomi veri invece di indirizzi.'
+    ]
+  },
+  {
     versione: '0.12.22',
     righe: [
       '**Il negozio, dal telefono, adesso c’è.** Era sempre vuoto, e diceva «questo computer non sa aprire il negozio: aggiornalo» — a un computer che era già all’ultima versione. La risposta arrivava: era il **formato** a non tornare, e bastava a far saltare tutta la lettura, non solo i plugin.',

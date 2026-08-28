@@ -44,8 +44,13 @@ data class Stato(
      * dice prima di sparire, e senza di lei il silenzio che segue e'
      * indistinguibile da un cavo staccato.
      */
-    val aggiornamento: Aggiornamento? = null
+    val aggiornamento: Aggiornamento? = null,
+    /** Come si chiama questa macchina: serve a chi ne ha piu' di una. */
+    val computer: NomeComputer? = null
 )
+
+@Serializable
+data class NomeComputer(val nome: String = "")
 
 @Serializable
 data class Chat(

@@ -197,6 +197,8 @@ export type DipendenzeRotte = {
   /** Esce. Vale per il computer, non solo per il telefono che l'ha chiesto. */
   esciAccount?: () => Promise<void>
   versione: string
+  /** Il nome della macchina: serve al telefono per distinguere piu' computer. */
+  nomeComputer?: () => string
   /** Qual è l'ultimo APK dell'app, per il tasto «Scarica». */
   apk?: () => Promise<{ versione: string; url: string } | undefined>
   /**
@@ -334,7 +336,14 @@ export function rotteClient(deps: DipendenzeRotte) {
         // di lui il telefono non puo' accorgersi che il computer si sta per
         // chiudere, e un'installazione avviata dallo schermo del computer, vista
         // da fuori, e' indistinguibile da un cavo staccato.
-        aggiornamento: deps.aggiornamento()
+        aggiornamento: deps.aggiornamento(),
+        // Come si chiama questo computer.
+        //
+        // Serve a chi ne ha piu' di uno: un elenco di indirizzi IP non si legge,
+        // e «lo studio» invece si. Sta **qui** e non in `/api/ciao`, che si puo'
+        // chiamare senza chiave: il nome di una macchina non si regala a
+        // chiunque sia sulla rete, si dice a chi si e' gia' presentato.
+        computer: { nome: deps.nomeComputer?.() ?? '' }
       })
     }
 

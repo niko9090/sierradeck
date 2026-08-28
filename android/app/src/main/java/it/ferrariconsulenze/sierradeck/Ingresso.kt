@@ -44,6 +44,7 @@ fun Ingresso(
     scansionaQr: ((String) -> Unit, (String) -> Unit) -> Unit,
     onCollegato: (indirizzo: String, chiave: String) -> Unit
 ) {
+    val contesto = androidx.compose.ui.platform.LocalContext.current
     var indirizzo by remember { mutableStateOf(deposito.indirizzo) }
     var codice by remember { mutableStateOf("") }
     var nome by remember { mutableStateOf(Build.MODEL ?: "telefono") }
@@ -73,6 +74,10 @@ fun Ingresso(
                     errore = "Il computer non ha dato una chiave: il codice era giusto?"
                 } else {
                     deposito.ricordaChiave(completo, esito.chiave)
+                    // Nasce la postazione: da qui in poi il computer sta
+                    // nell'elenco e ci si torna con un tocco, senza un altro
+                    // codice. E' il pezzo che mancava a chi ne ha piu' di uno.
+                    Postazioni.usata(contesto, completo)
                     onCollegato(completo, esito.chiave)
                 }
             } catch (e: Api.Errore) {

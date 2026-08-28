@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, screen, shell } from 'electron'
 import { join } from 'node:path'
 import { existsSync, mkdirSync, statSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { homedir, hostname } from 'node:os'
 import { spawn } from 'node:child_process'
 import { APP_NAME, APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
 import { cartellaDati } from './migra-dati'
@@ -1011,6 +1011,13 @@ if (!app.requestSingleInstanceLock()) {
             // guardare: MCP e skill di progetto sono per forza vuoti, e dirlo
             // evita di far cercare un guasto che non c'e'.
             ...(cwd === undefined ? { nota: 'Nessuna chat aperta sul computer: posso mostrare solo le cose personali, non quelle del progetto.' } : {})
+          }
+        },
+        nomeComputer: () => {
+          try {
+            return hostname()
+          } catch {
+            return ''
           }
         },
         installaPlugin: (id: string) => installaPlugin(id),
