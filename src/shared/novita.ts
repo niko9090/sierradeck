@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.27',
+    righe: [
+      '**C’è un FileZilla dentro SierraDeck, e i server sono del progetto.** Nella fascia c’è «⇅ File»: a sinistra i file di questo computer, a destra il server del progetto che hai davanti. Si sfoglia da tutte e due le parti, si scarica e si carica. I server si aggiungono **per cartella**, non in un elenco unico: apri la chat di un progetto e vedi i suoi, e nessun altro.',
+      '**La prima connessione a un server chiede conferma dell’impronta.** Sembra un intoppo ed è l’unica cosa che rende il collegamento davvero sicuro invece che solo cifrato: senza, chi si mette in mezzo riceverebbe la tua password. Dalle volte dopo, un’impronta diversa è un allarme.',
+      '**Le password vanno al portachiavi di Windows**, legato al tuo account: copiate su un altro computer non valgono niente. Nel file resta solo il loro segno cifrato.'
+    ]
+  },
+  {
     versione: '0.12.25',
     righe: [
       '**Dal telefono si apre una chat in una cartella qualunque, sfogliando.** Prima si potevano scegliere solo le cartelle già conosciute: un progetto nuovo non c’era modo di aprirlo. E la risposta non poteva essere un campo di testo — nessuno digita un percorso di Windows su una tastiera del telefono. Adesso si sfoglia, partendo dai posti che contano: i dischi, la tua cartella, i progetti già noti.'

@@ -31,6 +31,22 @@ files:
 asarUnpack:
   - '**/node_modules/node-pty/**'
   - '**/node_modules/better-sqlite3/**'
+  # ssh2 (il «FileZilla» del progetto) e **le sue dipendenze**.
+  #
+  # electron-builder tira fuori dall'asar ssh2 da solo, perche' si porta dietro
+  # `cpu-features`, che e' nativo e opzionale. Ma tira fuori **solo lui**: asn1
+  # e bcrypt-pbkdf restavano dentro l'asar, e da `app.asar.unpacked` la
+  # risoluzione dei moduli non ci rientra — sale nelle cartelle vere e non
+  # trova niente. Risultato: in sviluppo tutto bene, e nel programma installato
+  # `require('ssh2')` falliva al primo collegamento.
+  #
+  # Trovato guardando dentro il pacchetto, non provando il pannello: e' il tipo
+  # di guasto che si vede solo dopo aver installato, cioe' addosso a chi usa.
+  - '**/node_modules/ssh2/**'
+  - '**/node_modules/asn1/**'
+  - '**/node_modules/safer-buffer/**'
+  - '**/node_modules/bcrypt-pbkdf/**'
+  - '**/node_modules/tweetnacl/**'
 
 win:
   # L'icona già in formato .ico, non il PNG da convertire: la conversione la

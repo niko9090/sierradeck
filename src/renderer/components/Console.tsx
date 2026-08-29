@@ -25,7 +25,7 @@ import { MODELLI } from '../modelli'
  * qualcosa di nuovo: chi non vuole pensarci li usa e non ci pensa più.
  */
 
-export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | undefined
+export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'file' | undefined
 
 type Props = {
   onApriSessioni: () => void
@@ -303,6 +303,14 @@ export function Console({
           title="Plugin, skill e MCP di Claude Code — installa e attiva a clic"
         >
           ▣ Negozio
+        </button>
+        <button
+          className="tasto"
+          onClick={() => commuta('file')}
+          aria-expanded={aperto === 'file'}
+          title="I file del progetto, qui e sul suo server: sfoglia, scarica, carica"
+        >
+          ⇅ File
         </button>
         <button
           className="tasto"

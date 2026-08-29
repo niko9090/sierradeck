@@ -19,6 +19,34 @@ import type { Anteprima } from '../main/anteprima'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
 import type { SpawnRequest } from '../main/validation'
 
+/** Una destinazione come la vede l'interfaccia: senza segreti, mai. */
+export type DestinazioneVista = {
+  id: string
+  nome: string
+  cwd: string
+  host: string
+  porta: number
+  utente: string
+  metodo: 'password' | 'chiave' | 'agente'
+  chiaveFile?: string
+  cartellaRemota?: string
+  cartellaLocale?: string
+  improntaServer?: string
+}
+
+/** Un file o una cartella, di qua o di la'. */
+export type VoceVista = {
+  nome: string
+  percorso: string
+  cartella: boolean
+  dimensione: number
+  quando: number
+  permessi?: string
+}
+
+export type ElencoVista = { percorso: string; su?: string; voci: VoceVista[] }
+
+
 // `env` non e' piu' esposto: GESTORE_CLAUDE_PATH serviva al renderer solo per
 // scegliere l'eseguibile da lanciare, decisione che ora vive nel Core. Il ponte
 // espone la stessa funzionalita' con una variabile d'ambiente in meno.
@@ -262,6 +290,48 @@ contextBridge.exposeInMainWorld('gestore', {
     errore: (messaggio: string): Promise<void> => ipcRenderer.invoke('log:errore', messaggio)
   },
   /** Il negozio: plugin, skill e MCP di Claude Code, gestiti a clic. */
+  /**
+   * I trasferimenti: le destinazioni di un progetto e le sessioni SFTP.
+   *
+   * Tutto passa dal processo principale, e non e' un dettaglio di architettura:
+   * una chiave privata e una password non attraversano una pagina web, nemmeno
+   * la nostra.
+   */
+  trasferimenti: {
+    destinazioni: (cwd: string): Promise<DestinazioneVista[]> =>
+      ipcRenderer.invoke('trasferimenti:destinazioni', cwd),
+    salva: (d: Partial<DestinazioneVista>, segreto?: { password?: string; passphrase?: string }):
+      Promise<DestinazioneVista> => ipcRenderer.invoke('trasferimenti:salva', d, segreto),
+    elimina: (id: string): Promise<void> => ipcRenderer.invoke('trasferimenti:elimina', id),
+    collega: (id: string): Promise<{ ok: boolean; impronta?: string; cambiata?: boolean; errore?: string }> =>
+      ipcRenderer.invoke('trasferimenti:collega', id),
+    fidati: (id: string, impronta: string): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:fidati', id, impronta),
+    remoto: (id: string, percorso: string): Promise<ElencoVista> =>
+      ipcRenderer.invoke('trasferimenti:remoto', id, percorso),
+    locale: (percorso: string): Promise<ElencoVista> =>
+      ipcRenderer.invoke('trasferimenti:locale', percorso),
+    scarica: (id: string, remoto: string, cartellaLocale: string): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:scarica', id, remoto, cartellaLocale),
+    carica: (id: string, locale: string, cartellaRemota: string): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:carica', id, locale, cartellaRemota),
+    creaCartella: (id: string, percorso: string): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:creaCartella', id, percorso),
+    eliminaRemoto: (id: string, percorso: string, cartella: boolean): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:eliminaRemoto', id, percorso, cartella),
+    rinominaRemoto: (id: string, da: string, a: string): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:rinominaRemoto', id, da, a),
+    scollega: (id: string): Promise<void> => ipcRenderer.invoke('trasferimenti:scollega', id),
+    suAvanzamento: (
+      h: (e: { id: string; cosa: string; fatti: number; totale: number; finito?: boolean; errore?: string }) => void
+    ): (() => void) => {
+      const ascolta = (_e: unknown, dato: unknown): void =>
+        h(dato as { id: string; cosa: string; fatti: number; totale: number; finito?: boolean; errore?: string })
+      ipcRenderer.on('trasferimenti:avanza', ascolta)
+      return () => ipcRenderer.off('trasferimenti:avanza', ascolta)
+    }
+  },
+
   negozio: {
     plugin: (): Promise<{ plugin: Array<{
       id: string; nome: string; descrizione: string; marketplace: string

@@ -14,6 +14,7 @@ import type { Novita } from '@shared/novita'
 import type { Consumi } from '@shared/consumi'
 import type { Anteprima } from '../main/anteprima'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
+import type { DestinazioneVista, ElencoVista } from '../preload'
 
 declare global {
   interface Window {
@@ -116,6 +117,31 @@ declare global {
         apri: () => Promise<string>
         percorso: () => Promise<string>
         errore: (messaggio: string) => Promise<void>
+      }
+      /** I file del progetto, di qua e sul suo server. */
+      trasferimenti: {
+        destinazioni: (cwd: string) => Promise<DestinazioneVista[]>
+        salva: (
+          d: Partial<DestinazioneVista>,
+          segreto?: { password?: string; passphrase?: string }
+        ) => Promise<DestinazioneVista>
+        elimina: (id: string) => Promise<void>
+        collega: (id: string) => Promise<{ ok: boolean; impronta?: string; cambiata?: boolean; errore?: string }>
+        fidati: (id: string, impronta: string) => Promise<void>
+        remoto: (id: string, percorso: string) => Promise<ElencoVista>
+        locale: (percorso: string) => Promise<ElencoVista>
+        scarica: (id: string, remoto: string, cartellaLocale: string) => Promise<void>
+        carica: (id: string, locale: string, cartellaRemota: string) => Promise<void>
+        creaCartella: (id: string, percorso: string) => Promise<void>
+        eliminaRemoto: (id: string, percorso: string, cartella: boolean) => Promise<void>
+        rinominaRemoto: (id: string, da: string, a: string) => Promise<void>
+        scollega: (id: string) => Promise<void>
+        suAvanzamento: (
+          h: (e: {
+            id: string; cosa: string; fatti: number; totale: number
+            finito?: boolean; errore?: string
+          }) => void
+        ) => () => void
       }
       negozio: {
         plugin: () => Promise<{ plugin: Array<{

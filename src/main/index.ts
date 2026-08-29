@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, screen, shell } from 'electron'
+import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell } from 'electron'
 import { basename, dirname, join } from 'node:path'
 import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs'
 import { homedir, hostname } from 'node:os'
@@ -78,6 +78,8 @@ import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { unicoLayout, workspaceDellaSessione } from '@shared/workspace'
 import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
+import { apriDestinazioni } from './trasferimenti/destinazioni'
+import { creaTrasferimenti, type Trasferimenti } from './trasferimenti/servizio'
 
 /**
  * Le domande di cronologia in volo, e chi le sta aspettando.
@@ -140,6 +142,8 @@ let scopeStore: ScopeStore | undefined
 // nascono al caricamento del modulo, prima che la sessione sia aperta, quindi
 // finché resta `undefined` ripiegano sulla sola console.
 let registroGlobale: Registro | undefined
+/** Le sessioni SFTP aperte: si chiudono quando il programma esce. */
+let trasferimenti: Trasferimenti | undefined
 
 // Un'eccezione non gestita nel main, senza questi gestori, fa **chiudere** l'app
 // di colpo e senza lasciare una riga da nessuna parte: è esattamente il «si
@@ -667,6 +671,75 @@ if (!app.requestSingleInstanceLock()) {
       // Il negozio: plugin (via il CLI di Claude Code, fonte di verità), skill e
       // MCP (letti dai file, spenti/accesi con un tocco chirurgico). Fare a clic
       // ciò che si farebbe da terminale, senza uscire dal gestore.
+      /**
+       * Il «FileZilla» del progetto: le destinazioni e le sessioni SFTP.
+       *
+       * I segreti vanno a `safeStorage`, cioe' al portachiavi del sistema
+       * (DPAPI su Windows, legato a **questo** account): una password copiata
+       * su un altro computer non vale niente, ed e' esattamente quello che si
+       * vuole da una password salvata.
+       */
+      const destinazioni = apriDestinazioni(dati, {
+        disponibile: () => safeStorage.isEncryptionAvailable(),
+        cifra: (chiaro) => safeStorage.encryptString(chiaro).toString('base64'),
+        decifra: (cifrato) => safeStorage.decryptString(Buffer.from(cifrato, 'base64'))
+      })
+      trasferimenti = creaTrasferimenti(destinazioni, (evento) => {
+        for (const w of BrowserWindow.getAllWindows()) {
+          if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+            w.webContents.send('trasferimenti:avanza', evento)
+          }
+        }
+      })
+      ipcMain.handle('trasferimenti:destinazioni', (_e, cwd: unknown) =>
+        typeof cwd === 'string' ? destinazioni.perProgetto(cwd) : [])
+      ipcMain.handle('trasferimenti:salva', (_e, d: unknown, segreto: unknown) => {
+        if (typeof d !== 'object' || d === null) throw new Error('destinazione non valida')
+        const o = d as Record<string, unknown>
+        const testo = (campo: string): string => (typeof o[campo] === 'string' ? o[campo] : '')
+        if (testo('host') === '') throw new Error('serve l host')
+        const seg = typeof segreto === 'object' && segreto !== null
+          ? segreto as { password?: string; passphrase?: string }
+          : undefined
+        return destinazioni.salva({
+          ...(testo('id') !== '' ? { id: testo('id') } : {}),
+          nome: testo('nome'),
+          cwd: testo('cwd'),
+          host: testo('host'),
+          porta: typeof o.porta === 'number' ? o.porta : 22,
+          utente: testo('utente'),
+          metodo: o.metodo === 'chiave' || o.metodo === 'agente' ? o.metodo : 'password',
+          ...(testo('chiaveFile') !== '' ? { chiaveFile: testo('chiaveFile') } : {}),
+          ...(testo('cartellaRemota') !== '' ? { cartellaRemota: testo('cartellaRemota') } : {}),
+          ...(testo('cartellaLocale') !== '' ? { cartellaLocale: testo('cartellaLocale') } : {})
+        }, seg)
+      })
+      ipcMain.handle('trasferimenti:elimina', (_e, id: unknown) => {
+        if (typeof id === 'string') destinazioni.elimina(id)
+      })
+      ipcMain.handle('trasferimenti:collega', (_e, id: unknown) =>
+        typeof id === 'string' ? trasferimenti?.collega(id) : { ok: false, errore: 'id non valido' })
+      ipcMain.handle('trasferimenti:fidati', (_e, id: unknown, impronta: unknown) => {
+        if (typeof id === 'string' && typeof impronta === 'string') destinazioni.fidatiDi(id, impronta)
+      })
+      ipcMain.handle('trasferimenti:remoto', (_e, id: unknown, percorso: unknown) =>
+        trasferimenti?.elencaRemoto(String(id), typeof percorso === 'string' ? percorso : ''))
+      ipcMain.handle('trasferimenti:locale', (_e, percorso: unknown) =>
+        trasferimenti?.elencaLocale(String(percorso)))
+      ipcMain.handle('trasferimenti:scarica', (_e, id: unknown, remoto: unknown, locale: unknown) =>
+        trasferimenti?.scarica(String(id), String(remoto), String(locale)))
+      ipcMain.handle('trasferimenti:carica', (_e, id: unknown, locale: unknown, remoto: unknown) =>
+        trasferimenti?.carica(String(id), String(locale), String(remoto)))
+      ipcMain.handle('trasferimenti:creaCartella', (_e, id: unknown, percorso: unknown) =>
+        trasferimenti?.creaCartellaRemota(String(id), String(percorso)))
+      ipcMain.handle('trasferimenti:eliminaRemoto', (_e, id: unknown, percorso: unknown, cartella: unknown) =>
+        trasferimenti?.eliminaRemoto(String(id), String(percorso), cartella === true))
+      ipcMain.handle('trasferimenti:rinominaRemoto', (_e, id: unknown, da: unknown, a: unknown) =>
+        trasferimenti?.rinominaRemoto(String(id), String(da), String(a)))
+      ipcMain.handle('trasferimenti:scollega', (_e, id: unknown) => {
+        if (typeof id === 'string') trasferimenti?.scollega(id)
+      })
+
       const fileClaudeJson = join(homedir(), '.claude.json')
       const soloStringa = (x: unknown): string | undefined => (typeof x === 'string' && x.trim() !== '' ? x : undefined)
       ipcMain.handle('negozio:plugin', () => elencoPlugin())
@@ -1517,6 +1590,14 @@ async function chiudiRisorse(): Promise<void> {
   // consegnarla a nessuno. L'autopilota la riproporrà quando torniamo.
   fermaRitiroConsegne?.()
   fermaRitiroConsegne = undefined
+  // Le sessioni SFTP: canali TCP aperti verso l'esterno, che tengono vivo il
+  // processo. Chiuderli e' anche una cortesia verso il server, che altrimenti
+  // si ritrova connessioni mezze morte da spazzare per conto suo.
+  try {
+    trasferimenti?.chiudiTutto()
+  } catch (err) {
+    console.error('[chiusura] sessioni SFTP non chiuse:', err)
+  }
   try {
     await ptyClient?.stop()
   } catch (err) {

@@ -3109,3 +3109,56 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   background: var(--accento);
   transition: width 0.3s ease;
 }
+
+/* ═══════════════════ i file, di qua e di la' ═══════════════════
+
+   Due colonne uguali: e' lo stesso gesto visto da due lati, e farle diverse
+   costringerebbe a impararle due volte. Su una finestra stretta si impilano —
+   scorrere due colonne larghe centoventi pixel non e' usare, e' indovinare. */
+
+.trasf {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--separazione);
+  background: var(--incisione);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .trasf { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+}
+
+.trasf__lato {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--fondo);
+}
+
+.trasf__testa {
+  padding: var(--s2) var(--s3);
+  background: var(--chassis);
+  border-bottom: var(--separazione) solid var(--incisione);
+}
+
+.trasf__percorso {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s1) var(--s3);
+  border-bottom: var(--separazione) solid var(--incisione);
+  /* Il percorso puo' essere lunghissimo: scorre invece di sfondare la colonna. */
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.trasf__elenco {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s1) var(--s2);
+}

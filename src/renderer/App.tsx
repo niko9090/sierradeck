@@ -27,6 +27,7 @@ import { PannelloAutopiloti } from './components/PannelloAutopiloti'
 import { PannelloQuaderno } from './components/PannelloQuaderno'
 import { PannelloImpostazioni } from './components/PannelloImpostazioni'
 import { PannelloNegozio } from './components/PannelloNegozio'
+import { PannelloTrasferimenti } from './components/PannelloTrasferimenti'
 import { tavolozza, type Preferenze } from '@shared/preferenze'
 import { ModaleAccesso } from './components/ModaleAccesso'
 import { ModalePreparazione } from './components/ModalePreparazione'
@@ -1037,6 +1038,12 @@ export function App(): React.JSX.Element {
         ) : null}
         {aperto === 'impostazioni' ? (
           <PannelloImpostazioni onChiudi={() => setAperto(undefined)} />
+        ) : null}
+        {aperto === 'file' ? (
+          // I server sono **del progetto**: la cartella della chat che hai
+          // davanti decide quali vedi. Un elenco unico di venti connessioni
+          // rimetterebbe addosso il lavoro che questo pannello toglie.
+          <PannelloTrasferimenti cwd={cartellaDavanti() || undefined} onChiudi={() => setAperto(undefined)} />
         ) : null}
         {aperto === 'negozio' ? (
           // Skill e MCP sono legati alla cartella della chat davanti: le mostri
