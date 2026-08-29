@@ -92,8 +92,30 @@ nessuno ha scelto — e una di quelle opzioni, quasi sempre, **concede un
 permesso**. Se non torna: 409, nessun tasto premuto, e la pagina dice di
 guardare di nuovo.
 
-**Perché non serve toccare l'app Android.** L'app è una WebView su questa
-pagina: la correzione arriva con l'aggiornamento del computer, non con quello
-dell'app. Vale per tutto ciò che sta in `client-pagina.ts` — e ricordarsi che si
-modifica **la sorgente**, non il dump `script-pagina.js`, che è generato da un
-test.
+### La trappola: l'app Android **non** è una WebView
+
+Alla 0.12.33 la correzione era stata fatta solo in `client-pagina.ts`, dando per
+scontato che l'app fosse un guscio attorno a quella pagina. **Non lo è**:
+`MainActivity` lo dice in testa — «l'app nativa: nessuna WebView, solo Compose»
+— e la schermata della chat legge da `/api/storia` con i suoi modelli in
+`Modelli.kt`. Risultato: i pulsanti comparivano aprendo l'indirizzo dal browser
+e **non** nell'app, che è dove la persona guarda.
+
+Regola da ricordare: una correzione del «client mobile» ha **due lati** e vanno
+fatti tutti e due —
+
+1. la pagina (`src/main/client-pagina.ts`, mai il dump `script-pagina.js`, che è
+   generato da un test);
+2. l'app nativa (`Modelli.kt` per la forma della risposta, `Api.kt` per la
+   chiamata, la schermata in `Chat.kt`).
+
+E sul lato server, il campo va messo **su tutte le rotte da cui si legge**: la
+pagina usa `/api/dentro`, l'app usa `/api/storia`. Metterlo su una sola lascia
+metà degli utenti come prima.
+
+Cosa rende sicura l'aggiunta di un campo: il `Json` dell'app ha
+`ignoreUnknownKeys = true` e ogni campo dei modelli ha un valore predefinito.
+Quindi un'app vecchia contro un computer nuovo non si accorge di niente, e
+un'app nuova contro un computer vecchio legge `scelte = null`. **Senza il
+predefinito** la lettura fallirebbe tutta: al posto della conversazione, una
+schermata vuota.

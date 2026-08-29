@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { networkInterfaces } from 'node:os'
 import { execFile, execFileSync } from 'node:child_process'
 import { daReteLocale } from '@shared/rete-locale'
+import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import type { Dispositivi } from './dispositivi'
 
 /**
@@ -68,23 +69,6 @@ export function autorizzata(percorso: string): boolean {
   return LIBERE.has(percorso)
 }
 
-function leggiCorpo(req: IncomingMessage): Promise<unknown> {
-  return new Promise((risolvi) => {
-    let dati = ''
-    req.on('data', (c) => {
-      dati += c
-      // Un corpo enorme non deve poter riempire la memoria: il Client manda
-      // comandi brevi, non file.
-      if (dati.length > 256 * 1024) { dati = ''; req.destroy() }
-    })
-    req.on('end', () => {
-      if (dati === '') { risolvi(undefined); return }
-      try { risolvi(JSON.parse(dati)) } catch { risolvi(undefined) }
-    })
-    req.on('error', () => risolvi(undefined))
-  })
-}
-
 /** La chiave arriva nell'intestazione, non nell'indirizzo: gli indirizzi finiscono nei log. */
 export function chiaveDa(intestazioni: Record<string, string | string[] | undefined>): string {
   const grezzo = intestazioni['x-sierradeck-chiave']
@@ -129,7 +113,7 @@ async function gestisci(req: IncomingMessage, res: ServerResponse, deps: Dipende
 
   const percorso = (req.url ?? '/').split('?')[0] ?? '/'
   const metodo = req.method ?? 'GET'
-  const corpo = metodo === 'GET' ? undefined : await leggiCorpo(req)
+  const corpo = metodo === 'GET' ? undefined : await leggiCorpoJson(req)
 
   if (autorizzata(percorso)) {
     rispondi(res, await (deps.rottaLibera ?? deps.rotta)({ metodo, percorso, corpo }))
@@ -212,6 +196,12 @@ export function indirizziLocali(
   principale?: string
 ): string[] {
   const trovati: string[] = []
+  // I pesi si rifanno da capo a ogni giro. Non cambia l'ordine — gli indirizzi
+  // ancora presenti vengono ripesati comunque, qui sotto — ma la mappa e' viva
+  // quanto il processo: senza svuotarla si tiene una voce per **ogni indirizzo
+  // mai visto**, e un portatile che gira fra uffici, wifi e VPN ne accumula
+  // finche' il programma resta acceso.
+  pesi.clear()
   for (const [nome, schede] of Object.entries(interfacce)) {
     for (const scheda of schede ?? []) {
       if (scheda.internal) continue

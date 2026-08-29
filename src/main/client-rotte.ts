@@ -498,7 +498,14 @@ export function rotteClient(deps: DipendenzeRotte) {
         totale: finestra?.totale ?? vestite.length,
         da: finestra?.da ?? 0,
         righe: finestra?.pulite ?? pulite,
-        grezze: finestra?.grezze ?? vestite
+        grezze: finestra?.grezze ?? vestite,
+        // Le scelte si leggono **sempre dallo schermo di adesso**, mai dalla
+        // finestra chiesta: chi ha risalito la conversazione sta guardando roba
+        // vecchia, e i pulsanti devono restare quelli della domanda viva. Sono
+        // qui e non solo in `/api/dentro` perche' l'app del telefono legge da
+        // questa: e' nativa, non una pagina, e senza questo campo li' i pulsanti
+        // non compaiono.
+        scelte: scelteDiTerminale(vestite.join(String.fromCharCode(10)))
       })
     }
 

@@ -136,3 +136,51 @@ sbagliare per pazienza — un'ora.
 E il motivo non indovina più. «Forse è ferma su un comando che non finisce» è una
 delle due spiegazioni possibili presentata come la sola, e manda a cercare il
 guasto dalla parte sbagliata: la stessa lezione già imparata sul negozio vuoto.
+
+## 0.12.34 — il guardiano che sospendeva chi stava aspettando te
+
+**Una chat bloccata su una domanda veniva contata fra quelle mute.** `chiTace`
+saltava solo le chat `finita`, non le `bloccata` — cioè quelle ferme ad aspettare
+una risposta dell'utente. Passato il limite di silenzio, l'autopilota si
+sospendeva **per la lentezza dell'utente**, scrivendo pure che era la chat a non
+dare segnali. Una domanda può arrivare di notte e trovare risposta la mattina: chi
+aspetta una persona non è fermo.
+
+**E ripartire non faceva ripartire l'orologio.** Il silenzio si misura
+dall'ultimo turno *chiuso*. Quando un turno **comincia** — una chat ripresa dopo
+una risposta, una chat di flotta appena aperta — l'ultimo turno chiuso può essere
+di ore prima: il primo giro del guardiano sospendeva l'autopilota un minuto dopo
+averlo rimesso al lavoro. Ora ogni avvio di turno passa da un involucro che segna
+l'ora, e ogni hook che arriva — non solo `stop` — vale come prova di vita.
+
+Lezione generale sul misurare: **il segnale che si misura dev'essere uno che il
+caso sano può dare.** Il `Stop` è esattamente il segnale che una chat dentro un
+turno lungo non può mandare, ed era l'unico che contava.
+
+## Il servizio che moriva in silenzio
+
+Il Gestore aveva la rete di sicurezza (`uncaughtException` / `unhandledRejection`
+in `main/index.ts`); **il servizio dell'autopilota no** — ed è quello che ne ha
+più bisogno: gira staccato, per giorni, e se muore si fermano tutti gli
+autopiloti insieme. Peggio: è lanciato `detached` con `stdio: 'ignore'`, quindi
+nessun `console.error` di lì dentro finisce da qualche parte. Adesso apre il
+registro (lo stesso file del Gestore: una sola cronologia) e ci scrive il motivo
+invece di sparire.
+
+Nota: il pty-host non ha questo problema — `pty-host-client` lo sorveglia e lo
+riavvia con attese crescenti. Il servizio autopiloti viene ripreso solo da
+`assicuraServizio`, che gira quando il pannello legge l'elenco: cioè **solo con
+una finestra aperta**, e la finestra chiusa è proprio il caso per cui il servizio
+esiste.
+
+## Le letture che non finivano mai
+
+`leggiCorpo` esisteva in due copie quasi uguali — server del Client e servizio —
+e ascoltavano solo `data` e `end`. Una richiesta che muore a metà (il telefono
+che esce dalla galleria, il cavo staccato) non manda nessun `end`: la promessa
+non si risolveva **mai**, e chi l'aspettava restava lì per sempre. Su processi
+che restano accesi per giorni è memoria che non torna indietro. In più il
+servizio non aveva **nessun tetto** sulla dimensione del corpo.
+
+Ora è una sola funzione provata (`shared/corpo-richiesta.ts`): si risolve sempre,
+per una delle quattro strade — finito, chiuso, in errore, oltre il tetto.

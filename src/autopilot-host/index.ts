@@ -6,6 +6,7 @@ import { portaAutopilotiDa } from '@shared/autopilota'
 import { APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
 import { apriArchivio } from './archivio'
 import { apriQuaderno } from '../main/quaderno-store'
+import { apriRegistro } from '../main/registro'
 import { creaServer } from './server'
 import { esecutoreReale } from './verifiche'
 import { interrogazioneReale } from './supervisore'
@@ -129,7 +130,37 @@ function percorsiConfigTelegram(): string[] {
   ]
 }
 
+/**
+ * La rete di sicurezza di **questo** processo.
+ *
+ * Il Gestore ce l'aveva da tempo; il servizio no, ed e' il processo che ne ha
+ * piu' bisogno: gira per giorni, e se muore si fermano **tutti** gli autopiloti
+ * insieme. Una promessa rifiutata senza `catch` — una rete che cade in un punto
+ * non coperto — bastava a farlo sparire.
+ *
+ * E sparire e' la parola giusta: il Gestore lo lancia `detached` con lo `stdio`
+ * ignorato, quindi nessun `console.error` di qui dentro finisce da nessuna
+ * parte. Il motivo va scritto sul registro, o resta solo «l'autopilota si e'
+ * fermato e non si capisce perche'».
+ *
+ * Non e' ingoiare l'errore: e' renderlo visibile invece di farlo sparire con
+ * tutto il servizio.
+ */
+function reteDiSicurezza(): void {
+  const registro = apriRegistro(join(cartellaStato(), '..'), process.env.SIERRADECK_VERSIONE ?? '?')
+  const scrivi = (che: string, motivo: unknown): void => {
+    const m = motivo instanceof Error
+      ? `${motivo.name}: ${motivo.message}
+${motivo.stack ?? ''}`
+      : String(motivo)
+    try { registro.errore(`[servizio] ${che} — ${m}`) } catch { console.error(che, m) }
+  }
+  process.on('uncaughtException', (err) => { scrivi('eccezione non gestita', err) })
+  process.on('unhandledRejection', (motivo) => { scrivi('promise rifiutata senza catch', motivo) })
+}
+
 export function avviaServizio(): void {
+  reteDiSicurezza()
   const archivio = apriArchivio(cartellaStato())
   const domande = creaRegistroDomande({ adesso: () => Date.now() })
 

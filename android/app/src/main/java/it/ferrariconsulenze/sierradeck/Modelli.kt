@@ -99,7 +99,8 @@ data class Dentro(
     /** Righe ripulite (senza codici ANSI). */
     val righe: List<String> = emptyList(),
     /** Righe grezze con i codici ANSI: sono queste che la nativa colora. */
-    val grezze: List<String> = emptyList()
+    val grezze: List<String> = emptyList(),
+    val scelte: Scelte? = null
 )
 
 // ─── /api/consumi ───
@@ -254,7 +255,38 @@ data class Storia(
     val totale: Int = 0,
     val da: Int = 0,
     val righe: List<String> = emptyList(),
-    val grezze: List<String> = emptyList()
+    val grezze: List<String> = emptyList(),
+    /**
+     * Le scelte che il terminale sta aspettando, quando ne aspetta.
+     *
+     * Ha un valore predefinito, come tutto qui dentro, e non per abitudine: un
+     * computer con una versione precedente non manda questo campo, e senza il
+     * predefinito la lettura della risposta fallirebbe **tutta** — cioe' una
+     * schermata vuota al posto della chat.
+     */
+    val scelte: Scelte? = null
+)
+
+/**
+ * Un elenco di scelte disegnato dal terminale, reso toccabile.
+ *
+ * Quando Claude Code chiede «vuoi riprendere questa conversazione?» non aspetta
+ * parole: aspetta una freccia e un invio. Su un telefono quei tasti non
+ * esistono, e senza questi pulsanti la domanda si poteva solo leggere.
+ */
+@Serializable
+data class Scelte(
+    val opzioni: List<Opzione> = emptyList(),
+    /** Su quale riga e' fermo il cursore adesso. */
+    val corrente: Int = 0
+)
+
+@Serializable
+data class Opzione(
+    val numero: Int = 0,
+    val testo: String = "",
+    /** Quella su cui il cursore e' fermo: e' anche quella che prenderebbe un invio secco. */
+    val scelta: Boolean = false
 )
 
 /** Quello che il computer ha in dotazione. */

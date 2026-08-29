@@ -12,6 +12,7 @@ import {
 import { chiediDecisione } from './decisione-supervisore'
 import { applicaRete } from './rete-sicurezza'
 import { chiaveTurno, chiTace, motivoSilenzio } from './guardiano'
+import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
 import { STRATEGIE } from './strategie'
 import { eseguiCriteri, type Esecutore } from './verifiche'
@@ -103,25 +104,19 @@ function rispondi(res: ServerResponse, stato: number, corpo: unknown): void {
   res.end(JSON.stringify(corpo))
 }
 
+/**
+ * Il corpo di una richiesta al servizio.
+ *
+ * Il tetto e' piu' alto di quello del Client: qui arrivano gli hook di Claude
+ * Code, che portano piu' roba di un comando battuto su un telefono. Prima non
+ * ce n'era nessuno — un corpo grande a piacere veniva accumulato fino a
+ * riempire la memoria — e una richiesta che moriva a meta' lasciava una
+ * promessa appesa per sempre, su un servizio che gira per giorni.
+ */
+const TETTO_CORPO = 1024 * 1024
+
 function leggiCorpo(req: IncomingMessage): Promise<unknown> {
-  return new Promise((risolvi) => {
-    let dati = ''
-    req.on('data', (c) => { dati += c })
-    req.on('end', () => {
-      if (dati === '') {
-        risolvi(undefined)
-        return
-      }
-      try {
-        risolvi(JSON.parse(dati))
-      } catch {
-        // Un corpo illeggibile non è un motivo per far cadere il servizio: chi
-        // ha chiamato riceve la risposta prudente prevista per il suo caso.
-        console.warn('[autopilota] corpo della richiesta non leggibile, ignorato')
-        risolvi(undefined)
-      }
-    })
-  })
+  return leggiCorpoJson(req, TETTO_CORPO)
 }
 
 /** Il testo con cui la risposta dell'utente torna alla chat, con la sua domanda accanto. */
@@ -372,6 +367,25 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const ultimoTurno = new Map<string, number>()
 
   /**
+   * Avvia un turno, e fa ripartire da adesso l'orologio del silenzio.
+   *
+   * Il guardiano misura il silenzio dall'ultimo turno **chiuso**. Ma quando un
+   * turno **comincia** — una chat ripresa dopo una risposta, una chat della
+   * flotta appena aperta — l'ultimo turno chiuso puo' essere di ore prima: se
+   * si e' aspettato tutta la notte che l'utente rispondesse a una domanda, il
+   * primo giro del guardiano dopo la risposta sospendeva l'autopilota **un
+   * minuto dopo averlo rimesso al lavoro**, dando la colpa alla chat.
+   *
+   * Far ripartire l'orologio all'avvio non toglie niente al guardiano: il turno
+   * appena avviato ha comunque tutto il tempo di silenzio davanti a se' prima
+   * di essere considerato fermo.
+   */
+  const avviaLavoro = (a: Autopilota, messaggio?: string, chat?: ChatGovernata): Promise<void> => {
+    ultimoTurno.set(chiaveTurno(a.id, chat?.id), Date.parse(deps.adesso()))
+    return deps.avviaLavoro(a, messaggio, chat)
+  }
+
+  /**
    * Chi ha una fermata in lavorazione adesso.
    *
    * Verificare i criteri — seriali, fino a dieci minuti l'uno — riparare un
@@ -430,7 +444,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         motivoSospensione: undefined,
         decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: `risposta tardiva (${dati.chatId}): ${risposta}` }]
       })
-      void deps.avviaLavoro(
+      void avviaLavoro(
         ripresa,
         componiRisposta(dati.testo, risposta),
         { ...chat, stato: 'lavoro' }
@@ -447,7 +461,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       motivoSospensione: undefined,
       decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: `risposta tardiva: ${risposta}` }]
     })
-    void deps.avviaLavoro(
+    void avviaLavoro(
       { ...a, stato: 'lavoro' },
       componiRisposta(dati.testo, risposta)
     ).catch((err: unknown) => {
@@ -490,7 +504,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     let corrente = aggiornato
     for (const chat of nuove) {
       try {
-        await deps.avviaLavoro(corrente, undefined, chat)
+        await avviaLavoro(corrente, undefined, chat)
       } catch (err: unknown) {
         console.error(`[autopilota] avvio della chat ${chat.id} fallito:`, err)
         // **E si rimette a posto la flotta.** Prima qui c'era solo la riga di
@@ -769,7 +783,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         ? { ...a, sessionId: randomUUID() }
         : a
       if (conSessione !== a) salva(conSessione)
-      await deps.avviaLavoro(conSessione)
+      await avviaLavoro(conSessione)
       return
     }
     const { testo } = await deps.interroga(componiPromptScomposizione(a, a.tettoChat), a.cwd, undefined)
@@ -1436,10 +1450,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             // notifica - lo raccontano come se fosse successo adesso.
             const ripreso: Autopilota = { ...a, stato: 'lavoro', motivoSospensione: undefined }
             salva(ripreso)
-            if (ripreso.chats.length === 0) await deps.avviaLavoro(ripreso)
+            if (ripreso.chats.length === 0) await avviaLavoro(ripreso)
             else {
               for (const chat of ripreso.chats.filter((c) => c.stato !== 'finita')) {
-                await deps.avviaLavoro(ripreso, undefined, chat)
+                await avviaLavoro(ripreso, undefined, chat)
               }
             }
           }
@@ -1531,6 +1545,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             chatGrezza !== undefined && chatGrezza !== id && ID_VALIDO.test(chatGrezza)
               ? chatGrezza
               : undefined
+          // **Un hook che arriva e' una prova di vita.** Qualunque hook: e'
+          // partito da dentro quella chat, per la stessa strada, un istante fa.
+          // Prima contava solo `stop` — cioe' il solo segnale che una chat
+          // impegnata in un turno lungo **non puo' dare** — e una chat che nel
+          // frattempo faceva una domanda restava «muta» per il guardiano.
+          // Segnarlo qui, all'arrivo, e non dentro `suStop`: quello lavora per
+          // minuti prima di scriverlo, e in quei minuti il guardiano gira.
+          ultimoTurno.set(chiaveTurno(id, chatId), Date.parse(deps.adesso()))
           if (hook[1] !== 'stop') {
             rispondi(res, 200, suNotification(id, chatId, corpo))
             return

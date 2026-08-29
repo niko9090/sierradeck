@@ -1224,6 +1224,41 @@ describe('la chat viva che non finisce mai', () => {
     expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('lavoro')
   })
 
+  it('IL DIFETTO: rispondere di mattina non fa sospendere un istante dopo', async () => {
+    // Una chat chiude un turno a mezzanotte, poi fa una domanda e aspetta.
+    // L'utente risponde alle otto: la chat riparte, ma l'ultimo turno **chiuso**
+    // e' di otto ore prima — e il primo giro del guardiano, un minuto dopo, la
+    // sospendeva dando la colpa a lei. L'orologio del silenzio riparte quando un
+    // turno comincia.
+    //
+    // Serve un `Stop` prima: senza, la mappa e' vuota e si ricade su
+    // `ultimoEvento`, che il salvataggio della risposta ha appena rinfrescato.
+    ora = Date.parse('2026-08-09T00:00:00.000Z')
+    server = ambiente({
+      silenzioMassimoMs: 30 * 60_000,
+      adesso,
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' })
+    })
+    await avvia(server)
+    const id = await creaAp()
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+
+    await chiama('POST', `/hook/notification?ap=${id}`, {
+      session_id: 's-1', hook_event_name: 'Notification',
+      notification_type: 'permission_prompt', message: 'quale chiave uso?'
+    })
+    const domande = (await chiama('GET', `/domande?ap=${id}`)).dati
+
+    // Otto ore di attesa: e' l'utente che dorme, non la chat che si e' fermata.
+    ora += 8 * 60 * 60_000
+    await chiama('POST', `/domande/${domande[0].id}/risposta`, { risposta: 'la chiave A', da: 'modale' })
+
+    // Un minuto dopo la ripresa il guardiano gira.
+    ora += 60_000
+    server.controllaChatFerme()
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('lavoro')
+  })
+
   it('non sospende chi sta verificando i criteri', async () => {
     // I criteri sono seriali e possono durare minuti: sono lavoro, non
     // silenzio. Sospendere qui vorrebbe dire fermare un autopilota **perche**

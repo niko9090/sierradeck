@@ -55,7 +55,15 @@ export function chiTace(
   for (const chat of a.chats) {
     // Una chat finita ha smesso di parlare perché ha finito: contarla fra le
     // mute sospenderebbe le flotte proprio quando cominciano a concludere.
-    if (chat.stato === 'finita') continue
+    //
+    // E una chat **bloccata** sta aspettando una risposta da una persona. È il
+    // caso in cui il silenzio non dice niente sulla chat: dice che l'utente non
+    // ha ancora risposto, e una persona ha tutto il tempo che vuole — la
+    // domanda può arrivare di notte e trovare risposta la mattina dopo.
+    // Contarla voleva dire sospendere l'autopilota per la lentezza dell'utente,
+    // e dargli pure la colpa: «una chat non dà segnali» mentre era lei ad
+    // aspettare.
+    if (chat.stato === 'finita' || chat.stato === 'bloccata') continue
     /**
      * Il ripiego a due passi: prima il turno di **questa** chat, poi quello
      * dell'autopilota. Il secondo serve alle flotte nate prima di questa

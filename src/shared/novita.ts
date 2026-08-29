@@ -23,6 +23,16 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.34',
+    righe: [
+      '**I pulsanti delle scelte adesso ci sono anche nell’app.** Nella 0.12.33 erano comparsi solo nella pagina aperta dal browser: l’app del telefono è nativa e legge da un’altra strada, quindi lì la domanda si poteva ancora soltanto leggere. Adesso le opzioni sono pulsanti in tutt’e due.',
+      '**L’autopilota non si sospende più mentre aspetta te.** Una chat che ti aveva fatto una domanda veniva contata fra quelle «che non danno segnali»: passata l’ora, l’autopilota si sospendeva per la lentezza dell’utente, dando pure la colpa alla chat. Chi aspetta una persona non è fermo.',
+      '**E non si sospende più un istante dopo essere ripartito.** Se rispondevi la mattina a una domanda della notte, l’orologio del silenzio puntava ancora all’ultimo turno chiuso — otto ore prima — e il primo controllo lo fermava subito. Adesso l’orologio riparte quando un turno comincia.',
+      '**Il servizio degli autopiloti non muore più in silenzio.** Gira staccato dal programma, per giorni: un errore imprevisto in un punto scoperto lo faceva sparire, e con lui tutti gli autopiloti, senza lasciare una riga da nessuna parte. Adesso l’errore finisce nel registro e il servizio resta in piedi.',
+      '**Una richiesta che muore a metà non lascia più niente appeso.** Il telefono che esce dalla galleria o il cavo staccato lasciavano una lettura che non finiva mai: memoria che non tornava più indietro, su servizi che restano accesi per giorni.'
+    ]
+  },
+  {
     versione: '0.12.33',
     righe: [
       '**Dal telefono si risponde anche quando la chat chiede di scegliere.** Quando Claude Code disegna un elenco — «vuoi riprendere questa conversazione?», «posso scrivere questo file?» — non aspetta parole ma frecce e invio, e su un telefono quei tasti non esistono: si leggeva la domanda, si sapeva la risposta, e la chat restava ferma fino al ritorno al computer. Adesso le opzioni compaiono come pulsanti da toccare, sopra al campo di testo.',

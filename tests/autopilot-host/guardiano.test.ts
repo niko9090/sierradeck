@@ -117,3 +117,23 @@ describe('il motivo non indovina la causa', () => {
     expect(testo).toContain('turno molto lungo')
   })
 })
+
+describe('chi sta aspettando una persona non e muto', () => {
+  it('IL DIFETTO: una chat bloccata su una domanda non fa sospendere niente', () => {
+    // Una chat «bloccata» ha fatto una domanda e aspetta la risposta
+    // dell'utente. Il suo silenzio non dice niente su di lei: dice che nessuno
+    // ha ancora risposto — e una domanda puo' arrivare di notte e trovare
+    // risposta la mattina dopo. Contarla voleva dire sospendere l'autopilota
+    // per la lentezza dell'utente, dando pure la colpa alla chat.
+    const a = ap({ chats: [chat('ch-1', { stato: 'bloccata' })] })
+    expect(chiTace(a, () => ORA - 5 * 60 * 60_000, ORA, LIMITE)).toEqual([])
+  })
+
+  it('ma una sorella che lavora e tace viene vista lo stesso', () => {
+    // La chat bloccata non deve fare da scudo alle altre: e' lo stesso difetto
+    // per cui il guardiano era passato al conto per chat.
+    const a = ap({ chats: [chat('ch-1', { stato: 'bloccata' }), chat('ch-2')] })
+    const mute = chiTace(a, () => ORA - 5 * 60 * 60_000, ORA, LIMITE)
+    expect(mute.map((m) => m.chatId)).toEqual(['ch-2'])
+  })
+})

@@ -91,6 +91,21 @@ class Api(private val indirizzo: String, private val chiave: String?) {
             })
         )
 
+    /**
+     * Rispondere a un elenco di scelte del terminale.
+     *
+     * Si manda **il testo** dell'opzione toccata, non la sua posizione: la
+     * posizione la ricalcola il computer sullo schermo di adesso. Fra la lettura
+     * e l'arrivo del pollice passano secondi, e in quei secondi la domanda puo'
+     * essere cambiata — contare le frecce sulla vecchia vorrebbe dire concedere
+     * un permesso che nessuno ha concesso. Se non torna, il computer risponde
+     * 409 e qui arriva un `Errore`: non si preme niente.
+     */
+    suspend fun scegli(chat: String, opzione: String): Fatto =
+        json.decodeFromString(corpoTesto("/api/scegli", oggetto {
+            put("chat", chat); put("opzione", opzione)
+        }))
+
     suspend fun scrivi(chat: String, testo: String): Fatto =
         json.decodeFromString(corpoTesto("/api/scrivi", oggetto {
             put("chat", chat); put("testo", testo)

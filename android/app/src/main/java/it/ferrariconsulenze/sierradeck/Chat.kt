@@ -50,6 +50,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.size
@@ -162,6 +164,9 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
     // modo di sapere quale delle due sta vedendo.
     var guasto by remember(chat.id) { mutableStateOf<String?>(null) }
     var testo by remember(chat.id) { mutableStateOf("") }
+    // Quando una scelta non c'e' piu' nel momento del tocco: una riga, e sparisce
+    // al giro dopo. Senza, il tocco andrebbe a vuoto in silenzio.
+    var notaScelta by remember(chat.id) { mutableStateOf<String?>(null) }
     var menuAperto by remember { mutableStateOf(false) }
     var rinominando by remember { mutableStateOf(false) }
     var chiudendo by remember { mutableStateOf(false) }
@@ -301,6 +306,77 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
             modifier = Modifier.weight(1f).fillMaxWidth()
         )
         HorizontalDivider(color = Banco.incisione)
+
+        // ─── le scelte del terminale ───
+        // Quando Claude Code disegna un elenco non aspetta parole: aspetta una
+        // freccia e un invio, e su un telefono quei tasti non esistono. Si
+        // leggeva la domanda, si sapeva la risposta, e la chat restava ferma
+        // fino al ritorno al computer. Stanno **sopra** il campo di testo:
+        // quando c'e' una scelta aperta, e' quella la risposta.
+        val scelte = storia?.scelte
+        if (scelte != null && scelte.opzioni.isNotEmpty()) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .background(Banco.chassis)
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    "STA ASPETTANDO CHE TU SCELGA",
+                    color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp
+                )
+                Spacer(Modifier.height(6.dp))
+                for (o in scelte.opzioni) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 3.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Banco.fondo)
+                            .border(
+                                width = if (o.scelta) 2.dp else 1.dp,
+                                color = if (o.scelta) Banco.ambra else Banco.incisione,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .clickable {
+                                val quale = o.testo
+                                // Sparisce subito: un pulsante che resta invita a
+                                // premerlo due volte, e il secondo tocco finirebbe
+                                // nella domanda dopo.
+                                storia = storia?.copy(scelte = null)
+                                notaScelta = null
+                                scope.launch {
+                                    try {
+                                        api.scegli(chat.id, quale)
+                                    } catch (_: Exception) {
+                                        notaScelta = "La scelta è cambiata mentre toccavi: guarda di nuovo."
+                                    }
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "${o.numero}",
+                            color = Banco.testoQuieto,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(end = 10.dp)
+                        )
+                        Text(o.testo, color = Banco.testo, fontSize = 14.sp)
+                    }
+                }
+            }
+            HorizontalDivider(color = Banco.incisione)
+        }
+        val nota = notaScelta
+        if (nota != null) {
+            Text(
+                nota,
+                color = Banco.ambra, fontSize = 12.sp,
+                modifier = Modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 10.dp, vertical = 6.dp)
+            )
+        }
 
         // ─── campo di scrittura ───
         // Campo e invio dentro la stessa fascia, allineati in mezzo: prima erano

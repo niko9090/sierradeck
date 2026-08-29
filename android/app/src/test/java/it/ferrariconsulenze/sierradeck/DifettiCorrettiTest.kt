@@ -1,5 +1,6 @@
 package it.ferrariconsulenze.sierradeck
 
+import kotlinx.serialization.json.Json
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -140,6 +141,37 @@ class DifettiCorrettiTest {
             Avvisi.idAvviso(Avvisi.ID_FERMO, "ap-7"),
             Avvisi.idAvviso(Avvisi.ID_FERMO, "ap-7")
         )
+    }
+
+    // ── Le scelte del terminale ───────────────────────────────────────────
+
+    /** Come lo legge l'app vera: quello che non conosce non la fa cadere. */
+    private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
+
+    @Test
+    fun `un computer che non manda le scelte non rompe la chat`() {
+        // E' il caso normale per chi aggiorna il telefono prima del computer:
+        // senza il valore predefinito, la lettura fallirebbe **tutta** e al
+        // posto della conversazione ci sarebbe una schermata vuota.
+        val vecchio = """{"chat":"p-1","totale":2,"da":0,"righe":["a"],"grezze":["a"]}"""
+        val storia = json.decodeFromString<Storia>(vecchio)
+        assertEquals(null, storia.scelte)
+        assertEquals(1, storia.grezze.size)
+    }
+
+    @Test
+    fun `le scelte arrivano con l opzione su cui e fermo il cursore`() {
+        val nuovo = """{"chat":"p-1","totale":4,"da":0,"righe":[],"grezze":[],
+          "scelte":{"corrente":1,"opzioni":[
+            {"numero":1,"testo":"Si, riprendi","scelta":false},
+            {"numero":2,"testo":"No, comincia da capo","scelta":true}]}}"""
+        val storia = json.decodeFromString<Storia>(nuovo)
+        assertEquals(2, storia.scelte?.opzioni?.size)
+        assertEquals(1, storia.scelte?.corrente)
+        assertEquals(true, storia.scelte?.opzioni?.get(1)?.scelta)
+        // Il testo e' quello che l'app rimanda indietro quando lo tocchi: non
+        // la posizione, che il computer ricalcola sullo schermo di adesso.
+        assertEquals("No, comincia da capo", storia.scelte?.opzioni?.get(1)?.testo)
     }
 
     @Test
