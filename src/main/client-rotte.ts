@@ -5,6 +5,7 @@ import { paginaClient, ICONA_SVG, MANIFESTO } from './client-pagina'
 import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
 import { PREFERENZE_PREDEFINITE, tavolozza, type Preferenze } from '@shared/preferenze'
 import { validateNomeWorkspace } from './validation'
+import { scelteDiTerminale, tastiPerScegliere } from '@shared/scelte-terminale'
 
 /**
  * Cosa può fare il Client, e cosa no.
@@ -72,7 +73,14 @@ export type DipendenzeRotte = {
   rispondi: (idDomanda: string, risposta: string) => Promise<void>
   /** Le domande in attesa di risposta. */
   domande: () => Promise<{ id: string; autopilotaId: string; testo: string }[]>
-  /** Manda del testo a una chat, come se fosse stato digitato. */
+  /**
+   * Manda del testo a una chat, come se fosse stato digitato: il testo, e poi
+   * l'invio.
+   *
+   * Il testo puo' essere una sequenza di tasti — le frecce con cui ci si muove
+   * in un elenco di scelte — o addirittura vuoto, quando l'opzione voluta e'
+   * gia' quella evidenziata e serve il solo invio.
+   */
   scriviAChat: (idChat: string, testo: string) => void
   /**
    * Apre una chat nuova in una cartella già conosciuta.
@@ -408,6 +416,37 @@ export function rotteClient(deps: DipendenzeRotte) {
       return OK({ fatto: true })
     }
 
+    /**
+     * Rispondere a un riquadro di scelta, dal telefono.
+     *
+     * Non arriva un numero di riga ma **il testo dell'opzione toccata**, e qui
+     * si ricontrolla che quel testo sia ancora dov'era. E' l'unica cosa che
+     * rende sicuro premere un pulsante da lontano: fra il momento in cui la
+     * pagina ha letto lo schermo e il momento del tocco possono passare
+     * secondi, e in quei secondi il terminale puo' aver cambiato domanda. Contare
+     * le frecce sulla vecchia posizione vorrebbe dire premere invio su
+     * un'opzione che nessuno ha scelto — e una di quelle opzioni, quasi sempre,
+     * concede un permesso.
+     *
+     * Se non torna, non si tira a indovinare: si dice che e' cambiata e si
+     * rimanda a guardare.
+     */
+    if (r.metodo === 'POST' && r.percorso === '/api/scegli') {
+      const id = stringa(r.corpo, 'chat')
+      const voluta = stringa(r.corpo, 'opzione')
+      const trovata = deps.chat().find((c) => c.id === id)
+      if (trovata === undefined) return { stato: 404, corpo: { errore: 'chat non trovata' } }
+      const scelte = scelteDiTerminale(
+        (trovata.codaGrezza ?? trovata.coda ?? []).join(String.fromCharCode(10))
+      )
+      const dove = scelte?.opzioni.findIndex((o) => o.testo === voluta) ?? -1
+      if (scelte === undefined || dove < 0) {
+        return { stato: 409, corpo: { errore: 'la scelta e cambiata: guarda di nuovo' } }
+      }
+      deps.scriviAChat(id, tastiPerScegliere(scelte.corrente, dove))
+      return OK({ fatto: true })
+    }
+
     // Guardare dentro una chat: le ultime righe del suo terminale. È la
     // differenza fra sapere che «si muove» e sapere **cosa** sta facendo —
     // l'unica cosa che da fuori permette di decidere se serve intervenire.
@@ -421,7 +460,17 @@ export function rotteClient(deps: DipendenzeRotte) {
         righe: trovata.coda ?? [],
         // Le righe vestite. Restano anche quelle ripulite: una versione vecchia
         // dell'app Android legge quelle, e non deve trovarsi lo schermo vuoto.
-        grezze: trovata.codaGrezza ?? []
+        grezze: trovata.codaGrezza ?? [],
+        // Le scelte che il terminale sta aspettando, se ne sta aspettando.
+        //
+        // Si leggono qui e non sul telefono perche' qui si possono provare, e
+        // perche' un telefono con una versione vecchia della pagina non deve
+        // dover imparare a riconoscere un riquadro di scelta: se questo campo
+        // non gli arriva, per lui semplicemente non c'e' niente da toccare —
+        // com'era prima.
+        scelte: scelteDiTerminale(
+          (trovata.codaGrezza ?? trovata.coda ?? []).join(String.fromCharCode(10))
+        )
       })
     }
 

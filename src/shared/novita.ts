@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.33',
+    righe: [
+      '**Dal telefono si risponde anche quando la chat chiede di scegliere.** Quando Claude Code disegna un elenco — «vuoi riprendere questa conversazione?», «posso scrivere questo file?» — non aspetta parole ma frecce e invio, e su un telefono quei tasti non esistono: si leggeva la domanda, si sapeva la risposta, e la chat restava ferma fino al ritorno al computer. Adesso le opzioni compaiono come pulsanti da toccare, sopra al campo di testo.',
+      'La scelta viene ricontrollata sul computer nell’istante del tocco: se nel frattempo la domanda è cambiata non si preme niente e te lo dice, invece di dare una risposta a una domanda diversa.'
+    ]
+  },
+  {
     versione: '0.12.32',
     righe: [
       '**Un riquadro non a schermo non rompe più il suo terminale.** Quando un riquadro veniva coperto o nascosto, il terminale si adattava a un contenitore alto zero e finiva a **zero righe**: la prima riga che arrivava dal processo lo faceva cadere, con un errore che parlava della scrittura mentre la causa era passata mezzo minuto prima. Adesso, senza una misura vera, non si adatta niente e si riprova quando torna visibile.',

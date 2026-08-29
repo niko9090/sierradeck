@@ -413,7 +413,10 @@ export function App(): React.JSX.Element {
     // Separandoli, l'invio e' un tasto premuto dopo, come lo premerebbe una
     // persona.
     const idPty = riquadro.ptyId
-    window.gestore.pty.write(idPty, testo)
+    // Il testo puo' essere vuoto: succede rispondendo a un elenco di scelte dal
+    // telefono, quando l'opzione voluta e' gia' quella evidenziata e non serve
+    // nessuna freccia. Resta il solo invio.
+    if (testo !== '') window.gestore.pty.write(idPty, testo)
     setTimeout(() => window.gestore.pty.write(idPty, String.fromCharCode(13)), PAUSA_PRIMA_DELL_INVIO_MS)
   }), [])
 

@@ -198,6 +198,86 @@ describe('quello che il Client puo fare', () => {
     expect((r.corpo as { righe: string[] }).righe).toEqual(['npm test', '3 falliti'])
   })
 
+  // ── Rispondere a un riquadro di scelta, dal telefono ────────────────────
+  //
+  // Il difetto: dentro una chat c'era un campo di testo e basta. Quando Claude
+  // Code disegna un elenco di scelte non aspetta parole, aspetta frecce e
+  // invio — e su un telefono quei tasti non esistono. Si leggeva la domanda,
+  // si sapeva la risposta, e non c'era niente da toccare.
+
+  const SCHERMO = [
+    'Vuoi riprendere la conversazione?',
+    '',
+    '❯ 1. Si, riprendi',
+    '  2. No, comincia da capo'
+  ]
+
+  it('le scelte arrivano insieme alle righe: dal telefono diventano pulsanti', async () => {
+    const chat = [{ id: 'p-1', titolo: 'Gestore', cwd: 'C:\p', coda: SCHERMO }]
+    const r = await rotteClient(deps({ chat: () => chat }))(
+      { metodo: 'POST', percorso: '/api/dentro', corpo: { chat: 'p-1' } }
+    )
+    const scelte = (r.corpo as { scelte?: { opzioni: { testo: string }[] } }).scelte
+    expect(scelte?.opzioni.map((o) => o.testo)).toEqual(['Si, riprendi', 'No, comincia da capo'])
+  })
+
+  it('un terminale che non chiede niente non offre pulsanti', async () => {
+    const chat = [{ id: 'p-1', titolo: 'Gestore', cwd: 'C:\p', coda: ['npm test', '3 falliti'] }]
+    const r = await rotteClient(deps({ chat: () => chat }))(
+      { metodo: 'POST', percorso: '/api/dentro', corpo: { chat: 'p-1' } }
+    )
+    expect((r.corpo as { scelte?: unknown }).scelte).toBeUndefined()
+  })
+
+  it('scegliere manda le frecce e l invio, contati sullo schermo di adesso', async () => {
+    const chat = [{ id: 'p-1', titolo: 'Gestore', cwd: 'C:\p', coda: SCHERMO }]
+    let scritto: string | undefined
+    const r = await rotteClient(deps({
+      chat: () => chat,
+      scriviAChat: (_id, t) => { scritto = t }
+    }))({ metodo: 'POST', percorso: '/api/scegli', corpo: { chat: 'p-1', opzione: 'No, comincia da capo' } })
+    expect(r.stato).toBe(200)
+    // Una freccia giu': il cursore era sulla prima. L'invio lo aggiunge chi
+    // scrive nel terminale, dopo una pausa — frecce e invio nello stesso blocco
+    // sono un incollato, e un elenco non legge un incollato come tasti premuti.
+    expect(scritto).toBe('[B')
+  })
+
+  it('gia sull opzione giusta: nessuna freccia, resta il solo invio', async () => {
+    const chat = [{ id: 'p-1', titolo: 'Gestore', cwd: 'C:\p', coda: SCHERMO }]
+    let scritto: string | undefined
+    await rotteClient(deps({
+      chat: () => chat,
+      scriviAChat: (_id, t) => { scritto = t }
+    }))({ metodo: 'POST', percorso: '/api/scegli', corpo: { chat: 'p-1', opzione: 'Si, riprendi' } })
+    expect(scritto).toBe('')
+  })
+
+  it('IL PUNTO: se la domanda e cambiata non si preme niente', async () => {
+    // Fra quando la pagina ha letto le opzioni e quando il pollice arriva
+    // possono passare secondi. Contare le frecce sulla domanda vecchia vorrebbe
+    // dire premere invio su un'opzione che nessuno ha scelto — e quelle opzioni,
+    // quasi sempre, concedono un permesso.
+    const chat = [{ id: 'p-1', titolo: 'Gestore', cwd: 'C:\p', coda: [
+      '  1. Cancello tutto',
+      '❯ 2. Non cancellare niente'
+    ] }]
+    let scritto: string | undefined
+    const r = await rotteClient(deps({
+      chat: () => chat,
+      scriviAChat: (_id, t) => { scritto = t }
+    }))({ metodo: 'POST', percorso: '/api/scegli', corpo: { chat: 'p-1', opzione: 'Si, riprendi' } })
+    expect(r.stato).toBe(409)
+    expect(scritto).toBeUndefined()
+  })
+
+  it('una chat che non c e piu non fa premere niente', async () => {
+    const r = await rotteClient(deps())(
+      { metodo: 'POST', percorso: '/api/scegli', corpo: { chat: 'mai-esistita', opzione: 'Si' } }
+    )
+    expect(r.stato).toBe(404)
+  })
+
   it('non manda le righe nell elenco, che si chiede ogni due secondi', async () => {
     // Quattordici righe per chat ogni due secondi sono decine di kilobyte al
     // minuto sulla rete del telefono, per righe che nessuno sta guardando.

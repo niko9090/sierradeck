@@ -246,6 +246,27 @@ export function paginaClient(): string {
     background: var(--fondo-cupo); padding: var(--s2) 0;
   }
   .grande { font-size: var(--t4); line-height: 1.35; margin: var(--s2) 0; }
+  /* Un riquadro di scelta del terminale, reso toccabile.
+     Un elenco disegnato con le cornici si legge benissimo e non si puo'
+     premere: da un telefono non ci sono ne' frecce ne' invio. Qui ogni opzione
+     diventa un bersaglio alto abbastanza per un pollice, e sta sopra al campo
+     di testo perche' quando c'e' una scelta aperta e' quella la risposta. */
+  .scelte {
+    display: flex; flex-direction: column; gap: var(--s1);
+    border: 2px solid var(--ambra); border-radius: var(--raggio);
+    padding: var(--s2); margin-top: var(--s2); background: var(--chassis);
+  }
+  .scelta {
+    display: flex; align-items: center; gap: var(--s2); width: 100%; text-align: left;
+    min-height: 52px; padding: var(--s2) var(--s3); font-size: var(--t2);
+  }
+  /* Quella dove il cursore e' fermo adesso: e' anche quella che si prenderebbe
+     premendo invio e basta, quindi si vede da lontano quale sarebbe. */
+  .scelta--ora { border-color: var(--ambra); }
+  .scelta__n {
+    font-family: ui-monospace, Consolas, monospace; font-size: var(--t1);
+    color: var(--testo-quieto); min-width: 1.4em;
+  }
   /* Si e' fermato: rosso, e il LED **non** pulsa. Il lampeggio in tutto il
      programma significa una cosa sola — aspetta te — e «si e' fermato» non lo
      sta dicendo. */
@@ -455,6 +476,13 @@ var righeDentro = []
 var cartelle = null
 // Le stesse righe con i loro colori: si vestono qui, nel telefono.
 var righeGrezze = []
+// Le scelte che il terminale sta aspettando, quando ne aspetta: le riconosce il
+// computer e le manda gia' pronte. Senza, dal telefono un riquadro di scelta e'
+// una cosa che si legge e basta.
+var scelteDentro = null
+// Quando una scelta non c'e' piu': una riga, e sparisce da sola alla lettura
+// dopo. Senza, il tocco andrebbe a vuoto in silenzio e sembrerebbe un guasto.
+var notaScelta = null
 /** L'autopilota che si sta guardando dentro, e tutto quello che si sa di lui. */
 var dentroAp = null
 var apDettaglio = null
@@ -651,7 +679,11 @@ function impronta(s) {
   const qui = [
     dentro, dentroAp, pannelloAperto, schedaAperta && schedaAperta.file,
     scheda, altroAperto, delegando, delegaCartella, confermando, righeDentro.length,
-    righeDentro[righeDentro.length - 1] || '', giriFalliti >= 2
+    righeDentro[righeDentro.length - 1] || '', giriFalliti >= 2,
+    // Le scelte fanno comparire e sparire dei pulsanti: se non entrano
+    // nell'impronta, il riquadro di scelta arriva e la pagina non si ridisegna.
+    scelteDentro ? scelteDentro.corrente + ':' + scelteDentro.opzioni.map((o) => o.testo).join('/') : '',
+    notaScelta || ''
   ].join('|')
   return chat + '#' + aps + '#' + dom + '#' + ws + '#' + qui
 }
@@ -875,6 +907,15 @@ function pannello(s) {
         ? ansiInHtml(righeGrezze.join(String.fromCharCode(10)))
         : righeDentro.length ? esc(righeDentro.join(String.fromCharCode(10)))
         : 'Ancora niente da mostrare.'}</div>
+    \${scelteDentro
+      ? '<div class="scelte"><div class="serigrafia">sta aspettando che tu scelga</div>' +
+        scelteDentro.opzioni.map((o) =>
+          '<button class="scelta' + (o.scelta ? ' scelta--ora' : '') +
+          '" onclick="scegli(\\'' + escJs(o.testo) + '\\')">' +
+          '<span class="scelta__n">' + o.numero + '</span>' + esc(o.testo) + '</button>'
+        ).join('') + '</div>'
+      : ''}
+    \${notaScelta ? '<div class="sotto">' + esc(notaScelta) + '</div>' : ''}
     <div class="riga ancorata">
       <input id="t-\${esc(aperta.id)}" placeholder="scrivi qui e invia">
       <button onclick="scrivi('\${escJs(aperta.id)}')">Invia</button>
@@ -1115,10 +1156,12 @@ window.guarda = async (id) => {
   dentro = id
   righeDentro = []
   righeGrezze = []
+  scelteDentro = null
+  notaScelta = null
   await leggiDentro()
   pannello(ultimoStato)
 }
-window.chiudiDentro = () => { dentro = null; righeDentro = []; righeGrezze = []; pannello(ultimoStato) }
+window.chiudiDentro = () => { dentro = null; righeDentro = []; righeGrezze = []; scelteDentro = null; notaScelta = null; pannello(ultimoStato) }
 
 async function leggiDentro() {
   if (!dentro) return
@@ -1126,12 +1169,15 @@ async function leggiDentro() {
     const r = await chiedi('/api/dentro', { chat: dentro })
     righeDentro = r.righe || []
     righeGrezze = r.grezze || []
+    scelteDentro = r.scelte || null
+    if (scelteDentro) notaScelta = null
   } catch (e) {
     // Una chat chiusa al computer mentre la si guardava: si torna all'elenco
     // invece di restare su un riquadro che non esiste piu'.
     dentro = null
     righeDentro = []
     righeGrezze = []
+    scelteDentro = null
   }
 }
 
@@ -1509,6 +1555,34 @@ window.scrivi = async (id) => {
   if (!campo || !campo.value.trim()) return
   await chiedi('/api/scrivi', { chat: id, testo: campo.value })
   campo.value = ''
+}
+/**
+ * Rispondere a un riquadro di scelta con un dito.
+ *
+ * Si manda **il testo** dell'opzione toccata, non la sua posizione: la
+ * posizione la ricalcola il computer sullo schermo di adesso. Fra quando la
+ * pagina ha letto le opzioni e quando il pollice arriva possono passare
+ * secondi, e in quei secondi la domanda puo' essere cambiata — contare le
+ * frecce sulla vecchia vorrebbe dire dare un permesso che nessuno ha dato.
+ *
+ * Se non torna piu', si dice e si rilegge: mai tirare a indovinare su una
+ * scelta.
+ */
+window.scegli = async (testo) => {
+  if (!dentro) return
+  const chat = dentro
+  // Sparisce subito: un pulsante che resta li' invita a premerlo due volte, e
+  // il secondo tocco andrebbe a finire nella domanda dopo.
+  scelteDentro = null
+  notaScelta = null
+  pannello(ultimoStato)
+  try {
+    await chiedi('/api/scegli', { chat: chat, opzione: testo })
+  } catch (e) {
+    notaScelta = 'La scelta e cambiata mentre toccavi: guarda di nuovo.'
+  }
+  await leggiDentro()
+  pannello(ultimoStato)
 }
 /**
  * Cambia destinazione.
