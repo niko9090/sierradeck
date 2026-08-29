@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
+import { adattaSePuoi } from '../adatta-terminale'
 
 /**
  * Il terminale sul server, dentro il pannello dei file.
@@ -40,7 +41,7 @@ export function TerminaleRemoto(
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(nodo)
-    fit.fit()
+    adattaSePuoi(fit)
 
     /**
      * Il numero della shell arriva **dopo**, e nel frattempo si può già
@@ -86,7 +87,7 @@ export function TerminaleRemoto(
       })
 
     const osservatore = new ResizeObserver(() => {
-      fit.fit()
+      if (!adattaSePuoi(fit)) return
       if (numero !== undefined) {
         void window.gestore.trasferimenti.ridimensionaGuscio(numero, term.cols, term.rows)
       }

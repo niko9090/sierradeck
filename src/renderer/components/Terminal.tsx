@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { adattaSePuoi } from '../adatta-terminale'
 import '@xterm/xterm/css/xterm.css'
 import { ptyBus } from '../pty-bus'
 import { creaAggancio } from '../aggancio'
@@ -91,7 +92,10 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(container)
-    fit.fit()
+    // Solo se il contenitore ha una misura: un riquadro non ancora a schermo
+    // propone zero righe, e un terminale a zero righe si rompe alla prima
+    // riga che riceve. Ci ripensa il `ResizeObserver` appena diventa visibile.
+    adattaSePuoi(fit)
 
     // Prima di qualunque richiesta: il bus si iscrive al canale quando viene
     // creato, e gli eventi che precedono l'arrivo dell'id devono trovarlo già in
@@ -178,7 +182,10 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
 
     const onData = term.onData((data) => aggancio.scrivi(data))
     const observer = new ResizeObserver(() => {
-      fit.fit()
+      // Zero pixel non vuol dire «fammi piccolo», vuol dire «non sono a
+      // schermo»: adattarsi lo porterebbe a zero righe, e la prima riga in
+      // arrivo lo farebbe cadere — lontano da qui, dentro `write`.
+      if (!adattaSePuoi(fit)) return
       // Il ridimensionamento è anche ciò che fa ridisegnare l'interfaccia di
       // Claude Code dopo un riaggancio, coprendo l'eventuale schermata
       // parziale ricostruita da uno scrollback troncato.

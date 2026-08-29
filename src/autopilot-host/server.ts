@@ -330,11 +330,21 @@ export type ServerAutopiloti = Server & {
  *
  * Il numero viene da come si è manifestato il difetto: una chat rimasta muta
  * **34 minuti** ad aspettare una shell che aveva lanciato lei, con l'autopilota
- * che diceva «al lavoro, 0 interventi». Sotto la mezz'ora ci stanno i turni
- * lunghi veri — leggere un progetto, far girare una suite — e sospenderli
- * sarebbe fermare un autopilota **perché** sta facendo il suo lavoro.
+ * che diceva «al lavoro, 0 interventi».
+ *
+ * Era mezz'ora, e mezz'ora si è rivelata poca: «sotto la mezz'ora ci stanno i
+ * turni lunghi veri» era una stima, e sul campo si è vista sbagliare. Un turno
+ * che compila un'app Android e pubblica tre volte passa i quaranta minuti senza
+ * essere fermo un istante, e il guardiano lo ha sospeso — cioè ha fermato un
+ * autopilota **perché** stava facendo il suo lavoro.
+ *
+ * Il danno non è simmetrico, ed è questo a decidere il numero. Sospendere per
+ * sbaglio ferma del lavoro che andava bene, e chi lo ha lanciato lo scopre
+ * dopo. Accorgersi tardi di una chat davvero impiantata costa **solo attesa**:
+ * non si rompe niente, arriva più tardi un avviso. Fra i due errori si sceglie
+ * di sbagliare per pazienza.
  */
-const SILENZIO_MASSIMO_MS = 30 * 60_000
+const SILENZIO_MASSIMO_MS = 60 * 60_000
 
 /**
  * Quanta uscita di un comando si tiene accanto al criterio.

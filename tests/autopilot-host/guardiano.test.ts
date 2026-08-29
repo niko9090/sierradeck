@@ -104,3 +104,16 @@ describe('il motivo che legge chi guarda', () => {
     expect(testo).toContain('40 min')
   })
 })
+
+describe('il motivo non indovina la causa', () => {
+  it('non dice che la chat e ferma: dice che non da segnali', () => {
+    // Le spiegazioni sono due — impiantata, oppure dentro un turno lungo e
+    // vivo — e presentarne una sola come la causa manda a cercare il guasto
+    // dalla parte sbagliata. E' successo davvero: un turno di quaranta minuti
+    // che compilava e pubblicava e' stato sospeso con scritto «forse e' ferma
+    // su un comando che non finisce».
+    const testo = motivoSilenzio([{ da: 61 * 60_000 }])
+    expect(testo).toContain('nessun segnale dalla chat da 61 minuti')
+    expect(testo).toContain('turno molto lungo')
+  })
+})

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { adattaSePuoi } from '../adatta-terminale'
 import '@xterm/xterm/css/xterm.css'
 import { ptyBus } from '../pty-bus'
 
@@ -39,7 +40,7 @@ export function TerminaleSemplice({ ptyId, altezza = 260 }: Props): React.JSX.El
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(nodo)
-    fit.fit()
+    adattaSePuoi(fit)
 
     const bus = ptyBus()
     const smetti = bus.ascolta(ptyId, (msg) => {
@@ -50,7 +51,9 @@ export function TerminaleSemplice({ ptyId, altezza = 260 }: Props): React.JSX.El
 
     const dati = term.onData((d) => window.gestore.pty.write(ptyId, d))
     const osservatore = new ResizeObserver(() => {
-      fit.fit()
+      // Senza misura non si tocca niente: `0×0` romperebbe il terminale qui e
+      // arriverebbe anche al pty, dove diventa un secondo guasto.
+      if (!adattaSePuoi(fit)) return
       window.gestore.pty.resize(ptyId, term.cols, term.rows)
     })
     osservatore.observe(nodo)

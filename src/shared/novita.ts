@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.32',
+    righe: [
+      '**Un riquadro non a schermo non rompe più il suo terminale.** Quando un riquadro veniva coperto o nascosto, il terminale si adattava a un contenitore alto zero e finiva a **zero righe**: la prima riga che arrivava dal processo lo faceva cadere, con un errore che parlava della scrittura mentre la causa era passata mezzo minuto prima. Adesso, senza una misura vera, non si adatta niente e si riprova quando torna visibile.',
+      '**L’autopilota non si ferma più durante un turno lungo.** Il guardiano aspettava mezz’ora di silenzio: ma un turno che compila e pubblica passa i quaranta minuti senza essere fermo un istante, e veniva sospeso proprio **perché** stava lavorando. Adesso aspetta un’ora — accorgersi tardi di una chat davvero impiantata costa solo attesa, fermare per sbaglio costa lavoro.',
+      '**E quando si ferma non indovina più il motivo:** dice da quanto non arrivano segnali e che può essere l’una o l’altra cosa, invece di mandarti a cercare un guasto che magari non c’è.'
+    ]
+  },
+  {
     versione: '0.12.31',
     righe: [
       '**App: l’indirizzo del computer si scrive anche con un percorso dietro.** «192.168.1.5/deck» finiva con la porta in fondo a tutto — «…/deck:47640», che non è l’indirizzo di niente — e un codice QR con i due punti dentro faceva credere che la porta ci fosse già.',

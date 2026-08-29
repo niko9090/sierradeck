@@ -70,21 +70,29 @@ export function chiTace(
   return mute
 }
 
-/** Il motivo che legge chi guarda il pannello: dice **quale** chat tace. */
+/**
+ * Il motivo che legge chi guarda il pannello.
+ *
+ * Dice **quale** chat tace e da quanto, e si ferma lì. Prima aggiungeva «forse
+ * è ferma su un comando che non finisce»: è una delle due spiegazioni possibili
+ * — l'altra è un turno lungo e vivo — presentata come se fosse la sola. Un
+ * messaggio che indovina la causa manda a cercare il guasto dalla parte
+ * sbagliata, e costa più del silenzio.
+ */
 export function motivoSilenzio(mute: ChatMuta[]): string {
   const minuti = (ms: number): number => Math.round(ms / 60_000)
+  const coda =
+    ' Può essere ferma su un comando che non finisce, o dentro un turno molto' +
+    ' lungo: guarda com’è messa, poi riprendi o ferma.'
   const sola = mute.length === 1 ? mute[0] : undefined
   if (sola !== undefined && sola.chatId === undefined) {
-    return (
-      `nessun segnale dalla chat da ${minuti(sola.da)} minuti: forse è ferma su un comando` +
-      ' che non finisce. Guardala, poi riprendila o fermala.'
-    )
+    return `nessun segnale dalla chat da ${minuti(sola.da)} minuti.${coda}`
   }
   const elenco = mute
     .map((m) => `«${m.compito ?? m.chatId ?? '?'}» (${minuti(m.da)} min)`)
     .join(', ')
   return (
-    `${mute.length === 1 ? 'una chat è muta' : `${mute.length} chat sono mute`}: ${elenco}. ` +
-    'Forse sono ferme su un comando che non finisce. Guardale, poi riprendi o ferma.'
+    `${mute.length === 1 ? 'una chat non dà segnali' : `${mute.length} chat non danno segnali`}: ` +
+    `${elenco}.${coda}`
   )
 }
