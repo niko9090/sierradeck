@@ -46,7 +46,24 @@ export type Consegna = {
 
 export type Consegne = {
   metti: (c: Omit<Consegna, 'id'>) => Consegna
-  /** Ritira tutto quello che c'è, e svuota: chi ritira si prende la responsabilità. */
+  /**
+   * Consegna quello che c'è, **senza svuotare**.
+   *
+   * Prima si svuotava qui, e la coda si fidava della rete: una risposta persa
+   * per strada, il Gestore chiuso un istante dopo, o una consegna arrivata
+   * quando non c'era nessuna finestra dove metterla, e l'istruzione spariva —
+   * con l'autopilota fermo ad aspettare la risposta a un messaggio che nessuno
+   * ha mai scritto. Adesso resta in coda finché chi l'ha presa non conferma.
+   *
+   * Il prezzo è che una consegna può arrivare **due volte** (presa, confermata
+   * mai, riconsegnata): per questo ognuna ha un `id`, e chi la riceve scarta
+   * quelli che ha già visto. Consegnare due volte si rimedia con una riga;
+   * perdere un'istruzione no.
+   */
+  ritira: (adesso?: number) => Consegna[]
+  /** «Sono arrivate»: solo adesso escono dalla coda. */
+  conferma: (ids: string[]) => number
+  /** Ritira e conferma in un colpo: comodo dove non c'è rete di mezzo. */
   preleva: () => Consegna[]
   inAttesa: () => number
   /** Toglie le consegne di un autopilota: fermarlo non deve lasciargli ordini in coda. */
@@ -61,8 +78,29 @@ export type Consegne = {
  */
 const TETTO = 50
 
+/**
+ * Quanto si aspetta una conferma prima di riconsegnare.
+ *
+ * Il Gestore passa ogni secondo e mezzo: senza questa attesa la stessa
+ * istruzione gli arriverebbe tre o quattro volte prima ancora che abbia finito
+ * di scriverla, e la deduplica dall'altra parte dovrebbe reggere da sola.
+ */
+export const RICONSEGNA_MS = 20_000
+
+/**
+ * Quante volte si riprova a consegnare la stessa cosa.
+ *
+ * Una consegna che non arriva mai — la chat non esiste più, la finestra non si
+ * apre — resterebbe altrimenti in coda per sempre, riproposta ogni venti
+ * secondi fino a spegnimento. Dopo qualche tentativo si lascia andare: è
+ * un'istruzione persa, ma persa **rumorosamente**, che è tutt'altra cosa.
+ */
+export const TENTATIVI_MAX = 5
+
+type InCoda = { consegna: Consegna; consegnataIl?: number; tentativi: number }
+
 export function creaConsegne(): Consegne {
-  const coda: Consegna[] = []
+  const coda: InCoda[] = []
   let prossimo = 0
 
   return {
@@ -74,16 +112,51 @@ export function creaConsegne(): Consegne {
       // consegnarle entrambe farebbe lavorare la chat su un ordine già
       // superato prima ancora di leggere quello buono.
       const vecchia = coda.findIndex(
-        (x) => x.chatId === c.chatId && x.autopilotaId === c.autopilotaId && x.cosa === c.cosa
+        (x) => x.consegna.chatId === c.chatId
+          && x.consegna.autopilotaId === c.autopilotaId
+          && x.consegna.cosa === c.cosa
       )
       if (vecchia !== -1) coda.splice(vecchia, 1)
-      coda.push(consegna)
+      coda.push({ consegna, tentativi: 0 })
       if (coda.length > TETTO) coda.splice(0, coda.length - TETTO)
       return consegna
     },
 
+    ritira(adesso = Date.now()) {
+      const fuori: Consegna[] = []
+      for (let i = coda.length - 1; i >= 0; i -= 1) {
+        const riga = coda[i]
+        if (riga === undefined) continue
+        // Consegnata da poco e non ancora confermata: si aspetta. Chi l'ha
+        // presa sta probabilmente ancora scrivendola dentro la chat.
+        if (riga.consegnataIl !== undefined && adesso - riga.consegnataIl < RICONSEGNA_MS) continue
+        if (riga.tentativi >= TENTATIVI_MAX) {
+          console.warn(
+            `[consegne] ${riga.consegna.id} lasciata andare dopo ${riga.tentativi} tentativi: ` +
+            `nessuno l'ha confermata`
+          )
+          coda.splice(i, 1)
+          continue
+        }
+        riga.consegnataIl = adesso
+        riga.tentativi += 1
+        fuori.unshift(riga.consegna)
+      }
+      return fuori
+    },
+
+    conferma(ids) {
+      let tolte = 0
+      for (let i = coda.length - 1; i >= 0; i -= 1) {
+        if (!ids.includes(coda[i]?.consegna.id ?? '')) continue
+        coda.splice(i, 1)
+        tolte += 1
+      }
+      return tolte
+    },
+
     preleva() {
-      const tutte = [...coda]
+      const tutte = coda.map((x) => x.consegna)
       coda.length = 0
       return tutte
     },
@@ -92,7 +165,7 @@ export function creaConsegne(): Consegne {
 
     dimentica(autopilotaId) {
       for (let i = coda.length - 1; i >= 0; i -= 1) {
-        if (coda[i]?.autopilotaId === autopilotaId) coda.splice(i, 1)
+        if (coda[i]?.consegna.autopilotaId === autopilotaId) coda.splice(i, 1)
       }
     }
   }

@@ -23,6 +23,22 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.29',
+    righe: [
+      '**L’autopilota non chiude più un lavoro di cui non ha potuto controllare una parte.** Se il comando di verifica di un criterio non parte nemmeno — un errore di sintassi, un programma che non c’è — quel criterio non è verde: è ignoto. Prima passava per buono e il lavoro si chiudeva lo stesso. Adesso l’autopilota lo dice e chiede a te se chiudere o correggere il comando: non insiste a vuoto, ma nemmeno dichiara finito quello che non ha visto.',
+      '**Un criterio scaduto si porta via anche quello che aveva avviato.** Prima veniva chiuso solo il comando, e quello che aveva lanciato — un server di prova, un bundler — restava acceso: teneva la porta occupata e faceva fallire il tentativo dopo per «indirizzo già in uso».',
+      '**Le istruzioni dell’autopilota non si perdono più per strada.** Restano in coda finché non sono davvero finite dentro una chat: prima bastava chiudere SierraDeck nell’istante sbagliato, o non avere nessuna finestra aperta, e l’istruzione spariva — con l’autopilota fermo ad aspettare la risposta a un messaggio che nessuno aveva mai scritto.'
+    ]
+  },
+  {
+    versione: '0.12.28',
+    righe: [
+      '**I file si spostano a gruppi, e le cartelle intere.** Nel pannello «⇅ File» si sceglie con Ctrl e Maiusc come in qualunque elenco, si trascina da una parte all’altra, e si può lasciar cadere roba presa da Esplora risorse. Le cartelle vengono contate prima di partire, così la barra dice davvero quanto manca; un file che non passa segna sé stesso e non ferma gli altri.',
+      '**C’è un terminale sul server**, sotto le due colonne: carichi un file e riavvii il servizio che lo legge senza cambiare finestra.',
+      '**Si vede cosa è più nuovo di qua e cosa di là.** È la ragione per cui si riapre un programma di trasferimento la seconda volta: senza, si ricarica tutto «per sicurezza», ed è così che si sovrascrive una correzione fatta sul server.'
+    ]
+  },
+  {
     versione: '0.12.27',
     righe: [
       '**C’è un FileZilla dentro SierraDeck, e i server sono del progetto.** Nella fascia c’è «⇅ File»: a sinistra i file di questo computer, a destra il server del progetto che hai davanti. Si sfoglia da tutte e due le parti, si scarica e si carica. I server si aggiungono **per cartella**, non in un elenco unico: apri la chat di un progetto e vedi i suoi, e nessun altro.',

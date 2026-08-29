@@ -146,6 +146,64 @@ export function nonMisurabile(codice: number, uscita: string): boolean {
 const GRAZIA_CHIUSURA_MS = 200
 
 /**
+ * Come si ammazza un albero di processi, su questo sistema.
+ *
+ * Pura di proposito: la parte che si sbaglia non e' uccidere, e' **chi** si
+ * uccide, e su Windows non si puo' provare ammazzando roba per davvero dentro
+ * un test.
+ */
+export function modoDiTerminare(
+  pid: number,
+  piattaforma: string
+): { tipo: 'taskkill'; file: string; argomenti: string[] } | { tipo: 'gruppo'; pid: number } {
+  // `/T` e' tutta la differenza: senza, `taskkill` chiude la shell e lascia in
+  // vita quello che la shell aveva avviato.
+  if (piattaforma === 'win32') {
+    return { tipo: 'taskkill', file: 'taskkill', argomenti: ['/PID', String(pid), '/T', '/F'] }
+  }
+  // Il pid negativo e' il **gruppo**, non il processo: e' l'unico modo di
+  // prendere anche i nipoti, e funziona perche' il figlio nasce `detached`, cioe'
+  // capo di un gruppo suo.
+  return { tipo: 'gruppo', pid: -pid }
+}
+
+/**
+ * Chiude un comando scaduto **e tutto quello che ha avviato**.
+ *
+ * `figlio.kill()` uccideva la sola shell. Un criterio come
+ * `npm run dev & sleep 6; curl ...` lascia in piedi un albero — node, il
+ * bundler, il browser di prova — che la morte della shell non tocca: resta
+ * acceso, tiene la porta occupata, e il giro dopo lo stesso criterio fallisce
+ * per «indirizzo gia' in uso». Cioe' il timeout, invece di ripulire, avvelenava
+ * i tentativi successivi.
+ */
+export function terminaAlbero(
+  pid: number | undefined,
+  strumenti: {
+    piattaforma?: string
+    esegui?: (file: string, argomenti: string[]) => void
+    uccidi?: (pid: number, segnale: NodeJS.Signals) => void
+    ripiego?: () => void
+  } = {}
+): void {
+  if (pid === undefined) return
+  const piattaforma = strumenti.piattaforma ?? process.platform
+  const esegui = strumenti.esegui ?? ((file, argomenti) => {
+    spawn(file, argomenti, { windowsHide: true, stdio: 'ignore' }).unref()
+  })
+  const uccidi = strumenti.uccidi ?? ((p, segnale) => process.kill(p, segnale))
+  const modo = modoDiTerminare(pid, piattaforma)
+  try {
+    if (modo.tipo === 'taskkill') esegui(modo.file, modo.argomenti)
+    else uccidi(modo.pid, 'SIGKILL')
+  } catch {
+    // Il gruppo puo' essere gia' morto, o `taskkill` non esserci: si prova
+    // almeno con la strada di prima, che e' meglio di niente.
+    strumenti.ripiego?.()
+  }
+}
+
+/**
  * Esegue davvero un comando, con un tetto di tempo.
  *
  * Il tetto non è prudenza generica: l'hook che attende questa risposta ha un
@@ -174,6 +232,10 @@ export function esecutoreReale(timeoutMs: number = TIMEOUT_PREDEFINITO_MS): Esec
       const figlio = spawn(file, argomenti, {
         cwd,
         windowsHide: true,
+        // Su POSIX il figlio nasce capo di un gruppo suo: e' l'unico modo di
+        // poter poi ammazzare anche i nipoti. Su Windows non serve — `taskkill
+        // /T` cammina l'albero da solo — e `detached` li' aprirebbe una console.
+        detached: process.platform !== 'win32',
         // Niente ingresso: un criterio che chiedesse qualcosa resterebbe lì per
         // sempre, e non c'è nessuno che possa rispondergli.
         stdio: ['ignore', 'pipe', 'pipe']
@@ -192,7 +254,7 @@ export function esecutoreReale(timeoutMs: number = TIMEOUT_PREDEFINITO_MS): Esec
       let interrotto = false
       const orologio = setTimeout(() => {
         interrotto = true
-        figlio.kill()
+        terminaAlbero(figlio.pid, { ripiego: () => { figlio.kill() } })
       }, timeoutMs)
 
       const rispondi = (codice: number, coda = ''): void => {

@@ -43,7 +43,11 @@ export type Dipendenze = {
    * direzione sola - quindi le mette qui e il Gestore le ritira quando passa.
    * Assente quando l'autopilota lavora ancora per conto suo.
    */
-  consegne?: { preleva: () => unknown[]; inAttesa: () => number }
+  consegne?: {
+    ritira: (adesso?: number) => unknown[]
+    conferma: (ids: string[]) => number
+    inAttesa: () => number
+  }
   domande: RegistroDomande
   /** Quanto la chat resta ferma ad aspettare una risposta prima di lasciar perdere. */
   scadenzaDomandaMs: number
@@ -1438,7 +1442,20 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // Il Gestore passa a ritirare: quello che si porta via lo scrive dentro
         // le chat, ed e' l'unico che puo' farlo.
         if (metodo === 'GET' && percorso === '/consegne') {
-          rispondi(res, 200, { consegne: deps.consegne?.preleva() ?? [] })
+          // **Non svuota.** Le consegne restano finche' il Gestore non conferma
+          // di averle scritte: una risposta persa per strada, o il Gestore
+          // chiuso un istante dopo, cancellava un'istruzione e lasciava
+          // l'autopilota ad aspettare una risposta che nessuno avrebbe scritto.
+          rispondi(res, 200, { consegne: deps.consegne?.ritira() ?? [] })
+          return
+        }
+
+        if (metodo === 'POST' && percorso === '/consegne/conferma') {
+          const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
+          const ids = Array.isArray(corpo?.ids)
+            ? corpo.ids.filter((x): x is string => typeof x === 'string')
+            : []
+          rispondi(res, 200, { confermate: deps.consegne?.conferma(ids) ?? 0 })
           return
         }
 

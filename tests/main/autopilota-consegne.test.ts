@@ -121,3 +121,68 @@ describe('dove va consegnata', () => {
     expect(cerca).not.toHaveBeenCalled()
   })
 })
+
+describe('la conferma al servizio', () => {
+  it('conferma solo quello che e stato davvero consegnato', async () => {
+    // La conferma va **dopo** la consegna, mai prima: confermare per poi non
+    // riuscire a scrivere e' esattamente il difetto che si sta chiudendo — il
+    // servizio toglierebbe l'istruzione dalla coda e nessuno l'avrebbe scritta.
+    const confermati: string[][] = []
+    const ferma = avviaRitiro({
+      chiedi: () => Promise.resolve({ consegne: [buona] }),
+      // Nessuna finestra dove metterla: non si conferma.
+      consegna: () => false,
+      conferma: async (ids) => { confermati.push(ids) },
+      attesaMs: 5
+    })
+    await new Promise((r) => setTimeout(r, 40))
+    ferma()
+    expect(confermati).toEqual([])
+  })
+
+  it('conferma quando la consegna riesce', async () => {
+    const confermati: string[][] = []
+    const ferma = avviaRitiro({
+      chiedi: () => Promise.resolve({ consegne: [buona] }),
+      consegna: () => true,
+      conferma: async (ids) => { confermati.push(ids) },
+      attesaMs: 5
+    })
+    await vi.waitFor(() => expect(confermati.length).toBeGreaterThan(0))
+    ferma()
+    expect(confermati[0]).toEqual([buona.id])
+  })
+
+  it('la stessa consegna non si scrive due volte', async () => {
+    // Il prezzo dell'ack e' che una consegna puo' tornare: presa, conferma
+    // persa, riconsegnata. Scriverla due volte dentro una chat sarebbe peggio
+    // che perderla — la chat lavorerebbe due volte sullo stesso ordine, e
+    // l'autopilota si troverebbe due risposte a una domanda sola.
+    let scritte = 0
+    const confermati: string[][] = []
+    const ferma = avviaRitiro({
+      chiedi: () => Promise.resolve({ consegne: [buona] }),
+      consegna: () => { scritte += 1; return true },
+      conferma: async (ids) => { confermati.push(ids) },
+      attesaMs: 5
+    })
+    await vi.waitFor(() => expect(confermati.length).toBeGreaterThan(2))
+    ferma()
+    expect(scritte).toBe(1)
+    // Riconfermata a ogni giro, pero': la conferma di prima puo' essersi persa.
+    expect(confermati.every((ids) => ids[0] === buona.id)).toBe(true)
+  })
+
+  it('senza conferma configurata si comporta come prima', async () => {
+    // Un servizio vecchio rimasto vivo dopo un aggiornamento non ha la rotta di
+    // conferma: il ritiro deve continuare a funzionare lo stesso.
+    const viste: Consegna[] = []
+    const ferma = avviaRitiro({
+      chiedi: () => Promise.resolve({ consegne: [buona] }),
+      consegna: (c) => { viste.push(c); return true },
+      attesaMs: 5
+    })
+    await vi.waitFor(() => expect(viste.length).toBeGreaterThan(0))
+    ferma()
+  })
+})

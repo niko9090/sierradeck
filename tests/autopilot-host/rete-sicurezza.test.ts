@@ -50,10 +50,19 @@ describe('applicaRete', () => {
     expect(applicaRete(CTX([PASSATO]), { azione: 'finito' }).mossa.tipo).toBe('finito')
   })
 
-  it('un criterio non misurabile non impedisce di chiudere se il resto passa', () => {
-    // Non e' un fallimento: e' un dato mancante. A deciderlo e' il supervisore,
-    // che il quadro ce l'ha.
-    expect(applicaRete(CTX([NON_MISURABILE]), { azione: 'finito' }).mossa.tipo).toBe('finito')
+  it('un criterio non misurabile non fa chiudere: fa chiedere', () => {
+    // **Regola cambiata di proposito.** Prima si lasciava chiudere: un criterio
+    // non misurato non e' un fallimento, e' un dato mancante, e si dava la
+    // decisione al supervisore «che il quadro ce l'ha». Ma il supervisore il
+    // quadro lo legge dalla chat, non dal comando che non e' partito: chiudere
+    // li' vuol dire dichiarare finito un lavoro di cui una parte non e' mai
+    // stata controllata.
+    //
+    // Nemmeno si insiste, pero': il comando rotto resta rotto — la riparazione
+    // automatica ha gia' provato in questo stesso giro — e proseguire vorrebbe
+    // dire girare fino a un tetto. Si chiede a chi puo' deciderlo davvero.
+    expect(applicaRete(CTX([NON_MISURABILE]), { azione: 'finito' }).mossa.tipo)
+      .toBe('chiediUtente')
   })
 
   it('prosegue con le istruzioni del supervisore', () => {
@@ -134,5 +143,30 @@ describe('applicaRete', () => {
   it('senza supervisore ed esaurite le strade, chiede all utente', () => {
     const fuori = 3 + STRATEGIE.length
     expect(applicaRete(CTX([BOCCIATO], fuori), undefined).mossa.tipo).toBe('chiediUtente')
+  })
+})
+
+describe('chiudere con criteri mai misurati', () => {
+  it('«finito» non passa se un comando non e nemmeno partito', () => {
+    // Il caso che scappava: un criterio non misurato non boccia niente, quindi
+    // `fallitiDavvero` lo ignora e la porta di «finito» restava aperta. Il
+    // lavoro si chiudeva con una parte mai controllata — il fallimento
+    // silenzioso peggiore che questo sistema possa produrre.
+    const { mossa, nota } = applicaRete(CTX([NON_MISURABILE]), { azione: 'finito' })
+    expect(mossa.tipo).toBe('chiediUtente')
+    expect(nota).toContain('non misurati')
+  })
+
+  it('con tutti i criteri misurati e verdi, «finito» passa come prima', () => {
+    expect(applicaRete(CTX([PASSATO]), { azione: 'finito' }).mossa.tipo).toBe('finito')
+  })
+
+  it('un criterio verde accanto a uno non misurato non basta', () => {
+    // Il pericolo vero: la maggioranza verde fa sembrare tutto a posto.
+    const altroVerde: EsitoVerifica = {
+      descrizione: 'compila', comando: 'npm run build', passato: true, uscita: 'ok'
+    }
+    const { mossa } = applicaRete(CTX([altroVerde, NON_MISURABILE]), { azione: 'finito' })
+    expect(mossa.tipo).not.toBe('finito')
   })
 })

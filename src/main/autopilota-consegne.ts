@@ -139,15 +139,40 @@ export function finestraPerConsegna(
 }
 
 /**
+ * Quanti id di consegne già scritte si ricordano.
+ *
+ * Serve solo a non riscrivere due volte la stessa istruzione quando la conferma
+ * si perde e il servizio riconsegna. Cento è molto più di quante ne possano
+ * essere in volo insieme, e non cresce.
+ */
+export const RICORDATE_MAX = 100
+
+/**
  * Passa a ritirare finché non gli si dice di smettere.
  *
  * Un giro che fallisce non ferma i successivi: il servizio può essere spento,
  * in avvio, o appena caduto, e sono tutti casi normali — l'unica risposta
  * sensata è riprovare fra un secondo e mezzo.
+ *
+ * ## Perché si conferma
+ *
+ * Il servizio non svuota più la coda quando si ritira: aspetta di sapere che
+ * l'istruzione è stata scritta davvero. Prima bastava una risposta persa per
+ * strada, o il Gestore chiuso un istante dopo, per cancellare un'istruzione —
+ * e l'autopilota restava fermo ad aspettare la risposta a un messaggio che
+ * nessuno aveva mai scritto.
+ *
+ * Il prezzo è che la stessa consegna può arrivare due volte. Per questo si
+ * ricordano gli id già scritti: consegnare due volte dentro una chat è peggio
+ * che consegnare zero volte — la chat lavorerebbe due volte sullo stesso
+ * ordine, e l'autopilota si troverebbe due risposte a una domanda sola.
  */
 export function avviaRitiro(p: {
   chiedi: () => Promise<unknown>
-  consegna: (c: Consegna) => void
+  /** Torna `false` se non è stato possibile consegnarla: non si conferma. */
+  consegna: (c: Consegna) => boolean | void
+  /** Dice al servizio quali sono arrivate. Senza, si torna al vecchio «ritira e spera». */
+  conferma?: (ids: string[]) => Promise<void>
   attesaMs?: number
   attesaMaxMs?: number
 }): () => void {
@@ -156,12 +181,26 @@ export function avviaRitiro(p: {
   const max = Math.max(base, p.attesaMaxMs ?? ATTESA_RITIRO_MAX_MS)
   // Si parte reattivi; si rallenta solo dopo aver trovato il vuoto.
   let attesa = base
+  const gia: string[] = []
 
   const giro = async (): Promise<void> => {
     while (vivo) {
       let ricevute = 0
       try {
-        for (const c of leggiConsegne(await p.chiedi())) { p.consegna(c); ricevute += 1 }
+        const arrivate: string[] = []
+        for (const c of leggiConsegne(await p.chiedi())) {
+          ricevute += 1
+          // Già scritta: la conferma non era arrivata, l'istruzione sì. Si
+          // riconferma e basta — riscriverla la farebbe eseguire due volte.
+          if (gia.includes(c.id)) { arrivate.push(c.id); continue }
+          if (p.consegna(c) === false) continue
+          gia.push(c.id)
+          if (gia.length > RICORDATE_MAX) gia.splice(0, gia.length - RICORDATE_MAX)
+          arrivate.push(c.id)
+        }
+        // La conferma va **dopo** la consegna, mai prima: confermare per poi
+        // non riuscire a scrivere è esattamente il difetto che si sta chiudendo.
+        if (arrivate.length > 0) await p.conferma?.(arrivate)
       } catch {
         // Il servizio spento non è un guasto: è lo stato normale finché
         // nessuno ha creato un autopilota. Conta come «vuoto»: si rallenta.

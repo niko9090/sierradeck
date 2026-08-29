@@ -35,6 +35,19 @@ export function fallitiDavvero(esiti: EsitoVerifica[]): EsitoVerifica[] {
 }
 
 /**
+ * I criteri che nessuno ha misurato: il comando non e' nemmeno partito.
+ *
+ * Non sono ne' passati ne' falliti — sono **ignoti**, ed e' una differenza che
+ * conta in un punto solo: quando si sta per chiudere il lavoro. Un criterio non
+ * misurato assomiglia a uno verde (non ha bocciato niente) e non lo e':
+ * chiudere sopra a un comando rotto vuol dire dichiarare finito un lavoro di
+ * cui una parte non e' stata controllata.
+ */
+export function nonMisurati(esiti: EsitoVerifica[]): EsitoVerifica[] {
+  return esiti.filter((e) => e.misurato === false)
+}
+
+/**
  * Traduce la decisione del supervisore in una mossa, o la corregge.
  *
  * Restituisce anche `nota`: cosa è stato cambiato e perché. Finisce nella
@@ -55,6 +68,37 @@ export function applicaRete(
   }
 
   if (decisione.azione === 'finito') {
+    // Un criterio che nessuno ha potuto misurare non e' un criterio verde.
+    // `bocciati` da solo lo lasciava passare — un comando rotto non boccia
+    // niente — e il lavoro si chiudeva con una parte mai controllata.
+    const ignoti = nonMisurati(esiti)
+    if (bocciati.length === 0 && ignoti.length > 0) {
+      // Non si chiude e non si insiste: **si chiede**. Le altre due strade sono
+      // tutte e due sbagliate. Chiudere vuol dire dichiarare finito un lavoro
+      // di cui una parte non e' mai stata controllata — il fallimento
+      // silenzioso peggiore che questo sistema possa produrre. Rimandare la
+      // chat a lavorare vuol dire girare finche' non scade un tetto, perche' il
+      // comando rotto resta rotto: la riparazione automatica ha gia' provato,
+      // in questo stesso giro, e non ce l'ha fatta.
+      //
+      // Chi puo' deciderlo e' l'utente, ed e' una domanda breve: «questo
+      // comando non parte, chiudo lo stesso o lo sistemi?». L'autopilota resta
+      // vivo ad aspettarla.
+      const elenco = ignoti.map((e) => `- ${e.descrizione}: \`${e.comando}\``).join('\n')
+      return {
+        mossa: {
+          tipo: 'chiediUtente',
+          domanda:
+            `Il lavoro sembra concluso, ma ${ignoti.length === 1 ? 'un criterio non e stato misurato' : `${ignoti.length} criteri non sono stati misurati`}: ` +
+            `il comando di verifica non e' nemmeno partito.\n\n${elenco}\n\n` +
+            'Non chiudo da solo su una cosa che non ho controllato. ' +
+            'Vuoi che chiuda lo stesso, o preferisci correggere il comando?'
+        },
+        nota:
+          `«finito» sospeso: ${ignoti.length} criteri non misurati ` +
+          `(${ignoti.map((e) => e.descrizione).join(', ')}) — chiedo all'utente`
+      }
+    }
     if (bocciati.length > 0) {
       // Il caso peggiore che questo sistema possa produrre è chiudere da solo un
       // lavoro incompleto: qui si ferma. Si torna alle regole invece di

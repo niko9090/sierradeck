@@ -52,7 +52,7 @@ import { rotteClient, rotteLibere } from './client-rotte'
 import { immagineQr, indirizzoAccoppiamento } from './qr-accoppiamento'
 import { apkDisponibile } from './apk-disponibile'
 import { scanProjects } from './indexer/project-scanner'
-import { get as httpGet } from 'node:http'
+import { get as httpGet, request as httpRequest } from 'node:http'
 import { avviaRitiro, finestraPerConsegna, versoIlSuoWorkspace } from './autopilota-consegne'
 import type { Chat } from './client-rotte'
 import { apriProviderStore } from './provider-store'
@@ -189,6 +189,44 @@ let fermaRitiroConsegne: (() => void) | undefined
  * ritirare ogni secondo e mezzo — se il servizio non c'è, non c'è, e riprovare
  * al giro dopo è tutta la gestione dell'errore che serve.
  */
+/**
+ * Una POST al servizio, per dirgli qualcosa invece che chiedergli qualcosa.
+ *
+ * Serve alla conferma delle consegne: il servizio non svuota piu' la sua coda
+ * quando il Gestore ritira, e aspetta di sapere che l'istruzione e' finita
+ * dentro una chat davvero.
+ */
+function postaAlServizio(percorso: string, corpo: unknown): Promise<unknown> {
+  return new Promise((risolvi, rifiuta) => {
+    const dati = Buffer.from(JSON.stringify(corpo), 'utf8')
+    const richiesta = httpRequest(
+      {
+        host: '127.0.0.1',
+        port: portaAutopiloti,
+        path: percorso,
+        method: 'POST',
+        timeout: 4000,
+        headers: { 'Content-Type': 'application/json', 'Content-Length': dati.length }
+      },
+      (res) => {
+        let risposta = ''
+        res.on('data', (c) => { risposta += c })
+        res.on('end', () => {
+          try {
+            risolvi(JSON.parse(risposta))
+          } catch {
+            // La conferma e' andata: cosa risponda non cambia niente.
+            risolvi({})
+          }
+        })
+      }
+    )
+    richiesta.on('error', rifiuta)
+    richiesta.on('timeout', () => { richiesta.destroy(); rifiuta(new Error('scaduto')) })
+    richiesta.end(dati)
+  })
+}
+
 function chiediAlServizio(percorso: string): Promise<unknown> {
   return new Promise((risolvi, rifiuta) => {
     const richiesta = httpGet(
@@ -1375,13 +1413,19 @@ if (!app.requestSingleInstanceLock()) {
           }
           return {}
         },
+        // Dice al servizio quali istruzioni sono davvero finite dentro una
+        // chat: solo allora escono dalla sua coda.
+        conferma: async (ids) => { await postaAlServizio('/consegne/conferma', { ids }) },
         consegna: (c) => {
           const vive = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
           const dove = finestraPerConsegna(c.sessionId, chatPerFinestra, vive.map((w) => w.id))
           const finestra = vive.find((w) => w.id === dove)
           if (finestra === undefined || finestra.webContents.isDestroyed()) {
-            console.error(`[autopilota] nessuna finestra per la consegna ${c.id}`)
-            return
+            // Non si conferma: l'istruzione resta nella coda del servizio e
+            // torna al giro dopo, quando una finestra ci sara'. Prima qui si
+            // perdeva, con l'autopilota fermo ad aspettarne la risposta.
+            console.error(`[autopilota] nessuna finestra per la consegna ${c.id}: la lascio in coda`)
+            return false
           }
           // **Dove deve andare**: la decisione dell'autopilota se ce l'ha,
           // altrimenti dove quella conversazione e' gia' salvata. La seconda da
@@ -1392,6 +1436,7 @@ if (!app.requestSingleInstanceLock()) {
               ? undefined
               : workspaceDellaSessione(workspaceStore.leggi(), sessionId))
           finestra.webContents.send('autopilota:consegna', conDestinazione)
+          return true
         }
       })
 
