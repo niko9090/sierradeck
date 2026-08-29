@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
 
 /**
@@ -88,7 +89,7 @@ export function apriScopeStore(cartellaDati: string): ScopeStore {
       if (scopeInerte(scope)) delete mappa[cwd]
       else mappa[cwd] = scope
       try {
-        writeFileSync(file, JSON.stringify(mappa, null, 2), 'utf8')
+        scriviAtomico(file, JSON.stringify(mappa, null, 2), 'negozio')
       } catch (err) {
         console.error('[negozio] non ho potuto salvare lo scope della chat:', err)
       }

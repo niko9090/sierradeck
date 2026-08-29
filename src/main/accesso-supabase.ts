@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
 import { SUPABASE_URL, SUPABASE_ANON } from '@shared/supabase-config'
 import type { Utente, EsitoAccesso } from '@shared/account'
@@ -38,7 +39,7 @@ function archivioSessione(cartella: string): {
   }
   const scrivi = (o: Record<string, string>): void => {
     try {
-      writeFileSync(file, JSON.stringify(o), 'utf8')
+      scriviAtomico(file, JSON.stringify(o), 'accesso')
     } catch (err) {
       console.error('[accesso] sessione non salvata:', err)
     }

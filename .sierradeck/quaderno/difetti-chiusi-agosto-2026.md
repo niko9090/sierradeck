@@ -184,3 +184,46 @@ servizio non aveva **nessun tetto** sulla dimensione del corpo.
 
 Ora è una sola funzione provata (`shared/corpo-richiesta.ts`): si risolve sempre,
 per una delle quattro strade — finito, chiuso, in errore, oltre il tetto.
+
+## 0.12.35 — i minori, che minori non erano tutti
+
+**La guardia del telefono usciva dalla rete sbagliata.** `Rete` esiste per una
+ragione scritta a chiare lettere nel suo commento: Android sceglie la rete
+guardando *chi porta a Internet*, non chi porta al computer di casa, e con una
+VPN accesa una richiesta a `192.168.x.x` entra nel tunnel — dove quell'indirizzo
+non esiste. `Api` lo rispettava. **`Ronda` e `RispostaVeloce` no**: usavano
+`HttpURLConnection` nuda («qui non serve un client intero»). Cioè proprio la
+guardia a schermo spento e la risposta scritta dentro la notifica — le due cose
+che lavorano quando l'app non è aperta — se lo prendevano tutto: nessun avviso, e
+dalla parte del computer niente da trovare.
+
+Regola: quando si scrive un meccanismo perché *una* strada sbagliava, va cercato
+**chi altro fa la stessa cosa**. Un modulo che risolve un problema in un punto
+solo lascia il problema.
+
+**`Avvisi`: il ricordo cresceva per sempre.** Le chiavi delle chat e degli
+autopiloti ripartiti si toglievano da sole; quelle delle domande (`d:`) e dei
+lavori finiti (`f:`) no — e una domanda ha un id nuovo ogni volta. Ora si pota
+con quello che lo stato ancora nomina, ma **solo per le famiglie di cui questo
+stato ha davvero l'elenco**: un computer che non manda le domande non deve far
+dimenticare quelle già annunciate, o tornerebbero tutte insieme. E l'insieme è
+concorrente: il giro lo fanno in due — la sveglia e il servizio — e possono
+sovrapporsi.
+
+**Scritture non atomiche sui file più delicati.** `~/.claude.json`, i
+`settings.json` del Negozio, i gettoni dell'account e di Drive, il manifesto e la
+cassaforte della sincronia: tutti scritti di getto. Una chiusura brutale
+nell'istante sbagliato li lasciava troncati **al posto** di quelli di prima —
+cioè far sparire in un colpo i server MCP e i permessi di Claude Code. C'era già
+`scriviAtomico`, provato: bastava usarlo.
+
+**Scaricando una cartella, i nomi li manda il server.** Se uno è `..` o contiene
+una barra, il percorso locale esce dalla cartella d'arrivo: è il server a
+decidere dove scriverti i file. È la trappola degli archivi che si estraggono da
+soli, con l'altra parte che qui è una macchina — e una macchina può essere di
+qualcun altro, o essere stata presa.
+
+**Un id del Negozio poteva diventare un'opzione.** `execFile` con l'array di
+argomenti chiude l'iniezione di comandi, non quella di **opzioni**: un valore che
+comincia per `-` viene letto come flag, e l'id arriva dal telefono. Non tocca a
+noi sapere quali flag esistano nel CLI di qualcun altro, oggi e fra sei mesi.

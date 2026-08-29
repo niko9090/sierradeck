@@ -9,8 +9,7 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
+import okhttp3.Request
 
 /**
  * Un giro di guardia: si chiede al computer come va, e si avvisa se serve.
@@ -36,7 +35,16 @@ object Ronda {
      * su ciò che era già successo. Una notifica in meno è meglio di cinque
      * notifiche vecchie tutte insieme.
      */
-    private val gia = mutableSetOf<String>()
+    /**
+     * Un insieme che regge due thread.
+     *
+     * Il giro lo fanno in due — la sveglia periodica e il servizio continuo — e
+     * possono sovrapporsi: un `mutableSetOf` toccato da tutti e due puo'
+     * sollevare `ConcurrentModificationException` mentre lo si scorre, e quella
+     * eccezione arriva **dentro la guardia**, che e' la sola cosa che lavora a
+     * schermo spento.
+     */
+    private val gia: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
     private var primoGiro = true
 
     /** Un giro solo. Torna lo stato letto, o `null` se non si è potuto leggere. */
@@ -51,18 +59,26 @@ object Ronda {
         return stato
     }
 
+    /**
+     * Lo stato del computer, chiesto **dalla rete giusta**.
+     *
+     * Era una `HttpURLConnection` nuda, e quindi usciva dalla rete che Android
+     * giudica migliore: con una VPN accesa o un wifi che il telefono considera
+     * scadente, una richiesta a `192.168.x.x` prende i dati mobili o entra nel
+     * tunnel, e da li' quell'indirizzo non esiste. E' esattamente il difetto che
+     * `Rete` esiste per chiudere — e la guardia, che e' l'unica cosa che lavora
+     * a schermo spento, se lo teneva tutto: nessuna notifica, e dalla parte del
+     * computer niente da trovare.
+     */
     private fun leggiStato(collegamento: Collegamento): JSONObject? = try {
-        val connessione =
-            (URL("${collegamento.indirizzo}/api/stato").openConnection() as HttpURLConnection)
-        connessione.setRequestProperty("x-sierradeck-chiave", collegamento.chiave)
-        connessione.connectTimeout = 8000
-        connessione.readTimeout = 8000
-        try {
-            if (connessione.responseCode != 200) null
-            else JSONObject(connessione.inputStream.bufferedReader().readText())
-        } finally {
-            connessione.disconnect()
-        }
+        val richiesta = Request.Builder()
+            .url("${collegamento.indirizzo}/api/stato")
+            .header("x-sierradeck-chiave", collegamento.chiave)
+            .build()
+        Rete.clientePer(Indirizzi.hostDi(collegamento.indirizzo))
+            .newCall(richiesta).execute().use { r ->
+                if (!r.isSuccessful) null else JSONObject(r.body?.string() ?: "")
+            }
     } catch (e: Exception) {
         // Il computer spento, il wifi cambiato, la rete che va e viene: sono i
         // casi normali di una guardia, non guasti da segnalare.

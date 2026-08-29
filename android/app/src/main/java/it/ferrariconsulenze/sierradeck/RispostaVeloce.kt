@@ -5,11 +5,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlin.concurrent.thread
 
 /**
@@ -66,29 +66,33 @@ class RispostaVeloce : BroadcastReceiver() {
         }
     }
 
-    /** Una POST autenticata, e basta: qui non serve un client intero. */
+    /**
+     * Una POST autenticata, **dalla rete giusta**.
+     *
+     * Era una `HttpURLConnection` nuda — «qui non serve un client intero» — e
+     * quindi usciva dalla rete che Android giudica migliore. Con una VPN accesa
+     * o un wifi ritenuto scadente, una richiesta a `192.168.x.x` prende i dati
+     * mobili o entra nel tunnel, e da li' quell'indirizzo non esiste: rispondevi
+     * dalla notifica e la risposta non arrivava. Il client di `Rete` non e' un
+     * lusso, e' la parte che sceglie da dove uscire.
+     */
     private fun manda(collegamento: Collegamento, percorso: String, corpo: String): Boolean {
         if (!collegamento.pronto) return false
         return try {
-            val connessione =
-                (URL("${collegamento.indirizzo}$percorso").openConnection() as HttpURLConnection)
-            connessione.requestMethod = "POST"
-            connessione.doOutput = true
-            connessione.setRequestProperty("x-sierradeck-chiave", collegamento.chiave)
-            connessione.setRequestProperty("Content-Type", "application/json")
-            connessione.connectTimeout = 8000
-            connessione.readTimeout = 8000
-            try {
-                OutputStreamWriter(connessione.outputStream, Charsets.UTF_8).use { it.write(corpo) }
-                connessione.responseCode == 200
-            } finally {
-                connessione.disconnect()
-            }
+            val richiesta = Request.Builder()
+                .url("${collegamento.indirizzo}$percorso")
+                .header("x-sierradeck-chiave", collegamento.chiave)
+                .post(corpo.toRequestBody(JSON_MEDIA))
+                .build()
+            Rete.clientePer(Indirizzi.hostDi(collegamento.indirizzo))
+                .newCall(richiesta).execute().use { it.isSuccessful }
         } catch (e: Exception) {
             Log.e("SierraDeck", "risposta dalla notifica non partita", e)
             false
         }
     }
+
+    private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
 
     private fun aggiorna(contesto: Context, id: Int, testo: String) {
         if (id == 0) return

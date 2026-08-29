@@ -38,6 +38,30 @@ function claude(): string {
   return resolveClaudeCommand(process.env)
 }
 
+/**
+ * Un nome che il CLI puo' ricevere come **valore**, e mai come opzione.
+ *
+ * `execFile` passa gli argomenti in un array, quindi una virgoletta o un `&&`
+ * non diventano un comando: quella strada era gia' chiusa. Restava l'altra —
+ * un valore che comincia per `-` non viene letto come nome ma come **flag**, e
+ * l'id arriva qui da fuori: dal telefono, che e' sulla rete di casa. `--help`
+ * non fa danni; il punto e' che non tocca a noi sapere quali flag esistono nel
+ * CLI di qualcun altro, oggi e fra sei mesi.
+ *
+ * La forma buona e' quella che il CLI stesso produce: `nome@marketplace`,
+ * oppure il solo nome. Tutto il resto non e' un identificatore.
+ */
+const ID_PLUGIN = /^[A-Za-z0-9][A-Za-z0-9._-]*(@[A-Za-z0-9][A-Za-z0-9._-]*)?$/
+
+export function idPluginValido(id: string): boolean {
+  return ID_PLUGIN.test(id)
+}
+
+/** La risposta a un id che non e' un id: non si prova nemmeno a eseguirlo. */
+function rifiuta(id: string): Esito {
+  return { ok: false, messaggio: `identificatore non valido: ${JSON.stringify(id).slice(0, 80)}` }
+}
+
 function esegui(args: string[], timeout: number): Promise<{ ok: boolean; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
     execFile(
@@ -155,14 +179,17 @@ export async function elencoPlugin(): Promise<{ plugin: Plugin[]; errore?: strin
 }
 
 export async function installaPlugin(id: string): Promise<Esito> {
+  if (!idPluginValido(id)) return rifiuta(id)
   return interpreta(await esegui(['plugin', 'install', id, '--yes'], TIMEOUT_INSTALLA), 'installazione fallita')
 }
 
 export async function disinstallaPlugin(id: string): Promise<Esito> {
+  if (!idPluginValido(id)) return rifiuta(id)
   return interpreta(await esegui(['plugin', 'uninstall', id], TIMEOUT_INSTALLA), 'disinstallazione fallita')
 }
 
 export async function commutaPlugin(id: string, abilita: boolean): Promise<Esito> {
+  if (!idPluginValido(id)) return rifiuta(id)
   return interpreta(await esegui(['plugin', abilita ? 'enable' : 'disable', id], TIMEOUT_LETTURA), 'operazione fallita')
 }
 
@@ -199,14 +226,21 @@ export async function elencoMarketplace(): Promise<{ marketplace: Marketplace[];
 }
 
 export async function aggiungiMarketplace(sorgente: string): Promise<Esito> {
+  // Qui non si puo' chiedere la forma `nome@marketplace`: una sorgente e' un
+  // repo, un indirizzo o un percorso, e vietarne la forma vorrebbe dire
+  // vietarne meta'. Ma il trattino davanti resta fuori: e' l'unica cosa che
+  // trasforma un valore in un'opzione.
+  if (sorgente.trim() === '' || sorgente.trimStart().startsWith('-')) return rifiuta(sorgente)
   return interpreta(await esegui(['plugin', 'marketplace', 'add', sorgente], TIMEOUT_INSTALLA), 'aggiunta fallita')
 }
 
 export async function rimuoviMarketplace(nome: string): Promise<Esito> {
+  if (!idPluginValido(nome)) return rifiuta(nome)
   return interpreta(await esegui(['plugin', 'marketplace', 'remove', nome], TIMEOUT_LETTURA), 'rimozione fallita')
 }
 
 export async function aggiornaMarketplace(nome?: string): Promise<Esito> {
+  if (nome !== undefined && nome !== '' && !idPluginValido(nome)) return rifiuta(nome)
   const args = nome !== undefined && nome !== '' ? ['plugin', 'marketplace', 'update', nome] : ['plugin', 'marketplace', 'update']
   return interpreta(await esegui(args, TIMEOUT_INSTALLA), 'aggiornamento fallito')
 }
@@ -218,6 +252,7 @@ export async function aggiornaMarketplace(nome?: string): Promise<Esito> {
  * per essere letto, e riscriverlo vorrebbe dire inseguirne il formato.
  */
 export async function dettagliPlugin(id: string): Promise<{ testo: string; errore?: string }> {
+  if (!idPluginValido(id)) return { testo: '', errore: 'identificatore non valido' }
   const r = await esegui(['plugin', 'details', id], TIMEOUT_LETTURA)
   const testo = (r.stdout || '').trim()
   if (!r.ok) return { testo: '', errore: (r.stderr || testo || 'dettagli non disponibili').trim().slice(0, 400) }

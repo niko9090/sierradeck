@@ -157,4 +157,40 @@ class AvvisiTest {
         val avvisi = Avvisi.daAnnunciare(stato, gia, false)
         assertEquals("d9", avvisi[0].domanda)
     }
+
+    @Test
+    fun `il ricordo non cresce all infinito`() {
+        // `giaVisti` vive quanto il processo, e la guardia gira per giorni. Le
+        // chiavi delle chat e degli autopiloti ripartiti si toglievano da sole,
+        // quelle delle domande no: una domanda ha un id nuovo ogni volta,
+        // quindi l'insieme cresceva a ogni domanda mai fatta.
+        val visti = mutableSetOf<String>()
+        val conDomanda = stato("""{"domande":[{"id":"d-1","testo":"quale?"}],"chat":[],"autopiloti":[]}""")
+        Avvisi.daAnnunciare(conDomanda, visti, primoGiro = false)
+        assertTrue(visti.contains("d:d-1"))
+
+        // Risposta data: la domanda sparisce dallo stato, e con lei il ricordo.
+        val senza = stato("""{"domande":[],"chat":[],"autopiloti":[]}""")
+        Avvisi.daAnnunciare(senza, visti, primoGiro = false)
+        assertTrue(visti.isEmpty())
+    }
+
+    @Test
+    fun `ma un computer che non manda un elenco non fa dimenticare niente`() {
+        // Altrimenti al giro dopo tornerebbero tutte insieme le notifiche gia'
+        // date: un computer con una versione vecchia non manda quel campo, e
+        // «non lo so» non e' «non c'e' piu'».
+        val visti = mutableSetOf("d:d-1", "f:ap-1")
+        Avvisi.daAnnunciare(stato("""{"chat":[]}"""), visti, primoGiro = false)
+        assertTrue(visti.contains("d:d-1"))
+        assertTrue(visti.contains("f:ap-1"))
+    }
+
+    @Test
+    fun `una domanda gia annunciata non si ripete finche c e`() {
+        val visti = mutableSetOf<String>()
+        val s = stato("""{"domande":[{"id":"d-9","testo":"quale?"}],"chat":[],"autopiloti":[]}""")
+        assertEquals(1, Avvisi.daAnnunciare(s, visti, primoGiro = false).size)
+        assertEquals(0, Avvisi.daAnnunciare(s, visti, primoGiro = false).size)
+    }
 }

@@ -74,13 +74,25 @@ object Avvisi {
      */
     fun daAnnunciare(stato: JSONObject, giaVisti: MutableSet<String>, primoGiro: Boolean): List<Avviso> {
         val avvisi = mutableListOf<Avviso>()
+        /**
+         * Le chiavi di cui **questo** stato parla ancora.
+         *
+         * `giaVisti` vive quanto il processo, e la guardia gira per giorni. Le
+         * chiavi delle chat e degli autopiloti ripartiti si toglievano da sole,
+         * ma quelle delle domande (`d:`) e dei lavori finiti (`f:`) no: una
+         * domanda ha un id nuovo ogni volta, quindi l'insieme cresceva a ogni
+         * domanda mai fatta e non tornava piu' indietro.
+         */
+        val vivi = mutableSetOf<String>()
 
         val domande = stato.optJSONArray("domande")
         if (domande != null) {
             for (i in 0 until domande.length()) {
                 val d = domande.getJSONObject(i)
                 val id = d.optString("id")
-                if (id.isEmpty() || !giaVisti.add("d:$id")) continue
+                if (id.isEmpty()) continue
+                vivi.add("d:$id")
+                if (!giaVisti.add("d:$id")) continue
                 avvisi.add(
                     Avviso(
                         chiave = "d:$id",
@@ -112,6 +124,7 @@ object Avvisi {
                 val c = chat.getJSONObject(i)
                 val id = c.optString("id")
                 if (id.isEmpty() || c.optBoolean("governata", false)) continue
+                vivi.add("c:$id")
                 if (!c.optBoolean("aspetta", false)) {
                     giaVisti.remove("c:$id")
                     continue
@@ -130,11 +143,17 @@ object Avvisi {
             }
         }
 
-        val autopiloti = stato.optJSONArray("autopiloti") ?: return avvisi
+        val autopiloti = stato.optJSONArray("autopiloti")
+        if (autopiloti == null) {
+            pota(giaVisti, vivi, stato)
+            return avvisi
+        }
         for (i in 0 until autopiloti.length()) {
             val a = autopiloti.getJSONObject(i)
             val id = a.optString("id")
             if (id.isEmpty()) continue
+            vivi.add("f:$id")
+            vivi.add("s:$id")
             val nome = a.optString("nome", "Un autopilota")
             when (a.optString("stato")) {
                 "finito" -> {
@@ -172,6 +191,23 @@ object Avvisi {
                 else -> giaVisti.remove("s:$id")
             }
         }
+        pota(giaVisti, vivi, stato)
         return avvisi
+    }
+
+    /**
+     * Toglie dal ricordo cio' di cui lo stato non parla piu'.
+     *
+     * Si pota **solo** una famiglia di cui questo stato ha davvero l'elenco: un
+     * computer che non manda le domande non deve far dimenticare le domande gia'
+     * annunciate, o al giro dopo tornerebbero tutte insieme.
+     */
+    private fun pota(giaVisti: MutableSet<String>, vivi: Set<String>, stato: JSONObject) {
+        val note = mutableListOf<String>()
+        if (stato.optJSONArray("domande") != null) note.add("d:")
+        if (stato.optJSONArray("chat") != null) note.add("c:")
+        if (stato.optJSONArray("autopiloti") != null) { note.add("f:"); note.add("s:") }
+        if (note.isEmpty()) return
+        giaVisti.retainAll { chiave -> note.none { chiave.startsWith(it) } || chiave in vivi }
     }
 }

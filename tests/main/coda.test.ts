@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { join } from 'node:path'
-import { creaCoda, type MotoreCoda, type StatoCoda, type VoceCamminata } from '../../src/main/trasferimenti/coda'
+import { creaCoda, nomeSicuro, type MotoreCoda, type StatoCoda, type VoceCamminata } from '../../src/main/trasferimenti/coda'
 
 /**
  * La coda si prova senza un server acceso, ed è il motivo per cui il motore è
@@ -273,5 +273,56 @@ describe('quanto si parla', () => {
     await finoAllaFine(coda.stato)
     // Contando, accodato, partito, finito: pochi eventi, non uno per pezzo.
     expect(avvisa.mock.calls.length).toBeLessThan(10)
+  })
+})
+
+describe('i nomi che manda il server non decidono dove finiscono i file', () => {
+  /**
+   * Scaricando una cartella si ricostruisce l'albero **con i nomi che manda
+   * l'altra parte**. Se uno di quei nomi e' `..`, o contiene una barra, il
+   * percorso locale esce dalla cartella scelta: e' il server a decidere dove
+   * scriverti i file. La vecchia trappola degli archivi che si estraggono da
+   * soli, con la differenza che qui l'altra parte e' una macchina.
+   */
+  it('la guardia riconosce i nomi che escono', () => {
+    expect(nomeSicuro('a.txt')).toBe(true)
+    expect(nomeSicuro('con spazio e.punti.txt')).toBe(true)
+    expect(nomeSicuro('..')).toBe(false)
+    expect(nomeSicuro('.')).toBe(false)
+    expect(nomeSicuro('')).toBe(false)
+    expect(nomeSicuro('../fuori')).toBe(false)
+    expect(nomeSicuro('sotto/altro')).toBe(false)
+    expect(nomeSicuro('C:\Windows\system32')).toBe(false)
+  })
+
+  it('IL DIFETTO: una voce storta viene saltata, le altre passano', async () => {
+    const { motore, fatti } = motoreFinto({
+      remoto: {
+        '/casa/roba': [
+          file('..', '/casa/roba/..'),
+          file('buono.txt', '/casa/roba/buono.txt')
+        ]
+      }
+    })
+    const coda = creaCoda(motore)
+    await coda.accoda([
+      { destinazione: 'd1', verso: 'giu', origine: '/casa/roba', arrivo: 'C:\giu', cartella: true }
+    ])
+    await finoAllaFine(coda.stato)
+    // Un nome storto non ferma il trasferimento: ferma se stesso.
+    expect(fatti).toEqual(['/casa/roba/buono.txt'])
+    expect(coda.stato().lavori).toHaveLength(1)
+  })
+
+  it('e un file solo con un nome storto non parte, e lo dice', async () => {
+    const { motore, fatti } = motoreFinto({ remoto: {} })
+    const coda = creaCoda(motore)
+    await coda.accoda([
+      { destinazione: 'd1', verso: 'giu', origine: '/casa/roba/..', arrivo: 'C:\giu', cartella: false }
+    ])
+    await finoAllaFine(coda.stato)
+    expect(fatti).toEqual([])
+    expect(coda.stato().lavori[0]?.stato).toBe('errore')
+    expect(coda.stato().lavori[0]?.errore).toContain('non ammesso')
   })
 })

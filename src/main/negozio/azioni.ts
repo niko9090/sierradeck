@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
 
 /**
@@ -28,8 +29,16 @@ function leggiOggetto(percorso: string): Record<string, unknown> | undefined {
   }
 }
 
+/**
+ * Qui dentro ci sono `~/.claude.json` e i `settings.json`: i file piu' delicati
+ * che questo programma tocchi. Una scrittura interrotta a meta' — chiusura
+ * brutale, disco pieno — li lasciava **troncati al posto di quelli di prima**,
+ * cioe' faceva sparire in un colpo i server MCP, i permessi e la cronologia dei
+ * progetti di Claude Code. Su temporaneo e poi rinomina: o c'e' tutto il
+ * contenuto nuovo, o resta tutto quello vecchio.
+ */
 function scrivi(percorso: string, dati: unknown): void {
-  writeFileSync(percorso, `${JSON.stringify(dati, null, 2)}\n`, 'utf8')
+  scriviAtomico(percorso, `${JSON.stringify(dati, null, 2)}\n`, 'negozio')
 }
 
 /**

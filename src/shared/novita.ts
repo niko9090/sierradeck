@@ -23,6 +23,16 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.35',
+    righe: [
+      '**App: le notifiche a schermo spento uscivano dalla rete sbagliata.** La guardia che controlla il computer, e la risposta che si scrive dentro la notifica, non usavano il meccanismo che sceglie *da quale rete* parlare: con una VPN accesa o un wifi che il telefono giudica scadente, la richiesta usciva dai dati mobili e l’indirizzo di casa lì non esiste. Risultato: nessun avviso, e dalla parte del computer niente da trovare.',
+      '**App: la guardia non accumula più ricordi all’infinito**, e non può più inciampare quando i due giri di controllo si sovrappongono.',
+      '**I file più delicati non possono più restare a metà.** `~/.claude.json`, i `settings.json`, i gettoni dell’account e la cassaforte si scrivevano di getto: una chiusura brutale o un disco pieno nell’istante sbagliato li lasciava **troncati al posto di quelli di prima**. Adesso si scrivono per intero o non si scrivono.',
+      '**Scaricando una cartella, è il computer a decidere dove finiscono i file** — non il server dall’altra parte. Un nome di file che risale le cartelle viene rifiutato invece di scrivere fuori dalla cartella scelta.',
+      '**Un identificatore del Negozio non può più essere letto come un comando.**'
+    ]
+  },
+  {
     versione: '0.12.34',
     righe: [
       '**I pulsanti delle scelte adesso ci sono anche nell’app.** Nella 0.12.33 erano comparsi solo nella pagina aperta dal browser: l’app del telefono è nativa e legge da un’altra strada, quindi lì la domanda si poteva ancora soltanto leggere. Adesso le opzioni sono pulsanti in tutt’e due.',

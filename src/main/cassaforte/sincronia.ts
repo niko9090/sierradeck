@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
 import { creaCassaforte, sblocca as sbloccaCassaforte, sbloccaConRecupero as sbloccaConRecuperoCassaforte, cambiaPassphrase as cambiaPassphraseCassaforte, type Cassaforte } from './cifratura'
 import type { Progresso } from './motore'
@@ -90,7 +91,7 @@ export function apriSincronia(deps: {
     try { return JSON.parse(readFileSync(fileManifesto, 'utf8')) as Manifesto } catch { return manifestoVuoto() }
   }
   const scriviManifestoLocale = (m: Manifesto): void => {
-    try { writeFileSync(fileManifesto, JSON.stringify(m), 'utf8') } catch (err) { console.error('[sync] manifesto non salvato:', err) }
+    scriviAtomico(fileManifesto, JSON.stringify(m), 'sync')
   }
 
   // La sola cosa in chiaro, e sola in memoria: sparisce alla chiusura o con `blocca`.
@@ -105,7 +106,7 @@ export function apriSincronia(deps: {
     }
   }
   const scriviLocale = (c: Cassaforte): void => {
-    try { writeFileSync(fileCassaforte, JSON.stringify(c), 'utf8') } catch (err) { console.error('[sync] cassaforte non salvata:', err) }
+    scriviAtomico(fileCassaforte, JSON.stringify(c), 'sync')
   }
   type StatoFile = {
     versione?: string
@@ -124,7 +125,7 @@ export function apriSincronia(deps: {
     }
   }
   const scriviStato = (s: StatoFile): void => {
-    try { writeFileSync(fileStato, JSON.stringify(s), 'utf8') } catch (err) { console.error('[sync] stato non salvato:', err) }
+    scriviAtomico(fileStato, JSON.stringify(s), 'sync')
   }
 
   const scaricaChiavi = async (): Promise<Cassaforte | undefined> => {

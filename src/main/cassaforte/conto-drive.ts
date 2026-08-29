@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
+import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
 import { configGoogle } from '../google-config'
 import { connetti as connettiOAuth, creaFornitoreToken, type Gettoni } from './oauth-google'
@@ -54,7 +55,7 @@ export function apriContoDrive(dati: string): ContoDrive {
   }
   const scrivi = (g: Gettoni): void => {
     try {
-      writeFileSync(fileToken, JSON.stringify(g), 'utf8')
+      scriviAtomico(fileToken, JSON.stringify(g), 'drive')
     } catch (err) {
       console.error('[drive] token non salvato:', err)
     }

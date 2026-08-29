@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { commutaSkill, commutaMcp } from '../../src/main/negozio/azioni'
 import { skillDisponibili, mcpDiProgetto, agentiDisponibili } from '../../src/main/negozio/lettura'
-import { idDi, interpreta } from '../../src/main/negozio/cli'
+import { idDi, interpreta, idPluginValido, installaPlugin, commutaPlugin } from '../../src/main/negozio/cli'
 
 /**
  * Il negozio tocca i file più delicati dell'utente (`~/.claude.json`,
@@ -173,5 +173,42 @@ describe('interpreta (esito di un CLI che esce 0 anche fallendo)', () => {
   it('senza glifi ripiega sul codice d’uscita', () => {
     expect(interpreta({ ok: false, stdout: '', stderr: 'boom' }, 'ko').ok).toBe(false)
     expect(interpreta({ ok: true, stdout: 'fatto', stderr: '' }, 'ko')).toEqual({ ok: true })
+  })
+})
+
+describe('un identificatore non deve poter diventare un opzione', () => {
+  /**
+   * `execFile` passa gli argomenti in un array, quindi una virgoletta o un
+   * `&&` non diventano mai un comando: quella strada era gia' chiusa. Restava
+   * l'altra — un valore che comincia per `-` non viene letto come nome ma come
+   * **flag** — e l'id arriva da fuori: dal telefono, che sta sulla rete di
+   * casa. Non tocca a noi sapere quali flag esistono nel CLI di qualcun altro.
+   */
+  it('la forma buona e quella che il CLI stesso produce', () => {
+    expect(idPluginValido('scrittore@claude-plugins-official')).toBe(true)
+    expect(idPluginValido('scrittore')).toBe(true)
+    expect(idPluginValido('un.plugin-2_0@mercato.mio')).toBe(true)
+  })
+
+  it('un trattino davanti non e un nome', () => {
+    expect(idPluginValido('--help')).toBe(false)
+    expect(idPluginValido('-x')).toBe(false)
+    expect(idPluginValido('')).toBe(false)
+  })
+
+  it('ne uno spazio, una barra o un apice', () => {
+    expect(idPluginValido('due parole')).toBe(false)
+    expect(idPluginValido('../../fuori')).toBe(false)
+    expect(idPluginValido("nome'; rm -rf /")).toBe(false)
+    expect(idPluginValido('nome@uno@due')).toBe(false)
+  })
+
+  it('e non si prova nemmeno a eseguirlo', async () => {
+    // Il punto non e' il messaggio: e' che il CLI non viene chiamato affatto.
+    const esito = await installaPlugin('--dangerous')
+    expect(esito.ok).toBe(false)
+    expect(esito.messaggio).toContain('non valido')
+    const altro = await commutaPlugin('-x', true)
+    expect(altro.ok).toBe(false)
   })
 })

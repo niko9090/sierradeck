@@ -120,6 +120,26 @@ function nomeRemoto(percorso: string): string {
   return percorso.split('/').filter((p) => p !== '').pop() ?? ''
 }
 
+/**
+ * Un nome di file che arriva dall'altra parte, e dove ha il diritto di finire.
+ *
+ * Scaricando una cartella si ricostruisce l'albero **con i nomi che manda il
+ * server**. Se uno di quei nomi e' `..`, o contiene una barra, il percorso
+ * locale esce dalla cartella d'arrivo: il server decide dove scriverti i file.
+ * E' la vecchia trappola degli archivi che si estraggono da soli, con la
+ * differenza che qui l'altra parte e' una macchina, non un file.
+ *
+ * Non e' paranoia sul proprio server: un server puo' essere di qualcun altro,
+ * puo' essere stato preso, e il costo di questa riga e' zero.
+ */
+export function nomeSicuro(nome: string): boolean {
+  if (nome === '' || nome === '.' || nome === '..') return false
+  if (nome.includes('/') || nome.includes(String.fromCharCode(92))) return false
+  // Su Windows «C:» dentro un nome basta a cambiare disco.
+  if (/^[A-Za-z]:/.test(nome)) return false
+  return true
+}
+
 export function creaCoda(motore: MotoreCoda, avvisa?: (stato: StatoCoda) => void): Coda {
   const lavori: Lavoro[] = []
   /** Le destinazioni che stanno già lavorando: una copia per volta ciascuna. */
@@ -157,6 +177,10 @@ export function creaCoda(motore: MotoreCoda, avvisa?: (stato: StatoCoda) => void
     if (profondita > PROFONDITA_MASSIMA) return
     const voci = await motore.elencaRemoto(destinazione, radice)
     for (const v of voci) {
+      if (!nomeSicuro(v.nome)) {
+        console.error(`[trasferimenti] nome rifiutato dal server remoto, saltato: ${JSON.stringify(v.nome)}`)
+        continue
+      }
       const relativo = prefisso === '' ? v.nome : `${prefisso}/${v.nome}`
       if (v.cartella) await camminaRemoto(destinazione, v.percorso, relativo, profondita + 1, dentro)
       else dentro.push({ remoto: v.percorso, relativo, dimensione: v.dimensione })
@@ -255,6 +279,24 @@ export function creaCoda(motore: MotoreCoda, avvisa?: (stato: StatoCoda) => void
         destinazioni.add(r.destinazione)
         if (!r.cartella) {
           const nome = r.verso === 'giu' ? nomeRemoto(r.origine) : basename(r.origine)
+          // Anche per un file solo: il nome viene da un elenco che ha mandato
+          // il server, e un file che finisce fuori dalla cartella scelta e' un
+          // file scritto dove nessuno ha chiesto.
+          if (r.verso === 'giu' && !nomeSicuro(nome)) {
+            lavori.push({
+              destinazione: r.destinazione,
+              verso: 'giu',
+              remoto: r.origine,
+              locale: r.arrivo,
+              nome,
+              dimensione: 0,
+              id: nuovoId(),
+              stato: 'errore',
+              fatti: 0,
+              errore: 'nome di file non ammesso: uscirebbe dalla cartella scelta'
+            })
+            continue
+          }
           aggiungi({
             destinazione: r.destinazione,
             verso: r.verso,
@@ -269,6 +311,10 @@ export function creaCoda(motore: MotoreCoda, avvisa?: (stato: StatoCoda) => void
         racconta()
         try {
           const radice = r.verso === 'giu' ? nomeRemoto(r.origine) : basename(r.origine)
+          if (r.verso === 'giu' && !nomeSicuro(radice)) {
+            console.error(`[trasferimenti] cartella remota con nome non ammesso, saltata: ${JSON.stringify(radice)}`)
+            continue
+          }
           if (r.verso === 'giu') {
             const dentro: { remoto: string; relativo: string; dimensione: number }[] = []
             await camminaRemoto(r.destinazione, r.origine, radice, 0, dentro)
