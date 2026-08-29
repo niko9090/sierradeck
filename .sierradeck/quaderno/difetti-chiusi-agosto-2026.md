@@ -103,3 +103,36 @@ Checklist dopo ogni pubblicazione, tutte e quattro le volte utile:
 una sola release · titolo `vX.Y.Z` · exe + latest.yml + blockmap · lo `sha512`
 dentro `latest.yml` uguale a quello dell'installer in `dist` (se non combacia,
 l'aggiornamento automatico non parte e nessuno se ne accorge).
+
+## 0.12.32 — i due che si sono visti sul campo
+
+**«Cannot set properties of undefined (setting 'isWrapped')».** Nel registro due
+volte, dentro `lineFeed` → `parse` → `write`. Sembra un difetto della scrittura,
+e non lo è: `FitAddon.fit()` sta in un `ResizeObserver`, e quando il riquadro non
+è a schermo il contenitore è alto zero, la proposta è **zero righe**, e il
+terminale ci va davvero. Un terminale a zero righe non ha buffer, e a farlo
+cadere è la **prima riga che arriva dal processo** — mezzo minuto dopo, in un
+punto che con il ridimensionamento non c'entra niente.
+
+È il motivo per cui era rimasto in giro: *lo stack non nomina mai il colpevole.*
+
+La regola: **zero non è una misura piccola, è nessuna misura.** Un contenitore
+senza dimensioni non dice «fammi piccolo», dice «adesso non sono a schermo», e la
+risposta è non toccare niente. E il processo si avvisa **solo** se l'adattamento
+è avvenuto: mandare `0×0` al pty sarebbe un secondo guasto in un altro processo.
+Guardia in `renderer/adatta-terminale.ts`, usata da tutti e tre i terminali.
+
+**Il guardiano ha fermato un autopilota perché stava lavorando.** Mezz'ora di
+silenzio era una stima, scritta nel codice come «sotto la mezz'ora ci stanno i
+turni lunghi veri». Sul campo ha sbagliato: un turno che compila un'app Android e
+pubblica tre volte passa i quaranta minuti senza essere fermo un istante, e si è
+visto sospendere.
+
+Il numero si sceglie guardando **l'asimmetria del danno**, non la media dei
+turni: sospendere per sbaglio ferma del lavoro che andava bene, accorgersi tardi
+di una chat impiantata costa **solo attesa**. Fra i due errori si sceglie di
+sbagliare per pazienza — un'ora.
+
+E il motivo non indovina più. «Forse è ferma su un comando che non finisce» è una
+delle due spiegazioni possibili presentata come la sola, e manda a cercare il
+guasto dalla parte sbagliata: la stessa lezione già imparata sul negozio vuoto.
