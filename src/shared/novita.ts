@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.30',
+    righe: [
+      '**Una chat impiantata non passa più inosservata dentro una flotta.** Quando l’autopilota governa più chat insieme, bastava che una sola chiudesse i suoi turni perché tutte le altre risultassero vive: quella ferma su un comando che non finisce restava appesa per sempre, e il pannello continuava a dire «al lavoro». Adesso ognuna è guardata per conto suo, e quando una tace l’autopilota si ferma dicendo **quale**.'
+    ]
+  },
+  {
     versione: '0.12.29',
     righe: [
       '**L’autopilota non chiude più un lavoro di cui non ha potuto controllare una parte.** Se il comando di verifica di un criterio non parte nemmeno — un errore di sintassi, un programma che non c’è — quel criterio non è verde: è ignoto. Prima passava per buono e il lavoro si chiudeva lo stesso. Adesso l’autopilota lo dice e chiede a te se chiudere o correggere il comando: non insiste a vuoto, ma nemmeno dichiara finito quello che non ha visto.',

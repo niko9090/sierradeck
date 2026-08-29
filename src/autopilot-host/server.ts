@@ -11,6 +11,7 @@ import {
 } from './decisione'
 import { chiediDecisione } from './decisione-supervisore'
 import { applicaRete } from './rete-sicurezza'
+import { chiaveTurno, chiTace, motivoSilenzio } from './guardiano'
 import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
 import { STRATEGIE } from './strategie'
 import { eseguiCriteri, type Esecutore } from './verifiche'
@@ -571,21 +572,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (Number.isNaN(ora)) return
     for (const a of deps.archivio.elenca()) {
       if (a.stato !== 'lavoro' || inLavorazione.has(a.id)) continue
-      // Dopo un riavvio del servizio la memoria è vuota: si ricade
-      // sull'ultimo evento, che è una stima prudente — sbaglia al più una
-      // volta, e per eccesso di pazienza.
-      const riferimento = ultimoTurno.get(a.id) ?? Date.parse(a.ultimoEvento)
-      if (Number.isNaN(riferimento) || ora - riferimento <= limite) continue
-      const minuti = Math.round((ora - riferimento) / 60_000)
-      const sospeso: Autopilota = {
-        ...a,
-        stato: 'sospeso',
-        motivoSospensione:
-          `nessun segnale dalla chat da ${minuti} minuti: forse è ferma su un comando` +
-          ' che non finisce. Guardala, poi riprendila o fermala.'
-      }
+      if (Number.isNaN(Date.parse(a.ultimoEvento))) continue
+      // **Chat per chat.** Prima si guardava l'autopilota nel suo insieme:
+      // bastava che una chat della flotta chiudesse i suoi turni perche' tutte
+      // le altre risultassero vive, e quella impiantata restava appesa per
+      // sempre con il pannello che diceva «al lavoro».
+      const mute = chiTace(a, (chiave) => ultimoTurno.get(chiave), ora, limite)
+      if (mute.length === 0) continue
+      const sospeso: Autopilota = { ...a, stato: 'sospeso', motivoSospensione: motivoSilenzio(mute) }
       salva(sospeso)
-      console.warn(`[autopilota] ${a.id} muto da ${minuti} minuti: sospeso`)
+      console.warn(`[autopilota] ${a.id} — ${motivoSilenzio(mute)}`)
       void deps.avvisa('sospeso', sospeso)
     }
   }
@@ -823,7 +819,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // l'hook è arrivato, il giro è stato fatto.
     salva(conSessione)
     // La chat ha appena chiuso un turno: è viva, e il guardiano deve saperlo.
-    ultimoTurno.set(id, Date.parse(deps.adesso()))
+    // Si segna sotto **la sua** chiave: segnarlo sotto la sola id
+    // dell'autopilota faceva risultare vive anche le sorelle che tacevano.
+    ultimoTurno.set(chiaveTurno(id, chatId), Date.parse(deps.adesso()))
 
     let esiti: EsitoVerifica[] = await eseguiCriteri(conSessione.criteri, conSessione.cwd, deps.esegui)
 
