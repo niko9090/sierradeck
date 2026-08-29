@@ -133,14 +133,14 @@ class AggiornamentiTest {
         val corpo = """
             [
               { "tag_name": "v0.12.10", "assets": [
-                  { "name": "SierraDeck-Setup-0.12.10.exe", "browser_download_url": "https://x/exe" } ] },
+                  { "name": "SierraDeck-Setup-0.12.10.exe", "browser_download_url": "https://github.com/niko9090/sierradeck/releases/download/v1/SierraDeck-Setup-0.12.10.exe" } ] },
               { "tag_name": "v0.12.8", "assets": [
-                  { "name": "SierraDeck-2.0.0.apk", "browser_download_url": "https://x/apk" } ] }
+                  { "name": "SierraDeck-2.0.0.apk", "browser_download_url": "https://github.com/niko9090/sierradeck/releases/download/v1/SierraDeck-2.0.0.apk" } ] }
             ]
         """.trimIndent()
         val trovato = Aggiornamenti.piuRecenteFra(corpo)
         assertEquals("2.0.0", trovato?.first)
-        assertEquals("https://x/apk", trovato?.second)
+        assertEquals("https://github.com/niko9090/sierradeck/releases/download/v1/SierraDeck-2.0.0.apk", trovato?.second)
     }
 
     /** Fra piu' APK vince il numero piu' alto, non l'ordine alfabetico. */
@@ -148,8 +148,8 @@ class AggiornamentiTest {
     fun `fra piu APK tiene il piu recente`() {
         val corpo = """
             [
-              { "assets": [ { "name": "SierraDeck-2.9.0.apk", "browser_download_url": "https://x/vecchia" } ] },
-              { "assets": [ { "name": "SierraDeck-2.10.0.apk", "browser_download_url": "https://x/nuova" } ] }
+              { "assets": [ { "name": "SierraDeck-2.9.0.apk", "browser_download_url": "https://github.com/niko9090/sierradeck/releases/download/v1/SierraDeck-2.9.0.apk" } ] },
+              { "assets": [ { "name": "SierraDeck-2.10.0.apk", "browser_download_url": "https://github.com/niko9090/sierradeck/releases/download/v1/SierraDeck-2.10.0.apk" } ] }
             ]
         """.trimIndent()
         assertEquals("2.10.0", Aggiornamenti.piuRecenteFra(corpo)?.first)

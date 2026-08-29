@@ -122,3 +122,51 @@ describe('spostaInWorkspace', () => {
     expect(a.fatti).toContain('dimentica:p1')
   })
 })
+
+describe('i «ceduti» dopo uno spostamento fra finestre', () => {
+  /** Come sopra, ma con la `dimentica` collegata: e' quella la novita'. */
+  function conDimentica(opts: { errore?: unknown } = {}) {
+    const dimenticati: string[] = []
+    const deps: SpostamentoDeps = {
+      stacca: () => PANE,
+      sposta: () => (opts.errore !== undefined ? Promise.reject(opts.errore) : Promise.resolve(true)),
+      dimentica: (id) => { dimenticati.push(id) },
+      accogli: () => undefined,
+      segnala: () => undefined
+    }
+    return { deps, dimenticati }
+  }
+
+  it('a consegna avvenuta il riquadro esce dai ceduti', async () => {
+    // Restava li' per sempre: una voce per spostamento, per tutta la sessione.
+    // E' lo stesso difetto gia' chiuso per lo spostamento fra workspace, qui
+    // rimasto aperto perche' il ramo di successo non toccava niente.
+    const a = conDimentica()
+    await spostaRiquadro(a.deps, 'pane-1', 7)
+    expect(a.dimenticati).toEqual(['pane-1'])
+  })
+
+  it('se la consegna fallisce NON esce dai ceduti', async () => {
+    // Il riquadro torna a casa: toglierlo dai ceduti vorrebbe dire che
+    // chiuderlo non ucciderebbe piu' il suo claude.exe.
+    const a = conDimentica({ errore: new Error('finestra sparita') })
+    await spostaRiquadro(a.deps, 'pane-1', 7)
+    expect(a.dimenticati).toEqual([])
+  })
+
+  it('un riquadro gia sparito non tocca niente', async () => {
+    const dimenticati: string[] = []
+    await spostaRiquadro(
+      {
+        stacca: () => undefined,
+        sposta: () => Promise.resolve(true),
+        dimentica: (id) => { dimenticati.push(id) },
+        accogli: () => undefined,
+        segnala: () => undefined
+      },
+      'pane-1',
+      7
+    )
+    expect(dimenticati).toEqual([])
+  })
+})

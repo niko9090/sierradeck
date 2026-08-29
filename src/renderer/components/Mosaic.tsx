@@ -93,6 +93,10 @@ function ComandoSposta({ paneId }: { paneId: string }): React.JSX.Element {
       {
         stacca: (id) => useLayoutStore.getState().staccaPane(id),
         sposta: (pane, id) => window.gestore.finestre.sposta(pane, id),
+        // A consegna avvenuta il riquadro e' di un'altra finestra, non
+        // «ceduto»: lasciarlo li' faceva crescere l'insieme di una voce per
+        // spostamento, per tutta la sessione.
+        dimentica: (id) => useLayoutStore.getState().dimenticaCeduti([id]),
         accogli: (pane) => useLayoutStore.getState().accogliPane(pane),
         segnala: (err) => setErrore(String(err))
       },

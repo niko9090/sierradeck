@@ -4,6 +4,13 @@ export type SpostamentoDeps = {
   /** Toglie il riquadro da questa finestra senza chiuderne il terminale. */
   stacca: (paneId: string) => PaneSalvato | undefined
   sposta: (pane: PaneSalvato, finestraId: number) => Promise<boolean>
+  /**
+   * Toglie il riquadro dai «ceduti», a consegna avvenuta.
+   *
+   * Facoltativa perché è arrivata dopo: chi non la passa si comporta come
+   * prima, e prima era un insieme che cresceva di una voce per spostamento.
+   */
+  dimentica?: (paneId: string) => void
   /** Rimette il riquadro dov'era. */
   accogli: (pane: PaneSalvato) => void
   segnala: (err: unknown) => void
@@ -38,7 +45,24 @@ export async function spostaRiquadro(
   } catch (err) {
     deps.accogli(dati)
     deps.segnala(err)
+    return
   }
+
+  /**
+   * Consegnato: il riquadro non è più «ceduto», è **di un'altra finestra**.
+   *
+   * Restava lì per sempre — una voce per spostamento, per tutta la sessione:
+   * lo stesso difetto già chiuso per lo spostamento fra workspace, qui rimasto
+   * aperto perché il ramo di successo non toccava niente.
+   *
+   * Si fa **dopo** l'attesa, e non è un dettaglio d'ordine: `ceduti` è l'unico
+   * segnale che dice al `Terminal` di staccare invece di chiudere, e la
+   * pulizia del suo effetto parte un istante dopo lo stacco. La consegna è un
+   * giro completo verso il processo principale, quindi quando si torna qui
+   * quella pulizia è già passata. Toglierlo prima ucciderebbe la sessione
+   * appena ceduta.
+   */
+  deps.dimentica?.(paneId)
 }
 
 export type VersoWorkspaceDeps = {

@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     try {
                         Aggiornamenti.controlla(BuildConfig.VERSION_NAME) { nome, apk ->
-                            runOnUiThread { aggiornamento = nome to apk }
+                            suSchermo { aggiornamento = nome to apk }
                         }
                     } catch (_: Exception) {
                     }
@@ -81,13 +81,31 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Un lavoro sul thread dell'interfaccia, ma **solo se c'e' ancora
+     * un'interfaccia**.
+     *
+     * Le risposte di rete arrivano quando arrivano: dieci secondi dopo, con
+     * l'Activity gia' chiusa perche' nel frattempo qualcuno e' uscito o ha
+     * girato lo schermo. `runOnUiThread` accodava lo stesso, e quel lavoro
+     * toccava una finestra che non c'era piu'.
+     *
+     * Si guarda due volte, ed e' voluto: al momento di accodare e al momento di
+     * eseguire. Fra i due c'e' un giro di coda, ed e' esattamente li' che
+     * l'Activity puo' morire.
+     */
+    private fun suSchermo(azione: () -> Unit) {
+        if (isFinishing || isDestroyed) return
+        runOnUiThread { if (!isFinishing && !isDestroyed) azione() }
+    }
+
     /** Scarica l'APK nuovo e apre l'installazione di Android, riportando i
      *  progressi sul thread dell'interfaccia. */
     private fun scaricaApk(apk: String, onProgresso: (Int) -> Unit, onGuasto: (String) -> Unit) {
         Scaricamento.apk(
             this, apk,
-            avanzamento = { p -> runOnUiThread { onProgresso(p) } },
-            guasto = { m -> runOnUiThread { onGuasto(m) } }
+            avanzamento = { p -> suSchermo { onProgresso(p) } },
+            guasto = { m -> suSchermo { onGuasto(m) } }
         )
     }
 

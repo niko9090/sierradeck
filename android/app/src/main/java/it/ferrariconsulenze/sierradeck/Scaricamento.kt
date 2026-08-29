@@ -37,6 +37,13 @@ object Scaricamento {
         avanzamento: (percento: Int) -> Unit,
         guasto: (motivo: String) -> Unit
     ) {
+        // L'unico file che questa app installa: da dove viene si controlla qui,
+        // l'ultimo istante prima di andarlo a prendere. Fra la scelta
+        // dell'allegato e questo momento passa del tempo e una risposta di rete.
+        if (!Aggiornamenti.apkAmmesso(indirizzo)) {
+            guasto("l'aggiornamento non viene da dove deve")
+            return
+        }
         thread(start = true) {
             try {
                 val destinazione = File(contesto.cacheDir, "sierradeck-nuova.apk")

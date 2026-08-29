@@ -48,6 +48,23 @@ object Aggiornamenti {
     private val VERSIONE_NEL_NOME = Regex("""SierraDeck-([0-9]+\.[0-9]+\.[0-9]+)\.apk""")
 
     /**
+     * Da dove puo' arrivare un APK, e da nessun altro posto.
+     *
+     * Un aggiornamento e' l'unica cosa che questa app installa: se l'indirizzo
+     * da cui lo prende non e' vincolato, chiunque riesca a farci leggere un
+     * indirizzo diverso ci fa installare quello che vuole. E deve essere
+     * **cifrato**: su `http` chi sta sulla stessa rete puo' sostituire il file
+     * mentre passa, e quello che si installa non e' piu' quello che si e'
+     * scelto.
+     *
+     * Il controllo si fa in due punti — quando si sceglie l'allegato e appena
+     * prima di scaricarlo — perche' fra i due passa del tempo e una risposta.
+     */
+    private const val ORIGINE = "https://github.com/niko9090/sierradeck/releases/download/"
+
+    fun apkAmmesso(indirizzo: String): Boolean = indirizzo.startsWith(ORIGINE)
+
+    /**
      * Guarda se c'è una versione più nuova e, se c'è, chiama `quandoTrovata`
      * con il suo nome e l'indirizzo dell'APK.
      *
@@ -142,7 +159,7 @@ object Aggiornamenti {
                 val versione = VERSIONE_NEL_NOME.find(allegato.optString("name"))
                     ?.groupValues?.get(1) ?: continue
                 val url = allegato.optString("browser_download_url")
-                if (url.isEmpty()) continue
+                if (url.isEmpty() || !apkAmmesso(url)) continue
                 val attuale = migliore
                 if (attuale == null || piuNuova(attuale.first, versione)) {
                     migliore = versione to url
@@ -171,6 +188,10 @@ object Aggiornamenti {
 
     /** Apre il browser sull'APK: da lì Android fa la sua schermata di installazione. */
     fun scarica(contesto: Context, apk: String) {
+        if (!apkAmmesso(apk)) {
+            Log.e("SierraDeck", "aggiornamento rifiutato: non viene da dove deve")
+            return
+        }
         try {
             contesto.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(apk)).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

@@ -23,6 +23,16 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.31',
+    righe: [
+      '**App: l’indirizzo del computer si scrive anche con un percorso dietro.** «192.168.1.5/deck» finiva con la porta in fondo a tutto — «…/deck:47640», che non è l’indirizzo di niente — e un codice QR con i due punti dentro faceva credere che la porta ci fosse già.',
+      '**App: due avvisi diversi non si cancellano più a vicenda.** I numeri delle notifiche di famiglie diverse si sovrapponevano: un autopilota che finiva poteva far sparire l’avviso di uno che si era fermato, cioè proprio quello che chiedeva qualcosa. E due domande aperte adesso si vedono tutt’e due.',
+      '**App: l’aggiornamento si prende solo dalle nostre pubblicazioni, e solo cifrato.** È l’unica cosa che l’app installa: senza vincolo, su una rete condivisa qualcuno avrebbe potuto sostituire il file mentre passa.',
+      '**App: niente più lavoro su una schermata che non c’è più.** Una risposta di rete che arriva dopo che sei uscito non tocca più una finestra chiusa.',
+      '**Spostare una chat fra due finestre non lascia più una traccia dietro di sé** a ogni spostamento.'
+    ]
+  },
+  {
     versione: '0.12.30',
     righe: [
       '**Una chat impiantata non passa più inosservata dentro una flotta.** Quando l’autopilota governa più chat insieme, bastava che una sola chiudesse i suoi turni perché tutte le altre risultassero vive: quella ferma su un comando che non finisce restava appesa per sempre, e il pannello continuava a dire «al lavoro». Adesso ognuna è guardata per conto suo, e quando una tace l’autopilota si ferma dicendo **quale**.'

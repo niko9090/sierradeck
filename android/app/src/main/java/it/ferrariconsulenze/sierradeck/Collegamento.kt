@@ -109,28 +109,53 @@ class Collegamento(contesto: Context) {
         if (this.indirizzo == indirizzo) preferenze.edit().remove(CHIAVE_INDIRIZZO).apply()
     }
 
-    /**
-     * Rimette in forma quello che l'utente digita.
-     *
-     * Chi scrive un indirizzo su un telefono scrive `192.168.1.7`, non
-     * `http://192.168.1.7:47640`. Chiedergli la forma esatta sarebbe chiedergli
-     * di conoscere una cosa che il programma sa già.
-     */
-    private fun pulisci(grezzo: String): String {
-        val testo = grezzo.trim().removeSuffix("/")
-        if (testo.isEmpty()) return ""
-        val conSchema = if (testo.startsWith("http://") || testo.startsWith("https://")) {
-            testo
-        } else {
-            "http://$testo"
-        }
-        // Senza porta si assume la nostra: è quella che il programma usa se
-        // nessuno gliene ha chiesta un'altra.
-        val senzaSchema = conSchema.substringAfter("://")
-        return if (senzaSchema.contains(':')) conSchema else "$conSchema:$PORTA_PREDEFINITA"
-    }
 
     companion object {
+        /**
+         * Rimette in forma quello che l'utente digita.
+         *
+         * Chi scrive un indirizzo su un telefono scrive `192.168.1.7`, non
+         * `http://192.168.1.7:47640`. Chiedergli la forma esatta sarebbe chiedergli
+         * di conoscere una cosa che il programma sa già.
+         */
+        fun pulisci(grezzo: String): String {
+            val testo = grezzo.trim().removeSuffix("/")
+            if (testo.isEmpty()) return ""
+            val conSchema = if (testo.startsWith("http://") || testo.startsWith("https://")) {
+                testo
+            } else {
+                "http://$testo"
+            }
+            // Senza porta si assume la nostra: è quella che il programma usa se
+            // nessuno gliene ha chiesta un'altra.
+            //
+            // La porta va guardata **solo nell'autorità**, cioè nel pezzo fra lo
+            // schema e la prima barra. Prima si guardava tutto: un indirizzo con un
+            // percorso dietro — «192.168.1.5/deck» — non conteneva due punti, e la
+            // porta finiva in fondo a tutto: «http://192.168.1.5/deck:47640», che
+            // non è un indirizzo di niente. Al contrario, due punti dentro un
+            // frammento o una query facevano credere che la porta ci fosse già, e
+            // si finiva sulla 80.
+            val schema = conSchema.substringBefore("://")
+            val senzaSchema = conSchema.substringAfter("://")
+            val taglio = senzaSchema.indexOfFirst { it == '/' || it == '?' || it == '#' }
+            val autorita = if (taglio == -1) senzaSchema else senzaSchema.substring(0, taglio)
+            val resto = if (taglio == -1) "" else senzaSchema.substring(taglio)
+            return if (haPorta(autorita)) conSchema else "$schema://$autorita:$PORTA_PREDEFINITA$resto"
+        }
+
+        /**
+         * Se l'autorità porta già una porta.
+         *
+         * Un indirizzo IPv6 è pieno di due punti e sta fra parentesi quadre: la
+         * porta, se c'è, viene **dopo** la quadra chiusa.
+         */
+        private fun haPorta(autorita: String): Boolean {
+            val dopoQuadra = autorita.lastIndexOf(']')
+            return if (dopoQuadra >= 0) autorita.indexOf(':', dopoQuadra) >= 0
+            else autorita.contains(':')
+        }
+
         const val PORTA_PREDEFINITA = 47640
         private const val CHIAVE_INDIRIZZO = "indirizzo"
         private const val CHIAVE_SEGRETO = "chiave"

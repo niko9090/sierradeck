@@ -36,10 +36,29 @@ object Avvisi {
         val id: Int
     )
 
-    const val ID_DOMANDA = 2
-    const val ID_FINITO = 100
-    const val ID_FERMO = 500
-    const val ID_ASPETTA = 900
+    /**
+     * Le famiglie di avviso stanno in bande che non si toccano.
+     *
+     * Prima erano 100, 500 e 900 con dodici bit di impronta sopra: bande larghe
+     * 4096 che partivano a quattrocento di distanza, cioe' **sovrapposte per
+     * quasi tutta la loro lunghezza**. Due autopiloti diversi — uno che finisce
+     * e uno che si ferma — potevano cadere sullo stesso numero, e il secondo
+     * avviso cancellava il primo: si perdeva proprio quello che chiedeva
+     * qualcosa.
+     *
+     * Con un passo di centomila e un'impronta di sedici bit le bande sono
+     * larghe 65536 e distanti 100000: non si incontrano mai.
+     */
+    const val PASSO_FAMIGLIA = 100_000
+    private const val MASCHERA = 0xFFFF
+
+    const val ID_DOMANDA = 1 * PASSO_FAMIGLIA
+    const val ID_FINITO = 2 * PASSO_FAMIGLIA
+    const val ID_FERMO = 3 * PASSO_FAMIGLIA
+    const val ID_ASPETTA = 4 * PASSO_FAMIGLIA
+
+    /** Il numero di una notifica: la sua famiglia, piu' l'impronta di chi la manda. */
+    fun idAvviso(famiglia: Int, chiave: String): Int = famiglia + (chiave.hashCode() and MASCHERA)
 
     /**
      * Cosa annunciare, dato lo stato del computer e ciò che si è già detto.
@@ -68,7 +87,10 @@ object Avvisi {
                         titolo = "SierraDeck ti sta chiedendo una cosa",
                         testo = d.optString("testo", "Serve una tua risposta"),
                         domanda = id,
-                        id = ID_DOMANDA
+                        // Una per domanda, non una sola per tutte: con l'id
+                        // fisso, la seconda domanda aperta cancellava la prima
+                        // e restava senza risposta perche' nessuno la vedeva.
+                        id = idAvviso(ID_DOMANDA, id)
                     )
                 )
             }
@@ -102,7 +124,7 @@ object Avvisi {
                         titolo = "«$titolo» aspetta te",
                         testo = c.optString("ultimaRiga").ifBlank { "Ha finito di scrivere." },
                         chat = id,
-                        id = ID_ASPETTA + (id.hashCode() and 0xFFF)
+                        id = idAvviso(ID_ASPETTA, id)
                     )
                 )
             }
@@ -126,7 +148,7 @@ object Avvisi {
                             // nell'elenco: due lavori che finiscono a distanza
                             // di minuti cambiano posto, e il secondo
                             // cancellerebbe il primo.
-                            id = ID_FINITO + (id.hashCode() and 0xFFF)
+                            id = idAvviso(ID_FINITO, id)
                         )
                     )
                 }
@@ -141,7 +163,7 @@ object Avvisi {
                             chiave = "s:$id",
                             titolo = "$nome si è fermato",
                             testo = if (motivo.isEmpty()) "Serve una tua occhiata." else motivo,
-                            id = ID_FERMO + (id.hashCode() and 0xFFF)
+                            id = idAvviso(ID_FERMO, id)
                         )
                     )
                 }
