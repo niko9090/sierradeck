@@ -1,6 +1,6 @@
 ---
 titolo: "Il FileZilla del progetto: SFTP dentro SierraDeck"
-quando: 2026-08-29T13:10:00+02:00
+quando: 2026-08-29T18:20:00+02:00
 tag: ["trasferimenti", "sftp", "ssh", "sicurezza", "pacchetto"]
 ---
 
@@ -78,11 +78,82 @@ dica** — codice che compila, test verdi, app in sviluppo che va.
 è finito quando si è guardato dentro il pacchetto. In dev tutto si risolve; è
 l'installato che conta.
 
+## La coda (0.12.28)
+`trasferimenti/coda.ts`. Tre decisioni, e sono quelle che la rendono usabile:
+
+- **Le cartelle si contano prima.** Accodare una cartella la cammina e la
+  trasforma nei suoi file, uno per riga. Costa qualche secondo — durante i quali
+  si dice «sto contando» — e in cambio dà l'unica cosa che rende sopportabile
+  un'attesa: sapere quanto manca. Una barra su un totale ignoto non è
+  un'informazione, è un'animazione.
+- **Un file per volta, per destinazione.** Su un canale SFTP solo le copie
+  parallele non vanno più veloci: si dividono la banda e quando una fallisce non
+  si capisce quale. Server diversi invece camminano insieme.
+- **Un errore non ferma la fila.** Chi ha lanciato una copia da mezz'ora vuole i
+  499 file che si potevano prendere, non un elenco vuoto e il primo intoppo.
+
+Quello **in corso** non si annulla: interrompere una copia a metà lascia sul
+disco un file troncato che sembra buono, ed è proprio il caso in cui poi si
+sovrascrive l'originale con la metà.
+
+Il motore è un parametro (`MotoreCoda`): l'ordine, gli errori e il conteggio si
+provano senza un server acceso — il protocollo ha già i suoi test contro un
+server vero.
+
+## La trappola del trascinamento
+Un file lasciato cadere **fuori** dal bersaglio porta via la pagina: è il
+comportamento predefinito del web, il browser apre il file al posto del
+documento. Dentro un'applicazione vuol dire che **SierraDeck sparisce** e resta
+un visualizzatore di file, senza un tasto indietro. Basta una mira sbagliata di
+due centimetri. La guardia sta in `renderer/main.tsx`: `dragover` e `drop` sulla
+finestra con `preventDefault`. Chi vuole davvero il trascinamento chiama
+`preventDefault` per conto suo e l'evento non ci arriva.
+
+Da Electron 32 `File.path` non esiste più: il percorso di un file trascinato da
+Esplora risorse lo dà `webUtils.getPathForFile`, dal ponte. E **se sia cartella o
+file lo si chiede al disco**: indovinarlo dal punto nel nome sbaglia su `.git` e
+su `archivio.2026`.
+
+## Il terminale sul server (0.12.28)
+Una shell sulla **stessa** connessione SFTP (`cliente.shell()`), non una seconda:
+autenticarsi due volte vuol dire chiedere la password due volte o tenerne due
+copie in giro. Sta sotto le due colonne, non in una finestra a parte — caricare
+un file e riavviare il servizio che lo legge è un gesto solo.
+
+Tre dettagli che si sbagliano da soli:
+- **I byte diventano testo con uno `StringDecoder`.** Un pezzo di rete può finire
+  in mezzo a una lettera accentata: decodificarlo da solo dà una scatoletta al
+  posto della «ò», e su un server italiano succede al primo `ls`.
+- **`setWindow` vuole le righe prima delle colonne**, al contrario di tutto il
+  resto: invertirle dà un terminale che va a capo dove non deve, e non se ne
+  accorge nessuno finché non capita.
+- **La potatura delle sessioni inattive deve saltare quelle con un terminale
+  aperto.** Un terminale è un uso anche se non passa un byte da mezz'ora:
+  chiuderlo sotto le mani di chi lo guarda è la sessione che sparisce da sola.
+
+Scrivendo il test: nel server di `ssh2` il primo argomento dei gestori di sessione
+è **`accept`**, non l'id della richiesta (`session.on('pty', (accept, reject,
+info) => ...)`). Sbagliarla dà una shell che non si apre mai, senza un errore che
+lo dica.
+
+## Il confronto fra i due lati (0.12.28)
+`shared/confronto-file.ts`. È la ragione per cui si riapre un client SFTP la
+seconda volta: la prima si manda tutto, dalla seconda la domanda è sempre
+«questo l'ho già mandato?». Senza risposta si ricarica tutto per sicurezza, ed è
+così che si sovrascrive una correzione fatta direttamente sul server.
+
+**Tolleranza di 2 secondi sui tempi, nessuna sulla dimensione.** Due copie
+identiche quasi mai hanno lo stesso millisecondo (SFTP dà i secondi, alcuni
+filesystem arrotondano, il caricamento non conserva la data): senza tolleranza
+*ogni* file risulterebbe diverso, che è come non dire niente, solo più rumoroso.
+Un byte di differenza invece è una differenza vera.
+
 ## Cosa manca (a strati)
 1. ~~destinazioni, motore, pannello a due colonne~~ **fatto (0.12.27)**
-2. code di trasferimento con più file insieme, cartelle intere, trascinamento
-3. un terminale **SSH** come una chat in più — il pty è già un'astrazione, e una
-   sessione remota può prendere il suo posto
-4. il pannello dal telefono: sfogliare e spostare da fuori casa
-5. confronto delle due parti (cosa è più nuovo di qua o di là), che è la cosa per
-   cui si apre FileZilla la seconda volta
+2. ~~code di trasferimento: più file, cartelle intere, trascinamento~~ **fatto (0.12.28)**
+3. ~~un terminale **SSH**~~ **fatto (0.12.28)** — dentro il pannello, non come
+   chat: legarlo al modello delle chat avrebbe toccato workspace e riquadri, che
+   hanno ancora aperto il guasto dei workspace che si rimescolano
+4. il pannello **dal telefono**: sfogliare e spostare da fuori casa — l'unico
+   strato ancora tutto da fare
+5. ~~confronto delle due parti~~ **fatto (0.12.28)**

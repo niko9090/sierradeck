@@ -31,6 +31,8 @@ let porta = 0
 let cartella: string
 let improntaVera = ''
 const FINTI: Record<string, string> = {}
+const scrittoAlGuscio: string[] = []
+const finestre: string[] = []
 
 const CHIAVE_HOST = utils.generateKeyPairSync('ed25519')
 
@@ -48,6 +50,24 @@ beforeAll(async () => {
     cliente.on('ready', () => {
       cliente.on('session', (accetta) => {
         const sessione = accetta()
+        // In ssh2 il primo argomento e' `accept`, non l'id della richiesta: e'
+        // la firma che si sbaglia per prima, e il sintomo e' una shell che non
+        // si apre mai senza un errore che lo dica.
+        sessione.on('pty', (accettaPty) => { if (typeof accettaPty === 'function') accettaPty() })
+        sessione.on('window-change', (accettaW, _rifiuta, info) => {
+          finestre.push(`${info.cols}x${info.rows}`)
+          if (typeof accettaW === 'function') accettaW()
+        })
+        sessione.on('shell', (accettaShell) => {
+          const canale = accettaShell()
+          // Una lettera accentata **spezzata a meta'** fra due pacchetti: e'
+          // esattamente quello che fa la rete, e senza un decodificatore che
+          // tenga il resto arriverebbe una scatoletta al posto della «o`».
+          const pero = Buffer.from('però va bene' + String.fromCharCode(10), 'utf8')
+          canale.write(pero.subarray(0, 5))
+          setTimeout(() => canale.write(pero.subarray(5)), 10)
+          canale.on('data', (d: Buffer) => { scrittoAlGuscio.push(d.toString('utf8')) })
+        })
         sessione.on('sftp', (accettaSftp) => {
           const sftp = accettaSftp()
           const STATUS = 0
@@ -249,6 +269,32 @@ describe('sfogliare e copiare', () => {
     writeFileSync(locale, 'roba che sale', 'utf8')
     await s.carica(locale, '/casa/salito.txt')
     expect(FINTI['/casa/salito.txt']).toBe('roba che sale')
+    s.chiudi()
+  })
+})
+
+describe('il terminale sul server', () => {
+  it('apre una shell sulla stessa connessione, e le accentate arrivano intere', async () => {
+    // Il punto del test non e' che «arrivi del testo»: e' che un carattere
+    // spezzato fra due pacchetti di rete si ricomponga. Su un server italiano
+    // succede al primo `ls`.
+    const s = await apriSessione(dove({ improntaServer: improntaVera }), { password: 'segreta' })
+    const visto: string[] = []
+    const guscio = await s.guscio(80, 24, (t) => visto.push(t), () => undefined)
+    await new Promise((r) => setTimeout(r, 120))
+    expect(visto.join('')).toContain('però va bene')
+
+    guscio.scrivi('uptime' + String.fromCharCode(10))
+    await new Promise((r) => setTimeout(r, 60))
+    expect(scrittoAlGuscio.join('')).toContain('uptime')
+
+    guscio.ridimensiona(120, 40)
+    await new Promise((r) => setTimeout(r, 60))
+    // ssh2 vuole righe prima delle colonne: invertirle da' un terminale che va
+    // a capo dove non deve, e non se ne accorge nessuno finche' non capita.
+    expect(finestre).toContain('120x40')
+
+    guscio.chiudi()
     s.chiudi()
   })
 })

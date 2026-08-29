@@ -1,4 +1,4 @@
-import { clipboard, contextBridge, ipcRenderer } from 'electron'
+import { clipboard, contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { HostToCore } from '@shared/protocol'
 import type { Avanzamento, IndexOutcome, SessionSummary } from '@shared/types'
 import type { LayoutSalvato, PaneSalvato } from '@shared/workspace'
@@ -45,6 +45,31 @@ export type VoceVista = {
 }
 
 export type ElencoVista = { percorso: string; su?: string; voci: VoceVista[] }
+
+/** Una riga della coda dei trasferimenti. */
+export type LavoroVista = {
+  id: string
+  destinazione: string
+  verso: 'giu' | 'su'
+  remoto: string
+  locale: string
+  nome: string
+  dimensione: number
+  stato: 'attesa' | 'corso' | 'fatto' | 'errore' | 'annullato'
+  fatti: number
+  errore?: string
+}
+
+export type CodaVista = { lavori: LavoroVista[]; contando: number }
+
+/** Cosa si chiede di trasferire: un file, o una cartella intera. */
+export type RichiestaVista = {
+  destinazione: string
+  verso: 'giu' | 'su'
+  origine: string
+  arrivo: string
+  cartella: boolean
+}
 
 
 // `env` non e' piu' esposto: GESTORE_CLAUDE_PATH serviva al renderer solo per
@@ -321,6 +346,51 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('trasferimenti:eliminaRemoto', id, percorso, cartella),
     rinominaRemoto: (id: string, da: string, a: string): Promise<void> =>
       ipcRenderer.invoke('trasferimenti:rinominaRemoto', id, da, a),
+    /**
+     * La coda: piu' file insieme, cartelle intere.
+     *
+     * Il singolo `scarica`/`carica` qui sopra resta per il doppio clic su un
+     * file; tutto il resto passa di qua, perche' e' l'unico modo di sapere
+     * quanto manca.
+     */
+    accoda: (richieste: RichiestaVista[]): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:accoda', richieste),
+    coda: (): Promise<CodaVista> => ipcRenderer.invoke('trasferimenti:coda'),
+    /** Il terminale sul server: la stessa connessione, un canale in piu'. */
+    apriGuscio: (id: string, colonne: number, righe: number): Promise<string> =>
+      ipcRenderer.invoke('trasferimenti:apriGuscio', id, colonne, righe),
+    scriviGuscio: (guscio: string, testo: string): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:scriviGuscio', guscio, testo),
+    ridimensionaGuscio: (guscio: string, colonne: number, righe: number): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:ridimensionaGuscio', guscio, colonne, righe),
+    chiudiGuscio: (guscio: string): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:chiudiGuscio', guscio),
+    suGuscio: (h: (e: { guscio: string; dati?: string; finito?: boolean }) => void): (() => void) => {
+      const ascolta = (_e: unknown, dato: unknown): void =>
+        h(dato as { guscio: string; dati?: string; finito?: boolean })
+      ipcRenderer.on('trasferimenti:guscio', ascolta)
+      return () => ipcRenderer.off('trasferimenti:guscio', ascolta)
+    },
+    /**
+     * Il percorso di un file trascinato dentro da fuori.
+     *
+     * Da Electron 32 `File.path` non esiste piu': una pagina non deve poter
+     * leggere dove sta un file solo perche' ci e' passata sopra. Il percorso lo
+     * da' il ponte, e solo per i file che l'utente ha davvero lasciato cadere.
+     */
+    percorsoDelFile: (file: File): string => webUtils.getPathForFile(file),
+    annullaLavoro: (id: string): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:annullaLavoro', id),
+    annullaCoda: (): Promise<void> => ipcRenderer.invoke('trasferimenti:annullaCoda'),
+    pulisciCoda: (ancheErrori: boolean): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:pulisciCoda', ancheErrori),
+    riprovaLavoro: (id: string): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:riprovaLavoro', id),
+    suCoda: (h: (stato: CodaVista) => void): (() => void) => {
+      const ascolta = (_e: unknown, dato: unknown): void => h(dato as CodaVista)
+      ipcRenderer.on('trasferimenti:coda', ascolta)
+      return () => ipcRenderer.off('trasferimenti:coda', ascolta)
+    },
     scollega: (id: string): Promise<void> => ipcRenderer.invoke('trasferimenti:scollega', id),
     suAvanzamento: (
       h: (e: { id: string; cosa: string; fatti: number; totale: number; finito?: boolean; errore?: string }) => void

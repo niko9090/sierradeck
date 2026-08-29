@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react'
-import type { DestinazioneVista, ElencoVista, VoceVista } from '../../preload'
+import React, { useEffect, useRef, useState } from 'react'
+import type { CodaVista, DestinazioneVista, ElencoVista, RichiestaVista, VoceVista } from '../../preload'
+import { TerminaleRemoto } from './TerminaleRemoto'
+import { confrontaElenchi, segnoDi, type Confronto } from '@shared/confronto-file'
 
 /**
  * I file del progetto, di qua e di là.
@@ -10,8 +12,9 @@ import type { DestinazioneVista, ElencoVista, VoceVista } from '../../preload'
  * — ricordarsi quale riga va con quale cartella. Qui apri la chat di un
  * progetto e vedi i suoi server, e nessun altro.
  *
- * A sinistra il disco di questo computer, a destra il server. In mezzo le due
- * frecce, che sono tutto quello che serve nel novanta per cento dei casi.
+ * A sinistra il disco di questo computer, a destra il server. Si sceglie con un
+ * clic (con Ctrl e Maiusc come in qualunque elenco), si trascina da una parte
+ * all'altra, e in fondo la coda dice cosa sta passando e quanto manca.
  *
  * ## Prima connessione
  *
@@ -22,7 +25,8 @@ import type { DestinazioneVista, ElencoVista, VoceVista } from '../../preload'
  * stesso, con la password consegnata a lui.
  */
 
-type Avanzamento = { cosa: string; fatti: number; totale: number; errore?: string }
+/** Il tipo di dato che viaggia in un trascinamento fra le due colonne. */
+const TIPO_VOCI = 'application/x-sierradeck-voci'
 
 function misura(byte: number): string {
   if (byte < 1024) return `${byte} B`
@@ -41,9 +45,12 @@ export function PannelloTrasferimenti(
   const [collegato, setCollegato] = useState(false)
   const [chiede, setChiede] = useState<{ impronta: string; cambiata: boolean } | undefined>(undefined)
   const [errore, setErrore] = useState<string | undefined>(undefined)
-  const [avanza, setAvanza] = useState<Avanzamento | undefined>(undefined)
+  const [coda, setCoda] = useState<CodaVista>({ lavori: [], contando: 0 })
   const [modifica, setModifica] = useState<Partial<DestinazioneVista> | undefined>(undefined)
   const [password, setPassword] = useState('')
+  const [presiLocali, setPresiLocali] = useState<string[]>([])
+  const [presiRemoti, setPresiRemoti] = useState<string[]>([])
+  const [terminale, setTerminale] = useState(false)
 
   useEffect(() => {
     const suTasto = (e: KeyboardEvent): void => { if (e.key === 'Escape') onChiudi() }
@@ -51,15 +58,23 @@ export function PannelloTrasferimenti(
     return () => window.removeEventListener('keydown', suTasto)
   }, [onChiudi])
 
-  useEffect(() => window.gestore.trasferimenti.suAvanzamento((e) => {
-    if (e.finito === true) {
-      setAvanza(undefined)
-      if (e.errore !== undefined) setErrore(e.errore)
-      else { ricaricaLocale(locale?.percorso); ricaricaRemoto(remoto?.percorso) }
-      return
+  /**
+   * I due elenchi si ricaricano quando la coda si svuota.
+   *
+   * Ricaricarli a ogni file finito farebbe saltare la cartella sotto le mani
+   * proprio mentre si sceglie il prossimo pezzo da mandare; a coda ferma invece
+   * è il momento in cui si vuole vedere cos'è arrivato.
+   */
+  const eraOccupata = useRef(false)
+  useEffect(() => window.gestore.trasferimenti.suCoda((s) => {
+    const occupata = s.contando > 0 || s.lavori.some((l) => l.stato === 'corso' || l.stato === 'attesa')
+    if (eraOccupata.current && !occupata) {
+      ricaricaLocale(locale?.percorso)
+      ricaricaRemoto(remoto?.percorso)
     }
-    setAvanza({ cosa: e.cosa, fatti: e.fatti, totale: e.totale })
-  }), [locale?.percorso, remoto?.percorso])
+    eraOccupata.current = occupata
+    setCoda(s)
+  }), [locale?.percorso, remoto?.percorso, scelta, collegato])
 
   const caricaDestinazioni = (): void => {
     if (cwd === undefined || cwd === '') { setDestinazioni([]); return }
@@ -75,14 +90,16 @@ export function PannelloTrasferimenti(
   const ricaricaLocale = (dove?: string): void => {
     const percorso = dove ?? cwd
     if (percorso === undefined || percorso === '') return
-    window.gestore.trasferimenti.locale(percorso).then(setLocale).catch(() => undefined)
+    window.gestore.trasferimenti.locale(percorso)
+      .then((e) => { setLocale(e); setPresiLocali([]) })
+      .catch(() => undefined)
   }
   useEffect(() => ricaricaLocale(), [cwd])
 
   const ricaricaRemoto = (dove?: string): void => {
     if (scelta === undefined || !collegato) return
     window.gestore.trasferimenti.remoto(scelta, dove ?? '')
-      .then((e) => { setRemoto(e); setErrore(undefined) })
+      .then((e) => { setRemoto(e); setPresiRemoti([]); setErrore(undefined) })
       .catch((e: unknown) => setErrore(String(e)))
   }
 
@@ -101,6 +118,35 @@ export function PannelloTrasferimenti(
   useEffect(() => { if (collegato) ricaricaRemoto('') }, [collegato])
 
   const dest = destinazioni?.find((d) => d.id === scelta)
+  const pronto = collegato && scelta !== undefined && locale !== undefined && remoto !== undefined
+
+  /** Manda in coda: è l'unica strada, sia per un file che per mezzo disco. */
+  const manda = (verso: 'giu' | 'su', voci: { percorso: string; cartella: boolean }[]): void => {
+    if (!pronto || voci.length === 0) return
+    const arrivo = verso === 'giu' ? (locale as ElencoVista).percorso : (remoto as ElencoVista).percorso
+    const richieste: RichiestaVista[] = voci.map((v) => ({
+      destinazione: scelta as string,
+      verso,
+      origine: v.percorso,
+      arrivo,
+      cartella: v.cartella
+    }))
+    void window.gestore.trasferimenti.accoda(richieste).catch((e: unknown) => setErrore(String(e)))
+  }
+
+  /**
+   * Cosa e' piu' nuovo di qua e cosa di la'.
+   *
+   * E' la ragione per cui si riapre un client SFTP la seconda volta: la prima
+   * si manda tutto, dalla seconda la domanda e' sempre «questo l'ho gia'
+   * mandato?». Senza risposta si ricarica tutto per sicurezza, ed e' cosi' che
+   * si sovrascrive una correzione fatta direttamente sul server.
+   */
+  const confrontoLocale = confrontaElenchi(locale?.voci ?? [], remoto?.voci ?? [])
+  const confrontoRemoto = confrontaElenchi(remoto?.voci ?? [], locale?.voci ?? [])
+
+  const scelteDi = (elenco: ElencoVista | undefined, presi: string[]): VoceVista[] =>
+    (elenco?.voci ?? []).filter((v) => presi.includes(v.percorso))
 
   return (
     <div className="pannello pannello--negozio">
@@ -134,10 +180,18 @@ export function PannelloTrasferimenti(
           ) : null}
           {dest !== undefined && collegato ? (
             <button
+              className={`tasto ${terminale ? 'tasto--primario' : 'tasto--fantasma'}`}
+              onClick={() => setTerminale(!terminale)}
+            >
+              {'>_ Terminale'}
+            </button>
+          ) : null}
+          {dest !== undefined && collegato ? (
+            <button
               className="tasto tasto--fantasma"
               onClick={() => {
                 void window.gestore.trasferimenti.scollega(dest.id)
-                setCollegato(false); setRemoto(undefined)
+                setCollegato(false); setRemoto(undefined); setTerminale(false)
               }}
             >
               Scollega
@@ -153,27 +207,23 @@ export function PannelloTrasferimenti(
           ) : null}
         </div>
         {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
-        {avanza !== undefined ? (
-          <div className="negozio__ok">
-            {avanza.cosa} — {misura(avanza.fatti)}
-            {avanza.totale > 0 ? ` di ${misura(avanza.totale)}` : ''}
-          </div>
-        ) : null}
       </div>
 
       <div className="trasf">
         <Colonna
           titolo="Su questo computer"
           elenco={locale}
+          presi={presiLocali}
+          setPresi={setPresiLocali}
+          confronto={collegato && remoto !== undefined ? confrontoLocale : undefined}
           onVai={(p) => ricaricaLocale(p)}
           azione={{
-            etichetta: '→  Carica',
-            attiva: collegato && remoto !== undefined,
-            fai: (v) => {
-              if (scelta === undefined || remoto === undefined || v.cartella) return
-              void window.gestore.trasferimenti.carica(scelta, v.percorso, remoto.percorso)
-            }
+            etichetta: `→  Carica${presiLocali.length > 1 ? ` (${presiLocali.length})` : ''}`,
+            attiva: pronto && presiLocali.length > 0,
+            fai: () => manda('su', scelteDi(locale, presiLocali))
           }}
+          onLascia={(voci) => manda('giu', voci)}
+          accettaDaFuori={false}
         />
         <Colonna
           titolo={dest === undefined ? 'Nessun server' : `${dest.utente}@${dest.host}`}
@@ -183,17 +233,29 @@ export function PannelloTrasferimenti(
               ? 'Aggiungi un server con «+ Server».'
               : collegato ? 'Cartella vuota.' : 'Premi «Collega».'
           }
+          presi={presiRemoti}
+          setPresi={setPresiRemoti}
+          confronto={locale !== undefined ? confrontoRemoto : undefined}
           onVai={(p) => ricaricaRemoto(p)}
           azione={{
-            etichetta: '←  Scarica',
-            attiva: collegato && locale !== undefined,
-            fai: (v) => {
-              if (scelta === undefined || locale === undefined || v.cartella) return
-              void window.gestore.trasferimenti.scarica(scelta, v.percorso, locale.percorso)
-            }
+            etichetta: `←  Scarica${presiRemoti.length > 1 ? ` (${presiRemoti.length})` : ''}`,
+            attiva: pronto && presiRemoti.length > 0,
+            fai: () => manda('giu', scelteDi(remoto, presiRemoti))
           }}
+          onLascia={(voci) => manda('su', voci)}
+          /**
+           * Sul lato server si può lasciar cadere anche roba trascinata da
+           * Esplora risorse: è il gesto per cui la gente apre FileZilla.
+           */
+          accettaDaFuori={pronto}
         />
       </div>
+
+      {terminale && collegato && scelta !== undefined ? (
+        <TerminaleRemoto destinazione={scelta} onErrore={setErrore} />
+      ) : null}
+
+      <Coda coda={coda} />
 
       {chiede !== undefined && dest !== undefined ? (
         <div className="velo" onMouseDown={() => setChiede(undefined)}>
@@ -325,20 +387,192 @@ export function PannelloTrasferimenti(
   )
 }
 
+/**
+ * La coda, in fondo al pannello.
+ *
+ * Mostra le prime righe e conta il resto: una lista di cinquecento file è
+ * un'informazione che nessuno legge, «212 in attesa» sì.
+ */
+function Coda({ coda }: { coda: CodaVista }): React.JSX.Element | null {
+  const { lavori, contando } = coda
+  if (lavori.length === 0 && contando === 0) return null
+  const inCorso = lavori.filter((l) => l.stato === 'corso')
+  const attesa = lavori.filter((l) => l.stato === 'attesa')
+  const errori = lavori.filter((l) => l.stato === 'errore')
+  const fatti = lavori.filter((l) => l.stato === 'fatto').length
+  const daMostrare = [...inCorso, ...errori, ...attesa].slice(0, 6)
+
+  return (
+    <div className="trasf__coda">
+      <div className="trasf__coda-testa">
+        <span className="serigrafia">Coda</span>
+        <span className="misura">
+          {contando > 0 ? 'sto contando le cartelle… · ' : ''}
+          {inCorso.length} in corso · {attesa.length} in attesa · {fatti} fatti
+          {errori.length > 0 ? ` · ${errori.length} non riusciti` : ''}
+        </span>
+        <span style={{ flex: 1 }} />
+        {attesa.length > 0 ? (
+          <button
+            className="tasto tasto--fantasma"
+            onClick={() => void window.gestore.trasferimenti.annullaCoda()}
+          >
+            Ferma la fila
+          </button>
+        ) : null}
+        <button
+          className="tasto tasto--fantasma"
+          onClick={() => void window.gestore.trasferimenti.pulisciCoda(errori.length === 0)}
+        >
+          {errori.length === 0 ? 'Pulisci' : 'Pulisci i finiti'}
+        </button>
+      </div>
+      <div className="trasf__coda-righe">
+        {daMostrare.map((l) => (
+          <div key={l.id} className="trasf__lavoro">
+            <span className="trasf__lavoro-verso">{l.verso === 'giu' ? '↓' : '↑'}</span>
+            <span className="trasf__lavoro-nome" title={l.verso === 'giu' ? l.remoto : l.locale}>
+              {l.nome}
+            </span>
+            {l.stato === 'errore' ? (
+              <>
+                <span className="trasf__lavoro-errore">{l.errore}</span>
+                <button
+                  className="tasto tasto--fantasma"
+                  onClick={() => void window.gestore.trasferimenti.riprovaLavoro(l.id)}
+                >
+                  Riprova
+                </button>
+              </>
+            ) : l.stato === 'corso' ? (
+              <span className="trasf__barra">
+                <span
+                  className="trasf__barra-dentro"
+                  style={{ width: `${l.dimensione > 0 ? Math.min(100, (l.fatti / l.dimensione) * 100) : 30}%` }}
+                />
+              </span>
+            ) : (
+              <>
+                <span className="misura">{misura(l.dimensione)}</span>
+                <button
+                  className="tasto tasto--fantasma"
+                  onClick={() => void window.gestore.trasferimenti.annullaLavoro(l.id)}
+                >
+                  Togli
+                </button>
+              </>
+            )}
+          </div>
+        ))}
+        {lavori.length > daMostrare.length ? (
+          <div className="misura">…e altri {lavori.length - daMostrare.length}.</div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 /** Una delle due colonne. Identiche di proposito: è lo stesso gesto da due lati. */
 function Colonna(
-  { titolo, elenco, vuoto, onVai, azione }: {
+  { titolo, elenco, vuoto, presi, setPresi, onVai, azione, onLascia, accettaDaFuori, confronto }: {
     titolo: string
     elenco?: ElencoVista
     vuoto?: string
+    presi: string[]
+    /** Com'e' messo ogni file rispetto all'altro lato. Assente: non si sa ancora. */
+    confronto?: Map<string, Confronto>
+    setPresi: (p: string[]) => void
     onVai: (percorso: string) => void
-    azione: { etichetta: string; attiva: boolean; fai: (v: VoceVista) => void }
+    azione: { etichetta: string; attiva: boolean; fai: () => void }
+    onLascia: (voci: { percorso: string; cartella: boolean }[]) => void
+    accettaDaFuori: boolean
   }
 ): React.JSX.Element {
+  const [sopra, setSopra] = useState(false)
+
+  /**
+   * La scelta con Ctrl e Maiusc, come in qualunque elenco di file.
+   *
+   * Non è vezzo: chi apre questo pannello ha già le dita abituate, e un elenco
+   * che si comporta diversamente costringe a scoprire da capo una cosa che
+   * sapeva già fare.
+   */
+  const clic = (v: VoceVista, e: React.MouseEvent): void => {
+    const tutte = (elenco?.voci ?? []).map((x) => x.percorso)
+    if (e.shiftKey && presi.length > 0) {
+      const ultimo = tutte.indexOf(presi[presi.length - 1] as string)
+      const adesso = tutte.indexOf(v.percorso)
+      if (ultimo >= 0 && adesso >= 0) {
+        const [a, b] = ultimo < adesso ? [ultimo, adesso] : [adesso, ultimo]
+        setPresi(tutte.slice(a, b + 1))
+        return
+      }
+    }
+    if (e.ctrlKey || e.metaKey) {
+      setPresi(presi.includes(v.percorso) ? presi.filter((p) => p !== v.percorso) : [...presi, v.percorso])
+      return
+    }
+    setPresi([v.percorso])
+  }
+
+  const iniziaTrascinamento = (v: VoceVista, e: React.DragEvent): void => {
+    // Trascinare una riga non scelta trascina quella, non la selezione di
+    // prima: è quello che si aspetta chiunque abbia mai spostato un file.
+    const voci = presi.includes(v.percorso)
+      ? (elenco?.voci ?? []).filter((x) => presi.includes(x.percorso))
+      : [v]
+    if (!presi.includes(v.percorso)) setPresi([v.percorso])
+    e.dataTransfer.setData(
+      TIPO_VOCI,
+      JSON.stringify(voci.map((x) => ({ percorso: x.percorso, cartella: x.cartella })))
+    )
+    e.dataTransfer.effectAllowed = 'copy'
+  }
+
+  const lascia = (e: React.DragEvent): void => {
+    e.preventDefault()
+    setSopra(false)
+    const dentro = e.dataTransfer.getData(TIPO_VOCI)
+    if (dentro !== '') {
+      try {
+        onLascia(JSON.parse(dentro) as { percorso: string; cartella: boolean }[])
+      } catch {
+        // Un trascinamento illeggibile non merita un errore in faccia.
+      }
+      return
+    }
+    if (!accettaDaFuori) return
+    // Roba arrivata da Esplora risorse. Il percorso lo dà il ponte: da Electron
+    // 32 una pagina non può più leggerlo da sola, e va bene così.
+    const fuori = [...e.dataTransfer.files].map((f) => window.gestore.trasferimenti.percorsoDelFile(f))
+      .filter((p) => p !== '')
+    // Se sia cartella o file lo si **chiede al disco**: indovinarlo dal punto
+    // nel nome sbaglia su `.git` e su `archivio.2026`, e sbagliarlo vuol dire
+    // accodare una cartella come file — che fallisce e basta.
+    void Promise.all(
+      fuori.map(async (p) => ({ percorso: p, cartella: await window.gestore.sistema.cartellaEsiste(p) }))
+    ).then(onLascia)
+  }
+
   return (
-    <div className="trasf__lato">
+    <div
+      className={`trasf__lato${sopra ? ' trasf__lato--sopra' : ''}`}
+      onDragOver={(e) => {
+        const suo = e.dataTransfer.types.includes(TIPO_VOCI)
+        if (!suo && !accettaDaFuori) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+        setSopra(true)
+      }}
+      onDragLeave={() => setSopra(false)}
+      onDrop={lascia}
+    >
       <div className="trasf__testa">
         <span className="serigrafia">{titolo}</span>
+        <span style={{ flex: 1 }} />
+        <button className="tasto tasto--fantasma" disabled={!azione.attiva} onClick={azione.fai}>
+          {azione.etichetta}
+        </button>
       </div>
       <div className="trasf__percorso">
         {elenco?.su !== undefined ? (
@@ -352,32 +586,38 @@ function Colonna(
         ) : elenco.voci.length === 0 ? (
           <div className="misura">{vuoto ?? 'Cartella vuota.'}</div>
         ) : elenco.voci.map((v) => (
-          <div key={v.percorso} className="negozio__voce">
-            <div
-              className="negozio__info"
-              onDoubleClick={() => { if (v.cartella) onVai(v.percorso) }}
-            >
+          <div
+            key={v.percorso}
+            className={`negozio__voce${presi.includes(v.percorso) ? ' trasf__voce--presa' : ''}`}
+            draggable
+            onDragStart={(e) => iniziaTrascinamento(v, e)}
+            onClick={(e) => clic(v, e)}
+            onDoubleClick={() => { if (v.cartella) onVai(v.percorso) }}
+          >
+            <div className="negozio__info">
               <div className="negozio__nome">
                 {v.cartella ? '📁 ' : ''}{v.nome}
               </div>
               <div className="negozio__desc">
                 {v.cartella ? 'cartella' : misura(v.dimensione)}
                 {v.permessi !== undefined ? ` · ${v.permessi}` : ''}
+                {(() => {
+                  const c = v.cartella ? undefined : confronto?.get(v.nome)
+                  if (c === undefined || c === 'uguale') return null
+                  return <span className={`trasf__segno trasf__segno--${c}`}> · {segnoDi(c)}</span>
+                })()}
               </div>
             </div>
-            <div className="negozio__azioni">
-              {v.cartella ? (
-                <button className="tasto tasto--fantasma" onClick={() => onVai(v.percorso)}>Apri</button>
-              ) : (
+            {v.cartella ? (
+              <div className="negozio__azioni">
                 <button
                   className="tasto tasto--fantasma"
-                  disabled={!azione.attiva}
-                  onClick={() => azione.fai(v)}
+                  onClick={(e) => { e.stopPropagation(); onVai(v.percorso) }}
                 >
-                  {azione.etichetta}
+                  Apri
                 </button>
-              )}
-            </div>
+              </div>
+            ) : null}
           </div>
         ))}
       </div>

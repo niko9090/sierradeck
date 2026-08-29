@@ -14,7 +14,7 @@ import type { Novita } from '@shared/novita'
 import type { Consumi } from '@shared/consumi'
 import type { Anteprima } from '../main/anteprima'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
-import type { DestinazioneVista, ElencoVista } from '../preload'
+import type { CodaVista, DestinazioneVista, ElencoVista, RichiestaVista } from '../preload'
 
 declare global {
   interface Window {
@@ -135,6 +135,19 @@ declare global {
         creaCartella: (id: string, percorso: string) => Promise<void>
         eliminaRemoto: (id: string, percorso: string, cartella: boolean) => Promise<void>
         rinominaRemoto: (id: string, da: string, a: string) => Promise<void>
+        accoda: (richieste: RichiestaVista[]) => Promise<void>
+        coda: () => Promise<CodaVista>
+        apriGuscio: (id: string, colonne: number, righe: number) => Promise<string>
+        scriviGuscio: (guscio: string, testo: string) => Promise<void>
+        ridimensionaGuscio: (guscio: string, colonne: number, righe: number) => Promise<void>
+        chiudiGuscio: (guscio: string) => Promise<void>
+        suGuscio: (h: (e: { guscio: string; dati?: string; finito?: boolean }) => void) => () => void
+        percorsoDelFile: (file: File) => string
+        annullaLavoro: (id: string) => Promise<void>
+        annullaCoda: () => Promise<void>
+        pulisciCoda: (ancheErrori: boolean) => Promise<void>
+        riprovaLavoro: (id: string) => Promise<void>
+        suCoda: (h: (stato: CodaVista) => void) => () => void
         scollega: (id: string) => Promise<void>
         suAvanzamento: (
           h: (e: {

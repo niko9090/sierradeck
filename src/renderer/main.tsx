@@ -17,6 +17,21 @@ window.addEventListener('unhandledrejection', (e) => {
   try { void window.gestore?.log?.errore?.(`[renderer] promise rifiutata senza catch — ${d}`) } catch { /* la console resta */ }
 })
 
+/**
+ * Un file lasciato cadere **fuori** da chi lo aspettava non porta via la pagina.
+ *
+ * È il comportamento predefinito del web: il browser apre il file al posto del
+ * documento. Dentro un'applicazione vuol dire che SierraDeck sparisce e resta
+ * un visualizzatore di file, senza un tasto indietro. Basta una mira sbagliata
+ * di due centimetri mentre si trascina qualcosa nel pannello dei file.
+ *
+ * Chi vuole davvero un trascinamento chiama `preventDefault` per conto suo e
+ * l'evento non arriva mai qui.
+ */
+for (const evento of ['dragover', 'drop']) {
+  window.addEventListener(evento, (e) => e.preventDefault())
+}
+
 const el = document.getElementById('root')
 if (!el) throw new Error('Elemento #root non trovato')
 createRoot(el).render(

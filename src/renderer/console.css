@@ -3139,9 +3139,117 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 }
 
 .trasf__testa {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
   padding: var(--s2) var(--s3);
   background: var(--chassis);
   border-bottom: var(--separazione) solid var(--incisione);
+}
+
+/* Il lato che sta per ricevere quello che stai trascinando. Senza questo, il
+   trascinamento e' un gesto al buio: si lascia e si spera. */
+.trasf__lato--sopra {
+  outline: 2px dashed var(--accento);
+  outline-offset: -2px;
+}
+
+.trasf__voce--presa {
+  background: var(--luce-viva);
+}
+
+.negozio__voce[draggable='true'] { cursor: default; }
+
+.trasf__segno--piu-nuovo { color: var(--verde); }
+.trasf__segno--piu-vecchio { color: var(--ambra); }
+.trasf__segno--diverso { color: var(--rosso); }
+.trasf__segno--solo-qui { color: var(--testo-quieto); }
+
+/* ── Il terminale sul server ───────────────────────────────────────────────
+   Sotto le due colonne, non in una finestra a parte: caricare un file e
+   riavviare il servizio che lo legge e' un gesto solo, e deve stare in un
+   posto solo. */
+
+.trasf__terminale {
+  border-top: var(--separazione) solid var(--incisione);
+  background: #1e1e1e;
+  padding: var(--s1);
+  position: relative;
+  flex: none;
+}
+
+.trasf__terminale-dentro { width: 100%; height: 100%; }
+
+.trasf__terminale-nota {
+  position: absolute;
+  right: var(--s2);
+  bottom: var(--s1);
+}
+
+/* ── La coda ───────────────────────────────────────────────────────────────
+   Sta in fondo e non in una finestra a parte: quello che sta passando si
+   guarda **mentre** si sceglie il pezzo dopo, non aprendo un'altra cosa. */
+
+.trasf__coda {
+  border-top: var(--separazione) solid var(--incisione);
+  background: var(--chassis);
+  max-height: 34vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.trasf__coda-testa {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s1) var(--s3);
+}
+
+.trasf__coda-righe {
+  overflow-y: auto;
+  padding: 0 var(--s3) var(--s2);
+}
+
+.trasf__lavoro {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 2px 0;
+  min-width: 0;
+}
+
+.trasf__lavoro-verso { opacity: 0.7; }
+
+.trasf__lavoro-nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trasf__lavoro-errore {
+  color: var(--rosso);
+  font-size: 0.85em;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trasf__barra {
+  width: 160px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--incisione);
+  overflow: hidden;
+}
+
+.trasf__barra-dentro {
+  display: block;
+  height: 100%;
+  background: var(--accento);
+  transition: width 120ms linear;
 }
 
 .trasf__percorso {

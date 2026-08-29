@@ -1,7 +1,9 @@
+import { randomBytes } from 'node:crypto'
 import { readdirSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import type { ArchivioDestinazioni, Destinazione, Segreto } from './destinazioni'
-import { apriSessione, ImprontaSconosciuta, suRemoto, unisciRemoto, type Sessione } from './sftp'
+import { apriSessione, ImprontaSconosciuta, suRemoto, unisciRemoto, type GuscioRemoto, type Sessione } from './sftp'
+import { creaCoda, type Coda, type Richiesta, type StatoCoda } from './coda'
 
 /**
  * Le connessioni aperte, e i comandi che l'interfaccia può dare.
@@ -42,6 +44,24 @@ export type Trasferimenti = {
   creaCartellaRemota: (id: string, percorso: string) => Promise<void>
   eliminaRemoto: (id: string, percorso: string, cartella: boolean) => Promise<void>
   rinominaRemoto: (id: string, da: string, a: string) => Promise<void>
+  /**
+   * Apre una shell sul server e torna il suo numero.
+   *
+   * E' l'altra meta' di FileZilla: sfogliare i file di un server e non poterci
+   * dare un comando vuol dire aprire comunque un'altra finestra, che era
+   * esattamente la cosa da togliere.
+   */
+  apriGuscio: (id: string, colonne: number, righe: number) => Promise<string>
+  scriviGuscio: (guscio: string, testo: string) => void
+  ridimensionaGuscio: (guscio: string, colonne: number, righe: number) => void
+  chiudiGuscio: (guscio: string) => void
+  /** Mette in coda file e cartelle: è la parte che si usa davvero. */
+  accoda: (richieste: Richiesta[]) => Promise<void>
+  statoCoda: () => StatoCoda
+  annullaLavoro: (id: string) => void
+  annullaCoda: () => void
+  pulisciCoda: (ancheErrori: boolean) => void
+  riprovaLavoro: (id: string) => void
   scollega: (id: string) => void
   /** Chiude tutto: si chiama quando il programma esce. */
   chiudiTutto: () => void
@@ -53,14 +73,24 @@ export const INATTIVA_MS = 5 * 60_000
 export function creaTrasferimenti(
   archivio: ArchivioDestinazioni,
   /** L'avanzamento di una copia, per la barra nel pannello. */
-  avvisa?: (evento: { id: string; cosa: string; fatti: number; totale: number; finito?: boolean; errore?: string }) => void
+  avvisa?: (evento: { id: string; cosa: string; fatti: number; totale: number; finito?: boolean; errore?: string }) => void,
+  /** Lo stato della coda, per la lista in fondo al pannello. */
+  avvisaCoda?: (stato: StatoCoda) => void,
+  /** Quello che il terminale remoto stampa, e quando si chiude. */
+  avvisaGuscio?: (evento: { guscio: string; dati?: string; finito?: boolean }) => void
 ): Trasferimenti {
   const aperte = new Map<string, Aperta>()
+  /** I terminali aperti: `guscio -> destinazione`, piu' il canale. */
+  const gusci = new Map<string, { destinazione: string; canale: GuscioRemoto }>()
 
   const potatura = setInterval(() => {
     const adesso = Date.now()
     for (const [id, a] of aperte) {
       if (adesso - a.ultimoUso < INATTIVA_MS) continue
+      // Un terminale aperto **e'** un uso, anche se non passa un byte da
+      // mezz'ora: chiuderlo sotto le mani di chi lo sta guardando sarebbe la
+      // sessione che sparisce da sola mentre stai per scrivere un comando.
+      if ([...gusci.values()].some((g) => g.destinazione === id)) { a.ultimoUso = adesso; continue }
       try { a.sessione.chiudi() } catch { /* già a terra */ }
       aperte.delete(id)
     }
@@ -83,8 +113,68 @@ export function creaTrasferimenti(
     return sessione
   }
 
+  /**
+   * Il lato locale del pannello.
+   *
+   * Sta qui e non nel renderer perché il renderer non ha il disco: è la stessa
+   * ragione per cui le chiavi private non passano da una pagina web.
+   */
+  const elencaLocale = (percorso: string): EsitoLocale => {
+    const su = dirname(percorso)
+    const voci: EsitoLocale['voci'] = []
+    let dentro: string[] = []
+    try {
+      dentro = readdirSync(percorso)
+    } catch {
+      return { percorso, ...(su !== percorso ? { su } : {}), voci: [] }
+    }
+    for (const nome of dentro) {
+      const intero = join(percorso, nome)
+      try {
+        const st = statSync(intero)
+        voci.push({
+          nome,
+          percorso: intero,
+          cartella: st.isDirectory(),
+          dimensione: st.size,
+          quando: st.mtimeMs
+        })
+      } catch {
+        // Un file che sparisce fra `readdir` e `stat` esiste davvero: un
+        // compilatore che lavora nella stessa cartella lo fa di continuo.
+      }
+    }
+    voci.sort((a, b) =>
+      a.cartella !== b.cartella ? (a.cartella ? -1 : 1) : a.nome.localeCompare(b.nome, 'it')
+    )
+    return { percorso, ...(su !== percorso ? { su } : {}), voci }
+  }
+
+  const coda: Coda = creaCoda(
+    {
+      elencaRemoto: async (id, percorso) => (await (await dammi(id)).elenca(percorso)).voci,
+      elencaLocale: (percorso) => elencaLocale(percorso).voci,
+      scarica: async (id, remoto, locale, avanza) => {
+        await (await dammi(id)).scarica(remoto, locale, (p) => avanza(p.fatti))
+      },
+      carica: async (id, locale, remoto, avanza) => {
+        await (await dammi(id)).carica(locale, remoto, (p) => avanza(p.fatti))
+      },
+      creaCartellaRemota: async (id, percorso) => {
+        await (await dammi(id)).creaCartella(percorso)
+      }
+    },
+    avvisaCoda
+  )
+
   return {
     destinazioni: (cwd) => archivio.perProgetto(cwd),
+    accoda: (richieste) => coda.accoda(richieste),
+    statoCoda: () => coda.stato(),
+    annullaLavoro: (id) => coda.annulla(id),
+    annullaCoda: () => coda.annullaTutto(),
+    pulisciCoda: (ancheErrori) => coda.pulisci(ancheErrori),
+    riprovaLavoro: (id) => coda.riprova(id),
 
     async collega(id) {
       try {
@@ -107,42 +197,7 @@ export function creaTrasferimenti(
       return { percorso: elenco.percorso, su: suRemoto(elenco.percorso), voci: elenco.voci }
     },
 
-    /**
-     * Il lato locale del pannello.
-     *
-     * Sta qui e non nel renderer perché il renderer non ha il disco: è la
-     * stessa ragione per cui le chiavi private non passano da una pagina web.
-     */
-    elencaLocale(percorso) {
-      const su = dirname(percorso)
-      const voci: EsitoLocale['voci'] = []
-      let dentro: string[] = []
-      try {
-        dentro = readdirSync(percorso)
-      } catch {
-        return { percorso, ...(su !== percorso ? { su } : {}), voci: [] }
-      }
-      for (const nome of dentro) {
-        const intero = join(percorso, nome)
-        try {
-          const st = statSync(intero)
-          voci.push({
-            nome,
-            percorso: intero,
-            cartella: st.isDirectory(),
-            dimensione: st.size,
-            quando: st.mtimeMs
-          })
-        } catch {
-          // Un file che sparisce fra `readdir` e `stat` esiste davvero: un
-          // compilatore che lavora nella stessa cartella lo fa di continuo.
-        }
-      }
-      voci.sort((a, b) =>
-        a.cartella !== b.cartella ? (a.cartella ? -1 : 1) : a.nome.localeCompare(b.nome, 'it')
-      )
-      return { percorso, ...(su !== percorso ? { su } : {}), voci }
-    },
+    elencaLocale,
 
     async scarica(id, remoto, cartellaLocale) {
       const s = await dammi(id)
@@ -171,6 +226,34 @@ export function creaTrasferimenti(
       }
     },
 
+    async apriGuscio(id, colonne, righe) {
+      const s = await dammi(id)
+      const numero = randomBytes(6).toString('hex')
+      const canale = await s.guscio(
+        colonne,
+        righe,
+        (dati) => avvisaGuscio?.({ guscio: numero, dati }),
+        () => { gusci.delete(numero); avvisaGuscio?.({ guscio: numero, finito: true }) }
+      )
+      gusci.set(numero, { destinazione: id, canale })
+      return numero
+    },
+
+    scriviGuscio(guscio, testo) {
+      gusci.get(guscio)?.canale.scrivi(testo)
+    },
+
+    ridimensionaGuscio(guscio, colonne, righe) {
+      gusci.get(guscio)?.canale.ridimensiona(colonne, righe)
+    },
+
+    chiudiGuscio(guscio) {
+      const g = gusci.get(guscio)
+      if (g === undefined) return
+      gusci.delete(guscio)
+      try { g.canale.chiudi() } catch { /* gia' a terra */ }
+    },
+
     async creaCartellaRemota(id, percorso) {
       await (await dammi(id)).creaCartella(percorso)
     },
@@ -184,6 +267,15 @@ export function creaTrasferimenti(
     },
 
     scollega(id) {
+      // I terminali di quel server se ne vanno con lui: la connessione sotto
+      // sta per chiudersi, e lasciarli aperti darebbe riquadri vivi su un
+      // canale morto — che non dicono niente e non si chiudono.
+      for (const [numero, g] of [...gusci]) {
+        if (g.destinazione !== id) continue
+        gusci.delete(numero)
+        try { g.canale.chiudi() } catch { /* gia' a terra */ }
+        avvisaGuscio?.({ guscio: numero, finito: true })
+      }
       const a = aperte.get(id)
       if (a === undefined) return
       try { a.sessione.chiudi() } catch { /* già a terra */ }
@@ -192,6 +284,10 @@ export function creaTrasferimenti(
 
     chiudiTutto() {
       clearInterval(potatura)
+      for (const [, g] of gusci) {
+        try { g.canale.chiudi() } catch { /* gia' a terra */ }
+      }
+      gusci.clear()
       for (const [, a] of aperte) {
         try { a.sessione.chiudi() } catch { /* già a terra */ }
       }

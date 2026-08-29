@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { StringDecoder } from 'node:string_decoder'
 import { createReadStream, createWriteStream, mkdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { Client, type SFTPWrapper } from 'ssh2'
@@ -59,7 +60,28 @@ export class ImprontaSconosciuta extends Error {
   }
 }
 
+/**
+ * Una shell aperta sul server: quello che si vede in un terminale SSH.
+ *
+ * Sta sulla **stessa** connessione dell'SFTP, e non e' un risparmio: e' che
+ * autenticarsi due volte vuol dire chiedere due volte la password, o tenerne
+ * due copie in giro. Un canale in piu' sulla connessione che c'e' gia' non
+ * costa niente.
+ */
+export type GuscioRemoto = {
+  scrivi: (testo: string) => void
+  ridimensiona: (colonne: number, righe: number) => void
+  chiudi: () => void
+}
+
 export type Sessione = {
+  /** Apre una shell. `suFine` arriva quando il server la chiude (o `exit`). */
+  guscio: (
+    colonne: number,
+    righe: number,
+    suDati: (testo: string) => void,
+    suFine: () => void
+  ) => Promise<GuscioRemoto>
   elenca: (percorso: string) => Promise<EsitoElenco>
   /** Dove si parte: la cartella dell'utente sul server. */
   casa: () => Promise<string>
@@ -186,6 +208,31 @@ function costruisci(cliente: Client, sftp: SFTPWrapper, segnaChiuso: () => void)
 
   return {
     casa,
+
+    guscio: (colonne, righe, suDati, suFine) =>
+      new Promise((risolvi, rifiuta) => {
+        cliente.shell({ cols: colonne, rows: righe, term: 'xterm-256color' }, (err, canale) => {
+          if (err !== undefined && err !== null) { rifiuta(err); return }
+          /**
+           * I byte si accumulano prima di diventare testo.
+           *
+           * Un pezzo di rete puo' finire **in mezzo** a una lettera accentata:
+           * decodificarlo da solo darebbe una scatoletta al posto della «e`»,
+           * e su un server italiano succede al primo `ls`.
+           */
+          const decodifica = new StringDecoder('utf8')
+          canale.on('data', (d: Buffer) => suDati(decodifica.write(d)))
+          canale.stderr.on('data', (d: Buffer) => suDati(decodifica.write(d)))
+          canale.on('close', () => suFine())
+          risolvi({
+            scrivi: (testo) => { canale.write(testo) },
+            // ssh2 vuole righe prima delle colonne, al contrario di tutto il
+            // resto: invertirle da' un terminale che va a capo dove non deve.
+            ridimensiona: (c, r) => canale.setWindow(r, c, 0, 0),
+            chiudi: () => { canale.end() }
+          })
+        })
+      }),
 
     elenca: (percorso) =>
       new Promise((risolvi, rifiuta) => {

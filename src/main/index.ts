@@ -80,6 +80,7 @@ import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
 import { apriDestinazioni } from './trasferimenti/destinazioni'
 import { creaTrasferimenti, type Trasferimenti } from './trasferimenti/servizio'
+import type { Richiesta } from './trasferimenti/coda'
 
 /**
  * Le domande di cronologia in volo, e chi le sta aspettando.
@@ -684,13 +685,17 @@ if (!app.requestSingleInstanceLock()) {
         cifra: (chiaro) => safeStorage.encryptString(chiaro).toString('base64'),
         decifra: (cifrato) => safeStorage.decryptString(Buffer.from(cifrato, 'base64'))
       })
-      trasferimenti = creaTrasferimenti(destinazioni, (evento) => {
+      const aTutteLeFinestre = (canale: string, dato: unknown): void => {
         for (const w of BrowserWindow.getAllWindows()) {
-          if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
-            w.webContents.send('trasferimenti:avanza', evento)
-          }
+          if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send(canale, dato)
         }
-      })
+      }
+      trasferimenti = creaTrasferimenti(
+        destinazioni,
+        (evento) => aTutteLeFinestre('trasferimenti:avanza', evento),
+        (stato) => aTutteLeFinestre('trasferimenti:coda', stato),
+        (evento) => aTutteLeFinestre('trasferimenti:guscio', evento)
+      )
       ipcMain.handle('trasferimenti:destinazioni', (_e, cwd: unknown) =>
         typeof cwd === 'string' ? destinazioni.perProgetto(cwd) : [])
       ipcMain.handle('trasferimenti:salva', (_e, d: unknown, segreto: unknown) => {
@@ -736,6 +741,53 @@ if (!app.requestSingleInstanceLock()) {
         trasferimenti?.eliminaRemoto(String(id), String(percorso), cartella === true))
       ipcMain.handle('trasferimenti:rinominaRemoto', (_e, id: unknown, da: unknown, a: unknown) =>
         trasferimenti?.rinominaRemoto(String(id), String(da), String(a)))
+      ipcMain.handle('trasferimenti:accoda', (_e, richieste: unknown) => {
+        if (!Array.isArray(richieste)) return
+        return trasferimenti?.accoda(
+          richieste.flatMap((x): Richiesta[] => {
+            if (typeof x !== 'object' || x === null) return []
+            const o = x as Record<string, unknown>
+            const testo = (campo: string): string => (typeof o[campo] === 'string' ? o[campo] : '')
+            if (testo('destinazione') === '' || testo('origine') === '') return []
+            return [{
+              destinazione: testo('destinazione'),
+              verso: o.verso === 'su' ? 'su' : 'giu',
+              origine: testo('origine'),
+              arrivo: testo('arrivo'),
+              cartella: o.cartella === true
+            }]
+          })
+        )
+      })
+      ipcMain.handle('trasferimenti:apriGuscio', (_e, id: unknown, colonne: unknown, righe: unknown) =>
+        trasferimenti?.apriGuscio(
+          String(id),
+          typeof colonne === 'number' ? colonne : 80,
+          typeof righe === 'number' ? righe : 24
+        ))
+      ipcMain.handle('trasferimenti:scriviGuscio', (_e, guscio: unknown, testo: unknown) => {
+        if (typeof guscio === 'string' && typeof testo === 'string') {
+          trasferimenti?.scriviGuscio(guscio, testo)
+        }
+      })
+      ipcMain.handle('trasferimenti:ridimensionaGuscio', (_e, guscio: unknown, c: unknown, r: unknown) => {
+        if (typeof guscio === 'string' && typeof c === 'number' && typeof r === 'number') {
+          trasferimenti?.ridimensionaGuscio(guscio, c, r)
+        }
+      })
+      ipcMain.handle('trasferimenti:chiudiGuscio', (_e, guscio: unknown) => {
+        if (typeof guscio === 'string') trasferimenti?.chiudiGuscio(guscio)
+      })
+      ipcMain.handle('trasferimenti:coda', () => trasferimenti?.statoCoda() ?? { lavori: [], contando: 0 })
+      ipcMain.handle('trasferimenti:annullaLavoro', (_e, id: unknown) => {
+        if (typeof id === 'string') trasferimenti?.annullaLavoro(id)
+      })
+      ipcMain.handle('trasferimenti:annullaCoda', () => trasferimenti?.annullaCoda())
+      ipcMain.handle('trasferimenti:pulisciCoda', (_e, ancheErrori: unknown) =>
+        trasferimenti?.pulisciCoda(ancheErrori === true))
+      ipcMain.handle('trasferimenti:riprovaLavoro', (_e, id: unknown) => {
+        if (typeof id === 'string') trasferimenti?.riprovaLavoro(id)
+      })
       ipcMain.handle('trasferimenti:scollega', (_e, id: unknown) => {
         if (typeof id === 'string') trasferimenti?.scollega(id)
       })
