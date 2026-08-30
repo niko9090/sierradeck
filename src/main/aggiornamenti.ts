@@ -308,6 +308,12 @@ export function creaAggiornamenti(
       // non si vedeva, provato tre volte in tre modi diversi.
       const updater = assicuraUpdater(cartellaUpdater())
       const installer = installerScaricato
+      // **Una volta sola.** Dietro questa domanda ci sono `claude --version` e
+      // `npm view`, due processi sincroni con quindici secondi di tetto
+      // ciascuno: chiederla due volte nella stessa espressione — una per il
+      // controllo e una per il valore — voleva dire farle tutte e due due
+      // volte, e il programma resta fermo per tutto il tempo.
+      const claude = claudeDaAggiornare?.()
       if (updater !== undefined && installer !== undefined) {
         const partito = avviaUpdater(updater, {
           installer,
@@ -318,7 +324,7 @@ export function creaAggiornamenti(
           // Claude Code si aggiorna nello stesso viaggio: e' l'unico momento in
           // cui nessuna chat lo tiene aperto, e chiederlo all'utente vorrebbe
           // dire chiedergli di chiudere tutto a mano.
-          ...(claudeDaAggiornare?.() !== undefined ? { claude: claudeDaAggiornare() } : {}),
+          ...(claude !== undefined ? { claude } : {}),
           notaClaude: notaClaude?.() ?? ''
         })
         if (partito) {

@@ -591,3 +591,37 @@ describe('la sigla interna non arriva a chi legge', () => {
     expect(senzaSigla('')).toBe('')
   })
 })
+
+describe('quando una richiesta non riesce, la pagina lo dice', () => {
+  /** Il corpo di una funzione della pagina, per guardarci dentro. */
+  const corpoDi = (inizio: string): string => {
+    const da = script.indexOf(inizio)
+    if (da < 0) return ''
+    const fine = script.indexOf(String.fromCharCode(10) + '}', da)
+    return script.slice(da, fine < 0 ? undefined : fine)
+  }
+
+  it('la scelta legge l esito nel corpo, non in un eccezione', () => {
+    // `chiedi` solleva **solo** sul 401. Un 409 — «la scelta e' cambiata» —
+    // torna indietro come un oggetto con dentro `errore`, quindi il `catch` non
+    // scattava: il messaggio giusto non compariva mai nel caso per cui era
+    // stato scritto, e compariva invece quando il computer non rispondeva.
+    //
+    // Questo test guarda il sorgente e non l'esecuzione: la funzione dipende da
+    // mezza pagina. Basta pero' a impedire il ritorno al solo `catch`.
+    const corpo = corpoDi('window.scegli =')
+    expect(corpo).toContain('esito.errore')
+    expect(corpo).toMatch(/catch[\s\S]*non risponde/)
+  })
+
+  it('il campo si svuota solo se il messaggio e partito', () => {
+    // Il campo si svuotava prima di sapere com'era andata nell'app; qui invece
+    // il rischio era il silenzio: la richiesta cadeva e non succedeva niente di
+    // visibile.
+    const corpo = corpoDi('window.scrivi =')
+    expect(corpo).toContain('try {')
+    expect(corpo).toMatch(/catch[\s\S]*non sono riuscito a mandarlo/i)
+    // Lo svuotamento sta **dentro** il try, cioe' dopo la richiesta.
+    expect(corpo.indexOf('try {')).toBeLessThan(corpo.indexOf("campo.value = ''"))
+  })
+})

@@ -146,6 +146,14 @@ object Rete {
         val chiave = rete?.toString() ?: "predefinita"
         synchronized(clienti) {
             clienti[chiave]?.let { return it }
+            // La chiave e' l'identificativo della rete, e Android ne assegna
+            // uno **nuovo** ogni volta che il wifi si riattacca. Senza questa
+            // riga la mappa cresceva di una voce a ogni riaggancio — con
+            // dentro il suo bacino di connessioni — e non ne usciva piu'
+            // niente. Una rete nuova vuol dire che quelle di prima non
+            // servono: si tiene la predefinita, che non cambia mai, e si
+            // ricomincia.
+            if (rete != null) clienti.keys.retainAll(setOf("predefinita"))
             val b = OkHttpClient.Builder()
                 .connectTimeout(8, TimeUnit.SECONDS)
                 .readTimeout(15, TimeUnit.SECONDS)

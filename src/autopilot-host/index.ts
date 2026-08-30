@@ -147,7 +147,7 @@ function percorsiConfigTelegram(): string[] {
  * tutto il servizio.
  */
 function reteDiSicurezza(): void {
-  const registro = apriRegistro(join(cartellaStato(), '..'), process.env.SIERRADECK_VERSIONE ?? '?')
+  const registro = apriRegistro(join(cartellaStato(), '..'), process.env.SIERRADECK_VERSIONE ?? '?', 'servizio')
   const scrivi = (che: string, motivo: unknown): void => {
     const m = motivo instanceof Error
       ? `${motivo.name}: ${motivo.message}

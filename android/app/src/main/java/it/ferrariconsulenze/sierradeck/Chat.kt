@@ -348,8 +348,17 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                                 scope.launch {
                                     try {
                                         api.scegli(chat.id, quale)
-                                    } catch (_: Exception) {
-                                        notaScelta = "La scelta è cambiata mentre toccavi: guarda di nuovo."
+                                    } catch (e: Exception) {
+                                        // Il computer distingue i due casi: 409
+                                        // vuol dire «la scelta e' cambiata»,
+                                        // tutto il resto vuol dire che non ha
+                                        // risposto. Dirlo sempre nel primo modo
+                                        // mandava a guardare lo schermo quando
+                                        // il problema era la rete.
+                                        notaScelta = if (e is Api.Errore && e.codice == 409)
+                                            "La scelta è cambiata mentre toccavi: guarda di nuovo."
+                                        else
+                                            "Non sono riuscito a mandarla: ${e.message ?: "il computer non risponde"}"
                                     }
                                 }
                             }
@@ -411,7 +420,20 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                     .clickable(enabled = puoInviare) {
                         val da = testo
                         testo = ""
-                        scope.launch { try { api.scrivi(chat.id, da) } catch (_: Exception) {} }
+                        notaScelta = null
+                        scope.launch {
+                            // **Se non parte, torna nel campo.** Il testo si
+                            // svuotava prima di mandare e l'errore veniva
+                            // ingoiato: il messaggio spariva sotto gli occhi
+                            // senza essere arrivato da nessuna parte, e non
+                            // c'era modo di riaverlo se non riscrivendolo.
+                            try {
+                                api.scrivi(chat.id, da)
+                            } catch (e: Exception) {
+                                if (testo.isBlank()) testo = da
+                                notaScelta = "Non sono riuscito a mandarlo: ${e.message ?: "il computer non risponde"}"
+                            }
+                        }
                     },
                 contentAlignment = Alignment.Center
             ) {

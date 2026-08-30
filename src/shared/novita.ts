@@ -23,6 +23,17 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.40',
+    righe: [
+      '**App: un messaggio che non parte non sparisce più.** Il campo si svuotava *prima* di mandare e l’errore veniva ingoiato: quello che avevi scritto spariva sotto gli occhi senza essere arrivato da nessuna parte, e l’unico modo di riaverlo era riscriverlo. Adesso, se non parte, il testo torna nel campo e ti viene detto perché.',
+      '**App: rispondere a una domanda che non riesce a partire non si chiude più come se fosse riuscita.** La finestra si chiudeva lo stesso, tu credevi di aver risposto, e la chat restava ferma ad aspettare.',
+      '**Le scelte dicono la cosa giusta.** Quando una scelta non andava a buon fine si dava sempre la colpa allo schermo («la scelta è cambiata»), anche quando il computer semplicemente non rispondeva — e sulla pagina del telefono succedeva il contrario: proprio nel caso per cui quel messaggio era stato scritto non compariva mai.',
+      '**Il registro scrive nel file di oggi.** Era il file del giorno in cui il programma era stato aperto, e chi lascia SierraDeck acceso per una settimana andava a cercare la prova di stamattina in un file vuoto. Adesso ogni riga dice anche quale dei due processi l’ha scritta — il programma o il servizio degli autopiloti.',
+      'Premere «Installa aggiornamento» non interroga più due volte di fila Claude Code e il registro di npm, che sono due attese di rete a programma fermo.',
+      'App: la lista dei collegamenti di rete non cresce più a ogni riaggancio del wifi.'
+    ]
+  },
+  {
     versione: '0.12.39',
     righe: [
       '**Nel Negozio, «fatto» adesso vuol dire fatto.** Spegnere una skill o un server MCP diceva sempre che era andata bene, anche quando il file non era stato scritto: il controllo dell’esito guardava un’eccezione che, per come è fatto il salvataggio, non arriva mai. Adesso si guarda quello che il salvataggio risponde davvero, e un guasto lo si legge.'

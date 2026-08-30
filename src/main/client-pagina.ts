@@ -1553,8 +1553,17 @@ window.rispondi = async (id) => {
 window.scrivi = async (id) => {
   const campo = document.getElementById('t-' + id)
   if (!campo || !campo.value.trim()) return
-  await chiedi('/api/scrivi', { chat: id, testo: campo.value })
-  campo.value = ''
+  // Il campo si svuota **solo se e' partito**, e un guasto si dice: prima, se
+  // la richiesta cadeva, non succedeva niente di visibile — si restava a
+  // guardare un pulsante premuto senza sapere se il messaggio fosse andato.
+  try {
+    await chiedi('/api/scrivi', { chat: id, testo: campo.value })
+    campo.value = ''
+    notaScelta = null
+  } catch (e) {
+    notaScelta = 'Non sono riuscito a mandarlo: il computer non risponde.'
+    pannello(ultimoStato)
+  }
 }
 /**
  * Rispondere a un riquadro di scelta con un dito.
@@ -1577,9 +1586,16 @@ window.scegli = async (testo) => {
   notaScelta = null
   pannello(ultimoStato)
   try {
-    await chiedi('/api/scegli', { chat: chat, opzione: testo })
+    // **L'esito sta nel corpo, non in un'eccezione.** chiedi() solleva solo sul
+    // 401: un 409 — «la scelta e' cambiata» — tornava indietro come un oggetto
+    // con dentro errore, e il catch non scattava. Cioe' il messaggio giusto
+    // non compariva **mai** nel caso per cui era stato scritto, e compariva
+    // invece quando il computer non rispondeva, mandando a guardare lo schermo
+    // per un guasto di rete.
+    var esito = await chiedi('/api/scegli', { chat: chat, opzione: testo })
+    if (esito && esito.errore) notaScelta = 'La scelta e cambiata mentre toccavi: guarda di nuovo.'
   } catch (e) {
-    notaScelta = 'La scelta e cambiata mentre toccavi: guarda di nuovo.'
+    notaScelta = 'Non sono riuscito a mandarla: il computer non risponde.'
   }
   await leggiDentro()
   pannello(ultimoStato)

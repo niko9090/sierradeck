@@ -1,6 +1,6 @@
 ---
 titolo: "Nove difetti chiusi, e cosa insegnano"
-quando: 2026-08-30T15:10:00+02:00
+quando: 2026-08-30T19:15:00+02:00
 tag: ["bug", "autopilota", "android", "rilasci", "verifica"]
 ---
 
@@ -317,3 +317,40 @@ Altrove il `try`/`catch` residuo (`negozio/scope.ts`, `accesso-supabase.ts`,
 `cassaforte/conto-drive.ts`, `cassaforte/sincronia.ts`) e' morto ma innocuo:
 quei punti si limitavano a registrare, e `scriviAtomico` registra da se'. Non
 c'e' nessun esito che risalga a chi ha chiesto.
+
+## 0.12.40 — il guasto che si racconta male (30/08)
+
+Tornata diversa dalle due precedenti. Li' il tema era **il guasto che non
+solleva niente**; qui e' **il guasto che solleva, ma viene raccontato male o non
+viene raccontato affatto**.
+
+- **Il messaggio che spariva** (`Chat.kt`). `testo = ""` stava *prima* della
+  chiamata, e l'errore era ingoiato (`catch (_: Exception) {}`): quello che
+  avevi scritto spariva dal campo senza essere arrivato da nessuna parte. Non
+  c'era nemmeno modo di riaverlo. Adesso torna nel campo, con il motivo.
+- **La risposta data per mandata** (`Urgenze.kt`). Il dialogo si chiudeva anche
+  quando `api.rispondi` falliva: tu credevi di aver risposto, la chat restava
+  ferma ad aspettare, e non c'era niente da nessuna parte che lo dicesse.
+- **La causa indovinata, in due versi opposti.** Nell'app, qualunque fallimento
+  di `scegli` diceva «la scelta e' cambiata» — anche quando era la rete, e ti
+  mandava a guardare lo schermo. Nella **pagina** succedeva l'inverso: `chiedi`
+  solleva solo sul 401, quindi un **409** («la scelta e' cambiata») tornava come
+  un oggetto con dentro `errore` e il `catch` non scattava. Il messaggio giusto
+  non compariva **mai** nel caso per cui era stato scritto.
+  **La regola:** prima di scrivere un messaggio d'errore, guardare **come** il
+  guasto arriva. Un `catch` intorno a una funzione che non solleva non e'
+  gestione dell'errore: e' una decorazione.
+- **Il registro scriveva nel file di ieri.** Il nome era calcolato una volta
+  sola all'apertura. Per un programma che si lascia acceso — l'uso normale di
+  una plancia — tutto quello che succedeva dal secondo giorno in poi finiva nel
+  file del primo, e chi cercava la prova di stamattina apriva il file di oggi e
+  lo trovava vuoto. E dalla 0.12.34 il **servizio autopiloti** scrive nello
+  stesso file con una riga d'annuncio identica: due «sessione avviata» per ogni
+  avvio, e nessun modo di attribuire un errore. Aggiunto `[app]` / `[servizio]`.
+- **Due domande sincrone invece di una** (`aggiornamenti.ts`): premendo
+  «Installa», `claudeDaAggiornare?.() !== undefined ? { claude:
+  claudeDaAggiornare() }` eseguiva `claude --version` e `npm view` **due volte**,
+  con quindici secondi di tetto ciascuno, a programma fermo.
+- **La mappa dei client di rete cresceva a ogni riaggancio del wifi**
+  (`Rete.kt`): la chiave e' l'identificativo della rete, e Android ne assegna
+  uno nuovo ogni volta.

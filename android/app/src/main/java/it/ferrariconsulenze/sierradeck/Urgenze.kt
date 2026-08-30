@@ -135,6 +135,8 @@ private data class Urgenza(
 private fun DialogoRisposta(api: Api, domanda: Domanda, onChiudi: () -> Unit) {
     var risposta by remember(domanda.id) { mutableStateOf("") }
     var inCorso by remember(domanda.id) { mutableStateOf(false) }
+    // Una risposta che non parte non deve sembrare partita: vedi il pulsante.
+    var guasto by remember(domanda.id) { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     AlertDialog(
@@ -143,6 +145,10 @@ private fun DialogoRisposta(api: Api, domanda: Domanda, onChiudi: () -> Unit) {
         text = {
             Column {
                 Text(domanda.testo, color = Banco.testo, fontSize = 16.sp)
+                guasto?.let {
+                    Spacer(Modifier.height(10.dp))
+                    Text(it, color = Banco.rosso, fontSize = 13.sp)
+                }
                 Spacer(Modifier.height(14.dp))
                 OutlinedTextField(
                     value = risposta,
@@ -157,10 +163,22 @@ private fun DialogoRisposta(api: Api, domanda: Domanda, onChiudi: () -> Unit) {
                 enabled = !inCorso && risposta.isNotBlank(),
                 onClick = {
                     inCorso = true
+                    guasto = null
                     scope.launch {
-                        try { api.rispondi(domanda.id, risposta) } catch (_: Exception) {}
+                        // **Si chiude solo se e' partita davvero.** L'errore
+                        // veniva ingoiato e la finestra si chiudeva lo stesso:
+                        // tu credevi di aver risposto, la chat restava ferma ad
+                        // aspettare, e non c'era niente da nessuna parte che lo
+                        // dicesse.
+                        val andata = try {
+                            api.rispondi(domanda.id, risposta)
+                            true
+                        } catch (e: Exception) {
+                            guasto = e.message ?: "non sono riuscito a mandarla"
+                            false
+                        }
                         inCorso = false
-                        onChiudi()
+                        if (andata) onChiudi()
                     }
                 }
             ) { Text(if (inCorso) "Mando…" else "Rispondi") }
