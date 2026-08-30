@@ -1,6 +1,6 @@
 ---
 titolo: "Nove difetti chiusi, e cosa insegnano"
-quando: 2026-08-30T19:15:00+02:00
+quando: 2026-08-30T22:20:00+02:00
 tag: ["bug", "autopilota", "android", "rilasci", "verifica"]
 ---
 
@@ -354,3 +354,24 @@ viene raccontato affatto**.
 - **La mappa dei client di rete cresceva a ogni riaggancio del wifi**
   (`Rete.kt`): la chiave e' l'identificativo della rete, e Android ne assegna
   uno nuovo ogni volta.
+
+
+## 0.12.41 — riprendere non e ricominciare
+
+I due difetti stanno in una scheda loro, perche' hanno una radice sola che
+conviene tenere sott'occhio ogni volta che si tocca l'autopilota: vedi
+`autopilota-ripresa-dopo-riavvio.md`. In breve: **il servizio sopravvive alla
+chiusura di SierraDeck, le chat che governa no** — e nessuno avvisava il
+servizio del ritorno, ne' distingueva il ritorno dalla prima partenza.
+
+### Una trappola dei test, non del prodotto
+
+`npm test` a suite intera puo' fallire su due file — `verifiche-shell.test.ts`
+(«esegue un comando che cmd spezzerebbe») e `server.test.ts` («riprendere un
+autopilota in intervista») — con **Test timed out in 5000ms**. Non e' una
+regressione: quei due lanciano processi veri, e sotto il carico di 136 file in
+parallelo sforano il tetto di cinque secondi. Girati da soli passano, e la
+suite intera rifatta passa. Prima di inseguire una correzione, **rilanciare**:
+il segnale e' il timeout, non un'asserzione fallita. Se un giorno diventa
+frequente, la cura e' un `testTimeout` piu' alto su quei due, non un cambio nel
+prodotto.
