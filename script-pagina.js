@@ -690,7 +690,9 @@ function pannello(s) {
           ? '<button onclick="scaricaAggiornamento()">Scarica</button>' : ''}
         ${aggiornamentoVisto && aggiornamentoVisto.fase === 'pronto'
           ? '<button class="' + (confermando === 'agg' ? 'pericolo' : '') + '" onclick="installaAggiornamento()">' +
-            (confermando === 'agg' ? 'Sicuro? Chiude le chat' : 'Installa') + '</button>' : ''}
+            (confermando === 'agg' ? 'Sicuro? Aspetta le chat e riavvia' : 'Installa') + '</button>' : ''}
+        ${aggiornamentoVisto && aggiornamentoVisto.fase === 'attendo'
+          ? '<button disabled>Aspetto le chat…</button>' : ''}
         <button onclick="apriPannello('impostazioni')">Chiudi</button>
       </div>
     </div>`
@@ -1124,6 +1126,15 @@ function descriviAggiornamento() {
   if (a.fase === 'disponibile') return 'C’è la ' + (a.versione || 'versione nuova') + '.'
   if (a.fase === 'scarico') return 'Sto scaricando… ' + (a.percento || 0) + '%'
   if (a.fase === 'pronto') return 'La ' + (a.versione || 'nuova') + ' si installa da sola alla prossima chiusura.'
+  // Fra «Installa» e il computer che si chiude adesso c'e' un'attesa vera: le
+  // chat che stanno lavorando devono finire quello che hanno in mano. Senza
+  // dirlo, da qui si vede un tasto premuto e nient'altro.
+  if (a.fase === 'attendo') {
+    var quante = a.chatOccupate || 0
+    return quante === 1
+      ? 'Aspetto che una chat finisca quello che ha in mano, poi installo.'
+      : 'Aspetto che ' + quante + ' chat finiscano quello che hanno in mano, poi installo.'
+  }
   if (a.fase === 'errore') return 'Qualcosa non ha funzionato: ' + (a.errore || '')
   if (a.fase === 'cerco') return 'Sto guardando se ce n’è una nuova…'
   return 'Sei alla versione più recente.'

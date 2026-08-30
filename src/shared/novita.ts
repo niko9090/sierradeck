@@ -23,6 +23,15 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.42',
+    righe: [
+      '**Aggiornare non uccide più il lavoro in corso.** Premere «Installa» chiudeva tutto all’istante: le chat morivano dove erano arrivate, anche a metà di una compilazione o di una pubblicazione. Adesso a ognuna viene chiesto di finire quello che ha in mano, salvare e annotare a che punto è — e solo quando hanno finito il programma si chiude e installa.',
+      '**E al ritorno riprendono da sole.** Gli autopiloti ripartono senza che tu debba toccare niente, anche quelli che avevi messo su «non riprendere al riavvio»: a fermarli eravamo stati noi, per installare. Anche le chat normali che si erano fermate a metà di un turno ricevono il seguito del discorso, non un ordine di ricominciare.',
+      '**Se le chat non fanno in tempo, non si installa.** Dopo dieci minuti d’attesa il programma rinuncia, rimette tutti al lavoro e te lo dice, invece di interrompere qualcosa a metà.',
+      '**Dal telefono si vede l’attesa.** Premendo «Installa» da lontano compare «aspetto che 3 chat finiscano» invece di un tasto che sembra non aver fatto niente. Vale sia sulla pagina sia sull’app.'
+    ]
+  },
+  {
     versione: '0.12.41',
     righe: [
       '**Gli autopiloti ripartono da soli quando riapri SierraDeck.** Il servizio che li tiene in vita sopravvive alla chiusura del programma — è così che un lavoro delegato continua di notte — ma le chat muoiono con le finestre, e al ritorno nessuno le rimetteva in moto: l’autopilota risultava «al lavoro» davanti a una conversazione che non esisteva più, e andava riavviato a mano ogni volta.',

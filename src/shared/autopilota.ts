@@ -203,6 +203,22 @@ export type Autopilota = {
    * che ci si aspetta.
    */
   riprendiAlRiavvio?: boolean
+  /**
+   * Fermato da noi per installare un aggiornamento.
+   *
+   * **Non e' una sospensione**, ed e' tutta la differenza: chi risulta
+   * `sospeso` non viene ripreso di proposito, perche' dietro c'e' la decisione
+   * di qualcuno e riprenderlo la disferebbe. Qui la decisione e' nostra, e non
+   * riguarda il lavoro: riguarda il fatto che stiamo per chiudere il
+   * programma. Un aggiornamento non e' una chiusura per fine lavori, quindi
+   * chi si e' fermato per questo **deve** ripartire da solo al ritorno, senza
+   * chiedere niente a nessuno.
+   *
+   * Vale anche sopra `riprendiAlRiavvio: false`: quell'interruttore serve a non
+   * far resuscitare un autopilota dopo un riavvio del computer, non a lasciare
+   * per strada un lavoro che siamo stati **noi** a interrompere.
+   */
+  fermatoPerAggiornamento?: boolean
   /** Quante chat può tenere aperte insieme. Uno è il caso normale. */
   tettoChat: number
   chats: ChatGovernata[]
@@ -521,6 +537,7 @@ export function parseAutopilota(raw: unknown): {
       decisioni,
       ...(stringaNonVuota(o.strategia) !== undefined ? { strategia: o.strategia as string } : {}),
       ...(typeof o.riprendiAlRiavvio === 'boolean' ? { riprendiAlRiavvio: o.riprendiAlRiavvio } : {}),
+      ...(o.fermatoPerAggiornamento === true ? { fermatoPerAggiornamento: true } : {}),
       ...(stringaNonVuota(o.sessioneSupervisore) !== undefined
         ? { sessioneSupervisore: o.sessioneSupervisore as string }
         : {}),

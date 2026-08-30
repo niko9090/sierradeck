@@ -11,7 +11,7 @@ import { chiChiede, workspaceCheChiamano } from '@shared/dove-chiedono'
 import { attivaChiusuraFuori, attivaTrascinamento } from './trascina-finestre'
 import { creaUltimeRighe, terminalePronto } from './ultime-righe'
 import { creaBattito, stessiAttivi } from './battito'
-import { eseguiConsegna, ponteReale } from './consegne-autopilota'
+import { eseguiConsegna, ponteReale, scriviQuandoPronta } from './consegne-autopilota'
 import { memoriaWorkspace } from './memoria-workspace'
 import { impostaWorkspaceCorrente, workspaceCorrente } from './workspace-corrente'
 import { impostaMostraAttesa } from './preferenze-vive'
@@ -270,6 +270,8 @@ export function App(): React.JSX.Element {
           // suo: l’autopilota le parla da sé, e due notifiche per lo stesso
           // fatto sono una di troppo.
           governata: p.autopilota !== undefined,
+          // Ha un processo acceso: senza, non c'è niente da finire né a cui scrivere.
+          viva: p.ptyId !== undefined,
           ...(p.ptyId !== undefined
             ? (() => {
                 // Prima si prova a leggere lo **schermo disegnato**: Claude Code
@@ -394,6 +396,19 @@ export function App(): React.JSX.Element {
     const finestra = finestraDiPty(riquadro.ptyId, da, quante)
     if (finestra === undefined) return
     window.gestore.client.rispondiRighe(id, finestra)
+  }), [])
+
+  // Il seguito di un discorso interrotto da un aggiornamento.
+  //
+  // Al ritorno le chat che si erano fermate a meta' di un turno vanno rimesse
+  // in moto da sole: fermarsi era stata una richiesta nostra, non una loro
+  // decisione, e chi interrompe ha il dovere di far ripartire. Si aspetta che
+  // il terminale ascolti, perche' in questo istante sta ancora nascendo.
+  useEffect(() => window.gestore.client.suRipresaChat(({ sessione, testo }) => {
+    scriviQuandoPronta(sessione, testo, ponteReale(
+      (ptyId) => terminalePronto(righe.current.attivitaDi(ptyId), Date.now()),
+      workspaceCorrente
+    ))
   }), [])
 
   useEffect(() => window.gestore.client.suScrittura(({ chat, testo }) => {

@@ -79,6 +79,16 @@ export type ClientAutopilota = {
    * niente in corso.
    */
   gestoreAvviato: () => Promise<number>
+  /**
+   * Mette in pausa - o toglie dalla pausa - gli autopiloti per aggiornare.
+   *
+   * In pausa non vuol dire fermi adesso: vuol dire che alla fine del turno che
+   * ognuno ha in mano non gli verra' detto di proseguire. E' l'unico punto in
+   * cui una chat si puo' fermare senza lasciare niente a meta'.
+   *
+   * Torna quanti ne ha toccati.
+   */
+  pausaAggiornamento: (attiva: boolean) => Promise<number>
 }
 
 const ATTESA_PREDEFINITA_MS = 3000
@@ -144,6 +154,12 @@ export function creaClientAutopilota(p: {
       // `da: 'modale'` dice al servizio da dove è arrivata: serve al registro
       // delle domande, dove vale la prima risposta fra schermo e Telegram.
       await chiama(`/domande/${encodeURIComponent(idDomanda)}/risposta`, 'POST', { risposta, da: 'modale' })
+    },
+
+    async pausaAggiornamento(attiva) {
+      const esito = (await chiama('/pausa-aggiornamento', 'POST', { attiva })) as
+        { toccati?: unknown } | undefined
+      return typeof esito?.toccati === 'number' ? esito.toccati : 0
     },
 
     async gestoreAvviato() {

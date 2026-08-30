@@ -208,6 +208,16 @@ data class Aggiornamento(
     val percento: Int? = null,
     val errore: String? = null,
     /**
+     * Quante chat stanno finendo quello che avevano in mano, in fase «attendo».
+     *
+     * Fra «Installa» e il computer che si chiude c'e' un'attesa vera: un
+     * aggiornamento non uccide piu' le chat dove sono arrivate, aspetta che
+     * ognuna chiuda il turno. Senza questo numero, da qui si vedrebbe un tasto
+     * premuto e nient'altro - e un'attesa legittima di due minuti e' identica
+     * a un tasto rotto.
+     */
+    val chatOccupate: Int? = null,
+    /**
      * Quello che l'installer sta scrivendo **adesso**, parola per parola.
      *
      * Arriva solo mentre il computer si sta aggiornando, e non lo manda

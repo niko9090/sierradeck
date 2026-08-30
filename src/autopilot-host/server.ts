@@ -610,6 +610,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (Number.isNaN(ora)) return
     for (const a of deps.archivio.elenca()) {
       if (a.stato !== 'lavoro' || inLavorazione.has(a.id)) continue
+      // Chi e' in pausa per aggiornamento tace **perche' gliel'abbiamo chiesto
+      // noi**: sospenderlo per silenzio vorrebbe dire punirlo di aver
+      // obbedito, e - peggio - marcarlo `sospeso`, cioe' proprio lo stato che
+      // la ripresa salta di proposito. Si sveglierebbe fermo per sempre.
+      if (a.fermatoPerAggiornamento === true) continue
       if (Number.isNaN(Date.parse(a.ultimoEvento))) continue
       // **Chat per chat.** Prima si guardava l'autopilota nel suo insieme:
       // bastava che una chat della flotta chiudesse i suoi turni perche' tutte
@@ -658,7 +663,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const daRiavviare = daRiprendere(deps.archivio.elenca())
     if (daRiavviare.length === 0) return 0
     console.info(`[autopilota] riprendo ${daRiavviare.length} autopiloti interrotti`)
-    for (const a of daRiavviare) {
+    for (const fermo of daRiavviare) {
+      // Il segno della pausa si toglie **adesso che si riparte**, non prima:
+      // finche' e' li', il guardiano lo lascia in pace e la fine di ogni turno
+      // lo rimette a dormire. Toglierlo dopo aver mandato il lavoro vorrebbe
+      // dire che il primo turno ripreso si ferma di nuovo da solo.
+      const a = fermo.fermatoPerAggiornamento === true
+        ? { ...fermo, fermatoPerAggiornamento: undefined }
+        : fermo
+      if (a !== fermo) salva(a)
       // Tutte le sue chat, non una: una flotta ripresa come chat singola
       // lasciava orfane quelle vere e ne apriva un'altra con l'obiettivo
       // intero - lo stesso lavoro, gia' diviso, rifatto da capo in parallelo.
@@ -913,6 +926,23 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // Si segna sotto **la sua** chiave: segnarlo sotto la sola id
     // dell'autopilota faceva risultare vive anche le sorelle che tacevano.
     ultimoTurno.set(chiaveTurno(id, chatId), Date.parse(deps.adesso()))
+
+    // **La pausa per aggiornamento si esercita qui**, e solo qui.
+    //
+    // La fine di un turno e' l'unico punto pulito in cui una chat si puo'
+    // fermare: quello che aveva in mano lo ha finito, quello che ha scritto e'
+    // sul disco. Fermarla altrove vorrebbe dire ucciderla a meta' di
+    // un'azione - una compilazione, una pubblicazione - ed e' esattamente il
+    // danno che l'aggiornamento faceva.
+    //
+    // Si risponde `{}`, cioe' «fermati pure»: e' la stessa risposta con cui un
+    // lavoro finisce, e la chat resta li' con dentro tutto. Prima dei criteri,
+    // che durano minuti e che nessuno sta aspettando: chi ha premuto
+    // «Installa» sta guardando un'attesa.
+    if (conSessione.fermatoPerAggiornamento === true) {
+      console.info(`[autopilota] ${id} si ferma a fine turno: stiamo installando un aggiornamento`)
+      return {}
+    }
 
     let esiti: EsitoVerifica[] = await eseguiCriteri(conSessione.criteri, conSessione.cwd, deps.esegui)
 
@@ -1264,6 +1294,43 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // quando si e chiuso, e il servizio non ha modo di accorgersene da se:
         // e' vivo dall'inizio, quindi la sua ripresa d'avvio non scatta piu'.
         // Senza questa riga l'autopilota va rimesso in moto a mano ogni volta.
+        // «Sto per installare»: si chiede alle chat governate di fermarsi alla
+        // fine del turno che hanno in mano, non di smettere adesso. Il
+        // mandato non c'entra e non si aspetta: un turno dura minuti, un
+        // mandato ore, e aspettare il secondo vorrebbe dire non aggiornare
+        // mai proprio le macchine che lavorano di piu'.
+        //
+        // Con `attiva: false` si disfa: serve quando l'installazione non si fa
+        // piu' - l'attesa e' scaduta, l'utente ha cambiato idea - perche'
+        // altrimenti resterebbero ferme ad aspettare un riavvio che non
+        // arriva.
+        if (metodo === 'POST' && percorso === '/pausa-aggiornamento') {
+          const corpo = await leggiCorpo(req)
+          const attiva = typeof corpo === 'object' && corpo !== null
+            ? (corpo as Record<string, unknown>).attiva !== false
+            : true
+          let toccati = 0
+          for (const a of deps.archivio.elenca()) {
+            if (attiva) {
+              if (a.stato !== 'lavoro' || a.fermatoPerAggiornamento === true) continue
+              salva({ ...a, fermatoPerAggiornamento: true })
+            } else {
+              if (a.fermatoPerAggiornamento !== true) continue
+              salva({ ...a, fermatoPerAggiornamento: undefined })
+            }
+            toccati += 1
+          }
+          if (toccati > 0) {
+            console.info(
+              attiva
+                ? `[autopilota] ${toccati} in pausa: si fermano a fine turno per l'aggiornamento`
+                : `[autopilota] ${toccati} tolti dalla pausa: l'aggiornamento non si fa piu'`
+            )
+          }
+          rispondi(res, 200, { attiva, toccati })
+          return
+        }
+
         if (metodo === 'POST' && percorso === '/gestore-avviato') {
           // Le interviste no: quelle girano dentro questo processo e non sono
           // morte con il Gestore. Riprenderle vorrebbe dire farne partire una

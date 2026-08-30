@@ -20,14 +20,30 @@ import type { Autopilota, ChatGovernata } from '@shared/autopilota'
  * - chi è stato messo da parte con `riprendiAlRiavvio: false`: è una scelta
  *   per singolo autopilota, perché uno che lavora tutta la notte deve
  *   ripartire da solo e un altro che stava provando qualcosa no.
+ *
+ * L'unica cosa che scavalca quell'interruttore è `fermatoPerAggiornamento`: lì
+ * a fermarlo siamo stati noi, per installare, e chi interrompe un lavoro ha il
+ * dovere di rimetterlo in moto. Un aggiornamento non è una chiusura per fine
+ * lavori.
  */
 export function daRiprendere(tutti: Autopilota[]): Autopilota[] {
   return tutti.filter(
     (a) =>
       a.stato === 'lavoro' &&
-      a.riprendiAlRiavvio !== false &&
+      (a.fermatoPerAggiornamento === true || a.riprendiAlRiavvio !== false) &&
       (a.limiti.cicliMax === 0 || a.cicli < a.limiti.cicliMax)
   )
+}
+
+/**
+ * Chi era stato messo in pausa per installare un aggiornamento.
+ *
+ * Serve a dire, al ritorno, che la ripresa non è una gentilezza ma un debito:
+ * l'abbiamo fermato noi mentre lavorava, e per una ragione che non aveva
+ * niente a che fare con il suo lavoro.
+ */
+export function fermatiPerAggiornamento(tutti: Autopilota[]): Autopilota[] {
+  return tutti.filter((a) => a.fermatoPerAggiornamento === true)
 }
 
 /**

@@ -43,6 +43,15 @@ export type Chat = {
   aspetta?: boolean
   /** Se la governa un autopilota: allora è lui ad avvisare, non lei. */
   governata?: boolean
+  /**
+   * Ha un terminale acceso.
+   *
+   * Diverso da `aspetta`, e la differenza conta prima di un aggiornamento: un
+   * riquadro ibernato o appena aperto non aspetta te **e** non sta facendo
+   * niente. Senza distinguerli, aspettare che le chat siano ferme vorrebbe
+   * dire aspettare per sempre un lavoro che non e' mai cominciato.
+   */
+  viva?: boolean
   /** L'ultima riga vista nel terminale: dice a colpo d'occhio se si muove. */
   ultimaRiga?: string
   /**

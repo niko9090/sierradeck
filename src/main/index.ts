@@ -1,10 +1,12 @@
 import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell } from 'electron'
 import { basename, dirname, join } from 'node:path'
-import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { homedir, hostname } from 'node:os'
 import { spawn } from 'node:child_process'
 import { APP_NAME, APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
 import { cartellaDati } from './migra-dati'
+import { scriviJsonAtomico } from '@shared/scrittura-atomica'
+import { attendiQuiete, AVVISO_RIPRESA, leggiPausa, pausaAncoraValida } from './pausa-aggiornamento'
 import { chiaveMonitor } from '@shared/display-key'
 import { apriFinestreStore, type FinestreStore } from './finestre-store'
 import { AMBIENTE_PORTA_AUTOPILOTI, PORTA_AUTOPILOTA } from '@shared/autopilota'
@@ -180,6 +182,30 @@ let area: Tray | undefined
 let inUscita = false
 /** Smette di andare a ritirare le istruzioni dell'autopilota. */
 let fermaRitiroConsegne: (() => void) | undefined
+/**
+ * Le conversazioni che un aggiornamento ha interrotto a meta' di un turno.
+ *
+ * Si legge da disco all'avvio e si svuota consegnandole: la ripresa non puo'
+ * partire da qui e adesso, perche' in questo istante le finestre stanno
+ * nascendo e i riquadri non esistono ancora. Si aspetta che una finestra
+ * annunci quella chat - allora il riquadro c'e' - e le si scrive dentro.
+ */
+const chatDaRiprendereDopoAggiornamento = new Set<string>()
+
+/** Scrive dentro un riquadro, dovunque sia la finestra che lo tiene. */
+function scriviNelRiquadro(idChat: string, testo: string): void {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+      w.webContents.send('client:scrivi', { chat: idChat, testo })
+    }
+  }
+}
+
+/** Dove si annota chi era a meta' quando si e' installato. */
+function filePausa(dati: string): string {
+  return join(dati, 'pausa-aggiornamento.json')
+}
+
 
 /**
  * Una domanda al servizio dell'autopilota.
@@ -900,6 +926,27 @@ if (!app.requestSingleInstanceLock()) {
       //
       // Non blocca l'avvio: se il servizio non risponde, il pannello lo dirà
       // comunque e le finestre non devono aspettarlo.
+      // Chi si era fermato per farci installare. Il file lo ha scritto la
+      // versione **precedente**, un istante prima di uscire: e' l'unica cosa
+      // che attraversa un aggiornamento, perche' tutto il resto e' morto con
+      // lei. Si legge e si cancella subito - una ripresa mancata e' un
+      // peccato, una ripresa ripetuta a ogni avvio per sempre e' un guasto.
+      try {
+        const grezzo = filePausa(dati)
+        if (existsSync(grezzo)) {
+          const salvata = leggiPausa(JSON.parse(readFileSync(grezzo, 'utf8')))
+          rmSync(grezzo, { force: true })
+          if (salvata !== undefined && pausaAncoraValida(salvata)) {
+            for (const sessione of salvata.sessioni) chatDaRiprendereDopoAggiornamento.add(sessione)
+            console.info(
+              `[aggiornamenti] ${salvata.sessioni.length} chat si erano fermate per l'aggiornamento: le riprendo`
+            )
+          }
+        }
+      } catch (err) {
+        console.error('[aggiornamenti] elenco delle chat da riprendere illeggibile:', err)
+      }
+
       void (async () => {
         try {
           if (!(await clientAutopilota.assicuraServizio())) return
@@ -1317,7 +1364,7 @@ if (!app.requestSingleInstanceLock()) {
         scaricaAggiornamento: () => { void aggiornamenti?.scarica(true) },
         // Installare chiude il programma con le chat aperte dentro: dal telefono
         // la pagina lo chiede due volte, come al computer.
-        installaAggiornamento: () => { aggiornamenti?.installa() },
+        installaAggiornamento: () => { void aggiornamenti?.installa() },
         caricaIstantanea: async (nome: string) => {
           // A UNA finestra sola, non a tutte. `istantanee:carica` orchestra già
           // l'intero ripristino: riempie le altre finestre (`layout:applica`) e ne
@@ -1400,6 +1447,19 @@ if (!app.requestSingleInstanceLock()) {
         const win = BrowserWindow.fromWebContents(e.sender)
         if (win === null) return
         chatPerFinestra.set(win.id, raw as Chat[])
+        // La chat che si era fermata per l'aggiornamento e' tornata: adesso il
+        // riquadro c'e', e le si puo' dire di riprendere. Non prima - all'avvio
+        // le finestre stanno ancora nascendo, e un messaggio mandato allora non
+        // troverebbe nessuno. Si toglie dall'elenco appena consegnato, perche'
+        // questo annuncio arriva ogni pochi secondi.
+        if (chatDaRiprendereDopoAggiornamento.size > 0) {
+          for (const c of raw as Chat[]) {
+            const sessione = c.sessione
+            if (sessione === undefined || !chatDaRiprendereDopoAggiornamento.has(sessione)) continue
+            chatDaRiprendereDopoAggiornamento.delete(sessione)
+            win.webContents.send('client:riprendi-chat', { sessione, testo: AVVISO_RIPRESA })
+          }
+        }
         for (const id of [...chatPerFinestra.keys()]) {
           const w = BrowserWindow.getAllWindows().find((x) => x.id === id)
           // Una finestra chiusa non deve lasciare le sue chat nell'elenco.
@@ -1585,12 +1645,25 @@ if (!app.requestSingleInstanceLock()) {
         () => impostazioni.preferenze().scaricaAggiornamentiAutomatico,
         // La porta su cui il Client sta ascoltando adesso: e' quella che
         // l'updater prendera' in prestito mentre noi non ci siamo.
-        () => porta
+        () => porta,
+        // **Non si installa sopra un lavoro in corso.** Si avvisa, si aspetta
+        // che ognuno chiuda quello che ha in mano, e solo allora si chiude
+        // tutto. Un aggiornamento non e' una chiusura per fine lavori.
+        (avvisa) => attendiQuiete({
+          chat: () => chatAperte,
+          pausaAutopiloti: (attiva) => clientAutopilota.pausaAggiornamento(attiva),
+          scriviInChat: scriviNelRiquadro,
+          // Su disco, non in memoria: fra il sapere chi era a meta' e il
+          // poterglielo dire c'e' la morte di questo processo.
+          annota: (p) => { scriviJsonAtomico(filePausa(dati), p, 'pausa-aggiornamento') },
+          avvisa,
+          versione: app.getVersion()
+        })
       )
       ipcMain.handle('aggiornamenti:stato', () => aggiornamenti?.stato() ?? { fase: 'fermo' })
       ipcMain.handle('aggiornamenti:cerca', () => aggiornamenti?.cerca())
       ipcMain.handle('aggiornamenti:scarica', () => aggiornamenti?.scarica())
-      ipcMain.handle('aggiornamenti:installa', () => { aggiornamenti?.installa() })
+      ipcMain.handle('aggiornamenti:installa', () => { void aggiornamenti?.installa() })
 
       // L'icona prima della finestra: `apriNuovaFinestra` registra il gestore
       // della X, che deve poter sapere se l'area c'è o no.

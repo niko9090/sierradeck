@@ -24,7 +24,16 @@ export type StatoAggiornamento = {
    * poi il server e' morto, e chi guarda da fuori ha almeno l'ultima parola
    * giusta da cui aspettare.
    */
-  fase: 'fermo' | 'cerco' | 'aggiornato' | 'disponibile' | 'scarico' | 'pronto' | 'installo' | 'errore'
+  fase: 'fermo' | 'cerco' | 'aggiornato' | 'disponibile' | 'scarico' | 'pronto' | 'attendo' | 'installo' | 'errore'
+  /**
+   * Quante chat stanno finendo quello che avevano in mano, in fase `attendo`.
+   *
+   * Serve a dire **perche'** non sta succedendo niente. Da un telefono si preme
+   * «Installa» e si resta a guardare: senza questo numero, un'attesa legittima
+   * di due minuti e' indistinguibile da un tasto rotto - ed e' esattamente il
+   * genere di silenzio che questo programma ha gia' pagato caro altre volte.
+   */
+  chatOccupate?: number
   /** La versione che si può installare, quando ce n'è una. */
   versione?: string
   /**
@@ -49,7 +58,7 @@ export type Aggiornamenti = {
   /** Scarica la versione trovata. L'utente ha detto di sì. */
   scarica: (dalTelefono?: boolean) => Promise<void>
   /** Chiude il programma e installa. L'utente ha detto di sì una seconda volta. */
-  installa: () => void
+  installa: () => Promise<void>
   /**
    * Cambia a caldo se gli aggiornamenti si scaricano da soli.
    *
@@ -104,7 +113,25 @@ export function creaAggiornamenti(
    */
   scaricaAutomatico?: () => boolean,
   /** La porta del Client: l'updater la prende in prestito per raccontarsi al telefono. */
-  portaClient?: () => number
+  portaClient?: () => number,
+  /**
+   * Aspetta che non ci sia niente in volo, e dice se si puo' installare.
+   *
+   * **Il momento in cui si installa non e' «adesso»: e' «appena nessuno ha
+   * niente in mano».** Un aggiornamento chiude il PTY host e con lui ogni
+   * `claude.exe` dovunque sia arrivato - a meta' di una risposta, di una
+   * compilazione, di una pubblicazione. Il testo si riprende dal disco;
+   * l'azione lasciata a meta' nel mondo no, e nessun riavvio la rimette a
+   * posto.
+   *
+   * Torna `false` se la quiete non arriva: allora non si installa e lo si
+   * dice. Un aggiornamento rimandato costa un giorno, uno che interrompe una
+   * pubblicazione a meta' costa molto di piu'.
+   *
+   * Assente - in prova, o senza finestre - vale «si puo'»: e' il
+   * comportamento di prima, e senza chat da aspettare e' anche quello giusto.
+   */
+  attendiQuiete?: (avvisa: (chatOccupate: number) => void) => Promise<boolean>
 ): Aggiornamenti {
   let stato: StatoAggiornamento = { fase: 'fermo' }
   /** Dove electron-updater ha messo l'installer: lo esegue SierraDeck Update. */
@@ -250,7 +277,7 @@ export function creaAggiornamenti(
     stato: () => stato,
     cerca,
     scarica: avviaScaricamento,
-    installa() {
+    async installa() {
       // Una volta sola per sessione. Premere due volte, o due finestre che
       // premono insieme, facevano partire due updater: si chiudevano le
       // istanze a vicenda e il programma si riavviava senza mai aggiornarsi.
@@ -277,6 +304,24 @@ export function creaAggiornamenti(
         return
       }
       installazioneAvviata = true
+      // **Prima la quiete, poi l'installazione.** Da qui in giu' non si torna
+      // indietro: si chiudono i processi e si esce. Tutto quello che si puo'
+      // fare per non lasciare un lavoro a meta' va fatto adesso.
+      if (attendiQuiete !== undefined) {
+        const pronti = await attendiQuiete((quante) => {
+          annuncia({ ...stato, fase: 'attendo', chatOccupate: quante })
+        })
+        if (!pronti) {
+          installazioneAvviata = false
+          annuncia({
+            ...stato,
+            fase: 'pronto',
+            chatOccupate: undefined,
+            errore: 'Non ho installato: c’erano chat ancora al lavoro. Riprova quando hanno finito.'
+          })
+          return
+        }
+      }
       // L'ultima parola prima del silenzio: da qui a poco il server non
       // risponde piu', e chi sta guardando da un telefono deve sapere che il
       // silenzio che sta per arrivare e' quello giusto.

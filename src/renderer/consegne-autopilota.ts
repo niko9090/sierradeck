@@ -218,6 +218,37 @@ function attendiInQuesto(
 }
 
 /**
+ * Scrive dentro una conversazione qualunque, appena il suo terminale ascolta.
+ *
+ * Serve al ritorno da un aggiornamento: le chat che si erano fermate a meta'
+ * di un turno vanno rimesse in moto, e al momento in cui si torna non c'e'
+ * ancora niente di pronto - le finestre stanno nascendo, i terminali si stanno
+ * disegnando, e Claude Code impiega qualche secondo a leggersi il progetto.
+ * Scrivere subito vorrebbe dire vedere il messaggio entrare nel campo e
+ * restarci.
+ *
+ * Non e' una consegna dell'autopilota e non ne ha niente: nessun padrone da
+ * assegnare, nessuna chat da adottare, nessun riquadro da aprire. Se quella
+ * conversazione non c'e' piu' - chiusa, spostata, mai ripristinata - non si fa
+ * niente, che e' la risposta giusta: non era un ordine, era il seguito di un
+ * discorso interrotto.
+ */
+export function scriviQuandoPronta(
+  sessionId: string,
+  testo: string,
+  ponte: Ponte,
+  dopo: (ms: number, cosa: () => void) => void = (ms, cosa) => { setTimeout(cosa, ms) }
+): void {
+  if (ponte.riquadroDi(sessionId) === undefined) return
+  attendiEConsegna(
+    { id: '', autopilotaId: '', chatId: sessionId, cwd: '', sessionId, titolo: '', cosa: 'scrivi', testo },
+    ponte,
+    dopo,
+    0
+  )
+}
+
+/**
  * Aspetta che la chat sia **pronta a ricevere**, poi consegna.
  *
  * Non un tempo: il terminale. Claude Code nasce, legge la sessione, disegna la

@@ -316,6 +316,10 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
         "disponibile" -> "C'è la ${a.versione ?: "versione nuova"}, da scaricare."
         "scarico" -> "Sto scaricando la ${a.versione ?: ""}."
         "pronto" -> "La ${a.versione ?: ""} è già scaricata e aspetta solo di essere installata."
+        "attendo" -> when (a.chatOccupate ?: 0) {
+            1 -> "Aspetto che una chat finisca quello che ha in mano, poi installo."
+            else -> "Aspetto che ${a.chatOccupate ?: 0} chat finiscano quello che hanno in mano, poi installo."
+        }
         "installo" -> "Sto installando: il computer si chiude e riparte da solo."
         "aggiornato" -> "È all’ultima versione."
         "errore" -> "Non ci sono riuscito: ${a.errore ?: "errore sconosciuto"}"
@@ -323,7 +327,7 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
     }
     val colore = when (a?.fase) {
         "disponibile", "pronto" -> Banco.accento
-        "scarico", "cerco", "installo" -> Banco.ambra
+        "scarico", "cerco", "installo", "attendo" -> Banco.ambra
         "errore" -> Banco.rosso
         "aggiornato" -> Banco.verde
         else -> Banco.testoQuieto
@@ -362,6 +366,9 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
             ) { Text("Scarica") }
             "scarico" -> Text("${a.percento ?: 0}%", color = Banco.ambra, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             "cerco" -> Text("cerco…", color = Banco.ambra, fontSize = 13.sp)
+            // Nessun tasto: premere di nuovo non anticipa niente, e un tasto
+            // che non fa niente e' peggio di nessun tasto.
+            "attendo" -> Text("aspetto…", color = Banco.ambra, fontSize = 13.sp)
             "pronto" -> Button(
                 shape = MaterialTheme.shapes.small,
                 onClick = {

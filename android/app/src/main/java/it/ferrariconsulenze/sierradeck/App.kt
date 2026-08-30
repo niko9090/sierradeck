@@ -184,6 +184,19 @@ fun Principale(
                     val prima = try { api.ciao().versione } catch (e: Exception) { "" }
                     Installazione.iniziata(contesto, prima)
                 }
+                // **L'installazione puo' non essere cominciata.** Da quando il
+                // computer aspetta che le chat finiscano quello che hanno in
+                // mano, fra il tocco e la chiusura c'e' un'attesa che puo'
+                // durare minuti - e puo' finire con un rifiuto, se la quiete
+                // non arriva. Premendo «Installa» qui si segna subito, per non
+                // giocarsi la schermata a testa o croce contro un computer che
+                // sta chiudendo: se poi si scopre che non sta installando
+                // affatto, va disdetto. Altrimenti resta uno schermo che dice
+                // «sto installando» davanti a un computer che non lo sta
+                // facendo, per dieci minuti.
+                val ferma = letto.aggiornamento?.fase == "attendo" ||
+                    (letto.aggiornamento?.fase == "pronto" && letto.aggiornamento?.errore != null)
+                if (ferma && Installazione.da != null) Installazione.finita(contesto)
                 stato = letto; connesso = true; giriFalliti = 0; rifiuti = 0
                 // Ogni giro riuscito aggiorna la postazione: quando si e' usata
                 // l'ultima volta, e come si chiama davvero — il nome della
