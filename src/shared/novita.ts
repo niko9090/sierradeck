@@ -23,6 +23,16 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.43',
+    righe: [
+      '**Il pannello File adesso è un client vero.** Le colonne si ordinano per nome, dimensione o data (e i numeri vanno in ordine da persona: `parte2` prima di `parte10`), il percorso si può scrivere a mano, ci sono avanti e indietro, un filtro per trovare un file in una cartella piena, e l’interruttore per i file nascosti.',
+      '**Rinomina, elimina e nuova cartella — su tutti e due i lati.** Il motore sapeva già farle sul server e nessun tasto le chiamava; sul tuo computer non c’erano affatto, e per metà dei gesti bisognava aprire Esplora risorse. Funzionano anche da tastiera: F2 rinomina, Canc elimina, Invio apre, Backspace risale, F5 aggiorna, Ctrl+A prende tutto.',
+      '**Un file del server si apre con un doppio clic, e risale da solo a ogni salvataggio.** Si apre nel programma con cui lo apriresti qui; tu salvi e basta. In fondo al pannello si vede quali file sono collegati e quante volte sono risaliti — perché un meccanismo invisibile che funziona è indistinguibile da uno rotto.',
+      '**I permessi si possono cambiare, non solo guardare.** Con le lettere accanto al numero (`rwxr-xr-x`), che è come ci si accorge di aver scritto 655 invece di 755.',
+      '**Nella coda si vede a che velocità va e quanto manca.** Una barra dice che qualcosa succede; non dice se ci vogliono quaranta secondi o quaranta minuti.'
+    ]
+  },
+  {
     versione: '0.12.42',
     righe: [
       '**Aggiornare non uccide più il lavoro in corso.** Premere «Installa» chiudeva tutto all’istante: le chat morivano dove erano arrivate, anche a metà di una compilazione o di una pubblicazione. Adesso a ognuna viene chiesto di finire quello che ha in mano, salvare e annotare a che punto è — e solo quando hanno finito il programma si chiude e installa.',

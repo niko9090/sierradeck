@@ -1,7 +1,8 @@
 import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell } from 'electron'
 import { basename, dirname, join } from 'node:path'
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, watch } from 'node:fs'
 import { homedir, hostname } from 'node:os'
+import { createHash } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { APP_NAME, APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
 import { cartellaDati } from './migra-dati'
@@ -758,8 +759,78 @@ if (!app.requestSingleInstanceLock()) {
         destinazioni,
         (evento) => aTutteLeFinestre('trasferimenti:avanza', evento),
         (stato) => aTutteLeFinestre('trasferimenti:coda', stato),
-        (evento) => aTutteLeFinestre('trasferimenti:guscio', evento)
+        (evento) => aTutteLeFinestre('trasferimenti:guscio', evento),
+        {
+          apriFuori: async (locale) => {
+            // `openPath` non solleva: torna una stringa vuota se e' andata, e il
+            // motivo se non e' andata. Ignorarla lascerebbe un doppio clic che
+            // non apre niente e non dice niente.
+            const guaio = await shell.openPath(locale)
+            if (guaio !== '') throw new Error(guaio)
+          },
+          /**
+           * Dove finisce la copia di lavoro.
+           *
+           * Una cartella per destinazione e per percorso remoto, con il nome
+           * vero in fondo: il nome conta, perche' e' quello che l'editor mostra
+           * nel titolo e da cui capisce che linguaggio e'. Il percorso remoto
+           * diventa il nome della cartella, ridotto a caratteri innocui - due
+           * file che si chiamano `config.json` in due posti diversi del server
+           * non devono finire uno sopra l'altro.
+           */
+          cartellaDiLavoro: (destinazione, remoto) => {
+            const nome = basename(remoto) === '' ? 'file' : basename(remoto)
+            const ramo = createHash('sha1')
+              .update(`${destinazione}:${dirname(remoto)}`)
+              .digest('hex')
+              .slice(0, 12)
+            const cartella = join(dati, 'modifiche', ramo)
+            mkdirSync(cartella, { recursive: true })
+            return join(cartella, nome)
+          },
+          /**
+           * Si guarda **la cartella**, non il file.
+           *
+           * Quasi nessun editor riscrive il file che hai aperto: ne scrive uno
+           * accanto e lo rinomina sopra. Sorvegliando il file per nome si perde
+           * di vista al primo salvataggio, in silenzio - il file che si stava
+           * guardando esiste ancora, e' solo diventato un altro.
+           */
+          sorveglia: (cartella, nome, quando) => {
+            try {
+              const occhio = watch(cartella, (_tipo, chi) => {
+                if (chi === null || chi === nome) quando()
+              })
+              // Un guasto del sorvegliante non deve buttare giu' il Gestore: il
+              // file resta aperto, semplicemente non risale da solo.
+              occhio.on('error', (err) => {
+                console.error('[modifiche] sorveglianza interrotta:', err)
+              })
+              return () => { try { occhio.close() } catch { /* gia' chiuso */ } }
+            } catch (err) {
+              console.error('[modifiche] non riesco a sorvegliare', cartella, err)
+              return () => {}
+            }
+          },
+          impronta: (locale) => {
+            try {
+              const st = statSync(locale)
+              return { dimensione: st.size, quando: Math.round(st.mtimeMs) }
+            } catch {
+              // Sparito fra un evento e l'altro: succede davvero, in mezzo a un
+              // salvataggio fatto con scrittura e rinomina.
+              return undefined
+            }
+          },
+          cambiato: (aperti) => aTutteLeFinestre('trasferimenti:modifiche', aperti)
+        }
       )
+      ipcMain.handle('trasferimenti:apriInModifica', (_e, id: unknown, remoto: unknown, nome: unknown) =>
+        trasferimenti?.apriInModifica(String(id), String(remoto), String(nome)))
+      ipcMain.handle('trasferimenti:chiudiModifica', (_e, id: unknown, remoto: unknown) => {
+        trasferimenti?.chiudiModifica(String(id), String(remoto))
+      })
+      ipcMain.handle('trasferimenti:modificheAperte', () => trasferimenti?.modificheAperte() ?? [])
       ipcMain.handle('trasferimenti:destinazioni', (_e, cwd: unknown) =>
         typeof cwd === 'string' ? destinazioni.perProgetto(cwd) : [])
       ipcMain.handle('trasferimenti:salva', (_e, d: unknown, segreto: unknown) => {
@@ -805,6 +876,29 @@ if (!app.requestSingleInstanceLock()) {
         trasferimenti?.eliminaRemoto(String(id), String(percorso), cartella === true))
       ipcMain.handle('trasferimenti:rinominaRemoto', (_e, id: unknown, da: unknown, a: unknown) =>
         trasferimenti?.rinominaRemoto(String(id), String(da), String(a)))
+      ipcMain.handle('trasferimenti:permessiRemoti', (_e, id: unknown, percorso: unknown, modo: unknown) => {
+        // Un modo fuori scala non arriva al server: `chmod` con un numero
+        // assurdo su alcuni server passa e lascia il file inaccessibile.
+        const n = typeof modo === 'number' && Number.isInteger(modo) && modo >= 0 && modo <= 0o7777
+          ? modo
+          : undefined
+        if (n === undefined) throw new Error('permessi non validi')
+        return trasferimenti?.permessiRemoti(String(id), String(percorso), n)
+      })
+      // Le stesse tre di qua. Il lato locale deve poter fare quello che fa
+      // quello remoto: una colonna che sa rinominare e l'altra no costringe ad
+      // aprire Esplora risorse per meta' dei gesti.
+      ipcMain.handle('trasferimenti:creaCartellaLocale', (_e, percorso: unknown) =>
+        trasferimenti?.creaCartellaLocale(String(percorso)))
+      ipcMain.handle('trasferimenti:eliminaLocale', (_e, percorso: unknown) =>
+        trasferimenti?.eliminaLocale(String(percorso)))
+      ipcMain.handle('trasferimenti:rinominaLocale', (_e, da: unknown, a: unknown) =>
+        trasferimenti?.rinominaLocale(String(da), String(a)))
+      // Mostrare un file nel gestore di sistema: e' il gesto per cui altrimenti
+      // si copierebbe il percorso a mano.
+      ipcMain.handle('trasferimenti:mostraNelSistema', (_e, percorso: unknown) => {
+        shell.showItemInFolder(String(percorso))
+      })
       ipcMain.handle('trasferimenti:accoda', (_e, richieste: unknown) => {
         if (!Array.isArray(richieste)) return
         return trasferimenti?.accoda(

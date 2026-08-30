@@ -90,6 +90,17 @@ export type Sessione = {
   creaCartella: (percorso: string) => Promise<void>
   rinomina: (da: string, a: string) => Promise<void>
   elimina: (percorso: string, cartella: boolean) => Promise<void>
+  /**
+   * Cambia i permessi. `modo` è il numero ottale, quello che si scrive dopo
+   * `chmod`: 0o644, 0o755.
+   *
+   * È la ragione per cui metà delle volte si apre una shell dopo aver caricato
+   * un file: un file arrivato senza il bit di esecuzione è uno script che non
+   * parte, e un file caricato leggibile da tutti dentro una cartella web è un
+   * segreto pubblicato. Il pannello i permessi li mostrava già; poterli
+   * cambiare è la metà che mancava.
+   */
+  permessi: (percorso: string, modo: number) => Promise<void>
   chiudi: () => void
 }
 
@@ -331,6 +342,11 @@ function costruisci(cliente: Client, sftp: SFTPWrapper, segnaChiuso: () => void)
         // ricorsiva dietro un tasto solo e' il modo di farlo succedere.
         if (cartella) sftp.rmdir(percorso, fatto)
         else sftp.unlink(percorso, fatto)
+      }),
+
+    permessi: (percorso, modo) =>
+      new Promise((risolvi, rifiuta) => {
+        sftp.chmod(percorso, modo, (err) => (err !== undefined && err !== null ? rifiuta(err) : risolvi()))
       }),
 
     chiudi: () => {

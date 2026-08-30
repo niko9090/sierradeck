@@ -3270,3 +3270,96 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   overflow-y: auto;
   padding: var(--s1) var(--s2);
 }
+
+/* ── Le colonne dei file: intestazioni, strumenti, righe ──────────────────
+   Tre colonne allineate fra intestazione e righe. Le larghezze stanno in una
+   variabile sola: se nome, dimensione e data non usano la stessa griglia, i
+   titoli scivolano rispetto ai valori e l'elenco smette di essere leggibile. */
+.trasf__intestazioni,
+.trasf__riga {
+  display: grid;
+  grid-template-columns: 1fr 5.5rem 8rem;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.trasf__intestazioni {
+  padding: var(--s1) var(--s3);
+  border-bottom: var(--separazione) solid var(--incisione);
+  background: var(--chassis);
+}
+
+.trasf__col {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--testo-quieto);
+  cursor: pointer;
+  text-align: left;
+}
+.trasf__col:hover { color: var(--testo); }
+.trasf__col--attiva { color: var(--accento); }
+.trasf__col--dim, .trasf__col--data { text-align: right; }
+
+.trasf__riga {
+  padding: var(--s1) var(--s3);
+  border-radius: var(--raggio);
+  cursor: default;
+  user-select: none;
+}
+.trasf__riga:hover { background: var(--luce-tenue); }
+
+/* Il nome puo' essere lunghissimo: si taglia invece di sfondare la griglia e
+   spingere dimensione e data fuori dalla colonna. */
+.trasf__nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trasf__strumenti {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: var(--s1) var(--s3);
+  border-bottom: var(--separazione) solid var(--incisione);
+  flex-wrap: wrap;
+}
+
+.trasf__cerca { flex: 1; min-width: 6rem; }
+.trasf__barra-percorso { flex: 1; min-width: 8rem; }
+
+.trasf__piede {
+  padding: var(--s1) var(--s3);
+  border-top: var(--separazione) solid var(--incisione);
+}
+
+/* L'elenco prende il fuoco per la tastiera: senza un segno, chi preme Canc non
+   sa quale delle due colonne sta per rispondere. */
+.trasf__elenco:focus-visible {
+  outline: 2px solid var(--accento);
+  outline-offset: -2px;
+}
+
+/* Un interruttore che resta premuto: «nascosti» e' uno stato, non un gesto, e
+   senza un segno acceso non c'e' modo di sapere se sono mostrati o no. */
+.tasto--acceso {
+  border-color: var(--accento);
+  color: var(--accento);
+  background: color-mix(in srgb, var(--accento) 14%, transparent);
+}
+
+/* La striscia dei file aperti in modifica: stessa forma della coda, perche' e'
+   la stessa cosa — roba che sta passando fra i due lati — solo nell'altro
+   verso e senza che nessuno l'abbia chiesta ogni volta. */
+.trasf__modifiche {
+  border-top: var(--separazione) solid var(--incisione);
+  background: var(--chassis);
+}
+
+/* Velocita e stima accanto alla barra: non devono spingerla fuori riga. */
+.trasf__andatura { white-space: nowrap; }

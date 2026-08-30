@@ -136,6 +136,15 @@ declare global {
         creaCartella: (id: string, percorso: string) => Promise<void>
         eliminaRemoto: (id: string, percorso: string, cartella: boolean) => Promise<void>
         rinominaRemoto: (id: string, da: string, a: string) => Promise<void>
+        permessiRemoti: (id: string, percorso: string, modo: number) => Promise<void>
+        creaCartellaLocale: (percorso: string) => Promise<void>
+        eliminaLocale: (percorso: string) => Promise<void>
+        rinominaLocale: (da: string, a: string) => Promise<void>
+        mostraNelSistema: (percorso: string) => Promise<void>
+        apriInModifica: (id: string, remoto: string, nome: string) => Promise<FileInModificaVista>
+        chiudiModifica: (id: string, remoto: string) => Promise<void>
+        modificheAperte: () => Promise<FileInModificaVista[]>
+        suModifiche: (h: (aperti: FileInModificaVista[]) => void) => () => void
         accoda: (richieste: RichiestaVista[]) => Promise<void>
         coda: () => Promise<CodaVista>
         apriGuscio: (id: string, colonne: number, righe: number) => Promise<string>

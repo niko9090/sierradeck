@@ -46,6 +46,24 @@ export type VoceVista = {
 
 export type ElencoVista = { percorso: string; su?: string; voci: VoceVista[] }
 
+/**
+ * Un file del server aperto in modifica, e quanto e' risalito.
+ *
+ * Il conto delle risalite non e' cosmetico: e' la prova che il collegamento sta
+ * funzionando. Salvare e non vedere niente cambiare lascia il dubbio - e il
+ * dubbio si toglie ricaricando a mano, che e' esattamente quello che questa
+ * funzione doveva evitare.
+ */
+export type FileInModificaVista = {
+  destinazione: string
+  remoto: string
+  locale: string
+  nome: string
+  risalite: number
+  ultimaRisalita?: number
+  errore?: string
+}
+
 /** Una riga della coda dei trasferimenti. */
 export type LavoroVista = {
   id: string
@@ -358,6 +376,27 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('trasferimenti:eliminaRemoto', id, percorso, cartella),
     rinominaRemoto: (id: string, da: string, a: string): Promise<void> =>
       ipcRenderer.invoke('trasferimenti:rinominaRemoto', id, da, a),
+    permessiRemoti: (id: string, percorso: string, modo: number): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:permessiRemoti', id, percorso, modo),
+    creaCartellaLocale: (percorso: string): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:creaCartellaLocale', percorso),
+    eliminaLocale: (percorso: string): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:eliminaLocale', percorso),
+    rinominaLocale: (da: string, a: string): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:rinominaLocale', da, a),
+    mostraNelSistema: (percorso: string): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:mostraNelSistema', percorso),
+    apriInModifica: (id: string, remoto: string, nome: string): Promise<FileInModificaVista> =>
+      ipcRenderer.invoke('trasferimenti:apriInModifica', id, remoto, nome),
+    chiudiModifica: (id: string, remoto: string): Promise<void> =>
+      ipcRenderer.invoke('trasferimenti:chiudiModifica', id, remoto),
+    modificheAperte: (): Promise<FileInModificaVista[]> =>
+      ipcRenderer.invoke('trasferimenti:modificheAperte'),
+    suModifiche: (h: (aperti: FileInModificaVista[]) => void): (() => void) => {
+      const f = (_e: unknown, aperti: FileInModificaVista[]): void => h(aperti)
+      ipcRenderer.on('trasferimenti:modifiche', f)
+      return () => { ipcRenderer.off('trasferimenti:modifiche', f) }
+    },
     /**
      * La coda: piu' file insieme, cartelle intere.
      *

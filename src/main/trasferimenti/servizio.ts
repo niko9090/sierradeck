@@ -1,9 +1,10 @@
 import { randomBytes } from 'node:crypto'
-import { readdirSync, statSync } from 'node:fs'
+import { mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import type { ArchivioDestinazioni, Destinazione, Segreto } from './destinazioni'
 import { apriSessione, ImprontaSconosciuta, suRemoto, unisciRemoto, type GuscioRemoto, type Sessione } from './sftp'
 import { creaCoda, type Coda, type Richiesta, type StatoCoda } from './coda'
+import { creaModificheRemote, type FileInModifica, type ModificheRemote } from './modifica-remota'
 
 /**
  * Le connessioni aperte, e i comandi che l'interfaccia può dare.
@@ -44,6 +45,30 @@ export type Trasferimenti = {
   creaCartellaRemota: (id: string, percorso: string) => Promise<void>
   eliminaRemoto: (id: string, percorso: string, cartella: boolean) => Promise<void>
   rinominaRemoto: (id: string, da: string, a: string) => Promise<void>
+  /** I permessi di un file sul server. `modo` e' il numero ottale di `chmod`. */
+  permessiRemoti: (id: string, percorso: string, modo: number) => Promise<void>
+  /**
+   * Le stesse tre cose, ma di qua.
+   *
+   * Le due colonne devono comportarsi **identiche**: per chi le usa sono lo
+   * stesso gesto fatto da due parti, e una differenza fra i due lati si paga
+   * in dubbi ogni volta - «di la' si puo' rinominare, di qua non ricordo».
+   * Erano gia' tutte e tre dalla parte del server, e mancavano da questa.
+   */
+  creaCartellaLocale: (percorso: string) => void
+  eliminaLocale: (percorso: string) => void
+  rinominaLocale: (da: string, a: string) => void
+  /**
+   * Apre un file del server nel programma con cui lo apriresti qui, e da quel
+   * momento ogni salvataggio risale.
+   *
+   * E' la funzione per cui si tiene aperto un client SFTP tutto il giorno:
+   * senza, cambiare una riga in un file di configurazione remoto sono cinque
+   * passi, e i due in mezzo sono quelli in cui si sbaglia cartella.
+   */
+  apriInModifica: (id: string, remoto: string, nome: string) => Promise<FileInModifica>
+  chiudiModifica: (id: string, remoto: string) => void
+  modificheAperte: () => FileInModifica[]
   /**
    * Apre una shell sul server e torna il suo numero.
    *
@@ -77,7 +102,21 @@ export function creaTrasferimenti(
   /** Lo stato della coda, per la lista in fondo al pannello. */
   avvisaCoda?: (stato: StatoCoda) => void,
   /** Quello che il terminale remoto stampa, e quando si chiude. */
-  avvisaGuscio?: (evento: { guscio: string; dati?: string; finito?: boolean }) => void
+  avvisaGuscio?: (evento: { guscio: string; dati?: string; finito?: boolean }) => void,
+  /**
+   * Quello che serve per aprire un file remoto in un programma vero.
+   *
+   * Arriva da fuori perche' e' roba di Electron e del disco, e questo modulo
+   * deve restare provabile senza avviare un'applicazione - la stessa regola
+   * dell'archivio delle destinazioni, che si fa passare il cifratore.
+   */
+  modifiche?: {
+    apriFuori: (locale: string) => Promise<void>
+    cartellaDiLavoro: (destinazione: string, remoto: string) => string
+    sorveglia: (cartella: string, nome: string, quando: () => void) => () => void
+    impronta: (locale: string) => { dimensione: number; quando: number } | undefined
+    cambiato?: (aperti: FileInModifica[]) => void
+  }
 ): Trasferimenti {
   const aperte = new Map<string, Aperta>()
   /** I terminali aperti: `guscio -> destinazione`, piu' il canale. */
@@ -193,8 +232,36 @@ export function creaTrasferimenti(
     avvisaCoda
   )
 
+  /**
+   * I file remoti aperti in modifica.
+   *
+   * Assente quando chi ci ha costruiti non ha passato il necessario - i test,
+   * per esempio - e allora i tre comandi rispondono che non si puo', invece di
+   * cadere.
+   */
+  const modificheRemote: ModificheRemote | undefined = modifiche === undefined
+    ? undefined
+    : creaModificheRemote({
+      scarica: async (id, remoto, locale) => { await (await dammi(id)).scarica(remoto, locale) },
+      carica: async (id, locale, remoto) => { await (await dammi(id)).carica(locale, remoto) },
+      apriFuori: modifiche.apriFuori,
+      cartellaDiLavoro: modifiche.cartellaDiLavoro,
+      sorveglia: modifiche.sorveglia,
+      impronta: modifiche.impronta,
+      ...(modifiche.cambiato !== undefined ? { cambiato: modifiche.cambiato } : {})
+    })
+
   return {
     destinazioni: (cwd) => archivio.perProgetto(cwd),
+
+    apriInModifica(id, remoto, nome) {
+      if (modificheRemote === undefined) {
+        return Promise.reject(new Error('la modifica al volo non e disponibile'))
+      }
+      return modificheRemote.apri(id, remoto, nome)
+    },
+    chiudiModifica(id, remoto) { modificheRemote?.chiudi(id, remoto) },
+    modificheAperte: () => modificheRemote?.aperti() ?? [],
     accoda: (richieste) => coda.accoda(richieste),
     statoCoda: () => coda.stato(),
     annullaLavoro: (id) => coda.annulla(id),
@@ -292,6 +359,33 @@ export function creaTrasferimenti(
       await (await dammi(id)).rinomina(da, a)
     },
 
+    async permessiRemoti(id, percorso, modo) {
+      await (await dammi(id)).permessi(percorso, modo)
+    },
+
+    creaCartellaLocale(percorso) {
+      mkdirSync(percorso)
+    },
+
+    /**
+     * Cancella, cartelle comprese.
+     *
+     * Qui `recursive` c'e' e dalla parte del server no, e non e' una svista.
+     * Di la' una cancellazione ricorsiva dietro un tasto solo e' il disastro
+     * che non si annulla: un percorso sbagliato su un server di produzione non
+     * ha nessun cestino dietro. Di qua il disastro e' lo stesso ma il terreno
+     * e' il tuo, il percorso e' quello che stai guardando, e senza `recursive`
+     * una cartella non si potrebbe cancellare affatto - cioe' l'unica strada
+     * sarebbe uscire dal programma e aprire Esplora risorse.
+     */
+    eliminaLocale(percorso) {
+      rmSync(percorso, { recursive: true, force: false })
+    },
+
+    rinominaLocale(da, a) {
+      renameSync(da, a)
+    },
+
     scollega(id) {
       // I terminali di quel server se ne vanno con lui: la connessione sotto
       // sta per chiudersi, e lasciarli aperti darebbe riquadri vivi su un
@@ -310,6 +404,10 @@ export function creaTrasferimenti(
 
     chiudiTutto() {
       clearInterval(potatura)
+      // I sorveglianti dei file aperti in modifica: ognuno tiene un handle sul
+      // filesystem, e su un programma che sta giorni acceso se ne accumula uno
+      // per ogni file mai aperto.
+      modificheRemote?.chiudiTutto()
       for (const [, g] of gusci) {
         try { g.canale.chiudi() } catch { /* gia' a terra */ }
       }

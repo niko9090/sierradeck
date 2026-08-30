@@ -148,6 +148,86 @@ filesystem arrotondano, il caricamento non conserva la data): senza tolleranza
 *ogni* file risulterebbe diverso, che è come non dire niente, solo più rumoroso.
 Un byte di differenza invece è una differenza vera.
 
+## Il pannello vero (0.12.43)
+
+Il motore era gia' completo e **il pannello non lo raggiungeva**:
+`rinominaRemoto`, `eliminaRemoto`, `creaCartellaRemota` erano esposti fino al
+renderer e nessun tasto li chiamava. La colonna era un elenco piatto con
+selezione, doppio clic e «↑ Su». Da qui la sensazione di «scarno»: non mancava
+la potenza, mancava la strada per arrivarci.
+
+`shared/sfoglia.ts` — tutta la logica di sfogliare, senza React dentro, perche'
+e' la parte che si sbaglia in silenzio:
+
+- **Ordinamento con `Intl.Collator({numeric: true})`.** Senza, `parte10` viene
+  prima di `parte2`, e ogni cartella di backup, log o episodi risulta mescolata
+  senza colpa di nessuno. Le cartelle stanno in testa **a prescindere dal
+  verso**: sono struttura, non contenuto.
+- **Selezione con un'ancora**, non «l'ultimo preso». Dopo un Maiusc l'ultimo
+  preso e' la fine dell'intervallo: ripartire da li' fa crescere la selezione e
+  non restringerla mai. L'intervallo si conta sull'elenco **come si vede** —
+  filtrato e ordinato — perche' chi tiene premuto Maiusc indica due righe sullo
+  schermo.
+- **Cronologia**: un percorso nuovo butta il ramo «avanti», o si avrebbe un
+  avanti verso una strada mai scelta. E' alimentata dal **percorso**, non dai
+  clic: altrimenti resterebbero fuori doppio clic, barra scritta a mano e
+  ritorno automatico dopo una copia.
+- **Il filtro non nasconde le cartelle.** Serve a trovare un file in una
+  cartella affollata; nasconderle toglie l'unica via per cercarlo altrove.
+- **`separatoreDi`/`unisciPercorso`/`accantoA`**: il separatore si guarda nel
+  percorso, non in `process.platform`. Le due colonne sono un disco Windows e un
+  server Unix, e dedurlo dal sistema costruisce `\home\utente\file` sul server.
+  `accantoA` esiste perche' ne' SFTP ne' il filesystem hanno «rinomina»: hanno
+  «sposta», e sbagliare il calcolo sposta il file in un posto che non esiste.
+
+Aggiunte al pannello: ordinamento cliccabile, barra del percorso scrivibile,
+avanti/indietro/su, filtro, file nascosti, rinomina, elimina, nuova cartella,
+aggiorna, «apri fuori», tastiera (Invio, Backspace, F2, Canc, F5, Ctrl+A),
+conteggio in fondo. E le **operazioni locali** (`creaCartellaLocale`,
+`eliminaLocale`, `rinominaLocale`), che mancavano del tutto: una colonna che sa
+rinominare e l'altra no costringe ad aprire Esplora risorse per meta' dei gesti.
+`eliminaLocale` e' ricorsiva e `eliminaRemoto` no, di proposito: di qua il
+terreno e' il tuo, di la' una cancellazione ricorsiva dietro un tasto solo e' il
+disastro che non si annulla.
+
+## Aprire e modificare un file remoto (0.12.43)
+
+`trasferimenti/modifica-remota.ts`. E' *la* funzione per cui si tiene aperto un
+client SFTP tutto il giorno: doppio clic su un file del server, si apre nel
+programma con cui lo apriresti qui, e ogni salvataggio risale da solo.
+
+Le tre trappole, tutte pagate da chi ha scritto questa roba prima di noi:
+
+1. **Si sorveglia la cartella, non il file.** Quasi nessun editor riscrive il
+   file che hai aperto: ne scrive uno accanto e lo rinomina sopra. Chi guarda il
+   file per nome lo perde di vista al primo salvataggio, **senza un errore** —
+   quel file esiste ancora, e' solo diventato un altro.
+2. **Un salvataggio non e' un evento.** Un Ctrl+S produce `rename`, `change` e
+   spesso un secondo `change`: caricare a ognuno manda lo stesso file tre volte,
+   e sul terzo il server ha in mano il primo. Mezzo secondo di quiete li fonde.
+3. **Non si risale se non e' cambiato.** Molti editor toccano la data anche
+   aprendo e chiudendo senza modificare. Ricaricare una copia identica cambia la
+   data sul server, e da li' in poi il confronto fra i due lati dice «piu' nuovo
+   di la'» per un file che nessuno ha toccato.
+
+Un errore di caricamento **non stacca la sorveglianza**: si mostra e il prossimo
+salvataggio riprova. E `chiudiTutto` deve chiudere anche i sorveglianti — ognuno
+tiene un handle sul filesystem, e su un programma che sta giorni acceso se ne
+accumula uno per ogni file mai aperto.
+
+## Permessi e andatura (0.12.43)
+
+- `sftp.chmod` dietro `permessiRemoti`. I permessi si vedevano gia': poterli
+  cambiare era la meta' che mancava, ed e' il motivo per cui meta' delle volte
+  si apriva una shell subito dopo aver caricato. `leggiPermessi` accetta **solo**
+  tre o quattro cifre da 0 a 7: `parseInt('759', 8)` tornerebbe 61 (`075`), cioe'
+  un file senza permessi per il proprietario da una battitura sbagliata.
+- `shared/andatura.ts`: velocita' e tempo rimanente, misurati su una finestra di
+  **cinque secondi** e non dall'inizio — una copia che parte piano
+  trascinerebbe la media per tutto il resto. Sotto il mezzo secondo di campioni
+  non si scrive niente: e' rumore moltiplicato, ed e' da li' che vengono i
+  «1,4 GB/s» che nessuno crede.
+
 ## Cosa manca (a strati)
 1. ~~destinazioni, motore, pannello a due colonne~~ **fatto (0.12.27)**
 2. ~~code di trasferimento: più file, cartelle intere, trascinamento~~ **fatto (0.12.28)**
@@ -155,5 +235,16 @@ Un byte di differenza invece è una differenza vera.
    chat: legarlo al modello delle chat avrebbe toccato workspace e riquadri, che
    hanno ancora aperto il guasto dei workspace che si rimescolano
 4. il pannello **dal telefono**: sfogliare e spostare da fuori casa — l'unico
-   strato ancora tutto da fare
+   strato ancora tutto da fare (il telefono non ha **nessun** pannello file:
+   non e' una differenza fra i due lati, e' una funzione che li' non esiste)
 5. ~~confronto delle due parti~~ **fatto (0.12.28)**
+6. ~~ordinamento, filtro, cronologia, rinomina/elimina/nuova cartella su
+   entrambi i lati, tastiera~~ **fatto (0.12.43)**
+7. ~~aprire un file remoto e vederlo risalire a ogni salvataggio~~
+   **fatto (0.12.43)**
+8. ~~permessi modificabili, velocita' e tempo rimanente~~ **fatto (0.12.43)**
+9. regola di sovrascrittura (sovrascrivi/salta/rinomina/chiedi): adesso si
+   sovrascrive e basta. `nomeLibero` in `sfoglia.ts` c'e' gia' e non e'
+   ancora usato — e' il pezzo pronto per quando si fara'
+10. ripresa di un trasferimento interrotto, ricerca ricorsiva sul server,
+    sfogliamento sincronizzato

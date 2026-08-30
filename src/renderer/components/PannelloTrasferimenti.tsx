@@ -1,7 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react'
-import type { CodaVista, DestinazioneVista, ElencoVista, RichiestaVista, VoceVista } from '../../preload'
+import type {
+  CodaVista, DestinazioneVista, ElencoVista, FileInModificaVista, RichiestaVista, VoceVista
+} from '../../preload'
 import { TerminaleRemoto } from './TerminaleRemoto'
 import { confrontaElenchi, segnoDi, type Confronto } from '@shared/confronto-file'
+import {
+  aggiungiCampione, quantoManca, scriviQuantoManca, scriviVelocita, velocita, type Campione
+} from '@shared/andatura'
+import {
+  avanti, cronologiaVuota, indietro, nuovaSelezione, ORDINE_PREDEFINITO, prendiTutto,
+  prossimoOrdine, puoAvanti, puoIndietro, vaiA, vociVisibili, accantoA, unisciPercorso,
+  leggiPermessi, permessiInLettere,
+  type Cronologia, type Ordine, type PerCosa, type Selezione, type VoceSfogliabile
+} from '@shared/sfoglia'
 
 /**
  * I file del progetto, di qua e di là.
@@ -48,9 +59,19 @@ export function PannelloTrasferimenti(
   const [coda, setCoda] = useState<CodaVista>({ lavori: [], contando: 0 })
   const [modifica, setModifica] = useState<Partial<DestinazioneVista> | undefined>(undefined)
   const [password, setPassword] = useState('')
-  const [presiLocali, setPresiLocali] = useState<string[]>([])
-  const [presiRemoti, setPresiRemoti] = useState<string[]>([])
+  // La selezione non e' solo l'elenco dei presi: si porta dietro l'ancora, il
+  // punto fisso da cui un intervallo con Maiusc si allarga e si stringe.
+  const [selLocale, setSelLocale] = useState<Selezione>({ presi: [] })
+  const [selRemota, setSelRemota] = useState<Selezione>({ presi: [] })
   const [terminale, setTerminale] = useState(false)
+  const [inModifica, setInModifica] = useState<FileInModificaVista[]>([])
+
+  // I file aperti in modifica arrivano dal Core, che è l'unico a sapere quando
+  // uno risale: la sorveglianza sta lì, e da qui non si vedrebbe niente.
+  useEffect(() => {
+    void window.gestore.trasferimenti.modificheAperte().then(setInModifica).catch(() => undefined)
+    return window.gestore.trasferimenti.suModifiche(setInModifica)
+  }, [])
 
   useEffect(() => {
     const suTasto = (e: KeyboardEvent): void => { if (e.key === 'Escape') onChiudi() }
@@ -91,7 +112,7 @@ export function PannelloTrasferimenti(
     const percorso = dove ?? cwd
     if (percorso === undefined || percorso === '') return
     window.gestore.trasferimenti.locale(percorso)
-      .then((e) => { setLocale(e); setPresiLocali([]) })
+      .then((e) => { setLocale(e); setSelLocale({ presi: [] }) })
       .catch(() => undefined)
   }
   useEffect(() => ricaricaLocale(), [cwd])
@@ -99,7 +120,7 @@ export function PannelloTrasferimenti(
   const ricaricaRemoto = (dove?: string): void => {
     if (scelta === undefined || !collegato) return
     window.gestore.trasferimenti.remoto(scelta, dove ?? '')
-      .then((e) => { setRemoto(e); setPresiRemoti([]); setErrore(undefined) })
+      .then((e) => { setRemoto(e); setSelRemota({ presi: [] }); setErrore(undefined) })
       .catch((e: unknown) => setErrore(String(e)))
   }
 
@@ -213,14 +234,28 @@ export function PannelloTrasferimenti(
         <Colonna
           titolo="Su questo computer"
           elenco={locale}
-          presi={presiLocali}
-          setPresi={setPresiLocali}
+          selezione={selLocale}
+          setSelezione={setSelLocale}
           confronto={collegato && remoto !== undefined ? confrontoLocale : undefined}
           onVai={(p) => ricaricaLocale(p)}
+          onAggiorna={() => ricaricaLocale(locale?.percorso)}
+          operazioni={{
+            nuovaCartella: (dentro, nome) =>
+              window.gestore.trasferimenti.creaCartellaLocale(unisciPercorso(dentro, nome)),
+            rinomina: (percorso, nome) =>
+              window.gestore.trasferimenti.rinominaLocale(percorso, accantoA(percorso, nome)),
+            // Uno per volta e in fila: `Promise.all` su venti cancellazioni
+            // lascia, quando una fallisce, meta' lavoro fatto e nessun modo di
+            // sapere quale meta'.
+            elimina: async (voci) => {
+              for (const v of voci) await window.gestore.trasferimenti.eliminaLocale(v.percorso)
+            },
+            mostra: (percorso) => { void window.gestore.trasferimenti.mostraNelSistema(percorso) }
+          }}
           azione={{
-            etichetta: `→  Carica${presiLocali.length > 1 ? ` (${presiLocali.length})` : ''}`,
-            attiva: pronto && presiLocali.length > 0,
-            fai: () => manda('su', scelteDi(locale, presiLocali))
+            etichetta: `→  Carica${selLocale.presi.length > 1 ? ` (${selLocale.presi.length})` : ''}`,
+            attiva: pronto && selLocale.presi.length > 0,
+            fai: () => manda('su', scelteDi(locale, selLocale.presi))
           }}
           onLascia={(voci) => manda('giu', voci)}
           accettaDaFuori={false}
@@ -233,14 +268,36 @@ export function PannelloTrasferimenti(
               ? 'Aggiungi un server con «+ Server».'
               : collegato ? 'Cartella vuota.' : 'Premi «Collega».'
           }
-          presi={presiRemoti}
-          setPresi={setPresiRemoti}
+          selezione={selRemota}
+          setSelezione={setSelRemota}
           confronto={locale !== undefined ? confrontoRemoto : undefined}
           onVai={(p) => ricaricaRemoto(p)}
+          onAggiorna={() => ricaricaRemoto(remoto?.percorso)}
+          operazioni={pronto && scelta !== undefined ? {
+            nuovaCartella: (dentro, nome) =>
+              window.gestore.trasferimenti.creaCartella(scelta, unisciPercorso(dentro, nome)),
+            rinomina: (percorso, nome) =>
+              window.gestore.trasferimenti.rinominaRemoto(scelta, percorso, accantoA(percorso, nome)),
+            elimina: async (voci) => {
+              for (const v of voci) {
+                await window.gestore.trasferimenti.eliminaRemoto(scelta, v.percorso, v.cartella)
+              }
+            },
+            permessi: async (voci, modo) => {
+              for (const v of voci) {
+                await window.gestore.trasferimenti.permessiRemoti(scelta, v.percorso, modo)
+              }
+            },
+            modificaFile: (v) => {
+              setErrore(undefined)
+              void window.gestore.trasferimenti.apriInModifica(scelta, v.percorso, v.nome)
+                .catch((e: unknown) => setErrore(String(e)))
+            }
+          } : undefined}
           azione={{
-            etichetta: `←  Scarica${presiRemoti.length > 1 ? ` (${presiRemoti.length})` : ''}`,
-            attiva: pronto && presiRemoti.length > 0,
-            fai: () => manda('giu', scelteDi(remoto, presiRemoti))
+            etichetta: `←  Scarica${selRemota.presi.length > 1 ? ` (${selRemota.presi.length})` : ''}`,
+            attiva: pronto && selRemota.presi.length > 0,
+            fai: () => manda('giu', scelteDi(remoto, selRemota.presi))
           }}
           onLascia={(voci) => manda('su', voci)}
           /**
@@ -250,6 +307,8 @@ export function PannelloTrasferimenti(
           accettaDaFuori={pronto}
         />
       </div>
+
+      <InModifica aperti={inModifica} />
 
       {terminale && collegato && scelta !== undefined ? (
         <TerminaleRemoto destinazione={scelta} onErrore={setErrore} />
@@ -395,6 +454,31 @@ export function PannelloTrasferimenti(
  */
 function Coda({ coda }: { coda: CodaVista }): React.JSX.Element | null {
   const { lavori, contando } = coda
+  /**
+   * I campioni di avanzamento, per lavoro.
+   *
+   * La velocita' si calcola qui e non nel motore per una ragione pratica: il
+   * motore sa quanti byte sono passati, e questo lo dice gia'. Quanto ci ha
+   * messo lo sa chi guarda arrivare le notifiche, ed e' questo pannello.
+   *
+   * In un `ref` e non in uno stato: un campione in piu' non deve ridisegnare
+   * niente da solo — il ridisegno arriva comunque con la notifica successiva —
+   * e metterlo in uno stato vorrebbe dire un giro di React per ogni pacchetto.
+   */
+  const campioni = useRef(new Map<string, Campione[]>())
+  const adesso = Date.now()
+  for (const l of lavori) {
+    if (l.stato !== 'corso') { campioni.current.delete(l.id); continue }
+    campioni.current.set(
+      l.id,
+      aggiungiCampione(campioni.current.get(l.id) ?? [], { fatti: l.fatti, quando: adesso })
+    )
+  }
+  // I lavori finiti non lasciano campioni dietro: la mappa vivrebbe quanto il
+  // pannello, e una coda da cinquecento file la riempirebbe tutta.
+  for (const id of [...campioni.current.keys()]) {
+    if (!lavori.some((l) => l.id === id && l.stato === 'corso')) campioni.current.delete(id)
+  }
   if (lavori.length === 0 && contando === 0) return null
   const inCorso = lavori.filter((l) => l.stato === 'corso')
   const attesa = lavori.filter((l) => l.stato === 'attesa')
@@ -445,12 +529,29 @@ function Coda({ coda }: { coda: CodaVista }): React.JSX.Element | null {
                 </button>
               </>
             ) : l.stato === 'corso' ? (
-              <span className="trasf__barra">
-                <span
-                  className="trasf__barra-dentro"
-                  style={{ width: `${l.dimensione > 0 ? Math.min(100, (l.fatti / l.dimensione) * 100) : 30}%` }}
-                />
-              </span>
+              <>
+                <span className="trasf__barra">
+                  <span
+                    className="trasf__barra-dentro"
+                    style={{ width: `${l.dimensione > 0 ? Math.min(100, (l.fatti / l.dimensione) * 100) : 30}%` }}
+                  />
+                </span>
+                {/*
+                  Una barra dice che qualcosa succede; non dice se ci vogliono
+                  quaranta secondi o quaranta minuti — che e' la sola cosa che
+                  serve per decidere se restare a guardare o andare a fare altro.
+                */}
+                {(() => {
+                  const v = velocita(campioni.current.get(l.id) ?? [], adesso)
+                  const manca = quantoManca(l.fatti, l.dimensione, v)
+                  if (v === undefined) return null
+                  return (
+                    <span className="misura trasf__andatura">
+                      {scriviVelocita(v)}{manca !== undefined ? ` · ${scriviQuantoManca(manca)}` : ''}
+                    </span>
+                  )
+                })()}
+              </>
             ) : (
               <>
                 <span className="misura">{misura(l.dimensione)}</span>
@@ -472,56 +573,157 @@ function Coda({ coda }: { coda: CodaVista }): React.JSX.Element | null {
   )
 }
 
+/**
+ * Le operazioni che si possono fare su un lato.
+ *
+ * Assenti quando il lato non è pronto — il server non è collegato — e allora i
+ * tasti non ci sono invece di esserci e fallire. Un tasto che si preme e dà un
+ * errore è peggio di un tasto che non c'è: il primo lo provi, il secondo lo
+ * capisci.
+ */
+export type Operazioni = {
+  nuovaCartella: (dentro: string, nome: string) => Promise<void>
+  rinomina: (percorso: string, nome: string) => Promise<void>
+  elimina: (voci: { percorso: string; cartella: boolean }[]) => Promise<void>
+  /** Solo di qua: aprire la cartella nel gestore di file del sistema. */
+  mostra?: (percorso: string) => void
+  /**
+   * Solo di là: aprire un file del server nel programma con cui lo apriresti
+   * qui, e da quel momento ogni salvataggio risale.
+   */
+  modificaFile?: (v: VoceVista) => void
+  /**
+   * Solo di là: cambiare i permessi.
+   *
+   * È la metà che mancava di una cosa già mostrata. Un file arrivato senza il
+   * bit di esecuzione è uno script che non parte; uno caricato leggibile da
+   * tutti dentro una cartella web è un segreto pubblicato. Senza questo, metà
+   * delle volte si apre una shell subito dopo aver caricato.
+   */
+  permessi?: (voci: { percorso: string }[], modo: number) => Promise<void>
+}
+
+/** La data come si legge di sfuggita: giorno e ora, niente secondi. */
+function quandoBreve(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return ''
+  const d = new Date(ms)
+  const due = (n: number): string => String(n).padStart(2, '0')
+  return `${due(d.getDate())}/${due(d.getMonth() + 1)}/${String(d.getFullYear()).slice(2)} ${due(d.getHours())}:${due(d.getMinutes())}`
+}
+
 /** Una delle due colonne. Identiche di proposito: è lo stesso gesto da due lati. */
 function Colonna(
-  { titolo, elenco, vuoto, presi, setPresi, onVai, azione, onLascia, accettaDaFuori, confronto }: {
+  {
+    titolo, elenco, vuoto, selezione, setSelezione, onVai, onAggiorna, azione, onLascia,
+    accettaDaFuori, confronto, operazioni
+  }: {
     titolo: string
     elenco?: ElencoVista
     vuoto?: string
-    presi: string[]
-    /** Com'e' messo ogni file rispetto all'altro lato. Assente: non si sa ancora. */
+    selezione: Selezione
+    /** Com'è messo ogni file rispetto all'altro lato. Assente: non si sa ancora. */
     confronto?: Map<string, Confronto>
-    setPresi: (p: string[]) => void
+    setSelezione: (s: Selezione) => void
     onVai: (percorso: string) => void
+    onAggiorna: () => void
     azione: { etichetta: string; attiva: boolean; fai: () => void }
     onLascia: (voci: { percorso: string; cartella: boolean }[]) => void
     accettaDaFuori: boolean
+    operazioni?: Operazioni
   }
 ): React.JSX.Element {
   const [sopra, setSopra] = useState(false)
+  const [ordine, setOrdine] = useState<Ordine>(ORDINE_PREDEFINITO)
+  const [cerca, setCerca] = useState('')
+  const [nascosti, setNascosti] = useState(false)
+  const [storia, setStoria] = useState<Cronologia>(cronologiaVuota())
+  const [scritto, setScritto] = useState<string | undefined>(undefined)
+  const [chiedo, setChiedo] = useState<{ cosa: 'cartella' | 'rinomina'; nome: string } | undefined>(undefined)
+  const [confermaElimina, setConfermaElimina] = useState(false)
+  const [chiedoPermessi, setChiedoPermessi] = useState<string | undefined>(undefined)
+  const [guasto, setGuasto] = useState<string | undefined>(undefined)
+
+  const presi = selezione.presi
+  const tutte = elenco?.voci ?? []
+  const visibili = vociVisibili(tutte as VoceSfogliabile[], ordine, { testo: cerca, nascosti }) as VoceVista[]
+  const scelte = tutte.filter((v) => presi.includes(v.percorso))
 
   /**
-   * La scelta con Ctrl e Maiusc, come in qualunque elenco di file.
+   * La cronologia segue il percorso, invece di essere alimentata dai clic.
    *
-   * Non è vezzo: chi apre questo pannello ha già le dita abituate, e un elenco
-   * che si comporta diversamente costringe a scoprire da capo una cosa che
-   * sapeva già fare.
+   * Alimentandola dai clic resterebbero fuori tutti gli altri modi di cambiare
+   * cartella — il doppio clic, la scrittura nella barra, il ritorno dopo una
+   * copia — e «indietro» porterebbe in un posto che non è quello da cui vieni.
    */
+  const dove = elenco?.percorso
+  useEffect(() => {
+    if (dove === undefined) return
+    setStoria((s) => (s.voci[s.indice] === dove ? s : vaiA(s, dove)))
+    // Il filtro si svuota cambiando cartella: uno rimasto acceso mostra
+    // «niente» dentro una cartella piena, e la prima reazione è credere che
+    // sia vuota.
+    setCerca('')
+    setScritto(undefined)
+  }, [dove])
+
+  const vaiIndietro = (): void => {
+    const r = indietro(storia)
+    if (r.percorso === undefined) return
+    setStoria(r.storia)
+    onVai(r.percorso)
+  }
+  const vaiAvanti = (): void => {
+    const r = avanti(storia)
+    if (r.percorso === undefined) return
+    setStoria(r.storia)
+    onVai(r.percorso)
+  }
+
+  const fai = (cosa: Promise<void>): void => {
+    setGuasto(undefined)
+    cosa
+      .then(() => {
+        setChiedo(undefined)
+        setConfermaElimina(false)
+        setChiedoPermessi(undefined)
+        onAggiorna()
+      })
+      .catch((e: unknown) => setGuasto(String(e)))
+  }
+
+  const confermaChiedo = (): void => {
+    if (chiedo === undefined || operazioni === undefined || chiedo.nome.trim() === '') return
+    fai(chiedo.cosa === 'cartella'
+      ? operazioni.nuovaCartella(elenco?.percorso ?? '', chiedo.nome.trim())
+      : operazioni.rinomina(scelte[0]?.percorso ?? '', chiedo.nome.trim()))
+  }
+
   const clic = (v: VoceVista, e: React.MouseEvent): void => {
-    const tutte = (elenco?.voci ?? []).map((x) => x.percorso)
-    if (e.shiftKey && presi.length > 0) {
-      const ultimo = tutte.indexOf(presi[presi.length - 1] as string)
-      const adesso = tutte.indexOf(v.percorso)
-      if (ultimo >= 0 && adesso >= 0) {
-        const [a, b] = ultimo < adesso ? [ultimo, adesso] : [adesso, ultimo]
-        setPresi(tutte.slice(a, b + 1))
-        return
-      }
+    setSelezione(nuovaSelezione(
+      visibili, selezione, v.percorso, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey }
+    ))
+  }
+
+  const daTastiera = (e: React.KeyboardEvent): void => {
+    if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault(); setSelezione(prendiTutto(visibili)); return
     }
-    if (e.ctrlKey || e.metaKey) {
-      setPresi(presi.includes(v.percorso) ? presi.filter((p) => p !== v.percorso) : [...presi, v.percorso])
-      return
+    if (e.key === 'Backspace' && elenco?.su !== undefined) { e.preventDefault(); onVai(elenco.su); return }
+    if (e.key === 'F5') { e.preventDefault(); onAggiorna(); return }
+    const primo = scelte[0]
+    if (primo === undefined) return
+    if (e.key === 'Enter' && primo.cartella) { e.preventDefault(); onVai(primo.percorso); return }
+    if (e.key === 'F2' && operazioni !== undefined) {
+      e.preventDefault(); setChiedo({ cosa: 'rinomina', nome: primo.nome }); return
     }
-    setPresi([v.percorso])
+    if (e.key === 'Delete' && operazioni !== undefined) { e.preventDefault(); setConfermaElimina(true) }
   }
 
   const iniziaTrascinamento = (v: VoceVista, e: React.DragEvent): void => {
-    // Trascinare una riga non scelta trascina quella, non la selezione di
-    // prima: è quello che si aspetta chiunque abbia mai spostato un file.
-    const voci = presi.includes(v.percorso)
-      ? (elenco?.voci ?? []).filter((x) => presi.includes(x.percorso))
-      : [v]
-    if (!presi.includes(v.percorso)) setPresi([v.percorso])
+    // Trascinando una riga che non era scelta si porta quella e solo quella:
+    // altrimenti partirebbe una selezione che chi guarda ha già dimenticato.
+    const voci = presi.includes(v.percorso) ? scelte : [v]
+    if (!presi.includes(v.percorso)) setSelezione({ presi: [v.percorso], ancora: v.percorso })
     e.dataTransfer.setData(
       TIPO_VOCI,
       JSON.stringify(voci.map((x) => ({ percorso: x.percorso, cartella: x.cartella })))
@@ -544,7 +746,8 @@ function Colonna(
     if (!accettaDaFuori) return
     // Roba arrivata da Esplora risorse. Il percorso lo dà il ponte: da Electron
     // 32 una pagina non può più leggerlo da sola, e va bene così.
-    const fuori = [...e.dataTransfer.files].map((f) => window.gestore.trasferimenti.percorsoDelFile(f))
+    const fuori = [...e.dataTransfer.files]
+      .map((f) => window.gestore.trasferimenti.percorsoDelFile(f))
       .filter((p) => p !== '')
     // Se sia cartella o file lo si **chiede al disco**: indovinarlo dal punto
     // nel nome sbaglia su `.git` e su `archivio.2026`, e sbagliarlo vuol dire
@@ -553,6 +756,16 @@ function Colonna(
       fuori.map(async (p) => ({ percorso: p, cartella: await window.gestore.sistema.cartellaEsiste(p) }))
     ).then(onLascia)
   }
+
+  const intestazione = (per: PerCosa, testo: string, classe: string): React.JSX.Element => (
+    <button
+      className={`trasf__col ${classe}${ordine.per === per ? ' trasf__col--attiva' : ''}`}
+      onClick={() => setOrdine(prossimoOrdine(ordine, per))}
+      title={`Ordina per ${testo.toLowerCase()}`}
+    >
+      {testo}{ordine.per === per ? (ordine.verso === 'su' ? ' ▲' : ' ▼') : ''}
+    </button>
+  )
 
   return (
     <div
@@ -574,50 +787,329 @@ function Colonna(
           {azione.etichetta}
         </button>
       </div>
+
       <div className="trasf__percorso">
-        {elenco?.su !== undefined ? (
-          <button className="tasto tasto--fantasma" onClick={() => onVai(elenco.su as string)}>↑ Su</button>
-        ) : null}
-        <span className="misura">{elenco?.percorso ?? ''}</span>
+        <button
+          className="tasto tasto--fantasma"
+          disabled={!puoIndietro(storia)}
+          onClick={vaiIndietro}
+          title="Indietro"
+        >←</button>
+        <button
+          className="tasto tasto--fantasma"
+          disabled={!puoAvanti(storia)}
+          onClick={vaiAvanti}
+          title="Avanti"
+        >→</button>
+        <button
+          className="tasto tasto--fantasma"
+          disabled={elenco?.su === undefined}
+          onClick={() => { if (elenco?.su !== undefined) onVai(elenco.su) }}
+          title="Cartella superiore (Backspace)"
+        >↑</button>
+        {/*
+          La barra si può scrivere. Senza, per arrivare in una cartella profonda
+          si risale e si ridiscende un pezzo per volta — e su un server con
+          percorsi lunghi è la cosa che stanca prima. Si conferma con Invio, ed
+          Esc rimette quello che c'era: una barra che cambia cartella mentre
+          scrivi non si potrebbe usare.
+        */}
+        <input
+          className="campo trasf__barra-percorso"
+          value={scritto ?? elenco?.percorso ?? ''}
+          placeholder="percorso"
+          onChange={(e) => setScritto(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && scritto !== undefined && scritto.trim() !== '') {
+              onVai(scritto.trim())
+              setScritto(undefined)
+            }
+            if (e.key === 'Escape') { e.stopPropagation(); setScritto(undefined) }
+          }}
+        />
+        <button className="tasto tasto--fantasma" onClick={onAggiorna} title="Aggiorna (F5)">⟳</button>
       </div>
-      <div className="trasf__elenco">
+
+      <div className="trasf__strumenti">
+        <input
+          className="campo trasf__cerca"
+          value={cerca}
+          placeholder="filtra…"
+          onChange={(e) => setCerca(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setCerca('') } }}
+        />
+        <button
+          className={`tasto tasto--fantasma${nascosti ? ' tasto--acceso' : ''}`}
+          onClick={() => setNascosti(!nascosti)}
+          title="Mostra anche i file che cominciano per punto"
+        >nascosti</button>
+        {operazioni !== undefined ? (
+          <>
+            <button
+              className="tasto tasto--fantasma"
+              onClick={() => setChiedo({ cosa: 'cartella', nome: '' })}
+            >+ Cartella</button>
+            <button
+              className="tasto tasto--fantasma"
+              disabled={scelte.length !== 1}
+              onClick={() => { if (scelte[0] !== undefined) setChiedo({ cosa: 'rinomina', nome: scelte[0].nome }) }}
+              title="Rinomina (F2)"
+            >Rinomina</button>
+            <button
+              className="tasto tasto--fantasma"
+              disabled={scelte.length === 0}
+              onClick={() => setConfermaElimina(true)}
+              title="Elimina (Canc)"
+            >Elimina</button>
+          </>
+        ) : null}
+        {operazioni?.permessi !== undefined ? (
+          <button
+            className="tasto tasto--fantasma"
+            disabled={scelte.length === 0}
+            onClick={() => setChiedoPermessi(scelte[0]?.permessi ?? '644')}
+          >Permessi</button>
+        ) : null}
+        {operazioni?.modificaFile !== undefined ? (
+          <button
+            className="tasto tasto--fantasma"
+            disabled={scelte.length !== 1 || scelte[0]?.cartella === true}
+            onClick={() => { if (scelte[0] !== undefined) operazioni.modificaFile?.(scelte[0]) }}
+            title="Apri qui e rimanda su a ogni salvataggio (doppio clic)"
+          >Modifica</button>
+        ) : null}
+        {operazioni?.mostra !== undefined ? (
+          <button
+            className="tasto tasto--fantasma"
+            onClick={() => { if (elenco?.percorso !== undefined) operazioni.mostra?.(elenco.percorso) }}
+            title="Apri questa cartella nel gestore di file"
+          >Apri fuori</button>
+        ) : null}
+      </div>
+
+      <div className="trasf__intestazioni">
+        {intestazione('nome', 'Nome', 'trasf__col--nome')}
+        {intestazione('dimensione', 'Dim.', 'trasf__col--dim')}
+        {intestazione('quando', 'Data', 'trasf__col--data')}
+      </div>
+
+      {guasto !== undefined ? <div className="avviso">⚠ {guasto}</div> : null}
+
+      <div className="trasf__elenco" tabIndex={0} onKeyDown={daTastiera}>
         {elenco === undefined ? (
           <div className="misura">{vuoto ?? 'Carico…'}</div>
-        ) : elenco.voci.length === 0 ? (
-          <div className="misura">{vuoto ?? 'Cartella vuota.'}</div>
-        ) : elenco.voci.map((v) => (
-          <div
-            key={v.percorso}
-            className={`negozio__voce${presi.includes(v.percorso) ? ' trasf__voce--presa' : ''}`}
-            draggable
-            onDragStart={(e) => iniziaTrascinamento(v, e)}
-            onClick={(e) => clic(v, e)}
-            onDoubleClick={() => { if (v.cartella) onVai(v.percorso) }}
-          >
-            <div className="negozio__info">
-              <div className="negozio__nome">
-                {v.cartella ? '📁 ' : ''}{v.nome}
+        ) : visibili.length === 0 ? (
+          <div className="misura">
+            {tutte.length === 0 ? (vuoto ?? 'Cartella vuota.') : 'Niente che corrisponda al filtro.'}
+          </div>
+        ) : visibili.map((voce) => {
+          const c = voce.cartella ? undefined : confronto?.get(voce.nome)
+          return (
+            <div
+              key={voce.percorso}
+              className={`trasf__riga${presi.includes(voce.percorso) ? ' trasf__voce--presa' : ''}`}
+              draggable
+              onDragStart={(e) => iniziaTrascinamento(voce, e)}
+              onClick={(e) => clic(voce, e)}
+              onDoubleClick={() => {
+                // Il doppio clic fa la cosa ovvia: una cartella si apre, un
+                // file si apre. Su un file del server «aprire» vuol dire
+                // scaricarlo, aprirlo nel programma giusto, e da lì in poi
+                // rimandarlo su a ogni salvataggio.
+                if (voce.cartella) { onVai(voce.percorso); return }
+                operazioni?.modificaFile?.(voce)
+              }}
+            >
+              <span className="trasf__col--nome trasf__nome" title={voce.percorso}>
+                {voce.cartella ? '📁 ' : ''}{voce.nome}
+                {c !== undefined && c !== 'uguale' ? (
+                  <span className={`trasf__segno trasf__segno--${c}`}> · {segnoDi(c)}</span>
+                ) : null}
+              </span>
+              <span className="trasf__col--dim misura">
+                {voce.cartella ? '—' : misura(voce.dimensione)}
+              </span>
+              <span className="trasf__col--data misura" title={voce.permessi ?? ''}>
+                {quandoBreve(voce.quando)}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="trasf__piede misura">
+        {visibili.length} element{visibili.length === 1 ? 'o' : 'i'}
+        {visibili.length !== tutte.length ? ` (di ${tutte.length})` : ''}
+        {presi.length > 0 ? ` · ${presi.length} scelt${presi.length === 1 ? 'o' : 'i'}` : ''}
+      </div>
+
+      {chiedo !== undefined && operazioni !== undefined ? (
+        <div className="velo" onMouseDown={() => setChiedo(undefined)}>
+          <div className="dialogo" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="dialogo__testa">
+              <span className="serigrafia">
+                {chiedo.cosa === 'cartella' ? 'Nuova cartella' : 'Rinomina'}
+              </span>
+            </div>
+            <div className="dialogo__corpo">
+              <input
+                className="campo"
+                autoFocus
+                value={chiedo.nome}
+                onChange={(e) => setChiedo({ ...chiedo, nome: e.target.value })}
+                onKeyDown={(e) => { if (e.key === 'Enter') confermaChiedo() }}
+              />
+            </div>
+            <div className="dialogo__piede">
+              <button className="tasto" onClick={() => setChiedo(undefined)}>Annulla</button>
+              <button
+                className="tasto tasto--primario"
+                disabled={chiedo.nome.trim() === ''}
+                onClick={confermaChiedo}
+              >
+                {chiedo.cosa === 'cartella' ? 'Crea' : 'Rinomina'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {chiedoPermessi !== undefined && operazioni?.permessi !== undefined ? (
+        <div className="velo" onMouseDown={() => setChiedoPermessi(undefined)}>
+          <div className="dialogo" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="dialogo__testa"><span className="serigrafia">Permessi</span></div>
+            <div className="dialogo__corpo">
+              <div className="misura">
+                {scelte.length === 1 ? scelte[0]?.nome : `${scelte.length} elementi`}
               </div>
-              <div className="negozio__desc">
-                {v.cartella ? 'cartella' : misura(v.dimensione)}
-                {v.permessi !== undefined ? ` · ${v.permessi}` : ''}
-                {(() => {
-                  const c = v.cartella ? undefined : confronto?.get(v.nome)
-                  if (c === undefined || c === 'uguale') return null
-                  return <span className={`trasf__segno trasf__segno--${c}`}> · {segnoDi(c)}</span>
-                })()}
+              <input
+                className="campo"
+                autoFocus
+                value={chiedoPermessi}
+                onChange={(e) => setChiedoPermessi(e.target.value)}
+                onKeyDown={(e) => {
+                  const modo = leggiPermessi(chiedoPermessi)
+                  if (e.key === 'Enter' && modo !== undefined) {
+                    fai(operazioni.permessi?.(scelte.map((v) => ({ percorso: v.percorso })), modo)
+                      ?? Promise.resolve())
+                  }
+                }}
+              />
+              {/*
+                Le lettere accanto al numero, non al posto suo. Il numero è
+                quello che si digita e quello che sta scritto nelle istruzioni
+                («mettilo a 755»); le lettere sono come ci si accorge di aver
+                scritto 655 — un numero plausibile che toglie l'esecuzione al
+                proprietario.
+              */}
+              <div className="misura">
+                {leggiPermessi(chiedoPermessi) !== undefined
+                  ? permessiInLettere(leggiPermessi(chiedoPermessi) as number)
+                  : 'tre o quattro cifre da 0 a 7'}
+              </div>
+              <div className="riga">
+                {['644', '755', '600', '777'].map((n) => (
+                  <button key={n} className="tasto tasto--fantasma" onClick={() => setChiedoPermessi(n)}>
+                    {n}
+                  </button>
+                ))}
               </div>
             </div>
-            {v.cartella ? (
-              <div className="negozio__azioni">
-                <button
-                  className="tasto tasto--fantasma"
-                  onClick={(e) => { e.stopPropagation(); onVai(v.percorso) }}
-                >
-                  Apri
-                </button>
+            <div className="dialogo__piede">
+              <button className="tasto" onClick={() => setChiedoPermessi(undefined)}>Annulla</button>
+              <button
+                className="tasto tasto--primario"
+                disabled={leggiPermessi(chiedoPermessi) === undefined}
+                onClick={() => {
+                  const modo = leggiPermessi(chiedoPermessi)
+                  if (modo === undefined) return
+                  fai(operazioni.permessi?.(scelte.map((v) => ({ percorso: v.percorso })), modo)
+                    ?? Promise.resolve())
+                }}
+              >Applica</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {confermaElimina && operazioni !== undefined ? (
+        <div className="velo" onMouseDown={() => setConfermaElimina(false)}>
+          <div className="dialogo" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="dialogo__testa"><span className="serigrafia">Eliminare?</span></div>
+            <div className="dialogo__corpo">
+              {/*
+                I nomi, non il conteggio. «3 elementi» non è quello che serve
+                sapere un istante prima di cancellare: serve *quali*.
+              */}
+              <div className="misura">
+                {scelte.slice(0, 8).map((v) => v.nome).join(', ')}
+                {scelte.length > 8 ? ` …e altri ${scelte.length - 8}` : ''}
               </div>
-            ) : null}
+              {scelte.some((v) => v.cartella) ? (
+                <div className="avviso">⚠ Fra questi c’è una cartella, con dentro tutto quello che contiene.</div>
+              ) : null}
+            </div>
+            <div className="dialogo__piede">
+              <button className="tasto" onClick={() => setConfermaElimina(false)}>Annulla</button>
+              <button
+                className="tasto tasto--pericolo"
+                onClick={() => fai(operazioni.elimina(
+                  scelte.map((v) => ({ percorso: v.percorso, cartella: v.cartella }))
+                ))}
+              >Elimina</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * I file del server che stai modificando adesso.
+ *
+ * Serve a rendere visibile un meccanismo che altrimenti è invisibile: salvi
+ * nell'editor e non succede niente sullo schermo, quindi non sai se è risalito.
+ * Il dubbio si toglie ricaricando a mano — cioè rifacendo esattamente il lavoro
+ * che questa funzione doveva togliere. Il conto delle risalite e l'ora
+ * dell'ultima sono la prova che il collegamento è vivo.
+ */
+function InModifica({ aperti }: { aperti: FileInModificaVista[] }): React.JSX.Element | null {
+  if (aperti.length === 0) return null
+  const ora = (ms?: number): string => {
+    if (ms === undefined) return 'non ancora'
+    const d = new Date(ms)
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
+  return (
+    <div className="trasf__modifiche">
+      <div className="trasf__coda-testa">
+        <span className="serigrafia">Aperti in modifica</span>
+        <span className="misura">salva nell’editor e risalgono da soli</span>
+      </div>
+      <div className="trasf__coda-righe">
+        {aperti.map((f) => (
+          <div key={`${f.destinazione}::${f.remoto}`} className="trasf__lavoro">
+            <span className="trasf__lavoro-verso">✎</span>
+            <span className="trasf__lavoro-nome" title={f.remoto}>{f.nome}</span>
+            {f.errore !== undefined ? (
+              <span className="trasf__lavoro-errore">{f.errore}</span>
+            ) : (
+              <span className="misura">
+                {f.risalite === 0
+                  ? 'in attesa del primo salvataggio'
+                  : `risalito ${f.risalite} volt${f.risalite === 1 ? 'a' : 'e'} · ${ora(f.ultimaRisalita)}`}
+              </span>
+            )}
+            <button
+              className="tasto tasto--fantasma"
+              onClick={() => {
+                void window.gestore.trasferimenti.chiudiModifica(f.destinazione, f.remoto)
+              }}
+              title="Smetti di rimandare su questo file"
+            >
+              Stacca
+            </button>
           </div>
         ))}
       </div>
