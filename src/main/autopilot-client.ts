@@ -65,6 +65,20 @@ export type ClientAutopilota = {
   rispondi: (idDomanda: string, risposta: string) => Promise<void>
   /** `true` se il servizio risponde; lo avvia se non c'è e riprova una volta. */
   assicuraServizio: () => Promise<boolean>
+  /**
+   * Dice al servizio che il Gestore è tornato su.
+   *
+   * Serve perché i due non muoiono insieme: il servizio sopravvive alla
+   * chiusura dell'applicazione — è la ragione per cui è un processo a sé — ma
+   * le chat governate no, muoiono con le finestre. Al ritorno il servizio è
+   * ancora quello di prima, non riparte, e quindi non fa la ripresa che fa
+   * all'avvio: gli autopiloti restano scritti «al lavoro» davanti a
+   * conversazioni che non esistono più, e vanno rimessi in moto a mano.
+   *
+   * Torna quanti ne ha ripresi. Zero è la risposta normale quando non c'era
+   * niente in corso.
+   */
+  gestoreAvviato: () => Promise<number>
 }
 
 const ATTESA_PREDEFINITA_MS = 3000
@@ -130,6 +144,11 @@ export function creaClientAutopilota(p: {
       // `da: 'modale'` dice al servizio da dove è arrivata: serve al registro
       // delle domande, dove vale la prima risposta fra schermo e Telegram.
       await chiama(`/domande/${encodeURIComponent(idDomanda)}/risposta`, 'POST', { risposta, da: 'modale' })
+    },
+
+    async gestoreAvviato() {
+      const esito = (await chiama('/gestore-avviato', 'POST')) as { ripresi?: unknown } | undefined
+      return typeof esito?.ripresi === 'number' ? esito.ripresi : 0
     },
 
     async assicuraServizio() {

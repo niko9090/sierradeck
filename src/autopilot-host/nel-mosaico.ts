@@ -69,7 +69,13 @@ export function esecutoreNelMosaico(p: {
         sessionId,
         titolo: a.nome !== '' ? a.nome : a.obiettivo.slice(0, 40),
         cosa: 'scrivi',
-        testo: messaggio ?? primoCompito(a, chat),
+        // **Riprendere non e ricominciare.** Senza messaggio ci sono due casi
+        // molto diversi, e finora ricevevano lo stesso testo: la prima partenza
+        // e il ritorno dopo un'interruzione. Al ritorno arrivava il compito
+        // iniziale parola per parola - dentro la conversazione di prima, con
+        // tutto il lavoro gia fatto sopra - e la chat lo leggeva per quello che
+        // e: l'ordine di cominciare. Rifaceva da capo.
+        testo: messaggio ?? (riprende(a, gia, chat) ? ripartiDaDove(a, chat) : primoCompito(a, chat)),
         // **Dove**, deciso da lui. Dedurlo cercando la sessione nei workspace
         // salvati funziona solo per una chat ripresa: quella che deve ancora
         // nascere lì dentro non c'è, e finiva nel workspace che avevi davanti.
@@ -125,9 +131,7 @@ export function primoCompito(a: Autopilota, chat?: ChatGovernata): string {
     intestazione,
     '',
     'Criteri di fine:',
-    ...a.criteri.map(
-      (c) => `- ${c.descrizione}${c.comando !== undefined ? ` (si verifica con: ${c.comando})` : ''}`
-    ),
+    ...criteriScritti(a),
     '',
     'Lavora fino a soddisfarli tutti.',
     '',
@@ -140,5 +144,67 @@ export function primoCompito(a: Autopilota, chat?: ChatGovernata): string {
     'scrive qualcosa mentre lavori, è la cosa più importante che leggerai.',
     'Sa del compito più di quanto sia riuscito a scriverne, e quello che',
     'aggiunge vale più delle istruzioni qui sopra, non meno.'
+  ].join('\n')
+}
+
+/** I criteri, uno per riga, con il comando che li misura quando ce l'hanno. */
+function criteriScritti(a: Autopilota): string[] {
+  return a.criteri.map(
+    (c) => `- ${c.descrizione}${c.comando !== undefined ? ` (si verifica con: ${c.comando})` : ''}`
+  )
+}
+
+/**
+ * Se questa non e' una partenza ma un ritorno.
+ *
+ * Due condizioni, ed entrambe servono. **La sessione c'era gia'**: senza, la
+ * conversazione deve ancora nascere e non c'e' niente da riprendere. **E ha
+ * gia' chiuso almeno un turno**: una sessione decisa un istante prima di
+ * partire esiste come identificativo ma e' vuota, e mandarle «riprendi da dove
+ * eri» significherebbe chiedere di continuare un lavoro che non e' cominciato.
+ *
+ * Il conto dei turni e' quello della chat quando c'e' - in una flotta ognuna ha
+ * il suo, e una che non ha ancora aperto bocca non va trattata come ripresa
+ * solo perche' una sorella ha lavorato - e quello dell'autopilota quando la
+ * chat e' una sola.
+ */
+export function riprende(a: Autopilota, sessioneGiaEsistente: string | undefined, chat?: ChatGovernata): boolean {
+  if (sessioneGiaEsistente === undefined) return false
+  return (chat === undefined ? a.cicli : chat.cicli) > 0
+}
+
+/**
+ * Il messaggio con cui si torna dentro una conversazione interrotta.
+ *
+ * Non e' il compito: il compito e' gia' li' sopra, insieme a tutto quello che
+ * e' stato fatto dopo. Quello che manca a chi riprende e' sapere **che** sta
+ * riprendendo - altrimenti l'unica cosa che vede e' un ordine di partire,
+ * identico a quello di ore prima, e l'unica lettura sensata di un ordine di
+ * partire e' partire.
+ *
+ * L'obiettivo e i criteri si riscrivono lo stesso, ma dichiarati per quello che
+ * sono: un promemoria. Servono nei due casi in cui la conversazione non basta -
+ * una trascrizione talmente lunga che l'inizio e' stato riassunto via, e un
+ * obiettivo cambiato a parole mentre si lavorava - e in entrambi costano poche
+ * righe contro il rischio di continuare verso una fine che non e' piu' quella.
+ */
+export function ripartiDaDove(a: Autopilota, chat?: ChatGovernata): string {
+  return [
+    'Riprendi da dove eri: questa conversazione si e interrotta perche il',
+    'programma si e riavviato, non perche il lavoro fosse finito.',
+    '',
+    'Prima di scrivere qualunque cosa, guarda qui sopra cosa hai gia fatto e',
+    'riparti da li. Non ricominciare da capo e non rifare quello che risulta',
+    'gia fatto: se un criterio e gia soddisfatto, verificalo e passa oltre.',
+    '',
+    `Promemoria dell'obiettivo: ${a.obiettivo}`,
+    ...(chat !== undefined && chat.compito !== ''
+      ? [`Il tuo compito, dentro questo obiettivo: ${chat.compito}`]
+      : []),
+    '',
+    'Criteri di fine:',
+    ...criteriScritti(a),
+    '',
+    'Lavora fino a soddisfarli tutti.'
   ].join('\n')
 }

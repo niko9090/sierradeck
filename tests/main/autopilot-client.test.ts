@@ -145,3 +145,23 @@ describe('il servizio che resta indietro', () => {
     expect(avvii).toBe(0)
   })
 })
+
+describe('il ritorno del Gestore', () => {
+  it('lo dice al servizio, e riporta quanti ne ha rimessi al lavoro', async () => {
+    // Le chat governate muoiono con le finestre; il servizio no. Se nessuno
+    // gli dice che siamo tornati, resta convinto che stiano lavorando.
+    const chiesti: string[] = []
+    const porta = await servizioFinto((percorso) => { chiesti.push(percorso); return { ripresi: 2 } })
+    const client = creaClientAutopilota({ porta, avviaServizio: () => {} })
+    expect(await client.gestoreAvviato()).toBe(2)
+    expect(chiesti).toEqual(['/gestore-avviato'])
+  })
+
+  it('un servizio vecchio che non conosce la rotta vale zero, non un guasto', async () => {
+    // Torna quello che gli arriva senza fidarsi: un servizio rimasto indietro
+    // risponde qualcos'altro, e non deve far cadere l'avvio del programma.
+    const porta = await servizioFinto(() => ({}))
+    const client = creaClientAutopilota({ porta, avviaServizio: () => {} })
+    expect(await client.gestoreAvviato()).toBe(0)
+  })
+})

@@ -13,7 +13,6 @@ import { interrogazioneReale } from './supervisore'
 import { creaConsegne } from './consegne'
 import { esecutoreNelMosaico } from './nel-mosaico'
 import { creaRegistroDomande } from './domande'
-import { chatDaRiprendere, daRiprendere } from './ripresa'
 import { creaAvvisatore, invioReale, leggiConfigurazione } from './telegram'
 
 /** Ogni quanto si passa a vedere se qualche chat ha smesso di parlare. */
@@ -251,25 +250,11 @@ export function avviaServizio(): void {
     // La ripresa avviene **dopo** che il servizio è in ascolto, non prima: le
     // chat riprese emettono hook verso questa stessa porta, e trovarla chiusa
     // le lascerebbe fermarsi al primo turno.
-    const daRiavviare = daRiprendere(archivio.elenca())
-    if (daRiavviare.length === 0) return
-    console.info(`[autopilota] riprendo ${daRiavviare.length} autopiloti interrotti`)
-    for (const a of daRiavviare) {
-      // Tutte le sue chat, non una: una flotta ripresa come chat singola
-      // lasciava orfane quelle vere e ne apriva un'altra con l'obiettivo
-      // intero — lo stesso lavoro, gia' diviso, rifatto da capo in parallelo.
-      const chats = chatDaRiprendere(a)
-      if (chats.length === 0) {
-        console.info(`[autopilota] ${a.id} non ha chat da riprendere: le sue hanno gia' finito`)
-        continue
-      }
-      for (const chat of chats) {
-        void lavori.avvia(a, undefined, chat).catch((err: unknown) => {
-          console.error(`[autopilota] ripresa di ${a.id} fallita:`, err)
-        })
-      }
-      void avvisa('ripreso', a)
-    }
+    //
+    // Il come sta nel server e non piu' qui: la stessa ripresa la chiede anche
+    // il Gestore quando torna su, e due copie della stessa logica si sarebbero
+    // separate al primo cambiamento.
+    server.riprendiLavori()
   })
 }
 

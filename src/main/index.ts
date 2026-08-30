@@ -889,6 +889,26 @@ if (!app.requestSingleInstanceLock()) {
         versione: app.getVersion()
       })
       registerAutopilotaIpc(clientAutopilota)
+
+      // **Il ritorno va dichiarato.** Il servizio sopravvive alla chiusura del
+      // Gestore — è tutto il suo mestiere — ma le chat governate no: muoiono
+      // con le finestre. Al ritorno il servizio è ancora quello di prima e non
+      // riparte, quindi la ripresa che fa all'avvio non scatta, e gli
+      // autopiloti restano scritti «al lavoro» davanti a conversazioni che non
+      // esistono più. Finivano sospesi un'ora dopo dal guardiano del silenzio,
+      // o rimessi in moto a mano ogni volta.
+      //
+      // Non blocca l'avvio: se il servizio non risponde, il pannello lo dirà
+      // comunque e le finestre non devono aspettarlo.
+      void (async () => {
+        try {
+          if (!(await clientAutopilota.assicuraServizio())) return
+          const ripresi = await clientAutopilota.gestoreAvviato()
+          if (ripresi > 0) console.info(`[autopilota] ${ripresi} rimessi al lavoro dopo il riavvio`)
+        } catch (err) {
+          console.error('[autopilota] ripresa dopo il riavvio non riuscita:', err)
+        }
+      })()
       // L'accesso si legge dai file di Claude Code, senza lanciarlo: una
       // risposta immediata a una domanda che blocca tutto il resto.
       ipcMain.handle('accesso:stato', () => leggiAccesso())

@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.41',
+    righe: [
+      '**Gli autopiloti ripartono da soli quando riapri SierraDeck.** Il servizio che li tiene in vita sopravvive alla chiusura del programma — è così che un lavoro delegato continua di notte — ma le chat muoiono con le finestre, e al ritorno nessuno le rimetteva in moto: l’autopilota risultava «al lavoro» davanti a una conversazione che non esisteva più, e andava riavviato a mano ogni volta.',
+      '**E ripartono da dove erano, non da capo.** Quando riprendeva, la chat riceveva il compito iniziale parola per parola: dentro la stessa conversazione, con tutto il lavoro già fatto sopra, l’unica lettura possibile era «ricomincia» — e ricominciava. Adesso le viene detto che sta riprendendo, e di guardare cosa ha già fatto prima di scrivere qualunque cosa.'
+    ]
+  },
+  {
     versione: '0.12.40',
     righe: [
       '**App: un messaggio che non parte non sparisce più.** Il campo si svuotava *prima* di mandare e l’errore veniva ingoiato: quello che avevi scritto spariva sotto gli occhi senza essere arrivato da nessuna parte, e l’unico modo di riaverlo era riscriverlo. Adesso, se non parte, il testo torna nel campo e ti viene detto perché.',

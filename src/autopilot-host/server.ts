@@ -24,7 +24,7 @@ import { dopoAvvioFallito, pianificaFlotta } from './flotta'
 import {
   componiPromptIntervista, giaChiesta, leggiEsitoIntervista, SCAMBI_MAX, TEMPO_PREPARAZIONE_MS
 } from './intervista'
-import { intervisteDaRiprendere } from './ripresa'
+import { chatDaRiprendere, daRiprendere, intervisteDaRiprendere } from './ripresa'
 import type { RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
 
@@ -318,6 +318,11 @@ export type ServerAutopiloti = Server & {
   riprendiInterviste: () => void
   /** Il giro di guardia sulle chat che non chiudono più un turno. */
   controllaChatFerme: () => void
+  /**
+   * Rimette al lavoro le chat che un'interruzione ha spento. Torna quanti
+   * autopiloti ha ripreso.
+   */
+  riprendiLavori: () => number
 }
 
 /**
@@ -340,6 +345,15 @@ export type ServerAutopiloti = Server & {
  * di sbagliare per pazienza.
  */
 const SILENZIO_MASSIMO_MS = 60 * 60_000
+
+/**
+ * Sotto questa distanza, due riprese sono la stessa ripresa.
+ *
+ * Mezzo minuto copre il caso reale: il Gestore avvia il servizio, aspetta che
+ * risponda e gli dice «sono tornato» - passano secondi, non minuti. Chiudere e
+ * riaprire SierraDeck davvero richiede piu' tempo di cosi'.
+ */
+export const RIPRESA_RAVVICINATA_MS = 30_000
 
 /**
  * Quanta uscita di un comando si tiene accanto al criterio.
@@ -608,6 +622,59 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       console.warn(`[autopilota] ${a.id} — ${motivoSilenzio(mute)}`)
       void deps.avvisa('sospeso', sospeso)
     }
+  }
+
+  /**
+   * Rimette al lavoro chi era in corsa quando le sue chat si sono spente.
+   *
+   * Sta qui e non solo all'avvio del processo perche' le due morti non
+   * coincidono, ed e' questo il difetto: **il servizio sopravvive al Gestore**
+   * - e' tutto il suo mestiere, un lavoro che continua di notte a finestre
+   * chiuse - ma le chat no. Chiudere e riaprire SierraDeck e' quindi il caso
+   * in cui tutte le conversazioni governate muoiono e nessuno se ne accorge:
+   * il servizio non e' ripartito, quindi la ripresa d'avvio non scatta, e gli
+   * autopiloti restano scritti «al lavoro» davanti a chat che non esistono
+   * piu'. Restavano cosi' fino a che il guardiano del silenzio, un'ora dopo,
+   * li sospendeva - o fino a che qualcuno li riprendeva a mano.
+   *
+   * La chiama anche il Gestore quando torna su, ed e' l'unica strada: fra i
+   * due il confine va in una direzione sola, e chi sa che le chat sono morte
+   * e' proprio lui.
+   */
+  let ultimaRipresa = 0
+  const riprendiLavori = (): number => {
+    const ora = Date.parse(deps.adesso())
+    // Due chiamate a un istante di distanza sono lo stesso ritorno raccontato
+    // due volte: il servizio che parte insieme al Gestore fa la sua ripresa
+    // all'avvio, e il Gestore la chiede appena trova il servizio vivo.
+    // Riprendere due volte vorrebbe dire scrivere due volte dentro la stessa
+    // chat, cioe' darle due ordini per un lavoro solo.
+    if (!Number.isNaN(ora) && ultimaRipresa !== 0 && ora - ultimaRipresa < RIPRESA_RAVVICINATA_MS) {
+      console.info('[autopilota] ripresa chiesta due volte a poca distanza: la seconda non la faccio')
+      return 0
+    }
+    if (!Number.isNaN(ora)) ultimaRipresa = ora
+
+    const daRiavviare = daRiprendere(deps.archivio.elenca())
+    if (daRiavviare.length === 0) return 0
+    console.info(`[autopilota] riprendo ${daRiavviare.length} autopiloti interrotti`)
+    for (const a of daRiavviare) {
+      // Tutte le sue chat, non una: una flotta ripresa come chat singola
+      // lasciava orfane quelle vere e ne apriva un'altra con l'obiettivo
+      // intero - lo stesso lavoro, gia' diviso, rifatto da capo in parallelo.
+      const chats = chatDaRiprendere(a)
+      if (chats.length === 0) {
+        console.info(`[autopilota] ${a.id} non ha chat da riprendere: le sue hanno gia' finito`)
+        continue
+      }
+      for (const chat of chats) {
+        void avviaLavoro(a, undefined, chat).catch((err: unknown) => {
+          console.error(`[autopilota] ripresa di ${a.id} fallita:`, err)
+        })
+      }
+      void deps.avvisa('ripreso', a)
+    }
+    return daRiavviare.length
   }
 
   const riprendiInterviste = (): void => {
@@ -1192,6 +1259,19 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           return
         }
 
+        // «Sono tornato su»: il Gestore lo dice appena riparte, e con lui sono
+        // ripartite - vuote - le sue finestre. Le chat governate sono morte
+        // quando si e chiuso, e il servizio non ha modo di accorgersene da se:
+        // e' vivo dall'inizio, quindi la sua ripresa d'avvio non scatta piu'.
+        // Senza questa riga l'autopilota va rimesso in moto a mano ogni volta.
+        if (metodo === 'POST' && percorso === '/gestore-avviato') {
+          // Le interviste no: quelle girano dentro questo processo e non sono
+          // morte con il Gestore. Riprenderle vorrebbe dire farne partire una
+          // seconda accanto a quella che sta ancora lavorando.
+          rispondi(res, 200, { ripresi: riprendiLavori() })
+          return
+        }
+
         if (metodo === 'GET' && percorso === '/autopiloti') {
           rispondi(res, 200, deps.archivio.elenca())
           return
@@ -1582,5 +1662,5 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     })()
   })
 
-  return Object.assign(server, { riprendiInterviste, controllaChatFerme })
+  return Object.assign(server, { riprendiInterviste, controllaChatFerme, riprendiLavori })
 }

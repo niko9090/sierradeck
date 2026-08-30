@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { esecutoreNelMosaico, primoCompito } from '../../src/autopilot-host/nel-mosaico'
+import { esecutoreNelMosaico, primoCompito, riprende } from '../../src/autopilot-host/nel-mosaico'
 import { creaConsegne } from '../../src/autopilot-host/consegne'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 
@@ -156,5 +156,42 @@ describe('dove va il lavoro', () => {
     consegne.preleva()
     esecutore.ferma('ap-1')
     expect(consegne.preleva()[0]?.workspace).toBe('lavoro')
+  })
+})
+
+describe('riprendere non e ricominciare', () => {
+  it('a una chat che aveva gia lavorato dice di ripartire da dove era', async () => {
+    // Il difetto piu' costoso di tutti, e quello che si vedeva a occhio nudo:
+    // dopo un riavvio la chat riceveva il compito iniziale parola per parola,
+    // dentro la conversazione di prima, e ricominciava tutto da capo.
+    const { consegne, esecutore } = banco()
+    await esecutore.avvia(autopilota({ sessionId: 'sessione-vecchia', cicli: 7 }))
+    const [c] = consegne.preleva()
+    expect(c?.sessionId).toBe('sessione-vecchia')
+    expect(c?.testo).toContain('Riprendi da dove eri')
+    expect(c?.testo).toContain('Non ricominciare da capo')
+    // L'obiettivo c'e' lo stesso, ma dichiarato per quello che e'.
+    expect(c?.testo).toContain('Fai passare i test')
+    expect(c?.testo).not.toBe(primoCompito(autopilota()))
+  })
+
+  it('alla prima partenza manda il compito, anche se la sessione e gia decisa', () => {
+    // L'id di sessione si decide **prima** di aprire la chat, per poterla
+    // mostrare mentre nasce: c'e' anche quando non e' stato scritto ancora
+    // niente. Bastasse quello, ogni autopilota nuovo nascerebbe con «riprendi
+    // da dove eri» dentro una conversazione vuota.
+    expect(riprende(autopilota({ cicli: 0 }), 'sessione-appena-decisa')).toBe(false)
+    expect(riprende(autopilota({ cicli: 7 }), 'sessione-appena-decisa')).toBe(true)
+    expect(riprende(autopilota({ cicli: 7 }), undefined)).toBe(false)
+  })
+
+  it('in una flotta guarda i turni della sua chat, non quelli delle sorelle', () => {
+    // Una chat appena aperta accanto a una che lavora da un'ora non sta
+    // riprendendo niente: il suo pezzo di lavoro deve ancora cominciare.
+    const a = autopilota({ cicli: 12, tettoChat: 3 })
+    const nuova = { id: 'c2', compito: 'i test del client', stato: 'lavoro' as const, cicli: 0, sessionId: 's2' }
+    const avviata = { ...nuova, cicli: 4 }
+    expect(riprende(a, 's2', nuova)).toBe(false)
+    expect(riprende(a, 's2', avviata)).toBe(true)
   })
 })
