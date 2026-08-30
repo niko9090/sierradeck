@@ -1,6 +1,6 @@
 ---
 titolo: "Nove difetti chiusi, e cosa insegnano"
-quando: 2026-08-29T19:05:00+02:00
+quando: 2026-08-30T14:10:00+02:00
 tag: ["bug", "autopilota", "android", "rilasci", "verifica"]
 ---
 
@@ -227,3 +227,29 @@ qualcun altro, o essere stata presa.
 argomenti chiude l'iniezione di comandi, non quella di **opzioni**: un valore che
 comincia per `-` viene letto come flag, e l'id arriva dal telefono. Non tocca a
 noi sapere quali flag esistano nel CLI di qualcun altro, oggi e fra sei mesi.
+
+## 0.12.37 — i fili che muoiono in silenzio (30/08)
+
+- **La guardia Android smetteva di guardare senza dirlo.** In `GuardiaService.giro()`
+  l'attesa (`Thread.sleep`) stava **fuori** dal `try`: un'interruzione usciva dal
+  ciclo, il filo moriva, e il servizio restava vivo con la sua notifica fissa che
+  diceva «Guardo il computer ogni cinque secondi». Nessun avviso, nessun errore,
+  nessun modo di accorgersene. Adesso l'attesa ha il suo `try`, e interrotti si
+  smette davvero (`attiva = false`).
+- **Un APK arrivato a meta' veniva presentato all'installazione.** Un flusso che
+  si chiude prima del tempo non solleva niente: si ottiene un file piu' corto e
+  nessun errore. Android lo rifiutava parlando di pacchetto corrotto, cioe'
+  mandando a cercare il guasto dalla parte sbagliata. Chiuso con
+  `Scaricamento.completo(previsto, presi)`, che confronta con `Content-Length`
+  quando c'e'.
+- **`urlSicuro` e i caratteri di controllo.** Un browser butta via tab, a capo e
+  nulli quando legge un indirizzo: `java<TAB>script:` diventa `javascript:` al
+  clic. La funzione guardava lo schema *prima* di ripulire, quindi quello non
+  somigliava a uno schema e passava per percorso relativo. **Non era
+  sfruttabile** — `sistema:apriEsterno` nel main filtra comunque a
+  http/https/mailto, e il renderer fa `preventDefault` — ma era il primo dei due
+  muri e non reggeva da solo.
+
+**La forma comune ai primi due:** un guasto che non solleva niente. Il filo che
+muore, il flusso che finisce prima. Dove non c'e' eccezione non c'e' nemmeno
+allarme, e il sintomo arriva giorni dopo travestito da altro.

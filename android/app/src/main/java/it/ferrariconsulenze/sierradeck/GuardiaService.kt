@@ -72,7 +72,17 @@ class GuardiaService : Service() {
             } catch (e: Exception) {
                 // Rete che va e viene: e’ il caso normale di una guardia.
             }
-            Thread.sleep(ATTESA_MS)
+            // L'attesa sta dentro il suo try, e non e’ pignoleria: fuori,
+            // un’interruzione usciva da `giro()` e **il filo moriva in
+            // silenzio**. Il servizio restava vivo, la notifica fissa
+            // continuava a dire «Guardo il computer ogni cinque secondi», e
+            // nessun avviso arrivava piu’. Interrotti si smette davvero.
+            try {
+                Thread.sleep(ATTESA_MS)
+            } catch (e: InterruptedException) {
+                attiva = false
+                Thread.currentThread().interrupt()
+            }
         }
     }
 

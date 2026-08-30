@@ -191,4 +191,16 @@ class DifettiCorrettiTest {
         assertEquals(2, avvisi.size)
         assertNotEquals(avvisi[0].id, avvisi[1].id)
     }
+
+    @Test
+    fun `un apk arrivato a meta non si presenta all installazione`() {
+        // Il flusso che si chiude prima non solleva niente: restava un file
+        // corto, e Android lo rifiutava parlando di pacchetto corrotto — cioe'
+        // mandando a cercare il guasto dalla parte sbagliata.
+        assertEquals(false, Scaricamento.completo(15_000_000L, 9_000_000L))
+        assertEquals(true, Scaricamento.completo(15_000_000L, 15_000_000L))
+        // Senza `Content-Length` non c'e' niente da confrontare: si passa.
+        assertEquals(true, Scaricamento.completo(-1L, 9_000_000L))
+        assertEquals(true, Scaricamento.completo(0L, 0L))
+    }
 }

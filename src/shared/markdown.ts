@@ -31,6 +31,9 @@ export type NodoBlocco =
   | { tipo: 'elenco'; ordinato: boolean; voci: NodoInline[][] }
   | { tipo: 'riga' }
 
+/** Tutto cio' che un browser ignora dentro un indirizzo, e noi no. */
+const CONTROLLO = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g')
+
 /**
  * Un URL che si può seguire senza rischi.
  *
@@ -40,7 +43,13 @@ export type NodoBlocco =
  * di diventare un link che esegue codice.
  */
 export function urlSicuro(url: string): string | undefined {
-  const u = url.trim()
+  // I caratteri di controllo si tolgono **prima** di guardare lo schema, e non
+  // e' pignoleria: un browser li butta via quando interpreta un indirizzo,
+  // quindi `java<TAB>script:` diventa `javascript:` al momento del clic. Qui
+  // pero' non somigliava a uno schema — il controllo cade sui due punti — e
+  // passava per percorso relativo, cioe' proprio la via che questa funzione
+  // esiste per chiudere. Si guarda, e si restituisce, il testo ripulito.
+  const u = url.replace(CONTROLLO, '').trim()
   if (u === '') return undefined
   if (/^(https?:|mailto:)/i.test(u)) return u
   // Uno schema qualunque (`nome:`) che non sia fra quelli sopra si rifiuta.

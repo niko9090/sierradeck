@@ -105,7 +105,11 @@ export function riassumiConsumi(sessioni: SessionSummary[], adesso: number): Con
  */
 export function formattaToken(n: number): string {
   if (n < 1000) return String(n)
-  if (n < 1_000_000) return `${(n / 1000).toFixed(1).replace('.', ',')}k`.replace(',0k', 'k')
+  // La soglia si guarda **dopo** l'arrotondamento, non prima: 999.950 sta
+  // sotto il milione, ma arrotondato a un decimale fa `1000,0k` — un numero
+  // che nella riga dei consumi non si legge come niente.
+  const migliaia = (n / 1000).toFixed(1)
+  if (Number(migliaia) < 1000) return `${migliaia.replace('.', ',')}k`.replace(',0k', 'k')
   return `${(n / 1_000_000).toFixed(1).replace('.', ',')}M`.replace(',0M', 'M')
 }
 

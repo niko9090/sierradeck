@@ -25,6 +25,18 @@ import kotlin.concurrent.thread
 object Scaricamento {
 
     /**
+     * Se il file e' arrivato tutto.
+     *
+     * Un flusso che si chiude a meta' non solleva niente: si ottiene un file
+     * piu' corto e nessun errore. Presentato all'installazione, Android lo
+     * rifiuta parlando di pacchetto corrotto — un messaggio che manda a cercare
+     * il guasto dall'altra parte. Quando il server ha detto quanto pesa, si
+     * confronta; quando non l'ha detto (`contentLength` vale -1, e capita con
+     * la codifica a pezzi) non c'e' niente da confrontare e si passa.
+     */
+    fun completo(previsto: Long, presi: Long): Boolean = previsto <= 0L || presi == previsto
+
+    /**
      * Scarica l'APK e apre l'installazione.
      *
      * `avanzamento` viene chiamato con la percentuale mentre scarica, e
@@ -45,6 +57,8 @@ object Scaricamento {
             return
         }
         thread(start = true) {
+            var totalePrevisto = -1L
+            var scaricati = 0L
             try {
                 val destinazione = File(contesto.cacheDir, "sierradeck-nuova.apk")
                 if (destinazione.exists()) destinazione.delete()
@@ -59,7 +73,8 @@ object Scaricamento {
                         guasto("il server ha risposto ${connessione.responseCode}")
                         return@thread
                     }
-                    val totale = connessione.contentLength.toLong()
+                    totalePrevisto = connessione.contentLength.toLong()
+                    val totale = totalePrevisto
                     var presi = 0L
                     connessione.inputStream.use { dentro ->
                         destinazione.outputStream().use { fuori ->
@@ -73,10 +88,15 @@ object Scaricamento {
                             }
                         }
                     }
+                    scaricati = presi
                 } finally {
                     connessione.disconnect()
                 }
 
+                if (!completo(totalePrevisto, scaricati)) {
+                    guasto("il file e' arrivato a meta': riprova")
+                    return@thread
+                }
                 if (destinazione.length() < 1_000_000) {
                     // Un APK di SierraDeck sta sopra il megabyte: quello che è
                     // arrivato non è un'app, ed è meglio dirlo che aprire una

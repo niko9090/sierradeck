@@ -76,6 +76,14 @@ describe('riassumiConsumi', () => {
 })
 
 describe('formattaToken', () => {
+  it('al confine del milione non scrive «1000k»', () => {
+    // 999.950 sta sotto il milione, ma arrotondato a un decimale faceva
+    // `1000,0k`: un numero che nella riga dei consumi non dice niente.
+    expect(formattaToken(999_950)).toBe('1M')
+    expect(formattaToken(999_400)).toBe('999,4k')
+    expect(formattaToken(1_000_000)).toBe('1M')
+  })
+
   it('scrive i numeri piccoli per intero', () => {
     expect(formattaToken(842)).toBe('842')
   })

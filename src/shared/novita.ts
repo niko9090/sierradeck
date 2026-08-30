@@ -23,6 +23,15 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.37',
+    righe: [
+      '**App: la guardia poteva smettere di guardare senza dirlo.** Il filo che controlla il computer ogni cinque secondi moriva in silenzio se qualcuno lo interrompeva: il servizio restava vivo, la notifica fissa continuava a dire «Guardo il computer», e nessun avviso arrivava più. Adesso, interrotta, la guardia si ferma davvero.',
+      '**App: un aggiornamento arrivato a metà non viene più presentato come installabile.** Una connessione che cade a metà scaricamento non solleva nessun errore: restava un file corto, e Android lo rifiutava parlando di pacchetto corrotto — mandando a cercare il guasto dalla parte sbagliata. Adesso si controlla che sia arrivato tutto e si dice di riprovare.',
+      'Un link in una scheda del quaderno con uno schema spezzato da un carattere invisibile (`java⟨tab⟩script:`) non veniva riconosciuto come schema e passava per percorso relativo. Non era sfruttabile — il computer rifiuta comunque tutto ciò che non è http, https o mailto — ma era il primo dei due muri, e adesso regge anche da solo.',
+      'Nella riga dei consumi, poco sotto il milione di token non compare più «1000k».'
+    ]
+  },
+  {
     versione: '0.12.36',
     righe: [
       '**L’autopilota non riusciva a misurare nemmeno un criterio.** Windows mette il ponte verso WSL (quello che sta in System32) davanti a tutto nel PATH: il programma sceglieva quello, e quella bash è di Linux — i percorsi di Windows non li sa leggere. Ogni verifica tornava «non misurabile» con lo stesso errore, il supervisore giudicava un lavoro di cui non sapeva niente, e i comandi dei criteri venivano perfino riscritti per un guasto che non era loro. Adesso si usa la bash di Git, e le due finte di Windows si scartano.',

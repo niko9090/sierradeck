@@ -112,3 +112,23 @@ describe('blocchi', () => {
     expect(analizzaMarkdown('\n\n  \n')).toEqual([])
   })
 })
+
+describe('urlSicuro e i caratteri di controllo', () => {
+  const TAB = String.fromCharCode(9)
+  const ACAPO = String.fromCharCode(10)
+  const NULLO = String.fromCharCode(0)
+
+  it('non lascia passare uno schema spezzato da un carattere di controllo', () => {
+    // Il browser butta via tab, a capo e nulli quando legge un indirizzo:
+    // `java<TAB>script:` diventa `javascript:` al momento del clic. Qui non
+    // somigliava a uno schema, e passava per percorso relativo.
+    for (const mezzo of [TAB, ACAPO, NULLO]) {
+      expect(urlSicuro(`java${mezzo}script:alert(1)`)).toBeUndefined()
+    }
+  })
+
+  it('lascia passare un indirizzo buono, ripulito', () => {
+    expect(urlSicuro(`https://esempio.it/a${TAB}b`)).toBe('https://esempio.it/ab')
+    expect(urlSicuro('./scheda.md')).toBe('./scheda.md')
+  })
+})
