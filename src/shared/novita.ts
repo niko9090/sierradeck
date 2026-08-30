@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.44',
+    righe: [
+      '**Se la chat fa una domanda, l’autopilota adesso prova a rispondere lui.** Prima qualunque domanda fermava tutto e la girava a te — il contrario del punto: tornavi alla scrivania e trovavi il lavoro fermo su «uso npm o pnpm?», una cosa a cui l’obiettivo e il progetto rispondono da soli. Ora la domanda passa dal supervisore, che guarda il progetto e risponde; il lavoro continua senza che tu te ne accorga.',
+      '**E quando ti chiede qualcosa, si capisce cosa vuole.** Prima ti arrivava «sconosciuta: Claude is waiting for your input», che non è una domanda: la domanda vera stava nell’ultimo messaggio della chat, e nessuno andava a prenderla. Adesso la domanda dice chi te la fa, a che lavoro sta lavorando, perché serve adesso, e che rispondendo tardi non si perde niente.',
+      '**Ti disturba solo per quello che sai solo tu**: una password o un accesso, una spesa, una scelta sul tuo prodotto o qualcosa di distruttivo che non si annulla. Per tutto il resto decide e va avanti. Se non riesce a capire cosa fare, chiede: nel dubbio non inventa.'
+    ]
+  },
+  {
     versione: '0.12.43',
     righe: [
       '**Il pannello File adesso è un client vero.** Le colonne si ordinano per nome, dimensione o data (e i numeri vanno in ordine da persona: `parte2` prima di `parte10`), il percorso si può scrivere a mano, ci sono avanti e indietro, un filtro per trovare un file in una cartella piena, e l’interruttore per i file nascosti.',

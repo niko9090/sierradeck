@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { homedir } from 'node:os'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { get } from 'node:http'
 import { portaAutopilotiDa } from '@shared/autopilota'
 import { APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
@@ -13,6 +13,7 @@ import { interrogazioneReale } from './supervisore'
 import { creaConsegne } from './consegne'
 import { esecutoreNelMosaico } from './nel-mosaico'
 import { creaRegistroDomande } from './domande'
+import { ultimoMessaggioAssistente } from './trascrizione'
 import { creaAvvisatore, invioReale, leggiConfigurazione } from './telegram'
 
 /** Ogni quanto si passa a vedere se qualche chat ha smesso di parlare. */
@@ -40,6 +41,28 @@ function cartellaClaude(): string {
  */
 function percorsoInSlug(percorso: string): string {
   return percorso.replace(/[^a-zA-Z0-9]/g, '-')
+}
+
+/**
+ * L'ultima cosa detta dalla chat, letta dalla sua trascrizione.
+ *
+ * Serve quando la chat si ferma a fare una domanda: la notifica di Claude Code
+ * dice che e' ferma e perche', **non cosa vuole**. Quello sta nell'ultimo
+ * messaggio della conversazione, che e' su disco.
+ *
+ * Non solleva mai: e' il file di un altro programma, puo' non esserci ancora,
+ * puo' essere in mezzo a una scrittura, e il suo formato puo' cambiare sotto di
+ * noi. Un autopilota che cade perche' non riesce a leggere una trascrizione e'
+ * molto peggio di uno che non sa cosa e' stato chiesto.
+ */
+function ultimoDettoDa(cwd: string, sessionId: string): string | undefined {
+  try {
+    const file = join(cartellaClaude(), 'projects', percorsoInSlug(cwd), `${sessionId}.jsonl`)
+    if (!existsSync(file)) return undefined
+    return ultimoMessaggioAssistente(readFileSync(file, 'utf8').split('\n'))
+  } catch {
+    return undefined
+  }
 }
 
 const ATTESA_SALUTE_MS = 1500
@@ -202,6 +225,9 @@ export function avviaServizio(): void {
     fermaLavoro: (id, chatId) => lavori.ferma(id, chatId),
     avvisa,
     domande,
+    // Da dove si legge cosa ha chiesto la chat: senza, all'utente si girava una
+    // riga di servizio a cui non si puo' rispondere.
+    ultimoDetto: ultimoDettoDa,
     scadenzaDomandaMs: SCADENZA_DOMANDA_MS,
     scadenzaInterviataMs: SCADENZA_INTERVISTA_MS,
     adesso: () => new Date().toISOString(),

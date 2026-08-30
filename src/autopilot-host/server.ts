@@ -25,6 +25,8 @@ import {
   componiPromptIntervista, giaChiesta, leggiEsitoIntervista, SCAMBI_MAX, TEMPO_PREPARAZIONE_MS
 } from './intervista'
 import { chatDaRiprendere, daRiprendere, intervisteDaRiprendere } from './ripresa'
+import { componiPromptRisposta, domandaChiara, leggiEsitoRisposta } from './risposta-autonoma'
+import { componiDomanda } from './trascrizione'
 import type { RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
 
@@ -50,6 +52,18 @@ export type Dipendenze = {
     conferma: (ids: string[]) => number
     inAttesa: () => number
   }
+  /**
+   * L'ultima cosa detta dalla chat, letta dalla sua trascrizione.
+   *
+   * Serve perche' la notifica di Claude Code **non contiene la domanda**: dice
+   * che la chat e' ferma e perche', non cosa vuole. La domanda vera sta
+   * nell'ultimo messaggio della conversazione, e senza di quello all'utente si
+   * girava «sconosciuta: Claude is waiting for your input» - una riga a cui non
+   * si puo' rispondere.
+   *
+   * Assente in prova, e allora si lavora con la sola notifica.
+   */
+  ultimoDetto?: (cwd: string, sessionId: string) => string | undefined
   domande: RegistroDomande
   /** Quanto la chat resta ferma ad aspettare una risposta prima di lasciar perdere. */
   scadenzaDomandaMs: number
@@ -1098,14 +1112,20 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // scadenza non libera l'hook. Tenerla ferma è il caso migliore: se la
       // risposta arriva in tempo, la conversazione riprende senza che
       // claude.exe venga rilanciato.
+      // **Anche questa va scritta per chi la legge.** Il supervisore scrive la
+      // domanda avendo davanti tutto il contesto; chi risponde puo' avere un
+      // telefono in mano e non aver seguito niente delle ultime due ore, e una
+      // domanda che da' per scontato il contesto non e' una domanda: e' un
+      // indovinello.
+      const testoDomanda = domandaChiara(aggiornato, decisione.domanda).slice(0, MOTIVO_MAX)
       const domanda = deps.domande.apri({
         autopilotaId: aggiornato.id,
-        testo: decisione.domanda,
+        testo: testoDomanda,
         scadenzaMs: deps.scadenzaDomandaMs
       })
       contesto.set(domanda.id, {
         autopilotaId: aggiornato.id,
-        testo: decisione.domanda,
+        testo: testoDomanda,
         // Di quale chat era la domanda: serve a riprendere **solo lei** se la
         // risposta arriva tardi (vedi suRispostaTardiva). C'è solo per le flotte.
         ...(chatId !== undefined ? { chatId } : {})
@@ -1216,12 +1236,84 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * aspettare, perché deciderebbe al posto dell'utente proprio nel caso in cui
    * si è stabilito di chiederglielo.
    */
-  const suNotification = (id: string, chatId: string | undefined, corpo: Record<string, unknown>): unknown => {
+  const suNotification = async (
+    id: string,
+    chatId: string | undefined,
+    corpo: Record<string, unknown>
+  ): Promise<unknown> => {
     const a = deps.archivio.leggi(id)
     if (a === undefined || a.stato !== 'lavoro') return {}
     const tipo = typeof corpo.notification_type === 'string' ? corpo.notification_type : 'sconosciuta'
     const messaggio = typeof corpo.message === 'string' ? corpo.message : ''
-    const testo = `${tipo}: ${messaggio}`.slice(0, MOTIVO_MAX)
+
+    // **La domanda vera sta nella conversazione, non nella notifica.** La
+    // notifica dice che la chat e' ferma e perche'; cosa voglia lo ha scritto
+    // lei, un istante prima, nel suo ultimo messaggio.
+    const chat = chatId !== undefined ? a.chats.find((c) => c.id === chatId) : undefined
+    const sessione = chat?.sessionId ?? a.sessionId
+    const detto = sessione !== undefined ? deps.ultimoDetto?.(a.cwd, sessione) : undefined
+    const domandaGrezza = componiDomanda(`${tipo}: ${messaggio}`.trim(), detto)
+
+    /**
+     * **Prima si prova a rispondere.**
+     *
+     * Fino a ieri qualunque domanda della chat fermava l'autopilota e la girava
+     * all'utente - il contrario del punto. Un autopilota che delega indietro
+     * ogni bivio non fa risparmiare tempo: chi lo ha lanciato torna alla
+     * scrivania e trova il lavoro fermo su «uso npm o pnpm?», una domanda a cui
+     * l'obiettivo, i criteri e il progetto rispondono da soli.
+     *
+     * Mentre il supervisore pensa, questo autopilota **sta lavorando**: il
+     * guardiano del silenzio deve saltarlo, o sospenderebbe proprio chi sta
+     * facendo quello che gli e' stato chiesto.
+     */
+    let esito
+    inLavorazione.add(id)
+    try {
+      const { testo: giudizio } = await deps.interroga(
+        componiPromptRisposta(a, domandaGrezza),
+        a.cwd,
+        undefined
+      )
+      esito = leggiEsitoRisposta(giudizio)
+    } catch (err) {
+      // Il supervisore non risponde: non si inventa niente, si chiede. E' lo
+      // stesso criterio del giudizio illeggibile - nel dubbio si disturba la
+      // persona invece di far proseguire su una premessa mai stabilita.
+      console.error(`[autopilota] ${id} — non sono riuscito a rispondere da solo:`, err)
+    } finally {
+      inLavorazione.delete(id)
+    }
+
+    if (esito?.tipo === 'rispondo') {
+      // La risposta va **dentro la chat**, dove c'e' un prompt che aspetta. La
+      // chat non e' ferma per una nostra decisione: e' ferma perche' ha chiesto
+      // qualcosa, e quello che le serve e' una risposta, non un permesso.
+      salva({
+        ...a,
+        decisioni: [
+          ...a.decisioni,
+          {
+            quando: deps.adesso(),
+            cosa: `ha chiesto, ho risposto io: ${esito.perche ?? esito.risposta}`.slice(0, MOTIVO_MAX)
+          }
+        ]
+      })
+      const aggiornato = deps.archivio.leggi(id) ?? a
+      void avviaLavoro(aggiornato, esito.risposta, chat).catch((err: unknown) => {
+        console.error(`[autopilota] risposta non consegnata a ${id}:`, err)
+      })
+      return {}
+    }
+
+    // Qui si arriva solo per quello che l'utente **solo** sa: una credenziale,
+    // una spesa, una scelta sul suo prodotto. E allora la domanda deve essere
+    // leggibile da chi ha un telefono in mano e non ha seguito niente.
+    const testo = domandaChiara(
+      a,
+      esito?.tipo === 'chiedi' ? esito.domanda : domandaGrezza,
+      esito?.perche
+    ).slice(0, MOTIVO_MAX)
     // L'attesa deve avere una via d'uscita. Prima si salvava solo `stato:
     // 'attesa'` e ci si fermava lì: ma il guardiano guarda solo le chat «in
     // lavoro» e la ripresa al riavvio pure, e senza una domanda aperta non c'era
@@ -1701,7 +1793,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           // minuti prima di scriverlo, e in quei minuti il guardiano gira.
           ultimoTurno.set(chiaveTurno(id, chatId), Date.parse(deps.adesso()))
           if (hook[1] !== 'stop') {
-            rispondi(res, 200, suNotification(id, chatId, corpo))
+            rispondi(res, 200, await suNotification(id, chatId, corpo))
             return
           }
           // Finché la fermata è in lavorazione, quell'autopilota **sta
