@@ -212,3 +212,26 @@ describe('un identificatore non deve poter diventare un opzione', () => {
     expect(altro.ok).toBe(false)
   })
 })
+
+describe('un salvataggio che non riesce non deve dirsi riuscito', () => {
+  /**
+   * `scriviAtomico` non solleva mai: e' il suo contratto, perche' chi lo chiama
+   * e' quasi sempre dentro un canale a senso unico. Qui pero' c'e' un esito da
+   * riferire, e il `try`/`catch` che stava intorno alla scrittura non poteva
+   * scattare: un salvataggio fallito tornava indietro come `ok: true`, il
+   * pannello diceva fatto, e non era cambiato niente.
+   *
+   * Si fa fallire nel modo piu' semplice e portabile: una cartella che non c'e'.
+   */
+  it('commutaMcp riferisce il guasto', () => {
+    const esito = commutaMcp(join(radice, 'cartella-che-non-esiste', '.claude.json'), '/mio', 'uno', false)
+    expect(esito.ok).toBe(false)
+    expect(esito.messaggio).toBeTruthy()
+  })
+
+  it('commutaSkill riferisce il guasto', () => {
+    const esito = commutaSkill(join(radice, 'cartella-che-non-esiste'), 'alfa', false)
+    expect(esito.ok).toBe(false)
+    expect(esito.messaggio).toBeTruthy()
+  })
+})

@@ -37,8 +37,8 @@ function leggiOggetto(percorso: string): Record<string, unknown> | undefined {
  * progetti di Claude Code. Su temporaneo e poi rinomina: o c'e' tutto il
  * contenuto nuovo, o resta tutto quello vecchio.
  */
-function scrivi(percorso: string, dati: unknown): void {
-  scriviAtomico(percorso, `${JSON.stringify(dati, null, 2)}\n`, 'negozio')
+function scrivi(percorso: string, dati: unknown): boolean {
+  return scriviAtomico(percorso, `${JSON.stringify(dati, null, 2)}\n`, 'negozio')
 }
 
 /**
@@ -57,12 +57,14 @@ export function commutaSkill(radiceClaude: string, nome: string, abilita: boolea
   else over[nome] = 'off'
   if (Object.keys(over).length === 0) delete s.skillOverrides
   else s.skillOverrides = over
-  try {
-    scrivi(percorso, s)
-    return { ok: true }
-  } catch (err) {
-    return { ok: false, messaggio: err instanceof Error ? err.message : 'scrittura fallita' }
-  }
+  // **Si guarda se ha scritto davvero.** `scriviAtomico` non solleva mai — e'
+  // il suo contratto, perche' chi lo chiama e' quasi sempre dentro un canale a
+  // senso unico — quindi il `try`/`catch` che stava qui non poteva scattare, e
+  // un salvataggio fallito tornava indietro come `ok: true`: il pannello
+  // diceva fatto, e non era cambiato niente.
+  return scrivi(percorso, s)
+    ? { ok: true }
+    : { ok: false, messaggio: 'settings.json non salvato: guarda il registro' }
 }
 
 /**
@@ -88,10 +90,9 @@ export function commutaMcp(fileClaudeJson: string, cwd: string, nome: string, ab
   else prog.disabledMcpjsonServers = [...disabilitati]
   projects[cwd] = prog
   j.projects = projects
-  try {
-    scrivi(fileClaudeJson, j)
-    return { ok: true }
-  } catch (err) {
-    return { ok: false, messaggio: err instanceof Error ? err.message : 'scrittura fallita' }
-  }
+  // Come sopra: e' il valore di ritorno a dire com'e' andata, non un'eccezione
+  // che non arrivera' mai.
+  return scrivi(fileClaudeJson, j)
+    ? { ok: true }
+    : { ok: false, messaggio: '.claude.json non salvato: guarda il registro' }
 }

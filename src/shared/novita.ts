@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.39',
+    righe: [
+      '**Nel Negozio, «fatto» adesso vuol dire fatto.** Spegnere una skill o un server MCP diceva sempre che era andata bene, anche quando il file non era stato scritto: il controllo dell’esito guardava un’eccezione che, per come è fatto il salvataggio, non arriva mai. Adesso si guarda quello che il salvataggio risponde davvero, e un guasto lo si legge.'
+    ]
+  },
+  {
     versione: '0.12.38',
     righe: [
       '**L’elenco delle chat poteva svuotarsi per un istante sfortunato.** Se la cartella dei progetti di Claude Code risultava illeggibile anche solo per un attimo — un antivirus, una sincronizzazione, la cartella tenuta aperta da qualcun altro — la scansione tornava vuota e il programma la leggeva come «non c’è più niente», cancellando l’indice intero. Adesso, prima di togliere una chat dall’elenco, si guarda se il file c’è ancora.',

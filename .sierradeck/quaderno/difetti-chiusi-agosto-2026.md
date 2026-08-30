@@ -1,6 +1,6 @@
 ---
 titolo: "Nove difetti chiusi, e cosa insegnano"
-quando: 2026-08-30T15:00:00+02:00
+quando: 2026-08-30T15:10:00+02:00
 tag: ["bug", "autopilota", "android", "rilasci", "verifica"]
 ---
 
@@ -294,3 +294,26 @@ guasto che non produce nessun errore**.
   pacchetto che sostituisce e manda `MY_PACKAGE_REPLACED`, non
   `BOOT_COMPLETED` — e quest'app **si aggiorna da se'**. Dopo ogni
   aggiornamento la guardia silenziosa restava spenta finche' non riaprivi l'app.
+
+## 0.12.39 — la regola di `scriviAtomico` (30/08)
+
+`scriviAtomico` **non solleva mai**: e' il suo contratto, scritto in cima al
+modulo, perche' chi lo chiama e' quasi sempre dentro un canale a senso unico o
+dentro la chiusura di una finestra. Restituisce un booleano, e registra il
+perche' quando fallisce.
+
+Convertendo i file delicati alla scrittura atomica (0.12.35) questo e' passato
+inosservato in `negozio/azioni.ts`: `commutaSkill` e `commutaMcp` avevano un
+`try`/`catch` intorno alla scrittura — giusto quando dentro c'era
+`writeFileSync`, morto da quando c'e' `scriviAtomico`. Il risultato: un
+salvataggio fallito tornava indietro come `ok: true`, il pannello diceva
+«fatto», e non era cambiato niente.
+
+**La regola, per tutti i punti di chiamata:** se hai un esito da riferire,
+guarda il **valore di ritorno**. Il `try`/`catch` intorno a `scriviAtomico` non
+scatta.
+
+Altrove il `try`/`catch` residuo (`negozio/scope.ts`, `accesso-supabase.ts`,
+`cassaforte/conto-drive.ts`, `cassaforte/sincronia.ts`) e' morto ma innocuo:
+quei punti si limitavano a registrare, e `scriviAtomico` registra da se'. Non
+c'e' nessun esito che risalga a chi ha chiesto.
