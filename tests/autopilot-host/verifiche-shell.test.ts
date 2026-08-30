@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  bashCandidati, bashDaGit, comandoShell, esecutoreReale, nomeScript,
+  bashCandidati, bashDaGit, bashDaScartare, comandoShell, esecutoreReale, nomeScript,
   nonMisurabile, trovaBash, trovaGit
 } from '../../src/autopilot-host/verifiche'
 
@@ -148,4 +148,39 @@ describe('esecutoreReale', () => {
     // dire se la correzione c'e', non il valore preciso.
     expect(passato).toBeLessThan(TETTO_MS / 2)
   }, 40_000)
+})
+
+describe('bashDaScartare', () => {
+  it('scarta la bash di WSL e lo stub dello Store', () => {
+    // Su Windows 11 stanno **prima** di Git nel PATH di ogni utente: sceglierle
+    // voleva dire nessun criterio misurabile, mai.
+    expect(bashDaScartare('C:\\Windows\\System32\\bash.exe')).toBe(true)
+    expect(bashDaScartare('C:\\Windows\\Sysnative\\bash.exe')).toBe(true)
+    expect(bashDaScartare('C:\\Users\\tizio\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe')).toBe(true)
+  })
+
+  it('tiene la bash di Git, ovunque sia installata', () => {
+    expect(bashDaScartare('E:\\Programs\\Git\\bin\\bash.exe')).toBe(false)
+    expect(bashDaScartare('C:\\Program Files\\Git\\usr\\bin\\bash.exe')).toBe(false)
+  })
+})
+
+describe('bashCandidati e le bash finte', () => {
+  it('non propone la bash di WSL nemmeno se e la prima del PATH', () => {
+    // Il PATH vero di questa macchina, nell'ordine in cui lo vede il servizio:
+    // System32 per primo, e li' dentro c'e' il ponte verso WSL, che i percorsi
+    // di Windows non li sa leggere.
+    const path = ['C:\\Windows\\system32', 'C:\\Users\\tizio\\AppData\\Local\\Microsoft\\WindowsApps', 'E:\\Programs\\Git\\cmd'].join(';')
+    // Esistono solo queste tre: le due di Windows e quella di Git.
+    const veri = new Set([
+      'C:\\Windows\\system32\\bash.exe',
+      'C:\\Users\\tizio\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe',
+      'E:\\Programs\\Git\\cmd\\git.exe',
+      'E:\\Programs\\Git\\bin\\bash.exe'
+    ])
+    const esiste = (f: string): boolean => veri.has(f)
+    const trovati = bashCandidati(path, esiste)
+    expect(trovati.some((b) => /system32|windowsapps/i.test(b))).toBe(false)
+    expect(trovaBash(trovati, esiste)).toBe('E:\\Programs\\Git\\bin\\bash.exe')
+  })
 })

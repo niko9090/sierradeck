@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.36',
+    righe: [
+      '**L’autopilota non riusciva a misurare nemmeno un criterio.** Windows mette il ponte verso WSL (quello che sta in System32) davanti a tutto nel PATH: il programma sceglieva quello, e quella bash è di Linux — i percorsi di Windows non li sa leggere. Ogni verifica tornava «non misurabile» con lo stesso errore, il supervisore giudicava un lavoro di cui non sapeva niente, e i comandi dei criteri venivano perfino riscritti per un guasto che non era loro. Adesso si usa la bash di Git, e le due finte di Windows si scartano.',
+      'Nel registro adesso c’è scritto, all’avvio, **con quale shell girano i criteri**: una shell sbagliata non si presenta più come sei criteri che falliscono senza motivo apparente.'
+    ]
+  },
+  {
     versione: '0.12.35',
     righe: [
       '**App: le notifiche a schermo spento uscivano dalla rete sbagliata.** La guardia che controlla il computer, e la risposta che si scrive dentro la notifica, non usavano il meccanismo che sceglie *da quale rete* parlare: con una VPN accesa o un wifi che il telefono giudica scadente, la richiesta usciva dai dati mobili e l’indirizzo di casa lì non esiste. Risultato: nessun avviso, e dalla parte del computer niente da trovare.',

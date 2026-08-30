@@ -59,6 +59,31 @@ export function trovaGit(
 }
 
 /**
+ * Le `bash.exe` che non sono una bash utile, per quanto esistano.
+ *
+ * Windows 11 mette **due** `bash.exe` nel PATH di ogni utente prima di
+ * qualsiasi Git: `C:\Windows\System32\bash.exe`, che è il ponte verso WSL, e lo
+ * stub dello Store in `WindowsApps`. La prima è una bash vera — di Linux — e
+ * non vede il disco di Windows: ricevendo lo script `C:\Users\...\criterio.sh`
+ * ne mangia le barre rovesce e risponde
+ * `/bin/bash: C:UsersnikofAppData...criterio.sh: No such file or directory`.
+ *
+ * Non è teoria: preferendola, **nessun criterio poteva essere misurato**. Ogni
+ * verifica tornava «non misurabile», il supervisore giudicava un lavoro di cui
+ * non sapeva niente, e l'autopilota girava senza poter concludere. In sviluppo
+ * non si vede, perché avviando il programma da dentro Git Bash il PATH comincia
+ * con `usr\bin` e la bash giusta vince per caso.
+ *
+ * Si scartano per posizione, non per nome: sotto `System32` (e i suoi alias
+ * `Sysnative` e `SysWOW64`) e sotto `WindowsApps` non c'è nessuna bash che
+ * sappia leggere un percorso di Windows.
+ */
+export function bashDaScartare(percorso: string): boolean {
+  const p = percorso.replace(/\\/g, '/').toLowerCase()
+  return /\/(system32|sysnative|syswow64|windowsapps)\//.test(p)
+}
+
+/**
  * L'elenco dei posti dove cercare bash, in ordine di preferenza.
  *
  * Prima la bash dell'installazione di Git trovata nel PATH — quella che l'utente
@@ -71,12 +96,13 @@ export function bashCandidati(
   const cartelle = pathEnv.split(delimiter).filter((c) => c !== '')
   // 1. `bash.exe` direttamente in una cartella del PATH: è il caso quando il
   //    programma è avviato da dentro Git Bash, che mette `usr\bin` nel PATH.
+  //    Meno le finte: vedi `bashDaScartare`.
   const diretti = cartelle.map((c) => join(c, 'bash.exe'))
   // 2. la bash che appartiene al git trovato nel PATH: il caso normale, quando
   //    nel PATH c'è solo `<radice>\cmd` ma non le cartelle con la bash.
   const git = trovaGit(pathEnv, esiste)
   const daGit = git !== undefined ? bashDaGit(git) : []
-  return [...diretti, ...daGit, ...BASH_NOTI]
+  return [...diretti, ...daGit, ...BASH_NOTI].filter((b) => !bashDaScartare(b))
 }
 
 /**
@@ -221,6 +247,14 @@ export function terminaAlbero(
  */
 export function esecutoreReale(timeoutMs: number = TIMEOUT_PREDEFINITO_MS): Esecutore {
   const bash = trovaBash()
+  // Detto una volta sola, all'avvio: quale shell misura i criteri. Senza questa
+  // riga, una shell sbagliata si manifesta solo come sei criteri che falliscono
+  // tutti con lo stesso errore, e la causa e' invisibile da fuori.
+  console.info(
+    bash !== undefined
+      ? `[autopilota] i criteri girano in ${bash}`
+      : '[autopilota] nessuna bash trovata: i criteri girano in cmd.exe'
+  )
   return (comando, cwd) =>
     new Promise((risolvi) => {
       const cartella = mkdtempSync(join(tmpdir(), 'sierradeck-criterio-'))
