@@ -52,12 +52,27 @@ export function esecutoreSuThread(percorsoWorker: string, log?: (m: string) => v
         rifiuta(e)
         return
       }
+      // Una promessa che non si chiude e' peggio di un errore: il salvataggio
+      // resta «in corso» per sempre, e nessuno puo' sapere perche'.
+      let chiuso = false
+      const bene = (v: T): void => { if (chiuso) return; chiuso = true; risolvi(v) }
+      const male = (e: unknown): void => { if (chiuso) return; chiuso = true; rifiuta(e) }
+
       worker.on('message', (m: Risposta) => {
         if (m.tipo === 'progresso') { onProgresso?.(m.p); return }
-        if (m.tipo === 'fatto') { risolvi(leggiEsito(m)); void worker.terminate(); return }
-        if (m.tipo === 'errore') { rifiuta(new Error(m.errore)); void worker.terminate() }
+        if (m.tipo === 'fatto') { bene(leggiEsito(m)); void worker.terminate(); return }
+        if (m.tipo === 'errore') { male(new Error(m.errore)); void worker.terminate() }
       })
-      worker.on('error', (e) => { rifiuta(e); void worker.terminate() })
+      worker.on('error', (e) => { male(e); void worker.terminate() })
+      // **Il filo che se ne va senza dire niente.** `error` copre l'eccezione,
+      // non l'uscita: un worker che finisce la memoria, o che esce da se',
+      // chiude e basta. Senza questa riga la promessa non si sarebbe risolta
+      // mai, e con lei restava appesa la sincronizzazione — che ha pure il suo
+      // ripiego in processo, e non poteva partire perche' nessuno le diceva che
+      // il thread era morto.
+      worker.on('exit', (codice) => {
+        male(new Error(`il lavoratore e uscito senza rispondere (codice ${codice})`))
+      })
       worker.postMessage(messaggio, trasferibili)
     })
 

@@ -133,7 +133,12 @@ describe('indice aggiornato invece che rifatto', () => {
     upsertSession(db, esempio({ uuid: 'a', sizeBytes: 10, mtimeMs: 5 }))
     upsertSession(db, esempio({ uuid: 'b', sizeBytes: 20, mtimeMs: 6 }))
     const imp = improntePerUuid(db)
-    expect(imp.get('a')).toEqual({ sizeBytes: 10, mtimeMs: 5 })
+    expect(imp.get('a')?.sizeBytes).toBe(10)
+    expect(imp.get('a')?.mtimeMs).toBe(5)
+    // Il percorso viene con l'impronta: serve alla potatura per **verificare**
+    // che un file sia sparito davvero, invece di dedurlo da una scansione che
+    // magari non ha potuto guardare.
+    expect(imp.get('a')?.jsonlPath).not.toBe('')
     expect(imp.size).toBe(2)
   })
 

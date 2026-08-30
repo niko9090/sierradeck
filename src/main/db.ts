@@ -185,7 +185,18 @@ export function upsertSession(db: Db, s: SessionSummary): void {
   })
 }
 
-export type Impronta = { sizeBytes: number; mtimeMs: number }
+export type Impronta = {
+  sizeBytes: number
+  mtimeMs: number
+  /**
+   * Dove sta il file, per poter **verificare** prima di cancellare.
+   *
+   * Serve alla potatura: «questo uuid non l'ho visto nella scansione» non e' la
+   * stessa cosa di «questo file non c'e' piu'», e le due cose finivano nello
+   * stesso posto.
+   */
+  jsonlPath: string
+}
 
 /**
  * Che cosa l'indice sa già di ogni sessione, in forma confrontabile col disco.
@@ -195,12 +206,15 @@ export type Impronta = { sizeBytes: number; mtimeMs: number }
  * avvio rileggeva 776 MB per riscrivere gli stessi identici valori.
  */
 export function improntePerUuid(db: Db): Map<string, Impronta> {
-  const righe = db.prepare('SELECT uuid, size_bytes, mtime_ms FROM sessions').all() as {
+  const righe = db.prepare('SELECT uuid, size_bytes, mtime_ms, jsonl_path FROM sessions').all() as {
     uuid: string
     size_bytes: number
     mtime_ms: number
+    jsonl_path: string
   }[]
-  return new Map(righe.map((r) => [r.uuid, { sizeBytes: r.size_bytes, mtimeMs: r.mtime_ms }]))
+  return new Map(
+    righe.map((r) => [r.uuid, { sizeBytes: r.size_bytes, mtimeMs: r.mtime_ms, jsonlPath: r.jsonl_path }])
+  )
 }
 
 /** Toglie dall'indice le sessioni che su disco non ci sono più. */

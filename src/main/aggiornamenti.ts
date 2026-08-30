@@ -231,9 +231,16 @@ export function creaAggiornamenti(
       // I percorsi dei file scaricati: servono all'updater, che e' lui a
       // eseguire l'installer. Senza, dovremmo indovinare dove sono.
       const scaricati = await autoUpdater.downloadUpdate()
-      installerScaricato = Array.isArray(scaricati)
+      const trovato = Array.isArray(scaricati)
         ? scaricati.find((f) => typeof f === 'string' && f.toLowerCase().endsWith('.exe'))
         : undefined
+      // Si sovrascrive **solo se si e' trovato qualcosa**. L'evento
+      // `update-downloaded` arriva prima di questa riga e il percorso l'ha gia'
+      // messo: assegnare `undefined` qui lo cancellava, e senza percorso il
+      // ramo con SierraDeck Update — quello che aggiorna anche Claude Code e
+      // che fa vedere la finestra — veniva saltato in favore del ripiego,
+      // senza che nulla lo dicesse.
+      if (trovato !== undefined) installerScaricato = trovato
     } catch (err) {
       annuncia({ fase: 'errore', errore: String(err) })
     }

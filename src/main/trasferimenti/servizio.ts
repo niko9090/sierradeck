@@ -99,18 +99,44 @@ export function creaTrasferimenti(
   // sembrare che il programma non si chiuda mai.
   potatura.unref?.()
 
+  /**
+   * Le aperture **in corso**, per non farne due dello stesso server.
+   *
+   * Aprire un canale SSH costa un secondo abbondante, e in quel secondo la mappa
+   * `aperte` non contiene ancora niente: due chiamate vicine — la coda che
+   * lavora mentre tu sfogli, che e' il caso normale — passavano tutt'e due il
+   * controllo e aprivano **due sessioni**. La seconda sovrascriveva la prima
+   * nella mappa, e la prima restava aperta e invisibile: la potatura non la
+   * vedeva piu', e nemmeno `chiudiTutto`. Un canale per ogni doppia richiesta,
+   * finche' il server non si stancava.
+   */
+  const inApertura = new Map<string, Promise<Sessione>>()
+
   const dammi = async (id: string): Promise<Sessione> => {
     const gia = aperte.get(id)
     if (gia !== undefined) {
       gia.ultimoUso = Date.now()
       return gia.sessione
     }
-    const destinazione = archivio.trova(id)
-    if (destinazione === undefined) throw new Error('destinazione sconosciuta')
-    const segreto: Segreto = archivio.segretoDi(id)
-    const sessione = await apriSessione(destinazione, segreto)
-    aperte.set(id, { sessione, ultimoUso: Date.now() })
-    return sessione
+    const inCorso = inApertura.get(id)
+    if (inCorso !== undefined) return inCorso
+
+    const apertura = (async (): Promise<Sessione> => {
+      const destinazione = archivio.trova(id)
+      if (destinazione === undefined) throw new Error('destinazione sconosciuta')
+      const segreto: Segreto = archivio.segretoDi(id)
+      const sessione = await apriSessione(destinazione, segreto)
+      aperte.set(id, { sessione, ultimoUso: Date.now() })
+      return sessione
+    })()
+    inApertura.set(id, apertura)
+    try {
+      return await apertura
+    } finally {
+      // Anche quando fallisce: un'apertura andata male non deve restare a
+      // rispondere «sto arrivando» a tutti i tentativi successivi.
+      inApertura.delete(id)
+    }
   }
 
   /**

@@ -72,11 +72,20 @@
           dalle notifiche. Non esportata, la fa scattare solo il sistema.
         -->
         <receiver android:name=".Sentinella" android:exported="false" />
+        <!--
+          Le sveglie non sopravvivono a due cose: lo spegnimento del telefono e
+          l'aggiornamento dell'app. Il secondo se lo fa da se' - l'app si
+          aggiorna da dentro - e Android in quel momento cancella tutte le sue
+          sveglie SENZA mandare BOOT_COMPLETED. Con il solo riavvio, dopo ogni
+          aggiornamento la guardia smetteva di svegliarsi e nessuno lo diceva:
+          tornava solo riaprendo l'app a mano.
+        -->
         <receiver
             android:name=".SentinellaAlRiavvio"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
     </application>

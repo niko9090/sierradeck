@@ -103,7 +103,29 @@ export async function indexAll(
   // Le sessioni che l'indice conosce ma che su disco non ci sono più. Va fatto
   // anche quando non è stato letto niente: un file cancellato non produce
   // letture, e senza questo passaggio resterebbe nell'elenco per sempre.
-  const sparite = [...conosciute.keys()].filter((u) => !vive.has(u))
+  //
+  // **Ma «non l'ho visto» non è «non c'è più».** La scansione può tornare
+  // corta senza che sia sparito niente: la radice dei progetti illeggibile per
+  // un istante — un antivirus, una sincronizzazione, la cartella aperta da
+  // qualcun altro — restituisce zero progetti, e la potatura leggeva quel
+  // vuoto come «cancellale tutte». Bastava un istante sfortunato per **svuotare
+  // l'indice intero**, e l'elenco delle chat con lui. Lo stesso in piccolo per
+  // una singola cartella di progetto saltata.
+  //
+  // Quindi prima di cancellare si guarda: il file c'è ancora? Costa una `stat`
+  // per candidato, e i candidati sono pochi per definizione.
+  const sospette = [...conosciute.keys()].filter((u) => !vive.has(u))
+  const sparite: string[] = []
+  for (const uuid of sospette) {
+    const dove = conosciute.get(uuid)?.jsonlPath
+    if (dove === undefined || dove === '') {
+      // Senza percorso non si può verificare, e allora vale la regola di prima.
+      sparite.push(uuid)
+      continue
+    }
+    const ancoraLi = await stat(dove).then(() => true, () => false)
+    if (!ancoraLi) sparite.push(uuid)
+  }
   if (sparite.length > 0) {
     onProgress?.({ fase: 'pulizia', done, total: totale, riusate })
     rimuoviSessioni(db, sparite)

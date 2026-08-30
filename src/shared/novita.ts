@@ -23,6 +23,16 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.38',
+    righe: [
+      '**L’elenco delle chat poteva svuotarsi per un istante sfortunato.** Se la cartella dei progetti di Claude Code risultava illeggibile anche solo per un attimo — un antivirus, una sincronizzazione, la cartella tenuta aperta da qualcun altro — la scansione tornava vuota e il programma la leggeva come «non c’è più niente», cancellando l’indice intero. Adesso, prima di togliere una chat dall’elenco, si guarda se il file c’è ancora.',
+      '**Sfogliare un server mentre la coda lavora non apre più due connessioni.** Aprire un canale costa un secondo, e in quel secondo due richieste vicine passavano tutt’e due: la seconda prendeva il posto della prima, e la prima restava aperta e invisibile — nessuno la chiudeva più, nemmeno all’uscita.',
+      '**Il salvataggio sul Drive non può più restare «in corso» per sempre.** Se il filo che fa il lavoro pesante moriva senza dire niente, nessuno se ne accorgeva e la riserva — che esiste apposta — non partiva.',
+      '**L’aggiornamento riprende la strada giusta.** In un caso il percorso dell’installer appena scaricato veniva cancellato subito dopo essere stato trovato, e si ripiegava su una strada più povera: senza la finestra che mostra cosa sta succedendo, e senza aggiornare Claude Code nello stesso viaggio.',
+      '**App: dopo un aggiornamento la guardia smetteva di svegliarsi.** Android cancella le sveglie di un’app che sostituisce, e non avvisa come fa dopo un riavvio: la guardia silenziosa restava spenta finché non riaprivi l’app a mano.'
+    ]
+  },
+  {
     versione: '0.12.37',
     righe: [
       '**App: la guardia poteva smettere di guardare senza dirlo.** Il filo che controlla il computer ogni cinque secondi moriva in silenzio se qualcuno lo interrompeva: il servizio restava vivo, la notifica fissa continuava a dire «Guardo il computer», e nessun avviso arrivava più. Adesso, interrotta, la guardia si ferma davvero.',

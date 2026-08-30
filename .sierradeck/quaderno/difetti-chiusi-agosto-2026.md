@@ -1,6 +1,6 @@
 ---
 titolo: "Nove difetti chiusi, e cosa insegnano"
-quando: 2026-08-30T14:10:00+02:00
+quando: 2026-08-30T15:00:00+02:00
 tag: ["bug", "autopilota", "android", "rilasci", "verifica"]
 ---
 
@@ -253,3 +253,44 @@ noi sapere quali flag esistano nel CLI di qualcun altro, oggi e fra sei mesi.
 **La forma comune ai primi due:** un guasto che non solleva niente. Il filo che
 muore, il flusso che finisce prima. Dove non c'e' eccezione non c'e' nemmeno
 allarme, e il sintomo arriva giorni dopo travestito da altro.
+
+## 0.12.38 — quello che non solleva niente, seconda parte (30/08)
+
+Cinque difetti, e tre hanno la stessa radice della tornata precedente: **un
+guasto che non produce nessun errore**.
+
+- **L'indice si poteva svuotare tutto.** In `indexAll` la potatura calcolava
+  «sparite = quelle che l'indice conosce meno quelle viste dalla scansione». Ma
+  `scanProjects` risponde con un elenco **vuoto** quando la radice non e'
+  leggibile (ed e' giusto cosi': lo dice e va avanti). Quel vuoto veniva letto
+  come «non c'e' piu' niente» e cancellava ogni riga. Un antivirus, una
+  sincronizzazione, la cartella aperta da qualcun altro: un istante bastava.
+  Chiuso portando `jsonlPath` dentro `Impronta` e **verificando con una `stat`**
+  prima di cancellare. Costa una `stat` per candidato, e i candidati sono pochi
+  per definizione.
+  **La regola:** «non l'ho visto» non e' «non c'e' piu'». Prima di cancellare,
+  guardare.
+- **Due sessioni SSH per la stessa destinazione.** `dammi()` controllava la mappa
+  delle sessioni aperte, poi passava un secondo abbondante dentro
+  `apriSessione`. Due chiamate vicine — la coda che lavora mentre sfogli, cioe'
+  il caso normale — passavano tutt'e due il controllo. La seconda sovrascriveva
+  la prima nella mappa; la prima restava aperta e **invisibile**: ne' la
+  potatura ne' `chiudiTutto` la vedevano piu'. Chiuso memorizzando l'apertura
+  *in corso*.
+- **Il lavoratore della cassaforte che esce senza rispondere.**
+  `worker.on('error')` copre l'eccezione, non l'uscita. Un thread che finisce la
+  memoria o esce da se' chiude e basta, e la promessa non si risolveva **mai**:
+  il salvataggio restava «in corso» per sempre, e il ripiego in processo — che
+  esiste apposta — non poteva partire perche' nessuno gli diceva che il thread
+  era morto. Chiuso con un ascolto su `exit`.
+- **Il percorso dell'installer cancellato appena trovato.** L'evento
+  `update-downloaded` mette `installerScaricato`; subito dopo, il risultato di
+  `downloadUpdate()` lo riassegnava — anche quando non conteneva nessun `.exe`,
+  cioe' con `undefined`. Senza percorso, il ramo con SierraDeck Update (finestra
+  visibile, Claude Code aggiornato nello stesso viaggio) veniva saltato in
+  favore del ripiego, senza che nulla lo dicesse.
+- **Android: le sveglie non sopravvivono a un aggiornamento.** Il manifesto
+  ascoltava solo `BOOT_COMPLETED`. Ma Android cancella le sveglie di un
+  pacchetto che sostituisce e manda `MY_PACKAGE_REPLACED`, non
+  `BOOT_COMPLETED` — e quest'app **si aggiorna da se'**. Dopo ogni
+  aggiornamento la guardia silenziosa restava spenta finche' non riaprivi l'app.

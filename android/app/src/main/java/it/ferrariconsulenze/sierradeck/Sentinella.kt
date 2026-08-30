@@ -99,11 +99,13 @@ class Sentinella : BroadcastReceiver() {
 }
 
 /**
- * Rimette la sveglia dopo un riavvio del telefono.
+ * Rimette la sveglia dopo un riavvio del telefono **o un aggiornamento**.
  *
- * Le sveglie non sopravvivono allo spegnimento: senza questo, la guardia
- * smetterebbe di esistere al primo riavvio e nessuno se ne accorgerebbe —
- * finché una notifica che doveva arrivare non arriva.
+ * Le sveglie non sopravvivono a nessuna delle due cose. Lo spegnimento si
+ * sapeva; l'aggiornamento no, ed è il caso che capita più spesso — quest'app si
+ * aggiorna da sé. Android cancella le sveglie di un pacchetto che sostituisce e
+ * **non manda `BOOT_COMPLETED`**: la guardia smetteva di svegliarsi dopo ogni
+ * aggiornamento, in silenzio, e tornava solo riaprendo l'app a mano.
  */
 class SentinellaAlRiavvio : BroadcastReceiver() {
     override fun onReceive(contesto: Context, intent: Intent) {
