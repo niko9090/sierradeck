@@ -79,7 +79,7 @@ import {
 import { apriRegistro, type Registro } from './registro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
-import { quanteFinestre, workspaceDellaSessione } from '@shared/workspace'
+import { ordineDeiMonitor, quanteFinestre, workspaceDellaSessione } from '@shared/workspace'
 import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
 import { apriDestinazioni } from './trasferimenti/destinazioni'
@@ -323,10 +323,17 @@ export function apriNuovaFinestra(): void {
     const d = screen.getDisplayMatching(w.getBounds())
     return chiaveMonitor({ bounds: d.bounds, scaleFactor: d.scaleFactor })
   })
-  const disponibili = screen.getAllDisplays().map((d) => ({
-    chiave: chiaveMonitor({ bounds: d.bounds, scaleFactor: d.scaleFactor }),
-    bounds: d.bounds
-  }))
+  // **Lo stesso ordine con cui i monitor sono diventati slot** (vedi
+  // `ordineDeiMonitor`): la prima finestra sul primo monitor, che e' quello le
+  // cui chat stanno nello slot 1. Se le due parti ordinassero in modo diverso,
+  // la finestra di destra si aprirebbe con le chat di quella di sinistra — e
+  // sarebbe di nuovo «le chat non sono dove le avevo lasciate».
+  const perChiave = new Map(screen.getAllDisplays().map((d) => [
+    chiaveMonitor({ bounds: d.bounds, scaleFactor: d.scaleFactor }),
+    d.bounds
+  ]))
+  const disponibili = ordineDeiMonitor([...perChiave.keys()])
+    .map((chiave) => ({ chiave, bounds: perChiave.get(chiave)! }))
   // Dove stavano le finestre l'ultima volta. Questa memoria la teneva anche
   // l'archivio dei layout, che archiviava le chat sotto la geometria dello
   // schermo: da lì si ricavava «su questo monitor c'era del lavoro». Adesso le

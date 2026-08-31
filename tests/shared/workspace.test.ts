@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  parseArchivio, archivioVuoto, aggiungiPaneA, layoutPerSlot, raccogliInUnoSlot,
+  parseArchivio, archivioVuoto, aggiungiPaneA, layoutPerSlot, migraChiaviMonitor,
   slotRaggiungibili, slotOccupati, quanteFinestre, layoutPerFinestraViva,
   rimuoviSessioni, unaChatUnWorkspace,
   VERSIONE_ARCHIVIO, NOME_PREDEFINITO, type LayoutSalvato, type WorkspaceSalvato
@@ -331,42 +331,54 @@ describe('il layout che spetta a una finestra', () => {
 })
 
 
-describe('un workspace, una disposizione', () => {
+describe('dalle chiavi-monitor agli slot', () => {
   const con = (id: string): LayoutSalvato => ({
     root: { type: 'pane', id },
-    panes: [{ id, sessionUuid: 'u-' + id, cwd: 'C:\p', title: id }]
+    panes: [{ id, sessionUuid: 'u-' + id, cwd: 'C:/p', title: id }]
+  })
+  const A = '1920x1080@0,0@1'
+  const B = '1920x1080@1920,0@1'
+
+  it('ogni monitor diventa uno slot suo: due finestre restano due', () => {
+    // La prima stesura raccoglieva tutto nello slot 1. Sui dati veri di chi
+    // lavora su due schermi voleva dire: due finestre diventano una e le chat
+    // dei due monitor finiscono ammucchiate. Tornare a meta' non e' tornare.
+    const dopo = migraChiaviMonitor([{ nome: 'Uno', perSlot: { [A]: con('a'), [B]: con('b') } }])
+    expect(dopo[0]?.perSlot['1']?.panes[0]?.id).toBe('a')
+    expect(dopo[0]?.perSlot['2']?.panes[0]?.id).toBe('b')
   })
 
-  it('mette tutte le chat in un posto solo', () => {
-    // Il layout per monitor chiedeva di sapere **sotto quale schermo** vive una
-    // chat: una domanda che nessuno dovrebbe doversi porre, e la causa di quasi
-    // tutti i guasti - chat invisibili, chat doppie, salvataggi che si
-    // cancellavano a vicenda.
-    const dopo = raccogliInUnoSlot({ '1': con('a'), '2': con('b'), vecchio: con('c') }, '1')
-    expect(Object.keys(dopo)).toEqual(['1'])
-    expect(dopo['1']?.panes.map((p) => p.id).sort()).toEqual(['a', 'b', 'c'])
+  it('lo stesso monitor e lo stesso slot in tutti i workspace', () => {
+    // Fatto workspace per workspace, lo stesso schermo finirebbe in slot diversi
+    // a seconda di dove ti trovi: la finestra 1 pescherebbe le chat della 2 solo
+    // per essere passata da un altro workspace.
+    const dopo = migraChiaviMonitor([
+      { nome: 'Uno', perSlot: { [A]: con('a'), [B]: con('b') } },
+      { nome: 'Due', perSlot: { [B]: con('c') } }
+    ])
+    expect(dopo[0]?.perSlot['1']?.panes[0]?.id).toBe('a')
+    expect(dopo[1]?.perSlot['2']?.panes[0]?.id).toBe('c')
+    expect(dopo[1]?.perSlot['1']).toBeUndefined()
   })
 
-  it('funziona anche quando la casa non aveva niente', () => {
-    const dopo = raccogliInUnoSlot({ altrove: con('b') }, '1')
-    expect(dopo['1']?.panes.map((p) => p.id)).toEqual(['b'])
+  it('il monitor di sinistra e il numero 1', () => {
+    // E la prima finestra si apre proprio li': e' `ordineDeiMonitor` a tenere
+    // insieme le due cose.
+    const dopo = migraChiaviMonitor([{ nome: 'Uno', perSlot: { [B]: con('destra'), [A]: con('sinistra') } }])
+    expect(dopo[0]?.perSlot['1']?.panes[0]?.id).toBe('sinistra')
   })
 
-  it('non tocca niente quando c e gia un posto solo', () => {
-    // Chi confronta per identita deve poter sapere che non e cambiato niente,
-    // ed e come si evita di riscrivere il file a ogni avvio.
-    const prima = { '1': con('a') }
-    expect(raccogliInUnoSlot(prima, '1')).toBe(prima)
+  it('un archivio gia a slot non viene toccato', () => {
+    const prima = [{ nome: 'Uno', perSlot: { '1': con('a') } }]
+    expect(migraChiaviMonitor(prima)).toBe(prima)
   })
 
-  it('ma una chiave vecchia si raccoglie anche se e sola', () => {
-    // Era il buco della versione precedente: con una chiave sola non c'era
-    // niente «da unire» e la si lasciava com'era — cioe' si lasciava il layout
-    // archiviato sotto una geometria di schermo, che e' esattamente la chiave
-    // che nessuna finestra chiedera' piu'.
-    const dopo = raccogliInUnoSlot({ '1920x1080@0,0@1': con('a') }, '1')
-    expect(Object.keys(dopo)).toEqual(['1'])
-    expect(dopo['1']?.panes.map((p) => p.id)).toEqual(['a'])
+  it('una chiave vecchia e una nuova insieme non si perdono', () => {
+    // Un archivio a meta' migrazione: scritto da una versione, riletto
+    // dall'altra. Le due si uniscono invece di sovrascriversi.
+    const dopo = migraChiaviMonitor([{ nome: 'Uno', perSlot: { '1': con('a'), [A]: con('b') } }])
+    const dentro = (dopo[0]?.perSlot['1']?.panes ?? []).map((p) => p.id).sort()
+    expect(dentro).toEqual(['a', 'b'])
   })
 })
 
@@ -470,17 +482,19 @@ describe('dalle chiavi-monitor agli slot', () => {
     parseArchivio({ versione: 1, attivo: 'Uno', workspace: [{ nome: 'Uno', perMonitor }] })
       .archivio.workspace[0]?.perSlot
 
-  it('un archivio scritto ieri si apre oggi, e le chat sono nello slot 1', () => {
+  it('un archivio scritto ieri si apre oggi, con le sue finestre', () => {
     // Le chiavi vecchie sono geometrie di schermo — `1920x1080@0,0@1` — che
     // nessuna finestra chiedera' mai piu'. Lasciarle dov'erano significa lasciare
     // il lavoro nel file e non mostrarlo: e' il sintomo «cambio workspace e le
-    // chat non ci sono».
+    // chat non ci sono». Ma nemmeno si ammucchiano: due monitor erano due
+    // finestre, e due finestre devono restare.
     const dopo = letto({
       '1920x1080@0,0@1': chat('a', 'u-a'),
       '2560x1440@1920,0@1': chat('b', 'u-b')
     })
-    expect(Object.keys(dopo ?? {})).toEqual(['1'])
-    expect((dopo?.['1']?.panes ?? []).map((p) => p.sessionUuid).sort()).toEqual(['u-a', 'u-b'])
+    expect(Object.keys(dopo ?? {}).sort()).toEqual(['1', '2'])
+    expect(dopo?.['1']?.panes[0]?.sessionUuid).toBe('u-a')
+    expect(dopo?.['2']?.panes[0]?.sessionUuid).toBe('u-b')
   })
 
   it('anche una sola chiave vecchia viene spostata', () => {

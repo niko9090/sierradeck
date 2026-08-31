@@ -152,36 +152,6 @@ export function layoutPerFinestraViva(
 }
 
 /**
- * Raccoglie sotto uno slot solo tutto quello che era archiviato altrove.
- *
- * Serve alla migrazione dalle chiavi-geometria: un archivio scritto da una
- * versione precedente ha le chat sparse sotto chiavi come
- * `1920x1080@0,0@1`, che nessuno chiederà mai più. Si portano tutte nello
- * slot `1`, dove la prima finestra le trova.
- *
- * La deduplica passa da `sessionUuid` e **non** dall'id di riquadro: è la
- * conversazione a dover comparire una volta sola. Deduplicando per id, la
- * stessa chat che in due giri aveva preso due riquadri diversi entrava due
- * volte nello stesso layout — due riquadri, due `claude.exe`, due `--resume`
- * sulla stessa conversazione.
- */
-export function raccogliInUnoSlot(
-  perSlot: Record<string, LayoutSalvato>,
-  slot: string
-): Record<string, LayoutSalvato> {
-  const chiavi = Object.keys(perSlot)
-  // Già a posto: una chiave sola, ed è quella giusta. Si restituisce lo stesso
-  // oggetto, così chi confronta per identità sa che non c'è niente da riscrivere.
-  if (chiavi.length === 1 && chiavi[0] === slot) return perSlot
-  const altri = Object.entries(perSlot).filter(([k]) => k !== slot)
-  let insieme = perSlot[slot] ?? { root: undefined, panes: [] }
-  for (const [, layout] of altri) {
-    for (const pane of layout.panes) insieme = aggiungiPaneA(insieme, pane)
-  }
-  return { [slot]: insieme }
-}
-
-/**
  * Quante finestre al massimo hanno una disposizione propria.
  *
  * Oltre questo numero gli slot vengono **raccolti nell'ultimo**, non lasciati
@@ -275,6 +245,66 @@ export function quanteFinestre(workspace: WorkspaceSalvato[]): number {
   const occupati = slotOccupati(workspace)
   const massimo = occupati.length === 0 ? 1 : Math.max(...occupati)
   return Math.min(Math.max(massimo, 1), SLOT_MAX)
+}
+
+/**
+ * Dalle chiavi-monitor agli slot, **conservando le finestre che c'erano**.
+ *
+ * La prima stesura raccoglieva tutto nello slot 1, un workspace alla volta. Sui
+ * dati veri di chi lavora su due monitor questo voleva dire: due finestre
+ * diventano una, e tutte le chat dei due schermi finiscono ammucchiate nella
+ * stessa. Non è «tornare come l'avevi lasciato», è tornare a metà.
+ *
+ * Ogni monitor diventa invece **uno slot suo**, e la corrispondenza è la stessa
+ * per tutto l'archivio: il monitor di sinistra è lo slot 1 in ogni workspace, e
+ * la finestra numero 1 lo ritrova ovunque. Fatto workspace per workspace, lo
+ * stesso monitor sarebbe finito in slot diversi a seconda di dove ti trovi.
+ *
+ * L'ordine è quello alfabetico delle chiavi — che per come sono fatte
+ * (`1920x1080@0,0@1`) mette lo schermo più a sinistra per primo — e **la stessa
+ * regola vale a chi apre le finestre**: la prima finestra va sul primo monitor
+ * di quest'ordine. Così slot 1, prima finestra e monitor di sinistra sono la
+ * stessa cosa, e non per fortuna.
+ */
+export function migraChiaviMonitor(workspace: WorkspaceSalvato[]): WorkspaceSalvato[] {
+  const vecchie = new Set<string>()
+  for (const w of workspace) {
+    for (const k of Object.keys(w.perSlot)) if (!eSlot(k)) vecchie.add(k)
+  }
+  if (vecchie.size === 0) return workspace
+
+  const slotDi = new Map<string, string>()
+  ;[...vecchie].sort().forEach((chiave, i) => slotDi.set(chiave, String(Math.min(i + 1, SLOT_MAX))))
+
+  return workspace.map((w) => {
+    const rifatto: Record<string, LayoutSalvato> = {}
+    for (const [k, l] of Object.entries(w.perSlot)) {
+      const destinazione = slotDi.get(k) ?? k
+      const arrivato = rifatto[destinazione]
+      if (arrivato === undefined) {
+        rifatto[destinazione] = l
+        continue
+      }
+      // Due chiavi che finiscono nello stesso slot (il tetto, o un archivio a
+      // metà migrazione): si uniscono chat per chat, senza doppioni.
+      let insieme = arrivato
+      for (const pane of l.panes) insieme = aggiungiPaneA(insieme, pane)
+      rifatto[destinazione] = insieme
+    }
+    return { nome: w.nome, perSlot: rifatto }
+  })
+}
+
+/**
+ * L'ordine in cui i monitor diventano slot: alfabetico sulla chiave.
+ *
+ * Esportato perché **chi apre le finestre deve usare lo stesso ordine**. È
+ * l'unica cosa che tiene insieme «slot 1» e «prima finestra», e se le due parti
+ * ordinassero in modo diverso la finestra di destra si aprirebbe con le chat di
+ * quella di sinistra.
+ */
+export function ordineDeiMonitor(chiavi: string[]): string[] {
+  return [...chiavi].sort()
 }
 
 export function archivioVuoto(): Archivio {
@@ -539,20 +569,13 @@ export function parseArchivio(raw: unknown): { archivio: Archivio; scartati: str
       // questa riga le chat resterebbero nel file sotto chiavi che nessuno
       // chiede più: è esattamente il guasto che lo slot esiste per chiudere.
       const grezzo = wo.perSlot ?? wo.perMonitor
-      const eredita = wo.perSlot === undefined && wo.perMonitor !== undefined
-      let perSlot: Record<string, LayoutSalvato> = {}
+      const perSlot: Record<string, LayoutSalvato> = {}
       if (typeof grezzo === 'object' && grezzo !== null) {
         for (const [chiave, layout] of Object.entries(grezzo as Record<string, unknown>)) {
           perSlot[chiave] = parseLayout(layout, scartati)
         }
       } else if (grezzo !== undefined) {
         scartati.push(`workspace ${nome}: perSlot non e un oggetto`)
-      }
-      // Anche una chiave che non è uno slot va raccolta: un archivio a metà
-      // migrazione — scritto da una versione, riletto dall'altra — avrebbe
-      // altrimenti una parte delle chat irraggiungibile.
-      if (eredita || Object.keys(perSlot).some((k) => !eSlot(k))) {
-        perSlot = raccogliInUnoSlot(perSlot, SLOT_PRIMO)
       }
       workspace.push({ nome, perSlot })
     }
@@ -570,7 +593,10 @@ export function parseArchivio(raw: unknown): { archivio: Archivio; scartati: str
   // cambiare — è come sa, chi confronta per identità, che non si è mosso
   // niente. Quindi si tiene il risultato in una variabile nuova e non si tocca
   // l'originale: svuotarlo per riempirlo con se stesso lo lascerebbe vuoto.
-  const raggiungibili = slotRaggiungibili(workspace)
+  // Prima le chiavi vecchie diventano slot — un monitor, uno slot, uguale per
+  // tutto l'archivio — poi si compattano i numeri. In quest'ordine: compattare
+  // prima significherebbe farlo su chiavi che slot non sono.
+  const raggiungibili = slotRaggiungibili(migraChiaviMonitor(workspace))
 
   // `attivo` deve puntare a qualcosa che esiste, altrimenti l'interfaccia
   // mostrerebbe selezionato un workspace che non c'e'.

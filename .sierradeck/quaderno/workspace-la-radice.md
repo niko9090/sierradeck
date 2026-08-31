@@ -238,6 +238,33 @@ le scrive nel proprio slot e l'invariante le toglie da quelli vecchi.
 Vale per ogni strada — avvio, cambio di workspace, ripristino di un salvataggio,
 verità rimandata dopo un rifiuto — perché tutte passano da `daConsegnare`.
 
+### 8. Due monitor sono due finestre, anche dopo la migrazione
+
+La prima stesura della migrazione raccoglieva tutto nello **slot 1**, un
+workspace alla volta. Provata sui dati veri di questa macchina — due monitor,
+due finestre, cinque workspace — voleva dire: **due finestre diventano una** e le
+chat dei due schermi finiscono ammucchiate. Tornare a metà non è tornare.
+
+Adesso ogni monitor diventa **uno slot suo**, e la corrispondenza è la stessa per
+tutto l'archivio: il monitor di sinistra è lo slot 1 in *ogni* workspace, così la
+finestra numero 1 lo ritrova ovunque. Fatta workspace per workspace, la stessa
+finestra avrebbe pescato in posti diversi a seconda di dove ti trovi.
+
+E `ordineDeiMonitor` è **la stessa funzione** che usa chi apre le finestre: la
+prima finestra va sul primo monitor di quell'ordine, che è quello le cui chat
+stanno nello slot 1. Se le due parti ordinassero in modo diverso, la finestra di
+destra si aprirebbe con le chat di quella di sinistra — di nuovo «le chat non sono
+dove le avevo lasciate», e per un motivo che nessuno avrebbe trovato leggendo il
+codice di una sola delle due.
+
+**La lezione, che vale oltre questo difetto:** quattro giri di ragionamento non
+avevano visto quello che il primo sguardo ai dati veri ha mostrato in un minuto.
+Un caso costruito a tavolino dimostra quello che chi lo scrive ha già pensato; il
+file di chi usa davvero il programma contiene anche quello a cui non ha pensato
+nessuno. `tests/shared/ritorna-tutto.test.ts` legge quel file, se c'è, e confronta
+le chat **salvate** con quelle **consegnate a una finestra**, workspace per
+workspace.
+
 ## Le prove
 
 - `tests/main/consegne-layout.test.ts` (11) — lo slot più basso libero, lo slot
