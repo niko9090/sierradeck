@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.46',
+    righe: [
+      '**Tutti i workspace e le loro chat tornano come li avevi lasciati** — sempre, che a salvarli sia stato un aggiornamento o tu. Nella 0.12.45 restava un caso scoperto: se lavoravi con due finestre e riaprivi con una sola, vedevi metà del tuo lavoro. Non era perso — era nel file, in un posto che nessuna finestra apriva. Adesso il programma conta quante finestre servono **prima** di aprirne una, e ne riapre tante quante ne bastano perché non resti fuori niente.',
+      '**E se una finestra manca lo stesso, le chat non restano indietro:** quella che c’è si prende anche le conversazioni della finestra che non hai riaperto, invece di lasciarle dove nessuno le vedrebbe. Vale in ogni situazione — all’avvio, cambiando workspace, ripristinando un salvataggio.',
+      '**Ogni finestra sa qual è il suo posto appena nasce**, non quando ha finito di caricare. Aprendone due insieme potevano scambiarsele, e ognuna si ritrovava la disposizione dell’altra.'
+    ]
+  },
+  {
     versione: '0.12.45',
     righe: [
       '**Le chat non spariscono più, e non tornano più nel workspace sbagliato.** È il difetto su cui si era già intervenuti quattro volte senza chiuderlo, e questa volta la causa è stata presa alla radice: la disposizione delle tue chat era archiviata sotto la *geometria dello schermo*. Bastava spostare la finestra, cambiare risoluzione o ingrandirla al momento sbagliato perché il programma cercasse le chat sotto un nome diverso da quello con cui le aveva salvate — e trovasse il vuoto. Non erano perse: non c’era nessuno a chiederle. Adesso ogni finestra ha un suo posto fisso, che non dipende da niente che tu possa muovere.',
