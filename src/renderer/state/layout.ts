@@ -81,15 +81,21 @@ type State = {
   sveglia: (paneId: string) => void
   reset: () => void
   esporta: () => LayoutSalvato
-  carica: (l: LayoutSalvato) => void
   /**
    * Sostituisce ciò che si vede senza uccidere ciò che si lascia.
    *
-   * È `carica` più la regola del punto 0-quinquies: un workspace è una vista,
-   * non un interruttore. I riquadri che escono di scena finiscono fra i
-   * `ceduti`, cioè l'unico segnale che il `Terminal` legge per **staccare**
-   * invece di chiudere; quelli che rientrano ne escono, altrimenti da lì in poi
-   * chiuderli non ucciderebbe più il loro claude.exe.
+   * **L'unica porta** per cui un layout entra nello store, e non è un vezzo:
+   * accanto a questa c'era `carica`, che faceva la stessa sostituzione senza
+   * toccare i `ceduti`. I due nomi sembravano sinonimi e non lo erano — chi
+   * usava `carica` faceva morire i `claude.exe` di tutte le chat che uscivano
+   * di scena, perché il `Terminal`, smontandosi, non trovava il proprio
+   * riquadro fra i ceduti e chiamava `chiudi()` invece di `stacca()`. Ci sono
+   * cascati il ripristino di un'istantanea e ogni layout spinto dal Core.
+   * Averne una sola rende l'errore impossibile invece che raro.
+   *
+   * Un workspace è una vista, non un interruttore: i riquadri che escono di
+   * scena finiscono fra i `ceduti`, quelli che rientrano ne escono — altrimenti
+   * da lì in poi chiuderli non ucciderebbe più il loro claude.exe.
    */
   cambiaVista: (l: LayoutSalvato) => void
   /**
@@ -121,6 +127,30 @@ type State = {
   staccaPane: (paneId: string) => PaneSalvato | undefined
   /** Inserisce un riquadro arrivato da un'altra finestra. */
   accogliPane: (pane: PaneSalvato) => void
+  /**
+   * Le conversazioni che qualcuno ha **davvero** congedato da questa finestra:
+   * chiuse, spostate altrove, o troncate da un preset.
+   *
+   * Serve al Core, che senza non ha modo di distinguere le due sole cose che
+   * possono succedere a una chat sparita da un layout salvato: «l'ho chiusa io»
+   * e «è sparita, e non lo so nemmeno io». Le tre volte in cui il lavoro si è
+   * perso erano la seconda, e il salvataggio le trattava uguali — obbediva, e
+   * cancellava.
+   *
+   * Sono `sessionUuid`, non id di riquadro: è la conversazione l'identità che
+   * conta, e l'unica che il file su disco conosce.
+   */
+  congedate: Set<string>
+  /**
+   * Chi è stata congedata e non è più a schermo: è questo che viaggia col
+   * salvataggio.
+   *
+   * Si filtra al momento dell'uso invece di svuotare l'insieme: una chat chiusa
+   * e poi ripresa dalle sessioni torna con lo **stesso** `sessionUuid`, e
+   * lasciarla nell'elenco vorrebbe dire tenerle addosso per sempre il permesso
+   * di sparire in silenzio.
+   */
+  congediDaMandare: () => string[]
 }
 
 /**
@@ -223,8 +253,15 @@ export const useLayoutStore = create<State>((set, get) => ({
   closePane: (id) =>
     set((s) => {
       const panes = { ...s.panes }
+      const uscita = s.panes[id]?.sessionUuid
       delete panes[id]
-      return { panes, root: s.root ? removePane(s.root, id) : undefined }
+      return {
+        panes,
+        root: s.root ? removePane(s.root, id) : undefined,
+        // Chiudere è una decisione: da qui in poi il Core può togliere questa
+        // conversazione dall'archivio senza sospettare di se stesso.
+        congedate: uscita === undefined ? s.congedate : new Set([...s.congedate, uscita])
+      }
     }),
 
   split: (targetId, direction) =>
@@ -257,10 +294,14 @@ export const useLayoutStore = create<State>((set, get) => ({
       // invisibili. La stessa invariante che closePane rispetta.
       const rimasti = new Set(listPaneIds(root))
       const panes: Record<string, PaneData> = {}
+      const congedate = new Set(s.congedate)
       for (const [id, data] of Object.entries(s.panes)) {
         if (rimasti.has(id)) panes[id] = data
+        // Troncare è una decisione come chiudere: chi sceglie «due riquadri»
+        // sa che gli altri se ne vanno.
+        else congedate.add(data.sessionUuid)
       }
-      return { root, panes }
+      return { root, panes, congedate }
     }),
 
   rinominaPane: (id, title) =>
@@ -301,7 +342,7 @@ export const useLayoutStore = create<State>((set, get) => ({
       return { panes: { ...s.panes, [paneId]: { ...pane, ptyId } } }
     }),
 
-  reset: () => set({ root: undefined, panes: {}, ceduti: new Set() }),
+  reset: () => set({ root: undefined, panes: {}, ceduti: new Set(), congedate: new Set() }),
 
   iberna: (paneId) => {
     const p = get().panes[paneId]
@@ -355,8 +396,6 @@ export const useLayoutStore = create<State>((set, get) => ({
     return { root, panes: salvati }
   },
 
-  carica: (l) => set(() => statoDa(l)),
-
   cambiaVista: (l) =>
     set((s) => {
       const uscenti = s.root === undefined ? [] : listPaneIds(s.root)
@@ -401,6 +440,14 @@ export const useLayoutStore = create<State>((set, get) => ({
 
   ceduti: new Set<string>(),
 
+  congedate: new Set<string>(),
+
+  congediDaMandare: () => {
+    const { panes, congedate } = get()
+    const aSchermo = new Set(Object.values(panes).map((p) => p.sessionUuid))
+    return [...congedate].filter((u) => !aSchermo.has(u))
+  },
+
   staccaPane: (paneId) => {
     const { panes, root } = get()
     const p = panes[paneId]
@@ -429,6 +476,9 @@ export const useLayoutStore = create<State>((set, get) => ({
       // `ceduti` dice al Terminal di staccare invece di chiudere quando la
       // pulizia dell'effetto partira', un istante dopo questo `set`.
       ceduti: new Set([...s.ceduti, paneId]),
+      // E `congedate` dice al Core la stessa cosa per il file su disco: questa
+      // chat esce di qui perché qualcuno l'ha mandata altrove, non da sola.
+      congedate: new Set([...s.congedate, p.sessionUuid]),
       root: removePane(root, paneId)
     }))
     return dati
@@ -451,6 +501,12 @@ export const useLayoutStore = create<State>((set, get) => ({
         // se il terminale va rilanciato: vale la stessa regola di `addPane`.
         title: normalizzaTitolo(pane.title),
         ...(pane.ptyId !== undefined ? { ptyId: pane.ptyId } : {}),
+        // Il modello e il sonno arrivano con lei: `staccaPane` li mette nel
+        // pacco da tempo, ma qui si aprivano e si buttavano via — una chat
+        // spostata fra due finestre tornava al modello predefinito, e una che
+        // dormiva si risvegliava da sola accendendo un claude.exe non chiesto.
+        ...(pane.model !== undefined ? { model: pane.model } : {}),
+        ...(pane.ibernata === true ? { ibernata: true } : {}),
         // Il padrone arriva con la chat: chi la accoglie deve saperlo, o al
         // primo rilancio del terminale gli hook non ci sarebbero piu'.
         ...(pane.autopilota !== undefined ? { autopilota: pane.autopilota } : {})

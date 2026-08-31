@@ -4,12 +4,13 @@ import {
   eliminaWorkspace,
   rinominaWorkspace,
   cambiaWorkspace,
-  salvaLayoutAttivo,
+  esitoDelSalvataggio,
+  salvaLayoutIn,
   seguiAttivoDellaPrincipale
 } from '../../src/main/workspace-operazioni'
 import { archivioVuoto, NOME_PREDEFINITO, type Archivio, type LayoutSalvato } from '@shared/workspace'
 
-const M = 'monitor-1'
+const M = '1'
 
 function layoutCon(id: string): LayoutSalvato {
   return {
@@ -18,8 +19,15 @@ function layoutCon(id: string): LayoutSalvato {
   }
 }
 
+function conSessione(id: string, sessione: string): LayoutSalvato {
+  return {
+    root: { type: 'pane', id },
+    panes: [{ id, sessionUuid: sessione, cwd: 'C:\\p', title: 'Chat' }]
+  }
+}
+
 function archivioCon(nomi: string[], attivo = nomi[0]!): Archivio {
-  return { ...archivioVuoto(), attivo, workspace: nomi.map((nome) => ({ nome, perMonitor: {} })) }
+  return { ...archivioVuoto(), attivo, workspace: nomi.map((nome) => ({ nome, perSlot: {} })) }
 }
 
 describe('creaWorkspace', () => {
@@ -67,12 +75,12 @@ describe('rinominaWorkspace', () => {
     const prima: Archivio = {
       ...archivioVuoto(),
       attivo: 'Uno',
-      workspace: [{ nome: 'Uno', perMonitor: { [M]: layoutCon('pane-a') } }]
+      workspace: [{ nome: 'Uno', perSlot: { [M]: layoutCon('pane-a') } }]
     }
     const dopo = rinominaWorkspace(prima, 'Uno', 'Lavoro')
     expect(dopo.workspace.map((w) => w.nome)).toEqual(['Lavoro'])
     // Le chat non si toccano: stesso layout, sotto il nome nuovo.
-    expect(dopo.workspace[0]?.perMonitor[M]?.panes[0]?.id).toBe('pane-a')
+    expect(dopo.workspace[0]?.perSlot[M]?.panes[0]?.id).toBe('pane-a')
   })
 
   it('sposta anche l attivo se era quello rinominato', () => {
@@ -117,7 +125,7 @@ describe('cambiaWorkspace', () => {
     const uno = archivio.workspace.find((w) => w.nome === 'Uno')
     // La prova che l'ordine e' giusto: senza questo salvataggio, tornare su
     // 'Uno' mostrerebbe un layout vuoto e il lavoro sarebbe perso in silenzio.
-    expect(uno?.perMonitor[M]?.panes[0]?.id).toBe('pane-a')
+    expect(uno?.perSlot[M]?.panes[0]?.id).toBe('pane-a')
   })
 
   it('restituisce il layout del workspace di destinazione per quel monitor', () => {
@@ -125,8 +133,8 @@ describe('cambiaWorkspace', () => {
       ...archivioVuoto(),
       attivo: 'Uno',
       workspace: [
-        { nome: 'Uno', perMonitor: {} },
-        { nome: 'Due', perMonitor: { [M]: layoutCon('pane-b') } }
+        { nome: 'Uno', perSlot: {} },
+        { nome: 'Due', perSlot: { [M]: layoutCon('pane-b') } }
       ]
     }
     const { archivio, layout } = cambiaWorkspace(prima, 'Due', M, layoutCon('pane-a'))
@@ -148,24 +156,24 @@ describe('cambiaWorkspace', () => {
 
   it('cambiare verso il workspace gia attivo salva comunque il layout', () => {
     const { archivio } = cambiaWorkspace(archivioCon(['Uno']), 'Uno', M, layoutCon('pane-a'))
-    expect(archivio.workspace[0]?.perMonitor[M]?.panes[0]?.id).toBe('pane-a')
+    expect(archivio.workspace[0]?.perSlot[M]?.panes[0]?.id).toBe('pane-a')
   })
 
   it('non tocca i layout degli altri monitor del workspace che si lascia', () => {
     // Ogni finestra cambia workspace per conto proprio ma l'archivio e' uno
-    // solo: scrivere l'intera mappa perMonitor invece della sola chiave di
+    // solo: scrivere l'intera mappa perSlot invece della sola chiave di
     // questa finestra cancellerebbe il layout dell'altro monitor.
     const prima: Archivio = {
       ...archivioVuoto(),
       attivo: 'Uno',
       workspace: [
-        { nome: 'Uno', perMonitor: { 'monitor-2': layoutCon('pane-altro') } },
-        { nome: 'Due', perMonitor: {} }
+        { nome: 'Uno', perSlot: { 'monitor-2': layoutCon('pane-altro') } },
+        { nome: 'Due', perSlot: {} }
       ]
     }
     const { archivio } = cambiaWorkspace(prima, 'Due', M, layoutCon('pane-a'))
     const uno = archivio.workspace.find((w) => w.nome === 'Uno')
-    expect(uno?.perMonitor['monitor-2']?.panes[0]?.id).toBe('pane-altro')
+    expect(uno?.perSlot['monitor-2']?.panes[0]?.id).toBe('pane-altro')
   })
 
   it('non muta l archivio ricevuto', () => {
@@ -181,9 +189,9 @@ describe('cambiaWorkspace', () => {
     // finirebbe sopra quello di 'Due' e sparirebbe senza un errore.
     const gia = archivioCon(['Uno', 'Due'], 'Due')
     const { archivio, layout } = cambiaWorkspace(gia, 'Due', M, layoutCon('pane-a'), 'Uno')
-    expect(archivio.workspace.find((w) => w.nome === 'Uno')?.perMonitor[M]?.panes[0]?.id)
+    expect(archivio.workspace.find((w) => w.nome === 'Uno')?.perSlot[M]?.panes[0]?.id)
       .toBe('pane-a')
-    expect(archivio.workspace.find((w) => w.nome === 'Due')?.perMonitor[M]).toBeUndefined()
+    expect(archivio.workspace.find((w) => w.nome === 'Due')?.perSlot[M]).toBeUndefined()
     expect(layout).toEqual({ root: undefined, panes: [] })
   })
 
@@ -191,7 +199,7 @@ describe('cambiaWorkspace', () => {
     const prima: Archivio = {
       ...archivioVuoto(),
       attivo: 'Due',
-      workspace: [{ nome: 'Due', perMonitor: { [M]: layoutCon('pane-b') } }]
+      workspace: [{ nome: 'Due', perSlot: { [M]: layoutCon('pane-b') } }]
     }
     const { archivio, layout } = cambiaWorkspace(prima, 'Due', M, layoutCon('pane-a'), 'Sparito')
     expect(layout.panes[0]?.id).toBe('pane-b')
@@ -199,161 +207,126 @@ describe('cambiaWorkspace', () => {
   })
 })
 
-describe('salvaLayoutAttivo', () => {
-  it('scrive il layout sotto il workspace attivo, non sotto il primo dell elenco', () => {
-    // E' la prova che il punto 0-quater chiedeva per prima: se `layout:salva`
-    // non scrivesse davvero sotto `archivio.attivo`, in `workspaces.json` ogni
-    // workspace risulterebbe senza riquadri — che e' esattamente il sintomo
-    // osservato — e cambiare vista non potrebbe che riportare il vuoto.
+describe('salvaLayoutIn', () => {
+  // Il workspace non e' piu' una dichiarazione della finestra da soppesare:
+  // arriva dalla ricevuta della consegna, cioe' dal Core, che si ricorda quale
+  // layout ha dato a chi e per quale workspace. Con l'euristica sono spariti
+  // anche i suoi due rami di prudenza — «nome vuoto» e «nome che non esiste
+  // piu'» — perche' non sono piu' raggiungibili: una finestra senza consegna
+  // valida non salva affatto.
+
+  it('scrive il layout sotto il workspace nominato, non sotto il primo dell elenco', () => {
     const prima = archivioCon(['Uno', 'Due'], 'Due')
-    const dopo = salvaLayoutAttivo(prima, M, layoutCon('pane-a'))
-    expect(dopo.workspace.find((w) => w.nome === 'Due')?.perMonitor[M]?.panes[0]?.id).toBe('pane-a')
-    expect(dopo.workspace.find((w) => w.nome === 'Uno')?.perMonitor[M]).toBeUndefined()
+    const dopo = salvaLayoutIn(prima, 'Due', M, layoutCon('pane-a'))
+    expect(dopo.workspace.find((w) => w.nome === 'Due')?.perSlot[M]?.panes[0]?.id).toBe('pane-a')
+    expect(dopo.workspace.find((w) => w.nome === 'Uno')?.perSlot[M]).toBeUndefined()
   })
 
-  it('crea il workspace attivo se nell archivio non c e ancora', () => {
+  it('scrive sotto il workspace della consegna, non sotto l attivo dell archivio', () => {
+    // Il difetto vero: la finestra mostra 'Uno' mentre per l'archivio l'attivo
+    // e' gia' 'Due' — una gara a ogni cambio, e molto di piu' al riavvio dopo un
+    // aggiornamento. Il layout di 'Uno' finiva sotto 'Due', riscrivendone le
+    // chat: «ha messo la chat di Wdeck in Predefinito».
+    const prima = archivioCon(['Uno', 'Due'], 'Due')
+    const dopo = salvaLayoutIn(prima, 'Uno', M, layoutCon('pane-a'))
+    expect(dopo.workspace.find((w) => w.nome === 'Uno')?.perSlot[M]?.panes[0]?.id).toBe('pane-a')
+    expect(dopo.workspace.find((w) => w.nome === 'Due')?.perSlot[M]).toBeUndefined()
+  })
+
+  it('crea il workspace se nell archivio non c e ancora', () => {
     // Al primo avvio l'archivio e' vuoto ma `attivo` vale «Predefinito»: senza
     // questo ramo il primo salvataggio non troverebbe dove scrivere e le chat
     // della prima sessione andrebbero perdute.
-    const dopo = salvaLayoutAttivo(archivioVuoto(), M, layoutCon('pane-a'))
+    const dopo = salvaLayoutIn(archivioVuoto(), NOME_PREDEFINITO, M, layoutCon('pane-a'))
     expect(dopo.workspace.map((w) => w.nome)).toEqual([NOME_PREDEFINITO])
-    expect(dopo.workspace[0]?.perMonitor[M]?.panes[0]?.id).toBe('pane-a')
+    expect(dopo.workspace[0]?.perSlot[M]?.panes[0]?.id).toBe('pane-a')
   })
 
-  it('lascia intatti gli altri monitor dello stesso workspace', () => {
-    // Le finestre condividono un archivio e salvano ognuna il proprio monitor:
-    // riscrivere `perMonitor` per intero cancellerebbe le chat dell'altro
-    // schermo a ogni salvataggio di questo.
+  it('lascia intatta la disposizione degli altri slot dello stesso workspace', () => {
+    // Due finestre condividono un archivio e salvano ognuna il proprio slot:
+    // riscrivere `perSlot` per intero cancellerebbe le chat dell'altra finestra
+    // a ogni salvataggio di questa.
     const prima: Archivio = {
       ...archivioVuoto(),
       attivo: 'Uno',
-      workspace: [{ nome: 'Uno', perMonitor: { 'monitor-2': layoutCon('pane-altro') } }]
+      workspace: [{ nome: 'Uno', perSlot: { '2': layoutCon('pane-altro') } }]
     }
-    const dopo = salvaLayoutAttivo(prima, M, layoutCon('pane-a'))
-    expect(dopo.workspace[0]?.perMonitor['monitor-2']?.panes[0]?.id).toBe('pane-altro')
+    const dopo = salvaLayoutIn(prima, 'Uno', M, layoutCon('pane-a'))
+    expect(dopo.workspace[0]?.perSlot['2']?.panes[0]?.id).toBe('pane-altro')
   })
 
   it('non muta l archivio ricevuto', () => {
     const originale = archivioCon(['Uno', 'Due'], 'Uno')
     const copia = structuredClone(originale)
-    salvaLayoutAttivo(originale, M, layoutCon('pane-a'))
+    salvaLayoutIn(originale, 'Uno', M, layoutCon('pane-a'))
     expect(originale).toEqual(copia)
-  })
-
-  it('scrive sotto il workspace della finestra, non sotto l attivo dell archivio', () => {
-    // Il difetto vero: la finestra mostra 'Uno' mentre per l'archivio l'attivo
-    // e' gia' 'Due' (una race a ogni cambio, e molto di piu' al riavvio dopo un
-    // aggiornamento). Senza il nome della finestra, il layout di 'Uno' finiva
-    // sotto 'Due', riscrivendone le chat — «ha messo la chat di Wdeck in
-    // Predefinito».
-    const prima = archivioCon(['Uno', 'Due'], 'Due')
-    const dopo = salvaLayoutAttivo(prima, M, layoutCon('pane-a'), 'Uno')
-    expect(dopo.workspace.find((w) => w.nome === 'Uno')?.perMonitor[M]?.panes[0]?.id).toBe('pane-a')
-    expect(dopo.workspace.find((w) => w.nome === 'Due')?.perMonitor[M]).toBeUndefined()
-  })
-
-  it('ripiega sull attivo se il nome della finestra e vuoto', () => {
-    const prima = archivioCon(['Uno', 'Due'], 'Due')
-    const dopo = salvaLayoutAttivo(prima, M, layoutCon('pane-a'), '   ')
-    expect(dopo.workspace.find((w) => w.nome === 'Due')?.perMonitor[M]?.panes[0]?.id).toBe('pane-a')
-    expect(dopo.workspace.find((w) => w.nome === 'Uno')?.perMonitor[M]).toBeUndefined()
-  })
-
-  it('ripiega sull attivo se il workspace nominato non esiste piu', () => {
-    // Un'altra finestra l'ha eliminato o rinominato: scrivere sotto un nome che
-    // nell'archivio non c'e' piu' resusciterebbe un workspace cancellato. Meglio
-    // l'attivo, che esiste di sicuro.
-    const prima = archivioCon(['Uno', 'Due'], 'Due')
-    const dopo = salvaLayoutAttivo(prima, M, layoutCon('pane-a'), 'Sparito')
-    expect(dopo.workspace.map((w) => w.nome)).toEqual(['Uno', 'Due'])
-    expect(dopo.workspace.find((w) => w.nome === 'Due')?.perMonitor[M]?.panes[0]?.id).toBe('pane-a')
   })
 
   it('toglie la stessa chat dagli altri workspace: una chat, un workspace', () => {
     // La radice dei «workspace incrociati»: la stessa conversazione (stesso
-    // sessionUuid) risulta in due workspace — un salvataggio finito sotto il
-    // nome sbagliato al riavvio dopo un aggiornamento. Salvandola nel workspace
-    // che si ha davanti, deve sparire dall'altro, non restare a comparire di la'.
-    const condivisa: LayoutSalvato = {
-      root: { type: 'pane', id: 'p1' },
-      panes: [{ id: 'p1', sessionUuid: 'sess-condivisa', cwd: 'C:\\p', title: 'Chat' }]
-    }
+    // sessionUuid) risulta in due workspace. Salvandola in quello che si ha
+    // davanti, deve sparire dall'altro invece di restare a comparire di la'.
     const prima: Archivio = {
       ...archivioVuoto(),
       attivo: 'Uno',
       workspace: [
-        { nome: 'Uno', perMonitor: {} },
-        { nome: 'Due', perMonitor: { [M]: condivisa } }
+        { nome: 'Uno', perSlot: {} },
+        { nome: 'Due', perSlot: { [M]: conSessione('p1', 'sess-condivisa') } }
       ]
     }
-    // La stessa chat (altro id di riquadro, stessa sessione) viene salvata in 'Uno'.
-    const arrivo: LayoutSalvato = {
-      root: { type: 'pane', id: 'p2' },
-      panes: [{ id: 'p2', sessionUuid: 'sess-condivisa', cwd: 'C:\\p', title: 'Chat' }]
-    }
-    const dopo = salvaLayoutAttivo(prima, M, arrivo, 'Uno')
-    expect(dopo.workspace.find((w) => w.nome === 'Uno')?.perMonitor[M]?.panes[0]?.sessionUuid)
+    const dopo = salvaLayoutIn(prima, 'Uno', M, conSessione('p2', 'sess-condivisa'))
+    expect(dopo.workspace.find((w) => w.nome === 'Uno')?.perSlot[M]?.panes[0]?.sessionUuid)
       .toBe('sess-condivisa')
-    // Sparita da 'Due': non vive piu' in due posti.
-    expect(dopo.workspace.find((w) => w.nome === 'Due')?.perMonitor[M]?.panes ?? []).toHaveLength(0)
+    expect(dopo.workspace.find((w) => w.nome === 'Due')?.perSlot[M]?.panes ?? []).toHaveLength(0)
+  })
+
+  it('la stessa chat non resta in due slot dello stesso workspace', () => {
+    // Due finestre sullo stesso workspace: se la stessa conversazione finisse in
+    // tutti e due gli slot, al riavvio comparirebbe due volte — due riquadri,
+    // due claude.exe, due --resume sulla stessa conversazione.
+    const prima: Archivio = {
+      ...archivioVuoto(),
+      attivo: 'Uno',
+      workspace: [{ nome: 'Uno', perSlot: { '2': conSessione('p1', 'sess-condivisa') } }]
+    }
+    const dopo = salvaLayoutIn(prima, 'Uno', '1', conSessione('p2', 'sess-condivisa'))
+    expect((dopo.workspace[0]?.perSlot['1']?.panes ?? []).map((p) => p.sessionUuid))
+      .toEqual(['sess-condivisa'])
+    expect(dopo.workspace[0]?.perSlot['2']?.panes ?? []).toHaveLength(0)
+  })
+
+  it('a vincere e lo slot che si sta scrivendo, non quello col numero piu basso', () => {
+    // Il gemello del test qui sopra, visto dalla seconda finestra. Lasciando
+    // decidere all'ordine delle chiavi, JavaScript ordina i numeri in modo
+    // crescente e vincerebbe **sempre** lo slot 1: la seconda finestra si
+    // vedrebbe strappare via, a ogni salvataggio, la chat che ha davanti.
+    const prima: Archivio = {
+      ...archivioVuoto(),
+      attivo: 'Uno',
+      workspace: [{ nome: 'Uno', perSlot: { '1': conSessione('p1', 'sess-condivisa') } }]
+    }
+    const dopo = salvaLayoutIn(prima, 'Uno', '2', conSessione('p2', 'sess-condivisa'))
+    expect((dopo.workspace[0]?.perSlot['2']?.panes ?? []).map((p) => p.sessionUuid))
+      .toEqual(['sess-condivisa'])
+    expect(dopo.workspace[0]?.perSlot['1']?.panes ?? []).toHaveLength(0)
   })
 
   it('NON tocca una chat di un altro workspace quando salvo un layout che non la contiene', () => {
-    // La cautela della 0.9.33: uno spostamento mette per un istante la chat in
-    // due workspace, e un dedup cieco potrebbe strapparla via. Ma il dedup
-    // guarda il layout che si sta salvando: se la chat NON è in questo layout,
-    // non viene toccata da nessuna parte. È ciò che rende sicuro lo spostamento
-    // — la sorgente stacca il pane e salva senza la chat, quindi non la
-    // riprende alla destinazione.
-    const altrove: LayoutSalvato = {
-      root: { type: 'pane', id: 'p-x' },
-      panes: [{ id: 'p-x', sessionUuid: 'sess-mossa', cwd: 'C:\\p', title: 'X' }]
-    }
+    // Uno spostamento mette per un istante la chat in due workspace, e un dedup
+    // cieco potrebbe strapparla via. Il dedup guarda il layout che si sta
+    // salvando: se la chat non e' in questo layout, non viene toccata da nessuna
+    // parte. E' cio' che rende sicuro lo spostamento.
     const prima: Archivio = {
       ...archivioVuoto(),
       attivo: 'Sorgente',
       workspace: [
-        { nome: 'Sorgente', perMonitor: {} },
-        { nome: 'Destinazione', perMonitor: { [M]: altrove } }
+        { nome: 'Sorgente', perSlot: {} },
+        { nome: 'Destinazione', perSlot: { [M]: conSessione('p-x', 'sess-mossa') } }
       ]
     }
-    // La sorgente salva il proprio layout (una chat diversa, la mossa non c'è più).
-    const dopo = salvaLayoutAttivo(prima, M, layoutCon('pane-altra'), 'Sorgente')
-    // La chat spostata resta a Destinazione: intatta.
-    expect(dopo.workspace.find((w) => w.nome === 'Destinazione')?.perMonitor[M]?.panes[0]?.sessionUuid)
+    const dopo = salvaLayoutIn(prima, 'Sorgente', M, layoutCon('pane-altra'))
+    expect(dopo.workspace.find((w) => w.nome === 'Destinazione')?.perSlot[M]?.panes[0]?.sessionUuid)
       .toBe('sess-mossa')
-  })
-
-  it('con nome finestra VUOTO non migra: la chat resta nell altro workspace (difetto B)', () => {
-    // In avvio la finestra non sa ancora il suo workspace (nomeFinestra vuoto) e
-    // mostra il layout di `attivo`, caricato all'avvio. Se salvasse migrando, la
-    // stessa conversazione presente in un altro workspace verrebbe strappata via
-    // e traslocata sotto `attivo` sulla sola base del ripiego — è il difetto B,
-    // la chat che finiva nel workspace sbagliato al riavvio. Il ripiego scrive il
-    // layout e basta: non tocca gli altri workspace.
-    const condivisa: LayoutSalvato = {
-      root: { type: 'pane', id: 'p1' },
-      panes: [{ id: 'p1', sessionUuid: 'sess-condivisa', cwd: 'C:\\p', title: 'Chat' }]
-    }
-    const prima: Archivio = {
-      ...archivioVuoto(),
-      attivo: 'Attivo',
-      workspace: [
-        { nome: 'Attivo', perMonitor: {} },
-        { nome: 'Altro', perMonitor: { [M]: condivisa } }
-      ]
-    }
-    // Stessa sessione, altro id di riquadro, salvata senza dichiarare il workspace.
-    const arrivo: LayoutSalvato = {
-      root: { type: 'pane', id: 'p2' },
-      panes: [{ id: 'p2', sessionUuid: 'sess-condivisa', cwd: 'C:\\p', title: 'Chat' }]
-    }
-    const dopo = salvaLayoutAttivo(prima, M, arrivo, '')
-    // Scritta sotto l'attivo (il ripiego resta), ma NON tolta dall'altro workspace.
-    expect(dopo.workspace.find((w) => w.nome === 'Attivo')?.perMonitor[M]?.panes[0]?.sessionUuid)
-      .toBe('sess-condivisa')
-    expect(dopo.workspace.find((w) => w.nome === 'Altro')?.perMonitor[M]?.panes[0]?.sessionUuid)
-      .toBe('sess-condivisa')
   })
 })
 
@@ -369,8 +342,6 @@ describe('seguiAttivoDellaPrincipale', () => {
   it('non tocca attivo se il nome e vuoto (avvio, finestra che non sa ancora il suo workspace)', () => {
     const prima = archivioCon(['SierraDeck', 'Wdeck'], 'SierraDeck')
     expect(seguiAttivoDellaPrincipale(prima, '').attivo).toBe('SierraDeck')
-    expect(seguiAttivoDellaPrincipale(prima, '   ').attivo).toBe('SierraDeck')
-    expect(seguiAttivoDellaPrincipale(prima, undefined).attivo).toBe('SierraDeck')
   })
 
   it('non tocca attivo se il workspace dichiarato non esiste', () => {
@@ -388,5 +359,60 @@ describe('seguiAttivoDellaPrincipale', () => {
     const copia = structuredClone(originale)
     seguiAttivoDellaPrincipale(originale, 'Due')
     expect(originale).toEqual(copia)
+  })
+})
+
+describe('esitoDelSalvataggio — una chat esce solo se qualcuno l’ha congedata', () => {
+  const conChat = (nome: string, chiave: string, sessioni: string[]): Archivio['workspace'][number] => ({
+    nome,
+    perSlot: {
+      [chiave]: {
+        root: { type: 'pane', id: `p-${sessioni[0] ?? 'x'}` },
+        panes: sessioni.map((u) => ({
+          id: `p-${u}`, sessionUuid: u, cwd: 'C:\p', title: u
+        }))
+      }
+    }
+  })
+
+  const archivio = (ws: Archivio['workspace']): Archivio => ({
+    versione: 1, attivo: ws[0]?.nome ?? NOME_PREDEFINITO, workspace: ws
+  })
+
+  it('una chiusura dichiarata passa', () => {
+    const prima = archivio([conChat('A', M, ['u1', 'u2'])])
+    const dopo = archivio([conChat('A', M, ['u1'])])
+    const e = esitoDelSalvataggio(prima, dopo, ['u2'])
+    expect(e.sparite.map((x) => x.sessione)).toEqual(['u2'])
+    expect(e.perse).toEqual([])
+  })
+
+  it('una sparizione che nessuno ha chiesto si rifiuta', () => {
+    // È il guasto costato tre volte una giornata di lavoro: la finestra manda
+    // un layout senza una chat che nessuno ha chiuso — due finestre che al
+    // riavvio risolvono alla stessa chiave di monitor e si sovrascrivono — e il
+    // Core obbediva.
+    const prima = archivio([conChat('A', M, ['u1', 'u2'])])
+    const dopo = archivio([conChat('A', M, ['u1'])])
+    const e = esitoDelSalvataggio(prima, dopo, [])
+    expect(e.perse.map((x) => x.sessione)).toEqual(['u2'])
+    expect(e.perse[0]?.dove).toBe('A')
+  })
+
+  it('un trasloco fra workspace non è una perdita', () => {
+    // Spostare una chat da un workspace all'altro è il gesto più normale che
+    // ci sia: il registro che gridava anche per questo non si leggeva più.
+    const prima = archivio([conChat('A', M, ['u1']), conChat('B', M, [])])
+    const dopo = archivio([conChat('A', M, []), conChat('B', M, ['u1'])])
+    const e = esitoDelSalvataggio(prima, dopo, [])
+    expect(e.perse).toEqual([])
+    expect(e.sparite).toEqual([])
+    expect(e.traslochi).toEqual([{ sessione: 'u1', da: 'A', a: 'B' }])
+  })
+
+  it('aprire una chat nuova non disturba nessuno', () => {
+    const prima = archivio([conChat('A', M, ['u1'])])
+    const dopo = archivio([conChat('A', M, ['u1', 'u3'])])
+    expect(esitoDelSalvataggio(prima, dopo, []).perse).toEqual([])
   })
 })

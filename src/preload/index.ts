@@ -93,6 +93,30 @@ export type RichiestaVista = {
 // `env` non e' piu' esposto: GESTORE_CLAUDE_PATH serviva al renderer solo per
 // scegliere l'eseguibile da lanciare, decisione che ora vive nel Core. Il ponte
 // espone la stessa funzionalita' con una variabile d'ambiente in meno.
+/**
+ * Lo **scontrino** dell'ultima consegna di layout a questa finestra.
+ *
+ * Vive qui, nel ponte, e non nella logica del renderer, perché è una proprietà
+ * del canale e non del lavoro: ogni strada per cui un layout **arriva** passa di
+ * qua, e ogni salvataggio riparte da qua. Tenerlo altrove vorrebbe dire
+ * ricordarsi di passarlo in cinque punti diversi, e il giorno che uno se ne
+ * dimentica il Core torna a ricevere salvataggi senza provenienza — cioè il
+ * guasto che tutto questo esiste per chiudere.
+ *
+ * Parte da `0`, che non è nessuna consegna: una finestra che non ha ancora
+ * ricevuto il suo layout non può salvare, ed è giusto così — non sa ancora cosa
+ * c'era prima di lei, e quello che ha a schermo non è una descrizione del mondo.
+ */
+let scontrino = 0
+
+type ConScontrino = { layout: LayoutSalvato; scontrino: number }
+
+/** Registra la ricevuta e passa avanti il layout. */
+function ricevi(c: ConScontrino): LayoutSalvato {
+  scontrino = c.scontrino
+  return c.layout
+}
+
 contextBridge.exposeInMainWorld('gestore', {
   pty: {
     spawn: (req: SpawnRequest): Promise<string> => ipcRenderer.invoke('pty:spawn', req),
@@ -562,9 +586,15 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('etichette:imposta', uuid, testo)
   },
   layout: {
-    carica: (): Promise<LayoutSalvato> => ipcRenderer.invoke('layout:carica'),
-    salva: (l: LayoutSalvato, workspace?: string): void =>
-      ipcRenderer.send('layout:salva', l, workspace),
+    carica: async (): Promise<LayoutSalvato> => ricevi(await ipcRenderer.invoke('layout:carica')),
+    /**
+     * `congedate` sono le conversazioni che qualcuno ha chiuso o mandato
+     * altrove. Senza, il Core non può distinguere una chat che se ne va perché
+     * l'hai chiusa da una che sparisce da sola — e le tratta uguali, cioè le
+     * cancella tutte e due.
+     */
+    salva: (l: LayoutSalvato, congedate?: string[]): void =>
+      ipcRenderer.send('layout:salva', l, scontrino, congedate),
     /**
      * Il Core chiede a questa finestra com'è disposta adesso: succede quando si
      * salva una sessione, che deve contenere **tutte** le finestre e non solo
@@ -595,7 +625,7 @@ contextBridge.exposeInMainWorld('gestore', {
      * riempie questa finestra invece di aprirne una nuova.
      */
     suApplica: (cb: (l: LayoutSalvato) => void): (() => void) => {
-      const h = (_e: unknown, l: LayoutSalvato): void => cb(l)
+      const h = (_e: unknown, c: ConScontrino): void => cb(ricevi(c))
       ipcRenderer.on('layout:applica', h)
       return () => ipcRenderer.off('layout:applica', h)
     }
@@ -660,7 +690,8 @@ contextBridge.exposeInMainWorld('gestore', {
     elenca: (): Promise<Istantanea[]> => ipcRenderer.invoke('istantanee:elenca'),
     salva: (nome: string, layout: LayoutSalvato, conAutopiloti: boolean): Promise<Istantanea[]> =>
       ipcRenderer.invoke('istantanee:salva', nome, layout, conAutopiloti),
-    carica: (nome: string): Promise<LayoutSalvato> => ipcRenderer.invoke('istantanee:carica', nome),
+    carica: async (nome: string): Promise<LayoutSalvato> =>
+      ricevi(await ipcRenderer.invoke('istantanee:carica', nome)),
     elimina: (nome: string): Promise<Istantanea[]> => ipcRenderer.invoke('istantanee:elimina', nome)
   },
   workspace: {
@@ -672,10 +703,10 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('workspace:elimina', nome),
     rinomina: (vecchio: string, nuovo: string): Promise<StatoWorkspace> =>
       ipcRenderer.invoke('workspace:rinomina', vecchio, nuovo),
-    cambia: (nome: string, layout: LayoutSalvato): Promise<LayoutSalvato> =>
-      ipcRenderer.invoke('workspace:cambia', nome, layout),
-    migra: (da: string, nome: string, layout: LayoutSalvato): Promise<LayoutSalvato> =>
-      ipcRenderer.invoke('workspace:migra', da, nome, layout),
+    cambia: async (nome: string, layout: LayoutSalvato): Promise<LayoutSalvato> =>
+      ricevi(await ipcRenderer.invoke('workspace:cambia', nome, layout, scontrino)),
+    migra: async (da: string, nome: string, layout: LayoutSalvato): Promise<LayoutSalvato> =>
+      ricevi(await ipcRenderer.invoke('workspace:migra', da, nome, layout, scontrino)),
     /** Manda una chat in un workspace che non è aperto in nessuna finestra. */
     spostaChat: (nome: string, pane: PaneSalvato): Promise<boolean> =>
       ipcRenderer.invoke('workspace:spostaChat', nome, pane),

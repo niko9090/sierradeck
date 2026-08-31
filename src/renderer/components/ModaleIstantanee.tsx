@@ -113,7 +113,12 @@ export function ModaleIstantanee({
   const carica = (i: Istantanea): void =>
     esegui(async () => {
       const layout = await window.gestore.istantanee.carica(i.nome)
-      useLayoutStore.getState().carica(layout)
+      // `cambiaVista` e non una sostituzione secca: i riquadri che escono di
+      // scena vanno fra i «ceduti», che e' l'unico segnale con cui il `Terminal`
+      // capisce di dover **staccare** invece di chiudere. Senza, ripristinare
+      // un salvataggio uccideva il `claude.exe` di ogni chat che il salvataggio
+      // non nomina — chat che continuano a esistere, in un altro workspace.
+      useLayoutStore.getState().cambiaVista(layout)
       onChiudi()
     })
 

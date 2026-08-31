@@ -11,7 +11,7 @@ function archivio(): Archivio {
     workspace: [
       {
         nome: 'lavoro',
-        perMonitor: {
+        perSlot: {
           'm-1': {
             root: { type: 'pane', id: 'p-1' },
             panes: [{ id: 'p-1', sessionUuid: 's-lavoro', cwd: 'C:\\a', title: 'A' }]
@@ -20,7 +20,7 @@ function archivio(): Archivio {
       },
       {
         nome: 'casa',
-        perMonitor: {
+        perSlot: {
           'm-1': {
             root: { type: 'pane', id: 'p-2' },
             panes: [{ id: 'p-2', sessionUuid: 's-casa', cwd: 'C:\\b', title: 'B' }]

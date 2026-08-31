@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  creaUltimeRighe, senzaColori, terminalePronto, ultimaRigaUtile
+  chatAspetta, creaUltimeRighe, senzaColori, terminalePronto, ultimaRigaUtile
 } from '../../src/renderer/ultime-righe'
 
 const ESC = String.fromCharCode(27)
@@ -162,5 +162,42 @@ describe('un terminale che e morto', () => {
     r.segnaMorto('pty-1')
     const morto = r.attivitaDi('pty-1')
     expect(terminalePronto(morto, morto.ultimoDato + 5000)).toBe(false)
+  })
+})
+
+describe('chatAspetta — due fonti invece di una', () => {
+  const schermoFermo = ['> ', '  ? for shortcuts', '❯ ']
+  const schermoAlLavoro = ['✻ Sto pensando…', '  (esc to interrupt)']
+
+  it('quando il flusso ha visto il prompt comanda il flusso', () => {
+    const a = { ultimoDato: 1000, prontoVisto: true }
+    expect(chatAspetta(a, schermoAlLavoro, 5000)).toBe(true)
+    // Ancora dentro la quiete: sta ridisegnando, non si scrive.
+    expect(chatAspetta(a, schermoFermo, 1100)).toBe(false)
+  })
+
+  it('un terminale morto non aspetta nessuno, qualunque cosa dica lo schermo', () => {
+    expect(chatAspetta({ ultimoDato: 0, prontoVisto: true, morto: true }, schermoFermo, 9000))
+      .toBe(false)
+  })
+
+  it('il riquadro riagganciato dopo un riavvio: tace perché ha finito', () => {
+    // È il difetto pagato aggiornando. Il flusso non ha mai parlato — la chat
+    // era già ferma quando la finestra è nata — e per il solo flusso risultava
+    // «con qualcosa in mano»: l'aggiornamento le scriveva dentro «finisci
+    // quello che stai facendo» a una chat ferma da ore.
+    const maiParlato = { ultimoDato: 0, prontoVisto: false }
+    expect(chatAspetta(maiParlato, schermoFermo, 9_000_000)).toBe(true)
+  })
+
+  it('ma se lo schermo dice che sta lavorando, non si tocca', () => {
+    expect(chatAspetta({ ultimoDato: 0, prontoVisto: false }, schermoAlLavoro, 9_000_000))
+      .toBe(false)
+  })
+
+  it('schermo assente o muto: si resta prudenti', () => {
+    const maiParlato = { ultimoDato: 0, prontoVisto: false }
+    expect(chatAspetta(maiParlato, undefined, 9_000_000)).toBe(false)
+    expect(chatAspetta(maiParlato, ['npm install in corso'], 9_000_000)).toBe(false)
   })
 })

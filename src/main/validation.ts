@@ -2,7 +2,7 @@ import { statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
 import { TITOLO_MAX, titoloPericoloso } from '@shared/titolo'
-import { parseArchivio, VERSIONE_ARCHIVIO, NOME_PREDEFINITO, type LayoutSalvato } from '@shared/workspace'
+import { parseArchivio, VERSIONE_ARCHIVIO, NOME_PREDEFINITO, SLOT_PRIMO, type LayoutSalvato } from '@shared/workspace'
 import { TETTO_CHAT_MAX } from '@shared/autopilota'
 
 /**
@@ -443,9 +443,9 @@ export function validateLayoutSalvato(raw: unknown): { layout: LayoutSalvato; sc
   const { archivio, scartati } = parseArchivio({
     versione: VERSIONE_ARCHIVIO,
     attivo: NOME_PREDEFINITO,
-    workspace: [{ nome: NOME_PREDEFINITO, perMonitor: { x: raw } }]
+    workspace: [{ nome: NOME_PREDEFINITO, perSlot: { [SLOT_PRIMO]: raw } }]
   })
-  const layout = archivio.workspace[0]?.perMonitor['x'] ?? { root: undefined, panes: [] }
+  const layout = archivio.workspace[0]?.perSlot[SLOT_PRIMO] ?? { root: undefined, panes: [] }
   return { layout, scartati }
 }
 

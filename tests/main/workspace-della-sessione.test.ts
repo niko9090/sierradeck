@@ -7,7 +7,7 @@ const archivio = {
   workspace: [
     {
       nome: 'giochi',
-      perMonitor: {
+      perSlot: {
         'm-1': {
           root: undefined,
           panes: [
@@ -18,7 +18,7 @@ const archivio = {
     },
     {
       nome: 'progetti',
-      perMonitor: {
+      perSlot: {
         'm-1': { root: undefined, panes: [{ id: 'p-9', cwd: 'C:\altro', sessionUuid: 'sess-altro' }] }
       }
     }

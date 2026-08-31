@@ -11,7 +11,7 @@ import type { Archivio } from './workspace'
 export function workspaceDelleSessioni(archivio: Archivio): Record<string, string> {
   const dove: Record<string, string> = {}
   for (const ws of archivio.workspace) {
-    for (const layout of Object.values(ws.perMonitor)) {
+    for (const layout of Object.values(ws.perSlot)) {
       for (const pane of layout.panes) {
         // Il primo che la nomina vince: la stessa chat in due workspace non
         // dovrebbe accadere, e se accade è più utile un nome qualunque che

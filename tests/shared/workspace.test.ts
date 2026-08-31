@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  parseArchivio, archivioVuoto, aggiungiPaneA, layoutPerFinestra, unicoLayout,
+  parseArchivio, archivioVuoto, aggiungiPaneA, layoutPerSlot, raccogliInUnoSlot,
   rimuoviSessioni, unaChatUnWorkspace,
   VERSIONE_ARCHIVIO, NOME_PREDEFINITO, type LayoutSalvato, type WorkspaceSalvato
 } from '@shared/workspace'
@@ -9,7 +9,7 @@ function archivioMinimo(layout: unknown): unknown {
   return {
     versione: VERSIONE_ARCHIVIO,
     attivo: NOME_PREDEFINITO,
-    workspace: [{ nome: NOME_PREDEFINITO, perMonitor: { m1: layout } }]
+    workspace: [{ nome: NOME_PREDEFINITO, perSlot: { '1': layout } }]
   }
 }
 
@@ -28,7 +28,7 @@ describe('parseArchivio', () => {
       panes: [{ id: 'pane-1', sessionUuid: 'u1', cwd: 'C:\\p', title: 'a' }]
     }))
     expect(scartati).toEqual([])
-    const l = archivio.workspace[0]?.perMonitor['m1']
+    const l = archivio.workspace[0]?.perSlot['1']
     expect(l?.root).toEqual({ type: 'pane', id: 'pane-1' })
     expect(l?.panes).toHaveLength(1)
   })
@@ -45,7 +45,7 @@ describe('parseArchivio', () => {
         { id: 'b', sessionUuid: 'u2', cwd: 'C:\\p', title: 'b' }
       ]
     }))
-    const root = archivio.workspace[0]?.perMonitor['m1']?.root
+    const root = archivio.workspace[0]?.perSlot['1']?.root
     expect(root?.type).toBe('split')
     if (root?.type === 'split') {
       expect(root.sizes.reduce((x, y) => x + y, 0)).toBeCloseTo(1)
@@ -63,7 +63,7 @@ describe('parseArchivio', () => {
       panes: [{ id: 'a', sessionUuid: 'u1', cwd: 'C:\\p', title: 'a' }]
     }))
     // Uno split con un solo figlio valido collassa su quel figlio.
-    expect(archivio.workspace[0]?.perMonitor['m1']?.root).toEqual({ type: 'pane', id: 'a' })
+    expect(archivio.workspace[0]?.perSlot['1']?.root).toEqual({ type: 'pane', id: 'a' })
     expect(scartati.length).toBeGreaterThan(0)
   })
 
@@ -76,7 +76,7 @@ describe('parseArchivio', () => {
       },
       panes: [{ id: 'a', sessionUuid: 'u1', cwd: 'C:\\p', title: 'a' }]
     }))
-    expect(archivio.workspace[0]?.perMonitor['m1']?.root).toEqual({ type: 'pane', id: 'a' })
+    expect(archivio.workspace[0]?.perSlot['1']?.root).toEqual({ type: 'pane', id: 'a' })
     expect(scartati.some((s) => s.includes('fantasma'))).toBe(true)
   })
 
@@ -85,7 +85,7 @@ describe('parseArchivio', () => {
       root: { type: 'pane', id: 'fantasma' },
       panes: []
     }))
-    expect(archivio.workspace[0]?.perMonitor['m1']?.root).toBeUndefined()
+    expect(archivio.workspace[0]?.perSlot['1']?.root).toBeUndefined()
     expect(scartati.some((s) => s.includes('fantasma'))).toBe(true)
   })
 
@@ -99,21 +99,21 @@ describe('parseArchivio', () => {
       panes: [{ id: 'DOPPIO', sessionUuid: 'u1', cwd: 'C:\\p', title: 'x' }]
     }))
     // Lo split resta con un figlio solo e collassa su quello.
-    expect(archivio.workspace[0]?.perMonitor['m1']?.root).toEqual({ type: 'pane', id: 'DOPPIO' })
+    expect(archivio.workspace[0]?.perSlot['1']?.root).toEqual({ type: 'pane', id: 'DOPPIO' })
     expect(scartati.some((s) => s.includes('DOPPIO'))).toBe(true)
   })
 
   it('lo stesso id in monitor diversi non e un duplicato', () => {
     const { archivio, scartati } = parseArchivio({
       versione: VERSIONE_ARCHIVIO, attivo: NOME_PREDEFINITO,
-      workspace: [{ nome: NOME_PREDEFINITO, perMonitor: {
-        m1: { root: { type: 'pane', id: 'X' }, panes: [{ id: 'X', sessionUuid: 'u1', cwd: 'C:\\p', title: 'a' }] },
-        m2: { root: { type: 'pane', id: 'X' }, panes: [{ id: 'X', sessionUuid: 'u2', cwd: 'C:\\p', title: 'b' }] }
+      workspace: [{ nome: NOME_PREDEFINITO, perSlot: {
+        '1': { root: { type: 'pane', id: 'X' }, panes: [{ id: 'X', sessionUuid: 'u1', cwd: 'C:\\p', title: 'a' }] },
+        '2': { root: { type: 'pane', id: 'X' }, panes: [{ id: 'X', sessionUuid: 'u2', cwd: 'C:\\p', title: 'b' }] }
       } }]
     })
     expect(scartati).toEqual([])
-    expect(archivio.workspace[0]?.perMonitor['m1']?.root).toEqual({ type: 'pane', id: 'X' })
-    expect(archivio.workspace[0]?.perMonitor['m2']?.root).toEqual({ type: 'pane', id: 'X' })
+    expect(archivio.workspace[0]?.perSlot['1']?.root).toEqual({ type: 'pane', id: 'X' })
+    expect(archivio.workspace[0]?.perSlot['2']?.root).toEqual({ type: 'pane', id: 'X' })
   })
 
   it('scarta i dati dei riquadri che non sono nell albero', () => {
@@ -124,7 +124,7 @@ describe('parseArchivio', () => {
         { id: 'orfano', sessionUuid: 'u2', cwd: 'C:\\p', title: 'b' }
       ]
     }))
-    expect(archivio.workspace[0]?.perMonitor['m1']?.panes.map((p) => p.id)).toEqual(['a'])
+    expect(archivio.workspace[0]?.perSlot['1']?.panes.map((p) => p.id)).toEqual(['a'])
   })
 
   // Il titolo che arriva da questo file e' un ingresso non fidato esattamente
@@ -136,14 +136,14 @@ describe('parseArchivio', () => {
       root: { type: 'pane', id: 'a' },
       panes: [{ id: 'a', sessionUuid: 'u1', cwd: 'C:\\p', title: '" --dangerously-skip-permissions "' }]
     }))
-    expect(archivio.workspace[0]?.perMonitor['m1']?.panes[0]?.title).not.toContain('"')
+    expect(archivio.workspace[0]?.perSlot['1']?.panes[0]?.title).not.toContain('"')
   })
 
   it('scarta un workspace senza nome e ne registra il motivo', () => {
     const { archivio, scartati } = parseArchivio({
       versione: VERSIONE_ARCHIVIO,
       attivo: NOME_PREDEFINITO,
-      workspace: [{ perMonitor: {} }, { nome: 'Buono', perMonitor: {} }]
+      workspace: [{ perSlot: {} }, { nome: 'Buono', perSlot: {} }]
     })
     expect(archivio.workspace.map((w) => w.nome)).toEqual(['Buono'])
     expect(scartati.length).toBeGreaterThan(0)
@@ -153,7 +153,7 @@ describe('parseArchivio', () => {
     const { archivio, scartati } = parseArchivio({
       versione: VERSIONE_ARCHIVIO,
       attivo: 'X',
-      workspace: [{ nome: 'X', perMonitor: {} }, { nome: 'X', perMonitor: {} }]
+      workspace: [{ nome: 'X', perSlot: {} }, { nome: 'X', perSlot: {} }]
     })
     expect(archivio.workspace).toHaveLength(1)
     expect(scartati.some((s) => s.includes('duplicato'))).toBe(true)
@@ -163,7 +163,7 @@ describe('parseArchivio', () => {
     const { archivio, scartati } = parseArchivio({
       versione: VERSIONE_ARCHIVIO + 1,
       attivo: 'x',
-      workspace: [{ nome: 'x', perMonitor: {} }]
+      workspace: [{ nome: 'x', perSlot: {} }]
     })
     expect(archivio.workspace).toEqual([])
     expect(scartati.some((s) => s.includes('versione'))).toBe(true)
@@ -173,7 +173,7 @@ describe('parseArchivio', () => {
     const { archivio } = parseArchivio({
       versione: VERSIONE_ARCHIVIO,
       attivo: 'inesistente',
-      workspace: [{ nome: 'Solo', perMonitor: {} }]
+      workspace: [{ nome: 'Solo', perSlot: {} }]
     })
     expect(archivio.attivo).toBe('Solo')
   })
@@ -261,48 +261,48 @@ describe('unaChatUnWorkspace', () => {
 
   it('tiene una chat doppia nel workspace prioritario e la toglie dagli altri', () => {
     const incrociato: WorkspaceSalvato[] = [
-      { nome: 'uno', perMonitor: { m: conChat('condivisa') } },
-      { nome: 'due', perMonitor: { m: conChat('condivisa') } }
+      { nome: 'uno', perSlot: { '1': conChat('condivisa') } },
+      { nome: 'due', perSlot: { '1': conChat('condivisa') } }
     ]
     const dopo = unaChatUnWorkspace(incrociato, 'due')
-    expect(dopo.find((w) => w.nome === 'due')?.perMonitor.m?.panes[0]?.sessionUuid).toBe('condivisa')
-    expect(dopo.find((w) => w.nome === 'uno')?.perMonitor.m?.panes).toEqual([])
+    expect(dopo.find((w) => w.nome === 'due')?.perSlot['1']?.panes[0]?.sessionUuid).toBe('condivisa')
+    expect(dopo.find((w) => w.nome === 'uno')?.perSlot['1']?.panes).toEqual([])
   })
 
   it('conserva l ordine originale dei workspace', () => {
     const incrociato: WorkspaceSalvato[] = [
-      { nome: 'uno', perMonitor: { m: conChat('x') } },
-      { nome: 'due', perMonitor: { m: conChat('x') } }
+      { nome: 'uno', perSlot: { '1': conChat('x') } },
+      { nome: 'due', perSlot: { '1': conChat('x') } }
     ]
     expect(unaChatUnWorkspace(incrociato, 'due').map((w) => w.nome)).toEqual(['uno', 'due'])
   })
 
   it('senza prioritario vince il primo che la contiene', () => {
     const incrociato: WorkspaceSalvato[] = [
-      { nome: 'uno', perMonitor: { m: conChat('x') } },
-      { nome: 'due', perMonitor: { m: conChat('x') } }
+      { nome: 'uno', perSlot: { '1': conChat('x') } },
+      { nome: 'due', perSlot: { '1': conChat('x') } }
     ]
     const dopo = unaChatUnWorkspace(incrociato)
-    expect(dopo.find((w) => w.nome === 'uno')?.perMonitor.m?.panes[0]?.sessionUuid).toBe('x')
-    expect(dopo.find((w) => w.nome === 'due')?.perMonitor.m?.panes).toEqual([])
+    expect(dopo.find((w) => w.nome === 'uno')?.perSlot['1']?.panes[0]?.sessionUuid).toBe('x')
+    expect(dopo.find((w) => w.nome === 'due')?.perSlot['1']?.panes).toEqual([])
   })
 
   it('non crea ne elimina workspace: uno svuotato resta, vuoto', () => {
     const incrociato: WorkspaceSalvato[] = [
-      { nome: 'uno', perMonitor: { m: conChat('x') } },
-      { nome: 'due', perMonitor: { m: conChat('x') } }
+      { nome: 'uno', perSlot: { '1': conChat('x') } },
+      { nome: 'due', perSlot: { '1': conChat('x') } }
     ]
     expect(unaChatUnWorkspace(incrociato, 'uno').map((w) => w.nome)).toEqual(['uno', 'due'])
   })
 
   it('lascia stare chat diverse in workspace diversi', () => {
     const distinti: WorkspaceSalvato[] = [
-      { nome: 'uno', perMonitor: { m: conChat('a') } },
-      { nome: 'due', perMonitor: { m: conChat('b') } }
+      { nome: 'uno', perSlot: { '1': conChat('a') } },
+      { nome: 'due', perSlot: { '1': conChat('b') } }
     ]
     const dopo = unaChatUnWorkspace(distinti, 'uno')
-    expect(dopo.find((w) => w.nome === 'uno')?.perMonitor.m?.panes[0]?.sessionUuid).toBe('a')
-    expect(dopo.find((w) => w.nome === 'due')?.perMonitor.m?.panes[0]?.sessionUuid).toBe('b')
+    expect(dopo.find((w) => w.nome === 'uno')?.perSlot['1']?.panes[0]?.sessionUuid).toBe('a')
+    expect(dopo.find((w) => w.nome === 'due')?.perSlot['1']?.panes[0]?.sessionUuid).toBe('b')
   })
 })
 
@@ -316,16 +316,16 @@ describe('il layout che spetta a una finestra', () => {
   const vuoto: LayoutSalvato = { root: undefined, panes: [] }
 
   it('quello del suo monitor, quando c e', () => {
-    const per = { m1: conChat(1), m2: conChat(2) }
-    expect(layoutPerFinestra(per, 'm1').panes).toHaveLength(1)
+    const per = { '1': conChat(1), '2': conChat(2) }
+    expect(layoutPerSlot(per, '1').panes).toHaveLength(1)
   })
 
 
 
 
   it('quando davvero non c e niente, non inventa', () => {
-    expect(layoutPerFinestra({ m1: vuoto }, 'm1').panes).toEqual([])
-    expect(layoutPerFinestra({}, 'm1').panes).toEqual([])
+    expect(layoutPerSlot({ '1': vuoto }, '1').panes).toEqual([])
+    expect(layoutPerSlot({}, '1').panes).toEqual([])
   })
 })
 
@@ -341,26 +341,31 @@ describe('un workspace, una disposizione', () => {
     // chat: una domanda che nessuno dovrebbe doversi porre, e la causa di quasi
     // tutti i guasti - chat invisibili, chat doppie, salvataggi che si
     // cancellavano a vicenda.
-    const dopo = unicoLayout({ m1: con('a'), m2: con('b'), vecchio: con('c') }, 'm1')
-    expect(Object.keys(dopo)).toEqual(['m1'])
-    expect(dopo.m1?.panes.map((p) => p.id).sort()).toEqual(['a', 'b', 'c'])
+    const dopo = raccogliInUnoSlot({ '1': con('a'), '2': con('b'), vecchio: con('c') }, '1')
+    expect(Object.keys(dopo)).toEqual(['1'])
+    expect(dopo['1']?.panes.map((p) => p.id).sort()).toEqual(['a', 'b', 'c'])
   })
 
   it('funziona anche quando la casa non aveva niente', () => {
-    const dopo = unicoLayout({ altrove: con('b') }, 'm1')
-    expect(dopo.m1?.panes.map((p) => p.id)).toEqual(['b'])
+    const dopo = raccogliInUnoSlot({ altrove: con('b') }, '1')
+    expect(dopo['1']?.panes.map((p) => p.id)).toEqual(['b'])
   })
 
   it('non tocca niente quando c e gia un posto solo', () => {
     // Chi confronta per identita deve poter sapere che non e cambiato niente,
     // ed e come si evita di riscrivere il file a ogni avvio.
-    const prima = { m1: con('a') }
-    expect(unicoLayout(prima, 'm1')).toBe(prima)
+    const prima = { '1': con('a') }
+    expect(raccogliInUnoSlot(prima, '1')).toBe(prima)
   })
 
-  it('nemmeno quando gli altri monitor sono vuoti', () => {
-    const prima = { m1: con('a'), m2: { root: undefined, panes: [] } }
-    expect(unicoLayout(prima, 'm1')).toBe(prima)
+  it('ma una chiave vecchia si raccoglie anche se e sola', () => {
+    // Era il buco della versione precedente: con una chiave sola non c'era
+    // niente «da unire» e la si lasciava com'era — cioe' si lasciava il layout
+    // archiviato sotto una geometria di schermo, che e' esattamente la chiave
+    // che nessuna finestra chiedera' piu'.
+    const dopo = raccogliInUnoSlot({ '1920x1080@0,0@1': con('a') }, '1')
+    expect(Object.keys(dopo)).toEqual(['1'])
+    expect(dopo['1']?.panes.map((p) => p.id)).toEqual(['a'])
   })
 })
 
@@ -370,14 +375,14 @@ describe('il layout di una finestra', () => {
     // generoso: faceva mostrare a due finestre la stessa chat, perche
     // l'assegnazione non veniva registrata da nessuna parte.
     const l: LayoutSalvato = { root: { type: 'pane', id: 'p' }, panes: [{ id: 'p', sessionUuid: 'u', cwd: 'C:\p', title: 'x' }] }
-    expect(layoutPerFinestra({ m1: l }, 'm1').panes).toHaveLength(1)
-    expect(layoutPerFinestra({ m1: l }, 'm2').panes).toEqual([])
+    expect(layoutPerSlot({ '1': l }, '1').panes).toHaveLength(1)
+    expect(layoutPerSlot({ '1': l }, '2').panes).toEqual([])
   })
 })
 
 describe('il modello di un riquadro', () => {
   const paneLetto = (raw: unknown): { model?: string } | undefined =>
-    parseArchivio(raw).archivio.workspace[0]?.perMonitor['m1']?.panes[0]
+    parseArchivio(raw).archivio.workspace[0]?.perSlot['1']?.panes[0]
 
   it('sopravvive al salvataggio, per riaprire la chat con lo stesso modello', () => {
     const letto = paneLetto(archivioMinimo({
@@ -418,7 +423,7 @@ describe('il padrone di un riquadro', () => {
     })
 
   const paneLetto = (raw: unknown): { autopilota?: { id: string; chat: string } } | undefined =>
-    parseArchivio(raw).archivio.workspace[0]?.perMonitor['m1']?.panes[0]
+    parseArchivio(raw).archivio.workspace[0]?.perSlot['1']?.panes[0]
 
   it('sopravvive al salvataggio', () => {
     expect(paneLetto(conAutopilota({ id: 'ap-1', chat: 'ap-1-3075' }))?.autopilota)
@@ -451,5 +456,56 @@ describe('il padrone di un riquadro', () => {
       autopilota: { id: 'ap-1', chat: 'ap-1-3075' }
     })
     expect(dopo.panes[0]?.autopilota).toEqual({ id: 'ap-1', chat: 'ap-1-3075' })
+  })
+})
+
+describe('dalle chiavi-monitor agli slot', () => {
+  const chat = (id: string, sessione: string): unknown => ({
+    root: { type: 'pane', id },
+    panes: [{ id, sessionUuid: sessione, cwd: 'C:/p', title: id }]
+  })
+
+  const letto = (perMonitor: unknown): Record<string, LayoutSalvato> | undefined =>
+    parseArchivio({ versione: 1, attivo: 'Uno', workspace: [{ nome: 'Uno', perMonitor }] })
+      .archivio.workspace[0]?.perSlot
+
+  it('un archivio scritto ieri si apre oggi, e le chat sono nello slot 1', () => {
+    // Le chiavi vecchie sono geometrie di schermo — `1920x1080@0,0@1` — che
+    // nessuna finestra chiedera' mai piu'. Lasciarle dov'erano significa lasciare
+    // il lavoro nel file e non mostrarlo: e' il sintomo «cambio workspace e le
+    // chat non ci sono».
+    const dopo = letto({
+      '1920x1080@0,0@1': chat('a', 'u-a'),
+      '2560x1440@1920,0@1': chat('b', 'u-b')
+    })
+    expect(Object.keys(dopo ?? {})).toEqual(['1'])
+    expect((dopo?.['1']?.panes ?? []).map((p) => p.sessionUuid).sort()).toEqual(['u-a', 'u-b'])
+  })
+
+  it('anche una sola chiave vecchia viene spostata', () => {
+    // Con una chiave sola non c'era «niente da unire», e la versione precedente
+    // la lasciava com'era: il layout restava archiviato sotto una geometria.
+    const dopo = letto({ '1920x1080@0,0@1': chat('a', 'u-a') })
+    expect(Object.keys(dopo ?? {})).toEqual(['1'])
+  })
+
+  it('la stessa conversazione non entra due volte, nemmeno con due riquadri diversi', () => {
+    // Deduplicare per id di riquadro non bastava: la stessa chat che in due giri
+    // aveva preso due id entrava due volte nello stesso layout — due riquadri,
+    // due claude.exe, due --resume sulla stessa conversazione. L'identita' di una
+    // chat e' la conversazione, non la casella che la contiene.
+    const dopo = letto({
+      'schermo-a': chat('p1', 'u-condivisa'),
+      'schermo-b': chat('p2', 'u-condivisa')
+    })
+    expect((dopo?.['1']?.panes ?? []).map((p) => p.sessionUuid)).toEqual(['u-condivisa'])
+  })
+
+  it('un archivio gia a slot non viene toccato', () => {
+    const dopo = parseArchivio({
+      versione: 1, attivo: 'Uno',
+      workspace: [{ nome: 'Uno', perSlot: { '1': chat('a', 'u-a'), '2': chat('b', 'u-b') } }]
+    }).archivio.workspace[0]?.perSlot
+    expect(Object.keys(dopo ?? {}).sort()).toEqual(['1', '2'])
   })
 })

@@ -6,7 +6,8 @@ import { parseArchivio, archivioVuoto, type Archivio } from '@shared/workspace'
 export type WorkspaceStore = {
   percorso: string
   leggi: () => Archivio
-  scrivi: (a: Archivio) => void
+  /** Ha scritto davvero? Un `false` è lavoro che sul disco non è arrivato. */
+  scrivi: (a: Archivio) => boolean
 }
 
 const NOME_FILE = 'workspaces.json'
@@ -37,6 +38,27 @@ function mettiDaParte(percorso: string): string | undefined {
   }
   console.error(`[workspace] troppi file .illeggibile accanto a ${percorso}: non ne creo altri`)
   return undefined
+}
+
+/**
+ * La forma su disco: `perSlot`, **più una copia sotto il vecchio nome**.
+ *
+ * Serve a una cosa sola, e vale la mezza riga: se questa versione dovesse
+ * tornare indietro, quella precedente cerca `perMonitor` e senza troverebbe un
+ * archivio vuoto — cioè tutte le chat sparite, che è esattamente il danno che
+ * questo lavoro esiste per chiudere. Con la copia le ritrova: le chiavi `1`,
+ * `2` le legge come chiavi di monitor e il suo `unicoLayout` le raccoglie da
+ * sé. E riscrivendo `perMonitor`, questa versione le rilegge e le rimigra.
+ *
+ * La regola che il registro ha insegnato dopo la terza perdita: quando si tocca
+ * il modo in cui il lavoro è archiviato, la prima cosa da garantire non è che
+ * vada bene — è che si possa tornare indietro.
+ */
+function perDisco(a: Archivio): unknown {
+  return {
+    ...a,
+    workspace: a.workspace.map((w) => ({ ...w, perMonitor: w.perSlot }))
+  }
 }
 
 export function apriWorkspaceStore(dir: string): WorkspaceStore {
@@ -111,11 +133,33 @@ export function apriWorkspaceStore(dir: string): WorkspaceStore {
       return archivio
     },
 
-    scrivi(a: Archivio): void {
+    /**
+     * Scrive, e **dice se ha scritto**.
+     *
+     * Prima l'esito si buttava via. `scriviJsonAtomico` non solleva mai per
+     * progetto — chi salva è dentro un canale a senso unico e non ha dove far
+     * risalire un'eccezione — quindi un salvataggio non riuscito era
+     * indistinguibile da uno riuscito: nessun errore, nessuna riga, e sul disco
+     * restava la versione di prima. Su Windows non è un caso di scuola: la
+     * rinomina sopra un file aperto da qualcun altro fallisce, e
+     * `workspaces.json` viene riletto ogni paio di secondi dal Client e dalle
+     * consegne d'autopilota. La perdita si scopriva al riavvio successivo,
+     * quando non c'era più modo di ricostruire cosa fosse successo.
+     *
+     * La cache si invalida **sempre**, riuscita o no: dopo una scrittura fallita
+     * tenere in memoria l'archivio nuovo mentre sul disco c'è il vecchio è la
+     * differenza fra un guasto che si vede e uno che si scopre domani.
+     */
+    scrivi(a: Archivio): boolean {
       // Il layout dell'utente e' composto a mano e nessuna sorgente puo'
       // rigenerarlo: si scrive per intero o non si scrive. Il come sta in
       // `scriviAtomico`, che da qui in poi vale per tutti i file dei dati.
-      scriviJsonAtomico(percorso, a, 'workspace')
+      const fatto = scriviJsonAtomico(percorso, perDisco(a), 'workspace')
+      cache = undefined
+      if (!fatto) {
+        console.error(`[workspace] ${percorso} NON scritto: quello che c'e' sul disco e' la versione di prima`)
+      }
+      return fatto
     }
   }
 }

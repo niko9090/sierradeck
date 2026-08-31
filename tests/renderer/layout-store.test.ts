@@ -147,7 +147,7 @@ describe('esporta e carica', () => {
     useLayoutStore.getState().reset()
     expect(useLayoutStore.getState().root).toBeUndefined()
 
-    useLayoutStore.getState().carica(salvato)
+    useLayoutStore.getState().cambiaVista(salvato)
     const dopo = useLayoutStore.getState()
     expect(listPaneIds(dopo.root!)).toEqual([a, b])
     expect(dopo.panes[a]?.ptyId).toBe('pty-a')
@@ -159,7 +159,7 @@ describe('esporta e carica', () => {
     const store = useLayoutStore.getState()
     store.reset()
     store.addPane('C:\\p', 'a')
-    useLayoutStore.getState().carica({ root: undefined, panes: [] })
+    useLayoutStore.getState().cambiaVista({ root: undefined, panes: [] })
     expect(useLayoutStore.getState().root).toBeUndefined()
     expect(useLayoutStore.getState().panes).toEqual({})
   })
@@ -171,7 +171,7 @@ describe('esporta e carica', () => {
 
   it('carica scarta i dati dei riquadri che non sono nell albero', () => {
     useLayoutStore.getState().reset()
-    useLayoutStore.getState().carica({
+    useLayoutStore.getState().cambiaVista({
       root: { type: 'pane', id: 'x' },
       panes: [
         { id: 'x', sessionUuid: 'u1', cwd: 'C:\\p', title: 'x' },
@@ -450,7 +450,7 @@ describe('ibernare una chat', () => {
     expect(salvato.panes.find((p) => p.id === id)?.ibernata).toBe(true)
 
     useLayoutStore.getState().reset()
-    useLayoutStore.getState().carica(salvato)
+    useLayoutStore.getState().cambiaVista(salvato)
     expect(useLayoutStore.getState().panes[id]?.ibernata).toBe(true)
   })
 
@@ -484,7 +484,7 @@ describe('il padrone di un riquadro sopravvive', () => {
     const id = useLayoutStore.getState().addPane('C:\p', 'Governata', undefined, { autopilota: suo })
     const salvato = useLayoutStore.getState().esporta()
     useLayoutStore.getState().reset()
-    useLayoutStore.getState().carica(salvato)
+    useLayoutStore.getState().cambiaVista(salvato)
     expect(useLayoutStore.getState().panes[id]?.autopilota).toEqual(suo)
   })
 
@@ -526,5 +526,76 @@ describe('setPtyId', () => {
     expect(useLayoutStore.getState().panes).toBe(prima)
     useLayoutStore.getState().setPtyId('p1', 'y')
     expect(useLayoutStore.getState().panes).not.toBe(prima)
+  })
+})
+
+describe('i congedi: chi esce di scena, e per volere di chi', () => {
+  beforeEach(() => useLayoutStore.getState().reset())
+
+  it('chiudere un riquadro è una decisione, e si dichiara', () => {
+    const a = useLayoutStore.getState().addPane('C:\p', 'A')
+    const b = useLayoutStore.getState().addPane('C:\p', 'B')
+    const uuidB = useLayoutStore.getState().panes[b]?.sessionUuid
+    useLayoutStore.getState().closePane(b)
+    expect(useLayoutStore.getState().congediDaMandare()).toEqual([uuidB])
+    // Quella rimasta non c'entra niente.
+    expect(useLayoutStore.getState().panes[a]).toBeDefined()
+  })
+
+  it('spostare una chat altrove è congedarla, non perderla', () => {
+    useLayoutStore.getState().addPane('C:\p', 'A')
+    const b = useLayoutStore.getState().addPane('C:\p', 'B')
+    const uuidB = useLayoutStore.getState().panes[b]?.sessionUuid
+    useLayoutStore.getState().staccaPane(b)
+    expect(useLayoutStore.getState().congediDaMandare()).toEqual([uuidB])
+  })
+
+  it('un preset che tronca congeda quello che butta via', () => {
+    const ids = ['A', 'B', 'C'].map((t) => useLayoutStore.getState().addPane('C:\p', t))
+    const uuid = Object.fromEntries(
+      ids.map((i) => [i, useLayoutStore.getState().panes[i]?.sessionUuid])
+    )
+    useLayoutStore.getState().applyPreset('due')
+    const rimasti = new Set(Object.keys(useLayoutStore.getState().panes))
+    const attesi = ids.filter((i) => !rimasti.has(i)).map((i) => uuid[i])
+    expect(useLayoutStore.getState().congediDaMandare().sort()).toEqual(attesi.sort())
+  })
+
+  it('cambiare workspace NON congeda niente', () => {
+    // Un workspace è una vista, non un interruttore: le chat che escono di
+    // scena restano vive altrove. Dichiararle congedate darebbe al Core il
+    // permesso di cancellarle dall'archivio — che è esattamente il guasto.
+    const a = useLayoutStore.getState().addPane('C:\p', 'A')
+    expect(useLayoutStore.getState().panes[a]).toBeDefined()
+    useLayoutStore.getState().cambiaVista({ root: undefined, panes: [] })
+    expect(useLayoutStore.getState().congediDaMandare()).toEqual([])
+  })
+
+  it('una chat che torna a schermo non è più congedata', () => {
+    // Uno spostamento fallito la riporta indietro, e riprendere una
+    // conversazione dalle sessioni la fa tornare con lo **stesso** uuid:
+    // lasciarle addosso il congedo vorrebbe dire darle per sempre il permesso
+    // di sparire in silenzio.
+    useLayoutStore.getState().addPane('C:\p', 'A')
+    const b = useLayoutStore.getState().addPane('C:\p', 'B')
+    const pane = useLayoutStore.getState().staccaPane(b)
+    expect(pane).toBeDefined()
+    expect(useLayoutStore.getState().congediDaMandare()).toHaveLength(1)
+    if (pane !== undefined) useLayoutStore.getState().accogliPane(pane)
+    expect(useLayoutStore.getState().congediDaMandare()).toEqual([])
+  })
+
+  it('il modello e il sonno arrivano con la chat che cambia finestra', () => {
+    const id = useLayoutStore.getState().addPane('C:\p', 'A', 'opus')
+    useLayoutStore.getState().iberna(id)
+    const pane = useLayoutStore.getState().staccaPane(id)
+    expect(pane?.model).toBe('opus')
+    expect(pane?.ibernata).toBe(true)
+    useLayoutStore.getState().reset()
+    if (pane !== undefined) useLayoutStore.getState().accogliPane(pane)
+    // Prima si aprivano il pacco e si buttava via metà: la chat tornava al
+    // modello predefinito, e quella che dormiva si risvegliava da sola.
+    expect(useLayoutStore.getState().panes[pane?.id ?? '']?.model).toBe('opus')
+    expect(useLayoutStore.getState().panes[pane?.id ?? '']?.ibernata).toBe(true)
   })
 })

@@ -182,7 +182,7 @@ describe('piu finestre nella stessa istantanea', () => {
       istantanee: [{
         nome: 'ieri',
         salvataIl: '2026-08-09T10:00:00.000Z',
-        perMonitor: { m1: layout(1), m2: layout(2) },
+        perSlot: { m1: layout(1), m2: layout(2) },
         autopiloti: []
       }]
     })
@@ -277,8 +277,8 @@ describe('i workspace sopravvivono alla rilettura', () => {
       finestre: [],
       workspaceAttivo: 'lavoro',
       workspace: [
-        { nome: 'lavoro', perMonitor: { m1: { root: { type: 'pane', id: 'p1' }, panes: [{ id: 'p1', sessionUuid: 'u1', cwd: 'C:\\a', title: 'una' }] } } },
-        { nome: 'casa', perMonitor: { m1: { root: { type: 'pane', id: 'p2' }, panes: [{ id: 'p2', sessionUuid: 'u2', cwd: 'C:\\b', title: 'due' }] } } }
+        { nome: 'lavoro', perSlot: { m1: { root: { type: 'pane', id: 'p1' }, panes: [{ id: 'p1', sessionUuid: 'u1', cwd: 'C:\\a', title: 'una' }] } } },
+        { nome: 'casa', perSlot: { m1: { root: { type: 'pane', id: 'p2' }, panes: [{ id: 'p2', sessionUuid: 'u2', cwd: 'C:\\b', title: 'due' }] } } }
       ],
       autopiloti: []
     }]
@@ -323,13 +323,13 @@ describe('i workspace sopravvivono alla rilettura', () => {
           layout: { root: { type: 'pane', id: 'p1' }, panes: [{ id: 'p1', sessionUuid: 'u1', cwd: 'C:\\a', title: 'una', model: 'opus' }] }
         }],
         workspaceAttivo: 'lavoro',
-        workspace: [{ nome: 'lavoro', perMonitor: { m1: { root: { type: 'pane', id: 'p1' }, panes: [{ id: 'p1', sessionUuid: 'u1', cwd: 'C:\\a', title: 'una', model: 'opus' }] } } }],
+        workspace: [{ nome: 'lavoro', perSlot: { m1: { root: { type: 'pane', id: 'p1' }, panes: [{ id: 'p1', sessionUuid: 'u1', cwd: 'C:\\a', title: 'una', model: 'opus' }] } } }],
         autopiloti: []
       }]
     }
     const { istantanee } = parseIstantanee(conModello)
     expect(istantanee[0]?.finestre[0]?.layout.panes[0]?.model).toBe('opus')
-    expect(istantanee[0]?.workspace?.[0]?.perMonitor.m1?.panes[0]?.model).toBe('opus')
+    expect(istantanee[0]?.workspace?.[0]?.perSlot.m1?.panes[0]?.model).toBe('opus')
   })
 })
 
@@ -444,40 +444,40 @@ describe('salvare tutti i workspace', () => {
   const archivio = {
     attivo: 'lavoro',
     workspace: [
-      { nome: 'lavoro', perMonitor: { 'm-1': conChat('vecchia') } },
-      { nome: 'casa', perMonitor: { 'm-1': conChat('di-casa') } },
-      { nome: 'studio', perMonitor: { 'm-1': conChat('di-studio') } }
+      { nome: 'lavoro', perSlot: { '1': conChat('vecchia') } },
+      { nome: 'casa', perSlot: { '1': conChat('di-casa') } },
+      { nome: 'studio', perSlot: { '1': conChat('di-studio') } }
     ]
   }
 
   it('porta con se anche i workspace che non hai davanti', () => {
     // Le finestre raccontano il solo workspace attivo: era l'unica cosa che
     // finiva nel salvataggio, e chi ne aveva tre ne ritrovava uno.
-    const w = workspaceDaSalvare(archivio, [{ monitor: 'm-1', layout: conChat('adesso') }])
+    const w = workspaceDaSalvare(archivio, [{ monitor: 'm-1', slot: '1', layout: conChat('adesso') }])
     expect(w.map((x) => x.nome).sort()).toEqual(['casa', 'lavoro', 'studio'])
   })
 
   it('per quello attivo vale cio che hai davanti, non la copia su disco', () => {
     // L'archivio conosce l'attivo com'era all'ultimo cambio: le chat aperte
     // adesso stanno nelle finestre.
-    const w = workspaceDaSalvare(archivio, [{ monitor: 'm-1', layout: conChat('adesso') }])
+    const w = workspaceDaSalvare(archivio, [{ monitor: 'm-1', slot: '1', layout: conChat('adesso') }])
     const attivo = w.find((x) => x.nome === 'lavoro')
-    expect(attivo?.perMonitor['m-1']?.panes[0]?.sessionUuid).toBe('adesso')
+    expect(attivo?.perSlot['1']?.panes[0]?.sessionUuid).toBe('adesso')
   })
 
   it('gli altri workspace restano come erano', () => {
-    const w = workspaceDaSalvare(archivio, [{ monitor: 'm-1', layout: conChat('adesso') }])
-    expect(w.find((x) => x.nome === 'casa')?.perMonitor['m-1']?.panes[0]?.sessionUuid).toBe('di-casa')
+    const w = workspaceDaSalvare(archivio, [{ monitor: 'm-1', slot: '1', layout: conChat('adesso') }])
+    expect(w.find((x) => x.nome === 'casa')?.perSlot['1']?.panes[0]?.sessionUuid).toBe('di-casa')
   })
 
-  it('un monitor senza finestra aperta non viene cancellato', () => {
+  it('uno slot senza finestra aperta non viene cancellato', () => {
     // Nessuno lo sta guardando adesso: non e' una ragione per buttarlo via.
     const dueMonitor = {
       attivo: 'lavoro',
-      workspace: [{ nome: 'lavoro', perMonitor: { 'm-1': conChat('uno'), 'm-2': conChat('due') } }]
+      workspace: [{ nome: 'lavoro', perSlot: { '1': conChat('uno'), '2': conChat('due') } }]
     }
-    const w = workspaceDaSalvare(dueMonitor, [{ monitor: 'm-1', layout: conChat('adesso') }])
-    expect(Object.keys(w[0]?.perMonitor ?? {}).sort()).toEqual(['m-1', 'm-2'])
+    const w = workspaceDaSalvare(dueMonitor, [{ monitor: 'm-1', slot: '1', layout: conChat('adesso') }])
+    expect(Object.keys(w[0]?.perSlot ?? {}).sort()).toEqual(['1', '2'])
   })
 
   it('un istantanea vecchia senza workspace resta valida', () => {
@@ -495,13 +495,13 @@ describe('salvare tutti i workspace', () => {
     const incrociato = {
       attivo: 'lavoro',
       workspace: [
-        { nome: 'lavoro', perMonitor: { 'm-1': conChat('condivisa') } },
-        { nome: 'casa', perMonitor: { 'm-1': conChat('condivisa') } }
+        { nome: 'lavoro', perSlot: { '1': conChat('condivisa') } },
+        { nome: 'casa', perSlot: { '1': conChat('condivisa') } }
       ]
     }
-    const w = workspaceDaSalvare(incrociato, [{ monitor: 'm-1', layout: conChat('condivisa') }])
-    expect(w.find((x) => x.nome === 'lavoro')?.perMonitor['m-1']?.panes[0]?.sessionUuid).toBe('condivisa')
-    expect(w.find((x) => x.nome === 'casa')?.perMonitor['m-1']?.panes).toEqual([])
+    const w = workspaceDaSalvare(incrociato, [{ monitor: 'm-1', slot: '1', layout: conChat('condivisa') }])
+    expect(w.find((x) => x.nome === 'lavoro')?.perSlot['1']?.panes[0]?.sessionUuid).toBe('condivisa')
+    expect(w.find((x) => x.nome === 'casa')?.perSlot['1']?.panes).toEqual([])
   })
 })
 
@@ -517,11 +517,11 @@ describe('contare cosa contiene un salvataggio', () => {
     const i = nuovaIstantanea({
       nome: 'desk_1',
       salvataIl: 'oggi',
-      finestre: [{ monitor: 'm-1', layout: conPane('a') }],
+      finestre: [{ monitor: 'm-1', slot: '1', layout: conPane('a') }],
       workspace: [
-        { nome: 'lavoro', perMonitor: { 'm-1': conPane('a') } },
-        { nome: 'casa', perMonitor: { 'm-1': conPane('b') } },
-        { nome: 'studio', perMonitor: { 'm-1': conPane('c') } }
+        { nome: 'lavoro', perSlot: { '1': conPane('a') } },
+        { nome: 'casa', perSlot: { '1': conPane('b') } },
+        { nome: 'studio', perSlot: { '1': conPane('c') } }
       ],
       autopiloti: []
     })
@@ -548,7 +548,7 @@ describe('contare cosa contiene un salvataggio', () => {
     const i = nuovaIstantanea({
       nome: 'vecchio',
       salvataIl: 'ieri',
-      finestre: [{ monitor: 'm-1', layout: conPane('a') }],
+      finestre: [{ monitor: 'm-1', slot: '1', layout: conPane('a') }],
       autopiloti: []
     })
     expect(contaChat(i)).toBe(1)
@@ -570,8 +570,8 @@ describe('in quale workspace vivono le chat che tornano a schermo', () => {
     const dove = workspaceDelleFinestre(
       [{ monitor: 'm1', layout: chat('u-2') }],
       [
-        { nome: 'lavoro', perMonitor: { m1: chat('u-1') } },
-        { nome: 'casa', perMonitor: { m1: chat('u-2') } }
+        { nome: 'lavoro', perSlot: { m1: chat('u-1') } },
+        { nome: 'casa', perSlot: { m1: chat('u-2') } }
       ]
     )
     expect(dove).toBe('casa')
@@ -581,9 +581,9 @@ describe('in quale workspace vivono le chat che tornano a schermo', () => {
     // Un nome sbagliato qui vorrebbe dire scrivere le chat nel workspace di
     // qualcun altro: meglio non dire niente e lasciare le cose come stanno.
     expect(workspaceDelleFinestre([{ monitor: 'm1', layout: chat('u-9') }], [
-      { nome: 'lavoro', perMonitor: { m1: chat('u-1') } }
+      { nome: 'lavoro', perSlot: { m1: chat('u-1') } }
     ])).toBeUndefined()
-    expect(workspaceDelleFinestre([], [{ nome: 'lavoro', perMonitor: { m1: chat('u-1') } }]))
+    expect(workspaceDelleFinestre([], [{ nome: 'lavoro', perSlot: { m1: chat('u-1') } }]))
       .toBeUndefined()
   })
 })
@@ -621,8 +621,8 @@ describe('finestreDaRiaprire', () => {
       finestre: [{ monitor: 'm1', layout: vuoto }],
       workspaceAttivo: 'lavoro',
       workspace: [
-        { nome: 'casa', perMonitor: { m1: pieno('p-casa') } },
-        { nome: 'lavoro', perMonitor: { m1: pieno('p-lavoro'), m2: vuoto } }
+        { nome: 'casa', perSlot: { m1: pieno('p-casa') } },
+        { nome: 'lavoro', perSlot: { m1: pieno('p-lavoro'), m2: vuoto } }
       ]
     })
     const f = finestreDaRiaprire(i)
@@ -636,7 +636,7 @@ describe('finestreDaRiaprire', () => {
       nome: 'x', salvataIl: 'ieri', autopiloti: [],
       finestre: [{ monitor: 'm1', layout: vuoto }],
       workspaceAttivo: 'lavoro',
-      workspace: [{ nome: 'lavoro', perMonitor: { m1: vuoto } }]
+      workspace: [{ nome: 'lavoro', perSlot: { m1: vuoto } }]
     })
     expect(finestreDaRiaprire(i)).toEqual([])
   })
@@ -645,10 +645,10 @@ describe('finestreDaRiaprire', () => {
 describe('workspaceDopoRipristino', () => {
   // La chat con id di riquadro `id` e conversazione `sess`. Serve la stessa
   // `sess` in due workspace per riprodurre i «workspace incrociati».
-  const chat = (id: string, sess: string): WorkspaceSalvato['perMonitor'] => ({
+  const chat = (id: string, sess: string): WorkspaceSalvato['perSlot'] => ({
     m1: { root: { type: 'pane', id }, panes: [{ id, sessionUuid: sess, cwd: 'C:\p', title: id }] }
   })
-  const vuoto: WorkspaceSalvato['perMonitor'] = { m1: { root: undefined, panes: [] } }
+  const vuoto: WorkspaceSalvato['perSlot'] = { m1: { root: undefined, panes: [] } }
 
   it('non resuscita un «Predefinito» cancellato che conteneva solo un doppione', () => {
     // Il bug esatto trovato sul disco: cancellato «Predefinito», ma un
@@ -657,8 +657,8 @@ describe('workspaceDopoRipristino', () => {
     const archivio = {
       attivo: 'SierraDeck',
       workspace: [
-        { nome: 'SierraDeck', perMonitor: chat('p-sd', 'sess-sd') },
-        { nome: 'Wdeck', perMonitor: chat('p-wd', 'sess-wd') }
+        { nome: 'SierraDeck', perSlot: chat('p-sd', 'sess-sd') },
+        { nome: 'Wdeck', perSlot: chat('p-wd', 'sess-wd') }
       ]
     }
     const i = nuovaIstantanea({
@@ -666,8 +666,8 @@ describe('workspaceDopoRipristino', () => {
       finestre: [{ monitor: 'm1', layout: chat('p-wd', 'sess-wd').m1! }],
       workspaceAttivo: 'Wdeck',
       workspace: [
-        { nome: 'Predefinito', perMonitor: chat('p-wd', 'sess-wd') },
-        { nome: 'Wdeck', perMonitor: chat('p-wd', 'sess-wd') }
+        { nome: 'Predefinito', perSlot: chat('p-wd', 'sess-wd') },
+        { nome: 'Wdeck', perSlot: chat('p-wd', 'sess-wd') }
       ]
     })
     const { workspace, attivo } = workspaceDopoRipristino(archivio, i)
@@ -675,18 +675,18 @@ describe('workspaceDopoRipristino', () => {
     expect(workspace.map((w) => w.nome).sort()).toEqual(['SierraDeck', 'Wdeck'])
     // La chat di Wdeck vive in un solo posto.
     const dove = workspace.filter((w) =>
-      Object.values(w.perMonitor).some((l) => l.panes.some((p) => p.sessionUuid === 'sess-wd')))
+      Object.values(w.perSlot).some((l) => l.panes.some((p) => p.sessionUuid === 'sess-wd')))
     expect(dove.map((w) => w.nome)).toEqual(['Wdeck'])
     expect(attivo).toBe('Wdeck')
   })
 
   it('tiene i workspace del salvataggio che dopo il dedup restano pieni', () => {
-    const archivio = { attivo: 'Main', workspace: [{ nome: 'Main', perMonitor: chat('p-m', 'sess-m') }] }
+    const archivio = { attivo: 'Main', workspace: [{ nome: 'Main', perSlot: chat('p-m', 'sess-m') }] }
     const i = nuovaIstantanea({
       nome: 'x', salvataIl: 'ieri', autopiloti: [],
       finestre: [{ monitor: 'm1', layout: chat('p-e', 'sess-e').m1! }],
       workspaceAttivo: 'Extra',
-      workspace: [{ nome: 'Extra', perMonitor: chat('p-e', 'sess-e') }]
+      workspace: [{ nome: 'Extra', perSlot: chat('p-e', 'sess-e') }]
     })
     const { workspace, attivo } = workspaceDopoRipristino(archivio, i)
     expect(workspace.map((w) => w.nome).sort()).toEqual(['Extra', 'Main'])
@@ -699,15 +699,15 @@ describe('workspaceDopoRipristino', () => {
     const archivio = {
       attivo: 'Main',
       workspace: [
-        { nome: 'Main', perMonitor: chat('p-m', 'sess-m') },
-        { nome: 'Bozza', perMonitor: vuoto }
+        { nome: 'Main', perSlot: chat('p-m', 'sess-m') },
+        { nome: 'Bozza', perSlot: vuoto }
       ]
     }
     const i = nuovaIstantanea({
       nome: 'x', salvataIl: 'ieri', autopiloti: [],
       finestre: [{ monitor: 'm1', layout: chat('p-m', 'sess-m').m1! }],
       workspaceAttivo: 'Main',
-      workspace: [{ nome: 'Bozza', perMonitor: vuoto }]
+      workspace: [{ nome: 'Bozza', perSlot: vuoto }]
     })
     const { workspace } = workspaceDopoRipristino(archivio, i)
     expect(workspace.map((w) => w.nome).sort()).toEqual(['Bozza', 'Main'])
@@ -717,15 +717,15 @@ describe('workspaceDopoRipristino', () => {
     const archivio = {
       attivo: 'Main',
       workspace: [
-        { nome: 'Main', perMonitor: chat('p-m', 'sess-m') },
-        { nome: 'Nuovo', perMonitor: chat('p-n', 'sess-n') }
+        { nome: 'Main', perSlot: chat('p-m', 'sess-m') },
+        { nome: 'Nuovo', perSlot: chat('p-n', 'sess-n') }
       ]
     }
     const i = nuovaIstantanea({
       nome: 'x', salvataIl: 'ieri', autopiloti: [],
       finestre: [{ monitor: 'm1', layout: chat('p-m', 'sess-m').m1! }],
       workspaceAttivo: 'Main',
-      workspace: [{ nome: 'Main', perMonitor: chat('p-m', 'sess-m') }]
+      workspace: [{ nome: 'Main', perSlot: chat('p-m', 'sess-m') }]
     })
     const { workspace } = workspaceDopoRipristino(archivio, i)
     // «Nuovo», creato dopo il salvataggio, non sparisce.

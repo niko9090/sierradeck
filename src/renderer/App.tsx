@@ -9,7 +9,7 @@ import { giaSalvatoCome } from '@shared/doppioni'
 import type { Istantanea } from '@shared/istantanea'
 import { chiChiede, workspaceCheChiamano } from '@shared/dove-chiedono'
 import { attivaChiusuraFuori, attivaTrascinamento } from './trascina-finestre'
-import { creaUltimeRighe, terminalePronto } from './ultime-righe'
+import { chatAspetta, creaUltimeRighe } from './ultime-righe'
 import { creaBattito, stessiAttivi } from './battito'
 import { eseguiConsegna, ponteReale, scriviQuandoPronta } from './consegne-autopilota'
 import { memoriaWorkspace } from './memoria-workspace'
@@ -83,18 +83,21 @@ function usaPersistenzaLayout(): void {
   useEffect(() => {
     const persistenza = creaPersistenza({
       carica: () => window.gestore.layout.carica(),
-      // Col layout viaggia il nome del workspace che *questa* finestra mostra:
-      // il Core lo scrive lì e non sotto l'attivo dell'archivio, che al riavvio
-      // dopo un aggiornamento puo' essere ancora un altro. Senza, le chat di un
-      // workspace finivano sopra quelle di un altro.
+      // Il nome del workspace **non viaggia più**: lo sa il Core, che si ricorda
+      // quale layout ha consegnato a questa finestra e per quale workspace. Era
+      // l'ultima cosa che il renderer dichiarava e che poteva essere sbagliata —
+      // e per tre volte lo è stata, scrivendo le chat di un workspace sopra
+      // quelle di un altro. Adesso al posto della dichiarazione viaggia lo
+      // scontrino della consegna, che sta nel ponte.
       //
-      // Il nome si legge da `workspace-corrente`, non dallo stato di React,
-      // perché questo salvataggio parte **sincrono** dentro `cambiaVista`:
-      // React è ancora fermo al workspace di prima, e con quel nome il Core
-      // riscriveva il layout nuovo sopra le chat di quello appena lasciato.
-      salva: (l) => window.gestore.layout.salva(l, workspaceCorrente()),
+      // Viaggia ancora **chi è stata congedata**: chiusa, spostata, troncata. È
+      // la sola cosa che il Core non può dedurre da solo, ed è quella che gli
+      // serve per rifiutare un salvataggio che farebbe sparire una chat che
+      // nessuno ha chiuso. Lo scontrino copre la provenienza, questo il
+      // contenuto: servono tutti e due.
+      salva: (l) => window.gestore.layout.salva(l, useLayoutStore.getState().congediDaMandare()),
       esporta: () => useLayoutStore.getState().esporta(),
-      applica: (l) => useLayoutStore.getState().carica(l),
+      applica: (l) => useLayoutStore.getState().cambiaVista(l),
       sottoscrivi: (cb) => useLayoutStore.subscribe(cb)
     })
     persistenza.avvia()
@@ -123,8 +126,16 @@ function usaPersistenzaLayout(): void {
     // nuove: quando tocca a questa, il layout arriva di qui. Prima le si
     // affiancava una finestra nuova e questa restava con le chat di prima —
     // le stesse chat due volte, in due finestre.
+    //
+    // `cambiaVista` e non `carica`: `carica` sostituisce i riquadri senza
+    // toccare i «ceduti», e allora i `Terminal` che si smontano non trovano il
+    // loro riquadro fra quelli ceduti e chiamano `chiudi()` invece di
+    // `stacca()`. Cioè: **un layout che arriva da fuori uccideva i claude.exe
+    // delle chat che continuano a esistere.** `cambiaVista` è la stessa
+    // sostituzione fatta sapendo che chi esce di scena non è chi è stato
+    // chiuso — ed esisteva già, per il cambio di workspace.
     const smettiDiRicevere = window.gestore.layout.suApplica((l) => {
-      useLayoutStore.getState().carica(l)
+      useLayoutStore.getState().cambiaVista(l)
     })
 
     return () => {
@@ -202,6 +213,19 @@ export function App(): React.JSX.Element {
   // quello che si è mandato ha prodotto qualcosa. Senza, si scrive e si resta a
   // fissare lo stesso titolo di prima.
   const righe = useRef(creaUltimeRighe())
+  // Se quella chat ha finito e aspetta te. Sta qui, in un punto solo, perché lo
+  // chiedono in quattro — l'annuncio al telefono, le consegne dell'autopilota,
+  // la ripresa dopo un aggiornamento — e per tre giorni una di quelle risposte
+  // è stata diversa dalle altre.
+  const aspettaOra = useCallback(
+    (ptyId: string): boolean =>
+      chatAspetta(
+        righe.current.attivitaDi(ptyId),
+        righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite,
+        Date.now()
+      ),
+    []
+  )
   // Quali terminali si stanno muovendo adesso. Si ricalcola a intervalli e non
   // a ogni pezzo di output: mentre una chat scrive arrivano decine di eventi al
   // secondo, e ridisegnare il mosaico a ognuno costerebbe piu' del terminale.
@@ -262,10 +286,7 @@ export function App(): React.JSX.Element {
           // giudizio che usa l’autopilota per sapere quando può parlare —
           // il prompt visto, e poi un po’ di silenzio — e da un telefono è
           // *la* notizia: «ha finito, tocca a te».
-          aspetta:
-            p.ptyId === undefined
-              ? false
-              : terminalePronto(righe.current.attivitaDi(p.ptyId), Date.now()),
+          aspetta: p.ptyId === undefined ? false : aspettaOra(p.ptyId),
           // Chi è governata da un autopilota non deve avvisare per conto
           // suo: l’autopilota le parla da sé, e due notifiche per lo stesso
           // fatto sono una di troppo.
@@ -313,10 +334,7 @@ export function App(): React.JSX.Element {
       // messaggio scritto mentre Claude Code si sta ancora disegnando resta nel
       // campo, e la chat non parte.
       const porta = (): void => {
-        eseguiConsegna(c, ponteReale(
-          (ptyId) => terminalePronto(righe.current.attivitaDi(ptyId), Date.now()),
-          workspaceCorrente
-        ))
+        eseguiConsegna(c, ponteReale(aspettaOra, workspaceCorrente))
       }
       // **Prima si va dove la chat vive.** La sua conversazione puo' essere
       // salvata in un altro workspace: consegnare qui aprirebbe una seconda
@@ -405,10 +423,7 @@ export function App(): React.JSX.Element {
   // decisione, e chi interrompe ha il dovere di far ripartire. Si aspetta che
   // il terminale ascolti, perche' in questo istante sta ancora nascendo.
   useEffect(() => window.gestore.client.suRipresaChat(({ sessione, testo }) => {
-    scriviQuandoPronta(sessione, testo, ponteReale(
-      (ptyId) => terminalePronto(righe.current.attivitaDi(ptyId), Date.now()),
-      workspaceCorrente
-    ))
+    scriviQuandoPronta(sessione, testo, ponteReale(aspettaOra, workspaceCorrente))
   }), [])
 
   useEffect(() => window.gestore.client.suScrittura(({ chat, testo }) => {

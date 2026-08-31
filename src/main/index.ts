@@ -78,7 +78,7 @@ import {
 import { apriRegistro, type Registro } from './registro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
-import { unicoLayout, workspaceDellaSessione } from '@shared/workspace'
+import { workspaceDellaSessione } from '@shared/workspace'
 import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
 import { apriDestinazioni } from './trasferimenti/destinazioni'
@@ -326,24 +326,15 @@ export function apriNuovaFinestra(): void {
     chiave: chiaveMonitor({ bounds: d.bounds, scaleFactor: d.scaleFactor }),
     bounds: d.bounds
   }))
-  // Dove stavano le finestre l'ultima volta. Questa memoria la teneva
-  // l'archivio dei layout, che archiviava le chat per monitor; da quando i
-  // layout sono uno solo per workspace — era il difetto per cui le chat
-  // sparivano — quel dato non c'e' piu', e la finestra si riapriva sul primo
-  // schermo libero: su due monitor, quello che capita.
-  //
-  // Restano le chat per monitor dei workspace vecchi, che valgono ancora per
-  // chi non ha ancora aggiornato il suo archivio: le due memorie si sommano,
-  // la piu' recente per prima.
-  const archivio = workspaceStore?.leggi()
-  const conLavoro = [
-    ...(finestreStore?.leggi() ?? []),
-    ...Object.entries(
-      archivio?.workspace.find((w) => w.nome === archivio.attivo)?.perMonitor ?? {}
-    )
-      .filter(([, layout]) => layout.panes.length > 0)
-      .map(([chiave]) => chiave)
-  ]
+  // Dove stavano le finestre l'ultima volta. Questa memoria la teneva anche
+  // l'archivio dei layout, che archiviava le chat sotto la geometria dello
+  // schermo: da lì si ricavava «su questo monitor c'era del lavoro». Adesso le
+  // chiavi dell'archivio sono **slot di finestra** (`1`, `2`) e non dicono più
+  // niente su quale schermo fosse: leggerle qui non darebbe una risposta
+  // sbagliata, ne darebbe una senza senso. Resta `finestre-store`, che quel dato
+  // ce l'ha per davvero — è nato apposta — e lo tiene anche fra un riavvio e
+  // l'altro.
+  const conLavoro = finestreStore?.leggi() ?? []
   const scelto = prossimoSchermoLibero(disponibili, occupati, conLavoro)
   // Se su quel monitor c'era una finestra, la si riapre com'era: stessa
   // dimensione e (piu' sotto) stesso stato. `geometria` la restituisce solo se
@@ -1785,51 +1776,15 @@ if (!app.requestSingleInstanceLock()) {
 
       apriNuovaFinestra()
 
-      // Una finestra per ogni monitor che ha delle chat. Il layout è
-      // archiviato per monitor e una finestra ne mostra uno: chi lavorava su
-      // due schermi e riapriva con una finestra sola vedeva metà del suo
-      // workspace e credeva di aver perso l'altra metà. Non l'aveva persa —
-      // non c'era nessuno a chiederla.
-      const schermi = screen.getAllDisplays().map((d) =>
-        chiaveMonitor({ bounds: d.bounds, scaleFactor: d.scaleFactor })
-      )
-
-      // **Un workspace, una disposizione.**
-      //
-      // Il layout per monitor sembrava naturale e ha prodotto quasi tutti i
-      // guasti di questi giorni: chat archiviate sotto uno schermo che nessuna
-      // finestra chiedeva, la stessa chat mostrata da due finestre, un
-      // salvataggio che ne cancellava un altro. Ogni rattoppo ne apriva uno
-      // nuovo, perché il modello chiedeva di sapere **sotto quale monitor**
-      // vive una chat: una domanda che nessuno dovrebbe doversi porre.
-      //
-      // Qui, una volta per tutte, ogni workspace mette le sue chat in un posto
-      // solo — lo schermo su cui si è aperta la prima finestra. Si perde la
-      // disposizione separata per schermo; si guadagna che le chat ci sono
-      // sempre tutte, e chiunque le cerchi le trova.
-      const prima = BrowserWindow.getAllWindows()[0]
-      const casa = prima === undefined ? schermi[0] : chiaveDiFinestra(prima)
-      const daUnire = workspaceStore?.leggi()
-      if (daUnire !== undefined && casa !== undefined) {
-        const uniti = daUnire.workspace.map((w) => ({
-          ...w,
-          perMonitor: unicoLayout(w.perMonitor, casa)
-        }))
-        const cambiati = uniti.filter((w, i) => w.perMonitor !== daUnire.workspace[i]?.perMonitor)
-        if (cambiati.length > 0) {
-          console.log(`[avvio] ${cambiati.length} workspace avevano le chat divise fra piu monitor: unite`)
-          workspaceStore?.scrivi({ ...daUnire, workspace: uniti })
-          // Alla finestra, se nel frattempo è pronta a ricevere. Di solito non
-          // lo è — sta ancora caricando — e allora questo messaggio si perde
-          // senza far danni: quando chiederà il suo layout troverà l'archivio
-          // già unito. Serve per il caso opposto, quando l'unione è lenta
-          // perché i workspace sono molti.
-          const suo = uniti.find((w) => w.nome === daUnire.attivo)?.perMonitor[casa]
-          if (suo !== undefined && prima !== undefined && !prima.webContents.isDestroyed()) {
-            prima.webContents.send('layout:applica', suo)
-          }
-        }
-      }
+      // La fusione delle chat sparse fra più monitor stava qui, e faceva parte
+      // del guasto invece che della cura: girava **dopo** che la finestra era
+      // già nata, quindi correva contro la sua `layout:carica`, e usava una
+      // chiave calcolata da questa funzione mentre carica e salva ne usavano
+      // un'altra, calcolata altrove in un altro istante. Adesso l'archiviazione
+      // non passa più dalla geometria di uno schermo (vedi `SLOT_PRIMO`), e la
+      // migrazione dalle vecchie chiavi sta in `parseArchivio`: succede alla
+      // lettura, prima che chiunque possa chiedere qualcosa, e non c'è più
+      // nessuna gara da vincere.
 
       app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) apriNuovaFinestra()

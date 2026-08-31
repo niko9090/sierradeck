@@ -1,5 +1,5 @@
 import {
-  parseArchivio, unaChatUnWorkspace, VERSIONE_ARCHIVIO, NOME_PREDEFINITO,
+  parseArchivio, unaChatUnWorkspace, VERSIONE_ARCHIVIO, NOME_PREDEFINITO, SLOT_PRIMO,
   type LayoutSalvato, type WorkspaceSalvato
 } from './workspace'
 
@@ -36,7 +36,20 @@ export type AutopilotaSalvato = {
  * quattro.
  */
 export type FinestraSalvata = {
+  /** Su quale schermo stava: serve a **rimettercela**, non ad archiviare. */
   monitor: string
+  /**
+   * Lo slot di archiviazione della finestra (`1`, `2`, …).
+   *
+   * Prima il layout si archiviava sotto `monitor`, cioè sotto la geometria dello
+   * schermo — mentre il salvataggio ordinario usava un'altra chiave, calcolata
+   * altrove e in un altro istante. Le due divergevano, e un ripristino scriveva
+   * le chat sotto una chiave che la finestra non avrebbe mai chiesto: il
+   * ripristino sembrava riuscito e il lavoro non tornava.
+   *
+   * Assente nelle istantanee salvate prima: allora si numera per posizione.
+   */
+  slot?: string
   layout: LayoutSalvato
 }
 
@@ -114,9 +127,9 @@ export function finestreDaRiaprire(i: Istantanea): FinestraSalvata[] {
   const salvati = i.workspace ?? []
   const davanti = salvati.find((w) => w.nome === i.workspaceAttivo) ?? salvati[0]
   if (davanti === undefined) return []
-  return Object.entries(davanti.perMonitor)
+  return Object.entries(davanti.perSlot)
     .filter(([, layout]) => layout.panes.length > 0)
-    .map(([monitor, layout]) => ({ monitor, layout }))
+    .map(([slot, layout]) => ({ monitor: slot, slot, layout }))
 }
 
 /**
@@ -132,17 +145,20 @@ export function workspaceDaSalvare(
   archivio: { attivo: string; workspace: WorkspaceSalvato[] },
   finestre: FinestraSalvata[]
 ): WorkspaceSalvato[] {
-  const perMonitorVivo: Record<string, LayoutSalvato> = {}
-  for (const f of finestre) perMonitorVivo[f.monitor] = f.layout
+  const perSlotVivo: Record<string, LayoutSalvato> = {}
+  // Lo slot, non il monitor: era qui che il ripristino archiviava sotto una
+  // chiave diversa da quella che la finestra chiede. Le istantanee vecchie non
+  // ce l'hanno, e allora si numerano per posizione — la prima finestra è la 1.
+  finestre.forEach((f, i) => { perSlotVivo[f.slot ?? String(i + 1)] = f.layout })
 
   const aggiornato: WorkspaceSalvato = {
     nome: archivio.attivo,
-    // Quello che si ha davanti vince sulla copia su disco, ma solo per i
-    // monitor che hanno davvero una finestra aperta: gli altri restano come
+    // Quello che si ha davanti vince sulla copia su disco, ma solo per gli
+    // slot che hanno davvero una finestra aperta: gli altri restano come
     // erano, invece di sparire perché in questo momento nessuno li guarda.
-    perMonitor: {
-      ...(archivio.workspace.find((w) => w.nome === archivio.attivo)?.perMonitor ?? {}),
-      ...perMonitorVivo
+    perSlot: {
+      ...(archivio.workspace.find((w) => w.nome === archivio.attivo)?.perSlot ?? {}),
+      ...perSlotVivo
     }
   }
 
@@ -194,7 +210,7 @@ export function workspaceDopoRipristino(
   )
   const finale = fusi.filter((w) => {
     const introdotto = nomiSalvati.has(w.nome) && !nomiPrima.has(w.nome)
-    const vuoto = Object.values(w.perMonitor).every((l) => l.panes.length === 0)
+    const vuoto = Object.values(w.perSlot).every((l) => l.panes.length === 0)
     return !(introdotto && vuoto)
   })
 
@@ -242,7 +258,7 @@ export function workspaceDelleFinestre(
   const aSchermo = new Set(finestre.flatMap((f) => f.layout.panes.map((p) => p.sessionUuid)))
   if (aSchermo.size === 0) return undefined
   for (const w of workspace) {
-    for (const layout of Object.values(w.perMonitor)) {
+    for (const layout of Object.values(w.perSlot)) {
       if (layout.panes.some((p) => aSchermo.has(p.sessionUuid))) return w.nome
     }
   }
@@ -301,10 +317,10 @@ function parseLayout(raw: unknown, scartati: string[]): LayoutSalvato | undefine
   const { archivio, scartati: loro } = parseArchivio({
     versione: VERSIONE_ARCHIVIO,
     attivo: NOME_PREDEFINITO,
-    workspace: [{ nome: NOME_PREDEFINITO, perMonitor: { x: raw } }]
+    workspace: [{ nome: NOME_PREDEFINITO, perSlot: { [SLOT_PRIMO]: raw } }]
   })
   for (const motivo of loro) scartati.push(motivo)
-  return archivio.workspace[0]?.perMonitor['x']
+  return archivio.workspace[0]?.perSlot[SLOT_PRIMO]
 }
 
 function parseAutopilota(raw: unknown, scartati: string[]): AutopilotaSalvato | undefined {
@@ -372,14 +388,14 @@ function parseWorkspace(raw: unknown, scartati: string[]): WorkspaceSalvato[] | 
       scartati.push('workspace senza nome')
       continue
     }
-    const perMonitor: Record<string, LayoutSalvato> = {}
-    if (typeof o.perMonitor === 'object' && o.perMonitor !== null) {
-      for (const [chiave, layout] of Object.entries(o.perMonitor as Record<string, unknown>)) {
+    const perSlot: Record<string, LayoutSalvato> = {}
+    if (typeof o.perSlot === 'object' && o.perSlot !== null) {
+      for (const [chiave, layout] of Object.entries(o.perSlot as Record<string, unknown>)) {
         const letto = parseLayout(layout, scartati)
-        if (letto !== undefined) perMonitor[chiave] = letto
+        if (letto !== undefined) perSlot[chiave] = letto
       }
     }
-    letti.push({ nome, perMonitor })
+    letti.push({ nome, perSlot })
   }
   return letti
 }
@@ -429,13 +445,18 @@ export function parseIstantanee(raw: unknown): { istantanee: Istantanea[]; scart
           // una finestra vuota che comparirebbe sullo schermo senza contenere
           // niente, e va scartata invece che ricreata.
           if (letto !== undefined && letto.panes.length > 0) {
-            finestre.push({ monitor: stringaNonVuota(fo.monitor) ?? '', layout: letto })
+            const slot = stringaNonVuota(fo.slot)
+            finestre.push({
+              monitor: stringaNonVuota(fo.monitor) ?? '',
+              ...(slot !== undefined ? { slot } : {}),
+              layout: letto
+            })
           }
         }
-      } else if (typeof g.perMonitor === 'object' && g.perMonitor !== null) {
+      } else if (typeof g.perSlot === 'object' && g.perSlot !== null) {
         // La forma precedente: un layout per monitor, cioè una finestra per
         // schermo. Chi ha già dei salvataggi non deve perderli.
-        for (const [chiave, layout] of Object.entries(g.perMonitor as Record<string, unknown>)) {
+        for (const [chiave, layout] of Object.entries(g.perSlot as Record<string, unknown>)) {
           const letto = parseLayout(layout, scartati)
           if (letto !== undefined && letto.panes.length > 0) finestre.push({ monitor: chiave, layout: letto })
         }
@@ -537,7 +558,7 @@ export function contaChat(i: Istantanea): number {
   const viste = new Set<string>()
   for (const f of i.finestre) for (const p of f.layout.panes) viste.add(p.sessionUuid)
   for (const w of i.workspace ?? []) {
-    for (const layout of Object.values(w.perMonitor)) {
+    for (const layout of Object.values(w.perSlot)) {
       for (const p of layout.panes) viste.add(p.sessionUuid)
     }
   }

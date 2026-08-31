@@ -15,13 +15,15 @@ import { APP_DATA_DIR_NAME } from '@shared/version'
 import { chiaveMonitor } from '@shared/display-key'
 import {
   aggiungiPaneA,
-  layoutPerFinestra,
+  layoutPerSlot,
+  NOME_PREDEFINITO,
   rimuoviSessioni as rimuoviSessioniDalLayout,
   unaChatUnWorkspace,
   type Archivio,
   type LayoutSalvato
 } from '@shared/workspace'
 import type { WorkspaceStore } from './workspace-store'
+import { creaRegistroConsegne } from './consegne-layout'
 import type { IstantaneeStore } from './istantanee-store'
 import {
   nuovaIstantanea, distribuisci, daRiavviare, daSalvare, workspaceDaSalvare,
@@ -51,7 +53,8 @@ import {
   creaWorkspace,
   eliminaWorkspace,
   rinominaWorkspace,
-  salvaLayoutAttivo,
+  esitoDelSalvataggio,
+  salvaLayoutIn,
   seguiAttivoDellaPrincipale
 } from './workspace-operazioni'
 import type { ClientAutopilota } from './autopilot-client'
@@ -420,34 +423,54 @@ function monitorDellaFinestra(win: BrowserWindow): string {
 }
 
 /**
- * La chiave sotto cui una finestra archivia il proprio layout — decisa **una
- * volta sola**, alla prima domanda, e non più cambiata finché la finestra vive.
+ * Chi ha ricevuto quale layout: slot delle finestre e scontrini delle consegne.
  *
- * L'archivio tiene i layout in una mappa per monitor, e la chiave è la geometria
- * dello schermo (posizione, risoluzione, scalatura). Ricalcolarla a ogni
- * richiesta significa che basta trascinare la finestra su un altro monitor,
- * cambiare risoluzione o cambiare scalatura perché la stessa finestra cominci a
- * chiedere una chiave diversa da quella sotto cui ha salvato: il layout è ancora
- * lì, ma sotto un nome che nessuno chiede più. In interfaccia si vede così —
- * *cambio workspace e le chat non ci sono*. Non erano perse: non c'era nessuno a
- * chiederle.
- *
- * Congelarla toglie tutta la classe di guasti, e non ne apre nessuno: le chat
- * restano dov'erano, e chi sposta la finestra continua a trovarle. All'avvio
- * successivo `unicoLayout` raccoglie comunque sotto un'unica chiave quello che
- * fosse rimasto sparso.
+ * La regola e le sue ragioni stanno in `consegne-layout.ts`, fuori di qui,
+ * perche' e' la decisione che ha sbagliato tre volte e va potuta verificare
+ * senza avviare Electron. Qui restano solo i due innesti con Electron: quali
+ * finestre sono vive, e quando una muore.
  */
-const chiaviCongelate = new Map<number, string>()
+const consegne = creaRegistroConsegne()
 
-function chiaveDellaFinestra(win: BrowserWindow): string {
-  const gia = chiaviCongelate.get(win.id)
-  if (gia !== undefined) return gia
-  const chiave = monitorDellaFinestra(win)
-  chiaviCongelate.set(win.id, chiave)
-  // Gli id delle finestre si riciclano: senza questa pulizia una finestra nuova
-  // erediterebbe la chiave di una morta.
-  win.once('closed', () => chiaviCongelate.delete(win.id))
-  return chiave
+function vive(): number[] {
+  return BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed()).map((w) => w.id)
+}
+
+const salutate = new Set<number>()
+
+function slotDellaFinestra(win: BrowserWindow): string {
+  if (!salutate.has(win.id)) {
+    salutate.add(win.id)
+    win.once('closed', () => {
+      consegne.dimentica(win.id)
+      salutate.delete(win.id)
+    })
+  }
+  return consegne.slotDi(win.id, vive())
+}
+
+/** Registra una consegna e restituisce lo scontrino da dare alla finestra. */
+function consegnaA(win: BrowserWindow, workspace: string): number {
+  slotDellaFinestra(win)
+  return consegne.consegna(win.id, workspace, vive())
+}
+
+/** Il layout, con lo scontrino che gli dà diritto a essere risalvato. */
+export type LayoutConScontrino = { layout: LayoutSalvato; scontrino: number }
+
+/**
+ * Spinge un layout a una finestra registrandone la consegna.
+ *
+ * Ogni strada per cui un layout **arriva** a una finestra deve passare di qui,
+ * senza eccezioni: un layout consegnato senza ricevuta è un layout che la
+ * finestra non potrà risalvare, e uno spinto senza registrarlo le lascerebbe in
+ * mano una ricevuta vecchia — cioè il permesso di riscrivere il mondo di prima
+ * sopra quello di adesso.
+ */
+function spingiLayout(winId: number, workspace: string, layout: LayoutSalvato): void {
+  const win = BrowserWindow.getAllWindows().find((w) => w.id === winId)
+  if (win === undefined || win.isDestroyed() || win.webContents.isDestroyed()) return
+  win.webContents.send('layout:applica', { layout, scontrino: consegnaA(win, workspace) })
 }
 
 function layoutVuoto(): LayoutSalvato {
@@ -620,22 +643,6 @@ export function registerPreparazioneIpc(client: PtyHostClient, casa: () => strin
   })
 }
 
-/**
- * Le chat che ogni workspace contiene, per nome: serve a **vedere** un
- * trasloco invece di scoprirlo un'ora dopo.
- */
-function chatPerWorkspace(a: Archivio): Map<string, Set<string>> {
-  const m = new Map<string, Set<string>>()
-  for (const w of a.workspace) {
-    const dentro = new Set<string>()
-    for (const layout of Object.values(w.perMonitor)) {
-      for (const p of layout.panes) dentro.add(p.sessionUuid)
-    }
-    m.set(w.nome, dentro)
-  }
-  return m
-}
-
 export function registerLayoutIpc(
   store: WorkspaceStore,
   /**
@@ -649,21 +656,44 @@ export function registerLayoutIpc(
    */
   registra: (messaggio: string) => void = () => {}
 ): void {
-  ipcMain.handle('layout:carica', (event): LayoutSalvato => {
+  /**
+   * Il layout che spetta a questa finestra, con lo scontrino che le dà diritto a
+   * risalvarlo.
+   *
+   * È l'unica porta da cui una finestra ottiene il permesso di scrivere: senza
+   * essere passata di qui non ha scontrino, e il suo salvataggio viene rifiutato.
+   */
+  ipcMain.handle('layout:carica', (event): LayoutConScontrino => {
     const win = BrowserWindow.fromWebContents(event.sender)
-    if (win === null) return layoutVuoto()
+    if (win === null) return { layout: layoutVuoto(), scontrino: 0 }
+    const archivio = store.leggi()
     // Una finestra appena aperta da un ripristino trova qui il layout che le
     // spetta: e' la stessa domanda che ogni finestra fa all'avvio, quindi non
     // serve un canale in piu' ne' indovinare quando e' pronta a riceverlo.
     const inAttesa = codaLayout.preleva(Date.now(), win.id)
-    if (inAttesa !== undefined) return inAttesa
-    const archivio = store.leggi()
+    if (inAttesa !== undefined) {
+      return { layout: inAttesa, scontrino: consegnaA(win, archivio.attivo) }
+    }
     const attivo = archivio.workspace.find((w) => w.nome === archivio.attivo)
-    if (attivo === undefined) return layoutVuoto()
-    return layoutPerFinestra(attivo.perMonitor, chiaveDellaFinestra(win))
+    return {
+      layout: attivo === undefined ? layoutVuoto() : layoutPerSlot(attivo.perSlot, slotDellaFinestra(win)),
+      scontrino: consegnaA(win, archivio.attivo)
+    }
   })
 
-  ipcMain.on('layout:salva', (event, raw: unknown, rawNome: unknown) => {
+  /**
+   * Rimanda alla finestra la verità e un nuovo scontrino.
+   *
+   * Un rifiuto non è un vicolo cieco: la finestra ha in mano un mondo vecchio, e
+   * lasciarla lì significherebbe che da quel momento non salva più niente. Le si
+   * ridà quello che c'è davvero, e lei si riallinea.
+   */
+  const rimandaLaVerita = (win: BrowserWindow, nome: string): void => {
+    const w = store.leggi().workspace.find((x) => x.nome === nome)
+    spingiLayout(win.id, nome, w === undefined ? layoutVuoto() : layoutPerSlot(w.perSlot, slotDellaFinestra(win)))
+  }
+
+  ipcMain.on('layout:salva', (event, raw: unknown, rawScontrino: unknown, rawCongedate: unknown) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win === null) {
       console.error('[layout] salvataggio da una finestra sconosciuta, ignorato')
@@ -671,68 +701,69 @@ export function registerLayoutIpc(
     }
     const { layout, scartati } = validateLayoutSalvato(raw)
     for (const motivo of scartati) console.warn(`[layout:salva] scartato: ${motivo}`)
-    const chiave = chiaveDellaFinestra(win)
-    // Sotto quale workspace: quello che *questa* finestra mostra, non l'attivo
-    // dell'archivio. I due divergono per un istante a ogni cambio, e al riavvio
-    // dopo un aggiornamento la finestra puo' salvare mentre l'attivo memorizzato
-    // e' ancora un altro — e le chat di un workspace finivano sopra quelle di un
-    // altro. `salvaLayoutAttivo` ripiega sull'attivo se il nome e' vuoto o non
-    // esiste piu'.
-    const nomeFinestra = typeof rawNome === 'string' ? rawNome : undefined
+
+    // **Lo scontrino, prima di tutto il resto.**
+    //
+    // È la regola che mancava, e la sua assenza è costata tre volte il lavoro di
+    // una giornata. Un salvataggio non è una dettatura da eseguire: è la
+    // risposta a una consegna, e una risposta che non cita nessuna consegna —
+    // o ne cita una vecchia — descrive un mondo che non esiste più. Obbedirle
+    // significa scrivere sul disco lo stato di una finestra che non ha mai
+    // saputo cosa c'era prima: è la forma di **tutte** le perdite di questi
+    // giorni, comprese quelle che il controllo sui congedi non poteva vedere,
+    // perché lì le chat non sparivano — cambiavano workspace.
+    const consegna = consegne.verifica(win.id, rawScontrino)
+    if (consegna === undefined) {
+      const avuta = consegne.ricevuta(win.id)
+      registra(
+        `[layout] RIFIUTATO — la finestra ${win.id} salva senza una consegna valida ` +
+        `(scontrino ${String(rawScontrino)}, atteso ${avuta === undefined ? 'nessuno' : String(avuta.numero)}): ` +
+        `${layout.panes.length} riquadri non scritti`
+      )
+      // Solo a chi una consegna l'aveva: chi non ne ha mai avuta è ancora in
+      // avvio, e la sua `layout:carica` sta arrivando da sola.
+      if (avuta !== undefined) rimandaLaVerita(win, avuta.workspace)
+      return
+    }
+
     const archivio = store.leggi()
+    // Sotto quale workspace e quale slot lo dice **la ricevuta**, non la
+    // finestra: il Core si ricorda cosa ha consegnato a chi, e questo è il solo
+    // dato di cui si possa fidare.
+    const conLayout = salvaLayoutIn(archivio, consegna.workspace, consegna.slot, layout)
 
-    // Leggi-modifica-scrivi a ogni salvataggio, invece di tenere l'archivio in
-    // memoria: con più finestre che salvano il proprio monitor, una copia in
-    // memoria per finestra si sovrascriverebbero a vicenda. Il file è piccolo e
-    // la scrittura è atomica.
-    //
-    // Dove si scrive lo decide `salvaLayoutAttivo`, che è puro: è la parte che
-    // il difetto 0-quater metteva in dubbio, ed è l'unica qui dentro che si può
-    // sbagliare in silenzio.
-    const conLayout = salvaLayoutAttivo(archivio, chiave, layout, nomeFinestra)
+    const chi = `finestra ${win.id}, slot ${consegna.slot}, workspace «${consegna.workspace}»`
 
-    // Cosa è cambiato, e **soltanto quello che conta**.
-    //
-    // La prima versione di questo registro segnalava ogni workspace che perdeva
-    // una chat, e su due casi veri si è rivelata inutilizzabile: erano tutti e
-    // due traslochi legittimi — una chat spostata fra due finestre, che esce da
-    // un workspace e rientra in un altro nello stesso istante — annunciati come
-    // perdite. Uno strumento che grida a ogni gesto normale non si legge più.
-    //
-    // Quindi si guarda l'archivio **intero**: una chat che dopo la scrittura non
-    // sta più in nessun workspace è sparita davvero; una che ha solo cambiato
-    // posto è un trasloco, e si annota come tale — piano, perché serve a
-    // ricostruire una sequenza, non a dare l'allarme.
-    const prima = chatPerWorkspace(archivio)
-    const dopo = chatPerWorkspace(conLayout)
-    const dichiarato = typeof rawNome === 'string' ? rawNome.trim() : ''
-    const chi = `finestra ${win.id}, monitor ${chiave}, dichiara «${dichiarato === '' ? '—' : dichiarato}», attivo «${archivio.attivo}»`
+    // Chi la finestra dichiara di aver congedato: chiusa, spostata altrove,
+    // troncata da un preset. È l'unica cosa che il Core non può dedurre da solo,
+    // ed è quella che distingue una chat che se ne va perché l'hai chiusa da una
+    // che sparisce senza che nessuno l'abbia toccata. Lo scontrino copre la
+    // provenienza; questo copre il contenuto, e servono tutti e due.
+    const congedate = Array.isArray(rawCongedate)
+      ? rawCongedate.filter((x): x is string => typeof x === 'string' && x !== '')
+      : []
+    const esito = esitoDelSalvataggio(archivio, conLayout, congedate)
+    const racconta = (e: { sessione: string; dove: string }[]): string =>
+      e.map((x) => `${x.sessione} (era in «${x.dove}»)`).join(', ')
 
-    const ovunquePrima = new Map<string, string>()
-    for (const [nome, insieme] of prima) for (const u of insieme) ovunquePrima.set(u, nome)
-    const ovunqueDopo = new Map<string, string>()
-    for (const [nome, insieme] of dopo) for (const u of insieme) ovunqueDopo.set(u, nome)
-
-    const sparite: string[] = []
-    const traslochi: string[] = []
-    for (const [sessione, dove] of ovunquePrima) {
-      const adesso = ovunqueDopo.get(sessione)
-      if (adesso === undefined) sparite.push(`${sessione} (era in «${dove}»)`)
-      else if (adesso !== dove) traslochi.push(`${sessione}: «${dove}» → «${adesso}»`)
+    // **Una chat esce dall'archivio solo se qualcuno l'ha congedata.**
+    if (esito.perse.length > 0) {
+      registra(
+        `[layout] RIFIUTATO — ${esito.perse.length} chat sparirebbero senza che nessuno le abbia chiuse (${chi}): ${racconta(esito.perse)}`
+      )
+      rimandaLaVerita(win, consegna.workspace)
+      return
     }
 
-    // Questa è la riga che conta, ed è quella che nessuno ha mai potuto leggere
-    // le tre volte in cui il lavoro si è incrociato.
-    if (sparite.length > 0) {
-      registra(`[layout] ATTENZIONE — ${sparite.length} chat non stanno più in nessun workspace (${chi}): ${sparite.join(', ')}`)
+    // Quello che resta è normale, e si annota piano: serve a ricostruire una
+    // sequenza, non a dare l'allarme.
+    if (esito.sparite.length > 0) {
+      registra(`[layout] ${esito.sparite.length} chat congedate (${chi}): ${racconta(esito.sparite)}`)
     }
-    if (traslochi.length > 0) {
-      registra(`[layout] trasloco (${chi}): ${traslochi.join(', ')}`)
-    }
-    if (dichiarato === '') {
-      registra(`[layout] la finestra ${win.id} salva senza dichiarare il workspace: va sotto l'attivo «${archivio.attivo}»`)
-    } else if (!archivio.workspace.some((w) => w.nome === dichiarato)) {
-      registra(`[layout] la finestra ${win.id} dichiara «${dichiarato}», che nell'archivio non esiste: va sotto «${archivio.attivo}»`)
+    if (esito.traslochi.length > 0) {
+      registra(
+        `[layout] trasloco (${chi}): ${esito.traslochi.map((x) => `${x.sessione}: «${x.da}» → «${x.a}»`).join(', ')}`
+      )
     }
 
     // E `attivo` segue la finestra **principale** (la più vecchia ancora viva):
@@ -745,9 +776,11 @@ export function registerLayoutIpc(
     const principale = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
     const finale =
       principale !== undefined && principale.id === win.id
-        ? seguiAttivoDellaPrincipale(conLayout, nomeFinestra)
+        ? seguiAttivoDellaPrincipale(conLayout, consegna.workspace)
         : conLayout
-    store.scrivi(finale)
+    if (!store.scrivi(finale)) {
+      registra(`[layout] SALVATAGGIO NON SCRITTO — il disco ha rifiutato workspaces.json (${chi})`)
+    }
   })
 
   ipcMain.handle('workspace:stato', (): StatoWorkspace => statoDi(store.leggi()))
@@ -805,12 +838,12 @@ export function registerLayoutIpc(
   // non esiste un momento in cui il layout corrente non è salvato da nessuna
   // parte. Con due canali distinti quel momento esisterebbe, e una chiusura in
   // mezzo perderebbe il lavoro.
-  ipcMain.handle('workspace:cambia', (event, rawNome: unknown, rawLayout: unknown): LayoutSalvato => {
+  ipcMain.handle('workspace:cambia', (event, rawNome: unknown, rawLayout: unknown, rawScontrino: unknown): LayoutConScontrino => {
     const nome = validateNomeWorkspace(rawNome)
     const precedente = store.leggi()
-    const { archivio, layout } = cambiaConLayoutDi(event, store, nome, rawLayout)
-    annunciaCambio(event, archivio, precedente.attivo)
-    return layout
+    const esito = cambiaConLayoutDi(event, store, nome, rawLayout, rawScontrino)
+    annunciaCambio(event, esito.archivio, precedente.attivo)
+    return { layout: esito.layout, scontrino: esito.scontrino }
   })
 
   /**
@@ -846,9 +879,9 @@ export function registerLayoutIpc(
     if (!archivio.workspace.some((w) => w.nome === nome)) {
       throw new Error(`il workspace «${nome}» non esiste`)
     }
-    const chiave = chiaveDellaFinestra(win)
+    const chiave = slotDellaFinestra(win)
     const destinazione = archivio.workspace.find((w) => w.nome === nome)
-    const attuale = destinazione?.perMonitor[chiave] ?? { root: undefined, panes: [] }
+    const attuale = destinazione?.perSlot[chiave] ?? { root: undefined, panes: [] }
 
     // Invariante «una chat, un workspace»: la conversazione entra nella
     // destinazione e sparisce da ogni altro workspace (la sorgente compresa —
@@ -878,8 +911,14 @@ export function registerLayoutIpc(
   // niente, altrimenti ogni finestra risveglierebbe le altre all'infinito.
   ipcMain.handle(
     'workspace:migra',
-    (event, rawDa: unknown, rawNome: unknown, rawLayout: unknown): LayoutSalvato =>
-      cambiaConLayoutDi(event, store, validateNomeWorkspace(rawNome), rawLayout, validateNomeWorkspace(rawDa)).layout
+    (event, _rawDa: unknown, rawNome: unknown, rawLayout: unknown, rawScontrino: unknown): LayoutConScontrino => {
+      // `da` non arriva più da fuori: lo dice la ricevuta della consegna. Era
+      // l'ultimo posto in cui una finestra poteva nominare un workspace che non
+      // stava mostrando, e quindi salvare il proprio layout sopra le chat di
+      // qualcun altro.
+      const e = cambiaConLayoutDi(event, store, validateNomeWorkspace(rawNome), rawLayout, rawScontrino)
+      return { layout: e.layout, scontrino: e.scontrino }
+    }
   )
 }
 
@@ -892,16 +931,35 @@ function cambiaConLayoutDi(
   store: WorkspaceStore,
   nome: string,
   rawLayout: unknown,
-  da?: string
-): { archivio: Archivio; layout: LayoutSalvato } {
+  rawScontrino: unknown
+): { archivio: Archivio; layout: LayoutSalvato; scontrino: number } {
   const win = BrowserWindow.fromWebContents(event.sender)
   if (win === null) throw new Error('cambio di workspace da una finestra sconosciuta')
   const { layout: corrente, scartati } = validateLayoutSalvato(rawLayout)
   for (const motivo of scartati) console.warn(`[workspace:cambia] scartato: ${motivo}`)
 
-  const esito = cambiaWorkspace(store.leggi(), nome, chiaveDellaFinestra(win), corrente, da)
-  store.scrivi(esito.archivio)
-  return esito
+  // Anche qui lo scontrino comanda: un cambio di workspace **scrive** il layout
+  // che si sta lasciando, ed è quindi un salvataggio a tutti gli effetti. Chi
+  // non ha una consegna valida cambia vista senza scrivere niente: si porta
+  // dietro il suo schermo, ma non lo impone al disco.
+  const consegna = consegne.verifica(win.id, rawScontrino)
+  const valida = consegna !== undefined
+  const slot = slotDellaFinestra(win)
+  const esito = valida
+    ? cambiaWorkspace(store.leggi(), nome, slot, corrente, consegna.workspace)
+    // Senza consegna il layout corrente non si scrive: si legge soltanto quello
+    // di destinazione. `cambiaWorkspace` con un `da` che non esiste è
+    // esattamente questo, ma dirlo con un nome vuoto sarebbe un trucco: meglio
+    // il ramo esplicito.
+    : { archivio: store.leggi(), layout: layoutPerSlot(
+        store.leggi().workspace.find((w) => w.nome === nome)?.perSlot ?? {}, slot) }
+
+  if (valida) store.scrivi({ ...esito.archivio, attivo: nome })
+  return {
+    archivio: { ...esito.archivio, attivo: nome },
+    layout: esito.layout,
+    scontrino: consegnaA(win, nome)
+  }
 }
 
 /**
@@ -1123,13 +1181,13 @@ export function registerIstantaneeIpc(
         console.warn(`[istantanee] «${nome}»: la finestra che salva non ha riquadri, non la salvo`)
       }
       const finestre: FinestraSalvata[] = [
-        ...(layout.panes.length > 0 ? [{ monitor: monitorDellaFinestra(win), layout }] : []),
+        ...(layout.panes.length > 0 ? [{ monitor: monitorDellaFinestra(win), slot: slotDellaFinestra(win), layout }] : []),
         ...altre.flatMap((r) => {
           const w = BrowserWindow.getAllWindows().find((x) => x.id === r.winId)
           if (w === undefined || w.isDestroyed()) return []
           // Una finestra senza riquadri non e' da riaprire: comparirebbe vuota.
           if (r.layout.panes.length === 0) return []
-          return [{ monitor: monitorDellaFinestra(w), layout: r.layout }]
+          return [{ monitor: monitorDellaFinestra(w), slot: slotDellaFinestra(w), layout: r.layout }]
         })
       ]
 
@@ -1161,12 +1219,16 @@ export function registerIstantaneeIpc(
    * Ricarica un'istantanea: restituisce il layout per **questo** monitor e
    * riavvia gli autopiloti salvati.
    */
-  ipcMain.handle('istantanee:carica', async (event, rawNome: unknown): Promise<LayoutSalvato> => {
+  ipcMain.handle('istantanee:carica', async (event, rawNome: unknown): Promise<LayoutConScontrino> => {
     const nome = validateNomeWorkspace(rawNome)
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win === null) throw new Error('caricamento da una finestra sconosciuta')
     const istantanea = store.elenca().find((i) => i.nome === nome)
     if (istantanea === undefined) throw new Error(`istantanea «${nome}» non trovata`)
+    // Letto **al momento della consegna**, non adesso: il ripristino cambia
+    // l'attivo poche righe più sotto, e una ricevuta che nominasse il workspace
+    // di prima farebbe scrivere il layout ripristinato sotto il nome vecchio.
+    const workspaceDavanti = (): string => workspaceStore?.leggi().attivo ?? NOME_PREDEFINITO
 
     // Prima di tutto i workspace: quelli che non si hanno davanti tornano
     // nell'archivio così come erano, e li si ritrova cambiando workspace.
@@ -1227,7 +1289,7 @@ export function registerIstantaneeIpc(
         mio = a.layout
         continue
       }
-      registro.inviaA(a.id, 'layout:applica', a.layout)
+      spingiLayout(a.id, workspaceDavanti(), a.layout)
     }
     // Le finestre che il salvataggio non copre **non si svuotano**: si tolgono
     // solo le chat che il salvataggio rimette altrove — quelle comparirebbero due
@@ -1245,7 +1307,7 @@ export function registerIstantaneeIpc(
         const attuale = correnti.get(id) ?? layoutVuoto()
         const ridotto = rimuoviSessioniDalLayout(attuale, sessioniRimesse)
         if (id === win.id) mio = ridotto
-        else registro.inviaA(id, 'layout:applica', ridotto)
+        else spingiLayout(id, workspaceDavanti(), ridotto)
       }
     }
 
@@ -1289,7 +1351,11 @@ export function registerIstantaneeIpc(
       }
     }
 
-    return mio ?? layoutVuoto()
+    // Anche la finestra che ha chiesto il ripristino riceve una ricevuta: senza,
+    // il primo salvataggio dopo un ripristino verrebbe rifiutato, e il layout
+    // appena rimesso a posto non arriverebbe mai sul disco.
+    const suo = mio ?? layoutVuoto()
+    return { layout: suo, scontrino: consegnaA(win, workspaceDavanti()) }
   })
 }
 
@@ -1305,9 +1371,9 @@ function aggiornaWorkspace(
 ): Archivio['workspace'] {
   const esiste = archivio.workspace.some((w) => w.nome === nome)
   if (!esiste) {
-    return [...archivio.workspace, { nome, perMonitor: { [chiave]: layout } }]
+    return [...archivio.workspace, { nome, perSlot: { [chiave]: layout } }]
   }
   return archivio.workspace.map((w) =>
-    w.nome === nome ? { ...w, perMonitor: { ...w.perMonitor, [chiave]: layout } } : w
+    w.nome === nome ? { ...w, perSlot: { ...w.perSlot, [chiave]: layout } } : w
   )
 }

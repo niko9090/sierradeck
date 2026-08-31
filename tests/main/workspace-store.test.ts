@@ -21,15 +21,15 @@ describe('apriWorkspaceStore', () => {
       attivo: NOME_PREDEFINITO,
       workspace: [{
         nome: NOME_PREDEFINITO,
-        perMonitor: {
-          m1: {
+        perSlot: {
+          '1': {
             root: { type: 'pane', id: 'pane-1' },
             panes: [{ id: 'pane-1', sessionUuid: 'u1', cwd: 'C:\\p', title: 'a' }]
           }
         }
       }]
     })
-    expect(store.leggi().workspace[0]?.perMonitor['m1']?.panes[0]?.sessionUuid).toBe('u1')
+    expect(store.leggi().workspace[0]?.perSlot['1']?.panes[0]?.sessionUuid).toBe('u1')
   })
 
   it('non lascia il file temporaneo dopo una scrittura', () => {
@@ -76,8 +76,8 @@ describe('apriWorkspaceStore', () => {
     const store = apriWorkspaceStore(dir)
     store.scrivi({
       versione: VERSIONE_ARCHIVIO, attivo: NOME_PREDEFINITO,
-      workspace: [{ nome: NOME_PREDEFINITO, perMonitor: {
-        m1: { root: { type: 'pane', id: 'buono' }, panes: [{ id: 'buono', sessionUuid: 'u1', cwd: 'C:\\p', title: 'a' }] }
+      workspace: [{ nome: NOME_PREDEFINITO, perSlot: {
+        '1': { root: { type: 'pane', id: 'buono' }, panes: [{ id: 'buono', sessionUuid: 'u1', cwd: 'C:\\p', title: 'a' }] }
       } }]
     })
     // JSON.stringify solleva su BigInt: e' il modo di far fallire scrivi() senza
@@ -85,9 +85,42 @@ describe('apriWorkspaceStore', () => {
     store.scrivi({ ...archivioVuoto(), attivo: 1n as unknown as string })
 
     // Il salvataggio precedente e' ancora quello buono...
-    expect(store.leggi().workspace[0]?.perMonitor['m1']?.panes[0]?.id).toBe('buono')
+    expect(store.leggi().workspace[0]?.perSlot['1']?.panes[0]?.id).toBe('buono')
     // ...e non e' rimasto un temporaneo a sporcare la cartella.
     expect(readdirSync(dir).filter((f) => f.includes('.tmp'))).toEqual([])
+  })
+
+  it('dice quando non ha scritto, invece di tacere', () => {
+    // Prima l'esito si buttava via, e `scriviJsonAtomico` non solleva mai per
+    // progetto: un salvataggio non riuscito era indistinguibile da uno riuscito.
+    // Nessun errore, nessuna riga, e sul disco la versione di prima — la perdita
+    // si scopriva al riavvio successivo, quando non c'era piu' modo di
+    // ricostruire cosa fosse successo. Su Windows non e' teoria: la rinomina
+    // sopra un file che qualcun altro tiene aperto fallisce, e `workspaces.json`
+    // viene riletto ogni paio di secondi dal Client e dagli autopiloti.
+    const store = apriWorkspaceStore(dirTemporanea())
+    expect(store.scrivi(archivioVuoto())).toBe(true)
+    expect(store.scrivi({ ...archivioVuoto(), attivo: 1n as unknown as string })).toBe(false)
+  })
+
+  it('scrive anche sotto il vecchio nome, cosi si puo tornare indietro', () => {
+    // Se questa versione dovesse essere disinstallata, quella precedente cerca
+    // `perMonitor`: senza la copia troverebbe un archivio vuoto, cioe' tutte le
+    // chat sparite — il danno che questo lavoro esiste per chiudere. Quando si
+    // tocca il modo in cui il lavoro e' archiviato, la prima cosa da garantire
+    // non e' che vada bene: e' che si possa tornare indietro.
+    const dir = dirTemporanea()
+    apriWorkspaceStore(dir).scrivi({
+      versione: VERSIONE_ARCHIVIO, attivo: 'Uno',
+      workspace: [{ nome: 'Uno', perSlot: {
+        '1': { root: { type: 'pane', id: 'p' }, panes: [{ id: 'p', sessionUuid: 'u1', cwd: 'C:\p', title: 'a' }] }
+      } }]
+    })
+    const grezzo = JSON.parse(readFileSync(join(dir, 'workspaces.json'), 'utf8')) as {
+      workspace: { perSlot?: unknown; perMonitor?: unknown }[]
+    }
+    expect(grezzo.workspace[0]?.perSlot).toBeDefined()
+    expect(grezzo.workspace[0]?.perMonitor).toEqual(grezzo.workspace[0]?.perSlot)
   })
 
   it('crea la cartella se manca', () => {

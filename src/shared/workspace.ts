@@ -66,8 +66,8 @@ export type LayoutSalvato = {
 
 export type WorkspaceSalvato = {
   nome: string
-  /** Un layout per monitor, con la chiave prodotta da `chiaveMonitor`. */
-  perMonitor: Record<string, LayoutSalvato>
+  /** Un layout per **slot di finestra** — la `1`, la `2` — non per monitor. */
+  perSlot: Record<string, LayoutSalvato>
 }
 
 export type Archivio = {
@@ -77,62 +77,73 @@ export type Archivio = {
 }
 
 /**
- * Il layout che spetta a una finestra dentro un workspace: quello del suo
- * monitor, e basta.
+ * Lo **slot**: l'identità sotto cui una finestra archivia la propria
+ * disposizione.
  *
- * Un tempo, quando il proprio monitor era vuoto, si ripiegava sul primo layout
- * non vuoto di un altro schermo — sembrava generoso, «meglio le chat di ieri che
- * nessuna chat». Ma faceva mostrare a **due** finestre la stessa chat: quale
- * finestra stia guardando quale schermo non è registrato da nessuna parte, e senza
- * quel dato il ripiego non poteva evitare il doppione. È lo stesso male dei
- * layout-per-monitor, e per questo il ripiego è stato tolto.
+ * Prima era la geometria dello schermo (posizione, risoluzione, scalatura), ed
+ * è la scelta da cui discendono quasi tutti i guasti di questi giorni. Una
+ * geometria **non è un'identità**: cambia se sposti la finestra, se cambi
+ * risoluzione, se cambi scalatura, se stacchi un monitor. Chi archiviava sotto
+ * una chiave e poi ne chiedeva un'altra trovava il vuoto — e le sue chat erano
+ * lì, nel file, sotto un nome che nessuno chiedeva più. In interfaccia si legge
+ * così: *«cambio workspace e le chat non ci sono»*.
  *
- * Il caso che il ripiego voleva coprire — chat archiviate sotto una chiave che
- * nessuna finestra chiede più (schermo staccato, cambio di risoluzione o DPI che
- * cambia la chiave) — lo risolve `unicoLayout` all'avvio, che raccoglie le chat di
- * ogni monitor sotto la chiave della prima finestra: dopo, sono tutte sotto una
- * chiave sola, dove chi le cerca le trova. Qui non serve indovinare.
+ * Uno slot è invece un numero: la prima finestra è la `1`, la seconda la `2`. Non
+ * dipende da niente che l'utente possa muovere. La geometria resta dov'è utile
+ * davvero — rimettere le finestre sui loro schermi — e smette di essere
+ * un'identità che non è mai stata.
  */
-export function layoutPerFinestra(
-  perMonitor: Record<string, LayoutSalvato>,
-  chiave: string
-): LayoutSalvato {
-  return perMonitor[chiave] ?? { root: undefined, panes: [] }
+export const SLOT_PRIMO = '1'
+
+/** Uno slot è un numero scritto in decimale, e nient'altro. */
+export function eSlot(chiave: string): boolean {
+  return /^[1-9][0-9]{0,2}$/.test(chiave)
 }
 
 /**
- * Tutte le chat di un workspace in un layout solo.
+ * Il layout che spetta a uno slot dentro un workspace.
  *
- * Un layout per monitor sembrava naturale — due schermi, due disposizioni — e
- * ha prodotto quasi tutti i guasti di questi giorni: chat che non tornavano
- * perché archiviate sotto un monitor che nessuna finestra chiedeva, la stessa
- * chat mostrata due volte da due finestre, un salvataggio che ne cancellava un
- * altro. Ogni rattoppo ne apriva uno nuovo, perché il modello chiedeva a chi
- * lo usa di sapere **sotto quale monitor** vive una chat: una domanda che
- * nessuno dovrebbe doversi porre.
- *
- * Un workspace ha una disposizione. Le finestre in più restano finestre in
- * più — utili, vuote all'apertura, e ci si porta dentro le chat a mano. Si
- * perde la disposizione separata per schermo, e si guadagna che le chat ci
- * sono sempre tutte, in un posto solo, dove chiunque le cerchi le trova.
+ * Nessun ripiego su un'altra chiave: con lo slot non serve più indovinare —
+ * la finestra numero 1 chiede sempre la stessa cosa che ha scritto, e una
+ * chiave che nessuno chiede non può più esistere, perché gli slot li assegna
+ * chi apre le finestre e non il mondo esterno.
  */
-export function unicoLayout(
-  perMonitor: Record<string, LayoutSalvato>,
-  chiave: string
+export function layoutPerSlot(
+  perSlot: Record<string, LayoutSalvato>,
+  slot: string
+): LayoutSalvato {
+  return perSlot[slot] ?? { root: undefined, panes: [] }
+}
+
+/**
+ * Raccoglie sotto uno slot solo tutto quello che era archiviato altrove.
+ *
+ * Serve alla migrazione dalle chiavi-geometria: un archivio scritto da una
+ * versione precedente ha le chat sparse sotto chiavi come
+ * `1920x1080@0,0@1`, che nessuno chiederà mai più. Si portano tutte nello
+ * slot `1`, dove la prima finestra le trova.
+ *
+ * La deduplica passa da `sessionUuid` e **non** dall'id di riquadro: è la
+ * conversazione a dover comparire una volta sola. Deduplicando per id, la
+ * stessa chat che in due giri aveva preso due riquadri diversi entrava due
+ * volte nello stesso layout — due riquadri, due `claude.exe`, due `--resume`
+ * sulla stessa conversazione.
+ */
+export function raccogliInUnoSlot(
+  perSlot: Record<string, LayoutSalvato>,
+  slot: string
 ): Record<string, LayoutSalvato> {
-  const altri = Object.entries(perMonitor).filter(([k]) => k !== chiave)
-  if (altri.every(([, l]) => l.panes.length === 0)) {
-    // Niente da unire: si restituisce l'originale così com'è, e chi confronta
-    // per identità sa che non è cambiato niente.
-    return perMonitor
-  }
-  let insieme = perMonitor[chiave] ?? { root: undefined, panes: [] }
+  const chiavi = Object.keys(perSlot)
+  // Già a posto: una chiave sola, ed è quella giusta. Si restituisce lo stesso
+  // oggetto, così chi confronta per identità sa che non c'è niente da riscrivere.
+  if (chiavi.length === 1 && chiavi[0] === slot) return perSlot
+  const altri = Object.entries(perSlot).filter(([k]) => k !== slot)
+  let insieme = perSlot[slot] ?? { root: undefined, panes: [] }
   for (const [, layout] of altri) {
     for (const pane of layout.panes) insieme = aggiungiPaneA(insieme, pane)
   }
-  return { [chiave]: insieme }
+  return { [slot]: insieme }
 }
-
 
 export function archivioVuoto(): Archivio {
   return { versione: VERSIONE_ARCHIVIO, attivo: NOME_PREDEFINITO, workspace: [] }
@@ -389,15 +400,29 @@ export function parseArchivio(raw: unknown): { archivio: Archivio; scartati: str
         scartati.push(`workspace duplicato: ${nome}`)
         continue
       }
-      const perMonitor: Record<string, LayoutSalvato> = {}
-      if (typeof wo.perMonitor === 'object' && wo.perMonitor !== null) {
-        for (const [chiave, layout] of Object.entries(wo.perMonitor as Record<string, unknown>)) {
-          perMonitor[chiave] = parseLayout(layout, scartati)
+      // `perSlot` è la forma di adesso; `perMonitor` quella di prima, con la
+      // geometria dello schermo per chiave. Si leggono tutte e due, perché un
+      // archivio scritto ieri deve aprirsi oggi — e quello vecchio viene
+      // **raccolto sotto lo slot 1**, dove la prima finestra lo trova. Senza
+      // questa riga le chat resterebbero nel file sotto chiavi che nessuno
+      // chiede più: è esattamente il guasto che lo slot esiste per chiudere.
+      const grezzo = wo.perSlot ?? wo.perMonitor
+      const eredita = wo.perSlot === undefined && wo.perMonitor !== undefined
+      let perSlot: Record<string, LayoutSalvato> = {}
+      if (typeof grezzo === 'object' && grezzo !== null) {
+        for (const [chiave, layout] of Object.entries(grezzo as Record<string, unknown>)) {
+          perSlot[chiave] = parseLayout(layout, scartati)
         }
-      } else if (wo.perMonitor !== undefined) {
-        scartati.push(`workspace ${nome}: perMonitor non e un oggetto`)
+      } else if (grezzo !== undefined) {
+        scartati.push(`workspace ${nome}: perSlot non e un oggetto`)
       }
-      workspace.push({ nome, perMonitor })
+      // Anche una chiave che non è uno slot va raccolta: un archivio a metà
+      // migrazione — scritto da una versione, riletto dall'altra — avrebbe
+      // altrimenti una parte delle chat irraggiungibile.
+      if (eredita || Object.keys(perSlot).some((k) => !eSlot(k))) {
+        perSlot = raccogliInUnoSlot(perSlot, SLOT_PRIMO)
+      }
+      workspace.push({ nome, perSlot })
     }
   } else if (o.workspace !== undefined) {
     scartati.push('workspace non e un elenco')
@@ -428,7 +453,13 @@ export function parseArchivio(raw: unknown): { archivio: Archivio; scartati: str
  */
 export function aggiungiPaneA(layout: LayoutSalvato, pane: PaneSalvato): LayoutSalvato {
   const { ptyId: _ptyId, ...pulito } = pane
-  if (layout.panes.some((p) => p.id === pulito.id)) return layout
+  // Per id **e** per conversazione. Deduplicare per solo id lasciava entrare due
+  // volte la stessa chat quando in due giri aveva preso due riquadri diversi:
+  // due riquadri, due `claude.exe`, due `--resume` sulla stessa conversazione.
+  // L'identità di una chat è la conversazione, non la casella che la contiene.
+  if (layout.panes.some((p) => p.id === pulito.id || p.sessionUuid === pulito.sessionUuid)) {
+    return layout
+  }
 
   const panes = [...layout.panes, pulito]
   if (layout.root === undefined) {
@@ -491,16 +522,16 @@ export function unaChatUnWorkspace(
   const viste = new Set<string>()
   const perNome = new Map<string, WorkspaceSalvato>()
   for (const w of ordine) {
-    const perMonitor: Record<string, LayoutSalvato> = {}
-    for (const [chiave, layout] of Object.entries(w.perMonitor)) {
+    const perSlot: Record<string, LayoutSalvato> = {}
+    for (const [chiave, layout] of Object.entries(w.perSlot)) {
       const doppie = new Set(
         layout.panes.filter((p) => viste.has(p.sessionUuid)).map((p) => p.sessionUuid)
       )
       const pulito = doppie.size > 0 ? rimuoviSessioni(layout, doppie) : layout
       for (const p of pulito.panes) viste.add(p.sessionUuid)
-      perMonitor[chiave] = pulito
+      perSlot[chiave] = pulito
     }
-    perNome.set(w.nome, { nome: w.nome, perMonitor })
+    perNome.set(w.nome, { nome: w.nome, perSlot })
   }
   // L'ordine originale, con i contenuti normalizzati.
   return workspace.map((w) => perNome.get(w.nome) ?? w)
@@ -518,11 +549,11 @@ export function unaChatUnWorkspace(
  * una chat nuova, e nasce dove sei.
  */
 export function workspaceDellaSessione(
-  archivio: { workspace: { nome: string; perMonitor: Record<string, { panes: { sessionUuid?: string }[] }> }[] },
+  archivio: { workspace: { nome: string; perSlot: Record<string, { panes: { sessionUuid?: string }[] }> }[] },
   sessione: string
 ): string | undefined {
   for (const w of archivio.workspace) {
-    for (const layout of Object.values(w.perMonitor)) {
+    for (const layout of Object.values(w.perSlot)) {
       if (layout.panes.some((p) => p.sessionUuid === sessione)) return w.nome
     }
   }

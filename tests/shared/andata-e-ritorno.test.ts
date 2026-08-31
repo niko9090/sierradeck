@@ -33,10 +33,10 @@ describe('un salvataggio riletto è quello che si era scritto', () => {
     const scritta = nuovaIstantanea({
       nome: 'desk',
       salvataIl: '2026-08-13T10:00:00.000Z',
-      finestre: [{ monitor: 'm1', layout }],
+      finestre: [{ monitor: 'm1', slot: '1', layout }],
       workspace: [
-        { nome: 'lavoro', perMonitor: { m1: layout } },
-        { nome: 'casa', perMonitor: {} }
+        { nome: 'lavoro', perSlot: { '1': layout } },
+        { nome: 'casa', perSlot: {} }
       ],
       workspaceAttivo: 'lavoro',
       autopiloti: [{
@@ -60,7 +60,7 @@ describe('un salvataggio riletto è quello che si era scritto', () => {
     const scritto = {
       versione: VERSIONE_ARCHIVIO,
       attivo: 'lavoro',
-      workspace: [{ nome: 'lavoro', perMonitor: { m1: layout } }]
+      workspace: [{ nome: 'lavoro', perSlot: { '1': layout } }]
     }
     const { archivio, scartati } = parseArchivio(JSON.parse(JSON.stringify(scritto)))
     expect(scartati).toEqual([])
