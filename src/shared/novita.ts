@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.47',
+    righe: [
+      '**Riaprendo, ritrovi esattamente quello che avevi lasciato: le stesse finestre, sui loro monitor, con le stesse chat nei loro workspace.** Nelle due versioni precedenti restava un caso scoperto, e si vedeva solo su una macchina vera con due schermi: le tue due finestre diventavano una sola, con le chat dei due monitor ammucchiate insieme. Adesso ogni monitor si riapre con le sue, e la finestra di sinistra è sempre quella di sinistra — in tutti i workspace.',
+      '**Il programma si controlla da solo che non resti indietro niente.** C’è una verifica che legge il tuo salvataggio vero, rifà tutto il giro — quante finestre aprire, cosa mostra ognuna, cosa si vede passando per ogni workspace — e confronta le chat salvate con quelle che arrivano davvero a schermo. Se una restasse fuori, non si arriva alla pubblicazione.'
+    ]
+  },
+  {
     versione: '0.12.46',
     righe: [
       '**Tutti i workspace e le loro chat tornano come li avevi lasciati** — sempre, che a salvarli sia stato un aggiornamento o tu. Nella 0.12.45 restava un caso scoperto: se lavoravi con due finestre e riaprivi con una sola, vedevi metà del tuo lavoro. Non era perso — era nel file, in un posto che nessuna finestra apriva. Adesso il programma conta quante finestre servono **prima** di aprirne una, e ne riapre tante quante ne bastano perché non resti fuori niente.',
