@@ -23,6 +23,15 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.45',
+    righe: [
+      '**Le chat non spariscono più, e non tornano più nel workspace sbagliato.** È il difetto su cui si era già intervenuti quattro volte senza chiuderlo, e questa volta la causa è stata presa alla radice: la disposizione delle tue chat era archiviata sotto la *geometria dello schermo*. Bastava spostare la finestra, cambiare risoluzione o ingrandirla al momento sbagliato perché il programma cercasse le chat sotto un nome diverso da quello con cui le aveva salvate — e trovasse il vuoto. Non erano perse: non c’era nessuno a chiederle. Adesso ogni finestra ha un suo posto fisso, che non dipende da niente che tu possa muovere.',
+      '**E il programma non obbedisce più a un salvataggio che non sa da dove viene.** Prima una finestra poteva dire «ecco come sono disposta» prima ancora di aver saputo com’era disposta, e quello che diceva finiva sul disco: era così che un workspace si svuotava da solo, quasi sempre durante un riavvio per aggiornamento. Ora ogni consegna lascia una ricevuta e ogni salvataggio la deve mostrare: senza, non si scrive, e alla finestra viene rimandato ciò che c’è davvero.',
+      '**Ripristinare un salvataggio non uccide più le chat che stavi usando.** C’erano due strade per rimettere le chat a schermo, apparentemente identiche: una spegneva i processi di tutte le conversazioni che uscivano di vista, l’altra li lasciava vivi. Il ripristino usava quella sbagliata. Ne è rimasta una sola.',
+      '**Una chat non si sdoppia più.** La stessa conversazione poteva comparire due volte in due riquadri, con due processi accesi sullo stesso lavoro. E se il salvataggio del file non riesce — capita su Windows quando qualcun altro lo tiene aperto — adesso viene scritto nel registro invece di passare in silenzio.'
+    ]
+  },
+  {
     versione: '0.12.44',
     righe: [
       '**Se la chat fa una domanda, l’autopilota adesso prova a rispondere lui.** Prima qualunque domanda fermava tutto e la girava a te — il contrario del punto: tornavi alla scrivania e trovavi il lavoro fermo su «uso npm o pnpm?», una cosa a cui l’obiettivo e il progetto rispondono da soli. Ora la domanda passa dal supervisore, che guarda il progetto e risponde; il lavoro continua senza che tu te ne accorga.',
@@ -220,14 +229,14 @@ export const NOVITA: Novita[] = [
   {
     versione: '0.12.19',
     righe: [
-      '**Dal telefono si esce dall\u2019account, e si passa da uno all\u2019altro.** Prima la scheda Account era in sola lettura: si vedeva con quale account stava lavorando il computer e non si poteva fare nient\u2019altro. Chi ne ha due doveva alzarsi e andare al computer per cambiarlo. Ora ci sono «Esci» (con la conferma, perché l’accesso lo perde il computer e non solo il telefono) e «Passa a un altro account», che esce e rientra in un gesto solo.'
+      '**Dal telefono si esce dall’account, e si passa da uno all’altro.** Prima la scheda Account era in sola lettura: si vedeva con quale account stava lavorando il computer e non si poteva fare nient’altro. Chi ne ha due doveva alzarsi e andare al computer per cambiarlo. Ora ci sono «Esci» (con la conferma, perché l’accesso lo perde il computer e non solo il telefono) e «Passa a un altro account», che esce e rientra in un gesto solo.'
     ]
   },
   {
     versione: '0.12.18',
     righe: [
-      '**Il telefono non si scollega più da solo.** Bastava un istante sfortunato — il computer che riscriveva l\u2019elenco dei dispositivi proprio mentre arrivava una richiesta — per rispondere «non ti conosco» a un telefono autorizzato, e l\u2019app rispondeva buttando via l\u2019accoppiamento: si tornava al codice QR senza sapere perché. Adesso quell\u2019elenco sta fermo (si riscrive al massimo una volta al minuto invece che a ogni richiesta), e una lettura che non riesce non vale più come una revoca.',
-      '**Prima di installare un aggiornamento, i layout si mettono da parte.** Nella cartella dei dati resta una copia di `workspaces.json` chiamata `workspaces.prima-dell-aggiornamento.json`: se dopo un riavvio le chat si ritrovano sotto il workspace sbagliato, c\u2019è da dove tornare indietro.',
+      '**Il telefono non si scollega più da solo.** Bastava un istante sfortunato — il computer che riscriveva l’elenco dei dispositivi proprio mentre arrivava una richiesta — per rispondere «non ti conosco» a un telefono autorizzato, e l’app rispondeva buttando via l’accoppiamento: si tornava al codice QR senza sapere perché. Adesso quell’elenco sta fermo (si riscrive al massimo una volta al minuto invece che a ogni richiesta), e una lettura che non riesce non vale più come una revoca.',
+      '**Prima di installare un aggiornamento, i layout si mettono da parte.** Nella cartella dei dati resta una copia di `workspaces.json` chiamata `workspaces.prima-dell-aggiornamento.json`: se dopo un riavvio le chat si ritrovano sotto il workspace sbagliato, c’è da dove tornare indietro.',
       '**E se una chat cambia workspace da sola, adesso lascia una riga nel registro.** Chi, quando, sotto quale nome e cosa è stato tolto a chi: è la traccia che le due volte precedenti mancava del tutto.'
     ]
   },
@@ -632,8 +641,8 @@ export const NOVITA: Novita[] = [
   {
     versione: '0.9.28',
     righe: [
-      '**Gli aggiornamenti non li devi installare tu.** Si scaricano da soli in secondo piano e si installano **quando chiudi SierraDeck**: mai mentre stai lavorando, perche\u0301 quello e\u0300 il momento in cui non c\u2019e\u0300 niente da interrompere. Il tasto \u00abInstalla\u00bb resta, per chi la vuole subito.',
-      '**Un salvataggio non torna piu\u0300 vuoto.** Ne e\u0300 stato trovato uno sul disco \u2014 \u00abUltima chiusura\u00bb \u2014 con dentro una finestra senza riquadri: al ricarico non tornava **niente**, mentre le chat erano nello stesso file, nell\u2019archivio dei workspace. Adesso le finestre vuote non si salvano e, se un salvataggio vecchio ne ha una, il ripristino pesca dal workspace che avevi davanti.',
+      '**Gli aggiornamenti non li devi installare tu.** Si scaricano da soli in secondo piano e si installano **quando chiudi SierraDeck**: mai mentre stai lavorando, perche\u0301 quello e\u0300 il momento in cui non c’e\u0300 niente da interrompere. Il tasto \u00abInstalla\u00bb resta, per chi la vuole subito.',
+      '**Un salvataggio non torna piu\u0300 vuoto.** Ne e\u0300 stato trovato uno sul disco \u2014 \u00abUltima chiusura\u00bb \u2014 con dentro una finestra senza riquadri: al ricarico non tornava **niente**, mentre le chat erano nello stesso file, nell’archivio dei workspace. Adesso le finestre vuote non si salvano e, se un salvataggio vecchio ne ha una, il ripristino pesca dal workspace che avevi davanti.',
       '**Via i cinque tasti degli ingombri** (1, 2, 2\u00d72, 3\u00d72, 1+L) dalla fascia in alto: occupavano spazio e non servivano.'
     ]
   },
@@ -641,19 +650,19 @@ export const NOVITA: Novita[] = [
     versione: '0.9.27',
     righe: [
       '**Adesso si capisce che diamine sta combinando un autopilota.** Tre cose che mancavano, e sono quelle che servono per fidarsi.',
-      '**Le tue parole restano.** La preparazione riscriveva l\u2019obiettivo con parole sue \u2014 pi\u00f9 precise, e **sue** \u2014 e quello che avevi scritto tu spariva: senza, non c\u2019era modo di accorgersi che stava andando a fare un\u2019altra cosa. Adesso la scheda dice **Gli hai chiesto** e sotto **Ha capito cos\u00ec**, una sopra l\u2019altra.',
-      '**I criteri raggiunti sono puntati, con l\u2019ora.** \u00abRaggiunto alle 14:32\u00bb: su un lavoro che dura una notte \u00e8 la differenza fra \u00absta procedendo\u00bb e \u00ab\u00e8 fermo da stamattina\u00bb. E se una cosa torna rossa, la data se ne va.',
+      '**Le tue parole restano.** La preparazione riscriveva l’obiettivo con parole sue \u2014 pi\u00f9 precise, e **sue** \u2014 e quello che avevi scritto tu spariva: senza, non c’era modo di accorgersi che stava andando a fare un’altra cosa. Adesso la scheda dice **Gli hai chiesto** e sotto **Ha capito cos\u00ec**, una sopra l’altra.',
+      '**I criteri raggiunti sono puntati, con l’ora.** \u00abRaggiunto alle 14:32\u00bb: su un lavoro che dura una notte \u00e8 la differenza fra \u00absta procedendo\u00bb e \u00ab\u00e8 fermo da stamattina\u00bb. E se una cosa torna rossa, la data se ne va.',
       '**Si vedono i suoi ragionamenti**, dove sta guardando invece che sepolti in un pannello: \u00abriprovare lo stesso comando non porta da nessuna parte, isolo auth.spec e lo faccio girare da solo\u00bb. Sul computer e sul telefono.',
-      'E due difetti trovati **guardando la pagina**, non da un test: a computer scollegato i LED delle chat restavano verdi \u2014 un verde su dati di mezz\u2019ora prima \u2014 e le decisioni mostravano la sigla interna con cui il servizio se le marca.'
+      'E due difetti trovati **guardando la pagina**, non da un test: a computer scollegato i LED delle chat restavano verdi \u2014 un verde su dati di mezz’ora prima \u2014 e le decisioni mostravano la sigla interna con cui il servizio se le marca.'
     ]
   },
   {
     versione: '0.9.26',
     righe: [
-      '**L\u2019interfaccia del telefono \u00e8 rifatta.** Non ritoccata: era un elenco di cose che il programma sa fare, ordinate come sono state scritte. Adesso risponde a una domanda sola \u2014 *serve qualcosa da me?* \u2014 e tiene tutto il resto a un tocco, sotto il pollice.',
+      '**L’interfaccia del telefono \u00e8 rifatta.** Non ritoccata: era un elenco di cose che il programma sa fare, ordinate come sono state scritte. Adesso risponde a una domanda sola \u2014 *serve qualcosa da me?* \u2014 e tiene tutto il resto a un tocco, sotto il pollice.',
       '**Una fascia fissa in basso, quattro destinazioni**: Adesso, Chat, Lavori, Computer. Il menu di prima era un riquadro alla fine di uno scorrimento infinito che apriva i suoi pannelli ancora pi\u00f9 sotto: con sei chat aperte, \u00abConsumi\u00bb era a dodici schermate dal pollice. E la fascia \u00e8 anche la fila dei LED: sei dentro una chat e vedi lampeggiare in fondo che qualcuno ti aspetta.',
-      '**Si pu\u00f2 finalmente leggere una chat.** La pagina si ricostruiva tutta ogni due secondi, e lo scorrimento del terminale tornava a zero due volte al secondo: leggere l\u2019output dal telefono era materialmente impossibile. Adesso si ridisegna solo quando \u00e8 cambiato qualcosa, e lo scorrimento resta dov\u2019era.',
-      '**E non pu\u00f2 pi\u00f9 mentire.** Se il computer smette di rispondere lo dice \u2014 \u00abnon parlo con il computer da 40 secondi\u00bb \u2014 e spegne tutti i LED: nessun verde su dati di mezz\u2019ora prima.',
+      '**Si pu\u00f2 finalmente leggere una chat.** La pagina si ricostruiva tutta ogni due secondi, e lo scorrimento del terminale tornava a zero due volte al secondo: leggere l’output dal telefono era materialmente impossibile. Adesso si ridisegna solo quando \u00e8 cambiato qualcosa, e lo scorrimento resta dov’era.',
+      '**E non pu\u00f2 pi\u00f9 mentire.** Se il computer smette di rispondere lo dice \u2014 \u00abnon parlo con il computer da 40 secondi\u00bb \u2014 e spegne tutti i LED: nessun verde su dati di mezz’ora prima.',
       '**Adesso ha una gerarchia**: una domanda in attesa \u00e8 la schermata, con il suo testo alla misura pi\u00f9 grande della pagina e la risposta dove arriva il pollice; un lavoro fermo \u00e8 rosso e dice **perch\u00e9**; quando non serve niente, domina il vuoto: \u00abTutto in moto. Nessuno ti aspetta.\u00bb',
       '**Ha i materiali del banco**: le misure arrivano dal computer come i colori \u2014 scegliere il Foglio adesso cambia anche il telefono \u2014 i tasti hanno rilievo e si premono, e il raggio degli angoli \u00e8 quello della console. Erano 14 pixel: la ragione singola per cui sembrava un modulo web.',
       '**Un elenco \u00e8 un elenco**: una riga per chat, e chi vuole entrare entra. Prima ogni chat portava sempre sei comandi \u2014 con sei chat, trenta bersagli in colonna. E il tasto indietro di Android non esce più dall’app: torna dove eri.',
