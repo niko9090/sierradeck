@@ -16,6 +16,7 @@ import { chiaveMonitor } from '@shared/display-key'
 import {
   aggiungiPaneA,
   layoutPerSlot,
+  layoutPerFinestraViva,
   NOME_PREDEFINITO,
   rimuoviSessioni as rimuoviSessioniDalLayout,
   unaChatUnWorkspace,
@@ -438,6 +439,19 @@ function vive(): number[] {
 
 const salutate = new Set<number>()
 
+/**
+ * Riserva lo slot di una finestra **alla sua nascita**.
+ *
+ * Va chiamata da chi crea la finestra, prima che il renderer parta. Se lo slot
+ * si assegnasse alla prima domanda del renderer — com'era — l'ordine sarebbe
+ * quello in cui i renderer finiscono di caricare, che non e' l'ordine in cui le
+ * finestre sono state aperte: due finestre nate insieme si prenderebbero gli
+ * slot a rovescio, e ognuna ritroverebbe la disposizione dell'altra.
+ */
+export function riservaSlot(win: BrowserWindow): string {
+  return slotDellaFinestra(win)
+}
+
 function slotDellaFinestra(win: BrowserWindow): string {
   if (!salutate.has(win.id)) {
     salutate.add(win.id)
@@ -447,6 +461,23 @@ function slotDellaFinestra(win: BrowserWindow): string {
     })
   }
   return consegne.slotDi(win.id, vive())
+}
+
+/** Gli slot rivendicati adesso: quello che sta fuori non lo mostra nessuno. */
+function slotVivi(): string[] {
+  return vive().map((id) => consegne.slotDi(id, vive()))
+}
+
+/**
+ * Il layout da consegnare a una finestra dentro un workspace.
+ *
+ * Passa da qui **ogni** consegna, senza eccezioni: e' l'unico punto in cui si
+ * puo' garantire che nessuna chat resti in uno slot che nessuno rivendica.
+ */
+function daConsegnare(archivio: Archivio, nome: string, win: BrowserWindow): LayoutSalvato {
+  const w = archivio.workspace.find((x) => x.nome === nome)
+  if (w === undefined) return layoutVuoto()
+  return layoutPerFinestraViva(w.perSlot, slotDellaFinestra(win), slotVivi())
 }
 
 /** Registra una consegna e restituisce lo scontrino da dare alla finestra. */
@@ -674,9 +705,8 @@ export function registerLayoutIpc(
     if (inAttesa !== undefined) {
       return { layout: inAttesa, scontrino: consegnaA(win, archivio.attivo) }
     }
-    const attivo = archivio.workspace.find((w) => w.nome === archivio.attivo)
     return {
-      layout: attivo === undefined ? layoutVuoto() : layoutPerSlot(attivo.perSlot, slotDellaFinestra(win)),
+      layout: daConsegnare(archivio, archivio.attivo, win),
       scontrino: consegnaA(win, archivio.attivo)
     }
   })
@@ -689,8 +719,7 @@ export function registerLayoutIpc(
    * ridà quello che c'è davvero, e lei si riallinea.
    */
   const rimandaLaVerita = (win: BrowserWindow, nome: string): void => {
-    const w = store.leggi().workspace.find((x) => x.nome === nome)
-    spingiLayout(win.id, nome, w === undefined ? layoutVuoto() : layoutPerSlot(w.perSlot, slotDellaFinestra(win)))
+    spingiLayout(win.id, nome, daConsegnare(store.leggi(), nome, win))
   }
 
   ipcMain.on('layout:salva', (event, raw: unknown, rawScontrino: unknown, rawCongedate: unknown) => {
@@ -945,19 +974,20 @@ function cambiaConLayoutDi(
   const consegna = consegne.verifica(win.id, rawScontrino)
   const valida = consegna !== undefined
   const slot = slotDellaFinestra(win)
-  const esito = valida
-    ? cambiaWorkspace(store.leggi(), nome, slot, corrente, consegna.workspace)
-    // Senza consegna il layout corrente non si scrive: si legge soltanto quello
-    // di destinazione. `cambiaWorkspace` con un `da` che non esiste è
-    // esattamente questo, ma dirlo con un nome vuoto sarebbe un trucco: meglio
-    // il ramo esplicito.
-    : { archivio: store.leggi(), layout: layoutPerSlot(
-        store.leggi().workspace.find((w) => w.nome === nome)?.perSlot ?? {}, slot) }
+  // Senza consegna il layout corrente **non si scrive**: si cambia vista e
+  // basta. Con la consegna si salva prima quello che si lascia, sotto il
+  // workspace che la ricevuta nomina.
+  const archivio = valida
+    ? cambiaWorkspace(store.leggi(), nome, slot, corrente, consegna.workspace).archivio
+    : store.leggi()
+  if (valida) store.scrivi(archivio)
 
-  if (valida) store.scrivi({ ...esito.archivio, attivo: nome })
+  // La destinazione passa dalla stessa porta di ogni altra consegna: e' l'unico
+  // modo perche' un workspace disposto su piu' finestre dell'ultima volta torni
+  // **intero** anche se adesso di finestre ce n'e' una sola.
   return {
-    archivio: { ...esito.archivio, attivo: nome },
-    layout: esito.layout,
+    archivio: { ...archivio, attivo: nome },
+    layout: daConsegnare(archivio, nome, win),
     scontrino: consegnaA(win, nome)
   }
 }

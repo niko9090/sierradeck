@@ -21,7 +21,8 @@ import {
   registerIstantaneeIpc,
   registerPreparazioneIpc,
   claudeRoot,
-  salvaLayoutDiTutteLeFinestre
+  salvaLayoutDiTutteLeFinestre,
+  riservaSlot
 } from './ipc'
 import { preparaAmbiente } from './preparazione'
 import { decidiChiusura, vociArea, suggerimentoArea } from './area-notifica'
@@ -78,7 +79,7 @@ import {
 import { apriRegistro, type Registro } from './registro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
-import { workspaceDellaSessione } from '@shared/workspace'
+import { quanteFinestre, workspaceDellaSessione } from '@shared/workspace'
 import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
 import { apriDestinazioni } from './trasferimenti/destinazioni'
@@ -372,6 +373,12 @@ export function apriNuovaFinestra(): void {
       sandbox: false
     }
   })
+
+  // Lo slot subito, prima che il renderer parta: e' il posto in cui questa
+  // finestra archivia la sua disposizione, e va deciso nell'ordine in cui le
+  // finestre nascono — non in quello, diverso, in cui i loro renderer finiscono
+  // di caricare.
+  riservaSlot(win)
 
   // Lo stato di quando fu chiusa: ingrandita o a schermo intero. La dimensione
   // «da finestra» e' gia' quella passata sopra, cosi' de-ingrandendo si torna
@@ -1774,9 +1781,16 @@ if (!app.requestSingleInstanceLock()) {
         win.setTitle(raw.slice(0, 120))
       })
 
-      apriNuovaFinestra()
+      // **Tante finestre quante ne servono perche' ogni chat salvata torni a
+      // schermo.** Chi lavorava con due finestre e riapriva con una sola vedeva
+      // meta' del suo lavoro e credeva di aver perso l'altra meta': non l'aveva
+      // persa — era nel file, in uno slot che nessuno apriva. Il numero si
+      // decide **prima** di aprirne una, leggendo l'archivio: cosi' ogni
+      // finestra sa il proprio slot alla nascita e non c'e' nessuna gara.
+      const quante = quanteFinestre(workspaceStore?.leggi().workspace ?? [])
+      for (let i = 0; i < quante; i += 1) apriNuovaFinestra()
 
-      // La fusione delle chat sparse fra più monitor stava qui, e faceva parte
+      // La fusione delle chat sparse fra piu' monitor stava qui, e faceva parte
       // del guasto invece che della cura: girava **dopo** che la finestra era
       // già nata, quindi correva contro la sua `layout:carica`, e usava una
       // chiave calcolata da questa funzione mentre carica e salva ne usavano

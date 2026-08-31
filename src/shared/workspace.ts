@@ -116,6 +116,42 @@ export function layoutPerSlot(
 }
 
 /**
+ * Il layout che spetta a una finestra, **più le chat che nessun'altra prenderà**.
+ *
+ * La rinumerazione degli slot garantisce che, all'avvio, esista una finestra per
+ * ogni slot occupato. Ma un workspace non è quello dell'avvio: passandoci dentro
+ * puoi trovarne uno che l'ultima volta era disposto su due finestre mentre
+ * adesso ne hai una sola. Le chat della seconda sarebbero di nuovo lì, nel file,
+ * senza nessuno che le chieda — lo stesso guasto, alla terza forma.
+ *
+ * Allora chi ha lo slot **più basso fra quelli vivi** adotta tutto ciò che sta in
+ * slot che nessuna finestra aperta rivendica. Chi non ce l'ha prende solo il
+ * proprio: le chat non compaiono due volte, e la finestra che le adotta è sempre
+ * la stessa — non quella che per caso ha chiesto per prima.
+ *
+ * L'adozione **si consolida da sola**: il primo salvataggio le scrive nel proprio
+ * slot, e l'invariante «una chat, un workspace» le toglie da quelli vecchi, che
+ * restano vuoti. Aprendo una seconda finestra, da lì in poi, si riparte puliti.
+ */
+export function layoutPerFinestraViva(
+  perSlot: Record<string, LayoutSalvato>,
+  slot: string,
+  slotVivi: string[]
+): LayoutSalvato {
+  const mio = layoutPerSlot(perSlot, slot)
+  const vivi = new Set(slotVivi.length === 0 ? [slot] : slotVivi)
+  const piuBasso = [...vivi].map(Number).filter((n) => !Number.isNaN(n)).sort((a, b) => a - b)[0]
+  if (String(piuBasso) !== slot) return mio
+
+  let insieme = mio
+  for (const [k, l] of Object.entries(perSlot)) {
+    if (vivi.has(k)) continue
+    for (const pane of l.panes) insieme = aggiungiPaneA(insieme, pane)
+  }
+  return insieme
+}
+
+/**
  * Raccoglie sotto uno slot solo tutto quello che era archiviato altrove.
  *
  * Serve alla migrazione dalle chiavi-geometria: un archivio scritto da una
@@ -143,6 +179,102 @@ export function raccogliInUnoSlot(
     for (const pane of layout.panes) insieme = aggiungiPaneA(insieme, pane)
   }
   return { [slot]: insieme }
+}
+
+/**
+ * Quante finestre al massimo hanno una disposizione propria.
+ *
+ * Oltre questo numero gli slot vengono **raccolti nell'ultimo**, non lasciati
+ * dov'erano: una disposizione in più è una comodità, una chat irraggiungibile è
+ * lavoro perso. Lo stesso numero che `finestre-store` ricorda.
+ */
+export const SLOT_MAX = 4
+
+/**
+ * Gli slot che contengono davvero delle chat, in tutto l'archivio.
+ *
+ * In tutto l'archivio e non in un workspace solo, perché lo slot è della
+ * **finestra**: la finestra numero 2 è la stessa in ogni workspace, e decidere
+ * quante finestre servono guardando un workspace alla volta lascerebbe fuori le
+ * chat degli altri.
+ */
+export function slotOccupati(workspace: WorkspaceSalvato[]): number[] {
+  const numeri = new Set<number>()
+  for (const w of workspace) {
+    for (const [k, l] of Object.entries(w.perSlot)) {
+      if (l.panes.length > 0 && eSlot(k)) numeri.add(Number(k))
+    }
+  }
+  return [...numeri].sort((a, b) => a - b)
+}
+
+/**
+ * **Nessuna chat può restare in uno slot che nessuna finestra aprirà.**
+ *
+ * È la regola che manca a un archivio letto da disco, ed è la stessa che ha
+ * fatto sparire le chat per tre volte, solo travestita: prima la chiave era la
+ * geometria di uno schermo che non c'era più, adesso sarebbe il numero di una
+ * finestra che nessuno riapre. In tutti e due i casi il lavoro è nel file e non
+ * lo vede nessuno — che per chi lo ha fatto è indistinguibile dall'averlo perso.
+ *
+ * Due cose, e insieme chiudono il buco:
+ *
+ * 1. **I numeri si compattano.** Slot occupati `{1, 3}` diventano `{1, 2}`, e
+ *    la rinumerazione è la stessa per tutti i workspace — deve esserlo, perché
+ *    la finestra numero 2 è la stessa ovunque. Senza, per raggiungere lo slot 3
+ *    servirebbero tre finestre anche avendo due sole disposizioni.
+ * 2. **Oltre il tetto si raccoglie.** Quello che sta oltre `SLOT_MAX` finisce
+ *    nell'ultimo slot invece di restare dov'è: si perde una disposizione, non
+ *    una conversazione.
+ *
+ * Dopo, gli slot occupati sono esattamente `1..K` con `K <= SLOT_MAX`: aprendo
+ * `K` finestre non resta fuori niente, e `K` si sa **prima** di aprirne una —
+ * che è ciò che toglie di mezzo la gara fra le finestre che nascono e i loro
+ * layout.
+ */
+export function slotRaggiungibili(workspace: WorkspaceSalvato[]): WorkspaceSalvato[] {
+  const occupati = slotOccupati(workspace)
+  if (occupati.length === 0) return workspace
+  // Da numero vecchio a numero nuovo: 1, 2, 3… nell'ordine, col tetto.
+  const nuovo = new Map<number, number>()
+  occupati.forEach((vecchio, i) => nuovo.set(vecchio, Math.min(i + 1, SLOT_MAX)))
+  const gia = occupati.every((v) => nuovo.get(v) === v)
+  if (gia) return workspace
+
+  return workspace.map((w) => {
+    const rifatto: Record<string, LayoutSalvato> = {}
+    for (const [k, l] of Object.entries(w.perSlot)) {
+      // Uno slot vuoto non ha un posto da rivendicare: sparisce, e la finestra
+      // che gli toccherebbe lo ritrova vuoto comunque.
+      if (l.panes.length === 0) continue
+      const destinazione = String(nuovo.get(Number(k)) ?? SLOT_PRIMO)
+      const arrivato = rifatto[destinazione]
+      if (arrivato === undefined) {
+        rifatto[destinazione] = l
+        continue
+      }
+      // Due slot che finiscono nello stesso posto (il tetto): si uniscono, chat
+      // per chat, senza doppioni.
+      let insieme = arrivato
+      for (const pane of l.panes) insieme = aggiungiPaneA(insieme, pane)
+      rifatto[destinazione] = insieme
+    }
+    return { nome: w.nome, perSlot: rifatto }
+  })
+}
+
+/**
+ * Quante finestre servono perché ogni chat salvata sia raggiungibile.
+ *
+ * Almeno una, mai più di `SLOT_MAX`. Si chiama **prima** di aprire la prima
+ * finestra: è così che ogni finestra sa il proprio slot alla nascita invece di
+ * scoprirlo alla prima domanda, e due finestre non possono più contendersi lo
+ * stesso posto mentre nascono.
+ */
+export function quanteFinestre(workspace: WorkspaceSalvato[]): number {
+  const occupati = slotOccupati(workspace)
+  const massimo = occupati.length === 0 ? 1 : Math.max(...occupati)
+  return Math.min(Math.max(massimo, 1), SLOT_MAX)
 }
 
 export function archivioVuoto(): Archivio {
@@ -428,15 +560,27 @@ export function parseArchivio(raw: unknown): { archivio: Archivio; scartati: str
     scartati.push('workspace non e un elenco')
   }
 
+  // **Nessuna chat in uno slot che nessuna finestra aprira'.** Sta qui, alla
+  // lettura, e non in un passaggio d'avvio: cosi' vale per chiunque legga
+  // l'archivio — il programma, il Client del telefono, le consegne
+  // dell'autopilota — e soprattutto vale **prima** che una finestra possa
+  // chiedere qualcosa. Un rimedio che gira dopo la nascita delle finestre e' una
+  // gara, ed e' esattamente com'era fatto quello di prima.
+  // `slotRaggiungibili` restituisce **lo stesso array** quando non c'è niente da
+  // cambiare — è come sa, chi confronta per identità, che non si è mosso
+  // niente. Quindi si tiene il risultato in una variabile nuova e non si tocca
+  // l'originale: svuotarlo per riempirlo con se stesso lo lascerebbe vuoto.
+  const raggiungibili = slotRaggiungibili(workspace)
+
   // `attivo` deve puntare a qualcosa che esiste, altrimenti l'interfaccia
   // mostrerebbe selezionato un workspace che non c'e'.
   const attivoGrezzo = stringaNonVuota(o.attivo)
   const attivo =
-    attivoGrezzo !== undefined && workspace.some((w) => w.nome === attivoGrezzo)
+    attivoGrezzo !== undefined && raggiungibili.some((w) => w.nome === attivoGrezzo)
       ? attivoGrezzo
-      : (workspace[0]?.nome ?? NOME_PREDEFINITO)
+      : (raggiungibili[0]?.nome ?? NOME_PREDEFINITO)
 
-  return { archivio: { versione: VERSIONE_ARCHIVIO, attivo, workspace }, scartati }
+  return { archivio: { versione: VERSIONE_ARCHIVIO, attivo, workspace: raggiungibili }, scartati }
 }
 
 /**

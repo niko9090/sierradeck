@@ -204,6 +204,40 @@ stessa cosa, e il ripristino scriveva le chat sotto una chiave che la finestra n
 avrebbe mai chiesto — il ripristino sembrava riuscito e il lavoro non tornava.
 Le istantanee vecchie, che lo slot non ce l'hanno, si numerano per posizione.
 
+### 7. Nessuna chat in uno slot che nessuna finestra aprirà
+
+La prima stesura degli slot lasciava aperto il difetto **nella sua terza forma**.
+Prima la chiave era la geometria di uno schermo che non c'era più; adesso sarebbe
+il numero di una finestra che nessuno riapre. In tutti e due i casi il lavoro è
+nel file e non lo vede nessuno — che per chi lo ha fatto è indistinguibile
+dall'averlo perso. Tre cose lo chiudono:
+
+**I numeri si compattano, alla lettura.** Slot occupati `{1, 3}` diventano
+`{1, 2}`, con la stessa rinumerazione per **tutti** i workspace — deve esserlo,
+perché la finestra numero 2 è la stessa ovunque. E si guarda l'archivio intero,
+non il solo workspace davanti: lo slot 2 di un workspace che non hai davanti è
+lavoro come gli altri. Oltre `SLOT_MAX` (4) si raccoglie nell'ultimo: si perde
+una disposizione, non una conversazione. Dopo, gli slot occupati sono esattamente
+`1..K`.
+
+**All'avvio si aprono K finestre**, e il numero si sa **prima** di aprirne una.
+Chi lavorava con due finestre e riapriva con una sola vedeva metà del suo lavoro.
+Lo slot si riserva alla **nascita** della finestra, non alla prima domanda del suo
+renderer: l'ordine in cui i renderer finiscono di caricare non è quello in cui le
+finestre sono state aperte, e due finestre nate insieme si sarebbero prese gli
+slot a rovescio.
+
+**E chi ha lo slot più basso adotta gli orfani.** Un workspace non è quello
+dell'avvio: passandoci dentro puoi trovarne uno che l'ultima volta era disposto
+su due finestre mentre adesso ne hai una. `layoutPerFinestraViva` dà a quella
+finestra anche tutto ciò che sta in slot che nessuna finestra aperta rivendica —
+sempre la stessa finestra, non quella che per caso chiede per prima, o le chat
+comparirebbero in doppio. L'adozione si consolida da sola: il primo salvataggio
+le scrive nel proprio slot e l'invariante le toglie da quelli vecchi.
+
+Vale per ogni strada — avvio, cambio di workspace, ripristino di un salvataggio,
+verità rimandata dopo un rifiuto — perché tutte passano da `daConsegnare`.
+
 ## Le prove
 
 - `tests/main/consegne-layout.test.ts` (11) — lo slot più basso libero, lo slot
@@ -218,11 +252,12 @@ Le istantanee vecchie, che lo slot non ce l'hanno, si numerano per posizione.
 
 Ognuna verificata rimettendo il difetto: senza la correzione, cadono.
 
-## Cosa **non** è stato fatto, e perché
+## L'invariante, in una riga
 
-Non è stato toccato il fatto che `workspace:cambiato` porti **tutte** le finestre
-sullo stesso workspace. Con gli slot non fa più danno — ogni finestra ha la sua
-disposizione dentro quel workspace — ma resta una scelta discutibile: due
-finestre che seguono sempre la stessa vista sono due finestre che non puoi usare
-per guardare due cose diverse. È una scelta di prodotto, non un guasto, e va
-fatta a mente fredda.
+> **Tutti i workspace e le loro chat tornano come sono stati salvati — che il
+> salvataggio l'abbia fatto un aggiornamento o l'utente.**
+
+Non è un obiettivo: è la proprietà da cui discendono la rinumerazione degli slot,
+il numero di finestre deciso prima di aprirne una, e l'adozione degli orfani. Se
+un giorno una di queste tre sembra togliersi, la domanda da farsi è quale chat
+diventa irraggiungibile — non se il codice si semplifica.

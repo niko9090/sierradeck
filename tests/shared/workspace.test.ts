@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseArchivio, archivioVuoto, aggiungiPaneA, layoutPerSlot, raccogliInUnoSlot,
+  slotRaggiungibili, slotOccupati, quanteFinestre, layoutPerFinestraViva,
   rimuoviSessioni, unaChatUnWorkspace,
   VERSIONE_ARCHIVIO, NOME_PREDEFINITO, type LayoutSalvato, type WorkspaceSalvato
 } from '@shared/workspace'
@@ -507,5 +508,133 @@ describe('dalle chiavi-monitor agli slot', () => {
       workspace: [{ nome: 'Uno', perSlot: { '1': chat('a', 'u-a'), '2': chat('b', 'u-b') } }]
     }).archivio.workspace[0]?.perSlot
     expect(Object.keys(dopo ?? {}).sort()).toEqual(['1', '2'])
+  })
+})
+
+describe('nessuna chat in uno slot che nessuna finestra aprira', () => {
+  // La stessa regola di sempre, vista dall'altro lato. Prima la chiave era la
+  // geometria di uno schermo che non c'era piu'; adesso sarebbe il numero di una
+  // finestra che nessuno riapre. In tutti e due i casi il lavoro e' nel file e
+  // non lo vede nessuno — che per chi lo ha fatto e' indistinguibile dall'averlo
+  // perso.
+
+  const con = (id: string): LayoutSalvato => ({
+    root: { type: 'pane', id },
+    panes: [{ id, sessionUuid: 'u-' + id, cwd: 'C:/p', title: id }]
+  })
+  const vuoto: LayoutSalvato = { root: undefined, panes: [] }
+
+  it('i numeri si compattano: chi era nello slot 3 finisce nel 2', () => {
+    // Con un buco, per raggiungere lo slot 3 servirebbero tre finestre pur
+    // avendo due sole disposizioni — e la terza non la apre nessuno.
+    const dopo = slotRaggiungibili([{ nome: 'Uno', perSlot: { '1': con('a'), '3': con('b') } }])
+    expect(Object.keys(dopo[0]?.perSlot ?? {}).sort()).toEqual(['1', '2'])
+    expect(dopo[0]?.perSlot['2']?.panes[0]?.id).toBe('b')
+  })
+
+  it('la rinumerazione e la stessa per tutti i workspace', () => {
+    // Lo slot e' della **finestra**, e la finestra numero 2 e' la stessa in ogni
+    // workspace: rinumerare un workspace alla volta manderebbe la stessa
+    // finestra a pescare in due posti diversi a seconda di dove ti trovi.
+    const dopo = slotRaggiungibili([
+      { nome: 'Uno', perSlot: { '3': con('a') } },
+      { nome: 'Due', perSlot: { '3': con('b') } }
+    ])
+    expect(dopo[0]?.perSlot['1']?.panes[0]?.id).toBe('a')
+    expect(dopo[1]?.perSlot['1']?.panes[0]?.id).toBe('b')
+  })
+
+  it('conta anche il lavoro dei workspace che non hai davanti', () => {
+    // Guardando il solo workspace attivo, lo slot 2 di un altro sembrerebbe
+    // libero: la finestra 2 non si aprirebbe, e quelle chat resterebbero nel
+    // file senza che nessuno le chieda.
+    const ws: WorkspaceSalvato[] = [
+      { nome: 'Uno', perSlot: { '1': con('a') } },
+      { nome: 'Due', perSlot: { '1': con('b'), '2': con('c') } }
+    ]
+    expect(slotOccupati(ws)).toEqual([1, 2])
+    expect(quanteFinestre(ws)).toBe(2)
+  })
+
+  it('oltre il tetto si raccoglie invece di restare irraggiungibile', () => {
+    // Si perde una disposizione, non una conversazione: quello che sta oltre il
+    // numero di finestre che si e' disposti a riaprire finisce nell'ultima.
+    const tanti: Record<string, LayoutSalvato> = {}
+    for (let i = 1; i <= 6; i += 1) tanti[String(i)] = con('p' + i)
+    const dopo = slotRaggiungibili([{ nome: 'Uno', perSlot: tanti }])
+    const chiavi = Object.keys(dopo[0]?.perSlot ?? {}).sort()
+    expect(chiavi).toEqual(['1', '2', '3', '4'])
+    // Nessuna chat persa per strada.
+    const tutte = chiavi.flatMap((k) => (dopo[0]?.perSlot[k]?.panes ?? []).map((p) => p.id))
+    expect(tutte.sort()).toEqual(['p1', 'p2', 'p3', 'p4', 'p5', 'p6'])
+    expect(quanteFinestre(dopo)).toBe(4)
+  })
+
+  it('uno slot vuoto non tiene occupato un posto', () => {
+    // Una finestra che l'ultima volta era aperta e vuota non deve costringere a
+    // riaprirla, ne' spingere le chat vere in uno slot piu' in la'.
+    const dopo = slotRaggiungibili([{ nome: 'Uno', perSlot: { '1': vuoto, '2': con('a') } }])
+    expect(Object.keys(dopo[0]?.perSlot ?? {})).toEqual(['1'])
+    expect(dopo[0]?.perSlot['1']?.panes[0]?.id).toBe('a')
+  })
+
+  it('un archivio gia in ordine non viene toccato', () => {
+    const prima = [{ nome: 'Uno', perSlot: { '1': con('a'), '2': con('b') } }]
+    expect(slotRaggiungibili(prima)).toBe(prima)
+  })
+
+  it('senza chat basta una finestra', () => {
+    expect(quanteFinestre([])).toBe(1)
+    expect(quanteFinestre([{ nome: 'Uno', perSlot: {} }])).toBe(1)
+  })
+
+  it('l archivio letto da disco e gia raggiungibile', () => {
+    // La regola sta nella lettura e non in un passaggio d'avvio: vale per
+    // chiunque legga l'archivio, e vale **prima** che una finestra possa
+    // chiedere qualcosa. Un rimedio che gira dopo la nascita delle finestre e'
+    // una gara — ed e' esattamente com'era fatto quello di prima.
+    const a = parseArchivio({
+      versione: 1, attivo: 'Uno',
+      workspace: [{ nome: 'Uno', perSlot: { '2': con('a'), '5': con('b') } }]
+    }).archivio
+    expect(Object.keys(a.workspace[0]?.perSlot ?? {}).sort()).toEqual(['1', '2'])
+  })
+})
+
+describe('la finestra sola non lascia indietro le chat dell altra', () => {
+  // Un workspace disposto l ultima volta su due finestre, aperto oggi con una
+  // sola: le chat della seconda sarebbero di nuovo li, nel file, senza nessuno
+  // che le chieda. E lo stesso guasto, alla terza forma.
+  const con = (id: string): LayoutSalvato => ({
+    root: { type: 'pane', id },
+    panes: [{ id, sessionUuid: 'u-' + id, cwd: 'C:/p', title: id }]
+  })
+  const due = { '1': con('a'), '2': con('b') }
+
+  it('chi ha lo slot piu basso adotta quello che nessuno rivendica', () => {
+    const l = layoutPerFinestraViva(due, '1', ['1'])
+    expect(l.panes.map((p) => p.id).sort()).toEqual(['a', 'b'])
+  })
+
+  it('ma se la seconda finestra c e, ognuna prende il suo', () => {
+    expect(layoutPerFinestraViva(due, '1', ['1', '2']).panes.map((p) => p.id)).toEqual(['a'])
+    expect(layoutPerFinestraViva(due, '2', ['1', '2']).panes.map((p) => p.id)).toEqual(['b'])
+  })
+
+  it('ad adottare e sempre la stessa finestra, non quella che chiede per prima', () => {
+    // Se adottasse chiunque, due finestre potrebbero prendersi le stesse chat e
+    // mostrarle in doppio.
+    expect(layoutPerFinestraViva({ '1': con('a'), '3': con('c') }, '2', ['1', '2']).panes)
+      .toEqual([])
+    expect(layoutPerFinestraViva({ '1': con('a'), '3': con('c') }, '1', ['1', '2']).panes
+      .map((p) => p.id).sort()).toEqual(['a', 'c'])
+  })
+
+  it('la stessa conversazione non viene adottata due volte', () => {
+    const doppia = {
+      '1': con('a'),
+      '2': { root: { type: 'pane' as const, id: 'p2' }, panes: [{ id: 'p2', sessionUuid: 'u-a', cwd: 'C:/p', title: 'x' }] }
+    }
+    expect(layoutPerFinestraViva(doppia, '1', ['1']).panes.map((p) => p.sessionUuid)).toEqual(['u-a'])
   })
 })
