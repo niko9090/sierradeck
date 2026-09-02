@@ -265,6 +265,21 @@ nessuno. `tests/shared/ritorna-tutto.test.ts` legge quel file, se c'è, e confro
 le chat **salvate** con quelle **consegnate a una finestra**, workspace per
 workspace.
 
+### Quante finestre si aprono, e come si cambia
+
+Domanda che tornerà: *«perché all'avvio me ne apre due?»*. Il numero lo decide
+**il salvataggio**, non una preferenza: si apre una finestra per ogni slot che
+contiene delle chat. Con lavoro archiviato su due schermi le finestre sono due,
+e non c'è modo di fare altrimenti — una finestra sola non può mostrare due
+disposizioni, ed è proprio non aprendo la seconda che le sue chat sparivano.
+
+Non serve un interruttore, perché il gesto esiste già: spostando le chat della
+seconda finestra nella prima (trascinamento, o «sposta in un'altra finestra»)
+quello slot resta vuoto, `slotOccupati` non lo conta più e dal riavvio dopo si
+apre una finestra sola. E al contrario: rimettendo del lavoro sul secondo
+monitor, la seconda finestra torna da sé. Lo stato lo racconta il lavoro, non
+una casella nelle impostazioni.
+
 ## Le prove
 
 - `tests/main/consegne-layout.test.ts` (11) — lo slot più basso libero, lo slot
