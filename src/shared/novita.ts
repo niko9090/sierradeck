@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.48',
+    righe: [
+      '**Riapre le finestre che avevi davvero, dove le avevi.** Nella 0.12.47 chi lavorava con una finestra sola se ne ritrovava due: il programma indovinava quante finestre servissero guardando dove c’erano delle chat salvate — e ne trovava anche di vecchie di settimane, di quando due finestre le usavi davvero. Adesso il numero di finestre e la posizione di ognuna sono **scritti**, non indovinati: si aggiornano ogni volta che apri, chiudi o sposti una finestra.',
+      '**E adesso puoi dire «di finestre ne voglio una».** Con l’icona vicino all’orologio, la X nascondeva sempre la finestra invece di chiuderla — anche quando ne avevi altre aperte — quindi non c’era modo di tornare a una sola: al riavvio te la ritrovavi. Ora la X chiude la finestra quando non è l’ultima, e le sue chat passano subito in quella che resta. L’ultima finestra continua a nascondersi nell’area di notifica, come prima.'
+    ]
+  },
+  {
     versione: '0.12.47',
     righe: [
       '**Riaprendo, ritrovi esattamente quello che avevi lasciato: le stesse finestre, sui loro monitor, con le stesse chat nei loro workspace.** Nelle due versioni precedenti restava un caso scoperto, e si vedeva solo su una macchina vera con due schermi: le tue due finestre diventavano una sola, con le chat dei due monitor ammucchiate insieme. Adesso ogni monitor si riapre con le sue, e la finestra di sinistra è sempre quella di sinistra — in tutti i workspace.',
