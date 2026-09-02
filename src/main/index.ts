@@ -22,7 +22,10 @@ import {
   registerPreparazioneIpc,
   claudeRoot,
   salvaLayoutDiTutteLeFinestre,
-  riservaSlot
+  riservaSlot,
+  prossimoSlot,
+  annotaQuanteFinestre,
+  assorbiOrfani
 } from './ipc'
 import { preparaAmbiente } from './preparazione'
 import { decidiChiusura, vociArea, suggerimentoArea } from './area-notifica'
@@ -315,6 +318,42 @@ const ALTEZZA = 1000
  * salvaguardia contro il caso peggiore, una finestra riaperta su uno schermo
  * scollegato e quindi invisibile.
  */
+/**
+ * Scrive **quali finestre ci sono adesso**, nell'ordine dei loro slot.
+ *
+ * Non «aggiungi un ricordo»: la fotografia intera. `ricorda` accumulava, e dopo
+ * qualche settimana il file conteneva finestre che non esistevano più da giorni:
+ * riaprendone una la si pescava da quei ricordi e finiva sullo schermo
+ * sbagliato — chi ne teneva una sola a destra se la ritrovava a sinistra.
+ * Dedurre lo stato invece di registrarlo è lo stesso guasto dell'archivio dei
+ * workspace, e la cura è la stessa.
+ *
+ * `escludi` è la finestra che si sta chiudendo: al momento in cui lo si scopre è
+ * ancora viva, ma nella fotografia non ci deve essere.
+ */
+function fotografaFinestre(escludi?: number): void {
+  if (finestreStore === undefined || fotografiaChiusa) return
+  const vive = BrowserWindow.getAllWindows()
+    .filter((w) => !w.isDestroyed() && w.id !== escludi)
+    .map((w) => ({ w, slot: Number(riservaSlot(w)) }))
+    .sort((a, b) => a.slot - b.slot)
+  finestreStore.fotografa(vive.map(({ w }) => ({
+    chiave: chiaveDiFinestra(w),
+    slot: String(riservaSlot(w)),
+    bounds: w.getNormalBounds(),
+    stato: w.isFullScreen() ? 'schermo-intero' : w.isMaximized() ? 'ingrandita' : 'normale'
+  })))
+}
+
+/**
+ * L'ultima fotografia è stata presa: da qui in poi non se ne scattano altre.
+ *
+ * Uscendo, le finestre si chiudono una per una: senza questo, l'ultima a
+ * chiudersi scriverebbe una fotografia **vuota**, e al riavvio successivo non ci
+ * sarebbe più memoria di dove stesse niente.
+ */
+let fotografiaChiusa = false
+
 export function apriNuovaFinestra(): void {
   // Le risorse esistono gia': qui la finestra si limita ad agganciarvisi.
   if (!ptyClient) throw new Error('apriNuovaFinestra chiamata prima di avviaRisorse')
@@ -343,11 +382,25 @@ export function apriNuovaFinestra(): void {
   // ce l'ha per davvero — è nato apposta — e lo tiene anche fra un riavvio e
   // l'altro.
   const conLavoro = finestreStore?.leggi() ?? []
-  const scelto = prossimoSchermoLibero(disponibili, occupati, conLavoro)
-  // Se su quel monitor c'era una finestra, la si riapre com'era: stessa
-  // dimensione e (piu' sotto) stesso stato. `geometria` la restituisce solo se
-  // la chiave combacia con un monitor presente: quindi le coordinate sono valide.
-  const ricordata = scelto !== undefined ? finestreStore?.geometria(scelto.chiave) : undefined
+  // **Dove stava questa finestra**, non «dove c'era del lavoro».
+  //
+  // Prima si cercava uno schermo che avesse delle chat archiviate, e una finestra
+  // non e' uno schermo: chi ne teneva **una sola sul monitor di destra** se la
+  // ritrovava a sinistra, perche' a sinistra c'erano dei ricordi piu' vecchi. Lo
+  // slot dice quale finestra sta nascendo, e `diSlot` dove stava quella finestra:
+  // monitor, dimensione e stato. Il ripiego di prima resta per chi ha un file
+  // scritto da una versione precedente, che lo slot non ce l'ha.
+  const slot = prossimoSlot()
+  // La n-esima finestra torna dov'era la n-esima finestra. Per posizione e non
+  // per numero di slot: gli slot si rinumerano quando una finestra sparisce, e
+  // la finestra rimasta deve tornare **dove stava lei**, non dove stava quella
+  // che portava il suo numero la volta prima.
+  const suo = finestreStore?.nesima(Number(slot) - 1)
+  const suoSchermo = suo !== undefined
+    ? disponibili.find((d) => d.chiave === suo.chiave)
+    : undefined
+  const scelto = suoSchermo ?? prossimoSchermoLibero(disponibili, occupati, conLavoro)
+  const ricordata = suo ?? (scelto !== undefined ? finestreStore?.geometria(scelto.chiave) : undefined)
 
   const posizioneDefault = scelto !== undefined
     ? {
@@ -386,6 +439,17 @@ export function apriNuovaFinestra(): void {
   // finestre nascono — non in quello, diverso, in cui i loro renderer finiscono
   // di caricare.
   riservaSlot(win)
+  fotografaFinestre()
+  // Quante finestre ci sono: si scrive adesso, che e' l'unico momento in cui il
+  // numero cambia senza che nessuno salvi un layout. L'altro e' la chiusura.
+  if (workspaceStore !== undefined) annotaQuanteFinestre(workspaceStore)
+  win.once('closed', () => {
+    if (workspaceStore === undefined) return
+    annotaQuanteFinestre(workspaceStore)
+    // E le sue chat passano alla finestra rimasta, subito: senza, resterebbero
+    // nell'archivio senza nessuno che le mostri fino al riavvio.
+    assorbiOrfani(workspaceStore)
+  })
 
   // Lo stato di quando fu chiusa: ingrandita o a schermo intero. La dimensione
   // «da finestra» e' gia' quella passata sopra, cosi' de-ingrandendo si torna
@@ -403,12 +467,22 @@ export function apriNuovaFinestra(): void {
     // e non `getBounds`: se e' ingrandita o a schermo intero, si ricorda la
     // dimensione «da finestra», quella a cui tornera' de-ingrandendo — piu' lo
     // stato a parte, per poterla ri-ingrandire com'era.
-    finestreStore?.ricorda({
-      chiave: chiaveDiFinestra(win),
-      bounds: win.getNormalBounds(),
-      stato: win.isFullScreen() ? 'schermo-intero' : win.isMaximized() ? 'ingrandita' : 'normale'
-    })
-    if (decidiChiusura({ inUscita, areaDisponibile: area !== undefined }) === 'chiudi') return
+    // Uscendo si fotografa **tutto** com'e' adesso, questa finestra compresa, e
+    // poi non si scatta piu': le finestre si chiudono una per una, e l'ultima
+    // scriverebbe una fotografia vuota. Chiudendo una finestra sola, invece,
+    // la fotografia e' quella che resta.
+    if (inUscita) {
+      fotografaFinestre()
+      fotografiaChiusa = true
+    } else {
+      fotografaFinestre(win.id)
+    }
+    const altre = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && w.id !== win.id)
+    if (decidiChiusura({
+      inUscita,
+      areaDisponibile: area !== undefined,
+      ultimaFinestra: altre.length === 0
+    }) === 'chiudi') return
     event.preventDefault()
     win.hide()
   })
@@ -1794,7 +1868,8 @@ if (!app.requestSingleInstanceLock()) {
       // persa — era nel file, in uno slot che nessuno apriva. Il numero si
       // decide **prima** di aprirne una, leggendo l'archivio: cosi' ogni
       // finestra sa il proprio slot alla nascita e non c'e' nessuna gara.
-      const quante = quanteFinestre(workspaceStore?.leggi().workspace ?? [])
+      const archivioAvvio = workspaceStore?.leggi()
+      const quante = quanteFinestre(archivioAvvio?.workspace ?? [], archivioAvvio?.finestre)
       for (let i = 0; i < quante; i += 1) apriNuovaFinestra()
 
       // La fusione delle chat sparse fra piu' monitor stava qui, e faceva parte

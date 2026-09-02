@@ -74,6 +74,24 @@ export type Archivio = {
   versione: number
   attivo: string
   workspace: WorkspaceSalvato[]
+  /**
+   * Quante finestre erano davvero aperte l'ultima volta.
+   *
+   * **Un fatto registrato, non un numero dedotto.** Prima si ricavava dagli slot
+   * che contenevano delle chat, ed è sbagliato: uno slot pieno dice «qui c'era
+   * del lavoro», non «qui c'era una finestra». Chi aveva lavorato per giorni su
+   * due schermi e poi era passato a una finestra sola si ritrovava, al riavvio,
+   * due finestre — perché le chat del secondo schermo erano ancora archiviate,
+   * vecchie di settimane, e nessuno aveva mai scritto da nessuna parte che di
+   * finestre adesso ce n'era una.
+   *
+   * Si riscrive a ogni salvataggio del layout e a ogni finestra che nasce o
+   * muore, quindi è sempre l'ultimo stato vero, anche dopo una chiusura brutale.
+   * Assente (archivio vecchio) vuol dire «non lo so»: allora si ripiega sul
+   * numero dedotto, che è meglio di niente e non fa perdere nessuna chat —
+   * quelle che restano fuori le adotta la prima finestra.
+   */
+  finestre?: number
 }
 
 /**
@@ -241,7 +259,14 @@ export function slotRaggiungibili(workspace: WorkspaceSalvato[]): WorkspaceSalva
  * scoprirlo alla prima domanda, e due finestre non possono più contendersi lo
  * stesso posto mentre nascono.
  */
-export function quanteFinestre(workspace: WorkspaceSalvato[]): number {
+export function quanteFinestre(workspace: WorkspaceSalvato[], dichiarate?: number): number {
+  // Il numero **registrato** vince su quello dedotto: uno slot pieno dice che lì
+  // c'era del lavoro, non che c'era una finestra. Nessuna chat resta comunque
+  // indietro — quelle in slot che nessuno rivendica le adotta la prima finestra
+  // (`layoutPerFinestraViva`).
+  if (dichiarate !== undefined && Number.isInteger(dichiarate) && dichiarate >= 1) {
+    return Math.min(dichiarate, SLOT_MAX)
+  }
   const occupati = slotOccupati(workspace)
   const massimo = occupati.length === 0 ? 1 : Math.max(...occupati)
   return Math.min(Math.max(massimo, 1), SLOT_MAX)
@@ -606,7 +631,23 @@ export function parseArchivio(raw: unknown): { archivio: Archivio; scartati: str
       ? attivoGrezzo
       : (raggiungibili[0]?.nome ?? NOME_PREDEFINITO)
 
-  return { archivio: { versione: VERSIONE_ARCHIVIO, attivo, workspace: raggiungibili }, scartati }
+  // Un numero fuori scala non e' un numero: meglio «non lo so» che aprire
+  // quindici finestre perche' un file e' stato scritto a mano.
+  const dichiarate = o.finestre
+  const finestre = typeof dichiarate === 'number' && Number.isInteger(dichiarate)
+    && dichiarate >= 1 && dichiarate <= SLOT_MAX
+    ? dichiarate
+    : undefined
+
+  return {
+    archivio: {
+      versione: VERSIONE_ARCHIVIO,
+      attivo,
+      workspace: raggiungibili,
+      ...(finestre !== undefined ? { finestre } : {})
+    },
+    scartati
+  }
 }
 
 /**

@@ -22,6 +22,18 @@ export type StatoFinestra = 'normale' | 'ingrandita' | 'schermo-intero'
 export type GeometriaFinestra = {
   /** La chiave del monitor su cui stava (vedi `chiaveMonitor`). */
   chiave: string
+  /**
+   * Quale finestra era: lo slot (`1`, `2`, …).
+   *
+   * Prima si ricordava solo il monitor, e riaprendo si cercava «uno schermo
+   * dove c'era del lavoro». Ma una finestra non è uno schermo: chi ne teneva una
+   * sola sul monitor di destra se la ritrovava a sinistra, perché a sinistra
+   * c'erano dei ricordi più vecchi. Con lo slot, la finestra numero 1 torna dove
+   * stava **la finestra numero 1**, e non dove stava una qualunque.
+   *
+   * Assente nei file scritti prima: allora vale il vecchio comportamento.
+   */
+  slot?: string
   /** La dimensione «da finestra» (non quella da ingrandita): è quella a cui
    * tornare quando si de-ingrandisce, e la base su cui poi si ri-ingrandisce. */
   bounds: { x: number; y: number; width: number; height: number }
@@ -33,8 +45,18 @@ export type FinestreStore = {
   leggi: () => string[]
   /** La geometria ricordata per un monitor, se c'è. */
   geometria: (chiave: string) => GeometriaFinestra | undefined
-  /** Ricorda dov'era, quanto grande e come stava una finestra. */
-  ricorda: (g: GeometriaFinestra) => void
+  /**
+   * Le finestre della sessione scorsa, in ordine: la prima è la prima.
+   *
+   * `ricorda` accumula un ricordo per volta e non si accorge di quelli vecchi:
+   * dopo settimane il file contiene finestre che non esistono più da giorni, e
+   * riaprendo se ne pesca una a caso. È lo stesso guasto dell'archivio dei
+   * workspace — *dedurre lo stato invece di registrarlo* — e la cura è la
+   * stessa: si riscrive **tutta** la fotografia quando la scena cambia.
+   */
+  fotografa: (finestre: GeometriaFinestra[]) => void
+  /** La n-esima finestra della fotografia (da 0). */
+  nesima: (i: number) => GeometriaFinestra | undefined
 }
 
 /** Più di così non servono: nessuno tiene otto finestre e se le ritrova tutte. */
@@ -54,7 +76,13 @@ function normalizza(v: unknown): GeometriaFinestra | undefined {
   if (!boundsValidi(o.bounds)) return undefined
   const stato: StatoFinestra = o.stato === 'ingrandita' || o.stato === 'schermo-intero' ? o.stato : 'normale'
   const b = o.bounds as GeometriaFinestra['bounds']
-  return { chiave: o.chiave, bounds: { x: b.x, y: b.y, width: b.width, height: b.height }, stato }
+  const slot = typeof o.slot === 'string' && o.slot !== '' ? o.slot : undefined
+  return {
+    chiave: o.chiave,
+    ...(slot !== undefined ? { slot } : {}),
+    bounds: { x: b.x, y: b.y, width: b.width, height: b.height },
+    stato
+  }
 }
 
 export function apriFinestreStore(cartellaDati: string): FinestreStore {
@@ -99,18 +127,14 @@ export function apriFinestreStore(cartellaDati: string): FinestreStore {
       if (g === undefined || (g.bounds.width === 0 && g.bounds.height === 0)) return undefined
       return g
     },
-    ricorda(g) {
-      if (g.chiave === '') return
-      // La più recente davanti, e una sola volta per monitor: due finestre
-      // chiuse sullo stesso monitor non devono occuparne due posti in memoria.
-      const prima = tutte().filter((x) => x.chiave !== g.chiave)
-      // Atomica come ogni altro file dei dati. Questo scriveva diretto, ed era
-      // l'ultimo rimasto insieme al quaderno: una chiusura brutale a metà
-      // scrittura — ed è **proprio alla chiusura** che questo file si scrive —
-      // lasciava un JSON troncato, che alla riapertura vale come «non so dove
-      // stavano le finestre». Il temporaneo porta un nome diverso a ogni giro,
-      // così due finestre che si chiudono insieme non se lo contendono.
-      scriviJsonAtomico(file, { finestre: [g, ...prima].slice(0, QUANTE) }, 'finestre')
+    fotografa(finestre) {
+      scriviJsonAtomico(file, { finestre: finestre.slice(0, QUANTE) }, 'finestre')
+    },
+
+    nesima(i) {
+      const g = tutte()[i]
+      if (g === undefined || (g.bounds.width === 0 && g.bounds.height === 0)) return undefined
+      return g
     }
   }
 }

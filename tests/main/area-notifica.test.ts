@@ -2,6 +2,17 @@ import { describe, it, expect } from 'vitest'
 import { decidiChiusura, vociArea, suggerimentoArea } from '../../src/main/area-notifica'
 
 describe('decidiChiusura', () => {
+  it('con altre finestre aperte, la X chiude davvero', () => {
+    // Nascondere ha senso per **l'ultima** finestra: vuol dire «il programma
+    // continua a lavorare senza niente a schermo». Con altre aperte non vuol dire
+    // niente, e toglieva l'unico modo di dire «di finestre adesso ne voglio una»:
+    // chiudendone una la si ritrovava aperta al riavvio, per sempre.
+    expect(decidiChiusura({ inUscita: false, areaDisponibile: true, ultimaFinestra: false }))
+      .toBe('chiudi')
+    expect(decidiChiusura({ inUscita: false, areaDisponibile: true, ultimaFinestra: true }))
+      .toBe('nascondi')
+  })
+
   it('la X nasconde invece di chiudere', () => {
     // Chiudere la finestra non e' dire «smetti»: gli autopiloti stanno
     // lavorando, e la X e' il gesto con cui si toglie di mezzo una finestra.

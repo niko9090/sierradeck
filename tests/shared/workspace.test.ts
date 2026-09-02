@@ -652,3 +652,51 @@ describe('la finestra sola non lascia indietro le chat dell altra', () => {
     expect(layoutPerFinestraViva(doppia, '1', ['1']).panes.map((p) => p.sessionUuid)).toEqual(['u-a'])
   })
 })
+
+describe('quante finestre riaprire e un fatto, non una deduzione', () => {
+  const con = (id: string): LayoutSalvato => ({
+    root: { type: 'pane', id },
+    panes: [{ id, sessionUuid: 'u-' + id, cwd: 'C:/p', title: id }]
+  })
+  const dueSlot: WorkspaceSalvato[] = [{ nome: 'Uno', perSlot: { '1': con('a'), '2': con('b') } }]
+
+  it('il numero registrato vince su quello dedotto dagli slot pieni', () => {
+    // Il caso vero che ha fatto sbagliare: uno slot pieno dice «qui c'era del
+    // lavoro», **non** «qui c'era una finestra». Chi aveva lavorato per giorni su
+    // due schermi e poi era passato a una finestra sola si ritrovava due finestre
+    // al riavvio, perche' le chat del secondo schermo erano ancora archiviate —
+    // vecchie di settimane — e nessuno aveva mai scritto che di finestre adesso
+    // ce n'era una.
+    expect(quanteFinestre(dueSlot)).toBe(2)
+    expect(quanteFinestre(dueSlot, 1)).toBe(1)
+  })
+
+  it('e con una finestra sola le chat del secondo slot non restano indietro', () => {
+    // Il numero registrato decide quante finestre, mai quante chat: quelle che
+    // restano fuori le adotta la prima.
+    const l = layoutPerFinestraViva(dueSlot[0]!.perSlot, '1', ['1'])
+    expect(l.panes.map((p) => p.id).sort()).toEqual(['a', 'b'])
+  })
+
+  it('un numero assurdo vale «non lo so», e si torna a dedurre', () => {
+    const letto = (finestre: unknown): number | undefined =>
+      parseArchivio({
+        versione: 1, attivo: 'Uno', finestre,
+        workspace: [{ nome: 'Uno', perSlot: { '1': con('a') } }]
+      }).archivio.finestre
+    expect(letto(2)).toBe(2)
+    expect(letto(0)).toBeUndefined()
+    expect(letto(-1)).toBeUndefined()
+    expect(letto(99)).toBeUndefined()
+    expect(letto(1.5)).toBeUndefined()
+    expect(letto('due')).toBeUndefined()
+  })
+
+  it('un archivio scritto prima non ha il numero, e non e un guasto', () => {
+    const a = parseArchivio({
+      versione: 1, attivo: 'Uno', workspace: [{ nome: 'Uno', perSlot: { '1': con('a') } }]
+    }).archivio
+    expect(a.finestre).toBeUndefined()
+    expect(quanteFinestre(a.workspace, a.finestre)).toBe(1)
+  })
+})

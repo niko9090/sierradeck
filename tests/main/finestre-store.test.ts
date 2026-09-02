@@ -13,68 +13,93 @@ function geo(chiave: string, extra: Partial<GeometriaFinestra> = {}): GeometriaF
   return { chiave, bounds: { x: 10, y: 20, width: 1600, height: 1000 }, stato: 'normale', ...extra }
 }
 
-describe('dove stavano le finestre', () => {
+/**
+ * Dove stavano le finestre.
+ *
+ * Questo file teneva **un ricordo per monitor**, accumulato una finestra alla
+ * volta e mai ripulito: dopo qualche settimana conteneva schermi su cui non
+ * c'era una finestra da giorni, e riaprendone una la si pescava da lì — chi ne
+ * teneva una sola sul monitor di destra se la ritrovava a sinistra.
+ *
+ * È lo stesso guasto dell'archivio dei workspace, *dedurre lo stato invece di
+ * registrarlo*, e la cura è la stessa: si scrive **la fotografia intera** delle
+ * finestre di adesso, ogni volta che la scena cambia.
+ */
+describe('la fotografia delle finestre', () => {
   it('senza niente di salvato non racconta niente', () => {
-    expect(apriFinestreStore(cartella()).leggi()).toEqual([])
+    const s = apriFinestreStore(cartella())
+    expect(s.leggi()).toEqual([])
+    expect(s.nesima(0)).toBeUndefined()
   })
 
-  it('ricorda il monitor di una finestra chiusa, e lo rilegge dopo', () => {
+  it('rilegge quello che ha scritto: monitor, dimensione e stato', () => {
     const dove = cartella()
-    apriFinestreStore(dove).ricorda(geo('2560x1440@0,0@1'))
-    expect(apriFinestreStore(dove).leggi()).toEqual(['2560x1440@0,0@1'])
+    apriFinestreStore(dove).fotografa([{
+      chiave: 'mon', slot: '1',
+      bounds: { x: 100, y: 50, width: 1280, height: 800 },
+      stato: 'ingrandita'
+    }])
+    expect(apriFinestreStore(dove).nesima(0)).toEqual({
+      chiave: 'mon', slot: '1',
+      bounds: { x: 100, y: 50, width: 1280, height: 800 },
+      stato: 'ingrandita'
+    })
   })
 
-  it('la piu recente sta davanti', () => {
+  it('una fotografia nuova cancella quella di prima', () => {
+    // È il punto: due finestre ieri e una oggi vuol dire **una**. Accumulando,
+    // quella di ieri restava a dire il falso per sempre.
     const s = apriFinestreStore(cartella())
-    s.ricorda(geo('primo'))
-    s.ricorda(geo('secondo'))
-    expect(s.leggi()).toEqual(['secondo', 'primo'])
+    s.fotografa([geo('sinistro', { slot: '1' }), geo('destro', { slot: '2' })])
+    s.fotografa([geo('destro', { slot: '1' })])
+    expect(s.nesima(0)?.chiave).toBe('destro')
+    expect(s.nesima(1)).toBeUndefined()
+    expect(s.leggi()).toEqual(['destro'])
   })
 
-  it('lo stesso monitor non occupa due posti', () => {
-    // Due finestre chiuse sullo stesso schermo sono un'informazione sola.
+  it('la n-esima finestra torna dov era la n-esima', () => {
+    // Per **posizione**, non per numero di slot: chiudendo la finestra di
+    // sinistra, quella di destra resta sola e la volta dopo è la numero 1. Deve
+    // tornare dove stava lei, non dove stava quella che portava il suo numero.
     const s = apriFinestreStore(cartella())
-    s.ricorda(geo('uno'))
-    s.ricorda(geo('due'))
-    s.ricorda(geo('uno'))
-    expect(s.leggi()).toEqual(['uno', 'due'])
+    s.fotografa([geo('destro', { slot: '2' })])
+    expect(s.nesima(0)?.chiave).toBe('destro')
+  })
+
+  it('lo schermo intero si ricorda come tale', () => {
+    const dove = cartella()
+    apriFinestreStore(dove).fotografa([geo('m', { stato: 'schermo-intero' })])
+    expect(apriFinestreStore(dove).geometria('m')?.stato).toBe('schermo-intero')
   })
 
   it('non ne tiene piu di quattro', () => {
     const s = apriFinestreStore(cartella())
-    for (const c of ['a', 'b', 'c', 'd', 'e']) s.ricorda(geo(c))
+    s.fotografa(['a', 'b', 'c', 'd', 'e'].map((c) => geo(c)))
     expect(s.leggi()).toHaveLength(4)
-    expect(s.leggi()[0]).toBe('e')
+    expect(s.leggi()[0]).toBe('a')
   })
 
+  it('una fotografia vuota non e una posizione', () => {
+    const s = apriFinestreStore(cartella())
+    s.fotografa([geo('c-era')])
+    s.fotografa([])
+    expect(s.nesima(0)).toBeUndefined()
+    expect(s.leggi()).toEqual([])
+  })
+
+  it('geometria di un monitor sconosciuto e undefined', () => {
+    const s = apriFinestreStore(cartella())
+    s.fotografa([geo('c-e')])
+    expect(s.geometria('non-c-e')).toBeUndefined()
+  })
+})
+
+describe('quello che arriva da disco', () => {
   it('un file rovinato non impedisce al programma di aprirsi', () => {
     // Al massimo la finestra torna dove tornava prima: sul primo schermo libero.
     const dove = cartella()
     writeFileSync(join(dove, 'finestre.json'), '{ questo non e json')
     expect(apriFinestreStore(dove).leggi()).toEqual([])
-  })
-
-  it('rilegge dimensione e stato, non solo il monitor', () => {
-    const dove = cartella()
-    apriFinestreStore(dove).ricorda({
-      chiave: 'mon',
-      bounds: { x: 100, y: 50, width: 1280, height: 800 },
-      stato: 'ingrandita'
-    })
-    const g = apriFinestreStore(dove).geometria('mon')
-    expect(g).toEqual({ chiave: 'mon', bounds: { x: 100, y: 50, width: 1280, height: 800 }, stato: 'ingrandita' })
-  })
-
-  it('geometria di un monitor sconosciuto e undefined', () => {
-    const s = apriFinestreStore(cartella())
-    s.ricorda(geo('c-e'))
-    expect(s.geometria('non-c-e')).toBeUndefined()
-  })
-
-  it('lo schermo intero si ricorda come tale', () => {
-    const dove = cartella()
-    apriFinestreStore(dove).ricorda(geo('m', { stato: 'schermo-intero' }))
-    expect(apriFinestreStore(dove).geometria('m')?.stato).toBe('schermo-intero')
   })
 
   it('legge il formato vecchio (solo chiavi) senza geometria', () => {
@@ -85,6 +110,19 @@ describe('dove stavano le finestre', () => {
     const s = apriFinestreStore(dove)
     expect(s.leggi()).toEqual(['vecchia'])
     expect(s.geometria('vecchia')).toBeUndefined()
+  })
+
+  it('legge il formato precedente, senza slot', () => {
+    // Le finestre di chi aggiorna adesso: la posizione c'è, lo slot no, e la
+    // prima della lista è la prima finestra. Meglio dell'unica alternativa, che
+    // è aprirle dove capita.
+    const dove = cartella()
+    writeFileSync(join(dove, 'finestre.json'), JSON.stringify({
+      finestre: [{ chiave: 'destro', bounds: { x: 1, y: 2, width: 900, height: 700 }, stato: 'normale' }]
+    }))
+    const s = apriFinestreStore(dove)
+    expect(s.nesima(0)?.chiave).toBe('destro')
+    expect(s.nesima(0)?.slot).toBeUndefined()
   })
 
   it('scarta una voce senza bounds validi', () => {

@@ -280,6 +280,46 @@ apre una finestra sola. E al contrario: rimettendo del lavoro sul secondo
 monitor, la seconda finestra torna da sé. Lo stato lo racconta il lavoro, non
 una casella nelle impostazioni.
 
+### 9. Quante finestre, e dove: **registrate, non dedotte**
+
+Il difetto è tornato ancora, e per la stessa ragione di sempre in una veste
+nuova. Chi aveva **una finestra sola sul monitor destro** se ne è ritrovate due
+al riavvio.
+
+**Il numero di finestre lo deducevo dagli slot pieni.** Ma uno slot pieno dice
+«qui c'era del lavoro», non «qui c'era una finestra». Nell'archivio di quella
+macchina c'erano chat sotto tutti e due i monitor: le une di quel giorno, le
+altre **vecchie di settimane**, di quando due finestre le usava davvero. Nessuno
+aveva mai scritto da nessuna parte quante finestre ci fossero, e una deduzione
+su dati vecchi è una deduzione sbagliata.
+
+Adesso `Archivio.finestre` è un **fatto registrato**: si riscrive a ogni
+salvataggio del layout e a ogni finestra che nasce o muore. Assente vuol dire
+«non lo so», e allora si torna a dedurre — che è peggio, ma non fa perdere
+niente, perché le chat degli slot che nessuno rivendica le adotta la prima
+finestra.
+
+**E `finestre.json` aveva lo stesso guasto:** teneva un ricordo *per monitor*,
+accumulato una finestra alla volta e mai ripulito. Riaprendo si cercava «uno
+schermo dove c'era del lavoro», e a sinistra c'era un ricordo di settimane
+prima: la finestra unica si apriva a sinistra invece che a destra. Adesso si
+scrive **la fotografia intera** delle finestre di adesso, e la n-esima finestra
+torna dov'era la n-esima — per posizione, non per numero di slot, perché gli
+slot si rinumerano quando una finestra sparisce e la finestra rimasta deve
+tornare *dove stava lei*.
+
+Uscendo la fotografia si scatta **una volta sola**, all'inizio: le finestre si
+chiudono una per una, e l'ultima ne scriverebbe una vuota.
+
+### 10. E un modo per dire «di finestre ne voglio una»
+
+Mancava. Con l'icona nell'area di notifica la X **nascondeva** sempre, anche
+avendo altre finestre aperte: chiudendone una la si ritrovava al riavvio, per
+sempre. Nascondere ha senso per **l'ultima** finestra — vuol dire «il programma
+continua a lavorare senza niente a schermo»; con altre aperte non vuol dire
+niente. Adesso la X chiude, e le chat di quella finestra passano subito a quella
+rimasta (`assorbiOrfani`) invece di sembrare sparite fino al riavvio.
+
 ## Le prove
 
 - `tests/main/consegne-layout.test.ts` (11) — lo slot più basso libero, lo slot

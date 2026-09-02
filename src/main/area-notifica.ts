@@ -24,8 +24,15 @@ export type VoceArea =
  * ogni finestra deve poter chiudersi, altrimenti il programma non uscirebbe
  * mai.
  */
-export function decidiChiusura(p: { inUscita: boolean; areaDisponibile: boolean }): AzioneChiusura {
+export function decidiChiusura(
+  p: { inUscita: boolean; areaDisponibile: boolean; ultimaFinestra?: boolean }
+): AzioneChiusura {
   if (p.inUscita || !p.areaDisponibile) return 'chiudi'
+  // Nascondere ha senso per **l'ultima** finestra: vuol dire «il programma
+  // continua a lavorare senza niente a schermo». Con altre finestre aperte non
+  // vuol dire niente, e toglieva l'unico modo di dire «di finestre adesso ne
+  // voglio una»: chiudendone una la si ritrovava aperta al riavvio, per sempre.
+  if (p.ultimaFinestra === false) return 'chiudi'
   return 'nascondi'
 }
 

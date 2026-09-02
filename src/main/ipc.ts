@@ -24,7 +24,7 @@ import {
   type LayoutSalvato
 } from '@shared/workspace'
 import type { WorkspaceStore } from './workspace-store'
-import { creaRegistroConsegne } from './consegne-layout'
+import { creaRegistroConsegne, primoSlotLibero } from './consegne-layout'
 import type { IstantaneeStore } from './istantanee-store'
 import {
   nuovaIstantanea, distribuisci, daRiavviare, daSalvare, workspaceDaSalvare,
@@ -448,6 +448,19 @@ const salutate = new Set<number>()
  * finestre sono state aperte: due finestre nate insieme si prenderebbero gli
  * slot a rovescio, e ognuna ritroverebbe la disposizione dell'altra.
  */
+/**
+ * Lo slot che toccherà alla **prossima** finestra, prima che esista.
+ *
+ * Serve a scegliere dove aprirla: la finestra numero 2 va rimessa dov'era la
+ * finestra numero 2, e per saperlo bisogna sapere che sarà la numero 2 **prima**
+ * di crearla. Nessun effetto: non prenota niente, e `riservaSlot` subito dopo
+ * darà lo stesso numero, perché nel frattempo non è nata nessun'altra finestra.
+ */
+export function prossimoSlot(): string {
+  const presi = vive().map((id) => consegne.slotDi(id, vive()))
+  return primoSlotLibero(presi)
+}
+
 export function riservaSlot(win: BrowserWindow): string {
   return slotDellaFinestra(win)
 }
@@ -674,6 +687,48 @@ export function registerPreparazioneIpc(client: PtyHostClient, casa: () => strin
   })
 }
 
+/**
+ * Riscrive quante finestre ci sono, senza toccare nient'altro.
+ *
+ * Serve nei due momenti in cui il numero cambia **senza** che nessuno salvi un
+ * layout: una finestra che nasce e una che muore. Senza, chiudendo una finestra
+ * e uscendo subito, sul disco resterebbe scritto che erano due — e al riavvio
+ * se ne aprirebbero due.
+ */
+export function annotaQuanteFinestre(store: WorkspaceStore): void {
+  const quante = vive().length
+  const archivio = store.leggi()
+  if (archivio.finestre === quante) return
+  store.scrivi({ ...archivio, finestre: quante })
+}
+
+/**
+ * Le chat di una finestra che se n'e' andata passano a quella che resta.
+ *
+ * Chiudendo una finestra il suo slot resta nell'archivio con dentro le sue
+ * conversazioni, e nessuna finestra viva lo rivendica: sarebbe di nuovo lavoro
+ * che c'e' nel file e non si vede. `layoutPerFinestraViva` lo prevede gia' — chi
+ * ha lo slot piu' basso adotta gli orfani — ma solo alla **prossima** consegna,
+ * cioe' al riavvio o al prossimo cambio di workspace. Qui la consegna si fa
+ * subito, cosi' le chat ricompaiono nella finestra rimasta invece di sembrare
+ * sparite fino al riavvio.
+ *
+ * Non serve toccare l'archivio: ci pensa il primo salvataggio della finestra che
+ * le ha adottate, e l'invariante «una chat, un workspace» svuota lo slot
+ * vecchio.
+ */
+export function assorbiOrfani(store: WorkspaceStore): void {
+  const rimaste = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
+  if (rimaste.length === 0) return
+  const piuBassa = rimaste
+    .map((w) => ({ w, slot: Number(consegne.slotDi(w.id, vive())) }))
+    .sort((a, b) => a.slot - b.slot)[0]
+  if (piuBassa === undefined) return
+  const dove = consegne.ricevuta(piuBassa.w.id)?.workspace
+  if (dove === undefined) return
+  spingiLayout(piuBassa.w.id, dove, daConsegnare(store.leggi(), dove, piuBassa.w))
+}
+
 export function registerLayoutIpc(
   store: WorkspaceStore,
   /**
@@ -803,10 +858,16 @@ export function registerLayoutIpc(
     // primo non distrutto, non `[0]`, perché la finestra originaria può essere
     // già chiusa.
     const principale = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
-    const finale =
+    const conAttivo =
       principale !== undefined && principale.id === win.id
         ? seguiAttivoDellaPrincipale(conLayout, consegna.workspace)
         : conLayout
+    // **Quante finestre ci sono adesso.** Un fatto registrato, non dedotto: uno
+    // slot pieno dice che li' c'era del lavoro, non che c'era una finestra. Chi
+    // aveva lavorato su due schermi e poi era passato a una finestra sola se ne
+    // ritrovava due al riavvio, perche' le chat del secondo schermo erano ancora
+    // archiviate e nessuno aveva mai scritto quante finestre ci fossero davvero.
+    const finale = { ...conAttivo, finestre: vive().length }
     if (!store.scrivi(finale)) {
       registra(`[layout] SALVATAGGIO NON SCRITTO — il disco ha rifiutato workspaces.json (${chi})`)
     }
