@@ -23,6 +23,16 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.50',
+    righe: [
+      '**Aggiornare da qualunque versione, senza perdere niente.** Ogni file che il programma scrive è stato confrontato con tutto ciò che le versioni precedenti hanno mai scritto, dalla prima a oggi, e i lettori sono stati messi in grado di capire ogni forma passata. In più, la prima volta che una versione nuova parte mette da parte **tutti** i file di stato com’erano (cartella `copie-di-versione` nei dati, ne tiene le ultime tre): qualunque cosa vada storta, com’era prima è ancora sul disco.',
+      '**Il backup su Drive fatto con le versioni 0.9.50–0.9.64 si ripristina di nuovo.** «Ripristina» cercava solo la forma nuova e diceva «niente sul Drive» con il backup intatto: ora prova anche la forma di allora, e il salvataggio successivo lo riscrive nella forma nuova.',
+      '**Riprendere un salvataggio non cancella più le chat aperte dopo.** Una ripresa rimette la disposizione salvata e **aggiunge** quello che l’archivio ha in più, invece di sostituire i workspace per intero.',
+      '**Autopiloti e aggiornamenti.** Premere Installa durante un turno lungo non perde più la pausa (la chat si ferma davvero a fine turno); una pausa rimasta appesa da un’installazione abortita si toglie da sola al ritorno del programma; un autopilota che aspettava una risposta quando il servizio è ripartito torna al lavoro e rifà la domanda, invece di restare «in attesa» per sempre.',
+      '**Finestre.** Chi aggiorna da prima della 0.12.48 non vede più la prima finestra aprirsi sull’ultimo monitor chiuso.'
+    ]
+  },
+  {
     versione: '0.12.49',
     righe: [
       '**Riprendere un salvataggio vecchio non svuota più i workspace.** I salvataggi fatti prima della 0.12.45 — «Ultima chiusura» compresa, cioè proprio quello scritto uscendo per aggiornarsi — venivano riletti con tutti i workspace vuoti, e riprenderli cancellava dal disco le chat dei workspace che non avevi davanti: restavano i nomi e la sola chat a schermo. Ora quei salvataggi si leggono per intero. Se ti è successo, riprendi di nuovo lo stesso salvataggio: le chat sono ancora lì dentro. E se nel frattempo il programma è stato chiuso, trovi una copia dell’archivio di prima in `workspaces.prima-dell-aggiornamento.json`, nella cartella dei dati.',
