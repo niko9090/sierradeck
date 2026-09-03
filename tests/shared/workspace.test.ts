@@ -3,8 +3,7 @@ import {
   parseArchivio, archivioVuoto, aggiungiPaneA, layoutPerSlot, migraChiaviMonitor,
   slotRaggiungibili, slotOccupati, quanteFinestre, layoutPerFinestraViva,
   rimuoviSessioni, unaChatUnWorkspace,
-  VERSIONE_ARCHIVIO, NOME_PREDEFINITO, type LayoutSalvato, type WorkspaceSalvato
-} from '@shared/workspace'
+  VERSIONE_ARCHIVIO, NOME_PREDEFINITO, type LayoutSalvato, type WorkspaceSalvato, chatSalvate, type PaneSalvato } from '@shared/workspace'
 
 function archivioMinimo(layout: unknown): unknown {
   return {
@@ -698,5 +697,31 @@ describe('quante finestre riaprire e un fatto, non una deduzione', () => {
     }).archivio
     expect(a.finestre).toBeUndefined()
     expect(quanteFinestre(a.workspace, a.finestre)).toBe(1)
+  })
+})
+
+describe('chatSalvate — tutte le chat dell archivio, workspace per workspace', () => {
+  // Il telefono vuole vedere nel tab Chat tutto quello che c'e' sul computer,
+  // non solo il workspace davanti: questa e' la lista da cui parte.
+  const pane = (id: string, u: string, titolo: string, extra: Record<string, unknown> = {}): PaneSalvato =>
+    ({ id, sessionUuid: u, cwd: 'C:\\p\\' + id, title: titolo, ...extra }) as PaneSalvato
+  it('elenca per workspace, slot in ordine numerico, una volta per conversazione', () => {
+    const elenco = chatSalvate({
+      workspace: [
+        { nome: 'lavoro', perSlot: {
+          '2': { root: undefined, panes: [pane('p3', 'u3', 'tre')] },
+          '1': { root: undefined, panes: [pane('p1', 'u1', 'una'), pane('p2', 'u2', 'due', { ibernata: true })] }
+        } },
+        { nome: 'casa', perSlot: { '1': { root: undefined, panes: [pane('p4', 'u4', 'quattro'), pane('p5', 'u1', 'doppione')] } } }
+      ]
+    })
+    expect(elenco.map((c) => `${c.workspace}:${c.sessione}`)).toEqual(['lavoro:u1', 'lavoro:u2', 'lavoro:u3', 'casa:u4'])
+    expect(elenco[1]?.ibernata).toBe(true)
+    expect(elenco[0]?.ibernata).toBeUndefined()
+    expect(elenco[3]?.titolo).toBe('quattro')
+  })
+  it('un archivio vuoto da una lista vuota', () => {
+    expect(chatSalvate({ workspace: [] })).toEqual([])
+    expect(chatSalvate({ workspace: [{ nome: 'x', perSlot: {} }] })).toEqual([])
   })
 })

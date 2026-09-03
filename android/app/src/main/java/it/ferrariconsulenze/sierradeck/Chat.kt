@@ -96,14 +96,19 @@ fun Chat(api: Api, stato: Stato?, deposito: Collegamento) {
         BackHandler { aperta = null }
         DettaglioChat(api, corrente, deposito, onIndietro = { aperta = null })
     } else {
-        ElencoChat(api, chat, onApri = { aperta = it.id })
+        ElencoChat(api, chat, stato?.workspace ?: Workspace(), onApri = { aperta = it.id })
     }
 }
 
 @Composable
-private fun ElencoChat(api: Api, chat: List<Chat>, onApri: (Chat) -> Unit) {
+private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri: (Chat) -> Unit) {
     var mostraNuova by remember { mutableStateOf(false) }
     var mostraRiprendi by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    // Tutte le chat del computer, raggruppate per workspace: prima quello
+    // davanti, poi gli altri. Dentro ogni gruppo prima le vive, poi quelle
+    // salvate che nessuna finestra mostra — si riaprono con un tocco.
+    val gruppi = raggruppaChat(chat, workspace)
 
     Column(Modifier.fillMaxSize()) {
         // La fascia dell'elenco: l'etichetta a stencil dice dove sei, i due
@@ -116,28 +121,74 @@ private fun ElencoChat(api: Api, chat: List<Chat>, onApri: (Chat) -> Unit) {
             Spacer(Modifier.width(8.dp))
             TastoContorno("Riprendi") { mostraRiprendi = true }
         }
-        if (chat.isEmpty()) {
+        if (gruppi.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Nessuna chat aperta.", color = Banco.testoQuieto)
+                Text("Nessuna chat sul computer.", color = Banco.testoQuieto)
             }
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
-                items(chat, key = { it.id }) { c ->
-                    Tessera(
-                        onClick = { onApri(c) },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Column(Modifier.padding(14.dp)) {
-                            Text(c.titolo.ifBlank { c.cwd }, color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1)
-                            if (!c.ultimaRiga.isNullOrBlank()) {
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    c.ultimaRiga!!,
-                                    color = Banco.testoQuieto,
-                                    fontSize = 12.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    maxLines = 1
-                                )
+                gruppi.forEach { g ->
+                    item(key = "ws:" + g.workspace) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Serigrafia(g.workspace, colore = if (g.attivo) Banco.accento else Banco.testoQuieto)
+                            if (g.attivo) {
+                                Spacer(Modifier.width(8.dp))
+                                Text("davanti", color = Banco.testoQuieto, fontSize = 11.sp)
+                            }
+                            Spacer(Modifier.weight(1f))
+                            Text("${g.voci.size}", color = Banco.testoQuieto, fontSize = 12.sp)
+                        }
+                    }
+                    if (g.voci.isEmpty()) {
+                        item(key = "vuoto:" + g.workspace) {
+                            Text(
+                                "nessuna chat",
+                                color = Banco.testoQuieto, fontSize = 12.sp,
+                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    items(g.voci, key = { it.chiave }) { v ->
+                        val viva = v.viva
+                        if (viva != null) {
+                            Tessera(
+                                onClick = { onApri(viva) },
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Column(Modifier.padding(14.dp)) {
+                                    Text(viva.titolo.ifBlank { viva.cwd }, color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1)
+                                    if (!viva.ultimaRiga.isNullOrBlank()) {
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            viva.ultimaRiga!!,
+                                            color = Banco.testoQuieto,
+                                            fontSize = 12.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            val salvata = v.salvata ?: return@items
+                            // Una chat salvata: nessun terminale acceso, si riapre
+                            // con un tocco (con la sua storia, `--resume`).
+                            Tessera(
+                                onClick = {
+                                    scope.launch {
+                                        try { api.riprendiSessione(salvata.cwd, salvata.sessione) } catch (_: Exception) {}
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Column(Modifier.padding(14.dp)) {
+                                    Text(salvata.titolo.ifBlank { salvata.cwd }, color = Banco.testoQuieto, fontWeight = FontWeight.Bold, maxLines = 1)
+                                    Spacer(Modifier.height(4.dp))
+                                    Text("da riprendere · tocca per riaprirla", color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
+                                }
                             }
                         }
                     }

@@ -83,7 +83,7 @@ import { apriRegistro, type Registro } from './registro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
-import { ordineDeiMonitor, quanteFinestre, workspaceDellaSessione } from '@shared/workspace'
+import { ordineDeiMonitor, quanteFinestre, workspaceDellaSessione, chatSalvate } from '@shared/workspace'
 import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
 import { apriDestinazioni } from './trasferimenti/destinazioni'
@@ -1364,7 +1364,13 @@ if (!app.requestSingleInstanceLock()) {
         },
         workspace: async () => {
           const a = workspaceStore?.leggi()
-          return { nomi: (a?.workspace ?? []).map((w) => w.nome), attivo: a?.attivo ?? '' }
+          return {
+            nomi: (a?.workspace ?? []).map((w) => w.nome),
+            attivo: a?.attivo ?? '',
+            // Tutte le chat, non solo quelle a schermo: dal telefono si vuole
+            // vedere tutto quello che c'e' sul computer, raggruppato per workspace.
+            chat: a === undefined ? [] : chatSalvate(a)
+          }
         },
         cambiaWorkspace: async (nome: string) => {
           for (const w of BrowserWindow.getAllWindows()) {

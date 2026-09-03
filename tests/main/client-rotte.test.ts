@@ -845,3 +845,17 @@ describe('il negozio e l account, da un telefono', () => {
     }
   })
 })
+
+describe('/api/stato — le chat di tutti i workspace viaggiano col workspace', () => {
+  it('passa `workspace.chat` cosi com e, accanto alle chat vive', async () => {
+    const r = await rotteClient(deps({
+      workspace: () => Promise.resolve({
+        nomi: ['lavoro', 'casa'], attivo: 'lavoro',
+        chat: [{ workspace: 'casa', sessione: 'u9', cwd: 'C:\\casa', titolo: 'la chat di casa' }]
+      })
+    }))({ metodo: 'GET', percorso: '/api/stato', corpo: undefined, dispositivo: 'd1' })
+    const corpo = r.corpo as { chat: unknown[]; workspace: { chat?: { sessione: string }[] } }
+    expect(corpo.workspace.chat?.map((c) => c.sessione)).toEqual(['u9'])
+    expect(corpo.chat).toHaveLength(1)
+  })
+})

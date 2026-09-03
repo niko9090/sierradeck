@@ -88,7 +88,25 @@ data class Domanda(
 @Serializable
 data class Workspace(
     val nomi: List<String> = emptyList(),
-    val attivo: String = ""
+    val attivo: String = "",
+    /**
+     * Tutte le chat dell'archivio, workspace per workspace.
+     *
+     * Quelle vive (un terminale acceso in una finestra) arrivano in `Stato.chat`;
+     * queste sono anche le altre — degli altri workspace, o spente — e si
+     * riaprono con un tocco. Assente nei computer con una versione precedente.
+     */
+    val chat: List<ChatSalvata> = emptyList()
+)
+
+/** Una chat come sta nell'archivio del computer. */
+@Serializable
+data class ChatSalvata(
+    val workspace: String = "",
+    val sessione: String = "",
+    val cwd: String = "",
+    val titolo: String = "",
+    val ibernata: Boolean = false
 )
 
 // ─── /api/dentro ───  (le ultime righe del terminale di UNA chat)

@@ -1,3 +1,4 @@
+import type { ChatSalvata } from '@shared/workspace'
 import type { Esito } from './client-server'
 import type { Dispositivi } from './dispositivi'
 import type { Autopilota } from '@shared/autopilota'
@@ -98,7 +99,14 @@ export type DipendenzeRotte = {
    * più, che si chiude al computer. È per questo che c'è, mentre chiudere no.
    */
   apriChat: (cartella: string, modello?: string) => void
-  workspace: () => Promise<{ nomi: string[]; attivo: string }>
+  /**
+   * I workspace, e **tutte** le chat che contengono.
+   *
+   * `chat` sono quelle dell'archivio, workspace per workspace: il telefono le
+   * mostra accanto a quelle vive (`chat` qui sopra), così nel tab Chat si vede
+   * tutto quello che c'è sul computer e non solo il workspace davanti.
+   */
+  workspace: () => Promise<{ nomi: string[]; attivo: string; chat?: ChatSalvata[] }>
   cambiaWorkspace: (nome: string) => Promise<void>
   /** Ferma o riprende un autopilota: due gesti reversibili, quindi ammessi. */
   fermaAutopilota: (id: string) => Promise<void>

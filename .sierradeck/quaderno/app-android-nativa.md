@@ -431,3 +431,35 @@ partire dalla radice è l'unica cosa peggiore che digitare.
 **Regola.** Quando un limite si giustifica con la sicurezza, va verificato che
 sia davvero un muro: se chi lo supera aveva già una strada più larga accanto,
 non stava proteggendo niente — stava solo togliendo una funzione.
+
+## 2026-09-03 — il tab Chat mostra tutto, raggruppato per workspace (app 2.23.0, desktop 0.12.51)
+
+Richiesta: «nel tab chat voglio vedere tutte le chat, raggruppate per
+workspace». Prima il telefono vedeva solo `Stato.chat`, cioè le chat con un
+terminale acceso in una finestra = il workspace davanti.
+
+Com'è fatto, sui **due lati** come sempre:
+- **Server**: `/api/stato` → `workspace` ora porta anche `chat: ChatSalvata[]`
+  (`{ workspace, sessione, cwd, titolo, ibernata? }`), calcolato da
+  `chatSalvate(archivio)` in `src/shared/workspace.ts` (tutte le chat
+  dell'archivio, workspace → slot → posizione, una per conversazione). Le chat
+  vive restano in `chat`.
+- **Raggruppamento** (uguale nei due client, puro e provato):
+  `raggruppaChat` in `android/.../Raggruppo.kt` e `gruppiChat` in
+  `client-pagina.ts`. Prima il workspace davanti, poi gli altri nell'ordine del
+  computer; dentro ogni gruppo prima le vive (per `sessione` → workspace
+  dell'archivio; se l'archivio non la conosce, sta nel workspace davanti), poi
+  le salvate che nessuna finestra mostra. Una conversazione compare una volta.
+- **Riaprire una salvata**: tocco → `POST /api/sessioni/riprendi`
+  `{ cartella: cwd, sessione }` (la rotta esisteva già per «Riprendi una
+  conversazione»); il Core la riapre nel workspace dove vive
+  (`workspaceDellaSessione`).
+- **Compatibilità**: un computer con una versione precedente non manda
+  `workspace.chat` → l'app mostra le sole chat vive sotto il workspace davanti,
+  come prima (`ignoreUnknownKeys` + default vuoto). Un'app vecchia con un
+  computer nuovo ignora il campo.
+
+Trappola vista scrivendo il lato pagina: il JS della pagina vive dentro un
+template literal TypeScript, quindi gli apici nelle `onclick` si scrivono
+`\\'` nel sorgente. E `script-pagina.js` è GENERATO dal test
+`diagnosi-pagina.test.ts`: si committa rigenerato, non si modifica a mano.

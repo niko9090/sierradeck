@@ -306,8 +306,44 @@ function proponeApp(ua, disponibile, rifiutato, comeApp) {
  * Delle righe del terminale bastano quante sono e l'ultima: se ne arriva una
  * nuova l'impronta cambia comunque.
  */
+/**
+ * Le chat raggruppate per workspace: prima quello davanti, poi gli altri.
+ *
+ * Dentro ogni gruppo prima le chat vive (un terminale acceso in una finestra),
+ * poi quelle salvate nell'archivio che nessuna finestra mostra: si riaprono
+ * con un tocco. Una chat viva la cui conversazione l'archivio non conosce sta
+ * nel workspace davanti, che e' dove e' nata.
+ */
+function gruppiChat(s) {
+  const vive = s.chat || []
+  const ws = s.workspace || { nomi: [], attivo: '' }
+  const salvate = ws.chat || []
+  const nomi = ws.nomi || []
+  if (nomi.length === 0) {
+    return vive.length === 0 ? [] : [{ workspace: 'Chat', attivo: true, voci: vive.map((c) => ({ viva: c })) }]
+  }
+  const casa = nomi.indexOf(ws.attivo) >= 0 ? ws.attivo : nomi[0]
+  const ordine = [casa].concat(nomi.filter((n) => n !== casa))
+  const dove = {}
+  salvate.forEach((c) => { if (c.sessione) dove[c.sessione] = c.workspace })
+  const viveSess = {}
+  vive.forEach((c) => { if (c.sessione) viveSess[c.sessione] = true })
+  return ordine.map((nome) => ({
+    workspace: nome,
+    attivo: nome === ws.attivo,
+    voci: vive
+      .filter((c) => {
+        const w = c.sessione ? dove[c.sessione] : undefined
+        return (w && nomi.indexOf(w) >= 0 ? w : casa) === nome
+      })
+      .map((c) => ({ viva: c }))
+      .concat(salvate.filter((c) => c.workspace === nome && !viveSess[c.sessione]).map((c) => ({ salvata: c })))
+  }))
+}
+
 function impronta(s) {
-  const chat = (s.chat || []).map((c) => c.id + '|' + c.titolo + '|' + (c.ultimaRiga || '')).join('~')
+  const chat = (s.chat || []).map((c) => c.id + '|' + c.titolo + '|' + (c.ultimaRiga || '')).join('~') +
+    '#' + ((s.workspace && s.workspace.chat) || []).map((c) => c.sessione + '|' + c.workspace + '|' + c.titolo).join('~')
   const aps = (s.autopiloti || []).map((a) =>
     a.id + '|' + a.stato + '|' + a.cicli + '|' + a.fatti + '|' + a.criteri + '|' + (a.strategia || '')
   ).join('~')
@@ -559,15 +595,24 @@ function pannello(s) {
       <input id="t-${esc(aperta.id)}" placeholder="scrivi qui e invia">
       <button onclick="scrivi('${escJs(aperta.id)}')">Invia</button>
     </div>`
-    : (s.chat || []).map((c) => `
-    <button class="voce" onclick="guarda('${escJs(c.id)}')">
-      <span class="led ${giriFalliti >= 2 ? 'fermo' : 'lavoro'}"></span>
-      <span class="voce__testo">
-        <span class="voce__nome">${esc(c.titolo)}</span>
-        ${c.ultimaRiga ? '<span class="voce__sotto">' + esc(c.ultimaRiga) + '</span>' : ''}
-      </span>
-      <span class="voce__freccia">›</span>
-    </button>`).join('')
+    : gruppiChat(s).map((g) =>
+      '<div class="sotto" style="padding:10px 16px 2px;letter-spacing:.08em;text-transform:uppercase;font-size:11px">' +
+        esc(g.workspace) + (g.attivo ? ' · davanti' : '') + ' · ' + g.voci.length + '</div>' +
+      (g.voci.length === 0
+        ? '<div class="sotto" style="padding:2px 24px 8px">nessuna chat</div>'
+        : g.voci.map((v) => v.viva
+          ? '<button class="voce" onclick="guarda(\'' + escJs(v.viva.id) + '\')">' +
+            '<span class="led ' + (giriFalliti >= 2 ? 'fermo' : 'lavoro') + '"></span>' +
+            '<span class="voce__testo"><span class="voce__nome">' + esc(v.viva.titolo) + '</span>' +
+            (v.viva.ultimaRiga ? '<span class="voce__sotto">' + esc(v.viva.ultimaRiga) + '</span>' : '') +
+            '</span><span class="voce__freccia">›</span></button>'
+          : '<button class="voce" onclick="riprendiSalvata(\'' + escJs(v.salvata.cwd) + '\',\'' + escJs(v.salvata.sessione) + '\')">' +
+            '<span class="led"></span>' +
+            '<span class="voce__testo"><span class="voce__nome" style="opacity:.7">' + esc(v.salvata.titolo || v.salvata.cwd) + '</span>' +
+            '<span class="voce__sotto">da riprendere · tocca per riaprirla</span></span>' +
+            '<span class="voce__freccia">›</span></button>'
+        ).join(''))
+    ).join('')
 
   // Aprire non distrugge niente: nel peggiore dei casi resta un riquadro in
   // piu' da chiudere al computer. Ed e' la differenza fra guardare da fuori e
@@ -1031,6 +1076,12 @@ window.apriPannello = async (quale) => {
     if (prima) await leggiQuaderno(prima.cwd)
   }
   pannello(ultimoStato)
+}
+
+/** Riapre una chat salvata in un workspace: la si vede nell'elenco, la si tocca. */
+window.riprendiSalvata = async (cwd, sessione) => {
+  await chiedi('/api/sessioni/riprendi', { cartella: cwd, sessione: sessione })
+  aggiorna()
 }
 
 /** Riprende **quella** conversazione, con la sua storia dentro. */

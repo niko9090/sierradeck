@@ -770,3 +770,46 @@ export function workspaceDellaSessione(
   }
   return undefined
 }
+
+/** Una chat come sta nell'archivio: dove vive, chi è, dov'è la sua cartella. */
+export type ChatSalvata = {
+  workspace: string
+  sessione: string
+  cwd: string
+  titolo: string
+  /** Il suo claude.exe è spento: si riprende con `--resume`. */
+  ibernata?: boolean
+}
+
+/**
+ * **Tutte** le chat dell'archivio, workspace per workspace.
+ *
+ * È ciò che il telefono vuole vedere nel tab Chat: non solo quelle che
+ * hanno un terminale acceso in una finestra — che sono le chat del workspace
+ * davanti — ma anche quelle degli altri workspace, che sul disco ci sono e si
+ * riaprono con un tocco. Nell'ordine dell'archivio (workspace, poi slot, poi
+ * posizione), una volta per conversazione: l'invariante «una chat, un
+ * workspace» lo garantisce già, e qui lo si ribadisce per chi legge un file
+ * scritto prima.
+ */
+export function chatSalvate(a: { workspace: WorkspaceSalvato[] }): ChatSalvata[] {
+  const viste = new Set<string>()
+  const fuori: ChatSalvata[] = []
+  for (const w of a.workspace) {
+    const slot = Object.keys(w.perSlot).sort((x, y) => Number(x) - Number(y))
+    for (const k of slot) {
+      for (const p of w.perSlot[k]?.panes ?? []) {
+        if (viste.has(p.sessionUuid)) continue
+        viste.add(p.sessionUuid)
+        fuori.push({
+          workspace: w.nome,
+          sessione: p.sessionUuid,
+          cwd: p.cwd,
+          titolo: p.title,
+          ...(p.ibernata === true ? { ibernata: true } : {})
+        })
+      }
+    }
+  }
+  return fuori
+}
