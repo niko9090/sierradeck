@@ -116,3 +116,29 @@ describe('conservaCambiUtente — quello che gia faceva, e deve continuare a far
     expect(dopo.chats.find((c) => c.id === 'c-2')?.sessionId).toBe('sess-2')
   })
 })
+
+describe('conservaCambiUtente — gli interruttori toccati da fuori durante il turno', () => {
+  it('la pausa per aggiornamento arrivata a meta turno non viene cancellata dal salvataggio', () => {
+    // Premi Installa mentre un turno lungo e in corso: `POST /pausa-aggiornamento`
+    // scrive il segno sul disco, ma il turno ha in mano la fotografia di prima
+    // e la riscriveva senza — proprio la chat a cui la pausa serviva riceveva il
+    // compito dopo, e l'installazione la uccideva a meta azione.
+    const letto = base()
+    const calcolato: Autopilota = { ...letto }
+    const fresco: Autopilota = { ...letto, fermatoPerAggiornamento: true }
+    const dopo = conservaCambiUtente(calcolato, fresco, 'c-1', letto.decisioni.length)
+    expect(dopo.fermatoPerAggiornamento).toBe(true)
+  })
+
+  it('e cosi «riparti al riavvio», il tetto delle chat e i limiti', () => {
+    const letto = base()
+    const calcolato: Autopilota = { ...letto }
+    const fresco: Autopilota = {
+      ...letto, riprendiAlRiavvio: false, tettoChat: 3, limiti: { ...letto.limiti, cicliMax: 42 }
+    }
+    const dopo = conservaCambiUtente(calcolato, fresco, 'c-1', letto.decisioni.length)
+    expect(dopo.riprendiAlRiavvio).toBe(false)
+    expect(dopo.tettoChat).toBe(3)
+    expect(dopo.limiti.cicliMax).toBe(42)
+  })
+})

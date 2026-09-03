@@ -145,3 +145,22 @@ describe('un salvataggio che non si scrive non e un salvataggio', () => {
     expect(dentro[0]?.salvataIl).toBe('2026-08-28T13:00:00.000Z')
   })
 })
+
+describe('sul disco anche perMonitor, per chi torna a una versione prima della 0.12.45', () => {
+  it('ogni workspace del salvataggio porta perMonitor uguale a perSlot', () => {
+    const d = dir()
+    const store = apriIstantaneeStore(d)
+    store.salva(esempio({
+      nome: 'con-ws',
+      workspace: [{ nome: 'lavoro', perSlot: { '1': { root: { type: 'pane', id: 'p1' }, panes: [{ id: 'p1', sessionUuid: 'u1', cwd: 'C:\\a', title: 'una' }] } } }]
+    }))
+    const grezzo = JSON.parse(readFileSync(join(d, 'istantanee.json'), 'utf8')) as {
+      istantanee: { workspace?: { perSlot: unknown; perMonitor?: unknown }[] }[]
+    }
+    const w = grezzo.istantanee.find((i) => i.workspace !== undefined)?.workspace?.[0]
+    expect(w?.perMonitor).toEqual(w?.perSlot)
+    // E rileggendo, la forma di adesso: nessun doppione.
+    const riletta = store.elenca().find((i) => i.nome === 'con-ws')
+    expect(Object.keys(riletta?.workspace?.[0]?.perSlot ?? {})).toEqual(['1'])
+  })
+})

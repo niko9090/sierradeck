@@ -24,7 +24,7 @@ import { dopoAvvioFallito, pianificaFlotta } from './flotta'
 import {
   componiPromptIntervista, giaChiesta, leggiEsitoIntervista, SCAMBI_MAX, TEMPO_PREPARAZIONE_MS
 } from './intervista'
-import { chatDaRiprendere, daRiprendere, intervisteDaRiprendere } from './ripresa'
+import { chatDaRiprendere, daRiprendere, intervisteDaRiprendere, riportaChiAspettava } from './ripresa'
 import { componiPromptRisposta, domandaChiara, leggiEsitoRisposta } from './risposta-autonoma'
 import { componiDomanda } from './trascrizione'
 import type { RegistroDomande } from './domande'
@@ -223,6 +223,18 @@ export function conservaCambiUtente(
     modifiche: fresco.modifiche,
     criteri,
     chats,
+    // **Gli interruttori che cambiano da fuori, durante il turno.** La pausa
+    // per aggiornamento (`POST /pausa-aggiornamento`), «riparti al riavvio»,
+    // il tetto delle chat e i limiti li scrive qualcun altro mentre `suStop`
+    // lavora: riscriverli con la fotografia letta all'inizio li cancellava.
+    // Per la pausa voleva dire: premi Installa mentre un turno lungo e' in
+    // corso, e proprio quella chat — l'unica a cui la pausa serviva — non si
+    // ferma a fine turno e riceve il compito dopo; l'installazione la uccide a
+    // meta' azione, che e' il danno esatto che la pausa esiste per evitare.
+    fermatoPerAggiornamento: fresco.fermatoPerAggiornamento,
+    riprendiAlRiavvio: fresco.riprendiAlRiavvio,
+    tettoChat: fresco.tettoChat,
+    limiti: fresco.limiti,
     // **Il conto dei giri viene dal disco, non dal calcolo.** `suStop` lo
     // incrementa e lo scrive subito, in un giro sincrono: quando arriva qui,
     // il suo `+1` è già dentro `fresco`, insieme a quello di ogni chat sorella
@@ -336,7 +348,8 @@ export type ServerAutopiloti = Server & {
    * Rimette al lavoro le chat che un'interruzione ha spento. Torna quanti
    * autopiloti ha ripreso.
    */
-  riprendiLavori: () => number
+  /** `servizioAppenaPartito`: chi aspettava una risposta a una domanda ormai persa torna al lavoro. */
+  riprendiLavori: (opzioni?: { servizioAppenaPartito?: boolean }) => number
 }
 
 /**
@@ -661,8 +674,23 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * e' proprio lui.
    */
   let ultimaRipresa = 0
-  const riprendiLavori = (): number => {
+  const riprendiLavori = (opzioni: { servizioAppenaPartito?: boolean } = {}): number => {
     const ora = Date.parse(deps.adesso())
+    // **Le domande aperte vivono in memoria, e questo processo e' appena
+    // nato.** Un autopilota in `attesa` sta aspettando una risposta a una
+    // domanda che nessuno ha piu': il registro e' vuoto, la risposta — se mai
+    // arriva — non trova a chi consegnarsi, `daRiprendere` lo salta di
+    // proposito e il guardiano pure. Resterebbe «in attesa» per sempre, senza
+    // niente da rispondere e senza nessuno che lo dica. Al riavvio del
+    // servizio si rimette al lavoro: il turno dopo rifara' la domanda, che e'
+    // esattamente cio' che serve quando la domanda e' andata perduta.
+    if (opzioni.servizioAppenaPartito === true) {
+      const rimessi = riportaChiAspettava(deps.archivio.elenca(), deps.adesso())
+      for (const a of rimessi) salva(a)
+      if (rimessi.length > 0) {
+        console.info(`[autopilota] ${rimessi.length} aspettavano una risposta a una domanda persa col riavvio: tornano al lavoro e la rifaranno`)
+      }
+    }
     // Due chiamate a un istante di distanza sono lo stesso ritorno raccontato
     // due volte: il servizio che parte insieme al Gestore fa la sua ripresa
     // all'avvio, e il Gestore la chiede appena trova il servizio vivo.
@@ -1081,6 +1109,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // le sorelle — e il registro delle decisioni veniva riscritto senza le loro.
     aggiornato.cicli = conCambiUtente.cicli
     aggiornato.decisioni = conCambiUtente.decisioni
+    // E gli interruttori toccati da fuori durante il turno (pausa per
+    // aggiornamento, riparti al riavvio, tetto, limiti): dal disco, non dalla
+    // fotografia di inizio turno.
+    aggiornato.fermatoPerAggiornamento = conCambiUtente.fermatoPerAggiornamento
+    aggiornato.riprendiAlRiavvio = conCambiUtente.riprendiAlRiavvio
+    aggiornato.tettoChat = conCambiUtente.tettoChat
+    aggiornato.limiti = conCambiUtente.limiti
 
     // Il supervisore ha visto che un comando misura la cosa sbagliata e ne ha
     // scritto uno giusto: si sostituisce e si riprende dal giro dopo, che lo
@@ -1424,6 +1459,19 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         }
 
         if (metodo === 'POST' && percorso === '/gestore-avviato') {
+          // Il Gestore e' tornato: qualunque pausa per aggiornamento e' finita,
+          // che l'aggiornamento sia avvenuto o no. Se l'app e' morta fra la
+          // pausa e l'installazione, il segno restava sul disco per sempre —
+          // questo processo sopravvive al Gestore e la sola strada che lo
+          // toglieva era la sua ripartenza, che non arrivava — con gli
+          // autopiloti fermi e il pannello a dire «al lavoro».
+          let tolti = 0
+          for (const a of deps.archivio.elenca()) {
+            if (a.fermatoPerAggiornamento !== true) continue
+            salva({ ...a, fermatoPerAggiornamento: undefined })
+            tolti += 1
+          }
+          if (tolti > 0) console.info(`[autopilota] ${tolti} tolti da una pausa per aggiornamento rimasta appesa`)
           // Le interviste no: quelle girano dentro questo processo e non sono
           // morte con il Gestore. Riprenderle vorrebbe dire farne partire una
           // seconda accanto a quella che sta ancora lavorando.

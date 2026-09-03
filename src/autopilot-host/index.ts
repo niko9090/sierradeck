@@ -280,7 +280,7 @@ export function avviaServizio(): void {
     // Il come sta nel server e non piu' qui: la stessa ripresa la chiede anche
     // il Gestore quando torna su, e due copie della stessa logica si sarebbero
     // separate al primo cambiamento.
-    server.riprendiLavori()
+    server.riprendiLavori({ servizioAppenaPartito: true })
   })
 }
 

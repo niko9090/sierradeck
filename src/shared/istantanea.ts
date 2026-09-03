@@ -1,5 +1,5 @@
 import {
-  parseArchivio, unaChatUnWorkspace, migraChiaviMonitor, VERSIONE_ARCHIVIO, NOME_PREDEFINITO, SLOT_PRIMO,
+  parseArchivio, unaChatUnWorkspace, migraChiaviMonitor, aggiungiPaneA, VERSIONE_ARCHIVIO, NOME_PREDEFINITO, SLOT_PRIMO,
   type LayoutSalvato, type WorkspaceSalvato
 } from './workspace'
 
@@ -198,7 +198,7 @@ export function workspaceDopoRipristino(
   archivio: { attivo: string; workspace: WorkspaceSalvato[] },
   istantanea: Istantanea
 ): { workspace: WorkspaceSalvato[]; attivo: string } {
-  const salvati = istantanea.workspace ?? []
+  const salvati = conLeChatDiAdesso(archivio.workspace, istantanea.workspace ?? [])
   const nomiSalvati = new Set(salvati.map((w) => w.nome))
   const nomiPrima = new Set(archivio.workspace.map((w) => w.nome))
   const davanti =
@@ -217,6 +217,46 @@ export function workspaceDopoRipristino(
   const attivo =
     davanti !== undefined && finale.some((w) => w.nome === davanti) ? davanti : archivio.attivo
   return { workspace: finale, attivo }
+}
+
+/**
+ * I workspace del salvataggio, **più le chat di adesso che il salvataggio non
+ * nomina da nessuna parte**.
+ *
+ * Regola 1 detta fino in fondo: «un ripristino non deve cancellare il lavoro
+ * fatto dopo averlo salvato». Valeva per i workspace *non nominati*, ma un
+ * workspace nominato veniva sostituito per intero dalla versione salvata — e
+ * ogni chat aperta lì dopo il salvataggio spariva dal disco, senza che nessun
+ * rifiuto potesse fermarlo (il ripristino non passa dal controllo dei congedi).
+ * Con un salvataggio letto male, o semplicemente vecchio, era il modo di
+ * perdere tutto quello che non si aveva davanti.
+ *
+ * Una ripresa **aggiunge e riposiziona, non toglie**: la disposizione è quella
+ * salvata, e ciò che l'archivio ha in più resta nello slot in cui stava. Le
+ * chat che il salvataggio mette altrove le lascia decidere a lui —
+ * l'invariante «una chat, un workspace» fa il resto. Chiudere una chat resta
+ * un gesto di chi la chiude, non di chi riprende un salvataggio.
+ */
+function conLeChatDiAdesso(
+  adesso: WorkspaceSalvato[],
+  salvati: WorkspaceSalvato[]
+): WorkspaceSalvato[] {
+  const nelSalvataggio = new Set<string>()
+  for (const w of salvati) {
+    for (const l of Object.values(w.perSlot)) for (const p of l.panes) nelSalvataggio.add(p.sessionUuid)
+  }
+  return salvati.map((w) => {
+    const prima = adesso.find((x) => x.nome === w.nome)
+    if (prima === undefined) return w
+    const perSlot: Record<string, LayoutSalvato> = { ...w.perSlot }
+    for (const [slot, l] of Object.entries(prima.perSlot)) {
+      for (const p of l.panes) {
+        if (nelSalvataggio.has(p.sessionUuid)) continue
+        perSlot[slot] = aggiungiPaneA(perSlot[slot] ?? { root: undefined, panes: [] }, p)
+      }
+    }
+    return { nome: w.nome, perSlot }
+  })
 }
 
 /**

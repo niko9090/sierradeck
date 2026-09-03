@@ -134,6 +134,15 @@ export function apriFinestreStore(cartellaDati: string): FinestreStore {
     nesima(i) {
       const g = tutte()[i]
       if (g === undefined || (g.bounds.width === 0 && g.bounds.height === 0)) return undefined
+      // Un file scritto prima della 0.12.48 non e' una fotografia: e' un
+      // ricordo per monitor, il piu' recente davanti, con dentro schermi su
+      // cui non c'era una finestra da settimane. Leggerlo per posizione
+      // rimetteva la prima finestra sull'ultimo monitor chiuso — proprio il
+      // guasto che lo slot e' nato per chiudere. Senza slot vale solo la
+      // **prima** voce — l'ultima finestra chiusa, che per chi ne ha una e'
+      // quella giusta — e dalla seconda in poi il ripiego per monitor; la
+      // prima fotografia rimette tutto a posto.
+      if (g.slot === undefined && i > 0) return undefined
       return g
     }
   }

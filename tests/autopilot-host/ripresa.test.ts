@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { chatDaRiprendere, daRiprendere, intervisteDaRiprendere } from '../../src/autopilot-host/ripresa'
+import { riportaChiAspettava } from '../../src/autopilot-host/ripresa'
 import { nuovoAutopilota, type Autopilota , limitiPredefiniti } from '@shared/autopilota'
 
 function ap(over: Partial<Autopilota> = {}): Autopilota {
@@ -139,5 +140,21 @@ describe('quali chat riprendere di un autopilota', () => {
       chats: [{ id: 'c-1', compito: 'a', stato: 'finita', cicli: 5 }]
     })
     expect(chatDaRiprendere(finita)).toEqual([])
+  })
+})
+
+describe('riportaChiAspettava — le domande aperte muoiono col servizio', () => {
+  it('chi era in attesa torna al lavoro, con una riga nel diario', () => {
+    // La domanda vive in memoria: un processo appena nato non ce l'ha piu'.
+    // Lasciarlo in `attesa` vuol dire fermo per sempre, saltato dalla ripresa
+    // e dal guardiano, senza niente da rispondere.
+    const attesa = { ...nuovoAutopilota({ id: 'a', nome: 'a', obiettivo: 'o', cwd: 'C:\\p', criteri: [], iniziatoIl: 't0' }), stato: 'attesa' as const }
+    const lavoro = { ...nuovoAutopilota({ id: 'b', nome: 'b', obiettivo: 'o', cwd: 'C:\\p', criteri: [], iniziatoIl: 't0' }), stato: 'lavoro' as const }
+    const sospeso = { ...nuovoAutopilota({ id: 'c', nome: 'c', obiettivo: 'o', cwd: 'C:\\p', criteri: [], iniziatoIl: 't0' }), stato: 'sospeso' as const }
+    const rimessi = riportaChiAspettava([attesa, lavoro, sospeso], '2026-09-03T12:00:00.000Z')
+    expect(rimessi.map((a) => a.id)).toEqual(['a'])
+    expect(rimessi[0]?.stato).toBe('lavoro')
+    expect(rimessi[0]?.ultimoEvento).toBe('2026-09-03T12:00:00.000Z')
+    expect(rimessi[0]?.decisioni.at(-1)?.cosa).toContain('domanda')
   })
 })

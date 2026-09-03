@@ -79,8 +79,19 @@ export function apriIstantaneeStore(dir: string): IstantaneeStore {
    * quello che si voleva salvare c'e' davvero.
    */
   const scriviTutte = (istantanee: Istantanea[]): void => {
+    // Sul disco anche `perMonitor`, copia di `perSlot`: e' il nome che le
+    // versioni fino alla 0.12.44 leggono. Senza, chi torna indietro di
+    // versione ritrova ogni salvataggio con i workspace a nome pieno e vuoti —
+    // e il ripristino li scrive vuoti. L'archivio dei workspace lo fa gia'
+    // (`perDisco`); i salvataggi erano rimasti indietro.
+    const perDisco = istantanee.map((i) => ({
+      ...i,
+      ...(i.workspace !== undefined
+        ? { workspace: i.workspace.map((w) => ({ ...w, perMonitor: w.perSlot })) }
+        : {})
+    }))
     const scritto = scriviJsonAtomico(
-      percorso, { versione: VERSIONE_ISTANTANEE, istantanee }, 'istantanee'
+      percorso, { versione: VERSIONE_ISTANTANEE, istantanee: perDisco }, 'istantanee'
     )
     if (!scritto) throw new Error('il salvataggio non e stato scritto su disco')
     const riletto = elenca()

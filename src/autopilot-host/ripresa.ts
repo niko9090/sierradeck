@@ -80,3 +80,27 @@ export function chatDaRiprendere(a: Autopilota): (ChatGovernata | undefined)[] {
 export function intervisteDaRiprendere(tutti: Autopilota[]): Autopilota[] {
   return tutti.filter((a) => a.stato === 'intervista' && a.riprendiAlRiavvio !== false)
 }
+
+/**
+ * Chi aspettava una risposta a una domanda che il riavvio ha portato via.
+ *
+ * Le domande aperte stanno in memoria (`domande.ts`), e un processo appena
+ * nato non ne ha nessuna. Un autopilota in `attesa` sarebbe fermo per sempre:
+ * `daRiprendere` lo salta apposta (non deve rifare la domanda a chi sta per
+ * rispondere) e il guardiano del silenzio pure. Ma qui la domanda **non c'è
+ * più**, e rifarla è l'unica cosa giusta: si torna al lavoro, con una riga nel
+ * diario che dice perché.
+ */
+export function riportaChiAspettava(tutti: Autopilota[], adesso: string): Autopilota[] {
+  return tutti
+    .filter((a) => a.stato === 'attesa')
+    .map((a) => ({
+      ...a,
+      stato: 'lavoro' as const,
+      ultimoEvento: adesso,
+      decisioni: [
+        ...a.decisioni,
+        { quando: adesso, cosa: 'Il servizio è ripartito e la domanda aperta è andata perduta: torno al lavoro e la rifaccio.' }
+      ]
+    }))
+}

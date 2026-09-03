@@ -5,6 +5,8 @@ import { join } from 'node:path'
 import { apriSincronia } from '../../src/main/cassaforte/sincronia'
 import { magazzinoInMemoria, type Magazzino } from '../../src/main/cassaforte/magazzino'
 import { archivioInMemoria, type Archivio } from '../../src/main/cassaforte/archivio'
+import { preparaBlocco } from '../../src/main/cassaforte/lavoro'
+import { sblocca, type Cassaforte } from '../../src/main/cassaforte/cifratura'
 
 /**
  * Un «Drive» condiviso fra PC finti: il magazzino a blocco unico (per le chiavi)
@@ -165,5 +167,51 @@ describe('sincronia incrementale: giro completo fra due PC', () => {
     expect(sync.auto(true)).toBe(true)
     // Una nuova sessione sullo stesso PC ricorda la scelta.
     expect(apri(a, drive).auto()).toBe(true)
+  })
+})
+
+describe('un backup a blocco unico (0.9.50–0.9.64) si ripristina ancora', () => {
+  let temp: string[] = []
+  const traccia = (p: { dati: string }): void => { temp.push(join(p.dati, '..')) }
+  beforeEach(() => { temp = [] })
+  afterEach(() => { for (const t of temp) rmSync(t, { recursive: true, force: true }) })
+
+  it('senza manifesto sul Drive si prova il blocco vecchio, e i file tornano', async () => {
+    // Chi ha salvato per l'ultima volta con quelle versioni — tipicamente il
+    // secondo PC, che ripristina e non salva — si sentiva dire «niente sul
+    // Drive» con tutto il backup intatto a un metro.
+    const drive = driveCondiviso()
+    const a = pc('A'); traccia(a)
+    writeFileSync(join(a.dati, 'workspaces.json'), '{"ciao":"dal blocco unico"}', 'utf8')
+    writeFileSync(join(a.claude, 'projects', 'progetto', 'vecchia.jsonl'), '{"riga":1}\n', 'utf8')
+    const syncA = apri(a, drive)
+    await syncA.creaPassphrase('passphrase-di-allora')
+    // Il blocco unico, come lo scriveva la 0.9.5x: pacchetto cifrato con la
+    // maestra, caricato sotto il nome predefinito del magazzino.
+    const cassaforte = JSON.parse(readFileSync(join(a.dati, 'cassaforte.json'), 'utf8')) as Cassaforte
+    const maestra = sblocca(cassaforte, 'passphrase-di-allora')
+    expect(maestra).toBeDefined()
+    const { cifrato } = await preparaBlocco({ dati: a.dati, radiceClaude: a.claude, maestra: maestra as Buffer, adesso: '2026-08-20T10:00:00.000Z' })
+    await drive.magazzino().carica(cifrato, undefined)
+
+    const b = pc('B'); traccia(b)
+    const syncB = apri(b, drive)
+    expect((await syncB.sblocca('passphrase-di-allora')).ok).toBe(true)
+    const esito = await syncB.ripristina()
+    expect(esito.ok).toBe(true)
+    expect(esito.niente).toBeUndefined()
+    expect(esito.scritti ?? 0).toBeGreaterThanOrEqual(2)
+    expect(readFileSync(join(b.dati, 'workspaces.json'), 'utf8')).toBe('{"ciao":"dal blocco unico"}')
+    expect(existsSync(join(b.claude, 'projects', 'progetto', 'vecchia.jsonl'))).toBe(true)
+  })
+
+  it('con niente sul Drive, né manifesto né blocco, si dice «niente»', async () => {
+    const drive = driveCondiviso()
+    const a = pc('A'); traccia(a)
+    const syncA = apri(a, drive)
+    await syncA.creaPassphrase('pw-vuota')
+    const esito = await syncA.ripristina()
+    expect(esito.ok).toBe(true)
+    expect(esito.niente).toBe(true)
   })
 })

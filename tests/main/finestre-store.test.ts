@@ -137,3 +137,26 @@ describe('quello che arriva da disco', () => {
     expect(apriFinestreStore(dove).leggi()).toEqual(['buona'])
   })
 })
+
+describe('un file scritto prima della 0.12.48 non e una fotografia', () => {
+  it('senza slot solo la prima voce vale per posizione: le altre ripiegano sul monitor', () => {
+    // Quel file era un ricordo per monitor, il piu' recente davanti, con dentro
+    // schermi senza finestre da settimane. Letto per posizione, la prima
+    // finestra finiva sull'ultimo monitor chiuso — il guasto che lo slot e'
+    // nato per chiudere.
+    const dove = cartella()
+    writeFileSync(join(dove, 'finestre.json'), JSON.stringify({
+      finestre: [
+        { chiave: 'sinistro', bounds: { x: 0, y: 0, width: 1600, height: 1000 }, stato: 'normale' },
+        { chiave: 'destro', bounds: { x: 1920, y: 0, width: 1600, height: 1000 }, stato: 'ingrandita' }
+      ]
+    }))
+    const s = apriFinestreStore(dove)
+    // La prima voce e' l'ultima finestra chiusa: per chi ne ha una e' giusta.
+    expect(s.nesima(0)?.chiave).toBe('sinistro')
+    // Dalla seconda in poi la posizione non dice niente.
+    expect(s.nesima(1)).toBeUndefined()
+    expect(s.geometria('destro')?.stato).toBe('ingrandita')
+    expect(s.leggi().sort()).toEqual(['destro', 'sinistro'])
+  })
+})

@@ -7,6 +7,7 @@ import { pesaRadici, radiciDaSincronizzare } from './raccolta'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
 import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto } from './incrementale'
+import { applicaBlocco } from './lavoro'
 
 /**
  * La **politica** della sincronizzazione: mette insieme cassaforte (cifratura),
@@ -88,7 +89,14 @@ export function apriSincronia(deps: {
   // la sincronizzazione incrementale.
   const leggiManifestoLocale = (): Manifesto => {
     if (!existsSync(fileManifesto)) return manifestoVuoto()
-    try { return JSON.parse(readFileSync(fileManifesto, 'utf8')) as Manifesto } catch { return manifestoVuoto() }
+    try {
+      const m = JSON.parse(readFileSync(fileManifesto, 'utf8')) as Partial<Manifesto> | null
+      // Un manifesto di forma sbagliata non deve far cadere «Salva ora» con un
+      // TypeError da dentro: vale come «non so cosa c'e' sul Drive», e il
+      // salvataggio dopo rimanda tutto — costa banda, non dati.
+      if (typeof m !== 'object' || m === null || typeof m.file !== 'object' || m.file === null) return manifestoVuoto()
+      return { versione: 1, creatoIl: typeof m.creatoIl === 'string' ? m.creatoIl : '', file: m.file }
+    } catch { return manifestoVuoto() }
   }
   const scriviManifestoLocale = (m: Manifesto): void => {
     scriviAtomico(fileManifesto, JSON.stringify(m), 'sync')
@@ -298,7 +306,28 @@ export function apriSincronia(deps: {
           log('RIPRISTINA: il manifesto sul Drive non si decifra con questa chiave')
           return { ok: false, messaggio: 'I dati sul Drive non si aprono con questa chiave (forse di un altro account).' }
         }
-        if (!esito.trovato) { log('RIPRISTINA: niente sul Drive'); return { ok: true, niente: true } }
+        if (!esito.trovato) {
+          // **La forma di prima.** Dalla 0.9.50 alla 0.9.64 il salvataggio era un
+          // blocco unico (`sierradeck.cassaforte`), non il manifesto a piu' file:
+          // chi ha salvato per l'ultima volta con quelle versioni — tipicamente il
+          // secondo PC, che ripristina e non salva — qui si sentiva dire «niente
+          // sul Drive» con tutto il suo backup intatto a un metro. Si prova il
+          // blocco vecchio; il prossimo salvataggio lo riscrive nella forma nuova.
+          const vecchio = await deps.magazzino().scarica().catch(() => undefined)
+          if (vecchio === undefined) { log('RIPRISTINA: niente sul Drive'); return { ok: true, niente: true } }
+          log('RIPRISTINA: manifesto assente, trovato il blocco unico delle versioni precedenti')
+          const applicato = await applicaBlocco(
+            { dati: deps.dati, radiceClaude: deps.radiceClaude, maestra, blocco: vecchio.blocco },
+            deps.emettiProgresso
+          )
+          if (applicato.illeggibile) {
+            log('RIPRISTINA: il blocco vecchio non si decifra con questa chiave')
+            return { ok: false, messaggio: 'I dati sul Drive non si aprono con questa chiave (forse di un altro account).' }
+          }
+          scriviStato({ ...leggiStato(), ultimoSalvataggio: adesso() })
+          log(`RIPRISTINA ok dal blocco unico (${applicato.scritti} file scritti, salvato il ${applicato.creatoIl})`)
+          return { ok: true, scritti: applicato.scritti }
+        }
         // Da qui questo PC sa cosa c'è sul Drive: i prossimi salvataggi sono incrementali.
         if (esito.manifesto !== undefined) scriviManifestoLocale(esito.manifesto)
         scriviStato({ ...leggiStato(), ultimoSalvataggio: adesso() })

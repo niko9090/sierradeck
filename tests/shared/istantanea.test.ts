@@ -732,6 +732,54 @@ describe('workspaceDopoRipristino', () => {
     // «Nuovo», creato dopo il salvataggio, non sparisce.
     expect(workspace.map((w) => w.nome).sort()).toEqual(['Main', 'Nuovo'])
   })
+
+  it('una ripresa non cancella le chat che il salvataggio non nomina', () => {
+    // Regola 1 fino in fondo: un workspace nominato dal salvataggio veniva
+    // sostituito per intero, e le chat aperte lì dopo il salvataggio sparivano
+    // dal disco — è così che un salvataggio vecchio, o letto male, costava
+    // tutto ciò che non si aveva davanti. Una ripresa aggiunge e riposiziona.
+    const archivio = {
+      attivo: 'Main',
+      workspace: [{
+        nome: 'Main',
+        perSlot: {
+          '1': { root: { type: 'pane', id: 'p-m' }, panes: [
+            { id: 'p-m', sessionUuid: 'sess-m', cwd: 'C:\p', title: 'm' },
+            { id: 'p-dopo', sessionUuid: 'sess-dopo', cwd: 'C:\p', title: 'dopo' }
+          ] } as LayoutSalvato,
+          '2': { root: { type: 'pane', id: 'p-due' }, panes: [{ id: 'p-due', sessionUuid: 'sess-due', cwd: 'C:\p', title: 'due' }] } as LayoutSalvato
+        }
+      }]
+    }
+    const i = nuovaIstantanea({
+      nome: 'x', salvataIl: 'ieri', autopiloti: [],
+      finestre: [{ monitor: 'm1', slot: '1', layout: chat('p-m', 'sess-m').m1! }],
+      workspaceAttivo: 'Main',
+      workspace: [{ nome: 'Main', perSlot: { '1': chat('p-m', 'sess-m').m1! } }]
+    })
+    const { workspace } = workspaceDopoRipristino(archivio, i)
+    const main = workspace.find((w) => w.nome === 'Main')
+    const in1 = main?.perSlot['1']?.panes.map((p) => p.sessionUuid).sort()
+    const in2 = main?.perSlot['2']?.panes.map((p) => p.sessionUuid).sort()
+    expect(in1).toEqual(['sess-dopo', 'sess-m'])
+    expect(in2).toEqual(['sess-due'])
+  })
+
+  it('ma lascia al salvataggio le chat che lui mette altrove', () => {
+    // La stessa conversazione sta in «Main» adesso e in «Extra» nel
+    // salvataggio: vince il salvataggio, e non compare due volte.
+    const archivio = { attivo: 'Main', workspace: [{ nome: 'Main', perSlot: chat('p-m', 'sess-m') }] }
+    const i = nuovaIstantanea({
+      nome: 'x', salvataIl: 'ieri', autopiloti: [],
+      finestre: [{ monitor: 'm1', layout: chat('p-m', 'sess-m').m1! }],
+      workspaceAttivo: 'Extra',
+      workspace: [{ nome: 'Main', perSlot: vuoto }, { nome: 'Extra', perSlot: chat('p-m', 'sess-m') }]
+    })
+    const { workspace } = workspaceDopoRipristino(archivio, i)
+    const dove = workspace.filter((w) =>
+      Object.values(w.perSlot).some((l) => l.panes.some((p) => p.sessionUuid === 'sess-m')))
+    expect(dove.map((w) => w.nome)).toEqual(['Extra'])
+  })
 })
 
 describe('un salvataggio scritto prima della 0.12.45 (perMonitor) non torna vuoto', () => {

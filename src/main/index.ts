@@ -82,6 +82,7 @@ import {
 import { apriRegistro, type Registro } from './registro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
+import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
 import { ordineDeiMonitor, quanteFinestre, workspaceDellaSessione } from '@shared/workspace'
 import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
@@ -651,6 +652,23 @@ if (!app.requestSingleInstanceLock()) {
       // Il registro della sessione: prima riga = versione e ambiente, così un
       // log allegato dice subito «quale versione stava girando davvero».
       const registro = apriRegistro(dati, app.getVersion())
+      // **Prima di aprire qualunque archivio**, se questa versione gira per la
+      // prima volta: una copia di tutto lo stato com'e' stato lasciato dalla
+      // versione precedente, qualunque fosse. Le migrazioni alla lettura sono
+      // la cura; questa e' la rete sotto: un campo rinominato che il lettore
+      // nuovo non trova piu' non puo' piu' costare il lavoro, perche' com'erano
+      // i file e' ancora sul disco, in `copie-di-versione/<da>-<quando>`.
+      const copia = mettiAlSicuroLoStato(dati, app.getVersion())
+      if (copia.fatta) {
+        registro.info(
+          `[versione] prima volta con la ${copia.a} (venivo dalla ${copia.da}): ` +
+          (copia.cartella !== undefined
+            ? `${copia.file} file di stato messi al sicuro in ${CARTELLA_COPIE}/${copia.cartella}`
+            : 'nessun file di stato da mettere al sicuro') +
+          (copia.potate.length > 0 ? `; tolte le copie piu' vecchie: ${copia.potate.join(', ')}` : '')
+        )
+        for (const e of copia.errori) registro.errore(`[versione] copia di sicurezza incompleta: ${e}`)
+      }
       // Le preferenze si aprono qui e non piu' avanti: la porta degli
       // autopiloti serve gia' al registro dei canali delle chat, che nasce
       // prima — e una porta letta dopo averla usata e' una porta ignorata.
@@ -1108,12 +1126,19 @@ if (!app.requestSingleInstanceLock()) {
         const grezzo = filePausa(dati)
         if (existsSync(grezzo)) {
           const salvata = leggiPausa(JSON.parse(readFileSync(grezzo, 'utf8')))
-          rmSync(grezzo, { force: true })
           if (salvata !== undefined && pausaAncoraValida(salvata)) {
             for (const sessione of salvata.sessioni) chatDaRiprendereDopoAggiornamento.add(sessione)
             console.info(
               `[aggiornamenti] ${salvata.sessioni.length} chat si erano fermate per l'aggiornamento: le riprendo`
             )
+            // Il file resta finche' l'ultima chat non e' stata ripresa: prima
+            // si cancellava qui, e un avvio caduto a meta' — o una chat che
+            // nessuna finestra riannunciava — perdeva l'avviso per sempre. La
+            // scadenza (6h) impedisce che una ripresa mancata si ripeta a ogni
+            // avvio: scaduta, si cancella e basta.
+            if (chatDaRiprendereDopoAggiornamento.size === 0) rmSync(grezzo, { force: true })
+          } else {
+            rmSync(grezzo, { force: true })
           }
         }
       } catch (err) {
@@ -1631,6 +1656,10 @@ if (!app.requestSingleInstanceLock()) {
             if (sessione === undefined || !chatDaRiprendereDopoAggiornamento.has(sessione)) continue
             chatDaRiprendereDopoAggiornamento.delete(sessione)
             win.webContents.send('client:riprendi-chat', { sessione, testo: AVVISO_RIPRESA })
+          }
+          // Consegnate tutte: il file ha finito il suo lavoro.
+          if (chatDaRiprendereDopoAggiornamento.size === 0) {
+            try { rmSync(filePausa(dati), { force: true }) } catch { /* al prossimo avvio e' scaduto */ }
           }
         }
         for (const id of [...chatPerFinestra.keys()]) {
