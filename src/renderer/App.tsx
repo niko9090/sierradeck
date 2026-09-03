@@ -9,7 +9,7 @@ import { giaSalvatoCome } from '@shared/doppioni'
 import type { Istantanea } from '@shared/istantanea'
 import { chiChiede, workspaceCheChiamano } from '@shared/dove-chiedono'
 import { attivaChiusuraFuori, attivaTrascinamento } from './trascina-finestre'
-import { chatAspetta, creaUltimeRighe } from './ultime-righe'
+import { chatAspetta, creaUltimeRighe, ultimaRigaDalloSchermo } from './ultime-righe'
 import { creaBattito, stessiAttivi } from './battito'
 import { eseguiConsegna, ponteReale, scriviQuandoPronta } from './consegne-autopilota'
 import { memoriaWorkspace } from './memoria-workspace'
@@ -303,8 +303,13 @@ export function App(): React.JSX.Element {
                 // Se il riquadro non c'e' (chat appena ceduta, terminale che sta
                 // nascendo) si torna al modo di prima invece di mostrare il vuoto.
                 const schermo = righeDiPty(p.ptyId, RIGHE_PER_IL_TELEFONO)
+                // Anche l'ultima riga viene dallo schermo, non dal flusso: il
+                // flusso di un'interfaccia che si ridisegna in posizione finisce
+                // con un frammento — ed era quello che arrivava nelle notifiche
+                // del telefono, letto come caratteri a caso.
+                const dalloSchermo = ultimaRigaDalloSchermo(schermo?.pulite)
                 return {
-                  ultimaRiga: righe.current.di(p.ptyId),
+                  ultimaRiga: dalloSchermo !== '' ? dalloSchermo : righe.current.di(p.ptyId),
                   coda: schermo?.pulite ?? righe.current.codaDi(p.ptyId),
                   // Le stesse righe vestite: e' il telefono a rimetterci i
                   // colori, e senza queste li' si legge un terminale sbiancato.

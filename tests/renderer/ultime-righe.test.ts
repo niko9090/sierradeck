@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  chatAspetta, creaUltimeRighe, senzaColori, terminalePronto, ultimaRigaUtile
+  chatAspetta, creaUltimeRighe, senzaColori, terminalePronto, ultimaRigaUtile, ultimaRigaDalloSchermo
 } from '../../src/renderer/ultime-righe'
 
 const ESC = String.fromCharCode(27)
@@ -14,6 +14,55 @@ describe('senzaColori', () => {
 
   it('lascia stare il testo normale', () => {
     expect(senzaColori('una riga qualunque')).toBe('una riga qualunque')
+  })
+
+  it('toglie anche le sequenze private e quelle con i due punti', () => {
+    // `ESC[>4;2m`, `ESC[?2026h`, `ESC[4:3m`: la forma di prima le lasciava a
+    // meta', e dal telefono si leggeva «[>4;2m» in mezzo alle parole.
+    expect(senzaColori(`${ESC}[>4;2m${ESC}[?2026hciao${ESC}[4:3m${ESC}[?2026l`)).toBe('ciao')
+  })
+
+  it('toglie i titoli di finestra, i collegamenti e le stringhe DCS', () => {
+    const BEL = String.fromCharCode(7)
+    expect(senzaColori(`${ESC}]0;titolo${BEL}testo${ESC}]8;;http://x${ESC}\\link${ESC}]8;;${ESC}\\`)).toBe('testolink')
+    expect(senzaColori(`${ESC}Pq...${ESC}\\dopo`)).toBe('dopo')
+  })
+
+  it('una sequenza spezzata alla fine del pezzo non lascia residui', () => {
+    expect(senzaColori(`ciao${ESC}[38;2;1`)).toBe('ciao')
+    expect(senzaColori(`ciao${ESC}`)).toBe('ciao')
+  })
+})
+
+describe('ultimaRigaDalloSchermo', () => {
+  // Il flusso di un'interfaccia che si ridisegna in posizione finisce con un
+  // frammento: dal telefono, nelle notifiche, si leggevano caratteri a caso.
+  // Lo schermo disegnato e' lo stato, e da li' si legge l'ultima riga vera.
+  const schermo = [
+    '● Ho aggiornato il file di configurazione.',
+    '',
+    '╭──────────────────────────────╮',
+    '│ >                            │',
+    '╰──────────────────────────────╯',
+    '  ? for shortcuts                       bypass permissions on (shift+tab to cycle)'
+  ]
+
+  it('salta il campo vuoto, le cornici e le righe fisse dell interfaccia', () => {
+    expect(ultimaRigaDalloSchermo(schermo)).toBe('● Ho aggiornato il file di configurazione.')
+  })
+
+  it('mentre lavora, la riga dello spinner e il battito', () => {
+    const lavora = ['risposta precedente', '✻ Cogitating… (esc to interrupt · 12s)', '', '╭───╮', '│ > │', '╰───╯', '? for shortcuts']
+    expect(ultimaRigaDalloSchermo(lavora)).toBe('✻ Cogitating… (esc to interrupt · 12s)')
+  })
+
+  it('il testo dentro una cornice si legge senza la cornice', () => {
+    expect(ultimaRigaDalloSchermo(['│ Vuoi procedere? │', '╰───╯'])).toBe('Vuoi procedere?')
+  })
+
+  it('senza schermo, o con solo interfaccia, non inventa niente', () => {
+    expect(ultimaRigaDalloSchermo(undefined)).toBe('')
+    expect(ultimaRigaDalloSchermo(['╭───╮', '│ > │', '╰───╯', '? for shortcuts'])).toBe('')
   })
 })
 

@@ -119,3 +119,32 @@ Quindi un'app vecchia contro un computer nuovo non si accorge di niente, e
 un'app nuova contro un computer vecchio legge `scelte = null`. **Senza il
 predefinito** la lettura fallirebbe tutta: al posto della conversazione, una
 schermata vuota.
+
+## 2026-09-03 — le notifiche con «caratteri a caso» (0.12.52)
+
+**Il fatto.** Le notifiche ««X» aspetta te» sul telefono mostravano
+caratteri a caso; lo stesso testo sta sotto ogni chat nell'elenco.
+
+**La causa.** Il testo è `ultimaRiga`, e in `App.tsx` veniva ancora da
+`righe.current.di(ptyId)` — il **flusso** — mentre `coda`/`codaGrezza` erano
+già passate allo **schermo disegnato** (`righeDiPty`) proprio perché il flusso
+di un'interfaccia che si ridisegna in posizione dà «scritte mischiate». L'ultimo
+pezzo del flusso è un frammento di ridisegno: mezza riga, lo spinner, la coda
+di una sequenza. In più `senzaColori` accettava solo `ESC[` + cifre/`;`/`?` +
+lettera: le sequenze private che Claude Code usa (`ESC[>4;2m`, `ESC[?2026h`,
+`ESC[4:3m`), gli OSC dei collegamenti (`ESC]8;;…ESC\`) e le DCS restavano a
+metà, e si leggevano «[>4;2m» in mezzo alle parole.
+
+**La correzione.** `ultimaRigaDalloSchermo(righe)` in
+`src/renderer/ultime-righe.ts`: risale dal fondo dello schermo saltando
+cornici (`U+2500–257F`), il campo vuoto (`>`/`›`), «? for shortcuts», «bypass
+permissions», «shift+tab», «to cycle», «accept edits», «plan mode»; il testo
+dentro una cornice si legge senza la cornice; la riga dello spinner («✻
+Cogitating… (esc to interrupt)») si tiene, è il battito. Ripiego sul flusso solo
+se lo schermo non c'è. E `senzaColori` copre CSI completo (parametri
+`0-9:;<=>?`, intermedi, finale `@-~`), CSI a 8 bit, OSC/DCS/APC/PM con BEL o
+ST, ESC a un carattere, e un ESC spezzato in coda al pezzo.
+
+**Da ricordare.** Quando si sposta una sorgente dal flusso allo schermo, si
+spostano **tutti** i campi che la usano: `coda` era passata, `ultimaRiga` no,
+e la differenza si vedeva solo nelle notifiche.
