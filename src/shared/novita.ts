@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.52',
+    righe: [
+      '**Le notifiche sul telefono non mostrano più caratteri a caso.** L’ultima riga di una chat — quella che compare nella notifica «aspetta te» e sotto ogni chat nell’elenco — veniva letta dal flusso grezzo del terminale, che per un’interfaccia che si ridisegna in posizione finisce sempre con un frammento: mezza riga, uno spinner, un pezzo di codice di colore. Adesso si legge dallo schermo disegnato, saltando cornici e righe fisse dell’interfaccia, e la pulizia dei codici del terminale copre anche le sequenze che prima restavano a metà.'
+    ]
+  },
+  {
     versione: '0.12.51',
     righe: [
       '**Dal telefono si vedono tutte le chat, raggruppate per workspace.** Il tab Chat dell’app Android (2.23.0) e della pagina servita mostrava solo le chat aperte a schermo: adesso elenca ogni workspace del computer con dentro le sue chat — prima quello davanti, poi gli altri; dentro ogni gruppo prima le chat vive, poi quelle salvate, che si riaprono con un tocco.'
