@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.49',
+    righe: [
+      '**Riprendere un salvataggio vecchio non svuota più i workspace.** I salvataggi fatti prima della 0.12.45 — «Ultima chiusura» compresa, cioè proprio quello scritto uscendo per aggiornarsi — venivano riletti con tutti i workspace vuoti, e riprenderli cancellava dal disco le chat dei workspace che non avevi davanti: restavano i nomi e la sola chat a schermo. Ora quei salvataggi si leggono per intero. Se ti è successo, riprendi di nuovo lo stesso salvataggio: le chat sono ancora lì dentro. E se nel frattempo il programma è stato chiuso, trovi una copia dell’archivio di prima in `workspaces.prima-dell-aggiornamento.json`, nella cartella dei dati.',
+      '**Ogni ripresa mette da parte l’archivio di un minuto prima.** Prima di riscrivere i workspace, il programma ne salva una copia in `workspaces.prima-del-ripristino.json`: una ripresa sbagliata si disfa rimettendo quel file al posto di `workspaces.json`, a programma chiuso.'
+    ]
+  },
+  {
     versione: '0.12.48',
     righe: [
       '**Riapre le finestre che avevi davvero, dove le avevi.** Nella 0.12.47 chi lavorava con una finestra sola se ne ritrovava due: il programma indovinava quante finestre servissero guardando dove c’erano delle chat salvate — e ne trovava anche di vecchie di settimane, di quando due finestre le usavi davvero. Adesso il numero di finestre e la posizione di ognuna sono **scritti**, non indovinati: si aggiornano ogni volta che apri, chiudi o sposti una finestra.',
