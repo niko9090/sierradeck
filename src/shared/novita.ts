@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.51',
+    righe: [
+      '**Dal telefono si vedono tutte le chat, raggruppate per workspace.** Il tab Chat dell’app Android (2.23.0) e della pagina servita mostrava solo le chat aperte a schermo: adesso elenca ogni workspace del computer con dentro le sue chat — prima quello davanti, poi gli altri; dentro ogni gruppo prima le chat vive, poi quelle salvate, che si riaprono con un tocco.'
+    ]
+  },
+  {
     versione: '0.12.50',
     righe: [
       '**Aggiornare da qualunque versione, senza perdere niente.** Ogni file che il programma scrive è stato confrontato con tutto ciò che le versioni precedenti hanno mai scritto, dalla prima a oggi, e i lettori sono stati messi in grado di capire ogni forma passata. In più, la prima volta che una versione nuova parte mette da parte **tutti** i file di stato com’erano (cartella `copie-di-versione` nei dati, ne tiene le ultime tre): qualunque cosa vada storta, com’era prima è ancora sul disco.',
