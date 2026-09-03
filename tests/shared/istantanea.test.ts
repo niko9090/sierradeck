@@ -329,7 +329,8 @@ describe('i workspace sopravvivono alla rilettura', () => {
     }
     const { istantanee } = parseIstantanee(conModello)
     expect(istantanee[0]?.finestre[0]?.layout.panes[0]?.model).toBe('opus')
-    expect(istantanee[0]?.workspace?.[0]?.perSlot.m1?.panes[0]?.model).toBe('opus')
+    // `m1` non è uno slot: alla lettura diventa lo slot 1, come nell'archivio.
+    expect(istantanee[0]?.workspace?.[0]?.perSlot['1']?.panes[0]?.model).toBe('opus')
   })
 })
 
@@ -730,5 +731,101 @@ describe('workspaceDopoRipristino', () => {
     const { workspace } = workspaceDopoRipristino(archivio, i)
     // «Nuovo», creato dopo il salvataggio, non sparisce.
     expect(workspace.map((w) => w.nome).sort()).toEqual(['Main', 'Nuovo'])
+  })
+})
+
+describe('un salvataggio scritto prima della 0.12.45 (perMonitor) non torna vuoto', () => {
+  // Fino alla 0.12.44 i workspace di un salvataggio stavano sotto `perMonitor`,
+  // con la geometria dello schermo per chiave. Quando il nome è diventato
+  // `perSlot` il lettore ha seguito solo il nuovo: ogni workspace di un
+  // salvataggio vecchio — «Ultima chiusura» compresa, cioè proprio quello
+  // scritto uscendo per aggiornarsi — tornava a nome pieno e a mani vuote, e il
+  // ripristino li svuotava sul disco uno per uno. È successo davvero, su un PC
+  // aggiornato dalla 0.12.4x alla 0.12.48: sono rimasti i nomi dei workspace e
+  // la sola chat che la finestra aveva davanti.
+  const pane = (id: string, u: string): { id: string; sessionUuid: string; cwd: string; title: string } =>
+    ({ id, sessionUuid: u, cwd: 'C:\p', title: id })
+  const uno = (id: string, u: string): unknown => ({ root: { type: 'pane', id }, panes: [pane(id, u)] })
+  const vecchio = {
+    versione: VERSIONE_ISTANTANEE,
+    istantanee: [{
+      nome: 'Ultima chiusura',
+      salvataIl: '2026-09-01T20:00:00.000Z',
+      finestre: [{ monitor: '1920x1080@0,0@1', layout: uno('p1', 'u1') }],
+      workspaceAttivo: 'lavoro',
+      workspace: [
+        { nome: 'lavoro', perMonitor: { '1920x1080@0,0@1': uno('p1', 'u1') } },
+        { nome: 'casa', perMonitor: { '1920x1080@0,0@1': uno('p2', 'u2'), '2560x1440@1920,0@1': uno('p3', 'u3') } },
+        { nome: 'nas', perMonitor: { '2560x1440@1920,0@1': uno('p4', 'u4') } }
+      ],
+      autopiloti: []
+    }]
+  }
+
+  it('legge le chat dei workspace anche sotto il nome vecchio', () => {
+    const { istantanee, scartati } = parseIstantanee(vecchio)
+    expect(scartati).toEqual([])
+    expect(contaWorkspace(istantanee[0] as Istantanea)).toBe(3)
+    expect(contaChat(istantanee[0] as Istantanea)).toBe(4)
+  })
+
+  it('e le chiavi-monitor diventano slot, con la stessa regola dell archivio', () => {
+    const { istantanee } = parseIstantanee(vecchio)
+    const casa = istantanee[0]?.workspace?.find((w) => w.nome === 'casa')
+    // Lo schermo più a sinistra è lo slot 1, quello di destra il 2 — e la
+    // corrispondenza è la stessa in ogni workspace del salvataggio.
+    expect(Object.keys(casa?.perSlot ?? {}).sort()).toEqual(['1', '2'])
+    expect(casa?.perSlot['1']?.panes[0]?.sessionUuid).toBe('u2')
+    expect(casa?.perSlot['2']?.panes[0]?.sessionUuid).toBe('u3')
+    const nas = istantanee[0]?.workspace?.find((w) => w.nome === 'nas')
+    expect(Object.keys(nas?.perSlot ?? {})).toEqual(['2'])
+  })
+
+  it('ripristinarlo non svuota i workspace che non si hanno davanti', () => {
+    // Il caso vero: l'archivio ha le chat, il salvataggio vecchio le ha anche
+    // lui. Prima della correzione il salvataggio le «aveva» a zero, e vinceva.
+    const { istantanee } = parseIstantanee(vecchio)
+    const archivio: { attivo: string; workspace: WorkspaceSalvato[] } = {
+      attivo: 'lavoro',
+      workspace: [
+        { nome: 'lavoro', perSlot: { '1': uno('p1', 'u1') as LayoutSalvato } },
+        { nome: 'casa', perSlot: { '1': uno('p2', 'u2') as LayoutSalvato, '2': uno('p3', 'u3') as LayoutSalvato } },
+        { nome: 'nas', perSlot: { '2': uno('p4', 'u4') as LayoutSalvato } }
+      ]
+    }
+    const { workspace } = workspaceDopoRipristino(archivio, istantanee[0] as Istantanea)
+    const chat = (nome: string): string[] =>
+      Object.values(workspace.find((w) => w.nome === nome)?.perSlot ?? {})
+        .flatMap((l) => l.panes.map((p) => p.sessionUuid)).sort()
+    expect(chat('lavoro')).toEqual(['u1'])
+    expect(chat('casa')).toEqual(['u2', 'u3'])
+    expect(chat('nas')).toEqual(['u4'])
+  })
+
+  it('un workspace senza disposizioni si tiene per nome, ma lo si dice', () => {
+    const { istantanee, scartati } = parseIstantanee({
+      versione: VERSIONE_ISTANTANEE,
+      istantanee: [{
+        nome: 'strano', salvataIl: '2026-09-01T20:00:00.000Z', finestre: [],
+        workspace: [{ nome: 'lavoro' }], autopiloti: []
+      }]
+    })
+    expect(istantanee[0]?.workspace?.map((w) => w.nome)).toEqual(['lavoro'])
+    expect(scartati.some((m) => m.includes('senza disposizioni'))).toBe(true)
+  })
+
+  it('la forma ancora precedente, con le finestre sotto perMonitor, si legge lo stesso', () => {
+    // Prima di `finestre` c'era un layout per monitor in cima al salvataggio:
+    // anche quel ramo aveva seguito il nome nuovo e non leggeva più il vecchio.
+    const { istantanee } = parseIstantanee({
+      versione: VERSIONE_ISTANTANEE,
+      istantanee: [{
+        nome: 'antica', salvataIl: '2026-01-01T00:00:00.000Z',
+        perMonitor: { '1920x1080@0,0@1': uno('p1', 'u1') },
+        autopiloti: []
+      }]
+    })
+    expect(istantanee[0]?.finestre).toHaveLength(1)
+    expect(istantanee[0]?.finestre[0]?.layout.panes[0]?.sessionUuid).toBe('u1')
   })
 })

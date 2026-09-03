@@ -1,5 +1,5 @@
 import {
-  parseArchivio, unaChatUnWorkspace, VERSIONE_ARCHIVIO, NOME_PREDEFINITO, SLOT_PRIMO,
+  parseArchivio, unaChatUnWorkspace, migraChiaviMonitor, VERSIONE_ARCHIVIO, NOME_PREDEFINITO, SLOT_PRIMO,
   type LayoutSalvato, type WorkspaceSalvato
 } from './workspace'
 
@@ -388,16 +388,34 @@ function parseWorkspace(raw: unknown, scartati: string[]): WorkspaceSalvato[] | 
       scartati.push('workspace senza nome')
       continue
     }
+    // `perSlot` è la forma di adesso; `perMonitor` quella scritta fino alla
+    // 0.12.44, con la geometria dello schermo per chiave. **Vanno lette tutte e
+    // due.** Quando il nome è cambiato, questo lettore ha seguito solo il nuovo:
+    // un salvataggio fatto dalla versione prima — «Ultima chiusura» compresa,
+    // cioè proprio quello scritto uscendo per aggiornarsi — tornava con tutti i
+    // suoi workspace **a nome pieno e a mani vuote**. E il ripristino, che dei
+    // workspace nominati nel salvataggio prende la versione salvata, li
+    // svuotava sul disco uno per uno: restava la sola chat che le finestre
+    // avevano davanti. Il mancato ripiego era una riga; il danno, tutto il
+    // lavoro non a schermo.
+    const grezzo = o.perSlot ?? o.perMonitor
     const perSlot: Record<string, LayoutSalvato> = {}
-    if (typeof o.perSlot === 'object' && o.perSlot !== null) {
-      for (const [chiave, layout] of Object.entries(o.perSlot as Record<string, unknown>)) {
+    if (typeof grezzo === 'object' && grezzo !== null) {
+      for (const [chiave, layout] of Object.entries(grezzo as Record<string, unknown>)) {
         const letto = parseLayout(layout, scartati)
         if (letto !== undefined) perSlot[chiave] = letto
       }
+    } else {
+      // Un workspace senza disposizioni non è una forma che questo programma
+      // abbia mai scritto: si tiene il nome, ma lo si dice, perché un
+      // ripristino che lo trovasse vuoto lo scriverebbe vuoto.
+      scartati.push(`workspace «${nome}» del salvataggio senza disposizioni`)
     }
     letti.push({ nome, perSlot })
   }
-  return letti
+  // Le chiavi-monitor diventano slot con la stessa regola dell'archivio: un
+  // monitor, uno slot, uguale per tutti i workspace del salvataggio.
+  return migraChiaviMonitor(letti)
 }
 
 /**
@@ -453,10 +471,12 @@ export function parseIstantanee(raw: unknown): { istantanee: Istantanea[]; scart
             })
           }
         }
-      } else if (typeof g.perSlot === 'object' && g.perSlot !== null) {
+      } else if (typeof (g.perSlot ?? g.perMonitor) === 'object' && (g.perSlot ?? g.perMonitor) !== null) {
         // La forma precedente: un layout per monitor, cioè una finestra per
-        // schermo. Chi ha già dei salvataggi non deve perderli.
-        for (const [chiave, layout] of Object.entries(g.perSlot as Record<string, unknown>)) {
+        // schermo. Chi ha già dei salvataggi non deve perderli — e il campo si
+        // chiamava `perMonitor`: rinominarlo qui, senza leggere più il nome
+        // vecchio, aveva reso illeggibili i salvataggi di allora.
+        for (const [chiave, layout] of Object.entries((g.perSlot ?? g.perMonitor) as Record<string, unknown>)) {
           const letto = parseLayout(layout, scartati)
           if (letto !== undefined && letto.panes.length > 0) finestre.push({ monitor: chiave, layout: letto })
         }

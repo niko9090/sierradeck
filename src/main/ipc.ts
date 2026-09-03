@@ -1,7 +1,7 @@
 import { app, ipcMain, screen, shell, BrowserWindow } from 'electron'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, copyFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { PtyHostClient } from './pty-host-client'
 import type { HostToCore } from '@shared/protocol'
@@ -519,6 +519,22 @@ function spingiLayout(winId: number, workspace: string, layout: LayoutSalvato): 
 
 function layoutVuoto(): LayoutSalvato {
   return { root: undefined, panes: [] }
+}
+
+/**
+ * Copia l'archivio dei workspace accanto a sé, con un nome leggibile.
+ *
+ * Non solleva mai: chi ripristina non deve fermarsi perché la copia di
+ * sicurezza non è riuscita — ma lo si registra, perché una copia mancata è
+ * proprio ciò che si vorrebbe sapere il giorno in cui serve.
+ */
+function mettiDaParteArchivio(percorso: string, nomeCopia: string): void {
+  try {
+    if (!existsSync(percorso)) return
+    copyFileSync(percorso, join(dirname(percorso), nomeCopia))
+  } catch (err) {
+    console.error(`[workspace] copia di sicurezza «${nomeCopia}» non riuscita:`, err)
+  }
 }
 
 export type StatoWorkspace = { nomi: string[]; attivo: string }
@@ -1334,6 +1350,14 @@ export function registerIstantaneeIpc(
       const { workspace, attivo } = workspaceDopoRipristino(archivio, istantanea)
       if (attivo !== archivio.attivo) console.log(`[istantanee] torna davanti il workspace «${attivo}»`)
       const ripristinato = { ...archivio, attivo, workspace }
+      // Prima di riscrivere l'archivio, una copia di com'era. Un ripristino
+      // sostituisce i workspace nominati nel salvataggio con la versione
+      // salvata: se quella è più povera — vecchia, o letta male — il lavoro di
+      // adesso sparisce dal disco senza che nessun rifiuto possa fermarlo,
+      // perché qui non c'è una finestra che dichiara i congedi. La copia toglie
+      // l'irreversibilità, che è la parte peggiore. Una sola, sovrascritta a ogni
+      // ripristino: serve a tornare a un minuto fa, non a tenere un archivio.
+      mettiDaParteArchivio(workspaceStore.percorso, 'workspaces.prima-del-ripristino.json')
       workspaceStore.scrivi(ripristinato)
       console.log(`[istantanee] ripristinati ${workspace.length} workspace`)
 
