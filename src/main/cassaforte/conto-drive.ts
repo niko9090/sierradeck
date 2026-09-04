@@ -2,7 +2,7 @@ import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
 import { configGoogle } from '../google-config'
-import { connetti as connettiOAuth, creaFornitoreToken, chiediEmail, type Gettoni } from './oauth-google'
+import { connetti as connettiOAuth, creaFornitoreToken, esaminaDrive, type Gettoni } from './oauth-google'
 import { creaMagazzinoDrive, creaArchivioDrive } from './google-drive'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
@@ -28,10 +28,24 @@ export type StatoDrive = {
   email?: string
 }
 
+/**
+ * Cosa si e' trovato nel Drive appena collegato: e' cosi' che si riconosce
+ * l'account giusto senza doverlo ricordare.
+ */
+export type Riconoscimento = {
+  email?: string
+  /** I file di SierraDeck nel Drive di quell'account (chiavi, elenco, chat, progetti). */
+  fileSierraDeck: number
+  /** Quando quel Drive e' stato salvato l'ultima volta. */
+  ultimoSalvataggio?: string
+  /** C'e' una cassaforte: quel Drive e' gia' stato usato da SierraDeck. */
+  cassaforteSulDrive: boolean
+}
+
 export type ContoDrive = {
   stato: () => StatoDrive
   /** Avvia il consenso: apre il browser, aspetta, salva i token. Lancia se non configurato. */
-  connetti: (apriBrowser: (url: string) => void) => Promise<void>
+  connetti: (apriBrowser: (url: string) => void) => Promise<Riconoscimento>
   /** Dimentica i token: il prossimo uso richiederà di riconnettere. */
   disconnetti: () => void
   /**
@@ -89,9 +103,18 @@ export function apriContoDrive(dati: string): ContoDrive {
       if (c === undefined) throw new Error('Google Drive non configurato: mancano le credenziali OAuth dell’app')
       const gettoni = await connettiOAuth({ config: c, apriBrowser })
       scrivi(gettoni)
-      // L'indirizzo, per non doverlo piu' indovinare fra dieci account.
-      const email = await chiediEmail(gettoni.accessToken)
-      if (email !== undefined) scrivi({ ...gettoni, email })
+      // L'indirizzo e cosa c'e' dentro: per riconoscere il Drive giusto senza
+      // doverlo ricordare fra dieci account.
+      const esame = await esaminaDrive(gettoni.accessToken)
+      if (esame.email !== undefined) scrivi({ ...gettoni, email: esame.email })
+      const nomi = new Set(esame.file.map((f) => f.name))
+      const elenco = esame.file.find((f) => f.name === 'sierradeck.manifesto') ?? esame.file.find((f) => f.name === 'sierradeck.cassaforte')
+      return {
+        ...(esame.email !== undefined ? { email: esame.email } : {}),
+        fileSierraDeck: esame.file.filter((f) => f.name.startsWith('sierradeck.') || f.name.startsWith('f_')).length,
+        ...(elenco?.modifiedTime !== undefined ? { ultimoSalvataggio: elenco.modifiedTime } : {}),
+        cassaforteSulDrive: nomi.has('sierradeck.chiavi')
+      }
     },
 
     disconnetti() { scarta() },

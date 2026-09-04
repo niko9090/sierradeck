@@ -55,6 +55,40 @@ export type Gettoni = {
   email?: string
 }
 
+/**
+ * Cosa c'e' di SierraDeck nel Drive di un account, e di chi e'.
+ *
+ * Serve al collegamento: con piu' account Google — uno per computer — non si
+ * sa piu' quale si era usato, e l'unico modo onesto di riconoscerlo e'
+ * guardare cosa c'e' dentro. I nomi dei file dell'app, non i contenuti.
+ */
+export type EsameDrive = { email?: string; file: { name: string; modifiedTime?: string }[] }
+
+export async function esaminaDrive(accessToken: string, f: Fetch = fetch): Promise<EsameDrive> {
+  const email = await chiediEmail(accessToken, f)
+  const file: { name: string; modifiedTime?: string }[] = []
+  try {
+    let pageToken: string | undefined
+    do {
+      const u = new URL('https://www.googleapis.com/drive/v3/files')
+      u.searchParams.set('spaces', 'appDataFolder')
+      u.searchParams.set('fields', 'nextPageToken,files(name,modifiedTime)')
+      u.searchParams.set('pageSize', '1000')
+      if (pageToken !== undefined) u.searchParams.set('pageToken', pageToken)
+      const r = await f(u.toString(), { headers: { Authorization: `Bearer ${accessToken}` } })
+      if (!r.ok) break
+      const j = (await r.json()) as { nextPageToken?: string; files?: { name?: unknown; modifiedTime?: unknown }[] }
+      for (const x of j.files ?? []) {
+        if (typeof x.name === 'string') file.push({ name: x.name, ...(typeof x.modifiedTime === 'string' ? { modifiedTime: x.modifiedTime } : {}) })
+      }
+      pageToken = j.nextPageToken
+    } while (pageToken !== undefined)
+  } catch {
+    // niente elenco: si torna con quello che si ha
+  }
+  return { ...(email !== undefined ? { email } : {}), file }
+}
+
 /** L'indirizzo dell'account, chiesto al Drive. `undefined` se non risponde: non e' un errore. */
 export async function chiediEmail(accessToken: string, f: Fetch = fetch): Promise<string | undefined> {
   try {
@@ -96,7 +130,10 @@ export function componiUrlAutorizzazione(
     // Google lo dà solo la primissima volta e mai più, e al secondo accesso
     // resteremmo senza modo di rinnovare.
     access_type: 'offline',
-    prompt: 'consent',
+    // `select_account`: la scelta dell'account compare sempre, anche con un
+    // solo account nel browser. Chi ne ha molti deve poter scegliere, e chi
+    // ne ha uno solo non paga niente.
+    prompt: 'select_account consent',
     code_challenge: challenge,
     code_challenge_method: 'S256',
     state

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   componiUrlAutorizzazione, creaPkce, scambiaCodice, rinnova, creaFornitoreToken,
-  SCOPE_DRIVE, AUTORIZZAZIONE_REVOCATA, chiediEmail, type ConfigOAuth, type Gettoni
+  SCOPE_DRIVE, AUTORIZZAZIONE_REVOCATA, chiediEmail, esaminaDrive, type ConfigOAuth, type Gettoni
 } from '../../src/main/cassaforte/oauth-google'
 
 const CONFIG: ConfigOAuth = { clientId: 'cid.apps.googleusercontent.com', clientSecret: 'sec-123' }
@@ -42,7 +42,7 @@ describe('OAuth Google — URL di autorizzazione', () => {
     expect(p.get('code_challenge')).toBe('CHAL')
     expect(p.get('code_challenge_method')).toBe('S256')
     expect(p.get('access_type')).toBe('offline')
-    expect(p.get('prompt')).toBe('consent')
+    expect(p.get('prompt')).toBe('select_account consent')
     expect(p.get('state')).toBe('STATO')
   })
 
@@ -152,6 +152,29 @@ describe('OAuth Google — fornitore di token con cache', () => {
     expect(await chiediEmail('at', no)).toBeUndefined()
     const giu = (async () => { throw new Error('rete') }) as unknown as typeof globalThis.fetch
     expect(await chiediEmail('at', giu)).toBeUndefined()
+  })
+
+  it('esaminaDrive dice di chi e il Drive e cosa c e dentro, anche a pagine', async () => {
+    let chiamate = 0
+    const finto = (async (url: string | URL) => {
+      chiamate += 1
+      const u = String(url)
+      if (u.includes('/about')) return new Response(JSON.stringify({ user: { emailAddress: 'io@esempio.it' } }), { status: 200 })
+      if (u.includes('pageToken=p2')) return new Response(JSON.stringify({ files: [{ name: 'f_2', modifiedTime: '2026-09-04T10:00:00Z' }] }), { status: 200 })
+      return new Response(JSON.stringify({ nextPageToken: 'p2', files: [{ name: 'sierradeck.chiavi' }, { name: 'sierradeck.manifesto', modifiedTime: '2026-09-04T09:00:00Z' }] }), { status: 200 })
+    }) as unknown as typeof globalThis.fetch
+    const e = await esaminaDrive('at', finto)
+    expect(e.email).toBe('io@esempio.it')
+    expect(e.file.map((f) => f.name)).toEqual(['sierradeck.chiavi', 'sierradeck.manifesto', 'f_2'])
+    expect(chiamate).toBe(3)
+    // Il Drive che non risponde: nessun elenco, nessun errore.
+    const giu = (async () => new Response('{}', { status: 500 })) as unknown as typeof globalThis.fetch
+    expect(await esaminaDrive('at', giu)).toEqual({ file: [] })
+  })
+
+  it('la scelta dell account compare sempre', () => {
+    const url = componiUrlAutorizzazione(CONFIG, 'http://127.0.0.1:1', 'c', 's')
+    expect(new URL(url).searchParams.get('prompt')).toBe('select_account consent')
   })
 
   it('un guasto di rete al rinnovo non butta via l autorizzazione', async () => {

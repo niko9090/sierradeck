@@ -77,3 +77,27 @@ alla prima `&`). L'account del Drive di Nicholas è **djniko90@gmail.com**
 `google-drive-token.json` come `email`, sopravvive al rinnovo e si vede nel
 pannello Account sotto «collegato ✓».
 
+## 5. Più PC, più account Google, più cassaforti (0.12.62)
+
+Il caso di Nicholas: PC diversi collegati ad account Google diversi, ognuno
+con la propria cassaforte (passphrase creata su quel PC). Nessuno vede le
+chat degli altri, e nessuno ricorda quale account ha usato dove.
+
+**Riconoscere il Drive dai dati**: `esaminaDrive` (about.get + elenco
+appdata) al collegamento → `Riconoscimento` `{ email, fileSierraDeck,
+ultimoSalvataggio, cassaforteSulDrive }` mostrato nel pannello con «Prova un
+altro account» (scollega + riconnette; `prompt=select_account consent` fa
+comparire sempre la scelta).
+
+**Unificare su un Drive** (djniko90@gmail.com): su ogni altro PC → Connetti
+quel Drive → il pannello vede `cassaforteDiversa` (chiavi locali ≠ chiavi sul
+Drive) → «Usa la cassaforte del Drive» (`adottaCassaforteDelDrive`: mette da
+parte `cassaforte.json` come `cassaforte.messa-da-parte-<stamp>.json`,
+dimentica la maestra, scrive le chiavi del Drive, `cambiatoDrive()` = mette da
+parte `sync-manifesto.json` e azzera lo stato) → Sblocca con la passphrase di
+quel Drive → Salva ora: TUTTO il PC sale (il manifesto locale è vuoto), e per
+la fusione del manifesto (0.12.58) non cancella niente degli altri.
+Trappola: senza `cambiatoDrive()` i file «già noti» al vecchio manifesto non
+salirebbero mai sul nuovo Drive (`cambiati` = firma ≠ prec).
+Le copie sui vecchi account restano lì, inutili: nessun PC le tocca.
+

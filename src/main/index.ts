@@ -772,10 +772,16 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('drive:stato', () => contoDrive.stato())
       ipcMain.handle('drive:connetti', async () => {
         registro.info('Drive: connessione richiesta')
+        const prima = contoDrive.stato().email
         try {
-          await contoDrive.connetti((url) => { void shell.openExternal(url) })
-          registro.info('Drive: connesso ✓')
-          return { ok: true }
+          const r = await contoDrive.connetti((url) => { void shell.openExternal(url) })
+          registro.info(`Drive: connesso ✓ ${r.email ?? '(indirizzo non letto)'} · ${r.fileSierraDeck} file di SierraDeck${r.ultimoSalvataggio !== undefined ? `, ultimo salvataggio ${r.ultimoSalvataggio}` : ''}`)
+          // Un Drive diverso da prima, o vuoto: quello che si sapeva del Drive
+          // di prima non vale, e il prossimo salvataggio rimanda tutto.
+          if ((prima !== undefined && r.email !== undefined && prima !== r.email) || !r.cassaforteSulDrive) {
+            sincronia.cambiatoDrive()
+          }
+          return { ok: true, ...r }
         } catch (err) {
           const m = err instanceof Error ? err.message : String(err)
           registro.errore(`Drive: connessione fallita: ${m}`)
@@ -999,6 +1005,7 @@ if (!app.requestSingleInstanceLock()) {
           ? sincronia.cambiaPassphrase(vecchia, nuova)
           : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
       ipcMain.handle('sync:blocca', () => { sincronia.blocca() })
+      ipcMain.handle('sync:adottaCassaforteDelDrive', () => sincronia.adottaCassaforteDelDrive())
       ipcMain.handle('sync:salva', (_e, forza: unknown) => sincronia.salva(forza === true))
       ipcMain.handle('sync:ripristina', async () => {
         const esito = await sincronia.ripristina()

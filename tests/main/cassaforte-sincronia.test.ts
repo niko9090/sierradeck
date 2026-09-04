@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apriSincronia, FILE_MAESTRA_RICORDATA, type Portachiavi } from '../../src/main/cassaforte/sincronia'
@@ -362,6 +362,50 @@ describe('sincronia incrementale: giro completo fra due PC', () => {
     const r = await syncA.salva()
     expect(r.ok).toBe(true)
     expect(r.voci).toBe(1)
+  })
+
+  it('un PC con una cassaforte sua che si collega al Drive di un altro: lo vede, la adotta, e sale tutto', async () => {
+    // Il caso di piu' PC con account e cassaforti diverse: senza questo, il
+    // secondo PC vedeva solo «dati di un altro account».
+    const drive = driveCondiviso()
+    const a = pc('A'); traccia(a)
+    writeFileSync(join(a.claude, 'projects', 'progetto', 'di-a.jsonl'), '{"a":1}')
+    const syncA = apri(a, drive)
+    expect((await syncA.creaPassphrase('passphrase-di-A')).ok).toBe(true)
+    expect((await syncA.salva()).ok).toBe(true)
+
+    // B ha una cassaforte sua (creata su un altro Drive) e un vecchio manifesto.
+    const b = pc('B'); traccia(b)
+    writeFileSync(join(b.claude, 'projects', 'progetto', 'di-b.jsonl'), '{"b":1}')
+    const altroDrive = driveCondiviso()
+    const syncBPrima = apri(b, altroDrive)
+    expect((await syncBPrima.creaPassphrase('passphrase-di-B')).ok).toBe(true)
+    expect((await syncBPrima.salva()).ok).toBe(true)
+    expect(existsSync(join(b.dati, 'sync-manifesto.json'))).toBe(true)
+
+    // Ora B si collega al Drive di A.
+    const syncB = apri(b, drive)
+    const stato = await syncB.stato()
+    expect(stato.haCassaforte).toBe(true)
+    expect(stato.cassaforteDiversa).toBe(true)
+    // Con la sua passphrase apre la sua cassaforte, ma il Drive non si legge.
+    expect((await syncB.sblocca('passphrase-di-B')).ok).toBe(true)
+    expect((await syncB.ripristina()).ok).toBe(false)
+    // Adotta quella del Drive.
+    expect(await syncB.adottaCassaforteDelDrive()).toEqual({ ok: true })
+    expect((await syncB.stato()).sbloccato).toBe(false)
+    expect((await syncB.stato()).cassaforteDiversa).toBeUndefined()
+    expect(existsSync(join(b.dati, 'sync-manifesto.json'))).toBe(false)
+    expect(readdirSync(b.dati).some((n) => n.startsWith('cassaforte.messa-da-parte-'))).toBe(true)
+    expect((await syncB.sblocca('passphrase-di-B')).ok).toBe(false)
+    expect((await syncB.sblocca('passphrase-di-A')).ok).toBe(true)
+    // Sale tutto quello di B (il manifesto e' stato dimenticato), senza toccare A.
+    const salvato = await syncB.salva()
+    expect(salvato.ok).toBe(true)
+    expect(salvato.voci ?? 0).toBeGreaterThanOrEqual(1)
+    expect((await syncA.ripristina()).ok).toBe(true)
+    expect(existsSync(join(a.claude, 'projects', 'progetto', 'di-b.jsonl'))).toBe(true)
+    expect(existsSync(join(a.claude, 'projects', 'progetto', 'di-a.jsonl'))).toBe(true)
   })
 
   it('senza sblocco non salva né ripristina', async () => {

@@ -109,7 +109,10 @@ declare global {
       }
       drive: {
         stato: () => Promise<{ configurato: boolean; connesso: boolean; email?: string }>
-        connetti: () => Promise<{ ok: boolean; messaggio?: string }>
+        connetti: () => Promise<{
+          ok: boolean; messaggio?: string
+          email?: string; fileSierraDeck?: number; ultimoSalvataggio?: string; cassaforteSulDrive?: boolean
+        }>
         disconnetti: () => Promise<void>
       }
       /** I progetti sul Drive: quali cartelle viaggiano con le chat, e dove stanno su questo PC. */
@@ -126,7 +129,7 @@ declare global {
       }
       sync: {
         stato: () => Promise<{
-          driveConnesso: boolean; haCassaforte: boolean; sbloccato: boolean
+          driveConnesso: boolean; haCassaforte: boolean; sbloccato: boolean; cassaforteDiversa?: boolean
           versione?: string; ultimoSalvataggio?: string
         }>
         info: () => Promise<{ file: number; byte: number }>
@@ -135,6 +138,7 @@ declare global {
         sbloccaRecupero: (codice: string) => Promise<{ ok: boolean; messaggio?: string }>
         cambiaPassphrase: (vecchia: string, nuova: string) => Promise<{ ok: boolean; messaggio?: string }>
         blocca: () => Promise<void>
+        adottaCassaforteDelDrive: () => Promise<{ ok: boolean; messaggio?: string }>
         salva: (forza?: boolean) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number }>
         auto: (attivo?: boolean) => Promise<boolean>
         ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string; conflitti?: number }>

@@ -341,7 +341,10 @@ contextBridge.exposeInMainWorld('gestore', {
   drive: {
     stato: (): Promise<{ configurato: boolean; connesso: boolean; email?: string }> =>
       ipcRenderer.invoke('drive:stato'),
-    connetti: (): Promise<{ ok: boolean; messaggio?: string }> =>
+    connetti: (): Promise<{
+      ok: boolean; messaggio?: string
+      email?: string; fileSierraDeck?: number; ultimoSalvataggio?: string; cassaforteSulDrive?: boolean
+    }> =>
       ipcRenderer.invoke('drive:connetti'),
     disconnetti: (): Promise<void> => ipcRenderer.invoke('drive:disconnetti')
   },
@@ -376,9 +379,12 @@ contextBridge.exposeInMainWorld('gestore', {
   /** La sincronizzazione cifrata: passphrase (cassaforte E2E) + salva/ripristina. */
   sync: {
     stato: (): Promise<{
-      driveConnesso: boolean; haCassaforte: boolean; sbloccato: boolean
+      driveConnesso: boolean; haCassaforte: boolean; sbloccato: boolean; cassaforteDiversa?: boolean
       versione?: string; ultimoSalvataggio?: string
     }> => ipcRenderer.invoke('sync:stato'),
+    /** Mette da parte la cassaforte di questo PC e prende quella del Drive collegato. */
+    adottaCassaforteDelDrive: (): Promise<{ ok: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('sync:adottaCassaforteDelDrive'),
     info: (): Promise<{ file: number; byte: number }> => ipcRenderer.invoke('sync:info'),
     creaPassphrase: (passphrase: string): Promise<{ ok: boolean; chiaveRecupero?: string; messaggio?: string }> =>
       ipcRenderer.invoke('sync:creaPassphrase', passphrase),

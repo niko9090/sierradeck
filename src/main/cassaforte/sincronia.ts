@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, renameSync } from 'node:fs'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
 import { creaCassaforte, sblocca as sbloccaCassaforte, sbloccaConRecupero as sbloccaConRecuperoCassaforte, cambiaPassphrase as cambiaPassphraseCassaforte, type Cassaforte, cifra, decifra } from './cifratura'
@@ -39,6 +39,12 @@ export type StatoSync = {
   haCassaforte: boolean
   /** La maestra è in memoria (sessione sbloccata)? */
   sbloccato: boolean
+  /**
+   * La cassaforte di questo PC non e' quella del Drive collegato: un altro
+   * account, o un PC che ne aveva creata una sua. Con due cassaforti i dati
+   * non si aprono: si adotta quella del Drive, o si cambia Drive.
+   */
+  cassaforteDiversa?: boolean
   versione?: string
   ultimoSalvataggio?: string
 }
@@ -99,6 +105,17 @@ export type Sincronia = {
   ripristinaProgetto: (id: string) => Promise<{ ok: boolean; scritti?: number; messaggio?: string; conflitti?: number }>
   /** Piccoli oggetti cifrati sul Drive (presenze, staffette); assente se chiuso o scollegato. */
   scatola: () => Scatola | undefined
+  /**
+   * Mette da parte la cassaforte di questo PC e prende quella del Drive: da
+   * qui in poi serve la passphrase di quel Drive. La vecchia resta accanto,
+   * non si cancella. E si dimentica cosa si sapeva del Drive di prima.
+   */
+  adottaCassaforteDelDrive: () => Promise<EsitoSemplice>
+  /**
+   * Il Drive collegato e' un altro (o e' vuoto): quello che questo PC sapeva
+   * del Drive di prima non vale piu', e il prossimo salvataggio rimanda tutto.
+   */
+  cambiatoDrive: () => void
   /**
    * Toglie dal Drive i file di un progetto (e presenza e staffetta). Le
    * cartelle sui PC restano: si toglie il viaggio, non il lavoro.
@@ -266,14 +283,21 @@ export function apriSincronia(deps: {
   return {
     async stato() {
       const s = leggiStato()
-      let ha = leggiLocale() !== undefined
-      if (!ha && deps.driveConnesso()) {
-        ha = (await scaricaChiavi().catch(() => undefined)) !== undefined
+      const locale = leggiLocale()
+      let ha = locale !== undefined
+      let diversa = false
+      if (deps.driveConnesso()) {
+        const remota = await scaricaChiavi().catch(() => undefined)
+        if (!ha) ha = remota !== undefined
+        else if (remota !== undefined && locale !== undefined) {
+          diversa = remota.maestraDaPassphrase !== locale.maestraDaPassphrase || remota.sale !== locale.sale
+        }
       }
       return {
         driveConnesso: deps.driveConnesso(),
         haCassaforte: ha,
         sbloccato: maestra !== undefined,
+        ...(diversa ? { cassaforteDiversa: true } : {}),
         ...(s.versione !== undefined ? { versione: s.versione } : {}),
         ...(s.ultimoSalvataggio !== undefined ? { ultimoSalvataggio: s.ultimoSalvataggio } : {})
       }
@@ -452,6 +476,36 @@ export function apriSincronia(deps: {
         log(`TOGLI progetto ${id} fallito: ${messaggioDi(e)}`)
         return { ok: false, messaggio: messaggioDi(e) }
       }
+    },
+
+    async adottaCassaforteDelDrive() {
+      if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
+      const remota = await scaricaChiavi().catch(() => undefined)
+      if (remota === undefined) return { ok: false, messaggio: 'Su questo Drive non c’è una cassaforte.' }
+      const stampo = adesso().replace(/[-:]/g, '').replace('T', '-').slice(0, 15)
+      try {
+        if (existsSync(fileCassaforte)) renameSync(fileCassaforte, join(deps.dati, `cassaforte.messa-da-parte-${stampo}.json`))
+      } catch (err) {
+        return { ok: false, messaggio: `la cassaforte di questo PC non si è potuta mettere da parte: ${messaggioDi(err)}` }
+      }
+      maestra = undefined
+      dimenticaMaestra()
+      scriviLocale(remota)
+      this.cambiatoDrive()
+      log('cassaforte del Drive adottata: quella di questo PC e\' messa da parte, serve la passphrase del Drive')
+      return { ok: true }
+    },
+
+    cambiatoDrive() {
+      const stampo = adesso().replace(/[-:]/g, '').replace('T', '-').slice(0, 15)
+      try {
+        if (existsSync(fileManifesto)) renameSync(fileManifesto, join(deps.dati, `sync-manifesto.precedente-${stampo}.json`))
+      } catch (err) {
+        console.error('[sync] manifesto precedente non messo da parte:', err)
+      }
+      const s = leggiStato()
+      scriviStato({ ...(s.auto !== undefined ? { auto: s.auto } : {}) })
+      log('Drive cambiato: dimentico cosa sapevo di quello di prima')
     },
 
     scatola() {
