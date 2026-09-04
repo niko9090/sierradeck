@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.62',
+    righe: [
+      '**Il Drive si riconosce dai dati, non a memoria.** Al collegamento la scelta dell’account compare sempre, e subito dopo il pannello dice chi è e cosa c’è dentro: «qui ci sono 466 file di SierraDeck, ultimo salvataggio il…» oppure «su questo Drive non c’è niente di SierraDeck». Con «Prova un altro account» si passa al successivo finché non si trova quello con le chat.',
+      '**«Usa la cassaforte del Drive».** Un PC con una cassaforte sua che si collega al Drive di un altro PC vedeva solo «dati di un altro account». Ora il pannello lo dice e con un tasto prende la cassaforte di quel Drive: chiede la sua passphrase, mette da parte quella di qui senza cancellarla, e al primo salvataggio le chat e i progetti di questo PC salgono sul Drive comune.'
+    ]
+  },
+  {
     versione: '0.12.61',
     righe: [
       '**Il pannello Account dice quale account Google è collegato al Drive.** Chi ha più account, uno per computer, e deve ricollegare il Drive non deve più indovinare: l’indirizzo si legge al collegamento e resta scritto sotto «collegato ✓».'
