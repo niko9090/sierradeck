@@ -108,4 +108,46 @@ describe('il progresso della sincronizzazione incrementale', () => {
     expect(m3.cancellati).toBe(1)
     expect(m3.manifesto.file['progetto-p1/p/main.ts']).toBeDefined()
   })
+
+  it('con il manifesto di prima non riscarica gli invariati, e toglie cio che il Drive non ha piu', async () => {
+    const archivio = archivioInMemoria()
+    const progettoA = cartellaCon(['main.ts', 'vecchio.ts'])
+    const m1 = await salvaIncrementale({
+      radici: [{ prefisso: 'progetto-p1', cartella: progettoA }],
+      maestra, archivio, manifestoPrec: manifestoVuoto(), adesso: '2026-09-04T12:00:00.000Z'
+    })
+    // B scarica tutto la prima volta.
+    const progettoB = mkdtempSync(join(tmpdir(), 'sd-incr-b-'))
+    const r1 = await ripristinaIncrementale({ radici: [{ prefisso: 'progetto-p1', cartella: progettoB }], maestra, archivio })
+    expect(r1.scritti).toBe(2)
+    // A cambia main.ts e cancella vecchio.ts, poi salva.
+    writeFileSync(join(progettoA, 'p', 'main.ts'), 'contenuto nuovo')
+    const { unlinkSync, utimesSync } = await import('node:fs')
+    utimesSync(join(progettoA, 'p', 'main.ts'), new Date('2026-09-05T00:00:00Z'), new Date('2026-09-05T00:00:00Z'))
+    unlinkSync(join(progettoA, 'p', 'vecchio.ts'))
+    const m2 = await salvaIncrementale({
+      radici: [{ prefisso: 'progetto-p1', cartella: progettoA }],
+      maestra, archivio, manifestoPrec: m1.manifesto, adesso: '2026-09-04T13:00:00.000Z'
+    })
+    expect(m2.caricati).toBe(1)
+    expect(m2.cancellati).toBe(1)
+    // B ripristina con il manifesto di prima: un solo file scaricato, uno tolto.
+    const r2 = await ripristinaIncrementale({
+      radici: [{ prefisso: 'progetto-p1', cartella: progettoB }], maestra, archivio,
+      manifestoPrec: m1.manifesto, elimina: true
+    })
+    expect(r2.scritti).toBe(1)
+    expect(r2.invariati).toBe(0)
+    expect(r2.eliminati).toBe(1)
+    expect(readFileSync(join(progettoB, 'p', 'main.ts'), 'utf8')).toBe('contenuto nuovo')
+    expect(existsSync(join(progettoB, 'p', 'vecchio.ts'))).toBe(false)
+    // E un terzo giro senza cambi non scarica niente.
+    const r3 = await ripristinaIncrementale({
+      radici: [{ prefisso: 'progetto-p1', cartella: progettoB }], maestra, archivio,
+      manifestoPrec: m2.manifesto, elimina: true
+    })
+    expect(r3.scritti).toBe(0)
+    expect(r3.invariati).toBe(1)
+    expect(r3.eliminati).toBe(0)
+  })
 })

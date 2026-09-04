@@ -1,13 +1,15 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
-import { creaCassaforte, sblocca as sbloccaCassaforte, sbloccaConRecupero as sbloccaConRecuperoCassaforte, cambiaPassphrase as cambiaPassphraseCassaforte, type Cassaforte } from './cifratura'
+import { creaCassaforte, sblocca as sbloccaCassaforte, sbloccaConRecupero as sbloccaConRecuperoCassaforte, cambiaPassphrase as cambiaPassphraseCassaforte, type Cassaforte, cifra, decifra } from './cifratura'
 import type { Progresso } from './motore'
 import { pesaRadici, radiciDaSincronizzare, type Radice } from './raccolta'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
-import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto } from './incrementale'
+import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi } from './incrementale'
 import { applicaBlocco } from './lavoro'
+import type { Scatola } from '../progetti/presenza'
+import { prefissoProgetto } from '../progetti/registro'
 
 /**
  * La **politica** della sincronizzazione: mette insieme cassaforte (cifratura),
@@ -89,6 +91,14 @@ export type Sincronia = {
   /** Salva solo se serve (dati cambiati, sbloccato, connesso): per l'automatico. */
   salvaSeServe: () => Promise<void>
   ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string }>
+  /**
+   * Un solo progetto, dal Drive alla sua cartella di qui: quello che serve al
+   * passaggio di testimone. Scarica solo cio' che e' cambiato e toglie cio'
+   * che l'altro PC ha cancellato. Non tocca chat e assetto.
+   */
+  ripristinaProgetto: (id: string) => Promise<{ ok: boolean; scritti?: number; messaggio?: string }>
+  /** Piccoli oggetti cifrati sul Drive (presenze, staffette); assente se chiuso o scollegato. */
+  scatola: () => Scatola | undefined
 }
 
 export function apriSincronia(deps: {
@@ -371,6 +381,59 @@ export function apriSincronia(deps: {
       return s.auto ?? false
     },
 
+    async ripristinaProgetto(id) {
+      if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
+      if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
+      if (deps.progetti === undefined) return { ok: false, messaggio: 'Nessun progetto sul Drive.' }
+      const prefisso = prefissoProgetto(id)
+      const radici = deps.progetti.preparaRipristino().filter((r) => r.prefisso === prefisso)
+      if (radici.length === 0) return { ok: false, messaggio: 'Progetto senza cartella su questo PC.' }
+      try {
+        const precedente = leggiManifestoLocale()
+        const esito = await ripristinaIncrementale({
+          radici, maestra, archivio: deps.archivio(),
+          soloPrefissi: (p) => p === prefisso,
+          manifestoPrec: precedente,
+          elimina: true,
+          ...(deps.emettiProgresso !== undefined ? { onProgresso: deps.emettiProgresso } : {})
+        })
+        if (!esito.trovato || esito.manifesto === undefined) return { ok: false, messaggio: 'Niente sul Drive.' }
+        // Il manifesto locale sa del progetto quello che sa il Drive; del resto
+        // resta quello che sapeva: cosi' il prossimo salvataggio non rimanda
+        // tutto, e non crede sparito cio' che non ha guardato.
+        const nuovo: Manifesto = { ...precedente, file: { ...precedente.file } }
+        for (const k of Object.keys(nuovo.file)) if (prefissoDi(k) === prefisso) delete nuovo.file[k]
+        for (const [k, v] of Object.entries(esito.manifesto.file)) if (prefissoDi(k) === prefisso) nuovo.file[k] = v
+        scriviManifestoLocale(nuovo)
+        log(`RIPRISTINA progetto ${id}: ${esito.scritti} scritti, ${esito.invariati} invariati, ${esito.eliminati} tolti`)
+        return { ok: true, scritti: esito.scritti }
+      } catch (e) {
+        log(`RIPRISTINA progetto ${id} fallito: ${messaggioDi(e)}`)
+        return { ok: false, messaggio: messaggioDi(e) }
+      }
+    },
+
+    scatola() {
+      if (maestra === undefined || !deps.driveConnesso()) return undefined
+      const m = maestra
+      const a = deps.archivio()
+      return {
+        async leggi(nome) {
+          const blob = await a.scarica(nome)
+          if (blob === undefined) return undefined
+          const chiaro = await decifra(m, blob)
+          if (chiaro === undefined) return undefined
+          try { return JSON.parse(chiaro.toString('utf8')) } catch { return undefined }
+        },
+        async scrivi(nome, oggetto) {
+          await a.carica(nome, await cifra(m, Buffer.from(JSON.stringify(oggetto), 'utf8')))
+        },
+        async cancella(nome) {
+          try { await a.cancella(nome) } catch { /* gia' sparito */ }
+        }
+      }
+    },
+
     async salvaSeServe() {
       // L'automatico non disturba mai: se non è sbloccato, non connesso, o i dati
       // non sono cambiati, `salva` se ne accorge e non fa nulla di pesante.
@@ -394,6 +457,7 @@ export function apriSincronia(deps: {
           maestra,
           archivio: deps.archivio(),
           soloPrefissi: (p) => !eDiProgetto(p),
+          manifestoPrec: leggiManifestoLocale(),
           ...(deps.emettiProgresso !== undefined ? { onProgresso: deps.emettiProgresso } : {})
         })
         if (esito.illeggibile === true) {
@@ -435,6 +499,8 @@ export function apriSincronia(deps: {
               maestra,
               archivio: deps.archivio(),
               soloPrefissi: eDiProgetto,
+              manifestoPrec: leggiManifestoLocale(),
+              elimina: true,
               ...(deps.emettiProgresso !== undefined ? { onProgresso: deps.emettiProgresso } : {})
             })
             scritti += secondo.scritti

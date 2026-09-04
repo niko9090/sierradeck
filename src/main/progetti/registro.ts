@@ -86,6 +86,11 @@ export function normalizzaPercorso(p: string): string {
   return p.replace(/\//g, '\\').replace(/[\\]+$/, '').toLowerCase()
 }
 
+/** Se `cwd` e' la radice o una sua sottocartella. */
+export function staDentro(cwd: string, radice: string): boolean {
+  return sottoCartella(cwd, radice) !== undefined
+}
+
 function sottoCartella(cwd: string, radice: string): string | undefined {
   const c = normalizzaPercorso(cwd)
   const r = normalizzaPercorso(radice)

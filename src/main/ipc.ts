@@ -131,6 +131,13 @@ export function collegaFinestra(win: BrowserWindow, client: PtyHostClient): void
   // della finestra, qui sopra, li chiude.
 }
 
+let primaDiAprire: (cwd: string) => void = () => {}
+
+/** Chi vuole sapere di ogni chat che sta per aprirsi, con la sua cartella. */
+export function impostaPrimaDiAprire(f: (cwd: string) => void): void {
+  primaDiAprire = f
+}
+
 export function registerPtyIpc(
   ambienteChat: () => Record<string, string> = () => ({}),
   /**
@@ -205,6 +212,10 @@ export function registerPtyIpc(
     const req = validateSpawnRequest(raw)
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win === null) throw new Error('richiesta di spawn da una finestra sconosciuta')
+    // Se il progetto di questa cartella e' in mano a un altro PC, lo si dice
+    // adesso, prima della prima riga: la chat si apre lo stesso, e la scelta —
+    // prendere il testimone o continuare a rischio — e' della persona.
+    primaDiAprire(req.cwd)
     const id = randomUUID()
     registro.assegna(id, win.id)
     client.send({

@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { cifra, decifra } from './cifratura'
-import { firmaRadici, ripristina, type Radice } from './raccolta'
+import { cancellaVoci, firmaRadici, percorsoSicuro, ripristina, type Radice } from './raccolta'
 import type { Voce } from './pacchetto'
 import type { Archivio } from './archivio'
 import type { Progresso } from './motore'
@@ -157,14 +158,39 @@ export async function ripristinaIncrementale(deps: {
    * progetti, che senza registro non saprebbero dove andare.
    */
   soloPrefissi?: (prefisso: string) => boolean
-}): Promise<{ trovato: boolean; scritti: number; saltati: string[]; manifesto?: Manifesto; illeggibile?: boolean }> {
+  /**
+   * Cio' che questo PC sapeva del Drive. Un file uguale nel manifesto di
+   * allora e in quello di adesso, e presente sul disco, non si riscarica: e'
+   * quello che rende leggero un ripristino ripetuto — e il passaggio di
+   * testimone, che ripristina un progetto ogni volta che cambia mano.
+   */
+  manifestoPrec?: Manifesto
+  /** Togliere dal disco i file che il Drive non ha piu' (rispetto a `manifestoPrec`). */
+  elimina?: boolean
+}): Promise<{
+  trovato: boolean; scritti: number; saltati: string[]; manifesto?: Manifesto; illeggibile?: boolean
+  invariati: number; eliminati: number
+}> {
   const esito = await leggiManifesto(deps.archivio, deps.maestra)
-  if (esito.stato === 'assente') return { trovato: false, scritti: 0, saltati: [] }
-  if (esito.stato === 'illeggibile') return { trovato: false, scritti: 0, saltati: [], illeggibile: true }
+  if (esito.stato === 'assente') return { trovato: false, scritti: 0, saltati: [], invariati: 0, eliminati: 0 }
+  if (esito.stato === 'illeggibile') return { trovato: false, scritti: 0, saltati: [], illeggibile: true, invariati: 0, eliminati: 0 }
   const manifesto = esito.manifesto
+  const scelto = (p: string): boolean => deps.soloPrefissi === undefined || deps.soloPrefissi(prefissoDi(p))
+  const perPrefisso = new Map(deps.radici.map((r) => [r.prefisso, r]))
 
-  const percorsi = Object.keys(manifesto.file)
-    .filter((p) => deps.soloPrefissi === undefined || deps.soloPrefissi(prefissoDi(p)))
+  let invariati = 0
+  const percorsi = Object.keys(manifesto.file).filter(scelto).filter((p) => {
+    const prec = deps.manifestoPrec?.file[p]
+    const voce = manifesto.file[p]
+    if (prec === undefined || voce === undefined) return true
+    if (prec.nome !== voce.nome || prec.size !== voce.size || prec.mtime !== voce.mtime) return true
+    const r = perPrefisso.get(prefissoDi(p))
+    if (r === undefined) return true
+    const dest = percorsoSicuro(r.cartella, p.slice(prefissoDi(p).length + 1))
+    if (dest === undefined || !existsSync(dest)) return true
+    invariati += 1
+    return false
+  })
   const voci: Voce[] = []
   let fatto = 0
   await conLimite(percorsi, PARALLELI, async (percorso) => {
@@ -183,5 +209,11 @@ export async function ripristinaIncrementale(deps: {
     voci, deps.radici,
     (f, t) => deps.onProgresso?.({ fase: 'ripristino', fatto: f, totale: t })
   )
-  return { trovato: true, scritti, saltati, manifesto }
+  let eliminati = 0
+  if (deps.elimina === true && deps.manifestoPrec !== undefined) {
+    const spariti = Object.keys(deps.manifestoPrec.file)
+      .filter((p) => manifesto.file[p] === undefined && scelto(p) && perPrefisso.has(prefissoDi(p)))
+    eliminati = await cancellaVoci(spariti, deps.radici)
+  }
+  return { trovato: true, scritti, saltati, manifesto, invariati, eliminati }
 }

@@ -20,6 +20,16 @@ type ElencoProgetti = {
   pc: { id: string; nome: string; cartellaProgetti: string }
   progetti: { id: string; nome: string; locale?: string; altrove: number }[]
 }
+type StatoProgetto = {
+  id: string; nome: string; chi: 'io' | 'altro' | 'libero'; pcNome?: string; da?: string; staffettaDa?: string
+}
+type EsitoTestimone =
+  | { ok: true }
+  | { ok: false; nonRisponde: true; pcNome: string }
+  | { ok: false; messaggio: string }
+type AvvisoProgettoDalCore =
+  | { tipo: 'occupato'; progettoId: string; nome: string; pcNome: string; da: string }
+  | { tipo: 'ceduto'; progettoId: string; nome: string; aNome: string; sessioni: string[] }
 
 declare global {
   interface Window {
@@ -107,6 +117,10 @@ declare global {
         collega: (id: string) => Promise<ElencoProgetti>
         rimuovi: (id: string) => Promise<ElencoProgetti>
         cartella: () => Promise<ElencoProgetti>
+        stati: () => Promise<StatoProgetto[]>
+        prendiTestimone: (id: string, forza?: boolean) => Promise<EsitoTestimone>
+        suAvviso: (cb: (a: AvvisoProgettoDalCore) => void) => () => void
+        suIberna: (cb: (m: { sessioni: string[] }) => void) => () => void
       }
       sync: {
         stato: () => Promise<{

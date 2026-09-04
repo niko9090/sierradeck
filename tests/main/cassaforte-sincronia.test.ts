@@ -271,6 +271,59 @@ describe('sincronia incrementale: giro completo fra due PC', () => {
     expect(existsSync(join(progettoA, 'src', 'main.ts'))).toBe(true)
   })
 
+  it('ripristinaProgetto porta solo quel progetto, e la scatola tiene presenze cifrate', async () => {
+    const drive = driveCondiviso()
+    const a = pc('A'); traccia(a)
+    const b = pc('B'); traccia(b)
+    const progettoA = join(a.dati, '..', 'Prog')
+    mkdirSync(join(progettoA, 'src'), { recursive: true })
+    writeFileSync(join(progettoA, 'src', 'a.ts'), 'uno')
+    const registroA = apriRegistroProgetti(a.dati)
+    registroA.scrivi(aggiungiProgetto(registroA.leggi(), { pcId: 'pc-A', percorso: progettoA, adesso: 'oggi', id: 'p1' }).registro)
+    const syncA = apriSincronia({
+      dati: a.dati, radiceClaude: a.claude, driveConnesso: () => true, magazzino: drive.magazzino, archivio: drive.archivio,
+      progetti: creaProgettiSync({ registro: registroA, pcId: () => 'pc-A', cartellaProgetti: () => join(a.dati, '..', 'P') })
+    })
+    expect((await syncA.creaPassphrase('segreta')).ok).toBe(true)
+    expect((await syncA.salva()).ok).toBe(true)
+
+    const cartellaB = join(b.dati, '..', 'Progetti')
+    const registroB = apriRegistroProgetti(b.dati)
+    const syncB = apriSincronia({
+      dati: b.dati, radiceClaude: b.claude, driveConnesso: () => true, magazzino: drive.magazzino, archivio: drive.archivio,
+      progetti: creaProgettiSync({ registro: registroB, pcId: () => 'pc-B', cartellaProgetti: () => cartellaB })
+    })
+    expect((await syncB.sblocca('segreta')).ok).toBe(true)
+    // Prima di sapere del progetto, la cassaforte chiusa non ha scatola; sbloccata si'.
+    const scatolaB = syncB.scatola()
+    expect(scatolaB).toBeDefined()
+    await scatolaB!.scrivi('presenza-p1', { pcId: 'pc-A', pcNome: 'Torre', da: 'x', battito: 'y' })
+    expect(await scatolaB!.leggi<{ pcId: string }>('presenza-p1')).toEqual({ pcId: 'pc-A', pcNome: 'Torre', da: 'x', battito: 'y' })
+    // La presenza sul Drive non e' in chiaro.
+    const grezza = await drive.archivio().scarica('presenza-p1')
+    expect(grezza?.toString('utf8')).not.toContain('Torre')
+    await scatolaB!.cancella('presenza-p1')
+    expect(await scatolaB!.leggi('presenza-p1')).toBeUndefined()
+
+    // B ripristina tutto una volta (arriva il registro), poi A cambia e B prende solo il progetto.
+    expect((await syncB.ripristina()).ok).toBe(true)
+    const progettoB = join(cartellaB, 'Prog')
+    expect(readFileSync(join(progettoB, 'src', 'a.ts'), 'utf8')).toBe('uno')
+    writeFileSync(join(progettoA, 'src', 'a.ts'), 'due')
+    writeFileSync(join(progettoA, 'src', 'b.ts'), 'nuovo')
+    expect((await syncA.salva()).ok).toBe(true)
+    // Nel frattempo B ha una chat sua: il ripristino del solo progetto non la tocca.
+    writeFileSync(join(b.claude, 'projects', 'progetto', 'mia.jsonl'), '{"b":1}\n')
+    const r = await syncB.ripristinaProgetto('p1')
+    expect(r.ok).toBe(true)
+    expect(r.scritti).toBe(2)
+    expect(readFileSync(join(progettoB, 'src', 'a.ts'), 'utf8')).toBe('due')
+    expect(readFileSync(join(progettoB, 'src', 'b.ts'), 'utf8')).toBe('nuovo')
+    expect(existsSync(join(b.claude, 'projects', 'progetto', 'mia.jsonl'))).toBe(true)
+    // Un secondo giro senza cambi non riscrive niente.
+    expect((await syncB.ripristinaProgetto('p1')).scritti).toBe(0)
+  })
+
   it('senza sblocco non salva né ripristina', async () => {
     const drive = driveCondiviso()
     const a = pc('A'); traccia(a)

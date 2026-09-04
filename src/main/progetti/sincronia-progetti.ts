@@ -33,6 +33,8 @@ export function creaProgettiSync(deps: {
   esiste?: (percorso: string) => boolean
   crea?: (percorso: string) => void
   log?: (m: string) => void
+  /** I progetti in mano a un altro PC: da qui non si salvano, o si sovrascriverebbe il suo lavoro. */
+  esclusi?: () => Set<string>
 }): ProgettiSync {
   const esiste = deps.esiste ?? existsSync
   const crea = deps.crea ?? ((p: string): void => { mkdirSync(p, { recursive: true }) })
@@ -47,8 +49,10 @@ export function creaProgettiSync(deps: {
   return {
     radiciLocali() {
       const pc = deps.pcId()
+      const esclusi = deps.esclusi?.() ?? new Set<string>()
       const fuori: Radice[] = []
       for (const p of deps.registro.leggi().progetti) {
+        if (esclusi.has(p.id)) continue
         const mio = p.percorsi[pc]
         if (mio !== undefined && esiste(mio)) fuori.push(radiceDi(p, mio))
       }

@@ -61,3 +61,35 @@ obbligatorio (tappa 2).
   riprende al giro dopo, incrementale.
 - Un progetto aggiunto sul PC B con lo stesso **nome** di uno arrivato da A e
   senza percorso locale viene **collegato** (non duplicato): è voluto.
+
+# Tappa 2 (0.12.57): presenza e passaggio di testimone
+
+- **Presenza** `presenza-<id>` e **staffetta** `staffetta-<id>`: due piccoli
+  oggetti cifrati nell'archivio del Drive (fuori dal manifesto), via
+  `sincronia.scatola()`. Presenza = `{ pcId, pcNome, da, battito }`, vale 10
+  min dall'ultimo battito (`PRESENZA_SCADUTA_MS`); battito ogni 2 min mentre
+  ci sono chat vive; senza chat vive per 5 min si lascia da soli.
+- **Ronda** (`src/main/progetti/presenza.ts`, `creaRonda`), ogni 30 s dal
+  main: per ogni progetto legge presenza+staffetta e decide. Le «chat vive»
+  di un progetto = `chatAperte` con `viva` e `cwd` dentro il percorso locale.
+- **Chi apre una chat** in un progetto in mano a un altro PC riceve l'avviso
+  (`impostaPrimaDiAprire` in `ipc.ts` → `ronda.primaDiAprire`, una volta per
+  progetto) → `ModaleTestimone`: «Prendi il testimone» / «Continua senza».
+  La chat si apre comunque; ma finché il progetto è `altro`, `radiciLocali`
+  lo **esclude dal salvataggio** (non si sovrascrive il lavoro dell'altro).
+- **Passaggio**: B scrive la staffetta e aspetta fino a 90 s (poll 3 s). A, al
+  suo giro, vede la staffetta: `salva()` → iberna le chat del progetto
+  (`progetti:iberna-chat` → renderer `store.iberna` + `pty.kill`) → cancella
+  presenza e staffetta → avviso «ceduto». B vede la presenza sparita →
+  `sincronia.ripristinaProgetto(id)` (solo quel prefisso, con `manifestoPrec`
+  per saltare gli invariati ed `elimina` per togliere ciò che A ha cancellato)
+  → scrive la sua presenza → `rimappaChat()`. Se A non risponde: `nonRisponde`
+  → «Prendilo lo stesso» = `forza` (salta l'attesa).
+- **Ripristino incrementale** (`ripristinaIncrementale` con `manifestoPrec`):
+  un file uguale nel manifesto di prima e in quello del Drive, e presente sul
+  disco, non si riscarica. Vale anche per «Ripristina» completo.
+- Trappola: `ripristina()` completo sovrascrive anche `workspaces.json` (è il
+  suo mestiere); per il testimone si usa SOLO `ripristinaProgetto`.
+- Non ancora: il telefono non vede le presenze; i conflitti (due PC che hanno
+  scritto lo stesso file) sono la tappa 3.
+

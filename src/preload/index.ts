@@ -113,6 +113,16 @@ export type ElencoProgetti = {
   pc: { id: string; nome: string; cartellaProgetti: string }
   progetti: { id: string; nome: string; locale?: string; altrove: number }[]
 }
+export type StatoProgetto = {
+  id: string; nome: string; chi: 'io' | 'altro' | 'libero'; pcNome?: string; da?: string; staffettaDa?: string
+}
+export type EsitoTestimone =
+  | { ok: true }
+  | { ok: false; nonRisponde: true; pcNome: string }
+  | { ok: false; messaggio: string }
+export type AvvisoProgetto =
+  | { tipo: 'occupato'; progettoId: string; nome: string; pcNome: string; da: string }
+  | { tipo: 'ceduto'; progettoId: string; nome: string; aNome: string; sessioni: string[] }
 
 type ConScontrino = { layout: LayoutSalvato; scontrino: number }
 
@@ -342,7 +352,24 @@ contextBridge.exposeInMainWorld('gestore', {
     collega: (id: string): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:collega', id),
     rimuovi: (id: string): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:rimuovi', id),
     /** Sceglie la cartella in cui questo PC riceve i progetti che arrivano dal Drive. */
-    cartella: (): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:cartella')
+    cartella: (): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:cartella'),
+    /** Chi sta lavorando a cosa, secondo l'ultima ronda. */
+    stati: (): Promise<StatoProgetto[]> => ipcRenderer.invoke('progetti:stati'),
+    /** Prende il testimone di un progetto in mano a un altro PC (o lo forza, se quello e' spento). */
+    prendiTestimone: (id: string, forza?: boolean): Promise<EsitoTestimone> =>
+      ipcRenderer.invoke('progetti:prendiTestimone', id, forza === true),
+    /** Un progetto in mano a un altro PC, o un testimone appena ceduto. */
+    suAvviso: (cb: (a: AvvisoProgetto) => void): (() => void) => {
+      const h = (_e: unknown, a: AvvisoProgetto): void => cb(a)
+      ipcRenderer.on('progetti:avviso', h)
+      return () => ipcRenderer.off('progetti:avviso', h)
+    },
+    /** Il Core chiede di mettere a dormire queste chat: il testimone e' passato a un altro PC. */
+    suIberna: (cb: (m: { sessioni: string[] }) => void): (() => void) => {
+      const h = (_e: unknown, m: { sessioni: string[] }): void => cb(m)
+      ipcRenderer.on('progetti:iberna-chat', h)
+      return () => ipcRenderer.off('progetti:iberna-chat', h)
+    }
   },
   /** La sincronizzazione cifrata: passphrase (cassaforte E2E) + salva/ripristina. */
   sync: {

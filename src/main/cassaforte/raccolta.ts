@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile, mkdir, stat } from 'node:fs/promises'
+import { readdir, readFile, writeFile, mkdir, stat, unlink } from 'node:fs/promises'
 import { join, resolve, sep, dirname } from 'node:path'
 import type { Voce } from './pacchetto'
 
@@ -128,6 +128,33 @@ export function percorsoSicuro(cartella: string, relativo: string): string | und
   const dest = resolve(base, relativo)
   if (dest !== base && !dest.startsWith(base + sep)) return undefined
   return dest
+}
+
+/**
+ * Toglie dal disco i file che il Drive non ha piu', nelle radici date.
+ *
+ * Serve al passaggio di testimone: se l'altro PC ha cancellato un file del
+ * progetto, qui non deve restare. Solo dentro le cartelle delle radici, con
+ * la stessa guardia sui percorsi del ripristino. Quanti ne ha tolti davvero.
+ */
+export async function cancellaVoci(percorsi: string[], radici: Radice[]): Promise<number> {
+  const perPrefisso = new Map(radici.map((r) => [r.prefisso, r.cartella]))
+  let tolti = 0
+  for (const v of percorsi) {
+    const barra = v.indexOf('/')
+    if (barra === -1) continue
+    const cartella = perPrefisso.get(v.slice(0, barra))
+    if (cartella === undefined) continue
+    const dest = percorsoSicuro(cartella, v.slice(barra + 1))
+    if (dest === undefined) continue
+    try {
+      await unlink(dest)
+      tolti += 1
+    } catch {
+      // gia' sparito: e' quello che si voleva
+    }
+  }
+  return tolti
 }
 
 /**

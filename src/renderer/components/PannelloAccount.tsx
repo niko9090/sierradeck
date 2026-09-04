@@ -21,13 +21,46 @@ type ElencoProgetti = {
  * una cartella che non c'e'. Da qui si dice quali cartelle viaggiano con le
  * chat, e dove questo PC riceve quelle che arrivano dagli altri.
  */
+type StatoProgettoVista = { id: string; chi: 'io' | 'altro' | 'libero'; pcNome?: string; da?: string; staffettaDa?: string }
+
+function oraBreve(iso: string | undefined): string {
+  if (iso === undefined) return ''
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+}
+
 function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: () => void }): React.JSX.Element | null {
   const [elenco, setElenco] = useState<ElencoProgetti | undefined>(undefined)
+  const [stati, setStati] = useState<StatoProgettoVista[]>([])
   const [occupato, setOccupato] = useState(false)
-  useEffect(() => { void window.gestore.progetti.elenca().then(setElenco).catch(() => {}) }, [])
+  const [esito, setEsito] = useState<string | undefined>(undefined)
+  const ricarica = (): void => {
+    void window.gestore.progetti.elenca().then(setElenco).catch(() => {})
+    void window.gestore.progetti.stati().then(setStati).catch(() => {})
+  }
+  useEffect(() => {
+    ricarica()
+    const t = setInterval(() => { void window.gestore.progetti.stati().then(setStati).catch(() => {}) }, 15_000)
+    return () => clearInterval(t)
+  }, [])
   const con = (p: Promise<ElencoProgetti>): void => {
     setOccupato(true)
-    void p.then((e) => { setElenco(e); onCambio() }).catch(() => {}).finally(() => setOccupato(false))
+    void p.then((e) => { setElenco(e); onCambio() }).catch(() => {}).finally(() => { setOccupato(false); ricarica() })
+  }
+  const prendi = (id: string, forza = false): void => {
+    setOccupato(true); setEsito(undefined)
+    void window.gestore.progetti.prendiTestimone(id, forza).then((r) => {
+      if (r.ok) setEsito('Testimone preso: il progetto adesso e\' qui, con l\'ultimo stato salvato.')
+      else if ('nonRisponde' in r) setEsito(`Il PC ${r.pcNome} non risponde. Puoi forzare: prendi quello che c'e' sul Drive.`)
+      else setEsito('messaggio' in r ? r.messaggio : 'non riuscito')
+    }).catch((e: unknown) => setEsito(String(e))).finally(() => { setOccupato(false); ricarica() })
+  }
+  const statoDi = (id: string): StatoProgettoVista | undefined => stati.find((s) => s.id === id)
+  const descriviStato = (s: StatoProgettoVista | undefined): string => {
+    if (s === undefined) return ''
+    if (s.chi === 'io') return ` · in lavoro qui${s.da !== undefined ? ` dalle ${oraBreve(s.da)}` : ''}`
+    if (s.chi === 'altro') return ` · in lavoro su ${s.pcNome ?? '?'}${s.da !== undefined ? ` dalle ${oraBreve(s.da)}` : ''}${s.staffettaDa !== undefined ? ` (${s.staffettaDa} ha chiesto il testimone)` : ''}`
+    return ' · libero'
   }
   if (elenco === undefined) return null
   const fermo = inCorso || occupato
@@ -49,9 +82,16 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
                     ? p.locale
                     : `non ancora su questo PC: arriva con «Ripristina» in ${elenco.pc.cartellaProgetti}\\${p.nome}`}
                   {p.altrove > 0 ? ` · su altri ${p.altrove} PC` : ''}
+                  {descriviStato(statoDi(p.id))}
                 </span>
               </div>
               <div className="account__scheda-tasti">
+                {statoDi(p.id)?.chi === 'altro' ? (
+                  <>
+                    <button className="tasto tasto--primario tasto--mini" disabled={fermo} onClick={() => prendi(p.id)}>Prendi il testimone</button>
+                    <button className="tasto tasto--mini" disabled={fermo} onClick={() => prendi(p.id, true)} title="Senza aspettare l'altro PC: prende quello che c'e' sul Drive">Forza</button>
+                  </>
+                ) : null}
                 {p.locale === undefined ? (
                   <button className="tasto tasto--mini" disabled={fermo} onClick={() => con(window.gestore.progetti.collega(p.id))}>Sta gia' qui…</button>
                 ) : null}
@@ -61,6 +101,7 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
           ))}
         </ul>
       )}
+      {esito !== undefined ? <div className="riga__stato">{esito}</div> : null}
       <div className="account__tasti">
         <button className="tasto tasto--primario tasto--mini" disabled={fermo} onClick={() => con(window.gestore.progetti.aggiungi())}>
           Metti una cartella sul Drive…

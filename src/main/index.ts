@@ -75,6 +75,9 @@ import {
   type ProgettoDrive
 } from './progetti/registro'
 import { creaProgettiSync } from './progetti/sincronia-progetti'
+import { creaRonda } from './progetti/presenza'
+import { progettoDiCwd, staDentro } from './progetti/registro'
+import { impostaPrimaDiAprire } from './ipc'
 import { pathToSlug } from './indexer/project-scanner'
 import {
   elencoPlugin, installaPlugin, disinstallaPlugin, commutaPlugin,
@@ -804,11 +807,13 @@ if (!app.requestSingleInstanceLock()) {
       // registro condiviso di quali cartelle viaggiano con le chat.
       const identitaPc = apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir() })
       const registroProgetti = apriRegistroProgetti(dati)
+      let progettiInManoAdAltri = (): Set<string> => new Set()
       const progettiSync = creaProgettiSync({
         registro: registroProgetti,
         pcId: () => identitaPc.leggi().id,
         cartellaProgetti: () => identitaPc.leggi().cartellaProgetti,
-        log: registro.info
+        log: registro.info,
+        esclusi: () => progettiInManoAdAltri()
       })
       /**
        * Le chat nate su un altro PC, portate nelle cartelle di qui.
@@ -867,6 +872,45 @@ if (!app.requestSingleInstanceLock()) {
       })
       sincroniaGlobale = sincronia
       registro.info(`Drive configurato: ${contoDrive.stato().configurato}, connesso: ${contoDrive.stato().connesso}`)
+
+      // La ronda dei progetti: chi lavora a cosa, e il passaggio di testimone.
+      const mandaATutte = (canale: string, dato: unknown): void => {
+        for (const w of BrowserWindow.getAllWindows()) {
+          if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send(canale, dato)
+        }
+      }
+      const ronda = creaRonda({
+        scatola: () => sincronia.scatola(),
+        registro: registroProgetti,
+        pcId: () => identitaPc.leggi().id,
+        pcNome: () => identitaPc.leggi().nome,
+        vive: (p) => {
+          const mio = p.percorsi[identitaPc.leggi().id]
+          if (mio === undefined) return []
+          return chatAperte
+            .filter((c) => c.viva === true && c.sessione !== undefined && staDentro(c.cwd, mio))
+            .map((c) => c.sessione as string)
+        },
+        progettoDi: (cwd) => progettoDiCwd(registroProgetti.leggi(), cwd, identitaPc.leggi().id),
+        salva: () => sincronia.salva(),
+        ripristinaProgetto: (id) => sincronia.ripristinaProgetto(id),
+        iberna: (sessioni) => mandaATutte('progetti:iberna-chat', { sessioni }),
+        avvisa: (a) => mandaATutte('progetti:avviso', a),
+        log: registro.info
+      })
+      progettiInManoAdAltri = () => ronda.inManoAdAltri()
+      impostaPrimaDiAprire((cwd) => ronda.primaDiAprire(cwd))
+      const timerRonda = setInterval(() => { void ronda.giro() }, 30_000)
+      timerRonda.unref?.()
+      const primaRonda = setTimeout(() => { void ronda.giro() }, 15_000)
+      primaRonda.unref?.()
+      ipcMain.handle('progetti:stati', () => ronda.stati())
+      ipcMain.handle('progetti:prendiTestimone', async (_e, rawId: unknown, forza: unknown) => {
+        if (typeof rawId !== 'string' || rawId === '') return { ok: false, messaggio: 'richiesta non valida' }
+        const esito = await ronda.prendiTestimone(rawId, forza === true)
+        if (esito.ok) rimappaChat()
+        return esito
+      })
 
       // I progetti sul Drive, per il pannello Account.
       const elencoProgetti = (): {

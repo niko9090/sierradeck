@@ -31,6 +31,7 @@ import { PannelloTrasferimenti } from './components/PannelloTrasferimenti'
 import { tavolozza, type Preferenze } from '@shared/preferenze'
 import { ModaleAccesso } from './components/ModaleAccesso'
 import { ModalePreparazione } from './components/ModalePreparazione'
+import { ModaleTestimone, type AvvisoProgetto } from './components/ModaleTestimone'
 import { ModaleNovita } from './components/ModaleNovita'
 import { novitaDi, type Novita } from '@shared/novita'
 import type { StatoPreparazione } from '../main/preparazione'
@@ -475,6 +476,19 @@ export function App(): React.JSX.Element {
 
   const [modale, setModale] = useState<'sessioni' | 'istantanee' | 'ripresa' | 'accesso' | 'preparazione' | undefined>(undefined)
   const [preparazione, setPreparazione] = useState<StatoPreparazione | undefined>(undefined)
+  // Un progetto sul Drive in mano a un altro PC, o un testimone appena ceduto.
+  const [avvisoProgetto, setAvvisoProgetto] = useState<AvvisoProgetto | undefined>(undefined)
+  useEffect(() => window.gestore.progetti.suAvviso(setAvvisoProgetto), [])
+  useEffect(() => window.gestore.progetti.suIberna(({ sessioni }) => {
+    // Il testimone e' passato a un altro PC: le chat di quel progetto dormono,
+    // cosi' da qui non si scrive piu' sopra il suo lavoro.
+    const store = useLayoutStore.getState()
+    for (const [paneId, p] of Object.entries(store.panes)) {
+      if (!sessioni.includes(p.sessionUuid)) continue
+      const pty = store.iberna(paneId)
+      if (pty !== undefined) window.gestore.pty.kill(pty)
+    }
+  }), [])
   const [novita, setNovita] = useState<Novita | undefined>(undefined)
   const [aperto, setAperto] = useState<PannelloAperto>(undefined)
   const [workspace, setWorkspace] = useState<StatoWorkspace>({ nomi: [], attivo: '' })
@@ -912,6 +926,10 @@ export function App(): React.JSX.Element {
 
       {modale === 'sessioni' ? <ModaleSessioni onChiudi={() => setModale(undefined)} /> : null}
       {modale === 'accesso' ? <ModaleAccesso onChiudi={() => setModale(undefined)} /> : null}
+      {avvisoProgetto !== undefined ? (
+        <ModaleTestimone avviso={avvisoProgetto} onChiudi={() => setAvvisoProgetto(undefined)} />
+      ) : null}
+
       {modale === 'preparazione' ? (
         <ModalePreparazione
           onChiudi={() => setModale(undefined)}
