@@ -160,6 +160,10 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
                             ) {
                                 Column(Modifier.padding(14.dp)) {
                                     Text(viva.titolo.ifBlank { viva.cwd }, color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1)
+                                    // Il progetto e' in mano a un altro PC: una parola quieta, non un avviso.
+                                    if (!viva.altrove.isNullOrBlank()) {
+                                        Text("in lavoro su ${viva.altrove}", color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                                    }
                                     if (!viva.ultimaRiga.isNullOrBlank()) {
                                         Spacer(Modifier.height(4.dp))
                                         Text(
@@ -186,6 +190,9 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
                             ) {
                                 Column(Modifier.padding(14.dp)) {
                                     Text(salvata.titolo.ifBlank { salvata.cwd }, color = Banco.testoQuieto, fontWeight = FontWeight.Bold, maxLines = 1)
+                                    if (!salvata.altrove.isNullOrBlank()) {
+                                        Text("in lavoro su ${salvata.altrove}", color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                                    }
                                     Spacer(Modifier.height(4.dp))
                                     Text("da riprendere · tocca per riaprirla", color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
                                 }

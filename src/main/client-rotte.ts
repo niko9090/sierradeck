@@ -53,6 +53,11 @@ export type Chat = {
    * dire aspettare per sempre un lavoro che non e' mai cominciato.
    */
   viva?: boolean
+  /**
+   * Il progetto di questa chat e' in mano a un altro PC: il suo nome.
+   * Un'informazione, non un comando: dal telefono si vede, si decide al computer.
+   */
+  altrove?: string
   /** L'ultima riga vista nel terminale: dice a colpo d'occhio se si muove. */
   ultimaRiga?: string
   /**

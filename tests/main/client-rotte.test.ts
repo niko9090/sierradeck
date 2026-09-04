@@ -188,6 +188,19 @@ describe('quello che il Client puo fare', () => {
     expect(ricevute).toEqual({ tema: 'scuro' })
   })
 
+  it('porta al telefono, quieto, su quale PC e in lavoro il progetto di una chat', async () => {
+    // Un'informazione sotto il titolo, non un avviso: il testimone si prende
+    // dal computer. Il campo c'e' solo quando il progetto e' in mano ad altri.
+    const chat = [
+      { id: 'p-1', titolo: 'Gestore', cwd: 'C:\p', altrove: 'Portatile' },
+      { id: 'p-2', titolo: 'Altro', cwd: 'C:\q' }
+    ]
+    const r = await rotteClient(deps({ chat: () => chat }))({ metodo: 'GET', percorso: '/api/stato', corpo: undefined })
+    const stato = r.corpo as { chat: { id: string; altrove?: string }[] }
+    expect(stato.chat.find((c) => c.id === 'p-1')?.altrove).toBe('Portatile')
+    expect(stato.chat.find((c) => c.id === 'p-2')?.altrove).toBeUndefined()
+  })
+
   it('fa guardare dentro una chat, non solo il titolo', async () => {
     // Sapere che «si muove» non basta per decidere se serve intervenire:
     // servono le righe.

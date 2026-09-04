@@ -779,6 +779,8 @@ export type ChatSalvata = {
   titolo: string
   /** Il suo claude.exe è spento: si riprende con `--resume`. */
   ibernata?: boolean
+  /** Il progetto di questa chat e' in mano a un altro PC: il suo nome. */
+  altrove?: string
 }
 
 /**

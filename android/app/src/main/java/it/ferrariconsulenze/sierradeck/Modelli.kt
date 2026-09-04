@@ -59,7 +59,9 @@ data class Chat(
     val cwd: String = "",
     val sessione: String? = null,
     /** L'ultima riga del terminale: il «battito» a colpo d'occhio. */
-    val ultimaRiga: String? = null
+    val ultimaRiga: String? = null,
+    /** Il progetto di questa chat e' in mano a un altro PC: il suo nome. Un'informazione, non un comando. */
+    val altrove: String? = null
 )
 
 @Serializable
@@ -106,7 +108,9 @@ data class ChatSalvata(
     val sessione: String = "",
     val cwd: String = "",
     val titolo: String = "",
-    val ibernata: Boolean = false
+    val ibernata: Boolean = false,
+    /** Il progetto di questa chat e' in mano a un altro PC: il suo nome. */
+    val altrove: String? = null
 )
 
 // ─── /api/dentro ───  (le ultime righe del terminale di UNA chat)

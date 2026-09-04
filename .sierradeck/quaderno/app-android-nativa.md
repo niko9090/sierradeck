@@ -463,3 +463,15 @@ Trappola vista scrivendo il lato pagina: il JS della pagina vive dentro un
 template literal TypeScript, quindi gli apici nelle `onclick` si scrivono
 `\\'` nel sorgente. E `script-pagina.js` è GENERATO dal test
 `diagnosi-pagina.test.ts`: si committa rigenerato, non si modifica a mano.
+
+## 2026-09-04 — le presenze dei progetti sul telefono (app 2.24.0, desktop 0.12.59)
+
+Poco invasivo apposta: nessuna sezione nuova. Il server aggiunge `altrove`
+(nome del PC) alle chat — vive in `Stato.chat`, salvate in `workspace.chat` —
+**solo** quando il progetto della chat è in mano a un altro PC
+(`ronda.statoDiCwd(cwd).chi === 'altro'`, `conAltrove` in `index.ts`).
+Pagina: `<span class="voce__altrove">su X</span>` accanto al titolo. App:
+`Chat.altrove` / `ChatSalvata.altrove` (`ignoreUnknownKeys` per i computer
+vecchi) e una riga «in lavoro su X» sotto il titolo in `Chat.kt`. Dal telefono
+non si prende il testimone: si vede e basta.
+

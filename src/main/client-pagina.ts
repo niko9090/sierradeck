@@ -222,6 +222,7 @@ export function paginaClient(): string {
     font-size: var(--t1); color: var(--testo-quieto);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
+  .voce__altrove { font-size: .72em; opacity: .55; margin-left: 6px; white-space: nowrap; }
   .voce__freccia { color: var(--testo-quieto); }
   /* Dentro qualcosa: una freccia sola in alto a sinistra, come si torna
      indietro dappertutto. */
@@ -964,12 +965,12 @@ function pannello(s) {
         : g.voci.map((v) => v.viva
           ? '<button class="voce" onclick="guarda(\\'' + escJs(v.viva.id) + '\\')">' +
             '<span class="led ' + (giriFalliti >= 2 ? 'fermo' : 'lavoro') + '"></span>' +
-            '<span class="voce__testo"><span class="voce__nome">' + esc(v.viva.titolo) + '</span>' +
+            '<span class="voce__testo"><span class="voce__nome">' + esc(v.viva.titolo) + (v.viva.altrove ? '<span class="voce__altrove">su ' + esc(v.viva.altrove) + '</span>' : '') + '</span>' +
             (v.viva.ultimaRiga ? '<span class="voce__sotto">' + esc(v.viva.ultimaRiga) + '</span>' : '') +
             '</span><span class="voce__freccia">›</span></button>'
           : '<button class="voce" onclick="riprendiSalvata(\\'' + escJs(v.salvata.cwd) + '\\',\\'' + escJs(v.salvata.sessione) + '\\')">' +
             '<span class="led"></span>' +
-            '<span class="voce__testo"><span class="voce__nome" style="opacity:.7">' + esc(v.salvata.titolo || v.salvata.cwd) + '</span>' +
+            '<span class="voce__testo"><span class="voce__nome" style="opacity:.7">' + esc(v.salvata.titolo || v.salvata.cwd) + (v.salvata.altrove ? '<span class="voce__altrove">su ' + esc(v.salvata.altrove) + '</span>' : '') + '</span>' +
             '<span class="voce__sotto">da riprendere · tocca per riaprirla</span></span>' +
             '<span class="voce__freccia">›</span></button>'
         ).join(''))

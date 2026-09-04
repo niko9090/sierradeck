@@ -808,6 +808,13 @@ if (!app.requestSingleInstanceLock()) {
       const identitaPc = apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir() })
       const registroProgetti = apriRegistroProgetti(dati)
       let progettiInManoAdAltri = (): Set<string> => new Set()
+      // Per il telefono: se il progetto di una chat e' in mano a un altro PC,
+      // il suo nome. Poco invasivo apposta — una parola sotto il titolo.
+      let presenzaAltrove: (cwd: string) => string | undefined = () => undefined
+      const conAltrove = <T extends { cwd: string }>(c: T): T & { altrove?: string } => {
+        const pc = presenzaAltrove(c.cwd)
+        return pc === undefined ? c : { ...c, altrove: pc }
+      }
       const progettiSync = creaProgettiSync({
         registro: registroProgetti,
         pcId: () => identitaPc.leggi().id,
@@ -900,6 +907,10 @@ if (!app.requestSingleInstanceLock()) {
         log: registro.info
       })
       progettiInManoAdAltri = () => ronda.inManoAdAltri()
+      presenzaAltrove = (cwd) => {
+        const s = ronda.statoDiCwd(cwd)
+        return s?.chi === 'altro' ? (s.pcNome ?? 'un altro PC') : undefined
+      }
       impostaPrimaDiAprire((cwd) => ronda.primaDiAprire(cwd))
       const timerRonda = setInterval(() => { void ronda.giro() }, 30_000)
       timerRonda.unref?.()
@@ -1441,7 +1452,7 @@ if (!app.requestSingleInstanceLock()) {
       const dispositivi = apriDispositivi(dati)
       const rotte = {
         dispositivi,
-        chat: () => chatAperte,
+        chat: () => chatAperte.map(conAltrove),
         autopiloti: () => clientAutopilota.elenca(),
         rispondi: async (idDomanda: string, risposta: string) => {
           await clientAutopilota.rispondi(idDomanda, risposta)
@@ -1550,7 +1561,7 @@ if (!app.requestSingleInstanceLock()) {
             attivo: a?.attivo ?? '',
             // Tutte le chat, non solo quelle a schermo: dal telefono si vuole
             // vedere tutto quello che c'e' sul computer, raggruppato per workspace.
-            chat: a === undefined ? [] : chatSalvate(a)
+            chat: a === undefined ? [] : chatSalvate(a).map(conAltrove)
           }
         },
         cambiaWorkspace: async (nome: string) => {
