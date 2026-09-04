@@ -93,3 +93,31 @@ obbligatorio (tappa 2).
 - Non ancora: il telefono non vede le presenze; i conflitti (due PC che hanno
   scritto lo stesso file) sono la tappa 3.
 
+# Tappa 3 (0.12.58): i conflitti
+
+- **Regola**: un file cambiato da tutte e due le parti (qui rispetto a
+  `manifestoPrec`, sul Drive rispetto a `manifestoPrec`) è un conflitto.
+  Vince il più recente (`mtime`); nei prefissi `progetto-*` l'altro resta
+  accanto come copia `base.conflitto-<chi>-<AAAAMMGG-HHMMSS>.ext`
+  (`chi` = nome del PC che perde, o `drive` se perde la versione del Drive),
+  caricata anche lei sul Drive. Per `chat`/`sierradeck` niente copie (una
+  copia di `workspaces.json` o di un `.jsonl` farebbe solo danni): vince il
+  più recente e basta, nel registro.
+- **Il salvataggio parte dal manifesto del Drive** (`salvaIncrementale` legge
+  `leggiManifesto` prima): sopra ci applica i cambi di qui. Prima partiva da
+  `manifestoPrec` e riscriveva il manifesto dalla propria memoria: due PC che
+  salvavano a poca distanza si cancellavano a vicenda dall'elenco.
+  Una modifica altrui vince su una cancellazione di qui; una cancellazione
+  altrui su un file non toccato qui lo toglie anche qui (solo progetti).
+- **`utimes` al ripristino** (`Voce.mtime`): il file scritto prende l'istante
+  del manifesto, così la sua firma coincide con `manifestoPrec` e il PC che
+  l'ha ricevuto non lo rimanda. Le firme sono al ms (`Math.round(mtimeMs)`) e
+  `stessaFirma` tollera 1,5 ms per i manifesti vecchi con i decimali.
+- **Il ripristino non sovrascrive il lavoro non salvato**: file cambiato qui e
+  Drive uguale a prima → `tenuti`; file mai conosciuto (`prec` assente) ma
+  presente → si confronta il contenuto, uguale = niente. `elimina` non tocca
+  un file cambiato qui.
+- Trappola: `firmaSuDisco` e `stessaFirma` sono la verità di «cambiato»; su
+  file system con precisione grossolana (FAT: 2 s) le firme non tornerebbero
+  e si rimanderebbe tutto ogni volta. Windows/NTFS: ok.
+

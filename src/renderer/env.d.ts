@@ -24,7 +24,7 @@ type StatoProgetto = {
   id: string; nome: string; chi: 'io' | 'altro' | 'libero'; pcNome?: string; da?: string; staffettaDa?: string
 }
 type EsitoTestimone =
-  | { ok: true }
+  | { ok: true; conflitti?: number }
   | { ok: false; nonRisponde: true; pcNome: string }
   | { ok: false; messaggio: string }
 type AvvisoProgettoDalCore =
@@ -133,9 +133,9 @@ declare global {
         sbloccaRecupero: (codice: string) => Promise<{ ok: boolean; messaggio?: string }>
         cambiaPassphrase: (vecchia: string, nuova: string) => Promise<{ ok: boolean; messaggio?: string }>
         blocca: () => Promise<void>
-        salva: (forza?: boolean) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string }>
+        salva: (forza?: boolean) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number }>
         auto: (attivo?: boolean) => Promise<boolean>
-        ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string }>
+        ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string; conflitti?: number }>
         onProgresso: (cb: (p: {
           fase: 'raccolgo' | 'comprimo' | 'cifro' | 'carico' | 'scarico' | 'decifro' | 'ripristino'
           fatto?: number; totale?: number

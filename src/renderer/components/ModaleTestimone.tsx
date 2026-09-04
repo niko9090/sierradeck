@@ -24,12 +24,13 @@ function oraDi(iso: string): string {
 export function ModaleTestimone({ avviso, onChiudi }: Props): React.JSX.Element {
   const [fase, setFase] = useState<'chiedi' | 'inCorso' | 'nonRisponde' | 'errore' | 'fatto'>('chiedi')
   const [messaggio, setMessaggio] = useState<string | undefined>(undefined)
+  const [conflitti, setConflitti] = useState(0)
 
   const prendi = (forza: boolean): void => {
     if (avviso.tipo !== 'occupato') return
     setFase('inCorso')
     void window.gestore.progetti.prendiTestimone(avviso.progettoId, forza).then((r) => {
-      if (r.ok) { setFase('fatto'); return }
+      if (r.ok) { setConflitti(r.conflitti ?? 0); setFase('fatto'); return }
       if ('nonRisponde' in r && r.nonRisponde) { setFase('nonRisponde'); return }
       setMessaggio('messaggio' in r ? r.messaggio : 'non riuscito')
       setFase('errore')
@@ -95,7 +96,10 @@ export function ModaleTestimone({ avviso, onChiudi }: Props): React.JSX.Element 
           </>
         ) : (
           <>
-            <p style={{ margin: '4px 0 12px', lineHeight: 1.5 }}>Fatto: «{avviso.nome}» adesso e' su questo PC, con l’ultimo stato salvato.</p>
+            <p style={{ margin: '4px 0 12px', lineHeight: 1.5 }}>
+              Fatto: «{avviso.nome}» adesso e' su questo PC, con l’ultimo stato salvato.
+              {conflitti > 0 ? ` ${conflitti === 1 ? 'Un file era' : `${conflitti} file erano`} in conflitto: vince il piu' recente, l’altra versione e' accanto come copia «.conflitto-…».` : ''}
+            </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button className="tasto tasto--primario" onClick={onChiudi}>Al lavoro</button>
             </div>

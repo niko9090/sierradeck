@@ -64,7 +64,7 @@ export type AvvisoProgetto =
   | { tipo: 'ceduto'; progettoId: string; nome: string; aNome: string; sessioni: string[] }
 
 export type EsitoTestimone =
-  | { ok: true }
+  | { ok: true; conflitti?: number }
   | { ok: false; nonRisponde: true; pcNome: string }
   | { ok: false; messaggio: string }
 
@@ -91,7 +91,7 @@ export function creaRonda(deps: {
   vive: (p: ProgettoDrive) => string[]
   progettoDi: (cwd: string) => ProgettoDrive | undefined
   salva: () => Promise<{ ok: boolean; messaggio?: string }>
-  ripristinaProgetto: (id: string) => Promise<{ ok: boolean; messaggio?: string }>
+  ripristinaProgetto: (id: string) => Promise<{ ok: boolean; messaggio?: string; conflitti?: number }>
   iberna: (sessioni: string[]) => void
   avvisa: (a: AvvisoProgetto) => void
   adesso?: () => number
@@ -240,8 +240,8 @@ export function creaRonda(deps: {
       await s.cancella(nomeStaffetta(id))
       avvisati.delete(id)
       stati.set(id, { id, nome: p.nome, chi: 'io', da: iso() })
-      log(`[progetti] «${p.nome}»: testimone preso${forza ? ' (forzato)' : ''}`)
-      return { ok: true }
+      log(`[progetti] «${p.nome}»: testimone preso${forza ? ' (forzato)' : ''}${r.conflitti !== undefined ? `, ${r.conflitti} conflitti` : ''}`)
+      return { ok: true, ...(r.conflitti !== undefined ? { conflitti: r.conflitti } : {}) }
     },
 
     inManoAdAltri() {

@@ -31,6 +31,12 @@ export type Voce = {
   /** Un percorso **relativo**, con `/` come separatore. Chi ripristina lo valida prima di scrivere. */
   percorso: string
   contenuto: Buffer
+  /**
+   * L'istante del file com'era su chi l'ha salvato (ms). Chi ripristina lo
+   * rimette sul file: cosi' il file sul disco ha la stessa firma del manifesto,
+   * e il PC che l'ha appena ricevuto non lo crede «cambiato» e non lo rimanda.
+   */
+  mtime?: number
 }
 
 export type Pacchetto = {

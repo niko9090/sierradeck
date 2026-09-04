@@ -117,7 +117,7 @@ export type StatoProgetto = {
   id: string; nome: string; chi: 'io' | 'altro' | 'libero'; pcNome?: string; da?: string; staffettaDa?: string
 }
 export type EsitoTestimone =
-  | { ok: true }
+  | { ok: true; conflitti?: number }
   | { ok: false; nonRisponde: true; pcNome: string }
   | { ok: false; messaggio: string }
 export type AvvisoProgetto =
@@ -387,11 +387,11 @@ contextBridge.exposeInMainWorld('gestore', {
     cambiaPassphrase: (vecchia: string, nuova: string): Promise<{ ok: boolean; messaggio?: string }> =>
       ipcRenderer.invoke('sync:cambiaPassphrase', vecchia, nuova),
     blocca: (): Promise<void> => ipcRenderer.invoke('sync:blocca'),
-    salva: (forza?: boolean): Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string }> =>
+    salva: (forza?: boolean): Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number }> =>
       ipcRenderer.invoke('sync:salva', forza === true),
     /** Legge (senza argomento) o imposta il salvataggio automatico. */
     auto: (attivo?: boolean): Promise<boolean> => ipcRenderer.invoke('sync:auto', attivo),
-    ripristina: (): Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string }> =>
+    ripristina: (): Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string; conflitti?: number }> =>
       ipcRenderer.invoke('sync:ripristina'),
     /** Il progresso di salva/ripristina, a fasi. Restituisce come disiscriversi. */
     onProgresso: (cb: (p: {

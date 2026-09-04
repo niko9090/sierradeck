@@ -85,18 +85,18 @@ export type Sincronia = {
   sbloccaConRecupero: (codice: string) => Promise<EsitoSemplice>
   cambiaPassphrase: (vecchia: string, nuova: string) => Promise<EsitoSemplice>
   blocca: () => void
-  salva: (forza?: boolean) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string }>
+  salva: (forza?: boolean) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number }>
   /** Accende/spegne il salvataggio automatico, e dice com'è ora. */
   auto: (attivo?: boolean) => boolean
   /** Salva solo se serve (dati cambiati, sbloccato, connesso): per l'automatico. */
   salvaSeServe: () => Promise<void>
-  ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string }>
+  ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string; conflitti?: number }>
   /**
    * Un solo progetto, dal Drive alla sua cartella di qui: quello che serve al
    * passaggio di testimone. Scarica solo cio' che e' cambiato e toglie cio'
    * che l'altro PC ha cancellato. Non tocca chat e assetto.
    */
-  ripristinaProgetto: (id: string) => Promise<{ ok: boolean; scritti?: number; messaggio?: string }>
+  ripristinaProgetto: (id: string) => Promise<{ ok: boolean; scritti?: number; messaggio?: string; conflitti?: number }>
   /** Piccoli oggetti cifrati sul Drive (presenze, staffette); assente se chiuso o scollegato. */
   scatola: () => Scatola | undefined
 }
@@ -116,6 +116,8 @@ export function apriSincronia(deps: {
   log?: (m: string) => void
   /** Il portachiavi del sistema: senza, la maestra vive solo in memoria. */
   portachiavi?: Portachiavi
+  /** Come si chiama questo PC: da' il nome alle copie in conflitto. */
+  pcNome?: () => string
   /**
    * I progetti sul Drive. `radiciLocali` sono quelli con una cartella su
    * questo PC (si salvano e si pesano); `preparaRipristino` da' una cartella a
@@ -351,6 +353,8 @@ export function apriSincronia(deps: {
         const esito = await salvaIncrementale({
           radici: radici(),
           maestra,
+          pcNome: deps.pcNome?.() ?? 'questo-pc',
+          copieDiConflitto: deps.progetti?.eDiProgetto ?? ((): boolean => false),
           archivio: deps.archivio(),
           manifestoPrec: leggiManifestoLocale(),
           adesso: adesso(),
@@ -363,8 +367,11 @@ export function apriSincronia(deps: {
           return { ok: true, invariato: true, voci: totali }
         }
         scriviStato({ ...s, ultimoSalvataggio: adesso() })
-        log(`SALVA ok (${esito.caricati} caricati, ${esito.cancellati} rimossi, ${totali} in tutto)`)
-        return { ok: true, voci: esito.caricati }
+        for (const c of esito.conflitti) {
+          log(`SALVA conflitto su ${c.percorso}: vince ${c.vinto === 'mio' ? 'questo PC' : 'il Drive'}${c.copia !== undefined ? `, copia in ${c.copia}` : ''}`)
+        }
+        log(`SALVA ok (${esito.caricati} caricati, ${esito.cancellati} rimossi, ${totali} in tutto${esito.conflitti.length > 0 ? `, ${esito.conflitti.length} conflitti` : ''})`)
+        return { ok: true, voci: esito.caricati, ...(esito.conflitti.length > 0 ? { conflitti: esito.conflitti.length } : {}) }
       } catch (e) {
         log(`SALVA fallito: ${messaggioDi(e)}`)
         return { ok: false, messaggio: messaggioDi(e) }
@@ -395,6 +402,9 @@ export function apriSincronia(deps: {
           soloPrefissi: (p) => p === prefisso,
           manifestoPrec: precedente,
           elimina: true,
+          pcNome: deps.pcNome?.() ?? 'questo-pc',
+          copieDiConflitto: deps.progetti?.eDiProgetto ?? ((): boolean => false),
+          adesso: adesso(),
           ...(deps.emettiProgresso !== undefined ? { onProgresso: deps.emettiProgresso } : {})
         })
         if (!esito.trovato || esito.manifesto === undefined) return { ok: false, messaggio: 'Niente sul Drive.' }
@@ -405,8 +415,11 @@ export function apriSincronia(deps: {
         for (const k of Object.keys(nuovo.file)) if (prefissoDi(k) === prefisso) delete nuovo.file[k]
         for (const [k, v] of Object.entries(esito.manifesto.file)) if (prefissoDi(k) === prefisso) nuovo.file[k] = v
         scriviManifestoLocale(nuovo)
-        log(`RIPRISTINA progetto ${id}: ${esito.scritti} scritti, ${esito.invariati} invariati, ${esito.eliminati} tolti`)
-        return { ok: true, scritti: esito.scritti }
+        for (const c of esito.conflitti) {
+          log(`RIPRISTINA conflitto su ${c.percorso}: vince ${c.vinto === 'mio' ? 'questo PC' : 'il Drive'}${c.copia !== undefined ? `, copia in ${c.copia}` : ''}`)
+        }
+        log(`RIPRISTINA progetto ${id}: ${esito.scritti} scritti, ${esito.invariati} invariati, ${esito.tenuti} tenuti, ${esito.eliminati} tolti, ${esito.conflitti.length} conflitti`)
+        return { ok: true, scritti: esito.scritti, ...(esito.conflitti.length > 0 ? { conflitti: esito.conflitti.length } : {}) }
       } catch (e) {
         log(`RIPRISTINA progetto ${id} fallito: ${messaggioDi(e)}`)
         return { ok: false, messaggio: messaggioDi(e) }
@@ -458,6 +471,9 @@ export function apriSincronia(deps: {
           archivio: deps.archivio(),
           soloPrefissi: (p) => !eDiProgetto(p),
           manifestoPrec: leggiManifestoLocale(),
+          pcNome: deps.pcNome?.() ?? 'questo-pc',
+          copieDiConflitto: eDiProgetto,
+          adesso: adesso(),
           ...(deps.emettiProgresso !== undefined ? { onProgresso: deps.emettiProgresso } : {})
         })
         if (esito.illeggibile === true) {
@@ -491,6 +507,7 @@ export function apriSincronia(deps: {
         scriviStato({ ...leggiStato(), ultimoSalvataggio: adesso() })
         // Secondo tempo: i progetti, ognuno nella sua cartella di qui.
         let scritti = esito.scritti
+        let conflitti = esito.conflitti.length
         if (deps.progetti !== undefined) {
           const radiciProgetti = deps.progetti.preparaRipristino()
           if (radiciProgetti.length > 0) {
@@ -501,14 +518,21 @@ export function apriSincronia(deps: {
               soloPrefissi: eDiProgetto,
               manifestoPrec: leggiManifestoLocale(),
               elimina: true,
+              pcNome: deps.pcNome?.() ?? 'questo-pc',
+              copieDiConflitto: eDiProgetto,
+              adesso: adesso(),
               ...(deps.emettiProgresso !== undefined ? { onProgresso: deps.emettiProgresso } : {})
             })
             scritti += secondo.scritti
-            log(`RIPRISTINA progetti: ${secondo.scritti} file in ${radiciProgetti.length} progetti`)
+            conflitti += secondo.conflitti.length
+            for (const c of secondo.conflitti) {
+              log(`RIPRISTINA conflitto su ${c.percorso}: vince ${c.vinto === 'mio' ? 'questo PC' : 'il Drive'}${c.copia !== undefined ? `, copia in ${c.copia}` : ''}`)
+            }
+            log(`RIPRISTINA progetti: ${secondo.scritti} file in ${radiciProgetti.length} progetti, ${secondo.tenuti} tenuti, ${secondo.conflitti.length} conflitti`)
           }
         }
-        log(`RIPRISTINA ok (${scritti} file scritti)`)
-        return { ok: true, scritti }
+        log(`RIPRISTINA ok (${scritti} file scritti${conflitti > 0 ? `, ${conflitti} conflitti` : ''})`)
+        return { ok: true, scritti, ...(conflitti > 0 ? { conflitti } : {}) }
       } catch (e) {
         log(`RIPRISTINA fallito: ${messaggioDi(e)}`)
         return { ok: false, messaggio: messaggioDi(e) }

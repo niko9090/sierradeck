@@ -855,6 +855,7 @@ if (!app.requestSingleInstanceLock()) {
         dati,
         radiceClaude,
         progetti: progettiSync,
+        pcNome: () => identitaPc.leggi().nome,
         driveConnesso: () => contoDrive.stato().connesso,
         // Il magazzino a blocco unico serve alle CHIAVI; l'archivio a più file ai
         // DATI (sincronizzazione incrementale: solo ciò che cambia).

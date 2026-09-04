@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile, mkdir, stat, unlink } from 'node:fs/promises'
+import { readdir, readFile, writeFile, mkdir, stat, unlink, utimes } from 'node:fs/promises'
 import { join, resolve, sep, dirname } from 'node:path'
 import type { Voce } from './pacchetto'
 
@@ -191,6 +191,9 @@ export async function ripristina(
     }
     await mkdir(dirname(dest), { recursive: true })
     await writeFile(dest, v.contenuto)
+    if (v.mtime !== undefined) {
+      try { await utimes(dest, v.mtime / 1000, v.mtime / 1000) } catch { /* la firma non tornera': si rimandera' una volta */ }
+    }
     scritti += 1
   }
   return { scritti, saltati }
@@ -216,7 +219,8 @@ export async function firmaRadici(
       const disco = join(r.cartella, ...rel.split('/'))
       try {
         const s = await stat(disco)
-        firma.set(`${r.prefisso}/${rel}`, { size: s.size, mtime: s.mtimeMs, disco })
+        // Al millisecondo: e' la precisione con cui `utimes` lo rimette.
+        firma.set(`${r.prefisso}/${rel}`, { size: s.size, mtime: Math.round(s.mtimeMs), disco })
       } catch {
         // file sparito fra l'elenco e lo stat: lo si ignora
       }

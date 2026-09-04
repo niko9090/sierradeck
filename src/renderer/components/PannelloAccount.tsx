@@ -50,7 +50,7 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
   const prendi = (id: string, forza = false): void => {
     setOccupato(true); setEsito(undefined)
     void window.gestore.progetti.prendiTestimone(id, forza).then((r) => {
-      if (r.ok) setEsito('Testimone preso: il progetto adesso e\' qui, con l\'ultimo stato salvato.')
+      if (r.ok) setEsito(`Testimone preso: il progetto adesso e' qui, con l'ultimo stato salvato.${r.conflitti !== undefined ? ` ${r.conflitti} file in conflitto: vince il più recente, l'altro è accanto come copia «.conflitto-…».` : ''}`)
       else if ('nonRisponde' in r) setEsito(`Il PC ${r.pcNome} non risponde. Puoi forzare: prendi quello che c'e' sul Drive.`)
       else setEsito('messaggio' in r ? r.messaggio : 'non riuscito')
     }).catch((e: unknown) => setEsito(String(e))).finally(() => { setOccupato(false); ricarica() })
@@ -181,7 +181,7 @@ function SezioneSync(): React.JSX.Element | null {
   const salva = (forza = false): void => conInCorso(
     window.gestore.sync.salva(forza).then((r) => {
       if (r.ok && r.invariato === true) { setConflitto(false); setMsg('Già tutto salvato: niente di cambiato.') }
-      else if (r.ok) { setConflitto(false); setMsg(`Salvato ✓ (${r.voci ?? 0} file)`) }
+      else if (r.ok) { setConflitto(false); setMsg(`Salvato ✓ (${r.voci ?? 0} file)${r.conflitti !== undefined ? ` · ${r.conflitti} in conflitto: vince il più recente, l’altro è accanto come copia «.conflitto-…»` : ''}`) }
       else if (r.conflitto === true) { setConflitto(true); setMsg(r.messaggio ?? 'conflitto sul Drive') }
       else setMsg(r.messaggio ?? 'salvataggio non riuscito')
     })
@@ -190,7 +190,7 @@ function SezioneSync(): React.JSX.Element | null {
     window.gestore.sync.ripristina().then((r) => {
       setConflitto(false)
       setMsg(r.ok
-        ? (r.niente === true ? 'Niente da ripristinare (ancora nessun salvataggio).' : `Ripristinato ✓ (${r.scritti ?? 0} file). Riavvia per vedere tutto.`)
+        ? (r.niente === true ? 'Niente da ripristinare (ancora nessun salvataggio).' : `Ripristinato ✓ (${r.scritti ?? 0} file)${r.conflitti !== undefined ? ` · ${r.conflitti} in conflitto: vince il più recente, l’altro è accanto come copia «.conflitto-…»` : ''}. Riavvia per vedere tutto.`)
         : (r.messaggio ?? 'ripristino non riuscito'))
     })
   )
