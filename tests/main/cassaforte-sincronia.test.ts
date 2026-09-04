@@ -324,6 +324,46 @@ describe('sincronia incrementale: giro completo fra due PC', () => {
     expect((await syncB.ripristinaProgetto('p1')).scritti).toBe(0)
   })
 
+  it('togliProgettoDalDrive cancella i file del progetto lassu, non le cartelle qui', async () => {
+    const drive = driveCondiviso()
+    const a = pc('A'); traccia(a)
+    const progettoA = join(a.dati, '..', 'Prog')
+    mkdirSync(join(progettoA, 'src'), { recursive: true })
+    writeFileSync(join(progettoA, 'src', 'a.ts'), 'uno')
+    writeFileSync(join(a.claude, 'projects', 'progetto', 'chat.jsonl'), '{"a":1}')
+    const registroA = apriRegistroProgetti(a.dati)
+    registroA.scrivi(aggiungiProgetto(registroA.leggi(), { pcId: 'pc-A', percorso: progettoA, adesso: 'oggi', id: 'p1' }).registro)
+    const syncA = apriSincronia({
+      dati: a.dati, radiceClaude: a.claude, driveConnesso: () => true, magazzino: drive.magazzino, archivio: drive.archivio,
+      progetti: creaProgettiSync({ registro: registroA, pcId: () => 'pc-A', cartellaProgetti: () => join(a.dati, '..', 'P') })
+    })
+    expect((await syncA.creaPassphrase('segreta')).ok).toBe(true)
+    expect((await syncA.salva()).ok).toBe(true)
+    await syncA.scatola()!.scrivi('presenza-p1', { pcId: 'pc-A' })
+    const prima = await drive.archivio().elenca()
+    expect([...prima.keys()].some((n) => n.startsWith('presenza-'))).toBe(true)
+
+    const esito = await syncA.togliProgettoDalDrive('p1')
+    expect(esito).toEqual({ ok: true, tolti: 1 })
+    const dopo = await drive.archivio().elenca()
+    expect([...dopo.keys()].some((n) => n.startsWith('presenza-'))).toBe(false)
+    // La cartella qui resta; la chat e il manifesto restano sul Drive.
+    expect(readFileSync(join(progettoA, 'src', 'a.ts'), 'utf8')).toBe('uno')
+    const b = pc('B'); traccia(b)
+    const syncB = apri(b, drive)
+    expect((await syncB.sblocca('segreta')).ok).toBe(true)
+    expect((await syncB.ripristina()).ok).toBe(true)
+    expect(existsSync(join(b.claude, 'projects', 'progetto', 'chat.jsonl'))).toBe(true)
+    expect(existsSync(join(b.dati, '..', 'Progetti'))).toBe(false)
+    // Tolto dal registro (lo fa chi chiama, come il programma), un nuovo
+    // salvataggio da A carica il registro cambiato e basta: il manifesto
+    // locale ha dimenticato il progetto e la cartella non e' piu' una radice.
+    registroA.scrivi({ versione: 1, progetti: [] })
+    const r = await syncA.salva()
+    expect(r.ok).toBe(true)
+    expect(r.voci).toBe(1)
+  })
+
   it('senza sblocco non salva né ripristina', async () => {
     const drive = driveCondiviso()
     const a = pc('A'); traccia(a)

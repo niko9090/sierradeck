@@ -295,6 +295,37 @@ export async function salvaIncrementale(deps: {
   return { manifesto: nuovo, caricati: cambiati.length, cancellati: cancellati.length, conflitti }
 }
 
+/**
+ * Toglie dal Drive tutto cio' che sta sotto un prefisso: i file e le loro
+ * voci nel manifesto. Serve a «Togli» di un progetto: prima toglieva solo
+ * la riga dal registro, e i file restavano lassu' per sempre, che nessun PC
+ * li considerava piu' suoi.
+ *
+ * Si parte dal manifesto del Drive, come al salvataggio: un altro PC puo'
+ * aver salvato nel frattempo. Quanti file ha tolto.
+ */
+export async function togliPrefisso(deps: {
+  maestra: Buffer
+  archivio: Archivio
+  prefisso: string
+  adesso: string
+}): Promise<{ tolti: number; manifesto?: Manifesto }> {
+  const esito = await leggiManifesto(deps.archivio, deps.maestra)
+  if (esito.stato === 'assente') return { tolti: 0 }
+  if (esito.stato === 'illeggibile') throw new Error('Il manifesto sul Drive non si apre con questa chiave: non tocco niente.')
+  const manifesto = esito.manifesto
+  const daTogliere = Object.keys(manifesto.file).filter((p) => prefissoDi(p) === deps.prefisso)
+  if (daTogliere.length === 0) return { tolti: 0, manifesto }
+  const nuovo: Manifesto = { versione: 1, creatoIl: deps.adesso, file: { ...manifesto.file } }
+  await conLimite(daTogliere, PARALLELI, async (percorso) => {
+    const voce = manifesto.file[percorso]
+    if (voce !== undefined) await deps.archivio.cancella(voce.nome).catch(() => undefined)
+    delete nuovo.file[percorso]
+  })
+  await scriviManifesto(deps.archivio, deps.maestra, nuovo)
+  return { tolti: daTogliere.length, manifesto: nuovo }
+}
+
 export async function ripristinaIncrementale(deps: {
   radici: Radice[]
   maestra: Buffer

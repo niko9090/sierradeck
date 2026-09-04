@@ -966,12 +966,20 @@ if (!app.requestSingleInstanceLock()) {
         }
         return elencoProgetti()
       })
-      ipcMain.handle('progetti:rimuovi', (_e, rawId: unknown) => {
-        if (typeof rawId === 'string' && rawId !== '') {
-          registroProgetti.scrivi(rimuoviProgetto(registroProgetti.leggi(), rawId))
-          registro.info(`[progetti] ${rawId} tolto dal Drive (i file gia' caricati restano)`)
+      ipcMain.handle('progetti:rimuovi', async (_e, rawId: unknown) => {
+        if (typeof rawId !== 'string' || rawId === '') return elencoProgetti()
+        const nome = registroProgetti.leggi().progetti.find((p) => p.id === rawId)?.nome ?? rawId
+        // Prima i file dal Drive, poi la riga dal registro: se il Drive non e'
+        // raggiungibile, il progetto resta in elenco e lo si ritenta dopo,
+        // invece di lasciare lassu' file che nessun PC considera piu' suoi.
+        const esito = await sincronia.togliProgettoDalDrive(rawId)
+        if (!esito.ok) {
+          registro.info(`[progetti] «${nome}» non tolto: ${esito.messaggio ?? '?'}`)
+          return { ...elencoProgetti(), messaggio: `Non ho tolto «${nome}»: ${esito.messaggio ?? 'il Drive non risponde'}.` }
         }
-        return elencoProgetti()
+        registroProgetti.scrivi(rimuoviProgetto(registroProgetti.leggi(), rawId))
+        registro.info(`[progetti] «${nome}» tolto dal Drive: ${esito.tolti ?? 0} file cancellati lassu', le cartelle sui PC restano`)
+        return { ...elencoProgetti(), messaggio: `«${nome}» tolto dal Drive: ${esito.tolti ?? 0} file cancellati lassù. La cartella su questo PC resta.` }
       })
       ipcMain.handle('progetti:cartella', async (event) => {
         const percorso = await scegliCartellaDa(event, 'Dove mettere i progetti che arrivano dal Drive')

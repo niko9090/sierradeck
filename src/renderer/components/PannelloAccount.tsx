@@ -7,11 +7,13 @@ import { valutaPassword, REGOLE_PASSWORD } from '@shared/password'
 type Props = { onChiudi?: () => void; incorporato?: boolean }
 
 import { descriviProgresso, type ProgressoSync } from '../progresso-sync'
+import { ModaleConferma } from './ModaleConferma'
 
 type StatoDrive = { configurato: boolean; connesso: boolean }
 type ElencoProgetti = {
   pc: { id: string; nome: string; cartellaProgetti: string }
   progetti: { id: string; nome: string; locale?: string; altrove: number }[]
+  messaggio?: string
 }
 
 /**
@@ -34,6 +36,7 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
   const [stati, setStati] = useState<StatoProgettoVista[]>([])
   const [occupato, setOccupato] = useState(false)
   const [esito, setEsito] = useState<string | undefined>(undefined)
+  const [daTogliere, setDaTogliere] = useState<{ id: string; nome: string } | undefined>(undefined)
   const ricarica = (): void => {
     void window.gestore.progetti.elenca().then(setElenco).catch(() => {})
     void window.gestore.progetti.stati().then(setStati).catch(() => {})
@@ -45,7 +48,9 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
   }, [])
   const con = (p: Promise<ElencoProgetti>): void => {
     setOccupato(true)
-    void p.then((e) => { setElenco(e); onCambio() }).catch(() => {}).finally(() => { setOccupato(false); ricarica() })
+    void p.then((e) => { setElenco(e); if (e.messaggio !== undefined) setEsito(e.messaggio); onCambio() })
+      .catch((err: unknown) => setEsito(String(err)))
+      .finally(() => { setOccupato(false); ricarica() })
   }
   const prendi = (id: string, forza = false): void => {
     setOccupato(true); setEsito(undefined)
@@ -95,13 +100,22 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
                 {p.locale === undefined ? (
                   <button className="tasto tasto--mini" disabled={fermo} onClick={() => con(window.gestore.progetti.collega(p.id))}>Sta gia' qui…</button>
                 ) : null}
-                <button className="tasto tasto--mini" disabled={fermo} onClick={() => con(window.gestore.progetti.rimuovi(p.id))}>Togli</button>
+                <button className="tasto tasto--mini" disabled={fermo} onClick={() => setDaTogliere({ id: p.id, nome: p.nome })}>Togli</button>
               </div>
             </li>
           ))}
         </ul>
       )}
       {esito !== undefined ? <div className="riga__stato">{esito}</div> : null}
+      {daTogliere !== undefined ? (
+        <ModaleConferma
+          titolo={`Togliere «${daTogliere.nome}» dal Drive?`}
+          testo="I suoi file salvati sul Drive vengono cancellati, e le sue chat smettono di viaggiare con la cartella. Le cartelle sui PC restano come sono. Si può rimettere sul Drive quando vuoi."
+          etichettaAzione="Togli dal Drive"
+          onConferma={() => { const id = daTogliere.id; setDaTogliere(undefined); setEsito(undefined); con(window.gestore.progetti.rimuovi(id)) }}
+          onAnnulla={() => setDaTogliere(undefined)}
+        />
+      ) : null}
       <div className="account__tasti">
         <button className="tasto tasto--primario tasto--mini" disabled={fermo} onClick={() => con(window.gestore.progetti.aggiungi())}>
           Metti una cartella sul Drive…

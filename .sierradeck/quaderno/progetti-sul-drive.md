@@ -50,9 +50,11 @@ obbligatorio (tappa 2).
 
 # Trappole e limiti noti
 
-- «Togli» toglie dal registro ma **non** cancella i file dal Drive (per la
-  guardia sopra, nessun PC li considera suoi): restano finché non si
-  ripulisce a mano. Da sistemare quando serve.
+- «Togli» (dalla 0.12.60): prima `togliProgettoDalDrive` (cancella i blob del
+  prefisso, riscrive il manifesto del Drive partendo da quello del Drive,
+  toglie presenza/staffetta, dimentica il prefisso nel manifesto locale), poi
+  la riga dal registro. Se il Drive non risponde il progetto resta in elenco.
+  Le cartelle sui PC restano. Conferma con `ModaleConferma` nel pannello.
 - `.git/index.lock` o file transitori possono finire nel manifesto; innocui.
 - Due PC che modificano lo stesso file: vince l'ultimo che salva, senza
   avviso. È la tappa 3. La tappa 2 (presenza + testimone) rende il caso raro.

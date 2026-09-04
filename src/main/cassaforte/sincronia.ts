@@ -6,7 +6,7 @@ import type { Progresso } from './motore'
 import { pesaRadici, radiciDaSincronizzare, type Radice } from './raccolta'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
-import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi } from './incrementale'
+import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi, togliPrefisso } from './incrementale'
 import { applicaBlocco } from './lavoro'
 import type { Scatola } from '../progetti/presenza'
 import { prefissoProgetto } from '../progetti/registro'
@@ -99,6 +99,11 @@ export type Sincronia = {
   ripristinaProgetto: (id: string) => Promise<{ ok: boolean; scritti?: number; messaggio?: string; conflitti?: number }>
   /** Piccoli oggetti cifrati sul Drive (presenze, staffette); assente se chiuso o scollegato. */
   scatola: () => Scatola | undefined
+  /**
+   * Toglie dal Drive i file di un progetto (e presenza e staffetta). Le
+   * cartelle sui PC restano: si toglie il viaggio, non il lavoro.
+   */
+  togliProgettoDalDrive: (id: string) => Promise<{ ok: boolean; tolti?: number; messaggio?: string }>
 }
 
 export function apriSincronia(deps: {
@@ -422,6 +427,29 @@ export function apriSincronia(deps: {
         return { ok: true, scritti: esito.scritti, ...(esito.conflitti.length > 0 ? { conflitti: esito.conflitti.length } : {}) }
       } catch (e) {
         log(`RIPRISTINA progetto ${id} fallito: ${messaggioDi(e)}`)
+        return { ok: false, messaggio: messaggioDi(e) }
+      }
+    },
+
+    async togliProgettoDalDrive(id) {
+      if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
+      if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
+      const prefisso = prefissoProgetto(id)
+      try {
+        const esito = await togliPrefisso({ maestra, archivio: deps.archivio(), prefisso, adesso: adesso() })
+        const a = deps.archivio()
+        await a.cancella(`presenza-${id}`).catch(() => undefined)
+        await a.cancella(`staffetta-${id}`).catch(() => undefined)
+        // Anche il manifesto locale dimentica il progetto: cosi' i file sul
+        // disco, che restano, non sembrano ne' «nuovi» ne' «spariti».
+        const locale = leggiManifestoLocale()
+        const nuovo: Manifesto = { ...locale, file: { ...locale.file } }
+        for (const k of Object.keys(nuovo.file)) if (prefissoDi(k) === prefisso) delete nuovo.file[k]
+        scriviManifestoLocale(nuovo)
+        log(`TOGLI progetto ${id}: ${esito.tolti} file tolti dal Drive`)
+        return { ok: true, tolti: esito.tolti }
+      } catch (e) {
+        log(`TOGLI progetto ${id} fallito: ${messaggioDi(e)}`)
         return { ok: false, messaggio: messaggioDi(e) }
       }
     },

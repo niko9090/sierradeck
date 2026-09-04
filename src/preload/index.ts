@@ -112,6 +112,8 @@ let scontrino = 0
 export type ElencoProgetti = {
   pc: { id: string; nome: string; cartellaProgetti: string }
   progetti: { id: string; nome: string; locale?: string; altrove: number }[]
+  /** Un esito da mostrare, quando un'azione ha qualcosa da dire. */
+  messaggio?: string
 }
 export type StatoProgetto = {
   id: string; nome: string; chi: 'io' | 'altro' | 'libero'; pcNome?: string; da?: string; staffettaDa?: string

@@ -19,6 +19,8 @@ import type { CodaVista, DestinazioneVista, ElencoVista, RichiestaVista } from '
 type ElencoProgetti = {
   pc: { id: string; nome: string; cartellaProgetti: string }
   progetti: { id: string; nome: string; locale?: string; altrove: number }[]
+  /** Un esito da mostrare, quando un'azione ha qualcosa da dire. */
+  messaggio?: string
 }
 type StatoProgetto = {
   id: string; nome: string; chi: 'io' | 'altro' | 'libero'; pcNome?: string; da?: string; staffettaDa?: string
