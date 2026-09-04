@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.13.0',
+    righe: [
+      '**Il supervisore di un autopilota è uno per chat.** Ogni chat di una flotta ha il suo supervisore, che la segue dall’inizio del suo compito: prima era uno solo per tutta la flotta, vedeva i turni delle sorelle come salti, e quando due chat si fermavano insieme una delle due perdeva la conversazione. Costa una conversazione in più per chat, e in cambio ognuna è seguita per intero. Le flotte già in corso continuano: ogni chat parte col suo supervisore alla prossima fermata.'
+    ]
+  },
+  {
     versione: '0.12.64',
     righe: [
       '**Una chat di un autopilota che lavora da più di un’ora non viene più sospesa.** Il servizio vedeva solo la fine dei turni, e un turno lungo — una compilazione, una migrazione — sembrava silenzio. Adesso il computer manda al servizio, ogni minuto, il battito delle chat governate che stanno lavorando, e il guardiano lo conta come segno di vita.',
