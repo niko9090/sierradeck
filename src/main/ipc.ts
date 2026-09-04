@@ -963,10 +963,10 @@ export function registerLayoutIpc(
   // non esiste un momento in cui il layout corrente non è salvato da nessuna
   // parte. Con due canali distinti quel momento esisterebbe, e una chiusura in
   // mezzo perderebbe il lavoro.
-  ipcMain.handle('workspace:cambia', (event, rawNome: unknown, rawLayout: unknown, rawScontrino: unknown): LayoutConScontrino => {
+  ipcMain.handle('workspace:cambia', (event, rawNome: unknown, rawLayout: unknown, rawScontrino: unknown, rawCongedate: unknown): LayoutConScontrino => {
     const nome = validateNomeWorkspace(rawNome)
     const precedente = store.leggi()
-    const esito = cambiaConLayoutDi(event, store, nome, rawLayout, rawScontrino)
+    const esito = cambiaConLayoutDi(event, store, nome, rawLayout, rawScontrino, rawCongedate)
     annunciaCambio(event, esito.archivio, precedente.attivo)
     return { layout: esito.layout, scontrino: esito.scontrino }
   })
@@ -1056,12 +1056,16 @@ function cambiaConLayoutDi(
   store: WorkspaceStore,
   nome: string,
   rawLayout: unknown,
-  rawScontrino: unknown
+  rawScontrino: unknown,
+  rawCongedate: unknown = undefined
 ): { archivio: Archivio; layout: LayoutSalvato; scontrino: number } {
   const win = BrowserWindow.fromWebContents(event.sender)
   if (win === null) throw new Error('cambio di workspace da una finestra sconosciuta')
   const { layout: corrente, scartati } = validateLayoutSalvato(rawLayout)
   for (const motivo of scartati) console.warn(`[workspace:cambia] scartato: ${motivo}`)
+  const congedate = Array.isArray(rawCongedate)
+    ? rawCongedate.filter((x): x is string => typeof x === 'string' && x !== '')
+    : []
 
   // Anche qui lo scontrino comanda: un cambio di workspace **scrive** il layout
   // che si sta lasciando, ed è quindi un salvataggio a tutti gli effetti. Chi
@@ -1073,10 +1077,27 @@ function cambiaConLayoutDi(
   // Senza consegna il layout corrente **non si scrive**: si cambia vista e
   // basta. Con la consegna si salva prima quello che si lascia, sotto il
   // workspace che la ricevuta nomina.
-  const archivio = valida
-    ? cambiaWorkspace(store.leggi(), nome, slot, corrente, consegna.workspace).archivio
-    : store.leggi()
-  if (valida) store.scrivi(archivio)
+  // Il layout in uscita passa dallo stesso rifiuto dei congedi del
+  // salvataggio normale: era l'unica strada per cui una chat poteva sparire
+  // dall'archivio senza che nessuno l'avesse chiusa. Se farebbe sparire
+  // qualcuno, si tiene quello che l'archivio aveva per quello slot.
+  const prima = store.leggi()
+  let archivio = prima
+  if (valida) {
+    const tentativo = cambiaWorkspace(prima, nome, slot, corrente, consegna.workspace).archivio
+    const esito = esitoDelSalvataggio(prima, tentativo, congedate)
+    if (esito.perse.length > 0) {
+      console.warn(
+        `[workspace:cambia] RIFIUTATO il layout in uscita di «${consegna.workspace}» (slot ${slot}): ` +
+        `${esito.perse.length} chat sparirebbero senza che nessuno le abbia chiuse — tengo quello salvato`
+      )
+      const giaSalvato = prima.workspace.find((w) => w.nome === consegna.workspace)?.perSlot[slot]
+      archivio = cambiaWorkspace(prima, nome, slot, giaSalvato ?? corrente, consegna.workspace).archivio
+    } else {
+      archivio = tentativo
+    }
+    store.scrivi(archivio)
+  }
 
   // La destinazione passa dalla stessa porta di ogni altra consegna: e' l'unico
   // modo perche' un workspace disposto su piu' finestre dell'ultima volta torni

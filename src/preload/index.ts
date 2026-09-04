@@ -758,8 +758,8 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('workspace:elimina', nome),
     rinomina: (vecchio: string, nuovo: string): Promise<StatoWorkspace> =>
       ipcRenderer.invoke('workspace:rinomina', vecchio, nuovo),
-    cambia: async (nome: string, layout: LayoutSalvato): Promise<LayoutSalvato> =>
-      ricevi(await ipcRenderer.invoke('workspace:cambia', nome, layout, scontrino)),
+    cambia: async (nome: string, layout: LayoutSalvato, congedate?: string[]): Promise<LayoutSalvato> =>
+      ricevi(await ipcRenderer.invoke('workspace:cambia', nome, layout, scontrino, congedate)),
     migra: async (da: string, nome: string, layout: LayoutSalvato): Promise<LayoutSalvato> =>
       ricevi(await ipcRenderer.invoke('workspace:migra', da, nome, layout, scontrino)),
     /** Manda una chat in un workspace che non è aperto in nessuna finestra. */

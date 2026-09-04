@@ -1224,6 +1224,28 @@ describe('la chat viva che non finisce mai', () => {
     expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('lavoro')
   })
 
+  it('il battito del Gestore vale come segno di vita: un turno lungo che non chiude non sospende', async () => {
+    // Una chat dentro una compilazione da un'ora non manda hook, ma il
+    // Gestore la vede lavorare («esc to interrupt») e lo dice ogni minuto.
+    // Prima di questa misura il guardiano la sospendeva mentre lavorava.
+    ora = Date.parse('2026-08-09T10:00:00.000Z')
+    server = ambiente({ silenzioMassimoMs: 30 * 60_000, adesso })
+    await avvia(server)
+    const id = await creaAp()
+    const chatId = (await chiama('GET', '/autopiloti')).dati[0].chats?.[0]?.id as string | undefined
+    ora += 25 * 60_000
+    const r = await chiama('POST', '/battiti', { segni: [{ autopilota: id, ...(chatId !== undefined ? { chat: chatId } : {}) }] })
+    expect(r.dati.contati).toBe(1)
+    ora += 25 * 60_000
+    server.controllaChatFerme()
+    // Cinquanta minuti senza hook, ma un battito venticinque minuti fa: vive.
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('lavoro')
+    // Poi il silenzio vero: trentuno minuti dall'ultimo battito.
+    ora += 7 * 60_000
+    server.controllaChatFerme()
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('sospeso')
+  })
+
   it('IL DIFETTO: rispondere di mattina non fa sospendere un istante dopo', async () => {
     // Una chat chiude un turno a mezzanotte, poi fa una domanda e aspetta.
     // L'utente risponde alle otto: la chat riparte, ma l'ultimo turno **chiuso**

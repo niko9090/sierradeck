@@ -89,6 +89,15 @@ export type ClientAutopilota = {
    * Torna quanti ne ha toccati.
    */
   pausaAggiornamento: (attiva: boolean) => Promise<number>
+  /**
+   * Il battito delle chat governate che stanno lavorando adesso.
+   *
+   * Il servizio vede solo gli hook, e una chat dentro un turno lungo non ne
+   * manda: per il guardiano del silenzio era ferma dopo un'ora, e la
+   * sospendeva mentre lavorava. Il Gestore invece la vede — lo schermo dice
+   * «esc to interrupt» — e ogni minuto lo dice al servizio.
+   */
+  battiti: (segni: { autopilota: string; chat: string }[]) => Promise<void>
 }
 
 const ATTESA_PREDEFINITA_MS = 3000
@@ -160,6 +169,10 @@ export function creaClientAutopilota(p: {
       const esito = (await chiama('/pausa-aggiornamento', 'POST', { attiva })) as
         { toccati?: unknown } | undefined
       return typeof esito?.toccati === 'number' ? esito.toccati : 0
+    },
+
+    async battiti(segni) {
+      await chiama('/battiti', 'POST', { segni })
     },
 
     async gestoreAvviato() {

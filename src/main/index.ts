@@ -153,6 +153,9 @@ let inChiusura = false
 let serverClient: import('node:http').Server | undefined
 /** Le chat aperte, come le racconta il renderer: servono al Client. */
 let chatAperte: Chat[] = []
+/** L'ultimo battito mandato al servizio autopiloti per le chat governate al lavoro. */
+let ultimoBattitoAlServizio = 0
+const BATTITO_AL_SERVIZIO_MS = 60_000
 /** Su quali monitor stavano le finestre: e' cosi che ci ritornano. */
 let finestreStore: FinestreStore | undefined
 /** Lo scoping per-chat del Negozio: cosa spegnere per le chat di una cartella. */
@@ -1885,6 +1888,19 @@ if (!app.requestSingleInstanceLock()) {
           if (w === undefined || w.isDestroyed()) chatPerFinestra.delete(id)
         }
         chatAperte = [...chatPerFinestra.values()].flat()
+        // Il battito delle chat governate che stanno lavorando, al servizio:
+        // e' il segnale di vita che il guardiano del silenzio non aveva, e
+        // senza cui sospendeva chi lavorava da piu' di un'ora.
+        const ora = Date.now()
+        if (ora - ultimoBattitoAlServizio >= BATTITO_AL_SERVIZIO_MS) {
+          const segni = chatAperte
+            .filter((c) => c.viva === true && c.aspetta !== true && c.autopilota !== undefined)
+            .map((c) => ({ autopilota: c.autopilota!.id, chat: c.autopilota!.chat }))
+          if (segni.length > 0) {
+            ultimoBattitoAlServizio = ora
+            void clientAutopilota.battiti(segni).catch(() => undefined)
+          }
+        }
       })
 
       // L'autopilota non esegue più: coordina. Le istruzioni che vuole far

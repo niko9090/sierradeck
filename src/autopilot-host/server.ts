@@ -406,6 +406,20 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * che è una stima prudente e sbaglia al più una volta.
    */
   const ultimoTurno = new Map<string, number>()
+  /**
+   * L'ultimo battito arrivato dal Gestore per quella chat: sta lavorando, lo
+   * schermo lo dice. E' il segnale di vita che gli hook non danno dentro un
+   * turno lungo, e senza il quale il guardiano sospendeva chi lavorava da
+   * piu' di un'ora.
+   */
+  const ultimoSegno = new Map<string, number>()
+  const ultimoSegnale = (chiave: string): number | undefined => {
+    const turno = ultimoTurno.get(chiave)
+    const segno = ultimoSegno.get(chiave)
+    if (turno === undefined) return segno
+    if (segno === undefined) return turno
+    return Math.max(turno, segno)
+  }
 
   /**
    * Avvia un turno, e fa ripartire da adesso l'orologio del silenzio.
@@ -647,7 +661,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // bastava che una chat della flotta chiudesse i suoi turni perche' tutte
       // le altre risultassero vive, e quella impiantata restava appesa per
       // sempre con il pannello che diceva «al lavoro».
-      const mute = chiTace(a, (chiave) => ultimoTurno.get(chiave), ora, limite)
+      const mute = chiTace(a, ultimoSegnale, ora, limite)
       if (mute.length === 0) continue
       const sospeso: Autopilota = { ...a, stato: 'sospeso', motivoSospensione: motivoSilenzio(mute) }
       salva(sospeso)
@@ -1431,6 +1445,25 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // piu' - l'attesa e' scaduta, l'utente ha cambiato idea - perche'
         // altrimenti resterebbero ferme ad aspettare un riavvio che non
         // arriva.
+        if (metodo === 'POST' && percorso === '/battiti') {
+          const corpo = await leggiCorpo(req)
+          const grezzi = typeof corpo === 'object' && corpo !== null && Array.isArray((corpo as Record<string, unknown>).segni)
+            ? ((corpo as Record<string, unknown>).segni as unknown[])
+            : []
+          const ora = Date.parse(deps.adesso())
+          let contati = 0
+          for (const s of grezzi) {
+            if (typeof s !== 'object' || s === null) continue
+            const { autopilota, chat } = s as Record<string, unknown>
+            if (typeof autopilota !== 'string' || autopilota === '') continue
+            ultimoSegno.set(chiaveTurno(autopilota, typeof chat === 'string' ? chat : undefined), ora)
+            ultimoSegno.set(chiaveTurno(autopilota), ora)
+            contati += 1
+          }
+          rispondi(res, 200, { contati })
+          return
+        }
+
         if (metodo === 'POST' && percorso === '/pausa-aggiornamento') {
           const corpo = await leggiCorpo(req)
           const attiva = typeof corpo === 'object' && corpo !== null

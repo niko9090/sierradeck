@@ -49,3 +49,18 @@ riga, ed è così che una risposta può restare diversa dalle altre per giorni.
 
 Prove: `tests/renderer/ultime-righe.test.ts`, in particolare «il riquadro
 riagganciato dopo un riavvio: tace perché ha finito».
+
+## 2026-09-04 — il battito del Gestore chiude il «>1h sospesa» (0.12.64)
+
+Il guardiano del silenzio vedeva solo gli hook (fine turno): una chat dentro
+un turno lungo sembrava muta e dopo un'ora veniva sospesa mentre lavorava.
+Il Gestore però la vede: `chatAperte` con `viva && !aspetta` (lo schermo dice
+«esc to interrupt»). Ora ogni 60 s manda `POST /battiti { segni: [{ autopilota,
+chat }] }` al servizio (`clientAutopilota.battiti`, da `client:annunciaChat` in
+`index.ts`); il servizio tiene `ultimoSegno` per chiave `autopilota::chat` (e
+per il solo autopilota) e `controllaChatFerme` usa `max(ultimoTurno,
+ultimoSegno)`. Il renderer manda anche `autopilota: { id, chat }` nel rapporto
+delle chat. Test in `server.test.ts` («il battito del Gestore vale come segno
+di vita»). Restano fuori: chat governate non a schermo (ibernate = non
+lavorano, giusto così).
+

@@ -316,7 +316,7 @@ declare global {
         crea: (nome: string) => Promise<StatoWorkspace>
         elimina: (nome: string) => Promise<StatoWorkspace>
         rinomina: (vecchio: string, nuovo: string) => Promise<StatoWorkspace>
-        cambia: (nome: string, layout: LayoutSalvato) => Promise<LayoutSalvato>
+        cambia: (nome: string, layout: LayoutSalvato, congedate?: string[]) => Promise<LayoutSalvato>
         migra: (da: string, nome: string, layout: LayoutSalvato) => Promise<LayoutSalvato>
         spostaChat: (nome: string, pane: PaneSalvato) => Promise<boolean>
         onCambiato: (cb: (s: StatoWorkspace & { precedente: string }) => void) => () => void

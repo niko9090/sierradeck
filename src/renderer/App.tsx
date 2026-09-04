@@ -294,6 +294,9 @@ export function App(): React.JSX.Element {
           // suo: l’autopilota le parla da sé, e due notifiche per lo stesso
           // fatto sono una di troppo.
           governata: p.autopilota !== undefined,
+          // Chi la governa, per il battito al servizio: e' cosi' che il
+          // guardiano del silenzio sa che un turno lungo e' vivo.
+          ...(p.autopilota !== undefined ? { autopilota: p.autopilota } : {}),
           // Ha un processo acceso: senza, non c'è niente da finire né a cui scrivere.
           viva: p.ptyId !== undefined,
           ...(p.ptyId !== undefined

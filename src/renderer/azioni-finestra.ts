@@ -53,7 +53,9 @@ export function azioniDiFinestra(
     annunciaAttivo: impostaWorkspaceCorrente,
     crea: (nome) => window.gestore.workspace.crea(nome),
     elimina: (nome) => window.gestore.workspace.elimina(nome),
-    cambia: (nome, layout) => window.gestore.workspace.cambia(nome, layout),
+    // Con chi e' stata congedata: e' cio' che permette al Core di rifiutare
+    // un layout in uscita che farebbe sparire una chat che nessuno ha chiuso.
+    cambia: (nome, layout) => window.gestore.workspace.cambia(nome, layout, useLayoutStore.getState().congediDaMandare()),
     migra: (da, nome, layout) => window.gestore.workspace.migra(da, nome, layout),
     esporta: () => useLayoutStore.getState().esporta(),
     cambiaVista: (l) => useLayoutStore.getState().cambiaVista(l),

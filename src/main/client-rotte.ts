@@ -44,6 +44,8 @@ export type Chat = {
   aspetta?: boolean
   /** Se la governa un autopilota: allora è lui ad avvisare, non lei. */
   governata?: boolean
+  /** Chi la governa: l'autopilota e la sua chat, come li conosce il servizio. */
+  autopilota?: { id: string; chat: string }
   /**
    * Ha un terminale acceso.
    *

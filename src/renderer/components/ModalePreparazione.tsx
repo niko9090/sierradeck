@@ -115,6 +115,13 @@ export function ModalePreparazione({ onChiudi, onPreparazione }: Props): React.J
         ) : null}
 
         {terminale !== undefined ? <TerminaleSemplice ptyId={terminale} /> : null}
+        {terminale !== undefined && passo === 'installa' ? (
+          <p style={{ margin: '8px 0 0', fontSize: 12, lineHeight: 1.6, color: 'var(--testo-quieto)' }}>
+            Se qui sopra compare «Cannot create process, error code: 5», è l’antivirus che ha bloccato l’installatore
+            (lo scarica nella cartella TEMP e lo scambia per un programma indesiderato): mettilo in pausa o aggiungi
+            un’esclusione, poi riprova. In alternativa, in una PowerShell: <code>irm https://claude.ai/install.ps1 | iex</code>
+          </p>
+        ) : null}
 
         {errore !== undefined ? <div className="avviso" style={{ marginTop: 10 }}>⚠ {errore}</div> : null}
 
