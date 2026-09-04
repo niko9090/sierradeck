@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.59',
+    righe: [
+      '**Dal telefono si vede se un progetto è in mano a un altro PC.** Nel tab Chat, sotto il titolo di una chat il cui progetto è in lavoro altrove, una riga quieta: «in lavoro su Portatile». Solo un’informazione: il testimone si prende dal computer. Pagina servita e app Android (2.24.0).'
+    ]
+  },
+  {
     versione: '0.12.58',
     righe: [
       '**I conflitti non perdono più niente.** Se due PC hanno scritto lo stesso file di un progetto senza vedersi, vince il più recente e l’altra versione resta accanto come copia «nome.conflitto-<pc>-<data>.ext», sincronizzata anche lei. Lo dicono il salvataggio, il ripristino e il passaggio di testimone, con il conto dei file in conflitto; il dettaglio è nel registro attività.',
