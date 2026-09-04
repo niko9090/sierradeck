@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.57',
+    righe: [
+      '**Un progetto sul Drive sa su quale PC lo stai lavorando.** Ogni PC con una chat viva dentro un progetto lascia sul Drive una presenza. Aprendo una chat dello stesso progetto da un altro PC compare l’avviso: «è in lavoro sul PC X dalle 14:20».',
+      '**Il passaggio di testimone.** Dall’avviso, o dal pannello Account, «Prendi il testimone»: l’altro PC salva, mette a dormire le sue chat di quel progetto e lo lascia; qui arriva l’ultimo stato — solo quello che è cambiato — e da quel momento il progetto è tuo. Se l’altro PC è spento, si può forzare, ed è detto chiaro cosa si rischia. Finché il testimone è altrove, quello che fai qui non sale sul Drive.',
+      '**Chi lavora a cosa si vede nel pannello Account**, sotto ogni progetto: in lavoro qui, in lavoro su un altro PC, libero.'
+    ]
+  },
+  {
     versione: '0.12.56',
     righe: [
       '**I progetti viaggiano con le chat.** Nel pannello Account, «Progetti sul Drive»: metti sul Drive la cartella di un progetto e sull’altro PC la trovi, con le sue chat dentro, nella cartella dei progetti di quel PC. Viaggia quello che git terrebbe, con la storia in .git; restano a casa node_modules, quello che i .gitignore escludono e i file oltre 100 MB. Le chat nate su un PC si riaprono sull’altro nella cartella giusta, anche se il percorso è diverso.',
