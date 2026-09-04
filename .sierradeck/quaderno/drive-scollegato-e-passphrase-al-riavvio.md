@@ -62,3 +62,18 @@ Correzione: `Progresso` porta `unita?: 'byte' | 'file'`; l'incrementale emette
 `renderer/progresso-sync.ts` (puro, provato): «Scarico dal Drive — 3 / 40 file».
 **Regola:** chi emette un conteggio dice in cosa conta; chi lo mostra non
 indovina dalla fase.
+
+## 4. «Non mi ricordo quale account Google ho usato» (2026-09-04 sera, 0.12.61)
+
+Con più account (uno per computer) e il token morto, niente in locale diceva
+l'indirizzo. Trovato **provando gli account dai dati**: consenso → `about.get`
+(l'indirizzo) → `files?spaces=appDataFolder` → se ci sono `sierradeck.chiavi`
+/`sierradeck.manifesto` è quello giusto. Script `trova-account-drive.mjs`
+(scratchpad della sessione; lo stesso flusso PKCE dell'app, browser via
+`rundll32 url.dll,FileProtocolHandler` perché `cmd /c start` tronca l'URL
+alla prima `&`). L'account del Drive di Nicholas è **djniko90@gmail.com**
+(466 file). Dalla 0.12.61 l'indirizzo si legge al collegamento
+(`chiediEmail`, scope `drive.appdata` basta per `about.get`), sta in
+`google-drive-token.json` come `email`, sopravvive al rinnovo e si vede nel
+pannello Account sotto «collegato ✓».
+

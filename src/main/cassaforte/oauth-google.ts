@@ -44,6 +44,29 @@ export type Gettoni = {
   /** C'è solo dopo il primo consenso (`access_type=offline`); il rinnovo lo conserva. */
   refreshToken?: string
   scadeIl: number
+  /**
+   * L'indirizzo dell'account Google collegato.
+   *
+   * Chi ha piu' account — uno per computer — e deve ricollegare il Drive non
+   * sa piu' quale aveva usato, e il file dei token non lo diceva. Si legge
+   * al collegamento (`about.get`, che lo scope `drive.appdata` permette) e il
+   * rinnovo lo conserva.
+   */
+  email?: string
+}
+
+/** L'indirizzo dell'account, chiesto al Drive. `undefined` se non risponde: non e' un errore. */
+export async function chiediEmail(accessToken: string, f: Fetch = fetch): Promise<string | undefined> {
+  try {
+    const r = await f('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    })
+    if (!r.ok) return undefined
+    const j = (await r.json()) as { user?: { emailAddress?: unknown } }
+    return typeof j.user?.emailAddress === 'string' ? j.user.emailAddress : undefined
+  } catch {
+    return undefined
+  }
 }
 
 function base64url(b: Buffer): string {
@@ -203,7 +226,8 @@ export function creaFornitoreToken(deps: {
       }
       throw err
     }
-    deps.scrivi(nuovi)
+    // Il rinnovo non riporta l'indirizzo: lo si conserva da prima.
+    deps.scrivi({ ...nuovi, ...(g.email !== undefined ? { email: g.email } : {}) })
     return nuovi.accessToken
   }
 }

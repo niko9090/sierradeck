@@ -9,7 +9,7 @@ type Props = { onChiudi?: () => void; incorporato?: boolean }
 import { descriviProgresso, type ProgressoSync } from '../progresso-sync'
 import { ModaleConferma } from './ModaleConferma'
 
-type StatoDrive = { configurato: boolean; connesso: boolean }
+type StatoDrive = { configurato: boolean; connesso: boolean; email?: string }
 type ElencoProgetti = {
   pc: { id: string; nome: string; cartellaProgetti: string }
   progetti: { id: string; nome: string; locale?: string; altrove: number }[]
@@ -267,6 +267,9 @@ function SezioneSync(): React.JSX.Element | null {
           <div className={drive.connesso ? 'account__pallino account__pallino--ok' : 'account__pallino'}>
             {!drive.configurato ? 'non configurato' : drive.connesso ? 'collegato ✓' : 'non collegato'}
           </div>
+          {drive.connesso && drive.email !== undefined ? (
+            <div className="account__nota" style={{ fontSize: '.8em', wordBreak: 'break-all' }} title="L’account Google del Drive collegato">{drive.email}</div>
+          ) : null}
           {drive.connesso ? (
             <button className="tasto tasto--mini" onClick={scollega} disabled={inCorso}>Scollega</button>
           ) : (

@@ -108,7 +108,7 @@ declare global {
         onCambiato: (cb: (utente: import('@shared/account').Utente | null) => void) => () => void
       }
       drive: {
-        stato: () => Promise<{ configurato: boolean; connesso: boolean }>
+        stato: () => Promise<{ configurato: boolean; connesso: boolean; email?: string }>
         connetti: () => Promise<{ ok: boolean; messaggio?: string }>
         disconnetti: () => Promise<void>
       }

@@ -339,7 +339,7 @@ contextBridge.exposeInMainWorld('gestore', {
   },
   /** Il Drive dell'utente (BYOS): stato, connessione (consenso via browser), distacco. */
   drive: {
-    stato: (): Promise<{ configurato: boolean; connesso: boolean }> =>
+    stato: (): Promise<{ configurato: boolean; connesso: boolean; email?: string }> =>
       ipcRenderer.invoke('drive:stato'),
     connetti: (): Promise<{ ok: boolean; messaggio?: string }> =>
       ipcRenderer.invoke('drive:connetti'),

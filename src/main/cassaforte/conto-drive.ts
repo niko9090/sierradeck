@@ -2,7 +2,7 @@ import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
 import { configGoogle } from '../google-config'
-import { connetti as connettiOAuth, creaFornitoreToken, type Gettoni } from './oauth-google'
+import { connetti as connettiOAuth, creaFornitoreToken, chiediEmail, type Gettoni } from './oauth-google'
 import { creaMagazzinoDrive, creaArchivioDrive } from './google-drive'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
@@ -24,6 +24,8 @@ export type StatoDrive = {
   configurato: boolean
   /** L'utente ha già dato il consenso (c'è un refresh token salvato)? */
   connesso: boolean
+  /** L'account Google collegato, quando lo si conosce. */
+  email?: string
 }
 
 export type ContoDrive = {
@@ -77,7 +79,8 @@ export function apriContoDrive(dati: string): ContoDrive {
         configurato: config() !== undefined,
         // Serve il refresh token: un access token da solo scade in un'ora e non
         // si rinnova. È quello a dire «connesso davvero».
-        connesso: g?.refreshToken !== undefined
+        connesso: g?.refreshToken !== undefined,
+        ...(g?.email !== undefined ? { email: g.email } : {})
       }
     },
 
@@ -86,6 +89,9 @@ export function apriContoDrive(dati: string): ContoDrive {
       if (c === undefined) throw new Error('Google Drive non configurato: mancano le credenziali OAuth dell’app')
       const gettoni = await connettiOAuth({ config: c, apriBrowser })
       scrivi(gettoni)
+      // L'indirizzo, per non doverlo piu' indovinare fra dieci account.
+      const email = await chiediEmail(gettoni.accessToken)
+      if (email !== undefined) scrivi({ ...gettoni, email })
     },
 
     disconnetti() { scarta() },

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   componiUrlAutorizzazione, creaPkce, scambiaCodice, rinnova, creaFornitoreToken,
-  SCOPE_DRIVE, AUTORIZZAZIONE_REVOCATA, type ConfigOAuth, type Gettoni
+  SCOPE_DRIVE, AUTORIZZAZIONE_REVOCATA, chiediEmail, type ConfigOAuth, type Gettoni
 } from '../../src/main/cassaforte/oauth-google'
 
 const CONFIG: ConfigOAuth = { clientId: 'cid.apps.googleusercontent.com', clientSecret: 'sec-123' }
@@ -130,6 +130,28 @@ describe('OAuth Google — fornitore di token con cache', () => {
     await expect(token()).rejects.toThrow(AUTORIZZAZIONE_REVOCATA)
     expect(AUTORIZZAZIONE_REVOCATA).toContain('ricollega Google Drive')
     expect(scartato).toBe(true)
+  })
+
+  it('il rinnovo conserva l indirizzo dell account, che il rinnovo non riporta', async () => {
+    // Chi ha dieci account non deve indovinare quale aveva collegato: l'indirizzo
+    // letto al collegamento deve sopravvivere a ogni rinnovo.
+    const g = googleFinto()
+    let salvato: Gettoni = { accessToken: 'x', refreshToken: 'rt-0', scadeIl: 0, email: 'io@esempio.it' }
+    const token = creaFornitoreToken({
+      config: CONFIG, leggi: () => salvato, scrivi: (x) => { salvato = x }, fetch: g.fetch, adesso: () => 1_000_000
+    })
+    await token()
+    expect(salvato.email).toBe('io@esempio.it')
+    expect(salvato.refreshToken).toBe('rt-0')
+  })
+
+  it('chiediEmail legge l indirizzo dal Drive e tace se non risponde', async () => {
+    const ok = (async () => new Response(JSON.stringify({ user: { emailAddress: 'io@esempio.it' } }), { status: 200 })) as unknown as typeof globalThis.fetch
+    expect(await chiediEmail('at', ok)).toBe('io@esempio.it')
+    const no = (async () => new Response('{}', { status: 403 })) as unknown as typeof globalThis.fetch
+    expect(await chiediEmail('at', no)).toBeUndefined()
+    const giu = (async () => { throw new Error('rete') }) as unknown as typeof globalThis.fetch
+    expect(await chiediEmail('at', giu)).toBeUndefined()
   })
 
   it('un guasto di rete al rinnovo non butta via l autorizzazione', async () => {
