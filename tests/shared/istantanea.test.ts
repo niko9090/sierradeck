@@ -471,6 +471,15 @@ describe('salvare tutti i workspace', () => {
     expect(w.find((x) => x.nome === 'casa')?.perSlot['1']?.panes[0]?.sessionUuid).toBe('di-casa')
   })
 
+  it('l attivo resta al suo posto nell ordine, non in coda', () => {
+    // Il salvataggio metteva l'attivo per ultimo, e il ripristino dopo un
+    // aggiornamento prendeva quell'ordine: workspace rimescolati ogni volta.
+    const conCasaDavanti = { ...archivio, attivo: 'casa' }
+    const w = workspaceDaSalvare(conCasaDavanti, [{ monitor: 'm-1', slot: '1', layout: conChat('adesso') }])
+    expect(w.map((x) => x.nome)).toEqual(['lavoro', 'casa', 'studio'])
+    expect(w[1]?.perSlot['1']?.panes[0]?.sessionUuid).toBe('adesso')
+  })
+
   it('uno slot senza finestra aperta non viene cancellato', () => {
     // Nessuno lo sta guardando adesso: non e' una ragione per buttarlo via.
     const dueMonitor = {
@@ -679,6 +688,34 @@ describe('workspaceDopoRipristino', () => {
       Object.values(w.perSlot).some((l) => l.panes.some((p) => p.sessionUuid === 'sess-wd')))
     expect(dove.map((w) => w.nome)).toEqual(['Wdeck'])
     expect(attivo).toBe('Wdeck')
+  })
+
+  it('l ordine resta quello del computer, non quello del salvataggio', () => {
+    // Il salvataggio (con l'attivo in coda, o preso su un altro PC) ha un
+    // ordine suo: ripristinarlo non deve rimescolare la fascia dei workspace.
+    const archivio = {
+      attivo: 'A',
+      workspace: [
+        { nome: 'A', perSlot: chat('p-a', 'sess-a') },
+        { nome: 'B', perSlot: chat('p-b', 'sess-b') },
+        { nome: 'C', perSlot: chat('p-c', 'sess-c') }
+      ]
+    }
+    const i = nuovaIstantanea({
+      nome: 'x', salvataIl: 'ieri', autopiloti: [],
+      finestre: [{ monitor: 'm1', layout: chat('p-c', 'sess-c').m1! }],
+      workspaceAttivo: 'C',
+      workspace: [
+        { nome: 'C', perSlot: chat('p-c', 'sess-c') },
+        { nome: 'A', perSlot: chat('p-a2', 'sess-a') },
+        { nome: 'Nuovo', perSlot: chat('p-n', 'sess-n') }
+      ]
+    })
+    const { workspace, attivo } = workspaceDopoRipristino(archivio, i)
+    expect(workspace.map((w) => w.nome)).toEqual(['A', 'B', 'C', 'Nuovo'])
+    // E il contenuto e' quello del salvataggio.
+    expect(workspace[0]?.perSlot.m1?.panes[0]?.id).toBe('p-a2')
+    expect(attivo).toBe('C')
   })
 
   it('tiene i workspace del salvataggio che dopo il dedup restano pieni', () => {

@@ -134,8 +134,10 @@ function usaPersistenzaLayout(): void {
     // delle chat che continuano a esistere.** `cambiaVista` è la stessa
     // sostituzione fatta sapendo che chi esce di scena non è chi è stato
     // chiuso — ed esisteva già, per il cambio di workspace.
+    // Senza risalvarlo: e' la verita' del Core, e risalvarla faceva il giro
+    // senza fine raccontato in `persistenza-layout.ts`.
     const smettiDiRicevere = window.gestore.layout.suApplica((l) => {
-      useLayoutStore.getState().cambiaVista(l)
+      persistenza.applicaDaFuori(l)
     })
 
     return () => {

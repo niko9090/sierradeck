@@ -53,6 +53,13 @@ export function apriContoDrive(dati: string): ContoDrive {
       return undefined
     }
   }
+  const scarta = (): void => {
+    try {
+      if (existsSync(fileToken)) rmSync(fileToken)
+    } catch (err) {
+      console.error('[drive] token non rimosso:', err)
+    }
+  }
   const scrivi = (g: Gettoni): void => {
     try {
       scriviAtomico(fileToken, JSON.stringify(g), 'drive')
@@ -81,25 +88,19 @@ export function apriContoDrive(dati: string): ContoDrive {
       scrivi(gettoni)
     },
 
-    disconnetti() {
-      try {
-        if (existsSync(fileToken)) rmSync(fileToken)
-      } catch (err) {
-        console.error('[drive] token non rimosso:', err)
-      }
-    },
+    disconnetti() { scarta() },
 
     magazzino(nomeFile) {
       const c = config()
       if (c === undefined) throw new Error('Google Drive non configurato: mancano le credenziali OAuth dell’app')
-      const token = creaFornitoreToken({ config: c, leggi, scrivi })
+      const token = creaFornitoreToken({ config: c, leggi, scrivi, scarta })
       return creaMagazzinoDrive({ token, ...(nomeFile !== undefined ? { nomeFile } : {}) })
     },
 
     archivio() {
       const c = config()
       if (c === undefined) throw new Error('Google Drive non configurato: mancano le credenziali OAuth dell’app')
-      const token = creaFornitoreToken({ config: c, leggi, scrivi })
+      const token = creaFornitoreToken({ config: c, leggi, scrivi, scarta })
       return creaArchivioDrive({ token })
     }
   }

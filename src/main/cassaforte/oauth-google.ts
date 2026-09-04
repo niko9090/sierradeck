@@ -149,15 +149,33 @@ export async function rinnova(deps: {
 }
 
 /**
+ * Quello che si dice quando Google non rinnova piu'.
+ *
+ * `invalid_grant` al rinnovo vuol dire che il refresh token non vale piu': l'utente
+ * ha revocato l'accesso, o — il caso visto sul campo — l'app OAuth in Google
+ * Cloud e' in modalita' «test», e in quella modalita' Google fa scadere i
+ * refresh token dopo sette giorni. Un salvataggio che fallisce con un codice
+ * non lo dice a nessuno: qui si scollega il Drive, cosi' il pannello Account
+ * torna a «non collegato» con il tasto per ricollegarlo.
+ */
+export const AUTORIZZAZIONE_REVOCATA =
+  'Google non riconosce più l’autorizzazione di SierraDeck al tuo Drive: ricollega Google Drive dal pannello Account. ' +
+  '(Succede da solo ogni 7 giorni finché l’app OAuth in Google Cloud resta in modalità «test».)'
+
+/**
  * Un fornitore di access token per `creaMagazzinoDrive`: restituisce quello in
  * cache finché è valido, lo rinnova quando manca poco. Persiste i token tramite
  * `store` (di solito un file in userData), così la connessione sopravvive alla
  * chiusura del programma.
+ *
+ * `scarta` butta via i token quando Google dice che non valgono piu': da quel
+ * momento il Drive risulta scollegato, che e' la verita'.
  */
 export function creaFornitoreToken(deps: {
   config: ConfigOAuth
   leggi: () => Gettoni | undefined
   scrivi: (g: Gettoni) => void
+  scarta?: () => void
   fetch?: Fetch
   adesso?: () => number
 }): () => Promise<string> {
@@ -169,12 +187,22 @@ export function creaFornitoreToken(deps: {
     if (g.refreshToken === undefined) {
       throw new Error('token scaduto e nessun refresh token: riconnetti Google Drive')
     }
-    const nuovi = await rinnova({
-      config: deps.config,
-      refreshToken: g.refreshToken,
-      ...(deps.fetch !== undefined ? { fetch: deps.fetch } : {}),
-      adesso
-    })
+    let nuovi: Gettoni
+    try {
+      nuovi = await rinnova({
+        config: deps.config,
+        refreshToken: g.refreshToken,
+        ...(deps.fetch !== undefined ? { fetch: deps.fetch } : {}),
+        adesso
+      })
+    } catch (err) {
+      const testo = err instanceof Error ? err.message : String(err)
+      if (testo.includes('invalid_grant')) {
+        deps.scarta?.()
+        throw new Error(AUTORIZZAZIONE_REVOCATA)
+      }
+      throw err
+    }
     deps.scrivi(nuovi)
     return nuovi.accessToken
   }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   componiUrlAutorizzazione, creaPkce, scambiaCodice, rinnova, creaFornitoreToken,
-  SCOPE_DRIVE, type ConfigOAuth, type Gettoni
+  SCOPE_DRIVE, AUTORIZZAZIONE_REVOCATA, type ConfigOAuth, type Gettoni
 } from '../../src/main/cassaforte/oauth-google'
 
 const CONFIG: ConfigOAuth = { clientId: 'cid.apps.googleusercontent.com', clientSecret: 'sec-123' }
@@ -115,12 +115,33 @@ describe('OAuth Google — fornitore di token con cache', () => {
     await expect(token()).rejects.toThrow(/non connesso/)
   })
 
-  it('token scaduto e refresh rifiutato: chiede di riconnettere', async () => {
+  it('token scaduto e refresh rifiutato da Google: scollega il Drive e dice di ricollegarlo', async () => {
+    // Visto sul campo: dopo otto giorni dal collegamento ogni salvataggio
+    // falliva con «rinnovo fallito (400) invalid_grant» e il pannello diceva
+    // ancora «collegato». L'app OAuth in Google Cloud e' in modalita' «test»,
+    // e in quella modalita' i refresh token durano sette giorni.
     const g = googleFinto({ erroreRinnovo: true })
     const salvato: Gettoni = { accessToken: 'x', refreshToken: 'rt-morto', scadeIl: 0 }
+    let scartato = false
     const token = creaFornitoreToken({
-      config: CONFIG, leggi: () => salvato, scrivi: () => {}, fetch: g.fetch, adesso: () => 1_000_000
+      config: CONFIG, leggi: () => salvato, scrivi: () => { throw new Error('non deve salvare niente') },
+      scarta: () => { scartato = true }, fetch: g.fetch, adesso: () => 1_000_000
     })
-    await expect(token()).rejects.toThrow(/rinnovo fallito/)
+    await expect(token()).rejects.toThrow(AUTORIZZAZIONE_REVOCATA)
+    expect(AUTORIZZAZIONE_REVOCATA).toContain('ricollega Google Drive')
+    expect(scartato).toBe(true)
+  })
+
+  it('un guasto di rete al rinnovo non butta via l autorizzazione', async () => {
+    // Un 503 di Google e' un pomeriggio storto, non una revoca: scollegare il
+    // Drive per quello obbligherebbe a ricollegarlo per niente.
+    const fetch = (async () => new Response(JSON.stringify({ error: 'backend_error' }), { status: 503 })) as unknown as typeof globalThis.fetch
+    let scartato = false
+    const token = creaFornitoreToken({
+      config: CONFIG, leggi: () => ({ accessToken: 'x', refreshToken: 'rt', scadeIl: 0 }), scrivi: () => {},
+      scarta: () => { scartato = true }, fetch, adesso: () => 1_000_000
+    })
+    await expect(token()).rejects.toThrow(/rinnovo fallito \(503\)/)
+    expect(scartato).toBe(false)
   })
 })

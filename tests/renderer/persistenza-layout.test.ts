@@ -84,6 +84,22 @@ describe('creaPersistenza', () => {
     expect(a.salvati).toHaveLength(0)
   })
 
+  it('un layout che arriva dal Core si applica senza essere risalvato', async () => {
+    // Il giro senza fine: la finestra applicava il layout spinto dal Core, lo
+    // store notificava, partiva un salvataggio con lo scontrino di un attimo
+    // prima, il Core rifiutava e rispingeva. Sette gigabyte di registro in un
+    // pomeriggio. Quello che arriva dal Core e' gia' la verita' del disco.
+    const a = ambiente()
+    const p = await avviata(a)
+    p.applicaDaFuori(layoutA)
+    expect(a.applicati).toEqual([layoutA])
+    expect(a.salvati).toHaveLength(0)
+    // I cambiamenti veri, dopo, si salvano come sempre.
+    a.setStatoEsportato(layoutB)
+    a.emettiCambiamento()
+    expect(a.salvati).toEqual([layoutB])
+  })
+
   it('un caricamento fallito non blocca i salvataggi successivi', async () => {
     const a = ambiente()
     creaPersistenza(a.deps).avvia()

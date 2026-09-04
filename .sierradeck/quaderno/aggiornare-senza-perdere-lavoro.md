@@ -79,3 +79,27 @@ Entrambi vanno aggiornati insieme, sempre — vedi [[app-android-nativa]].
 
 Un processo lasciato acceso in background da una chat (`npm run dev`) muore
 comunque: per Claude quel turno è chiuso, e noi guardiamo i turni.
+
+## 2026-09-04 — è partito lo stesso sopra una shell che operava (0.12.53)
+
+**Il fatto.** «Ho lanciato l'aggiornamento e anche se una chat aveva la shell
+aperta che operava si è chiuso tutto e ha aggiornato.»
+
+**La causa.** `chatAspetta` (`renderer/ultime-righe.ts`), che è il giudizio
+usato da `inVolo`: se il flusso aveva mai visto il prompt (`prontoVisto`,
+sempre vero dopo il primo turno) comandava **solo il flusso**: 700 ms di
+silenzio = «aspetta te». Un comando lungo che non scrive niente per un
+secondo — una compilazione, un `npm run`, una copia — rendeva la chat «ferma»
+e l'installazione partiva. Lo schermo (`esc to interrupt`) veniva guardato
+solo quando il flusso non aveva mai parlato.
+
+**La correzione.** Lo schermo ha il **veto**: se `aspettaDalloSchermo` dice
+«sta lavorando», la chat non aspetta, qualunque cosa dica il flusso. Il flusso
+resta a comandare i millisecondi (non scrivere in mezzo a un ridisegno) solo
+quando lo schermo non è al lavoro. Vale anche per l'autopilota, che usa lo
+stesso giudizio per decidere quando può parlare a una chat.
+
+**Resta vero:** una shell nuda senza Claude (nessun `❯`, nessun «esc to
+interrupt») non ha segni: `aspettaDalloSchermo` → `undefined`, e con
+`prontoVisto` falso conta come al lavoro (blocca l'installazione 10 min).
+

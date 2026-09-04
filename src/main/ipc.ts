@@ -24,7 +24,7 @@ import {
   type LayoutSalvato
 } from '@shared/workspace'
 import type { WorkspaceStore } from './workspace-store'
-import { creaRegistroConsegne, primoSlotLibero } from './consegne-layout'
+import { creaFreno, creaRegistroConsegne, primoSlotLibero } from './consegne-layout'
 import type { IstantaneeStore } from './istantanee-store'
 import {
   nuovaIstantanea, distribuisci, daRiavviare, daSalvare, workspaceDaSalvare,
@@ -792,6 +792,14 @@ export function registerLayoutIpc(
   const rimandaLaVerita = (win: BrowserWindow, nome: string): void => {
     spingiLayout(win.id, nome, daConsegnare(store.leggi(), nome, win))
   }
+  // Non piu' di una volta al secondo per finestra. A ogni rifiuto, senza freno,
+  // e' stato un giro senza fine: la finestra applicava la verita' spinta, la
+  // risalvava con lo scontrino di un attimo prima, il Core rifiutava e
+  // rispingeva — cinquecento giri al secondo per nove ore, sette gigabyte di
+  // registro. La finestra oggi non risalva piu' cio' che le arriva dal Core;
+  // il freno e' la seconda rete, per il giorno in cui qualcos'altro risponde
+  // a una spinta con un salvataggio sbagliato.
+  const sipuoRispingere = creaFreno(1000)
 
   ipcMain.on('layout:salva', (event, raw: unknown, rawScontrino: unknown, rawCongedate: unknown) => {
     const win = BrowserWindow.fromWebContents(event.sender)
@@ -822,7 +830,7 @@ export function registerLayoutIpc(
       )
       // Solo a chi una consegna l'aveva: chi non ne ha mai avuta è ancora in
       // avvio, e la sua `layout:carica` sta arrivando da sola.
-      if (avuta !== undefined) rimandaLaVerita(win, avuta.workspace)
+      if (avuta !== undefined && sipuoRispingere(win.id, Date.now())) rimandaLaVerita(win, avuta.workspace)
       return
     }
 
@@ -851,7 +859,7 @@ export function registerLayoutIpc(
       registra(
         `[layout] RIFIUTATO — ${esito.perse.length} chat sparirebbero senza che nessuno le abbia chiuse (${chi}): ${racconta(esito.perse)}`
       )
-      rimandaLaVerita(win, consegna.workspace)
+      if (sipuoRispingere(win.id, Date.now())) rimandaLaVerita(win, consegna.workspace)
       return
     }
 

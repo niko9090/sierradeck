@@ -17,6 +17,18 @@ export type Persistenza = {
   avvia: () => void
   /** Scrive lo stato corrente adesso: l'ultima parola alla chiusura. */
   salvaSubito: () => void
+  /**
+   * Porta nello store un layout che arriva **dal Core** — un ripristino che
+   * riempie questa finestra, la verita' rimandata dopo un rifiuto — senza
+   * risalvarlo.
+   *
+   * E' gia' la verita' del disco: riscrivergliela non aggiunge niente, e per
+   * un pomeriggio intero ha fatto un giro senza fine. La finestra applicava
+   * il layout spinto, lo store notificava, il salvataggio partiva con lo
+   * scontrino di un attimo prima, il Core rifiutava e rispingeva, e da capo:
+   * cinquecento giri al secondo, sette gigabyte di registro.
+   */
+  applicaDaFuori: (l: LayoutSalvato) => void
   chiudi: () => void
 }
 
@@ -47,10 +59,11 @@ export type Persistenza = {
 export function creaPersistenza(deps: PersistenzaDeps): Persistenza {
   let caricato = false
   let chiuso = false
+  let applicando = false
   let disiscrivi: (() => void) | undefined
 
   const salvaOra = (): void => {
-    if (!caricato || chiuso) return
+    if (!caricato || chiuso || applicando) return
     deps.salva(deps.esporta())
   }
 
@@ -80,6 +93,17 @@ export function creaPersistenza(deps: PersistenzaDeps): Persistenza {
     // Con la scrittura immediata non c'è più niente in sospeso da svuotare, ma
     // un'uscita è l'unico momento in cui vale la pena di essere ridondanti.
     salvaSubito: salvaOra,
+
+    applicaDaFuori(l) {
+      // Lo store notifica i sottoscritti in modo sincrono: la bandiera copre
+      // esattamente la notifica che questa applicazione provoca, e niente altro.
+      applicando = true
+      try {
+        deps.applica(l)
+      } finally {
+        applicando = false
+      }
+    },
 
     chiudi() {
       chiuso = true

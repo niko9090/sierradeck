@@ -83,6 +83,26 @@ export type RegistroConsegne = {
   dimentica: (winId: number) => void
 }
 
+/**
+ * Un freno: dice se una cosa, per quella chiave, si puo' rifare adesso.
+ *
+ * Serve alle rispinte dopo un rifiuto. Rispingere la verita' a **ogni**
+ * rifiuto e' giusto una volta e disastroso in serie: se la finestra risponde
+ * alla spinta con un altro salvataggio sbagliato, il giro non finisce piu' —
+ * ed e' successo, a cinquecento giri al secondo per nove ore. Una volta al
+ * secondo basta a rimettere in riga una finestra e non basta a riempire un
+ * disco.
+ */
+export function creaFreno(intervalloMs: number): (chiave: number, adesso: number) => boolean {
+  const ultima = new Map<number, number>()
+  return (chiave, adesso) => {
+    const prima = ultima.get(chiave)
+    if (prima !== undefined && adesso - prima < intervalloMs) return false
+    ultima.set(chiave, adesso)
+    return true
+  }
+}
+
 export function creaRegistroConsegne(): RegistroConsegne {
   const slot = new Map<number, string>()
   const consegne = new Map<number, Consegna>()

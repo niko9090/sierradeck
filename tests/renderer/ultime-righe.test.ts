@@ -218,9 +218,14 @@ describe('chatAspetta — due fonti invece di una', () => {
   const schermoFermo = ['> ', '  ? for shortcuts', '❯ ']
   const schermoAlLavoro = ['✻ Sto pensando…', '  (esc to interrupt)']
 
-  it('quando il flusso ha visto il prompt comanda il flusso', () => {
+  it('quando il flusso ha visto il prompt comanda il flusso, ma lo schermo ha il veto', () => {
     const a = { ultimoDato: 1000, prontoVisto: true }
-    expect(chatAspetta(a, schermoAlLavoro, 5000)).toBe(true)
+    // Il flusso tace da quattro secondi, ma lo schermo dice «esc to interrupt»:
+    // sta eseguendo un comando che non scrive niente. E' la chat sopra cui un
+    // aggiornamento e' partito, perche' per il solo flusso «aspettava te».
+    expect(chatAspetta(a, schermoAlLavoro, 5000)).toBe(false)
+    // Schermo fermo e flusso quieto: aspetta te.
+    expect(chatAspetta(a, schermoFermo, 5000)).toBe(true)
     // Ancora dentro la quiete: sta ridisegnando, non si scrive.
     expect(chatAspetta(a, schermoFermo, 1100)).toBe(false)
   })

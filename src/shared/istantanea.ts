@@ -162,16 +162,22 @@ export function workspaceDaSalvare(
     }
   }
 
-  const altri = archivio.workspace.filter((w) => w.nome !== archivio.attivo)
   // Prima di salvare, l'invariante «una chat, un workspace»: se una
   // conversazione risultasse in più workspace — dati vecchi già incrociati, o un
   // salvataggio finito sotto il nome sbagliato — nel salvataggio deve stare in
   // uno solo, altrimenti al ricarico ricompare di là e di qua (ed è il conteggio
   // «1 chat, 2 workspace» su una chat sola). Vince l'attivo, che è quello che si
   // ha davvero davanti.
+  // Nell'ordine dell'archivio, con l'attivo al suo posto. Metterlo in coda —
+  // com'era — riordinava i workspace a ogni salvataggio, e il ripristino che
+  // segue un aggiornamento prendeva quell'ordine per buono: dopo ogni
+  // aggiornamento, i workspace rimescolati.
   return archivio.attivo === ''
     ? unaChatUnWorkspace(archivio.workspace)
-    : unaChatUnWorkspace([...altri, aggiornato], archivio.attivo)
+    : unaChatUnWorkspace(
+        archivio.workspace.map((w) => (w.nome === archivio.attivo ? aggiornato : w)),
+        archivio.attivo
+      )
 }
 
 /**
@@ -204,8 +210,14 @@ export function workspaceDopoRipristino(
   const davanti =
     istantanea.workspaceAttivo ?? workspaceDelleFinestre(istantanea.finestre, salvati)
 
+  // L'ordine e' quello del computer: chi c'era resta dov'era (con il contenuto
+  // del salvataggio), chi arriva dal salvataggio si accoda.
+  const salvatoDi = new Map(salvati.map((w) => [w.nome, w]))
   const fusi = unaChatUnWorkspace(
-    [...archivio.workspace.filter((w) => !nomiSalvati.has(w.nome)), ...salvati],
+    [
+      ...archivio.workspace.map((w) => salvatoDi.get(w.nome) ?? w),
+      ...salvati.filter((w) => !nomiPrima.has(w.nome))
+    ],
     davanti
   )
   const finale = fusi.filter((w) => {

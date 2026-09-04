@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { creaRegistroConsegne, primoSlotLibero } from '../../src/main/consegne-layout'
+import { creaFreno, creaRegistroConsegne, primoSlotLibero } from '../../src/main/consegne-layout'
 
 /**
  * La regola che mancava da quattro giri di correzioni: **un salvataggio è la
@@ -47,6 +47,21 @@ describe('lo slot di una finestra', () => {
     r.slotDi(9, [7, 9])
     r.dimentica(9)
     expect(r.slotDi(21, [7, 21])).toBe('2')
+  })
+})
+
+describe('il freno sulle rispinte', () => {
+  it('per la stessa finestra non piu di una volta nell intervallo', () => {
+    // Rispingere la verita' a ogni rifiuto faceva un giro senza fine con una
+    // finestra che rispondeva con un altro salvataggio sbagliato: nove ore,
+    // sette gigabyte di registro.
+    const puo = creaFreno(1000)
+    expect(puo(2, 10_000)).toBe(true)
+    expect(puo(2, 10_500)).toBe(false)
+    // Un'altra finestra ha il suo conto.
+    expect(puo(3, 10_500)).toBe(true)
+    // Passato l'intervallo, di nuovo.
+    expect(puo(2, 11_000)).toBe(true)
   })
 })
 

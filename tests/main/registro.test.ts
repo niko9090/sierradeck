@@ -31,6 +31,42 @@ describe('il registro', () => {
     expect(r.file()).toBe(join(cartella, 'sierradeck-2026-08-31.log'))
   })
 
+  it('oltre le righe al secondo consentite conta invece di scrivere', () => {
+    // Un salvataggio rifiutato in un giro senza fine: la stessa riga
+    // cinquecento volte al secondo per nove ore, sette gigabyte. Di quaranta
+    // milioni di righe uguali ne bastano cinquanta, le altre si contano.
+    const dati = mkdtempSync(join(tmpdir(), 'sd-registro-'))
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-03T11:07:43.000Z'))
+    const r = apriRegistro(dati, '1.2.3', 'app', { righeAlSecondo: 10, byteAlGiorno: 1024 * 1024 })
+    for (let i = 0; i < 100; i += 1) r.info(`RIFIUTATO ${i}`)
+    const file = join(dati, 'log', 'sierradeck-2026-09-03.log')
+    // La riga d'avvio piu' nove: dieci in tutto in quel secondo.
+    expect(readFileSync(file, 'utf8').split('\n').filter((x) => x !== '')).toHaveLength(10)
+
+    vi.setSystemTime(new Date('2026-09-03T11:07:44.000Z'))
+    r.info('il secondo dopo')
+    const testo = readFileSync(file, 'utf8')
+    expect(testo).toContain('91 righe tralasciate')
+    expect(testo).toContain('il secondo dopo')
+  })
+
+  it('oltre i byte del giorno il file si chiude con una riga che lo dice', () => {
+    const dati = mkdtempSync(join(tmpdir(), 'sd-registro-'))
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-03T11:07:43.000Z'))
+    const r = apriRegistro(dati, '1.2.3', 'app', { righeAlSecondo: 1000, byteAlGiorno: 600 })
+    for (let i = 0; i < 50; i += 1) r.info(`riga numero ${i}`)
+    const file = join(dati, 'log', 'sierradeck-2026-09-03.log')
+    const testo = readFileSync(file, 'utf8')
+    expect(testo).toContain('registro chiuso per oggi')
+    expect(testo).not.toContain('riga numero 49')
+    // Il giorno dopo si riparte.
+    vi.setSystemTime(new Date('2026-09-04T09:00:00.000Z'))
+    r.info('nuovo giorno')
+    expect(readFileSync(join(dati, 'log', 'sierradeck-2026-09-04.log'), 'utf8')).toContain('nuovo giorno')
+  })
+
   it('dice quale processo ha scritto la riga', () => {
     // Il servizio autopiloti scrive nello stesso file del programma: senza un
     // nome, due «sessione avviata» identiche per ogni avvio e nessun modo di

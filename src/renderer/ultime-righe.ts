@@ -187,8 +187,16 @@ export function chatAspetta(
   adesso: number
 ): boolean {
   if (a.morto === true) return false
+  // **Lo schermo ha il veto.** Il flusso tace anche mentre la chat lavora: un
+  // comando lungo — una compilazione, una pubblicazione — puo' non scrivere
+  // niente per secondi, e per il solo flusso quella chat «aspettava te». E'
+  // cosi' che un aggiornamento e' partito sopra una shell che stava operando:
+  // la quiete del flusso l'ha dichiarata ferma, e si e' chiuso tutto. Finche'
+  // sullo schermo c'e' «esc to interrupt», sta lavorando, e basta.
+  const dalloSchermo = aspettaDalloSchermo(schermo)
+  if (dalloSchermo === false) return false
   if (a.prontoVisto) return terminalePronto(a, adesso)
-  return aspettaDalloSchermo(schermo) ?? false
+  return dalloSchermo ?? false
 }
 
 /** Quante righe si tengono per chi vuole guardare dentro: uno sguardo, non un log. */
