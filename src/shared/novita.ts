@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.64',
+    righe: [
+      '**Una chat di un autopilota che lavora da più di un’ora non viene più sospesa.** Il servizio vedeva solo la fine dei turni, e un turno lungo — una compilazione, una migrazione — sembrava silenzio. Adesso il computer manda al servizio, ogni minuto, il battito delle chat governate che stanno lavorando, e il guardiano lo conta come segno di vita.',
+      '**Cambiare workspace passa dallo stesso controllo del salvataggio.** Il layout in uscita non può più far sparire dall’archivio una chat che nessuno ha chiuso: in quel caso resta quello già salvato.',
+      '**Il modale di installazione di Claude Code spiega l’«error code: 5»**: è l’antivirus che blocca l’installatore, con cosa fare.'
+    ]
+  },
+  {
     versione: '0.12.63',
     righe: [
       '**«È il Drive che questo PC usava ✓».** Al collegamento il pannello confronta i file che questo PC aveva caricato con quelli che trova nel Drive scelto, e lo dice: è quello, non è quello (prova un altro account), o in parte. Nessun account da ricordare, nessun account da cambiare.',
