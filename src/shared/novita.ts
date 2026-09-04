@@ -23,6 +23,15 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.53',
+    righe: [
+      '**Un aggiornamento non si installa più sopra una chat che sta eseguendo un comando.** Il giudizio «ha finito e aspetta te» guardava il flusso del terminale, e un comando lungo che tace per un secondo sembrava una chat ferma: l’installazione partiva e chiudeva tutto. Adesso lo schermo ha il veto: finché c’è scritto «esc to interrupt», la chat sta lavorando e si aspetta.',
+      '**Il registro non riempie più il disco.** Un salvataggio rifiutato faceva un giro senza fine fra finestra e Core, cinquecento volte al secondo per nove ore: sette gigabyte di log in un pomeriggio. La finestra non risalva più un layout che le arriva dal Core, il Core rispinge al massimo una volta al secondo, e in ogni caso il registro non scrive più di 50 righe al secondo né più di 200 MB al giorno.',
+      '**I workspace non cambiano più ordine dopo un salvataggio o un ripristino.** Il salvataggio metteva il workspace attivo in coda, e il ripristino dopo un aggiornamento prendeva quell’ordine per buono.',
+      '**Se Google revoca l’autorizzazione al Drive, si vede.** Finché l’app OAuth in Google Cloud è in modalità «test», Google fa scadere il collegamento ogni 7 giorni: prima ogni salvataggio falliva con un codice e il pannello diceva ancora «collegato». Adesso il Drive risulta scollegato, con la spiegazione e il tasto per ricollegarlo.'
+    ]
+  },
+  {
     versione: '0.12.52',
     righe: [
       '**Le notifiche sul telefono non mostrano più caratteri a caso.** L’ultima riga di una chat — quella che compare nella notifica «aspetta te» e sotto ogni chat nell’elenco — veniva letta dal flusso grezzo del terminale, che per un’interfaccia che si ridisegna in posizione finisce sempre con un frammento: mezza riga, uno spinner, un pezzo di codice di colore. Adesso si legge dallo schermo disegnato, saltando cornici e righe fisse dell’interfaccia, e la pulizia dei codici del terminale copre anche le sequenze che prima restavano a metà.'
