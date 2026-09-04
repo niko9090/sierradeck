@@ -637,6 +637,43 @@ describe('flotta di chat', () => {
     expect(stato.sessionId).toBeUndefined()
   })
 
+  it('il supervisore e uno per chat: due fermate insieme non si rubano la sessione', async () => {
+    // Prima la sessione del supervisore stava sull'autopilota: due chat della
+    // stessa flotta che si fermavano insieme leggevano `a` all'inizio e
+    // ognuna scriveva la sua, l'ultima vinceva e l'altra restava orfana.
+    let n = 0
+    const viste: (string | undefined)[] = []
+    server = ambiente({
+      interroga: (prompt, _cwd, sessione) => {
+        if (prompt.includes('va diviso fra')) return SCOMPONE(prompt, _cwd, sessione)
+        viste.push(sessione)
+        n += 1
+        return Promise.resolve({ testo: '{"azione": "prosegui", "perche": "avanti"}', sessionId: sessione ?? `sup-${n}` })
+      },
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'ancora rosso' })
+    })
+    await avvia(server)
+    const id = await creaAp({ tettoChat: 2 })
+    await attendi(() => chatAvviate.length >= 2)
+
+    await Promise.all([
+      chiama('POST', `/hook/stop?ap=${id}&chat=c-1`, eventoStop({ session_id: 's-uno' })),
+      chiama('POST', `/hook/stop?ap=${id}&chat=c-2`, eventoStop({ session_id: 's-due' }))
+    ])
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    const c1 = stato.chats.find((c: any) => c.id === 'c-1')
+    const c2 = stato.chats.find((c: any) => c.id === 'c-2')
+    expect(c1.sessioneSupervisore).toBeDefined()
+    expect(c2.sessioneSupervisore).toBeDefined()
+    expect(c1.sessioneSupervisore).not.toBe(c2.sessioneSupervisore)
+    expect(stato.sessioneSupervisore).toBeUndefined()
+
+    // Alla fermata dopo, ognuna riprende la **sua** conversazione.
+    viste.length = 0
+    await chiama('POST', `/hook/stop?ap=${id}&chat=c-1`, eventoStop({ session_id: 's-uno' }))
+    expect(viste).toEqual([c1.sessioneSupervisore])
+  })
+
   it('a lavoro finito ferma tutte le chat della flotta', async () => {
     server = ambiente({ interroga: SCOMPONE })
     await avvia(server)

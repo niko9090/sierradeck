@@ -100,6 +100,16 @@ export type ChatGovernata = {
   stato: 'lavoro' | 'bloccata' | 'finita'
   cicli: number
   sessionId?: string
+  /**
+   * La sessione del supervisore **di questa chat**.
+   *
+   * Il supervisore e' uno per chat (scelta di Nicholas, 2026-09-05): ognuno
+   * segue il suo compito dall'inizio e non vede i turni delle sorelle come
+   * salti. Prima era una sola sull'autopilota, e due chat della stessa flotta
+   * che si fermavano insieme se la scrivevano a vicenda: l'ultima vinceva e
+   * la conversazione dell'altra restava orfana.
+   */
+  sessioneSupervisore?: string
 }
 
 /** Oltre questo numero di chat contemporanee si ostacolano invece di aiutarsi. */
@@ -292,6 +302,7 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
     return undefined
   }
   const sessionId = stringaNonVuota(o.sessionId)
+  const sessioneSupervisore = stringaNonVuota(o.sessioneSupervisore)
   // «lavoro» è la scelta prudente qui, al contrario che per l'autopilota: una
   // chat data per finita che invece è viva resterebbe dimenticata con il suo
   // processo acceso.
@@ -302,7 +313,8 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
     compito: stringaNonVuota(o.compito) ?? '',
     stato,
     cicli: typeof o.cicli === 'number' && o.cicli >= 0 ? Math.floor(o.cicli) : 0,
-    ...(sessionId !== undefined ? { sessionId } : {})
+    ...(sessionId !== undefined ? { sessionId } : {}),
+    ...(sessioneSupervisore !== undefined ? { sessioneSupervisore } : {})
   }
 }
 

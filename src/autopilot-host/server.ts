@@ -1075,10 +1075,26 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // proseguire senza dire cosa fare.
     if (decisione.tipo !== 'sospendi') {
       const inCerchioDa = ripetizioniFinali(aggiornato.decisioni, traccia(esiti))
+      // **Il supervisore e' uno per chat.** La sua sessione sta sulla chat che
+      // si e' fermata, e li' si riscrive: e' `conservaCambiUtente` a portare
+      // nel salvataggio solo la chat di questo turno, quindi due fermate
+      // insieme non si rubano piu' la sessione a vicenda. Una chat che non ha
+      // ancora un supervisore suo eredita quello dell'autopilota solo se e'
+      // l'unica — e' la stessa conversazione di prima, non una a caso.
+      const miaChat = chatId !== undefined ? aggiornato.chats.find((c) => c.id === chatId) : undefined
+      const sessioneDiPartenza = miaChat !== undefined
+        ? (miaChat.sessioneSupervisore ?? (aggiornato.chats.length === 1 ? aggiornato.sessioneSupervisore : undefined))
+        : aggiornato.sessioneSupervisore
       const { decisione: suggerita, sessionId: sessioneNuova } = await chiediDecisione(
-        aggiornato, esiti, ultimoMessaggio, inCerchioDa, deps.interroga, aggiornato.sessioneSupervisore
+        aggiornato, esiti, ultimoMessaggio, inCerchioDa, deps.interroga, sessioneDiPartenza
       )
-      if (sessioneNuova !== undefined) aggiornato.sessioneSupervisore = sessioneNuova
+      if (sessioneNuova !== undefined) {
+        if (miaChat !== undefined) {
+          aggiornato.chats = aggiornato.chats.map((c) => (c.id === chatId ? { ...c, sessioneSupervisore: sessioneNuova } : c))
+        } else {
+          aggiornato.sessioneSupervisore = sessioneNuova
+        }
+      }
 
       const { mossa, nota } = applicaRete({ a: aggiornato, esiti, inCerchioDa }, suggerita)
       decisione = mossa
