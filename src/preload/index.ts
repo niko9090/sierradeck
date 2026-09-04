@@ -109,6 +109,11 @@ export type RichiestaVista = {
  */
 let scontrino = 0
 
+export type ElencoProgetti = {
+  pc: { id: string; nome: string; cartellaProgetti: string }
+  progetti: { id: string; nome: string; locale?: string; altrove: number }[]
+}
+
 type ConScontrino = { layout: LayoutSalvato; scontrino: number }
 
 /** Registra la ricevuta e passa avanti il layout. */
@@ -327,6 +332,17 @@ contextBridge.exposeInMainWorld('gestore', {
     connetti: (): Promise<{ ok: boolean; messaggio?: string }> =>
       ipcRenderer.invoke('drive:connetti'),
     disconnetti: (): Promise<void> => ipcRenderer.invoke('drive:disconnetti')
+  },
+  /** I progetti sul Drive: quali cartelle viaggiano con le chat, e dove stanno su questo PC. */
+  progetti: {
+    elenca: (): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:elenca'),
+    /** Apre la finestra di Windows per scegliere la cartella da mettere sul Drive. */
+    aggiungi: (): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:aggiungi'),
+    /** Dice dove sta, su questo PC, un progetto arrivato da un altro. */
+    collega: (id: string): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:collega', id),
+    rimuovi: (id: string): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:rimuovi', id),
+    /** Sceglie la cartella in cui questo PC riceve i progetti che arrivano dal Drive. */
+    cartella: (): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:cartella')
   },
   /** La sincronizzazione cifrata: passphrase (cassaforte E2E) + salva/ripristina. */
   sync: {

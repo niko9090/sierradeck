@@ -9,6 +9,73 @@ type Props = { onChiudi?: () => void; incorporato?: boolean }
 import { descriviProgresso, type ProgressoSync } from '../progresso-sync'
 
 type StatoDrive = { configurato: boolean; connesso: boolean }
+type ElencoProgetti = {
+  pc: { id: string; nome: string; cartellaProgetti: string }
+  progetti: { id: string; nome: string; locale?: string; altrove: number }[]
+}
+
+/**
+ * I progetti sul Drive.
+ *
+ * Le chat da sole non bastano: una chat senza la sua cartella si riapre in
+ * una cartella che non c'e'. Da qui si dice quali cartelle viaggiano con le
+ * chat, e dove questo PC riceve quelle che arrivano dagli altri.
+ */
+function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: () => void }): React.JSX.Element | null {
+  const [elenco, setElenco] = useState<ElencoProgetti | undefined>(undefined)
+  const [occupato, setOccupato] = useState(false)
+  useEffect(() => { void window.gestore.progetti.elenca().then(setElenco).catch(() => {}) }, [])
+  const con = (p: Promise<ElencoProgetti>): void => {
+    setOccupato(true)
+    void p.then((e) => { setElenco(e); onCambio() }).catch(() => {}).finally(() => setOccupato(false))
+  }
+  if (elenco === undefined) return null
+  const fermo = inCorso || occupato
+  return (
+    <div className="account__scheda account__scheda--largo">
+      <div className="account__scheda-tit">📁 Progetti sul Drive</div>
+      {elenco.progetti.length === 0 ? (
+        <p className="account__nota">
+          Le chat viaggiano gia'. Metti sul Drive anche la cartella di un progetto, e sull’altro PC la trovi con le sue chat dentro.
+        </p>
+      ) : (
+        <ul className="account__progetti">
+          {elenco.progetti.map((p) => (
+            <li key={p.id} className="account__progetto">
+              <div className="account__progetto-testo">
+                <strong>{p.nome}</strong>
+                <span className="account__nota">
+                  {p.locale !== undefined
+                    ? p.locale
+                    : `non ancora su questo PC: arriva con «Ripristina» in ${elenco.pc.cartellaProgetti}\\${p.nome}`}
+                  {p.altrove > 0 ? ` · su altri ${p.altrove} PC` : ''}
+                </span>
+              </div>
+              <div className="account__scheda-tasti">
+                {p.locale === undefined ? (
+                  <button className="tasto tasto--mini" disabled={fermo} onClick={() => con(window.gestore.progetti.collega(p.id))}>Sta gia' qui…</button>
+                ) : null}
+                <button className="tasto tasto--mini" disabled={fermo} onClick={() => con(window.gestore.progetti.rimuovi(p.id))}>Togli</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="account__tasti">
+        <button className="tasto tasto--primario tasto--mini" disabled={fermo} onClick={() => con(window.gestore.progetti.aggiungi())}>
+          Metti una cartella sul Drive…
+        </button>
+      </div>
+      <p className="account__nota">
+        I progetti che arrivano dagli altri PC finiscono in <code>{elenco.pc.cartellaProgetti}</code>.{' '}
+        <button className="account__link" disabled={fermo} onClick={() => con(window.gestore.progetti.cartella())}>Cambia ▸</button>
+      </p>
+      <p className="account__nota">
+        Viaggia quello che git terrebbe (con la storia in <code>.git</code>); restano a casa <code>node_modules</code>, quello che i <code>.gitignore</code> escludono, e i file oltre 100 MB.
+      </p>
+    </div>
+  )
+}
 type StatoSync = {
   driveConnesso: boolean; haCassaforte: boolean; sbloccato: boolean
   versione?: string; ultimoSalvataggio?: string
@@ -259,11 +326,13 @@ function SezioneSync(): React.JSX.Element | null {
             )}
           </div>
 
+          <SezioneProgetti inCorso={inCorso} onCambio={aggiorna} />
+
           <div className="account__opzioni">
             <label className="account__toggle">
               <input type="checkbox" checked={auto} onChange={commutaAuto} />
               <span>Salvataggio automatico</span>
-              <span className="account__nota">{auto ? 'ogni 15 min, se cambia qualcosa' : 'spento'}</span>
+              <span className="account__nota">{auto ? 'ogni 15 min (5 con un progetto sul Drive), se cambia qualcosa, e alla chiusura' : 'spento'}</span>
             </label>
             <button className="account__link" onClick={apriLog}>Registro attività ▸</button>
           </div>

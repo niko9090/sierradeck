@@ -7,6 +7,8 @@ import { magazzinoInMemoria, type Magazzino } from '../../src/main/cassaforte/ma
 import { archivioInMemoria, type Archivio } from '../../src/main/cassaforte/archivio'
 import { preparaBlocco } from '../../src/main/cassaforte/lavoro'
 import { sblocca, type Cassaforte } from '../../src/main/cassaforte/cifratura'
+import { apriRegistroProgetti, aggiungiProgetto } from '../../src/main/progetti/registro'
+import { creaProgettiSync } from '../../src/main/progetti/sincronia-progetti'
 
 /**
  * Un «Drive» condiviso fra PC finti: il magazzino a blocco unico (per le chiavi)
@@ -214,6 +216,59 @@ describe('sincronia incrementale: giro completo fra due PC', () => {
     })
     expect((await sync.creaPassphrase('segreta')).ok).toBe(true)
     expect(existsSync(join(a.dati, FILE_MAESTRA_RICORDATA))).toBe(false)
+  })
+
+  it('un progetto sul Drive arriva sull altro PC nella sua cartella dei progetti, con .git e senza node_modules', async () => {
+    const drive = driveCondiviso()
+    const a = pc('A'); traccia(a)
+    const b = pc('B'); traccia(b)
+    // Il progetto di A, con un .gitignore, node_modules e la storia git.
+    const progettoA = join(a.dati, '..', 'SierraDeck')
+    for (const [rel, testo] of [
+      ['.gitignore', 'dist/\n'], ['src/main.ts', 'export {}'], ['dist/bundle.js', 'x'],
+      ['node_modules/lib/i.js', 'x'], ['.git/HEAD', 'ref: refs/heads/main']
+    ] as [string, string][]) {
+      mkdirSync(join(progettoA, ...rel.split('/').slice(0, -1)), { recursive: true })
+      writeFileSync(join(progettoA, ...rel.split('/')), testo)
+    }
+    const registroA = apriRegistroProgetti(a.dati)
+    registroA.scrivi(aggiungiProgetto(registroA.leggi(), { pcId: 'pc-A', percorso: progettoA, adesso: 'oggi', id: 'p1' }).registro)
+    const progettiA = creaProgettiSync({ registro: registroA, pcId: () => 'pc-A', cartellaProgetti: () => join(a.dati, '..', 'Progetti') })
+    const syncA = apriSincronia({
+      dati: a.dati, radiceClaude: a.claude, driveConnesso: () => true,
+      magazzino: drive.magazzino, archivio: drive.archivio, progetti: progettiA
+    })
+    expect((await syncA.creaPassphrase('segreta')).ok).toBe(true)
+    const salvato = await syncA.salva()
+    expect(salvato.ok).toBe(true)
+    // Il peso conta anche il progetto.
+    expect((await syncA.info()).file).toBeGreaterThanOrEqual(4)
+
+    // PC B: registro vuoto (arriva con l'assetto), cartella dei progetti sua.
+    const cartellaB = join(b.dati, '..', 'Progetti')
+    const registroB = apriRegistroProgetti(b.dati)
+    const progettiB = creaProgettiSync({ registro: registroB, pcId: () => 'pc-B', cartellaProgetti: () => cartellaB })
+    const syncB = apriSincronia({
+      dati: b.dati, radiceClaude: b.claude, driveConnesso: () => true,
+      magazzino: drive.magazzino, archivio: drive.archivio, progetti: progettiB
+    })
+    expect((await syncB.sblocca('segreta')).ok).toBe(true)
+    const r = await syncB.ripristina()
+    expect(r.ok).toBe(true)
+    const progettoB = join(cartellaB, 'SierraDeck')
+    expect(readFileSync(join(progettoB, 'src', 'main.ts'), 'utf8')).toBe('export {}')
+    expect(readFileSync(join(progettoB, '.git', 'HEAD'), 'utf8')).toBe('ref: refs/heads/main')
+    expect(existsSync(join(progettoB, 'dist'))).toBe(false)
+    expect(existsSync(join(progettoB, 'node_modules'))).toBe(false)
+    // E il registro di B sa dove sta il progetto qui.
+    expect(registroB.leggi().progetti[0]?.percorsi).toEqual({ 'pc-A': progettoA, 'pc-B': progettoB })
+
+    // B lavora e salva: il file nuovo torna su A, e niente di A sparisce.
+    writeFileSync(join(progettoB, 'src', 'nuovo.ts'), 'export const x = 1')
+    expect((await syncB.salva()).ok).toBe(true)
+    expect((await syncA.ripristina()).ok).toBe(true)
+    expect(readFileSync(join(progettoA, 'src', 'nuovo.ts'), 'utf8')).toBe('export const x = 1')
+    expect(existsSync(join(progettoA, 'src', 'main.ts'))).toBe(true)
   })
 
   it('senza sblocco non salva né ripristina', async () => {

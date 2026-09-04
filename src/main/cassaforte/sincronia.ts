@@ -3,7 +3,7 @@ import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
 import { creaCassaforte, sblocca as sbloccaCassaforte, sbloccaConRecupero as sbloccaConRecuperoCassaforte, cambiaPassphrase as cambiaPassphraseCassaforte, type Cassaforte } from './cifratura'
 import type { Progresso } from './motore'
-import { pesaRadici, radiciDaSincronizzare } from './raccolta'
+import { pesaRadici, radiciDaSincronizzare, type Radice } from './raccolta'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
 import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto } from './incrementale'
@@ -106,9 +106,22 @@ export function apriSincronia(deps: {
   log?: (m: string) => void
   /** Il portachiavi del sistema: senza, la maestra vive solo in memoria. */
   portachiavi?: Portachiavi
+  /**
+   * I progetti sul Drive. `radiciLocali` sono quelli con una cartella su
+   * questo PC (si salvano e si pesano); `preparaRipristino` da' una cartella a
+   * chi non ce l'ha e restituisce le radici di tutti, per il secondo tempo del
+   * ripristino; `eDiProgetto` distingue i loro prefissi nel manifesto.
+   */
+  progetti?: {
+    radiciLocali: () => Radice[]
+    preparaRipristino: () => Radice[]
+    eDiProgetto: (prefisso: string) => boolean
+  }
 }): Sincronia {
   const adesso = deps.adesso ?? ((): string => new Date().toISOString())
   const log = deps.log ?? ((): void => {})
+  const radici = (): Radice[] =>
+    radiciDaSincronizzare(deps.dati, deps.radiceClaude, deps.progetti?.radiciLocali() ?? [])
   const fileCassaforte = join(deps.dati, 'cassaforte.json')
   const fileStato = join(deps.dati, 'sync-stato.json')
   const fileManifesto = join(deps.dati, 'sync-manifesto.json')
@@ -250,7 +263,7 @@ export function apriSincronia(deps: {
     },
 
     info() {
-      return pesaRadici(radiciDaSincronizzare(deps.dati, deps.radiceClaude))
+      return pesaRadici(radici())
     },
 
     async creaPassphrase(passphrase) {
@@ -326,7 +339,7 @@ export function apriSincronia(deps: {
         // manifesto locale. Niente conflitto a versione unica — non c'è più un
         // blocco solo — quindi «Salva ora» semplicemente aggiorna ciò che è nuovo.
         const esito = await salvaIncrementale({
-          radici: radiciDaSincronizzare(deps.dati, deps.radiceClaude),
+          radici: radici(),
           maestra,
           archivio: deps.archivio(),
           manifestoPrec: leggiManifestoLocale(),
@@ -373,10 +386,14 @@ export function apriSincronia(deps: {
       if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
       if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
       try {
+        // Primo tempo: l'assetto e le chat. Dentro c'e' il registro dei
+        // progetti, senza il quale i progetti non saprebbero dove andare.
+        const eDiProgetto = deps.progetti?.eDiProgetto ?? ((): boolean => false)
         const esito = await ripristinaIncrementale({
           radici: radiciDaSincronizzare(deps.dati, deps.radiceClaude),
           maestra,
           archivio: deps.archivio(),
+          soloPrefissi: (p) => !eDiProgetto(p),
           ...(deps.emettiProgresso !== undefined ? { onProgresso: deps.emettiProgresso } : {})
         })
         if (esito.illeggibile === true) {
@@ -408,8 +425,24 @@ export function apriSincronia(deps: {
         // Da qui questo PC sa cosa c'è sul Drive: i prossimi salvataggi sono incrementali.
         if (esito.manifesto !== undefined) scriviManifestoLocale(esito.manifesto)
         scriviStato({ ...leggiStato(), ultimoSalvataggio: adesso() })
-        log(`RIPRISTINA ok (${esito.scritti} file scritti)`)
-        return { ok: true, scritti: esito.scritti }
+        // Secondo tempo: i progetti, ognuno nella sua cartella di qui.
+        let scritti = esito.scritti
+        if (deps.progetti !== undefined) {
+          const radiciProgetti = deps.progetti.preparaRipristino()
+          if (radiciProgetti.length > 0) {
+            const secondo = await ripristinaIncrementale({
+              radici: radiciProgetti,
+              maestra,
+              archivio: deps.archivio(),
+              soloPrefissi: eDiProgetto,
+              ...(deps.emettiProgresso !== undefined ? { onProgresso: deps.emettiProgresso } : {})
+            })
+            scritti += secondo.scritti
+            log(`RIPRISTINA progetti: ${secondo.scritti} file in ${radiciProgetti.length} progetti`)
+          }
+        }
+        log(`RIPRISTINA ok (${scritti} file scritti)`)
+        return { ok: true, scritti }
       } catch (e) {
         log(`RIPRISTINA fallito: ${messaggioDi(e)}`)
         return { ok: false, messaggio: messaggioDi(e) }

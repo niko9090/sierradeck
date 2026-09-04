@@ -25,6 +25,18 @@ export type Radice = {
   cartella: string
   /** Quali file prendere. Assente = tutti. Riceve il percorso relativo con `/`. */
   includi?: (relativo: string) => boolean
+  /**
+   * Chi elenca i file, al posto della camminata semplice: i progetti sul Drive
+   * hanno regole loro (`.gitignore`, `node_modules`, un tetto di dimensione)
+   * e le sanno solo loro. Percorsi relativi con `/`.
+   */
+  elenca?: (cartella: string) => Promise<string[]>
+}
+
+/** I file di una radice, con le sue regole. */
+async function fileDi(r: Radice): Promise<string[]> {
+  const elenco = r.elenca !== undefined ? await r.elenca(r.cartella) : await elencaFile(r.cartella)
+  return r.includi === undefined ? elenco : elenco.filter((rel) => r.includi!(rel))
 }
 
 /** Elenca ricorsivamente i file di una cartella, in percorsi relativi. Vuoto se non c'è. */
@@ -60,8 +72,7 @@ export async function raccogli(
 ): Promise<Voce[]> {
   const elenchi: { r: Radice; file: string[] }[] = []
   for (const r of radici) {
-    const file = (await elencaFile(r.cartella)).filter((rel) => r.includi === undefined || r.includi(rel))
-    elenchi.push({ r, file })
+    elenchi.push({ r, file: await fileDi(r) })
   }
   const totale = elenchi.reduce((n, e) => n + e.file.length, 0)
   const voci: Voce[] = []
@@ -174,8 +185,7 @@ export async function firmaRadici(
 ): Promise<Map<string, { size: number; mtime: number; disco: string }>> {
   const firma = new Map<string, { size: number; mtime: number; disco: string }>()
   for (const r of radici) {
-    for (const rel of await elencaFile(r.cartella)) {
-      if (r.includi !== undefined && !r.includi(rel)) continue
+    for (const rel of await fileDi(r)) {
       const disco = join(r.cartella, ...rel.split('/'))
       try {
         const s = await stat(disco)
@@ -192,8 +202,7 @@ export async function pesaRadici(radici: Radice[]): Promise<{ file: number; byte
   let file = 0
   let byte = 0
   for (const r of radici) {
-    for (const rel of await elencaFile(r.cartella)) {
-      if (r.includi !== undefined && !r.includi(rel)) continue
+    for (const rel of await fileDi(r)) {
       try {
         const s = await stat(join(r.cartella, ...rel.split('/')))
         file += 1
@@ -207,7 +216,7 @@ export async function pesaRadici(radici: Radice[]): Promise<{ file: number; byte
 }
 
 /** I file dell'assetto SierraDeck che si sincronizzano: l'allowlist tiene fuori cache e roba per-macchina. */
-const FILE_SIERRADECK = new Set(['workspaces.json', 'impostazioni.json', 'istantanee.json'])
+const FILE_SIERRADECK = new Set(['workspaces.json', 'impostazioni.json', 'istantanee.json', 'progetti-drive.json'])
 
 /**
  * Le radici da sincronizzare per questa macchina.
@@ -224,9 +233,15 @@ const FILE_SIERRADECK = new Set(['workspaces.json', 'impostazioni.json', 'istant
  * *riprendere* una chat richiede il progetto a quel percorso — la stessa cosa già
  * detta: il codice arriva da git, non da qui.
  */
-export function radiciDaSincronizzare(datiSierradeck: string, radiceClaude: string): Radice[] {
+export function radiciDaSincronizzare(
+  datiSierradeck: string,
+  radiceClaude: string,
+  /** Le radici in piu' di questa macchina: i progetti sul Drive che hanno una cartella qui. */
+  extra: Radice[] = []
+): Radice[] {
   return [
     { prefisso: 'sierradeck', cartella: datiSierradeck, includi: (r) => FILE_SIERRADECK.has(r) },
-    { prefisso: 'chat', cartella: join(radiceClaude, 'projects'), includi: (r) => r.endsWith('.jsonl') }
+    { prefisso: 'chat', cartella: join(radiceClaude, 'projects'), includi: (r) => r.endsWith('.jsonl') },
+    ...extra
   ]
 }

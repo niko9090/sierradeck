@@ -1,6 +1,6 @@
 import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell } from 'electron'
 import { basename, dirname, join } from 'node:path'
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, watch } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, watch, copyFileSync } from 'node:fs'
 import { homedir, hostname } from 'node:os'
 import { createHash } from 'node:crypto'
 import { spawn } from 'node:child_process'
@@ -68,7 +68,14 @@ import { claudeDaAggiornare, notaClaude } from './claude-versione'
 import { resolveClaudeCommand } from './config'
 import { leggiAccesso } from './accesso'
 import { apriContoDrive } from './cassaforte/conto-drive'
-import { apriSincronia } from './cassaforte/sincronia'
+import { apriSincronia, type Sincronia } from './cassaforte/sincronia'
+import { apriIdentitaPc } from './progetti/pc'
+import {
+  aggiungiProgetto, apriRegistroProgetti, collegaProgetto, rimuoviProgetto, rimappaCwd, rimappaWorkspace,
+  type ProgettoDrive
+} from './progetti/registro'
+import { creaProgettiSync } from './progetti/sincronia-progetti'
+import { pathToSlug } from './indexer/project-scanner'
 import {
   elencoPlugin, installaPlugin, disinstallaPlugin, commutaPlugin,
   elencoMarketplace, aggiungiMarketplace, rimuoviMarketplace, aggiornaMarketplace, dettagliPlugin
@@ -153,6 +160,8 @@ let scopeStore: ScopeStore | undefined
 let registroGlobale: Registro | undefined
 /** Le sessioni SFTP aperte: si chiudono quando il programma esce. */
 let trasferimenti: Trasferimenti | undefined
+/** La sincronizzazione cifrata: alla chiusura si prova a salvare, se serve. */
+let sincroniaGlobale: Sincronia | undefined
 
 // Un'eccezione non gestita nel main, senza questi gestori, fa **chiudere** l'app
 // di colpo e senza lasciare una riga da nessuna parte: è esattamente il «si
@@ -791,9 +800,56 @@ if (!app.requestSingleInstanceLock()) {
           if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('sync:progresso', p)
         }
       }
+      // I progetti sul Drive: chi e' questo PC, dove riceve i progetti, e il
+      // registro condiviso di quali cartelle viaggiano con le chat.
+      const identitaPc = apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir() })
+      const registroProgetti = apriRegistroProgetti(dati)
+      const progettiSync = creaProgettiSync({
+        registro: registroProgetti,
+        pcId: () => identitaPc.leggi().id,
+        cartellaProgetti: () => identitaPc.leggi().cartellaProgetti,
+        log: registro.info
+      })
+      /**
+       * Le chat nate su un altro PC, portate nelle cartelle di qui.
+       *
+       * Una `cwd` che non esiste e sta dentro il progetto di un altro PC
+       * diventa la stessa sottocartella nel progetto di questo. E la
+       * trascrizione si copia sotto il nuovo slug: Claude Code la cerca nella
+       * cartella che deriva dal percorso, e con un percorso diverso non la
+       * troverebbe — `--resume` a vuoto, cioe' una chat che riparte da zero.
+       */
+      const rimappaChat = (): void => {
+        if (workspaceStore === undefined) return
+        const pc = identitaPc.leggi()
+        const reg = registroProgetti.leggi()
+        if (reg.progetti.length === 0) return
+        const esito = rimappaWorkspace(workspaceStore.leggi(), (cwd) =>
+          rimappaCwd(cwd, reg, pc.id, pc.cartellaProgetti, existsSync).cwd)
+        if (esito.cambi.length === 0) return
+        for (const c of esito.cambi) {
+          const da = join(radiceClaude, 'projects', pathToSlug(c.da), `${c.sessione}.jsonl`)
+          const a = join(radiceClaude, 'projects', pathToSlug(c.a), `${c.sessione}.jsonl`)
+          try {
+            if (existsSync(da) && !existsSync(a)) {
+              mkdirSync(dirname(a), { recursive: true })
+              copyFileSync(da, a)
+            }
+          } catch (err) {
+            registro.errore(`[progetti] trascrizione ${c.sessione} non copiata sotto il nuovo percorso: ${String(err)}`)
+          }
+          registro.info(`[progetti] chat ${c.sessione}: «${c.da}» → «${c.a}»`)
+        }
+        if (!workspaceStore.scrivi(esito.archivio)) {
+          registro.errore('[progetti] archivio dei workspace non riscritto dopo la rimappatura')
+        }
+      }
+      rimappaChat()
+
       const sincronia = apriSincronia({
         dati,
         radiceClaude,
+        progetti: progettiSync,
         driveConnesso: () => contoDrive.stato().connesso,
         // Il magazzino a blocco unico serve alle CHIAVI; l'archivio a più file ai
         // DATI (sincronizzazione incrementale: solo ciò che cambia).
@@ -809,7 +865,63 @@ if (!app.requestSingleInstanceLock()) {
           decifra: (cifrato) => Buffer.from(safeStorage.decryptString(Buffer.from(cifrato, 'base64')), 'base64')
         }
       })
+      sincroniaGlobale = sincronia
       registro.info(`Drive configurato: ${contoDrive.stato().configurato}, connesso: ${contoDrive.stato().connesso}`)
+
+      // I progetti sul Drive, per il pannello Account.
+      const elencoProgetti = (): {
+        pc: { id: string; nome: string; cartellaProgetti: string }
+        progetti: { id: string; nome: string; locale?: string; altrove: number }[]
+      } => {
+        const pc = identitaPc.leggi()
+        const progetti = registroProgetti.leggi().progetti.map((p: ProgettoDrive) => ({
+          id: p.id,
+          nome: p.nome,
+          ...(p.percorsi[pc.id] !== undefined ? { locale: p.percorsi[pc.id] as string } : {}),
+          altrove: Object.keys(p.percorsi).filter((k) => k !== pc.id).length
+        }))
+        return { pc, progetti }
+      }
+      const scegliCartellaDa = async (event: Electron.IpcMainInvokeEvent, titolo: string): Promise<string | undefined> => {
+        const win = BrowserWindow.fromWebContents(event.sender)
+        const opzioni: Electron.OpenDialogOptions = { title: titolo, properties: ['openDirectory', 'createDirectory'] }
+        const esito = win === null ? await dialog.showOpenDialog(opzioni) : await dialog.showOpenDialog(win, opzioni)
+        return esito.canceled ? undefined : esito.filePaths[0]
+      }
+      ipcMain.handle('progetti:elenca', () => elencoProgetti())
+      ipcMain.handle('progetti:aggiungi', async (event) => {
+        const percorso = await scegliCartellaDa(event, 'Quale cartella mettere sul Drive')
+        if (percorso !== undefined) {
+          const { registro: reg, progetto } = aggiungiProgetto(registroProgetti.leggi(), {
+            pcId: identitaPc.leggi().id, percorso, adesso: new Date().toISOString()
+          })
+          registroProgetti.scrivi(reg)
+          registro.info(`[progetti] «${progetto.nome}» sul Drive da ${percorso}`)
+        }
+        return elencoProgetti()
+      })
+      ipcMain.handle('progetti:collega', async (event, rawId: unknown) => {
+        if (typeof rawId === 'string' && rawId !== '') {
+          const percorso = await scegliCartellaDa(event, 'Dove sta questo progetto su questo PC')
+          if (percorso !== undefined) {
+            registroProgetti.scrivi(collegaProgetto(registroProgetti.leggi(), rawId, identitaPc.leggi().id, percorso))
+            rimappaChat()
+          }
+        }
+        return elencoProgetti()
+      })
+      ipcMain.handle('progetti:rimuovi', (_e, rawId: unknown) => {
+        if (typeof rawId === 'string' && rawId !== '') {
+          registroProgetti.scrivi(rimuoviProgetto(registroProgetti.leggi(), rawId))
+          registro.info(`[progetti] ${rawId} tolto dal Drive (i file gia' caricati restano)`)
+        }
+        return elencoProgetti()
+      })
+      ipcMain.handle('progetti:cartella', async (event) => {
+        const percorso = await scegliCartellaDa(event, 'Dove mettere i progetti che arrivano dal Drive')
+        if (percorso !== undefined) identitaPc.impostaCartellaProgetti(percorso)
+        return elencoProgetti()
+      })
       ipcMain.handle('sync:stato', () => sincronia.stato())
       ipcMain.handle('sync:info', () => sincronia.info())
       ipcMain.handle('sync:creaPassphrase', (_e, pw: unknown) =>
@@ -824,14 +936,25 @@ if (!app.requestSingleInstanceLock()) {
           : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
       ipcMain.handle('sync:blocca', () => { sincronia.blocca() })
       ipcMain.handle('sync:salva', (_e, forza: unknown) => sincronia.salva(forza === true))
-      ipcMain.handle('sync:ripristina', () => sincronia.ripristina())
+      ipcMain.handle('sync:ripristina', async () => {
+        const esito = await sincronia.ripristina()
+        // Le chat appena arrivate, nelle cartelle di qui.
+        if (esito.ok) rimappaChat()
+        return esito
+      })
       ipcMain.handle('sync:auto', (_e, attivo: unknown) =>
         sincronia.auto(typeof attivo === 'boolean' ? attivo : undefined))
       // Il salvataggio automatico: ogni 15 minuti prova a salvare, ma solo se
       // serve davvero (acceso, sbloccato, Drive connesso, e dati cambiati) —
       // `salvaSeServe` non fa nulla di pesante negli altri casi. Gira nel thread,
       // non blocca. `unref` così non tiene in vita il processo da solo.
-      const timerAuto = setInterval(() => { void sincronia.salvaSeServe() }, 15 * 60_000)
+      // Ogni cinque minuti quando c'e' un progetto sul Drive: il codice cambia
+      // piu' in fretta delle chat, e sull'altro PC si vuole trovare l'ultimo.
+      let giriAuto = 0
+      const timerAuto = setInterval(() => {
+        giriAuto += 1
+        if (progettiSync.radiciLocali().length > 0 || giriAuto % 3 === 0) void sincronia.salvaSeServe()
+      }, 5 * 60_000)
       timerAuto.unref?.()
       // E un primo giro poco dopo l'avvio: con la maestra che torna dal
       // portachiavi, quello che e' cambiato prima di un riavvio — un
@@ -1967,6 +2090,13 @@ app.on('window-all-closed', () => {
  * claude.exe e la connessione SQLite. Nessuno dei due fallimenti interrompe la
  * chiusura, ma nessuno dei due sparisce in silenzio.
  */
+function conTetto<T>(p: Promise<T>, ms: number): Promise<T | undefined> {
+  return new Promise((risolvi) => {
+    const t = setTimeout(() => risolvi(undefined), ms)
+    p.then((v) => { clearTimeout(t); risolvi(v) }, () => { clearTimeout(t); risolvi(undefined) })
+  })
+}
+
 async function chiudiRisorse(): Promise<void> {
   // Prima di tutto: ritirare un'istruzione mentre le finestre stanno
   // chiudendo significherebbe toglierla dalla coda del servizio per non
@@ -2023,6 +2153,11 @@ app.on('before-quit', (event) => {
   // claude.exe delle finestre, quindi il salvataggio va per forza prima.
   void salvaLayoutDiTutteLeFinestre()
     .catch((err) => console.error('[chiusura] salvataggio del layout fallito:', err))
+    // L'ultimo salvataggio sul Drive, se l'automatico e' acceso e c'e' qualcosa
+    // di cambiato: e' cosi' che l'altro PC trova il lavoro di oggi. Con un
+    // tetto, perche' un'uscita non puo' restare appesa a una rete lenta.
+    .then(() => conTetto(sincroniaGlobale?.salvaSeServe() ?? Promise.resolve(), 45_000))
+    .catch((err) => console.error('[chiusura] salvataggio sul Drive fallito:', err))
     .finally(() => {
       void chiudiRisorse().finally(() => app.quit())
     })

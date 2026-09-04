@@ -37,6 +37,12 @@ export function manifestoVuoto(): Manifesto {
 }
 
 /** Il nome stabile di un file nell'archivio: un hash del suo percorso logico. */
+/** Il pezzo prima della prima barra: la radice a cui il file appartiene. */
+export function prefissoDi(percorso: string): string {
+  const barra = percorso.indexOf('/')
+  return barra === -1 ? percorso : percorso.slice(0, barra)
+}
+
 function nomeDi(percorso: string): string {
   return `f_${createHash('sha256').update(percorso).digest('hex')}`
 }
@@ -99,7 +105,14 @@ export async function salvaIncrementale(deps: {
     const prec = deps.manifestoPrec.file[percorso]
     if (prec === undefined || prec.size !== f.size || prec.mtime !== f.mtime) cambiati.push(percorso)
   }
-  const cancellati = Object.keys(deps.manifestoPrec.file).filter((p) => !firma.has(p))
+  // Si cancella dal Drive solo cio' che **questa** macchina ha smesso di avere,
+  // cioe' i file sotto un prefisso che qui esiste. Un prefisso che qui non c'e'
+  // — il progetto di un altro PC, mai ripristinato su questo — non e' «sparito»:
+  // semplicemente non e' nostro, e toccarlo cancellerebbe il lavoro di un
+  // altro computer dal salvataggio di tutti.
+  const prefissiNostri = new Set(deps.radici.map((r) => r.prefisso))
+  const cancellati = Object.keys(deps.manifestoPrec.file)
+    .filter((p) => !firma.has(p) && prefissiNostri.has(prefissoDi(p)))
 
   const nuovo: Manifesto = { versione: 1, creatoIl: deps.adesso, file: { ...deps.manifestoPrec.file } }
 
@@ -138,6 +151,12 @@ export async function ripristinaIncrementale(deps: {
   maestra: Buffer
   archivio: Archivio
   onProgresso?: (p: Progresso) => void
+  /**
+   * Quali prefissi del manifesto ripristinare adesso. Il ripristino va in due
+   * tempi: prima l'assetto (che contiene il registro dei progetti), poi i
+   * progetti, che senza registro non saprebbero dove andare.
+   */
+  soloPrefissi?: (prefisso: string) => boolean
 }): Promise<{ trovato: boolean; scritti: number; saltati: string[]; manifesto?: Manifesto; illeggibile?: boolean }> {
   const esito = await leggiManifesto(deps.archivio, deps.maestra)
   if (esito.stato === 'assente') return { trovato: false, scritti: 0, saltati: [] }
@@ -145,6 +164,7 @@ export async function ripristinaIncrementale(deps: {
   const manifesto = esito.manifesto
 
   const percorsi = Object.keys(manifesto.file)
+    .filter((p) => deps.soloPrefissi === undefined || deps.soloPrefissi(prefissoDi(p)))
   const voci: Voce[] = []
   let fatto = 0
   await conLimite(percorsi, PARALLELI, async (percorso) => {

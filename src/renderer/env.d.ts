@@ -16,6 +16,11 @@ import type { Anteprima } from '../main/anteprima'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
 import type { CodaVista, DestinazioneVista, ElencoVista, RichiestaVista } from '../preload'
 
+type ElencoProgetti = {
+  pc: { id: string; nome: string; cartellaProgetti: string }
+  progetti: { id: string; nome: string; locale?: string; altrove: number }[]
+}
+
 declare global {
   interface Window {
     gestore: {
@@ -94,6 +99,14 @@ declare global {
         stato: () => Promise<{ configurato: boolean; connesso: boolean }>
         connetti: () => Promise<{ ok: boolean; messaggio?: string }>
         disconnetti: () => Promise<void>
+      }
+      /** I progetti sul Drive: quali cartelle viaggiano con le chat, e dove stanno su questo PC. */
+      progetti: {
+        elenca: () => Promise<ElencoProgetti>
+        aggiungi: () => Promise<ElencoProgetti>
+        collega: (id: string) => Promise<ElencoProgetti>
+        rimuovi: (id: string) => Promise<ElencoProgetti>
+        cartella: () => Promise<ElencoProgetti>
       }
       sync: {
         stato: () => Promise<{

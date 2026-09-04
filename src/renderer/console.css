@@ -3363,3 +3363,11 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 
 /* Velocita e stima accanto alla barra: non devono spingerla fuori riga. */
 .trasf__andatura { white-space: nowrap; }
+
+/* I progetti sul Drive, nel pannello Account. */
+.account__progetti { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s2); }
+.account__progetto { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); flex-wrap: wrap; }
+.account__progetto-testo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.account__progetto-testo .account__nota { font-size: var(--t0, 12px); word-break: break-all; }
+.account__link:disabled { opacity: .5; cursor: default; text-decoration: none; }
+
