@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.58',
+    righe: [
+      '**I conflitti non perdono più niente.** Se due PC hanno scritto lo stesso file di un progetto senza vedersi, vince il più recente e l’altra versione resta accanto come copia «nome.conflitto-<pc>-<data>.ext», sincronizzata anche lei. Lo dicono il salvataggio, il ripristino e il passaggio di testimone, con il conto dei file in conflitto; il dettaglio è nel registro attività.',
+      '**Un ripristino non sovrascrive più il lavoro non ancora salvato.** Un file cambiato qui dopo l’ultimo salvataggio si tiene, se il Drive non è cambiato; e un file che l’altro PC ha cancellato ma qui è stato modificato resta.',
+      '**Il salvataggio parte dal manifesto del Drive, non dalla memoria di questo PC**: due PC che salvano a poca distanza non si cancellano più a vicenda dall’elenco. E i file ripristinati prendono la data di chi li ha salvati, così non risalgono sul Drive per niente.'
+    ]
+  },
+  {
     versione: '0.12.57',
     righe: [
       '**Un progetto sul Drive sa su quale PC lo stai lavorando.** Ogni PC con una chat viva dentro un progetto lascia sul Drive una presenza. Aprendo una chat dello stesso progetto da un altro PC compare l’avviso: «è in lavoro sul PC X dalle 14:20».',
