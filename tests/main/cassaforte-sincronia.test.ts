@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { apriSincronia } from '../../src/main/cassaforte/sincronia'
+import { apriSincronia, FILE_MAESTRA_RICORDATA, type Portachiavi } from '../../src/main/cassaforte/sincronia'
 import { magazzinoInMemoria, type Magazzino } from '../../src/main/cassaforte/magazzino'
 import { archivioInMemoria, type Archivio } from '../../src/main/cassaforte/archivio'
 import { preparaBlocco } from '../../src/main/cassaforte/lavoro'
@@ -149,6 +149,71 @@ describe('sincronia incrementale: giro completo fra due PC', () => {
     const secondo = await syncB.creaPassphrase('altra-passphrase-3')
     expect(secondo.ok).toBe(false)
     expect(secondo.messaggio).toMatch(/esiste già/i)
+  })
+
+  it('con il portachiavi, la maestra torna da sola al riavvio e l automatico puo partire', async () => {
+    // Fino alla 0.12.54 a ogni riavvio serviva la passphrase, e finche' nessuno
+    // la inseriva l'automatico restava fermo in silenzio.
+    const drive = driveCondiviso()
+    const a = pc('A'); traccia(a)
+    const portachiavi: Portachiavi = {
+      disponibile: () => true,
+      cifra: (chiaro) => `dpapi:${chiaro.toString('base64')}`,
+      decifra: (cifrato) => Buffer.from(cifrato.slice('dpapi:'.length), 'base64')
+    }
+    const prima = apriSincronia({
+      dati: a.dati, radiceClaude: a.claude,
+      driveConnesso: () => true, magazzino: drive.magazzino, archivio: drive.archivio, portachiavi
+    })
+    expect((await prima.creaPassphrase('segreta')).ok).toBe(true)
+    expect(existsSync(join(a.dati, FILE_MAESTRA_RICORDATA))).toBe(true)
+    // Il file non contiene la maestra in chiaro.
+    expect(readFileSync(join(a.dati, FILE_MAESTRA_RICORDATA), 'utf8')).toContain('dpapi:')
+
+    // «Riavvio»: una sincronia nuova sugli stessi dati, senza passphrase.
+    const dopo = apriSincronia({
+      dati: a.dati, radiceClaude: a.claude,
+      driveConnesso: () => true, magazzino: drive.magazzino, archivio: drive.archivio, portachiavi
+    })
+    expect((await dopo.stato()).sbloccato).toBe(true)
+    writeFileSync(join(a.claude, 'projects', 'progetto', 'chat.jsonl'), '{"a":1}\n')
+    expect((await dopo.salva()).ok).toBe(true)
+
+    // Bloccare e' una scelta: vale anche per la sessione dopo.
+    dopo.blocca()
+    expect(existsSync(join(a.dati, FILE_MAESTRA_RICORDATA))).toBe(false)
+    const bloccata = apriSincronia({
+      dati: a.dati, radiceClaude: a.claude,
+      driveConnesso: () => true, magazzino: drive.magazzino, archivio: drive.archivio, portachiavi
+    })
+    expect((await bloccata.stato()).sbloccato).toBe(false)
+  })
+
+  it('un portachiavi che non riapre il file lo butta, e si resta bloccati', async () => {
+    // Il file di un altro account Windows, o copiato da un altro PC: non vale
+    // niente e non deve restare li' a fallire a ogni avvio.
+    const drive = driveCondiviso()
+    const a = pc('A'); traccia(a)
+    writeFileSync(join(a.dati, FILE_MAESTRA_RICORDATA), JSON.stringify({ maestra: 'di-un-altro' }))
+    const sync = apriSincronia({
+      dati: a.dati, radiceClaude: a.claude,
+      driveConnesso: () => true, magazzino: drive.magazzino, archivio: drive.archivio,
+      portachiavi: { disponibile: () => true, cifra: (b) => b.toString('base64'), decifra: () => { throw new Error('non mio') } }
+    })
+    expect((await sync.stato()).sbloccato).toBe(false)
+    expect(existsSync(join(a.dati, FILE_MAESTRA_RICORDATA))).toBe(false)
+  })
+
+  it('senza portachiavi, o con il portachiavi non disponibile, si lavora come prima', async () => {
+    const drive = driveCondiviso()
+    const a = pc('A'); traccia(a)
+    const sync = apriSincronia({
+      dati: a.dati, radiceClaude: a.claude,
+      driveConnesso: () => true, magazzino: drive.magazzino, archivio: drive.archivio,
+      portachiavi: { disponibile: () => false, cifra: (b) => b.toString('base64'), decifra: (s) => Buffer.from(s, 'base64') }
+    })
+    expect((await sync.creaPassphrase('segreta')).ok).toBe(true)
+    expect(existsSync(join(a.dati, FILE_MAESTRA_RICORDATA))).toBe(false)
   })
 
   it('senza sblocco non salva né ripristina', async () => {

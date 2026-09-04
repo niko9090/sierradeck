@@ -35,12 +35,17 @@ all'avvio**) esce in silenzio: `if (maestra === undefined || !driveConnesso()) r
 Quindi dopo un aggiornamento l'automatico è fermo finché qualcuno non
 inserisce la passphrase nel pannello Account, e non lo dice a nessuno.
 
-**Scelta di prodotto aperta (decide Nicholas):** conservare la maestra
-avvolta con `safeStorage` (DPAPI, legata all'account Windows) per far
-ripartire l'automatico senza passphrase. Costo: chi ha accesso al profilo
-Windows può aprire la cassaforte senza passphrase; la passphrase resta
-necessaria su un PC nuovo. Alternativa minima: al primo avvio con Drive
-collegato e cassaforte bloccata, un avviso «l'automatico è fermo: sblocca».
+**Deciso da Nicholas il 2026-09-04 (0.12.55):** la maestra si conserva
+avvolta da `safeStorage` (DPAPI, legata all'account Windows) in
+`maestra-portachiavi.json`, accanto alla cassaforte. All'apertura della
+sincronia si riapre da sola (`maestraRicordata`), ogni sblocco/creazione/
+cambio passphrase la ricorda (`adotta`), «Blocca» la toglie anche dal disco
+(è una scelta, vale per la sessione dopo). Un file che il portachiavi non
+riapre (altro account, altro PC) si butta. Costo accettato: chi entra nel
+profilo Windows apre la cassaforte senza passphrase; su un PC nuovo la
+passphrase resta necessaria. In più un primo `salvaSeServe` un minuto dopo
+l'avvio, oltre al giro ogni 15 minuti. Il `Portachiavi` è iniettato da
+`index.ts`, il modulo non dipende da Electron.
 
 ## 3. «La barra avanza ma i MB restano a 0» (0.12.54)
 
@@ -57,4 +62,3 @@ Correzione: `Progresso` porta `unita?: 'byte' | 'file'`; l'incrementale emette
 `renderer/progresso-sync.ts` (puro, provato): «Scarico dal Drive — 3 / 40 file».
 **Regola:** chi emette un conteggio dice in cosa conta; chi lo mostra non
 indovina dalla fase.
-

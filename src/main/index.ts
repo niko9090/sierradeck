@@ -800,7 +800,14 @@ if (!app.requestSingleInstanceLock()) {
         magazzino: (nomeFile) => contoDrive.magazzino(nomeFile),
         archivio: () => contoDrive.archivio(),
         emettiProgresso,
-        log: registro.info
+        log: registro.info,
+        // La chiave-maestra dorme nel portachiavi di Windows (DPAPI, legata a
+        // questo account) perche' l'automatico riparta da solo dopo un riavvio.
+        portachiavi: {
+          disponibile: () => safeStorage.isEncryptionAvailable(),
+          cifra: (chiaro) => safeStorage.encryptString(chiaro.toString('base64')).toString('base64'),
+          decifra: (cifrato) => Buffer.from(safeStorage.decryptString(Buffer.from(cifrato, 'base64')), 'base64')
+        }
       })
       registro.info(`Drive configurato: ${contoDrive.stato().configurato}, connesso: ${contoDrive.stato().connesso}`)
       ipcMain.handle('sync:stato', () => sincronia.stato())
@@ -826,6 +833,12 @@ if (!app.requestSingleInstanceLock()) {
       // non blocca. `unref` così non tiene in vita il processo da solo.
       const timerAuto = setInterval(() => { void sincronia.salvaSeServe() }, 15 * 60_000)
       timerAuto.unref?.()
+      // E un primo giro poco dopo l'avvio: con la maestra che torna dal
+      // portachiavi, quello che e' cambiato prima di un riavvio — un
+      // aggiornamento, un blackout — sale sul Drive senza aspettare un quarto
+      // d'ora. Un minuto lascia partire le finestre e i terminali prima.
+      const primoGiroAuto = setTimeout(() => { void sincronia.salvaSeServe() }, 60_000)
+      primoGiroAuto.unref?.()
       // Il registro della sessione: aprirne la cartella, o sapere dov'è il file.
       ipcMain.handle('log:apri', () => shell.openPath(registro.cartella()))
       ipcMain.handle('log:percorso', () => registro.file())

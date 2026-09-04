@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
 import { creaCassaforte, sblocca as sbloccaCassaforte, sbloccaConRecupero as sbloccaConRecuperoCassaforte, cambiaPassphrase as cambiaPassphraseCassaforte, type Cassaforte } from './cifratura'
@@ -43,6 +43,33 @@ export type StatoSync = {
 
 export type EsitoSemplice = { ok: boolean; messaggio?: string }
 
+/**
+ * Il portachiavi del sistema, dove la chiave-maestra puo' dormire fra una
+ * sessione e l'altra.
+ *
+ * Fino alla 0.12.54 la maestra viveva **solo in memoria**: a ogni riavvio —
+ * ogni aggiornamento — serviva la passphrase, e finche' nessuno la inseriva il
+ * salvataggio automatico restava fermo in silenzio. Per un programma che si
+ * aggiorna da solo e lavora di notte, vuol dire che l'automatico non c'era.
+ *
+ * Scelta di Nicholas (2026-09-04): la maestra si conserva avvolta dal
+ * portachiavi di Windows (`safeStorage`, cioe' DPAPI legata a **questo**
+ * account), cosi' l'automatico riparte da solo. Il costo e' esplicito: chi
+ * entra in questo profilo Windows apre la cassaforte senza passphrase. Su un
+ * altro PC il file non vale niente, e la passphrase resta necessaria.
+ *
+ * Iniettabile, come per le destinazioni SFTP: cosi' il modulo non dipende da
+ * Electron e la regola si prova.
+ */
+export type Portachiavi = {
+  disponibile: () => boolean
+  cifra: (chiaro: Buffer) => string
+  decifra: (cifrato: string) => Buffer
+}
+
+/** Il file, accanto alla cassaforte, con la maestra avvolta dal portachiavi. */
+export const FILE_MAESTRA_RICORDATA = 'maestra-portachiavi.json'
+
 function messaggioDi(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
@@ -77,6 +104,8 @@ export function apriSincronia(deps: {
   emettiProgresso?: (p: Progresso) => void
   /** Dove annotare cosa succede, per il registro della sessione. */
   log?: (m: string) => void
+  /** Il portachiavi del sistema: senza, la maestra vive solo in memoria. */
+  portachiavi?: Portachiavi
 }): Sincronia {
   const adesso = deps.adesso ?? ((): string => new Date().toISOString())
   const log = deps.log ?? ((): void => {})
@@ -102,8 +131,52 @@ export function apriSincronia(deps: {
     scriviAtomico(fileManifesto, JSON.stringify(m), 'sync')
   }
 
-  // La sola cosa in chiaro, e sola in memoria: sparisce alla chiusura o con `blocca`.
+  // La sola cosa in chiaro. In memoria, e — se c'e' un portachiavi — avvolta
+  // su disco perche' l'automatico riparta da solo dopo un riavvio.
   let maestra: Buffer | undefined
+
+  const fileMaestra = join(deps.dati, FILE_MAESTRA_RICORDATA)
+  const dimenticaMaestra = (): void => {
+    try {
+      if (existsSync(fileMaestra)) rmSync(fileMaestra)
+    } catch (err) {
+      console.error('[sync] maestra ricordata non rimossa:', err)
+    }
+  }
+  const ricordaMaestra = (m: Buffer): void => {
+    const p = deps.portachiavi
+    if (p === undefined || !p.disponibile()) return
+    try {
+      scriviAtomico(fileMaestra, JSON.stringify({ maestra: p.cifra(m) }), 'sync')
+    } catch (err) {
+      // Senza portachiavi si lavora come prima: solo in memoria.
+      console.error('[sync] maestra non ricordata:', err)
+    }
+  }
+  /** La maestra della volta scorsa, se il portachiavi la riapre. */
+  const maestraRicordata = (): Buffer | undefined => {
+    const p = deps.portachiavi
+    if (p === undefined || !existsSync(fileMaestra)) return undefined
+    try {
+      const j = JSON.parse(readFileSync(fileMaestra, 'utf8')) as { maestra?: unknown }
+      if (typeof j.maestra !== 'string') throw new Error('forma sconosciuta')
+      const m = p.decifra(j.maestra)
+      if (m.length === 0) throw new Error('vuota')
+      return m
+    } catch (err) {
+      // Un file di un altro account, o di un altro PC, non si apre: non vale
+      // niente e non deve restare li' a fallire a ogni avvio.
+      console.error('[sync] maestra ricordata illeggibile, la butto:', err)
+      dimenticaMaestra()
+      return undefined
+    }
+  }
+  const adotta = (m: Buffer): void => {
+    maestra = m
+    ricordaMaestra(m)
+  }
+  maestra = maestraRicordata()
+  if (maestra !== undefined) log('cassaforte sbloccata dal portachiavi del sistema')
 
   const leggiLocale = (): Cassaforte | undefined => {
     if (!existsSync(fileCassaforte)) return undefined
@@ -195,7 +268,7 @@ export function apriSincronia(deps: {
           return { ok: false, messaggio: `cassaforte creata ma non caricata sul Drive: ${messaggioDi(e)}` }
         }
       }
-      maestra = m
+      adotta(m)
       return { ok: true, chiaveRecupero }
     },
 
@@ -204,7 +277,7 @@ export function apriSincronia(deps: {
       if (c === undefined) return { ok: false, messaggio: 'Nessuna cassaforte: crea prima una passphrase.' }
       const m = sbloccaCassaforte(c, passphrase)
       if (m === undefined) return { ok: false, messaggio: 'Passphrase errata.' }
-      maestra = m
+      adotta(m)
       return { ok: true }
     },
 
@@ -213,7 +286,7 @@ export function apriSincronia(deps: {
       if (c === undefined) return { ok: false, messaggio: 'Nessuna cassaforte.' }
       const m = sbloccaConRecuperoCassaforte(c, codice)
       if (m === undefined) return { ok: false, messaggio: 'Chiave di recupero non valida.' }
-      maestra = m
+      adotta(m)
       return { ok: true }
     },
 
@@ -233,11 +306,15 @@ export function apriSincronia(deps: {
           return { ok: false, messaggio: `passphrase cambiata in locale ma non sul Drive: ${messaggioDi(e)}` }
         }
       }
-      maestra = m
+      adotta(m)
       return { ok: true }
     },
 
-    blocca() { maestra = undefined },
+    // Bloccare e' una scelta: vale anche per la prossima sessione.
+    blocca() {
+      maestra = undefined
+      dimenticaMaestra()
+    },
 
     async salva() {
       log('SALVA richiesto')
