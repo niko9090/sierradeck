@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.54',
+    righe: [
+      '**Il progresso di «Ripristina dal Drive» dice quanti file, non «0,0 MB».** La sincronizzazione incrementale scarica un file alla volta, e il pannello contava quei file come byte: la barra avanzava e i MB restavano a zero. Adesso legge «Scarico dal Drive — 3 / 40 file». Lo stesso per il salvataggio.'
+    ]
+  },
+  {
     versione: '0.12.53',
     righe: [
       '**Un aggiornamento non si installa più sopra una chat che sta eseguendo un comando.** Il giudizio «ha finito e aspetta te» guardava il flusso del terminale, e un comando lungo che tace per un secondo sembrava una chat ferma: l’installazione partiva e chiudeva tutto. Adesso lo schermo ha il veto: finché c’è scritto «esc to interrupt», la chat sta lavorando e si aspetta.',
