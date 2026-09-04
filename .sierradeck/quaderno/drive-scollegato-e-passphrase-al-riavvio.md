@@ -41,3 +41,20 @@ ripartire l'automatico senza passphrase. Costo: chi ha accesso al profilo
 Windows può aprire la cassaforte senza passphrase; la passphrase resta
 necessaria su un PC nuovo. Alternativa minima: al primo avvio con Drive
 collegato e cassaforte bloccata, un avviso «l'automatico è fermo: sblocca».
+
+## 3. «La barra avanza ma i MB restano a 0» (0.12.54)
+
+`ripristinaIncrementale` e `salvaIncrementale` contano i **file** (uno alla
+volta: scarica, decifra / cifra, carica) ed emettevano le fasi `scarico` /
+`comprimo` con `fatto`/`totale` = numero di file. Il pannello trattava
+`carico`/`scarico`/`cifro`/`decifro` come byte e divideva per 1 048 576:
+«Scarico dal Drive — 0,0 MB / 0,0 MB (7%)». Il blocco unico di prima
+(`motore.ts`/`lavoro.ts`) conta davvero i byte, quindi la regola del pannello
+era giusta per lui.
+
+Correzione: `Progresso` porta `unita?: 'byte' | 'file'`; l'incrementale emette
+`carico`/`scarico` con `unita: 'file'`; il testo lo fa `descriviProgresso` in
+`renderer/progresso-sync.ts` (puro, provato): «Scarico dal Drive — 3 / 40 file».
+**Regola:** chi emette un conteggio dice in cosa conta; chi lo mostra non
+indovina dalla fase.
+

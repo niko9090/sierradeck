@@ -353,9 +353,9 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Il progresso di salva/ripristina, a fasi. Restituisce come disiscriversi. */
     onProgresso: (cb: (p: {
       fase: 'raccolgo' | 'comprimo' | 'cifro' | 'carico' | 'scarico' | 'decifro' | 'ripristino'
-      fatto?: number; totale?: number
+      fatto?: number; totale?: number; unita?: 'byte' | 'file'
     }) => void): (() => void) => {
-      const h = (_e: unknown, p: { fase: 'raccolgo' | 'comprimo' | 'cifro' | 'carico' | 'scarico' | 'decifro' | 'ripristino'; fatto?: number; totale?: number }): void => cb(p)
+      const h = (_e: unknown, p: { fase: 'raccolgo' | 'comprimo' | 'cifro' | 'carico' | 'scarico' | 'decifro' | 'ripristino'; fatto?: number; totale?: number; unita?: 'byte' | 'file' }): void => cb(p)
       ipcRenderer.on('sync:progresso', h)
       return () => ipcRenderer.off('sync:progresso', h)
     }

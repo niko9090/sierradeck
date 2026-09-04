@@ -30,12 +30,23 @@ import { ConflittoMagazzino, type Magazzino } from './magazzino'
  */
 export type Progresso =
   | { fase: 'raccolgo'; fatto: number; totale: number }
-  | { fase: 'comprimo'; fatto?: number; totale?: number }
-  | { fase: 'cifro'; fatto?: number; totale?: number }
-  | { fase: 'carico'; fatto?: number; totale?: number }
-  | { fase: 'scarico'; fatto?: number; totale?: number }
-  | { fase: 'decifro'; fatto?: number; totale?: number }
+  | { fase: 'comprimo'; fatto?: number; totale?: number; unita?: UnitaProgresso }
+  | { fase: 'cifro'; fatto?: number; totale?: number; unita?: UnitaProgresso }
+  | { fase: 'carico'; fatto?: number; totale?: number; unita?: UnitaProgresso }
+  | { fase: 'scarico'; fatto?: number; totale?: number; unita?: UnitaProgresso }
+  | { fase: 'decifro'; fatto?: number; totale?: number; unita?: UnitaProgresso }
   | { fase: 'ripristino'; fatto: number; totale: number }
+
+/**
+ * In cosa sono contati `fatto` e `totale`.
+ *
+ * Il blocco unico di prima contava i **byte**, e il pannello li mostrava in
+ * MB. La sincronizzazione incrementale conta i **file** — un file alla volta,
+ * cifrato e caricato — e usava le stesse fasi: il pannello divideva «3 di 40
+ * file» per un milione e scriveva «0,0 MB / 0,0 MB» con la barra che
+ * avanzava. Senza l'unita' non c'e' modo di distinguere i due casi.
+ */
+export type UnitaProgresso = 'byte' | 'file'
 
 export type EsitoCarica = {
   /** La versione nuova sul magazzino: chi chiama la ricorda per il prossimo caricamento. */

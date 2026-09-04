@@ -6,15 +6,7 @@ import { valutaPassword, REGOLE_PASSWORD } from '@shared/password'
 
 type Props = { onChiudi?: () => void; incorporato?: boolean }
 
-const ETICHETTA_FASE: Record<string, string> = {
-  raccolgo: 'Raccolgo i file',
-  comprimo: 'Comprimo',
-  cifro: 'Cifro',
-  carico: 'Carico sul Drive',
-  scarico: 'Scarico dal Drive',
-  decifro: 'Decifro',
-  ripristino: 'Ripristino i file'
-}
+import { descriviProgresso, type ProgressoSync } from '../progresso-sync'
 
 type StatoDrive = { configurato: boolean; connesso: boolean }
 type StatoSync = {
@@ -45,7 +37,7 @@ function SezioneSync(): React.JSX.Element | null {
   const [conflitto, setConflitto] = useState(false)
   const [info, setInfo] = useState<{ file: number; byte: number } | undefined>(undefined)
   const [auto, setAuto] = useState(false)
-  const [progresso, setProgresso] = useState<{ fase: string; fatto?: number; totale?: number } | undefined>(undefined)
+  const [progresso, setProgresso] = useState<ProgressoSync | undefined>(undefined)
 
   const aggiorna = (): void => {
     void window.gestore.drive.stato().then(setDrive).catch(() => {})
@@ -117,16 +109,10 @@ function SezioneSync(): React.JSX.Element | null {
       {msg !== undefined ? <div className="riga__stato">{msg}</div> : null}
 
       {inCorso && progresso !== undefined ? ((): React.JSX.Element => {
-        const trasferimento = ['carico', 'scarico', 'cifro', 'decifro'].includes(progresso.fase)
-        const haQuota = progresso.totale !== undefined && progresso.fatto !== undefined && progresso.totale > 0
-        const perc = haQuota ? Math.round((progresso.fatto! / progresso.totale!) * 100) : undefined
-        const quota = (n: number): string => trasferimento ? `${(n / 1048576).toFixed(1)} MB` : String(n)
+        const { testo, perc } = descriviProgresso(progresso)
         return (
           <div className="account__prog">
-            <div className="account__prog-testo">
-              {ETICHETTA_FASE[progresso.fase] ?? progresso.fase}
-              {haQuota ? ` — ${quota(progresso.fatto!)} / ${quota(progresso.totale!)} (${perc}%)` : '…'}
-            </div>
+            <div className="account__prog-testo">{testo}</div>
             <div className="account__barra">
               <div
                 className={perc !== undefined ? 'account__barra-riemp' : 'account__barra-riemp account__barra-riemp--indet'}

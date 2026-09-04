@@ -120,7 +120,7 @@ export async function salvaIncrementale(deps: {
     // Mutazione fra due `await`: JS è a thread singolo, non c'è corsa vera.
     nuovo.file[percorso] = { nome, size: f.size, mtime: f.mtime }
     fatto += 1
-    deps.onProgresso?.({ fase: 'comprimo', fatto, totale: cambiati.length })
+    deps.onProgresso?.({ fase: 'carico', fatto, totale: cambiati.length, unita: 'file' })
   })
 
   await conLimite(cancellati, PARALLELI, async (percorso) => {
@@ -152,7 +152,7 @@ export async function ripristinaIncrementale(deps: {
     if (voce === undefined) return
     const blob = await deps.archivio.scarica(voce.nome)
     fatto += 1
-    deps.onProgresso?.({ fase: 'scarico', fatto, totale: percorsi.length })
+    deps.onProgresso?.({ fase: 'scarico', fatto, totale: percorsi.length, unita: 'file' })
     if (blob === undefined) return
     const chiaro = await decifra(deps.maestra, blob)
     if (chiaro === undefined) return
