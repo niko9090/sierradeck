@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.61',
+    righe: [
+      '**Il pannello Account dice quale account Google è collegato al Drive.** Chi ha più account, uno per computer, e deve ricollegare il Drive non deve più indovinare: l’indirizzo si legge al collegamento e resta scritto sotto «collegato ✓».'
+    ]
+  },
+  {
     versione: '0.12.60',
     righe: [
       '**«Togli» pulisce anche il Drive.** Togliere un progetto dal Drive ora cancella lassù i suoi file, la presenza e la staffetta, dopo una conferma. Le cartelle sui PC restano come sono; se il Drive non risponde, il progetto resta in elenco e si riprova dopo.'
