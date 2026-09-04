@@ -131,7 +131,10 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
     </div>
   )
 }
-type Riconoscimento = { email?: string; fileSierraDeck?: number; ultimoSalvataggio?: string; cassaforteSulDrive?: boolean }
+type Riconoscimento = {
+  email?: string; fileSierraDeck?: number; ultimoSalvataggio?: string; cassaforteSulDrive?: boolean
+  conosciuti?: number; coincidenze?: number
+}
 type StatoSync = {
   driveConnesso: boolean; haCassaforte: boolean; sbloccato: boolean; cassaforteDiversa?: boolean
   versione?: string; ultimoSalvataggio?: string
@@ -183,7 +186,7 @@ function SezioneSync(): React.JSX.Element | null {
   const connetti = (): void => conInCorso(
     window.gestore.drive.connetti().then((r) => {
       if (!r.ok) { setMsg(r.messaggio ?? 'connessione non riuscita'); return }
-      setRiconoscimento({ ...(r.email !== undefined ? { email: r.email } : {}), fileSierraDeck: r.fileSierraDeck ?? 0, ...(r.ultimoSalvataggio !== undefined ? { ultimoSalvataggio: r.ultimoSalvataggio } : {}), cassaforteSulDrive: r.cassaforteSulDrive === true })
+      setRiconoscimento(r)
     })
   )
   // Un altro account: si scollega questo e si riapre la scelta.
@@ -191,8 +194,18 @@ function SezioneSync(): React.JSX.Element | null {
     setRiconoscimento(undefined)
     conInCorso(window.gestore.drive.disconnetti().then(() => window.gestore.drive.connetti()).then((r) => {
       if (!r.ok) { setMsg(r.messaggio ?? 'connessione non riuscita'); return }
-      setRiconoscimento({ ...(r.email !== undefined ? { email: r.email } : {}), fileSierraDeck: r.fileSierraDeck ?? 0, ...(r.ultimoSalvataggio !== undefined ? { ultimoSalvataggio: r.ultimoSalvataggio } : {}), cassaforteSulDrive: r.cassaforteSulDrive === true })
+      setRiconoscimento(r)
     }))
+  }
+  // «Va bene questo»: se il Drive e' nuovo per SierraDeck, quello che si
+  // sapeva del Drive di prima non vale piu', e il prossimo salvataggio
+  // rimanda tutto. Solo qui, su scelta: chi sta provando gli account non
+  // deve perdere niente.
+  const vaBeneQuesto = (): void => {
+    const nuovo = riconoscimento?.cassaforteSulDrive !== true
+    setRiconoscimento(undefined)
+    if (nuovo) conInCorso(window.gestore.sync.cambiatoDrive())
+    else aggiorna()
   }
   const adottaCassaforte = (): void => conInCorso(
     window.gestore.sync.adottaCassaforteDelDrive().then((r) => {
@@ -317,13 +330,21 @@ function SezioneSync(): React.JSX.Element | null {
           <p className="account__nota">
             <strong>{riconoscimento.email ?? 'account non letto'}</strong>
             {riconoscimento.cassaforteSulDrive
-              ? ` · qui ci sono ${riconoscimento.fileSierraDeck} file di SierraDeck${riconoscimento.ultimoSalvataggio !== undefined ? `, ultimo salvataggio il ${new Date(riconoscimento.ultimoSalvataggio).toLocaleString('it-IT')}` : ''}. È un Drive già usato da SierraDeck.`
-              : ' · su questo Drive non c’è niente di SierraDeck: per il programma è un account nuovo.'}
+              ? ` · qui ci sono ${riconoscimento.fileSierraDeck ?? 0} file di SierraDeck${riconoscimento.ultimoSalvataggio !== undefined ? `, ultimo salvataggio il ${new Date(riconoscimento.ultimoSalvataggio).toLocaleString('it-IT')}` : ''}.`
+              : ' · su questo Drive non c’è niente di SierraDeck.'}
           </p>
-          <p className="account__nota">Se cercavi il Drive con le chat di un altro PC e non è questo, prova un altro account: il programma dirà cosa c’è dentro.</p>
+          <p className="account__nota">
+            {(riconoscimento.conosciuti ?? 0) === 0
+              ? 'Questo PC non aveva ancora salvato niente, quindi non posso dire se lo usava: guarda la data dell’ultimo salvataggio.'
+              : (riconoscimento.coincidenze ?? 0) * 10 >= (riconoscimento.conosciuti ?? 0) * 9
+                ? `✓ È il Drive che questo PC usava: dei ${riconoscimento.conosciuti} file che aveva caricato, ${riconoscimento.coincidenze} sono qui.`
+                : (riconoscimento.coincidenze ?? 0) === 0
+                  ? `✗ Non è il Drive che questo PC usava: dei ${riconoscimento.conosciuti} file che aveva caricato, qui non ce n’è nessuno. Prova un altro account.`
+                  : `? In parte: dei ${riconoscimento.conosciuti} file che questo PC aveva caricato, qui ce ne sono ${riconoscimento.coincidenze}.`}
+          </p>
           <div className="account__tasti">
             <button className="tasto" onClick={provaAltroAccount} disabled={inCorso}>Prova un altro account</button>
-            <button className="tasto tasto--primario" onClick={() => { setRiconoscimento(undefined); aggiorna() }} disabled={inCorso}>Va bene questo</button>
+            <button className="tasto tasto--primario" onClick={vaBeneQuesto} disabled={inCorso}>Va bene questo</button>
           </div>
         </div>
       ) : null}
@@ -342,7 +363,7 @@ function SezioneSync(): React.JSX.Element | null {
         <div className="account__scheda account__scheda--largo">
           <p className="account__nota">
             <strong>La cassaforte di questo PC non è quella del Drive collegato{drive.email !== undefined ? ` (${drive.email})` : ''}.</strong>{' '}
-            Con due cassaforti i dati non si aprono. Per usare questo Drive prendi la sua cassaforte: ti chiederà la passphrase di quel Drive, e quella di questo PC viene messa da parte, non cancellata. Al primo salvataggio le chat e i progetti di qui salgono su questo Drive.
+            Probabilmente questo non è il Drive che questo PC usava: con «Cambia Drive» torni a scegliere l’account. Se invece vuoi davvero lavorare su questo Drive, prendi la sua cassaforte: ti chiederà la passphrase di quel Drive, e quella di questo PC viene messa da parte, non cancellata.
           </p>
           <div className="account__tasti">
             <button className="tasto" onClick={scollega} disabled={inCorso}>Cambia Drive</button>

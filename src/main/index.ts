@@ -775,13 +775,16 @@ if (!app.requestSingleInstanceLock()) {
         const prima = contoDrive.stato().email
         try {
           const r = await contoDrive.connetti((url) => { void shell.openExternal(url) })
-          registro.info(`Drive: connesso ✓ ${r.email ?? '(indirizzo non letto)'} · ${r.fileSierraDeck} file di SierraDeck${r.ultimoSalvataggio !== undefined ? `, ultimo salvataggio ${r.ultimoSalvataggio}` : ''}`)
-          // Un Drive diverso da prima, o vuoto: quello che si sapeva del Drive
-          // di prima non vale, e il prossimo salvataggio rimanda tutto.
-          if ((prima !== undefined && r.email !== undefined && prima !== r.email) || !r.cassaforteSulDrive) {
-            sincronia.cambiatoDrive()
-          }
-          return { ok: true, ...r }
+          // E' il Drive che QUESTO PC usava? Si confrontano i nomi dei file che
+          // il PC aveva caricato (il suo manifesto) con quelli lassu': sono hash
+          // dei percorsi, e una coincidenza piena non lascia dubbi. Niente si
+          // azzera qui: chi sta provando gli account non deve perdere niente.
+          const conosciuti = sincronia.nomiConosciuti()
+          const lassu = new Set(r.nomi)
+          const coincidenze = conosciuti.filter((n) => lassu.has(n)).length
+          const { nomi: _nomi, ...resto } = r
+          registro.info(`Drive: connesso ✓ ${r.email ?? '(indirizzo non letto)'} · ${r.fileSierraDeck} file di SierraDeck${r.ultimoSalvataggio !== undefined ? `, ultimo salvataggio ${r.ultimoSalvataggio}` : ''} · ${coincidenze}/${conosciuti.length} file di questo PC riconosciuti${prima !== undefined && r.email !== undefined && prima !== r.email ? ` (prima era ${prima})` : ''}`)
+          return { ok: true, ...resto, conosciuti: conosciuti.length, coincidenze }
         } catch (err) {
           const m = err instanceof Error ? err.message : String(err)
           registro.errore(`Drive: connessione fallita: ${m}`)
@@ -1006,6 +1009,7 @@ if (!app.requestSingleInstanceLock()) {
           : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
       ipcMain.handle('sync:blocca', () => { sincronia.blocca() })
       ipcMain.handle('sync:adottaCassaforteDelDrive', () => sincronia.adottaCassaforteDelDrive())
+      ipcMain.handle('sync:cambiatoDrive', () => { sincronia.cambiatoDrive() })
       ipcMain.handle('sync:salva', (_e, forza: unknown) => sincronia.salva(forza === true))
       ipcMain.handle('sync:ripristina', async () => {
         const esito = await sincronia.ripristina()

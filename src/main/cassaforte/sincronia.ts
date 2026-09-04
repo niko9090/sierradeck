@@ -117,6 +117,12 @@ export type Sincronia = {
    */
   cambiatoDrive: () => void
   /**
+   * I nomi dei file che questo PC ha caricato sul suo Drive, secondo il suo
+   * manifesto. Confrontati con quelli di un Drive appena collegato dicono se
+   * e' **quello**: i nomi sono hash dei percorsi, non si indovinano.
+   */
+  nomiConosciuti: () => string[]
+  /**
    * Toglie dal Drive i file di un progetto (e presenza e staffetta). Le
    * cartelle sui PC restano: si toglie il viaggio, non il lavoro.
    */
@@ -494,6 +500,10 @@ export function apriSincronia(deps: {
       this.cambiatoDrive()
       log('cassaforte del Drive adottata: quella di questo PC e\' messa da parte, serve la passphrase del Drive')
       return { ok: true }
+    },
+
+    nomiConosciuti() {
+      return Object.values(leggiManifestoLocale().file).map((v) => v.nome)
     },
 
     cambiatoDrive() {

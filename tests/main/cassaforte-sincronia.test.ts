@@ -408,6 +408,23 @@ describe('sincronia incrementale: giro completo fra due PC', () => {
     expect(existsSync(join(a.claude, 'projects', 'progetto', 'di-a.jsonl'))).toBe(true)
   })
 
+  it('nomiConosciuti sono i nomi del manifesto locale: quelli con cui si riconosce il proprio Drive', async () => {
+    const drive = driveCondiviso()
+    const a = pc('A'); traccia(a)
+    writeFileSync(join(a.claude, 'projects', 'progetto', 'uno.jsonl'), '{"a":1}')
+    writeFileSync(join(a.claude, 'projects', 'progetto', 'due.jsonl'), '{"a":2}')
+    const syncA = apri(a, drive)
+    expect(syncA.nomiConosciuti()).toEqual([])
+    await syncA.creaPassphrase('segreta')
+    await syncA.salva()
+    const nomi = syncA.nomiConosciuti()
+    expect(nomi).toHaveLength(2)
+    const lassu = await drive.archivio().elenca()
+    expect(nomi.every((n) => lassu.has(n))).toBe(true)
+    syncA.cambiatoDrive()
+    expect(syncA.nomiConosciuti()).toEqual([])
+  })
+
   it('senza sblocco non salva né ripristina', async () => {
     const drive = driveCondiviso()
     const a = pc('A'); traccia(a)

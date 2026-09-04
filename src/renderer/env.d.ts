@@ -112,6 +112,7 @@ declare global {
         connetti: () => Promise<{
           ok: boolean; messaggio?: string
           email?: string; fileSierraDeck?: number; ultimoSalvataggio?: string; cassaforteSulDrive?: boolean
+          conosciuti?: number; coincidenze?: number
         }>
         disconnetti: () => Promise<void>
       }
@@ -139,6 +140,7 @@ declare global {
         cambiaPassphrase: (vecchia: string, nuova: string) => Promise<{ ok: boolean; messaggio?: string }>
         blocca: () => Promise<void>
         adottaCassaforteDelDrive: () => Promise<{ ok: boolean; messaggio?: string }>
+        cambiatoDrive: () => Promise<void>
         salva: (forza?: boolean) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number }>
         auto: (attivo?: boolean) => Promise<boolean>
         ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string; conflitti?: number }>

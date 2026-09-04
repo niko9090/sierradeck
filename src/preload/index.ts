@@ -344,6 +344,8 @@ contextBridge.exposeInMainWorld('gestore', {
     connetti: (): Promise<{
       ok: boolean; messaggio?: string
       email?: string; fileSierraDeck?: number; ultimoSalvataggio?: string; cassaforteSulDrive?: boolean
+      /** Quanti file questo PC aveva caricato sul suo Drive, e quanti di quelli stanno in questo. */
+      conosciuti?: number; coincidenze?: number
     }> =>
       ipcRenderer.invoke('drive:connetti'),
     disconnetti: (): Promise<void> => ipcRenderer.invoke('drive:disconnetti')
@@ -385,6 +387,8 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Mette da parte la cassaforte di questo PC e prende quella del Drive collegato. */
     adottaCassaforteDelDrive: (): Promise<{ ok: boolean; messaggio?: string }> =>
       ipcRenderer.invoke('sync:adottaCassaforteDelDrive'),
+    /** Questo Drive e' nuovo per SierraDeck: si dimentica cio' che si sapeva di quello di prima. */
+    cambiatoDrive: (): Promise<void> => ipcRenderer.invoke('sync:cambiatoDrive'),
     info: (): Promise<{ file: number; byte: number }> => ipcRenderer.invoke('sync:info'),
     creaPassphrase: (passphrase: string): Promise<{ ok: boolean; chiaveRecupero?: string; messaggio?: string }> =>
       ipcRenderer.invoke('sync:creaPassphrase', passphrase),

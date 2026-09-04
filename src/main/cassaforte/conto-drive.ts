@@ -40,6 +40,8 @@ export type Riconoscimento = {
   ultimoSalvataggio?: string
   /** C'e' una cassaforte: quel Drive e' gia' stato usato da SierraDeck. */
   cassaforteSulDrive: boolean
+  /** I nomi dei file dell'app lassu': chi chiama li confronta con quelli che questo PC aveva caricato. */
+  nomi: string[]
 }
 
 export type ContoDrive = {
@@ -113,7 +115,8 @@ export function apriContoDrive(dati: string): ContoDrive {
         ...(esame.email !== undefined ? { email: esame.email } : {}),
         fileSierraDeck: esame.file.filter((f) => f.name.startsWith('sierradeck.') || f.name.startsWith('f_')).length,
         ...(elenco?.modifiedTime !== undefined ? { ultimoSalvataggio: elenco.modifiedTime } : {}),
-        cassaforteSulDrive: nomi.has('sierradeck.chiavi')
+        cassaforteSulDrive: nomi.has('sierradeck.chiavi'),
+        nomi: [...nomi]
       }
     },
 
