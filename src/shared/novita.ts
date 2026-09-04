@@ -23,6 +23,14 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.56',
+    righe: [
+      '**I progetti viaggiano con le chat.** Nel pannello Account, «Progetti sul Drive»: metti sul Drive la cartella di un progetto e sull’altro PC la trovi, con le sue chat dentro, nella cartella dei progetti di quel PC. Viaggia quello che git terrebbe, con la storia in .git; restano a casa node_modules, quello che i .gitignore escludono e i file oltre 100 MB. Le chat nate su un PC si riaprono sull’altro nella cartella giusta, anche se il percorso è diverso.',
+      '**Il salvataggio automatico è ogni 5 minuti quando c’è un progetto sul Drive, e parte anche alla chiusura** (e quindi prima di un aggiornamento), così l’altro PC trova il lavoro di oggi.',
+      '**Un PC non cancella più dal Drive il lavoro di un altro.** Il salvataggio toglie dal Drive solo i file che questo PC ha smesso di avere, mai quelli di un progetto che qui non è mai arrivato.'
+    ]
+  },
+  {
     versione: '0.12.55',
     righe: [
       '**Il salvataggio automatico sul Drive riparte da solo dopo un riavvio.** La chiave della cassaforte dorme nel portachiavi di Windows, legata al tuo account: dopo un aggiornamento non serve più inserire la passphrase perché l’automatico riprenda, e un primo salvataggio parte un minuto dopo l’avvio. Chi entra nel tuo profilo Windows apre la cassaforte senza passphrase; su un altro PC la passphrase resta necessaria. «Blocca» toglie la chiave anche dal portachiavi.'
