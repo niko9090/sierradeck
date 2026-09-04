@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.60',
+    righe: [
+      '**«Togli» pulisce anche il Drive.** Togliere un progetto dal Drive ora cancella lassù i suoi file, la presenza e la staffetta, dopo una conferma. Le cartelle sui PC restano come sono; se il Drive non risponde, il progetto resta in elenco e si riprova dopo.'
+    ]
+  },
+  {
     versione: '0.12.59',
     righe: [
       '**Dal telefono si vede se un progetto è in mano a un altro PC.** Nel tab Chat, sotto il titolo di una chat il cui progetto è in lavoro altrove, una riga quieta: «in lavoro su Portatile». Solo un’informazione: il testimone si prende dal computer. Pagina servita e app Android (2.24.0).'
