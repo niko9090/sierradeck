@@ -23,6 +23,13 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.63',
+    righe: [
+      '**«È il Drive che questo PC usava ✓».** Al collegamento il pannello confronta i file che questo PC aveva caricato con quelli che trova nel Drive scelto, e lo dice: è quello, non è quello (prova un altro account), o in parte. Nessun account da ricordare, nessun account da cambiare.',
+      '**Provare gli account non azzera più niente.** Scegliere per sbaglio un account vuoto non tocca la memoria del Drive di questo PC; solo «Va bene questo» su un Drive nuovo la azzera.'
+    ]
+  },
+  {
     versione: '0.12.62',
     righe: [
       '**Il Drive si riconosce dai dati, non a memoria.** Al collegamento la scelta dell’account compare sempre, e subito dopo il pannello dice chi è e cosa c’è dentro: «qui ci sono 466 file di SierraDeck, ultimo salvataggio il…» oppure «su questo Drive non c’è niente di SierraDeck». Con «Prova un altro account» si passa al successivo finché non si trova quello con le chat.',
