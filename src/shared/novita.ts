@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.12.55',
+    righe: [
+      '**Il salvataggio automatico sul Drive riparte da solo dopo un riavvio.** La chiave della cassaforte dorme nel portachiavi di Windows, legata al tuo account: dopo un aggiornamento non serve più inserire la passphrase perché l’automatico riprenda, e un primo salvataggio parte un minuto dopo l’avvio. Chi entra nel tuo profilo Windows apre la cassaforte senza passphrase; su un altro PC la passphrase resta necessaria. «Blocca» toglie la chiave anche dal portachiavi.'
+    ]
+  },
+  {
     versione: '0.12.54',
     righe: [
       '**Il progresso di «Ripristina dal Drive» dice quanti file, non «0,0 MB».** La sincronizzazione incrementale scarica un file alla volta, e il pannello contava quei file come byte: la barra avanzava e i MB restavano a zero. Adesso legge «Scarico dal Drive — 3 / 40 file». Lo stesso per il salvataggio.'
