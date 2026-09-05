@@ -346,6 +346,8 @@ contextBridge.exposeInMainWorld('gestore', {
       email?: string; fileSierraDeck?: number; ultimoSalvataggio?: string; cassaforteSulDrive?: boolean
       /** Quanti file questo PC aveva caricato sul suo Drive, e quanti di quelli stanno in questo. */
       conosciuti?: number; coincidenze?: number
+      /** La cassaforte di questo PC e' quella del Drive scelto: la prova che conta. */
+      stessaCassaforte?: boolean
     }> =>
       ipcRenderer.invoke('drive:connetti'),
     disconnetti: (): Promise<void> => ipcRenderer.invoke('drive:disconnetti')

@@ -113,6 +113,8 @@ declare global {
           ok: boolean; messaggio?: string
           email?: string; fileSierraDeck?: number; ultimoSalvataggio?: string; cassaforteSulDrive?: boolean
           conosciuti?: number; coincidenze?: number
+          /** La cassaforte di questo PC e' quella del Drive scelto: la prova che conta. */
+          stessaCassaforte?: boolean
         }>
         disconnetti: () => Promise<void>
       }

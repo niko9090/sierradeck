@@ -102,3 +102,16 @@ su un altro Drive; il pannello prima suggerisce «Cambia Drive».
 Procedura sugli altri PC: aggiorna → Connetti → scegli un account → leggi il
 verdetto → se ✗ «Prova un altro account» → se ✓ «Va bene questo» → Sblocca
 con la passphrase di quel PC (o dal portachiavi, se già ricordata).
+
+## 6. Trappola: i nomi dei file non distinguono due Drive (0.13.1)
+
+I nomi nel manifesto sono `f_<sha256(percorso)>`: **derivano dai percorsi**,
+non dai contenuti. Se il portatile ha le stesse chat del PC principale (le ha
+ripristinate una volta), i nomi combaciano in TUTTI i Drive in cui sono
+state salvate: il verdetto «✓ è il Drive che questo PC usava» era vero sul
+PC principale (un solo Drive con quei file) e falso sul portatile, mentre il
+riquadro «la cassaforte di questo PC non è quella del Drive» diceva il
+contrario. **La prova che conta è la cassaforte** (`stessaCassaforte` da
+`stato().cassaforteDiversa`, in `drive:connetti`): uguale → ✓, diversa → ✗.
+I nomi restano un indizio solo per un PC senza cassaforte sua.
+

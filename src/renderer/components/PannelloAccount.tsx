@@ -134,6 +134,8 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
 type Riconoscimento = {
   email?: string; fileSierraDeck?: number; ultimoSalvataggio?: string; cassaforteSulDrive?: boolean
   conosciuti?: number; coincidenze?: number
+  /** La cassaforte di questo PC e' quella del Drive scelto: la prova che conta. */
+  stessaCassaforte?: boolean
 }
 type StatoSync = {
   driveConnesso: boolean; haCassaforte: boolean; sbloccato: boolean; cassaforteDiversa?: boolean
@@ -334,13 +336,19 @@ function SezioneSync(): React.JSX.Element | null {
               : ' · su questo Drive non c’è niente di SierraDeck.'}
           </p>
           <p className="account__nota">
-            {(riconoscimento.conosciuti ?? 0) === 0
-              ? 'Questo PC non aveva ancora salvato niente, quindi non posso dire se lo usava: guarda la data dell’ultimo salvataggio.'
-              : (riconoscimento.coincidenze ?? 0) * 10 >= (riconoscimento.conosciuti ?? 0) * 9
-                ? `✓ È il Drive che questo PC usava: dei ${riconoscimento.conosciuti} file che aveva caricato, ${riconoscimento.coincidenze} sono qui.`
-                : (riconoscimento.coincidenze ?? 0) === 0
-                  ? `✗ Non è il Drive che questo PC usava: dei ${riconoscimento.conosciuti} file che aveva caricato, qui non ce n’è nessuno. Prova un altro account.`
-                  : `? In parte: dei ${riconoscimento.conosciuti} file che questo PC aveva caricato, qui ce ne sono ${riconoscimento.coincidenze}.`}
+            <strong>
+              {riconoscimento.stessaCassaforte === true
+                ? '✓ È il Drive che questo PC usava: la cassaforte è la stessa.'
+                : riconoscimento.stessaCassaforte === false
+                  ? '✗ Non è il Drive che questo PC usava: la sua cassaforte è un’altra. Prova un altro account.'
+                  : !riconoscimento.cassaforteSulDrive
+                    ? '✗ Non è il Drive che questo PC usava: qui non c’è nessuna cassaforte. Prova un altro account, o «Va bene questo» se vuoi partire da zero su questo.'
+                    : (riconoscimento.conosciuti ?? 0) === 0
+                      ? '? Questo PC non ha ancora una cassaforte sua: guarda la data dell’ultimo salvataggio, e se è il Drive giusto sbloccalo con la sua passphrase.'
+                      : (riconoscimento.coincidenze ?? 0) * 10 >= (riconoscimento.conosciuti ?? 0) * 9
+                        ? `? Probabilmente sì: dei ${riconoscimento.conosciuti} file che questo PC aveva caricato, ${riconoscimento.coincidenze} sono qui. Ma i nomi non bastano a distinguere due Drive con le stesse chat: la conferma è la passphrase.`
+                        : `? Dei ${riconoscimento.conosciuti} file che questo PC aveva caricato, qui ce ne sono ${riconoscimento.coincidenze ?? 0}.`}
+            </strong>
           </p>
           <div className="account__tasti">
             <button className="tasto" onClick={provaAltroAccount} disabled={inCorso}>Prova un altro account</button>

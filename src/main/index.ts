@@ -787,7 +787,17 @@ if (!app.requestSingleInstanceLock()) {
           const coincidenze = conosciuti.filter((n) => lassu.has(n)).length
           const { nomi: _nomi, ...resto } = r
           registro.info(`Drive: connesso ✓ ${r.email ?? '(indirizzo non letto)'} · ${r.fileSierraDeck} file di SierraDeck${r.ultimoSalvataggio !== undefined ? `, ultimo salvataggio ${r.ultimoSalvataggio}` : ''} · ${coincidenze}/${conosciuti.length} file di questo PC riconosciuti${prima !== undefined && r.email !== undefined && prima !== r.email ? ` (prima era ${prima})` : ''}`)
-          return { ok: true, ...resto, conosciuti: conosciuti.length, coincidenze }
+          // La prova che conta: la **cassaforte**. Quella di questo PC e' la
+          // cassaforte del Drive che usava; i nomi dei file invece derivano dai
+          // percorsi, e le stesse chat in due Drive diversi hanno gli stessi
+          // nomi in tutti e due — sul portatile diceva «e' questo» al Drive
+          // sbagliato. I nomi restano come secondo indizio, quando non c'e'
+          // ancora una cassaforte qui.
+          const s = await sincronia.stato()
+          const stessaCassaforte = r.cassaforteSulDrive && s.haCassaforte
+            ? s.cassaforteDiversa !== true
+            : undefined
+          return { ok: true, ...resto, conosciuti: conosciuti.length, coincidenze, ...(stessaCassaforte !== undefined ? { stessaCassaforte } : {}) }
         } catch (err) {
           const m = err instanceof Error ? err.message : String(err)
           registro.errore(`Drive: connessione fallita: ${m}`)
