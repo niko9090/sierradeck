@@ -9,6 +9,24 @@ export type Novita = {
    * lista di nomi di file non glielo dice.
    */
   righe: string[]
+  /**
+   * Le versioni arrivate **fra** l'ultima vista e questa, dalla piu' recente:
+   * un PC aggiornato dopo giorni salta dei rilasci, e quello che e' cambiato
+   * nel frattempo conta quanto l'ultima riga. Solo sull'oggetto consegnato al
+   * pannello, mai nelle voci dell'elenco.
+   */
+  altre?: Novita[]
+}
+
+/** Confronta due versioni `x.y.z`: negativo se `a` viene prima di `b`. */
+export function confrontaVersioni(a: string, b: string): number {
+  const pa = a.split('.').map((x) => Number.parseInt(x, 10) || 0)
+  const pb = b.split('.').map((x) => Number.parseInt(x, 10) || 0)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0)
+    if (d !== 0) return d
+  }
+  return 0
 }
 
 /**
@@ -22,6 +40,14 @@ export type Novita = {
  * La più recente in cima, come si legge.
  */
 export const NOVITA: Novita[] = [
+  {
+    versione: '0.13.2',
+    righe: [
+      '**Le novità si leggono meglio.** Questa finestra ha l’attacco di ogni voce in evidenza (prima si vedevano gli asterischi), scorre se è lunga, e se hai saltato dei rilasci mostra anche quelli, dalla più recente. In fondo il collegamento a tutte le versioni.',
+      '**«Cassaforte diversa» su tutti gli account: corretto.** Il confronto guardava l’involucro della chiave con la passphrase, che un cambio di passphrase su un altro PC rifà: il Drive giusto risultava sbagliato. Ora conta la chiave dentro, che non cambia mai; e se la passphrase è stata cambiata altrove, la copia di questo PC si allinea da sola.',
+      '**La prova che non sbaglia: la passphrase.** Nel riquadro «cassaforte diversa» scrivi la passphrase di questo PC: se apre anche il Drive collegato, è il suo, e il pannello lo sblocca. Se non lo apre, provi un altro account.'
+    ]
+  },
   {
     versione: '0.13.1',
     righe: [
@@ -1300,5 +1326,25 @@ export function novitaDaMostrare(
   ultimaVista: string | undefined
 ): Novita | undefined {
   if (versione === ultimaVista) return undefined
-  return novitaDi(versione)
+  const corrente = novitaDi(versione)
+  if (corrente === undefined) return undefined
+  // Le versioni saltate: piu' nuove dell'ultima vista, piu' vecchie di questa.
+  // Alla primissima apertura non c'e' niente di saltato — mostrare tutta la
+  // storia a chi installa oggi sarebbe un muro di testo.
+  const altre = ultimaVista === undefined
+    ? []
+    : NOVITA.filter((n) =>
+        confrontaVersioni(n.versione, ultimaVista) > 0 && confrontaVersioni(n.versione, versione) < 0
+      ).sort((x, y) => confrontaVersioni(y.versione, x.versione))
+  return altre.length === 0 ? corrente : { ...corrente, altre }
+}
+
+/** Le novita' di questa versione con le ultime `quante` prima, per chi le riapre apposta. */
+export function novitaConLeUltime(versione: string, quante = 5): Novita {
+  const corrente = novitaDi(versione) ?? { versione, righe: [] }
+  const altre = NOVITA
+    .filter((n) => confrontaVersioni(n.versione, versione) < 0)
+    .sort((x, y) => confrontaVersioni(y.versione, x.versione))
+    .slice(0, quante)
+  return altre.length === 0 ? corrente : { ...corrente, altre }
 }
