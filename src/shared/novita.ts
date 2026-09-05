@@ -23,6 +23,12 @@ export type Novita = {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.13.1',
+    righe: [
+      '**Il verdetto «è il Drive che questo PC usava» si basa sulla cassaforte, non sui nomi dei file.** I nomi derivano dai percorsi: le stesse chat in due Drive diversi hanno gli stessi nomi in tutti e due, e il pannello diceva «è questo» anche al Drive sbagliato mentre un altro riquadro diceva il contrario. Ora la prova è la cassaforte: uguale, è il tuo Drive; diversa, prova un altro account.'
+    ]
+  },
+  {
     versione: '0.13.0',
     righe: [
       '**Il supervisore di un autopilota è uno per chat.** Ogni chat di una flotta ha il suo supervisore, che la segue dall’inizio del suo compito: prima era uno solo per tutta la flotta, vedeva i turni delle sorelle come salti, e quando due chat si fermavano insieme una delle due perdeva la conversazione. Costa una conversazione in più per chat, e in cambio ognuna è seguita per intero. Le flotte già in corso continuano: ogni chat parte col suo supervisore alla prossima fermata.'
