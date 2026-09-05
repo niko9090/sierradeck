@@ -425,6 +425,60 @@ describe('sincronia incrementale: giro completo fra due PC', () => {
     expect(syncA.nomiConosciuti()).toEqual([])
   })
 
+  it('un cambio di passphrase su un altro PC non fa sembrare diversa la cassaforte, e la copia si allinea', async () => {
+    // Sul portatile ogni account risultava «cassaforte diversa»: il confronto
+    // guardava l'involucro con la passphrase, che un cambio di passphrase
+    // rifa'. L'identita' e' la chiave-maestra, cioe' l'involucro di recupero.
+    const drive = driveCondiviso()
+    const a = pc('A'); traccia(a)
+    writeFileSync(join(a.dati, 'workspaces.json'), '{"a":1}')
+    const syncA = apri(a, drive)
+    await syncA.creaPassphrase('prima-passphrase')
+    await syncA.salva()
+    const b = pc('B'); traccia(b)
+    const syncB = apri(b, drive)
+    expect((await syncB.sblocca('prima-passphrase')).ok).toBe(true)
+    expect((await syncB.ripristina()).ok).toBe(true)
+    // A cambia passphrase e la carica.
+    expect((await syncA.cambiaPassphrase('prima-passphrase', 'seconda-passphrase')).ok).toBe(true)
+    // B, riaperto: stessa cassaforte, e la copia locale si allinea alla nuova.
+    const syncB2 = apri(b, drive)
+    const st = await syncB2.stato()
+    expect(st.haCassaforte).toBe(true)
+    expect(st.cassaforteDiversa).toBeUndefined()
+    expect((await syncB2.sblocca('prima-passphrase')).ok).toBe(false)
+    expect((await syncB2.sblocca('seconda-passphrase')).ok).toBe(true)
+  })
+
+  it('la prova con la passphrase: apre il Drive giusto, e distingue un altra cassaforte con la stessa passphrase', async () => {
+    const drive = driveCondiviso()
+    const a = pc('A'); traccia(a)
+    const syncA = apri(a, drive)
+    await syncA.creaPassphrase('segreta')
+    await syncA.salva()
+    // B ha una cassaforte sua, per caso con la stessa passphrase.
+    const b = pc('B'); traccia(b)
+    const altro = driveCondiviso()
+    await apri(b, altro).creaPassphrase('segreta')
+    const syncB = apri(b, drive)
+    expect((await syncB.stato()).cassaforteDiversa).toBe(true)
+    const p1 = await syncB.provaPassphraseSulDrive('sbagliata')
+    expect(p1.ok).toBe(false)
+    const p2 = await syncB.provaPassphraseSulDrive('segreta')
+    expect(p2).toMatchObject({ ok: true, stessa: false })
+    expect((await syncB.stato()).cassaforteDiversa).toBe(true)
+    // C ha la cassaforte di A (l'ha ripristinata), poi A cambia passphrase:
+    // la prova con la passphrase nuova apre, allinea e sblocca.
+    const c = pc('C'); traccia(c)
+    const syncC = apri(c, drive)
+    expect((await syncC.sblocca('segreta')).ok).toBe(true)
+    syncC.blocca()
+    expect((await syncA.cambiaPassphrase('segreta', 'nuovissima')).ok).toBe(true)
+    const p3 = await syncC.provaPassphraseSulDrive('nuovissima')
+    expect(p3).toEqual({ ok: true, stessa: true })
+    expect((await syncC.stato()).sbloccato).toBe(true)
+  })
+
   it('senza sblocco non salva né ripristina', async () => {
     const drive = driveCondiviso()
     const a = pc('A'); traccia(a)

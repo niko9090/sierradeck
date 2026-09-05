@@ -115,3 +115,18 @@ contrario. **La prova che conta è la cassaforte** (`stessaCassaforte` da
 `stato().cassaforteDiversa`, in `drive:connetti`): uguale → ✓, diversa → ✗.
 I nomi restano un indizio solo per un PC senza cassaforte sua.
 
+## 7. «Tutti gli account risultano cassaforte diversa» (0.13.2)
+
+Il confronto in `stato()` guardava `sale` + `maestraDaPassphrase`: sono
+proprio i due campi che `cambiaPassphrase` rifà. Se sul PC principale la
+passphrase è stata cambiata dopo che il portatile aveva preso la sua copia
+della cassaforte, il portatile vedeva «diversa» anche sul Drive giusto (e su
+tutti gli altri, giustamente). **L'identità di una cassaforte è la
+chiave-maestra**, e l'unico involucro stabile è quello di recupero:
+`stessaCassaforte(a, b)` = `maestraDaRecupero` + `saleRecupero` uguali.
+Se uguali ma la passphrase è cambiata, la copia locale si allinea da sola.
+In più `provaPassphraseSulDrive(pw)`: apre la cassaforte del Drive con la
+passphrase di qui e confronta le maestre → stessa (allinea + sblocca) /
+altra cassaforte con la stessa passphrase / non apre. È la prova che non
+sbaglia, e sta nel riquadro «cassaforte diversa» del pannello.
+

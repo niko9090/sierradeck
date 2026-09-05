@@ -391,6 +391,9 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('sync:adottaCassaforteDelDrive'),
     /** Questo Drive e' nuovo per SierraDeck: si dimentica cio' che si sapeva di quello di prima. */
     cambiatoDrive: (): Promise<void> => ipcRenderer.invoke('sync:cambiatoDrive'),
+    /** La passphrase di questo PC apre la cassaforte del Drive collegato? Se si', e' il suo Drive. */
+    provaPassphraseSulDrive: (passphrase: string): Promise<{ ok: boolean; stessa?: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('sync:provaPassphraseSulDrive', passphrase),
     info: (): Promise<{ file: number; byte: number }> => ipcRenderer.invoke('sync:info'),
     creaPassphrase: (passphrase: string): Promise<{ ok: boolean; chiaveRecupero?: string; messaggio?: string }> =>
       ipcRenderer.invoke('sync:creaPassphrase', passphrase),

@@ -209,6 +209,13 @@ function SezioneSync(): React.JSX.Element | null {
     if (nuovo) conInCorso(window.gestore.sync.cambiatoDrive())
     else aggiorna()
   }
+  const [pwProva, setPwProva] = useState('')
+  const provaPassphrase = (): void => conInCorso(
+    window.gestore.sync.provaPassphraseSulDrive(pwProva).then((r) => {
+      if (r.ok && r.stessa === true) { setPwProva(''); setMsg('✓ È il Drive di questo PC: la passphrase lo apre, cassaforte allineata e sbloccata.') }
+      else setMsg(r.messaggio ?? 'non riuscito')
+    })
+  )
   const adottaCassaforte = (): void => conInCorso(
     window.gestore.sync.adottaCassaforteDelDrive().then((r) => {
       setMsg(r.ok ? 'Presa la cassaforte del Drive: sbloccala con la sua passphrase. Quella di questo PC è messa da parte, non cancellata.' : (r.messaggio ?? 'non riuscito'))
@@ -370,13 +377,17 @@ function SezioneSync(): React.JSX.Element | null {
       ) : drive.connesso && sync.cassaforteDiversa === true ? (
         <div className="account__scheda account__scheda--largo">
           <p className="account__nota">
-            <strong>La cassaforte di questo PC non è quella del Drive collegato{drive.email !== undefined ? ` (${drive.email})` : ''}.</strong>{' '}
-            Probabilmente questo non è il Drive che questo PC usava: con «Cambia Drive» torni a scegliere l’account. Se invece vuoi davvero lavorare su questo Drive, prendi la sua cassaforte: ti chiederà la passphrase di quel Drive, e quella di questo PC viene messa da parte, non cancellata.
+            <strong>La cassaforte di questo PC non sembra quella del Drive collegato{drive.email !== undefined ? ` (${drive.email})` : ''}.</strong>{' '}
+            La prova che non sbaglia: scrivi la passphrase di questo PC. Se apre anche questo Drive, è il suo, e da qui in poi funziona tutto da solo. Se non lo apre, con «Cambia Drive» provi un altro account.
           </p>
+          <input className="account__campo" type="password" value={pwProva} onChange={(e) => setPwProva(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && pwProva !== '') provaPassphrase() }} placeholder="passphrase di questo PC" aria-label="passphrase di questo PC" autoComplete="current-password" autoFocus />
           <div className="account__tasti">
             <button className="tasto" onClick={scollega} disabled={inCorso}>Cambia Drive</button>
-            <button className="tasto tasto--primario" onClick={adottaCassaforte} disabled={inCorso}>{inCorso ? 'un attimo…' : 'Usa la cassaforte del Drive'}</button>
+            <button className="tasto tasto--primario" onClick={provaPassphrase} disabled={inCorso || pwProva === ''}>{inCorso ? 'un attimo…' : 'Prova la passphrase su questo Drive'}</button>
           </div>
+          <p className="account__nota">
+            Se invece vuoi davvero lavorare su questo Drive con la sua cassaforte, <button className="account__link" onClick={adottaCassaforte} disabled={inCorso}>prendi la cassaforte del Drive ▸</button> (ti chiederà la sua passphrase; quella di questo PC viene messa da parte, non cancellata).
+          </p>
         </div>
       ) : drive.connesso && !sync.haCassaforte ? (
         <div className="account__scheda account__scheda--largo">

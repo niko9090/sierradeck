@@ -1023,6 +1023,8 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('sync:blocca', () => { sincronia.blocca() })
       ipcMain.handle('sync:adottaCassaforteDelDrive', () => sincronia.adottaCassaforteDelDrive())
       ipcMain.handle('sync:cambiatoDrive', () => { sincronia.cambiatoDrive() })
+      ipcMain.handle('sync:provaPassphraseSulDrive', (_e, pw: unknown) =>
+        typeof pw === 'string' ? sincronia.provaPassphraseSulDrive(pw) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
       ipcMain.handle('sync:salva', (_e, forza: unknown) => sincronia.salva(forza === true))
       ipcMain.handle('sync:ripristina', async () => {
         const esito = await sincronia.ripristina()

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { NOVITA, novitaDi, novitaDaMostrare } from '@shared/novita'
+import { NOVITA, novitaDi, novitaDaMostrare, novitaConLeUltime, confrontaVersioni } from '@shared/novita'
 import { readFileSync } from 'node:fs'
 
 describe('NOVITA', () => {
@@ -58,6 +58,29 @@ describe('novitaDaMostrare', () => {
     // Meglio il silenzio di una finestra vuota che si apre per dire che non ha
     // niente da dire.
     expect(novitaDaMostrare('9.9.9', undefined)).toBeUndefined()
+  })
+
+  it('un PC aggiornato dopo giorni vede anche le versioni saltate, dalla piu recente', () => {
+    // Fra l'ultima vista e questa ci sono stati altri rilasci: quello che e'
+    // cambiato «mentre non guardavi» conta quanto l'ultima riga.
+    const versione = NOVITA[0]!.versione
+    const vecchia = NOVITA[3]!.versione
+    const n = novitaDaMostrare(versione, vecchia)
+    expect(n?.versione).toBe(versione)
+    expect(n?.altre?.map((a) => a.versione)).toEqual([NOVITA[1]!.versione, NOVITA[2]!.versione])
+    // Le voci dell'elenco restano pulite: `altre` sta solo sull'oggetto consegnato.
+    expect(NOVITA[0]).not.toHaveProperty('altre')
+  })
+
+  it('confronta le versioni per numero, non per testo', () => {
+    expect(confrontaVersioni('0.13.0', '0.12.64')).toBeGreaterThan(0)
+    expect(confrontaVersioni('0.9.9', '0.10.0')).toBeLessThan(0)
+    expect(confrontaVersioni('1.0.0', '1.0.0')).toBe(0)
+  })
+
+  it('riaperte apposta, portano anche le ultime versioni prima', () => {
+    const n = novitaConLeUltime(NOVITA[0]!.versione, 2)
+    expect(n.altre?.map((a) => a.versione)).toEqual([NOVITA[1]!.versione, NOVITA[2]!.versione])
   })
 
   it('alla primissima apertura, senza nessuna memoria, le mostra', () => {

@@ -143,6 +143,7 @@ declare global {
         blocca: () => Promise<void>
         adottaCassaforteDelDrive: () => Promise<{ ok: boolean; messaggio?: string }>
         cambiatoDrive: () => Promise<void>
+        provaPassphraseSulDrive: (passphrase: string) => Promise<{ ok: boolean; stessa?: boolean; messaggio?: string }>
         salva: (forza?: boolean) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number }>
         auto: (attivo?: boolean) => Promise<boolean>
         ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string; conflitti?: number }>

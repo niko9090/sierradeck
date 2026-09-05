@@ -112,6 +112,15 @@ export type Sincronia = {
    */
   adottaCassaforteDelDrive: () => Promise<EsitoSemplice>
   /**
+   * La prova diretta: la passphrase di questo PC apre la cassaforte del Drive
+   * collegato? Se la apre **e** dentro c'e' la stessa chiave-maestra, e' il
+   * Drive di questo PC: si allinea la copia locale e si sblocca. Se la apre
+   * ma la chiave e' un'altra, e' un'altra cassaforte con la stessa
+   * passphrase. Se non la apre, non e' questo il Drive (o la passphrase e'
+   * un'altra). Non cambia niente se non e' la stessa.
+   */
+  provaPassphraseSulDrive: (passphrase: string) => Promise<{ ok: boolean; stessa?: boolean; messaggio?: string }>
+  /**
    * Il Drive collegato e' un altro (o e' vuoto): quello che questo PC sapeva
    * del Drive di prima non vale piu', e il prossimo salvataggio rimanda tutto.
    */
@@ -127,6 +136,11 @@ export type Sincronia = {
    * cartelle sui PC restano: si toglie il viaggio, non il lavoro.
    */
   togliProgettoDalDrive: (id: string) => Promise<{ ok: boolean; tolti?: number; messaggio?: string }>
+}
+
+/** Due cassaforti sono la stessa se custodiscono la stessa chiave-maestra: lo dice l'involucro di recupero, che non cambia mai. */
+export function stessaCassaforte(a: Cassaforte, b: Cassaforte): boolean {
+  return a.maestraDaRecupero === b.maestraDaRecupero && a.saleRecupero === b.saleRecupero
 }
 
 export function apriSincronia(deps: {
@@ -296,7 +310,18 @@ export function apriSincronia(deps: {
         const remota = await scaricaChiavi().catch(() => undefined)
         if (!ha) ha = remota !== undefined
         else if (remota !== undefined && locale !== undefined) {
-          diversa = remota.maestraDaPassphrase !== locale.maestraDaPassphrase || remota.sale !== locale.sale
+          // L'identita' di una cassaforte e' la chiave-maestra, e l'unico
+          // involucro che non cambia mai e' quello con la chiave di recupero:
+          // un cambio di passphrase rifa' `sale` e `maestraDaPassphrase`, e
+          // guardando quelli il portatile vedeva «diversa» sul Drive giusto,
+          // solo perche' sul PC principale la passphrase era stata cambiata.
+          diversa = !stessaCassaforte(locale, remota)
+          if (!diversa && (remota.maestraDaPassphrase !== locale.maestraDaPassphrase || remota.sale !== locale.sale)) {
+            // Stessa cassaforte, passphrase cambiata altrove: la copia di qui
+            // si allinea, cosi' la prossima volta apre la passphrase nuova.
+            scriviLocale(remota)
+            log('cassaforte allineata al Drive: la passphrase e\' stata cambiata da un altro PC')
+          }
         }
       }
       return {
@@ -482,6 +507,27 @@ export function apriSincronia(deps: {
         log(`TOGLI progetto ${id} fallito: ${messaggioDi(e)}`)
         return { ok: false, messaggio: messaggioDi(e) }
       }
+    },
+
+    async provaPassphraseSulDrive(passphrase) {
+      if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
+      const remota = await scaricaChiavi().catch(() => undefined)
+      if (remota === undefined) return { ok: false, messaggio: 'Su questo Drive non c’è una cassaforte.' }
+      const mR = sbloccaCassaforte(remota, passphrase)
+      if (mR === undefined) {
+        return { ok: false, messaggio: 'Questa passphrase non apre la cassaforte di questo Drive: o non è il Drive di questo PC, o la passphrase è un’altra.' }
+      }
+      const locale = leggiLocale()
+      const mL = locale === undefined ? undefined : sbloccaCassaforte(locale, passphrase)
+      if (mL !== undefined && !mL.equals(mR)) {
+        return { ok: true, stessa: false, messaggio: 'La passphrase apre anche questo Drive, ma dentro c’è un’altra chiave: è un’altra cassaforte con la stessa passphrase, non quella di questo PC.' }
+      }
+      // Stessa chiave (o nessuna cassaforte locale che la contraddica): questo
+      // e' il Drive di questo PC. La copia di qui si allinea e si sblocca.
+      scriviLocale(remota)
+      adotta(mR)
+      log('la passphrase di questo PC apre il Drive collegato: e\' il suo, cassaforte allineata e sbloccata')
+      return { ok: true, stessa: true }
     },
 
     async adottaCassaforteDelDrive() {

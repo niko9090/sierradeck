@@ -33,7 +33,7 @@ import { ModaleAccesso } from './components/ModaleAccesso'
 import { ModalePreparazione } from './components/ModalePreparazione'
 import { ModaleTestimone, type AvvisoProgetto } from './components/ModaleTestimone'
 import { ModaleNovita } from './components/ModaleNovita'
-import { novitaDi, type Novita } from '@shared/novita'
+import { novitaConLeUltime, type Novita } from '@shared/novita'
 import type { StatoPreparazione } from '../main/preparazione'
 import { BandaAvvisi } from './components/BandaAvvisi'
 import { componiAvvisi } from './avvisi'
@@ -966,7 +966,7 @@ export function App(): React.JSX.Element {
           // per fretta non deve restare senza.
           window.gestore.sistema
             .versione()
-            .then((v) => setNovita({ versione: v, righe: novitaDi(v)?.righe ?? [] }))
+            .then((v) => setNovita(novitaConLeUltime(v)))
             .catch(() => undefined)
         }}
             aggiornamento={aggiornamento}
