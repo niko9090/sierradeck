@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.15.0',
+    righe: [
+      '**La coda condivisa dei comandi.** Per ogni progetto sul Drive c’è una fila di istruzioni che si scrive da qualunque PC («Coda…» accanto al progetto, nel pannello Account): si aggiunge, si modifica, si toglie, si sceglie a quale chat va o si lascia alla prima libera. Le consegna il PC che ha il testimone, una alla volta, appena una chat del progetto ha finito e aspetta; ogni voce dice chi l’ha messa, quando, e a chi è arrivata. È il modo di dire a una chat che gira su un altro computer «poi fai questo» senza essere lì.'
+    ]
+  },
+  {
     versione: '0.14.0',
     righe: [
       '**«Fondi con il Drive»: un PC con le sue conversazioni e un Drive con altre si uniscono, e scegli tu cosa.** Nel pannello Account il nuovo riquadro mostra prima il piano: le chat solo su questo PC, solo sul Drive, in comune e diverse; lo stesso per ogni progetto, e i workspace di qua e di là. Poi decidi voce per voce (portare su, portare giù, tenere tutte e due, lasciare), o per gruppi con un tasto; per i workspace scegli l’unione, quelli del PC o quelli del Drive, ed escludi i singoli. Il predefinito è l’unione: per le chat vince la copia più lunga, per i file di progetto la più recente. Se la cassaforte del Drive è un’altra, ti chiede la sua passphrase e da lì in poi il PC usa quella; la tua resta messa da parte. Niente va perso.'
