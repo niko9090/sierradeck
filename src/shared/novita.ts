@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.16.1',
+    righe: [
+      '**«Fondi con il Drive» si capisce.** Le chat hanno il loro nome vero, preso dall’indice delle conversazioni, con la data e il numero di messaggi, e sono raggruppate per cartella di progetto, ognuna apribile con i suoi tasti. Le azioni si chiamano «porta sul Drive», «porta qui», «lascia com’è». Per i workspace niente più caselle: per ognuno una scelta scritta in chiaro («unisci: qui + le chat del Drive», «tieni com’è qui», «crealo qui con le sue chat», «non portarlo») con una riga che spiega cosa vuol dire unire.'
+    ]
+  },
+  {
     versione: '0.16.0',
     righe: [
       '**La coda dei comandi anche dal telefono.** Nel tab Computer, «Code»: i progetti sul Drive con quanti comandi aspettano e chi li ha in mano; dentro ogni coda vedi le voci, ne metti una nuova, ne togli, pulisci le consegnate. Pagina servita e app Android (2.25.0).'
