@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.16.0',
+    righe: [
+      '**La coda dei comandi anche dal telefono.** Nel tab Computer, «Code»: i progetti sul Drive con quanti comandi aspettano e chi li ha in mano; dentro ogni coda vedi le voci, ne metti una nuova, ne togli, pulisci le consegnate. Pagina servita e app Android (2.25.0).'
+    ]
+  },
+  {
     versione: '0.15.0',
     righe: [
       '**La coda condivisa dei comandi.** Per ogni progetto sul Drive c’è una fila di istruzioni che si scrive da qualunque PC («Coda…» accanto al progetto, nel pannello Account): si aggiunge, si modifica, si toglie, si sceglie a quale chat va o si lascia alla prima libera. Le consegna il PC che ha il testimone, una alla volta, appena una chat del progetto ha finito e aspetta; ogni voce dice chi l’ha messa, quando, e a chi è arrivata. È il modo di dire a una chat che gira su un altro computer «poi fai questo» senza essere lì.'
