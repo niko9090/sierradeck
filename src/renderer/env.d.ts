@@ -23,8 +23,14 @@ type ElencoProgetti = {
   messaggio?: string
 }
 type StatoProgetto = {
-  id: string; nome: string; chi: 'io' | 'altro' | 'libero'; pcNome?: string; da?: string; staffettaDa?: string
+  id: string; nome: string; chi: 'io' | 'altro' | 'libero'; pcNome?: string; da?: string; staffettaDa?: string; inCoda?: number
 }
+type VoceCoda = {
+  id: string; testo: string; creataIl: string; daNome: string; sessione?: string
+  stato: 'attesa' | 'consegnata'; consegnataIl?: string; aNome?: string; aSessione?: string
+}
+type Coda = { voci: VoceCoda[] }
+type ChatDiProgetto = { sessione: string; titolo: string; workspace: string }
 type EsitoTestimone =
   | { ok: true; conflitti?: number }
   | { ok: false; nonRisponde: true; pcNome: string }
@@ -128,6 +134,12 @@ declare global {
         stati: () => Promise<StatoProgetto[]>
         prendiTestimone: (id: string, forza?: boolean) => Promise<EsitoTestimone>
         suAvviso: (cb: (a: AvvisoProgettoDalCore) => void) => () => void
+        chatDi: (id: string) => Promise<ChatDiProgetto[]>
+        coda: (id: string) => Promise<Coda | undefined>
+        codaAggiungi: (id: string, testo: string, sessione?: string) => Promise<Coda | undefined>
+        codaModifica: (id: string, voceId: string, testo: string, sessione?: string) => Promise<Coda | undefined>
+        codaTogli: (id: string, voceId: string) => Promise<Coda | undefined>
+        codaPulisci: (id: string) => Promise<Coda | undefined>
         suIberna: (cb: (m: { sessioni: string[] }) => void) => () => void
       }
       sync: {

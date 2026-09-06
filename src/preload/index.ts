@@ -117,8 +117,14 @@ export type ElencoProgetti = {
   messaggio?: string
 }
 export type StatoProgetto = {
-  id: string; nome: string; chi: 'io' | 'altro' | 'libero'; pcNome?: string; da?: string; staffettaDa?: string
+  id: string; nome: string; chi: 'io' | 'altro' | 'libero'; pcNome?: string; da?: string; staffettaDa?: string; inCoda?: number
 }
+export type VoceCoda = {
+  id: string; testo: string; creataIl: string; daNome: string; sessione?: string
+  stato: 'attesa' | 'consegnata'; consegnataIl?: string; aNome?: string; aSessione?: string
+}
+export type Coda = { voci: VoceCoda[] }
+export type ChatDiProgetto = { sessione: string; titolo: string; workspace: string }
 export type EsitoTestimone =
   | { ok: true; conflitti?: number }
   | { ok: false; nonRisponde: true; pcNome: string }
@@ -374,6 +380,16 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.on('progetti:avviso', h)
       return () => ipcRenderer.off('progetti:avviso', h)
     },
+    /** Le chat di un progetto, per scegliere a chi va un comando. */
+    chatDi: (id: string): Promise<ChatDiProgetto[]> => ipcRenderer.invoke('progetti:chatDi', id),
+    /** La coda condivisa dei comandi di un progetto. */
+    coda: (id: string): Promise<Coda | undefined> => ipcRenderer.invoke('progetti:coda', id),
+    codaAggiungi: (id: string, testo: string, sessione?: string): Promise<Coda | undefined> =>
+      ipcRenderer.invoke('progetti:codaAggiungi', id, testo, sessione),
+    codaModifica: (id: string, voceId: string, testo: string, sessione?: string): Promise<Coda | undefined> =>
+      ipcRenderer.invoke('progetti:codaModifica', id, voceId, testo, sessione),
+    codaTogli: (id: string, voceId: string): Promise<Coda | undefined> => ipcRenderer.invoke('progetti:codaTogli', id, voceId),
+    codaPulisci: (id: string): Promise<Coda | undefined> => ipcRenderer.invoke('progetti:codaPulisci', id),
     /** Il Core chiede di mettere a dormire queste chat: il testimone e' passato a un altro PC. */
     suIberna: (cb: (m: { sessioni: string[] }) => void): (() => void) => {
       const h = (_e: unknown, m: { sessioni: string[] }): void => cb(m)

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  creaRonda, nomePresenza, nomeStaffetta, presenzaViva, PRESENZA_SCADUTA_MS, BATTITO_OGNI_MS, RILASCIO_DOPO_MS,
+  creaRonda, nomePresenza, nomeStaffetta, nomeCoda, presenzaViva, PRESENZA_SCADUTA_MS, BATTITO_OGNI_MS, RILASCIO_DOPO_MS,
   ATTESA_TESTIMONE_MS, type Scatola, type Presenza, type AvvisoProgetto
 } from '../../src/main/progetti/presenza'
 import { registroVuoto, aggiungiProgetto, type RegistroProgetti } from '../../src/main/progetti/registro'
@@ -167,6 +167,77 @@ describe('la ronda dei progetti', () => {
     expect(b.ripristini()).toEqual(['p1'])
     expect((scatola.dati.get(nomePresenza('p1')) as Presenza).pcId).toBe('B')
     expect(scatola.dati.has(nomeStaffetta('p1'))).toBe(false)
+  })
+
+  it('la coda condivisa: si scrive da un PC, la consegna chi ha il testimone, una per giro', async () => {
+    const scatola = scatolaInMemoria()
+    // B mette in fila due comandi, senza avere il testimone.
+    const b = ambiente({ pcId: 'B', nome: 'Portatile', scatola, registro: conB })
+    let n = 0
+    const rondaB = creaRonda({
+      scatola: () => scatola, registro: { leggi: () => conB, scrivi: () => {} },
+      pcId: () => 'B', pcNome: () => 'Portatile', vive: () => [], progettoDi: () => undefined,
+      salva: () => Promise.resolve({ ok: true }), ripristinaProgetto: () => Promise.resolve({ ok: true }),
+      iberna: () => {}, avvisa: () => {}, adesso: () => b.adesso(), nuovoId: () => `v${(n += 1)}`
+    })
+    const c1 = await rondaB.aggiungiInCoda('p1', 'lancia i test')
+    expect(c1?.voci.map((v) => [v.id, v.stato, v.daNome])).toEqual([['v1', 'attesa', 'Portatile']])
+    await rondaB.aggiungiInCoda('p1', 'poi aggiorna i documenti', 's2')
+    await rondaB.modificaInCoda('p1', 'v2', 'poi aggiorna la documentazione')
+    expect((await rondaB.coda('p1'))?.voci[1]).toMatchObject({ testo: 'poi aggiorna la documentazione', sessione: 's2', stato: 'attesa' })
+    expect(await rondaB.aggiungiInCoda('p1', '   ')).toBeUndefined()
+
+    // A ha il testimone e una chat che aspetta: consegna una voce per giro.
+    const consegne: { testo: string; sessione?: string }[] = []
+    let pronte: string[] = ['s1']
+    const a = ambiente({ pcId: 'A', nome: 'Torre', scatola, registro })
+    const rondaA = creaRonda({
+      scatola: () => scatola, registro: { leggi: () => registro, scrivi: () => {} },
+      pcId: () => 'A', pcNome: () => 'Torre', vive: () => ['s1', 's2'], progettoDi: () => undefined,
+      salva: () => Promise.resolve({ ok: true }), ripristinaProgetto: () => Promise.resolve({ ok: true }),
+      iberna: () => {}, avvisa: () => {}, adesso: () => a.adesso(),
+      consegna: (_p, voce) => {
+        const sessione = voce.sessione ?? pronte[0]
+        if (sessione === undefined || !pronte.includes(sessione)) return Promise.resolve(undefined)
+        consegne.push({ testo: voce.testo, sessione })
+        return Promise.resolve({ sessione })
+      }
+    })
+    await rondaA.giro()
+    expect(consegne).toEqual([{ testo: 'lancia i test', sessione: 's1' }])
+    expect(rondaA.statoDi('p1')?.inCoda).toBe(1)
+    // La seconda e' per s2, che non aspetta ancora: resta in coda.
+    await rondaA.giro()
+    expect(consegne).toHaveLength(1)
+    pronte = ['s1', 's2']
+    await rondaA.giro()
+    expect(consegne).toEqual([{ testo: 'lancia i test', sessione: 's1' }, { testo: 'poi aggiorna la documentazione', sessione: 's2' }])
+    const coda = await rondaA.coda('p1')
+    expect(coda?.voci.map((v) => [v.stato, v.aNome, v.aSessione])).toEqual([['consegnata', 'Torre', 's1'], ['consegnata', 'Torre', 's2']])
+    expect(rondaA.statoDi('p1')?.inCoda).toBe(0)
+    // B lo vede, pulisce le consegnate, e la coda sparisce dal Drive.
+    expect((await rondaB.pulisciCoda('p1'))?.voci).toEqual([])
+    expect(scatola.dati.has(nomeCoda('p1'))).toBe(false)
+  })
+
+  it('chi non ha il testimone non consegna niente', async () => {
+    const scatola = scatolaInMemoria()
+    const a = ambiente({ pcId: 'A', nome: 'Torre', scatola, registro })
+    a.vive(['s1'])
+    await a.ronda.giro()
+    await a.ronda.aggiungiInCoda('p1', 'fai qualcosa')
+    const consegne: string[] = []
+    const b = ambiente({ pcId: 'B', nome: 'Portatile', scatola, registro: conB })
+    const rondaB = creaRonda({
+      scatola: () => scatola, registro: { leggi: () => conB, scrivi: () => {} },
+      pcId: () => 'B', pcNome: () => 'Portatile', vive: () => ['s9'], progettoDi: () => undefined,
+      salva: () => Promise.resolve({ ok: true }), ripristinaProgetto: () => Promise.resolve({ ok: true }),
+      iberna: () => {}, avvisa: () => {}, adesso: () => b.adesso(),
+      consegna: (_p, voce) => { consegne.push(voce.testo); return Promise.resolve({}) }
+    })
+    await rondaB.giro()
+    expect(consegne).toEqual([])
+    expect(rondaB.statoDi('p1')).toMatchObject({ chi: 'altro', inCoda: 1 })
   })
 
   it('senza scatola (cassaforte chiusa) la ronda tace e il testimone lo dice', async () => {

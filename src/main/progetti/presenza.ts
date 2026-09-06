@@ -34,6 +34,30 @@ export const CONTROLLO_TESTIMONE_MS = 3_000
 
 export function nomePresenza(id: string): string { return `presenza-${id}` }
 export function nomeStaffetta(id: string): string { return `staffetta-${id}` }
+export function nomeCoda(id: string): string { return `coda-${id}` }
+
+/**
+ * La coda condivisa dei comandi di un progetto.
+ *
+ * Da qualunque PC si mettono in fila istruzioni per un progetto; le consegna
+ * il PC che ha il testimone, alla prima chat del progetto che aspetta (o a
+ * quella scelta), una per giro. E' il modo di dire a una chat che gira su un
+ * altro computer «poi fai questo», senza essere davanti a quel computer e
+ * senza aspettare che sia libera. Vive sul Drive, cifrata come le presenze.
+ */
+export type VoceCoda = {
+  id: string
+  testo: string
+  creataIl: string
+  daNome: string
+  /** La chat a cui e' destinata (la sua conversazione); senza, la prima libera del progetto. */
+  sessione?: string
+  stato: 'attesa' | 'consegnata'
+  consegnataIl?: string
+  aNome?: string
+  aSessione?: string
+}
+export type Coda = { voci: VoceCoda[] }
 
 export function presenzaViva(p: Presenza | undefined, adesso: number): p is Presenza {
   if (p === undefined) return false
@@ -57,6 +81,8 @@ export type StatoProgetto = {
   da?: string
   /** Qualcuno ha chiesto il testimone a chi lo ha. */
   staffettaDa?: string
+  /** Quanti comandi aspettano nella coda condivisa. */
+  inCoda?: number
 }
 
 export type AvvisoProgetto =
@@ -80,6 +106,13 @@ export type Ronda = {
   prendiTestimone: (id: string, forza?: boolean) => Promise<EsitoTestimone>
   /** I progetti in mano a un altro PC: non si salvano da qui, o si sovrascriverebbe il suo lavoro. */
   inManoAdAltri: () => Set<string>
+  /** La coda condivisa di un progetto, com'e' sul Drive. */
+  coda: (id: string) => Promise<Coda | undefined>
+  aggiungiInCoda: (id: string, testo: string, sessione?: string) => Promise<Coda | undefined>
+  modificaInCoda: (id: string, voceId: string, testo: string, sessione?: string) => Promise<Coda | undefined>
+  togliDallaCoda: (id: string, voceId: string) => Promise<Coda | undefined>
+  /** Toglie le voci gia' consegnate. */
+  pulisciCoda: (id: string) => Promise<Coda | undefined>
 }
 
 export function creaRonda(deps: {
@@ -94,6 +127,13 @@ export function creaRonda(deps: {
   ripristinaProgetto: (id: string) => Promise<{ ok: boolean; messaggio?: string; conflitti?: number }>
   iberna: (sessioni: string[]) => void
   avvisa: (a: AvvisoProgetto) => void
+  /**
+   * Consegna un comando della coda a una chat del progetto che aspetta:
+   * la prima libera, o quella indicata. Torna a chi l'ha dato, o `undefined`
+   * se in questo momento nessuna chat puo' riceverlo.
+   */
+  consegna?: (p: ProgettoDrive, voce: VoceCoda) => Promise<{ sessione?: string } | undefined>
+  nuovoId?: () => string
   adesso?: () => number
   aspetta?: (ms: number) => Promise<void>
   log?: (m: string) => void
@@ -103,7 +143,43 @@ export function creaRonda(deps: {
   const log = deps.log ?? ((): void => {})
   const stati = new Map<string, StatoProgetto>()
   const avvisati = new Set<string>()
+  const inCoda = new Map<string, number>()
   let inGiro = false
+  const nuovoId = deps.nuovoId ?? ((): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`)
+
+  const leggiCoda = async (s: Scatola, id: string): Promise<Coda> => {
+    const c = await s.leggi<Coda>(nomeCoda(id))
+    return c !== undefined && Array.isArray(c.voci) ? c : { voci: [] }
+  }
+  const scriviCoda = async (s: Scatola, id: string, c: Coda): Promise<Coda> => {
+    if (c.voci.length === 0) await s.cancella(nomeCoda(id))
+    else await s.scrivi(nomeCoda(id), c)
+    inCoda.set(id, c.voci.filter((v) => v.stato === 'attesa').length)
+    return c
+  }
+  const conCoda = async (id: string, cambia: (c: Coda) => Coda): Promise<Coda | undefined> => {
+    const s = deps.scatola()
+    if (s === undefined) return undefined
+    return scriviCoda(s, id, cambia(await leggiCoda(s, id)))
+  }
+  /**
+   * Un comando dalla coda alla chat: uno per giro, cosi' la chat lo lavora
+   * prima di riceverne un altro. Se nessuna chat aspetta, resta in coda.
+   */
+  const consegnaDallaCoda = async (s: Scatola, p: ProgettoDrive): Promise<void> => {
+    if (deps.consegna === undefined) return
+    const coda = await leggiCoda(s, p.id)
+    const prossima = coda.voci.find((v) => v.stato === 'attesa')
+    if (prossima === undefined) return
+    const esito = await deps.consegna(p, prossima)
+    if (esito === undefined) return
+    const consegnata: VoceCoda = {
+      ...prossima, stato: 'consegnata', consegnataIl: iso(), aNome: deps.pcNome(),
+      ...(esito.sessione !== undefined ? { aSessione: esito.sessione } : {})
+    }
+    await scriviCoda(s, p.id, { voci: coda.voci.map((v) => (v.id === prossima.id ? consegnata : v)) })
+    log(`[progetti] «${p.nome}»: comando consegnato dalla coda${esito.sessione !== undefined ? ` a ${esito.sessione}` : ''} (da ${prossima.daNome})`)
+  }
 
   const iso = (): string => new Date(adesso()).toISOString()
   const mia = (): Presenza => ({ pcId: deps.pcId(), pcNome: deps.pcNome(), da: iso(), battito: iso() })
@@ -114,6 +190,7 @@ export function creaRonda(deps: {
     const staffetta = await s.leggi<Staffetta>(nomeStaffetta(p.id))
     const vive = deps.vive(p)
     const ora = adesso()
+    inCoda.set(p.id, (await leggiCoda(s, p.id)).voci.filter((v) => v.stato === 'attesa').length)
 
     if (presenzaViva(presenza, ora) && presenza.pcId === me) {
       if (staffetta !== undefined && staffetta.daPc !== me) {
@@ -137,6 +214,7 @@ export function creaRonda(deps: {
           await s.scrivi(nomePresenza(p.id), { ...presenza, battito: iso() })
         }
         stati.set(p.id, { id: p.id, nome: p.nome, chi: 'io', da: presenza.da })
+        await consegnaDallaCoda(s, p)
         return
       }
       if (ora - Date.parse(presenza.battito) >= RILASCIO_DOPO_MS) {
@@ -167,6 +245,7 @@ export function creaRonda(deps: {
       stati.set(p.id, { id: p.id, nome: p.nome, chi: 'io', da: iso() })
       avvisati.delete(p.id)
       log(`[progetti] «${p.nome}»: presenza presa`)
+      await consegnaDallaCoda(s, p)
       return
     }
     stati.set(p.id, { id: p.id, nome: p.nome, chi: 'libero' })
@@ -200,8 +279,11 @@ export function creaRonda(deps: {
       }
     },
 
-    stati: () => [...stati.values()],
-    statoDi: (id) => stati.get(id),
+    stati: () => [...stati.values()].map((x) => ({ ...x, inCoda: inCoda.get(x.id) ?? 0 })),
+    statoDi: (id) => {
+      const x = stati.get(id)
+      return x === undefined ? undefined : { ...x, inCoda: inCoda.get(id) ?? 0 }
+    },
     statoDiCwd,
 
     primaDiAprire(cwd) {
@@ -248,6 +330,35 @@ export function creaRonda(deps: {
       const fuori = new Set<string>()
       for (const s of stati.values()) if (s.chi === 'altro') fuori.add(s.id)
       return fuori
+    },
+
+    async coda(id) {
+      const s = deps.scatola()
+      return s === undefined ? undefined : leggiCoda(s, id)
+    },
+    aggiungiInCoda(id, testo, sessione) {
+      const pulito = testo.trim()
+      if (pulito === '') return Promise.resolve(undefined)
+      return conCoda(id, (c) => ({
+        voci: [...c.voci, {
+          id: nuovoId(), testo: pulito, creataIl: iso(), daNome: deps.pcNome(), stato: 'attesa',
+          ...(sessione !== undefined && sessione !== '' ? { sessione } : {})
+        }]
+      }))
+    },
+    modificaInCoda(id, voceId, testo, sessione) {
+      const pulito = testo.trim()
+      return conCoda(id, (c) => ({
+        voci: c.voci.map((v) => (v.id === voceId && v.stato === 'attesa'
+          ? { ...v, testo: pulito === '' ? v.testo : pulito, ...(sessione !== undefined ? (sessione === '' ? { sessione: undefined } : { sessione }) : {}) }
+          : v))
+      }))
+    },
+    togliDallaCoda(id, voceId) {
+      return conCoda(id, (c) => ({ voci: c.voci.filter((v) => v.id !== voceId) }))
+    },
+    pulisciCoda(id) {
+      return conCoda(id, (c) => ({ voci: c.voci.filter((v) => v.stato !== 'consegnata') }))
     }
   }
 }

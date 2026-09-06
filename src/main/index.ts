@@ -932,6 +932,19 @@ if (!app.requestSingleInstanceLock()) {
         ripristinaProgetto: (id) => sincronia.ripristinaProgetto(id),
         iberna: (sessioni) => mandaATutte('progetti:iberna-chat', { sessioni }),
         avvisa: (a) => mandaATutte('progetti:avviso', a),
+        // La consegna di un comando dalla coda: alla chat indicata, o alla
+        // prima del progetto che ha finito e aspetta. Stesso canale con cui
+        // scrive il telefono.
+        consegna: (p, voce) => {
+          const mio = p.percorsi[identitaPc.leggi().id]
+          if (mio === undefined) return Promise.resolve(undefined)
+          const pronta = chatAperte.find((c) =>
+            c.viva === true && c.aspetta === true && staDentro(c.cwd, mio) &&
+            (voce.sessione === undefined || c.sessione === voce.sessione))
+          if (pronta === undefined) return Promise.resolve(undefined)
+          scriviNelRiquadro(pronta.id, voce.testo)
+          return Promise.resolve(pronta.sessione !== undefined ? { sessione: pronta.sessione } : {})
+        },
         log: registro.info
       })
       progettiInManoAdAltri = () => ronda.inManoAdAltri()
@@ -945,6 +958,30 @@ if (!app.requestSingleInstanceLock()) {
       const primaRonda = setTimeout(() => { void ronda.giro() }, 15_000)
       primaRonda.unref?.()
       ipcMain.handle('progetti:stati', () => ronda.stati())
+      // Le chat di un progetto, per scegliere a chi va un comando della coda.
+      ipcMain.handle('progetti:chatDi', (_e, rawId: unknown) => {
+        if (typeof rawId !== 'string' || workspaceStore === undefined) return []
+        const p = registroProgetti.leggi().progetti.find((x) => x.id === rawId)
+        const mio = p?.percorsi[identitaPc.leggi().id]
+        if (p === undefined || mio === undefined) return []
+        return chatSalvate(workspaceStore.leggi())
+          .filter((c) => staDentro(c.cwd, mio))
+          .map((c) => ({ sessione: c.sessione, titolo: c.titolo, workspace: c.workspace }))
+      })
+      ipcMain.handle('progetti:coda', (_e, rawId: unknown) =>
+        typeof rawId === 'string' ? ronda.coda(rawId) : Promise.resolve(undefined))
+      ipcMain.handle('progetti:codaAggiungi', (_e, rawId: unknown, testo: unknown, sessione: unknown) =>
+        typeof rawId === 'string' && typeof testo === 'string'
+          ? ronda.aggiungiInCoda(rawId, testo, typeof sessione === 'string' ? sessione : undefined)
+          : Promise.resolve(undefined))
+      ipcMain.handle('progetti:codaModifica', (_e, rawId: unknown, voceId: unknown, testo: unknown, sessione: unknown) =>
+        typeof rawId === 'string' && typeof voceId === 'string' && typeof testo === 'string'
+          ? ronda.modificaInCoda(rawId, voceId, testo, typeof sessione === 'string' ? sessione : undefined)
+          : Promise.resolve(undefined))
+      ipcMain.handle('progetti:codaTogli', (_e, rawId: unknown, voceId: unknown) =>
+        typeof rawId === 'string' && typeof voceId === 'string' ? ronda.togliDallaCoda(rawId, voceId) : Promise.resolve(undefined))
+      ipcMain.handle('progetti:codaPulisci', (_e, rawId: unknown) =>
+        typeof rawId === 'string' ? ronda.pulisciCoda(rawId) : Promise.resolve(undefined))
       ipcMain.handle('progetti:prendiTestimone', async (_e, rawId: unknown, forza: unknown) => {
         if (typeof rawId !== 'string' || rawId === '') return { ok: false, messaggio: 'richiesta non valida' }
         const esito = await ronda.prendiTestimone(rawId, forza === true)

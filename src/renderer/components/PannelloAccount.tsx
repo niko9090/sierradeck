@@ -9,6 +9,7 @@ type Props = { onChiudi?: () => void; incorporato?: boolean }
 import { descriviProgresso, type ProgressoSync } from '../progresso-sync'
 import { ModaleConferma } from './ModaleConferma'
 import { ModaleFusione } from './ModaleFusione'
+import { ModaleCoda } from './ModaleCoda'
 
 type StatoDrive = { configurato: boolean; connesso: boolean; email?: string }
 type ElencoProgetti = {
@@ -24,7 +25,7 @@ type ElencoProgetti = {
  * una cartella che non c'e'. Da qui si dice quali cartelle viaggiano con le
  * chat, e dove questo PC riceve quelle che arrivano dagli altri.
  */
-type StatoProgettoVista = { id: string; chi: 'io' | 'altro' | 'libero'; pcNome?: string; da?: string; staffettaDa?: string }
+type StatoProgettoVista = { id: string; chi: 'io' | 'altro' | 'libero'; pcNome?: string; da?: string; staffettaDa?: string; inCoda?: number }
 
 function oraBreve(iso: string | undefined): string {
   if (iso === undefined) return ''
@@ -38,6 +39,7 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
   const [occupato, setOccupato] = useState(false)
   const [esito, setEsito] = useState<string | undefined>(undefined)
   const [daTogliere, setDaTogliere] = useState<{ id: string; nome: string } | undefined>(undefined)
+  const [codaAperta, setCodaAperta] = useState<{ id: string; nome: string } | undefined>(undefined)
   const ricarica = (): void => {
     void window.gestore.progetti.elenca().then(setElenco).catch(() => {})
     void window.gestore.progetti.stati().then(setStati).catch(() => {})
@@ -64,9 +66,10 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
   const statoDi = (id: string): StatoProgettoVista | undefined => stati.find((s) => s.id === id)
   const descriviStato = (s: StatoProgettoVista | undefined): string => {
     if (s === undefined) return ''
-    if (s.chi === 'io') return ` · in lavoro qui${s.da !== undefined ? ` dalle ${oraBreve(s.da)}` : ''}`
-    if (s.chi === 'altro') return ` · in lavoro su ${s.pcNome ?? '?'}${s.da !== undefined ? ` dalle ${oraBreve(s.da)}` : ''}${s.staffettaDa !== undefined ? ` (${s.staffettaDa} ha chiesto il testimone)` : ''}`
-    return ' · libero'
+    const coda = (s.inCoda ?? 0) > 0 ? ` · ${s.inCoda} in coda` : ''
+    if (s.chi === 'io') return ` · in lavoro qui${s.da !== undefined ? ` dalle ${oraBreve(s.da)}` : ''}${coda}`
+    if (s.chi === 'altro') return ` · in lavoro su ${s.pcNome ?? '?'}${s.da !== undefined ? ` dalle ${oraBreve(s.da)}` : ''}${s.staffettaDa !== undefined ? ` (${s.staffettaDa} ha chiesto il testimone)` : ''}${coda}`
+    return ` · libero${coda}`
   }
   if (elenco === undefined) return null
   const fermo = inCorso || occupato
@@ -92,6 +95,7 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
                 </span>
               </div>
               <div className="account__scheda-tasti">
+                <button className="tasto tasto--mini" disabled={fermo} onClick={() => setCodaAperta({ id: p.id, nome: p.nome })} title="Comandi in fila per questo progetto, da qualunque PC">Coda…</button>
                 {statoDi(p.id)?.chi === 'altro' ? (
                   <>
                     <button className="tasto tasto--primario tasto--mini" disabled={fermo} onClick={() => prendi(p.id)}>Prendi il testimone</button>
@@ -108,6 +112,9 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
         </ul>
       )}
       {esito !== undefined ? <div className="riga__stato">{esito}</div> : null}
+      {codaAperta !== undefined ? (
+        <ModaleCoda progetto={codaAperta} onChiudi={() => { setCodaAperta(undefined); ricarica() }} />
+      ) : null}
       {daTogliere !== undefined ? (
         <ModaleConferma
           titolo={`Togliere «${daTogliere.nome}» dal Drive?`}
