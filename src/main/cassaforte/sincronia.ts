@@ -193,6 +193,8 @@ export function apriSincronia(deps: {
   workspaceLocale?: { leggi: () => ArchivioWorkspace | undefined; scrivi: (a: ArchivioWorkspace) => boolean }
   /** Il registro dei progetti di questo PC, per la fusione. */
   registroProgetti?: { leggi: () => RegistroProgetti; scrivi: (r: RegistroProgetti) => void }
+  /** L'indice delle conversazioni: per chiamare le chat col loro nome nel piano di fusione. */
+  titoliChat?: () => Map<string, { titolo?: string; cwd?: string; quando?: string; messaggi?: number }>
   pcId?: () => string
 }): Sincronia {
   const adesso = deps.adesso ?? ((): string => new Date().toISOString())
@@ -579,10 +581,12 @@ export function apriSincronia(deps: {
         const firmaPc = new Map<string, { size: number; mtime: number }>()
         for (const [k, v] of firma) firmaPc.set(k, { size: v.size, mtime: v.mtime })
         const archivioPc = deps.workspaceLocale?.leggi()
+        const titoliIndice = deps.titoliChat?.()
         const piano = pianifica({
           firmaPc, manifestoDrive,
           ...(archivioPc !== undefined ? { archivioPc } : {}),
           ...(archivioDrive !== undefined ? { archivioDrive } : {}),
+          ...(titoliIndice !== undefined ? { titoliIndice } : {}),
           registroPc: deps.registroProgetti?.leggi() ?? { versione: 1, progetti: [] },
           registroDrive,
           pcId: deps.pcId?.() ?? '',

@@ -53,6 +53,19 @@ describe('la fusione', () => {
     // Diverse: vince la piu' lunga, che qui e' quella del PC.
     expect(per.get('chat/slug/u-comune.jsonl')).toMatchObject({ dove: 'entrambi', diverse: true, predefinita: 'carica', etichetta: 'In comune' })
     expect(piano.workspace.map((w) => [w.nome, w.dove])).toEqual([['lavoro', 'entrambi'], ['solo-pc', 'pc'], ['altro', 'drive']])
+    // Con l'indice, la chat ha il suo nome vero, la cartella e la data.
+    const conIndice = pianifica({
+      firmaPc, manifestoDrive: mD.manifesto, archivioPc, archivioDrive,
+      registroPc: { versione: 1, progetti: [] }, registroDrive: { versione: 1, progetti: [] }, pcId: 'A', cassaforteDiversa: false,
+      titoliIndice: new Map([['u-drive', { titolo: 'Sistemare il lettore', cwd: 'E:\\Progetti\\SD', quando: '2026-09-01T10:00:00.000Z', messaggi: 12 }]])
+    })
+    const vd = conIndice.chat.find((v) => v.percorso === 'chat/slug/u-drive.jsonl')
+    expect(vd).toMatchObject({ etichetta: 'Sistemare il lettore', cartella: 'E:\\Progetti\\SD', quando: '2026-09-01T10:00:00.000Z' })
+    expect(vd?.sotto).toContain('12 messaggi')
+    // Senza niente, non un codice: «Conversazione» con la cartella dal nome del file.
+    const vp = conIndice.chat.find((v) => v.percorso === 'chat/slug/u-pc.jsonl')
+    expect(vp?.etichetta).toBe('Chat del PC')
+    expect(vp?.cartella).toBe('slug')
     const scelte = sceltePredefinite(piano)
     expect(scelte.voci).toEqual({ 'chat/slug/u-pc.jsonl': 'carica', 'chat/slug/u-drive.jsonl': 'scarica', 'chat/slug/u-comune.jsonl': 'carica' })
   })

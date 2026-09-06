@@ -38,6 +38,10 @@ export type VoceFusione = {
   diverse: boolean
   pc?: Firma
   drive?: Firma
+  /** Per le chat: la cartella del progetto, leggibile, per raggrupparle. */
+  cartella?: string
+  /** Per le chat: l'ultima volta che si e' scritto, ISO. */
+  quando?: string
   /** Cosa si farebbe senza dire niente: l'unione, con il piu' completo o il piu' recente a vincere. */
   predefinita: Azione
 }
@@ -153,11 +157,16 @@ const VINCE_PIU_RECENTE = (pc: Firma, drive: Firma): 'carica' | 'scarica' => (pc
 /**
  * Il piano: cosa c'e' di qua, di la', in comune, e cosa si farebbe.
  */
+/** Cio' che l'indice delle conversazioni sa di una chat: il titolo vero, la cartella, quando. */
+export type TitoloIndice = { titolo?: string; cwd?: string; quando?: string; messaggi?: number }
+
 export function pianifica(p: {
   firmaPc: Map<string, Firma>
   manifestoDrive: Manifesto
   archivioPc?: ArchivioWorkspace
   archivioDrive?: ArchivioWorkspace
+  /** L'indice delle conversazioni di questo PC: per chiamare le chat col loro nome. */
+  titoliIndice?: Map<string, TitoloIndice>
   registroPc: RegistroProgetti
   registroDrive: RegistroProgetti
   pcId: string
@@ -178,11 +187,23 @@ export function pianifica(p: {
     const pc = p.firmaPc.get(percorso)
     const d = drive.get(percorso)
     if (prefisso === 'chat') {
+      // Il nome che una persona riconosce: il titolo dell'indice (che legge le
+      // trascrizioni), poi quello dei workspace, poi «Conversazione» con la
+      // data. Mai il codice: nessuno riconosce una chat da otto lettere a caso.
       const uuid = uuidDi(percorso)
+      const indice = p.titoliIndice?.get(uuid)
       const noto = titoliPc.get(uuid) ?? titoliDrive.get(uuid)
-      const etichetta = noto !== undefined && noto.titolo !== '' ? noto.titolo : uuid.slice(0, 8)
-      const sotto = noto !== undefined ? `workspace «${noto.workspace}» · ${cartellaDaSlug(slugDi(percorso))}` : cartellaDaSlug(slugDi(percorso))
-      chat.push(voce(percorso, pc, d, etichetta, sotto, VINCE_PIU_LUNGA))
+      const cartella = indice?.cwd ?? cartellaDaSlug(slugDi(percorso))
+      const quandoMs = pc?.mtime ?? d?.mtime
+      const quando = indice?.quando ?? (quandoMs !== undefined ? new Date(quandoMs).toISOString() : undefined)
+      const titolo = (indice?.titolo ?? '').trim() !== '' ? (indice?.titolo as string).trim()
+        : noto !== undefined && noto.titolo.trim() !== '' ? noto.titolo.trim()
+          : 'Conversazione'
+      const pezzi: string[] = []
+      if (indice?.messaggi !== undefined && indice.messaggi > 0) pezzi.push(`${indice.messaggi} messaggi`)
+      if (noto !== undefined) pezzi.push(`workspace «${noto.workspace}»`)
+      const v = voce(percorso, pc, d, titolo, pezzi.length > 0 ? pezzi.join(' · ') : undefined, VINCE_PIU_LUNGA)
+      chat.push({ ...v, cartella, ...(quando !== undefined ? { quando } : {}) })
     } else if (prefisso.startsWith('progetto-')) {
       const id = prefisso.slice('progetto-'.length)
       const rel = percorso.slice(prefisso.length + 1)

@@ -475,3 +475,11 @@ Pagina: `<span class="voce__altrove">su X</span>` accanto al titolo. App:
 vecchi) e una riga «in lavoro su X» sotto il titolo in `Chat.kt`. Dal telefono
 non si prende il testimone: si vede e basta.
 
+## 2026-09-06 — REGOLA: l'APK esce con OGNI release (app 2.25.0, desktop 0.16.0)
+
+Nicholas: «il telefono deve sempre essere aggiornato e quando rilasci le
+release metti sempre dentro anche l'apk». Quindi a ogni release: bump
+`versionCode`/`versionName`, `gradle … assembleRelease` (mai in parallelo
+con vitest), APK allegato a `gh release create`. Con la 2.25.0: coda dei
+comandi nel tab Computer («Code dei progetti»).
+

@@ -8,10 +8,30 @@ type Props = {
 }
 
 const ETICHETTA_AZIONE: Record<Azione, string> = {
-  carica: 'PC → Drive',
-  scarica: 'Drive → PC',
-  copia: 'tutte e due (copia accanto)',
+  carica: 'porta sul Drive',
+  scarica: 'porta qui',
+  copia: 'tieni tutte e due (l’altra accanto)',
   salta: 'lascia com’è'
+}
+
+function quandoBreve(iso: string | undefined): string {
+  if (iso === undefined) return ''
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+/** Le chat raggruppate per cartella di progetto: e' cosi' che uno le riconosce. */
+function perCartella(voci: VoceFusione[]): { cartella: string; voci: VoceFusione[] }[] {
+  const gruppi = new Map<string, VoceFusione[]>()
+  for (const v of voci) {
+    const k = v.cartella ?? '(cartella sconosciuta)'
+    const g = gruppi.get(k) ?? []
+    g.push(v)
+    gruppi.set(k, g)
+  }
+  return [...gruppi.entries()]
+    .map(([cartella, voci]) => ({ cartella, voci: [...voci].sort((a, b) => (b.quando ?? '').localeCompare(a.quando ?? '')) }))
+    .sort((a, b) => b.voci.length - a.voci.length)
 }
 
 /** Le azioni che hanno senso per una voce, a seconda di dove sta. */
@@ -23,8 +43,8 @@ function azioniPossibili(v: VoceFusione, conCopia: boolean): Azione[] {
 }
 
 function descriviDove(v: VoceFusione): string {
-  if (v.dove === 'pc') return 'solo su questo PC'
-  if (v.dove === 'drive') return 'solo sul Drive'
+  if (v.dove === 'pc') return 'c’è solo su questo PC'
+  if (v.dove === 'drive') return 'c’è solo sul Drive'
   if (!v.diverse) return 'uguale di qua e di là'
   const kb = (n: number | undefined): string => (n === undefined ? '?' : `${Math.max(1, Math.round(n / 1024))} KB`)
   const quando = (t: number | undefined): string => (t === undefined ? '' : new Date(t).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }))
@@ -46,7 +66,9 @@ function Elenco({ voci, scelte, conCopia, onScelta }: {
           <li key={v.percorso} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center', fontSize: 12, padding: '4px 6px', borderRadius: 6, background: 'var(--fondo-cupo)' }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={v.percorso}>
-                <strong>{v.etichetta}</strong>{v.sotto !== undefined ? <span style={{ opacity: 0.6 }}> · {v.sotto}</span> : null}
+                <strong>{v.etichetta}</strong>
+                {v.quando !== undefined ? <span style={{ opacity: 0.6 }}> · {quandoBreve(v.quando)}</span> : null}
+                {v.sotto !== undefined ? <span style={{ opacity: 0.6 }}> · {v.sotto}</span> : null}
               </div>
               <div style={{ opacity: 0.6, fontSize: 11 }}>{descriviDove(v)}</div>
             </div>
@@ -70,11 +92,11 @@ function TastiGruppo({ voci, conCopia, onTutte }: { voci: VoceFusione[]; conCopi
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 11, alignItems: 'center' }}>
       <span style={{ opacity: 0.6 }}>tutte:</span>
-      <button className="tasto tasto--mini" onClick={() => onTutte('predefinite')}>unione (predefinito)</button>
-      {haPc ? <button className="tasto tasto--mini" onClick={() => onTutte('carica')}>solo PC → Drive</button> : null}
-      {haDrive ? <button className="tasto tasto--mini" onClick={() => onTutte('scarica')}>solo Drive → PC</button> : null}
-      {conCopia ? <button className="tasto tasto--mini" onClick={() => onTutte('copia')}>le diverse: tutte e due</button> : null}
-      <button className="tasto tasto--mini" onClick={() => onTutte('salta')}>lascia tutto</button>
+      <button className="tasto tasto--mini" onClick={() => onTutte('predefinite')}>unisci (consigliato)</button>
+      {haPc ? <button className="tasto tasto--mini" onClick={() => onTutte('carica')}>solo dal PC al Drive</button> : null}
+      {haDrive ? <button className="tasto tasto--mini" onClick={() => onTutte('scarica')}>solo dal Drive al PC</button> : null}
+      {conCopia ? <button className="tasto tasto--mini" onClick={() => onTutte('copia')}>le diverse: tieni tutte e due</button> : null}
+      <button className="tasto tasto--mini" onClick={() => onTutte('salta')}>lascia tutto com’è</button>
     </div>
   )
 }
@@ -91,7 +113,13 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
   const [piano, setPiano] = useState<PianoFusione | undefined>(undefined)
   const [scelte, setScelte] = useState<Record<string, Azione>>({})
   const [modoWs, setModoWs] = useState<ModoWorkspace>('unione')
-  const [escludiWs, setEscludiWs] = useState<Set<string>>(new Set())
+  // Per ogni workspace: 'unisci' (qui + Drive), 'qui' (resta com'e' su questo PC), 'porta' (dal Drive, se e' solo la'), 'no' (non portarlo).
+  const [sceltaWs, setSceltaWs] = useState<Record<string, 'unisci' | 'qui' | 'porta' | 'no'>>({})
+  const escludiWs = useMemo(() => {
+    const fuori: string[] = []
+    for (const [nome, s] of Object.entries(sceltaWs)) if (s === 'qui' || s === 'no') fuori.push(nome)
+    return fuori
+  }, [sceltaWs])
   const [aperti, setAperti] = useState<Set<string>>(new Set(['chat']))
   const [messaggio, setMessaggio] = useState<string | undefined>(undefined)
   const [esito, setEsito] = useState<{ caricati: number; scaricati: number; copie: number; saltati: number } | undefined>(undefined)
@@ -143,7 +171,7 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
 
   const esegui = (): void => {
     setFase('eseguo'); setMessaggio(undefined)
-    void window.gestore.sync.eseguiFusione({ voci: scelte, workspace: { modo: modoWs, escludi: [...escludiWs] } }, cassaforteDiversa ? passphrase : undefined)
+    void window.gestore.sync.eseguiFusione({ voci: scelte, workspace: { modo: modoWs, escludi: escludiWs } }, cassaforteDiversa ? passphrase : undefined)
       .then((r) => {
         if (!r.ok) { setMessaggio(r.messaggio); setFase('errore'); return }
         setEsito(r.esito); setFase('fatto')
@@ -199,14 +227,35 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
               solo su questo PC <strong>{piano.totali.soloPc}</strong> · solo sul Drive <strong>{piano.totali.soloDrive}</strong> · diverse <strong>{piano.totali.diverse}</strong> · uguali <strong>{piano.totali.uguali}</strong>.
               Il predefinito è l’unione: per le chat vince la copia più lunga, per i file di progetto la più recente. Cambia quello che vuoi.
             </p>
+            <p className="account__nota" style={{ margin: '0 0 8px', fontSize: 12 }}>
+              Due cose separate: le <strong>chat</strong> sono le conversazioni (qui sotto, per cartella di progetto); i <strong>workspace</strong> sono le fasce che le raggruppano a schermo, e si decidono in fondo.
+            </p>
             <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 4 }}>
-              {/* Chat */}
+              {/* Chat, per cartella di progetto */}
               <section>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <button className="account__link" onClick={() => commuta('chat')}>{aperti.has('chat') ? '▾' : '▸'} Chat ({piano.chat.length})</button>
+                  <span className="serigrafia">Chat ({piano.chat.length})</span>
                   <TastiGruppo voci={piano.chat} conCopia={false} onTutte={(a) => impostaTutte(piano.chat, false, a)} />
                 </div>
-                {aperti.has('chat') ? (piano.chat.length === 0 ? <p className="account__nota">Nessuna chat da fondere.</p> : <Elenco voci={piano.chat} scelte={scelte} conCopia={false} onScelta={imposta} />) : null}
+                {piano.chat.length === 0 ? <p className="account__nota">Nessuna chat da fondere.</p> : null}
+                {perCartella(piano.chat).map((g) => {
+                  const chiave = `chat:${g.cartella}`
+                  const soloPc = g.voci.filter((v) => v.dove === 'pc').length
+                  const soloDrive = g.voci.filter((v) => v.dove === 'drive').length
+                  const diverse = g.voci.filter((v) => v.diverse).length
+                  return (
+                    <div key={chiave} style={{ margin: '6px 0 0 0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <button className="account__link" onClick={() => commuta(chiave)} title={g.cartella}>
+                          {aperti.has(chiave) ? '▾' : '▸'} {g.cartella} · {g.voci.length} chat
+                          <span style={{ opacity: 0.6 }}>{soloPc > 0 ? ` · ${soloPc} solo qui` : ''}{soloDrive > 0 ? ` · ${soloDrive} solo sul Drive` : ''}{diverse > 0 ? ` · ${diverse} diverse` : ''}</span>
+                        </button>
+                        <TastiGruppo voci={g.voci} conCopia={false} onTutte={(a) => impostaTutte(g.voci, false, a)} />
+                      </div>
+                      {aperti.has(chiave) ? <Elenco voci={g.voci} scelte={scelte} conCopia={false} onScelta={imposta} /> : null}
+                    </div>
+                  )
+                })}
               </section>
               {/* Progetti */}
               {piano.progetti.map((p) => (
@@ -235,25 +284,46 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span className="serigrafia">Workspace</span>
                   <select className="account__campo" style={{ fontSize: 12, padding: '2px 6px' }} value={modoWs} onChange={(e) => setModoWs(e.target.value as ModoWorkspace)}>
-                    <option value="unione">unione: i workspace di qua e di là, chat per chat</option>
-                    <option value="pc">tieni quelli di questo PC</option>
-                    <option value="drive">prendi quelli del Drive</option>
+                    <option value="unione">unisci: decido workspace per workspace (consigliato)</option>
+                    <option value="pc">tieni tutti quelli di questo PC, ignora quelli del Drive</option>
+                    <option value="drive">prendi tutti quelli del Drive, al posto di questi</option>
                   </select>
                 </div>
+                <p className="account__nota" style={{ fontSize: 12, margin: '6px 0' }}>
+                  Un workspace è una fascia con dentro delle chat. «Unisci» vuol dire: le chat che stanno in quel workspace sul Drive entrano nello stesso workspace qui, accanto a quelle che ci sono già; niente si toglie. Un workspace che esiste solo sul Drive viene creato qui con le sue chat.
+                </p>
                 {modoWs === 'unione' ? (
-                  <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    {piano.workspace.map((w) => (
-                      <li key={w.nome} style={{ fontSize: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                          <input type="checkbox" checked={!escludiWs.has(w.nome)} onChange={() => setEscludiWs((s) => { const n = new Set(s); if (n.has(w.nome)) n.delete(w.nome); else n.add(w.nome); return n })} />
-                          <strong>{w.nome}</strong>
-                        </label>
-                        <span style={{ opacity: 0.6 }}>
-                          {w.dove === 'entrambi' ? `di qua ${w.chatPc} chat, di là ${w.chatDrive}` : w.dove === 'pc' ? `solo su questo PC (${w.chatPc} chat)` : `solo sul Drive (${w.chatDrive} chat)`}
-                          {escludiWs.has(w.nome) ? ' · escluso: resta com’è qui' : ''}
-                        </span>
-                      </li>
-                    ))}
+                  <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {piano.workspace.map((w) => {
+                      const scelta = sceltaWs[w.nome] ?? (w.dove === 'drive' ? 'porta' : 'unisci')
+                      return (
+                        <li key={w.nome} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center', fontSize: 12, padding: '4px 6px', borderRadius: 6, background: 'var(--fondo-cupo)' }}>
+                          <div>
+                            <strong>{w.nome}</strong>
+                            <span style={{ opacity: 0.6 }}>
+                              {w.dove === 'entrambi' ? ` · qui ${w.chatPc} chat, sul Drive ${w.chatDrive}` : w.dove === 'pc' ? ` · solo qui, ${w.chatPc} chat` : ` · solo sul Drive, ${w.chatDrive} chat`}
+                            </span>
+                          </div>
+                          {w.dove === 'pc' ? (
+                            <span style={{ fontSize: 11, opacity: 0.6 }}>resta com’è</span>
+                          ) : (
+                            <select className="account__campo" style={{ fontSize: 12, padding: '2px 6px' }} value={scelta} onChange={(e) => setSceltaWs((s) => ({ ...s, [w.nome]: e.target.value as 'unisci' | 'qui' | 'porta' | 'no' }))}>
+                              {w.dove === 'entrambi' ? (
+                                <>
+                                  <option value="unisci">unisci: qui + le chat del Drive</option>
+                                  <option value="qui">tieni com’è qui, ignora il Drive</option>
+                                </>
+                              ) : (
+                                <>
+                                  <option value="porta">crealo qui con le sue chat</option>
+                                  <option value="no">non portarlo</option>
+                                </>
+                              )}
+                            </select>
+                          )}
+                        </li>
+                      )
+                    })}
                   </ul>
                 ) : null}
               </section>

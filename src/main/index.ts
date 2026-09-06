@@ -891,6 +891,19 @@ if (!app.requestSingleInstanceLock()) {
           scrivi: (a) => workspaceStore?.scrivi(a) ?? false
         },
         registroProgetti,
+        titoliChat: () => {
+          const m = new Map<string, { titolo?: string; cwd?: string; quando?: string; messaggi?: number }>()
+          if (db === undefined) return m
+          for (const x of listSessions(db)) {
+            m.set(x.uuid, {
+              ...(x.aiTitle !== undefined ? { titolo: x.aiTitle } : {}),
+              cwd: x.cwd ?? x.projectPath,
+              ...(x.lastTimestamp !== undefined ? { quando: x.lastTimestamp } : {}),
+              messaggi: x.messageCount
+            })
+          }
+          return m
+        },
         driveConnesso: () => contoDrive.stato().connesso,
         // Il magazzino a blocco unico serve alle CHIAVI; l'archivio a più file ai
         // DATI (sincronizzazione incrementale: solo ciò che cambia).
