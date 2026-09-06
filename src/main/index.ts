@@ -885,6 +885,12 @@ if (!app.requestSingleInstanceLock()) {
         radiceClaude,
         progetti: progettiSync,
         pcNome: () => identitaPc.leggi().nome,
+        pcId: () => identitaPc.leggi().id,
+        workspaceLocale: {
+          leggi: () => workspaceStore?.leggi(),
+          scrivi: (a) => workspaceStore?.scrivi(a) ?? false
+        },
+        registroProgetti,
         driveConnesso: () => contoDrive.stato().connesso,
         // Il magazzino a blocco unico serve alle CHIAVI; l'archivio a più file ai
         // DATI (sincronizzazione incrementale: solo ciò che cambia).
@@ -1023,6 +1029,24 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('sync:blocca', () => { sincronia.blocca() })
       ipcMain.handle('sync:adottaCassaforteDelDrive', () => sincronia.adottaCassaforteDelDrive())
       ipcMain.handle('sync:cambiatoDrive', () => { sincronia.cambiatoDrive() })
+      ipcMain.handle('sync:anteprimaFusione', (_e, pw: unknown) =>
+        sincronia.anteprimaFusione(typeof pw === 'string' && pw !== '' ? pw : undefined))
+      ipcMain.handle('sync:eseguiFusione', async (_e, rawScelte: unknown, pw: unknown) => {
+        if (typeof rawScelte !== 'object' || rawScelte === null) return { ok: false, messaggio: 'richiesta non valida' }
+        const s = rawScelte as { voci?: unknown; workspace?: unknown }
+        const voci: Record<string, 'carica' | 'scarica' | 'copia' | 'salta'> = {}
+        if (typeof s.voci === 'object' && s.voci !== null) {
+          for (const [k, v] of Object.entries(s.voci as Record<string, unknown>)) {
+            if (v === 'carica' || v === 'scarica' || v === 'copia' || v === 'salta') voci[k] = v
+          }
+        }
+        const w = (typeof s.workspace === 'object' && s.workspace !== null ? s.workspace : {}) as { modo?: unknown; escludi?: unknown }
+        const modo = w.modo === 'pc' || w.modo === 'drive' ? w.modo : 'unione'
+        const escludi = Array.isArray(w.escludi) ? w.escludi.filter((x): x is string => typeof x === 'string') : []
+        const esito = await sincronia.eseguiFusione({ voci, workspace: { modo, escludi } }, typeof pw === 'string' && pw !== '' ? pw : undefined)
+        if (esito.ok) rimappaChat()
+        return esito
+      })
       ipcMain.handle('sync:provaPassphraseSulDrive', (_e, pw: unknown) =>
         typeof pw === 'string' ? sincronia.provaPassphraseSulDrive(pw) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
       ipcMain.handle('sync:salva', (_e, forza: unknown) => sincronia.salva(forza === true))

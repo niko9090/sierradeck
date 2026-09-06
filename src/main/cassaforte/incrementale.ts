@@ -45,7 +45,7 @@ export function prefissoDi(percorso: string): string {
   return barra === -1 ? percorso : percorso.slice(0, barra)
 }
 
-function nomeDi(percorso: string): string {
+export function nomeDi(percorso: string): string {
   return `f_${createHash('sha256').update(percorso).digest('hex')}`
 }
 
@@ -67,17 +67,17 @@ async function conLimite<T>(items: T[], limite: number, fn: (x: T) => Promise<vo
   await Promise.all(Array.from({ length: Math.min(limite, items.length) }, () => lavoratore()))
 }
 
-async function scriviManifesto(archivio: Archivio, maestra: Buffer, manifesto: Manifesto): Promise<void> {
+export async function scriviManifesto(archivio: Archivio, maestra: Buffer, manifesto: Manifesto): Promise<void> {
   const blob = await cifra(maestra, Buffer.from(JSON.stringify(manifesto), 'utf8'))
   await archivio.carica(NOME_MANIFESTO, blob)
 }
 
-type EsitoManifesto =
+export type EsitoManifesto =
   | { stato: 'assente' }
   | { stato: 'illeggibile' }
   | { stato: 'ok'; manifesto: Manifesto }
 
-async function leggiManifesto(archivio: Archivio, maestra: Buffer): Promise<EsitoManifesto> {
+export async function leggiManifesto(archivio: Archivio, maestra: Buffer): Promise<EsitoManifesto> {
   const blob = await archivio.scarica(NOME_MANIFESTO)
   if (blob === undefined) return { stato: 'assente' }
   const chiaro = await decifra(maestra, blob)

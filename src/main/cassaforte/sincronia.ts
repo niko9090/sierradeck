@@ -6,10 +6,16 @@ import type { Progresso } from './motore'
 import { pesaRadici, radiciDaSincronizzare, type Radice } from './raccolta'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
-import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi, togliPrefisso } from './incrementale'
+import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi, togliPrefisso, leggiManifesto } from './incrementale'
 import { applicaBlocco } from './lavoro'
 import type { Scatola } from '../progetti/presenza'
-import { prefissoProgetto } from '../progetti/registro'
+import { parseRegistro, prefissoProgetto, type RegistroProgetti } from '../progetti/registro'
+import { parseArchivio, type Archivio as ArchivioWorkspace } from '@shared/workspace'
+import { firmaRadici } from './raccolta'
+import {
+  pianifica, eseguiFusione, fondiArchivi, fondiRegistri, leggiJsonDalDrive,
+  type PianoFusione, type ScelteFusione, type EsitoFusione
+} from './fusione'
 
 /**
  * La **politica** della sincronizzazione: mette insieme cassaforte (cifratura),
@@ -106,6 +112,18 @@ export type Sincronia = {
   /** Piccoli oggetti cifrati sul Drive (presenze, staffette); assente se chiuso o scollegato. */
   scatola: () => Scatola | undefined
   /**
+   * Il piano di fusione fra questo PC e il Drive collegato: cosa c'e' di qua,
+   * di la', in comune, e cosa si farebbe. Se la cassaforte del Drive e' un'altra
+   * serve la sua passphrase, per leggerlo. Non tocca niente.
+   */
+  anteprimaFusione: (passphraseDrive?: string) => Promise<{ ok: true; piano: PianoFusione } | { ok: false; messaggio: string; servePassphrase?: boolean }>
+  /**
+   * Esegue le scelte. Se la cassaforte del Drive e' un'altra la adotta (con
+   * la passphrase data): da qui in poi questo PC usa quella, e la propria resta
+   * messa da parte. Poi carica, scarica, fonde i workspace e il registro.
+   */
+  eseguiFusione: (scelte: ScelteFusione, passphraseDrive?: string) => Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }>
+  /**
    * Mette da parte la cassaforte di questo PC e prende quella del Drive: da
    * qui in poi serve la passphrase di quel Drive. La vecchia resta accanto,
    * non si cancella. E si dimentica cosa si sapeva del Drive di prima.
@@ -168,9 +186,14 @@ export function apriSincronia(deps: {
    */
   progetti?: {
     radiciLocali: () => Radice[]
-    preparaRipristino: () => Radice[]
+    preparaRipristino: (soloId?: Set<string>) => Radice[]
     eDiProgetto: (prefisso: string) => boolean
   }
+  /** L'archivio dei workspace di questo PC, per la fusione. */
+  workspaceLocale?: { leggi: () => ArchivioWorkspace | undefined; scrivi: (a: ArchivioWorkspace) => boolean }
+  /** Il registro dei progetti di questo PC, per la fusione. */
+  registroProgetti?: { leggi: () => RegistroProgetti; scrivi: (r: RegistroProgetti) => void }
+  pcId?: () => string
 }): Sincronia {
   const adesso = deps.adesso ?? ((): string => new Date().toISOString())
   const log = deps.log ?? ((): void => {})
@@ -528,6 +551,111 @@ export function apriSincronia(deps: {
       adotta(mR)
       log('la passphrase di questo PC apre il Drive collegato: e\' il suo, cassaforte allineata e sbloccata')
       return { ok: true, stessa: true }
+    },
+
+    async anteprimaFusione(passphraseDrive) {
+      if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
+      const remota = await scaricaChiavi().catch(() => undefined)
+      const locale = leggiLocale()
+      if (remota === undefined) return { ok: false, messaggio: 'Su questo Drive non c’è una cassaforte: non c’è niente da fondere. Usa «Salva ora».' }
+      const diversa = locale !== undefined && !stessaCassaforte(locale, remota)
+      let mDrive: Buffer | undefined
+      if (!diversa) {
+        if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
+        mDrive = maestra
+      } else {
+        if (passphraseDrive === undefined || passphraseDrive === '') return { ok: false, messaggio: 'La cassaforte di questo Drive è un’altra: serve la sua passphrase.', servePassphrase: true }
+        mDrive = sbloccaCassaforte(remota, passphraseDrive)
+        if (mDrive === undefined) return { ok: false, messaggio: 'Questa passphrase non apre la cassaforte del Drive.', servePassphrase: true }
+      }
+      try {
+        const esito = await leggiManifesto(deps.archivio(), mDrive)
+        if (esito.stato === 'illeggibile') return { ok: false, messaggio: 'Il manifesto sul Drive non si apre con questa chiave.' }
+        const manifestoDrive = esito.stato === 'ok' ? esito.manifesto : manifestoVuoto()
+        const rawArchivio = await leggiJsonDalDrive(deps.archivio(), mDrive, manifestoDrive, 'sierradeck/workspaces.json')
+        const archivioDrive = rawArchivio === undefined ? undefined : parseArchivio(rawArchivio).archivio
+        const registroDrive = parseRegistro(await leggiJsonDalDrive(deps.archivio(), mDrive, manifestoDrive, 'sierradeck/progetti-drive.json'))
+        const firma = await firmaRadici(radici())
+        const firmaPc = new Map<string, { size: number; mtime: number }>()
+        for (const [k, v] of firma) firmaPc.set(k, { size: v.size, mtime: v.mtime })
+        const archivioPc = deps.workspaceLocale?.leggi()
+        const piano = pianifica({
+          firmaPc, manifestoDrive,
+          ...(archivioPc !== undefined ? { archivioPc } : {}),
+          ...(archivioDrive !== undefined ? { archivioDrive } : {}),
+          registroPc: deps.registroProgetti?.leggi() ?? { versione: 1, progetti: [] },
+          registroDrive,
+          pcId: deps.pcId?.() ?? '',
+          cassaforteDiversa: diversa
+        })
+        log(`FUSIONE anteprima: ${piano.totali.soloPc} solo PC, ${piano.totali.soloDrive} solo Drive, ${piano.totali.diverse} diverse, ${piano.totali.uguali} uguali`)
+        return { ok: true, piano }
+      } catch (e) {
+        log(`FUSIONE anteprima fallita: ${messaggioDi(e)}`)
+        return { ok: false, messaggio: messaggioDi(e) }
+      }
+    },
+
+    async eseguiFusione(scelte, passphraseDrive) {
+      if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
+      const remota = await scaricaChiavi().catch(() => undefined)
+      if (remota === undefined) return { ok: false, messaggio: 'Su questo Drive non c’è una cassaforte.' }
+      const locale = leggiLocale()
+      if (locale !== undefined && !stessaCassaforte(locale, remota)) {
+        const mR = passphraseDrive === undefined ? undefined : sbloccaCassaforte(remota, passphraseDrive)
+        if (mR === undefined) return { ok: false, messaggio: 'Serve la passphrase della cassaforte del Drive.' }
+        const adottata = await this.adottaCassaforteDelDrive()
+        if (!adottata.ok) return { ok: false, messaggio: adottata.messaggio ?? 'cassaforte non adottata' }
+        adotta(mR)
+      } else if (maestra === undefined) {
+        const m = passphraseDrive === undefined ? undefined : sbloccaCassaforte(remota, passphraseDrive)
+        if (m === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
+        adotta(m)
+      }
+      const m = maestra as Buffer
+      try {
+        log('FUSIONE richiesta')
+        const esitoM = await leggiManifesto(deps.archivio(), m)
+        const manifestoDrive = esitoM.stato === 'ok' ? esitoM.manifesto : manifestoVuoto()
+        // I workspace e il registro si fondono prima, sul disco: poi salgono
+        // come file qualunque, insieme alle scelte.
+        const rawArchivio = await leggiJsonDalDrive(deps.archivio(), m, manifestoDrive, 'sierradeck/workspaces.json')
+        const archivioDrive = rawArchivio === undefined ? undefined : parseArchivio(rawArchivio).archivio
+        const archivioFuso = fondiArchivi(deps.workspaceLocale?.leggi(), archivioDrive, scelte.workspace.modo, scelte.workspace.escludi)
+        if (archivioFuso !== undefined) deps.workspaceLocale?.scrivi(archivioFuso)
+        const registroDrive = parseRegistro(await leggiJsonDalDrive(deps.archivio(), m, manifestoDrive, 'sierradeck/progetti-drive.json'))
+        const registroFuso = fondiRegistri(deps.registroProgetti?.leggi() ?? { versione: 1, progetti: [] }, registroDrive)
+        deps.registroProgetti?.scrivi(registroFuso)
+        const voci: Record<string, 'carica' | 'scarica' | 'copia' | 'salta'> = {
+          ...scelte.voci,
+          'sierradeck/workspaces.json': 'carica',
+          'sierradeck/progetti-drive.json': 'carica'
+        }
+        // Le cartelle dei progetti che ricevono qualcosa, create se mancano.
+        const idDaRicevere = new Set<string>()
+        for (const [percorso, azione] of Object.entries(voci)) {
+          if ((azione === 'scarica' || azione === 'copia') && percorso.startsWith('progetto-')) {
+            idDaRicevere.add(prefissoDi(percorso).slice('progetto-'.length))
+          }
+        }
+        const radiciProgetti = deps.progetti === undefined ? [] : deps.progetti.preparaRipristino(idDaRicevere)
+        const tutteLeRadici = radiciDaSincronizzare(deps.dati, deps.radiceClaude, [
+          ...radiciProgetti,
+          ...(deps.progetti?.radiciLocali() ?? []).filter((r) => !radiciProgetti.some((x) => x.prefisso === r.prefisso))
+        ])
+        const esito = await eseguiFusione({
+          maestra: m, archivio: deps.archivio(), radici: tutteLeRadici, scelte: { ...scelte, voci },
+          pcNome: deps.pcNome?.() ?? 'questo-pc', adesso: adesso(),
+          onProgresso: (f, t) => deps.emettiProgresso?.({ fase: 'carico', fatto: f, totale: t, unita: 'file' })
+        })
+        scriviManifestoLocale(esito.manifesto)
+        scriviStato({ ...leggiStato(), ultimoSalvataggio: adesso() })
+        log(`FUSIONE ok: ${esito.caricati} caricati, ${esito.scaricati} scaricati, ${esito.copie} copie, ${esito.saltati} saltati`)
+        return { ok: true, esito }
+      } catch (e) {
+        log(`FUSIONE fallita: ${messaggioDi(e)}`)
+        return { ok: false, messaggio: messaggioDi(e) }
+      }
     },
 
     async adottaCassaforteDelDrive() {

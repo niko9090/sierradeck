@@ -21,7 +21,7 @@ import {
  */
 export type ProgettiSync = {
   radiciLocali: () => Radice[]
-  preparaRipristino: () => Radice[]
+  preparaRipristino: (soloId?: Set<string>) => Radice[]
   /** Se un prefisso del manifesto e' di un progetto. */
   eDiProgetto: (prefisso: string) => boolean
 }
@@ -59,12 +59,13 @@ export function creaProgettiSync(deps: {
       return fuori
     },
 
-    preparaRipristino() {
+    preparaRipristino(soloId) {
       const pc = deps.pcId()
       let reg = deps.registro.leggi()
       let cambiato = false
       const fuori: Radice[] = []
       for (const p of reg.progetti) {
+        if (soloId !== undefined && !soloId.has(p.id)) continue
         const locale = percorsoLocale(p, pc, deps.cartellaProgetti())
         if (locale.nuovo) {
           reg = collegaProgetto(reg, p.id, pc, locale.percorso)

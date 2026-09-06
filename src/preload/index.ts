@@ -14,6 +14,7 @@ import type {
 import type { StatoAccesso } from '../main/accesso'
 import type { StatoPreparazione } from '../main/preparazione'
 import type { Novita } from '@shared/novita'
+import type { PianoFusione, ScelteFusione, EsitoFusione } from '../main/cassaforte/fusione'
 import type { Consumi } from '@shared/consumi'
 import type { Anteprima } from '../main/anteprima'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
@@ -391,6 +392,12 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('sync:adottaCassaforteDelDrive'),
     /** Questo Drive e' nuovo per SierraDeck: si dimentica cio' che si sapeva di quello di prima. */
     cambiatoDrive: (): Promise<void> => ipcRenderer.invoke('sync:cambiatoDrive'),
+    /** Il piano di fusione fra questo PC e il Drive: cosa c'e' di qua, di la', in comune. Non tocca niente. */
+    anteprimaFusione: (passphraseDrive?: string): Promise<{ ok: true; piano: PianoFusione } | { ok: false; messaggio: string; servePassphrase?: boolean }> =>
+      ipcRenderer.invoke('sync:anteprimaFusione', passphraseDrive),
+    /** Esegue le scelte della fusione. */
+    eseguiFusione: (scelte: ScelteFusione, passphraseDrive?: string): Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }> =>
+      ipcRenderer.invoke('sync:eseguiFusione', scelte, passphraseDrive),
     /** La passphrase di questo PC apre la cassaforte del Drive collegato? Se si', e' il suo Drive. */
     provaPassphraseSulDrive: (passphrase: string): Promise<{ ok: boolean; stessa?: boolean; messaggio?: string }> =>
       ipcRenderer.invoke('sync:provaPassphraseSulDrive', passphrase),

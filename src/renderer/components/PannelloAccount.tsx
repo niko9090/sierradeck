@@ -8,6 +8,7 @@ type Props = { onChiudi?: () => void; incorporato?: boolean }
 
 import { descriviProgresso, type ProgressoSync } from '../progresso-sync'
 import { ModaleConferma } from './ModaleConferma'
+import { ModaleFusione } from './ModaleFusione'
 
 type StatoDrive = { configurato: boolean; connesso: boolean; email?: string }
 type ElencoProgetti = {
@@ -168,6 +169,7 @@ function SezioneSync(): React.JSX.Element | null {
   const [progresso, setProgresso] = useState<ProgressoSync | undefined>(undefined)
   // Cosa c'e' nel Drive appena collegato: e' cosi' che si riconosce l'account giusto.
   const [riconoscimento, setRiconoscimento] = useState<Riconoscimento | undefined>(undefined)
+  const [fusioneAperta, setFusioneAperta] = useState(false)
 
   const aggiorna = (): void => {
     void window.gestore.drive.stato().then(setDrive).catch(() => {})
@@ -333,6 +335,13 @@ function SezioneSync(): React.JSX.Element | null {
         </div>
       </div>
 
+      {fusioneAperta ? (
+        <ModaleFusione
+          cassaforteDiversa={sync.cassaforteDiversa === true}
+          onChiudi={(fatto) => { setFusioneAperta(false); if (fatto) { setMsg('Fusione fatta ✓ Riavvia per vedere tutto.'); aggiorna() } }}
+        />
+      ) : null}
+
       {riconoscimento !== undefined && drive.connesso ? (
         <div className="account__scheda account__scheda--largo">
           <div className="account__scheda-tit">🔎 Il Drive collegato</div>
@@ -386,7 +395,7 @@ function SezioneSync(): React.JSX.Element | null {
             <button className="tasto tasto--primario" onClick={provaPassphrase} disabled={inCorso || pwProva === ''}>{inCorso ? 'un attimo…' : 'Prova la passphrase su questo Drive'}</button>
           </div>
           <p className="account__nota">
-            Se invece vuoi davvero lavorare su questo Drive con la sua cassaforte, <button className="account__link" onClick={adottaCassaforte} disabled={inCorso}>prendi la cassaforte del Drive ▸</button> (ti chiederà la sua passphrase; quella di questo PC viene messa da parte, non cancellata).
+            Se invece vuoi lavorare su questo Drive tenendo anche quello che c’è qui, <button className="account__link" onClick={() => setFusioneAperta(true)} disabled={inCorso}>fondi questo PC con il Drive ▸</button>: vedi cosa c’è di qua e di là e scegli cosa portare. Oppure <button className="account__link" onClick={adottaCassaforte} disabled={inCorso}>prendi solo la cassaforte del Drive ▸</button> (quella di questo PC viene messa da parte, non cancellata).
           </p>
         </div>
       ) : drive.connesso && !sync.haCassaforte ? (
@@ -469,6 +478,16 @@ function SezioneSync(): React.JSX.Element | null {
                 </button>
               </div>
             )}
+          </div>
+
+          <div className="account__scheda account__scheda--largo">
+            <div className="account__scheda-tit">🧩 Fondi con il Drive</div>
+            <p className="account__nota">
+              Questo PC ha delle conversazioni, il Drive ne ha altre: qui vedi cosa c’è solo di qua, solo di là e in comune, e scegli voce per voce cosa portare su, cosa giù e cosa lasciare. Non si perde niente.
+            </p>
+            <div className="account__tasti">
+              <button className="tasto" onClick={() => setFusioneAperta(true)} disabled={inCorso}>Fondi con il Drive…</button>
+            </div>
           </div>
 
           <SezioneProgetti inCorso={inCorso} onCambio={aggiorna} />
