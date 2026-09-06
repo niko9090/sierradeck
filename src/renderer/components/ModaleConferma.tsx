@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useEffect } from 'react'
 
 /**
@@ -28,7 +29,9 @@ export function ModaleConferma({
     return () => window.removeEventListener('keydown', suTasto)
   }, [onAnnulla])
 
-  return (
+  // Sul body, non dentro chi lo apre: un pannello con `transform` fa da
+  // contenitore a `position: fixed`, e il modale restava dentro e tagliato.
+  return createPortal(
     <div className="velo" onMouseDown={(e) => { if (e.target === e.currentTarget) onAnnulla() }}>
       <div className="dialogo dialogo--medio" onMouseDown={(e) => e.stopPropagation()}>
         <div className="dialogo__testa">
@@ -43,5 +46,5 @@ export function ModaleConferma({
         </div>
       </div>
     </div>
-  )
+  , document.body)
 }

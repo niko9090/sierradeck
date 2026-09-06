@@ -74,6 +74,18 @@ fun Computer(api: Api, stato: Stato?) {
     var aggiornamento by remember { mutableStateOf<Aggiornamento?>(null) }
     var nuovoWs by remember { mutableStateOf("") }
     var confermaCarica by remember { mutableStateOf<String?>(null) }
+    // La coda condivisa: quale progetto e' aperto, le sue voci, il comando da mettere in fila.
+    var codaAperta by remember { mutableStateOf<String?>(null) }
+    var codaVoci by remember { mutableStateOf<List<VoceCoda>>(emptyList()) }
+    var codaDisponibile by remember { mutableStateOf(true) }
+    var codaTesto by remember { mutableStateOf("") }
+    LaunchedEffect(codaAperta) {
+        val id = codaAperta ?: return@LaunchedEffect
+        while (isActive) {
+            try { val c = api.coda(id); codaVoci = c.voci; codaDisponibile = c.disponibile } catch (_: Exception) {}
+            delay(10_000)
+        }
+    }
 
     LaunchedEffect(Unit) {
         consumi = try { api.consumi() } catch (_: Exception) { null }
@@ -219,6 +231,90 @@ fun Computer(api: Api, stato: Stato?) {
         Divisore()
 
         // ─── Salvataggi ───
+        // ─── Le code dei progetti ───
+        // Un comando in fila per un progetto lo consegna il PC che ha il
+        // testimone, appena una chat ha finito: da qui si vede, si aggiunge,
+        // si toglie. Poco per volta: il telefono non e' il posto per scriverne
+        // dieci.
+        Sezione("Code dei progetti")
+        val progetti = stato?.progetti ?: emptyList()
+        if (progetti.isEmpty()) Text("Nessun progetto sul Drive.", color = Banco.testoQuieto)
+        else for (p in progetti) {
+            val aperto = codaAperta == p.id
+            Tessera(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Column(Modifier.padding(12.dp)) {
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(p.nome, color = Banco.testo, maxLines = 1)
+                            Text(
+                                "${p.inCoda} in coda · " + when (p.chi) {
+                                    "io" -> "in lavoro qui"
+                                    "altro" -> "in lavoro su ${p.pcNome ?: "?"}"
+                                    else -> "libero"
+                                },
+                                color = Banco.testoQuieto, fontSize = 12.sp
+                            )
+                        }
+                        OutlinedButton(onClick = { codaAperta = if (aperto) null else p.id; codaVoci = emptyList(); codaTesto = "" }) {
+                            Text(if (aperto) "Chiudi" else "Coda")
+                        }
+                    }
+                    if (aperto) {
+                        Spacer(Modifier.height(10.dp))
+                        HorizontalDivider(color = Banco.incisione)
+                        Spacer(Modifier.height(10.dp))
+                        if (!codaDisponibile) {
+                            Text("La coda sta sul Drive: sul computer serve la cassaforte sbloccata e il Drive collegato.", color = Banco.testoQuieto, fontSize = 12.sp)
+                        }
+                        val attesa = codaVoci.filter { it.stato == "attesa" }
+                        val consegnate = codaVoci.filter { it.stato == "consegnata" }
+                        if (attesa.isEmpty()) Text("Nessun comando in attesa.", color = Banco.testoQuieto, fontSize = 13.sp)
+                        attesa.forEachIndexed { i, v ->
+                            Row(Modifier.padding(vertical = 4.dp), verticalAlignment = androidx.compose.ui.Alignment.Top) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("${i + 1}. ${v.testo}", color = Banco.testo, fontSize = 13.sp)
+                                    Text("da ${v.daNome}" + (if (v.sessione != null) " · per una chat precisa" else " · alla prima chat libera"), color = Banco.testoQuieto, fontSize = 11.sp)
+                                }
+                                TextButton(onClick = { scope.launch { try { codaVoci = api.codaTogli(p.id, v.id).voci } catch (_: Exception) {} } }) { Text("Togli") }
+                            }
+                        }
+                        if (consegnate.isNotEmpty()) {
+                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                Text("${consegnate.size} consegnate", color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                                TextButton(onClick = { scope.launch { try { codaVoci = api.codaPulisci(p.id).voci } catch (_: Exception) {} } }) { Text("Pulisci") }
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = codaTesto,
+                            onValueChange = { codaTesto = it.take(4000) },
+                            placeholder = { Text("Il comando da mettere in fila", color = Banco.testoQuieto, fontSize = 14.sp) },
+                            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                            minLines = 2,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Banco.accento,
+                                unfocusedBorderColor = Banco.incisione,
+                                focusedContainerColor = Banco.fondo,
+                                unfocusedContainerColor = Banco.fondo
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Button(
+                            enabled = codaTesto.isNotBlank(),
+                            shape = MaterialTheme.shapes.small,
+                            onClick = {
+                                val t = codaTesto.trim(); codaTesto = ""
+                                scope.launch { try { codaVoci = api.codaAggiungi(p.id, t).voci } catch (_: Exception) {} }
+                            }
+                        ) { Text("Metti in coda") }
+                    }
+                }
+            }
+        }
+
+        Divisore()
+
         Sezione("Salvataggi")
         if (salvataggi.isEmpty()) Text("Nessun salvataggio.", color = Banco.testoQuieto)
         else for (s in salvataggi) {

@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useState } from 'react'
 import type { PianoFusione, VoceFusione, Azione, ModoWorkspace } from '../../main/cassaforte/fusione'
 
@@ -156,7 +157,9 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
     </div>
   )
 
-  return (
+  // Sul body, non dentro chi lo apre: un pannello con `transform` fa da
+  // contenitore a `position: fixed`, e il modale restava dentro e tagliato.
+  return createPortal(
     <div className="velo" onMouseDown={(e) => { if (e.target === e.currentTarget && fase !== 'eseguo') onChiudi(fase === 'fatto') }}>
       <div className="dialogo dialogo--largo" onMouseDown={(e) => e.stopPropagation()}>
         {testa}
@@ -269,5 +272,5 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
         ) : null}
       </div>
     </div>
-  )
+  , document.body)
 }

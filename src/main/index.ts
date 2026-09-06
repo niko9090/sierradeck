@@ -1649,6 +1649,20 @@ if (!app.requestSingleInstanceLock()) {
             progetto: existsSync(join(dove, '.claude')) || existsSync(join(dove, 'CLAUDE.md'))
           }
         },
+        // I progetti sul Drive per il telefono: dal registro, con lo stato
+        // dell'ultima ronda quando c'e'.
+        progetti: () => registroProgetti.leggi().progetti.map((p) => {
+          const s = ronda.statoDi(p.id)
+          return {
+            id: p.id, nome: p.nome, chi: s?.chi ?? 'libero',
+            ...(s?.pcNome !== undefined ? { pcNome: s.pcNome } : {}),
+            inCoda: s?.inCoda ?? 0
+          }
+        }),
+        coda: (id: string) => ronda.coda(id),
+        codaAggiungi: (id: string, testo: string, sessione?: string) => ronda.aggiungiInCoda(id, testo, sessione),
+        codaTogli: (id: string, voce: string) => ronda.togliDallaCoda(id, voce),
+        codaPulisci: (id: string) => ronda.pulisciCoda(id),
         workspace: async () => {
           const a = workspaceStore?.leggi()
           return {

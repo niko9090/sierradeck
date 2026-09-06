@@ -198,6 +198,19 @@ class Api(private val indirizzo: String, private val chiave: String?) {
         json.decodeFromString(corpoTesto("/api/workspace/elimina", oggetto { put("nome", nome) }))
 
     // ─── salvataggi (istantanee) ───
+    // ─── la coda condivisa dei comandi di un progetto ───
+    suspend fun coda(progetto: String): Coda =
+        json.decodeFromString(corpoTesto("/api/coda", oggetto { put("progetto", progetto) }))
+
+    suspend fun codaAggiungi(progetto: String, testo: String): Coda =
+        json.decodeFromString(corpoTesto("/api/coda/aggiungi", oggetto { put("progetto", progetto); put("testo", testo) }))
+
+    suspend fun codaTogli(progetto: String, voce: String): Coda =
+        json.decodeFromString(corpoTesto("/api/coda/togli", oggetto { put("progetto", progetto); put("voce", voce) }))
+
+    suspend fun codaPulisci(progetto: String): Coda =
+        json.decodeFromString(corpoTesto("/api/coda/pulisci", oggetto { put("progetto", progetto) }))
+
     suspend fun salvataggi(): Salvataggi = json.decodeFromString(corpoTesto("/api/salvataggi", null))
 
     suspend fun caricaSalvataggio(nome: String): Fatto =

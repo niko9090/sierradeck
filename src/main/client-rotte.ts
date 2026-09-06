@@ -21,6 +21,11 @@ import { scelteDiTerminale, tastiPerScegliere } from '@shared/scelte-terminale'
  * poter buttare via il lavoro della notte.
  */
 
+export type VoceCodaTelefono = {
+  id: string; testo: string; creataIl: string; daNome: string; sessione?: string
+  stato: 'attesa' | 'consegnata'; consegnataIl?: string; aNome?: string; aSessione?: string
+}
+
 export type Chat = {
   id: string
   titolo: string
@@ -156,6 +161,15 @@ export type DipendenzeRotte = {
   riprendiSessione: (cwd: string, sessione: string) => void
   creaWorkspace: (nome: string) => Promise<void>
   eliminaWorkspace: (nome: string) => Promise<void>
+  /**
+   * I progetti sul Drive con chi li ha in mano e quanti comandi aspettano
+   * nella coda condivisa: dal telefono si vede, si aggiunge, si toglie.
+   */
+  progetti?: () => { id: string; nome: string; chi: 'io' | 'altro' | 'libero'; pcNome?: string; inCoda: number }[]
+  coda?: (progetto: string) => Promise<{ voci: VoceCodaTelefono[] } | undefined>
+  codaAggiungi?: (progetto: string, testo: string, sessione?: string) => Promise<{ voci: VoceCodaTelefono[] } | undefined>
+  codaTogli?: (progetto: string, voce: string) => Promise<{ voci: VoceCodaTelefono[] } | undefined>
+  codaPulisci?: (progetto: string) => Promise<{ voci: VoceCodaTelefono[] } | undefined>
   /** I salvataggi: insiemi di chat da rimettere in piedi tutti insieme. */
   salvataggi: () => Promise<{ nome: string; quando: string; chat: number }[]>
   caricaIstantanea: (nome: string) => Promise<void>
@@ -357,6 +371,8 @@ export function rotteClient(deps: DipendenzeRotte) {
         // Senza la coda delle righe: l'elenco si chiede ogni due secondi, e
         // quello che si guarda dentro è una chat sola, quando la si apre.
         chat: deps.chat().map(({ coda: _coda, codaGrezza: _grezza, ...resto }) => resto),
+        // I progetti sul Drive: chi li ha in mano e quanti comandi aspettano.
+        progetti: deps.progetti?.() ?? [],
         // Solo quello che serve a una piastrella: mandare tutto lo stato di un
         // autopilota su una rete di casa, ogni due secondi, sarebbe spedire un
         // libro per leggerne il titolo.
@@ -773,6 +789,39 @@ export function rotteClient(deps: DipendenzeRotte) {
     // Riprendere una conversazione: la stessa regola di «apri» sulla cartella,
     // perche' un percorso qualunque arrivato dalla rete aprirebbe una sessione
     // dove capita.
+    // ── La coda condivisa dei comandi di un progetto ─────────────────────
+    if (r.metodo === 'POST' && r.percorso === '/api/coda') {
+      const progetto = stringa(r.corpo, 'progetto')
+      if (progetto === '') return { stato: 400, corpo: { errore: 'serve il progetto' } }
+      const coda = await deps.coda?.(progetto).catch(() => undefined)
+      return OK({ voci: coda?.voci ?? [], disponibile: coda !== undefined })
+    }
+    if (r.metodo === 'POST' && r.percorso === '/api/coda/aggiungi') {
+      const progetto = stringa(r.corpo, 'progetto')
+      const testo = stringa(r.corpo, 'testo').trim()
+      const sessione = stringa(r.corpo, 'sessione')
+      if (progetto === '' || testo === '') return { stato: 400, corpo: { errore: 'servono il progetto e il testo' } }
+      if (testo.length > 4000) return { stato: 400, corpo: { errore: 'testo troppo lungo' } }
+      const coda = await deps.codaAggiungi?.(progetto, testo, sessione === '' ? undefined : sessione).catch(() => undefined)
+      if (coda === undefined) return { stato: 409, corpo: { errore: 'la coda sta sul Drive: serve la cassaforte sbloccata e il Drive collegato' } }
+      return OK({ fatto: true, voci: coda.voci })
+    }
+    if (r.metodo === 'POST' && r.percorso === '/api/coda/togli') {
+      const progetto = stringa(r.corpo, 'progetto')
+      const voce = stringa(r.corpo, 'voce')
+      if (progetto === '' || voce === '') return { stato: 400, corpo: { errore: 'servono il progetto e la voce' } }
+      const coda = await deps.codaTogli?.(progetto, voce).catch(() => undefined)
+      if (coda === undefined) return { stato: 409, corpo: { errore: 'coda non raggiungibile' } }
+      return OK({ fatto: true, voci: coda.voci })
+    }
+    if (r.metodo === 'POST' && r.percorso === '/api/coda/pulisci') {
+      const progetto = stringa(r.corpo, 'progetto')
+      if (progetto === '') return { stato: 400, corpo: { errore: 'serve il progetto' } }
+      const coda = await deps.codaPulisci?.(progetto).catch(() => undefined)
+      if (coda === undefined) return { stato: 409, corpo: { errore: 'coda non raggiungibile' } }
+      return OK({ fatto: true, voci: coda.voci })
+    }
+
     if (r.metodo === 'POST' && r.percorso === '/api/sessioni/riprendi') {
       const cartella = stringa(r.corpo, 'cartella')
       const sessione = stringa(r.corpo, 'sessione')

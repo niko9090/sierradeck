@@ -39,6 +39,19 @@ PC, quindi niente identità né chat fra persone.
 
 - Due PC che modificano la coda nello stesso istante: l'ultimo scrive vince
   (oggetti piccoli, caso raro; non vale una fusione).
-- Il telefono non vede ancora la coda.
 - Se nessuna chat del progetto aspetta mai (tutte ibernate), la voce resta
   in attesa per sempre: si vede dal contatore «N in coda».
+
+# Sul telefono (0.16.0, app 2.25.0)
+
+`/api/stato` porta `progetti: [{ id, nome, chi, pcNome?, inCoda }]` (dal
+registro + `ronda.statoDi`). Rotte POST `/api/coda` `{progetto}` →
+`{ voci, disponibile }` (`disponibile: false` = computer vecchio o Drive
+chiuso, non un errore), `/api/coda/aggiungi` `{progetto, testo, sessione?}`,
+`/api/coda/togli` `{progetto, voce}`, `/api/coda/pulisci`. Pagina: tasto
+«Code · N» nel tab Computer → elenco progetti → coda con textarea. App:
+sezione «Code dei progetti» in `Computer.kt` (tessera per progetto, «Coda»
+apre inline: voci, Togli, Pulisci, campo + «Metti in coda»; rilettura ogni
+10 s). Dal telefono non si sceglie la chat destinataria: va alla prima
+libera. REGOLA (Nicholas): in OGNI release va anche l'APK.
+

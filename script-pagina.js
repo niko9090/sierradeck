@@ -129,6 +129,10 @@ var apDettaglio = null
 var pannelloAperto = null
 var sessioniViste = null
 var salvataggiVisti = null
+/** La coda condivisa aperta dal telefono: quale progetto, e le sue voci. */
+var codaProgetto = null
+var codaVoci = null
+var codaErrore = ''
 var consumiVisti = null
 var schedeViste = null
 var schedaAperta = null
@@ -685,6 +689,41 @@ function pannello(s) {
       <div class="riga"><button onclick="apriPannello('salvataggi')">Chiudi</button></div>
     </div>`
 
+  const elencoCode = pannelloAperto !== 'code' ? '' : (() => {
+    const progetti = (s.progetti || [])
+    if (codaProgetto === null) {
+      return '<div class="piastrella"><div class="titolo">Code dei progetti</div>' +
+        '<div class="sotto">I comandi in fila per ogni progetto sul Drive: li consegna il PC che ha il testimone, appena una chat ha finito.</div>' +
+        (progetti.length === 0
+          ? '<div class="sotto" style="margin-top:8px">Nessun progetto sul Drive.</div>'
+          : progetti.map((p) =>
+              '<button class="cartella" onclick="apriCoda(\'' + escJs(p.id) + '\')">' + esc(p.nome) +
+              '<br><span class="sotto">' + p.inCoda + ' in coda · ' +
+              (p.chi === 'io' ? 'in lavoro qui' : p.chi === 'altro' ? 'in lavoro su ' + esc(p.pcNome || '?') : 'libero') +
+              '</span></button>').join('')) +
+        '<div class="riga"><button onclick="apriPannello(\'code\')">Chiudi</button></div></div>'
+    }
+    const p = progetti.find((x) => x.id === codaProgetto) || { nome: codaProgetto }
+    const voci = codaVoci || []
+    const attesa = voci.filter((v) => v.stato === 'attesa')
+    const consegnate = voci.filter((v) => v.stato === 'consegnata')
+    return '<div class="piastrella"><div class="titolo">Coda · ' + esc(p.nome) + '</div>' +
+      (codaErrore ? '<div class="sotto" style="margin-top:6px">' + esc(codaErrore) + '</div>' : '') +
+      (attesa.length === 0 ? '<div class="sotto" style="margin-top:8px">Nessun comando in attesa.</div>' : '') +
+      attesa.map((v, i) =>
+        '<div class="voce" style="display:block;padding:8px 10px">' +
+        '<div style="white-space:pre-wrap">' + (i + 1) + '. ' + esc(v.testo) + '</div>' +
+        '<div class="sotto">da ' + esc(v.daNome) + (v.sessione ? ' · per una chat precisa' : ' · alla prima chat libera') + '</div>' +
+        '<div class="riga" style="margin-top:6px"><button onclick="togliDallaCoda(\'' + escJs(v.id) + '\')">Togli</button></div></div>').join('') +
+      (consegnate.length > 0
+        ? '<div class="sotto" style="margin-top:8px">' + consegnate.length + ' consegnate' +
+          ' <button onclick="pulisciCoda()" style="margin-left:6px">Pulisci</button></div>'
+        : '') +
+      '<textarea id="coda-testo" rows="3" placeholder="Il comando da mettere in fila, come lo scriveresti nella chat" style="width:100%;margin-top:10px;box-sizing:border-box"></textarea>' +
+      '<div class="riga"><button onclick="chiudiCoda()">Indietro</button>' +
+      '<button class="primario" onclick="mettiInCoda()">Metti in coda</button></div></div>'
+  })()
+
   const vistaConsumi = pannelloAperto !== 'consumi' ? '' : `
     <div class="piastrella">
       <div class="titolo">Consumi</div>
@@ -813,9 +852,11 @@ function pannello(s) {
     computer:
       paneWorkspace +
       '<div class="riga"><button onclick="apriPannello(\'salvataggi\')">Salvataggi</button>' +
+      '<button onclick="apriPannello(\'code\')">Code' +
+      ((s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0) > 0 ? ' · ' + (s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0) : '') + '</button>' +
       '<button onclick="apriPannello(\'consumi\')">Consumi</button>' +
       '<button onclick="apriPannello(\'impostazioni\')">Impostazioni</button></div>' +
-      elencoSalvataggi + vistaConsumi + vistaImpostazioni
+      elencoSalvataggi + elencoCode + vistaConsumi + vistaImpostazioni
   }
 
   app.innerHTML = `
@@ -1091,6 +1132,48 @@ window.riprendiSessione = async (i) => {
   await chiedi('/api/sessioni/riprendi', { cartella: s.cwd, sessione: s.id })
   pannelloAperto = null
   aggiorna()
+}
+
+/** La coda condivisa di un progetto: si legge dal Drive attraverso il computer. */
+async function leggiCoda() {
+  if (codaProgetto === null) return
+  try {
+    const r = await chiedi('/api/coda', { progetto: codaProgetto })
+    codaVoci = r.voci || []
+    codaErrore = r.disponibile === false ? 'La coda sta sul Drive: sul computer serve la cassaforte sbloccata e il Drive collegato.' : ''
+  } catch (e) { codaVoci = []; codaErrore = 'Non sono riuscito a leggere la coda.' }
+}
+window.apriCoda = async (id) => {
+  codaProgetto = id; codaVoci = null; codaErrore = ''
+  await leggiCoda()
+  pannello(ultimoStato)
+}
+window.chiudiCoda = () => { codaProgetto = null; codaVoci = null; pannello(ultimoStato) }
+window.mettiInCoda = async () => {
+  const campo = document.getElementById('coda-testo')
+  const testo = campo ? campo.value.trim() : ''
+  if (!testo || codaProgetto === null) return
+  try {
+    const r = await chiedi('/api/coda/aggiungi', { progetto: codaProgetto, testo: testo })
+    codaVoci = r.voci || codaVoci; codaErrore = ''
+  } catch (e) { codaErrore = 'Non sono riuscito a mettere in coda.' }
+  pannello(ultimoStato)
+}
+window.togliDallaCoda = async (voce) => {
+  if (codaProgetto === null) return
+  try {
+    const r = await chiedi('/api/coda/togli', { progetto: codaProgetto, voce: voce })
+    codaVoci = r.voci || codaVoci
+  } catch (e) { codaErrore = 'Non sono riuscito a togliere la voce.' }
+  pannello(ultimoStato)
+}
+window.pulisciCoda = async () => {
+  if (codaProgetto === null) return
+  try {
+    const r = await chiedi('/api/coda/pulisci', { progetto: codaProgetto })
+    codaVoci = r.voci || codaVoci
+  } catch (e) { codaErrore = 'Non sono riuscito a pulire.' }
+  pannello(ultimoStato)
 }
 
 window.caricaSalvataggio = async (i) => {

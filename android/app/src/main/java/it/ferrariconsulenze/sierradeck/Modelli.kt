@@ -46,7 +46,35 @@ data class Stato(
      */
     val aggiornamento: Aggiornamento? = null,
     /** Come si chiama questa macchina: serve a chi ne ha piu' di una. */
-    val computer: NomeComputer? = null
+    val computer: NomeComputer? = null,
+    /** I progetti sul Drive: chi li ha in mano e quanti comandi aspettano nella coda condivisa. */
+    val progetti: List<ProgettoBreve> = emptyList()
+)
+
+@Serializable
+data class ProgettoBreve(
+    val id: String,
+    val nome: String = "",
+    val chi: String = "libero",
+    val pcNome: String? = null,
+    val inCoda: Int = 0
+)
+
+/** La coda condivisa dei comandi di un progetto, com'e' sul Drive. */
+@Serializable
+data class Coda(val voci: List<VoceCoda> = emptyList(), val disponibile: Boolean = true, val fatto: Boolean = false)
+
+@Serializable
+data class VoceCoda(
+    val id: String,
+    val testo: String = "",
+    val creataIl: String = "",
+    val daNome: String = "",
+    val sessione: String? = null,
+    val stato: String = "attesa",
+    val consegnataIl: String? = null,
+    val aNome: String? = null,
+    val aSessione: String? = null
 )
 
 @Serializable

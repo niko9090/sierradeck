@@ -188,6 +188,29 @@ describe('quello che il Client puo fare', () => {
     expect(ricevute).toEqual({ tema: 'scuro' })
   })
 
+  it('la coda condivisa dal telefono: i progetti nello stato, e le voci si leggono, si mettono e si tolgono', async () => {
+    let voci = [{ id: 'v1', testo: 'lancia i test', creataIl: 'x', daNome: 'Torre', stato: 'attesa' as const }]
+    const d = deps({
+      progetti: () => [{ id: 'p1', nome: 'SierraDeck', chi: 'altro', pcNome: 'Torre', inCoda: 1 }],
+      coda: () => Promise.resolve({ voci }),
+      codaAggiungi: (_p, testo) => { voci = [...voci, { id: 'v2', testo, creataIl: 'y', daNome: 'Portatile', stato: 'attesa' as const }]; return Promise.resolve({ voci }) },
+      codaTogli: (_p, voce) => { voci = voci.filter((v) => v.id !== voce); return Promise.resolve({ voci }) }
+    })
+    const stato = (await rotteClient(d)({ metodo: 'GET', percorso: '/api/stato', corpo: undefined })).corpo as { progetti: unknown[] }
+    expect(stato.progetti).toEqual([{ id: 'p1', nome: 'SierraDeck', chi: 'altro', pcNome: 'Torre', inCoda: 1 }])
+    const lettura = await rotteClient(d)({ metodo: 'POST', percorso: '/api/coda', corpo: { progetto: 'p1' } })
+    expect((lettura.corpo as { voci: unknown[] }).voci).toHaveLength(1)
+    const messa = await rotteClient(d)({ metodo: 'POST', percorso: '/api/coda/aggiungi', corpo: { progetto: 'p1', testo: '  poi i documenti  ' } })
+    expect((messa.corpo as { voci: { testo: string }[] }).voci.map((v) => v.testo)).toEqual(['lancia i test', 'poi i documenti'])
+    const tolta = await rotteClient(d)({ metodo: 'POST', percorso: '/api/coda/togli', corpo: { progetto: 'p1', voce: 'v1' } })
+    expect((tolta.corpo as { voci: { id: string }[] }).voci.map((v) => v.id)).toEqual(['v2'])
+    // Senza testo, o senza progetto, non si mette niente.
+    expect((await rotteClient(d)({ metodo: 'POST', percorso: '/api/coda/aggiungi', corpo: { progetto: 'p1', testo: '   ' } })).stato).toBe(400)
+    // Un computer vecchio, o senza Drive: la coda non e' disponibile, ma non e' un errore.
+    const senza = await rotteClient(deps())({ metodo: 'POST', percorso: '/api/coda', corpo: { progetto: 'p1' } })
+    expect(senza.corpo).toEqual({ voci: [], disponibile: false })
+  })
+
   it('porta al telefono, quieto, su quale PC e in lavoro il progetto di una chat', async () => {
     // Un'informazione sotto il titolo, non un avviso: il testimone si prende
     // dal computer. Il campo c'e' solo quando il progetto e' in mano ad altri.

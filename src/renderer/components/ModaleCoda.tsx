@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
 
 type VoceCoda = {
@@ -68,7 +69,9 @@ export function ModaleCoda({ progetto, onChiudi }: Props): React.JSX.Element {
   const inAttesa = (voci ?? []).filter((v) => v.stato === 'attesa')
   const consegnate = (voci ?? []).filter((v) => v.stato === 'consegnata')
 
-  return (
+  // Sul body, non dentro chi lo apre: un pannello con `transform` fa da
+  // contenitore a `position: fixed`, e il modale restava dentro e tagliato.
+  return createPortal(
     <div className="velo" onMouseDown={(e) => { if (e.target === e.currentTarget) onChiudi() }}>
       <div className="dialogo dialogo--largo" onMouseDown={(e) => e.stopPropagation()}>
         <div className="dialogo__testa">
@@ -142,5 +145,5 @@ export function ModaleCoda({ progetto, onChiudi }: Props): React.JSX.Element {
         </div>
       </div>
     </div>
-  )
+  , document.body)
 }
