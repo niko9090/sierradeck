@@ -11,8 +11,10 @@ import { attendiQuiete, AVVISO_RIPRESA, leggiPausa, pausaAncoraValida } from './
 import { chiaveMonitor } from '@shared/display-key'
 import { apriFinestreStore, type FinestreStore } from './finestre-store'
 import { AMBIENTE_PORTA_AUTOPILOTI, PORTA_AUTOPILOTA } from '@shared/autopilota'
+import { finestraPerRipresa } from './consegne-layout'
 import {
   collegaFinestra,
+  workspaceDellaFinestra,
   registerPtyIpc,
   registerSessionIpc,
   registerLayoutIpc,
@@ -1744,12 +1746,26 @@ if (!app.requestSingleInstanceLock()) {
         },
         // Riaprire **quella** conversazione: e' la finestra a saperlo fare, e la
         // sessione viaggia con l'apertura come per una chat nuova.
+        //
+        // **Nel suo workspace, e in una finestra sola.** La chat che il
+        // telefono mostra «da riprendere» sta salvata in un workspace; aprirla
+        // in quello che la finestra ha davanti la spostava, e con due finestre
+        // la apriva due volte. Si dice alla finestra dove vive, e lei ci va.
         riprendiSessione: (cwd: string, sessione: string) => {
-          for (const w of BrowserWindow.getAllWindows()) {
-            if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
-              w.webContents.send('client:apri', { cartella: cwd, sessione })
-            }
-          }
+          const dove = workspaceStore === undefined
+            ? undefined
+            : workspaceDellaSessione(workspaceStore.leggi(), sessione)
+          const vive = BrowserWindow.getAllWindows()
+            .filter((w) => !w.isDestroyed() && !w.webContents.isDestroyed())
+          const scelta = finestraPerRipresa(dove, vive.map((w) => ({
+            id: w.id,
+            ...(workspaceDellaFinestra(w.id) !== undefined ? { workspace: workspaceDellaFinestra(w.id) } : {})
+          })))
+          const finestra = vive.find((w) => w.id === scelta)
+          if (finestra === undefined) return
+          finestra.webContents.send('client:apri', {
+            cartella: cwd, sessione, ...(dove !== undefined ? { workspace: dove } : {})
+          })
         },
         creaWorkspace: async (nome: string) => {
           const store = workspaceStore

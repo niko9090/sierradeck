@@ -157,7 +157,7 @@ export type DipendenzeRotte = {
    * rimasto da un'altra parte.
    */
   sessioni: () => Promise<{ id: string; cwd: string; titolo: string; quando: string }[]>
-  /** Riapre **quella** conversazione, con la sua storia. */
+  /** Riapre **quella** conversazione, con la sua storia, nel workspace dove sta salvata. */
   riprendiSessione: (cwd: string, sessione: string) => void
   creaWorkspace: (nome: string) => Promise<void>
   eliminaWorkspace: (nome: string) => Promise<void>

@@ -144,3 +144,24 @@ export function creaRegistroConsegne(): RegistroConsegne {
     }
   }
 }
+
+/**
+ * A quale finestra dare una conversazione da riprendere, sapendo dove vive.
+ *
+ * Dal telefono si tocca una chat «da riprendere», che sta salvata in un suo
+ * workspace. Prima l'apertura andava a **tutte** le finestre, e ognuna la
+ * metteva nel workspace che stava mostrando: la chat nasceva dove non doveva,
+ * e con due finestre nasceva due volte. La regola: se una finestra mostra già
+ * il workspace della chat, è lei; altrimenti la prima viva, che ci andrà.
+ * `undefined` solo senza finestre.
+ */
+export function finestraPerRipresa(
+  dove: string | undefined,
+  finestre: { id: number; workspace?: string }[]
+): number | undefined {
+  if (dove !== undefined) {
+    const giaLi = finestre.find((f) => f.workspace === dove)
+    if (giaLi !== undefined) return giaLi.id
+  }
+  return finestre[0]?.id
+}

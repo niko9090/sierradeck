@@ -376,19 +376,44 @@ export function App(): React.JSX.Element {
 
   // Una chat nuova chiesta dal telefono. Solo in una cartella che Claude Code
   // conosce già — il controllo lo fa il Core, qui si apre e basta.
-  useEffect(() => window.gestore.client.suApertura(({ cartella, modello, sessione }) => {
+  useEffect(() => window.gestore.client.suApertura(({ cartella, modello, sessione, workspace }) => {
     // Il nome è l'ultimo pezzo del percorso: dal telefono non si scrive un
     // titolo, e «Documenti\Progetto» dice più di «chat 4».
     const nome = cartella.split(/[\\/]/).filter((p) => p !== '').pop() ?? cartella
-    // Con una sessione e' una conversazione che si riprende: nasce con il suo
-    // identificatore e Claude Code la riapre com'era, invece di cominciarne una
-    // nuova nella stessa cartella - che e' quello che succedeva dal telefono.
-    useLayoutStore.getState().addPane(
-      cartella,
-      nome,
-      modello,
-      sessione !== undefined && sessione !== '' ? { sessionUuid: sessione } : undefined
-    )
+    const conSessione = sessione !== undefined && sessione !== ''
+    const apri = (): void => {
+      const stato = useLayoutStore.getState()
+      // Con una sessione e' una conversazione che si riprende. Se il suo
+      // riquadro e' gia' qui - dopo il viaggio nel suo workspace lo e' - la si
+      // sveglia se dorme e basta: un secondo riquadro sarebbe la stessa
+      // conversazione due volte. Altrimenti nasce con il suo identificatore e
+      // Claude Code la riapre com'era.
+      if (conSessione) {
+        const gia = Object.values(stato.panes).find((p) => p.sessionUuid === sessione)
+        if (gia !== undefined) {
+          if (gia.ibernata === true) stato.sveglia(gia.id)
+          return
+        }
+      }
+      stato.addPane(cartella, nome, modello, conSessione ? { sessionUuid: sessione } : undefined)
+    }
+    // **Prima si va dove la chat vive.** Dal telefono si riprende una chat
+    // salvata in un suo workspace: aprirla dove questa finestra e' adesso la
+    // spostava, e il telefono non deve toccare i workspace. Stessa strada
+    // dell'autopilota.
+    if (workspace !== undefined && workspace !== workspaceCorrente()) {
+      void azioniDiFinestra()
+        .cambia(workspace)
+        .then(() => window.gestore.workspace.stato())
+        .then(aggiornaWorkspace)
+        .then(apri)
+        .catch((e: unknown) => {
+          console.error('[client] non sono riuscito ad andare nel workspace della chat:', e)
+          apri()
+        })
+      return
+    }
+    apri()
   }), [])
 
   // Un salvataggio rimesso in piedi dal telefono: e' lo stesso gesto del

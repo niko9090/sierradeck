@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { creaFreno, creaRegistroConsegne, primoSlotLibero } from '../../src/main/consegne-layout'
+import { creaFreno, creaRegistroConsegne, finestraPerRipresa, primoSlotLibero } from '../../src/main/consegne-layout'
 
 /**
  * La regola che mancava da quattro giri di correzioni: **un salvataggio è la
@@ -129,5 +129,20 @@ describe('lo scontrino', () => {
     r.consegna(7, 'Due', [7])
     expect(r.verifica(7, vecchio)).toBeUndefined()
     expect(r.ricevuta(7)?.workspace).toBe('Due')
+  })
+})
+
+describe('finestraPerRipresa: a chi dare una chat ripresa dal telefono', () => {
+  it('sceglie la finestra che mostra già il workspace della chat', () => {
+    expect(finestraPerRipresa('Lavoro', [{ id: 1, workspace: 'Casa' }, { id: 2, workspace: 'Lavoro' }])).toBe(2)
+  })
+  it('senza una finestra su quel workspace prende la prima viva, che ci andrà', () => {
+    expect(finestraPerRipresa('Lavoro', [{ id: 3, workspace: 'Casa' }, { id: 4 }])).toBe(3)
+  })
+  it('una chat che non sta in nessun workspace va alla prima finestra', () => {
+    expect(finestraPerRipresa(undefined, [{ id: 7, workspace: 'Casa' }])).toBe(7)
+  })
+  it('senza finestre non sceglie nessuno', () => {
+    expect(finestraPerRipresa('Lavoro', [])).toBeUndefined()
   })
 })

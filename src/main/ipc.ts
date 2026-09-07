@@ -444,6 +444,11 @@ function monitorDellaFinestra(win: BrowserWindow): string {
  */
 const consegne = creaRegistroConsegne()
 
+/** Il workspace che una finestra sta mostrando, per quanto ne sa il Core. */
+export function workspaceDellaFinestra(winId: number): string | undefined {
+  return consegne.ricevuta(winId)?.workspace
+}
+
 function vive(): number[] {
   return BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed()).map((w) => w.id)
 }
