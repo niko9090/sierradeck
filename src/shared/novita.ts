@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.16.2',
+    righe: [
+      '**Dal telefono una chat si riprende nel suo workspace.** Toccando una chat «da riprendere» nel tab Chat, la finestra va nel workspace dove quella chat sta salvata e la sveglia lì: prima la apriva nel workspace che avevi davanti, spostandola, e con due finestre la apriva due volte. Il telefono guarda tutte le chat e non tocca i workspace. App Android 2.25.2.'
+    ]
+  },
+  {
     versione: '0.16.1',
     righe: [
       '**«Fondi con il Drive» si capisce.** Le chat hanno il loro nome vero, preso dall’indice delle conversazioni, con la data e il numero di messaggi, e sono raggruppate per cartella di progetto, ognuna apribile con i suoi tasti. Le azioni si chiamano «porta sul Drive», «porta qui», «lascia com’è». Per i workspace niente più caselle: per ognuno una scelta scritta in chiaro («unisci: qui + le chat del Drive», «tieni com’è qui», «crealo qui con le sue chat», «non portarlo») con una riga che spiega cosa vuol dire unire.'
