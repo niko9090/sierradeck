@@ -53,3 +53,38 @@ il tutto», «possibilità massima di scelta».
   indicizzato come chat): si sceglie PC o Drive.
 - Il piano legge il Drive con la maestra del Drive; se la cassaforte è la
   stessa serve essere sbloccati.
+
+# 0.16.1 — il pannello si capisce (feedback di Nicholas: «caotico e non preciso»)
+
+- Nomi delle chat: `titoliIndice` (da `listSessions(db)`: `aiTitle`, `cwd`,
+  `lastTimestamp`, `messageCount`) → etichetta = titolo dell'indice, poi
+  titolo dei workspace, poi «Conversazione»; `cartella` e `quando` sulla voce.
+  Mai il codice della sessione.
+- Chat raggruppate per cartella di progetto (`perCartella`), sezioni apribili
+  con conteggi e tasti di gruppo. Azioni: «porta sul Drive» / «porta qui» /
+  «tieni tutte e due» / «lascia com'è».
+- Workspace: per riga un `<select>` in chiaro (entrambi: «unisci: qui + le
+  chat del Drive» / «tieni com'è qui»; solo Drive: «crealo qui con le sue
+  chat» / «non portarlo»; solo qui: «resta com'è»), con la riga che spiega
+  cosa vuol dire unire. `escludi` = i workspace con «tieni qui» / «non
+  portarlo». Una frase in testa distingue chat (conversazioni) e workspace
+  (fasce a schermo).
+
+
+# Procedura consigliata (portatile → PC fisso, 2026-09-07)
+
+1. Portatile aggiornato; Account → Connetti a Drive con **lo stesso account
+   del fisso** (djniko90@gmail.com): due PC si parlano solo sullo stesso Drive.
+   «Cassaforte diversa» qui è normale: è il caso della fusione.
+2. Se la chat lavora su una cartella che il fisso non ha, PRIMA metterla in
+   «Progetti sul Drive» (altrimenti sul fisso la chat riparte su un percorso
+   che non esiste; la rimappatura vale solo per i progetti registrati).
+3. «Fondi con il Drive…» → passphrase del fisso → piano: la chat voluta
+   «porta sul Drive», il resto «lascia com'è» se non deve viaggiare; il suo
+   workspace «unisci» (se esiste anche di là) o «resta com'è» (solo qui: si
+   crea di là con le sue chat). Fondi → riavvia.
+4. Sul fisso: Account → «Ripristina», possibilmente col fisso fermo.
+   TRAPPOLA: se il fisso ha riscritto `workspaces.json` DOPO la fusione
+   (basta spostare una chat), al ripristino vince il suo perché più recente,
+   e la chat arriva senza workspace. Non è persa: nel workspace voluto,
+   «▣ Riprendi» in console e la si sceglie per nome.
