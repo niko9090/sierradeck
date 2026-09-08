@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.19.0',
+    righe: [
+      '**Una chat nuova nasce dal nome.** In «+ Nuova chat» prima scrivi come si chiama, poi scegli dove sta: in Documenti (predefinito), fra i progetti SierraDeck, o altrove. Nei primi due casi la cartella prende il nome della chat e si crea al momento; «altrove» \u00e8 il campo libero di prima, con «Sfoglia…», per una cartella che esiste gi\u00e0. Invio con il solo nome apre subito.',
+      '**«Fra i progetti SierraDeck» pu\u00f2 metterla anche sul Drive.** Una casella, accesa quando il Drive \u00e8 collegato e la cassaforte sbloccata: la cartella viaggia con le sue chat sugli altri PC.',
+      '**La cartella dei progetti sta in Documenti.** Per chi non l\u2019ha mai cambiata, i progetti che arrivano dal Drive vanno in Documenti\u005cProgetti SierraDeck. Chi ce l\u2019ha gi\u00e0 nella cartella utente la tiene dov\u2019\u00e8: non si sposta niente da soli. App Android 2.26.4.'
+    ]
+  },
+  {
     versione: '0.18.0',
     righe: [
       '**Il lavoro con il Drive si vede, e si annulla.** Fusione, ripristino e salvataggio compaiono in una striscia in alto, come un aggiornamento: cosa sta facendo, quanti file su quanti, la percentuale e la barra. Continua anche se chiudi il pannello; «Annulla» ferma fra un file e l\u2019altro, e quello gi\u00e0 fatto resta fatto e coerente. Finito, resta una riga con l\u2019esito.',
