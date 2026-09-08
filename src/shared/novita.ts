@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.16.3',
+    righe: [
+      '**Le scelte dal telefono non si premono due volte.** Toccando un’opzione di una domanda di Claude Code, il computer la controlla sullo schermo di adesso, non su una foto vecchia di due secondi, e per otto secondi non rimostra la stessa domanda né accetta un secondo tocco: prima la domanda già risposta ricompariva e il secondo tocco finiva nella domanda dopo, mentre la chat era già andata avanti. Pagina servita e app Android (2.25.3).'
+    ]
+  },
+  {
     versione: '0.16.2',
     righe: [
       '**Dal telefono una chat si riprende nel suo workspace.** Toccando una chat «da riprendere» nel tab Chat, la finestra va nel workspace dove quella chat sta salvata e la sveglia lì: prima la apriva nel workspace che avevi davanti, spostandola, e con due finestre la apriva due volte. Il telefono guarda tutte le chat e non tocca i workspace. App Android 2.25.2.'
