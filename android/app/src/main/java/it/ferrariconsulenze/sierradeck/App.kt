@@ -149,6 +149,22 @@ fun Principale(
     /** Il selettore dei computer e' aperto. */
     var scegliComputer by remember { mutableStateOf(false) }
 
+    // L'app nuova, se c'e': una striscia in alto che si chiude, non una
+    // finestra in faccia. Si cerca all'apertura e poi ogni sei ore, prima
+    // chiedendo al computer (che lo sa gia'), poi a GitHub. Chiusa, non torna
+    // finche' non esce una versione ancora piu' nuova.
+    var appNuova by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var dialogoApp by remember { mutableStateOf(false) }
+    LaunchedEffect(api) {
+        while (isActive) {
+            val esito = try { Aggiornamenti.cerca(BuildConfig.VERSION_NAME, api) } catch (_: Exception) { null }
+            if (esito is Aggiornamenti.Esito.Trovata && deposito.aggiornamentoIgnorato != esito.nome) {
+                appNuova = esito.nome to esito.apk
+            }
+            delay(6 * 60 * 60 * 1000L)
+        }
+    }
+
     // La guardia in background: è ciò per cui l'app esiste invece della sola
     // pagina — avvisa anche quando l'app è chiusa.
     LaunchedEffect(Unit) {
@@ -234,6 +250,17 @@ fun Principale(
         return
     }
 
+    if (dialogoApp) appNuova?.let { (nome, apk) ->
+        DialogoAggiornamentoApp(
+            nome = nome,
+            apk = apk,
+            avviaScarico = { indirizzoApk, onProgresso, onGuasto ->
+                Scaricamento.apk(contesto, indirizzoApk, onProgresso, onGuasto)
+            },
+            onChiudi = { dialogoApp = false }
+        )
+    }
+
     if (scegliComputer) {
         SelettoreComputer(
             correnteIndirizzo = indirizzo,
@@ -262,6 +289,13 @@ fun Principale(
             // Quello che non può aspettare, sopra tutto il resto: non è un
             // avviso qualunque, è la ragione per cui questo telefono esiste.
             BandaUrgenze(api, stato, connesso)
+            appNuova?.let { (nome, _) ->
+                BandaAggiornamentoApp(
+                    nome = nome,
+                    onAggiorna = { dialogoApp = true },
+                    onChiudi = { deposito.aggiornamentoIgnorato = nome; appNuova = null }
+                )
+            }
             Box(Modifier.weight(1f).fillMaxSize()) {
                 when (scheda) {
                     Scheda.CHAT -> Chat(api, stato, deposito)

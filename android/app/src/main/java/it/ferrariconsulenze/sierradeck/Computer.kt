@@ -365,7 +365,7 @@ fun Computer(api: Api, stato: Stato?) {
         // vedeva quello del computer e dell'app non si sapeva niente —
         // nemmeno quale versione si avesse in mano.
         Sezione("Aggiornamenti")
-        AggiornamentoApp()
+        AggiornamentoApp(api)
         Spacer(Modifier.height(10.dp))
         AggiornamentoPc(api, aggiornamento, versionePc)
 
@@ -512,10 +512,11 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
  * versione che si ha in mano non era scritta da nessuna parte.
  */
 @Composable
-private fun AggiornamentoApp() {
+private fun AggiornamentoApp(api: Api) {
     val contesto = LocalContext.current
+    val scope = rememberCoroutineScope()
     var cercando by remember { mutableStateOf(false) }
-    var nota by remember { mutableStateOf("Controlla da sé a ogni apertura.") }
+    var nota by remember { mutableStateOf("Controlla da sé a ogni apertura, e ti avvisa in alto.") }
     var trovata by remember { mutableStateOf<Pair<String, String>?>(null) }
     var colore by remember { mutableStateOf(Banco.testoQuieto) }
 
@@ -532,7 +533,12 @@ private fun AggiornamentoApp() {
                 cercando = true
                 nota = "Sto cercando…"
                 colore = Banco.testoQuieto
-                Aggiornamenti.cerca(BuildConfig.VERSION_NAME) { esito ->
+                scope.launch {
+                    val esito = try {
+                        Aggiornamenti.cerca(BuildConfig.VERSION_NAME, api)
+                    } catch (e: Exception) {
+                        Aggiornamenti.Esito.NonRiuscita(e.message ?: "non so perché")
+                    }
                     when (esito) {
                         is Aggiornamenti.Esito.Trovata -> {
                             nota = "C'è la ${esito.nome}."
@@ -544,7 +550,7 @@ private fun AggiornamentoApp() {
                             colore = Banco.verde
                         }
                         is Aggiornamenti.Esito.NonRiuscita -> {
-                            nota = "Non ci sono riuscito: ${esito.motivo}."
+                            nota = "Non ci sono riuscito (${esito.motivo})."
                             colore = Banco.ambra
                         }
                     }

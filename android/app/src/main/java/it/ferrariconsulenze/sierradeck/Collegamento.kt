@@ -53,6 +53,15 @@ class Collegamento(contesto: Context) {
         get() = preferenze.getBoolean(CHIAVE_CONTINUO, false)
         set(valore) = preferenze.edit().putBoolean(CHIAVE_CONTINUO, valore).apply()
 
+    /**
+     * La versione dell'app di cui si e' chiuso l'avviso: non si ripropone
+     * finche' non ne esce un'altra. Un avviso che torna a ogni apertura dopo
+     * che lo si e' mandato via non e' un avviso, e' un fastidio.
+     */
+    var aggiornamentoIgnorato: String
+        get() = preferenze.getString(CHIAVE_APP_IGNORATA, "") ?: ""
+        set(valore) = preferenze.edit().putString(CHIAVE_APP_IGNORATA, valore).apply()
+
     var dimensioneTerminale: Int
         get() = preferenze.getInt(CHIAVE_DIMENSIONE, DIMENSIONE_PREDEFINITA).coerceIn(DIMENSIONE_MIN, DIMENSIONE_MAX)
         set(valore) = preferenze.edit()
@@ -162,6 +171,7 @@ class Collegamento(contesto: Context) {
         private const val NOTI = "indirizzi-noti"
         private const val CHIAVE_DIMENSIONE = "dimensione-terminale"
         private const val CHIAVE_CONTINUO = "controllo-continuo"
+        private const val CHIAVE_APP_IGNORATA = "app-ignorata"
         const val DIMENSIONE_PREDEFINITA = 13
         // Sotto i nove non si legge, sopra i ventidue ci stanno sei parole per
         // riga: fuori da questi due non e' piu' una scelta, e' un guasto.

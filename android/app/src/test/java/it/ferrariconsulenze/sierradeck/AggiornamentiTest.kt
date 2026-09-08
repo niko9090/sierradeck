@@ -5,8 +5,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 /**
  * Prove sul controllo della versione nuova.
@@ -74,17 +72,24 @@ class AggiornamentiTest {
      * qui dentro; se non scatta, il difetto e' altrove.
      */
     @Test
-    fun `controlla contro GitHub vero`() {
+    fun `cerca contro GitHub vero`() {
         for (mia in listOf("1.3.0", "1.2.0")) {
-            val aspetta = CountDownLatch(1)
-            var proposta: Pair<String, String>? = null
-            Aggiornamenti.controlla(mia) { nome, apk ->
-                proposta = nome to apk
-                aspetta.countDown()
-            }
-            aspetta.await(25, TimeUnit.SECONDS)
-            println("VERO mia=$mia -> proposta=$proposta")
+            val esito = kotlinx.coroutines.runBlocking { Aggiornamenti.cerca(mia, null) }
+            println("VERO mia=$mia -> esito=$esito")
         }
+    }
+
+    @Test
+    fun `il file dell'app si legge, e solo se l'apk viene da dove deve`() {
+        val buono = Aggiornamenti.leggiFileApp(
+            """{"versione":"2.26.0","apk":"https://github.com/niko9090/sierradeck/releases/download/v0.17.0/SierraDeck-2.26.0.apk"}"""
+        )
+        assertEquals("2.26.0", buono?.versione)
+        val altrove = Aggiornamenti.leggiFileApp(
+            """{"versione":"9.9.9","apk":"https://altrove.example/SierraDeck-9.9.9.apk"}"""
+        )
+        assertEquals(null, altrove)
+        assertEquals(null, Aggiornamenti.leggiFileApp("non json"))
     }
 
     /**

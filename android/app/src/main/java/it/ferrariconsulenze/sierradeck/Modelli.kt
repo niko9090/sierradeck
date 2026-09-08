@@ -427,3 +427,10 @@ data class Sfoglia(
     /** Qui dentro c'è già un progetto Claude Code. */
     val progetto: Boolean = false
 )
+
+/** L'app da scaricare, come la sa il computer (`/api/app`): versione dell'APK e indirizzo. */
+@Serializable
+data class AppScaricabile(
+    val versione: String = "",
+    val url: String = ""
+)

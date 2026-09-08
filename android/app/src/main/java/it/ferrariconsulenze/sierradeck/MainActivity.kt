@@ -6,7 +6,6 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,20 +41,8 @@ class MainActivity : ComponentActivity() {
         val deposito = Collegamento(this)
         setContent {
             TemaSierraDeck {
-                // L'aggiornamento dell'app: un'app installata a mano non riceve
-                // niente da sola, quindi si guarda l'ultima su GitHub e, se è più
-                // nuova, la si propone. Il controllo è su un thread suo; qui si
-                // porta l'esito sul thread dell'interfaccia.
-                var aggiornamento by remember { mutableStateOf<Pair<String, String>?>(null) }
-                LaunchedEffect(Unit) {
-                    try {
-                        Aggiornamenti.controlla(BuildConfig.VERSION_NAME) { nome, apk ->
-                            suSchermo { aggiornamento = nome to apk }
-                        }
-                    } catch (_: Exception) {
-                    }
-                }
-
+                // L'aggiornamento dell'app vive dentro `App` (una striscia in
+                // alto che si chiude), non piu' qui come finestra all'avvio.
                 App(deposito = deposito, scansionaQr = ::scansionaQr)
 
                 // La nota dell'ultima caduta. La si scriveva gia' e non la
@@ -69,45 +56,10 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                aggiornamento?.let { (nome, apk) ->
-                    DialogoAggiornamentoApp(
-                        nome = nome,
-                        apk = apk,
-                        avviaScarico = ::scaricaApk,
-                        onChiudi = { aggiornamento = null }
-                    )
-                }
             }
         }
     }
 
-    /**
-     * Un lavoro sul thread dell'interfaccia, ma **solo se c'e' ancora
-     * un'interfaccia**.
-     *
-     * Le risposte di rete arrivano quando arrivano: dieci secondi dopo, con
-     * l'Activity gia' chiusa perche' nel frattempo qualcuno e' uscito o ha
-     * girato lo schermo. `runOnUiThread` accodava lo stesso, e quel lavoro
-     * toccava una finestra che non c'era piu'.
-     *
-     * Si guarda due volte, ed e' voluto: al momento di accodare e al momento di
-     * eseguire. Fra i due c'e' un giro di coda, ed e' esattamente li' che
-     * l'Activity puo' morire.
-     */
-    private fun suSchermo(azione: () -> Unit) {
-        if (isFinishing || isDestroyed) return
-        runOnUiThread { if (!isFinishing && !isDestroyed) azione() }
-    }
-
-    /** Scarica l'APK nuovo e apre l'installazione di Android, riportando i
-     *  progressi sul thread dell'interfaccia. */
-    private fun scaricaApk(apk: String, onProgresso: (Int) -> Unit, onGuasto: (String) -> Unit) {
-        Scaricamento.apk(
-            this, apk,
-            avanzamento = { p -> suSchermo { onProgresso(p) } },
-            guasto = { m -> suSchermo { onGuasto(m) } }
-        )
-    }
 
     /**
      * Apre la fotocamera (schermata di Google Play Services, nessun permesso

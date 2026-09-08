@@ -16,6 +16,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 
 /**
  * L'avviso che c'è una versione nuova **dell'app**, e l'aggiornamento senza
@@ -76,4 +88,34 @@ fun DialogoAggiornamentoApp(
             TextButton(enabled = !scaricando, onClick = onChiudi) { Text("Più tardi") }
         }
     )
+}
+
+/**
+ * La striscia «c'e' un'app nuova», in alto, che si chiude con una croce.
+ *
+ * Prima l'avviso era una finestra in faccia all'apertura: o la si accettava o
+ * la si mandava via, e mandata via non tornava piu' fino al riavvio — e in
+ * mezzo, se la ricerca falliva, non si vedeva niente. Questa resta finche'
+ * non la chiudi, non copre quello che stai guardando, e chiusa non torna
+ * finche' non esce una versione ancora piu' nuova.
+ */
+@Composable
+fun BandaAggiornamentoApp(nome: String, onAggiorna: () -> Unit, onChiudi: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(Banco.accento.copy(alpha = 0.14f))
+            .padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("C’è SierraDeck $nome per il telefono", color = Banco.accento, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text("Hai la ${BuildConfig.VERSION_NAME}. Si scarica da qui, installa Android.", color = Banco.testoQuieto, fontSize = 12.sp)
+        }
+        Spacer(Modifier.width(6.dp))
+        TextButton(onClick = onAggiorna) { Text("Aggiorna") }
+        IconButton(onClick = onChiudi, modifier = Modifier.size(36.dp)) {
+            Icon(Icons.Filled.Close, contentDescription = "Chiudi l’avviso", tint = Banco.testoQuieto)
+        }
+    }
 }

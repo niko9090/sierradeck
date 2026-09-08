@@ -4,10 +4,12 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
-import kotlin.concurrent.thread
 
 /**
  * Gli aggiornamenti dell'app, finché non vive sul Play Store.
@@ -17,24 +19,46 @@ import kotlin.concurrent.thread
  * nuove e i difetti corretti. Finché il Play Store non fa questo lavoro, lo
  * facciamo qui.
  *
- * Si guarda l'ultima pubblicata su GitHub e, se è più recente, si propone di
+ * Si guarda l'ultima pubblicata e, se è più recente, si propone di
  * scaricarla: l'installazione la fa Android con la sua schermata di sempre,
  * dove sei tu a premere «Installa». Non si scarica niente di nascosto e non si
  * installa niente senza che tu lo veda.
+ *
+ * ## Tre fonti, in ordine
+ *
+ * La ricerca chiedeva solo all'API di GitHub, e da un telefono quella strada
+ * si chiude spesso: sessanta richieste l'ora **per indirizzo**, e sulla rete
+ * mobile l'indirizzo lo si divide con migliaia di persone — «GitHub ha
+ * risposto 403», sempre, senza che si capisca perché. Adesso si prova prima
+ * il computer a cui si è collegati (`/api/app`: lui lo sa già, e lo chiede
+ * da casa), poi il file `app-android.json` allegato all'ultima pubblicazione
+ * (un file, non l'API: nessun limite), e solo per ultima l'API. Se non va
+ * nessuna, si dicono tutte e tre le ragioni.
  */
 object Aggiornamenti {
 
     /**
      * Le ultime pubblicazioni, non solo l'ultima.
      *
-     * L'app e il programma sul computer escono quando hanno qualcosa da dare, e
-     * quasi mai insieme: la prima pubblicazione del programma **senza** APK
-     * allegato faceva sparire l'aggiornamento dal telefono — niente da
-     * scaricare, e nessun errore che lo dicesse. Si scorrono le ultime venti e
-     * si tiene la versione più alta.
+     * L'app e il programma escono quando hanno qualcosa da dare, e quasi mai
+     * insieme: la prima pubblicazione del programma **senza** APK allegato
+     * faceva sparire l'aggiornamento dal telefono — niente da scaricare, e
+     * nessun errore che lo dicesse. Si scorrono le ultime venti e si tiene la
+     * versione più alta.
      */
     private const val ULTIME =
         "https://api.github.com/repos/niko9090/sierradeck/releases?per_page=20"
+
+    /**
+     * Il file che dice qual è l'app, allegato a ogni pubblicazione.
+     *
+     * `releases/latest/download/<file>` rimanda all'allegato dell'ultima
+     * pubblicazione: è un file servito da una CDN, non una chiamata all'API,
+     * e non ha il limite delle sessanta l'ora. Se l'ultima pubblicazione non
+     * ce l'ha (una vecchia, prima della 0.16.4) risponde 404 e si passa oltre.
+     */
+    private const val FILE_APP =
+        "https://github.com/niko9090/sierradeck/releases/latest/download/app-android.json"
 
     /**
      * La versione dell'app si legge **dal nome dell'APK**, non dal tag.
@@ -59,26 +83,20 @@ object Aggiornamenti {
      *
      * Il controllo si fa in due punti — quando si sceglie l'allegato e appena
      * prima di scaricarlo — perche' fra i due passa del tempo e una risposta.
+     * Vale anche per quello che dice il computer: e' un'altra macchina, e la
+     * regola non cambia a seconda di chi parla.
      */
     private const val ORIGINE = "https://github.com/niko9090/sierradeck/releases/download/"
 
     fun apkAmmesso(indirizzo: String): Boolean = indirizzo.startsWith(ORIGINE)
 
     /**
-     * Guarda se c'è una versione più nuova e, se c'è, chiama `quandoTrovata`
-     * con il suo nome e l'indirizzo dell'APK.
-     *
-     * Su un thread suo: è una chiamata di rete, e farla mentre si disegna
-     * l'interfaccia significherebbe un'app che si blocca all'avvio ogni volta
-     * che la rete è lenta.
-     */
-    /**
      * Com'e' andata la ricerca.
      *
-     * `controlla` tace quando non c'e' niente di nuovo, ed e' giusto all'avvio:
-     * nessuno vuole un avviso che dice «tutto a posto» ogni volta che apre
-     * l'app. Ma quando la ricerca la chiedi **tu**, il silenzio e' la risposta
-     * sbagliata — non sai se e' aggiornata o se non ha funzionato niente.
+     * All'avvio si tace quando non c'e' niente di nuovo: nessuno vuole un
+     * avviso che dice «tutto a posto» ogni volta che apre l'app. Ma quando la
+     * ricerca la chiedi **tu**, il silenzio e' la risposta sbagliata — non sai
+     * se e' aggiornata o se non ha funzionato niente.
      */
     sealed interface Esito {
         data class Trovata(val nome: String, val apk: String) : Esito
@@ -86,56 +104,103 @@ object Aggiornamenti {
         data class NonRiuscita(val motivo: String) : Esito
     }
 
-    /** La ricerca chiesta a mano: riferisce sempre, anche quando non c'e' niente. */
-    fun cerca(mia: String, esito: (Esito) -> Unit) {
-        thread(start = true) {
-            try {
-                val connessione = (URL(ULTIME).openConnection() as HttpURLConnection)
-                connessione.setRequestProperty("Accept", "application/vnd.github+json")
-                connessione.connectTimeout = 10_000
-                connessione.readTimeout = 10_000
-                val corpo = try {
-                    if (connessione.responseCode != 200) {
-                        esito(Esito.NonRiuscita("GitHub ha risposto ${connessione.responseCode}"))
-                        return@thread
-                    }
-                    connessione.inputStream.bufferedReader().readText()
-                } finally {
-                    connessione.disconnect()
-                }
-                val migliore = piuRecenteFra(corpo)
-                when {
-                    migliore == null -> esito(Esito.NonRiuscita("nessuna app pubblicata"))
-                    piuNuova(mia, migliore.first) -> esito(Esito.Trovata(migliore.first, migliore.second))
-                    else -> esito(Esito.GiaAggiornata)
-                }
-            } catch (e: Exception) {
-                esito(Esito.NonRiuscita(e.message ?: "non raggiungo GitHub"))
-            }
+    /** L'app pubblicata, come la racconta una fonte: versione e indirizzo dell'APK. */
+    data class Pubblicata(val versione: String, val apk: String)
+
+    /**
+     * Cerca l'ultima app pubblicata e la confronta con `mia`.
+     *
+     * `api` e' il computer a cui si e' collegati, se c'e': e' la prima fonte.
+     * Sul thread di rete, mai su quello dell'interfaccia.
+     */
+    suspend fun cerca(mia: String, api: Api?): Esito = withContext(Dispatchers.IO) {
+        val ragioni = mutableListOf<String>()
+        val trovata = dalComputer(api, ragioni)
+            ?: dalFile(ragioni)
+            ?: dallApi(ragioni)
+        when {
+            trovata == null -> Esito.NonRiuscita(ragioni.joinToString("; "))
+            piuNuova(mia, trovata.versione) -> Esito.Trovata(trovata.versione, trovata.apk)
+            else -> Esito.GiaAggiornata
         }
     }
 
-    fun controlla(mia: String, quandoTrovata: (nome: String, apk: String) -> Unit) {
-        thread(start = true) {
+    private suspend fun dalComputer(api: Api?, ragioni: MutableList<String>): Pubblicata? {
+        if (api == null) return null
+        return try {
+            val a = api.app()
+            if (a.versione.isBlank() || a.url.isBlank()) { ragioni += "il computer non la conosce"; null }
+            else if (!apkAmmesso(a.url)) { ragioni += "il computer indica un posto non ammesso"; null }
+            else Pubblicata(a.versione, a.url)
+        } catch (e: Exception) {
+            ragioni += "computer: ${e.message ?: "non risponde"}"
+            null
+        }
+    }
+
+    private fun dalFile(ragioni: MutableList<String>): Pubblicata? {
+        return try {
+            val corpo = leggi(FILE_APP, accetta = "application/json")
+            val letta = leggiFileApp(corpo)
+            if (letta == null) ragioni += "il file dell'app non si legge"
+            letta
+        } catch (e: Exception) {
+            ragioni += "file: ${e.message ?: "non raggiungo GitHub"}"
+            null
+        }
+    }
+
+    private fun dallApi(ragioni: MutableList<String>): Pubblicata? {
+        return try {
+            val corpo = leggi(ULTIME, accetta = "application/vnd.github+json")
+            val migliore = piuRecenteFra(corpo)
+            if (migliore == null) ragioni += "nessuna app pubblicata"
+            migliore?.let { Pubblicata(it.first, it.second) }
+        } catch (e: Exception) {
+            ragioni += "GitHub: ${e.message ?: "non raggiungo GitHub"}"
+            null
+        }
+    }
+
+    /** Un GET che segue i rimandi (il file dell'app sta dietro un 302) e pretende un 200. */
+    private fun leggi(indirizzo: String, accetta: String): String {
+        var url = indirizzo
+        repeat(4) {
+            val connessione = (URL(url).openConnection() as HttpURLConnection)
+            connessione.instanceFollowRedirects = false
+            connessione.setRequestProperty("Accept", accetta)
+            connessione.setRequestProperty("User-Agent", "SierraDeck-Android")
+            connessione.connectTimeout = 12_000
+            connessione.readTimeout = 12_000
             try {
-                val connessione = (URL(ULTIME).openConnection() as HttpURLConnection)
-                connessione.setRequestProperty("Accept", "application/vnd.github+json")
-                connessione.connectTimeout = 10_000
-                connessione.readTimeout = 10_000
-                val corpo = try {
-                    if (connessione.responseCode != 200) return@thread
-                    connessione.inputStream.bufferedReader().readText()
-                } finally {
-                    connessione.disconnect()
+                val codice = connessione.responseCode
+                if (codice in 301..308) {
+                    url = connessione.getHeaderField("Location") ?: throw Exception("rimando senza indirizzo")
+                    return@repeat
                 }
-                val migliore = piuRecenteFra(corpo) ?: return@thread
-                if (!piuNuova(mia, migliore.first)) return@thread
-                quandoTrovata(migliore.first, migliore.second)
-            } catch (e: Exception) {
-                // Senza rete, o con GitHub irraggiungibile, non si aggiorna e
-                // basta: non è una ragione per disturbare chi sta lavorando.
-                Log.i("SierraDeck", "aggiornamento non verificato: ${e.message}")
+                if (codice != 200) throw Exception("ha risposto $codice")
+                return connessione.inputStream.bufferedReader().readText()
+            } finally {
+                connessione.disconnect()
             }
+        }
+        throw Exception("troppi rimandi")
+    }
+
+    /**
+     * Il file `app-android.json`: `{ "versione": "2.25.4", "apk": "https://…/SierraDeck-2.25.4.apk" }`.
+     *
+     * Separato dalla rete perche' si possa provare senza GitHub.
+     */
+    fun leggiFileApp(corpo: String): Pubblicata? {
+        return try {
+            val o = JSONObject(corpo)
+            val versione = o.optString("versione")
+            val apk = o.optString("apk")
+            if (versione.isBlank() || apk.isBlank() || !apkAmmesso(apk)) null
+            else Pubblicata(versione, apk)
+        } catch (e: Exception) {
+            null
         }
     }
 

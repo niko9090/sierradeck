@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { leggiApkDalRelease } from '../../src/main/apk-disponibile'
+import { leggiApkDalRelease, leggiAppAndroidJson } from '../../src/main/apk-disponibile'
 
 describe('leggiApkDalRelease', () => {
   it('trova l APK e la sua versione', () => {
@@ -54,3 +54,19 @@ describe('leggiApkDalRelease', () => {
   })
 })
 
+describe('il file app-android.json allegato a ogni pubblicazione', () => {
+  it('dice versione e APK', () => {
+    expect(leggiAppAndroidJson(
+      '{"versione":"2.26.0","apk":"https://github.com/niko9090/sierradeck/releases/download/v0.17.0/SierraDeck-2.26.0.apk"}'
+    )).toEqual({ versione: '2.26.0', url: 'https://github.com/niko9090/sierradeck/releases/download/v0.17.0/SierraDeck-2.26.0.apk' })
+  })
+  it('un APK che non sta dove deve non si propone', () => {
+    // E' l'unica cosa che il telefono installa: chi riesce a farci leggere un
+    // indirizzo diverso ci fa installare quello che vuole.
+    expect(leggiAppAndroidJson('{"versione":"9.9.9","apk":"https://altrove.example/SierraDeck-9.9.9.apk"}')).toBeUndefined()
+  })
+  it('una versione strana o un file illeggibile non fanno niente', () => {
+    expect(leggiAppAndroidJson('{"versione":"boh","apk":"https://github.com/niko9090/sierradeck/releases/download/v1/x.apk"}')).toBeUndefined()
+    expect(leggiAppAndroidJson('non json')).toBeUndefined()
+  })
+})
