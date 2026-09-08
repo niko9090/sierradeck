@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.17.0',
+    righe: [
+      '**L\u2019app del telefono avvisa da s\u00e9 quando ce n\u2019\u00e8 una nuova.** Una striscia in alto, che si chiude con la croce e non torna finch\u00e9 non esce un\u2019altra versione; «Aggiorna» la scarica e Android la installa. Resta anche «Cerca ora» nella scheda Computer.',
+      '**La ricerca dell\u2019app non d\u00e0 pi\u00f9 errore.** Chiedeva solo all\u2019API di GitHub, che da rete mobile risponde spesso 403 per il limite di richieste. Ora chiede prima al computer collegato, poi legge il file app-android.json allegato alla pubblicazione (senza limiti), e solo per ultima l\u2019API; se non va niente, dice le tre ragioni. App Android 2.26.0.'
+    ]
+  },
+  {
     versione: '0.16.3',
     righe: [
       '**Le scelte dal telefono non si premono due volte.** Toccando un’opzione di una domanda di Claude Code, il computer la controlla sullo schermo di adesso, non su una foto vecchia di due secondi, e per otto secondi non rimostra la stessa domanda né accetta un secondo tocco: prima la domanda già risposta ricompariva e il secondo tocco finiva nella domanda dopo, mentre la chat era già andata avanti. Pagina servita e app Android (2.25.3).'
