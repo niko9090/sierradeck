@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.18.0',
+    righe: [
+      '**Il lavoro con il Drive si vede, e si annulla.** Fusione, ripristino e salvataggio compaiono in una striscia in alto, come un aggiornamento: cosa sta facendo, quanti file su quanti, la percentuale e la barra. Continua anche se chiudi il pannello; «Annulla» ferma fra un file e l\u2019altro, e quello gi\u00e0 fatto resta fatto e coerente. Finito, resta una riga con l\u2019esito.',
+      '**La fusione interrotta si riprende.** Riaprendo «Fondi con il Drive» dopo un annulla o una chiusura, le voci gi\u00e0 fatte risultano uguali e per le altre ritrovi le scelte di allora: premi «Fondi adesso» e finisce. Il pannello Account lo ricorda con una riga ambra.',
+      '**Corretto un difetto serio della fusione.** Una chat lasciata «com\u2019\u00e8» solo sul Drive veniva cancellata dal Drive al salvataggio automatico successivo. Ora il PC ricorda di avere solo ci\u00f2 che ha davvero sul disco. App Android 2.26.3.'
+    ]
+  },
+  {
     versione: '0.17.2',
     righe: [
       '**«Fondi con il Drive» si vede e si capisce.** Il tasto che applica \u00e8 ora grande e del colore d\u2019accento, con scritto cosa succede («Fondi adesso», e sopra il conto: quante voci sul Drive, quante qui, niente cancellato). I tasti di gruppo («unisci», «solo dal PC al Drive», «lascia tutto com\u2019\u00e8») mostrano quale \u00e8 in vigore con una spunta e restano accesi; premendoli si apre la sezione, cos\u00ec si vede cosa cambia; accanto a ogni cartella e progetto c\u2019\u00e8 il conto aggiornato delle scelte. App Android 2.26.2.'
