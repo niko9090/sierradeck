@@ -128,6 +128,7 @@ declare global {
       progetti: {
         elenca: () => Promise<ElencoProgetti>
         aggiungi: () => Promise<ElencoProgetti>
+        aggiungiPercorso: (percorso: string) => Promise<ElencoProgetti>
         collega: (id: string) => Promise<ElencoProgetti>
         rimuovi: (id: string) => Promise<ElencoProgetti>
         cartella: () => Promise<ElencoProgetti>
@@ -273,6 +274,8 @@ declare global {
         autopilotiAlLavoro: (quanti: number) => void
         scegliCartella: () => Promise<string | undefined>
         cartellaEsiste: (percorso: string) => Promise<boolean>
+        cartelleBase: () => Promise<{ documenti: string; progetti: string }>
+        creaCartella: (percorso: string) => Promise<boolean>
         titoloFinestra: (testo: string) => void
       }
       aggiornamenti: {

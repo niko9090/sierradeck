@@ -26,9 +26,19 @@ export type IdentitaPcStore = {
   impostaCartellaProgetti: (percorso: string) => IdentitaPc
 }
 
-export function apriIdentitaPc(dati: string, deps: { nome: () => string; casa: () => string }): IdentitaPcStore {
+export function apriIdentitaPc(dati: string, deps: { nome: () => string; casa: () => string; documenti?: () => string }): IdentitaPcStore {
   const percorso = join(dati, FILE_PC)
-  const predefinita = (): string => join(deps.casa(), 'Progetti SierraDeck')
+  /**
+   * Dove ricevere i progetti se nessuno ha scelto: in Documenti (Nicholas,
+   * 2026-09-08: «va sempre in Documenti, nella cartella di SierraDeck per i
+   * progetti»). Fino alla 0.18 era nella home: chi ce l'ha gia' li' la tiene,
+   * non si sposta niente da soli.
+   */
+  const predefinita = (): string => {
+    const vecchia = join(deps.casa(), 'Progetti SierraDeck')
+    if (existsSync(vecchia)) return vecchia
+    return join(deps.documenti?.() ?? deps.casa(), 'Progetti SierraDeck')
+  }
 
   const leggiGrezza = (): Partial<IdentitaPc> => {
     if (!existsSync(percorso)) return {}

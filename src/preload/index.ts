@@ -365,6 +365,8 @@ contextBridge.exposeInMainWorld('gestore', {
     elenca: (): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:elenca'),
     /** Apre la finestra di Windows per scegliere la cartella da mettere sul Drive. */
     aggiungi: (): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:aggiungi'),
+    /** Mette sul Drive una cartella gia' nota, senza finestra: la chat nuova «fra i progetti». */
+    aggiungiPercorso: (percorso: string): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:aggiungiPercorso', percorso),
     /** Dice dove sta, su questo PC, un progetto arrivato da un altro. */
     collega: (id: string): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:collega', id),
     rimuovi: (id: string): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:rimuovi', id),
@@ -641,6 +643,12 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('sistema:scegliCartella'),
     cartellaEsiste: (percorso: string): Promise<boolean> =>
       ipcRenderer.invoke('sistema:cartellaEsiste', percorso),
+    /** Documenti e la cartella dei progetti SierraDeck: dove nasce una chat nuova. */
+    cartelleBase: (): Promise<{ documenti: string; progetti: string }> =>
+      ipcRenderer.invoke('sistema:cartelleBase'),
+    /** Crea la cartella di una chat nuova (solo sotto Documenti o sotto i progetti). */
+    creaCartella: (percorso: string): Promise<boolean> =>
+      ipcRenderer.invoke('sistema:creaCartella', percorso),
     /**
      * Il sottotitolo della barra del titolo: la versione e dove ti trovi.
      *

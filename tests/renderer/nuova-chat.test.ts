@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { nomeDaCartella, proponiNuovaChat, validaNuovaChat } from '../../src/renderer/nuova-chat'
+import { nomeDaCartella, proponiNuovaChat, validaNuovaChat, nomeCartellaDaNome, componiNuovaChat, unisciPercorso } from '../../src/renderer/nuova-chat'
 import type { PaneData } from '../../src/renderer/state/layout'
 
 function riquadro(cwd: string): PaneData {
@@ -74,5 +74,44 @@ describe('validaNuovaChat', () => {
     })
     expect(esito.ok).toBe(true)
     if (esito.ok) expect(esito.nome).not.toContain('"')
+  })
+})
+
+describe('il nome fa la cartella (0.19.0)', () => {
+  // Nicholas: «le chat di default si aprono in Documenti con il nome della
+  // chat; se la cartella non esiste verrà creata; "fra i progetti" va nella
+  // cartella di SierraDeck per i progetti».
+  const basi = { documenti: 'C:\\Users\\nik\\Documents', progetti: 'C:\\Users\\nik\\Documents\\Progetti SierraDeck' }
+
+  it('toglie quello che Windows non accetta, e non lascia punti o spazi in coda', () => {
+    expect(nomeCartellaDaNome('Sito: v2 / nuovo?')).toBe('Sito- v2 - nuovo-')
+    expect(nomeCartellaDaNome('  fatture 2026.  ')).toBe('fatture 2026')
+    expect(nomeCartellaDaNome('')).toBe('Nuova chat')
+    expect(nomeCartellaDaNome('x'.repeat(200))).toHaveLength(80)
+  })
+
+  it('in Documenti: Documenti\\<nome>, da creare', () => {
+    const e = componiNuovaChat({ nome: 'Sito web', posto: 'documenti', altrove: '', basi })
+    expect(e).toEqual({ ok: true, cartella: 'C:\\Users\\nik\\Documents\\Sito web', nome: 'Sito web', daCreare: true })
+  })
+
+  it('fra i progetti: nella cartella dei progetti SierraDeck', () => {
+    const e = componiNuovaChat({ nome: 'Sito web', posto: 'progetti', altrove: '', basi })
+    expect(e.ok && e.cartella).toBe('C:\\Users\\nik\\Documents\\Progetti SierraDeck\\Sito web')
+  })
+
+  it('senza nome, in Documenti o fra i progetti, non si parte: e lui a fare la cartella', () => {
+    const e = componiNuovaChat({ nome: '  ', posto: 'documenti', altrove: '', basi })
+    expect(e.ok).toBe(false)
+  })
+
+  it('altrove vale la regola di prima: la cartella scelta, il nome se manca dalla cartella', () => {
+    const e = componiNuovaChat({ nome: '', posto: 'altrove', altrove: '"C:\\Lavoro\\gestore"', basi })
+    expect(e).toEqual({ ok: true, cartella: 'C:\\Lavoro\\gestore', nome: 'gestore', daCreare: false })
+  })
+
+  it('il separatore segue la base', () => {
+    expect(unisciPercorso('C:\\Users\\nik\\Documents\\', 'x')).toBe('C:\\Users\\nik\\Documents\\x')
+    expect(unisciPercorso('/home/nik/Documents', 'x')).toBe('/home/nik/Documents/x')
   })
 })

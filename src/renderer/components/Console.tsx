@@ -139,9 +139,13 @@ export function Console({
         <ModaleNuovaChat
           proposta={nuovaChat}
           onAnnulla={() => setNuovaChat(undefined)}
-          onApri={(cartella, nome) => {
+          onApri={(cartella, nome, opzioni) => {
             addPane(cartella, nome, modello === 'default' ? undefined : modello)
             setNuovaChat(undefined)
+            // «e mettila sul Drive»: la cartella viaggia con le sue chat.
+            if (opzioni.sulDrive) {
+              void window.gestore.progetti.aggiungiPercorso(cartella).catch((e: unknown) => console.error('[chat] non messa sul Drive:', e))
+            }
           }}
         />
       ) : null}

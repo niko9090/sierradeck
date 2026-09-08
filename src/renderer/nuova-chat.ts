@@ -65,3 +65,58 @@ export function validaNuovaChat(p: { cartella: string; nome: string }): EsitoNuo
   const nome = normalizzaTitolo(p.nome)
   return { ok: true, cartella, nome: nome === '' ? nomeDaCartella(cartella) : nome }
 }
+
+/** Dove nasce una chat nuova: Documenti, la cartella dei progetti SierraDeck, o una cartella scelta. */
+export type PostoChat = 'documenti' | 'progetti' | 'altrove'
+
+/** Le due cartelle-base del PC, chieste al Core. */
+export type BasiCartelle = { documenti: string; progetti: string }
+
+/**
+ * Il nome della cartella che si crea per una chat, dal suo nome.
+ *
+ * Windows non accetta `< > : " / \\ | ? *` ne' i caratteri di controllo, e
+ * non vuole punti o spazi in coda; qui diventano un trattino o spariscono.
+ * Ottanta caratteri bastano a un titolo e non fanno un percorso troppo lungo.
+ * Un nome vuoto non fa una cartella senza nome: fa «Nuova chat».
+ */
+export function nomeCartellaDaNome(nome: string): string {
+  const pulito = nome
+    .replace(/[<>:"/\\|?*\u0000-\u001f]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[. ]+$/, '')
+    .slice(0, 80)
+    .trim()
+  return pulito === '' ? 'Nuova chat' : pulito
+}
+
+/** Base + nome, con il separatore che la base usa gia'. */
+export function unisciPercorso(base: string, nome: string): string {
+  const pulita = base.replace(/[\\/]+$/, '')
+  const sep = pulita.includes('\\') || /^[A-Za-z]:$/.test(pulita) ? '\\' : '/'
+  return `${pulita}${sep}${nome}`
+}
+
+export type EsitoNuovaChatComposta =
+  | { ok: true; cartella: string; nome: string; daCreare: boolean }
+  | { ok: false; motivo: string }
+
+/**
+ * La cartella e il nome, dal posto scelto.
+ *
+ * In Documenti o fra i progetti, il nome e' obbligatorio: e' lui a fare la
+ * cartella, e si crea al momento. Altrove vale la regola di prima: la
+ * cartella deve esistere, e il nome se manca prende quello della cartella.
+ */
+export function componiNuovaChat(p: { nome: string; posto: PostoChat; altrove: string; basi: BasiCartelle }): EsitoNuovaChatComposta {
+  if (p.posto === 'altrove') {
+    const e = validaNuovaChat({ cartella: p.altrove, nome: p.nome })
+    return e.ok ? { ...e, daCreare: false } : e
+  }
+  const nome = normalizzaTitolo(p.nome)
+  if (nome === '') return { ok: false, motivo: 'Serve un nome: diventa anche la cartella.' }
+  const base = p.posto === 'documenti' ? p.basi.documenti : p.basi.progetti
+  if (base.trim() === '') return { ok: false, motivo: 'Non so dove sta la cartella Documenti su questo PC.' }
+  return { ok: true, cartella: unisciPercorso(base, nomeCartellaDaNome(nome)), nome, daCreare: true }
+}

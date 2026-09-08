@@ -3392,3 +3392,14 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   filter: brightness(1.12);
   background: var(--accento);
 }
+
+/* «Nuova chat»: le tre scelte del posto, una per riga, con il percorso sotto. */
+.nuova-chat__posti { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 2px; }
+.nuova-chat__posto {
+  display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px;
+  border: 1px solid var(--incisione); border-radius: var(--raggio); cursor: pointer;
+}
+.nuova-chat__posto--scelto { border-color: var(--accento); background: color-mix(in srgb, var(--accento) 8%, transparent); }
+.nuova-chat__posto input { margin-top: 3px; }
+.nuova-chat__posto-titolo { display: block; font-size: var(--t2); }
+.nuova-chat__posto-sotto { display: block; font-size: var(--t1); opacity: 0.65; word-break: break-all; }

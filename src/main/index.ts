@@ -1,5 +1,5 @@
 import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell } from 'electron'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, join, resolve, sep } from 'node:path'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, watch, copyFileSync } from 'node:fs'
 import { homedir, hostname } from 'node:os'
 import { createHash } from 'node:crypto'
@@ -834,7 +834,7 @@ if (!app.requestSingleInstanceLock()) {
       }
       // I progetti sul Drive: chi e' questo PC, dove riceve i progetti, e il
       // registro condiviso di quali cartelle viaggiano con le chat.
-      const identitaPc = apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir() })
+      const identitaPc = apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir(), documenti: () => app.getPath('documents') })
       const registroProgetti = apriRegistroProgetti(dati)
       let progettiInManoAdAltri = (): Set<string> => new Set()
       // Per il telefono: se il progetto di una chat e' in mano a un altro PC,
@@ -1045,16 +1045,45 @@ if (!app.requestSingleInstanceLock()) {
         return esito.canceled ? undefined : esito.filePaths[0]
       }
       ipcMain.handle('progetti:elenca', () => elencoProgetti())
+      const mettiSulDrive = (percorso: string): void => {
+        const { registro: reg, progetto } = aggiungiProgetto(registroProgetti.leggi(), {
+          pcId: identitaPc.leggi().id, percorso, adesso: new Date().toISOString()
+        })
+        registroProgetti.scrivi(reg)
+        registro.info(`[progetti] «${progetto.nome}» sul Drive da ${percorso}`)
+      }
       ipcMain.handle('progetti:aggiungi', async (event) => {
         const percorso = await scegliCartellaDa(event, 'Quale cartella mettere sul Drive')
-        if (percorso !== undefined) {
-          const { registro: reg, progetto } = aggiungiProgetto(registroProgetti.leggi(), {
-            pcId: identitaPc.leggi().id, percorso, adesso: new Date().toISOString()
-          })
-          registroProgetti.scrivi(reg)
-          registro.info(`[progetti] «${progetto.nome}» sul Drive da ${percorso}`)
-        }
+        if (percorso !== undefined) mettiSulDrive(percorso)
         return elencoProgetti()
+      })
+      // Per percorso, senza finestra: la chat nuova «fra i progetti SierraDeck»
+      // con la casella «e mettila sul Drive».
+      ipcMain.handle('progetti:aggiungiPercorso', (_e, raw: unknown) => {
+        if (typeof raw === 'string' && raw.trim() !== '' && existsSync(raw)) mettiSulDrive(raw)
+        return elencoProgetti()
+      })
+      // Le due cartelle-base di una chat nuova: Documenti e quella dei progetti.
+      ipcMain.handle('sistema:cartelleBase', () => ({
+        documenti: app.getPath('documents'),
+        progetti: identitaPc.leggi().cartellaProgetti
+      }))
+      // Creare la cartella di una chat nuova: solo sotto Documenti o sotto la
+      // cartella dei progetti, mai altrove — un percorso scritto a mano con un
+      // errore non deve diventare una cartella a caso.
+      ipcMain.handle('sistema:creaCartella', (_e, raw: unknown): boolean => {
+        if (typeof raw !== 'string' || raw.trim() === '') return false
+        const voluta = resolve(raw.trim())
+        const basi = [app.getPath('documents'), identitaPc.leggi().cartellaProgetti].map((b) => resolve(b))
+        const dentro = basi.some((b) => voluta.toLowerCase().startsWith(b.toLowerCase() + sep) || voluta.toLowerCase() === b.toLowerCase())
+        if (!dentro) return false
+        try {
+          mkdirSync(voluta, { recursive: true })
+          return statSync(voluta).isDirectory()
+        } catch (err) {
+          registro.info(`[chat] cartella non creata ${voluta}: ${String(err)}`)
+          return false
+        }
       })
       ipcMain.handle('progetti:collega', async (event, rawId: unknown) => {
         if (typeof rawId === 'string' && rawId !== '') {
