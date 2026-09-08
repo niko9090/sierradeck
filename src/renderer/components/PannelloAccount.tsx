@@ -493,7 +493,7 @@ function SezioneSync(): React.JSX.Element | null {
               Questo PC ha delle conversazioni, il Drive ne ha altre: qui vedi cosa c’è solo di qua, solo di là e in comune, e scegli voce per voce cosa portare su, cosa giù e cosa lasciare. Non si perde niente.
             </p>
             <div className="account__tasti">
-              <button className="tasto" onClick={() => setFusioneAperta(true)} disabled={inCorso}>Fondi con il Drive…</button>
+              <button className="tasto tasto--primario" onClick={() => setFusioneAperta(true)} disabled={inCorso}>Fondi con il Drive…</button>
             </div>
           </div>
 

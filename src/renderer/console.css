@@ -3371,3 +3371,24 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .account__progetto-testo .account__nota { font-size: var(--t0, 12px); word-break: break-all; }
 .account__link:disabled { opacity: .5; cursor: default; text-decoration: none; }
 
+/* Il piede di «Fondi con il Drive»: il tasto che applica deve sembrare un
+   tasto, e il piu' importante della finestra. Prima era grigio come «Annulla»
+   e in fondo a una lista lunga: «si vede poco e non sembra neanche
+   un'opzione». Bordo e fondo del colore d'accento, piu' grande, staccato. */
+.fusione__piede {
+  display: flex; gap: var(--s3); justify-content: space-between; align-items: center;
+  flex-wrap: wrap; margin-top: var(--s3); padding-top: var(--s3);
+  border-top: 1px solid var(--incisione);
+}
+.tasto.fusione__fondi {
+  background: var(--accento);
+  border-color: var(--accento);
+  color: var(--chassis);
+  font-weight: 700;
+  font-size: var(--t3);
+  padding: var(--s2) var(--s4);
+}
+.tasto.fusione__fondi:hover:not(:disabled) {
+  filter: brightness(1.12);
+  background: var(--accento);
+}

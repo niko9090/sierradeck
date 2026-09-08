@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useState } from 'react'
 import type { PianoFusione, VoceFusione, Azione, ModoWorkspace } from '../../main/cassaforte/fusione'
+import { azioniPossibili, sceltePerTutte, gruppoInVigore, riassunto, riassuntoInParole, type AzioneDiGruppo } from '../fusione-scelte'
 
 type Props = {
   cassaforteDiversa: boolean
@@ -32,14 +33,6 @@ function perCartella(voci: VoceFusione[]): { cartella: string; voci: VoceFusione
   return [...gruppi.entries()]
     .map(([cartella, voci]) => ({ cartella, voci: [...voci].sort((a, b) => (b.quando ?? '').localeCompare(a.quando ?? '')) }))
     .sort((a, b) => b.voci.length - a.voci.length)
-}
-
-/** Le azioni che hanno senso per una voce, a seconda di dove sta. */
-function azioniPossibili(v: VoceFusione, conCopia: boolean): Azione[] {
-  if (v.dove === 'pc') return ['carica', 'salta']
-  if (v.dove === 'drive') return ['scarica', 'salta']
-  if (!v.diverse) return ['salta']
-  return conCopia ? ['carica', 'scarica', 'copia', 'salta'] : ['carica', 'scarica', 'salta']
 }
 
 function descriviDove(v: VoceFusione): string {
@@ -86,19 +79,48 @@ function Elenco({ voci, scelte, conCopia, onScelta }: {
   )
 }
 
-function TastiGruppo({ voci, conCopia, onTutte }: { voci: VoceFusione[]; conCopia: boolean; onTutte: (a: Azione | 'predefinite') => void }): React.JSX.Element {
+/**
+ * I tasti di gruppo: uno per verso, e quello in vigore resta acceso.
+ *
+ * Prima cambiavano le tendine di righe che stavano in sezioni chiuse e non
+ * dicevano se erano gia' quello attivo: «ho premuto unisci tutto e non e'
+ * cambiato niente». Adesso il tasto in vigore e' acceso, e accanto c'e' il
+ * conto di cosa succede con le scelte di adesso.
+ */
+function TastiGruppo({ voci, conCopia, scelte, onTutte }: {
+  voci: VoceFusione[]
+  conCopia: boolean
+  scelte: Record<string, Azione>
+  onTutte: (a: AzioneDiGruppo) => void
+}): React.JSX.Element {
   const haPc = voci.some((v) => v.dove !== 'drive')
   const haDrive = voci.some((v) => v.dove !== 'pc')
+  const tasto = (a: AzioneDiGruppo, testo: string): React.JSX.Element => {
+    const acceso = gruppoInVigore(voci, conCopia, a, scelte)
+    return (
+      <button
+        className={`tasto tasto--mini${acceso ? ' tasto--acceso' : ''}`}
+        aria-pressed={acceso}
+        title={acceso ? 'è questa la scelta in vigore per tutte' : undefined}
+        onClick={() => onTutte(a)}
+      >{acceso ? '✓ ' : ''}{testo}</button>
+    )
+  }
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 11, alignItems: 'center' }}>
       <span style={{ opacity: 0.6 }}>tutte:</span>
-      <button className="tasto tasto--mini" onClick={() => onTutte('predefinite')}>unisci (consigliato)</button>
-      {haPc ? <button className="tasto tasto--mini" onClick={() => onTutte('carica')}>solo dal PC al Drive</button> : null}
-      {haDrive ? <button className="tasto tasto--mini" onClick={() => onTutte('scarica')}>solo dal Drive al PC</button> : null}
-      {conCopia ? <button className="tasto tasto--mini" onClick={() => onTutte('copia')}>le diverse: tieni tutte e due</button> : null}
-      <button className="tasto tasto--mini" onClick={() => onTutte('salta')}>lascia tutto com’è</button>
+      {tasto('predefinite', 'unisci (consigliato)')}
+      {haPc ? tasto('carica', 'solo dal PC al Drive') : null}
+      {haDrive ? tasto('scarica', 'solo dal Drive al PC') : null}
+      {conCopia ? tasto('copia', 'le diverse: tieni tutte e due') : null}
+      {tasto('salta', 'lascia tutto com’è')}
     </div>
   )
+}
+
+/** Il conto di un gruppo con le scelte di adesso, accanto al suo titolo. */
+function Conto({ voci, scelte }: { voci: VoceFusione[]; scelte: Record<string, Azione> }): React.JSX.Element {
+  return <span style={{ fontSize: 11, opacity: 0.7 }}>→ {riassuntoInParole(riassunto(voci, scelte))}</span>
 }
 
 /**
@@ -136,6 +158,8 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
       const iniziali: Record<string, Azione> = {}
       for (const v of [...r.piano.chat, ...r.piano.assetto, ...r.piano.progetti.flatMap((p) => p.voci)]) iniziali[v.percorso] = v.predefinita
       setScelte(iniziali)
+      const prima = perCartella(r.piano.chat)[0]
+      setAperti(new Set(prima !== undefined ? [`chat:${prima.cartella}`] : []))
       setFase('piano')
     }).catch((e: unknown) => { setMessaggio(String(e)); setFase('errore') })
   }
@@ -148,18 +172,11 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
   }, [fase, onChiudi])
 
   const imposta = (percorso: string, a: Azione): void => setScelte((s) => ({ ...s, [percorso]: a }))
-  const impostaTutte = (voci: VoceFusione[], conCopia: boolean, a: Azione | 'predefinite'): void => {
-    setScelte((s) => {
-      const n = { ...s }
-      for (const v of voci) {
-        const possibili = azioniPossibili(v, conCopia)
-        if (a === 'predefinite') n[v.percorso] = v.predefinita
-        else if (a === 'copia') { if (v.diverse && conCopia) n[v.percorso] = 'copia' }
-        else if (possibili.includes(a)) n[v.percorso] = a
-        else n[v.percorso] = 'salta'
-      }
-      return n
-    })
+  // E si aprono le sezioni toccate: un tasto che cambia righe nascoste sembra
+  // un tasto rotto.
+  const impostaTutte = (voci: VoceFusione[], conCopia: boolean, a: AzioneDiGruppo, apri: string[] = []): void => {
+    setScelte((s) => ({ ...s, ...sceltePerTutte(voci, conCopia, a, s) }))
+    if (apri.length > 0) setAperti((s) => new Set([...s, ...apri]))
   }
   const commuta = (chiave: string): void => setAperti((s) => { const n = new Set(s); if (n.has(chiave)) n.delete(chiave); else n.add(chiave); return n })
 
@@ -234,8 +251,8 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
               {/* Chat, per cartella di progetto */}
               <section>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span className="serigrafia">Chat ({piano.chat.length})</span>
-                  <TastiGruppo voci={piano.chat} conCopia={false} onTutte={(a) => impostaTutte(piano.chat, false, a)} />
+                  <span className="serigrafia">Chat ({piano.chat.length}) <Conto voci={piano.chat} scelte={scelte} /></span>
+                  <TastiGruppo voci={piano.chat} conCopia={false} scelte={scelte} onTutte={(a) => impostaTutte(piano.chat, false, a, perCartella(piano.chat).map((g) => `chat:${g.cartella}`))} />
                 </div>
                 {piano.chat.length === 0 ? <p className="account__nota">Nessuna chat da fondere.</p> : null}
                 {perCartella(piano.chat).map((g) => {
@@ -249,8 +266,9 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
                         <button className="account__link" onClick={() => commuta(chiave)} title={g.cartella}>
                           {aperti.has(chiave) ? '▾' : '▸'} {g.cartella} · {g.voci.length} chat
                           <span style={{ opacity: 0.6 }}>{soloPc > 0 ? ` · ${soloPc} solo qui` : ''}{soloDrive > 0 ? ` · ${soloDrive} solo sul Drive` : ''}{diverse > 0 ? ` · ${diverse} diverse` : ''}</span>
+                          {' '}<Conto voci={g.voci} scelte={scelte} />
                         </button>
-                        <TastiGruppo voci={g.voci} conCopia={false} onTutte={(a) => impostaTutte(g.voci, false, a)} />
+                        <TastiGruppo voci={g.voci} conCopia={false} scelte={scelte} onTutte={(a) => impostaTutte(g.voci, false, a, [chiave])} />
                       </div>
                       {aperti.has(chiave) ? <Elenco voci={g.voci} scelte={scelte} conCopia={false} onScelta={imposta} /> : null}
                     </div>
@@ -264,8 +282,9 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
                     <button className="account__link" onClick={() => commuta(p.id)}>
                       {aperti.has(p.id) ? '▾' : '▸'} Progetto «{p.nome}» · solo PC {p.soloPc} · solo Drive {p.soloDrive} · diverse {p.diverse} · uguali {p.uguali}
                       {p.cartellaPc === undefined ? ' · non ancora su questo PC' : ''}
+                      {' '}<Conto voci={p.voci} scelte={scelte} />
                     </button>
-                    <TastiGruppo voci={p.voci} conCopia onTutte={(a) => impostaTutte(p.voci, true, a)} />
+                    <TastiGruppo voci={p.voci} conCopia scelte={scelte} onTutte={(a) => impostaTutte(p.voci, true, a, [p.id])} />
                   </div>
                   {aperti.has(p.id) ? <Elenco voci={p.voci} scelte={scelte} conCopia onScelta={imposta} /> : null}
                 </section>
@@ -331,11 +350,15 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
                 <p className="account__nota">🔒 Fondendo, questo PC passa alla cassaforte del Drive: le sue chat e i suoi file salgono cifrati con quella chiave. La cassaforte di adesso resta messa da parte, non cancellata.</p>
               ) : null}
             </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 12, opacity: 0.75 }}>Sul Drive: {conto.carica} · qui: {conto.scarica} · in due versioni: {conto.copia}</span>
-              <div style={{ display: 'flex', gap: 8 }}>
+            <div className="fusione__piede">
+              <span style={{ fontSize: 12, opacity: 0.85 }}>
+                Con queste scelte: <strong>{conto.carica}</strong> sul Drive · <strong>{conto.scarica}</strong> qui · <strong>{conto.copia}</strong> in due versioni. Niente viene cancellato.
+              </span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <button className="tasto" onClick={() => onChiudi(false)}>Annulla</button>
-                <button className="tasto tasto--primario" onClick={esegui}>Fondi</button>
+                <button className="tasto fusione__fondi" onClick={esegui} title="Applica le scelte qui sopra">
+                  Fondi adesso →
+                </button>
               </div>
             </div>
           </>

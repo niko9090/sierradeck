@@ -88,3 +88,20 @@ il tutto», «possibilità massima di scelta».
    (basta spostare una chat), al ripristino vince il suo perché più recente,
    e la chat arriva senza workspace. Non è persa: nel workspace voluto,
    «▣ Riprendi» in console e la si sceglie per nome.
+
+# 0.17.2 — tasti che dicono cosa fanno (Nicholas: «il fondi si vede poco e non sembra neanche un'opzione; unisci tutto non cambia nulla»)
+
+- Causa del «non cambia nulla»: i tasti di gruppo cambiavano le tendine di
+  righe in sezioni **chiuse** (le cartelle delle chat partivano tutte chiuse:
+  `aperti` iniziale era `{'chat'}`, chiave che non esisteva), e «unisci» =
+  predefinite = lo stato iniziale, quindi davvero non cambiava niente. E
+  nessun tasto mostrava di essere quello in vigore.
+- `src/renderer/fusione-scelte.ts` (puro, provato): `azioniPossibili`,
+  `sceltePerTutte(voci, conCopia, a, attuali)`, `gruppoInVigore` (il tasto è
+  acceso se premerlo non cambierebbe niente), `riassunto`/`riassuntoInParole`.
+- `ModaleFusione.tsx`: tasto in vigore con `✓`, `aria-pressed` e classe
+  `tasto--acceso`; un tasto di gruppo apre le sezioni che tocca; `Conto` (→ N
+  sul Drive · N qui · N come sono) accanto a Chat, a ogni cartella e a ogni
+  progetto; la prima cartella parte aperta. Piede `.fusione__piede` con il
+  conto e il tasto `.fusione__fondi` («Fondi adesso →», colore d'accento,
+  più grande). Nel pannello Account il tasto «Fondi con il Drive…» è primario.
