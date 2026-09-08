@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.17.2',
+    righe: [
+      '**«Fondi con il Drive» si vede e si capisce.** Il tasto che applica \u00e8 ora grande e del colore d\u2019accento, con scritto cosa succede («Fondi adesso», e sopra il conto: quante voci sul Drive, quante qui, niente cancellato). I tasti di gruppo («unisci», «solo dal PC al Drive», «lascia tutto com\u2019\u00e8») mostrano quale \u00e8 in vigore con una spunta e restano accesi; premendoli si apre la sezione, cos\u00ec si vede cosa cambia; accanto a ogni cartella e progetto c\u2019\u00e8 il conto aggiornato delle scelte. App Android 2.26.2.'
+    ]
+  },
+  {
     versione: '0.17.1',
     righe: [
       '**Un elenco scritto non \u00e8 pi\u00f9 una scelta.** Quando Claude rispondeva con «1. faccio questo, 2. poi quello», il telefono lo mostrava come «sta aspettando che tu scelga», e toccare mandava frecce e invio nel campo di testo: freccia su richiama l\u2019ultimo messaggio e l\u2019invio lo rimandava. Ora una scelta \u00e8 tale solo se ha il cursore su una voce, come tutti i riquadri veri di Claude Code. App Android 2.26.1.'
