@@ -60,6 +60,7 @@ import {
 import { rotteClient, rotteLibere } from './client-rotte'
 import { immagineQr, indirizzoAccoppiamento } from './qr-accoppiamento'
 import { apkDisponibile } from './apk-disponibile'
+import { creaLavoro } from './cassaforte/lavoro-in-corso'
 import { scanProjects } from './indexer/project-scanner'
 import { get as httpGet, request as httpRequest } from 'node:http'
 import { avviaRitiro, finestraPerConsegna, versoIlSuoWorkspace } from './autopilota-consegne'
@@ -886,6 +887,20 @@ if (!app.requestSingleInstanceLock()) {
       }
       rimappaChat()
 
+      // Il lavoro con il Drive: uno alla volta, visto da ogni finestra, annullabile.
+
+      const lavoro = creaLavoro()
+
+      lavoro.onCambio((st) => {
+
+        for (const w of BrowserWindow.getAllWindows()) {
+
+          if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('sync:lavoro', st)
+
+        }
+
+      })
+
       const sincronia = apriSincronia({
         dati,
         radiceClaude,
@@ -916,6 +931,7 @@ if (!app.requestSingleInstanceLock()) {
         magazzino: (nomeFile) => contoDrive.magazzino(nomeFile),
         archivio: () => contoDrive.archivio(),
         emettiProgresso,
+        lavoro,
         log: registro.info,
         // La chiave-maestra dorme nel portachiavi di Windows (DPAPI, legata a
         // questo account) perche' l'automatico riparta da solo dopo un riavvio.
@@ -1083,6 +1099,8 @@ if (!app.requestSingleInstanceLock()) {
           ? sincronia.cambiaPassphrase(vecchia, nuova)
           : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
       ipcMain.handle('sync:blocca', () => { sincronia.blocca() })
+      ipcMain.handle('sync:lavoro', () => lavoro.stato())
+      ipcMain.handle('sync:annullaLavoro', () => lavoro.annulla())
       ipcMain.handle('sync:adottaCassaforteDelDrive', () => sincronia.adottaCassaforteDelDrive())
       ipcMain.handle('sync:cambiatoDrive', () => { sincronia.cambiatoDrive() })
       ipcMain.handle('sync:anteprimaFusione', (_e, pw: unknown) =>

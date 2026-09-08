@@ -1,3 +1,4 @@
+import type { LavoroInCorso } from '../main/cassaforte/lavoro-in-corso'
 /**
  * Come si racconta il progresso di un salvataggio o di un ripristino.
  *
@@ -16,6 +17,7 @@ export type ProgressoSync = {
 }
 
 export const ETICHETTA_FASE: Record<string, string> = {
+  preparo: 'Preparo',
   raccolgo: 'Raccolgo i file',
   comprimo: 'Comprimo',
   cifro: 'Cifro',
@@ -39,4 +41,29 @@ export function descriviProgresso(p: ProgressoSync): { testo: string; perc: numb
   const quota = (n: number): string => (inByte ? `${(n / 1048576).toFixed(1)} MB` : String(n))
   const coda = p.unita === 'file' ? ' file' : ''
   return { testo: `${etichetta} — ${quota(fatto)} / ${quota(totale)}${coda} (${perc}%)`, perc }
+}
+
+export const ETICHETTA_LAVORO_TIPO: Record<LavoroInCorso['tipo'], string> = {
+  fusione: 'Fondo con il Drive',
+  ripristino: 'Ripristino dal Drive',
+  salvataggio: 'Salvo sul Drive'
+}
+
+/**
+ * Un lavoro con il Drive raccontato per la striscia in alto e per il pannello:
+ * cosa e', a che punto e', cosa sta facendo, e se si sta fermando.
+ */
+export function descriviLavoro(l: LavoroInCorso): { titolo: string; testo: string; perc: number | undefined; dettaglio?: string } {
+  const { testo, perc } = descriviProgresso({
+    fase: l.fase,
+    ...(l.fatto !== undefined ? { fatto: l.fatto } : {}),
+    ...(l.totale !== undefined ? { totale: l.totale } : {}),
+    ...(l.unita !== undefined ? { unita: l.unita } : {})
+  })
+  return {
+    titolo: ETICHETTA_LAVORO_TIPO[l.tipo],
+    testo: l.annullamento ? `Mi fermo… (${testo})` : testo,
+    perc,
+    ...(l.dettaglio !== undefined ? { dettaglio: l.dettaglio } : {})
+  }
 }

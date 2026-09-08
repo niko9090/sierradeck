@@ -148,6 +148,7 @@ type Riconoscimento = {
 type StatoSync = {
   driveConnesso: boolean; haCassaforte: boolean; sbloccato: boolean; cassaforteDiversa?: boolean
   versione?: string; ultimoSalvataggio?: string
+  ultimaFusione?: { quando: string; esito: 'ok' | 'interrotta' | 'fallita'; fatti?: number; totale?: number; messaggio?: string }
 }
 
 /**
@@ -492,6 +493,15 @@ function SezioneSync(): React.JSX.Element | null {
             <p className="account__nota">
               Questo PC ha delle conversazioni, il Drive ne ha altre: qui vedi cosa c’è solo di qua, solo di là e in comune, e scegli voce per voce cosa portare su, cosa giù e cosa lasciare. Non si perde niente.
             </p>
+            {sync.ultimaFusione?.esito === 'interrotta' ? (
+              <p className="account__nota" style={{ color: 'var(--ambra)' }}>
+                ⚠ L’ultima fusione ({new Date(sync.ultimaFusione.quando).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })}) è stata interrotta{sync.ultimaFusione.fatti !== undefined && sync.ultimaFusione.totale !== undefined ? ` a ${sync.ultimaFusione.fatti} voci su ${sync.ultimaFusione.totale}` : ''}. Quello fatto è a posto; riaprila per finire, con le scelte di allora già rimesse.
+              </p>
+            ) : sync.ultimaFusione?.esito === 'fallita' ? (
+              <p className="account__nota" style={{ color: 'var(--ambra)' }}>
+                ⚠ L’ultima fusione non è riuscita{sync.ultimaFusione.messaggio !== undefined ? `: ${sync.ultimaFusione.messaggio}` : ''}. Riaprila per riprovare.
+              </p>
+            ) : null}
             <div className="account__tasti">
               <button className="tasto tasto--primario" onClick={() => setFusioneAperta(true)} disabled={inCorso}>Fondi con il Drive…</button>
             </div>

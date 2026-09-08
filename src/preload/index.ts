@@ -15,6 +15,7 @@ import type { StatoAccesso } from '../main/accesso'
 import type { StatoPreparazione } from '../main/preparazione'
 import type { Novita } from '@shared/novita'
 import type { PianoFusione, ScelteFusione, EsitoFusione } from '../main/cassaforte/fusione'
+import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 import type { Consumi } from '@shared/consumi'
 import type { Anteprima } from '../main/anteprima'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
@@ -427,11 +428,20 @@ contextBridge.exposeInMainWorld('gestore', {
     cambiaPassphrase: (vecchia: string, nuova: string): Promise<{ ok: boolean; messaggio?: string }> =>
       ipcRenderer.invoke('sync:cambiaPassphrase', vecchia, nuova),
     blocca: (): Promise<void> => ipcRenderer.invoke('sync:blocca'),
-    salva: (forza?: boolean): Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number }> =>
+    /** Il lavoro con il Drive in corso (e l'esito dell'ultimo): per la striscia in alto. */
+    lavoro: (): Promise<StatoLavoro> => ipcRenderer.invoke('sync:lavoro'),
+    /** Ferma il lavoro in corso. `false` se non ce n'era. */
+    annullaLavoro: (): Promise<boolean> => ipcRenderer.invoke('sync:annullaLavoro'),
+    onLavoro: (cb: (s: StatoLavoro) => void): (() => void) => {
+      const h = (_e: unknown, s: StatoLavoro): void => cb(s)
+      ipcRenderer.on('sync:lavoro', h)
+      return () => ipcRenderer.off('sync:lavoro', h)
+    },
+    salva: (forza?: boolean): Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number; annullato?: boolean }> =>
       ipcRenderer.invoke('sync:salva', forza === true),
     /** Legge (senza argomento) o imposta il salvataggio automatico. */
     auto: (attivo?: boolean): Promise<boolean> => ipcRenderer.invoke('sync:auto', attivo),
-    ripristina: (): Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string; conflitti?: number }> =>
+    ripristina: (): Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string; conflitti?: number; annullato?: boolean }> =>
       ipcRenderer.invoke('sync:ripristina'),
     /** Il progresso di salva/ripristina, a fasi. Restituisce come disiscriversi. */
     onProgresso: (cb: (p: {

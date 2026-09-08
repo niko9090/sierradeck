@@ -146,6 +146,7 @@ declare global {
         stato: () => Promise<{
           driveConnesso: boolean; haCassaforte: boolean; sbloccato: boolean; cassaforteDiversa?: boolean
           versione?: string; ultimoSalvataggio?: string
+          ultimaFusione?: import('../main/cassaforte/sincronia').UltimaFusione
         }>
         info: () => Promise<{ file: number; byte: number }>
         creaPassphrase: (passphrase: string) => Promise<{ ok: boolean; chiaveRecupero?: string; messaggio?: string }>
@@ -153,6 +154,9 @@ declare global {
         sbloccaRecupero: (codice: string) => Promise<{ ok: boolean; messaggio?: string }>
         cambiaPassphrase: (vecchia: string, nuova: string) => Promise<{ ok: boolean; messaggio?: string }>
         blocca: () => Promise<void>
+        lavoro: () => Promise<import('../main/cassaforte/lavoro-in-corso').StatoLavoro>
+        annullaLavoro: () => Promise<boolean>
+        onLavoro: (cb: (s: import('../main/cassaforte/lavoro-in-corso').StatoLavoro) => void) => () => void
         adottaCassaforteDelDrive: () => Promise<{ ok: boolean; messaggio?: string }>
         cambiatoDrive: () => Promise<void>
         provaPassphraseSulDrive: (passphrase: string) => Promise<{ ok: boolean; stessa?: boolean; messaggio?: string }>
@@ -164,9 +168,9 @@ declare global {
           | { ok: true; esito: import('../main/cassaforte/fusione').EsitoFusione }
           | { ok: false; messaggio: string }
         >
-        salva: (forza?: boolean) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number }>
+        salva: (forza?: boolean) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number; annullato?: boolean }>
         auto: (attivo?: boolean) => Promise<boolean>
-        ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string; conflitti?: number }>
+        ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string; conflitti?: number; annullato?: boolean }>
         onProgresso: (cb: (p: {
           fase: 'raccolgo' | 'comprimo' | 'cifro' | 'carico' | 'scarico' | 'decifro' | 'ripristino'
           fatto?: number; totale?: number

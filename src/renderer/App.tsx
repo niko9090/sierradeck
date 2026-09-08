@@ -45,6 +45,8 @@ import { utenteCorrente, suCambioAccesso } from './accesso-supabase'
 import { Serratura } from './components/Serratura'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
 import { righeDiPty, finestraDiPty } from './schermo-terminale'
+import { descriviLavoro, ETICHETTA_LAVORO_TIPO } from './progresso-sync'
+import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 
 /**
  * Quante righe dello schermo vanno al telefono.
@@ -580,6 +582,16 @@ export function App(): React.JSX.Element {
   }, [])
   const [attesaVisibile, setAttesaVisibile] = useState(false)
   const [aggiornamento, setAggiornamento] = useState<StatoAggiornamento>({ fase: 'fermo' })
+  // Il lavoro con il Drive (fusione, ripristino, salvataggio): una striscia in
+  // alto come per un aggiornamento. Continua anche a pannello chiuso, da qui
+  // si annulla, e finito resta l'esito finche' non lo chiudi. Prima «Fondi
+  // adesso» partiva e non si vedeva niente da nessuna parte.
+  const [lavoroDrive, setLavoroDrive] = useState<StatoLavoro>({})
+  const [esitoLavoroVisto, setEsitoLavoroVisto] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    void window.gestore.sync.lavoro().then(setLavoroDrive).catch(() => undefined)
+    return window.gestore.sync.onLavoro(setLavoroDrive)
+  }, [])
   // Se gli aggiornamenti si scaricano da soli: quando sì, il tasto «Scarica»
   // non serve — lo scaricamento è già partito — e sparisce. Si legge dalle
   // preferenze e si tiene allineato ai cambi, come i colori.
@@ -1048,6 +1060,46 @@ export function App(): React.JSX.Element {
             Sto installando la {aggiornamento.versione ?? 'versione nuova'}. Il programma si chiude e
             riparte da solo: non serve fare niente.
           </span>
+        </div>
+      ) : null}
+
+      {lavoroDrive.inCorso !== undefined ? ((): React.JSX.Element => {
+        const inCorso = lavoroDrive.inCorso
+        const d = descriviLavoro(inCorso)
+        return (
+          <div className="avviso avviso--aggiornamento">
+            <span className="led led--lavoro" />
+            <span>
+              <b>{d.titolo}</b> — {d.testo}
+              {d.dettaglio !== undefined ? <span style={{ opacity: 0.7 }}> · {d.dettaglio}</span> : null}
+            </span>
+            {d.perc !== undefined ? (
+              <span className="barra-agg">
+                <span className="barra-agg__pieno" style={{ width: `${d.perc}%` }} />
+              </span>
+            ) : null}
+            <span style={{ flex: 1 }} />
+            <button className="tasto" onClick={() => setAperto('impostazioni')} title="Apri le impostazioni, scheda Account">Apri</button>
+            <button
+              className="tasto"
+              disabled={inCorso.annullamento}
+              onClick={() => void window.gestore.sync.annullaLavoro()}
+              title="Si ferma fra un file e l'altro: quello fatto resta fatto"
+            >
+              {inCorso.annullamento ? 'Mi fermo…' : 'Annulla'}
+            </button>
+          </div>
+        )
+      })() : lavoroDrive.ultimo !== undefined && esitoLavoroVisto !== lavoroDrive.ultimo.quando && lavoroDrive.ultimo.tipo !== 'salvataggio' ? (
+        <div className="avviso avviso--aggiornamento">
+          <span className={`led ${lavoroDrive.ultimo.esito === 'errore' ? 'led--fermo' : lavoroDrive.ultimo.esito === 'annullato' ? 'led--attesa' : 'led--lavoro'}`} />
+          <span>
+            <b>{ETICHETTA_LAVORO_TIPO[lavoroDrive.ultimo.tipo]}</b>:{' '}
+            {lavoroDrive.ultimo.esito === 'ok' ? 'fatto' : lavoroDrive.ultimo.esito === 'annullato' ? 'annullato' : 'non riuscito'}
+            {lavoroDrive.ultimo.messaggio !== '' ? ` — ${lavoroDrive.ultimo.messaggio}` : ''}
+          </span>
+          <span style={{ flex: 1 }} />
+          <button className="tasto" onClick={() => setEsitoLavoroVisto(lavoroDrive.ultimo?.quando)} title="Chiudi">×</button>
         </div>
       ) : null}
 

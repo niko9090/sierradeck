@@ -1,6 +1,8 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useState } from 'react'
-import type { PianoFusione, VoceFusione, Azione, ModoWorkspace } from '../../main/cassaforte/fusione'
+import type { PianoFusione, VoceFusione, Azione, ModoWorkspace, EsitoFusione } from '../../main/cassaforte/fusione'
+import type { StatoLavoro } from '../../main/cassaforte/lavoro-in-corso'
+import { descriviLavoro } from '../progresso-sync'
 import { azioniPossibili, sceltePerTutte, gruppoInVigore, riassunto, riassuntoInParole, type AzioneDiGruppo } from '../fusione-scelte'
 
 type Props = {
@@ -144,7 +146,12 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
   }, [sceltaWs])
   const [aperti, setAperti] = useState<Set<string>>(new Set(['chat']))
   const [messaggio, setMessaggio] = useState<string | undefined>(undefined)
-  const [esito, setEsito] = useState<{ caricati: number; scaricati: number; copie: number; saltati: number } | undefined>(undefined)
+  const [esito, setEsito] = useState<EsitoFusione | undefined>(undefined)
+  // Il lavoro in corso, per la barra: e' lo stesso che vede la striscia in alto.
+  const [lavoro, setLavoro] = useState<StatoLavoro>({})
+  useEffect(() => window.gestore.sync.onLavoro(setLavoro), [])
+  // Una fusione interrotta prima: le sue scelte tornano per le voci rimaste.
+  const [ripresa, setRipresa] = useState<{ quando: string; fatti?: number; totale?: number } | undefined>(undefined)
 
   const carica = (pw?: string): void => {
     setFase('carico'); setMessaggio(undefined)
@@ -157,16 +164,34 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
       setPiano(r.piano)
       const iniziali: Record<string, Azione> = {}
       for (const v of [...r.piano.chat, ...r.piano.assetto, ...r.piano.progetti.flatMap((p) => p.voci)]) iniziali[v.percorso] = v.predefinita
-      setScelte(iniziali)
-      const prima = perCartella(r.piano.chat)[0]
-      setAperti(new Set(prima !== undefined ? [`chat:${prima.cartella}`] : []))
-      setFase('piano')
+      // Se l'ultima fusione e' rimasta a meta', le sue scelte tornano per le
+      // voci che ci sono ancora: quelle gia' fatte risultano uguali e non
+      // compaiono, il resto si rifa' con un tasto.
+      return window.gestore.sync.stato().catch(() => undefined).then((st) => {
+        const uf = st?.ultimaFusione
+        if (uf !== undefined && uf.esito !== 'ok' && uf.scelte !== undefined) {
+          for (const [k, a] of Object.entries(uf.scelte.voci)) if (k in iniziali) iniziali[k] = a
+          setModoWs(uf.scelte.workspace.modo)
+          const ws: Record<string, 'unisci' | 'qui' | 'porta' | 'no'> = {}
+          for (const w of r.piano.workspace) {
+            if (uf.scelte.workspace.escludi.includes(w.nome)) ws[w.nome] = w.dove === 'drive' ? 'no' : 'qui'
+          }
+          setSceltaWs(ws)
+          setRipresa({ quando: uf.quando, ...(uf.fatti !== undefined ? { fatti: uf.fatti } : {}), ...(uf.totale !== undefined ? { totale: uf.totale } : {}) })
+        } else {
+          setRipresa(undefined)
+        }
+        setScelte(iniziali)
+        const prima = perCartella(r.piano.chat)[0]
+        setAperti(new Set(prima !== undefined ? [`chat:${prima.cartella}`] : []))
+        setFase('piano')
+      })
     }).catch((e: unknown) => { setMessaggio(String(e)); setFase('errore') })
   }
   useEffect(() => { if (!cassaforteDiversa) carica() }, [])
 
   useEffect(() => {
-    const suTasto = (e: KeyboardEvent): void => { if (e.key === 'Escape' && fase !== 'eseguo') onChiudi(fase === 'fatto') }
+    const suTasto = (e: KeyboardEvent): void => { if (e.key === 'Escape') onChiudi(fase === 'fatto') }
     window.addEventListener('keydown', suTasto)
     return () => window.removeEventListener('keydown', suTasto)
   }, [fase, onChiudi])
@@ -205,7 +230,7 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
   // Sul body, non dentro chi lo apre: un pannello con `transform` fa da
   // contenitore a `position: fixed`, e il modale restava dentro e tagliato.
   return createPortal(
-    <div className="velo" onMouseDown={(e) => { if (e.target === e.currentTarget && fase !== 'eseguo') onChiudi(fase === 'fatto') }}>
+    <div className="velo" onMouseDown={(e) => { if (e.target === e.currentTarget) onChiudi(fase === 'fatto') }}>
       <div className="dialogo dialogo--largo" onMouseDown={(e) => e.stopPropagation()}>
         {testa}
         {fase === 'passphrase' ? (
@@ -228,11 +253,37 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
               <button className="tasto tasto--primario" onClick={() => (cassaforteDiversa ? setFase('passphrase') : carica())}>Riprova</button>
             </div>
           </>
-        ) : fase === 'eseguo' ? (
-          <p className="account__nota">Fondo: {conto.carica} da portare sul Drive, {conto.scarica} da portare qui, {conto.copia} da tenere in due versioni…</p>
-        ) : fase === 'fatto' && esito !== undefined ? (
+        ) : fase === 'eseguo' ? ((): React.JSX.Element => {
+          const inCorso = lavoro.inCorso
+          const d = inCorso !== undefined && inCorso.tipo === 'fusione' ? descriviLavoro(inCorso) : undefined
+          return (
+            <>
+              <p className="account__nota">Fondo: {conto.carica} da portare sul Drive, {conto.scarica} da portare qui, {conto.copia} da tenere in due versioni.</p>
+              <div className="barra-agg" style={{ display: 'block', width: '100%', height: 10 }}>
+                <span className="barra-agg__pieno" style={{ width: `${d?.perc ?? 0}%` }} />
+              </div>
+              <p className="account__nota" style={{ marginTop: 6 }}>
+                <strong>{d?.perc !== undefined ? `${d.perc}%` : ''}</strong> {d?.testo ?? 'Preparo…'}
+                {d?.dettaglio !== undefined ? <span style={{ opacity: 0.7 }}> · {d.dettaglio}</span> : null}
+              </p>
+              <p className="account__nota" style={{ fontSize: 12 }}>
+                Puoi chiudere questa finestra: continua lo stesso, e la vedi nella striscia in alto. «Annulla» ferma fra una voce e l’altra: quello già fatto resta fatto e coerente, il resto lo rifai riaprendo «Fondi con il Drive», con le scelte di adesso già rimesse.
+              </p>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
+                <button className="tasto" onClick={() => onChiudi(false)}>Chiudi (continua da sola)</button>
+                <button className="tasto" disabled={inCorso?.annullamento === true} onClick={() => void window.gestore.sync.annullaLavoro()}>
+                  {inCorso?.annullamento === true ? 'Mi fermo…' : 'Annulla'}
+                </button>
+              </div>
+            </>
+          )
+        })() : fase === 'fatto' && esito !== undefined ? (
           <>
-            <p className="account__nota"><strong>Fatto.</strong> {esito.caricati} file portati sul Drive, {esito.scaricati} portati qui, {esito.copie} tenuti in due versioni, {esito.saltati} non riusciti. I workspace sono stati {modoWs === 'unione' ? 'uniti' : modoWs === 'pc' ? 'tenuti come su questo PC' : 'presi dal Drive'}. Riavvia SierraDeck per vedere tutto.</p>
+            <p className="account__nota">
+              {esito.annullato === true
+                ? <><strong>Interrotta</strong> a {esito.fatti} voci su {esito.totale}. Quello fatto è a posto e coerente; riapri «Fondi con il Drive» per finire: le voci già fatte risultano uguali, per le altre ritrovi le scelte di adesso. </>
+                : <><strong>Fatto.</strong> </>}
+              {esito.caricati} file portati sul Drive, {esito.scaricati} portati qui, {esito.copie} tenuti in due versioni, {esito.saltati} non riusciti. I workspace sono stati {modoWs === 'unione' ? 'uniti' : modoWs === 'pc' ? 'tenuti come su questo PC' : 'presi dal Drive'}. Riavvia SierraDeck per vedere tutto.</p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
               <button className="tasto tasto--primario" onClick={() => onChiudi(true)}>Chiudi</button>
             </div>
@@ -244,6 +295,11 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
               solo su questo PC <strong>{piano.totali.soloPc}</strong> · solo sul Drive <strong>{piano.totali.soloDrive}</strong> · diverse <strong>{piano.totali.diverse}</strong> · uguali <strong>{piano.totali.uguali}</strong>.
               Il predefinito è l’unione: per le chat vince la copia più lunga, per i file di progetto la più recente. Cambia quello che vuoi.
             </p>
+            {ripresa !== undefined ? (
+              <p className="account__nota" style={{ margin: '0 0 8px', color: 'var(--ambra)' }}>
+                ↻ Riprendo la fusione interrotta il {quandoBreve(ripresa.quando)}{ripresa.fatti !== undefined && ripresa.totale !== undefined ? ` (fatte ${ripresa.fatti} voci su ${ripresa.totale})` : ''}: le voci già fatte risultano uguali e non compaiono, per le altre ho rimesso le scelte di allora. Controlla e premi «Fondi adesso».
+              </p>
+            ) : null}
             <p className="account__nota" style={{ margin: '0 0 8px', fontSize: 12 }}>
               Due cose separate: le <strong>chat</strong> sono le conversazioni (qui sotto, per cartella di progetto); i <strong>workspace</strong> sono le fasce che le raggruppano a schermo, e si decidono in fondo.
             </p>

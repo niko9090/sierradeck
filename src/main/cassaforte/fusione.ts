@@ -88,6 +88,11 @@ export type EsitoFusione = {
   copie: number
   saltati: number
   manifesto: Manifesto
+  /** Quante voci sono state lavorate, su quante scelte: uguali se e' finita. */
+  fatti: number
+  totale: number
+  /** «Annulla» premuto: il manifesto e' coerente con quello fatto, il resto e' da rifare. */
+  annullato?: boolean
 }
 
 const FILE_ASSETTO_FONDIBILI = new Set(['impostazioni.json', 'istantanee.json'])
@@ -344,7 +349,8 @@ export async function eseguiFusione(deps: {
   scelte: ScelteFusione
   pcNome: string
   adesso: string
-  onProgresso?: (fatto: number, totale: number) => void
+  onProgresso?: (fatto: number, totale: number, percorso?: string) => void
+  segnale?: AbortSignal
 }): Promise<EsitoFusione> {
   const esito = await leggiManifesto(deps.archivio, deps.maestra)
   if (esito.stato === 'illeggibile') throw new Error('Il manifesto sul Drive non si apre con questa chiave.')
@@ -383,8 +389,11 @@ export async function eseguiFusione(deps: {
   }
 
   for (const [percorso, azione] of voci) {
+    // Annullato: ci si ferma fra una voce e l'altra, mai a meta' di una. Il
+    // manifesto si scrive lo stesso, con quello che e' salito davvero.
+    if (deps.segnale?.aborted === true) break
+    deps.onProgresso?.(fatto, voci.length, percorso)
     fatto += 1
-    deps.onProgresso?.(fatto, voci.length)
     if (azione === 'carica') {
       const mio = await leggiLocale(percorso)
       if (mio === undefined) { saltati += 1; continue }
@@ -413,8 +422,10 @@ export async function eseguiFusione(deps: {
     }
   }
 
+  const annullato = deps.segnale?.aborted === true && fatto < voci.length
+  if (!annullato) deps.onProgresso?.(fatto, voci.length)
   await scriviManifesto(deps.archivio, deps.maestra, nuovo)
-  return { caricati, scaricati, copie, saltati, manifesto: nuovo }
+  return { caricati, scaricati, copie, saltati, manifesto: nuovo, fatti: fatto, totale: voci.length, ...(annullato ? { annullato: true } : {}) }
 }
 
 /** Il file di un archivio (o registro) letto dal Drive e decifrato, se c'e'. */

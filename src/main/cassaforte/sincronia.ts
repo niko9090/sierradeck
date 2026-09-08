@@ -8,6 +8,7 @@ import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
 import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi, togliPrefisso, leggiManifesto } from './incrementale'
 import { applicaBlocco } from './lavoro'
+import type { Lavoro, Presa, TipoLavoro } from './lavoro-in-corso'
 import type { Scatola } from '../progetti/presenza'
 import { parseRegistro, prefissoProgetto, type RegistroProgetti } from '../progetti/registro'
 import { parseArchivio, type Archivio as ArchivioWorkspace } from '@shared/workspace'
@@ -53,6 +54,25 @@ export type StatoSync = {
   cassaforteDiversa?: boolean
   versione?: string
   ultimoSalvataggio?: string
+  /** Com'e' andata l'ultima fusione: se interrotta, si riapre e si rifa' il resto. */
+  ultimaFusione?: UltimaFusione
+}
+
+/**
+ * L'ultima fusione con il Drive, per riprenderla.
+ *
+ * Interrotta a meta' (annullata, o chiusa con il programma), il piano
+ * successivo trova gia' uguali le voci fatte e ripropone le scelte di allora
+ * per quelle rimaste: si preme di nuovo e si finisce.
+ */
+export type UltimaFusione = {
+  quando: string
+  esito: 'ok' | 'interrotta' | 'fallita'
+  fatti?: number
+  totale?: number
+  messaggio?: string
+  /** Le scelte di allora, da riproporre. Solo se non e' finita. */
+  scelte?: ScelteFusione
 }
 
 export type EsitoSemplice = { ok: boolean; messaggio?: string }
@@ -97,12 +117,12 @@ export type Sincronia = {
   sbloccaConRecupero: (codice: string) => Promise<EsitoSemplice>
   cambiaPassphrase: (vecchia: string, nuova: string) => Promise<EsitoSemplice>
   blocca: () => void
-  salva: (forza?: boolean) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number }>
+  salva: (forza?: boolean) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number; annullato?: boolean }>
   /** Accende/spegne il salvataggio automatico, e dice com'è ora. */
   auto: (attivo?: boolean) => boolean
   /** Salva solo se serve (dati cambiati, sbloccato, connesso): per l'automatico. */
   salvaSeServe: () => Promise<void>
-  ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string; conflitti?: number }>
+  ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string; conflitti?: number; annullato?: boolean }>
   /**
    * Un solo progetto, dal Drive alla sua cartella di qui: quello che serve al
    * passaggio di testimone. Scarica solo cio' che e' cambiato e toglie cio'
@@ -196,8 +216,36 @@ export function apriSincronia(deps: {
   /** L'indice delle conversazioni: per chiamare le chat col loro nome nel piano di fusione. */
   titoliChat?: () => Map<string, { titolo?: string; cwd?: string; quando?: string; messaggi?: number }>
   pcId?: () => string
+  /** Il lavoro con il Drive: uno alla volta, visibile in ogni finestra, annullabile. */
+  lavoro?: Lavoro
 }): Sincronia {
   const adesso = deps.adesso ?? ((): string => new Date().toISOString())
+  // Prendere il lavoro: se un altro e' in corso non si parte, e lo si dice.
+  const prendiLavoro = (tipo: TipoLavoro): { presa?: Presa; errore?: string } => {
+    if (deps.lavoro === undefined) return {}
+    try { return { presa: deps.lavoro.avvia(tipo) } } catch (e) { return { errore: e instanceof Error ? e.message : String(e) } }
+  }
+  const progressoVerso = (presa: Presa | undefined) => (p: Progresso): void => {
+    deps.emettiProgresso?.(p)
+    presa?.aggiorna(p)
+  }
+  const chiudiLavoro = (presa: Presa | undefined, r: { ok: boolean; messaggio?: string; annullato?: boolean }, riassunto: string): void => {
+    presa?.fine(r.annullato === true ? 'annullato' : r.ok ? 'ok' : 'errore', r.ok ? riassunto : (r.messaggio ?? riassunto))
+  }
+  /**
+   * Il manifesto locale dopo una fusione: solo cio' che sta **davvero** su
+   * questo disco. Il manifesto del Drive contiene anche le voci lasciate
+   * «com'e'» solo di la': scriverlo tale e quale come «cio' che questo PC sa
+   * di avere» faceva cancellare dal Drive, al salvataggio dopo, ogni chat
+   * lasciata sul Drive e mai scaricata — il salvataggio la vedeva come «l'avevo
+   * e non ce l'ho piu'».
+   */
+  const manifestoDiQui = async (m: Manifesto, radici: Radice[]): Promise<Manifesto> => {
+    const suDisco = await firmaRadici(radici)
+    const file: Manifesto['file'] = {}
+    for (const [p, v] of Object.entries(m.file)) if (suDisco.has(p)) file[p] = v
+    return { ...m, file }
+  }
   const log = deps.log ?? ((): void => {})
   const radici = (): Radice[] =>
     radiciDaSincronizzare(deps.dati, deps.radiceClaude, deps.progetti?.radiciLocali() ?? [])
@@ -288,6 +336,7 @@ export function apriSincronia(deps: {
     firma?: { file: number; byte: number }
     /** L'utente ha acceso il salvataggio automatico? */
     auto?: boolean
+    ultimaFusione?: UltimaFusione
   }
   const leggiStato = (): StatoFile => {
     if (!existsSync(fileStato)) return {}
@@ -355,7 +404,8 @@ export function apriSincronia(deps: {
         sbloccato: maestra !== undefined,
         ...(diversa ? { cassaforteDiversa: true } : {}),
         ...(s.versione !== undefined ? { versione: s.versione } : {}),
-        ...(s.ultimoSalvataggio !== undefined ? { ultimoSalvataggio: s.ultimoSalvataggio } : {})
+        ...(s.ultimoSalvataggio !== undefined ? { ultimoSalvataggio: s.ultimoSalvataggio } : {}),
+        ...(s.ultimaFusione !== undefined ? { ultimaFusione: s.ultimaFusione } : {})
       }
     },
 
@@ -430,6 +480,9 @@ export function apriSincronia(deps: {
       log('SALVA richiesto')
       if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
       if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
+      const l = prendiLavoro('salvataggio')
+      if (l.errore !== undefined) return { ok: false, messaggio: l.errore }
+      const r = await (async (): Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number; annullato?: boolean }> => {
       const s = leggiStato()
       try {
         // Sincronizzazione **incrementale**: si mandano solo i file cambiati dal
@@ -443,10 +496,15 @@ export function apriSincronia(deps: {
           archivio: deps.archivio(),
           manifestoPrec: leggiManifestoLocale(),
           adesso: adesso(),
-          ...(deps.emettiProgresso !== undefined ? { onProgresso: deps.emettiProgresso } : {})
+          onProgresso: progressoVerso(l.presa),
+          ...(l.presa !== undefined ? { segnale: l.presa.segnale } : {})
         })
         scriviManifestoLocale(esito.manifesto)
         const totali = Object.keys(esito.manifesto.file).length
+        if (esito.annullato === true) {
+          log(`SALVA annullato (${esito.caricati} caricati prima di fermarsi)`)
+          return { ok: true, voci: esito.caricati, annullato: true, messaggio: `fermato: ${esito.caricati} file saliti, il resto al prossimo salvataggio` }
+        }
         if (esito.caricati === 0 && esito.cancellati === 0) {
           log('niente da salvare: nessun file cambiato')
           return { ok: true, invariato: true, voci: totali }
@@ -461,6 +519,9 @@ export function apriSincronia(deps: {
         log(`SALVA fallito: ${messaggioDi(e)}`)
         return { ok: false, messaggio: messaggioDi(e) }
       }
+    })()
+      chiudiLavoro(l.presa, r, r.invariato === true ? 'niente da salvare' : `${r.voci ?? 0} file sul Drive`)
+      return r
     },
 
     auto(attivo?: boolean) {
@@ -617,6 +678,9 @@ export function apriSincronia(deps: {
         adotta(m)
       }
       const m = maestra as Buffer
+      const l = prendiLavoro('fusione')
+      if (l.errore !== undefined) return { ok: false, messaggio: l.errore }
+      const r = await (async (): Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }> => {
       try {
         log('FUSIONE richiesta')
         const esitoM = await leggiManifesto(deps.archivio(), m)
@@ -650,16 +714,35 @@ export function apriSincronia(deps: {
         const esito = await eseguiFusione({
           maestra: m, archivio: deps.archivio(), radici: tutteLeRadici, scelte: { ...scelte, voci },
           pcNome: deps.pcNome?.() ?? 'questo-pc', adesso: adesso(),
-          onProgresso: (f, t) => deps.emettiProgresso?.({ fase: 'carico', fatto: f, totale: t, unita: 'file' })
+          onProgresso: (f, t, percorso) => progressoVerso(l.presa)({
+            fase: 'carico', fatto: f, totale: t, unita: 'file',
+            ...(percorso !== undefined ? { dettaglio: percorso.split('/').slice(-2).join('/') } : {})
+          }),
+          ...(l.presa !== undefined ? { segnale: l.presa.segnale } : {})
         })
-        scriviManifestoLocale(esito.manifesto)
-        scriviStato({ ...leggiStato(), ultimoSalvataggio: adesso() })
-        log(`FUSIONE ok: ${esito.caricati} caricati, ${esito.scaricati} scaricati, ${esito.copie} copie, ${esito.saltati} saltati`)
+        scriviManifestoLocale(await manifestoDiQui(esito.manifesto, tutteLeRadici))
+        const ultimaFusione: UltimaFusione = esito.annullato === true
+          ? { quando: adesso(), esito: 'interrotta', fatti: esito.fatti, totale: esito.totale, scelte }
+          : { quando: adesso(), esito: 'ok', fatti: esito.fatti, totale: esito.totale }
+        scriviStato({ ...leggiStato(), ultimoSalvataggio: adesso(), ultimaFusione })
+        log(`FUSIONE ${esito.annullato === true ? `ANNULLATA a ${esito.fatti}/${esito.totale}` : 'ok'}: ${esito.caricati} caricati, ${esito.scaricati} scaricati, ${esito.copie} copie, ${esito.saltati} saltati`)
         return { ok: true, esito }
       } catch (e) {
         log(`FUSIONE fallita: ${messaggioDi(e)}`)
+        scriviStato({ ...leggiStato(), ultimaFusione: { quando: adesso(), esito: 'fallita', messaggio: messaggioDi(e), scelte } })
         return { ok: false, messaggio: messaggioDi(e) }
       }
+      })()
+      chiudiLavoro(
+        l.presa,
+        r.ok ? { ok: true, ...(r.esito.annullato === true ? { annullato: true } : {}) } : r,
+        r.ok
+          ? (r.esito.annullato === true
+              ? `fermata a ${r.esito.fatti} su ${r.esito.totale}: riapri «Fondi con il Drive» per finire`
+              : `${r.esito.caricati} sul Drive, ${r.esito.scaricati} qui${r.esito.copie > 0 ? `, ${r.esito.copie} in due versioni` : ''}. Riavvia per vedere tutto.`)
+          : ''
+      )
+      return r
     },
 
     async adottaCassaforteDelDrive() {
@@ -731,6 +814,9 @@ export function apriSincronia(deps: {
       log('RIPRISTINA richiesto')
       if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
       if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
+      const l = prendiLavoro('ripristino')
+      if (l.errore !== undefined) return { ok: false, messaggio: l.errore }
+      const r = await (async (): Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string; conflitti?: number; annullato?: boolean }> => {
       try {
         // Primo tempo: l'assetto e le chat. Dentro c'e' il registro dei
         // progetti, senza il quale i progetti non saprebbero dove andare.
@@ -744,7 +830,8 @@ export function apriSincronia(deps: {
           pcNome: deps.pcNome?.() ?? 'questo-pc',
           copieDiConflitto: eDiProgetto,
           adesso: adesso(),
-          ...(deps.emettiProgresso !== undefined ? { onProgresso: deps.emettiProgresso } : {})
+          onProgresso: progressoVerso(l.presa),
+          ...(l.presa !== undefined ? { segnale: l.presa.segnale } : {})
         })
         if (esito.illeggibile === true) {
           log('RIPRISTINA: il manifesto sul Drive non si decifra con questa chiave')
@@ -774,6 +861,10 @@ export function apriSincronia(deps: {
         }
         // Da qui questo PC sa cosa c'è sul Drive: i prossimi salvataggi sono incrementali.
         if (esito.manifesto !== undefined) scriviManifestoLocale(esito.manifesto)
+        if (esito.annullato === true) {
+          log(`RIPRISTINA annullato (${esito.scritti} file scritti prima di fermarsi)`)
+          return { ok: true, scritti: esito.scritti, annullato: true, messaggio: `fermato: ${esito.scritti} file arrivati, il resto con un altro «Ripristina»` }
+        }
         scriviStato({ ...leggiStato(), ultimoSalvataggio: adesso() })
         // Secondo tempo: i progetti, ognuno nella sua cartella di qui.
         let scritti = esito.scritti
@@ -791,10 +882,15 @@ export function apriSincronia(deps: {
               pcNome: deps.pcNome?.() ?? 'questo-pc',
               copieDiConflitto: eDiProgetto,
               adesso: adesso(),
-              ...(deps.emettiProgresso !== undefined ? { onProgresso: deps.emettiProgresso } : {})
+              onProgresso: progressoVerso(l.presa),
+          ...(l.presa !== undefined ? { segnale: l.presa.segnale } : {})
             })
             scritti += secondo.scritti
             conflitti += secondo.conflitti.length
+            if (secondo.annullato === true) {
+              log(`RIPRISTINA annullato nei progetti (${scritti} file scritti)`)
+              return { ok: true, scritti, annullato: true, messaggio: `fermato: ${scritti} file arrivati, il resto con un altro «Ripristina»` }
+            }
             for (const c of secondo.conflitti) {
               log(`RIPRISTINA conflitto su ${c.percorso}: vince ${c.vinto === 'mio' ? 'questo PC' : 'il Drive'}${c.copia !== undefined ? `, copia in ${c.copia}` : ''}`)
             }
@@ -807,6 +903,9 @@ export function apriSincronia(deps: {
         log(`RIPRISTINA fallito: ${messaggioDi(e)}`)
         return { ok: false, messaggio: messaggioDi(e) }
       }
+    })()
+      chiudiLavoro(l.presa, r, r.niente === true ? 'niente sul Drive' : `${r.scritti ?? 0} file da Drive`)
+      return r
     }
   }
 }

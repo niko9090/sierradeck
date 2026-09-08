@@ -46,6 +46,11 @@ il tutto», «possibilità massima di scelta».
 
 # Trappole
 
+- (0.18.0) Il manifesto locale dopo la fusione va filtrato a ciò che sta su
+  disco (`manifestoDiQui`): scritto = manifesto del Drive, una chat lasciata
+  «com'è» solo sul Drive veniva CANCELLATA dal Drive al salvataggio dopo.
+  Dettagli e la ripresa di una fusione interrotta:
+  `lavoro-drive-visibile-annullabile.md`.
 - Le voci `sierradeck/workspaces.json` e `progetti-drive.json` NON compaiono
   nel piano: le decide il modo dei workspace, e salgono sempre (fuse).
 - `impostazioni.json` è per-PC: predefinito «lascia» se ci sono tutte e due.

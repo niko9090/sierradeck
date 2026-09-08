@@ -174,7 +174,13 @@ export async function salvaIncrementale(deps: {
   /** Per quali prefissi un conflitto lascia una copia accanto (i progetti). */
   copieDiConflitto?: (prefisso: string) => boolean
   onProgresso?: (p: Progresso) => void
-}): Promise<{ manifesto: Manifesto; caricati: number; cancellati: number; conflitti: Conflitto[] }> {
+  /**
+   * «Annulla»: si finisce il file in corso, si scrive il manifesto di cio'
+   * che e' salito davvero, e ci si ferma. Il Drive resta coerente: ogni blob
+   * caricato ha la sua voce, nessuna voce promette un blob che non c'e'.
+   */
+  segnale?: AbortSignal
+}): Promise<{ manifesto: Manifesto; caricati: number; cancellati: number; conflitti: Conflitto[]; annullato?: boolean }> {
   const copie = deps.copieDiConflitto ?? PROGETTI
   const pcNome = deps.pcNome ?? 'questo-pc'
   const firma = await firmaRadici(deps.radici)
@@ -210,11 +216,13 @@ export async function salvaIncrementale(deps: {
     fatto += 1
     deps.onProgresso?.({ fase: 'carico', fatto, totale: cambiati.length, unita: 'file' })
   }
+  let caricatiDavvero = 0
   const carica = async (percorso: string, contenuto: Buffer, f: { size: number; mtime: number }): Promise<void> => {
     const nome = nomeDi(percorso)
     await deps.archivio.carica(nome, await cifra(deps.maestra, contenuto))
     // Mutazione fra due `await`: JS e' a thread singolo, non c'e' corsa vera.
     nuovo.file[percorso] = { nome, size: f.size, mtime: f.mtime }
+    caricatiDavvero += 1
   }
   const scaricaChiaro = async (voce: VoceManifesto): Promise<Buffer | undefined> => {
     const blob = await deps.archivio.scarica(voce.nome)
@@ -222,6 +230,7 @@ export async function salvaIncrementale(deps: {
   }
 
   await conLimite(cambiati, PARALLELI, async (percorso) => {
+    if (deps.segnale?.aborted === true) { avanza(); return }
     const f = firma.get(percorso)
     if (f === undefined) { avanza(); return }
     const contenuto = await readFile(f.disco).catch(() => undefined)
@@ -275,15 +284,20 @@ export async function salvaIncrementale(deps: {
     avanza()
   })
 
-  await conLimite(cancellati, PARALLELI, async (percorso) => {
-    const voce = base.file[percorso]
-    if (voce !== undefined) await deps.archivio.cancella(voce.nome)
-    delete nuovo.file[percorso]
-  })
+  // Annullato: niente cancellazioni, ne' sul Drive ne' qui. Si scrive solo il
+  // manifesto di quello che e' salito.
+  const annullato = deps.segnale?.aborted === true
+  if (!annullato) {
+    await conLimite(cancellati, PARALLELI, async (percorso) => {
+      const voce = base.file[percorso]
+      if (voce !== undefined) await deps.archivio.cancella(voce.nome)
+      delete nuovo.file[percorso]
+    })
+  }
 
   // Quello che un altro PC ha tolto dal Drive, e qui e' rimasto com'era: nei
   // progetti si toglie anche qui, o al prossimo giro risalirebbe come nuovo.
-  for (const p of Object.keys(prec.file)) {
+  for (const p of annullato ? [] : Object.keys(prec.file)) {
     if (base.file[p] !== undefined || !copie(prefissoDi(p))) continue
     const f = firma.get(p)
     if (f === undefined || !stessaFirma(prec.file[p], f)) continue
@@ -292,7 +306,13 @@ export async function salvaIncrementale(deps: {
   }
 
   await scriviManifesto(deps.archivio, deps.maestra, nuovo)
-  return { manifesto: nuovo, caricati: cambiati.length, cancellati: cancellati.length, conflitti }
+  return {
+    manifesto: nuovo,
+    caricati: annullato ? caricatiDavvero : cambiati.length,
+    cancellati: annullato ? 0 : cancellati.length,
+    conflitti,
+    ...(annullato ? { annullato: true } : {})
+  }
 }
 
 /**
@@ -332,6 +352,13 @@ export async function ripristinaIncrementale(deps: {
   archivio: Archivio
   onProgresso?: (p: Progresso) => void
   /**
+   * «Annulla»: si scrivono i file gia' scaricati e ci si ferma. Il manifesto
+   * locale NON si aggiorna (torna `undefined`): dire «so tutto del Drive»
+   * senza avere i file farebbe cancellare dal Drive, al prossimo
+   * salvataggio, quello che qui non e' mai arrivato.
+   */
+  segnale?: AbortSignal
+  /**
    * Quali prefissi del manifesto ripristinare adesso. Il ripristino va in due
    * tempi: prima l'assetto (che contiene il registro dei progetti), poi i
    * progetti, che senza registro non saprebbero dove andare.
@@ -356,7 +383,7 @@ export async function ripristinaIncrementale(deps: {
   adesso?: string
 }): Promise<{
   trovato: boolean; scritti: number; saltati: string[]; manifesto?: Manifesto; illeggibile?: boolean
-  invariati: number; eliminati: number; conflitti: Conflitto[]; tenuti: number
+  invariati: number; eliminati: number; conflitti: Conflitto[]; tenuti: number; annullato?: boolean
 }> {
   const vuoto = { scritti: 0, saltati: [], invariati: 0, eliminati: 0, conflitti: [], tenuti: 0 }
   const esito = await leggiManifesto(deps.archivio, deps.maestra)
@@ -392,6 +419,7 @@ export async function ripristinaIncrementale(deps: {
   const voci: Voce[] = []
   let fatto = 0
   await conLimite(daScaricare, PARALLELI, async (percorso) => {
+    if (deps.segnale?.aborted === true) return
     const voce = manifesto.file[percorso]
     if (voce === undefined) return
     const blob = await deps.archivio.scarica(voce.nome)
@@ -443,8 +471,9 @@ export async function ripristinaIncrementale(deps: {
     voci, deps.radici,
     (f, t) => deps.onProgresso?.({ fase: 'ripristino', fatto: f, totale: t })
   )
+  const annullato = deps.segnale?.aborted === true
   let eliminati = 0
-  if (deps.elimina === true && prec !== undefined) {
+  if (deps.elimina === true && prec !== undefined && !annullato) {
     const spariti: string[] = []
     for (const p of Object.keys(prec.file)) {
       if (manifesto.file[p] !== undefined || !scelto(p) || !perPrefisso.has(prefissoDi(p))) continue
@@ -457,5 +486,5 @@ export async function ripristinaIncrementale(deps: {
     }
     eliminati = await cancellaVoci(spariti, deps.radici)
   }
-  return { trovato: true, scritti, saltati, manifesto, invariati, eliminati, conflitti, tenuti }
+  return { trovato: true, scritti, saltati, ...(annullato ? { annullato: true } : { manifesto }), invariati, eliminati, conflitti, tenuti }
 }
