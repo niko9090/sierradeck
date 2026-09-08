@@ -90,9 +90,10 @@ const NUMERATA = /^(\d{1,2})[.)]\s+(\S.*)$/
 /**
  * Le scelte in fondo allo schermo, se ce ne sono.
  *
- * Servono almeno due opzioni numerate da 1 in poi, consecutive e attaccate: una
- * riga sola non è una scelta, e numeri sparsi sono quasi sempre un elenco
- * dentro una risposta scritta — non qualcosa che aspetta un tasto.
+ * Servono almeno due opzioni numerate da 1 in poi, consecutive e attaccate, e
+ * il cursore su una di loro: una riga sola non è una scelta, numeri sparsi o
+ * senza cursore sono un elenco dentro una risposta scritta — non qualcosa che
+ * aspetta un tasto.
  */
 export function scelteDiTerminale(schermo: string): Scelta | undefined {
   // Le righe si guardano due volte: pulite per leggerle, com'erano per capire
@@ -120,7 +121,13 @@ export function scelteDiTerminale(schermo: string): Scelta | undefined {
       raccolte.unshift({ numero: Number(m[1]), testo: (m[2] ?? '').trim(), scelta })
       j -= 1
     }
-    if (raccolte.length >= 2 && numerazioneSana(raccolte)) {
+    // E una riga deve essere quella corrente: un elenco che aspetta un tasto
+    // ha sempre il cursore (o il video inverso) su una voce. Un elenco senza
+    // e' una risposta scritta - «1. fai questo, 2. poi quello» - e mostrarla
+    // come scelta metteva sul telefono pulsanti che mandavano frecce e invio
+    // nel campo di testo: freccia su richiama l'ultimo messaggio, e l'invio
+    // lo rimanda.
+    if (raccolte.length >= 2 && numerazioneSana(raccolte) && raccolte.some((o) => o.scelta)) {
       opzioni = raccolte
       corrente = Math.max(0, raccolte.findIndex((o) => o.scelta))
       break

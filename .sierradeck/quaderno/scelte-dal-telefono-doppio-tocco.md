@@ -42,7 +42,8 @@ finiva nella domanda dopo.
 
 - Se dopo 8 s la stessa domanda è ancora lì, è davvero lì (l'invio non è
   arrivato) e ricompare: si può ritoccare.
-- `scelteDiTerminale` accetta un elenco numerato anche senza cursore
-  («si assume la prima»): un elenco in prosa nella risposta di Claude può
-  comparire come «sta aspettando che tu scelga». Non toccato: il tocco manda
-  solo un invio vuoto, ma se disturba è il prossimo candidato.
+- (0.17.1) `scelteDiTerminale` ora richiede il **cursore** (glifo `❯` o
+  video inverso) su una voce: un elenco numerato in prosa nella risposta di
+  Claude compariva come «sta aspettando che tu scelga», e il tocco mandava
+  frecce+invio nel campo di testo — freccia su richiama l'ultimo messaggio,
+  invio lo rimanda. Tutti i riquadri veri di Claude Code hanno il cursore.

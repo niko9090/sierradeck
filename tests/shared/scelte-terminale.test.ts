@@ -51,7 +51,7 @@ describe('riconoscere una scelta', () => {
   it('un 7 dentro un altro numero non e video inverso', () => {
     // `ESC[17m` non evidenzia niente: prenderlo per un cursore sposterebbe il
     // conto delle frecce di una riga.
-    const schermo = '  1. Si\n\u001b[17m  2. No\u001b[0m'
+    const schermo = '\u276f 1. Si\n\u001b[17m  2. No\u001b[0m'
     expect(scelteDiTerminale(schermo)?.corrente).toBe(0)
   })
 
@@ -94,9 +94,12 @@ describe('quando NON e una scelta', () => {
     expect(scelteDiTerminale('costruisco...\nfatto in 3.2s\n')).toBeUndefined()
   })
 
-  it('senza cursore si assume la prima, non si indovina', () => {
-    const s = scelteDiTerminale('  1. Si\n  2. No')
-    expect(s?.corrente).toBe(0)
+  it('IL PUNTO: un elenco senza cursore e una risposta scritta, non una scelta', () => {
+    // «1. fai questo, 2. poi quello» nella risposta di Claude compariva sul
+    // telefono come «sta aspettando che tu scelga»: i pulsanti mandavano
+    // frecce e invio nel campo di testo, e freccia su + invio rimanda
+    // l'ultimo messaggio. Un elenco che aspetta un tasto ha sempre il cursore.
+    expect(scelteDiTerminale('Ecco cosa farei:\n  1. Sistemo il test\n  2. Rilascio\n\n> ')).toBeUndefined()
   })
 })
 
