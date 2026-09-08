@@ -190,6 +190,16 @@ export type DipendenzeRotte = {
    * aspettare.
    */
   righeDi?: (idChat: string, da: number, quante: number) => Promise<unknown>
+  /**
+   * Lo schermo **di adesso** di una chat, vestito, chiesto alla finestra.
+   *
+   * L'elenco delle chat e' una foto vecchia fino a due secondi: bastava a
+   * guardare, non a premere. Una scelta si controlla su questo, e si ripiega
+   * sulla foto solo se nessuna finestra risponde.
+   */
+  schermoDi?: (idChat: string) => Promise<string[] | undefined>
+  /** L'orologio, per sapere da quanto una scelta e' stata mandata. */
+  adesso?: () => number
   aggiornamento: () => { fase: string; versione?: string; percento?: number; errore?: string }
   /**
    * Cercare un aggiornamento **adesso**.
@@ -354,7 +364,38 @@ export function rotteLibere(deps: DipendenzeRotte) {
 }
 
 /** Le rotte che richiedono un dispositivo riconosciuto. */
+/**
+ * Per quanto una scelta appena mandata resta «gia' risposta».
+ *
+ * Fra l'invio dei tasti e il ridisegno del terminale passano decimi di
+ * secondo; fra il ridisegno e la foto che il telefono legge, fino a due
+ * secondi per lato. In quel buco la stessa domanda ricompariva sul telefono
+ * come se il tocco non fosse arrivato, e il secondo tocco andava a finire
+ * nella domanda dopo — mentre la chat aveva gia' proseguito con la prima.
+ * Otto secondi coprono il buco; se dopo la domanda e' ancora li', e' davvero
+ * ancora li'.
+ */
+export const RISPOSTA_FRESCA_MS = 8000
+
+/** La stessa domanda: le stesse opzioni, nello stesso ordine. Il cursore no: si muove prima dell'invio. */
+function firmaScelte(s: { opzioni: { testo: string }[] }): string {
+  return s.opzioni.map((o) => o.testo).join(String.fromCharCode(10))
+}
+
 export function rotteClient(deps: DipendenzeRotte) {
+  const adesso = deps.adesso ?? (() => Date.now())
+  // Per chat: l'ultima scelta mandata e quando. Vive quanto il server.
+  const risposte = new Map<string, { firma: string; quando: number }>()
+  const giaRisposta = (chat: string, s: { opzioni: { testo: string }[] } | undefined): boolean => {
+    if (s === undefined) return false
+    const r = risposte.get(chat)
+    return r !== undefined && r.firma === firmaScelte(s) && adesso() - r.quando < RISPOSTA_FRESCA_MS
+  }
+  /** Le scelte da mostrare: nessuna, se sono quelle appena mandate. */
+  const scelteVive = (chat: string, righe: string[]): ReturnType<typeof scelteDiTerminale> => {
+    const s = scelteDiTerminale(righe.join(String.fromCharCode(10)))
+    return giaRisposta(chat, s) ? undefined : s
+  }
   return async (r: {
     metodo: string
     percorso: string
@@ -476,14 +517,24 @@ export function rotteClient(deps: DipendenzeRotte) {
       const voluta = stringa(r.corpo, 'opzione')
       const trovata = deps.chat().find((c) => c.id === id)
       if (trovata === undefined) return { stato: 404, corpo: { errore: 'chat non trovata' } }
+      // Sullo schermo di **adesso**, chiesto alla finestra: la foto dell'elenco
+      // ha fino a due secondi, e in due secondi la domanda puo' essere gia'
+      // stata risposta — da qui, un attimo fa.
+      const fresche = await deps.schermoDi?.(id).catch(() => undefined)
       const scelte = scelteDiTerminale(
-        (trovata.codaGrezza ?? trovata.coda ?? []).join(String.fromCharCode(10))
+        (fresche ?? trovata.codaGrezza ?? trovata.coda ?? []).join(String.fromCharCode(10))
       )
       const dove = scelte?.opzioni.findIndex((o) => o.testo === voluta) ?? -1
       if (scelte === undefined || dove < 0) {
         return { stato: 409, corpo: { errore: 'la scelta e cambiata: guarda di nuovo' } }
       }
+      // La stessa domanda, mandata un attimo fa: il terminale non si e' ancora
+      // ridisegnato. Un secondo invio finirebbe nella domanda dopo.
+      if (giaRisposta(id, scelte)) {
+        return { stato: 409, corpo: { errore: 'gia mandata: aspetta che lo schermo cambi' } }
+      }
       deps.scriviAChat(id, tastiPerScegliere(scelte.corrente, dove))
+      risposte.set(id, { firma: firmaScelte(scelte), quando: adesso() })
       return OK({ fatto: true })
     }
 
@@ -508,9 +559,7 @@ export function rotteClient(deps: DipendenzeRotte) {
         // dover imparare a riconoscere un riquadro di scelta: se questo campo
         // non gli arriva, per lui semplicemente non c'e' niente da toccare —
         // com'era prima.
-        scelte: scelteDiTerminale(
-          (trovata.codaGrezza ?? trovata.coda ?? []).join(String.fromCharCode(10))
-        )
+        scelte: scelteVive(id, trovata.codaGrezza ?? trovata.coda ?? [])
       })
     }
 
@@ -545,7 +594,7 @@ export function rotteClient(deps: DipendenzeRotte) {
         // qui e non solo in `/api/dentro` perche' l'app del telefono legge da
         // questa: e' nativa, non una pagina, e senza questo campo li' i pulsanti
         // non compaiono.
-        scelte: scelteDiTerminale(vestite.join(String.fromCharCode(10)))
+        scelte: scelteVive(id, vestite)
       })
     }
 

@@ -71,6 +71,8 @@ import androidx.compose.ui.draw.clip
  * stai scaricando un registro — e per quello c’è il computer.
  */
 private const val RIGHE_ALL_APERTURA = 150
+/** Per quanto la scelta appena mandata resta nascosta, se il computer la rimanda uguale. */
+private const val SCELTA_RISPOSTA_MS = 8000L
 private const val PASSO_RISALITA = 150
 private const val RIGHE_MASSIME = 600
 
@@ -239,6 +241,13 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
     // Il tasto «più sopra» si spegne quando le righe nuove sono arrivate.
     LaunchedEffect(storia?.da, storia?.totale) { caricando = false }
 
+    // La scelta appena mandata (le sue opzioni) e quando. Fra il tocco e il
+    // ridisegno del terminale la stessa domanda tornava dalla lettura dopo,
+    // come se il tocco non fosse arrivato: un secondo tocco finiva nella
+    // domanda successiva. Un computer aggiornato la nasconde da se'; questo
+    // vale con quelli vecchi, e nel giro fra una lettura e l'altra.
+    var sceltaRisposta by remember { mutableStateOf<Pair<String, Long>?>(null) }
+
     LaunchedEffect(chat.id, quante) {
         // Quante risposte **riuscite ma vuote** di fila.
         //
@@ -254,7 +263,11 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                 // attaccata al fondo mentre la chat scrive, e cresce verso
                 // l'alto solo quando sei tu a chiederlo.
                 val letta = api.storia(chat.id, -1, quante)
-                storia = letta
+                val firma = letta.scelte?.opzioni?.joinToString("\n") { it.testo }
+                val risposta = sceltaRisposta
+                storia = if (firma != null && risposta != null && risposta.first == firma &&
+                    System.currentTimeMillis() - risposta.second < SCELTA_RISPOSTA_MS
+                ) letta.copy(scelte = null) else letta
                 vuoti = if (letta.grezze.isEmpty() && letta.righe.isEmpty()) vuoti + 1 else 0
                 // Tre giri sono sei secondi: il tempo che un terminale ci mette
                 // a disegnarsi dopo essere stato aperto, e non uno di piu'.
@@ -400,7 +413,9 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                                 val quale = o.testo
                                 // Sparisce subito: un pulsante che resta invita a
                                 // premerlo due volte, e il secondo tocco finirebbe
-                                // nella domanda dopo.
+                                // nella domanda dopo. E resta sparita finche' lo
+                                // schermo non cambia davvero.
+                                sceltaRisposta = scelte.opzioni.joinToString("\n") { it.testo } to System.currentTimeMillis()
                                 storia = storia?.copy(scelte = null)
                                 notaScelta = null
                                 scope.launch {
@@ -414,7 +429,8 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                                         // mandava a guardare lo schermo quando
                                         // il problema era la rete.
                                         notaScelta = if (e is Api.Errore && e.codice == 409)
-                                            "La scelta è cambiata mentre toccavi: guarda di nuovo."
+                                            (if (e.corpo.contains("mandata")) "Già mandata: aspetta che lo schermo cambi."
+                                            else "La scelta è cambiata mentre toccavi: guarda di nuovo.")
                                         else
                                             "Non sono riuscito a mandarla: ${e.message ?: "il computer non risponde"}"
                                     }

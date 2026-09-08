@@ -895,3 +895,75 @@ describe('/api/stato — le chat di tutti i workspace viaggiano col workspace', 
     expect(corpo.chat).toHaveLength(1)
   })
 })
+
+describe('una scelta mandata dal telefono non si preme due volte', () => {
+  const SCHERMO_SCELTA = ['Vuoi riprendere?', '\u276f 1. Si, riprendi', '  2. No, comincia da capo']
+  const chatCon = (coda: string[]): { id: string; titolo: string; cwd: string; coda: string[] }[] =>
+    [{ id: 'p-1', titolo: 'Gestore', cwd: 'C:\p', coda }]
+
+  it('IL PUNTO: si controlla sullo schermo di adesso, non sulla foto vecchia', async () => {
+    // La foto dell'elenco ha fino a due secondi: mostra ancora la domanda, ma
+    // la finestra dice che il terminale e' gia' andato avanti. Non si preme.
+    let scritto: string | undefined
+    const r = await rotteClient(deps({
+      chat: () => chatCon(SCHERMO_SCELTA),
+      schermoDi: () => Promise.resolve(['\u23fa Bash(npm test)', 'in corso…']),
+      scriviAChat: (_id, t) => { scritto = t }
+    }))({ metodo: 'POST', percorso: '/api/scegli', corpo: { chat: 'p-1', opzione: 'Si, riprendi' } })
+    expect(r.stato).toBe(409)
+    expect(scritto).toBeUndefined()
+  })
+
+  it('se la finestra non risponde si ripiega sulla foto', async () => {
+    let scritto: string | undefined
+    const r = await rotteClient(deps({
+      chat: () => chatCon(SCHERMO_SCELTA),
+      schermoDi: () => Promise.resolve(undefined),
+      scriviAChat: (_id, t) => { scritto = t }
+    }))({ metodo: 'POST', percorso: '/api/scegli', corpo: { chat: 'p-1', opzione: 'No, comincia da capo' } })
+    expect(r.stato).toBe(200)
+    expect(scritto).toBe('\u001b[B')
+  })
+
+  it('la stessa domanda, subito dopo: non si rimanda e non si mostra piu', async () => {
+    let ora = 1_000_000
+    const scritti: string[] = []
+    const rotte = rotteClient(deps({
+      chat: () => chatCon(SCHERMO_SCELTA),
+      adesso: () => ora,
+      scriviAChat: (_id, t) => { scritti.push(t) }
+    }))
+    const prima = await rotte({ metodo: 'POST', percorso: '/api/scegli', corpo: { chat: 'p-1', opzione: 'Si, riprendi' } })
+    expect(prima.stato).toBe(200)
+    // Il terminale non si e' ancora ridisegnato: la foto mostra la stessa domanda.
+    ora += 1500
+    const dentro = await rotte({ metodo: 'POST', percorso: '/api/dentro', corpo: { chat: 'p-1' } })
+    expect((dentro.corpo as { scelte?: unknown }).scelte).toBeUndefined()
+    const storia = await rotte({ metodo: 'POST', percorso: '/api/storia', corpo: { chat: 'p-1', da: -1, quante: 20 } })
+    expect((storia.corpo as { scelte?: unknown }).scelte).toBeUndefined()
+    const seconda = await rotte({ metodo: 'POST', percorso: '/api/scegli', corpo: { chat: 'p-1', opzione: 'Si, riprendi' } })
+    expect(seconda.stato).toBe(409)
+    expect(scritti).toHaveLength(1)
+  })
+
+  it('passati otto secondi, se la domanda e ancora li e davvero li', async () => {
+    let ora = 1_000_000
+    const rotte = rotteClient(deps({
+      chat: () => chatCon(SCHERMO_SCELTA),
+      adesso: () => ora
+    }))
+    await rotte({ metodo: 'POST', percorso: '/api/scegli', corpo: { chat: 'p-1', opzione: 'Si, riprendi' } })
+    ora += 8001
+    const dentro = await rotte({ metodo: 'POST', percorso: '/api/dentro', corpo: { chat: 'p-1' } })
+    expect((dentro.corpo as { scelte?: unknown }).scelte).toBeDefined()
+  })
+
+  it('una domanda diversa si mostra subito', async () => {
+    const chat = chatCon(SCHERMO_SCELTA)
+    const rotte = rotteClient(deps({ chat: () => chat }))
+    await rotte({ metodo: 'POST', percorso: '/api/scegli', corpo: { chat: 'p-1', opzione: 'Si, riprendi' } })
+    chat[0]!.coda = ['Posso scrivere il file?', '\u276f 1. Si', '  2. No']
+    const dentro = await rotte({ metodo: 'POST', percorso: '/api/dentro', corpo: { chat: 'p-1' } })
+    expect((dentro.corpo as { scelte?: { opzioni: { testo: string }[] } }).scelte?.opzioni[0]?.testo).toBe('Si')
+  })
+})

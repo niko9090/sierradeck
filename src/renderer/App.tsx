@@ -444,9 +444,18 @@ export function App(): React.JSX.Element {
   // che ha quella chat: le altre tacciono, e chi ha chiesto aspetta la prima
   // che parla. Senza questo, dal telefono si vedevano le ultime righe e basta,
   // mentre la conversazione intera era qui, dentro l’xterm del riquadro.
-  useEffect(() => window.gestore.client.suRichiestaRighe(({ id, chat, da, quante }) => {
+  useEffect(() => window.gestore.client.suRichiestaRighe(({ id, chat, da, quante, schermo }) => {
     const riquadro = useLayoutStore.getState().panes[chat]
     if (riquadro?.ptyId === undefined) return
+    // `schermo`: quello disegnato adesso, non un pezzo di cronologia. Serve a
+    // controllare una scelta prima di premere: la foto che il Core tiene ha
+    // fino a due secondi, e la domanda puo' essere gia' stata risposta.
+    if (schermo === true) {
+      const vivo = righeDiPty(riquadro.ptyId, quante)
+      if (vivo === undefined) return
+      window.gestore.client.rispondiRighe(id, { totale: 0, da: 0, ...vivo })
+      return
+    }
     const finestra = finestraDiPty(riquadro.ptyId, da, quante)
     if (finestra === undefined) return
     window.gestore.client.rispondiRighe(id, finestra)

@@ -255,11 +255,11 @@ contextBridge.exposeInMainWorld('gestore', {
      * risponde l’altra, e a nessuna tocca sapere cosa fanno le altre.
      */
     suRichiestaRighe: (
-      cb: (m: { id: string; chat: string; da: number; quante: number }) => void
+      cb: (m: { id: string; chat: string; da: number; quante: number; schermo?: boolean }) => void
     ): (() => void) => {
       const h = (
         _e: unknown,
-        m: { id: string; chat: string; da: number; quante: number }
+        m: { id: string; chat: string; da: number; quante: number; schermo?: boolean }
       ): void => cb(m)
       ipcRenderer.on('client:chiediRighe', h)
       return () => { ipcRenderer.off('client:chiediRighe', h) }

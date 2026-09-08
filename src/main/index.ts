@@ -114,6 +114,8 @@ const righeInVolo = new Map<string, (dati: unknown) => void>()
 
 /** Oltre questo non è più una risposta, è un’attesa. */
 const ATTESA_RIGHE_MS = 3000
+/** Quante righe di schermo racconta la finestra al telefono (come `RIGHE_PER_IL_TELEFONO` di la'). */
+const RIGHE_SCHERMO_TELEFONO = 24
 
 ipcMain.on(
   'client:righe',
@@ -129,7 +131,9 @@ ipcMain.on(
 function chiediRigheAlleFinestre(
   chat: string,
   da: number,
-  quante: number
+  quante: number,
+  /** Lo schermo disegnato, non una finestra di cronologia. */
+  schermo = false
 ): Promise<unknown> {
   return new Promise((risolvi) => {
     const finestre = BrowserWindow.getAllWindows().filter(
@@ -142,7 +146,7 @@ function chiediRigheAlleFinestre(
       risolvi(undefined)
     }, ATTESA_RIGHE_MS)
     righeInVolo.set(id, (dati) => { clearTimeout(scadenza); risolvi(dati) })
-    for (const w of finestre) w.webContents.send('client:chiediRighe', { id, chat, da, quante })
+    for (const w of finestre) w.webContents.send('client:chiediRighe', { id, chat, da, quante, ...(schermo ? { schermo: true } : {}) })
   })
 }
 
@@ -1579,6 +1583,12 @@ if (!app.requestSingleInstanceLock()) {
          */
         righeDi: (idChat: string, da: number, quante: number) =>
           chiediRigheAlleFinestre(idChat, da, quante),
+        // Lo schermo di adesso, per controllare una scelta prima di premere.
+        schermoDi: async (idChat: string) => {
+          const r = await chiediRigheAlleFinestre(idChat, -1, RIGHE_SCHERMO_TELEFONO, true) as
+            { grezze?: unknown } | undefined
+          return Array.isArray(r?.grezze) ? (r.grezze as string[]) : undefined
+        },
 
         scriviAChat: (idChat: string, testo: string) => {
           for (const w of BrowserWindow.getAllWindows()) {

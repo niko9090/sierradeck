@@ -119,6 +119,12 @@ var righeGrezze = []
 // computer e le manda gia' pronte. Senza, dal telefono un riquadro di scelta e'
 // una cosa che si legge e basta.
 var scelteDentro = null
+// La scelta appena mandata (le sue opzioni) e quando: se il computer la
+// rimanda uguale entro pochi secondi, e' il terminale che non si e' ancora
+// ridisegnato, non una domanda nuova. Rimostrarla invitava al secondo tocco.
+var sceltaRisposta = null
+var SCELTA_RISPOSTA_MS = 8000
+function firmaScelte(s) { return s ? s.opzioni.map((o) => o.testo).join('\n') : '' }
 // Quando una scelta non c'e' piu': una riga, e sparisce da sola alla lettura
 // dopo. Senza, il tocco andrebbe a vuoto in silenzio e sembrerebbe un guasto.
 var notaScelta = null
@@ -897,6 +903,8 @@ async function leggiDentro() {
     righeDentro = r.righe || []
     righeGrezze = r.grezze || []
     scelteDentro = r.scelte || null
+    if (scelteDentro && sceltaRisposta && sceltaRisposta.firma === firmaScelte(scelteDentro) &&
+        Date.now() - sceltaRisposta.quando < SCELTA_RISPOSTA_MS) scelteDentro = null
     if (scelteDentro) notaScelta = null
   } catch (e) {
     // Una chat chiusa al computer mentre la si guardava: si torna all'elenco
@@ -1365,7 +1373,9 @@ window.scegli = async (testo) => {
   if (!dentro) return
   const chat = dentro
   // Sparisce subito: un pulsante che resta li' invita a premerlo due volte, e
-  // il secondo tocco andrebbe a finire nella domanda dopo.
+  // il secondo tocco andrebbe a finire nella domanda dopo. E resta sparita
+  // finche' lo schermo non cambia davvero.
+  sceltaRisposta = { firma: firmaScelte(scelteDentro), quando: Date.now() }
   scelteDentro = null
   notaScelta = null
   pannello(ultimoStato)
@@ -1377,7 +1387,11 @@ window.scegli = async (testo) => {
     // invece quando il computer non rispondeva, mandando a guardare lo schermo
     // per un guasto di rete.
     var esito = await chiedi('/api/scegli', { chat: chat, opzione: testo })
-    if (esito && esito.errore) notaScelta = 'La scelta e cambiata mentre toccavi: guarda di nuovo.'
+    if (esito && esito.errore) {
+      notaScelta = String(esito.errore).indexOf('mandata') >= 0
+        ? 'Gia mandata: aspetta che lo schermo cambi.'
+        : 'La scelta e cambiata mentre toccavi: guarda di nuovo.'
+    }
   } catch (e) {
     notaScelta = 'Non sono riuscito a mandarla: il computer non risponde.'
   }
