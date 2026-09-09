@@ -3403,3 +3403,22 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .nuova-chat__posto input { margin-top: 3px; }
 .nuova-chat__posto-titolo { display: block; font-size: var(--t2); }
 .nuova-chat__posto-sotto { display: block; font-size: var(--t1); opacity: 0.65; word-break: break-all; }
+
+/* Il quadro di un lavoro con il Drive: barra grande, conti, «adesso», passi. */
+.avanzamento { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: var(--raggio); background: var(--fondo-cupo); }
+.avanzamento__testa { display: flex; align-items: center; gap: 8px; }
+.avanzamento__titolo { font-size: var(--t3); }
+.avanzamento__tempo { margin-left: auto; font-size: var(--t1); opacity: 0.7; }
+.avanzamento__barra { position: relative; height: 18px; border-radius: 9px; background: var(--incisione); overflow: hidden; }
+.avanzamento__pieno { display: block; height: 100%; background: var(--accento); transition: width 0.4s ease; }
+.avanzamento__perc { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: var(--t1); font-weight: 700; color: var(--testo); text-shadow: 0 0 4px var(--fondo-cupo); }
+.avanzamento__conti { font-size: var(--t2); }
+.avanzamento__adesso { font-size: var(--t2); padding: 6px 8px; border-radius: 6px; background: var(--chassis); word-break: break-all; }
+.avanzamento__passi { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.avanzamento__passo { display: flex; gap: 8px; align-items: flex-start; font-size: var(--t2); opacity: 0.55; }
+.avanzamento__passo--corso { opacity: 1; }
+.avanzamento__passo--fatto { opacity: 0.8; }
+.avanzamento__segno { width: 16px; text-align: center; flex: none; }
+.avanzamento__passo--corso .avanzamento__segno, .avanzamento__passo--fatto .avanzamento__segno { color: var(--accento); }
+.avanzamento__passo-nome { display: block; font-weight: 600; }
+.avanzamento__passo-sotto { display: block; font-size: var(--t1); opacity: 0.8; }

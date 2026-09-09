@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { PianoFusione, VoceFusione, Azione, ModoWorkspace, EsitoFusione } from '../../main/cassaforte/fusione'
 import type { StatoLavoro } from '../../main/cassaforte/lavoro-in-corso'
 import { descriviLavoro } from '../progresso-sync'
+import { AvanzamentoLavoro } from './AvanzamentoLavoro'
 import { azioniPossibili, sceltePerTutte, gruppoInVigore, riassunto, riassuntoInParole, vociDaDecidere, type AzioneDiGruppo } from '../fusione-scelte'
 
 type Props = {
@@ -156,6 +157,9 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
   // Il lavoro in corso, per la barra: e' lo stesso che vede la striscia in alto.
   const [lavoro, setLavoro] = useState<StatoLavoro>({})
   useEffect(() => window.gestore.sync.onLavoro(setLavoro), [])
+  // L'orologio del quadro: tempo trascorso e stima si ridisegnano ogni secondo.
+  const [adesso, setAdesso] = useState(Date.now())
+  useEffect(() => { const t = setInterval(() => setAdesso(Date.now()), 1000); return () => clearInterval(t) }, [])
   // Una fusione interrotta prima: le sue scelte tornano per le voci rimaste.
   const [ripresa, setRipresa] = useState<{ quando: string; fatti?: number; totale?: number } | undefined>(undefined)
 
@@ -273,11 +277,7 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
                   ? <>In questo momento sta girando «{d?.titolo}» — {d?.testo}{d?.dettaglio !== undefined ? <span style={{ opacity: 0.7 }}> · {d.dettaglio}</span> : null}. Di solito è il salvataggio automatico, che passa ogni pochi minuti e mette sul Drive quello che è cambiato qui.</>
                   : <>Il lavoro precedente è appena finito: parto.</>}
               </p>
-              {d?.perc !== undefined ? (
-                <div className="barra-agg" style={{ display: 'block', width: '100%', height: 10 }}>
-                  <span className="barra-agg__pieno" style={{ width: `${d.perc}%` }} />
-                </div>
-              ) : null}
+              {inCorso !== undefined ? <AvanzamentoLavoro lavoro={inCorso} adesso={adesso} /> : null}
               <p className="account__nota" style={{ fontSize: 12, marginTop: 8 }}>
                 Due lavori insieme si pesterebbero i piedi (uno scrive l’indice del Drive mentre l’altro lo legge), quindi si va uno alla volta. Le tue scelte sono salvate: <strong>appena il lavoro in corso finisce, la fusione parte da sola</strong>, e la vedi qui e nella striscia in alto. Se non vuoi aspettare, «Annulla il lavoro in corso» lo ferma fra un file e l’altro senza rompere niente: quello che ha già messo sul Drive resta, il resto lo rifarà al prossimo giro.
               </p>
@@ -302,22 +302,14 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
           const d = inCorso !== undefined && inCorso.tipo === 'fusione' ? descriviLavoro(inCorso) : undefined
           return (
             <>
-              <p className="account__nota">Fondo: {conto.carica} da portare sul Drive, {conto.scarica} da portare qui, {conto.copia} da tenere in due versioni.</p>
-              <div className="barra-agg" style={{ display: 'block', width: '100%', height: 10 }}>
-                <span className="barra-agg__pieno" style={{ width: `${d?.perc ?? 0}%` }} />
-              </div>
-              <p className="account__nota" style={{ marginTop: 6 }}>
-                <strong>{d?.perc !== undefined ? `${d.perc}%` : ''}</strong> {d?.testo ?? 'Preparo…'}
-                {d?.dettaglio !== undefined ? <span style={{ opacity: 0.7 }}> · {d.dettaglio}</span> : null}
+              <p className="account__nota" style={{ margin: '0 0 8px' }}>
+                Con le tue scelte: <strong>{conto.carica}</strong> da portare sul Drive, <strong>{conto.scarica}</strong> da portare qui, <strong>{conto.copia}</strong> da tenere in due versioni. Niente viene cancellato.
               </p>
-              <p className="account__nota" style={{ fontSize: 12 }}>
-                Puoi chiudere questa finestra: continua lo stesso, e la vedi nella striscia in alto. «Annulla» ferma fra una voce e l’altra: quello già fatto resta fatto e coerente, il resto lo rifai riaprendo «Fondi con il Drive», con le scelte di adesso già rimesse.
-              </p>
+              {inCorso !== undefined && d !== undefined
+                ? <AvanzamentoLavoro lavoro={inCorso} adesso={adesso} onAnnulla={() => void window.gestore.sync.annullaLavoro()} />
+                : <p className="account__nota">Parto… (chiedo il Drive e preparo l’elenco)</p>}
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
                 <button className="tasto" onClick={() => onChiudi(false)}>Chiudi (continua da sola)</button>
-                <button className="tasto" disabled={inCorso?.annullamento === true} onClick={() => void window.gestore.sync.annullaLavoro()}>
-                  {inCorso?.annullamento === true ? 'Mi fermo…' : 'Annulla'}
-                </button>
               </div>
             </>
           )

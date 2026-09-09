@@ -30,6 +30,12 @@ export type ProgressoLavoro = {
   unita?: 'byte' | 'file'
   /** Cosa sta facendo adesso: il file, la chat. */
   dettaglio?: string
+  /** In che verso va il file di adesso: sul Drive o qui. */
+  verso?: 'su' | 'giu'
+  /** I conti finora (fusione): quanti saliti, quanti scesi, quanti saltati. */
+  caricati?: number
+  scaricati?: number
+  saltati?: number
 }
 
 export type LavoroInCorso = ProgressoLavoro & {

@@ -736,9 +736,10 @@ export function apriSincronia(deps: {
         const esito = await eseguiFusione({
           maestra: m, archivio: deps.archivio(), radici: tutteLeRadici, scelte: { ...scelte, voci },
           pcNome: deps.pcNome?.() ?? 'questo-pc', adesso: adesso(),
-          onProgresso: (f, t, percorso) => progressoVerso(l.presa)({
+          onProgresso: (f, t, percorso, extra) => progressoVerso(l.presa)({
             fase: 'carico', fatto: f, totale: t, unita: 'file',
-            ...(percorso !== undefined ? { dettaglio: percorso.split('/').slice(-2).join('/') } : {})
+            ...(percorso !== undefined ? { dettaglio: percorso.split('/').slice(-2).join('/') } : {}),
+            ...(extra !== undefined ? { verso: extra.azione === 'scarica' ? 'giu' : 'su', caricati: extra.caricati, scaricati: extra.scaricati, saltati: extra.saltati } : {})
           }),
           ...(l.presa !== undefined ? { segnale: l.presa.segnale } : {})
         })

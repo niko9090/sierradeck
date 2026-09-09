@@ -32,8 +32,8 @@ export type Progresso =
   | { fase: 'raccolgo'; fatto: number; totale: number }
   | { fase: 'comprimo'; fatto?: number; totale?: number; unita?: UnitaProgresso }
   | { fase: 'cifro'; fatto?: number; totale?: number; unita?: UnitaProgresso }
-  | { fase: 'carico'; fatto?: number; totale?: number; unita?: UnitaProgresso; dettaglio?: string }
-  | { fase: 'scarico'; fatto?: number; totale?: number; unita?: UnitaProgresso; dettaglio?: string }
+  | { fase: 'carico'; fatto?: number; totale?: number; unita?: UnitaProgresso; dettaglio?: string; verso?: 'su' | 'giu'; caricati?: number; scaricati?: number; saltati?: number }
+  | { fase: 'scarico'; fatto?: number; totale?: number; unita?: UnitaProgresso; dettaglio?: string; verso?: 'su' | 'giu' }
   | { fase: 'decifro'; fatto?: number; totale?: number; unita?: UnitaProgresso }
   | { fase: 'ripristino'; fatto: number; totale: number }
 

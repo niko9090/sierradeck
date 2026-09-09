@@ -348,7 +348,7 @@ export async function eseguiFusione(deps: {
   scelte: ScelteFusione
   pcNome: string
   adesso: string
-  onProgresso?: (fatto: number, totale: number, percorso?: string) => void
+  onProgresso?: (fatto: number, totale: number, percorso?: string, extra?: { azione: Azione; caricati: number; scaricati: number; saltati: number }) => void
   segnale?: AbortSignal
 }): Promise<EsitoFusione> {
   const esito = await leggiManifesto(deps.archivio, deps.maestra)
@@ -427,7 +427,7 @@ export async function eseguiFusione(deps: {
       }
     } finally {
       fatto += 1
-      deps.onProgresso?.(fatto, voci.length, percorso)
+      deps.onProgresso?.(fatto, voci.length, percorso, { azione, caricati, scaricati, saltati })
     }
   })
 

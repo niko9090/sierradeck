@@ -39,7 +39,8 @@ describe('il progresso della sincronizzazione incrementale', () => {
     expect(esito.caricati).toBe(3)
     const carichi = eventi.filter((e) => e.fase === 'carico')
     expect(carichi.length).toBe(3)
-    expect(carichi.at(-1)).toEqual({ fase: 'carico', fatto: 3, totale: 3, unita: 'file' })
+    // Dalla 0.20.0 il progresso porta anche il verso e il file di adesso: si guarda il conto.
+    expect(carichi.at(-1)).toMatchObject({ fase: 'carico', fatto: 3, totale: 3, unita: 'file', verso: 'su' })
 
     eventi.length = 0
     const destinazione = mkdtempSync(join(tmpdir(), 'sd-incr-dest-'))
@@ -51,7 +52,7 @@ describe('il progresso della sincronizzazione incrementale', () => {
     expect(r.trovato).toBe(true)
     expect(r.scritti).toBe(3)
     const scarichi = eventi.filter((e) => e.fase === 'scarico')
-    expect(scarichi.at(-1)).toEqual({ fase: 'scarico', fatto: 3, totale: 3, unita: 'file' })
+    expect(scarichi.at(-1)).toMatchObject({ fase: 'scarico', fatto: 3, totale: 3, unita: 'file', verso: 'giu' })
     expect(existsSync(join(destinazione, 'p', 'b.jsonl'))).toBe(true)
     expect(readFileSync(join(destinazione, 'p', 'b.jsonl'), 'utf8')).toBe('contenuto di b.jsonl')
   })

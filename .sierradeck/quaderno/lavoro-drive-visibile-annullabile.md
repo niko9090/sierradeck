@@ -76,3 +76,17 @@ spiega, offre «Annulla il lavoro in corso» e «Torna alle scelte», e un
 effetto riparte con `esegui()` appena `lavoro.inCorso` torna `undefined`.
 `anteprimaFusione` non prende mai il lavoro: leggere il piano è sempre
 possibile.
+
+# 0.20.0 — il quadro (`AvanzamentoLavoro.tsx`)
+
+Nicholas: «voglio vedere lo stato generale dell'operazione con una barra di
+caricamento, tutto ben fatto e comprensibile». Componente unico, due forme:
+`compatto` per la striscia (file fatti/totale, %, stima, «Dettagli»,
+«Annulla») e piena (barra 18px con % dentro, conti fatti/mancano/saliti/
+scesi/saltati, riga «adesso» con verso ↑/↓ e file, i tre passi
+Preparazione/Trasferimento/Chiusura con stato da `passiDelLavoro`, tempo
+trascorso da `avviato` e `stimaResidua` = ritmo finora × file rimasti, mai
+sotto 3 file fatti). Il progresso porta `verso`, `caricati`, `scaricati`,
+`saltati` (fusione) e `dettaglio` anche per salva/ripristina. «Dettagli»
+nella striscia apre un portale con il quadro; dentro «Fondi con il Drive»
+il quadro sostituisce la riga in `eseguo` e in `attesa`.

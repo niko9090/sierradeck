@@ -227,9 +227,12 @@ export async function salvaIncrementale(deps: {
   const cancellati = forseCancellati.filter((p) => stessaFirma(base.file[p], prec.file[p]))
 
   let fatto = 0
-  const avanza = (): void => {
+  const avanza = (percorso?: string): void => {
     fatto += 1
-    deps.onProgresso?.({ fase: 'carico', fatto, totale: cambiati.length, unita: 'file' })
+    deps.onProgresso?.({
+      fase: 'carico', fatto, totale: cambiati.length, unita: 'file', verso: 'su',
+      ...(percorso !== undefined ? { dettaglio: percorso.split('/').slice(-2).join('/') } : {})
+    })
   }
   let caricatiDavvero = 0
   const carica = async (percorso: string, contenuto: Buffer, f: { size: number; mtime: number }): Promise<void> => {
@@ -245,16 +248,16 @@ export async function salvaIncrementale(deps: {
   }
 
   await conLimite(cambiati, PARALLELI, async (percorso) => {
-    if (deps.segnale?.aborted === true) { avanza(); return }
+    if (deps.segnale?.aborted === true) { avanza(percorso); return }
     const f = firma.get(percorso)
-    if (f === undefined) { avanza(); return }
+    if (f === undefined) { avanza(percorso); return }
     const contenuto = await readFile(f.disco).catch(() => undefined)
-    if (contenuto === undefined) { avanza(); return }
+    if (contenuto === undefined) { avanza(percorso); return }
     const voceDrive = base.file[percorso]
     const altriHannoCambiato = voceDrive !== undefined && !stessaFirma(voceDrive, prec.file[percorso])
     if (!altriHannoCambiato) {
       await carica(percorso, contenuto, f)
-      avanza()
+      avanza(percorso)
       return
     }
     // Conflitto: cambiato qui e cambiato la'. Vince il piu' recente.
@@ -296,7 +299,7 @@ export async function salvaIncrementale(deps: {
         conflitti.push({ percorso, vinto: 'drive' })
       }
     }
-    avanza()
+    avanza(percorso)
   })
 
   // Annullato: niente cancellazioni, ne' sul Drive ne' qui. Si scrive solo il
@@ -439,7 +442,7 @@ export async function ripristinaIncrementale(deps: {
     if (voce === undefined) return
     const blob = await deps.archivio.scarica(voce.nome)
     fatto += 1
-    deps.onProgresso?.({ fase: 'scarico', fatto, totale: daScaricare.length, unita: 'file' })
+    deps.onProgresso?.({ fase: 'scarico', fatto, totale: daScaricare.length, unita: 'file', verso: 'giu', dettaglio: percorso.split('/').slice(-2).join('/') })
     if (blob === undefined) return
     const chiaro = await decifra(deps.maestra, blob)
     if (chiaro === undefined) return
