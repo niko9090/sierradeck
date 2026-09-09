@@ -932,6 +932,7 @@ if (!app.requestSingleInstanceLock()) {
         archivio: () => contoDrive.archivio(),
         emettiProgresso,
         lavoro,
+        cartellaProgetti: () => identitaPc.leggi().cartellaProgetti,
         log: registro.info,
         // La chiave-maestra dorme nel portachiavi di Windows (DPAPI, legata a
         // questo account) perche' l'automatico riparta da solo dopo un riavvio.
@@ -1147,6 +1148,13 @@ if (!app.requestSingleInstanceLock()) {
         const modo = w.modo === 'pc' || w.modo === 'drive' ? w.modo : 'unione'
         const escludi = Array.isArray(w.escludi) ? w.escludi.filter((x): x is string => typeof x === 'string') : []
         const esito = await sincronia.eseguiFusione({ voci, workspace: { modo, escludi } }, typeof pw === 'string' && pw !== '' ? pw : undefined)
+        if (esito.ok) rimappaChat()
+        return esito
+      })
+      ipcMain.handle('sync:catalogo', () => sincronia.catalogo())
+      ipcMain.handle('sync:portaQui', async (_e, chiave: unknown) => {
+        if (typeof chiave !== 'string' || chiave === '') return { ok: false, messaggio: 'richiesta non valida' }
+        const esito = await sincronia.portaQui(chiave)
         if (esito.ok) rimappaChat()
         return esito
       })
@@ -2272,6 +2280,25 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('aggiornamenti:cerca', () => aggiornamenti?.cerca())
       ipcMain.handle('aggiornamenti:scarica', () => aggiornamenti?.scarica())
       ipcMain.handle('aggiornamenti:installa', () => { void aggiornamenti?.installa() })
+      // Riavviare come per un aggiornamento: si aspetta che le chat finiscano
+      // il turno, si avvisa, e si riparte. Dopo «Porta qui» o una fusione le
+      // chat arrivate compaiono nei workspace solo al riavvio, e farlo a mano
+      // era un passo in piu' che nessuno ricordava.
+      ipcMain.handle('sistema:riavvia', async (): Promise<{ ok: boolean; messaggio?: string }> => {
+        const pronti = await attendiQuiete({
+          chat: () => chatAperte,
+          pausaAutopiloti: (attiva) => clientAutopilota.pausaAggiornamento(attiva),
+          scriviInChat: scriviNelRiquadro,
+          annota: (p) => { scriviJsonAtomico(filePausa(dati), p, 'pausa-aggiornamento') },
+          avvisa: () => undefined,
+          versione: app.getVersion()
+        })
+        if (!pronti) return { ok: false, messaggio: 'Non ho riavviato: c’erano chat ancora al lavoro. Riprova quando hanno finito.' }
+        registro.info('[sistema] riavvio chiesto dopo un lavoro con il Drive')
+        app.relaunch()
+        app.quit()
+        return { ok: true }
+      })
 
       // L'icona prima della finestra: `apriNuovaFinestra` registra il gestore
       // della X, che deve poter sapere se l'area c'è o no.

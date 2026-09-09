@@ -9,6 +9,9 @@ import type { Archivio } from './archivio'
 import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi, togliPrefisso, leggiManifesto } from './incrementale'
 import { applicaBlocco } from './lavoro'
 import type { Lavoro, Presa, TipoLavoro } from './lavoro-in-corso'
+import { costruisciCatalogo, scelteDiPortaQui, type Catalogo } from './catalogo'
+import { adottaOrigine } from '../progetti/registro'
+import { mkdirSync } from 'node:fs'
 import type { Scatola } from '../progetti/presenza'
 import { parseRegistro, prefissoProgetto, type RegistroProgetti } from '../progetti/registro'
 import { parseArchivio, type Archivio as ArchivioWorkspace } from '@shared/workspace'
@@ -144,6 +147,19 @@ export type Sincronia = {
    */
   eseguiFusione: (scelte: ScelteFusione, passphraseDrive?: string) => Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }>
   /**
+   * Il catalogo del Drive: cosa c'e' lassu', per progetto, e come sta
+   * rispetto a questo PC. Non tocca niente. Se la cassaforte del Drive e'
+   * un'altra lo dice (`cassaforteDiversa`): si passa da «Fondi con il Drive».
+   */
+  catalogo: () => Promise<{ ok: true; catalogo: Catalogo } | { ok: false; messaggio: string; cassaforteDiversa?: boolean }>
+  /**
+   * Porta qui un progetto del catalogo: la sua cartella se viaggia con le
+   * chat, le chat che qui mancano o sono indietro, nel loro workspace. Se
+   * il progetto e' nato altrove e non ha una cartella qui, la crea nella
+   * cartella dei progetti e ricorda l'origine, cosi' le chat si rimappano.
+   */
+  portaQui: (chiave: string) => Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }>
+  /**
    * Mette da parte la cassaforte di questo PC e prende quella del Drive: da
    * qui in poi serve la passphrase di quel Drive. La vecchia resta accanto,
    * non si cancella. E si dimentica cosa si sapeva del Drive di prima.
@@ -218,6 +234,8 @@ export function apriSincronia(deps: {
   pcId?: () => string
   /** Il lavoro con il Drive: uno alla volta, visibile in ogni finestra, annullabile. */
   lavoro?: Lavoro
+  /** Dove questo PC riceve i progetti che arrivano dal Drive (per «Porta qui»). */
+  cartellaProgetti?: () => string
 }): Sincronia {
   const adesso = deps.adesso ?? ((): string => new Date().toISOString())
   // Prendere il lavoro: se un altro e' in corso non si parte, e lo si dice.
@@ -229,8 +247,32 @@ export function apriSincronia(deps: {
     deps.emettiProgresso?.(p)
     presa?.aggiorna(p)
   }
-  const chiudiLavoro = (presa: Presa | undefined, r: { ok: boolean; messaggio?: string; annullato?: boolean }, riassunto: string): void => {
-    presa?.fine(r.annullato === true ? 'annullato' : r.ok ? 'ok' : 'errore', r.ok ? riassunto : (r.messaggio ?? riassunto))
+  const chiudiLavoro = (presa: Presa | undefined, r: { ok: boolean; messaggio?: string; annullato?: boolean }, riassunto: string, riavvio = false): void => {
+    presa?.fine(r.annullato === true ? 'annullato' : r.ok ? 'ok' : 'errore', r.ok ? riassunto : (r.messaggio ?? riassunto), r.ok && riavvio)
+  }
+  /** Tutto quello che serve per guardare il Drive: manifesto, workspace, registro, e i file di qui. */
+  const leggiQuadro = async (mDrive: Buffer): Promise<{
+    manifestoDrive: Manifesto; archivioDrive?: ArchivioWorkspace; registroDrive: RegistroProgetti
+    firmaPc: Map<string, { size: number; mtime: number }>; archivioPc?: ArchivioWorkspace
+    titoliIndice?: Map<string, { titolo?: string; cwd?: string; quando?: string; messaggi?: number }>
+  } | { illeggibile: true }> => {
+    const esito = await leggiManifesto(deps.archivio(), mDrive)
+    if (esito.stato === 'illeggibile') return { illeggibile: true }
+    const manifestoDrive = esito.stato === 'ok' ? esito.manifesto : manifestoVuoto()
+    const rawArchivio = await leggiJsonDalDrive(deps.archivio(), mDrive, manifestoDrive, 'sierradeck/workspaces.json')
+    const archivioDrive = rawArchivio === undefined ? undefined : parseArchivio(rawArchivio).archivio
+    const registroDrive = parseRegistro(await leggiJsonDalDrive(deps.archivio(), mDrive, manifestoDrive, 'sierradeck/progetti-drive.json'))
+    const firma = await firmaRadici(radici())
+    const firmaPc = new Map<string, { size: number; mtime: number }>()
+    for (const [k, v] of firma) firmaPc.set(k, { size: v.size, mtime: v.mtime })
+    const archivioPc = deps.workspaceLocale?.leggi()
+    const titoliIndice = deps.titoliChat?.()
+    return {
+      manifestoDrive, registroDrive, firmaPc,
+      ...(archivioDrive !== undefined ? { archivioDrive } : {}),
+      ...(archivioPc !== undefined ? { archivioPc } : {}),
+      ...(titoliIndice !== undefined ? { titoliIndice } : {})
+    }
   }
   /**
    * Il manifesto locale dopo una fusione: solo cio' che sta **davvero** su
@@ -763,9 +805,63 @@ export function apriSincronia(deps: {
           ? (r.esito.annullato === true
               ? `fermata a ${r.esito.fatti} su ${r.esito.totale}: riapri «Fondi con il Drive» per finire`
               : `${r.esito.caricati} sul Drive, ${r.esito.scaricati} qui${r.esito.copie > 0 ? `, ${r.esito.copie} in due versioni` : ''}. Riavvia per vedere tutto.`)
-          : ''
+          : '',
+        r.ok && r.esito.annullato !== true && r.esito.scaricati > 0
       )
       return r
+    },
+
+    async catalogo() {
+      if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
+      const remota = await scaricaChiavi().catch(() => undefined)
+      if (remota === undefined) return { ok: false, messaggio: 'Su questo Drive non c’è ancora niente di SierraDeck: usa «Salva ora» per cominciare.' }
+      const locale = leggiLocale()
+      if (locale !== undefined && !stessaCassaforte(locale, remota)) {
+        return { ok: false, messaggio: 'La cassaforte di questo Drive è un’altra: per leggerla serve la sua passphrase, da «Fondi con il Drive».', cassaforteDiversa: true }
+      }
+      if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
+      try {
+        const q = await leggiQuadro(maestra)
+        if ('illeggibile' in q) return { ok: false, messaggio: 'Il manifesto sul Drive non si apre con questa chiave.' }
+        const catalogo = costruisciCatalogo({
+          ...q,
+          registroPc: deps.registroProgetti?.leggi() ?? { versione: 1, progetti: [] },
+          pcId: deps.pcId?.() ?? '',
+          cartellaEsiste: (p) => existsSync(p),
+          adesso: adesso()
+        })
+        return { ok: true, catalogo }
+      } catch (e) {
+        log(`CATALOGO fallito: ${messaggioDi(e)}`)
+        return { ok: false, messaggio: messaggioDi(e) }
+      }
+    },
+
+    async portaQui(chiave) {
+      if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
+      if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
+      const q = await leggiQuadro(maestra).catch(() => undefined)
+      if (q === undefined || 'illeggibile' in q) return { ok: false, messaggio: 'Non riesco a leggere il Drive.' }
+      const registroPc = deps.registroProgetti?.leggi() ?? { versione: 1, progetti: [] }
+      const catalogo = costruisciCatalogo({ ...q, registroPc, pcId: deps.pcId?.() ?? '', cartellaEsiste: (p) => existsSync(p), adesso: adesso() })
+      const g = catalogo.progetti.find((x) => x.chiave === chiave)
+      if (g === undefined) return { ok: false, messaggio: 'Questo progetto non è più nel catalogo: premi «Aggiorna».' }
+      // Un progetto nato altrove, senza cartella qui: la si crea nella
+      // cartella dei progetti e si ricorda l'origine, cosi' le chat che la
+      // citano vengono rimappate su quella di qui (e le trascrizioni copiate
+      // sotto il nuovo slug) al giro di `rimappaChat` che segue.
+      if (g.id === undefined && !g.quiEsiste && deps.registroProgetti !== undefined && deps.cartellaProgetti !== undefined) {
+        const percorsoQui = join(deps.cartellaProgetti(), g.nome)
+        try { mkdirSync(percorsoQui, { recursive: true }) } catch (err) { return { ok: false, messaggio: `Non riesco a creare la cartella ${percorsoQui}: ${messaggioDi(err)}` } }
+        const { registro: reg } = adottaOrigine(registroPc, {
+          cwdOrigine: g.cartellaOrigine, nome: g.nome, pcId: deps.pcId?.() ?? '', percorsoQui, adesso: adesso()
+        })
+        deps.registroProgetti.scrivi(reg)
+        log(`PORTA QUI «${g.nome}»: cartella creata in ${percorsoQui}, origine ${g.cartellaOrigine}`)
+      }
+      const voci = scelteDiPortaQui(g, q.manifestoDrive, q.firmaPc)
+      log(`PORTA QUI «${g.nome}»: ${Object.keys(voci).length} voci da scaricare`)
+      return this.eseguiFusione({ voci, workspace: { modo: 'unione', escludi: [] } })
     },
 
     async adottaCassaforteDelDrive() {
@@ -930,7 +1026,7 @@ export function apriSincronia(deps: {
         return { ok: false, messaggio: messaggioDi(e) }
       }
     })()
-      chiudiLavoro(l.presa, r, r.niente === true ? 'niente sul Drive' : `${r.scritti ?? 0} file da Drive`)
+      chiudiLavoro(l.presa, r, r.niente === true ? 'niente sul Drive' : `${r.scritti ?? 0} file da Drive`, (r.scritti ?? 0) > 0)
       return r
     }
   }

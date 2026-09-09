@@ -50,6 +50,8 @@ export type EsitoLavoro = {
   esito: 'ok' | 'annullato' | 'errore'
   messaggio: string
   quando: string
+  /** Sono arrivate chat o workspace: per vederli nei riquadri serve riavviare. */
+  riavvioConsigliato?: boolean
 }
 
 export type StatoLavoro = {
@@ -68,7 +70,7 @@ export type Presa = {
   segnale: AbortSignal
   aggiorna: (p: ProgressoLavoro) => void
   /** Il lavoro e' finito, comunque sia andato. */
-  fine: (esito: EsitoLavoro['esito'], messaggio: string) => void
+  fine: (esito: EsitoLavoro['esito'], messaggio: string, riavvioConsigliato?: boolean) => void
 }
 
 export type Lavoro = {
@@ -119,9 +121,9 @@ export function creaLavoro(adesso: () => string = () => new Date().toISOString()
           inCorso = { ...inCorso, ...p }
           annuncia()
         },
-        fine: (esito, messaggio) => {
+        fine: (esito, messaggio, riavvioConsigliato) => {
           if (controllo !== mio) return
-          ultimo = { tipo, esito, messaggio, quando: adesso() }
+          ultimo = { tipo, esito, messaggio, quando: adesso(), ...(riavvioConsigliato === true ? { riavvioConsigliato: true } : {}) }
           inCorso = undefined
           controllo = undefined
           annuncia()

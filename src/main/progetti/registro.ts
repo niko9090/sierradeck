@@ -24,6 +24,15 @@ export type ProgettoDrive = {
   /** Dove sta il progetto su ogni PC: id del PC → percorso assoluto. */
   percorsi: Record<string, string>
   aggiuntoIl: string
+  /**
+   * Cartelle d'origine di PC che non sappiamo chi sono.
+   *
+   * Le chat sul Drive dicono in quale cartella lavoravano, non su quale PC:
+   * «Porta qui» un progetto nato altrove e mai messo sul Drive con la sua
+   * cartella crea la cartella qui e ricorda quella d'origine, cosi' le chat
+   * che la citano vengono rimappate su quella di qui (`rimappaCwd`).
+   */
+  origini?: string[]
 }
 
 export type RegistroProgetti = { versione: 1; progetti: ProgettoDrive[] }
@@ -53,9 +62,11 @@ export function parseRegistro(raw: unknown): RegistroProgetti {
         if (typeof percorso === 'string' && percorso !== '') percorsi[pc] = percorso
       }
     }
+    const origini = Array.isArray(q.origini) ? q.origini.filter((x): x is string => typeof x === 'string' && x !== '') : []
     progetti.push({
       id: q.id, nome: q.nome, percorsi,
-      aggiuntoIl: typeof q.aggiuntoIl === 'string' ? q.aggiuntoIl : ''
+      aggiuntoIl: typeof q.aggiuntoIl === 'string' ? q.aggiuntoIl : '',
+      ...(origini.length > 0 ? { origini } : {})
     })
   }
   return { versione: 1, progetti }
@@ -178,8 +189,11 @@ export function rimappaCwd(
 ): Rimappatura {
   if (esiste(cwd)) return { cwd }
   for (const p of reg.progetti) {
-    for (const [pc, percorso] of Object.entries(p.percorsi)) {
-      if (pc === pcId) continue
+    const radici = [
+      ...Object.entries(p.percorsi).filter(([pc]) => pc !== pcId).map(([, percorso]) => percorso),
+      ...(p.origini ?? [])
+    ]
+    for (const percorso of radici) {
       const resto = sottoCartella(cwd, percorso)
       if (resto === undefined) continue
       const locale = percorsoLocale(p, pcId, cartellaProgetti)
@@ -188,6 +202,31 @@ export function rimappaCwd(
     }
   }
   return { cwd }
+}
+
+/**
+ * Un progetto nato su un PC che non conosciamo, portato qui.
+ *
+ * Se una cartella qui o un'origine gia' registrata contiene `cwdOrigine`, e'
+ * quel progetto: si aggiunge solo il percorso di qui se manca. Altrimenti
+ * nasce un progetto nuovo con la cartella di qui e l'origine ricordata.
+ */
+export function adottaOrigine(
+  reg: RegistroProgetti,
+  p: { cwdOrigine: string; nome: string; pcId: string; percorsoQui: string; adesso: string }
+): { registro: RegistroProgetti; progetto: ProgettoDrive } {
+  const gia = reg.progetti.find((x) =>
+    (x.origini ?? []).some((o) => sottoCartella(p.cwdOrigine, o) !== undefined) ||
+    Object.entries(x.percorsi).some(([pc, r]) => pc !== p.pcId && sottoCartella(p.cwdOrigine, r) !== undefined))
+  if (gia !== undefined) {
+    if (gia.percorsi[p.pcId] !== undefined) return { registro: reg, progetto: gia }
+    const collegato = { ...gia, percorsi: { ...gia.percorsi, [p.pcId]: p.percorsoQui } }
+    return { registro: { ...reg, progetti: reg.progetti.map((x) => (x.id === gia.id ? collegato : x)) }, progetto: collegato }
+  }
+  const progetto: ProgettoDrive = {
+    id: nuovoId(), nome: p.nome, percorsi: { [p.pcId]: p.percorsoQui }, aggiuntoIl: p.adesso, origini: [p.cwdOrigine]
+  }
+  return { registro: { ...reg, progetti: [...reg.progetti, progetto] }, progetto }
 }
 
 export type CambioCwd = { sessione: string; da: string; a: string }

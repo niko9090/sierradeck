@@ -414,6 +414,12 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Il piano di fusione fra questo PC e il Drive: cosa c'e' di qua, di la', in comune. Non tocca niente. */
     anteprimaFusione: (passphraseDrive?: string): Promise<{ ok: true; piano: PianoFusione } | { ok: false; messaggio: string; servePassphrase?: boolean }> =>
       ipcRenderer.invoke('sync:anteprimaFusione', passphraseDrive),
+    /** Il catalogo del Drive: per progetto, con lo stato rispetto a questo PC. Non tocca niente. */
+    catalogo: (): Promise<{ ok: true; catalogo: import('../main/cassaforte/catalogo').Catalogo } | { ok: false; messaggio: string; cassaforteDiversa?: boolean }> =>
+      ipcRenderer.invoke('sync:catalogo'),
+    /** Porta qui un progetto del catalogo: cartella (se viaggia), chat mancanti, workspace. */
+    portaQui: (chiave: string): Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }> =>
+      ipcRenderer.invoke('sync:portaQui', chiave),
     /** Esegue le scelte della fusione. */
     eseguiFusione: (scelte: ScelteFusione, passphraseDrive?: string): Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }> =>
       ipcRenderer.invoke('sync:eseguiFusione', scelte, passphraseDrive),
@@ -646,6 +652,8 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Documenti e la cartella dei progetti SierraDeck: dove nasce una chat nuova. */
     cartelleBase: (): Promise<{ documenti: string; progetti: string }> =>
       ipcRenderer.invoke('sistema:cartelleBase'),
+    /** Riavvia il programma come per un aggiornamento: aspetta che le chat finiscano, poi riparte. */
+    riavvia: (): Promise<{ ok: boolean; messaggio?: string }> => ipcRenderer.invoke('sistema:riavvia'),
     /** Crea la cartella di una chat nuova (solo sotto Documenti o sotto i progetti). */
     creaCartella: (percorso: string): Promise<boolean> =>
       ipcRenderer.invoke('sistema:creaCartella', percorso),

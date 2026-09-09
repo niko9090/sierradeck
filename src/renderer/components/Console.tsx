@@ -25,7 +25,7 @@ import { MODELLI } from '../modelli'
  * qualcosa di nuovo: chi non vuole pensarci li usa e non ci pensa più.
  */
 
-export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'file' | undefined
+export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'file' | 'drive' | undefined
 
 type Props = {
   onApriSessioni: () => void
@@ -315,6 +315,14 @@ export function Console({
           title="I file del progetto, qui e sul suo server: sfoglia, scarica, carica"
         >
           ⇅ File
+        </button>
+        <button
+          className="tasto"
+          onClick={() => commuta('drive')}
+          aria-expanded={aperto === 'drive'}
+          title="Il magazzino comune dei tuoi PC: cosa c'e' sul Drive, cosa hai gia' qui, e «Porta qui»"
+        >
+          ☁ Drive
         </button>
         <button
           className="tasto"

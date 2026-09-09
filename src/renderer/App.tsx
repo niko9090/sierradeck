@@ -47,6 +47,7 @@ import type { StatoAggiornamento } from '../main/aggiornamenti'
 import { righeDiPty, finestraDiPty } from './schermo-terminale'
 import { ETICHETTA_LAVORO_TIPO } from './progresso-sync'
 import { AvanzamentoLavoro } from './components/AvanzamentoLavoro'
+import { PannelloDrive } from './components/PannelloDrive'
 import { createPortal } from 'react-dom'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 
@@ -595,6 +596,28 @@ export function App(): React.JSX.Element {
     void window.gestore.sync.lavoro().then(setLavoroDrive).catch(() => undefined)
     return window.gestore.sync.onLavoro(setLavoroDrive)
   }, [])
+  // Il riavvio dopo un lavoro che ha portato qui chat o workspace: come per
+  // un aggiornamento, un conto alla rovescia con «Riavvia ora» e «Piu' tardi».
+  // Le chat arrivate compaiono nei riquadri solo al riavvio, e farlo a mano
+  // era il passo che nessuno ricordava.
+  const [riavvioFra, setRiavvioFra] = useState<number | undefined>(undefined)
+  const [riavvioRinviato, setRiavvioRinviato] = useState<string | undefined>(undefined)
+  const [riavvioEsito, setRiavvioEsito] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    const u = lavoroDrive.ultimo
+    if (u === undefined || u.riavvioConsigliato !== true || riavvioRinviato === u.quando) { setRiavvioFra(undefined); return }
+    setRiavvioFra(10)
+  }, [lavoroDrive.ultimo?.quando, riavvioRinviato])
+  useEffect(() => {
+    if (riavvioFra === undefined) return
+    if (riavvioFra <= 0) {
+      setRiavvioFra(undefined)
+      void window.gestore.sistema.riavvia().then((r) => { if (!r.ok) setRiavvioEsito(r.messaggio ?? 'non riavviato') })
+      return
+    }
+    const t = setTimeout(() => setRiavvioFra((n) => (n === undefined ? undefined : n - 1)), 1000)
+    return () => clearTimeout(t)
+  }, [riavvioFra])
   // L'orologio del quadro, acceso solo mentre c'e' un lavoro.
   const [adessoLavoro, setAdessoLavoro] = useState(Date.now())
   useEffect(() => {
@@ -1073,6 +1096,24 @@ export function App(): React.JSX.Element {
         </div>
       ) : null}
 
+      {riavvioFra !== undefined && lavoroDrive.ultimo !== undefined ? (
+        <div className="avviso avviso--aggiornamento">
+          <span className="led led--lavoro" />
+          <span>
+            <b>Sono arrivate chat o cartelle dal Drive.</b> Per vederle nei loro workspace il programma si riavvia fra <b>{riavvioFra}</b> s: prima aspetta che le chat aperte finiscano il turno, come per un aggiornamento, e al ritorno le chat riprendono da sole.
+          </span>
+          <span style={{ flex: 1 }} />
+          <button className="tasto tasto--primario" onClick={() => setRiavvioFra(0)}>Riavvia ora</button>
+          <button className="tasto" onClick={() => { setRiavvioRinviato(lavoroDrive.ultimo?.quando); setRiavvioFra(undefined) }} title="Le chat arrivate compariranno al prossimo riavvio">Più tardi</button>
+        </div>
+      ) : riavvioEsito !== undefined ? (
+        <div className="avviso avviso--aggiornamento">
+          <span className="led led--attesa" />
+          <span>{riavvioEsito}</span>
+          <span style={{ flex: 1 }} />
+          <button className="tasto" onClick={() => setRiavvioEsito(undefined)}>×</button>
+        </div>
+      ) : null}
       {lavoroDrive.inCorso !== undefined ? (
         <div className="avviso avviso--aggiornamento">
           <AvanzamentoLavoro
@@ -1192,6 +1233,9 @@ export function App(): React.JSX.Element {
         ) : null}
         {aperto === 'impostazioni' ? (
           <PannelloImpostazioni onChiudi={() => setAperto(undefined)} />
+        ) : null}
+        {aperto === 'drive' ? (
+          <PannelloDrive onChiudi={() => setAperto(undefined)} />
         ) : null}
         {aperto === 'file' ? (
           // I server sono **del progetto**: la cartella della chat che hai

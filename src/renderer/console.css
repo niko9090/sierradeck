@@ -3422,3 +3422,17 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .avanzamento__passo--corso .avanzamento__segno, .avanzamento__passo--fatto .avanzamento__segno { color: var(--accento); }
 .avanzamento__passo-nome { display: block; font-weight: 600; }
 .avanzamento__passo-sotto { display: block; font-size: var(--t1); opacity: 0.8; }
+
+/* Il pannello Drive: il catalogo, per progetto, con lo stato di ogni voce. */
+.drive__riassunto { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 8px 0; font-size: var(--t2); }
+.drive__stato { font-size: var(--t1); padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+.drive__stato--ok { background: color-mix(in srgb, var(--verde, #5cb85c) 18%, transparent); color: var(--verde, #5cb85c); }
+.drive__stato--attesa { background: color-mix(in srgb, var(--ambra) 18%, transparent); color: var(--ambra); }
+.drive__elenco { display: flex; flex-direction: column; gap: 6px; }
+.drive__progetto { border: 1px solid var(--incisione); border-radius: var(--raggio); padding: 6px 8px; background: var(--fondo-cupo); }
+.drive__riga { display: flex; gap: 8px; align-items: center; }
+.drive__sotto { font-size: var(--t1); opacity: 0.65; }
+.drive__percorso { display: block; font-size: var(--t1); opacity: 0.6; word-break: break-all; }
+.drive__chat { list-style: none; margin: 6px 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.drive__chatriga { display: flex; gap: 8px; align-items: center; font-size: var(--t2); padding: 3px 6px; border-radius: 6px; background: var(--chassis); }
+.drive__chatnome { font-weight: 600; }

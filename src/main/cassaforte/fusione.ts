@@ -326,7 +326,11 @@ export function fondiRegistri(a: RegistroProgetti, b: RegistroProgetti): Registr
   const perId = new Map<string, ProgettoDrive>()
   for (const p of [...a.progetti, ...b.progetti]) {
     const gia = perId.get(p.id)
-    perId.set(p.id, gia === undefined ? p : { ...gia, percorsi: { ...p.percorsi, ...gia.percorsi } })
+    perId.set(p.id, gia === undefined ? p : {
+      ...gia,
+      percorsi: { ...p.percorsi, ...gia.percorsi },
+      ...(gia.origini !== undefined || p.origini !== undefined ? { origini: [...new Set([...(gia.origini ?? []), ...(p.origini ?? [])])] } : {})
+    })
   }
   return { versione: 1, progetti: [...perId.values()] }
 }

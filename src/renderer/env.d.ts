@@ -165,6 +165,8 @@ declare global {
           | { ok: true; piano: import('../main/cassaforte/fusione').PianoFusione }
           | { ok: false; messaggio: string; servePassphrase?: boolean }
         >
+        catalogo: () => Promise<{ ok: true; catalogo: import('../main/cassaforte/catalogo').Catalogo } | { ok: false; messaggio: string; cassaforteDiversa?: boolean }>
+        portaQui: (chiave: string) => Promise<{ ok: true; esito: import('../main/cassaforte/fusione').EsitoFusione } | { ok: false; messaggio: string }>
         eseguiFusione: (scelte: import('../main/cassaforte/fusione').ScelteFusione, passphraseDrive?: string) => Promise<
           | { ok: true; esito: import('../main/cassaforte/fusione').EsitoFusione }
           | { ok: false; messaggio: string }
@@ -275,6 +277,7 @@ declare global {
         scegliCartella: () => Promise<string | undefined>
         cartellaEsiste: (percorso: string) => Promise<boolean>
         cartelleBase: () => Promise<{ documenti: string; progetti: string }>
+        riavvia: () => Promise<{ ok: boolean; messaggio?: string }>
         creaCartella: (percorso: string) => Promise<boolean>
         titoloFinestra: (testo: string) => void
       }
