@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.19.4',
+    righe: [
+      '**«Fondi con il Drive» spiega tutto per esteso.** In testa al piano c\u2019\u00e8 scritto come viene fatto il confronto, cosa vuol dire ogni numero (solo su questo PC, solo sul Drive, diverse, uguali) e cosa fa il predefinito in ciascun caso, che niente viene cancellato, e cosa aspettarsi premendo il tasto. Quando \u00e8 tutto allineato, spiega perch\u00e9 non ci sono tasti, come mai pu\u00f2 succedere e cosa fare se ti aspettavi delle chat dell\u2019altro PC.'
+    ]
+  },
+  {
     versione: '0.19.3',
     righe: [
       '**«Fondi con il Drive» non accende pi\u00f9 tutti i tasti quando non c\u2019\u00e8 niente da decidere.** Se le chat sono uguali di qua e di l\u00e0, i tasti di gruppo spariscono e al loro posto c\u2019\u00e8 scritto «tutte uguali: niente da decidere»; in testa una riga dice che chat e file sono gi\u00e0 allineati e restano solo i workspace. Il tasto in fondo si chiama «Applica i workspace» quando \u00e8 quello l\u2019unico effetto.'
