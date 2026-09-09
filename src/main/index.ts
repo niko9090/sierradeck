@@ -1167,6 +1167,12 @@ if (!app.requestSingleInstanceLock()) {
         finestra.webContents.send('client:apri', { cartella: rawCwd, sessione: rawSessione, ...(dove !== undefined ? { workspace: dove } : {}) })
         return true
       })
+      ipcMain.handle('sync:portaQuiWorkspace', async (_e, nome: unknown) => {
+        if (typeof nome !== 'string' || nome === '') return { ok: false, messaggio: 'richiesta non valida' }
+        const esito = await sincronia.portaQuiWorkspace(nome)
+        if (esito.ok) rimappaChat()
+        return esito
+      })
       ipcMain.handle('sync:portaQui', async (_e, chiave: unknown) => {
         if (typeof chiave !== 'string' || chiave === '') return { ok: false, messaggio: 'richiesta non valida' }
         const esito = await sincronia.portaQui(chiave)

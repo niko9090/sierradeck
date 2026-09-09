@@ -422,6 +422,9 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Porta qui un progetto del catalogo: cartella (se viaggia), chat mancanti, workspace. */
     portaQui: (chiave: string): Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }> =>
       ipcRenderer.invoke('sync:portaQui', chiave),
+    /** Porta qui un workspace del Drive con le sue chat (e le cartelle che servono). */
+    portaQuiWorkspace: (nome: string): Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }> =>
+      ipcRenderer.invoke('sync:portaQuiWorkspace', nome),
     /** Esegue le scelte della fusione. */
     eseguiFusione: (scelte: ScelteFusione, passphraseDrive?: string): Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }> =>
       ipcRenderer.invoke('sync:eseguiFusione', scelte, passphraseDrive),

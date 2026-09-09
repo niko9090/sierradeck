@@ -3436,3 +3436,5 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .drive__chat { list-style: none; margin: 6px 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 3px; }
 .drive__chatriga { display: flex; gap: 8px; align-items: center; font-size: var(--t2); padding: 3px 6px; border-radius: 6px; background: var(--chassis); }
 .drive__chatnome { font-weight: 600; }
+
+.drive__viste { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 4px 0 8px; }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Catalogo, ProgettoCatalogo, ChatCatalogo } from '../../main/cassaforte/catalogo'
+import type { Catalogo, ProgettoCatalogo, ChatCatalogo, WorkspaceCatalogo } from '../../main/cassaforte/catalogo'
 import type { StatoLavoro } from '../../main/cassaforte/lavoro-in-corso'
 import { ModaleFusione } from './ModaleFusione'
 import { AvanzamentoLavoro } from './AvanzamentoLavoro'
@@ -54,6 +54,14 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
     }).catch((e: unknown) => { setMessaggio(String(e)); setInCorso(undefined) })
   }
   const commuta = (k: string): void => setAperti((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n })
+  const [vista, setVista] = useState<'progetti' | 'workspace'>('progetti')
+  const portaQuiWorkspace = (w: WorkspaceCatalogo): void => {
+    setInCorso(`ws:${w.nome}`); setMessaggio(undefined)
+    void window.gestore.sync.portaQuiWorkspace(w.nome).then((r) => {
+      if (!r.ok) { setMessaggio(r.messaggio); setInCorso(undefined) }
+      else setMessaggio(`Workspace «${w.nome}»: ${r.esito.scaricati} file portati qui${r.esito.saltati > 0 ? `, ${r.esito.saltati} saltati` : ''}. ${r.esito.scaricati > 0 ? 'Il programma si riavvia fra poco: al ritorno trovi il workspace con dentro le sue chat.' : 'Era già tutto qui: il workspace viene unito ai tuoi.'}`)
+    }).catch((e: unknown) => { setMessaggio(String(e)); setInCorso(undefined) })
+  }
   // «Apri»: la stessa strada della ripresa dal telefono, nel workspace dove
   // la chat sta salvata. La cartella e' quella di qui, se il progetto ce l'ha.
   const apriChat = (g: ProgettoCatalogo, c: ChatCatalogo): void => {
@@ -137,13 +145,68 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
             </select>
             <button className="tasto tasto--mini" onClick={() => setFusione(true)} title="Il piano completo, voce per voce: per il primo collegamento di un PC o per scegliere a mano">Fondi con il Drive…</button>
           </div>
-          {catalogo.workspaceSoloDrive.length > 0 ? (
-            <p className="account__nota" style={{ fontSize: 12 }}>
-              Workspace che esistono solo sul Drive: {catalogo.workspaceSoloDrive.map((w) => `«${w.nome}» (${w.chat} chat)`).join(', ')}. Arrivano qui, con le loro chat, quando porti qui i progetti che le contengono.
-            </p>
+          <div className="drive__viste">
+            <button className={`tasto tasto--mini${vista === 'progetti' ? ' tasto--acceso' : ''}`} aria-pressed={vista === 'progetti'} onClick={() => setVista('progetti')}>Per progetto (cartella)</button>
+            <button className={`tasto tasto--mini${vista === 'workspace' ? ' tasto--acceso' : ''}`} aria-pressed={vista === 'workspace'} onClick={() => setVista('workspace')}>Per workspace ({catalogo.workspace.length})</button>
+            <span className="drive__sotto" style={{ marginLeft: 6 }}>
+              {vista === 'progetti'
+                ? 'Un progetto è la cartella in cui le chat lavorano. «Porta qui» prende cartella e chat.'
+                : 'Un workspace è una fascia a schermo con dentro delle chat, anche di progetti diversi. «Porta qui il workspace» prende le sue chat, con le cartelle che servono, e lo ricrea qui con dentro le chat.'}
+            </span>
+          </div>
+          {vista === 'workspace' ? (
+            <div className="drive__elenco">
+              {catalogo.workspace.length === 0 ? <p className="account__nota">Sul Drive non ci sono workspace salvati.</p> : null}
+              {catalogo.workspace.map((w) => {
+                const chiave = `ws:${w.nome}`
+                const aperto = aperti.has(chiave)
+                return (
+                  <div key={chiave} className="drive__progetto">
+                    <div className="drive__riga">
+                      <button className="account__link" onClick={() => commuta(chiave)} style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
+                        {aperto ? '▾' : '▸'} <strong>{w.nome}</strong>
+                        <span className="drive__sotto"> · {w.chat.length} chat in {w.progetti.length} {w.progetti.length === 1 ? 'progetto' : 'progetti'}</span>
+                        <span className="drive__percorso">
+                          {w.quiEsiste ? 'esiste anche qui: le chat che arrivano si aggiungono a quelle che ci sono' : 'non esiste qui: viene creato con le sue chat'}
+                        </span>
+                      </button>
+                      <span className={`drive__stato ${w.daPortare > 0 ? 'drive__stato--attesa' : 'drive__stato--ok'}`}>
+                        {w.daPortare > 0 ? `${w.daPortare} chat da portare qui` : w.quiEsiste ? 'allineato' : 'chat già qui: manca solo il workspace'}
+                      </span>
+                      {w.daPortare > 0 || !w.quiEsiste ? (
+                        <button
+                          className="tasto tasto--primario tasto--mini"
+                          disabled={inCorso !== undefined || lavoro.inCorso !== undefined}
+                          onClick={() => portaQuiWorkspace(w)}
+                          title="Scarica le chat che mancano con le cartelle che servono, ricrea il workspace qui con dentro le chat, e riavvia"
+                        >
+                          {inCorso === chiave ? 'Porto…' : w.daPortare > 0 ? `Porta qui il workspace (${w.daPortare})` : 'Crea qui il workspace'}
+                        </button>
+                      ) : null}
+                    </div>
+                    {aperto ? (
+                      <ul className="drive__chat">
+                        {w.chat.map((c) => {
+                          const sc = statoChat(c)
+                          return (
+                            <li key={c.sessione} className="drive__chatriga">
+                              <span style={{ minWidth: 0, flex: 1 }}>
+                                <span className="drive__chatnome">{c.titolo}</span>
+                                <span className="drive__sotto"> · {c.progetto}{c.quando !== undefined ? ` · ${quando(c.quando)}` : ''}</span>
+                              </span>
+                              <span className={`drive__stato ${sc.classe}`}>{c.altroveQui !== undefined ? `già qui, in ${c.altroveQui}` : sc.testo}</span>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    ) : null}
+                  </div>
+                )
+              })}
+            </div>
           ) : null}
-          {visibili.length === 0 ? <p className="account__nota">Niente da mostrare con questo filtro.</p> : null}
-          <div className="drive__elenco">
+          {vista === 'progetti' && visibili.length === 0 ? <p className="account__nota">Niente da mostrare con questo filtro.</p> : null}
+          <div className="drive__elenco" style={{ display: vista === 'progetti' ? undefined : 'none' }}>
             {visibili.map((g) => {
               const s = statoProgetto(g)
               const aperto = aperti.has(g.chiave)

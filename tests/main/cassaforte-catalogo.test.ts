@@ -110,3 +110,37 @@ describe('la stessa conversazione sotto due cartelle', () => {
     expect(c.totali.daPortare).toBe(0)
   })
 })
+
+describe('i workspace del Drive con le loro chat', () => {
+  it('ogni workspace elenca le sue chat con il progetto, e quante mancano qui', () => {
+    const drive = manifesto({
+      'chat/E--Users-tecnico-Documents-Wdeck/u1.jsonl': { size: 100, mtime: 1000 },
+      'chat/E--Users-tecnico-Documents-FLUX/u2.jsonl': { size: 200, mtime: 2000 },
+      'chat/E--Users-nikof-Documents-SierraDeck/u3.jsonl': { size: 300, mtime: 3000 }
+    })
+    const firmaPc = new Map([['chat/E--Users-nikof-Documents-SierraDeck/u3.jsonl', { size: 300, mtime: 3000 }]])
+    const pane = (id: string, u: string, cwd: string): { id: string; sessionUuid: string; cwd: string; title: string } => ({ id, sessionUuid: u, cwd, title: u })
+    const c = costruisciCatalogo({
+      manifestoDrive: drive, firmaPc, registroPc: { versione: 1, progetti: [] }, registroDrive: { versione: 1, progetti: [] }, pcId: 'FISSO',
+      cartellaEsiste: (p: string) => p.startsWith('E:\\Users\\nikof'),
+      archivioPc: { attivo: 'casa', workspace: [{ nome: 'casa', perSlot: { '1': { root: undefined, panes: [pane('c', 'u3', 'E:\\Users\\nikof\\Documents\\SierraDeck')] } } }] },
+      archivioDrive: { attivo: 'lavoro', workspace: [
+        { nome: 'lavoro', perSlot: { '1': { root: undefined, panes: [pane('a', 'u1', 'E:\\Users\\tecnico\\Documents\\Wdeck'), pane('b', 'u2', 'E:\\Users\\tecnico\\Documents\\FLUX')] } } },
+        { nome: 'casa', perSlot: { '1': { root: undefined, panes: [pane('c', 'u3', 'E:\\Users\\nikof\\Documents\\SierraDeck')] } } }
+      ] }
+    } as unknown as Parameters<typeof costruisciCatalogo>[0])
+    expect(c.workspace.map((w) => w.nome)).toEqual(['lavoro', 'casa'])
+    const lavoro = c.workspace[0]!
+    expect(lavoro.quiEsiste).toBe(false)
+    expect(lavoro.daPortare).toBe(2)
+    expect(lavoro.progetti.length).toBe(2)
+    expect(lavoro.chat.map((x) => x.progetto).sort()).toEqual(['FLUX', 'Wdeck'])
+    const casa = c.workspace[1]!
+    expect(casa.quiEsiste).toBe(true)
+    expect(casa.daPortare).toBe(0)
+    // «Porta qui il workspace» prende solo le chat di quel workspace, progetto per progetto.
+    const wdeck = c.progetti.find((g) => g.nome === 'Wdeck')!
+    expect(scelteDiPortaQui(wdeck, drive, firmaPc, new Set(lavoro.chat.map((x) => x.sessione)))).toEqual({ 'chat/E--Users-tecnico-Documents-Wdeck/u1.jsonl': 'scarica' })
+    expect(scelteDiPortaQui(wdeck, drive, firmaPc, new Set(['nessuna']))).toEqual({})
+  })
+})

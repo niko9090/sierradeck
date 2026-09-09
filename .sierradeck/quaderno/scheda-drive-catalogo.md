@@ -74,3 +74,18 @@ progetto (PC d'origine come etichetta), atterraggio in
   `ModaleConferma`; solo per progetti registrati con file sul Drive. Togliere
   le CHAT dal Drive non ha senso nel modello: qualunque chat locale risale
   al salvataggio dopo.
+
+# 0.23.0 — «Per workspace» (Nicholas: «non vedo come importare un workspace con le sue chat»)
+
+- `Catalogo.workspace: WorkspaceCatalogo[]` (nome, `quiEsiste`, `chat` con
+  `progetto`/`chiaveProgetto`, `progetti` toccati, `daPortare`, `quiUguali`)
+  costruito dai workspace di `archivioDrive` incrociati con le chat dei
+  gruppi (per `sessionUuid`).
+- `sincronia.portaQuiWorkspace(nome)`: per ogni progetto toccato
+  `preparaCartella` (la stessa di «Porta qui», ora condivisa), voci =
+  `scelteDiPortaQui(g, …, soloChat = le chat del workspace)`, poi
+  `eseguiFusione` con workspace «unione» → il workspace del Drive entra qui
+  con le sue chat (anche se qui non esisteva). IPC `sync:portaQuiWorkspace`.
+- UI: due viste con tasti «Per progetto (cartella)» / «Per workspace», la
+  frase che spiega la differenza, e per workspace «Porta qui il workspace
+  (N)» o «Crea qui il workspace» quando le chat ci sono già.

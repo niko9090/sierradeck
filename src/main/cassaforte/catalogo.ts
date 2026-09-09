@@ -72,8 +72,29 @@ export type ProgettoCatalogo = {
   ultimoTocco?: string
 }
 
+/** Una chat vista dal suo workspace: porta con se' il progetto (cartella) in cui lavora. */
+export type ChatDiWorkspace = ChatCatalogo & { progetto: string; chiaveProgetto: string }
+
+/**
+ * Un workspace com'e' salvato sul Drive: le sue chat, i progetti che tocca,
+ * quante chat mancano qui. «Porta qui il workspace» scarica quelle chat con
+ * le cartelle che servono e ricrea il workspace qui, con dentro le chat.
+ */
+export type WorkspaceCatalogo = {
+  nome: string
+  /** Esiste gia' un workspace con questo nome su questo PC. */
+  quiEsiste: boolean
+  chat: ChatDiWorkspace[]
+  /** Le chiavi dei progetti (cartelle) in cui lavorano le sue chat. */
+  progetti: string[]
+  daPortare: number
+  quiUguali: number
+}
+
 export type Catalogo = {
   progetti: ProgettoCatalogo[]
+  /** I workspace salvati sul Drive, con le loro chat. */
+  workspace: WorkspaceCatalogo[]
   totali: { progetti: number; chat: number; daPortare: number; daAggiornare: number; soloQui: number; uguali: number }
   /** I workspace che esistono solo sul Drive, con quante chat. */
   workspaceSoloDrive: { nome: string; chat: number }[]
@@ -278,6 +299,24 @@ export function costruisciCatalogo(p: {
     .filter((w) => !nomiPc.has(w.nome))
     .map((w) => ({ nome: w.nome, chat: Object.values(w.perSlot).reduce((t, l) => t + l.panes.length, 0) }))
 
+  // I workspace del Drive con le loro chat: e' cosi' che si porta qui «quel
+  // workspace del portatile» invece di cercare le sue chat progetto per progetto.
+  const perUuid = new Map<string, { chat: ChatCatalogo; progetto: ProgettoCatalogo }>()
+  for (const g of progetti) for (const c of g.chat) if (!perUuid.has(c.sessione)) perUuid.set(c.sessione, { chat: c, progetto: g })
+  const workspace: WorkspaceCatalogo[] = (p.archivioDrive?.workspace ?? []).map((w) => {
+    const uuids = [...new Set(Object.values(w.perSlot).flatMap((l) => l.panes.map((x) => x.sessionUuid)))]
+    const voci = uuids.map((u) => perUuid.get(u)).filter((v): v is { chat: ChatCatalogo; progetto: ProgettoCatalogo } => v !== undefined)
+    const chat: ChatDiWorkspace[] = voci.map((v) => ({ ...v.chat, progetto: v.progetto.nome, chiaveProgetto: v.progetto.chiave }))
+    return {
+      nome: w.nome,
+      quiEsiste: nomiPc.has(w.nome),
+      chat,
+      progetti: [...new Set(voci.map((v) => v.progetto.chiave))],
+      daPortare: chat.filter((c) => c.stato === 'soloDrive' || c.stato === 'indietro').length,
+      quiUguali: chat.filter((c) => c.stato === 'uguale' || c.stato === 'avanti' || c.stato === 'soloQui').length
+    }
+  }).sort((a, b) => b.daPortare - a.daPortare || a.nome.localeCompare(b.nome))
+
   const totali = {
     progetti: progetti.length,
     chat: progetti.reduce((t, g) => t + g.chat.length, 0),
@@ -286,16 +325,19 @@ export function costruisciCatalogo(p: {
     soloQui: progetti.reduce((t, g) => t + g.conti.soloQui + g.conti.avanti, 0),
     uguali: progetti.reduce((t, g) => t + g.conti.uguali, 0)
   }
-  return { progetti, totali, workspaceSoloDrive, letto: p.adesso ?? new Date().toISOString() }
+  return { progetti, workspace, totali, workspaceSoloDrive, letto: p.adesso ?? new Date().toISOString() }
 }
 
 /**
  * Le scelte di fusione per portare qui un progetto: le sue chat che mancano o
  * sono indietro, e i file della sua cartella se viaggia con lui.
  */
-export function scelteDiPortaQui(g: ProgettoCatalogo, manifestoDrive: Manifesto, firmaPc: Map<string, Firma>): Record<string, 'scarica'> {
+export function scelteDiPortaQui(g: ProgettoCatalogo, manifestoDrive: Manifesto, firmaPc: Map<string, Firma>, soloChat?: Set<string>): Record<string, 'scarica'> {
   const voci: Record<string, 'scarica'> = {}
-  for (const c of g.chat) if (c.stato === 'soloDrive' || c.stato === 'indietro') voci[c.percorso] = 'scarica'
+  for (const c of g.chat) {
+    if (soloChat !== undefined && !soloChat.has(c.sessione)) continue
+    if (c.stato === 'soloDrive' || c.stato === 'indietro') voci[c.percorso] = 'scarica'
+  }
   if (g.id !== undefined) {
     const prefisso = `progetto-${g.id}`
     for (const [percorso, v] of Object.entries(manifestoDrive.file)) {

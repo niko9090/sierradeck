@@ -160,6 +160,12 @@ export type Sincronia = {
    */
   portaQui: (chiave: string) => Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }>
   /**
+   * Porta qui un workspace del Drive: le sue chat che qui mancano (con le
+   * cartelle che servono, come «Porta qui» per ogni progetto toccato) e il
+   * workspace stesso, ricreato qui con dentro le chat.
+   */
+  portaQuiWorkspace: (nome: string) => Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }>
+  /**
    * Mette da parte la cassaforte di questo PC e prende quella del Drive: da
    * qui in poi serve la passphrase di quel Drive. La vecchia resta accanto,
    * non si cancella. E si dimentica cosa si sapeva del Drive di prima.
@@ -249,6 +255,25 @@ export function apriSincronia(deps: {
   }
   const chiudiLavoro = (presa: Presa | undefined, r: { ok: boolean; messaggio?: string; annullato?: boolean }, riassunto: string, riavvio = false): void => {
     presa?.fine(r.annullato === true ? 'annullato' : r.ok ? 'ok' : 'errore', r.ok ? riassunto : (r.messaggio ?? riassunto), r.ok && riavvio)
+  }
+  /**
+   * Un progetto nato altrove, senza cartella qui: la si crea nella cartella
+   * dei progetti e si ricorda l'origine, cosi' le chat che la citano vengono
+   * rimappate su quella di qui (e le trascrizioni copiate sotto il nuovo
+   * slug) al giro di `rimappaChat` che segue. Restituisce il registro
+   * aggiornato, gia' scritto.
+   */
+  const preparaCartella = (g: { id?: string; quiEsiste: boolean; nome: string; cartellaOrigine: string }, registroPc: RegistroProgetti):
+    { ok: true; registro: RegistroProgetti } | { ok: false; messaggio: string } => {
+    if (g.id !== undefined || g.quiEsiste || deps.registroProgetti === undefined || deps.cartellaProgetti === undefined) return { ok: true, registro: registroPc }
+    const percorsoQui = join(deps.cartellaProgetti(), g.nome)
+    try { mkdirSync(percorsoQui, { recursive: true }) } catch (err) { return { ok: false, messaggio: `Non riesco a creare la cartella ${percorsoQui}: ${messaggioDi(err)}` } }
+    const { registro: reg } = adottaOrigine(registroPc, {
+      cwdOrigine: g.cartellaOrigine, nome: g.nome, pcId: deps.pcId?.() ?? '', percorsoQui, adesso: adesso()
+    })
+    deps.registroProgetti.scrivi(reg)
+    log(`PORTA QUI «${g.nome}»: cartella creata in ${percorsoQui}, origine ${g.cartellaOrigine}`)
+    return { ok: true, registro: reg }
   }
   /** Tutto quello che serve per guardare il Drive: manifesto, workspace, registro, e i file di qui. */
   const leggiQuadro = async (mDrive: Buffer): Promise<{
@@ -846,21 +871,37 @@ export function apriSincronia(deps: {
       const catalogo = costruisciCatalogo({ ...q, registroPc, pcId: deps.pcId?.() ?? '', cartellaEsiste: (p) => existsSync(p), adesso: adesso() })
       const g = catalogo.progetti.find((x) => x.chiave === chiave)
       if (g === undefined) return { ok: false, messaggio: 'Questo progetto non è più nel catalogo: premi «Aggiorna».' }
-      // Un progetto nato altrove, senza cartella qui: la si crea nella
-      // cartella dei progetti e si ricorda l'origine, cosi' le chat che la
-      // citano vengono rimappate su quella di qui (e le trascrizioni copiate
-      // sotto il nuovo slug) al giro di `rimappaChat` che segue.
-      if (g.id === undefined && !g.quiEsiste && deps.registroProgetti !== undefined && deps.cartellaProgetti !== undefined) {
-        const percorsoQui = join(deps.cartellaProgetti(), g.nome)
-        try { mkdirSync(percorsoQui, { recursive: true }) } catch (err) { return { ok: false, messaggio: `Non riesco a creare la cartella ${percorsoQui}: ${messaggioDi(err)}` } }
-        const { registro: reg } = adottaOrigine(registroPc, {
-          cwdOrigine: g.cartellaOrigine, nome: g.nome, pcId: deps.pcId?.() ?? '', percorsoQui, adesso: adesso()
-        })
-        deps.registroProgetti.scrivi(reg)
-        log(`PORTA QUI «${g.nome}»: cartella creata in ${percorsoQui}, origine ${g.cartellaOrigine}`)
-      }
+      const pronta = preparaCartella(g, registroPc)
+      if (!pronta.ok) return pronta
       const voci = scelteDiPortaQui(g, q.manifestoDrive, q.firmaPc)
       log(`PORTA QUI «${g.nome}»: ${Object.keys(voci).length} voci da scaricare`)
+      return this.eseguiFusione({ voci, workspace: { modo: 'unione', escludi: [] } })
+    },
+
+    async portaQuiWorkspace(nome) {
+      if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
+      if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
+      const q = await leggiQuadro(maestra).catch(() => undefined)
+      if (q === undefined || 'illeggibile' in q) return { ok: false, messaggio: 'Non riesco a leggere il Drive.' }
+      let registroPc = deps.registroProgetti?.leggi() ?? { versione: 1, progetti: [] }
+      const catalogo = costruisciCatalogo({ ...q, registroPc, pcId: deps.pcId?.() ?? '', cartellaEsiste: (p) => existsSync(p), adesso: adesso() })
+      const w = catalogo.workspace.find((x) => x.nome === nome)
+      if (w === undefined) return { ok: false, messaggio: 'Questo workspace non è più sul Drive: premi «Aggiorna».' }
+      // Le cartelle di tutti i progetti toccati, poi le chat di questo
+      // workspace che qui mancano, con i file delle cartelle che viaggiano.
+      const sue = new Set(w.chat.map((c) => c.sessione))
+      const voci: Record<string, 'scarica'> = {}
+      for (const chiave of w.progetti) {
+        const g = catalogo.progetti.find((x) => x.chiave === chiave)
+        if (g === undefined) continue
+        const pronta = preparaCartella(g, registroPc)
+        if (!pronta.ok) return pronta
+        registroPc = pronta.registro
+        Object.assign(voci, scelteDiPortaQui(g, q.manifestoDrive, q.firmaPc, sue))
+      }
+      log(`PORTA QUI workspace «${nome}»: ${Object.keys(voci).length} voci da scaricare, ${w.progetti.length} progetti`)
+      // «unione» senza esclusioni: il workspace del Drive entra qui con le sue
+      // chat, accanto a quelle che ci sono gia'.
       return this.eseguiFusione({ voci, workspace: { modo: 'unione', escludi: [] } })
     },
 

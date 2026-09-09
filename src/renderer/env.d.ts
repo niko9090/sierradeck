@@ -168,6 +168,7 @@ declare global {
         riprendiChat: (cwd: string, sessione: string) => Promise<boolean>
         catalogo: () => Promise<{ ok: true; catalogo: import('../main/cassaforte/catalogo').Catalogo } | { ok: false; messaggio: string; cassaforteDiversa?: boolean }>
         portaQui: (chiave: string) => Promise<{ ok: true; esito: import('../main/cassaforte/fusione').EsitoFusione } | { ok: false; messaggio: string }>
+        portaQuiWorkspace: (nome: string) => Promise<{ ok: true; esito: import('../main/cassaforte/fusione').EsitoFusione } | { ok: false; messaggio: string }>
         eseguiFusione: (scelte: import('../main/cassaforte/fusione').ScelteFusione, passphraseDrive?: string) => Promise<
           | { ok: true; esito: import('../main/cassaforte/fusione').EsitoFusione }
           | { ok: false; messaggio: string }
