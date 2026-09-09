@@ -296,16 +296,22 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
           </>
         ) : piano !== undefined ? (
           <>
+            <p className="account__nota" style={{ margin: '0 0 6px' }}>
+              {piano.email !== undefined ? <>Drive di <strong>{piano.email}</strong>. </> : null}
+              Ho confrontato, voce per voce, le conversazioni e i file di progetto di questo PC con quelli salvati sul Drive: stesso percorso, stessa dimensione e stessa data vuol dire «uguale»; tutto il resto è «solo di qua», «solo di là» o «diversa».
+            </p>
+            <p className="account__nota" style={{ margin: '0 0 6px' }}>
+              <strong>Solo su questo PC: {piano.totali.soloPc}</strong> — esistono qui e non sul Drive; il predefinito le porta sul Drive, così gli altri PC le vedono.{' '}
+              <strong>Solo sul Drive: {piano.totali.soloDrive}</strong> — esistono sul Drive (di solito salvate da un altro PC) e non qui; il predefinito le porta qui.{' '}
+              <strong>Diverse: {piano.totali.diverse}</strong> — esistono in tutti e due i posti ma non sono uguali; per le chat vince la copia più lunga, perché una conversazione cresce e non si accorcia, per i file di progetto vince la più recente e l’altra versione resta accanto come copia.{' '}
+              <strong>Uguali: {piano.totali.uguali}</strong> — identiche di qua e di là, non c’è niente da fare.
+            </p>
             <p className="account__nota" style={{ margin: '0 0 8px' }}>
-              {piano.email !== undefined ? <><strong>{piano.email}</strong> · </> : null}
-              solo su questo PC <strong>{piano.totali.soloPc}</strong> · solo sul Drive <strong>{piano.totali.soloDrive}</strong> · diverse <strong>{piano.totali.diverse}</strong> · uguali <strong>{piano.totali.uguali}</strong>.
-              {piano.totali.soloPc + piano.totali.soloDrive + piano.totali.diverse === 0
-                ? ' Il predefinito è l’unione: per le chat vince la copia più lunga, per i file di progetto la più recente.'
-                : ' Il predefinito è l’unione: per le chat vince la copia più lunga, per i file di progetto la più recente. Cambia quello che vuoi.'}
+              Da questa finestra <strong>niente viene mai cancellato</strong>: si copia da una parte all’altra, e basta. Puoi cambiare ogni singola voce dalla sua tendina, o usare i tasti di gruppo accanto a ogni cartella. Quando premi il tasto in fondo vedi l’avanzamento qui e nella striscia in alto, puoi annullare in qualsiasi momento, e a lavoro finito conviene riavviare SierraDeck perché le chat arrivate compaiano nei loro workspace.
             </p>
             {piano.totali.soloPc + piano.totali.soloDrive + piano.totali.diverse === 0 ? (
               <p className="account__nota" style={{ margin: '0 0 8px', padding: '8px 10px', borderRadius: 6, background: 'var(--fondo-cupo)' }}>
-                ✓ <strong>Chat e file sono già allineati</strong>: le {piano.totali.uguali} voci sono uguali di qua e di là, e non c’è niente da decidere. Restano solo i workspace, in fondo: se anche lì è tutto com’è, puoi chiudere.
+                ✓ <strong>Chat e file sono già allineati.</strong> Tutte le {piano.totali.uguali} voci sono identiche qui e sul Drive, quindi non c’è niente da portare né da scaricare, e per questo nelle cartelle qui sotto non ci sono tasti: ogni riga ha una sola scelta possibile, «lascia com’è». Succede quando questo PC ha già salvato sul Drive e ripristinato tutto, oppure quando gli altri PC non hanno ancora salvato niente di nuovo. Se ti aspettavi delle chat dell’altro PC, controlla che lì il salvataggio sia andato a buon fine (pannello Account → «Salva ora» su quel PC), poi riapri questa finestra. Qui sotto restano solo i workspace, cioè le fasce che raggruppano le chat a schermo: se anche lì è tutto com’è, puoi chiudere senza fare niente.
               </p>
             ) : null}
             {ripresa !== undefined ? (
