@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.22.0',
+    righe: [
+      '**La scheda «Drive» fa tutto da s\u00e9.** «Aggiorna qui» quando qui hai una versione pi\u00f9 vecchia; «Apri» accanto a ogni chat gi\u00e0 qui la riapre nel suo workspace; «Togli la cartella dal Drive» per i progetti che viaggiano con la cartella, con conferma e spiegazione di cosa resta (chat e cartelle sui PC).',
+      '**La stessa conversazione non compare due volte.** Sul Drive una chat vive sotto la cartella del PC che l\u2019ha salvata, e la stessa conversazione poteva starci due volte: il catalogo ora la riconosce, la mostra una volta con scritto dove sta qui, e «Porta qui» non la riscarica.'
+    ]
+  },
+  {
     versione: '0.21.0',
     righe: [
       '**La scheda «Drive»: il magazzino comune dei tuoi PC, da sfogliare.** Un tasto nuovo nella barra, ☁ Drive. Dentro, tutto quello che sta sul Drive raggruppato per progetto, cio\u00e8 per la cartella in cui le chat lavorano: da dove viene, quante chat, quando \u00e8 stato toccato, e per ogni chat il nome vero e lo stato rispetto a questo PC (gi\u00e0 qui e uguale, qui ma indietro, solo sul Drive, solo qui). In testa i totali, un filtro «solo quelli con qualcosa da portare qui», e «Fondi con il Drive» resta per il piano completo.',
