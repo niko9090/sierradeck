@@ -3,6 +3,7 @@ import type { Catalogo, ProgettoCatalogo, ChatCatalogo } from '../../main/cassaf
 import type { StatoLavoro } from '../../main/cassaforte/lavoro-in-corso'
 import { ModaleFusione } from './ModaleFusione'
 import { AvanzamentoLavoro } from './AvanzamentoLavoro'
+import { ModaleConferma } from './ModaleConferma'
 
 type Props = { onChiudi: () => void }
 
@@ -28,6 +29,7 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
   const [adesso, setAdesso] = useState(Date.now())
   const [cassaforteDiversa, setCassaforteDiversa] = useState(false)
   const [filtro, setFiltro] = useState<'tutti' | 'daPortare' | 'soloQui'>('tutti')
+  const [daTogliere, setDaTogliere] = useState<ProgettoCatalogo | undefined>(undefined)
 
   const leggi = (): void => {
     setLeggo(true); setMessaggio(undefined)
@@ -52,6 +54,23 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
     }).catch((e: unknown) => { setMessaggio(String(e)); setInCorso(undefined) })
   }
   const commuta = (k: string): void => setAperti((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n })
+  // «Apri»: la stessa strada della ripresa dal telefono, nel workspace dove
+  // la chat sta salvata. La cartella e' quella di qui, se il progetto ce l'ha.
+  const apriChat = (g: ProgettoCatalogo, c: ChatCatalogo): void => {
+    const cwd = c.altroveQui ?? g.cartellaQui ?? g.cartellaOrigine
+    void window.gestore.sync.riprendiChat(cwd, c.sessione).then((fatto) => {
+      if (fatto) onChiudi()
+      else setMessaggio('Non sono riuscito ad aprirla: nessuna finestra ha risposto.')
+    }).catch((e: unknown) => setMessaggio(String(e)))
+  }
+  const togli = (g: ProgettoCatalogo): void => {
+    if (g.id === undefined) return
+    const id = g.id
+    setDaTogliere(undefined); setMessaggio(undefined); setInCorso(g.chiave)
+    void window.gestore.progetti.rimuovi(id).then((r) => {
+      setMessaggio(r.messaggio ?? `«${g.nome}»: la cartella non viaggia più sul Drive. Le chat restano dove sono, e la cartella su ogni PC resta com'è.`)
+    }).catch((e: unknown) => setMessaggio(String(e))).finally(() => { setInCorso(undefined); leggi() })
+  }
 
   const quando = (iso: string | undefined): string => {
     if (iso === undefined) return ''
@@ -90,7 +109,7 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
       </div>
 
       <p className="account__nota">
-        Qui vedi tutto quello che sta sul Drive, raggruppato per progetto, cioè per la cartella in cui le chat lavorano: da dove viene, quante chat ha, quando è stato toccato l’ultima volta, e per ogni chat il nome e lo stato rispetto a questo PC. <strong>«Porta qui»</strong> scarica la cartella se viaggia con le chat (i progetti sul Drive), poi le chat che qui mancano o sono indietro, le mette nel workspace in cui stavano creandolo se serve, e alla fine il programma si riavvia da solo per mostrarle. Niente viene mai cancellato: si copia da una parte all’altra, e basta. Quello che è solo qui sale da solo al prossimo salvataggio automatico.
+        Qui vedi tutto quello che sta sul Drive, raggruppato per progetto, cioè per la cartella in cui le chat lavorano: da dove viene, quante chat ha, quando è stato toccato l’ultima volta, e per ogni chat il nome e lo stato rispetto a questo PC. <strong>«Porta qui»</strong> scarica la cartella se viaggia con le chat (i progetti sul Drive), poi le chat che qui mancano, le mette nel workspace in cui stavano creandolo se serve, e alla fine il programma si riavvia da solo per mostrarle; <strong>«Aggiorna qui»</strong> fa lo stesso quando qui hai una versione più vecchia. <strong>«Apri»</strong> accanto a una chat che è già qui la riapre nel suo workspace. <strong>«Togli la cartella dal Drive»</strong> vale per i progetti che viaggiano con la cartella: i file della cartella salvati sul Drive vengono tolti e la cartella smette di viaggiare; le chat e le cartelle sui PC restano come sono. Per il resto niente viene mai cancellato: si copia da una parte all’altra, e basta. Quello che è solo qui sale da solo al prossimo salvataggio automatico. Se la stessa conversazione sta sul Drive sotto due cartelle (una per PC), qui la vedi una volta con scritto dove sta.
       </p>
 
       {lavoro.inCorso !== undefined ? <AvanzamentoLavoro lavoro={lavoro.inCorso} adesso={adesso} onAnnulla={() => void window.gestore.sync.annullaLavoro()} /> : null}
@@ -152,7 +171,17 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
                         onClick={() => portaQui(g)}
                         title={g.cartellaSulDrive ? 'Scarica la cartella e le chat, le mette nel loro workspace, e riavvia' : 'Scarica le chat, crea la cartella se manca, le mette nel loro workspace, e riavvia'}
                       >
-                        {inCorso === g.chiave ? 'Porto…' : `Porta qui (${nPorta})`}
+                        {inCorso === g.chiave ? 'Porto…' : g.stato === 'daAggiornare' ? `Aggiorna qui (${nPorta})` : `Porta qui (${nPorta})`}
+                      </button>
+                    ) : null}
+                    {g.id !== undefined && g.cartellaSulDrive ? (
+                      <button
+                        className="tasto tasto--mini"
+                        disabled={inCorso !== undefined || lavoro.inCorso !== undefined}
+                        onClick={() => setDaTogliere(g)}
+                        title="I file della cartella salvati sul Drive vengono tolti; le chat e le cartelle sui PC restano"
+                      >
+                        Togli la cartella dal Drive
                       </button>
                     ) : null}
                   </div>
@@ -170,7 +199,12 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
                                 {c.workspace !== undefined ? ` · workspace «${c.workspace}»` : ''}
                               </span>
                             </span>
-                            <span className={`drive__stato ${sc.classe}`}>{sc.testo}</span>
+                            <span className={`drive__stato ${sc.classe}`} title={c.altroveQui !== undefined ? `Qui sta in ${c.altroveQui}` : undefined}>
+                              {c.altroveQui !== undefined ? `già qui, in ${c.altroveQui}` : sc.testo}
+                            </span>
+                            {c.stato !== 'soloDrive' && (g.quiEsiste || c.altroveQui !== undefined) ? (
+                              <button className="tasto tasto--mini" onClick={() => apriChat(g, c)} title="La riapre nel workspace dove sta salvata">Apri</button>
+                            ) : null}
                           </li>
                         )
                       })}
@@ -193,6 +227,15 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
       ) : !leggo && messaggio === undefined ? <p className="account__nota">Leggo il Drive…</p> : null}
 
       {fusione ? <ModaleFusione cassaforteDiversa={cassaforteDiversa} onChiudi={() => { setFusione(false); leggi() }} /> : null}
+      {daTogliere !== undefined ? (
+        <ModaleConferma
+          titolo={`Togliere la cartella di «${daTogliere.nome}» dal Drive?`}
+          testo="I file della cartella salvati sul Drive vengono cancellati, e la cartella smette di viaggiare con le chat. Le chat restano sul Drive e sui PC, e la cartella su ogni PC resta com’è. Si può rimettere sul Drive quando vuoi, dal pannello Account → «Metti una cartella sul Drive…»."
+          etichettaAzione="Togli la cartella dal Drive"
+          onConferma={() => togli(daTogliere)}
+          onAnnulla={() => setDaTogliere(undefined)}
+        />
+      ) : null}
     </div>
   )
 }

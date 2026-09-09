@@ -56,3 +56,21 @@ progetto (PC d'origine come etichetta), atterraggio in
 - Limite noto che resta: la stessa conversazione può esistere una volta per
   PC sul Drive (slug diversi): il catalogo la mostra due volte, in due
   progetti-cartella diversi.
+
+# 0.22.0 — le azioni per voce e la stessa chat sotto due cartelle
+
+- `ChatCatalogo.altroveQui`: una chat «solo sul Drive» il cui `sessionUuid`
+  esiste qui sotto un'altra cartella diventa `uguale` con `altroveQui` =
+  quella cartella; `scelteDiPortaQui` la salta, i conti la contano fra le
+  uguali. È la risposta al limite «chat duplicate per slug»: sul Drive
+  restano due copie (non si può cancellarne una senza il ping-pong con
+  l'altro PC, vedi `manifesto-locale-cancellava-le-chat.md`), ma il catalogo
+  ne mostra una.
+- «Apri» → IPC `chat:riprendi(cwd, sessione)` = la strada della ripresa dal
+  telefono (`finestraPerRipresa`, `client:apri` con `workspace`); la cwd è
+  `altroveQui ?? cartellaQui ?? cartellaOrigine`.
+- «Aggiorna qui» è lo stesso tasto di «Porta qui» quando lo stato è
+  `daAggiornare`. «Togli la cartella dal Drive» → `progetti.rimuovi(id)` con
+  `ModaleConferma`; solo per progetti registrati con file sul Drive. Togliere
+  le CHAT dal Drive non ha senso nel modello: qualunque chat locale risale
+  al salvataggio dopo.

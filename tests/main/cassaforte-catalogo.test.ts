@@ -91,3 +91,22 @@ describe('il catalogo per progetto', () => {
     expect(c.progetti.find((g) => g.nome === 'Wdeck')?.chat[0]?.workspace).toBe('lavoro')
   })
 })
+
+describe('la stessa conversazione sotto due cartelle', () => {
+  it('se qui c e gia da una parte, dall altra non e «solo sul Drive» e «porta qui» non la riporta', () => {
+    const drive = manifesto({
+      'chat/E--Users-tecnico-Documents-Wdeck/u1.jsonl': { size: 100, mtime: 1000 },
+      'chat/C--Users-nikof-Documents-Progetti-SierraDeck-Wdeck/u1.jsonl': { size: 100, mtime: 1000 }
+    })
+    const firmaPc = new Map([['chat/C--Users-nikof-Documents-Progetti-SierraDeck-Wdeck/u1.jsonl', { size: 100, mtime: 1000 }]])
+    const c = costruisciCatalogo({
+      manifestoDrive: drive, firmaPc, registroPc: { versione: 1, progetti: [] }, registroDrive: { versione: 1, progetti: [] }, pcId: 'FISSO',
+      cartellaEsiste: (p) => p.startsWith('C:')
+    })
+    const altrove = c.progetti.find((g) => g.cartellaOrigine.startsWith('E:'))!
+    expect(altrove.chat[0]).toMatchObject({ sessione: 'u1', stato: 'uguale', altroveQui: 'C:\\Users\\nikof\\Documents\\Progetti\\SierraDeck\\Wdeck' })
+    expect(altrove.stato).toBe('allineato')
+    expect(scelteDiPortaQui(altrove, drive, firmaPc)).toEqual({})
+    expect(c.totali.daPortare).toBe(0)
+  })
+})

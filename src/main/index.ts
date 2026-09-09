@@ -1152,6 +1152,21 @@ if (!app.requestSingleInstanceLock()) {
         return esito
       })
       ipcMain.handle('sync:catalogo', () => sincronia.catalogo())
+      // «Apri» dal catalogo del Drive: la stessa strada della ripresa dal
+      // telefono — nel workspace dove la chat sta salvata, in una finestra sola.
+      ipcMain.handle('chat:riprendi', (_e, rawCwd: unknown, rawSessione: unknown) => {
+        if (typeof rawCwd !== 'string' || typeof rawSessione !== 'string' || rawSessione === '') return false
+        const dove = workspaceStore === undefined ? undefined : workspaceDellaSessione(workspaceStore.leggi(), rawSessione)
+        const vive = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && !w.webContents.isDestroyed())
+        const scelta = finestraPerRipresa(dove, vive.map((w) => ({
+          id: w.id,
+          ...(workspaceDellaFinestra(w.id) !== undefined ? { workspace: workspaceDellaFinestra(w.id) } : {})
+        })))
+        const finestra = vive.find((w) => w.id === scelta)
+        if (finestra === undefined) return false
+        finestra.webContents.send('client:apri', { cartella: rawCwd, sessione: rawSessione, ...(dove !== undefined ? { workspace: dove } : {}) })
+        return true
+      })
       ipcMain.handle('sync:portaQui', async (_e, chiave: unknown) => {
         if (typeof chiave !== 'string' || chiave === '') return { ok: false, messaggio: 'richiesta non valida' }
         const esito = await sincronia.portaQui(chiave)

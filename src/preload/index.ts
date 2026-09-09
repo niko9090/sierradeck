@@ -414,6 +414,8 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Il piano di fusione fra questo PC e il Drive: cosa c'e' di qua, di la', in comune. Non tocca niente. */
     anteprimaFusione: (passphraseDrive?: string): Promise<{ ok: true; piano: PianoFusione } | { ok: false; messaggio: string; servePassphrase?: boolean }> =>
       ipcRenderer.invoke('sync:anteprimaFusione', passphraseDrive),
+    /** «Apri» dal catalogo: riprende quella conversazione nel workspace dove sta salvata. */
+    riprendiChat: (cwd: string, sessione: string): Promise<boolean> => ipcRenderer.invoke('chat:riprendi', cwd, sessione),
     /** Il catalogo del Drive: per progetto, con lo stato rispetto a questo PC. Non tocca niente. */
     catalogo: (): Promise<{ ok: true; catalogo: import('../main/cassaforte/catalogo').Catalogo } | { ok: false; messaggio: string; cassaforteDiversa?: boolean }> =>
       ipcRenderer.invoke('sync:catalogo'),

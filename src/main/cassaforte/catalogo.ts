@@ -35,6 +35,14 @@ export type ChatCatalogo = {
   stato: StatoVoce
   /** Quanto pesa sul Drive (o qui, se e' solo qui). */
   byte?: number
+  /**
+   * La stessa conversazione sta gia' qui, ma sotto un'altra cartella.
+   *
+   * Sul Drive una chat vive sotto la cartella del PC che l'ha salvata, e la
+   * stessa conversazione puo' starci due volte (una per PC). Se qui c'e' gia',
+   * anche sotto un'altra cartella, non e' «solo sul Drive» e non si riporta.
+   */
+  altroveQui?: string
 }
 
 export type FileProgettoCatalogo = { percorso: string; stato: StatoVoce }
@@ -221,9 +229,7 @@ export function costruisciCatalogo(p: {
         ...(noto !== undefined ? { workspace: noto.workspace } : {}),
         ...((d?.size ?? pc?.size) !== undefined ? { byte: (d?.size ?? pc?.size) as number } : {})
       })
-      g.conti[stato === 'uguale' ? 'uguali' : stato] += 1
       if (quando !== undefined && (g.ultimoTocco === undefined || quando > g.ultimoTocco)) g.ultimoTocco = quando
-      if (pc !== undefined) g.origine = g.origine === 'altrove' && g.chat.length > 1 ? 'entrambi' : (g.origine === 'altrove' ? 'qui' : g.origine)
     } else if (prefisso.startsWith('progetto-')) {
       const id = prefisso.slice('progetto-'.length)
       const reg = perId.get(id)
@@ -233,6 +239,20 @@ export function costruisciCatalogo(p: {
       g.file.totale += 1
       g.file[stato === 'uguale' ? 'uguali' : stato] += 1
     }
+  }
+
+  // La stessa conversazione sotto due cartelle: se qui c'e' gia' da una
+  // parte, dall'altra non e' «solo sul Drive».
+  const doveStaQui = new Map<string, string>()
+  for (const g of gruppi.values()) {
+    for (const c of g.chat) if (c.stato !== 'soloDrive' && !doveStaQui.has(c.sessione)) doveStaQui.set(c.sessione, g.cartellaQui ?? g.cartellaOrigine)
+  }
+  for (const g of gruppi.values()) {
+    g.chat = g.chat.map((c) => {
+      const altrove = c.stato === 'soloDrive' ? doveStaQui.get(c.sessione) : undefined
+      return altrove === undefined ? c : { ...c, stato: 'uguale', altroveQui: altrove }
+    })
+    for (const c of g.chat) g.conti[c.stato === 'uguale' ? 'uguali' : c.stato] += 1
   }
 
   // L'origine, detta bene: le chat che stanno qui (file locale) sono «qui»;
