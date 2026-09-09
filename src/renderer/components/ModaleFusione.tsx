@@ -138,7 +138,7 @@ function Conto({ voci, scelte }: { voci: VoceFusione[]; scelte: Record<string, A
  * piano, con le scelte voce per voce e per gruppo; l'esecuzione e il conto.
  */
 export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX.Element {
-  const [fase, setFase] = useState<'passphrase' | 'carico' | 'piano' | 'eseguo' | 'fatto' | 'errore'>(cassaforteDiversa ? 'passphrase' : 'carico')
+  const [fase, setFase] = useState<'passphrase' | 'carico' | 'piano' | 'attesa' | 'eseguo' | 'fatto' | 'errore'>(cassaforteDiversa ? 'passphrase' : 'carico')
   const [passphrase, setPassphrase] = useState('')
   const [piano, setPiano] = useState<PianoFusione | undefined>(undefined)
   const [scelte, setScelte] = useState<Record<string, Azione>>({})
@@ -221,11 +221,22 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
     setFase('eseguo'); setMessaggio(undefined)
     void window.gestore.sync.eseguiFusione({ voci: scelte, workspace: { modo: modoWs, escludi: escludiWs } }, cassaforteDiversa ? passphrase : undefined)
       .then((r) => {
-        if (!r.ok) { setMessaggio(r.messaggio); setFase('errore'); return }
+        if (!r.ok) {
+          // Il Drive e' occupato (di solito il salvataggio automatico): non e'
+          // un errore, e' una fila. Le scelte restano, si aspetta, e si
+          // riparte da soli appena il lavoro in corso finisce.
+          if (r.messaggio.startsWith('LAVORO_IN_CORSO')) { setFase('attesa'); return }
+          setMessaggio(r.messaggio); setFase('errore'); return
+        }
         setEsito(r.esito); setFase('fatto')
       })
       .catch((e: unknown) => { setMessaggio(String(e)); setFase('errore') })
   }
+  // In fila: appena il Drive si libera, la fusione parte da sola.
+  useEffect(() => {
+    if (fase === 'attesa' && lavoro.inCorso === undefined) esegui()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fase, lavoro.inCorso])
 
   const testa = (
     <div className="dialogo__testa">
@@ -251,7 +262,34 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
           </>
         ) : fase === 'carico' ? (
           <p className="account__nota">Leggo cosa c’è di qua e di là…</p>
-        ) : fase === 'errore' ? (
+        ) : fase === 'attesa' ? ((): React.JSX.Element => {
+          const inCorso = lavoro.inCorso
+          const d = inCorso !== undefined ? descriviLavoro(inCorso) : undefined
+          return (
+            <>
+              <p className="account__nota">
+                <strong>Il Drive è occupato: la fusione è in fila.</strong>{' '}
+                {inCorso !== undefined
+                  ? <>In questo momento sta girando «{d?.titolo}» — {d?.testo}{d?.dettaglio !== undefined ? <span style={{ opacity: 0.7 }}> · {d.dettaglio}</span> : null}. Di solito è il salvataggio automatico, che passa ogni pochi minuti e mette sul Drive quello che è cambiato qui.</>
+                  : <>Il lavoro precedente è appena finito: parto.</>}
+              </p>
+              {d?.perc !== undefined ? (
+                <div className="barra-agg" style={{ display: 'block', width: '100%', height: 10 }}>
+                  <span className="barra-agg__pieno" style={{ width: `${d.perc}%` }} />
+                </div>
+              ) : null}
+              <p className="account__nota" style={{ fontSize: 12, marginTop: 8 }}>
+                Due lavori insieme si pesterebbero i piedi (uno scrive l’indice del Drive mentre l’altro lo legge), quindi si va uno alla volta. Le tue scelte sono salvate: <strong>appena il lavoro in corso finisce, la fusione parte da sola</strong>, e la vedi qui e nella striscia in alto. Se non vuoi aspettare, «Annulla il lavoro in corso» lo ferma fra un file e l’altro senza rompere niente: quello che ha già messo sul Drive resta, il resto lo rifarà al prossimo giro.
+              </p>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
+                <button className="tasto" onClick={() => { setFase('piano') }}>Torna alle scelte</button>
+                <button className="tasto" disabled={inCorso === undefined || inCorso.annullamento} onClick={() => void window.gestore.sync.annullaLavoro()}>
+                  {inCorso?.annullamento === true ? 'Si sta fermando…' : 'Annulla il lavoro in corso'}
+                </button>
+              </div>
+            </>
+          )
+        })() : fase === 'errore' ? (
           <>
             <div className="riga__stato">{messaggio ?? 'non riuscito'}</div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>

@@ -64,3 +64,15 @@ solo sul Drive resta sul Drive anche dopo il salvataggio»).
   `progetti-drive.json`, che salgono sempre.
 - Un'operazione interrotta si «sovrascrive» rifacendola: il piano nuovo è
   calcolato dallo stato reale, e le scelte di prima tornano come predefinite.
+
+# 0.19.5 — la fila invece dell'errore
+
+«Fondi adesso» durante il salvataggio automatico dava la fase `errore` con
+il messaggio secco della guardia, e «Riprova» rileggeva il piano perdendo le
+scelte. Ora `prendiLavoro` solleva un messaggio che inizia con
+`LAVORO_IN_CORSO:` (e spiega il perché); `ModaleFusione` lo riconosce →
+fase `attesa`: mostra il lavoro in corso con barra (da `sync:lavoro`),
+spiega, offre «Annulla il lavoro in corso» e «Torna alle scelte», e un
+effetto riparte con `esegui()` appena `lavoro.inCorso` torna `undefined`.
+`anteprimaFusione` non prende mai il lavoro: leggere il piano è sempre
+possibile.

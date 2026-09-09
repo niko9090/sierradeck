@@ -100,7 +100,7 @@ export function creaLavoro(adesso: () => string = () => new Date().toISOString()
 
     avvia(tipo) {
       if (inCorso !== undefined) {
-        throw new Error(`C'e' gia' un lavoro in corso con il Drive (${ETICHETTA_LAVORO[inCorso.tipo].toLowerCase()}): aspetta che finisca o annullalo.`)
+        throw new Error(`LAVORO_IN_CORSO: sul Drive sta gia' girando «${ETICHETTA_LAVORO[inCorso.tipo]}». Due lavori insieme si pesterebbero i piedi (uno scrive il manifesto mentre l'altro lo legge), quindi si fa uno alla volta. Lo vedi nella striscia in alto: aspetta che finisca, o annullalo da li'.`)
       }
       const mio = new AbortController()
       controllo = mio
