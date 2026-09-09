@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.21.0',
+    righe: [
+      '**La scheda «Drive»: il magazzino comune dei tuoi PC, da sfogliare.** Un tasto nuovo nella barra, ☁ Drive. Dentro, tutto quello che sta sul Drive raggruppato per progetto, cio\u00e8 per la cartella in cui le chat lavorano: da dove viene, quante chat, quando \u00e8 stato toccato, e per ogni chat il nome vero e lo stato rispetto a questo PC (gi\u00e0 qui e uguale, qui ma indietro, solo sul Drive, solo qui). In testa i totali, un filtro «solo quelli con qualcosa da portare qui», e «Fondi con il Drive» resta per il piano completo.',
+      '**«Porta qui», un tasto per progetto.** Scarica la cartella se viaggia con le chat, poi le chat che qui mancano o sono indietro, e le mette nel workspace in cui stavano creandolo se serve. Un progetto nato su un altro PC senza cartella qui la ottiene in Documenti\\Progetti SierraDeck, e il programma ricorda da dove veniva cos\u00ec le sue chat trovano la strada. Niente viene mai cancellato.',
+      '**Riavvio automatico dopo che arriva qualcosa.** Come per un aggiornamento: quando «Porta qui», una fusione o un ripristino portano chat o workspace, una striscia in alto conta dieci secondi e riavvia, dopo aver aspettato che le chat aperte finiscano il turno. «Riavvia ora» o «Pi\u00f9 tardi» a scelta. Al ritorno le chat arrivate sono nei loro workspace.'
+    ]
+  },
+  {
     versione: '0.20.0',
     righe: [
       '**Il quadro completo di ogni lavoro con il Drive.** Fusione, ripristino e salvataggio hanno un pannello di avanzamento unico: barra grande con la percentuale, file fatti su totale e quanti mancano, da quanto va e una stima di quanto resta, cosa sta facendo adesso e in che verso (\u2191 sul Drive, \u2193 qui), i conti di quanto \u00e8 salito e sceso, i tre passi dell\u2019operazione con lo stato di ciascuno e la spiegazione di cosa succede alla fine. Lo trovi dentro «Fondi con il Drive» mentre lavora e dalla striscia in alto con «Dettagli»; la striscia stessa mostra file fatti, percentuale e tempo stimato.'
