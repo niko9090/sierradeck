@@ -62,3 +62,7 @@ versione più alta (API solo se tacciono entrambi), e il PC ricorda 1 h.
 non vedeva niente; ora `LifecycleEventObserver` ON_RESUME → ricontrollo, con
 tetto di 10 min (`CONTROLLO_APP_OGNI_MS`, `ultimoControlloApp` a livello di
 processo). Dipendenza aggiunta: `lifecycle-runtime-compose`.
+
+# Regola APK precisata (2026-09-09)
+
+L APK si ricompila e avanza di versione SOLO se `android/` e cambiato dall ultimo tag (`git diff --stat vX -- android/`). Altrimenti alla release si riallega l ultimo APK con la stessa versione, e `app-android.json` (che usa il tag corrente nell URL) punta a quello. Le 2.26.1-2.26.4 sono state bump a vuoto: da non ripetere.
