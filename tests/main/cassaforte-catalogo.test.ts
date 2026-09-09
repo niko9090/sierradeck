@@ -86,7 +86,7 @@ describe('il catalogo per progetto', () => {
       cartellaEsiste: () => false,
       archivioPc: { attivo: 'casa', workspace: [{ nome: 'casa', perSlot: {} }] },
       archivioDrive: { attivo: 'lavoro', workspace: [{ nome: 'lavoro', perSlot: { '1': { root: undefined, panes: [{ id: 'a', sessionUuid: 'u1', cwd: 'E:\\Users\\tecnico\\Documents\\Wdeck', title: 'A' }, { id: 'b', sessionUuid: 'u2', cwd: 'E:\\Users\\tecnico\\Documents\\Wdeck', title: 'B' }] } } }] }
-    } as Parameters<typeof costruisciCatalogo>[0])
+    } as unknown as Parameters<typeof costruisciCatalogo>[0])
     expect(c.workspaceSoloDrive).toEqual([{ nome: 'lavoro', chat: 2 }])
     expect(c.progetti.find((g) => g.nome === 'Wdeck')?.chat[0]?.workspace).toBe('lavoro')
   })
