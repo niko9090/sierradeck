@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.19.5',
+    righe: [
+      '**«Fondi adesso» con il Drive occupato si mette in fila, non d\u00e0 errore.** Se sta girando il salvataggio automatico, il pannello lo dice, mostra a che punto \u00e8 e spiega perch\u00e9 si va uno alla volta; le tue scelte restano e la fusione parte da sola appena il Drive si libera. Se non vuoi aspettare, «Annulla il lavoro in corso» lo ferma fra un file e l\u2019altro senza rompere niente. Prima compariva solo «c\u2019\u00e8 gi\u00e0 un lavoro in corso: aspetta o annullalo», e «Riprova» buttava via le scelte.'
+    ]
+  },
+  {
     versione: '0.19.4',
     righe: [
       '**«Fondi con il Drive» spiega tutto per esteso.** In testa al piano c\u2019\u00e8 scritto come viene fatto il confronto, cosa vuol dire ogni numero (solo su questo PC, solo sul Drive, diverse, uguali) e cosa fa il predefinito in ciascun caso, che niente viene cancellato, e cosa aspettarsi premendo il tasto. Quando \u00e8 tutto allineato, spiega perch\u00e9 non ci sono tasti, come mai pu\u00f2 succedere e cosa fare se ti aspettavi delle chat dell\u2019altro PC.'
