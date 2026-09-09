@@ -210,8 +210,13 @@ fun Principale(
                 // affatto, va disdetto. Altrimenti resta uno schermo che dice
                 // «sto installando» davanti a un computer che non lo sta
                 // facendo, per dieci minuti.
-                val ferma = letto.aggiornamento?.fase == "attendo" ||
-                    (letto.aggiornamento?.fase == "pronto" && letto.aggiornamento?.errore != null)
+                // «attendo» NON e' un rifiuto: e' il computer che aspetta che le
+                // chat finiscano il turno, cioe' l'inizio della procedura. Uscire
+                // qui faceva sparire la schermata subito dopo «Installa», e il
+                // resto (chiusura, installer, ritorno) non lo vedeva nessuno.
+                // Se e' finita per davvero lo decide la schermata stessa,
+                // quando risponde la versione nuova.
+                val ferma = letto.aggiornamento?.fase == "pronto" && letto.aggiornamento?.errore != null
                 if (ferma && Installazione.da != null) Installazione.finita(contesto)
                 stato = letto; connesso = true; giriFalliti = 0; rifiuti = 0
                 // Ogni giro riuscito aggiorna la postazione: quando si e' usata

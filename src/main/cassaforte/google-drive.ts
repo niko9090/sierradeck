@@ -225,12 +225,22 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
     }
   }
 
+  // Nome → id, imparato strada facendo (ricerche, creazioni, elenco). Con
+  // centinaia di file, cercare per nome a ogni scaricamento era una chiamata
+  // in piu' per file: la fusione di 750 voci ci ha messo mezz'ora, e ogni
+  // chiamata in piu' e' un'occasione in piu' per il limite di Drive. Un id
+  // vecchio (file cancellato e ricreato altrove) si scopre con un 404 e si
+  // dimentica.
+  const idPerNome = new Map<string, string>()
   const trovaPerNome = async (tk: string, nome: string): Promise<{ id: string } | undefined> => {
+    const noto = idPerNome.get(nome)
+    if (noto !== undefined) return { id: noto }
     const q = encodeURIComponent(`name='${nome}'`)
     const url = `${API}/files?spaces=appDataFolder&fields=${encodeURIComponent('files(id)')}&q=${q}`
     const r = await conRitenta(() => f(url, { headers: intestazioni(tk) }), 'ricerca')
     const j = (await r.json()) as { files?: Array<{ id?: string }> }
     const id = j.files?.[0]?.id
+    if (id !== undefined) idPerNome.set(nome, id)
     return id === undefined ? undefined : { id }
   }
 
@@ -255,6 +265,7 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
         for (const file of j.files ?? []) {
           if (file.id !== undefined && file.name !== undefined) {
             mappa.set(file.name, { id: file.id, versione: String(file.version ?? '') })
+            idPerNome.set(file.name, file.id)
           }
         }
         pageToken = j.nextPageToken
@@ -264,12 +275,21 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
 
     async scarica(nome, onProgresso) {
       const tk = await deps.token()
-      const file = await trovaPerNome(tk, nome)
-      if (file === undefined) return undefined
-      const r = await conRitenta(() => f(`${API}/files/${file.id}?alt=media`, { headers: intestazioni(tk) }), 'scaricamento')
-      const b = Buffer.from(await r.arrayBuffer())
-      onProgresso?.(b.length, b.length)
-      return b
+      for (let giro = 0; giro < 2; giro += 1) {
+        const file = await trovaPerNome(tk, nome)
+        if (file === undefined) return undefined
+        try {
+          const r = await conRitenta(() => f(`${API}/files/${file.id}?alt=media`, { headers: intestazioni(tk) }), 'scaricamento')
+          const b = Buffer.from(await r.arrayBuffer())
+          onProgresso?.(b.length, b.length)
+          return b
+        } catch (e) {
+          // Un id ricordato che non c'e' piu': si dimentica e si ricerca una volta.
+          if ((e as { stato?: number }).stato === 404 && giro === 0) { idPerNome.delete(nome); continue }
+          throw e
+        }
+      }
+      return undefined
     },
 
     async carica(nome, blocco, onProgresso) {
@@ -293,12 +313,15 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
             if (!r.ok) throw await errore(r, 'creazione')
             const { id } = (await r.json()) as { id?: string }
             if (id === undefined) throw new Error('Drive: creazione senza id')
+            idPerNome.set(nome, id)
             await scriviMediaSu(tk, id, blocco)
           }
           onProgresso?.(blocco.length, blocco.length)
           return
         } catch (e) {
           const stato = (e as { stato?: number }).stato
+          // Un id ricordato che non c'e' piu': si dimentica e si rifa' il giro.
+          if (stato === 404 && idPerNome.has(nome) && i < RITENTI) { idPerNome.delete(nome); continue }
           if (i >= RITENTI || stato === undefined || !transitorio(stato)) throw e
           await pausa(attesa); attesa *= 2
         }
@@ -314,6 +337,8 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
       } catch (e) {
         // Un 404 va bene: era già sparito. Il resto risale.
         if ((e as { stato?: number }).stato !== 404) throw e
+      } finally {
+        idPerNome.delete(nome)
       }
     }
   }

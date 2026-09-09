@@ -52,10 +52,10 @@ export function nomeDi(percorso: string): string {
 /** Quanti file lavorare in parallelo: molte piccole chiamate al Drive si fanno
  * a gruppi, o il primo salvataggio (migliaia di file, uno per volta) durerebbe
  * minuti inutili. Sei è un buon compromesso senza infastidire i limiti di Drive. */
-const PARALLELI = 6
+export const PARALLELI = 6
 
 /** Esegue `fn` su ogni elemento con al massimo `limite` in corso insieme. */
-async function conLimite<T>(items: T[], limite: number, fn: (x: T) => Promise<void>): Promise<void> {
+export async function conLimite<T>(items: T[], limite: number, fn: (x: T) => Promise<void>): Promise<void> {
   let prossimo = 0
   const lavoratore = async (): Promise<void> => {
     while (prossimo < items.length) {
@@ -192,17 +192,32 @@ export async function salvaIncrementale(deps: {
   for (const [percorso, f] of firma) {
     if (!stessaFirma(prec.file[percorso], f)) cambiati.push(percorso)
   }
-  // Niente cambi locali? Non si tocca niente: salvataggio a costo zero.
   const forseCancellati = Object.keys(prec.file).filter((p) => !firma.has(p) && prefissiNostri.has(prefissoDi(p)))
-  if (cambiati.length === 0 && forseCancellati.length === 0) {
-    return { manifesto: prec, caricati: 0, cancellati: 0, conflitti: [] }
-  }
 
+  // Il manifesto del Drive si legge **sempre**, anche senza cambi locali: e'
+  // una chiamata piccola, ed e' l'unico modo di accorgersi che il Drive ha
+  // perso qualcosa che qui c'e' ancora.
   const sulDrive = await leggiManifesto(deps.archivio, deps.maestra)
   if (sulDrive.stato === 'illeggibile') {
     throw new Error('Il manifesto sul Drive non si apre con questa chiave: non salvo sopra.')
   }
   const base = sulDrive.stato === 'ok' ? sulDrive.manifesto : manifestoVuoto()
+  // Cio' che ho, che credevo sul Drive, e che il Drive non ha piu': risale.
+  // E' successo davvero — un altro PC, con il manifesto locale gonfio di voci
+  // che non aveva su disco, ha «tolto» dal Drive 385 chat che erano di qui.
+  // Nei progetti no: li' togliere e' una scelta, e si propaga (piu' sotto).
+  for (const [p] of firma) {
+    if (base.file[p] === undefined && prec.file[p] !== undefined && !copie(prefissoDi(p)) && !cambiati.includes(p)) {
+      cambiati.push(p)
+    }
+  }
+  // Niente da fare? Non si tocca niente: salvataggio a costo zero.
+  if (cambiati.length === 0 && forseCancellati.length === 0) {
+    return { manifesto: prec, caricati: 0, cancellati: 0, conflitti: [] }
+  }
+  // Con tanti file, un elenco solo insegna all'archivio dove sta ogni nome:
+  // una chiamata in meno per ogni caricamento.
+  if (cambiati.length > 10) await deps.archivio.elenca().catch(() => undefined)
   const nuovo: Manifesto = { versione: 1, creatoIl: deps.adesso, file: { ...base.file } }
   const conflitti: Conflitto[] = []
 

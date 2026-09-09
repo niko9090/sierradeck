@@ -123,7 +123,10 @@ describe('la fusione interrotta e ripresa', () => {
     expect(r.ok).toBe(true)
     if (!r.ok) return
     expect(r.esito.annullato).toBe(true)
-    expect(r.esito.fatti).toBe(3)
+    // Le voci si lavorano a piu' alla volta: quelle gia' partite finiscono,
+    // quelle non partite no. Quante, dipende dal momento: conta che sia meno
+    // del totale e che il conto torni.
+    expect(r.esito.fatti).toBeLessThan(r.esito.totale)
     // Sei chat piu' i due file dell'assetto (workspace e registro) che salgono sempre.
     expect(r.esito.totale).toBe(8)
     expect(visti.some((v) => v.startsWith('carico:1/8:'))).toBe(true)
@@ -133,11 +136,11 @@ describe('la fusione interrotta e ripresa', () => {
     const st = await syncB.stato()
     expect(st.ultimaFusione?.esito).toBe('interrotta')
     expect(st.ultimaFusione?.scelte?.voci).toEqual(voci)
-    // Ripresa: le tre fatte risultano uguali, le altre tre sono ancora solo sul Drive.
+    // Ripresa: le chat scaricate risultano uguali, le altre sono ancora solo sul Drive.
     const dopo = await syncB.anteprimaFusione()
     if (!dopo.ok) throw new Error(dopo.messaggio)
-    expect(dopo.piano.chat.filter((v) => v.dove === 'drive')).toHaveLength(3)
-    expect(dopo.piano.chat.filter((v) => v.dove === 'entrambi' && !v.diverse)).toHaveLength(3)
+    expect(dopo.piano.chat.filter((v) => v.dove === 'drive')).toHaveLength(6 - r.esito.scaricati)
+    expect(dopo.piano.chat.filter((v) => v.dove === 'entrambi' && !v.diverse)).toHaveLength(r.esito.scaricati)
     const fine = await syncB.eseguiFusione({ voci, workspace: { modo: 'unione', escludi: [] } })
     expect(fine.ok && fine.esito.annullato !== true).toBe(true)
     expect((await syncB.stato()).ultimaFusione?.esito).toBe('ok')

@@ -2,10 +2,7 @@ import { readFile, stat } from 'node:fs/promises'
 import type { Archivio as ArchivioDrive } from './archivio'
 import { cifra, decifra } from './cifratura'
 import { percorsoSicuro, ripristina, type Radice } from './raccolta'
-import {
-  leggiManifesto, scriviManifesto, nomeDi, prefissoDi, stessaFirma, nomeCopiaConflitto, manifestoVuoto,
-  type Manifesto
-} from './incrementale'
+import { leggiManifesto, scriviManifesto, nomeDi, prefissoDi, stessaFirma, nomeCopiaConflitto, manifestoVuoto, type Manifesto, conLimite, PARALLELI } from './incrementale'
 import { aggiungiPaneA, unaChatUnWorkspace, type Archivio as ArchivioWorkspace, type LayoutSalvato } from '@shared/workspace'
 import type { RegistroProgetti, ProgettoDrive } from '../progetti/registro'
 
@@ -93,6 +90,8 @@ export type EsitoFusione = {
   totale: number
   /** «Annulla» premuto: il manifesto e' coerente con quello fatto, il resto e' da rifare. */
   annullato?: boolean
+  /** Perche' le voci saltate sono saltate: da leggere nel registro, non da indovinare. */
+  perche?: { localeMancante: number; blobMancante: number; nonScritto: number }
 }
 
 const FILE_ASSETTO_FONDIBILI = new Set(['impostazioni.json', 'istantanee.json'])
@@ -388,44 +387,54 @@ export async function eseguiFusione(deps: {
     return chiaro === undefined ? undefined : { contenuto: chiaro, mtime: v.mtime }
   }
 
-  for (const [percorso, azione] of voci) {
-    // Annullato: ci si ferma fra una voce e l'altra, mai a meta' di una. Il
-    // manifesto si scrive lo stesso, con quello che e' salito davvero.
-    if (deps.segnale?.aborted === true) break
-    deps.onProgresso?.(fatto, voci.length, percorso)
-    fatto += 1
-    if (azione === 'carica') {
-      const mio = await leggiLocale(percorso)
-      if (mio === undefined) { saltati += 1; continue }
-      await carica(percorso, mio.contenuto, mio.firma)
-      caricati += 1
-    } else if (azione === 'scarica') {
-      const loro = await scaricaChiaro(percorso)
-      if (loro === undefined) { saltati += 1; continue }
-      const { scritti } = await ripristina([{ percorso, contenuto: loro.contenuto, mtime: loro.mtime }], deps.radici)
-      if (scritti === 0) { saltati += 1; continue }
-      scaricati += 1
-    } else if (azione === 'copia') {
-      // Tutte e due: la mia diventa il file, quella del Drive resta accanto
-      // come copia, e la copia sale anche lei.
-      const loro = await scaricaChiaro(percorso)
-      const mio = await leggiLocale(percorso)
-      if (mio === undefined) { saltati += 1; continue }
-      if (loro !== undefined) {
-        const copia = nomeCopiaConflitto(percorso, 'drive', deps.adesso)
-        await ripristina([{ percorso: copia, contenuto: loro.contenuto, mtime: loro.mtime }], deps.radici)
-        await carica(copia, loro.contenuto, { size: loro.contenuto.length, mtime: loro.mtime })
-        copie += 1
+  const perche = { localeMancante: 0, blobMancante: 0, nonScritto: 0 }
+  // Un elenco solo insegna all'archivio dove sta ogni nome: da qui in poi
+  // ogni scaricamento e' una chiamata, non due.
+  await deps.archivio.elenca().catch(() => undefined)
+  // Piu' voci alla volta, come il salvataggio: una alla volta, 750 voci
+  // erano mezz'ora — abbastanza perche' intanto succedesse dell'altro.
+  await conLimite(voci, PARALLELI, async ([percorso, azione]) => {
+    // Annullato: le voci non ancora cominciate non cominciano; quelle in
+    // corso finiscono. Il manifesto si scrive lo stesso, con quello che e'
+    // salito davvero.
+    if (deps.segnale?.aborted === true) return
+    try {
+      if (azione === 'carica') {
+        const mio = await leggiLocale(percorso)
+        if (mio === undefined) { saltati += 1; perche.localeMancante += 1; return }
+        await carica(percorso, mio.contenuto, mio.firma)
+        caricati += 1
+      } else if (azione === 'scarica') {
+        const loro = await scaricaChiaro(percorso)
+        if (loro === undefined) { saltati += 1; perche.blobMancante += 1; return }
+        const { scritti } = await ripristina([{ percorso, contenuto: loro.contenuto, mtime: loro.mtime }], deps.radici)
+        if (scritti === 0) { saltati += 1; perche.nonScritto += 1; return }
+        scaricati += 1
+      } else if (azione === 'copia') {
+        // Tutte e due: la mia diventa il file, quella del Drive resta accanto
+        // come copia, e la copia sale anche lei.
+        const loro = await scaricaChiaro(percorso)
+        const mio = await leggiLocale(percorso)
+        if (mio === undefined) { saltati += 1; perche.localeMancante += 1; return }
+        if (loro !== undefined) {
+          const copia = nomeCopiaConflitto(percorso, 'drive', deps.adesso)
+          await ripristina([{ percorso: copia, contenuto: loro.contenuto, mtime: loro.mtime }], deps.radici)
+          await carica(copia, loro.contenuto, { size: loro.contenuto.length, mtime: loro.mtime })
+          copie += 1
+        }
+        await carica(percorso, mio.contenuto, mio.firma)
+        caricati += 1
       }
-      await carica(percorso, mio.contenuto, mio.firma)
-      caricati += 1
+    } finally {
+      fatto += 1
+      deps.onProgresso?.(fatto, voci.length, percorso)
     }
-  }
+  })
 
   const annullato = deps.segnale?.aborted === true && fatto < voci.length
   if (!annullato) deps.onProgresso?.(fatto, voci.length)
   await scriviManifesto(deps.archivio, deps.maestra, nuovo)
-  return { caricati, scaricati, copie, saltati, manifesto: nuovo, fatti: fatto, totale: voci.length, ...(annullato ? { annullato: true } : {}) }
+  return { caricati, scaricati, copie, saltati, manifesto: nuovo, fatti: fatto, totale: voci.length, perche, ...(annullato ? { annullato: true } : {}) }
 }
 
 /** Il file di un archivio (o registro) letto dal Drive e decifrato, se c'e'. */

@@ -81,6 +81,10 @@ fun SchermoInstallazione(
     var secondi by remember { mutableIntStateOf(0) }
     var finito by remember { mutableStateOf(false) }
     var sparito by remember { mutableStateOf(false) }
+    /** Il computer aspetta che le chat finiscano: quante, e fino a quando lo ha detto. */
+    var chatOccupate by remember { mutableIntStateOf(0) }
+    var attendoFino by remember { mutableStateOf(0L) }
+    var inAttesa by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (isActive) {
@@ -96,8 +100,14 @@ fun SchermoInstallazione(
                     percentoVero = a.percento
                     sparito = true
                 }
+                // Prima di chiudersi il computer aspetta che le chat finiscano
+                // il turno: e' parte della procedura, e puo' durare minuti. Il
+                // conto dei dieci minuti riparte da quando smette di aspettare.
+                inAttesa = a.fase == "attendo"
+                if (inAttesa) { chatOccupate = a.chatOccupate ?: 0; attendoFino = System.currentTimeMillis() }
             } catch (e: Exception) {
                 // Nessuno risponde: si continua col ripiego.
+                inAttesa = false
             }
 
             // 2. È tornato? La prova è una sola e non si può fingere: la
@@ -137,7 +147,8 @@ fun SchermoInstallazione(
 
     val percento = if (finito) 100 else (percentoVero ?: stima)
     val larghezza by animateFloatAsState(percento / 100f, label = "avanzamento")
-    val troppo = secondi * 1000L > Installazione.TROPPO_MS
+    val troppo = secondi * 1000L > Installazione.TROPPO_MS &&
+        System.currentTimeMillis() - attendoFino > Installazione.TROPPO_MS
     val pronto = finito || percento >= 100
 
     // La riga grande è **letteralmente** quella dell'installer, quando parla.
@@ -145,12 +156,16 @@ fun SchermoInstallazione(
         pronto -> "Pronto."
         troppo -> "Ci sta mettendo troppo"
         testoVero != null -> testoVero ?: ""
+        inAttesa -> "Aspetto che le chat finiscano"
         passo == 0 -> "Chiusura di SierraDeck..."
         else -> "Installazione in corso..."
     }
 
     val racconto = when {
         pronto -> "Il computer è ripartito con la ${versioneOra ?: ""}."
+        inAttesa && !troppo ->
+            (if (chatOccupate == 1) "Una chat sta finendo il turno che aveva in mano" else "$chatOccupate chat stanno finendo il turno che avevano in mano") +
+                ": si chiudono da sole, poi il computer si sostituisce. Può volerci qualche minuto."
         troppo ->
             "Sono passati più di dieci minuti e il computer non è ancora tornato. " +
                 "Può essere che l'installer stia aspettando qualcosa sullo schermo del computer: vai a vedere."

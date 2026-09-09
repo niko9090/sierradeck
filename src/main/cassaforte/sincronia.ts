@@ -3,7 +3,7 @@ import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
 import { creaCassaforte, sblocca as sbloccaCassaforte, sbloccaConRecupero as sbloccaConRecuperoCassaforte, cambiaPassphrase as cambiaPassphraseCassaforte, type Cassaforte, cifra, decifra } from './cifratura'
 import type { Progresso } from './motore'
-import { pesaRadici, radiciDaSincronizzare, type Radice } from './raccolta'
+import { pesaRadici, radiciDaSincronizzare, percorsoSicuro, type Radice } from './raccolta'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
 import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi, togliPrefisso, leggiManifesto } from './incrementale'
@@ -267,8 +267,30 @@ export function apriSincronia(deps: {
       return { versione: 1, creatoIl: typeof m.creatoIl === 'string' ? m.creatoIl : '', file: m.file }
     } catch { return manifestoVuoto() }
   }
+  /**
+   * Il manifesto locale dice **solo cio' che sta su questo disco**.
+   *
+   * E' «l'idea di questo PC di cosa c'e' sul Drive» e insieme «cosa questo PC
+   * ha»: il salvataggio cancella dal Drive cio' che sta nel manifesto locale
+   * e non piu' su disco. Scrivere qui il manifesto del Drive **intero** — con
+   * le chat degli altri PC mai scaricate — faceva cancellare quelle chat al
+   * salvataggio dopo: 385 in una volta, il 2026-09-08, mentre una fusione le
+   * stava ancora scaricando. Da qui passa ogni scrittura, e filtra.
+   */
+  const soloSuDisco = (m: Manifesto): Manifesto => {
+    const perPrefisso = new Map(radici().map((r) => [r.prefisso, r.cartella]))
+    const file: Manifesto['file'] = {}
+    for (const [p, v] of Object.entries(m.file)) {
+      const prefisso = prefissoDi(p)
+      const cartella = perPrefisso.get(prefisso)
+      if (cartella === undefined) continue
+      const disco = percorsoSicuro(cartella, p.slice(prefisso.length + 1))
+      if (disco !== undefined && existsSync(disco)) file[p] = v
+    }
+    return { ...m, file }
+  }
   const scriviManifestoLocale = (m: Manifesto): void => {
-    scriviAtomico(fileManifesto, JSON.stringify(m), 'sync')
+    scriviAtomico(fileManifesto, JSON.stringify(soloSuDisco(m)), 'sync')
   }
 
   // La sola cosa in chiaro. In memoria, e — se c'e' un portachiavi — avvolta
@@ -725,7 +747,7 @@ export function apriSincronia(deps: {
           ? { quando: adesso(), esito: 'interrotta', fatti: esito.fatti, totale: esito.totale, scelte }
           : { quando: adesso(), esito: 'ok', fatti: esito.fatti, totale: esito.totale }
         scriviStato({ ...leggiStato(), ultimoSalvataggio: adesso(), ultimaFusione })
-        log(`FUSIONE ${esito.annullato === true ? `ANNULLATA a ${esito.fatti}/${esito.totale}` : 'ok'}: ${esito.caricati} caricati, ${esito.scaricati} scaricati, ${esito.copie} copie, ${esito.saltati} saltati`)
+        log(`FUSIONE ${esito.annullato === true ? `ANNULLATA a ${esito.fatti}/${esito.totale}` : 'ok'}: ${esito.caricati} caricati, ${esito.scaricati} scaricati, ${esito.copie} copie, ${esito.saltati} saltati${esito.saltati > 0 && esito.perche !== undefined ? ` (sul Drive manca il file: ${esito.perche.blobMancante}, qui manca il file: ${esito.perche.localeMancante}, non scrivibile: ${esito.perche.nonScritto})` : ''}`)
         return { ok: true, esito }
       } catch (e) {
         log(`FUSIONE fallita: ${messaggioDi(e)}`)
@@ -821,6 +843,9 @@ export function apriSincronia(deps: {
         // Primo tempo: l'assetto e le chat. Dentro c'e' il registro dei
         // progetti, senza il quale i progetti non saprebbero dove andare.
         const eDiProgetto = deps.progetti?.eDiProgetto ?? ((): boolean => false)
+        // Un elenco solo insegna all'archivio dove sta ogni nome: da qui in
+        // poi ogni scaricamento e' una chiamata, non due.
+        await deps.archivio().elenca().catch(() => undefined)
         const esito = await ripristinaIncrementale({
           radici: radiciDaSincronizzare(deps.dati, deps.radiceClaude),
           maestra,
