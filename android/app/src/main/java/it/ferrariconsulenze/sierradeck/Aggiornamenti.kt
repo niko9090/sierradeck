@@ -115,8 +115,12 @@ object Aggiornamenti {
      */
     suspend fun cerca(mia: String, api: Api?): Esito = withContext(Dispatchers.IO) {
         val ragioni = mutableListOf<String>()
-        val trovata = dalComputer(api, ragioni)
-            ?: dalFile(ragioni)
+        // Computer E file, e vince la versione piu' alta: il computer ricorda
+        // la sua risposta per un'ora, e appena pubblicata un'app nuova
+        // rispondeva ancora con quella vecchia — «gia' aggiornata», e la
+        // striscia non compariva. L'API solo se tacciono tutti e due.
+        val candidate = listOfNotNull(dalComputer(api, ragioni), dalFile(ragioni))
+        val trovata = candidate.maxWithOrNull { a, b -> if (piuNuova(a.versione, b.versione)) -1 else if (piuNuova(b.versione, a.versione)) 1 else 0 }
             ?: dallApi(ragioni)
         when {
             trovata == null -> Esito.NonRiuscita(ragioni.joinToString("; "))

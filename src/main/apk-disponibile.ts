@@ -15,8 +15,8 @@ import { get } from 'node:https'
 
 export type AppScaricabile = { versione: string; url: string }
 
-/** Sei ore: l'app non esce tre volte al giorno, e chiederlo a ogni apertura è sprecato. */
-const VALIDA_MS = 6 * 60 * 60 * 1000
+/** Un'ora: e' la prima fonte del telefono, e sei ore di risposta vecchia nascondevano l'app appena uscita. */
+const VALIDA_MS = 60 * 60 * 1000
 const VERSIONE_NEL_NOME = /SierraDeck-(\d+\.\d+\.\d+)\.apk$/
 /** Da dove puo' venire un APK, e da nessun altro posto: e' l'unica cosa che il telefono installa. */
 const ORIGINE_APK = 'https://github.com/niko9090/sierradeck/releases/download/'

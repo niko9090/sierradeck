@@ -51,3 +51,14 @@ In ogni release, oltre all'APK, va allegato `app-android.json`:
 Lo script legge `versionName` da `android/app/build.gradle.kts` e il tag da
 `package.json`: bumpare PRIMA di generarlo. Senza il file, il telefono
 ripiega sul computer e poi sull'API (funziona lo stesso, ma con il limite).
+
+# 2.26.6 — la striscia non compariva (Nicholas: «nell'app non esce l'aggiornamento»)
+
+Due cause: (1) la fonte 1 (computer, `/api/app`) ricordava la risposta 6 h
+(`VALIDA_MS`), e vinceva sulle altre → «già aggiornata» anche con l'app
+nuova appena pubblicata; ora `cerca` interroga computer E file e tiene la
+versione più alta (API solo se tacciono entrambi), e il PC ricorda 1 h.
+(2) il controllo era all'apertura + ogni 6 h: un'app rimasta in sottofondo
+non vedeva niente; ora `LifecycleEventObserver` ON_RESUME → ricontrollo, con
+tetto di 10 min (`CONTROLLO_APP_OGNI_MS`, `ultimoControlloApp` a livello di
+processo). Dipendenza aggiunta: `lifecycle-runtime-compose`.

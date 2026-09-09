@@ -24,6 +24,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -104,6 +108,11 @@ fun App(deposito: Collegamento, scansionaQr: ((String) -> Unit, (String) -> Unit
  * questa schermata è viva; dopo due giri a vuoto si dichiara «scollegato» invece
  * di mostrare dati vecchi come se fossero freschi.
  */
+/** Non piu' spesso di cosi', anche se l'app torna davanti dieci volte in un minuto. */
+private const val CONTROLLO_APP_OGNI_MS = 10 * 60 * 1000L
+/** L'ultimo controllo dell'app nuova, per tutta la vita del processo. */
+private var ultimoControlloApp = 0L
+
 @Composable
 fun Principale(
     api: Api,
@@ -155,11 +164,25 @@ fun Principale(
     // finche' non esce una versione ancora piu' nuova.
     var appNuova by remember { mutableStateOf<Pair<String, String>?>(null) }
     var dialogoApp by remember { mutableStateOf(false) }
-    LaunchedEffect(api) {
+    // Ogni volta che l'app torna davanti si ricontrolla (al massimo ogni
+    // dieci minuti): prima si guardava all'apertura e poi ogni sei ore, e
+    // un'app rimasta aperta in sottofondo non vedeva la versione nuova.
+    var giroApp by remember { mutableIntStateOf(0) }
+    val cicloVita = LocalLifecycleOwner.current
+    DisposableEffect(cicloVita) {
+        val osservatore = LifecycleEventObserver { _, evento -> if (evento == Lifecycle.Event.ON_RESUME) giroApp += 1 }
+        cicloVita.lifecycle.addObserver(osservatore)
+        onDispose { cicloVita.lifecycle.removeObserver(osservatore) }
+    }
+    LaunchedEffect(api, giroApp) {
         while (isActive) {
-            val esito = try { Aggiornamenti.cerca(BuildConfig.VERSION_NAME, api) } catch (_: Exception) { null }
-            if (esito is Aggiornamenti.Esito.Trovata && deposito.aggiornamentoIgnorato != esito.nome) {
-                appNuova = esito.nome to esito.apk
+            val adesso = System.currentTimeMillis()
+            if (adesso - ultimoControlloApp >= CONTROLLO_APP_OGNI_MS) {
+                ultimoControlloApp = adesso
+                val esito = try { Aggiornamenti.cerca(BuildConfig.VERSION_NAME, api) } catch (_: Exception) { null }
+                if (esito is Aggiornamenti.Esito.Trovata && deposito.aggiornamentoIgnorato != esito.nome) {
+                    appNuova = esito.nome to esito.apk
+                }
             }
             delay(6 * 60 * 60 * 1000L)
         }
