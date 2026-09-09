@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.19.3',
+    righe: [
+      '**«Fondi con il Drive» non accende pi\u00f9 tutti i tasti quando non c\u2019\u00e8 niente da decidere.** Se le chat sono uguali di qua e di l\u00e0, i tasti di gruppo spariscono e al loro posto c\u2019\u00e8 scritto «tutte uguali: niente da decidere»; in testa una riga dice che chat e file sono gi\u00e0 allineati e restano solo i workspace. Il tasto in fondo si chiama «Applica i workspace» quando \u00e8 quello l\u2019unico effetto.'
+    ]
+  },
+  {
     versione: '0.19.2',
     righe: [
       '**Sul telefono la versione nuova dell\u2019app compare davvero.** Il telefono chiedeva prima al computer, che ricorda la risposta per ore: appena pubblicata un\u2019app nuova diceva ancora «gi\u00e0 aggiornata». Ora chiede al computer e a GitHub insieme e tiene la versione pi\u00f9 alta; il computer ricorda per un\u2019ora, non sei. E l\u2019app ricontrolla ogni volta che torna davanti, non solo all\u2019apertura. App Android 2.26.6.'
