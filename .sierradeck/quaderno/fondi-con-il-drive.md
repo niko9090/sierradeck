@@ -110,3 +110,13 @@ il tutto», «possibilità massima di scelta».
   progetto; la prima cartella parte aperta. Piede `.fusione__piede` con il
   conto e il tasto `.fusione__fondi` («Fondi adesso →», colore d'accento,
   più grande). Nel pannello Account il tasto «Fondi con il Drive…» è primario.
+
+# 0.19.3 — «tutto selezionato» quando è tutto uguale
+
+Con 778 voci uguali ogni riga aveva una sola azione possibile (`salta`), e
+`gruppoInVigore` diceva «premerlo non cambierebbe niente» per TUTTI i tasti:
+quattro spunte per gruppo. Ora `vociDaDecidere` (voci con >1 azione) filtra:
+senza voci da decidere niente tasti (scritta «tutte uguali»), e le uguali non
+contano nel giudizio sulle altre. In testa la riga «Chat e file sono già
+allineati … restano solo i workspace»; il tasto diventa «Applica i workspace
+→» quando il conto è 0/0/0.

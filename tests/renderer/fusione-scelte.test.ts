@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { sceltePerTutte, gruppoInVigore, riassunto, riassuntoInParole } from '../../src/renderer/fusione-scelte'
+import { sceltePerTutte, gruppoInVigore, riassunto, riassuntoInParole, vociDaDecidere } from '../../src/renderer/fusione-scelte'
 import type { VoceFusione } from '../../src/main/cassaforte/fusione'
 
 /**
@@ -66,5 +66,27 @@ describe('il conto accanto al titolo', () => {
   it('tutto lasciato: lo dice', () => {
     expect(riassuntoInParole(riassunto(VOCI, sceltePerTutte(VOCI, false, 'salta', {})))).toBe('4 come sono')
     expect(riassuntoInParole(riassunto([], {}))).toBe('niente')
+  })
+})
+
+describe('IL PUNTO 2: dove non c e niente da decidere, nessun tasto e acceso', () => {
+  // «Adesso è tutto selezionato ma perché?»: 778 chat uguali di qua e di la',
+  // ogni tasto «non cambiava niente», e si accendevano tutti e quattro.
+  const uguali = [voce('chat/x', 'entrambi', false, 'salta'), voce('chat/y', 'entrambi', false, 'salta')]
+  it('un gruppo di sole uguali non ha voci da decidere', () => {
+    expect(vociDaDecidere(uguali, false)).toEqual([])
+    expect(vociDaDecidere(VOCI, false).map((v) => v.percorso)).toEqual(['chat/a', 'chat/b', 'chat/c'])
+  })
+  it('e nessun tasto risulta in vigore', () => {
+    const attuali = sceltePerTutte(uguali, false, 'predefinite', {})
+    for (const a of ['predefinite', 'carica', 'scarica', 'salta'] as const) {
+      expect(gruppoInVigore(uguali, false, a, attuali)).toBe(false)
+    }
+  })
+  it('le uguali non contano nel giudizio sulle altre', () => {
+    const misto = [...uguali, voce('chat/a', 'pc', false, 'carica')]
+    const attuali = sceltePerTutte(misto, false, 'predefinite', {})
+    expect(gruppoInVigore(misto, false, 'predefinite', attuali)).toBe(true)
+    expect(gruppoInVigore(misto, false, 'salta', attuali)).toBe(false)
   })
 })

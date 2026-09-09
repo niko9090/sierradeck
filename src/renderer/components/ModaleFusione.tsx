@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { PianoFusione, VoceFusione, Azione, ModoWorkspace, EsitoFusione } from '../../main/cassaforte/fusione'
 import type { StatoLavoro } from '../../main/cassaforte/lavoro-in-corso'
 import { descriviLavoro } from '../progresso-sync'
-import { azioniPossibili, sceltePerTutte, gruppoInVigore, riassunto, riassuntoInParole, type AzioneDiGruppo } from '../fusione-scelte'
+import { azioniPossibili, sceltePerTutte, gruppoInVigore, riassunto, riassuntoInParole, vociDaDecidere, type AzioneDiGruppo } from '../fusione-scelte'
 
 type Props = {
   cassaforteDiversa: boolean
@@ -95,8 +95,14 @@ function TastiGruppo({ voci, conCopia, scelte, onTutte }: {
   scelte: Record<string, Azione>
   onTutte: (a: AzioneDiGruppo) => void
 }): React.JSX.Element {
-  const haPc = voci.some((v) => v.dove !== 'drive')
-  const haDrive = voci.some((v) => v.dove !== 'pc')
+  const decidibili = vociDaDecidere(voci, conCopia)
+  // Niente da decidere: niente tasti. Quattro tasti tutti accesi su righe
+  // che hanno una scelta sola erano solo rumore.
+  if (decidibili.length === 0) {
+    return <span style={{ fontSize: 11, opacity: 0.6 }}>tutte uguali di qua e di là: niente da decidere</span>
+  }
+  const haPc = decidibili.some((v) => v.dove !== 'drive')
+  const haDrive = decidibili.some((v) => v.dove !== 'pc')
   const tasto = (a: AzioneDiGruppo, testo: string): React.JSX.Element => {
     const acceso = gruppoInVigore(voci, conCopia, a, scelte)
     return (
@@ -293,8 +299,15 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
             <p className="account__nota" style={{ margin: '0 0 8px' }}>
               {piano.email !== undefined ? <><strong>{piano.email}</strong> · </> : null}
               solo su questo PC <strong>{piano.totali.soloPc}</strong> · solo sul Drive <strong>{piano.totali.soloDrive}</strong> · diverse <strong>{piano.totali.diverse}</strong> · uguali <strong>{piano.totali.uguali}</strong>.
-              Il predefinito è l’unione: per le chat vince la copia più lunga, per i file di progetto la più recente. Cambia quello che vuoi.
+              {piano.totali.soloPc + piano.totali.soloDrive + piano.totali.diverse === 0
+                ? ' Il predefinito è l’unione: per le chat vince la copia più lunga, per i file di progetto la più recente.'
+                : ' Il predefinito è l’unione: per le chat vince la copia più lunga, per i file di progetto la più recente. Cambia quello che vuoi.'}
             </p>
+            {piano.totali.soloPc + piano.totali.soloDrive + piano.totali.diverse === 0 ? (
+              <p className="account__nota" style={{ margin: '0 0 8px', padding: '8px 10px', borderRadius: 6, background: 'var(--fondo-cupo)' }}>
+                ✓ <strong>Chat e file sono già allineati</strong>: le {piano.totali.uguali} voci sono uguali di qua e di là, e non c’è niente da decidere. Restano solo i workspace, in fondo: se anche lì è tutto com’è, puoi chiudere.
+              </p>
+            ) : null}
             {ripresa !== undefined ? (
               <p className="account__nota" style={{ margin: '0 0 8px', color: 'var(--ambra)' }}>
                 ↻ Riprendo la fusione interrotta il {quandoBreve(ripresa.quando)}{ripresa.fatti !== undefined && ripresa.totale !== undefined ? ` (fatte ${ripresa.fatti} voci su ${ripresa.totale})` : ''}: le voci già fatte risultano uguali e non compaiono, per le altre ho rimesso le scelte di allora. Controlla e premi «Fondi adesso».
@@ -413,7 +426,7 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <button className="tasto" onClick={() => onChiudi(false)}>Annulla</button>
                 <button className="tasto fusione__fondi" onClick={esegui} title="Applica le scelte qui sopra">
-                  Fondi adesso →
+                  {conto.carica + conto.scarica + conto.copia === 0 ? 'Applica i workspace →' : 'Fondi adesso →'}
                 </button>
               </div>
             </div>

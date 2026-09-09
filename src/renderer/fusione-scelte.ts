@@ -47,16 +47,29 @@ export function sceltePerTutte(
   return n
 }
 
-/** Il tasto è quello in vigore: premerlo non cambierebbe niente. */
+/** Le voci su cui c'e' davvero qualcosa da decidere: le uguali di qua e di la' no. */
+export function vociDaDecidere(voci: VoceFusione[], conCopia: boolean): VoceFusione[] {
+  return voci.filter((v) => azioniPossibili(v, conCopia).length > 1)
+}
+
+/**
+ * Il tasto è quello in vigore: premerlo non cambierebbe niente.
+ *
+ * Si guardano solo le voci che hanno una scelta: su un gruppo di sole voci
+ * uguali ogni tasto «non cambierebbe niente», e si accendevano tutti e
+ * quattro insieme — «tutto selezionato, non si capisce più un cavolo».
+ * Senza voci da decidere, nessun tasto e' in vigore.
+ */
 export function gruppoInVigore(
   voci: VoceFusione[],
   conCopia: boolean,
   a: AzioneDiGruppo,
   attuali: Record<string, Azione>
 ): boolean {
-  if (voci.length === 0) return false
-  const sarebbe = sceltePerTutte(voci, conCopia, a, attuali)
-  return voci.every((v) => (attuali[v.percorso] ?? 'salta') === sarebbe[v.percorso])
+  const decidibili = vociDaDecidere(voci, conCopia)
+  if (decidibili.length === 0) return false
+  const sarebbe = sceltePerTutte(decidibili, conCopia, a, attuali)
+  return decidibili.every((v) => (attuali[v.percorso] ?? 'salta') === sarebbe[v.percorso])
 }
 
 export type Riassunto = { carica: number; scarica: number; copia: number; salta: number }
