@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.20.0',
+    righe: [
+      '**Il quadro completo di ogni lavoro con il Drive.** Fusione, ripristino e salvataggio hanno un pannello di avanzamento unico: barra grande con la percentuale, file fatti su totale e quanti mancano, da quanto va e una stima di quanto resta, cosa sta facendo adesso e in che verso (\u2191 sul Drive, \u2193 qui), i conti di quanto \u00e8 salito e sceso, i tre passi dell\u2019operazione con lo stato di ciascuno e la spiegazione di cosa succede alla fine. Lo trovi dentro «Fondi con il Drive» mentre lavora e dalla striscia in alto con «Dettagli»; la striscia stessa mostra file fatti, percentuale e tempo stimato.'
+    ]
+  },
+  {
     versione: '0.19.5',
     righe: [
       '**«Fondi adesso» con il Drive occupato si mette in fila, non d\u00e0 errore.** Se sta girando il salvataggio automatico, il pannello lo dice, mostra a che punto \u00e8 e spiega perch\u00e9 si va uno alla volta; le tue scelte restano e la fusione parte da sola appena il Drive si libera. Se non vuoi aspettare, «Annulla il lavoro in corso» lo ferma fra un file e l\u2019altro senza rompere niente. Prima compariva solo «c\u2019\u00e8 gi\u00e0 un lavoro in corso: aspetta o annullalo», e «Riprova» buttava via le scelte.'
