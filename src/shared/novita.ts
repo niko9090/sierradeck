@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.19.1',
+    righe: [
+      '**Chiuso il difetto che cancellava le chat dal Drive.** Dopo un salvataggio, il PC ricordava di «avere» anche le chat degli altri PC mai scaricate, e al salvataggio successivo le toglieva dal Drive: il 2026-09-08 ne ha tolte 385 mentre una fusione le stava ancora scaricando (i 375 «saltati»). Ora il PC ricorda solo ci\u00f2 che ha davvero sul disco, e una chat che ha e che il Drive ha perso risale da sola al salvataggio dopo, anche senza cambi locali.',
+      '**La fusione va molto pi\u00f9 veloce e dice perch\u00e9 salta.** Sei voci alla volta invece di una, e una sola lista dei file del Drive invece di una ricerca per ogni file (vale anche per ripristino e salvataggio). Nel registro, i «saltati» hanno la ragione: file mancante sul Drive, mancante qui, o non scrivibile.',
+      '**Dal telefono l\u2019aggiornamento si vede tutto.** La schermata non sparisce pi\u00f9 quando il computer aspetta che le chat finiscano il turno: mostra «Aspetto che le chat finiscano», quante sono, e i dieci minuti di pazienza ripartono da l\u00ec. App Android 2.26.5.'
+    ]
+  },
+  {
     versione: '0.19.0',
     righe: [
       '**Una chat nuova nasce dal nome.** In «+ Nuova chat» prima scrivi come si chiama, poi scegli dove sta: in Documenti (predefinito), fra i progetti SierraDeck, o altrove. Nei primi due casi la cartella prende il nome della chat e si crea al momento; «altrove» \u00e8 il campo libero di prima, con «Sfoglia…», per una cartella che esiste gi\u00e0. Invio con il solo nome apre subito.',
