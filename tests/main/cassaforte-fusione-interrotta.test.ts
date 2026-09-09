@@ -156,7 +156,7 @@ describe('la fusione interrotta e ripresa', () => {
     const presa = lavoro.avvia('ripristino')
     const r = await syncA.salva()
     expect(r.ok).toBe(false)
-    expect(r.messaggio).toMatch(/gia' un lavoro in corso/)
+    expect(r.messaggio).toMatch(/LAVORO_IN_CORSO/)
     presa.fine('ok', '')
     expect((await syncA.salva()).ok).toBe(true)
   })

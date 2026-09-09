@@ -12,7 +12,7 @@ describe('il lavoro con il Drive', () => {
     const l = creaLavoro(() => 'T')
     l.avvia('fusione')
     expect(l.occupato()).toBe(true)
-    expect(() => l.avvia('salvataggio')).toThrow(/gia' un lavoro in corso/)
+    expect(() => l.avvia('salvataggio')).toThrow(/LAVORO_IN_CORSO/)
   })
 
   it('racconta a che punto e, e chi guarda lo sa', () => {
