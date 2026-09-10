@@ -501,6 +501,15 @@ var salvataggiVisti = null
 var codaProgetto = null
 var codaVoci = null
 var codaErrore = ''
+/** Il Drive: il catalogo letto dal computer, la vista, il lavoro in corso. */
+var driveCatalogo = null
+var driveVista = 'progetti'
+var driveErrore = ''
+var driveLavoro = null
+var driveAperti = {}
+var driveInCorso = null
+var driveEraInCorso = false
+var driveRiavviato = false
 var consumiVisti = null
 var schedeViste = null
 var schedaAperta = null
@@ -1092,6 +1101,67 @@ function pannello(s) {
       '<button class="primario" onclick="mettiInCoda()">Metti in coda</button></div></div>'
   })()
 
+  const vistaDrive = pannelloAperto !== 'drive' ? '' : (() => {
+    const c = driveCatalogo
+    const l = driveLavoro || {}
+    const inc = l.inCorso
+    const occupato = !!inc || driveInCorso !== null
+    let testa = '<div class="piastrella"><div class="titolo">Drive · il magazzino dei tuoi PC</div>' +
+      '<div class="sotto">Cosa c\\'è sul Drive e cosa il computer ha già. Un progetto è la cartella in cui le chat lavorano; un workspace è una fascia a schermo con dentro delle chat. «Porta qui» fa scaricare al computer la cartella se viaggia con le chat, le chat che gli mancano, e le mette nel loro workspace; poi il computer si riavvia da solo per mostrarle. Niente viene mai cancellato.</div>'
+    if (inc) {
+      const perc = (inc.totale || 0) > 0 ? Math.round((inc.fatto || 0) * 100 / inc.totale) : 0
+      testa += '<div style="margin-top:10px"><b>' + esc(etichettaLavoro(inc.tipo)) + '</b> — ' +
+        ((inc.totale || 0) > 0 ? (inc.fatto || 0) + ' di ' + inc.totale + ' file (' + perc + '%)' : 'preparo…') + (inc.annullamento ? ' · mi fermo…' : '') +
+        (inc.dettaglio ? '<div class="sotto">' + (inc.verso === 'giu' ? '↓ ' : '↑ ') + esc(inc.dettaglio) + '</div>' : '') +
+        '<div style="height:8px;border-radius:4px;background:rgba(255,255,255,.12);margin-top:6px;overflow:hidden"><div style="height:100%;width:' + perc + '%;background:var(--accento,#e0a33c)"></div></div>' +
+        '<div class="riga"><button onclick="driveAnnulla()"' + (inc.annullamento ? ' disabled' : '') + '>' + (inc.annullamento ? 'Mi fermo…' : 'Annulla') + '</button></div></div>'
+    } else if (l.ultimo && l.ultimo.tipo !== 'salvataggio') {
+      const u = l.ultimo
+      testa += '<div class="sotto" style="margin-top:8px">' + esc(etichettaLavoro(u.tipo)) + ': ' + (u.esito === 'ok' ? 'fatto' : u.esito === 'annullato' ? 'annullato' : 'non riuscito') + (u.messaggio ? ' — ' + esc(u.messaggio) : '') + '</div>'
+      if (u.riavvioConsigliato && !driveRiavviato) {
+        testa += '<div class="sotto" style="margin-top:6px">Sono arrivate chat o cartelle: il computer si riavvia da solo fra pochi secondi per mostrarle. Se non lo fa, chiediglielo da qui.</div>' +
+          '<div class="riga"><button class="primario" onclick="driveRiavvia()">Riavvia il computer ora</button></div>'
+      }
+    }
+    if (driveErrore) testa += '<div class="sotto" style="margin-top:6px">' + esc(driveErrore) + '</div>'
+    if (!c) return testa + '<div class="sotto" style="margin-top:8px">Leggo il Drive…</div><div class="riga"><button onclick="apriPannello(\\'drive\\')">Chiudi</button></div></div>'
+    testa += '<div class="riga" style="margin-top:8px"><button' + (driveVista === 'progetti' ? ' class="primario"' : '') + ' onclick="driveVistaCambia(\\'progetti\\')">Per progetto</button>' +
+      '<button' + (driveVista === 'workspace' ? ' class="primario"' : '') + ' onclick="driveVistaCambia(\\'workspace\\')">Per workspace (' + c.workspace.length + ')</button>' +
+      '<button onclick="leggiDrive()">Aggiorna</button></div>' +
+      '<div class="sotto">' + c.totali.progetti + ' progetti · ' + c.totali.chat + ' chat · ' + c.totali.daPortare + ' da portare sul computer · ' + c.totali.uguali + ' uguali</div>'
+    const statoChat = (ch) => ch.altroveQui ? 'già sul computer' : ch.stato === 'uguale' ? 'uguale' : ch.stato === 'indietro' ? 'da aggiornare' : ch.stato === 'avanti' ? 'più avanti sul computer' : ch.stato === 'soloDrive' ? 'solo sul Drive' : 'solo sul computer'
+    let corpo = ''
+    if (driveVista === 'progetti') {
+      if (c.progetti.length === 0) corpo += '<div class="sotto" style="margin-top:8px">Sul Drive non c\\'è ancora niente.</div>'
+      corpo += c.progetti.map((g) => {
+        const n = g.conti.soloDrive + g.conti.indietro + g.file.soloDrive + g.file.indietro
+        const k = 'p:' + g.chiave
+        const stato = g.stato === 'allineato' ? 'allineato: il computer ha già tutto' : g.stato === 'daPortare' ? n + ' da portare sul computer' : g.stato === 'daAggiornare' ? n + ' da aggiornare sul computer' : g.stato === 'soloQui' ? 'solo sul computer: sale al prossimo salvataggio' : n + ' da portare · ' + (g.conti.soloQui + g.conti.avanti + g.file.soloQui + g.file.avanti) + ' da mandare su'
+        return '<div class="voce" style="display:block;padding:8px 10px"><div><b>' + esc(g.nome) + '</b> <span class="sotto">· ' + g.chat.length + ' chat' + (g.cartellaSulDrive ? ' · cartella sul Drive' : '') + ' · ' + (g.origine === 'qui' ? 'di questo PC' : g.origine === 'altrove' ? 'nata su un altro PC' : 'di più PC') + '</span></div>' +
+          '<div class="sotto">' + esc(stato) + '</div>' +
+          '<div class="riga" style="margin-top:6px">' +
+          (n > 0 ? '<button class="primario" onclick="drivePorta(\\'' + escJs(g.chiave) + '\\')"' + (occupato ? ' disabled' : '') + '>' + (driveInCorso === k ? 'Porto…' : (g.stato === 'daAggiornare' ? 'Aggiorna' : 'Porta qui') + ' (' + n + ')') + '</button>' : '') +
+          '<button onclick="driveCommuta(\\'' + escJs(k) + '\\')">' + (driveAperti[k] ? 'Nascondi le chat' : 'Vedi le ' + g.chat.length + ' chat') + '</button></div>' +
+          (driveAperti[k] ? g.chat.map((ch) => '<div class="sotto" style="padding-left:8px">' + esc(ch.titolo) + ' · ' + esc(statoChat(ch)) + '</div>').join('') : '') +
+          '</div>'
+      }).join('')
+    } else {
+      if (c.workspace.length === 0) corpo += '<div class="sotto" style="margin-top:8px">Sul Drive non ci sono workspace salvati.</div>'
+      corpo += c.workspace.map((w) => {
+        const k = 'w:' + w.nome
+        const stato = w.daPortare > 0 ? w.daPortare + ' chat da portare sul computer' : w.quiEsiste ? 'allineato' : 'chat già sul computer: manca solo il workspace'
+        return '<div class="voce" style="display:block;padding:8px 10px"><div><b>' + esc(w.nome) + '</b> <span class="sotto">· ' + w.chat.length + ' chat in ' + w.progetti.length + (w.progetti.length === 1 ? ' progetto' : ' progetti') + (w.quiEsiste ? ' · esiste già sul computer' : ' · non esiste ancora sul computer') + '</span></div>' +
+          '<div class="sotto">' + esc(stato) + '</div>' +
+          '<div class="riga" style="margin-top:6px">' +
+          (w.daPortare > 0 || !w.quiEsiste ? '<button class="primario" onclick="drivePortaWs(\\'' + escJs(w.nome) + '\\')"' + (occupato ? ' disabled' : '') + '>' + (driveInCorso === k ? 'Porto…' : w.daPortare > 0 ? 'Porta qui (' + w.daPortare + ')' : 'Crea qui') + '</button>' : '') +
+          '<button onclick="driveCommuta(\\'' + escJs(k) + '\\')">' + (driveAperti[k] ? 'Nascondi le chat' : 'Vedi le ' + w.chat.length + ' chat') + '</button></div>' +
+          (driveAperti[k] ? w.chat.map((ch) => '<div class="sotto" style="padding-left:8px">' + esc(ch.titolo) + ' · ' + esc(ch.progetto || '') + ' · ' + esc(statoChat(ch)) + '</div>').join('') : '') +
+          '</div>'
+      }).join('')
+    }
+    return testa + corpo + '<div class="riga"><button onclick="apriPannello(\\'drive\\')">Chiudi</button></div></div>'
+  })()
+
   const vistaConsumi = pannelloAperto !== 'consumi' ? '' : \`
     <div class="piastrella">
       <div class="titolo">Consumi</div>
@@ -1222,9 +1292,10 @@ function pannello(s) {
       '<div class="riga"><button onclick="apriPannello(\\'salvataggi\\')">Salvataggi</button>' +
       '<button onclick="apriPannello(\\'code\\')">Code' +
       ((s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0) > 0 ? ' · ' + (s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0) : '') + '</button>' +
+      '<button onclick="apriPannello(\\'drive\\')">Drive</button>' +
       '<button onclick="apriPannello(\\'consumi\\')">Consumi</button>' +
       '<button onclick="apriPannello(\\'impostazioni\\')">Impostazioni</button></div>' +
-      elencoSalvataggi + elencoCode + vistaConsumi + vistaImpostazioni
+      elencoSalvataggi + elencoCode + vistaDrive + vistaConsumi + vistaImpostazioni
   }
 
   app.innerHTML = \`
@@ -1480,6 +1551,7 @@ window.apriPannello = async (quale) => {
     try { salvataggiVisti = (await chiedi('/api/salvataggi')).salvataggi || [] } catch (e) { salvataggiVisti = [] }
   }
   if (pannelloAperto === 'consumi') await leggiConsumi()
+  if (pannelloAperto === 'drive') { driveRiavviato = false; await leggiDrive() }
   if (pannelloAperto === 'impostazioni') { await leggiPreferenze(); await leggiAggiornamento() }
   if (pannelloAperto === 'quaderno') {
     schedaAperta = null
@@ -1545,6 +1617,51 @@ window.pulisciCoda = async () => {
   } catch (e) { codaErrore = 'Non sono riuscito a pulire.' }
   pannello(ultimoStato)
 }
+
+function etichettaLavoro(tipo) { return tipo === 'fusione' ? 'Fondo con il Drive' : tipo === 'ripristino' ? 'Ripristino dal Drive' : tipo === 'salvataggio' ? 'Salvo sul Drive' : tipo }
+async function leggiDrive() {
+  try {
+    const r = await chiedi('/api/drive/catalogo')
+    if (r.disponibile === false) { driveErrore = 'Questo computer non sa ancora mostrare il Drive: aggiornalo.'; driveCatalogo = null }
+    else if (r.ok && r.catalogo) { driveCatalogo = r.catalogo; driveErrore = '' }
+    else { driveErrore = r.messaggio || 'Non riesco a leggere il Drive.'; driveCatalogo = null }
+  } catch (e) { driveErrore = 'Non riesco a leggere il Drive: il computer non risponde.' }
+  pannello(ultimoStato)
+}
+window.leggiDrive = leggiDrive
+window.driveVistaCambia = (v) => { driveVista = v; pannello(ultimoStato) }
+window.driveCommuta = (k) => { driveAperti[k] = !driveAperti[k]; pannello(ultimoStato) }
+window.drivePorta = async (chiave) => {
+  driveInCorso = 'p:' + chiave; driveErrore = ''; pannello(ultimoStato)
+  try {
+    const r = await chiedi('/api/drive/porta', { progetto: chiave })
+    if (!r.ok) { driveErrore = r.messaggio || r.errore || 'Non riuscito.'; driveInCorso = null }
+  } catch (e) { driveErrore = 'Non riuscito: il computer non risponde.'; driveInCorso = null }
+  pannello(ultimoStato)
+}
+window.drivePortaWs = async (nome) => {
+  driveInCorso = 'w:' + nome; driveErrore = ''; pannello(ultimoStato)
+  try {
+    const r = await chiedi('/api/drive/portaWorkspace', { workspace: nome })
+    if (!r.ok) { driveErrore = r.messaggio || r.errore || 'Non riuscito.'; driveInCorso = null }
+  } catch (e) { driveErrore = 'Non riuscito: il computer non risponde.'; driveInCorso = null }
+  pannello(ultimoStato)
+}
+window.driveAnnulla = async () => { try { await chiedi('/api/drive/annulla', {}) } catch (e) {} }
+window.driveRiavvia = async () => {
+  try { const r = await chiedi('/api/drive/riavvia', {}); driveRiavviato = !!r.ok; if (!r.ok) driveErrore = r.messaggio || r.errore || 'Non riavviato.' } catch (e) { driveErrore = 'Non riesco a chiedere il riavvio.' }
+  pannello(ultimoStato)
+}
+// Il lavoro sul computer, ogni due secondi finche' il pannello Drive e' aperto;
+// quando finisce, il catalogo e' cambiato e si rilegge.
+setInterval(async () => {
+  if (pannelloAperto !== 'drive' || !chiave) return
+  try { driveLavoro = await chiedi('/api/drive/lavoro') } catch (e) { return }
+  const adesso = !!(driveLavoro && driveLavoro.inCorso)
+  if (driveEraInCorso && !adesso) { driveInCorso = null; await leggiDrive() }
+  driveEraInCorso = adesso
+  pannello(ultimoStato)
+}, 2000)
 
 window.caricaSalvataggio = async (i) => {
   const s = (salvataggiVisti || [])[i]

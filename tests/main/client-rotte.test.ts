@@ -967,3 +967,38 @@ describe('una scelta mandata dal telefono non si preme due volte', () => {
     expect((dentro.corpo as { scelte?: { opzioni: { testo: string }[] } }).scelte?.opzioni[0]?.testo).toBe('Si')
   })
 })
+
+describe('il Drive dal telefono', () => {
+  it('senza le dipendenze il catalogo dice «non disponibile», non un errore', async () => {
+    const r = await rotteClient(deps())({ metodo: 'GET', percorso: '/api/drive/catalogo', corpo: undefined })
+    expect(r.stato).toBe(200)
+    expect(r.corpo).toMatchObject({ ok: false, disponibile: false })
+  })
+  it('il catalogo, il lavoro e «porta qui» passano dal computer, e la chiave arriva intera', async () => {
+    const portati: string[] = []
+    const rotte = rotteClient(deps({
+      driveCatalogo: () => Promise.resolve({ ok: true, catalogo: { progetti: [], workspace: [], totali: { progetti: 0, chat: 0, daPortare: 0, daAggiornare: 0, soloQui: 0, uguali: 0 }, letto: 'T' } }),
+      drivePortaQui: (c) => { portati.push(c); return Promise.resolve({ ok: true, esito: { scaricati: 2 } }) },
+      drivePortaQuiWorkspace: (n) => { portati.push('ws:' + n); return Promise.resolve({ ok: true, esito: { scaricati: 1 } }) },
+      driveLavoro: () => ({ inCorso: { tipo: 'fusione', fase: 'carico', fatto: 1, totale: 3 } }),
+      driveAnnulla: () => true
+    }))
+    const cat = await rotte({ metodo: 'GET', percorso: '/api/drive/catalogo', corpo: undefined })
+    expect(cat.corpo).toMatchObject({ ok: true, disponibile: true })
+    const porta = await rotte({ metodo: 'POST', percorso: '/api/drive/porta', corpo: { progetto: 'E:\\Users\\tecnico\\Wdeck' } })
+    expect(porta.corpo).toMatchObject({ ok: true })
+    const ws = await rotte({ metodo: 'POST', percorso: '/api/drive/portaWorkspace', corpo: { workspace: 'lavoro' } })
+    expect(ws.corpo).toMatchObject({ ok: true })
+    expect(portati).toEqual(['E:\\Users\\tecnico\\Wdeck', 'ws:lavoro'])
+    const lav = await rotte({ metodo: 'GET', percorso: '/api/drive/lavoro', corpo: undefined })
+    expect((lav.corpo as { inCorso?: { fatto: number } }).inCorso?.fatto).toBe(1)
+    const ann = await rotte({ metodo: 'POST', percorso: '/api/drive/annulla', corpo: {} })
+    expect(ann.corpo).toEqual({ fatto: true })
+  })
+  it('«porta qui» senza progetto e un 400, senza il computer che lo sa fare un 409', async () => {
+    const r = await rotteClient(deps())({ metodo: 'POST', percorso: '/api/drive/porta', corpo: {} })
+    expect(r.stato).toBe(400)
+    const r2 = await rotteClient(deps())({ metodo: 'POST', percorso: '/api/drive/porta', corpo: { progetto: 'x' } })
+    expect(r2.stato).toBe(409)
+  })
+})

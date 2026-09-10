@@ -89,3 +89,20 @@ progetto (PC d'origine come etichetta), atterraggio in
 - UI: due viste con tasti «Per progetto (cartella)» / «Per workspace», la
   frase che spiega la differenza, e per workspace «Porta qui il workspace
   (N)» o «Crea qui il workspace» quando le chat ci sono già.
+
+# 0.24.0 — il Drive dal telefono (pagina + app 2.27.0)
+
+Rotte (`client-rotte.ts`, deps opzionali → `disponibile: false` con un PC
+vecchio): `/api/drive/catalogo` (GET), POST `/api/drive/porta {progetto}`,
+`/api/drive/portaWorkspace {workspace}`, `/api/drive/lavoro` (GET, lo
+`StatoLavoro`), POST `/api/drive/annulla`, POST `/api/drive/riavvia`
+(`attendiQuiete` + relaunch, come l'IPC). In `index.ts` le deps chiamano
+`sincronia.catalogo/portaQui/portaQuiWorkspace` + `rimappaChat()`.
+Pagina: tasto «Drive» nel tab Computer, `vistaDrive` con viste per
+progetto/workspace, barra del lavoro (poll ogni 2 s finché aperto, rilettura
+a lavoro finito), «Riavvia il computer ora» se `riavvioConsigliato`. App:
+`Drive.kt` `SezioneDrive(api)` in `Computer.kt` (stessa logica), modelli
+`Catalogo`/`StatoLavoro`/`RispostaCatalogo`/`EsitoPorta` in `Modelli.kt`.
+Il riavvio automatico del PC lo fa il renderer: se la finestra del PC è
+chiusa (icona nell'area di notifica) non parte, e il telefono lo dice e
+offre il tasto.

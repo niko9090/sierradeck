@@ -1761,6 +1761,36 @@ if (!app.requestSingleInstanceLock()) {
           }
         }),
         coda: (id: string) => ronda.coda(id),
+        // Il Drive dal telefono: le stesse cose della scheda «Drive», con la
+        // rimappatura delle chat dopo un «Porta qui», come dall'IPC.
+        driveCatalogo: () => sincronia.catalogo(),
+        drivePortaQui: async (chiave: string) => {
+          const esito = await sincronia.portaQui(chiave)
+          if (esito.ok) rimappaChat()
+          return esito
+        },
+        drivePortaQuiWorkspace: async (nome: string) => {
+          const esito = await sincronia.portaQuiWorkspace(nome)
+          if (esito.ok) rimappaChat()
+          return esito
+        },
+        driveLavoro: () => lavoro.stato(),
+        driveAnnulla: () => lavoro.annulla(),
+        driveRiavvia: async () => {
+          const pronti = await attendiQuiete({
+            chat: () => chatAperte,
+            pausaAutopiloti: (attiva) => clientAutopilota.pausaAggiornamento(attiva),
+            scriviInChat: scriviNelRiquadro,
+            annota: (p) => { scriviJsonAtomico(filePausa(dati), p, 'pausa-aggiornamento') },
+            avvisa: () => undefined,
+            versione: app.getVersion()
+          })
+          if (!pronti) return { ok: false, messaggio: 'Non ho riavviato: c’erano chat ancora al lavoro. Riprova quando hanno finito.' }
+          registro.info('[sistema] riavvio chiesto dal telefono dopo un lavoro con il Drive')
+          app.relaunch()
+          app.quit()
+          return { ok: true }
+        },
         codaAggiungi: (id: string, testo: string, sessione?: string) => ronda.aggiungiInCoda(id, testo, sessione),
         codaTogli: (id: string, voce: string) => ronda.togliDallaCoda(id, voce),
         codaPulisci: (id: string) => ronda.pulisciCoda(id),

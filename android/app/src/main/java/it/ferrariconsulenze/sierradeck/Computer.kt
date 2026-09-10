@@ -360,6 +360,14 @@ fun Computer(api: Api, stato: Stato?) {
 
         Divisore()
 
+        // ─── Il Drive ───
+        // Il magazzino comune dei PC, da sfogliare e da cui far portare
+        // qualcosa al computer: la stessa scheda «Drive» del computer.
+        Sezione("Drive")
+        SezioneDrive(api)
+        Spacer(Modifier.height(10.dp))
+        Divisore()
+
         // ─── Aggiornamenti ───
         // Due programmi, due aggiornamenti, e prima ce n'era uno solo: si
         // vedeva quello del computer e dell'app non si sapeva niente —

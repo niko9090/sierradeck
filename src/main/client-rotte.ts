@@ -170,6 +170,18 @@ export type DipendenzeRotte = {
   codaAggiungi?: (progetto: string, testo: string, sessione?: string) => Promise<{ voci: VoceCodaTelefono[] } | undefined>
   codaTogli?: (progetto: string, voce: string) => Promise<{ voci: VoceCodaTelefono[] } | undefined>
   codaPulisci?: (progetto: string) => Promise<{ voci: VoceCodaTelefono[] } | undefined>
+  /**
+   * Il Drive dal telefono: il catalogo (per progetto e per workspace, con lo
+   * stato rispetto al computer), «Porta qui», il lavoro in corso con la sua
+   * barra, l'annulla e il riavvio. Sono le stesse cose della scheda «Drive»
+   * del computer: il telefono le guarda e le comanda, il lavoro lo fa il PC.
+   */
+  driveCatalogo?: () => Promise<unknown>
+  drivePortaQui?: (chiave: string) => Promise<unknown>
+  drivePortaQuiWorkspace?: (nome: string) => Promise<unknown>
+  driveLavoro?: () => unknown
+  driveAnnulla?: () => boolean
+  driveRiavvia?: () => Promise<{ ok: boolean; messaggio?: string }>
   /** I salvataggi: insiemi di chat da rimettere in piedi tutti insieme. */
   salvataggi: () => Promise<{ nome: string; quando: string; chat: number }[]>
   caricaIstantanea: (nome: string) => Promise<void>
@@ -838,6 +850,39 @@ export function rotteClient(deps: DipendenzeRotte) {
     // Riprendere una conversazione: la stessa regola di «apri» sulla cartella,
     // perche' un percorso qualunque arrivato dalla rete aprirebbe una sessione
     // dove capita.
+    // ── Il Drive: catalogo, «Porta qui», lavoro in corso ─────────────────
+    // `disponibile: false` = un computer che non conosce ancora queste rotte
+    // (o non ha il Drive): non e' un errore, e il telefono lo dice cosi'.
+    if (r.percorso === '/api/drive/catalogo') {
+      if (deps.driveCatalogo === undefined) return OK({ ok: false, disponibile: false, messaggio: 'questo computer non sa ancora mostrare il Drive' })
+      const esito = await deps.driveCatalogo().catch((e: unknown) => ({ ok: false, messaggio: String(e) }))
+      return OK({ disponibile: true, ...(esito as object) })
+    }
+    if (r.metodo === 'POST' && r.percorso === '/api/drive/porta') {
+      const chiave = stringa(r.corpo, 'progetto')
+      if (chiave === '') return { stato: 400, corpo: { errore: 'serve il progetto' } }
+      if (deps.drivePortaQui === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora portare qui dal Drive' } }
+      const esito = await deps.drivePortaQui(chiave).catch((e: unknown) => ({ ok: false, messaggio: String(e) }))
+      return OK(esito as object)
+    }
+    if (r.metodo === 'POST' && r.percorso === '/api/drive/portaWorkspace') {
+      const nome = stringa(r.corpo, 'workspace')
+      if (nome === '') return { stato: 400, corpo: { errore: 'serve il workspace' } }
+      if (deps.drivePortaQuiWorkspace === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora portare qui dal Drive' } }
+      const esito = await deps.drivePortaQuiWorkspace(nome).catch((e: unknown) => ({ ok: false, messaggio: String(e) }))
+      return OK(esito as object)
+    }
+    if (r.percorso === '/api/drive/lavoro') {
+      return OK((deps.driveLavoro?.() as object | undefined) ?? {})
+    }
+    if (r.metodo === 'POST' && r.percorso === '/api/drive/annulla') {
+      return OK({ fatto: deps.driveAnnulla?.() === true })
+    }
+    if (r.metodo === 'POST' && r.percorso === '/api/drive/riavvia') {
+      if (deps.driveRiavvia === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora riavviarsi a comando' } }
+      return OK(await deps.driveRiavvia())
+    }
+
     // ── La coda condivisa dei comandi di un progetto ─────────────────────
     if (r.metodo === 'POST' && r.percorso === '/api/coda') {
       const progetto = stringa(r.corpo, 'progetto')

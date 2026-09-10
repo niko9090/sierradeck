@@ -215,6 +215,16 @@ class Api(private val indirizzo: String, private val chiave: String?) {
 
     suspend fun salvataggi(): Salvataggi = json.decodeFromString(corpoTesto("/api/salvataggi", null))
 
+    // ─── il Drive ───
+    suspend fun driveCatalogo(): RispostaCatalogo = json.decodeFromString(corpoTesto("/api/drive/catalogo", null))
+    suspend fun drivePorta(chiave: String): EsitoPorta =
+        json.decodeFromString(corpoTesto("/api/drive/porta", oggetto { put("progetto", chiave) }))
+    suspend fun drivePortaWorkspace(nome: String): EsitoPorta =
+        json.decodeFromString(corpoTesto("/api/drive/portaWorkspace", oggetto { put("workspace", nome) }))
+    suspend fun driveLavoro(): StatoLavoro = json.decodeFromString(corpoTesto("/api/drive/lavoro", null))
+    suspend fun driveAnnulla(): Fatto = json.decodeFromString(corpoTesto("/api/drive/annulla", oggetto { }))
+    suspend fun driveRiavvia(): Fatto = json.decodeFromString(corpoTesto("/api/drive/riavvia", oggetto { }))
+
     suspend fun caricaSalvataggio(nome: String): Fatto =
         json.decodeFromString(corpoTesto("/api/salvataggi/carica", oggetto { put("nome", nome) }))
 
