@@ -185,7 +185,7 @@ fun SezioneDrive(api: Api) {
                                             " · " + when (g.origine) { "qui" -> "di questo PC"; "altrove" -> "nata su un altro PC"; else -> "di più PC" },
                                         color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1
                                     )
-                                    Text(statoProgetto(g), color = coloreStato(g.stato), fontSize = 11.sp, maxLines = 1)
+                                    Text(statoProgetto(g), color = coloreStatoProgetto(g.stato), fontSize = 11.sp, maxLines = 1)
                                 }
                                 if (daPortare > 0) {
                                     Button(
@@ -283,7 +283,7 @@ private fun statoProgetto(g: ProgettoCatalogo): String = when (g.stato) {
     else -> "${g.conti.soloDrive + g.conti.indietro + g.file.soloDrive + g.file.indietro} da portare · ${g.conti.soloQui + g.conti.avanti + g.file.soloQui + g.file.avanti} da mandare su"
 }
 
-private fun coloreStato(stato: String): Color = when (stato) {
+private fun coloreStatoProgetto(stato: String): Color = when (stato) {
     "allineato", "soloQui" -> Banco.verde
     else -> Banco.ambra
 }
