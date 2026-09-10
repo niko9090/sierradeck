@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.24.0',
+    righe: [
+      '**Il Drive anche dal telefono.** Nel tab Computer, la sezione «Drive»: lo stesso catalogo della scheda sul PC, per progetto e per workspace, con lo stato di ogni voce rispetto al computer a cui sei collegato (allineato, da portare, da aggiornare, solo sul computer). «Porta qui» fa lavorare il computer: cartella, chat, workspace; vedi la barra avanzare, puoi annullare, e alla fine il computer si riavvia da solo per mostrare le chat, oppure glielo chiedi con «Riavvia il computer ora». Pagina servita e app Android (2.27.0).'
+    ]
+  },
+  {
     versione: '0.23.0',
     righe: [
       '**La scheda «Drive» anche per workspace.** Due viste: «Per progetto (cartella)» e «Per workspace». Nella seconda ogni workspace salvato sul Drive mostra le sue chat, di quali progetti sono, se esiste gi\u00e0 qui e quante chat mancano. «Porta qui il workspace (N)» scarica quelle chat con le cartelle che servono, ricrea il workspace qui con dentro le chat, e il programma si riavvia da solo. Se le chat ci sono gi\u00e0 e manca solo la fascia: «Crea qui il workspace».'
