@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.24.1',
+    righe: [
+      '**Uguale \u00e8 uguale: il confronto guarda il contenuto, non la data.** Un progetto mai aperto altrove risultava con «9 versioni pi\u00f9 recenti sul Drive»: erano le stesse chat, risalite da un altro PC con la sua data. Ora ogni file caricato porta la sua impronta e, a parit\u00e0 di dimensione, si confronta quella; per le chat basta la dimensione. Il ripristino non riscarica pi\u00f9 file identici e allinea la data qui.',
+      '**Le chat non si cancellano pi\u00f9 dal Drive perch\u00e9 sono sparite dal disco.** Claude Code pulisce da solo le trascrizioni vecchie di trenta giorni, e il salvataggio le toglieva dal Drive (117 in un colpo). Il Drive \u00e8 la memoria lunga: una chat ci resta finch\u00e9 non la togli tu. Nei progetti, invece, una cancellazione continua a propagarsi. Il registro dice quali file vengono rimossi e perch\u00e9.',
+      '**Nella scheda «Drive» un progetto nato su un altro PC lo dice nel titolo**, cos\u00ec due cartelle con lo stesso nome non si confondono.'
+    ]
+  },
+  {
     versione: '0.24.0',
     righe: [
       '**Il Drive anche dal telefono.** Nel tab Computer, la sezione «Drive»: lo stesso catalogo della scheda sul PC, per progetto e per workspace, con lo stato di ogni voce rispetto al computer a cui sei collegato (allineato, da portare, da aggiornare, solo sul computer). «Porta qui» fa lavorare il computer: cartella, chat, workspace; vedi la barra avanzare, puoi annullare, e alla fine il computer si riavvia da solo per mostrare le chat, oppure glielo chiedi con «Riavvia il computer ora». Pagina servita e app Android (2.27.0).'
