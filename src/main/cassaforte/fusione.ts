@@ -2,7 +2,7 @@ import { readFile, stat } from 'node:fs/promises'
 import type { Archivio as ArchivioDrive } from './archivio'
 import { cifra, decifra } from './cifratura'
 import { percorsoSicuro, ripristina, type Radice } from './raccolta'
-import { leggiManifesto, scriviManifesto, nomeDi, prefissoDi, stessaFirma, nomeCopiaConflitto, manifestoVuoto, type Manifesto, conLimite, PARALLELI } from './incrementale'
+import { leggiManifesto, scriviManifesto, nomeDi, prefissoDi, stessaFirma, nomeCopiaConflitto, manifestoVuoto, type Manifesto, conLimite, PARALLELI, impronta } from './incrementale'
 import { aggiungiPaneA, unaChatUnWorkspace, type Archivio as ArchivioWorkspace, type LayoutSalvato } from '@shared/workspace'
 import type { RegistroProgetti, ProgettoDrive } from '../progetti/registro'
 
@@ -370,7 +370,7 @@ export async function eseguiFusione(deps: {
   const carica = async (percorso: string, contenuto: Buffer, firma: Firma): Promise<void> => {
     const nome = nomeDi(percorso)
     await deps.archivio.carica(nome, await cifra(deps.maestra, contenuto))
-    nuovo.file[percorso] = { nome, size: firma.size, mtime: firma.mtime }
+    nuovo.file[percorso] = { nome, size: firma.size, mtime: firma.mtime, sha: impronta(contenuto) }
   }
   const leggiLocale = async (percorso: string): Promise<{ contenuto: Buffer; firma: Firma } | undefined> => {
     const disco = discoDi(perPrefisso, percorso)

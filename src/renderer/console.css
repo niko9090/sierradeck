@@ -3438,3 +3438,4 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .drive__chatnome { font-weight: 600; }
 
 .drive__viste { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 4px 0 8px; }
+.drive__stato--altrove { background: color-mix(in srgb, var(--accento) 16%, transparent); color: var(--accento); }

@@ -100,14 +100,26 @@ describe('il progresso della sincronizzazione incrementale', () => {
     })
     expect(m2.cancellati).toBe(0)
     expect(Object.keys(m2.manifesto.file).sort()).toEqual(['chat/p/a.jsonl', 'chat/p/b.jsonl', 'progetto-p1/p/main.ts'])
-    // Mentre un file davvero tolto da una radice **sua** si cancella.
+    // Una chat sparita da qui NON si cancella dal Drive (dalla 0.24.1): Claude
+    // Code pulisce le trascrizioni vecchie da solo, e il Drive e' la memoria
+    // lunga. La chat resta lassu'.
     const chatB2 = cartellaCon(['b.jsonl'])
     const m3 = await salvaIncrementale({
       radici: [{ prefisso: 'chat', cartella: chatB2 }],
       maestra, archivio, manifestoPrec: m2.manifesto, adesso: '2026-09-04T14:00:00.000Z'
     })
-    expect(m3.cancellati).toBe(1)
+    expect(m3.cancellati).toBe(0)
+    expect(m3.manifesto.file['chat/p/a.jsonl']).toBeDefined()
     expect(m3.manifesto.file['progetto-p1/p/main.ts']).toBeDefined()
+    // Mentre un file di progetto davvero tolto da una radice **sua** si cancella.
+    const progettoA2 = cartellaCon([])
+    const m4 = await salvaIncrementale({
+      radici: [{ prefisso: 'progetto-p1', cartella: progettoA2 }],
+      maestra, archivio, manifestoPrec: m1.manifesto, adesso: '2026-09-04T15:00:00.000Z'
+    })
+    expect(m4.cancellati).toBe(1)
+    expect(m4.cancellatiPercorsi).toEqual(['progetto-p1/p/main.ts'])
+    expect(m4.manifesto.file['progetto-p1/p/main.ts']).toBeUndefined()
   })
 
   it('con il manifesto di prima non riscarica gli invariati, e toglie cio che il Drive non ha piu', async () => {

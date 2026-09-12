@@ -216,6 +216,7 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
                   <div className="drive__riga">
                     <button className="account__link" onClick={() => commuta(g.chiave)} style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
                       {aperto ? '▾' : '▸'} <strong>{g.nome}</strong>
+                      {g.origine === 'altrove' ? <span className="drive__stato drive__stato--altrove" style={{ marginLeft: 6 }}>su un altro PC</span> : null}
                       <span className="drive__sotto">
                         {' '}· {g.chat.length} chat{g.cartellaSulDrive ? ` · cartella sul Drive (${g.file.totale} file)` : ''}
                         {g.ultimoTocco !== undefined ? ` · ultimo tocco ${quando(g.ultimoTocco)}` : ''}

@@ -102,7 +102,7 @@ export type Catalogo = {
 }
 
 export type TitoloIndice = { titolo?: string; cwd?: string; quando?: string; messaggi?: number }
-type Firma = { size: number; mtime: number }
+type Firma = { size: number; mtime: number; sha?: string }
 
 function uuidDi(percorso: string): string {
   const nome = percorso.slice(percorso.lastIndexOf('/') + 1)
@@ -121,12 +121,25 @@ export function cartellaDaSlug(slug: string): string {
   return `${m[1]}:\\${(m[2] ?? '').split('-').join('\\')}`
 }
 
-/** Lo stato di un file che sta qui e/o sul Drive. Tolleranza sulla data come nella sincronia. */
-export function statoDi(pc: Firma | undefined, drive: Firma | undefined): StatoVoce {
+/**
+ * Lo stato di un file che sta qui e/o sul Drive.
+ *
+ * La data da sola non basta fra due PC: la stessa chat salita da un altro
+ * computer torna con la sua data, e sembrava «piu' recente sul Drive» a chi
+ * l'aveva scritta («9 versioni piu' recenti» su progetti mai aperti
+ * altrove). A parita' di dimensione si guarda l'impronta, quando c'e'; per
+ * le chat basta la dimensione, perche' un jsonl cresce e non cambia a
+ * parita' di byte.
+ */
+export function statoDi(pc: Firma | undefined, drive: Firma | undefined, chat = false): StatoVoce {
   if (pc === undefined && drive === undefined) return 'uguale'
   if (pc === undefined) return 'soloDrive'
   if (drive === undefined) return 'soloQui'
-  if (pc.size === drive.size && Math.abs(pc.mtime - drive.mtime) <= 1.5) return 'uguale'
+  if (pc.size === drive.size) {
+    if (Math.abs(pc.mtime - drive.mtime) <= 1.5) return 'uguale'
+    if (pc.sha !== undefined && drive.sha !== undefined) return pc.sha === drive.sha ? 'uguale' : (drive.mtime > pc.mtime ? 'indietro' : 'avanti')
+    if (chat) return 'uguale'
+  }
   return drive.mtime > pc.mtime ? 'indietro' : 'avanti'
 }
 
@@ -184,7 +197,7 @@ export function costruisciCatalogo(p: {
   adesso?: string
 }): Catalogo {
   const drive = new Map<string, Firma>()
-  for (const [percorso, v] of Object.entries(p.manifestoDrive.file)) drive.set(percorso, { size: v.size, mtime: v.mtime })
+  for (const [percorso, v] of Object.entries(p.manifestoDrive.file)) drive.set(percorso, { size: v.size, mtime: v.mtime, ...(v.sha !== undefined ? { sha: v.sha } : {}) })
   const percorsi = new Set<string>([...p.firmaPc.keys(), ...drive.keys()])
   const titoliPc = titoliDeiWorkspace(p.archivioPc)
   const titoliDrive = titoliDeiWorkspace(p.archivioDrive)
@@ -242,7 +255,7 @@ export function costruisciCatalogo(p: {
       const quando = indice?.quando ?? (quandoMs > 0 ? new Date(quandoMs).toISOString() : undefined)
       const titolo = (indice?.titolo ?? '').trim() !== '' ? (indice?.titolo as string).trim()
         : noto !== undefined && noto.titolo.trim() !== '' ? noto.titolo.trim() : 'Conversazione'
-      const stato = statoDi(pc, d)
+      const stato = statoDi(pc, d, true)
       g.chat.push({
         sessione: uuid, percorso, titolo, stato,
         ...(quando !== undefined ? { quando } : {}),

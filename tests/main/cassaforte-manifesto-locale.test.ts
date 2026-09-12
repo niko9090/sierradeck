@@ -113,7 +113,9 @@ describe('il manifesto locale dice solo cio che sta su questo disco', () => {
     expect(await chatSulDrive(drive, maestra)).toEqual([percorso])
   })
 
-  it('una chat cancellata davvero qui sparisce anche dal Drive (la regola di sempre)', async () => {
+  it('una chat sparita da qui NON sparisce dal Drive: il Drive e la memoria lunga', async () => {
+    // Claude Code pulisce da solo le trascrizioni vecchie di trenta giorni; il
+    // 2026-09-12 quella pulizia ha fatto togliere dal Drive 117 chat in un colpo.
     const drive = driveCondiviso()
     const a = pc('A')
     chat(a, 'vecchia', 3)
@@ -122,7 +124,10 @@ describe('il manifesto locale dice solo cio che sta su questo disco', () => {
     expect((await syncA.salva()).ok).toBe(true)
     const maestra = await maestraDi(drive, 'passphrase-robusta-1')
     rmSync(join(a.claude, 'projects', 'progetto', 'vecchia.jsonl'))
+    chat(a, 'nuova', 1)
     expect((await syncA.salva()).ok).toBe(true)
-    expect(await chatSulDrive(drive, maestra)).toEqual([])
+    const sulDrive = await chatSulDrive(drive, maestra)
+    expect(sulDrive.some((p) => p.endsWith('vecchia.jsonl'))).toBe(true)
+    expect(sulDrive.some((p) => p.endsWith('nuova.jsonl'))).toBe(true)
   })
 })

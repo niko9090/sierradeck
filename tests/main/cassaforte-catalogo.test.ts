@@ -144,3 +144,20 @@ describe('i workspace del Drive con le loro chat', () => {
     expect(scelteDiPortaQui(wdeck, drive, firmaPc, new Set(['nessuna']))).toEqual({})
   })
 })
+
+describe('uguale per contenuto, non per data', () => {
+  // «Progetti che ho solo qui e mi dice 9 versioni piu' recenti sul Drive»:
+  // la stessa chat salita da un altro PC torna con la sua data.
+  it('una chat con la stessa dimensione e data diversa e uguale', () => {
+    expect(statoDi({ size: 100, mtime: 1000 }, { size: 100, mtime: 999999 }, true)).toBe('uguale')
+  })
+  it('un file di progetto con la stessa dimensione: decide l impronta, se c e', () => {
+    expect(statoDi({ size: 100, mtime: 1000, sha: 'a' }, { size: 100, mtime: 999999, sha: 'a' })).toBe('uguale')
+    expect(statoDi({ size: 100, mtime: 1000, sha: 'a' }, { size: 100, mtime: 999999, sha: 'b' })).toBe('indietro')
+    expect(statoDi({ size: 100, mtime: 1000 }, { size: 100, mtime: 999999 })).toBe('indietro')
+  })
+  it('dimensioni diverse: vale la data', () => {
+    expect(statoDi({ size: 100, mtime: 1000 }, { size: 120, mtime: 2000 }, true)).toBe('indietro')
+    expect(statoDi({ size: 120, mtime: 3000 }, { size: 100, mtime: 2000 }, true)).toBe('avanti')
+  })
+})

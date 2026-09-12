@@ -27,7 +27,13 @@ import type { Progresso } from './motore'
 
 const NOME_MANIFESTO = 'sierradeck.manifesto'
 
-export type VoceManifesto = { nome: string; size: number; mtime: number }
+/**
+ * Una voce del manifesto. `sha` (sha256 del contenuto in chiaro) c'e' dalla
+ * 0.24.1: la data di modifica non regge fra due PC — la stessa chat, salita
+ * da un altro computer, arriva con una data diversa e sembrava «piu' recente
+ * sul Drive» a chi l'aveva scritta. Con l'impronta, uguale e' uguale.
+ */
+export type VoceManifesto = { nome: string; size: number; mtime: number; sha?: string }
 export type Manifesto = {
   versione: 1
   creatoIl: string
@@ -134,6 +140,17 @@ function discoDi(radici: Map<string, Radice>, percorso: string): string | undefi
   return percorsoSicuro(r.cartella, percorso.slice(prefissoDi(percorso).length + 1))
 }
 
+/** L'impronta di un contenuto: e' quella che il manifesto porta dalla 0.24.1. */
+export function impronta(contenuto: Buffer): string {
+  return createHash('sha256').update(contenuto).digest('hex')
+}
+
+/** L'impronta di un file sul disco, o `undefined` se non si legge. */
+export async function improntaDi(disco: string): Promise<string | undefined> {
+  const c = await readFile(disco).catch(() => undefined)
+  return c === undefined ? undefined : impronta(c)
+}
+
 async function firmaSuDisco(disco: string): Promise<{ size: number; mtime: number } | undefined> {
   try {
     const s = await stat(disco)
@@ -180,7 +197,7 @@ export async function salvaIncrementale(deps: {
    * caricato ha la sua voce, nessuna voce promette un blob che non c'e'.
    */
   segnale?: AbortSignal
-}): Promise<{ manifesto: Manifesto; caricati: number; cancellati: number; conflitti: Conflitto[]; annullato?: boolean }> {
+}): Promise<{ manifesto: Manifesto; caricati: number; cancellati: number; cancellatiPercorsi: string[]; conflitti: Conflitto[]; annullato?: boolean }> {
   const copie = deps.copieDiConflitto ?? PROGETTI
   const pcNome = deps.pcNome ?? 'questo-pc'
   const firma = await firmaRadici(deps.radici)
@@ -192,7 +209,12 @@ export async function salvaIncrementale(deps: {
   for (const [percorso, f] of firma) {
     if (!stessaFirma(prec.file[percorso], f)) cambiati.push(percorso)
   }
-  const forseCancellati = Object.keys(prec.file).filter((p) => !firma.has(p) && prefissiNostri.has(prefissoDi(p)))
+  // Solo nei progetti una sparizione qui vale come «l'ho tolto»: le chat NON
+  // si cancellano mai dal Drive perche' sono sparite dal disco. Claude Code
+  // pulisce da solo le trascrizioni vecchie di trenta giorni, e il 2026-09-12
+  // questo PC ha tolto dal Drive 117 chat in un colpo per quella pulizia.
+  // Il Drive e' la memoria lunga: una chat ci resta finche' non la togli tu.
+  const forseCancellati = Object.keys(prec.file).filter((p) => !firma.has(p) && prefissiNostri.has(prefissoDi(p)) && copie(prefissoDi(p)))
 
   // Il manifesto del Drive si legge **sempre**, anche senza cambi locali: e'
   // una chiamata piccola, ed e' l'unico modo di accorgersi che il Drive ha
@@ -213,7 +235,7 @@ export async function salvaIncrementale(deps: {
   }
   // Niente da fare? Non si tocca niente: salvataggio a costo zero.
   if (cambiati.length === 0 && forseCancellati.length === 0) {
-    return { manifesto: prec, caricati: 0, cancellati: 0, conflitti: [] }
+    return { manifesto: prec, caricati: 0, cancellati: 0, cancellatiPercorsi: [], conflitti: [] }
   }
   // Con tanti file, un elenco solo insegna all'archivio dove sta ogni nome:
   // una chiamata in meno per ogni caricamento.
@@ -239,7 +261,7 @@ export async function salvaIncrementale(deps: {
     const nome = nomeDi(percorso)
     await deps.archivio.carica(nome, await cifra(deps.maestra, contenuto))
     // Mutazione fra due `await`: JS e' a thread singolo, non c'e' corsa vera.
-    nuovo.file[percorso] = { nome, size: f.size, mtime: f.mtime }
+    nuovo.file[percorso] = { nome, size: f.size, mtime: f.mtime, sha: impronta(contenuto) }
     caricatiDavvero += 1
   }
   const scaricaChiaro = async (voce: VoceManifesto): Promise<Buffer | undefined> => {
@@ -328,6 +350,7 @@ export async function salvaIncrementale(deps: {
     manifesto: nuovo,
     caricati: annullato ? caricatiDavvero : cambiati.length,
     cancellati: annullato ? 0 : cancellati.length,
+    cancellatiPercorsi: annullato ? [] : cancellati,
     conflitti,
     ...(annullato ? { annullato: true } : {})
   }
@@ -430,6 +453,18 @@ export async function ripristinaIncrementale(deps: {
       const localeUguale = stessaFirma(locale, sapevo)
       if (driveUguale && localeUguale) { invariati += 1; continue }
       if (driveUguale && !localeUguale) { tenuti += 1; continue }
+    }
+    // Stessa dimensione, data diversa: e' quasi sempre lo stesso file salito
+    // da un altro PC con la sua data. Si guarda il contenuto (l'impronta, o
+    // per le chat basta la dimensione: un jsonl cresce, non cambia a parita'
+    // di byte) e, se e' uguale, si allinea la data qui e non si scarica.
+    if (disco !== undefined && locale !== undefined && locale.size === voce.size && !stessaFirma(locale, voce)) {
+      const uguali = voce.sha !== undefined ? (await improntaDi(disco)) === voce.sha : prefissoDi(p) === 'chat'
+      if (uguali) {
+        await utimes(disco, voce.mtime / 1000, voce.mtime / 1000).catch(() => undefined)
+        invariati += 1
+        continue
+      }
     }
     daScaricare.push(p)
   }

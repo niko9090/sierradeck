@@ -67,3 +67,24 @@ nuove dell'uno venivano cancellate dall'altro** se non ripristinava prima.
   per sessionUuid, non per percorso).
 - Le 385 chat cancellate il 2026-09-08 erano del portatile: il portatile le
   ha ancora; con la 0.19.1 sul portatile, il primo «Salva ora» le rimette.
+
+# 0.24.1 — «9 versioni più recenti sul Drive» su progetti mai aperti altrove, e le 117 chat del 2026-09-12
+
+- Diagnosi sul fisso: il manifesto locale (852 voci) confrontato con il
+  disco → 851 uguali, 0 indietro. Quindi gli «indietro» del catalogo erano
+  voci del manifesto del **Drive** scritte da un altro PC sugli stessi
+  percorsi (il portatile le aveva ripristinate e risalite con la sua data).
+  La data non regge fra due PC; la dimensione sì, il contenuto di più.
+- `VoceManifesto.sha` (sha256 del chiaro) scritto da `salvaIncrementale` e
+  `eseguiFusione`; `statoDi(pc, drive, chat)` → stessa dimensione: impronta
+  se c'è, per le chat basta la dimensione; `leggiQuadro` calcola l'impronta
+  locale solo per i candidati (stessa dimensione, data diversa, Drive con
+  impronta). `ripristinaIncrementale`: candidato uguale per contenuto →
+  `utimes` alla data del Drive, `invariati`, niente download.
+- Le 117 chat «rimosse» alle 10:04: Claude Code cancella le trascrizioni
+  più vecchie di 30 giorni (`cleanupPeriodDays`, predefinito), e
+  `forseCancellati` le vedeva come «le avevo e non le ho più». Ora le
+  cancellazioni si propagano SOLO nei progetti (`copie(prefisso)`): le chat
+  restano sul Drive finché non le togli tu. Il registro elenca i rimossi.
+- Catalogo: nel registro i primi 15 «indietro» con date e dimensioni; nel
+  pannello «su un altro PC» accanto al nome dei progetti nati altrove.

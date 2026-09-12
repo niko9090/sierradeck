@@ -6,7 +6,7 @@ import type { Progresso } from './motore'
 import { pesaRadici, radiciDaSincronizzare, percorsoSicuro, type Radice } from './raccolta'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
-import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi, togliPrefisso, leggiManifesto } from './incrementale'
+import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi } from './incrementale'
 import { applicaBlocco } from './lavoro'
 import type { Lavoro, Presa, TipoLavoro } from './lavoro-in-corso'
 import { costruisciCatalogo, scelteDiPortaQui, type Catalogo } from './catalogo'
@@ -288,8 +288,16 @@ export function apriSincronia(deps: {
     const archivioDrive = rawArchivio === undefined ? undefined : parseArchivio(rawArchivio).archivio
     const registroDrive = parseRegistro(await leggiJsonDalDrive(deps.archivio(), mDrive, manifestoDrive, 'sierradeck/progetti-drive.json'))
     const firma = await firmaRadici(radici())
-    const firmaPc = new Map<string, { size: number; mtime: number }>()
+    const firmaPc = new Map<string, { size: number; mtime: number; sha?: string }>()
     for (const [k, v] of firma) firmaPc.set(k, { size: v.size, mtime: v.mtime })
+    // Stessa dimensione, data diversa, e il Drive ha l'impronta: si calcola
+    // quella di qui (pochi file), cosi' il catalogo confronta il contenuto.
+    for (const [k, v] of firma) {
+      const d = manifestoDrive.file[k]
+      if (d === undefined || d.sha === undefined || d.size !== v.size || Math.abs(d.mtime - v.mtime) <= 1.5) continue
+      const sha = await improntaDi(v.disco)
+      if (sha !== undefined) firmaPc.set(k, { size: v.size, mtime: v.mtime, sha })
+    }
     const archivioPc = deps.workspaceLocale?.leggi()
     const titoliIndice = deps.titoliChat?.()
     return {
@@ -602,6 +610,7 @@ export function apriSincronia(deps: {
         for (const c of esito.conflitti) {
           log(`SALVA conflitto su ${c.percorso}: vince ${c.vinto === 'mio' ? 'questo PC' : 'il Drive'}${c.copia !== undefined ? `, copia in ${c.copia}` : ''}`)
         }
+        if (esito.cancellatiPercorsi.length > 0) log(`SALVA rimossi dal Drive (spariti da qui, nei progetti): ${esito.cancellatiPercorsi.slice(0, 20).join(', ')}${esito.cancellatiPercorsi.length > 20 ? ` … e altri ${esito.cancellatiPercorsi.length - 20}` : ''}`)
         log(`SALVA ok (${esito.caricati} caricati, ${esito.cancellati} rimossi, ${totali} in tutto${esito.conflitti.length > 0 ? `, ${esito.conflitti.length} conflitti` : ''})`)
         return { ok: true, voci: esito.caricati, ...(esito.conflitti.length > 0 ? { conflitti: esito.conflitti.length } : {}) }
       } catch (e) {
@@ -855,6 +864,17 @@ export function apriSincronia(deps: {
           cartellaEsiste: (p) => existsSync(p),
           adesso: adesso()
         })
+        // Nel registro, i «da aggiornare»: sono i casi in cui il Drive dice
+        // «piu' recente» per un percorso che qui c'e'. Con date e dimensioni,
+        // cosi' si capisce chi li ha scritti.
+        const indietro = catalogo.progetti.flatMap((g) => g.chat.filter((c) => c.stato === 'indietro').map((c) => ({ g: g.nome, c })))
+        if (indietro.length > 0) {
+          log(`CATALOGO: ${indietro.length} chat «indietro» (il Drive dice piu' recente)`)
+          for (const { g, c } of indietro.slice(0, 15)) {
+            const pc = q.firmaPc.get(c.percorso); const d = q.manifestoDrive.file[c.percorso]
+            log(`  «${c.titolo}» in ${g}: qui ${pc?.size ?? '?'}B ${pc !== undefined ? new Date(pc.mtime).toISOString() : '?'} · Drive ${d?.size ?? '?'}B ${d !== undefined ? new Date(d.mtime).toISOString() : '?'}${d?.sha !== undefined ? ' (con impronta)' : ' (senza impronta)'}`)
+          }
+        }
         return { ok: true, catalogo }
       } catch (e) {
         log(`CATALOGO fallito: ${messaggioDi(e)}`)
