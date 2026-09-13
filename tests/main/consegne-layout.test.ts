@@ -11,6 +11,22 @@ import { creaFreno, creaRegistroConsegne, finestraPerRipresa, primoSlotLibero } 
  * cosa*.
  */
 
+describe('rinominare un workspace', () => {
+  it('le ricevute seguono il nome nuovo, o il salvataggio dopo ricrea il vecchio', () => {
+    // Trovato leggendo il codice: la finestra rispondeva alla ricevuta con il
+    // nome vecchio, l'archivio ricreava quel workspace con dentro le chat e le
+    // toglieva da quello nuovo. Nella fascia il nome nuovo, nel file il vecchio.
+    const r = creaRegistroConsegne()
+    const scontrino1 = r.consegna(1, 'lavoro', [1, 2])
+    const scontrino2 = r.consegna(2, 'casa', [1, 2])
+    expect(r.rinomina('lavoro', 'ufficio')).toBe(1)
+    expect(r.verifica(1, scontrino1)?.workspace).toBe('ufficio')
+    expect(r.verifica(2, scontrino2)?.workspace).toBe('casa')
+    // Un nome che nessuno ha non tocca niente.
+    expect(r.rinomina('nessuno', 'altro')).toBe(0)
+  })
+})
+
 describe('lo slot di una finestra', () => {
   it('e il piu basso libero, non il successivo', () => {
     // Chiudendo la seconda finestra e riaprendone una, quella nuova deve

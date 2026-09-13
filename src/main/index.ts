@@ -178,6 +178,10 @@ let scopeStore: ScopeStore | undefined
 // nascono al caricamento del modulo, prima che la sessione sia aperta, quindi
 // finché resta `undefined` ripiegano sulla sola console.
 let registroGlobale: Registro | undefined
+/** Il lavoro con il Drive in corso, per non uscire sopra una fusione a meta'. */
+let lavoroGlobale: ReturnType<typeof creaLavoro> | undefined
+/** L'elenco delle chat fermate per l'aggiornamento, com'era su disco all'avvio. */
+let pausaLetta: ReturnType<typeof leggiPausa> | undefined
 /** Le sessioni SFTP aperte: si chiudono quando il programma esce. */
 let trasferimenti: Trasferimenti | undefined
 /** La sincronizzazione cifrata: alla chiusura si prova a salvare, se serve. */
@@ -724,7 +728,10 @@ if (!app.requestSingleInstanceLock()) {
         },
         // La porta arriva come lettura e non come numero: gli hook di una chat
         // si compongono al momento dello spawn, molto dopo questa riga.
-        () => portaAutopiloti
+        () => portaAutopiloti,
+        // I guasti dell'host nel registro: un riavvio abbandonato si deve
+        // poter leggere il giorno dopo.
+        (m) => registro.errore(m)
       )
       registerPreparazioneIpc(ptyClient, () => homedir())
       // Trovare claude.exe al posto dell'utente, prima che si apra la prima
@@ -899,6 +906,7 @@ if (!app.requestSingleInstanceLock()) {
       // Gli eventi verso le finestre si raggruppano (uno ogni 200 ms nella
       // stessa fase): sei file alla volta ridisegnavano l'App di continuo.
       const lavoro = creaLavoro(undefined, 200)
+      lavoroGlobale = lavoro
 
       lavoro.onCambio((st) => {
         for (const w of BrowserWindow.getAllWindows()) {
@@ -911,13 +919,15 @@ if (!app.requestSingleInstanceLock()) {
        * butta via i file gia' saliti o scesi (il manifesto si scrive alla
        * fine). Al massimo dieci minuti, come la quiete delle chat.
        */
-      const attendiLavoroDrive = async (): Promise<void> => {
+      const attendiLavoroDrive = async (): Promise<boolean> => {
         const scadenza = Date.now() + 10 * 60_000
         let detto = false
         while (lavoro.occupato() && Date.now() < scadenza) {
           if (!detto) { registro.info('[sistema] aspetto che finisca il lavoro con il Drive prima di chiudere'); detto = true }
           await new Promise((r) => setTimeout(r, 2000))
         }
+        if (lavoro.occupato()) registro.errore('[sistema] il lavoro con il Drive non e\' finito in dieci minuti')
+        return !lavoro.occupato()
       }
       // Un lavoro che ha portato giu' delle chat: l'indice si rilegge, le chat
       // con la cartella di un altro PC si rimappano, i workspace anche, e le
@@ -1653,6 +1663,7 @@ if (!app.requestSingleInstanceLock()) {
         if (existsSync(grezzo)) {
           const salvata = leggiPausa(JSON.parse(readFileSync(grezzo, 'utf8')))
           if (salvata !== undefined && pausaAncoraValida(salvata)) {
+            pausaLetta = salvata
             for (const sessione of salvata.sessioni) chatDaRiprendereDopoAggiornamento.add(sessione)
             console.info(
               `[aggiornamenti] ${salvata.sessioni.length} chat si erano fermate per l'aggiornamento: le riprendo`
@@ -1922,6 +1933,11 @@ if (!app.requestSingleInstanceLock()) {
         driveLavoro: () => lavoro.stato(),
         driveAnnulla: () => lavoro.annulla(),
         driveRiavvia: async () => {
+          if (aggiornamenti?.stato().fase === 'pronto') {
+            registro.info('[sistema] riavvio dal telefono con un aggiornamento pronto: lo installo')
+            void aggiornamenti.installa()
+            return { ok: true, messaggio: 'C’era un aggiornamento pronto: lo installo e riparto con la versione nuova.' }
+          }
           const pronti = await attendiQuiete({
             chat: () => chatAperte,
             pausaAutopiloti: (attiva) => clientAutopilota.pausaAggiornamento(attiva),
@@ -2258,9 +2274,18 @@ if (!app.requestSingleInstanceLock()) {
             chatDaRiprendereDopoAggiornamento.delete(sessione)
             win.webContents.send('client:riprendi-chat', { sessione, testo: AVVISO_RIPRESA })
           }
-          // Consegnate tutte: il file ha finito il suo lavoro.
+          // Consegnate tutte: il file ha finito il suo lavoro. Consegnate
+          // alcune: il file si riscrive con chi resta, o un secondo avvio
+          // nella stessa giornata rileggerebbe l'elenco intero e riscriverebbe
+          // «tornato su con la versione nuova» a chi l'aveva gia' ricevuto.
           if (chatDaRiprendereDopoAggiornamento.size === 0) {
             try { rmSync(filePausa(dati), { force: true }) } catch { /* al prossimo avvio e' scaduto */ }
+          } else if (pausaLetta !== undefined) {
+            scriviJsonAtomico(
+              filePausa(dati),
+              { ...pausaLetta, sessioni: [...chatDaRiprendereDopoAggiornamento] },
+              'pausa-aggiornamento'
+            )
           }
         }
         for (const id of [...chatPerFinestra.keys()]) {
@@ -2477,7 +2502,17 @@ if (!app.requestSingleInstanceLock()) {
         })),
         // Nel registro su file: e' l'unico posto dove, il giorno dopo, si
         // capisce per quale strada e' passato un aggiornamento.
-        registro
+        registro,
+        // Se l'installazione non parte, la pausa si disfa: gli autopiloti
+        // tornano a ricevere il compito seguente e il file della pausa se ne
+        // va, o al prossimo avvio direbbe «tornato su con la versione nuova».
+        async () => {
+          await clientAutopilota.pausaAggiornamento(false).catch((err: unknown) => {
+            registro.errore(`[aggiornamenti] autopiloti non tolti dalla pausa: ${String(err)}`)
+          })
+          try { rmSync(filePausa(dati), { force: true }) } catch { /* non c'era */ }
+          registro.info("[aggiornamenti] pausa disfatta: l'installazione non e' partita")
+        }
       )
       ipcMain.handle('aggiornamenti:stato', () => aggiornamenti?.stato() ?? { fase: 'fermo' })
       ipcMain.handle('aggiornamenti:cerca', () => aggiornamenti?.cerca())
@@ -2488,7 +2523,19 @@ if (!app.requestSingleInstanceLock()) {
       // chat arrivate compaiono nei workspace solo al riavvio, e farlo a mano
       // era un passo in piu' che nessuno ricordava.
       ipcMain.handle('sistema:riavvia', async (): Promise<{ ok: boolean; messaggio?: string }> => {
-        await attendiLavoroDrive()
+        // **Con un aggiornamento pronto, riavviare vuol dire installare.**
+        // `relaunch` + `quit` con `autoInstallOnAppQuit` acceso faceva partire
+        // l'installer silenzioso **e** la versione vecchia insieme: NSIS la
+        // uccideva un secondo dopo, senza `before-quit`. E' il «torna la
+        // vecchia e si chiude da sola» del 13 settembre.
+        if (aggiornamenti?.stato().fase === 'pronto') {
+          registro.info('[sistema] riavvio chiesto con un aggiornamento pronto: lo installo')
+          void aggiornamenti.installa()
+          return { ok: true, messaggio: 'C’era un aggiornamento pronto: lo installo e riparto con la versione nuova.' }
+        }
+        if (!(await attendiLavoroDrive())) {
+          return { ok: false, messaggio: 'Non ho riavviato: c’è ancora un lavoro con il Drive in corso da più di dieci minuti. Aspetta che finisca o annullalo dalla striscia in alto.' }
+        }
         const pronti = await attendiQuiete({
           chat: () => chatAperte,
           pausaAutopiloti: (attiva) => clientAutopilota.pausaAggiornamento(attiva),
@@ -2560,6 +2607,7 @@ if (!app.requestSingleInstanceLock()) {
       // (profilo roaming, criterio aziendale, disco pieno) e `openDatabase` se
       // better-sqlite3 non carica il proprio prebuild.
       console.error('[avvio] impossibile aprire la finestra principale:', err)
+      registroGlobale?.errore(`[avvio] impossibile aprire la finestra principale: ${err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err)}`)
       dialog.showErrorBox(
         `${APP_NAME}: avvio fallito`,
         `L'applicazione non e' riuscita a partire e si chiudera'.\n\n${String(err)}`
@@ -2585,11 +2633,46 @@ app.on('window-all-closed', () => {
  * claude.exe e la connessione SQLite. Nessuno dei due fallimenti interrompe la
  * chiusura, ma nessuno dei due sparisce in silenzio.
  */
-function conTetto<T>(p: Promise<T>, ms: number): Promise<T | undefined> {
+/**
+ * Un guaio della chiusura, scritto dove si legge il giorno dopo.
+ *
+ * In produzione la console non esiste: cinque `console.error` fra
+ * `chiudiRisorse` e `before-quit` raccontavano a nessuno un PTY host che
+ * non usciva o un salvataggio sul Drive interrotto.
+ */
+function guaioChiusura(cosa: string, err?: unknown): void {
+  const motivo = err === undefined ? '' : `: ${err instanceof Error ? err.message : String(err)}`
+  console.error(`[chiusura] ${cosa}${motivo}`)
+  registroGlobale?.errore(`[chiusura] ${cosa}${motivo}`)
+}
+
+function conTetto<T>(p: Promise<T>, ms: number, etichetta = 'operazione'): Promise<T | undefined> {
   return new Promise((risolvi) => {
-    const t = setTimeout(() => risolvi(undefined), ms)
+    const t = setTimeout(() => {
+      // Scadere in silenzio era il difetto: 45 secondi passavano e nessuno
+      // sapeva che il salvataggio non era arrivato in fondo.
+      guaioChiusura(`${etichetta} interrotta dopo ${Math.round(ms / 1000)} s`)
+      risolvi(undefined)
+    }, ms)
     p.then((v) => { clearTimeout(t); risolvi(v) }, () => { clearTimeout(t); risolvi(undefined) })
   })
+}
+
+/**
+ * Un lavoro con il Drive in corso si annulla per uscire, e si aspetta che
+ * abbia chiuso la voce che aveva in mano (scrive il manifesto con cio' che
+ * e' salito). Prima «Esci» durante una fusione la uccideva a meta': i file
+ * gia' saliti sprecati, il manifesto non scritto, e al riavvio nessuno
+ * sapeva che era stata interrotta.
+ */
+async function annullaLavoroDrivePerUscire(): Promise<void> {
+  const l = lavoroGlobale
+  if (l === undefined || !l.occupato()) return
+  registroGlobale?.info("[chiusura] un lavoro con il Drive e' in corso: lo annullo per uscire")
+  l.annulla()
+  const scadenza = Date.now() + 10_000
+  while (l.occupato() && Date.now() < scadenza) await new Promise((r) => setTimeout(r, 200))
+  if (l.occupato()) guaioChiusura("il lavoro con il Drive non si e' fermato in dieci secondi")
 }
 
 async function chiudiRisorse(): Promise<void> {
@@ -2604,12 +2687,12 @@ async function chiudiRisorse(): Promise<void> {
   try {
     trasferimenti?.chiudiTutto()
   } catch (err) {
-    console.error('[chiusura] sessioni SFTP non chiuse:', err)
+    guaioChiusura('sessioni SFTP non chiuse', err)
   }
   try {
     await ptyClient?.stop()
   } catch (err) {
-    console.error('[chiusura] spegnimento del PTY host fallito:', err)
+    guaioChiusura('spegnimento del PTY host fallito', err)
   }
   try {
     // Con journal_mode = WAL, uscire senza close() lascia il write-ahead log
@@ -2617,7 +2700,7 @@ async function chiudiRisorse(): Promise<void> {
     // riavvio, ma è un handle aperto sullo stesso percorso di uscita.
     db?.close()
   } catch (err) {
-    console.error('[chiusura] chiusura del database fallita:', err)
+    guaioChiusura('chiusura del database fallita', err)
   }
   db = undefined
 }
@@ -2647,12 +2730,16 @@ app.on('before-quit', (event) => {
   // chat su cui si lavorava «mancava» alla riapertura. `chiudiRisorse` uccide i
   // claude.exe delle finestre, quindi il salvataggio va per forza prima.
   void salvaLayoutDiTutteLeFinestre()
-    .catch((err) => console.error('[chiusura] salvataggio del layout fallito:', err))
+    .catch((err) => guaioChiusura('salvataggio del layout fallito', err))
+    // Un lavoro con il Drive a meta' si annulla in modo ordinato prima di
+    // salvare: altrimenti `salvaSeServe` trovava il lavoro occupato, usciva
+    // subito e si chiudeva sopra una fusione in corso.
+    .then(() => annullaLavoroDrivePerUscire())
     // L'ultimo salvataggio sul Drive, se l'automatico e' acceso e c'e' qualcosa
     // di cambiato: e' cosi' che l'altro PC trova il lavoro di oggi. Con un
     // tetto, perche' un'uscita non puo' restare appesa a una rete lenta.
-    .then(() => conTetto(sincroniaGlobale?.salvaSeServe({ conArrivo: false }) ?? Promise.resolve(), 45_000))
-    .catch((err) => console.error('[chiusura] salvataggio sul Drive fallito:', err))
+    .then(() => conTetto(sincroniaGlobale?.salvaSeServe({ conArrivo: false }) ?? Promise.resolve(), 45_000, 'salvataggio sul Drive alla chiusura'))
+    .catch((err) => guaioChiusura('salvataggio sul Drive fallito', err))
     .finally(() => {
       void chiudiRisorse().finally(() => app.quit())
     })

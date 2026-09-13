@@ -74,6 +74,17 @@ export type RegistroConsegne = {
   /** L'ultima ricevuta di una finestra, valida o no: serve solo a raccontare. */
   ricevuta: (winId: number) => Consegna | undefined
   /**
+   * Un workspace ha cambiato nome: le ricevute che lo citavano seguono.
+   *
+   * Senza, al primo salvataggio dopo la rinomina la finestra rispondeva alla
+   * ricevuta con il nome **vecchio**: l'archivio ricreava quel workspace con
+   * dentro le chat, le toglieva da quello nuovo (una chat sta in un workspace
+   * solo) e rimetteva l'attivo sul vecchio. Nella fascia si leggeva il nome
+   * nuovo, nel file c'era di nuovo il vecchio, e al riavvio comparivano
+   * entrambi. Torna quante ricevute ha toccato.
+   */
+  rinomina: (vecchio: string, nuovo: string) => number
+  /**
    * Una finestra che si chiude libera il suo slot e la sua ricevuta.
    *
    * Gli id delle finestre si riciclano: senza questa pulizia una finestra nuova
@@ -137,6 +148,16 @@ export function creaRegistroConsegne(): RegistroConsegne {
     },
 
     ricevuta: (winId) => consegne.get(winId),
+
+    rinomina(vecchio, nuovo) {
+      let toccate = 0
+      for (const [winId, c] of consegne) {
+        if (c.workspace !== vecchio) continue
+        consegne.set(winId, { ...c, workspace: nuovo })
+        toccate += 1
+      }
+      return toccate
+    },
 
     dimentica(winId) {
       slot.delete(winId)

@@ -1,5 +1,5 @@
 import { autoUpdater } from 'electron-updater'
-import { copyFileSync, existsSync, readFileSync } from 'node:fs'
+import { copyFileSync, existsSync, readFileSync, renameSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
@@ -140,7 +140,19 @@ export function creaAggiornamenti(
    * fosse arrivata, o se SierraDeck Update si fosse fatto vivo. Da qui passa
    * ogni fase, e anche quello che electron-updater dice di suo.
    */
-  registro?: { info: (m: string) => void; errore: (m: string) => void }
+  registro?: { info: (m: string) => void; errore: (m: string) => void },
+  /**
+   * Disfa la pausa quando l'installazione **non parte**.
+   *
+   * `attendiQuiete` mette in pausa gli autopiloti, scrive nelle chat di
+   * fermarsi a fine turno e annota chi era a meta'. Se poi SierraDeck Update
+   * non si fa vivo (antivirus, cartella temporanea diversa, `tasklist` che
+   * fallisce) si tornava in `errore` **senza disfare niente**: gli autopiloti
+   * restavano in pausa fino a un riavvio, e al prossimo avvio il file della
+   * pausa faceva scrivere «SierraDeck e' tornato su con la versione nuova»
+   * in chat che non si erano mai fermate.
+   */
+  disfaPausa?: () => Promise<void>
 ): Aggiornamenti {
   const nota = (m: string): void => { console.log(`[aggiornamenti] ${m}`); registro?.info(`[aggiornamenti] ${m}`) }
   const guaio = (m: string): void => { console.error(`[aggiornamenti] ${m}`); registro?.errore(`[aggiornamenti] ${m}`) }
@@ -158,6 +170,15 @@ export function creaAggiornamenti(
   let stato: StatoAggiornamento = { fase: 'fermo' }
   /** Dove electron-updater ha messo l'installer: lo esegue SierraDeck Update. */
   let installerScaricato: string | undefined
+  /**
+   * La versione dell'installer scaricato, per quando lo stato la perde.
+   *
+   * Un `errore` (rete caduta a meta') butta via `versione`; un
+   * `update-not-available` successivo rimette `pronto` **senza versione** e
+   * con l'errore vecchio: la striscia diceva «La versione  e' pronta» e
+   * `installa()` saltava la guardia sulla stessa versione.
+   */
+  let versioneScaricata: string | undefined
   /** Un'installazione per sessione: dopo, questo processo sta per morire comunque. */
   let installazioneAvviata = false
 
@@ -225,7 +246,7 @@ export function creaAggiornamenti(
     // nuovo lo fa proprio per sapere se ce n'e' una piu' nuova di quella —
     // e la risposta «no» deve lasciargli quella di prima.
     if (installerScaricato !== undefined && stato.fase !== 'aggiornato') {
-      annuncia({ ...stato, fase: 'pronto' })
+      annuncia({ ...stato, fase: 'pronto', versione: versioneScaricata ?? stato.versione, errore: undefined })
       return
     }
     annuncia({ fase: 'aggiornato' })
@@ -242,6 +263,7 @@ export function creaAggiornamenti(
     if (typeof scaricato === 'string' && scaricato.toLowerCase().endsWith('.exe')) {
       installerScaricato = scaricato
     }
+    versioneScaricata = String(info.version)
     annuncia({ fase: 'pronto', versione: String(info.version) })
   })
   autoUpdater.on('error', (err) => {
@@ -262,6 +284,10 @@ export function creaAggiornamenti(
   const cerca = async (dalTelefono = false): Promise<void> => {
     daTelefono = dalTelefono
     if (process.env.ELECTRON_RENDERER_URL !== undefined) return
+    // Il ricontrollo delle sei ore durante l'attesa della quiete faceva
+    // lampeggiare «cerco» → «pronto» → «attendo» sotto gli occhi di chi
+    // aspettava: mentre si installa non si cerca.
+    if (installazioneAvviata) return
     annuncia({ ...stato, fase: 'cerco' })
     try {
       await autoUpdater.checkForUpdates()
@@ -365,7 +391,7 @@ export function creaAggiornamenti(
       // l'irreversibilità. Il riavvio per aggiornamento è l'unico momento in
       // cui è successo, ed è anche l'unico in cui si sa in anticipo di stare
       // per riavviare.
-      copiaDiSicurezzaLayout()
+      copiaDiSicurezzaLayout(cartellaDati ?? app.getPath('userData'))
       // **Un solo installer.** Da qui in poi l'aggiornamento lo fa SierraDeck
       // Update (il nostro updater C#). Ma electron-updater, a ogni scaricamento,
       // registra un gestore su `quit` che — se `autoInstallOnAppQuit` e' vero —
@@ -412,8 +438,23 @@ export function creaAggiornamenti(
             .then(async (vivo) => {
               if (!vivo) {
                 guaio('l updater non si e fatto vivo: non chiudo niente')
-                annuncia({ fase: 'errore', errore: 'L’aggiornamento non è partito. Riprova.' })
                 installazioneAvviata = false
+                // **Si disfa tutto quello che la quiete aveva fatto.** Gli
+                // autopiloti tornano a ricevere il compito seguente, il file
+                // della pausa se ne va, e electron-updater torna a installare
+                // alla chiusura — cosi' il testo «si installa da sola quando
+                // chiudi» resta vero.
+                autoUpdater.autoInstallOnAppQuit = true
+                try {
+                  await disfaPausa?.()
+                } catch (err) {
+                  guaio(`pausa non disfatta: ${String(err)}`)
+                }
+                annuncia({
+                  fase: 'pronto',
+                  versione: versioneScaricata ?? stato.versione,
+                  errore: 'Non ho installato: SierraDeck Update non si è fatto vivo (un antivirus che lo blocca, o la cartella temporanea che non si può scrivere). Le chat e gli autopiloti hanno ripreso da soli. Puoi riprovare, oppure chiudere SierraDeck: la versione nuova si installa alla chiusura.'
+                })
                 return
               }
               nota('SierraDeck Update e vivo (finestra di installazione): mi tolgo di mezzo')
@@ -539,13 +580,19 @@ export function feedAlternativo(
  * Non solleva mai: un aggiornamento non si ferma perché una copia di sicurezza
  * non è riuscita.
  */
-function copiaDiSicurezzaLayout(): void {
+function copiaDiSicurezzaLayout(dati: string): void {
   try {
-    const dati = app.getPath('userData')
     const sorgente = join(dati, 'workspaces.json')
     if (!existsSync(sorgente)) return
-    copyFileSync(sorgente, join(dati, 'workspaces.prima-dell-aggiornamento.json'))
+    // Su un temporaneo e poi rinomina: la copia esiste per l'ipotesi che
+    // qualcosa vada storto proprio adesso, e una copia tronca dal guasto che
+    // doveva coprire non servirebbe a niente.
+    const destinazione = join(dati, 'workspaces.prima-dell-aggiornamento.json')
+    const temporaneo = `${destinazione}.tmp`
+    copyFileSync(sorgente, temporaneo)
+    renameSync(temporaneo, destinazione)
   } catch (err) {
     console.error('[aggiornamenti] copia di sicurezza dei layout non riuscita:', err)
+    try { rmSync(join(dati, 'workspaces.prima-dell-aggiornamento.json.tmp'), { force: true }) } catch { /* niente da togliere */ }
   }
 }

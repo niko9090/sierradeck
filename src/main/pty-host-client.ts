@@ -20,6 +20,14 @@ export type PtyHostClientOptions = {
   healthyUptimeMs?: number
   /** Attesa massima perché l'host esca da solo dopo lo spegnimento ordinato. */
   shutdownTimeoutMs?: number
+  /**
+   * Dove raccontare i guasti dell'host, oltre alla console.
+   *
+   * In produzione la console non si legge: un host che muore, un riavvio
+   * abbandonato dopo cinque tentativi («nessun terminale sara' disponibile»),
+   * uno spegnimento che non finisce erano righe che nessuno vedeva.
+   */
+  log?: (messaggio: string) => void
 }
 
 /**
@@ -105,7 +113,7 @@ export class PtyHostClient {
     // questo termina l'intera applicazione. Uno spawn può fallire per cause
     // ordinarie: script mancante dopo una build parziale, permessi negati.
     child.on('error', (err) => {
-      console.error('[pty-host] avvio fallito:', err)
+      this.racconta(`avvio fallito: ${String(err)}`)
       morte(`avvio del PTY host fallito: ${String(err)}`)
     })
 
@@ -145,7 +153,7 @@ export class PtyHostClient {
     })
 
     child.on('exit', (code) => {
-      console.error(`[pty-host] terminato con codice ${String(code)}`)
+      this.racconta(`terminato con codice ${String(code)}`)
       morte(`PTY host terminato con codice ${String(code)}`)
     })
   }
@@ -216,11 +224,21 @@ export class PtyHostClient {
     if (timer !== undefined) clearTimeout(timer)
 
     if (esito === 'scaduto') {
-      console.error(
-        `[pty-host] non uscito entro ${this.attesaSpegnimento} ms dallo spegnimento ordinato: ` +
+      this.racconta(
+        `non uscito entro ${this.attesaSpegnimento} ms dallo spegnimento ordinato: ` +
           'lo termino, i terminali aperti potrebbero sopravvivere'
       )
       child.kill()
+    }
+  }
+
+  /** In console e, quando c'e', nel registro su file. */
+  private racconta(messaggio: string): void {
+    console.error(`[pty-host] ${messaggio}`)
+    try {
+      this.opts.log?.(`[pty-host] ${messaggio}`)
+    } catch {
+      // Un registro che non scrive non deve fermare il riavvio dell'host.
     }
   }
 
@@ -243,15 +261,15 @@ export class PtyHostClient {
 
     const ritardo = this.ritardi[this.tentativiRiavvio]
     if (ritardo === undefined) {
-      console.error(
-        `[pty-host] riavvio abbandonato dopo ${this.tentativiRiavvio} tentativi consecutivi falliti: ` +
+      this.racconta(
+        `riavvio abbandonato dopo ${this.tentativiRiavvio} tentativi consecutivi falliti: ` +
           'nessun terminale sarà disponibile finché non si riavvia l\'applicazione'
       )
       return
     }
     this.tentativiRiavvio += 1
-    console.error(
-      `[pty-host] riavvio fra ${ritardo} ms (tentativo ${this.tentativiRiavvio} di ${this.ritardi.length})`
+    this.racconta(
+      `riavvio fra ${ritardo} ms (tentativo ${this.tentativiRiavvio} di ${this.ritardi.length})`
     )
     this.timerRiavvio = setTimeout(() => {
       this.timerRiavvio = undefined

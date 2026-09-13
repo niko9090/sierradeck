@@ -1,5 +1,6 @@
 import { execFileSync, spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { scriviAtomico } from '@shared/scrittura-atomica'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { sorgenteUpdater, VERSIONE_UPDATER } from './sorgente'
@@ -187,16 +188,24 @@ export function avviaUpdater(percorso: string, dati: AvvioUpdater): boolean {
     }
 
     const cartella = dirname(percorso)
-    writeFileSync(
+    // Intero o niente: un file dei parametri scritto a meta' farebbe partire
+    // l'updater senza sapere cosa installare, e noi ci chiuderemmo lo stesso.
+    const scritto = scriviAtomico(
       join(cartella, 'aggiornamento.txt'),
       [
         String(dati.pid), dati.installer, dati.eseguibile, dati.versione,
         dati.claude ?? '', dati.notaClaude ?? '', String(dati.portaClient ?? 47640)
       ].join(String.fromCharCode(10)),
-      'utf8'
+      'updater'
     )
+    if (!scritto) return false
     // Il diario di prima direbbe «è vivo» di un updater che non è ancora nato.
-    try { rmSync(diarioUpdater(), { force: true }) } catch { /* non c'era */ }
+    // In **tutte** le cartelle temporanee candidate: l'updater (.NET) legge
+    // `TMP` prima di `TEMP`, noi il contrario, e con due valori diversi si
+    // guardavano due file.
+    for (const diario of diariUpdater()) {
+      try { rmSync(diario, { force: true }) } catch { /* non c'era */ }
+    }
 
     // 1. Explorer: nato da lui, di noi non gli resta niente.
     if (prova(() => {
@@ -230,9 +239,32 @@ export function avviaUpdater(percorso: string, dati: AvvioUpdater): boolean {
   }
 }
 
-/** Dove l'updater scrive di essere vivo. */
+/** Dove l'updater scrive di essere vivo: la prima delle cartelle candidate. */
 export function diarioUpdater(ambiente: NodeJS.ProcessEnv = process.env): string {
-  return join(ambiente.TEMP ?? ambiente.TMP ?? tmpdir(), 'sierradeck-update.log')
+  return diariUpdater(ambiente)[0]!
+}
+
+/**
+ * Tutte le cartelle temporanee in cui l'updater potrebbe scrivere il diario.
+ *
+ * L'updater e' un programma .NET e `Path.GetTempPath()` legge `TMP` prima di
+ * `TEMP`; qui si leggeva `TEMP` prima di `TMP`. Con i due valori diversi
+ * (profili aziendali, strumenti portabili) SierraDeck diceva «non e' partito»
+ * mentre l'updater era vivo — e dopo cinque secondi lo terminava a forza e
+ * installava, senza il salvataggio finale. Si guardano tutte, senza doppioni.
+ */
+export function diariUpdater(ambiente: NodeJS.ProcessEnv = process.env): string[] {
+  const cartelle = [ambiente.TEMP, ambiente.TMP, tmpdir()]
+    .filter((c): c is string => typeof c === 'string' && c.trim() !== '')
+  const viste = new Set<string>()
+  const diari: string[] = []
+  for (const c of cartelle) {
+    const chiave = c.replace(/[\\/]+$/, '').toLowerCase()
+    if (viste.has(chiave)) continue
+    viste.add(chiave)
+    diari.push(join(c, 'sierradeck-update.log'))
+  }
+  return diari
 }
 
 function percorsoPowerShell(ambiente: NodeJS.ProcessEnv = process.env): string {
@@ -263,7 +295,7 @@ export async function updaterVivo(
 ): Promise<boolean> {
   for (let i = 0; i < 24; i += 1) {
     await attendi(250)
-    if (esiste(diarioUpdater())) return true
+    if (diariUpdater().some(esiste)) return true
   }
   return false
 }

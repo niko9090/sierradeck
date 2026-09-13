@@ -167,11 +167,14 @@ export function registerPtyIpc(
    * gli hook nascono, ma bussano a una porta dove non c'è nessuno. Assente vuol
    * dire il predefinito, che è il caso dei test.
    */
-  portaAutopiloti: () => number = () => PORTA_AUTOPILOTA
+  portaAutopiloti: () => number = () => PORTA_AUTOPILOTA,
+  /** Dove scrivere i guasti dell'host: il registro su file, quando c'e'. */
+  log?: (messaggio: string) => void
 ): PtyHostClient {
   const client = new PtyHostClient({
     nodePath: process.execPath,
-    hostScript: join(__dirname, 'pty-host.js')
+    hostScript: join(__dirname, 'pty-host.js'),
+    ...(log !== undefined ? { log } : {})
   })
 
   client.on((msg: HostToCore) => {
@@ -965,10 +968,21 @@ export function registerLayoutIpc(
   // Creare rende attivo il nuovo workspace, quindi le altre finestre devono
   // seguirlo come per un cambio: senza, continuerebbero a salvare il proprio
   // layout sotto un nome che per l'archivio non e' piu' quello attivo.
+  // **Se il file non si scrive, lo si dice.** `scrivi` non solleva mai e
+  // torna `false`: prima l'esito si buttava via, il renderer riceveva lo stato
+  // nuovo come se fosse su disco, traslocava e lo annunciava alle altre
+  // finestre — e al riavvio tornava il mondo di prima, o peggio un nome che
+  // l'archivio non aveva. Ora l'`invoke` rifiuta e il pannello mostra l'errore.
+  const scriviOSolleva = (a: ReturnType<typeof store.leggi>, cosa: string): void => {
+    if (!store.scrivi(a)) {
+      throw new Error(`${cosa} non salvato: workspaces.json non si è potuto scrivere (disco pieno o file bloccato). Guarda il registro.`)
+    }
+  }
+
   ipcMain.handle('workspace:crea', (event, raw: unknown): StatoWorkspace => {
     const precedente = store.leggi()
     const a = creaWorkspace(precedente, validateNomeWorkspace(raw))
-    store.scrivi(a)
+    scriviOSolleva(a, 'il workspace nuovo')
     if (a.attivo !== precedente.attivo) annunciaCambio(event, a, precedente.attivo)
     return statoDi(a)
   })
@@ -976,7 +990,7 @@ export function registerLayoutIpc(
   ipcMain.handle('workspace:elimina', (event, raw: unknown): StatoWorkspace => {
     const precedente = store.leggi()
     const a = eliminaWorkspace(precedente, validateNomeWorkspace(raw))
-    store.scrivi(a)
+    scriviOSolleva(a, "l'eliminazione del workspace")
     if (a.attivo !== precedente.attivo) annunciaCambio(event, a, precedente.attivo)
     return statoDi(a)
   })
@@ -998,8 +1012,12 @@ export function registerLayoutIpc(
       throw new Error(`«${nuovo}» esiste già: scegli un altro nome`)
     }
     const a = rinominaWorkspace(precedente, vecchio, nuovo)
-    store.scrivi(a)
+    scriviOSolleva(a, 'il nome nuovo')
     if (nuovo !== vecchio) {
+      // Le ricevute delle finestre citano il nome: senza questa riga il primo
+      // salvataggio dopo la rinomina ricreava il workspace con il nome vecchio
+      // e svuotava quello nuovo (vedi `RegistroConsegne.rinomina`).
+      consegne.rinomina(vecchio, nuovo)
       registro.inviaATutte('workspace:rinominato', { vecchio, nuovo, attivo: a.attivo })
     }
     return statoDi(a)

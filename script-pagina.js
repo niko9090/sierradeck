@@ -1486,7 +1486,12 @@ function descriviAggiornamento() {
   if (!a) return 'Non lo so.'
   if (a.fase === 'disponibile') return 'C’è la ' + (a.versione || 'versione nuova') + '.'
   if (a.fase === 'scarico') return 'Sto scaricando… ' + (a.percento || 0) + '%'
-  if (a.fase === 'pronto') return 'La ' + (a.versione || 'nuova') + ' si installa da sola alla prossima chiusura.'
+  if (a.fase === 'pronto') return (a.errore ? a.errore + ' ' : '') + 'La ' + (a.versione || 'nuova') + ' si installa da sola alla prossima chiusura.'
+  // Le tre fasi che finivano nel ripiego «Sei alla versione più recente»:
+  // durante l'installazione era una bugia, e a computer appena acceso pure.
+  if (a.fase === 'installo') return a.testo || ('Sto installando la ' + (a.versione || 'versione nuova') + ': il computer si chiude e riparte da solo. Questa pagina non risponde per un minuto o due.')
+  if (a.fase === 'aggiornato') return 'È all’ultima versione.'
+  if (a.fase === 'fermo') return 'Controlla da sé ogni sei ore. Non ha ancora guardato: «Cerca ora» lo fa subito.'
   // Fra «Installa» e il computer che si chiude adesso c'e' un'attesa vera: le
   // chat che stanno lavorando devono finire quello che hanno in mano. Senza
   // dirlo, da qui si vede un tasto premuto e nient'altro.
@@ -1795,6 +1800,10 @@ async function aggiorna() {
     const stato = await chiedi('/api/stato')
     // Ha risposto: da qui in poi quello che si vede e' di adesso.
     ultimoContatto = Date.now()
+    // L'aggiornamento viaggia con il polso apposta, e la pagina lo ignorava:
+    // la percentuale non avanzava, il LED di «Computer» si accendeva solo
+    // aprendo Impostazioni, un'installazione partita dal PC non si vedeva.
+    if (stato && stato.aggiornamento) aggiornamentoVisto = stato.aggiornamento
     giriFalliti = 0
     avvisaSeServe(stato)
     if (dentroAp) await leggiAp()

@@ -201,12 +201,17 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
       // chiuso, o è stato ceduto a un'altra finestra. Lo store è l'unico a
       // saperlo, e distinguere qui è ciò che permette a una chat spostata di
       // continuare a vivere invece di essere uccisa un istante dopo la cessione.
+      // L'id del terminale si prende **prima** di staccare: lo store, a questo
+      // punto, ha gia' tolto il riquadro (o azzerato il suo `ptyId`), e
+      // leggerlo da li' dava sempre `undefined` — la griglia di ogni chat
+      // chiusa restava offerta per tutta la vita della finestra, con il suo
+      // xterm smontato dentro.
+      const idVivo = aggancio.idCorrente()
       if (useLayoutStore.getState().ceduti.has(paneId)) aggancio.stacca()
       else aggancio.chiudi()
       // Prima di `dispose`: leggere la griglia di un terminale smontato non ha
       // senso, e continuare a offrirla mostrerebbe al telefono una chat che qui
       // non c'e' piu'.
-      const idVivo = useLayoutStore.getState().panes[paneId]?.ptyId
       if (idVivo !== undefined) dimenticaSchermo(idVivo)
       term.dispose()
     }

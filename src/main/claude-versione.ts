@@ -30,7 +30,12 @@ export function versioneInstallata(
 
 export function versioneUltima(
   esegui: (c: string, args: string[]) => string = (c, args) =>
-    execFileSync(c, args, { encoding: 'utf8', windowsHide: true, timeout: TIMEOUT_MS })
+    // `npm.cmd` e' uno script batch: da Node 22 (Electron 43 porta Node 24)
+    // avviarlo senza shell solleva `EINVAL` (correzione CVE-2024-27980), e il
+    // catch qui sotto lo trasformava in «non lo so»: l'updater non ha mai
+    // aggiornato Claude Code e la finestra non diceva niente. Gli argomenti
+    // sono costanti, quindi la shell non espone niente.
+    execFileSync(c, args, { encoding: 'utf8', windowsHide: true, timeout: TIMEOUT_MS, shell: process.platform === 'win32' })
 ): string | undefined {
   try {
     // Il registro di npm è la fonte: è da lì che Claude Code si installa e si

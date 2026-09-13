@@ -812,6 +812,14 @@ export function App(): React.JSX.Element {
       aggiornaWorkspace({ nomi: s.nomi, attivo: s.attivo })
       void azioniWorkspace.current
         ?.segui(s.precedente, s.attivo)
+        .then(() => {
+          // **Eliminato da un'altra finestra.** Qui il trasloco ha messo in
+          // memoria i riquadri del workspace sparito con i terminali ancora
+          // vivi, e il pannello non lo elenca piu' fra gli «ancora al lavoro»:
+          // quei claude.exe restavano accesi e irraggiungibili fino alla
+          // chiusura della finestra. Se il nome non c'e' piu', si spegne.
+          if (!s.nomi.includes(s.precedente)) azioniWorkspace.current?.spegni(s.precedente)
+        })
         .catch((err: unknown) => console.error('[workspace] cambio non seguito:', err))
     })
   }, [])
@@ -1142,6 +1150,25 @@ export function App(): React.JSX.Element {
         </div>
       ) : null}
 
+      {/* L'attesa della quiete. Prima non aveva nessuna striscia: si premeva
+          «Installa e riavvia» con una chat al lavoro e la striscia spariva per
+          dieci minuti — e se la quiete non arrivava si tornava a «pronto» come
+          se niente fosse, senza dire che non si era installato. */}
+      {aggiornamento.fase === 'attendo' ? (
+        <div className="avviso avviso--aggiornamento">
+          <span className="led led--attesa" />
+          <span>
+            Aspetto che {aggiornamento.chatOccupate === 1
+              ? 'una chat finisca quello che ha in mano'
+              : `${aggiornamento.chatOccupate ?? 0} chat finiscano quello che hanno in mano`}, poi installo
+            la {aggiornamento.versione ?? 'versione nuova'}. Una chat «lavora» se il suo terminale è acceso e
+            non sta aspettando te. Ho già scritto in ognuna di fermarsi a fine turno e ho messo in pausa gli
+            autopiloti. Al massimo dieci minuti: se non finiscono, non installo, tolgo la pausa e te lo dico
+            qui. Non chiudere le chat a mano: l’installazione parte da sola.
+          </span>
+        </div>
+      ) : null}
+
       {aggiornamento.fase === 'disponibile' || aggiornamento.fase === 'scarico' || aggiornamento.fase === 'pronto' ? (
         <div className="avviso avviso--aggiornamento">
           <span className="led led--lavoro" />
@@ -1175,6 +1202,10 @@ export function App(): React.JSX.Element {
           ) : (
             <>
               <span>
+                {/* Perche' non si e' installata l'ultima volta: senza questa riga
+                    il tasto tornava com'era e nessuno sapeva che non era
+                    successo niente. */}
+                {aggiornamento.errore !== undefined ? <><b>{aggiornamento.errore}</b>{' '}</> : null}
                 La versione {aggiornamento.versione} è pronta: <b>si installa da sola</b> la prossima
                 volta che chiudi SierraDeck. Se la vuoi adesso, il programma si chiude e riparte —
                 le chat aperte tornano dal salvataggio automatico.

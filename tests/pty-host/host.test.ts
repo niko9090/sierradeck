@@ -12,14 +12,17 @@ import type { CoreToHost } from '@shared/protocol'
 function managerDoppio(opts: { scrollback?: Map<string, string> } = {}): {
   manager: ManagerLike
   chiamate: string[]
+  opzioni: Map<string, unknown>
 } {
   const chiamate: string[] = []
+  const opzioni = new Map<string, unknown>()
   const scrollback = opts.scrollback ?? new Map<string, string>()
   const manager: ManagerLike = {
     onData: () => {},
     onExit: () => {},
-    spawn: (id) => {
+    spawn: (id, opts) => {
       chiamate.push(`spawn:${id}`)
+      opzioni.set(id, opts)
       return 4242
     },
     write: (id, data) => chiamate.push(`write:${id}:${data}`),
@@ -28,18 +31,19 @@ function managerDoppio(opts: { scrollback?: Map<string, string> } = {}): {
     killAll: () => chiamate.push('killAll'),
     scrollbackDi: (id) => scrollback.get(id)
   }
-  return { manager, chiamate }
+  return { manager, chiamate, opzioni }
 }
 
 function avvia(opts: { scrollback?: Map<string, string> } = {}): {
   chiamate: string[]
+  opzioni: Map<string, unknown>
   stdin: PassThrough
   uscite: number[]
   righe: string[]
   log: string[]
   invia: (msg: CoreToHost) => void
 } {
-  const { manager, chiamate } = managerDoppio(opts)
+  const { manager, chiamate, opzioni } = managerDoppio(opts)
   const stdin = new PassThrough()
   const uscite: number[] = []
   const righe: string[] = []
@@ -55,6 +59,7 @@ function avvia(opts: { scrollback?: Map<string, string> } = {}): {
 
   return {
     chiamate,
+    opzioni,
     stdin,
     uscite,
     righe,
@@ -82,6 +87,19 @@ describe('ciclo di vita del PTY host', () => {
     await vi.waitFor(() => expect(h.chiamate).toContain('spawn:p1'))
     expect(h.righe.join('')).toContain('"kind":"spawned"')
     expect(h.uscite).toEqual([])
+  })
+
+  it('l ambiente del Core arriva al gestore dei pty', async () => {
+    // Il fornitore alternativo (ANTHROPIC_BASE_URL, token, modello) viaggia
+    // in `env`: qui il campo cadeva nel passaggio e ogni chat parlava con
+    // Anthropic qualunque fornitore fosse impostato, senza un errore.
+    const h = avvia()
+    h.invia({
+      id: 'p2', kind: 'spawn', sessionUuid: 'u', cwd: 'C:\\', command: 'cmd.exe', args: [],
+      cols: 80, rows: 24, env: { ANTHROPIC_BASE_URL: 'https://esempio.it' }
+    })
+    await vi.waitFor(() => expect(h.chiamate).toContain('spawn:p2'))
+    expect((h.opzioni.get('p2') as { env?: Record<string, string> }).env).toEqual({ ANTHROPIC_BASE_URL: 'https://esempio.it' })
   })
 
   it('chiude i terminali ed esce quando il Core chiede lo spegnimento', async () => {

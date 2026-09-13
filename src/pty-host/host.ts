@@ -90,7 +90,14 @@ export function startHost(deps: HostDeps): void {
               command: msg.command,
               args: msg.args,
               cols: msg.cols,
-              rows: msg.rows
+              rows: msg.rows,
+              // **Anche l'ambiente.** Il Core lo manda (il fornitore alternativo:
+              // ANTHROPIC_BASE_URL, il token, il modello) e il gestore dei pty
+              // lo sa usare, ma qui il campo cadeva nel passaggio: ogni chat
+              // parlava con Anthropic qualunque fornitore fosse impostato, senza
+              // un errore. `env` e' facoltativo nel tipo, quindi nessuno se n'e'
+              // accorto.
+              ...(msg.env !== undefined ? { env: msg.env } : {})
             })
             send({ id: msg.id, kind: 'spawned', pid })
             break

@@ -129,11 +129,39 @@ function apriEPrepara(filePath: string): Db {
  * Il fallimento non e' silenzioso: viene registrato. Se anche la ricreazione
  * fallisce l'eccezione prosegue, e il ramo di avvio la mostra all'utente.
  */
+/** Un'attesa sincrona: qui siamo nell'avvio, prima di qualunque finestra. */
+function attendiSincrono(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
+/** `SQLITE_BUSY`/`SQLITE_LOCKED`: qualcun altro lo tiene, non e' rotto. */
+function eBloccato(err: unknown): boolean {
+  const codice = (err as { code?: unknown } | undefined)?.code
+  return codice === 'SQLITE_BUSY' || codice === 'SQLITE_LOCKED'
+}
+
 export function openDatabase(filePath: string): Db {
+  let ultimo: unknown
+  // **Bloccato non e' corrotto.** Un antivirus o un backup che tiene il file
+  // fa sollevare `SQLITE_BUSY` dopo i 5 s di attesa: prima si cancellava
+  // `index.db` per qualunque errore, e su Windows la `rmSync` di un file
+  // aperto altrove falliva a sua volta — «avvio fallito» con la finestra di
+  // dialogo. Si riprova tre volte, e un file bloccato si lascia dov'e'.
+  for (let tentativo = 1; tentativo <= 3; tentativo += 1) {
+    try {
+      return apriEPrepara(filePath)
+    } catch (err) {
+      ultimo = err
+      if (!eBloccato(err) || filePath === ':memory:') break
+      console.warn(`[db] ${filePath} e' tenuto da un altro processo (tentativo ${tentativo} di 3): riprovo fra mezzo secondo`)
+      attendiSincrono(500)
+    }
+  }
   try {
+    if (eBloccato(ultimo)) throw ultimo
     return apriEPrepara(filePath)
   } catch (err) {
-    if (filePath === ':memory:') throw err
+    if (filePath === ':memory:' || eBloccato(err)) throw err
     console.error(
       `[db] ${filePath} non e' apribile (${String(err)}). ` +
         "L'indice e' una cache ricostruibile dai .jsonl: lo cancello e lo ricreo."
