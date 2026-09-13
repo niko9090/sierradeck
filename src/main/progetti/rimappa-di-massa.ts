@@ -28,9 +28,14 @@ export type Spostamento = {
   jsonlA: string
 }
 
-/** Un segmento nascosto (`.claude-mem`, `.cache`): cartelle di strumenti, non progetti. */
+/**
+ * Un segmento nascosto (`.claude-mem`, `.cache`) o di servizio (`AppData`,
+ * `Temp`): cartelle di strumenti, non progetti. Una chat nata in una
+ * cartella temporanea non deve diventare un progetto nel registro condiviso
+ * di tutti i PC — con 1400 chat, ogni esperimento sparito ne faceva uno.
+ */
 function haSegmentoNascosto(percorso: string): boolean {
-  return percorso.split(/[\\/]+/).some((p) => p.length > 1 && p.startsWith('.'))
+  return percorso.split(/[\\/]+/).some((p) => (p.length > 1 && p.startsWith('.')) || /^(appdata|temp|tmp)$/i.test(p))
 }
 
 /**

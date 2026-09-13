@@ -161,7 +161,10 @@ describe('la ronda dei progetti', () => {
     expect(esito).toEqual({ ok: false, nonRisponde: true, pcNome: 'Torre' })
     expect(b.adesso() - inizio).toBeGreaterThanOrEqual(ATTESA_TESTIMONE_MS)
     expect(b.ripristini()).toEqual([])
-    expect(scatola.dati.has(nomeStaffetta('p1'))).toBe(true)
+    // La richiesta si ritira (controllo del 14/09): lasciata sul Drive, A al
+    // suo ritorno avrebbe ceduto il testimone — salvato e ibernato le sue
+    // chat — a qualcuno che non lo stava piu' aspettando.
+    expect(scatola.dati.has(nomeStaffetta('p1'))).toBe(false)
     const forzato = await b.ronda.prendiTestimone('p1', true)
     expect(forzato).toEqual({ ok: true })
     expect(b.ripristini()).toEqual(['p1'])

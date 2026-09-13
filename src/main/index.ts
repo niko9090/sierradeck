@@ -1061,8 +1061,11 @@ if (!app.requestSingleInstanceLock()) {
             cwd, registro: registroProgetti.leggi(), pcId: pc.id, cartellaProgetti: pc.cartellaProgetti,
             esiste: existsSync, adesso: new Date().toISOString()
           })
-          if (r.registro !== undefined) registroProgetti.scrivi(r.registro)
+          // Prima la cartella, poi il registro: se la cartella non si crea
+          // (disco scollegato) la riga nel registro farebbe adottare la stessa
+          // origine di nuovo a ogni tentativo.
           mkdirSync(r.cwd, { recursive: true })
+          if (r.registro !== undefined) registroProgetti.scrivi(r.registro)
           return r
         } catch (err) {
           registro.errore(`[progetti] cartella di ${cwd} non risolta: ${String(err)}`)
@@ -1109,7 +1112,15 @@ if (!app.requestSingleInstanceLock()) {
        * se qui ce n'e' gia' una piu' lunga, resta quella. Torna quante ne ha
        * spostate.
        */
-      const rimappaChatSulDisco = async (): Promise<number> => {
+      let rimappaturaInCorso: Promise<number> | undefined
+      const rimappaChatSulDisco = (): Promise<number> => {
+        // In fila: all'avvio e un minuto dopo (il primo arrivo) partivano
+        // insieme, con lo stesso nome di temporaneo, e si pestavano i piedi.
+        const dopo = (rimappaturaInCorso ?? Promise.resolve(0)).then(() => rimappaDavvero(), () => rimappaDavvero())
+        rimappaturaInCorso = dopo
+        return dopo
+      }
+      const rimappaDavvero = async (): Promise<number> => {
         if (db === undefined) return 0
         const piano = pianificaRimappatura({
           chat: listSessions(db).map((s) => ({ uuid: s.uuid, cwd: s.cwd, jsonlPath: s.jsonlPath })),
@@ -1125,9 +1136,15 @@ if (!app.requestSingleInstanceLock()) {
             await mkdirAsync(dirname(m.jsonlA), { recursive: true })
             const sA = await statAsync(m.jsonlA).catch(() => undefined)
             if (sA === undefined || sA.size < sDa.size) {
-              const temp = `${m.jsonlA}.rimappa-${process.pid}`
-              await riscriviTrascrizione(m.jsonlDa, temp, m.da, m.a)
-              await renameAsync(temp, m.jsonlA)
+              const temp = `${m.jsonlA}.rimappa-${process.pid}-${m.uuid.slice(0, 8)}`
+              try {
+                await riscriviTrascrizione(m.jsonlDa, temp, m.da, m.a)
+                await renameAsync(temp, m.jsonlA)
+              } catch (err) {
+                // Il temporaneo non deve restare in ~/.claude/projects.
+                await unlinkAsync(temp).catch(() => undefined)
+                throw err
+              }
               await utimesAsync(m.jsonlA, sDa.atime, sDa.mtime).catch(() => undefined)
             }
             await unlinkAsync(m.jsonlDa)
@@ -1849,8 +1866,22 @@ if (!app.requestSingleInstanceLock()) {
         // ha senso, ed essendo un elenco chiuso è anche il muro che impedisce
         // di far aprire una sessione in un percorso qualunque dalla rete.
         cartelle: async () => {
-          const progetti = await scanProjects(claudeRoot()).catch(() => [])
-          return progetti.map((p) => p.path)
+          // Le cartelle **vere**, dal `cwd` delle trascrizioni: lo slug e' a
+          // perdita e `Game_ascensore` diventava `Game\ascensore`, una
+          // cartella che non esiste — proposta al telefono come destinazione e
+          // rifiutata (403) per il quaderno dell'autopilota che ci lavora.
+          const viste = new Set<string>()
+          if (db !== undefined) {
+            for (const s of listSessions(db)) {
+              const c = s.cwd ?? s.projectPath
+              if (c !== undefined && c !== '') viste.add(c)
+            }
+          }
+          if (viste.size === 0) {
+            const progetti = await scanProjects(claudeRoot()).catch(() => [])
+            for (const p of progetti) viste.add(p.path)
+          }
+          return [...viste]
         },
         cartellaEsiste: async (percorso: string) => {
           try {
@@ -2620,7 +2651,7 @@ if (!app.requestSingleInstanceLock()) {
       registroGlobale?.errore(`[avvio] impossibile aprire la finestra principale: ${err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err)}`)
       dialog.showErrorBox(
         `${APP_NAME}: avvio fallito`,
-        `L'applicazione non e' riuscita a partire e si chiudera'.\n\n${String(err)}`
+        `L'applicazione non è riuscita a partire e si chiuderà.\n\n${String(err)}`
       )
       // `exit` e non `quit`: la chiusura ordinata serve a spegnere cio' che e'
       // stato avviato, e qui non sappiamo fin dove si sia arrivati. Se il PTY

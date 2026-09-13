@@ -254,3 +254,30 @@ describe('indice aggiornato invece che rifatto da capo', () => {
     expect(res.failed).toBe(0)
   })
 })
+
+describe('lo stesso uuid sotto due cartelle', () => {
+  it('vale il file la cui cartella esiste qui, e la riga non oscilla', async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const { openDatabase, listSessions } = await import('../../../src/main/db')
+    const { indexAll } = await import('../../../src/main/indexer/indexer')
+    const radice = mkdtempSync(join(tmpdir(), 'claude-doppio-'))
+    const qui = mkdtempSync(join(tmpdir(), 'cartella-qui-'))
+    const slugQui = qui.replace(/[^a-zA-Z0-9]/g, '-')
+    const slugAltro = 'X--altro-pc-Wdeck'
+    mkdirSync(join(radice, 'projects', slugQui), { recursive: true })
+    mkdirSync(join(radice, 'projects', slugAltro), { recursive: true })
+    const riga = (cwd: string): string => JSON.stringify({ type: 'user', uuid: 'm1', sessionId: 'aaaa', cwd, timestamp: '2026-09-14T10:00:00.000Z', message: { role: 'user', content: 'ciao' } })
+    // La copia dell'altro PC e' piu' grande, ma la sua cartella qui non esiste.
+    writeFileSync(join(radice, 'projects', slugQui, 'aaaa.jsonl'), riga(qui) + '\n', 'utf8')
+    writeFileSync(join(radice, 'projects', slugAltro, 'aaaa.jsonl'), riga('X:\\altro-pc\\Wdeck') + '\n' + riga('X:\\altro-pc\\Wdeck') + '\n', 'utf8')
+    const db = openDatabase(':memory:')
+    await indexAll(db, radice)
+    const prima = listSessions(db).find((x) => x.uuid === 'aaaa')
+    expect(prima?.jsonlPath).toBe(join(radice, 'projects', slugQui, 'aaaa.jsonl'))
+    await indexAll(db, radice)
+    const dopo = listSessions(db).find((x) => x.uuid === 'aaaa')
+    expect(dopo?.jsonlPath).toBe(prima?.jsonlPath)
+  })
+})

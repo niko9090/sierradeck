@@ -24,7 +24,9 @@ describe('la cartella di una chat arrivata da un altro PC', () => {
     expect(r.motivo).toBe('progetto')
     expect(r.cwd).toBe(join(PROGETTI, 'Wdeck', 'src'))
     expect(r.nome).toBe('Wdeck')
-    expect(r.registro).toBeUndefined()
+    // E si collega qui (controllo del 14/09): senza, la volta dopo la stessa
+    // cartella veniva «adottata» come progetto nuovo accanto a quello vero.
+    expect(r.registro?.progetti[0]?.percorsi.PORT).toBe(join(PROGETTI, 'Wdeck'))
   })
 
   it('IL PUNTO: una cartella sconosciuta viene adottata in «Progetti SierraDeck», e le sorelle poi la trovano', () => {
@@ -47,5 +49,34 @@ describe('la cartella di una chat arrivata da un altro PC', () => {
     expect(nomeCartella('E:\\')).toBe('E')
     expect(nomeCartella('')).toBe('progetto')
     expect(nomeCartella('C:\\a\\b:c?')).toBe('b-c')
+  })
+})
+
+describe('cosa NON si adotta (controllo del 14/09)', () => {
+  it('una sottocartella sparita di un progetto già mio si ricrea lì, non diventa un progetto nuovo', () => {
+    // Prima `D:\\dev\\Wdeck\\src` cancellata diventava un progetto «src» in
+    // «Progetti SierraDeck», nel registro condiviso di tutti i PC.
+    const reg: RegistroProgetti = { versione: 1, progetti: [{ id: 'p1', nome: 'Wdeck', percorsi: { QUI: 'D:\\dev\\Wdeck' }, aggiuntoIl: 'T' }] }
+    const r = risolviCartellaDiChat({ cwd: 'D:\\dev\\Wdeck\\src', registro: reg, pcId: 'QUI', cartellaProgetti: PROGETTI, esiste: () => false, adesso: 'T' })
+    expect(r).toEqual({ cwd: 'D:\\dev\\Wdeck\\src', motivo: 'progetto', nome: 'Wdeck' })
+  })
+
+  it('un progetto conosciuto ma mai collegato qui si collega, così la volta dopo non nasce un doppione', () => {
+    const reg: RegistroProgetti = { versione: 1, progetti: [{ id: 'p1', nome: 'Wdeck', percorsi: { FISSO: 'E:\\Users\\nikof\\Documents\\Wdeck' }, aggiuntoIl: 'T' }] }
+    const r = risolviCartellaDiChat({ cwd: 'E:\\Users\\nikof\\Documents\\Wdeck\\src', registro: reg, pcId: 'PORT', cartellaProgetti: PROGETTI, esiste: () => false, adesso: 'T' })
+    expect(r.motivo).toBe('progetto')
+    expect(r.registro?.progetti[0]?.percorsi.PORT).toBe(join(PROGETTI, 'Wdeck'))
+    // Con il registro aggiornato, la stessa cartella non si adotta piu'.
+    const dopo = risolviCartellaDiChat({ cwd: 'E:\\Users\\nikof\\Documents\\Wdeck\\src', registro: r.registro!, pcId: 'PORT', cartellaProgetti: PROGETTI, esiste: () => false, adesso: 'T' })
+    expect(dopo.motivo).toBe('progetto')
+    expect(dopo.registro).toBeUndefined()
+  })
+
+  it('due progetti con lo stesso nome non finiscono nella stessa cartella', () => {
+    const reg: RegistroProgetti = { versione: 1, progetti: [{ id: 'p1', nome: 'src', percorsi: { QUI: join(PROGETTI, 'src') }, origini: ['C:\\a\\Alfa\\src'], aggiuntoIl: 'T' }] }
+    const r = risolviCartellaDiChat({ cwd: 'C:\\b\\Beta\\src', registro: reg, pcId: 'QUI', cartellaProgetti: PROGETTI, esiste: () => false, adesso: '2026-09-14T10:11:12.000Z' })
+    expect(r.motivo).toBe('adottata')
+    expect(r.cwd).not.toBe(join(PROGETTI, 'src'))
+    expect(r.cwd.startsWith(join(PROGETTI, 'src-'))).toBe(true)
   })
 })

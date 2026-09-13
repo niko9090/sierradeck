@@ -256,6 +256,9 @@ export function creaRonda(deps: {
     return p === undefined ? undefined : stati.get(p.id)
   }
 
+  /** I progetti il cui giro sta fallendo: si dice una volta, finche' non torna ok. */
+  const inErrore = new Set<string>()
+
   return {
     async giro() {
       if (inGiro) return
@@ -270,8 +273,13 @@ export function creaRonda(deps: {
         for (const p of progetti) {
           try {
             await giroDi(s, p)
+            if (inErrore.delete(p.id)) log(`[progetti] giro su «${p.nome}»: il Drive risponde di nuovo`)
           } catch (err) {
-            log(`[progetti] giro su «${p.nome}» fallito: ${String(err)}`)
+            // Una volta, non ogni trenta secondi per progetto: offline il
+            // registro riempiva 2880 righe al giorno per progetto.
+            if (inErrore.has(p.id)) continue
+            inErrore.add(p.id)
+            log(`[progetti] giro su «${p.nome}» fallito (non lo ripeto finche' non torna a rispondere): ${String(err)}`)
           }
         }
       } finally {
@@ -313,6 +321,10 @@ export function creaRonda(deps: {
         }
         if (presenzaViva(presenza, adesso()) && presenza.pcId !== me) {
           log(`[progetti] «${p.nome}»: ${presenza.pcNome} non risponde`)
+          // La richiesta si ritira: lasciata sul Drive, l'altro PC al suo
+          // ritorno avrebbe ceduto il testimone (salvato, ibernato le chat)
+          // a qualcuno che non lo vuole piu'.
+          await s.cancella(nomeStaffetta(id)).catch(() => undefined)
           return { ok: false, nonRisponde: true, pcNome: presenza.pcNome }
         }
       }

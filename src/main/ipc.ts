@@ -357,8 +357,18 @@ export function registerSessionIpc(cartella?: string): Db {
     const inizio = Date.now()
     inCorso = true
     try {
+      // Con un tetto: 1500 file «riusati» in meno di un secondo erano 1500
+      // invii alle finestre. Passano subito i cambi di fase e l'ultimo.
+      let ultimoInvio = 0
+      let faseInviata: string | undefined
       esito = await indexAll(db, claudeRoot(), (a) => {
         ultimoAvanzamento = a
+        const ora = Date.now()
+        const cambioFase = a.fase !== faseInviata
+        const finito = a.done >= a.total
+        if (!cambioFase && !finito && ora - ultimoInvio < 150) return
+        ultimoInvio = ora
+        faseInviata = a.fase
         registro.inviaATutte('sessioni:avanzamento', a)
       }, { completa })
     } catch (err) {
@@ -393,7 +403,13 @@ export function registerSessionIpc(cartella?: string): Db {
   // Il pulsante «Rileggi» rilegge davvero tutto: chi lo preme lo fa proprio
   // perché sospetta che l'indice non rispecchi più i file, e un aggiornamento
   // che si fida delle date su disco non risponderebbe a quel dubbio.
-  ipcMain.handle('sessioni:reindicizza', () => reindex(true))
+  ipcMain.handle('sessioni:reindicizza', () => {
+    // In fila con le altre letture: due `indexAll` insieme leggevano tutto
+    // due volte e la finestra credeva finito a meta'.
+    const dopo = (rileggiInCorso ?? Promise.resolve()).then(() => reindex(true), () => reindex(true))
+    rileggiInCorso = dopo
+    return dopo
+  })
 
   /**
    * Un assaggio di una conversazione senza aprirla, e — per una chat governata

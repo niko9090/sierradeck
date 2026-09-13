@@ -43,7 +43,15 @@ export function creaProgettiSync(deps: {
   const radiceDi = (p: ProgettoDrive, cartella: string): Radice => ({
     prefisso: prefissoProgetto(p.id),
     cartella,
-    elenca: async (c) => (await elencaFileProgetto(c)).file
+    elenca: async (c) => {
+      const e = await elencaFileProgetto(c)
+      // Un file oltre il tetto (100 MB) non sale: dirlo, o sull'altro PC un
+      // `.git` con un pack mancante si scopre solo quando non funziona.
+      if (e.troppoGrandi.length > 0) {
+        log(`[progetti] «${p.nome}»: ${e.troppoGrandi.length} file oltre il tetto non salgono sul Drive: ${e.troppoGrandi.slice(0, 5).join(', ')}${e.troppoGrandi.length > 5 ? ' …' : ''}`)
+      }
+      return e.file
+    }
   })
 
   return {

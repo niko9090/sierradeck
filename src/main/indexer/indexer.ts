@@ -1,4 +1,4 @@
-import { stat } from 'node:fs/promises'
+import { open, stat } from 'node:fs/promises'
 import { ePercorsoDiServizio } from '@shared/slug-di-servizio'
 import { basename } from 'node:path'
 import { scanProjects } from './project-scanner'
@@ -43,6 +43,32 @@ const BLOCCO = 50
  * `completa` forza la rilettura di tutto: è il pulsante «Rileggi», che esiste
  * per i casi in cui l'indice va rifatto a prescindere dalle date su disco.
  */
+/**
+ * La `cwd` della prima riga che la dichiara, leggendo solo l'inizio del file.
+ *
+ * Serve a scegliere fra due copie della stessa chat senza leggerle intere:
+ * bastano i primi kilobyte, dove Claude Code scrive la cartella a ogni riga.
+ */
+async function primaCwd(file: string): Promise<string | undefined> {
+  let fh
+  try {
+    fh = await open(file, 'r')
+    const buf = Buffer.alloc(64 * 1024)
+    const { bytesRead } = await fh.read(buf, 0, buf.length, 0)
+    const testo = buf.subarray(0, bytesRead).toString('utf8')
+    for (const riga of testo.split('\n')) {
+      const m = /"cwd"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(riga)
+      if (m?.[1] === undefined) continue
+      try { return JSON.parse(`"${m[1]}"`) as string } catch { return undefined }
+    }
+    return undefined
+  } catch {
+    return undefined
+  } finally {
+    await fh?.close().catch(() => undefined)
+  }
+}
+
 export async function indexAll(
   db: Db,
   claudeRoot: string,
@@ -68,8 +94,43 @@ export async function indexAll(
     blocco = []
   }
 
+  // **Lo stesso uuid sotto due cartelle** (dopo la rimappatura, finche' la
+  // copia dell'altro PC non e' tolta): la chiave dell'indice e' l'uuid, e
+  // leggerli entrambi faceva oscillare la riga fra i due file a ogni
+  // rilettura — l'elenco mostrava la chat ora sotto la cartella di qui, ora
+  // sotto quella dell'altro PC. Vale il file la cui cartella esiste qui, e a
+  // parita' il piu' grande.
+  const perUuid = new Map<string, { file: string; progetto: (typeof progetti)[number]; size: number }[]>()
   for (const progetto of progetti) {
     for (const file of progetto.jsonlFiles) {
+      const uuid = basename(file, '.jsonl')
+      const voci = perUuid.get(uuid) ?? []
+      voci.push({ file, progetto, size: 0 })
+      perUuid.set(uuid, voci)
+    }
+  }
+  const scarti = new Set<string>()
+  for (const [uuid, voci] of perUuid) {
+    if (voci.length < 2) continue
+    for (const v of voci) v.size = await stat(v.file).then((st) => st.size, () => 0)
+    // La cartella la dice la trascrizione (`cwd`), non lo slug: lo slug e' a
+    // perdita (`Game_ascensore` → `Game\ascensore`) e per una cartella con
+    // un trattino non esisterebbe mai.
+    const esiste = await Promise.all(voci.map(async (v) => {
+      const cwd = await primaCwd(v.file)
+      const dove = cwd ?? v.progetto.path
+      return stat(dove).then(() => true, () => false)
+    }))
+    const ordinate = voci
+      .map((v, i) => ({ v, c: esiste[i] === true }))
+      .sort((a, b) => Number(b.c) - Number(a.c) || b.v.size - a.v.size)
+    for (const { v } of ordinate.slice(1)) scarti.add(v.file)
+    console.warn(`[indexer] ${uuid} sta sotto ${voci.length} cartelle: tengo ${ordinate[0]?.v.file ?? ''}`)
+  }
+
+  for (const progetto of progetti) {
+    for (const file of progetto.jsonlFiles) {
+      if (scarti.has(file)) { done += 1; continue }
       const uuid = basename(file, '.jsonl')
       vive.add(uuid)
       try {

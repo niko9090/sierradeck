@@ -67,3 +67,21 @@ describe('il piano di rimappatura', () => {
     expect(piano).toEqual([])
   })
 })
+
+describe('le cartelle temporanee non diventano progetti', () => {
+  it('una chat nata in Temp o in AppData resta dov’è', () => {
+    const chiamate: string[] = []
+    const piano = pianificaRimappatura({
+      chat: [
+        { uuid: 'u1', cwd: 'C:\\Users\\nikof\\AppData\\Local\\Temp\\prova-xyz', jsonlPath: 'C:\\p\\x\\u1.jsonl' },
+        { uuid: 'u2', cwd: 'C:\\Temp\\altro', jsonlPath: 'C:\\p\\y\\u2.jsonl' },
+        { uuid: 'u3', cwd: 'C:\\Users\\nikof\\Documents\\Portfolio', jsonlPath: 'C:\\p\\z\\u3.jsonl' }
+      ],
+      radiceProjects: 'C:\\p',
+      esiste: () => false,
+      risolvi: (cwd) => { chiamate.push(cwd); return 'C:\\Progetti\\Portfolio' }
+    })
+    expect(chiamate).toEqual(['C:\\Users\\nikof\\Documents\\Portfolio'])
+    expect(piano.map((m) => m.uuid)).toEqual(['u3'])
+  })
+})

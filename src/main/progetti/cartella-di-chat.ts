@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { adottaOrigine, rimappaCwd, type RegistroProgetti } from './registro'
+import { adottaOrigine, collegaProgetto, normalizzaPercorso, percorsoLocale, progettoDiCwd, rimappaCwd, type RegistroProgetti } from './registro'
 
 /**
  * La cartella in cui aprire una chat che qui non ce l'ha.
@@ -50,9 +50,38 @@ export function risolviCartellaDiChat(a: {
 }): CartellaDiChat {
   if (a.esiste(a.cwd)) return { cwd: a.cwd, motivo: 'esiste' }
   const nota = rimappaCwd(a.cwd, a.registro, a.pcId, a.cartellaProgetti, a.esiste)
-  if (nota.cwd !== a.cwd) return { cwd: nota.cwd, motivo: 'progetto', ...(nota.progetto !== undefined ? { nome: nota.progetto.nome } : {}) }
+  if (nota.cwd !== a.cwd) {
+    // Un progetto conosciuto ma mai collegato qui: si collega adesso, o alla
+    // prossima apertura la stessa cartella verrebbe «adottata» come progetto
+    // nuovo accanto a quello vero (un «src» in piu' nel registro condiviso).
+    const registro = nota.progetto !== undefined && nota.nuovo === true
+      ? collegaProgetto(a.registro, nota.progetto.id, a.pcId, percorsoLocale(nota.progetto, a.pcId, a.cartellaProgetti).percorso)
+      : undefined
+    return {
+      cwd: nota.cwd,
+      motivo: 'progetto',
+      ...(nota.progetto !== undefined ? { nome: nota.progetto.nome } : {}),
+      ...(registro !== undefined ? { registro } : {})
+    }
+  }
+  // Una sottocartella sparita di un progetto **gia' mio**: si ricrea li',
+  // non si adotta come progetto nuovo. Prima `D:\dev\Wdeck\src` cancellata
+  // diventava un progetto «src» in «Progetti SierraDeck», nel registro di
+  // tutti i PC.
+  const mio = progettoDiCwd(a.registro, a.cwd, a.pcId)
+  if (mio !== undefined) return { cwd: a.cwd, motivo: 'progetto', nome: mio.nome }
   const nome = nomeCartella(a.cwd)
-  const percorsoQui = join(a.cartellaProgetti, nome)
+  // Due progetti con lo stesso nome non possono stare nella stessa cartella:
+  // i file si mescolerebbero e ogni salvataggio li caricherebbe sotto due
+  // prefissi. Al secondo si aggiunge un pezzo di id.
+  const occupata = (p: string): boolean =>
+    a.registro.progetti.some((x) => {
+      const suo = x.percorsi[a.pcId]
+      return suo !== undefined && normalizzaPercorso(suo) === normalizzaPercorso(p)
+    })
+  const base = join(a.cartellaProgetti, nome)
+  const gia = a.registro.progetti.find((x) => (x.origini ?? []).some((o) => normalizzaPercorso(o) === normalizzaPercorso(a.cwd)))
+  const percorsoQui = gia !== undefined || !occupata(base) ? base : join(a.cartellaProgetti, `${nome}-${a.adesso.replace(/\D/g, '').slice(-6)}`)
   const { registro, progetto } = adottaOrigine(a.registro, {
     cwdOrigine: a.cwd, nome, pcId: a.pcId, percorsoQui, adesso: a.adesso
   })

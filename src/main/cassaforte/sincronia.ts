@@ -745,7 +745,25 @@ export function apriSincronia(deps: {
       const prefisso = prefissoProgetto(id)
       const radici = deps.progetti.preparaRipristino().filter((r) => r.prefisso === prefisso)
       if (radici.length === 0) return { ok: false, messaggio: 'Progetto senza cartella su questo PC.' }
+      // Come ogni cosa che tocca il manifesto: uno alla volta. Prima girava
+      // fuori dal lavoro esclusivo e poteva sovrapporsi a un salvataggio.
+      const l = prendiLavoro('ripristino')
+      if (l.errore !== undefined) return { ok: false, messaggio: l.errore }
+      const r = await (async (): Promise<{ ok: boolean; scritti?: number; messaggio?: string; conflitti?: number }> => {
       try {
+        const m = maestra
+        // **Un progetto tolto dal Drive non si «ripristina».** Senza voci sul
+        // Drive sotto il suo prefisso, `elimina: true` avrebbe letto ogni file
+        // del manifesto locale come «tolto dall'altro PC» e cancellato la
+        // cartella qui, `.git` compreso — con «Togli» fatto su A e «Prendi il
+        // testimone» su B era esattamente questo.
+        const sulDrive = await leggiManifesto(deps.archivio(), m)
+        if (sulDrive.stato === 'illeggibile') return { ok: false, messaggio: 'I dati sul Drive non si aprono con questa chiave.' }
+        const haVoci = sulDrive.stato === 'ok' && Object.keys(sulDrive.manifesto.file).some((k) => prefissoDi(k) === prefisso)
+        if (!haVoci) {
+          log(`RIPRISTINA progetto ${id}: sul Drive non c'e' piu' niente sotto ${prefisso}, non tocco la cartella di qui`)
+          return { ok: false, messaggio: 'Questo progetto non è più sul Drive (tolto da un altro PC): la cartella di qui resta com’è.' }
+        }
         const precedente = leggiManifestoLocale()
         const esito = await ripristinaIncrementale({
           radici, maestra, archivio: deps.archivio(),
@@ -774,6 +792,9 @@ export function apriSincronia(deps: {
         log(`RIPRISTINA progetto ${id} fallito: ${messaggioDi(e)}`)
         return { ok: false, messaggio: messaggioDi(e) }
       }
+      })()
+      chiudiLavoro(l.presa, r, `${r.scritti ?? 0} file del progetto da Drive`, false, r.scritti)
+      return r
     },
 
     async togliProgettoDalDrive(id) {
@@ -1266,7 +1287,14 @@ export function apriSincronia(deps: {
         let scritti = esito.scritti
         let conflitti = esito.conflitti.length
         if (deps.progetti !== undefined) {
-          const radiciProgetti = deps.progetti.preparaRipristino()
+          // Solo i progetti che sul Drive hanno ancora dei file: per gli
+          // altri `elimina: true` cancellerebbe la cartella di qui.
+          const prefissiSulDrive = new Set(Object.keys(esito.manifesto?.file ?? {}).map(prefissoDi))
+          const tutte = deps.progetti.preparaRipristino()
+          const radiciProgetti = tutte.filter((r) => prefissiSulDrive.has(r.prefisso))
+          for (const r of tutte) {
+            if (!prefissiSulDrive.has(r.prefisso)) log(`RIPRISTINA: ${r.prefisso} non ha piu' file sul Drive (tolto da un altro PC): la cartella di qui resta com'e'`)
+          }
           if (radiciProgetti.length > 0) {
             const secondo = await ripristinaIncrementale({
               radici: radiciProgetti,
