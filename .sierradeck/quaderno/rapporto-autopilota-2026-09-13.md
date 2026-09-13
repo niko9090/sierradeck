@@ -135,6 +135,15 @@ solo con «Fondi» o «Porta qui». Confermato in `src/main/cassaforte/sincronia
   un aggiornamento poteva chiudere il programma a metà di una fusione.
 - `Drive.kt`: l'esito «arrivo» non resta nella scheda, come sul PC.
 
+## `5a119e8`, `b2653d3` test(vitest): la suite misurabile da un file
+
+- `vitest.config.ts`: `testTimeout`/`hookTimeout` a 20 s (sotto carico il
+  test dell'autopilot-host che aspetta un servizio vero superava i 5 s) e
+  reporter `tests/riepilogo-semplice.ts` in coda a quello di serie: su
+  Windows vitest colora anche senza terminale e la riga «Tests N passed»
+  cominciava con un codice ANSI, invisibile a `grep '^ *Tests'`. Scheda:
+  `autopilota-criteri-e-bash.md`.
+
 # 3. Cosa ho controllato e va bene
 
 - `salvaIncrementale`: le chat non si cancellano mai dal Drive per sparizione

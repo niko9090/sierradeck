@@ -56,3 +56,15 @@ falliscono senza motivo apparente, ed e' costato ore capirlo.
   dell'ambiente. Prima di riscrivere il comando, guardare chi lo esegue.
 - Quello che si trova nel PATH dipende da **come e' stato avviato il
   programma**. Provare da Git Bash non prova niente sull'app installata.
+
+## Seconda trappola (2026-09-13): i colori di vitest nel file
+
+Un criterio del tipo `npx vitest run > file; grep -qE '^ *Tests .*passed' file`
+falliva con la suite verde. Su Windows picocolors accende i colori per il
+solo fatto di essere su win32, anche senza terminale: nel file la riga del
+riepilogo comincia con `ESC[2m` e `^ *Tests` non la trova. (Nel Bash di
+Claude Code non si vede: lì `NO_COLOR` è impostato.) Rimedio nel repo:
+`tests/riepilogo-semplice.ts`, reporter in coda a quello di serie
+(`vitest.config.ts`), che stampa `Tests N passed (T)` in chiaro e una riga
+`Tests … failed` solo se qualcosa è fallito. Insieme: `testTimeout` e
+`hookTimeout` a 20 s, perché il verificatore lancia i criteri sotto carico.
