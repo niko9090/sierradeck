@@ -1,5 +1,6 @@
 import type { ProgressoCatalogo } from '../../shared/catalogo-progresso'
-import { existsSync, readFileSync, rmSync, renameSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, renameSync, copyFileSync, statSync } from 'node:fs'
+import { ePercorsoDiServizio } from '@shared/slug-di-servizio'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
 import { creaCassaforte, sblocca as sbloccaCassaforte, sbloccaConRecupero as sbloccaConRecuperoCassaforte, cambiaPassphrase as cambiaPassphraseCassaforte, type Cassaforte, cifra, decifra } from './cifratura'
@@ -7,7 +8,7 @@ import type { Progresso } from './motore'
 import { pesaRadici, radiciDaSincronizzare, percorsoSicuro, type Radice } from './raccolta'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
-import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi, stessaFirma } from './incrementale'
+import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi, stessaFirma, scriviManifesto, nomeDi, impronta } from './incrementale'
 import { applicaBlocco } from './lavoro'
 import type { Lavoro, Presa, TipoLavoro } from './lavoro-in-corso'
 import { costruisciCatalogo, scelteDiPortaQui, type Catalogo } from './catalogo'
@@ -212,6 +213,15 @@ export type Sincronia = {
    * cartelle sui PC restano: si toglie il viaggio, non il lavoro.
    */
   togliProgettoDalDrive: (id: string) => Promise<{ ok: boolean; tolti?: number; messaggio?: string }>
+  /**
+   * Toglie un workspace dal Drive e ci lascia una lapide: non viaggia piu'
+   * finche' qualcuno non lo rimette. Sui PC non cambia niente.
+   */
+  togliWorkspaceDalDrive: (nome: string) => Promise<{ ok: boolean; messaggio?: string }>
+  /** Toglie la lapide: al prossimo salvataggio di un PC che ce l'ha, il workspace torna sul Drive. */
+  rimettiWorkspaceSulDrive: (nome: string) => Promise<{ ok: boolean; messaggio?: string }>
+  /** Il mattone dei due sopra: scrive o toglie la lapide sul Drive. */
+  segnaWorkspaceSulDrive: (nome: string, verso: 'togli' | 'rimetti') => Promise<{ ok: boolean; messaggio?: string }>
 }
 
 /** Due cassaforti sono la stessa se custodiscono la stessa chiave-maestra: lo dice l'involucro di recupero, che non cambia mai. */
@@ -276,6 +286,25 @@ export function apriSincronia(deps: {
     const nome = p.slice(p.lastIndexOf('/') + 1)
     return nome.endsWith('.jsonl') ? nome.slice(0, -'.jsonl'.length) : nome
   }
+  /** I file dell'assetto che sono di ogni PC: non si portano qui da un altro. */
+  const PER_PC = new Set(['sierradeck/impostazioni.json', 'sierradeck/istantanee.json'])
+  /**
+   * Una copia di un file dell'assetto prima di un ripristino completo, in
+   * `<nome>.prima-del-ripristino-drive.json` accanto all'originale.
+   * L'allowlist della raccolta la tiene fuori dal Drive. Non solleva mai.
+   */
+  const mettiDaParte = (nome: string): void => {
+    const sorgente = join(deps.dati, nome)
+    if (!existsSync(sorgente)) return
+    const destinazione = join(deps.dati, nome.replace(/\.json$/, '.prima-del-ripristino-drive.json'))
+    try {
+      copyFileSync(sorgente, `${destinazione}.tmp`)
+      renameSync(`${destinazione}.tmp`, destinazione)
+    } catch (err) {
+      log(`RIPRISTINA: copia di sicurezza di ${nome} non riuscita (${messaggioDi(err)})`)
+      try { rmSync(`${destinazione}.tmp`, { force: true }) } catch { /* niente da togliere */ }
+    }
+  }
   /**
    * Il disco di qui, per decidere cosa scendere: le firme e un filtro che
    * esclude le chat che qui ci sono gia' sotto un'altra cartella (sul Drive
@@ -285,7 +314,7 @@ export function apriSincronia(deps: {
     const firma = await firmaRadici(radici())
     const uuid = new Set<string>()
     for (const k of firma.keys()) if (prefissoDi(k) === 'chat') uuid.add(uuidDiPercorso(k))
-    return { firma, altroveQui: (p) => prefissoDi(p) === 'chat' && !firma.has(p) && uuid.has(uuidDiPercorso(p)) }
+    return { firma, altroveQui: (p) => prefissoDi(p) === 'chat' && (ePercorsoDiServizio(p) || (!firma.has(p) && uuid.has(uuidDiPercorso(p)))) }
   }
   /**
    * Un progetto nato altrove, senza cartella qui: la si crea nella cartella
@@ -330,7 +359,7 @@ export function apriSincronia(deps: {
     let mioRaw: unknown
     try { mioRaw = JSON.parse(contenuto.toString('utf8')) } catch { return undefined }
     const mio = parseArchivio(mioRaw).archivio
-    const fuso = fondiArchivi(mio, drive, 'unione')
+    const fuso = fondiArchivi(mio, drive, 'unione', [], { perDrive: true })
     return fuso === undefined ? undefined : Buffer.from(JSON.stringify(fuso), 'utf8')
   }
   /** Tutto quello che serve per guardare il Drive: manifesto, workspace, registro, e i file di qui. */
@@ -675,7 +704,9 @@ export function apriSincronia(deps: {
           log('niente da salvare: nessun file cambiato')
           return { ok: true, invariato: true, voci: totali }
         }
-        scriviStato({ ...s, ultimoSalvataggio: adesso() })
+        // Dal disco, non dalla fotografia di inizio salvataggio: un `auto(false)`
+        // premuto durante un salvataggio lungo veniva sovrascritto.
+        scriviStato({ ...leggiStato(), ultimoSalvataggio: adesso() })
         // I file dell'assetto (impostazioni, istantanee) sono di ogni PC: che
         // l'altro li abbia riscritti sul Drive non e' un conflitto da
         // risolvere, e' la regola. Non fanno numero e non fanno rumore.
@@ -993,6 +1024,76 @@ export function apriSincronia(deps: {
       return this.eseguiFusione({ voci, workspace: { modo: 'unione', escludi: [] } })
     },
 
+    async togliWorkspaceDalDrive(nome) {
+      return this.segnaWorkspaceSulDrive(nome, 'togli')
+    },
+
+    async rimettiWorkspaceSulDrive(nome) {
+      return this.segnaWorkspaceSulDrive(nome, 'rimetti')
+    },
+
+    /**
+     * Riscrive `sierradeck/workspaces.json` sul Drive con (o senza) la lapide
+     * di un workspace. Passa dal lavoro esclusivo come un salvataggio, perche'
+     * tocca il manifesto: due mani sullo stesso file si pesterebbero.
+     */
+    async segnaWorkspaceSulDrive(nome, verso) {
+      if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
+      if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
+      const m = maestra
+      const l = prendiLavoro('salvataggio')
+      if (l.errore !== undefined) return { ok: false, messaggio: l.errore }
+      const r = await (async (): Promise<{ ok: boolean; messaggio?: string }> => {
+        try {
+          const esitoM = await leggiManifesto(deps.archivio(), m)
+          if (esitoM.stato !== 'ok') return { ok: false, messaggio: 'Sul Drive non c’è ancora un archivio dei workspace: salva prima.' }
+          const percorso = 'sierradeck/workspaces.json'
+          const raw = await leggiJsonDalDrive(deps.archivio(), m, esitoM.manifesto, percorso)
+          if (raw === undefined) return { ok: false, messaggio: 'Sul Drive non c’è ancora un archivio dei workspace: salva prima.' }
+          const drive = parseArchivio(raw).archivio
+          const tolti = { ...(drive.tolti ?? {}) }
+          if (verso === 'togli') {
+            if (!drive.workspace.some((w) => w.nome === nome) && tolti[nome] !== undefined) {
+              return { ok: true, messaggio: `«${nome}» era già tolto dal Drive.` }
+            }
+            tolti[nome] = { quando: adesso(), pcId: deps.pcId?.() ?? '' }
+          } else {
+            if (tolti[nome] === undefined) return { ok: true, messaggio: `«${nome}» non era tolto dal Drive.` }
+            delete tolti[nome]
+          }
+          const nuovo: ArchivioWorkspace = {
+            ...drive,
+            workspace: verso === 'togli' ? drive.workspace.filter((w) => w.nome !== nome) : drive.workspace,
+            ...(Object.keys(tolti).length > 0 ? { tolti } : {})
+          }
+          if (Object.keys(tolti).length === 0) delete (nuovo as { tolti?: unknown }).tolti
+          const buf = Buffer.from(JSON.stringify(nuovo), 'utf8')
+          const nomeBlob = nomeDi(percorso)
+          await deps.archivio().carica(nomeBlob, await cifra(m, buf))
+          // La voce porta la firma del file di **qui**, come fa l'unione al
+          // salvataggio: cosi' il giro dopo non lo rivede come cambiato e non
+          // lo ricarica sopra. Il contenuto vero sul Drive lo dice `sha`.
+          const locale = join(deps.dati, 'workspaces.json')
+          let firmaLocale: { size: number; mtime: number } | undefined
+          try { const st = statSync(locale); firmaLocale = { size: st.size, mtime: Math.round(st.mtimeMs) } } catch { firmaLocale = undefined }
+          const voce = { nome: nomeBlob, size: firmaLocale?.size ?? buf.length, mtime: firmaLocale?.mtime ?? Date.now(), sha: impronta(buf) }
+          const manifesto: Manifesto = { ...esitoM.manifesto, creatoIl: adesso(), file: { ...esitoM.manifesto.file, [percorso]: voce } }
+          await scriviManifesto(deps.archivio(), m, manifesto)
+          const mio = leggiManifestoLocale()
+          scriviManifestoLocale({ ...mio, file: { ...mio.file, [percorso]: voce } })
+          log(verso === 'togli'
+            ? `TOGLI workspace «${nome}» dal Drive: lapide scritta, non viaggia piu' finche' non lo rimetti`
+            : `RIMETTI workspace «${nome}» sul Drive: lapide tolta, torna con il prossimo salvataggio di un PC che ce l'ha`)
+          return { ok: true }
+        } catch (e) {
+          log(`${verso === 'togli' ? 'TOGLI' : 'RIMETTI'} workspace «${nome}» fallito: ${messaggioDi(e)}`)
+          return { ok: false, messaggio: messaggioDi(e) }
+        }
+      })()
+      chiudiLavoro(l.presa, r, verso === 'togli' ? `«${nome}» tolto dal Drive` : `«${nome}» rimesso sul Drive`)
+      return r
+    },
+
     async portaQuiWorkspace(nome) {
       if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
       if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
@@ -1106,12 +1207,21 @@ export function apriSincronia(deps: {
         // poi ogni scaricamento e' una chiamata, non due.
         await deps.archivio().elenca().catch(() => undefined)
         const { altroveQui } = await quadroLocale()
+        // **I file di questo PC restano suoi.** `impostazioni.json` e
+        // `istantanee.json` sul Drive sono dell'ultimo PC che ha salvato:
+        // portarli qui con «Ripristina» cambiava tema, cartella dei progetti
+        // e preferenze con quelli dell'altro PC. Si scaricano solo se qui
+        // mancano (un PC nuovo); e prima di tutto una copia dei tre file
+        // dell'assetto, per tornare indietro con le mani.
+        for (const nome of ['workspaces.json', 'impostazioni.json', 'istantanee.json']) mettiDaParte(nome)
+        const perPc = (p: string): boolean =>
+          PER_PC.has(p) && existsSync(join(deps.dati, p.slice('sierradeck/'.length)))
         const esito = await ripristinaIncrementale({
           radici: radiciDaSincronizzare(deps.dati, deps.radiceClaude),
           maestra,
           archivio: deps.archivio(),
           soloPrefissi: (p) => !eDiProgetto(p),
-          escludi: altroveQui,
+          escludi: (p) => altroveQui(p) || perPc(p),
           manifestoPrec: leggiManifestoLocale(),
           pcNome: deps.pcNome?.() ?? 'questo-pc',
           copieDiConflitto: eDiProgetto,
@@ -1198,10 +1308,21 @@ export function apriSincronia(deps: {
       if (maestra === undefined || !deps.driveConnesso()) return { ok: true, scritti: 0 }
       const m = maestra
       // Prima si guarda: senza niente da scaricare non si prende il lavoro,
-      // non si accende la striscia e non si scrive niente.
-      const esitoM = await leggiManifesto(deps.archivio(), m).catch(() => undefined)
-      if (esitoM === undefined || esitoM.stato !== 'ok') return { ok: true, scritti: 0 }
-      const { firma, altroveQui } = await quadroLocale()
+      // non si accende la striscia e non si scrive niente. Tutto dentro un
+      // `try`: `deps.archivio()` e `quadroLocale()` possono rifiutare, e da
+      // qui si arriva da un timer senza nessuno che raccolga.
+      let guardata: { esitoM: Awaited<ReturnType<typeof leggiManifesto>>; firma: Map<string, { size: number; mtime: number; disco: string }>; altroveQui: (p: string) => boolean } | undefined
+      try {
+        const esitoM = await leggiManifesto(deps.archivio(), m)
+        if (esitoM.stato !== 'ok') return { ok: true, scritti: 0 }
+        const q = await quadroLocale()
+        guardata = { esitoM, ...q }
+      } catch (e) {
+        log(`ARRIVO: non ho potuto guardare il Drive (${messaggioDi(e)})`)
+        return { ok: false, messaggio: messaggioDi(e) }
+      }
+      const { esitoM, firma, altroveQui } = guardata
+      if (esitoM.stato !== 'ok') return { ok: true, scritti: 0 }
       const prec = leggiManifestoLocale()
       const candidati = Object.entries(esitoM.manifesto.file).filter(([p, v]) => {
         if (prefissoDi(p) !== 'chat' || altroveQui(p)) return false

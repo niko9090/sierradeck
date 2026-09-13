@@ -1,6 +1,7 @@
 import { readFile, stat } from 'node:fs/promises'
 import type { Archivio as ArchivioDrive } from './archivio'
 import { cifra, decifra } from './cifratura'
+import { ePercorsoDiServizio } from '@shared/slug-di-servizio'
 import { percorsoSicuro, ripristina, type Radice } from './raccolta'
 import { leggiManifesto, scriviManifesto, nomeDi, prefissoDi, stessaFirma, nomeCopiaConflitto, manifestoVuoto, type Manifesto, conLimite, PARALLELI, impronta } from './incrementale'
 import { aggiungiPaneA, unaChatUnWorkspace, type Archivio as ArchivioWorkspace, type LayoutSalvato } from '@shared/workspace'
@@ -192,6 +193,9 @@ export function pianifica(p: {
   const perProgetto = new Map<string, VoceFusione[]>()
   for (const percorso of [...percorsi].sort()) {
     const prefisso = prefissoDi(percorso)
+    // Le sessioni «observer» di claude-mem non sono chat di nessuno: fuori
+    // dal piano, come sono fuori dall'indice e dalla raccolta.
+    if (prefisso === 'chat' && ePercorsoDiServizio(percorso)) continue
     const pc = p.firmaPc.get(percorso)
     const d = drive.get(percorso)
     if (prefisso === 'chat') {
@@ -301,15 +305,37 @@ export function fondiArchivi(
   pc: ArchivioWorkspace | undefined,
   drive: ArchivioWorkspace | undefined,
   modo: ModoWorkspace,
-  escludi: string[] = []
+  escludi: string[] = [],
+  /**
+   * `perDrive`: il risultato e' la copia che **sale sul Drive**. Allora i
+   * workspace con una lapide (`tolti`) restano fuori anche se questo PC li
+   * ha ancora, e le lapidi si conservano. Senza, il risultato e' per un PC:
+   * le lapidi non entrano nel suo file e un workspace che il PC ha resta suo
+   * — una lapide toglie dal Drive, mai da un PC.
+   */
+  opzioni: { perDrive?: boolean } = {}
 ): ArchivioWorkspace | undefined {
-  if (modo === 'pc') return pc ?? drive
-  if (modo === 'drive') return drive ?? pc
-  if (pc === undefined) return drive
-  if (drive === undefined) return pc
+  const perDrive = opzioni.perDrive === true
+  const tolti = drive?.tolti ?? {}
+  const conLapide = (nome: string): boolean => Object.prototype.hasOwnProperty.call(tolti, nome)
+  const senzaLapidi = (a: ArchivioWorkspace | undefined): ArchivioWorkspace | undefined => {
+    // Lo stesso oggetto quando non c'e' niente da togliere: chi confronta per
+    // identita' deve poter dire «non si e' mosso niente».
+    if (a === undefined || a.tolti === undefined) return a
+    const { tolti: _t, ...resto } = a
+    return resto
+  }
+  if (modo === 'pc') return perDrive ? (pc ?? drive) : senzaLapidi(pc ?? drive)
+  if (modo === 'drive') return perDrive ? (drive ?? pc) : senzaLapidi(drive ?? pc)
+  if (pc === undefined) return perDrive ? drive : senzaLapidi(drive)
+  if (drive === undefined) return perDrive ? pc : senzaLapidi(pc)
   const fuori = new Set(escludi)
   const nomi = [...pc.workspace.map((w) => w.nome), ...drive.workspace.filter((w) => !pc.workspace.some((x) => x.nome === w.nome)).map((w) => w.nome)]
   const workspace = nomi.flatMap((nome) => {
+    // Sul Drive un workspace con la lapide non sale, nemmeno da un PC che ce
+    // l'ha ancora: e' cio' che rende «Togli dal Drive» definitivo finche'
+    // qualcuno non lo rimette.
+    if (perDrive && conLapide(nome)) return []
     const wp = pc.workspace.find((w) => w.nome === nome)
     const wd = drive.workspace.find((w) => w.nome === nome)
     if (fuori.has(nome)) return wp !== undefined ? [wp] : []
@@ -323,10 +349,12 @@ export function fondiArchivi(
     }
     return [{ nome, perSlot }]
   })
+  const { tolti: _lapidiPc, ...pcSenza } = pc
   return {
-    ...pc,
+    ...pcSenza,
     attivo: pc.attivo !== '' ? pc.attivo : drive.attivo,
-    workspace: unaChatUnWorkspace(workspace, pc.attivo)
+    workspace: unaChatUnWorkspace(workspace, pc.attivo),
+    ...(perDrive && Object.keys(tolti).length > 0 ? { tolti } : {})
   }
 }
 

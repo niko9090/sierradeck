@@ -62,6 +62,21 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
   }
   const commuta = (k: string): void => setAperti((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n })
   const [vista, setVista] = useState<'progetti' | 'workspace'>('progetti')
+  const [wsDaTogliere, setWsDaTogliere] = useState<WorkspaceCatalogo | undefined>(undefined)
+  // «Togli dal Drive» e «Rimetti»: una lapide sul Drive. Qui non cambia niente,
+  // e nemmeno sugli altri PC: cambia cosa viaggia.
+  const togliWs = (w: WorkspaceCatalogo): void => {
+    setWsDaTogliere(undefined); setMessaggio(undefined); setInCorso(`ws:${w.nome}`)
+    void window.gestore.sync.togliWorkspace(w.nome).then((r) => {
+      setMessaggio(r.messaggio ?? `Workspace «${w.nome}»: tolto dal Drive. ${w.quiEsiste ? 'Qui resta com’è (se non lo vuoi più, eliminalo dalla fascia dei workspace). ' : ''}Non ricompare con «Fondi» né con «Porta qui», e nessun PC lo rimette da solo finché non premi «Rimetti sul Drive».`)
+    }).catch((e: unknown) => setMessaggio(String(e))).finally(() => { setInCorso(undefined); leggi() })
+  }
+  const rimettiWs = (nome: string): void => {
+    setMessaggio(undefined); setInCorso(`ws:${nome}`)
+    void window.gestore.sync.rimettiWorkspace(nome).then((r) => {
+      setMessaggio(r.messaggio ?? `Workspace «${nome}»: torna sul Drive con il prossimo salvataggio di un PC che ce l’ha ancora (qui: «Salva ora» nel pannello Account, o il salvataggio automatico).`)
+    }).catch((e: unknown) => setMessaggio(String(e))).finally(() => { setInCorso(undefined); leggi() })
+  }
   const portaQuiWorkspace = (w: WorkspaceCatalogo): void => {
     setInCorso(`ws:${w.nome}`); setMessaggio(undefined)
     void window.gestore.sync.portaQuiWorkspace(w.nome).then((r) => {
@@ -164,6 +179,34 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
           {vista === 'workspace' ? (
             <div className="drive__elenco">
               {catalogo.workspace.length === 0 ? <p className="account__nota">Sul Drive non ci sono workspace salvati.</p> : null}
+              {catalogo.workspaceTolti.length > 0 ? (
+                <div className="drive__progetto" style={{ opacity: 0.85 }}>
+                  <div className="drive__riga">
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <strong>Tolti dal Drive</strong>
+                      <span className="drive__sotto"> · non viaggiano: nessun PC li rimette sul Drive finché non premi «Rimetti». Su ogni PC restano com’erano.</span>
+                    </span>
+                  </div>
+                  <ul className="drive__chat">
+                    {catalogo.workspaceTolti.map((t) => (
+                      <li key={`tolto:${t.nome}`} className="drive__chatriga">
+                        <span style={{ minWidth: 0, flex: 1 }}>
+                          <span className="drive__chatnome">{t.nome}</span>
+                          <span className="drive__sotto"> · tolto il {quando(t.quando)}{t.quiEsiste ? ' · qui esiste ancora' : ' · qui non c’è'}</span>
+                        </span>
+                        <button
+                          className="tasto tasto--mini"
+                          disabled={inCorso !== undefined || lavoro.inCorso !== undefined}
+                          onClick={() => rimettiWs(t.nome)}
+                          title="Toglie la lapide: il workspace torna sul Drive con il prossimo salvataggio di un PC che ce l’ha"
+                        >
+                          {inCorso === `ws:${t.nome}` ? 'Rimetto…' : 'Rimetti sul Drive'}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               {catalogo.workspace.map((w) => {
                 const chiave = `ws:${w.nome}`
                 const aperto = aperti.has(chiave)
@@ -190,6 +233,14 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
                           {inCorso === chiave ? 'Porto…' : w.daPortare > 0 ? `Porta qui il workspace (${w.daPortare})` : 'Crea qui il workspace'}
                         </button>
                       ) : null}
+                      <button
+                        className="tasto tasto--mini"
+                        disabled={inCorso !== undefined || lavoro.inCorso !== undefined}
+                        onClick={() => setWsDaTogliere(w)}
+                        title="Toglie il workspace dall’archivio sul Drive e ci lascia una lapide: non ricompare con «Fondi» né con «Porta qui». Le chat restano sul Drive e sui PC; il workspace sui PC resta com’è."
+                      >
+                        Togli dal Drive
+                      </button>
                     </div>
                     {aperto ? (
                       <ul className="drive__chat">
@@ -300,6 +351,15 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
       {leggo ? <AttesaDrive progresso={progresso} adesso={adesso} avviato={letturaAvviata} onChiudi={onChiudi} /> : null}
 
       {fusione ? <ModaleFusione cassaforteDiversa={cassaforteDiversa} onChiudi={() => { setFusione(false); leggi() }} /> : null}
+      {wsDaTogliere !== undefined ? (
+        <ModaleConferma
+          titolo={`Togliere il workspace «${wsDaTogliere.nome}» dal Drive?`}
+          testo={`Il workspace sparisce dall’archivio sul Drive e ci resta una lapide: nessun PC lo rimette sul Drive con il salvataggio automatico, e non ricompare con «Fondi» né con «Porta qui il workspace». Le sue ${wsDaTogliere.chat.length} chat restano sul Drive e sui PC (viaggiano come tutte le chat). ${wsDaTogliere.quiEsiste ? 'Su questo PC il workspace resta com’è, con le sue chat aperte: se non lo vuoi più nemmeno qui, eliminalo dalla fascia dei workspace.' : 'Qui non esiste e non verrà creato.'} Si torna indietro con «Rimetti sul Drive», nell’elenco «Tolti dal Drive».`}
+          etichettaAzione="Togli il workspace dal Drive"
+          onConferma={() => togliWs(wsDaTogliere)}
+          onAnnulla={() => setWsDaTogliere(undefined)}
+        />
+      ) : null}
       {daTogliere !== undefined ? (
         <ModaleConferma
           titolo={`Togliere la cartella di «${daTogliere.nome}» dal Drive?`}

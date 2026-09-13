@@ -1,4 +1,5 @@
 import type { Manifesto } from './incrementale'
+import { ePercorsoDiServizio } from '@shared/slug-di-servizio'
 import { prefissoDi } from './incrementale'
 import type { Archivio as ArchivioWorkspace } from '@shared/workspace'
 import type { RegistroProgetti, ProgettoDrive } from '../progetti/registro'
@@ -98,6 +99,12 @@ export type Catalogo = {
   totali: { progetti: number; chat: number; daPortare: number; daAggiornare: number; soloQui: number; uguali: number }
   /** I workspace che esistono solo sul Drive, con quante chat. */
   workspaceSoloDrive: { nome: string; chat: number }[]
+  /**
+   * I workspace tolti dal Drive con «Togli il workspace dal Drive»: non
+   * viaggiano piu' finche' qualcuno non li rimette. Visibili apposta: una
+   * cosa che sparisce senza una riga che lo dica sembra un guasto.
+   */
+  workspaceTolti: { nome: string; quando: string; quiEsiste: boolean }[]
   letto: string
 }
 
@@ -242,6 +249,7 @@ export function costruisciCatalogo(p: {
 
   for (const percorso of [...percorsi].sort()) {
     const prefisso = prefissoDi(percorso)
+    if (prefisso === 'chat' && ePercorsoDiServizio(percorso)) continue
     const pc = p.firmaPc.get(percorso)
     const d = drive.get(percorso)
     if (prefisso === 'chat') {
@@ -338,7 +346,10 @@ export function costruisciCatalogo(p: {
     soloQui: progetti.reduce((t, g) => t + g.conti.soloQui + g.conti.avanti, 0),
     uguali: progetti.reduce((t, g) => t + g.conti.uguali, 0)
   }
-  return { progetti, workspace, totali, workspaceSoloDrive, letto: p.adesso ?? new Date().toISOString() }
+  const workspaceTolti = Object.entries(p.archivioDrive?.tolti ?? {})
+    .map(([nome, t]) => ({ nome, quando: t.quando, quiEsiste: nomiPc.has(nome) }))
+    .sort((a, b) => b.quando.localeCompare(a.quando))
+  return { progetti, workspace, totali, workspaceSoloDrive, workspaceTolti, letto: p.adesso ?? new Date().toISOString() }
 }
 
 /**

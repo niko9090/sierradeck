@@ -1,4 +1,5 @@
 import { stat } from 'node:fs/promises'
+import { ePercorsoDiServizio } from '@shared/slug-di-servizio'
 import { basename } from 'node:path'
 import { scanProjects } from './project-scanner'
 import { readSession } from './session-reader'
@@ -123,6 +124,10 @@ export async function indexAll(
       sparite.push(uuid)
       continue
     }
+    // Una voce di una cartella di servizio (claude-mem) esce anche se il
+    // file c'e' ancora: lo scanner non la legge piu', e restare nell'elenco
+    // sarebbe il difetto che si sta togliendo.
+    if (ePercorsoDiServizio(dove.replace(/\\/g, '/'))) { sparite.push(uuid); continue }
     const ancoraLi = await stat(dove).then(() => true, () => false)
     if (!ancoraLi) sparite.push(uuid)
   }

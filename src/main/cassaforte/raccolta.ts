@@ -1,4 +1,6 @@
-import { readdir, readFile, writeFile, mkdir, stat, unlink, utimes } from 'node:fs/promises'
+import { readdir, readFile, writeFile, mkdir, stat, unlink, utimes, rename } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { ePercorsoDiServizio } from '@shared/slug-di-servizio'
 import { join, resolve, sep, dirname } from 'node:path'
 import type { Voce } from './pacchetto'
 
@@ -190,7 +192,12 @@ export async function ripristina(
       continue
     }
     await mkdir(dirname(dest), { recursive: true })
-    await writeFile(dest, v.contenuto)
+    // Intero o niente: un crash a meta' scrittura lasciava una trascrizione
+    // tronca al posto di quella di prima, con la voce del Drive nel manifesto
+    // — e al salvataggio dopo il troncone saliva.
+    const temporaneo = `${dest}.${randomUUID()}.tmp`
+    await writeFile(temporaneo, v.contenuto)
+    await rename(temporaneo, dest).catch(async (err: unknown) => { await unlink(temporaneo).catch(() => undefined); throw err })
     if (v.mtime !== undefined) {
       try { await utimes(dest, v.mtime / 1000, v.mtime / 1000) } catch { /* la firma non tornera': si rimandera' una volta */ }
     }
@@ -272,7 +279,9 @@ export function radiciDaSincronizzare(
 ): Radice[] {
   return [
     { prefisso: 'sierradeck', cartella: datiSierradeck, includi: (r) => FILE_SIERRADECK.has(r) },
-    { prefisso: 'chat', cartella: join(radiceClaude, 'projects'), includi: (r) => r.endsWith('.jsonl') },
+    // Le sessioni «observer» di claude-mem restano a casa: non sono chat di
+    // nessuno e sul Drive erano centinaia di voci che nessuno apre.
+    { prefisso: 'chat', cartella: join(radiceClaude, 'projects'), includi: (r) => r.endsWith('.jsonl') && !ePercorsoDiServizio(r) },
     ...extra
   ]
 }

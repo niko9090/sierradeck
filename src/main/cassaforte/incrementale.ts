@@ -1,7 +1,7 @@
 import { readFile, rename, stat, unlink, utimes, writeFile, mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { cifra, decifra } from './cifratura'
 import { cancellaVoci, firmaRadici, percorsoSicuro, ripristina, type Radice } from './raccolta'
 import type { Voce } from './pacchetto'
@@ -162,7 +162,11 @@ async function firmaSuDisco(disco: string): Promise<{ size: number; mtime: numbe
 
 async function scriviSuDisco(disco: string, contenuto: Buffer, mtime: number): Promise<void> {
   await mkdir(dirname(disco), { recursive: true })
-  await writeFile(disco, contenuto)
+  // Su un temporaneo e poi rinomina: una scrittura interrotta non deve
+  // lasciare un troncone al posto del file di prima.
+  const temporaneo = `${disco}.${randomUUID()}.tmp`
+  await writeFile(temporaneo, contenuto)
+  await rename(temporaneo, disco).catch(async (err: unknown) => { await unlink(temporaneo).catch(() => undefined); throw err })
   try { await utimes(disco, mtime / 1000, mtime / 1000) } catch { /* si rimandera' una volta */ }
 }
 
@@ -292,7 +296,24 @@ export async function salvaIncrementale(deps: {
     const contenuto = await readFile(f.disco).catch(() => undefined)
     if (contenuto === undefined) { avanza(percorso); return }
     const voceDrive = base.file[percorso]
-    const fuso = deps.sostituto === undefined ? undefined : await deps.sostituto(percorso, contenuto, base).catch(() => undefined)
+    // **Un sostituto che fallisce e' un rimando, non «nessuna sostituzione».**
+    // L'unione dei workspace legge il Drive: un 5xx dopo i ritenti, o un
+    // timeout, tornavano `undefined` e si caricava il file locale tale e
+    // quale — esattamente il «vince questo PC» chiuso in 0.26.0, e i
+    // workspace dell'altro PC sparivano dal Drive fino al suo prossimo
+    // salvataggio. Ora la voce resta quella del Drive e si riprova al giro dopo.
+    let fuso: Buffer | undefined
+    if (deps.sostituto !== undefined) {
+      try {
+        fuso = await deps.sostituto(percorso, contenuto, base)
+      } catch (err) {
+        console.warn(`[sync] ${percorso}: il Drive non si e' letto per l'unione, lo rimando al prossimo giro (${err instanceof Error ? err.message : String(err)})`)
+        if (voceDrive !== undefined) nuovo.file[percorso] = voceDrive
+        else delete nuovo.file[percorso]
+        avanza(percorso)
+        return
+      }
+    }
     if (fuso !== undefined) {
       // Gia' cosi' sul Drive: la voce resta quella di la', e non sale niente.
       if (voceDrive?.sha !== undefined && voceDrive.sha === impronta(fuso)) { nuovo.file[percorso] = voceDrive; avanza(percorso); return }
@@ -335,14 +356,23 @@ export async function salvaIncrementale(deps: {
       // Vince il Drive: il mio resta accanto come copia (nei progetti), e il
       // file prende la versione del Drive.
       if (conCopia) {
+        // **Prima si scarica, poi si rinomina.** Nell'ordine opposto, un blob
+        // sparito dal Drive (404) lasciava il percorso senza file: la voce del
+        // Drive restava nel manifesto, al giro dopo il file risultava «tolto»
+        // e l'altro PC cancellava la sua copia.
+        const loro = await scaricaChiaro(voceDrive)
+        if (loro === undefined) {
+          console.warn(`[sync] ${percorso}: il file del Drive non si scarica, tengo il mio e riprovo al prossimo giro`)
+          avanza(percorso)
+          return
+        }
         const copia = nomeCopiaConflitto(percorso, pcNome, deps.adesso)
         const discoCopia = discoDi(perPrefisso, copia)
         if (discoCopia !== undefined) {
           await rename(f.disco, discoCopia).catch(async () => { await scriviSuDisco(discoCopia, contenuto, f.mtime) })
           await carica(copia, contenuto, f)
         }
-        const loro = await scaricaChiaro(voceDrive)
-        if (loro !== undefined) await scriviSuDisco(f.disco, loro, voceDrive.mtime)
+        await scriviSuDisco(f.disco, loro, voceDrive.mtime)
         conflitti.push({ percorso, vinto: 'drive', ...(discoCopia !== undefined ? { copia } : {}) })
       } else {
         conflitti.push({ percorso, vinto: 'drive' })

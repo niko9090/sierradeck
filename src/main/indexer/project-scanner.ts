@@ -1,4 +1,5 @@
 import { readdir } from 'node:fs/promises'
+import { eSlugDiServizio } from '@shared/slug-di-servizio'
 import { join } from 'node:path'
 
 export type ProjectScan = {
@@ -47,6 +48,9 @@ export async function scanProjects(claudeRoot: string): Promise<ProjectScan[]> {
   const risultati: ProjectScan[] = []
   for (const entry of entries) {
     if (!entry.isDirectory()) continue
+    // Le sessioni «observer» di claude-mem non sono chat di nessuno: fuori
+    // dall'indice (la potatura toglie quelle che c'erano gia').
+    if (eSlugDiServizio(entry.name)) continue
     const dir = join(projectsDir, entry.name)
     let files
     try {

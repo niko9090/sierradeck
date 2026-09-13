@@ -92,6 +92,18 @@ export type Archivio = {
    * quelle che restano fuori le adotta la prima finestra.
    */
   finestre?: number
+  /**
+   * I workspace **tolti dal Drive**, con quando e da quale PC.
+   *
+   * Vive nella copia sul Drive (`sierradeck/workspaces.json`), non in quelle
+   * dei PC. Sul Drive c'e' l'unione dei workspace di tutti i PC: cancellare
+   * un workspace su un PC non lo toglieva da li', e «Fondi» lo riportava.
+   * Togliere solo il nome dal file non basta — il prossimo salvataggio di un
+   * PC che ce l'ha ancora lo rimetterebbe con l'unione. La lapide dice
+   * «questo non viaggia piu'»: l'unione lo salta finche' qualcuno non lo
+   * rimette. Una lapide toglie dal Drive, mai da un PC.
+   */
+  tolti?: Record<string, { quando: string; pcId: string }>
 }
 
 /**
@@ -639,12 +651,26 @@ export function parseArchivio(raw: unknown): { archivio: Archivio; scartati: str
     ? dichiarate
     : undefined
 
+  // Le lapidi: un nome, quando, quale PC. Una voce storta si scarta da sola.
+  let tolti: Record<string, { quando: string; pcId: string }> | undefined
+  if (typeof o.tolti === 'object' && o.tolti !== null && !Array.isArray(o.tolti)) {
+    for (const [nome, v] of Object.entries(o.tolti as Record<string, unknown>)) {
+      if (nome.trim() === '' || typeof v !== 'object' || v === null) continue
+      const vo = v as Record<string, unknown>
+      const quando = stringaNonVuota(vo.quando)
+      if (quando === undefined) continue
+      tolti ??= {}
+      tolti[nome] = { quando, pcId: stringaNonVuota(vo.pcId) ?? '' }
+    }
+  }
+
   return {
     archivio: {
       versione: VERSIONE_ARCHIVIO,
       attivo,
       workspace: raggiungibili,
-      ...(finestre !== undefined ? { finestre } : {})
+      ...(finestre !== undefined ? { finestre } : {}),
+      ...(tolti !== undefined ? { tolti } : {})
     },
     scartati
   }

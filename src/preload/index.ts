@@ -425,6 +425,12 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Porta qui un workspace del Drive con le sue chat (e le cartelle che servono). */
     portaQuiWorkspace: (nome: string): Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }> =>
       ipcRenderer.invoke('sync:portaQuiWorkspace', nome),
+    /** Toglie un workspace dal Drive (lapide): non viaggia piu' finche' non lo rimetti. I PC non cambiano. */
+    togliWorkspace: (nome: string): Promise<{ ok: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('sync:togliWorkspace', nome),
+    /** Toglie la lapide: torna sul Drive con il prossimo salvataggio di un PC che ce l'ha. */
+    rimettiWorkspace: (nome: string): Promise<{ ok: boolean; messaggio?: string }> =>
+      ipcRenderer.invoke('sync:rimettiWorkspace', nome),
     /** Esegue le scelte della fusione. */
     eseguiFusione: (scelte: ScelteFusione, passphraseDrive?: string): Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }> =>
       ipcRenderer.invoke('sync:eseguiFusione', scelte, passphraseDrive),

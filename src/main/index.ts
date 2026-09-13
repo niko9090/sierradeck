@@ -1321,6 +1321,16 @@ if (!app.requestSingleInstanceLock()) {
         finestra.webContents.send('client:apri', { cartella: rawCwd, sessione: rawSessione, ...(dove !== undefined ? { workspace: dove } : {}) })
         return true
       })
+      // «Togli il workspace dal Drive» e «Rimetti»: una lapide sul Drive, i PC
+      // non si toccano. Vedi `Archivio.tolti` in shared/workspace.ts.
+      ipcMain.handle('sync:togliWorkspace', async (_e, nome: unknown) => {
+        if (typeof nome !== 'string' || nome === '') return { ok: false, messaggio: 'richiesta non valida' }
+        return sincronia.togliWorkspaceDalDrive(nome)
+      })
+      ipcMain.handle('sync:rimettiWorkspace', async (_e, nome: unknown) => {
+        if (typeof nome !== 'string' || nome === '') return { ok: false, messaggio: 'richiesta non valida' }
+        return sincronia.rimettiWorkspaceSulDrive(nome)
+      })
       ipcMain.handle('sync:portaQuiWorkspace', async (_e, nome: unknown) => {
         if (typeof nome !== 'string' || nome === '') return { ok: false, messaggio: 'richiesta non valida' }
         const esito = await sincronia.portaQuiWorkspace(nome)
