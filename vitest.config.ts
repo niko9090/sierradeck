@@ -11,7 +11,11 @@ export default defineConfig({
     // vero superavano i 5 secondi di serie e la suite risultava rossa senza
     // un difetto: 20 secondi separano «lento» da «rotto».
     testTimeout: 20_000,
-    hookTimeout: 20_000
+    hookTimeout: 20_000,
+    // In coda al riepilogo colorato, uno in chiaro: chi legge l'esito da un
+    // file (l'autopilota) cerca `Tests N passed` a inizio riga, e su Windows
+    // vitest colora anche senza terminale.
+    reporters: ['default', './tests/riepilogo-semplice.ts']
   },
   resolve: { alias: { '@shared': resolve('src/shared') } }
 })
