@@ -590,6 +590,10 @@ export function App(): React.JSX.Element {
   // adesso» partiva e non si vedeva niente da nessuna parte.
   const [lavoroDrive, setLavoroDrive] = useState<StatoLavoro>({})
   const [esitoLavoroVisto, setEsitoLavoroVisto] = useState<string | undefined>(undefined)
+  // Le chat arrivate dal Drive: l'indice e' gia' riletto, sono nell'elenco.
+  const [chatArrivate, setChatArrivate] = useState<{ quante: number; tipo: string; quando: string; rimappate: number } | undefined>(undefined)
+  useEffect(() => window.gestore.sync.onChatArrivate(setChatArrivate), [])
+  useEffect(() => window.gestore.sync.onCartellaCambiata(({ sessionUuid, a }) => useLayoutStore.getState().impostaCartella(sessionUuid, a)), [])
   // Solo le transizioni: il progresso file per file lo segue la striscia da
   // sola. Ridisegnare tutta l'App a ogni file (e ogni secondo per l'orologio)
   // era quello che la bloccava durante una fusione.
@@ -1106,6 +1110,21 @@ export function App(): React.JSX.Element {
           <span>{riavvioEsito}</span>
           <span style={{ flex: 1 }} />
           <button className="tasto" onClick={() => setRiavvioEsito(undefined)}>×</button>
+        </div>
+      ) : null}
+      {chatArrivate !== undefined ? (
+        <div className="avviso avviso--aggiornamento">
+          <span className="led led--lavoro" />
+          <span>
+            <b>{chatArrivate.quante} {chatArrivate.quante === 1 ? 'chat arrivata' : 'chat arrivate'} dal Drive</b>
+            {' '}({(ETICHETTA_LAVORO_TIPO as Record<string, string>)[chatArrivate.tipo] ?? chatArrivate.tipo}).
+            {' '}{chatArrivate.quante === 1 ? 'È già nell’elenco Chat' : 'Sono già nell’elenco Chat'}, nelle cartelle di questo PC
+            {chatArrivate.rimappate > 0 ? ` (${chatArrivate.rimappate} ${chatArrivate.rimappate === 1 ? 'spostata' : 'spostate'} dalla cartella dell’altro PC a quella di qui)` : ''}.
+            {' '}Per averle in un workspace usa «Porta qui il workspace» nella scheda Drive, oppure aprile dall’elenco.
+          </span>
+          <span style={{ flex: 1 }} />
+          <button className="tasto" onClick={() => { setChatArrivate(undefined); setModale('sessioni') }} title="L’elenco di tutte le chat, per cartella">Apri l’elenco</button>
+          <button className="tasto" onClick={() => setChatArrivate(undefined)} title="Chiudi">×</button>
         </div>
       ) : null}
       {lavoroDrive.inCorso !== undefined ? (

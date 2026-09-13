@@ -450,6 +450,18 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.on('sync:lavoro', h)
       return () => ipcRenderer.off('sync:lavoro', h)
     },
+    /** Chat arrivate dal Drive (arrivo automatico, fusione, ripristino, «Porta qui»): l'indice e' gia' riletto. */
+    onChatArrivate: (cb: (m: { quante: number; tipo: string; quando: string; rimappate: number }) => void): (() => void) => {
+      const h = (_e: unknown, m: { quante: number; tipo: string; quando: string; rimappate: number }): void => cb(m)
+      ipcRenderer.on('chat:arrivate', h)
+      return () => ipcRenderer.off('chat:arrivate', h)
+    },
+    /** Una chat si e' aperta in una cartella di qui invece di quella (dell'altro PC) scritta nel riquadro. */
+    onCartellaCambiata: (cb: (m: { sessionUuid: string; da: string; a: string }) => void): (() => void) => {
+      const h = (_e: unknown, m: { sessionUuid: string; da: string; a: string }): void => cb(m)
+      ipcRenderer.on('chat:cartellaCambiata', h)
+      return () => ipcRenderer.off('chat:cartellaCambiata', h)
+    },
     /** Le fasi della lettura del catalogo chiesta da questa finestra: per la finestra di attesa. */
     onCatalogoProgresso: (cb: (p: import('../shared/catalogo-progresso').ProgressoCatalogo) => void): (() => void) => {
       const h = (_e: unknown, p: import('../shared/catalogo-progresso').ProgressoCatalogo): void => cb(p)

@@ -159,6 +159,8 @@ declare global {
         annullaLavoro: () => Promise<boolean>
         onLavoro: (cb: (s: import('../main/cassaforte/lavoro-in-corso').StatoLavoro) => void) => () => void
         onCatalogoProgresso: (cb: (p: import('../shared/catalogo-progresso').ProgressoCatalogo) => void) => () => void
+        onChatArrivate: (cb: (m: { quante: number; tipo: string; quando: string; rimappate: number }) => void) => () => void
+        onCartellaCambiata: (cb: (m: { sessionUuid: string; da: string; a: string }) => void) => () => void
         adottaCassaforteDelDrive: () => Promise<{ ok: boolean; messaggio?: string }>
         cambiatoDrive: () => Promise<void>
         provaPassphraseSulDrive: (passphrase: string) => Promise<{ ok: boolean; stessa?: boolean; messaggio?: string }>

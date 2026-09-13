@@ -49,6 +49,12 @@ type State = {
   /** Il nome che l'utente dà a un riquadro: vince su quello di Claude Code. */
   rinominaPane: (id: string, title: string) => void
   /**
+   * La cartella di una conversazione e' cambiata: il Core l'ha aperta nella
+   * cartella di qui invece di quella dell'altro PC. Cosi' l'intestazione dice
+   * il vero e il layout salvato la ritrova al posto giusto.
+   */
+  impostaCartella: (sessionUuid: string, cwd: string) => void
+  /**
    * Il modello di una chat, dopo che l'utente l'ha cambiato dall'intestazione.
    *
    * Aggiornarlo qui è ciò che lo fa **salvare** (`esporta` lo include) e quindi
@@ -312,6 +318,15 @@ export const useLayoutStore = create<State>((set, get) => ({
       const pulito = normalizzaTitolo(title)
       if (pulito === '') return s
       return { panes: { ...s.panes, [id]: { ...pane, title: pulito } } }
+    }),
+
+  impostaCartella: (sessionUuid, cwd) =>
+    set((s) => {
+      const voci = Object.entries(s.panes).filter(([, p]) => p.sessionUuid === sessionUuid && p.cwd !== cwd)
+      if (voci.length === 0) return s
+      const panes = { ...s.panes }
+      for (const [id, p] of voci) panes[id] = { ...p, cwd }
+      return { panes }
     }),
 
   impostaModello: (id, model) =>

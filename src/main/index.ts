@@ -80,8 +80,14 @@ import {
 import { creaProgettiSync } from './progetti/sincronia-progetti'
 import { creaRonda } from './progetti/presenza'
 import { progettoDiCwd, staDentro } from './progetti/registro'
-import { impostaPrimaDiAprire, impostaRisolviCartella } from './ipc'
-import { risolviCartellaDiChat } from './progetti/cartella-di-chat'
+import { impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
+import { risolviCartellaDiChat, type CartellaDiChat } from './progetti/cartella-di-chat'
+import { pianificaRimappatura, riscriviCwdRiga } from './progetti/rimappa-di-massa'
+import { createReadStream, createWriteStream } from 'node:fs'
+import { mkdir as mkdirAsync, rename as renameAsync, stat as statAsync, unlink as unlinkAsync, utimes as utimesAsync } from 'node:fs/promises'
+import { createInterface } from 'node:readline'
+import { once } from 'node:events'
+import type { EsitoLavoro } from './cassaforte/lavoro-in-corso'
 import { pathToSlug } from './indexer/project-scanner'
 import {
   elencoPlugin, installaPlugin, disinstallaPlugin, commutaPlugin,
@@ -895,14 +901,38 @@ if (!app.requestSingleInstanceLock()) {
       const lavoro = creaLavoro(undefined, 200)
 
       lavoro.onCambio((st) => {
-
         for (const w of BrowserWindow.getAllWindows()) {
-
           if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('sync:lavoro', st)
-
         }
-
       })
+      // Un lavoro che ha portato giu' delle chat: l'indice si rilegge, le chat
+      // con la cartella di un altro PC si rimappano, i workspace anche, e le
+      // finestre lo sanno («N chat arrivate»). Prima l'elenco restava quello
+      // di prima fino al riavvio.
+      let ultimoArrivoGestito: string | undefined
+      const dopoArrivo = async (ultimo: EsitoLavoro): Promise<void> => {
+        await reindicizzaSessioni().catch(() => undefined)
+        const rimappate = await rimappaChatSulDisco()
+        rimappaChat()
+        if (rimappate > 0) await reindicizzaSessioni().catch(() => undefined)
+        const avviso = { quante: ultimo.scaricati ?? 0, tipo: ultimo.tipo, quando: ultimo.quando, rimappate }
+        for (const w of BrowserWindow.getAllWindows()) {
+          if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('chat:arrivate', avviso)
+        }
+      }
+      lavoro.onCambio((st) => {
+        const u = st.ultimo
+        if (st.inCorso !== undefined || u === undefined || (u.scaricati ?? 0) === 0 || u.quando === ultimoArrivoGestito) return
+        ultimoArrivoGestito = u.quando
+        dopoArrivo(u).catch((err: unknown) => registro.errore(`[progetti] dopo l'arrivo dal Drive: ${String(err)}`))
+      })
+      // All'avvio, finita la prima lettura dell'indice: le chat gia' sul disco
+      // con la cartella di un altro PC (scaricate prima di questa versione)
+      // vanno al loro posto una volta per tutte.
+      void primoIndice().then(async () => {
+        const n = await rimappaChatSulDisco()
+        if (n > 0) { rimappaChat(); await reindicizzaSessioni() }
+      }).catch((err: unknown) => registro.errore(`[progetti] rimappatura all'avvio: ${String(err)}`))
 
       const sincronia = apriSincronia({
         dati,
@@ -998,9 +1028,10 @@ if (!app.requestSingleInstanceLock()) {
       // nuovo slug, o `--resume` ripartirebbe da zero. Qualunque intoppo
       // lascia la cartella chiesta: meglio l'errore di prima che una chat
       // che non si apre per un motivo nuovo.
-      impostaRisolviCartella((cwd, sessione) => {
+      /** Dove lavora qui una chat con quella cartella: decide, crea la cartella, scrive il registro. */
+      const risolviSuDisco = (cwd: string): CartellaDiChat | undefined => {
         try {
-          if (existsSync(cwd)) return cwd
+          if (existsSync(cwd)) return { cwd, motivo: 'esiste' }
           const pc = identitaPc.leggi()
           const r = risolviCartellaDiChat({
             cwd, registro: registroProgetti.leggi(), pcId: pc.id, cartellaProgetti: pc.cartellaProgetti,
@@ -1008,16 +1039,82 @@ if (!app.requestSingleInstanceLock()) {
           })
           if (r.registro !== undefined) registroProgetti.scrivi(r.registro)
           mkdirSync(r.cwd, { recursive: true })
+          return r
+        } catch (err) {
+          registro.errore(`[progetti] cartella di ${cwd} non risolta: ${String(err)}`)
+          return undefined
+        }
+      }
+      impostaRisolviCartella((cwd, sessione) => {
+        const r = risolviSuDisco(cwd)
+        if (r === undefined || r.motivo === 'esiste') return cwd
+        try {
           const da = join(radiceClaude, 'projects', pathToSlug(cwd), `${sessione}.jsonl`)
           const a = join(radiceClaude, 'projects', pathToSlug(r.cwd), `${sessione}.jsonl`)
           if (existsSync(da) && !existsSync(a)) { mkdirSync(dirname(a), { recursive: true }); copyFileSync(da, a) }
-          registro.info(`[progetti] la cartella ${cwd} qui non c'e': la chat ${sessione} lavora in ${r.cwd} (${r.motivo === 'adottata' ? `progetto «${r.nome ?? ''}» adottato, origine ricordata` : `progetto «${r.nome ?? ''}» gia' noto`})`)
-          return r.cwd
         } catch (err) {
-          registro.errore(`[progetti] cartella di ${cwd} non risolta: ${String(err)}`)
-          return cwd
+          registro.errore(`[progetti] trascrizione ${sessione} non copiata sotto ${r.cwd}: ${String(err)}`)
         }
+        registro.info(`[progetti] la cartella ${cwd} qui non c'e': la chat ${sessione} lavora in ${r.cwd} (${r.motivo === 'adottata' ? `progetto «${r.nome ?? ''}» adottato, origine ricordata` : `progetto «${r.nome ?? ''}» gia' noto`})`)
+        return r.cwd
       })
+
+      /**
+       * Una trascrizione copiata riga per riga con il `cwd` portato nella
+       * cartella di qui. A flusso, con la contropressione: una chat puo'
+       * pesare decine di MB.
+       */
+      const riscriviTrascrizione = async (da: string, a: string, cwdDa: string, cwdA: string): Promise<void> => {
+        const out = createWriteStream(a)
+        const rl = createInterface({ input: createReadStream(da, { encoding: 'utf8' }), crlfDelay: Infinity })
+        try {
+          for await (const riga of rl) {
+            if (!out.write(riscriviCwdRiga(riga, cwdDa, cwdA) + '\n')) await once(out, 'drain')
+          }
+        } finally {
+          out.end()
+        }
+        await once(out, 'finish')
+      }
+
+      /**
+       * Tutte le chat sul disco con la cartella di un altro PC, portate nelle
+       * cartelle di qui: all'avvio e dopo ogni lavoro con il Drive che ha
+       * scaricato qualcosa. La trascrizione si sposta sotto lo slug di qui
+       * (col `cwd` riscritto) e quella sotto lo slug dell'altro PC si toglie;
+       * se qui ce n'e' gia' una piu' lunga, resta quella. Torna quante ne ha
+       * spostate.
+       */
+      const rimappaChatSulDisco = async (): Promise<number> => {
+        if (db === undefined) return 0
+        const piano = pianificaRimappatura({
+          chat: listSessions(db).map((s) => ({ uuid: s.uuid, cwd: s.cwd, jsonlPath: s.jsonlPath })),
+          radiceProjects: join(radiceClaude, 'projects'),
+          esiste: existsSync,
+          risolvi: (cwd) => risolviSuDisco(cwd)?.cwd
+        })
+        let fatte = 0
+        for (const m of piano) {
+          try {
+            const sDa = await statAsync(m.jsonlDa).catch(() => undefined)
+            if (sDa === undefined) continue
+            await mkdirAsync(dirname(m.jsonlA), { recursive: true })
+            const sA = await statAsync(m.jsonlA).catch(() => undefined)
+            if (sA === undefined || sA.size < sDa.size) {
+              const temp = `${m.jsonlA}.rimappa-${process.pid}`
+              await riscriviTrascrizione(m.jsonlDa, temp, m.da, m.a)
+              await renameAsync(temp, m.jsonlA)
+              await utimesAsync(m.jsonlA, sDa.atime, sDa.mtime).catch(() => undefined)
+            }
+            await unlinkAsync(m.jsonlDa)
+            fatte += 1
+          } catch (err) {
+            registro.errore(`[progetti] chat ${m.uuid} non rimappata da ${m.da} a ${m.a}: ${String(err)}`)
+          }
+        }
+        if (fatte > 0) registro.info(`[progetti] ${fatte} chat rimappate nelle cartelle di qui (${new Set(piano.map((m) => m.a)).size} cartelle: ${[...new Set(piano.map((m) => m.a))].slice(0, 5).join(', ')})`)
+        return fatte
+      }
       const timerRonda = setInterval(() => { void ronda.giro() }, 30_000)
       timerRonda.unref?.()
       const primaRonda = setTimeout(() => { void ronda.giro() }, 15_000)

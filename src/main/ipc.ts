@@ -311,6 +311,30 @@ export function claudeRoot(): string {
   return process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
 }
 
+/**
+ * L'indice delle chat si rilegge anche da fuori (il Core, dopo un lavoro con
+ * il Drive che ha portato giu' delle chat): fino alla 0.25.2 si rileggeva
+ * solo all'avvio e col pulsante «Rileggi», e 532 chat arrivate con una
+ * fusione sono rimaste invisibili fino al riavvio. Le letture si mettono in
+ * fila: due insieme scriverebbero l'indice una sopra l'altra.
+ */
+let rileggiInCorso: Promise<IndexOutcome> | undefined
+let rileggi: ((completa?: boolean) => Promise<IndexOutcome>) | undefined
+let primaLettura: Promise<IndexOutcome> | undefined
+
+export function reindicizzaSessioni(): Promise<IndexOutcome> {
+  const r = rileggi
+  if (r === undefined) return Promise.resolve({ indexed: 0, failed: 0, riusate: 0, errore: 'indice non ancora aperto' })
+  const dopo = (rileggiInCorso ?? Promise.resolve()).then(() => r(false), () => r(false))
+  rileggiInCorso = dopo
+  return dopo
+}
+
+/** Si risolve quando la lettura dell'avvio e' finita (comunque sia andata). */
+export function primoIndice(): Promise<IndexOutcome> {
+  return primaLettura ?? Promise.resolve({ indexed: 0, failed: 0, riusate: 0 })
+}
+
 export function registerSessionIpc(cartella?: string): Db {
   // La cartella arriva da chi ha già fatto la migrazione del nome: calcolarla
   // di nuovo qui vorrebbe dire poterla calcolare **diversa**.
@@ -426,9 +450,12 @@ export function registerSessionIpc(cartella?: string): Db {
   // `reindex` cattura gia' i fallimenti dell'indicizzazione, ma `webContents.send`
   // puo' comunque sollevare se la finestra viene distrutta fra il controllo e
   // l'invio: senza questo ramo sarebbe una unhandled rejection sul processo main.
-  void reindex().catch((err: unknown) => {
+  rileggi = reindex
+  primaLettura = reindex().catch((err: unknown) => {
     console.error("[indexer] indicizzazione all'avvio fallita:", err)
+    return { indexed: 0, failed: 0, riusate: 0, errore: String(err) }
   })
+  rileggiInCorso = primaLettura
   return db
 }
 
