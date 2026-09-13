@@ -405,6 +405,12 @@ function firmaScelte(s: { opzioni: { testo: string }[] }): string {
 
 export function rotteClient(deps: DipendenzeRotte) {
   const adesso = deps.adesso ?? (() => Date.now())
+  /**
+   * Una cartella e' conosciuta se sta nell'elenco per percorso **o per slug**:
+   * lo slug e' esatto in andata, il percorso ricavato da uno slug no.
+   */
+  const conosciuta = (ammesse: string[], cartella: string): boolean =>
+    ammesse.includes(cartella) || ammesse.some((a) => pathToSlug(a) === pathToSlug(cartella))
   // Per chat: l'ultima scelta mandata e quando. Vive quanto il server.
   const risposte = new Map<string, { firma: string; quando: number }>()
   const giaRisposta = (chat: string, s: { opzioni: { testo: string }[] } | undefined): boolean => {
@@ -722,8 +728,13 @@ export function rotteClient(deps: DipendenzeRotte) {
         return { stato: 400, corpo: { errore: 'servono l obiettivo e la cartella' } }
       }
       const ammesse = await deps.cartelle().catch(() => [] as string[])
-      if (!ammesse.includes(cartella)) {
+      if (!conosciuta(ammesse, cartella)) {
         return { stato: 403, corpo: { errore: 'cartella non conosciuta' } }
+      }
+      // E deve esistere: un autopilota in una cartella che non c'e' si scopre
+      // ore dopo, quando il supervisore non parte.
+      if (deps.cartellaEsiste !== undefined && !(await deps.cartellaEsiste(cartella).catch(() => false))) {
+        return { stato: 404, corpo: { errore: 'cartella inesistente su questo computer' } }
       }
       const creato = await deps.creaAutopilota(obiettivo.slice(0, TESTO_MAX), cartella)
       return OK({ fatto: true, autopilota: creato.id })
@@ -799,7 +810,7 @@ export function rotteClient(deps: DipendenzeRotte) {
       const cartella = stringa(r.corpo, 'cartella')
       if (cartella === '') return { stato: 400, corpo: { errore: 'serve la cartella' } }
       const ammesse = await deps.cartelle().catch(() => [] as string[])
-      if (!ammesse.includes(cartella)) return { stato: 403, corpo: { errore: 'cartella non conosciuta' } }
+      if (!conosciuta(ammesse, cartella)) return { stato: 403, corpo: { errore: 'cartella non conosciuta' } }
       return OK({ schede: deps.quaderno(cartella) })
     }
 
@@ -808,7 +819,7 @@ export function rotteClient(deps: DipendenzeRotte) {
       const file = stringa(r.corpo, 'file')
       if (cartella === '' || file === '') return { stato: 400, corpo: { errore: 'servono cartella e scheda' } }
       const ammesse = await deps.cartelle().catch(() => [] as string[])
-      if (!ammesse.includes(cartella)) return { stato: 403, corpo: { errore: 'cartella non conosciuta' } }
+      if (!conosciuta(ammesse, cartella)) return { stato: 403, corpo: { errore: 'cartella non conosciuta' } }
       const s = deps.scheda(cartella, file)
       return s === undefined ? { stato: 404, corpo: { errore: 'scheda inesistente' } } : OK(s)
     }

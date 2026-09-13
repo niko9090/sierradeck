@@ -82,11 +82,14 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
     window.gestore.negozio.plugin().then((r) => { setPlugin(r.plugin); setErrorePlugin(r.errore) })
       .catch((e: unknown) => { if (!silenzioso) setPlugin([]); setErrorePlugin(String(e)) })
   }
-  const caricaSkill = (): void => { window.gestore.negozio.skill(cwd).then(setSkill).catch(() => setSkill([])) }
-  const caricaAgenti = (): void => { window.gestore.negozio.agenti(cwd).then(setAgenti).catch(() => setAgenti([])) }
+  // Un elenco che non si e' potuto leggere non e' un elenco vuoto: prima il
+  // rifiuto veniva inghiottito e si leggeva «Nessuna skill installata» come
+  // se fosse vero.
+  const caricaSkill = (): void => { window.gestore.negozio.skill(cwd).then(setSkill).catch((e: unknown) => { setSkill([]); setAvviso(`Skill non lette: ${String(e)}`) }) }
+  const caricaAgenti = (): void => { window.gestore.negozio.agenti(cwd).then(setAgenti).catch((e: unknown) => { setAgenti([]); setAvviso(`Agenti non letti: ${String(e)}`) }) }
   const caricaMcp = (): void => {
     if (cwd === undefined) { setMcp([]); return }
-    window.gestore.negozio.mcp(cwd).then(setMcp).catch(() => setMcp([]))
+    window.gestore.negozio.mcp(cwd).then(setMcp).catch((e: unknown) => { setMcp([]); setAvviso(`MCP non letti: ${String(e)}`) })
   }
   const caricaStore = (silenzioso = false): void => {
     if (!silenzioso) { setStore(undefined); setErroreStore(undefined) }

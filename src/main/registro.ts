@@ -1,4 +1,4 @@
-import { mkdirSync, appendFileSync } from 'node:fs'
+import { mkdirSync, appendFileSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 
 /**
@@ -32,6 +32,9 @@ export type Registro = {
  * andava a cercare la prova di stamattina apriva il file di oggi e lo trovava
  * vuoto, mentre il registro scriveva altrove.
  */
+/** Quanti giorni di registro si tengono: due settimane bastano a ricostruire un guasto. */
+export const GIORNI_TENUTI = 14
+
 function fileDelGiorno(cartella: string, ora = new Date()): string {
   return join(cartella, `sierradeck-${ora.toISOString().slice(0, 10)}.log`)
 }
@@ -76,6 +79,19 @@ export function apriRegistro(
     mkdirSync(cartella, { recursive: true })
   } catch (err) {
     console.error('[registro] cartella non creata:', err)
+  }
+  // I file dei giorni passati oltre due settimane si tolgono: la scheda del
+  // registro da 7 GB diceva «va cancellato a mano», e a mano non lo fa nessuno.
+  try {
+    const limite = Date.now() - GIORNI_TENUTI * 24 * 60 * 60_000
+    for (const nome of readdirSync(cartella)) {
+      const m = /^sierradeck-(\d{4}-\d{2}-\d{2})\.log$/.exec(nome)
+      if (m?.[1] === undefined) continue
+      const giornoFile = Date.parse(`${m[1]}T00:00:00Z`)
+      if (!Number.isNaN(giornoFile) && giornoFile < limite) rmSync(join(cartella, nome), { force: true })
+    }
+  } catch (err) {
+    console.error('[registro] pulizia dei giorni passati fallita:', err)
   }
 
   // Il conto del secondo in corso e del giorno in corso.

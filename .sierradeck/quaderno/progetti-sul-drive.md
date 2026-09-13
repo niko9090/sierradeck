@@ -123,3 +123,23 @@ obbligatorio (tappa 2).
   file system con precisione grossolana (FAT: 2 s) le firme non tornerebbero
   e si rimanderebbe tutto ogni volta. Windows/NTFS: ok.
 
+
+## Aggiornamento 2026-09-14 (0.27.0, controllo completo)
+
+- **«Togli» su A + «Prendi il testimone» (o «Ripristina») su B cancellava la
+  cartella di B**, `.git` compreso: con nessuna voce sul Drive sotto il
+  prefisso, `elimina: true` leggeva ogni file del manifesto locale come
+  «tolto dall'altro PC». Ora `ripristinaProgetto` e il secondo tempo di
+  `ripristina()` saltano i prefissi senza file sul Drive e lo dicono.
+- `ripristinaProgetto` passa dal lavoro esclusivo (`prendiLavoro('ripristino')`).
+- La cartella di una chat (`risolviCartellaDiChat`): una sottocartella sparita
+  di un progetto già mio si ricrea lì; un progetto conosciuto ma mai collegato
+  qui si collega subito (`collegaProgetto`), o la volta dopo nasceva un
+  doppione; due progetti omonimi non finiscono nella stessa cartella
+  (`-<stampo>`); `Temp`/`AppData` fuori dalla rimappatura di massa.
+- La ronda dice un guasto **una volta** per progetto finché non torna a
+  rispondere (offline erano 2880 righe/giorno per progetto); una staffetta a
+  cui l'altro PC non risponde si ritira; i file oltre 100 MB si dicono.
+- Resta aperto: nessuna lapide per «Togli la cartella» (il progetto rinasce
+  dal registro dell'altro PC); la ronda fa 3 ricerche Drive per progetto ogni
+  30 s (serve `Scatola.elenca()`); `pc.json` illeggibile = identità nuova.

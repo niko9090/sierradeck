@@ -133,3 +133,29 @@ install update on quit»). Per capire da che strada è passato un aggiornamento:
 Idea non fatta: far passare anche l'installazione alla chiusura da SierraDeck
 Update (finestra sempre). Cambia la semantica di `before-quit`: da decidere
 con Nicholas.
+
+## Aggiornamento 2026-09-14 (0.27.0, controllo completo)
+
+- **Se SierraDeck Update non si fa vivo**, la pausa si disfa: `disfaPausa`
+  (ultimo parametro di `creaAggiornamenti`) toglie la pausa agli autopiloti,
+  cancella `pausa-aggiornamento.json` e rimette `autoInstallOnAppQuit`; lo
+  stato torna `pronto` con un `errore` che spiega. Prima gli autopiloti
+  restavano in pausa fino a un riavvio e al prossimo avvio le chat leggevano
+  «tornato su con la versione nuova» senza che fosse successo.
+- La fase `attendo` ha la sua striscia sul PC (`App.tsx`), e `pronto` mostra
+  `errore` («Non ho installato: …»). Il telefono (pagina) legge
+  `stato.aggiornamento` dal polso e conosce `installo`/`aggiornato`/`fermo`.
+- `sistema:riavvia` e il riavvio dal telefono, con un aggiornamento `pronto`,
+  **installano** invece di `relaunch`+`quit`: con `autoInstallOnAppQuit`
+  acceso partivano insieme l'installer silenzioso e la versione vecchia, e
+  NSIS la uccideva un secondo dopo (il «torna la vecchia e si chiude» del 13/09).
+- Il diario dell'updater si cerca in `TEMP`, `TMP` e `tmpdir()`
+  (`diariUpdater`): l'updater .NET legge `TMP` prima di `TEMP`.
+- `aggiornamento.txt` e `workspaces.prima-dell-aggiornamento.json` si scrivono
+  con temporaneo + rinomina; la versione scaricata si ricorda a parte
+  (`versioneScaricata`) così un errore di rete non lascia «La versione  è
+  pronta»; durante l'attesa non si cerca.
+- Resta aperto (B3 del rapporto 2): l'updater C# uccide SierraDeck dopo 5 s
+  (`GIRI_GENTILI` 25×200 ms) mentre la chiusura può durare fino a 47 s
+  (layout + salvataggio Drive con tetto 45 s). Servono `VERSIONE_UPDATER`
+  14 con 60 s, e il salvataggio Drive **prima** di avviare l'updater.

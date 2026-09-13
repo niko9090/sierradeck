@@ -81,3 +81,22 @@ describe('il registro', () => {
     expect(testo).toContain('[ERRORE] [servizio] dal servizio')
   })
 })
+
+describe('i giorni passati', () => {
+  it('i file piu vecchi di due settimane si tolgono all apertura, quelli recenti restano', async () => {
+    const { writeFileSync, existsSync, mkdirSync } = await import('node:fs')
+    const { GIORNI_TENUTI } = await import('../../src/main/registro')
+    const dati = mkdtempSync(join(tmpdir(), 'sd-registro-pulizia-'))
+    mkdirSync(join(dati, 'log'), { recursive: true })
+    const giorno = (fa: number): string => new Date(Date.now() - fa * 24 * 60 * 60_000).toISOString().slice(0, 10)
+    const vecchio = join(dati, 'log', `sierradeck-${giorno(GIORNI_TENUTI + 3)}.log`)
+    const recente = join(dati, 'log', `sierradeck-${giorno(2)}.log`)
+    const altro = join(dati, 'log', 'appunti.log')
+    for (const f of [vecchio, recente, altro]) writeFileSync(f, 'x', 'utf8')
+    apriRegistro(dati, '1.2.3')
+    expect(existsSync(vecchio)).toBe(false)
+    expect(existsSync(recente)).toBe(true)
+    // Un file che non e' del registro non si tocca.
+    expect(existsSync(altro)).toBe(true)
+  })
+})

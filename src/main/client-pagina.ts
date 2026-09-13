@@ -587,15 +587,46 @@ const esc = (t) => String(t == null ? '' : t).replace(/[<>&"]/g, (c) => ({'<':'&
 // barra letterale verrebbe mangiata e la fuga arriverebbe rotta al browser.
 const escJs = (t) => { const b = String.fromCharCode(92); return esc(String(t == null ? '' : t).split(b).join(b + b).split("'").join(b + "'")) }
 
+// Quanti 401 di fila prima di buttare la chiave: uno solo era «un colpo e
+// via», e un rifiuto transitorio (il computer che riparte con i dispositivi
+// non ancora letti) faceva ricominciare l'accoppiamento. L'app fa lo stesso.
+var RIFIUTI_PER_ARRENDERSI = 5
+var rifiuti401 = 0
+
 async function chiedi(percorso, corpo) {
   const r = await fetch(percorso, {
     method: corpo ? 'POST' : 'GET',
     headers: chiave ? { 'x-sierradeck-chiave': chiave, 'content-type': 'application/json' } : { 'content-type': 'application/json' },
     body: corpo ? JSON.stringify(corpo) : undefined
   })
-  if (r.status === 401) { chiave = ''; localStorage.removeItem(CHIAVE); ingresso('Questo dispositivo non è più riconosciuto.'); throw new Error('401') }
+  if (r.status === 401) {
+    rifiuti401 += 1
+    if (rifiuti401 >= RIFIUTI_PER_ARRENDERSI) { chiave = ''; localStorage.removeItem(CHIAVE); ingresso('Questo dispositivo non è più riconosciuto.') }
+    throw new Error('il computer non riconosce questo dispositivo (401)')
+  }
+  rifiuti401 = 0
+  // Un 4xx o 5xx non e' una risposta: prima tornava come oggetto e i tasti
+  // procedevano come se fosse andata (il modulo «Affida» si chiudeva, il
+  // campo del nome si svuotava). Il 409 no: e' una risposta con un motivo,
+  // che le scelte e il Drive leggono da soli.
+  if (!r.ok && r.status !== 409) {
+    let motivo = ''
+    try { motivo = (await r.json()).errore || '' } catch (e) { motivo = '' }
+    throw new Error(motivo || ('il computer ha risposto ' + r.status))
+  }
   return r.json()
 }
+
+// Un tasto che fallisce lo dice in cima alla pagina, invece di tacere.
+var notaGlobale = ''
+window.chiudiNota = () => { notaGlobale = ''; pannello(ultimoStato) }
+window.addEventListener('unhandledrejection', (ev) => {
+  const e = ev && ev.reason
+  const testo = e && e.message ? e.message : String(e || 'errore')
+  if (testo === '401') return
+  notaGlobale = 'Non sono riuscito: ' + testo
+  try { pannello(ultimoStato) } catch (err) { }
+})
 
 function ingresso(messaggio) {
   app.innerHTML = \`
@@ -761,8 +792,8 @@ function impronta(s) {
     // di loro nell'impronta, a computer fermo (nessuna chat che scrive) la
     // pagina restava com'era: si toccava un autopilota e il suo dettaglio non
     // compariva, si apriva il Drive e restava «Leggo il Drive…».
-    apDettaglio ? apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.dialogo || []).length : '',
-    notaDialogo || '',
+    apDettaglio ? apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.dialogo || []).length + '/' + apDettaglio.riprendiAlRiavvio : '',
+    notaDialogo || '', notaGlobale || '',
     cartelle ? cartelle.length : '',
     codaProgetto || '', codaErrore || '',
     codaVoci ? codaVoci.map((v) => v.id + v.stato).join(',') : '',
@@ -950,11 +981,19 @@ function pannello(s) {
       \${apDettaglio ? vistaAutopilota(apDettaglio) : ''}
       <div class="riga">
         \${apAperto.stato === 'pronto'
-          ? '<button class="primario" onclick="vaiAp(\\'' + esc(apAperto.id) + '\\')">Vai</button>'
+          ? '<button class="primario" data-ap="' + esc(apAperto.id) + '" onclick="vaiAp(this.dataset.ap)">Vai</button>'
           : apAperto.stato === 'lavoro' || apAperto.stato === 'attesa'
-            ? '<button onclick="fermaAp(\\'' + esc(apAperto.id) + '\\')">Ferma</button>'
-            : '<button onclick="riprendiAp(\\'' + esc(apAperto.id) + '\\')">Riprendi</button>'}
-        <button onclick="leggiQuaderno(null)">Quaderno</button>
+            ? '<button data-ap="' + esc(apAperto.id) + '" onclick="fermaAp(this.dataset.ap)">Ferma</button>'
+            : apAperto.stato === 'intervista'
+              ? '<span class="sotto">si sta preparando: legge il progetto e, se serve, ti fa una domanda</span>'
+              : apAperto.stato === 'finito'
+                ? '<span class="sotto">ha finito: non c’è altro da fare</span>'
+                : '<button data-ap="' + esc(apAperto.id) + '" onclick="riprendiAp(this.dataset.ap)">Riprendi</button>'}
+        <button onclick="apriPannello('quaderno')">Quaderno</button>
+      </div>
+      <div class="riga">
+        <label class="spunta"><input type="checkbox" \${apDettaglio && apDettaglio.riprendiAlRiavvio === false ? '' : 'checked'} data-ap="\${esc(apAperto.id)}" onchange="riavvioAp(this.dataset.ap, this.checked)"> Riparte da solo al riavvio del computer</label>
+        <button class="\${confermando === 'ap-' + apAperto.id ? 'pericolo' : ''}" data-ap="\${esc(apAperto.id)}" onclick="eliminaAp(this.dataset.ap)">\${confermando === 'ap-' + apAperto.id ? 'Sicuro? Elimina' : 'Elimina'}</button>
       </div>
     </div>\`
     : (s.autopiloti || []).map((a) => \`
@@ -1039,7 +1078,7 @@ function pannello(s) {
     ? '<div class="piastrella"><div class="riga"><button onclick="scegliCartella()">Apri una chat nuova</button></div></div>'
     : \`<div class="piastrella">
          <div class="titolo">In quale cartella?</div>
-         <div class="sotto">Solo quelle che Claude Code conosce gia'.</div>
+         <div class="sotto">Solo quelle che Claude Code conosce già: le cartelle delle chat che ha nell’elenco.</div>
          \${cartelle.length === 0 ? '<div class="sotto" style="margin-top:8px">Nessuna cartella conosciuta.</div>' : ''}
          \${cartelle.map((c, i) =>
            // Per indice, non per percorso: un percorso di Windows dentro
@@ -1080,7 +1119,7 @@ function pannello(s) {
   const elencoSessioni = pannelloAperto !== 'sessioni' ? '' : \`
     <div class="piastrella">
       <div class="titolo">Riprendi una conversazione</div>
-      <div class="sotto">Quelle che il computer conosce, dalla piu' recente.</div>
+      <div class="sotto">Quelle che il computer conosce, dalla più recente.</div>
       \${(sessioniViste || []).length === 0
         ? '<div class="sotto" style="margin-top:8px">Nessuna conversazione trovata.</div>'
         : (sessioniViste || []).slice(0, 20).map((x, i) =>
@@ -1357,6 +1396,7 @@ function pannello(s) {
 
   app.innerHTML = \`
     <main class="schermata">
+      \${notaGlobale ? '<div class="piastrella"><div class="errore">' + esc(notaGlobale) + '</div><div class="riga"><button onclick="chiudiNota()">Ok</button></div></div>' : ''}
       \${schermate[scheda] || schermate.adesso}
     </main>
     \${fascia(s)}\`
@@ -1656,8 +1696,11 @@ window.apriPannello = async (quale) => {
   if (pannelloAperto === 'impostazioni') { await leggiPreferenze(); await leggiAggiornamento() }
   if (pannelloAperto === 'quaderno') {
     schedaAperta = null
-    const prima = (ultimoStato.chat || [])[0]
-    if (prima) await leggiQuaderno(prima.cwd)
+    // La stessa cartella da cui poi si aprono le schede (cartellaPrima):
+    // prima l'elenco veniva dalla prima chat e la scheda si chiedeva alla
+    // cartella dell'autopilota, e con due progetti diversi era un 404 muto.
+    const c = cartellaPrima()
+    if (c) await leggiQuaderno(c)
   }
   pannello(ultimoStato)
 }
@@ -1772,6 +1815,14 @@ setInterval(async () => {
   driveEraInCorso = adesso
   pannello(ultimoStato)
 }, 2000)
+
+// La coda condivisa cambia dal computer (una voce consegnata): si rilegge
+// ogni dieci secondi finche' e' aperta, come fa l'app.
+setInterval(async () => {
+  if (pannelloAperto !== 'code' || codaProgetto === null || !chiave) return
+  try { await leggiCoda() } catch (e) { return }
+  pannello(ultimoStato)
+}, 10000)
 
 window.caricaSalvataggio = async (i) => {
   const s = (salvataggiVisti || [])[i]
@@ -2129,6 +2180,8 @@ function chiediDiAvvisare() { }
 
 /** Gli avvisi gia' dati: la stessa domanda non si annuncia due volte. */
 var avvisati = {}
+/** Al primo stato non si annuncia niente: e' il passato, non una novita'. */
+var primoAvviso = true
 
 /**
  * Avvisa quando l'autopilota ha bisogno di te.
@@ -2154,12 +2207,29 @@ function avvisaSeServe(stato) {
       avvisati['d-' + d.id] = true
       new Notification('SierraDeck ti sta chiedendo una cosa', { body: d.testo, tag: d.id })
     }
+    const nuovo = !primoAvviso
     for (const a of (stato.autopiloti || [])) {
-      if (a.stato !== 'sospeso' && a.stato !== 'fallito') continue
+      if (a.stato !== 'sospeso' && a.stato !== 'fallito' && a.stato !== 'finito') continue
       if (avvisati['f-' + a.id + a.stato]) continue
       avvisati['f-' + a.id + a.stato] = true
-      new Notification(a.nome + ' si e fermato', { body: 'Serve una tua occhiata.', tag: a.id })
+      if (!nuovo) continue
+      if (a.stato === 'finito') new Notification(a.nome + ' ha finito', { body: 'Il lavoro è concluso: puoi guardare il risultato.', tag: a.id })
+      else new Notification(a.nome + ' si è fermato', { body: a.motivo || 'Serve una tua occhiata.', tag: a.id })
     }
+    // Una chat tua che ha finito di scrivere e aspetta te: e' la sola notizia
+    // di una chat che valga un avviso (l'app lo fa gia'). Si annuncia il
+    // fronte, non lo stato: finche' resta ferma non si ripete.
+    for (const c of (stato.chat || [])) {
+      const chiaveChat = 'a-' + c.id
+      if (c.aspetta === true && c.governata !== true) {
+        if (avvisati[chiaveChat]) continue
+        avvisati[chiaveChat] = true
+        if (nuovo) new Notification((c.titolo || 'Una chat') + ' aspetta te', { body: c.ultimaRiga || 'Ha finito di scrivere.', tag: 'chat-' + c.id })
+      } else {
+        delete avvisati[chiaveChat]
+      }
+    }
+    primoAvviso = false
   } catch (e) { }
 }
 

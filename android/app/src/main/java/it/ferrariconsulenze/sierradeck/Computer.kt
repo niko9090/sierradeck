@@ -482,7 +482,10 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
                         // millisecondi, e segnare dopo vorrebbe dire non
                         // segnare affatto.
                         Installazione.iniziata(contesto, versionePc)
-                        try { api.installaAggiornamento() } catch (_: Exception) {}
+                        // Se la richiesta non parte, lo schermo «sto installando»
+                        // restava davanti a un computer che non lo stava facendo,
+                        // per dieci minuti.
+                        try { api.installaAggiornamento() } catch (_: Exception) { Installazione.finita(contesto) }
                     }
                 }
             ) { Text("Installa") }

@@ -55,3 +55,11 @@ registro senza tetto è un disco pieno che aspetta.
 **Il file da 7 GB va cancellato a mano** (è solo la stessa riga ripetuta):
 `sierradeck-2026-09-03.log`. Le poche righe utili di quel giorno sono le ultime
 (20:27Z, avvio 0.12.51 + tre `trasloco`).
+
+## Aggiornamento 2026-09-14 (0.27.0): i giorni passati si tolgono da soli
+
+`apriRegistro` cancella all'apertura i `sierradeck-AAAA-MM-GG.log` più vecchi
+di `GIORNI_TENUTI` (14 giorni). Resta il tetto di 200 MB al giorno **per
+processo** (app + servizio autopiloti = fino a 400 MB/giorno). Non cancellato
+da solo: un file di oggi gonfio da un difetto, che è proprio la prova da
+leggere.

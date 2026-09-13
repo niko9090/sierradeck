@@ -291,7 +291,7 @@ private fun etichettaLavoro(tipo: String): String = when (tipo) {
 
 private fun statoProgetto(g: ProgettoCatalogo): String = when (g.stato) {
     "allineato" -> "allineato: il computer ha già tutto"
-    "daPortare" -> "${g.conti.soloDrive + g.file.soloDrive} da portare sul computer"
+    "daPortare" -> "${g.conti.soloDrive + g.conti.indietro + g.file.soloDrive + g.file.indietro} da portare sul computer"
     "daAggiornare" -> "${g.conti.indietro + g.file.indietro} da aggiornare sul computer"
     "soloQui" -> "solo sul computer: sale al prossimo salvataggio"
     else -> "${g.conti.soloDrive + g.conti.indietro + g.file.soloDrive + g.file.indietro} da portare · ${g.conti.soloQui + g.conti.avanti + g.file.soloQui + g.file.avanti} da mandare su"

@@ -1006,6 +1006,10 @@ export function registerLayoutIpc(
   ipcMain.handle('workspace:elimina', (event, raw: unknown): StatoWorkspace => {
     const precedente = store.leggi()
     const a = eliminaWorkspace(precedente, validateNomeWorkspace(raw))
+    // Una copia prima di togliere: eliminare e' l'unica azione qui che non
+    // passa dal rifiuto dei congedi, e un clic sbagliato non deve costare le
+    // chat di un workspace.
+    mettiDaParteArchivio(store.percorso, 'workspaces.prima-dell-eliminazione.json')
     scriviOSolleva(a, "l'eliminazione del workspace")
     if (a.attivo !== precedente.attivo) annunciaCambio(event, a, precedente.attivo)
     return statoDi(a)

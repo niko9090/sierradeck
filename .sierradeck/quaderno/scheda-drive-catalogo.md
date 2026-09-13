@@ -136,3 +136,12 @@ C'era anche un refuso: la riga «Leggo il Drive…» compariva solo quando
   (`driveLeggo`/`LaunchedEffect(leggo)`); un computer vecchio senza rotta
   lascia la barra all'inizio. In Kotlin le fasi sono duplicate
   (`FASI_CATALOGO` in `Drive.kt`): se cambiano i testi, cambiarli anche lì.
+
+## Aggiornamento 2026-09-14 (0.27.0)
+
+Vista «Per workspace»: «Togli dal Drive» (lapide, vedi
+`workspace-tolti-dal-drive.md`) e l'elenco «Tolti dal Drive» con «Rimetti».
+Il catalogo porta `workspaceTolti[]`. Le sessioni «observer» di claude-mem non
+compaiono più (né nel catalogo, né nel piano di fusione, né nell'arrivo):
+`eSlugDiServizio` in `src/shared/slug-di-servizio.ts`. Quelle già sul Drive
+(≈621×2) restano lassù finché non si fa una pulizia esplicita (aperto).

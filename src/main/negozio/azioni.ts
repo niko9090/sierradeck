@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
+import { chiaveProgetto } from './lettura'
 
 /**
  * Il negozio, lato scrittura per skill e MCP: qui non c'è un CLID a cui delegare
@@ -78,8 +79,11 @@ export function commutaMcp(fileClaudeJson: string, cwd: string, nome: string, ab
   const projects = (j.projects !== null && typeof j.projects === 'object' && !Array.isArray(j.projects)
     ? j.projects
     : {}) as Record<string, unknown>
-  const prog = (projects[cwd] !== null && typeof projects[cwd] === 'object' && !Array.isArray(projects[cwd])
-    ? { ...(projects[cwd] as Record<string, unknown>) }
+  // La chiave con cui Claude Code conosce questa cartella (barre e maiuscole
+  // a parte): scrivere sotto un'altra creerebbe un ramo che nessuno legge.
+  const chiave = chiaveProgetto(projects, cwd)
+  const prog = (projects[chiave] !== null && typeof projects[chiave] === 'object' && !Array.isArray(projects[chiave])
+    ? { ...(projects[chiave] as Record<string, unknown>) }
     : {}) as Record<string, unknown>
   const disabilitati = new Set(Array.isArray(prog.disabledMcpjsonServers)
     ? (prog.disabledMcpjsonServers as unknown[]).filter((x): x is string => typeof x === 'string')
@@ -88,7 +92,7 @@ export function commutaMcp(fileClaudeJson: string, cwd: string, nome: string, ab
   else disabilitati.add(nome)
   if (disabilitati.size === 0) delete prog.disabledMcpjsonServers
   else prog.disabledMcpjsonServers = [...disabilitati]
-  projects[cwd] = prog
+  projects[chiave] = prog
   j.projects = projects
   // Come sopra: e' il valore di ritorno a dire com'e' andata, non un'eccezione
   // che non arrivera' mai.

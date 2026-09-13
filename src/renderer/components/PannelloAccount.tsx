@@ -58,8 +58,8 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
   const prendi = (id: string, forza = false): void => {
     setOccupato(true); setEsito(undefined)
     void window.gestore.progetti.prendiTestimone(id, forza).then((r) => {
-      if (r.ok) setEsito(`Testimone preso: il progetto adesso e' qui, con l'ultimo stato salvato.${r.conflitti !== undefined ? ` ${r.conflitti} file in conflitto: vince il più recente, l'altro è accanto come copia «.conflitto-…».` : ''}`)
-      else if ('nonRisponde' in r) setEsito(`Il PC ${r.pcNome} non risponde. Puoi forzare: prendi quello che c'e' sul Drive.`)
+      if (r.ok) setEsito(`Testimone preso: il progetto adesso è qui, con l’ultimo stato salvato.${r.conflitti !== undefined ? ` ${r.conflitti} file in conflitto: vince il più recente, l'altro è accanto come copia «.conflitto-…».` : ''}`)
+      else if ('nonRisponde' in r) setEsito(`Il PC ${r.pcNome} non risponde. Puoi forzare: prendi quello che c’è sul Drive.`)
       else setEsito('messaggio' in r ? r.messaggio : 'non riuscito')
     }).catch((e: unknown) => setEsito(String(e))).finally(() => { setOccupato(false); ricarica() })
   }
@@ -78,7 +78,7 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
       <div className="account__scheda-tit">📁 Progetti sul Drive</div>
       {elenco.progetti.length === 0 ? (
         <p className="account__nota">
-          Le chat viaggiano gia'. Metti sul Drive anche la cartella di un progetto, e sull’altro PC la trovi con le sue chat dentro.
+          Le chat viaggiano già. Metti sul Drive anche la cartella di un progetto, e sull’altro PC la trovi con le sue chat dentro.
         </p>
       ) : (
         <ul className="account__progetti">
@@ -99,11 +99,11 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
                 {statoDi(p.id)?.chi === 'altro' ? (
                   <>
                     <button className="tasto tasto--primario tasto--mini" disabled={fermo} onClick={() => prendi(p.id)}>Prendi il testimone</button>
-                    <button className="tasto tasto--mini" disabled={fermo} onClick={() => prendi(p.id, true)} title="Senza aspettare l'altro PC: prende quello che c'e' sul Drive">Forza</button>
+                    <button className="tasto tasto--mini" disabled={fermo} onClick={() => prendi(p.id, true)} title="Senza aspettare l’altro PC: prende quello che c’è sul Drive">Forza</button>
                   </>
                 ) : null}
                 {p.locale === undefined ? (
-                  <button className="tasto tasto--mini" disabled={fermo} onClick={() => con(window.gestore.progetti.collega(p.id))}>Sta gia' qui…</button>
+                  <button className="tasto tasto--mini" disabled={fermo} onClick={() => con(window.gestore.progetti.collega(p.id))}>Sta già qui…</button>
                 ) : null}
                 <button className="tasto tasto--mini" disabled={fermo} onClick={() => setDaTogliere({ id: p.id, nome: p.nome })}>Togli</button>
               </div>
@@ -192,7 +192,11 @@ function SezioneSync(): React.JSX.Element | null {
 
   const conInCorso = (p: Promise<unknown>): void => {
     setInCorso(true); setMsg(undefined); setProgresso(undefined)
-    void p.finally(() => { setInCorso(false); setProgresso(undefined); aggiorna() })
+    // Un `invoke` rifiutato finiva solo nel registro: lo spinner spariva e il
+    // pannello restava muto. Adesso lo dice.
+    void p
+      .catch((e: unknown) => setMsg(e instanceof Error ? e.message : String(e)))
+      .finally(() => { setInCorso(false); setProgresso(undefined); aggiorna() })
   }
 
   const connetti = (): void => conInCorso(

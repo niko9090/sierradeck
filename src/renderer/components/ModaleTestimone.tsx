@@ -58,15 +58,15 @@ export function ModaleTestimone({ avviso, onChiudi }: Props): React.JSX.Element 
   return (
     <div className="velo" onMouseDown={(e) => { if (e.target === e.currentTarget && fase !== 'inCorso') onChiudi() }}>
       <div className="dialogo dialogo--medio" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="dialogo__testa"><span className="serigrafia">«{avviso.nome}» e' in lavoro sul PC {avviso.pcNome}</span></div>
+        <div className="dialogo__testa"><span className="serigrafia">«{avviso.nome}» è in lavoro sul PC {avviso.pcNome}</span></div>
         {fase === 'chiedi' ? (
           <>
             <p style={{ margin: '4px 0 12px', lineHeight: 1.5 }}>
               Da la' {oraDi(avviso.da) !== '' ? `dalle ${oraDi(avviso.da)}` : ''}. Per lavorarci qui prendo il testimone: chiedo a
-              quel PC di salvare, scarico l’ultimo stato del progetto, e da quel momento e' tuo.
+              quel PC di salvare, scarico l’ultimo stato del progetto, e da quel momento è tuo.
             </p>
             <p style={{ margin: '4px 0 12px', lineHeight: 1.5 }}>
-              Se continui senza, quello che fai qui <strong>non sale sul Drive</strong> finche' non prendi il testimone.
+              Se continui senza, quello che fai qui <strong>non sale sul Drive</strong> finché non prendi il testimone.
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button className="tasto" onClick={onChiudi}>Continua senza</button>
@@ -78,8 +78,8 @@ export function ModaleTestimone({ avviso, onChiudi }: Props): React.JSX.Element 
         ) : fase === 'nonRisponde' ? (
           <>
             <p style={{ margin: '4px 0 12px', lineHeight: 1.5 }}>
-              Il PC {avviso.pcNome} non risponde: e' spento, o senza rete. Posso prendere il testimone lo stesso, con
-              quello che c'e' sul Drive — se la' c'era lavoro non ancora salvato, non lo vedrai qui.
+              Il PC {avviso.pcNome} non risponde: è spento, o senza rete. Posso prendere il testimone lo stesso, con
+              quello che c’è sul Drive — se là c’era lavoro non ancora salvato, non lo vedrai qui.
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button className="tasto" onClick={onChiudi}>Lascia stare</button>
@@ -97,8 +97,8 @@ export function ModaleTestimone({ avviso, onChiudi }: Props): React.JSX.Element 
         ) : (
           <>
             <p style={{ margin: '4px 0 12px', lineHeight: 1.5 }}>
-              Fatto: «{avviso.nome}» adesso e' su questo PC, con l’ultimo stato salvato.
-              {conflitti > 0 ? ` ${conflitti === 1 ? 'Un file era' : `${conflitti} file erano`} in conflitto: vince il piu' recente, l’altra versione e' accanto come copia «.conflitto-…».` : ''}
+              Fatto: «{avviso.nome}» adesso è su questo PC, con l’ultimo stato salvato.
+              {conflitti > 0 ? ` ${conflitti === 1 ? 'Un file era' : `${conflitti} file erano`} in conflitto: vince il più recente, l’altra versione è accanto come copia «.conflitto-…».` : ''}
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button className="tasto tasto--primario" onClick={onChiudi}>Al lavoro</button>

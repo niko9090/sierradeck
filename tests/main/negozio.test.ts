@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { commutaSkill, commutaMcp } from '../../src/main/negozio/azioni'
-import { skillDisponibili, mcpDiProgetto, agentiDisponibili } from '../../src/main/negozio/lettura'
+import { skillDisponibili, mcpDiProgetto, agentiDisponibili, chiaveProgetto } from '../../src/main/negozio/lettura'
 import { idDi, interpreta, idPluginValido, installaPlugin, commutaPlugin } from '../../src/main/negozio/cli'
 
 /**
@@ -233,5 +233,31 @@ describe('un salvataggio che non riesce non deve dirsi riuscito', () => {
     const esito = commutaSkill(join(radice, 'cartella-che-non-esiste'), 'alfa', false)
     expect(esito.ok).toBe(false)
     expect(esito.messaggio).toBeTruthy()
+  })
+})
+
+describe('la cartella come la scrive Claude Code', () => {
+  it('trova la chiave esistente a meno di barre, maiuscole e barra finale; nuova solo se nessuna', () => {
+    // Sul PC di Nicholas la stessa cartella sta due volte in ~/.claude.json:
+    // `C:\\Users\\nikof` e `C:/Users/nikof`. Con il confronto esatto la scheda
+    // MCP era vuota e «commuta» creava un ramo che Claude Code non guarda.
+    const projects = { 'C:/Users/nikof/Documents/SierraDeck': {}, 'D:\\altro\\': {} }
+    expect(chiaveProgetto(projects, 'C:\\Users\\nikof\\Documents\\SierraDeck')).toBe('C:/Users/nikof/Documents/SierraDeck')
+    expect(chiaveProgetto(projects, 'c:\\users\\NIKOF\\documents\\sierradeck\\')).toBe('C:/Users/nikof/Documents/SierraDeck')
+    expect(chiaveProgetto(projects, 'D:\\altro')).toBe('D:\\altro\\')
+    expect(chiaveProgetto(projects, 'E:\\nuova')).toBe('E:\\nuova')
+    expect(chiaveProgetto(undefined, 'E:\\nuova')).toBe('E:\\nuova')
+  })
+
+  it('mcpDiProgetto e commutaMcp lavorano sulla chiave che c e gia', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sd-negozio-chiave-'))
+    const file = join(dir, '.claude.json')
+    writeFileSync(file, JSON.stringify({ projects: { 'C:/lavoro/app': { mcpServers: { fs: { command: 'npx' } } } } }), 'utf8')
+    expect(mcpDiProgetto(file, 'C:\\lavoro\\app').map((m) => m.nome)).toEqual(['fs'])
+    expect(commutaMcp(file, 'C:\\lavoro\\app', 'fs', false).ok).toBe(true)
+    const dopo = JSON.parse(readFileSync(file, 'utf8')) as { projects: Record<string, { disabledMcpjsonServers?: string[] }> }
+    expect(Object.keys(dopo.projects)).toEqual(['C:/lavoro/app'])
+    expect(dopo.projects['C:/lavoro/app']?.disabledMcpjsonServers).toEqual(['fs'])
+    rmSync(dir, { recursive: true, force: true })
   })
 })

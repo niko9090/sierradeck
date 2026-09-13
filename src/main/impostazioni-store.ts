@@ -86,11 +86,17 @@ export function apriImpostazioniStore(dir: string): ImpostazioniStore {
 
     impostaPreferenze(raw: unknown): Preferenze {
       const preferenze = normalizzaPreferenze(raw)
-      scriviJsonAtomico(
+      // Se il file non si scrive lo si dice: prima il pannello mostrava
+      // «salvate», i colori cambiavano subito e al prossimo avvio tornavano
+      // quelli di prima.
+      const scritto = scriviJsonAtomico(
         percorso,
         { ...leggiGrezzo(), versione: VERSIONE_IMPOSTAZIONI, preferenze },
         'impostazioni'
       )
+      if (!scritto) {
+        throw new Error('Preferenze non salvate: impostazioni.json non si è potuto scrivere (disco pieno o file bloccato). Valgono fino alla chiusura; guarda il registro.')
+      }
       return preferenze
     }
   }

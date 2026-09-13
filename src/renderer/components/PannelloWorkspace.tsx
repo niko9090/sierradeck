@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { azioniDiFinestra } from '../azioni-finestra'
 import type { AzioniWorkspace } from '../workspace-azioni'
 import type { StatoWorkspace } from '../../main/ipc'
+import { ModaleConferma } from './ModaleConferma'
 
 type Props = {
   stato: StatoWorkspace
@@ -22,6 +23,7 @@ export function PannelloWorkspace({ stato, onStato, onChiudi }: Props): React.JS
   const [nuovoNome, setNuovoNome] = useState<string | undefined>(undefined)
   // Il nuovo nome mentre si rinomina l'attivo. `undefined` = non si sta
   // rinominando; una stringa (anche vuota) = campo aperto.
+  const [daEliminare, setDaEliminare] = useState<string | undefined>(undefined)
   const [rinomina, setRinomina] = useState<string | undefined>(undefined)
   // Quali workspace risultano accesi non è uno stato di React: vive nella
   // memoria della finestra, che nessun `set` notifica. Questo contatore è come
@@ -182,22 +184,37 @@ export function PannelloWorkspace({ stato, onStato, onChiudi }: Props): React.JS
 
         <button
           className="tasto"
-          onClick={() =>
-            esegui(async () => {
-              const s = await azioni.current?.elimina(stato.attivo)
-              if (s !== undefined) onStato(s)
-            })
-          }
+          onClick={() => setDaEliminare(stato.attivo)}
           disabled={inCorso || stato.nomi.length <= 1}
           title={
             stato.nomi.length <= 1
               ? 'L’ultimo workspace non si può eliminare: non resterebbe dove salvare il layout'
-              : `Elimina ${stato.attivo}`
+              : `Elimina «${stato.attivo}»: toglie il workspace e le sue chat dalla disposizione; le conversazioni restano su disco`
           }
         >
           Elimina
         </button>
       </div>
+
+      {/* Prima un clic solo, senza dire cosa fa: il workspace spariva con le
+          sue chat dall'archivio e i suoi terminali si spegnevano. Adesso lo
+          dice, e il Core mette da parte una copia dell'archivio. */}
+      {daEliminare !== undefined ? (
+        <ModaleConferma
+          titolo={`Eliminare il workspace «${daEliminare}»?`}
+          testo={`Il workspace sparisce dalla fascia e le chat che contiene escono dalla disposizione: i loro terminali si spengono. Le conversazioni restano su disco e si ritrovano nell’elenco Chat (Sessioni), da dove si riaprono in un altro workspace. Prima di eliminare viene messa da parte una copia dell’archivio dei workspace (workspaces.prima-dell-eliminazione.json, nella cartella dei dati). Se il workspace viaggia anche sul Drive, lì resta: si toglie da lì con «Togli dal Drive» nella scheda Drive.`}
+          etichettaAzione="Elimina il workspace"
+          onConferma={() => {
+            const nome = daEliminare
+            setDaEliminare(undefined)
+            esegui(async () => {
+              const s = await azioni.current?.elimina(nome)
+              if (s !== undefined) onStato(s)
+            })
+          }}
+          onAnnulla={() => setDaEliminare(undefined)}
+        />
+      ) : null}
 
       {/* Rinominare l'attivo: le chat non si toccano, cambia solo l'etichetta —
           utile quando i nomi non dicono più cosa contengono. */}

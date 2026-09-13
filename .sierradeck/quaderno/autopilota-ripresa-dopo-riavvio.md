@@ -77,3 +77,12 @@ o quando l'obiettivo è stato cambiato a parole mentre si lavorava.
   **rinascere il terminale** a ogni messaggio.
 - `--resume` vs `--session-id` li decide `src/main/config.ts` guardando se la
   trascrizione esiste. Sbagliare ramo lascia un riquadro vuoto.
+
+## Aggiornamento 2026-09-14 (0.27.0)
+
+`riprendiAutopilota` in `server.ts` è ora una funzione sola per `/riprendi` e
+per il comando «riprendi» del dialogo. Un autopilota **finito** ripreso ha
+tutte le chat `finita`: prima non ne ripartiva nessuna e restava «al lavoro»
+senza chat. Alla ripresa le chat non finite tornano `lavoro`, e quelle finite
+tornano `lavoro` solo se tutto il lavoro era finito. I messaggi del dialogo in
+attesa entrano davanti al testo di ripresa (`conPreambolo`).

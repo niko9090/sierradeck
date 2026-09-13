@@ -296,7 +296,7 @@ export function Console({
           className="tasto"
           onClick={() => commuta('quaderno')}
           aria-expanded={aperto === 'quaderno'}
-          title="Cosa e' stato fatto in questa cartella, in schede"
+          title="Cosa è stato fatto in questa cartella, in schede"
         >
           ▤ Quaderno
         </button>
@@ -320,7 +320,7 @@ export function Console({
           className="tasto"
           onClick={() => commuta('drive')}
           aria-expanded={aperto === 'drive'}
-          title="Il magazzino comune dei tuoi PC: cosa c'e' sul Drive, cosa hai gia' qui, e «Porta qui»"
+          title="Il magazzino comune dei tuoi PC: cosa c’è sul Drive, cosa hai già qui, e «Porta qui»"
         >
           ☁ Drive
         </button>

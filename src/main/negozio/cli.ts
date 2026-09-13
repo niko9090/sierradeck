@@ -62,14 +62,29 @@ function rifiuta(id: string): Esito {
   return { ok: false, messaggio: `identificatore non valido: ${JSON.stringify(id).slice(0, 80)}` }
 }
 
-function esegui(args: string[], timeout: number): Promise<{ ok: boolean; stdout: string; stderr: string }> {
+/**
+ * Perche' il CLI non ha risposto, detto per chi deve rimediare.
+ *
+ * `execFile` scartava `err`: «claude.exe non trovato» e «scaduto» finivano
+ * entrambi in «Il negozio non risponde: elenco plugin fallito», che non dice
+ * cosa fare.
+ */
+function motivoDi(err: { code?: unknown; killed?: boolean } | null, timeout: number): string | undefined {
+  if (err === null) return undefined
+  if (err.code === 'ENOENT') return 'claude.exe non trovato: installa Claude Code dalla Preparazione (Impostazioni) o mettilo nel PATH'
+  if (err.killed === true) return `il CLI di Claude Code non ha risposto entro ${Math.round(timeout / 1000)} secondi`
+  return undefined
+}
+
+function esegui(args: string[], timeout: number): Promise<{ ok: boolean; stdout: string; stderr: string; motivo?: string }> {
   return new Promise((resolve) => {
     execFile(
       claude(),
       args,
       { timeout, maxBuffer: MAX_BUFFER, windowsHide: true },
       (err, stdout, stderr) => {
-        resolve({ ok: err === null, stdout: stdout ?? '', stderr: stderr ?? '' })
+        const motivo = motivoDi(err, timeout)
+        resolve({ ok: err === null, stdout: stdout ?? '', stderr: stderr ?? '', ...(motivo !== undefined ? { motivo } : {}) })
       }
     )
   })
@@ -147,7 +162,7 @@ function abilitatoDa(v: VoceCli): boolean {
  */
 export async function elencoPlugin(): Promise<{ plugin: Plugin[]; errore?: string }> {
   const r = await esegui(['plugin', 'list', '--available', '--json'], TIMEOUT_LETTURA)
-  if (!r.ok) return { plugin: [], errore: (r.stderr || r.stdout || 'elenco plugin fallito').trim().slice(0, 400) }
+  if (!r.ok) return { plugin: [], errore: r.motivo ?? (r.stderr || r.stdout || 'elenco plugin fallito').trim().slice(0, 400) }
   let dati: { installed?: VoceCli[]; available?: VoceCli[] }
   try {
     dati = JSON.parse(r.stdout) as { installed?: VoceCli[]; available?: VoceCli[] }

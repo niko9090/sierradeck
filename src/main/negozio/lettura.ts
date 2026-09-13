@@ -94,6 +94,22 @@ export function marketplaceNoti(radiceClaude: string): string[] {
   return noti === undefined ? [] : Object.keys(noti)
 }
 
+/**
+ * La chiave con cui `~/.claude.json` conosce una cartella.
+ *
+ * Claude Code la scrive come la riceve: sullo stesso PC la stessa cartella
+ * sta due volte, `C:\\Users\\nikof` e `C:/Users/nikof`. Con un confronto
+ * esatto la scheda MCP era vuota e «commuta» creava un ramo nuovo sotto una
+ * chiave che Claude Code non guarda. Si prende la chiave esistente che
+ * coincide a meno di barre, maiuscole e barra finale; nuova solo se nessuna.
+ */
+export function chiaveProgetto(projects: Record<string, unknown> | undefined, cwd: string): string {
+  if (projects === undefined || projects[cwd] !== undefined) return cwd
+  const norm = (p: string): string => p.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase()
+  const voluta = norm(cwd)
+  return Object.keys(projects).find((k) => norm(k) === voluta) ?? cwd
+}
+
 /** Gli MCP configurati per un progetto, con se sono abilitati. */
 export function mcpDiProgetto(fileClaudeJson: string, cwd: string): ServitoreMcp[] {
   const j = leggiJson<{ projects?: Record<string, {
@@ -101,7 +117,7 @@ export function mcpDiProgetto(fileClaudeJson: string, cwd: string): ServitoreMcp
     enabledMcpjsonServers?: string[]
     disabledMcpjsonServers?: string[]
   }> }>(fileClaudeJson)
-  const prog = j?.projects?.[cwd]
+  const prog = j?.projects?.[chiaveProgetto(j?.projects, cwd)]
   if (prog?.mcpServers === undefined) return []
   const disabilitati = new Set(prog.disabledMcpjsonServers ?? [])
   return Object.entries(prog.mcpServers).map(([nome, cfg]) => ({

@@ -245,6 +245,14 @@ function SchedaGenerali(): React.JSX.Element {
               onChange={(e) => cambia({ chiarore: Number(e.target.value) })}
             />
           </label>
+          <div className="impostazioni__nota">
+            Il chiarore va da 0 (fondo nero) a 100 (fondo chiaro); il predefinito è {PREFERENZE_PREDEFINITE.chiarore}, e
+            si applica subito a tutta la finestra. «Torna ai valori di fabbrica» rimette accento, chiarore, stile e
+            porte ai predefiniti ({PREFERENZE_PREDEFINITE.accento}, {PREFERENZE_PREDEFINITE.chiarore},
+            porte {PREFERENZE_PREDEFINITE.portaClient} e {PREFERENZE_PREDEFINITE.portaAutopiloti}) senza toccare chat,
+            workspace o account. Se una modifica non resta al prossimo avvio, il file delle impostazioni non si è
+            scritto: qui compare un errore e il registro dice perché.
+          </div>
         </section>
 
         <section className="impostazioni__gruppo">
@@ -291,7 +299,7 @@ function SchedaGenerali(): React.JSX.Element {
           </label>
           <div className="impostazioni__nota">
             Ogni chat aperta tiene acceso un <b>claude.exe</b>. Spento, restano tutte
-            vive e tornare e istantaneo; acceso, si chiudono e la conversazione
+            vive e tornare è istantaneo; acceso, si chiudono e la conversazione
             riparte da dove era con un tocco.
           </div>
         </section>
@@ -312,8 +320,8 @@ function SchedaGenerali(): React.JSX.Element {
           </label>
           <div className="impostazioni__nota">
             {p.stile === 'banco'
-              ? 'Cornice sottile e riquadri a filo: su uno schermo pieno sono quattro righe di terminale in piu per chat. Si impara per posizione.'
-              : 'Piu aria e angoli morbidi: quattro righe in meno, restituite in riposo per gli occhi dopo otto ore davanti allo schermo.'}
+              ? 'Cornice sottile e riquadri a filo: su uno schermo pieno sono quattro righe di terminale in più per chat. Si impara per posizione.'
+              : 'Più aria e angoli morbidi: quattro righe in meno, restituite in riposo per gli occhi dopo otto ore davanti allo schermo.'}
           </div>
 
           <h4>Autopilota</h4>

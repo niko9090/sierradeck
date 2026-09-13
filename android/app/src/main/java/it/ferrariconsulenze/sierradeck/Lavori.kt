@@ -65,8 +65,22 @@ fun coloreStato(stato: String): Color = when (stato) {
     "lavoro" -> Banco.verde
     "pronto", "attesa" -> Banco.ambra
     "sospeso", "fallito" -> Banco.rosso
-    "finito" -> Banco.accento
+    "finito" -> Banco.testoQuieto
     else -> Banco.testoQuieto
+}
+
+/**
+ * Il colore del LED **come lo ha deciso il computer** (`led` in `/api/stato`,
+ * dalla stessa funzione della console). L'app se lo ricalcolava da `stato` e
+ * sbagliava dove conta: «finito» era blu acceso mentre PC e pagina lo
+ * spengono. Con un computer vecchio (`led` vuoto) si ripiega sullo stato.
+ */
+fun coloreLed(led: String, stato: String): Color = when (led) {
+    "led--lavoro" -> Banco.verde
+    "led--attesa" -> Banco.ambra
+    "led--fermo" -> Banco.rosso
+    "led--finito" -> Banco.testoQuieto
+    else -> coloreStato(stato)
 }
 
 /**
@@ -166,7 +180,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                     val s = d?.stato ?: breve.stato
                     Text(statoInParole(s), color = coloreStato(s), fontSize = 12.sp)
                 }
-                Punto(coloreStato(d?.stato ?: breve.stato))
+                Punto(coloreLed(breve.led, d?.stato ?: breve.stato))
             }
             HorizontalDivider(color = Banco.incisione)
         }
@@ -334,6 +348,14 @@ private fun AzioniAutopilota(api: Api, id: String, stato: String) {
             color = Banco.testoQuieto,
             fontSize = 13.sp
         )
+        // Si sta preparando: «Riprendi» qui faceva ripartire la preparazione
+        // sotto quella in corso. Si aspetta, o si ferma.
+        "intervista" -> OutlinedButton(
+            enabled = !inCorso,
+            shape = MaterialTheme.shapes.small,
+            onClick = { fai { api.fermaAutopilota(id) } },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text(if (inCorso) "Fermo…" else "Si sta preparando (legge il progetto): ferma") }
         else -> Button(
             enabled = !inCorso,
             shape = MaterialTheme.shapes.small,
@@ -447,6 +469,11 @@ private fun Delega(api: Api, onChiudi: () -> Unit) {
     var obiettivo by remember { mutableStateOf("") }
     var cartelle by remember { mutableStateOf<List<String>?>(null) }
     var scelta by remember { mutableStateOf<String?>(null) }
+    // Cosa e' andato storto l'ultima volta: un 403 «cartella non conosciuta» o
+    // un computer che non risponde erano muti, e il modulo si chiudeva come se
+    // l'autopilota fosse partito.
+    var errore by remember { mutableStateOf<String?>(null) }
+    var mandando by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { cartelle = try { api.cartelle().cartelle } catch (_: Exception) { emptyList() } }
 
@@ -463,6 +490,8 @@ private fun Delega(api: Api, onChiudi: () -> Unit) {
                 )
                 Spacer(Modifier.height(10.dp))
                 Text("In quale cartella:", color = Banco.testoQuieto, fontSize = 12.sp)
+                val err = errore
+                if (err != null) Text(err, color = Banco.rosso, fontSize = 12.sp)
                 Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())) {
                     for (c in cartelle ?: emptyList()) {
                         val sel = c == scelta
@@ -478,13 +507,27 @@ private fun Delega(api: Api, onChiudi: () -> Unit) {
         },
         confirmButton = {
             TextButton(
-                enabled = obiettivo.isNotBlank() && scelta != null,
+                enabled = obiettivo.isNotBlank() && scelta != null && !mandando,
                 onClick = {
                     val o = obiettivo; val c = scelta!!
-                    onChiudi()
-                    scope.launch { try { api.creaAutopilota(o, c) } catch (_: Exception) {} }
+                    mandando = true
+                    scope.launch {
+                        try {
+                            api.creaAutopilota(o, c)
+                            onChiudi()
+                        } catch (e: Api.Errore) {
+                            errore = when (e.codice) {
+                                403 -> "Il computer non conosce questa cartella: apri prima una chat lì."
+                                404 -> "Questa cartella non esiste più sul computer."
+                                else -> "Non sono riuscito ad affidarlo (HTTP ${e.codice})."
+                            }
+                        } catch (e: Exception) {
+                            errore = "Non sono riuscito ad affidarlo: ${e.message ?: "il computer non risponde"}"
+                        }
+                        mandando = false
+                    }
                 }
-            ) { Text("Affida") }
+            ) { Text(if (mandando) "Affido…" else "Affida") }
         },
         dismissButton = { TextButton(onClick = onChiudi) { Text("Annulla") } }
     )
@@ -551,6 +594,7 @@ fun urgenzaDi(stato: String): Int = when (stato) {
 /** Lo stato in una parola, quella che diresti tu. */
 fun statoInParole(stato: String): String = when (stato) {
     "lavoro" -> "al lavoro"
+    "intervista" -> "si prepara"
     "attesa" -> "aspetta te"
     "pronto" -> "pronto a partire"
     "sospeso" -> "fermo"
@@ -607,7 +651,7 @@ private fun FasciaLavori(lista: List<AutopilotaBreve>, onDelega: () -> Unit) {
  */
 @Composable
 private fun VoceAutopilota(ap: AutopilotaBreve, onApri: () -> Unit) {
-    val colore = coloreStato(ap.stato)
+    val colore = coloreLed(ap.led, ap.stato)
     Tessera(
         onClick = onApri,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp)
@@ -625,9 +669,12 @@ private fun VoceAutopilota(ap: AutopilotaBreve, onApri: () -> Unit) {
                     )
                     Text(statoInParole(ap.stato), color = colore, fontSize = 12.sp)
                 }
-                if (ap.motivo.isNotBlank()) {
+                // «Bloccato, provo un'altra strada»: il PC e la pagina lo dicono,
+                // l'app lo taceva.
+                val sotto = if (ap.strategia.isNotBlank()) "bloccato, provo: ${ap.strategia}" else ap.motivo
+                if (sotto.isNotBlank()) {
                     Spacer(Modifier.height(4.dp))
-                    Text(ap.motivo, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 2)
+                    Text(sotto, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 2)
                 }
                 if (ap.criteri > 0) {
                     Spacer(Modifier.height(10.dp))
