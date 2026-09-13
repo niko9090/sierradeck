@@ -483,3 +483,22 @@ release metti sempre dentro anche l'apk». Quindi a ogni release: bump
 con vitest), APK allegato a `gh release create`. Con la 2.25.0: coda dei
 comandi nel tab Computer («Code dei progetti»).
 
+
+## Aggiornamento 2026-09-14 (0.27.0, controllo completo — `android/` è cambiato, APK da ricompilare)
+
+- `Lavori.kt`: il dialogo con l'autopilota («Parla con lui», `Battuta`,
+  `Api.dialogaAutopilota`, `ScambioDialogo` in `Modelli.kt`); il LED viene da
+  `AutopilotaBreve.led` (`coloreLed`) e non più ricalcolato dallo stato
+  (`finito` era blu acceso mentre PC e pagina lo spengono); «si prepara» per
+  `intervista`; niente «Riprendi» in preparazione (rilanciava l'intervista
+  sotto quella in corso); `strategia` mostrata; la `Delega` resta aperta e
+  dice perché non è partita (403 cartella non conosciuta, 404 inesistente).
+- `Computer.kt`: se `POST /api/aggiornamento/installa` non parte,
+  `Installazione.finita` — prima restava lo schermo «sto installando» per
+  dieci minuti.
+- `Drive.kt`: `statoProgetto` usa lo stesso conto del bottone (soloDrive +
+  indietro).
+- Parità ancora mancante (descritta nel rapporto 2): la pagina non risale la
+  conversazione (`/api/storia`), non ha Negozio né Account; l'app inghiotte
+  ancora diversi errori (`catch (_: Exception) {}` in coda, workspace,
+  preferenze); `/api/workspace/elimina` è senza tasto su entrambi i lati.
