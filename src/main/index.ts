@@ -2330,7 +2330,10 @@ if (!app.requestSingleInstanceLock()) {
           annota: (p) => { scriviJsonAtomico(filePausa(dati), p, 'pausa-aggiornamento') },
           avvisa,
           versione: app.getVersion()
-        })
+        }),
+        // Nel registro su file: e' l'unico posto dove, il giorno dopo, si
+        // capisce per quale strada e' passato un aggiornamento.
+        registro
       )
       ipcMain.handle('aggiornamenti:stato', () => aggiornamenti?.stato() ?? { fase: 'fermo' })
       ipcMain.handle('aggiornamenti:cerca', () => aggiornamenti?.cerca())

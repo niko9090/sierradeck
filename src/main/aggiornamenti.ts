@@ -131,8 +131,30 @@ export function creaAggiornamenti(
    * Assente - in prova, o senza finestre - vale «si puo'»: e' il
    * comportamento di prima, e senza chat da aspettare e' anche quello giusto.
    */
-  attendiQuiete?: (avvisa: (chatOccupate: number) => void) => Promise<boolean>
+  attendiQuiete?: (avvisa: (chatOccupate: number) => void) => Promise<boolean>,
+  /**
+   * Il registro su file. Fino alla 0.25.0 l'updater parlava solo alla
+   * console, che in produzione nessuno legge: il 13 settembre un aggiornamento
+   * si e' installato alla chiusura invece che con la finestra, e dal registro
+   * non si poteva dire se qualcuno avesse premuto «Installa», se la quiete
+   * fosse arrivata, o se SierraDeck Update si fosse fatto vivo. Da qui passa
+   * ogni fase, e anche quello che electron-updater dice di suo.
+   */
+  registro?: { info: (m: string) => void; errore: (m: string) => void }
 ): Aggiornamenti {
+  const nota = (m: string): void => { console.log(`[aggiornamenti] ${m}`); registro?.info(`[aggiornamenti] ${m}`) }
+  const guaio = (m: string): void => { console.error(`[aggiornamenti] ${m}`); registro?.errore(`[aggiornamenti] ${m}`) }
+  // Anche le righe di electron-updater («Checking for update», «Found version»,
+  // «Auto install update on quit»): sono loro a dire per quale strada e'
+  // passata un'installazione.
+  if (registro !== undefined) {
+    autoUpdater.logger = {
+      info: (m: unknown) => registro.info(`[electron-updater] ${String(m)}`),
+      warn: (m: unknown) => registro.info(`[electron-updater] avviso: ${String(m)}`),
+      error: (m: unknown) => registro.errore(`[electron-updater] ${String(m)}`),
+      debug: () => {}
+    }
+  }
   let stato: StatoAggiornamento = { fase: 'fermo' }
   /** Dove electron-updater ha messo l'installer: lo esegue SierraDeck Update. */
   let installerScaricato: string | undefined
@@ -141,6 +163,13 @@ export function creaAggiornamenti(
 
   const annuncia = (nuovo: StatoAggiornamento): void => {
     if (daTelefono) nuovo = { ...nuovo, daTelefono: true }
+    // Ogni cambio di fase nel registro; dello scaricamento solo i quarti, o
+    // sarebbero cento righe per un file.
+    const cambioFase = nuovo.fase !== stato.fase
+    const quarto = nuovo.fase === 'scarico' && nuovo.percento !== undefined && nuovo.percento % 25 === 0 && nuovo.percento !== stato.percento
+    if (cambioFase || quarto) {
+      nota(`fase: ${nuovo.fase}${nuovo.versione !== undefined ? ` (${nuovo.versione})` : ''}${nuovo.percento !== undefined ? ` ${nuovo.percento}%` : ''}${nuovo.chatOccupate !== undefined ? ` · ${nuovo.chatOccupate} chat al lavoro` : ''}${nuovo.daTelefono === true ? ' · dal telefono' : ''}${nuovo.errore !== undefined ? ` · ${nuovo.errore}` : ''}`)
+    }
     stato = nuovo
     for (const w of finestre()) {
       if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
@@ -218,7 +247,7 @@ export function creaAggiornamenti(
   autoUpdater.on('error', (err) => {
     // Un aggiornamento che non si trova non è un guasto del programma: si dice
     // e si continua a lavorare.
-    console.error('[aggiornamenti]', err)
+    guaio(String(err))
     annuncia({ fase: 'errore', errore: String(err) })
   })
 
@@ -282,7 +311,7 @@ export function creaAggiornamenti(
       // premono insieme, facevano partire due updater: si chiudevano le
       // istanze a vicenda e il programma si riavviava senza mai aggiornarsi.
       if (installazioneAvviata) {
-        console.warn('[aggiornamenti] installazione gia avviata: ignoro')
+        nota('installazione gia avviata: ignoro')
         return
       }
       // Si installa **solo** quando c'è davvero qualcosa di pronto. Senza questa
@@ -292,18 +321,19 @@ export function creaAggiornamenti(
       // update available» **senza chiudere l'app**: programma vivo ma svuotato, e
       // `installazioneAvviata` bloccava per sempre anche un'installazione futura.
       if (stato.fase !== 'pronto') {
-        console.warn(`[aggiornamenti] nessun aggiornamento pronto (fase: ${stato.fase}): non installo`)
+        nota(`nessun aggiornamento pronto (fase: ${stato.fase}): non installo`)
         return
       }
       // La versione che ho gia' non si installa: se l'installer scaricato e'
       // per questa versione, installarlo riporterebbe allo stesso punto - ed e'
       // il giro che si ripete all'infinito.
       if (stato.versione !== undefined && stato.versione === app.getVersion()) {
-        console.warn(`[aggiornamenti] la ${stato.versione} e gia installata: non installo`)
+        nota(`la ${stato.versione} e gia installata: non installo`)
         annuncia({ fase: 'aggiornato' })
         return
       }
       installazioneAvviata = true
+      nota(`INSTALLA ${stato.versione ?? '?'} chiesto${daTelefono ? ' dal telefono' : ' dal PC'}: aspetto la quiete`)
       // **Prima la quiete, poi l'installazione.** Da qui in giu' non si torna
       // indietro: si chiudono i processi e si esce. Tutto quello che si puo'
       // fare per non lasciare un lavoro a meta' va fatto adesso.
@@ -312,6 +342,7 @@ export function creaAggiornamenti(
           annuncia({ ...stato, fase: 'attendo', chatOccupate: quante })
         })
         if (!pronti) {
+          nota('la quiete non e arrivata in tempo: non installo')
           installazioneAvviata = false
           annuncia({
             ...stato,
@@ -380,17 +411,17 @@ export function creaAggiornamenti(
           void updaterVivo()
             .then(async (vivo) => {
               if (!vivo) {
-                console.error('[aggiornamenti] l updater non si e fatto vivo: non chiudo niente')
+                guaio('l updater non si e fatto vivo: non chiudo niente')
                 annuncia({ fase: 'errore', errore: 'L’aggiornamento non è partito. Riprova.' })
                 installazioneAvviata = false
                 return
               }
-              console.log('[aggiornamenti] SierraDeck Update e vivo: mi tolgo di mezzo')
+              nota('SierraDeck Update e vivo (finestra di installazione): mi tolgo di mezzo')
               await preparaUscita?.()
               setTimeout(() => app.quit(), 400)
             })
             .catch((err: unknown) => {
-              console.error('[aggiornamenti] chiusura incompleta:', err)
+              guaio(`chiusura incompleta: ${String(err)}`)
               setTimeout(() => app.quit(), 400)
             })
           return
@@ -399,7 +430,7 @@ export function creaAggiornamenti(
 
       // Senza updater si torna alla strada di prima: meglio un aggiornamento
       // senza finestra che nessun aggiornamento.
-      console.warn('[aggiornamenti] updater non disponibile: installo alla vecchia maniera')
+      nota(`updater non disponibile (updater ${updater === undefined ? 'mancante' : 'ok'}, installer ${installer === undefined ? 'mancante' : 'ok'}): installo alla vecchia maniera, senza finestra`)
       const apertura = avviaFinestraAggiornamento({
         esePath: app.getPath('exe'),
         versione: stato.versione ?? '',
@@ -407,7 +438,7 @@ export function creaAggiornamenti(
       })
       void apertura
         .then(() => preparaUscita?.())
-        .catch((err: unknown) => console.error('[aggiornamenti] preparazione incompleta:', err))
+        .catch((err: unknown) => guaio(`preparazione incompleta: ${String(err)}`))
         .finally(() => setTimeout(() => autoUpdater.quitAndInstall(true, true), 500))
     },
     impostaScaricoAutomatico(attivo) {
