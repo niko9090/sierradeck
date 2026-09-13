@@ -450,6 +450,12 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.on('sync:lavoro', h)
       return () => ipcRenderer.off('sync:lavoro', h)
     },
+    /** Le fasi della lettura del catalogo chiesta da questa finestra: per la finestra di attesa. */
+    onCatalogoProgresso: (cb: (p: import('../shared/catalogo-progresso').ProgressoCatalogo) => void): (() => void) => {
+      const h = (_e: unknown, p: import('../shared/catalogo-progresso').ProgressoCatalogo): void => cb(p)
+      ipcRenderer.on('sync:catalogoProgresso', h)
+      return () => ipcRenderer.off('sync:catalogoProgresso', h)
+    },
     salva: (forza?: boolean): Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number; annullato?: boolean }> =>
       ipcRenderer.invoke('sync:salva', forza === true),
     /** Legge (senza argomento) o imposta il salvataggio automatico. */

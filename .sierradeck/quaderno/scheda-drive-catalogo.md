@@ -106,3 +106,33 @@ a lavoro finito), «Riavvia il computer ora» se `riavvioConsigliato`. App:
 Il riavvio automatico del PC lo fa il renderer: se la finestra del PC è
 chiusa (icona nell'area di notifica) non parte, e il telefono lo dice e
 offre il tasto.
+
+# La finestra di attesa (0.25.0, app 2.28.0)
+
+Nicholas (2026-09-13): «quando premo Drive voglio vedere un caricamento con
+una finestra sua, non le scritte senza nulla finché non carica». La lettura
+del catalogo prende secondi (chiavi, indice, workspace/registro, firme dei
+file di qui, impronte sha dei dubbi, confronto) e la scheda restava muta.
+C'era anche un refuso: la riga «Leggo il Drive…» compariva solo quando
+`!leggo`, cioè mai durante la lettura.
+
+- `src/shared/catalogo-progresso.ts` (puro, provato in `tests/shared`):
+  le sei fasi `FASI_CATALOGO` con nome, spiegazione e quota della barra
+  (10/25/15/25/15/10), `percentualeCatalogo`, `descriviCatalogo`,
+  `passiDelCatalogo`. Fase sconosciuta → si sta all'inizio (telefono più
+  vecchio del PC).
+- `sincronia.catalogo(onProgresso?)`: `leggiQuadro(mDrive, avanza)`
+  annuncia ogni fase; le impronte dicono fatto/totale. Lo stato resta in
+  `statoCatalogo()` finché l'ultima lettura in corso finisce (PC e telefono
+  possono leggere insieme: contatore `lettureCatalogo`). Il registro scrive
+  «CATALOGO letto in N ms».
+- PC: IPC `sync:catalogo` manda `sync:catalogoProgresso` **solo alla
+  finestra che ha chiesto** (`e.sender`); `PannelloDrive` parte con
+  `leggo=true` e mostra `AttesaDrive` (modale `velo` + `dialogo--attesa`,
+  barra `.avanzamento__*`, passi, «Chiudi la scheda» = chiude il pannello, la
+  lettura finisce da sola). Si riapre a ogni «Aggiorna».
+- Telefono: la pagina e l'app non ricevono eventi → rotta GET
+  `/api/drive/catalogoStato` interrogata ogni 500 ms mentre si legge
+  (`driveLeggo`/`LaunchedEffect(leggo)`); un computer vecchio senza rotta
+  lascia la barra all'inizio. In Kotlin le fasi sono duplicate
+  (`FASI_CATALOGO` in `Drive.kt`): se cambiano i testi, cambiarli anche lì.

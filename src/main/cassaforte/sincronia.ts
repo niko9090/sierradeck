@@ -1,3 +1,4 @@
+import type { ProgressoCatalogo } from '../../shared/catalogo-progresso'
 import { existsSync, readFileSync, rmSync, renameSync } from 'node:fs'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
@@ -151,7 +152,9 @@ export type Sincronia = {
    * rispetto a questo PC. Non tocca niente. Se la cassaforte del Drive e'
    * un'altra lo dice (`cassaforteDiversa`): si passa da «Fondi con il Drive».
    */
-  catalogo: () => Promise<{ ok: true; catalogo: Catalogo } | { ok: false; messaggio: string; cassaforteDiversa?: boolean }>
+  catalogo: (onProgresso?: (p: ProgressoCatalogo) => void) => Promise<{ ok: true; catalogo: Catalogo } | { ok: false; messaggio: string; cassaforteDiversa?: boolean }>
+  /** La lettura del catalogo in corso, se c'e': per il telefono, che non riceve eventi e chiede. */
+  statoCatalogo: () => { inCorso?: ProgressoCatalogo }
   /**
    * Porta qui un progetto del catalogo: la sua cartella se viaggia con le
    * chat, le chat che qui mancano o sono indietro, nel loro workspace. Se
@@ -275,28 +278,39 @@ export function apriSincronia(deps: {
     log(`PORTA QUI «${g.nome}»: cartella creata in ${percorsoQui}, origine ${g.cartellaOrigine}`)
     return { ok: true, registro: reg }
   }
+  let catalogoInCorso: ProgressoCatalogo | undefined
+  let lettureCatalogo = 0
   /** Tutto quello che serve per guardare il Drive: manifesto, workspace, registro, e i file di qui. */
-  const leggiQuadro = async (mDrive: Buffer): Promise<{
+  const leggiQuadro = async (mDrive: Buffer, avanza: (p: Omit<ProgressoCatalogo, 'avviato'>) => void = () => {}): Promise<{
     manifestoDrive: Manifesto; archivioDrive?: ArchivioWorkspace; registroDrive: RegistroProgetti
     firmaPc: Map<string, { size: number; mtime: number }>; archivioPc?: ArchivioWorkspace
     titoliIndice?: Map<string, { titolo?: string; cwd?: string; quando?: string; messaggi?: number }>
   } | { illeggibile: true }> => {
+    avanza({ fase: 'indice' })
     const esito = await leggiManifesto(deps.archivio(), mDrive)
     if (esito.stato === 'illeggibile') return { illeggibile: true }
     const manifestoDrive = esito.stato === 'ok' ? esito.manifesto : manifestoVuoto()
+    avanza({ fase: 'archivio' })
     const rawArchivio = await leggiJsonDalDrive(deps.archivio(), mDrive, manifestoDrive, 'sierradeck/workspaces.json')
     const archivioDrive = rawArchivio === undefined ? undefined : parseArchivio(rawArchivio).archivio
     const registroDrive = parseRegistro(await leggiJsonDalDrive(deps.archivio(), mDrive, manifestoDrive, 'sierradeck/progetti-drive.json'))
+    avanza({ fase: 'disco' })
     const firma = await firmaRadici(radici())
     const firmaPc = new Map<string, { size: number; mtime: number; sha?: string }>()
     for (const [k, v] of firma) firmaPc.set(k, { size: v.size, mtime: v.mtime })
     // Stessa dimensione, data diversa, e il Drive ha l'impronta: si calcola
     // quella di qui (pochi file), cosi' il catalogo confronta il contenuto.
-    for (const [k, v] of firma) {
+    const dubbi = [...firma].filter(([k, v]) => {
       const d = manifestoDrive.file[k]
-      if (d === undefined || d.sha === undefined || d.size !== v.size || Math.abs(d.mtime - v.mtime) <= 1.5) continue
+      return d !== undefined && d.sha !== undefined && d.size === v.size && Math.abs(d.mtime - v.mtime) > 1.5
+    })
+    avanza({ fase: 'impronte', fatto: 0, totale: dubbi.length })
+    let calcolate = 0
+    for (const [k, v] of dubbi) {
       const sha = await improntaDi(v.disco)
       if (sha !== undefined) firmaPc.set(k, { size: v.size, mtime: v.mtime, sha })
+      calcolate += 1
+      avanza({ fase: 'impronte', fatto: calcolate, totale: dubbi.length })
     }
     const archivioPc = deps.workspaceLocale?.leggi()
     const titoliIndice = deps.titoliChat?.()
@@ -845,8 +859,17 @@ export function apriSincronia(deps: {
       return r
     },
 
-    async catalogo() {
+    async catalogo(onProgresso) {
       if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
+      // Ogni fase si annuncia: alla finestra che ha chiesto (evento) e a chi
+      // chiede dopo (il telefono legge `statoCatalogo`). Piu' letture insieme
+      // (PC e telefono) condividono lo stato: si svuota quando finisce l'ultima.
+      const partenza = Date.now()
+      const avviato = new Date(partenza).toISOString()
+      const avanza = (p: Omit<ProgressoCatalogo, 'avviato'>): void => { catalogoInCorso = { ...p, avviato }; onProgresso?.(catalogoInCorso) }
+      lettureCatalogo += 1
+      try {
+      avanza({ fase: 'cassaforte' })
       const remota = await scaricaChiavi().catch(() => undefined)
       if (remota === undefined) return { ok: false, messaggio: 'Su questo Drive non c’è ancora niente di SierraDeck: usa «Salva ora» per cominciare.' }
       const locale = leggiLocale()
@@ -855,8 +878,9 @@ export function apriSincronia(deps: {
       }
       if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
       try {
-        const q = await leggiQuadro(maestra)
+        const q = await leggiQuadro(maestra, avanza)
         if ('illeggibile' in q) return { ok: false, messaggio: 'Il manifesto sul Drive non si apre con questa chiave.' }
+        avanza({ fase: 'confronto' })
         const catalogo = costruisciCatalogo({
           ...q,
           registroPc: deps.registroProgetti?.leggi() ?? { versione: 1, progetti: [] },
@@ -875,11 +899,20 @@ export function apriSincronia(deps: {
             log(`  «${c.titolo}» in ${g}: qui ${pc?.size ?? '?'}B ${pc !== undefined ? new Date(pc.mtime).toISOString() : '?'} · Drive ${d?.size ?? '?'}B ${d !== undefined ? new Date(d.mtime).toISOString() : '?'}${d?.sha !== undefined ? ' (con impronta)' : ' (senza impronta)'}`)
           }
         }
+        log(`CATALOGO letto in ${Date.now() - partenza} ms: ${catalogo.totali.progetti} progetti, ${catalogo.totali.chat} chat`)
         return { ok: true, catalogo }
       } catch (e) {
         log(`CATALOGO fallito: ${messaggioDi(e)}`)
         return { ok: false, messaggio: messaggioDi(e) }
       }
+      } finally {
+        lettureCatalogo -= 1
+        if (lettureCatalogo === 0) catalogoInCorso = undefined
+      }
+    },
+
+    statoCatalogo() {
+      return catalogoInCorso === undefined ? {} : { inCorso: catalogoInCorso }
     },
 
     async portaQui(chiave) {

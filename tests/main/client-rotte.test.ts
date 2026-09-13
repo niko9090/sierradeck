@@ -974,6 +974,14 @@ describe('il Drive dal telefono', () => {
     expect(r.stato).toBe(200)
     expect(r.corpo).toMatchObject({ ok: false, disponibile: false })
   })
+  it('mentre il computer legge il catalogo, il telefono chiede a che fase sta; senza la dipendenza risponde vuoto', async () => {
+    const con = rotteClient(deps({ driveCatalogoStato: () => ({ inCorso: { fase: 'impronte', fatto: 2, totale: 5, avviato: 'T' } }) }))
+    const r = await con({ metodo: 'GET', percorso: '/api/drive/catalogoStato', corpo: undefined })
+    expect(r.corpo).toEqual({ inCorso: { fase: 'impronte', fatto: 2, totale: 5, avviato: 'T' } })
+    const senza = await rotteClient(deps())({ metodo: 'GET', percorso: '/api/drive/catalogoStato', corpo: undefined })
+    expect(senza.corpo).toEqual({})
+  })
+
   it('il catalogo, il lavoro e «porta qui» passano dal computer, e la chiave arriva intera', async () => {
     const portati: string[] = []
     const rotte = rotteClient(deps({

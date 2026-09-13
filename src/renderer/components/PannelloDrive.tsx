@@ -3,6 +3,8 @@ import type { Catalogo, ProgettoCatalogo, ChatCatalogo, WorkspaceCatalogo } from
 import type { StatoLavoro } from '../../main/cassaforte/lavoro-in-corso'
 import { ModaleFusione } from './ModaleFusione'
 import { AvanzamentoLavoro } from './AvanzamentoLavoro'
+import { AttesaDrive } from './AttesaDrive'
+import type { ProgressoCatalogo } from '../../shared/catalogo-progresso'
 import { ModaleConferma } from './ModaleConferma'
 
 type Props = { onChiudi: () => void }
@@ -21,7 +23,11 @@ type Props = { onChiudi: () => void }
 export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
   const [catalogo, setCatalogo] = useState<Catalogo | undefined>(undefined)
   const [messaggio, setMessaggio] = useState<string | undefined>(undefined)
-  const [leggo, setLeggo] = useState(false)
+  // Parte gia' «leggo»: la finestra di attesa c'e' dal primo disegno, non
+  // dopo un fotogramma di scheda vuota.
+  const [leggo, setLeggo] = useState(true)
+  const [progresso, setProgresso] = useState<ProgressoCatalogo | undefined>(undefined)
+  const [letturaAvviata, setLetturaAvviata] = useState(Date.now())
   const [aperti, setAperti] = useState<Set<string>>(new Set())
   const [fusione, setFusione] = useState(false)
   const [inCorso, setInCorso] = useState<string | undefined>(undefined)
@@ -32,13 +38,14 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
   const [daTogliere, setDaTogliere] = useState<ProgettoCatalogo | undefined>(undefined)
 
   const leggi = (): void => {
-    setLeggo(true); setMessaggio(undefined)
+    setLeggo(true); setMessaggio(undefined); setProgresso(undefined); setLetturaAvviata(Date.now())
     void window.gestore.sync.catalogo().then((r) => {
       if (r.ok) { setCatalogo(r.catalogo); setCassaforteDiversa(false) }
       else { setMessaggio(r.messaggio); if (r.cassaforteDiversa === true) setCassaforteDiversa(true) }
     }).catch((e: unknown) => setMessaggio(String(e))).finally(() => setLeggo(false))
   }
   useEffect(() => { leggi() }, [])
+  useEffect(() => window.gestore.sync.onCatalogoProgresso(setProgresso), [])
   useEffect(() => window.gestore.sync.onLavoro((s) => {
     setLavoro(s)
     // Finito un lavoro: il catalogo cambia, si rilegge.
@@ -288,7 +295,9 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
             Letto il {quando(catalogo.letto)}. Il Drive cambia quando un altro PC salva: «Aggiorna» rilegge. Le chat «solo qui» e «più avanti» salgono da sole con il salvataggio automatico, o subito con «Salva ora» nel pannello Account.
           </p>
         </>
-      ) : !leggo && messaggio === undefined ? <p className="account__nota">Leggo il Drive…</p> : null}
+      ) : !leggo && messaggio === undefined ? <p className="account__nota">Il Drive non è stato letto: «Aggiorna» riprova.</p> : null}
+
+      {leggo ? <AttesaDrive progresso={progresso} adesso={adesso} avviato={letturaAvviata} onChiudi={onChiudi} /> : null}
 
       {fusione ? <ModaleFusione cassaforteDiversa={cassaforteDiversa} onChiudi={() => { setFusione(false); leggi() }} /> : null}
       {daTogliere !== undefined ? (

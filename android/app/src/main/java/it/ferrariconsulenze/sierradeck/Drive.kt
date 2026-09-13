@@ -51,6 +51,7 @@ fun SezioneDrive(api: Api) {
     var catalogo by remember { mutableStateOf<Catalogo?>(null) }
     var messaggio by remember { mutableStateOf<String?>(null) }
     var leggo by remember { mutableStateOf(false) }
+    var progresso by remember { mutableStateOf<ProgressoCatalogo?>(null) }
     var vista by remember { mutableStateOf("progetti") }
     var lavoro by remember { mutableStateOf<StatoLavoro?>(null) }
     var inCorso by remember { mutableStateOf<String?>(null) }
@@ -58,7 +59,7 @@ fun SezioneDrive(api: Api) {
     var riavviato by remember { mutableStateOf(false) }
 
     suspend fun leggi() {
-        leggo = true
+        leggo = true; progresso = null
         try {
             val r = api.driveCatalogo()
             if (!r.disponibile) messaggio = "Questo computer non sa ancora mostrare il Drive: aggiornalo."
@@ -68,6 +69,17 @@ fun SezioneDrive(api: Api) {
             messaggio = "Non riesco a leggere il Drive: ${e.message ?: "il computer non risponde"}"
         }
         leggo = false
+    }
+
+    // Mentre il computer legge il catalogo: ogni mezzo secondo si chiede a che
+    // fase sta, per la barra. Un computer vecchio non ha la rotta: la barra
+    // resta all'inizio.
+    LaunchedEffect(leggo) {
+        if (!leggo) return@LaunchedEffect
+        while (isActive && leggo) {
+            try { api.driveCatalogoStato().inCorso?.let { progresso = it } } catch (_: Exception) {}
+            delay(500)
+        }
     }
 
     // Finche' la sezione e' aperta: il lavoro in corso ogni due secondi, e
@@ -158,9 +170,10 @@ fun SezioneDrive(api: Api) {
 
             if (messaggio != null) { Text(messaggio!!, color = Banco.ambra, fontSize = 12.sp); Spacer(Modifier.height(6.dp)) }
 
+            if (leggo) { AttesaDrive(progresso); Spacer(Modifier.height(6.dp)) }
             val c = catalogo
             if (c == null) {
-                Text(if (leggo) "Leggo il Drive…" else "Niente da mostrare.", color = Banco.testoQuieto, fontSize = 13.sp)
+                if (!leggo) Text("Il Drive non è stato letto: «Aggiorna» riprova.", color = Banco.testoQuieto, fontSize = 13.sp)
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     FilterChip(selected = vista == "progetti", onClick = { vista = "progetti" }, label = { Text("Per progetto") })
@@ -300,4 +313,58 @@ private fun statoChat(c: ChatCatalogo): String = when {
 private fun coloreStatoChat(stato: String): Color = when (stato) {
     "indietro", "soloDrive" -> Banco.ambra
     else -> Banco.verde
+}
+
+/** Una fase della lettura del Drive: le stesse sei del PC, con la quota della barra. */
+private data class FaseCatalogo(val fase: String, val nome: String, val spiegazione: String, val quota: Int)
+
+private val FASI_CATALOGO = listOf(
+    FaseCatalogo("cassaforte", "Cassaforte", "Scarico le chiavi della cassaforte dal Drive e controllo che siano le stesse del computer.", 10),
+    FaseCatalogo("indice", "Indice del Drive", "Scarico e apro l’indice: l’elenco di tutto quello che sta sul Drive, con dimensione, data e impronta di ogni file.", 25),
+    FaseCatalogo("archivio", "Workspace e progetti", "Leggo dal Drive i workspace salvati e il registro dei progetti: da dove viene ogni cartella e su quali PC sta.", 15),
+    FaseCatalogo("disco", "File del computer", "Guardo i file del computer: le chat e le cartelle dei progetti che viaggiano, con dimensione e data di ognuno.", 25),
+    FaseCatalogo("impronte", "Impronte", "Per i file con la stessa dimensione ma data diversa calcolo l’impronta del contenuto: così «uguale» vuol dire uguale davvero, non «stessa data».", 15),
+    FaseCatalogo("confronto", "Confronto", "Metto in fila Drive e computer, progetto per progetto e chat per chat, e decido lo stato di ognuna: uguale, da portare, da aggiornare, solo sul computer.", 10)
+)
+
+/**
+ * L'attesa mentre il computer legge il Drive: barra con la percentuale, fase
+ * in corso e cosa sta facendo, le sei fasi con lo stato. Nicholas (2026-09-13):
+ * «voglio vedere un caricamento con una finestra sua, non le scritte senza
+ * nulla finché non carica».
+ */
+@Composable
+private fun AttesaDrive(p: ProgressoCatalogo?) {
+    var i = if (p == null) 0 else FASI_CATALOGO.indexOfFirst { it.fase == p.fase }
+    if (i < 0) i = 0
+    val prima = FASI_CATALOGO.take(i).sumOf { it.quota }
+    val dentro = if (p != null && (p.totale ?: 0) > 0) minOf(1f, (p.fatto ?: 0).toFloat() / p.totale!!) else 0f
+    val perc = (prima + FASI_CATALOGO[i].quota * dentro).toInt()
+    val f = FASI_CATALOGO[i]
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Leggo il Drive…", color = Banco.ambra, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.weight(1f))
+            Text("$perc%", color = Banco.testoQuieto, fontSize = 12.sp)
+        }
+        Spacer(Modifier.height(6.dp))
+        LinearProgressIndicator(
+            progress = { perc / 100f },
+            color = Banco.accento, trackColor = Banco.incisione,
+            modifier = Modifier.fillMaxWidth().height(8.dp)
+        )
+        Spacer(Modifier.height(8.dp))
+        val conteggio = if (p != null && p.fase == "impronte" && p.totale != null) {
+            if (p.totale == 0) " · nessun file da controllare" else " · ${p.fatto ?: 0} di ${p.totale} file"
+        } else ""
+        Text("Fase ${i + 1} di ${FASI_CATALOGO.size} · ${f.nome}$conteggio", color = Banco.testo, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Text(f.spiegazione, color = Banco.testoQuieto, fontSize = 12.sp)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            FASI_CATALOGO.mapIndexed { k, g -> (if (k < i) "✓ " else if (k == i) "▶ " else "○ ") + g.nome }.joinToString(" · "),
+            color = Banco.testoQuieto, fontSize = 11.sp
+        )
+        Spacer(Modifier.height(6.dp))
+        Text("Leggere il Drive non tocca niente: il computer legge e basta. Quando ha finito compare il catalogo.", color = Banco.testoQuieto, fontSize = 11.sp)
+    }
 }

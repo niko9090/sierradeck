@@ -1151,7 +1151,11 @@ if (!app.requestSingleInstanceLock()) {
         if (esito.ok) rimappaChat()
         return esito
       })
-      ipcMain.handle('sync:catalogo', () => sincronia.catalogo())
+      // La lettura del Drive racconta le sue fasi alla finestra che l'ha chiesta:
+      // e' lei che tiene aperta la finestra di attesa con la barra.
+      ipcMain.handle('sync:catalogo', (e) => sincronia.catalogo((p) => {
+        if (!e.sender.isDestroyed()) e.sender.send('sync:catalogoProgresso', p)
+      }))
       // «Apri» dal catalogo del Drive: la stessa strada della ripresa dal
       // telefono — nel workspace dove la chat sta salvata, in una finestra sola.
       ipcMain.handle('chat:riprendi', (_e, rawCwd: unknown, rawSessione: unknown) => {
@@ -1764,6 +1768,7 @@ if (!app.requestSingleInstanceLock()) {
         // Il Drive dal telefono: le stesse cose della scheda «Drive», con la
         // rimappatura delle chat dopo un «Porta qui», come dall'IPC.
         driveCatalogo: () => sincronia.catalogo(),
+        driveCatalogoStato: () => sincronia.statoCatalogo(),
         drivePortaQui: async (chiave: string) => {
           const esito = await sincronia.portaQui(chiave)
           if (esito.ok) rimappaChat()

@@ -537,3 +537,10 @@ data class StatoLavoro(val inCorso: LavoroInCorso? = null, val ultimo: EsitoLavo
 /** L'esito di «Porta qui»: `ok` e, se e' andata, i conti della fusione. */
 @Serializable
 data class EsitoPorta(val ok: Boolean = false, val messaggio: String? = null, val errore: String? = null)
+
+/** A che fase sta la lettura del catalogo sul computer: il telefono la chiede mentre aspetta. */
+@Serializable
+data class ProgressoCatalogo(val fase: String = "", val fatto: Int? = null, val totale: Int? = null, val avviato: String = "")
+
+@Serializable
+data class StatoCatalogo(val inCorso: ProgressoCatalogo? = null)

@@ -16,6 +16,7 @@
  * due parole a una chat — raggiungibili senza cercare.
  */
 
+import { FASI_CATALOGO } from '../shared/catalogo-progresso'
 import { ansiInHtml } from '@shared/ansi-html'
 
 /** Il cristallo, per la scheda del browser e per la schermata Home. */
@@ -510,6 +511,11 @@ var driveAperti = {}
 var driveInCorso = null
 var driveEraInCorso = false
 var driveRiavviato = false
+var driveLeggo = false
+var driveProgresso = null
+var driveLetturaTimer = null
+// Le fasi della lettura del Drive, le stesse della finestra sul PC.
+var FASI_CATALOGO = ${JSON.stringify(FASI_CATALOGO)}
 var consumiVisti = null
 var schedeViste = null
 var schedaAperta = null
@@ -1124,7 +1130,27 @@ function pannello(s) {
       }
     }
     if (driveErrore) testa += '<div class="sotto" style="margin-top:6px">' + esc(driveErrore) + '</div>'
-    if (!c) return testa + '<div class="sotto" style="margin-top:8px">Leggo il Drive…</div><div class="riga"><button onclick="apriPannello(\\'drive\\')">Chiudi</button></div></div>'
+    if (driveLeggo) {
+      // La finestra di attesa: barra, fase in corso e cosa sta facendo, le
+      // sei fasi. Sul telefono e' una piastrella, ma con le stesse parole.
+      const p = driveProgresso
+      let i = p ? FASI_CATALOGO.findIndex((f) => f.fase === p.fase) : 0
+      if (i < 0) i = 0
+      let prima = 0
+      for (let k = 0; k < i; k++) prima += FASI_CATALOGO[k].quota
+      const dentro = p && p.totale > 0 ? Math.min(1, (p.fatto || 0) / p.totale) : 0
+      const perc = Math.round(prima + FASI_CATALOGO[i].quota * dentro)
+      const f = FASI_CATALOGO[i]
+      const conteggio = p && p.fase === 'impronte' && p.totale != null ? ' <span class="sotto">· ' + (p.totale === 0 ? 'nessun file da controllare' : (p.fatto || 0) + ' di ' + p.totale + ' file') + '</span>' : ''
+      testa += '<div style="margin-top:10px"><b><span class="led attesa"></span>Leggo il Drive…</b> <span class="sotto">' + perc + '%</span>' +
+        '<div class="barra"><i style="width:' + perc + '%"></i></div>' +
+        '<div style="margin-top:8px"><b>Fase ' + (i + 1) + ' di ' + FASI_CATALOGO.length + ' · ' + esc(f.nome) + '</b>' + conteggio + '</div>' +
+        '<div class="sotto">' + esc(f.spiegazione) + '</div>' +
+        '<div class="sotto" style="margin-top:6px">' + FASI_CATALOGO.map((g, k) => (k < i ? '✓ ' : k === i ? '▶ ' : '○ ') + esc(g.nome)).join(' · ') + '</div>' +
+        '<div class="sotto" style="margin-top:6px">Leggere il Drive non tocca niente: il computer legge e basta. Quando ha finito compare il catalogo.</div></div>'
+      if (!c) return testa + '<div class="riga"><button onclick="apriPannello(\\'drive\\')">Chiudi</button></div></div>'
+    }
+    if (!c) return testa + '<div class="sotto" style="margin-top:8px">Il Drive non è stato letto: «Aggiorna» riprova.</div><div class="riga"><button onclick="leggiDrive()">Aggiorna</button><button onclick="apriPannello(\\'drive\\')">Chiudi</button></div></div>'
     testa += '<div class="riga" style="margin-top:8px"><button' + (driveVista === 'progetti' ? ' class="primario"' : '') + ' onclick="driveVistaCambia(\\'progetti\\')">Per progetto</button>' +
       '<button' + (driveVista === 'workspace' ? ' class="primario"' : '') + ' onclick="driveVistaCambia(\\'workspace\\')">Per workspace (' + c.workspace.length + ')</button>' +
       '<button onclick="leggiDrive()">Aggiorna</button></div>' +
@@ -1620,12 +1646,21 @@ window.pulisciCoda = async () => {
 
 function etichettaLavoro(tipo) { return tipo === 'fusione' ? 'Fondo con il Drive' : tipo === 'ripristino' ? 'Ripristino dal Drive' : tipo === 'salvataggio' ? 'Salvo sul Drive' : tipo }
 async function leggiDrive() {
+  driveLeggo = true; driveProgresso = null; pannello(ultimoStato)
+  // Mentre il computer legge, ogni mezzo secondo si chiede a che fase sta:
+  // la pagina non riceve eventi, chiede. Un computer vecchio non ha la rotta:
+  // la barra resta all'inizio, e basta.
+  if (driveLetturaTimer) clearInterval(driveLetturaTimer)
+  driveLetturaTimer = setInterval(async () => {
+    try { const s = await chiedi('/api/drive/catalogoStato'); if (driveLeggo && s && s.inCorso) { driveProgresso = s.inCorso; pannello(ultimoStato) } } catch (e) {}
+  }, 500)
   try {
     const r = await chiedi('/api/drive/catalogo')
     if (r.disponibile === false) { driveErrore = 'Questo computer non sa ancora mostrare il Drive: aggiornalo.'; driveCatalogo = null }
     else if (r.ok && r.catalogo) { driveCatalogo = r.catalogo; driveErrore = '' }
     else { driveErrore = r.messaggio || 'Non riesco a leggere il Drive.'; driveCatalogo = null }
   } catch (e) { driveErrore = 'Non riesco a leggere il Drive: il computer non risponde.' }
+  finally { if (driveLetturaTimer) clearInterval(driveLetturaTimer); driveLetturaTimer = null; driveLeggo = false; driveProgresso = null }
   pannello(ultimoStato)
 }
 window.leggiDrive = leggiDrive

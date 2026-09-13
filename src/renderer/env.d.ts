@@ -158,6 +158,7 @@ declare global {
         lavoro: () => Promise<import('../main/cassaforte/lavoro-in-corso').StatoLavoro>
         annullaLavoro: () => Promise<boolean>
         onLavoro: (cb: (s: import('../main/cassaforte/lavoro-in-corso').StatoLavoro) => void) => () => void
+        onCatalogoProgresso: (cb: (p: import('../shared/catalogo-progresso').ProgressoCatalogo) => void) => () => void
         adottaCassaforteDelDrive: () => Promise<{ ok: boolean; messaggio?: string }>
         cambiatoDrive: () => Promise<void>
         provaPassphraseSulDrive: (passphrase: string) => Promise<{ ok: boolean; stessa?: boolean; messaggio?: string }>

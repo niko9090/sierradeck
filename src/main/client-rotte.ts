@@ -177,6 +177,8 @@ export type DipendenzeRotte = {
    * del computer: il telefono le guarda e le comanda, il lavoro lo fa il PC.
    */
   driveCatalogo?: () => Promise<unknown>
+  /** La lettura del catalogo in corso, a fasi: il telefono la chiede mentre aspetta. */
+  driveCatalogoStato?: () => unknown
   drivePortaQui?: (chiave: string) => Promise<unknown>
   drivePortaQuiWorkspace?: (nome: string) => Promise<unknown>
   driveLavoro?: () => unknown
@@ -857,6 +859,9 @@ export function rotteClient(deps: DipendenzeRotte) {
       if (deps.driveCatalogo === undefined) return OK({ ok: false, disponibile: false, messaggio: 'questo computer non sa ancora mostrare il Drive' })
       const esito = await deps.driveCatalogo().catch((e: unknown) => ({ ok: false, messaggio: String(e) }))
       return OK({ disponibile: true, ...(esito as object) })
+    }
+    if (r.percorso === '/api/drive/catalogoStato') {
+      return OK((deps.driveCatalogoStato?.() as object | undefined) ?? {})
     }
     if (r.metodo === 'POST' && r.percorso === '/api/drive/porta') {
       const chiave = stringa(r.corpo, 'progetto')

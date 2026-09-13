@@ -53,6 +53,22 @@ function apri(p: ReturnType<typeof pc>, drive: ReturnType<typeof driveCondiviso>
 }
 
 describe('«Porta qui» dal catalogo', () => {
+  it('la lettura del catalogo racconta le sue sei fasi in ordine, e a lettura finita lo stato è vuoto', async () => {
+    const drive = driveCondiviso()
+    const portatile = pc('portatile')
+    writeFileSync(join(portatile.claude, 'projects', 'E--Users-tecnico-Documents-Wdeck', 'u1.jsonl'), '{"riga":1}\n', 'utf8')
+    const syncP = apri(portatile, drive, 'PORTATILE')
+    expect((await syncP.creaPassphrase('passphrase-robusta-1')).ok).toBe(true)
+    expect((await syncP.salva()).ok).toBe(true)
+    const fasi: string[] = []
+    const duranteLaLettura: boolean[] = []
+    const cat = await syncP.catalogo((p) => { fasi.push(p.fase); duranteLaLettura.push(syncP.statoCatalogo().inCorso?.fase === p.fase) })
+    expect(cat.ok).toBe(true)
+    expect(fasi).toEqual(['cassaforte', 'indice', 'archivio', 'disco', 'impronte', 'confronto'])
+    expect(duranteLaLettura.every(Boolean)).toBe(true)
+    expect(syncP.statoCatalogo()).toEqual({})
+  })
+
   it('le chat di un progetto nato altrove arrivano, la cartella si crea, l origine resta nel registro, e si consiglia il riavvio', async () => {
     const drive = driveCondiviso()
     const portatile = pc('portatile'); const fisso = pc('fisso')
