@@ -21,7 +21,13 @@
  * (Non e' `lavoro.ts`, che e' il lavoro pesante di compressione e cifratura.)
  */
 
-export type TipoLavoro = 'fusione' | 'ripristino' | 'salvataggio'
+/**
+ * `arrivo` e' il quarto: lo scaricamento automatico delle chat che stanno
+ * solo sul Drive (o ci sono piu' avanti), dopo ogni salvataggio automatico.
+ * Nicholas (2026-09-13): «qui non sono apparse le chat sincronizzate dal
+ * portatile» — la sincronizzazione deve anche portare giu', non solo su.
+ */
+export type TipoLavoro = 'fusione' | 'ripristino' | 'salvataggio' | 'arrivo'
 
 export type ProgressoLavoro = {
   fase: string
@@ -52,6 +58,12 @@ export type EsitoLavoro = {
   quando: string
   /** Sono arrivate chat o workspace: per vederli nei riquadri serve riavviare. */
   riavvioConsigliato?: boolean
+  /**
+   * Quanti file sono scesi qui. Chi ascolta (il Core) lo usa per rileggere
+   * l'indice delle chat, rimappare le cartelle e dirlo a chi guarda: prima
+   * un lavoro finiva e l'elenco restava quello di prima fino al riavvio.
+   */
+  scaricati?: number
 }
 
 export type StatoLavoro = {
@@ -62,7 +74,8 @@ export type StatoLavoro = {
 export const ETICHETTA_LAVORO: Record<TipoLavoro, string> = {
   fusione: 'Fondo con il Drive',
   ripristino: 'Ripristino dal Drive',
-  salvataggio: 'Salvo sul Drive'
+  salvataggio: 'Salvo sul Drive',
+  arrivo: 'Arrivo dal Drive'
 }
 
 /** Quello che riceve chi avvia un lavoro. */
@@ -70,7 +83,7 @@ export type Presa = {
   segnale: AbortSignal
   aggiorna: (p: ProgressoLavoro) => void
   /** Il lavoro e' finito, comunque sia andato. */
-  fine: (esito: EsitoLavoro['esito'], messaggio: string, riavvioConsigliato?: boolean) => void
+  fine: (esito: EsitoLavoro['esito'], messaggio: string, riavvioConsigliato?: boolean, scaricati?: number) => void
 }
 
 export type Lavoro = {
@@ -140,9 +153,13 @@ export function creaLavoro(adesso: () => string = () => new Date().toISOString()
           inCorso = { ...inCorso, ...p }
           if (cambioFase) annuncia(); else annunciaForse()
         },
-        fine: (esito, messaggio, riavvioConsigliato) => {
+        fine: (esito, messaggio, riavvioConsigliato, scaricati) => {
           if (controllo !== mio) return
-          ultimo = { tipo, esito, messaggio, quando: adesso(), ...(riavvioConsigliato === true ? { riavvioConsigliato: true } : {}) }
+          ultimo = {
+            tipo, esito, messaggio, quando: adesso(),
+            ...(riavvioConsigliato === true ? { riavvioConsigliato: true } : {}),
+            ...(scaricati !== undefined ? { scaricati } : {})
+          }
           inCorso = undefined
           controllo = undefined
           annuncia()

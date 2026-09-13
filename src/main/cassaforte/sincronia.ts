@@ -7,7 +7,7 @@ import type { Progresso } from './motore'
 import { pesaRadici, radiciDaSincronizzare, percorsoSicuro, type Radice } from './raccolta'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
-import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi } from './incrementale'
+import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi, stessaFirma } from './incrementale'
 import { applicaBlocco } from './lavoro'
 import type { Lavoro, Presa, TipoLavoro } from './lavoro-in-corso'
 import { costruisciCatalogo, scelteDiPortaQui, type Catalogo } from './catalogo'
@@ -126,6 +126,14 @@ export type Sincronia = {
   auto: (attivo?: boolean) => boolean
   /** Salva solo se serve (dati cambiati, sbloccato, connesso): per l'automatico. */
   salvaSeServe: () => Promise<void>
+  /**
+   * L'arrivo: le chat che stanno solo sul Drive, o ci sono piu' avanti,
+   * scendono qui. Mai i file dei progetti, mai una cancellazione, mai una
+   * chat di qui accorciata (vince la piu' lunga). Se non c'e' niente da
+   * scaricare non prende il lavoro e non dice niente. Lo chiama
+   * l'automatico dopo ogni salvataggio; si puo' chiamare a mano.
+   */
+  arrivo: () => Promise<{ ok: boolean; scritti?: number; messaggio?: string; annullato?: boolean }>
   ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string; conflitti?: number; annullato?: boolean }>
   /**
    * Un solo progetto, dal Drive alla sua cartella di qui: quello che serve al
@@ -256,8 +264,23 @@ export function apriSincronia(deps: {
     deps.emettiProgresso?.(p)
     presa?.aggiorna(p)
   }
-  const chiudiLavoro = (presa: Presa | undefined, r: { ok: boolean; messaggio?: string; annullato?: boolean }, riassunto: string, riavvio = false): void => {
-    presa?.fine(r.annullato === true ? 'annullato' : r.ok ? 'ok' : 'errore', r.ok ? riassunto : (r.messaggio ?? riassunto), r.ok && riavvio)
+  const chiudiLavoro = (presa: Presa | undefined, r: { ok: boolean; messaggio?: string; annullato?: boolean }, riassunto: string, riavvio = false, scaricati?: number): void => {
+    presa?.fine(r.annullato === true ? 'annullato' : r.ok ? 'ok' : 'errore', r.ok ? riassunto : (r.messaggio ?? riassunto), r.ok && riavvio, r.ok ? scaricati : undefined)
+  }
+  const uuidDiPercorso = (p: string): string => {
+    const nome = p.slice(p.lastIndexOf('/') + 1)
+    return nome.endsWith('.jsonl') ? nome.slice(0, -'.jsonl'.length) : nome
+  }
+  /**
+   * Il disco di qui, per decidere cosa scendere: le firme e un filtro che
+   * esclude le chat che qui ci sono gia' sotto un'altra cartella (sul Drive
+   * ogni PC ha il suo slug: la stessa conversazione puo' starci due volte).
+   */
+  const quadroLocale = async (): Promise<{ firma: Map<string, { size: number; mtime: number; disco: string }>; altroveQui: (p: string) => boolean }> => {
+    const firma = await firmaRadici(radici())
+    const uuid = new Set<string>()
+    for (const k of firma.keys()) if (prefissoDi(k) === 'chat') uuid.add(uuidDiPercorso(k))
+    return { firma, altroveQui: (p) => prefissoDi(p) === 'chat' && !firma.has(p) && uuid.has(uuidDiPercorso(p)) }
   }
   /**
    * Un progetto nato altrove, senza cartella qui: la si crea nella cartella
@@ -887,7 +910,8 @@ export function apriSincronia(deps: {
               ? `fermata a ${r.esito.fatti} su ${r.esito.totale}: riapri «Fondi con il Drive» per finire`
               : `${r.esito.caricati} sul Drive, ${r.esito.scaricati} qui${r.esito.copie > 0 ? `, ${r.esito.copie} in due versioni` : ''}. Riavvia per vedere tutto.`)
           : '',
-        r.ok && r.esito.annullato !== true && r.esito.scaricati > 0
+        r.ok && r.esito.annullato !== true && r.esito.scaricati > 0,
+        r.ok ? r.esito.scaricati : undefined
       )
       return r
     },
@@ -1054,6 +1078,11 @@ export function apriSincronia(deps: {
       if (s.auto !== true) return
       const r = await this.salva()
       if (!r.ok && r.conflitto !== true) log(`automatico: salvataggio non riuscito (${r.messaggio ?? '?'})`)
+      // Poi si guarda se c'e' qualcosa da portare giu': la sincronizzazione va
+      // nei due versi, e finche' andava in uno solo le chat dell'altro PC non
+      // arrivavano mai da sole.
+      const a = await this.arrivo()
+      if (!a.ok) log(`automatico: arrivo non riuscito (${a.messaggio ?? '?'})`)
     },
 
     async ripristina() {
@@ -1070,11 +1099,13 @@ export function apriSincronia(deps: {
         // Un elenco solo insegna all'archivio dove sta ogni nome: da qui in
         // poi ogni scaricamento e' una chiamata, non due.
         await deps.archivio().elenca().catch(() => undefined)
+        const { altroveQui } = await quadroLocale()
         const esito = await ripristinaIncrementale({
           radici: radiciDaSincronizzare(deps.dati, deps.radiceClaude),
           maestra,
           archivio: deps.archivio(),
           soloPrefissi: (p) => !eDiProgetto(p),
+          escludi: altroveQui,
           manifestoPrec: leggiManifestoLocale(),
           pcNome: deps.pcNome?.() ?? 'questo-pc',
           copieDiConflitto: eDiProgetto,
@@ -1153,7 +1184,68 @@ export function apriSincronia(deps: {
         return { ok: false, messaggio: messaggioDi(e) }
       }
     })()
-      chiudiLavoro(l.presa, r, r.niente === true ? 'niente sul Drive' : `${r.scritti ?? 0} file da Drive`, (r.scritti ?? 0) > 0)
+      chiudiLavoro(l.presa, r, r.niente === true ? 'niente sul Drive' : `${r.scritti ?? 0} file da Drive`, (r.scritti ?? 0) > 0, r.scritti)
+      return r
+    },
+
+    async arrivo() {
+      if (maestra === undefined || !deps.driveConnesso()) return { ok: true, scritti: 0 }
+      const m = maestra
+      // Prima si guarda: senza niente da scaricare non si prende il lavoro,
+      // non si accende la striscia e non si scrive niente.
+      const esitoM = await leggiManifesto(deps.archivio(), m).catch(() => undefined)
+      if (esitoM === undefined || esitoM.stato !== 'ok') return { ok: true, scritti: 0 }
+      const { firma, altroveQui } = await quadroLocale()
+      const prec = leggiManifestoLocale()
+      const candidati = Object.entries(esitoM.manifesto.file).filter(([p, v]) => {
+        if (prefissoDi(p) !== 'chat' || altroveQui(p)) return false
+        const locale = firma.get(p)
+        if (locale === undefined) return true
+        if (stessaFirma(locale, v)) return false
+        // Piu' avanti sul Drive = piu' lungo: una chat cresce e basta. Se e'
+        // solo la data a differire, e' lo stesso file salito da un altro PC.
+        return v.size > locale.size
+      })
+      if (candidati.length === 0) return { ok: true, scritti: 0 }
+      const l = prendiLavoro('arrivo')
+      if (l.errore !== undefined) return { ok: false, messaggio: l.errore }
+      log(`ARRIVO: ${candidati.length} chat da portare qui (solo sul Drive o piu' avanti)`)
+      const soli = new Set(candidati.map(([p]) => p))
+      const r = await (async (): Promise<{ ok: boolean; scritti?: number; messaggio?: string; annullato?: boolean }> => {
+        try {
+          if (candidati.length > 10) await deps.archivio().elenca().catch(() => undefined)
+          const esito = await ripristinaIncrementale({
+            radici: radici().filter((x) => x.prefisso === 'chat'),
+            maestra: m, archivio: deps.archivio(),
+            soloPrefissi: (p) => p === 'chat',
+            escludi: (p) => !soli.has(p),
+            manifestoPrec: prec,
+            pcNome: deps.pcNome?.() ?? 'questo-pc',
+            copieDiConflitto: (): boolean => false,
+            adesso: adesso(),
+            onProgresso: progressoVerso(l.presa),
+            ...(l.presa !== undefined ? { segnale: l.presa.segnale } : {})
+          })
+          if (!esito.trovato) return { ok: true, scritti: 0 }
+          // Il manifesto locale impara le voci arrivate (e solo quelle sul disco).
+          if (esito.manifesto !== undefined) {
+            const nuovo: Manifesto = { ...prec, file: { ...prec.file } }
+            for (const p of soli) { const v = esito.manifesto.file[p]; if (v !== undefined) nuovo.file[p] = v }
+            scriviManifestoLocale(nuovo)
+          }
+          for (const c of esito.conflitti) log(`ARRIVO: ${c.percorso} e' cambiata anche qui: resta la piu' lunga (${c.vinto === 'mio' ? 'questa' : 'quella del Drive'})`)
+          if (esito.annullato === true) {
+            log(`ARRIVO annullato (${esito.scritti} chat arrivate prima di fermarsi)`)
+            return { ok: true, scritti: esito.scritti, annullato: true, messaggio: `fermato: ${esito.scritti} chat arrivate, il resto al prossimo giro` }
+          }
+          log(`ARRIVO ok: ${esito.scritti} chat scritte, ${esito.tenuti} tenute (piu' lunghe qui), ${esito.invariati} invariate`)
+          return { ok: true, scritti: esito.scritti }
+        } catch (e) {
+          log(`ARRIVO fallito: ${messaggioDi(e)}`)
+          return { ok: false, messaggio: messaggioDi(e) }
+        }
+      })()
+      chiudiLavoro(l.presa, r, `${r.scritti ?? 0} chat arrivate dal Drive`, false, r.scritti)
       return r
     }
   }

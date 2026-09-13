@@ -285,6 +285,7 @@ private fun etichettaLavoro(tipo: String): String = when (tipo) {
     "fusione" -> "Fondo con il Drive"
     "ripristino" -> "Ripristino dal Drive"
     "salvataggio" -> "Salvo sul Drive"
+    "arrivo" -> "Arrivo dal Drive"
     else -> tipo
 }
 

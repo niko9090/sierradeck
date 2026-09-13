@@ -449,6 +449,13 @@ export async function ripristinaIncrementale(deps: {
   pcNome?: string
   copieDiConflitto?: (prefisso: string) => boolean
   adesso?: string
+  /**
+   * Voci del Drive da non considerare affatto: la stessa conversazione che
+   * qui sta gia' sotto un'altra cartella (sul Drive ogni PC ha il suo slug).
+   * Senza, ogni chat rimappata qui tornerebbe giu' dal Drive sotto la
+   * cartella dell'altro PC, a ogni giro.
+   */
+  escludi?: (percorso: string) => boolean
 }): Promise<{
   trovato: boolean; scritti: number; saltati: string[]; manifesto?: Manifesto; illeggibile?: boolean
   invariati: number; eliminati: number; conflitti: Conflitto[]; tenuti: number; annullato?: boolean
@@ -468,7 +475,7 @@ export async function ripristinaIncrementale(deps: {
   let invariati = 0
   let tenuti = 0
   const conflitti: Conflitto[] = []
-  const candidati = Object.keys(manifesto.file).filter(scelto)
+  const candidati = Object.keys(manifesto.file).filter((p) => scelto(p) && deps.escludi?.(p) !== true)
   const daScaricare: string[] = []
   for (const p of candidati) {
     const voce = manifesto.file[p] as VoceManifesto
@@ -517,9 +524,13 @@ export async function ripristinaIncrementale(deps: {
         ? !(await readFile(disco).catch(() => undefined))?.equals(chiaro)
         : !stessaFirma(locale, sapevo)
       if (cambiatoQui) {
-        // Conflitto: cambiato qui e cambiato la'. Vince il piu' recente.
-        const mioVince = locale.mtime >= voce.mtime
+        // Conflitto: cambiato qui e cambiato la'. Nei progetti vince il piu'
+        // recente (e l'altro resta come copia). Per le chat vince la PIU'
+        // LUNGA: una trascrizione cresce e basta, e quella piu' lunga contiene
+        // l'altra; la data non dice niente (ogni PC scrive la sua). Cosi' un
+        // arrivo dal Drive non accorcia mai una chat di qui.
         const conCopia = copie(prefissoDi(percorso))
+        const mioVince = conCopia ? locale.mtime >= voce.mtime : locale.size >= chiaro.length
         if (mioVince) {
           if (conCopia) {
             const copia = nomeCopiaConflitto(percorso, 'drive', adesso)

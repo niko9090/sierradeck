@@ -1110,7 +1110,7 @@ export function App(): React.JSX.Element {
       ) : null}
       {lavoroDrive.inCorso !== undefined ? (
         <StrisciaLavoroDrive iniziale={lavoroDrive.inCorso} />
-      ) : lavoroDrive.ultimo !== undefined && esitoLavoroVisto !== lavoroDrive.ultimo.quando && lavoroDrive.ultimo.tipo !== 'salvataggio' ? (
+      ) : lavoroDrive.ultimo !== undefined && esitoLavoroVisto !== lavoroDrive.ultimo.quando && lavoroDrive.ultimo.tipo !== 'salvataggio' && lavoroDrive.ultimo.tipo !== 'arrivo' ? (
         <div className="avviso avviso--aggiornamento">
           <span className={`led ${lavoroDrive.ultimo.esito === 'errore' ? 'led--fermo' : lavoroDrive.ultimo.esito === 'annullato' ? 'led--attesa' : 'led--lavoro'}`} />
           <span>

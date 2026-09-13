@@ -46,7 +46,8 @@ export function descriviProgresso(p: ProgressoSync): { testo: string; perc: numb
 export const ETICHETTA_LAVORO_TIPO: Record<LavoroInCorso['tipo'], string> = {
   fusione: 'Fondo con il Drive',
   ripristino: 'Ripristino dal Drive',
-  salvataggio: 'Salvo sul Drive'
+  salvataggio: 'Salvo sul Drive',
+  arrivo: 'Arrivo dal Drive'
 }
 
 /**
@@ -111,6 +112,11 @@ export function passiDelLavoro(l: LavoroInCorso): PassoLavoro[] {
       'Leggo l’indice del Drive e confronto con i file di qui.',
       'Scarico dal Drive i file che qui mancano o sono più vecchi, sei alla volta.',
       'Scrivo i file sul disco e l’indice di questo PC. Poi riavvia SierraDeck per vedere le chat arrivate.'
+    ],
+    arrivo: [
+      'Leggo l’indice del Drive e cerco le chat che qui mancano o sono più avanti di là (per contenuto: una chat cresce e basta).',
+      'Scarico solo quelle chat, sei alla volta. Mai i file dei progetti, mai una cancellazione, mai una chat di qui accorciata.',
+      'Scrivo le chat sul disco, rileggo l’elenco e le metto nelle cartelle di qui: compaiono nell’elenco senza riavviare.'
     ]
   }
   const [t1, t2, t3] = testi[l.tipo]

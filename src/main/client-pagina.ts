@@ -1121,7 +1121,7 @@ function pannello(s) {
         (inc.dettaglio ? '<div class="sotto">' + (inc.verso === 'giu' ? '↓ ' : '↑ ') + esc(inc.dettaglio) + '</div>' : '') +
         '<div style="height:8px;border-radius:4px;background:rgba(255,255,255,.12);margin-top:6px;overflow:hidden"><div style="height:100%;width:' + perc + '%;background:var(--accento,#e0a33c)"></div></div>' +
         '<div class="riga"><button onclick="driveAnnulla()"' + (inc.annullamento ? ' disabled' : '') + '>' + (inc.annullamento ? 'Mi fermo…' : 'Annulla') + '</button></div></div>'
-    } else if (l.ultimo && l.ultimo.tipo !== 'salvataggio') {
+    } else if (l.ultimo && l.ultimo.tipo !== 'salvataggio' && l.ultimo.tipo !== 'arrivo') {
       const u = l.ultimo
       testa += '<div class="sotto" style="margin-top:8px">' + esc(etichettaLavoro(u.tipo)) + ': ' + (u.esito === 'ok' ? 'fatto' : u.esito === 'annullato' ? 'annullato' : 'non riuscito') + (u.messaggio ? ' — ' + esc(u.messaggio) : '') + '</div>'
       if (u.riavvioConsigliato && !driveRiavviato) {
@@ -1644,7 +1644,7 @@ window.pulisciCoda = async () => {
   pannello(ultimoStato)
 }
 
-function etichettaLavoro(tipo) { return tipo === 'fusione' ? 'Fondo con il Drive' : tipo === 'ripristino' ? 'Ripristino dal Drive' : tipo === 'salvataggio' ? 'Salvo sul Drive' : tipo }
+function etichettaLavoro(tipo) { return tipo === 'fusione' ? 'Fondo con il Drive' : tipo === 'ripristino' ? 'Ripristino dal Drive' : tipo === 'salvataggio' ? 'Salvo sul Drive' : tipo === 'arrivo' ? 'Arrivo dal Drive' : tipo }
 async function leggiDrive() {
   driveLeggo = true; driveProgresso = null; pannello(ultimoStato)
   // Mentre il computer legge, ogni mezzo secondo si chiede a che fase sta:

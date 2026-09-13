@@ -182,6 +182,10 @@ export function pianifica(p: {
   const percorsi = new Set<string>([...p.firmaPc.keys(), ...drive.keys()])
   const titoliPc = titoli(p.archivioPc)
   const titoliDrive = titoli(p.archivioDrive)
+  // Le conversazioni che qui ci sono, sotto qualunque cartella: sul Drive
+  // ogni PC ha il suo slug, e la stessa chat puo' starci due volte.
+  const uuidPc = new Set<string>()
+  for (const k of p.firmaPc.keys()) if (prefissoDi(k) === 'chat') uuidPc.add(uuidDi(k))
 
   const chat: VoceFusione[] = []
   const assetto: VoceFusione[] = []
@@ -206,7 +210,12 @@ export function pianifica(p: {
       const pezzi: string[] = []
       if (indice?.messaggi !== undefined && indice.messaggi > 0) pezzi.push(`${indice.messaggi} messaggi`)
       if (noto !== undefined) pezzi.push(`workspace «${noto.workspace}»`)
-      const v = voce(percorso, pc, d, titolo, pezzi.length > 0 ? pezzi.join(' · ') : undefined, VINCE_PIU_LUNGA)
+      // Solo sul Drive, ma la conversazione qui c'e' gia' sotto un'altra
+      // cartella (rimappata su questo PC): non e' da scaricare, e' la stessa.
+      const altrove = pc === undefined && d !== undefined && uuidPc.has(uuid)
+      if (altrove) pezzi.push('già qui, in un’altra cartella')
+      const v0 = voce(percorso, pc, d, titolo, pezzi.length > 0 ? pezzi.join(' · ') : undefined, VINCE_PIU_LUNGA)
+      const v: VoceFusione = altrove ? { ...v0, dove: 'entrambi', diverse: false, predefinita: 'salta' } : v0
       chat.push({ ...v, cartella, ...(quando !== undefined ? { quando } : {}) })
     } else if (prefisso.startsWith('progetto-')) {
       const id = prefisso.slice('progetto-'.length)
