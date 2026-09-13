@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.25.2',
+    righe: [
+      '**Le chat arrivate dal Drive si aprono anche se la loro cartella qui non c’è.** Una chat nata su un altro PC porta dentro la cartella di quel PC (per esempio `E:\\Users\\…\\Wdeck`): sul portatile quella cartella non esiste, Claude Code non partiva e compariva «directory non trovata». Ora, al momento di aprirla, il programma decide dove lavora: se la cartella sta dentro un progetto che conosce (per il percorso dell’altro PC o per un’origine già adottata), usa la stessa sottocartella nel progetto di qui; se non la conosce, crea un progetto nuovo in `Documenti\\Progetti SierraDeck\\<nome della cartella>` e ricorda l’origine, così le altre chat della stessa cartella, e il riavvio, la trovano già mappata. La trascrizione viene copiata sotto la cartella nuova, perché Claude Code la cerca da lì. Nel registro trovi la riga «la cartella … qui non c’è: la chat … lavora in …». La cartella nuova è vuota: il codice arriva da git o da «Porta qui» quando il progetto viaggia sul Drive, non dalla chat.',
+      '**La sincronizzazione non blocca più la finestra.** Il lavoro con il Drive era già asincrono; a bloccare era l’interfaccia: ogni file caricato o scaricato (sei alla volta, centinaia al minuto) e ogni secondo dell’orologio ridisegnavano tutta la console. Ora gli eventi si raggruppano (al massimo cinque al secondo nella stessa fase, ma inizio, fine, annullamento e cambio di fase passano subito) e la striscia in alto si ridisegna da sola, senza toccare il resto. Durante una fusione o un salvataggio puoi continuare a scrivere nelle chat.'
+    ]
+  },
+  {
     versione: '0.25.1',
     righe: [
       '**L’aggiornamento adesso lascia traccia nel registro.** Fino a ieri l’updater parlava solo alla console, che nessuno legge: quando un aggiornamento si installava senza la finestra, dal registro (Impostazioni → Registro) non si poteva dire se qualcuno avesse premuto «Installa e riavvia», se le chat avessero finito in tempo, o se l’installazione fosse partita alla chiusura del programma. Ora ogni fase è scritta lì: trovato, scaricato (a quarti), pronto, «Installa» chiesto e da chi, attesa della quiete, SierraDeck Update partito, oppure «installo alla chiusura». Così, se un aggiornamento non fa quello che ti aspetti, il registro lo racconta.',
