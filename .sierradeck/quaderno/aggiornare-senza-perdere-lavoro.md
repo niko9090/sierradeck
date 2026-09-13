@@ -103,3 +103,33 @@ stesso giudizio per decidere quando può parlare a una chat.
 interrupt») non ha segni: `aspettaDalloSchermo` → `undefined`, e con
 `prontoVisto` falso conta come al lavoro (blocca l'installazione 10 min).
 
+
+# Le due strade dell'installazione, e come si legge nel registro (0.25.1)
+
+Nicholas (2026-09-13): «l'aggiornamento si è installato ma non ha fatto
+vedere la grafica di installazione come al solito, ho dovuto chiudere e
+riaprire». Diagnosi dai tempi (registro + cartelle):
+
+- 17:54 scaricata la 0.25.0 da sola (`%LOCALAPPDATA%\sierradeck-updater\pending`)
+  → fase «pronto», striscia con «Installa e riavvia».
+- 18:43:42 salvataggio di chiusura, 18:43:48 riparte la **0.24.1**, 18:44:54
+  parte la 0.25.0. Cioè: chiusura → `autoInstallOnAppQuit` di
+  electron-updater lancia l'installer NSIS **silenzioso** (nessuna finestra
+  nostra) → riaperta subito, per un attimo torna la vecchia, l'installer la
+  chiude e fa partire la nuova.
+- Nessun errore. La «grafica» (SierraDeck Update, `%APPDATA%\sierradeck\updater`)
+  compare **solo** premendo «Installa e riavvia» (o dal telefono): la 0.24.1
+  delle 17:29 era passata di lì (`updater/aggiornamento.txt`).
+
+Trappola scoperta: fino alla 0.25.0 l'updater scriveva solo su `console.*`,
+che in produzione nessuno legge → il registro non diceva nulla. Dalla 0.25.1
+`creaAggiornamenti(..., registro)` scrive ogni fase (`[aggiornamenti] fase:
+…`, `INSTALLA x chiesto dal PC/telefono`, quiete, «SierraDeck Update e vivo»,
+ripiego «senza finestra») e `autoUpdater.logger` porta nel file anche le
+righe di electron-updater («Checking for update», «Found version», «Auto
+install update on quit»). Per capire da che strada è passato un aggiornamento:
+`grep aggiornamenti|electron-updater` nel log del giorno.
+
+Idea non fatta: far passare anche l'installazione alla chiusura da SierraDeck
+Update (finestra sempre). Cambia la semantica di `before-quit`: da decidere
+con Nicholas.
