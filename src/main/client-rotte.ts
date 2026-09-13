@@ -6,6 +6,7 @@ import { paginaClient, ICONA_SVG, MANIFESTO } from './client-pagina'
 import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
 import { PREFERENZE_PREDEFINITE, tavolozza, type Preferenze } from '@shared/preferenze'
 import { validateNomeWorkspace } from './validation'
+import { pathToSlug } from './indexer/project-scanner'
 import { scelteDiTerminale, tastiPerScegliere } from '@shared/scelte-terminale'
 
 /**
@@ -928,7 +929,13 @@ export function rotteClient(deps: DipendenzeRotte) {
         return { stato: 400, corpo: { errore: 'servono la cartella e la conversazione' } }
       }
       const ammesse = await deps.cartelle().catch(() => [] as string[])
-      if (!ammesse.includes(cartella)) {
+      // Il confronto e' per **slug**, non per percorso: `cartelle()` ricava i
+      // percorsi dai nomi delle cartelle di Claude Code, che perdono trattini,
+      // sottolineature e spazi (`Game_ascensore` → `Game\ascensore`). Per
+      // percorso, ogni chat con uno di quei caratteri nella cartella tornava
+      // «cartella non conosciuta» dal telefono. Lo slug e' esatto in andata.
+      const slugAmmessi = new Set(ammesse.map(pathToSlug))
+      if (!ammesse.includes(cartella) && !slugAmmessi.has(pathToSlug(cartella))) {
         return { stato: 403, corpo: { errore: 'cartella non conosciuta' } }
       }
       deps.riprendiSessione(cartella, sessione)

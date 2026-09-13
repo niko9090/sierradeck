@@ -519,6 +519,21 @@ describe('riprendere una conversazione, e i workspace per intero', () => {
     expect(riprese).toEqual([{ cwd: 'C:\\lavoro', sessione: 's-1' }])
   })
 
+  it('riprende anche quando il percorso ricavato dallo slug ha perso trattini e spazi: conta lo slug', async () => {
+    // `cartelle()` ricava `Game\\ascensore` dal nome `C--Users-n-Documents-Game-ascensore`;
+    // la chat sta in `Game_ascensore`. Per percorso era 403 dal telefono.
+    const riprese: { cwd: string; sessione: string }[] = []
+    const su = deps({
+      cartelle: () => Promise.resolve(['C:\\Users\\n\\Documents\\Game\\ascensore']),
+      riprendiSessione: (cwd, sessione) => { riprese.push({ cwd, sessione }) }
+    })
+    const r = await rotteClient(su)({
+      metodo: 'POST', percorso: '/api/sessioni/riprendi', corpo: { cartella: 'C:\\Users\\n\\Documents\\Game_ascensore', sessione: 's-2' }
+    })
+    expect(r.stato).toBe(200)
+    expect(riprese).toEqual([{ cwd: 'C:\\Users\\n\\Documents\\Game_ascensore', sessione: 's-2' }])
+  })
+
   it('non riprende una conversazione in una cartella che il computer non conosce', async () => {
     // La stessa regola di «apri»: un percorso qualunque arrivato dalla rete
     // aprirebbe una sessione dove capita.

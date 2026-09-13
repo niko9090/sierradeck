@@ -148,7 +148,7 @@ fun SezioneDrive(api: Api) {
                     }
                 }
                 Spacer(Modifier.height(6.dp))
-            } else if (l?.ultimo != null && l.ultimo.tipo != "salvataggio") {
+            } else if (l?.ultimo != null && l.ultimo.tipo != "salvataggio" && l.ultimo.tipo != "arrivo") {
                 val u = l.ultimo
                 Text(
                     etichettaLavoro(u.tipo) + ": " + when (u.esito) { "ok" -> "fatto"; "annullato" -> "annullato"; else -> "non riuscito" } +

@@ -905,6 +905,20 @@ if (!app.requestSingleInstanceLock()) {
           if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('sync:lavoro', st)
         }
       })
+      /**
+       * Un lavoro con il Drive in corso si lascia finire prima di chiudere il
+       * programma per un aggiornamento o un riavvio: interromperlo a meta'
+       * butta via i file gia' saliti o scesi (il manifesto si scrive alla
+       * fine). Al massimo dieci minuti, come la quiete delle chat.
+       */
+      const attendiLavoroDrive = async (): Promise<void> => {
+        const scadenza = Date.now() + 10 * 60_000
+        let detto = false
+        while (lavoro.occupato() && Date.now() < scadenza) {
+          if (!detto) { registro.info('[sistema] aspetto che finisca il lavoro con il Drive prima di chiudere'); detto = true }
+          await new Promise((r) => setTimeout(r, 2000))
+        }
+      }
       // Un lavoro che ha portato giu' delle chat: l'indice si rilegge, le chat
       // con la cartella di un altro PC si rimappano, i workspace anche, e le
       // finestre lo sanno («N chat arrivate»). Prima l'elenco restava quello
@@ -2447,7 +2461,7 @@ if (!app.requestSingleInstanceLock()) {
         // **Non si installa sopra un lavoro in corso.** Si avvisa, si aspetta
         // che ognuno chiuda quello che ha in mano, e solo allora si chiude
         // tutto. Un aggiornamento non e' una chiusura per fine lavori.
-        (avvisa) => attendiQuiete({
+        (avvisa) => attendiLavoroDrive().then(() => attendiQuiete({
           chat: () => chatAperte,
           pausaAutopiloti: (attiva) => clientAutopilota.pausaAggiornamento(attiva),
           scriviInChat: scriviNelRiquadro,
@@ -2456,7 +2470,7 @@ if (!app.requestSingleInstanceLock()) {
           annota: (p) => { scriviJsonAtomico(filePausa(dati), p, 'pausa-aggiornamento') },
           avvisa,
           versione: app.getVersion()
-        }),
+        })),
         // Nel registro su file: e' l'unico posto dove, il giorno dopo, si
         // capisce per quale strada e' passato un aggiornamento.
         registro
@@ -2470,6 +2484,7 @@ if (!app.requestSingleInstanceLock()) {
       // chat arrivate compaiono nei workspace solo al riavvio, e farlo a mano
       // era un passo in piu' che nessuno ricordava.
       ipcMain.handle('sistema:riavvia', async (): Promise<{ ok: boolean; messaggio?: string }> => {
+        await attendiLavoroDrive()
         const pronti = await attendiQuiete({
           chat: () => chatAperte,
           pausaAutopiloti: (attiva) => clientAutopilota.pausaAggiornamento(attiva),
