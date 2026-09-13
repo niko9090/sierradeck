@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.25.1',
+    righe: [
+      '**L’aggiornamento adesso lascia traccia nel registro.** Fino a ieri l’updater parlava solo alla console, che nessuno legge: quando un aggiornamento si installava senza la finestra, dal registro (Impostazioni → Registro) non si poteva dire se qualcuno avesse premuto «Installa e riavvia», se le chat avessero finito in tempo, o se l’installazione fosse partita alla chiusura del programma. Ora ogni fase è scritta lì: trovato, scaricato (a quarti), pronto, «Installa» chiesto e da chi, attesa della quiete, SierraDeck Update partito, oppure «installo alla chiusura». Così, se un aggiornamento non fa quello che ti aspetti, il registro lo racconta.',
+      '**Promemoria su come si installa un aggiornamento.** Scaricato da solo, resta «pronto» nella striscia in alto con il tasto «Installa e riavvia»: premendolo vedi la finestra di installazione e il programma riparte da solo. Se invece chiudi SierraDeck senza premerlo, l’aggiornamento si installa in silenzio alla chiusura, senza finestra: alla riapertura trovi la versione nuova. Se lo riapri subito, mentre l’installazione silenziosa è ancora in corso, per un attimo può ripartire la versione vecchia e poi chiudersi da sola per far posto alla nuova: non è un errore.'
+    ]
+  },
+  {
     versione: '0.25.0',
     righe: [
       '**Premi «Drive» e vedi subito una finestra di attesa con la barra.** Leggere il Drive prende qualche secondo, in sei fasi: la cassaforte (le chiavi), l’indice del Drive, i workspace e il registro dei progetti, i file di questo PC, le impronte (per i file con la stessa dimensione ma data diversa: così «uguale» vuol dire uguale davvero), e il confronto. Prima la scheda restava con la sola spiegazione, senza un segno di vita, finché il catalogo non arrivava. Ora si apre una finestra sua: la percentuale, la fase in corso con scritto cosa sta facendo, le sei fasi con lo stato di ciascuna, e da quanto va. Si chiude da sola quando il catalogo è pronto; «Aggiorna» la riapre. Leggere non tocca niente: non scarica, non carica, non cancella.',
