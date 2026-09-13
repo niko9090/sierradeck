@@ -2632,7 +2632,7 @@ app.on('before-quit', (event) => {
     // L'ultimo salvataggio sul Drive, se l'automatico e' acceso e c'e' qualcosa
     // di cambiato: e' cosi' che l'altro PC trova il lavoro di oggi. Con un
     // tetto, perche' un'uscita non puo' restare appesa a una rete lenta.
-    .then(() => conTetto(sincroniaGlobale?.salvaSeServe() ?? Promise.resolve(), 45_000))
+    .then(() => conTetto(sincroniaGlobale?.salvaSeServe({ conArrivo: false }) ?? Promise.resolve(), 45_000))
     .catch((err) => console.error('[chiusura] salvataggio sul Drive fallito:', err))
     .finally(() => {
       void chiudiRisorse().finally(() => app.quit())

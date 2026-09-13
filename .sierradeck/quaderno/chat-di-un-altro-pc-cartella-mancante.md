@@ -51,3 +51,24 @@ Il lavoro col Drive era già asincrono (fs/promises, cifratura a pezzi da
 - Restano iscritti per intero `PannelloDrive` e `ModaleFusione` (sono
   modali/pannelli, e servono i dettagli): se il catalogo aperto con 1400
   chat espanse dovesse ancora scattare, memoizzare le righe lì.
+
+# Anche in massa, per le chat già scaricate (0.26.0)
+
+Nicholas (2026-09-13): «nel portatile la chat ancora dà errore, deve anche
+applicarsi la fix per chat già scaricate». Due cose vere: (1) entrambi i PC
+giravano ancora sulla 0.25.1 (gli aggiornamenti si installano alla
+chiusura), quindi il gancio allo spawn non era in esecuzione; (2) il gancio
+sistemava solo la chat aperta, e l'elenco continuava a mostrare le altre
+sotto la cartella dell'altro PC.
+
+Ora `src/main/progetti/rimappa-di-massa.ts` (puro, provato) pianifica gli
+spostamenti per tutte le chat dell'indice con una cwd che qui non esiste
+(escluse le cartelle nascoste degli strumenti, es. `.claude-mem`), e
+`index.ts` li esegue all'avvio (dopo la prima lettura dell'indice) e dopo
+ogni lavoro Drive che ha scaricato: trascrizione riscritta riga per riga
+(`riscriviCwdRiga`, solo il campo `cwd`, a flusso) sotto lo slug della
+cartella di qui, poi rilettura dell'indice. Se sotto lo slug di qui c'è già
+una copia più lunga, resta quella e si toglie solo quella dell'altro PC. La
+finestra aggiorna la cartella del riquadro (`chat:cartellaCambiata` →
+`impostaCartella`). Dettagli del ciclo in
+`arrivo-automatico-e-unione-workspace.md`.

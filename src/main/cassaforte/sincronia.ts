@@ -124,8 +124,13 @@ export type Sincronia = {
   salva: (forza?: boolean) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number; annullato?: boolean }>
   /** Accende/spegne il salvataggio automatico, e dice com'è ora. */
   auto: (attivo?: boolean) => boolean
-  /** Salva solo se serve (dati cambiati, sbloccato, connesso): per l'automatico. */
-  salvaSeServe: () => Promise<void>
+  /**
+   * Salva solo se serve (dati cambiati, sbloccato, connesso), poi fa scendere
+   * le chat nuove (`arrivo`): per l'automatico. Alla chiusura del programma
+   * si passa `{ conArrivo: false }`: c'e' un tetto di 45 secondi, e uno
+   * scaricamento troncato a meta' non serve a nessuno.
+   */
+  salvaSeServe: (opzioni?: { conArrivo?: boolean }) => Promise<void>
   /**
    * L'arrivo: le chat che stanno solo sul Drive, o ci sono piu' avanti,
    * scendono qui. Mai i file dei progetti, mai una cancellazione, mai una
@@ -1070,7 +1075,7 @@ export function apriSincronia(deps: {
       }
     },
 
-    async salvaSeServe() {
+    async salvaSeServe(opzioni) {
       // L'automatico non disturba mai: se non è sbloccato, non connesso, o i dati
       // non sono cambiati, `salva` se ne accorge e non fa nulla di pesante.
       if (maestra === undefined || !deps.driveConnesso()) return
@@ -1078,6 +1083,7 @@ export function apriSincronia(deps: {
       if (s.auto !== true) return
       const r = await this.salva()
       if (!r.ok && r.conflitto !== true) log(`automatico: salvataggio non riuscito (${r.messaggio ?? '?'})`)
+      if (opzioni?.conArrivo === false) return
       // Poi si guarda se c'e' qualcosa da portare giu': la sincronizzazione va
       // nei due versi, e finche' andava in uno solo le chat dell'altro PC non
       // arrivavano mai da sole.
