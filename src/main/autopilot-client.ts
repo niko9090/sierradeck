@@ -45,6 +45,18 @@ export type RispostaParlata = {
   autopilota?: Autopilota
 }
 
+/**
+ * La ricevuta di una battuta del dialogo.
+ *
+ * Il servizio risponde subito: la tua battuta e' nell'archivio, la sua
+ * arrivera' nello stesso archivio quando il supervisore avra' finito di
+ * pensare (minuti). Chi mostra la scheda la vede rileggendo l'autopilota.
+ */
+export type RicevutaDialogo = {
+  ricevuto: boolean
+  autopilota?: Autopilota
+}
+
 export type ClientAutopilota = {
   elenca: () => Promise<Autopilota[]>
   crea: (p: NuovoAutopilota) => Promise<Autopilota>
@@ -54,6 +66,13 @@ export type ClientAutopilota = {
   modifica: (id: string, cambio: CambioAutopilota) => Promise<Autopilota>
   /** Glielo dici a parole: è lui a tradurlo in criteri e compiti. */
   parla: (id: string, testo: string) => Promise<RispostaParlata>
+  /**
+   * Gli scrivi, e lui risponde con parole sue — nel suo archivio, dopo.
+   *
+   * La chiamata torna subito con la ricevuta: la risposta si legge con
+   * `elenca` quando compare in `dialogo` con `da: 'lui'`.
+   */
+  dialoga: (id: string, testo: string) => Promise<RicevutaDialogo>
   /** Rimette com'era prima dell'ultima cosa che gli hai detto. */
   disfa: (id: string) => Promise<Autopilota>
   ferma: (id: string) => Promise<void>
@@ -117,13 +136,27 @@ export function creaClientAutopilota(p: {
   const attesaMs = p.attesaMs ?? ATTESA_PREDEFINITA_MS
   const base = `http://127.0.0.1:${p.porta}`
 
-  const chiama = async (percorso: string, metodo: string, corpo?: unknown): Promise<unknown> => {
+  /**
+   * Quanto si aspetta una chiamata che fa **pensare** il supervisore.
+   *
+   * `parla` interroga `claude.exe` e ci mette minuti: con i tre secondi di
+   * tutte le altre chiamate falliva sempre con «il servizio non risponde»,
+   * mentre il servizio applicava comunque il cambio dietro le quinte.
+   */
+  const ATTESA_PENSIERO_MS = 6 * 60_000
+
+  const chiama = async (
+    percorso: string,
+    metodo: string,
+    corpo?: unknown,
+    attesa: number = attesaMs
+  ): Promise<unknown> => {
     let risposta: Response
     try {
       risposta = await fetch(`${base}${percorso}`, {
         method: metodo,
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(attesaMs),
+        signal: AbortSignal.timeout(attesa),
         ...(corpo !== undefined ? { body: JSON.stringify(corpo) } : {})
       })
     } catch (err) {
@@ -149,7 +182,9 @@ export function creaClientAutopilota(p: {
     modifica: async (id, cambio) =>
       (await chiama(`/autopiloti/${encodeURIComponent(id)}`, 'PATCH', cambio)) as Autopilota,
     parla: async (id, testo) =>
-      (await chiama(`/autopiloti/${encodeURIComponent(id)}/parla`, 'POST', { testo })) as RispostaParlata,
+      (await chiama(`/autopiloti/${encodeURIComponent(id)}/parla`, 'POST', { testo }, ATTESA_PENSIERO_MS)) as RispostaParlata,
+    dialoga: async (id, testo) =>
+      (await chiama(`/autopiloti/${encodeURIComponent(id)}/dialogo`, 'POST', { testo })) as RicevutaDialogo,
     disfa: async (id) =>
       (await chiama(`/autopiloti/${encodeURIComponent(id)}/disfa`, 'POST')) as Autopilota,
     ferma: async (id) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/ferma`, 'POST') },

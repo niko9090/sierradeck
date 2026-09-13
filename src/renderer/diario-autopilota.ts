@@ -114,6 +114,22 @@ export function diario(a: Autopilota): VoceDiario[] {
     return { quando: d.quando, titolo: accorcia(cosa) }
   })
 
+  // Il dialogo con te sta nello stesso diario, al suo posto nel tempo: e' la
+  // parte del lavoro che hai fatto tu, e senza si leggerebbe un cambio di
+  // rotta senza sapere chi l'ha chiesto.
+  for (const s of a.dialogo) {
+    voci.push(
+      s.da === 'tu'
+        ? { quando: s.quando, tipo: 'tu' as const, titolo: 'Gli hai scritto', dettaglio: accorcia(s.testo) }
+        : {
+            quando: s.quando,
+            tipo: 'decisione' as const,
+            titolo: 'Ti ha risposto',
+            dettaglio: accorcia(s.esito !== undefined && s.esito !== 'nessun cambio' ? `${s.testo} (${s.esito})` : s.testo)
+          }
+    )
+  }
+
   // Dalla più recente: è quella che dice cosa sta succedendo adesso.
   return comprimi(voci.sort((x, y) => y.quando.localeCompare(x.quando)))
 }

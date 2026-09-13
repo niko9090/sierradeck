@@ -127,6 +127,12 @@ export type DipendenzeRotte = {
   /** Il via a un autopilota che si e preparato e aspetta di essere letto. */
   vaiAutopilota: (id: string) => Promise<void>
   /**
+   * Gli scrivi dal telefono: torna subito la ricevuta, la sua risposta
+   * compare nel `dialogo` del dettaglio al giro dopo. Assente nei computer
+   * con una versione precedente: la pagina e l'app lo dicono.
+   */
+  dialogaAutopilota?: (id: string, testo: string) => Promise<{ ricevuto: boolean }>
+  /**
    * Affida un lavoro nuovo a un autopilota.
    *
    * È l'unica cosa che *crea* qualcosa da qui, e ci sta: delegare è il gesto
@@ -690,6 +696,20 @@ export function rotteClient(deps: DipendenzeRotte) {
       if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
       await deps.vaiAutopilota(id)
       return OK({ fatto: true })
+    }
+
+    // Parlargli. La ricevuta torna subito; la risposta arriva nel dettaglio
+    // (`/api/autopilota`), che il telefono rilegge ogni due secondi: nessuna
+    // chiamata HTTP lunga quanto un pensiero del supervisore.
+    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/dialogo') {
+      const id = stringa(r.corpo, 'autopilota')
+      const testo = stringa(r.corpo, 'testo')
+      if (id === '' || testo === '') return { stato: 400, corpo: { errore: 'servono l autopilota e il testo' } }
+      if (deps.dialogaAutopilota === undefined) {
+        return { stato: 409, corpo: { errore: 'questo computer non sa ancora dialogare con gli autopiloti: aggiornalo' } }
+      }
+      const esito = await deps.dialogaAutopilota(id, testo.slice(0, TESTO_MAX))
+      return OK({ fatto: esito.ricevuto })
     }
 
     // Affidare un lavoro. La cartella passa dallo stesso muro di «apri»: un

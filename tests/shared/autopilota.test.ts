@@ -29,6 +29,38 @@ describe('parseAutopilota', () => {
     expect(autopilota?.criteri[0]?.comando).toBe('npm test')
   })
 
+  it('un file di prima della 0.27.0 parte con il dialogo vuoto, senza avvisi', () => {
+    const { autopilota, scartati } = parseAutopilota(valido())
+    expect(scartati).toEqual([])
+    expect(autopilota?.dialogo).toEqual([])
+    expect(autopilota?.daConsegnare).toEqual([])
+  })
+
+  it('legge il dialogo e i messaggi in attesa, scartando le battute rotte', () => {
+    const { autopilota } = parseAutopilota({
+      ...(valido() as Record<string, unknown>),
+      dialogo: [
+        { quando: '2026-09-14T10:00:00.000Z', da: 'tu', testo: 'dove sei?' },
+        { quando: '2026-09-14T10:01:00.000Z', da: 'lui', testo: 'al secondo', esito: 'nessun cambio' },
+        { quando: '2026-09-14T10:02:00.000Z', da: 'noi', testo: 'chi?' },
+        { da: 'tu', testo: 'senza data' },
+        'non una battuta'
+      ],
+      daConsegnare: [
+        { id: 'm-1', quando: '2026-09-14T10:00:00.000Z', testo: 'usa pnpm', chats: ['ap-1'] },
+        { id: 'm-2', quando: '2026-09-14T10:00:00.000Z', testo: 'gia consegnato', chats: [] },
+        { id: 'm-3', quando: '2026-09-14T10:00:00.000Z', chats: ['ap-1'] }
+      ]
+    })
+    expect(autopilota?.dialogo).toEqual([
+      { quando: '2026-09-14T10:00:00.000Z', da: 'tu', testo: 'dove sei?' },
+      { quando: '2026-09-14T10:01:00.000Z', da: 'lui', testo: 'al secondo', esito: 'nessun cambio' }
+    ])
+    expect(autopilota?.daConsegnare).toEqual([
+      { id: 'm-1', quando: '2026-09-14T10:00:00.000Z', testo: 'usa pnpm', chats: ['ap-1'] }
+    ])
+  })
+
   it('rifiuta cio che non e un oggetto', () => {
     for (const raw of [null, undefined, 42, 'niente', []]) {
       const { autopilota, scartati } = parseAutopilota(raw)

@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { existsSync, statSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import {
-  MODIFICHE_RICORDATE, nuovoAutopilota,
+  DIALOGO_RICORDATO, MODIFICHE_RICORDATE, nuovoAutopilota,
   type Autopilota, type ChatGovernata, type Criterio, type Decisione, type Istantanea
 } from '@shared/autopilota'
 import type { Archivio } from './archivio'
@@ -27,6 +27,11 @@ import {
 import { chatDaRiprendere, daRiprendere, intervisteDaRiprendere, riportaChiAspettava } from './ripresa'
 import { componiPromptRisposta, domandaChiara, leggiEsitoRisposta } from './risposta-autonoma'
 import { componiDomanda } from './trascrizione'
+import {
+  chiaviChatVive, componiPromptDialogo, conMessaggioPerLaChat, conPreambolo, leggiEsitoDialogo,
+  prendiMessaggiPer
+} from './dialogo'
+import { primoCompito, ripartiDaDove, riprende } from './nel-mosaico'
 import type { RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
 
@@ -253,7 +258,12 @@ export function conservaCambiUtente(
     // a metà strada (la riparazione di un comando), quindi alcune delle proprie
     // decisioni sono già dentro `fresco`, e rimetterle in coda le farebbe
     // comparire due volte nel diario.
-    decisioni: [...fresco.decisioni, ...soloNuove(calcolato.decisioni.slice(decisioniBase), fresco.decisioni)]
+    decisioni: [...fresco.decisioni, ...soloNuove(calcolato.decisioni.slice(decisioniBase), fresco.decisioni)],
+    // Il dialogo e i messaggi per la chat li scrive la rotta `/dialogo` mentre
+    // il turno lavora: dal disco, o una battuta scritta durante i criteri
+    // sparirebbe con la fotografia di inizio turno.
+    dialogo: fresco.dialogo,
+    daConsegnare: fresco.daConsegnare
   }
 }
 
@@ -493,7 +503,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (dati.chatId !== undefined) {
       const chat = a.chats.find((c) => c.id === dati.chatId)
       if (a.stato !== 'lavoro' || chat === undefined || chat.stato !== 'bloccata') return
-      const ripresa = conStatoChat(a, dati.chatId, 'lavoro')
+      // Con la risposta entrano anche i messaggi che aspettavano questa chat.
+      const presi = prendiMessaggiPer(conStatoChat(a, dati.chatId, 'lavoro'), dati.chatId)
+      const ripresa = presi.autopilota
       salva({
         ...ripresa,
         motivoSospensione: undefined,
@@ -501,7 +513,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       })
       void avviaLavoro(
         ripresa,
-        componiRisposta(dati.testo, risposta),
+        conPreambolo(presi.testi, componiRisposta(dati.testo, risposta)),
         { ...chat, stato: 'lavoro' }
       ).catch((err: unknown) => {
         console.error(`[autopilota] ripresa della chat ${dati.chatId} di ${dati.autopilotaId} fallita:`, err)
@@ -510,15 +522,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
 
     if (a.stato !== 'attesa') return
+    const presi = prendiMessaggiPer({ ...a, stato: 'lavoro' }, a.id)
     salva({
-      ...a,
-      stato: 'lavoro',
+      ...presi.autopilota,
       motivoSospensione: undefined,
       decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: `risposta tardiva: ${risposta}` }]
     })
     void avviaLavoro(
-      { ...a, stato: 'lavoro' },
-      componiRisposta(dati.testo, risposta)
+      presi.autopilota,
+      conPreambolo(presi.testi, componiRisposta(dati.testo, risposta))
     ).catch((err: unknown) => {
       console.error(`[autopilota] ripresa di ${dati.autopilotaId} fallita:`, err)
     })
@@ -940,6 +952,238 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     await apriChatMancanti(conCompiti)
   }
 
+  /** Ferma un autopilota: le chat ricevono un Ctrl+C, le domande aperte si chiudono. */
+  const fermaAutopilota = (a: Autopilota, motivo: string): Autopilota => {
+    deps.fermaLavoro(a.id)
+    // Le sue domande non hanno più nessuno che attende la risposta: chi è
+    // appeso va liberato, altrimenti l'hook resterebbe fermo fino alla
+    // scadenza per un autopilota che non lavora più.
+    deps.domande.chiudiDi(a.id)
+    const sospeso: Autopilota = { ...a, stato: 'sospeso', motivoSospensione: motivo }
+    salva(sospeso)
+    return sospeso
+  }
+
+  /**
+   * Rimette al lavoro un autopilota fermo, con i tuoi messaggi in attesa.
+   *
+   * Un autopilota **finito** ripreso ha tutte le chat `finita`: prima non ne
+   * ripartiva nessuna e restava «al lavoro» senza una chat. Alla ripresa le
+   * chat non finite tornano `lavoro`; quelle finite tornano `lavoro` solo se
+   * tutto il lavoro era finito (è quello che vuol dire riprenderlo).
+   *
+   * I messaggi che aspettavano entrano **davanti** al testo di ripresa: chi
+   * ha scritto «riprendi e fai anche X» non deve aspettare il turno dopo.
+   */
+  const riprendiAutopilota = async (a: Autopilota): Promise<Autopilota> => {
+    const eraFinito = a.stato === 'finito'
+    let ripreso: Autopilota = {
+      ...a,
+      stato: 'lavoro',
+      motivoSospensione: undefined,
+      chats: a.chats.map((c) => (c.stato !== 'finita' || eraFinito ? { ...c, stato: 'lavoro' as const } : c))
+    }
+    const daAvviare = ripreso.chats.filter((c) => c.stato !== 'finita')
+    if (ripreso.chats.length === 0) {
+      const presi = prendiMessaggiPer(ripreso, ripreso.id)
+      ripreso = presi.autopilota
+      salva(ripreso)
+      await avviaLavoro(
+        ripreso,
+        presi.testi.length === 0
+          ? undefined
+          : conPreambolo(presi.testi, riprende(ripreso, ripreso.sessionId) ? ripartiDaDove(ripreso) : primoCompito(ripreso))
+      )
+      return ripreso
+    }
+    salva(ripreso)
+    for (const chat of daAvviare) {
+      const presi = prendiMessaggiPer(ripreso, chat.id)
+      ripreso = presi.autopilota
+      if (presi.testi.length > 0) salva(ripreso)
+      await avviaLavoro(
+        ripreso,
+        presi.testi.length === 0
+          ? undefined
+          : conPreambolo(presi.testi, riprende(ripreso, chat.sessionId, chat) ? ripartiDaDove(ripreso, chat) : primoCompito(ripreso, chat)),
+        chat
+      )
+    }
+    return ripreso
+  }
+
+  /** I dialoghi a cui si sta rispondendo adesso, uno per autopilota. */
+  const dialoghiInCorso = new Map<string, Promise<void>>()
+
+  /**
+   * Risponde a una tua battuta e applica quello che chiedeva.
+   *
+   * La battuta e' gia' in archivio (la rotta l'ha scritta prima di rispondere
+   * 202). Qui si interroga il supervisore con il quadro intero, si rilegge
+   * l'archivio — nel frattempo la chat puo' aver chiuso un turno — e si
+   * applica nell'ordine: il cambio, il messaggio per la chat (o la risposta
+   * alla sua domanda), il comando sullo stato. In fondo la sua battuta, con
+   * scritto cosa ne ha fatto. Non solleva mai: un guasto diventa una battuta
+   * che lo dice.
+   */
+  const rispondiAlDialogo = async (id: string, testo: string, quando: string): Promise<void> => {
+    const a = deps.archivio.leggi(id)
+    if (a === undefined) return
+
+    // Mentre pensa sta lavorando: il guardiano del silenzio lo salta.
+    inLavorazione.add(id)
+    let esito
+    let sessioneNuova: string | undefined
+    let guasto: string | undefined
+    try {
+      const unica = a.chats.length === 1 ? a.chats[0] : undefined
+      const sessioneChat = unica?.sessionId ?? a.sessionId
+      const detto = sessioneChat !== undefined ? deps.ultimoDetto?.(a.cwd, sessioneChat) : undefined
+      const aperta = deps.domande.aperte(id)[0]
+      const r = await deps.interroga(
+        componiPromptDialogo(a, testo, {
+          ...(detto !== undefined ? { ultimoDetto: detto } : {}),
+          ...(aperta !== undefined ? { domandaAperta: aperta.testo } : {})
+        }),
+        a.cwd,
+        a.sessioneSupervisore
+      )
+      esito = leggiEsitoDialogo(r.testo)
+      sessioneNuova = r.sessionId
+    } catch (err) {
+      guasto = err instanceof Error ? err.message : String(err)
+      console.error(`[autopilota] ${id} — il dialogo non ha avuto risposta:`, err)
+    } finally {
+      inLavorazione.delete(id)
+    }
+
+    // Si riparte da cio' che c'e' su disco adesso: nel frattempo la chat
+    // puo' aver chiuso un turno, o tu aver premuto un tasto.
+    let fresco = deps.archivio.leggi(id)
+    if (fresco === undefined) return
+    if (sessioneNuova !== undefined && fresco.sessioneSupervisore !== sessioneNuova) {
+      fresco = { ...fresco, sessioneSupervisore: sessioneNuova }
+    }
+    const chiudi = (risposta: string, esitoBattuta: string): void => {
+      const conSua: Autopilota = {
+        ...fresco!,
+        dialogo: [...fresco!.dialogo, { quando: deps.adesso(), da: 'lui' as const, testo: risposta, esito: esitoBattuta }]
+          .slice(-DIALOGO_RICORDATO)
+      }
+      salva(conSua)
+    }
+
+    if (esito === undefined) {
+      chiudi(
+        guasto !== undefined
+          ? `Non sono riuscito a risponderti: il supervisore non ha risposto (${guasto.slice(0, 300)}). Riprova fra un momento.`
+          : 'Non sono riuscito a leggere la mia stessa risposta. Riprova dicendolo in un altro modo.',
+        'senza risposta'
+      )
+      return
+    }
+
+    const fatti: string[] = []
+
+    if (esito.cambio !== undefined) {
+      const cambiato = applicaCambio(fresco, {
+        ...(esito.cambio.obiettivo !== undefined ? { obiettivo: esito.cambio.obiettivo } : {}),
+        ...(esito.cambio.criteri !== undefined ? { criteri: esito.cambio.criteri } : {}),
+        ...(esito.cambio.compitiDaFare !== undefined ? { compitiDaFare: esito.cambio.compitiDaFare } : {})
+      })
+      if (typeof cambiato === 'string') {
+        fatti.push(`cambio rifiutato: ${cambiato}`)
+      } else {
+        fresco = {
+          ...cambiato,
+          modifiche: [
+            ...cambiato.modifiche,
+            { quando, testo, capito: esito.risposta, prima: istantaneaDi(fresco) }
+          ].slice(-MODIFICHE_RICORDATE),
+          decisioni: [...cambiato.decisioni, { quando: deps.adesso(), cosa: `su tua richiesta: ${esito.risposta.slice(0, 300)}` }]
+        }
+        fatti.push('cambio applicato')
+      }
+    }
+
+    const aperta = deps.domande.aperte(id)[0]
+    if (esito.perLaChat !== undefined) {
+      if (esito.comando === 'rispondi' && aperta !== undefined) {
+        // E' la risposta alla sua domanda: passa dalla stessa strada della
+        // modale, e la chat riprende con quella.
+        deps.domande.rispondi(aperta.id, esito.perLaChat, 'modale')
+        fatti.push('risposta alla sua domanda')
+      } else if (fresco.stato === 'finito' && esito.comando !== 'riprendi') {
+        fatti.push('la chat ha finito: nessun messaggio consegnato')
+      } else {
+        fresco = conMessaggioPerLaChat(
+          fresco, esito.perLaChat, quando, chiaviChatVive(fresco), `m-${randomUUID()}`
+        )
+        fatti.push(fresco.stato === 'lavoro' ? 'per la chat, a fine turno' : 'per la chat, alla ripresa')
+      }
+    }
+
+    if (esito.comando === 'ferma') {
+      if (fresco.stato === 'lavoro' || fresco.stato === 'attesa') {
+        fresco = fermaAutopilota(fresco, 'fermato dall utente (dal dialogo)')
+        fatti.push('fermato')
+      } else {
+        fatti.push(`non era in moto (${fresco.stato})`)
+      }
+    } else if (esito.comando === 'riprendi') {
+      if (fresco.stato === 'sospeso' || fresco.stato === 'finito' || fresco.stato === 'fallito') {
+        if (fresco.criteri.length === 0) {
+          const ripreso: Autopilota = { ...fresco, stato: 'intervista', motivoSospensione: undefined }
+          salva(ripreso)
+          fresco = ripreso
+          void conduciIntervista(ripreso).catch((err: unknown) => {
+            console.error(`[autopilota] ripresa dell intervista di ${id} fallita:`, err)
+          })
+          fatti.push('ripresa la preparazione')
+        } else {
+          try {
+            fresco = await riprendiAutopilota(fresco)
+            fatti.push('ripreso')
+          } catch (err) {
+            fatti.push(`ripresa fallita: ${err instanceof Error ? err.message : String(err)}`.slice(0, 200))
+          }
+        }
+      } else if (fresco.stato === 'pronto') {
+        const partito: Autopilota = { ...fresco, stato: 'lavoro', motivoSospensione: undefined }
+        salva(partito)
+        try {
+          await avviaAutopilota(partito)
+          fatti.push('partito')
+        } catch (err) {
+          fatti.push(`partenza fallita: ${err instanceof Error ? err.message : String(err)}`.slice(0, 200))
+        }
+        fresco = deps.archivio.leggi(id) ?? partito
+      } else {
+        fatti.push(`era già in moto (${fresco.stato})`)
+      }
+    }
+
+    // Quello che e' su disco adesso puo' essere piu' fresco di `fresco` solo
+    // per i campi che il turno della chat scrive: si tengono i suoi, e si
+    // riportano i nostri cambi sopra (stessa regola di `conservaCambiUtente`).
+    const suDisco = deps.archivio.leggi(id)
+    if (suDisco !== undefined && suDisco !== fresco) {
+      fresco = {
+        ...suDisco,
+        obiettivo: fresco.obiettivo,
+        criteri: fresco.criteri,
+        compitiDaFare: fresco.compitiDaFare,
+        modifiche: fresco.modifiche,
+        daConsegnare: fresco.daConsegnare,
+        stato: fresco.stato,
+        motivoSospensione: fresco.motivoSospensione,
+        sessioneSupervisore: fresco.sessioneSupervisore,
+        decisioni: [...suDisco.decisioni, ...soloNuove(fresco.decisioni, suDisco.decisioni)]
+      }
+    }
+    chiudi(esito.risposta, fatti.length === 0 ? 'nessun cambio' : fatti.join(' · '))
+  }
+
   /**
    * Il ciclo completo di una fermata.
    *
@@ -955,6 +1199,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
 
     const sessionId = typeof corpo.session_id === 'string' ? corpo.session_id : undefined
     const ultimoMessaggio = typeof corpo.last_assistant_message === 'string' ? corpo.last_assistant_message : ''
+    // Con quale chiave questa chat riceve i tuoi messaggi (vedi `dialogo.ts`):
+    // la sua nella flotta, l'autopilota per la chat singola.
+    const chiaveChat = chatId ?? id
     // La sessione appartiene alla chat che si e' fermata: con una flotta,
     // scriverla sull'autopilota farebbe riprendere tutte le chat dalla
     // conversazione dell'ultima che ha parlato.
@@ -1085,8 +1332,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const sessioneDiPartenza = miaChat !== undefined
         ? (miaChat.sessioneSupervisore ?? (aggiornato.chats.length === 1 ? aggiornato.sessioneSupervisore : undefined))
         : aggiornato.sessioneSupervisore
+      // **Quello che gli hai scritto dalla scheda entra nel quadro.** La chat
+      // lo riceverà con le istruzioni di questo turno; il supervisore deve
+      // saperlo per non dare istruzioni che lo contraddicono.
+      const tuoiNelQuadro = (deps.archivio.leggi(id) ?? aggiornato).daConsegnare
+        .filter((m) => m.chats.includes(chiaveChat))
+        .map((m) => m.testo)
       const { decisione: suggerita, sessionId: sessioneNuova } = await chiediDecisione(
-        aggiornato, esiti, ultimoMessaggio, inCerchioDa, deps.interroga, sessioneDiPartenza
+        aggiornato, esiti, ultimoMessaggio, inCerchioDa, deps.interroga, sessioneDiPartenza, tuoiNelQuadro
       )
       if (sessioneNuova !== undefined) {
         if (miaChat !== undefined) {
@@ -1146,6 +1399,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     aggiornato.riprendiAlRiavvio = conCambiUtente.riprendiAlRiavvio
     aggiornato.tettoChat = conCambiUtente.tettoChat
     aggiornato.limiti = conCambiUtente.limiti
+    // E il dialogo con te, con i messaggi che aspettano di entrare nella chat.
+    aggiornato.dialogo = conCambiUtente.dialogo
+    aggiornato.daConsegnare = conCambiUtente.daConsegnare
+    // **I tuoi messaggi entrano adesso**, davanti alle istruzioni del turno:
+    // la chat ha appena chiuso un turno ed e' l'unico momento in cui un
+    // messaggio non le arriva in mezzo a un'azione. Si prendono solo nei rami
+    // che scrivono davvero nella chat; se il turno finisce con una fermata
+    // restano in coda e arrivano alla ripresa.
+    const tuoi = (base: Autopilota): { autopilota: Autopilota; testi: string[] } =>
+      prendiMessaggiPer(base, chiaveChat)
 
     // Il supervisore ha visto che un comando misura la cosa sbagliata e ne ha
     // scritto uno giusto: si sostituisce e si riprende dal giro dopo, che lo
@@ -1153,8 +1416,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // la domanda.
     if (decisione.tipo === 'correggiCriterio') {
       const { descrizione, comando } = decisione
+      const presi = tuoi(aggiornato)
       const conNuovoCriterio: Autopilota = {
-        ...aggiornato,
+        ...presi.autopilota,
         criteri: aggiornato.criteri.map((c) =>
           c.descrizione === descrizione ? { ...c, comando, soddisfatto: false } : c
         ),
@@ -1166,9 +1430,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       salva(conNuovoCriterio)
       return {
         decision: 'block',
-        reason:
+        reason: conPreambolo(
+          presi.testi,
           `Il criterio «${descrizione}» era misurato male: il comando è stato sostituito con ` +
           `\`${comando}\`.\n\nProsegui verso l'obiettivo: ${aggiornato.obiettivo}`
+        )
       }
     }
 
@@ -1222,23 +1488,29 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const dopoRisposta = deps.archivio.leggi(id) ?? aggiornato
       // Risposta in tempo: riprende **questa** chat. Con una flotta torna
       // `lavoro` solo lei (l'autopilota non era mai uscito da `lavoro`); con una
-      // chat sola torna `lavoro` l'autopilota.
+      // chat sola torna `lavoro` l'autopilota. Con la risposta entrano anche
+      // i messaggi scritti dalla scheda nel frattempo.
+      const presi = tuoi(dopoRisposta)
       salva({
         ...(chatId !== undefined
-          ? conStatoChat(dopoRisposta, chatId, 'lavoro')
-          : { ...dopoRisposta, stato: 'lavoro' as const }),
+          ? conStatoChat(presi.autopilota, chatId, 'lavoro')
+          : { ...presi.autopilota, stato: 'lavoro' as const }),
         motivoSospensione: undefined,
         decisioni: [
           ...dopoRisposta.decisioni,
           { quando: deps.adesso(), cosa: `risposta dell utente (${risposta.da}): ${risposta.risposta}` }
         ]
       })
-      return { decision: 'block', reason: componiRisposta(decisione.domanda, risposta.risposta) }
+      return {
+        decision: 'block',
+        reason: conPreambolo(presi.testi, componiRisposta(decisione.domanda, risposta.risposta))
+      }
     }
 
     if (decisione.tipo === 'prosegui') {
+      const presi = tuoi(aggiornato)
       const inCerchio: Autopilota = {
-        ...aggiornato,
+        ...presi.autopilota,
         // La strategia in corso non entra nella traccia: la traccia e' cio' su
         // cui si riconosce il cerchio, e cambiarla a ogni strategia azzererebbe
         // il conteggio proprio mentre serve.
@@ -1252,7 +1524,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // strategia sarebbe la raffica di notifiche che nessuno vuole.
         if (decisione.strategia === STRATEGIE[0].nome) void deps.avvisa('stallo', inCerchio)
       }
-      return { decision: 'block', reason: decisione.istruzioni }
+      return { decision: 'block', reason: conPreambolo(presi.testi, decisione.istruzioni) }
     }
 
     if (decisione.tipo === 'sospendi') {
@@ -1263,10 +1535,23 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       return {}
     }
 
+    // I messaggi che aspettavano questa chat non hanno piu' dove andare: si
+    // tolgono e lo si scrive nel diario, cosi' non sembra che siano spariti.
+    const nonConsegnati = aggiornato.daConsegnare.filter((m) => m.chats.includes(chiaveChat))
     const finito: Autopilota = {
       ...aggiornato,
       stato: 'finito',
-      chats: aggiornato.chats.map((c) => ({ ...c, stato: 'finita' as const }))
+      chats: aggiornato.chats.map((c) => ({ ...c, stato: 'finita' as const })),
+      daConsegnare: [],
+      decisioni: nonConsegnati.length === 0
+        ? aggiornato.decisioni
+        : [
+            ...aggiornato.decisioni,
+            {
+              quando: deps.adesso(),
+              cosa: `il lavoro è finito: ${nonConsegnati.length} tuoi messaggi non sono stati consegnati alla chat (${nonConsegnati.map((m) => m.testo.slice(0, 60)).join(' · ')})`
+            }
+          ]
     }
     salva(finito)
     // La scheda si scrive adesso, che il lavoro e' ancora tutto qui e nessuno
@@ -1760,12 +2045,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             return
           }
           if (comando[2] === 'ferma') {
-            deps.fermaLavoro(id)
-            // Le sue domande non hanno più nessuno che attende la risposta: chi
-            // è appeso va liberato, altrimenti l'hook resterebbe fermo fino alla
-            // scadenza per un autopilota che non lavora più.
-            deps.domande.chiudiDi(id)
-            salva({ ...a, stato: 'sospeso', motivoSospensione: 'fermato dall utente' })
+            fermaAutopilota(a, 'fermato dall utente')
           } else if (a.criteri.length === 0) {
             // Un autopilota senza criteri non ha finito di prepararsi: sono i
             // criteri a dirgli quando ha finito, e li produce l'intervista.
@@ -1784,16 +2064,56 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             // Senza togliere il motivo, un autopilota ripreso resta con scritto
             // addosso perche' si era fermato la volta prima, e il pannello - o una
             // notifica - lo raccontano come se fosse successo adesso.
-            const ripreso: Autopilota = { ...a, stato: 'lavoro', motivoSospensione: undefined }
-            salva(ripreso)
-            if (ripreso.chats.length === 0) await avviaLavoro(ripreso)
-            else {
-              for (const chat of ripreso.chats.filter((c) => c.stato !== 'finita')) {
-                await avviaLavoro(ripreso, undefined, chat)
-              }
-            }
+            await riprendiAutopilota(a)
           }
           rispondi(res, 200, deps.archivio.leggi(id))
+          return
+        }
+
+        // **Il dialogo.** Gli scrivi dalla scheda (PC o telefono), lui risponde
+        // con parole sue e, se era un'istruzione, la applica: un cambio, un
+        // compito in piu', «fermati», «riprendi», una risposta alla sua domanda,
+        // un messaggio per la chat che governa — consegnato a fine turno, non
+        // in mezzo a un'azione. Diverso da `/parla`, che traduce e basta.
+        //
+        // **Risponde subito, e pensa dopo.** Il supervisore ci mette minuti, e
+        // chi chiama — il Gestore con un tetto di tre secondi, il telefono con
+        // quindici — non puo' aspettarlo. La tua battuta si scrive nell'archivio
+        // adesso; la sua arriva nello stesso archivio quando e' pronta, e la
+        // scheda (che rilegge ogni due secondi) la mostra da sola.
+        const dialogo = /^\/autopiloti\/([^/]+)\/dialogo$/.exec(percorso)
+        if (metodo === 'POST' && dialogo !== null) {
+          const id = decodeURIComponent(dialogo[1]!)
+          const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
+          if (a === undefined) {
+            rispondi(res, 404, { errore: 'autopilota inesistente' })
+            return
+          }
+          const corpo = await leggiCorpo(req) as Record<string, unknown> | undefined
+          const testo = typeof corpo?.testo === 'string' ? corpo.testo.trim() : ''
+          if (testo === '') {
+            rispondi(res, 400, { errore: 'non hai scritto niente' })
+            return
+          }
+          const quando = deps.adesso()
+          const conTua: Autopilota = {
+            ...a,
+            dialogo: [...a.dialogo, { quando, da: 'tu' as const, testo }].slice(-DIALOGO_RICORDATO)
+          }
+          salva(conTua)
+          rispondi(res, 202, { ricevuto: true, autopilota: conTua })
+          // Un messaggio alla volta per autopilota: due risposte che si
+          // incrociano si contraddirebbero, e la seconda deve vedere la prima.
+          const prima = dialoghiInCorso.get(id) ?? Promise.resolve()
+          const questo = prima
+            .then(() => rispondiAlDialogo(id, testo, quando))
+            .catch((err: unknown) => {
+              console.error(`[autopilota] ${id} — dialogo non concluso:`, err)
+            })
+          dialoghiInCorso.set(id, questo)
+          void questo.finally(() => {
+            if (dialoghiInCorso.get(id) === questo) dialoghiInCorso.delete(id)
+          })
           return
         }
 

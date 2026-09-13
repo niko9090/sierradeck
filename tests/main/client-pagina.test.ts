@@ -552,11 +552,24 @@ describe('capire cosa combina un autopilota', () => {
 
   it('e chiama le decisioni con il loro nome: sta ragionando', () => {
     const v = script.slice(script.indexOf('function vistaAutopilota('))
-    expect(v.slice(0, 3200)).toContain('Sta ragionando')
-    expect(v.slice(0, 3200)).toContain('Finisce quando')
+    expect(v.slice(0, 6000)).toContain('Sta ragionando')
+    expect(v.slice(0, 6000)).toContain('Finisce quando')
     // E senza la sigla interna con cui il servizio marca le proprie decisioni:
     // letta da fuori, «supervisore →» sembra un errore.
-    expect(v.slice(0, 3200)).toContain('senzaSigla')
+    expect(v.slice(0, 6000)).toContain('senzaSigla')
+  })
+
+  it('e ha il dialogo con lui, come la scheda sul PC', () => {
+    // Si scrive **a lui**, non alla sua chat; la risposta compare al giro
+    // dopo, e il dettaglio deve stare nell'impronta o non si ridisegna.
+    const v = script.slice(script.indexOf('function vistaAutopilota('))
+    expect(v.slice(0, 6000)).toContain('Parla con lui')
+    expect(v.slice(0, 6000)).toContain('dialogaAp(this.dataset.ap)')
+    expect(script).toContain("chiedi('/api/autopilota/dialogo'")
+    const impronta = script.slice(script.indexOf('function impronta('), script.indexOf('function segnaScorrimento('))
+    expect(impronta).toContain('apDettaglio')
+    expect(impronta).toContain('notaDialogo')
+    expect(impronta).toContain('driveCatalogo')
   })
 })
 

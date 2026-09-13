@@ -1217,6 +1217,15 @@ export function registerAutopilotaIpc(client: ClientAutopilota): void {
     }
     return client.parla(validaIdAutopilota(id), testo.trim())
   })
+  ipcMain.handle('autopilota:dialoga', (_e, id: unknown, testo: unknown) => {
+    if (typeof testo !== 'string' || testo.trim() === '') {
+      throw new Error('richiesta IPC non valida: non hai scritto niente')
+    }
+    if (testo.length > RISPOSTA_MAX) {
+      throw new Error(`richiesta IPC non valida: messaggio oltre ${RISPOSTA_MAX} caratteri`)
+    }
+    return client.dialoga(validaIdAutopilota(id), testo.trim())
+  })
   ipcMain.handle('autopilota:disfa', (_e, id: unknown) => client.disfa(validaIdAutopilota(id)))
   ipcMain.handle('autopilota:ferma', (_e, id: unknown) => client.ferma(validaIdAutopilota(id)))
   ipcMain.handle('autopilota:riprendi', (_e, id: unknown) => client.riprendi(validaIdAutopilota(id)))

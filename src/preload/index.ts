@@ -9,7 +9,7 @@ import type { StatoWorkspace } from '../main/ipc'
 import type { Utente, EsitoAccesso } from '@shared/account'
 import type { Istantanea } from '@shared/istantanea'
 import type {
-  NuovoAutopilota, DomandaAperta, CambioAutopilota, RispostaParlata
+  NuovoAutopilota, DomandaAperta, CambioAutopilota, RicevutaDialogo, RispostaParlata
 } from '../main/autopilot-client'
 import type { StatoAccesso } from '../main/accesso'
 import type { StatoPreparazione } from '../main/preparazione'
@@ -804,6 +804,9 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Glielo dici a parole: traduce lui in criteri e compiti, e lo applica. */
     parla: (id: string, testo: string): Promise<RispostaParlata> =>
       ipcRenderer.invoke('autopilota:parla', id, testo),
+    /** Gli scrivi: torna subito la ricevuta, la risposta compare nel suo `dialogo`. */
+    dialoga: (id: string, testo: string): Promise<RicevutaDialogo> =>
+      ipcRenderer.invoke('autopilota:dialoga', id, testo),
     /** Rimette com'era prima dell'ultima cosa che gli hai detto. */
     disfa: (id: string): Promise<Autopilota> => ipcRenderer.invoke('autopilota:disfa', id),
     ferma: (id: string): Promise<void> => ipcRenderer.invoke('autopilota:ferma', id),

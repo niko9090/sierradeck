@@ -48,7 +48,14 @@ export function componiPromptDecisione(
   a: Autopilota,
   esiti: EsitoVerifica[],
   ultimoMessaggio: string,
-  inCerchioDa: number
+  inCerchioDa: number,
+  /**
+   * Quello che chi ha affidato il lavoro ha scritto dalla scheda, e che la
+   * chat riceverà insieme alle istruzioni di questo turno. Il supervisore
+   * deve saperlo: un'istruzione che lo contraddice farebbe lavorare la chat
+   * contro chi l'ha chiesta.
+   */
+  messaggiTuoi: string[] = []
 ): string {
   const statoCriteri = a.criteri
     .map((c) => {
@@ -79,6 +86,9 @@ export function componiPromptDecisione(
       ? `\n## Attenzione\nSono ${inCerchioDa} giri che l'esito è identico. Quello che si sta facendo non funziona: cambia strada invece di insistere.`
       : '',
     `\n## Ultimo messaggio della chat\n${ultimoMessaggio.slice(0, MESSAGGIO_MAX)}`,
+    messaggiTuoi.length > 0
+      ? `\n## Chi ha affidato il lavoro ha scritto (la chat lo riceverà davanti alle tue istruzioni)\n${messaggiTuoi.map((m) => `- ${m.slice(0, 600)}`).join('\n')}\nLe tue istruzioni devono tenerne conto, non contraddirlo.`
+      : '',
     '',
     '## Cosa puoi decidere',
     '- `prosegui`: la chat continua. Scrivi istruzioni concrete — cosa fare adesso, non un incoraggiamento.',
@@ -185,11 +195,12 @@ export async function chiediDecisione(
   ultimoMessaggio: string,
   inCerchioDa: number,
   interroga: Interrogazione,
-  sessioneSupervisore: string | undefined
+  sessioneSupervisore: string | undefined,
+  messaggiTuoi: string[] = []
 ): Promise<{ decisione: DecisioneSupervisore | undefined; sessionId?: string }> {
   try {
     const { testo, sessionId } = await interroga(
-      componiPromptDecisione(a, esiti, ultimoMessaggio, inCerchioDa),
+      componiPromptDecisione(a, esiti, ultimoMessaggio, inCerchioDa, messaggiTuoi),
       a.cwd,
       sessioneSupervisore
     )

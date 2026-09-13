@@ -131,6 +131,11 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
     var d by remember(breve.id) { mutableStateOf<AutopilotaDettaglio?>(null) }
     var quadernoAperto by remember { mutableStateOf(false) }
     var eliminando by remember { mutableStateOf(false) }
+    // Il dialogo con lui: cosa stai scrivendo, se lo stai mandando, e cosa
+    // e' andato storto l'ultima volta (un 409 e' un computer da aggiornare).
+    var messaggio by remember(breve.id) { mutableStateOf("") }
+    var mandando by remember(breve.id) { mutableStateOf(false) }
+    var notaDialogo by remember(breve.id) { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(breve.id) {
@@ -210,6 +215,60 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                     Text("• ${dec.cosa}", color = Banco.testoQuieto, fontSize = 13.sp, modifier = Modifier.padding(vertical = 3.dp))
                 }
             }
+
+            // ─── il dialogo con lui ───
+            // Lo stesso della scheda sul PC: si scrive **a lui**, non alla sua
+            // chat, e la risposta compare qui al giro dopo (il dettaglio si
+            // rilegge ogni due secondi) perche' il supervisore ci mette minuti.
+            Spacer(Modifier.height(16.dp))
+            Etichetta("PARLA CON LUI")
+            Text(
+                "Scrivi a lui, non alla sua chat. Risponde con parole sue, con davanti obiettivo, criteri, diario e l’ultima cosa scritta dalla chat. Se è un’istruzione la applica (obiettivo, criteri, un compito in più, «fermati», «riprendi», la risposta a una sua domanda) e la consegna alla chat alla fine del turno che ha in mano, mai in mezzo a un’azione; se è fermo, appena riparte. Non parte nessun lavoro nuovo e non si chiude nessuna chat senza che tu lo chieda.",
+                color = Banco.testoQuieto,
+                fontSize = 12.sp
+            )
+            val battute = det?.dialogo ?: emptyList()
+            for (b in battute.takeLast(8)) Battuta(b, breve.nome)
+            if (battute.lastOrNull()?.da == "tu") {
+                Text(
+                    "● sta pensando alla risposta… di solito entro qualche minuto. Puoi scrivergli altro: risponde in ordine.",
+                    color = Banco.ambra,
+                    fontSize = 12.sp
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            OutlinedTextField(
+                value = messaggio,
+                onValueChange = { messaggio = it },
+                label = { Text("Scrivigli qui") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(6.dp))
+            Button(
+                enabled = messaggio.isNotBlank() && !mandando,
+                shape = MaterialTheme.shapes.small,
+                onClick = {
+                    val testo = messaggio.trim()
+                    mandando = true
+                    scope.launch {
+                        try {
+                            api.dialogaAutopilota(breve.id, testo)
+                            messaggio = ""
+                            notaDialogo = null
+                            try { d = api.autopilota(breve.id) } catch (_: Exception) {}
+                        } catch (e: Api.Errore) {
+                            notaDialogo = if (e.codice == 409)
+                                "Questo computer non sa ancora dialogare con gli autopiloti: aggiornalo."
+                            else "Non sono riuscito a mandarlo (HTTP ${e.codice})."
+                        } catch (e: Exception) {
+                            notaDialogo = "Non sono riuscito a mandarlo: ${e.message ?: "il computer non risponde"}"
+                        }
+                        mandando = false
+                    }
+                }
+            ) { Text(if (mandando) "Mando…" else "Manda") }
+            val nota = notaDialogo
+            if (nota != null) Text(nota, color = Banco.rosso, fontSize = 12.sp)
 
             // ─── riparti al riavvio + quaderno + elimina ───
             Spacer(Modifier.height(20.dp))
@@ -352,6 +411,34 @@ private fun Criterio(c: Criterio) {
 private fun Etichetta(testo: String) {
     Serigrafia(testo)
     Spacer(Modifier.height(4.dp))
+}
+
+/** Una battuta del dialogo: chi, quando, cosa, e cosa ne ha fatto. */
+@Composable
+private fun Battuta(b: ScambioDialogo, nomeSuo: String) {
+    val lui = b.da == "lui"
+    val ora = b.quando.drop(11).take(5)
+    Column(
+        Modifier
+            .fillMaxWidth(0.92f)
+            .padding(vertical = 4.dp)
+            .background(
+                if (lui) Banco.verde.copy(alpha = 0.10f) else Banco.accento.copy(alpha = 0.12f),
+                MaterialTheme.shapes.small
+            )
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Text(
+            (if (lui) nomeSuo.ifBlank { "lui" } else "tu") + " · " + ora,
+            color = Banco.testoQuieto,
+            fontSize = 11.sp
+        )
+        Text(b.testo, color = Banco.testo, fontSize = 13.sp)
+        val esito = b.esito
+        if (!esito.isNullOrBlank() && esito != "nessun cambio") {
+            Text(esito, color = Banco.testoQuieto, fontSize = 11.sp)
+        }
+    }
 }
 
 /** Affida un lavoro nuovo: obiettivo + una cartella conosciuta. */

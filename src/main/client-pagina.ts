@@ -437,6 +437,13 @@ export function paginaClient(): string {
 
   .serigrafia { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--testo-quieto); }
   .voce { font-size: 12px; color: var(--testo-quieto); padding: 4px 0; display: flex; gap: 8px; }
+  /* Il dialogo con l'autopilota: le tue battute a destra, le sue a sinistra,
+     come in ogni conversazione. */
+  .battuta { display: flex; flex-direction: column; gap: 2px; max-width: 92%; margin: 6px 0; padding: 6px 10px; border-radius: 10px; font-size: 13px; color: var(--testo); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .battuta--tu { margin-left: auto; background: color-mix(in srgb, var(--accento) 12%, transparent); }
+  .battuta--lui { margin-right: auto; background: color-mix(in srgb, var(--verde) 10%, transparent); }
+  .battuta__chi, .battuta__esito { font-size: 11px; color: var(--testo-quieto); }
+  .pensa { color: var(--ambra); }
   .voce .quando { font-family: ui-monospace, Consolas, monospace; color: var(--spento); }
 
   /* Il tasto che sta per disfare qualcosa lo dice, per un attimo: il secondo
@@ -494,6 +501,8 @@ var notaScelta = null
 /** L'autopilota che si sta guardando dentro, e tutto quello che si sa di lui. */
 var dentroAp = null
 var apDettaglio = null
+/** Cosa e' successo all'ultimo messaggio mandato all'autopilota, se non e' partito. */
+var notaDialogo = ''
 /** Il pannello aperto in fondo: le conversazioni, i salvataggi, o niente. */
 var pannelloAperto = null
 var sessioniViste = null
@@ -745,7 +754,29 @@ function impronta(s) {
     // Le scelte fanno comparire e sparire dei pulsanti: se non entrano
     // nell'impronta, il riquadro di scelta arriva e la pagina non si ridisegna.
     scelteDentro ? scelteDentro.corrente + ':' + scelteDentro.opzioni.map((o) => o.testo).join('/') : '',
-    notaScelta || ''
+    notaScelta || '',
+    // **Anche cio' che si e' letto apposta.** Il dettaglio di un autopilota,
+    // l'elenco delle cartelle, la coda, il Drive, le preferenze, le schede:
+    // arrivano con una chiamata a parte e non stanno nello stato del PC. Senza
+    // di loro nell'impronta, a computer fermo (nessuna chat che scrive) la
+    // pagina restava com'era: si toccava un autopilota e il suo dettaglio non
+    // compariva, si apriva il Drive e restava «Leggo il Drive…».
+    apDettaglio ? apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.dialogo || []).length : '',
+    notaDialogo || '',
+    cartelle ? cartelle.length : '',
+    codaProgetto || '', codaErrore || '',
+    codaVoci ? codaVoci.map((v) => v.id + v.stato).join(',') : '',
+    driveLeggo, driveVista, driveErrore || '', driveInCorso || '', driveRiavviato,
+    driveProgresso ? driveProgresso.fase + '/' + (driveProgresso.fatto || 0) : '',
+    driveCatalogo ? (driveCatalogo.letto || '') + '/' + (driveCatalogo.progetti || []).length : '',
+    driveLavoro ? JSON.stringify(driveLavoro) : '',
+    JSON.stringify(driveAperti || {}),
+    prefViste ? prefViste.stile + '/' + prefViste.chiarore : '',
+    aggiornamentoVisto ? aggiornamentoVisto.fase + '/' + (aggiornamentoVisto.percento || 0) + '/' + (aggiornamentoVisto.errore || '') : '',
+    consumiVisti ? 'consumi' : '',
+    schedeViste ? schedeViste.length : '',
+    sessioniViste ? sessioniViste.length : '',
+    salvataggiVisti ? salvataggiVisti.length : ''
   ].join('|')
   return chat + '#' + aps + '#' + dom + '#' + ws + '#' + qui
 }
@@ -1509,6 +1540,27 @@ function vistaAutopilota(a) {
     '<div class="voce"><span class="quando">' + esc(String(d.quando || '').slice(11, 16)) + '</span>' +
     esc(senzaSigla(d.cosa)) + '</div>'
   ).join('')
+  // Il dialogo con lui: le ultime battute, chi sta pensando, la casella. Lo
+  // stesso della scheda sul PC: si scrive **a lui**, non alla sua chat, e la
+  // risposta compare qui al giro dopo (il dettaglio si rilegge ogni due
+  // secondi), perche' il supervisore ci mette minuti.
+  const battute = (a.dialogo || []).slice(-8).map((b) =>
+    '<div class="battuta battuta--' + (b.da === 'lui' ? 'lui' : 'tu') + '">' +
+      '<span class="battuta__chi">' + (b.da === 'lui' ? esc(a.nome || 'lui') : 'tu') + ' · ' + esc(String(b.quando || '').slice(11, 16)) + '</span>' +
+      '<span>' + esc(b.testo) + '</span>' +
+      (b.esito && b.esito !== 'nessun cambio' ? '<span class="battuta__esito">' + esc(b.esito) + '</span>' : '') +
+    '</div>'
+  ).join('')
+  const ultimaBattuta = (a.dialogo || [])[(a.dialogo || []).length - 1]
+  const pensa = ultimaBattuta && ultimaBattuta.da === 'tu'
+    ? '<div class="sotto pensa">● sta pensando alla risposta… di solito entro qualche minuto. Puoi scrivergli altro: risponde in ordine.</div>'
+    : ''
+  const dialogo = '<div class="serigrafia" style="margin-top:12px">Parla con lui</div>' +
+    '<div class="sotto">Scrivi a lui, non alla sua chat. Risponde con parole sue, con davanti obiettivo, criteri, diario e l’ultima cosa scritta dalla chat. Se è un’istruzione la applica (obiettivo, criteri, un compito in più, «fermati», «riprendi», la risposta a una sua domanda) e la consegna alla chat alla fine del turno che ha in mano, mai in mezzo a un’azione; se è fermo, appena riparte. Non parte nessun lavoro nuovo e non si chiude nessuna chat senza che tu lo chieda.</div>' +
+    battute + pensa +
+    '<div class="riga"><textarea id="dialogo-' + esc(a.id) + '" rows="2" placeholder="scrivigli qui"></textarea></div>' +
+    '<div class="riga"><button class="primario" data-ap="' + esc(a.id) + '" onclick="dialogaAp(this.dataset.ap)">Manda</button></div>' +
+    (notaDialogo ? '<div class="errore">' + esc(notaDialogo) + '</div>' : '')
   return '<div class="dettaglio">' +
     '<div class="passi">' + passi + '</div>' +
     (qui && qui.nota ? '<div class="sotto nota">' + esc(qui.nota) + '</div>' : '') +
@@ -1517,7 +1569,30 @@ function vistaAutopilota(a) {
     capito +
     (criteri ? '<div class="serigrafia" style="margin-top:10px">Finisce quando</div><ul class="criteri">' + criteri + '</ul>' : '') +
     (decisioni ? '<div class="serigrafia" style="margin-top:10px">Sta ragionando cosi</div>' + decisioni : '') +
+    dialogo +
     '</div>'
+}
+
+/**
+ * Manda una battuta all'autopilota. Il computer risponde subito «ricevuto»;
+ * la risposta di lui arriva nel dettaglio, che si rilegge da solo. Un
+ * computer con una versione precedente risponde 409 e lo si dice.
+ */
+window.dialogaAp = async (id) => {
+  const campo = document.getElementById('dialogo-' + id)
+  const testo = campo ? campo.value.trim() : ''
+  if (!testo) return
+  try {
+    const r = await chiedi('/api/autopilota/dialogo', { autopilota: id, testo: testo })
+    if (r && r.errore) { notaDialogo = r.errore; pannello(ultimoStato); return }
+    notaDialogo = ''
+    if (campo) campo.value = ''
+    await leggiAp()
+    pannello(ultimoStato)
+  } catch (e) {
+    notaDialogo = 'Non sono riuscito a mandarlo: ' + (e && e.message ? e.message : e)
+    pannello(ultimoStato)
+  }
 }
 
 /**

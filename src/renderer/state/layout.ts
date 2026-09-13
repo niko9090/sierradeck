@@ -63,11 +63,12 @@ type State = {
    */
   impostaModello: (id: string, model: string | undefined) => void
   /**
-   * Consegna una chat gia' aperta a un autopilota.
+   * Segna un riquadro come governato da un autopilota.
    *
-   * Chi attiva un autopilota smette di operare lui: la chat che stava
-   * guardando diventa quella dove lavora l'autopilota, invece di restare ferma
-   * accanto a una conversazione nuova aperta apposta.
+   * Fino alla 0.26.0 serviva ad «adottare» una chat gia' aperta, e cosi' il
+   * mandato dell'autopilota e' finito nella chat di Nicholas: da allora un
+   * autopilota apre sempre un riquadro suo (`addPane` con `autopilota`), e
+   * questa resta per chi carica un layout o sposta un riquadro governato.
    */
   assegnaAutopilota: (paneId: string, autopilota: { id: string; chat: string }) => void
   closePane: (id: string) => void

@@ -34,7 +34,6 @@ export function SchedaAutopilota({
   })
   const [compitoNuovo, setCompitoNuovo] = useState('')
   const [messaggio, setMessaggio] = useState('')
-  const [risposta, setRisposta] = useState<{ applicato: boolean; capito: string } | undefined>()
 
   const esegui = (che: () => Promise<unknown>): void => {
     setInCorso(true)
@@ -85,21 +84,28 @@ export function SchedaAutopilota({
     salvaCriteri(criteri)
   }
 
-  const parla = (): void => {
+  /**
+   * Gli scrivi. La ricevuta torna subito; la sua risposta compare nel
+   * dialogo quando il supervisore ha finito di pensare (minuti), e la scheda
+   * la vede da sola perché l'autopilota si rilegge ogni pochi secondi.
+   */
+  const manda = (): void => {
     const testo = messaggio.trim()
     if (testo === '') return
     setInCorso(true)
     setErrore(undefined)
     window.gestore.autopilota
-      .parla(autopilota.id, testo)
-      .then((r) => {
-        setRisposta({ applicato: r.applicato, capito: r.capito })
-        if (r.applicato) setMessaggio('')
+      .dialoga(autopilota.id, testo)
+      .then(() => {
+        setMessaggio('')
         onCambiato()
       })
       .catch((e: unknown) => setErrore(String(e instanceof Error ? e.message : e)))
       .finally(() => setInCorso(false))
   }
+
+  const battute = autopilota.dialogo.slice(-BATTUTE_MOSTRATE)
+  const staPensando = autopilota.dialogo[autopilota.dialogo.length - 1]?.da === 'tu'
 
   const ultima = autopilota.modifiche[autopilota.modifiche.length - 1]
   /**
@@ -296,52 +302,79 @@ export function SchedaAutopilota({
         />
       </div>
 
-      {/* Parlargli. Applica subito — un passaggio in meno vale più di una
-          conferma — e per questo mostra sempre cosa ha capito, e si disfa. */}
+      {/* Il dialogo con lui. Non e' la chat: e' il posto dove gli si parla
+          mentre la chat lavora — lui risponde con parole sue e, se era
+          un'istruzione, la applica e la porta nella chat al momento giusto. */}
       <div className="scheda__parla">
+        <div className="serigrafia scheda__titolo">Parla con lui</div>
+        <p className="scheda__spiega">
+          Qui scrivi all’autopilota, non alla sua chat. Lui risponde con parole sue, con davanti
+          obiettivo, criteri, diario e l’ultima cosa scritta dalla chat. Se quello che scrivi è
+          un’istruzione la applica: cambia obiettivo o criteri, aggiunge un compito, si ferma
+          («fermati»), riparte («riprendi»), risponde a una sua domanda aperta. Se serve che la chat
+          lo sappia, glielo consegna alla fine del turno che ha in mano — mai in mezzo a un’azione —
+          oppure appena riparte, se è fermo. La risposta arriva di solito entro qualche minuto:
+          intanto qui sotto leggi «sta pensando». Un cambio si disfa con «Disfa». Non parte nessun
+          lavoro nuovo e non si chiude nessuna chat senza che tu lo chieda.
+        </p>
+        {battute.length > 0 ? (
+          <div className="scheda__dialogo" aria-live="polite">
+            {battute.map((b, i) => (
+              <div key={`${b.quando}-${i}`} className={`scheda__battuta scheda__battuta--${b.da}`}>
+                <span className="scheda__battuta-chi">
+                  {b.da === 'tu' ? 'tu' : autopilota.nome !== '' ? autopilota.nome : 'lui'} · {orario(b.quando)}
+                </span>
+                <span>{b.testo}</span>
+                {b.esito !== undefined && b.esito !== 'nessun cambio' ? (
+                  <span className="scheda__battuta-esito">{b.esito}</span>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {staPensando ? (
+          <p className="scheda__pensa">● sta pensando alla risposta… di solito entro qualche minuto. Puoi scrivergli altro: risponde in ordine.</p>
+        ) : null}
         <textarea
           className="campo"
           rows={2}
           value={messaggio}
-          placeholder="digli cosa cambiare, a parole"
+          placeholder="scrivigli qui: una domanda, un vincolo, un compito in più, «fermati», «riprendi»…"
           aria-label="scrivi all autopilota"
           onChange={(e) => setMessaggio(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) manda()
+          }}
         />
         <div className="riga">
           <button
             className="tasto tasto--primario"
             disabled={inCorso || messaggio.trim() === ''}
-            onClick={parla}
+            onClick={manda}
+            title="Ctrl+Invio manda"
           >
-            {inCorso ? 'Sto capendo…' : 'Mandaglielo'}
+            {inCorso ? 'Mando…' : 'Manda'}
           </button>
           {ultima !== undefined ? (
             <button
               className="tasto"
               disabled={inCorso}
               title={`Rimette com'era prima di: ${ultima.capito}`}
-              onClick={() => {
-                setRisposta(undefined)
-                esegui(() => window.gestore.autopilota.disfa(autopilota.id))
-              }}
+              onClick={() => esegui(() => window.gestore.autopilota.disfa(autopilota.id))}
             >
               Disfa
             </button>
           ) : null}
         </div>
-        {risposta !== undefined ? (
-          <p className={risposta.applicato ? 'scheda__capito' : 'scheda__capito scheda__capito--fermo'}>
-            {risposta.applicato ? '● ho capito così, e l’ho fatto: ' : '● '}
-            {risposta.capito}
-            {risposta.applicato ? ' — vale dal prossimo intervento.' : ''}
-          </p>
-        ) : null}
       </div>
 
       {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
     </div>
   )
 }
+
+/** Quante battute del dialogo restano a vista: le altre sono nel diario. */
+const BATTUTE_MOSTRATE = 12
 
 /** Solo l'ora: dentro una giornata di lavoro il giorno lo si sa. */
 function orario(iso: string): string {

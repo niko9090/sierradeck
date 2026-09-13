@@ -86,6 +86,41 @@ export type Modifica = {
 /** Oltre queste, le più vecchie si dimenticano: il file non deve crescere per sempre. */
 export const MODIFICHE_RICORDATE = 10
 
+/**
+ * Una battuta del dialogo fra chi ha affidato il lavoro e l'autopilota.
+ *
+ * Non è la chat governata: è la conversazione **con l'autopilota**, quella che
+ * si tiene dalla scheda (PC e telefono) mentre lui lavora. `tu` sono le tue
+ * parole, `lui` la sua risposta, scritta dal supervisore con il contesto del
+ * lavoro. `esito` dice cosa ne ha fatto: applicato un cambio, messo in coda
+ * per la chat, fermato, ripreso, o niente da cambiare.
+ */
+export type ScambioDialogo = {
+  quando: string
+  da: 'tu' | 'lui'
+  testo: string
+  esito?: string
+}
+
+/** Oltre queste battute, le più vecchie si dimenticano: la scheda le mostra, l'archivio non è un log. */
+export const DIALOGO_RICORDATO = 60
+
+/**
+ * Un messaggio tuo da portare dentro la chat governata **al momento giusto**.
+ *
+ * Non si scrive nella chat mentre lavora: si consegna alla fine del turno che
+ * ha in mano, insieme alle istruzioni del supervisore, oppure appena riparte.
+ * `chats` sono le chiavi delle chat che devono ancora riceverlo (l'id della
+ * chat della flotta, o l'id dell'autopilota per la chat singola): quando
+ * l'elenco si svuota il messaggio è stato consegnato a tutte.
+ */
+export type MessaggioPerLaChat = {
+  id: string
+  quando: string
+  testo: string
+  chats: string[]
+}
+
 export type Decisione = { quando: string; cosa: string }
 
 /**
@@ -236,6 +271,15 @@ export type Autopilota = {
   compitiDaFare: string[]
   /** Le ultime modifiche dette a parole, con com'era prima di ognuna. */
   modifiche: Modifica[]
+  /**
+   * Il dialogo con chi gli ha affidato il lavoro, dalla scheda.
+   *
+   * Vuoto per gli autopiloti nati prima della 0.27.0: il parser lo aggiunge
+   * da solo, non serve alzare la versione del file.
+   */
+  dialogo: ScambioDialogo[]
+  /** I tuoi messaggi che aspettano il momento giusto per entrare nella chat. */
+  daConsegnare: MessaggioPerLaChat[]
 }
 
 export function limitiPredefiniti(): Limiti {
@@ -275,7 +319,9 @@ export function nuovoAutopilota(p: {
     tettoChat: normalizzaTetto(p.tettoChat),
     chats: [],
     compitiDaFare: [],
-    modifiche: []
+    modifiche: [],
+    dialogo: [],
+    daConsegnare: []
   }
 }
 
@@ -405,6 +451,32 @@ function parseModifica(raw: unknown): Modifica | undefined {
         : []
     }
   }
+}
+
+function parseScambio(raw: unknown): ScambioDialogo | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const o = raw as Record<string, unknown>
+  const quando = stringaNonVuota(o.quando)
+  const testo = stringaNonVuota(o.testo)
+  if (quando === undefined || testo === undefined) return undefined
+  if (o.da !== 'tu' && o.da !== 'lui') return undefined
+  const esito = stringaNonVuota(o.esito)
+  return { quando, da: o.da, testo, ...(esito !== undefined ? { esito } : {}) }
+}
+
+function parseMessaggioPerLaChat(raw: unknown): MessaggioPerLaChat | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const o = raw as Record<string, unknown>
+  const id = stringaNonVuota(o.id)
+  const quando = stringaNonVuota(o.quando)
+  const testo = stringaNonVuota(o.testo)
+  if (id === undefined || quando === undefined || testo === undefined) return undefined
+  const chats = Array.isArray(o.chats)
+    ? o.chats.filter((c): c is string => typeof c === 'string' && c.trim() !== '')
+    : []
+  // Un messaggio senza nessuno a cui andare è già consegnato: non si tiene.
+  if (chats.length === 0) return undefined
+  return { id, quando, testo, chats }
 }
 
 /**
@@ -579,6 +651,22 @@ export function parseAutopilota(raw: unknown): {
               return modifica !== undefined ? [modifica] : []
             })
             .slice(-MODIFICHE_RICORDATE)
+        : [],
+      // Assenti nei file di prima della 0.27.0: si parte vuoti, senza avviso.
+      // Una battuta illeggibile sparisce da sola: è memoria, non stato.
+      dialogo: Array.isArray(o.dialogo)
+        ? o.dialogo
+            .flatMap((x) => {
+              const scambio = parseScambio(x)
+              return scambio !== undefined ? [scambio] : []
+            })
+            .slice(-DIALOGO_RICORDATO)
+        : [],
+      daConsegnare: Array.isArray(o.daConsegnare)
+        ? o.daConsegnare.flatMap((x) => {
+            const m = parseMessaggioPerLaChat(x)
+            return m !== undefined ? [m] : []
+          })
         : []
     },
     scartati

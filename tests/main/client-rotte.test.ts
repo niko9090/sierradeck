@@ -649,6 +649,33 @@ describe('il via dal telefono', () => {
 })
 
 
+describe('parlare con l autopilota dal telefono', () => {
+  it('passa il testo e risponde subito con la ricevuta', async () => {
+    const mandati: { id: string; testo: string }[] = []
+    const r = await rotteClient(deps({
+      dialogaAutopilota: (id, testo) => { mandati.push({ id, testo }); return Promise.resolve({ ricevuto: true }) }
+    }))({ metodo: 'POST', percorso: '/api/autopilota/dialogo', corpo: { autopilota: 'ap-1', testo: 'dove sei?' } } as never)
+    expect(r?.stato).toBe(200)
+    expect((r?.corpo as { fatto: boolean }).fatto).toBe(true)
+    expect(mandati).toEqual([{ id: 'ap-1', testo: 'dove sei?' }])
+  })
+
+  it('senza testo o autopilota non fa niente', async () => {
+    const r = await rotteClient(deps({ dialogaAutopilota: () => Promise.resolve({ ricevuto: true }) }))(
+      { metodo: 'POST', percorso: '/api/autopilota/dialogo', corpo: { autopilota: 'ap-1' } } as never
+    )
+    expect(r?.stato).toBe(400)
+  })
+
+  it('un computer vecchio lo dice con un 409, come per il Drive', async () => {
+    const r = await rotteClient(deps())(
+      { metodo: 'POST', percorso: '/api/autopilota/dialogo', corpo: { autopilota: 'ap-1', testo: 'ciao' } } as never
+    )
+    expect(r?.stato).toBe(409)
+    expect(String((r?.corpo as { errore: string }).errore)).toContain('aggiornalo')
+  })
+})
+
 describe('la storia di una chat', () => {
   it('da la finestra chiesta, con il totale', async () => {
     const su = deps({

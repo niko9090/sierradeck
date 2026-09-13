@@ -2925,6 +2925,59 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   color: var(--ambra);
 }
 
+/* Il dialogo con l'autopilota (0.27.0). Le tue battute a destra, le sue a
+   sinistra: la stessa forma di ogni conversazione, cosi' non serve leggere
+   l'etichetta per sapere chi parla. Scorre da solo oltre una decina di
+   battute; la storia intera sta nel diario. */
+.scheda__spiega {
+  margin: 0;
+  color: var(--testo-quieto);
+  font-size: var(--t0);
+  line-height: 1.45;
+}
+
+.scheda__dialogo {
+  display: grid;
+  gap: var(--s1);
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.scheda__battuta {
+  display: grid;
+  gap: 2px;
+  max-width: 92%;
+  padding: var(--s1) var(--s2);
+  border-radius: var(--raggio);
+  color: var(--testo);
+  font-size: var(--t1);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.scheda__battuta--tu {
+  justify-self: end;
+  background: color-mix(in srgb, var(--accento) 10%, transparent);
+}
+
+.scheda__battuta--lui {
+  justify-self: start;
+  background: color-mix(in srgb, var(--verde) 8%, transparent);
+}
+
+.scheda__battuta-chi,
+.scheda__battuta-esito {
+  color: var(--testo-quieto);
+  font-size: var(--t0);
+}
+
+.scheda__pensa {
+  margin: 0;
+  color: var(--ambra);
+  font-size: var(--t0);
+}
+
 /* ── Il fuoco da tastiera ──────────────────────────────────────────────────
    Chi lavora con Tab deve sapere dov'e'. I singoli comandi avevano gia' il
    loro contorno, ma tutto il resto — le voci di un elenco, un'intestazione

@@ -50,6 +50,23 @@ describe('completamento', () => {
 })
 
 describe('diario', () => {
+  it('il dialogo con te sta nel diario, al suo posto nel tempo', () => {
+    const a = ap({
+      decisioni: [{ quando: '2026-08-10T10:05:00.000Z', cosa: 'proseguito: i test passano — FAIL x' }],
+      dialogo: [
+        { quando: '2026-08-10T10:06:00.000Z', da: 'tu', testo: 'usa pnpm' },
+        { quando: '2026-08-10T10:07:00.000Z', da: 'lui', testo: 'Va bene, glielo dico.', esito: 'per la chat, a fine turno' },
+        { quando: '2026-08-10T10:08:00.000Z', da: 'lui', testo: 'Sono al secondo criterio.', esito: 'nessun cambio' }
+      ]
+    })
+    const voci = diario(a)
+    expect(voci.map((v) => v.titolo)).toEqual(['Ti ha risposto', 'Ti ha risposto', 'Gli hai scritto', 'Ha ripreso il lavoro'])
+    expect(voci[2]).toMatchObject({ tipo: 'tu', dettaglio: 'usa pnpm' })
+    // L'esito si legge accanto alla risposta, quando dice qualcosa.
+    expect(voci[1]?.dettaglio).toBe('Va bene, glielo dico. (per la chat, a fine turno)')
+    expect(voci[0]?.dettaglio).toBe('Sono al secondo criterio.')
+  })
+
   it('legge una verifica proseguita come cio che manca ancora', () => {
     const a = ap({
       decisioni: [{

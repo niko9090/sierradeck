@@ -6,7 +6,7 @@ import type { Autopilota } from '@shared/autopilota'
 import type { StatoWorkspace } from '../main/ipc'
 import type { Istantanea } from '@shared/istantanea'
 import type {
-  NuovoAutopilota, DomandaAperta, CambioAutopilota, RispostaParlata
+  NuovoAutopilota, DomandaAperta, CambioAutopilota, RicevutaDialogo, RispostaParlata
 } from '../main/autopilot-client'
 import type { StatoAccesso } from '../main/accesso'
 import type { StatoPreparazione } from '../main/preparazione'
@@ -332,6 +332,8 @@ declare global {
         modifica: (id: string, cambio: CambioAutopilota) => Promise<Autopilota>
         /** Glielo dici a parole: traduce lui in criteri e compiti, e lo applica. */
         parla: (id: string, testo: string) => Promise<RispostaParlata>
+        /** Gli scrivi: torna subito la ricevuta, la risposta compare nel suo `dialogo`. */
+        dialoga: (id: string, testo: string) => Promise<RicevutaDialogo>
         /** Rimette com'era prima dell'ultima cosa che gli hai detto. */
         disfa: (id: string) => Promise<Autopilota>
         ferma: (id: string) => Promise<void>

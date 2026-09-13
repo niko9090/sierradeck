@@ -169,6 +169,16 @@ class Api(private val indirizzo: String, private val chiave: String?) {
     suspend fun eliminaAutopilota(id: String): Fatto =
         json.decodeFromString(corpoTesto("/api/autopilota/elimina", oggetto { put("autopilota", id) }))
 
+    /**
+     * Gli scrivi. Il computer risponde subito «ricevuto»: la sua risposta
+     * compare in `AutopilotaDettaglio.dialogo` al giro dopo. Un computer con
+     * una versione precedente risponde 409.
+     */
+    suspend fun dialogaAutopilota(id: String, testo: String): Fatto =
+        json.decodeFromString(corpoTesto("/api/autopilota/dialogo", oggetto {
+            put("autopilota", id); put("testo", testo)
+        }))
+
     suspend fun riavvioAutopilota(id: String, riprendi: Boolean): Fatto =
         json.decodeFromString(corpoTesto("/api/autopilota/riavvio", oggetto {
             put("autopilota", id); put("riprendi", riprendi)

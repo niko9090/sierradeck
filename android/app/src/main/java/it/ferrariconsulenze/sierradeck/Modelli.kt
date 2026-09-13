@@ -191,7 +191,21 @@ data class AutopilotaDettaglio(
     val criteri: List<Criterio> = emptyList(),
     val decisioni: List<Decisione> = emptyList(),
     val passaggi: List<Passo> = emptyList(),
-    val misura: MisuraPasso = MisuraPasso()
+    val misura: MisuraPasso = MisuraPasso(),
+    /**
+     * Il dialogo con lui (0.27.0): le tue battute e le sue risposte, dalla
+     * scheda. Assente nei computer con una versione precedente.
+     */
+    val dialogo: List<ScambioDialogo> = emptyList()
+)
+
+/** Una battuta del dialogo: `da` è "tu" o "lui"; `esito` dice cosa ne ha fatto. */
+@Serializable
+data class ScambioDialogo(
+    val quando: String = "",
+    val da: String = "",
+    val testo: String = "",
+    val esito: String? = null
 )
 
 @Serializable
