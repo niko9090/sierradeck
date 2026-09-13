@@ -197,6 +197,22 @@ export async function salvaIncrementale(deps: {
    * caricato ha la sua voce, nessuna voce promette un blob che non c'e'.
    */
   segnale?: AbortSignal
+  /**
+   * Cosa caricare **al posto** del file com'e' sul disco, per certi percorsi.
+   *
+   * E' nato per l'archivio dei workspace: `sierradeck/workspaces.json` e' un
+   * file solo sul Drive per tutti i PC, e caricarlo tale e quale voleva dire
+   * che ogni salvataggio automatico (ogni cinque minuti, su ogni PC)
+   * cancellava dal Drive i workspace dell'altro PC — «SALVA conflitto su
+   * sierradeck/workspaces.json: vince questo PC», a ogni giro, e la fusione
+   * sull'altro PC non trovava piu' niente da unire. Qui il chiamante puo'
+   * restituire l'**unione** di quello di qui e di quello di la'. Riceve il
+   * manifesto del Drive per leggere la versione di la'; `undefined` = il file
+   * com'e'. Un percorso sostituito non e' mai un conflitto (si fonde, non si
+   * sceglie), e se il Drive ha gia' quel contenuto (stessa impronta) non si
+   * ricarica niente.
+   */
+  sostituto?: (percorso: string, contenuto: Buffer, base: Manifesto) => Promise<Buffer | undefined>
 }): Promise<{ manifesto: Manifesto; caricati: number; cancellati: number; cancellatiPercorsi: string[]; conflitti: Conflitto[]; annullato?: boolean }> {
   const copie = deps.copieDiConflitto ?? PROGETTI
   const pcNome = deps.pcNome ?? 'questo-pc'
@@ -276,6 +292,17 @@ export async function salvaIncrementale(deps: {
     const contenuto = await readFile(f.disco).catch(() => undefined)
     if (contenuto === undefined) { avanza(percorso); return }
     const voceDrive = base.file[percorso]
+    const fuso = deps.sostituto === undefined ? undefined : await deps.sostituto(percorso, contenuto, base).catch(() => undefined)
+    if (fuso !== undefined) {
+      // Gia' cosi' sul Drive: la voce resta quella di la', e non sale niente.
+      if (voceDrive?.sha !== undefined && voceDrive.sha === impronta(fuso)) { nuovo.file[percorso] = voceDrive; avanza(percorso); return }
+      // La voce porta la firma del file di QUI (dimensione e data), non del
+      // fuso: cosi' il prossimo salvataggio, se qui non e' cambiato niente, non
+      // lo rivede come «cambiato» e non rilegge il Drive per niente.
+      await carica(percorso, fuso, f)
+      avanza(percorso)
+      return
+    }
     const altriHannoCambiato = voceDrive !== undefined && !stessaFirma(voceDrive, prec.file[percorso])
     if (!altriHannoCambiato) {
       await carica(percorso, contenuto, f)

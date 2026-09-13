@@ -280,6 +280,31 @@ export function apriSincronia(deps: {
   }
   let catalogoInCorso: ProgressoCatalogo | undefined
   let lettureCatalogo = 0
+  /**
+   * L'archivio dei workspace che sale sul Drive: l'**unione** di quello di
+   * qui e di quello di la', mai la copia di qui.
+   *
+   * Sul Drive c'e' un `sierradeck/workspaces.json` solo per tutti i PC. Fino
+   * alla 0.25.2 ogni salvataggio lo sovrascriveva con l'archivio locale: il
+   * fisso cancellava i workspace del portatile e viceversa, a ogni giro
+   * automatico («SALVA conflitto su sierradeck/workspaces.json: vince questo
+   * PC»), e «Fondi» o «Porta qui il workspace» sull'altro PC non trovavano
+   * piu' niente. Nicholas (2026-09-13): «qui non sono apparse le chat
+   * sincronizzate dal portatile». Qui il file locale resta com'e' (i
+   * workspace di questo PC li decide questo PC); sul Drive vive l'unione, che
+   * e' la memoria lunga da cui ogni PC prende cio' che vuole.
+   */
+  const unioneWorkspace = async (m: Buffer, percorso: string, contenuto: Buffer, base: Manifesto): Promise<Buffer | undefined> => {
+    if (percorso !== 'sierradeck/workspaces.json') return undefined
+    const raw = await leggiJsonDalDrive(deps.archivio(), m, base, percorso)
+    if (raw === undefined) return undefined
+    const drive = parseArchivio(raw).archivio
+    let mioRaw: unknown
+    try { mioRaw = JSON.parse(contenuto.toString('utf8')) } catch { return undefined }
+    const mio = parseArchivio(mioRaw).archivio
+    const fuso = fondiArchivi(mio, drive, 'unione')
+    return fuso === undefined ? undefined : Buffer.from(JSON.stringify(fuso), 'utf8')
+  }
   /** Tutto quello che serve per guardare il Drive: manifesto, workspace, registro, e i file di qui. */
   const leggiQuadro = async (mDrive: Buffer, avanza: (p: Omit<ProgressoCatalogo, 'avviato'>) => void = () => {}): Promise<{
     manifestoDrive: Manifesto; archivioDrive?: ArchivioWorkspace; registroDrive: RegistroProgetti
@@ -599,16 +624,18 @@ export function apriSincronia(deps: {
         // Sincronizzazione **incrementale**: si mandano solo i file cambiati dal
         // manifesto locale. Niente conflitto a versione unica — non c'è più un
         // blocco solo — quindi «Salva ora» semplicemente aggiorna ciò che è nuovo.
+        const m = maestra
         const esito = await salvaIncrementale({
           radici: radici(),
-          maestra,
+          maestra: m,
           pcNome: deps.pcNome?.() ?? 'questo-pc',
           copieDiConflitto: deps.progetti?.eDiProgetto ?? ((): boolean => false),
           archivio: deps.archivio(),
           manifestoPrec: leggiManifestoLocale(),
           adesso: adesso(),
           onProgresso: progressoVerso(l.presa),
-          ...(l.presa !== undefined ? { segnale: l.presa.segnale } : {})
+          ...(l.presa !== undefined ? { segnale: l.presa.segnale } : {}),
+          sostituto: (percorso, contenuto, base) => unioneWorkspace(m, percorso, contenuto, base)
         })
         scriviManifestoLocale(esito.manifesto)
         const totali = Object.keys(esito.manifesto.file).length
@@ -621,12 +648,18 @@ export function apriSincronia(deps: {
           return { ok: true, invariato: true, voci: totali }
         }
         scriviStato({ ...s, ultimoSalvataggio: adesso() })
-        for (const c of esito.conflitti) {
+        // I file dell'assetto (impostazioni, istantanee) sono di ogni PC: che
+        // l'altro li abbia riscritti sul Drive non e' un conflitto da
+        // risolvere, e' la regola. Non fanno numero e non fanno rumore.
+        const veri = esito.conflitti.filter((c) => prefissoDi(c.percorso) !== 'sierradeck')
+        const perPc = esito.conflitti.filter((c) => prefissoDi(c.percorso) === 'sierradeck')
+        for (const c of veri) {
           log(`SALVA conflitto su ${c.percorso}: vince ${c.vinto === 'mio' ? 'questo PC' : 'il Drive'}${c.copia !== undefined ? `, copia in ${c.copia}` : ''}`)
         }
+        if (perPc.length > 0) log(`SALVA: ${perPc.map((c) => c.percorso.slice('sierradeck/'.length)).join(', ')} riscritti da un altro PC: sono file per-PC, sul Drive resta l'ultimo salvato, qui non cambia niente`)
         if (esito.cancellatiPercorsi.length > 0) log(`SALVA rimossi dal Drive (spariti da qui, nei progetti): ${esito.cancellatiPercorsi.slice(0, 20).join(', ')}${esito.cancellatiPercorsi.length > 20 ? ` … e altri ${esito.cancellatiPercorsi.length - 20}` : ''}`)
-        log(`SALVA ok (${esito.caricati} caricati, ${esito.cancellati} rimossi, ${totali} in tutto${esito.conflitti.length > 0 ? `, ${esito.conflitti.length} conflitti` : ''})`)
-        return { ok: true, voci: esito.caricati, ...(esito.conflitti.length > 0 ? { conflitti: esito.conflitti.length } : {}) }
+        log(`SALVA ok (${esito.caricati} caricati, ${esito.cancellati} rimossi, ${totali} in tutto${veri.length > 0 ? `, ${veri.length} conflitti` : ''})`)
+        return { ok: true, voci: esito.caricati, ...(veri.length > 0 ? { conflitti: veri.length } : {}) }
       } catch (e) {
         log(`SALVA fallito: ${messaggioDi(e)}`)
         return { ok: false, messaggio: messaggioDi(e) }
