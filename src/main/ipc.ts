@@ -132,6 +132,16 @@ export function collegaFinestra(win: BrowserWindow, client: PtyHostClient): void
 }
 
 let primaDiAprire: (cwd: string) => void = () => {}
+/**
+ * Dove lavora davvero una chat: la sua cartella se c'e', altrimenti quella
+ * di qui (progetto rimappato o adottato). Lo imposta il Core, che ha il
+ * registro dei progetti; senza, la cartella resta quella chiesta.
+ */
+let risolviCartella: (cwd: string, sessionUuid: string) => string = (cwd) => cwd
+
+export function impostaRisolviCartella(f: (cwd: string, sessionUuid: string) => string): void {
+  risolviCartella = f
+}
 
 /** Chi vuole sapere di ogni chat che sta per aprirsi, con la sua cartella. */
 export function impostaPrimaDiAprire(f: (cwd: string) => void): void {
@@ -212,17 +222,21 @@ export function registerPtyIpc(
     const req = validateSpawnRequest(raw)
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win === null) throw new Error('richiesta di spawn da una finestra sconosciuta')
+    // Una chat nata su un altro PC porta la cartella di la': qui si apre in
+    // quella di qui (vedi `progetti/cartella-di-chat`), e la finestra lo sa.
+    const cwd = risolviCartella(req.cwd, req.sessionUuid)
+    if (cwd !== req.cwd) win.webContents.send('chat:cartellaCambiata', { sessionUuid: req.sessionUuid, da: req.cwd, a: cwd })
     // Se il progetto di questa cartella e' in mano a un altro PC, lo si dice
     // adesso, prima della prima riga: la chat si apre lo stesso, e la scelta —
     // prendere il testimone o continuare a rischio — e' della persona.
-    primaDiAprire(req.cwd)
+    primaDiAprire(cwd)
     const id = randomUUID()
     registro.assegna(id, win.id)
     client.send({
       id,
       kind: 'spawn',
       sessionUuid: req.sessionUuid,
-      cwd: req.cwd,
+      cwd,
       command: resolveClaudeCommand(process.env),
       // Gli hook li compone il Core, dagli identificatori che il renderer ha
       // passato: è ciò che permette all'autopilota di sapere quando la chat ha
@@ -230,13 +244,13 @@ export function registerPtyIpc(
       args: buildClaudeArgs(
         req.sessionUuid,
         req.title,
-        trascrizioneEsiste(req.cwd, req.sessionUuid),
+        trascrizioneEsiste(cwd, req.sessionUuid),
         req.model,
         // Prima gli hook dell'autopilota (se c'è), poi lo scoping del Negozio
         // per questa cartella: `impostazioniPerChat` fonde i due in un solo
         // `--settings`, o restituisce quello che gli passi se non c'è scope.
         impostazioniPerChat(
-          req.cwd,
+          cwd,
           req.autopilota === undefined
             ? undefined
             : componiImpostazioni(req.autopilota.id, portaAutopiloti(), req.autopilota.chat)

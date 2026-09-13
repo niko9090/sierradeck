@@ -80,7 +80,8 @@ import {
 import { creaProgettiSync } from './progetti/sincronia-progetti'
 import { creaRonda } from './progetti/presenza'
 import { progettoDiCwd, staDentro } from './progetti/registro'
-import { impostaPrimaDiAprire } from './ipc'
+import { impostaPrimaDiAprire, impostaRisolviCartella } from './ipc'
+import { risolviCartellaDiChat } from './progetti/cartella-di-chat'
 import { pathToSlug } from './indexer/project-scanner'
 import {
   elencoPlugin, installaPlugin, disinstallaPlugin, commutaPlugin,
@@ -889,7 +890,9 @@ if (!app.requestSingleInstanceLock()) {
 
       // Il lavoro con il Drive: uno alla volta, visto da ogni finestra, annullabile.
 
-      const lavoro = creaLavoro()
+      // Gli eventi verso le finestre si raggruppano (uno ogni 200 ms nella
+      // stessa fase): sei file alla volta ridisegnavano l'App di continuo.
+      const lavoro = creaLavoro(undefined, 200)
 
       lavoro.onCambio((st) => {
 
@@ -989,6 +992,32 @@ if (!app.requestSingleInstanceLock()) {
         return s?.chi === 'altro' ? (s.pcNome ?? 'un altro PC') : undefined
       }
       impostaPrimaDiAprire((cwd) => ronda.primaDiAprire(cwd))
+      // La cartella di una chat che qui non c'e' (nata su un altro PC e
+      // arrivata dal Drive): si decide adesso dove lavora, si crea la
+      // cartella, si ricorda l'origine e si copia la trascrizione sotto il
+      // nuovo slug, o `--resume` ripartirebbe da zero. Qualunque intoppo
+      // lascia la cartella chiesta: meglio l'errore di prima che una chat
+      // che non si apre per un motivo nuovo.
+      impostaRisolviCartella((cwd, sessione) => {
+        try {
+          if (existsSync(cwd)) return cwd
+          const pc = identitaPc.leggi()
+          const r = risolviCartellaDiChat({
+            cwd, registro: registroProgetti.leggi(), pcId: pc.id, cartellaProgetti: pc.cartellaProgetti,
+            esiste: existsSync, adesso: new Date().toISOString()
+          })
+          if (r.registro !== undefined) registroProgetti.scrivi(r.registro)
+          mkdirSync(r.cwd, { recursive: true })
+          const da = join(radiceClaude, 'projects', pathToSlug(cwd), `${sessione}.jsonl`)
+          const a = join(radiceClaude, 'projects', pathToSlug(r.cwd), `${sessione}.jsonl`)
+          if (existsSync(da) && !existsSync(a)) { mkdirSync(dirname(a), { recursive: true }); copyFileSync(da, a) }
+          registro.info(`[progetti] la cartella ${cwd} qui non c'e': la chat ${sessione} lavora in ${r.cwd} (${r.motivo === 'adottata' ? `progetto «${r.nome ?? ''}» adottato, origine ricordata` : `progetto «${r.nome ?? ''}» gia' noto`})`)
+          return r.cwd
+        } catch (err) {
+          registro.errore(`[progetti] cartella di ${cwd} non risolta: ${String(err)}`)
+          return cwd
+        }
+      })
       const timerRonda = setInterval(() => { void ronda.giro() }, 30_000)
       timerRonda.unref?.()
       const primaRonda = setTimeout(() => { void ronda.giro() }, 15_000)

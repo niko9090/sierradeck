@@ -1,4 +1,4 @@
-import type { LavoroInCorso } from '../main/cassaforte/lavoro-in-corso'
+import type { StatoLavoro, LavoroInCorso } from '../main/cassaforte/lavoro-in-corso'
 /**
  * Come si racconta il progresso di un salvataggio o di un ripristino.
  *
@@ -121,4 +121,16 @@ export function passiDelLavoro(l: LavoroInCorso): PassoLavoro[] {
     { nome: 'Trasferimento', spiegazione: t2, stato: !inTrasferimento ? 'dopo' : finito ? 'fatto' : 'corso' },
     { nome: 'Chiusura', spiegazione: t3, stato: finito ? 'corso' : 'dopo' }
   ]
+}
+
+/**
+ * Lo stato del lavoro visto dall'App: cambia solo quando un lavoro comincia,
+ * finisce, cambia tipo o lascia un esito nuovo. Il progresso file per file
+ * lo segue la striscia da sola (`StrisciaLavoroDrive`): ridisegnare tutta
+ * l'App a ogni file e' quello che la bloccava.
+ */
+export function soloTransizioni(prima: StatoLavoro, dopo: StatoLavoro): StatoLavoro {
+  const stessoInCorso = (prima.inCorso === undefined) === (dopo.inCorso === undefined) && prima.inCorso?.tipo === dopo.inCorso?.tipo
+  const stessoEsito = prima.ultimo?.quando === dopo.ultimo?.quando
+  return stessoInCorso && stessoEsito ? prima : dopo
 }

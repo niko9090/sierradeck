@@ -45,10 +45,9 @@ import { utenteCorrente, suCambioAccesso } from './accesso-supabase'
 import { Serratura } from './components/Serratura'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
 import { righeDiPty, finestraDiPty } from './schermo-terminale'
-import { ETICHETTA_LAVORO_TIPO } from './progresso-sync'
-import { AvanzamentoLavoro } from './components/AvanzamentoLavoro'
+import { ETICHETTA_LAVORO_TIPO, soloTransizioni } from './progresso-sync'
+import { StrisciaLavoroDrive } from './components/StrisciaLavoroDrive'
 import { PannelloDrive } from './components/PannelloDrive'
-import { createPortal } from 'react-dom'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 
 /**
@@ -591,10 +590,12 @@ export function App(): React.JSX.Element {
   // adesso» partiva e non si vedeva niente da nessuna parte.
   const [lavoroDrive, setLavoroDrive] = useState<StatoLavoro>({})
   const [esitoLavoroVisto, setEsitoLavoroVisto] = useState<string | undefined>(undefined)
-  const [dettagliLavoro, setDettagliLavoro] = useState(false)
+  // Solo le transizioni: il progresso file per file lo segue la striscia da
+  // sola. Ridisegnare tutta l'App a ogni file (e ogni secondo per l'orologio)
+  // era quello che la bloccava durante una fusione.
   useEffect(() => {
     void window.gestore.sync.lavoro().then(setLavoroDrive).catch(() => undefined)
-    return window.gestore.sync.onLavoro(setLavoroDrive)
+    return window.gestore.sync.onLavoro((s) => setLavoroDrive((prima) => soloTransizioni(prima, s)))
   }, [])
   // Il riavvio dopo un lavoro che ha portato qui chat o workspace: come per
   // un aggiornamento, un conto alla rovescia con «Riavvia ora» e «Piu' tardi».
@@ -618,13 +619,6 @@ export function App(): React.JSX.Element {
     const t = setTimeout(() => setRiavvioFra((n) => (n === undefined ? undefined : n - 1)), 1000)
     return () => clearTimeout(t)
   }, [riavvioFra])
-  // L'orologio del quadro, acceso solo mentre c'e' un lavoro.
-  const [adessoLavoro, setAdessoLavoro] = useState(Date.now())
-  useEffect(() => {
-    if (lavoroDrive.inCorso === undefined) return
-    const t = setInterval(() => setAdessoLavoro(Date.now()), 1000)
-    return () => clearInterval(t)
-  }, [lavoroDrive.inCorso !== undefined])
   // Se gli aggiornamenti si scaricano da soli: quando sì, il tasto «Scarica»
   // non serve — lo scaricamento è già partito — e sparisce. Si legge dalle
   // preferenze e si tiene allineato ai cambi, come i colori.
@@ -1115,15 +1109,7 @@ export function App(): React.JSX.Element {
         </div>
       ) : null}
       {lavoroDrive.inCorso !== undefined ? (
-        <div className="avviso avviso--aggiornamento">
-          <AvanzamentoLavoro
-            lavoro={lavoroDrive.inCorso}
-            adesso={adessoLavoro}
-            compatto
-            onDettagli={() => setDettagliLavoro(true)}
-            onAnnulla={() => void window.gestore.sync.annullaLavoro()}
-          />
-        </div>
+        <StrisciaLavoroDrive iniziale={lavoroDrive.inCorso} />
       ) : lavoroDrive.ultimo !== undefined && esitoLavoroVisto !== lavoroDrive.ultimo.quando && lavoroDrive.ultimo.tipo !== 'salvataggio' ? (
         <div className="avviso avviso--aggiornamento">
           <span className={`led ${lavoroDrive.ultimo.esito === 'errore' ? 'led--fermo' : lavoroDrive.ultimo.esito === 'annullato' ? 'led--attesa' : 'led--lavoro'}`} />
@@ -1187,20 +1173,6 @@ export function App(): React.JSX.Element {
             ×
           </button>
         </div>
-      ) : null}
-
-      {dettagliLavoro && lavoroDrive.inCorso !== undefined ? createPortal(
-        <div className="velo" onMouseDown={(e) => { if (e.target === e.currentTarget) setDettagliLavoro(false) }}>
-          <div className="dialogo dialogo--medio" onMouseDown={(e) => e.stopPropagation()}>
-            <div className="dialogo__testa">
-              <span className="serigrafia">Lavoro con il Drive</span>
-              <span style={{ flex: 1 }} />
-              <button className="tasto" onClick={() => setDettagliLavoro(false)}>Chiudi</button>
-            </div>
-            <AvanzamentoLavoro lavoro={lavoroDrive.inCorso} adesso={adessoLavoro} onAnnulla={() => void window.gestore.sync.annullaLavoro()} />
-          </div>
-        </div>,
-        document.body
       ) : null}
 
       <BandaAvvisi

@@ -84,7 +84,12 @@ export type Lavoro = {
   occupato: () => boolean
 }
 
-export function creaLavoro(adesso: () => string = () => new Date().toISOString()): Lavoro {
+/**
+ * @param coalescenzaMs Nella stessa fase, un annuncio al massimo ogni tanti
+ *   ms (l'ultimo stato vince); inizio, fine, annullamento e cambio di fase
+ *   passano subito. Zero = ogni aggiornamento passa (le prove).
+ */
+export function creaLavoro(adesso: () => string = () => new Date().toISOString(), coalescenzaMs = 0): Lavoro {
   let inCorso: LavoroInCorso | undefined
   let ultimo: EsitoLavoro | undefined
   let controllo: AbortController | undefined
@@ -94,11 +99,24 @@ export function creaLavoro(adesso: () => string = () => new Date().toISOString()
     ...(inCorso !== undefined ? { inCorso: { ...inCorso } } : {}),
     ...(ultimo !== undefined ? { ultimo: { ...ultimo } } : {})
   })
+  let pendente: ReturnType<typeof setTimeout> | undefined
+  let ultimoAnnuncio = 0
   const annuncia = (): void => {
+    if (pendente !== undefined) { clearTimeout(pendente); pendente = undefined }
+    ultimoAnnuncio = Date.now()
     const s = stato()
     for (const cb of ascoltatori) {
       try { cb(s) } catch { /* un ascoltatore rotto non ferma gli altri */ }
     }
+  }
+  /** Come `annuncia`, ma non prima di `coalescenzaMs` dall'ultimo: l'ultimo stato vince. */
+  const annunciaForse = (): void => {
+    if (coalescenzaMs <= 0) { annuncia(); return }
+    if (pendente !== undefined) return
+    const resto = coalescenzaMs - (Date.now() - ultimoAnnuncio)
+    if (resto <= 0) { annuncia(); return }
+    pendente = setTimeout(() => { pendente = undefined; annuncia() }, resto)
+    pendente.unref?.()
   }
 
   return {
@@ -118,8 +136,9 @@ export function creaLavoro(adesso: () => string = () => new Date().toISOString()
         segnale: mio.signal,
         aggiorna: (p) => {
           if (inCorso === undefined || controllo !== mio) return
+          const cambioFase = p.fase !== undefined && p.fase !== inCorso.fase
           inCorso = { ...inCorso, ...p }
-          annuncia()
+          if (cambioFase) annuncia(); else annunciaForse()
         },
         fine: (esito, messaggio, riavvioConsigliato) => {
           if (controllo !== mio) return
