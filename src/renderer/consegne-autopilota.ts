@@ -25,8 +25,8 @@ export type Consegna = {
   testo: string
   /**
    * Il workspace in cui questo lavoro deve stare, quando l'autopilota lo ha
-   * deciso. La finestra ci è già andata prima di consegnare: qui serve a non
-   * adottare una chat che sta da un'altra parte, se quel viaggio è fallito.
+   * deciso. La finestra ci va **prima** di consegnare (App.tsx): qui viaggia
+   * soltanto, perché chi apre il riquadro non lo guarda più.
    */
   workspace?: string
 }
@@ -42,39 +42,6 @@ export type Ponte = {
    * messaggio che resta nel campo.
    */
   prontoARicevere: (ptyId: string) => boolean
-  /**
-   * Una chat già aperta su quella cartella, che l'autopilota può prendersi.
-   *
-   * Libera vuol dire: non governata da un altro autopilota. Quella di un
-   * collega non si tocca — due padroni che scrivono nella stessa conversazione
-   * si darebbero ordini a vicenda.
-   *
-   * `workspace` è dove l'autopilota vuole lavorare, quando lo ha deciso. Il
-   * criterio era la cartella e basta: due chat sulla stessa cartella in due
-   * workspace diversi erano indistinguibili, e veniva presa quella che avevi
-   * davanti — cioè una conversazione tua, in un altro posto, con il suo
-   * terminale fatto rinascere sotto i tuoi occhi.
-   */
-  adottabile: (
-    cwd: string,
-    autopilotaId: string,
-    workspace?: string
-  ) => { paneId: string; ptyId?: string } | undefined
-  /**
-   * Prende una chat aperta e la fa diventare **sua**.
-   *
-   * Non basta segnarla: l'hook che dice all'autopilota «ho finito di
-   * rispondere» si attacca quando il terminale nasce, e una chat già aperta non
-   * ce l'ha. Senza, il compito arriva, la chat lavora, e l'autopilota resta a
-   * zero cicli aspettando un segnale che non arriverà mai — fermo per sempre,
-   * con l'aria di stare lavorando.
-   *
-   * Quindi il terminale rinasce, con i suoi hook e la sua conversazione: quella
-   * è su disco e si riprende, non si perde niente.
-   */
-  adotta: (paneId: string, c: Consegna) => void
-  /** Il terminale di un riquadro, quando è nato. */
-  terminaleDi: (paneId: string) => string | undefined
 }
 
 /**
@@ -129,15 +96,6 @@ export const TENTATIVI_INVIO = 3
 export const RIPROVA_MS = 400
 
 /**
- * Quanto passa fra lo spegnere il terminale di una chat adottata e il riaccenderlo.
- *
- * Deve starci in mezzo un disegno dell'interfaccia: è così che il riquadro si
- * accorge di non avere più un terminale e ne fa uno nuovo, con gli agganci
- * dell'autopilota.
- */
-const RISVEGLIO_MS = 60
-
-/**
  * Oltre questo, la chat non nascerà più.
  *
  * Un autopilota che aspetta in silenzio è il difetto peggiore: meglio dirlo
@@ -167,54 +125,21 @@ export function eseguiConsegna(
   }
 
   // Il riquadro c'è ma il terminale non è ancora nato — è il caso del riquadro
-  // appena aperto — oppure non c'è affatto: allora, prima di aprirne uno, si
-  // guarda se una chat su quella cartella c'è già.
+  // appena aperto — oppure non c'è affatto: allora se ne apre uno **suo**.
   //
-  // **Chi attiva un autopilota smette di operare lui**: quella chat è sua. Una
-  // conversazione nuova aperta accanto lascerebbe due cose da seguire per un
-  // lavoro solo, e quella che si stava guardando ferma.
-  if (gia === undefined) {
-    const ospite = ponte.adottabile(c.cwd, c.autopilotaId, c.workspace)
-    if (ospite !== undefined) {
-      ponte.adotta(ospite.paneId, c)
-      // **Sempre l'attesa**, mai il terminale che c'era: adottare lo fa
-      // rinascere con i suoi hook, e quello di prima e' gia' morto. Scriverci
-      // dentro vorrebbe dire mandare il compito a un processo che non c'e'.
-      attendiInQuesto(ospite.paneId, c, ponte, dopo, 0)
-      return
-    }
-    ponte.apri(c)
-  }
+  // **Mai la chat di qualcun altro.** Fino alla 0.26.0 qui si «adottava» una
+  // chat già aperta sulla stessa cartella e nello stesso workspace: si
+  // uccideva il suo terminale, lo si faceva rinascere con gli hook
+  // dell'autopilota e il compito entrava in **quella** conversazione. Il 13
+  // settembre 2026 il primo mandato dell'autopilota è finito così dentro la
+  // chat che Nicholas stava usando in quella cartella (sessione ffea9ea8-…):
+  // la sua storia in mano all'autopilota, il suo terminale rinato sotto gli
+  // occhi, e la sessione che il servizio aveva deciso buttata via al primo
+  // hook. Un autopilota apre sempre una chat sua, nuova, con la sessione
+  // decisa dal servizio, nel workspace da cui è stato avviato: chi vuole
+  // seguirlo la guarda, chi vuole parlargli usa la scheda.
+  if (gia === undefined) ponte.apri(c)
   attendiEConsegna(c, ponte, dopo, 0)
-}
-
-/**
- * Aspetta che **quel** riquadro sia pronto, e ci consegna.
- *
- * Serve alla chat adottata: la si conosce per riquadro, non per sessione — la
- * sua conversazione è quella che aveva già, e sarà il primo hook a dire al
- * servizio come si chiama.
- */
-function attendiInQuesto(
-  paneId: string,
-  c: Consegna,
-  ponte: Ponte,
-  dopo: (ms: number, cosa: () => void) => void,
-  aspettato: number
-): void {
-  dopo(RIPROVA_MS, () => {
-    const ora = ponte.terminaleDi(paneId)
-    const passato = aspettato + RIPROVA_MS
-    if (ora !== undefined && ponte.prontoARicevere(ora)) {
-      scriviEInvia(ora, c.testo, ponte, dopo)
-      return
-    }
-    if (passato >= RESA_MS) {
-      console.error(`[autopilota] la chat ${c.chatId} non è pronta: istruzione non consegnata`)
-      return
-    }
-    attendiInQuesto(paneId, c, ponte, dopo, passato)
-  })
 }
 
 /**
@@ -356,18 +281,7 @@ function premiInvio(
  * a riceverlo — perché sapere *se* si può scrivere è cosa si legge dal
  * terminale, non cosa si deduce dall'orologio.
  */
-export function ponteReale(
-  prontezza: (ptyId: string) => boolean,
-  /**
-   * Il workspace che questa finestra sta mostrando adesso.
-   *
-   * Si chiede al momento dell'uso e non si passa per valore: fra il ritiro di
-   * una consegna e la sua esecuzione la finestra cambia workspace — è
-   * esattamente quello che fa per andare dove l'autopilota vuole — e un nome
-   * fotografato prima sarebbe già vecchio.
-   */
-  workspaceAttivo: () => string
-): Ponte {
+export function ponteReale(prontezza: (ptyId: string) => boolean): Ponte {
   return {
     prontoARicevere: prontezza,
     riquadroDi: (sessionId) => {
@@ -376,53 +290,10 @@ export function ponteReale(
       if (trovato === undefined) return undefined
       return { paneId: trovato.id, ...(trovato.ptyId !== undefined ? { ptyId: trovato.ptyId } : {}) }
     },
-    terminaleDi: (paneId) => useLayoutStore.getState().panes[paneId]?.ptyId,
 
-    // Una chat gia' aperta su quella cartella, se non e' di un altro
-    // autopilota. Il primo per identificativo: l'ordine non cambia mentre si
-    // guarda, e con una chat sola - il caso normale - e' quella.
-    //
-    // **Ma solo se siamo dove il lavoro deve stare.** Lo store contiene i
-    // riquadri del workspace che questa finestra sta mostrando: se il viaggio
-    // verso il workspace dell'autopilota non e' riuscito, quelle chat sono di
-    // un altro posto. Adottarne una vorrebbe dire prendersi una conversazione
-    // tua, in un workspace che l'autopilota non ha mai chiesto, e farle
-    // rinascere il terminale sotto gli occhi.
-    adottabile: (cwd, autopilotaId, workspace) => {
-      if (workspace !== undefined && workspace !== workspaceAttivo()) {
-        console.warn(
-          `[autopilota] non sono in ${workspace}: non adotto nessuna chat di ${workspaceAttivo()}`
-        )
-        return undefined
-      }
-      const riquadri = Object.values(useLayoutStore.getState().panes)
-        .filter((p) => p.cwd === cwd)
-        .filter((p) => p.autopilota === undefined || p.autopilota.id === autopilotaId)
-        .sort((a, b) => a.id.localeCompare(b.id))
-      const scelto = riquadri[0]
-      if (scelto === undefined) return undefined
-      return { paneId: scelto.id, ...(scelto.ptyId !== undefined ? { ptyId: scelto.ptyId } : {}) }
-    },
-
-    adotta: (paneId, c) => {
-      const stato = useLayoutStore.getState()
-      stato.assegnaAutopilota(paneId, { id: c.autopilotaId, chat: c.chatId })
-      // E poi la si fa rinascere: il terminale riparte con gli hook
-      // dell'autopilota e riprende la sua conversazione da dove stava. Senza
-      // questo, il compito arriverebbe in una chat che non ha modo di dire
-      // «ho finito» — ed e' esattamente cosi' che due autopiloti sono rimasti
-      // a zero cicli per un pomeriggio.
-      const vecchio = stato.iberna(paneId)
-      if (vecchio !== undefined) window.gestore.pty.kill(vecchio)
-      // **Il risveglio al giro dopo, non adesso.** Fra i due deve passare un
-      // disegno: il riquadro rifa' il suo terminale quando lo vede sparire, e
-      // se sparizione e ritorno avvengono nello stesso istante non se ne
-      // accorge — resta li' con un terminale morto, e il compito finisce in un
-      // processo che non c'e' piu'. E' successo davvero: «terminale
-      // inesistente: 10965 caratteri non consegnati».
-      setTimeout(() => { useLayoutStore.getState().sveglia(paneId) }, RISVEGLIO_MS)
-    },
-
+    // Sempre un riquadro suo, con la sessione decisa dal servizio: e' cio'
+    // che gli permette di scrivere in **quella** conversazione anche dopo un
+    // riavvio, e cio' che impedisce che la conversazione sia di qualcun altro.
     apri: (c) =>
       useLayoutStore.getState().addPane(c.cwd, c.titolo, undefined, {
         // La sessione la decide l'autopilota: è ciò che gli permette di

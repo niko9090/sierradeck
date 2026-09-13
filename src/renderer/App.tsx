@@ -349,7 +349,7 @@ export function App(): React.JSX.Element {
       // messaggio scritto mentre Claude Code si sta ancora disegnando resta nel
       // campo, e la chat non parte.
       const porta = (): void => {
-        eseguiConsegna(c, ponteReale(aspettaOra, workspaceCorrente))
+        eseguiConsegna(c, ponteReale(aspettaOra))
       }
       // **Prima si va dove la chat vive.** La sua conversazione puo' essere
       // salvata in un altro workspace: consegnare qui aprirebbe una seconda
@@ -472,7 +472,7 @@ export function App(): React.JSX.Element {
   // decisione, e chi interrompe ha il dovere di far ripartire. Si aspetta che
   // il terminale ascolti, perche' in questo istante sta ancora nascendo.
   useEffect(() => window.gestore.client.suRipresaChat(({ sessione, testo }) => {
-    scriviQuandoPronta(sessione, testo, ponteReale(aspettaOra, workspaceCorrente))
+    scriviQuandoPronta(sessione, testo, ponteReale(aspettaOra))
   }), [])
 
   useEffect(() => window.gestore.client.suScrittura(({ chat, testo }) => {
