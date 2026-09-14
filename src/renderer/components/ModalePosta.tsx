@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
-import type { BattitoPc, VocePosta } from '../../main/progetti/posta'
+import type { BattitoPc, VocePosta } from '@shared/posta'
 
 type Props = {
   pc: BattitoPc

@@ -11,7 +11,7 @@ import { ModaleConferma } from './ModaleConferma'
 import { ModaleFusione } from './ModaleFusione'
 import { ModaleCoda } from './ModaleCoda'
 import { ModalePosta } from './ModalePosta'
-import { pcVivo, type BattitoPc } from '../../main/progetti/posta'
+import { pcVivo, type BattitoPc } from '@shared/posta'
 
 type StatoDrive = { configurato: boolean; connesso: boolean; email?: string }
 type ElencoProgetti = {
