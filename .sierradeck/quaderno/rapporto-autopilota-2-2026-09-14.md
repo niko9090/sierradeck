@@ -443,3 +443,22 @@ segna «fallita» se la cartella là non esiste. Si scrive dal pannello Account
 `/api/pc`, `/api/posta*`. Test: `progetti-posta.test.ts` (10), rotte,
 pagina. Limiti nella scheda: il risultato si legge dalla chat di quel PC,
 non nella voce.
+
+# 8. Pubblicazione della 0.27.0 (14 settembre, pomeriggio)
+
+Nicholas: «pubblica tutto senza chiedere». Fatto tutto quello che non
+dipende da GitHub: `package.json` 0.27.0, app Android 2.30.0 (versionCode
+63), APK compilato e firmato (`CN=Nicholas Ferrari, O=Ferrari Consulenze`),
+installer `SierraDeck Setup 0.27.0.exe` costruito e firmato in `dist/`,
+`latest.yml` nuovo, `app-android.json` che punta a `v0.27.0/SierraDeck-2.30.0.apk`,
+note di rilascio dalle otto righe di `novita.ts`. Commit `c48e777`.
+
+Un intoppo trovato e chiuso prima della release: l'installer non si
+costruiva (vedi `renderer-non-importa-da-main.md`).
+
+**Bloccato dalla credenziale**: il token di `gh` su questo PC è scaduto
+(«The token in default is invalid»), il Credential Manager non ha nulla e
+non c'è `GH_TOKEN`. Senza, né push né release. Lo script pronto è nello
+scratchpad della chat (`pubblica-0.27.0.sh`): con `GH_TOKEN` valido fa
+push, release `v0.27.0` con i cinque allegati, ritenta l'exe se la rete lo
+tronca, e verifica `releases/latest`.
