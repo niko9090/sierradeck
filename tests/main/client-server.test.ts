@@ -77,6 +77,21 @@ describe('chi puo entrare', () => {
   })
 })
 
+describe('i rifiuti si raccontano', () => {
+  it('una chiave sconosciuta finisce nel registro, una volta per indirizzo', async () => {
+    // Quando il telefono «non funziona», dal registro del PC si deve poter
+    // dire se bussava e veniva respinto: prima andava solo in console.
+    const righe: string[] = []
+    const dispositivi = apriDispositivi(mkdtempSync(join(tmpdir(), 'sd-cs-log-')))
+    server = creaServerClient({ dispositivi, rotta: () => ({ stato: 200, corpo: {} }), log: (m) => { righe.push(m) } })
+    await ascolta(server)
+    await chiama(server, '/api/stato', { chiave: 'sbagliata' })
+    await chiama(server, '/api/stato', { chiave: 'sbagliata' })
+    expect(righe.filter((r) => r.includes('non riconosco'))).toHaveLength(1)
+    expect(righe[0]).toContain('accoppiato di nuovo')
+  })
+})
+
 describe('la chiave, dove viaggia', () => {
   it('si legge dall intestazione dedicata', () => {
     expect(chiaveDa({ 'x-sierradeck-chiave': ' abc ' })).toBe('abc')

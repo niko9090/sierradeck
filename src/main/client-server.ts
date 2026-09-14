@@ -42,7 +42,16 @@ export type DipendenzeClient = {
   rotta: Rotta
   /** Le rotte che si possono chiamare **senza** chiave: solo quelle dell'ingresso. */
   rottaLibera?: Rotta
+  /**
+   * Dove raccontare i rifiuti (rete, chiave). Fino alla 0.26.0 andavano solo
+   * in console: quando il telefono «non funziona», dal registro del PC non si
+   * poteva dire se bussava e veniva respinto o se non arrivava affatto.
+   * Una riga per indirizzo ogni dieci minuti, non una per richiesta.
+   */
+  log?: (messaggio: string) => void
 }
+
+const RACCONTA_OGNI_MS = 10 * 60_000
 
 /**
  * Le rotte aperte: l'ingresso, e la pagina che lo mostra.
@@ -80,8 +89,16 @@ export function chiaveDa(intestazioni: Record<string, string | string[] | undefi
 }
 
 export function creaServerClient(deps: DipendenzeClient): Server {
+  const raccontati = new Map<string, number>()
+  const racconta = (chiave: string, messaggio: string): void => {
+    const ora = Date.now()
+    const prima = raccontati.get(chiave) ?? 0
+    if (ora - prima < RACCONTA_OGNI_MS) return
+    raccontati.set(chiave, ora)
+    try { deps.log?.(`[client] ${messaggio}`) } catch { /* il registro non ferma il server */ }
+  }
   return createServer((req, res) => {
-    void gestisci(req, res, deps).catch((err: unknown) => {
+    void gestisci(req, res, deps, racconta).catch((err: unknown) => {
       console.error('[client] richiesta non gestita:', err)
       if (!res.headersSent) rispondi(res, { stato: 500, corpo: { errore: 'guasto interno' } })
     })
@@ -101,12 +118,16 @@ function rispondi(res: ServerResponse, esito: Esito): void {
   res.end(corpo)
 }
 
-async function gestisci(req: IncomingMessage, res: ServerResponse, deps: DipendenzeClient): Promise<void> {
+async function gestisci(
+  req: IncomingMessage, res: ServerResponse, deps: DipendenzeClient,
+  racconta: (chiave: string, messaggio: string) => void = () => {}
+): Promise<void> {
   const indirizzo = req.socket.remoteAddress ?? ''
   // Primo muro, prima di leggere qualunque cosa: una richiesta da fuori non
   // merita nemmeno la fatica di interpretarla.
   if (!daReteLocale(indirizzo) && deps.oltreLaRete?.() !== true) {
     console.warn(`[client] richiesta da fuori la rete locale, rifiutata: ${indirizzo}`)
+    racconta(`rete:${indirizzo}`, `richiesta da fuori la rete locale, rifiutata: ${indirizzo} (per accettarla: Impostazioni → «accetta anche da fuori la rete locale»)`)
     rispondi(res, { stato: 403, corpo: { errore: 'solo dalla rete locale' } })
     return
   }
@@ -123,9 +144,11 @@ async function gestisci(req: IncomingMessage, res: ServerResponse, deps: Dipende
   // Secondo muro: la chiave di un dispositivo che si è presentato una volta.
   const dispositivo = deps.dispositivi.riconosci(chiaveDa(req.headers))
   if (dispositivo === undefined) {
+    racconta(`chiave:${indirizzo}`, `${indirizzo} bussa con una chiave che non riconosco (${chiaveDa(req.headers) === '' ? 'nessuna chiave' : 'chiave sbagliata o revocata'}) su ${percorso}: il dispositivo va accoppiato di nuovo (Impostazioni → Client)`)
     rispondi(res, { stato: 401, corpo: { errore: 'dispositivo non riconosciuto' } })
     return
   }
+  racconta(`ok:${indirizzo}`, `${dispositivo.nome ?? dispositivo.id} (${indirizzo}) collegato`)
 
   rispondi(res, await deps.rotta({ metodo, percorso, corpo, dispositivo: dispositivo.id }))
 }
