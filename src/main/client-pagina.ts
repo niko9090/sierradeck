@@ -511,6 +511,11 @@ var salvataggiVisti = null
 var codaProgetto = null
 var codaVoci = null
 var codaErrore = ''
+/** Gli altri PC sul Drive, e la cassetta di quello aperto. */
+var pcVisti = null
+var pcAperto = null
+var postaVoci = null
+var postaErrore = ''
 /** Il Drive: il catalogo letto dal computer, la vista, il lavoro in corso. */
 var driveCatalogo = null
 var driveVista = 'progetti'
@@ -796,6 +801,8 @@ function impronta(s) {
     notaDialogo || '', notaGlobale || '',
     cartelle ? cartelle.length : '',
     codaProgetto || '', codaErrore || '',
+    pcVisti ? pcVisti.map((b) => b.pcId + b.vivo + b.battito).join(',') : '', pcAperto || '', postaErrore || '',
+    postaVoci ? postaVoci.map((v) => v.id + v.stato).join(',') : '',
     codaVoci ? codaVoci.map((v) => v.id + v.stato).join(',') : '',
     driveLeggo, driveVista, driveErrore || '', driveInCorso || '', driveRiavviato,
     driveProgresso ? driveProgresso.fase + '/' + (driveProgresso.fatto || 0) : '',
@@ -1142,6 +1149,49 @@ function pannello(s) {
       <div class="riga"><button onclick="apriPannello('salvataggi')">Chiudi</button></div>
     </div>\`
 
+  // Gli altri computer, e le azioni da eseguire solo la'. Stessa forma della
+  // coda: elenco, poi la cassetta di uno.
+  const elencoPc = pannelloAperto !== 'pc' ? '' : (() => {
+    const pc = pcVisti || []
+    if (pcAperto === null) {
+      return '<div class="piastrella"><div class="titolo">Altri computer</div>' +
+        '<div class="sotto">I PC che usano questo stesso Drive. Un\\'azione scritta a un PC si esegue solo la\\', in una sua chat, quando e\\' acceso: e\\' la strada per una cartella che sta su quel PC (un disco di rete, un progetto che non viaggia).</div>' +
+        (pcVisti === null ? '<div class="sotto" style="margin-top:8px">Leggo il Drive…</div>' : '') +
+        (pcVisti !== null && pc.length === 0 ? '<div class="sotto" style="margin-top:8px">Nessun altro PC ha ancora lasciato un segno sul Drive (serve la 0.27.0 su quel PC).</div>' : '') +
+        pc.map((b) =>
+          '<button class="cartella" data-pc="' + esc(b.pcId) + '" onclick="apriPc(this.dataset.pc)">' + esc(b.nome) +
+          '<br><span class="sotto">' + (b.vivo ? 'acceso' : 'spento, ultimo segno ' + esc(String(b.battito || '').slice(0, 16).replace('T', ' '))) +
+          ' · ' + (b.chat || []).length + ' chat aperte · ' + (b.cartelle || []).length + ' cartelle</span></button>').join('') +
+        '<div class="riga"><button onclick="apriPannello(\\'pc\\')">Chiudi</button></div></div>'
+    }
+    const b = pc.find((x) => x.pcId === pcAperto) || { nome: pcAperto, cartelle: [], chat: [], vivo: false }
+    const voci = postaVoci || []
+    const attesa = voci.filter((v) => v.stato === 'attesa')
+    const chiuse = voci.filter((v) => v.stato !== 'attesa')
+    const cartelle = (b.cartelle || [])
+    return '<div class="piastrella"><div class="titolo">Azioni su ' + esc(b.nome) + ' · ' + (b.vivo ? 'acceso' : 'spento') + '</div>' +
+      '<div class="sotto">Quello che scrivi qui si esegue solo su ' + esc(b.nome) + ', nella cartella scelta, quando e\\' acceso: alla prima chat di quella cartella che aspetta, o a una nuova. Se la cartella la\\' non esiste, la voce fallisce e lo leggi qui.</div>' +
+      (postaErrore ? '<div class="errore" style="margin-top:6px">' + esc(postaErrore) + '</div>' : '') +
+      (attesa.length === 0 ? '<div class="sotto" style="margin-top:8px">Nessuna azione in attesa.</div>' : '') +
+      attesa.map((v, i) =>
+        '<div class="voce" style="display:block;padding:8px 10px">' +
+        '<div style="white-space:pre-wrap">' + (i + 1) + '. ' + esc(v.testo) + '</div>' +
+        '<div class="sotto">in ' + esc(v.cwd) + ' · da ' + esc(v.daNome) + (v.apertaIl ? ' · chat aperta, aspetto che sia pronta' : '') + '</div>' +
+        '<div class="riga" style="margin-top:6px"><button data-v="' + esc(v.id) + '" onclick="togliPosta(this.dataset.v)">Togli</button></div></div>').join('') +
+      (chiuse.length > 0
+        ? '<div class="sotto" style="margin-top:8px">' + chiuse.map((v) => (v.stato === 'fallita' ? '✗ ' : '✓ ') + esc(v.testo.slice(0, 60)) + ' — ' + esc(v.esito || v.stato)).join('<br>') +
+          ' <button onclick="pulisciPosta()" style="margin-left:6px">Pulisci</button></div>'
+        : '') +
+      '<select id="posta-cwd" style="width:100%;margin-top:10px;box-sizing:border-box">' +
+        cartelle.map((c) => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join('') +
+        (cartelle.length === 0 ? '<option value="">nessuna cartella nota: scrivila sotto</option>' : '') +
+      '</select>' +
+      '<input id="posta-cwd-libera" placeholder="oppure il percorso com\\'e\\' su quel PC (per esempio Z:/progetti/x)" style="width:100%;margin-top:6px;box-sizing:border-box">' +
+      '<textarea id="posta-testo" rows="3" placeholder="L\\'azione, come la scriveresti nella chat di quel PC" style="width:100%;margin-top:6px;box-sizing:border-box"></textarea>' +
+      '<div class="riga"><button onclick="chiudiPc()">Indietro</button>' +
+      '<button class="primario" onclick="mandaPosta()">Manda a ' + esc(b.nome) + '</button></div></div>'
+  })()
+
   const elencoCode = pannelloAperto !== 'code' ? '' : (() => {
     const progetti = (s.progetti || [])
     if (codaProgetto === null) {
@@ -1388,10 +1438,11 @@ function pannello(s) {
       '<div class="riga"><button onclick="apriPannello(\\'salvataggi\\')">Salvataggi</button>' +
       '<button onclick="apriPannello(\\'code\\')">Code' +
       ((s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0) > 0 ? ' · ' + (s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0) : '') + '</button>' +
+      '<button onclick="apriPannello(\\'pc\\')">Altri PC</button>' +
       '<button onclick="apriPannello(\\'drive\\')">Drive</button>' +
       '<button onclick="apriPannello(\\'consumi\\')">Consumi</button>' +
       '<button onclick="apriPannello(\\'impostazioni\\')">Impostazioni</button></div>' +
-      elencoSalvataggi + elencoCode + vistaDrive + vistaConsumi + vistaImpostazioni
+      elencoSalvataggi + elencoCode + elencoPc + vistaDrive + vistaConsumi + vistaImpostazioni
   }
 
   app.innerHTML = \`
@@ -1692,6 +1743,7 @@ window.apriPannello = async (quale) => {
     try { salvataggiVisti = (await chiedi('/api/salvataggi')).salvataggi || [] } catch (e) { salvataggiVisti = [] }
   }
   if (pannelloAperto === 'consumi') await leggiConsumi()
+  if (pannelloAperto === 'pc') { pcAperto = null; postaVoci = null; await leggiPc() }
   if (pannelloAperto === 'drive') { driveRiavviato = false; await leggiDrive() }
   if (pannelloAperto === 'impostazioni') { await leggiPreferenze(); await leggiAggiornamento() }
   if (pannelloAperto === 'quaderno') {
@@ -1721,6 +1773,59 @@ window.riprendiSessione = async (i) => {
 }
 
 /** La coda condivisa di un progetto: si legge dal Drive attraverso il computer. */
+async function leggiPc() {
+  try {
+    const r = await chiedi('/api/pc')
+    pcVisti = r.pc || []
+    if (r.disponibile === false) postaErrore = 'Questo computer non sa ancora mandare azioni a un altro PC: aggiornalo.'
+  } catch (e) { pcVisti = []; postaErrore = 'Non sono riuscito a leggere gli altri PC.' }
+}
+async function leggiPosta() {
+  if (pcAperto === null) return
+  try {
+    const r = await chiedi('/api/posta', { pc: pcAperto })
+    postaVoci = r.voci || []
+    postaErrore = r.disponibile === false ? 'La posta sta sul Drive: sul computer serve la cassaforte sbloccata e il Drive collegato.' : ''
+  } catch (e) { postaVoci = []; postaErrore = 'Non sono riuscito a leggere la cassetta.' }
+}
+window.apriPc = async (id) => {
+  pcAperto = id; postaVoci = null; postaErrore = ''
+  await leggiPosta()
+  pannello(ultimoStato)
+}
+window.chiudiPc = () => { pcAperto = null; postaVoci = null; pannello(ultimoStato) }
+window.mandaPosta = async () => {
+  const testo = (document.getElementById('posta-testo') || {}).value || ''
+  const libera = ((document.getElementById('posta-cwd-libera') || {}).value || '').trim()
+  const scelta = (document.getElementById('posta-cwd') || {}).value || ''
+  const cwd = libera || scelta
+  if (!testo.trim() || !cwd || pcAperto === null) { postaErrore = 'Servono la cartella e il testo.'; pannello(ultimoStato); return }
+  try {
+    const r = await chiedi('/api/posta/aggiungi', { pc: pcAperto, cwd: cwd, testo: testo.trim() })
+    postaVoci = r.voci || postaVoci; postaErrore = ''
+    const campo = document.getElementById('posta-testo'); if (campo) campo.value = ''
+  } catch (e) { postaErrore = 'Non sono riuscito a mandare: ' + (e && e.message ? e.message : e) }
+  pannello(ultimoStato)
+}
+window.togliPosta = async (voce) => {
+  if (pcAperto === null) return
+  try { const r = await chiedi('/api/posta/togli', { pc: pcAperto, voce: voce }); postaVoci = r.voci || postaVoci }
+  catch (e) { postaErrore = 'Non sono riuscito a togliere la voce.' }
+  pannello(ultimoStato)
+}
+window.pulisciPosta = async () => {
+  if (pcAperto === null) return
+  try { const r = await chiedi('/api/posta/pulisci', { pc: pcAperto }); postaVoci = r.voci || postaVoci }
+  catch (e) { postaErrore = 'Non sono riuscito a pulire.' }
+  pannello(ultimoStato)
+}
+// La cassetta cambia dal PC destinatario (consegnata, fallita): si rilegge.
+setInterval(async () => {
+  if (pannelloAperto !== 'pc' || !chiave) return
+  try { if (pcAperto !== null) await leggiPosta(); else await leggiPc() } catch (e) { return }
+  pannello(ultimoStato)
+}, 10000)
+
 async function leggiCoda() {
   if (codaProgetto === null) return
   try {

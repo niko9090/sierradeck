@@ -60,6 +60,43 @@ data class ProgettoBreve(
     val inCoda: Int = 0
 )
 
+/** Un altro PC sul Drive, dal suo battito: c'e', dove lavora, che chat ha. */
+@Serializable
+data class PcRemoto(
+    val pcId: String,
+    val nome: String = "",
+    val versione: String = "",
+    val battito: String = "",
+    /** Deciso dal computer, che ha l'ora giusta. */
+    val vivo: Boolean = false,
+    val cartelle: List<String> = emptyList(),
+    val chat: List<ChatDiPc> = emptyList()
+)
+
+@Serializable
+data class ChatDiPc(val sessione: String? = null, val titolo: String = "", val cwd: String = "", val aspetta: Boolean = false)
+
+@Serializable
+data class ElencoPc(val io: String = "", val pc: List<PcRemoto> = emptyList(), val disponibile: Boolean = true)
+
+/** La cassetta di un PC: le azioni da eseguire solo la'. */
+@Serializable
+data class Posta(val voci: List<VocePosta> = emptyList(), val disponibile: Boolean = true, val fatto: Boolean = false)
+
+@Serializable
+data class VocePosta(
+    val id: String,
+    val testo: String = "",
+    val cwd: String = "",
+    val sessione: String? = null,
+    val creataIl: String = "",
+    val daNome: String = "",
+    val stato: String = "attesa",
+    val consegnataIl: String? = null,
+    val esito: String? = null,
+    val apertaIl: String? = null
+)
+
 /** La coda condivisa dei comandi di un progetto, com'e' sul Drive. */
 @Serializable
 data class Coda(val voci: List<VoceCoda> = emptyList(), val disponibile: Boolean = true, val fatto: Boolean = false)

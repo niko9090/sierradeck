@@ -1193,6 +1193,10 @@ export function apriSincronia(deps: {
         },
         async cancella(nome) {
           try { await a.cancella(nome) } catch { /* gia' sparito */ }
+        },
+        async elenca(prefisso) {
+          const tutti = await a.elenca()
+          return [...tutti.keys()].filter((n) => n.startsWith(prefisso))
         }
       }
     },

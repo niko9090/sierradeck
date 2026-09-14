@@ -559,6 +559,15 @@ describe('capire cosa combina un autopilota', () => {
     expect(v.slice(0, 6000)).toContain('senzaSigla')
   })
 
+  it('e la posta per un altro PC, come nel pannello Account', () => {
+    expect(script).toContain("chiedi('/api/pc')")
+    expect(script).toContain("chiedi('/api/posta/aggiungi'")
+    expect(script).toContain('window.apriPc')
+    const impronta = script.slice(script.indexOf('function impronta('), script.indexOf('function segnaScorrimento('))
+    expect(impronta).toContain('pcVisti')
+    expect(impronta).toContain('postaVoci')
+  })
+
   it('e ha il dialogo con lui, come la scheda sul PC', () => {
     // Si scrive **a lui**, non alla sua chat; la risposta compare al giro
     // dopo, e il dettaglio deve stare nell'impronta o non si ridisegna.

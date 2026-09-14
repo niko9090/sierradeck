@@ -22,6 +22,17 @@ import { scelteDiTerminale, tastiPerScegliere } from '@shared/scelte-terminale'
  * poter buttare via il lavoro della notte.
  */
 
+export type BattitoPcTelefono = {
+  pcId: string; nome: string; versione: string; battito: string
+  cartelle: string[]
+  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean }[]
+}
+
+export type VocePostaTelefono = {
+  id: string; testo: string; cwd: string; sessione?: string; creataIl: string; daPc: string; daNome: string
+  stato: 'attesa' | 'consegnata' | 'fallita'; consegnataIl?: string; aSessione?: string; esito?: string; apertaIl?: string
+}
+
 export type VoceCodaTelefono = {
   id: string; testo: string; creataIl: string; daNome: string; sessione?: string
   stato: 'attesa' | 'consegnata'; consegnataIl?: string; aNome?: string; aSessione?: string
@@ -177,6 +188,18 @@ export type DipendenzeRotte = {
   codaAggiungi?: (progetto: string, testo: string, sessione?: string) => Promise<{ voci: VoceCodaTelefono[] } | undefined>
   codaTogli?: (progetto: string, voce: string) => Promise<{ voci: VoceCodaTelefono[] } | undefined>
   codaPulisci?: (progetto: string) => Promise<{ voci: VoceCodaTelefono[] } | undefined>
+  /**
+   * La posta per un PC: gli altri computer sul Drive (con battito, cartelle e
+   * chat aperte) e la cassetta di ciascuno. Un'azione scritta qui si esegue
+   * **solo su quel PC**, quando c'e'. Assenti nei computer con una versione
+   * precedente.
+   */
+  pcIo?: () => string
+  pc?: () => Promise<BattitoPcTelefono[]>
+  posta?: (pc: string) => Promise<{ voci: VocePostaTelefono[] } | undefined>
+  postaAggiungi?: (pc: string, voce: { cwd: string; testo: string; sessione?: string }) => Promise<{ voci: VocePostaTelefono[] } | undefined>
+  postaTogli?: (pc: string, voce: string) => Promise<{ voci: VocePostaTelefono[] } | undefined>
+  postaPulisci?: (pc: string) => Promise<{ voci: VocePostaTelefono[] } | undefined>
   /**
    * Il Drive dal telefono: il catalogo (per progetto e per workspace, con lo
    * stato rispetto al computer), «Porta qui», il lavoro in corso con la sua
@@ -951,6 +974,51 @@ export function rotteClient(deps: DipendenzeRotte) {
       const coda = await deps.codaPulisci?.(progetto).catch(() => undefined)
       if (coda === undefined) return { stato: 409, corpo: { errore: 'coda non raggiungibile' } }
       return OK({ fatto: true, voci: coda.voci })
+    }
+
+    // ── La posta per un PC: gli altri computer, e le loro cassette ────────
+    if (r.percorso === '/api/pc') {
+      const pc = await deps.pc?.().catch(() => [] as BattitoPcTelefono[])
+      // `vivo` lo decide il computer, non il telefono: e' lui ad avere l'ora giusta.
+      const ora = adesso()
+      return OK({
+        io: deps.pcIo?.() ?? '',
+        disponibile: deps.pc !== undefined,
+        pc: (pc ?? []).map((b) => ({ ...b, vivo: ora - Date.parse(b.battito) < 5 * 60_000 }))
+      })
+    }
+    if (r.metodo === 'POST' && r.percorso === '/api/posta') {
+      const pc = stringa(r.corpo, 'pc')
+      if (pc === '') return { stato: 400, corpo: { errore: 'serve il pc' } }
+      const p = await deps.posta?.(pc).catch(() => undefined)
+      return OK({ voci: p?.voci ?? [], disponibile: p !== undefined })
+    }
+    if (r.metodo === 'POST' && r.percorso === '/api/posta/aggiungi') {
+      const pc = stringa(r.corpo, 'pc')
+      const cwd = stringa(r.corpo, 'cwd').trim()
+      const testo = stringa(r.corpo, 'testo').trim()
+      const sessione = stringa(r.corpo, 'sessione')
+      if (pc === '' || cwd === '' || testo === '') return { stato: 400, corpo: { errore: 'servono il pc, la cartella e il testo' } }
+      if (testo.length > 4000) return { stato: 400, corpo: { errore: 'testo troppo lungo' } }
+      if (deps.postaAggiungi === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora mandare azioni a un altro PC: aggiornalo' } }
+      const p = await deps.postaAggiungi(pc, { cwd, testo, ...(sessione !== '' ? { sessione } : {}) }).catch(() => undefined)
+      if (p === undefined) return { stato: 409, corpo: { errore: 'la posta sta sul Drive: serve la cassaforte sbloccata e il Drive collegato' } }
+      return OK({ fatto: true, voci: p.voci })
+    }
+    if (r.metodo === 'POST' && r.percorso === '/api/posta/togli') {
+      const pc = stringa(r.corpo, 'pc')
+      const voce = stringa(r.corpo, 'voce')
+      if (pc === '' || voce === '') return { stato: 400, corpo: { errore: 'servono il pc e la voce' } }
+      const p = await deps.postaTogli?.(pc, voce).catch(() => undefined)
+      if (p === undefined) return { stato: 409, corpo: { errore: 'posta non raggiungibile' } }
+      return OK({ fatto: true, voci: p.voci })
+    }
+    if (r.metodo === 'POST' && r.percorso === '/api/posta/pulisci') {
+      const pc = stringa(r.corpo, 'pc')
+      if (pc === '') return { stato: 400, corpo: { errore: 'serve il pc' } }
+      const p = await deps.postaPulisci?.(pc).catch(() => undefined)
+      if (p === undefined) return { stato: 409, corpo: { errore: 'posta non raggiungibile' } }
+      return OK({ fatto: true, voci: p.voci })
     }
 
     if (r.metodo === 'POST' && r.percorso === '/api/sessioni/riprendi') {

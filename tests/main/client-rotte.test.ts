@@ -649,6 +649,38 @@ describe('il via dal telefono', () => {
 })
 
 
+describe('la posta per un PC, dal telefono', () => {
+  it('gli altri PC con «vivo» deciso dal computer, e la cassetta che si legge, si scrive, si toglie', async () => {
+    let voci = [{ id: 'a1', testo: 'fai i test', cwd: 'Z:\\gest', creataIl: 'x', daPc: 'B', daNome: 'Portatile', stato: 'attesa' as const }]
+    const ora = Date.parse('2026-09-14T08:10:00.000Z')
+    const d = deps({
+      adesso: () => ora,
+      pcIo: () => 'B',
+      pc: () => Promise.resolve([
+        { pcId: 'A', nome: 'Torre', versione: '0.27.0', battito: '2026-09-14T08:09:00.000Z', cartelle: ['Z:\\gest'], chat: [{ sessione: 's1', titolo: 'g', cwd: 'Z:\\gest', aspetta: true }] },
+        { pcId: 'C', nome: 'Vecchio', versione: '0.27.0', battito: '2026-09-14T07:00:00.000Z', cartelle: [], chat: [] }
+      ]),
+      posta: () => Promise.resolve({ voci }),
+      postaAggiungi: (_pc, v) => { voci = [...voci, { id: 'a2', testo: v.testo, cwd: v.cwd, creataIl: 'y', daPc: 'B', daNome: 'Portatile', stato: 'attesa' as const }]; return Promise.resolve({ voci }) },
+      postaTogli: (_pc, voce) => { voci = voci.filter((v) => v.id !== voce); return Promise.resolve({ voci }) }
+    })
+    const elenco = (await rotteClient(d)({ metodo: 'GET', percorso: '/api/pc', corpo: undefined })).corpo as { io: string; pc: { pcId: string; vivo: boolean }[] }
+    expect(elenco.io).toBe('B')
+    expect(elenco.pc.map((p) => [p.pcId, p.vivo])).toEqual([['A', true], ['C', false]])
+    const lettura = await rotteClient(d)({ metodo: 'POST', percorso: '/api/posta', corpo: { pc: 'A' } })
+    expect((lettura.corpo as { voci: unknown[] }).voci).toHaveLength(1)
+    const messa = await rotteClient(d)({ metodo: 'POST', percorso: '/api/posta/aggiungi', corpo: { pc: 'A', cwd: ' Z:\\gest ', testo: '  poi il changelog ' } })
+    expect((messa.corpo as { voci: { testo: string; cwd: string }[] }).voci[1]).toMatchObject({ testo: 'poi il changelog', cwd: 'Z:\\gest' })
+    const tolta = await rotteClient(d)({ metodo: 'POST', percorso: '/api/posta/togli', corpo: { pc: 'A', voce: 'a1' } })
+    expect((tolta.corpo as { voci: { id: string }[] }).voci.map((v) => v.id)).toEqual(['a2'])
+    expect((await rotteClient(d)({ metodo: 'POST', percorso: '/api/posta/aggiungi', corpo: { pc: 'A', testo: 'x' } })).stato).toBe(400)
+    // Un computer vecchio: l'elenco dice che non e' disponibile, e mandare risponde 409 con il perche'.
+    const vecchio = (await rotteClient(deps())({ metodo: 'GET', percorso: '/api/pc', corpo: undefined })).corpo as { disponibile: boolean; pc: unknown[] }
+    expect(vecchio).toMatchObject({ disponibile: false, pc: [] })
+    expect((await rotteClient(deps())({ metodo: 'POST', percorso: '/api/posta/aggiungi', corpo: { pc: 'A', cwd: 'x', testo: 'y' } })).stato).toBe(409)
+  })
+})
+
 describe('parlare con l autopilota dal telefono', () => {
   it('passa il testo e risponde subito con la ricevuta', async () => {
     const mandati: { id: string; testo: string }[] = []

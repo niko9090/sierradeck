@@ -1,0 +1,298 @@
+import type { Scatola } from './presenza'
+import { staDentro } from './registro'
+
+/**
+ * La posta per un PC: azioni che si eseguono **solo su quel computer**,
+ * quando e' acceso.
+ *
+ * Nicholas (2026-09-14): «se sto operando su una chat su una cartella in
+ * rete gli altri come fanno a operare li'? bisogna creare una sorta di azione
+ * che rimane eseguibile solo in remoto su quel PC quando e' online,
+ * altrimenti non funzionerebbe».
+ *
+ * La coda condivisa dei progetti (`presenza.ts`) risolve il caso «un
+ * progetto che viaggia sul Drive»: chi ha il testimone consegna. Qui il caso
+ * e' l'altro: una cartella che sta **su un PC preciso** (un disco di rete
+ * montato solo li', una cartella che non viaggia) e che dagli altri PC non
+ * si raggiunge. Allora non si porta il lavoro qui: si manda **il comando
+ * la'**, e lo esegue quel PC nella sua chat, quando c'e'.
+ *
+ * Due oggetti cifrati sul Drive, nella stessa scatola delle presenze:
+ * - `pc-<id>`: il **battito** di ogni PC — nome, versione, quando, le cartelle
+ *   in cui ha chat aperte, le chat aperte con «aspetta te». E' cio' che
+ *   permette agli altri di vedere chi c'e' e dove puo' lavorare.
+ * - `posta-<id>`: la **cassetta** di quel PC — le voci in attesa, consegnate,
+ *   fallite. Chiunque ci scrive; solo quel PC la legge e consegna.
+ *
+ * La consegna la fa il **postino** di ogni PC, un giro ogni mezzo minuto:
+ * per la prima voce in attesa cerca una chat viva che aspetta nella cartella
+ * (o la chat precisa, se indicata); se non c'e' nessuna chat in quella
+ * cartella ne apre una e riprova al giro dopo; se la cartella non esiste su
+ * quel PC la voce fallisce e lo dice. Il risultato del lavoro si legge come
+ * sempre: la chat sale sul Drive con il salvataggio automatico e arriva
+ * sugli altri PC, e dal telefono si guarda dentro la chat di quel PC.
+ *
+ * Puro dove si puo': la scelta della chat e lo stato di un PC si provano
+ * senza Drive.
+ */
+
+export type ChatDiPc = {
+  /** L'id del riquadro su quel PC: serve per scriverci. Non viaggia sul Drive. */
+  id?: string
+  sessione?: string
+  titolo: string
+  cwd: string
+  viva: boolean
+  aspetta: boolean
+}
+
+export type BattitoPc = {
+  pcId: string
+  nome: string
+  versione: string
+  /** Quando ha battuto l'ultima volta, ISO. */
+  battito: string
+  /** Le cartelle in cui quel PC puo' lavorare adesso: chat aperte e progetti collegati. */
+  cartelle: string[]
+  /** Le chat aperte su quel PC, con se aspettano. */
+  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean }[]
+}
+
+export type VocePosta = {
+  id: string
+  testo: string
+  /** La cartella, come la conosce **il PC destinatario**. */
+  cwd: string
+  /** Una chat precisa (la sua conversazione); senza, la prima libera nella cartella, o una nuova. */
+  sessione?: string
+  creataIl: string
+  daPc: string
+  daNome: string
+  stato: 'attesa' | 'consegnata' | 'fallita'
+  consegnataIl?: string
+  aSessione?: string
+  /** Perche' e' fallita, o una nota sulla consegna. */
+  esito?: string
+  /** Il postino ha gia' aperto una chat per questa voce: non ne apre un'altra. */
+  apertaIl?: string
+}
+
+export type Posta = { voci: VocePosta[] }
+
+export function nomeBattitoPc(id: string): string { return `pc-${id}` }
+export function nomePosta(id: string): string { return `posta-${id}` }
+
+/** Un battito piu' vecchio di cosi' e' un PC spento, o senza rete. */
+export const PC_SPENTO_DOPO_MS = 5 * 60_000
+/** Il battito si riscrive comunque ogni tanto, anche se niente e' cambiato. */
+export const BATTITO_PC_OGNI_MS = 2 * 60_000
+/** Una chat aperta dal postino che non arriva ad aspettare entro tanto: si riprova ad aprirla. */
+export const RIAPRI_DOPO_MS = 5 * 60_000
+/** Quante voci si tengono per PC: le consegnate piu' vecchie escono da sole. */
+export const VOCI_MAX = 50
+export const TESTO_POSTA_MAX = 4000
+
+export function pcVivo(b: BattitoPc | undefined, adesso: number): boolean {
+  if (b === undefined) return false
+  const t = Date.parse(b.battito)
+  return !Number.isNaN(t) && adesso - t < PC_SPENTO_DOPO_MS
+}
+
+/**
+ * La chat a cui va una voce: quella precisa se e' indicata (e aspetta), o la
+ * prima viva che aspetta dentro la cartella. `undefined` quando nessuna puo'
+ * riceverla adesso.
+ */
+export function scegliDestinataria(chat: ChatDiPc[], voce: Pick<VocePosta, 'cwd' | 'sessione'>): ChatDiPc | undefined {
+  const pronte = chat.filter((c) => c.viva && c.aspetta)
+  if (voce.sessione !== undefined && voce.sessione !== '') return pronte.find((c) => c.sessione === voce.sessione)
+  return pronte.find((c) => staDentro(c.cwd, voce.cwd))
+}
+
+/** Le chat (vive o no) che stanno nella cartella della voce, o quella precisa. */
+export function chatNellaCartella(chat: ChatDiPc[], voce: Pick<VocePosta, 'cwd' | 'sessione'>): ChatDiPc[] {
+  if (voce.sessione !== undefined && voce.sessione !== '') return chat.filter((c) => c.sessione === voce.sessione)
+  return chat.filter((c) => staDentro(c.cwd, voce.cwd))
+}
+
+export function prossimaDaConsegnare(p: Posta): VocePosta | undefined {
+  return p.voci.find((v) => v.stato === 'attesa')
+}
+
+export type Postino = {
+  /** Un giro: il battito, poi la prima voce in attesa della mia cassetta. */
+  giro: () => Promise<void>
+  /** Il mio id: per non elencarmi fra «gli altri PC». */
+  io: () => string
+  /** Gli altri PC sul Drive, con il battito. */
+  pc: () => Promise<BattitoPc[]>
+  posta: (pcId: string) => Promise<Posta | undefined>
+  aggiungi: (pcId: string, voce: { cwd: string; testo: string; sessione?: string }) => Promise<Posta | undefined>
+  togli: (pcId: string, voceId: string) => Promise<Posta | undefined>
+  /** Toglie le voci consegnate e fallite. */
+  pulisci: (pcId: string) => Promise<Posta | undefined>
+}
+
+export function creaPostino(deps: {
+  scatola: () => Scatola | undefined
+  pcId: () => string
+  pcNome: () => string
+  versione: () => string
+  /** Le chat aperte su questo PC, adesso. */
+  chat: () => ChatDiPc[]
+  /** Le cartelle in cui questo PC puo' lavorare: progetti collegati qui e simili. Le chat aperte si aggiungono da sole. */
+  cartelle: () => string[]
+  cartellaEsiste: (cwd: string) => boolean
+  /** Apre una chat nuova in quella cartella (in una finestra). */
+  apriChat: (cwd: string) => void
+  /** Riapre una conversazione precisa, nel suo workspace. */
+  riprendiChat: (cwd: string, sessione: string) => void
+  /** Scrive nella chat (testo + invio), come dal telefono. */
+  scrivi: (idChat: string, testo: string) => void
+  adesso?: () => number
+  nuovoId?: () => string
+  log?: (m: string) => void
+}): Postino {
+  const adesso = deps.adesso ?? ((): number => Date.now())
+  const log = deps.log ?? ((): void => {})
+  const nuovoId = deps.nuovoId ?? ((): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`)
+  const iso = (): string => new Date(adesso()).toISOString()
+  let inGiro = false
+  let ultimoBattito = ''
+  let ultimoBattitoIl = 0
+  let inErrore = false
+
+  const leggiPosta = async (s: Scatola, pcId: string): Promise<Posta> => {
+    const p = await s.leggi<Posta>(nomePosta(pcId))
+    return p !== undefined && Array.isArray(p.voci) ? { voci: p.voci } : { voci: [] }
+  }
+  const scriviPosta = async (s: Scatola, pcId: string, p: Posta): Promise<void> => {
+    if (p.voci.length === 0) await s.cancella(nomePosta(pcId))
+    else await s.scrivi(nomePosta(pcId), { voci: p.voci.slice(-VOCI_MAX) })
+  }
+  const conPosta = async (pcId: string, cambia: (p: Posta) => Posta): Promise<Posta | undefined> => {
+    const s = deps.scatola()
+    if (s === undefined) return undefined
+    const dopo = cambia(await leggiPosta(s, pcId))
+    await scriviPosta(s, pcId, dopo)
+    return dopo
+  }
+
+  const mioBattito = (): BattitoPc => {
+    const chat = deps.chat()
+    const cartelle = new Set<string>(deps.cartelle())
+    for (const c of chat) cartelle.add(c.cwd)
+    return {
+      pcId: deps.pcId(),
+      nome: deps.pcNome(),
+      versione: deps.versione(),
+      battito: iso(),
+      cartelle: [...cartelle],
+      chat: chat.filter((c) => c.viva).map((c) => ({
+        ...(c.sessione !== undefined ? { sessione: c.sessione } : {}),
+        titolo: c.titolo, cwd: c.cwd, aspetta: c.aspetta
+      }))
+    }
+  }
+
+  /** Il battito, ma solo se qualcosa e' cambiato o e' passato abbastanza: una scrittura sul Drive non e' gratis. */
+  const batti = async (s: Scatola): Promise<void> => {
+    const b = mioBattito()
+    const { battito: _b, ...senzaOra } = b
+    const firma = JSON.stringify(senzaOra)
+    if (firma === ultimoBattito && adesso() - ultimoBattitoIl < BATTITO_PC_OGNI_MS) return
+    await s.scrivi(nomeBattitoPc(b.pcId), b)
+    ultimoBattito = firma
+    ultimoBattitoIl = adesso()
+  }
+
+  /** La prima voce in attesa della mia cassetta: consegnata, aperta, o fallita. */
+  const consegna = async (s: Scatola): Promise<void> => {
+    const me = deps.pcId()
+    const posta = await leggiPosta(s, me)
+    const voce = prossimaDaConsegnare(posta)
+    if (voce === undefined) return
+    const aggiorna = async (nuova: VocePosta): Promise<void> => {
+      await scriviPosta(s, me, { voci: posta.voci.map((v) => (v.id === voce.id ? nuova : v)) })
+    }
+    if (!deps.cartellaEsiste(voce.cwd)) {
+      log(`[posta] «${voce.testo.slice(0, 60)}» da ${voce.daNome}: la cartella ${voce.cwd} non esiste qui, fallita`)
+      await aggiorna({ ...voce, stato: 'fallita', consegnataIl: iso(), esito: `la cartella ${voce.cwd} non esiste su questo PC` })
+      return
+    }
+    const chat = deps.chat()
+    const pronta = scegliDestinataria(chat, voce)
+    if (pronta !== undefined && pronta.id !== undefined) {
+      deps.scrivi(pronta.id, voce.testo)
+      log(`[posta] consegnato a «${pronta.titolo}» (${voce.cwd}) il comando di ${voce.daNome}: ${voce.testo.slice(0, 60)}`)
+      await aggiorna({
+        ...voce, stato: 'consegnata', consegnataIl: iso(),
+        ...(pronta.sessione !== undefined ? { aSessione: pronta.sessione } : {}),
+        esito: `consegnato a «${pronta.titolo}»`
+      })
+      return
+    }
+    // Nessuna chat pronta. Se nella cartella (o con quella sessione) c'e' una
+    // chat che lavora, si aspetta il giro dopo. Se non c'e' nessuna chat, se
+    // ne apre una — una volta — e si aspetta che dica «aspetta te».
+    const presenti = chatNellaCartella(chat, voce)
+    if (presenti.length > 0) return
+    const apertaDa = voce.apertaIl !== undefined ? adesso() - Date.parse(voce.apertaIl) : Number.POSITIVE_INFINITY
+    if (apertaDa < RIAPRI_DOPO_MS) return
+    if (voce.sessione !== undefined && voce.sessione !== '') deps.riprendiChat(voce.cwd, voce.sessione)
+    else deps.apriChat(voce.cwd)
+    log(`[posta] apro una chat in ${voce.cwd} per il comando di ${voce.daNome}`)
+    await aggiorna({ ...voce, apertaIl: iso() })
+  }
+
+  return {
+    async giro() {
+      if (inGiro) return
+      const s = deps.scatola()
+      if (s === undefined) return
+      inGiro = true
+      try {
+        await batti(s)
+        await consegna(s)
+        if (inErrore) { inErrore = false; log('[posta] il Drive risponde di nuovo') }
+      } catch (err) {
+        if (!inErrore) { inErrore = true; log(`[posta] giro fallito (non lo ripeto finche' non torna a rispondere): ${String(err)}`) }
+      } finally {
+        inGiro = false
+      }
+    },
+    io: () => deps.pcId(),
+    async pc() {
+      const s = deps.scatola()
+      if (s === undefined || s.elenca === undefined) return []
+      const nomi = await s.elenca('pc-')
+      const me = deps.pcId()
+      const letti = await Promise.all(nomi.map((n) => s.leggi<BattitoPc>(n)))
+      return letti
+        .filter((b): b is BattitoPc => b !== undefined && typeof b.pcId === 'string' && b.pcId !== me)
+        .map((b) => ({ ...b, cartelle: Array.isArray(b.cartelle) ? b.cartelle : [], chat: Array.isArray(b.chat) ? b.chat : [] }))
+        .sort((a, b) => b.battito.localeCompare(a.battito))
+    },
+    async posta(pcId) {
+      const s = deps.scatola()
+      return s === undefined ? undefined : leggiPosta(s, pcId)
+    },
+    aggiungi(pcId, voce) {
+      const testo = voce.testo.trim().slice(0, TESTO_POSTA_MAX)
+      const cwd = voce.cwd.trim()
+      if (testo === '' || cwd === '') return Promise.resolve(undefined)
+      return conPosta(pcId, (p) => ({
+        voci: [...p.voci, {
+          id: nuovoId(), testo, cwd, creataIl: iso(), daPc: deps.pcId(), daNome: deps.pcNome(), stato: 'attesa',
+          ...(voce.sessione !== undefined && voce.sessione !== '' ? { sessione: voce.sessione } : {})
+        }]
+      }))
+    },
+    togli(pcId, voceId) {
+      return conPosta(pcId, (p) => ({ voci: p.voci.filter((v) => v.id !== voceId) }))
+    },
+    pulisci(pcId) {
+      return conPosta(pcId, (p) => ({ voci: p.voci.filter((v) => v.stato === 'attesa') }))
+    }
+  }
+}

@@ -10,6 +10,8 @@ import { descriviProgresso, type ProgressoSync } from '../progresso-sync'
 import { ModaleConferma } from './ModaleConferma'
 import { ModaleFusione } from './ModaleFusione'
 import { ModaleCoda } from './ModaleCoda'
+import { ModalePosta } from './ModalePosta'
+import { pcVivo, type BattitoPc } from '../../main/progetti/posta'
 
 type StatoDrive = { configurato: boolean; connesso: boolean; email?: string }
 type ElencoProgetti = {
@@ -513,6 +515,8 @@ function SezioneSync(): React.JSX.Element | null {
 
           <SezioneProgetti inCorso={inCorso} onCambio={aggiorna} />
 
+          <SezioneComputer />
+
           <div className="account__opzioni">
             <label className="account__toggle">
               <input type="checkbox" checked={auto} onChange={commutaAuto} />
@@ -527,6 +531,65 @@ function SezioneSync(): React.JSX.Element | null {
           <p className="account__nota">Collega il tuo Google Drive qui sopra per iniziare a mettere le chat al sicuro.</p>
         </div>
       ) : null}
+    </div>
+  )
+}
+
+/**
+ * Gli altri computer sul Drive, e le azioni da eseguire solo la'.
+ *
+ * Ogni PC lascia un battito sul Drive (`pc-<id>`): nome, quando, le cartelle
+ * in cui lavora, le chat aperte. Da qui si vede chi c'e' e si scrive nella
+ * sua cassetta; consegna il suo postino, quando quel PC e' acceso.
+ */
+function SezioneComputer(): React.JSX.Element | null {
+  const [pc, setPc] = useState<BattitoPc[] | undefined>(undefined)
+  const [aperto, setAperto] = useState<BattitoPc | undefined>(undefined)
+  const [adesso, setAdesso] = useState(Date.now())
+  const ricarica = (): void => {
+    void window.gestore.posta.pc().then((p) => { setPc(p); setAdesso(Date.now()) }).catch(() => setPc([]))
+  }
+  useEffect(() => {
+    ricarica()
+    const t = setInterval(ricarica, 15_000)
+    return () => clearInterval(t)
+  }, [])
+  const quando = (iso: string): string => {
+    const d = new Date(iso)
+    return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })
+  }
+  return (
+    <div className="account__scheda account__scheda--largo">
+      <h4 style={{ margin: '0 0 4px' }}>Altri computer</h4>
+      <p className="account__nota">
+        I PC che usano questo stesso Drive, con l’ultimo segno di vita. «Azioni…» apre la cassetta di un PC: quello che ci
+        scrivi si esegue solo là, in una sua chat, quando è acceso. Serve per una cartella che sta su quel PC e non viaggia
+        (un disco di rete, un progetto locale). Un PC compare qui dopo il suo primo salvataggio con la 0.27.0.
+      </p>
+      {pc === undefined ? <p className="account__nota">Leggo il Drive…</p> : null}
+      {pc !== undefined && pc.length === 0 ? <p className="account__nota">Nessun altro PC ha ancora lasciato un segno sul Drive.</p> : null}
+      {pc !== undefined && pc.length > 0 ? (
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {pc.map((b) => {
+            // `=== true` apposta: `pcVivo` e' un predicato di tipo e nel ramo
+            // «spento» TypeScript restringerebbe `b` a `never`.
+            const vivo = pcVivo(b, adesso) === true
+            const aspettano = b.chat.filter((c) => c.aspetta).length
+            return (
+              <li key={b.pcId} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <strong>{b.nome}</strong>
+                  <span className="account__nota" style={{ margin: 0 }}>
+                    {' '}· {vivo ? 'acceso' : `spento, ultimo segno ${quando(b.battito)}`} · v{b.versione} · {b.chat.length} chat aperte{aspettano > 0 ? ` (${aspettano} aspettano)` : ''} · {b.cartelle.length} cartelle
+                  </span>
+                </span>
+                <button className="tasto tasto--mini" onClick={() => setAperto(b)} title="Le azioni da eseguire solo su quel PC">Azioni…</button>
+              </li>
+            )
+          })}
+        </ul>
+      ) : null}
+      {aperto !== undefined ? <ModalePosta pc={aperto} vivo={pcVivo(aperto, adesso)} onChiudi={() => { setAperto(undefined); ricarica() }} /> : null}
     </div>
   )
 }

@@ -416,3 +416,30 @@ negozio, quaderno-store, client-pagina, client-rotte.
   `Path.GetTempPath()` (dalla documentazione); la sopravvivenza dei nipoti alla
   chiusura dell'host; se una `cwd` con maiuscole diverse dalla cartella reale
   faccia mancare `trascrizioneEsiste` allo spawn.
+
+# 7. Aggiunta della notte (Nicholas, 01:45: «la app su cellulare non funziona» e le azioni remote)
+
+Due richieste arrivate mentre il mandato era chiuso, fatte in autonomia.
+
+**Il telefono.** Dal PC (alle 01:48) tutto risulta a posto: server in ascolto
+su tutte le interfacce, firewall con le regole giuste, indirizzo del QR
+`192.168.1.191` (profilo Privato). Ma il telefono accoppiato (SM-S938B) non
+si presenta a questo PC dal **10 settembre**, e nei registri non c'è nessuna
+riga del Client perché i rifiuti (403 rete, 401 chiave) andavano solo in
+console. Corretto: `creaServerClient({ log })` scrive nel registro i rifiuti
+e il primo contatto di ogni dispositivo, una riga per indirizzo ogni dieci
+minuti (test). La diagnosi e i passi per domani sono in
+`telefono-non-funziona-2026-09-14.md`. Non ho potuto provare il telefono.
+
+**Le azioni remote** («un'azione che rimane eseguibile solo in remoto su
+quel PC quando è online»). Fatto: **la posta per un PC**
+(`src/main/progetti/posta.ts`, scheda `posta-per-un-pc.md`). Ogni PC lascia
+sul Drive un battito (`pc-<id>`: nome, quando, cartelle, chat aperte) e ha
+una cassetta (`posta-<id>`); il suo postino, ogni 30 s, consegna la prima
+voce in attesa alla chat giusta della cartella scelta, o ne apre una, o
+segna «fallita» se la cartella là non esiste. Si scrive dal pannello Account
+(«Altri computer» → «Azioni…», `ModalePosta.tsx`), dalla pagina del telefono
+(«Altri PC») e dall'app Android (`Computer.kt`, da ricompilare). Rotte
+`/api/pc`, `/api/posta*`. Test: `progetti-posta.test.ts` (10), rotte,
+pagina. Limiti nella scheda: il risultato si legge dalla chat di quel PC,
+non nella voce.

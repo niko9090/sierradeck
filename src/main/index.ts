@@ -79,6 +79,7 @@ import {
 } from './progetti/registro'
 import { creaProgettiSync } from './progetti/sincronia-progetti'
 import { creaRonda } from './progetti/presenza'
+import { creaPostino, type Postino } from './progetti/posta'
 import { progettoDiCwd, staDentro } from './progetti/registro'
 import { impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
 import { risolviCartellaDiChat, type CartellaDiChat } from './progetti/cartella-di-chat'
@@ -178,6 +179,8 @@ let scopeStore: ScopeStore | undefined
 // nascono al caricamento del modulo, prima che la sessione sia aperta, quindi
 // finché resta `undefined` ripiegano sulla sola console.
 let registroGlobale: Registro | undefined
+/** Il postino di questo PC: le rotte del telefono lo raggiungono da qui. */
+let postinoGlobale: Postino | undefined
 /** Il lavoro con il Drive in corso, per non uscire sopra una fusione a meta'. */
 let lavoroGlobale: ReturnType<typeof creaLavoro> | undefined
 /** L'elenco delle chat fermate per l'aggiornamento, com'era su disco all'avvio. */
@@ -1041,6 +1044,68 @@ if (!app.requestSingleInstanceLock()) {
         log: registro.info
       })
       progettiInManoAdAltri = () => ronda.inManoAdAltri()
+
+      // **La posta per un PC.** Un'azione che si esegue solo su quel computer,
+      // quando c'e': una cartella su un disco di rete montato solo la', un
+      // progetto che non viaggia. Dagli altri PC e dal telefono si scrive
+      // nella sua cassetta sul Drive; il suo postino, ogni mezzo minuto,
+      // consegna nella chat giusta (o ne apre una). Vedi `progetti/posta.ts`.
+      const postino: Postino = creaPostino({
+        scatola: () => sincronia.scatola(),
+        pcId: () => identitaPc.leggi().id,
+        pcNome: () => identitaPc.leggi().nome,
+        versione: () => app.getVersion(),
+        chat: () => chatAperte.map((c) => ({
+          id: c.id,
+          ...(c.sessione !== undefined ? { sessione: c.sessione } : {}),
+          titolo: c.titolo, cwd: c.cwd, viva: c.viva === true, aspetta: c.aspetta === true
+        })),
+        // Le cartelle in cui questo PC lavora: i progetti collegati qui. Le
+        // chat aperte le aggiunge il postino da solo.
+        cartelle: () => {
+          const me = identitaPc.leggi().id
+          return registroProgetti.leggi().progetti
+            .map((p) => p.percorsi[me])
+            .filter((p): p is string => p !== undefined && existsSync(p))
+        },
+        cartellaEsiste: (cwd) => { try { return statSync(cwd).isDirectory() } catch { return false } },
+        apriChat: (cwd) => {
+          for (const w of BrowserWindow.getAllWindows()) {
+            if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('client:apri', { cartella: cwd })
+          }
+        },
+        riprendiChat: (cwd, sessione) => {
+          const dove = workspaceStore === undefined ? undefined : workspaceDellaSessione(workspaceStore.leggi(), sessione)
+          const vive = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && !w.webContents.isDestroyed())
+          const scelta = finestraPerRipresa(dove, vive.map((w) => ({
+            id: w.id,
+            ...(workspaceDellaFinestra(w.id) !== undefined ? { workspace: workspaceDellaFinestra(w.id) } : {})
+          })))
+          const finestra = vive.find((w) => w.id === scelta)
+          finestra?.webContents.send('client:apri', { cartella: cwd, sessione, ...(dove !== undefined ? { workspace: dove } : {}) })
+        },
+        scrivi: scriviNelRiquadro,
+        log: registro.info
+      })
+      postinoGlobale = postino
+      // Sfalsato rispetto alla ronda dei progetti: due giri sul Drive nello
+      // stesso istante non servono a nessuno.
+      const timerPosta = setInterval(() => { void postino.giro() }, 30_000)
+      const primaPosta = setTimeout(() => { void postino.giro() }, 25_000)
+      app.on('before-quit', () => { clearInterval(timerPosta); clearTimeout(primaPosta) })
+
+      ipcMain.handle('posta:io', () => identitaPc.leggi().id)
+      ipcMain.handle('posta:pc', () => postino.pc())
+      ipcMain.handle('posta:leggi', (_e, pc: unknown) => (typeof pc === 'string' && pc !== '' ? postino.posta(pc) : Promise.resolve(undefined)))
+      ipcMain.handle('posta:aggiungi', (_e, pc: unknown, voce: unknown) => {
+        if (typeof pc !== 'string' || pc === '' || typeof voce !== 'object' || voce === null) return Promise.resolve(undefined)
+        const v = voce as { cwd?: unknown; testo?: unknown; sessione?: unknown }
+        if (typeof v.cwd !== 'string' || typeof v.testo !== 'string') return Promise.resolve(undefined)
+        return postino.aggiungi(pc, { cwd: v.cwd, testo: v.testo, ...(typeof v.sessione === 'string' ? { sessione: v.sessione } : {}) })
+      })
+      ipcMain.handle('posta:togli', (_e, pc: unknown, voce: unknown) =>
+        typeof pc === 'string' && typeof voce === 'string' ? postino.togli(pc, voce) : Promise.resolve(undefined))
+      ipcMain.handle('posta:pulisci', (_e, pc: unknown) => (typeof pc === 'string' ? postino.pulisci(pc) : Promise.resolve(undefined)))
       presenzaAltrove = (cwd) => {
         const s = ronda.statoDiCwd(cwd)
         return s?.chi === 'altro' ? (s.pcNome ?? 'un altro PC') : undefined
@@ -1996,6 +2061,14 @@ if (!app.requestSingleInstanceLock()) {
         codaAggiungi: (id: string, testo: string, sessione?: string) => ronda.aggiungiInCoda(id, testo, sessione),
         codaTogli: (id: string, voce: string) => ronda.togliDallaCoda(id, voce),
         codaPulisci: (id: string) => ronda.pulisciCoda(id),
+        // La posta per un PC, dal telefono: gli altri computer e le loro cassette.
+        pcIo: () => identitaPc.leggi().id,
+        pc: () => postinoGlobale?.pc() ?? Promise.resolve([]),
+        posta: (pc: string) => postinoGlobale?.posta(pc) ?? Promise.resolve(undefined),
+        postaAggiungi: (pc: string, voce: { cwd: string; testo: string; sessione?: string }) =>
+          postinoGlobale?.aggiungi(pc, voce) ?? Promise.resolve(undefined),
+        postaTogli: (pc: string, voce: string) => postinoGlobale?.togli(pc, voce) ?? Promise.resolve(undefined),
+        postaPulisci: (pc: string) => postinoGlobale?.pulisci(pc) ?? Promise.resolve(undefined),
         workspace: async () => {
           const a = workspaceStore?.leggi()
           return {
@@ -2241,7 +2314,10 @@ if (!app.requestSingleInstanceLock()) {
         // deve valere subito, senza riaprire il programma.
         oltreLaRete: () => impostazioni.preferenze().clientOltreLaRete,
         rotta: rotteClient(rotte),
-        rottaLibera: rotteLibere(rotte)
+        rottaLibera: rotteLibere(rotte),
+        // I rifiuti e il primo contatto di ogni dispositivo nel registro: e'
+        // l'unico modo di capire dal PC perche' il telefono «non funziona».
+        log: (m) => registro.info(m)
       })
       serverClient.on('error', (err) => {
         // Una porta occupata non deve impedire al programma di aprirsi: si dice

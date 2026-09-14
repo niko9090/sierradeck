@@ -70,6 +70,8 @@ export type Scatola = {
   leggi: <T>(nome: string) => Promise<T | undefined>
   scrivi: (nome: string, oggetto: unknown) => Promise<void>
   cancella: (nome: string) => Promise<void>
+  /** I nomi degli oggetti con quel prefisso: serve a trovare i PC (`pc-*`). Facoltativa nelle prove. */
+  elenca?: (prefisso: string) => Promise<string[]>
 }
 
 export type StatoProgetto = {

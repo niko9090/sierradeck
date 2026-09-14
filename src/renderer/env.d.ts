@@ -325,6 +325,14 @@ declare global {
       accesso: {
         stato: () => Promise<StatoAccesso>
       }
+      posta: {
+        io: () => Promise<string>
+        pc: () => Promise<import('../main/progetti/posta').BattitoPc[]>
+        leggi: (pc: string) => Promise<import('../main/progetti/posta').Posta | undefined>
+        aggiungi: (pc: string, voce: { cwd: string; testo: string; sessione?: string }) => Promise<import('../main/progetti/posta').Posta | undefined>
+        togli: (pc: string, voce: string) => Promise<import('../main/progetti/posta').Posta | undefined>
+        pulisci: (pc: string) => Promise<import('../main/progetti/posta').Posta | undefined>
+      }
       autopilota: {
         elenca: () => Promise<Autopilota[]>
         crea: (p: NuovoAutopilota) => Promise<Autopilota>

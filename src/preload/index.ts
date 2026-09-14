@@ -5,6 +5,7 @@ import type { LayoutSalvato, PaneSalvato } from '@shared/workspace'
 import type { Scheda } from '@shared/quaderno'
 import type { Preferenze } from '@shared/preferenze'
 import type { Autopilota } from '@shared/autopilota'
+import type { BattitoPc, Posta } from '../main/progetti/posta'
 import type { StatoWorkspace } from '../main/ipc'
 import type { Utente, EsitoAccesso } from '@shared/account'
 import type { Istantanea } from '@shared/istantanea'
@@ -393,6 +394,19 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('progetti:codaModifica', id, voceId, testo, sessione),
     codaTogli: (id: string, voceId: string): Promise<Coda | undefined> => ipcRenderer.invoke('progetti:codaTogli', id, voceId),
     codaPulisci: (id: string): Promise<Coda | undefined> => ipcRenderer.invoke('progetti:codaPulisci', id),
+  },
+  /**
+   * La posta per un PC: azioni che si eseguono solo su quel computer, quando
+   * c'e'. Gli altri PC si vedono dal loro battito sul Drive.
+   */
+  posta: {
+    io: (): Promise<string> => ipcRenderer.invoke('posta:io'),
+    pc: (): Promise<BattitoPc[]> => ipcRenderer.invoke('posta:pc'),
+    leggi: (pc: string): Promise<Posta | undefined> => ipcRenderer.invoke('posta:leggi', pc),
+    aggiungi: (pc: string, voce: { cwd: string; testo: string; sessione?: string }): Promise<Posta | undefined> =>
+      ipcRenderer.invoke('posta:aggiungi', pc, voce),
+    togli: (pc: string, voce: string): Promise<Posta | undefined> => ipcRenderer.invoke('posta:togli', pc, voce),
+    pulisci: (pc: string): Promise<Posta | undefined> => ipcRenderer.invoke('posta:pulisci', pc),
     /** Il Core chiede di mettere a dormire queste chat: il testimone e' passato a un altro PC. */
     suIberna: (cb: (m: { sessioni: string[] }) => void): (() => void) => {
       const h = (_e: unknown, m: { sessioni: string[] }): void => cb(m)

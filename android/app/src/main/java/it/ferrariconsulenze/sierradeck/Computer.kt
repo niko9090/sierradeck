@@ -79,6 +79,27 @@ fun Computer(api: Api, stato: Stato?) {
     var codaVoci by remember { mutableStateOf<List<VoceCoda>>(emptyList()) }
     var codaDisponibile by remember { mutableStateOf(true) }
     var codaTesto by remember { mutableStateOf("") }
+    // La posta per un PC: gli altri computer, la cassetta di quello aperto.
+    var pcVisti by remember { mutableStateOf<List<PcRemoto>?>(null) }
+    var pcDisponibile by remember { mutableStateOf(true) }
+    var pcAperto by remember { mutableStateOf<String?>(null) }
+    var postaVoci by remember { mutableStateOf<List<VocePosta>>(emptyList()) }
+    var postaCwd by remember { mutableStateOf("") }
+    var postaTesto by remember { mutableStateOf("") }
+    var postaNota by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            try { val e = api.pc(); pcVisti = e.pc; pcDisponibile = e.disponibile } catch (_: Exception) { if (pcVisti == null) pcVisti = emptyList() }
+            delay(15_000)
+        }
+    }
+    LaunchedEffect(pcAperto) {
+        val id = pcAperto ?: return@LaunchedEffect
+        while (isActive) {
+            try { postaVoci = api.posta(id).voci; postaNota = null } catch (e: Exception) { postaNota = "Non riesco a leggere la cassetta." }
+            delay(10_000)
+        }
+    }
     LaunchedEffect(codaAperta) {
         val id = codaAperta ?: return@LaunchedEffect
         while (isActive) {
@@ -308,6 +329,108 @@ fun Computer(api: Api, stato: Stato?) {
                                 scope.launch { try { codaVoci = api.codaAggiungi(p.id, t).voci } catch (_: Exception) {} }
                             }
                         ) { Text("Metti in coda") }
+                    }
+                }
+            }
+        }
+
+        Divisore()
+
+        // Gli altri computer, e le azioni da eseguire solo la'. Nicholas
+        // (2026-09-14): «se sto operando su una chat su una cartella in rete
+        // gli altri come fanno a operare li'?». Si scrive nella cassetta di
+        // quel PC; consegna il suo postino, quando e' acceso.
+        Sezione("Altri computer")
+        Text(
+            "Un'azione scritta a un PC si esegue solo là, in una sua chat, quando è acceso: serve per una cartella che sta su quel PC (un disco di rete, un progetto che non viaggia). Se la cartella là non esiste, la voce fallisce e lo leggi qui.",
+            color = Banco.testoQuieto, fontSize = 12.sp
+        )
+        Spacer(Modifier.height(8.dp))
+        val pcs = pcVisti
+        when {
+            !pcDisponibile -> Text("Questo computer non sa ancora mandare azioni a un altro PC: aggiornalo.", color = Banco.testoQuieto)
+            pcs == null -> Text("Leggo il Drive…", color = Banco.testoQuieto)
+            pcs.isEmpty() -> Text("Nessun altro PC ha ancora lasciato un segno sul Drive (serve la 0.27.0 su quel PC).", color = Banco.testoQuieto)
+            else -> for (p in pcs) {
+                val aperto = pcAperto == p.pcId
+                Tessera(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Column(Modifier.padding(12.dp)) {
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(p.nome, color = Banco.testo, maxLines = 1)
+                                Text(
+                                    (if (p.vivo) "acceso" else "spento, ultimo segno ${p.battito.take(16).replace('T', ' ')}") +
+                                        " · ${p.chat.size} chat aperte · ${p.cartelle.size} cartelle",
+                                    color = if (p.vivo) Banco.verde else Banco.testoQuieto, fontSize = 12.sp
+                                )
+                            }
+                            OutlinedButton(onClick = {
+                                pcAperto = if (aperto) null else p.pcId
+                                postaVoci = emptyList(); postaTesto = ""; postaNota = null
+                                postaCwd = p.cartelle.firstOrNull() ?: ""
+                            }) { Text(if (aperto) "Chiudi" else "Azioni") }
+                        }
+                        if (aperto) {
+                            Spacer(Modifier.height(8.dp))
+                            val attesa = postaVoci.filter { it.stato == "attesa" }
+                            val chiuse = postaVoci.filter { it.stato != "attesa" }
+                            val nota = postaNota
+                            if (nota != null) Text(nota, color = Banco.rosso, fontSize = 12.sp)
+                            if (attesa.isEmpty()) Text("Nessuna azione in attesa.", color = Banco.testoQuieto, fontSize = 12.sp)
+                            for ((i, v) in attesa.withIndex()) {
+                                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text("${i + 1}. ${v.testo}", color = Banco.testo, fontSize = 13.sp)
+                                        Text("in ${v.cwd} · da ${v.daNome}" + (if (v.apertaIl != null) " · chat aperta, aspetto che sia pronta" else ""), color = Banco.testoQuieto, fontSize = 11.sp)
+                                    }
+                                    TextButton(onClick = { scope.launch { try { postaVoci = api.postaTogli(p.pcId, v.id).voci } catch (e: Exception) { postaNota = "Non sono riuscito a togliere la voce." } } }) { Text("Togli") }
+                                }
+                            }
+                            if (chiuse.isNotEmpty()) {
+                                for (v in chiuse.takeLast(5)) {
+                                    Text((if (v.stato == "fallita") "✗ " else "✓ ") + v.testo.take(60) + " — " + (v.esito ?: v.stato), color = if (v.stato == "fallita") Banco.ambra else Banco.testoQuieto, fontSize = 11.sp)
+                                }
+                                TextButton(onClick = { scope.launch { try { postaVoci = api.postaPulisci(p.pcId).voci } catch (e: Exception) { postaNota = "Non sono riuscito a pulire." } } }) { Text("Pulisci le chiuse") }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            if (p.cartelle.isNotEmpty()) {
+                                Text("In quale cartella di ${p.nome}:", color = Banco.testoQuieto, fontSize = 12.sp)
+                                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    for (c in p.cartelle) {
+                                        FilterChip(selected = postaCwd == c, onClick = { postaCwd = c }, label = { Text(c.substringAfterLast('\\').substringAfterLast('/'), fontSize = 12.sp) })
+                                    }
+                                }
+                            }
+                            OutlinedTextField(
+                                value = postaCwd,
+                                onValueChange = { postaCwd = it },
+                                label = { Text("La cartella com'è su quel PC") },
+                                textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = postaTesto,
+                                onValueChange = { postaTesto = it.take(4000) },
+                                placeholder = { Text("L'azione, come la scriveresti nella chat di quel PC", color = Banco.testoQuieto, fontSize = 14.sp) },
+                                textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                                minLines = 2,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Button(
+                                enabled = postaTesto.isNotBlank() && postaCwd.isNotBlank(),
+                                shape = MaterialTheme.shapes.small,
+                                onClick = {
+                                    val t = postaTesto.trim(); val c = postaCwd.trim()
+                                    scope.launch {
+                                        try { postaVoci = api.postaAggiungi(p.pcId, c, t).voci; postaTesto = ""; postaNota = null }
+                                        catch (e: Api.Errore) { postaNota = if (e.codice == 409) "La posta sta sul Drive: sul computer serve la cassaforte sbloccata e il Drive collegato." else "Non sono riuscito a mandare (HTTP ${e.codice})." }
+                                        catch (e: Exception) { postaNota = "Non sono riuscito a mandare: ${e.message ?: "il computer non risponde"}" }
+                                    }
+                                }
+                            ) { Text("Manda a ${p.nome}") }
+                        }
                     }
                 }
             }

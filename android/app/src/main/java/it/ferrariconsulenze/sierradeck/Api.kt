@@ -223,6 +223,21 @@ class Api(private val indirizzo: String, private val chiave: String?) {
     suspend fun codaPulisci(progetto: String): Coda =
         json.decodeFromString(corpoTesto("/api/coda/pulisci", oggetto { put("progetto", progetto) }))
 
+    // ─── la posta per un PC: azioni che si eseguono solo la', quando e' acceso ───
+    suspend fun pc(): ElencoPc = json.decodeFromString(corpoTesto("/api/pc", null))
+
+    suspend fun posta(pc: String): Posta =
+        json.decodeFromString(corpoTesto("/api/posta", oggetto { put("pc", pc) }))
+
+    suspend fun postaAggiungi(pc: String, cwd: String, testo: String): Posta =
+        json.decodeFromString(corpoTesto("/api/posta/aggiungi", oggetto { put("pc", pc); put("cwd", cwd); put("testo", testo) }))
+
+    suspend fun postaTogli(pc: String, voce: String): Posta =
+        json.decodeFromString(corpoTesto("/api/posta/togli", oggetto { put("pc", pc); put("voce", voce) }))
+
+    suspend fun postaPulisci(pc: String): Posta =
+        json.decodeFromString(corpoTesto("/api/posta/pulisci", oggetto { put("pc", pc) }))
+
     suspend fun salvataggi(): Salvataggi = json.decodeFromString(corpoTesto("/api/salvataggi", null))
 
     // ─── il Drive ───
