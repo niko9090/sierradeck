@@ -3594,3 +3594,82 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
 }
+
+/* Il menu a tendina dei workspace: quando sono tanti, il nome intero di dove
+   sei e tutti gli altri per esteso, invece di linguette ridotte a puntini. */
+.ws-menu { position: relative; display: flex; align-items: center; }
+.ws-menu__tasto {
+  font: inherit;
+  font-size: var(--t2);
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s1) var(--s3);
+  border-radius: var(--raggio);
+  border: 1px solid var(--incisione);
+  background: var(--chassis-premuto);
+  color: var(--testo);
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 320px;
+}
+.ws-menu__tasto:hover { border-color: var(--luce-incisione); }
+.ws-menu__tasto--chiama { border-color: var(--ambra); }
+.ws-menu__nome { overflow: hidden; text-overflow: ellipsis; }
+.ws-menu__quanti {
+  font-size: var(--t0);
+  color: var(--testo-quieto);
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--chassis);
+  border: 1px solid var(--incisione);
+}
+.ws-menu__freccia { font-size: var(--t1); color: var(--testo-quieto); }
+.ws-menu__velo { position: fixed; inset: 0; z-index: 28; }
+.ws-menu__tendina {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 29;
+  min-width: 300px;
+  max-width: min(480px, calc(100vw - 32px));
+  background: var(--chassis);
+  border: 1px solid var(--incisione);
+  border-radius: 8px;
+  box-shadow: 0 16px 40px var(--ombra-media), 0 2px 6px var(--ombra-corta);
+  padding: var(--s2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  animation: fumetto-entra 140ms ease-out;
+}
+.ws-menu__filtro { width: 100%; box-sizing: border-box; }
+.ws-menu__lista {
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.ws-menu__voce {
+  font: inherit;
+  font-size: var(--t2);
+  display: grid;
+  grid-template-columns: 16px 1fr auto auto;
+  align-items: center;
+  gap: var(--s2);
+  padding: 6px var(--s2);
+  border: 1px solid transparent;
+  border-radius: var(--raggio);
+  background: transparent;
+  color: var(--testo);
+  text-align: left;
+  cursor: pointer;
+}
+.ws-menu__voce:hover { background: var(--luce-tenue); border-color: var(--luce-incisione); }
+.ws-menu__voce--attiva { background: var(--chassis-premuto); border-color: var(--incisione); }
+.ws-menu__voce--chiama .ws-menu__voce-nome { color: var(--ambra); }
+.ws-menu__spunta { color: var(--accento); font-size: var(--t1); }
+.ws-menu__voce-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-menu__conta { font-size: var(--t0); color: var(--testo-quieto); white-space: nowrap; }
+.ws-menu__vuoto { padding: var(--s2); font-size: var(--t1); color: var(--testo-quieto); }
+.ws-menu__piede { display: flex; justify-content: flex-end; padding-top: var(--s1); border-top: 1px solid var(--incisione); }

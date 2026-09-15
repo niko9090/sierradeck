@@ -4,6 +4,8 @@ import { useSessionStore } from '../state/sessions'
 import { proponiNuovaChat, type PropostaChat } from '../nuova-chat'
 import { ModaleNuovaChat } from './ModaleNuovaChat'
 import { azioniDiFinestra } from '../azioni-finestra'
+import { MenuWorkspace } from './MenuWorkspace'
+import { serveIlMenu } from '../menu-workspace'
 import { MODELLI } from '../modelli'
 
 /**
@@ -101,6 +103,7 @@ export function Console({
    * workspace che si lascia, altrimenti tornandoci si troverebbe vuoto — solo
    * senza dover aprire niente.
    */
+  const nomiWs = (workspaceNomi.length > 0 ? workspaceNomi : [workspaceAttivo]).filter((x) => x !== '')
   const cambiaWorkspace = (nome: string): void => {
     if (nome === workspaceAttivo) return
     // L'errore non si ingoia: se il cambio non riesce, premere il nome del
@@ -205,10 +208,20 @@ export function Console({
           numero, mentre i comandi delle altre sezioni sono sempre quelli. */}
       <div className="sezione sezione--cede">
         <span className="serigrafia">Workspace</span>
-        {/* Tutti in vista, non uno dietro un menu: si passa da un insieme di
-            chat all'altro con un clic, e si vede sempre dove si è. */}
+        {/* Pochi: tutti in vista, si passa dall'uno all'altro con un clic e si
+            vede sempre dove si e'. Tanti: le linguette diventavano puntini
+            («Prede…», «W…», «H…»), e allora il nome intero di dove sei con un
+            menu che li elenca tutti per esteso (Nicholas, 15/09). */}
         <div className="ws">
-          {(workspaceNomi.length > 0 ? workspaceNomi : [workspaceAttivo]).filter((x) => x !== '').map((n) => (
+          {serveIlMenu(nomiWs) ? (
+            <MenuWorkspace
+              nomi={nomiWs}
+              attivo={workspaceAttivo}
+              chiamano={workspaceCheChiamano}
+              onCambia={cambiaWorkspace}
+              onGestisci={() => commuta('workspace')}
+            />
+          ) : nomiWs.map((n) => (
             <button
               key={n}
               className={[
