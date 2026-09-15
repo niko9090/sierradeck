@@ -132,7 +132,7 @@ export function passiDelLavoro(l: LavoroInCorso): PassoLavoro[] {
 /**
  * Lo stato del lavoro visto dall'App: cambia solo quando un lavoro comincia,
  * finisce, cambia tipo o lascia un esito nuovo. Il progresso file per file
- * lo segue la striscia da sola (`StrisciaLavoroDrive`): ridisegnare tutta
+ * lo segue il fumetto da solo (`FumettoLavoroDrive`): ridisegnare tutta
  * l'App a ogni file e' quello che la bloccava.
  */
 export function soloTransizioni(prima: StatoLavoro, dopo: StatoLavoro): StatoLavoro {

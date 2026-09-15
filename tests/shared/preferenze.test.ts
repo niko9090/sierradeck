@@ -28,6 +28,13 @@ describe('normalizzaPreferenze', () => {
     expect(p.salvaAllaChiusura).toBe(false)
   })
 
+  it('i fumetti della sincronia automatica: spenti se non detto, accesi solo con true', () => {
+    // Nicholas (2026-09-15): la sincronia automatica non deve disturbare.
+    expect(normalizzaPreferenze({}).fumettiSincroniaAutomatica).toBe(false)
+    expect(normalizzaPreferenze({ fumettiSincroniaAutomatica: 'si' }).fumettiSincroniaAutomatica).toBe(false)
+    expect(normalizzaPreferenze({ fumettiSincroniaAutomatica: true }).fumettiSincroniaAutomatica).toBe(true)
+  })
+
   it('lo scaricamento automatico degli aggiornamenti è acceso di default', () => {
     // Il predefinito è il comportamento di sempre: chi non apre le impostazioni
     // continua ad aggiornarsi da solo.

@@ -375,6 +375,21 @@ function SchedaGenerali(): React.JSX.Element {
           <label className="impostazioni__riga impostazioni__riga--spunta">
             <input
               type="checkbox"
+              checked={p.fumettiSincroniaAutomatica}
+              onChange={(e) => cambia({ fumettiSincroniaAutomatica: e.target.checked })}
+            />
+            <span>Mostra un fumetto anche per la sincronia automatica con il Drive</span>
+          </label>
+          <div className="impostazioni__nota">
+            La sincronia con il Drive non sta più in una striscia in alto: gli avvisi sono fumetti in basso a
+            destra, che compaiono e spariscono senza spostare i riquadri. Il lavoro che chiedi tu (Fondi, Ripristina,
+            Porta qui) ha sempre il suo fumetto con la barra, «Dettagli» e «Annulla». Il lavoro automatico
+            (il salvataggio ogni cinque minuti, l’arrivo delle chat) spento non si vede: se ne parla solo se va
+            male. Acceso, mostra una riga piccola con la percentuale, senza tasti.
+          </div>
+          <label className="impostazioni__riga impostazioni__riga--spunta">
+            <input
+              type="checkbox"
               checked={p.scaricaAggiornamentiAutomatico}
               onChange={(e) => cambia({ scaricaAggiornamentiAutomatico: e.target.checked })}
             />

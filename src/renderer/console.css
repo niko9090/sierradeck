@@ -3529,3 +3529,50 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .chat-altrove__nota {
   font-size: var(--t1);
 }
+
+/* I fumetti: gli avvisi della sincronia e del Drive, in basso a destra, fuori
+   dal flusso. Compaiono e spariscono senza spostare i riquadri. */
+.fumetti {
+  position: fixed;
+  right: var(--s4);
+  bottom: var(--s4);
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s2);
+  max-width: min(560px, calc(100vw - 2 * var(--s4)));
+  pointer-events: none;
+}
+.fumetto {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  border-radius: 8px;
+  background: var(--chassis);
+  border: 1px solid var(--incisione);
+  box-shadow: 0 6px 18px var(--ombra-media), 0 1px 3px var(--ombra-corta);
+  color: var(--testo);
+  font-size: var(--t2);
+  max-width: 100%;
+  animation: fumetto-entra 160ms ease-out;
+}
+.fumetto__testo {
+  min-width: 0;
+  line-height: 1.4;
+}
+.fumetto--errore { border-color: var(--rosso, #c0392b); }
+.fumetto--attesa { border-color: var(--ambra); }
+.fumetto--pillola {
+  padding: 3px var(--s2);
+  font-size: var(--t1);
+  color: var(--testo-quieto);
+  opacity: 0.9;
+  box-shadow: 0 2px 6px var(--ombra-corta);
+}
+@keyframes fumetto-entra {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}

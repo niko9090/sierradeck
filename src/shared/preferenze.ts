@@ -24,6 +24,13 @@ export type Preferenze = {
   /** Mostrare la barra mentre una chat con molto storico si apre. */
   mostraAttesaChat: boolean
   /**
+   * Un fumetto anche per il lavoro automatico con il Drive (il salvataggio
+   * ogni cinque minuti, l'arrivo delle chat). Spento (il predefinito): di
+   * quel lavoro non si vede niente, se ne parla solo se va male. Acceso: una
+   * riga piccola in basso a destra, senza tasti, che non sposta niente.
+   */
+  fumettiSincroniaAutomatica: boolean
+  /**
    * Scaricare da soli un aggiornamento appena lo si trova.
    *
    * Acceso (il predefinito) è la scelta che tiene il programma al passo: lo
@@ -94,6 +101,7 @@ export const PREFERENZE_PREDEFINITE: Preferenze = {
   portaAutopiloti: 47630,
   salvaAllaChiusura: true,
   mostraAttesaChat: true,
+  fumettiSincroniaAutomatica: false,
   // Acceso: è il comportamento che c'è sempre stato, e quello che tiene il
   // programma al passo senza chiedere niente.
   scaricaAggiornamentiAutomatico: true,
@@ -158,6 +166,7 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
     mostraAttesaChat: typeof o.mostraAttesaChat === 'boolean'
       ? o.mostraAttesaChat
       : PREFERENZE_PREDEFINITE.mostraAttesaChat,
+    fumettiSincroniaAutomatica: o.fumettiSincroniaAutomatica === true,
     // Il predefinito è acceso: un valore scritto male non deve far smettere di
     // aggiornarsi da soli, che è la scelta prudente per stare al passo.
     scaricaAggiornamentiAutomatico: typeof o.scaricaAggiornamentiAutomatico === 'boolean'

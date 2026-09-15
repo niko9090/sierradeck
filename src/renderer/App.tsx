@@ -46,7 +46,8 @@ import { Serratura } from './components/Serratura'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
 import { righeDiPty, finestraDiPty } from './schermo-terminale'
 import { ETICHETTA_LAVORO_TIPO, soloTransizioni } from './progresso-sync'
-import { StrisciaLavoroDrive } from './components/StrisciaLavoroDrive'
+import { Fumetti, Fumetto, FumettoLavoroDrive, useChiusuraAutomatica } from './components/Fumetti'
+import { decidiFumettiDrive, FUMETTO_ARRIVO_MS, FUMETTO_ESITO_OK_MS } from './fumetti-sync'
 import { PannelloDrive } from './components/PannelloDrive'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 
@@ -590,9 +591,16 @@ export function App(): React.JSX.Element {
   // adesso» partiva e non si vedeva niente da nessuna parte.
   const [lavoroDrive, setLavoroDrive] = useState<StatoLavoro>({})
   const [esitoLavoroVisto, setEsitoLavoroVisto] = useState<string | undefined>(undefined)
+  // I fumetti della sincronia (Nicholas, 15/09: la striscia in alto «continua
+  // a muoversi ed e' veramente scomodo»): fuori dal flusso, in basso a
+  // destra; il lavoro automatico si mostra solo se la preferenza lo chiede.
+  const [fumettiAuto, setFumettiAuto] = useState(false)
+  const fumettiDrive = decidiFumettiDrive({ inCorso: lavoroDrive.inCorso, ultimo: lavoroDrive.ultimo, esitoVisto: esitoLavoroVisto, automaticiVisibili: fumettiAuto })
+  useChiusuraAutomatica(fumettiDrive.esito?.esito === 'ok' ? fumettiDrive.esito.quando : undefined, FUMETTO_ESITO_OK_MS, () => setEsitoLavoroVisto(lavoroDrive.ultimo?.quando))
   // Le chat arrivate dal Drive: l'indice e' gia' riletto, sono nell'elenco.
   const [chatArrivate, setChatArrivate] = useState<{ quante: number; tipo: string; quando: string; rimappate: number } | undefined>(undefined)
   useEffect(() => window.gestore.sync.onChatArrivate(setChatArrivate), [])
+  useChiusuraAutomatica(chatArrivate?.quando, FUMETTO_ARRIVO_MS, () => setChatArrivate(undefined))
   useEffect(() => window.gestore.sync.onCartellaCambiata(({ sessionUuid, a }) => useLayoutStore.getState().impostaCartella(sessionUuid, a)), [])
   // Solo le transizioni: il progresso file per file lo segue la striscia da
   // sola. Ridisegnare tutta l'App a ogni file (e ogni secondo per l'orologio)
@@ -771,6 +779,7 @@ export function App(): React.JSX.Element {
       // «mostra l'avanzamento mentre una chat lunga si apre» si salvava e non
       // lo leggeva nessuno.
       impostaMostraAttesa(p.mostraAttesaChat)
+      setFumettiAuto(p.fumettiSincroniaAutomatica)
       salvaAllaChiusura.current = p.salvaAllaChiusura
     }
     window.gestore.preferenze.leggi().then(prendi).catch(() => undefined)
@@ -1102,53 +1111,9 @@ export function App(): React.JSX.Element {
         </div>
       ) : null}
 
-      {riavvioFra !== undefined && lavoroDrive.ultimo !== undefined ? (
-        <div className="avviso avviso--aggiornamento">
-          <span className="led led--lavoro" />
-          <span>
-            <b>Sono arrivate chat o cartelle dal Drive.</b> Per vederle nei loro workspace il programma si riavvia fra <b>{riavvioFra}</b> s: prima aspetta che le chat aperte finiscano il turno, come per un aggiornamento, e al ritorno le chat riprendono da sole.
-          </span>
-          <span style={{ flex: 1 }} />
-          <button className="tasto tasto--primario" onClick={() => setRiavvioFra(0)}>Riavvia ora</button>
-          <button className="tasto" onClick={() => { setRiavvioRinviato(lavoroDrive.ultimo?.quando); setRiavvioFra(undefined) }} title="Le chat arrivate compariranno al prossimo riavvio">Più tardi</button>
-        </div>
-      ) : riavvioEsito !== undefined ? (
-        <div className="avviso avviso--aggiornamento">
-          <span className="led led--attesa" />
-          <span>{riavvioEsito}</span>
-          <span style={{ flex: 1 }} />
-          <button className="tasto" onClick={() => setRiavvioEsito(undefined)}>×</button>
-        </div>
-      ) : null}
-      {chatArrivate !== undefined ? (
-        <div className="avviso avviso--aggiornamento">
-          <span className="led led--lavoro" />
-          <span>
-            <b>{chatArrivate.quante} {chatArrivate.quante === 1 ? 'chat arrivata' : 'chat arrivate'} dal Drive</b>
-            {' '}({(ETICHETTA_LAVORO_TIPO as Record<string, string>)[chatArrivate.tipo] ?? chatArrivate.tipo}).
-            {' '}{chatArrivate.quante === 1 ? 'È già nell’elenco Chat' : 'Sono già nell’elenco Chat'}, nelle cartelle di questo PC
-            {chatArrivate.rimappate > 0 ? ` (${chatArrivate.rimappate} ${chatArrivate.rimappate === 1 ? 'spostata' : 'spostate'} dalla cartella dell’altro PC a quella di qui)` : ''}.
-            {' '}Per averle in un workspace usa «Porta qui il workspace» nella scheda Drive, oppure aprile dall’elenco.
-          </span>
-          <span style={{ flex: 1 }} />
-          <button className="tasto" onClick={() => { setChatArrivate(undefined); setModale('sessioni') }} title="L’elenco di tutte le chat, per cartella">Apri l’elenco</button>
-          <button className="tasto" onClick={() => setChatArrivate(undefined)} title="Chiudi">×</button>
-        </div>
-      ) : null}
-      {lavoroDrive.inCorso !== undefined ? (
-        <StrisciaLavoroDrive iniziale={lavoroDrive.inCorso} />
-      ) : lavoroDrive.ultimo !== undefined && esitoLavoroVisto !== lavoroDrive.ultimo.quando && ((lavoroDrive.ultimo.tipo !== 'salvataggio' && lavoroDrive.ultimo.tipo !== 'arrivo') || lavoroDrive.ultimo.esito === 'errore') ? (
-        <div className="avviso avviso--aggiornamento">
-          <span className={`led ${lavoroDrive.ultimo.esito === 'errore' ? 'led--fermo' : lavoroDrive.ultimo.esito === 'annullato' ? 'led--attesa' : 'led--lavoro'}`} />
-          <span>
-            <b>{ETICHETTA_LAVORO_TIPO[lavoroDrive.ultimo.tipo]}</b>:{' '}
-            {lavoroDrive.ultimo.esito === 'ok' ? 'fatto' : lavoroDrive.ultimo.esito === 'annullato' ? 'annullato' : 'non riuscito'}
-            {lavoroDrive.ultimo.messaggio !== '' ? ` — ${lavoroDrive.ultimo.messaggio}` : ''}
-          </span>
-          <span style={{ flex: 1 }} />
-          <button className="tasto" onClick={() => setEsitoLavoroVisto(lavoroDrive.ultimo?.quando)} title="Chiudi">×</button>
-        </div>
-      ) : null}
+      {/* Il lavoro con il Drive, le chat arrivate e il riavvio consigliato
+          stanno nei fumetti in fondo alla pagina, fuori dal flusso: qui sopra
+          non c'e' piu' niente che entri ed esca ogni cinque minuti. */}
 
       {/* L'attesa della quiete. Prima non aveva nessuna striscia: si premeva
           «Installa e riavvia» con una chat al lavoro e la striscia spariva per
@@ -1319,6 +1284,52 @@ export function App(): React.JSX.Element {
           )}
         </div>
       </div>
+      <Fumetti>
+        {fumettiDrive.lavoro !== undefined && lavoroDrive.inCorso !== undefined ? (
+          <FumettoLavoroDrive key={lavoroDrive.inCorso.avviato} iniziale={lavoroDrive.inCorso} pillola={fumettiDrive.lavoro === 'pillola'} />
+        ) : null}
+        {fumettiDrive.esito !== undefined ? (
+          <Fumetto tono={fumettiDrive.esito.esito === 'errore' ? 'errore' : fumettiDrive.esito.esito === 'annullato' ? 'attesa' : 'ok'}>
+            <span className={`led ${fumettiDrive.esito.esito === 'errore' ? 'led--fermo' : fumettiDrive.esito.esito === 'annullato' ? 'led--attesa' : 'led--lavoro'}`} />
+            <span className="fumetto__testo">
+              <b>{ETICHETTA_LAVORO_TIPO[fumettiDrive.esito.tipo]}</b>:{' '}
+              {fumettiDrive.esito.esito === 'ok' ? 'fatto' : fumettiDrive.esito.esito === 'annullato' ? 'annullato' : 'non riuscito'}
+              {fumettiDrive.esito.messaggio !== '' ? ` — ${fumettiDrive.esito.messaggio}` : ''}
+            </span>
+            <button className="tasto tasto--mini" onClick={() => setEsitoLavoroVisto(lavoroDrive.ultimo?.quando)} title="Chiudi">×</button>
+          </Fumetto>
+        ) : null}
+        {chatArrivate !== undefined ? (
+          <Fumetto tono="ok">
+            <span className="led led--lavoro" />
+            <span className="fumetto__testo">
+              <b>{chatArrivate.quante} {chatArrivate.quante === 1 ? 'chat arrivata' : 'chat arrivate'} dal Drive</b>
+              {' '}({(ETICHETTA_LAVORO_TIPO as Record<string, string>)[chatArrivate.tipo] ?? chatArrivate.tipo}).
+              {' '}{chatArrivate.quante === 1 ? 'È già nell’elenco Chat' : 'Sono già nell’elenco Chat'}
+              {chatArrivate.rimappate > 0 ? ` (${chatArrivate.rimappate} ${chatArrivate.rimappate === 1 ? 'spostata' : 'spostate'} nella cartella di qui)` : ''}.
+              {' '}Per averle in un workspace: scheda Drive → «Porta qui il workspace».
+            </span>
+            <button className="tasto tasto--mini" onClick={() => { setChatArrivate(undefined); setModale('sessioni') }} title="L’elenco di tutte le chat, per cartella">Elenco</button>
+            <button className="tasto tasto--mini" onClick={() => setChatArrivate(undefined)} title="Chiudi">×</button>
+          </Fumetto>
+        ) : null}
+        {riavvioFra !== undefined && lavoroDrive.ultimo !== undefined ? (
+          <Fumetto tono="attesa">
+            <span className="led led--lavoro" />
+            <span className="fumetto__testo">
+              <b>Sono arrivate chat o cartelle dal Drive.</b> Per vederle nei loro workspace il programma si riavvia fra <b>{riavvioFra}</b> s: prima aspetta che le chat aperte finiscano il turno, e al ritorno le chat riprendono da sole.
+            </span>
+            <button className="tasto tasto--primario tasto--mini" onClick={() => setRiavvioFra(0)}>Riavvia ora</button>
+            <button className="tasto tasto--mini" onClick={() => { setRiavvioRinviato(lavoroDrive.ultimo?.quando); setRiavvioFra(undefined) }} title="Le chat arrivate compariranno al prossimo riavvio">Più tardi</button>
+          </Fumetto>
+        ) : riavvioEsito !== undefined ? (
+          <Fumetto tono="attesa">
+            <span className="led led--attesa" />
+            <span className="fumetto__testo">{riavvioEsito}</span>
+            <button className="tasto tasto--mini" onClick={() => setRiavvioEsito(undefined)}>×</button>
+          </Fumetto>
+        ) : null}
+      </Fumetti>
     </div>
   )
 }
