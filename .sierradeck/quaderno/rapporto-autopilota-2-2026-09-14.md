@@ -462,3 +462,17 @@ non c'è `GH_TOKEN`. Senza, né push né release. Lo script pronto è nello
 scratchpad della chat (`pubblica-0.27.0.sh`): con `GH_TOKEN` valido fa
 push, release `v0.27.0` con i cinque allegati, ritenta l'exe se la rete lo
 tronca, e verifica `releases/latest`.
+
+# 9. «Directory non trovate» alle chat dal cloud (15 settembre)
+
+Causa trovata nel registro del fisso: una chat viva sul portatile (cartella
+`E:\Documents\Progetti SierraDeck\fionda apl`) veniva **adottata** qui in
+`C:\Users\nikof\Progetti SierraDeck\fionda apl`, cartella vuota, con la
+trascrizione spostata e il `cwd` riscritto; Claude ripartiva senza i file.
+Dopo ogni arrivo dal Drive il registro diceva «63/48/13 chat rimappate», e
+`altroveQui` teneva fuori per sempre la copia vera. Corretto in `ec54fc1`
+(regola «la cartella di un altro PC non si adotta», riquadro «Questa chat
+lavora su X», ritorno delle chat rapite, subagenti che seguono la chat,
+copia più avanti che arriva, telefono con «su X» e 409). Dettagli in
+`chat-di-un-altro-pc-cartella-mancante.md` §15/09. Typecheck 0, 2312 test
+in 177 file. App Android allineata alla pagina nel commit successivo.

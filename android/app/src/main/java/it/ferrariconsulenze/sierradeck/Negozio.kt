@@ -152,12 +152,12 @@ fun Negozio(api: Api) {
                                 onCommuta = { acceso ->
                                     inCorso = v.chiave
                                     scope.launch {
-                                        val esito = try {
+                                        // Se la chiamata non arriva lo dice la nota in cima; qui
+                                        // resta solo il «no» spiegato dal computer.
+                                        val esito = tenta((if (acceso) "accendere" else "spegnere") + " «${v.nome}»") {
                                             api.commutaNegozio(famiglia.cosa, v.nome, acceso)
-                                        } catch (e: Exception) {
-                                            EsitoNegozio(ok = false, messaggio = e.message)
                                         }
-                                        nota = if (esito.ok) null else esito.messaggio ?: "Non ci sono riuscito."
+                                        nota = if (esito == null || esito.ok) null else esito.messaggio ?: "Non ci sono riuscito."
                                         ricarica()
                                         inCorso = null
                                     }
@@ -166,12 +166,8 @@ fun Negozio(api: Api) {
                                     inCorso = v.chiave
                                     scope.launch {
                                         nota = "Installo ${v.nome}… ci mette qualche secondo."
-                                        val esito = try {
-                                            api.installaPlugin(v.nome)
-                                        } catch (e: Exception) {
-                                            EsitoNegozio(ok = false, messaggio = e.message)
-                                        }
-                                        nota = if (esito.ok) null else esito.messaggio ?: "Non sono riuscito a installarlo."
+                                        val esito = tenta("installare «${v.nome}»") { api.installaPlugin(v.nome) }
+                                        nota = if (esito == null || esito.ok) null else esito.messaggio ?: "Non sono riuscito a installarlo."
                                         ricarica()
                                         inCorso = null
                                     }

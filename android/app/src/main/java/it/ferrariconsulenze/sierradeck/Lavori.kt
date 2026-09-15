@@ -179,6 +179,17 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                     )
                     val s = d?.stato ?: breve.stato
                     Text(statoInParole(s), color = coloreStato(s), fontSize = 12.sp)
+                    // **Perche'** si e' fermato: «fermo» da solo manda a cercare
+                    // altrove. Come la pagina: prima la strada che sta provando,
+                    // altrimenti il motivo della sospensione.
+                    if (s == "sospeso" || s == "fallito") {
+                        val strategia = d?.strategia?.takeIf { it.isNotBlank() } ?: breve.strategia.takeIf { it.isNotBlank() }
+                        val perche = if (strategia != null) "bloccato, provo: $strategia"
+                            else d?.motivoSospensione?.takeIf { it.isNotBlank() } ?: breve.motivo
+                        if (perche.isNotBlank()) {
+                            Text(perche, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 3)
+                        }
+                    }
                 }
                 Punto(coloreLed(breve.led, d?.stato ?: breve.stato))
             }
@@ -201,7 +212,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
             if (det != null && det.passaggi.isNotEmpty()) {
                 Passaggi(det.passaggi)
                 Spacer(Modifier.height(10.dp))
-                Misura(det.misura)
+                Misura(det.misura, det.cicli)
                 Spacer(Modifier.height(16.dp))
             }
 
@@ -225,8 +236,15 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
             if (!det?.decisioni.isNullOrEmpty()) {
                 Spacer(Modifier.height(16.dp))
                 Etichetta("STA RAGIONANDO COSÌ")
+                // Con l'ora e senza la sigla «supervisore →»: quella e' come
+                // il servizio marca le sue decisioni, e letta da fuori sembra
+                // un errore. Resta cosa ha deciso, e quando.
                 for (dec in det!!.decisioni.takeLast(6).reversed()) {
-                    Text("• ${dec.cosa}", color = Banco.testoQuieto, fontSize = 13.sp, modifier = Modifier.padding(vertical = 3.dp))
+                    val ora = dec.quando.drop(11).take(5)
+                    Text(
+                        (if (ora.isNotBlank()) "$ora  " else "• ") + senzaSigla(dec.cosa),
+                        color = Banco.testoQuieto, fontSize = 13.sp, modifier = Modifier.padding(vertical = 3.dp)
+                    )
                 }
             }
 
@@ -290,7 +308,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                 Text("Riparte al riavvio", color = Banco.testo, modifier = Modifier.weight(1f))
                 Switch(
                     checked = det?.riprendiAlRiavvio ?: true,
-                    onCheckedChange = { v -> scope.launch { try { api.riavvioAutopilota(breve.id, v) } catch (_: Exception) {} } }
+                    onCheckedChange = { v -> scope.launch { tenta("cambiare «riparte al riavvio»") { api.riavvioAutopilota(breve.id, v) } } }
                 )
             }
             Spacer(Modifier.height(8.dp))
@@ -310,8 +328,12 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
             confirmButton = {
                 TextButton(onClick = {
                     eliminando = false
-                    scope.launch { try { api.eliminaAutopilota(breve.id) } catch (_: Exception) {} }
-                    onIndietro()
+                    // Indietro solo dopo il si' del computer: tornare prima
+                    // spegneva questo scope con la risposta dentro, e un
+                    // rifiuto restava muto.
+                    scope.launch {
+                        if (tenta("eliminare l'autopilota") { api.eliminaAutopilota(breve.id) } != null) onIndietro()
+                    }
                 }) { Text("Elimina", color = Banco.rosso) }
             },
             dismissButton = { TextButton(onClick = { eliminando = false }) { Text("Annulla") } }
@@ -323,10 +345,11 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
 private fun AzioniAutopilota(api: Api, id: String, stato: String) {
     val scope = rememberCoroutineScope()
     var inCorso by remember(id, stato) { mutableStateOf(false) }
-    fun fai(azione: suspend () -> Unit) {
+    /** `cosa` all'infinito: finisce in «Non sono riuscito a …» se il computer dice di no. */
+    fun fai(cosa: String, azione: suspend () -> Unit) {
         inCorso = true
         scope.launch {
-            try { azione() } catch (_: Exception) {}
+            tenta(cosa, azione)
             inCorso = false
         }
     }
@@ -334,13 +357,13 @@ private fun AzioniAutopilota(api: Api, id: String, stato: String) {
         "pronto" -> Button(
             enabled = !inCorso,
             shape = MaterialTheme.shapes.small,
-            onClick = { fai { api.vaiAutopilota(id) } },
+            onClick = { fai("farlo partire") { api.vaiAutopilota(id) } },
             modifier = Modifier.fillMaxWidth()
         ) { Text(if (inCorso) "Parto…" else "Vai — comincia a lavorare") }
         "lavoro", "attesa" -> OutlinedButton(
             enabled = !inCorso,
             shape = MaterialTheme.shapes.small,
-            onClick = { fai { api.fermaAutopilota(id) } },
+            onClick = { fai("fermarlo") { api.fermaAutopilota(id) } },
             modifier = Modifier.fillMaxWidth()
         ) { Text(if (inCorso) "Fermo…" else "Ferma — riprende quando vuoi") }
         "finito" -> Text(
@@ -353,13 +376,13 @@ private fun AzioniAutopilota(api: Api, id: String, stato: String) {
         "intervista" -> OutlinedButton(
             enabled = !inCorso,
             shape = MaterialTheme.shapes.small,
-            onClick = { fai { api.fermaAutopilota(id) } },
+            onClick = { fai("fermarlo") { api.fermaAutopilota(id) } },
             modifier = Modifier.fillMaxWidth()
         ) { Text(if (inCorso) "Fermo…" else "Si sta preparando (legge il progetto): ferma") }
         else -> Button(
             enabled = !inCorso,
             shape = MaterialTheme.shapes.small,
-            onClick = { fai { api.riprendiAutopilota(id) } },
+            onClick = { fai("riprenderlo") { api.riprendiAutopilota(id) } },
             modifier = Modifier.fillMaxWidth()
         ) { Text(if (inCorso) "Riprendo…" else "Riprendi da dove si è fermato") }
     }
@@ -390,8 +413,9 @@ private fun Passaggi(passi: List<Passo>) {
     }
 }
 
+/** La barra della misura e, accanto al dettaglio, quante volte e' intervenuto (i cicli). */
 @Composable
-private fun Misura(m: MisuraPasso) {
+private fun Misura(m: MisuraPasso, cicli: Int) {
     val colore = when (m.tono) {
         "lavoro" -> Banco.verde
         "attesa" -> Banco.ambra
@@ -408,9 +432,35 @@ private fun Misura(m: MisuraPasso) {
         Spacer(Modifier.size(10.dp))
         Text("${m.percento}%", color = colore, fontSize = 13.sp, fontWeight = FontWeight.Bold)
     }
-    if (m.dettaglio.isNotBlank()) {
-        Text("${m.dettaglio} ${m.di}".trim(), color = Banco.testoQuieto, fontSize = 12.sp)
+    // «3 criteri su 7 · 12 interventi», come sul computer e sulla pagina: i
+    // cicli arrivavano da sempre e nessuna schermata li mostrava.
+    val riga = listOf("${m.dettaglio} ${m.di}".trim(), interventiInParole(cicli)).filter { it.isNotBlank() }
+    if (riga.isNotEmpty()) {
+        Text(riga.joinToString(" · "), color = Banco.testoQuieto, fontSize = 12.sp)
     }
+}
+
+/** «12 interventi», «1 intervento». */
+private fun interventiInParole(n: Int): String = if (n == 1) "1 intervento" else "$n interventi"
+
+/**
+ * La prima riga non vuota di quello che un comando ha stampato, tagliata a
+ * sessanta caratteri: serve a capire perche' non e' passato, non ad archiviare.
+ */
+private fun primaRigaUscita(uscita: String): String {
+    val riga = uscita.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() } ?: ""
+    return if (riga.length > 60) riga.take(60) + "…" else riga
+}
+
+/**
+ * «supervisore →» e' come il servizio marca le proprie decisioni per
+ * ritrovarle: una sigla interna, che letta da fuori sembra un errore. Stessa
+ * regola della pagina: se la freccia c'e' ed e' nei primi venti caratteri, si
+ * tiene solo quello che viene dopo.
+ */
+private fun senzaSigla(cosa: String): String {
+    val freccia = cosa.indexOf('→')
+    return if (freccia == -1 || freccia > 20) cosa else cosa.substring(freccia + 1).trim()
 }
 
 @Composable
@@ -421,10 +471,25 @@ private fun Criterio(c: Criterio) {
             Text(c.descrizione, color = Banco.testo, modifier = Modifier.weight(1f))
         }
         if (c.comando != null) {
-            Text(c.comando, color = Banco.testoQuieto, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(start = 18.dp))
+            // Accanto al comando, com'e' finita l'ultima volta: «passato», o la
+            // prima riga di quello che ha stampato. Senza, la spunta non ha storia.
+            val verifica = c.ultimaVerifica
+            val esito = when {
+                verifica == null -> ""
+                verifica.codice == 0 -> " · passato"
+                else -> primaRigaUscita(verifica.uscita).takeIf { it.isNotBlank() }?.let { " · $it" }
+                    ?: " · non passato (codice ${verifica.codice ?: "?"})"
+            }
+            Text(c.comando + esito, color = Banco.testoQuieto, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(start = 18.dp))
         }
         if (c.raggiuntoIl != null) {
-            Text("raggiunto ${c.raggiuntoIl}", color = Banco.verde, fontSize = 11.sp, modifier = Modifier.padding(start = 18.dp))
+            // Solo l'ora: la data intera in ISO non si legge, e «alle 14:32»
+            // e' tutto quello che serve per sapere se e' successo adesso o stamattina.
+            val ora = c.raggiuntoIl.drop(11).take(5)
+            Text(
+                if (ora.isNotBlank()) "raggiunto alle $ora" else "raggiunto ${c.raggiuntoIl}",
+                color = Banco.verde, fontSize = 11.sp, modifier = Modifier.padding(start = 18.dp)
+            )
         }
     }
 }
@@ -686,8 +751,10 @@ private fun VoceAutopilota(ap: AutopilotaBreve, onApri: () -> Unit) {
                             modifier = Modifier.weight(1f).height(5.dp)
                         )
                         Spacer(Modifier.width(10.dp))
+                        // Come sulla pagina: i criteri raggiunti e quante volte
+                        // e' intervenuto, che dice quanto gli e' costato.
                         Text(
-                            "${ap.fatti} di ${ap.criteri}",
+                            "${ap.fatti} criteri su ${ap.criteri} · ${interventiInParole(ap.cicli)}",
                             color = Banco.testoQuieto,
                             fontSize = 11.sp
                         )

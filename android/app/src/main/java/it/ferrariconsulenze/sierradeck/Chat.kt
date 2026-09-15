@@ -185,7 +185,7 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
                             Tessera(
                                 onClick = {
                                     scope.launch {
-                                        try { api.riprendiSessione(salvata.cwd, salvata.sessione) } catch (_: Exception) {}
+                                        tenta("riaprire la chat") { api.riprendiSessione(salvata.cwd, salvata.sessione) }
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
@@ -206,8 +206,19 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
         }
     }
 
-    if (mostraNuova) SceltaCartella(api, onChiudi = { mostraNuova = false })
-    if (mostraRiprendi) SceltaSessione(api, onChiudi = { mostraRiprendi = false })
+    // Le chiamate partono da **questo** scope, non da quello della finestra:
+    // la finestra si chiude nello stesso tocco, e con lei il suo scope — la
+    // richiesta arrivava, ma la risposta (e un eventuale «no») si perdeva.
+    if (mostraNuova) SceltaCartella(
+        api,
+        onApri = { percorso -> scope.launch { tenta("aprire una chat in quella cartella") { api.apri(percorso) } } },
+        onChiudi = { mostraNuova = false }
+    )
+    if (mostraRiprendi) SceltaSessione(
+        api,
+        onScegli = { s -> scope.launch { tenta("riprendere la conversazione") { api.riprendiSessione(s.cwd, s.id) } } },
+        onChiudi = { mostraRiprendi = false }
+    )
 }
 
 /** Il dettaglio: il terminale a polling e il campo per scrivere. */
@@ -522,7 +533,11 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
     }
 
     if (rinominando) {
-        RinominaChat(api, chat, onChiudi = { rinominando = false })
+        RinominaChat(
+            titolo = chat.titolo,
+            onSalva = { nome -> scope.launch { tenta("rinominare la chat") { api.rinominaChat(chat.id, nome) } } },
+            onChiudi = { rinominando = false }
+        )
     }
     if (chiudendo) {
         AlertDialog(
@@ -532,8 +547,13 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
             confirmButton = {
                 TextButton(onClick = {
                     chiudendo = false
-                    scope.launch { try { api.chiudiChat(chat.id) } catch (_: Exception) {} }
-                    onIndietro()
+                    // Si torna all'elenco **dopo** che il computer ha detto si':
+                    // tornare prima cancellava questo scope con la risposta
+                    // dentro, e un rifiuto restava muto. Se non va, si resta
+                    // qui e la nota in cima dice perche'.
+                    scope.launch {
+                        if (tenta("chiudere la chat") { api.chiudiChat(chat.id) } != null) onIndietro()
+                    }
                 }) { Text("Chiudi", color = Banco.rosso) }
             },
             dismissButton = { TextButton(onClick = { chiudendo = false }) { Text("Annulla") } }
@@ -541,10 +561,10 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
     }
 }
 
+/** Chiede il nome nuovo e lo consegna a chi l'ha aperta: la chiamata la fa lei, che resta viva. */
 @Composable
-private fun RinominaChat(api: Api, chat: Chat, onChiudi: () -> Unit) {
-    var nome by remember { mutableStateOf(chat.titolo) }
-    val scope = rememberCoroutineScope()
+private fun RinominaChat(titolo: String, onSalva: (String) -> Unit, onChiudi: () -> Unit) {
+    var nome by remember { mutableStateOf(titolo) }
     AlertDialog(
         onDismissRequest = onChiudi,
         title = { Text("Rinomina la chat") },
@@ -559,7 +579,7 @@ private fun RinominaChat(api: Api, chat: Chat, onChiudi: () -> Unit) {
         confirmButton = {
             TextButton(onClick = {
                 onChiudi()
-                scope.launch { try { api.rinominaChat(chat.id, nome.trim()) } catch (_: Exception) {} }
+                onSalva(nome.trim())
             }) { Text("Salva") }
         },
         dismissButton = { TextButton(onClick = onChiudi) { Text("Annulla") } }
@@ -577,7 +597,7 @@ private fun RinominaChat(api: Api, chat: Chat, onChiudi: () -> Unit) {
  * progetti già noti — invece che dalla radice.
  */
 @Composable
-private fun SceltaCartella(api: Api, onChiudi: () -> Unit) {
+private fun SceltaCartella(api: Api, onApri: (String) -> Unit, onChiudi: () -> Unit) {
     var giro by remember { mutableStateOf<Sfoglia?>(null) }
     var caricando by remember { mutableStateOf(true) }
     var guasto by remember { mutableStateOf<String?>(null) }
@@ -629,7 +649,7 @@ private fun SceltaCartella(api: Api, onChiudi: () -> Unit) {
                             shape = MaterialTheme.shapes.small,
                             onClick = {
                                 onChiudi()
-                                scope.launch { try { api.apri(g.percorso) } catch (_: Exception) {} }
+                                onApri(g.percorso)
                             }
                         ) { Text(if (g.progetto) "Apri qui (progetto)" else "Apri qui") }
                     }
@@ -668,11 +688,17 @@ private fun SceltaCartella(api: Api, onChiudi: () -> Unit) {
     )
 }
 
-/** Riprende una conversazione salvata. */
+/**
+ * Riprende una conversazione salvata.
+ *
+ * Le chat la cui cartella sta su un altro PC ci sono lo stesso, con «su
+ * <nome>» accanto: toccandole il computer rifiuta (409) e spiega perche' —
+ * la spiegazione arriva nella nota in cima, tramite `tenta` di chi ha aperto
+ * questa finestra.
+ */
 @Composable
-private fun SceltaSessione(api: Api, onChiudi: () -> Unit) {
+private fun SceltaSessione(api: Api, onScegli: (SessioneRipresa) -> Unit, onChiudi: () -> Unit) {
     var sessioni by remember { mutableStateOf<List<SessioneRipresa>?>(null) }
-    val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { sessioni = try { api.sessioni().sessioni } catch (_: Exception) { emptyList() } }
 
     AlertDialog(
@@ -687,10 +713,17 @@ private fun SceltaSessione(api: Api, onChiudi: () -> Unit) {
                         Column(
                             Modifier.fillMaxWidth().padding(vertical = 8.dp).clickableCartella {
                                 onChiudi()
-                                scope.launch { try { api.riprendiSessione(s.cwd, s.id) } catch (_: Exception) {} }
+                                onScegli(s)
                             }
                         ) {
-                            Text(s.titolo.ifBlank { s.cwd }, color = Banco.testo, maxLines = 1)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(s.titolo.ifBlank { s.cwd }, color = Banco.testo, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
+                                // La cartella e' su un altro PC: una parola quieta, come nell'elenco.
+                                if (!s.altrove.isNullOrBlank()) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("· su ${s.altrove}", color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                                }
+                            }
                             if (s.cwd.isNotBlank()) Text(s.cwd, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
                         }
                         HorizontalDivider(color = Banco.incisione)

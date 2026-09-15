@@ -250,7 +250,21 @@ data class Criterio(
     val descrizione: String = "",
     val comando: String? = null,
     val soddisfatto: Boolean = false,
-    val raggiuntoIl: String? = null
+    val raggiuntoIl: String? = null,
+    /** Com'e' andata l'ultima misura del comando. Assente se non l'ha ancora provato. */
+    val ultimaVerifica: UltimaVerifica? = null
+)
+
+/**
+ * L'esito dell'ultima volta che un criterio e' stato misurato (`Verifica` in
+ * `src/shared/autopilota.ts`): zero e' passato, qualunque altro codice e' come
+ * e' uscito il comando, e `uscita` e' quello che ha stampato, gia' tagliato.
+ */
+@Serializable
+data class UltimaVerifica(
+    val quando: String = "",
+    val codice: Int? = null,
+    val uscita: String = ""
 )
 
 @Serializable
@@ -345,7 +359,13 @@ data class SessioneRipresa(
     val id: String = "",
     val cwd: String = "",
     val titolo: String = "",
-    val quando: String = ""
+    val quando: String = "",
+    /**
+     * La cartella di questa chat sta su un altro PC: il suo nome. Riprenderla
+     * qui non si puo' (il computer risponde 409 e lo spiega); si vede, per
+     * sapere dove andarla a cercare.
+     */
+    val altrove: String? = null
 )
 
 // ─── risposta generica delle azioni ───

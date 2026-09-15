@@ -502,3 +502,24 @@ comandi nel tab Computer («Code dei progetti»).
   conversazione (`/api/storia`), non ha Negozio né Account; l'app inghiotte
   ancora diversi errori (`catch (_: Exception) {}` in coda, workspace,
   preferenze); `/api/workspace/elimina` è senza tasto su entrambi i lati.
+
+# 15/09 — allineamento alla pagina (app 2.30.0)
+
+Confronto sistematico pagina ↔ app (rotte: l'app le chiama tutte, 64 su
+64; i buchi erano di campi letti e di UI). Fatto:
+- **Nota d'errore globale** (`object Nota`, `tenta(cosa){}` e `NotaGlobale()`
+  in `App.kt`): ogni `Api.Errore` mostra il campo `errore` del JSON del
+  computer; prima decine di azioni facevano `catch {}` e morivano in
+  silenzio. Attenzione trovata: in cinque punti la chiamata partiva su uno
+  scope cancellato nello stesso tocco (dialog chiuso prima del `launch`):
+  ora `SceltaCartella`/`SceltaSessione`/`RinominaChat` ricevono un callback
+  e la chiamata parte dallo scope del padre.
+- «pronto» fra le urgenze con «Vai» (`Urgenze.kt`), badge ambra.
+- Dettaglio autopilota: `strategia`/`motivoSospensione` sotto lo stato.
+- `Criterio.ultimaVerifica` (`UltimaVerifica(quando, codice: Int?, uscita)`)
+  e «· passato» / prima riga dell'uscita; `cicli` («N interventi») in lista
+  e dettaglio; decisioni `HH:MM` + `senzaSigla`; «raggiunto alle HH:MM».
+- `SessioneRipresa.altrove`: «· su X» e il 409 di `/api/sessioni/riprendi`
+  nella nota globale.
+Restano (bassa priorità): Quaderno raggiungibile senza autopilota aperto;
+«1 di N» con più domande; `totali.uguali` nel riassunto Drive.

@@ -145,7 +145,7 @@ fun Computer(api: Api, stato: Stato?) {
                             VoceWorkspace(
                                 nome = nome,
                                 attivo = nome == ws?.attivo,
-                                onClick = { scope.launch { try { api.cambiaWorkspace(nome) } catch (_: Exception) {} } }
+                                onClick = { scope.launch { tenta("cambiare workspace") { api.cambiaWorkspace(nome) } } }
                             )
                         }
                     }
@@ -174,7 +174,7 @@ fun Computer(api: Api, stato: Stato?) {
                         shape = MaterialTheme.shapes.small,
                         onClick = {
                             val n = nuovoWs.trim(); nuovoWs = ""
-                            scope.launch { try { api.creaWorkspace(n) } catch (_: Exception) {} }
+                            scope.launch { tenta("creare il workspace «$n»") { api.creaWorkspace(n) } }
                         }
                     ) { Text("Crea") }
                 }
@@ -296,13 +296,13 @@ fun Computer(api: Api, stato: Stato?) {
                                     Text("${i + 1}. ${v.testo}", color = Banco.testo, fontSize = 13.sp)
                                     Text("da ${v.daNome}" + (if (v.sessione != null) " · per una chat precisa" else " · alla prima chat libera"), color = Banco.testoQuieto, fontSize = 11.sp)
                                 }
-                                TextButton(onClick = { scope.launch { try { codaVoci = api.codaTogli(p.id, v.id).voci } catch (_: Exception) {} } }) { Text("Togli") }
+                                TextButton(onClick = { scope.launch { tenta("togliere la voce dalla coda") { api.codaTogli(p.id, v.id).voci }?.let { codaVoci = it } } }) { Text("Togli") }
                             }
                         }
                         if (consegnate.isNotEmpty()) {
                             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                                 Text("${consegnate.size} consegnate", color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                                TextButton(onClick = { scope.launch { try { codaVoci = api.codaPulisci(p.id).voci } catch (_: Exception) {} } }) { Text("Pulisci") }
+                                TextButton(onClick = { scope.launch { tenta("pulire la coda") { api.codaPulisci(p.id).voci }?.let { codaVoci = it } } }) { Text("Pulisci") }
                             }
                         }
                         Spacer(Modifier.height(8.dp))
@@ -326,7 +326,11 @@ fun Computer(api: Api, stato: Stato?) {
                             shape = MaterialTheme.shapes.small,
                             onClick = {
                                 val t = codaTesto.trim(); codaTesto = ""
-                                scope.launch { try { codaVoci = api.codaAggiungi(p.id, t).voci } catch (_: Exception) {} }
+                                scope.launch {
+                                    // Se non parte, il comando torna nel campo: riscriverlo e' il modo peggiore di riaverlo.
+                                    val voci = tenta("mettere in coda") { api.codaAggiungi(p.id, t).voci }
+                                    if (voci != null) codaVoci = voci else if (codaTesto.isBlank()) codaTesto = t
+                                }
                             }
                         ) { Text("Metti in coda") }
                     }
@@ -463,7 +467,7 @@ fun Computer(api: Api, stato: Stato?) {
                     selected = (p?.stile ?: "banco") == chiave,
                     onClick = {
                         pref = p?.copy(stile = chiave) ?: Preferenze(stile = chiave)
-                        scope.launch { try { api.impostaStile(chiave) } catch (_: Exception) {} }
+                        scope.launch { tenta("cambiare lo stile") { api.impostaStile(chiave) } }
                     },
                     label = { Text(etichetta) }
                 )
@@ -477,7 +481,7 @@ fun Computer(api: Api, stato: Stato?) {
             onValueChange = { chiarore = it },
             valueRange = 0f..100f,
             onValueChangeFinished = {
-                scope.launch { try { api.impostaChiarore(chiarore.toInt()) } catch (_: Exception) {} }
+                scope.launch { tenta("cambiare il chiarore del fondo") { api.impostaChiarore(chiarore.toInt()) } }
             }
         )
 
@@ -513,7 +517,7 @@ fun Computer(api: Api, stato: Stato?) {
             confirmButton = {
                 TextButton(onClick = {
                     confermaCarica = null
-                    scope.launch { try { api.caricaSalvataggio(nome) } catch (_: Exception) {} }
+                    scope.launch { tenta("caricare il salvataggio «$nome»") { api.caricaSalvataggio(nome) } }
                 }) { Text("Carica") }
             },
             dismissButton = { TextButton(onClick = { confermaCarica = null }) { Text("Annulla") } }
@@ -589,7 +593,7 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
         when (a?.fase) {
             "disponibile" -> Button(
                 shape = MaterialTheme.shapes.small,
-                onClick = { scope.launch { try { api.scaricaAggiornamento() } catch (_: Exception) {} } }
+                onClick = { scope.launch { tenta("far scaricare l'aggiornamento al computer") { api.scaricaAggiornamento() } } }
             ) { Text("Scarica") }
             "scarico" -> Text("${a.percento ?: 0}%", color = Banco.ambra, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             "cerco" -> Text("cerco…", color = Banco.ambra, fontSize = 13.sp)

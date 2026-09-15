@@ -48,6 +48,9 @@ import kotlinx.coroutines.launch
 fun BandaUrgenze(api: Api, stato: Stato?, connesso: Boolean) {
     val domanda = stato?.domande?.firstOrNull()
     val fermi = stato?.autopiloti?.filter { it.stato == "sospeso" || it.stato == "fallito" } ?: emptyList()
+    // Chi si e' preparato e aspetta il via: senza di te non parte, quindi e'
+    // un'urgenza come le altre — ma ambra, perche' non e' andato storto niente.
+    val pronti = stato?.autopiloti?.filter { it.stato == "pronto" } ?: emptyList()
     var rispondendo by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
@@ -74,7 +77,19 @@ fun BandaUrgenze(api: Api, stato: Stato?, connesso: Boolean) {
             azione = "Riprendi",
             onAzione = {
                 scope.launch {
-                    for (ap in fermi) try { api.riprendiAutopilota(ap.id) } catch (_: Exception) {}
+                    for (ap in fermi) tenta("riprendere «${ap.nome}»") { api.riprendiAutopilota(ap.id) }
+                }
+            }
+        )
+        pronti.isNotEmpty() -> Urgenza(
+            colore = Banco.ambra,
+            titolo = if (pronti.size == 1) "«${pronti.first().nome}» si è preparato e aspetta il tuo via"
+                else "${pronti.size} autopiloti si sono preparati e aspettano il tuo via",
+            sotto = "Ha letto il progetto e ha capito l'obiettivo. Non comincia finché non glielo dici: «Vai» lo fa partire.",
+            azione = "Vai",
+            onAzione = {
+                scope.launch {
+                    for (ap in pronti) tenta("far partire «${ap.nome}»") { api.vaiAutopilota(ap.id) }
                 }
             }
         )

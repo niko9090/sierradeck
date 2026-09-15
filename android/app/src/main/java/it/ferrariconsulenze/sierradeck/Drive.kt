@@ -143,7 +143,7 @@ fun SezioneDrive(api: Api) {
                 Spacer(Modifier.height(6.dp))
                 Row {
                     Spacer(Modifier.weight(1f))
-                    TextButton(enabled = !inc.annullamento, onClick = { scope.launch { try { api.driveAnnulla() } catch (_: Exception) {} } }) {
+                    TextButton(enabled = !inc.annullamento, onClick = { scope.launch { tenta("annullare il lavoro sul Drive") { api.driveAnnulla() } } }) {
                         Text(if (inc.annullamento) "Mi fermo…" else "Annulla")
                     }
                 }
