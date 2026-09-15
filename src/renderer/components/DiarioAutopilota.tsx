@@ -281,6 +281,13 @@ export function DiarioAutopilota({
         </div>
       ) : null}
 
+      {/* Tutto quello che sta sotto la misura scorre insieme, in un solo
+          corpo: la scheda (obiettivo, criteri, compiti, dialogo) puo' essere
+          piu' alta del riquadro, e prima restava tagliata senza nessuna barra
+          — Nicholas (15/09): «non riesco manco a scorrere il testo o le info
+          nella parte dell'autopilota». Le linguette restano appiccicate in
+          alto mentre si scorre. */}
+      <div className="diario__corpo">
       {/* La scheda: cosa deve ottenere, come lo misura, cosa farà, e il posto
           dove dirgli di cambiare. Prima qui c'era il solo elenco dei nomi dei
           criteri — si leggeva «3 su 5» e non si poteva toccare niente. */}
@@ -361,6 +368,7 @@ export function DiarioAutopilota({
         )}
       </div>
       )}
+      </div>
     </aside>
   )
 }

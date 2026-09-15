@@ -1358,12 +1358,30 @@ input.campo {
   border-top: 1px solid var(--incisione);
 }
 
-.diario__voci {
+/* Un corpo solo che scorre: la scheda, le linguette e le voci. Prima
+   scorrevano solo le voci, e una scheda alta le schiacciava a zero e
+   restava tagliata a sua volta, senza barra. */
+.diario__corpo {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   margin: 0 calc(var(--s3) * -1);
   padding: 0 var(--s3);
+  display: flex;
+  flex-direction: column;
+}
+
+.diario__corpo > .diario__schede {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--chassis);
+}
+
+.diario__voci {
+  flex: 0 0 auto;
+  min-height: 0;
 }
 
 .diario__voce {
