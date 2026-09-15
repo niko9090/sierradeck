@@ -25,7 +25,15 @@ import { adottaOrigine, collegaProgetto, normalizzaPercorso, percorsoLocale, pro
  */
 export type CartellaDiChat = {
   cwd: string
-  motivo: 'esiste' | 'progetto' | 'adottata'
+  /**
+   * `altrove`: la cartella non c'e' qui ma **ce l'ha un altro PC** (lo dice
+   * il suo battito sul Drive, o il registro dei progetti): la chat non si
+   * adotta, resta sua. Chi apre decide: scriverle la' (la posta) o aprirla
+   * qui lo stesso, in una cartella vuota.
+   */
+  motivo: 'esiste' | 'progetto' | 'adottata' | 'altrove'
+  /** Con `altrove`: chi ce l'ha. */
+  pc?: { id: string; nome: string }
   /** Il registro aggiornato, quando l'origine e' stata adottata adesso. */
   registro?: RegistroProgetti
   /** Il nome del progetto, per dirlo alla persona. */
@@ -47,8 +55,19 @@ export function risolviCartellaDiChat(a: {
   cartellaProgetti: string
   esiste: (percorso: string) => boolean
   adesso: string
+  /** Chi ha quella cartella, se un altro PC. Senza, si adotta come prima. */
+  altrove?: (cwd: string) => { id: string; nome: string } | undefined
+  /** «Aprila qui lo stesso»: si adotta anche se e' di un altro PC. */
+  forza?: boolean
 }): CartellaDiChat {
   if (a.esiste(a.cwd)) return { cwd: a.cwd, motivo: 'esiste' }
+  // Di un altro PC: si lascia dov'e'. Prima di guardare il registro, perche'
+  // il registro puo' conoscere un progetto con quel percorso (adottato da un
+  // terzo PC) e rimapparla in una cartella vuota di qui lo stesso.
+  if (a.forza !== true && a.altrove !== undefined) {
+    const pc = a.altrove(a.cwd)
+    if (pc !== undefined) return { cwd: a.cwd, motivo: 'altrove', pc }
+  }
   const nota = rimappaCwd(a.cwd, a.registro, a.pcId, a.cartellaProgetti, a.esiste)
   if (nota.cwd !== a.cwd) {
     // Un progetto conosciuto ma mai collegato qui: si collega adesso, o alla

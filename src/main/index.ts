@@ -1,6 +1,6 @@
 import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell } from 'electron'
 import { basename, dirname, join, resolve, sep } from 'node:path'
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, watch, copyFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, watch, copyFileSync } from 'node:fs'
 import { homedir, hostname } from 'node:os'
 import { createHash } from 'node:crypto'
 import { spawn } from 'node:child_process'
@@ -83,7 +83,8 @@ import { creaPostino, type Postino } from './progetti/posta'
 import { progettoDiCwd, staDentro } from './progetti/registro'
 import { impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
 import { risolviCartellaDiChat, type CartellaDiChat } from './progetti/cartella-di-chat'
-import { pianificaRimappatura, riscriviCwdRiga } from './progetti/rimappa-di-massa'
+import { pianificaRimappatura, pianificaRitorno, riscriviCwdRiga, type Spostamento } from './progetti/rimappa-di-massa'
+import { pcCheHaLaCartella, staSottoCartella, type BattitoPc } from '@shared/posta'
 import { createReadStream, createWriteStream } from 'node:fs'
 import { mkdir as mkdirAsync, rename as renameAsync, stat as statAsync, unlink as unlinkAsync, utimes as utimesAsync } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
@@ -877,13 +878,16 @@ if (!app.requestSingleInstanceLock()) {
        * cartella che deriva dal percorso, e con un percorso diverso non la
        * troverebbe — `--resume` a vuoto, cioe' una chat che riparte da zero.
        */
+      let altroveRiquadro: (cwd: string) => { id: string; nome: string } | undefined = () => undefined
       const rimappaChat = (): void => {
         if (workspaceStore === undefined) return
         const pc = identitaPc.leggi()
         const reg = registroProgetti.leggi()
         if (reg.progetti.length === 0) return
         const esito = rimappaWorkspace(workspaceStore.leggi(), (cwd) =>
-          rimappaCwd(cwd, reg, pc.id, pc.cartellaProgetti, existsSync).cwd)
+          // Un riquadro con la cartella di un altro PC resta cosi': all'apertura
+          // dira' di chi e', invece di finire in una cartella vuota di qui.
+          (!existsSync(cwd) && altroveRiquadro(cwd) !== undefined) ? cwd : rimappaCwd(cwd, reg, pc.id, pc.cartellaProgetti, existsSync).cwd)
         if (esito.cambi.length === 0) return
         for (const c of esito.cambi) {
           const da = join(radiceClaude, 'projects', pathToSlug(c.da), `${c.sessione}.jsonl`)
@@ -1060,13 +1064,39 @@ if (!app.requestSingleInstanceLock()) {
           ...(c.sessione !== undefined ? { sessione: c.sessione } : {}),
           titolo: c.titolo, cwd: c.cwd, viva: c.viva === true, aspetta: c.aspetta === true
         })),
-        // Le cartelle in cui questo PC lavora: i progetti collegati qui. Le
-        // chat aperte le aggiunge il postino da solo.
+        // Le cartelle in cui questo PC lavora: i progetti collegati qui e le
+        // cartelle di tutte le chat dell'indice che qui esistono. E' cio' che
+        // dice agli altri PC «questa cartella ce l'ho io»: cosi' una chat mia
+        // arrivata la' dal Drive non viene adottata in una cartella vuota.
+        // Le chat aperte le aggiunge il postino da solo.
         cartelle: () => {
           const me = identitaPc.leggi().id
-          return registroProgetti.leggi().progetti
-            .map((p) => p.percorsi[me])
-            .filter((p): p is string => p !== undefined && existsSync(p))
+          const fuori = new Set<string>()
+          for (const p of registroProgetti.leggi().progetti) {
+            const mio = p.percorsi[me]
+            if (mio !== undefined && existsSync(mio)) fuori.add(mio)
+          }
+          if (db !== undefined) {
+            const viste = new Map<string, boolean>()
+            for (const s of listSessions(db)) {
+              const cwd = s.cwd
+              if (cwd === undefined || cwd === '' || fuori.has(cwd)) continue
+              let c = viste.get(cwd)
+              if (c === undefined) { c = existsSync(cwd); viste.set(cwd, c) }
+              if (c) fuori.add(cwd)
+            }
+          }
+          return [...fuori]
+        },
+        memoria: {
+          leggi: () => {
+            try {
+              const raw = JSON.parse(readFileSync(join(dati, 'pc-altrui.json'), 'utf8')) as unknown
+              return Array.isArray(raw) ? raw.filter((b): b is BattitoPc => typeof b === 'object' && b !== null && typeof (b as BattitoPc).pcId === 'string')
+                .map((b) => ({ ...b, cartelle: Array.isArray(b.cartelle) ? b.cartelle : [], chat: Array.isArray(b.chat) ? b.chat : [] })) : []
+            } catch { return [] }
+          },
+          scrivi: (b) => scriviJsonAtomico(join(dati, 'pc-altrui.json'), b, 'pc-altrui')
         },
         cartellaEsiste: (cwd) => { try { return statSync(cwd).isDirectory() } catch { return false } },
         apriChat: (cwd) => {
@@ -1117,15 +1147,42 @@ if (!app.requestSingleInstanceLock()) {
       // nuovo slug, o `--resume` ripartirebbe da zero. Qualunque intoppo
       // lascia la cartella chiesta: meglio l'errore di prima che una chat
       // che non si apre per un motivo nuovo.
+      /**
+       * La cartella e' **di un altro PC**? Tre fonti, in ordine di
+       * precisione: il battito di quel PC sul Drive (le sue cartelle, le sue
+       * chat aperte; anche vecchio, un PC spento ha ancora le sue cartelle),
+       * il registro dei progetti (il percorso di un altro PC), e il Drive
+       * stesso: una cartella con una chat toccata negli ultimi giorni e' viva
+       * su qualche PC, anche se non sappiamo quale. Le prime due danno un
+       * nome; la terza dice «un altro PC».
+       */
+      const GIORNI_VIVA = 7
+      const altrove = (cwd: string): { id: string; nome: string } | undefined => {
+        const me = identitaPc.leggi().id
+        const b = pcCheHaLaCartella(cwd, postino.altrui(), me)
+        if (b !== undefined) return { id: b.pcId, nome: b.nome }
+        for (const p of registroProgetti.leggi().progetti) {
+          for (const [pc, percorso] of Object.entries(p.percorsi)) {
+            if (pc !== me && staSottoCartella(cwd, percorso)) {
+              const noto = postino.altrui().find((x) => x.pcId === pc)
+              return { id: pc, nome: noto?.nome ?? 'un altro PC' }
+            }
+          }
+        }
+        if (sincronia.slugRecenti(GIORNI_VIVA * 86_400_000).has(pathToSlug(cwd))) return { id: '', nome: 'un altro PC' }
+        return undefined
+      }
+      altroveRiquadro = altrove
       /** Dove lavora qui una chat con quella cartella: decide, crea la cartella, scrive il registro. */
-      const risolviSuDisco = (cwd: string): CartellaDiChat | undefined => {
+      const risolviSuDisco = (cwd: string, forza = false): CartellaDiChat | undefined => {
         try {
           if (existsSync(cwd)) return { cwd, motivo: 'esiste' }
           const pc = identitaPc.leggi()
           const r = risolviCartellaDiChat({
             cwd, registro: registroProgetti.leggi(), pcId: pc.id, cartellaProgetti: pc.cartellaProgetti,
-            esiste: existsSync, adesso: new Date().toISOString()
+            esiste: existsSync, adesso: new Date().toISOString(), altrove, forza
           })
+          if (r.motivo === 'altrove') return r
           // Prima la cartella, poi il registro: se la cartella non si crea
           // (disco scollegato) la riga nel registro farebbe adottare la stessa
           // origine di nuovo a ogni tentativo.
@@ -1137,19 +1194,64 @@ if (!app.requestSingleInstanceLock()) {
           return undefined
         }
       }
-      impostaRisolviCartella((cwd, sessione) => {
-        const r = risolviSuDisco(cwd)
+      impostaRisolviCartella((cwdChiesta, sessione, forza) => {
+        // La cartella vera della chat e' dove sta la sua trascrizione: se il
+        // riquadro chiede una cartella che esiste ma non ha questa
+        // conversazione (una chat tornata al suo posto, un riquadro con la
+        // cartella vecchia), si parte da quella dell'indice. Senza, Claude
+        // Code partirebbe con `--session-id` nuovo: una chat vuota al posto
+        // della sua.
+        let cwd = cwdChiesta
+        if (db !== undefined && !existsSync(join(radiceClaude, 'projects', pathToSlug(cwdChiesta), `${sessione}.jsonl`))) {
+          const nota = listSessions(db).find((s) => s.uuid === sessione)
+          if (nota?.cwd !== undefined && nota.cwd !== '' && nota.cwd !== cwdChiesta) cwd = nota.cwd
+        }
+        const r = risolviSuDisco(cwd, forza)
         if (r === undefined || r.motivo === 'esiste') return cwd
+        if (r.motivo === 'altrove') {
+          registro.info(`[progetti] la chat ${sessione} lavora in ${cwd}, che e' di ${r.pc?.nome ?? 'un altro PC'}: non la apro qui`)
+          return { altrove: true, cwd, pc: r.pc ?? { id: '', nome: 'un altro PC' } }
+        }
         try {
           const da = join(radiceClaude, 'projects', pathToSlug(cwd), `${sessione}.jsonl`)
           const a = join(radiceClaude, 'projects', pathToSlug(r.cwd), `${sessione}.jsonl`)
           if (existsSync(da) && !existsSync(a)) { mkdirSync(dirname(a), { recursive: true }); copyFileSync(da, a) }
+          spostaSidecar(pathToSlug(cwd), pathToSlug(r.cwd), sessione)
         } catch (err) {
           registro.errore(`[progetti] trascrizione ${sessione} non copiata sotto ${r.cwd}: ${String(err)}`)
         }
         registro.info(`[progetti] la cartella ${cwd} qui non c'e': la chat ${sessione} lavora in ${r.cwd} (${r.motivo === 'adottata' ? `progetto «${r.nome ?? ''}» adottato, origine ricordata` : `progetto «${r.nome ?? ''}» gia' noto`})`)
         return r.cwd
       })
+
+      /**
+       * Accanto a `<uuid>.jsonl` Claude Code tiene una cartella `<uuid>/`
+       * (i subagenti, i risultati grossi): va con la chat, o resta orfana
+       * sotto lo slug vecchio e i subagenti di una chat spostata spariscono.
+       * Se la destinazione c'e' gia', si portano solo i file che le mancano.
+       */
+      const spostaSidecar = (slugDa: string, slugA: string, uuid: string): void => {
+        const da = join(radiceClaude, 'projects', slugDa, uuid)
+        const a = join(radiceClaude, 'projects', slugA, uuid)
+        if (!existsSync(da) || slugDa === slugA) return
+        try {
+          if (!existsSync(a)) { mkdirSync(dirname(a), { recursive: true }); renameSync(da, a); return }
+          const porta = (sotto: string): void => {
+            const s = join(da, sotto)
+            if (!existsSync(s)) return
+            const d = join(a, sotto)
+            mkdirSync(d, { recursive: true })
+            for (const nome of readdirSync(s)) {
+              if (!existsSync(join(d, nome))) renameSync(join(s, nome), join(d, nome))
+            }
+            try { rmSync(s, { recursive: false }) } catch { /* non vuota: resta */ }
+          }
+          for (const nome of readdirSync(da)) porta(nome)
+          try { rmSync(da, { recursive: false }) } catch { /* non vuota: resta */ }
+        } catch (err) {
+          registro.errore(`[progetti] cartella dei subagenti di ${uuid} non spostata sotto ${slugA}: ${String(err)}`)
+        }
+      }
 
       /**
        * Una trascrizione copiata riga per riga con il `cwd` portato nella
@@ -1187,12 +1289,25 @@ if (!app.requestSingleInstanceLock()) {
       }
       const rimappaDavvero = async (): Promise<number> => {
         if (db === undefined) return 0
+        const chat = listSessions(db).map((s) => ({ uuid: s.uuid, cwd: s.cwd, jsonlPath: s.jsonlPath }))
+        const radiceProjects = join(radiceClaude, 'projects')
+        // Le chat con la cartella di un altro PC restano sue: `risolvi` non
+        // da' una destinazione, e il piano le salta.
         const piano = pianificaRimappatura({
-          chat: listSessions(db).map((s) => ({ uuid: s.uuid, cwd: s.cwd, jsonlPath: s.jsonlPath })),
-          radiceProjects: join(radiceClaude, 'projects'),
-          esiste: existsSync,
-          risolvi: (cwd) => risolviSuDisco(cwd)?.cwd
+          chat, radiceProjects, esiste: existsSync,
+          risolvi: (cwd) => { const r = risolviSuDisco(cwd); return r === undefined || r.motivo === 'altrove' ? undefined : r.cwd }
         })
+        // E le chat rapite prima di questa regola tornano al loro posto.
+        const ritorno = pianificaRitorno({
+          chat, radiceProjects, registro: registroProgetti.leggi(), pcId: identitaPc.leggi().id, altrove
+        })
+        const tornate = await spostaTutte(ritorno)
+        if (tornate > 0) registro.info(`[progetti] ${tornate} chat tornate nella cartella del loro PC (erano state adottate qui in una cartella vuota: ${[...new Set(ritorno.map((m) => m.a))].slice(0, 5).join(', ')})`)
+        const fatte = await spostaTutte(piano)
+        if (fatte > 0) registro.info(`[progetti] ${fatte} chat rimappate nelle cartelle di qui (${new Set(piano.map((m) => m.a)).size} cartelle: ${[...new Set(piano.map((m) => m.a))].slice(0, 5).join(', ')})`)
+        return fatte + tornate
+      }
+      const spostaTutte = async (piano: Spostamento[]): Promise<number> => {
         let fatte = 0
         for (const m of piano) {
           try {
@@ -1213,12 +1328,12 @@ if (!app.requestSingleInstanceLock()) {
               await utimesAsync(m.jsonlA, sDa.atime, sDa.mtime).catch(() => undefined)
             }
             await unlinkAsync(m.jsonlDa)
+            spostaSidecar(pathToSlug(m.da), pathToSlug(m.a), m.uuid)
             fatte += 1
           } catch (err) {
             registro.errore(`[progetti] chat ${m.uuid} non rimappata da ${m.da} a ${m.a}: ${String(err)}`)
           }
         }
-        if (fatte > 0) registro.info(`[progetti] ${fatte} chat rimappate nelle cartelle di qui (${new Set(piano.map((m) => m.a)).size} cartelle: ${[...new Set(piano.map((m) => m.a))].slice(0, 5).join(', ')})`)
         return fatte
       }
       const timerRonda = setInterval(() => { void ronda.giro() }, 30_000)
@@ -2146,6 +2261,7 @@ if (!app.requestSingleInstanceLock()) {
         // telefono mostra «da riprendere» sta salvata in un workspace; aprirla
         // in quello che la finestra ha davanti la spostava, e con due finestre
         // la apriva due volte. Si dice alla finestra dove vive, e lei ci va.
+        chatAltrove: (cwd: string) => (existsSync(cwd) ? undefined : altroveRiquadro(cwd)?.nome),
         riprendiSessione: (cwd: string, sessione: string) => {
           const dove = workspaceStore === undefined
             ? undefined

@@ -6,6 +6,8 @@ type Props = {
   pc: BattitoPc
   vivo: boolean
   onChiudi: () => void
+  /** Da un riquadro «chat di un altro PC»: la cartella e la conversazione gia' scelte. */
+  presel?: { cwd?: string; sessione?: string }
 }
 
 function quando(iso: string | undefined): string {
@@ -27,11 +29,13 @@ function nomeCartella(p: string): string {
  * in remoto su quel PC quando e' online». Qui si scrive; il postino di quel
  * PC, ogni mezzo minuto, consegna nella chat giusta o ne apre una.
  */
-export function ModalePosta({ pc, vivo, onChiudi }: Props): React.JSX.Element {
+export function ModalePosta({ pc, vivo, onChiudi, presel }: Props): React.JSX.Element {
   const [voci, setVoci] = useState<VocePosta[] | undefined>(undefined)
-  const [cwd, setCwd] = useState<string>(pc.cartelle[0] ?? '')
-  const [cartellaLibera, setCartellaLibera] = useState('')
-  const [sessione, setSessione] = useState('')
+  const preCwd = presel?.cwd
+  const preNota = preCwd !== undefined && pc.cartelle.some((c) => c.toLowerCase() === preCwd.toLowerCase())
+  const [cwd, setCwd] = useState<string>(preCwd === undefined ? (pc.cartelle[0] ?? '') : preNota ? pc.cartelle.find((c) => c.toLowerCase() === preCwd.toLowerCase()) ?? preCwd : '__altra__')
+  const [cartellaLibera, setCartellaLibera] = useState(preCwd !== undefined && !preNota ? preCwd : '')
+  const [sessione, setSessione] = useState(presel?.sessione ?? '')
   const [testo, setTesto] = useState('')
   const [occupato, setOccupato] = useState(false)
   const [msg, setMsg] = useState<string | undefined>(undefined)
@@ -129,6 +133,9 @@ export function ModalePosta({ pc, vivo, onChiudi }: Props): React.JSX.Element {
           ) : null}
           <select className="account__campo" value={sessione} onChange={(e) => setSessione(e.target.value)} aria-label="a quale chat">
             <option value="">alla prima chat libera di quella cartella (o una nuova)</option>
+            {presel?.sessione !== undefined && !chatNellaCartella.some((c) => c.sessione === presel.sessione) ? (
+              <option value={presel.sessione}>a questa conversazione (là la riapre, se non è aperta)</option>
+            ) : null}
             {chatNellaCartella.map((c) => <option key={c.sessione} value={c.sessione}>{c.titolo || (c.sessione ?? '').slice(0, 8)}{c.aspetta ? ' · aspetta' : ' · al lavoro'}</option>)}
           </select>
           <textarea className="account__campo" rows={3} value={testo} onChange={(e) => setTesto(e.target.value)}

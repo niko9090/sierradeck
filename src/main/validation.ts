@@ -21,6 +21,11 @@ export type SpawnRequest = {
   /** Il modello scelto per questa chat, se l'utente ne ha scelto uno. */
   model?: string
   /**
+   * «Aprila qui lo stesso»: la cartella della chat e' di un altro PC, e la
+   * persona ha scelto di aprirla qui in una cartella vuota, sapendolo.
+   */
+  forzaQui?: boolean
+  /**
    * Chi governa questa chat, quando a chiederla è un autopilota.
    *
    * Arrivano **solo gli identificatori**: le impostazioni con gli hook le
@@ -177,6 +182,7 @@ export function validateSpawnRequest(raw: unknown): SpawnRequest {
     cols: validaDimensione('cols', r.cols),
     rows: validaDimensione('rows', r.rows),
     ...(model !== undefined ? { model } : {}),
+    ...(r.forzaQui === true ? { forzaQui: true } : {}),
     ...(idAp !== undefined && idChat !== undefined
       ? { autopilota: { id: idAp, chat: idChat } }
       : {})

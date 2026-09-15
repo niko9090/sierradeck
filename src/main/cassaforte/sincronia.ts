@@ -115,6 +115,8 @@ function messaggioDi(e: unknown): string {
 
 export type Sincronia = {
   stato: () => Promise<StatoSync>
+  /** Gli slug delle cartelle con una chat toccata sul Drive di recente: vive su qualche PC. */
+  slugRecenti: (daMs: number, adesso?: number) => Set<string>
   /** Quanto si sincronizza: numero di file (chat + assetto) e byte totali. */
   info: () => Promise<{ file: number; byte: number }>
   creaPassphrase: (passphrase: string) => Promise<{ ok: boolean; chiaveRecupero?: string; messaggio?: string }>
@@ -310,11 +312,28 @@ export function apriSincronia(deps: {
    * esclude le chat che qui ci sono gia' sotto un'altra cartella (sul Drive
    * ogni PC ha il suo slug: la stessa conversazione puo' starci due volte).
    */
-  const quadroLocale = async (): Promise<{ firma: Map<string, { size: number; mtime: number; disco: string }>; altroveQui: (p: string) => boolean }> => {
+  const quadroLocale = async (): Promise<{ firma: Map<string, { size: number; mtime: number; disco: string }>; altroveQui: (p: string, sizeDrive?: number) => boolean }> => {
     const firma = await firmaRadici(radici())
-    const uuid = new Set<string>()
-    for (const k of firma.keys()) if (prefissoDi(k) === 'chat') uuid.add(uuidDiPercorso(k))
-    return { firma, altroveQui: (p) => prefissoDi(p) === 'chat' && (ePercorsoDiServizio(p) || (!firma.has(p) && uuid.has(uuidDiPercorso(p)))) }
+    // Per ogni conversazione, quanto e' lunga la copia piu' lunga che ho qui,
+    // sotto qualunque cartella.
+    const uuid = new Map<string, number>()
+    for (const [k, v] of firma) if (prefissoDi(k) === 'chat') uuid.set(uuidDiPercorso(k), Math.max(uuid.get(uuidDiPercorso(k)) ?? 0, v.size))
+    return {
+      firma,
+      // «Sta gia' qui sotto un'altra cartella» vale solo se la mia copia e'
+      // almeno lunga quanto quella del Drive: se l'altro PC ha continuato la
+      // stessa chat sotto la sua cartella, la sua copia piu' lunga deve
+      // arrivare (e la rimappatura poi tiene la piu' lunga). Prima restava
+      // fuori per sempre, e le due copie divergevano in silenzio.
+      altroveQui: (p, sizeDrive) => {
+        if (prefissoDi(p) !== 'chat') return false
+        if (ePercorsoDiServizio(p)) return true
+        if (firma.has(p)) return false
+        const mia = uuid.get(uuidDiPercorso(p))
+        if (mia === undefined) return false
+        return sizeDrive === undefined || sizeDrive <= mia
+      }
+    }
   }
   /**
    * Un progetto nato altrove, senza cartella qui: la si crea nella cartella
@@ -568,6 +587,21 @@ export function apriSincronia(deps: {
   }
 
   return {
+    /**
+     * Gli slug delle cartelle con almeno una chat toccata sul Drive negli
+     * ultimi `daMs` millisecondi, dal manifesto letto l'ultima volta. Una
+     * cartella cosi' e' **viva su qualche PC**: chi non ce l'ha non deve
+     * adottarla in una cartella vuota di qui.
+     */
+    slugRecenti(daMs: number, adesso = Date.now()): Set<string> {
+      const fuori = new Set<string>()
+      for (const [p, v] of Object.entries(leggiManifestoLocale().file)) {
+        if (prefissoDi(p) !== 'chat' || typeof v.mtime !== 'number' || adesso - v.mtime > daMs) continue
+        const slug = p.split('/')[1]
+        if (slug !== undefined && slug !== '') fuori.add(slug)
+      }
+      return fuori
+    },
     async stato() {
       const s = leggiStato()
       const locale = leggiLocale()
@@ -1343,7 +1377,7 @@ export function apriSincronia(deps: {
       // non si accende la striscia e non si scrive niente. Tutto dentro un
       // `try`: `deps.archivio()` e `quadroLocale()` possono rifiutare, e da
       // qui si arriva da un timer senza nessuno che raccolga.
-      let guardata: { esitoM: Awaited<ReturnType<typeof leggiManifesto>>; firma: Map<string, { size: number; mtime: number; disco: string }>; altroveQui: (p: string) => boolean } | undefined
+      let guardata: { esitoM: Awaited<ReturnType<typeof leggiManifesto>>; firma: Map<string, { size: number; mtime: number; disco: string }>; altroveQui: (p: string, sizeDrive?: number) => boolean } | undefined
       try {
         const esitoM = await leggiManifesto(deps.archivio(), m)
         if (esitoM.stato !== 'ok') return { ok: true, scritti: 0 }
@@ -1357,7 +1391,7 @@ export function apriSincronia(deps: {
       if (esitoM.stato !== 'ok') return { ok: true, scritti: 0 }
       const prec = leggiManifestoLocale()
       const candidati = Object.entries(esitoM.manifesto.file).filter(([p, v]) => {
-        if (prefissoDi(p) !== 'chat' || altroveQui(p)) return false
+        if (prefissoDi(p) !== 'chat' || altroveQui(p, v.size)) return false
         const locale = firma.get(p)
         if (locale === undefined) return true
         if (stessaFirma(locale, v)) return false

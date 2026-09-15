@@ -72,3 +72,66 @@ una copia più lunga, resta quella e si toglie solo quella dell'altro PC. La
 finestra aggiorna la cartella del riquadro (`chat:cartellaCambiata` →
 `impostaCartella`). Dettagli del ciclo in
 `arrivo-automatico-e-unione-workspace.md`.
+
+# 15/09: la regola nuova, «una volta per tutte»
+
+Nicholas: «ci sono ancora delle chat che quando vengono passate dal cloud e
+si avviano mostrano directory che non vengono trovate e errori in rosso
+praticamente sempre». Diagnosi dal registro del fisso (14-15/09): dopo ogni
+arrivo dal Drive «63/48/13 chat rimappate», e la chat «fionda apl» del
+portatile (`E:\Documents\Progetti SierraDeck\fionda apl`) stava qui in
+`C:\Users\nikof\Progetti SierraDeck\fionda apl`, **vuota**. Il meccanismo
+del 13-14/09 era sbagliato in un caso: **adottava anche le cartelle che un
+altro PC ha davvero**, rapendo la chat in una cartella senza file. In più
+`altroveQui` escludeva per sempre gli aggiornamenti della copia vera
+(stesso uuid sotto un'altra cartella), e le due copie divergevano; e i
+subagenti (`<uuid>/subagents/`) restavano sotto lo slug vecchio.
+
+## Com'è adesso
+
+- **Chi ha una cartella** (`src/shared/posta.ts`): `pcCheHaLaCartella(cwd,
+  battiti, me)` guarda i battiti `pc-<id>` degli altri PC (`cartelle` +
+  `chat`), anche vecchi (un PC spento ha ancora le sue cartelle). Il
+  battito ora elenca **tutte le cartelle dell'indice che esistono su quel
+  PC**, non solo i progetti collegati. Il postino ricorda gli altri PC in
+  `pc-altrui.json` (`memoria`) e li rilegge ogni 2 minuti (`altrui()`).
+- **`altrove(cwd)`** in `index.ts`, tre fonti: battiti; registro dei
+  progetti (percorso di un altro pcId); `sincronia.slugRecenti(7 giorni)`
+  (una cartella con chat toccate sul Drive di recente è viva su qualche PC,
+  serve finché l'altro PC non ha la 0.27.0).
+- **`risolviCartellaDiChat`** ha `altrove` e `forza`: se la cartella non
+  c'è ed è di un altro PC → `motivo: 'altrove'`, nessuna cartella creata.
+  `pty:spawn` allora fallisce con `CHAT_DI_UN_ALTRO_PC:{json}`
+  (`messaggioChatAltrove`/`leggiChatAltrove` in shared); `aggancio.ts` lo
+  riconosce (`suAltrove`) e `Terminal.tsx` mostra il riquadro «Questa chat
+  lavora su X» con «Scrivile là» (`ModalePosta` con `presel`) e «Aprila qui
+  lo stesso» (`forzaQui: true` nella richiesta, `aggancio.rilancia()`).
+- **Prima di risolvere, la cartella vera è dove sta la trascrizione**: se il
+  riquadro chiede una cartella che esiste ma non ha quel `.jsonl`, si parte
+  dalla cwd dell'indice (altrimenti `--session-id` = chat vuota).
+- **Il ritorno** (`pianificaRitorno` in `rimappa-di-massa.ts`): le chat
+  sotto una cartella adottata qui la cui `origine` (registro) è di un altro
+  PC tornano sotto l'origine, cwd riscritto all'indietro, tiene la più
+  lunga. Gira insieme alla rimappatura (avvio e dopo ogni arrivo). La
+  rimappatura salta le cartelle altrui (`risolvi` → undefined).
+- **`spostaSidecar`**: la cartella `<uuid>/` va con la chat (rename, o i
+  file mancanti uno a uno).
+- **`altroveQui(p, sizeDrive)`** esclude solo se la mia copia sotto l'altra
+  cartella è almeno lunga quanto quella del Drive: la copia più avanti
+  dell'altro PC arriva, e la rimappatura/ritorno tiene la più lunga.
+- **Telefono**: `/api/sessioni` ha `altrove: nome`; `/api/sessioni/riprendi`
+  → 409 spiegato. Pagina: «· su X»; app: `SessioneRipresa.altrove` + nota
+  d'errore globale.
+- **`fondiRegistri`**: stessa origine = stesso progetto (id più vecchio).
+- I riquadri del layout con una cartella altrui non vengono più rimappati
+  all'avvio (`altroveRiquadro`).
+
+## Limiti
+
+- Un'origine che **nessun** PC ha (vecchio percorso di questo PC, disco
+  scollegato da più di 7 giorni) si adotta ancora in una cartella vuota: è
+  il caso «la cartella non esiste più da nessuna parte». Un disco di rete
+  (`Z:`) staccato da poco è protetto dalla regola dei 7 giorni; staccato da
+  più, la chat viene adottata.
+- Il PC che ha la cartella deve aver girato almeno una volta con la 0.27.0
+  e il Drive collegato per lasciare il battito.

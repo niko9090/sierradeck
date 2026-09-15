@@ -1,4 +1,5 @@
 import type { HostToCore } from '@shared/protocol'
+import { leggiChatAltrove, type ChatAltrove } from '@shared/posta'
 
 export type AggancioDeps = {
   /** Il pty a cui riagganciarsi. `undefined` significa «rilancia subito». */
@@ -15,6 +16,12 @@ export type AggancioDeps = {
   scrivi: (testo: string) => void
   /** Comunica l'id corrente, perché venga salvato nel layout. */
   annunciaId: (ptyId: string) => void
+  /**
+   * La cartella della chat e' di un altro PC: lo spawn non parte e il
+   * riquadro lo dice, con la scelta. Senza questo, l'errore va nel
+   * terminale in rosso come tutti gli altri.
+   */
+  suAltrove?: (c: ChatAltrove) => void
 }
 
 export type Aggancio = {
@@ -27,6 +34,8 @@ export type Aggancio = {
    */
   stacca: () => void
   idCorrente: () => string | undefined
+  /** Riprova ad avviare il terminale (dopo «Aprila qui lo stesso»). */
+  rilancia: () => void
 }
 
 /**
@@ -76,6 +85,9 @@ export function creaAggancio(deps: AggancioDeps): Aggancio {
         deps.annunciaId(nuovo)
       },
       (err: unknown) => {
+        if (chiuso || ceduto) return
+        const altrove = leggiChatAltrove(err)
+        if (altrove !== undefined && deps.suAltrove !== undefined) { deps.suAltrove(altrove); return }
         // Senza questo ramo un rigetto sarebbe una unhandled rejection visibile
         // solo negli strumenti di sviluppo, mai nel riquadro.
         deps.scrivi(`\r\n\x1b[31m[avvio del terminale fallito: ${String(err)}]\x1b[0m\r\n`)
@@ -170,6 +182,10 @@ export function creaAggancio(deps: AggancioDeps): Aggancio {
      * uno `spawn` ancora in volo, il cui id arriverà quando questo riquadro non
      * è più di nessuno.
      */
+    rilancia() {
+      if (chiuso || ceduto || id !== undefined) return
+      rilancia()
+    },
     stacca() {
       ceduto = true
       smettiDiAscoltare?.()

@@ -10,6 +10,7 @@ import { workspaceDelleSessioni } from '@shared/dove-chiedono'
 import { leggiAnteprima, type Anteprima } from './anteprima'
 import { indexAll } from './indexer/indexer'
 import { pathToSlug } from './indexer/project-scanner'
+import { messaggioChatAltrove } from '@shared/posta'
 import type { Avanzamento, IndexOutcome } from '@shared/types'
 import { APP_DATA_DIR_NAME } from '@shared/version'
 import { chiaveMonitor } from '@shared/display-key'
@@ -137,9 +138,18 @@ let primaDiAprire: (cwd: string) => void = () => {}
  * di qui (progetto rimappato o adottato). Lo imposta il Core, che ha il
  * registro dei progetti; senza, la cartella resta quella chiesta.
  */
-let risolviCartella: (cwd: string, sessionUuid: string) => string = (cwd) => cwd
+let risolviCartella: (cwd: string, sessionUuid: string, forza: boolean) => string | CartellaAltrove = (cwd) => cwd
 
-export function impostaRisolviCartella(f: (cwd: string, sessionUuid: string) => string): void {
+/**
+ * La cartella della chat e' di un altro PC: lo spawn si ferma qui e il
+ * riquadro lo dice, con «Scrivile la'» e «Aprila qui lo stesso».
+ */
+export type CartellaAltrove = { altrove: true; cwd: string; pc: { id: string; nome: string } }
+export function eCartellaAltrove(x: unknown): x is CartellaAltrove {
+  return typeof x === 'object' && x !== null && (x as { altrove?: unknown }).altrove === true
+}
+
+export function impostaRisolviCartella(f: (cwd: string, sessionUuid: string, forza: boolean) => string | CartellaAltrove): void {
   risolviCartella = f
 }
 
@@ -227,7 +237,13 @@ export function registerPtyIpc(
     if (win === null) throw new Error('richiesta di spawn da una finestra sconosciuta')
     // Una chat nata su un altro PC porta la cartella di la': qui si apre in
     // quella di qui (vedi `progetti/cartella-di-chat`), e la finestra lo sa.
-    const cwd = risolviCartella(req.cwd, req.sessionUuid)
+    const risolta = risolviCartella(req.cwd, req.sessionUuid, req.forzaQui === true)
+    if (eCartellaAltrove(risolta)) {
+      // Il messaggio viaggia come errore dell'invoke: il riquadro lo
+      // riconosce dal prefisso e, invece della riga rossa, mostra la scelta.
+      throw new Error(messaggioChatAltrove({ cwd: risolta.cwd, pc: risolta.pc, sessionUuid: req.sessionUuid }))
+    }
+    const cwd = risolta
     if (cwd !== req.cwd) win.webContents.send('chat:cartellaCambiata', { sessionUuid: req.sessionUuid, da: req.cwd, a: cwd })
     // Se il progetto di questa cartella e' in mano a un altro PC, lo si dice
     // adesso, prima della prima riga: la chat si apre lo stesso, e la scelta —

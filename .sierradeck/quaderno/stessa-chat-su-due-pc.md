@@ -39,3 +39,14 @@ PC ma nessuno lo usa come guardia.
 2. Nel conflitto sul prefisso `chat`, invece di far vincere una copia,
    tenere l'altra come conversazione a parte (copia `.jsonl` con uuid nuovo
    e titolo «… (da torre)»), così non si perde niente.
+
+# Aggiornamento 15/09
+
+Il caso più frequente era in realtà un altro: la chat **non** stava in
+due cartelle uguali, ma nella cartella vera del portatile e in una cartella
+vuota «adottata» sul fisso (vedi `chat-di-un-altro-pc-cartella-mancante.md`,
+sezione 15/09). Ora una chat la cui cartella è di un altro PC non si apre
+qui: il riquadro dice di chi è. Restano da fare, per le chat che stanno
+davvero in due cartelle uguali (progetti sul Drive, stesso percorso su due
+PC): l'avviso «aperta anche su X» dal battito (punto 1) e il conflitto senza
+perdita (punto 2).

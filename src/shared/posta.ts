@@ -66,3 +66,51 @@ export function pcVivo(b: BattitoPc | undefined, adesso: number): boolean {
   const t = Date.parse(b.battito)
   return !Number.isNaN(t) && adesso - t < PC_SPENTO_DOPO_MS
 }
+
+/** `C:\\a\\b` sta sotto `c:/a/`? Percorsi di Windows: maiuscole e barre non contano. */
+export function staSottoCartella(cwd: string, radice: string): boolean {
+  const pulisci = (x: string): string => x.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase()
+  const c = pulisci(cwd)
+  const r = pulisci(radice)
+  return r !== '' && (c === r || c.startsWith(`${r}\\`))
+}
+
+/**
+ * Il PC che **ha** quella cartella, fra quelli che hanno lasciato un battito.
+ *
+ * E' la domanda che decide se una chat arrivata dal Drive si adotta qui (la
+ * sua cartella non ce l'ha nessuno: nasce vuota in «Progetti SierraDeck») o
+ * se e' **di un altro PC** e va lasciata la': aprirla qui in una cartella
+ * vuota da' solo «directory non trovata» in rosso, e sdoppia la chat sul
+ * Drive. Un battito vecchio conta lo stesso: un PC spento ha ancora le sue
+ * cartelle. Se piu' PC ce l'hanno, vince quello che ha battuto per ultimo.
+ */
+export function pcCheHaLaCartella(cwd: string, battiti: BattitoPc[], me?: string): BattitoPc | undefined {
+  return battiti
+    .filter((b) => b.pcId !== me && (b.cartelle.some((c) => staSottoCartella(cwd, c)) || b.chat.some((c) => staSottoCartella(cwd, c.cwd))))
+    .sort((a, b) => b.battito.localeCompare(a.battito))[0]
+}
+
+/**
+ * Lo spawn di una chat la cui cartella e' di un altro PC si ferma con un
+ * errore che comincia cosi': il riquadro lo riconosce e, invece della riga
+ * rossa, mostra di chi e' la chat e cosa si puo' fare.
+ */
+export const PREFISSO_CHAT_ALTROVE = 'CHAT_DI_UN_ALTRO_PC:'
+export type ChatAltrove = { cwd: string; pc: { id: string; nome: string }; sessionUuid: string }
+
+export function messaggioChatAltrove(c: ChatAltrove): string {
+  return PREFISSO_CHAT_ALTROVE + JSON.stringify(c)
+}
+
+/** Da un errore qualunque (Error, stringa, l'errore di un invoke Electron) alla chat altrove, se e' quello. */
+export function leggiChatAltrove(err: unknown): ChatAltrove | undefined {
+  const testo = err instanceof Error ? err.message : typeof err === 'string' ? err : ''
+  const i = testo.indexOf(PREFISSO_CHAT_ALTROVE)
+  if (i < 0) return undefined
+  try {
+    const o = JSON.parse(testo.slice(i + PREFISSO_CHAT_ALTROVE.length)) as Partial<ChatAltrove>
+    if (typeof o.cwd !== 'string' || typeof o.sessionUuid !== 'string' || typeof o.pc !== 'object' || o.pc === null) return undefined
+    return { cwd: o.cwd, sessionUuid: o.sessionUuid, pc: { id: String(o.pc.id ?? ''), nome: String(o.pc.nome ?? 'un altro PC') } }
+  } catch { return undefined }
+}

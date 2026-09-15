@@ -3496,3 +3496,36 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .attesa-drive__cosa { display: block; width: 100%; font-size: var(--t2); opacity: 0.8; line-height: 1.45; }
 .dialogo .avanzamento__barra { margin-top: 2px; }
 .drive__stato--altrove { background: color-mix(in srgb, var(--accento) 16%, transparent); color: var(--accento); }
+
+/* Il riquadro di una chat la cui cartella e' di un altro PC: la scelta al posto della riga rossa. */
+.chat-altrove {
+  gap: var(--s3);
+  padding: var(--s4);
+  text-align: center;
+}
+.chat-altrove__titolo {
+  font-size: var(--t3);
+  font-weight: 600;
+  color: var(--testo);
+}
+.chat-altrove__testo,
+.chat-altrove__nota {
+  font-size: var(--t2);
+  color: var(--testo-quieto);
+  max-width: 62ch;
+  line-height: 1.45;
+}
+.chat-altrove__testo code {
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  color: var(--testo);
+  word-break: break-all;
+}
+.chat-altrove__azioni {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.chat-altrove__nota {
+  font-size: var(--t1);
+}

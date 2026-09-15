@@ -369,7 +369,28 @@ export function fondiRegistri(a: RegistroProgetti, b: RegistroProgetti): Registr
       ...(gia.origini !== undefined || p.origini !== undefined ? { origini: [...new Set([...(gia.origini ?? []), ...(p.origini ?? [])])] } : {})
     })
   }
-  return { versione: 1, progetti: [...perId.values()] }
+  // Lo stesso progetto adottato da due PC nello stesso momento ha due id:
+  // ognuno l'ha «adottato» prima di vedere l'altro. Stessa origine (o la
+  // cartella di un PC uguale a un'origine dell'altro) = stesso progetto: si
+  // tiene l'id piu' vecchio, con i percorsi e le origini di tutti e due.
+  const norma = (p: string): string => p.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase()
+  const radiciDi = (p: ProgettoDrive): Set<string> => new Set([...(p.origini ?? []), ...Object.values(p.percorsi)].map(norma))
+  const fusi: ProgettoDrive[] = []
+  for (const p of [...perId.values()].sort((a, b) => a.aggiuntoIl.localeCompare(b.aggiuntoIl))) {
+    const mie = p.origini ?? []
+    const gemello = mie.length === 0 ? undefined : fusi.find((g) => {
+      const r = radiciDi(g)
+      return mie.some((o) => r.has(norma(o))) || Object.values(p.percorsi).some((x) => (g.origini ?? []).some((o) => norma(o) === norma(x)))
+    })
+    if (gemello === undefined) { fusi.push(p); continue }
+    const i = fusi.indexOf(gemello)
+    fusi[i] = {
+      ...gemello,
+      percorsi: { ...p.percorsi, ...gemello.percorsi },
+      origini: [...new Set([...(gemello.origini ?? []), ...mie])]
+    }
+  }
+  return { versione: 1, progetti: fusi }
 }
 
 function discoDi(radici: Map<string, Radice>, percorso: string): string | undefined {

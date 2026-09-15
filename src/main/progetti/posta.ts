@@ -38,7 +38,7 @@ import { staDentro } from './registro'
 
 export type { ChatDiPc, BattitoPc, VocePosta, Posta } from '@shared/posta'
 export {
-  nomeBattitoPc, nomePosta, pcVivo,
+  nomeBattitoPc, nomePosta, pcVivo, pcCheHaLaCartella, staSottoCartella,
   PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, RIAPRI_DOPO_MS, VOCI_MAX, TESTO_POSTA_MAX,
 } from '@shared/posta'
 import type { ChatDiPc, BattitoPc, VocePosta, Posta } from '@shared/posta'
@@ -76,6 +76,12 @@ export type Postino = {
   io: () => string
   /** Gli altri PC sul Drive, con il battito. */
   pc: () => Promise<BattitoPc[]>
+  /**
+   * Gli altri PC come li ricordo: l'ultimo elenco letto, anche a Drive
+   * spento. Serve a decidere, senza aspettare la rete, se una cartella e'
+   * di un altro PC (`pcCheHaLaCartella`).
+   */
+  altrui: () => BattitoPc[]
   posta: (pcId: string) => Promise<Posta | undefined>
   aggiungi: (pcId: string, voce: { cwd: string; testo: string; sessione?: string }) => Promise<Posta | undefined>
   togli: (pcId: string, voceId: string) => Promise<Posta | undefined>
@@ -102,12 +108,16 @@ export function creaPostino(deps: {
   adesso?: () => number
   nuovoId?: () => string
   log?: (m: string) => void
+  /** Dove ricordare i battiti degli altri PC fra un avvio e l'altro. */
+  memoria?: { leggi: () => BattitoPc[]; scrivi: (b: BattitoPc[]) => void }
 }): Postino {
   const adesso = deps.adesso ?? ((): number => Date.now())
   const log = deps.log ?? ((): void => {})
   const nuovoId = deps.nuovoId ?? ((): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`)
   const iso = (): string => new Date(adesso()).toISOString()
   let inGiro = false
+  let altrui: BattitoPc[] = deps.memoria?.leggi() ?? []
+  let altruiLettiIl = 0
   let ultimoBattito = ''
   let ultimoBattitoIl = 0
   let inErrore = false
@@ -195,6 +205,22 @@ export function creaPostino(deps: {
     await aggiorna({ ...voce, apertaIl: iso() })
   }
 
+  const leggiAltrui = async (s: Scatola): Promise<BattitoPc[]> => {
+    if (s.elenca === undefined) return []
+    const nomi = await s.elenca('pc-')
+    const me = deps.pcId()
+    const letti = await Promise.all(nomi.map((n) => s.leggi<BattitoPc>(n)))
+    return letti
+      .filter((b): b is BattitoPc => b !== undefined && typeof b.pcId === 'string' && b.pcId !== me)
+      .map((b) => ({ ...b, cartelle: Array.isArray(b.cartelle) ? b.cartelle : [], chat: Array.isArray(b.chat) ? b.chat : [] }))
+      .sort((a, b) => b.battito.localeCompare(a.battito))
+  }
+  const ricorda = (b: BattitoPc[]): void => {
+    altrui = b
+    altruiLettiIl = adesso()
+    try { deps.memoria?.scrivi(b) } catch { /* la memoria e' un comodo, non un dovere */ }
+  }
+
   return {
     async giro() {
       if (inGiro) return
@@ -203,6 +229,9 @@ export function creaPostino(deps: {
       inGiro = true
       try {
         await batti(s)
+        // Gli altri PC si rileggono con calma: le loro cartelle non cambiano
+        // ogni mezzo minuto, e ogni lettura e' una richiesta al Drive.
+        if (adesso() - altruiLettiIl >= BATTITO_PC_OGNI_MS) ricorda(await leggiAltrui(s))
         await consegna(s)
         if (inErrore) { inErrore = false; log('[posta] il Drive risponde di nuovo') }
       } catch (err) {
@@ -214,15 +243,12 @@ export function creaPostino(deps: {
     io: () => deps.pcId(),
     async pc() {
       const s = deps.scatola()
-      if (s === undefined || s.elenca === undefined) return []
-      const nomi = await s.elenca('pc-')
-      const me = deps.pcId()
-      const letti = await Promise.all(nomi.map((n) => s.leggi<BattitoPc>(n)))
+      if (s === undefined) return altrui
+      const letti = await leggiAltrui(s)
+      ricorda(letti)
       return letti
-        .filter((b): b is BattitoPc => b !== undefined && typeof b.pcId === 'string' && b.pcId !== me)
-        .map((b) => ({ ...b, cartelle: Array.isArray(b.cartelle) ? b.cartelle : [], chat: Array.isArray(b.chat) ? b.chat : [] }))
-        .sort((a, b) => b.battito.localeCompare(a.battito))
     },
+    altrui: () => altrui,
     async posta(pcId) {
       const s = deps.scatola()
       return s === undefined ? undefined : leggiPosta(s, pcId)

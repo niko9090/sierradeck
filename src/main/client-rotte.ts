@@ -175,6 +175,12 @@ export type DipendenzeRotte = {
    * rimasto da un'altra parte.
    */
   sessioni: () => Promise<{ id: string; cwd: string; titolo: string; quando: string }[]>
+  /**
+   * La cartella di una chat e' di un altro PC (il suo battito, il registro, il
+   * Drive lo dicono): il nome di quel PC. Dal telefono la chat si segna
+   * «su X» e non si riapre qui: si scrive la' con la posta.
+   */
+  chatAltrove?: (cwd: string) => string | undefined
   /** Riapre **quella** conversazione, con la sua storia, nel workspace dove sta salvata. */
   riprendiSessione: (cwd: string, sessione: string) => void
   creaWorkspace: (nome: string) => Promise<void>
@@ -901,7 +907,8 @@ export function rotteClient(deps: DipendenzeRotte) {
     }
 
     if (r.percorso === '/api/sessioni') {
-      return OK({ sessioni: await deps.sessioni().catch(() => []) })
+      const elenco = await deps.sessioni().catch(() => [])
+      return OK({ sessioni: elenco.map((s) => { const su = deps.chatAltrove?.(s.cwd); return su === undefined ? s : { ...s, altrove: su } }) })
     }
 
     // Riprendere una conversazione: la stessa regola di «apri» sulla cartella,
@@ -1036,6 +1043,10 @@ export function rotteClient(deps: DipendenzeRotte) {
       const slugAmmessi = new Set(ammesse.map(pathToSlug))
       if (!ammesse.includes(cartella) && !slugAmmessi.has(pathToSlug(cartella))) {
         return { stato: 403, corpo: { errore: 'cartella non conosciuta' } }
+      }
+      const su = deps.chatAltrove?.(cartella)
+      if (su !== undefined) {
+        return { stato: 409, corpo: { errore: `questa chat lavora su «${su}», nella cartella ${cartella}, che su questo computer non c'e': aprirla qui la farebbe partire in una cartella vuota. Scrivile da «Altri PC», oppure aprila dal computer scegliendo «Aprila qui lo stesso».` } }
       }
       deps.riprendiSessione(cartella, sessione)
       return OK({ fatto: true })

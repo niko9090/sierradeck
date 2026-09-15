@@ -128,4 +128,20 @@ describe('la fusione', () => {
     expect(existsSync(join(pc, 'src', 'intatto.ts'))).toBe(false)
     expect(mD.manifesto.file['progetto-p/src/intatto.ts']).toEqual(file['progetto-p/src/intatto.ts'])
   })
+
+  it('l unione dei registri: lo stesso progetto adottato da due PC (stessa origine) diventa uno, con l id piu vecchio', () => {
+    // Il 14/09 «Server_home» stava nel registro due volte: ogni PC l'aveva
+    // adottato prima di vedere l'altro.
+    const a = { versione: 1 as const, progetti: [{ id: 'p-fisso', nome: 'Server_home', percorsi: { F: 'C:\\Users\\n\\Progetti SierraDeck\\Server_home' }, origini: ['C:\\Users\\n\\Documents\\Server_home'], aggiuntoIl: '2026-09-14T22:03:48.523Z' }] }
+    const b = { versione: 1 as const, progetti: [
+      { id: 'p-port', nome: 'Server_home', percorsi: { P: 'C:\\Users\\n\\Progetti SierraDeck\\Server_home' }, origini: ['c:/users/n/documents/server_home/'], aggiuntoIl: '2026-09-13T22:03:01.610Z' },
+      { id: 'p-altro', nome: 'Server_home', percorsi: { P: 'D:\\altro\\Server_home' }, aggiuntoIl: '2026-09-01T00:00:00.000Z' }
+    ] }
+    const f = fondiRegistri(a, b)
+    expect(f.progetti.map((p) => p.id).sort()).toEqual(['p-altro', 'p-port'])
+    const uno = f.progetti.find((p) => p.id === 'p-port')!
+    expect(uno.percorsi).toEqual({ P: 'C:\\Users\\n\\Progetti SierraDeck\\Server_home', F: 'C:\\Users\\n\\Progetti SierraDeck\\Server_home' })
+    expect(uno.origini).toEqual(['c:/users/n/documents/server_home/', 'C:\\Users\\n\\Documents\\Server_home'])
+  })
+
 })

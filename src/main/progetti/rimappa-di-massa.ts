@@ -1,4 +1,5 @@
 import { join, sep } from 'node:path'
+import type { RegistroProgetti } from './registro'
 import { pathToSlug } from '../indexer/project-scanner'
 
 /**
@@ -79,6 +80,53 @@ export function riscriviCwdRiga(riga: string, da: string, a: string): string {
  * lavora qui; la stessa cartella si chiede una volta sola. Se la
  * trascrizione sta gia' sotto lo slug di destinazione non c'e' niente da fare.
  */
+/**
+ * Il ritorno: le chat **rapite** — adottate qui in una cartella vuota di
+ * «Progetti SierraDeck» quando la loro cartella vera vive su un altro PC —
+ * tornano sotto la cartella d'origine, col `cwd` riscritto all'indietro.
+ *
+ * Nicholas (2026-09-15): «chat che quando vengono passate dal cloud e si
+ * avviano mostrano directory che non vengono trovate e errori in rosso
+ * praticamente sempre». Era questo: la chat del portatile aperta qui in
+ * una cartella senza file. Il registro sa da dove viene ogni cartella
+ * adottata (`origini`); se quell'origine ce l'ha un altro PC (`altrove`),
+ * la chat e' sua. Una chat nata qui dentro quella cartella torna con le
+ * altre: il lavoro appartiene a quel progetto, e l'altro PC la ricevera'
+ * dal Drive nella cartella giusta.
+ */
+export function pianificaRitorno(p: {
+  chat: ChatSulDisco[]
+  registro: RegistroProgetti
+  pcId: string
+  radiceProjects: string
+  altrove: (cwd: string) => { id: string; nome: string } | undefined
+}): Spostamento[] {
+  const fuori: Spostamento[] = []
+  const decise = new Map<string, string | undefined>()
+  const origineDi = (cwd: string): string | undefined => {
+    for (const pr of p.registro.progetti) {
+      const mio = pr.percorsi[p.pcId]
+      if (mio === undefined || pr.origini === undefined) continue
+      for (const o of pr.origini) {
+        const la = sostituisciPrefisso(cwd, mio, o)
+        if (la !== undefined && p.altrove(la) !== undefined) return la
+      }
+    }
+    return undefined
+  }
+  for (const c of p.chat) {
+    const cwd = c.cwd
+    if (cwd === undefined || cwd.trim() === '') continue
+    if (!decise.has(cwd)) decise.set(cwd, origineDi(cwd))
+    const a = decise.get(cwd)
+    if (a === undefined) continue
+    const jsonlA = join(p.radiceProjects, pathToSlug(a), `${c.uuid}.jsonl`)
+    if (jsonlA.toLowerCase() === c.jsonlPath.toLowerCase()) continue
+    fuori.push({ uuid: c.uuid, da: cwd, a, jsonlDa: c.jsonlPath, jsonlA })
+  }
+  return fuori
+}
+
 export function pianificaRimappatura(p: {
   chat: ChatSulDisco[]
   /** `~/.claude/projects` */

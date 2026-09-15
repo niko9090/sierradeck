@@ -1083,4 +1083,29 @@ describe('il Drive dal telefono', () => {
     const r2 = await rotteClient(deps())({ metodo: 'POST', percorso: '/api/drive/porta', corpo: { progetto: 'x' } })
     expect(r2.stato).toBe(409)
   })
+
+  it('una chat la cui cartella e di un altro PC si segna «su X» e non si riapre qui (409, con la spiegazione)', async () => {
+    // Nicholas (2026-09-15): dal cloud le chat si aprivano in una cartella
+    // vuota, «directory non trovata». Dal telefono la chat dice di chi e'.
+    const riprese: { cwd: string; sessione: string }[] = []
+    const su = deps({
+      sessioni: () => Promise.resolve([
+        { id: 's-1', cwd: 'C:\\lavoro', titolo: 'Mia', quando: '' },
+        { id: 's-2', cwd: 'E:\\Documents\\fionda apl', titolo: 'Del portatile', quando: '' }
+      ]),
+      cartelle: () => Promise.resolve(['C:\\lavoro', 'E:\\Documents\\fionda apl']),
+      chatAltrove: (cwd) => (cwd.startsWith('E:\\') ? 'Portatile' : undefined),
+      riprendiSessione: (cwd, sessione) => { riprese.push({ cwd, sessione }) }
+    })
+    const elenco = await rotteClient(su)({ metodo: 'GET', percorso: '/api/sessioni', corpo: undefined })
+    const c = elenco.corpo as { sessioni: { id: string; altrove?: string }[] }
+    expect(c.sessioni.map((s) => s.altrove)).toEqual([undefined, 'Portatile'])
+    const r = await rotteClient(su)({ metodo: 'POST', percorso: '/api/sessioni/riprendi', corpo: { cartella: 'E:\\Documents\\fionda apl', sessione: 's-2' } })
+    expect(r.stato).toBe(409)
+    expect((r.corpo as { errore: string }).errore).toContain('Portatile')
+    expect(riprese).toEqual([])
+    const ok = await rotteClient(su)({ metodo: 'POST', percorso: '/api/sessioni/riprendi', corpo: { cartella: 'C:\\lavoro', sessione: 's-1' } })
+    expect(ok.stato).toBe(200)
+  })
+
 })

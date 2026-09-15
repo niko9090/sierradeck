@@ -1131,7 +1131,8 @@ function pannello(s) {
         ? '<div class="sotto" style="margin-top:8px">Nessuna conversazione trovata.</div>'
         : (sessioniViste || []).slice(0, 20).map((x, i) =>
             '<button class="cartella" onclick="riprendiSessione(' + i + ')">' +
-            esc(x.titolo) + '<br><span class="sotto">' + esc(x.cwd) + '</span></button>').join('')}
+            esc(x.titolo) + (x.altrove ? ' <span class="sotto">· su ' + esc(x.altrove) + '</span>' : '') +
+            '<br><span class="sotto">' + esc(x.cwd) + (x.altrove ? ' (cartella di quel PC: qui non si apre, scrivile da «Altri PC»)' : '') + '</span></button>').join('')}
       <div class="riga"><button onclick="apriPannello('sessioni')">Chiudi</button></div>
     </div>\`
 

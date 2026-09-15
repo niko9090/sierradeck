@@ -11,6 +11,8 @@ import { useSessionStore } from '../state/sessions'
 import { attesaPrevistaMs, avanzamento, descriviAttesa } from '../attesa-chat'
 import { registraSchermo, dimenticaSchermo } from '../schermo-terminale'
 import { mostraAttesa } from '../preferenze-vive'
+import { ModalePosta } from './ModalePosta'
+import { pcVivo, type BattitoPc, type ChatAltrove } from '@shared/posta'
 
 type Props = {
   paneId: string
@@ -59,6 +61,30 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
   // significherebbe ricreare l'xterm e, con lui, uccidere claude.exe.
   const finitaAttesa = useRef(setAttesaDa)
   finitaAttesa.current = setAttesaDa
+
+  /**
+   * La chat e' di un altro PC: la sua cartella vive la', qui non c'e'. Lo
+   * spawn si e' fermato e qui si sceglie: scriverle la' (la posta) o aprirla
+   * qui lo stesso, in una cartella vuota, sapendo che i file non ci sono.
+   */
+  const [altrove, setAltrove] = useState<ChatAltrove | undefined>(undefined)
+  const suAltrove = useRef(setAltrove)
+  suAltrove.current = setAltrove
+  const forzaQui = useRef(false)
+  const aggancioRef = useRef<{ rilancia: () => void } | undefined>(undefined)
+  const [postaPer, setPostaPer] = useState<BattitoPc | undefined>(undefined)
+  const scriviLa = (c: ChatAltrove): void => {
+    void window.gestore.posta.pc().then((pcs) => {
+      const suo = pcs.find((b) => b.pcId === c.pc.id)
+      setPostaPer(suo ?? { pcId: c.pc.id, nome: c.pc.nome, versione: '', battito: '', cartelle: [c.cwd], chat: [] })
+    }).catch(() => setPostaPer({ pcId: c.pc.id, nome: c.pc.nome, versione: '', battito: '', cartelle: [c.cwd], chat: [] }))
+  }
+  const apriQuiLoStesso = (): void => {
+    forzaQui.current = true
+    setAltrove(undefined)
+    if (mostraAttesa()) setAttesaDa(Date.now())
+    aggancioRef.current?.rilancia()
+  }
 
   // L'orologio gira solo mentre si aspetta: a chat aperta non c'è niente da
   // ridisegnare, e un intervallo per riquadro acceso per sempre sarebbe il
@@ -114,10 +140,15 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
           cols,
           rows,
           ...(iniziale.model !== undefined ? { model: iniziale.model } : {}),
+          ...(forzaQui.current ? { forzaQui: true } : {}),
           // Chi governa questa chat: il Core ne ricava gli hook con cui
           // l'autopilota saprà che ha finito di rispondere.
           ...(iniziale.autopilota !== undefined ? { autopilota: iniziale.autopilota } : {})
         }),
+      suAltrove: (c) => {
+        finitaAttesa.current(undefined)
+        suAltrove.current(c)
+      },
       attach: (id) => window.gestore.pty.attach(id),
       write: (id, data) => window.gestore.pty.write(id, data),
       resize: (id, cols, rows) => window.gestore.pty.resize(id, cols, rows),
@@ -142,6 +173,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
       }
     })
 
+    aggancioRef.current = aggancio
     aggancio.avvia()
 
     const copia = (): void => {
@@ -207,6 +239,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
       // chiusa restava offerta per tutta la vita della finestra, con il suo
       // xterm smontato dentro.
       const idVivo = aggancio.idCorrente()
+      aggancioRef.current = undefined
       if (useLayoutStore.getState().ceduti.has(paneId)) aggancio.stacca()
       else aggancio.chiudi()
       // Prima di `dispose`: leggere la griglia di un terminale smontato non ha
@@ -235,6 +268,31 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
           </div>
           <div className="attesa-chat__testo">{descriviAttesa(peso, trascorso)}</div>
         </div>
+      ) : null}
+      {altrove !== undefined ? (
+        <div className="attesa-chat chat-altrove" role="status" aria-live="polite">
+          <div className="chat-altrove__titolo">Questa chat lavora su {altrove.pc.nome}</div>
+          <div className="chat-altrove__testo">
+            La sua cartella è <code>{altrove.cwd}</code>, e sta su quel computer: qui non c’è. Aprirla qui vorrebbe dire
+            farla partire in una cartella vuota, senza i file del progetto: è quello che dava «directory non trovata»
+            e gli errori in rosso. La conversazione la vedi lo stesso: arriva dal Drive man mano che quel PC ci lavora.
+          </div>
+          <div className="chat-altrove__azioni">
+            <button className="tasto tasto--primario" onClick={() => scriviLa(altrove)} title="Metti un’azione nella cassetta di quel PC: la esegue lui, in questa chat, quando è acceso">
+              Scrivile là, su {altrove.pc.nome}
+            </button>
+            <button className="tasto" onClick={apriQuiLoStesso} title="Apre la chat qui, in una cartella vuota con lo stesso nome: i file del progetto non ci sono">
+              Aprila qui lo stesso
+            </button>
+          </div>
+          <div className="chat-altrove__nota">
+            Se invece vuoi lavorarci qui con i file, su quel PC metti la cartella sul Drive (Account → Progetti sul Drive):
+            allora viaggia, e da qui prendi il testimone.
+          </div>
+        </div>
+      ) : null}
+      {postaPer !== undefined && altrove !== undefined ? (
+        <ModalePosta pc={postaPer} vivo={pcVivo(postaPer, Date.now())} presel={{ cwd: altrove.cwd, sessione: altrove.sessionUuid }} onChiudi={() => setPostaPer(undefined)} />
       ) : null}
     </div>
   )
