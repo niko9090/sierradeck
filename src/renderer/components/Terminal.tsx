@@ -31,6 +31,21 @@ type Props = {
 /** Ogni quanto avanza la barra dell'attesa: abbastanza da sembrare viva. */
 const PASSO_ATTESA_MS = 150
 
+/**
+ * Quanto si aspetta che una misura si fermi prima di ridimensionare il
+ * terminale.
+ *
+ * Nicholas (2026-09-15, con una foto): «spesso la grafica della chat si
+ * sminchia» — le righe di Claude Code a scalino, una spostata rispetto
+ * all'altra, i riquadri sovrapposti. Succede quando il riquadro cambia
+ * misura piu' volte in un attimo (una striscia che compare con la sua
+ * animazione, un pannello che si apre): ogni passo intermedio arrivava a
+ * ConPTY come una misura nuova, e Claude Code ridisegnava lo schermo su una
+ * larghezza gia' vecchia. Si aspetta che la misura sia ferma, e si manda
+ * quella sola.
+ */
+const RIPOSO_RIDIMENSIONAMENTO_MS = 120
+
 export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopilota, onPtyId }: Props): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -213,19 +228,27 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
     container.addEventListener('contextmenu', suTastoDestro)
 
     const onData = term.onData((data) => aggancio.scrivi(data))
+    let misuraInAttesa: number | undefined
     const observer = new ResizeObserver(() => {
-      // Zero pixel non vuol dire «fammi piccolo», vuol dire «non sono a
-      // schermo»: adattarsi lo porterebbe a zero righe, e la prima riga in
-      // arrivo lo farebbe cadere — lontano da qui, dentro `write`.
-      if (!adattaSePuoi(fit)) return
-      // Il ridimensionamento è anche ciò che fa ridisegnare l'interfaccia di
-      // Claude Code dopo un riaggancio, coprendo l'eventuale schermata
-      // parziale ricostruita da uno scrollback troncato.
-      aggancio.ridimensiona(term.cols, term.rows)
+      // Una misura sola, quando e' ferma: i passi intermedi di un'animazione
+      // non arrivano al terminale (vedi `RIPOSO_RIDIMENSIONAMENTO_MS`).
+      if (misuraInAttesa !== undefined) window.clearTimeout(misuraInAttesa)
+      misuraInAttesa = window.setTimeout(() => {
+        misuraInAttesa = undefined
+        // Zero pixel non vuol dire «fammi piccolo», vuol dire «non sono a
+        // schermo»: adattarsi lo porterebbe a zero righe, e la prima riga in
+        // arrivo lo farebbe cadere — lontano da qui, dentro `write`.
+        if (!adattaSePuoi(fit)) return
+        // Il ridimensionamento è anche ciò che fa ridisegnare l'interfaccia di
+        // Claude Code dopo un riaggancio, coprendo l'eventuale schermata
+        // parziale ricostruita da uno scrollback troncato.
+        aggancio.ridimensiona(term.cols, term.rows)
+      }, RIPOSO_RIDIMENSIONAMENTO_MS)
     })
     observer.observe(container)
 
     return () => {
+      if (misuraInAttesa !== undefined) window.clearTimeout(misuraInAttesa)
       observer.disconnect()
       container.removeEventListener('contextmenu', suTastoDestro)
       onData.dispose()
