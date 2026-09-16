@@ -160,7 +160,7 @@ con Nicholas.
   (layout + salvataggio Drive con tetto 45 s). Servono `VERSIONE_UPDATER`
   14 con 60 s, e il salvataggio Drive **prima** di avviare l'updater.
 
-## 2026-09-16 — «Installa e riavvia» non fa niente: aspettava il Drive in silenzio (0.28.1, in lavorazione)
+## 2026-09-16 — «Installa e riavvia» non fa niente: aspettava il Drive in silenzio (0.28.1, PUBBLICATA)
 
 Nicholas: «se premo installa e riavvia spesso non succede nulla anche se
 tutte le chat sono ferme». Registro delle 17:26: `INSTALLA 0.28.0 chiesto dal
@@ -186,5 +186,4 @@ file): l'ho annullato…») sul PC, nella pagina e nell'app (`Modelli.kt`
 `attesa`). L'esito dell'attesa ora conta (`EsitoQuiete` con `perche`), la
 seconda pressione rimanda lo stato invece di tacere, un'eccezione
 nell'attesa rimette il tasto vivo e disfa la pausa, e la pausa autopiloti ha
-15 s di tetto. Da fare: build, versione 0.28.1, APK (android/ toccato),
-pubblicare.
+15 s di tetto. Pubblicata come 0.28.1 con APK 2.30.2 (commit e29a84b).
