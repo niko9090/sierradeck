@@ -159,3 +159,32 @@ con Nicholas.
   (`GIRI_GENTILI` 25×200 ms) mentre la chiusura può durare fino a 47 s
   (layout + salvataggio Drive con tetto 45 s). Servono `VERSIONE_UPDATER`
   14 con 60 s, e il salvataggio Drive **prima** di avviare l'updater.
+
+## 2026-09-16 — «Installa e riavvia» non fa niente: aspettava il Drive in silenzio (0.28.1, in lavorazione)
+
+Nicholas: «se premo installa e riavvia spesso non succede nulla anche se
+tutte le chat sono ferme». Registro delle 17:26: `INSTALLA 0.28.0 chiesto dal
+PC: aspetto la quiete` e nello stesso millisecondo `[sistema] aspetto che
+finisca il lavoro con il Drive prima di chiudere`; poi cinque `installazione
+gia avviata: ignoro`. Alle 17:26:17 era partito un «Arrivo dal Drive» di
+**639 chat**. Le chat non c'entravano.
+
+Cause (tutte in `index.ts` `attendiLavoroDrive` + `aggiornamenti.ts`
+`installa`): (1) l'attesa del Drive durava fino a 10 minuti **senza nessuna
+fase annunciata** (la striscia `attendo` esisteva solo per le chat); (2) il
+suo esito veniva buttato via (`attendiLavoroDrive().then(() => attendiQuiete…)`);
+(3) `installazioneAvviata` è vero da subito, e ogni pressione dopo viene
+ignorata in silenzio; (4) `pausaAutopiloti(true)` senza tetto: un servizio
+muto lasciava il tasto morto per tutta la sessione.
+
+Correzione (file `src/main/attesa-drive.ts`, puro, con test): un lavoro
+**automatico** (arrivo, salvataggio) si **annulla** per uscire e si aspetta
+al massimo 90 s (si rifà da solo al giro dopo); uno voluto (fusione,
+ripristino) si aspetta fino a 10 min ma **dicendolo**: fase `attendo` con il
+nuovo campo `attesa` («il lavoro con il Drive «Arrivo dal Drive» (312 di 639
+file): l'ho annullato…») sul PC, nella pagina e nell'app (`Modelli.kt`
+`attesa`). L'esito dell'attesa ora conta (`EsitoQuiete` con `perche`), la
+seconda pressione rimanda lo stato invece di tacere, un'eccezione
+nell'attesa rimette il tasto vivo e disfa la pausa, e la pausa autopiloti ha
+15 s di tetto. Da fare: build, versione 0.28.1, APK (android/ toccato),
+pubblicare.

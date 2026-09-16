@@ -1361,7 +1361,7 @@ function pannello(s) {
           ? '<button class="' + (confermando === 'agg' ? 'pericolo' : '') + '" onclick="installaAggiornamento()">' +
             (confermando === 'agg' ? 'Sicuro? Aspetta le chat e riavvia' : 'Installa') + '</button>' : ''}
         \${aggiornamentoVisto && aggiornamentoVisto.fase === 'attendo'
-          ? '<button disabled>Aspetto le chat…</button>' : ''}
+          ? '<button disabled>' + (aggiornamentoVisto.attesa ? 'Aspetto il Drive…' : 'Aspetto le chat…') + '</button>' : ''}
         <button onclick="apriPannello('impostazioni')">Chiudi</button>
       </div>
     </div>\`
@@ -2023,6 +2023,7 @@ function descriviAggiornamento() {
   // chat che stanno lavorando devono finire quello che hanno in mano. Senza
   // dirlo, da qui si vede un tasto premuto e nient'altro.
   if (a.fase === 'attendo') {
+    if (a.attesa) return 'Aspetto che finisca ' + a.attesa + ', poi installo.'
     var quante = a.chatOccupate || 0
     return quante === 1
       ? 'Aspetto che una chat finisca quello che ha in mano, poi installo.'

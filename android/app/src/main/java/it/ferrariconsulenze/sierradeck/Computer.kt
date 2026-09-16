@@ -547,8 +547,9 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
         "disponibile" -> "C'è la ${a.versione ?: "versione nuova"}, da scaricare."
         "scarico" -> "Sto scaricando la ${a.versione ?: ""}."
         "pronto" -> "La ${a.versione ?: ""} è già scaricata e aspetta solo di essere installata."
-        "attendo" -> when (a.chatOccupate ?: 0) {
-            1 -> "Aspetto che una chat finisca quello che ha in mano, poi installo."
+        "attendo" -> when {
+            a.attesa != null -> "Aspetto che finisca ${a.attesa}, poi installo."
+            (a.chatOccupate ?: 0) == 1 -> "Aspetto che una chat finisca quello che ha in mano, poi installo."
             else -> "Aspetto che ${a.chatOccupate ?: 0} chat finiscano quello che hanno in mano, poi installo."
         }
         "installo" -> "Sto installando: il computer si chiude e riparte da solo."

@@ -199,6 +199,9 @@ export function pausaAncoraValida(p: PausaSalvata, adesso = Date.now()): boolean
  * dalla pausa — e non si installa. Lasciarli fermi ad aspettare un riavvio che
  * non arriva sarebbe il peggiore dei due errori.
  */
+/** Quanto si aspetta il servizio autopiloti per la pausa, prima di andare avanti senza. */
+const PAUSA_AUTOPILOTI_MS = 15_000
+
 export async function attendiQuiete(p: {
   chat: () => ChatInVolo[]
   pausaAutopiloti: (attiva: boolean) => Promise<number>
@@ -214,7 +217,21 @@ export async function attendiQuiete(p: {
   const allInizio = inVolo(p.chat())
 
   try {
-    await p.pausaAutopiloti(true)
+    // Con un tetto: il servizio che non risponde lasciava l'attesa appesa
+    // per sempre, e con lei il tasto «Installa e riavvia».
+    // Un timer vero, non l'`aspetta` di prova: quello conta i giri della
+    // quiete, e il tetto non e' un giro. Si spegne appena il servizio risponde.
+    let tetto: ReturnType<typeof setTimeout> | undefined
+    const scaduto = new Promise<never>((_r, rifiuta) => {
+      tetto = setTimeout(() => rifiuta(new Error(`il servizio autopiloti non ha risposto in ${PAUSA_AUTOPILOTI_MS / 1000} s`)), PAUSA_AUTOPILOTI_MS)
+      tetto.unref?.()
+    })
+    try {
+      await Promise.race([p.pausaAutopiloti(true), scaduto])
+    } finally {
+      if (tetto !== undefined) clearTimeout(tetto)
+      scaduto.catch(() => undefined)
+    }
   } catch (err) {
     // Senza servizio non c'è nessun autopilota da mettere in pausa: si va
     // avanti ad aspettare le chat, che è comunque la parte che conta.

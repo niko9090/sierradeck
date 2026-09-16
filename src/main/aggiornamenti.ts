@@ -12,6 +12,12 @@ import { assicuraUpdater, avviaUpdater, updaterVivo } from './updater/compila'
  * Non è un evento ma uno stato: chi apre la finestra a metà scaricamento deve
  * vedere a che punto è, e un flusso di eventi passati non glielo direbbe.
  */
+/** Cosa dire mentre si aspetta: quante chat, o quale lavoro con il Drive. */
+export type AvvisoAttesa = { chatOccupate?: number; attesa?: string }
+
+/** Com'e' andata l'attesa: se no, il perche' da mettere davanti a chi ha premuto. */
+export type EsitoQuiete = { ok: true } | { ok: false; perche: string }
+
 export type StatoAggiornamento = {
   /**
    * `installo` e' l'ultima, e per mesi non e' esistita.
@@ -34,6 +40,13 @@ export type StatoAggiornamento = {
    * genere di silenzio che questo programma ha gia' pagato caro altre volte.
    */
   chatOccupate?: number
+  /**
+   * Cosa si sta aspettando, in fase `attendo`, quando non sono le chat: il
+   * lavoro con il Drive («Arrivo dal Drive», 312 di 639 file, l'ho annullato).
+   * Il 16 settembre quest'attesa era muta: dieci minuti senza una riga, e il
+   * tasto sembrava rotto.
+   */
+  attesa?: string
   /** La versione che si può installare, quando ce n'è una. */
   versione?: string
   /**
@@ -131,7 +144,7 @@ export function creaAggiornamenti(
    * Assente - in prova, o senza finestre - vale «si puo'»: e' il
    * comportamento di prima, e senza chat da aspettare e' anche quello giusto.
    */
-  attendiQuiete?: (avvisa: (chatOccupate: number) => void) => Promise<boolean>,
+  attendiQuiete?: (avvisa: (a: AvvisoAttesa) => void) => Promise<EsitoQuiete>,
   /**
    * Il registro su file. Fino alla 0.25.0 l'updater parlava solo alla
    * console, che in produzione nessuno legge: il 13 settembre un aggiornamento
@@ -337,7 +350,10 @@ export function creaAggiornamenti(
       // premono insieme, facevano partire due updater: si chiudevano le
       // istanze a vicenda e il programma si riavviava senza mai aggiornarsi.
       if (installazioneAvviata) {
-        nota('installazione gia avviata: ignoro')
+        // Non in silenzio: si rimanda lo stato, cosi' una finestra rimasta a
+        // «pronto» vede l'attesa in corso invece di un tasto che non risponde.
+        nota(`installazione gia avviata (fase ${stato.fase}): rimando lo stato`)
+        annuncia(stato)
         return
       }
       // Si installa **solo** quando c'è davvero qualcosa di pronto. Senza questa
@@ -364,17 +380,32 @@ export function creaAggiornamenti(
       // indietro: si chiudono i processi e si esce. Tutto quello che si puo'
       // fare per non lasciare un lavoro a meta' va fatto adesso.
       if (attendiQuiete !== undefined) {
-        const pronti = await attendiQuiete((quante) => {
-          annuncia({ ...stato, fase: 'attendo', chatOccupate: quante })
-        })
-        if (!pronti) {
-          nota('la quiete non e arrivata in tempo: non installo')
+        // Qualunque cosa vada storta nell'attesa (il servizio autopiloti che
+        // non risponde, il Drive che non si ferma) il tasto deve tornare
+        // vivo: un'eccezione qui lasciava `installazioneAvviata` a vero per
+        // tutta la sessione, e ogni pressione dopo veniva ignorata.
+        let esito: EsitoQuiete
+        try {
+          esito = await attendiQuiete((a) => {
+            annuncia({ ...stato, fase: 'attendo', chatOccupate: a.chatOccupate, attesa: a.attesa })
+          })
+        } catch (err) {
+          esito = { ok: false, perche: `l’attesa si è interrotta con un errore (${String(err)}).` }
+        }
+        if (!esito.ok) {
+          nota(`la quiete non e arrivata: non installo (${esito.perche})`)
           installazioneAvviata = false
+          try {
+            await disfaPausa?.()
+          } catch (err) {
+            guaio(`pausa non disfatta: ${String(err)}`)
+          }
           annuncia({
             ...stato,
             fase: 'pronto',
             chatOccupate: undefined,
-            errore: 'Non ho installato: c’erano chat ancora al lavoro. Riprova quando hanno finito.'
+            attesa: undefined,
+            errore: `Non ho installato: ${esito.perche}`
           })
           return
         }

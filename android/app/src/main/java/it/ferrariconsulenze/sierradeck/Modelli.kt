@@ -333,6 +333,11 @@ data class Aggiornamento(
      */
     val chatOccupate: Int? = null,
     /**
+     * Cosa aspetta, quando non sono le chat: il lavoro con il Drive, con il
+     * conto dei file. Manca sui computer prima della 0.28.1.
+     */
+    val attesa: String? = null,
+    /**
      * Quello che l'installer sta scrivendo **adesso**, parola per parola.
      *
      * Arriva solo mentre il computer si sta aggiornando, e non lo manda

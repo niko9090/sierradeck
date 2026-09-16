@@ -66,7 +66,8 @@ import { get as httpGet, request as httpRequest } from 'node:http'
 import { avviaRitiro, finestraPerConsegna, versoIlSuoWorkspace } from './autopilota-consegne'
 import type { Chat } from './client-rotte'
 import { apriProviderStore } from './provider-store'
-import { creaAggiornamenti } from './aggiornamenti'
+import { creaAggiornamenti, type EsitoQuiete } from './aggiornamenti'
+import { attesaMassimaMs, descriviAttesaDrive, lavoroAutomatico, percheNonFinito } from './attesa-drive'
 import { claudeDaAggiornare, notaClaude } from './claude-versione'
 import { resolveClaudeCommand } from './config'
 import { leggiAccesso } from './accesso'
@@ -926,15 +927,30 @@ if (!app.requestSingleInstanceLock()) {
        * butta via i file gia' saliti o scesi (il manifesto si scrive alla
        * fine). Al massimo dieci minuti, come la quiete delle chat.
        */
-      const attendiLavoroDrive = async (): Promise<boolean> => {
-        const scadenza = Date.now() + 10 * 60_000
-        let detto = false
+      const attendiLavoroDrive = async (avvisa?: (attesa: string) => void): Promise<EsitoQuiete> => {
+        const primo = lavoro.stato().inCorso
+        if (primo === undefined) return { ok: true }
+        // Un lavoro automatico (l'arrivo delle chat, il salvataggio dei cinque
+        // minuti) non si aspetta: si annulla, si rifa' da solo al giro dopo.
+        // Il 16/09 un arrivo di 639 chat ha tenuto «Installa e riavvia» fermo
+        // e muto per dieci minuti.
+        if (lavoroAutomatico(primo.tipo) && !primo.annullamento) {
+          lavoro.annulla()
+          registro.info(`[sistema] annullo «${primo.tipo}» con il Drive per chiudere: si rifa' da solo al prossimo giro`)
+        }
+        const scadenza = Date.now() + attesaMassimaMs(primo.tipo)
+        registro.info(`[sistema] aspetto che finisca il lavoro con il Drive prima di chiudere (${primo.tipo}, al massimo ${Math.round(attesaMassimaMs(primo.tipo) / 1000)} s)`)
         while (lavoro.occupato() && Date.now() < scadenza) {
-          if (!detto) { registro.info('[sistema] aspetto che finisca il lavoro con il Drive prima di chiudere'); detto = true }
+          const adesso = lavoro.stato().inCorso
+          if (adesso !== undefined) avvisa?.(descriviAttesaDrive(adesso))
           await new Promise((r) => setTimeout(r, 2000))
         }
-        if (lavoro.occupato()) registro.errore('[sistema] il lavoro con il Drive non e\' finito in dieci minuti')
-        return !lavoro.occupato()
+        const rimasto = lavoro.stato().inCorso
+        if (rimasto !== undefined) {
+          registro.errore(`[sistema] il lavoro con il Drive (${rimasto.tipo}) non e' finito in tempo: non chiudo`)
+          return { ok: false, perche: percheNonFinito(rimasto) }
+        }
+        return { ok: true }
       }
       // Un lavoro che ha portato giu' delle chat: l'indice si rilegge, le chat
       // con la cartella di un altro PC si rimappano, i workspace anche, e le
@@ -2723,16 +2739,23 @@ if (!app.requestSingleInstanceLock()) {
         // **Non si installa sopra un lavoro in corso.** Si avvisa, si aspetta
         // che ognuno chiuda quello che ha in mano, e solo allora si chiude
         // tutto. Un aggiornamento non e' una chiusura per fine lavori.
-        (avvisa) => attendiLavoroDrive().then(() => attendiQuiete({
-          chat: () => chatAperte,
-          pausaAutopiloti: (attiva) => clientAutopilota.pausaAggiornamento(attiva),
-          scriviInChat: scriviNelRiquadro,
-          // Su disco, non in memoria: fra il sapere chi era a meta' e il
-          // poterglielo dire c'e' la morte di questo processo.
-          annota: (p) => { scriviJsonAtomico(filePausa(dati), p, 'pausa-aggiornamento') },
-          avvisa,
-          versione: app.getVersion()
-        })),
+        async (avvisa): Promise<EsitoQuiete> => {
+          // Prima il Drive, e il suo esito conta: prima veniva buttato via con
+          // un `.then(() => …)`, e un lavoro che non finiva passava lo stesso.
+          const drive = await attendiLavoroDrive((attesa) => avvisa({ attesa }))
+          if (!drive.ok) return drive
+          const pronti = await attendiQuiete({
+            chat: () => chatAperte,
+            pausaAutopiloti: (attiva) => clientAutopilota.pausaAggiornamento(attiva),
+            scriviInChat: scriviNelRiquadro,
+            // Su disco, non in memoria: fra il sapere chi era a meta' e il
+            // poterglielo dire c'e' la morte di questo processo.
+            annota: (p) => { scriviJsonAtomico(filePausa(dati), p, 'pausa-aggiornamento') },
+            avvisa: (chatOccupate) => avvisa({ chatOccupate }),
+            versione: app.getVersion()
+          })
+          return pronti ? { ok: true } : { ok: false, perche: 'c’erano chat ancora al lavoro. Riprova quando hanno finito.' }
+        },
         // Nel registro su file: e' l'unico posto dove, il giorno dopo, si
         // capisce per quale strada e' passato un aggiornamento.
         registro,
@@ -2766,9 +2789,8 @@ if (!app.requestSingleInstanceLock()) {
           void aggiornamenti.installa()
           return { ok: true, messaggio: 'C’era un aggiornamento pronto: lo installo e riparto con la versione nuova.' }
         }
-        if (!(await attendiLavoroDrive())) {
-          return { ok: false, messaggio: 'Non ho riavviato: c’è ancora un lavoro con il Drive in corso da più di dieci minuti. Aspetta che finisca o annullalo dalla striscia in alto.' }
-        }
+        const drive = await attendiLavoroDrive()
+        if (!drive.ok) return { ok: false, messaggio: `Non ho riavviato: ${drive.perche}` }
         const pronti = await attendiQuiete({
           chat: () => chatAperte,
           pausaAutopiloti: (attiva) => clientAutopilota.pausaAggiornamento(attiva),
