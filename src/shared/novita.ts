@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.28.2',
+    righe: [
+      '**La cartella Documenti spostata su un altro disco non perde le chat.** Se sposti «Documenti» (Proprietà della cartella → Percorso → Sposta), le chat tengono dentro il percorso vecchio e SierraDeck, non trovandolo più, le adottava in una cartella vuota di «Progetti SierraDeck»: Claude ripartiva senza i file. Ora, se la stessa sottocartella esiste sotto la nuova Documenti, la chat lavora lì: la trascrizione si sposta da sola sotto il percorso nuovo, all’avvio e a ogni arrivo dal Drive, e vale prima di ogni altra regola, anche di «è di un altro PC» (l’altro PC può avere ancora lo stesso percorso vecchio). Le chat già adottate prima di questa versione restano dove sono: aprile dall’elenco e usa «Porta qui» sulla cartella giusta, oppure chiedilo in chat.'
+    ]
+  },
+  {
     versione: '0.28.1',
     righe: [
       '**«Installa e riavvia» non resta più muto.** Premendolo mentre il Drive stava lavorando (un arrivo di chat, il salvataggio dei cinque minuti) l’installazione aspettava quel lavoro in silenzio, fino a dieci minuti, senza nessuna striscia; le pressioni successive venivano ignorate e sembrava un tasto rotto. Ora un lavoro automatico si annulla (si rifà da solo al giro dopo) e si aspetta al massimo un minuto e mezzo; un lavoro che hai chiesto tu (Fondi, Ripristina) si lascia finire ma la striscia dice cosa aspetta, con il conto dei file, sul PC, nella pagina e nell’app. Se non si ferma in tempo non installo e te lo dico. Premere di nuovo il tasto rimostra lo stato invece di tacere, e un servizio autopiloti che non risponde non blocca più l’installazione (quindici secondi di tetto).'

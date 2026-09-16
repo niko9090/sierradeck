@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { sostituisciPrefisso } from './rimappa-di-massa'
 import { adottaOrigine, collegaProgetto, normalizzaPercorso, percorsoLocale, progettoDiCwd, rimappaCwd, type RegistroProgetti } from './registro'
 
 /**
@@ -31,7 +32,7 @@ export type CartellaDiChat = {
    * adotta, resta sua. Chi apre decide: scriverle la' (la posta) o aprirla
    * qui lo stesso, in una cartella vuota.
    */
-  motivo: 'esiste' | 'progetto' | 'adottata' | 'altrove'
+  motivo: 'esiste' | 'progetto' | 'adottata' | 'altrove' | 'spostata'
   /** Con `altrove`: chi ce l'ha. */
   pc?: { id: string; nome: string }
   /** Il registro aggiornato, quando l'origine e' stata adottata adesso. */
@@ -59,8 +60,25 @@ export function risolviCartellaDiChat(a: {
   altrove?: (cwd: string) => { id: string; nome: string } | undefined
   /** «Aprila qui lo stesso»: si adotta anche se e' di un altro PC. */
   forza?: boolean
+  /**
+   * Le radici che si sono spostate su questo PC: «Documenti» portata da
+   * `C:\Users\x\Documents` a `E:\Users\x\Documents` (Proprieta' della
+   * cartella → Percorso → Sposta). Le chat tengono dentro il percorso vecchio;
+   * se la stessa sottocartella esiste sotto la radice nuova, e' quella la
+   * casa, non una cartella vuota adottata in «Progetti SierraDeck». Nicholas
+   * (16/09/2026) ha spostato Documenti con 580 chat sotto Portfolio.
+   */
+  radiciSpostate?: { da: string; a: string }[]
 }): CartellaDiChat {
   if (a.esiste(a.cwd)) return { cwd: a.cwd, motivo: 'esiste' }
+  // La radice spostata viene prima di tutto, anche di «altrove»: l'altro PC
+  // puo' avere ancora lo stesso percorso vecchio (stesso utente, stessa
+  // C:\Users\x\Documents), ma se la cartella sta qui sotto la radice nuova
+  // e' nostra.
+  for (const r of a.radiciSpostate ?? []) {
+    const la = sostituisciPrefisso(a.cwd, r.da, r.a)
+    if (la !== undefined && a.esiste(la)) return { cwd: la, motivo: 'spostata' }
+  }
   // Di un altro PC: si lascia dov'e'. Prima di guardare il registro, perche'
   // il registro puo' conoscere un progetto con quel percorso (adottato da un
   // terzo PC) e rimapparla in una cartella vuota di qui lo stesso.

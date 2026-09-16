@@ -1190,15 +1190,26 @@ if (!app.requestSingleInstanceLock()) {
       }
       altroveRiquadro = altrove
       /** Dove lavora qui una chat con quella cartella: decide, crea la cartella, scrive il registro. */
+      /**
+       * «Documenti» spostata (Proprieta' → Percorso → Sposta): Windows cambia
+       * la cartella di sistema, ma le chat tengono dentro il percorso di
+       * prima. Se differiscono, la radice vecchia (quella predefinita sotto
+       * il profilo) si traduce nella nuova quando la sottocartella esiste li'.
+       */
+      const radiciSpostate = (): { da: string; a: string }[] => {
+        const vecchia = join(homedir(), 'Documents')
+        const nuova = app.getPath('documents')
+        return resolve(vecchia).toLowerCase() === resolve(nuova).toLowerCase() ? [] : [{ da: vecchia, a: nuova }]
+      }
       const risolviSuDisco = (cwd: string, forza = false): CartellaDiChat | undefined => {
         try {
           if (existsSync(cwd)) return { cwd, motivo: 'esiste' }
           const pc = identitaPc.leggi()
           const r = risolviCartellaDiChat({
             cwd, registro: registroProgetti.leggi(), pcId: pc.id, cartellaProgetti: pc.cartellaProgetti,
-            esiste: existsSync, adesso: new Date().toISOString(), altrove, forza
+            esiste: existsSync, adesso: new Date().toISOString(), altrove, forza, radiciSpostate: radiciSpostate()
           })
-          if (r.motivo === 'altrove') return r
+          if (r.motivo === 'altrove' || r.motivo === 'spostata') return r
           // Prima la cartella, poi il registro: se la cartella non si crea
           // (disco scollegato) la riga nel registro farebbe adottare la stessa
           // origine di nuovo a ogni tentativo.
@@ -1236,7 +1247,7 @@ if (!app.requestSingleInstanceLock()) {
         } catch (err) {
           registro.errore(`[progetti] trascrizione ${sessione} non copiata sotto ${r.cwd}: ${String(err)}`)
         }
-        registro.info(`[progetti] la cartella ${cwd} qui non c'e': la chat ${sessione} lavora in ${r.cwd} (${r.motivo === 'adottata' ? `progetto «${r.nome ?? ''}» adottato, origine ricordata` : `progetto «${r.nome ?? ''}» gia' noto`})`)
+        registro.info(`[progetti] la cartella ${cwd} qui non c'e': la chat ${sessione} lavora in ${r.cwd} (${r.motivo === 'adottata' ? `progetto «${r.nome ?? ''}» adottato, origine ricordata` : r.motivo === 'spostata' ? 'la cartella Documenti si e spostata' : `progetto «${r.nome ?? ''}» gia' noto`})`)
         return r.cwd
       })
 
