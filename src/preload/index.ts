@@ -394,6 +394,17 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('progetti:codaModifica', id, voceId, testo, sessione),
     codaTogli: (id: string, voceId: string): Promise<Coda | undefined> => ipcRenderer.invoke('progetti:codaTogli', id, voceId),
     codaPulisci: (id: string): Promise<Coda | undefined> => ipcRenderer.invoke('progetti:codaPulisci', id),
+    /**
+     * Il Core chiede di mettere a dormire queste chat: il testimone e' passato
+     * a un altro PC. Sta qui, in `progetti`, perche' e' qui che il renderer la
+     * cerca (`window.gestore.progetti.suIberna`): nella 0.27.0 era finita per
+     * sbaglio dentro `posta` e l'app si apriva sulla schermata di errore.
+     */
+    suIberna: (cb: (m: { sessioni: string[] }) => void): (() => void) => {
+      const h = (_e: unknown, m: { sessioni: string[] }): void => cb(m)
+      ipcRenderer.on('progetti:iberna-chat', h)
+      return () => ipcRenderer.off('progetti:iberna-chat', h)
+    }
   },
   /**
    * La posta per un PC: azioni che si eseguono solo su quel computer, quando
@@ -406,13 +417,7 @@ contextBridge.exposeInMainWorld('gestore', {
     aggiungi: (pc: string, voce: { cwd: string; testo: string; sessione?: string }): Promise<Posta | undefined> =>
       ipcRenderer.invoke('posta:aggiungi', pc, voce),
     togli: (pc: string, voce: string): Promise<Posta | undefined> => ipcRenderer.invoke('posta:togli', pc, voce),
-    pulisci: (pc: string): Promise<Posta | undefined> => ipcRenderer.invoke('posta:pulisci', pc),
-    /** Il Core chiede di mettere a dormire queste chat: il testimone e' passato a un altro PC. */
-    suIberna: (cb: (m: { sessioni: string[] }) => void): (() => void) => {
-      const h = (_e: unknown, m: { sessioni: string[] }): void => cb(m)
-      ipcRenderer.on('progetti:iberna-chat', h)
-      return () => ipcRenderer.off('progetti:iberna-chat', h)
-    }
+    pulisci: (pc: string): Promise<Posta | undefined> => ipcRenderer.invoke('posta:pulisci', pc)
   },
   /** La sincronizzazione cifrata: passphrase (cassaforte E2E) + salva/ripristina. */
   sync: {
