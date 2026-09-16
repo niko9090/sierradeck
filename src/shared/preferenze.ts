@@ -10,6 +10,8 @@
  * questa finestra non deve accorgersi che esiste.
  */
 
+import { normalizzaScorciatoie, SCORCIATOIE_PREDEFINITE, type Scorciatoie } from './scorciatoie'
+
 export type Preferenze = {
   /** Il colore che tinge i comandi e le parti vive dell'interfaccia. */
   accento: string
@@ -92,6 +94,16 @@ export type Preferenze = {
    * gli occhi, che dopo otto ore non e poco.
    */
   stile: 'banco' | 'foglio'
+  /**
+   * Le scorciatoie da tastiera, azione per azione.
+   *
+   * Cambiare workspace, passare alla chat accanto, aprire un pannello: gesti
+   * che si fanno cento volte al giorno e che con il mouse costano uno sguardo
+   * alla fascia ogni volta. I tasti di fabbrica stanno in `scorciatoie.ts`, con
+   * il perché di ogni scelta; qui si conservano quelli cambiati a mano. La
+   * stringa vuota spegne una scorciatoia.
+   */
+  scorciatoie: Scorciatoie
 }
 
 export const PREFERENZE_PREDEFINITE: Preferenze = {
@@ -111,7 +123,8 @@ export const PREFERENZE_PREDEFINITE: Preferenze = {
   larghezzaAutopilota: 34,
   // Il banco e quello che c e sempre stato: chi non sceglie non deve
   // ritrovarsi un programma diverso da quello di ieri.
-  stile: 'banco'
+  stile: 'banco',
+  scorciatoie: { ...SCORCIATOIE_PREDEFINITE }
 }
 
 /**
@@ -194,7 +207,10 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
     // Solo i due nomi che conosciamo: uno stile inventato lascerebbe la console
     // senza token e con essa senza colori, che è il modo peggiore di scoprire
     // che il file era stato scritto a mano.
-    stile: o.stile === 'foglio' ? 'foglio' : PREFERENZE_PREDEFINITE.stile
+    stile: o.stile === 'foglio' ? 'foglio' : PREFERENZE_PREDEFINITE.stile,
+    // Ogni scorciatoia si normalizza da sola: una scritta male torna di
+    // fabbrica senza trascinarsi dietro le altre.
+    scorciatoie: normalizzaScorciatoie(o.scorciatoie)
   }
 }
 

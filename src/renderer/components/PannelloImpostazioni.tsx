@@ -5,6 +5,7 @@ import {
 import { PannelloProvider } from './PannelloProvider'
 import { PannelloAccount } from './PannelloAccount'
 import { PannelloConsumi } from './PannelloConsumi'
+import { SezioneScorciatoie } from './SezioneScorciatoie'
 
 /** Le schede del menu Impostazioni. */
 export type TabImpostazioni = 'generali' | 'ai' | 'account' | 'consumi'
@@ -401,6 +402,8 @@ function SchedaGenerali(): React.JSX.Element {
             nella banda in alto — e quel tasto compare solo quando questo è spento.
           </div>
         </section>
+
+        <SezioneScorciatoie p={p} cambia={cambia} />
       </div>
     </div>
   )

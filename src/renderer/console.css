@@ -3627,12 +3627,12 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .ws-menu__freccia { font-size: var(--t1); color: var(--testo-quieto); }
 .ws-menu__velo { position: fixed; inset: 0; z-index: 28; }
 .ws-menu__tendina {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
+  /* Fissa e attaccata al body (portale): la fascia scorre in orizzontale e
+     taglierebbe tutto quello che le esce dal rettangolo. */
+  position: fixed;
   z-index: 29;
-  min-width: 300px;
-  max-width: min(480px, calc(100vw - 32px));
+  width: min(480px, calc(100vw - 32px));
+  outline: none;
   background: var(--chassis);
   border: 1px solid var(--incisione);
   border-radius: 8px;
@@ -3643,7 +3643,8 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   gap: var(--s2);
   animation: fumetto-entra 140ms ease-out;
 }
-.ws-menu__filtro { width: 100%; box-sizing: border-box; }
+.ws-menu__cerca { font-size: var(--t1); color: var(--testo-quieto); padding: 0 var(--s2); }
+.ws-menu__aiuto { font-size: var(--t0); color: var(--testo-quieto); margin-right: auto; align-self: center; }
 .ws-menu__lista {
   max-height: min(60vh, 520px);
   overflow-y: auto;
@@ -3667,9 +3668,43 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 }
 .ws-menu__voce:hover { background: var(--luce-tenue); border-color: var(--luce-incisione); }
 .ws-menu__voce--attiva { background: var(--chassis-premuto); border-color: var(--incisione); }
+.ws-menu__voce--evidenziata { background: var(--luce-tenue); border-color: var(--luce-incisione); }
 .ws-menu__voce--chiama .ws-menu__voce-nome { color: var(--ambra); }
 .ws-menu__spunta { color: var(--accento); font-size: var(--t1); }
 .ws-menu__voce-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-menu__conta { font-size: var(--t0); color: var(--testo-quieto); white-space: nowrap; }
 .ws-menu__vuoto { padding: var(--s2); font-size: var(--t1); color: var(--testo-quieto); }
-.ws-menu__piede { display: flex; justify-content: flex-end; padding-top: var(--s1); border-top: 1px solid var(--incisione); }
+.ws-menu__piede { display: flex; justify-content: flex-end; gap: var(--s2); padding-top: var(--s1); border-top: 1px solid var(--incisione); }
+
+/* Le scorciatoie da tastiera nelle Impostazioni: una riga per azione, i
+   tasti come un tasto vero, ambra se due azioni hanno gli stessi. */
+.scorciatoie__gruppo { display: flex; flex-direction: column; gap: 2px; margin-top: var(--s2); }
+.scorciatoie__titolo { font-size: var(--t1); color: var(--testo-quieto); text-transform: uppercase; letter-spacing: 0.04em; margin: var(--s1) 0; }
+.scorciatoie__riga {
+  display: grid;
+  grid-template-columns: 1fr 150px auto;
+  align-items: center;
+  gap: var(--s2);
+  padding: 3px var(--s2);
+  border-radius: var(--raggio);
+  font-size: var(--t2);
+}
+.scorciatoie__riga:hover { background: var(--luce-tenue); }
+.scorciatoie__riga--doppia .scorciatoie__tasti kbd { border-color: var(--ambra); color: var(--ambra); }
+.scorciatoie__cosa { min-width: 0; }
+.scorciatoie__tasti { font-size: var(--t1); color: var(--testo-quieto); white-space: nowrap; }
+.scorciatoie__tasti--ascolto { color: var(--accento); font-style: italic; }
+.scorciatoie__tasti kbd {
+  font: inherit;
+  font-size: var(--t1);
+  color: var(--testo);
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--incisione);
+  background: var(--chassis-premuto);
+  box-shadow: 0 1px 0 var(--ombra-corta);
+}
+.scorciatoie__azioni { display: flex; gap: 4px; }
+@media (max-width: 720px) {
+  .scorciatoie__riga { grid-template-columns: 1fr; }
+}

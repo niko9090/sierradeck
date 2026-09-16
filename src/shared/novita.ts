@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.28.0',
+    righe: [
+      '**Le scorciatoie da tastiera, personalizzabili.** Ctrl+Tab e Ctrl+Shift+Tab passano al workspace dopo e prima, Alt+1…Alt+9 vanno al workspace con quel numero, Ctrl+Shift+W apre l’elenco dei workspace; Ctrl+PageDown e Ctrl+PageUp portano il cursore nella chat accanto nel mosaico; Ctrl+Shift+N apre una chat nuova, Ctrl+Shift+E l’elenco delle chat; Ctrl+, le Impostazioni, Ctrl+Shift+A gli Autopiloti, Ctrl+Shift+D il Drive, Ctrl+Shift+Q il Quaderno, Ctrl+Shift+S il Negozio, Ctrl+Shift+X chiude il pannello aperto. Valgono anche con il cursore dentro una chat: la combinazione non arriva a Claude Code. In Impostazioni → Generali → «Scorciatoie da tastiera» ogni azione si cambia («Cambia» e poi i tasti), si spegne («Togli») o torna di fabbrica; due azioni con gli stessi tasti si vedono in ambra. Di fabbrica niente Ctrl+lettera (li usa Claude Code) e niente Ctrl+Alt (sulla tastiera italiana è AltGr).',
+      '**L’elenco dei workspace si vede davvero.** Nella 0.27 il menu a tendina mostrava solo la casella di ricerca: la fascia dei workspace scorre in orizzontale e tagliava tutto il resto. Ora la tendina sta sopra a tutto, sotto il tasto, con i nomi per esteso, quante chat ha ciascuno e il pallino di chi aspetta. Si sceglie con le frecce e Invio, o con il mouse; la casella non c’è più: per cercare basta scrivere un pezzo del nome (Backspace cancella).'
+    ]
+  },
+  {
     versione: '0.27.1',
     righe: [
       '**La 0.27.0 si apriva sulla schermata di errore: corretto.** Appena aggiornato, al posto dei riquadri compariva «suIberna is not a function»: una funzione del ponte fra la finestra e il programma (quella che mette a dormire le chat quando il testimone di un progetto passa a un altro PC) era stata messa nel gruppo sbagliato, e la finestra non la trovava. Ora sta dove la finestra la cerca. Niente è andato perso: le chat, i workspace e le impostazioni sono rimasti al loro posto e, al primo avvio della 0.27.0, era stata messa al sicuro anche una copia dei file di stato in «copie-di-versione». Da questa versione un controllo automatico confronta, a ogni build, ciò che la finestra si aspetta dal ponte con ciò che il ponte espone davvero: una svista così non arriva più in una release.'

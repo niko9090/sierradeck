@@ -5,6 +5,7 @@ import { adattaSePuoi } from '../adatta-terminale'
 import '@xterm/xterm/css/xterm.css'
 import { ptyBus } from '../pty-bus'
 import { creaAggancio } from '../aggancio'
+import { azioneDelTasto } from '../scorciatoie-vive'
 import { decidiAzioneAppunti } from '../appunti'
 import { useLayoutStore } from '../state/layout'
 import { useSessionStore } from '../state/sessions'
@@ -209,6 +210,10 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
     const incolla = (): void => term.paste(window.gestore.appunti.leggi())
 
     term.attachCustomKeyEventHandler((e) => {
+      // Una scorciatoia di SierraDeck (cambia workspace, chat accanto, un
+      // pannello) non e' roba del terminale: `false` dice a xterm di non
+      // toccarla, e l'ascolto sulla finestra la esegue.
+      if (e.type === 'keydown' && azioneDelTasto(e) !== undefined) return false
       const azione = decidiAzioneAppunti(e, term.hasSelection())
       if (azione === 'passa') return true
       e.preventDefault()

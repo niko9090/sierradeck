@@ -6,6 +6,9 @@ import { ModaleNuovaChat } from './ModaleNuovaChat'
 import { azioniDiFinestra } from '../azioni-finestra'
 import { MenuWorkspace } from './MenuWorkspace'
 import { serveIlMenu } from '../menu-workspace'
+import { workspaceDaAzione, type Azione } from '@shared/scorciatoie'
+import { azioneDelTasto, impostaScorciatoie } from '../scorciatoie-vive'
+import { fuocoAllaChatVicina } from '../fuoco-chat'
 import { MODELLI } from '../modelli'
 
 /**
@@ -131,6 +134,66 @@ export function Console({
   const commuta = (quale: Exclude<PannelloAperto, undefined>): void =>
     onApri(aperto === quale ? undefined : quale)
 
+  // Il menu dei workspace: aperto o chiuso lo sa la console, cosi' lo apre
+  // anche la scorciatoia e non solo il clic sul tasto.
+  const [menuWsAperto, setMenuWsAperto] = useState(false)
+
+  // Le scorciatoie vive seguono le preferenze: la tabella sta in
+  // `scorciatoie-vive` perche' la legge anche il terminale, a ogni tasto.
+  useEffect(() => {
+    const applica = (p: { scorciatoie: Parameters<typeof impostaScorciatoie>[0] }): void => impostaScorciatoie(p.scorciatoie)
+    window.gestore.preferenze.leggi().then(applica).catch(() => undefined)
+    return window.gestore.preferenze.suCambio(applica)
+  }, [])
+
+  /**
+   * Le scorciatoie da tastiera, tutte qui.
+   *
+   * Si ascolta in fase di cattura sulla finestra: il tasto arriva prima a noi
+   * che all'xterm, e l'xterm lo lascia comunque passare (`Terminal.tsx` chiede
+   * a `azioneDelTasto` e non se lo prende). `preventDefault` ferma il resto:
+   * senza, Alt+3 arriverebbe a Claude Code come ESC 3.
+   */
+  useEffect(() => {
+    const esegui = (azione: Azione): void => {
+      const ws = workspaceDaAzione(azione, nomiWs, workspaceAttivo)
+      if (azione.startsWith('workspace')) {
+        if (ws !== undefined) cambiaWorkspace(ws)
+        return
+      }
+      switch (azione) {
+        case 'menuWorkspace':
+          if (serveIlMenu(nomiWs)) setMenuWsAperto((a) => !a)
+          else commuta('workspace')
+          return
+        case 'chatSuccessiva': fuocoAllaChatVicina(1); return
+        case 'chatPrecedente': fuocoAllaChatVicina(-1); return
+        case 'nuovaChat': setNuovaChat(proponiNuovaChat(Object.values(riquadri), sessioni, casa)); return
+        case 'elencoChat': onApriSessioni(); return
+        case 'impostazioni': commuta('impostazioni'); return
+        case 'autopiloti': commuta('autopiloti'); return
+        case 'drive': commuta('drive'); return
+        case 'quaderno': commuta('quaderno'); return
+        case 'negozio': commuta('negozio'); return
+        case 'chiudiPannello':
+          onApri(undefined)
+          setMenuWsAperto(false)
+          // Con il pannello chiuso il fuoco tornerebbe al body: meglio in una chat.
+          if (document.activeElement?.closest('.riquadro') === null) fuocoAllaChatVicina(1)
+          return
+      }
+    }
+    const suTasto = (e: KeyboardEvent): void => {
+      const azione = azioneDelTasto(e)
+      if (azione === undefined) return
+      e.preventDefault()
+      e.stopPropagation()
+      esegui(azione)
+    }
+    window.addEventListener('keydown', suTasto, true)
+    return () => window.removeEventListener('keydown', suTasto, true)
+  })
+
   const inAttesa = ledAutopiloti.some((l) => l.classe === 'led--attesa')
 
 
@@ -218,6 +281,8 @@ export function Console({
               nomi={nomiWs}
               attivo={workspaceAttivo}
               chiamano={workspaceCheChiamano}
+              aperto={menuWsAperto}
+              onAperto={setMenuWsAperto}
               onCambia={cambiaWorkspace}
               onGestisci={() => commuta('workspace')}
             />
