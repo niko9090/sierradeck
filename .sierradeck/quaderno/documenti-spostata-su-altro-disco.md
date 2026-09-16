@@ -104,3 +104,22 @@ nelle cartelle di qui (C:\Users\nikof\Progetti SierraDeck\Wdeck, …\inbox)».
 `pianificaRitorno` e `pianificaRimappatura` si rimbalzano le stesse chat:
 il registro `progetti-drive.json` ha 4 progetti «Wdeck» con origini diverse.
 Da guardare a mente fredda (con Nicholas), non stasera.
+
+## Esito finale (16/09, 23:40) e una cosa imparata sui gemelli
+
+- C:\Users\nikof\Documents non esiste più; C: da 38 a 68 GB liberi.
+- Indice SierraDeck dopo il riavvio con la 0.28.2: Portfolio 581 chat e
+  Trading 2 sotto E:. Quattro righe restavano con il percorso vecchio perché
+  lo scanner incrementale confronta size+mtime per uuid e la riscrittura
+  del `cwd` (C→E, stessa lunghezza) con mtime conservato non cambiava
+  niente: bastato `touch` sui 4 file, riletti al giro dopo.
+- Le due chat della RADICE `C:\Users\nikof\Documents` (06f40c88, 929a3244)
+  sono finite in `Progetti SierraDeck\Documents` **non** per la regola
+  nuova (provata con il registro vero: dà `spostata`), ma perché sono
+  **gemelle**: il portatile le aveva adottate in `E:\Documents\Progetti
+  SierraDeck\Documents`, la copia è arrivata dal Drive sotto quello slug,
+  l'indice tiene UNA riga per uuid e la riga puntava alla copia del
+  portatile → rimappata via registro nella cartella adottata di qui. Le
+  originali le ho spostate a mano sotto `E--Users-nikof-Documents`. È il
+  problema «gemelli» già aperto: l'indice per uuid non regge due copie.
+- `Money` (cartella sparita da mesi) va nella sua cartella adottata: giusto.
