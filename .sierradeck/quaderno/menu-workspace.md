@@ -20,3 +20,20 @@ metti un menu a tendina o qualcosa di figo». Le linguette `.ws__voce` hanno
   in fondo «Crea, rinomina o elimina…» (il pannello di sempre).
 - `Console.tsx`: fino a 6 workspace le linguette come prima; oltre, il
   menu. Il cambio passa da `cambiaWorkspace` (stesso salvataggio del layout).
+
+## 16/09 — la tendina si vedeva a metà: solo la casella (0.27.0 → 0.28.0)
+
+Nicholas: «mi fa vedere solo il cerca e non mi serve, voglio l'elenco».
+Causa: `.sezione--cede` e `.sezione .ws` hanno `overflow-x: auto` (la fascia
+dei workspace scorre in orizzontale), e un `overflow-x` diverso da `visible`
+forza anche `overflow-y` a tagliare: la tendina, figlia della fascia in
+`position: absolute`, veniva tagliata al bordo della fascia e restava la
+prima riga. Rimedio: la tendina va in un **portale** su `document.body`,
+`position: fixed`, posizionata sotto il tasto con `getBoundingClientRect`
+(ricalcolata al resize). Regola generale: **niente menu a tendina figli della
+fascia**, sempre portale.
+
+Tolta la casella di ricerca: frecce ↑↓ e Invio per scegliere, scrivendo un
+pezzo del nome si filtra (riga «Cerchi «xy»», Backspace cancella). Aperto o
+chiuso lo decide la Console (`menuWsAperto`), così lo apre anche la
+scorciatoia Ctrl+Shift+W (vedi `scorciatoie-da-tastiera.md`).
