@@ -100,6 +100,8 @@ export function pianificaRitorno(p: {
   pcId: string
   radiceProjects: string
   altrove: (cwd: string) => { id: string; nome: string } | undefined
+  /** Se la cartella esiste qui: una chat con la cartella su questo disco e' di qui e non torna a nessuno. */
+  esiste?: (percorso: string) => boolean
 }): Spostamento[] {
   const fuori: Spostamento[] = []
   const decise = new Map<string, string | undefined>()
@@ -117,6 +119,7 @@ export function pianificaRitorno(p: {
   for (const c of p.chat) {
     const cwd = c.cwd
     if (cwd === undefined || cwd.trim() === '') continue
+    if (p.esiste?.(cwd) === true) continue
     if (!decise.has(cwd)) decise.set(cwd, origineDi(cwd))
     const a = decise.get(cwd)
     if (a === undefined) continue

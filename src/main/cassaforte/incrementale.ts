@@ -104,6 +104,20 @@ export async function leggiManifesto(archivio: Archivio, maestra: Buffer): Promi
  * decimali di `mtimeMs`, quelli nuovi no, e un file non deve sembrare
  * cambiato per un arrotondamento.
  */
+/**
+ * La voce del Drive e' gia' passata di qui? Si guarda il manifesto locale,
+ * che impara ogni voce arrivata: se la voce e' la stessa (impronta, o
+ * dimensione e data) il file e' gia' sceso una volta, e se oggi non sta piu'
+ * a quel percorso e' perche' la rimappatura l'ha messo al suo posto sotto lo
+ * slug di qui. Riscaricarlo lo rimetteva sotto lo slug dell'altro PC ogni
+ * cinque minuti (visto il 17/09: 15 chat a ogni giro, per ore).
+ */
+export function giaArrivata(locale: VoceManifesto | undefined, drive: VoceManifesto): boolean {
+  if (locale === undefined) return false
+  if (locale.sha !== undefined && drive.sha !== undefined) return locale.sha === drive.sha
+  return stessaFirma(locale, drive)
+}
+
 export function stessaFirma(
   a: { size: number; mtime: number } | undefined,
   b: { size: number; mtime: number } | undefined

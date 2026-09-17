@@ -162,6 +162,10 @@ export function creaPostino(deps: {
     const firma = JSON.stringify(senzaOra)
     if (firma === ultimoBattito && adesso() - ultimoBattitoIl < BATTITO_PC_OGNI_MS) return
     await s.scrivi(nomeBattitoPc(b.pcId), b)
+    // La prima volta si dice: e' l'unico modo, dal registro, di sapere se
+    // questo PC si fa vedere dagli altri (il 17/09 nessuno vedeva nessuno e
+    // il registro taceva).
+    if (ultimoBattito === '') log(`[posta] battito scritto sul Drive come ${nomeBattitoPc(b.pcId)} («${b.nome}», ${b.versione}, ${b.cartelle.length} cartelle)`)
     ultimoBattito = firma
     ultimoBattitoIl = adesso()
   }
@@ -215,7 +219,13 @@ export function creaPostino(deps: {
       .map((b) => ({ ...b, cartelle: Array.isArray(b.cartelle) ? b.cartelle : [], chat: Array.isArray(b.chat) ? b.chat : [] }))
       .sort((a, b) => b.battito.localeCompare(a.battito))
   }
+  let altruiVisti = ''
   const ricorda = (b: BattitoPc[]): void => {
+    const visti = b.map((x) => `${x.nome} ${x.versione} (${nomeBattitoPc(x.pcId)})`).sort().join(', ')
+    if (visti !== altruiVisti) {
+      log(`[posta] altri PC sul Drive: ${b.length === 0 ? 'nessuno' : visti}`)
+      altruiVisti = visti
+    }
     altrui = b
     altruiLettiIl = adesso()
     try { deps.memoria?.scrivi(b) } catch { /* la memoria e' un comodo, non un dovere */ }

@@ -8,7 +8,7 @@ import type { Progresso } from './motore'
 import { pesaRadici, radiciDaSincronizzare, percorsoSicuro, type Radice } from './raccolta'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
-import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi, stessaFirma, scriviManifesto, nomeDi, impronta } from './incrementale'
+import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi, stessaFirma, giaArrivata, scriviManifesto, nomeDi, impronta } from './incrementale'
 import { applicaBlocco } from './lavoro'
 import type { Lavoro, Presa, TipoLavoro } from './lavoro-in-corso'
 import { costruisciCatalogo, scelteDiPortaQui, type Catalogo } from './catalogo'
@@ -1393,7 +1393,10 @@ export function apriSincronia(deps: {
       const candidati = Object.entries(esitoM.manifesto.file).filter(([p, v]) => {
         if (prefissoDi(p) !== 'chat' || altroveQui(p, v.size)) return false
         const locale = firma.get(p)
-        if (locale === undefined) return true
+        // Non sul disco a quel percorso: e' nuova, oppure e' gia' arrivata e la
+        // rimappatura l'ha spostata sotto lo slug di qui. Nel secondo caso il
+        // manifesto locale la conosce, e non si riscarica.
+        if (locale === undefined) return !giaArrivata(prec.file[p], v)
         if (stessaFirma(locale, v)) return false
         // Piu' avanti sul Drive = piu' lungo: una chat cresce e basta. Se e'
         // solo la data a differire, e' lo stesso file salito da un altro PC.

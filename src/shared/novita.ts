@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.28.3',
+    righe: [
+      '**Le chat non rimbalzano più fra i PC.** Una cartella che esiste su questo PC è di questo PC: il registro dei progetti poteva dire che «un altro PC» usa lo stesso percorso (stesso utente sui due PC, o un vecchio identificativo di questa macchina), e allora ogni cinque minuti le chat di quelle cartelle venivano mandate sotto il percorso dell’altro, riscaricate dal Drive, riportate qui, e intanto aprirle dava «Questa chat lavora su un altro PC» senza nome. Ora restano ferme. Una chat già arrivata dal Drive e messa al suo posto non viene più riscaricata a ogni giro. Nel registro compare quando questo PC scrive il suo battito sul Drive e quali altri PC vede, con nome e versione: se «Altri computer» resta vuoto, il registro dice da che parte manca il battito.'
+    ]
+  },
+  {
     versione: '0.28.2',
     righe: [
       '**La cartella Documenti spostata su un altro disco non perde le chat.** Se sposti «Documenti» (Proprietà della cartella → Percorso → Sposta), le chat tengono dentro il percorso vecchio e SierraDeck, non trovandolo più, le adottava in una cartella vuota di «Progetti SierraDeck»: Claude ripartiva senza i file. Ora, se la stessa sottocartella esiste sotto la nuova Documenti, la chat lavora lì: la trascrizione si sposta da sola sotto il percorso nuovo, all’avvio e a ogni arrivo dal Drive, e vale prima di ogni altra regola, anche di «è di un altro PC» (l’altro PC può avere ancora lo stesso percorso vecchio). Le chat già adottate prima di questa versione restano dove sono: aprile dall’elenco e usa «Porta qui» sulla cartella giusta, oppure chiedilo in chat.'

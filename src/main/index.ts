@@ -1174,6 +1174,14 @@ if (!app.requestSingleInstanceLock()) {
        */
       const GIORNI_VIVA = 7
       const altrove = (cwd: string): { id: string; nome: string } | undefined => {
+        // **Una cartella che esiste su questo PC e' di questo PC.** Il registro
+        // dei progetti puo' dire che «un altro PC» usa lo stesso percorso (i
+        // due PC hanno lo stesso utente, o l'altro id e' un vecchio id di
+        // questa stessa macchina): il 17/09 per 11 cartelle di qui il registro
+        // rispondeva «di un altro PC», e le loro chat rimbalzavano ogni cinque
+        // minuti fra lo slug dell'altro e il nostro, riscaricate dal Drive a
+        // ogni giro.
+        if (existsSync(cwd)) return undefined
         const me = identitaPc.leggi().id
         const b = pcCheHaLaCartella(cwd, postino.altrui(), me)
         if (b !== undefined) return { id: b.pcId, nome: b.nome }
@@ -1326,7 +1334,7 @@ if (!app.requestSingleInstanceLock()) {
         })
         // E le chat rapite prima di questa regola tornano al loro posto.
         const ritorno = pianificaRitorno({
-          chat, radiceProjects, registro: registroProgetti.leggi(), pcId: identitaPc.leggi().id, altrove
+          chat, radiceProjects, registro: registroProgetti.leggi(), pcId: identitaPc.leggi().id, altrove, esiste: existsSync
         })
         const tornate = await spostaTutte(ritorno)
         if (tornate > 0) registro.info(`[progetti] ${tornate} chat tornate nella cartella del loro PC (erano state adottate qui in una cartella vuota: ${[...new Set(ritorno.map((m) => m.a))].slice(0, 5).join(', ')})`)
