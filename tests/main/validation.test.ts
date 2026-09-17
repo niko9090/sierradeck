@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir, homedir } from 'node:os'
 import {
@@ -347,8 +347,11 @@ describe('validaNuovoAutopilota — preparazione e percorsi', () => {
   })
 
   it('espande la tilde anche dentro un percorso piu lungo', () => {
-    const r = validaNuovoAutopilota({ obiettivo: 'x', cwd: join('~', 'Documents'), criteri: [] })
-    expect(r.cwd).toBe(join(homedir(), 'Documents'))
+    // Una sottocartella della home che esiste davvero: «Documents» non e'
+    // detto (il 16/09 e' stata spostata su un altro disco e il test cadeva).
+    const figlia = readdirSync(homedir(), { withFileTypes: true }).find((d) => d.isDirectory() && !d.name.startsWith('.'))?.name ?? '.'
+    const r = validaNuovoAutopilota({ obiettivo: 'x', cwd: join('~', figlia), criteri: [] })
+    expect(r.cwd).toBe(join(homedir(), figlia))
   })
 
   it('non tocca un percorso che comincia per tilde ma non e la home', () => {
