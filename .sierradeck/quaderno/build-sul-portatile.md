@@ -58,6 +58,7 @@ prima volta), ma esce `app-release-unsigned.apk`: vedi sotto.
 Serve prima: chiave APK copiata, e SAC spento (o l'installer fatto sul
 fisso). Poi: `npm run pacchetto`, `gradle assembleRelease`, rinominare
 `app-release.apk` in `SierraDeck-<ver>.apk`, `node scripts/app-android-json.mjs`,
-release con i cinque allegati (`pubblicare-una-release.md`). Senza `gh` sul
-portatile: `curl` sull'API di GitHub con il token del device flow
-(`feedback-github-login-device-flow` in memoria).
+release con i cinque allegati (`pubblicare-una-release.md`). `gh` c'e' dal
+18/09 (winget, utente): `C:/Users/asus/AppData/Local/Microsoft/WinGet/Packages/GitHub.cli_Microsoft.Winget.Source_8wekyb3d8bbwe/bin/gh.exe`
+(nel PATH dei terminali nuovi), login di niko9090 nel portachiavi e
+`gh auth setup-git` fatto: `git push` e `gh release` vanno senza codici.
