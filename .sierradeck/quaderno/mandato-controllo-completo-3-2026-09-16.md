@@ -105,3 +105,25 @@ Correggi quello che è senza rischio, descrivi il resto.
   pushato).
 - `gh api repos/niko9090/sierradeck/releases/latest --jq .tag_name` è la
   versione nuova di `package.json`.
+
+# Aggiunte del 18/09 (dopo la 0.29.0)
+
+Nessuno ha ancora preso in carico questo mandato (nessun rapporto 3, nessun
+autopilota). Nel frattempo sono uscite 0.27.1, 0.28.0-0.28.3 e 0.29.0. Da
+fare in più, sul fisso, prima di tutto il resto:
+
+- **L'APK 2.31.0 non esiste.** Il repo dice `versionName 2.31.0`
+  (`versionCode 66`) e le novità 0.29.0 promettono «la sezione
+  dell'autopilota come sul PC» anche nell'app, ma la release `v0.29.0` ha
+  allegato `SierraDeck-2.30.2.apk` e `app-android.json` dice 2.30.2: la
+  0.29.0 è stata pubblicata dal portatile, dove la chiave di firma non c'è
+  (`build-sul-portatile.md`). Sul fisso: compilare l'APK 2.31.0, allegarlo a
+  `v0.29.0` (`gh release upload v0.29.0 … --clobber`), rigenerare
+  `app-android.json` e ricaricarlo, verificare `releases/latest/download/app-android.json`.
+- **Verificare la firma dell'installer 0.29.0** (stessa causa): se
+  `SierraDeck-Setup-0.29.0.exe` non è firmato, SmartScreen lo blocca sul
+  fisso; in quel caso ricostruirlo lì e ricaricarlo con `--clobber`.
+- Rileggere `rimbalzo-chat-fra-pc.md`, `documenti-spostata-su-altro-disco.md`
+  e `proposta-chat-in-un-posto-solo.md`: la proposta «una chat, una casa» è
+  una scelta di prodotto di Nicholas, non del mandato; se decide di farla,
+  i punti C ed E cambiano di conseguenza.
