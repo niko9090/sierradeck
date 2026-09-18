@@ -127,3 +127,20 @@ fare in più, sul fisso, prima di tutto il resto:
   e `proposta-chat-in-un-posto-solo.md`: la proposta «una chat, una casa» è
   una scelta di prodotto di Nicholas, non del mandato; se decide di farla,
   i punti C ed E cambiano di conseguenza.
+
+# Aggiunta del 18/09, sera: la guardia sulle chat aperte altrove
+
+Nicholas: «doveva essere già così che una chat non può scrivere se c'è già
+una chat attiva uguale». Oggi la guardia esiste solo per i progetti sul
+Drive (testimone). Da fare, come punto 1 di `stessa-chat-su-due-pc.md`:
+all'apertura di una chat, se il battito `pc-<id>` di un altro PC vivo la
+elenca fra le sue chat aperte, il riquadro dice «aperta su X da HH:MM» e
+non parte, con «Scrivile là» (posta) e «Aprila qui lo stesso»; la stessa
+regola dal telefono (409 spiegato). E il punto 2: nel conflitto sul
+prefisso `chat` non si perde mai una copia (la perdente diventa una
+conversazione a parte «… (da X)»). Test per tutte e due. Precedenza alta:
+va prima del punto A.
+
+Nota di stato: il portatile LAPTOP-E60QM2D1 ha il Drive **non connesso** dal
+16/09 («Drive configurato: true, connesso: false» a ogni avvio): non riceve
+né manda niente dal 15/09 14:33. Va ricollegato da Account → Google Drive.
