@@ -233,7 +233,44 @@ data class AutopilotaDettaglio(
      * Il dialogo con lui (0.27.0): le tue battute e le sue risposte, dalla
      * scheda. Assente nei computer con una versione precedente.
      */
-    val dialogo: List<ScambioDialogo> = emptyList()
+    val dialogo: List<ScambioDialogo> = emptyList(),
+    /**
+     * La chat con lui (0.29.0), composta dal computer: la stessa della sezione
+     * sul PC. Vuota nei computer con una versione precedente: allora la
+     * schermata mostra solo il dialogo di prima.
+     */
+    val chat: List<Battuta> = emptyList(),
+    /** Ha una domanda aperta: quello che scrivi nella casella è la risposta. */
+    val domanda: Boolean = false,
+    val domandaId: String? = null,
+    /** Sta pensando alla tua ultima battuta. */
+    val pensa: Boolean = false,
+    val compitiDaFare: List<String> = emptyList(),
+    val chats: List<ChatGovernataBreve> = emptyList()
+)
+
+/**
+ * Una riga della chat con lui: `da` è "tu", "lui" o "nota" (la sua voce di
+ * lavoro); `tono` colora la riga (domanda, pronto, decisione, correzione,
+ * fine, fermo…); `volte` quante note uguali di fila.
+ */
+@Serializable
+data class Battuta(
+    val quando: String = "",
+    val da: String = "",
+    val testo: String = "",
+    val dettaglio: String? = null,
+    val tono: String? = null,
+    val volte: Int? = null
+)
+
+/** Una chat che esegue per l'autopilota: `stato` è lavoro | bloccata | finita. */
+@Serializable
+data class ChatGovernataBreve(
+    val id: String = "",
+    val compito: String = "",
+    val stato: String = "",
+    val cicli: Int = 0
 )
 
 /** Una battuta del dialogo: `da` è "tu" o "lui"; `esito` dice cosa ne ha fatto. */

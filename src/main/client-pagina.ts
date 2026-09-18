@@ -444,6 +444,24 @@ export function paginaClient(): string {
   .battuta--lui { margin-right: auto; background: color-mix(in srgb, var(--verde) 10%, transparent); }
   .battuta__chi, .battuta__esito { font-size: 11px; color: var(--testo-quieto); }
   .pensa { color: var(--ambra); }
+  /* La chat con lui (0.29.0): in cima, scorre da sola e resta in fondo; le
+     sue decisioni sono note quiete con il filo colorato a sinistra. */
+  .flusso-ap { max-height: 46vh; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; padding-right: 2px; }
+  .battuta--domanda, .battuta--pronto { border: 1px solid var(--ambra); background: color-mix(in srgb, var(--ambra) 10%, transparent); }
+  .nota-ap { display: flex; gap: 8px; margin: 2px 0; padding-left: 8px; border-left: 2px solid var(--bordo); font-size: 11px; color: var(--testo-quieto); }
+  .nota-ap .quando { font-family: ui-monospace, Consolas, monospace; color: var(--spento); flex: 0 0 auto; }
+  .nota-ap--decisione { border-left-color: var(--accento); }
+  .nota-ap--correzione { border-left-color: var(--ambra); }
+  .nota-ap--fine { border-left-color: var(--verde); color: var(--testo); }
+  .nota-ap--fermo { border-left-color: var(--rosso); color: var(--testo); }
+  .info-ap { margin-left: auto; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--bordo); border-radius: 50%; }
+  /* Le linguette sotto la chat: una cosa per volta. */
+  .linguette { display: flex; gap: 4px; margin-top: 12px; border-bottom: 1px solid var(--bordo); overflow-x: auto; }
+  .linguetta { flex: 0 0 auto; background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 8px 10px; font-size: 12px; color: var(--testo-quieto); min-height: 0; }
+  .linguetta--attiva { color: var(--testo); border-bottom-color: var(--verde); }
+  .linguetta small { color: var(--testo-quieto); font-size: 10px; }
+  .tab-ap { padding-top: 10px; }
+  .compiti-ap { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: var(--testo); }
   .voce .quando { font-family: ui-monospace, Consolas, monospace; color: var(--spento); }
 
   /* Il tasto che sta per disfare qualcosa lo dice, per un attimo: il secondo
@@ -501,6 +519,8 @@ var notaScelta = null
 /** L'autopilota che si sta guardando dentro, e tutto quello che si sa di lui. */
 var dentroAp = null
 var apDettaglio = null
+/** Quale linguetta e' aperta sotto la chat con l'autopilota. */
+var apTab = 'obiettivo'
 /** Cosa e' successo all'ultimo messaggio mandato all'autopilota, se non e' partito. */
 var notaDialogo = ''
 /** Il pannello aperto in fondo: le conversazioni, i salvataggi, o niente. */
@@ -797,7 +817,8 @@ function impronta(s) {
     // di loro nell'impronta, a computer fermo (nessuna chat che scrive) la
     // pagina restava com'era: si toccava un autopilota e il suo dettaglio non
     // compariva, si apriva il Drive e restava «Leggo il Drive…».
-    apDettaglio ? apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.dialogo || []).length + '/' + apDettaglio.riprendiAlRiavvio : '',
+    apDettaglio ? apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.chat || []).length + '/' + apDettaglio.domanda + '/' + apDettaglio.pensa + '/' + apDettaglio.riprendiAlRiavvio : '',
+    apTab,
     notaDialogo || '', notaGlobale || '',
     cartelle ? cartelle.length : '',
     codaProgetto || '', codaErrore || '',
@@ -1594,75 +1615,154 @@ function vistaAutopilota(a) {
   }).join('<span class="passo-filo"></span>')
   const qui = (a.passaggi || []).find((p) => p.stato !== 'fatto' && p.stato !== 'davanti')
   const m = a.misura || { percento: 0, dettaglio: '', di: '', tono: 'lavoro' }
-  // Cosa gli hai chiesto, e cosa ne ha capito. La preparazione riscrive
-  // l'obiettivo con parole sue: senza le tue accanto non c'e' modo di
-  // accorgersi che sta andando a fare un'altra cosa.
-  const capito = a.obiettivoTuo
-    ? '<div class="serigrafia" style="margin-top:10px">Gli hai chiesto</div>' +
-      '<div class="sotto tue-parole">' + esc(a.obiettivoTuo) + '</div>' +
-      (a.obiettivo && a.obiettivo !== a.obiettivoTuo
+  const ora = (iso) => esc(String(iso || '').slice(11, 16))
+
+  // ── La chat con lui, in cima (0.29.0) ──
+  // Arriva composta dal computer (la stessa della sezione sul PC): la tua
+  // richiesta, l'intervista, le sue decisioni come note, il dialogo, la
+  // domanda aperta. Qui si disegna e basta.
+  const chat = (a.chat || []).map((b) => {
+    if (b.da === 'nota') {
+      return '<div class="nota-ap' + (b.tono ? ' nota-ap--' + esc(b.tono) : '') + '">' +
+        '<span class="quando">' + ora(b.quando) + '</span>' +
+        '<span>' + esc(b.testo) + (b.volte ? ' <b>×' + b.volte + '</b>' : '') +
+        (b.dettaglio ? ' — ' + esc(b.dettaglio) : '') + '</span></div>'
+    }
+    return '<div class="battuta battuta--' + (b.da === 'lui' ? 'lui' : 'tu') + (b.tono ? ' battuta--' + esc(b.tono) : '') + '">' +
+      '<span class="battuta__chi">' + (b.da === 'lui' ? esc(a.nome || 'lui') : 'tu') + ' · ' + ora(b.quando) + '</span>' +
+      '<span>' + esc(b.testo) + '</span>' +
+      (b.dettaglio ? '<span class="battuta__esito">' + esc(b.dettaglio) + '</span>' : '') +
+      (b.tono === 'pronto' ? '<div class="riga"><button class="primario" data-ap="' + esc(a.id) + '" onclick="vaiAp(this.dataset.ap)">Vai</button></div>' : '') +
+      '</div>'
+  }).join('')
+  const pensa = a.pensa
+    ? '<div class="sotto pensa">● sta pensando alla risposta… di solito entro qualche minuto. Puoi scrivergli altro: risponde in ordine.</div>'
+    : a.stato === 'intervista' && !a.domanda
+      ? '<div class="sotto pensa">● sta guardando il progetto per capire cosa serve: se ha un dubbio te lo chiede qui.</div>'
+      : ''
+  // La casella: con una domanda aperta e' la risposta (arriva subito alla
+  // chat ferma); altrimenti si parla con lui, il supervisore, che risponde in
+  // qualche minuto.
+  const casella = '<div class="riga"><textarea id="dialogo-' + esc(a.id) + '" rows="2" placeholder="' +
+      (a.domanda ? 'la tua risposta' : 'scrivigli: una domanda, un vincolo, un compito in più, «fermati», «riprendi»…') + '"></textarea></div>' +
+    '<div class="riga">' +
+      (a.domanda && a.domandaId
+        ? '<button class="primario" data-ap="' + esc(a.id) + '" data-domanda="' + esc(a.domandaId) + '" onclick="rispondiAp(this.dataset.ap, this.dataset.domanda)">Rispondi</button>'
+        : '<button class="primario" data-ap="' + esc(a.id) + '" onclick="dialogaAp(this.dataset.ap)">Manda</button>') +
+      '<span class="sotto info-ap" title="Qui parli con l’autopilota, non con la chat che esegue. Risponde con parole sue; se è un’istruzione la applica e la consegna alla chat alla fine del turno che ha in mano. Se ha una domanda aperta, quello che scrivi è la risposta e arriva subito.">?</span>' +
+    '</div>' +
+    (notaDialogo ? '<div class="errore">' + esc(notaDialogo) + '</div>' : '')
+  setTimeout(scorriChatAp, 0)
+
+  // ── Le linguette, sotto ──
+  const linguette = [['obiettivo', 'Obiettivo'], ['criteri', 'Criteri'], ['compiti', 'Compiti'], ['deciso', 'Ha deciso']]
+  const conto = (id) => id === 'criteri' && (a.criteri || []).length
+    ? ' <small>' + (a.criteri || []).filter((c) => c.soddisfatto).length + '/' + a.criteri.length + '</small>'
+    : id === 'compiti' && (a.compitiDaFare || []).length ? ' <small>' + a.compitiDaFare.length + '</small>' : ''
+  const barraLinguette = '<div class="linguette">' + linguette.map(([id, nome]) =>
+    '<button class="linguetta' + (apTab === id ? ' linguetta--attiva' : '') + '" data-tab="' + id + '" onclick="apriTabAp(this.dataset.tab)">' + nome + conto(id) + '</button>'
+  ).join('') + '</div>'
+
+  let dentro = ''
+  if (apTab === 'obiettivo') {
+    // Cosa gli hai chiesto, e cosa ne ha capito. La preparazione riscrive
+    // l'obiettivo con parole sue: senza le tue accanto non c'e' modo di
+    // accorgersi che sta andando a fare un'altra cosa.
+    const tue = a.obiettivoTuo || a.obiettivo || ''
+    dentro = '<div class="serigrafia">Gli hai chiesto</div>' +
+      '<div class="sotto tue-parole">' + esc(tue) + '</div>' +
+      (a.obiettivo && a.obiettivo !== tue
         ? '<div class="serigrafia" style="margin-top:8px">Ha capito cosi</div>' +
           '<div class="sotto sue-parole">' + esc(a.obiettivo) + '</div>'
-        : '')
-    : ''
-  // I criteri, con **quando** li ha raggiunti: una spunta senza ora non dice
-  // se e' successo adesso o tre ore fa.
-  const criteri = (a.criteri || []).map((c) =>
-    '<li class="' + (c.soddisfatto ? 'fatto' : '') + '">' + (c.soddisfatto ? '✓ ' : '· ') + esc(c.descrizione) +
-    (c.soddisfatto && c.raggiuntoIl
-      ? '<span class="quando-criterio"> raggiunto alle ' + esc(String(c.raggiuntoIl).slice(11, 16)) + '</span>'
-      : '') +
-    (c.comando ? '<div class="prova-criterio">' + esc(c.comando) +
-      (c.ultimaVerifica ? ' · ' + (c.ultimaVerifica.codice === 0 ? 'passato' : esc(primaRigaUscita(c.ultimaVerifica.uscita))) : '') +
-      '</div>' : '') +
-    '</li>'
-  ).join('')
-  // «supervisore →» e' come il servizio marca le proprie decisioni per
-  // ritrovarle: e' una sigla interna, e letta da fuori sembra un errore. Qui
-  // resta la sola cosa che conta — cosa ha deciso, e perche'.
-  const senzaSigla = (cosa) => {
-    // Senza espressioni regolari: dentro questo template le barre si perdono, e
-    // una regex mangiata a meta' non fallisce — smette semplicemente di
-    // trovare, in silenzio. Successo, e si vedeva in fotografia.
-    const t = String(cosa || '')
-    const freccia = t.indexOf(String.fromCharCode(8594))
-    return freccia === -1 || freccia > 20 ? t : t.slice(freccia + 1).trim()
+        : '') +
+      '<div class="serigrafia" style="margin-top:10px">A che punto è</div>' +
+      '<div class="misura misura--' + esc(m.tono) + '" style="margin-top:4px"><b>' + m.percento + '%</b>' +
+        '<span class="sotto">' + esc(m.dettaglio) + ' · ' + esc(m.di) + '</span></div>' +
+      (qui && qui.nota ? '<div class="sotto nota">' + esc(qui.nota) + '</div>' : '') +
+      '<div class="sotto">' + (a.cicli || 0) + ' interventi del supervisore' +
+        (a.strategia ? ' · sta provando un’altra strada: ' + esc(a.strategia) : '') + '</div>' +
+      '<div class="serigrafia" style="margin-top:10px">' + ((a.chats || []).length > 1 ? 'Le sue chat' : 'La sua chat') + '</div>' +
+      ((a.chats || []).length === 0
+        ? '<div class="sotto">' + (a.stato === 'intervista' || a.stato === 'pronto' ? 'Non è ancora partita: nasce quando dai il via.' : 'Nessuna chat aperta adesso.') + '</div>'
+        : (a.chats || []).map((ch, i) =>
+          '<div class="sotto">' + (ch.stato === 'lavoro' ? '●' : ch.stato === 'bloccata' ? '◐' : '○') + ' chat ' + (i + 1) + ' · ' +
+          (ch.stato === 'lavoro' ? 'al lavoro' : ch.stato === 'bloccata' ? 'ferma, aspetta una risposta' : 'finita') +
+          ((a.chats || []).length > 1 ? ': ' + esc(ch.compito) : '') + '</div>').join(''))
+  } else if (apTab === 'criteri') {
+    // I criteri, con **quando** li ha raggiunti: una spunta senza ora non dice
+    // se e' successo adesso o tre ore fa. Si riscrivono dal PC.
+    const criteri = (a.criteri || []).map((c) =>
+      '<li class="' + (c.soddisfatto ? 'fatto' : '') + '">' + (c.soddisfatto ? '✓ ' : '· ') + esc(c.descrizione) +
+      (c.soddisfatto && c.raggiuntoIl
+        ? '<span class="quando-criterio"> raggiunto alle ' + ora(c.raggiuntoIl) + '</span>'
+        : '') +
+      '<div class="prova-criterio">' + (c.comando ? esc(c.comando) : 'lo giudica lui, guardando il lavoro') +
+        (c.ultimaVerifica ? ' · ' + (c.ultimaVerifica.codice === 0 ? 'passato' : esc(primaRigaUscita(c.ultimaVerifica.uscita)) || 'non passato') : ' · mai misurato') +
+      '</div></li>'
+    ).join('')
+    dentro = '<div class="serigrafia">Finisce quando</div>' +
+      (criteri ? '<ul class="criteri">' + criteri + '</ul>' : '<div class="sotto">Ancora nessun criterio: li scrive lui alla fine della preparazione.</div>') +
+      '<div class="sotto" style="margin-top:8px">Il comando sotto ogni criterio è quello che lo misura a ogni fermata. Per riscriverli usa il PC, o diglielo nella chat qui sopra.</div>'
+  } else if (apTab === 'compiti') {
+    const compiti = (a.compitiDaFare || []).map((c) => '<li>' + esc(c) + '</li>').join('')
+    dentro = '<div class="serigrafia">Prima fa</div>' +
+      (compiti ? '<ol class="compiti-ap">' + compiti + '</ol>' : '<div class="sotto">Niente in coda: lavora sull’obiettivo. Per aggiungere un compito diglielo nella chat qui sopra.</div>')
+  } else {
+    // «supervisore →» e' come il servizio marca le proprie decisioni per
+    // ritrovarle: e' una sigla interna, e letta da fuori sembra un errore. Qui
+    // resta la sola cosa che conta — cosa ha deciso, e perche'.
+    const senzaSigla = (cosa) => {
+      // Senza espressioni regolari: dentro questo template le barre si perdono, e
+      // una regex mangiata a meta' non fallisce — smette semplicemente di
+      // trovare, in silenzio. Successo, e si vedeva in fotografia.
+      const t = String(cosa || '')
+      const freccia = t.indexOf(String.fromCharCode(8594))
+      return freccia === -1 || freccia > 20 ? t : t.slice(freccia + 1).trim()
+    }
+    const decisioni = (a.decisioni || []).slice(-30).reverse().map((d) =>
+      '<div class="voce"><span class="quando">' + ora(d.quando) + '</span>' +
+      esc(senzaSigla(d.cosa)) + '</div>'
+    ).join('')
+    dentro = '<div class="serigrafia">Sta ragionando cosi</div>' +
+      (decisioni || '<div class="sotto">' + (a.stato === 'intervista' ? 'Sta guardando il progetto per capire cosa serve.' : 'Ancora niente: il primo intervento arriva quando la chat si ferma.') + '</div>')
   }
-  const decisioni = (a.decisioni || []).slice(-6).reverse().map((d) =>
-    '<div class="voce"><span class="quando">' + esc(String(d.quando || '').slice(11, 16)) + '</span>' +
-    esc(senzaSigla(d.cosa)) + '</div>'
-  ).join('')
-  // Il dialogo con lui: le ultime battute, chi sta pensando, la casella. Lo
-  // stesso della scheda sul PC: si scrive **a lui**, non alla sua chat, e la
-  // risposta compare qui al giro dopo (il dettaglio si rilegge ogni due
-  // secondi), perche' il supervisore ci mette minuti.
-  const battute = (a.dialogo || []).slice(-8).map((b) =>
-    '<div class="battuta battuta--' + (b.da === 'lui' ? 'lui' : 'tu') + '">' +
-      '<span class="battuta__chi">' + (b.da === 'lui' ? esc(a.nome || 'lui') : 'tu') + ' · ' + esc(String(b.quando || '').slice(11, 16)) + '</span>' +
-      '<span>' + esc(b.testo) + '</span>' +
-      (b.esito && b.esito !== 'nessun cambio' ? '<span class="battuta__esito">' + esc(b.esito) + '</span>' : '') +
-    '</div>'
-  ).join('')
-  const ultimaBattuta = (a.dialogo || [])[(a.dialogo || []).length - 1]
-  const pensa = ultimaBattuta && ultimaBattuta.da === 'tu'
-    ? '<div class="sotto pensa">● sta pensando alla risposta… di solito entro qualche minuto. Puoi scrivergli altro: risponde in ordine.</div>'
-    : ''
-  const dialogo = '<div class="serigrafia" style="margin-top:12px">Parla con lui</div>' +
-    '<div class="sotto">Scrivi a lui, non alla sua chat. Risponde con parole sue, con davanti obiettivo, criteri, diario e l’ultima cosa scritta dalla chat. Se è un’istruzione la applica (obiettivo, criteri, un compito in più, «fermati», «riprendi», la risposta a una sua domanda) e la consegna alla chat alla fine del turno che ha in mano, mai in mezzo a un’azione; se è fermo, appena riparte. Non parte nessun lavoro nuovo e non si chiude nessuna chat senza che tu lo chieda.</div>' +
-    battute + pensa +
-    '<div class="riga"><textarea id="dialogo-' + esc(a.id) + '" rows="2" placeholder="scrivigli qui"></textarea></div>' +
-    '<div class="riga"><button class="primario" data-ap="' + esc(a.id) + '" onclick="dialogaAp(this.dataset.ap)">Manda</button></div>' +
-    (notaDialogo ? '<div class="errore">' + esc(notaDialogo) + '</div>' : '')
+
   return '<div class="dettaglio">' +
     '<div class="passi">' + passi + '</div>' +
-    (qui && qui.nota ? '<div class="sotto nota">' + esc(qui.nota) + '</div>' : '') +
-    '<div class="misura misura--' + esc(m.tono) + '"><b>' + m.percento + '%</b>' +
-      '<span class="sotto">' + esc(m.dettaglio) + ' · ' + esc(m.di) + '</span></div>' +
-    capito +
-    (criteri ? '<div class="serigrafia" style="margin-top:10px">Finisce quando</div><ul class="criteri">' + criteri + '</ul>' : '') +
-    (decisioni ? '<div class="serigrafia" style="margin-top:10px">Sta ragionando cosi</div>' + decisioni : '') +
-    dialogo +
+    '<div class="serigrafia" style="margin-top:10px">Chat con lui</div>' +
+    '<div class="flusso-ap" id="flusso-ap">' + chat + pensa + '</div>' +
+    casella +
+    barraLinguette +
+    '<div class="tab-ap">' + dentro + '</div>' +
     '</div>'
+}
+
+/** La chat con lui resta in fondo, come ogni chat: l'ultima cosa detta e' quella da leggere. */
+function scorriChatAp() {
+  const fl = document.getElementById('flusso-ap')
+  if (fl) fl.scrollTop = fl.scrollHeight
+}
+
+window.apriTabAp = (t) => { apTab = t; pannello(ultimoStato) }
+
+/**
+ * Risponde alla domanda aperta dell'autopilota dalla stessa casella con cui
+ * gli si parla: arriva subito alla chat ferma, non passa dal supervisore.
+ */
+window.rispondiAp = async (id, domanda) => {
+  const campo = document.getElementById('dialogo-' + id)
+  const testo = campo ? campo.value.trim() : ''
+  if (!testo) return
+  try {
+    await chiedi('/api/rispondi', { domanda: domanda, risposta: testo })
+    notaDialogo = ''
+    if (campo) campo.value = ''
+    await leggiAp()
+    aggiorna()
+  } catch (e) {
+    notaDialogo = 'Non sono riuscito a rispondere: ' + (e && e.message ? e.message : e)
+    pannello(ultimoStato)
+  }
 }
 
 /**

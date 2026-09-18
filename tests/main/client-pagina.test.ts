@@ -534,29 +534,50 @@ describe('la stessa pagina, aperta da un computer', () => {
 })
 
 describe('capire cosa combina un autopilota', () => {
-  it('mostra le tue parole accanto alle sue', () => {
-    // La preparazione riscrive l'obiettivo: senza le due righe una accanto
-    // all'altra non c'e' modo di accorgersi che sta facendo un'altra cosa.
-    const v = script.slice(script.indexOf('function vistaAutopilota('))
-    expect(v.slice(0, 1600)).toContain('Gli hai chiesto')
-    expect(v.slice(0, 1600)).toContain('Ha capito cosi')
-    expect(v.slice(0, 1600)).toContain('a.obiettivoTuo')
+  const vista = () => script.slice(script.indexOf('function vistaAutopilota('), script.indexOf('function scorriChatAp('))
+
+  it('comincia con la chat con lui, composta dal computer, e la casella subito sotto', () => {
+    // Nicholas (18/09): «in alto la parte di chat e nelle varie tab le altre
+    // info». La chat arriva composta dalla rotta (`a.chat`), la stessa della
+    // sezione sul PC: qui si disegna e basta.
+    const v = vista()
+    expect(v).toContain('Chat con lui')
+    expect(v).toContain('a.chat || []')
+    // Nell'ordine in cui si disegna: prima la chat, poi la casella, poi le linguette.
+    expect(v.indexOf('id="flusso-ap"')).toBeLessThan(v.indexOf('casella +'))
+    expect(v.indexOf('casella +')).toBeLessThan(v.indexOf('barraLinguette +'))
+    expect(v).toContain('dialogaAp(this.dataset.ap)')
+    expect(script).toContain("chiedi('/api/autopilota/dialogo'")
   })
 
-  it('punta i criteri raggiunti con l ora, e dice come li misura', () => {
-    const v = script.slice(script.indexOf('function vistaAutopilota('))
-    expect(v.slice(0, 2200)).toContain('raggiunto alle')
-    expect(v.slice(0, 2200)).toContain('c.raggiuntoIl')
-    expect(v.slice(0, 2200)).toContain('prova-criterio')
+  it('con una domanda aperta la casella risponde, e la risposta arriva subito', () => {
+    const v = vista()
+    expect(v).toContain('rispondiAp(this.dataset.ap, this.dataset.domanda)')
+    expect(v).toContain('a.domandaId')
+    expect(script).toContain("chiedi('/api/rispondi', { domanda: domanda, risposta: testo })")
   })
 
-  it('e chiama le decisioni con il loro nome: sta ragionando', () => {
-    const v = script.slice(script.indexOf('function vistaAutopilota('))
-    expect(v.slice(0, 6000)).toContain('Sta ragionando')
-    expect(v.slice(0, 6000)).toContain('Finisce quando')
+  it('il via sta nella chat, quando si e preparato', () => {
+    const v = vista()
+    expect(v).toContain("b.tono === 'pronto'")
+    expect(v).toContain('vaiAp(this.dataset.ap)')
+  })
+
+  it('le linguette: obiettivo con le tue parole accanto alle sue, criteri con la misura, compiti, decisioni', () => {
+    const v = vista()
+    expect(v).toContain('apriTabAp(this.dataset.tab)')
+    expect(v).toContain('Gli hai chiesto')
+    expect(v).toContain('Ha capito cosi')
+    expect(v).toContain('a.obiettivoTuo')
+    expect(v).toContain('raggiunto alle')
+    expect(v).toContain('c.raggiuntoIl')
+    expect(v).toContain('prova-criterio')
+    expect(v).toContain('Finisce quando')
+    expect(v).toContain('Prima fa')
+    expect(v).toContain('Sta ragionando')
     // E senza la sigla interna con cui il servizio marca le proprie decisioni:
     // letta da fuori, «supervisore →» sembra un errore.
-    expect(v.slice(0, 6000)).toContain('senzaSigla')
+    expect(v).toContain('senzaSigla')
   })
 
   it('e la posta per un altro PC, come nel pannello Account', () => {
@@ -568,15 +589,12 @@ describe('capire cosa combina un autopilota', () => {
     expect(impronta).toContain('postaVoci')
   })
 
-  it('e ha il dialogo con lui, come la scheda sul PC', () => {
-    // Si scrive **a lui**, non alla sua chat; la risposta compare al giro
-    // dopo, e il dettaglio deve stare nell'impronta o non si ridisegna.
-    const v = script.slice(script.indexOf('function vistaAutopilota('))
-    expect(v.slice(0, 6000)).toContain('Parla con lui')
-    expect(v.slice(0, 6000)).toContain('dialogaAp(this.dataset.ap)')
-    expect(script).toContain("chiedi('/api/autopilota/dialogo'")
+  it('il dettaglio, la chat e la linguetta aperta stanno nell impronta, o la pagina non si ridisegna', () => {
     const impronta = script.slice(script.indexOf('function impronta('), script.indexOf('function segnaScorrimento('))
     expect(impronta).toContain('apDettaglio')
+    expect(impronta).toContain('apDettaglio.chat')
+    expect(impronta).toContain('apDettaglio.domanda')
+    expect(impronta).toContain('apTab')
     expect(impronta).toContain('notaDialogo')
     expect(impronta).toContain('driveCatalogo')
   })

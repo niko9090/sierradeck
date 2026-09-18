@@ -1,5 +1,5 @@
 ---
-titolo: "La sezione dell'autopilota (0.29.0): la chat con lui in alto, il resto in linguette — e chi è «lui»"
+titolo: "La sezione dell'autopilota (0.29.0): la chat con lui in alto, il resto in linguette, su PC, pagina e app — e chi è «lui»"
 quando: 2026-09-18T10:30:00+02:00
 tag: ["autopilota", "ui", "chat", "supervisore", "0.29.0"]
 ---
@@ -75,12 +75,33 @@ Spariti: il riquadro ambra `diario__domanda` (ora è una bolla nella chat), la
 scheda impilata `SchedaAutopilota` (ora esporta i tre contenuti delle
 linguette), il testo lungo «Qui scrivi all'autopilota…» (nel «?»).
 
+# Telefono e app (stesso giorno, dopo il «va bene» di Nicholas)
+
+- La chat la compone **la rotta** `POST /api/autopilota` (`client-rotte.ts`):
+  `chat: conversazione(a)`, `domanda`, `domandaId` (dalla lista delle domande
+  aperte), `pensa`. Per questo `conversazione`/`vociDecisioni` stanno in
+  `src/shared/chat-autopilota.ts` e `src/shared/diario-autopilota.ts` (il
+  renderer riesporta `diario`, `comprimi`, `vociDecisioni`).
+- Pagina (`client-pagina.ts`, `vistaAutopilota`): passi, «Chat con lui»
+  (`#flusso-ap`, 46vh, `scorriChatAp` la tiene in fondo), casella con
+  «Rispondi» (`rispondiAp` → `/api/rispondi`) o «Manda» (`dialogaAp`),
+  linguette `apTab` (Obiettivo, Criteri, Compiti, Ha deciso; `apriTabAp`).
+  `apTab`, `apDettaglio.chat/domanda/pensa` stanno nell'impronta.
+- App (`Lavori.kt`): `DettaglioAutopilota` rifatto — testa, azioni, meta' di
+  sopra con `LazyColumn` della chat (`RigaChat`, `rememberLazyListState`,
+  scorre in fondo quando cambia il numero delle righe) e casella; meta' di
+  sotto `ScrollableTabRow` con Obiettivo, Criteri, Compiti, Ha deciso, Altro
+  (riavvio, quaderno, elimina). `Modelli.kt`: `Battuta`, `ChatGovernataBreve`,
+  campi `chat/domanda/domandaId/pensa/compitiDaFare/chats` su
+  `AutopilotaDettaglio`. **`android/` è cambiato**: alla release l'APK va
+  ricompilato (2.31.0). Scritto sul portatile senza SDK: **non compilato**,
+  da verificare con `gradle assembleRelease` sul fisso prima di pubblicare.
+- Un PC vecchio non manda `chat`: la pagina mostra la chat vuota con la sola
+  casella; l'app idem (i campi hanno default).
+
 # Cosa NON è cambiato
 
-- Il servizio, le rotte, l'archivio: nessun campo nuovo. Solo renderer.
-- La pagina del telefono e l'app Android hanno ancora la vista di prima
-  (`vistaAutopilota` in `client-pagina.ts`, `Lavori.kt`): da rifare con la
-  stessa forma se Nicholas approva questa.
+- Il servizio e l'archivio: nessun campo nuovo.
 - `DomandaModale` (la finestra che compare per una domanda) resta.
 
 # Trappole

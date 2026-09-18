@@ -439,6 +439,14 @@ describe('vedere le stesse cose, con gli stessi colori', () => {
     expect(a.decisioni).toBeInstanceOf(Array)
     expect(a.passaggi).toBeInstanceOf(Array)
     expect(a.misura).toMatchObject({ percento: expect.any(Number) })
+    // La chat con lui (0.29.0), composta qui una volta per pagina e app: la
+    // prima battuta e' quello che gli hai chiesto. E la domanda aperta, con il
+    // suo id, cosi' si risponde dalla stessa casella.
+    expect(a.chat).toBeInstanceOf(Array)
+    expect((a.chat as { da: string }[])[0]).toMatchObject({ da: 'tu' })
+    expect(a.domandaId).toBe('d-1')
+    expect(typeof a.domanda).toBe('boolean')
+    expect(typeof a.pensa).toBe('boolean')
   })
 
   it('di un autopilota che non c e lo dice, invece di mandare niente', async () => {

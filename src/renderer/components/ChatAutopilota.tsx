@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
-import { conversazione, haDomandaAperta, staPensando } from '../chat-autopilota'
+import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
 
 /**
  * La chat con l'autopilota: in cima alla sua sezione, prima di tutto il resto.

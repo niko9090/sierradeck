@@ -4,6 +4,7 @@ import type { Dispositivi } from './dispositivi'
 import type { Autopilota } from '@shared/autopilota'
 import { paginaClient, ICONA_SVG, MANIFESTO } from './client-pagina'
 import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
+import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
 import { PREFERENZE_PREDEFINITE, tavolozza, type Preferenze } from '@shared/preferenze'
 import { validateNomeWorkspace } from './validation'
 import { pathToSlug } from './indexer/project-scanner'
@@ -526,12 +527,21 @@ export function rotteClient(deps: DipendenzeRotte) {
       const tutti = await deps.autopiloti().catch(() => [] as Autopilota[])
       const a = tutti.find((x) => x.id === id)
       if (a === undefined) return { stato: 404, corpo: { errore: 'autopilota inesistente' } }
+      // La domanda aperta, se c'e': la pagina e l'app rispondono da li',
+      // dalla stessa casella con cui gli parlano.
+      const mia = (await deps.domande().catch(() => [])).find((d) => d.autopilotaId === id)
       return OK({
         ...a,
         // Calcolati qui e non nella pagina: sono le stesse funzioni che
         // disegnano il pannello al computer, e due copie divergerebbero.
         passaggi: passaggi(a),
-        misura: misuraPasso(a)
+        misura: misuraPasso(a),
+        // La chat con lui (0.29.0): la stessa che sta in cima alla sezione sul
+        // PC, composta una volta sola per tutti e tre.
+        chat: conversazione(a),
+        domanda: haDomandaAperta(a),
+        pensa: staPensando(a),
+        ...(mia !== undefined ? { domandaId: mia.id } : {})
       })
     }
 

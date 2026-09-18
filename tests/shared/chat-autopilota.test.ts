@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { conversazione, comprimiNote, staPensando, haDomandaAperta } from '../../src/renderer/chat-autopilota'
+import { conversazione, comprimiNote, staPensando, haDomandaAperta } from '@shared/chat-autopilota'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 
 function ap(over: Partial<Autopilota> = {}): Autopilota {

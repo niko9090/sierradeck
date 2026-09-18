@@ -1,4 +1,4 @@
-import type { Autopilota } from '@shared/autopilota'
+import type { Autopilota } from './autopilota'
 import { vociDecisioni } from './diario-autopilota'
 
 /**
