@@ -94,8 +94,9 @@ linguette), il testo lungo «Qui scrivi all'autopilota…» (nel «?»).
   (riavvio, quaderno, elimina). `Modelli.kt`: `Battuta`, `ChatGovernataBreve`,
   campi `chat/domanda/domandaId/pensa/compitiDaFare/chats` su
   `AutopilotaDettaglio`. **`android/` è cambiato**: alla release l'APK va
-  ricompilato (2.31.0). Scritto sul portatile senza SDK: **non compilato**,
-  da verificare con `gradle assembleRelease` sul fisso prima di pubblicare.
+  ricompilato (2.31.0). Compilato sul portatile il 18/09 (`BUILD SUCCESSFUL`), ma la chiave
+  di firma sta sul fisso: la 0.29.0 è uscita con l'APK 2.30.2; la 2.31.0 va
+  firmata e allegata alla stessa release (`build-sul-portatile.md`).
 - Un PC vecchio non manda `chat`: la pagina mostra la chat vuota con la sola
   casella; l'app idem (i campi hanno default).
 

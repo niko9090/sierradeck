@@ -51,3 +51,8 @@ finché arriva `access_token` → `gh auth login -h github.com --with-token < fi
 e cancellare il file. Il codice scade in 15 minuti. Attenzione: in questo
 ambiente `$TMP_SCRATCH` era vuoto, usare il percorso dello scratchpad per
 esteso.
+
+
+# Dal portatile (18/09/2026)
+
+Si puo': vedi `build-sul-portatile.md`. Due differenze: Smart App Control blocca `npm run pacchetto` → usare `node scripts/pacchetto-senza-eseguire.cjs` (dopo `npm run build` e `dist` svuotata); la chiave dell'APK sta solo sul fisso → o la si copia in `C:/Users/asus/`, o si riallega l'ultimo APK firmato con `app-android.json` scritto a mano. Installer non firmato (nessun certificato sul portatile).

@@ -1,5 +1,5 @@
 ---
-titolo: "Compilare SierraDeck sul portatile (asus): cosa c'è, cosa manca, e le due cose che lo bloccano"
+titolo: "Compilare e pubblicare SierraDeck dal portatile (asus): cosa c'è, come si aggira Smart App Control, cosa manca ancora (la chiave dell'APK)"
 quando: 2026-09-18T15:00:00+02:00
 tag: ["build", "release", "android", "portatile", "smart-app-control", "trappola"]
 ---
@@ -52,11 +52,35 @@ prima volta), ma esce `app-release-unsigned.apk`: vedi sotto.
    autofirmata non basta. Si spegne solo a mano (Sicurezza di Windows →
    Controllo app e browser → Smart App Control → Disattivato, **per sempre**)
    oppure si costruisce l'installer sul fisso.
+   **AGGIRATO (16:30)**: `node scripts/pacchetto-senza-eseguire.cjs` forza in
+   electron-builder il ramo «macOS Catalina», che ricava il disinstallatore
+   leggendo il file (`UninstallerReader`, puro JS) invece di eseguirlo. Prima
+   `npm run build` e `dist` svuotata. Installer identico, non firmato: Windows
+   chiede conferma alla prima installazione a mano; l'aggiornamento automatico
+   non verifica la firma (nessun `publisherName` in electron-builder.yml).
+
+# La 0.29.0 è uscita da qui (18/09, 16:35)
+
+Release `v0.29.0` con i cinque allegati: installer non firmato costruito con
+lo script sopra, blockmap, latest.yml, **APK 2.30.2** (quello già pubblicato
+nella 0.28.3, firmato) e `app-android.json` scritto a mano che punta a quello.
+La 2.31.0 (sezione nuova dell'autopilota) è compilata in
+`android/app/build/outputs/apk/release/app-release-unsigned.apk` ma **non
+firmata**: appena i due file della chiave sono in `C:/Users/asus/`,
+`gradle assembleRelease` → `SierraDeck-2.31.0.apk` → `gh release upload
+v0.29.0` + `app-android.json` rigenerato (`node scripts/app-android-json.mjs`)
+caricato con `--clobber`: il telefono legge `latest/download/app-android.json`
+e la prende da lì. `versionName` in `build.gradle.kts` è già 2.31.0.
+
+Creata come pre-release con gli allegati piccoli, exe caricato dopo (in un
+colpo, 113 MB), poi `PATCH prerelease=false make_latest=true`: così «latest»
+non è mai stata a metà. `gh` ha il login nel portachiavi: nessun codice.
 
 # Quindi, per una release dal portatile
 
-Serve prima: chiave APK copiata, e SAC spento (o l'installer fatto sul
-fisso). Poi: `npm run pacchetto`, `gradle assembleRelease`, rinominare
+Serve prima la chiave dell'APK (o si riallega l'ultimo APK firmato, come
+sopra). Poi: `npm run build`, `dist` svuotata, `node
+scripts/pacchetto-senza-eseguire.cjs`, `gradle assembleRelease`, rinominare
 `app-release.apk` in `SierraDeck-<ver>.apk`, `node scripts/app-android-json.mjs`,
 release con i cinque allegati (`pubblicare-una-release.md`). `gh` c'e' dal
 18/09 (winget, utente): `C:/Users/asus/AppData/Local/Microsoft/WinGet/Packages/GitHub.cli_Microsoft.Winget.Source_8wekyb3d8bbwe/bin/gh.exe`
