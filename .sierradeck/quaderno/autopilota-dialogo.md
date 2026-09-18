@@ -75,3 +75,10 @@ basta. Non rispondeva, e «fermati» diventava un cambio di criteri.
 - Il test del server usa `prompt.includes('Ti scrive adesso')` per
   distinguere il prompt del dialogo da quello del turno: se si rinomina la
   sezione, aggiornare `tests/autopilot-host/dialogo.test.ts`.
+
+# Aggiornamento 18/09 (0.29.0)
+
+La scheda PC non ha più «Parla con lui» in fondo: il dialogo è la chat in
+cima alla sezione (`ChatAutopilota.tsx`, scheda `autopilota-sezione-chat-in-alto.md`),
+insieme all'intervista, alle decisioni e alla domanda aperta. Le rotte e
+l'archivio sono gli stessi. Pagina e app Android hanno ancora la vista vecchia.
