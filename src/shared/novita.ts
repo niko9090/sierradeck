@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.29.1',
+    righe: [
+      '**Il Drive funziona di nuovo.** La 0.29.0 era stata costruita su un PC senza le credenziali dell’app per Google Drive: dopo l’aggiornamento il programma diceva «Google Drive non configurato» e non salvava né riceveva più niente. Questa versione le ha di nuovo dentro. Se sei rimasto fermo sulla 0.29.0 per qualche ora, al primo salvataggio riparte tutto da dove era.'
+    ]
+  },
+  {
     versione: '0.29.0',
     righe: [
       '**La sezione dell’autopilota è una chat, in alto, e linguette sotto.** Accanto alla chat che esegue, la colonna dell’autopilota comincia con la chat con lui: quello che gli hai chiesto, le domande della preparazione con le tue risposte, le sue decisioni come righe quiete, quello che gli scrivi e quello che risponde, e la domanda che ha aperta adesso, in ambra. Si scrive lì sotto: se ha una domanda aperta il tasto dice «Rispondi» e la risposta arriva subito alla chat ferma; altrimenti «Manda» e risponde lui, il supervisore, in qualche minuto. «Vai» compare nella chat quando si è preparato. Sotto, le linguette: «Sta facendo» (cosa scrive la chat che esegue, con la scelta della chat se sono più di una), «Obiettivo» (le tue parole, le sue, a che punto è, le sue chat), «Criteri» (si riscrivono lì), «Compiti» (la coda), «Ha deciso» (il diario). Le due metà scorrono ognuna per conto suo; a tutta larghezza stanno fianco a fianco. Il riquadro ambra della domanda e la scheda impilata non ci sono più: era una colonna sola da scorrere tutta per arrivare a parlargli. La stessa forma nella pagina del telefono e nell’app Android: chat in alto con «Rispondi»/«Manda», linguette sotto (Obiettivo, Criteri, Compiti, Ha deciso; nell’app anche «Altro» con riavvio, quaderno ed elimina).'

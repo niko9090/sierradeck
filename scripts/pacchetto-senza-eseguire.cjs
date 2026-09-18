@@ -15,6 +15,9 @@
 // che dipende dal certificato presente sul PC). Usato la prima volta il
 // 18/09/2026 sul portatile per la 0.29.0 (`.sierradeck/quaderno/build-sul-portatile.md`).
 const path = require('node:path')
+const { execFileSync } = require('node:child_process')
+// Prima di tutto: senza le credenziali del Drive l'installer e' un danno.
+execFileSync(process.execPath, [path.join(process.cwd(), 'scripts/controlla-credenziali.mjs')], { stdio: 'inherit' })
 const macos = require(path.join(process.cwd(), 'node_modules/app-builder-lib/out/util/macosVersion.js'))
 macos.isMacOsCatalina = () => true
 
