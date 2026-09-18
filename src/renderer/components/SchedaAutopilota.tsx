@@ -1,39 +1,105 @@
 import { useState } from 'react'
 import type { Autopilota, Criterio } from '@shared/autopilota'
+import { misuraPasso, passaggi } from '@shared/autopilota-vista'
 import { diario } from '../diario-autopilota'
 
 /**
- * La scheda di un autopilota: cosa deve ottenere, come lo misura, cosa farà —
- * e il posto dove dirgli di cambiare.
+ * Le linguette della sezione dell'autopilota: obiettivo, criteri, compiti.
  *
- * Prima di questa scheda, di un autopilota si vedevano un LED, uno stato e
- * «3 criteri su 5». Chi guardava non sapeva **quali** fossero quei cinque, né
- * come venissero misurati, né come cambiarli: si poteva solo fermarlo,
- * eliminarlo e ricominciare da capo. La parola «criterio» restava un termine
- * tecnico senza contenuto.
+ * Erano una scheda sola, impilata sotto i passi e sopra il dialogo: per
+ * arrivare a «Parla con lui» si scorreva tutto. Nicholas (18/09): «è davvero
+ * caotica, mi interessa avere in alto la parte di chat e nelle varie tab le
+ * altre info così vedo tutto senza scorrere come un matto». Ora la chat sta
+ * in cima (`ChatAutopilota`) e questi sono i contenuti delle linguette, uno
+ * per volta, ognuno con lo spazio che gli serve.
  *
  * Qui non c'è nessuna definizione di «criterio». C'è la riga sotto ognuno —
  * il comando che lo misura, e com'è finita l'ultima volta — perché è vedendo
  * `npm test` accanto a «i test passano tutti» che si capisce cosa sia, molto
  * meglio che leggendone la spiegazione.
  */
-export function SchedaAutopilota({
-  autopilota,
-  onCambiato
-}: {
+
+type Props = {
   autopilota: Autopilota
   /** Qualcosa è cambiato: chi ci sta sopra deve rileggere lo stato. */
   onCambiato: () => void
-}): React.JSX.Element {
+}
+
+/** Cosa gli hai chiesto, cosa ha capito, a che punto è, e le sue chat. */
+export function ObiettivoAutopilota({ autopilota }: { autopilota: Autopilota }): React.JSX.Element {
+  const m = misuraPasso(autopilota)
+  const qui = passaggi(autopilota).find((p) => p.stato !== 'fatto' && p.stato !== 'davanti')
+  const tue = autopilota.obiettivoTuo ?? autopilota.obiettivo
+  return (
+    <div className="scheda">
+      {/* Quello che hai scritto tu, e quello che lui ne ha fatto. La
+          preparazione riformula l'obiettivo con parole sue — piu' precise, e
+          **sue** — e le tue sparivano: senza le due righe una accanto all'altra
+          non c'e' modo di accorgersi che sta andando a fare un'altra cosa. */}
+      <div className="serigrafia scheda__titolo">Gli hai chiesto</div>
+      <p className="scheda__tue-parole">{tue}</p>
+      {autopilota.obiettivo !== tue ? (
+        <>
+          <div className="serigrafia scheda__titolo">Ha capito così</div>
+          <p className="scheda__sue-parole">{autopilota.obiettivo}</p>
+        </>
+      ) : null}
+
+      <div className="serigrafia scheda__titolo">A che punto è</div>
+      <p className="scheda__misura-riga">
+        <span className={`scheda__percento scheda__percento--${m.tono}`}>{m.percento}%</span>
+        {' '}{m.dettaglio} · {m.di}
+      </p>
+      {qui?.nota !== undefined ? <p className="scheda__spiega">{qui.nota}</p> : null}
+      <p className="scheda__spiega">
+        {autopilota.cicli} {autopilota.cicli === 1 ? 'intervento' : 'interventi'} del supervisore ·
+        {' '}iniziato alle {orario(autopilota.iniziatoIl)} · ultimo segno alle {orario(autopilota.ultimoEvento)}
+        {autopilota.strategia !== undefined ? ` · sta provando un'altra strada: ${autopilota.strategia}` : ''}
+      </p>
+
+      {/* Le chat che eseguono: una per compito. Con una sola chat la riga dice
+          solo che c'è; con la flotta si vede chi fa cosa e chi è ferma. */}
+      <div className="serigrafia scheda__titolo">
+        {autopilota.chats.length > 1 ? `Le sue chat (${autopilota.chats.length})` : 'La sua chat'}
+      </div>
+      {autopilota.chats.length === 0 ? (
+        <p className="scheda__spiega">
+          {autopilota.stato === 'intervista' || autopilota.stato === 'pronto'
+            ? 'Non è ancora partita: nasce quando dai il via.'
+            : 'Nessuna chat aperta adesso.'}
+        </p>
+      ) : (
+        <ul className="scheda__chats">
+          {autopilota.chats.map((ch, i) => (
+            <li key={ch.id} className={`scheda__chat scheda__chat--${ch.stato}`}>
+              <span className="scheda__chat-stato">
+                {ch.stato === 'lavoro' ? '●' : ch.stato === 'bloccata' ? '◐' : '○'}
+              </span>
+              <span>
+                <span className="scheda__chat-nome">chat {i + 1} · {ch.stato === 'lavoro' ? 'al lavoro' : ch.stato === 'bloccata' ? 'ferma, aspetta una risposta' : 'finita'} · {ch.cicli} {ch.cicli === 1 ? 'giro' : 'giri'}</span>
+                {autopilota.chats.length > 1 || ch.compito !== autopilota.obiettivo ? (
+                  <span className="scheda__chat-compito">{ch.compito}</span>
+                ) : null}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="scheda__spiega">
+        La sua chat è nel mosaico, con il suo riquadro: qui a fianco. Il supervisore è lui, quello con
+        cui parli nella chat qui sopra: guarda la chat che esegue a ogni fermata e le dice come proseguire.
+      </p>
+    </div>
+  )
+}
+
+/** I criteri di fine, con il comando che li misura e com'è andata: si riscrivono qui. */
+export function CriteriAutopilota({ autopilota, onCambiato }: Props): React.JSX.Element {
   const [inCorso, setInCorso] = useState(false)
   const [errore, setErrore] = useState<string | undefined>(undefined)
   /** Il criterio che si sta riscrivendo adesso, per indice. */
   const [scrivendo, setScrivendo] = useState<number | undefined>(undefined)
-  const [bozza, setBozza] = useState<{ descrizione: string; comando: string }>({
-    descrizione: '', comando: ''
-  })
-  const [compitoNuovo, setCompitoNuovo] = useState('')
-  const [messaggio, setMessaggio] = useState('')
+  const [bozza, setBozza] = useState<{ descrizione: string; comando: string }>({ descrizione: '', comando: '' })
 
   const esegui = (che: () => Promise<unknown>): void => {
     setInCorso(true)
@@ -84,96 +150,15 @@ export function SchedaAutopilota({
     salvaCriteri(criteri)
   }
 
-  /**
-   * Gli scrivi. La ricevuta torna subito; la sua risposta compare nel
-   * dialogo quando il supervisore ha finito di pensare (minuti), e la scheda
-   * la vede da sola perché l'autopilota si rilegge ogni pochi secondi.
-   */
-  const manda = (): void => {
-    const testo = messaggio.trim()
-    if (testo === '') return
-    setInCorso(true)
-    setErrore(undefined)
-    window.gestore.autopilota
-      .dialoga(autopilota.id, testo)
-      .then(() => {
-        setMessaggio('')
-        onCambiato()
-      })
-      .catch((e: unknown) => setErrore(String(e instanceof Error ? e.message : e)))
-      .finally(() => setInCorso(false))
-  }
-
-  const battute = autopilota.dialogo.slice(-BATTUTE_MOSTRATE)
-  const staPensando = autopilota.dialogo[autopilota.dialogo.length - 1]?.da === 'tu'
-
-  const ultima = autopilota.modifiche[autopilota.modifiche.length - 1]
-  /**
-   * Gli ultimi ragionamenti, dal piu' recente.
-   *
-   * Tre e non tutti: qui si risponde a «cosa sta pensando adesso», e la storia
-   * intera sta nel diario sotto. Sono le voci che dicono **perche'** — la
-   * decisione del supervisore e il cambio di strada — non quelle che dicono
-   * cosa e' stato eseguito.
-   */
-  const ragionamenti = diario(autopilota)
-    .filter((v) => v.tipo === 'decisione' || v.tipo === 'correzione')
-    .slice(-3)
-    .reverse()
-
   return (
     <div className="scheda">
-      {autopilota.stato === 'pronto' ? (
-        // Il cancello. Dieci secondi di lettura prima di ore di lavoro, e
-        // soprattutto: il momento in cui si vede cosa ha deciso da solo.
-        <div className="scheda__via">
-          <span className="serigrafia">si è preparato — leggi e dai il via</span>
-          <button
-            className="tasto tasto--primario"
-            disabled={inCorso}
-            onClick={() => esegui(() => window.gestore.autopilota.vai(autopilota.id))}
-          >
-            Vai
-          </button>
-        </div>
-      ) : null}
-
-      {/* Quello che hai scritto tu, e quello che lui ne ha fatto. La
-          preparazione riformula l'obiettivo con parole sue — piu' precise, e
-          **sue** — e le tue sparivano: senza le due righe una accanto all'altra
-          non c'e' modo di accorgersi che sta andando a fare un'altra cosa. */}
-      {autopilota.obiettivoTuo !== undefined ? (
-        <div className="scheda__capito-obiettivo">
-          <div className="serigrafia scheda__titolo">Gli hai chiesto</div>
-          <p className="scheda__tue-parole">{autopilota.obiettivoTuo}</p>
-          {autopilota.obiettivo !== autopilota.obiettivoTuo ? (
-            <>
-              <div className="serigrafia scheda__titolo">Ha capito così</div>
-              <p className="scheda__sue-parole">{autopilota.obiettivo}</p>
-            </>
-          ) : null}
-        </div>
-      ) : null}
-
-      {/* Come ragiona davanti a un problema. E' la voce piu' preziosa che il
-          servizio produce — l'unica che dice **perche'** invece di cosa — e
-          viveva sepolta in una scheda che si apre solo se sai che esiste. */}
-      {ragionamenti.length > 0 ? (
-        <div className="scheda__ragiona">
-          <div className="serigrafia scheda__titolo">Sta ragionando così</div>
-          {ragionamenti.map((r, i) => (
-            <div key={i} className={i === 0 ? 'scheda__pensiero' : 'scheda__pensiero scheda__pensiero--vecchio'}>
-              <span className="misura scheda__quando">{orario(r.quando)}</span>
-              <div>
-                <div className="scheda__pensiero-titolo">{r.titolo}</div>
-                {r.dettaglio !== undefined ? <div className="scheda__pensiero-testo">{r.dettaglio}</div> : null}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
       <div className="serigrafia scheda__titolo">Finisce quando</div>
+      {autopilota.criteri.length === 0 ? (
+        <p className="scheda__spiega">
+          Ancora nessun criterio: li scrive lui alla fine della preparazione, dopo aver guardato il
+          progetto. Poi qui li leggi e li correggi.
+        </p>
+      ) : null}
       <ul className="scheda__criteri">
         {autopilota.criteri.map((c, i) =>
           scrivendo === i ? (
@@ -216,8 +201,6 @@ export function SchedaAutopilota({
                   com'è andata. Senza comando lo giudica il supervisore, e
                   tacerlo lasciava credere che ci fosse una misura anche lì. */}
               <div className="misura scheda__prova">
-                {/* Raggiunto **quando**: su un lavoro che dura una notte e' la
-                    differenza fra «sta procedendo» e «e' fermo da stamattina». */}
                 {c.soddisfatto && c.raggiuntoIl !== undefined ? (
                   <span className="scheda__esito--verde">raggiunto alle {orario(c.raggiuntoIl)} · </span>
                 ) : null}
@@ -255,126 +238,118 @@ export function SchedaAutopilota({
           </li>
         )}
       </ul>
-
-      {autopilota.compitiDaFare.length > 0 || compitoNuovo !== '' ? (
-        <>
-          <div className="serigrafia scheda__titolo">Prima fa</div>
-          <ol className="scheda__compiti">
-            {autopilota.compitiDaFare.map((c, i) => (
-              <li key={i} className="scheda__compito">
-                <span>{c}</span>
-                <button
-                  className="comando-riquadro"
-                  title="Toglie questo compito dalla coda"
-                  aria-label={`Togli: ${c}`}
-                  disabled={inCorso}
-                  onClick={() =>
-                    esegui(() =>
-                      window.gestore.autopilota.modifica(autopilota.id, {
-                        compitiDaFare: autopilota.compitiDaFare.filter((_, k) => k !== i)
-                      })
-                    )
-                  }
-                >
-                  ×
-                </button>
-              </li>
-            ))}
-          </ol>
-        </>
-      ) : null}
-      <div className="riga scheda__nuovo-compito">
-        <input
-          className="campo"
-          value={compitoNuovo}
-          placeholder="un altro compito…"
-          aria-label="aggiungi un compito"
-          onChange={(e) => setCompitoNuovo(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key !== 'Enter' || compitoNuovo.trim() === '') return
-            esegui(() =>
-              window.gestore.autopilota.modifica(autopilota.id, {
-                compitiDaFare: [...autopilota.compitiDaFare, compitoNuovo.trim()]
-              })
-            )
-            setCompitoNuovo('')
-          }}
-        />
-      </div>
-
-      {/* Il dialogo con lui. Non e' la chat: e' il posto dove gli si parla
-          mentre la chat lavora — lui risponde con parole sue e, se era
-          un'istruzione, la applica e la porta nella chat al momento giusto. */}
-      <div className="scheda__parla">
-        <div className="serigrafia scheda__titolo">Parla con lui</div>
-        <p className="scheda__spiega">
-          Qui scrivi all’autopilota, non alla sua chat. Lui risponde con parole sue, con davanti
-          obiettivo, criteri, diario e l’ultima cosa scritta dalla chat. Se quello che scrivi è
-          un’istruzione la applica: cambia obiettivo o criteri, aggiunge un compito, si ferma
-          («fermati»), riparte («riprendi»), risponde a una sua domanda aperta. Se serve che la chat
-          lo sappia, glielo consegna alla fine del turno che ha in mano — mai in mezzo a un’azione —
-          oppure appena riparte, se è fermo. La risposta arriva di solito entro qualche minuto:
-          intanto qui sotto leggi «sta pensando». Un cambio si disfa con «Disfa». Non parte nessun
-          lavoro nuovo e non si chiude nessuna chat senza che tu lo chieda.
-        </p>
-        {battute.length > 0 ? (
-          <div className="scheda__dialogo" aria-live="polite">
-            {battute.map((b, i) => (
-              <div key={`${b.quando}-${i}`} className={`scheda__battuta scheda__battuta--${b.da}`}>
-                <span className="scheda__battuta-chi">
-                  {b.da === 'tu' ? 'tu' : autopilota.nome !== '' ? autopilota.nome : 'lui'} · {orario(b.quando)}
-                </span>
-                <span>{b.testo}</span>
-                {b.esito !== undefined && b.esito !== 'nessun cambio' ? (
-                  <span className="scheda__battuta-esito">{b.esito}</span>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        ) : null}
-        {staPensando ? (
-          <p className="scheda__pensa">● sta pensando alla risposta… di solito entro qualche minuto. Puoi scrivergli altro: risponde in ordine.</p>
-        ) : null}
-        <textarea
-          className="campo"
-          rows={2}
-          value={messaggio}
-          placeholder="scrivigli qui: una domanda, un vincolo, un compito in più, «fermati», «riprendi»…"
-          aria-label="scrivi all autopilota"
-          onChange={(e) => setMessaggio(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) manda()
-          }}
-        />
-        <div className="riga">
-          <button
-            className="tasto tasto--primario"
-            disabled={inCorso || messaggio.trim() === ''}
-            onClick={manda}
-            title="Ctrl+Invio manda"
-          >
-            {inCorso ? 'Mando…' : 'Manda'}
-          </button>
-          {ultima !== undefined ? (
-            <button
-              className="tasto"
-              disabled={inCorso}
-              title={`Rimette com'era prima di: ${ultima.capito}`}
-              onClick={() => esegui(() => window.gestore.autopilota.disfa(autopilota.id))}
-            >
-              Disfa
-            </button>
-          ) : null}
-        </div>
-      </div>
-
+      <p className="scheda__spiega">
+        Clicca un criterio per riscriverlo. Il comando sotto è quello che lo misura a ogni fermata:
+        codice 0 vuol dire passato. Senza comando lo giudica il supervisore leggendo il lavoro. Un
+        cambio si applica subito e si disfa dalla chat con «Disfa».
+      </p>
       {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
     </div>
   )
 }
 
-/** Quante battute del dialogo restano a vista: le altre sono nel diario. */
-const BATTUTE_MOSTRATE = 12
+/** I pezzi di lavoro in coda, e il posto dove aggiungerne uno. */
+export function CompitiAutopilota({ autopilota, onCambiato }: Props): React.JSX.Element {
+  const [inCorso, setInCorso] = useState(false)
+  const [errore, setErrore] = useState<string | undefined>(undefined)
+  const [compitoNuovo, setCompitoNuovo] = useState('')
+
+  const esegui = (che: () => Promise<unknown>): void => {
+    setInCorso(true)
+    setErrore(undefined)
+    che()
+      .then(() => { onCambiato() })
+      .catch((e: unknown) => setErrore(String(e instanceof Error ? e.message : e)))
+      .finally(() => setInCorso(false))
+  }
+
+  const aggiungi = (): void => {
+    const testo = compitoNuovo.trim()
+    if (testo === '') return
+    esegui(() =>
+      window.gestore.autopilota.modifica(autopilota.id, {
+        compitiDaFare: [...autopilota.compitiDaFare, testo]
+      })
+    )
+    setCompitoNuovo('')
+  }
+
+  return (
+    <div className="scheda">
+      <div className="serigrafia scheda__titolo">Prima fa</div>
+      {autopilota.compitiDaFare.length === 0 ? (
+        <p className="scheda__spiega">
+          Niente in coda: lavora sull’obiettivo. Un compito scritto qui lo prende la prima chat che
+          si libera, prima di tornare all’obiettivo.
+        </p>
+      ) : (
+        <ol className="scheda__compiti">
+          {autopilota.compitiDaFare.map((c, i) => (
+            <li key={i} className="scheda__compito">
+              <span>{c}</span>
+              <button
+                className="comando-riquadro"
+                title="Toglie questo compito dalla coda"
+                aria-label={`Togli: ${c}`}
+                disabled={inCorso}
+                onClick={() =>
+                  esegui(() =>
+                    window.gestore.autopilota.modifica(autopilota.id, {
+                      compitiDaFare: autopilota.compitiDaFare.filter((_, k) => k !== i)
+                    })
+                  )
+                }
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+      <div className="riga scheda__nuovo-compito">
+        <input
+          className="campo"
+          value={compitoNuovo}
+          placeholder="un altro compito… (Invio aggiunge)"
+          aria-label="aggiungi un compito"
+          onChange={(e) => setCompitoNuovo(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') aggiungi() }}
+        />
+        <button className="tasto" disabled={inCorso || compitoNuovo.trim() === ''} onClick={aggiungi}>
+          Aggiungi
+        </button>
+      </div>
+      {autopilota.tettoChat > 1 ? (
+        <p className="scheda__spiega">
+          Fino a {autopilota.tettoChat} chat insieme: ogni compito in coda apre o riusa una chat sua.
+        </p>
+      ) : null}
+      {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
+    </div>
+  )
+}
+
+/** Gli ultimi ragionamenti, quelli che dicono **perché**: in cima a «Ha deciso». */
+export function RagionamentiAutopilota({ autopilota }: { autopilota: Autopilota }): React.JSX.Element | null {
+  const ragionamenti = diario(autopilota)
+    .filter((v) => v.tipo === 'decisione' || v.tipo === 'correzione')
+    .slice(0, 3)
+  if (ragionamenti.length === 0) return null
+  return (
+    <div className="scheda__ragiona">
+      <div className="serigrafia scheda__titolo">Sta ragionando così</div>
+      {ragionamenti.map((r, i) => (
+        <div key={i} className={i === 0 ? 'scheda__pensiero' : 'scheda__pensiero scheda__pensiero--vecchio'}>
+          <span className="misura scheda__quando">{orario(r.quando)}</span>
+          <div>
+            <div className="scheda__pensiero-titolo">{r.titolo}</div>
+            {r.dettaglio !== undefined ? <div className="scheda__pensiero-testo">{r.dettaglio}</div> : null}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 /** Solo l'ora: dentro una giornata di lavoro il giorno lo si sa. */
 function orario(iso: string): string {

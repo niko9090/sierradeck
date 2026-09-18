@@ -63,7 +63,35 @@ function accorcia(testo: string, max = 120): string {
  * informazione, e nasconderla renderebbe il diario meno affidabile di quanto è.
  */
 export function diario(a: Autopilota): VoceDiario[] {
-  const voci: VoceDiario[] = a.decisioni.map((d) => {
+  const voci = vociDecisioni(a)
+
+  // Il dialogo con te sta nello stesso diario, al suo posto nel tempo: e' la
+  // parte del lavoro che hai fatto tu, e senza si leggerebbe un cambio di
+  // rotta senza sapere chi l'ha chiesto.
+  for (const s of a.dialogo) {
+    voci.push(
+      s.da === 'tu'
+        ? { quando: s.quando, tipo: 'tu' as const, titolo: 'Gli hai scritto', dettaglio: accorcia(s.testo) }
+        : {
+            quando: s.quando,
+            tipo: 'decisione' as const,
+            titolo: 'Ti ha risposto',
+            dettaglio: accorcia(s.esito !== undefined && s.esito !== 'nessun cambio' ? `${s.testo} (${s.esito})` : s.testo)
+          }
+    )
+  }
+
+  // Dalla più recente: è quella che dice cosa sta succedendo adesso.
+  return comprimi(voci.sort((x, y) => y.quando.localeCompare(x.quando)))
+}
+
+/**
+ * Le sole decisioni del servizio, lette come azioni, nell'ordine in cui sono
+ * state scritte. Senza il dialogo: quello lo aggiunge `diario`, e la chat con
+ * l'autopilota lo mette al suo posto da sé.
+ */
+export function vociDecisioni(a: Autopilota): VoceDiario[] {
+  return a.decisioni.map((d) => {
     const cosa = d.cosa
 
     if (cosa.startsWith('proseguito:')) {
@@ -113,25 +141,6 @@ export function diario(a: Autopilota): VoceDiario[] {
     }
     return { quando: d.quando, titolo: accorcia(cosa) }
   })
-
-  // Il dialogo con te sta nello stesso diario, al suo posto nel tempo: e' la
-  // parte del lavoro che hai fatto tu, e senza si leggerebbe un cambio di
-  // rotta senza sapere chi l'ha chiesto.
-  for (const s of a.dialogo) {
-    voci.push(
-      s.da === 'tu'
-        ? { quando: s.quando, tipo: 'tu' as const, titolo: 'Gli hai scritto', dettaglio: accorcia(s.testo) }
-        : {
-            quando: s.quando,
-            tipo: 'decisione' as const,
-            titolo: 'Ti ha risposto',
-            dettaglio: accorcia(s.esito !== undefined && s.esito !== 'nessun cambio' ? `${s.testo} (${s.esito})` : s.testo)
-          }
-    )
-  }
-
-  // Dalla più recente: è quella che dice cosa sta succedendo adesso.
-  return comprimi(voci.sort((x, y) => y.quando.localeCompare(x.quando)))
 }
 
 /**

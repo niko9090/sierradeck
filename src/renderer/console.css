@@ -1294,6 +1294,8 @@ input.campo {
   gap: var(--s2);
 }
 
+.diario__testa .diario__percento { font-size: var(--t2); }
+
 .diario__percento {
   font-size: var(--t4);
   font-variant-numeric: tabular-nums;
@@ -1358,26 +1360,74 @@ input.campo {
   border-top: 1px solid var(--incisione);
 }
 
-/* Un corpo solo che scorre: la scheda, le linguette e le voci. Prima
-   scorrevano solo le voci, e una scheda alta le schiacciava a zero e
-   restava tagliata a sua volta, senza barra. */
-.diario__corpo {
+/* Due metà che scorrono ognuna per conto suo: la chat con lui sopra, le
+   linguette sotto. Prima era un corpo solo che impilava tutto, e il dialogo
+   stava in fondo — Nicholas (18/09): «in alto la parte di chat e nelle varie
+   tab le altre info, così vedo tutto senza scorrere come un matto». */
+.diario__due {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0 calc(var(--s3) * -1);
+  padding: 0 var(--s3);
+}
+
+/* Le linguette e il loro pannello: la metà di sotto. */
+.diario__lato {
+  flex: 1 1 45%;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--incisione);
+  box-shadow: 0 -1px 0 var(--luce-tenue);
+}
+
+.diario__pannello {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  margin: 0 calc(var(--s3) * -1);
-  padding: 0 var(--s3);
-  display: flex;
-  flex-direction: column;
+  padding-right: 2px;
 }
 
-.diario__corpo > .diario__schede {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--chassis);
+/* Il numero accanto alla linguetta: dice se dentro c'e' qualcosa. */
+.diario__scheda-conto {
+  margin-left: var(--s1);
+  font-size: var(--t0);
+  font-variant-numeric: tabular-nums;
+  color: var(--testo-quieto);
 }
+
+/* Con la flotta: quale chat si guarda in «Sta facendo». */
+.diario__quali-chat {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  margin-bottom: var(--s2);
+}
+
+.diario__quale-chat {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  font: inherit;
+  font-size: var(--t0);
+  color: var(--testo-quieto);
+  background: transparent;
+  border: 1px solid var(--incisione);
+  border-radius: var(--raggio);
+  padding: 2px var(--s2);
+  cursor: pointer;
+}
+
+.diario__quale-chat--attiva {
+  color: var(--testo);
+  border-color: var(--verde);
+}
+
+.diario__quale-chat:disabled { opacity: .5; cursor: default; }
 
 .diario__voci {
   flex: 0 0 auto;
@@ -2733,105 +2783,13 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 
 /* La domanda dentro il diario: si risponde dove si sta già guardando, invece
    di aprire il pannello e cercarla mentre la chat aspetta. */
-.diario__domanda {
-  margin: var(--s3) 0;
-  padding: var(--s3);
-  border: 1px solid var(--ambra);
-  border-radius: var(--raggio);
-  background: color-mix(in srgb, var(--ambra) 7%, transparent);
-  display: flex;
-  flex-direction: column;
-  gap: var(--s2);
-}
-
-.diario__domanda-testo { font-size: var(--t2); line-height: 1.5; }
-
-.diario__risposta {
-  width: 100%;
-  padding: var(--s2) var(--s3);
-  border: 1px solid var(--incisione);
-  border-radius: var(--raggio);
-  background: var(--chassis-premuto);
-  color: inherit;
-  font: inherit;
-  font-size: var(--t2);
-  resize: vertical;
-}
-
-/* ───────────── i consumi ───────────── */
-
-.consumo { flex: 1 1 170px; display: flex; flex-direction: column; gap: var(--s2); }
-
-.consumo__numero {
-  font-size: var(--t4);
-  color: var(--testo);
-  font-family: 'Cascadia Mono', Consolas, monospace;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Quanta parte del consumo è cache: la si legge invece di calcolarla. */
-.consumo__barra {
-  height: 4px;
-  border-radius: var(--raggio);
-  background: var(--accento);
-  overflow: hidden;
-}
-
-.consumo__cache { display: block; height: 100%; background: var(--verde); }
-
-.consumo__righe { display: flex; flex-direction: column; gap: var(--s1); line-height: 1.5; }
-
-/* L'indirizzo giusto si distingue dagli altri: è quello da cui il computer
-   esce davvero, e chiedere di provarli tutti è chiedere di indovinare. */
-.indirizzo-buono {
-  font-size: var(--t3);
-  color: var(--accento);
-  letter-spacing: 0.02em;
-}
-
-.altri-indirizzi { font-size: var(--t1); color: var(--testo-quieto); }
-.altri-indirizzi summary { cursor: pointer; padding: var(--s2) 0; }
-
-/* Una chat che dorme. Il riquadro resta dov'era — farlo sparire sarebbe
-   indistinguibile dall'averlo chiuso, e la differenza è tutto il punto: la
-   conversazione c'è ancora, è solo il processo a non esserci. */
-.chat-dorme {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--s3);
-  padding: var(--s4);
-  text-align: center;
-  background: var(--chassis-premuto);
-  color: var(--testo-quieto);
-}
-.chat-dorme__titolo { font-size: var(--t3); color: var(--testo); }
-.chat-dorme__spiega { font-size: var(--t2); max-width: 34ch; line-height: 1.5; }
-
-/* ── La scheda dell'autopilota ─────────────────────────────────────────────
-   Cosa deve ottenere, come lo misura, cosa fara', e il posto dove dirgli di
-   cambiare. Vive dentro il diario, a fianco della chat che governa: la stessa
-   colonna che prima raccontava e basta. */
+/* ── Le linguette dell'autopilota ──────────────────────────────────────────
+   Obiettivo, criteri, compiti: cosa deve ottenere, come lo misura, cosa fara'.
+   Sotto la chat con lui, una per volta. */
 
 .scheda {
   margin: 0 0 var(--s3);
   font-size: var(--t1);
-}
-
-/* Il cancello. Sta in cima e si vede da lontano: finche' non lo premi, quel
-   lavoro non e' cominciato, ed e' l'unica cosa che conta sapere. */
-.scheda__via {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s2);
-  padding: var(--s2);
-  margin-bottom: var(--s3);
-  border: 1px solid var(--ambra);
-  border-radius: var(--raggio);
-  background: color-mix(in srgb, var(--ambra) 10%, transparent);
 }
 
 .scheda__titolo {
@@ -2916,16 +2874,6 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   margin-top: var(--s1);
 }
 
-/* Il posto dove gli si parla. Sta in fondo, dove finisce la lettura: prima si
-   guarda cosa fa, poi eventualmente gli si dice di cambiare. */
-.scheda__parla {
-  display: grid;
-  gap: var(--s1);
-  margin-top: var(--s3);
-  padding-top: var(--s2);
-  border-top: 1px solid var(--bordo);
-}
-
 /* Cosa ha capito. Si legge sempre, anche quando ha gia' applicato: e' il
    patto che rende accettabile «applica subito». */
 .scheda__capito {
@@ -2943,10 +2891,6 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   color: var(--ambra);
 }
 
-/* Il dialogo con l'autopilota (0.27.0). Le tue battute a destra, le sue a
-   sinistra: la stessa forma di ogni conversazione, cosi' non serve leggere
-   l'etichetta per sapere chi parla. Scorre da solo oltre una decina di
-   battute; la storia intera sta nel diario. */
 .scheda__spiega {
   margin: 0;
   color: var(--testo-quieto);
@@ -2954,15 +2898,38 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   line-height: 1.45;
 }
 
-.scheda__dialogo {
-  display: grid;
-  gap: var(--s1);
-  max-height: 320px;
+/* ── La chat con l'autopilota: in cima alla sua sezione ───────────────────
+   E' lui che parla qui — il supervisore — non la chat che esegue. Le tue
+   battute a destra, le sue a sinistra; le sue decisioni sono note quiete in
+   mezzo, cosi' la conversazione si legge intera senza cercare in due posti. */
+.chatap {
+  flex: 1 1 55%;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.chatap__flusso {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
   padding-right: 2px;
 }
 
-.scheda__battuta {
+.chatap__riga {
+  display: flex;
+  min-width: 0;
+}
+
+.chatap__riga--tu { justify-content: flex-end; }
+.chatap__riga--lui { justify-content: flex-start; }
+
+.chatap__bolla {
   display: grid;
   gap: 2px;
   max-width: 92%;
@@ -2974,27 +2941,147 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   overflow-wrap: anywhere;
 }
 
-.scheda__battuta--tu {
-  justify-self: end;
+.chatap__riga--tu .chatap__bolla {
   background: color-mix(in srgb, var(--accento) 10%, transparent);
 }
 
-.scheda__battuta--lui {
-  justify-self: start;
+.chatap__riga--lui .chatap__bolla {
   background: color-mix(in srgb, var(--verde) 8%, transparent);
 }
 
-.scheda__battuta-chi,
-.scheda__battuta-esito {
+/* La sua domanda aperta, e il «dammi il via»: ambra, come ogni «tocca a te»
+   del programma. */
+.chatap__riga--domanda .chatap__bolla,
+.chatap__riga--pronto .chatap__bolla {
+  background: color-mix(in srgb, var(--ambra) 9%, transparent);
+  border: 1px solid var(--ambra);
+}
+
+.chatap__chi,
+.chatap__esito {
   color: var(--testo-quieto);
   font-size: var(--t0);
 }
 
-.scheda__pensa {
+.chatap__via { justify-self: start; margin-top: var(--s1); }
+
+/* Le note: la sua voce di lavoro, una riga sola, quieta, con il filo colorato
+   a sinistra come nel diario. */
+.chatap__riga--nota {
+  gap: var(--s2);
+  padding: 1px 0 1px var(--s2);
+  border-left: 2px solid var(--incisione);
+  font-size: var(--t0);
+  color: var(--testo-quieto);
+}
+
+.chatap__riga--nota.chatap__riga--decisione { border-left-color: var(--accento); }
+.chatap__riga--nota.chatap__riga--correzione { border-left-color: var(--ambra); }
+.chatap__riga--nota.chatap__riga--preparazione { border-left-color: var(--luce-incisione); }
+.chatap__riga--nota.chatap__riga--fine { border-left-color: var(--verde); color: var(--testo); }
+.chatap__riga--nota.chatap__riga--fermo { border-left-color: var(--rosso); color: var(--testo); }
+
+.chatap__quando {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.chatap__nota-testo { min-width: 0; overflow-wrap: anywhere; }
+.chatap__nota-dettaglio { opacity: .8; }
+.chatap__volte { color: var(--testo); }
+
+.chatap__pensa {
   margin: 0;
   color: var(--ambra);
   font-size: var(--t0);
 }
+
+.chatap__scrivi {
+  display: grid;
+  gap: var(--s1);
+}
+
+.chatap__campo { resize: vertical; }
+
+.chatap__tasti {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* Il «?»: la spiegazione intera sta nel suo titolo, sotto il puntatore, invece
+   di dieci righe che spingevano la chat fuori dallo schermo. */
+.chatap__info {
+  margin-left: auto;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--incisione);
+  border-radius: 50%;
+  font-size: var(--t0);
+  color: var(--testo-quieto);
+  cursor: help;
+}
+
+/* A tutta larghezza chat e linguette stanno fianco a fianco. */
+.diario--largo .diario__due {
+  flex-direction: row;
+  gap: var(--s3);
+}
+
+.diario--largo .chatap,
+.diario--largo .diario__lato {
+  flex: 1 1 50%;
+  min-height: 0;
+}
+
+.diario--largo .diario__lato {
+  border-top: 0;
+  box-shadow: none;
+  border-left: 1px solid var(--incisione);
+  padding-left: var(--s3);
+}
+
+/* Nella linguetta «Obiettivo»: la percentuale con il suo colore. */
+.scheda__misura-riga {
+  margin: 0;
+  color: var(--testo-quieto);
+  font-size: var(--t1);
+}
+
+.scheda__percento {
+  font-size: var(--t3);
+  font-variant-numeric: tabular-nums;
+  color: var(--testo);
+}
+
+.scheda__percento--preparazione { color: var(--accento); }
+.scheda__percento--attesa { color: var(--ambra); }
+.scheda__percento--fermo { color: var(--rosso); }
+
+/* Le chat che eseguono, una riga ciascuna. */
+.scheda__chats {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scheda__chat {
+  display: flex;
+  gap: var(--s2);
+  padding: var(--s1) 0;
+  border-bottom: 1px solid var(--bordo);
+  color: var(--testo-quieto);
+}
+
+.scheda__chat--lavoro .scheda__chat-stato { color: var(--verde); }
+.scheda__chat--bloccata .scheda__chat-stato { color: var(--ambra); }
+.scheda__chat--finita .scheda__chat-stato { color: var(--spento); }
+
+.scheda__chat-nome { display: block; color: var(--testo); }
+.scheda__chat-compito { display: block; font-size: var(--t0); }
 
 /* ── Il fuoco da tastiera ──────────────────────────────────────────────────
    Chi lavora con Tab deve sapere dov'e'. I singoli comandi avevano gia' il

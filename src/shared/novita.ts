@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.29.0',
+    righe: [
+      '**La sezione dell’autopilota è una chat, in alto, e linguette sotto.** Accanto alla chat che esegue, la colonna dell’autopilota comincia con la chat con lui: quello che gli hai chiesto, le domande della preparazione con le tue risposte, le sue decisioni come righe quiete, quello che gli scrivi e quello che risponde, e la domanda che ha aperta adesso, in ambra. Si scrive lì sotto: se ha una domanda aperta il tasto dice «Rispondi» e la risposta arriva subito alla chat ferma; altrimenti «Manda» e risponde lui, il supervisore, in qualche minuto. «Vai» compare nella chat quando si è preparato. Sotto, le linguette: «Sta facendo» (cosa scrive la chat che esegue, con la scelta della chat se sono più di una), «Obiettivo» (le tue parole, le sue, a che punto è, le sue chat), «Criteri» (si riscrivono lì), «Compiti» (la coda), «Ha deciso» (il diario). Le due metà scorrono ognuna per conto suo; a tutta larghezza stanno fianco a fianco. Il riquadro ambra della domanda e la scheda impilata non ci sono più: era una colonna sola da scorrere tutta per arrivare a parlargli.'
+    ]
+  },
+  {
     versione: '0.28.3',
     righe: [
       '**Le chat non rimbalzano più fra i PC.** Una cartella che esiste su questo PC è di questo PC: il registro dei progetti poteva dire che «un altro PC» usa lo stesso percorso (stesso utente sui due PC, o un vecchio identificativo di questa macchina), e allora ogni cinque minuti le chat di quelle cartelle venivano mandate sotto il percorso dell’altro, riscaricate dal Drive, riportate qui, e intanto aprirle dava «Questa chat lavora su un altro PC» senza nome. Ora restano ferme. Una chat già arrivata dal Drive e messa al suo posto non viene più riscaricata a ogni giro. Nel registro compare quando questo PC scrive il suo battito sul Drive e quali altri PC vede, con nome e versione: se «Altri computer» resta vuoto, il registro dice da che parte manca il battito.'
