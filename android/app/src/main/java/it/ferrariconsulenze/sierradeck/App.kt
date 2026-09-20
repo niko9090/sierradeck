@@ -228,7 +228,11 @@ fun Principale(
     LaunchedEffect(api) {
         while (isActive) {
             try {
-                val letto = api.stato()
+                val (letto, grezzo) = api.statoConTesto()
+                // Lo stesso polso passa dalla guardia: una chat che finisce
+                // mentre guardi un'altra scheda si annuncia adesso, non alla
+                // prossima sveglia.
+                try { Ronda.consuma(contesto, org.json.JSONObject(grezzo)) } catch (e: Exception) { /* un avviso in meno, non una schermata in meno */ }
                 // L'ultima parola prima del silenzio. Va colta **mentre** il
                 // computer la dice: fra un istante non risponde piu'.
                 // L'aggiornamento puo' partire anche dallo schermo del

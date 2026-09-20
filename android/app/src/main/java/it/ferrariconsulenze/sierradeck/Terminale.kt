@@ -167,13 +167,13 @@ fun VistaTerminale(
                 }
             } else {
                 if (grezze.isEmpty()) VuotoInAttesa(guasto)
-                val stretto = (dimensione - 2).coerceAtLeast(8)
+                // Stessa misura di «Adatta», mai sotto i 10 punti: a 8 i glifi si
+                // impastavano e le stanghette sembravano caratteri rotti.
+                val stretto = dimensione.coerceAtLeast(10)
                 for (grezza in grezze) {
                     Text(
                         ansiAnnotato(grezza),
                         fontFamily = FontFamily.Monospace,
-                        // In griglia si sta due punti più stretti: lì conta
-                        // quante colonne entrano, non quanto è comodo leggere.
                         fontSize = stretto.sp,
                         lineHeight = (stretto * 1.35f).sp,
                         softWrap = false,

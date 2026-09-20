@@ -60,6 +60,8 @@ import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
  * ci sta dentro il riquadro di Claude Code per intero invece che tagliato a
  * meta'.
  */
+/** Quanto deve durare «aspetta» prima di annunciarlo: un'oscillazione non e' una notizia. */
+const ASPETTA_STABILE_MS = 4000
 const RIGHE_PER_IL_TELEFONO = 24
 
 /**
@@ -225,13 +227,24 @@ export function App(): React.JSX.Element {
   // chiedono in quattro — l'annuncio al telefono, le consegne dell'autopilota,
   // la ripresa dopo un aggiornamento — e per tre giorni una di quelle risposte
   // è stata diversa dalle altre.
+  // Da quando ogni chat aspetta, per dirlo solo quando e' stabile: il giudizio
+  // istantaneo oscilla durante un comando lungo (700 ms di silenzio bastano a
+  // dire «aspetta»), e ogni oscillazione era una notifica «X aspetta te» in piu'
+  // sul telefono, per lo stesso fatto.
+  const aspettaDa = useRef(new Map<string, number>())
   const aspettaOra = useCallback(
-    (ptyId: string): boolean =>
-      chatAspetta(
+    (ptyId: string): boolean => {
+      const ora = Date.now()
+      const adesso = chatAspetta(
         righe.current.attivitaDi(ptyId),
         righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite,
-        Date.now()
-      ),
+        ora
+      )
+      if (!adesso) { aspettaDa.current.delete(ptyId); return false }
+      let da = aspettaDa.current.get(ptyId)
+      if (da === undefined) { da = ora; aspettaDa.current.set(ptyId, ora) }
+      return ora - da >= ASPETTA_STABILE_MS
+    },
     []
   )
   // Quali terminali si stanno muovendo adesso. Si ricalcola a intervalli e non

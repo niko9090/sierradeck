@@ -68,6 +68,11 @@ class Api(private val indirizzo: String, private val chiave: String?) {
 
     // ─── stato e stile ───
     suspend fun stato(): Stato = json.decodeFromString(corpoTesto("/api/stato", null))
+    /** Lo stato letto, insieme al testo grezzo: la guardia degli avvisi lo legge come JSON generico. */
+    suspend fun statoConTesto(): Pair<Stato, String> {
+        val testo = corpoTesto("/api/stato", null)
+        return json.decodeFromString<Stato>(testo) to testo
+    }
     /** Qual e' l'ultima app pubblicata, per quanto ne sa il computer. Senza chiave. */
     suspend fun app(): AppScaricabile = json.decodeFromString(corpoTesto("/api/app", null))
 

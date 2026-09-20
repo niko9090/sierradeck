@@ -212,6 +212,39 @@ fun Computer(api: Api, stato: Stato?) {
                         }
                     )
                 }
+                val notificheAttive = androidx.core.app.NotificationManagerCompat.from(contesto).areNotificationsEnabled()
+                if (!notificheAttive) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Le notifiche di SierraDeck sono spente in Android: gli avvisi non possono arrivare, qualunque cosa faccia l’app.",
+                        color = Banco.ambra, fontSize = 12.sp
+                    )
+                    TextButton(onClick = {
+                        try {
+                            contesto.startActivity(
+                                android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, contesto.packageName)
+                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        } catch (e: Exception) { /* senza la schermata di sistema resta il testo */ }
+                    }) { Text("Accendile nelle impostazioni di Android") }
+                }
+                val energia = contesto.getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
+                if (energia != null && !energia.isIgnoringBatteryOptimizations(contesto.packageName)) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Android limita l’app in sottofondo: a telefono fermo un avviso può arrivare con minuti di ritardo. Se vuoi gli avvisi puntuali, escludi SierraDeck dal risparmio batteria.",
+                        color = Banco.testoQuieto, fontSize = 12.sp
+                    )
+                    TextButton(onClick = {
+                        try {
+                            contesto.startActivity(
+                                android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        } catch (e: Exception) { /* idem */ }
+                    }) { Text("Apri il risparmio batteria") }
+                }
                 Spacer(Modifier.height(10.dp))
                 Text(
                     "Accendilo quando stai aspettando qualcosa adesso: un avviso arriva in cinque secondi invece che in qualche minuto. Spegnendolo la riga fissa sparisce.",

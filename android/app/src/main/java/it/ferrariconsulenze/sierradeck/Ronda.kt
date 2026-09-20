@@ -24,6 +24,8 @@ import okhttp3.Request
 object Ronda {
 
     const val CANALE_AVVISI = "domande"
+    const val EXTRA_CHAT = "chat"
+    const val EXTRA_DOMANDA = "domanda"
     const val CANALE_PRESENZA = "presenza"
 
     /**
@@ -46,6 +48,39 @@ object Ronda {
      */
     private val gia: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
     private var primoGiro = true
+    private var caricata = false
+
+    /**
+     * Il ricordo sta anche su disco, e questo e' il punto.
+     *
+     * Fra una sveglia e l'altra (due minuti) Android quasi sempre uccide il
+     * processo; alla sveglia dopo `primoGiro` tornava vero e **taceva** su
+     * tutto quello che era successo nel frattempo — cioe' su tutto: «X
+     * aspetta te» e «ha finito» non arrivavano quasi mai ad app chiusa, che e'
+     * il caso per cui la guardia esiste. Ora `gia` e «sono gia' partita» si
+     * rileggono da `SharedPreferences`: il primo giro vero e' solo il primo
+     * di sempre.
+     */
+    private fun carica(contesto: Context) {
+        if (caricata) return
+        caricata = true
+        val p = contesto.getSharedPreferences(PREFERENZE, Context.MODE_PRIVATE)
+        gia.addAll(p.getStringSet(CHIAVE_GIA, emptySet()) ?: emptySet())
+        primoGiro = !p.getBoolean(CHIAVE_AVVIATA, false)
+    }
+
+    private fun salva(contesto: Context) {
+        contesto.getSharedPreferences(PREFERENZE, Context.MODE_PRIVATE).edit()
+            .putStringSet(CHIAVE_GIA, HashSet(gia))
+            .putBoolean(CHIAVE_AVVIATA, true)
+            .apply()
+    }
+
+    /** Si dimentica tutto: a un nuovo accoppiamento, il primo giro torna a essere il primo. */
+    fun azzera(contesto: Context) {
+        gia.clear(); primoGiro = true; caricata = true
+        contesto.getSharedPreferences(PREFERENZE, Context.MODE_PRIVATE).edit().clear().apply()
+    }
 
     /** Un giro solo. Torna lo stato letto, o `null` se non si è potuto leggere. */
     fun giro(contesto: Context): JSONObject? {
@@ -53,11 +88,32 @@ object Ronda {
         val collegamento = Collegamento(contesto)
         if (!collegamento.pronto) return null
         val stato = leggiStato(collegamento) ?: return null
-        creaCanali(contesto)
-        for (a in Avvisi.daAnnunciare(stato, gia, primoGiro)) avvisa(contesto, a)
-        primoGiro = false
+        consuma(contesto, stato)
         return stato
     }
+
+    /**
+     * Gli avvisi da uno stato gia' letto da qualcun altro.
+     *
+     * L'app aperta chiede `/api/stato` ogni due secondi per la sua schermata:
+     * quello stesso polso passa da qui, cosi' una chat che finisce mentre
+     * guardi un'altra scheda si annuncia subito, invece che alla prossima
+     * sveglia (minuti dopo, o mai, se nel frattempo il processo e' morto).
+     */
+    @Synchronized
+    fun consuma(contesto: Context, stato: JSONObject) {
+        carica(contesto)
+        creaCanali(contesto)
+        val avvisi = Avvisi.daAnnunciare(stato, gia, primoGiro)
+        for (a in avvisi) avvisa(contesto, a)
+        primoGiro = false
+        salva(contesto)
+    }
+
+    private const val PREFERENZE = "ronda"
+    private const val CHIAVE_GIA = "gia"
+    private const val CHIAVE_AVVIATA = "avviata"
+    private val COLORE_ICONA = 0xFF4AA3FF.toInt()
 
     /**
      * Lo stato del computer, chiesto **dalla rete giusta**.
@@ -93,14 +149,22 @@ object Ronda {
      * la chat e ripensare la frase che avevi già in testa.
      */
     fun avvisa(contesto: Context, a: Avvisi.Avviso) {
+        // Un `requestCode` per avviso: con lo zero per tutti, Android riusava lo
+        // stesso PendingIntent e il tocco portava sempre alla stessa cosa.
         val apri = PendingIntent.getActivity(
             contesto,
-            0,
-            Intent(contesto, MainActivity::class.java),
+            a.id,
+            Intent(contesto, MainActivity::class.java).apply {
+                if (a.chat != null) putExtra(EXTRA_CHAT, a.chat)
+                if (a.domanda != null) putExtra(EXTRA_DOMANDA, a.domanda)
+            },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val costruttore = NotificationCompat.Builder(contesto, CANALE_AVVISI)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            // Monocroma: con `ic_dialog_info` (una bitmap colorata) si vedeva
+            // un quadrato bianco al posto dell'icona.
+            .setSmallIcon(R.drawable.ic_notifica)
+            .setColor(COLORE_ICONA)
             .setContentTitle(a.titolo)
             .setContentText(a.testo)
             .setStyle(NotificationCompat.BigTextStyle().bigText(a.testo))
@@ -142,7 +206,8 @@ object Ronda {
     /** La riga fissa del controllo continuo: esiste solo se lo accendi tu. */
     fun notificaPresenza(contesto: Context, riga: String): Notification =
         NotificationCompat.Builder(contesto, CANALE_PRESENZA)
-            .setSmallIcon(android.R.drawable.ic_menu_view)
+            .setSmallIcon(R.drawable.ic_notifica)
+            .setColor(COLORE_ICONA)
             .setContentTitle("Controllo continuo acceso")
             .setContentText(riga)
             .setPriority(NotificationCompat.PRIORITY_MIN)

@@ -25,7 +25,7 @@ import kotlin.concurrent.thread
  */
 class GuardiaService : Service() {
 
-    private var attiva = true
+    @Volatile private var attiva = true
 
     override fun onBind(intent: Intent?): IBinder? = null
 

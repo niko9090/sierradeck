@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.29.2',
+    righe: [
+      '**App Android 2.32.0: le notifiche arrivano, e la chat si legge.** Le notifiche ad app chiusa non arrivavano quasi mai: fra una sveglia e l’altra Android chiude il processo, e al risveglio l’app «dimenticava» e taceva su tutto quello che era successo. Ora il ricordo sta su disco e si annuncia davvero il passaggio a «aspetta te», «ha finito», «si è fermato». Con l’app aperta gli avvisi arrivano subito, non alla sveglia dopo. Icona vera nella barra (prima un quadrato bianco), e nella scheda Computer → Avvisi l’app dice se Android ha le notifiche spente o limita l’app in sottofondo, con il tasto per sistemarlo. La chat: il lettore dei codici del terminale è stato riscritto. Prima una sequenza di cancellazione o di cursore mangiava il testo fino alla prima «m», una sequenza della shell poteva bloccare l’app, lo sfondo veniva letto come colore del testo e il video inverso (l’opzione scelta in un elenco) era invisibile. Ora si vedono grassetto, corsivo, sottolineato, sfondi, inverso, e tutto il resto si scarta. La griglia non scende più sotto i 10 punti. Sul PC: «aspetta te» si dice al telefono solo dopo quattro secondi di quiete, così un comando lungo non manda la stessa notifica più volte. Questa release porta anche l’APK che alla 0.29.x mancava.'
+    ]
+  },
+  {
     versione: '0.29.1',
     righe: [
       '**Il Drive funziona di nuovo.** La 0.29.0 era stata costruita su un PC senza le credenziali dell’app per Google Drive: dopo l’aggiornamento il programma diceva «Google Drive non configurato» e non salvava né riceveva più niente. Questa versione le ha di nuovo dentro. Se sei rimasto fermo sulla 0.29.0 per qualche ora, al primo salvataggio riparte tutto da dove era.'
