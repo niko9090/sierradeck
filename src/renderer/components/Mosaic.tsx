@@ -6,6 +6,7 @@ import { useLayoutStore } from '../state/layout'
 import { spostaRiquadro, spostaInWorkspace } from '../spostamento'
 import { memoriaWorkspace } from '../memoria-workspace'
 import { Terminal } from './Terminal'
+import { RiquadroRemoto } from './RiquadroRemoto'
 import { DiarioAutopilota } from './DiarioAutopilota'
 import { diarioDelRiquadro } from '../diario-autopilota'
 import type { Autopilota } from '@shared/autopilota'
@@ -356,6 +357,7 @@ export function Mosaic({
                     si libera è il claude.exe che la teneva in piedi. Con
                     qualche workspace pieno se ne tengono accesi dieci per
                     guardarne due. */}
+                {data.remoto === undefined ? (
                 <button
                   onClick={() => {
                     const daChiudere = useLayoutStore.getState().iberna(paneId)
@@ -367,10 +369,11 @@ export function Mosaic({
                 >
                   ⏸
                 </button>
+                ) : null}
                 <button
                   onClick={() => closePane(paneId)}
                   className="comando-riquadro"
-                  title="Chiude la chat e termina il suo claude.exe"
+                  title={data.remoto !== undefined ? `Chiude questo riquadro: la chat resta aperta su ${data.remoto.pcNome}` : 'Chiude la chat e termina il suo claude.exe'}
                   aria-label={`Chiudi ${data.title}`}
                 >
                   ×
@@ -395,7 +398,9 @@ export function Mosaic({
                   display: diarioLargo.has(paneId) ? 'none' : 'block'
                 }}
               >
-                {data.ibernata === true ? (
+                {data.remoto !== undefined ? (
+                  <RiquadroRemoto paneId={paneId} remoto={data.remoto} title={data.title} />
+                ) : data.ibernata === true ? (
                   // Il riquadro resta al suo posto: farlo sparire sarebbe
                   // indistinguibile dall'averlo chiuso, e la differenza è
                   // esattamente il punto — la conversazione c'è ancora.

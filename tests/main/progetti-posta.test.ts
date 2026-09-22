@@ -23,7 +23,7 @@ function scatolaInMemoria(): Scatola & { dati: Map<string, unknown> } {
   }
 }
 
-function ambiente(opts: { pcId: string; nome: string; scatola: Scatola; cartelle?: string[] }) {
+function ambiente(opts: { pcId: string; nome: string; scatola: Scatola; cartelle?: string[]; rete?: { indirizzi: string[]; porta: number } }) {
   let orologio = Date.parse('2026-09-14T08:00:00.000Z')
   let chat: ChatDiPc[] = []
   const scritti: { id: string; testo: string }[] = []
@@ -38,6 +38,7 @@ function ambiente(opts: { pcId: string; nome: string; scatola: Scatola; cartelle
     versione: () => '0.27.0',
     chat: () => chat,
     cartelle: () => [...esistenti],
+    ...(opts.rete !== undefined ? { rete: () => opts.rete as { indirizzi: string[]; porta: number } } : {}),
     cartellaEsiste: (c) => esistenti.has(c),
     apriChat: (c) => { aperte.push(c) },
     riprendiChat: (cwd, sessione) => { riprese.push({ cwd, sessione }) },
@@ -108,6 +109,26 @@ describe('il postino', () => {
     expect(dopo.voci[0]).toMatchObject({ stato: 'consegnata', aSessione: 's1', esito: 'consegnato a «gestionale»' })
     // Il portatile stesso non compare fra «gli altri PC».
     expect((await torre.postino.pc()).map((b) => b.pcId)).toEqual([])
+  })
+
+  it('il battito dice dove bussare (indirizzi e porta), e gli altri lo leggono; senza rete non lo dice', async () => {
+    const scatola = scatolaInMemoria()
+    const torre = ambiente({ pcId: 'A', nome: 'Torre', scatola, rete: { indirizzi: ['192.168.1.191', '100.100.60.114'], porta: 47640 } })
+    const portatile = ambiente({ pcId: 'B', nome: 'Portatile', scatola })
+    await torre.postino.giro()
+    await portatile.postino.giro()
+    const [vista] = await portatile.postino.pc()
+    expect(vista?.indirizzi).toEqual(['192.168.1.191', '100.100.60.114'])
+    expect(vista?.porta).toBe(47640)
+    const [vistaB] = await torre.postino.pc()
+    expect(vistaB?.indirizzi).toBeUndefined()
+    expect(vistaB?.porta).toBeUndefined()
+    // Un battito con la porta scritta male non la porta dentro.
+    scatola.dati.set(nomeBattitoPc('C'), { pcId: 'C', nome: 'Rotto', versione: '0.33.0', battito: new Date(torre.adesso()).toISOString(), cartelle: [], chat: [], indirizzi: ['10.0.0.2', 7], porta: 'x' })
+    const tutti = await torre.postino.pc()
+    const rotto = tutti.find((b) => b.pcId === 'C')
+    expect(rotto?.indirizzi).toEqual(['10.0.0.2'])
+    expect(rotto?.porta).toBeUndefined()
   })
 
   it('senza una chat nella cartella ne apre una, una volta, e consegna quando aspetta', async () => {

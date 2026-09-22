@@ -57,6 +57,12 @@ export type PaneSalvato = {
    * il difetto si autoricreava a ogni riavvio.
    */
   autopilota?: { id: string; chat: string }
+  /**
+   * Un riquadro che guarda **dal vivo una chat di un altro PC**: non ha un
+   * claude.exe qui, bussa al Client di quel PC. Si salva perche' al riavvio
+   * deve tornare a guardare la stessa chat, non aprirne una qui.
+   */
+  remoto?: { pcId: string; pcNome: string; cwd: string; sessione?: string }
 }
 
 export type LayoutSalvato = {
@@ -476,8 +482,20 @@ function parsePane(raw: unknown, scartati: string[]): PaneSalvato | undefined {
     // gli hook. A meta' non serve a niente e finirebbe comunque sulla riga di
     // comando, quindi si scarta il campo, non il riquadro: meglio una chat
     // senza padrone che una chat che non si apre.
-    ...(padrone(o.autopilota, id, scartati) ?? {})
+    ...(padrone(o.autopilota, id, scartati) ?? {}),
+    ...(remoto(o.remoto) ?? {})
   }
+}
+
+/** Legge `remoto` da un riquadro venuto da disco: a meta' non serve, si scarta il campo. */
+function remoto(raw: unknown): { remoto: NonNullable<PaneSalvato['remoto']> } | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const o = raw as Record<string, unknown>
+  const pcId = stringaNonVuota(o.pcId)
+  const cwd = stringaNonVuota(o.cwd)
+  if (pcId === undefined || cwd === undefined) return undefined
+  const sessione = stringaNonVuota(o.sessione)
+  return { remoto: { pcId, pcNome: typeof o.pcNome === 'string' ? o.pcNome.slice(0, 80) : 'un altro PC', cwd, ...(sessione !== undefined ? { sessione } : {}) } }
 }
 
 /**

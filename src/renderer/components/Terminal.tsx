@@ -95,6 +95,15 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
       setPostaPer(suo ?? { pcId: c.pc.id, nome: c.pc.nome, versione: '', battito: '', cartelle: [c.cwd], chat: [] })
     }).catch(() => setPostaPer({ pcId: c.pc.id, nome: c.pc.nome, versione: '', battito: '', cartelle: [c.cwd], chat: [] }))
   }
+  /**
+   * La via principale, da 0.33.0: il riquadro diventa un riquadro remoto e
+   * mostra la chat **dal vivo su quel PC**, con i suoi file. Il Terminal si
+   * smonta (non aveva nessun claude.exe: lo spawn si era fermato) e al suo
+   * posto arriva `RiquadroRemoto`.
+   */
+  const guardaDalVivo = (c: ChatAltrove): void => {
+    useLayoutStore.getState().rendiRemoto(paneId, { pcId: c.pc.id, pcNome: c.pc.nome, cwd: c.cwd, sessione: c.sessionUuid })
+  }
   const apriQuiLoStesso = (): void => {
     forzaQui.current = true
     setAltrove(undefined)
@@ -303,10 +312,17 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
           <div className="chat-altrove__testo">
             La sua cartella è <code>{altrove.cwd}</code>, e sta su quel computer: qui non c’è. Aprirla qui vorrebbe dire
             farla partire in una cartella vuota, senza i file del progetto: è quello che dava «directory non trovata»
-            e gli errori in rosso. La conversazione la vedi lo stesso: arriva dal Drive man mano che quel PC ci lavora.
+            e gli errori in rosso. La strada giusta è guardarla <strong>dal vivo là</strong>: questo riquadro mostra il
+            terminale di quel PC e quello che scrivi arriva a lui, come dal telefono. Serve che {altrove.pc.nome} sia
+            acceso e raggiungibile (stessa rete, o Tailscale su tutti e due); se è spento, resta la cassetta.
           </div>
           <div className="chat-altrove__azioni">
-            <button className="tasto tasto--primario" onClick={() => scriviLa(altrove)} title="Metti un’azione nella cassetta di quel PC: la esegue lui, in questa chat, quando è acceso">
+            {altrove.pc.id !== '' ? (
+              <button className="tasto tasto--primario" onClick={() => guardaDalVivo(altrove)} title="Trasforma questo riquadro nella chat dal vivo su quel PC: vedi il suo terminale e gli scrivi da qui">
+                Guarda dal vivo su {altrove.pc.nome}
+              </button>
+            ) : null}
+            <button className={altrove.pc.id !== '' ? 'tasto' : 'tasto tasto--primario'} onClick={() => scriviLa(altrove)} title="Metti un’azione nella cassetta di quel PC: la esegue lui, in questa chat, quando è acceso">
               Scrivile là, su {altrove.pc.nome}
             </button>
             <button className="tasto" onClick={apriQuiLoStesso} title="Apre la chat qui, in una cartella vuota con lo stesso nome: i file del progetto non ci sono">

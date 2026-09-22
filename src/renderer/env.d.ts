@@ -333,6 +333,18 @@ declare global {
         togli: (pc: string, voce: string) => Promise<import('../shared/posta').Posta | undefined>
         pulisci: (pc: string) => Promise<import('../shared/posta').Posta | undefined>
       }
+      remoto: {
+        pc: () => Promise<{ io: string; cassaforteAperta: boolean; pc: import('../shared/pc-remoto').PcRemoto[] }>
+        stato: (pc: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ chat: import('../shared/pc-remoto').ChatSuPc[]; computer?: { nome: string } }>>
+        trova: (pc: string, chat: import('../shared/pc-remoto').ChatRemota) => Promise<import('../shared/pc-remoto').EsitoRemoto<import('../shared/pc-remoto').ChatSuPc | undefined>>
+        storia: (pc: string, chat: string, da: number, quante: number) => Promise<import('../shared/pc-remoto').EsitoRemoto<import('../shared/pc-remoto').StoriaRemota>>
+        scrivi: (pc: string, chat: string, testo: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
+        scegli: (pc: string, chat: string, opzione: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
+        riprendi: (pc: string, cartella: string, sessione: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
+        apri: (pc: string, cartella: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
+        prova: (pc: string) => Promise<{ ok: true; indirizzo: string; ms: number; versione?: string } | { ok: false; motivo: string; messaggio: string }>
+        altroveDi: (cwds: string[]) => Promise<Record<string, { id: string; nome: string }>>
+      }
       autopilota: {
         elenca: () => Promise<Autopilota[]>
         crea: (p: NuovoAutopilota) => Promise<Autopilota>

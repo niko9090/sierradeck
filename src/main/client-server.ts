@@ -3,6 +3,7 @@ import { networkInterfaces } from 'node:os'
 import { execFile, execFileSync } from 'node:child_process'
 import { daReteLocale } from '@shared/rete-locale'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
+import { timingSafeEqual } from 'node:crypto'
 import type { Dispositivi } from './dispositivi'
 
 /**
@@ -49,6 +50,15 @@ export type DipendenzeClient = {
    */
   polso?: (corpo: unknown) => string
   /**
+   * La **chiave di casa**: quella che un altro PC con la stessa cassaforte
+   * ricava per bussare qui (`sincronia.chiaveDiCasa('client-pc:<mio id>')`).
+   * Chi la presenta entra come un dispositivo accoppiato, senza codice ne'
+   * QR: due PC che aprono la stessa cassaforte si fidano gia' l'uno
+   * dell'altro, e' lo stesso segreto. `undefined` a cassaforte chiusa: allora
+   * da un altro PC non si entra, e lo dice il registro.
+   */
+  chiaveDiCasa?: () => string | undefined
+  /**
    * Dove raccontare i rifiuti (rete, chiave). Fino alla 0.26.0 andavano solo
    * in console: quando il telefono «non funziona», dal registro del PC non si
    * poteva dire se bussava e veniva respinto o se non arrivava affatto.
@@ -87,6 +97,20 @@ export function eLoopback(indirizzo: string): boolean {
 
 export function autorizzata(percorso: string): boolean {
   return LIBERE.has(percorso)
+}
+
+/** Il nome del PC che bussa con la chiave di casa: solo per il registro, non per entrare. */
+export function nomePcDa(intestazioni: Record<string, string | string[] | undefined>): string {
+  const grezzo = intestazioni['x-sierradeck-pc']
+  const testo = typeof grezzo === 'string' ? grezzo : Array.isArray(grezzo) ? (grezzo[0] ?? '') : ''
+  try { return decodeURIComponent(testo).trim().slice(0, 40) } catch { return '' }
+}
+
+/** Uguali, senza far trapelare dal tempo dove differiscono. */
+export function stessaChiave(a: string, b: string): boolean {
+  const x = Buffer.from(a)
+  const y = Buffer.from(b)
+  return x.length === y.length && x.length > 0 && timingSafeEqual(x, y)
 }
 
 /** La chiave arriva nell'intestazione, non nell'indirizzo: gli indirizzi finiscono nei log. */
@@ -166,8 +190,17 @@ async function gestisci(
     return
   }
 
-  // Secondo muro: la chiave di un dispositivo che si è presentato una volta.
-  const dispositivo = deps.dispositivi.riconosci(chiaveDa(req.headers))
+  // Secondo muro: la chiave di un dispositivo che si è presentato una volta,
+  // o la chiave di casa di un altro PC con la stessa cassaforte.
+  const chiave = chiaveDa(req.headers)
+  let dispositivo = deps.dispositivi.riconosci(chiave)
+  if (dispositivo === undefined && chiave !== '') {
+    const casa = deps.chiaveDiCasa?.()
+    if (casa !== undefined && stessaChiave(chiave, casa)) {
+      const nome = nomePcDa(req.headers)
+      dispositivo = { id: 'pc', nome: nome === '' ? 'un altro PC' : nome, collegatoIl: '' }
+    }
+  }
   if (dispositivo === undefined) {
     racconta(`chiave:${indirizzo}`, `${indirizzo} bussa con una chiave che non riconosco (${chiaveDa(req.headers) === '' ? 'nessuna chiave' : 'chiave sbagliata o revocata'}) su ${percorso}: il dispositivo va accoppiato di nuovo (Impostazioni → Client)`)
     rispondi(res, { stato: 401, corpo: { errore: 'dispositivo non riconosciuto' } })

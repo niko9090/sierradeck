@@ -25,6 +25,13 @@ export type BattitoPc = {
   cartelle: string[]
   /** Le chat aperte su quel PC, con se aspettano. */
   chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean }[]
+  /**
+   * Dove bussare per guardare una sua chat dal vivo: gli indirizzi del suo
+   * Client (rete di casa davanti, Tailscale dopo) e la porta. Mancano nei
+   * battiti delle versioni prima della 0.33.0.
+   */
+  indirizzi?: string[]
+  porta?: number
 }
 
 export type VocePosta = {

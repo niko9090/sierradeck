@@ -3,6 +3,7 @@ import { existsSync, readFileSync, rmSync, renameSync, copyFileSync, statSync } 
 import { ePercorsoDiServizio } from '@shared/slug-di-servizio'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
+import { createHmac } from 'node:crypto'
 import { creaCassaforte, sblocca as sbloccaCassaforte, sbloccaConRecupero as sbloccaConRecuperoCassaforte, cambiaPassphrase as cambiaPassphraseCassaforte, type Cassaforte, cifra, decifra } from './cifratura'
 import type { Progresso } from './motore'
 import { pesaRadici, radiciDaSincronizzare, percorsoSicuro, type Radice } from './raccolta'
@@ -118,6 +119,13 @@ export type Sincronia = {
   stato: () => Promise<StatoSync>
   /** Gli slug delle cartelle con una chat toccata sul Drive di recente: vive su qualche PC. */
   slugRecenti: (daMs: number, adesso?: number) => Set<string>
+  /**
+   * Una chiave ricavata dalla maestra per uno scopo preciso (HMAC): uguale su
+   * ogni PC che ha aperto la stessa cassaforte, diversa per ogni scopo, e
+   * inutile per risalire alla maestra. E' cosi' che due PC si riconoscono
+   * senza accoppiarsi (`client-pc:<id>`). `undefined` a cassaforte chiusa.
+   */
+  chiaveDiCasa: (scopo: string) => string | undefined
   /** Quanto si sincronizza: numero di file (chat + assetto) e byte totali. */
   info: () => Promise<{ file: number; byte: number }>
   creaPassphrase: (passphrase: string) => Promise<{ ok: boolean; chiaveRecupero?: string; messaggio?: string }>
@@ -596,6 +604,10 @@ export function apriSincronia(deps: {
      * cartella cosi' e' **viva su qualche PC**: chi non ce l'ha non deve
      * adottarla in una cartella vuota di qui.
      */
+    chiaveDiCasa(scopo) {
+      if (maestra === undefined || scopo === '') return undefined
+      return createHmac('sha256', maestra).update(scopo, 'utf8').digest('base64url')
+    },
     slugRecenti(daMs: number, adesso = Date.now()): Set<string> {
       const fuori = new Set<string>()
       for (const [p, v] of Object.entries(leggiManifestoLocale().file)) {

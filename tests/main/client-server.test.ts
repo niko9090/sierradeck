@@ -77,6 +77,34 @@ describe('chi puo entrare', () => {
   })
 })
 
+describe('la chiave di casa: un altro PC con la stessa cassaforte', () => {
+  it('entra come un dispositivo, con il nome che dice, senza accoppiarsi', async () => {
+    const dispositivi = apriDispositivi(mkdtempSync(join(tmpdir(), 'sd-cs-casa-')))
+    server = creaServerClient({
+      dispositivi,
+      chiaveDiCasa: () => 'la-chiave-ricavata-dalla-cassaforte',
+      rotta: ({ dispositivo }) => ({ stato: 200, corpo: { dispositivo } })
+    })
+    await ascolta(server)
+    const porta = (server.address() as AddressInfo).port
+    const r = await fetch(`http://127.0.0.1:${porta}/api/stato`, {
+      headers: { 'x-sierradeck-chiave': 'la-chiave-ricavata-dalla-cassaforte', 'x-sierradeck-pc': encodeURIComponent('Portatile di casa') }
+    })
+    expect(r.status).toBe(200)
+    expect(await r.json()).toEqual({ dispositivo: 'pc' })
+    // Una chiave diversa, o nessuna chiave di casa (cassaforte chiusa): fuori.
+    expect((await chiama(server, '/api/stato', { chiave: 'la-chiave-ricavata-dalla-cassafortE' })).stato).toBe(401)
+    expect((await chiama(server, '/api/stato', { chiave: '' })).stato).toBe(401)
+  })
+
+  it('a cassaforte chiusa qui, la chiave di casa non apre niente', async () => {
+    const dispositivi = apriDispositivi(mkdtempSync(join(tmpdir(), 'sd-cs-casa2-')))
+    server = creaServerClient({ dispositivi, chiaveDiCasa: () => undefined, rotta: () => ({ stato: 200, corpo: {} }) })
+    await ascolta(server)
+    expect((await chiama(server, '/api/stato', { chiave: 'qualunque' })).stato).toBe(401)
+  })
+})
+
 describe('i rifiuti si raccontano', () => {
   it('una chiave sconosciuta finisce nel registro, una volta per indirizzo', async () => {
     // Quando il telefono «non funziona», dal registro del PC si deve poter

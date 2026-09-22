@@ -297,7 +297,10 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     const manda = (): void => {
       window.gestore.client.annunciaChat(
-        Object.values(riquadriAperti).map((p) => ({
+        // Un riquadro remoto guarda una chat di un altro PC: non e' una chat
+        // di qui, e annunciarla farebbe credere al telefono e al battito che
+        // questo PC ce l'abbia aperta.
+        Object.values(riquadriAperti).filter((p) => p.remoto === undefined).map((p) => ({
           id: p.id,
           titolo: p.title !== undefined && p.title !== '' ? p.title : p.cwd,
           cwd: p.cwd,

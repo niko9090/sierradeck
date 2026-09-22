@@ -6,6 +6,7 @@ import type { Scheda } from '@shared/quaderno'
 import type { Preferenze } from '@shared/preferenze'
 import type { Autopilota } from '@shared/autopilota'
 import type { BattitoPc, Posta } from '@shared/posta'
+import type { EsitoRemoto, PcRemoto, ChatSuPc, ChatRemota, StoriaRemota } from '@shared/pc-remoto'
 import type { StatoWorkspace } from '../main/ipc'
 import type { Utente, EsitoAccesso } from '@shared/account'
 import type { Istantanea } from '@shared/istantanea'
@@ -418,6 +419,26 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('posta:aggiungi', pc, voce),
     togli: (pc: string, voce: string): Promise<Posta | undefined> => ipcRenderer.invoke('posta:togli', pc, voce),
     pulisci: (pc: string): Promise<Posta | undefined> => ipcRenderer.invoke('posta:pulisci', pc)
+  },
+  /**
+   * Un altro PC dal vivo: le sue chat aperte, lo schermo di una, scriverci.
+   * Passa dal Client di quel PC con la chiave di casa (stessa cassaforte).
+   */
+  remoto: {
+    pc: (): Promise<{ io: string; cassaforteAperta: boolean; pc: PcRemoto[] }> => ipcRenderer.invoke('remoto:pc'),
+    stato: (pc: string): Promise<EsitoRemoto<{ chat: ChatSuPc[]; computer?: { nome: string } }>> => ipcRenderer.invoke('remoto:stato', pc),
+    trova: (pc: string, chat: ChatRemota): Promise<EsitoRemoto<ChatSuPc | undefined>> => ipcRenderer.invoke('remoto:trova', pc, chat),
+    storia: (pc: string, chat: string, da: number, quante: number): Promise<EsitoRemoto<StoriaRemota>> =>
+      ipcRenderer.invoke('remoto:storia', pc, chat, da, quante),
+    scrivi: (pc: string, chat: string, testo: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:scrivi', pc, chat, testo),
+    scegli: (pc: string, chat: string, opzione: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:scegli', pc, chat, opzione),
+    riprendi: (pc: string, cartella: string, sessione: string): Promise<EsitoRemoto<{ fatto: boolean }>> =>
+      ipcRenderer.invoke('remoto:riprendi', pc, cartella, sessione),
+    apri: (pc: string, cartella: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:apri', pc, cartella),
+    prova: (pc: string): Promise<{ ok: true; indirizzo: string; ms: number; versione?: string } | { ok: false; motivo: string; messaggio: string }> =>
+      ipcRenderer.invoke('remoto:prova', pc),
+    /** Di quali di queste cartelle e' padrone un altro PC: per l'elenco delle conversazioni. */
+    altroveDi: (cwds: string[]): Promise<Record<string, { id: string; nome: string }>> => ipcRenderer.invoke('remoto:altroveDi', cwds)
   },
   /** La sincronizzazione cifrata: passphrase (cassaforte E2E) + salva/ripristina. */
   sync: {

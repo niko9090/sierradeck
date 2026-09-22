@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.33.0',
+    righe: [
+      '**Le chat degli altri PC si guardano e si comandano dal vivo.** Una chat la cui cartella sta su un altro computer (il portatile, il fisso) non si apre più in una cartella vuota: il riquadro mostra il terminale di quel PC, riletto ogni due secondi, e quello che scrivi arriva là come se lo digitassi su quella tastiera — testo, Invio, e i pulsanti quando la chat aspetta una scelta. Nessun claude.exe gira qui: la chat lavora là, con i suoi file. Si arriva da tre posti: dal riquadro di una chat «di un altro PC» («Guarda dal vivo su …»), da Account → Altri computer → «Chat aperte» → «Guarda dal vivo», e da «Riprendi una conversazione», dove le chat di un altro PC hanno l’etichetta «su Portatile · acceso, dal vivo» oppure «spento, sola lettura» e si aprono nel modo giusto da sole. Se la chat non è aperta là, «Riprendila là» gliela fa riaprire. Se quel PC è spento o non si raggiunge, il riquadro dice perché (spento da quando, firewall, rete diversa, cassaforte) e cosa fare: resta la cassetta («Scrivile là»), che lui consegna quando torna. Funziona sulla stessa rete o con Tailscale acceso su tutti e due; non c’è niente da accoppiare: la chiave la ricavano i due PC dalla stessa cassaforte, e ogni PC pubblica nel suo battito sul Drive dove bussare. Serve la 0.33.0 su tutti e due i PC. L’app Android resta la 2.35.0.'
+    ]
+  },
+  {
     versione: '0.32.1',
     righe: [
       '**Basta con le 1.700 chat che scendevano dal Drive ogni giorno.** Claude Code cancella da solo le trascrizioni ferme da più di 30 giorni (cleanupPeriodDays nelle sue impostazioni): l’arrivo automatico rimetteva qui le chat vecchie degli altri PC con la loro data, Claude Code le toglieva al giro di pulizia del giorno dopo, e il giorno dopo ancora scendevano di nuovo, dodici minuti alla volta. Ora le chat degli altri PC ferme da più del periodo di ritenzione restano sul Drive: le vedi nel catalogo del Drive e le prendi con «Porta qui» quando ti servono. Il registro dice quante ne ha lasciate e perché. Se in ~/.claude/settings.json tieni le trascrizioni più a lungo, scendono anche quelle.'

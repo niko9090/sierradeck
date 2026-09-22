@@ -82,11 +82,13 @@ import {
 import { creaProgettiSync } from './progetti/sincronia-progetti'
 import { creaRonda } from './progetti/presenza'
 import { creaPostino, type Postino } from './progetti/posta'
+import { creaClientPcRemoto, ErroreRemoto } from './pc-remoto'
+import { trovaChatRemota, PORTA_CLIENT_PREDEFINITA, type EsitoRemoto, type PcRemoto, type ChatSuPc } from '@shared/pc-remoto'
 import { progettoDiCwd, staDentro } from './progetti/registro'
 import { impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
 import { risolviCartellaDiChat, type CartellaDiChat } from './progetti/cartella-di-chat'
 import { pianificaRimappatura, pianificaRitorno, riscriviCwdRiga, type Spostamento } from './progetti/rimappa-di-massa'
-import { pcCheHaLaCartella, staSottoCartella, type BattitoPc } from '@shared/posta'
+import { pcCheHaLaCartella, staSottoCartella, pcVivo, type BattitoPc } from '@shared/posta'
 import { createReadStream, createWriteStream } from 'node:fs'
 import { mkdir as mkdirAsync, rename as renameAsync, stat as statAsync, unlink as unlinkAsync, utimes as utimesAsync } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
@@ -1208,9 +1210,86 @@ if (!app.requestSingleInstanceLock()) {
           finestra?.webContents.send('client:apri', { cartella: cwd, sessione, ...(dove !== undefined ? { workspace: dove } : {}) })
         },
         scrivi: scriviNelRiquadro,
+        // Dove gli altri PC possono bussare al mio Client: gli indirizzi
+        // (quello da cui esco per primo, poi le altre schede) e la porta.
+        // L'indirizzo principale lo dice Windows, con calma e ogni tanto:
+        // il battito lo legge dal ricordo, senza aspettare nessuno.
+        rete: () => ({ indirizzi: indirizziLocali(undefined, principaleRicordato), porta: impostazioni.preferenze().portaClient }),
         log: registro.info
       })
       postinoGlobale = postino
+      let principaleRicordato: string | undefined = undefined
+      const rileggiPrincipale = (): void => {
+        void indirizzoPrincipale().then((p) => { principaleRicordato = p }).catch(() => undefined)
+      }
+      rileggiPrincipale()
+      const timerPrincipale = setInterval(rileggiPrincipale, 10 * 60_000)
+      app.on('before-quit', () => clearInterval(timerPrincipale))
+
+      // **Un altro PC dal vivo.** Bussare al Client di quel PC con la chiave
+      // di casa: le sue chat aperte, lo schermo di una, scriverci, scegliere.
+      // Vedi `pc-remoto.ts`.
+      const remoto = creaClientPcRemoto({
+        battiti: () => postino.altrui(),
+        chiavePer: (pcId) => sincronia.chiaveDiCasa(`client-pc:${pcId}`),
+        mioNome: () => identitaPc.leggi().nome,
+        log: registro.info
+      })
+      const esitoRemoto = async <T,>(f: () => Promise<unknown>): Promise<EsitoRemoto<T>> => {
+        try {
+          return { ok: true, dati: (await f()) as T }
+        } catch (err) {
+          if (err instanceof ErroreRemoto) return { ok: false, motivo: err.motivo, messaggio: err.message, ...(err.stato !== undefined ? { stato: err.stato } : {}) }
+          return { ok: false, motivo: 'http', messaggio: String(err) }
+        }
+      }
+      const testo = (x: unknown): string => (typeof x === 'string' ? x : '')
+      ipcMain.handle('remoto:pc', async (): Promise<{ io: string; cassaforteAperta: boolean; pc: PcRemoto[] }> => {
+        const adessoMs = Date.now()
+        const battiti = await postino.pc().catch(() => postino.altrui())
+        return {
+          io: identitaPc.leggi().id,
+          cassaforteAperta: sincronia.chiaveDiCasa('prova') !== undefined,
+          pc: battiti.map((b) => ({
+            pcId: b.pcId, nome: b.nome, versione: b.versione, battito: b.battito,
+            vivo: pcVivo(b, adessoMs), indirizzi: b.indirizzi ?? [], porta: b.porta ?? PORTA_CLIENT_PREDEFINITA,
+            ...(remoto.indirizzoBuono(b.pcId) !== undefined ? { buono: remoto.indirizzoBuono(b.pcId) } : {}),
+            chat: b.chat, cartelle: b.cartelle
+          }))
+        }
+      })
+      ipcMain.handle('remoto:stato', (_e, pc: unknown) =>
+        esitoRemoto<{ chat: ChatSuPc[]; computer?: { nome: string } }>(async () => {
+          const r = await remoto.chiama(testo(pc), '/api/stato') as { chat?: unknown; computer?: unknown }
+          const chat = Array.isArray(r.chat) ? (r.chat as ChatSuPc[]).map((c) => ({
+            id: String(c.id), cwd: String(c.cwd), titolo: String(c.titolo),
+            ...(typeof c.sessione === 'string' ? { sessione: c.sessione } : {}),
+            ...(typeof c.aspetta === 'boolean' ? { aspetta: c.aspetta } : {}),
+            ...(typeof c.viva === 'boolean' ? { viva: c.viva } : {})
+          })) : []
+          return { chat, ...(typeof r.computer === 'object' && r.computer !== null ? { computer: r.computer as { nome: string } } : {}) }
+        }))
+      ipcMain.handle('remoto:trova', (_e, pc: unknown, r: unknown) =>
+        esitoRemoto<ChatSuPc | undefined>(async () => {
+          const rr = r as { cwd?: unknown; sessione?: unknown; pcId?: unknown; pcNome?: unknown }
+          const s = await remoto.chiama(testo(pc), '/api/stato') as { chat?: ChatSuPc[] }
+          return trovaChatRemota(Array.isArray(s.chat) ? s.chat : [], {
+            pcId: testo(pc), pcNome: testo(rr.pcNome), cwd: testo(rr.cwd), ...(typeof rr.sessione === 'string' ? { sessione: rr.sessione } : {})
+          })
+        }))
+      ipcMain.handle('remoto:storia', (_e, pc: unknown, chat: unknown, da: unknown, quante: unknown) =>
+        esitoRemoto(() => remoto.chiama(testo(pc), '/api/storia', {
+          chat: testo(chat), da: typeof da === 'number' ? da : -1, quante: typeof quante === 'number' ? quante : 200
+        })))
+      ipcMain.handle('remoto:scrivi', (_e, pc: unknown, chat: unknown, t: unknown) =>
+        esitoRemoto(() => remoto.chiama(testo(pc), '/api/scrivi', { chat: testo(chat), testo: testo(t) })))
+      ipcMain.handle('remoto:scegli', (_e, pc: unknown, chat: unknown, opzione: unknown) =>
+        esitoRemoto(() => remoto.chiama(testo(pc), '/api/scegli', { chat: testo(chat), opzione: testo(opzione) })))
+      ipcMain.handle('remoto:riprendi', (_e, pc: unknown, cartella: unknown, sessione: unknown) =>
+        esitoRemoto(() => remoto.chiama(testo(pc), '/api/sessioni/riprendi', { cartella: testo(cartella), sessione: testo(sessione) })))
+      ipcMain.handle('remoto:apri', (_e, pc: unknown, cartella: unknown) =>
+        esitoRemoto(() => remoto.chiama(testo(pc), '/api/apri', { cartella: testo(cartella) })))
+      ipcMain.handle('remoto:prova', (_e, pc: unknown) => remoto.prova(testo(pc)))
       // Sfalsato rispetto alla ronda dei progetti: due giri sul Drive nello
       // stesso istante non servono a nessuno.
       const timerPosta = setInterval(() => { void postino.giro() }, 30_000)
@@ -1274,6 +1353,18 @@ if (!app.requestSingleInstanceLock()) {
         return undefined
       }
       altroveRiquadro = altrove
+      // Per l'elenco «Riprendi una conversazione»: di quali cartelle e' padrone
+      // un altro PC. Una domanda sola per tutte, non una per riga.
+      ipcMain.handle('remoto:altroveDi', (_e, cwds: unknown): Record<string, { id: string; nome: string }> => {
+        const fuori: Record<string, { id: string; nome: string }> = {}
+        if (!Array.isArray(cwds)) return fuori
+        for (const c of cwds.slice(0, 5000)) {
+          if (typeof c !== 'string' || c === '') continue
+          const a = altrove(c)
+          if (a !== undefined) fuori[c] = a
+        }
+        return fuori
+      })
       /** Dove lavora qui una chat con quella cartella: decide, crea la cartella, scrive il registro. */
       /**
        * «Documenti» spostata (Proprieta' → Percorso → Sposta): Windows cambia
@@ -2549,6 +2640,10 @@ if (!app.requestSingleInstanceLock()) {
         // Letta a ogni richiesta, non all'avvio: cambiarla nelle impostazioni
         // deve valere subito, senza riaprire il programma.
         oltreLaRete: () => impostazioni.preferenze().clientOltreLaRete,
+        // La chiave di casa: un altro PC con la stessa cassaforte entra con
+        // questa, senza accoppiarsi. A cassaforte chiusa non c'e', e da fuori
+        // si riceve «dispositivo non riconosciuto».
+        chiaveDiCasa: () => sincronia.chiaveDiCasa(`client-pc:${identitaPc.leggi().id}`),
         rotta: rotteClient(rotte),
         rottaLibera: rotteLibere(rotte),
         // I rifiuti e il primo contatto di ogni dispositivo nel registro: e'

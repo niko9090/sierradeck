@@ -98,6 +98,12 @@ export function creaPostino(deps: {
   chat: () => ChatDiPc[]
   /** Le cartelle in cui questo PC puo' lavorare: progetti collegati qui e simili. Le chat aperte si aggiungono da sole. */
   cartelle: () => string[]
+  /**
+   * Dove gli altri PC possono bussare al mio Client per guardare una chat dal
+   * vivo: gli indirizzi (il migliore per primo) e la porta. Senza, il battito
+   * non li porta e da fuori la chat si vede solo dalla copia sul Drive.
+   */
+  rete?: () => { indirizzi: string[]; porta: number }
   cartellaEsiste: (cwd: string) => boolean
   /** Apre una chat nuova in quella cartella (in una finestra). */
   apriChat: (cwd: string) => void
@@ -142,6 +148,7 @@ export function creaPostino(deps: {
     const chat = deps.chat()
     const cartelle = new Set<string>(deps.cartelle())
     for (const c of chat) cartelle.add(c.cwd)
+    const rete = deps.rete?.()
     return {
       pcId: deps.pcId(),
       nome: deps.pcNome(),
@@ -151,7 +158,10 @@ export function creaPostino(deps: {
       chat: chat.filter((c) => c.viva).map((c) => ({
         ...(c.sessione !== undefined ? { sessione: c.sessione } : {}),
         titolo: c.titolo, cwd: c.cwd, aspetta: c.aspetta
-      }))
+      })),
+      // Dove bussare: e' cio' che permette a un altro PC di aprire una mia
+      // chat dal vivo invece di aspettare la copia dal Drive.
+      ...(rete !== undefined && rete.indirizzi.length > 0 ? { indirizzi: rete.indirizzi, porta: rete.porta } : {})
     }
   }
 
@@ -216,7 +226,12 @@ export function creaPostino(deps: {
     const letti = await Promise.all(nomi.map((n) => s.leggi<BattitoPc>(n)))
     return letti
       .filter((b): b is BattitoPc => b !== undefined && typeof b.pcId === 'string' && b.pcId !== me)
-      .map((b) => ({ ...b, cartelle: Array.isArray(b.cartelle) ? b.cartelle : [], chat: Array.isArray(b.chat) ? b.chat : [] }))
+      .map(({ indirizzi, porta, ...b }) => ({
+        ...b, cartelle: Array.isArray(b.cartelle) ? b.cartelle : [], chat: Array.isArray(b.chat) ? b.chat : [],
+        // Il battito viene dal Drive: si tiene solo cio' che ha la forma giusta.
+        ...(Array.isArray(indirizzi) ? { indirizzi: indirizzi.filter((i): i is string => typeof i === 'string') } : {}),
+        ...(typeof porta === 'number' && Number.isInteger(porta) && porta > 0 && porta < 65536 ? { porta } : {})
+      }))
       .sort((a, b) => b.battito.localeCompare(a.battito))
   }
   let altruiVisti = ''

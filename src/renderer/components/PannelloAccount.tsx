@@ -12,6 +12,7 @@ import { ModaleFusione } from './ModaleFusione'
 import { ModaleCoda } from './ModaleCoda'
 import { ModalePosta } from './ModalePosta'
 import { pcVivo, type BattitoPc } from '@shared/posta'
+import { useLayoutStore } from '../state/layout'
 
 type StatoDrive = { configurato: boolean; connesso: boolean; email?: string }
 type ElencoProgetti = {
@@ -546,6 +547,15 @@ function SezioneComputer(): React.JSX.Element | null {
   const [pc, setPc] = useState<BattitoPc[] | undefined>(undefined)
   const [aperto, setAperto] = useState<BattitoPc | undefined>(undefined)
   const [adesso, setAdesso] = useState(Date.now())
+  const [espanso, setEspanso] = useState<string | undefined>(undefined)
+  const addPane = useLayoutStore((s) => s.addPane)
+  /** Apre qui un riquadro che guarda dal vivo quella chat di quel PC. */
+  const guardaDalVivo = (b: BattitoPc, c: BattitoPc['chat'][number]): void => {
+    addPane(c.cwd, c.titolo, undefined, {
+      ...(c.sessione !== undefined ? { sessionUuid: c.sessione } : {}),
+      remoto: { pcId: b.pcId, pcNome: b.nome, cwd: c.cwd, ...(c.sessione !== undefined ? { sessione: c.sessione } : {}) }
+    })
+  }
   const ricarica = (): void => {
     void window.gestore.posta.pc().then((p) => { setPc(p); setAdesso(Date.now()) }).catch(() => setPc([]))
   }
@@ -562,9 +572,12 @@ function SezioneComputer(): React.JSX.Element | null {
     <div className="account__scheda account__scheda--largo">
       <h4 style={{ margin: '0 0 4px' }}>Altri computer</h4>
       <p className="account__nota">
-        I PC che usano questo stesso Drive, con l’ultimo segno di vita. «Azioni…» apre la cassetta di un PC: quello che ci
-        scrivi si esegue solo là, in una sua chat, quando è acceso. Serve per una cartella che sta su quel PC e non viaggia
-        (un disco di rete, un progetto locale). Un PC compare qui dopo il suo primo salvataggio con la 0.27.0.
+        I PC che usano questo stesso Drive, con l’ultimo segno di vita. «Chat aperte» mostra le chat che quel PC ha davanti
+        adesso: «Guarda dal vivo» apre qui un riquadro con il suo terminale, e quello che ci scrivi arriva là (serve che sia
+        acceso e raggiungibile: stessa rete, o Tailscale su tutti e due; la chiave è la cassaforte, uguale su tutti e due).
+        «Azioni…» apre la cassetta di un PC: quello che ci scrivi si esegue solo là, in una sua chat, anche se adesso è
+        spento — la consegna quando torna. Un PC compare qui dopo il suo primo salvataggio con la 0.27.0; l’indirizzo per
+        guardarlo dal vivo lo pubblica dalla 0.33.0.
       </p>
       {pc === undefined ? <p className="account__nota">Leggo il Drive…</p> : null}
       {pc !== undefined && pc.length === 0 ? <p className="account__nota">Nessun altro PC ha ancora lasciato un segno sul Drive.</p> : null}
@@ -583,12 +596,34 @@ function SezioneComputer(): React.JSX.Element | null {
                     {' '}· {vivo ? 'acceso' : `spento, ultimo segno ${quando(b.battito)}`} · v{b.versione} · {b.chat.length} chat aperte{aspettano > 0 ? ` (${aspettano} aspettano)` : ''} · {b.cartelle.length} cartelle
                   </span>
                 </span>
+                {b.chat.length > 0 ? (
+                  <button className="tasto tasto--mini" onClick={() => setEspanso(espanso === b.pcId ? undefined : b.pcId)} title="Le chat che quel PC ha aperte adesso, da guardare dal vivo" aria-expanded={espanso === b.pcId}>
+                    Chat aperte {espanso === b.pcId ? '▾' : '▸'}
+                  </button>
+                ) : null}
                 <button className="tasto tasto--mini" onClick={() => setAperto(b)} title="Le azioni da eseguire solo su quel PC">Azioni…</button>
               </li>
             )
           })}
         </ul>
       ) : null}
+      {pc !== undefined ? pc.filter((b) => b.pcId === espanso).map((b) => {
+        const vivo = pcVivo(b, adesso) === true
+        return (
+          <ul key={`chat-${b.pcId}`} style={{ listStyle: 'none', margin: '6px 0 0 12px', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {b.chat.map((c, i) => (
+              <li key={`${c.sessione ?? c.cwd}-${i}`} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.cwd}>
+                  {c.titolo}{c.aspetta ? <span className="account__nota" style={{ margin: 0 }}> · aspetta te</span> : null}
+                </span>
+                <button className="tasto tasto--mini" disabled={!vivo} onClick={() => guardaDalVivo(b, c)} title={vivo ? 'Apre qui un riquadro con il terminale di quella chat, dal vivo' : `${b.nome} è spento: dal vivo non si vede; usa «Azioni…» per lasciargli un comando`}>
+                  Guarda dal vivo
+                </button>
+              </li>
+            ))}
+          </ul>
+        )
+      }) : null}
       {aperto !== undefined ? <ModalePosta pc={aperto} vivo={pcVivo(aperto, adesso)} onChiudi={() => { setAperto(undefined); ricarica() }} /> : null}
     </div>
   )

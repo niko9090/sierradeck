@@ -13,6 +13,24 @@ function archivioMinimo(layout: unknown): unknown {
   }
 }
 
+describe('un riquadro remoto nel layout', () => {
+  it('si rilegge intero; a meta’ si scarta il campo e resta il riquadro', () => {
+    const { archivio } = parseArchivio(archivioMinimo({
+      root: { type: 'pane', id: 'p1' },
+      panes: [{ id: 'p1', sessionUuid: 'u1', cwd: 'C:\\lavoro', title: 'gestionale', remoto: { pcId: 'B', pcNome: 'Portatile', cwd: 'C:\\lavoro', sessione: 'u1' } }]
+    }))
+    const pane = archivio.workspace[0]?.perSlot['1']?.panes[0]
+    expect(pane?.remoto).toEqual({ pcId: 'B', pcNome: 'Portatile', cwd: 'C:\\lavoro', sessione: 'u1' })
+    const { archivio: mezzo } = parseArchivio(archivioMinimo({
+      root: { type: 'pane', id: 'p1' },
+      panes: [{ id: 'p1', sessionUuid: 'u1', cwd: 'C:\\lavoro', title: 'x', remoto: { pcNome: 'Portatile' } }]
+    }))
+    const p2 = mezzo.workspace[0]?.perSlot['1']?.panes[0]
+    expect(p2?.id).toBe('p1')
+    expect(p2?.remoto).toBeUndefined()
+  })
+})
+
 describe('parseArchivio', () => {
   it('restituisce un archivio vuoto da un valore non oggetto', () => {
     for (const raw of [null, undefined, 42, 'niente', []]) {

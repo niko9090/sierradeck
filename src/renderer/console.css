@@ -892,7 +892,8 @@ input.campo {
   display: grid;
   grid-template-areas:
     'titolo'
-    'meta';
+    'meta'
+    'altrove';
   gap: 1px;
   flex: 1;
   min-width: 0;
@@ -3655,6 +3656,118 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .chat-altrove__nota {
   font-size: var(--t1);
 }
+
+/* Il riquadro remoto: una chat di un altro PC, dal vivo. Lo schermo e' HTML
+   (le righe vestite di quel terminale), sotto la barra per scriverle. */
+.remoto {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  color: #c8ced4;
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--t2);
+}
+.remoto__testa {
+  display: flex;
+  gap: var(--s3);
+  align-items: baseline;
+  flex-wrap: wrap;
+  padding: var(--s1) var(--s3);
+  background: var(--chassis);
+  color: var(--testo-quieto);
+  font-family: inherit;
+  font-size: var(--t1);
+  border-bottom: 1px solid var(--incisione);
+}
+.remoto__pc { color: var(--testo); }
+.remoto__pc strong { color: var(--accento); }
+.remoto__stato { margin-left: auto; white-space: nowrap; }
+.remoto__aspetta { color: var(--ambra); font-weight: 600; }
+.remoto__schermo {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--s2) var(--s3);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.35;
+}
+.remoto__vuoto { opacity: 0.6; }
+.remoto__attesa {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--testo-quieto);
+  font-family: inherit;
+}
+.remoto__avviso {
+  padding: var(--s3) var(--s4);
+  font-family: system-ui, sans-serif;
+  color: var(--testo-quieto);
+  background: var(--chassis);
+  border-top: 1px solid var(--incisione);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  max-height: 60%;
+  overflow: auto;
+}
+.remoto__avviso-titolo { font-size: var(--t3); font-weight: 600; color: var(--testo); }
+.remoto__avviso-testo { font-size: var(--t2); line-height: 1.45; max-width: 70ch; }
+.remoto__azioni { display: flex; gap: var(--s2); flex-wrap: wrap; }
+.remoto__altre ul { list-style: none; margin: var(--s1) 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.remoto__esito {
+  padding: var(--s1) var(--s3);
+  font-family: system-ui, sans-serif;
+  font-size: var(--t1);
+  color: var(--ambra);
+  background: color-mix(in srgb, var(--ambra) 12%, transparent);
+}
+.remoto__scelte {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  align-items: center;
+  padding: var(--s2) var(--s3);
+  background: color-mix(in srgb, var(--accento) 10%, var(--chassis));
+  border-top: 1px solid var(--incisione);
+  font-family: system-ui, sans-serif;
+}
+.remoto__scelte-titolo { width: 100%; font-size: var(--t1); color: var(--testo-quieto); }
+.remoto__barra {
+  display: flex;
+  gap: var(--s2);
+  align-items: flex-end;
+  padding: var(--s2) var(--s3);
+  background: var(--chassis);
+  border-top: 1px solid var(--incisione);
+  font-family: system-ui, sans-serif;
+}
+.remoto__campo { flex: 1; resize: vertical; min-height: 34px; font-family: inherit; }
+.remoto__nota {
+  padding: 0 var(--s3) var(--s2);
+  background: var(--chassis);
+  font-family: system-ui, sans-serif;
+  font-size: var(--t1);
+  color: var(--testo-quieto);
+  line-height: 1.4;
+}
+/* L'etichetta «su un altro PC» nell'elenco delle conversazioni. */
+.voce-chat__altrove {
+  grid-area: altrove;
+  justify-self: start;
+  margin-top: 2px;
+  font-size: var(--t1);
+  padding: 1px 7px;
+  border-radius: 10px;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--accento) 16%, transparent);
+  color: var(--accento);
+}
+.voce-chat__altrove--spento { background: var(--luce-tenue); color: var(--testo-quieto); }
 
 /* I fumetti: gli avvisi della sincronia e del Drive, in basso a destra, fuori
    dal flusso. Compaiono e spariscono senza spostare i riquadri. */

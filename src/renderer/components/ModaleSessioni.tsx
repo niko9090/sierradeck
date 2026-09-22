@@ -12,6 +12,10 @@ import { descriviAvanzamento } from '../avanzamento-vista'
 import { ModaleConferma } from './ModaleConferma'
 import type { SessionSummary } from '@shared/types'
 import type { Anteprima } from '../../main/anteprima'
+import type { PcRemoto } from '@shared/pc-remoto'
+
+/** Di chi e' la cartella di una chat, quando non e' di questo PC. */
+type Altrove = { id: string; nome: string; vivo: boolean }
 
 /** Quante righe mostrare all'apertura prima di lasciare le sezioni chiuse. */
 const RIGHE_APERTE = 40
@@ -61,6 +65,12 @@ export function ModaleSessioni({ onChiudi }: { onChiudi: () => void }): React.JS
   useEffect(() => {
     window.gestore.etichette.leggi().then(setEtichette).catch(() => setEtichette({}))
   }, [])
+
+  // Quali chat sono di un altro PC (la loro cartella qui non c'e', e un altro
+  // PC l'ha): una domanda sola al Core per tutte le cartelle, e il battito
+  // di quei PC per dire «acceso» o «spento». E' cio' che decide, aprendo,
+  // se si guarda dal vivo la' o si lascia un'azione nella cassetta.
+  const [altrove, setAltrove] = useState<Record<string, Altrove>>({})
 
   const rinomina = (uuid: string, testo: string): void => {
     window.gestore.etichette
@@ -120,6 +130,25 @@ export function ModaleSessioni({ onChiudi }: { onChiudi: () => void }): React.JS
   // premuto nel campo di ricerca sarebbe sprecato, perché la ricerca filtra il
   // risultato e non lo cambia.
   const gruppi = useMemo(() => raggruppaSessioni(sessions), [sessions])
+  const cartelle = useMemo(() => [...new Set(gruppi.map((g) => g.cartella))], [gruppi])
+  useEffect(() => {
+    if (cartelle.length === 0) return
+    let vivo = true
+    void Promise.all([
+      window.gestore.remoto.altroveDi(cartelle).catch(() => ({} as Record<string, { id: string; nome: string }>)),
+      window.gestore.remoto.pc().catch(() => ({ io: '', cassaforteAperta: false, pc: [] as PcRemoto[] }))
+    ]).then(([mappa, r]) => {
+      if (!vivo) return
+      const fuori: Record<string, Altrove> = {}
+      for (const [cwd, a] of Object.entries(mappa)) {
+        const b = r.pc.find((x) => x.pcId === a.id)
+        fuori[cwd] = { id: a.id, nome: b?.nome ?? a.nome, vivo: b?.vivo === true }
+      }
+      setAltrove(fuori)
+    })
+    return () => { vivo = false }
+  }, [cartelle])
+  const quantiAltrove = useMemo(() => gruppi.filter((g) => altrove[g.cartella] !== undefined).length, [gruppi, altrove])
   const visibili = useMemo(() => filtra(gruppi, cerca), [gruppi, cerca])
   const progetti = useMemo(() => perProgetto(visibili), [visibili])
 
@@ -161,7 +190,17 @@ export function ModaleSessioni({ onChiudi }: { onChiudi: () => void }): React.JS
   }
 
   const apri = (s: SessionSummary, titolo: string): void => {
-    addPane(s.cwd ?? s.projectPath, titolo)
+    const cwd = s.cwd ?? s.projectPath
+    const a = altrove[cwd]
+    // Una chat di un altro PC acceso si apre **dal vivo la'**: il riquadro
+    // bussa a quel PC e mostra il suo terminale. Se e' spento si apre il
+    // riquadro normale, che spiega e offre la cassetta e «Aprila qui lo stesso».
+    if (a !== undefined && a.id !== '' && a.vivo) {
+      addPane(cwd, titolo, undefined, { sessionUuid: s.uuid, remoto: { pcId: a.id, pcNome: a.nome, cwd, sessione: s.uuid } })
+      onChiudi()
+      return
+    }
+    addPane(cwd, titolo)
     onChiudi()
   }
 
@@ -202,8 +241,8 @@ export function ModaleSessioni({ onChiudi }: { onChiudi: () => void }): React.JS
       <div className="dialogo dialogo--largo" onMouseDown={(e) => e.stopPropagation()}>
         <div className="dialogo__testa">
           <span className="serigrafia">Riprendi una conversazione</span>
-          <span className="misura">
-            {progetti.length} progetti · {visibili.length} chat · {sessions.length} sessioni
+          <span className="misura" title={quantiAltrove > 0 ? 'Le chat «su un altro PC» hanno la cartella su quel computer: da qui si guardano dal vivo se è acceso, altrimenti si lascia un’azione nella sua cassetta' : undefined}>
+            {progetti.length} progetti · {visibili.length} chat · {sessions.length} sessioni{quantiAltrove > 0 ? ` · ${quantiAltrove} su un altro PC` : ''}
           </span>
           <span style={{ flex: 1 }} />
           {daButtare.size > 0 ? (
@@ -291,6 +330,7 @@ export function ModaleSessioni({ onChiudi }: { onChiudi: () => void }): React.JS
                             setEspansa(espansa === g.principale.uuid ? undefined : g.principale.uuid)
                           }
                           onApri={apri}
+                          altrove={altrove[g.cartella]}
                         />
                       ))
                     : null}
@@ -322,9 +362,12 @@ function VoceChat({
   etichetta,
   onRinomina,
   segnata,
-  onSegna
+  onSegna,
+  altrove
 }: {
   gruppo: GruppoSessioni
+  /** La cartella e' di un altro PC: chi, e se e' acceso adesso. */
+  altrove?: Altrove | undefined
   espansa: boolean
   onEspandi: () => void
   onApri: (s: SessionSummary, titolo: string) => void
@@ -366,7 +409,11 @@ function VoceChat({
         <button
           className="voce-chat__apri"
           onClick={() => onApri(gruppo.principale, etichetta ?? gruppo.titolo)}
-          title={`${gruppo.cartella}\nApre una chat in questa cartella`}
+          title={altrove === undefined
+            ? `${gruppo.cartella}\nApre una chat in questa cartella`
+            : altrove.vivo
+              ? `${gruppo.cartella}\nLa cartella sta su ${altrove.nome}, che è acceso: si apre dal vivo là, il riquadro mostra il suo terminale e quello che scrivi arriva a lui`
+              : `${gruppo.cartella}\nLa cartella sta su ${altrove.nome}, che adesso è spento: qui si apre in sola lettura, con la cassetta per lasciargli un'azione`}
         >
           <span
             className="voce-chat__titolo"
@@ -383,6 +430,11 @@ function VoceChat({
             {gruppo.sottocartella !== undefined ? `${gruppo.sottocartella} · ` : ''}
             {gruppo.messaggi} messaggi
           </span>
+          {altrove !== undefined ? (
+            <span className={altrove.vivo ? 'voce-chat__altrove' : 'voce-chat__altrove voce-chat__altrove--spento'}>
+              su {altrove.nome} · {altrove.vivo ? 'acceso, dal vivo' : 'spento, sola lettura'}
+            </span>
+          ) : null}
         </button>
         {/* Il nome dell'utente vince su quello di Claude: «casa» dice più di
             «Debug multiple issues in Home Assistant controller». */}

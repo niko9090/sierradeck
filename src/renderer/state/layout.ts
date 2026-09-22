@@ -29,6 +29,8 @@ export type PaneData = {
    * finito di rispondere, e puo scriverle l istruzione successiva.
    */
   autopilota?: { id: string; chat: string }
+  /** Guarda dal vivo una chat di un altro PC: niente claude.exe qui, si bussa la'. */
+  remoto?: { pcId: string; pcNome: string; cwd: string; sessione?: string }
 }
 
 type State = {
@@ -44,8 +46,14 @@ type State = {
      * L autopilota decide lui l identificatore: e cio che gli permette di
      * scrivere in **quella** conversazione invece che in una qualunque.
      */
-    extra?: { sessionUuid?: string; autopilota?: { id: string; chat: string } }
+    extra?: { sessionUuid?: string; autopilota?: { id: string; chat: string }; remoto?: PaneData['remoto'] }
   ) => string
+  /**
+   * Trasforma un riquadro in un riquadro remoto, al suo posto: la chat e' di
+   * un altro PC e da qui la si guarda dal vivo invece di aprirla in una
+   * cartella vuota.
+   */
+  rendiRemoto: (paneId: string, remoto: NonNullable<PaneData['remoto']>) => void
   /** Il nome che l'utente dà a un riquadro: vince su quello di Claude Code. */
   rinominaPane: (id: string, title: string) => void
   /**
@@ -206,7 +214,8 @@ function statoDa(l: LayoutSalvato): { root: LayoutNode | undefined; panes: Recor
       // E chi aveva un padrone lo ritrova: e' da qui che il terminale rinasce
       // con `--settings`, cioe' con gli hook che dicono all'autopilota quando
       // la chat ha finito di rispondere.
-      ...(p.autopilota !== undefined ? { autopilota: p.autopilota } : {})
+      ...(p.autopilota !== undefined ? { autopilota: p.autopilota } : {}),
+      ...(p.remoto !== undefined ? { remoto: p.remoto } : {})
     }
   }
   return { root: l.root, panes }
@@ -234,7 +243,8 @@ export const useLayoutStore = create<State>((set, get) => ({
       cwd,
       title: normalizzaTitolo(title),
       ...(model !== undefined ? { model } : {}),
-      ...(extra?.autopilota !== undefined ? { autopilota: extra.autopilota } : {})
+      ...(extra?.autopilota !== undefined ? { autopilota: extra.autopilota } : {}),
+      ...(extra?.remoto !== undefined ? { remoto: extra.remoto } : {})
     }
     const { root } = get()
     const esistenti = root ? listPaneIds(root) : []
@@ -382,6 +392,14 @@ export const useLayoutStore = create<State>((set, get) => ({
       return { panes: { ...s.panes, [paneId]: { ...p, ibernata: false } } }
     }),
 
+  rendiRemoto: (paneId, remoto) =>
+    set((s) => {
+      const p = s.panes[paneId]
+      if (p === undefined) return {}
+      const { ptyId: _p, ibernata: _i, ...resto } = p
+      return { panes: { ...s.panes, [paneId]: { ...resto, remoto } } }
+    }),
+
   esporta: () => {
     const { root, panes } = get()
     if (root === undefined) return { root: undefined, panes: [] }
@@ -406,7 +424,9 @@ export const useLayoutStore = create<State>((set, get) => ({
         // Senza questo il legame moriva con la finestra, e al riavvio
         // l'autopilota ritrovava la sua chat muta: nessun hook `Stop`, zero
         // cicli, per sempre.
-        ...(p.autopilota !== undefined ? { autopilota: p.autopilota } : {})
+        ...(p.autopilota !== undefined ? { autopilota: p.autopilota } : {}),
+        // Un riquadro remoto torna a guardare la stessa chat di la'.
+        ...(p.remoto !== undefined ? { remoto: p.remoto } : {})
       })
     }
     return { root, panes: salvati }
@@ -483,7 +503,8 @@ export const useLayoutStore = create<State>((set, get) => ({
       ...(p.ibernata === true ? { ibernata: true } : {}),
       // Spostare una chat non la toglie al suo autopilota: e' lo stesso
       // lavoro, guardato da un'altra finestra.
-      ...(p.autopilota !== undefined ? { autopilota: p.autopilota } : {})
+      ...(p.autopilota !== undefined ? { autopilota: p.autopilota } : {}),
+      ...(p.remoto !== undefined ? { remoto: p.remoto } : {})
     }
     const rimanenti = { ...panes }
     delete rimanenti[paneId]
@@ -525,7 +546,8 @@ export const useLayoutStore = create<State>((set, get) => ({
         ...(pane.ibernata === true ? { ibernata: true } : {}),
         // Il padrone arriva con la chat: chi la accoglie deve saperlo, o al
         // primo rilancio del terminale gli hook non ci sarebbero piu'.
-        ...(pane.autopilota !== undefined ? { autopilota: pane.autopilota } : {})
+        ...(pane.autopilota !== undefined ? { autopilota: pane.autopilota } : {}),
+        ...(pane.remoto !== undefined ? { remoto: pane.remoto } : {})
       }
       const esistenti = s.root ? listPaneIds(s.root) : []
       const ultimo = esistenti[esistenti.length - 1]
