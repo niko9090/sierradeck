@@ -12,9 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,13 +43,12 @@ import kotlinx.coroutines.launch
  * non risponde. Un tocco e si fa la cosa, senza cambiare pagina.
  */
 @Composable
-fun BandaUrgenze(api: Api, stato: Stato?, connesso: Boolean) {
+fun BandaUrgenze(api: Api, stato: Stato?, connesso: Boolean, onApriDomande: () -> Unit = {}) {
     val domanda = stato?.domande?.firstOrNull()
     val fermi = stato?.autopiloti?.filter { it.stato == "sospeso" || it.stato == "fallito" } ?: emptyList()
     // Chi si e' preparato e aspetta il via: senza di te non parte, quindi e'
     // un'urgenza come le altre — ma ambra, perche' non e' andato storto niente.
     val pronti = stato?.autopiloti?.filter { it.stato == "pronto" } ?: emptyList()
-    var rispondendo by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     val urgenza: Urgenza? = when {
@@ -63,12 +60,14 @@ fun BandaUrgenze(api: Api, stato: Stato?, connesso: Boolean) {
             azione = null,
             onAzione = {}
         )
+        // Niente piu' finestra che blocca: la domanda si legge e si risponde
+        // nella scheda «Domande», insieme a tutte le altre.
         domanda != null -> Urgenza(
             colore = Banco.ambra,
-            titolo = "Ti sta chiedendo una cosa",
+            titolo = if ((stato?.domande?.size ?: 0) > 1) "${stato?.domande?.size} domande aspettano te" else "Ti sta chiedendo una cosa",
             sotto = domanda.testo,
-            azione = "Rispondi",
-            onAzione = { rispondendo = true }
+            azione = "Vedi",
+            onAzione = onApriDomande
         )
         fermi.isNotEmpty() -> Urgenza(
             colore = Banco.rosso,
@@ -127,9 +126,6 @@ fun BandaUrgenze(api: Api, stato: Stato?, connesso: Boolean) {
         }
     }
 
-    if (rispondendo && domanda != null) {
-        DialogoRisposta(api, domanda, onChiudi = { rispondendo = false })
-    }
 }
 
 private data class Urgenza(
@@ -139,70 +135,6 @@ private data class Urgenza(
     val azione: String?,
     val onAzione: () -> Unit
 )
-
-/**
- * Rispondere alla domanda senza lasciare quello che stavi facendo.
- *
- * Una finestra e non una schermata: la domanda arriva mentre sei da un'altra
- * parte, e dopo aver risposto vuoi tornare esattamente lì.
- */
-@Composable
-private fun DialogoRisposta(api: Api, domanda: Domanda, onChiudi: () -> Unit) {
-    var risposta by remember(domanda.id) { mutableStateOf("") }
-    var inCorso by remember(domanda.id) { mutableStateOf(false) }
-    // Una risposta che non parte non deve sembrare partita: vedi il pulsante.
-    var guasto by remember(domanda.id) { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-
-    AlertDialog(
-        onDismissRequest = { if (!inCorso) onChiudi() },
-        title = { Serigrafia("Ti sta chiedendo", Banco.ambra) },
-        text = {
-            Column {
-                Text(domanda.testo, color = Banco.testo, fontSize = 16.sp)
-                guasto?.let {
-                    Spacer(Modifier.height(10.dp))
-                    Text(it, color = Banco.rosso, fontSize = 13.sp)
-                }
-                Spacer(Modifier.height(14.dp))
-                OutlinedTextField(
-                    value = risposta,
-                    onValueChange = { risposta = it },
-                    placeholder = { Text("La tua risposta", color = Banco.testoQuieto) },
-                    modifier = Modifier.fillMaxWidth().height(130.dp)
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                enabled = !inCorso && risposta.isNotBlank(),
-                onClick = {
-                    inCorso = true
-                    guasto = null
-                    scope.launch {
-                        // **Si chiude solo se e' partita davvero.** L'errore
-                        // veniva ingoiato e la finestra si chiudeva lo stesso:
-                        // tu credevi di aver risposto, la chat restava ferma ad
-                        // aspettare, e non c'era niente da nessuna parte che lo
-                        // dicesse.
-                        val andata = try {
-                            api.rispondi(domanda.id, risposta)
-                            true
-                        } catch (e: Exception) {
-                            guasto = e.message ?: "non sono riuscito a mandarla"
-                            false
-                        }
-                        inCorso = false
-                        if (andata) onChiudi()
-                    }
-                }
-            ) { Text(if (inCorso) "Mando…" else "Rispondi") }
-        },
-        dismissButton = {
-            TextButton(enabled = !inCorso, onClick = onChiudi) { Text("Più tardi") }
-        }
-    )
-}
 
 /** Le voci di una fila, con lo spazio giusto in mezzo. */
 @Composable

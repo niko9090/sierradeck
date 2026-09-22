@@ -126,8 +126,41 @@ data class Chat(
     /** L'ultima riga del terminale: il «battito» a colpo d'occhio. */
     val ultimaRiga: String? = null,
     /** Il progetto di questa chat e' in mano a un altro PC: il suo nome. Un'informazione, non un comando. */
-    val altrove: String? = null
+    val altrove: String? = null,
+    /** Sullo schermo c'e' un elenco di scelte che aspetta te (dalla 0.30). */
+    val chiede: Boolean = false,
+    /** Ha finito di scrivere e aspetta te. */
+    val aspetta: Boolean = false,
+    /** La governa un autopilota: e' lui a parlare per lei. */
+    val governata: Boolean = false
 )
+
+/**
+ * Una voce della scheda «Domande»: una sola forma per tre famiglie, con i
+ * campi che non servono lasciati al predefinito. `tipo` e' `autopilota`,
+ * `scelta` o `chat` (vedi `domande-telefono.ts` sul computer).
+ */
+@Serializable
+data class VoceDomanda(
+    val tipo: String = "",
+    val id: String = "",
+    val autopilotaId: String = "",
+    val autopilota: String = "",
+    /** `intervista` (prima di partire) o `lavoro`. */
+    val origine: String = "",
+    val testo: String = "",
+    val apertaIl: Long? = null,
+    val scadeIl: Long? = null,
+    val chat: String = "",
+    val titolo: String = "",
+    val cwd: String = "",
+    val righe: List<String> = emptyList(),
+    val opzioni: List<Opzione> = emptyList(),
+    val corrente: Int = 0
+)
+
+@Serializable
+data class Domande(val voci: List<VoceDomanda> = emptyList())
 
 @Serializable
 data class AutopilotaBreve(

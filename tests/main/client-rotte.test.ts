@@ -216,7 +216,7 @@ describe('quello che il Client puo fare', () => {
     // dal computer. Il campo c'e' solo quando il progetto e' in mano ad altri.
     const chat = [
       { id: 'p-1', titolo: 'Gestore', cwd: 'C:\p', altrove: 'Portatile' },
-      { id: 'p-2', titolo: 'Altro', cwd: 'C:\q' }
+      { id: 'p-2', titolo: 'Altro', cwd: 'D:/q' }
     ]
     const r = await rotteClient(deps({ chat: () => chat }))({ metodo: 'GET', percorso: '/api/stato', corpo: undefined })
     const stato = r.corpo as { chat: { id: string; altrove?: string }[] }
@@ -1116,4 +1116,33 @@ describe('il Drive dal telefono', () => {
     expect(ok.stato).toBe(200)
   })
 
+})
+
+describe('la scheda «Domande» del telefono (0.30.0)', () => {
+  const ESC = String.fromCharCode(27)
+  const chatConScelta = {
+    id: 'p-2', titolo: 'Permesso', cwd: 'D:/q', aspetta: true,
+    coda: ['Do you want to proceed?', '', '1. Yes', '2. No'],
+    codaGrezza: ['Do you want to proceed?', '', `${ESC}[7m1. Yes${ESC}[0m`, '2. No']
+  }
+  it('/api/domande raccoglie domande degli autopiloti, scelte delle chat e chat ferme', async () => {
+    const r = await rotteClient(deps({
+      chat: () => [{ id: 'p-1', titolo: 'Ferma', cwd: 'C:\p', aspetta: true, coda: ['ho finito', '❯'] }, chatConScelta]
+    }))({ metodo: 'GET', percorso: '/api/domande', corpo: undefined })
+    expect(r.stato).toBe(200)
+    const voci = (r.corpo as { voci: { tipo: string; chat?: string; opzioni?: { testo: string }[]; autopilota?: string }[] }).voci
+    expect(voci.map((v) => v.tipo)).toEqual(['autopilota', 'scelta', 'chat'])
+    expect(voci[0]?.autopilota).toBe('Notte')
+    expect(voci[1]?.chat).toBe('p-2')
+    expect(voci[1]?.opzioni?.map((o) => o.testo)).toEqual(['Yes', 'No'])
+    expect(voci[2]?.chat).toBe('p-1')
+  })
+  it('/api/stato dice per ogni chat se aspetta una scelta, senza mandare le righe', async () => {
+    const r = await rotteClient(deps({ chat: () => [chatConScelta, { id: 'p-3', titolo: 'x', cwd: 'D:/x', coda: ['ciao'] }] }))(
+      { metodo: 'GET', percorso: '/api/stato', corpo: undefined }
+    )
+    const chat = (r.corpo as { chat: { id: string; chiede: boolean; coda?: unknown }[] }).chat
+    expect(chat.map((c) => [c.id, c.chiede])).toEqual([['p-2', true], ['p-3', false]])
+    expect(chat[0]?.coda).toBeUndefined()
+  })
 })

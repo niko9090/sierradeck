@@ -39,6 +39,7 @@ class MainActivity : ComponentActivity() {
         preparaScanner()
 
         val deposito = Collegamento(this)
+        apriDoveChiede(intent)
         setContent {
             TemaSierraDeck {
                 // L'aggiornamento dell'app vive dentro `App` (una striscia in
@@ -98,6 +99,17 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             // Senza servizi Google resta la digitazione manuale del codice.
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        apriDoveChiede(intent)
+    }
+
+    /** Una notifica toccata (una domanda, una chat che aspetta) apre la scheda Domande. */
+    private fun apriDoveChiede(intent: android.content.Intent?) {
+        if (intent == null) return
+        if (intent.hasExtra(Ronda.EXTRA_CHAT) || intent.hasExtra(Ronda.EXTRA_DOMANDA)) Apertura.schedaRichiesta = Scheda.DOMANDE
     }
 
     private fun chiediPermessoNotifiche() {

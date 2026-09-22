@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.QuestionAnswer
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
@@ -67,7 +68,15 @@ import kotlinx.serialization.json.jsonPrimitive
  * qualunque schermata tu stia guardando. Le urgenze si portano a chi guarda;
  * non si mettono in una stanza in fondo al corridoio.
  */
-enum class Scheda { CHAT, LAVORI, NEGOZIO, COMPUTER }
+enum class Scheda { CHAT, DOMANDE, LAVORI, NEGOZIO, COMPUTER }
+
+/**
+ * Dove aprire l'app quando lo chiede qualcun altro: una notifica toccata.
+ * `MainActivity` lo scrive, `App` lo legge una volta e lo azzera.
+ */
+object Apertura {
+    var schedaRichiesta by mutableStateOf<Scheda?>(null)
+}
 
 /**
  * La radice dell'app: prima il muro dell'accoppiamento, poi il resto.
@@ -140,6 +149,10 @@ fun Principale(
     val contesto = LocalContext.current
     // Si apre sulle chat: e' quello per cui si prende in mano il telefono.
     var scheda by remember { mutableStateOf(Scheda.CHAT) }
+    // Una notifica toccata porta dove serve, una volta.
+    LaunchedEffect(Apertura.schedaRichiesta) {
+        Apertura.schedaRichiesta?.let { scheda = it; Apertura.schedaRichiesta = null }
+    }
     var stato by remember { mutableStateOf<Stato?>(null) }
     var connesso by remember { mutableStateOf(true) }
     var giriFalliti by remember { mutableIntStateOf(0) }
@@ -337,7 +350,7 @@ fun Principale(
             NotaGlobale()
             // Quello che non può aspettare, sopra tutto il resto: non è un
             // avviso qualunque, è la ragione per cui questo telefono esiste.
-            BandaUrgenze(api, stato, connesso)
+            BandaUrgenze(api, stato, connesso, onApriDomande = { scheda = Scheda.DOMANDE })
             appNuova?.let { (nome, _) ->
                 BandaAggiornamentoApp(
                     nome = nome,
@@ -348,6 +361,7 @@ fun Principale(
             Box(Modifier.weight(1f).fillMaxSize()) {
                 when (scheda) {
                     Scheda.CHAT -> Chat(api, stato, deposito)
+                    Scheda.DOMANDE -> Domande(api, stato)
                     Scheda.LAVORI -> Lavori(api, stato)
                     Scheda.NEGOZIO -> Negozio(api)
                     Scheda.COMPUTER -> Computer(api, stato)
@@ -370,9 +384,15 @@ private fun Fascia(
     // senza di te non parte. Ambra, non rosso: non e' andato storto niente.
     val pronti = stato?.autopiloti?.any { it.stato == "pronto" } == true
     val allarmeLavori: Color? = if (fermi) Banco.rosso else if (pronti) Banco.ambra else null
+    // Domande degli autopiloti e chat che aspettano una scelta: e' quello che
+    // chiede davvero qualcosa a te. Le chat ferme non contano, o il pallino
+    // sarebbe acceso sempre.
+    val chiedono = (stato?.domande?.size ?: 0) + (stato?.chat?.count { it.chiede } ?: 0)
+    val allarmeDomande: Color? = if (chiedono > 0) Banco.ambra else null
 
     NavigationBar(containerColor = Banco.chassis) {
         voce(attuale, Scheda.CHAT, "Chat", Icons.Filled.Forum, allarme = null, onScegli)
+        voce(attuale, Scheda.DOMANDE, if (chiedono > 0) "Domande · $chiedono" else "Domande", Icons.Filled.QuestionAnswer, allarme = allarmeDomande, onScegli)
         voce(attuale, Scheda.LAVORI, "Lavori", Icons.Filled.SmartToy, allarme = allarmeLavori, onScegli)
         voce(attuale, Scheda.NEGOZIO, "Negozio", Icons.Filled.Extension, allarme = null, onScegli)
         voce(attuale, Scheda.COMPUTER, "Computer", Icons.Filled.Computer, allarme = null, onScegli)

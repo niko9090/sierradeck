@@ -253,6 +253,7 @@ export function paginaClient(): string {
      premere: da un telefono non ci sono ne' frecce ne' invio. Qui ogni opzione
      diventa un bersaglio alto abbastanza per un pollice, e sta sopra al campo
      di testo perche' quando c'e' una scelta aperta e' quella la risposta. */
+  .contesto { background: var(--fondo, #0b0c0e); border-radius: 8px; padding: 8px 10px; font: 12px/1.45 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-word; margin: 8px 0; }
   .scelte {
     display: flex; flex-direction: column; gap: var(--s1);
     border: 2px solid var(--ambra); border-radius: var(--raggio);
@@ -561,6 +562,73 @@ var delegaCartella = -1
 // L'ultimo stato ricevuto: serve a ridisegnare subito quando si apre o si
 // chiude qualcosa, senza aspettare il prossimo giro da due secondi.
 var ultimoStato = { chat: [], autopiloti: [], domande: [] }
+// La scheda «Domande»: l'elenco arriva da /api/domande, letto solo mentre la
+// scheda e' aperta (ogni due secondi) e al primo ingresso.
+var domandeViste = null
+var domandeGuasto = null
+var domandeMandate = {}
+async function leggiDomande() {
+  try {
+    var d = await chiedi('/api/domande')
+    domandeViste = (d && d.voci) || []
+    domandeGuasto = (d && d.errore) ? String(d.errore) : null
+  } catch (e) {
+    domandeGuasto = 'Non riesco a leggere le domande: ' + (e && e.message ? e.message : 'il computer non risponde') + '. Se il computer e\u2019 alla 0.29 o prima, va aggiornato.'
+  }
+  pannello(ultimoStato)
+}
+function chiaveVoce(v) {
+  return v.tipo === 'autopilota' ? 'd:' + v.id : v.tipo === 'scelta' ? 's:' + v.chat + ':' + v.opzioni.map(function (o) { return o.testo }).join('|') : 'c:' + v.chat
+}
+function vistaDomande(s) {
+  if (domandeGuasto && !domandeViste) return '<div class="piastrella"><div class="errore">' + esc(domandeGuasto) + '</div></div>'
+  if (!domandeViste) return '<div class="vuoto">Leggo dal computer\u2026</div>'
+  var vive = {}
+  domandeViste.forEach(function (v) { vive[chiaveVoce(v)] = true })
+  Object.keys(domandeMandate).forEach(function (k) { if (!vive[k]) delete domandeMandate[k] })
+  if (domandeViste.length === 0) {
+    return '<div class="piastrella"><div class="grande">Niente da rispondere</div><div class="sotto">Qui compaiono, senza bloccare niente: le domande che un autopilota ti fa prima di partire o mentre lavora; le scelte che una chat aspetta (un permesso, \u00abvuoi procedere?\u00bb, un elenco numerato); e le chat che hanno finito e aspettano una tua istruzione. Ogni voce ha dentro il modo di rispondere e sparisce da sola quando il computer riceve la risposta.</div></div>'
+  }
+  var contesto = function (righe) {
+    return righe && righe.length ? '<pre class="contesto">' + righe.map(esc).join(String.fromCharCode(10)) + '</pre>' : ''
+  }
+  var chiedono = domandeViste.filter(function (v) { return v.tipo !== 'chat' })
+  var ferme = domandeViste.filter(function (v) { return v.tipo === 'chat' })
+  var html = chiedono.map(function (v) {
+    var k = chiaveVoce(v)
+    var mandata = domandeMandate[k]
+    if (v.tipo === 'autopilota') {
+      return '<div class="piastrella chiede"><div class="serigrafia"><span class="led attesa"></span>' +
+        esc('\u00ab' + v.autopilota + '\u00bb ti chiede' + (v.origine === 'intervista' ? ', prima di partire' : '')) + '</div>' +
+        '<div class="grande">' + esc(v.testo) + '</div>' +
+        (mandata ? '<div class="sotto">Mandata: \u00ab' + esc(mandata) + '\u00bb. Sparisce appena il computer la riceve.</div>'
+          : '<div class="riga"><textarea id="r-' + esc(v.id) + '" rows="3" placeholder="la tua risposta"></textarea></div>' +
+            '<div class="riga"><button class="primario" data-id="' + esc(v.id) + '" onclick="rispondiVoce(this.dataset.id)">Rispondi</button></div>') +
+        '</div>'
+    }
+    return '<div class="piastrella chiede"><div class="serigrafia"><span class="led attesa"></span>' + esc('\u00ab' + (v.titolo || v.cwd) + '\u00bb aspetta che tu scelga') + '</div>' +
+      '<div class="sotto">' + esc(v.cwd) + '</div>' + contesto(v.righe) +
+      (mandata ? '<div class="sotto">Scelta mandata: \u00ab' + esc(mandata) + '\u00bb. Sparisce appena lo schermo cambia.</div>'
+        : '<div class="scelte">' + v.opzioni.map(function (o) {
+            return '<button class="' + (o.scelta ? 'scelta scelta--qui' : 'scelta') + '" data-chat="' + esc(v.chat) + '" data-testo="' + esc(o.testo) + '" onclick="scegliIn(this.dataset.chat, this.dataset.testo)"><b>' + o.numero + '</b> ' + esc(o.testo) + '</button>'
+          }).join('') + '</div>' +
+          '<div class="riga"><textarea id="t-' + esc(v.chat) + '" rows="2" placeholder="oppure scrivile qualcosa"></textarea></div>' +
+          '<div class="riga"><button data-chat="' + esc(v.chat) + '" onclick="scriviIn(this.dataset.chat)">Manda</button></div>') +
+      '</div>'
+  }).join('')
+  if (ferme.length) {
+    html += '<div class="serigrafia">CHAT CHE HANNO FINITO E ASPETTANO TE</div><div class="sotto">Non sono domande: hanno chiuso il turno e aspettano la prossima istruzione.</div>' +
+      ferme.map(function (v) {
+        var mandata = domandeMandate[chiaveVoce(v)]
+        return '<div class="piastrella"><div class="grande">' + esc('\u00ab' + (v.titolo || v.cwd) + '\u00bb ha finito') + '</div><div class="sotto">' + esc(v.cwd) + '</div>' + contesto(v.righe) +
+          (mandata ? '<div class="sotto">Mandato: \u00ab' + esc(mandata) + '\u00bb.</div>'
+            : '<div class="riga"><textarea id="t-' + esc(v.chat) + '" rows="2" placeholder="scrivi alla chat"></textarea></div>' +
+              '<div class="riga"><button data-chat="' + esc(v.chat) + '" onclick="scriviIn(this.dataset.chat)">Manda</button></div>') +
+          '</div>'
+      }).join('')
+  }
+  return html
+}
 /**
  * Quando il computer ha risposto l'ultima volta, e da quanti giri non risponde.
  *
@@ -871,6 +939,7 @@ function ledDestinazione(nome, s) {
   const fermi = aps.some((a) => a.stato === 'sospeso' || a.stato === 'fallito')
   const moto = aps.some((a) => a.stato === 'lavoro')
   if (nome === 'adesso') return chiede ? 'attesa' : fermi ? 'rosso' : moto ? 'lavoro' : ''
+  if (nome === 'domande') return ((s.domande || []).length + (s.chat || []).filter((c) => c.chiede).length) > 0 ? 'attesa' : ''
   if (nome === 'lavori') return chiede ? 'attesa' : fermi ? 'rosso' : moto ? 'lavoro' : ''
   if (nome === 'chat') return (s.chat || []).length > 0 ? 'lavoro' : ''
   // Il computer normalmente non ha LED, e lo accende solo quando c'e' qualcosa
@@ -880,8 +949,9 @@ function ledDestinazione(nome, s) {
 
 /** La fascia fissa, sempre visibile, mai nascosta dallo scorrimento. */
 function fascia(s) {
+  const chiedono = (s.domande || []).length + (s.chat || []).filter((c) => c.chiede).length
   const voci = [
-    ['adesso', 'ADESSO'], ['chat', 'CHAT'], ['lavori', 'LAVORI'], ['computer', 'COMPUTER']
+    ['adesso', 'ADESSO'], ['domande', chiedono > 0 ? 'DOMANDE \u00b7 ' + chiedono : 'DOMANDE'], ['chat', 'CHAT'], ['lavori', 'LAVORI'], ['computer', 'COMPUTER']
   ]
   return '<nav class="fascia">' + voci.map((v) => {
     const l = ledDestinazione(v[0], s)
@@ -1443,6 +1513,7 @@ function pannello(s) {
     // polso, poi la calma. Quando domina una domanda tutto il resto collassa
     // in una riga: e' la ragione per cui questa schermata si legge in un
     // secondo e mezzo invece che scorrerla.
+    domande: vistaDomande(s),
     adesso: fermo + invito + domande + bloccati + panoramica +
       (domande
         ? '<div class="solco"></div><button class="riga-altro" onclick="vaiScheda(\\'lavori\\')">altre cose in moto ›</button>'
@@ -2188,6 +2259,41 @@ window.installaAggiornamento = async () => {
   pannello(ultimoStato)
 }
 
+window.rispondiVoce = async (id) => {
+  const campo = document.getElementById('r-' + id)
+  if (!campo || !campo.value.trim()) return
+  try {
+    await chiedi('/api/rispondi', { domanda: id, risposta: campo.value })
+    domandeMandate['d:' + id] = campo.value.slice(0, 80)
+  } catch (e) {
+    notaGlobale = 'Non sono riuscito a mandare la risposta: ' + (e && e.message ? e.message : 'il computer non risponde')
+  }
+  pannello(ultimoStato)
+}
+window.scegliIn = async (chat, testo) => {
+  const voce = (domandeViste || []).find((v) => v.tipo === 'scelta' && v.chat === chat)
+  try {
+    var esito = await chiedi('/api/scegli', { chat: chat, opzione: testo })
+    if (esito && esito.errore) notaGlobale = String(esito.errore).indexOf('mandata') >= 0 ? 'Gi\u00e0 mandata: aspetta che lo schermo cambi.' : 'La scelta \u00e8 cambiata mentre toccavi: fra un attimo si aggiorna.'
+    else if (voce) domandeMandate[chiaveVoce(voce)] = testo
+  } catch (e) {
+    notaGlobale = 'Non sono riuscito a mandare la scelta: ' + (e && e.message ? e.message : 'il computer non risponde')
+  }
+  pannello(ultimoStato)
+}
+window.scriviIn = async (chat) => {
+  const campo = document.getElementById('t-' + chat)
+  if (!campo || !campo.value.trim()) return
+  const voce = (domandeViste || []).find((v) => v.chat === chat)
+  try {
+    await chiedi('/api/scrivi', { chat: chat, testo: campo.value })
+    if (voce) domandeMandate[chiaveVoce(voce)] = campo.value.slice(0, 80)
+    campo.value = ''
+  } catch (e) {
+    notaGlobale = 'Non sono riuscito a mandarlo: ' + (e && e.message ? e.message : 'il computer non risponde')
+  }
+  pannello(ultimoStato)
+}
 window.rispondi = async (id) => {
   const campo = document.getElementById('r-' + id)
   if (!campo || !campo.value.trim()) return
@@ -2262,6 +2368,7 @@ window.apriAltro = (id) => { altroAperto = altroAperto === id ? null : id; panne
 window.vaiScheda = (nome) => {
   if (scheda === nome) return
   scheda = nome
+  if (nome === 'domande') { domandeViste = null; leggiDomande() }
   // Un pannello aperto appartiene alla schermata in cui e' stato aperto: se lo
   // si lascia aperto cambiando destinazione, ricompare dove non c'entra.
   pannelloAperto = null
@@ -2493,6 +2600,7 @@ aggiorna()
 // Due secondi: abbastanza da sembrare vivo, abbastanza poco da non tenere sveglia
 // la radio del telefono per niente.
 setInterval(() => { if (chiave && !document.hidden) aggiorna() }, 2000)
+setInterval(() => { if (chiave && !document.hidden && scheda === 'domande') leggiDomande() }, 2000)
 </script>
 </body>
 </html>`

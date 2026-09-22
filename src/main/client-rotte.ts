@@ -9,6 +9,7 @@ import { PREFERENZE_PREDEFINITE, tavolozza, type Preferenze } from '@shared/pref
 import { validateNomeWorkspace } from './validation'
 import { pathToSlug } from './indexer/project-scanner'
 import { scelteDiTerminale, tastiPerScegliere } from '@shared/scelte-terminale'
+import { raccogliDomande } from '@shared/domande-telefono'
 
 /**
  * Cosa può fare il Client, e cosa no.
@@ -468,7 +469,12 @@ export function rotteClient(deps: DipendenzeRotte) {
       return OK({
         // Senza la coda delle righe: l'elenco si chiede ogni due secondi, e
         // quello che si guarda dentro è una chat sola, quando la si apre.
-        chat: deps.chat().map(({ coda: _coda, codaGrezza: _grezza, ...resto }) => resto),
+        chat: deps.chat().map(({ coda, codaGrezza, ...resto }) => ({
+          ...resto,
+          // Se sullo schermo c'e' un elenco di scelte: e' il pallino della
+          // scheda «Domande» del telefono, senza aprire la chat.
+          chiede: scelteVive(resto.id, codaGrezza ?? coda ?? []) !== undefined
+        })),
         // I progetti sul Drive: chi li ha in mano e quanti comandi aspettano.
         progetti: deps.progetti?.() ?? [],
         // Solo quello che serve a una piastrella: mandare tutto lo stato di un
@@ -510,6 +516,29 @@ export function rotteClient(deps: DipendenzeRotte) {
         // chiunque sia sulla rete, si dice a chi si e' gia' presentato.
         computer: { nome: deps.nomeComputer?.() ?? '' }
       })
+    }
+
+    /**
+     * Tutto quello che aspetta una risposta, in un elenco solo: le domande
+     * degli autopiloti (l'intervista prima di partire, una decisione mentre
+     * lavora), le chat che aspettano una scelta, le chat che hanno finito e
+     * aspettano te. E' la scheda «Domande» del telefono, che prima non c'era:
+     * le domande stavano in tre posti diversi, una alla volta, e una finestra
+     * bloccava il resto. Le risposte passano dalle rotte di sempre:
+     * `/api/rispondi`, `/api/scegli`, `/api/scrivi`.
+     */
+    if (r.percorso === '/api/domande') {
+      const [autopiloti, domande] = await Promise.all([
+        deps.autopiloti().catch(() => [] as Autopilota[]),
+        deps.domande().catch(() => [])
+      ])
+      const voci = raccogliDomande({
+        domande,
+        autopiloti: autopiloti.map((a) => ({ id: a.id, nome: a.nome, obiettivo: a.obiettivo, stato: a.stato })),
+        chat: deps.chat(),
+        scelteDi: (id, righe) => scelteVive(id, righe)
+      })
+      return OK({ voci })
     }
 
     // I colori del computer, per vestire la pagina con la stessa grafica.

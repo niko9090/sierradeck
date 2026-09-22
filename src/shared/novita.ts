@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.30.0',
+    righe: [
+      '**La scheda «Domande» sul telefono (app 2.33.0 e pagina).** Tutto quello che aspetta una tua risposta sta in un posto solo, e non blocca più niente: le domande che un autopilota ti fa prima di partire (l’intervista) o mentre lavora, le scelte che una chat aspetta (un permesso, «vuoi procedere?», un elenco numerato, una conversazione da riprendere), e sotto le chat che hanno finito e aspettano una tua istruzione. Ogni voce mostra chi chiede, la domanda com’è scritta sullo schermo, e il modo di rispondere: le opzioni da toccare, o una casella per scrivere. Sparisce da sola quando il computer riceve la risposta. Il pallino sulla scheda conta domande e scelte; una notifica toccata apre la scheda. La banda ambra in cima non apre più una finestra: porta alla scheda. Sul computer c’è la rotta `/api/domande` che raccoglie l’elenco, e ogni chat in `/api/stato` dice se sta aspettando una scelta.'
+    ]
+  },
+  {
     versione: '0.29.2',
     righe: [
       '**App Android 2.32.0: le notifiche arrivano, e la chat si legge.** Le notifiche ad app chiusa non arrivavano quasi mai: fra una sveglia e l’altra Android chiude il processo, e al risveglio l’app «dimenticava» e taceva su tutto quello che era successo. Ora il ricordo sta su disco e si annuncia davvero il passaggio a «aspetta te», «ha finito», «si è fermato». Con l’app aperta gli avvisi arrivano subito, non alla sveglia dopo. Icona vera nella barra (prima un quadrato bianco), e nella scheda Computer → Avvisi l’app dice se Android ha le notifiche spente o limita l’app in sottofondo, con il tasto per sistemarlo. La chat: il lettore dei codici del terminale è stato riscritto. Prima una sequenza di cancellazione o di cursore mangiava il testo fino alla prima «m», una sequenza della shell poteva bloccare l’app, lo sfondo veniva letto come colore del testo e il video inverso (l’opzione scelta in un elenco) era invisibile. Ora si vedono grassetto, corsivo, sottolineato, sfondi, inverso, e tutto il resto si scarta. La griglia non scende più sotto i 10 punti. Sul PC: «aspetta te» si dice al telefono solo dopo quattro secondi di quiete, così un comando lungo non manda la stessa notifica più volte. Questa release porta anche l’APK che alla 0.29.x mancava.'

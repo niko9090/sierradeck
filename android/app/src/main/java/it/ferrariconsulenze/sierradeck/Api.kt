@@ -68,6 +68,8 @@ class Api(private val indirizzo: String, private val chiave: String?) {
 
     // ─── stato e stile ───
     suspend fun stato(): Stato = json.decodeFromString(corpoTesto("/api/stato", null))
+    /** Tutto quello che aspetta una risposta da te (dalla 0.30 del computer: prima 404). */
+    suspend fun domande(): Domande = json.decodeFromString(corpoTesto("/api/domande", null))
     /** Lo stato letto, insieme al testo grezzo: la guardia degli avvisi lo legge come JSON generico. */
     suspend fun statoConTesto(): Pair<Stato, String> {
         val testo = corpoTesto("/api/stato", null)
