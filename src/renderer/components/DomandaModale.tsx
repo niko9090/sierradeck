@@ -148,10 +148,10 @@ export function DomandaModale({ autopiloti }: { autopiloti: Autopilota[] }): Rea
               rispondi()
             }
           }}
-          rows={3}
+          rows={6}
           placeholder="La tua risposta — Invio manda, Maiusc+Invio va a capo"
           className="campo"
-          style={{ width: '100%', fontSize: 13, resize: 'vertical', lineHeight: 1.45 }}
+          style={{ width: '100%', fontSize: 13, resize: 'vertical', lineHeight: 1.45, minHeight: 120 }}
         />
 
         {errore !== undefined ? (

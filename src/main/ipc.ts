@@ -633,7 +633,7 @@ function mettiDaParteArchivio(percorso: string, nomeCopia: string): void {
 export type StatoWorkspace = { nomi: string[]; attivo: string }
 
 /** Oltre questo una risposta non è più una risposta a una domanda puntuale. */
-const RISPOSTA_MAX = 4000
+const RISPOSTA_MAX = 100_000
 const ID_DOMANDA = /^d-[A-Za-z0-9-]{1,64}$/
 
 function validaIdDomanda(raw: unknown): string {

@@ -267,7 +267,7 @@ describe('validaNuovoAutopilota', () => {
   })
 
   it('rifiuta un obiettivo sterminato', () => {
-    expect(() => validaNuovoAutopilota(richiestaAp({ obiettivo: 'x'.repeat(4001) }))).toThrow(/obiettivo/)
+    expect(() => validaNuovoAutopilota(richiestaAp({ obiettivo: 'x'.repeat(200_001) }))).toThrow(/obiettivo/)
   })
 
   it('rifiuta criteri che non sono un elenco', () => {

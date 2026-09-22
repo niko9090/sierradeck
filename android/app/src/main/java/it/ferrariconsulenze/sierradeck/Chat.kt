@@ -481,7 +481,7 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
         ) {
             OutlinedTextField(
                 value = testo,
-                onValueChange = { testo = it.take(2000) },
+                onValueChange = { testo = it.take(50_000) },
                 placeholder = { Text("Scrivi alla chat…", color = Banco.testoQuieto, fontSize = 14.sp) },
                 textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
                 maxLines = 5,

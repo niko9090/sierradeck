@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.32.0',
+    righe: [
+      '**La finestra per creare un autopilota, rifatta (app 2.35.0).** L’obiettivo si scrive in una casella grande, ridimensionabile, senza limite di caratteri: prima era una riga sola con un tetto di 4.000 caratteri e non si vedeva nemmeno quello che si scriveva. Invio va a capo, Ctrl+Invio prepara. Ogni campo dice cosa fa: la cartella, il nome (facoltativo), le chat in parallelo e cosa costano, i criteri di fine (facoltativi, uno per riga: se li lasci vuoti li ricava lui nell’intervista). Sotto c’è scritto cosa succede dopo «Prepara». Tolti i tetti anche alle risposte alle domande dell’autopilota (sul PC, nella pagina e nell’app) e all’obiettivo dal telefono. Tutto quello che scrivi arriva a lui parola per parola, come mandato.'
+    ]
+  },
+  {
     versione: '0.31.0',
     righe: [
       '**I limiti del piano nei Consumi, e gli avvisi in basso a destra (app 2.34.0).** Ogni chat aperta da SierraDeck ha ora una riga di stato di Claude Code che rimanda al programma i numeri veri del piano: la finestra di cinque ore e quella settimanale con la percentuale usata e l’ora di azzeramento (gli stessi di «/usage»), il costo che Claude Code stima per la sessione, il modello e quanto contesto è occupato. Nel pannello Consumi (Impostazioni → Consumi) ci sono due barre per i limiti, con la spiegazione di cosa succede al 100%, la spesa stimata di oggi e degli ultimi sette giorni, le chat aperte con il loro contesto, i token per modello. Sopra l’80% di una finestra compare un fumetto in basso a destra, sopra il 95% uno rosso, e un altro quando il contesto di una chat supera il 90%: ognuno una volta sola, finché la finestra non si azzera. La stessa riga in fondo al terminale di ogni chat dice modello, contesto, finestre e costo. La riga di stato di SierraDeck vale solo nelle sue chat e solo se non ne hai già una tua nelle impostazioni di Claude Code. Sul telefono, la scheda Computer → Consumi mostra le stesse barre. Serve un abbonamento Pro o Max: con una chiave API a consumo non ci sono finestre, e il pannello lo dice.'

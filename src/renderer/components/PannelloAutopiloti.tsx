@@ -5,9 +5,9 @@ import { destinazioni } from '../destinazioni-autopilota'
 import { useLayoutStore } from '../state/layout'
 import { useSessionStore } from '../state/sessions'
 
-type Bozza = { obiettivo: string; cwd: string; chat: string }
+type Bozza = { obiettivo: string; cwd: string; chat: string; nome: string; criteri: string }
 
-const BOZZA_VUOTA: Bozza = { obiettivo: '', cwd: '', chat: '1' }
+const BOZZA_VUOTA: Bozza = { obiettivo: '', cwd: '', chat: '1', nome: '', criteri: '' }
 
 /** Il valore della voce che riapre il campo libero, quando la lista non basta. */
 const ALTRA = '::altra'
@@ -68,11 +68,13 @@ export function PannelloAutopiloti({
 
   useEffect(() => {
     const suTasto = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape' && bozza === undefined) onChiudi()
+      if (e.key !== 'Escape') return
+      if (bozza === undefined) onChiudi()
+      else if (!inCorso) setBozza(undefined)
     }
     window.addEventListener('keydown', suTasto)
     return () => window.removeEventListener('keydown', suTasto)
-  }, [onChiudi, bozza])
+  }, [onChiudi, bozza, inCorso])
 
   const esegui = (op: () => Promise<unknown>): void => {
     if (inCorso) return
@@ -93,11 +95,13 @@ export function PannelloAutopiloti({
       // aver guardato il progetto e chiesto solo ciò che il codice non dice.
       // Scriverli a mano era lavoro che ricadeva sull'utente proprio nel
       // momento in cui stava delegando.
+      // I criteri, se scritti, uno per riga: se no li ricava lui nell'intervista.
+      const criteri = bozza.criteri.split(/\r?\n/).map((r) => r.trim()).filter((r) => r !== '').map((descrizione) => ({ descrizione }))
       await window.gestore.autopilota.crea({
-        nome: bozza.obiettivo.slice(0, 40),
+        nome: bozza.nome.trim() !== '' ? bozza.nome.trim().slice(0, 80) : bozza.obiettivo.trim().split(/\s+/).slice(0, 8).join(' ').slice(0, 60),
         obiettivo: bozza.obiettivo.trim(),
         cwd: bozza.cwd.trim(),
-        criteri: [],
+        criteri,
         ...(Number.isInteger(chat) && chat > 1 ? { tettoChat: chat } : {}),
         // Da dove sta partendo: è lì che il suo lavoro dovrà comparire, anche
         // fra tre ore, quando chi lo ha avviato starà guardando altro.
@@ -156,113 +160,149 @@ export function PannelloAutopiloti({
       </div>
 
       {bozza !== undefined ? (
-        <div
-          style={{
-            display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end',
-            padding: '10px 8px 12px', marginBottom: 6,
-            background: 'rgba(0,0,0,0.22)', borderRadius: 4
-          }}
-        >
-          {/* Etichette vere sopra i campi: un placeholder sparisce appena
-              scrivi, e chi torna al modulo non sa più cosa stava riempiendo. */}
-          <label className="etichetta" style={{ flex: '3 1 320px' }}>
+        <div className="nuovo-ap">
+          {/* Una finestra vera, non una riga: l'obiettivo di un autopilota e'
+              un mandato — vincoli, cosa non toccare, come si capisce che ha
+              finito — e in una riga sola non si vedeva nemmeno quello che si
+              stava scrivendo (Nicholas, 22/09/2026). Nessun tetto di
+              caratteri: un documento intero va bene. */}
+          <div className="nuovo-ap__testa">
+            <span className="serigrafia">Nuovo autopilota</span>
+            <span className="misura">Ctrl+Invio per preparare · Esc per annullare</span>
+          </div>
+
+          <label className="etichetta nuovo-ap__blocco">
             <span className="serigrafia">Cosa vuoi ottenere</span>
-            <input
+            <textarea
               autoFocus
-              className="campo"
+              className="campo campo--obiettivo"
               value={bozza.obiettivo}
-              placeholder="Descrivilo con parole tue — al resto pensa lui"
+              placeholder={'Descrivilo con parole tue, tutto quello che serve: l’obiettivo, i vincoli (cosa non toccare, cosa non fare), come si capisce che ha finito, dove guardare. Puoi incollare un documento intero.'}
               onChange={(e) => setBozza({ ...bozza, obiettivo: e.target.value })}
-              onKeyDown={(e) => { if (e.key === 'Enter') crea() }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); crea() } }}
+              spellCheck={false}
             />
+            <span className="misura nuovo-ap__conto">
+              {bozza.obiettivo.trim() === '' ? 'Ancora niente.' : `${bozza.obiettivo.length.toLocaleString('it-IT')} caratteri, ${bozza.obiettivo.trim().split(/\s+/).length.toLocaleString('it-IT')} parole.`}
+              {' '}Tutto quello che scrivi qui arriva a lui parola per parola, come mandato: non viene riassunto né tagliato.
+              Invio va a capo; Ctrl+Invio prepara.
+            </span>
           </label>
-          <label className="etichetta" style={{ flex: '2 1 260px' }}>
-            <span className="serigrafia">Su quale chat</span>
-            {/* La lista invece del percorso a mano: le chat aperte e i progetti
-                recenti la macchina li conosce già, e un percorso battuto a mano
-                si sbaglia — con l'errore che salta fuori a autopilota partito. */}
-            {aMano || mete.length === 0 ? (
-              <>
-                <input
+
+          <div className="nuovo-ap__riga">
+            <label className="etichetta" style={{ flex: '2 1 280px' }}>
+              <span className="serigrafia">In quale cartella lavora</span>
+              {aMano || mete.length === 0 ? (
+                <>
+                  <input
+                    className="campo"
+                    value={bozza.cwd}
+                    placeholder="C:\Users\...\progetto"
+                    onChange={(e) => setBozza({ ...bozza, cwd: e.target.value })}
+                  />
+                  {mete.length > 0 ? (
+                    <button
+                      type="button"
+                      className="collegamento"
+                      onClick={() => {
+                        setAMano(false)
+                        setBozza({ ...bozza, cwd: mete[0]?.cwd ?? '' })
+                      }}
+                    >
+                      torna alla lista
+                    </button>
+                  ) : null}
+                </>
+              ) : (
+                <select
                   className="campo"
                   value={bozza.cwd}
-                  placeholder="C:\Users\...\progetto"
-                  onChange={(e) => setBozza({ ...bozza, cwd: e.target.value })}
-                />
-                {mete.length > 0 ? (
-                  <button
-                    type="button"
-                    className="collegamento"
-                    onClick={() => {
-                      setAMano(false)
-                      setBozza({ ...bozza, cwd: mete[0]?.cwd ?? '' })
-                    }}
-                  >
-                    torna alla lista
-                  </button>
-                ) : null}
-              </>
-            ) : (
-              <select
+                  onChange={(e) => {
+                    if (e.target.value === ALTRA) {
+                      setAMano(true)
+                      setBozza({ ...bozza, cwd: '' })
+                    } else setBozza({ ...bozza, cwd: e.target.value })
+                  }}
+                >
+                  {mete.some((m) => m.aperta) ? (
+                    <optgroup label="Chat aperte adesso">
+                      {mete
+                        .filter((m) => m.aperta)
+                        .map((m) => (
+                          <option key={m.cwd} value={m.cwd}>
+                            {m.etichetta} — {m.dettaglio}
+                          </option>
+                        ))}
+                    </optgroup>
+                  ) : null}
+                  {mete.some((m) => !m.aperta) ? (
+                    <optgroup label="Progetti recenti">
+                      {mete
+                        .filter((m) => !m.aperta)
+                        .map((m) => (
+                          <option key={m.cwd} value={m.cwd}>
+                            {m.etichetta} — {m.dettaglio}
+                          </option>
+                        ))}
+                    </optgroup>
+                  ) : null}
+                  <option value={ALTRA}>Altra cartella…</option>
+                </select>
+              )}
+              <span className="misura">La cartella del progetto: è lì che legge i file, lancia i comandi e lascia il quaderno. Le chat che apre nascono lì, nel workspace da cui lo avvii.</span>
+            </label>
+
+            <label className="etichetta" style={{ flex: '1 1 200px' }}>
+              <span className="serigrafia">Nome (facoltativo)</span>
+              <input
                 className="campo"
-                value={bozza.cwd}
-                onChange={(e) => {
-                  if (e.target.value === ALTRA) {
-                    setAMano(true)
-                    setBozza({ ...bozza, cwd: '' })
-                  } else setBozza({ ...bozza, cwd: e.target.value })
-                }}
-              >
-                {mete.some((m) => m.aperta) ? (
-                  <optgroup label="Chat aperte adesso">
-                    {mete
-                      .filter((m) => m.aperta)
-                      .map((m) => (
-                        <option key={m.cwd} value={m.cwd}>
-                          {m.etichetta} — {m.dettaglio}
-                        </option>
-                      ))}
-                  </optgroup>
-                ) : null}
-                {mete.some((m) => !m.aperta) ? (
-                  <optgroup label="Progetti recenti">
-                    {mete
-                      .filter((m) => !m.aperta)
-                      .map((m) => (
-                        <option key={m.cwd} value={m.cwd}>
-                          {m.etichetta} — {m.dettaglio}
-                        </option>
-                      ))}
-                  </optgroup>
-                ) : null}
-                <option value={ALTRA}>Altra cartella…</option>
-              </select>
-            )}
-          </label>
-          <label className="etichetta" style={{ flex: '0 0 74px' }}>
-            <span className="serigrafia">Chat</span>
-            <input
-              type="number"
-              min={1}
-              max={8}
-              className="campo"
-              value={bozza.chat}
-              onChange={(e) => setBozza({ ...bozza, chat: e.target.value })}
-              title="Oltre 1, il lavoro viene spezzato in pezzi indipendenti"
+                value={bozza.nome}
+                placeholder="Se vuoto: le prime parole dell’obiettivo"
+                onChange={(e) => setBozza({ ...bozza, nome: e.target.value })}
+              />
+              <span className="misura">Come lo vedi nell’elenco, nei LED e nelle notifiche.</span>
+            </label>
+
+            <label className="etichetta" style={{ flex: '0 0 110px' }}>
+              <span className="serigrafia">Chat in parallelo</span>
+              <input
+                type="number"
+                min={1}
+                max={8}
+                className="campo"
+                value={bozza.chat}
+                onChange={(e) => setBozza({ ...bozza, chat: e.target.value })}
+              />
+              <span className="misura">1 = una chat sola. Di più solo se il lavoro si spezza in parti indipendenti: ogni chat è un claude.exe e pesa sui limiti.</span>
+            </label>
+          </div>
+
+          <label className="etichetta nuovo-ap__blocco">
+            <span className="serigrafia">Come si capisce che ha finito (facoltativo, uno per riga)</span>
+            <textarea
+              className="campo campo--criteri"
+              value={bozza.criteri}
+              placeholder={'es. i test passano\nla pagina si apre senza errori in console\nil quaderno ha una scheda con cosa è cambiato'}
+              onChange={(e) => setBozza({ ...bozza, criteri: e.target.value })}
+              spellCheck={false}
             />
+            <span className="misura">Sono i criteri di fine: li verifica lui, uno per uno, prima di dichiararsi finito. Se li lasci vuoti se li ricava da solo nell’intervista, guardando il progetto.</span>
           </label>
-          <button
-            className="tasto tasto--primario"
-            onClick={crea}
-            disabled={inCorso || bozza.obiettivo.trim() === '' || bozza.cwd.trim() === ''}
-          >
-            Prepara
-          </button>
-          {/* Dice cosa succede dopo il clic: senza, «Prepara» sembra un
-              salvataggio e l'utente non aspetterebbe le domande. */}
-          <p style={{ flexBasis: '100%', margin: '2px 0 0', color: 'var(--testo-quieto)', fontSize: 11 }}>
-            Guarderà il progetto e ti farà le domande che gli servono. Poi si configura da sé e parte.
-          </p>
+
+          <div className="nuovo-ap__azioni">
+            <button
+              className="tasto tasto--primario"
+              onClick={crea}
+              disabled={inCorso || bozza.obiettivo.trim() === '' || bozza.cwd.trim() === ''}
+              title={bozza.obiettivo.trim() === '' ? 'Scrivi prima cosa vuoi ottenere' : bozza.cwd.trim() === '' ? 'Scegli la cartella' : 'Prepara l’autopilota'}
+            >
+              {inCorso ? 'Preparo…' : 'Prepara'}
+            </button>
+            <button className="tasto" onClick={() => setBozza(undefined)} disabled={inCorso}>Annulla</button>
+            <span className="misura" style={{ flex: '1 1 100%', marginTop: 4 }}>
+              Cosa succede dopo: legge il progetto, ti fa al massimo un paio di domande (nella sua scheda, nella scheda «Domande» del telefono, e per notifica), si scrive i criteri se non li hai dati, e aspetta il tuo «Vai». Non parte da solo. Puoi cambiargli obiettivo e vincoli anche dopo, scrivendogli nella sua scheda.
+            </span>
+          </div>
         </div>
       ) : null}
 

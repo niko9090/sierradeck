@@ -1201,7 +1201,8 @@ function pannello(s) {
          <div class="titolo">Cosa vuoi che faccia?</div>
          <div class="sotto">Descrivilo con parole tue. Ti farà le domande che gli servono, qui.</div>
          <div class="riga">
-           <textarea id="delega-obiettivo" rows="3" placeholder="es. trova e sistema i test che falliscono a caso"></textarea>
+           <textarea id="delega-obiettivo" rows="8" placeholder="Tutto quello che serve: l’obiettivo, i vincoli (cosa non toccare), come si capisce che ha finito. Nessun limite: puoi incollare un documento."></textarea>
+           <div class="sotto">Arriva a lui parola per parola, come mandato. Poi legge il progetto, ti fa al massimo un paio di domande (le trovi nella scheda Domande) e aspetta il tuo «Vai».</div>
          </div>
          <div class="sotto" style="margin-top:10px">In quale cartella?</div>
          \${(cartelle || []).length === 0

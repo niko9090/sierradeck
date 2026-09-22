@@ -195,7 +195,7 @@ private fun CampoRisposta(
     }
     OutlinedTextField(
         value = testo,
-        onValueChange = { testo = it.take(4000) },
+        onValueChange = { testo = it.take(50_000) },
         placeholder = { Text(segnaposto, color = Banco.testoQuieto, fontSize = 13.sp) },
         textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
         maxLines = 6,

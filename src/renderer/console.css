@@ -1630,6 +1630,17 @@ input.campo {
 
 /* Una tendina che sta in una fascia o in una testata: stessa altezza dei tasti,
    senza il respiro di un campo di modulo. */
+/* La finestra di creazione dell'autopilota: una casella vera per l'obiettivo. */
+.nuovo-ap { display: flex; flex-direction: column; gap: 12px; padding: 12px 10px 14px; margin-bottom: 8px; background: rgba(0,0,0,0.22); border-radius: 6px; }
+.nuovo-ap__testa { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.nuovo-ap__blocco { display: flex; flex-direction: column; gap: 4px; }
+.nuovo-ap__riga { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+.nuovo-ap__riga .etichetta { display: flex; flex-direction: column; gap: 4px; }
+.nuovo-ap__azioni { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.nuovo-ap__conto { line-height: 1.45; }
+.campo--obiettivo { min-height: 180px; max-height: 55vh; resize: vertical; font: inherit; font-size: var(--t2); line-height: 1.5; white-space: pre-wrap; }
+.campo--criteri { min-height: 76px; max-height: 30vh; resize: vertical; font: inherit; font-size: var(--t2); line-height: 1.5; }
+
 .campo--compatto {
   font-size: var(--t1);
   padding: var(--s1) var(--s2);

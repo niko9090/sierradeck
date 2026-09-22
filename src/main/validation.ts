@@ -273,8 +273,13 @@ export function validateIdFinestra(raw: unknown): number {
 }
 
 const ID_AUTOPILOTA = /^[A-Za-z0-9_-]{1,64}$/
-/** Oltre questo un obiettivo non è più un obiettivo: è un documento. */
-const OBIETTIVO_MAX = 4000
+/**
+ * Un obiettivo puo' essere un documento intero: prima il tetto era 4000
+ * caratteri e la finestra una riga sola, e Nicholas non riusciva nemmeno a
+ * vedere quello che scriveva. Resta un limite di sicurezza contro il
+ * nonsenso (un file incollato per sbaglio), non contro il lavoro.
+ */
+const OBIETTIVO_MAX = 200_000
 
 /**
  * L'id di un autopilota, che nel servizio diventa il nome di un file.

@@ -342,7 +342,9 @@ const OK = (corpo: unknown): Esito => ({ stato: 200, corpo })
 const TESTO = (corpo: string, tipo: string): Esito => ({ stato: 200, corpo, tipo })
 
 /** Il testo che si può mandare a una chat: due parole, non un romanzo. */
-const TESTO_MAX = 2000
+const TESTO_MAX = 50_000
+/** L'obiettivo di un autopilota dal telefono: un documento intero va bene. */
+const OBIETTIVO_MAX = 200_000
 
 function stringa(corpo: unknown, campo: string): string {
   if (typeof corpo !== 'object' || corpo === null) return ''
@@ -804,7 +806,7 @@ export function rotteClient(deps: DipendenzeRotte) {
       if (deps.cartellaEsiste !== undefined && !(await deps.cartellaEsiste(cartella).catch(() => false))) {
         return { stato: 404, corpo: { errore: 'cartella inesistente su questo computer' } }
       }
-      const creato = await deps.creaAutopilota(obiettivo.slice(0, TESTO_MAX), cartella)
+      const creato = await deps.creaAutopilota(obiettivo.slice(0, OBIETTIVO_MAX), cartella)
       return OK({ fatto: true, autopilota: creato.id })
     }
 

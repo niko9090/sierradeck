@@ -704,7 +704,7 @@ private fun Delega(api: Api, onChiudi: () -> Unit) {
                     value = obiettivo,
                     onValueChange = { obiettivo = it },
                     label = { Text("Cosa deve fare") },
-                    modifier = Modifier.fillMaxWidth().height(120.dp)
+                    modifier = Modifier.fillMaxWidth().height(220.dp)
                 )
                 Spacer(Modifier.height(10.dp))
                 Text("In quale cartella:", color = Banco.testoQuieto, fontSize = 12.sp)

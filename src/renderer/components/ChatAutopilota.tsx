@@ -117,7 +117,8 @@ export function ChatAutopilota({
       <div className="chatap__scrivi">
         <textarea
           className="campo chatap__campo"
-          rows={2}
+          rows={3}
+          style={{ resize: 'vertical' }}
           value={messaggio}
           placeholder={
             domanda
