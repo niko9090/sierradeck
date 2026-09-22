@@ -1047,6 +1047,16 @@ input.campo {
   background: var(--spento);
   border-radius: var(--raggio);
 }
+.barra__pieno--ambra { background: var(--ambra); }
+
+/* I limiti del piano nei Consumi: due barre, ambra sopra l'80% e rosse sopra il 95%. */
+.limiti { display: flex; gap: 24px; flex-wrap: wrap; }
+.limite { flex: 1 1 260px; min-width: 0; }
+.limite__testa { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.limite__barra { display: block; height: 10px; background: var(--chassis-premuto); border-radius: var(--raggio); overflow: hidden; box-shadow: inset 0 1px 2px var(--ombra-corta); }
+.limite__pieno { display: block; height: 100%; background: var(--accento); border-radius: var(--raggio); transition: width 300ms var(--uscita); }
+.limite__pieno--ambra { background: var(--ambra); }
+.limite__pieno--rosso { background: var(--rosso, #c0392b); }
 
 /* ─────────────────── il diario dell'autopilota ─────────────────── */
 

@@ -228,8 +228,21 @@ data class Dentro(
 data class Consumi(
     val oggi: Quota = Quota(),
     val settimana: Quota = Quota(),
-    val totale: Quota = Quota()
+    val totale: Quota = Quota(),
+    /** I limiti del piano, letti dal computer (dalla 0.31): finestra di 5 ore e settimana. */
+    val limiti: Limiti? = null,
+    /** La spesa che Claude Code stima, in dollari. */
+    val costo: Costo? = null
 )
+
+@Serializable
+data class Finestra(val percento: Double = 0.0, val resettaIl: Long? = null)
+
+@Serializable
+data class Limiti(val cinqueOre: Finestra? = null, val settimana: Finestra? = null, val letti: Long = 0, val modello: String? = null)
+
+@Serializable
+data class Costo(val oggi: Double = 0.0, val settimana: Double = 0.0, val totale: Double = 0.0, val chat: Int = 0)
 
 @Serializable
 data class Quota(

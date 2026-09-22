@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.31.0',
+    righe: [
+      '**I limiti del piano nei Consumi, e gli avvisi in basso a destra (app 2.34.0).** Ogni chat aperta da SierraDeck ha ora una riga di stato di Claude Code che rimanda al programma i numeri veri del piano: la finestra di cinque ore e quella settimanale con la percentuale usata e l’ora di azzeramento (gli stessi di «/usage»), il costo che Claude Code stima per la sessione, il modello e quanto contesto è occupato. Nel pannello Consumi (Impostazioni → Consumi) ci sono due barre per i limiti, con la spiegazione di cosa succede al 100%, la spesa stimata di oggi e degli ultimi sette giorni, le chat aperte con il loro contesto, i token per modello. Sopra l’80% di una finestra compare un fumetto in basso a destra, sopra il 95% uno rosso, e un altro quando il contesto di una chat supera il 90%: ognuno una volta sola, finché la finestra non si azzera. La stessa riga in fondo al terminale di ogni chat dice modello, contesto, finestre e costo. La riga di stato di SierraDeck vale solo nelle sue chat e solo se non ne hai già una tua nelle impostazioni di Claude Code. Sul telefono, la scheda Computer → Consumi mostra le stesse barre. Serve un abbonamento Pro o Max: con una chiave API a consumo non ci sono finestre, e il pannello lo dice.'
+    ]
+  },
+  {
     versione: '0.30.0',
     righe: [
       '**La scheda «Domande» sul telefono (app 2.33.0 e pagina).** Tutto quello che aspetta una tua risposta sta in un posto solo, e non blocca più niente: le domande che un autopilota ti fa prima di partire (l’intervista) o mentre lavora, le scelte che una chat aspetta (un permesso, «vuoi procedere?», un elenco numerato, una conversazione da riprendere), e sotto le chat che hanno finito e aspettano una tua istruzione. Ogni voce mostra chi chiede, la domanda com’è scritta sullo schermo, e il modo di rispondere: le opzioni da toccare, o una casella per scrivere. Sparisce da sola quando il computer riceve la risposta. Il pallino sulla scheda conta domande e scelte; una notifica toccata apre la scheda. La banda ambra in cima non apre più una finestra: porta alla scheda. Sul computer c’è la rotta `/api/domande` che raccoglie l’elenco, e ogni chat in `/api/stato` dice se sta aspettando una scelta.'

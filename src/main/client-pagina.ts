@@ -1410,7 +1410,8 @@ function pannello(s) {
           '<div class="numero"><b>' + esc(token(consumiVisti.settimana)) + '</b><span>7 giorni</span></div>' +
           '<div class="numero"><b>' + esc(token(consumiVisti.totale)) + '</b><span>totale</span></div>' +
           '</div>' +
-          '<div class="sotto" style="margin-top:10px">Token, non denaro. Oggi: ' + esc(quote(consumiVisti.oggi)) + '.</div>'}
+          '<div class="sotto" style="margin-top:10px">Token letti dalle trascrizioni. Oggi: ' + esc(quote(consumiVisti.oggi)) + '.</div>' +
+          limitiHtml(consumiVisti)}
       <div class="riga"><button onclick="apriPannello('consumi')">Chiudi</button></div>
     </div>\`
 
@@ -2203,6 +2204,26 @@ function descriviAggiornamento() {
   if (a.fase === 'errore') return 'Qualcosa non ha funzionato: ' + (a.errore || '')
   if (a.fase === 'cerco') return 'Sto guardando se ce n’è una nuova…'
   return 'Sei alla versione più recente.'
+}
+
+function limitiHtml(c) {
+  var l = c && c.limiti
+  var barra = function (nome, f, spiega) {
+    var p = f ? Math.round(f.percento) : 0
+    var colore = p >= 95 ? '#dc5f5f' : p >= 80 ? '#e0a33c' : '#4aa3ff'
+    var quando = f && f.resettaIl ? ' \u00b7 si azzera ' + new Date(f.resettaIl).toLocaleString('it-IT', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : ''
+    return '<div style="margin-top:10px"><div class="sotto"><b>' + nome + '</b>: ' + (f ? p + '% usato' + quando : 'non ancora letta') + '</div>' +
+      '<div class="barra"><i style="width:' + p + '%;background:' + colore + '"></i></div><div class="sotto">' + spiega + '</div></div>'
+  }
+  var spesa = c && c.costo
+    ? '<div class="sotto" style="margin-top:10px"><b>Spesa stimata da Claude Code</b>: oggi ' + c.costo.oggi.toFixed(2) + ' $, 7 giorni ' + c.costo.settimana.toFixed(2) + ' $. Con un abbonamento \u00e8 un\u2019indicazione, non una fattura.</div>'
+    : ''
+  return '<div class="solco"></div><div class="serigrafia">LIMITI DEL PIANO</div>' +
+    barra('Finestra di 5 ore', l && l.cinqueOre, 'Al 100% le chat si fermano fino all\u2019azzeramento.') +
+    barra('Settimana', l && l.settimana, 'Il tetto settimanale su tutti i modelli.') +
+    (l ? '<div class="sotto" style="margin-top:6px">Letti alle ' + new Date(l.letti).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) + ': sono gli stessi numeri di /usage.</div>'
+      : '<div class="sotto" style="margin-top:6px">Arrivano dalla riga di stato di Claude Code dopo la prima risposta di una chat aperta dal computer (solo con abbonamento Pro o Max).</div>') +
+    spesa
 }
 
 window.leggiConsumi = async () => {

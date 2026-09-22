@@ -22,6 +22,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -280,6 +283,23 @@ fun Computer(api: Api, stato: Stato?) {
             QuotaRiga("Oggi", c.oggi)
             QuotaRiga("7 giorni", c.settimana)
             QuotaRiga("Totale", c.totale)
+            Spacer(Modifier.height(8.dp))
+            Text("LIMITI DEL PIANO", color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp)
+            val l = c.limiti
+            FinestraRiga("Finestra di 5 ore", l?.cinqueOre, "Al 100% le chat si fermano fino all’azzeramento.")
+            FinestraRiga("Settimana", l?.settimana, "Il tetto settimanale su tutti i modelli.")
+            Text(
+                if (l == null) "Non ancora letti: arrivano dalla riga di stato di Claude Code dopo la prima risposta di una chat aperta dal computer (solo con abbonamento Pro o Max)."
+                else "Letti alle " + java.text.SimpleDateFormat("HH:mm", java.util.Locale.ITALY).format(java.util.Date(l.letti)) + ": gli stessi numeri di /usage.",
+                color = Banco.testoQuieto, fontSize = 11.sp
+            )
+            c.costo?.let { k ->
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Spesa stimata da Claude Code: oggi ${"%.2f".format(k.oggi)} $, 7 giorni ${"%.2f".format(k.settimana)} $. Con un abbonamento è un’indicazione, non una fattura.",
+                    color = Banco.testoQuieto, fontSize = 11.sp
+                )
+            }
         }
 
         Divisore()
@@ -797,6 +817,24 @@ private fun RiquadroAggiornamento(
 /** L'ora di adesso, ore e minuti. Serve solo a dire «è successo, ed è successo ora». */
 private fun oraDiAdesso(): String =
     java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+
+/** Una finestra dei limiti del piano: nome, percentuale, azzeramento, e la barra colorata. */
+@Composable
+private fun FinestraRiga(nome: String, f: Finestra?, spiega: String) {
+    val p = if (f == null) 0 else f.percento.toInt().coerceIn(0, 100)
+    val colore = if (p >= 95) Banco.rosso else if (p >= 80) Banco.ambra else Banco.accento
+    val quando = f?.resettaIl?.let { " · si azzera " + java.text.SimpleDateFormat("EEE HH:mm", java.util.Locale.ITALY).format(java.util.Date(it)) } ?: ""
+    Spacer(Modifier.height(6.dp))
+    Row(Modifier.fillMaxWidth()) {
+        Text(nome, color = Banco.testo, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        Text(if (f == null) "non ancora letta" else "$p% usato$quando", color = Banco.testoQuieto, fontSize = 12.sp)
+    }
+    Spacer(Modifier.height(4.dp))
+    Box(Modifier.fillMaxWidth().height(8.dp).background(Banco.chassisAlto, RoundedCornerShape(4.dp))) {
+        Box(Modifier.fillMaxWidth(p / 100f).height(8.dp).background(colore, RoundedCornerShape(4.dp)))
+    }
+    Text(spiega, color = Banco.testoQuieto, fontSize = 11.sp)
+}
 
 @Composable
 private fun QuotaRiga(nome: String, q: Quota) {

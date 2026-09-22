@@ -43,6 +43,12 @@ export type DipendenzeClient = {
   /** Le rotte che si possono chiamare **senza** chiave: solo quelle dell'ingresso. */
   rottaLibera?: Rotta
   /**
+   * Il polso di una chat: la riga di stato di Claude Code manda qui il suo
+   * JSON (`POST /api/polso`, solo da 127.0.0.1, senza chiave: e' un
+   * processo di questo computer) e riceve il testo da mostrare.
+   */
+  polso?: (corpo: unknown) => string
+  /**
    * Dove raccontare i rifiuti (rete, chiave). Fino alla 0.26.0 andavano solo
    * in console: quando il telefono «non funziona», dal registro del PC non si
    * poteva dire se bussava e veniva respinto o se non arrivava affatto.
@@ -73,6 +79,11 @@ const LIBERE = new Set([
   '/favicon.ico',
   '/api/ciao', '/api/accoppia', '/api/app'
 ])
+
+/** Solo il computer stesso: 127.0.0.1, ::1, e la forma IPv6 dell'IPv4 locale. */
+export function eLoopback(indirizzo: string): boolean {
+  return indirizzo === '127.0.0.1' || indirizzo === '::1' || indirizzo === '::ffff:127.0.0.1'
+}
 
 export function autorizzata(percorso: string): boolean {
   return LIBERE.has(percorso)
@@ -135,6 +146,20 @@ async function gestisci(
   const percorso = (req.url ?? '/').split('?')[0] ?? '/'
   const metodo = req.method ?? 'GET'
   const corpo = metodo === 'GET' ? undefined : await leggiCorpoJson(req)
+
+  // Il polso delle chat: nasce da un comando lanciato da Claude Code su questa
+  // macchina, quindi vale solo dal loopback e non ha una chiave. Da fuori e'
+  // una rotta che non esiste.
+  if (percorso === '/api/polso') {
+    if (metodo !== 'POST' || !eLoopback(indirizzo) || deps.polso === undefined) {
+      rispondi(res, { stato: 403, corpo: { errore: 'solo da questo computer' } })
+      return
+    }
+    let riga = ''
+    try { riga = deps.polso(corpo) } catch (err) { console.warn('[client] polso non letto:', err) }
+    rispondi(res, { stato: 200, corpo: riga, tipo: 'text/plain; charset=utf-8' })
+    return
+  }
 
   if (autorizzata(percorso)) {
     rispondi(res, await (deps.rottaLibera ?? deps.rotta)({ metodo, percorso, corpo }))

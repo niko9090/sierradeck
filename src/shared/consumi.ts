@@ -1,4 +1,5 @@
 import type { SessionSummary } from './types'
+import type { Costo, Limiti } from './polso-chat'
 
 export type Quota = {
   ingresso: number
@@ -14,6 +15,14 @@ export type Consumi = {
   totale: Quota
   /** I progetti che consumano di più, dal primo. */
   perProgetto: { progetto: string; token: number }[]
+  /** I modelli usati negli ultimi 7 giorni, dal più pesante: i grandi pesano di più sui limiti. */
+  perModello?: { modello: string; token: number }[]
+  /** I limiti del piano (finestra di 5 ore, settimana), letti dal polso delle chat. */
+  limiti?: Limiti
+  /** La spesa che Claude Code stima per le sue sessioni, sommata per periodo. */
+  costo?: Costo
+  /** Le chat aperte adesso, con modello, contesto occupato e costo. */
+  chatAperte?: { sessione: string; titolo?: string; modello?: string; contestoPercento?: number; costoUsd?: number }[]
 }
 
 const GIORNO_MS = 24 * 60 * 60 * 1000
@@ -46,6 +55,7 @@ export function riassumiConsumi(sessioni: SessionSummary[], adesso: number): Con
   const settimana = vuota()
   const totale = vuota()
   const perProgetto = new Map<string, number>()
+  const perModello = new Map<string, number>()
 
   // Le chat, non i file: due sessioni della stessa conversazione sono una sola.
   const chatOggi = new Set<string>()
@@ -75,6 +85,8 @@ export function riassumiConsumi(sessioni: SessionSummary[], adesso: number): Con
     if (quando >= adesso - 7 * GIORNO_MS) {
       aggiungi(settimana, s)
       chatSettimana.add(chiaveChat)
+      const modello = nomeModello(s.model)
+      perModello.set(modello, (perModello.get(modello) ?? 0) + s.inputTokens + s.outputTokens)
     }
     if (quando >= inizioOggi.getTime()) {
       aggiungi(oggi, s)
@@ -93,8 +105,22 @@ export function riassumiConsumi(sessioni: SessionSummary[], adesso: number): Con
     perProgetto: [...perProgetto.entries()]
       .map(([progetto, token]) => ({ progetto, token }))
       .sort((a, b) => b.token - a.token)
+      .slice(0, PROGETTI_MOSTRATI),
+    perModello: [...perModello.entries()]
+      .map(([modello, token]) => ({ modello, token }))
+      .sort((a, b) => b.token - a.token)
       .slice(0, PROGETTI_MOSTRATI)
   }
+}
+
+/** `claude-opus-5-20260301` → «Opus 5»: il nome che si legge, non l'id. */
+export function nomeModello(id: string | undefined): string {
+  if (id === undefined || id.trim() === '') return 'sconosciuto'
+  const m = /^(?:claude-)?([a-z]+)-(\d+)(?:-(\d+))?/i.exec(id.trim())
+  if (m === null) return id
+  const famiglia = (m[1] ?? '').charAt(0).toUpperCase() + (m[1] ?? '').slice(1)
+  const versione = m[3] !== undefined && m[3].length <= 2 ? `${m[2]}.${m[3]}` : m[2]
+  return `${famiglia} ${versione}`
 }
 
 /**

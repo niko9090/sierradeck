@@ -29,6 +29,7 @@ import { PannelloImpostazioni } from './components/PannelloImpostazioni'
 import { PannelloNegozio } from './components/PannelloNegozio'
 import { PannelloTrasferimenti } from './components/PannelloTrasferimenti'
 import { tavolozza, type Preferenze } from '@shared/preferenze'
+import { avvisiConsumi, type AvvisoConsumi } from '@shared/polso-chat'
 import { ModaleAccesso } from './components/ModaleAccesso'
 import { ModalePreparazione } from './components/ModalePreparazione'
 import { ModaleTestimone, type AvvisoProgetto } from './components/ModaleTestimone'
@@ -629,6 +630,30 @@ export function App(): React.JSX.Element {
   const [riavvioFra, setRiavvioFra] = useState<number | undefined>(undefined)
   const [riavvioRinviato, setRiavvioRinviato] = useState<string | undefined>(undefined)
   const [riavvioEsito, setRiavvioEsito] = useState<string | undefined>(undefined)
+  // Gli avvisi sui consumi — la finestra di 5 ore o la settimana sopra l'80%,
+  // il contesto di una chat quasi pieno — in un fumetto, una volta per fatto:
+  // la chiave dell'avviso cambia con l'azzeramento, e quelle gia' mostrate
+  // restano nel browser.
+  const [avvisoConsumi, setAvvisoConsumi] = useState<AvvisoConsumi | undefined>(undefined)
+  useEffect(() => {
+    let vivo = true
+    let gia = new Set<string>()
+    try { gia = new Set<string>(JSON.parse(localStorage.getItem('avvisi-consumi') ?? '[]') as string[]) } catch { /* si riparte senza memoria */ }
+    const giro = (): void => {
+      window.gestore.sessions.consumi().then((c) => {
+        if (!vivo) return
+        const avvisi = avvisiConsumi({ limiti: c.limiti, chatAperte: c.chatAperte ?? [], adesso: Date.now() })
+        const nuovo = avvisi.find((a) => !gia.has(a.chiave))
+        if (nuovo === undefined) return
+        gia.add(nuovo.chiave)
+        try { localStorage.setItem('avvisi-consumi', JSON.stringify([...gia].slice(-60))) } catch { /* senza memoria si ripete al prossimo avvio, non di piu' */ }
+        setAvvisoConsumi(nuovo)
+      }).catch(() => undefined)
+    }
+    const primo = setTimeout(giro, 20_000)
+    const t = setInterval(giro, 30_000)
+    return () => { vivo = false; clearTimeout(primo); clearInterval(t) }
+  }, [])
   useEffect(() => {
     const u = lavoroDrive.ultimo
     if (u === undefined || u.riavvioConsigliato !== true || riavvioRinviato === u.quando) { setRiavvioFra(undefined); return }
@@ -1349,6 +1374,16 @@ export function App(): React.JSX.Element {
             <span className="led led--attesa" />
             <span className="fumetto__testo">{riavvioEsito}</span>
             <button className="tasto tasto--mini" onClick={() => setRiavvioEsito(undefined)}>×</button>
+          </Fumetto>
+        ) : null}
+        {avvisoConsumi !== undefined ? (
+          <Fumetto tono={avvisoConsumi.tono}>
+            <span className={`led ${avvisoConsumi.tono === 'errore' ? 'led--fermo' : 'led--attesa'}`} />
+            <span className="fumetto__testo">
+              {avvisoConsumi.testo}{' '}
+              <button className="collegamento" onClick={() => { setAvvisoConsumi(undefined); setAperto('impostazioni') }} title="Il pannello dei consumi, dentro le Impostazioni">Consumi</button>
+            </span>
+            <button className="tasto tasto--mini" onClick={() => setAvvisoConsumi(undefined)} title="Chiudi">×</button>
           </Fumetto>
         ) : null}
       </Fumetti>

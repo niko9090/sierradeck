@@ -45,7 +45,8 @@ import {
 import { creaClientAutopilota } from './autopilot-client'
 import { apriIstantaneeStore } from './istantanee-store'
 import { listSessions } from './db'
-import { riassumiConsumi } from '@shared/consumi'
+import { riassumiConsumi, type Consumi } from '@shared/consumi'
+import { costoPerPeriodo, leggiPolso, limitiAggiornati, rigaDiStato, type Polso } from '@shared/polso-chat'
 import { creaWorkspace, eliminaWorkspace } from './workspace-operazioni'
 import type { SessionSummary } from '@shared/types'
 import { apriImpostazioniStore } from './impostazioni-store'
@@ -170,6 +171,76 @@ let inChiusura = false
 let serverClient: import('node:http').Server | undefined
 /** Le chat aperte, come le racconta il renderer: servono al Client. */
 let chatAperte: Chat[] = []
+/**
+ * Il polso di ogni chat: quello che la riga di stato di Claude Code ci manda
+ * (modello, costo, contesto, limiti del piano). In memoria e su disco
+ * (`polso-chat.json`), perche' la spesa di ieri serve anche dopo un riavvio.
+ */
+const polsi = new Map<string, Polso>()
+let salvaPolsiTimer: NodeJS.Timeout | undefined
+let filePolsi = ''
+function ricordaPolso(p: Polso): void {
+  polsi.set(p.sessione, p)
+  if (salvaPolsiTimer !== undefined) return
+  salvaPolsiTimer = setTimeout(() => {
+    salvaPolsiTimer = undefined
+    if (filePolsi !== '') scriviJsonAtomico(filePolsi, [...polsi.values()], 'polso-chat')
+  }, 2000)
+}
+function caricaPolsi(percorso: string): void {
+  filePolsi = percorso
+  try {
+    if (!existsSync(percorso)) return
+    const raw: unknown = JSON.parse(readFileSync(percorso, 'utf8'))
+    if (!Array.isArray(raw)) return
+    for (const p of raw) {
+      if (typeof p === 'object' && p !== null && typeof (p as Polso).sessione === 'string' && typeof (p as Polso).quando === 'number') polsi.set((p as Polso).sessione, p as Polso)
+    }
+  } catch (err) {
+    console.warn('[consumi] polso-chat.json non letto:', err)
+  }
+}
+/** I consumi dell'indice piu' quello che sa solo il polso: limiti, spesa, chat aperte. */
+function arricchisciConsumi(c: Consumi): Consumi {
+  const adesso = Date.now()
+  const tutti = [...polsi.values()]
+  const limiti = limitiAggiornati(tutti, adesso)
+  const chatConPolso = chatAperte
+    .filter((ch) => ch.sessione !== undefined && polsi.has(ch.sessione))
+    .map((ch) => {
+      const p = polsi.get(ch.sessione ?? '')
+      return {
+        sessione: ch.sessione ?? '',
+        titolo: ch.titolo,
+        ...(p?.modello !== undefined ? { modello: p.modello } : {}),
+        ...(p?.contesto !== undefined ? { contestoPercento: p.contesto.percento } : {}),
+        ...(p?.costoUsd !== undefined ? { costoUsd: p.costoUsd } : {})
+      }
+    })
+  return { ...c, ...(limiti !== undefined ? { limiti } : {}), costo: costoPerPeriodo(tutti, adesso), chatAperte: chatConPolso }
+}
+/**
+ * La riga di stato di Claude Code per le chat di SierraDeck: un `curl` che
+ * rimanda il JSON al server locale e stampa quello che il server risponde.
+ * Solo se l'utente non ne ha gia' una sua in `~/.claude/settings.json`: la
+ * sua vince, e i limiti restano non letti (lo dice il pannello).
+ */
+function rigaDiStatoPerChat(porta: number): Record<string, unknown> | undefined {
+  try {
+    const file = join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'), 'settings.json')
+    if (existsSync(file)) {
+      const s: unknown = JSON.parse(readFileSync(file, 'utf8'))
+      if (typeof s === 'object' && s !== null && (s as Record<string, unknown>).statusLine !== undefined) return undefined
+    }
+  } catch { /* un file illeggibile non ha una riga di stato */ }
+  return {
+    statusLine: {
+      type: 'command',
+      command: `curl -s -X POST -H "content-type: application/json" --data-binary @- http://127.0.0.1:${porta}/api/polso`,
+      padding: 0
+    }
+  }
+}
 /** L'ultimo battito mandato al servizio autopiloti per le chat governate al lavoro. */
 let ultimoBattitoAlServizio = 0
 const BATTITO_AL_SERVIZIO_MS = 60_000
@@ -726,10 +797,15 @@ if (!app.requestSingleInstanceLock()) {
           const scope = scopeStore?.leggi(cwd) ?? scopeVuoto()
           // Nessun override per questa cartella: si lascia tutto com'era, senza
           // nemmeno leggere i file. È il caso normale, e non deve costare nulla.
-          if (scopeInerte(scope)) return autopilotaJson
-          const radice = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
-          const globali = leggiGlobaliPerScope({ radiceClaude: radice, fileClaudeJson: join(homedir(), '.claude.json'), cwd })
-          return fondiImpostazioni(autopilotaJson, componiScope({ scope, ...globali }))
+          let base = autopilotaJson
+          if (!scopeInerte(scope)) {
+            const radice = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
+            const globali = leggiGlobaliPerScope({ radiceClaude: radice, fileClaudeJson: join(homedir(), '.claude.json'), cwd })
+            base = fondiImpostazioni(autopilotaJson, componiScope({ scope, ...globali }))
+          }
+          // La riga di stato che ci porta limiti del piano, costo e contesto.
+          const riga = rigaDiStatoPerChat(impostazioni.preferenze().portaClient)
+          return riga === undefined ? base : fondiImpostazioni(base, riga)
         },
         // La porta arriva come lettura e non come numero: gli hook di una chat
         // si compongono al momento dello spawn, molto dopo questa riga.
@@ -755,7 +831,8 @@ if (!app.requestSingleInstanceLock()) {
           process.env.GESTORE_CLAUDE_PATH = trovato
         }
       }
-      db = registerSessionIpc(dati)
+      caricaPolsi(join(dati, 'polso-chat.json'))
+      db = registerSessionIpc(dati, arricchisciConsumi)
       workspaceStore = apriWorkspaceStore(dati)
       // Dove stavano le finestre: va aperto prima che ne nasca una, perche' e'
       // la prima ad avere bisogno di sapere dove tornare.
@@ -2415,7 +2492,7 @@ if (!app.requestSingleInstanceLock()) {
             : { ok: false, messaggio: esito.stato === 'errore' ? esito.messaggio : 'da confermare per email' }
         },
         esciAccount: async () => { await esciAccount() },
-        consumi: async () => (db === undefined ? {} : riassumiConsumi(listSessions(db), Date.now())),
+        consumi: async () => (db === undefined ? {} : arricchisciConsumi(riassumiConsumi(listSessions(db), Date.now()))),
         // Il quaderno di una cartella: le schede che l'autopilota lascia
         // accanto al codice che descrivono.
         quaderno: (cwd: string) =>
@@ -2461,6 +2538,14 @@ if (!app.requestSingleInstanceLock()) {
       const porta = impostazioni.preferenze().portaClient
       serverClient = creaServerClient({
         dispositivi,
+        // Il polso delle chat: la riga di stato di Claude Code ci manda il suo
+        // JSON e riceve la riga da mostrare in fondo al terminale.
+        polso: (corpo) => {
+          const p = leggiPolso(corpo, Date.now())
+          if (p === undefined) return ''
+          ricordaPolso(p)
+          return rigaDiStato(p, Date.now())
+        },
         // Letta a ogni richiesta, non all'avvio: cambiarla nelle impostazioni
         // deve valere subito, senza riaprire il programma.
         oltreLaRete: () => impostazioni.preferenze().clientOltreLaRete,

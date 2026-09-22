@@ -76,7 +76,7 @@ import {
   type StatoPreparazione
 } from './preparazione'
 import { leggiAccesso } from './accesso'
-import { riassumiConsumi } from '@shared/consumi'
+import { riassumiConsumi, type Consumi } from '@shared/consumi'
 
 export type { SpawnRequest } from './validation'
 
@@ -354,7 +354,7 @@ export function primoIndice(): Promise<IndexOutcome> {
   return primaLettura ?? Promise.resolve({ indexed: 0, failed: 0, riusate: 0 })
 }
 
-export function registerSessionIpc(cartella?: string): Db {
+export function registerSessionIpc(cartella?: string, arricchisciConsumi?: (c: Consumi) => Consumi): Db {
   // La cartella arriva da chi ha già fatto la migrazione del nome: calcolarla
   // di nuovo qui vorrebbe dire poterla calcolare **diversa**.
   const dir = cartella ?? join(app.getPath('appData'), APP_DATA_DIR_NAME)
@@ -476,11 +476,12 @@ export function registerSessionIpc(cartella?: string): Db {
 
   // I consumi si ricavano dall'indice, che i token li ha gia': non serve
   // interrogare nessun servizio, e la risposta e' immediata.
-  ipcMain.handle('sessioni:consumi', () =>
+  ipcMain.handle('sessioni:consumi', () => {
     // Senza tetto: un consumo calcolato sulle prime cinquemila righe sarebbe un
     // numero che sembra un totale e non lo è.
-    riassumiConsumi(listSessions(db), Date.now())
-  )
+    const c = riassumiConsumi(listSessions(db), Date.now())
+    return arricchisciConsumi === undefined ? c : arricchisciConsumi(c)
+  })
 
   // `reindex` cattura gia' i fallimenti dell'indicizzazione, ma `webContents.send`
   // puo' comunque sollevare se la finestra viene distrutta fra il controllo e
