@@ -353,7 +353,12 @@ export function creaAggiornamenti(
         // Non in silenzio: si rimanda lo stato, cosi' una finestra rimasta a
         // «pronto» vede l'attesa in corso invece di un tasto che non risponde.
         nota(`installazione gia avviata (fase ${stato.fase}): rimando lo stato`)
-        annuncia(stato)
+        // Se la fase e' ancora «pronto» l'attesa precedente e' rimasta appesa:
+        // lo si dice nello stato, che il telefono e il pannello leggono, invece
+        // di rimandare un «pronto» muto che sembra un tasto rotto.
+        annuncia(stato.fase === 'pronto'
+          ? { ...stato, errore: 'Ho già ricevuto «Installa» in questa sessione e l’attesa è rimasta appesa: chiudi e riapri SierraDeck su questo PC, poi riprova.' }
+          : stato)
         return
       }
       // Si installa **solo** quando c'è davvero qualcosa di pronto. Senza questa

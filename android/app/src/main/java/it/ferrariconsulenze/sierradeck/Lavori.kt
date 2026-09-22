@@ -19,6 +19,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.border
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -166,6 +171,12 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
     var mandando by remember(breve.id) { mutableStateOf(false) }
     var notaDialogo by remember(breve.id) { mutableStateOf<String?>(null) }
     var linguetta by remember(breve.id) { mutableStateOf(0) }
+    // Le linguette nascono **chiuse**: Nicholas (22/09, con una foto) — «non
+    // vedo cosa scrivo, non scorre la pagina e non vedo la chat». La meta' di
+    // sotto si prendeva meta' schermo anche con la tastiera aperta, e la
+    // casella finiva fuori. Aperta una linguetta, il suo contenuto ha un tetto
+    // e la chat resta sopra; toccarla di nuovo la richiude.
+    var linguettaAperta by remember(breve.id) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val lista = rememberLazyListState()
 
@@ -185,7 +196,10 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
     // non a ogni rilettura, cosi' chi sta rileggendo l'inizio non viene
     // riportato giu' ogni due secondi.
     LaunchedEffect(righe) {
-        if (righe > 0) lista.animateScrollToItem(righe - 1)
+        // L'ultima voce dell'elenco, qualunque cosa ci sia sopra (le fasi, il
+        // titolo): contare le battute dava l'indice sbagliato.
+        val totale = lista.layoutInfo.totalItemsCount
+        if (righe > 0 && totale > 0) lista.animateScrollToItem(totale - 1)
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -216,7 +230,9 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                         val perche = if (strategia != null) "bloccato, provo: $strategia"
                             else det?.motivoSospensione?.takeIf { it.isNotBlank() } ?: breve.motivo
                         if (perche.isNotBlank()) {
-                            Text(perche, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 3)
+                            // Due righe: il motivo intero sta gia' nella striscia in alto e
+                            // nella linguetta «Obiettivo»; qui deve restare posto alla chat.
+                            Text(perche, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 2)
                         }
                     }
                 }
@@ -233,17 +249,24 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
         }
         HorizontalDivider(color = Banco.incisione)
 
-        // ─── la chat con lui: la meta' di sopra ───
+        // ─── la chat con lui: tutto lo spazio che resta ───
+        //
+        // Le fasi e la misura **scorrono con la chat**, come prime voci
+        // dell'elenco: prima stavano fisse sopra e, con la tastiera aperta,
+        // mangiavano tutto lo spazio della meta' di sopra — la chat spariva e la
+        // casella finiva sotto le linguette, fuori dallo schermo.
         Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) {
-            if (det != null && det.passaggi.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                Passaggi(det.passaggi)
-                Spacer(Modifier.height(6.dp))
-                Misura(det.misura, det.cicli)
-            }
-            Spacer(Modifier.height(6.dp))
-            Serigrafia("Chat con lui")
             LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = lista) {
+                if (det != null && det.passaggi.isNotEmpty()) item {
+                    Spacer(Modifier.height(8.dp))
+                    // Il motivo del fermo sta gia' nell'intestazione: qui la nota
+                    // delle fasi si mostra solo quando dice altro.
+                    Passaggi(det.passaggi, mostraNota = det.stato != "sospeso" && det.stato != "fallito")
+                    Spacer(Modifier.height(6.dp))
+                    Misura(det.misura, det.cicli)
+                    Spacer(Modifier.height(6.dp))
+                }
+                item { Serigrafia("Chat con lui") }
                 items(chat) { b ->
                     RigaChat(b, breve.nome) {
                         scope.launch { tenta("farlo partire") { api.vaiAutopilota(breve.id) } }
@@ -266,6 +289,18 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                 value = messaggio,
                 onValueChange = { messaggio = it },
                 label = { Text(if (domanda) "La tua risposta" else "Scrivigli qui: una domanda, un vincolo, «fermati», «riprendi»…") },
+                textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, color = Banco.testo),
+                // Gli stessi colori della chat: il testo che scrivi si deve
+                // leggere sul fondo scuro.
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Banco.accento,
+                    unfocusedBorderColor = Banco.incisione,
+                    focusedContainerColor = Banco.fondo,
+                    unfocusedContainerColor = Banco.fondo,
+                    focusedTextColor = Banco.testo,
+                    unfocusedTextColor = Banco.testo,
+                    cursorColor = Banco.accento
+                ),
                 maxLines = 3,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -319,17 +354,30 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
             selectedTabIndex = linguetta,
             containerColor = Banco.fondo,
             contentColor = Banco.testo,
-            edgePadding = 8.dp
+            edgePadding = 8.dp,
+            // Nessun segno sotto la linguetta finche' e' chiusa: un segno su
+            // «Obiettivo» con niente sotto sembrava una scheda vuota.
+            indicator = { posizioni ->
+                if (linguettaAperta && linguetta < posizioni.size) {
+                    TabRowDefaults.SecondaryIndicator(Modifier.tabIndicatorOffset(posizioni[linguetta]), color = Banco.accento)
+                }
+            }
         ) {
             nomi.forEachIndexed { i, nome ->
+                val aperta = linguettaAperta && linguetta == i
                 Tab(
-                    selected = linguetta == i,
-                    onClick = { linguetta = i },
-                    text = { Text(nome, fontSize = 12.sp, color = if (linguetta == i) Banco.testo else Banco.testoQuieto) }
+                    selected = aperta,
+                    onClick = {
+                        if (aperta) linguettaAperta = false
+                        else { linguetta = i; linguettaAperta = true }
+                    },
+                    text = { Text(nome + if (aperta) " ▾" else "", fontSize = 12.sp, color = if (aperta) Banco.testo else Banco.testoQuieto) }
                 )
             }
         }
-        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
+        // Con un tetto: al massimo un terzo abbondante dello schermo, cosi' la
+        // chat e la casella restano sopra anche con la tastiera aperta.
+        if (linguettaAperta) Column(Modifier.fillMaxWidth().heightIn(max = 260.dp).verticalScroll(rememberScrollState()).padding(16.dp)) {
             when (linguetta) {
                 0 -> {
                     // Quello che hai scritto tu, e quello che lui ne ha fatto:
@@ -503,7 +551,7 @@ private fun AzioniAutopilota(api: Api, id: String, stato: String) {
 }
 
 @Composable
-private fun Passaggi(passi: List<Passo>) {
+private fun Passaggi(passi: List<Passo>, mostraNota: Boolean = true) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         for (p in passi) {
             val colore = when (p.stato) {
@@ -521,7 +569,7 @@ private fun Passaggi(passi: List<Passo>) {
         }
     }
     val nota = passi.firstOrNull { it.nota != null }?.nota
-    if (nota != null) {
+    if (nota != null && mostraNota) {
         Spacer(Modifier.height(6.dp))
         Text(nota, color = Banco.testoQuieto, fontSize = 13.sp)
     }

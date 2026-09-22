@@ -594,12 +594,17 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
      * che aveva già finito. Una riga con l'ora è la prova che è successo.
      */
     var cercatoAlle by remember { mutableStateOf<String?>(null) }
+    // Com'e' andato l'ultimo «Installa»: prima, se la richiesta falliva, lo
+    // schermo «sto installando» compariva e spariva senza una parola.
+    var esitoInstalla by remember { mutableStateOf<String?>(null) }
 
     val descrizione = when (a?.fase) {
         "cerco" -> "Sto guardando se c’è qualcosa di nuovo…"
-        "disponibile" -> "C'è la ${a.versione ?: "versione nuova"}, da scaricare."
+        "disponibile" -> "C'è la ${a.versione ?: "versione nuova"}, da scaricare." + (a.errore?.let { "\n$it" } ?: "")
         "scarico" -> "Sto scaricando la ${a.versione ?: ""}."
-        "pronto" -> "La ${a.versione ?: ""} è già scaricata e aspetta solo di essere installata."
+        // Con il motivo del computer, se l'ultima installazione non e' partita:
+        // il PC lo manda da sempre in questo campo, e qui nessuno lo leggeva.
+        "pronto" -> "La ${a.versione ?: ""} è già scaricata e aspetta solo di essere installata." + (a.errore?.let { "\n$it" } ?: "")
         "attendo" -> when {
             a.attesa != null -> "Aspetto che finisca ${a.attesa}, poi installo."
             (a.chatOccupate ?: 0) == 1 -> "Aspetto che una chat finisca quello che ha in mano, poi installo."
@@ -642,7 +647,7 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
         stato = descrizione,
         colore = colore,
         percento = if (a?.fase == "scarico") (a.percento ?: 0) else null,
-        poscritto = cercatoAlle?.let { "Ho cercato alle $it." }
+        poscritto = esitoInstalla ?: cercatoAlle?.let { "Ho cercato alle $it." }
     ) {
         when (a?.fase) {
             "disponibile" -> Button(
@@ -663,10 +668,21 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
                         // millisecondi, e segnare dopo vorrebbe dire non
                         // segnare affatto.
                         Installazione.iniziata(contesto, versionePc)
+                        esitoInstalla = null
                         // Se la richiesta non parte, lo schermo «sto installando»
                         // restava davanti a un computer che non lo stava facendo,
-                        // per dieci minuti.
-                        try { api.installaAggiornamento() } catch (_: Exception) { Installazione.finita(contesto) }
+                        // per dieci minuti. E si dice: un tasto che torna com'era
+                        // senza una parola sembra rotto.
+                        try {
+                            api.installaAggiornamento()
+                            esitoInstalla = "Chiesto alle ${oraDiAdesso()}. Se il computer resta su «pronto» senza aspettare le chat, il perché è nel suo registro (sul PC: Account → Apri i log, righe «aggiornamenti»); chiudere e riaprire SierraDeck là sblocca un «Installa» rimasto appeso."
+                        } catch (e: Api.Errore) {
+                            Installazione.finita(contesto)
+                            esitoInstalla = "Il computer ha rifiutato la richiesta (HTTP ${e.codice}). Riprova; se continua, aggiorna SierraDeck dal suo schermo."
+                        } catch (e: Exception) {
+                            Installazione.finita(contesto)
+                            esitoInstalla = "Non sono riuscito a chiedere l’installazione: ${e.message ?: "il computer non risponde"}."
+                        }
                     }
                 }
             ) { Text("Installa") }
