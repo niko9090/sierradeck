@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apriSincronia } from '../../src/main/cassaforte/sincronia'
@@ -99,6 +99,34 @@ describe('l’arrivo dal Drive', () => {
     const terzo = await syncF.arrivo()
     expect(terzo.scritti).toBe(1)
     expect(readFileSync(join(fisso.claude, 'projects', SLUG_P, 'u1.jsonl'), 'utf8')).toBe('{"riga":1}\n{"riga":2}\n{"riga":3}\n')
+  })
+
+  it('una chat ferma da piu’ della ritenzione di Claude Code resta sul Drive (scenderebbe oggi e sparirebbe domani); con una ritenzione lunga scende', async () => {
+    const drive = driveCondiviso()
+    const portatile = pc('portatile'); const fisso = pc('fisso')
+    const fresca = join(portatile.claude, 'projects', SLUG_P, 'fresca.jsonl')
+    const vecchia = join(portatile.claude, 'projects', SLUG_P, 'vecchia.jsonl')
+    writeFileSync(fresca, '{"riga":1}\n', 'utf8')
+    writeFileSync(vecchia, '{"riga":1}\n', 'utf8')
+    const quarantaGiorniFa = (Date.now() - 40 * 86_400_000) / 1000
+    utimesSync(vecchia, quarantaGiorniFa, quarantaGiorniFa)
+    const syncP = apri(portatile, drive, 'PORTATILE')
+    expect((await syncP.creaPassphrase('passphrase-robusta-1')).ok).toBe(true)
+    expect((await syncP.salva()).ok).toBe(true)
+
+    const syncF = apri(fisso, drive, 'FISSO')
+    expect((await syncF.sblocca('passphrase-robusta-1')).ok).toBe(true)
+    const r = await syncF.arrivo()
+    expect(r.ok).toBe(true)
+    expect(r.scritti).toBe(1)
+    expect(existsSync(join(fisso.claude, 'projects', SLUG_P, 'fresca.jsonl'))).toBe(true)
+    expect(existsSync(join(fisso.claude, 'projects', SLUG_P, 'vecchia.jsonl'))).toBe(false)
+
+    // Chi tiene le trascrizioni dieci anni (cleanupPeriodDays) le riceve tutte.
+    writeFileSync(join(fisso.claude, 'settings.json'), JSON.stringify({ cleanupPeriodDays: 3650 }), 'utf8')
+    const dopo = await syncF.arrivo()
+    expect(dopo.scritti).toBe(1)
+    expect(existsSync(join(fisso.claude, 'projects', SLUG_P, 'vecchia.jsonl'))).toBe(true)
   })
 
   it('l’automatico fa salire e poi scendere', async () => {

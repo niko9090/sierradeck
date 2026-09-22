@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { creaCassaforte, sblocca as sbloccaCassaforte, sbloccaConRecupero as sbloccaConRecuperoCassaforte, cambiaPassphrase as cambiaPassphraseCassaforte, type Cassaforte, cifra, decifra } from './cifratura'
 import type { Progresso } from './motore'
 import { pesaRadici, radiciDaSincronizzare, percorsoSicuro, type Radice } from './raccolta'
+import { giorniDiRitenzione, fuoriRitenzione } from './ritenzione-claude'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
 import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi, stessaFirma, giaArrivata, scriviManifesto, nomeDi, impronta } from './incrementale'
@@ -272,6 +273,8 @@ export function apriSincronia(deps: {
   cartellaProgetti?: () => string
 }): Sincronia {
   const adesso = deps.adesso ?? ((): string => new Date().toISOString())
+  /** Quante chat l'ultimo arrivo ha lasciato sul Drive perche' fuori ritenzione: si scrive nel registro solo quando cambia. */
+  let vecchieLasciate = -1
   // Prendere il lavoro: se un altro e' in corso non si parte, e lo si dice.
   const prendiLavoro = (tipo: TipoLavoro): { presa?: Presa; errore?: string } => {
     if (deps.lavoro === undefined) return {}
@@ -1390,18 +1393,32 @@ export function apriSincronia(deps: {
       const { esitoM, firma, altroveQui } = guardata
       if (esitoM.stato !== 'ok') return { ok: true, scritti: 0 }
       const prec = leggiManifestoLocale()
+      // Claude Code toglie da solo le trascrizioni ferme da piu' di
+      // `cleanupPeriodDays`: una chat cosi' vecchia scesa oggi sparirebbe al
+      // prossimo giro e domani scenderebbe di nuovo. Resta sul Drive.
+      const giorni = giorniDiRitenzione(deps.radiceClaude)
+      const adessoMs = Date.parse(adesso())
+      let vecchie = 0
       const candidati = Object.entries(esitoM.manifesto.file).filter(([p, v]) => {
         if (prefissoDi(p) !== 'chat' || altroveQui(p, v.size)) return false
         const locale = firma.get(p)
         // Non sul disco a quel percorso: e' nuova, oppure e' gia' arrivata e la
         // rimappatura l'ha spostata sotto lo slug di qui. Nel secondo caso il
         // manifesto locale la conosce, e non si riscarica.
-        if (locale === undefined) return !giaArrivata(prec.file[p], v)
+        if (locale === undefined) {
+          if (giaArrivata(prec.file[p], v)) return false
+          if (fuoriRitenzione(v.mtime, giorni, adessoMs)) { vecchie += 1; return false }
+          return true
+        }
         if (stessaFirma(locale, v)) return false
         // Piu' avanti sul Drive = piu' lungo: una chat cresce e basta. Se e'
         // solo la data a differire, e' lo stesso file salito da un altro PC.
         return v.size > locale.size
       })
+      if (vecchie !== vecchieLasciate) {
+        vecchieLasciate = vecchie
+        if (vecchie > 0) log(`ARRIVO: ${vecchie} chat lasciate sul Drive perche' ferme da piu' di ${giorni} giorni: Claude Code le toglierebbe da qui al prossimo giro di pulizia (cleanupPeriodDays) e domani scenderebbero di nuovo. Si vedono nel catalogo del Drive e si prendono con «Porta qui».`)
+      }
       if (candidati.length === 0) return { ok: true, scritti: 0 }
       const l = prendiLavoro('arrivo')
       if (l.errore !== undefined) return { ok: false, messaggio: l.errore }

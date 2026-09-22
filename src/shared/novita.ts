@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.32.1',
+    righe: [
+      '**Basta con le 1.700 chat che scendevano dal Drive ogni giorno.** Claude Code cancella da solo le trascrizioni ferme da più di 30 giorni (cleanupPeriodDays nelle sue impostazioni): l’arrivo automatico rimetteva qui le chat vecchie degli altri PC con la loro data, Claude Code le toglieva al giro di pulizia del giorno dopo, e il giorno dopo ancora scendevano di nuovo, dodici minuti alla volta. Ora le chat degli altri PC ferme da più del periodo di ritenzione restano sul Drive: le vedi nel catalogo del Drive e le prendi con «Porta qui» quando ti servono. Il registro dice quante ne ha lasciate e perché. Se in ~/.claude/settings.json tieni le trascrizioni più a lungo, scendono anche quelle.'
+    ]
+  },
+  {
     versione: '0.32.0',
     righe: [
       '**La finestra per creare un autopilota, rifatta (app 2.35.0).** L’obiettivo si scrive in una casella grande, ridimensionabile, senza limite di caratteri: prima era una riga sola con un tetto di 4.000 caratteri e non si vedeva nemmeno quello che si scriveva. Invio va a capo, Ctrl+Invio prepara. Ogni campo dice cosa fa: la cartella, il nome (facoltativo), le chat in parallelo e cosa costano, i criteri di fine (facoltativi, uno per riga: se li lasci vuoti li ricava lui nell’intervista). Sotto c’è scritto cosa succede dopo «Prepara». Tolti i tetti anche alle risposte alle domande dell’autopilota (sul PC, nella pagina e nell’app) e all’obiettivo dal telefono. Tutto quello che scrivi arriva a lui parola per parola, come mandato.'
