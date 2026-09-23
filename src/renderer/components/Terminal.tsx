@@ -14,6 +14,9 @@ import { registraSchermo, dimenticaSchermo } from '../schermo-terminale'
 import { mostraAttesa } from '../preferenze-vive'
 import { ModalePosta } from './ModalePosta'
 import { pcVivo, type BattitoPc, type ChatAltrove } from '@shared/posta'
+import { diagnostica, tettoAttesaMs, senzaSequenze, USCITA_PRECOCE_MS, type Diagnosi } from '../diagnosi-chat'
+import { SEGNI_DI_PROMPT } from '../ultime-righe'
+import { FinestraTemporanea } from './FinestraTemporanea'
 
 type Props = {
   paneId: string
@@ -107,8 +110,90 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
   const apriQuiLoStesso = (): void => {
     forzaQui.current = true
     setAltrove(undefined)
-    if (mostraAttesa()) setAttesaDa(Date.now())
+    riarma()
     aggancioRef.current?.rilancia()
+  }
+
+  /**
+   * La chat non si apre: la diagnosi, e cosa fare.
+   *
+   * Nicholas (23/09): «dobbiamo mettere una procedura per risolvere il problema
+   * di chat che non si aprono». Il riquadro raccoglie le ultime righe del
+   * terminale, l'esito dell'aggancio (uscita, errore, spawn rifiutato) e il
+   * tempo passato senza prompt, e da `diagnosi-chat.ts` ricava il caso con le
+   * azioni. «Risoluzione avanzata» apre una mini finestra con un Claude Code
+   * che legge il dossier del caso.
+   */
+  const [guasto, setGuasto] = useState<Diagnosi | undefined>(undefined)
+  const guastoRef = useRef<Diagnosi | undefined>(undefined)
+  guastoRef.current = guasto
+  const avviatoA = useRef(Date.now())
+  const promptVisto = useRef(false)
+  const ultimeRighe = useRef<string[]>([])
+  const ultimoPtyId = useRef<string | undefined>(undefined)
+  const [miniFinestra, setMiniFinestra] = useState<{ titolo: string; sotto?: string; ptyId?: string; nota?: string } | undefined>(undefined)
+  const riarma = (): void => {
+    avviatoA.current = Date.now()
+    promptVisto.current = false
+    ultimeRighe.current = []
+    setGuasto(undefined)
+    if (mostraAttesa()) setAttesaDa(Date.now())
+  }
+  const annotaGuasto = (d: Diagnosi): void => {
+    setGuasto(d)
+    finitaAttesa.current(undefined)
+    void window.gestore.log.errore(`[chat] «${avvio.current.title ?? ''}» (${avvio.current.sessionUuid}, ${avvio.current.cwd}) non si apre — ${d.caso}: ${d.titolo}. ${d.dettaglio.replace(/\s+/g, ' ').slice(0, 600)}`).catch(() => undefined)
+  }
+  const ricordaRighe = (testo: string): void => {
+    const pulito = senzaSequenze(testo)
+    if (SEGNI_DI_PROMPT.test(pulito)) promptVisto.current = true
+    if (pulito.trim() === '') return
+    const righe = [...ultimeRighe.current, ...pulito.split('\n')].filter((r) => r.trim() !== '')
+    ultimeRighe.current = righe.slice(-60)
+  }
+  // Il tetto: senza prompt entro il doppio del previsto, la chat e' «lenta».
+  useEffect(() => {
+    if (guasto !== undefined) return
+    const tetto = tettoAttesaMs(attesaPrevistaMs(peso))
+    const t = setInterval(() => {
+      if (promptVisto.current || guastoRef.current !== undefined || altrove !== undefined) return
+      const trascorso = Date.now() - avviatoA.current
+      if (trascorso < tetto) return
+      annotaGuasto(diagnostica({ tipo: 'lenta', trascorsoMs: trascorso, previstoMs: tetto }, ultimeRighe.current))
+    }, 2000)
+    return () => clearInterval(t)
+  }, [guasto, peso, altrove])
+  const riprova = (): void => { riarma(); aggancioRef.current?.rilancia() }
+  const aspettaAncora = (): void => { avviatoA.current = Date.now(); setGuasto(undefined) }
+  const scegliCartella = (): void => {
+    void window.gestore.sistema.scegliCartella().then((c) => {
+      if (c === undefined || c === '') return
+      useLayoutStore.getState().impostaCartella(avvio.current.sessionUuid, c)
+      // `avvio.current` si aggiorna al prossimo disegno: lo spawn legge da li'.
+      setTimeout(riprova, 0)
+    }).catch(() => undefined)
+  }
+  const nuovaChatQui = (): void => {
+    useLayoutStore.getState().addPane(avvio.current.cwd, avvio.current.title ?? '')
+    useLayoutStore.getState().closePane(paneId)
+  }
+  const accedi = (): void => {
+    setMiniFinestra({ titolo: 'Accesso a Claude Code', sotto: 'Si apre il browser: entra con il tuo account, poi torna qui', nota: 'Avvio…' })
+    void window.gestore.preparazione.accedi().then((id) => setMiniFinestra({ titolo: 'Accesso a Claude Code', sotto: 'Si apre il browser: entra con il tuo account, poi chiudi qui e premi «Riprova»', ptyId: id }))
+      .catch((e: unknown) => setMiniFinestra({ titolo: 'Accesso a Claude Code', nota: String(e) }))
+  }
+  const installa = (): void => {
+    setMiniFinestra({ titolo: 'Installazione di Claude Code', nota: 'Avvio…' })
+    void window.gestore.preparazione.installa().then((id) => setMiniFinestra({ titolo: 'Installazione di Claude Code', sotto: 'Quando finisce, chiudi qui e premi «Riprova»', ptyId: id }))
+      .catch((e: unknown) => setMiniFinestra({ titolo: 'Installazione di Claude Code', nota: String(e) }))
+  }
+  const risoluzioneAvanzata = (d: Diagnosi): void => {
+    setMiniFinestra({ titolo: 'Risoluzione avanzata', sotto: 'Un Claude Code legge il dossier del caso e ragiona con te', nota: 'Preparo il dossier e avvio l’assistente…' })
+    void window.gestore.risoluzione.apri({
+      cwd: avvio.current.cwd, sessionUuid: avvio.current.sessionUuid, titolo: avvio.current.title ?? '',
+      caso: d.caso, titoloDiagnosi: d.titolo, dettaglio: d.dettaglio, ultimeRighe: ultimeRighe.current
+    }).then((r) => setMiniFinestra({ titolo: 'Risoluzione avanzata', sotto: `Dossier: ${r.dossier}`, ptyId: r.ptyId }))
+      .catch((e: unknown) => setMiniFinestra({ titolo: 'Risoluzione avanzata', nota: `Non sono riuscito ad avviare l’assistente: ${e instanceof Error ? e.message : String(e)}` }))
   }
 
   // L'orologio gira solo mentre si aspetta: a chat aperta non c'è niente da
@@ -157,22 +242,36 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
     const aggancio = creaAggancio({
       ptyIdIniziale: iniziale.ptyId,
       dimensioni: () => ({ cols: term.cols, rows: term.rows }),
-      spawn: (cols, rows) =>
-        window.gestore.pty.spawn({
-          sessionUuid: iniziale.sessionUuid,
-          cwd: iniziale.cwd,
-          title: iniziale.title,
+      spawn: (cols, rows) => {
+        // Da `avvio.current`, non da `iniziale`: dopo «Scegli la cartella» la
+        // chat riparte nella cartella nuova, e un rilancio deve leggerla.
+        const ora = avvio.current
+        avviatoA.current = Date.now()
+        promptVisto.current = false
+        return window.gestore.pty.spawn({
+          sessionUuid: ora.sessionUuid,
+          cwd: ora.cwd,
+          title: ora.title,
           cols,
           rows,
-          ...(iniziale.model !== undefined ? { model: iniziale.model } : {}),
+          ...(ora.model !== undefined ? { model: ora.model } : {}),
           ...(forzaQui.current ? { forzaQui: true } : {}),
           // Chi governa questa chat: il Core ne ricava gli hook con cui
           // l'autopilota saprà che ha finito di rispondere.
-          ...(iniziale.autopilota !== undefined ? { autopilota: iniziale.autopilota } : {})
-        }),
+          ...(ora.autopilota !== undefined ? { autopilota: ora.autopilota } : {})
+        })
+      },
       suAltrove: (c) => {
         finitaAttesa.current(undefined)
         suAltrove.current(c)
+      },
+      suEsito: (e) => {
+        // Un'uscita dopo il prompt e lontana dall'avvio e' l'utente che ha
+        // chiuso la chat (`/exit`): non e' un guasto.
+        const trascorso = Date.now() - avviatoA.current
+        if (e.tipo === 'uscita' && promptVisto.current && trascorso > USCITA_PRECOCE_MS) return
+        if (e.tipo === 'uscita' && e.codice === 0 && promptVisto.current) return
+        annotaGuasto(diagnostica(e.tipo === 'uscita' ? { tipo: 'uscita', codice: e.codice, trascorsoMs: trascorso } : e, ultimeRighe.current))
       },
       attach: (id) => window.gestore.pty.attach(id),
       write: (id, data) => window.gestore.pty.write(id, data),
@@ -186,6 +285,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
         // scrollback di un riaggancio sia per il primo disegno di Claude Code,
         // che è esattamente quello che si stava aspettando.
         if (testo !== '') finitaAttesa.current(undefined)
+        ricordaRighe(testo)
         term.write(testo)
       },
       annunciaId: (id) => {
@@ -194,6 +294,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
         // insieme i pezzi in fila dava le scritte mischiate che si vedevano dal
         // telefono. La griglia di xterm quel lavoro l'ha gia' fatto.
         registraSchermo(id, () => term.buffer.active, () => term.rows)
+        ultimoPtyId.current = id
         avvio.current.onPtyId(paneId, id)
       }
     })
@@ -275,7 +376,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
       // leggerlo da li' dava sempre `undefined` — la griglia di ogni chat
       // chiusa restava offerta per tutta la vita della finestra, con il suo
       // xterm smontato dentro.
-      const idVivo = aggancio.idCorrente()
+      const idVivo = aggancio.idCorrente() ?? ultimoPtyId.current
       aggancioRef.current = undefined
       if (useLayoutStore.getState().ceduti.has(paneId)) aggancio.stacca()
       else aggancio.chiudi()
@@ -334,6 +435,39 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
             allora viaggia, e da qui prendi il testimone.
           </div>
         </div>
+      ) : null}
+      {guasto !== undefined && altrove === undefined ? (
+        <div className="attesa-chat chat-altrove chat-guasto" role="alert">
+          <div className="chat-altrove__titolo">{guasto.titolo}</div>
+          <div className="chat-altrove__testo">{guasto.spiegazione}</div>
+          {guasto.dettaglio !== '' ? <pre className="chat-guasto__dettaglio">{guasto.dettaglio.slice(0, 1500)}</pre> : null}
+          <div className="chat-altrove__azioni">
+            {guasto.azioni.map((a) => {
+              switch (a) {
+                case 'riprova': return <button key={a} className="tasto tasto--primario" onClick={riprova} title="Rilancia claude.exe sulla stessa conversazione">Riprova</button>
+                case 'aspetta': return <button key={a} className="tasto tasto--primario" onClick={aspettaAncora} title="Toglie l’avviso e lascia lavorare ancora per lo stesso tempo">Aspetta ancora</button>
+                case 'scegli-cartella': return <button key={a} className="tasto tasto--primario" onClick={scegliCartella} title="Dici dove sta ora la cartella: la chat riparte lì, con la sua conversazione">Scegli la cartella…</button>
+                case 'nuova-chat': return <button key={a} className="tasto" onClick={nuovaChatQui} title="Apre una chat nuova nella stessa cartella e chiude questo riquadro">Apri una chat nuova qui</button>
+                case 'accedi': return <button key={a} className="tasto tasto--primario" onClick={accedi} title="Rifà l’accesso a Claude Code nel browser">Rifai l’accesso</button>
+                case 'installa': return <button key={a} className="tasto tasto--primario" onClick={installa} title="Installa o ritrova Claude Code">Installa Claude Code</button>
+                case 'avanzata': return <button key={a} className="tasto" onClick={() => risoluzioneAvanzata(guasto)} title="Apre una mini finestra con un Claude Code che legge il dossier del caso (diagnosi, cartella, trascrizione, accesso, registro) e ti guida">Risoluzione avanzata…</button>
+                default: return null
+              }
+            })}
+          </div>
+          <div className="chat-altrove__nota">
+            Il perché è anche nel registro (Impostazioni → Registro → «Apri i log»). La conversazione non si perde: «Riprova» la riprende da dov’era.
+          </div>
+        </div>
+      ) : null}
+      {miniFinestra !== undefined ? (
+        <FinestraTemporanea
+          titolo={miniFinestra.titolo}
+          {...(miniFinestra.sotto !== undefined ? { sottotitolo: miniFinestra.sotto } : {})}
+          {...(miniFinestra.ptyId !== undefined ? { ptyId: miniFinestra.ptyId } : {})}
+          {...(miniFinestra.nota !== undefined ? { nota: miniFinestra.nota } : {})}
+          onChiudi={() => setMiniFinestra(undefined)}
+        />
       ) : null}
       {postaPer !== undefined && altrove !== undefined ? (
         <ModalePosta pc={postaPer} vivo={pcVivo(postaPer, Date.now())} presel={{ cwd: altrove.cwd, sessione: altrove.sessionUuid }} onChiudi={() => setPostaPer(undefined)} />

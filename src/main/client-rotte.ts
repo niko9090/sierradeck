@@ -1114,15 +1114,15 @@ export function rotteClient(deps: DipendenzeRotte) {
       return OK({ fatto: true })
     }
 
+    // I salvataggi con nome non esistono piu' (0.34.0): all'avvio il computer
+    // riapre da solo l'ultima composizione. Le rotte restano per le app
+    // vecchie, con un elenco vuoto e un rifiuto che spiega.
     if (r.percorso === '/api/salvataggi') {
-      return OK({ salvataggi: await deps.salvataggi().catch(() => []) })
+      return OK({ salvataggi: [], nota: 'I salvataggi con nome non esistono più: il computer riapre da solo l’ultima composizione.' })
     }
 
     if (r.metodo === 'POST' && r.percorso === '/api/salvataggi/carica') {
-      const nome = stringa(r.corpo, 'nome')
-      if (nome === '') return { stato: 400, corpo: { errore: 'serve il nome' } }
-      await deps.caricaIstantanea(nome)
-      return OK({ fatto: true })
+      return { stato: 410, corpo: { errore: 'i salvataggi con nome non esistono più dalla 0.34.0: all’avvio il computer riapre da solo l’ultima composizione; per tornare a una chiusura precedente usa Impostazioni → «Torna a com’era» sul computer' } }
     }
 
     if (r.metodo === 'POST' && r.percorso === '/api/autopilota/elimina') {

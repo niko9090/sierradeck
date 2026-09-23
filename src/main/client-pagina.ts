@@ -527,7 +527,6 @@ var notaDialogo = ''
 /** Il pannello aperto in fondo: le conversazioni, i salvataggi, o niente. */
 var pannelloAperto = null
 var sessioniViste = null
-var salvataggiVisti = null
 /** La coda condivisa aperta dal telefono: quale progetto, e le sue voci. */
 var codaProgetto = null
 var codaVoci = null
@@ -903,7 +902,7 @@ function impronta(s) {
     consumiVisti ? 'consumi' : '',
     schedeViste ? schedeViste.length : '',
     sessioniViste ? sessioniViste.length : '',
-    salvataggiVisti ? salvataggiVisti.length : ''
+    ''
   ].join('|')
   return chat + '#' + aps + '#' + dom + '#' + ws + '#' + qui
 }
@@ -1228,20 +1227,6 @@ function pannello(s) {
       <div class="riga"><button onclick="apriPannello('sessioni')">Chiudi</button></div>
     </div>\`
 
-  const elencoSalvataggi = pannelloAperto !== 'salvataggi' ? '' : \`
-    <div class="piastrella">
-      <div class="titolo">Salvataggi</div>
-      <div class="sotto">Rimettono in piedi un insieme di chat, tutte insieme.</div>
-      \${(salvataggiVisti || []).length === 0
-        ? '<div class="sotto" style="margin-top:8px">Nessun salvataggio.</div>'
-        : (salvataggiVisti || []).map((x, i) =>
-            '<button class="cartella ' + (confermando === 'sal-' + x.nome ? 'pericolo' : '') +
-            '" onclick="caricaSalvataggio(' + i + ')">' +
-            (confermando === 'sal-' + x.nome ? 'Sicuro? Sostituisce le chat aperte' : esc(x.nome)) +
-            '<br><span class="sotto">' + x.chat + ' chat</span></button>').join('')}
-      <div class="riga"><button onclick="apriPannello('salvataggi')">Chiudi</button></div>
-    </div>\`
-
   // Gli altri computer, e le azioni da eseguire solo la'. Stessa forma della
   // coda: elenco, poi la cassetta di uno.
   const elencoPc = pannelloAperto !== 'pc' ? '' : (() => {
@@ -1530,14 +1515,13 @@ function pannello(s) {
       vistaQuaderno,
     computer:
       paneWorkspace +
-      '<div class="riga"><button onclick="apriPannello(\\'salvataggi\\')">Salvataggi</button>' +
-      '<button onclick="apriPannello(\\'code\\')">Code' +
+      '<div class="riga"><button onclick="apriPannello(\\'code\\')">Code' +
       ((s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0) > 0 ? ' · ' + (s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0) : '') + '</button>' +
       '<button onclick="apriPannello(\\'pc\\')">Altri PC</button>' +
       '<button onclick="apriPannello(\\'drive\\')">Drive</button>' +
       '<button onclick="apriPannello(\\'consumi\\')">Consumi</button>' +
       '<button onclick="apriPannello(\\'impostazioni\\')">Impostazioni</button></div>' +
-      elencoSalvataggi + elencoCode + elencoPc + vistaDrive + vistaConsumi + vistaImpostazioni
+      elencoCode + elencoPc + vistaDrive + vistaConsumi + vistaImpostazioni
   }
 
   app.innerHTML = \`
@@ -1913,9 +1897,6 @@ window.apriPannello = async (quale) => {
   if (pannelloAperto === 'sessioni' && !sessioniViste) {
     try { sessioniViste = (await chiedi('/api/sessioni')).sessioni || [] } catch (e) { sessioniViste = [] }
   }
-  if (pannelloAperto === 'salvataggi' && !salvataggiVisti) {
-    try { salvataggiVisti = (await chiedi('/api/salvataggi')).salvataggi || [] } catch (e) { salvataggiVisti = [] }
-  }
   if (pannelloAperto === 'consumi') await leggiConsumi()
   if (pannelloAperto === 'pc') { pcAperto = null; postaVoci = null; await leggiPc() }
   if (pannelloAperto === 'drive') { driveRiavviato = false; await leggiDrive() }
@@ -2102,16 +2083,6 @@ setInterval(async () => {
   try { await leggiCoda() } catch (e) { return }
   pannello(ultimoStato)
 }, 10000)
-
-window.caricaSalvataggio = async (i) => {
-  const s = (salvataggiVisti || [])[i]
-  if (!s) return
-  if (confermando !== 'sal-' + s.nome) { chiedeConferma('sal-' + s.nome); return }
-  confermando = null
-  await chiedi('/api/salvataggi/carica', { nome: s.nome })
-  pannelloAperto = null
-  aggiorna()
-}
 
 window.creaWorkspace = async () => {
   const campo = document.getElementById('ws-nuovo')

@@ -85,6 +85,32 @@ describe('creaAggancio — senza ptyId iniziale', () => {
   })
 })
 
+describe('creaAggancio — l’esito arriva al riquadro', () => {
+  it('un’uscita dimentica l’id (così «Riprova» puo’ rilanciare), scarta il vecchio e avvisa; un errore e uno spawn rifiutato avvisano', async () => {
+    const esiti: unknown[] = []
+    const a = ambiente()
+    a.deps.suEsito = (e) => { esiti.push(e) }
+    const agg = creaAggancio(a.deps)
+    agg.avvia()
+    a.risolviSpawn('p1')
+    await Promise.resolve()
+    a.consegna({ id: 'p1', kind: 'error', message: 'spawn claude.exe ENOENT' })
+    a.consegna({ id: 'p1', kind: 'exit', code: 1 })
+    expect(esiti).toEqual([{ tipo: 'errore', messaggio: 'spawn claude.exe ENOENT' }, { tipo: 'uscita', codice: 1 }])
+    expect(agg.idCorrente()).toBeUndefined()
+    expect(a.inviati).toContainEqual({ tipo: 'scarta', id: 'p1' })
+    // Adesso il rilancio parte davvero.
+    agg.rilancia()
+    expect(a.inviati.filter((x) => x.tipo === 'spawn')).toHaveLength(2)
+    a.rifiutaSpawn(new Error('richiesta IPC non valida: cwd non accessibile (X:\\nope)'))
+    await Promise.resolve(); await Promise.resolve()
+    expect(esiti[2]).toEqual({ tipo: 'spawn-fallito', messaggio: 'richiesta IPC non valida: cwd non accessibile (X:\\nope)' })
+    // E chiudere dopo un'uscita non uccide niente: non c'e' piu' un id.
+    agg.chiudi()
+    expect(a.inviati.filter((x) => x.tipo === 'kill')).toHaveLength(0)
+  })
+})
+
 describe('creaAggancio — con ptyId iniziale', () => {
   it('chiede il riaggancio e non rilancia', () => {
     const a = ambiente({ ptyIdIniziale: 'p1' })
@@ -146,8 +172,9 @@ describe('creaAggancio — con ptyId iniziale', () => {
     const a = ambiente({ ptyIdIniziale: 'p1' })
     creaAggancio(a.deps).avvia()
     a.consegna({ id: 'p1', kind: 'data', data: 'ciao' })
-    a.consegna({ id: 'p1', kind: 'exit', code: 0 })
+    // L'errore prima dell'uscita: un pty uscito non si ascolta piu'.
     a.consegna({ id: 'p1', kind: 'error', message: 'guasto' })
+    a.consegna({ id: 'p1', kind: 'exit', code: 0 })
     const tutto = a.scritti.join('')
     expect(tutto).toContain('ciao')
     expect(tutto).toContain('terminata')

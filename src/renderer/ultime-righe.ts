@@ -103,7 +103,7 @@ export function ultimaRigaUtile(testo: string): string {
  * Uno qualunque basta: il prompt disegnato, la riga dei permessi in fondo, o
  * l'avviso che si può interrompere — che compare quando sta già lavorando.
  */
-const SEGNI_DI_PROMPT = /❯|bypass permissions|esc to interrupt/
+export const SEGNI_DI_PROMPT = /❯|bypass permissions|esc to interrupt/
 
 /**
  * Quanto silenzio serve, dopo il prompt, perché il terminale stia davvero

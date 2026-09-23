@@ -562,13 +562,15 @@ describe('riprendere una conversazione, e i workspace per intero', () => {
     expect(fatti).toEqual(['crea:sera', 'elimina:sera'])
   })
 
-  it('elenca i salvataggi e ne carica uno', async () => {
+  it('i salvataggi con nome non esistono piu’: elenco vuoto per le app vecchie, e un rifiuto che spiega', async () => {
     const caricati: string[] = []
     const su = deps({ caricaIstantanea: (n) => { caricati.push(n); return Promise.resolve() } })
     const elenco = await rotteClient(su)({ metodo: 'GET', percorso: '/api/salvataggi', corpo: undefined })
-    expect((elenco.corpo as { salvataggi: unknown[] }).salvataggi).toBeInstanceOf(Array)
-    await rotteClient(su)({ metodo: 'POST', percorso: '/api/salvataggi/carica', corpo: { nome: 'Ultima chiusura' } })
-    expect(caricati).toEqual(['Ultima chiusura'])
+    expect((elenco.corpo as { salvataggi: unknown[] }).salvataggi).toEqual([])
+    const r = await rotteClient(su)({ metodo: 'POST', percorso: '/api/salvataggi/carica', corpo: { nome: 'Ultima chiusura' } })
+    expect(r.stato).toBe(410)
+    expect((r.corpo as { errore: string }).errore).toContain('Torna a com’era')
+    expect(caricati).toEqual([])
   })
 })
 

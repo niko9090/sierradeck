@@ -20,7 +20,7 @@ import type { Autopilota } from '@shared/autopilota'
 import type { StatoWorkspace } from '../main/ipc'
 import { Mosaic } from './components/Mosaic'
 import { ModaleSessioni } from './components/ModaleSessioni'
-import { ModaleIstantanee, NOME_AUTOMATICO } from './components/ModaleIstantanee'
+import { NOME_AUTOMATICO } from '@shared/istantanea'
 import { Console, type PannelloAperto } from './components/Console'
 import { PannelloWorkspace } from './components/PannelloWorkspace'
 import { PannelloAutopiloti } from './components/PannelloAutopiloti'
@@ -438,13 +438,6 @@ export function App(): React.JSX.Element {
     apri()
   }), [])
 
-  // Un salvataggio rimesso in piedi dal telefono: e' lo stesso gesto del
-  // pannello «Salvataggi», e passa per la stessa strada.
-  useEffect(() => window.gestore.client.suSalvataggio((nome) => {
-    window.gestore.istantanee
-      .carica(nome)
-      .catch((e: unknown) => console.error('[client] salvataggio non caricato:', e))
-  }), [])
 
   // Chiudere una chat dal telefono: il riquadro sparisce, la conversazione
   // resta su disco e si riprende quando si vuole. E' la ragione per cui questo
@@ -806,10 +799,6 @@ export function App(): React.JSX.Element {
   }, [])
 
   // La preferenza puo cambiare mentre il programma gira: si legge quando serve.
-  // Se salvare da soli un'istantanea alla chiusura: l'interruttore c'era ma non
-  // lo leggeva nessuno, e il salvataggio automatico partiva comunque. Ora lo
-  // rispetta. Predefinito acceso, come l'impostazione.
-  const salvaAllaChiusura = useRef(true)
   useEffect(() => {
     const prendi = (p: Preferenze): void => {
       // La preferenza «iberna lasciando» vive in un posto solo (azioni-finestra),
@@ -821,7 +810,6 @@ export function App(): React.JSX.Element {
       // lo leggeva nessuno.
       impostaMostraAttesa(p.mostraAttesaChat)
       setFumettiAuto(p.fumettiSincroniaAutomatica)
-      salvaAllaChiusura.current = p.salvaAllaChiusura
     }
     window.gestore.preferenze.leggi().then(prendi).catch(() => undefined)
     return window.gestore.preferenze.suCambio(prendi)
@@ -961,32 +949,16 @@ export function App(): React.JSX.Element {
     return () => clearTimeout(h)
   }, [pronto])
 
-  // La domanda all'avvio, quando esiste almeno un salvataggio.
+  // **All'avvio torna l'ultima composizione, in silenzio.** Fino alla 0.33.1
+  // compariva la finestra «Riprendi» con l'elenco dei salvataggi anche se le
+  // chat erano gia' tornate da sole; Nicholas (23/09): «in apertura venga
+  // sempre ripresentata l'ultima composizione senza possibilita' di salvare,
+  // tanto uno lavora sempre sugli stessi». Il layout si ripristina da
+  // workspaces.json; le chiusure automatiche restano su disco solo come rete
+  // di sicurezza (Impostazioni → «Torna a com'era»).
   //
-  // Compare **anche** se le chat sono già tornate da sole — il layout si
-  // ripristina per conto suo — perché la scelta che l'utente vuole all'apertura
-  // non è solo «riprendo o no», ma «riprendo *quale*»: un salvataggio di ieri
-  // può essere quello giusto anche se sullo schermo ci sono già le chat di
-  // stasera. Il testo della finestra dice cosa c'è già aperto, così la scelta è
-  // informata invece che al buio.
-  useEffect(() => {
-    let annullato = false
-    window.gestore.istantanee
-      .elenca()
-      .then((tutte) => {
-        if (annullato || tutte.length === 0) return
-        setModale('ripresa')
-      })
-      .catch(() => undefined)
-    return () => { annullato = true }
-  }, [])
-
-  // Alla chiusura, un salvataggio automatico sotto un nome riservato: se
-  // l'utente non ha salvato di suo, al prossimo avvio trova comunque le chat di
-  // ieri sera. Non sostituisce i salvataggi con nome, ci si affianca.
-  // L'elenco dei salvataggi, tenuto fresco: serve a non salvare due volte la
-  // stessa cosa. Si rilegge quando si apre la finestra dei salvataggi e
-  // all'avvio, che sono i due momenti in cui puo' essere cambiato.
+  // Alla chiusura, la chiusura automatica: e' cio' che «Torna a com'era»
+  // ritrova. L'elenco si tiene fresco per non salvare due volte la stessa cosa.
   const istantaneeNote = useRef<Istantanea[]>([])
   useEffect(() => {
     window.gestore.istantanee
@@ -997,9 +969,7 @@ export function App(): React.JSX.Element {
 
   useEffect(() => {
     const allaChiusura = (): void => {
-      // L'interruttore «salva alla chiusura» ora conta davvero: chi lo spegne non
-      // vuole il salvataggio automatico «Ultima chiusura», e va rispettato.
-      if (!salvaAllaChiusura.current) return
+      // Sempre, da 0.34.0: non e' piu' un'opzione ma la rete di sicurezza.
       const layout = useLayoutStore.getState().esporta()
       if (layout.panes.length === 0) return
       // Se queste chat, in questa disposizione, sono gia' salvate sotto un nome
@@ -1074,21 +1044,9 @@ export function App(): React.JSX.Element {
           onPreparazione={setPreparazione}
         />
       ) : null}
-      {modale === 'istantanee' ? <ModaleIstantanee onChiudi={() => setModale(undefined)} /> : null}
-      {/* All'avvio, e solo se c'e' davvero qualcosa da riprendere: una finestra
-          che chiede «vuoi riprendere?» quando non c'e' niente da riprendere e'
-          un ostacolo fra l'utente e la prima chat. */}
-      {modale === 'ripresa' && novita === undefined ? (
-        <ModaleIstantanee
-          allAvvio
-          chatGiaAperte={root === undefined ? 0 : Object.keys(useLayoutStore.getState().panes).length}
-          onChiudi={() => setModale(undefined)}
-        />
-      ) : null}
 
       <Console
         onApriSessioni={() => setModale('sessioni')}
-        onApriIstantanee={() => setModale('istantanee')}
         aperto={aperto}
         onApri={setAperto}
         workspaceAttivo={workspace.attivo}

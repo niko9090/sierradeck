@@ -72,11 +72,9 @@ fun Computer(api: Api, stato: Stato?) {
     val contesto = androidx.compose.ui.platform.LocalContext.current
     val deposito = remember(contesto) { Collegamento(contesto) }
     var continuo by remember { mutableStateOf(deposito.controlloContinuo) }
-    var salvataggi by remember { mutableStateOf<List<Salvataggio>>(emptyList()) }
     var pref by remember { mutableStateOf<Preferenze?>(null) }
     var aggiornamento by remember { mutableStateOf<Aggiornamento?>(null) }
     var nuovoWs by remember { mutableStateOf("") }
-    var confermaCarica by remember { mutableStateOf<String?>(null) }
     // La coda condivisa: quale progetto e' aperto, le sue voci, il comando da mettere in fila.
     var codaAperta by remember { mutableStateOf<String?>(null) }
     var codaVoci by remember { mutableStateOf<List<VoceCoda>>(emptyList()) }
@@ -115,7 +113,6 @@ fun Computer(api: Api, stato: Stato?) {
         consumi = try { api.consumi() } catch (_: Exception) { null }
         account = try { api.account() } catch (_: Exception) { null }
         versionePc = try { api.ciao().versione } catch (_: Exception) { null }
-        salvataggi = try { api.salvataggi().salvataggi } catch (_: Exception) { emptyList() }
         pref = try { api.preferenze().preferenze } catch (_: Exception) { null }
     }
     // Lo stato dell'aggiornamento cambia mentre scarica: si rinfresca.
@@ -304,7 +301,6 @@ fun Computer(api: Api, stato: Stato?) {
 
         Divisore()
 
-        // ─── Salvataggi ───
         // ─── Le code dei progetti ───
         // Un comando in fila per un progetto lo consegna il PC che ha il
         // testimone, appena una chat ha finito: da qui si vede, si aggiunge,
@@ -493,22 +489,8 @@ fun Computer(api: Api, stato: Stato?) {
             }
         }
 
-        Divisore()
-
-        Sezione("Salvataggi")
-        if (salvataggi.isEmpty()) Text("Nessun salvataggio.", color = Banco.testoQuieto)
-        else for (s in salvataggi) {
-            Tessera(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Row(Modifier.padding(12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(s.nome, color = Banco.testo, maxLines = 1)
-                        Text("${s.chat} chat · ${s.quando}", color = Banco.testoQuieto, fontSize = 12.sp)
-                    }
-                    OutlinedButton(onClick = { confermaCarica = s.nome }) { Text("Carica") }
-                }
-            }
-        }
-
+        // I salvataggi con nome non esistono piu' (0.34.0 / app 2.37.0): il
+        // computer riapre da solo l'ultima composizione all'avvio.
         Divisore()
 
         // ─── Impostazioni ───
@@ -558,23 +540,6 @@ fun Computer(api: Api, stato: Stato?) {
         AggiornamentoPc(api, aggiornamento, versionePc)
 
         Spacer(Modifier.height(24.dp))
-    }
-
-    // conferma caricamento salvataggio (sostituisce ciò che hai a schermo)
-    val nome = confermaCarica
-    if (nome != null) {
-        AlertDialog(
-            onDismissRequest = { confermaCarica = null },
-            title = { Text("Caricare «$nome»?") },
-            text = { Text("Sostituisce le chat che hai a schermo con quelle del salvataggio.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    confermaCarica = null
-                    scope.launch { tenta("caricare il salvataggio «$nome»") { api.caricaSalvataggio(nome) } }
-                }) { Text("Carica") }
-            },
-            dismissButton = { TextButton(onClick = { confermaCarica = null }) { Text("Annulla") } }
-        )
     }
 }
 

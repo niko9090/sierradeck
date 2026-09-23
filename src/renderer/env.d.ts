@@ -395,6 +395,9 @@ declare global {
         installa: () => Promise<string>
         accedi: () => Promise<string>
       }
+      risoluzione: {
+        apri: (r: { cwd: string; sessionUuid: string; titolo: string; caso: string; titoloDiagnosi: string; dettaglio: string; ultimeRighe: string[] }) => Promise<{ ptyId: string; dossier: string }>
+      }
       appunti: {
         leggi: () => string
         scrivi: (testo: string) => void

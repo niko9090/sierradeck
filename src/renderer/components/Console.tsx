@@ -34,7 +34,6 @@ export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopi
 
 type Props = {
   onApriSessioni: () => void
-  onApriIstantanee: () => void
   aperto: PannelloAperto
   onApri: (quale: PannelloAperto) => void
   /** Il nome del workspace attivo. */
@@ -71,7 +70,6 @@ type Props = {
  */
 export function Console({
   onApriSessioni,
-  onApriIstantanee,
   aperto,
   onApri,
   workspaceAttivo,
@@ -224,13 +222,6 @@ export function Console({
           title="Riprendi una conversazione già esistente"
         >
           ▣ Riprendi
-        </button>
-        <button
-          className="tasto"
-          onClick={onApriIstantanee}
-          title="Salva tutte le chat aperte, o ricaricane un salvataggio"
-        >
-          ⤓ Salvataggi
         </button>
       </div>
 

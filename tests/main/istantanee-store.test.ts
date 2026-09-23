@@ -25,6 +25,21 @@ function esempio(over: Partial<Istantanea> = {}): Istantanea {
   }
 }
 
+describe('le chiusure automatiche scalano', () => {
+  it('«Ultima chiusura» spinge la precedente a «Penultima», poi a «Terzultima», e la quarta esce; i nomi tuoi restano', () => {
+    const s = apriIstantaneeStore(dir())
+    s.salva(esempio({ nome: 'Lavoro' }))
+    s.salva(esempio({ nome: 'Ultima chiusura', salvataIl: '2026-09-20T20:00:00.000Z' }))
+    s.salva(esempio({ nome: 'Ultima chiusura', salvataIl: '2026-09-21T20:00:00.000Z' }))
+    s.salva(esempio({ nome: 'Ultima chiusura', salvataIl: '2026-09-22T20:00:00.000Z' }))
+    const dopo = s.salva(esempio({ nome: 'Ultima chiusura', salvataIl: '2026-09-23T20:00:00.000Z' }))
+    expect(dopo.map((i) => [i.nome, i.salvataIl.slice(8, 10)])).toEqual([
+      ['Ultima chiusura', '23'], ['Penultima chiusura', '22'], ['Terzultima chiusura', '21'], ['Lavoro', '09']
+    ])
+    expect(s.elenca()).toHaveLength(4)
+  })
+})
+
 describe('apriIstantaneeStore', () => {
   it('elenca vuoto su una cartella nuova', () => {
     expect(apriIstantaneeStore(dir()).elenca()).toEqual([])

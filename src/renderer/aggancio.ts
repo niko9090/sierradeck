@@ -22,7 +22,18 @@ export type AggancioDeps = {
    * terminale in rosso come tutti gli altri.
    */
   suAltrove?: (c: ChatAltrove) => void
+  /**
+   * Com'e' finita: claude.exe uscito, un errore dell'host, lo spawn
+   * rifiutato. Il riquadro ne fa la diagnosi (`diagnosi-chat.ts`); senza,
+   * restava solo la riga gialla o rossa nel terminale.
+   */
+  suEsito?: (e: EsitoAggancio) => void
 }
+
+export type EsitoAggancio =
+  | { tipo: 'uscita'; codice: number }
+  | { tipo: 'errore'; messaggio: string }
+  | { tipo: 'spawn-fallito'; messaggio: string }
 
 export type Aggancio = {
   avvia: () => void
@@ -61,8 +72,20 @@ export function creaAggancio(deps: AggancioDeps): Aggancio {
 
   const mostra = (msg: HostToCore): void => {
     if (msg.kind === 'data') deps.scrivi(msg.data)
-    else if (msg.kind === 'exit') deps.scrivi(`\r\n\x1b[33m[sessione terminata: ${msg.code}]\x1b[0m\r\n`)
-    else if (msg.kind === 'error') deps.scrivi(`\r\n\x1b[31m[errore: ${msg.message}]\x1b[0m\r\n`)
+    else if (msg.kind === 'exit') {
+      deps.scrivi(`\r\n\x1b[33m[sessione terminata: ${msg.code}]\x1b[0m\r\n`)
+      // Un pty uscito non e' piu' un terminale: l'id si dimentica, cosi'
+      // «Riprova» puo' rilanciare (`rilancia` non parte con un id in mano).
+      const vecchio = id
+      id = undefined
+      smettiDiAscoltare?.()
+      smettiDiAscoltare = undefined
+      if (vecchio !== undefined) deps.scarta(vecchio)
+      deps.suEsito?.({ tipo: 'uscita', codice: msg.code })
+    } else if (msg.kind === 'error') {
+      deps.scrivi(`\r\n\x1b[31m[errore: ${msg.message}]\x1b[0m\r\n`)
+      deps.suEsito?.({ tipo: 'errore', messaggio: msg.message })
+    }
   }
 
   const rilancia = (): void => {
@@ -91,6 +114,7 @@ export function creaAggancio(deps: AggancioDeps): Aggancio {
         // Senza questo ramo un rigetto sarebbe una unhandled rejection visibile
         // solo negli strumenti di sviluppo, mai nel riquadro.
         deps.scrivi(`\r\n\x1b[31m[avvio del terminale fallito: ${String(err)}]\x1b[0m\r\n`)
+        deps.suEsito?.({ tipo: 'spawn-fallito', messaggio: err instanceof Error ? err.message : String(err) })
       }
     )
   }

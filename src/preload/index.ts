@@ -839,6 +839,11 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Apre un terminale che porta all'accesso nel browser. */
     accedi: (): Promise<string> => ipcRenderer.invoke('preparazione:accedi')
   },
+  /** La risoluzione avanzata di una chat che non si apre: un Claude Code con il dossier del caso, in una mini finestra. */
+  risoluzione: {
+    apri: (r: { cwd: string; sessionUuid: string; titolo: string; caso: string; titoloDiagnosi: string; dettaglio: string; ultimeRighe: string[] }): Promise<{ ptyId: string; dossier: string }> =>
+      ipcRenderer.invoke('risoluzione:apri', r)
+  },
   autopilota: {
     elenca: (): Promise<Autopilota[]> => ipcRenderer.invoke('autopilota:elenca'),
     crea: (p: NuovoAutopilota): Promise<Autopilota> => ipcRenderer.invoke('autopilota:crea', p),

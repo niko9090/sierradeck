@@ -83,6 +83,7 @@ import { creaProgettiSync } from './progetti/sincronia-progetti'
 import { creaRonda } from './progetti/presenza'
 import { creaPostino, type Postino } from './progetti/posta'
 import { creaClientPcRemoto, ErroreRemoto } from './pc-remoto'
+import { ultimeRighe as ultimeRigheDelRegistro } from './risoluzione'
 import { trovaChatRemota, PORTA_CLIENT_PREDEFINITA, type EsitoRemoto, type PcRemoto, type ChatSuPc } from '@shared/pc-remoto'
 import { progettoDiCwd, staDentro } from './progetti/registro'
 import { impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
@@ -816,7 +817,13 @@ if (!app.requestSingleInstanceLock()) {
         // poter leggere il giorno dopo.
         (m) => registro.errore(m)
       )
-      registerPreparazioneIpc(ptyClient, () => homedir())
+      registerPreparazioneIpc(ptyClient, () => homedir(), {
+        versione: () => app.getVersion(),
+        ultimeRigheRegistro: (n) => {
+          try { return ultimeRigheDelRegistro(readFileSync(registro.file(), 'utf8'), n) } catch { return [] }
+        },
+        cartellaTemporanea: () => app.getPath('temp')
+      })
       // Trovare claude.exe al posto dell'utente, prima che si apra la prima
       // chat. Chi lo ha fuori dal PATH — l'installatore nativo ce lo mette e
       // il PATH si aggiorna solo alla sessione dopo — vedeva i riquadri aprirsi

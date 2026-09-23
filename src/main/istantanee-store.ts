@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
-import { parseIstantanee, VERSIONE_ISTANTANEE, type Istantanea } from '@shared/istantanea'
+import { parseIstantanee, VERSIONE_ISTANTANEE, NOMI_CHIUSURE, NOME_AUTOMATICO, type Istantanea } from '@shared/istantanea'
 
 export type IstantaneeStore = {
   percorso: string
@@ -109,6 +109,23 @@ export function apriIstantaneeStore(dir: string): IstantaneeStore {
     salva(i) {
       // Lo stesso nome sostituisce: salvare due volte «Lavoro» è un
       // aggiornamento, e l'elenco al riavvio deve restare corto.
+      //
+      // La chiusura automatica invece **scala**: l'ultima diventa la
+      // penultima, la penultima la terzultima, e la terzultima esce. Tre
+      // chiusure sono la rete di sicurezza di «Torna a com'era»; una sola
+      // sarebbe sovrascritta proprio dal riavvio dopo il guasto.
+      if (i.nome === NOME_AUTOMATICO) {
+        const esistenti = elenca()
+        const scalate: Istantanea[] = []
+        for (let k = 1; k < NOMI_CHIUSURE.length; k += 1) {
+          const prima = esistenti.find((x) => x.nome === NOMI_CHIUSURE[k - 1])
+          if (prima !== undefined) scalate.push({ ...prima, nome: NOMI_CHIUSURE[k]! })
+        }
+        const altre = esistenti.filter((x) => !(NOMI_CHIUSURE as readonly string[]).includes(x.nome))
+        const tutte = [i, ...scalate, ...altre]
+        scriviTutte(tutte)
+        return tutte
+      }
       const altre = elenca().filter((x) => x.nome !== i.nome)
       const tutte = [i, ...altre]
       scriviTutte(tutte)

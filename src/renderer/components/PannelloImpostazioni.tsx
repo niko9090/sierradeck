@@ -6,6 +6,85 @@ import { PannelloProvider } from './PannelloProvider'
 import { PannelloAccount } from './PannelloAccount'
 import { PannelloConsumi } from './PannelloConsumi'
 import { SezioneScorciatoie } from './SezioneScorciatoie'
+import { useLayoutStore } from '../state/layout'
+import { contaChat, contaWorkspace, eChiusuraAutomatica, type Istantanea } from '@shared/istantanea'
+
+function quandoChiusura(iso: string): string {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+/**
+ * «Torna a com'era»: le ultime tre chiusure, per rimettere in piedi tutto
+ * com'era dopo un crash o un aggiornamento che ha lasciato un layout rotto.
+ *
+ * Non e' «salvare»: all'avvio torna sempre l'ultima composizione da sola
+ * (Nicholas, 23/09), e i salvataggi con nome non esistono piu'. Questa e' la
+ * rete di sicurezza, e sta qui, non davanti.
+ */
+function SezioneTornaIndietro(): React.JSX.Element {
+  const [chiusure, setChiusure] = useState<Istantanea[] | undefined>(undefined)
+  const [esito, setEsito] = useState<string | undefined>(undefined)
+  const [conferma, setConferma] = useState<string | undefined>(undefined)
+  const ricarica = (): void => {
+    window.gestore.istantanee.elenca()
+      .then((tutte) => setChiusure(tutte.filter((i) => eChiusuraAutomatica(i.nome))))
+      .catch(() => setChiusure([]))
+  }
+  useEffect(ricarica, [])
+  const torna = (nome: string): void => {
+    setConferma(undefined)
+    window.gestore.istantanee.carica(nome)
+      .then((layout) => {
+        useLayoutStore.getState().cambiaVista(layout)
+        setEsito(`Rimesso com’era alla ${nome.toLowerCase()}: le chat riprendono da sole con --resume.`)
+      })
+      .catch((e: unknown) => setEsito(`Non sono riuscito a tornare indietro: ${e instanceof Error ? e.message : String(e)}`))
+  }
+  return (
+    <section className="impostazioni__gruppo">
+      <h4>Torna a com’era</h4>
+      <div className="impostazioni__nota">
+        All’avvio SierraDeck riapre da solo l’ultima composizione: workspace, chat, finestre, autopiloti. Non c’è
+        niente da salvare. Ogni volta che chiudi, però, conserva com’erano le cose: qui trovi le ultime tre chiusure.
+        Servono se un aggiornamento o un blocco hanno lasciato i riquadri rotti o vuoti: scegli una chiusura e torna
+        tutto com’era allora. Le chat che hai davanti adesso vengono sostituite (quelle chiuse restano nell’elenco
+        «Riprendi», non si perdono). Le stesse chat viaggiano anche sul Drive.
+      </div>
+      {chiusure === undefined ? <div className="impostazioni__nota">Leggo…</div> : null}
+      {chiusure !== undefined && chiusure.length === 0 ? (
+        <div className="impostazioni__nota">Nessuna chiusura registrata ancora: la prima arriva quando chiudi SierraDeck con delle chat aperte.</div>
+      ) : null}
+      {chiusure !== undefined && chiusure.length > 0 ? (
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {chiusure.map((i) => {
+            const chat = contaChat(i)
+            const ws = contaWorkspace(i)
+            return (
+              <li key={i.nome} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <strong>{i.nome}</strong>
+                  <span className="impostazioni__nota" style={{ margin: 0 }}>
+                    {' '}· {quandoChiusura(i.salvataIl)} · {chat === 1 ? '1 chat' : `${chat} chat`}{ws > 1 ? ` in ${ws} workspace` : ''}{i.finestre.length > 1 ? ` · ${i.finestre.length} finestre` : ''}
+                  </span>
+                </span>
+                {conferma === i.nome ? (
+                  <>
+                    <button className="tasto tasto--primario tasto--mini" onClick={() => torna(i.nome)}>Sì, torna a com’era</button>
+                    <button className="tasto tasto--mini" onClick={() => setConferma(undefined)}>Annulla</button>
+                  </>
+                ) : (
+                  <button className="tasto tasto--mini" onClick={() => setConferma(i.nome)} title="Sostituisce le chat aperte con quelle di questa chiusura">Torna a questa</button>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      ) : null}
+      {esito !== undefined ? <div className="impostazioni__nota">{esito}</div> : null}
+    </section>
+  )
+}
 
 /** Le schede del menu Impostazioni. */
 export type TabImpostazioni = 'generali' | 'ai' | 'account' | 'consumi'
@@ -355,16 +434,10 @@ function SchedaGenerali(): React.JSX.Element {
           </div>
         </section>
 
+        <SezioneTornaIndietro />
+
         <section className="impostazioni__gruppo">
           <h4>Comportamento</h4>
-          <label className="impostazioni__riga impostazioni__riga--spunta">
-            <input
-              type="checkbox"
-              checked={p.salvaAllaChiusura}
-              onChange={(e) => cambia({ salvaAllaChiusura: e.target.checked })}
-            />
-            <span>Salva le chat aperte quando chiudo — saltando quelle già salvate</span>
-          </label>
           <label className="impostazioni__riga impostazioni__riga--spunta">
             <input
               type="checkbox"

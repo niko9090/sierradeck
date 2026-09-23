@@ -3657,6 +3657,57 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   font-size: var(--t1);
 }
 
+/* Il riquadro di una chat che non si apre: la diagnosi e le azioni, sopra il
+   terminale che resta leggibile sotto (il dettaglio e' quello). */
+.chat-guasto { justify-content: flex-start; overflow: auto; padding-top: var(--s5, 24px); }
+.chat-guasto__dettaglio {
+  max-width: 80ch;
+  max-height: 160px;
+  overflow: auto;
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  font-family: 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--t1);
+  color: var(--testo-quieto);
+  background: var(--fondo);
+  border: 1px solid var(--incisione);
+  border-radius: var(--raggio);
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: left;
+}
+
+/* La mini finestra temporanea: un pannello galleggiante con dentro un
+   terminale di passaggio (l'assistente della risoluzione, l'accesso,
+   l'installazione). Non e' una finestra di Electron e non entra nei layout. */
+.mini-finestra {
+  position: fixed;
+  right: var(--s4);
+  bottom: var(--s4);
+  z-index: 40;
+  width: min(720px, calc(100vw - 2 * var(--s4)));
+  display: flex;
+  flex-direction: column;
+  background: var(--chassis);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+.mini-finestra--grande { width: min(1100px, calc(100vw - 2 * var(--s4))); }
+.mini-finestra__testa {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  border-bottom: 1px solid var(--incisione);
+}
+.mini-finestra__titoli { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mini-finestra__titolo { font-weight: 600; color: var(--testo); }
+.mini-finestra__sotto { font-size: var(--t1); color: var(--testo-quieto); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini-finestra__corpo { padding: var(--s2); }
+.mini-finestra__nota { padding: var(--s3); font-size: var(--t2); color: var(--testo-quieto); line-height: 1.45; }
+.mini-finestra__pie { padding: var(--s1) var(--s3) var(--s2); font-size: var(--t1); color: var(--testo-quieto); line-height: 1.4; }
+
 /* Il riquadro remoto: una chat di un altro PC, dal vivo. Lo schermo e' HTML
    (le righe vestite di quel terminale), sotto la barra per scriverle. */
 .remoto {

@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.34.0',
+    righe: [
+      '**All’avvio torna tutto com’era, in silenzio.** Niente più finestra «Riprendi» con l’elenco dei salvataggi: SierraDeck riapre da solo l’ultima composizione (workspace, chat, finestre, autopiloti). I salvataggi con nome e il tasto «Salvataggi» non ci sono più, sul PC, nella pagina e nell’app (2.37.0): tanto si lavora sempre sugli stessi, e le chat viaggiano già sul Drive. Resta una rete di sicurezza invisibile: le ultime tre chiusure, in Impostazioni → «Torna a com’era», per quando un aggiornamento o un blocco lasciano i riquadri rotti.',
+      '**Una chat che non si apre ora dice perché, e cosa fare.** Se claude.exe si chiude subito, se la cartella non c’è più, se l’accesso è scaduto, se la conversazione è già aperta altrove, se il processo dei terminali è caduto, o se dopo il doppio del tempo previsto non è ancora arrivato il prompt: il riquadro mostra il caso, le ultime righe del terminale e i tasti giusti («Riprova», «Scegli la cartella…», «Rifai l’accesso», «Installa Claude Code», «Apri una chat nuova qui», «Aspetta ancora»). Il motivo finisce anche nel registro.',
+      '**Risoluzione avanzata.** In ogni diagnosi c’è «Risoluzione avanzata…»: si apre una mini finestra temporanea con un Claude Code che riceve il dossier del caso (la diagnosi, la cartella, la trascrizione, dov’è claude.exe, lo stato dell’accesso, le ultime righe del terminale e del registro) e ragiona con te su cosa fare. Non tocca i file senza chiederlo. Chiudere la finestra ferma l’assistente; la chat di partenza si riprende con «Riprova».'
+    ]
+  },
+  {
     versione: '0.33.1',
     righe: [
       '**App 2.36.0: la scheda dell’autopilota si legge e si usa.** La chat con lui e la casella per scrivergli sono sempre in vista, anche con la tastiera aperta: prima le linguette in basso (Obiettivo, Criteri, Compiti…) si prendevano metà schermo, la chat spariva e la casella finiva fuori. Ora le linguette nascono chiuse: ne tocchi una e si apre sotto, con un tetto; la tocchi di nuovo e si chiude. Le fasi e la misura scorrono con la chat, il motivo di un fermo è scritto una volta sola. «Installa» nella scheda Computer dice com’è andata la richiesta, e se il computer non installa mostra il suo motivo anche quando resta su «pronto». Sul PC, un «Installa» che trova un’attesa rimasta appesa lo dice invece di tacere.'

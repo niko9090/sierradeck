@@ -76,6 +76,10 @@ import {
   type StatoPreparazione
 } from './preparazione'
 import { leggiAccesso } from './accesso'
+import { componiDossier, argomentiAgente, type RichiestaRisoluzione } from './risoluzione'
+import { writeFileSync } from 'node:fs'
+import { statSync } from 'node:fs'
+import { release } from 'node:os'
 import { riassumiConsumi, type Consumi } from '@shared/consumi'
 
 export type { SpawnRequest } from './validation'
@@ -759,7 +763,12 @@ export async function salvaLayoutDiTutteLeFinestre(attesaMs = 1500): Promise<voi
  * girare nascosti significherebbe mostrare una barra che gira davanti a
  * un'installazione che magari sta chiedendo qualcosa.
  */
-export function registerPreparazioneIpc(client: PtyHostClient, casa: () => string): void {
+export function registerPreparazioneIpc(
+  client: PtyHostClient,
+  casa: () => string,
+  /** Per la risoluzione avanzata: la versione, le ultime righe del registro, dove scrivere il dossier. */
+  extra?: { versione: () => string; ultimeRigheRegistro: (n: number) => string[]; cartellaTemporanea: () => string }
+): void {
   const guarda = (): StatoPreparazione =>
     preparaAmbiente({ env: process.env, casa: casa(), esiste: (p) => existsSync(p) })
 
@@ -784,6 +793,58 @@ export function registerPreparazioneIpc(client: PtyHostClient, casa: () => strin
   }
 
   ipcMain.handle('preparazione:stato', (): StatoPreparazione => guarda())
+
+  /**
+   * La risoluzione avanzata di una chat che non si apre: un Claude Code
+   * interattivo, in una mini finestra, che legge un dossier scritto qui (la
+   * diagnosi del riquadro, la cartella, la trascrizione, claude.exe,
+   * l'accesso, il registro) e ragiona con l'utente. Vedi `risoluzione.ts`.
+   */
+  ipcMain.handle('risoluzione:apri', (event, raw: unknown): { ptyId: string; dossier: string } => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (win === null) throw new Error('richiesta di risoluzione da una finestra sconosciuta')
+    const r = raw as Partial<RichiestaRisoluzione> | undefined
+    const testo = (x: unknown, max = 4000): string => (typeof x === 'string' ? x.slice(0, max) : '')
+    const richiesta: RichiestaRisoluzione = {
+      cwd: testo(r?.cwd, 1000), sessionUuid: testo(r?.sessionUuid, 100), titolo: testo(r?.titolo, 200),
+      caso: testo(r?.caso, 40), titoloDiagnosi: testo(r?.titoloDiagnosi, 300), dettaglio: testo(r?.dettaglio, 4000),
+      ultimeRighe: Array.isArray(r?.ultimeRighe) ? r.ultimeRighe.filter((x): x is string => typeof x === 'string').slice(-200) : []
+    }
+    const claude = guarda().claude
+    if (claude === undefined) {
+      throw new Error('Claude Code non si trova su questo PC: l’assistente è Claude Code stesso, e senza non può partire. Prima «Installa», poi riprova.')
+    }
+    const trascrizione = join(claudeRoot(), 'projects', pathToSlug(richiesta.cwd), `${richiesta.sessionUuid}.jsonl`)
+    let byte: number | undefined
+    try { byte = statSync(trascrizione).size } catch { byte = undefined }
+    const accesso = leggiAccesso(casa())
+    const dossier = componiDossier(richiesta, {
+      versioneSierraDeck: extra?.versione() ?? '',
+      claude,
+      accesso: { autenticato: accesso.autenticato, ...(accesso.motivo !== undefined ? { motivo: accesso.motivo } : {}), ...(accesso.email !== undefined ? { email: accesso.email } : {}) },
+      cartellaEsiste: richiesta.cwd !== '' && existsSync(richiesta.cwd),
+      trascrizione: { percorso: trascrizione, esiste: byte !== undefined, ...(byte !== undefined ? { byte } : {}) },
+      ultimeRigheRegistro: extra?.ultimeRigheRegistro(80) ?? [],
+      sistema: `Windows ${release()}`
+    })
+    const id = randomUUID()
+    const file = join(extra?.cartellaTemporanea() ?? casa(), `sierradeck-risoluzione-${id}.md`)
+    writeFileSync(file, dossier, 'utf8')
+    registro.assegna(id, win.id)
+    client.send({
+      id,
+      kind: 'spawn',
+      sessionUuid: id,
+      // Nella cartella della chat se c'e' ancora (l'agente guarda i suoi file
+      // di impostazioni), altrimenti a casa.
+      cwd: richiesta.cwd !== '' && existsSync(richiesta.cwd) ? richiesta.cwd : casa(),
+      command: claude,
+      args: argomentiAgente(file),
+      cols: 100,
+      rows: 30
+    })
+    return { ptyId: id, dossier: file }
+  })
 
   ipcMain.handle('preparazione:installa', (event): string => apriTerminale(event, INSTALLA_CLAUDE))
 

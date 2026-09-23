@@ -347,7 +347,8 @@ describe('la fascia in basso', () => {
     expect(corpo).toContain('vistaQuaderno')
     // I consumi e i salvataggi stanno con il computer.
     expect(corpo).toContain('vistaConsumi')
-    expect(corpo).toContain('elencoSalvataggi')
+    // I salvataggi con nome non esistono piu' (0.34.0).
+    expect(corpo).not.toContain('elencoSalvataggi')
     // «Affida un lavoro» sta in Lavori, non in mezzo alle chat.
     expect(corpo.slice(corpo.indexOf('lavori:'), corpo.indexOf('computer:'))).toContain('delega')
   })

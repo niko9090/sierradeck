@@ -11,6 +11,19 @@ import {
 export const VERSIONE_ISTANTANEE = 2
 
 /**
+ * Le chiusure automatiche, dalla piu' recente: la rete di sicurezza
+ * invisibile. Nicholas (23/09): «in apertura venga sempre ripresentata
+ * l'ultima composizione senza possibilita' di salvare»; le ultime tre
+ * chiusure restano su disco per «Torna a com'era» (Impostazioni), dopo un
+ * crash o un aggiornamento che lascia un layout rotto.
+ */
+export const NOMI_CHIUSURE = ['Ultima chiusura', 'Penultima chiusura', 'Terzultima chiusura'] as const
+export const NOME_AUTOMATICO = NOMI_CHIUSURE[0]
+export function eChiusuraAutomatica(nome: string): boolean {
+  return (NOMI_CHIUSURE as readonly string[]).includes(nome)
+}
+
+/**
  * Un autopilota così com'era quando l'istantanea è stata presa.
  *
  * Si salva **la richiesta**, non lo stato: al ricarico l'autopilota riparte da
