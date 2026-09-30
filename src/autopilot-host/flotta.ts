@@ -2,7 +2,8 @@ export type StatoChat = {
   id: string
   /** Il pezzo di lavoro affidato a questa chat. */
   compito: string
-  stato: 'lavoro' | 'bloccata' | 'finita'
+  /** `pausa`: ferma dal freno sui limiti del piano, non occupa un posto (0.36.0). */
+  stato: 'lavoro' | 'bloccata' | 'pausa' | 'finita'
   cicli: number
 }
 

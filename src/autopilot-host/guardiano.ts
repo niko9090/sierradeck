@@ -63,7 +63,7 @@ export function chiTace(
     // Contarla voleva dire sospendere l'autopilota per la lentezza dell'utente,
     // e dargli pure la colpa: «una chat non dà segnali» mentre era lei ad
     // aspettare.
-    if (chat.stato === 'finita' || chat.stato === 'bloccata') continue
+    if (chat.stato === 'finita' || chat.stato === 'bloccata' || chat.stato === 'pausa') continue
     /**
      * Il ripiego a due passi: prima il turno di **questa** chat, poi quello
      * dell'autopilota. Il secondo serve alle flotte nate prima di questa

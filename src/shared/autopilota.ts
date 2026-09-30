@@ -132,9 +132,21 @@ export type Decisione = { quando: string; cosa: string }
 export type ChatGovernata = {
   id: string
   compito: string
-  stato: 'lavoro' | 'bloccata' | 'finita'
+  /**
+   * `pausa` (0.36.0): ferma a fine turno dal freno sui limiti del piano; torna
+   * `lavoro` da sola quando il piano lo permette di nuovo. Non occupa un posto.
+   */
+  stato: 'lavoro' | 'bloccata' | 'pausa' | 'finita'
   cicli: number
   sessionId?: string
+  /**
+   * La cartella di questa chat quando lavora in un **git worktree** suo (0.36.0):
+   * piu' chat sullo stesso progetto non si pestano i file. Assente = la cartella
+   * dell'autopilota.
+   */
+  cartella?: string
+  /** Il ramo git del suo worktree (`ap/<autopilota>/<chat>`). */
+  ramo?: string
   /**
    * La sessione del supervisore **di questa chat**.
    *
@@ -280,6 +292,21 @@ export type Autopilota = {
   dialogo: ScambioDialogo[]
   /** I tuoi messaggi che aspettano il momento giusto per entrare nella chat. */
   daConsegnare: MessaggioPerLaChat[]
+  /**
+   * La regola di pubblicazione del progetto, scelta alla creazione (0.36.0):
+   * `beta` pubblica sempre, `stabile` chiede prima, `unica` segue il progetto.
+   */
+  pubblicazione?: 'beta' | 'stabile' | 'unica'
+  /** Dichiarato alla creazione: il progetto «va sul cloud». */
+  vaSulCloud?: boolean
+  /** Il cloud riconosciuto dai file del progetto (remoti, script, deploy). */
+  cloud?: { attivo: boolean; segni: string[] }
+  /** Il ramo principale del progetto quando le chat lavorano in worktree. */
+  ramoBase?: string
+  /** Fermo per i limiti del piano fino a questo istante (ISO): poi riparte da solo. */
+  pausaLimitiFinoA?: string
+  /** Pubblicazione chiesta a Nicholas e in attesa del sì (regola «stabile»). */
+  pubblicazioneInAttesa?: boolean
 }
 
 export function limitiPredefiniti(): Limiti {
@@ -298,6 +325,8 @@ export function nuovoAutopilota(p: {
   workspace?: string
   /** Senza criteri si parte in intervista: sarà lei a produrli. */
   stato?: StatoAutopilota
+  pubblicazione?: 'beta' | 'stabile' | 'unica'
+  vaSulCloud?: boolean
 }): Autopilota {
   return {
     id: p.id,
@@ -321,7 +350,9 @@ export function nuovoAutopilota(p: {
     compitiDaFare: [],
     modifiche: [],
     dialogo: [],
-    daConsegnare: []
+    daConsegnare: [],
+    ...(p.pubblicazione !== undefined ? { pubblicazione: p.pubblicazione } : {}),
+    ...(p.vaSulCloud === true ? { vaSulCloud: true } : {})
   }
 }
 
@@ -353,14 +384,27 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
   // chat data per finita che invece è viva resterebbe dimenticata con il suo
   // processo acceso.
   const stato =
-    o.stato === 'bloccata' || o.stato === 'finita' ? o.stato : 'lavoro'
+    o.stato === 'bloccata' || o.stato === 'finita' || o.stato === 'pausa' ? o.stato : 'lavoro'
+  const cartella = stringaNonVuota(o.cartella)
+  const ramo = stringaNonVuota(o.ramo)
   return {
     id,
     compito: stringaNonVuota(o.compito) ?? '',
     stato,
     cicli: typeof o.cicli === 'number' && o.cicli >= 0 ? Math.floor(o.cicli) : 0,
     ...(sessionId !== undefined ? { sessionId } : {}),
+    ...(cartella !== undefined ? { cartella } : {}),
+    ...(ramo !== undefined ? { ramo } : {}),
     ...(sessioneSupervisore !== undefined ? { sessioneSupervisore } : {})
+  }
+}
+
+function parseCloud(raw: unknown): { attivo: boolean; segni: string[] } | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const o = raw as Record<string, unknown>
+  return {
+    attivo: o.attivo === true,
+    segni: Array.isArray(o.segni) ? o.segni.filter((x): x is string => typeof x === 'string').slice(0, 20) : []
   }
 }
 
@@ -640,6 +684,12 @@ export function parseAutopilota(raw: unknown): {
         : [],
       limiti: parseLimiti(o.limiti),
       tettoChat: normalizzaTetto(o.tettoChat),
+      ...(o.pubblicazione === 'beta' || o.pubblicazione === 'stabile' || o.pubblicazione === 'unica' ? { pubblicazione: o.pubblicazione } : {}),
+      ...(o.vaSulCloud === true ? { vaSulCloud: true } : {}),
+      ...(parseCloud(o.cloud) !== undefined ? { cloud: parseCloud(o.cloud) as { attivo: boolean; segni: string[] } } : {}),
+      ...(stringaNonVuota(o.ramoBase) !== undefined ? { ramoBase: o.ramoBase as string } : {}),
+      ...(stringaNonVuota(o.pausaLimitiFinoA) !== undefined ? { pausaLimitiFinoA: o.pausaLimitiFinoA as string } : {}),
+      ...(o.pubblicazioneInAttesa === true ? { pubblicazioneInAttesa: true } : {}),
       chats,
       compitiDaFare: Array.isArray(o.compitiDaFare)
         ? o.compitiDaFare.filter((c): c is string => typeof c === 'string' && c.trim() !== '')
