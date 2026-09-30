@@ -3990,3 +3990,46 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 @media (max-width: 720px) {
   .scorciatoie__riga { grid-template-columns: 1fr; }
 }
+
+/* ─────────────── la scheda Domande come conversazioni (0.36.0) ─────────────── */
+.domande-pc__corpo {
+  display: flex;
+  gap: var(--s3);
+  min-height: 320px;
+  max-height: 70vh;
+}
+.domande-pc__elenco {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+.domande-pc__voce {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  width: 100%;
+  text-align: left;
+  padding: var(--s2);
+  background: var(--chassis);
+  border: 1px solid var(--luce-incisione);
+  border-radius: var(--raggio);
+  color: var(--testo);
+  cursor: pointer;
+}
+.domande-pc__voce--aperta { border-color: var(--accento); }
+.domande-pc__titolo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.domande-pc__titolo b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.domande-pc__chat { flex: 1 1 auto; min-width: 0; }
+.domande-pc__opzioni { display: flex; flex-direction: column; gap: var(--s1); margin-top: var(--s1); }
+.domande-pc__vuoto { padding: var(--s3); user-select: text; }
+
+/* ─────────────── l'albero delle chat dell'autopilota (T7, 0.36.0) ─────────────── */
+.albero-ap { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; user-select: text; }
+.albero-ap__nodo { display: flex; align-items: center; gap: var(--s2); font-size: var(--t2); }
+.albero-ap__figli { list-style: none; margin: 0 0 0 var(--s3); padding-left: var(--s2); border-left: 1px solid var(--luce-incisione); display: flex; flex-direction: column; gap: 2px; }
+.albero-ap__ramo { font-family: ui-monospace, Consolas, monospace; color: var(--testo-quieto); font-size: var(--t1); }

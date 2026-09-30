@@ -924,5 +924,11 @@ contextBridge.exposeInMainWorld('gestore', {
   appunti: {
     leggi: (): string => clipboard.readText(),
     scrivi: (testo: string): void => clipboard.writeText(testo)
+  },
+  // La scheda Domande del PC (0.36.0): le stesse rotte del telefono, cosi' la
+  // conversazione e' la stessa sui tre lati. Il Core ne permette solo cinque.
+  domande: {
+    chiama: (percorso: string, corpo?: unknown): Promise<{ stato: number; corpo: unknown }> =>
+      ipcRenderer.invoke('domande:chiama', percorso, corpo)
   }
 })

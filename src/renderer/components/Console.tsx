@@ -30,7 +30,7 @@ import { MODELLI } from '../modelli'
  * qualcosa di nuovo: chi non vuole pensarci li usa e non ci pensa più.
  */
 
-export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'file' | 'drive' | undefined
+export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'file' | 'drive' | 'domande' | undefined
 
 type Props = {
   onApriSessioni: () => void
@@ -57,6 +57,8 @@ type Props = {
   aggiornamento?: { fase: string; versione?: string; percento?: number; daTelefono?: boolean }
   /** I LED degli autopiloti: uno per autopilota, nell'ordine dell'elenco. */
   ledAutopiloti: { id: string; classe: string; titolo: string }[]
+  /** Quante conversazioni della scheda Domande aspettano una risposta (0.36.0). */
+  domandeInAttesa?: number
 }
 
 /**
@@ -75,6 +77,7 @@ export function Console({
   workspaceAttivo,
   workspaceNomi,
   ledAutopiloti,
+  domandeInAttesa = 0,
   aggiornamento,
   onStatoWorkspace,
   workspaceCheChiamano,
@@ -392,6 +395,14 @@ export function Console({
           title="Il magazzino comune dei tuoi PC: cosa c’è sul Drive, cosa hai già qui, e «Porta qui»"
         >
           ☁ Drive
+        </button>
+        <button
+          className="tasto"
+          onClick={() => commuta('domande')}
+          aria-expanded={aperto === 'domande'}
+          title="Le domande e i permessi che aspettano te, come conversazioni: gli autopiloti e le chat ferme"
+        >
+          {domandeInAttesa > 0 ? <span className="led led--attesa" /> : null}Domande{domandeInAttesa > 0 ? ` ${domandeInAttesa}` : ''}
         </button>
         <button
           className="tasto"

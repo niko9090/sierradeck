@@ -582,10 +582,16 @@ var ultimoStato = { chat: [], autopiloti: [], domande: [] }
 var domandeViste = null
 var domandeGuasto = null
 var domandeMandate = {}
+// Le stesse domande come conversazioni a messaggi (0.36.0), composte dal
+// computer con la funzione del PC e dell'app. Null con un computer vecchio:
+// allora si mostra la vista di prima.
+var domandeConversazioni = null
+var domandaAperta = null
 async function leggiDomande() {
   try {
     var d = await chiedi('/api/domande')
     domandeViste = (d && d.voci) || []
+    domandeConversazioni = (d && Array.isArray(d.conversazioni)) ? d.conversazioni : null
     domandeGuasto = (d && d.errore) ? String(d.errore) : null
   } catch (e) {
     domandeGuasto = 'Non riesco a leggere le domande: ' + (e && e.message ? e.message : 'il computer non risponde') + '. Se il computer è più vecchio della 0.30, va aggiornato.'
@@ -644,6 +650,64 @@ function vistaDomande(s) {
   }
   return html
 }
+/**
+ * Come si risponde a una conversazione: la stessa regola di
+ * \`richiestaRisposta\` in \`shared/domande-conversazioni.ts\` (un test le confronta).
+ */
+/** Ore e minuti di un istante ISO, gia' scappati. */
+function oraDi(iso) {
+  return esc(String(iso || '').slice(11, 16))
+}
+
+function richiestaDi(r, testo) {
+  if (r.via === 'rispondi') return { percorso: '/api/rispondi', corpo: { domanda: r.domanda, risposta: testo } }
+  if (r.via === 'dialogo') return { percorso: '/api/autopilota/dialogo', corpo: { autopilota: r.autopilota, testo: testo } }
+  return { percorso: '/api/scrivi', corpo: { chat: r.chat, testo: testo } }
+}
+
+/**
+ * La scheda Domande come conversazioni (0.36.0): a sinistra (o sopra, sul
+ * telefono) chi ti scrive, sotto la conversazione aperta. Con un autopilota si
+ * parla con lui; con una chat che aspetta, e' lei a scrivere la domanda o il
+ * permesso, con le opzioni da toccare.
+ */
+function vistaConversazioni() {
+  var elenco = domandeConversazioni || []
+  if (elenco.length === 0) {
+    return '<div class="piastrella"><div class="grande">Niente da rispondere</div><div class="sotto">Qui compaiono, come conversazioni e senza bloccare niente: gli autopiloti che ti chiedono qualcosa (prima di partire o mentre lavorano) — ci parli come nella loro scheda; le chat che aspettano una scelta o un permesso — scrivono qui la domanda con le opzioni da toccare; e le chat che hanno finito il turno e aspettano la tua istruzione. La stessa cosa che vedi sul PC e nell’app.</div></div>'
+  }
+  var aperta = elenco.find(function (c) { return c.chiave === domandaAperta }) || elenco[0]
+  var voci = elenco.map(function (c) {
+    return '<button class="voce" data-k="' + esc(c.chiave) + '" onclick="apriConv(this.dataset.k)"' + (c.chiave === aperta.chiave ? ' aria-current="true"' : '') + '>' +
+      '<span class="led ' + (c.chiede ? 'attesa' : 'spenta') + '"></span>' +
+      '<span class="voce__testo"><span class="voce__nome">' + esc(c.titolo) + '</span>' +
+      '<span class="voce__sotto">' + (c.tipo === 'autopilota' ? 'autopilota · ti sta chiedendo' : c.chiede ? 'chat · aspetta che tu scelga' : 'chat · ha finito il turno') + '</span></span>' +
+      '<span class="voce__freccia">›</span></button>'
+  }).join('')
+  var messaggi = aperta.messaggi.map(function (m) {
+    if (m.da === 'nota') return '<div class="nota-ap"><span class="quando">' + oraDi(m.quando) + '</span><span>' + esc(m.testo) + '</span></div>'
+    var opzioni = (m.opzioni && aperta.scelte)
+      ? '<div class="scelte">' + m.opzioni.map(function (o) {
+          return '<button class="scelta' + (o.scelta ? ' scelta--ora' : '') + '" data-chat="' + esc(aperta.scelte.chat) + '" data-testo="' + esc(o.testo) + '" onclick="scegliIn(this.dataset.chat, this.dataset.testo)"><span class="scelta__n">' + o.numero + '</span>' + esc(o.testo) + '</button>'
+        }).join('') + '</div>'
+      : ''
+    return '<div class="battuta battuta--' + (m.da === 'tu' ? 'tu' : 'lui') + (m.tono === 'domanda' ? ' battuta--domanda' : '') + '">' +
+      '<span class="battuta__chi">' + (m.da === 'tu' ? 'tu' : esc(aperta.titolo)) + (m.quando ? ' · ' + oraDi(m.quando) : '') + '</span>' +
+      '<span>' + esc(m.testo) + '</span>' + opzioni + '</div>'
+  }).join('')
+  var mandata = domandeMandate[aperta.chiave]
+  return '<div class="piastrella">' + voci + '</div>' +
+    '<div class="piastrella' + (aperta.chiede ? ' chiede' : '') + '">' +
+    '<div class="serigrafia">' + esc(aperta.titolo) + '</div><div class="sotto">' + esc(aperta.sotto) + '</div>' +
+    '<div class="flusso-ap">' + messaggi +
+    (mandata ? '<div class="battuta battuta--tu"><span class="battuta__chi">tu · mandato, aspetto il computer</span><span>' + esc(mandata) + '</span></div>' : '') +
+    '</div>' +
+    '<div class="riga"><textarea id="conv-testo" rows="3" placeholder="' + esc(aperta.segnaposto) + '"></textarea></div>' +
+    '<div class="riga"><button class="primario" data-k="' + esc(aperta.chiave) + '" onclick="rispondiConv(this.dataset.k)">' + (aperta.risposta.via === 'rispondi' ? 'Rispondi' : 'Manda') + '</button></div>' +
+    '<div class="sotto">' + (aperta.risposta.via === 'rispondi' ? 'La risposta arriva subito alla chat ferma.' : 'Arriva nella chat come se l’avessi scritto lì.') + '</div>' +
+    '</div>'
+}
+
 /**
  * Quando il computer ha risposto l'ultima volta, e da quanti giri non risponde.
  *
@@ -998,6 +1062,7 @@ function impronta(s) {
     // questi, aprendola si restava su «Leggo dal computer…» finche' qualcosa
     // d'altro non cambiava, e «Mandata» dopo una risposta non compariva.
     domandeViste ? JSON.stringify(domandeViste) : '', domandeGuasto || '', Object.keys(domandeMandate).join(','),
+    domandeConversazioni ? JSON.stringify(domandeConversazioni) : '', domandaAperta || '',
     (function () { try { return localStorage.getItem('sierradeck.nienteapp') || '' } catch (e) { return '' } })(),
     schedeViste ? schedeViste.length : '',
     sessioniViste ? sessioniViste.length : '',
@@ -1333,6 +1398,14 @@ function pannello(s) {
                '<button class="cartella' + (delegaCartella === i ? ' attivo' : '') + '" onclick="scegliPer(' + i + ')">' +
                '<span class="cartella__nome">' + (delegaCartella === i ? '✓ ' : '') + esc(c.split(/[\\\\/]/).filter(Boolean).pop() || c) + '</span>' +
                '<span class="cartella__dove">' + esc(c) + '</span></button>').join('')}
+         <div class="sotto" style="margin-top:10px">Pubblicazione del progetto</div>
+         <select id="delega-pubblicazione" style="width:100%;margin-top:6px">
+           <option value="stabile">stabile: chiede prima</option>
+           <option value="beta">beta: pubblica sempre</option>
+           <option value="unica">versione unica: decide il progetto</option>
+         </select>
+         <label class="spunta" style="display:block;margin-top:8px"><input type="checkbox" id="delega-cloud"> il progetto va sul cloud</label>
+         <div class="sotto">Con il cloud (questa spunta, o un remoto git, uno script di pubblicazione o di deploy che riconosce da solo) fa tutto senza chiederti: commit, unione dei suoi rami, push e pubblicazione secondo la regola. Senza, fa commit sui suoi rami e li unisce, e basta. Quante chat apre lo decide lui, dentro il freno sui limiti del piano.</div>
          <div class="riga">
            <button class="primario" onclick="affida()">Affida</button>
            <button onclick="delegando = false; delegaCartella = -1; cartelle = null; pannello(ultimoStato)">Lascia stare</button>
@@ -1632,7 +1705,7 @@ function pannello(s) {
     // polso, poi la calma. Quando domina una domanda tutto il resto collassa
     // in una riga: e' la ragione per cui questa schermata si legge in un
     // secondo e mezzo invece che scorrerla.
-    domande: vistaDomande(s),
+    domande: domandeConversazioni ? vistaConversazioni() : vistaDomande(s),
     adesso: fermo + invito + domande + bloccati + aspettanoTe + panoramica +
       (domande
         ? '<div class="solco"></div><button class="riga-altro" onclick="vaiScheda(\\'lavori\\')">altre cose in moto ›</button>'
@@ -1746,8 +1819,11 @@ window.affida = async () => {
   const campo = document.getElementById('delega-obiettivo')
   const obiettivo = campo && campo.value.trim()
   const cartella = (cartelle || [])[delegaCartella]
-  if (!obiettivo || !cartella) return
-  await chiedi('/api/autopilota/crea', { obiettivo: obiettivo, cartella: cartella })
+  // Niente silenzio: un tasto che non fa niente sembra rotto.
+  if (!obiettivo || !cartella) { notaGlobale = 'Per affidare un lavoro servono cosa deve fare e la cartella.'; pannello(ultimoStato); return }
+  const pubblicazione = (document.getElementById('delega-pubblicazione') || {}).value || 'stabile'
+  const cloud = !!(document.getElementById('delega-cloud') || {}).checked
+  await chiedi('/api/autopilota/crea', { obiettivo: obiettivo, cartella: cartella, pubblicazione: pubblicazione, vaSulCloud: cloud })
   delegando = false
   delegaCartella = -1
   cartelle = null
@@ -1870,13 +1946,7 @@ function vistaAutopilota(a) {
       (qui && qui.nota ? '<div class="sotto nota">' + esc(qui.nota) + '</div>' : '') +
       '<div class="sotto">' + (a.cicli || 0) + ' interventi del supervisore' +
         (a.strategia ? ' · sta provando un’altra strada: ' + esc(a.strategia) : '') + '</div>' +
-      '<div class="serigrafia" style="margin-top:10px">' + ((a.chats || []).length > 1 ? 'Le sue chat' : 'La sua chat') + '</div>' +
-      ((a.chats || []).length === 0
-        ? '<div class="sotto">' + (a.stato === 'intervista' || a.stato === 'pronto' ? 'Non è ancora partita: nasce quando dai il via.' : 'Nessuna chat aperta adesso.') + '</div>'
-        : (a.chats || []).map((ch, i) =>
-          '<div class="sotto">' + (ch.stato === 'lavoro' ? '●' : ch.stato === 'bloccata' ? '◐' : '○') + ' chat ' + (i + 1) + ' · ' +
-          (ch.stato === 'lavoro' ? 'al lavoro' : ch.stato === 'bloccata' ? 'ferma, aspetta una risposta' : 'finita') +
-          ((a.chats || []).length > 1 ? ': ' + esc(ch.compito) : '') + '</div>').join(''))
+      '<div class="serigrafia" style="margin-top:10px">Il coordinatore e le sue chat</div>' + alberoHtml(a)
   } else if (apTab === 'criteri') {
     // I criteri, con **quando** li ha raggiunti: una spunta senza ora non dice
     // se e' successo adesso o tre ore fa. Si riscrivono dal PC.
@@ -2286,6 +2356,28 @@ function quote(q) {
  * scritto. Prima prendeva sempre la cartella della prima chat dell'elenco, che
  * con due progetti aperti e' semplicemente un'altra cosa.
  */
+/**
+ * L'albero delle chat di un autopilota (T7, 0.36.0): il coordinatore e sotto
+ * le sue chat, con il compito, lo stato, il ramo del worktree e i giri. Dal
+ * campo \`albero\` che il computer compone con la stessa funzione del PC.
+ */
+function alberoHtml(a) {
+  var t = a && a.albero
+  var figli = (t && t.figli) || []
+  if (figli.length === 0) {
+    return '<div class="sotto">' + (a.stato === 'intervista' || a.stato === 'pronto'
+      ? 'Non è ancora partita: nasce quando dai il via.'
+      : 'Una chat sola, nella cartella del progetto.') + '</div>'
+  }
+  return '<div class="sotto">coordinatore · ' + esc(t.parola) + (a.ramoBase ? ' · ramo principale ' + esc(a.ramoBase) : '') + '</div>' +
+    figli.map(function (f) {
+      var led = f.stato === 'lavoro' ? 'lavoro' : f.stato === 'bloccata' ? 'attesa' : 'spenta'
+      return '<div class="sotto" style="margin-left:6px;padding-left:12px;border-left:1px solid var(--bordo)">' +
+        '<span class="led ' + led + '"></span>' + esc(f.titolo) + ' · ' + esc(f.parola) + ' · ' + f.cicli + (f.cicli === 1 ? ' giro' : ' giri') +
+        (f.ramo ? ' · <span class="percorso" style="display:inline">' + esc(f.ramo) + '</span>' : '') + '</div>'
+    }).join('')
+}
+
 function cartellaPrima() {
   const suo = ((ultimoStato || {}).autopiloti || []).find((a) => a.id === dentroAp)
   if (suo && suo.cwd) return suo.cwd
@@ -2417,6 +2509,21 @@ window.rispondiVoce = async (id) => {
     notaGlobale = 'Non sono riuscito a mandare la risposta: ' + (e && e.message ? e.message : 'il computer non risponde')
   }
   pannello(ultimoStato)
+}
+window.apriConv = (chiave) => { domandaAperta = chiave; pannello(ultimoStato) }
+window.rispondiConv = async (chiave) => {
+  const conv = (domandeConversazioni || []).find((c) => c.chiave === chiave)
+  const campo = document.getElementById('conv-testo')
+  if (!conv || !campo || !campo.value.trim()) return
+  const r = richiestaDi(conv.risposta, campo.value.trim())
+  try {
+    await chiedi(r.percorso, r.corpo)
+    domandeMandate[conv.chiave] = campo.value.trim().slice(0, 200)
+    campo.value = ''
+  } catch (e) {
+    notaGlobale = 'Non sono riuscito a mandarlo: ' + (e && e.message ? e.message : 'il computer non risponde')
+  }
+  await leggiDomande()
 }
 window.scegliIn = async (chat, testo) => {
   const voce = (domandeViste || []).find((v) => v.tipo === 'scelta' && v.chat === chat)

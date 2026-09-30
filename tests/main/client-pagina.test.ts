@@ -812,3 +812,64 @@ describe('analisi del telefono, 30/09', () => {
     }
   })
 })
+
+/** Le Domande come conversazioni e l'albero delle chat, nella pagina (0.36.0). */
+describe('la pagina: Domande come conversazioni e albero delle chat', () => {
+  const estrai = (nome: string): string => {
+    const inizio = script.indexOf(`function ${nome}(`)
+    expect(inizio, `${nome} non e nella pagina`).toBeGreaterThan(-1)
+    let profondita = 0
+    for (let i = script.indexOf('{', inizio); i < script.length; i++) {
+      if (script[i] === '{') profondita++
+      else if (script[i] === '}' && --profondita === 0) return script.slice(inizio, i + 1)
+    }
+    throw new Error(`${nome} non si chiude`)
+  }
+  const riga = (inizio: string): string =>
+    script.split(String.fromCharCode(10)).find((r) => r.trimStart().startsWith(inizio)) ?? ''
+
+  it('si risponde con la stessa regola del PC e dell app', async () => {
+    const { richiestaRisposta } = await import('@shared/domande-conversazioni')
+    const richiestaDi = new Function(`${estrai('richiestaDi')}\nreturn richiestaDi`)() as typeof richiestaRisposta
+    for (const r of [{ via: 'rispondi' as const, domanda: 'd1' }, { via: 'scrivi' as const, chat: 'c1' }, { via: 'dialogo' as const, autopilota: 'a1' }]) {
+      expect(richiestaDi(r, 'ciao')).toEqual(richiestaRisposta(r, 'ciao'))
+    }
+  })
+
+  it('una chat che chiede un permesso scrive la domanda con le opzioni da toccare, e si risponde da li', () => {
+    const conv = [{
+      chiave: 'chat:p-1', tipo: 'chat', titolo: 'Permesso', sotto: 'D:/q', chiede: true,
+      messaggi: [{ da: 'tu', testo: 'fai piano' }, { da: 'lui', testo: 'Posso scrivere config.json?', tono: 'domanda', opzioni: [{ numero: 1, testo: 'Yes', scelta: true }] }],
+      risposta: { via: 'scrivi', chat: 'p-1' }, scelte: { chat: 'p-1', opzioni: [{ numero: 1, testo: 'Yes', scelta: true }] },
+      segnaposto: 'Tocca un’opzione'
+    }]
+    const html = new Function(
+      `var domandeConversazioni = ${JSON.stringify(conv)}; var domandaAperta = null; var domandeMandate = {};\n` +
+      `${riga('const esc =')}\n${estrai('oraDi')}\n${estrai('vistaConversazioni')}\nreturn vistaConversazioni()`
+    )() as string
+    expect(html).toContain('Posso scrivere config.json?')
+    expect(html).toContain('battuta--domanda')
+    expect(html).toContain('onclick="scegliIn(this.dataset.chat, this.dataset.testo)"')
+    expect(html).toContain('data-testo="Yes"')
+    expect(html).toContain('battuta--tu')
+    expect(html).toContain('onclick="rispondiConv(this.dataset.k)"')
+    expect(script).toContain('domandeConversazioni ? vistaConversazioni() : vistaDomande(s)')
+  })
+
+  it('il dettaglio dell autopilota mostra l albero: coordinatore, chat, rami', () => {
+    const a = { stato: 'lavoro', ramoBase: 'main', albero: { parola: 'coordina', figli: [
+      { titolo: 'le API', parola: 'al lavoro', stato: 'lavoro', cicli: 2, ramo: 'ap/a1/c-1' },
+      { titolo: 'la pagina', parola: 'in pausa per i limiti del piano', stato: 'pausa', cicli: 1 }
+    ] } }
+    const html = new Function(`${riga('const esc =')}\n${estrai('alberoHtml')}\nreturn alberoHtml`)()(a) as string
+    expect(html).toContain('coordinatore · coordina · ramo principale main')
+    expect(html).toContain('le API · al lavoro · 2 giri')
+    expect(html).toContain('ap/a1/c-1')
+    expect(html).toContain('in pausa per i limiti del piano')
+  })
+
+  it('Affida manda la regola di pubblicazione e il cloud', () => {
+    expect(script).toContain('id="delega-pubblicazione"')
+    expect(script).toContain('pubblicazione: pubblicazione, vaSulCloud: cloud')
+  })
+})

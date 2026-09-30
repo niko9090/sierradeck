@@ -50,6 +50,7 @@ import { ETICHETTA_LAVORO_TIPO, soloTransizioni } from './progresso-sync'
 import { Fumetti, Fumetto, FumettoLavoroDrive, useChiusuraAutomatica } from './components/Fumetti'
 import { decidiFumettiDrive, FUMETTO_ARRIVO_MS, FUMETTO_ESITO_OK_MS } from './fumetti-sync'
 import { PannelloDrive } from './components/PannelloDrive'
+import { PannelloDomande } from './components/PannelloDomande'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 
 /**
@@ -543,6 +544,23 @@ export function App(): React.JSX.Element {
   }), [])
   const [novita, setNovita] = useState<Novita | undefined>(undefined)
   const [aperto, setAperto] = useState<PannelloAperto>(undefined)
+  // Quante conversazioni della scheda Domande aspettano una risposta: il
+  // numero sul tasto, letto dalle stesse rotte del telefono (0.36.0).
+  const [domandeInAttesa, setDomandeInAttesa] = useState(0)
+  useEffect(() => {
+    const leggi = (): void => {
+      window.gestore.domande
+        .chiama('/api/domande')
+        .then((r) => {
+          const c = (r.corpo as { conversazioni?: { chiede: boolean }[] }).conversazioni ?? []
+          setDomandeInAttesa(c.filter((x) => x.chiede).length)
+        })
+        .catch(() => undefined)
+    }
+    leggi()
+    const h = setInterval(leggi, 5000)
+    return () => clearInterval(h)
+  }, [])
   const [workspace, setWorkspace] = useState<StatoWorkspace>({ nomi: [], attivo: '' })
   /**
    * L'unico modo di dire «questa finestra ora mostra quel workspace».
@@ -1064,6 +1082,7 @@ export function App(): React.JSX.Element {
         }}
             aggiornamento={aggiornamento}
         ledAutopiloti={autopiloti.map((a) => ({ id: a.id, ...ledDi(a) }))}
+        domandeInAttesa={domandeInAttesa}
       />
 
       {/* L'aggiornamento sta sopra la banda degli avvisi: non è un guasto da
@@ -1228,6 +1247,9 @@ export function App(): React.JSX.Element {
         ) : null}
         {aperto === 'impostazioni' ? (
           <PannelloImpostazioni onChiudi={() => setAperto(undefined)} />
+        ) : null}
+        {aperto === 'domande' ? (
+          <PannelloDomande onChiudi={() => setAperto(undefined)} onConteggio={setDomandeInAttesa} />
         ) : null}
         {aperto === 'drive' ? (
           <PannelloDrive onChiudi={() => setAperto(undefined)} />

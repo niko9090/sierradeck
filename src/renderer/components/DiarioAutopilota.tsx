@@ -244,7 +244,7 @@ export function DiarioAutopilota({
                     onClick={() => setChatScelta(ch.sessionId)}
                   >
                     <span className={`led ${ch.stato === 'lavoro' ? 'led--lavoro' : ch.stato === 'bloccata' ? 'led--attesa' : 'led--finito'}`} />
-                    chat {i + 1}
+                    chat {i + 1}{ch.stato === 'pausa' ? ' · in pausa' : ''}{ch.ramo !== undefined ? ` · ${ch.ramo}` : ''}
                   </button>
                 ))}
               </div>

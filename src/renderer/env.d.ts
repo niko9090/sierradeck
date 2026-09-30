@@ -402,6 +402,10 @@ declare global {
         leggi: () => string
         scrivi: (testo: string) => void
       }
+      /** La scheda Domande del PC: le rotte del telefono per rispondere (0.36.0). */
+      domande: {
+        chiama: (percorso: string, corpo?: unknown) => Promise<{ stato: number; corpo: unknown }>
+      }
     }
   }
 }

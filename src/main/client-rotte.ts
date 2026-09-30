@@ -10,6 +10,8 @@ import { validateNomeWorkspace } from './validation'
 import { pathToSlug } from './indexer/project-scanner'
 import { scelteDiTerminale, tastiPerScegliere } from '@shared/scelte-terminale'
 import { raccogliDomande } from '@shared/domande-telefono'
+import { conversazioniDomande, type Inviato } from '@shared/domande-conversazioni'
+import { alberoChat } from '@shared/harness'
 
 /**
  * Cosa può fare il Client, e cosa no.
@@ -460,6 +462,17 @@ export function rotteClient(deps: DipendenzeRotte) {
     ammesse.includes(cartella) || ammesse.some((a) => pathToSlug(a) === pathToSlug(cartella))
   // Per chat: l'ultima scelta mandata e quando. Vive quanto il server.
   const risposte = new Map<string, { firma: string; quando: number }>()
+  /**
+   * Quello che si e' mandato a ogni chat, dal telefono o dal PC: resta nel
+   * filo della conversazione della scheda Domande (0.36.0). Gli ultimi dieci,
+   * dell'ultima ora: e' memoria di conversazione, non un archivio.
+   */
+  const inviati = new Map<string, Inviato[]>()
+  const ricordaInviato = (chat: string, testo: string): void => {
+    const ora = adesso()
+    const tenuti = (inviati.get(chat) ?? []).filter((i) => ora - Date.parse(i.quando) < 60 * 60_000)
+    inviati.set(chat, [...tenuti, { quando: new Date(ora).toISOString(), testo: testo.slice(0, 2000) }].slice(-10))
+  }
   const giaRisposta = (chat: string, s: { opzioni: { testo: string }[] } | undefined): boolean => {
     if (s === undefined) return false
     const r = risposte.get(chat)
@@ -554,7 +567,10 @@ export function rotteClient(deps: DipendenzeRotte) {
         chat: deps.chat(),
         scelteDi: (id, righe) => scelteVive(id, righe)
       })
-      return OK({ voci })
+      // Le stesse voci come conversazioni a messaggi (0.36.0): e' quello che
+      // disegnano il PC, la pagina e l'app. `voci` resta per le app vecchie.
+      const conversazioni = conversazioniDomande({ voci, autopiloti, inviati: Object.fromEntries(inviati) })
+      return OK({ voci, conversazioni })
     }
 
     // I colori del computer, per vestire la pagina con la stessa grafica.
@@ -586,6 +602,8 @@ export function rotteClient(deps: DipendenzeRotte) {
         chat: conversazione(a),
         domanda: haDomandaAperta(a),
         pensa: staPensando(a),
+        // T7 (0.36.0): il coordinatore e le sue sotto-chat, con ramo e stato.
+        albero: alberoChat(a),
         ...(mia !== undefined ? { domandaId: mia.id } : {})
       })
     }
@@ -605,6 +623,7 @@ export function rotteClient(deps: DipendenzeRotte) {
       const testo = stringa(r.corpo, 'testo')
       if (chat === '' || testo === '') return { stato: 400, corpo: { errore: 'servono chat e testo' } }
       deps.scriviAChat(chat, testo.slice(0, TESTO_MAX))
+      ricordaInviato(chat, testo)
       return OK({ fatto: true })
     }
 
@@ -646,6 +665,7 @@ export function rotteClient(deps: DipendenzeRotte) {
       }
       deps.scriviAChat(id, tastiPerScegliere(scelte.corrente, dove))
       risposte.set(id, { firma: firmaScelte(scelte), quando: adesso() })
+      ricordaInviato(id, `scelto: ${voluta}`)
       return OK({ fatto: true })
     }
 

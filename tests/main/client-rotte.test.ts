@@ -1189,3 +1189,25 @@ describe('la scheda «Domande» del telefono (0.30.0)', () => {
     expect(chat[0]?.coda).toBeUndefined()
   })
 })
+
+describe('le Domande come conversazioni, dal computer (0.36.0)', () => {
+  it('/api/domande porta le conversazioni, e quello che hai scritto resta nel filo', async () => {
+    const ferma = { id: 'f-1', titolo: 'Ferma', cwd: 'C:/f', aspetta: true, coda: ['Ho finito il refactoring.'] }
+    const rotte = rotteClient(deps({ chat: () => [ferma], scriviAChat: () => undefined, domande: () => Promise.resolve([]) }))
+    await rotte({ metodo: 'POST', percorso: '/api/scrivi', corpo: { chat: 'f-1', testo: 'adesso i test' } })
+    const r = await rotte({ metodo: 'GET', percorso: '/api/domande', corpo: undefined })
+    const c = (r.corpo as { conversazioni: { chiave: string; messaggi: { da: string; testo: string }[] }[] }).conversazioni
+    expect(c[0]?.chiave).toBe('chat:f-1')
+    expect(c[0]?.messaggi.map((m) => `${m.da}:${m.testo}`)).toEqual(['tu:adesso i test', 'lui:Ho finito il refactoring.'])
+    // Le voci di prima restano, per le app vecchie.
+    expect((r.corpo as { voci: unknown[] }).voci).toHaveLength(1)
+  })
+
+  it('il dettaglio di un autopilota porta l albero delle sue chat', async () => {
+    const a = { ...nuovoAutopilota({ id: 'ap-1', nome: 'Sito', obiettivo: 'o', cwd: 'C:/s', criteri: [], iniziatoIl: '' }), chats: [{ id: 'c-1', compito: 'le API', stato: 'lavoro' as const, cicli: 1, ramo: 'ap/ap-1/c-1' }] }
+    const rotte = rotteClient(deps({ autopiloti: () => Promise.resolve([a]) }))
+    const r = await rotte({ metodo: 'POST', percorso: '/api/autopilota', corpo: { autopilota: 'ap-1' } })
+    const albero = (r.corpo as { albero: { figli: { ramo?: string; parola: string }[] } }).albero
+    expect(albero.figli[0]).toMatchObject({ ramo: 'ap/ap-1/c-1', parola: 'al lavoro' })
+  })
+})

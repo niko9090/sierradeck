@@ -2672,6 +2672,25 @@ if (!app.requestSingleInstanceLock()) {
       }
 
       const porta = impostazioni.preferenze().portaClient
+      // Una sola istanza delle rotte per il telefono **e** per il PC: la
+      // scheda Domande del PC passa dalle stesse rotte, e cosi' ricorda gli
+      // stessi messaggi mandati (0.36.0).
+      const rottaTelefono = rotteClient(rotte)
+      /** Le rotte che la scheda Domande del PC puo' chiamare: solo rispondere. */
+      const ROTTE_DOMANDE = ['/api/domande', '/api/rispondi', '/api/scrivi', '/api/scegli', '/api/autopilota/dialogo']
+      ipcMain.removeHandler('domande:chiama')
+      ipcMain.handle('domande:chiama', async (_e, percorso: unknown, corpo: unknown) => {
+        if (typeof percorso !== 'string' || !ROTTE_DOMANDE.includes(percorso)) {
+          throw new Error('richiesta IPC non valida: rotta non permessa dalla scheda Domande')
+        }
+        const esito = await rottaTelefono({
+          metodo: corpo === undefined ? 'GET' : 'POST',
+          percorso,
+          corpo,
+          dispositivo: 'pc'
+        })
+        return { stato: esito.stato, corpo: esito.corpo }
+      })
       serverClient = creaServerClient({
         dispositivi,
         // Il polso delle chat: la riga di stato di Claude Code ci manda il suo
@@ -2689,7 +2708,7 @@ if (!app.requestSingleInstanceLock()) {
         // questa, senza accoppiarsi. A cassaforte chiusa non c'e', e da fuori
         // si riceve «dispositivo non riconosciuto».
         chiaveDiCasa: () => sincronia.chiaveDiCasa(`client-pc:${identitaPc.leggi().id}`),
-        rotta: rotteClient(rotte),
+        rotta: rottaTelefono,
         rottaLibera: rotteLibere(rotte),
         // I rifiuti e il primo contatto di ogni dispositivo nel registro: e'
         // l'unico modo di capire dal PC perche' il telefono «non funziona».

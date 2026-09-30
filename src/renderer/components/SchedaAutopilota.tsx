@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AlberoChat } from './AlberoChat'
 import type { Autopilota, Criterio } from '@shared/autopilota'
 import { misuraPasso, passaggi } from '@shared/autopilota-vista'
 import { diario } from '../diario-autopilota'
@@ -69,21 +70,9 @@ export function ObiettivoAutopilota({ autopilota }: { autopilota: Autopilota }):
             : 'Nessuna chat aperta adesso.'}
         </p>
       ) : (
-        <ul className="scheda__chats">
-          {autopilota.chats.map((ch, i) => (
-            <li key={ch.id} className={`scheda__chat scheda__chat--${ch.stato}`}>
-              <span className="scheda__chat-stato">
-                {ch.stato === 'lavoro' ? '●' : ch.stato === 'bloccata' ? '◐' : '○'}
-              </span>
-              <span>
-                <span className="scheda__chat-nome">chat {i + 1} · {ch.stato === 'lavoro' ? 'al lavoro' : ch.stato === 'bloccata' ? 'ferma, aspetta una risposta' : 'finita'} · {ch.cicli} {ch.cicli === 1 ? 'giro' : 'giri'}</span>
-                {autopilota.chats.length > 1 || ch.compito !== autopilota.obiettivo ? (
-                  <span className="scheda__chat-compito">{ch.compito}</span>
-                ) : null}
-              </span>
-            </li>
-          ))}
-        </ul>
+        // T7 (0.36.0): l'albero — il coordinatore e le sue sotto-chat, con il
+        // compito, lo stato, il ramo del worktree e i giri.
+        <AlberoChat autopilota={autopilota} />
       )}
       <p className="scheda__spiega">
         La sua chat è nel mosaico, con il suo riquadro: qui a fianco. Il supervisore è lui, quello con
