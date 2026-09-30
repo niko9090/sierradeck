@@ -547,5 +547,7 @@ Scelte e dettagli in [[2026-09-30-autopilota-harness]]. Quello che conta lavoran
   e del PC, provata in `HarnessAppTest`. Con un computer vecchio (campo assente) resta la vista a schede di prima.
 - **Albero delle chat**: `AutopilotaDettaglio.albero` (`NodoAlbero`) e `ramoBase`, disegnati da `RigaAlbero` nella
   linguetta Obiettivo. Una chat può essere in stato **`pausa`** (freno sui limiti del piano).
-- **Affida**: `Api.creaAutopilota(obiettivo, cartella, pubblicazione, cloud)` — regola «stabile» di partenza.
+- **Affida**: `Api.creaAutopilota(obiettivo, cartella, pubblicazione, cloud)` — regola «stabile» di partenza. «cloud» è la
+  spunta «va sul cloud: le chat stanno sul Drive»: il cloud di SierraDeck è il Drive delle chat, non il remoto git (stesso
+  testo su PC e pagina, provato da `testi-creazione.test.ts`).
 - **Copia**: la chat con l'autopilota e i messaggi delle Domande stanno in `SelectionContainer` (tocco lungo).

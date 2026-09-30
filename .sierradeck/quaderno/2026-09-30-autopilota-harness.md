@@ -1,5 +1,5 @@
 ---
-titolo: "L'autopilota come «harness» dell'agente: proposta, scelte di Nicholas, cosa è fatto (0.36.0 / app 2.39.0)"
+titolo: "L'autopilota come «harness» dell'agente: proposta, scelte di Nicholas (cloud = Drive di SierraDeck), cosa è fatto (0.36.0 / app 2.39.0)"
 quando: 2026-09-30T23:30:00+02:00
 tag: ["autopilota", "harness", "multi-chat", "worktree", "limiti", "pubblicazione", "divieti", "domande", "decisione"]
 ---
@@ -189,9 +189,14 @@ Vedi anche [[autopilota-sezione-chat-in-alto]], [[autopilota-dialogo]], [[superv
 2. **Consumo**: lo governa il **freno** sui limiti del piano — 60 / 80 / 95 % della finestra di 5 ore, e le stesse soglie
    sulla settimana (vince la finestra peggiore). Senza limiti letti: una chat sola.
 3. **Pubblicazione per progetto**, scelta alla creazione: **«beta: pubblica sempre»**, **«stabile: chiede prima»**
-   (predefinita), **«versione unica: decide il progetto»**. Se il progetto **va sul cloud** (spunta alla creazione) o ha il
-   cloud **attivo** (remoto git, script di pubblicazione/deploy, file di deploy riconoscibili), l'autopilota fa tutto da
-   solo: commit, merge dei suoi rami, push, pubblicazione secondo la regola. Senza cloud: commit e unione, niente push.
+   (predefinita), **«versione unica: decide il progetto»**.
+   **Il «cloud» è il Drive di SierraDeck, dove si salvano le chat** (correzione di Nicholas, 30/09 sera). È attivo quando
+   la **sincronizzazione Drive del progetto è accesa** — Drive connesso, cassaforte aperta, salvataggio automatico acceso,
+   cartella dell'autopilota dentro un progetto sul Drive — oppure quando nella creazione è spuntato **«va sul cloud: le
+   chat stanno sul Drive»**. Solo in questi due casi l'autopilota lavora in **autonomia completa**: niente domande a
+   Nicholas (salvo una credenziale introvabile, e il «sì» della regola «stabile»), commit, unione dei suoi rami, push e
+   pubblicazione secondo la regola. **Il remoto git e gli script di pubblicazione non danno autonomia**: dicono solo se e
+   dove fare il push e con quale comando pubblicare. Senza Drive: commit e unione, niente push, niente pubblicazione.
 4. **Divieti fatti rispettare dal programma** (non dal modello): chat e autopiloti non suoi, «Porta qui», uscire
    dall'account, cambiare le preferenze, cancellare file fuori dalle sue cartelle.
 5. **Domande come chat**, sul PC, nell'app e nella pagina, con la stessa logica e gli stessi testi.
@@ -211,7 +216,8 @@ PC/pagina), `9886d35` (app), più quello finale con versione, novità e quaderno
 | **T5** coordinatore | Scomposizione chiesta al supervisore fino al tetto tecnico (`componiPromptScomposizione`), chat aperte dentro il freno; `chiudiChat` libera il posto e apre il compito dopo; **domande gemelle** di chat sorelle agganciate a quella già aperta (`domandaGemella`; il registro accetta più attese per domanda). | `server.test.ts` («le domande gemelle…») |
 | **T6** unione dei risultati | A lavoro finito: commit e unione di tutti i rami, criteri **ripassati sul risultato unito**, conflitti rimandati alle chat, worktree tolti; poi push (con il cloud) e pubblicazione secondo la regola (`pianoPubblicazione`: beta → istruzione di pubblicare; stabile → domanda «Pubblico adesso?» nelle Domande, sì/no anche in ritardo; unica → la regola del progetto). | `server.test.ts` (beta, stabile sì/no, senza cloud), `harness.test.ts` |
 | **T7** albero delle chat | `alberoChat` (shared) → `/api/autopilota` porta `albero`; PC `AlberoChat.tsx` nella scheda (e ramo/pausa nel diario), pagina `alberoHtml`, app `RigaAlbero` in Lavori. | `harness.test.ts`, `client-rotte.test.ts`, `client-pagina.test.ts`, `HarnessAppTest.kt` |
-| **Creazione** | PC `PannelloAutopiloti.tsx` (regola + «va sul cloud», spiegazione del freno e dei divieti), `validaNuovoAutopilota`, `/api/autopilota/crea` (telefono), app `Delega` e pagina «Affida». Il cloud riconosciuto si scrive in `Autopilota.cloud` all'avvio. | `validation.test.ts`, `server.test.ts` |
+| **Creazione** | PC `PannelloAutopiloti.tsx` (regola + «va sul cloud: le chat stanno sul Drive», spiegazione del freno e dei divieti), `validaNuovoAutopilota`, `/api/autopilota/crea` (telefono), app `Delega` e pagina «Affida», con lo stesso testo. | `validation.test.ts`, `server.test.ts`, `testi-creazione.test.ts` |
+| **Cloud = Drive** (correzione 30/09 sera, commit `bf60e2f` e `bcfdce9`) | `shared/harness.ts`: `rilevaCloud({vaSulCloud, driveAttivo})` è il solo interruttore dell'autonomia; `comeConsegnare(fatti)` legge dal progetto il remoto (`origin` se c'è) e lo script di pubblicazione; `pianoPubblicazione({regola, cloud, consegna})` → `autonomia`, push solo se c'è un remoto. `worktree.ts` → `fattiPubblicazione`. Il Gestore manda nello stato del programma `driveAttivo` e il `percorso` di ogni progetto su questo PC; il servizio (`driveDelProgetto`) lo rilegge a ogni decisione e a fine lavoro, e in autonomia dice al supervisore di non fare domande. `Autopilota.consegna` tiene remoto e comando. | `harness.test.ts`, `divieti-coordinatore.test.ts`, `server.test.ts` («il cloud e il Drive…»), `worktree.test.ts` |
 | **Domande come chat** | `shared/domande-conversazioni.ts` → `conversazioniDomande` (autopilota con domanda: la sua storia + domanda in fondo, risposta con `/api/rispondi`; autopilota **pronto**: si parla con lui via dialogo; chat su una scelta: la domanda con le opzioni; chat ferma; quello che mandi resta nel filo — `inviati` in `client-rotte.ts`). `/api/domande` porta `conversazioni`. PC: nuovo tasto **Domande** nella console (`PannelloDomande.tsx`, IPC `domande:chiama` limitato a 5 rotte, stessa istanza delle rotte del telefono); pagina `vistaConversazioni`; app `Conversazioni.kt`. | `domande-conversazioni.test.ts`, `client-rotte.test.ts`, `client-pagina.test.ts`, `HarnessAppTest.kt` |
 | **Copia e incolla** | Cause: `body { user-select: none }` non riaperto nella chat con l'autopilota; nessun menu Modifica con i ruoli; nessun menu del tasto destro fuori dal terminale; la pagina ridisegnava cancellando la selezione; nell'app nessun `SelectionContainer`. Correzioni: `menu-modifica.ts` (menu applicazione + contestuale), CSS `.chatap__flusso`/`.diario__lato`, `selezioneAttiva` nella pagina, `SelectionContainer` nell'app. | `copia-incolla.test.ts`, `HarnessAppTest.kt` |
 
@@ -227,11 +233,13 @@ PC/pagina), `9886d35` (app), più quello finale con versione, novità e quaderno
   integrazione separato.
 - **Il commit nella chat singola** (senza worktree) lo fa la chat su istruzione, non il programma: il programma non fa
   commit nella cartella di Nicholas con dentro i suoi cambi.
-- **La modale delle domande sul PC** (`DomandaModale.tsx`) c'è ancora accanto al nuovo tasto Domande: da decidere se
-  toglierla (Nicholas voleva le domande «non bloccanti»).
 - **Azioni del supervisore sul resto del programma** (mettere in coda, scrivere a un altro PC): non ancora fra le mosse;
   coda e altri PC li vede ma non li tocca.
 - **Senza limiti letti** (chiave API a consumo) la flotta non parte mai: una chat sola per prudenza. Da rivedere se si
   lavora a consumo.
+- **«Va sul cloud» spuntato su un progetto che non è sul Drive**: l'autopilota lavora in autonomia come chiesto, ma non
+  mette lui il progetto sul Drive (è una scelta di Nicholas, dal pannello Account → Progetti). Lo stato del programma dice
+  comunque se la sincronizzazione è accesa.
+- **La vecchia finestra delle domande sul PC** (`DomandaModale.tsx`) resta com'è: su quella decide Nicholas.
 - **Una domanda gemella risposta in ritardo** riprende solo la prima chat che l'aveva posta; le altre ripartono dal freno
   o al loro prossimo giro.
