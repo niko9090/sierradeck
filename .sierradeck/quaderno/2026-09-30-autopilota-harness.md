@@ -221,6 +221,34 @@ PC/pagina), `9886d35` (app), più quello finale con versione, novità e quaderno
 | **Domande come chat** | `shared/domande-conversazioni.ts` → `conversazioniDomande` (autopilota con domanda: la sua storia + domanda in fondo, risposta con `/api/rispondi`; autopilota **pronto**: si parla con lui via dialogo; chat su una scelta: la domanda con le opzioni; chat ferma; quello che mandi resta nel filo — `inviati` in `client-rotte.ts`). `/api/domande` porta `conversazioni`. PC: nuovo tasto **Domande** nella console (`PannelloDomande.tsx`, IPC `domande:chiama` limitato a 5 rotte, stessa istanza delle rotte del telefono); pagina `vistaConversazioni`; app `Conversazioni.kt`. | `domande-conversazioni.test.ts`, `client-rotte.test.ts`, `client-pagina.test.ts`, `HarnessAppTest.kt` |
 | **Copia e incolla** | Cause: `body { user-select: none }` non riaperto nella chat con l'autopilota; nessun menu Modifica con i ruoli; nessun menu del tasto destro fuori dal terminale; la pagina ridisegnava cancellando la selezione; nell'app nessun `SelectionContainer`. Correzioni: `menu-modifica.ts` (menu applicazione + contestuale), CSS `.chatap__flusso`/`.diario__lato`, `selezioneAttiva` nella pagina, `SelectionContainer` nell'app. | `copia-incolla.test.ts`, `HarnessAppTest.kt` |
 
+# 7bis. Richieste di Nicholas del 30/09 notte (commit `f8e1077` e `88635ac`)
+
+**Difetto: alle domande iniziali dell'autopilota non si riusciva a rispondere dall'app.**
+- *Causa.* Le domande vivono in memoria nel servizio (`autopilot-host/domande.ts`), ma la domanda della preparazione
+  resta scritta anche nell'autopilota (`motivoSospensione`). Dopo un riavvio del servizio — succede a ogni
+  aggiornamento — con «riparti al riavvio» spento la domanda si vedeva nella chat con lui (`haDomandaAperta` e
+  `conversazione` leggono `motivoSospensione`) ma **non era più nel registro**: nelle Domande non compariva, e nella
+  scheda dell'autopilota l'app, senza `domandaId`, mandava il testo al dialogo, che non aveva niente a cui rispondere.
+  Si leggeva e non si poteva rispondere. In più le domande iniziali non avevano risposte da toccare.
+- *Correzione.* `riapriDomandaIntervista` in `server.ts`: alla ripresa del servizio la domanda rimasta scritta torna nel
+  registro (con il suo contesto), e la risposta prende la strada della risposta tardiva che fa ripartire la preparazione
+  (senza rifare l'intervista da capo). Le domande dell'intervista possono portare fino a quattro **opzioni**
+  (`intervista.ts`: `{"domanda", "opzioni"}`), che viaggiano nel registro, in `/api/domande` e nelle conversazioni;
+  anche «Pubblico adesso?» ha le sue due («sì, pubblica», «no, lascia così»). Su PC, pagina e app toccare un'opzione di
+  un autopilota è rispondere con quel testo (`/api/rispondi`); le opzioni di una chat restano scelte del terminale
+  (`/api/scegli`). Nell'app la scheda dell'autopilota dice cosa succede quando la domanda non è ancora riaperta.
+- *Test.* `server.test.ts` («le domande iniziali dell autopilota, dalle Domande»: opzioni, risposta che la fa ripartire,
+  riavvio con la domanda riaperta, «Pubblico adesso?»), `intervista.test.ts` (opzioni), `domande-conversazioni.test.ts`
+  (una preparazione con una domanda aperta → un messaggio con opzioni a cui si risponde), `client-pagina.test.ts`
+  (`rispondiOpzione`), `HarnessAppTest.kt`.
+
+**Le Domande sul PC come colonna laterale fissa.** `PannelloDomande.tsx` non è più un pannello sopra il mosaico: è una
+colonna accanto alle chat (`App.tsx`, dentro la stessa riga del mosaico), che si apre e si chiude dal tasto «Domande»
+della console (con il conteggio) e ricorda aperta/chiusa e larghezza nelle preferenze (`domandeLaterali`,
+`larghezzaDomande`, 300–760 px, maniglia sul bordo sinistro). In cima dice cos'è; per ogni conversazione dice a chi
+rispondi e cosa succede quando mandi (`spiegaRisposta`). La vecchia finestra modale delle domande non è stata toccata.
+Test: `tests/renderer/colonna-domande.test.ts`.
+
 # 8. Cosa resta aperto
 
 - **Provare sul campo** con un progetto vero: una flotta con worktree, un conflitto, il freno che scende e risale, una

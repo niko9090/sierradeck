@@ -551,3 +551,11 @@ Scelte e dettagli in [[2026-09-30-autopilota-harness]]. Quello che conta lavoran
   spunta «va sul cloud: le chat stanno sul Drive»: il cloud di SierraDeck è il Drive delle chat, non il remoto git (stesso
   testo su PC e pagina, provato da `testi-creazione.test.ts`).
 - **Copia**: la chat con l'autopilota e i messaggi delle Domande stanno in `SelectionContainer` (tocco lungo).
+
+- **Difetto delle domande iniziali (30/09 notte, app 2.39.0).** *Causa*: dopo un riavvio del servizio la domanda della
+  preparazione restava scritta nell'autopilota ma non nel registro delle domande: l'app la mostrava nella chat con lui
+  senza `domandaId` e la casella la mandava al dialogo. *Correzione*: il servizio la riapre da solo
+  (`riapriDomandaIntervista`); le domande iniziali arrivano nelle Domande con le loro **opzioni**, e in
+  `Conversazioni.kt` toccare un'opzione di un autopilota risponde con quel testo (`rispondiConversazione`), quella di una
+  chat sceglie nel terminale (`scegli`); `Lavori.kt` spiega il caso della domanda non ancora riaperta. *Test*:
+  `HarnessAppTest` («le domande iniziali…»), più i test del servizio e della pagina.
