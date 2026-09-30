@@ -537,3 +537,4 @@ aperte) in [[2026-09-30-analisi-app-android]]. Quello che conta sapere lavorando
   `/api/stato` si chiama `motivo`, non `motivoSospensione`.
 - **`Apertura.apriChat(id)`** porta dentro una chat da qualunque scheda (la usa «Apri la chat» in Domande).
 - Le API dei salvataggi con nome sono state tolte anche dall'app (la rotta resta sul PC per le app vecchie).
+- Proposta (non fatta) che tocca anche l'app: l'albero coordinatore → sotto-chat nella scheda Lavori, tappa T7 di [[2026-09-30-autopilota-harness]].
