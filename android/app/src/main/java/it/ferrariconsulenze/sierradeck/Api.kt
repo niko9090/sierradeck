@@ -168,10 +168,25 @@ class Api(private val indirizzo: String, private val chiave: String?) {
     suspend fun autopilota(id: String): AutopilotaDettaglio =
         json.decodeFromString(corpoTesto("/api/autopilota", oggetto { put("autopilota", id) }))
 
-    suspend fun creaAutopilota(obiettivo: String, cartella: String): Fatto =
+    /**
+     * Affida un lavoro. `pubblicazione` e' la regola del progetto (beta,
+     * stabile, unica) e `cloud` dice se va sul cloud (0.36.0): un computer piu'
+     * vecchio le ignora.
+     */
+    suspend fun creaAutopilota(obiettivo: String, cartella: String, pubblicazione: String = "stabile", cloud: Boolean = false): Fatto =
         json.decodeFromString(corpoTesto("/api/autopilota/crea", oggetto {
             put("obiettivo", obiettivo); put("cartella", cartella)
+            put("pubblicazione", pubblicazione); put("vaSulCloud", cloud)
         }))
+
+    /**
+     * Risponde in una conversazione della scheda Domande, dalla rotta giusta:
+     * la stessa regola del PC e della pagina (`richiestaRisposta`).
+     */
+    suspend fun rispondiConversazione(via: ViaRisposta, testo: String): Fatto {
+        val (percorso, corpo) = richiestaRisposta(via, testo)
+        return json.decodeFromString(corpoTesto(percorso, oggetto { for ((k, v) in corpo) put(k, v) }))
+    }
 
     suspend fun eliminaAutopilota(id: String): Fatto =
         json.decodeFromString(corpoTesto("/api/autopilota/elimina", oggetto { put("autopilota", id) }))

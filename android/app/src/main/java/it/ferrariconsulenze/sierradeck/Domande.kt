@@ -65,15 +65,19 @@ import kotlinx.coroutines.launch
 @Composable
 fun Domande(api: Api, stato: Stato?) {
     var voci by remember { mutableStateOf<List<VoceDomanda>?>(null) }
+    var conversazioni by remember { mutableStateOf<List<Conversazione>>(emptyList()) }
+    var rileggi by remember { mutableStateOf(0) }
     var guasto by remember { mutableStateOf<String?>(null) }
     // Le risposte gia' mandate, finche' il computer non toglie la voce: un
     // pulsante che resta invita a premerlo due volte.
     val mandate = remember { mutableStateMapOf<String, String>() }
 
-    LaunchedEffect(api) {
+    LaunchedEffect(api, rileggi) {
         while (isActive) {
             try {
-                voci = api.domande().voci
+                val d = api.domande()
+                voci = d.voci
+                conversazioni = d.conversazioni
                 guasto = null
             } catch (e: Exception) {
                 guasto = if (e is Api.Errore && e.codice == 404)
@@ -85,6 +89,11 @@ fun Domande(api: Api, stato: Stato?) {
     }
 
     val elenco = voci
+    // 0.36.0: con un computer che le compone, le Domande sono conversazioni.
+    if (conversazioni.isNotEmpty()) {
+        VistaConversazioni(api, conversazioni, onRiletto = { rileggi += 1 })
+        return
+    }
     LazyColumn(Modifier.fillMaxSize().background(Banco.fondo), contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {
         item {
             Text("DOMANDE", color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp)

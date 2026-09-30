@@ -3,6 +3,7 @@ package it.ferrariconsulenze.sierradeck
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -415,8 +416,17 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                             color = Banco.testoQuieto, fontSize = 12.sp
                         )
                         Spacer(Modifier.height(12.dp))
-                        Etichetta(if (det.chats.size > 1) "LE SUE CHAT" else "LA SUA CHAT")
-                        if (det.chats.isEmpty()) {
+                        Etichetta(if (det.chats.size > 1) "IL COORDINATORE E LE SUE CHAT" else "LA SUA CHAT")
+                        val albero = det.albero
+                        if (albero != null && albero.figli.isNotEmpty()) {
+                            // T7 (0.36.0): l'albero — sotto il coordinatore, ogni chat
+                            // con il suo pezzo, lo stato, il ramo del worktree e i giri.
+                            Text(
+                                "coordinatore · ${albero.parola}" + (det.ramoBase?.let { " · ramo principale $it" } ?: ""),
+                                color = Banco.testoQuieto, fontSize = 12.sp
+                            )
+                            for (f in albero.figli) RigaAlbero(f)
+                        } else if (det.chats.isEmpty()) {
                             Text(
                                 if (det.stato == "intervista" || det.stato == "pronto") "Non è ancora partita: nasce quando dai il via."
                                 else "Nessuna chat aperta adesso.",
@@ -757,6 +767,32 @@ private fun RigaChat(b: Battuta, nomeSuo: String, onVai: () -> Unit) {
     }
 }
 
+/** Una sotto-chat nell'albero: LED, compito, stato, ramo, giri. */
+@Composable
+private fun RigaAlbero(f: NodoAlbero) {
+    val colore = when (f.stato) { "lavoro" -> Banco.verde; "bloccata" -> Banco.ambra; else -> Banco.testoQuieto }
+    Row(Modifier.padding(start = 8.dp, top = 4.dp), verticalAlignment = Alignment.Top) {
+        Box(Modifier.width(1.dp).height(34.dp).background(Banco.incisione))
+        Spacer(Modifier.width(8.dp))
+        Box(Modifier.padding(top = 5.dp).size(8.dp).clip(CircleShape).background(colore))
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text(f.titolo, color = Banco.testo, fontSize = 13.sp)
+            Text(
+                f.parola + " · ${f.cicli} " + (if (f.cicli == 1) "giro" else "giri") + (f.ramo?.let { " · $it" } ?: ""),
+                color = Banco.testoQuieto, fontSize = 11.sp
+            )
+        }
+    }
+}
+
+/** Le tre regole di pubblicazione, come nella finestra di creazione del PC. */
+private val REGOLE = listOf(
+    Triple("stabile", "stabile: chiede prima", "Fa commit, unisce i suoi rami e manda su, ma prima di pubblicare ti chiede il sì nelle Domande."),
+    Triple("beta", "beta: pubblica sempre", "A lavoro finito e verificato pubblica da solo, senza chiedere: per un progetto in prova."),
+    Triple("unica", "versione unica: decide il progetto", "Segue la regola di pubblicazione scritta nel progetto (CLAUDE.md, quaderno, script); se non c'è, chiede.")
+)
+
 /** Affida un lavoro nuovo: obiettivo + una cartella conosciuta. */
 @Composable
 private fun Delega(api: Api, onChiudi: () -> Unit) {
@@ -768,6 +804,9 @@ private fun Delega(api: Api, onChiudi: () -> Unit) {
     // l'autopilota fosse partito.
     var errore by remember { mutableStateOf<String?>(null) }
     var mandando by remember { mutableStateOf(false) }
+    // La regola di pubblicazione e il cloud (0.36.0), come sul PC.
+    var pubblicazione by remember { mutableStateOf("stabile") }
+    var cloud by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
         cartelle = try { api.cartelle().cartelle } catch (e: Exception) {
@@ -780,12 +819,29 @@ private fun Delega(api: Api, onChiudi: () -> Unit) {
         onDismissRequest = onChiudi,
         title = { Text("Affida un lavoro") },
         text = {
-            Column(Modifier.fillMaxWidth().height(360.dp)) {
+            Column(Modifier.fillMaxWidth().height(520.dp)) {
                 OutlinedTextField(
                     value = obiettivo,
                     onValueChange = { obiettivo = it },
                     label = { Text("Cosa deve fare") },
-                    modifier = Modifier.fillMaxWidth().height(220.dp)
+                    modifier = Modifier.fillMaxWidth().height(180.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text("Pubblicazione del progetto:", color = Banco.testoQuieto, fontSize = 12.sp)
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for ((valore, etichetta, _) in REGOLE) {
+                        androidx.compose.material3.FilterChip(selected = pubblicazione == valore, onClick = { pubblicazione = valore }, label = { Text(etichetta, fontSize = 12.sp) })
+                    }
+                }
+                Text(REGOLE.first { it.first == pubblicazione }.third, color = Banco.testoQuieto, fontSize = 11.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(checked = cloud, onCheckedChange = { cloud = it })
+                    Spacer(Modifier.width(8.dp))
+                    Text("il progetto va sul cloud", color = Banco.testo, fontSize = 13.sp)
+                }
+                Text(
+                    "Con il cloud (questa spunta, o un remoto git, uno script di pubblicazione o di deploy che riconosce da solo) fa tutto senza chiederti: commit, unione dei suoi rami, push e pubblicazione secondo la regola. Quante chat apre lo decide lui, dentro il freno sui limiti del piano.",
+                    color = Banco.testoQuieto, fontSize = 11.sp
                 )
                 Spacer(Modifier.height(10.dp))
                 Text(
@@ -821,7 +877,7 @@ private fun Delega(api: Api, onChiudi: () -> Unit) {
                     mandando = true
                     scope.launch {
                         try {
-                            api.creaAutopilota(o, c)
+                            api.creaAutopilota(o, c, pubblicazione, cloud)
                             onChiudi()
                         } catch (e: Api.Errore) {
                             errore = when (e.codice) {

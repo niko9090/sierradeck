@@ -165,7 +165,67 @@ data class VoceDomanda(
 )
 
 @Serializable
-data class Domande(val voci: List<VoceDomanda> = emptyList())
+data class Domande(
+    val voci: List<VoceDomanda> = emptyList(),
+    /**
+     * Le stesse domande come conversazioni a messaggi (0.36.0), composte dal
+     * computer con la stessa funzione del PC e della pagina. Vuote con un
+     * computer piu' vecchio: allora si mostra la vista di prima.
+     */
+    val conversazioni: List<Conversazione> = emptyList()
+)
+
+/** Un messaggio della conversazione: `da` e' "lui", "tu" o "nota". */
+@Serializable
+data class MessaggioConversazione(
+    val da: String = "lui",
+    val testo: String = "",
+    val quando: String? = null,
+    /** "domanda" = aspetta la tua risposta a questo messaggio. */
+    val tono: String? = null,
+    val opzioni: List<Opzione>? = null
+)
+
+/** Come si risponde: `via` e' "rispondi" (domanda), "dialogo" (autopilota) o "scrivi" (chat). */
+@Serializable
+data class ViaRisposta(
+    val via: String = "scrivi",
+    val domanda: String? = null,
+    val autopilota: String? = null,
+    val chat: String? = null
+)
+
+@Serializable
+data class ScelteConversazione(val chat: String = "", val opzioni: List<Opzione> = emptyList())
+
+@Serializable
+data class Conversazione(
+    val chiave: String = "",
+    /** "autopilota" o "chat". */
+    val tipo: String = "chat",
+    val titolo: String = "",
+    val sotto: String = "",
+    val chiede: Boolean = false,
+    val messaggi: List<MessaggioConversazione> = emptyList(),
+    val risposta: ViaRisposta = ViaRisposta(),
+    val scelte: ScelteConversazione? = null,
+    val segnaposto: String = "Scrivi…"
+)
+
+/** Un nodo dell'albero delle chat di un autopilota (T7, 0.36.0). */
+@Serializable
+data class NodoAlbero(
+    val id: String = "",
+    /** "coordinatore" o "chat". */
+    val tipo: String = "chat",
+    val titolo: String = "",
+    val stato: String = "",
+    val parola: String = "",
+    val ramo: String? = null,
+    val cartella: String? = null,
+    val cicli: Int = 0,
+    val figli: List<NodoAlbero> = emptyList()
+)
 
 @Serializable
 data class AutopilotaBreve(
@@ -297,7 +357,13 @@ data class AutopilotaDettaglio(
     /** Sta pensando alla tua ultima battuta. */
     val pensa: Boolean = false,
     val compitiDaFare: List<String> = emptyList(),
-    val chats: List<ChatGovernataBreve> = emptyList()
+    val chats: List<ChatGovernataBreve> = emptyList(),
+    /** Il coordinatore e le sue sotto-chat (0.36.0). Assente nei computer piu' vecchi. */
+    val albero: NodoAlbero? = null,
+    /** Il ramo principale in cui si uniscono i lavori delle chat. */
+    val ramoBase: String? = null,
+    /** La regola di pubblicazione del progetto: beta, stabile, unica. */
+    val pubblicazione: String? = null
 )
 
 /**
