@@ -4033,3 +4033,45 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .albero-ap__nodo { display: flex; align-items: center; gap: var(--s2); font-size: var(--t2); }
 .albero-ap__figli { list-style: none; margin: 0 0 0 var(--s3); padding-left: var(--s2); border-left: 1px solid var(--luce-incisione); display: flex; flex-direction: column; gap: 2px; }
 .albero-ap__ramo { font-family: ui-monospace, Consolas, monospace; color: var(--testo-quieto); font-size: var(--t1); }
+
+/* ─────────────── la colonna laterale delle Domande (0.36.0) ─────────────── */
+/* Fissa accanto al mosaico, come nell'app Android: non copre le chat, le
+   stringe. La larghezza viene dalle preferenze (larghezzaDomande). */
+.domande-lato {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-width: 0;
+  height: 100%;
+  padding: var(--s2) var(--s3) var(--s2) var(--s3);
+  background: var(--chassis);
+  border-left: 1px solid var(--luce-incisione);
+  box-shadow: inset 1px 0 0 var(--incisione);
+  overflow: hidden;
+}
+.domande-lato__maniglia {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 2;
+}
+.domande-lato__maniglia:hover { background: var(--luce-tenue); }
+.domande-lato__testa { display: flex; align-items: center; gap: var(--s2); }
+.domande-lato__cosa, .domande-lato__vuoto, .domande-lato__chi { margin: 0; user-select: text; }
+.domande-lato__elenco {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  max-height: 32%;
+  overflow-y: auto;
+  flex: 0 0 auto;
+}
+.domande-lato__chat { flex: 1 1 auto; min-height: 0; }

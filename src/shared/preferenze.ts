@@ -80,6 +80,16 @@ export type Preferenze = {
    */
   larghezzaAutopilota: number
   /**
+   * La colonna delle Domande sul PC e' aperta accanto alle chat (0.36.0).
+   *
+   * Come nell'app Android: una colonna fissa che resta aperta mentre si
+   * lavora, non un pannello che copre il mosaico. Si apre e si chiude dal
+   * tasto «Domande» della console, e si ritrova com'era al riavvio.
+   */
+  domandeLaterali: boolean
+  /** Quanto e' larga la colonna delle Domande, in pixel. */
+  larghezzaDomande: number
+  /**
    * Come si veste la console.
    *
    * Due risposte opposte alla stessa domanda - cosa deve fare la cornice
@@ -121,6 +131,9 @@ export const PREFERENZE_PREDEFINITE: Preferenze = {
   ibernaCambiandoWorkspace: false,
   postoAutopilota: 'destra',
   larghezzaAutopilota: 34,
+  // Chiusa: chi non la apre non deve trovarsi il mosaico piu' stretto.
+  domandeLaterali: false,
+  larghezzaDomande: 400,
   // Il banco e quello che c e sempre stato: chi non sceglie non deve
   // ritrovarsi un programma diverso da quello di ieri.
   stile: 'banco',
@@ -136,6 +149,9 @@ export const PREFERENZE_PREDEFINITE: Preferenze = {
  * sul bordo del pannello, e tre limiti diversi sarebbero tre comportamenti.
  */
 export const LARGHEZZA_DIARIO = { min: 15, max: 70 } as const
+
+/** La colonna delle Domande: sotto non si legge un messaggio, sopra non resta mosaico. */
+export const LARGHEZZA_DOMANDE = { min: 300, max: 760 } as const
 
 /** Dove sta il diario dell'autopilota dentro il riquadro della sua chat. */
 export type PostoDiario = 'destra' | 'sinistra' | 'sopra' | 'sotto'
@@ -204,6 +220,11 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
       o.larghezzaAutopilota >= LARGHEZZA_DIARIO.min && o.larghezzaAutopilota <= LARGHEZZA_DIARIO.max
         ? Math.round(o.larghezzaAutopilota)
         : PREFERENZE_PREDEFINITE.larghezzaAutopilota,
+    domandeLaterali: o.domandeLaterali === true,
+    larghezzaDomande:
+      typeof o.larghezzaDomande === 'number' && Number.isFinite(o.larghezzaDomande)
+        ? Math.round(Math.min(LARGHEZZA_DOMANDE.max, Math.max(LARGHEZZA_DOMANDE.min, o.larghezzaDomande)))
+        : PREFERENZE_PREDEFINITE.larghezzaDomande,
     // Solo i due nomi che conosciamo: uno stile inventato lascerebbe la console
     // senza token e con essa senza colori, che è il modo peggiore di scoprire
     // che il file era stato scritto a mano.

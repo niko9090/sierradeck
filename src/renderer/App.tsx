@@ -547,6 +547,26 @@ export function App(): React.JSX.Element {
   // Quante conversazioni della scheda Domande aspettano una risposta: il
   // numero sul tasto, letto dalle stesse rotte del telefono (0.36.0).
   const [domandeInAttesa, setDomandeInAttesa] = useState(0)
+  // La colonna laterale delle Domande: aperta o chiusa, e quanto e' larga.
+  // Sta nelle preferenze, cosi' si ritrova com'era al riavvio.
+  const [colonnaDomande, setColonnaDomande] = useState<{ aperta: boolean; larghezza: number }>({ aperta: false, larghezza: 400 })
+  useEffect(() => {
+    const applica = (p: { domandeLaterali: boolean; larghezzaDomande: number }): void =>
+      setColonnaDomande({ aperta: p.domandeLaterali, larghezza: p.larghezzaDomande })
+    window.gestore.preferenze.leggi().then(applica).catch(() => undefined)
+    return window.gestore.preferenze.suCambio(applica)
+  }, [])
+  const salvaColonnaDomande = useCallback((cambio: { aperta?: boolean; larghezza?: number }): void => {
+    setColonnaDomande((c) => ({ ...c, ...cambio }))
+    window.gestore.preferenze
+      .leggi()
+      .then((p) => window.gestore.preferenze.imposta({
+        ...p,
+        ...(cambio.aperta !== undefined ? { domandeLaterali: cambio.aperta } : {}),
+        ...(cambio.larghezza !== undefined ? { larghezzaDomande: cambio.larghezza } : {})
+      }))
+      .catch(() => undefined)
+  }, [])
   useEffect(() => {
     const leggi = (): void => {
       window.gestore.domande
@@ -1083,6 +1103,8 @@ export function App(): React.JSX.Element {
             aggiornamento={aggiornamento}
         ledAutopiloti={autopiloti.map((a) => ({ id: a.id, ...ledDi(a) }))}
         domandeInAttesa={domandeInAttesa}
+        domandeAperte={colonnaDomande.aperta}
+        onDomande={() => salvaColonnaDomande({ aperta: !colonnaDomande.aperta })}
       />
 
       {/* L'aggiornamento sta sopra la banda degli avvisi: non è un guasto da
@@ -1248,9 +1270,6 @@ export function App(): React.JSX.Element {
         {aperto === 'impostazioni' ? (
           <PannelloImpostazioni onChiudi={() => setAperto(undefined)} />
         ) : null}
-        {aperto === 'domande' ? (
-          <PannelloDomande onChiudi={() => setAperto(undefined)} onConteggio={setDomandeInAttesa} />
-        ) : null}
         {aperto === 'drive' ? (
           <PannelloDrive onChiudi={() => setAperto(undefined)} />
         ) : null}
@@ -1313,6 +1332,17 @@ export function App(): React.JSX.Element {
             </div>
           )}
         </div>
+        {/* Le Domande: una colonna fissa accanto alle chat, come nell'app
+            Android. Resta aperta mentre si lavora; la vecchia finestra
+            modale delle domande non cambia (su quella decide Nicholas). */}
+        {colonnaDomande.aperta ? (
+          <PannelloDomande
+            larghezza={colonnaDomande.larghezza}
+            onLarghezza={(px) => salvaColonnaDomande({ larghezza: px })}
+            onChiudi={() => salvaColonnaDomande({ aperta: false })}
+            onConteggio={setDomandeInAttesa}
+          />
+        ) : null}
       </div>
       <Fumetti>
         {fumettiDrive.lavoro !== undefined && lavoroDrive.inCorso !== undefined ? (

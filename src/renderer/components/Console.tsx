@@ -59,6 +59,10 @@ type Props = {
   ledAutopiloti: { id: string; classe: string; titolo: string }[]
   /** Quante conversazioni della scheda Domande aspettano una risposta (0.36.0). */
   domandeInAttesa?: number
+  /** La colonna laterale delle Domande e' aperta. */
+  domandeAperte?: boolean
+  /** Apre o chiude la colonna laterale delle Domande. */
+  onDomande?: () => void
 }
 
 /**
@@ -78,6 +82,8 @@ export function Console({
   workspaceNomi,
   ledAutopiloti,
   domandeInAttesa = 0,
+  domandeAperte = false,
+  onDomande,
   aggiornamento,
   onStatoWorkspace,
   workspaceCheChiamano,
@@ -398,9 +404,9 @@ export function Console({
         </button>
         <button
           className="tasto"
-          onClick={() => commuta('domande')}
-          aria-expanded={aperto === 'domande'}
-          title="Le domande e i permessi che aspettano te, come conversazioni: gli autopiloti e le chat ferme"
+          onClick={() => onDomande?.()}
+          aria-expanded={domandeAperte}
+          title={`${domandeAperte ? 'Chiude' : 'Apre'} la colonna delle Domande, accanto alle chat: tutto quello che aspetta una tua risposta — chat ferme su una domanda o un permesso, chat che hanno finito, autopiloti (domande iniziali, domande, il via, «Pubblico adesso?»)${domandeInAttesa > 0 ? `. Adesso ne aspettano ${domandeInAttesa}.` : '.'}`}
         >
           {domandeInAttesa > 0 ? <span className="led led--attesa" /> : null}Domande{domandeInAttesa > 0 ? ` ${domandeInAttesa}` : ''}
         </button>

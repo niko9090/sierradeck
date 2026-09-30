@@ -1,20 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { richiestaRisposta, type Conversazione } from '@shared/domande-conversazioni'
+import { LARGHEZZA_DOMANDE } from '@shared/preferenze'
 
 /**
- * Le Domande sul PC, come conversazioni a messaggi (0.36.0).
+ * Le Domande sul PC: una colonna laterale fissa, accanto alle chat (0.36.0).
  *
- * Nicholas (30/09): le domande devono essere una chat. Dove c'e' un autopilota
- * si parla con lui — la stessa conversazione della sua scheda, con la domanda
- * aperta in fondo; dove non c'e', e' la chat che aspetta a scrivere qui la sua
- * domanda o il permesso, con le opzioni da toccare, e si risponde da qui.
+ * Nicholas (30/09): come nell'app Android — una colonna che resta aperta mentre
+ * si lavora, non un pannello che copre il mosaico. Si apre e si chiude dal
+ * tasto «Domande» della console; aperta/chiusa e larghezza si ritrovano al
+ * riavvio (preferenze `domandeLaterali`, `larghezzaDomande`).
  *
- * Le conversazioni le compone il Core con la stessa funzione che serve il
- * telefono (`conversazioniDomande`, attraverso le stesse rotte): PC, pagina e
- * app mostrano la stessa cosa.
+ * Contiene tutto quello che aspetta una tua risposta, come conversazioni a
+ * messaggi: le chat ferme su una domanda o un permesso (con le opzioni da
+ * toccare), le chat che hanno finito il turno, gli autopiloti — la domanda
+ * aperta, le domande iniziali della preparazione, il «dammi il via», il
+ * «Pubblico adesso?». Le compone il Core con la stessa funzione del telefono
+ * (`conversazioniDomande`, attraverso le stesse rotte): PC, pagina e app
+ * mostrano la stessa cosa.
  */
 
-type Props = { onChiudi: () => void; onConteggio?: (n: number) => void }
+type Props = {
+  onChiudi: () => void
+  onConteggio?: (n: number) => void
+  larghezza: number
+  onLarghezza: (px: number) => void
+}
 
 /** Ogni quanto si rilegge: come il telefono. */
 const OGNI_MS = 2000
@@ -25,7 +35,27 @@ function orario(q: string | undefined): string {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
 }
 
-export function PannelloDomande({ onChiudi, onConteggio }: Props): React.JSX.Element {
+/**
+ * A chi rispondi e cosa succede quando mandi, detto per esteso: e' la riga
+ * che Nicholas vuole in ogni pannello.
+ */
+export function spiegaRisposta(c: Conversazione): string {
+  if (c.tipo === 'autopilota') {
+    if (c.risposta.via === 'dialogo') {
+      return `Parli con l’autopilota «${c.titolo}». Si è preparato e aspetta il tuo via: scrivigli «vai» per farlo partire, oppure cosa cambiare prima. Ti risponde lui, di solito in qualche minuto.`
+    }
+    if (c.sotto.startsWith('si prepara')) {
+      return `Rispondi all’autopilota «${c.titolo}» mentre si prepara: è una delle sue domande iniziali. La risposta gli arriva subito e la preparazione riparte da lì; se tocchi un’opzione rispondi con quel testo.`
+    }
+    return `Rispondi all’autopilota «${c.titolo}»: la risposta arriva subito alla sua chat, che è ferma su questa domanda e riparte con quello che scrivi. Se tocchi un’opzione rispondi con quel testo.`
+  }
+  if (c.scelte !== undefined) {
+    return `La chat «${c.titolo}» è ferma su un elenco di scelte (un permesso, «vuoi procedere?»). Tocca un’opzione: la chat sceglie quella, come se avessi usato le frecce e Invio. Oppure scrivile qualcosa: arriva nella chat come se l’avessi scritto lì.`
+  }
+  return `La chat «${c.titolo}» ha finito il turno e aspetta la tua prossima istruzione. Quello che scrivi arriva nella chat come se l’avessi scritto lì, e la chat riparte.`
+}
+
+export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza }: Props): React.JSX.Element {
   const [conversazioni, setConversazioni] = useState<Conversazione[] | undefined>(undefined)
   const [scelta, setScelta] = useState<string | undefined>(undefined)
   const [testo, setTesto] = useState('')
@@ -34,6 +64,8 @@ export function PannelloDomande({ onChiudi, onConteggio }: Props): React.JSX.Ele
   /** Quello che hai appena mandato, finche' il computer non lo rimette nel filo. */
   const [mandati, setMandati] = useState<Record<string, string[]>>({})
   const flusso = useRef<HTMLDivElement>(null)
+  const [larga, setLarga] = useState(larghezza)
+  useEffect(() => setLarga(larghezza), [larghezza])
 
   const leggi = useCallback((): void => {
     window.gestore.domande
@@ -61,6 +93,27 @@ export function PannelloDomande({ onChiudi, onConteggio }: Props): React.JSX.Ele
     const f = flusso.current
     if (f !== null) f.scrollTop = f.scrollHeight
   }, [aperta?.chiave, quanti])
+
+  /** La maniglia sul bordo sinistro: si trascina la larghezza, si salva al rilascio. */
+  const trascina = (e: React.PointerEvent<HTMLDivElement>): void => {
+    e.preventDefault()
+    const bersaglio = e.currentTarget
+    bersaglio.setPointerCapture(e.pointerId)
+    const partenza = e.clientX
+    const iniziale = larga
+    let ultima = iniziale
+    const muovi = (ev: PointerEvent): void => {
+      ultima = Math.round(Math.min(LARGHEZZA_DOMANDE.max, Math.max(LARGHEZZA_DOMANDE.min, iniziale + (partenza - ev.clientX))))
+      setLarga(ultima)
+    }
+    const molla = (): void => {
+      bersaglio.removeEventListener('pointermove', muovi)
+      bersaglio.removeEventListener('pointerup', molla)
+      onLarghezza(ultima)
+    }
+    bersaglio.addEventListener('pointermove', muovi)
+    bersaglio.addEventListener('pointerup', molla)
+  }
 
   const manda = (percorso: string, corpo: Record<string, string>, ricordo: string): void => {
     if (aperta === undefined || inCorso) return
@@ -93,25 +146,38 @@ export function PannelloDomande({ onChiudi, onConteggio }: Props): React.JSX.Ele
   // I messaggi mandati da qui che il computer non ha ancora rimesso nel filo.
   const inAttesa = (aperta === undefined ? [] : mandati[aperta.chiave] ?? [])
     .filter((t) => !aperta?.messaggi.some((m) => m.da === 'tu' && (m.testo === t || m.testo === `scelto: ${t}`)))
+  const chiedono = elenco.filter((c) => c.chiede).length
 
   return (
-    <div className="pannello domande-pc">
-      <div className="pannello__testa">
+    <aside className="domande-lato" style={{ width: larga }} aria-label="Domande">
+      <div
+        className="domande-lato__maniglia"
+        role="separator"
+        aria-orientation="vertical"
+        title="Trascina per cambiare la larghezza della colonna delle Domande"
+        onPointerDown={trascina}
+      />
+      <div className="domande-lato__testa">
         <span className="serigrafia">Domande</span>
         <span className="misura">
-          {conversazioni === undefined ? 'leggo…' : elenco.length === 0 ? 'niente da rispondere' : `${elenco.filter((c) => c.chiede).length} aspettano una risposta · ${elenco.length} conversazioni`}
+          {conversazioni === undefined ? 'leggo…' : chiedono > 0 ? `${chiedono} aspettano una tua risposta` : 'nessuna domanda in attesa'}
         </span>
         <span style={{ flex: 1 }} />
-        <button className="tasto" onClick={onChiudi}>Chiudi</button>
+        <button className="tasto tasto--mini" onClick={onChiudi} title="Chiude la colonna. Si riapre dal tasto «Domande» della console.">×</button>
       </div>
+      <p className="misura domande-lato__cosa">
+        Tutto quello che aspetta una tua risposta, come conversazioni: le chat ferme su una domanda o un permesso, le chat che hanno finito il turno, gli autopiloti (le domande iniziali della preparazione, una domanda mentre lavorano, il «dammi il via», il «Pubblico adesso?»). Resta aperta accanto alle chat; è la stessa cosa che vedi nell’app e nella pagina del telefono.
+      </p>
 
       {elenco.length === 0 ? (
-        <p className="misura domande-pc__vuoto">
-          Qui compaiono, come conversazioni e senza bloccare niente: gli autopiloti che ti chiedono qualcosa (prima di partire o mentre lavorano) — ci parli come nella loro scheda; le chat che aspettano una scelta o un permesso — scrivono qui la domanda con le opzioni da toccare; e le chat che hanno finito il turno e aspettano la tua istruzione. La stessa cosa che vedi sul telefono.
+        <p className="misura domande-lato__vuoto">
+          {conversazioni === undefined
+            ? 'Leggo dal programma…'
+            : 'Niente da rispondere adesso. Quando una chat si ferma su una domanda o un permesso, o un autopilota ti chiede qualcosa, compare qui con il modo di rispondere; il numero sul tasto «Domande» dice quante aspettano.'}
         </p>
       ) : (
-        <div className="domande-pc__corpo">
-          <ul className="domande-pc__elenco" aria-label="Conversazioni">
+        <>
+          <ul className="domande-lato__elenco" aria-label="Conversazioni">
             {elenco.map((c) => (
               <li key={c.chiave}>
                 <button
@@ -121,7 +187,11 @@ export function PannelloDomande({ onChiudi, onConteggio }: Props): React.JSX.Ele
                   <span className={`led ${c.chiede ? 'led--attesa' : 'led--finito'}`} />
                   <span className="domande-pc__titolo">
                     <b>{c.titolo}</b>
-                    <span className="misura">{c.tipo === 'autopilota' ? 'autopilota' : c.chiede ? 'chat · aspetta che tu scelga' : 'chat · ha finito il turno'}</span>
+                    <span className="misura">
+                      {c.tipo === 'autopilota'
+                        ? (c.risposta.via === 'dialogo' ? 'autopilota · aspetta il via' : c.sotto.startsWith('si prepara') ? 'autopilota · domanda iniziale' : 'autopilota · ti chiede')
+                        : c.chiede ? 'chat · aspetta che tu scelga' : 'chat · ha finito il turno'}
+                    </span>
                   </span>
                 </button>
               </li>
@@ -129,8 +199,8 @@ export function PannelloDomande({ onChiudi, onConteggio }: Props): React.JSX.Ele
           </ul>
 
           {aperta !== undefined ? (
-            <section className="chatap domande-pc__chat" aria-label={`Conversazione con ${aperta.titolo}`}>
-              <div className="misura">{aperta.sotto}</div>
+            <section className="chatap domande-lato__chat" aria-label={`Conversazione con ${aperta.titolo}`}>
+              <div className="misura domande-lato__chi">{spiegaRisposta(aperta)}</div>
               <div className="chatap__flusso" ref={flusso} aria-live="polite">
                 {aperta.messaggi.map((m, i) => (
                   m.da === 'nota' ? (
@@ -170,7 +240,7 @@ export function PannelloDomande({ onChiudi, onConteggio }: Props): React.JSX.Ele
                 {inAttesa.map((t, i) => (
                   <div key={`m${i}`} className="chatap__riga chatap__riga--tu">
                     <div className="chatap__bolla">
-                      <span className="chatap__chi">tu · mandato, aspetto il computer</span>
+                      <span className="chatap__chi">tu · mandato, aspetto il programma</span>
                       <span className="chatap__testo">{t}</span>
                     </div>
                   </div>
@@ -189,16 +259,14 @@ export function PannelloDomande({ onChiudi, onConteggio }: Props): React.JSX.Ele
                   <button className="tasto tasto--primario" onClick={scrivi} disabled={inCorso || testo.trim() === ''}>
                     {inCorso ? 'Mando…' : aperta.risposta.via === 'rispondi' ? 'Rispondi' : 'Manda'}
                   </button>
-                  <span className="misura">
-                    {aperta.risposta.via === 'rispondi' ? 'Arriva subito alla chat ferma.' : 'Arriva nella chat come se l’avessi scritto lì.'} Ctrl+Invio manda.
-                  </span>
+                  <span className="misura">Ctrl+Invio manda. Quando il programma riceve la risposta, la domanda sparisce da qui.</span>
                 </div>
                 {nota !== undefined ? <div className="avviso">⚠ {nota}</div> : null}
               </div>
             </section>
           ) : null}
-        </div>
+        </>
       )}
-    </div>
+    </aside>
   )
 }
