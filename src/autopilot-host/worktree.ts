@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { basename, dirname, join, relative } from 'node:path'
-import type { FattiCloud } from '@shared/harness'
+import type { FattiPubblicazione } from '@shared/harness'
 
 /**
  * Una cartella per chat: i **git worktree** dell'autopilota (T3, 0.36.0).
@@ -149,18 +149,20 @@ export function togliWorktree(git: Git, p: { cwd: string; cartella: string; ramo
   git(['worktree', 'prune'], radice)
 }
 
-/** Manda su il ramo principale (solo con il cloud). */
-export function mandaSu(git: Git, cwd: string, ramo: string): EsitoGit {
-  return git(['push', 'origin', ramo], cwd)
+/** Manda su il ramo principale sul remoto del progetto (solo in autonomia, con le chat sul Drive). */
+export function mandaSu(git: Git, cwd: string, ramo: string, remoto = 'origin'): EsitoGit {
+  return git(['push', remoto, ramo], cwd)
 }
 
 /**
- * I fatti per `rilevaCloud`: remoti git, script di package.json, file di
+ * I fatti per `comeConsegnare`: remoti git, script di package.json, file di
  * deploy nella radice e nei workflow. Non solleva mai: un progetto illeggibile
  * e' un progetto senza cloud riconosciuto.
  */
-export function fattiCloud(git: Git, cwd: string): FattiCloud {
-  const fatti: FattiCloud = { remoti: [], script: {}, file: [] }
+export function fattiPubblicazione(git: Git, cwd: string): FattiPubblicazione {
+  // Dicono dove fare il push e con quale comando pubblicare. Non se lavorare in
+  // autonomia: quello lo decide il Drive (correzione di Nicholas, 30/09).
+  const fatti: FattiPubblicazione = { remoti: [], script: {}, file: [] }
   try {
     const radice = radiceGit(git, cwd) ?? cwd
     const r = git(['remote', '-v'], radice)

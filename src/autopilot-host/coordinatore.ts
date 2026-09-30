@@ -1,5 +1,6 @@
 import type { ChatGovernata } from '@shared/autopilota'
 import type { Freno, LimitiPiano } from '@shared/harness'
+import { dentro } from './divieti'
 
 /**
  * Il coordinatore (T1, T5): quello che l'autopilota sa del programma, e le
@@ -23,8 +24,17 @@ export type StatoProgramma = {
   limiti?: LimitiPiano
   /** Quante cose aspettano gia' Nicholas nella scheda Domande. */
   domandeAperte: number
-  /** I progetti con la loro coda condivisa e chi li ha in mano. */
-  progetti: { nome: string; chi: string; pcNome?: string; inCoda: number }[]
+  /**
+   * I progetti con la loro coda condivisa e chi li ha in mano. `percorso` e' la
+   * loro cartella su questo PC: serve a sapere se un autopilota lavora dentro
+   * un progetto sul Drive.
+   */
+  progetti: { nome: string; chi: string; pcNome?: string; inCoda: number; percorso?: string }[]
+  /**
+   * La sincronizzazione con il Drive di SierraDeck e' accesa: Drive connesso,
+   * cassaforte aperta, salvataggio automatico acceso (0.36.0).
+   */
+  driveAttivo?: boolean
   /** Gli altri PC sul Drive: acceso o no. */
   altriPc: { nome: string; vivo: boolean }[]
   /** Il workspace davanti. */
@@ -55,11 +65,24 @@ export function leggiStatoProgramma(raw: unknown, adesso: number): StatoProgramm
     domandeAperte: typeof o.domandeAperte === 'number' ? o.domandeAperte : 0,
     progetti: lista(o.progetti, (p) => ({
       nome: s(p.nome), chi: s(p.chi), inCoda: typeof p.inCoda === 'number' ? p.inCoda : 0,
-      ...(typeof p.pcNome === 'string' ? { pcNome: p.pcNome } : {})
+      ...(typeof p.pcNome === 'string' ? { pcNome: p.pcNome } : {}),
+      ...(typeof p.percorso === 'string' && p.percorso !== '' ? { percorso: p.percorso } : {})
     })).slice(0, 30),
+    ...(typeof o.driveAttivo === 'boolean' ? { driveAttivo: o.driveAttivo } : {}),
     altriPc: lista(o.altriPc, (p) => ({ nome: s(p.nome), vivo: p.vivo === true })).slice(0, 10),
     ...(typeof o.workspace === 'string' ? { workspace: o.workspace } : {})
   }
+}
+
+/**
+ * Le chat di questa cartella stanno sul Drive di SierraDeck? Si': la
+ * sincronizzazione e' accesa e la cartella sta dentro un progetto sul Drive.
+ * E' il «cloud» che da' all'autopilota l'autonomia completa (Nicholas, 30/09).
+ * Un estratto vecchio non conta: meglio chiedere che credersi in autonomia.
+ */
+export function driveDelProgetto(e: StatoProgramma | undefined, cwd: string, adesso: number): boolean {
+  if (e === undefined || e.driveAttivo !== true || adesso - e.letto > STATO_PROGRAMMA_VALIDO_MS) return false
+  return e.progetti.some((p) => p.percorso !== undefined && dentro(cwd, p.percorso))
 }
 
 /** Quanto e' vecchio un estratto prima di non contare piu' (il Gestore lo manda ogni 10 s). */
@@ -85,6 +108,7 @@ export function riassuntoProgramma(e: StatoProgramma | undefined, freno: Freno, 
   if (altrove.length > 0) righe.push(`- Progetti in mano a un altro PC (non lavorarci da qui): ${altrove.map((p) => `${p.nome} su ${p.pcNome ?? '?'}`).join(', ')}.`)
   if (e.altriPc.length > 0) righe.push(`- Altri PC: ${e.altriPc.map((p) => `${p.nome} ${p.vivo ? 'acceso' : 'spento'}`).join(', ')}.`)
   if (e.workspace !== undefined) righe.push(`- Workspace davanti: ${e.workspace}.`)
+  righe.push(`- Drive di SierraDeck: ${e.driveAttivo === true ? 'sincronizzazione accesa' : 'sincronizzazione spenta'}.`)
   return righe.join('\n')
 }
 

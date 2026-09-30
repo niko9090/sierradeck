@@ -7,8 +7,10 @@
  *   consumo lo governa il **freno** sui limiti del piano, e resta solo un tetto
  *   tecnico di sicurezza (`TETTO_CHAT_MAX`);
  * - la **pubblicazione** si sceglie per progetto alla creazione (beta / stabile /
- *   versione unica); con il cloud (dichiarato o riconosciuto) l'autopilota fa
- *   tutto da solo — commit, merge dei suoi rami, push, pubblicazione.
+ *   versione unica); con il cloud — le chat del progetto sul Drive di
+ *   SierraDeck, o «va sul cloud» spuntato — l'autopilota lavora in autonomia
+ *   completa: commit, merge dei suoi rami, push (se c'e' un remoto git) e
+ *   pubblicazione secondo la regola.
  */
 
 import { TETTO_CHAT_MAX, type Autopilota } from './autopilota'
@@ -123,7 +125,7 @@ export const REGOLE_PUBBLICAZIONE: { valore: RegolaPubblicazione; etichetta: str
   {
     valore: 'stabile',
     etichetta: 'stabile: chiede prima',
-    spiega: 'Fa commit, unisce i suoi rami e manda su, ma prima di pubblicare ti chiede il sì nella scheda Domande, con il riassunto di cosa esce.'
+    spiega: 'Fa commit, unisce i suoi rami e (con le chat sul Drive) manda su, ma prima di pubblicare ti chiede il sì nella scheda Domande, con il riassunto di cosa esce.'
   },
   {
     valore: 'unica',
@@ -136,9 +138,13 @@ export function regolaPubblicazione(raw: unknown): RegolaPubblicazione | undefin
   return raw === 'beta' || raw === 'stabile' || raw === 'unica' ? raw : undefined
 }
 
-/** Quello che il servizio riesce a sapere di un progetto guardando i suoi file. */
-export type FattiCloud = {
-  /** I remoti git (`git remote -v`, o letti da `.git/config`): nome e indirizzo. */
+/**
+ * Quello che il servizio riesce a sapere di un progetto guardando i suoi file:
+ * dove mandare su il lavoro e con quale comando pubblicare. **Non** dice se
+ * l'autopilota lavora in autonomia: quello lo dice il Drive (vedi `rilevaCloud`).
+ */
+export type FattiPubblicazione = {
+  /** I remoti git (`git remote -v`): nome e indirizzo. */
   remoti: string[]
   /** Gli script di `package.json`, nome → comando. */
   script: Record<string, string>
@@ -146,42 +152,78 @@ export type FattiCloud = {
   file: string[]
 }
 
+/**
+ * Il «cloud» di SierraDeck: le chat del progetto salvate sul **Drive di
+ * SierraDeck**. Correzione di Nicholas (30/09): non il remoto git, non gli
+ * script, non il deploy — quelli dicono solo *come* consegnare.
+ */
 export type Cloud = { attivo: boolean; segni: string[] }
+
+/**
+ * Il cloud e' attivo quando la sincronizzazione Drive del progetto e' accesa
+ * (Drive connesso, cassaforte aperta, salvataggio automatico acceso, progetto
+ * sul Drive con la sua cartella su questo PC: lo legge il Gestore e lo manda
+ * nello stato del programma), oppure quando nella creazione e' spuntato «va
+ * sul cloud — le chat stanno sul Drive». Solo in questi due casi l'autopilota
+ * lavora in autonomia completa.
+ */
+export function rilevaCloud(p: { vaSulCloud?: boolean; driveAttivo?: boolean }): Cloud {
+  const segni: string[] = []
+  if (p.vaSulCloud === true) segni.push('spuntato «va sul cloud» nella creazione')
+  if (p.driveAttivo === true) segni.push('sincronizzazione Drive del progetto accesa')
+  return { attivo: segni.length > 0, segni }
+}
+
+/** Come si consegna, quando la regola lo prevede: il remoto per il push, il comando per pubblicare. */
+export type Consegna = {
+  /** Il nome del remoto git su cui fare il push (di solito `origin`), se c'e'. */
+  remoto?: string
+  /** Lo script di pubblicazione, come si lancia (`npm run pubblica`). */
+  comandoPubblica?: string
+  segni: string[]
+}
 
 const FILE_DEPLOY = [
   'vercel.json', 'netlify.toml', 'firebase.json', 'fly.toml', 'render.yaml', 'app.yaml',
   'Procfile', 'Dockerfile', 'docker-compose.yml', 'electron-builder.yml', 'electron-builder.json',
   'wrangler.toml', 'serverless.yml', 'amplify.yml'
 ]
-const SCRIPT_PUBBLICA = /^(deploy|publish|pubblica|release|rilascia)(:|$)/i
+const SCRIPT_PUBBLICA = /^(pubblica|publish|release|rilascia|deploy)(:|$)/i
 const COMANDI_PUBBLICA = /(electron-builder[^|&]*--publish|vercel\b|netlify deploy|firebase deploy|fly deploy|wrangler (deploy|publish)|gh release create|npm publish|docker push|gcloud (app|run) deploy)/i
 
 /**
- * Il progetto «va sul cloud»? Sì se ha un remoto git, uno script di
- * pubblicazione o di deploy, o un file di un servizio di deploy riconoscibile.
- * Pura: i fatti li raccoglie chi legge il disco (`cloudDelProgetto` nel servizio).
+ * Dove e come consegnare, dai file del progetto. Pura: i fatti li raccoglie
+ * chi legge il disco (`fattiPubblicazione` nel servizio). Il remoto preferito e'
+ * `origin`; lo script preferito e' quello che si chiama «pubblica» o simile.
  */
-export function rilevaCloud(f: FattiCloud): Cloud {
+export function comeConsegnare(f: FattiPubblicazione): Consegna {
   const segni: string[] = []
-  for (const r of f.remoti) if (r.trim() !== '') segni.push(`remoto git ${r.trim()}`)
+  const nomi = [...new Set(f.remoti.map((r) => r.trim().split(/\s+/)[0] ?? '').filter((n) => n !== ''))]
+  const remoto = nomi.includes('origin') ? 'origin' : nomi[0]
+  if (remoto !== undefined) segni.push(`remoto git ${remoto}`)
+  let comandoPubblica: string | undefined
   for (const [nome, comando] of Object.entries(f.script)) {
-    if (SCRIPT_PUBBLICA.test(nome)) segni.push(`script «${nome}»`)
-    else if (COMANDI_PUBBLICA.test(comando)) segni.push(`script «${nome}» (${comando.slice(0, 60)})`)
+    if (SCRIPT_PUBBLICA.test(nome) || COMANDI_PUBBLICA.test(comando)) {
+      segni.push(`script «${nome}»`)
+      comandoPubblica ??= `npm run ${nome}`
+    }
   }
   for (const nome of f.file) {
     const base = nome.split(/[\\/]/).pop() ?? nome
     if (FILE_DEPLOY.includes(base)) segni.push(`file ${base}`)
     else if (/workflows[\\/].*(deploy|release|publish|pubblica)/i.test(nome)) segni.push(`workflow ${base}`)
   }
-  return { attivo: segni.length > 0, segni }
+  return { ...(remoto !== undefined ? { remoto } : {}), ...(comandoPubblica !== undefined ? { comandoPubblica } : {}), segni }
 }
 
 export type PianoPubblicazione = {
+  /** Lavora in autonomia completa: le chat stanno sul Drive, niente domande. */
+  autonomia: boolean
   /** Commit dei suoi cambi sui suoi rami. */
   commit: boolean
   /** Unire i suoi rami nel ramo principale del progetto. */
   unisci: boolean
-  /** Mandare su il ramo principale. */
+  /** Mandare su il ramo principale (solo in autonomia, e solo se c'e' un remoto). */
   push: boolean
   /** Pubblicare: da solo, dopo averti chiesto, secondo le regole del progetto, o no. */
   pubblica: 'sempre' | 'chiedi' | 'progetto' | 'no'
@@ -192,29 +234,33 @@ export type PianoPubblicazione = {
 /**
  * Cosa l'autopilota fa da solo a lavoro finito.
  *
- * Senza cloud (ne' dichiarato ne' riconosciuto): commit sui suoi rami e unione
- * in locale, niente push e niente pubblicazione — non c'e' dove mandarli.
- * Con il cloud: commit, unione, push, e la pubblicazione secondo la regola.
- * Senza una regola scelta si comporta come «stabile»: chiede prima.
+ * Senza cloud (Drive spento e «va sul cloud» non spuntato): commit sui suoi
+ * rami e unione in locale, niente push e niente pubblicazione — anche se il
+ * progetto ha un remoto o uno script, perche' non lavora in autonomia.
+ * Con il cloud: autonomia completa, commit e unione, push se c'e' un remoto, e
+ * la pubblicazione secondo la regola del progetto. Senza una regola scelta si
+ * comporta come «stabile»: chiede prima di pubblicare.
  */
-export function pianoPubblicazione(p: { regola?: RegolaPubblicazione; vaSulCloud?: boolean; cloud?: Cloud }): PianoPubblicazione {
-  const cloud = p.vaSulCloud === true || p.cloud?.attivo === true
-  if (!cloud) {
+export function pianoPubblicazione(p: { regola?: RegolaPubblicazione; cloud: Cloud; consegna?: Consegna }): PianoPubblicazione {
+  if (!p.cloud.attivo) {
     return {
-      commit: true, unisci: true, push: false, pubblica: 'no',
-      istruzioni: 'Il progetto non va sul cloud: fai commit del tuo lavoro sul tuo ramo. Niente push, niente pubblicazione.'
+      autonomia: false, commit: true, unisci: true, push: false, pubblica: 'no',
+      istruzioni: 'Le chat di questo progetto non stanno sul Drive di SierraDeck: fai commit del tuo lavoro sul tuo ramo. Niente push, niente pubblicazione.'
     }
   }
   const regola = p.regola ?? 'stabile'
   const pubblica = regola === 'beta' ? 'sempre' : regola === 'stabile' ? 'chiedi' : 'progetto'
+  const push = p.consegna?.remoto !== undefined
   const come = regola === 'beta'
-    ? 'A lavoro finito e verificato pubblica da solo con la procedura del progetto, senza chiedere.'
+    ? 'A lavoro finito e verificato pubblica da solo, senza chiedere.'
     : regola === 'stabile'
-      ? 'Prima di pubblicare chiedi il sì: la domanda arriva a chi ti ha affidato il lavoro. Commit, unione e push li fai da solo.'
-      : 'Pubblica seguendo la regola scritta nel progetto (CLAUDE.md, quaderno, script di pubblicazione). Se il progetto non dice niente, chiedi prima.'
+      ? 'Prima di pubblicare chiedi il sì: è la sola domanda prevista. Commit, unione e push li fai da solo.'
+      : 'Pubblica seguendo la regola scritta nel progetto (CLAUDE.md, quaderno, script di pubblicazione).'
   return {
-    commit: true, unisci: true, push: true, pubblica,
-    istruzioni: `Il progetto va sul cloud${p.cloud?.segni.length ? ` (${p.cloud.segni.slice(0, 3).join(', ')})` : ''}: fai commit, e il push dopo l'unione. ${come}`
+    autonomia: true, commit: true, unisci: true, push, pubblica,
+    istruzioni: `Le chat di questo progetto stanno sul Drive di SierraDeck: lavori in autonomia completa. Fai commit` +
+      (push ? `, e il push su ${p.consegna?.remoto} dopo l'unione` : ' (il progetto non ha un remoto git: niente push)') + '. ' + come +
+      (p.consegna?.comandoPubblica !== undefined ? ` Per pubblicare: ${p.consegna.comandoPubblica}.` : '')
   }
 }
 

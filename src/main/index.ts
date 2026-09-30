@@ -2226,6 +2226,18 @@ if (!app.requestSingleInstanceLock()) {
       // No: parte sempre, perche' e' da li' che si ottiene il primo
       // accoppiamento. A proteggerlo ci sono i due muri, non il silenzio.
       const dispositivi = apriDispositivi(dati)
+      /**
+       * La sincronizzazione con il Drive e' accesa: connesso, cassaforte
+       * aperta, salvataggio automatico acceso. Non solleva mai.
+       */
+      const driveAttivoAdesso = async (): Promise<boolean> => {
+        try {
+          const s = await sincronia.stato()
+          return s.driveConnesso && s.sbloccato && sincronia.auto()
+        } catch {
+          return false
+        }
+      }
       /** T1: lo stato del programma per l'autopilota (vedi `coordinatore.ts`). */
       const inviaStatoProgramma = async (): Promise<void> => {
         const ora = Date.now()
@@ -2244,7 +2256,13 @@ if (!app.requestSingleInstanceLock()) {
           })),
           ...(limiti !== undefined ? { limiti } : {}),
           domandeAperte: domande.length + chatAperte.filter((c) => c.aspetta === true && c.governata !== true).length,
-          progetti: rotte.progetti().map((p) => ({ nome: p.nome, chi: p.chi, inCoda: p.inCoda, ...(p.pcNome !== undefined ? { pcNome: p.pcNome } : {}) })),
+          // Con la cartella su questo PC: e' cosi' che il servizio sa se le
+          // chat di un autopilota stanno sul Drive (il suo «cloud»).
+          progetti: rotte.progetti().map((p) => {
+            const percorso = registroProgetti.leggi().progetti.find((x) => x.id === p.id)?.percorsi[identitaPc.leggi().id]
+            return { nome: p.nome, chi: p.chi, inCoda: p.inCoda, ...(p.pcNome !== undefined ? { pcNome: p.pcNome } : {}), ...(percorso !== undefined ? { percorso } : {}) }
+          }),
+          driveAttivo: await driveAttivoAdesso(),
           altriPc: pcs.map((b) => ({ nome: b.nome, vivo: battitoVivo(b.battito, ora) }))
         })
       }

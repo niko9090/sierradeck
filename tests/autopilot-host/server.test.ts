@@ -1787,3 +1787,64 @@ describe('l harness (0.36.0): freno, divieti, mosse, domande gemelle, pubblicazi
     expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('finito')
   })
 })
+
+describe('il cloud e il Drive di SierraDeck (correzione di Nicholas, 30/09)', () => {
+  /** Un git con un remoto origin: serve solo a sapere dove fare il push. */
+  const gitConRemoto: Git = (args, cwd) => {
+    if (args.join(' ') === 'remote -v') return { codice: 0, uscita: 'origin https://github.com/x/y.git (push)' }
+    return gitFinto(args, cwd)
+  }
+
+  it('con le chat del progetto sul Drive, beta pubblica senza bisogno della spunta', async () => {
+    server = ambiente()
+    await avvia(server)
+    await chiama('POST', '/stato-programma', {
+      letto: Date.now(), driveAttivo: true,
+      progetti: [{ nome: 'questo', chi: 'io', inCoda: 0, percorso: process.cwd() }]
+    })
+    const id = await creaAp({ pubblicazione: 'beta' })
+    const primo = await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    expect(primo.dati.decision).toBe('block')
+    expect(primo.dati.reason).toContain('pubblica')
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.cloud.segni).toEqual(['sincronizzazione Drive del progetto accesa'])
+  })
+
+  it('con la sincronizzazione spenta, o il progetto non sul Drive, niente autonomia', async () => {
+    server = ambiente()
+    await avvia(server)
+    await chiama('POST', '/stato-programma', {
+      letto: Date.now(), driveAttivo: false,
+      progetti: [{ nome: 'questo', chi: 'io', inCoda: 0, percorso: process.cwd() }]
+    })
+    const id = await creaAp({ pubblicazione: 'beta' })
+    expect((await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())).dati).toEqual({})
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('finito')
+  })
+
+  it('un remoto git e uno script da soli non danno autonomia: servono solo per il push', async () => {
+    server = ambiente({ git: gitConRemoto })
+    await avvia(server)
+    const id = await creaAp({ pubblicazione: 'beta' })
+    for (let i = 0; i < 40 && (await chiama('GET', '/autopiloti')).dati[0].consegna === undefined; i += 1) {
+      await new Promise((r) => setTimeout(r, 25))
+    }
+    const prima = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(prima.consegna.remoto).toBe('origin')
+    expect(prima.cloud.attivo).toBe(false)
+    expect((await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())).dati).toEqual({})
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('finito')
+  })
+
+  it('in autonomia il supervisore sa che non deve fare domande', async () => {
+    const visti: string[] = []
+    server = ambiente({
+      interroga: (p) => { visti.push(p); return Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "avanti"}' }) },
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' })
+    })
+    await avvia(server)
+    const id = await creaAp({ vaSulCloud: true })
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    expect(visti.some((p) => p.includes('Autonomia completa'))).toBe(true)
+  })
+})

@@ -3,9 +3,9 @@ import { mkdtempSync, writeFileSync, existsSync, readFileSync, mkdirSync } from 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  creaWorktree, fattiCloud, gitReale, pianoWorktree, radiceGit, ramoCorrente, salvaLavoro, togliWorktree, unisciRamo
+  creaWorktree, fattiPubblicazione, gitReale, pianoWorktree, radiceGit, ramoCorrente, salvaLavoro, togliWorktree, unisciRamo
 } from '../../src/autopilot-host/worktree'
-import { rilevaCloud } from '@shared/harness'
+import { comeConsegnare } from '@shared/harness'
 
 /**
  * Con un git vero, in una cartella temporanea: e' il solo modo di sapere che
@@ -92,13 +92,14 @@ describe('una cartella per chat: git worktree (T3)', () => {
     expect(creaWorktree(git, { cwd: nuda, autopilota: 'a', chat: 'c', base: 'main' })).toMatchObject({ ok: false })
   })
 
-  it('i fatti del cloud si leggono dal progetto', () => {
-    expect(rilevaCloud(fattiCloud(git, progetto)).attivo).toBe(false)
+  it('i fatti per consegnare (remoto, script) si leggono dal progetto', () => {
+    // Dicono dove fare il push e come pubblicare, non se lavorare in autonomia.
+    expect(comeConsegnare(fattiPubblicazione(git, progetto)).segni).toEqual([])
     esegui(['remote', 'add', 'origin', 'https://github.com/esempio/sito.git'], progetto)
     writeFileSync(join(progetto, 'package.json'), JSON.stringify({ scripts: { deploy: 'vercel --prod' } }))
-    const c = rilevaCloud(fattiCloud(git, progetto))
-    expect(c.attivo).toBe(true)
-    expect(c.segni.join(' ')).toContain('origin')
-    expect(c.segni.join(' ')).toContain('deploy')
+    const c = comeConsegnare(fattiPubblicazione(git, progetto))
+    expect(c.remoto).toBe('origin')
+    expect(c.comandoPubblica).toBe('npm run deploy')
   })
+
 })

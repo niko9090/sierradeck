@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  alberoChat, frenoDaiLimiti, pianoPubblicazione, quanteChat, regolaPubblicazione, rilevaCloud, SOGLIE_FRENO
+  alberoChat, comeConsegnare, frenoDaiLimiti, pianoPubblicazione, quanteChat, regolaPubblicazione, rilevaCloud, SOGLIE_FRENO
 } from '@shared/harness'
 import { nuovoAutopilota, parseAutopilota, TETTO_CHAT_MAX } from '@shared/autopilota'
 
@@ -52,38 +52,58 @@ describe('il freno sui limiti del piano (T2)', () => {
   })
 })
 
-describe('la pubblicazione per progetto e il cloud', () => {
-  it('riconosce il cloud da remoti, script e file di deploy', () => {
-    expect(rilevaCloud({ remoti: [], script: {}, file: ['README.md'] }).attivo).toBe(false)
-    expect(rilevaCloud({ remoti: ['origin https://github.com/x/y.git'], script: {}, file: [] }).attivo).toBe(true)
-    expect(rilevaCloud({ remoti: [], script: { pubblica: 'npm run build' }, file: [] }).segni).toEqual(['script «pubblica»'])
-    expect(rilevaCloud({ remoti: [], script: { dist: 'electron-builder --win --publish always' }, file: [] }).attivo).toBe(true)
-    expect(rilevaCloud({ remoti: [], script: { build: 'tsc' }, file: ['vercel.json'] }).segni).toEqual(['file vercel.json'])
-    expect(rilevaCloud({ remoti: [], script: {}, file: ['.github/workflows/deploy.yml'] }).attivo).toBe(true)
-    expect(rilevaCloud({ remoti: [], script: { test: 'vitest' }, file: ['.github/workflows/test.yml'] }).attivo).toBe(false)
+describe('la pubblicazione per progetto e il cloud (= le chat sul Drive di SierraDeck)', () => {
+  const DRIVE = rilevaCloud({ driveAttivo: true })
+  const NIENTE = rilevaCloud({})
+
+  it('il cloud e il Drive di SierraDeck o la spunta «va sul cloud», nient altro', () => {
+    // Correzione di Nicholas (30/09): «cloud» e' il Drive dove si salvano le chat.
+    expect(NIENTE).toEqual({ attivo: false, segni: [] })
+    expect(DRIVE.attivo).toBe(true)
+    expect(DRIVE.segni).toEqual(['sincronizzazione Drive del progetto accesa'])
+    expect(rilevaCloud({ vaSulCloud: true }).segni).toEqual(['spuntato «va sul cloud» nella creazione'])
   })
 
-  it('senza cloud: commit e unione, niente push e niente pubblicazione', () => {
-    const p = pianoPubblicazione({ regola: 'beta' })
-    expect(p).toMatchObject({ commit: true, unisci: true, push: false, pubblica: 'no' })
+  it('remoto git, script e deploy dicono solo come consegnare', () => {
+    expect(comeConsegnare({ remoti: [], script: {}, file: ['README.md'] })).toEqual({ segni: [] })
+    const c = comeConsegnare({
+      remoti: ['backup https://x/b.git', 'origin https://github.com/x/y.git'],
+      script: { build: 'tsc', pubblica: 'npm run build && electron-builder --publish always' },
+      file: ['vercel.json', '.github/workflows/deploy.yml']
+    })
+    expect(c.remoto).toBe('origin')
+    expect(c.comandoPubblica).toBe('npm run pubblica')
+    expect(c.segni).toEqual(['remoto git origin', 'script «pubblica»', 'file vercel.json', 'workflow deploy.yml'])
+    expect(comeConsegnare({ remoti: ['upstream https://x'], script: {}, file: [] }).remoto).toBe('upstream')
   })
 
-  it('con il cloud dichiarato o riconosciuto: fa tutto da solo secondo la regola', () => {
-    expect(pianoPubblicazione({ regola: 'beta', vaSulCloud: true })).toMatchObject({ push: true, pubblica: 'sempre' })
-    expect(pianoPubblicazione({ regola: 'stabile', cloud: { attivo: true, segni: ['remoto git origin'] } })).toMatchObject({ push: true, pubblica: 'chiedi' })
-    expect(pianoPubblicazione({ regola: 'unica', vaSulCloud: true }).pubblica).toBe('progetto')
-    // Senza regola scelta: prudente, chiede.
-    expect(pianoPubblicazione({ vaSulCloud: true }).pubblica).toBe('chiedi')
+  it('senza Drive niente autonomia, anche con un remoto e uno script di pubblicazione', () => {
+    const consegna = comeConsegnare({ remoti: ['origin https://github.com/x/y.git'], script: { pubblica: 'x' }, file: [] })
+    const p = pianoPubblicazione({ regola: 'beta', cloud: NIENTE, consegna })
+    expect(p).toMatchObject({ autonomia: false, commit: true, unisci: true, push: false, pubblica: 'no' })
+  })
+
+  it('con le chat sul Drive: autonomia completa, push solo se c e un remoto, pubblicazione secondo la regola', () => {
+    const conRemoto = comeConsegnare({ remoti: ['origin https://g/y.git'], script: { pubblica: 'x' }, file: [] })
+    const beta = pianoPubblicazione({ regola: 'beta', cloud: DRIVE, consegna: conRemoto })
+    expect(beta).toMatchObject({ autonomia: true, push: true, pubblica: 'sempre' })
+    expect(beta.istruzioni).toContain('npm run pubblica')
+    expect(pianoPubblicazione({ regola: 'beta', cloud: DRIVE }).push).toBe(false)
+    expect(pianoPubblicazione({ regola: 'stabile', cloud: rilevaCloud({ vaSulCloud: true }) })).toMatchObject({ autonomia: true, pubblica: 'chiedi' })
+    expect(pianoPubblicazione({ regola: 'unica', cloud: DRIVE }).pubblica).toBe('progetto')
+    // Senza regola scelta: prudente, chiede prima di pubblicare.
+    expect(pianoPubblicazione({ cloud: DRIVE }).pubblica).toBe('chiedi')
     expect(regolaPubblicazione('beta')).toBe('beta')
     expect(regolaPubblicazione('boh')).toBeUndefined()
   })
 
   it('le scelte arrivano nell archivio e sopravvivono a una rilettura', () => {
     const a = nuovoAutopilota({ id: 'a1', nome: 'x', obiettivo: 'o', cwd: 'C:/p', criteri: [], iniziatoIl: '2026-09-30T00:00:00Z', pubblicazione: 'beta', vaSulCloud: true })
-    const letto = parseAutopilota(JSON.parse(JSON.stringify({ ...a, versione: 1, cloud: { attivo: true, segni: ['file vercel.json'] }, chats: [{ id: 'c-1', compito: 'x', stato: 'pausa', cicli: 1, cartella: 'C:/p.sierradeck-wt/a1-c-1', ramo: 'ap/a1/c-1' }] })))
+    const letto = parseAutopilota(JSON.parse(JSON.stringify({ ...a, versione: 1, cloud: { attivo: true, segni: ['sincronizzazione Drive del progetto accesa'] }, consegna: { remoto: 'origin', segni: ['remoto git origin'] }, chats: [{ id: 'c-1', compito: 'x', stato: 'pausa', cicli: 1, cartella: 'C:/p.sierradeck-wt/a1-c-1', ramo: 'ap/a1/c-1' }] })))
     expect(letto.autopilota?.pubblicazione).toBe('beta')
     expect(letto.autopilota?.vaSulCloud).toBe(true)
-    expect(letto.autopilota?.cloud?.segni).toEqual(['file vercel.json'])
+    expect(letto.autopilota?.cloud?.segni).toEqual(['sincronizzazione Drive del progetto accesa'])
+    expect(letto.autopilota?.consegna?.remoto).toBe('origin')
     expect(letto.autopilota?.chats[0]).toMatchObject({ stato: 'pausa', ramo: 'ap/a1/c-1' })
   })
 })

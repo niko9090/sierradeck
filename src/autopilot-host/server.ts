@@ -35,14 +35,14 @@ import { primoCompito, ripartiDaDove, riprende } from './nel-mosaico'
 import type { RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
 import { TETTO_CHAT_MAX } from '@shared/autopilota'
-import { frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
+import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
 import { giudicaMossa, giudicaStrumento, leggiMosse, rispostaPreTool } from './divieti'
 import {
-  daMettereInPausa, daRiprendere as chatInPausaDaRiprendere, domandaGemella, leggiStatoProgramma, riassuntoProgramma,
+  daMettereInPausa, daRiprendere as chatInPausaDaRiprendere, domandaGemella, driveDelProgetto, leggiStatoProgramma, riassuntoProgramma,
   type StatoProgramma
 } from './coordinatore'
 import {
-  creaWorktree, fattiCloud, mandaSu, radiceGit, ramoCorrente, salvaLavoro, togliWorktree, unisciRamo, type Git
+  creaWorktree, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, salvaLavoro, togliWorktree, unisciRamo, type Git
 } from './worktree'
 
 export type Dipendenze = {
@@ -137,7 +137,9 @@ const RIPRESA_DAL_FRENO =
 function istruzionePubblica(a: Autopilota, piano: PianoPubblicazione, unito: boolean): string {
   const come = piano.pubblica === 'progetto'
     ? 'Segui la regola di pubblicazione scritta nel progetto (CLAUDE.md, il quaderno in .sierradeck/quaderno, gli script di pubblicazione). Se il progetto non dice niente, fermati e scrivi che serve una regola.'
-    : 'Usa la procedura di pubblicazione del progetto' + (a.cloud?.segni.length ? ` (${a.cloud.segni.slice(0, 3).join(', ')})` : '') + '.'
+    : a.consegna?.comandoPubblica !== undefined
+      ? `Pubblica con ${a.consegna.comandoPubblica}, la procedura del progetto.`
+      : 'Usa la procedura di pubblicazione del progetto' + (a.consegna?.segni.length ? ` (${a.consegna.segni.slice(0, 3).join(', ')})` : '') + '.'
   return [
     `Il lavoro «${a.nome}» è finito e i criteri sono verificati${unito ? `, e il lavoro delle chat è unito nel ramo ${a.ramoBase ?? 'principale'} e mandato su` : ''}.`,
     '',
@@ -458,6 +460,20 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     `${a.cwd}.sierradeck-wt`,
     ...a.chats.flatMap((c) => (c.cartella !== undefined ? [c.cartella] : []))
   ]
+  /**
+   * Il cloud di adesso: le chat del progetto sul Drive (dallo stato del
+   * programma) o «va sul cloud» spuntato. Si rilegge ogni volta: la
+   * sincronizzazione puo' essere accesa o spenta mentre lavora.
+   */
+  const cloudDi = (a: Autopilota) => rilevaCloud({
+    ...(a.vaSulCloud !== undefined ? { vaSulCloud: a.vaSulCloud } : {}),
+    driveAttivo: driveDelProgetto(statoProgramma, a.cwd, Date.parse(deps.adesso()))
+  })
+  const pianoDi = (a: Autopilota): PianoPubblicazione => pianoPubblicazione({
+    ...(a.pubblicazione !== undefined ? { regola: a.pubblicazione } : {}),
+    cloud: cloudDi(a),
+    ...(a.consegna !== undefined ? { consegna: a.consegna } : {})
+  })
   /** Una riga nel diario, senza perdere quelle che ci sono. */
   const annota = (a: Autopilota, cosa: string): void => {
     a.decisioni = [...a.decisioni, { quando: deps.adesso(), cosa }]
@@ -539,11 +555,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // «Pubblico?» a lavoro finito, con la risposta arrivata dopo: un sì riapre
     // il lavoro per pubblicare, un no lo lascia chiuso.
     if (dati.pubblica === true) {
-      const piano = pianoPubblicazione({
-        ...(a.pubblicazione !== undefined ? { regola: a.pubblicazione } : {}),
-        ...(a.vaSulCloud !== undefined ? { vaSulCloud: a.vaSulCloud } : {}),
-        ...(a.cloud !== undefined ? { cloud: a.cloud } : {})
-      })
+      const piano = pianoDi(a)
       if (!eUnSi(risposta)) {
         salva({ ...a, pubblicazioneInAttesa: undefined, decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: `non pubblico: hai risposto «${risposta}»` }] })
         return
@@ -1080,8 +1092,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const git = deps.git
     const radice = git !== undefined ? radiceGit(git, iniziale.cwd) : undefined
     const base = git !== undefined && radice !== undefined ? ramoCorrente(git, iniziale.cwd) : undefined
-    const cloud = git !== undefined ? rilevaCloud(fattiCloud(git, iniziale.cwd)) : undefined
-    let a: Autopilota = { ...iniziale, ...(cloud !== undefined ? { cloud } : {}) }
+    // Il cloud e' il Drive di SierraDeck (o la spunta); il remoto e gli script
+    // dicono solo dove fare il push e con quale comando pubblicare.
+    const consegna = git !== undefined ? comeConsegnare(fattiPubblicazione(git, iniziale.cwd)) : undefined
+    let a: Autopilota = { ...iniziale, cloud: cloudDi(iniziale), ...(consegna !== undefined ? { consegna } : {}) }
     const freno = frenoAdesso()
     if (freno.livello === 'fermo') {
       // Il piano e' quasi finito: si parte dopo l'azzeramento, da soli.
@@ -1574,6 +1588,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // vietate le rifiuta il programma, qualunque cosa scriva il modello.
       const harness = [
         riassuntoProgramma(statoProgramma, freno, Date.parse(deps.adesso())),
+        cloudDi(aggiornato).attivo
+          ? '- **Autonomia completa**: le chat di questo progetto stanno sul Drive di SierraDeck. Non fare domande a Nicholas: decidi tu con il progetto, i criteri e il quaderno. `chiedi` solo per una cosa che nessuno qui può sapere (una credenziale). Commit, unione e pubblicazione seguono la regola del progetto.'
+          : '- Le chat di questo progetto non stanno sul Drive: lavora come sempre, e chiedi a Nicholas quando serve davvero. Niente push, niente pubblicazione.',
         '',
         '## Mosse sul programma (facoltative, nel campo "mosse")',
         aggiornato.chats.length > 0
@@ -1889,14 +1906,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
 
     // ── La pubblicazione, secondo la regola del progetto ──
-    const piano = pianoPubblicazione({
-      ...(aggiornato.pubblicazione !== undefined ? { regola: aggiornato.pubblicazione } : {}),
-      ...(aggiornato.vaSulCloud !== undefined ? { vaSulCloud: aggiornato.vaSulCloud } : {}),
-      ...(aggiornato.cloud !== undefined ? { cloud: aggiornato.cloud } : {})
-    })
+    const piano = pianoDi(aggiornato)
+    aggiornato.cloud = cloudDi(aggiornato)
     let mandato = false
     if (piano.push && git !== undefined && aggiornato.ramoBase !== undefined && unitoQualcosa) {
-      const r = mandaSu(git, aggiornato.cwd, aggiornato.ramoBase)
+      const r = mandaSu(git, aggiornato.cwd, aggiornato.ramoBase, aggiornato.consegna?.remoto ?? 'origin')
       mandato = r.codice === 0
       annota(aggiornato, mandato ? `mandato su ${aggiornato.ramoBase}` : `push non riuscito: ${r.uscita.slice(0, 200)}`)
     }

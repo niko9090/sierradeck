@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { bersagliCancellazione, giudicaMossa, giudicaStrumento, leggiMosse, rispostaPreTool } from '../../src/autopilot-host/divieti'
 import {
-  daMettereInPausa, daRiprendere, domandaGemella, leggiStatoProgramma, riassuntoProgramma, somiglianza
+  daMettereInPausa, daRiprendere, domandaGemella, driveDelProgetto, leggiStatoProgramma, riassuntoProgramma, somiglianza
 } from '../../src/autopilot-host/coordinatore'
 import { frenoDaiLimiti } from '@shared/harness'
 
@@ -110,5 +110,16 @@ describe('il coordinatore (T1, T5)', () => {
     // Un estratto vecchio non si spaccia per di adesso.
     expect(riassuntoProgramma(e, frenoDaiLimiti(undefined, ora), ora + 10 * 60_000)).toContain('non è leggibile adesso')
     expect(leggiStatoProgramma('x', ora)).toBeUndefined()
+  })
+
+  it('il Drive del progetto: sincronizzazione accesa e cartella dentro un progetto sul Drive', () => {
+    const ora = Date.now()
+    const e = leggiStatoProgramma({ letto: ora, driveAttivo: true, progetti: [{ nome: 'sito', chi: 'io', inCoda: 0, percorso: 'E:/Progetti/sito' }] }, ora)
+    expect(driveDelProgetto(e, 'E:/Progetti/sito/app', ora)).toBe(true)
+    expect(driveDelProgetto(e, 'E:/Progetti/altro', ora)).toBe(false)
+    expect(driveDelProgetto({ ...e!, driveAttivo: false }, 'E:/Progetti/sito', ora)).toBe(false)
+    // Un estratto vecchio non conta: meglio non credersi in autonomia.
+    expect(driveDelProgetto(e, 'E:/Progetti/sito', ora + 10 * 60_000)).toBe(false)
+    expect(driveDelProgetto(undefined, 'E:/Progetti/sito', ora)).toBe(false)
   })
 })

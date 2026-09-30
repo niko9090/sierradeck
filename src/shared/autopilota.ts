@@ -297,10 +297,15 @@ export type Autopilota = {
    * `beta` pubblica sempre, `stabile` chiede prima, `unica` segue il progetto.
    */
   pubblicazione?: 'beta' | 'stabile' | 'unica'
-  /** Dichiarato alla creazione: il progetto «va sul cloud». */
+  /** Dichiarato alla creazione: il progetto «va sul cloud» — le sue chat stanno sul Drive. */
   vaSulCloud?: boolean
-  /** Il cloud riconosciuto dai file del progetto (remoti, script, deploy). */
+  /**
+   * Il cloud di SierraDeck: le chat del progetto sul Drive (sincronizzazione
+   * accesa) o «va sul cloud» spuntato. Attivo = autonomia completa.
+   */
   cloud?: { attivo: boolean; segni: string[] }
+  /** Come consegnare quando la regola lo prevede: il remoto per il push, il comando per pubblicare. */
+  consegna?: { remoto?: string; comandoPubblica?: string; segni: string[] }
   /** Il ramo principale del progetto quando le chat lavorano in worktree. */
   ramoBase?: string
   /** Fermo per i limiti del piano fino a questo istante (ISO): poi riparte da solo. */
@@ -406,6 +411,18 @@ function parseCloud(raw: unknown): { attivo: boolean; segni: string[] } | undefi
   const o = raw as Record<string, unknown>
   return {
     attivo: o.attivo === true,
+    segni: Array.isArray(o.segni) ? o.segni.filter((x): x is string => typeof x === 'string').slice(0, 20) : []
+  }
+}
+
+function parseConsegna(raw: unknown): { remoto?: string; comandoPubblica?: string; segni: string[] } | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const o = raw as Record<string, unknown>
+  const remoto = stringaNonVuota(o.remoto)
+  const comandoPubblica = stringaNonVuota(o.comandoPubblica)
+  return {
+    ...(remoto !== undefined ? { remoto } : {}),
+    ...(comandoPubblica !== undefined ? { comandoPubblica } : {}),
     segni: Array.isArray(o.segni) ? o.segni.filter((x): x is string => typeof x === 'string').slice(0, 20) : []
   }
 }
@@ -689,6 +706,7 @@ export function parseAutopilota(raw: unknown): {
       ...(o.pubblicazione === 'beta' || o.pubblicazione === 'stabile' || o.pubblicazione === 'unica' ? { pubblicazione: o.pubblicazione } : {}),
       ...(o.vaSulCloud === true ? { vaSulCloud: true } : {}),
       ...(parseCloud(o.cloud) !== undefined ? { cloud: parseCloud(o.cloud) as { attivo: boolean; segni: string[] } } : {}),
+      ...(parseConsegna(o.consegna) !== undefined ? { consegna: parseConsegna(o.consegna) as { remoto?: string; comandoPubblica?: string; segni: string[] } } : {}),
       ...(stringaNonVuota(o.ramoBase) !== undefined ? { ramoBase: o.ramoBase as string } : {}),
       ...(stringaNonVuota(o.pausaLimitiFinoA) !== undefined ? { pausaLimitiFinoA: o.pausaLimitiFinoA as string } : {}),
       ...(o.pubblicazioneInAttesa === true ? { pubblicazioneInAttesa: true } : {}),
