@@ -2941,6 +2941,16 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   flex-direction: column;
   gap: var(--s1);
   padding-right: 2px;
+  /* La chat con l'autopilota si legge e si copia: il `body` spegne la
+     selezione per non prendere etichette mentre si trascina, e qui va
+     riaccesa. Senza, Ctrl+C non aveva niente da copiare (30/09). */
+  user-select: text;
+  cursor: text;
+}
+
+/* Anche le linguette accanto (obiettivo, criteri, decisioni) si copiano. */
+.diario__lato {
+  user-select: text;
 }
 
 .chatap__riga {

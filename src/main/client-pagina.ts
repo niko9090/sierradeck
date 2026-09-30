@@ -944,6 +944,11 @@ function quandoLetti(letti, adesso) {
   return 'il ' + d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) + ' alle ' + ora + ' (da allora nessuna chat aperta dal computer ha risposto)'
 }
 
+/** C'e' del testo selezionato? Allora non si ridisegna: si perderebbe la selezione. */
+function selezioneAttiva(sel) {
+  return !!sel && sel.isCollapsed === false && String(sel).trim() !== ''
+}
+
 function impronta(s) {
   // Anche lo stato delle chat (sceglie, aspetta, guidata, spenta, altrove):
   // prima l'impronta ne guardava solo nome e ultima riga, e una chat che si
@@ -1065,6 +1070,10 @@ function pannello(s) {
   const staScrivendo = attivo && (attivo.tagName === 'INPUT' || attivo.tagName === 'TEXTAREA')
   // Chi sta scrivendo ha ragione: la pagina puo' aspettare due secondi.
   if (staScrivendo) return
+  // E anche chi sta selezionando per copiare: il ridisegno rifaceva il
+  // documento e la selezione spariva sotto il dito, cosi' dalla chat con
+  // l'autopilota non si copiava niente (30/09).
+  if (selezioneAttiva(window.getSelection())) return
   // Niente e' cambiato: non si tocca il documento. E' questa riga a rendere
   // leggibile una chat dal telefono.
   const adesso = impronta(s)

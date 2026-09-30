@@ -275,8 +275,14 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                 guastoDettaglio?.let { g -> item { Text(g, color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp)) } }
                 item { Serigrafia("Chat con lui") }
                 items(chat) { b ->
-                    RigaChat(b, breve.nome) {
-                        scope.launch { tenta("farlo partire") { api.vaiAutopilota(breve.id) } }
+                    // Il testo della chat con lui si seleziona e si copia (tocco
+                    // lungo): senza SelectionContainer un Text di Compose non e'
+                    // selezionabile, e Nicholas non riusciva a copiarne niente.
+                    // La casella sotto e' un campo di testo: l'incolla c'e' da se'.
+                    androidx.compose.foundation.text.selection.SelectionContainer {
+                        RigaChat(b, breve.nome) {
+                            scope.launch { tenta("farlo partire") { api.vaiAutopilota(breve.id) } }
+                        }
                     }
                 }
                 if (pensa) item {

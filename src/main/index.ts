@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell } from 'electron'
+import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, watch, copyFileSync } from 'node:fs'
 import { homedir, hostname } from 'node:os'
@@ -551,6 +552,12 @@ export function apriNuovaFinestra(): void {
   // finestra archivia la sua disposizione, e va deciso nell'ordine in cui le
   // finestre nascono — non in quello, diverso, in cui i loro renderer finiscono
   // di caricare.
+  // Il tasto destro fuori dal terminale: Copia / Incolla / Taglia nei campi,
+  // Copia su un testo selezionato. Il terminale ha il suo e ferma l'evento.
+  win.webContents.on('context-menu', (_evento, punto) => {
+    const voci = vociMenuContestuale(punto)
+    if (voci.length > 0) Menu.buildFromTemplate(voci).popup({ window: win })
+  })
   riservaSlot(win)
   fotografaFinestre()
   // Quante finestre ci sono: si scrive adesso, che e' l'unico momento in cui il
@@ -753,6 +760,10 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady()
     .then(() => {
+      // Il menu Modifica con i ruoli copia/incolla: senza, Ctrl+C e Ctrl+V nei
+      // campi e nella chat dell'autopilota dipendevano dal menu predefinito di
+      // Electron (vedi `menu-modifica.ts`). Resta nascosto: torna premendo Alt.
+      Menu.setApplicationMenu(Menu.buildFromTemplate(vociMenuApplicazione()))
       // Prima le risorse di processo — handler `ipcMain`, PTY host, SQLite — che
       // sono una sola per applicazione; poi la finestra, che vi si collega. Se
       // l'ordine si invertisse, la seconda finestra tenterebbe di registrare una
