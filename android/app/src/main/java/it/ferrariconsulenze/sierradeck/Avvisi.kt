@@ -11,8 +11,9 @@ import org.json.JSONObject
  * Android si può provare con dei numeri invece che con un telefono in mano.
  *
  * La regola è una sola: **si annuncia ciò che chiede qualcosa a te.** Una
- * domanda che aspetta, un lavoro che si è fermato, un lavoro che ha finito. Non
- * «sta lavorando», che non chiede niente a nessuno.
+ * domanda che aspetta, una chat ferma su una scelta, una chat che ha finito il
+ * turno, un lavoro che si è fermato o che aspetta il via, un lavoro che ha
+ * finito. Non «sta lavorando», che non chiede niente a nessuno.
  */
 object Avvisi {
 
@@ -32,6 +33,15 @@ object Avvisi {
         val domanda: String? = null,
         /** La chat a cui scrivere dalla notifica, quando è una chat che aspetta. */
         val chat: String? = null,
+        /**
+         * La chat che aspetta una **scelta** (un permesso, «vuoi procedere?»).
+         *
+         * Non ha risposta nella notifica: una scelta si fa toccando
+         * un'opzione, e un testo scritto finirebbe nel campo invece di
+         * scegliere. Toccata, la notifica apre la scheda Domande, dove ci sono
+         * i pulsanti.
+         */
+        val scelta: String? = null,
         /** Le notifiche con lo stesso numero si sostituiscono a vicenda. */
         val id: Int
     )
@@ -56,6 +66,8 @@ object Avvisi {
     const val ID_FINITO = 2 * PASSO_FAMIGLIA
     const val ID_FERMO = 3 * PASSO_FAMIGLIA
     const val ID_ASPETTA = 4 * PASSO_FAMIGLIA
+    const val ID_SCELTA = 5 * PASSO_FAMIGLIA
+    const val ID_PRONTO = 6 * PASSO_FAMIGLIA
 
     /** Il numero di una notifica: la sua famiglia, piu' l'impronta di chi la manda. */
     fun idAvviso(famiglia: Int, chiave: String): Int = famiglia + (chiave.hashCode() and MASCHERA)
@@ -123,7 +135,35 @@ object Avvisi {
             for (i in 0 until chat.length()) {
                 val c = chat.getJSONObject(i)
                 val id = c.optString("id")
-                if (id.isEmpty() || c.optBoolean("governata", false)) continue
+                if (id.isEmpty()) continue
+                // Una scelta aperta (un permesso, «vuoi procedere?») blocca la
+                // chat finche' non tocchi un'opzione: e' una domanda a tutti
+                // gli effetti, e fino alla 2.37 non si annunciava — si vedeva
+                // solo aprendo l'app. Vale anche per le governate: l'autopilota
+                // non concede permessi al posto tuo. Come le domande, si dice
+                // anche al primo giro: sta aspettando adesso.
+                vivi.add("k:$id")
+                if (c.optBoolean("chiede", false)) {
+                    if (giaVisti.add("k:$id")) {
+                        val titolo = c.optString("titolo").ifBlank { c.optString("cwd") }
+                        avvisi.add(
+                            Avviso(
+                                chiave = "k:$id",
+                                titolo = "«$titolo» aspetta che tu scelga",
+                                testo = "Sullo schermo c'è un elenco di scelte (un permesso, «vuoi procedere?»). Tocca per vedere le opzioni.",
+                                scelta = id,
+                                id = idAvviso(ID_SCELTA, id)
+                            )
+                        )
+                    }
+                    // La stessa pausa non si annuncia due volte: «aspetta che
+                    // tu scelga» dice gia' tutto, «aspetta te» sarebbe un doppione.
+                    vivi.add("c:$id")
+                    giaVisti.add("c:$id")
+                    continue
+                }
+                giaVisti.remove("k:$id")
+                if (c.optBoolean("governata", false)) continue
                 vivi.add("c:$id")
                 if (!c.optBoolean("aspetta", false)) {
                     giaVisti.remove("c:$id")
@@ -154,6 +194,7 @@ object Avvisi {
             if (id.isEmpty()) continue
             vivi.add("f:$id")
             vivi.add("s:$id")
+            vivi.add("p:$id")
             val nome = a.optString("nome", "Un autopilota")
             when (a.optString("stato")) {
                 "finito" -> {
@@ -176,7 +217,11 @@ object Avvisi {
                 // e lo si scopriva la mattina dopo.
                 "sospeso", "fallito" -> {
                     if (!giaVisti.add("s:$id") || primoGiro) continue
-                    val motivo = a.optString("motivoSospensione", "")
+                    // `/api/stato` lo chiama `motivo` (e' il dettaglio,
+                    // `/api/autopilota`, a chiamarlo `motivoSospensione`): la
+                    // notifica leggeva il nome sbagliato e diceva sempre
+                    // «Serve una tua occhiata» invece del perche'.
+                    val motivo = a.optString("motivo", "").ifEmpty { a.optString("motivoSospensione", "") }
                     avvisi.add(
                         Avviso(
                             chiave = "s:$id",
@@ -186,9 +231,24 @@ object Avvisi {
                         )
                     )
                 }
+                // Si e' preparato e aspetta il via: senza di te non parte, come
+                // uno fermo. La banda e il pallino lo dicevano gia'; la
+                // notifica no, e ad app chiusa lo si scopriva ore dopo.
+                "pronto" -> {
+                    giaVisti.remove("s:$id")
+                    if (!giaVisti.add("p:$id") || primoGiro) continue
+                    avvisi.add(
+                        Avviso(
+                            chiave = "p:$id",
+                            titolo = "$nome aspetta il tuo via",
+                            testo = "Ha letto il progetto e capito l'obiettivo. Non comincia finché non glielo dici: apri Lavori e premi «Vai».",
+                            id = idAvviso(ID_PRONTO, id)
+                        )
+                    )
+                }
                 // Chi riparte torna annunciabile: se domani si ferma di nuovo,
                 // è una notizia nuova e va detta.
-                else -> giaVisti.remove("s:$id")
+                else -> { giaVisti.remove("s:$id"); giaVisti.remove("p:$id") }
             }
         }
         pota(giaVisti, vivi, stato)
@@ -205,9 +265,32 @@ object Avvisi {
     private fun pota(giaVisti: MutableSet<String>, vivi: Set<String>, stato: JSONObject) {
         val note = mutableListOf<String>()
         if (stato.optJSONArray("domande") != null) note.add("d:")
-        if (stato.optJSONArray("chat") != null) note.add("c:")
-        if (stato.optJSONArray("autopiloti") != null) { note.add("f:"); note.add("s:") }
+        if (stato.optJSONArray("chat") != null) { note.add("c:"); note.add("k:") }
+        if (stato.optJSONArray("autopiloti") != null) { note.add("f:"); note.add("s:"); note.add("p:") }
         if (note.isEmpty()) return
         giaVisti.retainAll { chiave -> note.none { chiave.startsWith(it) } || chiave in vivi }
+    }
+}
+
+/**
+ * La riga fissa del controllo continuo, pura: quante chat, e quante chiedono
+ * qualcosa a te. Contava anche le governate (per loro parla l'autopilota) e
+ * non le scelte, cioe' diceva «nessuna ti aspetta» davanti a un permesso.
+ */
+fun rigaPresenza(stato: JSONObject): String {
+    val chat = stato.optJSONArray("chat")
+    val quante = chat?.length() ?: 0
+    var aspettano = 0
+    for (i in 0 until quante) {
+        val c = chat?.optJSONObject(i) ?: continue
+        val chiede = c.optBoolean("chiede", false)
+        if (chiede || (c.optBoolean("aspetta", false) && !c.optBoolean("governata", false))) aspettano += 1
+    }
+    val domande = stato.optJSONArray("domande")?.length() ?: 0
+    return when {
+        domande > 0 -> if (domande == 1) "Un autopilota ti sta chiedendo una cosa" else "$domande domande aspettano te"
+        aspettano > 0 -> "$aspettano su $quante chat aspettano te"
+        quante > 0 -> "$quante chat, nessuna ti aspetta"
+        else -> "Nessuna chat aperta"
     }
 }

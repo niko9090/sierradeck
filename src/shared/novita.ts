@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.35.0',
+    righe: [
+      '**Dal telefono si vede da lontano chi lavora e chi aspetta te (app 2.38.0 e pagina).** Ogni chat nell’elenco ha il suo LED e la sua parola — «al lavoro», «aspetta te», «aspetta che tu scelga», «guidata da un autopilota», «spenta» — e in cima un riassunto («1 aspetta te · 3 al lavoro»). Prima erano tutte uguali, e per sapere chi si era fermato bisognava aprirle una per una. La voce «Chat» della fascia si accende d’ambra quando una chat ha finito e aspetta la tua istruzione.',
+      '**Una chat ferma su un permesso ora ti cerca.** La banda in cima e le notifiche la annunciano come una domanda («aspetta che tu scelga»); toccata, la notifica apre la scheda Domande con i pulsanti delle opzioni. Si annuncia anche un autopilota che si è preparato e aspetta il tuo «Vai», e la notifica di un autopilota fermo dice finalmente il motivo invece di «Serve una tua occhiata». Le notifiche degli autopiloti aprono Lavori.',
+      '**Dalla scheda Domande si entra nella chat con «Apri la chat»**, per leggere tutta la conversazione prima di rispondere. Lavori dice in una riga quanti sono fermi, pronti, in attesa di una risposta, al lavoro e finiti; un autopilota che ti ha fatto una domanda spiega di rispondere invece di offrire solo «Ferma».',
+      '**Altri computer: si vedono le loro chat, con chi aspetta te**, e «Riprendi una conversazione» dice «su portatile · acceso / spento» come sul PC. I consumi e i limiti del piano si rileggono da soli ogni mezzo minuto, e una lettura di ieri non si spaccia più per di adesso.',
+      '**Pagina servita dal computer, sistemata:** la fascia a cinque voci non va più a capo; gli autopiloti fermi hanno il LED rosso (era grigio come «non so»); la scheda Domande non resta più su «Leggo dal computer…»; c’è il tasto «Cerca ora» per l’aggiornamento del PC; «Adesso» non dice più «Nessuno ti aspetta» davanti a un autopilota pronto; testi con gli accenti, errori che si dicono invece di tacere.'
+    ]
+  },
+  {
     versione: '0.34.0',
     righe: [
       '**All’avvio torna tutto com’era, in silenzio.** Niente più finestra «Riprendi» con l’elenco dei salvataggi: SierraDeck riapre da solo l’ultima composizione (workspace, chat, finestre, autopiloti). I salvataggi con nome e il tasto «Salvataggi» non ci sono più, sul PC, nella pagina e nell’app (2.37.0): tanto si lavora sempre sugli stessi, e le chat viaggiano già sul Drive. Resta una rete di sicurezza invisibile: le ultime tre chiusure, in Impostazioni → «Torna a com’era», per quando un aggiornamento o un blocco lasciano i riquadri rotti.',

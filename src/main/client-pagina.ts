@@ -121,7 +121,9 @@ export function paginaClient(): string {
      chat e vedi lampeggiare in fondo che qualcuno ti aspetta. */
   .fascia {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
-    display: grid; grid-template-columns: repeat(4, 1fr);
+    /* Cinque voci, cinque colonne: con quattro, «Computer» andava a capo su
+       una seconda riga e copriva l'ultima piastrella. */
+    display: grid; grid-template-columns: repeat(5, 1fr);
     background: var(--fondo); border-top: 1px solid var(--bordo);
     padding-bottom: env(safe-area-inset-bottom);
   }
@@ -166,6 +168,10 @@ export function paginaClient(): string {
   /* Un lavoro concluso non chiama l'attenzione come uno in corso: si spegne. */
   .finito { background: var(--spento); opacity: .6 }
   .fermo { background: var(--spento) }
+  /* Una chat guidata da un autopilota: in moto, ma non per conto tuo. */
+  .guidata { background: var(--accento); box-shadow: 0 0 5px color-mix(in srgb, var(--accento) 60%, transparent); }
+  /* Una chat senza terminale acceso: il contorno, non il pieno. */
+  .spenta { background: transparent; box-shadow: inset 0 0 0 1px var(--spento); }
   @keyframes pulsa { 0%, 100% { opacity: 1 } 50% { opacity: .35 } }
   @media (prefers-reduced-motion: reduce) { .attesa { animation: none } }
   /* ── La stessa pagina, aperta da un computer ────────────────────────────
@@ -224,6 +230,11 @@ export function paginaClient(): string {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .voce__altrove { font-size: .72em; opacity: .55; margin-left: 6px; white-space: nowrap; }
+  /* La parola dello stato accanto al nome: si legge da lontano quanto il LED. */
+  .voce__stato { font-size: var(--t0); letter-spacing: .06em; color: var(--testo-quieto); white-space: nowrap; }
+  .voce__stato--attesa { color: var(--ambra); }
+  .voce__stato--lavoro { color: var(--verde); }
+  .voce__stato--guidata { color: var(--accento); }
   .voce__freccia { color: var(--testo-quieto); }
   /* Dentro qualcosa: una freccia sola in alto a sinistra, come si torna
      indietro dappertutto. */
@@ -324,6 +335,8 @@ export function paginaClient(): string {
   .ws { display: flex; gap: var(--s2); flex-wrap: wrap; }
   .ws button { padding: 10px 14px; min-height: 44px; }
   .ws button.attivo { border-color: var(--accento); color: var(--testo); }
+  /* La cartella scelta per un lavoro: prima la classe c'era e la regola no. */
+  .cartella.attivo { border-color: var(--accento); color: var(--testo); }
   .vuoto { color: var(--testo-quieto); text-align: center; padding: var(--s4) var(--s2); font-size: var(--t2); }
   .ingresso { max-width: 380px; margin: 40px auto; padding: 0 18px; text-align: center; }
   .ingresso input { width: 100%; text-align: center; font-size: 26px; letter-spacing: .3em; margin: 16px 0; }
@@ -437,7 +450,10 @@ export function paginaClient(): string {
   .criteri li.fatto { color: var(--verde); }
 
   .serigrafia { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--testo-quieto); }
-  .voce { font-size: 12px; color: var(--testo-quieto); padding: 4px 0; display: flex; gap: 8px; }
+  /* Una riga fitta dentro un dettaglio (le decisioni). Prima si chiamava
+     «.voce» come le righe degli elenchi, e scritta dopo le sovrascriveva: chat
+     e autopiloti in elenco perdevano il margine e diventavano grigio chiaro. */
+  .voce--riga { font-size: 12px; color: var(--testo-quieto); padding: 4px 0; display: flex; gap: 8px; min-height: 0; background: none; border: 0; }
   /* Il dialogo con l'autopilota: le tue battute a destra, le sue a sinistra,
      come in ogni conversazione. */
   .battuta { display: flex; flex-direction: column; gap: 2px; max-width: 92%; margin: 6px 0; padding: 6px 10px; border-radius: 10px; font-size: 13px; color: var(--testo); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -524,7 +540,7 @@ var apDettaglio = null
 var apTab = 'obiettivo'
 /** Cosa e' successo all'ultimo messaggio mandato all'autopilota, se non e' partito. */
 var notaDialogo = ''
-/** Il pannello aperto in fondo: le conversazioni, i salvataggi, o niente. */
+/** Il pannello aperto in fondo: le conversazioni, gli altri computer, le code, il Drive, i consumi, le impostazioni, il quaderno, o niente. */
 var pannelloAperto = null
 var sessioniViste = null
 /** La coda condivisa aperta dal telefono: quale progetto, e le sue voci. */
@@ -572,7 +588,7 @@ async function leggiDomande() {
     domandeViste = (d && d.voci) || []
     domandeGuasto = (d && d.errore) ? String(d.errore) : null
   } catch (e) {
-    domandeGuasto = 'Non riesco a leggere le domande: ' + (e && e.message ? e.message : 'il computer non risponde') + '. Se il computer e\u2019 alla 0.29 o prima, va aggiornato.'
+    domandeGuasto = 'Non riesco a leggere le domande: ' + (e && e.message ? e.message : 'il computer non risponde') + '. Se il computer è più vecchio della 0.30, va aggiornato.'
   }
   pannello(ultimoStato)
 }
@@ -609,7 +625,7 @@ function vistaDomande(s) {
       '<div class="sotto">' + esc(v.cwd) + '</div>' + contesto(v.righe) +
       (mandata ? '<div class="sotto">Scelta mandata: \u00ab' + esc(mandata) + '\u00bb. Sparisce appena lo schermo cambia.</div>'
         : '<div class="scelte">' + v.opzioni.map(function (o) {
-            return '<button class="' + (o.scelta ? 'scelta scelta--qui' : 'scelta') + '" data-chat="' + esc(v.chat) + '" data-testo="' + esc(o.testo) + '" onclick="scegliIn(this.dataset.chat, this.dataset.testo)"><b>' + o.numero + '</b> ' + esc(o.testo) + '</button>'
+            return '<button class="' + (o.scelta ? 'scelta scelta--ora' : 'scelta') + '" data-chat="' + esc(v.chat) + '" data-testo="' + esc(o.testo) + '" onclick="scegliIn(this.dataset.chat, this.dataset.testo)"><b>' + o.numero + '</b> ' + esc(o.testo) + '</button>'
           }).join('') + '</div>' +
           '<div class="riga"><textarea id="t-' + esc(v.chat) + '" rows="2" placeholder="oppure scrivile qualcosa"></textarea></div>' +
           '<div class="riga"><button data-chat="' + esc(v.chat) + '" onclick="scriviIn(this.dataset.chat)">Manda</button></div>') +
@@ -715,7 +731,9 @@ window.chiudiNota = () => { notaGlobale = ''; pannello(ultimoStato) }
 window.addEventListener('unhandledrejection', (ev) => {
   const e = ev && ev.reason
   const testo = e && e.message ? e.message : String(e || 'errore')
-  if (testo === '401') return
+  // Il 401 ha la sua strada (dopo cinque di fila si torna al codice): non e'
+  // «Non sono riuscito». Il confronto era con '401' esatto, che non arriva mai.
+  if (testo.indexOf('(401)') >= 0) return
   notaGlobale = 'Non sono riuscito: ' + testo
   try { pannello(ultimoStato) } catch (err) { }
 })
@@ -860,12 +878,82 @@ function gruppiChat(s) {
   }))
 }
 
+/**
+ * Lo stato di una chat in un tono e una parola: la stessa regola dell'app
+ * Android (StatoChat.kt). Prima ogni chat viva aveva il LED verde, e una chat
+ * ferma su un permesso sembrava al lavoro.
+ */
+function statoChat(c) {
+  if (c.chiede) return { tono: 'attesa', parola: 'aspetta che tu scelga' }
+  if (c.aspetta && c.governata) return { tono: 'guidata', parola: 'ferma · ci pensa l’autopilota' }
+  if (c.aspetta) return { tono: 'attesa', parola: 'aspetta te' }
+  if (c.viva === false) return { tono: 'spenta', parola: 'spenta' }
+  if (c.governata) return { tono: 'guidata', parola: 'al lavoro · la guida un autopilota' }
+  return { tono: 'lavoro', parola: 'al lavoro' }
+}
+
+/** Tutte le chat in una riga: prima chi aspetta te, e solo i casi che ci sono. */
+function riassuntoChat(chat) {
+  if (!chat || chat.length === 0) return 'nessuna chat aperta sul computer'
+  var scelgono = 0, aspettano = 0, lavorano = 0, guidate = 0, spente = 0
+  chat.forEach(function (c) {
+    var st = statoChat(c)
+    if (st.parola === 'aspetta che tu scelga') scelgono++
+    else if (st.parola === 'aspetta te') aspettano++
+    else if (st.tono === 'lavoro') lavorano++
+    else if (st.tono === 'guidata') guidate++
+    else spente++
+  })
+  var pezzi = []
+  if (scelgono) pezzi.push(scelgono === 1 ? '1 aspetta che tu scelga' : scelgono + ' aspettano che tu scelga')
+  if (aspettano) pezzi.push(aspettano === 1 ? '1 aspetta te' : aspettano + ' aspettano te')
+  if (lavorano) pezzi.push(lavorano + ' al lavoro')
+  if (guidate) pezzi.push(guidate === 1 ? '1 con l’autopilota' : guidate + ' con gli autopiloti')
+  if (spente) pezzi.push(spente === 1 ? '1 spenta' : spente + ' spente')
+  return pezzi.join(' · ')
+}
+
+/**
+ * Il LED di un autopilota, dalla classe che manda il computer: «led--fermo» e'
+ * **rosso**, come sulla console. La pagina tagliava il prefisso e finiva sulla
+ * classe «fermo», che qui e' il grigio del «non so» (computer muto): un
+ * autopilota arreso sembrava spento.
+ */
+function ledAutopilota(a, scollegato) {
+  if (scollegato) return 'fermo'
+  var classe = a && typeof a === 'object' ? a.led : undefined
+  if (typeof classe === 'string' && classe.indexOf('led--') === 0) {
+    var c = classe.slice(5)
+    return c === 'fermo' ? 'rosso' : c
+  }
+  var st = a && typeof a === 'object' ? a.stato : a
+  if (st === 'lavoro') return 'lavoro'
+  if (st === 'attesa' || st === 'pronto' || st === 'intervista') return 'attesa'
+  if (st === 'finito') return 'finito'
+  return 'rosso'
+}
+
+/** Quando sono stati letti i limiti: oggi solo l'ora, altrimenti anche il giorno. */
+function quandoLetti(letti, adesso) {
+  if (!letti) return ''
+  var d = new Date(letti), a = new Date(adesso)
+  var ora = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+  if (d.toDateString() === a.toDateString()) return 'alle ' + ora
+  var ieri = new Date(adesso - 86400000)
+  if (d.toDateString() === ieri.toDateString()) return 'ieri alle ' + ora
+  return 'il ' + d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }) + ' alle ' + ora + ' (da allora nessuna chat aperta dal computer ha risposto)'
+}
+
 function impronta(s) {
-  const chat = (s.chat || []).map((c) => c.id + '|' + c.titolo + '|' + (c.ultimaRiga || '')).join('~') +
-    '#' + ((s.workspace && s.workspace.chat) || []).map((c) => c.sessione + '|' + c.workspace + '|' + c.titolo).join('~')
+  // Anche lo stato delle chat (sceglie, aspetta, guidata, spenta, altrove):
+  // prima l'impronta ne guardava solo nome e ultima riga, e una chat che si
+  // fermava su un permesso non ridisegnava niente — ne' il suo LED ne' il
+  // numero sulla voce «Domande».
+  const chat = (s.chat || []).map((c) => c.id + '|' + c.titolo + '|' + (c.ultimaRiga || '') + '|' + (c.chiede ? 1 : 0) + (c.aspetta ? 1 : 0) + (c.governata ? 1 : 0) + (c.viva === false ? 0 : 1) + '|' + (c.altrove || '')).join('~') +
+    '#' + ((s.workspace && s.workspace.chat) || []).map((c) => c.sessione + '|' + c.workspace + '|' + c.titolo + '|' + (c.altrove || '')).join('~')
   const aps = (s.autopiloti || []).map((a) =>
-    a.id + '|' + a.stato + '|' + a.cicli + '|' + a.fatti + '|' + a.criteri + '|' + (a.strategia || '')
-  ).join('~')
+    a.id + '|' + a.stato + '|' + a.cicli + '|' + a.fatti + '|' + a.criteri + '|' + (a.strategia || '') + '|' + (a.led || '') + '|' + (a.motivo || '') + '|' + (a.nome || '')
+  ).join('~') + '#' + (s.progetti || []).map((p) => p.id + ':' + p.inCoda + ':' + p.chi).join(',')
   const dom = (s.domande || []).map((d) => d.id + '|' + d.testo).join('~')
   const ws = s.workspace ? (s.workspace.nomi || []).join(',') + '>' + s.workspace.attivo : ''
   // Anche quello che sta aperto **qui**: un pannello che si apre non cambia lo
@@ -898,8 +986,14 @@ function impronta(s) {
     driveLavoro ? JSON.stringify(driveLavoro) : '',
     JSON.stringify(driveAperti || {}),
     prefViste ? prefViste.stile + '/' + prefViste.chiarore : '',
-    aggiornamentoVisto ? aggiornamentoVisto.fase + '/' + (aggiornamentoVisto.percento || 0) + '/' + (aggiornamentoVisto.errore || '') : '',
-    consumiVisti ? 'consumi' : '',
+    aggiornamentoVisto ? aggiornamentoVisto.fase + '/' + (aggiornamentoVisto.percento || 0) + '/' + (aggiornamentoVisto.errore || '') + '/' + (aggiornamentoVisto.attesa || '') + '/' + (aggiornamentoVisto.chatOccupate || 0) + '/' + (aggiornamentoVisto.testo || '') : '',
+    cercatoAlle || '',
+    consumiVisti ? JSON.stringify(consumiVisti) : '',
+    // La scheda Domande: la sua lista arriva da una chiamata a parte. Senza
+    // questi, aprendola si restava su «Leggo dal computer…» finche' qualcosa
+    // d'altro non cambiava, e «Mandata» dopo una risposta non compariva.
+    domandeViste ? JSON.stringify(domandeViste) : '', domandeGuasto || '', Object.keys(domandeMandate).join(','),
+    (function () { try { return localStorage.getItem('sierradeck.nienteapp') || '' } catch (e) { return '' } })(),
     schedeViste ? schedeViste.length : '',
     sessioniViste ? sessioniViste.length : '',
     ''
@@ -933,14 +1027,17 @@ function rimettiScorrimento(dove) {
 function ledDestinazione(nome, s) {
   if (giriFalliti >= 2) return nome === 'computer' ? 'rosso' : 'fermo'
   const aps = s.autopiloti || []
-  const chiede = (s.domande || []).length > 0 ||
-    aps.some((a) => a.stato === 'attesa' || a.stato === 'pronto')
-  const fermi = aps.some((a) => a.stato === 'sospeso' || a.stato === 'fallito')
-  const moto = aps.some((a) => a.stato === 'lavoro')
+  // Dal LED deciso dal computer, come ogni altro LED della pagina: chi si
+  // prepara e fa una domanda chiede, chi si prepara in silenzio e' in moto.
+  const chatCheChiedono = (s.chat || []).filter((c) => statoChat(c).tono === 'attesa').length
+  const chiede = (s.domande || []).length > 0 || chatCheChiedono > 0 ||
+    aps.some((a) => ledAutopilota(a, false) === 'attesa')
+  const fermi = aps.some((a) => ledAutopilota(a, false) === 'rosso')
+  const moto = aps.some((a) => ledAutopilota(a, false) === 'lavoro')
   if (nome === 'adesso') return chiede ? 'attesa' : fermi ? 'rosso' : moto ? 'lavoro' : ''
   if (nome === 'domande') return ((s.domande || []).length + (s.chat || []).filter((c) => c.chiede).length) > 0 ? 'attesa' : ''
-  if (nome === 'lavori') return chiede ? 'attesa' : fermi ? 'rosso' : moto ? 'lavoro' : ''
-  if (nome === 'chat') return (s.chat || []).length > 0 ? 'lavoro' : ''
+  if (nome === 'lavori') return aps.some((a) => ledAutopilota(a, false) === 'attesa') ? 'attesa' : fermi ? 'rosso' : moto ? 'lavoro' : ''
+  if (nome === 'chat') return chatCheChiedono > 0 ? 'attesa' : (s.chat || []).some((c) => statoChat(c).tono === 'lavoro' || statoChat(c).tono === 'guidata') ? 'lavoro' : ''
   // Il computer normalmente non ha LED, e lo accende solo quando c'e' qualcosa
   // che riguarda **la macchina**: un aggiornamento pronto, o il silenzio.
   return aggiornamentoVisto && aggiornamentoVisto.fase === 'pronto' ? 'attesa' : ''
@@ -988,21 +1085,16 @@ function pannello(s) {
    */
   const led = (a) => {
     if (giriFalliti >= 2) return 'fermo'
-    const classe = typeof a === 'object' && a ? a.led : undefined
-    if (typeof classe === 'string' && classe.indexOf('led--') === 0) return classe.slice(5)
-    const st = typeof a === 'object' && a ? a.stato : a
-    return st === 'lavoro' ? 'lavoro' : (st === 'attesa' || st === 'pronto') ? 'attesa' : 'fermo'
+    // La classe arriva dal computer (a.led, controllata con classe.indexOf('led--')
+    // dentro ledAutopilota): qui non c'e' una seconda mappatura.
+    return ledAutopilota(a, false)
   }
+  /** Il LED di una chat: spento quando il computer tace, come quelli degli autopiloti. */
+  const ledChat = (c) => giriFalliti >= 2 ? 'fermo' : statoChat(c).tono
   // La panoramica: quello che si vuole sapere prima di leggere qualunque
   // dettaglio - sta lavorando qualcosa? qualcuno mi sta aspettando? A quale
   // punto siamo? Tre numeri, in cima, senza dover contare le piastrelle.
   const aps = s.autopiloti || []
-  const alLavoro = aps.filter((a) => a.stato === 'lavoro').length
-  const inAttesa = aps.filter((a) => a.stato === 'attesa' || a.stato === 'pronto').length
-  const finiti = aps.filter((a) => a.stato === 'finito').length
-  const criteriTot = aps.reduce((t, a) => t + (a.criteri || 0), 0)
-  const criteriFatti = aps.reduce((t, a) => t + (a.fatti || 0), 0)
-  const avanzamento = criteriTot ? Math.round(criteriFatti / criteriTot * 100) : 0
   // ── La gerarchia di Adesso ──────────────────────────────────────────────
   // Una cosa sola domina alla volta. Prima c'erano quattro numeri giganti che
   // rispondevano alla domanda sbagliata: «0 ti aspettano» e «2 ti aspettano»
@@ -1010,6 +1102,11 @@ function pannello(s) {
   // **serve qualcosa da me, si' o no**.
   const inMoto = (s.autopiloti || []).filter((a) => a.stato === 'lavoro')
   const fermi = (s.autopiloti || []).filter((a) => a.stato === 'sospeso' || a.stato === 'fallito')
+  // Chi aspetta te senza essere una domanda: un autopilota pronto (il via),
+  // una chat su una scelta o che ha finito il turno. Prima Adesso
+  // diceva «Nessuno ti aspetta» anche con uno di questi davanti.
+  const pronti = (s.autopiloti || []).filter((a) => a.stato === 'pronto')
+  const chatAttesa = (s.chat || []).filter((c) => statoChat(c).tono === 'attesa')
 
   /** Il polso: una riga per cosa, non un cruscotto. */
   const polso =
@@ -1023,9 +1120,10 @@ function pannello(s) {
     (s.chat || []).map((c) =>
       // Anche il LED di una chat si spegne quando il computer tace: scritto a
       // mano restava **verde** su dati di mezz'ora prima, che è esattamente
-      // ciò che questo stato esiste per impedire. Visto in fotografia.
-      '<div class="polso"><span class="led ' + (giriFalliti >= 2 ? 'fermo' : 'lavoro') + '"></span>' +
-      '<span class="polso__nome">' + esc(c.titolo) + '</span></div>' +
+      // ciò che questo stato esiste per impedire. Visto in fotografia. E dice
+      // lo stato vero (aspetta te, sceglie, guidata), non «verde» per tutte.
+      '<div class="polso"><span class="led ' + ledChat(c) + '"></span>' +
+      '<span class="polso__nome">' + esc(c.titolo) + '</span><span class="voce__stato voce__stato--' + statoChat(c).tono + '">' + esc(statoChat(c).parola) + '</span></div>' +
       (c.ultimaRiga ? '<div class="battito">' + esc(c.ultimaRiga) + '</div>' : '')
     ).join('')
 
@@ -1041,11 +1139,25 @@ function pannello(s) {
     '<div class="sotto">' + esc(a.strategia ? 'bloccato, provo: ' + a.strategia : (a.motivo || 'fermo')) + '</div>' +
     '<div class="misura-riga">' + a.fatti + ' criteri su ' + a.criteri + ' · ' + a.cicli + ' interventi</div>' +
     '<div class="riga">' +
-    '<button onclick="riprendiAp(\\'' + esc(a.id) + '\\')">Riprendi</button>' +
+    '<button data-ap="' + esc(a.id) + '" onclick="riprendiAp(this.dataset.ap)">Riprendi</button>' +
     '<button onclick="vaiScheda(\\'lavori\\')">Guarda</button></div></div>'
   ).join('')
 
-  const panoramica = (s.domande || []).length > 0 || fermi.length > 0 || inMoto.length > 0 || (s.chat || []).length > 0
+  /** Chi aspetta te senza essere una domanda: si vede qui, con il gesto. */
+  const aspettanoTe = (pronti.length + chatAttesa.length) === 0 ? '' :
+    '<div class="piastrella chiede"><div class="serigrafia"><span class="led attesa"></span>ASPETTANO TE</div>' +
+    pronti.map((a) =>
+      '<div class="polso"><span class="polso__nome">' + esc(a.nome) + '</span><span class="voce__stato voce__stato--attesa">' +
+      (a.stato === 'pronto' ? 'pronto: aspetta il via' : 'ti ha fatto una domanda') + '</span></div>' +
+      (a.stato === 'pronto' ? '<div class="riga"><button class="primario" data-ap="' + esc(a.id) + '" onclick="vaiAp(this.dataset.ap)">Vai</button></div>' : '')
+    ).join('') +
+    chatAttesa.map((c) =>
+      '<div class="polso"><span class="polso__nome">' + esc(c.titolo || c.cwd) + '</span><span class="voce__stato voce__stato--attesa">' + esc(statoChat(c).parola) + '</span></div>'
+    ).join('') +
+    (chatAttesa.length ? '<div class="riga"><button onclick="vaiScheda(\\'domande\\')">Rispondi dalla scheda Domande</button></div>' : '') +
+    '</div>'
+
+  const panoramica = (s.domande || []).length > 0 || fermi.length > 0 || inMoto.length > 0 || (s.chat || []).length > 0 || pronti.length > 0
     ? ''
     : calma
 
@@ -1068,7 +1180,7 @@ function pannello(s) {
   const autopiloti = apAperto
     ? \`
     <div class="testata-dentro">
-      <button class="indietro" onclick="chiudiAp()" aria-label="Torna all elenco">‹</button>
+      <button class="indietro" onclick="chiudiAp()" aria-label="Torna all’elenco">‹</button>
       <div class="testata-dentro__nome"><span class="led \${led(apAperto)}"></span>\${esc(apAperto.nome)}</div>
     </div>
     <div class="piastrella">
@@ -1114,10 +1226,11 @@ function pannello(s) {
   const chat = aperta
     ? \`
     <div class="testata-dentro">
-      <button class="indietro" onclick="chiudiDentro()" aria-label="Torna all elenco">‹</button>
-      <div class="testata-dentro__nome">\${esc(aperta.titolo)}</div>
+      <button class="indietro" onclick="chiudiDentro()" aria-label="Torna all’elenco">‹</button>
+      <div class="testata-dentro__nome"><span class="led \${ledChat(aperta)}"></span>\${esc(aperta.titolo)}</div>
       <button class="altro" onclick="apriAltro('\${escJs(aperta.id)}')" aria-label="Altro">⋯</button>
     </div>
+    <div class="sotto"><span class="voce__stato voce__stato--\${statoChat(aperta).tono}">\${esc(statoChat(aperta).parola)}</span></div>
     <div class="sotto percorso">\${esc(aperta.cwd)}</div>
     \${altroAperto === aperta.id ? \`
       <div class="piastrella">
@@ -1149,21 +1262,22 @@ function pannello(s) {
       <input id="t-\${esc(aperta.id)}" placeholder="scrivi qui e invia">
       <button onclick="scrivi('\${escJs(aperta.id)}')">Invia</button>
     </div>\`
-    : gruppiChat(s).map((g) =>
+    : '<div class="sotto" style="padding:6px 16px 0">' + esc(riassuntoChat(s.chat || [])) + '</div>' + gruppiChat(s).map((g) =>
       '<div class="sotto" style="padding:10px 16px 2px;letter-spacing:.08em;text-transform:uppercase;font-size:11px">' +
         esc(g.workspace) + (g.attivo ? ' · davanti' : '') + ' · ' + g.voci.length + '</div>' +
       (g.voci.length === 0
         ? '<div class="sotto" style="padding:2px 24px 8px">nessuna chat</div>'
         : g.voci.map((v) => v.viva
           ? '<button class="voce" onclick="guarda(\\'' + escJs(v.viva.id) + '\\')">' +
-            '<span class="led ' + (giriFalliti >= 2 ? 'fermo' : 'lavoro') + '"></span>' +
-            '<span class="voce__testo"><span class="voce__nome">' + esc(v.viva.titolo) + (v.viva.altrove ? '<span class="voce__altrove">su ' + esc(v.viva.altrove) + '</span>' : '') + '</span>' +
+            '<span class="led ' + ledChat(v.viva) + '"></span>' +
+            '<span class="voce__testo"><span class="voce__nome">' + esc(v.viva.titolo) + (v.viva.altrove ? '<span class="voce__altrove">progetto su ' + esc(v.viva.altrove) + '</span>' : '') + '</span>' +
+            '<span class="voce__stato voce__stato--' + statoChat(v.viva).tono + '">' + esc(statoChat(v.viva).parola) + '</span>' +
             (v.viva.ultimaRiga ? '<span class="voce__sotto">' + esc(v.viva.ultimaRiga) + '</span>' : '') +
             '</span><span class="voce__freccia">›</span></button>'
-          : '<button class="voce" onclick="riprendiSalvata(\\'' + escJs(v.salvata.cwd) + '\\',\\'' + escJs(v.salvata.sessione) + '\\')">' +
-            '<span class="led"></span>' +
-            '<span class="voce__testo"><span class="voce__nome" style="opacity:.7">' + esc(v.salvata.titolo || v.salvata.cwd) + (v.salvata.altrove ? '<span class="voce__altrove">su ' + esc(v.salvata.altrove) + '</span>' : '') + '</span>' +
-            '<span class="voce__sotto">da riprendere · tocca per riaprirla</span></span>' +
+          : '<button class="voce" onclick="riprendiSalvata(\\'' + escJs(v.salvata.cwd) + '\\',\\'' + escJs(v.salvata.sessione) + '\\',\\'' + escJs(v.salvata.altrove || '') + '\\')">' +
+            '<span class="led spenta"></span>' +
+            '<span class="voce__testo"><span class="voce__nome" style="opacity:.7">' + esc(v.salvata.titolo || v.salvata.cwd) + (v.salvata.altrove ? '<span class="voce__altrove">progetto su ' + esc(v.salvata.altrove) + '</span>' : '') + '</span>' +
+            '<span class="voce__sotto">' + (v.salvata.altrove ? 'la cartella è su ' + esc(v.salvata.altrove) + ': qui non si riapre' : v.salvata.ibernata ? 'ibernata · tocca per risvegliarla sul computer' : 'chiusa · tocca per riaprirla sul computer, con la sua storia') + '</span></span>' +
             '<span class="voce__freccia">›</span></button>'
         ).join(''))
     ).join('')
@@ -1207,23 +1321,25 @@ function pannello(s) {
          \${(cartelle || []).length === 0
            ? '<div class="sotto" style="margin-top:8px">Nessuna cartella conosciuta.</div>'
            : (cartelle || []).map((c, i) =>
-               '<button class="cartella' + (delegaCartella === i ? ' attivo' : '') + '" onclick="scegliPer(' + i + ')">' + esc(c) + '</button>').join('')}
+               '<button class="cartella' + (delegaCartella === i ? ' attivo' : '') + '" onclick="scegliPer(' + i + ')">' +
+               '<span class="cartella__nome">' + (delegaCartella === i ? '✓ ' : '') + esc(c.split(/[\\\\/]/).filter(Boolean).pop() || c) + '</span>' +
+               '<span class="cartella__dove">' + esc(c) + '</span></button>').join('')}
          <div class="riga">
            <button class="primario" onclick="affida()">Affida</button>
-           <button onclick="delegando = false; delegaCartella = -1; pannello(ultimoStato)">Lascia stare</button>
+           <button onclick="delegando = false; delegaCartella = -1; cartelle = null; pannello(ultimoStato)">Lascia stare</button>
          </div>
        </div>\`
 
   const elencoSessioni = pannelloAperto !== 'sessioni' ? '' : \`
     <div class="piastrella">
       <div class="titolo">Riprendi una conversazione</div>
-      <div class="sotto">Quelle che il computer conosce, dalla più recente.</div>
+      <div class="sotto">Le conversazioni di Claude Code su questo computer, dalla più recente: toccandone una si riapre sul computer con tutta la sua storia, nel workspace dove era salvata. Quelle «su un altro PC» hanno la cartella là: da qui non si riaprono (partirebbero in una cartella vuota) — scrivile da Computer → Altri computer.</div>
       \${(sessioniViste || []).length === 0
         ? '<div class="sotto" style="margin-top:8px">Nessuna conversazione trovata.</div>'
         : (sessioniViste || []).slice(0, 20).map((x, i) =>
             '<button class="cartella" onclick="riprendiSessione(' + i + ')">' +
-            esc(x.titolo) + (x.altrove ? ' <span class="sotto">· su ' + esc(x.altrove) + '</span>' : '') +
-            '<br><span class="sotto">' + esc(x.cwd) + (x.altrove ? ' (cartella di quel PC: qui non si apre, scrivile da «Altri PC»)' : '') + '</span></button>').join('')}
+            esc(x.titolo) + (x.altrove ? ' <span class="sotto">· su ' + esc(x.altrove) + (x.altroveAcceso === true ? ' · acceso' : x.altroveAcceso === false ? ' · spento' : '') + '</span>' : '') +
+            '<br><span class="sotto">' + esc(x.cwd) + (x.altrove ? ' (cartella di quel PC: qui non si apre, scrivile da Computer → Altri computer)' : '') + '</span></button>').join('')}
       <div class="riga"><button onclick="apriPannello('sessioni')">Chiudi</button></div>
     </div>\`
 
@@ -1233,13 +1349,18 @@ function pannello(s) {
     const pc = pcVisti || []
     if (pcAperto === null) {
       return '<div class="piastrella"><div class="titolo">Altri computer</div>' +
-        '<div class="sotto">I PC che usano questo stesso Drive. Un\\'azione scritta a un PC si esegue solo la\\', in una sua chat, quando e\\' acceso: e\\' la strada per una cartella che sta su quel PC (un disco di rete, un progetto che non viaggia).</div>' +
+        '<div class="sotto">I PC che usano questo stesso Drive, con le chat che hanno aperte (dal loro battito, ogni pochi minuti): pallino ambra = aspetta te. Per comandarli dal vivo apri la loro pagina (stesso indirizzo, sul loro IP). Toccandone uno lasci un’azione nella sua cassetta: si esegue solo là, in una sua chat, quando è acceso — è la strada per una cartella che sta su quel PC (un disco di rete, un progetto che non viaggia).</div>' +
+        (postaErrore ? '<div class="errore" style="margin-top:6px">' + esc(postaErrore) + '</div>' : '') +
         (pcVisti === null ? '<div class="sotto" style="margin-top:8px">Leggo il Drive…</div>' : '') +
-        (pcVisti !== null && pc.length === 0 ? '<div class="sotto" style="margin-top:8px">Nessun altro PC ha ancora lasciato un segno sul Drive (serve la 0.27.0 su quel PC).</div>' : '') +
+        (pcVisti !== null && pc.length === 0 ? '<div class="sotto" style="margin-top:8px">Nessun altro PC ha ancora lasciato un segno sul Drive: serve SierraDeck 0.27.0 o più nuovo su quel PC, con la cassaforte sbloccata e il Drive collegato.</div>' : '') +
         pc.map((b) =>
           '<button class="cartella" data-pc="' + esc(b.pcId) + '" onclick="apriPc(this.dataset.pc)">' + esc(b.nome) +
           '<br><span class="sotto">' + (b.vivo ? 'acceso' : 'spento, ultimo segno ' + esc(String(b.battito || '').slice(0, 16).replace('T', ' '))) +
-          ' · ' + (b.chat || []).length + ' chat aperte · ' + (b.cartelle || []).length + ' cartelle</span></button>').join('') +
+          ' · ' + (b.chat || []).length + ' chat aperte · ' + (b.cartelle || []).length + ' cartelle</span>' +
+          (b.chat || []).slice(0, 8).map((c) =>
+            '<span class="sotto" style="display:flex;gap:6px;align-items:center"><span class="led ' + (!b.vivo ? 'spenta' : c.aspetta ? 'attesa' : 'lavoro') + '"></span>' +
+            esc(c.titolo || c.cwd) + ' · ' + (!b.vivo ? 'ultimo stato noto' : c.aspetta ? 'aspetta te' : 'al lavoro') + '</span>').join('') +
+          '</button>').join('') +
         '<div class="riga"><button onclick="apriPannello(\\'pc\\')">Chiudi</button></div></div>'
     }
     const b = pc.find((x) => x.pcId === pcAperto) || { nome: pcAperto, cartelle: [], chat: [], vivo: false }
@@ -1274,13 +1395,13 @@ function pannello(s) {
     const progetti = (s.progetti || [])
     if (codaProgetto === null) {
       return '<div class="piastrella"><div class="titolo">Code dei progetti</div>' +
-        '<div class="sotto">I comandi in fila per ogni progetto sul Drive: li consegna il PC che ha il testimone, appena una chat ha finito.</div>' +
+        '<div class="sotto">Una fila di istruzioni per progetto, sul Drive: le consegna il PC che ha il progetto in mano, una per volta, alla prima chat del progetto che ha finito il turno. Serve a lasciare il lavoro dopo quello di adesso senza stare a guardare.</div>' +
         (progetti.length === 0
-          ? '<div class="sotto" style="margin-top:8px">Nessun progetto sul Drive.</div>'
+          ? '<div class="sotto" style="margin-top:8px">Nessun progetto sul Drive: le code esistono solo per i progetti portati sul Drive (sul computer: Account → Progetti).</div>'
           : progetti.map((p) =>
               '<button class="cartella" onclick="apriCoda(\\'' + escJs(p.id) + '\\')">' + esc(p.nome) +
               '<br><span class="sotto">' + p.inCoda + ' in coda · ' +
-              (p.chi === 'io' ? 'in lavoro qui' : p.chi === 'altro' ? 'in lavoro su ' + esc(p.pcNome || '?') : 'libero') +
+              (p.chi === 'io' ? 'in lavoro qui' : p.chi === 'altro' ? 'in mano a ' + esc(p.pcNome || 'un altro PC') : 'libero: nessun PC lo sta usando') +
               '</span></button>').join('')) +
         '<div class="riga"><button onclick="apriPannello(\\'code\\')">Chiudi</button></div></div>'
     }
@@ -1408,7 +1529,7 @@ function pannello(s) {
       \${schedaAperta
         ? '<div class="dettaglio"><div class="titolo">' + esc(schedaAperta.titolo) + '</div>' +
           '<div class="dentro" style="max-height:50vh">' + esc(schedaAperta.corpo) + '</div>' +
-          '<div class="riga"><button onclick="chiudiScheda()">Torna all elenco</button></div></div>'
+          '<div class="riga"><button onclick="chiudiScheda()">Torna all’elenco</button></div></div>'
         : ((schedeViste || []).length === 0
             ? '<div class="sotto" style="margin-top:8px">Nessuna scheda in questa cartella.</div>'
             : (schedeViste || []).map((x) =>
@@ -1440,6 +1561,8 @@ function pannello(s) {
             (confermando === 'agg' ? 'Sicuro? Aspetta le chat e riavvia' : 'Installa') + '</button>' : ''}
         \${aggiornamentoVisto && aggiornamentoVisto.fase === 'attendo'
           ? '<button disabled>' + (aggiornamentoVisto.attesa ? 'Aspetto il Drive…' : 'Aspetto le chat…') + '</button>' : ''}
+        \${!aggiornamentoVisto || ['fermo', 'aggiornato', 'errore', 'pronto', 'disponibile'].indexOf(aggiornamentoVisto.fase) >= 0
+          ? '<button onclick="cercaAggiornamento()">Cerca ora</button>' : ''}
         <button onclick="apriPannello('impostazioni')">Chiudi</button>
       </div>
     </div>\`
@@ -1501,7 +1624,7 @@ function pannello(s) {
     // in una riga: e' la ragione per cui questa schermata si legge in un
     // secondo e mezzo invece che scorrerla.
     domande: vistaDomande(s),
-    adesso: fermo + invito + domande + bloccati + panoramica +
+    adesso: fermo + invito + domande + bloccati + aspettanoTe + panoramica +
       (domande
         ? '<div class="solco"></div><button class="riga-altro" onclick="vaiScheda(\\'lavori\\')">altre cose in moto ›</button>'
         : (inMoto.length + (s.chat || []).length > 0 ? polso : '')),
@@ -1517,7 +1640,7 @@ function pannello(s) {
       paneWorkspace +
       '<div class="riga"><button onclick="apriPannello(\\'code\\')">Code' +
       ((s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0) > 0 ? ' · ' + (s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0) : '') + '</button>' +
-      '<button onclick="apriPannello(\\'pc\\')">Altri PC</button>' +
+      '<button onclick="apriPannello(\\'pc\\')">Altri computer</button>' +
       '<button onclick="apriPannello(\\'drive\\')">Drive</button>' +
       '<button onclick="apriPannello(\\'consumi\\')">Consumi</button>' +
       '<button onclick="apriPannello(\\'impostazioni\\')">Impostazioni</button></div>' +
@@ -1729,7 +1852,7 @@ function vistaAutopilota(a) {
     dentro = '<div class="serigrafia">Gli hai chiesto</div>' +
       '<div class="sotto tue-parole">' + esc(tue) + '</div>' +
       (a.obiettivo && a.obiettivo !== tue
-        ? '<div class="serigrafia" style="margin-top:8px">Ha capito cosi</div>' +
+        ? '<div class="serigrafia" style="margin-top:8px">Ha capito così</div>' +
           '<div class="sotto sue-parole">' + esc(a.obiettivo) + '</div>'
         : '') +
       '<div class="serigrafia" style="margin-top:10px">A che punto è</div>' +
@@ -1777,10 +1900,10 @@ function vistaAutopilota(a) {
       return freccia === -1 || freccia > 20 ? t : t.slice(freccia + 1).trim()
     }
     const decisioni = (a.decisioni || []).slice(-30).reverse().map((d) =>
-      '<div class="voce"><span class="quando">' + ora(d.quando) + '</span>' +
+      '<div class="voce--riga"><span class="quando">' + ora(d.quando) + '</span>' +
       esc(senzaSigla(d.cosa)) + '</div>'
     ).join('')
-    dentro = '<div class="serigrafia">Sta ragionando cosi</div>' +
+    dentro = '<div class="serigrafia">Sta ragionando così</div>' +
       (decisioni || '<div class="sotto">' + (a.stato === 'intervista' ? 'Sta guardando il progetto per capire cosa serve.' : 'Ancora niente: il primo intervento arriva quando la chat si ferma.') + '</div>')
   }
 
@@ -1894,8 +2017,10 @@ window.rinomina = async (id) => {
 
 window.apriPannello = async (quale) => {
   pannelloAperto = pannelloAperto === quale ? null : quale
-  if (pannelloAperto === 'sessioni' && !sessioniViste) {
-    try { sessioniViste = (await chiedi('/api/sessioni')).sessioni || [] } catch (e) { sessioniViste = [] }
+  // A ogni apertura, non solo la prima: letto una volta, l'elenco restava
+  // quello di quando la pagina era stata aperta.
+  if (pannelloAperto === 'sessioni') {
+    try { sessioniViste = (await chiedi('/api/sessioni')).sessioni || [] } catch (e) { sessioniViste = []; notaGlobale = 'Non riesco a leggere le conversazioni: ' + (e && e.message ? e.message : 'il computer non risponde') }
   }
   if (pannelloAperto === 'consumi') await leggiConsumi()
   if (pannelloAperto === 'pc') { pcAperto = null; postaVoci = null; await leggiPc() }
@@ -1913,7 +2038,10 @@ window.apriPannello = async (quale) => {
 }
 
 /** Riapre una chat salvata in un workspace: la si vede nell'elenco, la si tocca. */
-window.riprendiSalvata = async (cwd, sessione) => {
+window.riprendiSalvata = async (cwd, sessione, altrove) => {
+  // La cartella e' su un altro PC: si dice qui, invece di chiedere al computer
+  // una cosa che rifiutera' comunque.
+  if (altrove) { notaGlobale = 'Questa chat lavora su ' + altrove + ': la sua cartella qui non c’è. Riaprila da quel PC, o scrivile da Computer → Altri computer.'; pannello(ultimoStato); return }
   await chiedi('/api/sessioni/riprendi', { cartella: cwd, sessione: sessione })
   aggiorna()
 }
@@ -1922,6 +2050,7 @@ window.riprendiSalvata = async (cwd, sessione) => {
 window.riprendiSessione = async (i) => {
   const s = (sessioniViste || [])[i]
   if (!s) return
+  if (s.altrove) { notaGlobale = 'Questa conversazione lavora su ' + s.altrove + ': la sua cartella qui non c’è. Riaprila da quel PC, o scrivile da Computer → Altri computer.'; pannello(ultimoStato); return }
   await chiedi('/api/sessioni/riprendi', { cartella: s.cwd, sessione: s.id })
   pannelloAperto = null
   aggiorna()
@@ -1932,8 +2061,8 @@ async function leggiPc() {
   try {
     const r = await chiedi('/api/pc')
     pcVisti = r.pc || []
-    if (r.disponibile === false) postaErrore = 'Questo computer non sa ancora mandare azioni a un altro PC: aggiornalo.'
-  } catch (e) { pcVisti = []; postaErrore = 'Non sono riuscito a leggere gli altri PC.' }
+    postaErrore = r.disponibile === false ? 'Questo computer non sa ancora mandare azioni a un altro PC: aggiornalo.' : ''
+  } catch (e) { pcVisti = []; postaErrore = 'Non sono riuscito a leggere gli altri PC: ' + (e && e.message ? e.message : 'il computer non risponde') }
 }
 async function leggiPosta() {
   if (pcAperto === null) return
@@ -1974,6 +2103,14 @@ window.pulisciPosta = async () => {
   catch (e) { postaErrore = 'Non sono riuscito a pulire.' }
   pannello(ultimoStato)
 }
+// I consumi si rileggono mentre il pannello e' aperto: i limiti del piano
+// salgono mentre guardi, ed e' proprio quello che si vuole vedere.
+setInterval(async () => {
+  if (pannelloAperto !== 'consumi' || !chiave || document.hidden) return
+  await leggiConsumi()
+  pannello(ultimoStato)
+}, 30000)
+
 // La cassetta cambia dal PC destinatario (consegnata, fallita): si rilegge.
 setInterval(async () => {
   if (pannelloAperto !== 'pc' || !chiave) return
@@ -2099,9 +2236,6 @@ window.eliminaWorkspace = async (nome) => {
   aggiorna()
 }
 
-/** Il pannello in fondo che si apre: uno per volta, e il tasto lo richiude. */
-window.apriPannello = window.apriPannello
-
 /** Da quanto tempo, detto come lo direbbe una persona. */
 function daQuando(quando) {
   if (!quando) return 'un po’'
@@ -2135,7 +2269,6 @@ function quote(q) {
     num(q.cache) + ' dalla cache · ' + chat
 }
 
-/** La cartella della prima chat aperta: e' quella di cui si guarda il quaderno. */
 /**
  * Di quale cartella parla il Quaderno.
  *
@@ -2161,8 +2294,8 @@ function descriviAggiornamento() {
   // Le tre fasi che finivano nel ripiego «Sei alla versione più recente»:
   // durante l'installazione era una bugia, e a computer appena acceso pure.
   if (a.fase === 'installo') return a.testo || ('Sto installando la ' + (a.versione || 'versione nuova') + ': il computer si chiude e riparte da solo. Questa pagina non risponde per un minuto o due.')
-  if (a.fase === 'aggiornato') return 'È all’ultima versione.'
-  if (a.fase === 'fermo') return 'Controlla da sé ogni sei ore. Non ha ancora guardato: «Cerca ora» lo fa subito.'
+  if (a.fase === 'aggiornato') return 'È all’ultima versione.' + (cercatoAlle ? ' Ho cercato alle ' + cercatoAlle + '.' : '')
+  if (a.fase === 'fermo') return 'Controlla da sé ogni sei ore. Non ha ancora guardato: «Cerca ora» lo fa subito.' + (cercatoAlle ? ' Ho chiesto alle ' + cercatoAlle + '.' : '')
   // Fra «Installa» e il computer che si chiude adesso c'e' un'attesa vera: le
   // chat che stanno lavorando devono finire quello che hanno in mano. Senza
   // dirlo, da qui si vede un tasto premuto e nient'altro.
@@ -2188,12 +2321,12 @@ function limitiHtml(c) {
       '<div class="barra"><i style="width:' + p + '%;background:' + colore + '"></i></div><div class="sotto">' + spiega + '</div></div>'
   }
   var spesa = c && c.costo
-    ? '<div class="sotto" style="margin-top:10px"><b>Spesa stimata da Claude Code</b>: oggi ' + c.costo.oggi.toFixed(2) + ' $, 7 giorni ' + c.costo.settimana.toFixed(2) + ' $. Con un abbonamento \u00e8 un\u2019indicazione, non una fattura.</div>'
+    ? '<div class="sotto" style="margin-top:10px"><b>Spesa stimata da Claude Code</b>: oggi ' + Number(c.costo.oggi || 0).toFixed(2) + ' $, 7 giorni ' + Number(c.costo.settimana || 0).toFixed(2) + ' $. Con un abbonamento \u00e8 un\u2019indicazione, non una fattura.</div>'
     : ''
   return '<div class="solco"></div><div class="serigrafia">LIMITI DEL PIANO</div>' +
     barra('Finestra di 5 ore', l && l.cinqueOre, 'Al 100% le chat si fermano fino all\u2019azzeramento.') +
     barra('Settimana', l && l.settimana, 'Il tetto settimanale su tutti i modelli.') +
-    (l ? '<div class="sotto" style="margin-top:6px">Letti alle ' + new Date(l.letti).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) + ': sono gli stessi numeri di /usage.</div>'
+    (l ? '<div class="sotto" style="margin-top:6px">Letti ' + (quandoLetti(l.letti, Date.now()) || 'di recente') + ': sono gli stessi numeri di /usage in Claude Code. Si aggiornano a ogni risposta di una chat aperta dal computer, e qui ogni mezzo minuto.</div>'
       : '<div class="sotto" style="margin-top:6px">Arrivano dalla riga di stato di Claude Code dopo la prima risposta di una chat aperta dal computer (solo con abbonamento Pro o Max).</div>') +
     spesa
 }
@@ -2232,6 +2365,19 @@ window.cambiaPref = async (nome, valore) => {
 
 window.leggiAggiornamento = async () => {
   try { aggiornamentoVisto = await chiedi('/api/aggiornamento') } catch (e) { aggiornamentoVisto = null }
+}
+
+/** L'ora dell'ultima ricerca chiesta da qui: se il PC e' gia' aggiornato, e' l'unico segno che il tasto ha fatto qualcosa. */
+var cercatoAlle = ''
+window.cercaAggiornamento = async () => {
+  try {
+    await chiedi('/api/aggiornamento/cerca', {})
+    cercatoAlle = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+  } catch (e) {
+    notaGlobale = 'Il computer non sa ancora cercare a comando: aggiornalo dal suo schermo.'
+  }
+  await leggiAggiornamento()
+  pannello(ultimoStato)
 }
 
 window.scaricaAggiornamento = async () => {
@@ -2340,8 +2486,8 @@ window.scegli = async (testo) => {
     var esito = await chiedi('/api/scegli', { chat: chat, opzione: testo })
     if (esito && esito.errore) {
       notaScelta = String(esito.errore).indexOf('mandata') >= 0
-        ? 'Gia mandata: aspetta che lo schermo cambi.'
-        : 'La scelta e cambiata mentre toccavi: guarda di nuovo.'
+        ? 'Già mandata: aspetta che lo schermo cambi.'
+        : 'La scelta è cambiata mentre toccavi: guarda di nuovo.'
     }
   } catch (e) {
     notaScelta = 'Non sono riuscito a mandarla: il computer non risponde.'
@@ -2367,6 +2513,9 @@ window.vaiScheda = (nome) => {
   pannelloAperto = null
   dentro = null
   dentroAp = null
+  // Anche il menu «altro» di una chat, la scheda del quaderno, la coda e il
+  // PC aperti: restavano aperti e ricomparivano tornando, fuori contesto.
+  altroAperto = null; schedaAperta = null; codaProgetto = null; pcAperto = null
   try { history.pushState({ scheda: nome }, '') } catch (e) { /* niente cronologia, pazienza */ }
   pannello(ultimoStato)
 }
@@ -2375,7 +2524,7 @@ window.addEventListener('popstate', (ev) => {
   // Indietro: prima si chiude quello che si sta guardando, poi si torna alla
   // destinazione precedente. Uscire dall'app resta l'ultima delle possibilita'.
   if (dentro || dentroAp || schedaAperta || pannelloAperto) {
-    dentro = null; dentroAp = null; schedaAperta = null; pannelloAperto = null
+    dentro = null; dentroAp = null; schedaAperta = null; pannelloAperto = null; altroAperto = null
     pannello(ultimoStato)
     return
   }
@@ -2515,7 +2664,21 @@ function avvisaSeServe(stato) {
       new Notification('SierraDeck ti sta chiedendo una cosa', { body: d.testo, tag: d.id })
     }
     const nuovo = !primoAvviso
+    for (const c of (stato.chat || [])) {
+      // Una chat ferma su una scelta (un permesso): e' una domanda a tutti gli
+      // effetti, e fino alla 0.34 non si annunciava.
+      if (!c.chiede) { delete avvisati['k-' + c.id]; continue }
+      if (avvisati['k-' + c.id]) continue
+      avvisati['k-' + c.id] = true
+      new Notification((c.titolo || 'Una chat') + ' aspetta che tu scelga', { body: 'Sullo schermo c’è un elenco di scelte: rispondi dalla scheda Domande.', tag: 'scelta-' + c.id })
+    }
     for (const a of (stato.autopiloti || [])) {
+      if (a.stato === 'pronto') {
+        if (avvisati['p-' + a.id]) continue
+        avvisati['p-' + a.id] = true
+        if (!primoAvviso) new Notification(a.nome + ' aspetta il tuo via', { body: 'Ha letto il progetto e capito l’obiettivo: apri Lavori e premi «Vai».', tag: a.id })
+        continue
+      }
       if (a.stato !== 'sospeso' && a.stato !== 'fallito' && a.stato !== 'finito') continue
       if (avvisati['f-' + a.id + a.stato]) continue
       avvisati['f-' + a.id + a.stato] = true
@@ -2528,7 +2691,7 @@ function avvisaSeServe(stato) {
     // fronte, non lo stato: finche' resta ferma non si ripete.
     for (const c of (stato.chat || [])) {
       const chiaveChat = 'a-' + c.id
-      if (c.aspetta === true && c.governata !== true) {
+      if (c.aspetta === true && c.governata !== true && !c.chiede) {
         if (avvisati[chiaveChat]) continue
         avvisati[chiaveChat] = true
         if (nuovo) new Notification((c.titolo || 'Una chat') + ' aspetta te', { body: c.ultimaRiga || 'Ha finito di scrivere.', tag: 'chat-' + c.id })

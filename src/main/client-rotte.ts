@@ -431,6 +431,15 @@ export function rotteLibere(deps: DipendenzeRotte) {
  */
 export const RISPOSTA_FRESCA_MS = 8000
 
+/**
+ * Un PC e' acceso se il suo battito sul Drive ha meno di cinque minuti. Una
+ * regola sola per `/api/pc` e per l'etichetta «acceso/spento» di `/api/sessioni`.
+ */
+export function battitoVivo(battito: string, ora: number): boolean {
+  const t = Date.parse(battito)
+  return Number.isFinite(t) && ora - t < 5 * 60_000
+}
+
 /** La stessa domanda: le stesse opzioni, nello stesso ordine. Il cursore no: si muove prima dell'invio. */
 function firmaScelte(s: { opzioni: { testo: string }[] }): string {
   return s.opzioni.map((o) => o.testo).join(String.fromCharCode(10))
@@ -949,7 +958,22 @@ export function rotteClient(deps: DipendenzeRotte) {
 
     if (r.percorso === '/api/sessioni') {
       const elenco = await deps.sessioni().catch(() => [])
-      return OK({ sessioni: elenco.map((s) => { const su = deps.chatAltrove?.(s.cwd); return su === undefined ? s : { ...s, altrove: su } }) })
+      const conAltrove = elenco.map((s) => ({ s, su: deps.chatAltrove?.(s.cwd) }))
+      // «su X · acceso / spento», come l'elenco «Riprendi» sul computer
+      // (0.33.0): il telefono diceva solo «su X», e non si sapeva se quel PC
+      // fosse li' a rispondere. I battiti si leggono solo se servono.
+      const accesi = new Map<string, boolean>()
+      if (conAltrove.some((x) => x.su !== undefined) && deps.pc !== undefined) {
+        const ora = adesso()
+        for (const b of await deps.pc().catch(() => [] as BattitoPcTelefono[])) accesi.set(b.nome, battitoVivo(b.battito, ora))
+      }
+      return OK({
+        sessioni: conAltrove.map(({ s, su }) => su === undefined ? s : {
+          ...s,
+          altrove: su,
+          ...(accesi.has(su) ? { altroveAcceso: accesi.get(su) } : {})
+        })
+      })
     }
 
     // Riprendere una conversazione: la stessa regola di «apri» sulla cartella,
@@ -1032,7 +1056,7 @@ export function rotteClient(deps: DipendenzeRotte) {
       return OK({
         io: deps.pcIo?.() ?? '',
         disponibile: deps.pc !== undefined,
-        pc: (pc ?? []).map((b) => ({ ...b, vivo: ora - Date.parse(b.battito) < 5 * 60_000 }))
+        pc: (pc ?? []).map((b) => ({ ...b, vivo: battitoVivo(b.battito, ora) }))
       })
     }
     if (r.metodo === 'POST' && r.percorso === '/api/posta') {
@@ -1087,7 +1111,9 @@ export function rotteClient(deps: DipendenzeRotte) {
       }
       const su = deps.chatAltrove?.(cartella)
       if (su !== undefined) {
-        return { stato: 409, corpo: { errore: `questa chat lavora su «${su}», nella cartella ${cartella}, che su questo computer non c'e': aprirla qui la farebbe partire in una cartella vuota. Scrivile da «Altri PC», oppure aprila dal computer scegliendo «Aprila qui lo stesso».` } }
+        // «Altri computer», come si chiama la sezione sul PC, nella pagina e
+        // nell'app: il testo diceva «Altri PC», che non esisteva da nessuna parte.
+        return { stato: 409, corpo: { errore: `questa chat lavora su «${su}», nella cartella ${cartella}, che su questo computer non c'e': aprirla qui la farebbe partire in una cartella vuota. Scrivile da Computer → «Altri computer», oppure aprila dal computer scegliendo «Aprila qui lo stesso».` } }
       }
       deps.riprendiSessione(cartella, sessione)
       return OK({ fatto: true })

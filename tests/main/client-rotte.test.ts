@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { rotteClient, rotteLibere, type DipendenzeRotte } from '../../src/main/client-rotte'
+import { rotteClient, rotteLibere, battitoVivo, type DipendenzeRotte } from '../../src/main/client-rotte'
 import { apriDispositivi } from '../../src/main/dispositivi'
 import { nuovoAutopilota } from '@shared/autopilota'
 
@@ -1116,6 +1116,47 @@ describe('il Drive dal telefono', () => {
     expect(riprese).toEqual([])
     const ok = await rotteClient(su)({ metodo: 'POST', percorso: '/api/sessioni/riprendi', corpo: { cartella: 'C:\\lavoro', sessione: 's-1' } })
     expect(ok.stato).toBe(200)
+  })
+
+  it('una chat di un altro PC dice anche se quel PC e acceso, come l elenco «Riprendi» sul computer (0.35.0)', async () => {
+    // Il telefono diceva solo «su X»: non si sapeva se X fosse li' a rispondere.
+    const ora = Date.parse('2026-09-30T12:00:00Z')
+    const battito = (nome: string, minutiFa: number) => ({
+      pcId: nome, nome, versione: '0.34.0', battito: new Date(ora - minutiFa * 60_000).toISOString(), cartelle: [], chat: []
+    })
+    const su = deps({
+      adesso: () => ora,
+      sessioni: () => Promise.resolve([
+        { id: 's-1', cwd: 'C:\\lavoro', titolo: 'Mia', quando: '' },
+        { id: 's-2', cwd: 'E:\\a', titolo: 'Del portatile', quando: '' },
+        { id: 's-3', cwd: 'F:\\b', titolo: 'Del fisso', quando: '' },
+        { id: 's-4', cwd: 'G:\\c', titolo: 'Di uno sconosciuto', quando: '' }
+      ]),
+      chatAltrove: (cwd) => (cwd.startsWith('E:') ? 'Portatile' : cwd.startsWith('F:') ? 'Fisso' : cwd.startsWith('G:') ? 'Vecchio' : undefined),
+      pc: () => Promise.resolve([battito('Portatile', 1), battito('Fisso', 30)])
+    })
+    const r = await rotteClient(su)({ metodo: 'GET', percorso: '/api/sessioni', corpo: undefined })
+    const c = r.corpo as { sessioni: { id: string; altrove?: string; altroveAcceso?: boolean }[] }
+    expect(c.sessioni.map((s) => s.altroveAcceso)).toEqual([undefined, true, false, undefined])
+    // E un computer senza battiti (versione vecchia, Drive chiuso) non perde l'elenco.
+    const senza = await rotteClient(deps({ ...su, pc: () => Promise.reject(new Error('Drive chiuso')) }))({ metodo: 'GET', percorso: '/api/sessioni', corpo: undefined })
+    expect((senza.corpo as { sessioni: unknown[] }).sessioni).toHaveLength(4)
+  })
+
+  it('il rifiuto di una chat di un altro PC nomina la sezione che esiste davvero', async () => {
+    // Diceva «Altri PC», che non c'era ne' sul PC ne' nell'app ne' nella pagina.
+    const su = deps({
+      cartelle: () => Promise.resolve(['E:\\a']),
+      chatAltrove: () => 'Portatile'
+    })
+    const r = await rotteClient(su)({ metodo: 'POST', percorso: '/api/sessioni/riprendi', corpo: { cartella: 'E:\\a', sessione: 's' } })
+    expect((r.corpo as { errore: string }).errore).toContain('Altri computer')
+  })
+
+  it('un battito illeggibile non e un PC acceso', () => {
+    expect(battitoVivo('non una data', Date.now())).toBe(false)
+    expect(battitoVivo(new Date(1000).toISOString(), 1000 + 60_000)).toBe(true)
+    expect(battitoVivo(new Date(1000).toISOString(), 1000 + 6 * 60_000)).toBe(false)
   })
 
 })

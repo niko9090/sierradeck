@@ -59,7 +59,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
- * Le tre destinazioni della fascia in basso.
+ * Le cinque destinazioni della fascia in basso.
  *
  * «Adesso» non c'è più, ed è stata una rimozione, non una perdita: nove volte
  * su dieci era vuota, e quando non lo era diceva cose che dovevi **andare a
@@ -76,6 +76,11 @@ enum class Scheda { CHAT, DOMANDE, LAVORI, NEGOZIO, COMPUTER }
  */
 object Apertura {
     var schedaRichiesta by mutableStateOf<Scheda?>(null)
+    /** La chat da aprire nella scheda Chat (da «Apri la chat» in Domande). */
+    var chatRichiesta by mutableStateOf<String?>(null)
+
+    /** Porta alla scheda Chat, dentro quella chat. */
+    fun apriChat(id: String) { chatRichiesta = id; schedaRichiesta = Scheda.CHAT }
 }
 
 /**
@@ -125,17 +130,17 @@ fun App(deposito: Collegamento, scansionaQr: ((String) -> Unit, (String) -> Unit
     }
 }
 
-/**
- * La plancia: la fascia in basso a quattro destinazioni, e sopra la schermata
- * scelta. Il polso del computer arriva da `/api/stato` ogni due secondi finché
- * questa schermata è viva; dopo due giri a vuoto si dichiara «scollegato» invece
- * di mostrare dati vecchi come se fossero freschi.
- */
 /** Non piu' spesso di cosi', anche se l'app torna davanti dieci volte in un minuto. */
 private const val CONTROLLO_APP_OGNI_MS = 10 * 60 * 1000L
 /** L'ultimo controllo dell'app nuova, per tutta la vita del processo. */
 private var ultimoControlloApp = 0L
 
+/**
+ * La plancia: la fascia in basso a cinque destinazioni, e sopra la schermata
+ * scelta. Il polso del computer arriva da `/api/stato` ogni due secondi finché
+ * questa schermata è viva; dopo due giri a vuoto si dichiara «scollegato» invece
+ * di mostrare dati vecchi come se fossero freschi.
+ */
 @Composable
 fun Principale(
     api: Api,
@@ -389,9 +394,14 @@ private fun Fascia(
     // sarebbe acceso sempre.
     val chiedono = (stato?.domande?.size ?: 0) + (stato?.chat?.count { it.chiede } ?: 0)
     val allarmeDomande: Color? = if (chiedono > 0) Banco.ambra else null
+    // Le chat che hanno finito il turno e aspettano la tua prossima
+    // istruzione: non sono domande, ma da lontano sono la notizia «tocca a
+    // te». Prima la voce Chat non aveva mai un pallino.
+    val aspettano = stato?.chat?.count { leggiChat(it).tono == TonoChat.ASPETTA } ?: 0
+    val allarmeChat: Color? = if (aspettano > 0) Banco.ambra else null
 
     NavigationBar(containerColor = Banco.chassis) {
-        voce(attuale, Scheda.CHAT, "Chat", Icons.Filled.Forum, allarme = null, onScegli)
+        voce(attuale, Scheda.CHAT, if (aspettano > 0) "Chat · $aspettano" else "Chat", Icons.Filled.Forum, allarme = allarmeChat, onScegli)
         voce(attuale, Scheda.DOMANDE, if (chiedono > 0) "Domande · $chiedono" else "Domande", Icons.Filled.QuestionAnswer, allarme = allarmeDomande, onScegli)
         voce(attuale, Scheda.LAVORI, "Lavori", Icons.Filled.SmartToy, allarme = allarmeLavori, onScegli)
         voce(attuale, Scheda.NEGOZIO, "Negozio", Icons.Filled.Extension, allarme = null, onScegli)
@@ -430,19 +440,6 @@ private fun androidx.compose.foundation.layout.RowScope.voce(
             unselectedTextColor = Banco.testoQuieto
         )
     )
-}
-
-/** Segnaposto per le schede non ancora native (Chat, Lavori, Computer). */
-@Composable
-private fun Prossimamente(nome: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(
-            "«$nome» in arrivo — sto portando questa schermata in nativo.",
-            color = Banco.testoQuieto,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(32.dp)
-        )
-    }
 }
 
 /**

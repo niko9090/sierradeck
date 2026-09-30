@@ -523,3 +523,17 @@ Confronto sistematico pagina ↔ app (rotte: l'app le chiama tutte, 64 su
   nella nota globale.
 Restano (bassa priorità): Quaderno raggiungibile senza autopilota aperto;
 «1 di N» con più domande; `totali.uguali` nel riassunto Drive.
+
+# 30/09 — analisi completa, app 2.38.0 / PC 0.35.0
+
+Rapporto intero (inventario schermata per schermata, 28 difetti con causa/correzione/test, proposte P1–P9, cose
+aperte) in [[2026-09-30-analisi-app-android]]. Quello che conta sapere lavorando sull'app:
+- **Lo stato di una chat** si legge con `leggiChat` (`StatoChat.kt`): sceglie → aspetta te → guidata → spenta → al
+  lavoro, da `chiede/aspetta/governata/viva` di `/api/stato`. La pagina ha la stessa regola (`statoChat`) e un test
+  vitest confronta le parole con il file Kotlin: se ne cambi una, cambiale tutte e due.
+- **La banda urgenze** è `urgenzaDi(stato, connesso)` (pura, provata): domande degli autopiloti **e** scelte delle chat.
+- **Notifiche**: famiglie `d:` domanda, `c:` chat che aspetta, `k:` scelta (senza risposta scritta, apre Domande), `f:`
+  finito, `s:` fermo, `p:` pronto (le ultime tre aprono Lavori via `Ronda.EXTRA_SCHEDA`). Il motivo di un fermo in
+  `/api/stato` si chiama `motivo`, non `motivoSospensione`.
+- **`Apertura.apriChat(id)`** porta dentro una chat da qualunque scheda (la usa «Apri la chat» in Domande).
+- Le API dei salvataggi con nome sono state tolte anche dall'app (la rotta resta sul PC per le app vecchie).

@@ -60,8 +60,9 @@ private fun tokenBrevi(n: Long): String = when {
 }
 
 /**
- * «Computer»: ciò che si governa del banco da lontano — i workspace, i
- * salvataggi, i consumi, lo stile, e l'aggiornamento del computer.
+ * «Computer»: ciò che si governa del banco da lontano — i workspace, gli
+ * avvisi, l'account, i consumi e i limiti del piano, le code dei progetti, gli
+ * altri computer, l'aspetto, il Drive e gli aggiornamenti.
  */
 @Composable
 fun Computer(api: Api, stato: Stato?) {
@@ -80,6 +81,7 @@ fun Computer(api: Api, stato: Stato?) {
     var codaVoci by remember { mutableStateOf<List<VoceCoda>>(emptyList()) }
     var codaDisponibile by remember { mutableStateOf(true) }
     var codaTesto by remember { mutableStateOf("") }
+    var codaGuasto by remember { mutableStateOf<String?>(null) }
     // La posta per un PC: gli altri computer, la cassetta di quello aperto.
     var pcVisti by remember { mutableStateOf<List<PcRemoto>?>(null) }
     var pcDisponibile by remember { mutableStateOf(true) }
@@ -104,13 +106,24 @@ fun Computer(api: Api, stato: Stato?) {
     LaunchedEffect(codaAperta) {
         val id = codaAperta ?: return@LaunchedEffect
         while (isActive) {
-            try { val c = api.coda(id); codaVoci = c.voci; codaDisponibile = c.disponibile } catch (_: Exception) {}
+            try { val c = api.coda(id); codaVoci = c.voci; codaDisponibile = c.disponibile; codaGuasto = null } catch (e: Exception) {
+                codaGuasto = "Non riesco a leggere la coda: ${e.message ?: "il computer non risponde"}. Riprovo ogni dieci secondi."
+            }
             delay(10_000)
         }
     }
 
+    // I consumi si rileggono ogni mezzo minuto, come fa il computer: letti una
+    // volta sola all'apertura della scheda, i limiti del piano restavano quelli
+    // di quando l'avevi aperta — e una finestra di 5 ore che sale all'80%
+    // mentre guardi e' proprio la notizia che serve.
     LaunchedEffect(Unit) {
-        consumi = try { api.consumi() } catch (_: Exception) { null }
+        while (isActive) {
+            consumi = try { api.consumi() } catch (_: Exception) { consumi }
+            delay(30_000)
+        }
+    }
+    LaunchedEffect(Unit) {
         account = try { api.account() } catch (_: Exception) { null }
         versionePc = try { api.ciao().versione } catch (_: Exception) { null }
         pref = try { api.preferenze().preferenze } catch (_: Exception) { null }
@@ -277,6 +290,10 @@ fun Computer(api: Api, stato: Stato?) {
         val c = consumi
         if (c == null) Text("Carico…", color = Banco.testoQuieto)
         else {
+            Text(
+                "↑ token mandati a Claude, ↓ token ricevuti, ⟳ letti dalla cache (costano molto meno); «chat» è quante conversazioni hanno lavorato nel periodo.",
+                color = Banco.testoQuieto, fontSize = 11.sp
+            )
             QuotaRiga("Oggi", c.oggi)
             QuotaRiga("7 giorni", c.settimana)
             QuotaRiga("Totale", c.totale)
@@ -287,7 +304,7 @@ fun Computer(api: Api, stato: Stato?) {
             FinestraRiga("Settimana", l?.settimana, "Il tetto settimanale su tutti i modelli.")
             Text(
                 if (l == null) "Non ancora letti: arrivano dalla riga di stato di Claude Code dopo la prima risposta di una chat aperta dal computer (solo con abbonamento Pro o Max)."
-                else "Letti alle " + java.text.SimpleDateFormat("HH:mm", java.util.Locale.ITALY).format(java.util.Date(l.letti)) + ": gli stessi numeri di /usage.",
+                else "Letti " + quandoLetti(l.letti, System.currentTimeMillis()) + ": gli stessi numeri di /usage in Claude Code. Si aggiornano a ogni risposta di una chat aperta dal computer, e qui ogni mezzo minuto.",
                 color = Banco.testoQuieto, fontSize = 11.sp
             )
             c.costo?.let { k ->
@@ -307,8 +324,13 @@ fun Computer(api: Api, stato: Stato?) {
         // si toglie. Poco per volta: il telefono non e' il posto per scriverne
         // dieci.
         Sezione("Code dei progetti")
+        Text(
+            "Una fila di istruzioni per progetto, sul Drive: le consegna il PC che ha il progetto in mano, una per volta, alla prima chat del progetto che ha finito il turno. Serve a lasciare il lavoro dopo quello di adesso senza stare a guardare. Si rilegge ogni dieci secondi mentre è aperta.",
+            color = Banco.testoQuieto, fontSize = 12.sp
+        )
+        Spacer(Modifier.height(8.dp))
         val progetti = stato?.progetti ?: emptyList()
-        if (progetti.isEmpty()) Text("Nessun progetto sul Drive.", color = Banco.testoQuieto)
+        if (progetti.isEmpty()) Text("Nessun progetto sul Drive: le code esistono solo per i progetti portati sul Drive (sul computer: Account → Progetti).", color = Banco.testoQuieto, fontSize = 13.sp)
         else for (p in progetti) {
             val aperto = codaAperta == p.id
             Tessera(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -319,8 +341,8 @@ fun Computer(api: Api, stato: Stato?) {
                             Text(
                                 "${p.inCoda} in coda · " + when (p.chi) {
                                     "io" -> "in lavoro qui"
-                                    "altro" -> "in lavoro su ${p.pcNome ?: "?"}"
-                                    else -> "libero"
+                                    "altro" -> "in mano a ${p.pcNome ?: "un altro PC"}"
+                                    else -> "libero: nessun PC lo sta usando"
                                 },
                                 color = Banco.testoQuieto, fontSize = 12.sp
                             )
@@ -336,6 +358,7 @@ fun Computer(api: Api, stato: Stato?) {
                         if (!codaDisponibile) {
                             Text("La coda sta sul Drive: sul computer serve la cassaforte sbloccata e il Drive collegato.", color = Banco.testoQuieto, fontSize = 12.sp)
                         }
+                        codaGuasto?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
                         val attesa = codaVoci.filter { it.stato == "attesa" }
                         val consegnate = codaVoci.filter { it.stato == "consegnata" }
                         if (attesa.isEmpty()) Text("Nessun comando in attesa.", color = Banco.testoQuieto, fontSize = 13.sp)
@@ -395,7 +418,7 @@ fun Computer(api: Api, stato: Stato?) {
         // quel PC; consegna il suo postino, quando e' acceso.
         Sezione("Altri computer")
         Text(
-            "Un'azione scritta a un PC si esegue solo là, in una sua chat, quando è acceso: serve per una cartella che sta su quel PC (un disco di rete, un progetto che non viaggia). Se la cartella là non esiste, la voce fallisce e lo leggi qui.",
+            "Gli altri PC che usano lo stesso Drive, con le chat che hanno aperte (dal loro battito, ogni pochi minuti): pallino ambra = aspetta te. Per comandarli dal vivo, accoppia il telefono anche a loro e passa da uno all'altro con la pillola in cima. «Azioni» lascia un'istruzione nella cassetta di quel PC: si esegue solo là, in una sua chat, quando è acceso — serve per una cartella che sta su quel PC (un disco di rete, un progetto che non viaggia). Se la cartella là non esiste, la voce fallisce e lo leggi qui.",
             color = Banco.testoQuieto, fontSize = 12.sp
         )
         Spacer(Modifier.height(8.dp))
@@ -403,7 +426,7 @@ fun Computer(api: Api, stato: Stato?) {
         when {
             !pcDisponibile -> Text("Questo computer non sa ancora mandare azioni a un altro PC: aggiornalo.", color = Banco.testoQuieto)
             pcs == null -> Text("Leggo il Drive…", color = Banco.testoQuieto)
-            pcs.isEmpty() -> Text("Nessun altro PC ha ancora lasciato un segno sul Drive (serve la 0.27.0 su quel PC).", color = Banco.testoQuieto)
+            pcs.isEmpty() -> Text("Nessun altro PC ha ancora lasciato un segno sul Drive: serve SierraDeck 0.27.0 o più nuovo su quel PC, con la cassaforte sbloccata e il Drive collegato.", color = Banco.testoQuieto)
             else -> for (p in pcs) {
                 val aperto = pcAperto == p.pcId
                 Tessera(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -422,6 +445,25 @@ fun Computer(api: Api, stato: Stato?) {
                                 postaVoci = emptyList(); postaTesto = ""; postaNota = null
                                 postaCwd = p.cartelle.firstOrNull() ?: ""
                             }) { Text(if (aperto) "Chiudi" else "Azioni") }
+                        }
+                        // Le chat aperte su quel PC, con chi aspetta: il battito le
+                        // porta da sempre e il telefono ne mostrava solo il numero.
+                        // Da qui si vede chi si e' fermato anche su un computer con
+                        // cui il telefono non e' accoppiato.
+                        if (p.chat.isNotEmpty()) {
+                            Spacer(Modifier.height(6.dp))
+                            for (ch in p.chat.take(8)) {
+                                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
+                                    LedChat(if (!p.vivo) null else if (ch.aspetta) TonoChat.ASPETTA else TonoChat.LAVORA)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(ch.titolo.ifBlank { ch.cwd }, color = Banco.testo, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f))
+                                    Text(
+                                        if (!p.vivo) "ultimo stato noto" else if (ch.aspetta) "aspetta te" else "al lavoro",
+                                        color = if (p.vivo && ch.aspetta) Banco.ambra else Banco.testoQuieto, fontSize = 11.sp
+                                    )
+                                }
+                            }
+                            if (p.chat.size > 8) Text("e altre ${p.chat.size - 8}", color = Banco.testoQuieto, fontSize = 11.sp)
                         }
                         if (aperto) {
                             Spacer(Modifier.height(8.dp))
@@ -1029,4 +1071,21 @@ private fun Account(account: Account?, api: Api, onCambiato: () -> Unit) {
             }
         )
     }
+}
+
+/**
+ * Quando sono stati letti i limiti: «alle 14:20» se è oggi, «ieri alle 14:20»,
+ * altrimenti con la data. Prima era sempre «alle HH:mm», e un numero di tre
+ * giorni fa sembrava di adesso.
+ */
+fun quandoLetti(letti: Long, adesso: Long, zona: java.util.TimeZone = java.util.TimeZone.getDefault()): String {
+    val cal = { t: Long -> java.util.Calendar.getInstance(zona).apply { timeInMillis = t } }
+    val l = cal(letti); val a = cal(adesso)
+    val ora = java.text.SimpleDateFormat("HH:mm", java.util.Locale.ITALY).apply { timeZone = zona }.format(java.util.Date(letti))
+    val stessoGiorno = { x: java.util.Calendar, y: java.util.Calendar -> x.get(java.util.Calendar.YEAR) == y.get(java.util.Calendar.YEAR) && x.get(java.util.Calendar.DAY_OF_YEAR) == y.get(java.util.Calendar.DAY_OF_YEAR) }
+    if (stessoGiorno(l, a)) return "alle $ora"
+    val ieri = cal(adesso).apply { add(java.util.Calendar.DAY_OF_YEAR, -1) }
+    if (stessoGiorno(l, ieri)) return "ieri alle $ora"
+    val data = java.text.SimpleDateFormat("d MMM", java.util.Locale.ITALY).apply { timeZone = zona }.format(java.util.Date(letti))
+    return "il $data alle $ora (da allora nessuna chat aperta dal computer ha risposto)"
 }

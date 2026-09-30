@@ -200,7 +200,6 @@ class Api(private val indirizzo: String, private val chiave: String?) {
             put("cartella", cartella); put("file", file)
         }))
 
-    // ─── workspace: crea / elimina ───
     /**
      * Chiede al computer di cercare **adesso** un suo aggiornamento.
      *
@@ -210,13 +209,13 @@ class Api(private val indirizzo: String, private val chiave: String?) {
     suspend fun cercaAggiornamentoPc(): Fatto =
         json.decodeFromString(corpoTesto("/api/aggiornamento/cerca", oggetto { }))
 
+    // ─── workspace: crea / elimina ───
     suspend fun creaWorkspace(nome: String): Fatto =
         json.decodeFromString(corpoTesto("/api/workspace/crea", oggetto { put("nome", nome) }))
 
     suspend fun eliminaWorkspace(nome: String): Fatto =
         json.decodeFromString(corpoTesto("/api/workspace/elimina", oggetto { put("nome", nome) }))
 
-    // ─── salvataggi (istantanee) ───
     // ─── la coda condivisa dei comandi di un progetto ───
     suspend fun coda(progetto: String): Coda =
         json.decodeFromString(corpoTesto("/api/coda", oggetto { put("progetto", progetto) }))
@@ -245,8 +244,6 @@ class Api(private val indirizzo: String, private val chiave: String?) {
     suspend fun postaPulisci(pc: String): Posta =
         json.decodeFromString(corpoTesto("/api/posta/pulisci", oggetto { put("pc", pc) }))
 
-    suspend fun salvataggi(): Salvataggi = json.decodeFromString(corpoTesto("/api/salvataggi", null))
-
     // ─── il Drive ───
     suspend fun driveCatalogo(): RispostaCatalogo = json.decodeFromString(corpoTesto("/api/drive/catalogo", null))
     suspend fun drivePorta(chiave: String): EsitoPorta =
@@ -257,9 +254,6 @@ class Api(private val indirizzo: String, private val chiave: String?) {
     suspend fun driveCatalogoStato(): StatoCatalogo = json.decodeFromString(corpoTesto("/api/drive/catalogoStato", null))
     suspend fun driveAnnulla(): Fatto = json.decodeFromString(corpoTesto("/api/drive/annulla", oggetto { }))
     suspend fun driveRiavvia(): EsitoPorta = json.decodeFromString(corpoTesto("/api/drive/riavvia", oggetto { }))
-
-    suspend fun caricaSalvataggio(nome: String): Fatto =
-        json.decodeFromString(corpoTesto("/api/salvataggi/carica", oggetto { put("nome", nome) }))
 
     // ─── preferenze (stile / chiarore) ───
     suspend fun preferenze(): PreferenzeInvolucro =
@@ -281,8 +275,6 @@ class Api(private val indirizzo: String, private val chiave: String?) {
     suspend fun installaAggiornamento(): Fatto =
         json.decodeFromString(corpoTesto("/api/aggiornamento/installa", oggetto { }))
 
-    // ─── consumi ───
-    /** Cosa c’è in dotazione sul computer. */
     /** Che versione ha il computer. Serve a dire «sei alla X» invece di niente. */
     suspend fun ciao(): Ciao = json.decodeFromString(corpoTesto("/api/ciao", null))
 
@@ -335,6 +327,7 @@ class Api(private val indirizzo: String, private val chiave: String?) {
     suspend fun esciAccount(): Fatto =
         json.decodeFromString(corpoTesto("/api/account/esci", oggetto { }))
 
+    // ─── consumi ───
     suspend fun consumi(): Consumi = json.decodeFromString(corpoTesto("/api/consumi", null))
 
     companion object {

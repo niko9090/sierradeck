@@ -87,6 +87,10 @@ private const val RIGHE_MASSIME = 600
 fun Chat(api: Api, stato: Stato?, deposito: Collegamento) {
     var aperta by remember { mutableStateOf<String?>(null) }
     val chat = stato?.chat ?: emptyList()
+    // «Apri la chat» dalla scheda Domande: si entra direttamente in quella.
+    LaunchedEffect(Apertura.chatRichiesta) {
+        Apertura.chatRichiesta?.let { aperta = it; Apertura.chatRichiesta = null }
+    }
 
     // Se la chat aperta sparisce (chiusa altrove), si torna all'elenco da soli.
     LaunchedEffect(chat, aperta) {
@@ -117,8 +121,17 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
         // gesti stanno a destra dentro un contorno — prima erano due scritte
         // sospese in mezzo al nulla, e non sembravano nemmeno premibili.
         Fascia {
-            Serigrafia("Chat")
-            Spacer(Modifier.weight(1f))
+            Column(Modifier.weight(1f)) {
+                Serigrafia("Chat")
+                // Da lontano: quante lavorano e quante aspettano te, senza
+                // scorrere l'elenco.
+                Text(
+                    riassuntoChat(chat),
+                    color = if (chatCheTiAspettano(chat) > 0) Banco.ambra else Banco.testoQuieto,
+                    fontSize = 11.sp, maxLines = 2
+                )
+            }
+            Spacer(Modifier.width(8.dp))
             TastoContorno("+ Nuova") { mostraNuova = true }
             Spacer(Modifier.width(8.dp))
             TastoContorno("Riprendi") { mostraRiprendi = true }
@@ -161,10 +174,21 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 Column(Modifier.padding(14.dp)) {
-                                    Text(viva.titolo.ifBlank { viva.cwd }, color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1)
+                                    // Il LED e la parola dello stato, accanto al nome:
+                                    // e' quello che si guarda da lontano. Prima ogni
+                                    // chat era uguale alle altre, e per sapere chi
+                                    // aspettava bisognava indovinare dall'ultima riga.
+                                    val lettura = leggiChat(viva)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        LedChat(lettura.tono)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(viva.titolo.ifBlank { viva.cwd }, color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(lettura.parola, color = coloreTono(lettura.tono), fontSize = 11.sp, maxLines = 1)
+                                    }
                                     // Il progetto e' in mano a un altro PC: una parola quieta, non un avviso.
                                     if (!viva.altrove.isNullOrBlank()) {
-                                        Text("in lavoro su ${viva.altrove}", color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                                        Text("il progetto è in mano a ${viva.altrove}", color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
                                     }
                                     if (!viva.ultimaRiga.isNullOrBlank()) {
                                         Spacer(Modifier.height(4.dp))
@@ -191,12 +215,20 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 Column(Modifier.padding(14.dp)) {
-                                    Text(salvata.titolo.ifBlank { salvata.cwd }, color = Banco.testoQuieto, fontWeight = FontWeight.Bold, maxLines = 1)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        LedChat(null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(salvata.titolo.ifBlank { salvata.cwd }, color = Banco.testoQuieto, fontWeight = FontWeight.Bold, maxLines = 1)
+                                    }
                                     if (!salvata.altrove.isNullOrBlank()) {
-                                        Text("in lavoro su ${salvata.altrove}", color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                                        Text("il progetto è in mano a ${salvata.altrove}: riaprila da là, o scrivile da Computer → Altri computer", color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 2)
                                     }
                                     Spacer(Modifier.height(4.dp))
-                                    Text("da riprendere · tocca per riaprirla", color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
+                                    Text(
+                                        if (salvata.ibernata) "ibernata · tocca per risvegliarla sul computer"
+                                        else "chiusa · tocca per riaprirla sul computer, con la sua storia",
+                                        color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1
+                                    )
                                 }
                             }
                         }
@@ -322,10 +354,15 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                     chat.titolo.ifBlank { chat.cwd },
                     color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1, fontSize = 15.sp
                 )
-                if (chat.cwd.isNotBlank()) {
+                // Lo stato e la cartella in una riga: come nell'elenco, cosi'
+                // entrando non si perde l'informazione che ti ha fatto entrare.
+                val lettura = leggiChat(chat)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    LedChat(lettura.tono)
+                    Spacer(Modifier.width(6.dp))
                     Text(
-                        chat.cwd.substringAfterLast(Char(92)).substringAfterLast('/'),
-                        color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1
+                        lettura.parola + (if (chat.cwd.isNotBlank()) " · " + chat.cwd.substringAfterLast(Char(92)).substringAfterLast('/') else ""),
+                        color = coloreTono(lettura.tono), fontSize = 11.sp, maxLines = 1
                     )
                 }
             }
@@ -699,16 +736,30 @@ private fun SceltaCartella(api: Api, onApri: (String) -> Unit, onChiudi: () -> U
 @Composable
 private fun SceltaSessione(api: Api, onScegli: (SessioneRipresa) -> Unit, onChiudi: () -> Unit) {
     var sessioni by remember { mutableStateOf<List<SessioneRipresa>?>(null) }
-    LaunchedEffect(Unit) { sessioni = try { api.sessioni().sessioni } catch (_: Exception) { emptyList() } }
+    // Un guasto non e' «niente da riprendere»: prima le due cose si
+    // confondevano, e un computer che non rispondeva sembrava senza storia.
+    var guasto by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        sessioni = try { api.sessioni().sessioni } catch (e: Exception) {
+            guasto = "Non riesco a leggere le conversazioni dal computer: ${e.message ?: "non risponde"}. Chiudi e riprova fra poco."
+            emptyList()
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onChiudi,
         title = { Text("Riprendi una conversazione") },
         text = {
             Column(Modifier.fillMaxWidth().height(320.dp).verticalScroll(rememberScrollState())) {
+                Text(
+                    "Le conversazioni di Claude Code su questo computer, dalla più recente. Toccandone una si riapre sul computer con tutta la sua storia, nel workspace dove era salvata. Quelle «su un altro PC» hanno la cartella là: da qui non si riaprono (partirebbero in una cartella vuota) — scrivile da Computer → Altri computer.",
+                    color = Banco.testoQuieto, fontSize = 11.sp
+                )
+                Spacer(Modifier.height(6.dp))
                 when {
+                    guasto != null -> Text(guasto!!, color = Banco.ambra, fontSize = 13.sp)
                     sessioni == null -> Text("Carico…", color = Banco.testoQuieto)
-                    sessioni!!.isEmpty() -> Text("Niente da riprendere.", color = Banco.testoQuieto)
+                    sessioni!!.isEmpty() -> Text("Niente da riprendere: Claude Code non ha ancora conversazioni su questo computer.", color = Banco.testoQuieto)
                     else -> for (s in sessioni!!) {
                         Column(
                             Modifier.fillMaxWidth().padding(vertical = 8.dp).clickableCartella {
@@ -721,7 +772,11 @@ private fun SceltaSessione(api: Api, onScegli: (SessioneRipresa) -> Unit, onChiu
                                 // La cartella e' su un altro PC: una parola quieta, come nell'elenco.
                                 if (!s.altrove.isNullOrBlank()) {
                                     Spacer(Modifier.width(6.dp))
-                                    Text("· su ${s.altrove}", color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                                    Text(
+                                        "· " + etichettaAltrove(s.altrove, s.altroveAcceso),
+                                        color = if (s.altroveAcceso == true) Banco.verde else Banco.testoQuieto,
+                                        fontSize = 11.sp, maxLines = 1
+                                    )
                                 }
                             }
                             if (s.cwd.isNotBlank()) Text(s.cwd, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
@@ -808,4 +863,24 @@ private fun TastoMisura(
             )
         }
     }
+}
+
+/** Il colore di ogni stato: ambra per ciò che aspetta te, verde per chi lavora, accento per chi è guidato. */
+fun coloreTono(t: TonoChat?): androidx.compose.ui.graphics.Color = when (t) {
+    TonoChat.SCEGLIE, TonoChat.ASPETTA -> Banco.ambra
+    TonoChat.LAVORA -> Banco.verde
+    TonoChat.GUIDATA -> Banco.accento
+    TonoChat.SPENTA, null -> Banco.testoQuieto
+}
+
+/** Il LED di una chat: pieno se ha un terminale acceso, solo contorno se è spenta o chiusa (`null`). */
+@Composable
+fun LedChat(tono: TonoChat?) {
+    val c = coloreTono(tono)
+    Box(
+        Modifier
+            .size(10.dp)
+            .clip(CircleShape)
+            .then(if (tono == null || tono == TonoChat.SPENTA) Modifier.border(1.dp, c, CircleShape) else Modifier.background(c))
+    )
 }

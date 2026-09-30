@@ -26,6 +26,8 @@ object Ronda {
     const val CANALE_AVVISI = "domande"
     const val EXTRA_CHAT = "chat"
     const val EXTRA_DOMANDA = "domanda"
+    /** Quale scheda aprire quando la notifica non riguarda una chat o una domanda. */
+    const val EXTRA_SCHEDA = "scheda"
     const val CANALE_PRESENZA = "presenza"
 
     /**
@@ -155,7 +157,9 @@ object Ronda {
             contesto,
             a.id,
             Intent(contesto, MainActivity::class.java).apply {
-                if (a.chat != null) putExtra(EXTRA_CHAT, a.chat)
+                (a.chat ?: a.scelta)?.let { putExtra(EXTRA_CHAT, it) }
+                // Gli avvisi degli autopiloti (finito, fermo, pronto) aprono Lavori.
+                if (a.chiave.startsWith("f:") || a.chiave.startsWith("s:") || a.chiave.startsWith("p:")) putExtra(EXTRA_SCHEDA, "lavori")
                 if (a.domanda != null) putExtra(EXTRA_DOMANDA, a.domanda)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE

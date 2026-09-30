@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { paginaClient, MANIFESTO } from '../../src/main/client-pagina'
 
 const html = paginaClient()
@@ -568,7 +569,7 @@ describe('capire cosa combina un autopilota', () => {
     const v = vista()
     expect(v).toContain('apriTabAp(this.dataset.tab)')
     expect(v).toContain('Gli hai chiesto')
-    expect(v).toContain('Ha capito cosi')
+    expect(v).toContain('Ha capito così')
     expect(v).toContain('a.obiettivoTuo')
     expect(v).toContain('raggiunto alle')
     expect(v).toContain('c.raggiuntoIl')
@@ -607,10 +608,14 @@ describe('quando il computer tace, nessun LED resta verde', () => {
     // parlo con il computer», e sotto le chat avevano ancora il puntino verde.
     // Un LED verde su dati vecchi e' precisamente cio' che questo stato esiste
     // per impedire.
+    // Dalla 0.35 il LED di una chat dice il suo stato (ledChat), e si spegne
+    // lo stesso quando il computer tace.
+    const ledChat = script.slice(script.indexOf('const ledChat ='))
+    expect(ledChat.slice(0, 120)).toContain("giriFalliti >= 2 ? 'fermo'")
     const polso = script.slice(script.indexOf('const polso ='))
-    expect(polso.slice(0, 1400)).toContain("giriFalliti >= 2 ? 'fermo' : 'lavoro'")
+    expect(polso.slice(0, 1400)).toContain('ledChat(c)')
     const voci = script.slice(script.indexOf('class="voce" onclick="guarda('))
-    expect(voci.slice(0, 400)).toContain("giriFalliti >= 2 ? 'fermo' : 'lavoro'")
+    expect(voci.slice(0, 400)).toContain('ledChat(v.viva)')
     // E non resta nessun LED scritto a mano come sempre verde.
     expect(script).not.toContain('<span class="led lavoro"></span>')
   })
@@ -664,5 +669,146 @@ describe('quando una richiesta non riesce, la pagina lo dice', () => {
     expect(corpo).toMatch(/catch[\s\S]*non sono riuscito a mandarlo/i)
     // Lo svuotamento sta **dentro** il try, cioe' dopo la richiesta.
     expect(corpo.indexOf('try {')).toBeLessThan(corpo.indexOf("campo.value = ''"))
+  })
+})
+
+/**
+ * I difetti trovati nell'analisi del 30/09/2026 (rapporto nel quaderno:
+ * 2026-09-30-analisi-app-android.md), con una prova ciascuno.
+ */
+describe('analisi del telefono, 30/09', () => {
+  const stile = html.slice(html.indexOf('<style>'), html.indexOf('</style>'))
+  const estrai = (nome: string): string => {
+    const inizio = script.indexOf(`function ${nome}(`)
+    expect(inizio, `${nome} non e nella pagina`).toBeGreaterThan(-1)
+    let profondita = 0
+    for (let i = script.indexOf('{', inizio); i < script.length; i++) {
+      if (script[i] === '{') profondita++
+      else if (script[i] === '}' && --profondita === 0) return script.slice(inizio, i + 1)
+    }
+    throw new Error(`${nome} non si chiude`)
+  }
+  type St = { tono: string; parola: string }
+  const pure = new Function(
+    `${estrai('statoChat')}\n${estrai('riassuntoChat')}\n${estrai('ledAutopilota')}\n${estrai('quandoLetti')}
+     return { statoChat, riassuntoChat, ledAutopilota, quandoLetti }`
+  )() as {
+    statoChat: (c: object) => St
+    riassuntoChat: (c: object[]) => string
+    ledAutopilota: (a: object, scollegato: boolean) => string
+    quandoLetti: (letti: number, adesso: number) => string
+  }
+
+  it('ogni chat dice il suo stato: prima erano tutte verdi', () => {
+    expect(pure.statoChat({ chiede: true, governata: true }).parola).toBe('aspetta che tu scelga')
+    expect(pure.statoChat({ aspetta: true }).parola).toBe('aspetta te')
+    expect(pure.statoChat({ aspetta: true, governata: true }).tono).toBe('guidata')
+    expect(pure.statoChat({ viva: false }).tono).toBe('spenta')
+    // Un computer vecchio non manda `viva`: la chat non diventa spenta.
+    expect(pure.statoChat({}).tono).toBe('lavoro')
+    expect(pure.riassuntoChat([{ aspetta: true }, {}, {}, { chiede: true }])).toBe('1 aspetta che tu scelga · 1 aspetta te · 2 al lavoro')
+  })
+
+  it('la stessa regola dell app Android, parola per parola', () => {
+    // Due copie della stessa regola divergono al primo ritocco: qui si
+    // confrontano le parole con quelle di StatoChat.kt.
+    const kt = readFileSync('android/app/src/main/java/it/ferrariconsulenze/sierradeck/StatoChat.kt', 'utf8')
+    for (const c of [{ chiede: true }, { aspetta: true }, { aspetta: true, governata: true }, { viva: false }, { governata: true }, {}]) {
+      expect(kt).toContain('"' + pure.statoChat(c).parola.replace('’', "'") + '"')
+    }
+  })
+
+  it('un autopilota fermo e rosso come sulla console, non grigio come il «non so»', () => {
+    expect(pure.ledAutopilota({ led: 'led--fermo' }, false)).toBe('rosso')
+    expect(pure.ledAutopilota({ led: 'led--attesa' }, false)).toBe('attesa')
+    expect(pure.ledAutopilota({ led: 'led--finito' }, false)).toBe('finito')
+    // Senza la classe del computer: fallito e finito restano diversi.
+    expect(pure.ledAutopilota({ stato: 'fallito' }, false)).toBe('rosso')
+    expect(pure.ledAutopilota({ stato: 'finito' }, false)).toBe('finito')
+    // Computer muto: tutto spento.
+    expect(pure.ledAutopilota({ led: 'led--lavoro' }, true)).toBe('fermo')
+    expect(stile).toMatch(/\.led\.rosso\s*\{[^}]*var\(--rosso\)/)
+  })
+
+  it('i limiti letti ieri non sembrano di adesso', () => {
+    const adesso = new Date(2026, 8, 30, 15, 0).getTime()
+    expect(pure.quandoLetti(new Date(2026, 8, 30, 9, 5).getTime(), adesso)).toMatch(/^alle 09:05/)
+    expect(pure.quandoLetti(new Date(2026, 8, 29, 9, 5).getTime(), adesso)).toMatch(/^ieri alle/)
+    expect(pure.quandoLetti(new Date(2026, 8, 20, 9, 5).getTime(), adesso)).toMatch(/^il 20/)
+    expect(pure.quandoLetti(0, adesso)).toBe('')
+  })
+
+  it('cinque voci in fascia, cinque colonne: Computer non va a capo', () => {
+    expect(stile).toMatch(/\.fascia\s*\{[^}]*repeat\(5, 1fr\)/)
+  })
+
+  it('le righe delle decisioni non sovrascrivono piu le righe degli elenchi', () => {
+    // `.voce` era definita due volte: la seconda (12px, grigia, senza margini)
+    // vinceva anche sugli elenchi di chat e autopiloti.
+    const regole = stile.match(/(^|\n)\s*\.voce\s*\{/g) ?? []
+    expect(regole).toHaveLength(1)
+    expect(stile).toContain('.voce--riga')
+  })
+
+  it('l opzione corrente si vede anche nella scheda Domande', () => {
+    // Usava `scelta--qui`, che non ha nessuna regola: la classe giusta e' `scelta--ora`.
+    expect(script).not.toContain('scelta--qui')
+    const v = estrai('vistaDomande')
+    expect(v).toContain('scelta--ora')
+  })
+
+  it('la cartella scelta per un lavoro si vede', () => {
+    expect(stile).toMatch(/\.cartella\.attivo\s*\{/)
+  })
+
+  it('la scheda Domande si ridisegna quando arriva la sua lista', () => {
+    // Senza la lista nell'impronta la pagina restava su «Leggo dal computer…».
+    const imp = estrai('impronta')
+    expect(imp).toContain('domandeViste')
+    expect(imp).toContain('domandeMandate')
+    // E lo stato delle chat cambia la pagina: una scelta che compare deve
+    // accendere il LED e il numero, anche se l'ultima riga e' la stessa.
+    expect(imp).toContain('c.chiede')
+    expect(imp).toContain('c.aspetta')
+    expect(imp).toContain('a.led')
+    expect(imp).toContain('p.inCoda')
+    expect(imp).toContain('aggiornamentoVisto.chatOccupate')
+  })
+
+  it('nessun onclick con un id fuori da escJs o da un data-attributo', () => {
+    // L'unico rimasto dopo la correzione dell'XSS: «Riprendi» in Adesso.
+    const barra = String.fromCharCode(92)
+    expect(script).not.toContain('riprendiAp(' + barra + "'' + esc(")
+    expect(script).toContain('onclick="riprendiAp(this.dataset.ap)"')
+  })
+
+  it('il 401 ha la sua strada e non finisce nella nota «Non sono riuscito»', () => {
+    const corpo = script.slice(script.indexOf("addEventListener('unhandledrejection'"))
+    expect(corpo.slice(0, 500)).toContain("indexOf('(401)')")
+    expect(script).toContain('non riconosce questo dispositivo (401)')
+  })
+
+  it('«Cerca ora» esiste davvero, come promette il testo', () => {
+    expect(script).toContain("descriviAggiornamento")
+    expect(script).toContain('onclick="cercaAggiornamento()"')
+    expect(script).toContain("'/api/aggiornamento/cerca'")
+  })
+
+  it('Adesso non dice «Nessuno ti aspetta» davanti a un autopilota pronto o a una chat che aspetta', () => {
+    const p = script.slice(script.indexOf('const panoramica ='), script.indexOf('const panoramica =') + 300)
+    expect(p).toContain('pronti.length')
+    expect(script).toContain('ASPETTANO TE')
+  })
+
+  it('la sezione degli altri PC ha lo stesso nome dappertutto', () => {
+    expect(script).not.toContain('>Altri PC<')
+    expect(script).not.toContain('«Altri PC»')
+    expect(script).toContain('Altri computer')
+  })
+
+  it('i testi hanno gli accenti', () => {
+    for (const t of ['Gia mandata', 'La scelta e cambiata', 'Ha capito cosi<', 'Sta ragionando cosi<', 'Torna all elenco']) {
+      expect(script).not.toContain(t)
+    }
   })
 })

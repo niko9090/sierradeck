@@ -153,7 +153,9 @@ private fun NienteDaRispondere() {
                 "Qui compaiono, senza bloccare niente: le domande che un autopilota ti fa prima di partire o mentre lavora; " +
                     "le scelte che una chat aspetta (un permesso, «vuoi procedere?», un elenco numerato); " +
                     "e le chat che hanno finito e aspettano una tua istruzione. Ogni voce ha dentro il modo di rispondere, " +
-                    "e sparisce da sola quando il computer riceve la risposta. Il pallino sulla scheda conta domande e scelte.",
+                    "e sparisce da sola quando il computer riceve la risposta; «Apri la chat» porta alla conversazione intera. " +
+                    "Il numero sulla scheda conta domande e scelte (le chat che hanno solo finito il turno si contano sulla scheda Chat). " +
+                    "La lista si rilegge ogni due secondi finché la guardi.",
                 color = Banco.testoQuieto, fontSize = 12.sp
             )
         }
@@ -273,10 +275,11 @@ private fun SchedaScelta(api: Api, v: VoceDomanda, gia: String?, onMandata: (Str
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.width(3.dp).height(30.dp).background(Banco.ambra))
                 Spacer(Modifier.width(10.dp))
-                Column {
+                Column(Modifier.weight(1f)) {
                     Text("«${v.titolo.ifBlank { v.cwd }}» aspetta che tu scelga", color = Banco.ambra, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     Text(v.cwd, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
                 }
+                ApriLaChat(v.chat)
             }
             Spacer(Modifier.height(10.dp))
             Contesto(v.righe)
@@ -336,12 +339,32 @@ private fun SchedaScelta(api: Api, v: VoceDomanda, gia: String?, onMandata: (Str
 private fun SchedaChatFerma(api: Api, v: VoceDomanda, gia: String?, onMandata: (String) -> Unit) {
     Tessera(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp)) {
-            Text("«${v.titolo.ifBlank { v.cwd }}» ha finito", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Text(v.cwd, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("«${v.titolo.ifBlank { v.cwd }}» ha finito", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(v.cwd, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                }
+                ApriLaChat(v.chat)
+            }
             Spacer(Modifier.height(8.dp))
             Contesto(v.righe)
             Spacer(Modifier.height(8.dp))
             CampoRisposta("Scrivi alla chat…", "Manda", gia, { api.scrivi(v.chat, it) }, onMandata)
         }
+    }
+}
+
+/**
+ * Entra nella chat, nella scheda Chat.
+ *
+ * La voce ha gia' il contesto e il modo di rispondere, ma a volte serve
+ * vedere tutta la conversazione prima di decidere: prima si tornava alla
+ * scheda Chat e la si cercava a mano nell'elenco.
+ */
+@Composable
+private fun ApriLaChat(chat: String) {
+    if (chat.isBlank()) return
+    androidx.compose.material3.TextButton(onClick = { Apertura.apriChat(chat) }) {
+        Text("Apri la chat", fontSize = 12.sp)
     }
 }

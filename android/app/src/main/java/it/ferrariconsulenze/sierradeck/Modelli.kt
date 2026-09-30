@@ -132,7 +132,12 @@ data class Chat(
     /** Ha finito di scrivere e aspetta te. */
     val aspetta: Boolean = false,
     /** La governa un autopilota: e' lui a parlare per lei. */
-    val governata: Boolean = false
+    val governata: Boolean = false,
+    /**
+     * Ha un terminale acceso. Assente nei computer piu' vecchi: allora vale
+     * «si'», che era come l'app la trattava prima di saperlo.
+     */
+    val viva: Boolean = true
 )
 
 /**
@@ -431,13 +436,6 @@ data class Aggiornamento(
     val testo: String? = null
 )
 
-// ─── /api/salvataggi ───
-@Serializable
-data class Salvataggi(val salvataggi: List<Salvataggio> = emptyList())
-
-@Serializable
-data class Salvataggio(val nome: String = "", val quando: String = "", val chat: Int = 0)
-
 // ─── /api/sessioni ───
 @Serializable
 data class Sessioni(val sessioni: List<SessioneRipresa> = emptyList())
@@ -453,7 +451,13 @@ data class SessioneRipresa(
      * qui non si puo' (il computer risponde 409 e lo spiega); si vede, per
      * sapere dove andarla a cercare.
      */
-    val altrove: String? = null
+    val altrove: String? = null,
+    /**
+     * Quel PC e' acceso adesso (dal suo battito sul Drive, 0.35.0): e' la
+     * stessa etichetta del computer, «su X · acceso» o «spento». Assente nei
+     * computer piu' vecchi.
+     */
+    val altroveAcceso: Boolean? = null
 )
 
 // ─── risposta generica delle azioni ───

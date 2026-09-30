@@ -177,12 +177,18 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
     // casella finiva fuori. Aperta una linguetta, il suo contenuto ha un tetto
     // e la chat resta sopra; toccarla di nuovo la richiude.
     var linguettaAperta by remember(breve.id) { mutableStateOf(false) }
+    // Se il dettaglio non arriva lo si dice: prima la schermata restava con
+    // la sola testata e nessuna spiegazione.
+    var guastoDettaglio by remember(breve.id) { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val lista = rememberLazyListState()
 
     LaunchedEffect(breve.id) {
         while (isActive) {
-            try { d = api.autopilota(breve.id) } catch (_: Exception) {}
+            try { d = api.autopilota(breve.id); guastoDettaglio = null } catch (e: Exception) {
+                guastoDettaglio = if (e is Api.Errore && e.codice == 404) "Il computer non trova più questo autopilota: forse è stato eliminato."
+                    else "Non riesco a leggere il dettaglio: ${e.message ?: "il computer non risponde"}. Riprovo da solo ogni due secondi."
+            }
             delay(2000)
         }
     }
@@ -266,6 +272,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                     Misura(det.misura, det.cicli)
                     Spacer(Modifier.height(6.dp))
                 }
+                guastoDettaglio?.let { g -> item { Text(g, color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp)) } }
                 item { Serigrafia("Chat con lui") }
                 items(chat) { b ->
                     RigaChat(b, breve.nome) {
@@ -522,12 +529,27 @@ private fun AzioniAutopilota(api: Api, id: String, stato: String) {
             onClick = { fai("farlo partire") { api.vaiAutopilota(id) } },
             modifier = Modifier.fillMaxWidth()
         ) { Text(if (inCorso) "Parto…" else "Vai — comincia a lavorare") }
-        "lavoro", "attesa" -> OutlinedButton(
+        "lavoro" -> OutlinedButton(
             enabled = !inCorso,
             shape = MaterialTheme.shapes.small,
             onClick = { fai("fermarlo") { api.fermaAutopilota(id) } },
             modifier = Modifier.fillMaxWidth()
         ) { Text(if (inCorso) "Fermo…" else "Ferma — riprende quando vuoi") }
+        // Aspetta una tua risposta: il gesto giusto e' rispondere, non
+        // fermarlo. Prima c'era solo «Ferma», come se stesse lavorando.
+        "attesa" -> Column {
+            Text(
+                "Ti ha fatto una domanda e aspetta la risposta: scrivila nella casella qui sotto (o nella scheda Domande). Finché non rispondi non va avanti.",
+                color = Banco.ambra, fontSize = 13.sp
+            )
+            Spacer(Modifier.height(6.dp))
+            OutlinedButton(
+                enabled = !inCorso,
+                shape = MaterialTheme.shapes.small,
+                onClick = { fai("fermarlo") { api.fermaAutopilota(id) } },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (inCorso) "Fermo…" else "Oppure fermalo — riprende quando vuoi") }
+        }
         "finito" -> Text(
             "Ha finito. Non c’è altro da fare.",
             color = Banco.testoQuieto,
@@ -741,7 +763,12 @@ private fun Delega(api: Api, onChiudi: () -> Unit) {
     var errore by remember { mutableStateOf<String?>(null) }
     var mandando by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) { cartelle = try { api.cartelle().cartelle } catch (_: Exception) { emptyList() } }
+    LaunchedEffect(Unit) {
+        cartelle = try { api.cartelle().cartelle } catch (e: Exception) {
+            errore = "Non riesco a leggere le cartelle dal computer: ${e.message ?: "non risponde"}."
+            emptyList()
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onChiudi,
@@ -755,18 +782,27 @@ private fun Delega(api: Api, onChiudi: () -> Unit) {
                     modifier = Modifier.fillMaxWidth().height(220.dp)
                 )
                 Spacer(Modifier.height(10.dp))
-                Text("In quale cartella:", color = Banco.testoQuieto, fontSize = 12.sp)
+                Text(
+                    "In quale cartella (fra quelle dove Claude Code ha già lavorato). Prima di partire legge il progetto e, se ha dubbi, ti fa qualche domanda: arrivano nella scheda Domande.",
+                    color = Banco.testoQuieto, fontSize = 12.sp
+                )
                 val err = errore
                 if (err != null) Text(err, color = Banco.rosso, fontSize = 12.sp)
                 Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())) {
+                    if (cartelle == null) Text("Carico…", color = Banco.testoQuieto, fontSize = 13.sp)
+                    else if (cartelle!!.isEmpty() && err == null) Text("Nessuna cartella conosciuta: apri prima una chat nel progetto (scheda Chat → + Nuova).", color = Banco.testoQuieto, fontSize = 13.sp)
                     for (c in cartelle ?: emptyList()) {
                         val sel = c == scelta
-                        Text(
-                            c.substringAfterLast('\\').substringAfterLast('/'),
-                            color = if (sel) Banco.accento else Banco.testo,
-                            fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal,
-                            modifier = Modifier.fillMaxWidth().clickable { scelta = c }.padding(vertical = 8.dp)
-                        )
+                        // Il nome, e sotto il percorso: due progetti con lo
+                        // stesso nome in dischi diversi erano indistinguibili.
+                        Column(Modifier.fillMaxWidth().clickable { scelta = c }.padding(vertical = 6.dp)) {
+                            Text(
+                                c.substringAfterLast('\\').substringAfterLast('/'),
+                                color = if (sel) Banco.accento else Banco.testo,
+                                fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal
+                            )
+                            Text(c, color = Banco.testoQuieto, fontSize = 10.sp, maxLines = 1)
+                        }
                     }
                 }
             }
@@ -804,8 +840,16 @@ private fun Delega(api: Api, onChiudi: () -> Unit) {
 private fun Quaderno(api: Api, cwd: String, onChiudi: () -> Unit) {
     var schede by remember { mutableStateOf<List<SchedaBreve>?>(null) }
     var aperta by remember { mutableStateOf<SchedaPiena?>(null) }
+    // «Nessuna scheda» e «non riesco a leggerle» sono due cose diverse: prima
+    // un 403 (cartella non conosciuta) si leggeva come un quaderno vuoto.
+    var guasto by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(cwd) { schede = try { api.quaderno(cwd).schede } catch (_: Exception) { emptyList() } }
+    LaunchedEffect(cwd) {
+        schede = try { api.quaderno(cwd).schede } catch (e: Exception) {
+            guasto = if (e is Api.Errore) Nota.spiega(e, "leggere il quaderno") else "Non sono riuscito a leggere il quaderno: ${e.message ?: "il computer non risponde"}"
+            emptyList()
+        }
+    }
 
     AlertDialog(
         onDismissRequest = { if (aperta != null) aperta = null else onChiudi() },
@@ -816,14 +860,15 @@ private fun Quaderno(api: Api, cwd: String, onChiudi: () -> Unit) {
                 if (ap != null) {
                     Text(ap.corpo, color = Banco.testo, fontSize = 13.sp)
                 } else when {
+                    guasto != null -> Text(guasto!!, color = Banco.ambra, fontSize = 13.sp)
                     schede == null -> Text("Carico…", color = Banco.testoQuieto)
-                    schede!!.isEmpty() -> Text("Nessuna scheda in questa cartella.", color = Banco.testoQuieto)
+                    schede!!.isEmpty() -> Text("Nessuna scheda in questa cartella: il quaderno (.sierradeck/quaderno) si riempie quando le chat annotano decisioni, vincoli ed errori risolti.", color = Banco.testoQuieto)
                     else -> for (s in schede!!) {
                         Text(
                             s.titolo.ifBlank { s.file },
                             color = Banco.testo,
                             modifier = Modifier.fillMaxWidth().clickable {
-                                scope.launch { aperta = try { api.scheda(cwd, s.file) } catch (_: Exception) { null } }
+                                scope.launch { aperta = tenta("aprire la scheda del quaderno") { api.scheda(cwd, s.file) } }
                             }.padding(vertical = 10.dp)
                         )
                         HorizontalDivider(color = Banco.incisione)
@@ -872,7 +917,7 @@ fun statoInParole(stato: String): String = when (stato) {
 /** La fascia dell’elenco: quanti sono, e il gesto per aggiungerne uno. */
 @Composable
 private fun FasciaLavori(lista: List<AutopilotaBreve>, onDelega: () -> Unit) {
-    val fermi = lista.count { it.stato == "sospeso" || it.stato == "fallito" }
+    val chiedono = lista.any { it.stato in setOf("sospeso", "fallito", "pronto", "attesa") }
     Column {
         Row(
             Modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 12.dp, vertical = 10.dp),
@@ -881,9 +926,11 @@ private fun FasciaLavori(lista: List<AutopilotaBreve>, onDelega: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Serigrafia("Lavori")
                 Spacer(Modifier.height(3.dp))
+                // Tutti gli stati, non solo i fermi: «1 in attesa di te» contava
+                // i sospesi e taceva su chi aspettava il via o una risposta.
                 Text(
-                    if (fermi > 0) "$fermi in attesa di te" else "${lista.size} affidati",
-                    color = if (fermi > 0) Banco.rosso else Banco.testoQuieto,
+                    riassuntoLavori(lista),
+                    color = if (chiedono) Banco.ambra else Banco.testoQuieto,
                     fontSize = 12.sp
                 )
             }
@@ -964,4 +1011,21 @@ private fun VoceAutopilota(ap: AutopilotaBreve, onApri: () -> Unit) {
             }
         }
     }
+}
+/**
+ * Tutti gli autopiloti in una riga: «1 fermo · 1 aspetta il via · 2 al
+ * lavoro · 3 finiti». Prima i casi che aspettano te, e solo quelli che ci sono.
+ * Pura: si prova senza Compose.
+ */
+fun riassuntoLavori(lista: List<AutopilotaBreve>): String {
+    if (lista.isEmpty()) return "nessun lavoro affidato"
+    fun conta(vararg stati: String) = lista.count { it.stato in stati }
+    val pezzi = mutableListOf<String>()
+    conta("sospeso", "fallito").takeIf { it > 0 }?.let { pezzi += if (it == 1) "1 fermo" else "$it fermi" }
+    conta("attesa").takeIf { it > 0 }?.let { pezzi += if (it == 1) "1 aspetta una risposta" else "$it aspettano una risposta" }
+    conta("pronto").takeIf { it > 0 }?.let { pezzi += if (it == 1) "1 aspetta il via" else "$it aspettano il via" }
+    conta("intervista").takeIf { it > 0 }?.let { pezzi += "$it si prepara" + (if (it == 1) "" else "no") }
+    conta("lavoro").takeIf { it > 0 }?.let { pezzi += "$it al lavoro" }
+    conta("finito").takeIf { it > 0 }?.let { pezzi += if (it == 1) "1 finito" else "$it finiti" }
+    return pezzi.joinToString(" · ")
 }

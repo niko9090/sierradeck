@@ -106,10 +106,16 @@ class MainActivity : ComponentActivity() {
         apriDoveChiede(intent)
     }
 
-    /** Una notifica toccata (una domanda, una chat che aspetta) apre la scheda Domande. */
+    /**
+     * Una notifica toccata porta dove si risponde: una domanda, una scelta o
+     * una chat che aspetta aprono la scheda Domande; un autopilota fermo,
+     * pronto o finito apre Lavori (prima apriva la scheda Chat, cioè niente
+     * di quello per cui avevi toccato).
+     */
     private fun apriDoveChiede(intent: android.content.Intent?) {
         if (intent == null) return
         if (intent.hasExtra(Ronda.EXTRA_CHAT) || intent.hasExtra(Ronda.EXTRA_DOMANDA)) Apertura.schedaRichiesta = Scheda.DOMANDE
+        else if (intent.getStringExtra(Ronda.EXTRA_SCHEDA) == "lavori") Apertura.schedaRichiesta = Scheda.LAVORI
     }
 
     private fun chiediPermessoNotifiche() {

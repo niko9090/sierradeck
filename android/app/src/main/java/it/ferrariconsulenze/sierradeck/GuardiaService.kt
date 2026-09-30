@@ -89,19 +89,8 @@ class GuardiaService : Service() {
     /** La riga fissa dice cosa sta guardando: se deve stare lì, che serva. */
     private fun aggiornaPresenza(stato: JSONObject) {
         try {
-            val chat = stato.optJSONArray("chat")
-            val quante = chat?.length() ?: 0
-            var aspettano = 0
-            for (i in 0 until quante) {
-                if (chat?.optJSONObject(i)?.optBoolean("aspetta", false) == true) aspettano += 1
-            }
-            val domande = stato.optJSONArray("domande")?.length() ?: 0
-            val riga = when {
-                domande > 0 -> "$domande in attesa di una tua risposta"
-                aspettano > 0 -> "$aspettano su $quante chat aspettano te"
-                quante > 0 -> "$quante chat, nessuna ti aspetta"
-                else -> "Nessuna chat aperta"
-            }
+            // La regola sta in `Avvisi.kt` (`rigaPresenza`), dove si prova.
+            val riga = rigaPresenza(stato)
             (getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager)
                 .notify(ID_PRESENZA, Ronda.notificaPresenza(this, riga))
         } catch (e: Exception) {
