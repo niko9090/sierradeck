@@ -34,6 +34,12 @@ export type DecisioneSupervisore = {
   criterio?: { descrizione: string; comando: string }
   /** Perché ha deciso così: finisce nella storia, ed è quello che si rilegge dopo. */
   perche?: string
+  /**
+   * Le mosse sul programma che chiede (0.36.0): aprire o chiudere una sua chat,
+   * scrivere nel quaderno. Grezze: le legge e le giudica `divieti.ts`, e il
+   * programma rifiuta quelle vietate qualunque cosa il modello scriva.
+   */
+  mosse?: unknown
 }
 
 /**
@@ -55,7 +61,9 @@ export function componiPromptDecisione(
    * deve saperlo: un'istruzione che lo contraddice farebbe lavorare la chat
    * contro chi l'ha chiesta.
    */
-  messaggiTuoi: string[] = []
+  messaggiTuoi: string[] = [],
+  /** Lo stato del programma e le mosse permesse (harness, 0.36.0). Vuoto = come prima. */
+  harness = ''
 ): string {
   const statoCriteri = a.criteri
     .map((c) => {
@@ -89,6 +97,7 @@ export function componiPromptDecisione(
     messaggiTuoi.length > 0
       ? `\n## Chi ha affidato il lavoro ha scritto (la chat lo riceverà davanti alle tue istruzioni)\n${messaggiTuoi.map((m) => `- ${m.slice(0, 600)}`).join('\n')}\nLe tue istruzioni devono tenerne conto, non contraddirlo.`
       : '',
+    harness !== '' ? `\n${harness}` : '',
     '',
     '## Cosa puoi decidere',
     '- `prosegui`: la chat continua. Scrivi istruzioni concrete — cosa fare adesso, non un incoraggiamento.',
@@ -108,7 +117,10 @@ export function componiPromptDecisione(
     '',
     'Quando hai deciso, chiudi con un solo oggetto JSON e nient\'altro dopo:',
     '{"azione": "prosegui|finito|correggiCriterio|chiedi", "istruzioni": "...", "domanda": "...",',
-    ' "criterio": {"descrizione": "...", "comando": "..."}, "perche": "una riga: perché questa mossa"}'
+    ' "criterio": {"descrizione": "...", "comando": "..."}, "perche": "una riga: perché questa mossa"' +
+      (harness !== ''
+        ? ',\n "mosse": [{"tipo": "apriChat", "compito": "..."}, {"tipo": "chiudiChat", "chat": "c-2"}, {"tipo": "quaderno", "titolo": "...", "corpo": "..."}]}'
+        : '}')
   ]
   return righe.filter((r) => r !== '').join('\n')
 }
@@ -177,7 +189,8 @@ function interpreta(json: string): DecisioneSupervisore | undefined {
     ...(istruzioni !== undefined ? { istruzioni } : {}),
     ...(domanda !== undefined ? { domanda } : {}),
     ...(criterio !== undefined ? { criterio } : {}),
-    ...(perche !== undefined ? { perche } : {})
+    ...(perche !== undefined ? { perche } : {}),
+    ...(Array.isArray(g.mosse) ? { mosse: g.mosse } : {})
   }
 }
 
@@ -196,11 +209,12 @@ export async function chiediDecisione(
   inCerchioDa: number,
   interroga: Interrogazione,
   sessioneSupervisore: string | undefined,
-  messaggiTuoi: string[] = []
+  messaggiTuoi: string[] = [],
+  harness = ''
 ): Promise<{ decisione: DecisioneSupervisore | undefined; sessionId?: string }> {
   try {
     const { testo, sessionId } = await interroga(
-      componiPromptDecisione(a, esiti, ultimoMessaggio, inCerchioDa, messaggiTuoi),
+      componiPromptDecisione(a, esiti, ultimoMessaggio, inCerchioDa, messaggiTuoi, harness),
       a.cwd,
       sessioneSupervisore
     )

@@ -233,6 +233,6 @@ describe('quando conviene dividere il lavoro fra piu chat', () => {
   it('dice qual e il tetto senza farne un obiettivo', () => {
     const p = componiPromptScomposizione(ap(), 4)
     expect(p).toContain('da uno a 4 compiti')
-    expect(p).toContain('non è un obiettivo da raggiungere')
+    expect(p).toContain('tetto tecnico di sicurezza, non un obiettivo')
   })
 })

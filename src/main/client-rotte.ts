@@ -153,7 +153,12 @@ export type DipendenzeRotte = {
    * niente, perché l'autopilota prima di partire chiede. Le sue domande
    * arrivano su questo stesso telefono.
    */
-  creaAutopilota: (obiettivo: string, cartella: string) => Promise<{ id: string }>
+  creaAutopilota: (
+    obiettivo: string,
+    cartella: string,
+    /** La regola di pubblicazione e il cloud, scelti dal telefono (0.36.0). */
+    opzioni?: { pubblicazione?: 'beta' | 'stabile' | 'unica'; vaSulCloud?: boolean }
+  ) => Promise<{ id: string }>
   /**
    * Elimina un autopilota. È la prima cosa che *disfa* qualcosa da qui.
    *
@@ -815,7 +820,14 @@ export function rotteClient(deps: DipendenzeRotte) {
       if (deps.cartellaEsiste !== undefined && !(await deps.cartellaEsiste(cartella).catch(() => false))) {
         return { stato: 404, corpo: { errore: 'cartella inesistente su questo computer' } }
       }
-      const creato = await deps.creaAutopilota(obiettivo.slice(0, OBIETTIVO_MAX), cartella)
+      const corpoCrea = (r.corpo ?? {}) as Record<string, unknown>
+      const pubblicazione = corpoCrea.pubblicazione === 'beta' || corpoCrea.pubblicazione === 'stabile' || corpoCrea.pubblicazione === 'unica'
+        ? corpoCrea.pubblicazione
+        : undefined
+      const creato = await deps.creaAutopilota(obiettivo.slice(0, OBIETTIVO_MAX), cartella, {
+        ...(pubblicazione !== undefined ? { pubblicazione } : {}),
+        ...(corpoCrea.vaSulCloud === true ? { vaSulCloud: true } : {})
+      })
       return OK({ fatto: true, autopilota: creato.id })
     }
 

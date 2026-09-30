@@ -59,7 +59,7 @@ import { apriDispositivi } from './dispositivi'
 import {
   creaServerClient, indirizziInEvidenza, indirizziLocali, indirizzoPrincipale
 } from './client-server'
-import { rotteClient, rotteLibere } from './client-rotte'
+import { battitoVivo, rotteClient, rotteLibere } from './client-rotte'
 import { immagineQr, indirizzoAccoppiamento } from './qr-accoppiamento'
 import { apkDisponibile } from './apk-disponibile'
 import { creaLavoro } from './cassaforte/lavoro-in-corso'
@@ -247,6 +247,9 @@ function rigaDiStatoPerChat(porta: number): Record<string, unknown> | undefined 
 }
 /** L'ultimo battito mandato al servizio autopiloti per le chat governate al lavoro. */
 let ultimoBattitoAlServizio = 0
+/** T1 (0.36.0): ogni quanto si spinge al servizio lo stato del programma. */
+let ultimoStatoAlServizio = 0
+const STATO_AL_SERVIZIO_MS = 10_000
 const BATTITO_AL_SERVIZIO_MS = 60_000
 /** Su quali monitor stavano le finestre: e' cosi che ci ritornano. */
 let finestreStore: FinestreStore | undefined
@@ -2223,6 +2226,28 @@ if (!app.requestSingleInstanceLock()) {
       // No: parte sempre, perche' e' da li' che si ottiene il primo
       // accoppiamento. A proteggerlo ci sono i due muri, non il silenzio.
       const dispositivi = apriDispositivi(dati)
+      /** T1: lo stato del programma per l'autopilota (vedi `coordinatore.ts`). */
+      const inviaStatoProgramma = async (): Promise<void> => {
+        const ora = Date.now()
+        const [domande, pcs] = await Promise.all([
+          clientAutopilota.domande().catch(() => []),
+          (rotte.pc?.() ?? Promise.resolve([])).catch(() => [])
+        ])
+        const limiti = limitiAggiornati([...polsi.values()], ora)
+        await clientAutopilota.statoProgramma({
+          letto: ora,
+          chat: chatAperte.map((c) => ({
+            titolo: c.titolo,
+            cwd: c.cwd,
+            stato: c.viva === false ? 'spenta' : c.aspetta === true && c.governata !== true ? 'aspetta' : 'lavoro',
+            governata: c.governata === true
+          })),
+          ...(limiti !== undefined ? { limiti } : {}),
+          domandeAperte: domande.length + chatAperte.filter((c) => c.aspetta === true && c.governata !== true).length,
+          progetti: rotte.progetti().map((p) => ({ nome: p.nome, chi: p.chi, inCoda: p.inCoda, ...(p.pcNome !== undefined ? { pcNome: p.pcNome } : {}) })),
+          altriPc: pcs.map((b) => ({ nome: b.nome, vivo: battitoVivo(b.battito, ora) }))
+        })
+      }
       const rotte = {
         dispositivi,
         chat: () => chatAperte.map(conAltrove),
@@ -2451,12 +2476,14 @@ if (!app.requestSingleInstanceLock()) {
         // Senza criteri: li ricava l'autopilota nella preparazione, guardando
         // il progetto. Da un telefono, un modulo da compilare sarebbe il modo
         // piu' sicuro per non delegare mai niente.
-        creaAutopilota: async (obiettivo: string, cartella: string) => {
+        creaAutopilota: async (obiettivo: string, cartella: string, opzioni?: { pubblicazione?: 'beta' | 'stabile' | 'unica'; vaSulCloud?: boolean }) => {
           const a = await clientAutopilota.crea({
             nome: obiettivo.slice(0, 40),
             obiettivo,
             cwd: cartella,
-            criteri: []
+            criteri: [],
+            ...(opzioni?.pubblicazione !== undefined ? { pubblicazione: opzioni.pubblicazione } : {}),
+            ...(opzioni?.vaSulCloud === true ? { vaSulCloud: true } : {})
           })
           return { id: a.id }
         },
@@ -2772,6 +2799,13 @@ if (!app.requestSingleInstanceLock()) {
             ultimoBattitoAlServizio = ora
             void clientAutopilota.battiti(segni).catch(() => undefined)
           }
+        }
+        // T1: lo stato del programma, in sola lettura, all'autopilota — chi
+        // lavora e chi aspetta, i limiti del piano (il freno), le domande in
+        // attesa, le code, gli altri PC.
+        if (ora - ultimoStatoAlServizio >= STATO_AL_SERVIZIO_MS) {
+          ultimoStatoAlServizio = ora
+          void inviaStatoProgramma().catch(() => undefined)
         }
       })
 

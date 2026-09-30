@@ -309,6 +309,8 @@ export function validaNuovoAutopilota(raw: unknown): {
   criteri: { descrizione: string; comando?: string }[]
   tettoChat?: number
   workspace?: string
+  pubblicazione?: 'beta' | 'stabile' | 'unica'
+  vaSulCloud?: boolean
 } {
   if (typeof raw !== 'object' || raw === null) rifiuta('la richiesta', 'deve essere un oggetto', raw)
   const r = raw as Record<string, unknown>
@@ -354,6 +356,14 @@ export function validaNuovoAutopilota(raw: unknown): {
     cwd: validaCwd(r.cwd),
     criteri,
     ...(tettoChat !== undefined ? { tettoChat } : {}),
+    // La regola di pubblicazione e il cloud (0.36.0): un valore sconosciuto si
+    // rifiuta, perche' decide cosa l'autopilota fa da solo.
+    ...(r.pubblicazione !== undefined
+      ? (r.pubblicazione === 'beta' || r.pubblicazione === 'stabile' || r.pubblicazione === 'unica'
+          ? { pubblicazione: r.pubblicazione }
+          : rifiuta('pubblicazione', 'deve essere beta, stabile o unica', r.pubblicazione))
+      : {}),
+    ...(r.vaSulCloud === true ? { vaSulCloud: true } : {}),
     // Il workspace di destinazione passa dallo stesso validatore dei nomi di
     // workspace: è la stessa cosa, e finirà nello stesso file. Assente vale
     // «dove sei», che è il comportamento di prima.

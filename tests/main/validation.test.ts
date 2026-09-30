@@ -460,3 +460,13 @@ describe('validaCambioAutopilota', () => {
     expect(() => validaCambioAutopilota('cambia tutto')).toThrow()
   })
 })
+
+describe('la regola di pubblicazione alla creazione (0.36.0)', () => {
+  it('passa beta, stabile, unica e il cloud; rifiuta il resto', () => {
+    const base = { obiettivo: 'x', cwd: homedir() }
+    expect(validaNuovoAutopilota({ ...base, pubblicazione: 'beta', vaSulCloud: true })).toMatchObject({ pubblicazione: 'beta', vaSulCloud: true })
+    expect(validaNuovoAutopilota({ ...base, pubblicazione: 'unica' }).pubblicazione).toBe('unica')
+    expect(validaNuovoAutopilota(base).pubblicazione).toBeUndefined()
+    expect(() => validaNuovoAutopilota({ ...base, pubblicazione: 'sempre' })).toThrow(/pubblicazione/)
+  })
+})

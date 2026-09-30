@@ -7,6 +7,10 @@ export type NuovoAutopilota = {
   criteri: { descrizione: string; comando?: string }[]
   /** Quante chat può aprire insieme. Uno è il caso normale. */
   tettoChat?: number
+  /** La regola di pubblicazione del progetto (0.36.0): beta, stabile, versione unica. */
+  pubblicazione?: 'beta' | 'stabile' | 'unica'
+  /** Dichiarato alla creazione: il progetto va sul cloud. */
+  vaSulCloud?: boolean
   /**
    * Il workspace da cui viene avviato: è lì che le sue chat devono nascere.
    *
@@ -117,6 +121,11 @@ export type ClientAutopilota = {
    * «esc to interrupt» — e ogni minuto lo dice al servizio.
    */
   battiti: (segni: { autopilota: string; chat: string }[]) => Promise<void>
+  /**
+   * Lo stato del programma, in sola lettura, per l'autopilota (T1, 0.36.0):
+   * chat aperte, limiti del piano, domande in attesa, progetti, altri PC.
+   */
+  statoProgramma: (stato: unknown) => Promise<void>
 }
 
 const ATTESA_PREDEFINITA_MS = 3000
@@ -208,6 +217,10 @@ export function creaClientAutopilota(p: {
 
     async battiti(segni) {
       await chiama('/battiti', 'POST', { segni })
+    },
+
+    async statoProgramma(stato) {
+      await chiama('/stato-programma', 'POST', stato)
     },
 
     async gestoreAvviato() {

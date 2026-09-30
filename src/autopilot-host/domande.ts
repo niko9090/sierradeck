@@ -30,8 +30,12 @@ export type RegistroDomande = {
 
 type Voce = {
   domanda: DomandaAperta
-  /** Presente finché qualcuno attende; sparisce alla scadenza. */
-  risolvi?: (r: Risposta | undefined) => void
+  /**
+   * Chi attende, uno per chat: con una flotta la stessa domanda puo' tenere
+   * ferme piu' chat sorelle (le domande gemelle, 0.36.0), e la risposta
+   * arriva a tutte. Si svuota alla scadenza di ciascuno.
+   */
+  attese: ((r: Risposta | undefined) => void)[]
   risposta?: Risposta
 }
 
@@ -61,7 +65,7 @@ export function creaRegistroDomande(deps: { adesso: () => number }): RegistroDom
         apertaIl: deps.adesso(),
         scadeIl: deps.adesso() + scadenzaMs
       }
-      voci.set(domanda.id, { domanda })
+      voci.set(domanda.id, { domanda, attese: [] })
       return domanda
     },
 
@@ -72,16 +76,17 @@ export function creaRegistroDomande(deps: { adesso: () => number }): RegistroDom
 
       const attesaMs = Math.max(0, voce.domanda.scadeIl - deps.adesso())
       return new Promise<Risposta | undefined>((risolvi) => {
-        const orologio = setTimeout(() => {
-          // Chi aspettava se ne va, la domanda resta: da qui in poi una risposta
-          // è «tardiva» e verrà consegnata per un'altra strada.
-          voce.risolvi = undefined
-          risolvi(undefined)
-        }, attesaMs)
-        voce.risolvi = (r) => {
+        const mia = (r: Risposta | undefined): void => {
           clearTimeout(orologio)
           risolvi(r)
         }
+        const orologio = setTimeout(() => {
+          // Chi aspettava se ne va, la domanda resta: da qui in poi una risposta
+          // è «tardiva» e verrà consegnata per un'altra strada.
+          voce.attese = voce.attese.filter((x) => x !== mia)
+          risolvi(undefined)
+        }, attesaMs)
+        voce.attese.push(mia)
       })
     },
 
@@ -89,9 +94,9 @@ export function creaRegistroDomande(deps: { adesso: () => number }): RegistroDom
       const voce = voci.get(id)
       if (voce === undefined || voce.risposta !== undefined) return false
       voce.risposta = { risposta, da }
-      if (voce.risolvi !== undefined) {
-        voce.risolvi({ risposta, da })
-        voce.risolvi = undefined
+      if (voce.attese.length > 0) {
+        for (const r of voce.attese) r({ risposta, da })
+        voce.attese = []
       } else {
         tardiva?.(id, risposta, da)
       }
@@ -109,7 +114,7 @@ export function creaRegistroDomande(deps: { adesso: () => number }): RegistroDom
         if (voce.domanda.autopilotaId !== autopilotaId) continue
         // Chi stava aspettando va liberato, altrimenti resterebbe appeso fino
         // alla scadenza per un autopilota che non lavora più.
-        voce.risolvi?.(undefined)
+        for (const r of voce.attese) r(undefined)
         voci.delete(id)
       }
     },

@@ -15,7 +15,13 @@ describe('le impostazioni di una chat governata', () => {
 
   it('dice al servizio quando la chat si ferma e quando chiede', () => {
     const h = leggi(componiImpostazioni('ap-1', 47630))
-    expect(Object.keys(h).sort()).toEqual(['Notification', 'Stop'])
+    expect(Object.keys(h).sort()).toEqual(['Notification', 'PreToolUse', 'Stop'])
+  })
+
+  it('e fa passare i comandi di shell dai divieti del programma prima che partano (0.36.0)', () => {
+    const pre = (JSON.parse(componiImpostazioni('ap-1', 47630, 'c-2')) as { hooks: { PreToolUse: { matcher: string; hooks: { url: string }[] }[] } }).hooks.PreToolUse[0]
+    expect(pre?.matcher).toBe('Bash|PowerShell')
+    expect(pre?.hooks[0]?.url).toBe('http://127.0.0.1:47630/hook/pretool?ap=ap-1&chat=c-2')
   })
 
   it('porta l autopilota nell URL, non nel corpo', () => {

@@ -15,6 +15,7 @@ import { esecutoreNelMosaico } from './nel-mosaico'
 import { creaRegistroDomande } from './domande'
 import { ultimoMessaggioAssistente } from './trascrizione'
 import { creaAvvisatore, invioReale, leggiConfigurazione } from './telegram'
+import { gitReale } from './worktree'
 
 /** Ogni quanto si passa a vedere se qualche chat ha smesso di parlare. */
 /**
@@ -241,7 +242,9 @@ export function avviaServizio(): void {
     // codice che descrive: e' li' che serve, ed e' li' che resta anche senza
     // questo programma.
     quaderno: (cwd, scheda) => { apriQuaderno().scrivi(cwd, scheda) },
-    consegne
+    consegne,
+    // I worktree delle chat, l'unione dei rami, il push e il cloud (0.36.0).
+    git: gitReale
   })
 
   server.on('error', (err: NodeJS.ErrnoException) => {

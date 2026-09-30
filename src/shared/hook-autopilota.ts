@@ -38,5 +38,12 @@ export function componiImpostazioni(id: string, porta: number, chatId?: string):
       timeout: TIMEOUT_HOOK_S
     }]
   })
-  return JSON.stringify({ hooks: { Stop: [hook('stop')], Notification: [hook('notification')] } })
+  // PreToolUse (0.36.0): i divieti dell'autopilota li fa rispettare il
+  // programma, prima che un comando parta — cancellare fuori dalle sue
+  // cartelle, bussare alle rotte vietate. Solo sui comandi di shell.
+  const divieti = {
+    matcher: 'Bash|PowerShell',
+    hooks: [{ type: 'http', url: `http://127.0.0.1:${porta}/hook/pretool?ap=${id}${perChat}`, timeout: 30 }]
+  }
+  return JSON.stringify({ hooks: { Stop: [hook('stop')], Notification: [hook('notification')], PreToolUse: [divieti] } })
 }

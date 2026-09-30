@@ -307,6 +307,8 @@ export type Autopilota = {
   pausaLimitiFinoA?: string
   /** Pubblicazione chiesta a Nicholas e in attesa del sì (regola «stabile»). */
   pubblicazioneInAttesa?: boolean
+  /** La chat ha gia' ricevuto l'istruzione di pubblicare: il giro dopo si chiude. */
+  pubblicazioneIstruita?: boolean
 }
 
 export function limitiPredefiniti(): Limiti {
@@ -690,6 +692,7 @@ export function parseAutopilota(raw: unknown): {
       ...(stringaNonVuota(o.ramoBase) !== undefined ? { ramoBase: o.ramoBase as string } : {}),
       ...(stringaNonVuota(o.pausaLimitiFinoA) !== undefined ? { pausaLimitiFinoA: o.pausaLimitiFinoA as string } : {}),
       ...(o.pubblicazioneInAttesa === true ? { pubblicazioneInAttesa: true } : {}),
+      ...(o.pubblicazioneIstruita === true ? { pubblicazioneIstruita: true } : {}),
       chats,
       compitiDaFare: Array.isArray(o.compitiDaFare)
         ? o.compitiDaFare.filter((c): c is string => typeof c === 'string' && c.trim() !== '')

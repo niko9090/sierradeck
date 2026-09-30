@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
+import { REGOLE_PUBBLICAZIONE, type RegolaPubblicazione } from '@shared/harness'
 import type { Autopilota } from '@shared/autopilota'
 import { descriviAutopilota, ledDi } from '@shared/autopilota-vista'
 import { destinazioni } from '../destinazioni-autopilota'
 import { useLayoutStore } from '../state/layout'
 import { useSessionStore } from '../state/sessions'
 
-type Bozza = { obiettivo: string; cwd: string; chat: string; nome: string; criteri: string }
+type Bozza = { obiettivo: string; cwd: string; nome: string; criteri: string; pubblicazione: RegolaPubblicazione; cloud: boolean }
 
-const BOZZA_VUOTA: Bozza = { obiettivo: '', cwd: '', chat: '1', nome: '', criteri: '' }
+// La regola di partenza e' «stabile»: chiede prima di pubblicare. E' la scelta
+// che non fa niente di irreversibile senza di te.
+const BOZZA_VUOTA: Bozza = { obiettivo: '', cwd: '', nome: '', criteri: '', pubblicazione: 'stabile', cloud: false }
 
 /** Il valore della voce che riapre il campo libero, quando la lista non basta. */
 const ALTRA = '::altra'
@@ -89,7 +92,6 @@ export function PannelloAutopiloti({
   const crea = (): void => {
     if (bozza === undefined) return
     if (bozza.obiettivo.trim() === '' || bozza.cwd.trim() === '') return
-    const chat = Number.parseInt(bozza.chat, 10)
     esegui(async () => {
       // Nessun criterio da qui: li ricava l'autopilota nell'intervista, dopo
       // aver guardato il progetto e chiesto solo ciò che il codice non dice.
@@ -102,7 +104,11 @@ export function PannelloAutopiloti({
         obiettivo: bozza.obiettivo.trim(),
         cwd: bozza.cwd.trim(),
         criteri,
-        ...(Number.isInteger(chat) && chat > 1 ? { tettoChat: chat } : {}),
+        // Quante chat: non si sceglie piu' qui (decisione di Nicholas, 30/09).
+        // Le decide lui in base a quanto il lavoro si divide, dentro il freno sui
+        // limiti del piano. Qui si sceglie cosa fa a lavoro finito.
+        pubblicazione: bozza.pubblicazione,
+        ...(bozza.cloud ? { vaSulCloud: true } : {}),
         // Da dove sta partendo: è lì che il suo lavoro dovrà comparire, anche
         // fra tre ore, quando chi lo ha avviato starà guardando altro.
         ...(workspaceAttivo.trim() !== '' ? { workspace: workspaceAttivo.trim() } : {})
@@ -263,19 +269,32 @@ export function PannelloAutopiloti({
               <span className="misura">Come lo vedi nell’elenco, nei LED e nelle notifiche.</span>
             </label>
 
-            <label className="etichetta" style={{ flex: '0 0 110px' }}>
-              <span className="serigrafia">Chat in parallelo</span>
-              <input
-                type="number"
-                min={1}
-                max={8}
+          </div>
+
+          <div className="nuovo-ap__riga">
+            <label className="etichetta" style={{ flex: '2 1 280px' }}>
+              <span className="serigrafia">Pubblicazione del progetto</span>
+              <select
                 className="campo"
-                value={bozza.chat}
-                onChange={(e) => setBozza({ ...bozza, chat: e.target.value })}
-              />
-              <span className="misura">1 = una chat sola. Di più solo se il lavoro si spezza in parti indipendenti: ogni chat è un claude.exe e pesa sui limiti.</span>
+                value={bozza.pubblicazione}
+                onChange={(e) => setBozza({ ...bozza, pubblicazione: e.target.value as RegolaPubblicazione })}
+              >
+                {REGOLE_PUBBLICAZIONE.map((r) => <option key={r.valore} value={r.valore}>{r.etichetta}</option>)}
+              </select>
+              <span className="misura">{REGOLE_PUBBLICAZIONE.find((r) => r.valore === bozza.pubblicazione)?.spiega}</span>
+            </label>
+            <label className="etichetta" style={{ flex: '1 1 220px' }}>
+              <span className="serigrafia">Cloud</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input type="checkbox" checked={bozza.cloud} onChange={(e) => setBozza({ ...bozza, cloud: e.target.checked })} />
+                il progetto va sul cloud
+              </span>
+              <span className="misura">Con il cloud — questa spunta, oppure un remoto git, uno script di pubblicazione o di deploy che lui riconosce da solo — fa tutto senza chiederti: commit, unione dei suoi rami, push e pubblicazione secondo la regola qui accanto. Senza cloud fa commit sui suoi rami e li unisce, e basta.</span>
             </label>
           </div>
+          <p className="misura" style={{ margin: 0 }}>
+            Quante chat apre lo decide lui, in base a quanto il lavoro si divide in parti indipendenti: ognuna lavora in una sua copia del progetto (un git worktree, su un suo ramo) e il suo lavoro si unisce al ramo principale a ogni turno. Il consumo lo governa il freno sui limiti del piano: sopra il 60% della finestra di 5 ore non apre chat nuove, sopra l’80% ne tiene una, sopra il 95% si ferma e riparte da solo all’azzeramento (lo stesso vale per la settimana). Non tocca mai chat e autopiloti non suoi, «Porta qui», l’account, le preferenze né file fuori dalle sue cartelle: lo impedisce il programma.
+          </p>
 
           <label className="etichetta nuovo-ap__blocco">
             <span className="serigrafia">Come si capisce che ha finito (facoltativo, uno per riga)</span>

@@ -10,6 +10,24 @@ import type { Esecutore } from '../../src/autopilot-host/verifiche'
 import type { Interrogazione } from '../../src/autopilot-host/supervisore'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { nuovoAutopilota } from '@shared/autopilota'
+import type { Git } from '../../src/autopilot-host/worktree'
+
+/**
+ * Un git finto per la flotta: un repository sul ramo `main`, dove i worktree
+ * nascono e ogni ramo risulta gia' unito. Il git vero e' in `worktree.test.ts`.
+ */
+const gitFinto: Git = (args, cwd) => {
+  const a = args.join(' ')
+  if (a === 'rev-parse --show-toplevel') return { codice: 0, uscita: cwd }
+  if (a === 'rev-parse --abbrev-ref HEAD') return { codice: 0, uscita: 'main' }
+  if (a.startsWith('rev-parse --verify')) return { codice: 1, uscita: '' }
+  if (a === 'remote -v') return { codice: 0, uscita: '' }
+  if (a === 'config user.name') return { codice: 0, uscita: 'prova' }
+  return { codice: 0, uscita: '' }
+}
+/** I limiti del piano larghi: il freno lascia aprire tutte le chat utili. */
+const LIMITI_LIBERI = { cinqueOre: { percento: 10 }, settimana: { percento: 10 } }
+let limitiDaSpingere: unknown
 
 let server: ServerAutopiloti
 let porta: number
@@ -29,8 +47,11 @@ function ambiente(
     scadenzaInterviataMs?: number
     silenzioMassimoMs?: number
     adesso?: () => string
+    git?: Git
+    limiti?: unknown
   } = {}
 ): ServerAutopiloti {
+  limitiDaSpingere = opts.limiti
   archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-server-')))
   avviati = []
   fermati = []
@@ -56,7 +77,8 @@ function ambiente(
     scadenzaDomandaMs: opts.scadenzaDomandaMs ?? 5000,
     scadenzaInterviataMs: opts.scadenzaInterviataMs ?? 5000,
     ...(opts.silenzioMassimoMs !== undefined ? { silenzioMassimoMs: opts.silenzioMassimoMs } : {}),
-    adesso: opts.adesso ?? (() => '2026-08-09T10:05:00.000Z')
+    adesso: opts.adesso ?? (() => '2026-08-09T10:05:00.000Z'),
+    ...(opts.git !== undefined ? { git: opts.git } : {})
   })
 }
 
@@ -74,7 +96,10 @@ function avvia(s: Server): Promise<void> {
   return new Promise((ris) => {
     s.listen(0, '127.0.0.1', () => {
       porta = (s.address() as { port: number }).port
-      ris()
+      // Lo stato del programma, come lo spinge il Gestore: con i limiti del
+      // piano il freno sa quante chat concedere.
+      if (limitiDaSpingere === undefined) { ris(); return }
+      void chiama('POST', '/stato-programma', { letto: Date.now(), limiti: limitiDaSpingere }).then(() => ris())
     })
   })
 }
@@ -585,7 +610,8 @@ describe('flotta di chat', () => {
     }
   }
 
-  it('con tetto a uno non chiede nessuna scomposizione', async () => {
+  it('senza git non chiede nessuna scomposizione: una chat sola', async () => {
+    // Senza cartelle separate piu' chat si pesterebbero i file (0.36.0).
     const prompt: string[] = []
     server = ambiente({
       interroga: (p) => { prompt.push(p); return Promise.resolve({ testo: '{"azione": "finito"}' }) }
@@ -599,15 +625,19 @@ describe('flotta di chat', () => {
     expect(chatAvviate).toEqual([])
   })
 
-  it('con tetto a due apre due chat, e non tiene una coda oltre il tetto', async () => {
-    server = ambiente({ interroga: SCOMPONE })
+  it('il numero di chat lo decide l utilita: tre pezzi indipendenti, tre chat, ognuna nel suo worktree', async () => {
+    // Decisione di Nicholas (30/09): nessun tetto scelto a mano; il tettoChat
+    // passato alla creazione non conta piu', conta quanti pezzi sono utili.
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, interroga: SCOMPONE })
     await avvia(server)
     const id = await creaAp({ tettoChat: 2 })
-    await attendi(() => chatAvviate.length >= 2)
+    await attendi(() => chatAvviate.length >= 3)
 
-    expect(chatAvviate.map((c) => c.compito)).toEqual(['scrivi i test', 'aggiorna i documenti'])
+    expect(chatAvviate.map((c) => c.compito)).toEqual(['scrivi i test', 'aggiorna i documenti', 'sistema il lettore'])
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
-    expect(stato.chats).toHaveLength(2)
+    expect(stato.chats).toHaveLength(3)
+    expect(stato.chats.map((c: any) => c.ramo)).toEqual([`ap/${id}/c-1`, `ap/${id}/c-2`, `ap/${id}/c-3`])
+    expect(stato.ramoBase).toBe('main')
     // Le chat lavorano tutte verso lo stesso obiettivo (criteri globali): un
     // compito oltre il tetto non avrebbe mai una chat che lo apre e resterebbe
     // in coda finché il «finito» globale non lo butta — «il compito si perdeva».
@@ -619,7 +649,7 @@ describe('flotta di chat', () => {
   it('ricorda la sessione sulla chat che si e fermata, non sull autopilota', async () => {
     // Con una flotta, scriverla sull'autopilota farebbe riprendere tutte le
     // chat dalla conversazione dell'ultima che ha parlato.
-    server = ambiente({
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI,
       interroga: SCOMPONE,
       esegui: () => Promise.resolve({ codice: 1, uscita: 'ancora rosso' })
     })
@@ -643,7 +673,7 @@ describe('flotta di chat', () => {
     // ognuna scriveva la sua, l'ultima vinceva e l'altra restava orfana.
     let n = 0
     const viste: (string | undefined)[] = []
-    server = ambiente({
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI,
       interroga: (prompt, _cwd, sessione) => {
         if (prompt.includes('va diviso fra')) return SCOMPONE(prompt, _cwd, sessione)
         viste.push(sessione)
@@ -675,7 +705,7 @@ describe('flotta di chat', () => {
   })
 
   it('a lavoro finito ferma tutte le chat della flotta', async () => {
-    server = ambiente({ interroga: SCOMPONE })
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, interroga: SCOMPONE })
     await avvia(server)
     const id = await creaAp({ tettoChat: 2 })
     await attendi(() => chatAvviate.length >= 2)
@@ -690,28 +720,29 @@ describe('flotta di chat', () => {
   })
 
   it('una scomposizione illeggibile non impedisce di lavorare', async () => {
-    server = ambiente({
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI,
       interroga: (p) => Promise.resolve({ testo: p.includes('va diviso fra') ? 'non ho capito' : '{"azione": "finito"}' })
     })
     await avvia(server)
     await creaAp({ tettoChat: 3 })
-    await attendi(() => chatAvviate.length > 0)
-    // Si ripiega sull'obiettivo intero: una chat sola, che e' meglio di zero.
-    expect(chatAvviate).toHaveLength(1)
-    expect(chatAvviate[0]?.compito).toContain('Fai passare la suite')
+    await attendi(() => avviati.length > 0)
+    // Si ripiega sull'obiettivo intero: una chat sola, nella cartella del
+    // progetto, che e' meglio di zero.
+    expect(avviati).toHaveLength(1)
+    expect(chatAvviate).toHaveLength(0)
   })
 
   it('riprendere riapre tutte le chat non finite', async () => {
-    server = ambiente({ interroga: SCOMPONE })
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, interroga: SCOMPONE })
     await avvia(server)
     const id = await creaAp({ tettoChat: 2 })
-    await attendi(() => chatAvviate.length >= 2)
+    await attendi(() => chatAvviate.length >= 3)
     await chiama('POST', `/autopiloti/${id}/ferma`)
     chatAvviate.length = 0
 
     await chiama('POST', `/autopiloti/${id}/riprendi`)
 
-    expect(chatAvviate.map((c) => c.id).sort()).toEqual(['c-1', 'c-2'])
+    expect(chatAvviate.map((c) => c.id).sort()).toEqual(['c-1', 'c-2', 'c-3'])
   })
 
   // Fase 1: una domanda (o notifica) di UNA chat non congela le sorelle. Prima
@@ -724,7 +755,7 @@ describe('flotta di chat', () => {
   })
 
   it('una domanda ferma solo la chat che l ha posta, non la flotta', async () => {
-    server = ambiente({ interroga: CHIEDE_FLOTTA, scadenzaDomandaMs: 120 })
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, interroga: CHIEDE_FLOTTA, scadenzaDomandaMs: 120 })
     await avvia(server)
     const id = await creaAp({ tettoChat: 2 })
     await attendi(() => chatAvviate.length >= 2)
@@ -742,7 +773,7 @@ describe('flotta di chat', () => {
   })
 
   it('lo Stop di una sorella viene lavorato mentre un altra chat e bloccata', async () => {
-    server = ambiente({ interroga: CHIEDE_FLOTTA, scadenzaDomandaMs: 120 })
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, interroga: CHIEDE_FLOTTA, scadenzaDomandaMs: 120 })
     await avvia(server)
     const id = await creaAp({ tettoChat: 2 })
     await attendi(() => chatAvviate.length >= 2)
@@ -760,7 +791,7 @@ describe('flotta di chat', () => {
   })
 
   it('la risposta tardiva riprende solo la chat che aveva chiesto', async () => {
-    server = ambiente({ interroga: CHIEDE_FLOTTA, scadenzaDomandaMs: 100 })
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, interroga: CHIEDE_FLOTTA, scadenzaDomandaMs: 100 })
     await avvia(server)
     const id = await creaAp({ tettoChat: 2 })
     await attendi(() => chatAvviate.length >= 2)
@@ -784,7 +815,7 @@ describe('flotta di chat', () => {
     // spariva e quella chat restava orfana. Ora la sezione rilettura→salva e'
     // atomica e riparte dalle chat fresche.
     const porte: Array<() => void> = []
-    server = ambiente({
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI,
       esegui: () => Promise.resolve({ codice: 1, uscita: 'ancora rosso' }),
       interroga: (p) =>
         p.includes('va diviso fra')
@@ -1584,5 +1615,175 @@ describe('cosa ha capito, e cosa ha raggiunto', () => {
     // Se non e' piu' vero, la data se ne va: «raggiunto alle 14:32» accanto a
     // una cosa adesso rossa e' una bugia.
     expect(dopoIlRosso.criteri[0].raggiuntoIl).toBeUndefined()
+  })
+})
+
+describe('l harness (0.36.0): freno, divieti, mosse, domande gemelle, pubblicazione', () => {
+  const SCOMPONE: Interrogazione = (prompt) =>
+    Promise.resolve({
+      testo: prompt.includes('va diviso fra')
+        ? '{"compiti": ["scrivi i test", "aggiorna i documenti"]}'
+        : '{"azione": "prosegui", "istruzioni": "avanti", "perche": "manca"}'
+    })
+
+  async function attendi(condizione: () => boolean): Promise<void> {
+    for (let i = 0; i < 80 && !condizione(); i += 1) {
+      await new Promise((r) => setTimeout(r, 25))
+    }
+  }
+
+  async function domandeAperte(): Promise<any[]> {
+    for (let i = 0; i < 80; i += 1) {
+      const aperte = (await chiama('GET', '/domande')).dati
+      if (aperte.length > 0) return aperte
+      await new Promise((r) => setTimeout(r, 25))
+    }
+    return []
+  }
+
+  it('il freno: con la finestra di 5 ore all 85% una chat della flotta va in pausa a fine turno', async () => {
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, interroga: SCOMPONE, esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }) })
+    await avvia(server)
+    const id = await creaAp()
+    await attendi(() => chatAvviate.length >= 2)
+    // Il piano si riempie: il Gestore lo dice, e il freno scende a una chat.
+    await chiama('POST', '/stato-programma', { letto: Date.now(), limiti: { cinqueOre: { percento: 85 } } })
+    const primo = await chiama('POST', `/hook/stop?ap=${id}&chat=c-1`, eventoStop({ session_id: 's-1' }))
+    const secondo = await chiama('POST', `/hook/stop?ap=${id}&chat=c-2`, eventoStop({ session_id: 's-2' }))
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.chats.filter((c: any) => c.stato === 'pausa')).toHaveLength(1)
+    // Chi va in pausa si ferma (risposta vuota), l'altra continua.
+    expect([primo.dati, secondo.dati].filter((d) => d.decision === 'block')).toHaveLength(1)
+    expect(stato.decisioni.map((d: any) => d.cosa).join(' ')).toContain('in pausa')
+  })
+
+  it('il freno oltre il 95% ferma tutto e dice quando riparte', async () => {
+    server = ambiente({ limiti: { cinqueOre: { percento: 97, resettaIl: Date.parse('2026-08-09T12:00:00Z') } } })
+    await avvia(server)
+    await creaAp()
+    await attendi(() => avvisi.some((a) => a.tipo === 'sospeso'))
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.stato).toBe('sospeso')
+    expect(stato.motivoSospensione).toContain('97%')
+    expect(stato.pausaLimitiFinoA).toBe('2026-08-09T12:00:00.000Z')
+    expect(avviati).toHaveLength(0)
+  })
+
+  it('i divieti: il programma nega alla chat una cancellazione fuori dalle sue cartelle', async () => {
+    server = ambiente()
+    await avvia(server)
+    const id = await creaAp()
+    const no = await chiama('POST', `/hook/pretool?ap=${id}`, { tool_name: 'Bash', tool_input: { command: 'rm -rf C:/Windows/Temp/x' }, cwd: process.cwd() })
+    expect(no.dati.hookSpecificOutput.permissionDecision).toBe('deny')
+    const si = await chiama('POST', `/hook/pretool?ap=${id}`, { tool_name: 'Bash', tool_input: { command: 'rm -rf dist' }, cwd: process.cwd() })
+    expect(si.dati).toEqual({})
+    const porta = await chiama('POST', `/hook/pretool?ap=${id}`, { tool_name: 'Bash', tool_input: { command: 'curl -X POST http://127.0.0.1:47640/api/drive/porta' }, cwd: process.cwd() })
+    expect(porta.dati.hookSpecificOutput.permissionDecision).toBe('deny')
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.decisioni.map((d: any) => d.cosa).join(' ')).toContain('comando bloccato dal programma')
+  })
+
+  it('le mosse del supervisore: apre una chat utile, rifiuta Porta qui e le chat altrui', async () => {
+    let giro = 0
+    const visti: string[] = []
+    server = ambiente({
+      git: gitFinto, limiti: LIMITI_LIBERI,
+      interroga: (prompt) => {
+        if (prompt.includes('va diviso fra')) return Promise.resolve({ testo: '{"compiti": ["a", "b"]}' })
+        giro += 1
+        visti.push(prompt)
+        return Promise.resolve({
+          testo: giro === 1
+            ? '{"azione": "prosegui", "istruzioni": "avanti", "mosse": [{"tipo": "apriChat", "compito": "le API"}, {"tipo": "portaQui"}, {"tipo": "chiudiChat", "chat": "c-99"}]}'
+            : '{"azione": "prosegui", "istruzioni": "avanti"}'
+        })
+      },
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' })
+    })
+    await avvia(server)
+    const id = await creaAp()
+    await attendi(() => chatAvviate.length >= 2)
+    await chiama('POST', `/hook/stop?ap=${id}&chat=c-1`, eventoStop())
+    await attendi(() => chatAvviate.length >= 3)
+    // T1: il supervisore vede lo stato del programma e le mosse permesse.
+    expect(visti[0]).toContain('Stato del programma')
+    expect(visti[0]).toContain('Mosse sul programma')
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(chatAvviate.map((c) => c.compito)).toContain('le API')
+    const diario = stato.decisioni.map((d: any) => d.cosa).join(' | ')
+    expect(diario).toContain('mossa rifiutata dal programma (portaQui)')
+    expect(diario).toContain('mossa rifiutata dal programma (chiudiChat)')
+  })
+
+  it('le domande gemelle di due chat sorelle arrivano una volta sola, e la risposta sblocca tutte e due', async () => {
+    server = ambiente({
+      git: gitFinto, limiti: LIMITI_LIBERI,
+      interroga: (prompt) => Promise.resolve({
+        testo: prompt.includes('va diviso fra')
+          ? '{"compiti": ["a", "b"]}'
+          : '{"azione": "chiedi", "domanda": "Quale chiave API devo usare per il servizio meteo?"}'
+      }),
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' })
+    })
+    await avvia(server)
+    const id = await creaAp()
+    await attendi(() => chatAvviate.length >= 2)
+    const uno = chiama('POST', `/hook/stop?ap=${id}&chat=c-1`, eventoStop())
+    await attendi(() => avvisi.some((a) => a.tipo === 'domanda'))
+    const due = chiama('POST', `/hook/stop?ap=${id}&chat=c-2`, eventoStop())
+    await new Promise((r) => setTimeout(r, 300))
+    const aperte = (await chiama('GET', '/domande')).dati
+    expect(aperte).toHaveLength(1)
+    expect(avvisi.filter((a) => a.tipo === 'domanda')).toHaveLength(1)
+    await chiama('POST', `/domande/${aperte[0].id}/risposta`, { risposta: 'la chiave A' })
+    const [r1, r2] = await Promise.all([uno, due])
+    expect(r1.dati.decision).toBe('block')
+    expect(r2.dati.decision).toBe('block')
+  })
+
+  it('pubblicazione beta con il cloud: a lavoro finito la chat riceve l istruzione di pubblicare, al giro dopo finisce', async () => {
+    server = ambiente()
+    await avvia(server)
+    const id = await creaAp({ pubblicazione: 'beta', vaSulCloud: true })
+    const primo = await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    expect(primo.dati.decision).toBe('block')
+    expect(primo.dati.reason).toContain('pubblica')
+    const secondo = await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    expect(secondo.dati).toEqual({})
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('finito')
+  })
+
+  it('pubblicazione stabile: chiede prima, e con un «no» finisce senza pubblicare', async () => {
+    server = ambiente()
+    await avvia(server)
+    const id = await creaAp({ pubblicazione: 'stabile', vaSulCloud: true })
+    const fermata = chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    const aperte = await domandeAperte()
+    expect(aperte[0].testo).toContain('Pubblico adesso?')
+    await chiama('POST', `/domande/${aperte[0].id}/risposta`, { risposta: 'no, aspetta' })
+    expect((await fermata).dati).toEqual({})
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.stato).toBe('finito')
+    expect(stato.decisioni.map((d: any) => d.cosa).join(' ')).toContain('non pubblico')
+  })
+
+  it('pubblicazione stabile: con un «sì» la chat riceve l istruzione di pubblicare', async () => {
+    server = ambiente()
+    await avvia(server)
+    const id = await creaAp({ pubblicazione: 'stabile', vaSulCloud: true })
+    const fermata = chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    const aperte = await domandeAperte()
+    await chiama('POST', `/domande/${aperte[0].id}/risposta`, { risposta: 'sì, vai' })
+    const r = (await fermata).dati
+    expect(r.decision).toBe('block')
+    expect(r.reason).toContain('pubblica')
+  })
+
+  it('senza cloud non si pubblica e non si chiede niente', async () => {
+    server = ambiente()
+    await avvia(server)
+    const id = await creaAp({ pubblicazione: 'beta' })
+    expect((await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())).dati).toEqual({})
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('finito')
   })
 })

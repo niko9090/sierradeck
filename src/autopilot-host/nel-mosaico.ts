@@ -65,7 +65,9 @@ export function esecutoreNelMosaico(p: {
       p.consegne.metti({
         autopilotaId: a.id,
         chatId,
-        cwd: a.cwd,
+        // La chat di una flotta lavora nel suo git worktree (0.36.0): nasce li',
+        // non nella cartella principale dove si pesterebbe i file con le sorelle.
+        cwd: chat?.cartella ?? a.cwd,
         sessionId,
         titolo: a.nome !== '' ? a.nome : a.obiettivo.slice(0, 40),
         cosa: 'scrivi',
@@ -134,6 +136,7 @@ export function primoCompito(a: Autopilota, chat?: ChatGovernata): string {
     ...criteriScritti(a),
     '',
     'Lavora fino a soddisfarli tutti.',
+    ...regoleDiConsegna(a, chat),
     '',
     // Questa chat è aperta sotto gli occhi di qualcuno che può scriverci in
     // qualunque momento. Dirglielo cambia cosa fa di quei messaggi: senza,
@@ -148,6 +151,32 @@ export function primoCompito(a: Autopilota, chat?: ChatGovernata): string {
 }
 
 /** I criteri, uno per riga, con il comando che li misura quando ce l'hanno. */
+/**
+ * Dove lavora e cosa consegna (0.36.0): la sua copia del progetto e il suo
+ * ramo, se ne ha uno; e che la pubblicazione la decide l'autopilota a lavoro
+ * finito, secondo la regola scelta per il progetto.
+ */
+export function regoleDiConsegna(a: Autopilota, chat?: ChatGovernata): string[] {
+  const righe: string[] = []
+  if (chat?.cartella !== undefined && chat.ramo !== undefined) {
+    righe.push(
+      '',
+      `Lavori nella tua copia del progetto (${chat.cartella}), sul ramo ${chat.ramo}: altre chat lavorano in parallelo`,
+      'su altre parti, ognuna nella sua copia. Fai commit quando un pezzo è compiuto: a ogni fine turno il programma',
+      `unisce il tuo ramo nel ramo principale (${a.ramoBase ?? 'principale'}), dove si misurano i criteri. Non cambiare`,
+      'ramo, non lavorare nella cartella principale e non fare push: lo fa l’autopilota dopo l’unione.'
+    )
+  }
+  const cloud = a.vaSulCloud === true || a.cloud?.attivo === true
+  righe.push(
+    '',
+    cloud
+      ? 'Non pubblicare da solo: a lavoro finito e verificato è l’autopilota a dirti se e come pubblicare, secondo la regola scelta per questo progetto.'
+      : 'Il progetto non va sul cloud: niente push e niente pubblicazione.'
+  )
+  return righe
+}
+
 function criteriScritti(a: Autopilota): string[] {
   return a.criteri.map(
     (c) => `- ${c.descrizione}${c.comando !== undefined ? ` (si verifica con: ${c.comando})` : ''}`
