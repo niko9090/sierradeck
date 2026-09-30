@@ -1,12 +1,12 @@
 ---
-titolo: "Proposta: l'autopilota come «harness» dell'agente (conosce tutto il programma, apre e guida più chat da solo)"
-quando: 2026-09-30T16:30:00+02:00
-tag: ["autopilota", "proposta", "harness", "multi-chat", "worktree", "limiti", "decisione-aperta"]
+titolo: "L'autopilota come «harness» dell'agente: proposta, scelte di Nicholas, cosa è fatto (0.36.0 / app 2.39.0)"
+quando: 2026-09-30T23:30:00+02:00
+tag: ["autopilota", "harness", "multi-chat", "worktree", "limiti", "pubblicazione", "divieti", "domande", "decisione"]
 ---
 
-> **Solo una proposta: non è stato implementato niente.** Le scelte della sezione 4 spettano a Nicholas.
-> Richiesta di Nicholas (30/09): l'autopilota deve conoscere tutte le funzioni del programma e usarle da solo,
-> anche aprendo e guidando più chat in parallelo quando la valutazione del lavoro lo consiglia.
+> **Approvata e implementata il 30/09 (0.36.0, app 2.39.0)**, con le scelte di Nicholas che sostituiscono i valori di
+> partenza della sezione 4. In fondo: **scelte fissate** (6), **cosa è fatto per tappa** con i test (7), **cosa resta
+> aperto** (8). Le sezioni 1–5 sono la proposta com'era, lasciata per sapere da dove si è partiti.
 
 # 1. Cosa fa oggi l'autopilota
 
@@ -177,3 +177,61 @@ niente a metà.
 
 Vedi anche [[autopilota-sezione-chat-in-alto]], [[autopilota-dialogo]], [[supervisore-uno-per-chat]],
 [[consumi-e-limiti-del-piano]], [[coda-condivisa-comandi]], [[2026-09-30-analisi-app-android]].
+
+
+---
+
+# 6. Scelte fissate da Nicholas (30/09) — sostituiscono la sezione 4
+
+1. **Numero di chat**: lo decide il modello in base all'utilità del lavoro (quante parti davvero indipendenti ci
+   sono). Nessun tetto scelto da Nicholas: resta solo il **tetto tecnico di sicurezza** `TETTO_CHAT_MAX = 8`. Il campo
+   «Chat in parallelo» della finestra di creazione è stato tolto; `tettoChat` passato dalla rete è ignorato.
+2. **Consumo**: lo governa il **freno** sui limiti del piano — 60 / 80 / 95 % della finestra di 5 ore, e le stesse soglie
+   sulla settimana (vince la finestra peggiore). Senza limiti letti: una chat sola.
+3. **Pubblicazione per progetto**, scelta alla creazione: **«beta: pubblica sempre»**, **«stabile: chiede prima»**
+   (predefinita), **«versione unica: decide il progetto»**. Se il progetto **va sul cloud** (spunta alla creazione) o ha il
+   cloud **attivo** (remoto git, script di pubblicazione/deploy, file di deploy riconoscibili), l'autopilota fa tutto da
+   solo: commit, merge dei suoi rami, push, pubblicazione secondo la regola. Senza cloud: commit e unione, niente push.
+4. **Divieti fatti rispettare dal programma** (non dal modello): chat e autopiloti non suoi, «Porta qui», uscire
+   dall'account, cambiare le preferenze, cancellare file fuori dalle sue cartelle.
+5. **Domande come chat**, sul PC, nell'app e nella pagina, con la stessa logica e gli stessi testi.
+6. T8 (pubblicare) è diventata la regola per progetto del punto 3.
+
+# 7. Cosa è stato implementato (0.36.0), tappa per tappa
+
+Commit locali: `ba788ff` (copia/incolla), `1e41bb3` (regole pure), `a1cdad6` (servizio), `77ed80c` (Domande e albero
+PC/pagina), `9886d35` (app), più quello finale con versione, novità e quaderno. **Niente pubblicato**: né push, né release, né APK.
+
+| Tappa | Dove | Test |
+|---|---|---|
+| **T1** stato del programma in sola lettura | Il Gestore spinge ogni 10 s `POST /stato-programma` (`inviaStatoProgramma` in `main/index.ts`: chat e stati, limiti da `limitiAggiornati`, domande in attesa, progetti e code, altri PC). Il servizio lo tiene in memoria (`coordinatore.ts` → `leggiStatoProgramma`) e lo mette nel prompt del supervisore (`riassuntoProgramma`, sezione «Stato del programma»). | `divieti-coordinatore.test.ts`, `server.test.ts` («le mosse…» controlla il prompt) |
+| **T2** freno | `shared/harness.ts` → `frenoDaiLimiti`, `quanteChat`. Nel servizio: all'avvio (≥95% → `sospeso` con `pausaLimitiFinoA`), a ogni fine turno (chat oltre il tetto → stato **`pausa`**), e ogni minuto `rispettaFreno` (riprende le chat in pausa e gli autopiloti fermi per i limiti, apre i compiti in coda). Il guardiano del silenzio salta le chat in pausa. | `harness.test.ts`, `server.test.ts` (pausa all'85%, fermo al 97%) |
+| **T3** una cartella per chat | `autopilot-host/worktree.ts`: worktree in `<progetto>.sierradeck-wt/<ap>-<chat>` sul ramo `ap/<ap>/<chat>`; `ChatGovernata.cartella/ramo`, `Autopilota.ramoBase`. La consegna fa nascere la chat nella sua cartella (`nel-mosaico.ts`), il primo messaggio spiega dove lavora (`regoleDiConsegna`). A fine turno il **programma** fa commit del worktree e lo unisce nel ramo principale; conflitto → `merge --abort` e la chat riceve l'istruzione di riallinearsi. Senza git: una chat sola. | `worktree.test.ts` (git vero: crea, salva, unisce, conflitto, pulizia, cloud) |
+| **T4** azioni con divieti | `autopilot-host/divieti.ts`: **hook PreToolUse** (`/hook/pretool`, `hook-autopilota.ts`) sui comandi Bash/PowerShell delle chat governate → nega cancellazioni fuori dalle cartelle dell'autopilota (e della cartella di lavoro intera) e le chiamate alle rotte vietate; il blocco finisce nel diario. **Mosse del supervisore** (`mosse` nel JSON: `apriChat`, `chiudiChat`, `quaderno`) giudicate da `giudicaMossa`: vietate e sconosciute rifiutate e annotate. | `divieti-coordinatore.test.ts`, `server.test.ts`, `hook-autopilota.test.ts` |
+| **T5** coordinatore | Scomposizione chiesta al supervisore fino al tetto tecnico (`componiPromptScomposizione`), chat aperte dentro il freno; `chiudiChat` libera il posto e apre il compito dopo; **domande gemelle** di chat sorelle agganciate a quella già aperta (`domandaGemella`; il registro accetta più attese per domanda). | `server.test.ts` («le domande gemelle…») |
+| **T6** unione dei risultati | A lavoro finito: commit e unione di tutti i rami, criteri **ripassati sul risultato unito**, conflitti rimandati alle chat, worktree tolti; poi push (con il cloud) e pubblicazione secondo la regola (`pianoPubblicazione`: beta → istruzione di pubblicare; stabile → domanda «Pubblico adesso?» nelle Domande, sì/no anche in ritardo; unica → la regola del progetto). | `server.test.ts` (beta, stabile sì/no, senza cloud), `harness.test.ts` |
+| **T7** albero delle chat | `alberoChat` (shared) → `/api/autopilota` porta `albero`; PC `AlberoChat.tsx` nella scheda (e ramo/pausa nel diario), pagina `alberoHtml`, app `RigaAlbero` in Lavori. | `harness.test.ts`, `client-rotte.test.ts`, `client-pagina.test.ts`, `HarnessAppTest.kt` |
+| **Creazione** | PC `PannelloAutopiloti.tsx` (regola + «va sul cloud», spiegazione del freno e dei divieti), `validaNuovoAutopilota`, `/api/autopilota/crea` (telefono), app `Delega` e pagina «Affida». Il cloud riconosciuto si scrive in `Autopilota.cloud` all'avvio. | `validation.test.ts`, `server.test.ts` |
+| **Domande come chat** | `shared/domande-conversazioni.ts` → `conversazioniDomande` (autopilota con domanda: la sua storia + domanda in fondo, risposta con `/api/rispondi`; autopilota **pronto**: si parla con lui via dialogo; chat su una scelta: la domanda con le opzioni; chat ferma; quello che mandi resta nel filo — `inviati` in `client-rotte.ts`). `/api/domande` porta `conversazioni`. PC: nuovo tasto **Domande** nella console (`PannelloDomande.tsx`, IPC `domande:chiama` limitato a 5 rotte, stessa istanza delle rotte del telefono); pagina `vistaConversazioni`; app `Conversazioni.kt`. | `domande-conversazioni.test.ts`, `client-rotte.test.ts`, `client-pagina.test.ts`, `HarnessAppTest.kt` |
+| **Copia e incolla** | Cause: `body { user-select: none }` non riaperto nella chat con l'autopilota; nessun menu Modifica con i ruoli; nessun menu del tasto destro fuori dal terminale; la pagina ridisegnava cancellando la selezione; nell'app nessun `SelectionContainer`. Correzioni: `menu-modifica.ts` (menu applicazione + contestuale), CSS `.chatap__flusso`/`.diario__lato`, `selezioneAttiva` nella pagina, `SelectionContainer` nell'app. | `copia-incolla.test.ts`, `HarnessAppTest.kt` |
+
+# 8. Cosa resta aperto
+
+- **Provare sul campo** con un progetto vero: una flotta con worktree, un conflitto, il freno che scende e risale, una
+  pubblicazione beta e una stabile. I test usano un git vero per i worktree ma un git finto dentro il servizio.
+- **`node_modules` nei worktree**: ogni copia va reinstallata; costa tempo e disco. Da valutare un collegamento condiviso.
+- **Le copie nell'indice**: i worktree sono cartelle diverse per Claude Code (slug diverso), quindi le loro conversazioni
+  compaiono come progetti a sé in «Riprendi». Da raggruppare sotto il progetto padre.
+- **La cartella di lavoro sporca**: l'unione avviene nella cartella di Nicholas sul ramo principale; se lui ha modifiche
+  sugli stessi file, `git merge` fallisce e si rimanda (annotato nel diario). Alternativa da decidere: un worktree di
+  integrazione separato.
+- **Il commit nella chat singola** (senza worktree) lo fa la chat su istruzione, non il programma: il programma non fa
+  commit nella cartella di Nicholas con dentro i suoi cambi.
+- **La modale delle domande sul PC** (`DomandaModale.tsx`) c'è ancora accanto al nuovo tasto Domande: da decidere se
+  toglierla (Nicholas voleva le domande «non bloccanti»).
+- **Azioni del supervisore sul resto del programma** (mettere in coda, scrivere a un altro PC): non ancora fra le mosse;
+  coda e altri PC li vede ma non li tocca.
+- **Senza limiti letti** (chiave API a consumo) la flotta non parte mai: una chat sola per prudenza. Da rivedere se si
+  lavora a consumo.
+- **Una domanda gemella risposta in ritardo** riprende solo la prima chat che l'aveva posta; le altre ripartono dal freno
+  o al loro prossimo giro.

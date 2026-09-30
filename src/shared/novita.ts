@@ -41,6 +41,17 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.36.0',
+    righe: [
+      '**L’autopilota decide da solo quante chat aprire, ognuna nella sua copia del progetto.** Se il lavoro si divide in parti indipendenti apre più chat, ognuna in un git worktree su un suo ramo: niente più file pestati. A ogni fine turno il programma salva il lavoro di ogni chat e lo unisce nel ramo principale, dove si misurano i criteri; un conflitto non si risolve a caso, la chat si riallinea. A lavoro finito unisce tutto, ripassa i criteri sul risultato unito e toglie le copie.',
+      '**Un freno sui limiti del piano.** Sotto il 60% della finestra di 5 ore lavora con tutte le chat utili; sopra non ne apre di nuove; sopra l’80% ne tiene una; sopra il 95% si ferma e riparte da solo all’azzeramento. La settimana frena allo stesso modo. Senza limiti letti lavora con una chat sola.',
+      '**Pubblicazione per progetto, scelta alla creazione:** «beta: pubblica sempre», «stabile: chiede prima», «versione unica: decide il progetto». Se il progetto va sul cloud (la spunta, o un remoto git, uno script di pubblicazione o di deploy che riconosce da solo) fa tutto senza chiederti: salva il lavoro sui suoi rami, li unisce, lo manda su e pubblica secondo la regola. Il numero di chat non si sceglie più: lo decide lui.',
+      '**Divieti fatti rispettare dal programma, non dal modello.** Le chat governate non possono cancellare file fuori dalle cartelle dell’autopilota né chiamare «Porta qui», l’account o le preferenze: il comando viene bloccato prima di partire, e lo trovi scritto nel suo diario. Il supervisore vede lo stato del programma (chat, limiti, domande, code, altri PC) e può aprire o chiudere le sue chat e scrivere nel quaderno; le mosse vietate le rifiuta il programma.',
+      '**Le Domande diventano una conversazione, sul PC (nuovo tasto «Domande»), nella pagina e nell’app (2.39.0).** Con un autopilota parli con lui, con la domanda aperta in fondo; con una chat che aspetta è lei a scriverti la domanda o il permesso, con le opzioni da toccare, e quello che mandi resta nel filo. Due chat sorelle che chiedono la stessa cosa arrivano una volta sola.',
+      '**Nella chat con l’autopilota si copia e si incolla:** Ctrl+C, Ctrl+V e il tasto destro (Copia, Incolla) funzionano sul PC, il testo si seleziona con un tocco lungo nell’app e la pagina non ridisegna più mentre selezioni. Nella scheda dell’autopilota c’è l’albero: il coordinatore e le sue chat, con il ramo e lo stato di ognuna.'
+    ]
+  },
+  {
     versione: '0.35.0',
     righe: [
       '**Dal telefono si vede da lontano chi lavora e chi aspetta te (app 2.38.0 e pagina).** Ogni chat nell’elenco ha il suo LED e la sua parola — «al lavoro», «aspetta te», «aspetta che tu scelga», «guidata da un autopilota», «spenta» — e in cima un riassunto («1 aspetta te · 3 al lavoro»). Prima erano tutte uguali, e per sapere chi si era fermato bisognava aprirle una per una. La voce «Chat» della fascia si accende d’ambra quando una chat ha finito e aspetta la tua istruzione.',

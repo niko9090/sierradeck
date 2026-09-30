@@ -141,6 +141,36 @@ export function conversazioniDomande(p: {
       })
     }
   }
+  // Gli autopiloti che si sono preparati e aspettano il via: non hanno una
+  // domanda aperta, ma aspettano te. Si parla con loro come nella scheda
+  // (il dialogo): «vai», «prima cambia questo», una domanda.
+  for (const a of p.autopiloti) {
+    if (a.stato !== 'pronto' || gia.has(`ap:${a.id}`)) continue
+    gia.add(`ap:${a.id}`)
+    fuori.push({
+      chiave: `ap:${a.id}`,
+      tipo: 'autopilota',
+      titolo: a.nome !== '' ? a.nome : a.obiettivo.slice(0, 60),
+      sotto: `pronto: aspetta il tuo via · ${a.cwd}`,
+      chiede: true,
+      // Il suo «dammi il via» sta sempre in fondo, qualunque ora abbia.
+      messaggi: [
+        ...conversazione(a).filter((b) => b.tono !== 'pronto').slice(-MESSAGGI_AUTOPILOTA).map((b) => ({
+          da: b.da,
+          testo: b.dettaglio !== undefined && b.da === 'nota' ? `${b.testo} — ${b.dettaglio}` : b.testo,
+          quando: b.quando,
+          ...(b.tono !== undefined ? { tono: b.tono } : {})
+        })),
+        {
+          da: 'lui' as const,
+          testo: 'Mi sono preparato: i criteri e i compiti sono nella mia scheda. Dimmi «vai» per partire, o cosa cambiare prima.',
+          tono: 'domanda'
+        }
+      ],
+      risposta: { via: 'dialogo', autopilota: a.id },
+      segnaposto: 'Scrivigli: «vai», oppure cosa cambiare prima di partire'
+    })
+  }
   // Prima chi chiede (domande e scelte), poi le chat che hanno solo finito.
   return [...fuori.filter((c) => c.chiede), ...fuori.filter((c) => !c.chiede)]
 }

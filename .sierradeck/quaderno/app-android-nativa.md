@@ -538,3 +538,14 @@ aperte) in [[2026-09-30-analisi-app-android]]. Quello che conta sapere lavorando
 - **`Apertura.apriChat(id)`** porta dentro una chat da qualunque scheda (la usa «Apri la chat» in Domande).
 - Le API dei salvataggi con nome sono state tolte anche dall'app (la rotta resta sul PC per le app vecchie).
 - Proposta (non fatta) che tocca anche l'app: l'albero coordinatore → sotto-chat nella scheda Lavori, tappa T7 di [[2026-09-30-autopilota-harness]].
+
+# 30/09 sera — l'autopilota harness sul telefono (app 2.39.0 / PC 0.36.0)
+
+Scelte e dettagli in [[2026-09-30-autopilota-harness]]. Quello che conta lavorando sull'app:
+- **Domande = conversazioni**: `/api/domande` porta `conversazioni` (composte da `conversazioniDomande` sul PC); l'app le
+  disegna in `Conversazioni.kt` (`VistaConversazioni`) e risponde con `richiestaRisposta` — la stessa regola della pagina
+  e del PC, provata in `HarnessAppTest`. Con un computer vecchio (campo assente) resta la vista a schede di prima.
+- **Albero delle chat**: `AutopilotaDettaglio.albero` (`NodoAlbero`) e `ramoBase`, disegnati da `RigaAlbero` nella
+  linguetta Obiettivo. Una chat può essere in stato **`pausa`** (freno sui limiti del piano).
+- **Affida**: `Api.creaAutopilota(obiettivo, cartella, pubblicazione, cloud)` — regola «stabile» di partenza.
+- **Copia**: la chat con l'autopilota e i messaggi delle Domande stanno in `SelectionContainer` (tocco lungo).

@@ -44,6 +44,15 @@ describe('le Domande come conversazioni a messaggi', () => {
     expect(cs[1]).toMatchObject({ chiede: false, messaggi: [{ da: 'lui', testo: 'Fatto.' }] })
   })
 
+  it('un autopilota pronto aspetta il via: ci si parla con il dialogo', () => {
+    const pronto = { ...ap, stato: 'pronto' as const }
+    const [c] = conversazioniDomande({ voci: [], autopiloti: [pronto] })
+    expect(c).toMatchObject({ chiave: 'ap:a1', chiede: true, risposta: { via: 'dialogo', autopilota: 'a1' } })
+    expect(c!.messaggi[c!.messaggi.length - 1]).toMatchObject({ da: 'lui', tono: 'domanda' })
+    // Al lavoro non aspetta niente: non c'e'.
+    expect(conversazioniDomande({ voci: [], autopiloti: [ap] })).toEqual([])
+  })
+
   it('si risponde dalle rotte di sempre, uguali sui tre lati', () => {
     expect(richiestaRisposta({ via: 'rispondi', domanda: 'd1' }, 'blu')).toEqual({ percorso: '/api/rispondi', corpo: { domanda: 'd1', risposta: 'blu' } })
     expect(richiestaRisposta({ via: 'scrivi', chat: 'c' }, 'vai')).toEqual({ percorso: '/api/scrivi', corpo: { chat: 'c', testo: 'vai' } })
