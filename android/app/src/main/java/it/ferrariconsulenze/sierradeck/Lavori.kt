@@ -299,6 +299,16 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                 }
             }
             val domanda = det != null && det.domanda && det.domandaId != null
+            // La domanda si vede nella chat con lui ma il servizio non ce l'ha
+            // piu' aperta (e' ripartito): prima la casella la mandava al dialogo
+            // senza dirlo. Dal 0.36 il servizio la riapre da solo; fino ad
+            // allora si dice cosa sta succedendo.
+            if (det != null && det.domanda && det.domandaId == null) {
+                Text(
+                    "La sua domanda non è ancora di nuovo aperta nel servizio (è appena ripartito): fra qualche secondo compare nella scheda Domande e qui sotto, e la risposta farà ripartire la preparazione.",
+                    color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 4.dp)
+                )
+            }
             OutlinedTextField(
                 value = messaggio,
                 onValueChange = { messaggio = it },
@@ -578,7 +588,7 @@ private fun AzioniAutopilota(api: Api, id: String, stato: String) {
             shape = MaterialTheme.shapes.small,
             onClick = { fai("fermarlo") { api.fermaAutopilota(id) } },
             modifier = Modifier.fillMaxWidth()
-        ) { Text(if (inCorso) "Fermo…" else "Si sta preparando (legge il progetto): ferma") }
+        ) { Text(if (inCorso) "Fermo…" else "Si sta preparando (legge il progetto; se ha un dubbio ti chiede qui e nelle Domande): ferma") }
         else -> Button(
             enabled = !inCorso,
             shape = MaterialTheme.shapes.small,

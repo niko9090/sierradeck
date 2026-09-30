@@ -1,7 +1,7 @@
 export type ScambioIntervista = { domanda: string; risposta: string }
 
 export type EsitoIntervista =
-  | { tipo: 'domanda'; testo: string }
+  | { tipo: 'domanda'; testo: string; opzioni?: string[] }
   | {
       tipo: 'pronto'
       nome?: string
@@ -144,7 +144,9 @@ export function componiPromptIntervista(
         ]
       : [
           'Rispondi con un solo oggetto JSON, senza altro testo. O una domanda:',
-          '{"domanda": "la tua domanda"}',
+          '{"domanda": "la tua domanda", "opzioni": ["risposta breve 1", "risposta breve 2"]}',
+          '(le "opzioni" sono facoltative, al massimo quattro: le risposte più probabili, che chi',
+          'risponde da un telefono tocca invece di scrivere. Può sempre scrivere altro.)',
           '',
           'oppure la configurazione finale:',
           ...CONFIGURAZIONE
@@ -199,7 +201,12 @@ export function leggiEsitoIntervista(testo: string): EsitoIntervista | undefined
   const r = o as Record<string, unknown>
 
   const domanda = typeof r.domanda === 'string' ? r.domanda.trim() : ''
-  if (domanda !== '') return { tipo: 'domanda', testo: domanda }
+  if (domanda !== '') {
+    const opzioni = Array.isArray(r.opzioni)
+      ? r.opzioni.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map((x) => x.trim().slice(0, 120)).slice(0, 4)
+      : []
+    return { tipo: 'domanda', testo: domanda, ...(opzioni.length > 0 ? { opzioni } : {}) }
+  }
 
   if (r.pronto === true) {
     const criteri = leggiCriteri(r.criteri)

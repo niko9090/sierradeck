@@ -923,8 +923,38 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     return daRiavviare.length
   }
 
+  /**
+   * Rimette nel registro la domanda della preparazione rimasta scritta
+   * nell'autopilota (`motivoSospensione`) quando il servizio e' ripartito.
+   *
+   * Il difetto (30/09): le domande vivono in memoria. Dopo un riavvio del
+   * servizio la domanda della preparazione si vedeva ancora nella chat con lui,
+   * ma nel registro non c'era piu': nelle Domande non compariva, e dall'app la
+   * casella la mandava al dialogo, che non aveva niente a cui rispondere. Si
+   * poteva leggere e non rispondere. Riaperta, la risposta prende la strada
+   * della risposta tardiva e la preparazione riparte con quella.
+   */
+  const riapriDomandaIntervista = (a: Autopilota): boolean => {
+    if (a.stato !== 'intervista' || a.motivoSospensione === undefined) return false
+    if (deps.domande.aperte(a.id).length > 0) return false
+    const domanda = deps.domande.apri({
+      autopilotaId: a.id,
+      testo: a.motivoSospensione,
+      scadenzaMs: deps.scadenzaInterviataMs
+    })
+    contesto.set(domanda.id, { autopilotaId: a.id, testo: a.motivoSospensione })
+    return true
+  }
+
   const riprendiInterviste = (): void => {
-    const fermi = intervisteDaRiprendere(deps.archivio.elenca())
+    const tutti = deps.archivio.elenca()
+    // Chi aspettava una risposta alla sua domanda non rifa' la preparazione da
+    // capo: la domanda torna nelle Domande, e si riparte dalla risposta.
+    const riaperte = tutti.filter((a) => riapriDomandaIntervista(a))
+    if (riaperte.length > 0) {
+      console.info(`[autopilota] ${riaperte.length} preparazioni aspettavano una risposta: la domanda torna nelle Domande`)
+    }
+    const fermi = intervisteDaRiprendere(tutti).filter((a) => !riaperte.includes(a))
     if (fermi.length === 0) return
     console.info(`[autopilota] riprendo ${fermi.length} preparazioni interrotte`)
     for (const a of fermi) void conduciIntervista(a)
@@ -1005,7 +1035,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const domanda = deps.domande.apri({
         autopilotaId: corrente.id,
         testo: esito.testo,
-        scadenzaMs: deps.scadenzaInterviataMs
+        scadenzaMs: deps.scadenzaInterviataMs,
+        ...(esito.opzioni !== undefined ? { opzioni: esito.opzioni } : {})
       })
       contesto.set(domanda.id, { autopilotaId: corrente.id, testo: esito.testo })
       salva({ ...corrente, motivoSospensione: esito.testo.slice(0, MOTIVO_MAX) })
@@ -1917,7 +1948,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (piano.pubblica !== 'no' && aggiornato.pubblicazioneIstruita !== true) {
       if (piano.pubblica === 'chiedi') {
         const testo = `Il lavoro «${aggiornato.nome}» è finito e verificato${mandato ? ' ed è già su' : ''}. Pubblico adesso? Rispondi «sì» per pubblicare, «no» per lasciarlo così.`
-        const d = deps.domande.apri({ autopilotaId: aggiornato.id, testo, scadenzaMs: deps.scadenzaDomandaMs })
+        const d = deps.domande.apri({ autopilotaId: aggiornato.id, testo, scadenzaMs: deps.scadenzaDomandaMs, opzioni: ['sì, pubblica', 'no, lascia così'] })
         contesto.set(d.id, { autopilotaId: aggiornato.id, testo, pubblica: true, ...(chatId !== undefined ? { chatId } : {}) })
         salva({ ...aggiornato, pubblicazioneInAttesa: true })
         void deps.avvisa('domanda', aggiornato, testo)

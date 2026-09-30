@@ -23,7 +23,14 @@ describe('componiPromptIntervista', () => {
   it('ammette una domanda sola per volta', () => {
     // Cinque domande insieme sono un modulo da compilare: e' esattamente cio'
     // che questo meccanismo esiste per evitare.
-    expect(componiPromptIntervista(OBIETTIVO, CWD, [])).toContain('{"domanda": "la tua domanda"}')
+    expect(componiPromptIntervista(OBIETTIVO, CWD, [])).toContain('{"domanda": "la tua domanda"')
+  })
+
+  it('una domanda puo proporre fino a quattro risposte da toccare (0.36.0)', () => {
+    expect(componiPromptIntervista(OBIETTIVO, CWD, [])).toContain('"opzioni"')
+    const e = leggiEsitoIntervista('{"domanda": "Che database?", "opzioni": ["Postgres", "SQLite", "", 3, "MySQL", "Mongo", "altro"]}')
+    expect(e).toEqual({ tipo: 'domanda', testo: 'Che database?', opzioni: ['Postgres', 'SQLite', 'MySQL', 'Mongo'] })
+    expect(leggiEsitoIntervista('{"domanda": "Che database?"}')).toEqual({ tipo: 'domanda', testo: 'Che database?' })
   })
 
   it('dice di decidere da solo e di chiedere solo l indecidibile', () => {

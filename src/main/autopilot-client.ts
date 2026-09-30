@@ -27,6 +27,8 @@ export type DomandaAperta = {
   testo: string
   apertaIl: number
   scadeIl: number
+  /** Le risposte da toccare, quando chi chiede le propone (domande iniziali, «Pubblico adesso?»). */
+  opzioni?: string[]
 }
 
 /**

@@ -143,14 +143,20 @@ export function PannelloDomande({ onChiudi, onConteggio }: Props): React.JSX.Ele
                       <div className="chatap__bolla">
                         <span className="chatap__chi">{m.da === 'tu' ? 'tu' : aperta.titolo} {orario(m.quando)}</span>
                         <span className="chatap__testo" style={{ whiteSpace: 'pre-wrap' }}>{m.testo}</span>
-                        {m.opzioni !== undefined && aperta.scelte !== undefined ? (
+                        {m.opzioni !== undefined && m.opzioni.length > 0 ? (
                           <span className="domande-pc__opzioni">
                             {m.opzioni.map((o) => (
                               <button
                                 key={o.numero}
                                 className={`tasto${o.scelta ? ' tasto--primario' : ''}`}
                                 disabled={inCorso}
-                                onClick={() => manda('/api/scegli', { chat: aperta.scelte!.chat, opzione: o.testo }, o.testo)}
+                                onClick={() => {
+                                  // Una chat: si sceglie nell'elenco del terminale. Un
+                                  // autopilota (domande iniziali, «Pubblico adesso?»):
+                                  // toccare un'opzione e' rispondere con quel testo.
+                                  if (aperta.scelte !== undefined) manda('/api/scegli', { chat: aperta.scelte.chat, opzione: o.testo }, o.testo)
+                                  else { const r = richiestaRisposta(aperta.risposta, o.testo); manda(r.percorso, r.corpo, o.testo) }
+                                }}
                               >
                                 {o.numero}. {o.testo}
                               </button>

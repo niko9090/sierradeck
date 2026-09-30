@@ -71,4 +71,24 @@ class HarnessAppTest {
         assertTrue(pezzo.contains("SelectionContainer"))
         assertTrue(File(sorgenti, "Conversazioni.kt").readText().contains("SelectionContainer { Text(m.testo"))
     }
+
+    @Test
+    fun `le domande iniziali di un autopilota si rispondono dalle Domande, anche toccando un opzione`() {
+        // Il difetto del 30/09: dall'app non si riusciva a rispondere alle
+        // domande della preparazione. Arrivano come conversazione con le loro
+        // opzioni, senza «scelte» del terminale: toccare un'opzione e' rispondere.
+        val d = Api.json.decodeFromString(Domande.serializer(), """
+            {"conversazioni":[{"chiave":"ap:a1","tipo":"autopilota","titolo":"Sito","sotto":"si prepara","chiede":true,
+              "messaggi":[{"da":"lui","testo":"Che formato?","tono":"domanda","opzioni":[{"numero":1,"testo":"YAML","scelta":false}]}],
+              "risposta":{"via":"rispondi","domanda":"d9"},"segnaposto":"Rispondi"}]}
+        """.trimIndent())
+        val c = d.conversazioni.single()
+        assertEquals(null, c.scelte)
+        assertEquals("YAML", c.messaggi.single().opzioni?.single()?.testo)
+        assertEquals("/api/rispondi" to mapOf("domanda" to "d9", "risposta" to "YAML"), richiestaRisposta(c.risposta, "YAML"))
+        // E la vista le mostra anche senza «scelte», rispondendo con il testo.
+        val vista = File("src/main/java/it/ferrariconsulenze/sierradeck/Conversazioni.kt").readText()
+        assertTrue(vista.contains("if (!opzioni.isNullOrEmpty()) {"))
+        assertTrue(vista.contains("else manda({ api.rispondiConversazione(aperta.risposta, o.testo) }, o.testo)"))
+    }
 }

@@ -53,6 +53,22 @@ describe('le Domande come conversazioni a messaggi', () => {
     expect(conversazioniDomande({ voci: [], autopiloti: [ap] })).toEqual([])
   })
 
+  it('una preparazione con una domanda aperta produce un messaggio a cui si risponde, con le sue opzioni', () => {
+    // La domanda iniziale sta anche nella storia (motivoSospensione): una sola, in fondo, con le opzioni.
+    const prep = { ...ap, stato: 'intervista' as const, dialogo: [], motivoSospensione: 'Che formato deve leggere?' }
+    const voci: VoceDomanda[] = [{ tipo: 'autopilota', id: 'd9', autopilotaId: 'a1', autopilota: 'Sito', origine: 'intervista', testo: 'Che formato deve leggere?', opzioni: ['YAML', 'JSON'] }]
+    const [c] = conversazioniDomande({ voci, autopiloti: [prep] })
+    expect(c).toMatchObject({ chiave: 'ap:a1', chiede: true, risposta: { via: 'rispondi', domanda: 'd9' } })
+    expect(c!.sotto).toContain('si prepara')
+    const domande = c!.messaggi.filter((m) => m.tono === 'domanda')
+    expect(domande).toHaveLength(1)
+    expect(domande[0]).toMatchObject({ da: 'lui', testo: 'Che formato deve leggere?' })
+    expect(domande[0]!.opzioni?.map((o) => o.testo)).toEqual(['YAML', 'JSON'])
+    // Nessuna «scelta» del terminale: toccare un'opzione e' rispondere con quel testo.
+    expect(c!.scelte).toBeUndefined()
+    expect(richiestaRisposta(c!.risposta, 'YAML')).toEqual({ percorso: '/api/rispondi', corpo: { domanda: 'd9', risposta: 'YAML' } })
+  })
+
   it('si risponde dalle rotte di sempre, uguali sui tre lati', () => {
     expect(richiestaRisposta({ via: 'rispondi', domanda: 'd1' }, 'blu')).toEqual({ percorso: '/api/rispondi', corpo: { domanda: 'd1', risposta: 'blu' } })
     expect(richiestaRisposta({ via: 'scrivi', chat: 'c' }, 'vai')).toEqual({ percorso: '/api/scrivi', corpo: { chat: 'c', testo: 'vai' } })

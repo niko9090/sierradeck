@@ -38,6 +38,8 @@ export type VoceDomanda =
       testo: string
       apertaIl?: number
       scadeIl?: number
+      /** Le risposte da toccare, quando l'autopilota le propone. */
+      opzioni?: string[]
     }
   | {
       tipo: 'scelta'
@@ -109,7 +111,7 @@ export type ChatPerDomande = {
 
 export type AutopilotaPerDomande = { id: string; nome: string; obiettivo: string; stato: string }
 
-export type DomandaPerDomande = { id: string; autopilotaId: string; testo: string; apertaIl?: number; scadeIl?: number }
+export type DomandaPerDomande = { id: string; autopilotaId: string; testo: string; apertaIl?: number; scadeIl?: number; opzioni?: string[] }
 
 export function raccogliDomande(p: {
   domande: DomandaPerDomande[]
@@ -131,7 +133,8 @@ export function raccogliDomande(p: {
       origine: a?.stato === 'intervista' ? 'intervista' : 'lavoro',
       testo: d.testo,
       ...(d.apertaIl !== undefined ? { apertaIl: d.apertaIl } : {}),
-      ...(d.scadeIl !== undefined ? { scadeIl: d.scadeIl } : {})
+      ...(d.scadeIl !== undefined ? { scadeIl: d.scadeIl } : {}),
+      ...(d.opzioni !== undefined && d.opzioni.length > 0 ? { opzioni: d.opzioni } : {})
     })
   }
   const ferme: VoceDomanda[] = []

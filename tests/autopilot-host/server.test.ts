@@ -1848,3 +1848,76 @@ describe('il cloud e il Drive di SierraDeck (correzione di Nicholas, 30/09)', ()
     expect(visti.some((p) => p.includes('Autonomia completa'))).toBe(true)
   })
 })
+
+describe('le domande iniziali dell autopilota, dalle Domande (0.36.0)', () => {
+  async function attendi(condizione: () => Promise<boolean>): Promise<void> {
+    for (let i = 0; i < 80; i += 1) {
+      if (await condizione()) return
+      await new Promise((r) => setTimeout(r, 25))
+    }
+  }
+  const pronto = '{"pronto": true, "nome": "Lettore", "criteri": [{"descrizione": "i test passano", "comando": "npm test"}]}'
+
+  it('la domanda della preparazione porta le sue opzioni, e una risposta data dalle Domande la fa ripartire', async () => {
+    let giro = 0
+    server = ambiente({
+      interroga: (prompt) => {
+        if (!prompt.includes('Stai preparando un autopilota')) return Promise.resolve({ testo: '{"azione": "finito"}' })
+        giro += 1
+        return Promise.resolve({ testo: giro === 1 ? '{"domanda": "Che formato?", "opzioni": ["YAML", "JSON"]}' : pronto })
+      },
+      scadenzaInterviataMs: 5000
+    })
+    await avvia(server)
+    await chiama('POST', '/autopiloti', { obiettivo: 'Sistema il lettore', cwd: process.cwd(), criteri: [] })
+    await attendi(async () => (await chiama('GET', '/domande')).dati.length > 0)
+    const domanda = (await chiama('GET', '/domande')).dati[0]
+    expect(domanda.opzioni).toEqual(['YAML', 'JSON'])
+    // E' la strada di /api/rispondi dal telefono e dal PC: il registro del servizio.
+    await chiama('POST', `/domande/${domanda.id}/risposta`, { risposta: 'YAML' })
+    await attendi(async () => (await chiama('GET', '/autopiloti')).dati[0].stato === 'pronto')
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.stato).toBe('pronto')
+    expect(stato.intervista[0]).toMatchObject({ domanda: 'Che formato?', risposta: 'YAML' })
+  })
+
+  it('dopo un riavvio del servizio la domanda rimasta scritta torna nelle Domande, e la risposta fa ripartire la preparazione', async () => {
+    // Il difetto del 30/09: la domanda si vedeva nella chat con lui ma non
+    // era piu' nel registro (vive in memoria), quindi non si poteva rispondere.
+    server = ambiente({
+      interroga: (prompt) => Promise.resolve({ testo: prompt.includes('Stai preparando un autopilota') ? pronto : '{"azione": "finito"}' }),
+      scadenzaInterviataMs: 5000
+    })
+    const a = {
+      ...nuovoAutopilota({ id: 'ap-prep', nome: 'Prep', obiettivo: 'Sistema il lettore', cwd: process.cwd(), criteri: [], iniziatoIl: '2026-08-09T10:00:00.000Z', stato: 'intervista' }),
+      motivoSospensione: 'Che formato deve leggere?',
+      riprendiAlRiavvio: false
+    }
+    archivio.scrivi(a)
+    await avvia(server)
+    server.riprendiInterviste()
+    const aperte = (await chiama('GET', '/domande')).dati
+    expect(aperte).toHaveLength(1)
+    expect(aperte[0]).toMatchObject({ autopilotaId: 'ap-prep', testo: 'Che formato deve leggere?' })
+    await chiama('POST', `/domande/${aperte[0].id}/risposta`, { risposta: 'JSON' })
+    await attendi(async () => (await chiama('GET', '/autopiloti')).dati[0].stato === 'pronto')
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.stato).toBe('pronto')
+    expect(stato.intervista[0]).toMatchObject({ domanda: 'Che formato deve leggere?', risposta: 'JSON' })
+    // Una seconda ripresa non la riapre due volte.
+    server.riprendiInterviste()
+    expect((await chiama('GET', '/domande')).dati).toHaveLength(0)
+  })
+
+  it('«Pubblico adesso?» propone le due risposte da toccare', async () => {
+    server = ambiente()
+    await avvia(server)
+    const id = await creaAp({ pubblicazione: 'stabile', vaSulCloud: true })
+    const fermata = chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    await attendi(async () => (await chiama('GET', '/domande')).dati.length > 0)
+    const d = (await chiama('GET', '/domande')).dati[0]
+    expect(d.opzioni).toEqual(['sì, pubblica', 'no, lascia così'])
+    await chiama('POST', `/domande/${d.id}/risposta`, { risposta: 'sì, pubblica' })
+    expect((await fermata).dati.decision).toBe('block')
+  })
+})

@@ -686,9 +686,14 @@ function vistaConversazioni() {
   }).join('')
   var messaggi = aperta.messaggi.map(function (m) {
     if (m.da === 'nota') return '<div class="nota-ap"><span class="quando">' + oraDi(m.quando) + '</span><span>' + esc(m.testo) + '</span></div>'
-    var opzioni = (m.opzioni && aperta.scelte)
+    // Le opzioni: di una chat si scelgono nell'elenco del terminale; di un
+    // autopilota (domande iniziali, «Pubblico adesso?») toccarne una e'
+    // rispondere con quel testo.
+    var opzioni = (m.opzioni && m.opzioni.length)
       ? '<div class="scelte">' + m.opzioni.map(function (o) {
-          return '<button class="scelta' + (o.scelta ? ' scelta--ora' : '') + '" data-chat="' + esc(aperta.scelte.chat) + '" data-testo="' + esc(o.testo) + '" onclick="scegliIn(this.dataset.chat, this.dataset.testo)"><span class="scelta__n">' + o.numero + '</span>' + esc(o.testo) + '</button>'
+          return aperta.scelte
+            ? '<button class="scelta' + (o.scelta ? ' scelta--ora' : '') + '" data-chat="' + esc(aperta.scelte.chat) + '" data-testo="' + esc(o.testo) + '" onclick="scegliIn(this.dataset.chat, this.dataset.testo)"><span class="scelta__n">' + o.numero + '</span>' + esc(o.testo) + '</button>'
+            : '<button class="scelta" data-k="' + esc(aperta.chiave) + '" data-testo="' + esc(o.testo) + '" onclick="rispondiOpzione(this.dataset.k, this.dataset.testo)"><span class="scelta__n">' + o.numero + '</span>' + esc(o.testo) + '</button>'
         }).join('') + '</div>'
       : ''
     return '<div class="battuta battuta--' + (m.da === 'tu' ? 'tu' : 'lui') + (m.tono === 'domanda' ? ' battuta--domanda' : '') + '">' +
@@ -2511,6 +2516,18 @@ window.rispondiVoce = async (id) => {
   pannello(ultimoStato)
 }
 window.apriConv = (chiave) => { domandaAperta = chiave; pannello(ultimoStato) }
+window.rispondiOpzione = async (chiave, testo) => {
+  const conv = (domandeConversazioni || []).find((c) => c.chiave === chiave)
+  if (!conv) return
+  const r = richiestaDi(conv.risposta, testo)
+  try {
+    await chiedi(r.percorso, r.corpo)
+    domandeMandate[conv.chiave] = testo
+  } catch (e) {
+    notaGlobale = 'Non sono riuscito a mandarla: ' + (e && e.message ? e.message : 'il computer non risponde')
+  }
+  await leggiDomande()
+}
 window.rispondiConv = async (chiave) => {
   const conv = (domandeConversazioni || []).find((c) => c.chiave === chiave)
   const campo = document.getElementById('conv-testo')

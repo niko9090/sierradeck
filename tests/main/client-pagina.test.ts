@@ -856,6 +856,26 @@ describe('la pagina: Domande come conversazioni e albero delle chat', () => {
     expect(script).toContain('domandeConversazioni ? vistaConversazioni() : vistaDomande(s)')
   })
 
+  it('le domande iniziali di un autopilota: le opzioni si toccano e rispondono con quel testo', () => {
+    const conv = [{
+      chiave: 'ap:a1', tipo: 'autopilota', titolo: 'Sito', sotto: 'si prepara', chiede: true,
+      messaggi: [{ da: 'lui', testo: 'Che formato?', tono: 'domanda', opzioni: [{ numero: 1, testo: 'YAML', scelta: false }] }],
+      risposta: { via: 'rispondi', domanda: 'd9' }, segnaposto: 'Rispondi'
+    }]
+    const html = new Function(
+      `var domandeConversazioni = ${JSON.stringify(conv)}; var domandaAperta = null; var domandeMandate = {};
+` +
+      `${riga('const esc =')}
+${estrai('oraDi')}
+${estrai('vistaConversazioni')}
+return vistaConversazioni()`
+    )() as string
+    expect(html).toContain('onclick="rispondiOpzione(this.dataset.k, this.dataset.testo)"')
+    expect(html).toContain('data-testo="YAML"')
+    expect(html).not.toContain('scegliIn(')
+    expect(script).toContain('window.rispondiOpzione = async (chiave, testo) =>')
+  })
+
   it('il dettaglio dell autopilota mostra l albero: coordinatore, chat, rami', () => {
     const a = { stato: 'lavoro', ramoBase: 'main', albero: { parola: 'coordina', figli: [
       { titolo: 'le API', parola: 'al lavoro', stato: 'lavoro', cicli: 2, ramo: 'ap/a1/c-1' },

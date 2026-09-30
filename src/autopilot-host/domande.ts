@@ -9,12 +9,14 @@ export type DomandaAperta = {
   apertaIl: number
   /** Il momento oltre il quale chi attende smette di aspettare. */
   scadeIl: number
+  /** Le risposte da toccare, quando chi chiede le propone (0.36.0). */
+  opzioni?: string[]
 }
 
 export type Risposta = { risposta: string; da: Provenienza }
 
 export type RegistroDomande = {
-  apri: (p: { autopilotaId: string; testo: string; scadenzaMs: number }) => DomandaAperta
+  apri: (p: { autopilotaId: string; testo: string; scadenzaMs: number; opzioni?: string[] }) => DomandaAperta
   /**
    * Attende la risposta. Restituisce `undefined` se scade: chi aspettava è
    * libero, ma la domanda resta aperta per una risposta tardiva.
@@ -57,13 +59,14 @@ export function creaRegistroDomande(deps: { adesso: () => number }): RegistroDom
   let tardiva: ((id: string, risposta: string, da: Provenienza) => void) | undefined
 
   return {
-    apri({ autopilotaId, testo, scadenzaMs }) {
+    apri({ autopilotaId, testo, scadenzaMs, opzioni }) {
       const domanda: DomandaAperta = {
         id: `d-${randomUUID()}`,
         autopilotaId,
         testo,
         apertaIl: deps.adesso(),
-        scadeIl: deps.adesso() + scadenzaMs
+        scadeIl: deps.adesso() + scadenzaMs,
+        ...(opzioni !== undefined && opzioni.length > 0 ? { opzioni } : {})
       }
       voci.set(domanda.id, { domanda, attese: [] })
       return domanda

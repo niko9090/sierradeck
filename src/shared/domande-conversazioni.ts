@@ -82,12 +82,20 @@ export function conversazioniDomande(p: {
         ...(b.tono !== undefined ? { tono: b.tono } : {})
       }))
       // La domanda aperta sta **sempre** in fondo: con una flotta l'autopilota
-      // resta «al lavoro» e la sua storia non la mostra da sola.
+      // resta «al lavoro» e la sua storia non la mostra da sola. Con le sue
+      // opzioni, se ne propone: toccarne una e' rispondere con quel testo.
+      const opzioni = (v.opzioni ?? []).map((testo, i) => ({ numero: i + 1, testo, scelta: false }))
+      const conOpzioni = opzioni.length > 0 ? { opzioni } : {}
       const ultima = messaggi[messaggi.length - 1]
       if (ultima === undefined || ultima.testo !== v.testo) {
-        messaggi.push({ da: 'lui', testo: v.testo, tono: 'domanda' })
+        // La domanda della preparazione sta anche nella sua storia, magari
+        // tagliata: si toglie la copia vecchia e resta quella intera, in fondo.
+        const copia = messaggi.findIndex((m) => m.tono === 'domanda' && v.testo.startsWith(m.testo.slice(0, 60)))
+        if (copia >= 0) messaggi.splice(copia, 1)
+        messaggi.push({ da: 'lui', testo: v.testo, tono: 'domanda', ...conOpzioni })
       } else {
         ultima.tono = 'domanda'
+        Object.assign(ultima, conOpzioni)
       }
       if (gia.has(chiave)) continue // una conversazione per autopilota: la prima domanda
       gia.add(chiave)
@@ -95,11 +103,15 @@ export function conversazioniDomande(p: {
         chiave,
         tipo: 'autopilota',
         titolo: v.autopilota,
-        sotto: v.origine === 'intervista' ? 'prima di partire: senza la tua risposta non comincia' : (a?.cwd ?? ''),
+        sotto: v.origine === 'intervista'
+          ? 'si prepara: ti fa una domanda prima di partire, e senza la tua risposta non comincia'
+          : (a?.cwd ?? ''),
         chiede: true,
         messaggi,
         risposta: { via: 'rispondi', domanda: v.id },
-        segnaposto: 'Rispondi all’autopilota: arriva subito alla chat ferma'
+        segnaposto: v.origine === 'intervista'
+          ? 'Rispondi (o tocca un’opzione): la preparazione riparte con la tua risposta'
+          : 'Rispondi all’autopilota: arriva subito alla chat ferma'
       })
       continue
     }

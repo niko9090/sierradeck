@@ -131,7 +131,16 @@ fun VistaConversazioni(api: Api, elenco: List<Conversazione>, onRiletto: () -> U
             )
         }
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp), state = lista) {
-            items(aperta.messaggi) { m -> Messaggio(m, aperta, inCorso) { o -> manda({ api.scegli(aperta.scelte?.chat ?: "", o.testo) }, o.testo) } }
+            items(aperta.messaggi) { m ->
+                Messaggio(m, aperta, inCorso) { o ->
+                    // Una chat: si sceglie nell'elenco del terminale. Un autopilota
+                    // (domande iniziali, «Pubblico adesso?»): toccare un'opzione e'
+                    // rispondere con quel testo.
+                    val scelte = aperta.scelte
+                    if (scelte != null) manda({ api.scegli(scelte.chat, o.testo) }, o.testo)
+                    else manda({ api.rispondiConversazione(aperta.risposta, o.testo) }, o.testo)
+                }
+            }
             items(inAttesa) { t -> Messaggio(MessaggioConversazione(da = "tu", testo = t), aperta, true, "tu · mandato, aspetto il computer") {} }
         }
         Column(Modifier.fillMaxWidth().background(Banco.chassis).padding(10.dp)) {
@@ -197,7 +206,7 @@ private fun Messaggio(m: MessaggioConversazione, c: Conversazione, occupato: Boo
             // Il testo si seleziona e si copia (tocco lungo).
             SelectionContainer { Text(m.testo, color = Banco.testo, fontSize = 14.sp) }
             val opzioni = m.opzioni
-            if (!opzioni.isNullOrEmpty() && c.scelte != null) {
+            if (!opzioni.isNullOrEmpty()) {
                 Spacer(Modifier.height(6.dp))
                 for (o in opzioni) {
                     Row(
