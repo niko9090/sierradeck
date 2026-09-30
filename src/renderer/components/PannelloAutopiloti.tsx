@@ -287,9 +287,9 @@ export function PannelloAutopiloti({
               <span className="serigrafia">Cloud</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <input type="checkbox" checked={bozza.cloud} onChange={(e) => setBozza({ ...bozza, cloud: e.target.checked })} />
-                il progetto va sul cloud
+                va sul cloud: le chat stanno sul Drive
               </span>
-              <span className="misura">Con il cloud — questa spunta, oppure un remoto git, uno script di pubblicazione o di deploy che lui riconosce da solo — fa tutto senza chiederti: commit, unione dei suoi rami, push e pubblicazione secondo la regola qui accanto. Senza cloud fa commit sui suoi rami e li unisce, e basta.</span>
+              <span className="misura">Il «cloud» è il Drive di SierraDeck, dove si salvano le chat. Se le chat di questo progetto stanno sul Drive (questa spunta, oppure la sincronizzazione Drive del progetto già accesa) lavora in autonomia completa, senza farti domande: commit, unione dei suoi rami, push e pubblicazione secondo la regola qui accanto. Il remoto git e gli script di pubblicazione del progetto servono solo a sapere dove mandare su e con quale comando pubblicare. Senza Drive fa commit sui suoi rami e li unisce, e basta: niente push, niente pubblicazione.</span>
             </label>
           </div>
           <p className="misura" style={{ margin: 0 }}>

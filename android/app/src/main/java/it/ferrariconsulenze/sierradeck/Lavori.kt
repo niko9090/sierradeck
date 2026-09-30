@@ -837,10 +837,10 @@ private fun Delega(api: Api, onChiudi: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Switch(checked = cloud, onCheckedChange = { cloud = it })
                     Spacer(Modifier.width(8.dp))
-                    Text("il progetto va sul cloud", color = Banco.testo, fontSize = 13.sp)
+                    Text("va sul cloud: le chat stanno sul Drive", color = Banco.testo, fontSize = 13.sp)
                 }
                 Text(
-                    "Con il cloud (questa spunta, o un remoto git, uno script di pubblicazione o di deploy che riconosce da solo) fa tutto senza chiederti: commit, unione dei suoi rami, push e pubblicazione secondo la regola. Quante chat apre lo decide lui, dentro il freno sui limiti del piano.",
+                    "Il «cloud» è il Drive di SierraDeck, dove si salvano le chat. Se le chat di questo progetto stanno sul Drive (questa spunta, oppure la sincronizzazione Drive del progetto già accesa) lavora in autonomia completa, senza farti domande: commit, unione dei suoi rami, push e pubblicazione secondo la regola qui accanto. Il remoto git e gli script di pubblicazione del progetto servono solo a sapere dove mandare su e con quale comando pubblicare. Senza Drive fa commit sui suoi rami e li unisce, e basta: niente push, niente pubblicazione. Quante chat apre lo decide lui, dentro il freno sui limiti del piano.",
                     color = Banco.testoQuieto, fontSize = 11.sp
                 )
                 Spacer(Modifier.height(10.dp))

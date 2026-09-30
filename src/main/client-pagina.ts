@@ -1404,8 +1404,8 @@ function pannello(s) {
            <option value="beta">beta: pubblica sempre</option>
            <option value="unica">versione unica: decide il progetto</option>
          </select>
-         <label class="spunta" style="display:block;margin-top:8px"><input type="checkbox" id="delega-cloud"> il progetto va sul cloud</label>
-         <div class="sotto">Con il cloud (questa spunta, o un remoto git, uno script di pubblicazione o di deploy che riconosce da solo) fa tutto senza chiederti: commit, unione dei suoi rami, push e pubblicazione secondo la regola. Senza, fa commit sui suoi rami e li unisce, e basta. Quante chat apre lo decide lui, dentro il freno sui limiti del piano.</div>
+         <label class="spunta" style="display:block;margin-top:8px"><input type="checkbox" id="delega-cloud"> va sul cloud: le chat stanno sul Drive</label>
+         <div class="sotto">Il «cloud» è il Drive di SierraDeck, dove si salvano le chat. Se le chat di questo progetto stanno sul Drive (questa spunta, oppure la sincronizzazione Drive del progetto già accesa) lavora in autonomia completa, senza farti domande: commit, unione dei suoi rami, push e pubblicazione secondo la regola qui accanto. Il remoto git e gli script di pubblicazione del progetto servono solo a sapere dove mandare su e con quale comando pubblicare. Senza Drive fa commit sui suoi rami e li unisce, e basta: niente push, niente pubblicazione. Quante chat apre lo decide lui, dentro il freno sui limiti del piano.</div>
          <div class="riga">
            <button class="primario" onclick="affida()">Affida</button>
            <button onclick="delegando = false; delegaCartella = -1; cartelle = null; pannello(ultimoStato)">Lascia stare</button>
