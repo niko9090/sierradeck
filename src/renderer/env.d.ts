@@ -364,6 +364,8 @@ declare global {
         riprendiAlRiavvio: (id: string, riprendi: boolean) => Promise<void>
         archivia: (id: string, archivia: boolean) => Promise<void>
         nota: (id: string, testo: string) => Promise<void>
+        file: (id: string) => Promise<import('@shared/file-autopilota').GruppoChat[]>
+        diff: (id: string, chiave: string, percorso: string) => Promise<string>
         elimina: (id: string) => Promise<void>
         domande: () => Promise<DomandaAperta[]>
         rispondi: (idDomanda: string, risposta: string) => Promise<void>

@@ -1282,3 +1282,20 @@ describe('tutte le domande e un conteggio solo (0.37.2)', () => {
     expect((e.corpo as { errore: string }).errore).toContain('non risponde')
   })
 })
+
+describe('la linguetta «File» dal telefono (0.38.0)', () => {
+  it('elenco e diff in sola lettura; un computer vecchio lo dice', async () => {
+    const su = deps({
+      fileAutopilota: (id) => Promise.resolve([{ chiave: 'principale', nome: 'Cartella del progetto', cartella: 'C:\p', base: 'x', file: [{ percorso: 'a.ts', stato: 'modificato', piu: 1, meno: 0, salvato: false }] , id }]),
+      diffAutopilota: (_id, chiave, percorso) => (percorso === 'a.ts' ? Promise.resolve(`diff ${chiave}`) : Promise.reject(new Error('quel file non è fra quelli cambiati')))
+    })
+    const f = await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/file', corpo: { autopilota: 'ap-1' } })
+    expect((f.corpo as { gruppi: { file: unknown[] }[] }).gruppi[0]?.file).toHaveLength(1)
+    const d = await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/diff', corpo: { autopilota: 'ap-1', chat: 'principale', percorso: 'a.ts' } })
+    expect((d.corpo as { diff: string }).diff).toBe('diff principale')
+    const no = await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/diff', corpo: { autopilota: 'ap-1', chat: 'principale', percorso: '../x' } })
+    expect(no.stato).toBe(404)
+    const vecchio = await rotteClient(deps())({ metodo: 'POST', percorso: '/api/autopilota/file', corpo: { autopilota: 'ap-1' } })
+    expect(vecchio.stato).toBe(409)
+  })
+})

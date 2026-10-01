@@ -49,6 +49,7 @@ import { listSessions } from './db'
 import { riassumiConsumi, type Consumi } from '@shared/consumi'
 import { costoPerPeriodo, leggiPolso, limitiAggiornati, rigaDiStato, type Polso } from '@shared/polso-chat'
 import { etichettaContesto, limitiPerFreno, unisciPolso } from '@shared/limiti-piano'
+import { diffDellAutopilota, fileDellAutopilota } from './file-autopilota'
 import { frenoDaiLimiti, testoFreno } from '@shared/harness'
 import { creaWorkspace, eliminaWorkspace } from './workspace-operazioni'
 import type { SessionSummary } from '@shared/types'
@@ -2332,6 +2333,17 @@ if (!app.requestSingleInstanceLock()) {
           return Array.isArray(r?.grezze) ? (r.grezze as string[]) : undefined
         },
 
+        // La linguetta «File» dal telefono (0.38.0): le stesse funzioni del PC.
+        fileAutopilota: async (id: string) => {
+          const a = (await clientAutopilota.elenca()).find((x) => x.id === id)
+          if (a === undefined) throw new Error('autopilota inesistente')
+          return fileDellAutopilota(a)
+        },
+        diffAutopilota: async (id: string, chiave: string, percorso: string) => {
+          const a = (await clientAutopilota.elenca()).find((x) => x.id === id)
+          if (a === undefined) throw new Error('autopilota inesistente')
+          return diffDellAutopilota(a, chiave, percorso)
+        },
         // Le Domande rispondono anche alle chat degli altri PC accesi (0.37.2):
         // si cerca la chat per sessione sul Client di quel PC e le si scrive.
         scriviAltroPc: async (pcId: string, sessione: string, t: string): Promise<{ ok: true } | { ok: false; messaggio: string }> => {

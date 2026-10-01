@@ -125,6 +125,9 @@ export type DipendenzeRotte = {
    * Domande, a una chat che aspetta su un altro computer acceso.
    */
   scriviAltroPc?: (pcId: string, sessione: string, testo: string) => Promise<{ ok: true } | { ok: false; messaggio: string }>
+  /** La linguetta «File» dal telefono (0.38.0): solo lettura. */
+  fileAutopilota?: (id: string) => Promise<unknown>
+  diffAutopilota?: (id: string, chiave: string, percorso: string) => Promise<string>
   /**
    * Apre una chat nuova in una cartella già conosciuta.
    *
@@ -848,6 +851,23 @@ export function rotteClient(deps: DipendenzeRotte) {
     // Il via a chi si è preparato. Sta qui perché è dal telefono che si scopre
     // di averlo pronto: l'avviso arriva mentre si è altrove, e senza questo
     // tasto il lavoro resterebbe fermo fino al ritorno alla scrivania.
+    // La linguetta «File» (0.38.0): i file che l'autopilota ha cambiato, per
+    // chat, e il diff di uno. Solo lettura, come sul PC.
+    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/file') {
+      const id = stringa(r.corpo, 'autopilota')
+      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
+      if (deps.fileAutopilota === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora mostrare i file: aggiornalo' } }
+      try { return OK({ gruppi: await deps.fileAutopilota(id) }) } catch (e) { return { stato: 404, corpo: { errore: e instanceof Error ? e.message : String(e) } } }
+    }
+    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/diff') {
+      const id = stringa(r.corpo, 'autopilota')
+      const chiave = stringa(r.corpo, 'chat')
+      const percorso = stringa(r.corpo, 'percorso')
+      if (id === '' || chiave === '' || percorso === '') return { stato: 400, corpo: { errore: 'servono autopilota, chat e percorso' } }
+      if (deps.diffAutopilota === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora mostrare i file: aggiornalo' } }
+      try { return OK({ diff: await deps.diffAutopilota(id, chiave, percorso) }) } catch (e) { return { stato: 404, corpo: { errore: e instanceof Error ? e.message : String(e) } } }
+    }
+
     if (r.metodo === 'POST' && r.percorso === '/api/autopilota/vai') {
       const id = stringa(r.corpo, 'autopilota')
       if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }

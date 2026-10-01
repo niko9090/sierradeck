@@ -327,6 +327,11 @@ export type Autopilota = {
   consegna?: { remoto?: string; comandoPubblica?: string; segni: string[] }
   /** Il ramo principale del progetto quando le chat lavorano in worktree. */
   ramoBase?: string
+  /**
+   * Il commit da cui e' partito (0.38.0): la linguetta «File» confronta i file
+   * cambiati contro questo punto.
+   */
+  commitBase?: string
   /** Fermo per i limiti del piano fino a questo istante (ISO): poi riparte da solo. */
   pausaLimitiFinoA?: string
   /** Pubblicazione chiesta a Nicholas e in attesa del sì (regola «stabile»). */
@@ -729,6 +734,7 @@ export function parseAutopilota(raw: unknown): {
       ...(parseCloud(o.cloud) !== undefined ? { cloud: parseCloud(o.cloud) as { attivo: boolean; segni: string[] } } : {}),
       ...(parseConsegna(o.consegna) !== undefined ? { consegna: parseConsegna(o.consegna) as { remoto?: string; comandoPubblica?: string; segni: string[] } } : {}),
       ...(stringaNonVuota(o.ramoBase) !== undefined ? { ramoBase: o.ramoBase as string } : {}),
+      ...(typeof o.commitBase === 'string' && /^[0-9a-f]{7,64}$/.test(o.commitBase) ? { commitBase: o.commitBase } : {}),
       ...(stringaNonVuota(o.pausaLimitiFinoA) !== undefined ? { pausaLimitiFinoA: o.pausaLimitiFinoA as string } : {}),
       ...(o.pubblicazioneInAttesa === true ? { pubblicazioneInAttesa: true } : {}),
       ...(o.pubblicazioneIstruita === true ? { pubblicazioneIstruita: true } : {}),

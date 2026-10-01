@@ -1130,7 +1130,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // Il cloud e' il Drive di SierraDeck (o la spunta); il remoto e gli script
     // dicono solo dove fare il push e con quale comando pubblicare.
     const consegna = git !== undefined ? comeConsegnare(fattiPubblicazione(git, iniziale.cwd)) : undefined
-    let a: Autopilota = { ...iniziale, cloud: cloudDi(iniziale), ...(consegna !== undefined ? { consegna } : {}) }
+    // Il punto di partenza, per la linguetta «File» (0.38.0): si fissa la prima
+    // volta che parte e non cambia piu'.
+    const testa = git !== undefined && radice !== undefined && iniziale.commitBase === undefined ? git(['rev-parse', 'HEAD'], iniziale.cwd) : undefined
+    const commitBase = testa !== undefined && testa.codice === 0 && /^[0-9a-f]{7,64}$/.test(testa.uscita.trim()) ? testa.uscita.trim() : undefined
+    let a: Autopilota = { ...iniziale, cloud: cloudDi(iniziale), ...(consegna !== undefined ? { consegna } : {}), ...(commitBase !== undefined ? { commitBase } : {}) }
     const freno = frenoAdesso()
     if (freno.livello === 'fermo') {
       // Il piano e' quasi finito: si parte dopo l'azzeramento, da soli.

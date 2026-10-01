@@ -7,6 +7,7 @@ import { diario } from '../diario-autopilota'
 import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
 import { ChatAutopilota } from './ChatAutopilota'
 import { DomandeAutopilota } from './DomandeAutopilota'
+import { FileAutopilota } from './FileAutopilota'
 import { domandaArrivata, domandeScheda, type DomandaApertaServizio } from '@shared/domande-autopilota'
 import {
   CompitiAutopilota, CriteriAutopilota, ObiettivoAutopilota, RagionamentiAutopilota
@@ -19,11 +20,12 @@ function ora(iso: string): string {
 }
 
 /** Le linguette sotto la chat: una cosa per volta, ognuna con tutto lo spazio. */
-type Linguetta = 'domande' | 'lavoro' | 'obiettivo' | 'criteri' | 'compiti' | 'diario'
+type Linguetta = 'domande' | 'lavoro' | 'file' | 'obiettivo' | 'criteri' | 'compiti' | 'diario'
 
 const LINGUETTE: { id: Linguetta; nome: string; titolo: string }[] = [
   { id: 'domande', nome: 'Domande', titolo: 'Le sue domande non ancora risposte, una per volta: rispondi da qui' },
   { id: 'lavoro', nome: 'Sta facendo', titolo: 'Cosa sta scrivendo adesso la chat che esegue' },
+  { id: 'file', nome: 'File', titolo: 'I file che ha cambiato, per chat, con il diff: solo da guardare' },
   { id: 'obiettivo', nome: 'Obiettivo', titolo: 'Cosa gli hai chiesto, cosa ha capito, a che punto è, le sue chat' },
   { id: 'criteri', nome: 'Criteri', titolo: 'Quando considera finito il lavoro, e come lo misura' },
   { id: 'compiti', nome: 'Compiti', titolo: 'I pezzi di lavoro in coda' },
@@ -243,6 +245,8 @@ export function DiarioAutopilota({
     switch (linguetta) {
       case 'domande':
         return <DomandeAutopilota autopilota={autopilota} domande={schede} onRisposto={() => { leggiDomande(); onCambiato() }} />
+      case 'file':
+        return <FileAutopilota autopilota={autopilota} />
       case 'obiettivo':
         return <ObiettivoAutopilota autopilota={autopilota} />
       case 'criteri':

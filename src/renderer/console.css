@@ -4136,3 +4136,33 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .domande-ap__tasti { display: flex; justify-content: flex-end; }
 .domande-ap__nota { margin: 0; line-height: 1.5; }
 .domande-lato__rimando { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s2) 0; }
+
+/* ─────────────── la linguetta «File» della scheda dell'autopilota (0.38.0) ─────────────── */
+.file-ap { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s2) 0; user-select: text; }
+.file-ap__cosa, .file-ap__base { margin: 0; line-height: 1.5; }
+.file-ap__gruppo { display: flex; flex-direction: column; gap: 4px; }
+.file-ap__testa { display: flex; align-items: center; gap: var(--s2); }
+.file-ap__elenco { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.file-ap__file {
+  display: grid; grid-template-columns: 6.5em 1fr auto 6em; gap: var(--s2); align-items: center;
+  width: 100%; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 4px;
+  padding: 2px var(--s1); color: var(--testo); font: inherit; cursor: pointer;
+}
+.file-ap__file:hover, .file-ap__file--scelto { border-color: var(--luce-incisione); background: var(--chassis-alto, transparent); }
+.file-ap__nome { font-family: ui-monospace, Consolas, monospace; font-size: var(--t1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-ap__stato { font-size: var(--t1); color: var(--testo-quieto); }
+.file-ap__stato--nuovo { color: var(--verde, #54c07a); }
+.file-ap__stato--cancellato { color: var(--rosso, #dc5f5f); }
+.file-ap__stato--rinominato { color: var(--ambra); }
+.file-ap__righe { font-family: ui-monospace, Consolas, monospace; font-size: var(--t1); white-space: nowrap; }
+.file-ap__piu { color: var(--verde, #54c07a); }
+.file-ap__meno { color: var(--rosso, #dc5f5f); }
+.file-ap__salvato { font-size: var(--t1); color: var(--testo-quieto); text-align: right; }
+.file-ap__salvato--no { color: var(--ambra); }
+.file-ap__diff { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--luce-incisione); padding-top: var(--s2); }
+.file-ap__codice { margin: 0; max-height: 60vh; overflow: auto; font-family: ui-monospace, Consolas, monospace; font-size: var(--t1); line-height: 1.45; }
+.file-ap__riga { white-space: pre; padding: 0 var(--s1); }
+.file-ap__riga--piu { background: color-mix(in srgb, var(--verde, #54c07a) 18%, transparent); }
+.file-ap__riga--meno { background: color-mix(in srgb, var(--rosso, #dc5f5f) 18%, transparent); }
+.file-ap__riga--blocco { color: var(--accento, #4aa3ff); }
+.file-ap__riga--testa { color: var(--testo-quieto); }

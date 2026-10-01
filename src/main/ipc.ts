@@ -1,4 +1,5 @@
 import { app, ipcMain, screen, shell, BrowserWindow } from 'electron'
+import { diffDellAutopilota, fileDellAutopilota } from './file-autopilota'
 import { basename, dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, copyFileSync } from 'node:fs'
@@ -1347,6 +1348,20 @@ export function registerAutopilotaIpc(client: ClientAutopilota): void {
   ipcMain.handle('autopilota:riprendi', (_e, id: unknown) => client.riprendi(validaIdAutopilota(id)))
   ipcMain.handle('autopilota:riprendiAlRiavvio', (_e, id: unknown, riprendi: unknown) =>
     client.riprendiAlRiavvio(validaIdAutopilota(id), riprendi === true))
+  // La linguetta «File» (0.38.0): solo lettura, cartelle e base dal servizio.
+  ipcMain.handle('autopilota:file', async (_e, id: unknown) => {
+    const valido = validaIdAutopilota(id)
+    const a = (await client.elenca()).find((x) => x.id === valido)
+    if (a === undefined) throw new Error('autopilota inesistente')
+    return fileDellAutopilota(a)
+  })
+  ipcMain.handle('autopilota:diff', async (_e, id: unknown, chiave: unknown, percorso: unknown) => {
+    const valido = validaIdAutopilota(id)
+    if (typeof chiave !== 'string' || typeof percorso !== 'string') throw new Error('richiesta IPC non valida')
+    const a = (await client.elenca()).find((x) => x.id === valido)
+    if (a === undefined) throw new Error('autopilota inesistente')
+    return diffDellAutopilota(a, chiave, percorso)
+  })
   ipcMain.handle('autopilota:nota', (_e, id: unknown, testo: unknown) =>
     client.nota(validaIdAutopilota(id), typeof testo === 'string' ? testo.slice(0, 500) : ''))
   ipcMain.handle('autopilota:archivia', (_e, id: unknown, archivia: unknown) =>
