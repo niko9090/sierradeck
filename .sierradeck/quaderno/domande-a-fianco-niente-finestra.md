@@ -1,6 +1,6 @@
 ---
-titolo: "Domande sempre a fianco della chat, niente finestra; nessuna domanda persa (0.37.2)"
-quando: 2026-10-01T18:00:00+02:00
+titolo: "Domande sempre a fianco della chat, niente finestra; nessuna domanda persa (0.37.2, 0.37.3)"
+quando: 2026-10-01T18:40:00+02:00
 tag: ["domande", "autopilota", "colonna", "telefono", "decisione-nicholas"]
 ---
 
@@ -42,3 +42,29 @@ Nicholas (01/10), a una domanda dell'autopilota che gli era arrivata nella vecch
 - `tests/main/client-rotte.test.ts` («tutte le domande e un conteggio solo»): `chiedono` è uguale a `domandeInAttesa`, la chat di questo stesso PC non è doppia, `/api/scrivi` con `pc:` funziona e con il PC che non risponde dà 502.
 - `tests/renderer/colonna-domande.test.ts`: la modale non c'è; apertura ed evidenza; niente `focus()`.
 - `DomandeContoTest.kt`.
+
+# 0.37.3 — «NON VEDO LE DOMANDEEEE!!!!» (Nicholas, 01/10, 13:52 UTC)
+
+**Cronologia vera** (dal diario dell'autopilota):
+- 12:46 UTC: il supervisore apre una domanda (`chiediUtente`), che finisce nel registro del servizio.
+- 13:52 UTC: arriva come «risposta tardiva» il grido di Nicholas. Sul PC girava ancora la 0.37.1, con la finestra modale; la 0.37.2 è partita alle 13:56 UTC.
+- Dopo, il servizio non aveva più domande aperte (`GET :47630/domande` → `[]`).
+
+**Punto debole della 0.37.2 (causa).** La colonna si apriva da sola **solo per una domanda mai vista** (`domandeNuove`). Restavano nascoste due situazioni:
+- una domanda già in attesa all'avvio e già segnata come vista (`localStorage['domande-viste']`);
+- una domanda vista e poi la colonna chiusa.
+
+In entrambi i casi l'unico segno era il piccolo numero sul tasto.
+
+**Correzione.** `decidiColonnaDomande` (pura, in `shared/domande-conversazioni.ts`), chiamata a ogni lettura di `/api/domande` in `App.tsx`:
+- **All'avvio** (prima lettura dopo le preferenze, flag `preferenzeLette`, altrimenti le preferenze lette dopo la richiuderebbero): se c'è qualcosa che chiede, apre la colonna e mette in evidenza la prima domanda, vista o no.
+- Durante il lavoro si apre per ogni domanda nuova. La chiusura a mano vale solo finché non ne arriva una diversa.
+- Domande in attesa e colonna chiusa: `richiamo`, cioè il tasto «Domande» con la classe `tasto--chiama`, ambra e pulsante con il numero (senza animazione con `prefers-reduced-motion`).
+
+**Verifica con il servizio vero.** `tests/main/domande-dal-servizio.test.ts` fa tutto il giro:
+- avvia `creaServer` con un registro, apre una domanda come «chiediUtente» con le opzioni;
+- usa il client vero (`creaClientAutopilota`) e `rotteClient`;
+- controlla che `/api/domande` contenga la conversazione con le opzioni e che, anche se già vista, all'avvio apra la colonna;
+- manda la risposta con `richiestaRisposta` e verifica che il servizio la riceva (`attendi` → «sì», registro vuoto).
+
+Gli altri casi di `decidiColonnaDomande` sono nello stesso file. Il tasto è controllato in `colonna-domande.test.ts`.

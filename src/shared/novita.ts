@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.37.3',
+    righe: [
+      '**Dove trovi le domande: nella colonna «Domande», a destra delle chat.** Si apre e si chiude dal tasto «Domande» nella fascia in alto. Dentro ci sono tutte: le domande degli autopiloti (anche quelle iniziali, il via e «Pubblico adesso?»), le chat ferme su un permesso, le chat che hanno finito il turno, anche quelle degli altri tuoi PC accesi. Si risponde da lì, toccando un’opzione o scrivendo.',
+      '**Una domanda in attesa non resta più nascosta.** All’avvio, se qualcosa aspetta una tua risposta, la colonna si apre da sola e mette in vista la prima domanda, anche se l’avevi già vista prima. Se la chiudi, il tasto «Domande» diventa ambra e pulsa con il numero finché non la riapri, e una domanda nuova la riapre da sola. Prima una domanda già vista restava segnalata solo dal numero sul tasto.'
+    ]
+  },
+  {
     versione: '0.37.2',
     righe: [
       '**Le domande si aprono sempre a fianco della chat, non più in una finestra.** Quando arriva una domanda nuova (un autopilota che chiede, una domanda iniziale, il via, «Pubblico adesso?», una chat ferma su un permesso), la colonna Domande si apre da sola e la mette in evidenza. Non ti toglie la tastiera: se stai scrivendo in una chat continui a scrivere. Se la chiudi, si riapre solo per una domanda nuova. La finestra che compariva sopra tutto non c’è più: opzioni, testo libero e risposta stanno nella colonna.',
