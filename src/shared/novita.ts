@@ -41,6 +41,17 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.38.0',
+    righe: [
+      '**Le domande di un autopilota hanno una linguetta tutta loro: «Domande», nella sua scheda accanto alla chat.** Compare solo quando ti ha chiesto qualcosa, con il numero di quelle non risposte, e quando ne arriva una si apre da sola. Le vedi una per volta: il testo intero, le opzioni da toccare, una casella per rispondere con parole tue e «1 di 3» se sono più d’una. Vale per tutte: le domande iniziali, quelle durante il lavoro, il via, «Pubblico adesso?».',
+      '**Nella chat con l’autopilota le domande non compaiono più.** Quando rispondi, la risposta gli arriva subito e nella chat restano, una sotto l’altra, la domanda e la tua risposta. Poi la linguetta passa alla domanda successiva o, finite, si chiude e torni dov’eri. Nella colonna Domande a destra un autopilota è una riga sola, «ti aspetta (2) → apri», che porta alla sua linguetta; il numero sul tasto «Domande» le conta tutte.',
+      '**Nuova linguetta «File»: i file che l’autopilota ha cambiato.** Per la cartella del progetto e per la cartella di ogni sua chat vedi i file nuovi, modificati, cancellati o rinominati, quante righe ha aggiunto e tolto, e se sono già salvati nella storia del progetto o ancora da salvare. Toccando un file vedi le righe tolte (rosse) e aggiunte (verdi). Il confronto è con il punto da cui l’autopilota è partito. Si aggiorna da sola mentre lavora; qui si guarda soltanto.',
+      '**Ogni linguetta si stacca in una finestra sua, da portare anche su un altro schermo.** Premi «⧉ Stacca» in fondo alla barra delle linguette, oppure trascina una linguetta fuori dalla barra: diventa una finestra vera, che sposti e ridimensioni come vuoi. Mentre è staccata sparisce dalla barra. Per rimetterla premi «Rimetti al suo posto» in cima alla finestra, oppure chiudila.',
+      '**La finestra staccata si ricorda dove stava:** schermo, posizione e grandezza, anche dopo un riavvio. Se quello schermo non c’è più, o se la finestra sarebbe fuori dalla parte visibile, si apre sullo schermo principale. Si chiude con SierraDeck e alla riapertura torna dov’era, se l’autopilota esiste ancora. La linguetta «Domande» staccata mostra il numero nel titolo e lampeggia nella barra del sistema quando arriva una domanda.',
+      '**Anche sul telefono (app 2.42.0) e nella pagina** la scheda dell’autopilota ha le linguette «Domande», una per volta con il numerino, e «File», con l’elenco e le righe cambiate. Nella scheda Domande del telefono un autopilota porta alla sua linguetta.'
+    ]
+  },
+  {
     versione: '0.37.5',
     righe: [
       '**Le istruzioni dell’autopilota partono sempre, non restano più ferme nel campo della chat.** Dopo un incolla lungo Claude Code ridisegna il campo («[Pasted text #1 +42 lines]») e il programma aspettava che la chat tornasse «pronta» con regole pensate per gli avvisi: se ci metteva più di qualche secondo smetteva in silenzio senza premere Invio, e toccava a te premerlo. Ora preme Invio comunque e controlla dallo schermo che la chat sia partita, riprovando qualche volta.',
