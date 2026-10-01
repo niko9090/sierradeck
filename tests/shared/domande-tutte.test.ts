@@ -92,7 +92,8 @@ describe('tutte le domande arrivano nella colonna Domande (0.37.2)', () => {
 
   it('il conteggio è uno solo: tutte le domande che chiedono, compreso chi aspetta il via', () => {
     // preparazione, flotta (chiedi + pubblica in una conversazione), pronto, permesso
-    expect(quanteAspettano(cs)).toBe(4)
+    // 0.38.0: si contano tutte le domande, anche quelle in coda dello stesso autopilota.
+    expect(quanteAspettano(cs)).toBe(5)
   })
 
   it('la colonna si apre per una domanda nuova, non per la stessa già vista', () => {

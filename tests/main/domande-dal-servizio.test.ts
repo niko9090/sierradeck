@@ -10,6 +10,7 @@ import { rotteClient, type DipendenzeRotte } from '../../src/main/client-rotte'
 import { apriDispositivi } from '../../src/main/dispositivi'
 import { nuovoAutopilota } from '@shared/autopilota'
 import { decidiColonnaDomande, richiestaRisposta, type Conversazione } from '@shared/domande-conversazioni'
+import { domandeScheda, dopoLaRisposta } from '@shared/domande-autopilota'
 
 /**
  * «NON VEDO LE DOMANDEEEE!!!!» (Nicholas, 01/10, 13:52 UTC). Dal servizio
@@ -72,6 +73,16 @@ describe('le domande del servizio arrivano nella colonna e la risposta torna', (
     expect((await rotte({ metodo: 'POST', percorso: q.percorso, corpo: q.corpo })).stato).toBe(200)
     expect(await attesa).toMatchObject({ risposta: 'sì' })
     expect(domande.aperte('ap-1')).toEqual([])
+
+    // 0.38.0: nella chat con l'autopilota restano la domanda e la risposta,
+    // una sotto l'altra; per la linguetta non ci sono altre domande: si chiude.
+    const dopo = await client.elenca()
+    const a = dopo.find((x) => x.id === 'ap-1')!
+    expect(a.dialogo.slice(-2)).toMatchObject([
+      { da: 'lui', testo: 'Mi dai l’ok a considerare superato il criterio della versione?', traccia: true },
+      { da: 'tu', testo: 'sì', traccia: true }
+    ])
+    expect(dopoLaRisposta(domandeScheda(a, await client.domande()))).toEqual({ chiudi: true })
   })
 })
 

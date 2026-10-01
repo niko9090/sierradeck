@@ -66,23 +66,26 @@ describe('conversazione', () => {
     expect(ultima?.dettaglio).toBeUndefined()
   })
 
-  it('la domanda aperta e l ultima battuta, ed e sua', () => {
+  it('la domanda aperta non sta nella chat ma nella linguetta «Domande» (0.38.0): la chat lo dice con una nota', () => {
     const a = ap({ stato: 'attesa', motivoSospensione: 'Posso cancellare la cartella build?', ultimoEvento: '2026-09-18T09:00:00.000Z' })
-    const ultima = conversazione(a).at(-1)
-    expect(ultima).toMatchObject({ da: 'lui', tono: 'domanda', testo: 'Posso cancellare la cartella build?' })
+    const tutte = conversazione(a)
+    expect(tutte.some((b) => b.testo.includes('cartella build'))).toBe(false)
+    expect(tutte.at(-1)).toMatchObject({ da: 'nota', testo: 'Ti ha fatto una domanda: è nella linguetta «Domande» qui sotto.' })
     expect(haDomandaAperta(a)).toBe(true)
   })
 
   it('anche in preparazione una domanda e una domanda', () => {
     const a = ap({ stato: 'intervista', motivoSospensione: 'Quale branch?', criteri: [] })
-    expect(conversazione(a).at(-1)).toMatchObject({ da: 'lui', tono: 'domanda', testo: 'Quale branch?' })
+    expect(conversazione(a).some((b) => b.testo === 'Quale branch?')).toBe(false)
+    expect(conversazione(a).at(-1)?.testo).toContain('linguetta «Domande»')
     expect(haDomandaAperta(a)).toBe(true)
     // Sta guardando il progetto: non chiede niente.
     expect(haDomandaAperta(ap({ stato: 'intervista', criteri: [] }))).toBe(false)
   })
 
   it('pronto, finito e fermo chiudono la chat con una riga che lo dice', () => {
-    expect(conversazione(ap({ stato: 'pronto' })).at(-1)).toMatchObject({ da: 'lui', tono: 'pronto' })
+    // Il via sta nella linguetta «Domande» (0.38.0): qui una nota che lo dice.
+    expect(conversazione(ap({ stato: 'pronto' })).at(-1)).toMatchObject({ da: 'nota', testo: 'Aspetta il tuo via: è nella linguetta «Domande» qui sotto.' })
     expect(conversazione(ap({ stato: 'finito' })).at(-1)).toMatchObject({ da: 'nota', tono: 'fine' })
     expect(conversazione(ap({ stato: 'sospeso', motivoSospensione: 'silenzio da 30 minuti' })).at(-1))
       .toMatchObject({ da: 'nota', tono: 'fermo', dettaglio: 'silenzio da 30 minuti' })

@@ -2748,7 +2748,8 @@ if (!app.requestSingleInstanceLock()) {
       // stessi messaggi mandati (0.36.0).
       const rottaTelefono = rotteClient(rotte)
       /** Le rotte che la scheda Domande del PC puo' chiamare: solo rispondere. */
-      const ROTTE_DOMANDE = ['/api/domande', '/api/rispondi', '/api/scrivi', '/api/scegli', '/api/autopilota/dialogo']
+      // `/api/autopilota/vai`: il via dalla linguetta «Domande» (0.38.0).
+      const ROTTE_DOMANDE = ['/api/domande', '/api/rispondi', '/api/scrivi', '/api/scegli', '/api/autopilota/dialogo', '/api/autopilota/vai']
       ipcMain.removeHandler('domande:chiama')
       ipcMain.handle('domande:chiama', async (_e, percorso: unknown, corpo: unknown) => {
         if (typeof percorso !== 'string' || !ROTTE_DOMANDE.includes(percorso)) {

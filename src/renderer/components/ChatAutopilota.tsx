@@ -28,6 +28,8 @@ export function ChatAutopilota({
 
   const battute = conversazione(autopilota)
   const pensa = staPensando(autopilota)
+  // Una sua domanda aperta non si risponde piu' da qui (0.38.0): sta nella
+  // linguetta «Domande» qui sotto, una per volta. Qui gli si parla e basta.
   const domanda = haDomandaAperta(autopilota)
   const ultimaModifica = autopilota.modifiche[autopilota.modifiche.length - 1]
 
@@ -56,16 +58,6 @@ export function ChatAutopilota({
   const manda = (): void => {
     const testo = messaggio.trim()
     if (testo === '' || inCorso) return
-    if (domanda) {
-      esegui(() =>
-        window.gestore.autopilota.domande().then((aperte) => {
-          const mia = aperte.find((d) => d.autopilotaId === autopilota.id)
-          if (mia === undefined) throw new Error('la domanda non è più aperta: gli parlo invece')
-          return window.gestore.autopilota.rispondi(mia.id, testo)
-        })
-      )
-      return
-    }
     esegui(() => window.gestore.autopilota.dialoga(autopilota.id, testo))
   }
 
@@ -109,6 +101,9 @@ export function ChatAutopilota({
         {pensa ? (
           <p className="chatap__pensa">● sta pensando alla risposta… di solito entro qualche minuto. Puoi scrivergli altro: risponde in ordine.</p>
         ) : null}
+        {domanda || autopilota.stato === 'pronto' ? (
+          <p className="chatap__pensa">● {autopilota.stato === 'pronto' ? 'aspetta il tuo via' : 'ti ha fatto una domanda'}: è nella linguetta «Domande» qui sotto, con il numero di quelle aperte.</p>
+        ) : null}
         {autopilota.stato === 'intervista' && !domanda ? (
           <p className="chatap__pensa">● sta guardando il progetto per capire cosa serve: se ha un dubbio te lo chiede qui.</p>
         ) : null}
@@ -120,12 +115,8 @@ export function ChatAutopilota({
           rows={3}
           style={{ resize: 'vertical' }}
           value={messaggio}
-          placeholder={
-            domanda
-              ? 'la tua risposta'
-              : 'scrivigli: una domanda, un vincolo, un compito in più, «fermati», «riprendi»…'
-          }
-          aria-label={domanda ? 'rispondi all autopilota' : 'scrivi all autopilota'}
+          placeholder="scrivigli: una domanda, un vincolo, un compito in più, «fermati», «riprendi»… (le sue domande sono nella linguetta «Domande»)"
+          aria-label="scrivi all autopilota"
           onChange={(e) => setMessaggio(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) manda()
@@ -138,7 +129,7 @@ export function ChatAutopilota({
             onClick={manda}
             title="Ctrl+Invio manda"
           >
-            {inCorso ? 'Mando…' : domanda ? 'Rispondi' : 'Manda'}
+            {inCorso ? 'Mando…' : 'Manda'}
           </button>
           {ultimaModifica !== undefined ? (
             <button
@@ -159,8 +150,8 @@ export function ChatAutopilota({
               'scrivi è un’istruzione la applica: cambia obiettivo o criteri, aggiunge un compito, si ferma ' +
               '(«fermati»), riparte («riprendi»). Se serve che la chat lo sappia, glielo consegna alla fine ' +
               'del turno che ha in mano, mai in mezzo a un’azione, oppure appena riparte se è fermo. La risposta ' +
-              'arriva di solito entro qualche minuto. Se ha una domanda aperta, quello che scrivi è la risposta ' +
-              'e arriva subito. «Disfa» rimette com’era prima dell’ultimo cambio. Non parte nessun lavoro nuovo ' +
+              'arriva di solito entro qualche minuto. Le sue domande non stanno qui: stanno nella linguetta «Domande» ' +
+              'qui sotto, una per volta, e dopo la risposta domanda e risposta compaiono in questa chat. «Disfa» rimette com’era prima dell’ultimo cambio. Non parte nessun lavoro nuovo ' +
               'e non si chiude nessuna chat senza che tu lo chieda.'
             }
             aria-label="Come funziona questa chat"

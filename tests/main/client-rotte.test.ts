@@ -1260,7 +1260,8 @@ describe('tutte le domande e un conteggio solo (0.37.2)', () => {
     const d = await rotteClient(conPronto())({ metodo: 'GET', percorso: '/api/domande', corpo: undefined })
     const corpo = d.corpo as { chiedono: number; conversazioni: { chiave: string; chiede: boolean }[] }
     // Due domande dello stesso autopilota nella sua conversazione (0.37.4) + il via.
-    expect(corpo.chiedono).toBe(2)
+    // 0.38.0: tutte le domande (le due dello stesso autopilota contano due) + il via.
+    expect(corpo.chiedono).toBe(3)
     expect(corpo.conversazioni.map((c) => c.chiave)).toEqual(expect.arrayContaining(['ap:ap-1', 'ap:ap-2', 'chat:pc:port:s-9']))
     expect(corpo.conversazioni.some((c) => c.chiave.startsWith('ap:ap-1:'))).toBe(false)
     // La chat di questo stesso PC non arriva due volte dal battito.

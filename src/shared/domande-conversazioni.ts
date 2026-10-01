@@ -52,6 +52,13 @@ export type Conversazione = {
   scelte?: { chat: string; opzioni: OpzioneScelta[] }
   /** Il segnaposto della casella, scritto per quella conversazione. */
   segnaposto: string
+  /**
+   * Quante domande aspettano dentro questa conversazione (0.38.0): per un
+   * autopilota anche quelle in coda. Il numerino del tasto le somma tutte.
+   */
+  quante?: number
+  /** L'autopilota di questa conversazione: la colonna porta alla sua linguetta «Domande». */
+  autopilota?: string
 }
 
 /** Quanti messaggi della storia di un autopilota entrano nel filo. */
@@ -110,6 +117,7 @@ export function conversazioniDomande(p: {
         if (sua !== undefined) {
           const inCoda: MessaggioConversazione = { da: 'lui', testo: `In coda, dopo quella qui sotto: ${v.testo}`, tono: 'domanda' }
           sua.messaggi.splice(Math.max(0, sua.messaggi.length - 1), 0, inCoda)
+          sua.quante = (sua.quante ?? 1) + 1
           sua.sotto = `${a?.cwd ?? sua.sotto} · ${sua.messaggi.filter((m) => m.testo.startsWith('In coda, dopo')).length + 1} domande: rispondi a una alla volta, dall’ultima in fondo`
         }
         continue
@@ -118,6 +126,8 @@ export function conversazioniDomande(p: {
       fuori.push({
         chiave,
         tipo: 'autopilota',
+        autopilota: v.autopilotaId,
+        quante: 1,
         titolo: v.autopilota,
         sotto: v.origine === 'intervista'
           ? 'si prepara: ti fa una domanda prima di partire, e senza la tua risposta non comincia'
@@ -178,6 +188,8 @@ export function conversazioniDomande(p: {
     fuori.push({
       chiave: `ap:${a.id}`,
       tipo: 'autopilota',
+      autopilota: a.id,
+      quante: 1,
       titolo: a.nome !== '' ? a.nome : a.obiettivo.slice(0, 60),
       sotto: `pronto: aspetta il tuo via · ${a.cwd}`,
       chiede: true,
@@ -216,8 +228,9 @@ export function richiestaRisposta(r: ViaRisposta, testo: string): { percorso: st
  * stessa lista: prima il telefono contava «domande + scelte» e lasciava fuori
  * gli autopiloti pronti che aspettano il via, e i numeri non tornavano.
  */
-export function quanteAspettano(conversazioni: Pick<Conversazione, 'chiede'>[]): number {
-  return conversazioni.filter((c) => c.chiede).length
+export function quanteAspettano(conversazioni: Pick<Conversazione, 'chiede' | 'quante'>[]): number {
+  // Tutte le domande (0.38.0): un autopilota con tre domande ne conta tre.
+  return conversazioni.filter((c) => c.chiede).reduce((n, c) => n + (c.quante ?? 1), 0)
 }
 
 /**

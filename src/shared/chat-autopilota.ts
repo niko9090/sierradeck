@@ -53,7 +53,14 @@ export function conversazione(a: Autopilota): Battuta[] {
     metti({ quando: a.iniziatoIl, da: 'tu', testo: s.risposta })
   }
 
+  // Le domande e risposte della linguetta «Domande» (0.38.0) stanno nel
+  // dialogo come traccia: la risposta scritta anche nel diario non va ripetuta.
+  const tracce = a.dialogo.filter((s) => s.traccia === true && s.da === 'tu').map((s) => s.testo.replace(/\s+/g, ' ').trim().slice(0, 60))
   for (const v of vociDecisioni(a)) {
+    // La domanda del supervisore non sta nella chat (0.38.0): sta nella
+    // linguetta «Domande», e dopo la risposta entra qui come traccia.
+    if (/^Ha deciso: chiedi(Utente)?$/.test(v.titolo)) continue
+    if (v.tipo === 'tu' && tracce.some((t) => t !== '' && (v.dettaglio ?? v.titolo).replace(/\s+/g, ' ').trim().startsWith(t.slice(0, 50)))) continue
     if (v.tipo === 'tu') {
       // Una tua risposta arrivata a una sua domanda: è una battuta tua.
       metti({ quando: v.quando, da: 'tu', testo: v.dettaglio ?? v.titolo })
@@ -77,21 +84,16 @@ export function conversazione(a: Autopilota): Battuta[] {
     })
   }
 
-  // La domanda aperta adesso: l'ultima cosa che ha detto, e aspetta te.
+  // La domanda aperta e il via **non** stanno nella chat (0.38.0, Nicholas):
+  // stanno nella linguetta «Domande», una per volta. Qui resta una nota
+  // quieta che dice dove andare; dopo la risposta, domanda e risposta entrano
+  // nella chat come traccia (dal dialogo).
   const chiede = a.stato === 'attesa' || (a.stato === 'intervista' && a.motivoSospensione !== undefined)
-  if (chiede) {
+  if (chiede || a.stato === 'pronto') {
     metti({
       quando: a.ultimoEvento,
-      da: 'lui',
-      testo: a.motivoSospensione ?? 'Ha bisogno di una tua risposta.',
-      tono: 'domanda'
-    })
-  } else if (a.stato === 'pronto') {
-    metti({
-      quando: a.ultimoEvento,
-      da: 'lui',
-      testo: 'Mi sono preparato: leggi i criteri e i compiti nelle linguette qui sotto, poi dammi il via.',
-      tono: 'pronto'
+      da: 'nota',
+      testo: a.stato === 'pronto' ? 'Aspetta il tuo via: è nella linguetta «Domande» qui sotto.' : 'Ti ha fatto una domanda: è nella linguetta «Domande» qui sotto.'
     })
   } else if (a.stato === 'finito') {
     metti({ quando: a.ultimoEvento, da: 'nota', testo: 'Ha finito.', tono: 'fine' })
@@ -136,7 +138,8 @@ export function comprimiNote(battute: Battuta[]): Battuta[] {
 
 /** Sta ancora pensando alla tua ultima battuta: l'ultima cosa detta è tua. */
 export function staPensando(a: Autopilota): boolean {
-  return a.dialogo[a.dialogo.length - 1]?.da === 'tu'
+  const ultima = a.dialogo[a.dialogo.length - 1]
+  return ultima?.da === 'tu' && ultima.traccia !== true
 }
 
 /** C'è una sua domanda aperta: quello che scrivi adesso è la risposta. */

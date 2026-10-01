@@ -100,6 +100,11 @@ export type ScambioDialogo = {
   da: 'tu' | 'lui'
   testo: string
   esito?: string
+  /**
+   * Una domanda e la sua risposta date dalla linguetta «Domande» (0.38.0):
+   * restano nella chat come traccia, ma non sono battute da elaborare.
+   */
+  traccia?: true
 }
 
 /** Oltre queste battute, le più vecchie si dimenticano: la scheda le mostra, l'archivio non è un log. */
@@ -538,7 +543,7 @@ function parseScambio(raw: unknown): ScambioDialogo | undefined {
   if (quando === undefined || testo === undefined) return undefined
   if (o.da !== 'tu' && o.da !== 'lui') return undefined
   const esito = stringaNonVuota(o.esito)
-  return { quando, da: o.da, testo, ...(esito !== undefined ? { esito } : {}) }
+  return { quando, da: o.da, testo, ...(esito !== undefined ? { esito } : {}), ...(o.traccia === true ? { traccia: true as const } : {}) }
 }
 
 function parseMessaggioPerLaChat(raw: unknown): MessaggioPerLaChat | undefined {

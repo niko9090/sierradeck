@@ -1961,6 +1961,20 @@ describe('«Archivia» e il momento del fermo (0.37.0)', () => {
   })
 })
 
+describe('il via dalla linguetta «Domande» resta nella chat (0.38.0)', () => {
+  it('dopo «Vai» la chat con lui ha la domanda del via e la risposta, come traccia', async () => {
+    server = ambiente()
+    await avvia(server)
+    archivio.scrivi({
+      ...nuovoAutopilota({ id: 'ap-v', nome: 'x', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      stato: 'pronto'
+    })
+    expect((await chiama('POST', '/autopiloti/ap-v/vai')).stato).toBe(200)
+    const d = archivio.leggi('ap-v')?.dialogo ?? []
+    expect(d.slice(0, 2)).toMatchObject([{ da: 'lui', traccia: true }, { da: 'tu', testo: 'Vai', traccia: true }])
+  })
+})
+
 describe('una nota del programma nel diario (0.37.5)', () => {
   it('«il compito è nella chat ma non è partito» finisce nel diario, dove il supervisore lo vede', async () => {
     server = ambiente()

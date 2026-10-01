@@ -35,6 +35,7 @@ import { primoCompito, ripartiDaDove, riprende } from './nel-mosaico'
 import type { RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
 import { TETTO_CHAT_MAX, conMomentoDelFermo, eFermo } from '@shared/autopilota'
+import { OPZIONE_VIA, TESTO_VIA, tracciaDopoRisposta } from '@shared/domande-autopilota'
 import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
 import { giudicaMossa, giudicaStrumento, leggiMosse, rispostaPreTool } from './divieti'
 import {
@@ -2400,7 +2401,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             rispondi(res, 400, { errore: `non è in attesa del via: è ${a.stato}` })
             return
           }
-          const partito: Autopilota = { ...a, stato: 'lavoro', motivoSospensione: undefined }
+          const partito: Autopilota = {
+            ...a,
+            stato: 'lavoro',
+            motivoSospensione: undefined,
+            // Il via dato dalla linguetta «Domande» resta nella chat (0.38.0).
+            dialogo: [...a.dialogo, ...tracciaDopoRisposta(TESTO_VIA, OPZIONE_VIA, deps.adesso())].slice(-DIALOGO_RICORDATO)
+          }
           salva(partito)
           await avviaAutopilota(partito)
           rispondi(res, 200, deps.archivio.leggi(id))
@@ -2652,9 +2659,21 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             return
           }
           const da = corpo?.da === 'telegram' ? 'telegram' : 'modale'
-          if (!deps.domande.rispondi(decodeURIComponent(risposta[1]!), testo, da)) {
+          const idDomanda = decodeURIComponent(risposta[1]!)
+          // La domanda, letta prima che la risposta la tolga dal registro.
+          const chiesta = deps.domande.aperte().find((d) => d.id === idDomanda)
+          if (!deps.domande.rispondi(idDomanda, testo, da)) {
             rispondi(res, 404, { errore: 'domanda inesistente o gia risposta' })
             return
+          }
+          // La traccia nella chat con l'autopilota (0.38.0): la domanda e la
+          // risposta, una sotto l'altra. Le domande della preparazione hanno
+          // gia' la loro traccia nell'intervista.
+          if (chiesta !== undefined) {
+            const a = deps.archivio.leggi(chiesta.autopilotaId)
+            if (a !== undefined && a.stato !== 'intervista') {
+              salva({ ...a, dialogo: [...a.dialogo, ...tracciaDopoRisposta(chiesta.testo, testo, deps.adesso())].slice(-DIALOGO_RICORDATO) })
+            }
           }
           rispondi(res, 200, { accettata: true })
           return

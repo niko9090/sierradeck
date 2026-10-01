@@ -158,7 +158,7 @@ export function Console({
   useEffect(() => {
     const suRichiesta = (e: Event): void => {
       const quale = (e as CustomEvent<unknown>).detail
-      if (quale === 'drive' || quale === 'domande' || quale === 'workspace') onApri(quale)
+      if (quale === 'drive' || quale === 'domande' || quale === 'workspace' || quale === 'autopiloti') onApri(quale)
     }
     window.addEventListener('sierradeck:apri-pannello', suRichiesta)
     return () => window.removeEventListener('sierradeck:apri-pannello', suRichiesta)

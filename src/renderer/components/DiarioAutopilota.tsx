@@ -6,6 +6,8 @@ import { passoDaTasto, postoDalDocumento, quotaDiario } from '../diario-misura'
 import { diario } from '../diario-autopilota'
 import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
 import { ChatAutopilota } from './ChatAutopilota'
+import { DomandeAutopilota } from './DomandeAutopilota'
+import { domandaArrivata, domandeScheda, type DomandaApertaServizio } from '@shared/domande-autopilota'
 import {
   CompitiAutopilota, CriteriAutopilota, ObiettivoAutopilota, RagionamentiAutopilota
 } from './SchedaAutopilota'
@@ -17,9 +19,10 @@ function ora(iso: string): string {
 }
 
 /** Le linguette sotto la chat: una cosa per volta, ognuna con tutto lo spazio. */
-type Linguetta = 'lavoro' | 'obiettivo' | 'criteri' | 'compiti' | 'diario'
+type Linguetta = 'domande' | 'lavoro' | 'obiettivo' | 'criteri' | 'compiti' | 'diario'
 
 const LINGUETTE: { id: Linguetta; nome: string; titolo: string }[] = [
+  { id: 'domande', nome: 'Domande', titolo: 'Le sue domande non ancora risposte, una per volta: rispondi da qui' },
   { id: 'lavoro', nome: 'Sta facendo', titolo: 'Cosa sta scrivendo adesso la chat che esegue' },
   { id: 'obiettivo', nome: 'Obiettivo', titolo: 'Cosa gli hai chiesto, cosa ha capito, a che punto è, le sue chat' },
   { id: 'criteri', nome: 'Criteri', titolo: 'Quando considera finito il lavoro, e come lo misura' },
@@ -65,6 +68,53 @@ export function DiarioAutopilota({
   // lui lavora di continuo.
   const [conversazione, setConversazione] = useState<Anteprima | undefined>(undefined)
   const [linguetta, setLinguetta] = useState<Linguetta>('lavoro')
+  /**
+   * Le sue domande aperte (0.38.0): il numerino della linguetta «Domande» e
+   * le schede da rispondere. Si rileggono ogni due secondi dal servizio.
+   */
+  const [aperte, setAperte] = useState<DomandaApertaServizio[]>([])
+  const leggiDomande = useCallback((): void => {
+    window.gestore.autopilota.domande().then(setAperte).catch(() => undefined)
+  }, [])
+  useEffect(() => {
+    leggiDomande()
+    const h = setInterval(leggiDomande, 2000)
+    return () => clearInterval(h)
+  }, [leggiDomande])
+  const schede = domandeScheda(autopilota, aperte)
+  // Dalla colonna Domande: «X ti aspetta → apri» porta qui, sulla linguetta.
+  const radice = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    const suApri = (e: Event): void => {
+      const d = (e as CustomEvent<{ id: string; gestito: boolean }>).detail
+      if (d.id !== autopilota.id) return
+      d.gestito = true
+      setAperto(true)
+      setLinguetta((l) => {
+        if (l !== 'domande') primaDelleDomande.current = l
+        return 'domande'
+      })
+      radice.current?.scrollIntoView({ block: 'nearest' })
+    }
+    window.addEventListener('sierradeck:domande-autopilota', suApri)
+    return () => window.removeEventListener('sierradeck:domande-autopilota', suApri)
+  }, [autopilota.id])
+  // Dove si era prima che una domanda portasse alla linguetta «Domande»:
+  // finite le domande, si torna li'.
+  const primaDelleDomande = useRef<Linguetta>('lavoro')
+  const viste = useRef<string[]>([])
+  useEffect(() => {
+    // Una domanda nuova: la linguetta si accende e si fa avanti.
+    if (domandaArrivata(viste.current, schede)) {
+      setLinguetta((l) => {
+        if (l !== 'domande') primaDelleDomande.current = l
+        return 'domande'
+      })
+    }
+    viste.current = schede.map((d) => d.chiave)
+    // Finite: la linguetta si chiude e si torna dov'eri.
+    if (schede.length === 0) setLinguetta((l) => (l === 'domande' ? primaDelleDomande.current : l))
+  }, [schede.map((d) => d.chiave).join('|')])
   /** Con la flotta: quale chat si guarda in «Sta facendo». */
   const [chatScelta, setChatScelta] = useState<string | undefined>(undefined)
   const colonna = useRef<HTMLElement | null>(null)
@@ -191,6 +241,8 @@ export function DiarioAutopilota({
 
   const pannello = (): React.JSX.Element => {
     switch (linguetta) {
+      case 'domande':
+        return <DomandeAutopilota autopilota={autopilota} domande={schede} onRisposto={() => { leggiDomande(); onCambiato() }} />
       case 'obiettivo':
         return <ObiettivoAutopilota autopilota={autopilota} />
       case 'criteri':
@@ -285,7 +337,7 @@ export function DiarioAutopilota({
   }
 
   return (
-    <aside className={largo ? 'diario diario--largo' : 'diario'} ref={colonna}>
+    <aside className={largo ? 'diario diario--largo' : 'diario'} ref={(el) => { colonna.current = el; radice.current = el }}>
       {/* Il solco fra terminale e diario è anche il comando che li divide: si
           afferra dove già si guarda, senza andare nelle impostazioni. */}
       {largo ? null : (
@@ -357,18 +409,22 @@ export function DiarioAutopilota({
 
         <div className="diario__lato">
           <div className="diario__schede" role="tablist">
-            {LINGUETTE.map((l) => (
+            {LINGUETTE.filter((l) => l.id !== 'domande' || schede.length > 0).map((l) => (
               <button
                 key={l.id}
                 role="tab"
                 aria-selected={linguetta === l.id}
-                className={linguetta === l.id ? 'diario__scheda diario__scheda--attiva' : 'diario__scheda'}
+                className={`${linguetta === l.id ? 'diario__scheda diario__scheda--attiva' : 'diario__scheda'}${l.id === 'domande' ? ' diario__scheda--domande' : ''}`}
                 title={l.titolo}
-                onClick={() => setLinguetta(l.id)}
+                onClick={() => {
+                  if (l.id === 'domande' && linguetta !== 'domande') primaDelleDomande.current = linguetta
+                  setLinguetta(l.id)
+                }}
               >
                 {l.nome}
                 {/* Il numero accanto alla linguetta dice se dentro c'è qualcosa
                     senza doverla aprire. */}
+                {l.id === 'domande' ? <span className="diario__scheda-conto diario__scheda-conto--domande">{schede.length}</span> : null}
                 {l.id === 'criteri' && autopilota.criteri.length > 0 ? (
                   <span className="diario__scheda-conto">
                     {autopilota.criteri.filter((c) => c.soddisfatto).length}/{autopilota.criteri.length}
