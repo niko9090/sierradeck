@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.37.1',
+    righe: [
+      '**L’autopilota non viene più bloccato per cancellazioni che non esistono.** Il controllo che impedisce alle sue chat di cancellare file fuori dalle loro cartelle cercava «rm», «del» e simili come parole ovunque nel comando: un testo con scritto «il momento del fermo», una ricerca di «rm » nei sorgenti o un indirizzo come /autopiloti/x/archivia bastavano a fermarlo con un falso allarme. Ora conta solo il comando vero di ogni pezzo; il testo fra virgolette, i blocchi di testo e gli indirizzi web sono dati.',
+      'Le cancellazioni vere fuori dalle sue cartelle restano bloccate, anche quando sono nascoste dentro un altro comando: dopo «sudo», dentro «bash -c» o «powershell -Command», in una sostituzione, dopo «cd» in un’altra cartella, con «git -C», «find -delete» o «xargs rm».'
+    ]
+  },
+  {
     versione: '0.37.0',
     righe: [
       '**La banda degli autopiloti fermi si chiude.** Accanto a «Vedi» ci sono «Riprendi», «Archivia» e «Chiudi». «Chiudi» toglie l’avviso per quel fermo, anche dopo un riavvio; torna solo se l’autopilota si ferma di nuovo. «Archivia» mette da parte un autopilota che non deve ripartire: resta nel pannello Autopiloti, ma non compare più in alto e non manda notifiche. Anche l’avviso dei programmi mancanti si chiude, finché la lista non cambia.',
