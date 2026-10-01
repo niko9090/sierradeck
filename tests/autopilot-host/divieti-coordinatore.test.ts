@@ -123,3 +123,80 @@ describe('il coordinatore (T1, T5)', () => {
     expect(driveDelProgetto(undefined, 'E:/Progetti/sito', ora)).toBe(false)
   })
 })
+
+describe('i divieti senza falsi allarmi (0.37.1)', () => {
+  // Il comando vero bloccato il 01/10: un heredoc che appendeva dei test, con
+  // dentro «il momento del fermo» (la parola «del») e la rotta
+  // «/autopiloti/ap-fermo/archivia». Era preso per `del <percorsi>`.
+  const BLOCCATO_IL_01_10 = [
+    "cat >> tests/autopilot-host/server.test.ts <<'EOF'",
+    '',
+    "describe('«Archivia» e il momento del fermo (0.37.0)', () => {",
+    "  it('un autopilota fermo si archivia e si toglie dall archivio; uno che lavora no', async () => {",
+    "    const r = await chiama('POST', '/autopiloti/ap-fermo/archivia', { archivia: true })",
+    "    expect((await chiama('POST', '/autopiloti/ap-vivo/archivia', { archivia: true })).stato).toBe(409)",
+    '  })',
+    "  it('«Ferma» scrive il momento del fermo, e riprendere lo toglie insieme all archiviazione', async () => {})",
+    '})',
+    'EOF',
+    'npx vitest run tests/autopilot-host/server.test.ts > "$TEMP/sv.txt" 2>&1; echo $?; grep -E "Tests|×" "$TEMP/sv.txt" | head'
+  ].join('\n')
+
+  it('il comando reale bloccato il 01/10 passa', () => {
+    expect(bersagliCancellazione(BLOCCATO_IL_01_10, PROGETTO)).toEqual([])
+    expect(giudicaStrumento(bash(BLOCCATO_IL_01_10), [PROGETTO]).ok).toBe(true)
+  })
+
+  it('URL, rotte http, grep, node -e e heredoc con dentro rm o del non sono cancellazioni', () => {
+    const innocui = [
+      'curl -X POST http://127.0.0.1:47630/autopiloti/x/archivia -d \'{"archivia":true}\'',
+      'curl -s "http://127.0.0.1:47630/autopiloti/x/archivia?del=1"',
+      'grep -rn "rm " src',
+      "grep -rn 'del /q' src | head",
+      'node -e "console.log(\'del fermo\'.length)"',
+      "node -e 'const del = 1; console.log(del)'",
+      "cat > note.md <<'FINE'\nrm -rf /c/altro\ndel C:\\Windows\nFINE\necho fatto",
+      'git commit -m "toglie il momento del fermo; rm vecchio"',
+      'echo il momento del fermo; echo rd ri erase',
+      'npm test 2>&1 | grep -c "rm"'
+    ]
+    for (const c of innocui) expect([c, giudicaStrumento(bash(c), [PROGETTO]).ok]).toEqual([c, true])
+  })
+
+  it('le cancellazioni vere fuori dalle cartelle restano bloccate', () => {
+    const vietati = [
+      'rm -rf /c/altro',
+      'sudo rm -rf /c/altro',
+      'FOO=1 env BAR=2 rm -rf /c/altro',
+      '"rm" -rf /c/altro',
+      'echo ok && /bin/rm -rf ../altro-progetto',
+      'cd /c/altro && rm -rf build',
+      'git -C /c/altro clean -fdx',
+      'git clean -fdx',
+      'git worktree remove ../altro',
+      'find /c/altro -name "*.tmp" -delete',
+      'find /c/altro -exec rm {} \\;',
+      'ls | xargs -n 1 rm',
+      'bash -c "rm -rf /c/altro"',
+      'echo "$(rm -rf /c/altro)"',
+      'echo `rm -rf /c/altro`',
+      "bash <<'EOF'\nrm -rf /c/altro\nEOF",
+      'Remove-Item -Recurse C:\\Users\\nikof\\Documents',
+      'powershell -Command "Remove-Item -Recurse -Force C:\\Altro"',
+      'cmd /c rd /s /q C:\\Altro',
+      'del /q C:\\Windows\\temp\\x.txt'
+    ]
+    for (const c of vietati) expect([c, giudicaStrumento(bash(c), [PROGETTO]).ok]).toEqual([c, false])
+    // Anche dallo strumento PowerShell.
+    const ps = (command: string) => ({ tool_name: 'PowerShell', tool_input: { command }, cwd: PROGETTO })
+    expect(giudicaStrumento(ps('Get-ChildItem C:\\Altro | Remove-Item -Recurse'), [PROGETTO]).ok).toBe(false)
+    expect(giudicaStrumento(ps('Remove-Item -LiteralPath "C:\\Altro\\x" -Force'), [PROGETTO]).ok).toBe(false)
+    expect(giudicaStrumento(ps('Remove-Item dist -Recurse; Write-Output "del fermo"'), [PROGETTO]).ok).toBe(true)
+  })
+
+  it('le cancellazioni dentro le sue cartelle continuano a passare', () => {
+    for (const c of ['rm -rf dist', 'rm -f a.txt 2>/dev/null', 'git clean -fdx dist', `rm -rf ${WT}\\a1-c-1\\tmp`, 'find dist -name "*.map" -delete']) {
+      expect([c, giudicaStrumento(bash(c), [PROGETTO, WT]).ok]).toEqual([c, true])
+    }
+  })
+})
