@@ -1,6 +1,6 @@
 ---
-titolo: "Domande sempre a fianco della chat, niente finestra; nessuna domanda persa (0.37.2, 0.37.3)"
-quando: 2026-10-01T18:40:00+02:00
+titolo: "Domande sempre a fianco della chat, niente finestra; nessuna domanda persa (0.37.2–0.37.4)"
+quando: 2026-10-01T19:40:00+02:00
 tag: ["domande", "autopilota", "colonna", "telefono", "decisione-nicholas"]
 ---
 
@@ -68,3 +68,19 @@ In entrambi i casi l'unico segno era il piccolo numero sul tasto.
 - manda la risposta con `richiestaRisposta` e verifica che il servizio la riceva (`attendi` → «sì», registro vuoto).
 
 Gli altri casi di `decidiColonnaDomande` sono nello stesso file. Il tasto è controllato in `colonna-domande.test.ts`.
+
+# 0.37.4 — le domande di un autopilota non si dividono
+
+**Decisione di Nicholas (01/10), rispondendo a una domanda dell'autopilota:** «si ma se c'è l'autopilota non serve mettere le domande divise! basta che le fai lì». Nella 0.37.2 una seconda domanda aperta dello stesso autopilota aveva una conversazione a parte (`ap:<id>:<domanda>`, «· un'altra domanda»).
+
+**Ora** tutte le domande di un autopilota stanno nella sua conversazione `ap:<id>` (`conversazioniDomande`):
+- la casella risponde alla prima domanda, che resta in fondo con le sue opzioni;
+- le altre sono messe subito sopra, come «In coda, dopo quella qui sotto: …»;
+- la riga sotto il titolo dice quante sono;
+- risposta una, alla lettura dopo la prossima diventa quella attiva, con le sue opzioni. Per `identitaDomanda` è una domanda nuova, quindi la colonna la rimette in evidenza.
+
+Il conteggio conta le **conversazioni** che chiedono: un autopilota con due domande vale 1.
+
+Tutto sta nella funzione condivisa, quindi pagina e app non cambiano: l'APK resta 2.41.0.
+
+**Test:** `domande-tutte.test.ts` (nessuna voce `ap:<id>:…`; la seconda domanda è in coda dentro la conversazione; dopo la risposta diventa l'attiva con le opzioni; conteggio 4) e `client-rotte.test.ts` (`chiedono` 2).

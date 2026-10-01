@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.37.4',
+    righe: [
+      '**Le domande di un autopilota stanno tutte nella sua conversazione, non divise.** Se un autopilota ha più domande aperte insieme (per esempio una sua domanda e «Pubblico adesso?»), nella colonna Domande, nella pagina e nell’app non compaiono più come voci separate: sono nella conversazione con quell’autopilota. La domanda a cui rispondi adesso è in fondo, con le sue opzioni; le altre sono subito sopra, segnate «In coda». Risposta una, la prossima prende il suo posto.'
+    ]
+  },
+  {
     versione: '0.37.3',
     righe: [
       '**Dove trovi le domande: nella colonna «Domande», a destra delle chat.** Si apre e si chiude dal tasto «Domande» nella fascia in alto. Dentro ci sono tutte: le domande degli autopiloti (anche quelle iniziali, il via e «Pubblico adesso?»), le chat ferme su un permesso, le chat che hanno finito il turno, anche quelle degli altri tuoi PC accesi. Si risponde da lì, toccando un’opzione o scrivendo.',
