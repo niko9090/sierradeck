@@ -4075,3 +4075,21 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   flex: 0 0 auto;
 }
 .domande-lato__chat { flex: 1 1 auto; min-height: 0; }
+
+/* ─────────────── la colonna laterale «Consumi e limiti» (0.37.0) ─────────────── */
+/* Stessa ossatura della colonna delle Domande (.domande-lato): fissa accanto
+   al mosaico, larghezza dalle preferenze (larghezzaConsumi). */
+.consumi-lato__corpo {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding-right: var(--s1);
+  user-select: text;
+}
+.consumi-lato__titolo { margin-top: var(--s2); }
+.consumi-lato__frase { margin-top: 2px; line-height: 1.4; }
+.consumi-lato__spiega { margin: 0; line-height: 1.5; color: var(--testo-quieto); }
+.limite__pieno--spento { background: var(--spento, #4a5058); }

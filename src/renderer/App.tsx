@@ -38,6 +38,8 @@ import { novitaConLeUltime, type Novita } from '@shared/novita'
 import type { StatoPreparazione } from '../main/preparazione'
 import { BandaAvvisi } from './components/BandaAvvisi'
 import { componiAvvisi, ricordaChiusi } from './avvisi'
+import { ColonnaConsumi } from './components/ColonnaConsumi'
+import { restaApertaLAltra } from './colonne-laterali'
 import type { StatoAccesso } from '../main/accesso'
 import { DomandaModale } from './components/DomandaModale'
 import { SchermataAvvio } from './components/SchermataAvvio'
@@ -550,11 +552,42 @@ export function App(): React.JSX.Element {
   // La colonna laterale delle Domande: aperta o chiusa, e quanto e' larga.
   // Sta nelle preferenze, cosi' si ritrova com'era al riavvio.
   const [colonnaDomande, setColonnaDomande] = useState<{ aperta: boolean; larghezza: number }>({ aperta: false, larghezza: 400 })
+  // La colonna «Consumi e limiti» (0.37.0): stessa meccanica, stesse preferenze.
+  const [colonnaConsumi, setColonnaConsumi] = useState<{ aperta: boolean; larghezza: number }>({ aperta: false, larghezza: 380 })
   useEffect(() => {
-    const applica = (p: { domandeLaterali: boolean; larghezzaDomande: number }): void =>
+    const applica = (p: { domandeLaterali: boolean; larghezzaDomande: number; consumiLaterali: boolean; larghezzaConsumi: number }): void => {
       setColonnaDomande({ aperta: p.domandeLaterali, larghezza: p.larghezzaDomande })
+      setColonnaConsumi({ aperta: p.consumiLaterali, larghezza: p.larghezzaConsumi })
+    }
     window.gestore.preferenze.leggi().then(applica).catch(() => undefined)
     return window.gestore.preferenze.suCambio(applica)
+  }, [])
+  /**
+   * Apre o chiude una delle due colonne. Aprendone una, l'altra resta aperta se
+   * c'e' posto per tutte e due e per le chat; altrimenti si chiude.
+   */
+  const commutaColonna = useCallback((quale: 'domande' | 'consumi'): void => {
+    const apre = quale === 'domande' ? !colonnaDomande.aperta : !colonnaConsumi.aperta
+    const insieme = restaApertaLAltra({
+      larghezzaFinestra: window.innerWidth,
+      larghezzaDomande: colonnaDomande.larghezza,
+      larghezzaConsumi: colonnaConsumi.larghezza
+    })
+    const domande = quale === 'domande' ? apre : apre && !insieme ? false : colonnaDomande.aperta
+    const consumi = quale === 'consumi' ? apre : apre && !insieme ? false : colonnaConsumi.aperta
+    setColonnaDomande((c) => ({ ...c, aperta: domande }))
+    setColonnaConsumi((c) => ({ ...c, aperta: consumi }))
+    window.gestore.preferenze
+      .leggi()
+      .then((p) => window.gestore.preferenze.imposta({ ...p, domandeLaterali: domande, consumiLaterali: consumi }))
+      .catch(() => undefined)
+  }, [colonnaDomande, colonnaConsumi])
+  const salvaLarghezzaConsumi = useCallback((px: number): void => {
+    setColonnaConsumi((c) => ({ ...c, larghezza: px }))
+    window.gestore.preferenze
+      .leggi()
+      .then((p) => window.gestore.preferenze.imposta({ ...p, larghezzaConsumi: px }))
+      .catch(() => undefined)
   }, [])
   // Gli avvisi chiusi con «Chiudi» (0.37.0): nelle preferenze, cosi' un fermo
   // chiuso resta chiuso anche dopo un riavvio.
@@ -1119,7 +1152,9 @@ export function App(): React.JSX.Element {
         ledAutopiloti={autopiloti.map((a) => ({ id: a.id, ...ledDi(a) }))}
         domandeInAttesa={domandeInAttesa}
         domandeAperte={colonnaDomande.aperta}
-        onDomande={() => salvaColonnaDomande({ aperta: !colonnaDomande.aperta })}
+        onDomande={() => commutaColonna('domande')}
+        consumiAperti={colonnaConsumi.aperta}
+        onConsumi={() => commutaColonna('consumi')}
       />
 
       {/* L'aggiornamento sta sopra la banda degli avvisi: non è un guasto da
@@ -1364,6 +1399,14 @@ export function App(): React.JSX.Element {
             onLarghezza={(px) => salvaColonnaDomande({ larghezza: px })}
             onChiudi={() => salvaColonnaDomande({ aperta: false })}
             onConteggio={setDomandeInAttesa}
+          />
+        ) : null}
+        {colonnaConsumi.aperta ? (
+          <ColonnaConsumi
+            larghezza={colonnaConsumi.larghezza}
+            onLarghezza={salvaLarghezzaConsumi}
+            onChiudi={() => commutaColonna('consumi')}
+            autopilotiAlLavoro={autopiloti.filter((a) => a.stato === 'lavoro').length}
           />
         ) : null}
       </div>

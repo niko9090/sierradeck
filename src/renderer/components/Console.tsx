@@ -63,6 +63,10 @@ type Props = {
   domandeAperte?: boolean
   /** Apre o chiude la colonna laterale delle Domande. */
   onDomande?: () => void
+  /** La colonna laterale «Consumi e limiti» e' aperta (0.37.0). */
+  consumiAperti?: boolean
+  /** Apre o chiude la colonna «Consumi e limiti». */
+  onConsumi?: () => void
 }
 
 /**
@@ -84,6 +88,8 @@ export function Console({
   domandeInAttesa = 0,
   domandeAperte = false,
   onDomande,
+  consumiAperti = false,
+  onConsumi,
   aggiornamento,
   onStatoWorkspace,
   workspaceCheChiamano,
@@ -420,6 +426,14 @@ export function Console({
           title={`${domandeAperte ? 'Chiude' : 'Apre'} la colonna delle Domande, accanto alle chat: tutto quello che aspetta una tua risposta — chat ferme su una domanda o un permesso, chat che hanno finito, autopiloti (domande iniziali, domande, il via, «Pubblico adesso?»)${domandeInAttesa > 0 ? `. Adesso ne aspettano ${domandeInAttesa}.` : '.'}`}
         >
           {domandeInAttesa > 0 ? <span className="led led--attesa" /> : null}Domande{domandeInAttesa > 0 ? ` ${domandeInAttesa}` : ''}
+        </button>
+        <button
+          className="tasto"
+          onClick={() => onConsumi?.()}
+          aria-expanded={consumiAperti}
+          title={`${consumiAperti ? 'Chiude' : 'Apre'} la colonna «Consumi e limiti», accanto alle chat: quanto resta della finestra di 5 ore e della settimana del piano (con l’età della lettura), il contesto di ogni chat aperta e cosa sta facendo il freno degli autopiloti. Se c’è posto resta aperta insieme alle Domande.`}
+        >
+          Consumi
         </button>
         <button
           className="tasto"
