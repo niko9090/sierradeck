@@ -1,6 +1,6 @@
 ---
-titolo: "Consegne dell'autopilota: mai un Invio a mano (0.37.5, causa vera e correzione 0.38.1)"
-quando: 2026-10-02T00:10:00+02:00
+titolo: "Consegne dell'autopilota: mai un Invio a mano (0.37.5, 0.38.1, 0.38.2)"
+quando: 2026-10-02T02:30:00+02:00
 tag: ["autopilota", "consegne", "terminale", "difetto"]
 ---
 
@@ -73,3 +73,38 @@ I marcatori dell'incolla (`ESC[200~` / `ESC[201~`) sono interi: nel sorgente il 
 - `divieti-coordinatore.test.ts` per i percorsi `/e/`.
 
 **Trappola per le prove.** In una cartella nuova Claude Code chiede prima «Is this a project you trust?» con «No, exit» già scelto: un Invio lo **chiude**, e freccia giù + Invio mandati dal pty non sono stati presi. Per le prove reali usare una cartella già fidata (quella del progetto).
+
+# 0.38.2 — dopo la 0.38.1 l'autopilota non scriveva più niente (caso NexoraOS)
+
+**I fatti (dati reali, 02/10):**
+- Alle 22:27 UTC l'aggiornamento alla 0.38.1 chiude il pty host e con lui tutte le chat. Alle 22:28:08 il programma riparte.
+- `NexoraOS/.sierradeck/consegne/c-1.md` c'è (22:28 UTC): il main ha ricevuto e preparato la consegna.
+- La coda del servizio (`GET :47630/consegne`) è vuota: la consegna è stata ritirata e confermata, cioè mandata a una finestra.
+- La trascrizione `4d4c07fb…jsonl` si ferma alle 21:23 UTC: nella chat non è entrato niente, e Nicholas vede il campo vuoto.
+- Nel diario dell'autopilota non c'è nessuna nota dopo le 22:28. La 0.38.1 alla resa (90 s) annotava solo se il riquadro aveva un terminale.
+- Nel registro su file non c'era niente: i messaggi della consegna stavano solo nella console del renderer.
+- `workspaces.json`: la chat sta nel workspace «NexoraOS», ma il workspace attivo dopo l'avvio è «SierraDeck».
+
+**Prove con Claude Code vero (2.1.287, pty + xterm senza interfaccia):**
+- la riga corta parte sempre: chat nuova, ripresa con `--resume` di una conversazione da 15 MB, e anche con il testo digitato prima che la chat finisca di caricare (Claude Code tiene i tasti e li mostra quando è pronto).
+- **Il lato Claude Code non è la causa.**
+
+**Causa (dedotta dai dati, non ripetuta dal vivo dentro l'app):** la consegna è arrivata alla finestra mentre la chat non c'era. O il workspace non era quello della chat (all'avvio si torna nell'attivo «SierraDeck»), o il riquadro non aveva ancora un terminale. `attendiEConsegna` ha aspettato `riquadroDi(sessione)` fino alla resa e poi si è fermata **in silenzio**, perché senza `ptyId` non segnalava niente. Rispetto alla 0.37.x c'è anche un difetto più vecchio: un riquadro già vivo veniva scritto **subito**, senza aspettare la prontezza.
+
+**Correzione (`consegne-autopilota.ts`):**
+- anche un riquadro vivo passa da `attendiEConsegna` (prontezza);
+- **tetto** `TETTO_PRONTEZZA_MS` = 8 s: se il terminale c'è ma lo schermo non si fa riconoscere, si scrive comunque, poi Invio, controllo e tentativi;
+- riquadro addormentato → `sveglia`; riquadro sparito per 6 s → `tornaNelSuoWorkspace` (una volta);
+- **scelta sullo schermo** (`sceltaSulloSchermo`: «❯ 1. …», «Enter to confirm», fiducia nella cartella): non si scrive. Nel diario va una «domanda della chat», e la chat compare già nelle Domande come scelta; quando la scelta è fatta, la consegna parte;
+- **resa mai muta**: registro e diario anche senza terminale;
+- **testo perso** (`testoPerso`: campo vuoto, il messaggio non è fra quelli mandati, nessuna attività): si riscrive prima del nuovo Invio. `consegnaPartita` con il campo vuoto dice «partita» solo se il messaggio compare fra quelli mandati;
+- **registro su file**: `ponte.registra` → IPC `log:info` → `registro.info`, con le righe `[consegna] …` (ritirata, riquadro, pronta o tetto, scritta, invio N, partita o non partita, resa).
+
+**Test:**
+- `tests/renderer/consegna-mai-muta.test.ts`:
+  - prompt mai riconosciuto → scritta entro il tetto, con i passi nel registro;
+  - scelta sullo schermo → nessuna scrittura e una domanda, poi la consegna;
+  - riquadro sparito → torna nel workspace;
+  - resa con guasto annotato;
+  - testo perso → riscritto.
+- `tests/main/consegna-vera.test.ts`: **la prova vera.** `claude.exe` riprende una copia di una conversazione lunga, e la consegna arriva nell'istante in cui nasce, con il ponte del programma. Esito: pronta dopo 4 s, scritta, invio 1, partita, risposta con il segno. Parte con `SIERRADECK_PROVA_CLAUDE=1` e `SIERRADECK_XTERM_HEADLESS=<cartella di @xterm/headless>`.

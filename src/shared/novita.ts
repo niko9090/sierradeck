@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.38.2',
+    righe: [
+      '**L’autopilota torna a scrivere nelle sue chat anche subito dopo un aggiornamento.** Con la 0.38.1, se all’avvio eri in un altro workspace, l’istruzione dell’autopilota aspettava una chat che in quella finestra non c’era e dopo un minuto e mezzo si arrendeva senza dirlo: la chat restava con il campo vuoto. Ora torna da sola nel workspace della chat, sveglia la chat se dorme, e scrive comunque dopo pochi secondi se lo schermo non si fa riconoscere.',
+      '**Non scrive mai alla cieca e non si ferma mai in silenzio.** Se la chat è ferma su una scelta (un permesso, la fiducia in una cartella, una ripresa) la consegna aspetta e la chat compare nelle Domande; se il testo scritto non arriva, lo riscrive; se proprio non riesce, lo annota nel diario dell’autopilota. Ogni passo (ricevuta, pronta, scritta, invio, partita) ora finisce nel registro, così dopo un guasto si vede dove si è fermata.'
+    ]
+  },
+  {
     versione: '0.38.1',
     righe: [
       '**L’autopilota non ti chiede più di premere Invio.** Le istruzioni lunghe non si incollano più nel campo della chat: vanno in un file nella cartella del progetto (.sierradeck/consegne, fuori dalla storia del progetto) e nella chat l’autopilota scrive solo una riga, «Leggi ed esegui le istruzioni in …», che parte sempre al primo Invio. Provato con un Claude Code vero.',
