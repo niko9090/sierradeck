@@ -1,3 +1,7 @@
+import {
+  apriPannello, chiudiPannelliConLApp, finestreDiChat, impostaFinestrePannello, pannelliAperti, riapriPannelli, richiamaPannello, rimettiPannello
+} from './finestre-pannello'
+import { eLinguettaStaccabile } from '@shared/finestra-pannello'
 import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell } from 'electron'
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
@@ -32,7 +36,7 @@ import {
 } from './ipc'
 import { preparaAmbiente } from './preparazione'
 import { decidiChiusura, vociArea, suggerimentoArea } from './area-notifica'
-import { espandiTilde } from './validation'
+import { espandiTilde, validaIdAutopilota } from './validation'
 import {
   avviaAccesso,
   registra as registraAccount,
@@ -156,7 +160,7 @@ function chiediRigheAlleFinestre(
   schermo = false
 ): Promise<unknown> {
   return new Promise((risolvi) => {
-    const finestre = BrowserWindow.getAllWindows().filter(
+    const finestre = finestreDiChat().filter(
       (w) => !w.isDestroyed() && !w.webContents.isDestroyed()
     )
     if (finestre.length === 0) { risolvi(undefined); return }
@@ -329,7 +333,7 @@ const chatDaRiprendereDopoAggiornamento = new Set<string>()
 
 /** Scrive dentro un riquadro, dovunque sia la finestra che lo tiene. */
 function scriviNelRiquadro(idChat: string, testo: string): void {
-  for (const w of BrowserWindow.getAllWindows()) {
+  for (const w of finestreDiChat()) {
     if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
       w.webContents.send('client:scrivi', { chat: idChat, testo })
     }
@@ -463,7 +467,7 @@ const ALTEZZA = 1000
  */
 function fotografaFinestre(escludi?: number): void {
   if (finestreStore === undefined || fotografiaChiusa) return
-  const vive = BrowserWindow.getAllWindows()
+  const vive = finestreDiChat()
     .filter((w) => !w.isDestroyed() && w.id !== escludi)
     .map((w) => ({ w, slot: Number(riservaSlot(w)) }))
     .sort((a, b) => a.slot - b.slot)
@@ -488,7 +492,7 @@ export function apriNuovaFinestra(): void {
   // Le risorse esistono gia': qui la finestra si limita ad agganciarvisi.
   if (!ptyClient) throw new Error('apriNuovaFinestra chiamata prima di avviaRisorse')
 
-  const occupati = BrowserWindow.getAllWindows().map((w) => {
+  const occupati = finestreDiChat().map((w) => {
     const d = screen.getDisplayMatching(w.getBounds())
     return chiaveMonitor({ bounds: d.bounds, scaleFactor: d.scaleFactor })
   })
@@ -613,7 +617,7 @@ export function apriNuovaFinestra(): void {
     } else {
       fotografaFinestre(win.id)
     }
-    const altre = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && w.id !== win.id)
+    const altre = finestreDiChat().filter((w) => !w.isDestroyed() && w.id !== win.id)
     if (decidiChiusura({
       inUscita,
       areaDisponibile: area !== undefined,
@@ -629,6 +633,11 @@ export function apriNuovaFinestra(): void {
   win.on('hide', aggiornaMenuArea)
   win.on('show', aggiornaMenuArea)
   win.on('closed', aggiornaMenuArea)
+  // L'ultima finestra di chat se n'e' andata davvero: le finestre pannello
+  // vanno con lei (0.38.0), e al riavvio si riaprono.
+  win.on('closed', () => {
+    if (finestreDiChat().filter((w) => !w.isDestroyed()).length === 0) chiudiPannelliConLApp()
+  })
 
   collegaFinestra(win, ptyClient)
 
@@ -648,7 +657,7 @@ export function apriNuovaFinestra(): void {
  * «Apri» nell'altro invece di una parola sola per entrambi.
  */
 function mostraFinestre(): void {
-  const finestre = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
+  const finestre = finestreDiChat().filter((w) => !w.isDestroyed())
   if (finestre.length === 0) {
     try {
       apriNuovaFinestra()
@@ -667,7 +676,7 @@ function mostraFinestre(): void {
 /** Riscrive il menu dell'area, che cambia parole con lo stato delle finestre. */
 function aggiornaMenuArea(): void {
   if (area === undefined) return
-  const nascoste = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && !w.isVisible())
+  const nascoste = finestreDiChat().filter((w) => !w.isDestroyed() && !w.isVisible())
   area.setContextMenu(
     Menu.buildFromTemplate(
       vociArea({ finestreNascoste: nascoste.length }).map((v) =>
@@ -901,7 +910,7 @@ if (!app.requestSingleInstanceLock()) {
           ? reinviaCodiceAccount(email)
           : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
       suCambioAccount((utente) => {
-        for (const w of BrowserWindow.getAllWindows()) {
+        for (const w of finestreDiChat()) {
           if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
             w.webContents.send('account:cambiato', utente ?? null)
           }
@@ -960,7 +969,7 @@ if (!app.requestSingleInstanceLock()) {
         if (p.fase === ultimaFase && !finePasso && ora - ultimoProgresso < 150) return
         ultimoProgresso = ora
         ultimaFase = p.fase
-        for (const w of BrowserWindow.getAllWindows()) {
+        for (const w of finestreDiChat()) {
           if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('sync:progresso', p)
         }
       }
@@ -1030,7 +1039,7 @@ if (!app.requestSingleInstanceLock()) {
       lavoroGlobale = lavoro
 
       lavoro.onCambio((st) => {
-        for (const w of BrowserWindow.getAllWindows()) {
+        for (const w of finestreDiChat()) {
           if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('sync:lavoro', st)
         }
       })
@@ -1076,7 +1085,7 @@ if (!app.requestSingleInstanceLock()) {
         rimappaChat()
         if (rimappate > 0) await reindicizzaSessioni().catch(() => undefined)
         const avviso = { quante: ultimo.scaricati ?? 0, tipo: ultimo.tipo, quando: ultimo.quando, rimappate }
-        for (const w of BrowserWindow.getAllWindows()) {
+        for (const w of finestreDiChat()) {
           if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('chat:arrivate', avviso)
         }
       }
@@ -1140,7 +1149,7 @@ if (!app.requestSingleInstanceLock()) {
 
       // La ronda dei progetti: chi lavora a cosa, e il passaggio di testimone.
       const mandaATutte = (canale: string, dato: unknown): void => {
-        for (const w of BrowserWindow.getAllWindows()) {
+        for (const w of finestreDiChat()) {
           if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send(canale, dato)
         }
       }
@@ -1229,13 +1238,13 @@ if (!app.requestSingleInstanceLock()) {
         },
         cartellaEsiste: (cwd) => { try { return statSync(cwd).isDirectory() } catch { return false } },
         apriChat: (cwd) => {
-          for (const w of BrowserWindow.getAllWindows()) {
+          for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('client:apri', { cartella: cwd })
           }
         },
         riprendiChat: (cwd, sessione) => {
           const dove = workspaceStore === undefined ? undefined : workspaceDellaSessione(workspaceStore.leggi(), sessione)
-          const vive = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && !w.webContents.isDestroyed())
+          const vive = finestreDiChat().filter((w) => !w.isDestroyed() && !w.webContents.isDestroyed())
           const scelta = finestraPerRipresa(dove, vive.map((w) => ({
             id: w.id,
             ...(workspaceDellaFinestra(w.id) !== undefined ? { workspace: workspaceDellaFinestra(w.id) } : {})
@@ -1773,7 +1782,7 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('chat:riprendi', (_e, rawCwd: unknown, rawSessione: unknown) => {
         if (typeof rawCwd !== 'string' || typeof rawSessione !== 'string' || rawSessione === '') return false
         const dove = workspaceStore === undefined ? undefined : workspaceDellaSessione(workspaceStore.leggi(), rawSessione)
-        const vive = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && !w.webContents.isDestroyed())
+        const vive = finestreDiChat().filter((w) => !w.isDestroyed() && !w.webContents.isDestroyed())
         const scelta = finestraPerRipresa(dove, vive.map((w) => ({
           id: w.id,
           ...(workspaceDellaFinestra(w.id) !== undefined ? { workspace: workspaceDellaFinestra(w.id) } : {})
@@ -1856,7 +1865,7 @@ if (!app.requestSingleInstanceLock()) {
         decifra: (cifrato) => safeStorage.decryptString(Buffer.from(cifrato, 'base64'))
       })
       const aTutteLeFinestre = (canale: string, dato: unknown): void => {
-        for (const w of BrowserWindow.getAllWindows()) {
+        for (const w of finestreDiChat()) {
           if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send(canale, dato)
         }
       }
@@ -2115,6 +2124,37 @@ if (!app.requestSingleInstanceLock()) {
       })
       registerAutopilotaIpc(clientAutopilota)
 
+      // Le finestre pannello (0.38.0): le linguette della scheda dell'autopilota
+      // staccate in finestre vere. Non sono finestre di chat (finestre-pannello.ts).
+      impostaFinestrePannello({
+        cartellaDati: dati,
+        preload: join(__dirname, '../preload/index.js'),
+        onCambio: () => {
+          for (const w of finestreDiChat()) if (!w.isDestroyed()) w.webContents.send('pannelli:cambiati', pannelliAperti())
+        }
+      })
+      ipcMain.handle('pannello:stacca', (_e, id: unknown, linguetta: unknown) => {
+        if (!eLinguettaStaccabile(linguetta)) throw new Error('richiesta IPC non valida: linguetta')
+        apriPannello(validaIdAutopilota(id), linguetta)
+      })
+      ipcMain.handle('pannello:rimetti', (_e, id: unknown, linguetta: unknown) => {
+        if (!eLinguettaStaccabile(linguetta)) throw new Error('richiesta IPC non valida: linguetta')
+        rimettiPannello(validaIdAutopilota(id), linguetta)
+      })
+      ipcMain.handle('pannello:aperti', () => pannelliAperti())
+      ipcMain.handle('pannello:richiama', (e) => {
+        const w = BrowserWindow.fromWebContents(e.sender)
+        if (w !== null) richiamaPannello(w)
+      })
+      // Al riavvio: si riaprono dov'erano, se l'autopilota esiste ancora. Il
+      // servizio puo' metterci qualche secondo: si prova due volte.
+      const riapri = (tentativo: number): void => {
+        clientAutopilota.elenca()
+          .then((tutti) => riapriPannelli(tutti.map((a) => a.id)))
+          .catch(() => { if (tentativo < 2) setTimeout(() => riapri(tentativo + 1), 8000) })
+      }
+      setTimeout(() => riapri(1), 3000)
+
       // **Il ritorno va dichiarato.** Il servizio sopravvive alla chiusura del
       // Gestore — è tutto il suo mestiere — ma le chat governate no: muoiono
       // con le finestre. Al ritorno il servizio è ancora quello di prima e non
@@ -2253,7 +2293,7 @@ if (!app.requestSingleInstanceLock()) {
         // riavviare: `autoUpdater` vive nel Core, e questa è la sua unica finestra
         // per sapere che l'utente ha cambiato idea.
         aggiornamenti?.impostaScaricoAutomatico(nuove.scaricaAggiornamentiAutomatico)
-        for (const w of BrowserWindow.getAllWindows()) {
+        for (const w of finestreDiChat()) {
           if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
             w.webContents.send('preferenze:cambiate', nuove)
           }
@@ -2358,14 +2398,14 @@ if (!app.requestSingleInstanceLock()) {
           }
         },
         scriviAChat: (idChat: string, testo: string) => {
-          for (const w of BrowserWindow.getAllWindows()) {
+          for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
               w.webContents.send('client:scrivi', { chat: idChat, testo })
             }
           }
         },
         apriChat: (cartella: string, modello?: string) => {
-          for (const w of BrowserWindow.getAllWindows()) {
+          for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
               w.webContents.send('client:apri', { cartella, modello })
             }
@@ -2524,7 +2564,7 @@ if (!app.requestSingleInstanceLock()) {
           }
         },
         cambiaWorkspace: async (nome: string) => {
-          for (const w of BrowserWindow.getAllWindows()) {
+          for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
               w.webContents.send('client:workspace', nome)
             }
@@ -2537,14 +2577,14 @@ if (!app.requestSingleInstanceLock()) {
         // Chiudere e rinominare una chat le sa fare la finestra, che e' l'unica
         // a conoscere i suoi riquadri: qui si annuncia, come per «apri».
         chiudiChat: (idChat: string) => {
-          for (const w of BrowserWindow.getAllWindows()) {
+          for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
               w.webContents.send('client:chiudiChat', idChat)
             }
           }
         },
         rinominaChat: (idChat: string, nome: string) => {
-          for (const w of BrowserWindow.getAllWindows()) {
+          for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
               w.webContents.send('client:rinominaChat', { chat: idChat, nome })
             }
@@ -2597,7 +2637,7 @@ if (!app.requestSingleInstanceLock()) {
           const dove = workspaceStore === undefined
             ? undefined
             : workspaceDellaSessione(workspaceStore.leggi(), sessione)
-          const vive = BrowserWindow.getAllWindows()
+          const vive = finestreDiChat()
             .filter((w) => !w.isDestroyed() && !w.webContents.isDestroyed())
           const scelta = finestraPerRipresa(dove, vive.map((w) => ({
             id: w.id,
@@ -2613,7 +2653,7 @@ if (!app.requestSingleInstanceLock()) {
           const store = workspaceStore
           if (store === undefined) return
           store.scrivi(creaWorkspace(store.leggi(), nome))
-          for (const w of BrowserWindow.getAllWindows()) {
+          for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('client:workspace', nome)
           }
         },
@@ -2631,7 +2671,7 @@ if (!app.requestSingleInstanceLock()) {
           // finestra sa già seguire. Il percorso IPC lo fa con `annunciaCambio`;
           // questo, di rete, non ci arriva, ed era la parte scoperta.
           if (dopo.attivo !== precedente.attivo) {
-            for (const w of BrowserWindow.getAllWindows()) {
+            for (const w of finestreDiChat()) {
               if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
                 w.webContents.send('client:workspace', dopo.attivo)
               }
@@ -2729,7 +2769,7 @@ if (!app.requestSingleInstanceLock()) {
         // Un pezzo per volta: cambiarne una non deve cancellare le altre.
         impostaPreferenze: async (parziali: Record<string, unknown>) => {
           const nuove = impostazioni.impostaPreferenze({ ...impostazioni.preferenze(), ...parziali })
-          for (const w of BrowserWindow.getAllWindows()) {
+          for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
               w.webContents.send('preferenze:cambiate', nuove)
             }
@@ -2747,7 +2787,7 @@ if (!app.requestSingleInstanceLock()) {
           // apre di nuove per ciò che avanza. Mandandolo a ogni finestra, ognuna
           // rifaceva l'intero ripristino in parallelo — finestre e chat in doppio
           // o triplo. È la stessa strada della modale, dove a chiamare è una sola.
-          const prima = BrowserWindow.getAllWindows().find(
+          const prima = finestreDiChat().find(
             (w) => !w.isDestroyed() && !w.webContents.isDestroyed()
           )
           prima?.webContents.send('client:caricaSalvataggio', nome)
@@ -2885,7 +2925,7 @@ if (!app.requestSingleInstanceLock()) {
           }
         }
         for (const id of [...chatPerFinestra.keys()]) {
-          const w = BrowserWindow.getAllWindows().find((x) => x.id === id)
+          const w = finestreDiChat().find((x) => x.id === id)
           // Una finestra chiusa non deve lasciare le sue chat nell'elenco.
           if (w === undefined || w.isDestroyed()) chatPerFinestra.delete(id)
         }
@@ -2922,7 +2962,7 @@ if (!app.requestSingleInstanceLock()) {
           // del servizio, e una consegna presa mentre non c'è nessuna finestra
           // sarebbe un'istruzione persa: l'autopilota resterebbe ad aspettare
           // per sempre la risposta a un messaggio che non è mai arrivato.
-          if (BrowserWindow.getAllWindows().some((w) => !w.isDestroyed())) {
+          if (finestreDiChat().some((w) => !w.isDestroyed())) {
             return await chiediAlServizio('/consegne')
           }
           // Nessuna finestra e qualcosa da consegnare: se ne apre una. Il
@@ -2941,7 +2981,7 @@ if (!app.requestSingleInstanceLock()) {
         // chat: solo allora escono dalla sua coda.
         conferma: async (ids) => { await postaAlServizio('/consegne/conferma', { ids }) },
         consegna: (c) => {
-          const vive = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
+          const vive = finestreDiChat().filter((w) => !w.isDestroyed())
           const dove = finestraPerConsegna(c.sessionId, chatPerFinestra, vive.map((w) => w.id))
           const finestra = vive.find((w) => w.id === dove)
           if (finestra === undefined || finestra.webContents.isDestroyed()) {
@@ -3050,7 +3090,7 @@ if (!app.requestSingleInstanceLock()) {
       // decide l'utente. Il secondo «sì» esiste perché installare chiude il
       // programma con le chat aperte dentro.
       aggiornamenti = creaAggiornamenti(
-        () => BrowserWindow.getAllWindows(),
+        () => finestreDiChat(),
         dati,
         // L'installer sostituisce i file che questi processi tengono aperti:
         // vanno chiusi prima, o l'installazione si ferma a metà e l'icona
@@ -3205,7 +3245,7 @@ if (!app.requestSingleInstanceLock()) {
       // nessuna gara da vincere.
 
       app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) apriNuovaFinestra()
+        if (finestreDiChat().length === 0) apriNuovaFinestra()
       })
     })
     .catch((err: unknown) => {

@@ -410,6 +410,13 @@ declare global {
       /** La scheda Domande del PC: le rotte del telefono per rispondere (0.36.0). */
       domande: {
         chiama: (percorso: string, corpo?: unknown) => Promise<{ stato: number; corpo: unknown }>
+      },
+      pannello: {
+        stacca: (autopilota: string, linguetta: string) => Promise<void>
+        rimetti: (autopilota: string, linguetta: string) => Promise<void>
+        aperti: () => Promise<{ autopilota: string; linguetta: string }[]>
+        richiama: () => Promise<void>
+        suCambio: (cb: (aperti: { autopilota: string; linguetta: string }[]) => void) => () => void
       }
     }
   }

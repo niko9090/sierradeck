@@ -4166,3 +4166,18 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .file-ap__riga--meno { background: color-mix(in srgb, var(--rosso, #dc5f5f) 18%, transparent); }
 .file-ap__riga--blocco { color: var(--accento, #4aa3ff); }
 .file-ap__riga--testa { color: var(--testo-quieto); }
+
+/* ─────────────── le finestre pannello e il tasto «Stacca» (0.38.0) ─────────────── */
+.diario__stacca {
+  background: transparent; border: 1px solid transparent; color: var(--testo-quieto);
+  font: inherit; font-size: var(--t1); cursor: pointer; padding: 0 var(--s2); border-radius: 4px;
+}
+.diario__stacca:hover { border-color: var(--luce-incisione); color: var(--testo); }
+.finestra-pannello { height: 100vh; display: flex; flex-direction: column; background: var(--fondo); color: var(--testo); }
+.finestra-pannello__testa {
+  display: flex; align-items: center; gap: var(--s2); padding: var(--s2) var(--s3);
+  border-bottom: 1px solid var(--luce-incisione); background: var(--chassis);
+}
+.finestra-pannello__nome { font-weight: 600; }
+.finestra-pannello__nome--chiama { color: var(--ambra); }
+.finestra-pannello__corpo { flex: 1 1 auto; min-height: 0; overflow: auto; padding: var(--s2) var(--s3); }

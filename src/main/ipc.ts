@@ -1,3 +1,4 @@
+import { finestreDiChat } from './finestre-pannello'
 import { app, ipcMain, screen, shell, BrowserWindow } from 'electron'
 import { diffDellAutopilota, fileDellAutopilota } from './file-autopilota'
 import { basename, dirname, join } from 'node:path'
@@ -532,7 +533,7 @@ export function workspaceDellaFinestra(winId: number): string | undefined {
 }
 
 function vive(): number[] {
-  return BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed()).map((w) => w.id)
+  return finestreDiChat().filter((w) => !w.isDestroyed()).map((w) => w.id)
 }
 
 const salutate = new Set<number>()
@@ -610,7 +611,7 @@ export type LayoutConScontrino = { layout: LayoutSalvato; scontrino: number }
  * sopra quello di adesso.
  */
 function spingiLayout(winId: number, workspace: string, layout: LayoutSalvato): void {
-  const win = BrowserWindow.getAllWindows().find((w) => w.id === winId)
+  const win = finestreDiChat().find((w) => w.id === winId)
   if (win === undefined || win.isDestroyed() || win.webContents.isDestroyed()) return
   win.webContents.send('layout:applica', { layout, scontrino: consegnaA(win, workspace) })
 }
@@ -685,7 +686,7 @@ ipcMain.on('layout:consegna', (event, rawId: unknown, raw: unknown) => {
  * deve impedire di salvare quelle vive.
  */
 async function raccogliLayout(attesaMs = 700): Promise<{ winId: number; layout: LayoutSalvato }[]> {
-  const finestre = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
+  const finestre = finestreDiChat().filter((w) => !w.isDestroyed())
   if (finestre.length === 0) return []
 
   const id = prossimaRichiesta++
@@ -732,7 +733,7 @@ ipcMain.on('layout:salvato', (event, rawId: unknown) => {
  * non deve impedire di chiudere.
  */
 export async function salvaLayoutDiTutteLeFinestre(attesaMs = 1500): Promise<void> {
-  const finestre = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
+  const finestre = finestreDiChat().filter((w) => !w.isDestroyed())
   if (finestre.length === 0) return
   const id = prossimoFlusso++
   const mancano = new Set(finestre.map((w) => w.id))
@@ -889,7 +890,7 @@ export function annotaQuanteFinestre(store: WorkspaceStore): void {
  * vecchio.
  */
 export function assorbiOrfani(store: WorkspaceStore): void {
-  const rimaste = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
+  const rimaste = finestreDiChat().filter((w) => !w.isDestroyed())
   if (rimaste.length === 0) return
   const piuBassa = rimaste
     .map((w) => ({ w, slot: Number(consegne.slotDi(w.id, vive())) }))
@@ -1036,7 +1037,7 @@ export function registerLayoutIpc(
     // workspace diversi se lo contenderebbero a ogni salvataggio. `find` sul
     // primo non distrutto, non `[0]`, perché la finestra originaria può essere
     // già chiusa.
-    const principale = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
+    const principale = finestreDiChat().find((w) => !w.isDestroyed())
     const conAttivo =
       principale !== undefined && principale.id === win.id
         ? seguiAttivoDellaPrincipale(conLayout, consegna.workspace)
@@ -1415,14 +1416,14 @@ export function registerFinestreIpc(apri: () => void): void {
   // utile, ed elencarla inviterebbe a provarlo.
   ipcMain.handle('finestre:elenco', (event): { id: number; titolo: string }[] => {
     const mia = BrowserWindow.fromWebContents(event.sender)
-    return BrowserWindow.getAllWindows()
+    return finestreDiChat()
       .filter((w) => !w.isDestroyed() && w.id !== mia?.id)
       .map((w, i) => ({ id: w.id, titolo: `Finestra ${i + 1}` }))
   })
 
   ipcMain.handle('finestre:sposta', (_event, rawPane: unknown, rawFinestra: unknown): boolean => {
     const finestraId = validateIdFinestra(rawFinestra)
-    const destinazione = BrowserWindow.getAllWindows()
+    const destinazione = finestreDiChat()
       .find((w) => w.id === finestraId && !w.isDestroyed())
     if (destinazione === undefined) throw new Error('finestra di destinazione non disponibile')
 
@@ -1520,7 +1521,7 @@ export function registerIstantaneeIpc(
       const finestre: FinestraSalvata[] = [
         ...(layout.panes.length > 0 ? [{ monitor: monitorDellaFinestra(win), slot: slotDellaFinestra(win), layout }] : []),
         ...altre.flatMap((r) => {
-          const w = BrowserWindow.getAllWindows().find((x) => x.id === r.winId)
+          const w = finestreDiChat().find((x) => x.id === r.winId)
           if (w === undefined || w.isDestroyed()) return []
           // Una finestra senza riquadri non e' da riaprire: comparirebbe vuota.
           if (r.layout.panes.length === 0) return []
@@ -1615,7 +1616,7 @@ export function registerIstantaneeIpc(
     // dentro le chat di prima: le stesse chat comparivano due volte, in due
     // finestre, ed è il motivo per cui il ripristino sembrava perderne alcune e
     // duplicarne altre.
-    const aperte = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
+    const aperte = finestreDiChat().filter((w) => !w.isDestroyed())
     const ordinate = [win, ...aperte.filter((w) => w.id !== win.id)]
     // Le finestre **da riaprire davvero**: quelle vuote si saltano, e se sono
     // vuote tutte si pesca dal workspace che si aveva davanti. Un salvataggio

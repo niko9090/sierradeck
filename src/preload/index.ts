@@ -939,5 +939,21 @@ contextBridge.exposeInMainWorld('gestore', {
   domande: {
     chiama: (percorso: string, corpo?: unknown): Promise<{ stato: number; corpo: unknown }> =>
       ipcRenderer.invoke('domande:chiama', percorso, corpo)
+  },
+  /**
+   * Le finestre pannello (0.38.0): una linguetta della scheda dell'autopilota
+   * staccata in una finestra vera, anche su un altro schermo.
+   */
+  pannello: {
+    stacca: (autopilota: string, linguetta: string): Promise<void> => ipcRenderer.invoke('pannello:stacca', autopilota, linguetta),
+    rimetti: (autopilota: string, linguetta: string): Promise<void> => ipcRenderer.invoke('pannello:rimetti', autopilota, linguetta),
+    aperti: (): Promise<{ autopilota: string; linguetta: string }[]> => ipcRenderer.invoke('pannello:aperti'),
+    /** La finestra pannello chiede attenzione (una domanda nuova): lampeggia nella barra. */
+    richiama: (): Promise<void> => ipcRenderer.invoke('pannello:richiama'),
+    suCambio: (cb: (aperti: { autopilota: string; linguetta: string }[]) => void): (() => void) => {
+      const h = (_e: unknown, a: { autopilota: string; linguetta: string }[]): void => cb(a)
+      ipcRenderer.on('pannelli:cambiati', h)
+      return () => { ipcRenderer.removeListener('pannelli:cambiati', h) }
+    }
   }
 })

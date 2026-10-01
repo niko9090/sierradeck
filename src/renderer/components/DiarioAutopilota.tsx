@@ -1,23 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Anteprima } from '../../main/anteprima'
 import type { Autopilota } from '@shared/autopilota'
 import { LARGHEZZA_DIARIO } from '@shared/preferenze'
 import { passoDaTasto, postoDalDocumento, quotaDiario } from '../diario-misura'
-import { diario } from '../diario-autopilota'
 import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
 import { ChatAutopilota } from './ChatAutopilota'
-import { DomandeAutopilota } from './DomandeAutopilota'
-import { FileAutopilota } from './FileAutopilota'
-import { domandaArrivata, domandeScheda, type DomandaApertaServizio } from '@shared/domande-autopilota'
-import {
-  CompitiAutopilota, CriteriAutopilota, ObiettivoAutopilota, RagionamentiAutopilota
-} from './SchedaAutopilota'
-
-function ora(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
-}
+import { domandaArrivata } from '@shared/domande-autopilota'
+import { LinguettaAutopilota, useDomandeAutopilota } from './LinguettaAutopilota'
 
 /** Le linguette sotto la chat: una cosa per volta, ognuna con tutto lo spazio. */
 type Linguetta = 'domande' | 'lavoro' | 'file' | 'obiettivo' | 'criteri' | 'compiti' | 'diario'
@@ -64,26 +52,35 @@ export function DiarioAutopilota({
   onCambiato: () => void
 }): React.JSX.Element {
   const [aperto, setAperto] = useState(true)
-  // Cosa sta scrivendo la sua chat, adesso. Quella chat gira in un processo
-  // staccato e non ha un terminale da guardare: senza questo, dell'autopilota
-  // si vedono solo le decisioni — cioè qualcosa ogni parecchi minuti, mentre
-  // lui lavora di continuo.
-  const [conversazione, setConversazione] = useState<Anteprima | undefined>(undefined)
   const [linguetta, setLinguetta] = useState<Linguetta>('lavoro')
   /**
    * Le sue domande aperte (0.38.0): il numerino della linguetta «Domande» e
    * le schede da rispondere. Si rileggono ogni due secondi dal servizio.
    */
-  const [aperte, setAperte] = useState<DomandaApertaServizio[]>([])
-  const leggiDomande = useCallback((): void => {
-    window.gestore.autopilota.domande().then(setAperte).catch(() => undefined)
-  }, [])
+  const { schede, rileggi: leggiDomande } = useDomandeAutopilota(autopilota)
+  /**
+   * Le linguette staccate in una finestra vera (0.38.0): spariscono dalla barra
+   * finche' non le rimetti (dalla loro finestra, «Rimetti al suo posto», o
+   * chiudendola).
+   */
+  const [staccate, setStaccate] = useState<string[]>([])
   useEffect(() => {
-    leggiDomande()
-    const h = setInterval(leggiDomande, 2000)
-    return () => clearInterval(h)
-  }, [leggiDomande])
-  const schede = domandeScheda(autopilota, aperte)
+    const applica = (aperti: { autopilota: string; linguetta: string }[]): void =>
+      setStaccate(aperti.filter((x) => x.autopilota === autopilota.id).map((x) => x.linguetta))
+    window.gestore.pannello.aperti().then(applica).catch(() => undefined)
+    return window.gestore.pannello.suCambio(applica)
+  }, [autopilota.id])
+  const barra = useRef<HTMLDivElement | null>(null)
+  const stacca = (l: Linguetta): void => {
+    void window.gestore.pannello.stacca(autopilota.id, l).catch(() => undefined)
+  }
+  /** Trascinata fuori dalla barra (anche fuori dalla finestra): si stacca. */
+  const fineTrascinamento = (l: Linguetta, e: React.DragEvent<HTMLButtonElement>): void => {
+    const r = barra.current?.getBoundingClientRect()
+    if (r === undefined) return
+    const fuori = (e.clientX === 0 && e.clientY === 0) || e.clientX < r.left || e.clientX > r.right || e.clientY < r.top - 8 || e.clientY > r.bottom + 40
+    if (fuori) stacca(l)
+  }
   // Dalla colonna Domande: «X ti aspetta → apri» porta qui, sulla linguetta.
   const radice = useRef<HTMLElement | null>(null)
   useEffect(() => {
@@ -106,8 +103,9 @@ export function DiarioAutopilota({
   const primaDelleDomande = useRef<Linguetta>('lavoro')
   const viste = useRef<string[]>([])
   useEffect(() => {
-    // Una domanda nuova: la linguetta si accende e si fa avanti.
-    if (domandaArrivata(viste.current, schede)) {
+    // Una domanda nuova: la linguetta si accende e si fa avanti (se e'
+    // staccata in una sua finestra, lampeggia quella).
+    if (domandaArrivata(viste.current, schede) && !staccate.includes('domande')) {
       setLinguetta((l) => {
         if (l !== 'domande') primaDelleDomande.current = l
         return 'domande'
@@ -117,41 +115,8 @@ export function DiarioAutopilota({
     // Finite: la linguetta si chiude e si torna dov'eri.
     if (schede.length === 0) setLinguetta((l) => (l === 'domande' ? primaDelleDomande.current : l))
   }, [schede.map((d) => d.chiave).join('|')])
-  /** Con la flotta: quale chat si guarda in «Sta facendo». */
-  const [chatScelta, setChatScelta] = useState<string | undefined>(undefined)
   const colonna = useRef<HTMLElement | null>(null)
 
-  const sessioni = [
-    ...autopilota.chats.filter((ch) => ch.sessionId !== undefined).map((ch) => ch.sessionId!),
-    ...(autopilota.sessionId !== undefined ? [autopilota.sessionId] : [])
-  ]
-  // Mentre si prepara la conversazione è quella dell'intervista: dura minuti in
-  // cui legge il progetto, e senza questa riga il pannello diceva soltanto «la
-  // chat non è ancora partita» — che è vero e non serve a niente.
-  const sessione = autopilota.stato === 'intervista' && autopilota.sessioneIntervista !== undefined
-    ? autopilota.sessioneIntervista
-    : chatScelta !== undefined && sessioni.includes(chatScelta) ? chatScelta : sessioni[0]
-
-  const aggiorna = useCallback((): void => {
-    if (sessione === undefined) return
-    window.gestore.sessions
-      .anteprima(autopilota.cwd, sessione)
-      .then(setConversazione)
-      .catch(() => undefined)
-  }, [autopilota.cwd, sessione])
-
-  useEffect(() => {
-    // Si legge solo quando si guarda: la trascrizione è mezzo megabyte, e
-    // rileggerla ogni due secondi per una linguetta chiusa è lavoro buttato.
-    if (linguetta !== 'lavoro') return
-    aggiorna()
-    // Due secondi: abbastanza spesso da vedere il lavoro procedere, abbastanza
-    // di rado da non rileggere mezzo megabyte per niente.
-    const h = setInterval(aggiorna, 2000)
-    return () => clearInterval(h)
-  }, [aggiorna, linguetta])
-
-  const voci = diario(autopilota)
   const led = ledDi(autopilota)
   const percorso = passaggi(autopilota)
   const m = misuraPasso(autopilota)
@@ -241,104 +206,18 @@ export function DiarioAutopilota({
     )
   }
 
-  const pannello = (): React.JSX.Element => {
-    switch (linguetta) {
-      case 'domande':
-        return <DomandeAutopilota autopilota={autopilota} domande={schede} onRisposto={() => { leggiDomande(); onCambiato() }} />
-      case 'file':
-        return <FileAutopilota autopilota={autopilota} />
-      case 'obiettivo':
-        return <ObiettivoAutopilota autopilota={autopilota} />
-      case 'criteri':
-        return <CriteriAutopilota autopilota={autopilota} onCambiato={onCambiato} />
-      case 'compiti':
-        return <CompitiAutopilota autopilota={autopilota} onCambiato={onCambiato} />
-      case 'diario':
-        return (
-          <div className="diario__voci">
-            <RagionamentiAutopilota autopilota={autopilota} />
-            {voci.length === 0 ? (
-              <p className="diario__vuoto">
-                {autopilota.stato === 'intervista'
-                  ? 'Sta guardando il progetto per capire cosa serve.'
-                  : 'Ancora niente: il primo intervento arriva quando la chat si ferma.'}
-              </p>
-            ) : (
-              voci.map((v, i) => (
-                <div key={`${v.quando}-${i}`} className={`diario__voce diario__voce--${v.tipo ?? 'altro'}`}>
-                  <span className="misura diario__quando">{ora(v.quando)}</span>
-                  <div>
-                    <div className="diario__titolo">
-                      {v.titolo}
-                      {/* Le riprese identiche sono compresse: il numero dice quante
-                          volte senza riempire l'elenco di righe uguali. */}
-                      {v.volte !== undefined ? <span className="diario__volte">×{v.volte}</span> : null}
-                    </div>
-                    {v.dettaglio !== undefined ? <div className="diario__dettaglio">{v.dettaglio}</div> : null}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )
-      case 'lavoro':
-      default:
-        return (
-          <div className="diario__voci">
-            {/* Con la flotta si sceglie quale chat guardare: una riga di
-                bottoni, «chat 1», «chat 2», con lo stato di ognuna. */}
-            {autopilota.chats.length > 1 ? (
-              <div className="diario__quali-chat" role="tablist" aria-label="Quale chat guardare">
-                {autopilota.chats.map((ch, i) => (
-                  <button
-                    key={ch.id}
-                    role="tab"
-                    aria-selected={sessione === ch.sessionId}
-                    className={sessione === ch.sessionId ? 'diario__quale-chat diario__quale-chat--attiva' : 'diario__quale-chat'}
-                    disabled={ch.sessionId === undefined}
-                    title={`${ch.compito} — ${ch.stato}`}
-                    onClick={() => setChatScelta(ch.sessionId)}
-                  >
-                    <span className={`led ${ch.stato === 'lavoro' ? 'led--lavoro' : ch.stato === 'bloccata' ? 'led--attesa' : 'led--finito'}`} />
-                    chat {i + 1}{ch.stato === 'pausa' ? ' · in pausa' : ''}{ch.ramo !== undefined ? ` · ${ch.ramo}` : ''}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            {sessione === undefined ? (
-              <p className="diario__vuoto">
-                {autopilota.stato === 'pronto'
-                  ? 'La chat nasce quando dai il via, nella chat qui sopra.'
-                  : 'La chat non è ancora partita.'}
-              </p>
-            ) : conversazione === undefined ? (
-              <p className="diario__vuoto">Leggo la conversazione…</p>
-            ) : conversazione.scambi.length === 0 && conversazione.azioni.length === 0 ? (
-              <p className="diario__vuoto">
-                {conversazione.errore ?? 'La chat è partita e sta pensando: fra poco si vedrà qualcosa.'}
-              </p>
-            ) : (
-              <>
-                {conversazione.scambi.map((s, i) => (
-                  <div key={i} className={`anteprima__riga anteprima__riga--${s.ruolo}`}>
-                    <span className="anteprima__chi">{s.ruolo === 'utente' ? 'compito' : 'claude'}</span>
-                    <span>{s.testo}</span>
-                  </div>
-                ))}
-                {conversazione.azioni.length > 0 ? (
-                  <div className="anteprima__azioni">
-                    <span className="serigrafia">sta usando</span>
-                    {conversazione.azioni.map((a, i) => (
-                      <div key={i} className="misura anteprima__azione">{a}</div>
-                    ))}
-                  </div>
-                ) : null}
-              </>
-            )}
-          </div>
-        )
-    }
-  }
+  const visibile = staccate.includes(linguetta)
+    ? (LINGUETTE.find((l) => !staccate.includes(l.id) && l.id !== 'domande')?.id ?? 'lavoro')
+    : linguetta
+  const pannello = (): React.JSX.Element => (
+    <LinguettaAutopilota
+      autopilota={autopilota}
+      linguetta={visibile}
+      schede={schede}
+      onRisposto={() => { leggiDomande(); onCambiato() }}
+      onCambiato={onCambiato}
+    />
+  )
 
   return (
     <aside className={largo ? 'diario diario--largo' : 'diario'} ref={(el) => { colonna.current = el; radice.current = el }}>
@@ -412,13 +291,15 @@ export function DiarioAutopilota({
         <ChatAutopilota autopilota={autopilota} onCambiato={onCambiato} />
 
         <div className="diario__lato">
-          <div className="diario__schede" role="tablist">
-            {LINGUETTE.filter((l) => l.id !== 'domande' || schede.length > 0).map((l) => (
+          <div className="diario__schede" role="tablist" ref={barra}>
+            {LINGUETTE.filter((l) => (l.id !== 'domande' || schede.length > 0) && !staccate.includes(l.id)).map((l) => (
               <button
+                draggable
+                onDragEnd={(e) => fineTrascinamento(l.id, e)}
                 key={l.id}
                 role="tab"
-                aria-selected={linguetta === l.id}
-                className={`${linguetta === l.id ? 'diario__scheda diario__scheda--attiva' : 'diario__scheda'}${l.id === 'domande' ? ' diario__scheda--domande' : ''}`}
+                aria-selected={visibile === l.id}
+                className={`${visibile === l.id ? 'diario__scheda diario__scheda--attiva' : 'diario__scheda'}${l.id === 'domande' ? ' diario__scheda--domande' : ''}`}
                 title={l.titolo}
                 onClick={() => {
                   if (l.id === 'domande' && linguetta !== 'domande') primaDelleDomande.current = linguetta
@@ -442,6 +323,17 @@ export function DiarioAutopilota({
                 ) : null}
               </button>
             ))}
+            <span style={{ flex: 1 }} />
+            {!staccate.includes(linguetta) ? (
+              <button
+                className="diario__stacca"
+                onClick={() => stacca(linguetta)}
+                title="Stacca questa linguetta in una finestra sua, da spostare dove vuoi, anche su un altro schermo. Si rimette dalla sua finestra («Rimetti al suo posto») o chiudendola. Puoi anche trascinare una linguetta fuori da questa barra"
+                aria-label="Stacca la linguetta in una finestra"
+              >
+                ⧉ Stacca
+              </button>
+            ) : null}
           </div>
           <div className="diario__pannello">
             {pannello()}

@@ -12,9 +12,9 @@ const colonna = readFileSync('src/renderer/components/PannelloDomande.tsx', 'utf
 
 describe('la linguetta «Domande» della scheda dell autopilota', () => {
   it('compare solo con domande aperte, con il numerino, e si fa avanti quando ne arriva una', () => {
-    expect(diario).toContain("LINGUETTE.filter((l) => l.id !== 'domande' || schede.length > 0)")
+    expect(diario).toContain("LINGUETTE.filter((l) => (l.id !== 'domande' || schede.length > 0) && !staccate.includes(l.id))")
     expect(diario).toContain('diario__scheda-conto--domande')
-    expect(diario).toContain('domandaArrivata(viste.current, schede)')
+    expect(diario).toContain("domandaArrivata(viste.current, schede) && !staccate.includes('domande')")
     // Finite: si torna dov'eri.
     expect(diario).toContain("setLinguetta((l) => (l === 'domande' ? primaDelleDomande.current : l))")
   })

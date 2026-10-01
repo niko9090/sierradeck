@@ -1,5 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
+import { FinestraPannello } from './components/FinestraPannello'
+import { eLinguettaStaccabile } from '@shared/finestra-pannello'
 import { ConfineErrori } from './components/ConfineErrori'
 import './console.css'
 
@@ -34,8 +36,15 @@ for (const evento of ['dragover', 'drop']) {
 
 const el = document.getElementById('root')
 if (!el) throw new Error('Elemento #root non trovato')
+// Una finestra pannello (0.38.0): una linguetta dell'autopilota staccata in
+// una finestra vera. Non e' una finestra di chat: niente App, solo la linguetta.
+const parametri = new URLSearchParams(window.location.search)
+const pannello = parametri.get('pannello')
+const autopilotaPannello = parametri.get('autopilota')
 createRoot(el).render(
   <ConfineErrori>
-    <App />
+    {eLinguettaStaccabile(pannello) && autopilotaPannello !== null && autopilotaPannello !== ''
+      ? <FinestraPannello autopilotaId={autopilotaPannello} linguetta={pannello} />
+      : <App />}
   </ConfineErrori>
 )
