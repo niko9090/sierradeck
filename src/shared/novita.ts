@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.37.0',
+    righe: [
+      '**La banda degli autopiloti fermi si chiude.** Accanto a «Vedi» ci sono «Riprendi», «Archivia» e «Chiudi». «Chiudi» toglie l’avviso per quel fermo, anche dopo un riavvio; torna solo se l’autopilota si ferma di nuovo. «Archivia» mette da parte un autopilota che non deve ripartire: resta nel pannello Autopiloti, ma non compare più in alto e non manda notifiche. Anche l’avviso dei programmi mancanti si chiude, finché la lista non cambia.',
+      '**Telefono e pagina annunciano un fermo una volta sola.** Prima, quando il servizio degli autopiloti spariva per un attimo e tornava, l’app ripeteva le notifiche di tutti gli autopiloti fermi. Ora ognuno si annuncia una volta, e di nuovo solo se si ferma un’altra volta (app 2.40.0).',
+      '**Limiti del piano e contesto affidabili.** Fra tutte le chat vale la lettura più recente, non l’ultima chat che ha scritto né il numero più alto. Dopo l’azzeramento la finestra dice «azzerata, in attesa di una lettura nuova» invece del vecchio valore. Ogni lettura dice «letto N minuti fa», e oltre 20 minuti è segnata vecchia. Una chat senza limiti (chiave API, altro modello) non cancella più il valore buono.',
+      '**Il contesto si conta come lo conta Claude Code**, solo con i token in ingresso: la percentuale e i token mostrati ora tornano. PC, pagina, app e freno degli autopiloti leggono gli stessi numeri nello stesso modo.',
+      '**Sul PC la colonna «Consumi e limiti»**, fissa accanto alle chat come le Domande. Si apre dal tasto «Consumi» della console e si ritrova aperta e larga com’era. Mostra la finestra di 5 ore e la settimana con barra, azzeramento ed età della lettura, il contesto di ogni chat aperta e cosa sta facendo il freno degli autopiloti, tutto spiegato per esteso. Se c’è posto resta aperta insieme alle Domande. Pagina e app mostrano le stesse cose nei loro Consumi.'
+    ]
+  },
+  {
     versione: '0.36.1',
     righe: [
       '**Le chat che vivono su un altro PC si aprono dal vivo su quel PC, non più con un errore.** Quando apri un workspace, premi «Torna a com’era» o riprendi una conversazione, prima di aprirla qui il programma guarda dove vive: se è aperta su un altro tuo PC, o la sua cartella sta là, e quel PC è acceso, il riquadro si collega subito a lui e ci lavori a distanza, come dal telefono. Niente più «guarda dal vivo / apri qui lo stesso» da scegliere, niente «la trascrizione non c’è».',
