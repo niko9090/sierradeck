@@ -371,6 +371,29 @@ export function PannelloAutopiloti({
                 {a.criteri.length === 0 ? 'Riprendi le domande' : 'Riprendi'}
               </button>
             ) : null}
+            {/* «Archivia» (0.37.0): un fermo che non deve ripartire esce dalla
+                banda e dalle notifiche, ma resta qui con la sua etichetta. */}
+            {a.stato === 'sospeso' || a.stato === 'fallito' ? (
+              a.archiviato === true ? (
+                <button
+                  className="tasto"
+                  onClick={() => esegui(() => window.gestore.autopilota.archivia(a.id, false))}
+                  disabled={inCorso}
+                  title="È archiviato: non compare nella banda in alto e non manda notifiche. Toglierlo dall’archivio lo rimette fra quelli che ti avvisano, senza farlo ripartire"
+                >
+                  Archiviato · togli
+                </button>
+              ) : (
+                <button
+                  className="tasto"
+                  onClick={() => esegui(() => window.gestore.autopilota.archivia(a.id, true))}
+                  disabled={inCorso}
+                  title="Lo mette da parte: resta qui, ma non compare più nella banda in alto e non manda notifiche. «Riprendi» lo rimette al lavoro"
+                >
+                  Archivia
+                </button>
+              )
+            ) : null}
             {/* La sua spunta, non quella di tutti: un lavoro lungo deve poter
                 riprendere da solo dopo un riavvio, e quello che stavi provando
                 per curiosità no. L'interruttore qui sopra dice se il servizio

@@ -867,6 +867,8 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Se questo autopilota debba ripartire da solo dopo un riavvio del PC. */
     riprendiAlRiavvio: (id: string, riprendi: boolean): Promise<void> =>
       ipcRenderer.invoke('autopilota:riprendiAlRiavvio', id, riprendi),
+    /** «Archivia»: un autopilota fermo messo da parte (false lo toglie dall'archivio). */
+    archivia: (id: string, archivia: boolean): Promise<void> => ipcRenderer.invoke('autopilota:archivia', id, archivia),
     elimina: (id: string): Promise<void> => ipcRenderer.invoke('autopilota:elimina', id),
     domande: (): Promise<DomandaAperta[]> => ipcRenderer.invoke('autopilota:domande'),
     rispondi: (idDomanda: string, risposta: string): Promise<void> =>

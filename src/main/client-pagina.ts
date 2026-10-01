@@ -2805,17 +2805,23 @@ function avvisaSeServe(stato) {
       avvisati['k-' + c.id] = true
       new Notification((c.titolo || 'Una chat') + ' aspetta che tu scelga', { body: 'Sullo schermo c’è un elenco di scelte: rispondi dalla scheda Domande.', tag: 'scelta-' + c.id })
     }
-    for (const a of (stato.autopiloti || [])) {
+    // Il servizio degli autopiloti non ha risposto: l'elenco vuoto non vuol
+    // dire «nessuno», e non si deve ne' dimenticare ne' riannunciare niente.
+    for (const a of (stato.autopilotiLetti === false ? [] : (stato.autopiloti || []))) {
       if (a.stato === 'pronto') {
         if (avvisati['p-' + a.id]) continue
         avvisati['p-' + a.id] = true
         if (!primoAvviso) new Notification(a.nome + ' aspetta il tuo via', { body: 'Ha letto il progetto e capito l’obiettivo: apri Lavori e premi «Vai».', tag: a.id })
         continue
       }
-      if (a.stato !== 'sospeso' && a.stato !== 'fallito' && a.stato !== 'finito') continue
-      if (avvisati['f-' + a.id + a.stato]) continue
-      avvisati['f-' + a.id + a.stato] = true
-      if (!nuovo) continue
+      // Chi riparte torna annunciabile: se si ferma di nuovo e' una notizia.
+      if (a.stato !== 'sospeso' && a.stato !== 'fallito' && a.stato !== 'finito') { delete avvisati['f-' + a.id + 'finito']; continue }
+      // Un fermo si annuncia **una volta**, con la sua chiave (id, momento,
+      // motivo: 0.37.0); uno nuovo ha una chiave nuova. Un archiviato tace.
+      const chiaveF = a.stato === 'finito' ? 'f-' + a.id + 'finito' : 'f-' + (a.fermo || (a.id + a.stato))
+      if (avvisati[chiaveF]) continue
+      avvisati[chiaveF] = true
+      if (!nuovo || a.archiviato === true) continue
       if (a.stato === 'finito') new Notification(a.nome + ' ha finito', { body: 'Il lavoro è concluso: puoi guardare il risultato.', tag: a.id })
       else new Notification(a.nome + ' si è fermato', { body: a.motivo || 'Serve una tua occhiata.', tag: a.id })
     }

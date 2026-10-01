@@ -193,4 +193,25 @@ class AvvisiTest {
         assertEquals(1, Avvisi.daAnnunciare(s, visti, primoGiro = false).size)
         assertEquals(0, Avvisi.daAnnunciare(s, visti, primoGiro = false).size)
     }
+
+    @Test
+    fun `lo stesso fermo si annuncia una volta anche se il servizio sparisce e torna, uno nuovo di nuovo`() {
+        // 0.37.0: con il servizio giu' l'elenco arrivava vuoto, l'app
+        // dimenticava il fermo e al ritorno lo riannunciava.
+        val visti = mutableSetOf<String>()
+        val fermo = stato("""{"autopilotiLetti":true,"autopiloti":[{"id":"ap-1","nome":"N","stato":"sospeso","fermo":"ap-1|sospeso|t1|m"}]}""")
+        val giu = stato("""{"autopilotiLetti":false,"autopiloti":[]}""")
+        assertEquals(1, Avvisi.daAnnunciare(fermo, visti, primoGiro = false).size)
+        assertEquals(0, Avvisi.daAnnunciare(giu, visti, primoGiro = false).size)
+        assertEquals(0, Avvisi.daAnnunciare(fermo, visti, primoGiro = false).size)
+        val nuovo = stato("""{"autopiloti":[{"id":"ap-1","nome":"N","stato":"sospeso","fermo":"ap-1|sospeso|t2|m"}]}""")
+        assertEquals(1, Avvisi.daAnnunciare(nuovo, visti, primoGiro = false).size)
+    }
+
+    @Test
+    fun `un autopilota archiviato non manda notifiche`() {
+        val visti = mutableSetOf<String>()
+        val s = stato("""{"autopiloti":[{"id":"ap-1","nome":"N","stato":"sospeso","fermo":"k","archiviato":true}]}""")
+        assertEquals(0, Avvisi.daAnnunciare(s, visti, primoGiro = false).size)
+    }
 }

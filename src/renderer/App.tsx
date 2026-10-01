@@ -37,7 +37,7 @@ import { ModaleNovita } from './components/ModaleNovita'
 import { novitaConLeUltime, type Novita } from '@shared/novita'
 import type { StatoPreparazione } from '../main/preparazione'
 import { BandaAvvisi } from './components/BandaAvvisi'
-import { componiAvvisi } from './avvisi'
+import { componiAvvisi, ricordaChiusi } from './avvisi'
 import type { StatoAccesso } from '../main/accesso'
 import { DomandaModale } from './components/DomandaModale'
 import { SchermataAvvio } from './components/SchermataAvvio'
@@ -555,6 +555,21 @@ export function App(): React.JSX.Element {
       setColonnaDomande({ aperta: p.domandeLaterali, larghezza: p.larghezzaDomande })
     window.gestore.preferenze.leggi().then(applica).catch(() => undefined)
     return window.gestore.preferenze.suCambio(applica)
+  }, [])
+  // Gli avvisi chiusi con «Chiudi» (0.37.0): nelle preferenze, cosi' un fermo
+  // chiuso resta chiuso anche dopo un riavvio.
+  const [avvisiChiusi, setAvvisiChiusi] = useState<string[]>([])
+  useEffect(() => {
+    const applica = (p: { avvisiChiusi: string[] }): void => setAvvisiChiusi(p.avvisiChiusi)
+    window.gestore.preferenze.leggi().then(applica).catch(() => undefined)
+    return window.gestore.preferenze.suCambio(applica)
+  }, [])
+  const chiudiAvviso = useCallback((chiavi: string[]): void => {
+    setAvvisiChiusi((c) => ricordaChiusi(c, chiavi))
+    window.gestore.preferenze
+      .leggi()
+      .then((p) => window.gestore.preferenze.imposta({ ...p, avvisiChiusi: ricordaChiusi(p.avvisiChiusi, chiavi) }))
+      .catch(() => undefined)
   }, [])
   const salvaColonnaDomande = useCallback((cambio: { aperta?: boolean; larghezza?: number }): void => {
     setColonnaDomande((c) => ({ ...c, ...cambio }))
@@ -1244,8 +1259,16 @@ export function App(): React.JSX.Element {
           accesso,
           servizioRaggiungibile: erroreAutopiloti === undefined,
           autopiloti,
-          ...(preparazione !== undefined ? { preparazione } : {})
+          ...(preparazione !== undefined ? { preparazione } : {}),
+          chiusi: avvisiChiusi
         })}
+        onChiudi={chiudiAvviso}
+        onAltra={(azione, ids) => {
+          const fai = azione === 'riprendiAutopiloti'
+            ? (id: string) => window.gestore.autopilota.riprendi(id)
+            : (id: string) => window.gestore.autopilota.archivia(id, true)
+          void Promise.allSettled(ids.map(fai)).then(() => ricaricaAutopiloti())
+        }}
         onAzione={(azione) => {
           if (azione === 'riavviaServizio') ricaricaAutopiloti()
           else if (azione === 'apriAutopiloti') setAperto('autopiloti')

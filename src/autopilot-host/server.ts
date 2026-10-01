@@ -34,7 +34,7 @@ import {
 import { primoCompito, ripartiDaDove, riprende } from './nel-mosaico'
 import type { RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
-import { TETTO_CHAT_MAX } from '@shared/autopilota'
+import { TETTO_CHAT_MAX, conMomentoDelFermo, eFermo } from '@shared/autopilota'
 import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
 import { giudicaMossa, giudicaStrumento, leggiMosse, rispostaPreTool } from './divieti'
 import {
@@ -445,7 +445,10 @@ export const RIPRESA_RAVVICINATA_MS = 30_000
 const USCITA_RICORDATA = 600
 
 export function creaServer(deps: Dipendenze): ServerAutopiloti {
-  const salva = (a: Autopilota): void => deps.archivio.scrivi({ ...a, ultimoEvento: deps.adesso() })
+  const salva = (a: Autopilota): void => {
+    const ora = deps.adesso()
+    deps.archivio.scrivi(conMomentoDelFermo({ ...a, ultimoEvento: ora }, ora))
+  }
 
   /**
    * T1: lo stato del programma, in sola lettura, come lo spinge il Gestore
@@ -2328,6 +2331,33 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             ? (corpo as Record<string, unknown>).riprendi === true
             : false
           salva({ ...a, riprendiAlRiavvio: voluto })
+          rispondi(res, 200, deps.archivio.leggi(id))
+          return
+        }
+
+        // «Archivia» (0.37.0): un autopilota fermo messo da parte, che non deve
+        // ripartire. Solo da fermo: uno che lavora non si archivia.
+        const archivia = /^\/autopiloti\/([^/]+)\/archivia$/.exec(percorso)
+        if (metodo === 'POST' && archivia !== null) {
+          const id = decodeURIComponent(archivia[1]!)
+          const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
+          if (a === undefined) {
+            rispondi(res, 404, { errore: 'autopilota inesistente' })
+            return
+          }
+          const corpo = await leggiCorpo(req)
+          const voluto = typeof corpo === 'object' && corpo !== null
+            ? (corpo as Record<string, unknown>).archivia !== false
+            : true
+          if (voluto && !eFermo(a)) {
+            rispondi(res, 409, { errore: 'si archivia solo un autopilota fermo: prima fermalo' })
+            return
+          }
+          if (voluto) salva({ ...a, archiviato: true })
+          else {
+            const { archiviato: _a, ...resto } = a
+            salva(resto)
+          }
           rispondi(res, 200, deps.archivio.leggi(id))
           return
         }

@@ -250,6 +250,20 @@ export type Autopilota = {
    */
   sessioneIntervista?: string
   motivoSospensione?: string
+  /**
+   * Quando si e' fermato (sospeso o fallito), 0.37.0. Lo scrive il servizio
+   * al passaggio in uno stato fermo e lo toglie quando riparte: insieme a id e
+   * motivo fa la **chiave del fermo** (`chiaveFermo`), con cui la banda del PC
+   * e le notifiche di telefono e pagina riconoscono «lo stesso fermo» e non lo
+   * ripetono, ma annunciano quello nuovo.
+   */
+  fermatoIl?: string
+  /**
+   * Messo da parte da te («Archivia», 0.37.0): un autopilota fermo che non
+   * deve ripartire. Non compare nella banda e non manda notifiche; «Riprendi»
+   * lo toglie dall'archivio.
+   */
+  archiviato?: boolean
   limiti: Limiti
   /**
    * Se riprendere **questo** autopilota quando il servizio torna su.
@@ -692,6 +706,8 @@ export function parseAutopilota(raw: unknown): {
         ? { sessioneIntervista: o.sessioneIntervista as string }
         : {}),
       ...(motivoSospensione !== undefined ? { motivoSospensione } : {}),
+      ...(stringaNonVuota(o.fermatoIl) !== undefined ? { fermatoIl: o.fermatoIl as string } : {}),
+      ...(o.archiviato === true ? { archiviato: true } : {}),
       intervista: Array.isArray(o.intervista)
         ? o.intervista.flatMap((s) => {
             if (typeof s !== 'object' || s === null) return []
@@ -774,4 +790,34 @@ export function portaAutopilotiDa(ambiente: Record<string, string | undefined>):
   if (grezzo === undefined) return PORTA_AUTOPILOTA
   const n = Number(grezzo)
   return Number.isInteger(n) && n >= 1024 && n <= 65535 ? n : PORTA_AUTOPILOTA
+}
+
+/** Fermo vuol dire sospeso o fallito: aspetta te, non lavora. */
+export function eFermo(a: Pick<Autopilota, 'stato'>): boolean {
+  return a.stato === 'sospeso' || a.stato === 'fallito'
+}
+
+/**
+ * La chiave di **questo** fermo (0.37.0): id, momento del fermo, motivo.
+ *
+ * Lo stesso fermo ha sempre la stessa chiave, anche dopo un riavvio del PC o
+ * del telefono; un fermo nuovo (ripartito e fermato di nuovo, o fermato per un
+ * altro motivo) ne ha una nuova. Gli autopiloti scritti prima della 0.37.0 non
+ * hanno `fermatoIl`: per loro conta il motivo, finche' il servizio non lo
+ * riscrive.
+ */
+export function chiaveFermo(a: Pick<Autopilota, 'id' | 'stato' | 'fermatoIl' | 'motivoSospensione'>): string {
+  return `${a.id}|${a.stato}|${a.fermatoIl ?? ''}|${(a.motivoSospensione ?? '').slice(0, 200)}`
+}
+
+/**
+ * Il momento del fermo, tenuto a ogni scrittura (0.37.0): si mette entrando in
+ * uno stato fermo, resta finche' resta fermo, sparisce quando riparte — e con
+ * lui l'archiviazione, che riguarda solo un autopilota fermo.
+ */
+export function conMomentoDelFermo(a: Autopilota, adesso: string): Autopilota {
+  if (eFermo(a)) return a.fermatoIl !== undefined ? a : { ...a, fermatoIl: adesso }
+  if (a.fermatoIl === undefined && a.archiviato === undefined) return a
+  const { fermatoIl: _f, archiviato: _a, ...resto } = a
+  return resto
 }

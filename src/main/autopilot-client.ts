@@ -85,6 +85,8 @@ export type ClientAutopilota = {
   riprendi: (id: string) => Promise<void>
   /** Se questo autopilota debba ripartire da solo dopo un riavvio. */
   riprendiAlRiavvio: (id: string, riprendi: boolean) => Promise<void>
+  /** Mette da parte un autopilota fermo che non deve ripartire (o lo toglie dall'archivio). */
+  archivia: (id: string, archivia: boolean) => Promise<void>
   elimina: (id: string) => Promise<void>
   domande: () => Promise<DomandaAperta[]>
   rispondi: (idDomanda: string, risposta: string) => Promise<void>
@@ -202,6 +204,9 @@ export function creaClientAutopilota(p: {
     riprendi: async (id) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/riprendi`, 'POST') },
     riprendiAlRiavvio: async (id, riprendi) => {
       await chiama(`/autopiloti/${encodeURIComponent(id)}/riavvio`, 'POST', { riprendi })
+    },
+    archivia: async (id, archivia) => {
+      await chiama(`/autopiloti/${encodeURIComponent(id)}/archivia`, 'POST', { archivia })
     },
     elimina: async (id) => { await chiama(`/autopiloti/${encodeURIComponent(id)}`, 'DELETE') },
     domande: async () => (await chiama('/domande', 'GET')) as DomandaAperta[],

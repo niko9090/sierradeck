@@ -1,4 +1,4 @@
-import type { Autopilota } from '@shared/autopilota'
+import { chiaveFermo, eFermo, type Autopilota } from '@shared/autopilota'
 import type { StatoAccesso } from '../main/accesso'
 import type { StatoPreparazione } from '../main/preparazione'
 
@@ -15,6 +15,32 @@ export type Avviso = {
     | 'apriPreparazione'
     | 'apriFinestra'
   etichettaAzione?: string
+  /**
+   * Gli altri gesti accanto al principale (0.37.0): per un autopilota fermo
+   * «Riprendi» e «Archivia», sugli autopiloti di `ids`.
+   */
+  altre?: { azione: 'riprendiAutopiloti' | 'archiviaAutopiloti'; etichetta: string; titolo: string; ids: string[] }[]
+  /**
+   * Le chiavi che «Chiudi» ricorda (0.37.0). Presente solo per gli avvisi che
+   * si possono chiudere: un fermo (id + momento + motivo) o una lista di
+   * programmi mancanti. Chiuso, l'avviso non torna finche' non cambia la
+   * chiave: un fermo nuovo, una lista diversa.
+   */
+  chiavi?: string[]
+}
+
+/** Quante chiavi chiuse si ricordano: le piu' vecchie si dimenticano. */
+export const AVVISI_CHIUSI_MAX = 200
+
+/** La chiave dell'avviso dei programmi mancanti: cambia quando cambia la lista. */
+export function chiavePreparazione(mancanti: string[]): string {
+  return `preparazione|${[...mancanti].sort().join('|')}`
+}
+
+/** Aggiunge le chiavi chiuse, senza doppioni e senza crescere per sempre. */
+export function ricordaChiusi(chiusi: string[], nuove: string[]): string[] {
+  const tutte = [...chiusi.filter((c) => !nuove.includes(c)), ...nuove]
+  return tutte.slice(-AVVISI_CHIUSI_MAX)
 }
 
 export type FontiAvvisi = {
@@ -27,6 +53,8 @@ export type FontiAvvisi = {
    * si deve gridare che manca tutto.
    */
   preparazione?: StatoPreparazione
+  /** Le chiavi degli avvisi chiusi con «Chiudi» (dalle preferenze, sopravvive al riavvio). */
+  chiusi?: string[]
 }
 
 /**
@@ -122,9 +150,15 @@ export function componiAvvisi(fonti: FontiAvvisi): Avviso[] {
     })
   }
 
-  const fermi = fonti.autopiloti.filter((a) => a.stato === 'sospeso' || a.stato === 'fallito')
+  // Gli autopiloti fermi: senza gli archiviati (messi da parte da te) e senza
+  // i fermi gia' chiusi con «Chiudi». Un fermo nuovo ha una chiave nuova, e
+  // torna (0.37.0: prima la banda restava finche' l'autopilota era fermo, e uno
+  // che non doveva ripartire te lo portavi dietro per sempre).
+  const chiusi = new Set(fonti.chiusi ?? [])
+  const fermi = fonti.autopiloti.filter((a) => eFermo(a) && a.archiviato !== true && !chiusi.has(chiaveFermo(a)))
   if (fermi.length > 0) {
     const uno = fermi[0]
+    const ids = fermi.map((a) => a.id)
     avvisi.push({
       id: 'fermi',
       gravita: 'attenzione',
@@ -132,14 +166,31 @@ export function componiAvvisi(fonti: FontiAvvisi): Avviso[] {
         ? `L’autopilota «${uno?.nome ?? ''}» si è fermato: ${accorcia(uno?.motivoSospensione ?? 'senza motivo riferito')}`
         : `${fermi.length} autopiloti si sono fermati.`,
       azione: 'apriAutopiloti',
-      etichettaAzione: 'Vedi'
+      etichettaAzione: 'Vedi',
+      altre: [
+        {
+          azione: 'riprendiAutopiloti',
+          etichetta: fermi.length === 1 ? 'Riprendi' : 'Riprendili',
+          titolo: fermi.length === 1
+            ? 'Lo fa ripartire da dove era, con la stessa conversazione'
+            : `Fa ripartire tutti e ${fermi.length} da dove erano`,
+          ids
+        },
+        {
+          azione: 'archiviaAutopiloti',
+          etichetta: fermi.length === 1 ? 'Archivia' : 'Archiviali',
+          titolo: 'Lo mette da parte: resta nel pannello Autopiloti fra gli archiviati, non compare più qui e non manda notifiche. «Riprendi» lo rimette in pista',
+          ids
+        }
+      ],
+      chiavi: fermi.map(chiaveFermo)
     })
   }
 
   // In fondo, e in una riga sola: Node.js e Git non impediscono di lavorare,
   // e dirlo una volta per ciascuno trasformerebbe la banda in arredamento.
   const mancanti = fonti.preparazione?.avvisi ?? []
-  if (mancanti.length > 0) {
+  if (mancanti.length > 0 && !chiusi.has(chiavePreparazione(mancanti))) {
     avvisi.push({
       id: 'preparazione',
       gravita: 'attenzione',
@@ -147,7 +198,8 @@ export function componiAvvisi(fonti: FontiAvvisi): Avviso[] {
         ? accorcia(mancanti[0] ?? '')
         : `${mancanti.length} programmi di sistema non risultano installati: alcune cose non funzioneranno.`,
       azione: 'apriPreparazione',
-      etichettaAzione: 'Vedi'
+      etichettaAzione: 'Vedi',
+      chiavi: [chiavePreparazione(mancanti)]
     })
   }
 

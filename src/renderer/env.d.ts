@@ -362,6 +362,7 @@ declare global {
         ferma: (id: string) => Promise<void>
         riprendi: (id: string) => Promise<void>
         riprendiAlRiavvio: (id: string, riprendi: boolean) => Promise<void>
+        archivia: (id: string, archivia: boolean) => Promise<void>
         elimina: (id: string) => Promise<void>
         domande: () => Promise<DomandaAperta[]>
         rispondi: (idDomanda: string, risposta: string) => Promise<void>

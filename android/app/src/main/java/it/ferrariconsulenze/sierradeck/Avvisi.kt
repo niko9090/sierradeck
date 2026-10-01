@@ -184,8 +184,13 @@ object Avvisi {
         }
 
         val autopiloti = stato.optJSONArray("autopiloti")
-        if (autopiloti == null) {
-            pota(giaVisti, vivi, stato)
+        // Il servizio degli autopiloti non ha risposto (`autopilotiLetti`
+        // falso, 0.37.0): l'elenco arriva vuoto ma non vuol dire «nessuno».
+        // Prima si dimenticavano i fermi gia' annunciati e, al ritorno del
+        // servizio, si annunciavano tutti di nuovo.
+        val letti = stato.optBoolean("autopilotiLetti", true)
+        if (autopiloti == null || !letti) {
+            pota(giaVisti, vivi, stato, conAutopiloti = false)
             return avvisi
         }
         for (i in 0 until autopiloti.length()) {
@@ -216,7 +221,13 @@ object Avvisi {
                 // finché non lo guardi, il lavoro non prosegue. Prima si taceva,
                 // e lo si scopriva la mattina dopo.
                 "sospeso", "fallito" -> {
-                    if (!giaVisti.add("s:$id") || primoGiro) continue
+                    // La chiave di **questo** fermo (id, momento, motivo) dal
+                    // computer, 0.37.0: lo stesso fermo una volta sola, quello
+                    // nuovo di nuovo. Un computer piu' vecchio non la manda, e
+                    // si resta all'id. Un autopilota archiviato tace.
+                    val chiave = chiaveFermo(a)
+                    vivi.add(chiave)
+                    if (!giaVisti.add(chiave) || primoGiro || a.optBoolean("archiviato", false)) continue
                     // `/api/stato` lo chiama `motivo` (e' il dettaglio,
                     // `/api/autopilota`, a chiamarlo `motivoSospensione`): la
                     // notifica leggeva il nome sbagliato e diceva sempre
@@ -224,7 +235,7 @@ object Avvisi {
                     val motivo = a.optString("motivo", "").ifEmpty { a.optString("motivoSospensione", "") }
                     avvisi.add(
                         Avviso(
-                            chiave = "s:$id",
+                            chiave = chiave,
                             titolo = "$nome si è fermato",
                             testo = if (motivo.isEmpty()) "Serve una tua occhiata." else motivo,
                             id = idAvviso(ID_FERMO, id)
@@ -262,14 +273,24 @@ object Avvisi {
      * computer che non manda le domande non deve far dimenticare le domande gia'
      * annunciate, o al giro dopo tornerebbero tutte insieme.
      */
-    private fun pota(giaVisti: MutableSet<String>, vivi: Set<String>, stato: JSONObject) {
+    private fun pota(giaVisti: MutableSet<String>, vivi: Set<String>, stato: JSONObject, conAutopiloti: Boolean = true) {
         val note = mutableListOf<String>()
         if (stato.optJSONArray("domande") != null) note.add("d:")
         if (stato.optJSONArray("chat") != null) { note.add("c:"); note.add("k:") }
-        if (stato.optJSONArray("autopiloti") != null) { note.add("f:"); note.add("s:"); note.add("p:") }
+        if (conAutopiloti && stato.optJSONArray("autopiloti") != null) { note.add("f:"); note.add("s:"); note.add("p:") }
         if (note.isEmpty()) return
         giaVisti.retainAll { chiave -> note.none { chiave.startsWith(it) } || chiave in vivi }
     }
+}
+
+/**
+ * La chiave del fermo di un autopilota per le notifiche (0.37.0): `s:` + la
+ * chiave che manda il computer (id, momento, motivo), o `s:<id>` da un
+ * computer che non la manda ancora.
+ */
+fun chiaveFermo(a: JSONObject): String {
+    val fermo = a.optString("fermo", "")
+    return if (fermo.isNotEmpty()) "s:$fermo" else "s:${a.optString("id")}"
 }
 
 /**

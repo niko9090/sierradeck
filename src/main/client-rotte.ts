@@ -1,7 +1,7 @@
 import type { ChatSalvata } from '@shared/workspace'
 import type { Esito } from './client-server'
 import type { Dispositivi } from './dispositivi'
-import type { Autopilota } from '@shared/autopilota'
+import { chiaveFermo, eFermo, type Autopilota } from '@shared/autopilota'
 import { paginaClient, ICONA_SVG, MANIFESTO } from './client-pagina'
 import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
@@ -490,8 +490,13 @@ export function rotteClient(deps: DipendenzeRotte) {
     dispositivo?: string
   }): Promise<Esito> => {
     if (r.percorso === '/api/stato') {
+      // `autopilotiLetti` (0.37.0): se il servizio non risponde l'elenco arriva
+      // vuoto, e il telefono lo prendeva per «nessun autopilota» — dimenticava
+      // i fermi gia' annunciati e, al ritorno del servizio, li annunciava tutti
+      // di nuovo. Con il segnale sa che non ha letto niente.
+      let autopilotiLetti = true
       const [autopiloti, domande, workspace] = await Promise.all([
-        deps.autopiloti().catch(() => [] as Autopilota[]),
+        deps.autopiloti().catch(() => { autopilotiLetti = false; return [] as Autopilota[] }),
         deps.domande().catch(() => []),
         deps.workspace().catch(() => ({ nomi: [], attivo: '' }))
       ])
@@ -523,6 +528,11 @@ export function rotteClient(deps: DipendenzeRotte) {
           // la parte utile e' sempre stata il motivo, e dal telefono non
           // arrivava.
           motivo: a.motivoSospensione,
+          // La chiave di **questo** fermo (id, momento, motivo): telefono e
+          // pagina annunciano un fermo una volta sola, e quello nuovo si'.
+          ...(eFermo(a) ? { fermo: chiaveFermo(a) } : {}),
+          // Messo da parte con «Archivia»: niente notifiche.
+          ...(a.archiviato === true ? { archiviato: true } : {}),
           // Dove lavora: serve al Quaderno, che e' quello che **lui** produce.
           // Dal telefono si leggeva la cartella della prima chat dell'elenco,
           // che con piu' progetti aperti e' semplicemente un'altra cosa.
@@ -530,6 +540,7 @@ export function rotteClient(deps: DipendenzeRotte) {
           fatti: a.criteri.filter((c) => c.soddisfatto).length,
           criteri: a.criteri.length
         })),
+        autopilotiLetti,
         domande,
         workspace,
         // **Anche l'aggiornamento**, che costa niente: e' gia' in memoria. Senza

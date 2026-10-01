@@ -1921,3 +1921,42 @@ describe('le domande iniziali dell autopilota, dalle Domande (0.36.0)', () => {
     expect((await fermata).dati.decision).toBe('block')
   })
 })
+
+describe('«Archivia» e il momento del fermo (0.37.0)', () => {
+  const scriviFermo = (id: string, stato: 'sospeso' | 'lavoro' = 'sospeso'): void => {
+    archivio.scrivi({
+      ...nuovoAutopilota({ id, nome: 'x', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      stato,
+      ...(stato === 'sospeso' ? { motivoSospensione: 'fermato dall utente' } : {})
+    })
+  }
+
+  it('un autopilota fermo si archivia e si toglie dall archivio; uno che lavora no', async () => {
+    server = ambiente()
+    await avvia(server)
+    scriviFermo('ap-fermo')
+    const r = await chiama('POST', '/autopiloti/ap-fermo/archivia', { archivia: true })
+    expect(r.stato).toBe(200)
+    expect(r.dati.archiviato).toBe(true)
+    // Scrivendo, il servizio segna anche il momento del fermo.
+    expect(r.dati.fermatoIl).toBe('2026-08-09T10:05:00.000Z')
+    const via = await chiama('POST', '/autopiloti/ap-fermo/archivia', { archivia: false })
+    expect(via.dati.archiviato).toBeUndefined()
+    scriviFermo('ap-vivo', 'lavoro')
+    expect((await chiama('POST', '/autopiloti/ap-vivo/archivia', { archivia: true })).stato).toBe(409)
+  })
+
+  it('«Ferma» scrive il momento del fermo, e riprendere lo toglie insieme all archiviazione', async () => {
+    server = ambiente()
+    await avvia(server)
+    scriviFermo('ap-1', 'lavoro')
+    await chiama('POST', '/autopiloti/ap-1/ferma')
+    expect(archivio.leggi('ap-1')?.fermatoIl).toBe('2026-08-09T10:05:00.000Z')
+    await chiama('POST', '/autopiloti/ap-1/archivia', { archivia: true })
+    await chiama('POST', '/autopiloti/ap-1/riprendi')
+    const dopo = archivio.leggi('ap-1')
+    expect(dopo?.stato).toBe('lavoro')
+    expect(dopo?.fermatoIl).toBeUndefined()
+    expect(dopo?.archiviato).toBeUndefined()
+  })
+})
