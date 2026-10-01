@@ -438,7 +438,9 @@ contextBridge.exposeInMainWorld('gestore', {
     prova: (pc: string): Promise<{ ok: true; indirizzo: string; ms: number; versione?: string } | { ok: false; motivo: string; messaggio: string }> =>
       ipcRenderer.invoke('remoto:prova', pc),
     /** Di quali di queste cartelle e' padrone un altro PC: per l'elenco delle conversazioni. */
-    altroveDi: (cwds: string[]): Promise<Record<string, { id: string; nome: string }>> => ipcRenderer.invoke('remoto:altroveDi', cwds)
+    altroveDi: (cwds: string[]): Promise<Record<string, { id: string; nome: string }>> => ipcRenderer.invoke('remoto:altroveDi', cwds),
+    /** Da dove aprire una chat del workspace: qui, dal vivo su un altro PC, o in attesa di quel PC. */
+    daDove: (p: { cwd: string; sessionUuid?: string }): Promise<import('@shared/apertura-chat').Apertura> => ipcRenderer.invoke('chat:daDove', p)
   },
   /** La sincronizzazione cifrata: passphrase (cassaforte E2E) + salva/ripristina. */
   sync: {

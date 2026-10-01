@@ -97,6 +97,7 @@ import { createInterface } from 'node:readline'
 import { once } from 'node:events'
 import type { EsitoLavoro } from './cassaforte/lavoro-in-corso'
 import { pathToSlug } from './indexer/project-scanner'
+import { decidiApertura, type Apertura } from '@shared/apertura-chat'
 import {
   elencoPlugin, installaPlugin, disinstallaPlugin, commutaPlugin,
   elencoMarketplace, aggiungiMarketplace, rimuoviMarketplace, aggiornaMarketplace, dettagliPlugin
@@ -1374,6 +1375,34 @@ if (!app.requestSingleInstanceLock()) {
         return undefined
       }
       altroveRiquadro = altrove
+      // 0.36.1: da dove aprire una chat del workspace, PRIMA di aprirla. Se e'
+      // di un altro PC che risponde, il riquadro diventa subito remoto; se quel
+      // PC tace, un riquadro d'attesa; altrimenti si apre qui come sempre.
+      ipcMain.handle('chat:daDove', (_e, p: unknown): Apertura => {
+        const q = (p ?? {}) as { cwd?: unknown; sessionUuid?: unknown }
+        if (typeof q.cwd !== 'string' || q.cwd === '') return { tipo: 'locale' }
+        const cwd = q.cwd
+        const sessione = typeof q.sessionUuid === 'string' && q.sessionUuid !== '' ? q.sessionUuid : undefined
+        try {
+          const io = identitaPc.leggi().id
+          const cartellaQui = existsSync(cwd)
+          const trascrizioneQui =
+            sessione !== undefined && existsSync(join(radiceClaude, 'projects', pathToSlug(cwd), `${sessione}.jsonl`))
+          const di = cartellaQui ? undefined : altrove(cwd)
+          return decidiApertura({
+            ...(sessione !== undefined ? { sessione } : {}),
+            cwd,
+            io,
+            trascrizioneQui,
+            cartellaQui,
+            ...(di !== undefined ? { cartellaDi: di } : {}),
+            battiti: postino.altrui(),
+            adesso: Date.now()
+          })
+        } catch {
+          return { tipo: 'locale' }
+        }
+      })
       // Per l'elenco «Riprendi una conversazione»: di quali cartelle e' padrone
       // un altro PC. Una domanda sola per tutte, non una per riga.
       ipcMain.handle('remoto:altroveDi', (_e, cwds: unknown): Record<string, { id: string; nome: string }> => {

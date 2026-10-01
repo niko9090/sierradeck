@@ -1153,6 +1153,30 @@ describe('il Drive dal telefono', () => {
     expect((r.corpo as { errore: string }).errore).toContain('Altri computer')
   })
 
+  it('una chat di un altro PC non da un errore secco: dice «su X · acceso» o «spento o non risponde» e cosa fa il computer (0.36.1)', async () => {
+    // Nicholas (01/10): «devo collegarmi in remoto, non vedere l'errore».
+    const ora = Date.parse('2026-10-01T12:00:00Z')
+    const battito = (nome: string, minutiFa: number) => ({
+      pcId: nome, nome, versione: '0.36.0', battito: new Date(ora - minutiFa * 60_000).toISOString(), cartelle: [], chat: []
+    })
+    const prova = async (minutiFa: number): Promise<string> => {
+      const su = deps({
+        adesso: () => ora,
+        cartelle: () => Promise.resolve(['E:\\a']),
+        chatAltrove: () => 'Portatile',
+        pc: () => Promise.resolve([battito('Portatile', minutiFa)])
+      })
+      const r = await rotteClient(su)({ metodo: 'POST', percorso: '/api/sessioni/riprendi', corpo: { cartella: 'E:\\a', sessione: 's' } })
+      return (r.corpo as { errore: string }).errore
+    }
+    const acceso = await prova(1)
+    expect(acceso).toContain('su «Portatile» · acceso')
+    expect(acceso).toContain('si collega da solo dal vivo')
+    const spento = await prova(40)
+    expect(spento).toContain('· spento o non risponde')
+    expect(spento).toContain('appena torna acceso')
+  })
+
   it('un battito illeggibile non e un PC acceso', () => {
     expect(battitoVivo('non una data', Date.now())).toBe(false)
     expect(battitoVivo(new Date(1000).toISOString(), 1000 + 60_000)).toBe(true)

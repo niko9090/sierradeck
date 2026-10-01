@@ -111,3 +111,25 @@ export const PORTA_CLIENT_PREDEFINITA = 47640
 export const RILEGGI_REMOTO_OGNI_MS = 2000
 /** Quante righe si chiedono a ogni giro: lo schermo e un po' di storia. */
 export const RIGHE_REMOTE = 200
+
+/**
+ * Il PC di una chat dal vivo ha smesso di rispondere (0.36.1): cosa dire nel
+ * riquadro, che intanto riprova da solo. Niente errore secco: Nicholas vuole
+ * gli errori solo quando quel PC davvero non si raggiunge, e anche allora con
+ * lo stato e i tentativi che continuano.
+ *
+ * `daMs` = da quanto tempo quel PC non risponde (dal primo tentativo fallito).
+ * Fino a `SILENZIO_BREVE_MS` e' un singhiozzo (rete, sospensione breve): si
+ * dice «non risponde da pochi secondi» e basta.
+ */
+export const SILENZIO_BREVE_MS = 30_000
+
+export function descriviSilenzio(motivo: string, pcNome: string, daMs: number): { titolo: string; breve: boolean } {
+  const secondi = Math.max(0, Math.round(daMs / 1000))
+  const quanto = secondi < 90 ? `${secondi} secondi` : `${Math.round(secondi / 60)} minuti`
+  const breve = daMs < SILENZIO_BREVE_MS
+  if (motivo === 'cassaforte') return { titolo: 'La cassaforte di qui è chiusa: riprovo appena la apri', breve: false }
+  if (motivo === 'spento') return { titolo: `${pcNome} è spento · non risponde da ${quanto} · riprovo da solo`, breve }
+  if (motivo === 'rifiutato' || motivo === 'chiave') return { titolo: `${pcNome} risponde ma non mi fa entrare · riprovo da solo`, breve: false }
+  return { titolo: `${pcNome} non risponde da ${quanto} · riprovo da solo`, breve }
+}

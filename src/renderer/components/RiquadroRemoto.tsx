@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ansiInHtml } from '@shared/ansi-html'
 import { pcVivo } from '@shared/posta'
 import {
-  trovaChatRemota, descriviIndirizzo, RILEGGI_REMOTO_OGNI_MS, RIGHE_REMOTE,
+  trovaChatRemota, descriviIndirizzo, descriviSilenzio, RILEGGI_REMOTO_OGNI_MS, RIGHE_REMOTE,
   type ChatRemota, type ChatSuPc, type PcRemoto, type StoriaRemota
 } from '@shared/pc-remoto'
 import { ModalePosta } from './ModalePosta'
@@ -54,6 +54,14 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   const [invio, setInvio] = useState(false)
   const [avviso, setAvviso] = useState<string | undefined>(undefined)
   const [postaAperta, setPostaAperta] = useState(false)
+  /**
+   * Quel PC non risponde piu' (0.36.1): da quando, perche', e l'ultimo
+   * tentativo. Il riquadro non cade in un errore secco: tiene l'ultimo schermo
+   * arrivato, dice lo stato e riprova da solo a ogni giro.
+   */
+  const [silenzio, setSilenzio] = useState<{ da: number; ora: number; motivo: string; messaggio: string } | undefined>(undefined)
+  const taci = (motivo: string, messaggio: string): void =>
+    setSilenzio((s) => ({ da: s?.da ?? Date.now(), ora: Date.now(), motivo, messaggio }))
   const schermo = useRef<HTMLDivElement>(null)
   const inGiro = useRef(false)
   const faseRef = useRef<Fase>(fase)
@@ -86,7 +94,8 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         if (f.tipo !== 'viva') {
           const s = await window.gestore.remoto.stato(remoto.pcId)
           if (!vivo) return
-          if (!s.ok) { setFase({ tipo: 'errore', motivo: s.motivo, messaggio: s.messaggio }); return }
+          if (!s.ok) { taci(s.motivo, s.messaggio); setFase({ tipo: 'errore', motivo: s.motivo, messaggio: s.messaggio }); return }
+          setSilenzio(undefined)
           const trovata = trovaChatRemota(s.dati.chat, remoto)
           if (trovata === undefined) { setFase({ tipo: 'non-aperta', altre: s.dati.chat }); return }
           setFase({ tipo: 'viva', chat: trovata })
@@ -98,9 +107,12 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         if (!r.ok) {
           // La chat e' stata chiusa la', o quel PC e' sparito: si ricomincia a cercare.
           if (r.motivo === 'chat') { setFase({ tipo: 'cerco' }); setStoria(undefined); return }
-          setFase({ tipo: 'errore', motivo: r.motivo, messaggio: r.messaggio })
+          // Quel PC ha smesso di rispondere a meta': si resta sulla chat, con
+          // l'ultimo schermo arrivato, e al prossimo giro si riprova.
+          taci(r.motivo, r.messaggio)
           return
         }
+        setSilenzio(undefined)
         const el = schermo.current
         const inFondo = el === null || el.scrollTop + el.clientHeight >= el.scrollHeight - 12
         setStoria(r.dati)
@@ -143,6 +155,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
     }).catch((e: unknown) => setAvviso(String(e))).finally(() => setInvio(false))
   }
   const riprova = (): void => { setFase({ tipo: 'cerco' }); setAvviso(undefined) }
+  const statoSilenzio = silenzio === undefined ? undefined : descriviSilenzio(silenzio.motivo, remoto.pcNome, silenzio.ora - silenzio.da)
   const guardaAltra = (c: ChatSuPc): void => {
     rendiRemoto(paneId, { pcId: remoto.pcId, pcNome: remoto.pcNome, cwd: c.cwd, ...(c.sessione !== undefined ? { sessione: c.sessione } : {}) })
     setFase({ tipo: 'cerco' })
@@ -212,7 +225,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
       {fase.tipo === 'errore' ? (
         <div className="remoto__avviso">
           <div className="remoto__avviso-titolo">
-            {fase.motivo === 'spento' ? `${remoto.pcNome} è spento` : fase.motivo === 'cassaforte' ? 'La cassaforte di qui è chiusa' : `${remoto.pcNome} non si raggiunge`}
+            {statoSilenzio?.titolo ?? descriviSilenzio(fase.motivo, remoto.pcNome, 0).titolo}
           </div>
           <div className="remoto__avviso-testo">{fase.messaggio}</div>
           <div className="remoto__azioni">
@@ -226,6 +239,18 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           <div className="remoto__nota">
             Il riquadro riprova da solo ogni {Math.round(RILEGGI_REMOTO_OGNI_MS / 1000)} secondi. La conversazione la trovi anche nella copia sul Drive (Account → Drive), in sola lettura, aggiornata all’ultimo salvataggio di quel PC.
           </div>
+        </div>
+      ) : null}
+
+      {fase.tipo === 'viva' && statoSilenzio !== undefined ? (
+        <div className="remoto__esito" role="status">
+          <strong>{statoSilenzio.titolo}.</strong>{' '}
+          {statoSilenzio.breve
+            ? 'Può essere un attimo di rete o una sospensione breve.'
+            : `${(silenzio?.messaggio ?? '').replace(/\.\s*$/, '')}.`}
+          {' '}Quello che vedi qui sopra è l’ultimo schermo arrivato; ogni {Math.round(RILEGGI_REMOTO_OGNI_MS / 1000)} secondi
+          ribusso e, appena {remoto.pcNome} risponde, riprende da solo. Intanto non si può scrivere: il testo non arriverebbe.
+          La chat là non viene toccata.
         </div>
       ) : null}
 
@@ -247,12 +272,12 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           className="campo remoto__campo"
           rows={2}
           value={testo}
-          disabled={chatId === undefined}
+          disabled={chatId === undefined || silenzio !== undefined}
           placeholder={chatId === undefined ? `Quando la chat è viva su ${remoto.pcNome}, qui le scrivi.` : `Scrivi a questa chat su ${remoto.pcNome} — Invio manda, Maiusc+Invio va a capo`}
           onChange={(e) => setTesto(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); manda() } }}
         />
-        <button className="tasto tasto--primario" disabled={chatId === undefined || invio || testo.trim() === ''} onClick={manda} title="Manda il testo e Invio nel terminale di quella chat, su quel PC">
+        <button className="tasto tasto--primario" disabled={chatId === undefined || silenzio !== undefined || invio || testo.trim() === ''} onClick={manda} title="Manda il testo e Invio nel terminale di quella chat, su quel PC">
           Manda
         </button>
       </div>

@@ -344,6 +344,7 @@ declare global {
         apri: (pc: string, cartella: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
         prova: (pc: string) => Promise<{ ok: true; indirizzo: string; ms: number; versione?: string } | { ok: false; motivo: string; messaggio: string }>
         altroveDi: (cwds: string[]) => Promise<Record<string, { id: string; nome: string }>>
+        daDove: (p: { cwd: string; sessionUuid?: string }) => Promise<import('@shared/apertura-chat').Apertura>
       }
       autopilota: {
         elenca: () => Promise<Autopilota[]>

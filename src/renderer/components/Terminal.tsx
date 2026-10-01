@@ -14,6 +14,7 @@ import { registraSchermo, dimenticaSchermo } from '../schermo-terminale'
 import { mostraAttesa } from '../preferenze-vive'
 import { ModalePosta } from './ModalePosta'
 import { pcVivo, type BattitoPc, type ChatAltrove } from '@shared/posta'
+import { daQuandoTace, type Apertura } from '@shared/apertura-chat'
 import { diagnostica, tettoAttesaMs, senzaSequenze, USCITA_PRECOCE_MS, type Diagnosi } from '../diagnosi-chat'
 import { SEGNI_DI_PROMPT } from '../ultime-righe'
 import { FinestraTemporanea } from './FinestraTemporanea'
@@ -49,6 +50,8 @@ const PASSO_ATTESA_MS = 150
  * quella sola.
  */
 const RIPOSO_RIDIMENSIONAMENTO_MS = 120
+/** Ogni quanto il riquadro d'attesa richiede se il PC della chat risponde. */
+const RIPROVA_ATTESA_MS = 20_000
 
 export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopilota, onPtyId }: Props): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -110,8 +113,23 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
   const apriQuiLoStesso = (): void => {
     forzaQui.current = true
     setAltrove(undefined)
+    setInAttesaDi(undefined)
     riarma()
     aggancioRef.current?.rilancia()
+  }
+
+  /**
+   * La chat e' di un altro PC che adesso **non risponde** (0.36.1): spento, in
+   * sospensione, senza rete. Al posto dell'errore un riquadro che lo dice e
+   * aspetta: ogni `RIPROVA_ATTESA_MS` richiede da dove aprirla, e appena quel
+   * PC torna a lasciare il suo battito il riquadro diventa la chat dal vivo.
+   */
+  const [inAttesaDi, setInAttesaDi] = useState<Extract<Apertura, { tipo: 'attesa' }> | undefined>(undefined)
+  const suAttesaPc = useRef(setInAttesaDi)
+  suAttesaPc.current = setInAttesaDi
+  const ricontrollaRef = useRef<(() => void) | undefined>(undefined)
+  const apriScheda = (quale: string): void => {
+    window.dispatchEvent(new CustomEvent('sierradeck:apri-pannello', { detail: quale }))
   }
 
   /**
@@ -263,7 +281,14 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
       },
       suAltrove: (c) => {
         finitaAttesa.current(undefined)
-        suAltrove.current(c)
+        // Lo spawn ha scoperto che la cartella e' di un altro PC: se quel PC
+        // risponde il riquadro diventa remoto da solo, se tace aspetta. La
+        // scelta di prima resta solo quando nemmeno qui si sa decidere.
+        if (forzaQui.current) { suAltrove.current(c); return }
+        window.gestore.remoto.daDove({ cwd: c.cwd, sessionUuid: c.sessionUuid }).then(
+          (a) => { if (a.tipo === 'locale') suAltrove.current(c); else applica(a, () => suAltrove.current(c)) },
+          () => { if (!smontato) suAltrove.current(c) }
+        )
       },
       suEsito: (e) => {
         // Un'uscita dopo il prompt e lontana dall'avvio e' l'utente che ha
@@ -300,7 +325,58 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
     })
 
     aggancioRef.current = aggancio
-    aggancio.avvia()
+
+    /**
+     * Da dove aprirla, PRIMA di aprirla (0.36.1, `apertura-chat.ts`). Nicholas:
+     * «se apro un workspace con chat che vivono su un altro PC devo collegarmi
+     * in remoto e lavorare a distanza, non vedere l'errore». Vale per ogni
+     * strada che monta un riquadro: ripristino, «Torna a com'era», «Riprendi».
+     * Un riaggancio a un pty gia' vivo e le chat di un autopilota non chiedono:
+     * sono di questo PC per costruzione.
+     */
+    let smontato = false
+    let riprova: number | undefined
+    const applica = (a: Apertura, seLocale: () => void): void => {
+      if (smontato || forzaQui.current) return
+      if (a.tipo === 'remoto') {
+        finitaAttesa.current(undefined)
+        useLayoutStore.getState().rendiRemoto(paneId, {
+          pcId: a.pc.id,
+          pcNome: a.pc.nome,
+          cwd: a.cwd,
+          ...(a.sessione !== undefined ? { sessione: a.sessione } : {})
+        })
+        return
+      }
+      if (a.tipo === 'attesa') {
+        finitaAttesa.current(undefined)
+        suAttesaPc.current(a)
+        if (riprova !== undefined) window.clearTimeout(riprova)
+        riprova = window.setTimeout(chiedi, RIPROVA_ATTESA_MS)
+        return
+      }
+      suAttesaPc.current(undefined)
+      seLocale()
+    }
+    const chiedi = (): void => {
+      if (smontato || forzaQui.current) return
+      const ora = avvio.current
+      // Senza risposta si fa come prima: si apre qui, con le sue diagnosi.
+      let domanda: Promise<Apertura>
+      try {
+        domanda = window.gestore.remoto.daDove({ cwd: ora.cwd, sessionUuid: ora.sessionUuid })
+      } catch {
+        aggancio.rilancia()
+        return
+      }
+      domanda.then(
+        (a) => applica(a, () => aggancio.rilancia()),
+        () => { if (!smontato) aggancio.rilancia() }
+      )
+    }
+    ricontrollaRef.current = chiedi
+    if (iniziale.ptyId !== undefined || iniziale.autopilota !== undefined) aggancio.avvia()
+    else chiedi()
 
     const copia = (): void => {
       const selezione = term.getSelection()
@@ -376,6 +452,9 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
       // leggerlo da li' dava sempre `undefined` — la griglia di ogni chat
       // chiusa restava offerta per tutta la vita della finestra, con il suo
       // xterm smontato dentro.
+      smontato = true
+      if (riprova !== undefined) window.clearTimeout(riprova)
+      ricontrollaRef.current = undefined
       const idVivo = aggancio.idCorrente() ?? ultimoPtyId.current
       aggancioRef.current = undefined
       if (useLayoutStore.getState().ceduti.has(paneId)) aggancio.stacca()
@@ -407,6 +486,60 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
           <div className="attesa-chat__testo">{descriviAttesa(peso, trascorso)}</div>
         </div>
       ) : null}
+      {inAttesaDi !== undefined && altrove === undefined ? (
+        <div className="attesa-chat chat-altrove" role="status" aria-live="polite">
+          <div className="chat-altrove__titolo">
+            Questa chat è su {inAttesaDi.pc.nome} · {inAttesaDi.ultimoSegno !== undefined ? 'spento o non risponde' : 'non so se è acceso'}
+          </div>
+          <div className="chat-altrove__testo">
+            Il motivo: {inAttesaDi.perche}. La cartella è <code>{inAttesaDi.cwd}</code>. Il modo giusto per lavorarci da
+            qui è aprirla <strong>dal vivo su {inAttesaDi.pc.nome}</strong>: questo riquadro mostra il terminale di quel PC
+            e quello che scrivi arriva a lui, come dal telefono. Ma adesso {inAttesaDi.pc.nome}{' '}
+            {daQuandoTace(inAttesaDi.ultimoSegno, Date.now())}
+            {inAttesaDi.ultimoSegno !== undefined ? ` (ultimo segno sul Drive: ${new Date(inAttesaDi.ultimoSegno).toLocaleString('it-IT')})` : ''}.
+            Ogni PC acceso con SierraDeck lascia un segno sul Drive ogni 2 minuti; dopo 5 minuti di silenzio lo considero
+            spento, in sospensione o senza rete. Qui non è successo niente di male: la chat là non è stata toccata.
+          </div>
+          <ul className="chat-altrove__testo">
+            <li>
+              <strong>Aspetta</strong> (è quello che succede se non fai niente): ricontrollo da solo ogni 20 secondi e,
+              appena {inAttesaDi.pc.nome} torna a farsi sentire, questo riquadro diventa la chat dal vivo su quel PC.
+            </li>
+            <li>
+              <strong>Porta qui</strong> (scheda ☁ Drive della console): se il progetto è sul Drive, porta su questo PC
+              la cartella e le chat. Da lì in poi la chat si apre qui, con i suoi file.
+            </li>
+            <li>
+              <strong>Chat nuova nella stessa cartella</strong>: apre qui una conversazione nuova, vuota, e chiude questo
+              riquadro. Quella su {inAttesaDi.pc.nome} resta dov’è.
+            </li>
+            <li>
+              <strong>Apri qui lo stesso</strong>: riprende la conversazione su questo PC. Se è aperta anche su{' '}
+              {inAttesaDi.pc.nome}, da lì in poi le due copie vanno ognuna per conto suo; se la cartella qui non c’è,
+              parte in una cartella vuota, senza i file del progetto.
+            </li>
+          </ul>
+          <div className="chat-altrove__azioni">
+            <button className="tasto tasto--primario" onClick={() => ricontrollaRef.current?.()} title="Richiede subito se quel PC risponde, senza aspettare i 20 secondi">
+              Ricontrolla adesso
+            </button>
+            <button className="tasto" onClick={() => apriScheda('drive')} title="Apre la scheda Drive della console, dove c’è «Porta qui»">
+              Apri la scheda Drive…
+            </button>
+            <button className="tasto" onClick={nuovaChatQui} title="Apre una chat nuova nella stessa cartella e chiude questo riquadro">
+              Chat nuova nella stessa cartella
+            </button>
+            {inAttesaDi.pc.id !== '' ? (
+              <button className="tasto" onClick={() => scriviLa({ cwd: inAttesaDi.cwd, pc: inAttesaDi.pc, sessionUuid: inAttesaDi.sessione ?? sessionUuid })} title="Metti un’azione nella cassetta di quel PC: la esegue lui, in questa chat, quando si riaccende">
+                Scrivile là, nella cassetta
+              </button>
+            ) : null}
+            <button className="tasto" onClick={apriQuiLoStesso} title="Riprende la conversazione su questo PC: diventa una copia a sé">
+              Apri qui lo stesso
+            </button>
+          </div>
+        </div>
+      ) : null}
       {altrove !== undefined ? (
         <div className="attesa-chat chat-altrove" role="status" aria-live="polite">
           <div className="chat-altrove__titolo">Questa chat lavora su {altrove.pc.nome}</div>
@@ -436,7 +569,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
           </div>
         </div>
       ) : null}
-      {guasto !== undefined && altrove === undefined ? (
+      {guasto !== undefined && altrove === undefined && inAttesaDi === undefined ? (
         <div className="attesa-chat chat-altrove chat-guasto" role="alert">
           <div className="chat-altrove__titolo">{guasto.titolo}</div>
           <div className="chat-altrove__testo">{guasto.spiegazione}</div>
@@ -469,8 +602,13 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
           onChiudi={() => setMiniFinestra(undefined)}
         />
       ) : null}
-      {postaPer !== undefined && altrove !== undefined ? (
-        <ModalePosta pc={postaPer} vivo={pcVivo(postaPer, Date.now())} presel={{ cwd: altrove.cwd, sessione: altrove.sessionUuid }} onChiudi={() => setPostaPer(undefined)} />
+      {postaPer !== undefined && (altrove !== undefined || inAttesaDi !== undefined) ? (
+        <ModalePosta
+          pc={postaPer}
+          vivo={pcVivo(postaPer, Date.now())}
+          presel={altrove !== undefined ? { cwd: altrove.cwd, sessione: altrove.sessionUuid } : { cwd: inAttesaDi?.cwd ?? cwd, sessione: inAttesaDi?.sessione ?? sessionUuid }}
+          onChiudi={() => setPostaPer(undefined)}
+        />
       ) : null}
     </div>
   )

@@ -1145,7 +1145,20 @@ export function rotteClient(deps: DipendenzeRotte) {
       if (su !== undefined) {
         // «Altri computer», come si chiama la sezione sul PC, nella pagina e
         // nell'app: il testo diceva «Altri PC», che non esisteva da nessuna parte.
-        return { stato: 409, corpo: { errore: `questa chat lavora su «${su}», nella cartella ${cartella}, che su questo computer non c'e': aprirla qui la farebbe partire in una cartella vuota. Scrivile da Computer → «Altri computer», oppure aprila dal computer scegliendo «Aprila qui lo stesso».` } }
+        // 0.36.1: non un errore ma lo stato di quel PC, «su X · acceso/spento»,
+        // e cosa succede: sul computer il riquadro si collega da solo dal vivo
+        // (o aspetta quel PC). Dal telefono la vista dal vivo di un altro PC
+        // non c'e' ancora: aprirla qui la farebbe partire in una cartella vuota.
+        let acceso: boolean | undefined
+        if (deps.pc !== undefined) {
+          const b = (await deps.pc().catch(() => [] as BattitoPcTelefono[])).find((x) => x.nome === su)
+          if (b !== undefined) acceso = battitoVivo(b.battito, adesso())
+        }
+        const stato = acceso === true ? ' · acceso' : acceso === false ? ' · spento o non risponde' : ''
+        const sulComputer = acceso === false
+          ? `Sul computer, aprendola dall'elenco «Riprendi», il riquadro aspetta «${su}» e si collega da solo dal vivo appena torna acceso.`
+          : `Sul computer, aprendola dall'elenco «Riprendi», il riquadro si collega da solo dal vivo a «${su}» e ci lavori a distanza.`
+        return { stato: 409, corpo: { errore: `questa chat è su «${su}»${stato}: la sua cartella ${cartella} sta là, qui non c'è, e da qui partirebbe in una cartella vuota. ${sulComputer} Per lasciarle un'azione: Computer → «Altri computer».` } }
       }
       deps.riprendiSessione(cartella, sessione)
       return OK({ fatto: true })

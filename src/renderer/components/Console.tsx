@@ -147,6 +147,17 @@ export function Console({
 
   // Le scorciatoie vive seguono le preferenze: la tabella sta in
   // `scorciatoie-vive` perche' la legge anche il terminale, a ogni tasto.
+  // Un riquadro puo' chiedere di aprire una scheda della console: il riquadro
+  // d'attesa di una chat su un PC spento apre la scheda Drive per «Porta qui».
+  useEffect(() => {
+    const suRichiesta = (e: Event): void => {
+      const quale = (e as CustomEvent<unknown>).detail
+      if (quale === 'drive' || quale === 'domande' || quale === 'workspace') onApri(quale)
+    }
+    window.addEventListener('sierradeck:apri-pannello', suRichiesta)
+    return () => window.removeEventListener('sierradeck:apri-pannello', suRichiesta)
+  }, [onApri])
+
   useEffect(() => {
     const applica = (p: { scorciatoie: Parameters<typeof impostaScorciatoie>[0] }): void => impostaScorciatoie(p.scorciatoie)
     window.gestore.preferenze.leggi().then(applica).catch(() => undefined)
