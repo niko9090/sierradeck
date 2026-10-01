@@ -466,6 +466,21 @@ export function paginaClient(): string {
   .flusso-ap { max-height: 46vh; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; padding-right: 2px; }
   .battuta--domanda, .battuta--pronto { border: 1px solid var(--ambra); background: color-mix(in srgb, var(--ambra) 10%, transparent); }
   .nota-ap { display: flex; gap: 8px; margin: 2px 0; padding-left: 8px; border-left: 2px solid var(--bordo); font-size: 11px; color: var(--testo-quieto); }
+  /* La linguetta «File» e il diff (0.38.0). */
+  .file-ap { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+  .file-ap--scelto { border-color: var(--ambra); }
+  .file-ap__nome { font-family: ui-monospace, Consolas, monospace; word-break: break-all; }
+  .file-ap__piu { color: var(--verde); }
+  .file-ap__meno { color: var(--rosso); }
+  .file-ap__stato--nuovo { color: var(--verde); }
+  .file-ap__stato--cancellato { color: var(--rosso); }
+  .diff-ap { margin: 6px 0 0; max-height: 60vh; overflow: auto; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .diff-ap__riga { white-space: pre; padding: 0 4px; }
+  .diff-ap__riga--piu { background: rgba(84, 192, 122, .18); }
+  .diff-ap__riga--meno { background: rgba(220, 95, 95, .18); }
+  .diff-ap__riga--blocco, .diff-ap__riga--testa { color: var(--spento); }
+  .conto-domande { background: var(--ambra); color: #111; border-radius: 8px; padding: 0 5px; }
+  .domanda-ap { white-space: pre-wrap; }
   .nota-ap .quando { font-family: ui-monospace, Consolas, monospace; color: var(--spento); flex: 0 0 auto; }
   .nota-ap--decisione { border-left-color: var(--accento); }
   .nota-ap--correzione { border-left-color: var(--ambra); }
@@ -538,6 +553,16 @@ var dentroAp = null
 var apDettaglio = null
 /** Quale linguetta e' aperta sotto la chat con l'autopilota. */
 var apTab = 'obiettivo'
+/** Dove si era prima che una domanda portasse alla linguetta «Domande» (0.38.0). */
+var apTabPrima = 'obiettivo'
+/** Quale domanda si guarda (una per volta) e quali si sono gia' viste. */
+var apDomandaI = 0
+var apDomandeViste = null
+/** La linguetta «File» (0.38.0): l'elenco, il file scelto e il suo diff. */
+var apFile = null
+var apFileScelto = null
+var apDiff = null
+var notaDomandaAp = ''
 /** Cosa e' successo all'ultimo messaggio mandato all'autopilota, se non e' partito. */
 var notaDialogo = ''
 /** Il pannello aperto in fondo: le conversazioni, gli altri computer, le code, il Drive, i consumi, le impostazioni, il quaderno, o niente. */
@@ -681,7 +706,7 @@ function vistaConversazioni() {
     return '<button class="voce" data-k="' + esc(c.chiave) + '" onclick="apriConv(this.dataset.k)"' + (c.chiave === aperta.chiave ? ' aria-current="true"' : '') + '>' +
       '<span class="led ' + (c.chiede ? 'attesa' : 'spenta') + '"></span>' +
       '<span class="voce__testo"><span class="voce__nome">' + esc(c.titolo) + '</span>' +
-      '<span class="voce__sotto">' + (c.tipo === 'autopilota' ? 'autopilota · ti sta chiedendo' : c.chiede ? 'chat · aspetta che tu scelga' : 'chat · ha finito il turno') + '</span></span>' +
+      '<span class="voce__sotto">' + (c.tipo === 'autopilota' ? 'ti aspetta (' + (c.quante || 1) + ') → apri' : c.chiede ? 'chat · aspetta che tu scelga' : 'chat · ha finito il turno') + '</span></span>' +
       '<span class="voce__freccia">›</span></button>'
   }).join('')
   var messaggi = aperta.messaggi.map(function (m) {
@@ -700,6 +725,14 @@ function vistaConversazioni() {
       '<span class="battuta__chi">' + (m.da === 'tu' ? 'tu' : esc(aperta.titolo)) + (m.quando ? ' · ' + oraDi(m.quando) : '') + '</span>' +
       '<span>' + esc(m.testo) + '</span>' + opzioni + '</div>'
   }).join('')
+  // Le domande di un autopilota non si rispondono qui (0.38.0): si rispondono
+  // nella sua scheda, linguetta «Domande», una per volta.
+  if (aperta.tipo === 'autopilota' && aperta.autopilota) {
+    return '<div class="piastrella">' + voci + '</div>' +
+      '<div class="piastrella chiede"><div class="serigrafia">' + esc(aperta.titolo) + '</div>' +
+      '<div class="sotto">Ti aspetta con ' + ((aperta.quante || 1) === 1 ? 'una domanda' : (aperta.quante + ' domande')) + '. Le domande di un autopilota si rispondono nella sua scheda, linguetta «Domande», una per volta, con le opzioni da toccare; dopo la risposta domanda e risposta restano nella chat con lui.</div>' +
+      '<div class="riga"><button class="primario" data-ap="' + esc(aperta.autopilota) + '" onclick="apriDomandeAp(this.dataset.ap)">Apri la sua linguetta Domande</button></div></div>'
+  }
   var mandata = domandeMandate[aperta.chiave]
   return '<div class="piastrella">' + voci + '</div>' +
     '<div class="piastrella' + (aperta.chiede ? ' chiede' : '') + '">' +
@@ -1854,6 +1887,14 @@ window.affida = async () => {
  * Si chiede quando si apre, non nell'elenco: l'elenco viaggia ogni due secondi
  * e mandare tutto sarebbe spedire un libro per leggerne il titolo.
  */
+/** Dalla scheda Domande alla linguetta «Domande» dell'autopilota (0.38.0). */
+window.apriDomandeAp = async (id) => {
+  apTabPrima = apTab === 'domande' ? apTabPrima : apTab
+  apTab = 'domande'
+  apDomandaI = 0
+  vaiScheda('lavori')
+  await guardaAp(id)
+}
 window.guardaAp = async (id) => {
   dentroAp = id
   apDettaglio = null
@@ -1861,12 +1902,23 @@ window.guardaAp = async (id) => {
   await leggiAp()
   pannello(ultimoStato)
 }
-window.chiudiAp = () => { dentroAp = null; apDettaglio = null; pannello(ultimoStato) }
+window.chiudiAp = () => { dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
 
 async function leggiAp() {
   if (!dentroAp) return
   try {
     apDettaglio = await chiedi('/api/autopilota', { autopilota: dentroAp })
+    // Le domande della linguetta (0.38.0): una nuova la fa avanti; finite, si
+    // torna alla linguetta di prima.
+    const chiavi = (apDettaglio.domandeScheda || []).map((d) => d.chiave)
+    const nuova = apDomandeViste !== null && chiavi.some((k) => apDomandeViste.indexOf(k) < 0)
+    if ((nuova || (apDomandeViste === null && chiavi.length > 0)) && apTab !== 'domande') { apTabPrima = apTab; apTab = 'domande' }
+    if (chiavi.length === 0 && apTab === 'domande') apTab = apTabPrima
+    if (apDomandaI >= chiavi.length) apDomandaI = 0
+    apDomandeViste = chiavi
+    if (apTab === 'file') {
+      try { apFile = await chiedi('/api/autopilota/file', { autopilota: dentroAp }) } catch (e) { apFile = { errore: String(e && e.message ? e.message : e) } }
+    }
   } catch (e) {
     // Eliminato mentre lo si guardava: si torna all'elenco invece di restare
     // su un pannello che non descrive piu' niente.
@@ -1924,19 +1976,20 @@ function vistaAutopilota(a) {
   // chat ferma); altrimenti si parla con lui, il supervisore, che risponde in
   // qualche minuto.
   const casella = '<div class="riga"><textarea id="dialogo-' + esc(a.id) + '" rows="2" placeholder="' +
-      (a.domanda ? 'la tua risposta' : 'scrivigli: una domanda, un vincolo, un compito in più, «fermati», «riprendi»…') + '"></textarea></div>' +
+      'scrivigli: una domanda, un vincolo, un compito in più, «fermati», «riprendi»… (le sue domande sono nella linguetta Domande)' + '"></textarea></div>' +
     '<div class="riga">' +
-      (a.domanda && a.domandaId
-        ? '<button class="primario" data-ap="' + esc(a.id) + '" data-domanda="' + esc(a.domandaId) + '" onclick="rispondiAp(this.dataset.ap, this.dataset.domanda)">Rispondi</button>'
-        : '<button class="primario" data-ap="' + esc(a.id) + '" onclick="dialogaAp(this.dataset.ap)">Manda</button>') +
+      // Le sue domande non si rispondono da qui (0.38.0): stanno nella
+      // linguetta «Domande», una per volta.
+      '<button class="primario" data-ap="' + esc(a.id) + '" onclick="dialogaAp(this.dataset.ap)">Manda</button>' +
       '<span class="sotto info-ap" title="Qui parli con l’autopilota, non con la chat che esegue. Risponde con parole sue; se è un’istruzione la applica e la consegna alla chat alla fine del turno che ha in mano. Se ha una domanda aperta, quello che scrivi è la risposta e arriva subito.">?</span>' +
     '</div>' +
     (notaDialogo ? '<div class="errore">' + esc(notaDialogo) + '</div>' : '')
   setTimeout(scorriChatAp, 0)
 
   // ── Le linguette, sotto ──
-  const linguette = [['obiettivo', 'Obiettivo'], ['criteri', 'Criteri'], ['compiti', 'Compiti'], ['deciso', 'Ha deciso']]
-  const conto = (id) => id === 'criteri' && (a.criteri || []).length
+  const schede = a.domandeScheda || []
+  const linguette = (schede.length > 0 ? [['domande', 'Domande']] : []).concat([['file', 'File'], ['obiettivo', 'Obiettivo'], ['criteri', 'Criteri'], ['compiti', 'Compiti'], ['deciso', 'Ha deciso']])
+  const conto = (id) => id === 'domande' ? ' <small class="conto-domande">' + schede.length + '</small>' : id === 'criteri' && (a.criteri || []).length
     ? ' <small>' + (a.criteri || []).filter((c) => c.soddisfatto).length + '/' + a.criteri.length + '</small>'
     : id === 'compiti' && (a.compitiDaFare || []).length ? ' <small>' + a.compitiDaFare.length + '</small>' : ''
   const barraLinguette = '<div class="linguette">' + linguette.map(([id, nome]) =>
@@ -1944,7 +1997,26 @@ function vistaAutopilota(a) {
   ).join('') + '</div>'
 
   let dentro = ''
-  if (apTab === 'obiettivo') {
+  if (apTab === 'domande' && schede.length > 0) {
+    // Una domanda per volta (0.38.0): il testo intero, le opzioni da toccare,
+    // la casella, «1 di N». Dopo la risposta domanda e risposta entrano nella
+    // chat qui sopra; finite, la linguetta si chiude.
+    const i = Math.min(apDomandaI, schede.length - 1)
+    const d = schede[i]
+    const origine = d.origine === 'preparazione' ? 'domanda iniziale: si sta preparando, e senza la tua risposta non comincia'
+      : d.origine === 'pubblica' ? 'il lavoro è finito e verificato: chiede se pubblicare'
+      : d.origine === 'via' ? 'si è preparato: aspetta il tuo via' : 'domanda durante il lavoro: la chat è ferma su questa'
+    dentro = '<div class="sotto">' + esc(origine) + (schede.length > 1 ? ' · ' + (i + 1) + ' di ' + schede.length : '') + '</div>' +
+      (schede.length > 1 ? '<div class="riga"><button data-d="-1" onclick="spostaDomandaAp(+this.dataset.d)"' + (i === 0 ? ' disabled' : '') + '>‹ prima</button><button data-d="1" onclick="spostaDomandaAp(+this.dataset.d)"' + (i >= schede.length - 1 ? ' disabled' : '') + '>dopo ›</button></div>' : '') +
+      '<div class="grande domanda-ap">' + esc(d.testo) + '</div>' +
+      ((d.opzioni || []).length > 0 ? '<div class="riga">' + d.opzioni.map((o) => '<button class="primario" data-o="' + esc(o) + '" onclick="rispondiSchedaAp(this.dataset.o)">' + esc(o) + '</button>').join('') + '</div>' : '') +
+      '<div class="riga"><textarea id="risposta-scheda-ap" rows="3" placeholder="' + (d.tipo === 'via' ? 'oppure scrivigli cosa cambiare prima di partire' : 'la tua risposta, con parole tue') + '"></textarea></div>' +
+      '<div class="riga"><button class="primario" onclick="rispondiSchedaAp()">' + (d.tipo === 'via' ? 'Manda' : 'Rispondi') + '</button></div>' +
+      (notaDomandaAp ? '<div class="errore">' + esc(notaDomandaAp) + '</div>' : '') +
+      '<div class="sotto">' + (d.tipo === 'via' ? '«Vai» lo fa partire; se scrivi altro gli arriva come messaggio.' : 'La risposta arriva subito all’autopilota; nella chat qui sopra restano domanda e risposta. Poi la prossima, o la linguetta si chiude.') + '</div>'
+  } else if (apTab === 'file') {
+    dentro = vistaFileAp(apFile, apFileScelto, apDiff)
+  } else if (apTab === 'obiettivo') {
     // Cosa gli hai chiesto, e cosa ne ha capito. La preparazione riscrive
     // l'obiettivo con parole sue: senza le tue accanto non c'e' modo di
     // accorgersi che sta andando a fare un'altra cosa.
@@ -2017,7 +2089,78 @@ function scorriChatAp() {
   if (fl) fl.scrollTop = fl.scrollHeight
 }
 
-window.apriTabAp = (t) => { apTab = t; pannello(ultimoStato) }
+window.apriTabAp = async (t) => {
+  if (t === 'domande' && apTab !== 'domande') apTabPrima = apTab
+  apTab = t
+  pannello(ultimoStato)
+  if (t === 'file') { await leggiAp(); pannello(ultimoStato) }
+}
+
+/** Come si risponde a una domanda della linguetta: la stessa regola del PC (richiestaScheda). */
+function richiestaSchedaAp(d, autopilota, testo) {
+  if (d.tipo === 'domanda') return { percorso: '/api/rispondi', corpo: { domanda: d.idDomanda || '', risposta: testo } }
+  if (testo.trim().toLowerCase() === 'vai') return { percorso: '/api/autopilota/vai', corpo: { autopilota: autopilota } }
+  return { percorso: '/api/autopilota/dialogo', corpo: { autopilota: autopilota, testo: testo } }
+}
+window.spostaDomandaAp = (d) => { apDomandaI = Math.max(0, apDomandaI + d); pannello(ultimoStato) }
+window.rispondiSchedaAp = async (opzione) => {
+  const schede = (apDettaglio && apDettaglio.domandeScheda) || []
+  const d = schede[Math.min(apDomandaI, schede.length - 1)]
+  if (!d) return
+  const campo = document.getElementById('risposta-scheda-ap')
+  const testo = typeof opzione === 'string' ? opzione : (campo ? campo.value.trim() : '')
+  if (!testo) return
+  try {
+    const q = richiestaSchedaAp(d, apDettaglio.id, testo)
+    const r = await chiedi(q.percorso, q.corpo)
+    if (r && r.errore) { notaDomandaAp = r.errore; pannello(ultimoStato); return }
+    notaDomandaAp = ''
+    apDomandaI = 0
+    await leggiAp()
+    aggiorna()
+  } catch (e) {
+    notaDomandaAp = 'Non sono riuscito a rispondere: ' + (e && e.message ? e.message : e)
+    pannello(ultimoStato)
+  }
+}
+
+/** La linguetta «File» (0.38.0): l'elenco per chat e il diff del file scelto, in sola lettura. */
+function vistaFileAp(f, scelto, diff) {
+  if (!f) return '<div class="sotto">Leggo i file da git…</div>'
+  if (f.errore) return '<div class="errore">' + esc(f.errore) + '</div>'
+  const intro = '<div class="sotto">I file che ha cambiato, per la cartella del progetto e per il worktree di ogni sua chat: com’è cambiato, righe aggiunte (+) e tolte (−), e se è già in un commit o ancora da salvare. Toccando un file vedi le righe. Qui si guarda soltanto.</div>'
+  const gruppi = (f.gruppi || []).map((g) =>
+    '<div class="serigrafia" style="margin-top:8px">' + esc(g.nome) + (g.ramo ? ' · ' + esc(g.ramo) : '') + '</div>' +
+    '<div class="sotto">Confronto ' + esc(g.base) + '</div>' +
+    (g.errore ? '<div class="sotto">⚠ ' + esc(g.errore) + '</div>' : '') +
+    ((g.file || []).length === 0 && !g.errore ? '<div class="sotto">Nessun file cambiato.</div>' : '') +
+    (g.file || []).map((x) =>
+      '<button class="voce file-ap' + (scelto && scelto.percorso === x.percorso && scelto.chat === g.chiave ? ' file-ap--scelto' : '') + '" data-c="' + esc(g.chiave) + '" data-p="' + esc(x.percorso) + '" onclick="apriFileAp(this.dataset.c, this.dataset.p)">' +
+      '<span class="file-ap__stato file-ap__stato--' + esc(x.stato) + '">' + esc(x.stato) + '</span> ' +
+      '<span class="file-ap__nome">' + esc(x.percorso) + '</span> ' +
+      (x.binario ? '<span class="sotto">binario</span>' : '<span class="file-ap__piu">+' + x.piu + '</span> <span class="file-ap__meno">−' + x.meno + '</span>') +
+      ' <span class="sotto">' + (x.salvato ? 'in commit' : 'da salvare') + '</span></button>'
+    ).join('')
+  ).join('')
+  const vistaDiff = scelto
+    ? '<div class="serigrafia" style="margin-top:8px">' + esc(scelto.percorso) + '</div>' +
+      (diff === null ? '<div class="sotto">Leggo il diff…</div>' : '<pre class="diff-ap">' + String(diff).split(String.fromCharCode(10)).slice(0, 2000).map((r) => {
+        const t = r.startsWith('+++') || r.startsWith('---') || r.startsWith('diff ') || r.startsWith('index ') ? 'testa' : r.startsWith('@@') ? 'blocco' : r.startsWith('+') ? 'piu' : r.startsWith('-') ? 'meno' : 'contesto'
+        return '<div class="diff-ap__riga diff-ap__riga--' + t + '">' + esc(r) + '</div>'
+      }).join('') + '</pre>')
+    : ''
+  return intro + gruppi + vistaDiff
+}
+window.apriFileAp = async (chat, percorso) => {
+  apFileScelto = { chat: chat, percorso: percorso }
+  apDiff = null
+  pannello(ultimoStato)
+  try {
+    const r = await chiedi('/api/autopilota/diff', { autopilota: dentroAp, chat: chat, percorso: percorso })
+    apDiff = r && r.diff !== undefined ? r.diff : '⚠ ' + (r && r.errore ? r.errore : 'diff non disponibile')
+  } catch (e) { apDiff = '⚠ ' + (e && e.message ? e.message : e) }
+  pannello(ultimoStato)
+}
 
 /**
  * Risponde alla domanda aperta dell'autopilota dalla stessa casella con cui

@@ -63,7 +63,7 @@ import kotlinx.coroutines.launch
  * Sparisce da sola quando il computer smette di elencarla.
  */
 @Composable
-fun Domande(api: Api, stato: Stato?) {
+fun Domande(api: Api, stato: Stato?, onApriAutopilota: (String) -> Unit = {}) {
     var voci by remember { mutableStateOf<List<VoceDomanda>?>(null) }
     var conversazioni by remember { mutableStateOf<List<Conversazione>>(emptyList()) }
     var rileggi by remember { mutableStateOf(0) }
@@ -91,7 +91,7 @@ fun Domande(api: Api, stato: Stato?) {
     val elenco = voci
     // 0.36.0: con un computer che le compone, le Domande sono conversazioni.
     if (conversazioni.isNotEmpty()) {
-        VistaConversazioni(api, conversazioni, onRiletto = { rileggi += 1 })
+        VistaConversazioni(api, conversazioni, onRiletto = { rileggi += 1 }, onApriAutopilota = onApriAutopilota)
         return
     }
     LazyColumn(Modifier.fillMaxSize().background(Banco.fondo), contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {

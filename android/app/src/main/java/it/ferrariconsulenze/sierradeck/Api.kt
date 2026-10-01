@@ -188,6 +188,19 @@ class Api(private val indirizzo: String, private val chiave: String?) {
         return json.decodeFromString(corpoTesto(percorso, oggetto { for ((k, v) in corpo) put(k, v) }))
     }
 
+    /** Risponde a una domanda della linguetta «Domande» (0.38.0): la regola di `richiestaScheda`. */
+    suspend fun rispondiScheda(d: DomandaScheda, autopilota: String, testo: String): Fatto {
+        val (percorso, corpo) = richiestaScheda(d, autopilota, testo)
+        return json.decodeFromString(corpoTesto(percorso, oggetto { for ((k, v) in corpo) put(k, v) }))
+    }
+
+    /** La linguetta «File» (0.38.0): solo lettura. */
+    suspend fun fileAutopilota(id: String): FileAutopilota =
+        json.decodeFromString(corpoTesto("/api/autopilota/file", oggetto { put("autopilota", id) }))
+
+    suspend fun diffAutopilota(id: String, chat: String, percorso: String): DiffFile =
+        json.decodeFromString(corpoTesto("/api/autopilota/diff", oggetto { put("autopilota", id); put("chat", chat); put("percorso", percorso) }))
+
     suspend fun eliminaAutopilota(id: String): Fatto =
         json.decodeFromString(corpoTesto("/api/autopilota/elimina", oggetto { put("autopilota", id) }))
 

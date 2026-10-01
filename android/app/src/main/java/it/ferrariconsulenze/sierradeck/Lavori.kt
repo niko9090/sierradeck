@@ -98,8 +98,10 @@ fun coloreLed(led: String, stato: String): Color = when (led) {
  * mostra — dove sono nel percorso, i criteri che si sono dati, cosa hanno deciso.
  */
 @Composable
-fun Lavori(api: Api, stato: Stato?) {
+fun Lavori(api: Api, stato: Stato?, apri: String? = null, onAperto: () -> Unit = {}) {
     var aperto by remember { mutableStateOf<String?>(null) }
+    // Dalla scheda Domande: «apri la sua linguetta Domande» (0.38.0).
+    LaunchedEffect(apri) { if (apri != null) { aperto = apri; onAperto() } }
     var delega by remember { mutableStateOf(false) }
     val lista = stato?.autopiloti ?: emptyList()
 
@@ -178,6 +180,8 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
     // casella finiva fuori. Aperta una linguetta, il suo contenuto ha un tetto
     // e la chat resta sopra; toccarla di nuovo la richiude.
     var linguettaAperta by remember(breve.id) { mutableStateOf(false) }
+    /** Le domande gia' viste: una nuova apre la linguetta «Domande» (0.38.0). */
+    var domandeViste by remember(breve.id) { mutableStateOf<List<String>?>(null) }
     // Se il dettaglio non arriva lo si dice: prima la schermata restava con
     // la sola testata e nessuna spiegazione.
     var guastoDettaglio by remember(breve.id) { mutableStateOf<String?>(null) }
@@ -298,14 +302,12 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                     )
                 }
             }
-            val domanda = det != null && det.domanda && det.domandaId != null
-            // La domanda si vede nella chat con lui ma il servizio non ce l'ha
-            // piu' aperta (e' ripartito): prima la casella la mandava al dialogo
-            // senza dirlo. Dal 0.36 il servizio la riapre da solo; fino ad
-            // allora si dice cosa sta succedendo.
-            if (det != null && det.domanda && det.domandaId == null) {
+            // Le sue domande non si rispondono da qui (0.38.0): stanno nella
+            // linguetta «Domande» qui sotto, una per volta. La casella parla con lui.
+            val domanda = false
+            if (det != null && (det.domandeScheda.isNotEmpty() || det.domanda)) {
                 Text(
-                    "La sua domanda non è ancora di nuovo aperta nel servizio (è appena ripartito): fra qualche secondo compare nella scheda Domande e qui sotto, e la risposta farà ripartire la preparazione.",
+                    "Ti ha fatto una domanda: è nella linguetta «Domande» qui sotto, con il numero di quelle aperte.",
                     color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 4.dp)
                 )
             }
@@ -367,13 +369,28 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
         HorizontalDivider(color = Banco.incisione)
 
         // ─── le linguette: la meta' di sotto ───
-        val nomi = listOf(
-            "Obiettivo",
-            "Criteri" + (det?.criteri?.takeIf { it.isNotEmpty() }?.let { " ${it.count { c -> c.soddisfatto }}/${it.size}" } ?: ""),
-            "Compiti" + (det?.compitiDaFare?.takeIf { it.isNotEmpty() }?.let { " ${it.size}" } ?: ""),
-            "Ha deciso",
-            "Altro"
-        )
+        // Le linguette per chiave (0.38.0): «Domande» per prima solo se ce ne sono.
+        val schede = det?.domandeScheda ?: emptyList()
+        val chiavi = linguetteAutopilota(schede.size)
+        val nomi = chiavi.map { k ->
+            when (k) {
+                "domande" -> "Domande ${schede.size}"
+                "file" -> "File"
+                "obiettivo" -> "Obiettivo"
+                "criteri" -> "Criteri" + (det?.criteri?.takeIf { it.isNotEmpty() }?.let { " ${it.count { c -> c.soddisfatto }}/${it.size}" } ?: "")
+                "compiti" -> "Compiti" + (det?.compitiDaFare?.takeIf { it.isNotEmpty() }?.let { " ${it.size}" } ?: "")
+                "deciso" -> "Ha deciso"
+                else -> "Altro"
+            }
+        }
+        // Una domanda nuova apre la linguetta «Domande»; finite, si chiude.
+        val chiaviDomande = schede.map { it.chiave }
+        LaunchedEffect(chiaviDomande.joinToString("|")) {
+            if (domandaArrivata(domandeViste, schede)) { linguetta = 0; linguettaAperta = true }
+            else if (schede.isEmpty() && domandeViste?.isNotEmpty() == true && linguetta == 0) linguettaAperta = false
+            domandeViste = chiaviDomande
+        }
+        if (linguetta >= chiavi.size) linguetta = 0
         ScrollableTabRow(
             selectedTabIndex = linguetta,
             containerColor = Banco.fondo,
@@ -402,8 +419,10 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
         // Con un tetto: al massimo un terzo abbondante dello schermo, cosi' la
         // chat e la casella restano sopra anche con la tastiera aperta.
         if (linguettaAperta) Column(Modifier.fillMaxWidth().heightIn(max = 260.dp).verticalScroll(rememberScrollState()).padding(16.dp)) {
-            when (linguetta) {
-                0 -> {
+            when (chiavi.getOrNull(linguetta)) {
+                "domande" -> LinguettaDomande(api, breve.id, schede, onRisposto = { scope.launch { try { d = api.autopilota(breve.id) } catch (_: Exception) {} } })
+                "file" -> LinguettaFile(api, breve.id)
+                "obiettivo" -> {
                     // Quello che hai scritto tu, e quello che lui ne ha fatto:
                     // senza le due righe una accanto all'altra non c'e' modo di
                     // accorgersi che sta andando a fare un'altra cosa.
@@ -452,7 +471,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                         }
                     }
                 }
-                1 -> {
+                "criteri" -> {
                     Etichetta("FINISCE QUANDO")
                     if (det == null || det.criteri.isEmpty()) {
                         Text("Ancora nessun criterio: li scrive lui alla fine della preparazione.", color = Banco.testoQuieto, fontSize = 13.sp)
@@ -465,7 +484,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                         )
                     }
                 }
-                2 -> {
+                "compiti" -> {
                     Etichetta("PRIMA FA")
                     val compiti = det?.compitiDaFare ?: emptyList()
                     if (compiti.isEmpty()) {
@@ -474,7 +493,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                         Text("${i + 1}. $c", color = Banco.testo, fontSize = 13.sp, modifier = Modifier.padding(vertical = 3.dp))
                     }
                 }
-                3 -> {
+                "deciso" -> {
                     Etichetta("STA RAGIONANDO COSÌ")
                     val decisioni = det?.decisioni ?: emptyList()
                     if (decisioni.isEmpty()) {
@@ -1100,4 +1119,119 @@ fun riassuntoLavori(lista: List<AutopilotaBreve>): String {
     conta("lavoro").takeIf { it > 0 }?.let { pezzi += "$it al lavoro" }
     conta("finito").takeIf { it > 0 }?.let { pezzi += if (it == 1) "1 finito" else "$it finiti" }
     return pezzi.joinToString(" · ")
+}
+
+/**
+ * La linguetta «Domande» (0.38.0): una domanda per volta, con il testo intero,
+ * le opzioni da toccare, la casella libera e «1 di N». Dopo la risposta,
+ * domanda e risposta entrano nella chat qui sopra.
+ */
+@Composable
+private fun LinguettaDomande(api: Api, autopilota: String, schede: List<DomandaScheda>, onRisposto: () -> Unit) {
+    var indice by remember { mutableStateOf(0) }
+    var testo by remember { mutableStateOf("") }
+    var nota by remember { mutableStateOf<String?>(null) }
+    var inCorso by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    if (schede.isEmpty()) {
+        Text("Nessuna domanda aperta: quando te ne fa una, compare qui.", color = Banco.testoQuieto, fontSize = 13.sp)
+        return
+    }
+    val i = indice.coerceIn(0, schede.size - 1)
+    val d = schede[i]
+    fun manda(r: String) {
+        if (r.isBlank() || inCorso) return
+        inCorso = true
+        nota = null
+        scope.launch {
+            try { api.rispondiScheda(d, autopilota, r.trim()); testo = ""; indice = 0; onRisposto() }
+            catch (e: Exception) { nota = "Non sono riuscito a rispondere: ${e.message ?: "il computer non risponde"}" }
+            inCorso = false
+        }
+    }
+    Text(etichettaOrigine(d) + if (schede.size > 1) " · ${i + 1} di ${schede.size}" else "", color = Banco.testoQuieto, fontSize = 12.sp)
+    if (schede.size > 1) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(enabled = i > 0, onClick = { indice = i - 1 }) { Text("‹ prima") }
+        TextButton(enabled = i < schede.size - 1, onClick = { indice = i + 1 }) { Text("dopo ›") }
+    }
+    Spacer(Modifier.height(6.dp))
+    Text(d.testo, color = Banco.testo, fontSize = 15.sp)
+    if (d.opzioni.isNotEmpty()) {
+        Spacer(Modifier.height(8.dp))
+        for (o in d.opzioni) Button(enabled = !inCorso, onClick = { manda(o) }, modifier = Modifier.padding(vertical = 2.dp)) { Text(o) }
+    }
+    Spacer(Modifier.height(8.dp))
+    OutlinedTextField(
+        value = testo,
+        onValueChange = { testo = it },
+        label = { Text(if (d.tipo == "via") "Oppure scrivigli cosa cambiare" else "La tua risposta") },
+        maxLines = 4,
+        modifier = Modifier.fillMaxWidth()
+    )
+    Spacer(Modifier.height(4.dp))
+    Button(enabled = testo.isNotBlank() && !inCorso, onClick = { manda(testo) }) { Text(if (inCorso) "Mando…" else if (d.tipo == "via") "Manda" else "Rispondi") }
+    nota?.let { Text(it, color = Banco.rosso, fontSize = 12.sp) }
+    Text(
+        if (d.tipo == "via") "«Vai» lo fa partire; se scrivi altro gli arriva come messaggio."
+        else "La risposta arriva subito all’autopilota; nella chat qui sopra restano domanda e risposta. Poi la prossima, o la linguetta si chiude.",
+        color = Banco.testoQuieto, fontSize = 11.sp
+    )
+}
+
+/**
+ * La linguetta «File» (0.38.0): i file cambiati, per chat, con lo stato, le
+ * righe e se sono gia' in commit; toccando un file, il diff. Solo lettura.
+ */
+@Composable
+private fun LinguettaFile(api: Api, autopilota: String) {
+    var file by remember(autopilota) { mutableStateOf<FileAutopilota?>(null) }
+    var guasto by remember(autopilota) { mutableStateOf<String?>(null) }
+    var scelto by remember(autopilota) { mutableStateOf<Pair<String, String>?>(null) }
+    var diff by remember(autopilota) { mutableStateOf<String?>(null) }
+    LaunchedEffect(autopilota) {
+        while (isActive) {
+            try { file = api.fileAutopilota(autopilota); guasto = null } catch (e: Exception) {
+                guasto = if (e is Api.Errore && e.codice == 409) "Questo computer non sa ancora mostrare i file: aggiornalo." else e.message ?: "il computer non risponde"
+            }
+            delay(4000)
+        }
+    }
+    LaunchedEffect(scelto) {
+        val s = scelto ?: return@LaunchedEffect
+        diff = null
+        diff = try { api.diffAutopilota(autopilota, s.first, s.second).diff } catch (e: Exception) { "⚠ ${e.message ?: "diff non disponibile"}" }
+    }
+    Text(
+        "I file che ha cambiato, per la cartella del progetto e per il worktree di ogni sua chat. Tocca un file per vedere le righe tolte e aggiunte. Qui si guarda soltanto.",
+        color = Banco.testoQuieto, fontSize = 12.sp
+    )
+    guasto?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
+    val f = file
+    if (f == null && guasto == null) Text("Leggo i file…", color = Banco.testoQuieto, fontSize = 13.sp)
+    f?.gruppi?.forEach { g ->
+        Spacer(Modifier.height(8.dp))
+        Etichetta(g.nome.uppercase() + (g.ramo?.let { " · $it" } ?: ""))
+        Text("Confronto ${g.base}", color = Banco.testoQuieto, fontSize = 11.sp)
+        g.errore?.let { Text("⚠ $it", color = Banco.ambra, fontSize = 12.sp) }
+        if (g.errore == null && g.file.isEmpty()) Text("Nessun file cambiato.", color = Banco.testoQuieto, fontSize = 12.sp)
+        for (x in g.file) {
+            Column(Modifier.fillMaxWidth().clickable { scelto = if (scelto == g.chiave to x.percorso) null else g.chiave to x.percorso }.padding(vertical = 4.dp)) {
+                Text(x.percorso, color = Banco.testo, fontSize = 13.sp)
+                Text(rigaFile(x), color = if (x.salvato) Banco.testoQuieto else Banco.ambra, fontSize = 11.sp)
+            }
+        }
+    }
+    val s = scelto
+    if (s != null) {
+        Spacer(Modifier.height(8.dp))
+        Etichetta(s.second)
+        val t = diff
+        if (t == null) Text("Leggo il diff…", color = Banco.testoQuieto, fontSize = 12.sp)
+        else for (r in righeDiff(t)) Text(
+            r.testo,
+            color = when (r.tipo) { "piu" -> Banco.verde; "meno" -> Banco.rosso; "testa", "blocco" -> Banco.testoQuieto; else -> Banco.testo },
+            fontSize = 11.sp,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+        )
+    }
 }

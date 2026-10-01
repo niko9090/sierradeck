@@ -75,7 +75,7 @@ fun domandeInAttesa(s: Stato): Int = s.domandeInAttesa ?: (s.domande.size + s.ch
  * mostrano la stessa cosa.
  */
 @Composable
-fun VistaConversazioni(api: Api, elenco: List<Conversazione>, onRiletto: () -> Unit) {
+fun VistaConversazioni(api: Api, elenco: List<Conversazione>, onRiletto: () -> Unit, onApriAutopilota: (String) -> Unit = {}) {
     var apertaChiave by remember { mutableStateOf<String?>(null) }
     val aperta = elenco.firstOrNull { it.chiave == apertaChiave } ?: elenco.first()
     // Quello che hai appena mandato, finche' il computer non lo rimette nel filo.
@@ -136,6 +136,17 @@ fun VistaConversazioni(api: Api, elenco: List<Conversazione>, onRiletto: () -> U
                 (if (aperta.tipo == "autopilota") "Autopilota · " else if (aperta.chiede) "Chat · aspetta che tu scelga · " else "Chat · ha finito il turno · ") + aperta.sotto,
                 color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 2
             )
+            // Le domande di un autopilota si rispondono nella sua scheda,
+            // linguetta «Domande», una per volta (0.38.0).
+            val ap = aperta.autopilota
+            if (aperta.tipo == "autopilota" && ap != null) {
+                Text(
+                    "Ti aspetta con " + (if ((aperta.quante ?: 1) == 1) "una domanda" else "${aperta.quante} domande") +
+                        ". Si rispondono nella sua scheda, linguetta «Domande», una per volta; dopo la risposta restano nella chat con lui.",
+                    color = Banco.ambra, fontSize = 12.sp
+                )
+                Button(onClick = { onApriAutopilota(ap) }) { Text("Apri la sua linguetta Domande") }
+            }
         }
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp), state = lista) {
             items(aperta.messaggi) { m ->

@@ -154,6 +154,8 @@ fun Principale(
     val contesto = LocalContext.current
     // Si apre sulle chat: e' quello per cui si prende in mano il telefono.
     var scheda by remember { mutableStateOf(Scheda.CHAT) }
+    /** Dalla scheda Domande alla linguetta «Domande» di un autopilota (0.38.0). */
+    var apriAutopilota by remember { mutableStateOf<String?>(null) }
     // Una notifica toccata porta dove serve, una volta.
     LaunchedEffect(Apertura.schedaRichiesta) {
         Apertura.schedaRichiesta?.let { scheda = it; Apertura.schedaRichiesta = null }
@@ -366,8 +368,8 @@ fun Principale(
             Box(Modifier.weight(1f).fillMaxSize()) {
                 when (scheda) {
                     Scheda.CHAT -> Chat(api, stato, deposito)
-                    Scheda.DOMANDE -> Domande(api, stato)
-                    Scheda.LAVORI -> Lavori(api, stato)
+                    Scheda.DOMANDE -> Domande(api, stato, onApriAutopilota = { id -> apriAutopilota = id; scheda = Scheda.LAVORI })
+                    Scheda.LAVORI -> Lavori(api, stato, apri = apriAutopilota, onAperto = { apriAutopilota = null })
                     Scheda.NEGOZIO -> Negozio(api)
                     Scheda.COMPUTER -> Computer(api, stato)
                 }

@@ -203,6 +203,48 @@ data class ViaRisposta(
 @Serializable
 data class ScelteConversazione(val chat: String = "", val opzioni: List<Opzione> = emptyList())
 
+/** Una domanda della linguetta «Domande» dell'autopilota (0.38.0). */
+@Serializable
+data class DomandaScheda(
+    val chiave: String = "",
+    /** "domanda" (si risponde al servizio) o "via" (il via, o un messaggio). */
+    val tipo: String = "domanda",
+    val idDomanda: String? = null,
+    val testo: String = "",
+    val opzioni: List<String> = emptyList(),
+    /** preparazione, lavoro, pubblica, via. */
+    val origine: String = "lavoro"
+)
+
+/** La linguetta «File» (0.38.0): i file cambiati, per chat. */
+@Serializable
+data class FileAutopilota(val gruppi: List<GruppoFile> = emptyList())
+
+@Serializable
+data class GruppoFile(
+    val chiave: String = "",
+    val nome: String = "",
+    val cartella: String = "",
+    val ramo: String? = null,
+    val base: String = "",
+    val file: List<FileCambiato> = emptyList(),
+    val errore: String? = null
+)
+
+@Serializable
+data class FileCambiato(
+    val percorso: String = "",
+    val vecchio: String? = null,
+    val stato: String = "modificato",
+    val piu: Int = 0,
+    val meno: Int = 0,
+    val salvato: Boolean = false,
+    val binario: Boolean? = null
+)
+
+@Serializable
+data class DiffFile(val diff: String = "")
+
 @Serializable
 data class Conversazione(
     val chiave: String = "",
@@ -214,7 +256,11 @@ data class Conversazione(
     val messaggi: List<MessaggioConversazione> = emptyList(),
     val risposta: ViaRisposta = ViaRisposta(),
     val scelte: ScelteConversazione? = null,
-    val segnaposto: String = "Scrivi…"
+    val segnaposto: String = "Scrivi…",
+    /** Quante domande dentro (0.38.0). */
+    val quante: Int? = null,
+    /** L'autopilota di questa conversazione: si risponde nella sua scheda (0.38.0). */
+    val autopilota: String? = null
 )
 
 /** Un nodo dell'albero delle chat di un autopilota (T7, 0.36.0). */
@@ -397,7 +443,9 @@ data class AutopilotaDettaglio(
     /** Il ramo principale in cui si uniscono i lavori delle chat. */
     val ramoBase: String? = null,
     /** La regola di pubblicazione del progetto: beta, stabile, unica. */
-    val pubblicazione: String? = null
+    val pubblicazione: String? = null,
+    /** Le sue domande per la linguetta «Domande» (0.38.0), una per volta. */
+    val domandeScheda: List<DomandaScheda> = emptyList()
 )
 
 /**

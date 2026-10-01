@@ -552,11 +552,14 @@ describe('capire cosa combina un autopilota', () => {
     expect(script).toContain("chiedi('/api/autopilota/dialogo'")
   })
 
-  it('con una domanda aperta la casella risponde, e la risposta arriva subito', () => {
+  it('le domande non si rispondono dalla chat ma dalla linguetta «Domande», una per volta (0.38.0)', () => {
     const v = vista()
-    expect(v).toContain('rispondiAp(this.dataset.ap, this.dataset.domanda)')
-    expect(v).toContain('a.domandaId')
-    expect(script).toContain("chiedi('/api/rispondi', { domanda: domanda, risposta: testo })")
+    expect(v).not.toContain('rispondiAp(this.dataset.ap, this.dataset.domanda)')
+    expect(v).toContain("schede.length > 0 ? [['domande', 'Domande']] : []")
+    expect(v).toContain("(i + 1) + ' di ' + schede.length")
+    expect(v).toContain('rispondiSchedaAp(this.dataset.o)')
+    // La linguetta «File» c'e' sempre.
+    expect(v).toContain("['file', 'File']")
   })
 
   it('il via sta nella chat, quando si e preparato', () => {
@@ -891,5 +894,39 @@ return vistaConversazioni()`
   it('Affida manda la regola di pubblicazione e il cloud', () => {
     expect(script).toContain('id="delega-pubblicazione"')
     expect(script).toContain('pubblicazione: pubblicazione, vaSulCloud: cloud')
+  })
+})
+
+describe('la pagina: linguette Domande e File dell autopilota (0.38.0)', () => {
+  const estrai = (nome: string): string => {
+    const inizio = script.indexOf(`function ${nome}(`)
+    let profondita = 0
+    for (let i = script.indexOf('{', inizio); i < script.length; i++) {
+      if (script[i] === '{') profondita++
+      else if (script[i] === '}' && --profondita === 0) return script.slice(inizio, i + 1)
+    }
+    throw new Error('non si chiude')
+  }
+  it('risponde con la stessa regola del PC (richiestaScheda)', async () => {
+    const { richiestaScheda } = await import('@shared/domande-autopilota')
+    const f = new Function(`${estrai('richiestaSchedaAp')}\nreturn richiestaSchedaAp`)() as (d: unknown, a: string, t: string) => unknown
+    const domanda = { chiave: 'd:d1', tipo: 'domanda' as const, idDomanda: 'd1', testo: 'x', opzioni: [], origine: 'lavoro' as const }
+    const via = { chiave: 'via:a', tipo: 'via' as const, testo: 'via?', opzioni: ['Vai'], origine: 'via' as const }
+    for (const [d, t] of [[domanda, 'sì'], [via, 'Vai'], [via, 'prima cambia x']] as const) {
+      expect(f(d, 'ap-1', t)).toEqual(richiestaScheda(d, 'ap-1', t))
+    }
+  })
+  it('la linguetta File mostra l elenco per chat e il diff colorato', () => {
+    const riga = (inizio: string): string => script.split('\n').find((r) => r.startsWith(inizio)) ?? ''
+    const vistaFileAp = new Function(`${riga('const esc =')}\n${estrai('vistaFileAp')}\nreturn vistaFileAp`)() as (f: unknown, s: unknown, d: unknown) => string
+    const html = vistaFileAp(
+      { gruppi: [{ chiave: 'principale', nome: 'Cartella del progetto', base: 'dal commit da cui è partito', file: [{ percorso: 'a.ts', stato: 'modificato', piu: 2, meno: 1, salvato: false }] }] },
+      { chat: 'principale', percorso: 'a.ts' },
+      '@@ -1 +1 @@\n-vecchia\n+nuova'
+    )
+    expect(html).toContain('a.ts')
+    expect(html).toContain('da salvare')
+    expect(html).toContain('diff-ap__riga--piu')
+    expect(html).toContain('diff-ap__riga--meno')
   })
 })

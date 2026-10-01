@@ -10,6 +10,7 @@ import { validateNomeWorkspace } from './validation'
 import { pathToSlug } from './indexer/project-scanner'
 import { scelteDiTerminale, tastiPerScegliere } from '@shared/scelte-terminale'
 import { leggiIdChatAltroPc, raccogliDomande } from '@shared/domande-telefono'
+import { domandeScheda } from '@shared/domande-autopilota'
 import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/domande-conversazioni'
 import { alberoChat } from '@shared/harness'
 
@@ -631,7 +632,8 @@ export function rotteClient(deps: DipendenzeRotte) {
       if (a === undefined) return { stato: 404, corpo: { errore: 'autopilota inesistente' } }
       // La domanda aperta, se c'e': la pagina e l'app rispondono da li',
       // dalla stessa casella con cui gli parlano.
-      const mia = (await deps.domande().catch(() => [])).find((d) => d.autopilotaId === id)
+      const tutteLeDomande = await deps.domande().catch(() => [])
+      const mia = tutteLeDomande.find((d) => d.autopilotaId === id)
       return OK({
         ...a,
         // Calcolati qui e non nella pagina: sono le stesse funzioni che
@@ -645,6 +647,9 @@ export function rotteClient(deps: DipendenzeRotte) {
         pensa: staPensando(a),
         // T7 (0.36.0): il coordinatore e le sue sotto-chat, con ramo e stato.
         albero: alberoChat(a),
+        // La linguetta «Domande» (0.38.0): le sue domande una per volta, con la
+        // stessa funzione del PC (preparazione, lavoro, «Pubblico adesso?», via).
+        domandeScheda: domandeScheda(a, tutteLeDomande),
         ...(mia !== undefined ? { domandaId: mia.id } : {})
       })
     }
