@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.37.2',
+    righe: [
+      '**Le domande si aprono sempre a fianco della chat, non più in una finestra.** Quando arriva una domanda nuova (un autopilota che chiede, una domanda iniziale, il via, «Pubblico adesso?», una chat ferma su un permesso), la colonna Domande si apre da sola e la mette in evidenza. Non ti toglie la tastiera: se stai scrivendo in una chat continui a scrivere. Se la chiudi, si riapre solo per una domanda nuova. La finestra che compariva sopra tutto non c’è più: opzioni, testo libero e risposta stanno nella colonna.',
+      '**Non si perdono più domande.** Se un autopilota ne fa più d’una insieme (due chat della stessa squadra, oppure «Pubblico adesso?» mentre ne aspetta un’altra), ognuna ha la sua conversazione: prima si vedeva solo la prima. Nella colonna compaiono anche le chat degli altri tuoi PC accesi che hanno finito e aspettano te, e si risponde da lì: il testo arriva alla chat sul suo PC.',
+      '**Lo stesso numero ovunque.** Il numero sul tasto «Domande», quello della colonna e quello del telefono e della pagina ora contano le stesse cose, compresi gli autopiloti che aspettano il via (app 2.41.0).'
+    ]
+  },
+  {
     versione: '0.37.1',
     righe: [
       '**L’autopilota non viene più bloccato per cancellazioni che non esistono.** Il controllo che impedisce alle sue chat di cancellare file fuori dalle loro cartelle cercava «rm», «del» e simili come parole ovunque nel comando: un testo con scritto «il momento del fermo», una ricerca di «rm » nei sorgenti o un indirizzo come /autopiloti/x/archivia bastavano a fermarlo con un falso allarme. Ora conta solo il comando vero di ogni pezzo; il testo fra virgolette, i blocchi di testo e gli indirizzi web sono dati.',
