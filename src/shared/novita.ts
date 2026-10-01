@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.38.1',
+    righe: [
+      '**L’autopilota non ti chiede più di premere Invio.** Le istruzioni lunghe non si incollano più nel campo della chat: vanno in un file nella cartella del progetto (.sierradeck/consegne, fuori dalla storia del progetto) e nella chat l’autopilota scrive solo una riga, «Leggi ed esegui le istruzioni in …», che parte sempre al primo Invio. Provato con un Claude Code vero.',
+      '**Il controllo «è partita?» non si sbaglia più.** Prima guardava tutto lo schermo e scambiava il messaggio appena mandato per un testo fermo nel campo: premeva Invio altre volte e poi chiedeva a te. Ora guarda solo il campo di adesso e la riga che dice che sta lavorando. Se la chat non partisse lo stesso, l’autopilota riprova da solo in un altro modo e, se non basta, lo annota nel suo diario come guasto: nessuna banda e nessuna domanda per te.',
+      'Il controllo che impedisce all’autopilota di cancellare file fuori dalle sue cartelle ora riconosce i percorsi scritti come /e/Cartella (Git Bash) o /mnt/e/Cartella: non blocca più cancellazioni innocue dentro le sue cartelle.'
+    ]
+  },
+  {
     versione: '0.38.0',
     righe: [
       '**Le domande di un autopilota hanno una linguetta tutta loro: «Domande», nella sua scheda accanto alla chat.** Compare solo quando ti ha chiesto qualcosa, con il numero di quelle non risposte, e quando ne arriva una si apre da sola. Le vedi una per volta: il testo intero, le opzioni da toccare, una casella per rispondere con parole tue e «1 di 3» se sono più d’una. Vale per tutte: le domande iniziali, quelle durante il lavoro, il via, «Pubblico adesso?».',
