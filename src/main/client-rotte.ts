@@ -9,8 +9,8 @@ import { PREFERENZE_PREDEFINITE, tavolozza, type Preferenze } from '@shared/pref
 import { validateNomeWorkspace } from './validation'
 import { pathToSlug } from './indexer/project-scanner'
 import { scelteDiTerminale, tastiPerScegliere } from '@shared/scelte-terminale'
-import { raccogliDomande } from '@shared/domande-telefono'
-import { conversazioniDomande, type Inviato } from '@shared/domande-conversazioni'
+import { leggiIdChatAltroPc, raccogliDomande } from '@shared/domande-telefono'
+import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/domande-conversazioni'
 import { alberoChat } from '@shared/harness'
 
 /**
@@ -120,6 +120,11 @@ export type DipendenzeRotte = {
    * gia' quella evidenziata e serve il solo invio.
    */
   scriviAChat: (idChat: string, testo: string) => void
+  /**
+   * Scrive a una chat di un altro PC (0.37.2): e' cosi' che si risponde, dalle
+   * Domande, a una chat che aspetta su un altro computer acceso.
+   */
+  scriviAltroPc?: (pcId: string, sessione: string, testo: string) => Promise<{ ok: true } | { ok: false; messaggio: string }>
   /**
    * Apre una chat nuova in una cartella già conosciuta.
    *
@@ -500,7 +505,21 @@ export function rotteClient(deps: DipendenzeRotte) {
         deps.domande().catch(() => []),
         deps.workspace().catch(() => ({ nomi: [], attivo: '' }))
       ])
+      // Quante domande aspettano te, con la stessa funzione delle Domande
+      // (0.37.2): il pallino del telefono e della pagina dice lo stesso numero
+      // del tasto «Domande» del PC (prima contava domande + scelte, e lasciava
+      // fuori gli autopiloti che aspettano il via).
+      const domandeInAttesa = quanteAspettano(conversazioniDomande({
+        voci: raccogliDomande({
+          domande,
+          autopiloti: autopiloti.map((a) => ({ id: a.id, nome: a.nome, obiettivo: a.obiettivo, stato: a.stato })),
+          chat: deps.chat(),
+          scelteDi: (id, righe) => scelteVive(id, righe)
+        }),
+        autopiloti
+      }))
       return OK({
+        domandeInAttesa,
         // Senza la coda delle righe: l'elenco si chiede ogni due secondi, e
         // quello che si guarda dentro è una chat sola, quando la si apre.
         chat: deps.chat().map(({ coda, codaGrezza, ...resto }) => ({
@@ -568,20 +587,28 @@ export function rotteClient(deps: DipendenzeRotte) {
      * `/api/rispondi`, `/api/scegli`, `/api/scrivi`.
      */
     if (r.percorso === '/api/domande') {
-      const [autopiloti, domande] = await Promise.all([
+      const [autopiloti, domande, battiti] = await Promise.all([
         deps.autopiloti().catch(() => [] as Autopilota[]),
-        deps.domande().catch(() => [])
+        deps.domande().catch(() => []),
+        deps.pc?.().catch(() => [] as BattitoPcTelefono[]) ?? Promise.resolve([] as BattitoPcTelefono[])
       ])
+      // Le chat degli altri PC accesi che aspettano (0.37.2), dal loro battito.
+      const io = deps.pcIo?.()
+      const ora = adesso()
       const voci = raccogliDomande({
         domande,
         autopiloti: autopiloti.map((a) => ({ id: a.id, nome: a.nome, obiettivo: a.obiettivo, stato: a.stato })),
         chat: deps.chat(),
-        scelteDi: (id, righe) => scelteVive(id, righe)
+        scelteDi: (id, righe) => scelteVive(id, righe),
+        ...(deps.scriviAltroPc !== undefined
+          ? { altriPc: battiti.filter((b) => b.pcId !== io).map((b) => ({ pcId: b.pcId, nome: b.nome, vivo: battitoVivo(b.battito, ora), chat: b.chat })) }
+          : {})
       })
       // Le stesse voci come conversazioni a messaggi (0.36.0): e' quello che
       // disegnano il PC, la pagina e l'app. `voci` resta per le app vecchie.
       const conversazioni = conversazioniDomande({ voci, autopiloti, inviati: Object.fromEntries(inviati) })
-      return OK({ voci, conversazioni })
+      // Il numero sul tasto «Domande», uguale ovunque (0.37.2).
+      return OK({ voci, conversazioni, chiedono: quanteAspettano(conversazioni) })
     }
 
     // I colori del computer, per vestire la pagina con la stessa grafica.
@@ -633,6 +660,15 @@ export function rotteClient(deps: DipendenzeRotte) {
       const chat = stringa(r.corpo, 'chat')
       const testo = stringa(r.corpo, 'testo')
       if (chat === '' || testo === '') return { stato: 400, corpo: { errore: 'servono chat e testo' } }
+      // Una chat di un altro PC (dalle Domande, 0.37.2): il testo va la'.
+      const altrove = leggiIdChatAltroPc(chat)
+      if (altrove !== undefined) {
+        if (deps.scriviAltroPc === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa scrivere alle chat degli altri PC' } }
+        const esito = await deps.scriviAltroPc(altrove.pcId, altrove.sessione, testo.slice(0, TESTO_MAX)).catch((e: unknown) => ({ ok: false as const, messaggio: String(e) }))
+        if (!esito.ok) return { stato: 502, corpo: { errore: esito.messaggio } }
+        ricordaInviato(chat, testo)
+        return OK({ fatto: true })
+      }
       deps.scriviAChat(chat, testo.slice(0, TESTO_MAX))
       ricordaInviato(chat, testo)
       return OK({ fatto: true })

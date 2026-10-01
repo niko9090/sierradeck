@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { normalizzaPreferenze, PREFERENZE_PREDEFINITE, LARGHEZZA_DOMANDE } from '@shared/preferenze'
 import { conversazioniDomande } from '@shared/domande-conversazioni'
 import { nuovoAutopilota } from '@shared/autopilota'
@@ -30,8 +30,10 @@ describe('la colonna delle Domande sul PC', () => {
     expect(console_).toContain('onClick={() => onDomande?.()}')
     // Il conteggio sul tasto.
     expect(console_).toContain("Domande{domandeInAttesa > 0 ? ` ${domandeInAttesa}` : ''}")
-    // La vecchia finestra modale resta com'era: su quella decide Nicholas.
-    expect(app).toContain('<DomandaModale autopiloti={autopiloti} />')
+    // La finestra modale non c'e' piu' (0.37.2, decisione di Nicholas): le
+    // domande si aprono sempre a fianco della chat.
+    expect(app).not.toContain('<DomandaModale')
+    expect(existsSync('src/renderer/components/DomandaModale.tsx')).toBe(false)
     const css = readFileSync('src/renderer/console.css', 'utf8')
     expect(css).toMatch(/\.domande-lato\s*\{[^}]*flex:\s*0 0 auto/)
   })
@@ -54,5 +56,25 @@ describe('la colonna delle Domande sul PC', () => {
     expect(frasi[2]).toContain('Tocca un’opzione')
     expect(frasi[3]).toContain('scrivigli «vai»')
     expect(frasi[4]).toContain('ha finito il turno')
+  })
+})
+
+describe('le domande si aprono a fianco, non in una finestra (0.37.2)', () => {
+  const app = readFileSync('src/renderer/App.tsx', 'utf8')
+  const colonna = readFileSync('src/renderer/components/PannelloDomande.tsx', 'utf8')
+  it('una domanda nuova apre la colonna da sola e la mette in evidenza', () => {
+    expect(app).toContain('domandeNuove(c, v)')
+    expect(app).toContain('apriColonnaDomandeRef.current()')
+    expect(app).toContain('evidenza: evidenzaDomanda')
+    // Le domande gia' viste si ricordano: chiusa, si riapre solo per una nuova.
+    expect(app).toContain("localStorage.setItem('domande-viste'")
+    expect(colonna).toContain('domande-pc__voce--nuova')
+  })
+  it('non prende il fuoco della tastiera: chi scrive in una chat continua a scrivere', () => {
+    expect(colonna).not.toMatch(/autoFocus|\.focus\(/)
+  })
+  it('il numero sul tasto e quello della colonna vengono dal computer, come sul telefono', () => {
+    expect(app).toContain('corpo.chiedono ?? quanteAspettano(c)')
+    expect(colonna).toContain('chiedono ?? quanteAspettano(c)')
   })
 })

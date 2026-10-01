@@ -113,10 +113,28 @@ export type AutopilotaPerDomande = { id: string; nome: string; obiettivo: string
 
 export type DomandaPerDomande = { id: string; autopilotaId: string; testo: string; apertaIl?: number; scadeIl?: number; opzioni?: string[] }
 
+/** Le chat degli altri PC, dal loro battito sul Drive: solo quelle che aspettano contano. */
+export type AltroPcPerDomande = { pcId: string; nome: string; vivo: boolean; chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean }[] }
+
+/** La chat di un altro PC nelle Domande: `pc:<pcId>:<sessione>`, che `/api/scrivi` sa mandare la'. */
+export function idChatAltroPc(pcId: string, sessione: string): string {
+  return `pc:${pcId}:${sessione}`
+}
+export function leggiIdChatAltroPc(id: string): { pcId: string; sessione: string } | undefined {
+  const m = /^pc:([^:]+):(.+)$/.exec(id)
+  return m === null ? undefined : { pcId: m[1] as string, sessione: m[2] as string }
+}
+
 export function raccogliDomande(p: {
   domande: DomandaPerDomande[]
   autopiloti: AutopilotaPerDomande[]
   chat: ChatPerDomande[]
+  /**
+   * Le chat degli altri PC accesi che hanno finito e aspettano te (0.37.2):
+   * prima non arrivavano nelle Domande. Si risponde da qui: il testo va alla
+   * chat sul suo PC.
+   */
+  altriPc?: AltroPcPerDomande[]
   /** Le scelte vive di una chat (gia' senza quelle appena mandate), o niente. */
   scelteDi: (chatId: string, righeVestite: string[]) => { opzioni: OpzioneScelta[]; corrente: number } | undefined
 }): VoceDomanda[] {
@@ -152,6 +170,19 @@ export function raccogliDomande(p: {
     }
     if (c.aspetta === true && c.governata !== true) {
       ferme.push({ tipo: 'chat', chat: c.id, titolo: c.titolo, cwd: c.cwd, righe: ultimeRighe(c.coda ?? []) })
+    }
+  }
+  for (const pc of p.altriPc ?? []) {
+    if (!pc.vivo) continue
+    for (const c of pc.chat) {
+      if (!c.aspetta || c.sessione === undefined || c.sessione === '') continue
+      ferme.push({
+        tipo: 'chat',
+        chat: idChatAltroPc(pc.pcId, c.sessione),
+        titolo: `${c.titolo || c.cwd} · su ${pc.nome}`,
+        cwd: c.cwd,
+        righe: [`Su ${pc.nome}: ha finito il turno e aspetta la tua prossima istruzione. Quello che scrivi qui arriva a questa chat, sul suo PC.`]
+      })
     }
   }
   return [...fuori, ...ferme]

@@ -2332,6 +2332,19 @@ if (!app.requestSingleInstanceLock()) {
           return Array.isArray(r?.grezze) ? (r.grezze as string[]) : undefined
         },
 
+        // Le Domande rispondono anche alle chat degli altri PC accesi (0.37.2):
+        // si cerca la chat per sessione sul Client di quel PC e le si scrive.
+        scriviAltroPc: async (pcId: string, sessione: string, t: string): Promise<{ ok: true } | { ok: false; messaggio: string }> => {
+          try {
+            const s = await remoto.chiama(pcId, '/api/stato') as { chat?: ChatSuPc[] }
+            const c = (Array.isArray(s.chat) ? s.chat : []).find((x) => x.sessione === sessione)
+            if (c === undefined) return { ok: false, messaggio: 'quella chat non è più aperta su quel PC' }
+            await remoto.chiama(pcId, '/api/scrivi', { chat: String(c.id), testo: t })
+            return { ok: true }
+          } catch (e) {
+            return { ok: false, messaggio: e instanceof Error ? e.message : String(e) }
+          }
+        },
         scriviAChat: (idChat: string, testo: string) => {
           for (const w of BrowserWindow.getAllWindows()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) {

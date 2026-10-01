@@ -35,6 +35,11 @@ data class Stato(
     val chat: List<Chat> = emptyList(),
     val autopiloti: List<AutopilotaBreve> = emptyList(),
     val domande: List<Domanda> = emptyList(),
+    /**
+     * Quante domande aspettano te, contate dal computer con la stessa funzione
+     * del tasto «Domande» del PC (dalla 0.37.2). Null da un computer piu' vecchio.
+     */
+    val domandeInAttesa: Int? = null,
     val workspace: Workspace = Workspace(),
     /**
      * Come sta l'aggiornamento del computer.

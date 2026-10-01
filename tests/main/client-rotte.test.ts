@@ -1235,3 +1235,48 @@ describe('le Domande come conversazioni, dal computer (0.36.0)', () => {
     expect(albero.figli[0]).toMatchObject({ ramo: 'ap/ap-1/c-1', parola: 'al lavoro' })
   })
 })
+
+describe('tutte le domande e un conteggio solo (0.37.2)', () => {
+  const ora = Date.parse('2026-10-01T12:00:00Z')
+  const conPronto = (): DipendenzeRotte => deps({
+    adesso: () => ora,
+    autopiloti: () => Promise.resolve([
+      { ...nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'Test', cwd: 'C:\\p', criteri: [{ descrizione: 'x', soddisfatto: false }], iniziatoIl: '2026-08-12T10:00:00.000Z' }) },
+      { ...nuovoAutopilota({ id: 'ap-2', nome: 'Pronto', obiettivo: 'Sito', cwd: 'C:\\s', criteri: [{ descrizione: 'x', soddisfatto: false }], iniziatoIl: '2026-08-12T10:00:00.000Z' }), stato: 'pronto' as const }
+    ]),
+    domande: () => Promise.resolve([
+      { id: 'd-1', autopilotaId: 'ap-1', testo: 'Quale chiave?' },
+      { id: 'd-2', autopilotaId: 'ap-1', testo: 'Pubblico adesso?', opzioni: ['sì, pubblica', 'no, lascia così'] }
+    ]),
+    pcIo: () => 'io',
+    pc: () => Promise.resolve([
+      { pcId: 'io', nome: 'Questo', versione: '0.37.2', battito: new Date(ora).toISOString(), cartelle: [], chat: [{ sessione: 's-0', titolo: 'Mia', cwd: 'C:\\m', aspetta: true }] },
+      { pcId: 'port', nome: 'Portatile', versione: '0.37.2', battito: new Date(ora - 60_000).toISOString(), cartelle: [], chat: [{ sessione: 's-9', titolo: 'Sito', cwd: 'E:\\s', aspetta: true }] }
+    ]),
+    scriviAltroPc: () => Promise.resolve({ ok: true as const })
+  })
+
+  it('il tasto, la colonna e il telefono dicono lo stesso numero, compreso chi aspetta il via', async () => {
+    const d = await rotteClient(conPronto())({ metodo: 'GET', percorso: '/api/domande', corpo: undefined })
+    const corpo = d.corpo as { chiedono: number; conversazioni: { chiave: string; chiede: boolean }[] }
+    // Due domande dello stesso autopilota + il via.
+    expect(corpo.chiedono).toBe(3)
+    expect(corpo.conversazioni.map((c) => c.chiave)).toEqual(expect.arrayContaining(['ap:ap-1', 'ap:ap-1:d-2', 'ap:ap-2', 'chat:pc:port:s-9']))
+    // La chat di questo stesso PC non arriva due volte dal battito.
+    expect(corpo.conversazioni.some((c) => c.chiave.includes('s-0'))).toBe(false)
+    const s = await rotteClient(conPronto())({ metodo: 'GET', percorso: '/api/stato', corpo: undefined })
+    expect((s.corpo as { domandeInAttesa: number }).domandeInAttesa).toBe(corpo.chiedono)
+  })
+
+  it('dalla colonna si risponde anche a una chat di un altro PC: il testo va la', async () => {
+    const scritti: string[] = []
+    const su = deps({ ...conPronto(), scriviAltroPc: (pc, sessione, testo) => { scritti.push(`${pc}/${sessione}/${testo}`); return Promise.resolve({ ok: true as const }) } })
+    const r = await rotteClient(su)({ metodo: 'POST', percorso: '/api/scrivi', corpo: { chat: 'pc:port:s-9', testo: 'continua' } })
+    expect(r.stato).toBe(200)
+    expect(scritti).toEqual(['port/s-9/continua'])
+    const giu = deps({ ...conPronto(), scriviAltroPc: () => Promise.resolve({ ok: false as const, messaggio: 'Portatile non risponde' }) })
+    const e = await rotteClient(giu)({ metodo: 'POST', percorso: '/api/scrivi', corpo: { chat: 'pc:port:s-9', testo: 'x' } })
+    expect(e.stato).toBe(502)
+    expect((e.corpo as { errore: string }).errore).toContain('non risponde')
+  })
+})

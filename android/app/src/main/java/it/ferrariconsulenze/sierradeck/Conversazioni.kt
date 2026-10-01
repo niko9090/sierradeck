@@ -57,6 +57,13 @@ fun richiestaRisposta(via: ViaRisposta, testo: String): Pair<String, Map<String,
 }
 
 /**
+ * Quante domande aspettano te: il numero del computer (0.37.2), lo stesso del
+ * tasto «Domande» del PC e della colonna. Da un computer piu' vecchio si conta
+ * come prima, domande piu' scelte.
+ */
+fun domandeInAttesa(s: Stato): Int = s.domandeInAttesa ?: (s.domande.size + s.chat.count { it.chiede })
+
+/**
  * La scheda Domande come conversazioni a messaggi (0.36.0).
  *
  * Nicholas (30/09): la scheda com'era non gli piaceva. Adesso e' una chat:

@@ -392,7 +392,7 @@ private fun Fascia(
     // Domande degli autopiloti e chat che aspettano una scelta: e' quello che
     // chiede davvero qualcosa a te. Le chat ferme non contano, o il pallino
     // sarebbe acceso sempre.
-    val chiedono = (stato?.domande?.size ?: 0) + (stato?.chat?.count { it.chiede } ?: 0)
+    val chiedono = stato?.let { domandeInAttesa(it) } ?: 0
     val allarmeDomande: Color? = if (chiedono > 0) Banco.ambra else null
     // Le chat che hanno finito il turno e aspettano la tua prossima
     // istruzione: non sono domande, ma da lontano sono la notizia «tocca a

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { richiestaRisposta, type Conversazione } from '@shared/domande-conversazioni'
+import { quanteAspettano, richiestaRisposta, type Conversazione } from '@shared/domande-conversazioni'
 import { LARGHEZZA_DOMANDE } from '@shared/preferenze'
 
 /**
@@ -24,6 +24,11 @@ type Props = {
   onConteggio?: (n: number) => void
   larghezza: number
   onLarghezza: (px: number) => void
+  /**
+   * Una domanda nuova da mettere in vista (0.37.2): la colonna apre quella
+   * conversazione e la evidenzia per qualche secondo, senza prendere il fuoco.
+   */
+  evidenza?: { chiave: string; quando: number }
 }
 
 /** Ogni quanto si rilegge: come il telefono. */
@@ -55,7 +60,10 @@ export function spiegaRisposta(c: Conversazione): string {
   return `La chat «${c.titolo}» ha finito il turno e aspetta la tua prossima istruzione. Quello che scrivi arriva nella chat come se l’avessi scritto lì, e la chat riparte.`
 }
 
-export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza }: Props): React.JSX.Element {
+/** Quanto resta evidenziata una domanda appena arrivata. */
+const EVIDENZA_MS = 8000
+
+export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza, evidenza }: Props): React.JSX.Element {
   const [conversazioni, setConversazioni] = useState<Conversazione[] | undefined>(undefined)
   const [scelta, setScelta] = useState<string | undefined>(undefined)
   const [testo, setTesto] = useState('')
@@ -66,6 +74,22 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza 
   const flusso = useRef<HTMLDivElement>(null)
   const [larga, setLarga] = useState(larghezza)
   useEffect(() => setLarga(larghezza), [larghezza])
+  // La domanda nuova: si apre la sua conversazione e si evidenzia. Niente
+  // `focus()`: chi sta scrivendo in una chat non deve perdere la tastiera.
+  const [nuova, setNuova] = useState<string | undefined>(undefined)
+  const elencoRef = useRef<HTMLUListElement>(null)
+  useEffect(() => {
+    if (evidenza === undefined || evidenza.chiave === '') return
+    setScelta(evidenza.chiave)
+    setNuova(evidenza.chiave)
+    const t = setTimeout(() => setNuova(undefined), EVIDENZA_MS)
+    return () => clearTimeout(t)
+  }, [evidenza?.chiave, evidenza?.quando])
+  useEffect(() => {
+    if (nuova === undefined) return
+    const voce = elencoRef.current?.querySelector(`[data-chiave="${CSS.escape(nuova)}"]`)
+    voce?.scrollIntoView({ block: 'nearest' })
+  }, [nuova])
 
   const leggi = useCallback((): void => {
     window.gestore.domande
@@ -73,7 +97,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza 
       .then((r) => {
         const c = ((r.corpo as { conversazioni?: Conversazione[] }).conversazioni) ?? []
         setConversazioni(c)
-        onConteggio?.(c.filter((x) => x.chiede).length)
+        onConteggio?.((r.corpo as { chiedono?: number }).chiedono ?? quanteAspettano(c))
       })
       .catch((e: unknown) => setNota(`Non riesco a leggere le domande: ${String(e)}`))
   }, [onConteggio])
@@ -177,11 +201,11 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza 
         </p>
       ) : (
         <>
-          <ul className="domande-lato__elenco" aria-label="Conversazioni">
+          <ul className="domande-lato__elenco" aria-label="Conversazioni" ref={elencoRef}>
             {elenco.map((c) => (
-              <li key={c.chiave}>
+              <li key={c.chiave} data-chiave={c.chiave}>
                 <button
-                  className={`domande-pc__voce${c.chiave === aperta?.chiave ? ' domande-pc__voce--aperta' : ''}`}
+                  className={`domande-pc__voce${c.chiave === aperta?.chiave ? ' domande-pc__voce--aperta' : ''}${c.chiave === nuova ? ' domande-pc__voce--nuova' : ''}`}
                   onClick={() => { setScelta(c.chiave); setNota(undefined) }}
                 >
                   <span className={`led ${c.chiede ? 'led--attesa' : 'led--finito'}`} />

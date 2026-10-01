@@ -97,7 +97,23 @@ export function conversazioniDomande(p: {
         ultima.tono = 'domanda'
         Object.assign(ultima, conOpzioni)
       }
-      if (gia.has(chiave)) continue // una conversazione per autopilota: la prima domanda
+      if (gia.has(chiave)) {
+        // Un'altra domanda aperta dello stesso autopilota (0.37.2): una chat
+        // sorella della flotta, o «Pubblico adesso?» mentre ne aspetta un'altra.
+        // Prima si perdeva — si vedeva solo la prima. Ora ha la sua
+        // conversazione, con la sua risposta.
+        fuori.push({
+          chiave: `ap:${v.autopilotaId}:${v.id}`,
+          tipo: 'autopilota',
+          titolo: `${v.autopilota} · un’altra domanda`,
+          sotto: a?.cwd ?? '',
+          chiede: true,
+          messaggi: [{ da: 'lui', testo: v.testo, tono: 'domanda', ...conOpzioni }],
+          risposta: { via: 'rispondi', domanda: v.id },
+          segnaposto: 'Rispondi all’autopilota: arriva subito alla chat ferma'
+        })
+        continue
+      }
       gia.add(chiave)
       fuori.push({
         chiave,
@@ -192,4 +208,43 @@ export function richiestaRisposta(r: ViaRisposta, testo: string): { percorso: st
   if (r.via === 'rispondi') return { percorso: '/api/rispondi', corpo: { domanda: r.domanda, risposta: testo } }
   if (r.via === 'dialogo') return { percorso: '/api/autopilota/dialogo', corpo: { autopilota: r.autopilota, testo } }
   return { percorso: '/api/scrivi', corpo: { chat: r.chat, testo } }
+}
+
+/**
+ * Quante conversazioni aspettano una tua risposta (0.37.2): il numero sul tasto
+ * «Domande» del PC, nella colonna, nella pagina e nell'app. Uno solo, dalla
+ * stessa lista: prima il telefono contava «domande + scelte» e lasciava fuori
+ * gli autopiloti pronti che aspettano il via, e i numeri non tornavano.
+ */
+export function quanteAspettano(conversazioni: Pick<Conversazione, 'chiede'>[]): number {
+  return conversazioni.filter((c) => c.chiede).length
+}
+
+/**
+ * L'identita' della **domanda** di una conversazione, non della conversazione:
+ * cambia quando arriva una domanda nuova (un'altra domanda dello stesso
+ * autopilota, un altro permesso della stessa chat). Serve alla colonna per
+ * aprirsi da sola solo per le domande nuove, non per quelle gia' viste.
+ */
+export function identitaDomanda(c: Conversazione): string | undefined {
+  if (!c.chiede) return undefined
+  if (c.risposta.via === 'rispondi') return `d:${c.risposta.domanda}`
+  if (c.risposta.via === 'dialogo') return `via:${c.risposta.autopilota}`
+  const ultima = [...c.messaggi].reverse().find((m) => m.da === 'lui')
+  const opzioni = (c.scelte?.opzioni ?? []).map((o) => o.testo).join('|')
+  return `k:${c.risposta.chat}:${(ultima?.testo ?? '').slice(-200)}:${opzioni}`
+}
+
+/**
+ * Le domande nuove rispetto a quelle gia' viste, nell'ordine dell'elenco. La
+ * colonna si apre (se chiusa) e mette in evidenza la prima; quelle viste non la
+ * riaprono, nemmeno dopo che l'hai chiusa.
+ */
+export function domandeNuove(conversazioni: Conversazione[], viste: ReadonlySet<string>): { chiave: string; identita: string }[] {
+  const fuori: { chiave: string; identita: string }[] = []
+  for (const c of conversazioni) {
+    const id = identitaDomanda(c)
+    if (id !== undefined && !viste.has(id)) fuori.push({ chiave: c.chiave, identita: id })
+  }
+  return fuori
 }

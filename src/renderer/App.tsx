@@ -41,7 +41,7 @@ import { componiAvvisi, ricordaChiusi } from './avvisi'
 import { ColonnaConsumi } from './components/ColonnaConsumi'
 import { restaApertaLAltra } from './colonne-laterali'
 import type { StatoAccesso } from '../main/accesso'
-import { DomandaModale } from './components/DomandaModale'
+import { domandeNuove, quanteAspettano, type Conversazione } from '@shared/domande-conversazioni'
 import { SchermataAvvio } from './components/SchermataAvvio'
 import { SchermataAccesso } from './components/SchermataAccesso'
 import { utenteCorrente, suCambioAccesso } from './accesso-supabase'
@@ -582,6 +582,13 @@ export function App(): React.JSX.Element {
       .then((p) => window.gestore.preferenze.imposta({ ...p, domandeLaterali: domande, consumiLaterali: consumi }))
       .catch(() => undefined)
   }, [colonnaDomande, colonnaConsumi])
+  // Apre la colonna Domande per una domanda nuova (mai la chiude): con la
+  // stessa regola del tasto, se non c'e' posto per tutte e due si chiude
+  // quella dei Consumi.
+  const apriColonnaDomandeRef = useRef<() => void>(() => undefined)
+  apriColonnaDomandeRef.current = (): void => {
+    if (!colonnaDomande.aperta) commutaColonna('domande')
+  }
   const salvaLarghezzaConsumi = useCallback((px: number): void => {
     setColonnaConsumi((c) => ({ ...c, larghezza: px }))
     window.gestore.preferenze
@@ -615,18 +622,49 @@ export function App(): React.JSX.Element {
       }))
       .catch(() => undefined)
   }, [])
+  /**
+   * Le domande si aprono **a fianco della chat**, non in una finestra (0.37.2).
+   *
+   * Nicholas (01/10): «non vedo tutte le domande … farmele vedere a fianco
+   * della chat e non come finestra». Qui si sonda `/api/domande` (la stessa
+   * lista della colonna, della pagina e dell'app) e, per ogni domanda **nuova**
+   * — mai vista prima, anche fra un avvio e l'altro — la colonna si apre da
+   * sola se e' chiusa e mette in evidenza quella conversazione. Non prende il
+   * fuoco della tastiera: chi sta scrivendo in una chat continua a scrivere.
+   * Chiusa a mano, si riapre solo per una domanda nuova, non per la stessa.
+   */
+  const [evidenzaDomanda, setEvidenzaDomanda] = useState<{ chiave: string; quando: number } | undefined>(undefined)
+  const colonnaDomandeRef = useRef(colonnaDomande)
+  colonnaDomandeRef.current = colonnaDomande
+  const domandeViste = useRef<Set<string> | undefined>(undefined)
   useEffect(() => {
+    const viste = (): Set<string> => {
+      if (domandeViste.current === undefined) {
+        let lette: string[] = []
+        try { lette = JSON.parse(localStorage.getItem('domande-viste') ?? '[]') as string[] } catch { /* si riparte da zero */ }
+        domandeViste.current = new Set(Array.isArray(lette) ? lette : [])
+      }
+      return domandeViste.current
+    }
     const leggi = (): void => {
       window.gestore.domande
         .chiama('/api/domande')
         .then((r) => {
-          const c = (r.corpo as { conversazioni?: { chiede: boolean }[] }).conversazioni ?? []
-          setDomandeInAttesa(c.filter((x) => x.chiede).length)
+          const corpo = r.corpo as { conversazioni?: Conversazione[]; chiedono?: number }
+          const c = corpo.conversazioni ?? []
+          setDomandeInAttesa(corpo.chiedono ?? quanteAspettano(c))
+          const v = viste()
+          const nuove = domandeNuove(c, v)
+          if (nuove.length === 0) return
+          for (const n of nuove) v.add(n.identita)
+          try { localStorage.setItem('domande-viste', JSON.stringify([...v].slice(-300))) } catch { /* senza memoria al prossimo avvio si riapre, non di piu' */ }
+          if (!colonnaDomandeRef.current.aperta) apriColonnaDomandeRef.current()
+          setEvidenzaDomanda({ chiave: nuove[0]?.chiave ?? '', quando: Date.now() })
         })
         .catch(() => undefined)
     }
     leggi()
-    const h = setInterval(leggi, 5000)
+    const h = setInterval(leggi, 3000)
     return () => clearInterval(h)
   }, [])
   const [workspace, setWorkspace] = useState<StatoWorkspace>({ nomi: [], attivo: '' })
@@ -1107,9 +1145,9 @@ export function App(): React.JSX.Element {
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--fondo)' }}>
-      {/* Sopra tutto: compare da sé quando un autopilota ha bisogno di una
-          risposta, e si può rimandare senza perderla. */}
-      <DomandaModale autopiloti={autopiloti} />
+      {/* Le domande non hanno piu' una finestra sopra tutto (0.37.2, decisione
+          di Nicholas): si aprono sempre nella colonna Domande a fianco delle
+          chat, che si apre da sola per una domanda nuova (vedi sotto). */}
 
       {/* Sopra a tutto e prima di tutto: è la prima apertura di una versione
           nuova, e le poche righe che dicono cosa è cambiato non devono
@@ -1399,6 +1437,7 @@ export function App(): React.JSX.Element {
             onLarghezza={(px) => salvaColonnaDomande({ larghezza: px })}
             onChiudi={() => salvaColonnaDomande({ aperta: false })}
             onConteggio={setDomandeInAttesa}
+            {...(evidenzaDomanda !== undefined ? { evidenza: evidenzaDomanda } : {})}
           />
         ) : null}
         {colonnaConsumi.aperta ? (

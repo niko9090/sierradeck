@@ -1110,7 +1110,7 @@ function ledDestinazione(nome, s) {
   const fermi = aps.some((a) => ledAutopilota(a, false) === 'rosso')
   const moto = aps.some((a) => ledAutopilota(a, false) === 'lavoro')
   if (nome === 'adesso') return chiede ? 'attesa' : fermi ? 'rosso' : moto ? 'lavoro' : ''
-  if (nome === 'domande') return ((s.domande || []).length + (s.chat || []).filter((c) => c.chiede).length) > 0 ? 'attesa' : ''
+  if (nome === 'domande') return domandeInAttesa(s) > 0 ? 'attesa' : ''
   if (nome === 'lavori') return aps.some((a) => ledAutopilota(a, false) === 'attesa') ? 'attesa' : fermi ? 'rosso' : moto ? 'lavoro' : ''
   if (nome === 'chat') return chatCheChiedono > 0 ? 'attesa' : (s.chat || []).some((c) => statoChat(c).tono === 'lavoro' || statoChat(c).tono === 'guidata') ? 'lavoro' : ''
   // Il computer normalmente non ha LED, e lo accende solo quando c'e' qualcosa
@@ -1118,9 +1118,19 @@ function ledDestinazione(nome, s) {
   return aggiornamentoVisto && aggiornamentoVisto.fase === 'pronto' ? 'attesa' : ''
 }
 
+/**
+ * Quante domande aspettano te: il numero del computer (0.37.2), lo stesso del
+ * tasto «Domande» del PC e della sua colonna. Da un computer piu' vecchio si
+ * conta come prima.
+ */
+function domandeInAttesa(s) {
+  if (typeof s.domandeInAttesa === 'number') return s.domandeInAttesa
+  return (s.domande || []).length + (s.chat || []).filter((c) => c.chiede).length
+}
+
 /** La fascia fissa, sempre visibile, mai nascosta dallo scorrimento. */
 function fascia(s) {
-  const chiedono = (s.domande || []).length + (s.chat || []).filter((c) => c.chiede).length
+  const chiedono = domandeInAttesa(s)
   const voci = [
     ['adesso', 'ADESSO'], ['domande', chiedono > 0 ? 'DOMANDE \u00b7 ' + chiedono : 'DOMANDE'], ['chat', 'CHAT'], ['lavori', 'LAVORI'], ['computer', 'COMPUTER']
   ]

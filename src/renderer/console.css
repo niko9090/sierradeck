@@ -4093,3 +4093,10 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .consumi-lato__frase { margin-top: 2px; line-height: 1.4; }
 .consumi-lato__spiega { margin: 0; line-height: 1.5; color: var(--testo-quieto); }
 .limite__pieno--spento { background: var(--spento, #4a5058); }
+
+/* Una domanda appena arrivata nella colonna (0.37.2): si apre da sola e la
+   voce si accende d'ambra per qualche secondo, senza prendere il fuoco. */
+.domande-pc__voce--nuova {
+  box-shadow: 0 0 0 2px var(--ambra), 0 0 12px var(--ambra);
+  transition: box-shadow 0.3s ease;
+}
