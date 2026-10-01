@@ -248,3 +248,37 @@ export function domandeNuove(conversazioni: Conversazione[], viste: ReadonlySet<
   }
   return fuori
 }
+
+/**
+ * Cosa fa la colonna Domande del PC a ogni lettura (0.37.3).
+ *
+ * Nicholas (01/10, 13:52 UTC): «NON VEDO LE DOMANDEEEE!!!!». Nella 0.37.2 la
+ * colonna si apriva da sola **solo** per una domanda mai vista: una domanda
+ * gia' in attesa all'avvio e gia' «vista» (in un avvio precedente, o prima di
+ * chiudere la colonna) restava segnalata solo dal numero sul tasto, e una
+ * colonna chiusa non la mostrava. Ora:
+ * - **all'avvio**, se c'e' qualcosa che aspetta una tua risposta, la colonna si
+ *   apre e mette in vista la prima domanda, vista o no;
+ * - durante il lavoro si apre per ogni domanda **nuova** (diversa da quelle gia'
+ *   viste): chiusa a mano, resta chiusa solo finche' non ne arriva una diversa;
+ * - finche' ci sono domande in attesa e la colonna e' chiusa, il tasto
+ *   «Domande» chiama (`richiamo`): lampeggia d'ambra con il numero.
+ */
+export function decidiColonnaDomande(p: {
+  conversazioni: Conversazione[]
+  viste: ReadonlySet<string>
+  aperta: boolean
+  /** Prima lettura dopo l'avvio (con le preferenze gia' lette). */
+  avvio: boolean
+}): { apri: boolean; evidenzia?: string; nuove: string[]; richiamo: boolean } {
+  const nuove = domandeNuove(p.conversazioni, p.viste)
+  const inAttesa = p.conversazioni.filter((c) => c.chiede)
+  const evidenzia = nuove[0]?.chiave ?? (p.avvio ? inAttesa[0]?.chiave : undefined)
+  const apri = !p.aperta && (nuove.length > 0 || (p.avvio && inAttesa.length > 0))
+  return {
+    apri,
+    ...(evidenzia !== undefined ? { evidenzia } : {}),
+    nuove: nuove.map((n) => n.identita),
+    richiamo: inAttesa.length > 0 && !p.aperta && !apri
+  }
+}

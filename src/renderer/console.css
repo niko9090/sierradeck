@@ -4100,3 +4100,20 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   box-shadow: 0 0 0 2px var(--ambra), 0 0 12px var(--ambra);
   transition: box-shadow 0.3s ease;
 }
+
+/* Domande in attesa con la colonna chiusa (0.37.3): il tasto «Domande» chiama,
+   d'ambra e pulsante, finche' non lo apri. Senza animazione per chi la spegne. */
+.tasto--chiama {
+  background: var(--ambra);
+  color: var(--fondo, #111);
+  border-color: var(--ambra);
+  font-weight: 600;
+  animation: chiama-domande 1.2s ease-in-out infinite;
+}
+@keyframes chiama-domande {
+  0%, 100% { box-shadow: 0 0 0 0 var(--ambra); }
+  50% { box-shadow: 0 0 0 4px transparent, 0 0 14px var(--ambra); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tasto--chiama { animation: none; }
+}

@@ -63,7 +63,7 @@ describe('le domande si aprono a fianco, non in una finestra (0.37.2)', () => {
   const app = readFileSync('src/renderer/App.tsx', 'utf8')
   const colonna = readFileSync('src/renderer/components/PannelloDomande.tsx', 'utf8')
   it('una domanda nuova apre la colonna da sola e la mette in evidenza', () => {
-    expect(app).toContain('domandeNuove(c, v)')
+    expect(app).toContain('decidiColonnaDomande(')
     expect(app).toContain('apriColonnaDomandeRef.current()')
     expect(app).toContain('evidenza: evidenzaDomanda')
     // Le domande gia' viste si ricordano: chiusa, si riapre solo per una nuova.
@@ -76,5 +76,17 @@ describe('le domande si aprono a fianco, non in una finestra (0.37.2)', () => {
   it('il numero sul tasto e quello della colonna vengono dal computer, come sul telefono', () => {
     expect(app).toContain('corpo.chiedono ?? quanteAspettano(c)')
     expect(colonna).toContain('chiedono ?? quanteAspettano(c)')
+  })
+})
+
+describe('il tasto «Domande» chiama quando c è qualcosa in attesa (0.37.3)', () => {
+  it('ambra e pulsante con la colonna chiusa, fermo per chi spegne le animazioni', () => {
+    const console_ = readFileSync('src/renderer/components/Console.tsx', 'utf8')
+    expect(console_).toContain("domandeInAttesa > 0 && !domandeAperte ? ' tasto--chiama' : ''")
+    const css = readFileSync('src/renderer/console.css', 'utf8')
+    expect(css).toMatch(/\.tasto--chiama\s*\{[^}]*animation/)
+    expect(css).toMatch(/prefers-reduced-motion: reduce\)\s*\{\s*\.tasto--chiama\s*\{\s*animation: none/)
+    const app = readFileSync('src/renderer/App.tsx', 'utf8')
+    expect(app).toContain('decidiColonnaDomande({ conversazioni: c, viste: v, aperta: colonnaDomandeRef.current.aperta, avvio })')
   })
 })

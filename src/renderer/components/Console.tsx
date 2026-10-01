@@ -420,7 +420,9 @@ export function Console({
           ☁ Drive
         </button>
         <button
-          className="tasto"
+          // Domande in attesa e colonna chiusa: il tasto chiama (0.37.3),
+          // lampeggia d'ambra con il numero finche' non lo apri.
+          className={`tasto${domandeInAttesa > 0 && !domandeAperte ? ' tasto--chiama' : ''}`}
           onClick={() => onDomande?.()}
           aria-expanded={domandeAperte}
           title={`${domandeAperte ? 'Chiude' : 'Apre'} la colonna delle Domande, accanto alle chat: tutto quello che aspetta una tua risposta — chat ferme su una domanda o un permesso, chat che hanno finito, autopiloti (domande iniziali, domande, il via, «Pubblico adesso?»)${domandeInAttesa > 0 ? `. Adesso ne aspettano ${domandeInAttesa}.` : '.'}`}

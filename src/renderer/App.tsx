@@ -41,7 +41,7 @@ import { componiAvvisi, ricordaChiusi } from './avvisi'
 import { ColonnaConsumi } from './components/ColonnaConsumi'
 import { restaApertaLAltra } from './colonne-laterali'
 import type { StatoAccesso } from '../main/accesso'
-import { domandeNuove, quanteAspettano, type Conversazione } from '@shared/domande-conversazioni'
+import { decidiColonnaDomande, quanteAspettano, type Conversazione } from '@shared/domande-conversazioni'
 import { SchermataAvvio } from './components/SchermataAvvio'
 import { SchermataAccesso } from './components/SchermataAccesso'
 import { utenteCorrente, suCambioAccesso } from './accesso-supabase'
@@ -552,11 +552,13 @@ export function App(): React.JSX.Element {
   // La colonna laterale delle Domande: aperta o chiusa, e quanto e' larga.
   // Sta nelle preferenze, cosi' si ritrova com'era al riavvio.
   const [colonnaDomande, setColonnaDomande] = useState<{ aperta: boolean; larghezza: number }>({ aperta: false, larghezza: 400 })
+  const preferenzeLette = useRef(false)
   // La colonna «Consumi e limiti» (0.37.0): stessa meccanica, stesse preferenze.
   const [colonnaConsumi, setColonnaConsumi] = useState<{ aperta: boolean; larghezza: number }>({ aperta: false, larghezza: 380 })
   useEffect(() => {
     const applica = (p: { domandeLaterali: boolean; larghezzaDomande: number; consumiLaterali: boolean; larghezzaConsumi: number }): void => {
       setColonnaDomande({ aperta: p.domandeLaterali, larghezza: p.larghezzaDomande })
+      preferenzeLette.current = true
       setColonnaConsumi({ aperta: p.consumiLaterali, larghezza: p.larghezzaConsumi })
     }
     window.gestore.preferenze.leggi().then(applica).catch(() => undefined)
@@ -637,6 +639,10 @@ export function App(): React.JSX.Element {
   const colonnaDomandeRef = useRef(colonnaDomande)
   colonnaDomandeRef.current = colonnaDomande
   const domandeViste = useRef<Set<string> | undefined>(undefined)
+  // La prima lettura dopo l'avvio apre la colonna se c'e' qualcosa in attesa
+  // (0.37.3): solo dopo aver letto le preferenze, che altrimenti la
+  // richiuderebbero arrivando dopo.
+  const avvioDomande = useRef(true)
   useEffect(() => {
     const viste = (): Set<string> => {
       if (domandeViste.current === undefined) {
@@ -653,13 +659,17 @@ export function App(): React.JSX.Element {
           const corpo = r.corpo as { conversazioni?: Conversazione[]; chiedono?: number }
           const c = corpo.conversazioni ?? []
           setDomandeInAttesa(corpo.chiedono ?? quanteAspettano(c))
+          if (!preferenzeLette.current) return
           const v = viste()
-          const nuove = domandeNuove(c, v)
-          if (nuove.length === 0) return
-          for (const n of nuove) v.add(n.identita)
-          try { localStorage.setItem('domande-viste', JSON.stringify([...v].slice(-300))) } catch { /* senza memoria al prossimo avvio si riapre, non di piu' */ }
-          if (!colonnaDomandeRef.current.aperta) apriColonnaDomandeRef.current()
-          setEvidenzaDomanda({ chiave: nuove[0]?.chiave ?? '', quando: Date.now() })
+          const avvio = avvioDomande.current
+          avvioDomande.current = false
+          const d = decidiColonnaDomande({ conversazioni: c, viste: v, aperta: colonnaDomandeRef.current.aperta, avvio })
+          if (d.nuove.length > 0) {
+            for (const n of d.nuove) v.add(n)
+            try { localStorage.setItem('domande-viste', JSON.stringify([...v].slice(-300))) } catch { /* senza memoria al prossimo avvio si riapre, non di piu' */ }
+          }
+          if (d.apri) apriColonnaDomandeRef.current()
+          if (d.evidenzia !== undefined && (d.apri || d.nuove.length > 0)) setEvidenzaDomanda({ chiave: d.evidenzia, quando: Date.now() })
         })
         .catch(() => undefined)
     }
