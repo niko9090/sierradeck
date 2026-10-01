@@ -56,7 +56,10 @@ describe('tutte le domande arrivano nella colonna Domande (0.37.2)', () => {
     const chiavi = cs.map((c) => c.chiave)
     expect(chiavi).toContain('ap:prep') // domanda iniziale della preparazione
     expect(chiavi).toContain('ap:flotta') // il supervisore che chiede
-    expect(chiavi).toContain('ap:flotta:d-pubblica') // «Pubblico adesso?» dello stesso autopilota: prima si perdeva
+    // «Pubblico adesso?» dello stesso autopilota: non una voce a parte (0.37.4,
+    // Nicholas: «non serve mettere le domande divise»), ma nella sua conversazione.
+    expect(chiavi.some((k) => k.startsWith('ap:flotta:'))).toBe(false)
+    expect(cs.find((c) => c.chiave === 'ap:flotta')?.messaggi.some((m) => m.testo.includes('Pubblico adesso?'))).toBe(true)
     expect(chiavi).toContain('ap:pronto') // aspetta il via
     expect(chiavi).toContain('chat:p-1') // permesso
     expect(chiavi).toContain('chat:f-1') // ha finito il turno
@@ -67,10 +70,20 @@ describe('tutte le domande arrivano nella colonna Domande (0.37.2)', () => {
   })
 
   it('ogni domanda si risponde da dove compare, con le sue opzioni', () => {
-    const pubblica = cs.find((c) => c.chiave === 'ap:flotta:d-pubblica')
-    expect(pubblica?.risposta).toEqual({ via: 'rispondi', domanda: 'd-pubblica' })
-    expect(pubblica?.messaggi.at(-1)?.opzioni?.map((o) => o.testo)).toEqual(['sì, pubblica', 'no, lascia così'])
-    expect(cs.find((c) => c.chiave === 'ap:flotta')?.risposta).toEqual({ via: 'rispondi', domanda: 'd-chiedi' })
+    // Una conversazione per l'autopilota: la casella risponde alla prima
+    // domanda, che resta in fondo; l'altra sta in coda subito sopra.
+    const flotta = cs.find((c) => c.chiave === 'ap:flotta')
+    expect(flotta?.risposta).toEqual({ via: 'rispondi', domanda: 'd-chiedi' })
+    expect(flotta?.messaggi.at(-1)?.testo).toContain('chiave dell’API')
+    expect(flotta?.messaggi.at(-2)?.testo).toBe('In coda, dopo quella qui sotto: Il lavoro «Flotta» è finito e verificato. Pubblico adesso?')
+    expect(flotta?.sotto).toContain('2 domande')
+    // Risposta la prima, la seconda diventa l'attiva, con le sue opzioni.
+    const dopo = conversazioniDomande({
+      voci: raccogliDomande({ domande: domande.filter((d) => d.id === 'd-pubblica'), autopiloti: autopiloti.map((a) => ({ id: a.id, nome: a.nome, obiettivo: a.obiettivo, stato: a.stato })), chat: [], scelteDi: () => undefined }),
+      autopiloti
+    }).find((c) => c.chiave === 'ap:flotta')
+    expect(dopo?.risposta).toEqual({ via: 'rispondi', domanda: 'd-pubblica' })
+    expect(dopo?.messaggi.at(-1)?.opzioni?.map((o) => o.testo)).toEqual(['sì, pubblica', 'no, lascia così'])
     const altroPc = cs.find((c) => c.chiave.includes('portatile'))
     expect(altroPc?.titolo).toBe('Sito · su Portatile')
     expect(altroPc?.risposta).toEqual({ via: 'scrivi', chat: 'pc:portatile:s-9' })
@@ -78,8 +91,8 @@ describe('tutte le domande arrivano nella colonna Domande (0.37.2)', () => {
   })
 
   it('il conteggio è uno solo: tutte le domande che chiedono, compreso chi aspetta il via', () => {
-    // preparazione, chiedi, pubblica, pronto, permesso
-    expect(quanteAspettano(cs)).toBe(5)
+    // preparazione, flotta (chiedi + pubblica in una conversazione), pronto, permesso
+    expect(quanteAspettano(cs)).toBe(4)
   })
 
   it('la colonna si apre per una domanda nuova, non per la stessa già vista', () => {

@@ -98,20 +98,20 @@ export function conversazioniDomande(p: {
         Object.assign(ultima, conOpzioni)
       }
       if (gia.has(chiave)) {
-        // Un'altra domanda aperta dello stesso autopilota (0.37.2): una chat
-        // sorella della flotta, o «Pubblico adesso?» mentre ne aspetta un'altra.
-        // Prima si perdeva — si vedeva solo la prima. Ora ha la sua
-        // conversazione, con la sua risposta.
-        fuori.push({
-          chiave: `ap:${v.autopilotaId}:${v.id}`,
-          tipo: 'autopilota',
-          titolo: `${v.autopilota} · un’altra domanda`,
-          sotto: a?.cwd ?? '',
-          chiede: true,
-          messaggi: [{ da: 'lui', testo: v.testo, tono: 'domanda', ...conOpzioni }],
-          risposta: { via: 'rispondi', domanda: v.id },
-          segnaposto: 'Rispondi all’autopilota: arriva subito alla chat ferma'
-        })
+        // Un'altra domanda aperta dello stesso autopilota: una chat sorella
+        // della flotta, o «Pubblico adesso?» mentre ne aspetta un'altra. Nella
+        // 0.37.2 aveva una conversazione a parte («· un'altra domanda»);
+        // Nicholas (01/10): «se c'è l'autopilota non serve mettere le domande
+        // divise! basta che le fai lì». Sta nella conversazione **del suo
+        // autopilota**, in coda: subito prima della domanda a cui la casella
+        // risponde adesso, che resta in fondo con le sue opzioni. Risposta
+        // quella, la prossima diventa la domanda attiva.
+        const sua = fuori.find((c) => c.chiave === chiave)
+        if (sua !== undefined) {
+          const inCoda: MessaggioConversazione = { da: 'lui', testo: `In coda, dopo quella qui sotto: ${v.testo}`, tono: 'domanda' }
+          sua.messaggi.splice(Math.max(0, sua.messaggi.length - 1), 0, inCoda)
+          sua.sotto = `${a?.cwd ?? sua.sotto} · ${sua.messaggi.filter((m) => m.testo.startsWith('In coda, dopo')).length + 1} domande: rispondi a una alla volta, dall’ultima in fondo`
+        }
         continue
       }
       gia.add(chiave)
