@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.37.5',
+    righe: [
+      '**Le istruzioni dell’autopilota partono sempre, non restano più ferme nel campo della chat.** Dopo un incolla lungo Claude Code ridisegna il campo («[Pasted text #1 +42 lines]») e il programma aspettava che la chat tornasse «pronta» con regole pensate per gli avvisi: se ci metteva più di qualche secondo smetteva in silenzio senza premere Invio, e toccava a te premerlo. Ora preme Invio comunque e controlla dallo schermo che la chat sia partita, riprovando qualche volta.',
+      '**Se anche così non parte, te lo dice:** in alto compare «Il compito è nella chat X ma non è partito», con il tasto «Premi Invio» che lo manda, e l’autopilota lo trova scritto nel suo diario.'
+    ]
+  },
+  {
     versione: '0.37.4',
     righe: [
       '**Le domande di un autopilota stanno tutte nella sua conversazione, non divise.** Se un autopilota ha più domande aperte insieme (per esempio una sua domanda e «Pubblico adesso?»), nella colonna Domande, nella pagina e nell’app non compaiono più come voci separate: sono nella conversazione con quell’autopilota. La domanda a cui rispondi adesso è in fondo, con le sue opzioni; le altre sono subito sopra, segnate «In coda». Risposta una, la prossima prende il suo posto.'

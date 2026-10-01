@@ -869,6 +869,8 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('autopilota:riprendiAlRiavvio', id, riprendi),
     /** «Archivia»: un autopilota fermo messo da parte (false lo toglie dall'archivio). */
     archivia: (id: string, archivia: boolean): Promise<void> => ipcRenderer.invoke('autopilota:archivia', id, archivia),
+    /** Una riga nel diario dell'autopilota, scritta dal programma. */
+    nota: (id: string, testo: string): Promise<void> => ipcRenderer.invoke('autopilota:nota', id, testo),
     elimina: (id: string): Promise<void> => ipcRenderer.invoke('autopilota:elimina', id),
     domande: (): Promise<DomandaAperta[]> => ipcRenderer.invoke('autopilota:domande'),
     rispondi: (idDomanda: string, risposta: string): Promise<void> =>

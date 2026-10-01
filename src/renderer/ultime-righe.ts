@@ -152,7 +152,35 @@ export function terminalePronto(a: AttivitaTerminale, adesso: number): boolean {
 const LAVORA_SULLO_SCHERMO = /esc to interrupt|interrupt to stop/i
 
 /** I segni del campo di scrittura: c'è, è disegnato, e non ci scrive nessuno. */
-const CAMPO_SULLO_SCHERMO = /❯|bypass permissions|shift\+tab/i
+const CAMPO_SULLO_SCHERMO = /❯|bypass permissions|shift\+tab|\[Pasted text #\d+/i
+
+/**
+ * Il testo incollato e' ancora nel campo (0.37.5): Claude Code, dopo un
+ * incolla lungo, lo mostra come «[Pasted text #N +M lines]» finche' non parte.
+ */
+const INCOLLATO_NEL_CAMPO = /\[Pasted text #\d+/i
+
+/**
+ * Dopo un invio: la chat e' partita? Dallo schermo. `true` se lavora,
+ * `false` se il testo incollato e' ancora nel campo, `undefined` se non si sa.
+ */
+export function consegnaPartita(righe: string[] | undefined): boolean | undefined {
+  if (righe === undefined || righe.length === 0) return undefined
+  const testo = righe.join('\n')
+  if (LAVORA_SULLO_SCHERMO.test(testo)) return true
+  if (INCOLLATO_NEL_CAMPO.test(testo)) return false
+  return undefined
+}
+
+/**
+ * Se si puo' premere invio su un compito appena incollato (0.37.5): il campo
+ * e' disegnato e il flusso tace — senza i quattro secondi di «aspetta»
+ * stabile che servono agli annunci. Erano quelli, sommati ai ridisegni di un
+ * incolla lungo, a far scadere l'attesa e perdere l'invio.
+ */
+export function prontoPerInvio(a: AttivitaTerminale, schermo: string[] | undefined, adesso: number): boolean {
+  return chatAspetta(a, schermo, adesso)
+}
 
 /**
  * Se aspetta te, giudicato **dallo schermo** invece che dal flusso.

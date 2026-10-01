@@ -1347,6 +1347,8 @@ export function registerAutopilotaIpc(client: ClientAutopilota): void {
   ipcMain.handle('autopilota:riprendi', (_e, id: unknown) => client.riprendi(validaIdAutopilota(id)))
   ipcMain.handle('autopilota:riprendiAlRiavvio', (_e, id: unknown, riprendi: unknown) =>
     client.riprendiAlRiavvio(validaIdAutopilota(id), riprendi === true))
+  ipcMain.handle('autopilota:nota', (_e, id: unknown, testo: unknown) =>
+    client.nota(validaIdAutopilota(id), typeof testo === 'string' ? testo.slice(0, 500) : ''))
   ipcMain.handle('autopilota:archivia', (_e, id: unknown, archivia: unknown) =>
     client.archivia(validaIdAutopilota(id), archivia !== false))
   ipcMain.handle('autopilota:elimina', (_e, id: unknown) => client.elimina(validaIdAutopilota(id)))

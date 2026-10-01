@@ -2335,6 +2335,29 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           return
         }
 
+        // Una nota nel diario dal programma (0.37.5): per esempio «il compito è
+        // nella chat X ma non è partito», cosi' il supervisore la vede.
+        const nota = /^\/autopiloti\/([^/]+)\/nota$/.exec(percorso)
+        if (metodo === 'POST' && nota !== null) {
+          const id = decodeURIComponent(nota[1]!)
+          const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
+          if (a === undefined) {
+            rispondi(res, 404, { errore: 'autopilota inesistente' })
+            return
+          }
+          const corpo = await leggiCorpo(req)
+          const testo = typeof corpo === 'object' && corpo !== null ? (corpo as Record<string, unknown>).testo : undefined
+          if (typeof testo !== 'string' || testo.trim() === '') {
+            rispondi(res, 400, { errore: 'serve il testo' })
+            return
+          }
+          const fresco = { ...a }
+          annota(fresco, `programma: ${testo.trim().slice(0, 500)}`)
+          salva(fresco)
+          rispondi(res, 200, { fatto: true })
+          return
+        }
+
         // «Archivia» (0.37.0): un autopilota fermo messo da parte, che non deve
         // ripartire. Solo da fermo: uno che lavora non si archivia.
         const archivia = /^\/autopiloti\/([^/]+)\/archivia$/.exec(percorso)

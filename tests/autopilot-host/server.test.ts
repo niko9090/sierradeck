@@ -1960,3 +1960,19 @@ describe('«Archivia» e il momento del fermo (0.37.0)', () => {
     expect(dopo?.archiviato).toBeUndefined()
   })
 })
+
+describe('una nota del programma nel diario (0.37.5)', () => {
+  it('«il compito è nella chat ma non è partito» finisce nel diario, dove il supervisore lo vede', async () => {
+    server = ambiente()
+    await avvia(server)
+    archivio.scrivi({
+      ...nuovoAutopilota({ id: 'ap-n', nome: 'x', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      stato: 'lavoro'
+    })
+    const r = await chiama('POST', '/autopiloti/ap-n/nota', { testo: 'il compito è nella chat «Notte» ma non è partito' })
+    expect(r.stato).toBe(200)
+    expect(archivio.leggi('ap-n')?.decisioni.at(-1)?.cosa).toBe('programma: il compito è nella chat «Notte» ma non è partito')
+    expect((await chiama('POST', '/autopiloti/ap-n/nota', { testo: '' })).stato).toBe(400)
+    expect((await chiama('POST', '/autopiloti/nessuno/nota', { testo: 'x' })).stato).toBe(404)
+  })
+})

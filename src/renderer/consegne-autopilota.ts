@@ -42,6 +42,29 @@ export type Ponte = {
    * messaggio che resta nel campo.
    */
   prontoARicevere: (ptyId: string) => boolean
+  /**
+   * Se, dopo l'invio, la chat e' partita (0.37.5), letto dallo schermo:
+   * `true` = sta lavorando («esc to interrupt»), `false` = il testo incollato e'
+   * ancora nel campo («[Pasted text #N …]»), `undefined` = lo schermo non lo
+   * dice. Senza, si guarda solo la prontezza, come prima.
+   */
+  partita?: (ptyId: string) => boolean | undefined
+  /**
+   * Il compito e' nella chat ma non e' partito (0.37.5). Prima si diceva solo
+   * nella console degli sviluppatori: le istruzioni restavano ferme nella
+   * casella finche' Nicholas non premeva Invio a mano. Ora lo vede lui (con un
+   * tasto che preme Invio) e lo vede l'autopilota nel suo diario.
+   */
+  segnala?: (s: InvioMancato) => void
+}
+
+/** Un compito rimasto nel campo di una chat, senza partire. */
+export type InvioMancato = {
+  ptyId: string
+  chatId: string
+  autopilotaId: string
+  titolo: string
+  motivo: string
 }
 
 /**
@@ -120,7 +143,7 @@ export function eseguiConsegna(
   }
 
   if (gia?.ptyId !== undefined) {
-    scriviEInvia(gia.ptyId, c.testo, ponte, dopo)
+    scriviEInvia(gia.ptyId, c, ponte, dopo)
     return
   }
 
@@ -193,7 +216,7 @@ function attendiEConsegna(
     const ora = ponte.riquadroDi(c.sessionId)
     const passato = aspettato + RIPROVA_MS
     if (ora?.ptyId !== undefined && ponte.prontoARicevere(ora.ptyId)) {
-      scriviEInvia(ora.ptyId, c.testo, ponte, dopo)
+      scriviEInvia(ora.ptyId, c, ponte, dopo)
       return
     }
     if (passato >= RESA_MS) {
@@ -203,6 +226,12 @@ function attendiEConsegna(
         `[autopilota] la chat ${c.chatId} non è pronta dopo ${Math.round(passato / 1000)}s:` +
         ' istruzione non consegnata'
       )
+      if (ora?.ptyId !== undefined) {
+        ponte.segnala?.({
+          ptyId: ora.ptyId, chatId: c.chatId, autopilotaId: c.autopilotaId, titolo: c.titolo,
+          motivo: `la chat non si è mai detta pronta in ${Math.round(passato / 1000)} secondi: il compito non è stato scritto`
+        })
+      }
       return
     }
     attendiEConsegna(c, ponte, dopo, passato)
@@ -226,13 +255,16 @@ function attendiEConsegna(
  */
 function scriviEInvia(
   ptyId: string,
-  testo: string,
+  c: Consegna,
   ponte: Ponte,
   dopo: (ms: number, cosa: () => void) => void
 ): void {
-  ponte.scrivi(ptyId, `${INIZIO_INCOLLA}${testo}${FINE_INCOLLA}`)
-  premiInvio(ptyId, ponte, dopo, 0)
+  ponte.scrivi(ptyId, `${INIZIO_INCOLLA}${c.testo}${FINE_INCOLLA}`)
+  premiInvio(ptyId, ponte, dopo, 0, 0, c)
 }
+
+/** Quante volte (da `PAUSA_INVIO_MS`) si aspetta la prontezza prima di premere invio comunque. */
+export const ATTESE_PRONTEZZA = TENTATIVI_INVIO * 10
 
 /**
  * Preme invio quando il terminale ha finito di disegnare, e controlla che sia
@@ -242,34 +274,52 @@ function scriviEInvia(
  * la chat resta ferma con il compito davanti, sembra che stia lavorando, e non
  * sta facendo niente.
  */
-function premiInvio(
+export function premiInvio(
   ptyId: string,
   ponte: Ponte,
   dopo: (ms: number, cosa: () => void) => void,
-  tentativi: number
+  tentativi: number,
+  attese = 0,
+  c?: Pick<Consegna, 'chatId' | 'autopilotaId' | 'titolo'>
 ): void {
   dopo(PAUSA_INVIO_MS, () => {
-    // Il terminale sta ancora ridisegnando l'incollaggio: si lascia finire.
-    if (!ponte.prontoARicevere(ptyId)) {
-      if (tentativi >= TENTATIVI_INVIO * 10) return
-      premiInvio(ptyId, ponte, dopo, tentativi + 1)
+    // Il terminale sta ancora ridisegnando l'incollaggio: si lascia finire,
+    // ma non per sempre. **Oltre il tetto si preme invio comunque** (0.37.5):
+    // prima qui c'era un `return` muto, e il compito restava nel campo finche'
+    // Nicholas non premeva Invio a mano. Dopo un incolla lungo Claude Code
+    // ridisegna il campo con «[Pasted text #N +M lines]» e la prontezza puo'
+    // non tornare in tempo: un invio in piu' su un campo pronto non fa danni,
+    // un invio mancato ferma il lavoro.
+    if (!ponte.prontoARicevere(ptyId) && attese < ATTESE_PRONTEZZA) {
+      premiInvio(ptyId, ponte, dopo, tentativi, attese + 1, c)
       return
     }
     ponte.scrivi(ptyId, INVIO)
     dopo(CONTROLLO_INVIO_MS, () => {
-      // Se ha ricevuto l'invio, la chat si è messa a lavorare e sta scrivendo:
-      // «pronta a ricevere» torna falso. Se è ancora lì che aspetta, l'invio
-      // non è arrivato dove doveva.
-      if (!ponte.prontoARicevere(ptyId)) return
+      // Partita? Lo schermo lo dice meglio di tutto («esc to interrupt», o il
+      // testo incollato ancora nel campo); se tace, vale la prontezza: ricevuto
+      // l'invio la chat lavora e smette di essere «pronta a ricevere».
+      const p = ponte.partita?.(ptyId)
+      const ferma = p === false || (p === undefined && ponte.prontoARicevere(ptyId))
+      if (!ferma) return
       if (tentativi >= TENTATIVI_INVIO) {
         console.error(
           `[autopilota] il compito è nel campo della chat ma non parte,` +
-          ` dopo ${TENTATIVI_INVIO} tentativi di invio`
+          ` dopo ${TENTATIVI_INVIO + 1} invii`
         )
+        // Non si tace: lo vedono Nicholas (con il tasto che preme Invio) e
+        // l'autopilota, nel suo diario.
+        ponte.segnala?.({
+          ptyId,
+          chatId: c?.chatId ?? '',
+          autopilotaId: c?.autopilotaId ?? '',
+          titolo: c?.titolo ?? '',
+          motivo: `il compito è nel campo ma non è partito dopo ${TENTATIVI_INVIO + 1} invii`
+        })
         return
       }
       console.warn('[autopilota] la chat non è partita: premo invio di nuovo')
-      premiInvio(ptyId, ponte, dopo, tentativi + 1)
+      premiInvio(ptyId, ponte, dopo, tentativi + 1, 0, c)
     })
   })
 }
@@ -281,8 +331,12 @@ function premiInvio(
  * a riceverlo — perché sapere *se* si può scrivere è cosa si legge dal
  * terminale, non cosa si deduce dall'orologio.
  */
-export function ponteReale(prontezza: (ptyId: string) => boolean): Ponte {
+export function ponteReale(
+  prontezza: (ptyId: string) => boolean,
+  extra: Pick<Ponte, 'partita' | 'segnala'> = {}
+): Ponte {
   return {
+    ...extra,
     prontoARicevere: prontezza,
     riquadroDi: (sessionId) => {
       const riquadri = Object.values(useLayoutStore.getState().panes)
