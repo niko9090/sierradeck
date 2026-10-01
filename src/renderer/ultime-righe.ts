@@ -161,6 +161,19 @@ const CAMPO_SULLO_SCHERMO = /❯|bypass permissions|shift\+tab|\[Pasted text #\d
  */
 const ATTIVITA_SULLO_SCHERMO = /\(\d+s ·|esc to interrupt|interrupt to stop/i
 
+/**
+ * Lo schermo mostra una scelta da fare (0.38.2): un elenco numerato con il
+ * cursore («❯ 1. Yes»), la domanda di fiducia di una cartella nuova, un
+ * «Enter to confirm». Scriverci dentro vorrebbe dire scegliere al posto di
+ * Nicholas: la consegna aspetta, e la chat compare nelle Domande.
+ */
+export function sceltaSulloSchermo(righe: string[] | undefined): boolean {
+  if (righe === undefined) return false
+  const fondo = righe.slice(-RIGHE_DEL_FONDO_SCELTA)
+  return fondo.some((r) => /^\s*[│|]?\s*❯\s*\d+\.\s+\S/.test(r) || /Enter to confirm|trust this folder|Do you want to proceed\?/i.test(r))
+}
+const RIGHE_DEL_FONDO_SCELTA = 16
+
 /** Quante righe in fondo si guardano: il campo e la sua cornice, non la storia. */
 const RIGHE_DEL_FONDO = 12
 
@@ -182,14 +195,40 @@ export function consegnaPartita(righe: string[] | undefined, scritto?: string): 
   if (righe === undefined || righe.length === 0) return undefined
   const fondo = righe.slice(-RIGHE_DEL_FONDO)
   if (fondo.some((r) => ATTIVITA_SULLO_SCHERMO.test(r))) return true
-  const campo = [...fondo].reverse().find((r) => /^\s*[│|]?\s*❯/.test(r))
+  const campi = fondo.map((r, i) => ({ r, i })).filter((x) => /^\s*[│|]?\s*❯/.test(x.r))
+  const campo = campi[campi.length - 1]
   if (campo === undefined) return undefined
-  const dentro = campo.replace(/^\s*[│|]?\s*❯\s*/, '').replace(/[│|]\s*$/, '').trim()
-  if (dentro === '' || /^Try "/.test(dentro)) return true
-  if (/\[Pasted text #\d+/.test(dentro)) return false
+  const dentro = testoDelCampo(campo.r)
   const inizio = (scritto ?? '').trim().slice(0, 24)
-  if (inizio !== '' && dentro.startsWith(inizio.slice(0, Math.min(inizio.length, dentro.length)))) return false
+  if (/\[Pasted text #\d+/.test(dentro)) return false
+  if (inizio !== '' && dentro !== '' && dentro.startsWith(inizio.slice(0, Math.min(inizio.length, dentro.length)))) return false
+  if (dentro === '' || /^Try "/.test(dentro)) {
+    // Campo vuoto: partita solo se il messaggio sta fra quelli mandati (una
+    // riga «❯ …» sopra il campo). Senza testo noto, come prima: partita.
+    if (inizio === '') return true
+    return campi.slice(0, -1).some((x) => testoDelCampo(x.r).startsWith(inizio)) ? true : undefined
+  }
   return undefined
+}
+
+function testoDelCampo(r: string): string {
+  return r.replace(/^\s*[│|]?\s*❯\s*/, '').replace(/[│|]\s*$/, '').trim()
+}
+
+/**
+ * Il testo scritto si e' perso (0.38.2): il campo e' vuoto, fra i messaggi
+ * mandati non c'e', e la chat non lavora. Succede se lo si digita mentre
+ * Claude Code sta ancora caricando una conversazione ripresa.
+ */
+export function testoPerso(righe: string[] | undefined, scritto: string): boolean {
+  if (righe === undefined || righe.length === 0 || scritto.trim() === '') return false
+  const fondo = righe.slice(-RIGHE_DEL_FONDO)
+  if (fondo.some((r) => ATTIVITA_SULLO_SCHERMO.test(r))) return false
+  const inizio = scritto.trim().slice(0, 24)
+  if (righe.some((r) => /❯/.test(r) && testoDelCampo(r).startsWith(inizio))) return false
+  const campi = fondo.filter((r) => /^\s*[│|]?\s*❯/.test(r))
+  const campo = campi[campi.length - 1]
+  return campo !== undefined && (testoDelCampo(campo) === '' || /^Try "/.test(testoDelCampo(campo)))
 }
 
 /**

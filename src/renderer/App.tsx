@@ -9,7 +9,7 @@ import { giaSalvatoCome } from '@shared/doppioni'
 import type { Istantanea } from '@shared/istantanea'
 import { chiChiede, workspaceCheChiamano } from '@shared/dove-chiedono'
 import { attivaChiusuraFuori, attivaTrascinamento } from './trascina-finestre'
-import { chatAspetta, consegnaPartita, creaUltimeRighe, prontoPerInvio, ultimaRigaDalloSchermo } from './ultime-righe'
+import { chatAspetta, consegnaPartita, creaUltimeRighe, prontoPerInvio, sceltaSulloSchermo, testoPerso, ultimaRigaDalloSchermo } from './ultime-righe'
 import { creaBattito, stessiAttivi } from './battito'
 import { eseguiConsegna, ponteReale, scriviQuandoPronta, type InvioMancato } from './consegne-autopilota'
 import { memoriaWorkspace } from './memoria-workspace'
@@ -251,8 +251,19 @@ export function App(): React.JSX.Element {
    * domanda per Nicholas. Va nel diario dell'autopilota come guasto del
    * programma (lo vede il supervisore) e, facoltativa, nella sua scheda.
    */
+  // Definita piu' sotto: la consegna la chiama per tornare nel suo workspace.
+  const aggiornaWorkspaceRef = useRef<(s: StatoWorkspace) => void>(() => undefined)
   const extraConsegna = useMemo(() => ({
     partita: (ptyId: string, scritto?: string) => consegnaPartita(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite, scritto),
+    perso: (ptyId: string, scritto?: string) => testoPerso(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite, scritto ?? ''),
+    // Ogni passo nel registro su file (0.38.2): dopo un guasto si legge li'.
+    registra: (passo: string) => { void window.gestore.log.info(`[consegna] ${passo}`).catch(() => undefined) },
+    sceltaAperta: (ptyId: string) => sceltaSulloSchermo(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite),
+    sveglia: (paneId: string) => { const p = useLayoutStore.getState().panes[paneId]; if (p?.ibernata === true) useLayoutStore.getState().sveglia(paneId) },
+    tornaNelSuoWorkspace: (c: { workspace?: string }) => {
+      if (c.workspace === undefined || c.workspace === workspaceCorrente()) return
+      void azioniDiFinestra().cambia(c.workspace).then(() => window.gestore.workspace.stato()).then(aggiornaWorkspaceRef.current).catch(() => undefined)
+    },
     segnala: (s: InvioMancato) => {
       if (s.autopilotaId === '') return
       void window.gestore.autopilota.nota(s.autopilotaId, `guasto del programma: il compito è nella chat «${s.titolo || s.chatId}» ma non è partito (${s.motivo}).`).catch(() => undefined)
@@ -714,6 +725,7 @@ export function App(): React.JSX.Element {
     impostaWorkspaceCorrente(s.attivo)
     setWorkspace(s)
   }, [])
+  aggiornaWorkspaceRef.current = aggiornaWorkspace
   const [autopiloti, setAutopiloti] = useState<Autopilota[]>([])
   const [erroreAutopiloti, setErroreAutopiloti] = useState<string | undefined>(undefined)
   const [alLogin, setAlLogin] = useState<boolean | undefined>(undefined)

@@ -303,8 +303,8 @@ export function DiarioAutopilota({
           stanno fianco a fianco. */}
       {mancato !== undefined ? (
         <p className="misura diario__mancato">
-          Il compito nella chat «{mancato.titolo}» non risulta partito, nemmeno dopo i tentativi automatici: è annotato nel diario come guasto del programma.{' '}
-          <button className="tasto tasto--mini" title="Facoltativo: preme Invio in quella chat" onClick={() => { window.gestore.pty.write(mancato.ptyId, String.fromCharCode(13)); setMancato(undefined) }}>Invio</button>{' '}
+          Il compito nella chat «{mancato.titolo}» non risulta partito, nemmeno dopo i tentativi automatici: è annotato nel suo diario.{' '}
+          {mancato.ptyId === '' ? null : <button className="tasto tasto--mini" title="Facoltativo: preme Invio in quella chat" onClick={() => { window.gestore.pty.write(mancato.ptyId, String.fromCharCode(13)); setMancato(undefined) }}>Invio</button>}{' '}
           <button className="tasto tasto--mini" onClick={() => setMancato(undefined)} aria-label="Togli la nota">×</button>
         </p>
       ) : null}

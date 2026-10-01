@@ -190,6 +190,7 @@ declare global {
         apri: () => Promise<string>
         percorso: () => Promise<string>
         errore: (messaggio: string) => Promise<void>
+        info: (messaggio: string) => Promise<void>
       }
       /** I file del progetto, di qua e sul suo server. */
       trasferimenti: {

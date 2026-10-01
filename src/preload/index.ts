@@ -538,7 +538,9 @@ contextBridge.exposeInMainWorld('gestore', {
     percorso: (): Promise<string> => ipcRenderer.invoke('log:percorso'),
     /** Scrive nel registro un errore visto nel renderer, dove altrimenti
      *  morirebbe nella sola console (invisibile a chi non la tiene aperta). */
-    errore: (messaggio: string): Promise<void> => ipcRenderer.invoke('log:errore', messaggio)
+    errore: (messaggio: string): Promise<void> => ipcRenderer.invoke('log:errore', messaggio),
+    /** Un passo da ricordare nel registro (le consegne dell'autopilota). */
+    info: (messaggio: string): Promise<void> => ipcRenderer.invoke('log:info', messaggio)
   },
   /** Il negozio: plugin, skill e MCP di Claude Code, gestiti a clic. */
   /**

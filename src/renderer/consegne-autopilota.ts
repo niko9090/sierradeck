@@ -50,12 +50,32 @@ export type Ponte = {
    */
   partita?: (ptyId: string, scritto?: string) => boolean | undefined
   /**
+   * Dopo l'invio il testo non c'e' da nessuna parte: ne' nel campo ne' fra i
+   * messaggi mandati, e la chat non lavora (0.38.2). E' stato digitato mentre
+   * Claude Code non ascoltava: va riscritto, un altro Invio non basta.
+   */
+  perso?: (ptyId: string, scritto?: string) => boolean
+  /**
    * Il compito e' nella chat ma non e' partito (0.37.5). Prima si diceva solo
    * nella console degli sviluppatori: le istruzioni restavano ferme nella
    * casella finche' Nicholas non premeva Invio a mano. Ora lo vede lui (con un
    * tasto che preme Invio) e lo vede l'autopilota nel suo diario.
    */
   segnala?: (s: InvioMancato) => void
+  /** Ogni passo della consegna nel registro su file (0.38.2). */
+  registra?: (passo: string) => void
+  /**
+   * Lo schermo mostra una scelta (permesso, fiducia, ripresa…)? Allora non si
+   * scrive alla cieca: la chat aspetta una risposta di Nicholas (0.38.2).
+   */
+  sceltaAperta?: (ptyId: string) => boolean
+  /** Il riquadro dorme: lo si sveglia, cosi' il suo terminale nasce. */
+  sveglia?: (paneId: string) => void
+  /**
+   * Il riquadro non e' in questa finestra (il workspace e' cambiato nel
+   * frattempo): si torna nel suo workspace, una volta (0.38.2).
+   */
+  tornaNelSuoWorkspace?: (c: Consegna) => void
 }
 
 /** Un compito rimasto nel campo di una chat, senza partire. */
@@ -126,6 +146,16 @@ export const RIPROVA_MS = 400
  */
 export const RESA_MS = 90_000
 
+/**
+ * Dopo questo tempo senza «pronta» si scrive comunque (0.38.2): la chat
+ * c'e', il terminale c'e', ma lo schermo non si fa riconoscere. Prima si
+ * aspettava fino alla resa (90 s) e poi ci si fermava muti: il caso NexoraOS.
+ */
+export const TETTO_PRONTEZZA_MS = 8000
+
+/** Dopo questo tempo senza riquadro si torna nel suo workspace (una volta). */
+export const RIQUADRO_PERSO_MS = 6000
+
 export function eseguiConsegna(
   c: Consegna,
   ponte: Ponte,
@@ -134,6 +164,7 @@ export function eseguiConsegna(
   // A quale finestra tocca lo ha già deciso il Core, che è l'unico a vederle
   // tutte: se la consegna è arrivata qui, è di questa finestra.
   const gia = ponte.riquadroDi(c.sessionId)
+  ponte.registra?.(`consegna ${c.id || '(ripresa)'} per «${c.titolo || c.sessionId}»: ritirata (${c.cosa}, ${c.testo.length} caratteri); riquadro ${gia === undefined ? 'non trovato' : gia.ptyId === undefined ? 'trovato, terminale non ancora nato' : 'trovato'}`)
 
   if (c.cosa === 'interrompi') {
     // Ctrl+C, come lo premeresti tu: ferma quello che sta facendo senza
@@ -142,8 +173,13 @@ export function eseguiConsegna(
     return
   }
 
+  // **Anche un riquadro gia' vivo aspetta che la chat sia pronta** (0.38.2).
+  // Prima qui si scriveva subito: dopo l'aggiornamento alla 0.38.1 il riquadro
+  // di NexoraOS era appena rinato, claude.exe stava ancora caricando la
+  // conversazione, e la riga digitata e' andata persa — il campo vuoto che ha
+  // visto Nicholas. Il tetto evita che l'attesa diventi infinita.
   if (gia?.ptyId !== undefined) {
-    scriviEInvia(gia.ptyId, c, ponte, dopo)
+    attendiEConsegna(c, ponte, dopo, 0)
     return
   }
 
@@ -161,7 +197,7 @@ export function eseguiConsegna(
   // hook. Un autopilota apre sempre una chat sua, nuova, con la sessione
   // decisa dal servizio, nel workspace da cui è stato avviato: chi vuole
   // seguirlo la guarda, chi vuole parlargli usa la scheda.
-  if (gia === undefined) ponte.apri(c)
+  if (gia === undefined) { ponte.apri(c); ponte.registra?.(`consegna ${c.id}: riquadro aperto`) }
   attendiEConsegna(c, ponte, dopo, 0)
 }
 
@@ -210,31 +246,69 @@ function attendiEConsegna(
   c: Consegna,
   ponte: Ponte,
   dopo: (ms: number, cosa: () => void) => void,
-  aspettato: number
+  aspettato: number,
+  stato: { conPty?: number; tornato?: boolean; svegliato?: boolean; sceltaDetta?: boolean } = {}
 ): void {
   dopo(RIPROVA_MS, () => {
     const ora = ponte.riquadroDi(c.sessionId)
     const passato = aspettato + RIPROVA_MS
-    if (ora?.ptyId !== undefined && ponte.prontoARicevere(ora.ptyId)) {
-      scriviEInvia(ora.ptyId, c, ponte, dopo)
+    if (ora?.ptyId !== undefined) {
+      const da = stato.conPty ?? passato
+      // Una scelta sullo schermo (permesso, fiducia, ripresa): non si scrive
+      // alla cieca. La chat compare nelle Domande con le sue opzioni; qui la si
+      // dice una volta nel diario e si aspetta che qualcuno scelga.
+      if (ponte.sceltaAperta?.(ora.ptyId) === true) {
+        if (stato.sceltaDetta !== true) {
+          ponte.registra?.(`consegna ${c.id}: la chat è ferma su una scelta, non scrivo alla cieca`)
+          ponte.segnala?.({ ptyId: ora.ptyId, chatId: c.chatId, autopilotaId: c.autopilotaId, titolo: c.titolo, motivo: 'domanda della chat: è ferma su una scelta (permesso, fiducia o ripresa) e aspetta una risposta nelle Domande; il compito parte appena la scelta è fatta' })
+        }
+        if (passato < RESA_MS * 10) attendiEConsegna(c, ponte, dopo, passato, { ...stato, conPty: da, sceltaDetta: true })
+        return
+      }
+      if (ponte.prontoARicevere(ora.ptyId)) {
+        ponte.registra?.(`consegna ${c.id}: pronta dopo ${Math.round(passato / 100) / 10} s`)
+        scriviEInvia(ora.ptyId, c, ponte, dopo)
+        return
+      }
+      // **Il tetto** (0.38.2): il terminale c'e' da un po' ma lo schermo non si
+      // fa riconoscere. Si scrive comunque; il controllo di partenza e i
+      // tentativi fanno il resto.
+      if (passato - da >= TETTO_PRONTEZZA_MS) {
+        ponte.registra?.(`consegna ${c.id}: tetto di ${TETTO_PRONTEZZA_MS / 1000} s scaduto senza «pronta», scrivo lo stesso`)
+        scriviEInvia(ora.ptyId, c, ponte, dopo)
+        return
+      }
+      attendiEConsegna(c, ponte, dopo, passato, { ...stato, conPty: da })
+      return
+    }
+    // Il riquadro c'e' ma dorme: si sveglia, o il suo terminale non nasce mai.
+    if (ora !== undefined && stato.svegliato !== true && ponte.sveglia !== undefined) {
+      ponte.registra?.(`consegna ${c.id}: riquadro addormentato, lo sveglio`)
+      ponte.sveglia(ora.paneId)
+      attendiEConsegna(c, ponte, dopo, passato, { ...stato, svegliato: true })
+      return
+    }
+    // Il riquadro non c'e' piu' in questa finestra: il workspace e' cambiato
+    // dopo l'arrivo della consegna (all'avvio, il ripristino del workspace
+    // attivo). Si torna nel suo, una volta.
+    if (ora === undefined && passato >= RIQUADRO_PERSO_MS && stato.tornato !== true && ponte.tornaNelSuoWorkspace !== undefined) {
+      ponte.registra?.(`consegna ${c.id}: il riquadro non c'è più in questa finestra, torno nel suo workspace${c.workspace !== undefined ? ` «${c.workspace}»` : ''}`)
+      ponte.tornaNelSuoWorkspace(c)
+      attendiEConsegna(c, ponte, dopo, passato, { ...stato, tornato: true })
       return
     }
     if (passato >= RESA_MS) {
-      // Meglio dirlo che lasciare l'autopilota ad aspettare in silenzio una
-      // risposta che non arriverà.
-      console.error(
-        `[autopilota] la chat ${c.chatId} non è pronta dopo ${Math.round(passato / 1000)}s:` +
-        ' istruzione non consegnata'
-      )
-      if (ora?.ptyId !== undefined) {
-        ponte.segnala?.({
-          ptyId: ora.ptyId, chatId: c.chatId, autopilotaId: c.autopilotaId, titolo: c.titolo,
-          motivo: `la chat non si è mai detta pronta in ${Math.round(passato / 1000)} secondi: il compito non è stato scritto`
-        })
-      }
+      // Mai muti: nel registro e nel diario dell'autopilota, anche senza un
+      // terminale (prima, senza pty, la resa era silenziosa).
+      console.error(`[autopilota] la chat ${c.chatId} non è pronta dopo ${Math.round(passato / 1000)}s: istruzione non consegnata`)
+      ponte.registra?.(`consegna ${c.id}: resa dopo ${Math.round(passato / 1000)} s, ${ora === undefined ? 'riquadro mai trovato' : 'terminale mai nato'}`)
+      ponte.segnala?.({
+        ptyId: ora?.ptyId ?? '', chatId: c.chatId, autopilotaId: c.autopilotaId, titolo: c.titolo,
+        motivo: `guasto del programma: in ${Math.round(passato / 1000)} secondi ${ora === undefined ? 'la chat non è comparsa in nessuna finestra' : 'il terminale della chat non è nato'}, il compito non è stato scritto`
+      })
       return
     }
-    attendiEConsegna(c, ponte, dopo, passato)
+    attendiEConsegna(c, ponte, dopo, passato, stato)
   })
 }
 
@@ -264,6 +338,7 @@ function scriviEInvia(
   // testo su piu' righe, quando il file non si e' potuto scrivere, va fra i
   // marcatori dell'incolla: senza, i suoi a capo lo manderebbero a pezzi.
   ponte.scrivi(ptyId, /[\r\n]/.test(c.testo) ? `${INIZIO_INCOLLA}${c.testo}${FINE_INCOLLA}` : c.testo)
+  ponte.registra?.(`consegna ${c.id}: scritta (${c.testo.length} caratteri)`)
   premiInvio(ptyId, ponte, dopo, 0, 0, { ...c })
 }
 
@@ -287,7 +362,7 @@ export function premiInvio(
   dopo: (ms: number, cosa: () => void) => void,
   tentativi: number,
   attese = 0,
-  c?: Pick<Consegna, 'chatId' | 'autopilotaId' | 'titolo'> & { testo?: string },
+  c?: Pick<Consegna, 'chatId' | 'autopilotaId' | 'titolo'> & { testo?: string; id?: string },
   secondoModo = false
 ): void {
   dopo(PAUSA_INVIO_MS, () => {
@@ -303,6 +378,7 @@ export function premiInvio(
       return
     }
     ponte.scrivi(ptyId, INVIO)
+    ponte.registra?.(`consegna ${c?.id ?? ''}: invio ${tentativi + 1}${secondoModo ? ' (secondo modo)' : ''}`)
     dopo(CONTROLLO_INVIO_MS, () => {
       // Partita? Lo schermo lo dice meglio di tutto («esc to interrupt», o il
       // testo incollato ancora nel campo); se tace, vale la prontezza: ricevuto
@@ -312,7 +388,13 @@ export function premiInvio(
       // prontezza: ricevuto l'invio la chat lavora e smette di ascoltare.
       const p = ponte.partita?.(ptyId, c?.testo)
       const ferma = p === false || (p === undefined && ponte.prontoARicevere(ptyId))
-      if (!ferma) return
+      if (!ferma) { ponte.registra?.(`consegna ${c?.id ?? ''}: partita`); return }
+      // Il testo si e' perso: lo si riscrive prima del prossimo Invio.
+      if (c?.testo !== undefined && ponte.perso?.(ptyId, c.testo) === true) {
+        ponte.registra?.(`consegna ${c?.id ?? ''}: il testo non è nel campo né fra i messaggi mandati, lo riscrivo`)
+        ponte.scrivi(ptyId, c.testo)
+      }
+      ponte.registra?.(`consegna ${c?.id ?? ''}: non partita (${p === false ? 'il testo è ancora nel campo' : 'la chat è ancora in ascolto'})`)
       if (tentativi < TENTATIVI_INVIO) {
         console.warn('[autopilota] la chat non è partita: premo invio di nuovo')
         premiInvio(ptyId, ponte, dopo, tentativi + 1, 0, c, secondoModo)

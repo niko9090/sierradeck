@@ -58,7 +58,9 @@ function banco(
       for (const f of ora) f()
     }
   }
-  return { ponte, scritti, aperti, riquadri, dopo, scadi }
+  /** Un giro solo di attese: quelle in coda adesso, non quelle che aprono. */
+  const scadiUnGiro = (): void => { for (const f of rinviati.splice(0, rinviati.length)) f() }
+  return { ponte, scritti, aperti, riquadri, dopo, scadi, scadiUnGiro }
 }
 
 describe('portare un istruzione dentro una chat', () => {
@@ -148,6 +150,9 @@ describe('l invio che non arrivava', () => {
     // e' un altro a capo del testo, non il gesto che manda il messaggio.
     const b = banco({ 'sess-1': { paneId: 'p-1', ptyId: 'pty-1' } })
     eseguiConsegna(consegna({ testo: 'prima riga\nseconda riga' }), b.ponte, b.dopo)
+    // 0.38.2: anche un riquadro vivo aspetta il primo controllo di prontezza.
+    expect(b.scritti).toEqual([])
+    b.scadiUnGiro()
 
     // Prima il testo, dichiarato come incollato e senza invio appiccicato.
     expect(b.scritti).toEqual([{ ptyId: 'pty-1', testo: incollato('prima riga\nseconda riga') }])

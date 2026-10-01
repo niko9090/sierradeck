@@ -1849,6 +1849,10 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('log:apri', () => shell.openPath(registro.cartella()))
       ipcMain.handle('log:percorso', () => registro.file())
       ipcMain.handle('log:errore', (_e, messaggio: string) => registro.errore(String(messaggio)))
+      // I passi delle consegne dell'autopilota (0.38.2): ritirata, riquadro,
+      // pronto o tetto, scritta, invio, partita. Prima stavano solo nella
+      // console del renderer, e dopo un guasto il registro non diceva niente.
+      ipcMain.handle('log:info', (_e, messaggio: unknown) => registro.info(String(messaggio).slice(0, 2000)))
 
       // Il negozio: plugin (via il CLI di Claude Code, fonte di verità), skill e
       // MCP (letti dai file, spenti/accesi con un tocco chirurgico). Fare a clic
