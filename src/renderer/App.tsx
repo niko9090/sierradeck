@@ -246,15 +246,17 @@ export function App(): React.JSX.Element {
     (ptyId: string): boolean => prontoPerInvio(righe.current.attivitaDi(ptyId), righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite, Date.now()),
     []
   )
-  /** I compiti rimasti nel campo senza partire: visibili, con «Premi Invio». */
-  const [inviiMancati, setInviiMancati] = useState<InvioMancato[]>([])
+  /**
+   * Una consegna che non parte nemmeno al secondo modo (0.38.1): **non** e' una
+   * domanda per Nicholas. Va nel diario dell'autopilota come guasto del
+   * programma (lo vede il supervisore) e, facoltativa, nella sua scheda.
+   */
   const extraConsegna = useMemo(() => ({
-    partita: (ptyId: string) => consegnaPartita(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite),
+    partita: (ptyId: string, scritto?: string) => consegnaPartita(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite, scritto),
     segnala: (s: InvioMancato) => {
-      setInviiMancati((l) => [...l.filter((x) => x.ptyId !== s.ptyId), s])
-      if (s.autopilotaId !== '') {
-        void window.gestore.autopilota.nota(s.autopilotaId, `il compito è nella chat «${s.titolo || s.chatId}» ma non è partito (${s.motivo}). Nicholas lo vede nella banda con il tasto «Premi Invio».`).catch(() => undefined)
-      }
+      if (s.autopilotaId === '') return
+      void window.gestore.autopilota.nota(s.autopilotaId, `guasto del programma: il compito è nella chat «${s.titolo || s.chatId}» ma non è partito (${s.motivo}).`).catch(() => undefined)
+      window.dispatchEvent(new CustomEvent('sierradeck:invio-mancato', { detail: s }))
     }
   }), [])
   const aspettaOra = useCallback(
@@ -1355,34 +1357,6 @@ export function App(): React.JSX.Element {
           <button className="tasto" onClick={() => setAggiornamento({ fase: 'fermo' })} title="Più tardi">
             ×
           </button>
-        </div>
-      ) : null}
-
-      {inviiMancati.length > 0 ? (
-        // Un compito dell'autopilota rimasto nel campo di una chat (0.37.5):
-        // prima restava li' in silenzio finche' qualcuno premeva Invio a mano.
-        <div className="banda">
-          {inviiMancati.map((m) => (
-            <div key={m.ptyId} className="banda__voce banda__voce--attenzione">
-              <span className="led led--attesa" />
-              <span className="banda__testo">
-                Il compito è nella chat «{m.titolo || m.chatId}» ma non è partito: {m.motivo}. Premi Invio per mandarlo.
-              </span>
-              <button
-                className="tasto tasto--primario"
-                title="Preme Invio in quella chat, come faresti tu: il compito parte"
-                onClick={() => {
-                  window.gestore.pty.write(m.ptyId, String.fromCharCode(13))
-                  setInviiMancati((l) => l.filter((x) => x.ptyId !== m.ptyId))
-                }}
-              >
-                Premi Invio
-              </button>
-              <button className="tasto" title="Toglie l’avviso senza fare niente" onClick={() => setInviiMancati((l) => l.filter((x) => x.ptyId !== m.ptyId))}>
-                Chiudi
-              </button>
-            </div>
-          ))}
         </div>
       ) : null}
 

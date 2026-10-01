@@ -69,7 +69,7 @@ describe('portare un istruzione dentro una chat', () => {
     eseguiConsegna(consegna(), b.ponte, b.dopo)
     b.scadi()
     expect(b.scritti).toEqual([
-      { ptyId: 'pty-1', testo: incollato('continua da dove eri') },
+      { ptyId: 'pty-1', testo: 'continua da dove eri' },
       { ptyId: 'pty-1', testo: INVIO }
     ])
     expect(b.aperti).toEqual([])
@@ -93,7 +93,7 @@ describe('portare un istruzione dentro una chat', () => {
     b.riquadri['sess-1'] = { paneId: 'p-nuovo', ptyId: 'pty-9' }
     b.scadi()
     expect(b.scritti).toEqual([
-      { ptyId: 'pty-9', testo: incollato('continua da dove eri') },
+      { ptyId: 'pty-9', testo: 'continua da dove eri' },
       { ptyId: 'pty-9', testo: INVIO }
     ])
   })
@@ -114,7 +114,7 @@ describe('portare un istruzione dentro una chat', () => {
     b.riquadri['sess-1'] = { paneId: 'p-1', ptyId: 'pty-1' }
     b.scadi()
     // Una consegna sola: il testo e il suo invio, non due messaggi.
-    expect(b.scritti.map((x) => x.testo)).toEqual([incollato('continua da dove eri'), INVIO])
+    expect(b.scritti.map((x) => x.testo)).toEqual(['continua da dove eri', INVIO])
   })
 
   it('se la chat non nasce, non scrive nel vuoto', () => {
@@ -161,7 +161,7 @@ describe('l invio che non arrivava', () => {
     eseguiConsegna(consegna(), b.ponte, b.dopo)
     b.riquadri['sess-1'] = { paneId: 'p-nuovo', ptyId: 'pty-9' }
     b.scadi()
-    expect(b.scritti.map((s) => s.testo)).toEqual([incollato('continua da dove eri'), INVIO])
+    expect(b.scritti.map((s) => s.testo)).toEqual(['continua da dove eri', INVIO])
   })
 })
 
@@ -181,7 +181,7 @@ describe('aspettare che la chat sia pronta a ricevere', () => {
     const b = banco({ 'sess-1': { paneId: 'p-1', ptyId: 'pty-1' } })
     eseguiConsegna(consegna(), b.ponte, b.dopo)
     b.scadi()
-    expect(b.scritti.map((s) => s.testo)).toEqual([incollato('continua da dove eri'), INVIO])
+    expect(b.scritti.map((s) => s.testo)).toEqual(['continua da dove eri', INVIO])
   })
 })
 
@@ -202,8 +202,10 @@ describe('quando l invio non basta', () => {
     const b = banco({ 'sess-1': { paneId: 'p-1', ptyId: 'pty-1' } }, true, false)
     eseguiConsegna(consegna(), b.ponte, b.dopo)
     b.scadi()
+    // 0.38.1: quattro invii, poi un secondo modo da solo (altri quattro), poi
+    // il guasto nel diario. Mai all'infinito.
     const invii = b.scritti.filter((s) => s.testo === INVIO)
-    expect(invii.length).toBeLessThanOrEqual(4)
+    expect(invii.length).toBeLessThanOrEqual(8)
   })
 
   it('quando parte, non insiste', () => {

@@ -54,6 +54,8 @@ import { riassumiConsumi, type Consumi } from '@shared/consumi'
 import { costoPerPeriodo, leggiPolso, limitiAggiornati, rigaDiStato, type Polso } from '@shared/polso-chat'
 import { etichettaContesto, limitiPerFreno, unisciPolso } from '@shared/limiti-piano'
 import { diffDellAutopilota, fileDellAutopilota } from './file-autopilota'
+import { preparaConsegna } from '@shared/consegna-breve'
+import { scriviFileConsegna } from './consegne-file'
 import { frenoDaiLimiti, testoFreno } from '@shared/harness'
 import { creaWorkspace, eliminaWorkspace } from './workspace-operazioni'
 import type { SessionSummary } from '@shared/types'
@@ -2999,7 +3001,9 @@ if (!app.requestSingleInstanceLock()) {
             workspaceStore === undefined
               ? undefined
               : workspaceDellaSessione(workspaceStore.leggi(), sessionId))
-          finestra.webContents.send('autopilota:consegna', conDestinazione)
+          // Le istruzioni lunghe come file piu' una riga corta (0.38.1): una
+          // riga digitata parte sempre al primo Invio, un incolla lungo no.
+          finestra.webContents.send('autopilota:consegna', preparaConsegna(conDestinazione, (rel, testo) => scriviFileConsegna(c.cwd, rel, testo)))
           return true
         }
       })

@@ -71,6 +71,20 @@ export function DiarioAutopilota({
     return window.gestore.pannello.suCambio(applica)
   }, [autopilota.id])
   const barra = useRef<HTMLDivElement | null>(null)
+  /**
+   * Un compito rimasto nel campo di una sua chat anche dopo i tentativi
+   * automatici (0.38.1): il guasto e' gia' nel suo diario; qui, facoltativo e
+   * discreto, il tasto che preme Invio a mano. Nessuna banda per Nicholas.
+   */
+  const [mancato, setMancato] = useState<{ ptyId: string; titolo: string } | undefined>(undefined)
+  useEffect(() => {
+    const su = (e: Event): void => {
+      const d = (e as CustomEvent<{ ptyId: string; autopilotaId: string; titolo: string; chatId: string }>).detail
+      if (d.autopilotaId === autopilota.id) setMancato({ ptyId: d.ptyId, titolo: d.titolo || d.chatId })
+    }
+    window.addEventListener('sierradeck:invio-mancato', su)
+    return () => window.removeEventListener('sierradeck:invio-mancato', su)
+  }, [autopilota.id])
   const stacca = (l: Linguetta): void => {
     void window.gestore.pannello.stacca(autopilota.id, l).catch(() => undefined)
   }
@@ -287,6 +301,13 @@ export function DiarioAutopilota({
           conto suo, così la chat resta a vista mentre si leggono i criteri e
           i criteri restano a vista mentre si legge la chat. A tutta larghezza
           stanno fianco a fianco. */}
+      {mancato !== undefined ? (
+        <p className="misura diario__mancato">
+          Il compito nella chat «{mancato.titolo}» non risulta partito, nemmeno dopo i tentativi automatici: è annotato nel diario come guasto del programma.{' '}
+          <button className="tasto tasto--mini" title="Facoltativo: preme Invio in quella chat" onClick={() => { window.gestore.pty.write(mancato.ptyId, String.fromCharCode(13)); setMancato(undefined) }}>Invio</button>{' '}
+          <button className="tasto tasto--mini" onClick={() => setMancato(undefined)} aria-label="Togli la nota">×</button>
+        </p>
+      ) : null}
       <div className="diario__due">
         <ChatAutopilota autopilota={autopilota} onCambiato={onCambiato} />
 

@@ -155,20 +155,40 @@ const LAVORA_SULLO_SCHERMO = /esc to interrupt|interrupt to stop/i
 const CAMPO_SULLO_SCHERMO = /❯|bypass permissions|shift\+tab|\[Pasted text #\d+/i
 
 /**
- * Il testo incollato e' ancora nel campo (0.37.5): Claude Code, dopo un
- * incolla lungo, lo mostra come «[Pasted text #N +M lines]» finche' non parte.
+ * La riga d'attivita' di Claude Code mentre lavora: «* Schlepping… (2s ·
+ * thinking)», «✻ … (12s · ↓ 340 tokens)». Vista con un Claude Code vero
+ * (2.1.287): «esc to interrupt» non c'e' sempre, questa si'.
  */
-const INCOLLATO_NEL_CAMPO = /\[Pasted text #\d+/i
+const ATTIVITA_SULLO_SCHERMO = /\(\d+s ·|esc to interrupt|interrupt to stop/i
+
+/** Quante righe in fondo si guardano: il campo e la sua cornice, non la storia. */
+const RIGHE_DEL_FONDO = 12
 
 /**
- * Dopo un invio: la chat e' partita? Dallo schermo. `true` se lavora,
- * `false` se il testo incollato e' ancora nel campo, `undefined` se non si sa.
+ * Dopo un invio: la chat e' partita? (0.38.1)
+ *
+ * **Non si legge lo scrollback.** Fino alla 0.38.0 si cercava «[Pasted text #»
+ * in tutto lo schermo: ma quella riga resta visibile nel messaggio gia'
+ * mandato, e «esc to interrupt» non sempre compare, quindi una chat partita
+ * risultava ferma (falso allarme, altri Invio, e la banda «Premi Invio» per
+ * Nicholas). Ora si guarda solo il fondo dello schermo:
+ * - la riga d'attivita' («(2s · thinking)») → partita;
+ * - l'**ultima** riga «❯», cioe' il campo di adesso (quelle sopra sono i
+ *   messaggi gia' mandati): se contiene ancora il testo scritto (o un incolla)
+ *   → non partita; se e' vuota (o mostra il suggerimento «Try …») → partita.
+ * `undefined` se lo schermo non lo dice.
  */
-export function consegnaPartita(righe: string[] | undefined): boolean | undefined {
+export function consegnaPartita(righe: string[] | undefined, scritto?: string): boolean | undefined {
   if (righe === undefined || righe.length === 0) return undefined
-  const testo = righe.join('\n')
-  if (LAVORA_SULLO_SCHERMO.test(testo)) return true
-  if (INCOLLATO_NEL_CAMPO.test(testo)) return false
+  const fondo = righe.slice(-RIGHE_DEL_FONDO)
+  if (fondo.some((r) => ATTIVITA_SULLO_SCHERMO.test(r))) return true
+  const campo = [...fondo].reverse().find((r) => /^\s*[│|]?\s*❯/.test(r))
+  if (campo === undefined) return undefined
+  const dentro = campo.replace(/^\s*[│|]?\s*❯\s*/, '').replace(/[│|]\s*$/, '').trim()
+  if (dentro === '' || /^Try "/.test(dentro)) return true
+  if (/\[Pasted text #\d+/.test(dentro)) return false
+  const inizio = (scritto ?? '').trim().slice(0, 24)
+  if (inizio !== '' && dentro.startsWith(inizio.slice(0, Math.min(inizio.length, dentro.length)))) return false
   return undefined
 }
 

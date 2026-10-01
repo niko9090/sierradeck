@@ -265,7 +265,12 @@ function percorsiDa(args: string[], base: string): string[] {
     // `> file`, `2> file`: quello dopo e' dove va l'uscita, non un bersaglio.
     if (/^\d*>>?$/.test(w)) { k++; continue }
     if (nonPercorso(w)) continue
-    const pulito = w.replace(/^~(?=[\\/]|$)/, process.env.USERPROFILE ?? process.env.HOME ?? '~')
+    // `/e/Users/...` di Git Bash (e `/mnt/e/...` di WSL) e' `E:/Users/...`
+    // (0.38.1): senza, una cancellazione dentro le sue cartelle scritta cosi'
+    // risultava «fuori» — un falso allarme visto sul campo.
+    const unita = /^\/(?:mnt\/)?([a-zA-Z])(?=\/)/.exec(w)
+    const finestre = unita !== null ? `${unita[1]!.toUpperCase()}:${w.slice(unita[0].length)}` : w
+    const pulito = finestre.replace(/^~(?=[\\/]|$)/, process.env.USERPROFILE ?? process.env.HOME ?? '~')
     out.push(isAbsolute(pulito) || /^[a-zA-Z]:/.test(pulito) ? pulito : resolve(base, pulito))
   }
   return out

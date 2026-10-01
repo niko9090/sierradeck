@@ -48,7 +48,7 @@ export type Ponte = {
    * ancora nel campo («[Pasted text #N …]»), `undefined` = lo schermo non lo
    * dice. Senza, si guarda solo la prontezza, come prima.
    */
-  partita?: (ptyId: string) => boolean | undefined
+  partita?: (ptyId: string, scritto?: string) => boolean | undefined
   /**
    * Il compito e' nella chat ma non e' partito (0.37.5). Prima si diceva solo
    * nella console degli sviluppatori: le istruzioni restavano ferme nella
@@ -259,12 +259,19 @@ function scriviEInvia(
   ponte: Ponte,
   dopo: (ms: number, cosa: () => void) => void
 ): void {
-  ponte.scrivi(ptyId, `${INIZIO_INCOLLA}${c.testo}${FINE_INCOLLA}`)
-  premiInvio(ptyId, ponte, dopo, 0, 0, c)
+  // Una riga sola si **digita** (0.38.1): le istruzioni lunghe arrivano gia'
+  // come file piu' una riga corta (`consegna-breve.ts`, nel main). Solo un
+  // testo su piu' righe, quando il file non si e' potuto scrivere, va fra i
+  // marcatori dell'incolla: senza, i suoi a capo lo manderebbero a pezzi.
+  ponte.scrivi(ptyId, /[\r\n]/.test(c.testo) ? `${INIZIO_INCOLLA}${c.testo}${FINE_INCOLLA}` : c.testo)
+  premiInvio(ptyId, ponte, dopo, 0, 0, { ...c })
 }
 
 /** Quante volte (da `PAUSA_INVIO_MS`) si aspetta la prontezza prima di premere invio comunque. */
 export const ATTESE_PRONTEZZA = TENTATIVI_INVIO * 10
+
+/** Prima del secondo modo, una pausa: il terminale finisce di disegnarsi. */
+export const QUIETE_SECONDO_MODO_MS = 3000
 
 /**
  * Preme invio quando il terminale ha finito di disegnare, e controlla che sia
@@ -280,7 +287,8 @@ export function premiInvio(
   dopo: (ms: number, cosa: () => void) => void,
   tentativi: number,
   attese = 0,
-  c?: Pick<Consegna, 'chatId' | 'autopilotaId' | 'titolo'>
+  c?: Pick<Consegna, 'chatId' | 'autopilotaId' | 'titolo'> & { testo?: string },
+  secondoModo = false
 ): void {
   dopo(PAUSA_INVIO_MS, () => {
     // Il terminale sta ancora ridisegnando l'incollaggio: si lascia finire,
@@ -291,7 +299,7 @@ export function premiInvio(
     // non tornare in tempo: un invio in piu' su un campo pronto non fa danni,
     // un invio mancato ferma il lavoro.
     if (!ponte.prontoARicevere(ptyId) && attese < ATTESE_PRONTEZZA) {
-      premiInvio(ptyId, ponte, dopo, tentativi, attese + 1, c)
+      premiInvio(ptyId, ponte, dopo, tentativi, attese + 1, c, secondoModo)
       return
     }
     ponte.scrivi(ptyId, INVIO)
@@ -299,27 +307,35 @@ export function premiInvio(
       // Partita? Lo schermo lo dice meglio di tutto («esc to interrupt», o il
       // testo incollato ancora nel campo); se tace, vale la prontezza: ricevuto
       // l'invio la chat lavora e smette di essere «pronta a ricevere».
-      const p = ponte.partita?.(ptyId)
+      // Partita? Solo dal fondo dello schermo (il campo di adesso e la riga
+      // d'attivita'), mai dallo scrollback: 0.38.1. Se lo schermo tace vale la
+      // prontezza: ricevuto l'invio la chat lavora e smette di ascoltare.
+      const p = ponte.partita?.(ptyId, c?.testo)
       const ferma = p === false || (p === undefined && ponte.prontoARicevere(ptyId))
       if (!ferma) return
-      if (tentativi >= TENTATIVI_INVIO) {
-        console.error(
-          `[autopilota] il compito è nel campo della chat ma non parte,` +
-          ` dopo ${TENTATIVI_INVIO + 1} invii`
-        )
-        // Non si tace: lo vedono Nicholas (con il tasto che preme Invio) e
-        // l'autopilota, nel suo diario.
-        ponte.segnala?.({
-          ptyId,
-          chatId: c?.chatId ?? '',
-          autopilotaId: c?.autopilotaId ?? '',
-          titolo: c?.titolo ?? '',
-          motivo: `il compito è nel campo ma non è partito dopo ${TENTATIVI_INVIO + 1} invii`
-        })
+      if (tentativi < TENTATIVI_INVIO) {
+        console.warn('[autopilota] la chat non è partita: premo invio di nuovo')
+        premiInvio(ptyId, ponte, dopo, tentativi + 1, 0, c, secondoModo)
         return
       }
-      console.warn('[autopilota] la chat non è partita: premo invio di nuovo')
-      premiInvio(ptyId, ponte, dopo, tentativi + 1, 0, c)
+      if (!secondoModo) {
+        // **Un altro modo, da solo** (0.38.1): si aspetta che il terminale sia
+        // davvero quieto (fino a tutta l'attesa della prontezza) e si riprova
+        // da capo. Nicholas non deve premere niente.
+        console.warn('[autopilota] la chat non è partita: riprovo con più calma')
+        dopo(QUIETE_SECONDO_MODO_MS, () => premiInvio(ptyId, ponte, dopo, 0, 0, c, true))
+        return
+      }
+      console.error(`[autopilota] il compito è nel campo della chat ma non parte, nemmeno al secondo modo`)
+      // Un guasto del programma, non una domanda per Nicholas: va nel diario
+      // dell'autopilota (lo vede il supervisore) e, facoltativo, nella sua scheda.
+      ponte.segnala?.({
+        ptyId,
+        chatId: c?.chatId ?? '',
+        autopilotaId: c?.autopilotaId ?? '',
+        titolo: c?.titolo ?? '',
+        motivo: `guasto del programma: il compito è nel campo ma non è partito dopo ${2 * (TENTATIVI_INVIO + 1)} invii in due modi`
+      })
     })
   })
 }

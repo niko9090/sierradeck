@@ -200,3 +200,12 @@ describe('i divieti senza falsi allarmi (0.37.1)', () => {
     }
   })
 })
+
+describe('i percorsi di Git Bash e WSL (0.38.1)', () => {
+  it('/e/... è E:\...: dentro le sue cartelle passa, fuori resta bloccato', () => {
+    expect(giudicaStrumento(bash('rm -f /e/Progetti/sito/.sierradeck/consegne/prova.md'), [PROGETTO]).ok).toBe(true)
+    expect(giudicaStrumento(bash('rm -f /mnt/e/Progetti/sito/tmp.txt'), [PROGETTO]).ok).toBe(true)
+    expect(giudicaStrumento(bash('rm -rf /e/Altro'), [PROGETTO]).ok).toBe(false)
+    expect(giudicaStrumento(bash('rm -rf /c/altro'), [PROGETTO]).ok).toBe(false)
+  })
+})
