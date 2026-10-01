@@ -64,14 +64,15 @@ export function PannelloConsumi({ onChiudi, incorporato = false }: { onChiudi?: 
   )
 
   const limiti = consumi?.limiti
-  const finestra = (nome: string, spiega: string, f: { percento: number; resettaIl?: number } | undefined): React.JSX.Element => {
+  const finestra = (nome: string, spiega: string, f: { percento: number; resettaIl?: number; etichetta?: string } | undefined): React.JSX.Element => {
     const p = f === undefined ? 0 : Math.round(f.percento)
     const classe = p >= 95 ? 'limite__pieno--rosso' : p >= 80 ? 'limite__pieno--ambra' : ''
     return (
       <div className="limite">
         <div className="limite__testa">
           <span className="riga__nome">{nome}</span>
-          <span className="misura">{f === undefined ? 'non ancora letta' : `${p}% usato${f.resettaIl !== undefined ? ` · si azzera ${oraDi(f.resettaIl, adesso)}` : ''}`}</span>
+          {/* La frase di `limiti-piano.ts` (0.37.0): letto quando, azzerata, vecchia. */}
+          <span className="misura">{f === undefined ? 'non ancora letta' : f.etichetta ?? `${p}% usato${f.resettaIl !== undefined ? ` · si azzera ${oraDi(f.resettaIl, adesso)}` : ''}`}</span>
         </div>
         <div className="limite__barra" title={`${p}%`}>
           <span className={`limite__pieno ${classe}`} style={{ width: `${Math.max(f === undefined ? 0 : 1, p)}%` }} />
@@ -104,7 +105,7 @@ export function PannelloConsumi({ onChiudi, incorporato = false }: { onChiudi?: 
       <p className="misura" style={{ margin: '6px 0 14px', lineHeight: 1.5 }}>
         {limiti === undefined
           ? 'Non ancora letti. Arrivano dalla riga di stato di Claude Code dopo la prima risposta di una chat aperta da SierraDeck, e solo con un abbonamento Pro o Max (con una chiave API a consumo non ci sono finestre). Se restano vuoti anche dopo una risposta, guarda il registro.'
-          : `Letti ${oraDi(limiti.letti, adesso)}${limiti.modello !== undefined ? ` da una chat con ${limiti.modello}` : ''}. Sono gli stessi numeri di «/usage» in Claude Code; si aggiornano a ogni risposta. Sopra l’80% compare un avviso in basso a destra, sopra il 95% uno rosso.`}
+          : `Letti ${oraDi(limiti.letti, adesso)}${limiti.modello !== undefined ? ` da una chat con ${limiti.modello}` : ''}. Sono gli stessi numeri di «/usage» in Claude Code: fra tutte le chat vale la lettura più recente, e si aggiornano a ogni risposta. Oltre 20 minuti la lettura è segnata vecchia; dopo l’azzeramento si aspetta la lettura nuova invece di mostrare il valore di prima. Sopra l’80% compare un avviso in basso a destra, sopra il 95% uno rosso.`}
       </p>
 
       <div className="serigrafia" style={{ marginBottom: 6 }}>Spesa stimata da Claude Code</div>
@@ -130,7 +131,7 @@ export function PannelloConsumi({ onChiudi, incorporato = false }: { onChiudi?: 
               <span className="barra" style={{ flex: 1 }} title="Quanto del contesto della chat e' occupato: vicino al 100% Claude Code lo compatta da solo">
                 <span className={`barra__pieno${(c.contestoPercento ?? 0) >= 90 ? ' barra__pieno--ambra' : ''}`} style={{ width: `${Math.max(2, c.contestoPercento ?? 0)}%` }} />
               </span>
-              <span className="misura">contesto {c.contestoPercento ?? 0}%{c.costoUsd !== undefined ? ` · ${dollari(c.costoUsd)}` : ''}</span>
+              <span className="misura">contesto {c.contestoEtichetta ?? `${c.contestoPercento ?? 0}%`}{c.costoUsd !== undefined ? ` · ${dollari(c.costoUsd)}` : ''}</span>
             </div>
           ))}
           <p className="misura" style={{ margin: '4px 0 0', lineHeight: 1.5 }}>

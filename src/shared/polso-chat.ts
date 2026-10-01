@@ -13,14 +13,22 @@
  * mostrare in fondo al terminale.
  *
  * Questo modulo e' puro: legge il JSON, decide la riga, somma i costi, sceglie
- * gli avvisi. Chi lo chiama porta l'orologio.
+ * gli avvisi. Chi lo chiama porta l'orologio. L'aggregazione dei limiti fra
+ * le chat e il contesto stanno in `limiti-piano.ts` (0.37.0), l'unico posto.
  */
+import { contestoDa, quadroLimiti, type QuadroLimiti } from './limiti-piano'
 
 export type Finestra = {
   /** Percentuale usata, 0-100. */
   percento: number
   /** Quando si azzera, in millisecondi dall'epoca. */
   resettaIl?: number
+  /**
+   * Quando questi numeri sono stati letti davvero (ms), 0.37.0: una riga di
+   * stato ridisegnata senza una risposta nuova ripete la lettura di prima, e
+   * non la rende piu' giovane (`unisciPolso`).
+   */
+  lettoIl?: number
 }
 
 export type Polso = {
@@ -60,19 +68,18 @@ export function leggiPolso(raw: unknown, adesso: number): Polso | undefined {
   const limiti = oggetto(o.rate_limits)
   const nome = typeof modello?.display_name === 'string' ? modello.display_name : typeof modello?.id === 'string' ? modello.id : undefined
   const costoUsd = numero(costo?.total_cost_usd)
-  const percento = numero(ctx?.used_percentage)
-  const dimensione = numero(ctx?.context_window_size)
-  const uso = oggetto(ctx?.current_usage)
-  const usati = uso === undefined ? undefined
-    : (numero(uso.input_tokens) ?? 0) + (numero(uso.cache_creation_input_tokens) ?? 0) + (numero(uso.cache_read_input_tokens) ?? 0) + (numero(uso.output_tokens) ?? 0)
-  const cinqueOre = finestra(limiti?.five_hour)
-  const settimana = finestra(limiti?.seven_day)
+  // Solo i token in ingresso, come `used_percentage` (0.37.0: prima si
+  // sommava anche l'uscita, e i token mostrati non tornavano con la %).
+  const contesto = contestoDa(ctx)
+  const letta = (f: Finestra | undefined): Finestra | undefined => (f === undefined ? undefined : { ...f, lettoIl: adesso })
+  const cinqueOre = letta(finestra(limiti?.five_hour))
+  const settimana = letta(finestra(limiti?.seven_day))
   return {
     sessione,
     quando: adesso,
     ...(nome !== undefined ? { modello: nome } : {}),
     ...(costoUsd !== undefined ? { costoUsd } : {}),
-    ...(percento !== undefined ? { contesto: { percento: Math.round(percento), usati: usati ?? 0, dimensione: dimensione ?? 0 } } : {}),
+    ...(contesto !== undefined ? { contesto } : {}),
     ...(cinqueOre !== undefined || settimana !== undefined
       ? { limiti: { ...(cinqueOre !== undefined ? { cinqueOre } : {}), ...(settimana !== undefined ? { settimana } : {}) } }
       : {})
@@ -106,30 +113,16 @@ export function rigaDiStato(p: Polso, adesso: number): string {
   return pezzi.join(' · ')
 }
 
-export type Limiti = {
-  cinqueOre?: Finestra
-  settimana?: Finestra
-  /** Quando sono stati letti, ms, e da quale chat/modello. */
-  letti: number
-  modello?: string
-}
+/** I limiti del piano come li legge il programma: il quadro di `limiti-piano.ts`. */
+export type Limiti = QuadroLimiti
 
-/** I limiti piu' recenti fra tutti i polsi: sono del piano, non della chat, quindi l'ultimo letto vale per tutti. */
+/**
+ * I limiti del piano fra tutti i polsi: sono del piano, non della chat. Dalla
+ * 0.37.0 e' `quadroLimiti`: lettura piu' recente per finestra, azzeramento,
+ * eta' e lettura vecchia.
+ */
 export function limitiAggiornati(polsi: Polso[], adesso: number): Limiti | undefined {
-  const con = polsi.filter((p) => p.limiti !== undefined).sort((a, b) => b.quando - a.quando)
-  const ultimo = con[0]
-  if (ultimo === undefined || ultimo.limiti === undefined) return undefined
-  // Una finestra gia' azzerata non si mostra piu' come piena.
-  const viva = (f: Finestra | undefined): Finestra | undefined =>
-    f === undefined ? undefined : f.resettaIl !== undefined && f.resettaIl <= adesso ? { percento: 0, resettaIl: f.resettaIl } : f
-  const cinqueOre = viva(ultimo.limiti.cinqueOre)
-  const settimana = viva(ultimo.limiti.settimana)
-  return {
-    ...(cinqueOre !== undefined ? { cinqueOre } : {}),
-    ...(settimana !== undefined ? { settimana } : {}),
-    letti: ultimo.quando,
-    ...(ultimo.modello !== undefined ? { modello: ultimo.modello } : {})
-  }
+  return quadroLimiti(polsi, adesso)
 }
 
 export type Costo = { oggi: number; settimana: number; totale: number; chat: number }
@@ -171,7 +164,7 @@ const SOGLIE = [80, 95] as const
  * l'avviso puo' tornare, prima no.
  */
 export function avvisiConsumi(p: {
-  limiti?: Limiti
+  limiti?: { cinqueOre?: Finestra; settimana?: Finestra; letti?: number }
   chatAperte: { sessione: string; titolo?: string; contestoPercento?: number }[]
   adesso: number
 }): AvvisoConsumi[] {

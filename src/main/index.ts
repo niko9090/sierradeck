@@ -48,6 +48,8 @@ import { apriIstantaneeStore } from './istantanee-store'
 import { listSessions } from './db'
 import { riassumiConsumi, type Consumi } from '@shared/consumi'
 import { costoPerPeriodo, leggiPolso, limitiAggiornati, rigaDiStato, type Polso } from '@shared/polso-chat'
+import { etichettaContesto, limitiPerFreno, unisciPolso } from '@shared/limiti-piano'
+import { frenoDaiLimiti, testoFreno } from '@shared/harness'
 import { creaWorkspace, eliminaWorkspace } from './workspace-operazioni'
 import type { SessionSummary } from '@shared/types'
 import { apriImpostazioniStore } from './impostazioni-store'
@@ -185,7 +187,9 @@ const polsi = new Map<string, Polso>()
 let salvaPolsiTimer: NodeJS.Timeout | undefined
 let filePolsi = ''
 function ricordaPolso(p: Polso): void {
-  polsi.set(p.sessione, p)
+  // Unito a quello di prima (0.37.0): una chat senza limiti non cancella il
+  // valore buono, e una riga ridisegnata non ringiovanisce una lettura.
+  polsi.set(p.sessione, unisciPolso(polsi.get(p.sessione), p))
   if (salvaPolsiTimer !== undefined) return
   salvaPolsiTimer = setTimeout(() => {
     salvaPolsiTimer = undefined
@@ -210,19 +214,26 @@ function arricchisciConsumi(c: Consumi): Consumi {
   const adesso = Date.now()
   const tutti = [...polsi.values()]
   const limiti = limitiAggiornati(tutti, adesso)
+  // Tutte le chat aperte (0.37.0), anche senza polso: il contesto con la sua
+  // frase, calcolato una volta qui per PC, pagina e app.
   const chatConPolso = chatAperte
-    .filter((ch) => ch.sessione !== undefined && polsi.has(ch.sessione))
+    .filter((ch) => ch.sessione !== undefined && ch.sessione !== '')
     .map((ch) => {
       const p = polsi.get(ch.sessione ?? '')
       return {
         sessione: ch.sessione ?? '',
         titolo: ch.titolo,
         ...(p?.modello !== undefined ? { modello: p.modello } : {}),
-        ...(p?.contesto !== undefined ? { contestoPercento: p.contesto.percento } : {}),
-        ...(p?.costoUsd !== undefined ? { costoUsd: p.costoUsd } : {})
+        ...(p?.contesto !== undefined ? { contestoPercento: p.contesto.percento, contesto: p.contesto } : {}),
+        ...(p?.costoUsd !== undefined ? { costoUsd: p.costoUsd } : {}),
+        contestoEtichetta: etichettaContesto(p?.contesto),
+        ...(p !== undefined ? { lettoIl: p.quando } : {})
       }
     })
-  return { ...c, ...(limiti !== undefined ? { limiti } : {}), costo: costoPerPeriodo(tutti, adesso), chatAperte: chatConPolso }
+  // Il freno degli autopiloti con questi stessi limiti: la funzione del servizio.
+  const f = frenoDaiLimiti(limitiPerFreno(limiti), adesso)
+  const freno = { ...f, ...testoFreno(f) }
+  return { ...c, ...(limiti !== undefined ? { limiti } : {}), costo: costoPerPeriodo(tutti, adesso), chatAperte: chatConPolso, freno }
 }
 /**
  * La riga di stato di Claude Code per le chat di SierraDeck: un `curl` che

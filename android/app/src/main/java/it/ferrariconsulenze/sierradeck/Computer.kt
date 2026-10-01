@@ -304,9 +304,28 @@ fun Computer(api: Api, stato: Stato?) {
             FinestraRiga("Settimana", l?.settimana, "Il tetto settimanale su tutti i modelli.")
             Text(
                 if (l == null) "Non ancora letti: arrivano dalla riga di stato di Claude Code dopo la prima risposta di una chat aperta dal computer (solo con abbonamento Pro o Max)."
-                else "Letti " + quandoLetti(l.letti, System.currentTimeMillis()) + ": gli stessi numeri di /usage in Claude Code. Si aggiornano a ogni risposta di una chat aperta dal computer, e qui ogni mezzo minuto.",
+                else "Letti " + quandoLetti(l.letti, System.currentTimeMillis()) + ": gli stessi numeri di /usage in Claude Code. Fra tutte le chat aperte dal computer vale la lettura più recente; si aggiornano a ogni risposta, e qui ogni mezzo minuto. Una lettura di più di 20 minuti è segnata vecchia: il valore vero può essere più alto.",
                 color = Banco.testoQuieto, fontSize = 11.sp
             )
+            // Il contesto di ogni chat aperta, con la frase del computer
+            // (0.37): uguale alla console e alla pagina.
+            if (c.chatAperte.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text("CONTESTO DELLE CHAT APERTE", color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp)
+                for (ch in c.chatAperte) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(rigaContesto(ch), color = Banco.testo, fontSize = 12.sp)
+                }
+                Text(
+                    "Il contesto è la memoria di lavoro della chat: si conta come Claude Code, solo con i token in ingresso. Al 90% conviene farle riassumere dove è arrivata, prima che lo compatti da sola.",
+                    color = Banco.testoQuieto, fontSize = 11.sp
+                )
+            }
+            c.freno?.let { fr ->
+                Spacer(Modifier.height(8.dp))
+                Text("FRENO DEGLI AUTOPILOTI", color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp)
+                Text("${fr.titolo}: ${fr.spiegazione.ifEmpty { fr.motivo }}", color = Banco.testoQuieto, fontSize = 12.sp)
+            }
             c.costo?.let { k ->
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -850,7 +869,7 @@ private fun FinestraRiga(nome: String, f: Finestra?, spiega: String) {
     Spacer(Modifier.height(6.dp))
     Row(Modifier.fillMaxWidth()) {
         Text(nome, color = Banco.testo, fontSize = 13.sp, modifier = Modifier.weight(1f))
-        Text(if (f == null) "non ancora letta" else "$p% usato$quando", color = Banco.testoQuieto, fontSize = 12.sp)
+        Text(fraseFinestra(f, quando), color = Banco.testoQuieto, fontSize = 12.sp)
     }
     Spacer(Modifier.height(4.dp))
     Box(Modifier.fillMaxWidth().height(8.dp).background(Banco.chassisAlto, RoundedCornerShape(4.dp))) {
@@ -1078,6 +1097,24 @@ private fun Account(account: Account?, api: Api, onCambiato: () -> Unit) {
  * altrimenti con la data. Prima era sempre «alle HH:mm», e un numero di tre
  * giorni fa sembrava di adesso.
  */
+/**
+ * La frase di una finestra del piano: quella del computer quando c'e' (dalla
+ * 0.37, con «letto N minuti fa», «azzerata, in attesa…», «lettura vecchia»),
+ * altrimenti come prima.
+ */
+fun fraseFinestra(f: Finestra?, quando: String = ""): String = when {
+    f == null -> "non ancora letta"
+    !f.etichetta.isNullOrBlank() -> f.etichetta
+    else -> "${f.percento.toInt().coerceIn(0, 100)}% usato$quando"
+}
+
+/** «Portfolio · Opus 5: 42% · 84k di 200k token», con la frase del computer. */
+fun rigaContesto(c: ChatConsumo): String {
+    val nome = c.titolo?.ifBlank { null } ?: c.sessione.take(8)
+    val modello = c.modello?.let { " · $it" } ?: ""
+    return "$nome$modello: ${c.contestoEtichetta ?: c.contesto?.let { "${it.percento}%" } ?: "contesto non ancora letto"}"
+}
+
 fun quandoLetti(letti: Long, adesso: Long, zona: java.util.TimeZone = java.util.TimeZone.getDefault()): String {
     val cal = { t: Long -> java.util.Calendar.getInstance(zona).apply { timeInMillis = t } }
     val l = cal(letti); val a = cal(adesso)

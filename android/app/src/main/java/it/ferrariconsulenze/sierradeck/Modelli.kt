@@ -297,11 +297,40 @@ data class Consumi(
     /** I limiti del piano, letti dal computer (dalla 0.31): finestra di 5 ore e settimana. */
     val limiti: Limiti? = null,
     /** La spesa che Claude Code stima, in dollari. */
-    val costo: Costo? = null
+    val costo: Costo? = null,
+    /** Le chat aperte sul computer con il loro contesto, gia' detto in parole (dalla 0.37). */
+    val chatAperte: List<ChatConsumo> = emptyList(),
+    /** Cosa farebbe adesso il freno degli autopiloti con questi limiti (dalla 0.37). */
+    val freno: FrenoConsumi? = null
+)
+
+/**
+ * Una finestra del piano. Dalla 0.37 il computer manda anche `stato`
+ * («fresca», «vecchia», «azzerata») e `etichetta`, la frase intera — la
+ * stessa della console e della pagina: l'app la mostra cosi' com'e'.
+ */
+@Serializable
+data class Finestra(
+    val percento: Double = 0.0,
+    val resettaIl: Long? = null,
+    val stato: String? = null,
+    val etichetta: String? = null
 )
 
 @Serializable
-data class Finestra(val percento: Double = 0.0, val resettaIl: Long? = null)
+data class ContestoChat(val percento: Int = 0, val usati: Long = 0, val dimensione: Long = 0)
+
+@Serializable
+data class ChatConsumo(
+    val sessione: String = "",
+    val titolo: String? = null,
+    val modello: String? = null,
+    val contesto: ContestoChat? = null,
+    val contestoEtichetta: String? = null
+)
+
+@Serializable
+data class FrenoConsumi(val livello: String = "", val titolo: String = "", val spiegazione: String = "", val motivo: String = "")
 
 @Serializable
 data class Limiti(val cinqueOre: Finestra? = null, val settimana: Finestra? = null, val letti: Long = 0, val modello: String? = null)

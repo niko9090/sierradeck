@@ -2419,22 +2419,38 @@ function descriviAggiornamento() {
 
 function limitiHtml(c) {
   var l = c && c.limiti
+  // La frase di ogni finestra la scrive il computer (0.37.0, limiti-piano.ts):
+  // percentuale, azzeramento, da quanto e' letta, «azzerata, in attesa» o
+  // «lettura vecchia» — la stessa del PC e dell'app.
   var barra = function (nome, f, spiega) {
     var p = f ? Math.round(f.percento) : 0
-    var colore = p >= 95 ? '#dc5f5f' : p >= 80 ? '#e0a33c' : '#4aa3ff'
+    var colore = f && f.stato === 'azzerata' ? '#4a5058' : p >= 95 ? '#dc5f5f' : p >= 80 ? '#e0a33c' : '#4aa3ff'
     var quando = f && f.resettaIl ? ' \u00b7 si azzera ' + new Date(f.resettaIl).toLocaleString('it-IT', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : ''
-    return '<div style="margin-top:10px"><div class="sotto"><b>' + nome + '</b>: ' + (f ? p + '% usato' + quando : 'non ancora letta') + '</div>' +
+    var frase = f ? (f.etichetta ? esc(f.etichetta) : p + '% usato' + quando) : 'non ancora letta'
+    return '<div style="margin-top:10px"><div class="sotto"><b>' + nome + '</b>: ' + frase + '</div>' +
       '<div class="barra"><i style="width:' + p + '%;background:' + colore + '"></i></div><div class="sotto">' + spiega + '</div></div>'
   }
+  var chatAperte = (c && c.chatAperte) || []
+  var contesti = chatAperte.length === 0 ? '' :
+    '<div class="serigrafia" style="margin-top:12px">CONTESTO DELLE CHAT APERTE</div>' +
+    chatAperte.map(function (x) {
+      var cp = x.contesto ? x.contesto.percento : 0
+      return '<div style="margin-top:8px"><div class="sotto"><b>' + esc(x.titolo || String(x.sessione || '').slice(0, 8)) + '</b>' + (x.modello ? ' \u00b7 ' + esc(x.modello) : '') + ': ' + esc(x.contestoEtichetta || 'contesto non ancora letto') + '</div>' +
+        '<div class="barra"><i style="width:' + cp + '%;background:' + (cp >= 90 ? '#e0a33c' : '#4aa3ff') + '"></i></div></div>'
+    }).join('') +
+    '<div class="sotto" style="margin-top:6px">Il contesto \u00e8 la memoria di lavoro della chat: si conta come Claude Code, solo con i token in ingresso. Al 90% conviene farle riassumere dove \u00e8 arrivata, prima che lo compatti da sola.</div>'
+  var freno = c && c.freno
+    ? '<div class="serigrafia" style="margin-top:12px">FRENO DEGLI AUTOPILOTI</div><div class="sotto" style="margin-top:6px"><b>' + esc(c.freno.titolo || '') + '</b>: ' + esc(c.freno.spiegazione || c.freno.motivo || '') + '</div>'
+    : ''
   var spesa = c && c.costo
     ? '<div class="sotto" style="margin-top:10px"><b>Spesa stimata da Claude Code</b>: oggi ' + Number(c.costo.oggi || 0).toFixed(2) + ' $, 7 giorni ' + Number(c.costo.settimana || 0).toFixed(2) + ' $. Con un abbonamento \u00e8 un\u2019indicazione, non una fattura.</div>'
     : ''
   return '<div class="solco"></div><div class="serigrafia">LIMITI DEL PIANO</div>' +
     barra('Finestra di 5 ore', l && l.cinqueOre, 'Al 100% le chat si fermano fino all\u2019azzeramento.') +
     barra('Settimana', l && l.settimana, 'Il tetto settimanale su tutti i modelli.') +
-    (l ? '<div class="sotto" style="margin-top:6px">Letti ' + (quandoLetti(l.letti, Date.now()) || 'di recente') + ': sono gli stessi numeri di /usage in Claude Code. Si aggiornano a ogni risposta di una chat aperta dal computer, e qui ogni mezzo minuto.</div>'
+    (l ? '<div class="sotto" style="margin-top:6px">Letti ' + (quandoLetti(l.letti, Date.now()) || 'di recente') + ': sono gli stessi numeri di /usage in Claude Code. Fra tutte le chat aperte dal computer vale la lettura pi\u00f9 recente; si aggiornano a ogni risposta, e qui ogni mezzo minuto. Una lettura di pi\u00f9 di 20 minuti \u00e8 segnata vecchia: il valore vero pu\u00f2 essere pi\u00f9 alto.</div>'
       : '<div class="sotto" style="margin-top:6px">Arrivano dalla riga di stato di Claude Code dopo la prima risposta di una chat aperta dal computer (solo con abbonamento Pro o Max).</div>') +
-    spesa
+    contesti + freno + spesa
 }
 
 window.leggiConsumi = async () => {

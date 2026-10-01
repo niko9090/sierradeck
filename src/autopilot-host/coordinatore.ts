@@ -47,11 +47,20 @@ export function leggiStatoProgramma(raw: unknown, adesso: number): StatoProgramm
   const lista = <T>(v: unknown, f: (x: Record<string, unknown>) => T | undefined): T[] =>
     Array.isArray(v) ? v.flatMap((x) => (typeof x === 'object' && x !== null ? (f(x as Record<string, unknown>) ?? []) : [])) as T[] : []
   const s = (v: unknown): string => (typeof v === 'string' ? v : '')
-  const finestra = (v: unknown): { percento: number; resettaIl?: number } | undefined => {
+  // Il quadro dei limiti come lo manda il Gestore (`limiti-piano.ts`): la
+  // percentuale *letta* (non lo 0 di una finestra azzerata) con il suo
+  // azzeramento e il momento della lettura; lo stato lo ricalcola il freno,
+  // all'ora del servizio, con la stessa funzione.
+  const finestra = (v: unknown): { percento: number; resettaIl?: number; lettoIl?: number } | undefined => {
     if (typeof v !== 'object' || v === null) return undefined
     const f = v as Record<string, unknown>
-    if (typeof f.percento !== 'number') return undefined
-    return { percento: f.percento, ...(typeof f.resettaIl === 'number' ? { resettaIl: f.resettaIl } : {}) }
+    const percento = typeof f.percentoLetto === 'number' ? f.percentoLetto : f.percento
+    if (typeof percento !== 'number') return undefined
+    return {
+      percento,
+      ...(typeof f.resettaIl === 'number' ? { resettaIl: f.resettaIl } : {}),
+      ...(typeof f.lettoIl === 'number' ? { lettoIl: f.lettoIl } : {})
+    }
   }
   const lim = (typeof o.limiti === 'object' && o.limiti !== null ? o.limiti : {}) as Record<string, unknown>
   const cinque = finestra(lim.cinqueOre)

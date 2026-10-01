@@ -14,11 +14,17 @@
  */
 
 import { TETTO_CHAT_MAX, type Autopilota } from './autopilota'
+import { daQuanto, statoFinestra } from './limiti-piano'
 
 // ─── Il freno sui limiti del piano ────────────────────────────────────────
 
-/** Una finestra del piano come la legge il programma dalla riga di stato (`polso-chat.ts`). */
-export type FinestraPiano = { percento: number; resettaIl?: number }
+/**
+ * Una finestra del piano come la legge il programma dalla riga di stato
+ * (`polso-chat.ts`, aggregata da `limiti-piano.ts`). `lettoIl` (0.37.0) dice
+ * quando e' stata letta: il freno la giudica con la stessa `statoFinestra`
+ * della console, della pagina e dell'app.
+ */
+export type FinestraPiano = { percento: number; resettaIl?: number; lettoIl?: number }
 
 export type LimitiPiano = {
   cinqueOre?: FinestraPiano
@@ -63,14 +69,20 @@ const ora = (ms: number): string => {
  * quanto costa, e il piano e' lo stesso delle chat di Nicholas.
  */
 export function frenoDaiLimiti(limiti: LimitiPiano | undefined, adesso: number): Freno {
-  const finestre: { nome: string; f: FinestraPiano }[] = []
-  // Una finestra gia' azzerata non frena piu': conta come vuota.
-  const viva = (f: FinestraPiano | undefined): FinestraPiano | undefined =>
-    f === undefined ? undefined : (f.resettaIl !== undefined && f.resettaIl <= adesso ? { percento: 0 } : f)
-  const cinque = viva(limiti?.cinqueOre)
-  const sett = viva(limiti?.settimana)
-  if (cinque !== undefined) finestre.push({ nome: 'finestra di 5 ore', f: cinque })
-  if (sett !== undefined) finestre.push({ nome: 'settimana', f: sett })
+  const finestre: { nome: string; f: FinestraPiano; nota: string }[] = []
+  // La stessa lettura della console (0.37.0): una finestra azzerata non frena
+  // piu' (conta come vuota, in attesa della lettura nuova); una lettura vecchia
+  // vale ancora — e' l'ultima cosa che si sa — ma il motivo lo dice.
+  const giudica = (f: FinestraPiano | undefined): { f: FinestraPiano; nota: string } | undefined => {
+    if (f === undefined) return undefined
+    const s = statoFinestra({ ...f, lettoIl: f.lettoIl ?? adesso }, adesso)
+    if (s.stato === 'azzerata') return { f: { percento: 0 }, nota: ' (appena azzerata, aspetto la lettura nuova)' }
+    return { f, nota: s.stato === 'vecchia' ? ` (lettura di ${daQuanto(s.etaMs)})` : '' }
+  }
+  const cinque = giudica(limiti?.cinqueOre)
+  const sett = giudica(limiti?.settimana)
+  if (cinque !== undefined) finestre.push({ nome: 'finestra di 5 ore', ...cinque })
+  if (sett !== undefined) finestre.push({ nome: 'settimana', ...sett })
   if (finestre.length === 0) {
     return {
       livello: 'ignoto', tetto: 1, apriNuove: false,
@@ -79,25 +91,45 @@ export function frenoDaiLimiti(limiti: LimitiPiano | undefined, adesso: number):
   }
   const peggiore = finestre.reduce((a, b) => (b.f.percento > a.f.percento ? b : a))
   const p = Math.round(peggiore.f.percento)
+  const nota = peggiore.nota
   const quando = peggiore.f.resettaIl
   if (p >= SOGLIE_FRENO.fermo) {
     return {
       livello: 'fermo', tetto: 0, apriNuove: false,
-      motivo: `${peggiore.nome} al ${p}%: mi fermo per non consumare quello che resta` +
+      motivo: `${peggiore.nome} al ${p}%${nota}: mi fermo per non consumare quello che resta` +
         (quando !== undefined ? `, riparto alle ${ora(quando)}` : ''),
       ...(quando !== undefined ? { riparteIl: quando } : {})
     }
   }
   if (p >= SOGLIE_FRENO.una) {
-    return { livello: 'una', tetto: 1, apriNuove: false, motivo: `${peggiore.nome} al ${p}%: scendo a una chat sola` }
+    return { livello: 'una', tetto: 1, apriNuove: false, motivo: `${peggiore.nome} al ${p}%${nota}: scendo a una chat sola` }
   }
   if (p >= SOGLIE_FRENO.nienteNuove) {
     return {
       livello: 'niente-nuove', tetto: TETTO_CHAT_MAX, apriNuove: false,
-      motivo: `${peggiore.nome} al ${p}%: non apro chat nuove, quelle al lavoro continuano`
+      motivo: `${peggiore.nome} al ${p}%${nota}: non apro chat nuove, quelle al lavoro continuano`
     }
   }
-  return { livello: 'pieno', tetto: TETTO_CHAT_MAX, apriNuove: true, motivo: `${peggiore.nome} al ${p}%: via libera` }
+  return { livello: 'pieno', tetto: TETTO_CHAT_MAX, apriNuove: true, motivo: `${peggiore.nome} al ${p}%${nota}: via libera` }
+}
+
+/**
+ * Il freno detto per esteso (0.37.0): il titolo e cosa vuol dire, uguale nella
+ * colonna «Consumi e limiti» del PC, nella pagina e nell'app.
+ */
+export function testoFreno(f: Freno): { titolo: string; spiegazione: string } {
+  switch (f.livello) {
+    case 'pieno':
+      return { titolo: 'Via libera', spiegazione: `Gli autopiloti possono aprire tutte le chat utili, fino a ${TETTO_CHAT_MAX} insieme. Motivo: ${f.motivo}.` }
+    case 'niente-nuove':
+      return { titolo: 'Niente chat nuove', spiegazione: `Le chat degli autopiloti già al lavoro continuano, ma non ne aprono altre finché la finestra non scende o si azzera. Motivo: ${f.motivo}.` }
+    case 'una':
+      return { titolo: 'Una chat sola', spiegazione: `Ogni autopilota lavora con una chat sola: le altre si mettono in pausa a fine turno e ripartono da sole quando il piano lo permette. Motivo: ${f.motivo}.` }
+    case 'fermo':
+      return { titolo: 'Fermo', spiegazione: `Gli autopiloti si fermano a fine turno per non consumare quello che resta, e ripartono da soli all’azzeramento. Motivo: ${f.motivo}.` }
+    default:
+      return { titolo: 'Limiti non letti', spiegazione: 'Senza i limiti del piano gli autopiloti lavorano con una chat sola, per prudenza: i limiti arrivano alla prima risposta di una chat aperta dal computer (solo con abbonamento Pro o Max).' }
+  }
 }
 
 /**

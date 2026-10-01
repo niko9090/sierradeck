@@ -21,8 +21,27 @@ export type Consumi = {
   limiti?: Limiti
   /** La spesa che Claude Code stima per le sue sessioni, sommata per periodo. */
   costo?: Costo
-  /** Le chat aperte adesso, con modello, contesto occupato e costo. */
-  chatAperte?: { sessione: string; titolo?: string; modello?: string; contestoPercento?: number; costoUsd?: number }[]
+  /**
+   * Le chat aperte adesso, con modello, contesto occupato e costo. Dalla
+   * 0.37.0 ci sono tutte, anche quelle senza polso, e il contesto arriva con
+   * la sua frase (`etichettaContesto`): PC, pagina e app la mostrano uguale.
+   */
+  chatAperte?: {
+    sessione: string
+    titolo?: string
+    modello?: string
+    contestoPercento?: number
+    costoUsd?: number
+    contesto?: { percento: number; usati: number; dimensione: number }
+    contestoEtichetta?: string
+    /** Quando e' arrivata l'ultima riga di stato di questa chat (ms). */
+    lettoIl?: number
+  }[]
+  /**
+   * Cosa farebbe adesso il freno degli autopiloti con questi limiti (0.37.0):
+   * la stessa `frenoDaiLimiti` del servizio, sullo stesso quadro.
+   */
+  freno?: { livello: string; tetto: number; apriNuove: boolean; motivo: string; riparteIl?: number; titolo: string; spiegazione: string }
 }
 
 const GIORNO_MS = 24 * 60 * 60 * 1000

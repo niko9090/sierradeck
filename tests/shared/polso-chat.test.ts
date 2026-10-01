@@ -17,7 +17,8 @@ describe('leggiPolso', () => {
     const p = leggiPolso(grezzo, ADESSO)
     expect(p).toMatchObject({
       sessione: 's-1', quando: ADESSO, modello: 'Opus 5', costoUsd: 1.2345,
-      contesto: { percento: 42, usati: 84800, dimensione: 200000 },
+      // Solo i token in ingresso, come la percentuale di Claude Code (0.37.0).
+      contesto: { percento: 42, usati: 84000, dimensione: 200000 },
       limiti: { cinqueOre: { percento: 63, resettaIl: RESET * 1000 }, settimana: { percento: 31.2 } }
     })
   })
@@ -41,7 +42,8 @@ describe('limitiAggiornati e costoPerPeriodo', () => {
     const vecchio = { sessione: 'a', quando: ADESSO - 10_000, modello: 'Sonnet', limiti: { cinqueOre: { percento: 90, resettaIl: ADESSO - 1 } } }
     const nuovo = { sessione: 'b', quando: ADESSO - 1000, modello: 'Opus 5', limiti: { cinqueOre: { percento: 63, resettaIl: ADESSO + 3600_000 } } }
     expect(limitiAggiornati([vecchio, nuovo], ADESSO)).toMatchObject({ cinqueOre: { percento: 63 }, modello: 'Opus 5', letti: ADESSO - 1000 })
-    expect(limitiAggiornati([vecchio], ADESSO)?.cinqueOre).toEqual({ percento: 0, resettaIl: ADESSO - 1 })
+    // Azzerata: non il vecchio 90%, e nemmeno uno 0 spacciato per lettura.
+    expect(limitiAggiornati([vecchio], ADESSO)?.cinqueOre).toMatchObject({ stato: 'azzerata', percento: 0, percentoLetto: 90, resettaIl: ADESSO - 1 })
     expect(limitiAggiornati([{ sessione: 'c', quando: ADESSO }], ADESSO)).toBeUndefined()
   })
   it('somma i costi per oggi, settimana e sempre', () => {
