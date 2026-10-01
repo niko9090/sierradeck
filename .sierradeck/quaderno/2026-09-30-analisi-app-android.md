@@ -162,3 +162,7 @@ pagina: `tests/main/client-pagina.test.ts` («analisi del telefono, 30/09»); co
   il PC è spento.
 - Pubblicazione: non fatta. Alla release servono l'APK 2.38.0 (android/ è cambiato) e `app-android.json`
   (vedi [[pubblicare-una-release]], REGOLA APK).
+
+## Nota 01/10 (0.36.1)
+
+Sul PC le chat di un altro PC ora si aprono da sole dal vivo, o in attesa se quel PC tace (vedi `chat-dal-vivo-su-un-altro-pc.md`). Dal telefono, toccandole, la risposta dice «su X · acceso / spento o non risponde» al posto dell'errore secco. **P1 resta da fare** (per scelta, non in 0.36.1): guardarle dal vivo dal telefono attraverso il PC accoppiato.

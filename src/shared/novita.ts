@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.36.1',
+    righe: [
+      '**Le chat che vivono su un altro PC si aprono dal vivo su quel PC, non più con un errore.** Quando apri un workspace, premi «Torna a com’era» o riprendi una conversazione, prima di aprirla qui il programma guarda dove vive: se è aperta su un altro tuo PC, o la sua cartella sta là, e quel PC è acceso, il riquadro si collega subito a lui e ci lavori a distanza, come dal telefono. Niente più «guarda dal vivo / apri qui lo stesso» da scegliere, niente «la trascrizione non c’è».',
+      '**Se quel PC è spento o non risponde, il riquadro lo dice e aspetta:** «su Portatile · spento o non risponde», da quanto tace, e le strade possibili spiegate per esteso — aspettare (si ricollega da solo appena torna), «Porta qui» dalla scheda Drive, una chat nuova nella stessa cartella, «Apri qui lo stesso». Le chat di questo PC si aprono qui come sempre.',
+      '**Una chat dal vivo che perde il suo PC a metà non cade in errore:** resta l’ultimo schermo, la riga dice «non risponde da 20 secondi · riprovo da solo» e appena quel PC risponde riprende. Dal telefono e dalla pagina, toccando una chat di un altro PC, la risposta dice «su X · acceso» o «spento o non risponde» e cosa farà il computer.'
+    ]
+  },
+  {
     versione: '0.36.0',
     righe: [
       '**L’autopilota decide da solo quante chat aprire, ognuna nella sua copia del progetto.** Se il lavoro si divide in parti indipendenti apre più chat, ognuna in un git worktree su un suo ramo: niente più file pestati. A ogni fine turno il programma salva il lavoro di ogni chat e lo unisce nel ramo principale, dove si misurano i criteri; un conflitto non si risolve a caso, la chat si riallinea. A lavoro finito unisce tutto, ripassa i criteri sul risultato unito e toglie le copie.',
