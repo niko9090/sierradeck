@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { ModaleSposta } from './ModaleSposta'
+import { ModaleRiordina } from './ModaleRiordina'
 import type { Catalogo, ProgettoCatalogo, ChatCatalogo, WorkspaceCatalogo } from '../../main/cassaforte/catalogo'
 import type { StatoLavoro } from '../../main/cassaforte/lavoro-in-corso'
 import { ModaleFusione } from './ModaleFusione'
@@ -62,6 +64,9 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
   }
   const commuta = (k: string): void => setAperti((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n })
   const [vista, setVista] = useState<'progetti' | 'workspace'>('progetti')
+  // «Una chat, una casa» (0.42.0): le due finestre.
+  const [sposta, setSposta] = useState(false)
+  const [riordina, setRiordina] = useState(false)
   const [wsDaTogliere, setWsDaTogliere] = useState<WorkspaceCatalogo | undefined>(undefined)
   // «Togli dal Drive» e «Rimetti»: una lapide sul Drive. Qui non cambia niente,
   // e nemmeno sugli altri PC: cambia cosa viaggia.
@@ -139,8 +144,16 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
       </div>
 
       <p className="account__nota">
-        Qui vedi tutto quello che sta sul Drive, raggruppato per progetto, cioè per la cartella in cui le chat lavorano: da dove viene, quante chat ha, quando è stato toccato l’ultima volta, e per ogni chat il nome e lo stato rispetto a questo PC. <strong>«Porta qui»</strong> scarica la cartella se viaggia con le chat (i progetti sul Drive), poi le chat che qui mancano, le mette nel workspace in cui stavano creandolo se serve, e alla fine il programma si riavvia da solo per mostrarle; <strong>«Aggiorna qui»</strong> fa lo stesso quando qui hai una versione più vecchia. <strong>«Apri»</strong> accanto a una chat che è già qui la riapre nel suo workspace. <strong>«Togli la cartella dal Drive»</strong> vale per i progetti che viaggiano con la cartella: i file della cartella salvati sul Drive vengono tolti e la cartella smette di viaggiare; le chat e le cartelle sui PC restano come sono. Per il resto niente viene mai cancellato: si copia da una parte all’altra, e basta. Quello che è solo qui sale da solo al prossimo salvataggio automatico. Le chat degli altri PC scendono da sole, tranne quelle ferme da più di 30 giorni (o del periodo <code>cleanupPeriodDays</code> delle tue impostazioni di Claude Code): Claude Code le cancellerebbe da qui al giro di pulizia del giorno dopo e scenderebbero di nuovo ogni giorno. Restano sul Drive, le vedi qui e le prendi con «Porta qui» quando ti servono; una chat presa così, se poi non la tocchi, Claude Code la toglie da qui allo stesso modo, e sul Drive resta. Se la stessa conversazione sta sul Drive sotto due cartelle (una per PC), qui la vedi una volta con scritto dove sta.
+        Qui vedi tutto quello che sta sul Drive, raggruppato per progetto, cioè per la cartella in cui le chat lavorano: da dove viene, quante chat ha, quando è stato toccato l’ultima volta, e per ogni chat il nome e lo stato rispetto a questo PC.
+        Dalla 0.42.0 vale <strong>«una chat, una casa»</strong>: ogni chat vive su un PC solo, quello dove gira e dove sta la sua cartella. Il Drive è il <strong>salvataggio</strong> di ogni PC: ognuno ci carica solo le sue chat, e le chat degli altri PC non scendono più da sole qui. Le guardi e ci scrivi dal vivo, dal loro riquadro (rete di casa, Tailscale, collegamento diretto o, lento, il Drive).
+        <strong> «Sposta progetto…»</strong> porta un progetto con le sue chat da questo PC a un altro, a passi: controlla, trasferisce, verifica, cambia la casa e mette da parte le copie di qui, senza cancellare niente. Per portare qui un progetto di un altro PC usa «Sposta progetto…» su quel PC.
+        <strong> «Riordina le chat…»</strong> mostra le copie che stanno qui ma hanno casa altrove, con il perché, e le mette da parte quando confermi; ogni riordino si annulla.
+        <strong> «Togli la cartella dal Drive»</strong> vale per i progetti che viaggiano con la cartella: i file della cartella salvati sul Drive vengono tolti e la cartella smette di viaggiare; le chat e le cartelle sui PC restano come sono. Per il resto dal Drive niente viene mai cancellato.
       </p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '6px 0' }}>
+        <button className="tasto tasto--primario" onClick={() => setSposta(true)} title="Porta un progetto con le sue chat da questo PC a un altro, con controlli, verifica e copia archiviata qui">Sposta progetto…</button>
+        <button className="tasto" onClick={() => setRiordina(true)} title="Le chat che stanno qui ma hanno casa su un altro PC: le metti da parte (senza cancellarle) e lo annulli quando vuoi">Riordina le chat…</button>
+      </div>
 
       {lavoro.inCorso !== undefined ? <AvanzamentoLavoro lavoro={lavoro.inCorso} adesso={adesso} onAnnulla={() => void window.gestore.sync.annullaLavoro()} /> : null}
       {messaggio !== undefined ? <div className="riga__stato" style={{ marginTop: 6 }}>{messaggio}</div> : null}
@@ -223,15 +236,8 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
                       <span className={`drive__stato ${w.daPortare > 0 ? 'drive__stato--attesa' : 'drive__stato--ok'}`}>
                         {w.daPortare > 0 ? `${w.daPortare} chat da portare qui` : w.quiEsiste ? 'allineato' : 'chat già qui: manca solo il workspace'}
                       </span>
-                      {w.daPortare > 0 || !w.quiEsiste ? (
-                        <button
-                          className="tasto tasto--primario tasto--mini"
-                          disabled={inCorso !== undefined || lavoro.inCorso !== undefined}
-                          onClick={() => portaQuiWorkspace(w)}
-                          title="Scarica le chat che mancano con le cartelle che servono, ricrea il workspace qui con dentro le chat, e riavvia"
-                        >
-                          {inCorso === chiave ? 'Porto…' : w.daPortare > 0 ? `Porta qui il workspace (${w.daPortare})` : 'Crea qui il workspace'}
-                        </button>
+                      {w.daPortare > 0 ? (
+                        <span className="drive__sotto" title="Una chat, una casa: le chat di un altro PC non si copiano qui; si guardano dal vivo, o il loro progetto si sposta con «Sposta progetto…».">le sue chat di altri PC si guardano dal vivo</span>
                       ) : null}
                       <button
                         className="tasto tasto--mini"
@@ -287,14 +293,10 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
                     </button>
                     <span className={`drive__stato ${s.classe}`}>{s.testo}</span>
                     {nPorta > 0 ? (
-                      <button
-                        className="tasto tasto--primario tasto--mini"
-                        disabled={inCorso !== undefined || lavoro.inCorso !== undefined}
-                        onClick={() => portaQui(g)}
-                        title={g.cartellaSulDrive ? 'Scarica la cartella e le chat, le mette nel loro workspace, e riavvia' : 'Scarica le chat, crea la cartella se manca, le mette nel loro workspace, e riavvia'}
-                      >
-                        {inCorso === g.chiave ? 'Porto…' : g.stato === 'daAggiornare' ? `Aggiorna qui (${nPorta})` : `Porta qui (${nPorta})`}
-                      </button>
+                      // Dalla 0.42.0 «Porta qui» sta solo dentro «Sposta progetto», dal PC dove il progetto vive.
+                      <span className="drive__sotto" title="Una chat, una casa: un progetto si sposta dal PC dove sta, con «Sposta progetto…», che controlla, verifica e archivia. Da qui intanto le sue chat si guardano dal vivo.">
+                        {g.origine === 'qui' ? 'di questo PC' : 'per portarlo qui: «Sposta progetto…» sul suo PC'}
+                      </span>
                     ) : null}
                     {g.id !== undefined && g.cartellaSulDrive ? (
                       <button
@@ -369,6 +371,8 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
           onAnnulla={() => setDaTogliere(undefined)}
         />
       ) : null}
+      {sposta ? <ModaleSposta onChiudi={() => { setSposta(false); leggi() }} /> : null}
+      {riordina ? <ModaleRiordina onChiudi={() => { setRiordina(false); leggi() }} /> : null}
     </div>
   )
 }

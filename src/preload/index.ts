@@ -445,6 +445,24 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Da dove aprire una chat del workspace: qui, dal vivo su un altro PC, o in attesa di quel PC. */
     daDove: (p: { cwd: string; sessionUuid?: string }): Promise<import('@shared/apertura-chat').Apertura> => ipcRenderer.invoke('chat:daDove', p)
   },
+  /** «Una chat, una casa» (0.42.0): le case delle chat, il riordino e il suo annullamento. */
+  casa: {
+    proposte: (): Promise<{ gruppi: { pc: string; nome: string; chat: import('@shared/una-casa').FuoriCasa[] }[]; quante: number; aperte: number; qui: number }> => ipcRenderer.invoke('casa:proposte'),
+    riordina: (sessioni: string[]): Promise<import('@shared/una-casa').RegistroRiordino> => ipcRenderer.invoke('casa:riordina', sessioni),
+    riordini: (): Promise<import('@shared/una-casa').RegistroRiordino[]> => ipcRenderer.invoke('casa:riordini'),
+    annulla: (id: string): Promise<{ ok: boolean; rimessi: number; restano: { sessione: string; perche: string; dove: string }[]; messaggio?: string }> => ipcRenderer.invoke('casa:annulla', id),
+    stato: (): Promise<{ migrazione?: { fatta: string; case: number; proprietari: number; copia?: string }; case: number; qui: number }> => ipcRenderer.invoke('casa:stato')
+  },
+  /** «Sposta progetto da un PC all'altro» (0.42.0): i passi della procedura. */
+  sposta: {
+    progetti: (): Promise<{ cwd: string; nome: string; sessioni: string[]; titoli: string[] }[]> => ipcRenderer.invoke('sposta:progetti'),
+    pc: (): Promise<{ pcId: string; nome: string; versione: string; battito: string }[]> => ipcRenderer.invoke('sposta:pc'),
+    controlli: (cwd: string, dest: string): Promise<import('@shared/una-casa').Controllo[]> => ipcRenderer.invoke('sposta:controlli', cwd, dest),
+    trasferisci: (cwd: string, dest: string, mettiSulDrive: boolean): Promise<{ ok: boolean; messaggio: string; serveDrive?: boolean }> => ipcRenderer.invoke('sposta:trasferisci', cwd, dest, mettiSulDrive),
+    verifica: (cwd: string, dest: string): Promise<{ ok: boolean; messaggio: string; diverse?: string[] }> => ipcRenderer.invoke('sposta:verifica', cwd, dest),
+    casa: (cwd: string, dest: string): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('sposta:casa', cwd, dest),
+    archivia: (cwd: string, dest: string): Promise<{ ok: boolean; messaggio: string; registro?: import('@shared/una-casa').RegistroRiordino }> => ipcRenderer.invoke('sposta:archivia', cwd, dest)
+  },
   /** La sincronizzazione cifrata: passphrase (cassaforte E2E) + salva/ripristina. */
   sync: {
     stato: (): Promise<{

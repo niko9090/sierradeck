@@ -144,6 +144,22 @@ declare global {
         codaPulisci: (id: string) => Promise<Coda | undefined>
         suIberna: (cb: (m: { sessioni: string[] }) => void) => () => void
       }
+      casa: {
+        proposte: () => Promise<{ gruppi: { pc: string; nome: string; chat: import('@shared/una-casa').FuoriCasa[] }[]; quante: number; aperte: number; qui: number }>
+        riordina: (sessioni: string[]) => Promise<import('@shared/una-casa').RegistroRiordino>
+        riordini: () => Promise<import('@shared/una-casa').RegistroRiordino[]>
+        annulla: (id: string) => Promise<{ ok: boolean; rimessi: number; restano: { sessione: string; perche: string; dove: string }[]; messaggio?: string }>
+        stato: () => Promise<{ migrazione?: { fatta: string; case: number; proprietari: number; copia?: string }; case: number; qui: number }>
+      }
+      sposta: {
+        progetti: () => Promise<{ cwd: string; nome: string; sessioni: string[]; titoli: string[] }[]>
+        pc: () => Promise<{ pcId: string; nome: string; versione: string; battito: string }[]>
+        controlli: (cwd: string, dest: string) => Promise<import('@shared/una-casa').Controllo[]>
+        trasferisci: (cwd: string, dest: string, mettiSulDrive: boolean) => Promise<{ ok: boolean; messaggio: string; serveDrive?: boolean }>
+        verifica: (cwd: string, dest: string) => Promise<{ ok: boolean; messaggio: string; diverse?: string[] }>
+        casa: (cwd: string, dest: string) => Promise<{ ok: boolean; messaggio: string }>
+        archivia: (cwd: string, dest: string) => Promise<{ ok: boolean; messaggio: string; registro?: import('@shared/una-casa').RegistroRiordino }>
+      }
       sync: {
         stato: () => Promise<{
           driveConnesso: boolean; haCassaforte: boolean; sbloccato: boolean; cassaforteDiversa?: boolean

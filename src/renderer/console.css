@@ -4278,3 +4278,17 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 /* Niente esce dallo schermo: anche con una misura salvata grande, a finestra
    stretta la colonna lascia sempre posto alle chat. */
 .domande-lato { max-width: calc(100vw - 520px); min-width: min(300px, 40vw); }
+
+/* «Una chat, una casa» (0.42.0): Riordina e Sposta progetto. */
+.riordina__gruppo { display: flex; flex-direction: column; gap: 4px; }
+.riordina__chat { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; border-bottom: 1px solid var(--incisione); cursor: pointer; }
+.riordina__testo { display: flex; flex-direction: column; min-width: 0; }
+.riordina__motivo { margin: 0; overflow-wrap: anywhere; }
+.riordina__voce { display: flex; gap: 8px; align-items: center; justify-content: space-between; padding: 4px 0; }
+.sposta__passi { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 4px 0; }
+.sposta__passo { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--incisione); color: var(--testo-quieto); font-size: var(--t1); }
+.sposta__passo--qui { border-color: var(--accento); color: var(--testo); font-weight: 600; }
+.sposta__passo--fatto { color: var(--verde); border-color: var(--verde); }
+.sposta__controllo { display: flex; gap: 8px; align-items: baseline; }
+.sposta__ok { color: var(--verde); font-weight: 700; }
+.sposta__no { color: var(--rosso); font-weight: 700; }
