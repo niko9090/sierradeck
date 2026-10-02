@@ -71,6 +71,16 @@ electron-updater, quando l'app è firmata, controlla che anche il nuovo installe
 
 Va provato su una release beta prima di pubblicarla a tutti.
 
+# Smart App Control (aggiunto il 02/10)
+
+Nicholas ha mostrato una notifica: «Sicurezza di Windows – Parte di questa app è stata bloccata: bash.exe ha tentato di caricare g++.exe, editore non confermato». È **Smart App Control** (SAC), la protezione di Windows 11 che si trova in Sicurezza di Windows → Controllo delle app e del browser.
+
+- **Blocca i programmi senza firma** e senza reputazione nota, prima ancora dell'antivirus. Non c'è un «Esegui comunque»: il blocco non si scavalca file per file.
+- **Probabilmente è la causa anche sul portatile che non aggiorna SierraDeck.** L'installer e `SierraDeck.exe` non sono firmati (vedi sopra), e già il 18/09 SAC bloccava `npm run pacchetto` su quel portatile (`build-sul-portatile.md`). Se è SAC, i passi «Consenti / Esegui comunque» qui sotto non bastano: finché l'app non è firmata, su quel PC si aggiorna solo a mano, e solo dove SAC lascia passare.
+- **È un motivo in più per la firma.** Un eseguibile firmato da un editore verificato, con Artifact Signing o un certificato OV/EV, passa SAC. È l'unica soluzione che vale su ogni PC.
+- **Smart App Control NON va spento.** Una volta spento non si riaccende senza reinstallare Windows. Non va proposto, nemmeno «per un attimo».
+- **Strumenti per i test:** il g++ bloccato era un compilatore non firmato (MinGW o MSYS) installato da una chat, non da questa. Per la compilazione nativa si usano solo strumenti firmati (i Build Tools di Visual Studio di Microsoft), oppure la si evita: `node-pty` arriva già compilato, e `@xterm/headless` è JavaScript puro. Le prove della 0.38.2 e della 0.39.0 non hanno compilato niente.
+
 # Segnalare il falso positivo a Microsoft
 
 Se è **Defender** a segnalarlo come minaccia:
