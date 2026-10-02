@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.47.0',
+    righe: [
+      '**Solo i tuoi PC si parlano, e adesso lo dimostrano.** Un PC può vedere, comandare o aggiornare un altro PC solo se hanno lo stesso Drive e la stessa cassaforte. Prima di mandargli qualunque cosa, ora gli chiede di dimostrare di avere la chiave di casa, e la chiave non viaggia più sulla rete: ogni richiesta è firmata e vale una volta sola. Prima, se Tailscale trovava per nome un dispositivo che non era SierraDeck, quel dispositivo poteva ricevere la chiave; adesso non riceve niente e il registro lo dice. Valgono le stesse regole per la rete di casa, Tailscale, il collegamento diretto, il Drive, il telefono e «Installa là».',
+      '**Con un PC che ha ancora una versione vecchia.** Fino a quando non lo aggiorni, lo si raggiunge solo agli indirizzi che lui stesso ha scritto sul Drive. Se non si raggiunge più, aggiornalo dal suo schermo, oppure con «Installa là» quando risponde.'
+    ]
+  },
+  {
     versione: '0.46.0',
     righe: [
       '**«Installa là»: aggiorni un altro PC da qui.** In «♥ Salute», sotto ogni altro PC che ha una versione più vecchia di questo, c’è il tasto «Installa là». Prima ti mostra cosa cambia, versione per versione, e ti chiede la conferma. Poi quel PC scarica l’aggiornamento, aspetta che le sue chat finiscano il turno e che il lavoro con il Drive sia finito, si chiude, installa e riparte, e le chat là riprendono da sole. Sotto la voce di quel PC vedi ogni passo e com’è andata: «fatto» con la versione nuova, oppure «non riuscita» con il motivo, cosa fare e il tasto per la pagina della versione. Funziona solo con i PC che hanno lo stesso Drive e la stessa cassaforte: senza la chiave di casa quel PC non accetta il comando.'

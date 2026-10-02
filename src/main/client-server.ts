@@ -4,6 +4,7 @@ import { execFile, execFileSync } from 'node:child_process'
 import { daReteLocale } from '@shared/rete-locale'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { timingSafeEqual } from 'node:crypto'
+import { creaControlloFirme, INTESTAZIONE_FIRMA, provaCasa } from './casa-firma'
 import type { Dispositivi } from './dispositivi'
 
 /**
@@ -139,8 +140,9 @@ export function creaServerClient(deps: DipendenzeClient): Server {
     raccontati.set(chiave, ora)
     try { deps.log?.(`[client] ${messaggio}`) } catch { /* il registro non ferma il server */ }
   }
+  const controlloFirme = creaControlloFirme()
   return createServer((req, res) => {
-    void gestisci(req, res, deps, racconta).catch((err: unknown) => {
+    void gestisci(req, res, deps, racconta, controlloFirme).catch((err: unknown) => {
       console.error('[client] richiesta non gestita:', err)
       if (!res.headersSent) rispondi(res, { stato: 500, corpo: { errore: 'guasto interno' } })
     })
@@ -162,7 +164,8 @@ function rispondi(res: ServerResponse, esito: Esito): void {
 
 async function gestisci(
   req: IncomingMessage, res: ServerResponse, deps: DipendenzeClient,
-  racconta: (chiave: string, messaggio: string) => void = () => {}
+  racconta: (chiave: string, messaggio: string) => void = () => {},
+  controlloFirme: ReturnType<typeof creaControlloFirme> = creaControlloFirme()
 ): Promise<void> {
   const indirizzo = req.socket.remoteAddress ?? ''
   // Primo muro, prima di leggere qualunque cosa: una richiesta da fuori non
@@ -203,6 +206,26 @@ async function gestisci(
     return
   }
 
+  // La prova di casa (0.47.0): chi bussa da un altro PC manda una sfida a
+  // caso, e questo PC risponde con l'HMAC della sua chiave di casa. Chi bussa
+  // la controlla prima di mandare qualunque cosa: un dispositivo che non e'
+  // SierraDeck, o un PC di un'altra cassaforte, non sa farla. Non dice niente
+  // a chi non ha la chiave (e' un HMAC su un numero scelto da lui).
+  if (percorso === '/api/casa') {
+    const casa = deps.chiaveDiCasa?.()
+    const sfida = new URL(req.url ?? '/', 'http://x').searchParams.get('sfida') ?? ''
+    if (metodo !== 'GET' || sfida.length < 16 || sfida.length > 200) {
+      rispondi(res, { stato: 400, corpo: { errore: 'sfida non valida' } })
+      return
+    }
+    if (casa === undefined) {
+      rispondi(res, { stato: 503, corpo: { errore: 'cassaforte chiusa: niente chiave di casa' } })
+      return
+    }
+    rispondi(res, { stato: 200, corpo: { programma: 'SierraDeck', prova: provaCasa(casa, sfida) } })
+    return
+  }
+
   if (autorizzata(percorso)) {
     rispondi(res, await (deps.rottaLibera ?? deps.rotta)({ metodo, percorso, corpo }))
     return
@@ -212,6 +235,14 @@ async function gestisci(
   // o la chiave di casa di un altro PC con la stessa cassaforte.
   const chiave = chiaveDa(req.headers)
   let dispositivo = deps.dispositivi.riconosci(chiave)
+  // Dalla 0.47.0 un altro PC firma la richiesta invece di mandare la chiave.
+  const firma = req.headers[INTESTAZIONE_FIRMA]
+  if (dispositivo === undefined && typeof firma === 'string' && firma !== '') {
+    if (controlloFirme(deps.chiaveDiCasa?.(), firma, metodo, req.url ?? percorso)) {
+      const nome = nomePcDa(req.headers)
+      dispositivo = { id: 'pc', nome: nome === '' ? 'un altro PC' : nome, collegatoIl: '' }
+    }
+  }
   if (dispositivo === undefined && chiave !== '') {
     const casa = deps.chiaveDiCasa?.()
     if (casa !== undefined && stessaChiave(chiave, casa)) {
@@ -220,7 +251,9 @@ async function gestisci(
     }
   }
   if (dispositivo === undefined) {
-    racconta(`chiave:${indirizzo}`, `${indirizzo} bussa con una chiave che non riconosco (${chiaveDa(req.headers) === '' ? 'nessuna chiave' : 'chiave sbagliata o revocata'}) su ${percorso}: il dispositivo va accoppiato di nuovo (Impostazioni → Client)`)
+    racconta(`chiave:${indirizzo}`, typeof firma === 'string' && firma !== ''
+      ? `${indirizzo} (${nomePcDa(req.headers) || 'un PC'}) bussa con una firma di casa che non vale su ${percorso}: un'altra cassaforte, l'orologio sbagliato di più di cinque minuti, o una richiesta ripetuta. Respinto.`
+      : `${indirizzo} bussa con una chiave che non riconosco (${chiaveDa(req.headers) === '' ? 'nessuna chiave' : 'chiave sbagliata o revocata'}) su ${percorso}: il dispositivo va accoppiato di nuovo (Impostazioni → Client)`)
     rispondi(res, { stato: 401, corpo: { errore: 'dispositivo non riconosciuto' } })
     return
   }

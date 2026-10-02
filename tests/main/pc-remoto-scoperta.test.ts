@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { creaClientPcRemoto, ErroreRemoto } from '../../src/main/pc-remoto'
 import type { BattitoPc } from '@shared/posta'
+import { provaCasa } from '../../src/main/casa-firma'
 
 /**
  * 0.39.3: il client remoto non dice più «spento» guardando solo il battito.
@@ -33,6 +34,8 @@ function client(rete: (url: string) => Risposta | 'muto', extra: { ricordati?: s
       if (r === 'muto') {
         return new Promise((_ok, ko) => init?.signal?.addEventListener('abort', () => ko(new Error('abort'))))
       }
+      // Un PC 0.47+ che risponde 200 a /api/casa lo fa con la prova della chiave di casa.
+      if (url.includes('/api/casa') && r.status === 200) return risponde(200, { prova: provaCasa('chiave-di-casa', new URL(url).searchParams.get('sfida') ?? '') })
       return r
     }) as unknown as typeof fetch
   })
@@ -48,7 +51,7 @@ describe('il client remoto con il battito vecchio', () => {
     await expect(c.chiama('lap', '/api/stato')).resolves.toEqual({ chat: [{ id: 'x' }] })
     expect(c.indirizzoBuono('lap')).toBe('100.117.177.78')
     expect(ricordati).toContain('100.117.177.78')
-    expect(chiamate.some((u) => u.includes('/api/pc'))).toBe(true)
+    expect(chiamate.some((u) => u.includes('/api/casa'))).toBe(true)
   })
   it('nessuno risponde: «non so se è acceso», mai «spento»', async () => {
     const { c } = client(() => 'muto')
@@ -71,7 +74,8 @@ describe('il client remoto con il battito vecchio', () => {
     expect(err.message).toContain('questa chat là non è aperta')
   })
   it('una versione vecchia senza /api/pc (404 con la chiave accettata) conta come acceso', async () => {
-    const { c } = client((url) => url.includes('/api/pc') ? risponde(404) : risponde(200, { ok: true }))
+    // /api/casa non la conosce (401): il vecchio modo, all'indirizzo del suo battito.
+    const { c } = client((url) => url.includes('/api/casa') ? risponde(401) : url.includes('/api/pc') ? risponde(404) : risponde(200, { ok: true }))
     expect((await c.bussa('lap')).esito).toBe('risponde')
   })
 })

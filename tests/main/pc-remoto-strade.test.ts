@@ -3,6 +3,7 @@ import { creaClientPcRemoto, ErroreRemoto } from '../../src/main/pc-remoto'
 import type { BattitoPc } from '@shared/posta'
 import type { StatoRtc } from '@shared/strada-pc'
 import type { EsitoCanale } from '../../src/main/rtc/collegamento-rtc'
+import { provaCasa } from '../../src/main/casa-firma'
 
 /**
  * 0.40.0: il client remoto prova le strade nell'ordine deciso da Nicholas:
@@ -38,6 +39,7 @@ function ambiente(p: {
       chiamate.push(url)
       const r = p.rete(url)
       if (r === 'muto') return new Promise((_ok, ko) => init?.signal?.addEventListener('abort', () => ko(new Error('abort'))))
+      if (url.includes('/api/casa') && r.status === 200) return risponde(200, { prova: provaCasa('chiave-di-casa', new URL(url).searchParams.get('sfida') ?? '') })
       return r
     }) as unknown as typeof fetch,
     ...(rtc !== undefined ? {

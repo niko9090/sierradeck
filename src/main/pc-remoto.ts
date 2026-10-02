@@ -4,6 +4,7 @@ import { indirizziDaProvare, messaggioErroreRemoto, motivoDaStatoHttp, statoPc, 
 import { indirizzoPreferito, prossimaMossa, RIBUSSA_OGNI_MS, stradaDiIndirizzo, type InfoStrada, type Strada, type StatoRtc } from '@shared/strada-pc'
 import { ATTESA_DRIVE, NON_VIA_DRIVE } from './rtc/cassetta-drive'
 import type { EsitoCanale } from './rtc/collegamento-rtc'
+import { firmaRichiesta, INTESTAZIONE_FIRMA, nuovaSfida, provaValida } from './casa-firma'
 
 /**
  * Bussare a un altro PC: il Client di **quel** computer, chiamato da qui.
@@ -115,6 +116,8 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
   const bussaMs = deps.bussaMs ?? BUSSA_PREDEFINITA_MS
   const log = deps.log ?? ((): void => {})
   const buoni = new Map<string, string>()
+  /** Come si entra all'indirizzo buono: firmando (0.47+) o con la chiave in chiaro (PC vecchio, indirizzo del battito). */
+  const modi = new Map<string, 'firma' | 'chiave'>()
   /** La strada che ha funzionato l'ultima volta, per PC (0.40.0). */
   const strade = new Map<string, InfoStrada>()
   const ultimoBussaIl = new Map<string, number>()
@@ -134,6 +137,22 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     log(`[remoto] ${m}`)
   }
   const battitoDi = (pcId: string): BattitoPc | undefined => deps.battiti().find((x) => x.pcId === pcId)
+  /**
+   * I PC che hanno provato la chiave di casa con `/api/casa` (0.47.0): con
+   * loro ogni richiesta e' firmata e la chiave non viaggia, e il vecchio modo
+   * (la chiave in chiaro) non si usa piu' nemmeno se un indirizzo lo chiede.
+   */
+  const conFirma = new Set<string>()
+  /** Gli indirizzi che hanno risposto senza saper provare la chiave: detti una volta. */
+  const estraneiDetti = new Set<string>()
+  /**
+   * Il vecchio modo (chiave in chiaro su `/api/pc`) solo per un PC prima della
+   * 0.47, e solo agli indirizzi che lui stesso ha scritto nel suo battito sul
+   * Drive: mai a quelli che Tailscale trova per nome o a quelli ricordati,
+   * che possono essere di un dispositivo che non e' SierraDeck.
+   */
+  const vecchioModoAmmesso = (pcId: string, b: BattitoPc | undefined, ind: string): boolean =>
+    b !== undefined && !conFirma.has(pcId) && (b.indirizzi ?? []).includes(ind) && !versioneAlmeno(b.versione, '0.47.0')
   const segnaBuono = (pcId: string, nome: string, ind: string, porta: number): void => {
     if (buoni.get(pcId) !== ind) {
       buoni.set(pcId, ind)
@@ -162,31 +181,60 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     }
     const porta = b?.porta ?? PORTA_CLIENT_PREDEFINITA
     // Tutti insieme: con dieci indirizzi vecchi, uno alla volta sarebbero
-    // quaranta secondi. Una GET con la chiave di quel PC: un 2xx (o un 404 di
-    // una versione che `/api/pc` non la conosce, ma la chiave l'ha accettata)
-    // vuol dire che e' proprio lui.
-    const risposte = await Promise.all(indirizzi.map(async (ind) => {
+    // quaranta secondi. Prima la prova di casa (0.47.0): una sfida a caso, e
+    // solo chi risponde con l'HMAC della chiave di quel PC e' proprio lui. La
+    // chiave non parte verso nessuno. Un PC prima della 0.47 non conosce
+    // `/api/casa`: per lui il vecchio modo, solo agli indirizzi del suo battito.
+    type Risposta = { ind: string; stato: number; modo?: 'firma' | 'chiave'; estraneo?: true }
+    const conAttesa = async <T>(f: (s: AbortSignal) => Promise<T>): Promise<T | undefined> => {
       const controllo = new AbortController()
       const timer = setTimeout(() => controllo.abort(), bussaMs)
-      try {
-        const r = await chiamaHttp(`http://${ind}:${porta}/api/pc`, {
-          method: 'GET',
-          headers: { ...(chiave !== undefined ? { 'x-sierradeck-chiave': chiave } : {}), 'x-sierradeck-pc': encodeURIComponent(deps.mioNome()) },
-          signal: controllo.signal
+      try { return await f(controllo.signal) } catch { return undefined } finally { clearTimeout(timer) }
+    }
+    const risposte: Risposta[] = await Promise.all(indirizzi.map(async (ind): Promise<Risposta> => {
+      const sfida = nuovaSfida()
+      const casa = await conAttesa(async (signal) => {
+        const r = await chiamaHttp(`http://${ind}:${porta}/api/casa?sfida=${sfida}`, {
+          method: 'GET', headers: { 'x-sierradeck-pc': encodeURIComponent(deps.mioNome()) }, signal
         })
-        return { ind, stato: r.status }
-      } catch {
-        return { ind, stato: 0 }
-      } finally {
-        clearTimeout(timer)
+        let corpo: unknown
+        try { corpo = await r.json() } catch { corpo = undefined }
+        return { stato: r.status, prova: (corpo as { prova?: unknown } | undefined)?.prova }
+      })
+      if (casa === undefined) return { ind, stato: 0 }
+      if (casa.stato === 200) {
+        return chiave !== undefined && provaValida(chiave, sfida, casa.prova)
+          ? { ind, stato: 200, modo: 'firma' }
+          : { ind, stato: 401, estraneo: true }
       }
+      // Cassaforte chiusa la': non e' un estraneo, ma non entra nessuno.
+      if (casa.stato === 503) return { ind, stato: 401 }
+      if (chiave === undefined || !vecchioModoAmmesso(pcId, b, ind)) return { ind, stato: casa.stato === 401 || casa.stato === 404 ? 401 : casa.stato, estraneo: true }
+      const vecchio = await conAttesa(async (signal) => (await chiamaHttp(`http://${ind}:${porta}/api/pc`, {
+        method: 'GET',
+        headers: { 'x-sierradeck-chiave': chiave, 'x-sierradeck-pc': encodeURIComponent(deps.mioNome()) },
+        signal
+      })).status)
+      if (vecchio === undefined) return { ind, stato: 0 }
+      // Un 2xx, o un 404 di una versione che `/api/pc` non la conosce ma la chiave l'ha accettata.
+      return { ind, stato: vecchio, ...((vecchio >= 200 && vecchio < 300) || vecchio === 404 ? { modo: 'chiave' as const } : {}) }
     }))
     ultimoBussaIl.set(pcId, adesso())
+    for (const x of risposte) {
+      if (x.estraneo === true && !estraneiDetti.has(`${pcId}|${x.ind}`)) {
+        estraneiDetti.add(`${pcId}|${x.ind}`)
+        log(`[remoto] ${descriviIndirizzo(x.ind)} risponde ma non prova la chiave di casa di ${nome || pcId}: non gli mando niente (non è quel PC, è di un'altra cassaforte, o è un ${nome || 'PC'} prima della 0.47 a un indirizzo che non è nel suo battito)`)
+      }
+    }
     // Prima la rete di casa, poi Tailscale (0.40.0): rispondono insieme, e
     // Tailscale a volte arriva prima.
-    const buona = indirizzoPreferito(risposte.filter((x) => (x.stato >= 200 && x.stato < 300) || x.stato === 404).map((x) => x.ind))
+    const buone = risposte.filter((x) => x.modo !== undefined)
+    const buona = indirizzoPreferito(buone.map((x) => x.ind))
     let p: PingPc
     if (buona !== undefined) {
+      const modo = buone.find((x) => x.ind === buona)?.modo
+      if (modo === 'firma') conFirma.add(pcId)
+      modi.set(pcId, modo ?? 'chiave')
       segnaBuono(pcId, nome, buona, porta)
       p = { esito: 'risponde', indirizzo: buona }
     } else {
@@ -252,10 +300,13 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       const timer = setTimeout(() => controllo.abort(), attesaMs)
       let risposta: Response
       try {
-        risposta = await chiamaHttp(`http://${ind}:${porta}${percorso}`, {
-          method: corpo === undefined ? 'GET' : 'POST',
+        const url = `http://${ind}:${porta}${percorso}`
+        const metodo = corpo === undefined ? 'GET' : 'POST'
+        const u = new URL(url)
+        risposta = await chiamaHttp(url, {
+          method: metodo,
           headers: {
-            'x-sierradeck-chiave': chiave,
+            ...(modi.get(pcId) === 'chiave' ? { 'x-sierradeck-chiave': chiave } : { [INTESTAZIONE_FIRMA]: firmaRichiesta(chiave, metodo, u.pathname + u.search, adesso()) }),
             'x-sierradeck-pc': encodeURIComponent(deps.mioNome()),
             ...(corpo === undefined ? {} : { 'content-type': 'application/json' })
           },
@@ -362,4 +413,17 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       }
     }
   }
+}
+
+/** `v` e' almeno `min` (x.y.z). Una versione illeggibile non lo e'. */
+function versioneAlmeno(v: string, min: string): boolean {
+  const a = v.split('.').map((x) => Number.parseInt(x, 10))
+  const b = min.split('.').map((x) => Number.parseInt(x, 10))
+  for (let i = 0; i < 3; i += 1) {
+    const x = a[i] ?? 0
+    const y = b[i] ?? 0
+    if (Number.isNaN(x)) return false
+    if (x !== y) return x > y
+  }
+  return true
 }

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { creaClientPcRemoto, ErroreRemoto } from '../../src/main/pc-remoto'
 import { ordinaIndirizzi, trovaChatRemota, eIndirizzoTailscale, descriviIndirizzo } from '../../src/shared/pc-remoto'
 import type { BattitoPc } from '../../src/shared/posta'
+import { provaCasa } from '../../src/main/casa-firma'
 
 /**
  * Nicholas (2026-09-22): «possiamo lavorare su chat di altri pc come se
@@ -19,7 +20,12 @@ const PORTATILE: BattitoPc = {
 
 type Chiamata = { url: string; init: RequestInit }
 
-function fintoFetch(risposte: Record<string, { stato?: number; corpo?: unknown; guasto?: boolean; lento?: boolean }>): { fetch: typeof fetch; chiamate: Chiamata[] } {
+/**
+ * Un PC finto per indirizzo. Dalla 0.47.0 risponde a `/api/casa` con la prova
+ * della chiave di casa (`chiaveCasa`, di solito quella giusta); `vecchio` e'
+ * un PC prima della 0.47, che `/api/casa` non la conosce (401).
+ */
+function fintoFetch(risposte: Record<string, { stato?: number; corpo?: unknown; guasto?: boolean; lento?: boolean; vecchio?: boolean; chiaveCasa?: string }>): { fetch: typeof fetch; chiamate: Chiamata[] } {
   const chiamate: Chiamata[] = []
   const f = (async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const u = String(url)
@@ -29,6 +35,10 @@ function fintoFetch(risposte: Record<string, { stato?: number; corpo?: unknown; 
     if (r === undefined || r.guasto === true) throw new TypeError('fetch failed: ECONNREFUSED')
     if (r.lento === true) {
       await new Promise<void>((_ris, rif) => { init?.signal?.addEventListener('abort', () => rif(new DOMException('aborted', 'AbortError'))) })
+    }
+    if (new URL(u).pathname === '/api/casa') {
+      if (r.vecchio === true) return new Response(JSON.stringify({ errore: 'dispositivo non riconosciuto' }), { status: 401 })
+      return new Response(JSON.stringify({ prova: provaCasa(r.chiaveCasa ?? 'chiave-di-casa-B', new URL(u).searchParams.get('sfida') ?? '') }), { status: 200 })
     }
     return new Response(JSON.stringify(r.corpo ?? { ok: true }), { status: r.stato ?? 200, headers: { 'content-type': 'application/json' } })
   }) as typeof fetch
@@ -87,10 +97,13 @@ describe('bussare a un altro PC', () => {
     const c = client([PORTATILE], f, { log })
     const r = await c.chiama('B', '/api/stato')
     expect(r).toEqual({ chat: [] })
-    // Prima il bussare breve su tutti (/api/pc), poi la chiamata vera su quello che ha risposto.
-    expect(chiamate.map((x) => x.url)).toEqual(['http://192.168.1.50:47640/api/pc', 'http://100.99.57.91:47640/api/pc', 'http://100.99.57.91:47640/api/stato'])
+    // Prima il bussare breve su tutti (la prova di casa, 0.47.0), poi la chiamata vera su quello che ha risposto.
+    expect(chiamate.map((x) => x.url.split('?')[0])).toEqual(['http://192.168.1.50:47640/api/casa', 'http://100.99.57.91:47640/api/casa', 'http://100.99.57.91:47640/api/stato'])
+    // La sfida non porta la chiave; la chiamata vera è firmata, e la chiave non viaggia.
+    expect(JSON.stringify(chiamate[1]?.init.headers)).not.toContain('chiave-di-casa-B')
     const intestazioni = chiamate[2]?.init.headers as Record<string, string>
-    expect(intestazioni['x-sierradeck-chiave']).toBe('chiave-di-casa-B')
+    expect(intestazioni['x-sierradeck-chiave']).toBeUndefined()
+    expect(intestazioni['x-sierradeck-casa']).toMatch(/^\d+\.[\w-]+\.[\w-]+$/)
     expect(intestazioni['x-sierradeck-pc']).toBe('Torre')
     expect(c.indirizzoBuono('B')).toBe('100.99.57.91')
     expect(log.some((m) => m.includes('risponde su 100.99.57.91 (Tailscale)'))).toBe(true)
@@ -182,9 +195,10 @@ describe('i due lati insieme: il Client vero di un PC e il client remoto dell’
     const porta = (server.address() as { port: number }).port
     try {
       const battito: BattitoPc = { ...PORTATILE, indirizzi: ['127.0.0.1'], porta }
-      const buono = creaClientPcRemoto({ battiti: () => [battito], chiavePer: () => 'hmac-per-B', mioNome: () => 'Torre', adesso: () => ORA })
+      // L'ora vera: la firma vale cinque minuti, e il server guarda il suo orologio.
+      const buono = creaClientPcRemoto({ battiti: () => [battito], chiavePer: () => 'hmac-per-B', mioNome: () => 'Torre' })
       expect(await buono.chiama('B', '/api/stato')).toEqual({ percorso: '/api/stato', dispositivo: 'pc', chat: [] })
-      const sbagliato = creaClientPcRemoto({ battiti: () => [battito], chiavePer: () => 'altra', mioNome: () => 'Torre', adesso: () => ORA })
+      const sbagliato = creaClientPcRemoto({ battiti: () => [battito], chiavePer: () => 'altra', mioNome: () => 'Torre' })
       expect(await motivo(sbagliato.chiama('B', '/api/stato'))).toBe('chiave')
     } finally {
       server.close()
