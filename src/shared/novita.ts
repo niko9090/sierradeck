@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.49.0',
+    righe: [
+      '**Il PIN delle chat, se lo vuoi.** In Impostazioni → «PIN delle chat» imposti un PIN da 4 a 8 cifre e scegli dopo quanto tempo di inattività le chat si richiudono (15 minuti, se non cambi niente). Proteggi una chat dal tasto 🔐 nella testata del suo riquadro (anche con il tasto destro), oppure un intero workspace con il tasto destro sul suo nome. Al posto del terminale compare un lucchetto: niente testo e niente casella finché non metti il PIN. Negli elenchi, nelle Domande, nella Salute e nelle Istruzioni degli autopiloti resta il nome della chat, ma non quello che c’è dentro.',
+      '**Vale ovunque, e il lavoro continua.** Il PIN vale anche dal telefono (app 2.49.0 e pagina) e quando un altro PC guarda le tue chat: lo controlla sempre il PC dove la chat lavora. Claude Code, gli autopiloti e le loro istruzioni vanno avanti anche sulle chat chiuse, perché il PIN blocca la vista e la tastiera delle persone, non il lavoro. Dopo tre tentativi sbagliati si aspetta, e l’attesa cresce; i tentativi da qui, dal telefono e dagli altri PC contano insieme. Se lo dimentichi, lo togli con la password principale della cassaforte.',
+      '**Cosa protegge, detto chiaro.** Protegge da chi è davanti a uno schermo: il tuo PC mentre sei via, il telefono in mano ad altri, un altro PC della casa. Non protegge i file delle conversazioni sul disco: chi usa il tuo account di Windows li legge lo stesso. Del PIN si salva solo un’impronta, mai il PIN.'
+    ]
+  },
+  {
     versione: '0.48.0',
     righe: [
       '**Dal telefono, le chat di tutti i tuoi PC.** Nell’app (2.48.0), in Computer → Altri computer, ogni PC ha il tasto «Chat di … dal vivo». Apre le chat di quel PC come se il telefono fosse accoppiato a lui: le vedi mentre lavorano, leggi la loro storia, scrivi, premi le opzioni, riprendi o apri una chat. Il telefono passa dal PC a cui è accoppiato, che raggiunge l’altro con le sue strade (rete di casa, Tailscale, collegamento diretto) e con la chiave di casa. Il telefono quella chiave non la riceve mai. In cima c’è sempre la fascia viola «SU <nome del PC>», così sai sempre quale computer stai comandando; «Torna» riporta alle chat del PC accoppiato.',
