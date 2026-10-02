@@ -30,6 +30,8 @@ class DriveScollegatoTest {
     fun `una chat di un altro PC ha il segno SU davanti, senza ripetere il nome`() {
         val c = Api.json.decodeFromString(Conversazione.serializer(), """{"chiave":"chat:pc:058be1ee679e:abc","tipo":"chat","titolo":"Trading · su LAPTOP-E60QM2D1","suPc":"LAPTOP-E60QM2D1"}""")
         assertEquals("SU LAPTOP-E60QM2D1 · Trading", titoloConSegno(c))
+        // La strada (0.40.0), quando il computer la sa.
+        assertEquals("SU LAPTOP-E60QM2D1 (WebRTC) · Trading", titoloConSegno(c.copy(viaPc = "WebRTC")))
         val qui = Conversazione(chiave = "chat:1", titolo = "SierraDeck")
         assertEquals("SierraDeck", titoloConSegno(qui))
     }

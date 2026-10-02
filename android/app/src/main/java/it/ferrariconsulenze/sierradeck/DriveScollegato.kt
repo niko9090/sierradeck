@@ -30,9 +30,16 @@ data class AvvisoDrive(val titolo: String = "", val testo: String = "", val gior
 /** Il colore delle chat di altri PC: lo stesso viola del PC. */
 val ColoreRemoto = Color(0xFFA77BF3)
 
-/** Il titolo di una conversazione con il segno «SU <PC>» davanti, se e' di un altro PC. */
+/**
+ * Il titolo di una conversazione con il segno «SU <PC>» davanti, se e' di un
+ * altro PC; dalla 0.40.0 anche la strada con cui il computer ci arriva:
+ * «SU LAPTOP (Tailscale) · Trading».
+ */
 fun titoloConSegno(c: Conversazione): String =
-    c.suPc?.takeIf { it.isNotBlank() }?.let { "SU $it · ${c.titolo.removeSuffix(" · su $it")}" } ?: c.titolo
+    c.suPc?.takeIf { it.isNotBlank() }?.let { pc ->
+        val via = c.viaPc?.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: ""
+        "SU $pc$via · ${c.titolo.removeSuffix(" · su $pc")}"
+    } ?: c.titolo
 
 /** Il testo della banda, intero: cosa, perche', cosa fare dal computer. */
 fun testoDriveScollegato(a: AvvisoDrive): String =
