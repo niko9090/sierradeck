@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.43.0',
+    righe: [
+      '**L’app del telefono cerca da sola gli aggiornamenti.** Ogni otto ore e ogni volta che la apri guarda direttamente su GitHub se c’è una versione nuova, anche con il computer spento e con l’app chiusa. Quando la trova ti arriva una notifica con le novità e il tasto «Scarica e installa»; l’installazione la confermi tu, nella schermata di Android. Per ogni versione arriva una notifica sola.',
+      '**Funziona anche con un computer più vecchio.** L’app guarda che versione ha il computer. Quello che il computer non sa ancora fare non va più in errore: compare spento, con scritto «arriva aggiornando il PC alla …». Vale anche al contrario: un’app vecchia rimasta sul telefono continua a funzionare con il computer aggiornato. In più è stato corretto un difetto per cui, quando un autopilota proponeva delle risposte da toccare, la scheda Domande dell’app non si caricava.',
+      '**Un’app più pulita.** I terminali e il codice hanno un carattere nuovo, JetBrains Mono, incluso nell’app: le cornici e i blocchi di Claude Code restano allineati. Sugli schermi stretti lo stato di una chat diventa una parola breve, così il nome della chat non sparisce. Quando più cose ti aspettano insieme, le notifiche si raccolgono in un gruppo con un riassunto, invece di suonare una per una (app 2.46.0).'
+    ]
+  },
+  {
     versione: '0.42.0',
     righe: [
       '**Una chat, una casa.** Ogni chat adesso vive su un PC solo, la sua casa: il PC dove gira e dove sta la sua cartella. SierraDeck la decide da solo guardando dove è nata la chat, su quale PC c’è la sua cartella e dove ha lavorato per ultima, e se la ricorda. Le chat degli altri PC non vengono più copiate qui da sole: le guardi e ci scrivi dal vivo, come già succede. Così non ci sono più due copie della stessa chat che vanno avanti per conto loro.',
