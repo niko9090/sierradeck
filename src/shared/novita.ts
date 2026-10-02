@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.41.0',
+    righe: [
+      '**Vedi cosa l’autopilota scrive alle sue chat.** Nella scheda dell’autopilota c’è una linguetta nuova, «Istruzioni». Dentro trovi per intero ogni istruzione che ha mandato alle sue chat, dalla più recente, anche quando nella chat vedi solo «Leggi ed esegui le istruzioni in …». Per ognuna ci sono l’ora, la chat, il perché di quella mossa e com’è andata: in coda, consegnata, partita, oppure non partita. Il testo si seleziona e si copia.',
+      '**Se ha scritto qualcosa di sbagliato, «Correggi».** Su un’istruzione premi «Correggi» e scrivi cosa non va: la nota arriva all’autopilota nella chat con lui, con l’ora e l’inizio dell’istruzione, così sa a quale ti riferisci. La linguetta si può staccare come le altre e c’è anche sul telefono, nella pagina e nell’app (2.45.0).',
+      '**Domande che si capiscono.** Ogni domanda dell’autopilota adesso ha sempre cinque parti, una sotto l’altra: cosa sta facendo, la domanda in una frase, perché gli serve, le scelte con cosa succede per ognuna e cosa fa se non rispondi. Le scelte sono tasti da toccare. Se il supervisore scrive una domanda incompleta, il programma gliela fa riscrivere una volta; se manca ancora qualcosa arriva lo stesso, con un avviso che lo dice.',
+      '**Tutta la parte destra si allarga e si stringe.** Trascinando il bordo sinistro allarghi o stringi la scheda dell’autopilota, la colonna delle Domande e quella dei Consumi. Nella scheda dell’autopilota c’è anche una barra fra la chat con lui e le linguette. Le misure restano anche dopo un riavvio, il doppio clic su una barra la rimette com’era e passando sopra col mouse trovi cosa fa. Le chat a sinistra restano sempre leggibili: se rimpicciolisci la finestra, le colonne si stringono da sole.'
+    ]
+  },
+  {
     versione: '0.40.0',
     righe: [
       '**Le chat dell’altro PC si raggiungono anche da un’altra rete, senza Tailscale.** Se il portatile è in ufficio e il fisso a casa, e Tailscale non c’è, i due PC si collegano direttamente via Internet. Per trovarsi la prima volta si lasciano un biglietto cifrato sul Drive. Poi lo schermo e quello che scrivi viaggiano dritti da un PC all’altro, cifrati due volte, e solo i PC con la tua stessa cassaforte possono aprire il collegamento. Serve la 0.40.0 su tutti e due e il Drive collegato.',
