@@ -131,6 +131,8 @@ export type Sincronia = {
   info: () => Promise<{ file: number; byte: number }>
   creaPassphrase: (passphrase: string) => Promise<{ ok: boolean; chiaveRecupero?: string; messaggio?: string }>
   sblocca: (passphrase: string) => Promise<EsitoSemplice>
+  /** La passphrase apre la cassaforte? Solo la domanda: non sblocca e non cambia niente (PIN delle chat, 0.49.0). */
+  verificaPassphrase: (passphrase: string) => Promise<boolean>
   sbloccaConRecupero: (codice: string) => Promise<EsitoSemplice>
   cambiaPassphrase: (vecchia: string, nuova: string) => Promise<EsitoSemplice>
   blocca: () => void
@@ -698,6 +700,11 @@ export function apriSincronia(deps: {
       if (m === undefined) return { ok: false, messaggio: 'Passphrase errata.' }
       adotta(m)
       return { ok: true }
+    },
+
+    async verificaPassphrase(passphrase) {
+      const c = leggiLocale() ?? await ottieniCassaforte().catch(() => undefined)
+      return c !== undefined && sbloccaCassaforte(c, passphrase) !== undefined
     },
 
     async sbloccaConRecupero(codice) {

@@ -35,6 +35,7 @@ export type MotivoRemoto =
   | 'http'          // un altro errore di quel PC
   | 'collegando'    // 0.40.0: il WebRTC si sta aprendo, o lo schermo via Drive non e' ancora arrivato
   | 'lento'         // 0.40.0: via Drive questa cosa non si puo' fare
+  | 'pin'           // 0.49.0: la chat la' e' protetta dal PIN (423)
 
 export class ErroreRemoto extends Error {
   constructor(public readonly motivo: MotivoRemoto, messaggio: string, public readonly stato?: number) {

@@ -38,7 +38,7 @@ import kotlinx.serialization.json.put
  */
 object Ponte {
     /** Le rotte che passano, uguali a `ROTTE_PONTE` del PC (src/shared/ponte-telefono.ts). */
-    val ROTTE = setOf("/api/stato", "/api/storia", "/api/scrivi", "/api/scegli", "/api/sessioni/riprendi", "/api/apri")
+    val ROTTE = setOf("/api/stato", "/api/storia", "/api/scrivi", "/api/scegli", "/api/sessioni/riprendi", "/api/apri", "/api/pin/sblocca")
 
     /** Il corpo di `/api/ponte`: il PC, la rotta, e il corpo della richiesta se c'è. */
     fun corpo(pc: String, percorso: String, corpoJson: String?): String {

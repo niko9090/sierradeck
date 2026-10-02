@@ -19,7 +19,7 @@ import { doveMostrareDomande, eLinguettaStaccabile } from '@shared/finestra-pann
 import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell } from 'electron'
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, watch, copyFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, watch, copyFileSync, writeFileSync } from 'node:fs'
 import { homedir, hostname } from 'node:os'
 import { createHash } from 'node:crypto'
 import { spawn } from 'node:child_process'
@@ -46,8 +46,7 @@ import {
   riservaSlot,
   prossimoSlot,
   annotaQuanteFinestre,
-  assorbiOrfani
-} from './ipc'
+  assorbiOrfani, filtroIstruzioniPin } from './ipc'
 import { preparaAmbiente } from './preparazione'
 import { decidiChiusura, vociArea, suggerimentoArea } from './area-notifica'
 import { espandiTilde, validaIdAutopilota } from './validation'
@@ -76,6 +75,8 @@ import type { SessionSummary } from '@shared/types'
 import { apriImpostazioniStore } from './impostazioni-store'
 import { apriEtichetteStore } from './etichette-store'
 import { apriChiavi } from './chiavi'
+import { creaGuardianoPin, type GuardianoPin } from './pin-guardiano'
+import { ANTEPRIMA_NASCOSTA } from '@shared/pin-chat'
 import { apriQuaderno } from './quaderno-store'
 import { apriDispositivi } from './dispositivi'
 import {
@@ -357,6 +358,8 @@ let postinoGlobale: Postino | undefined
  */
 let unaCasaGlobale: UnaCasa | undefined
 /** «Salute del sistema» (0.44.0): nasce con le strade fra PC, la leggono il PC e il telefono. */
+/** Il PIN delle chat (0.49.0): il guardiano, uno per PC. */
+let guardianoPin: GuardianoPin | undefined
 /** Il ponte del telefono (0.48.0): si accende quando c'e' il client verso gli altri PC. */
 let ponteVersoPc: ((pc: string, percorso: string, corpo?: Record<string, unknown>) => Promise<{ stato: number; corpo: unknown }>) | undefined
 let leggiSalute: () => Promise<import('@shared/salute').Salute> = async () => componiSalute({
@@ -888,6 +891,16 @@ if (!app.requestSingleInstanceLock()) {
       // Il registro della sessione: prima riga = versione e ambiente, così un
       // log allegato dice subito «quale versione stava girando davvero».
       const registro = apriRegistro(dati, app.getVersion())
+      // Il PIN delle chat (0.49.0): le impostazioni con la sola impronta in
+      // pin-chat.json, accanto ai dati; gli sblocchi solo in memoria (si
+      // richiude tutto alla chiusura dell'app).
+      const filePin = join(dati, 'pin-chat.json')
+      guardianoPin = creaGuardianoPin({
+        leggi: () => { try { return JSON.parse(readFileSync(filePin, 'utf8')) as unknown } catch { return undefined } },
+        scrivi: (p) => { writeFileSync(filePin, JSON.stringify(p, null, 2), 'utf8') },
+        passphraseGiusta: async (p) => (await sincroniaGlobale?.verificaPassphrase(p)) === true,
+        log: (m) => registro.info(m)
+      })
       // **Prima di aprire qualunque archivio**, se questa versione gira per la
       // prima volta: una copia di tutto lo stato com'e' stato lasciato dalla
       // versione precedente, qualunque fosse. Le migrazioni alla lettura sono
@@ -1358,11 +1371,12 @@ if (!app.requestSingleInstanceLock()) {
         fotografa: async (): Promise<ChatNelloSchermo[]> => {
           const r = rottaPerAltriPc
           if (r === undefined) return []
-          const st = await r({ metodo: 'GET', percorso: '/api/stato', corpo: undefined, dispositivo: 'pc' })
+          // Come un visore a sé (0.49.0): le chat protette dal PIN non finiscono sul Drive, nemmeno se un altro PC le ha aperte.
+          const st = await r({ metodo: 'GET', percorso: '/api/stato', corpo: undefined, dispositivo: 'drive' })
           const elenco = Array.isArray((st.corpo as { chat?: unknown } | undefined)?.chat) ? (st.corpo as { chat: ChatSuPc[] }).chat : []
           const fuori: ChatNelloSchermo[] = []
           for (const c of elenco.filter((x) => x.viva !== false).slice(0, 8)) {
-            const h = await r({ metodo: 'POST', percorso: '/api/storia', corpo: { chat: String(c.id), da: -1, quante: 80 }, dispositivo: 'pc' }).catch(() => undefined)
+            const h = await r({ metodo: 'POST', percorso: '/api/storia', corpo: { chat: String(c.id), da: -1, quante: 80 }, dispositivo: 'drive' }).catch(() => undefined)
             const d = (h?.corpo ?? {}) as { righe?: unknown; grezze?: unknown; totale?: unknown }
             const righe = Array.isArray(d.righe) ? d.righe.filter((x): x is string => typeof x === 'string') : []
             fuori.push({
@@ -1540,6 +1554,9 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('remoto:apri', (_e, pc: unknown, cartella: unknown) =>
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/apri', { cartella: testo(cartella) }), pc))
       ipcMain.handle('remoto:prova', (_e, pc: unknown) => remoto.prova(testo(pc)))
+      // Il PIN di una chat di un altro PC (0.49.0): lo verifica quel PC, il suo guardiano.
+      ipcMain.handle('remoto:pin', (_e, pc: unknown, chat: unknown, pin: unknown) =>
+        esitoRemoto(() => remoto.chiama(testo(pc), '/api/pin/sblocca', { chat: testo(chat), pin: testo(pin) }), pc))
       // Il ponte del telefono (0.48.0): le stesse chiamate del riquadro remoto,
       // chieste dal telefono. Un telefono guarda un PC: una riga nel registro
       // la prima volta (per PC), non a ogni giro.
@@ -1587,7 +1604,7 @@ if (!app.requestSingleInstanceLock()) {
             const lista = await clientAutopilota.istruzioni(a.id).catch(() => [])
             for (const i of lista) {
               if ((i.esito === 'non-partita' || i.esito === 'persa') && adesso - Date.parse(i.quando) < 86_400_000) {
-                consegne.push({ autopilota: a.id, nome: a.nome !== '' ? a.nome : a.obiettivo.slice(0, 40), quando: i.quando, chat: i.chatTitolo, esito: i.esito, inizio: i.testo.replace(/\s+/g, ' ').slice(0, 140) })
+                consegne.push({ autopilota: a.id, nome: a.nome !== '' ? a.nome : a.obiettivo.slice(0, 40), quando: i.quando, chat: i.chatTitolo, esito: i.esito, inizio: chatAperte.some((c) => c.id === i.chatId && guardianoPin?.chiusa('locale', c) === true) ? ANTEPRIMA_NASCOSTA : i.testo.replace(/\s+/g, ' ').slice(0, 140) })
               }
             }
           }
@@ -1609,6 +1626,41 @@ if (!app.requestSingleInstanceLock()) {
         })
       }
       ipcMain.handle('salute:leggi', () => leggiSalute())
+
+      // ── Il PIN delle chat (0.49.0): lo schermo di questo PC ──
+      const avvisaPin = (): void => { for (const w of finestreDiChat()) if (!w.isDestroyed()) w.webContents.send('pin:cambiato') }
+      const chatPin = (sessione: unknown, workspace: unknown): { sessione?: string; workspace?: string } => ({
+        ...(typeof sessione === 'string' && sessione !== '' ? { sessione } : {}),
+        ...(typeof workspace === 'string' && workspace !== '' ? { workspace } : {})
+      })
+      const gp = (): GuardianoPin => { if (guardianoPin === undefined) throw new Error('PIN non pronto'); return guardianoPin }
+      ipcMain.handle('pin:stato', () => gp().stato())
+      ipcMain.handle('pin:imposta', async (_e, nuovo: unknown, attuale: unknown) => {
+        const e = await gp().impostaPin(String(nuovo ?? ''), typeof attuale === 'string' ? attuale : undefined); avvisaPin(); return e
+      })
+      ipcMain.handle('pin:attiva', (_e, si: unknown) => { const e = gp().attiva(si === true); avvisaPin(); return e })
+      ipcMain.handle('pin:inattivita', (_e, min: unknown) => { gp().impostaInattivita(Number(min)); avvisaPin() })
+      ipcMain.handle('pin:proteggiChat', (_e, sessione: unknown, si: unknown) => {
+        if (typeof sessione !== 'string' || sessione === '') throw new Error('chat senza conversazione')
+        gp().proteggiChat(sessione, si === true); avvisaPin()
+      })
+      ipcMain.handle('pin:proteggiWorkspace', (_e, nome: unknown, si: unknown) => {
+        if (typeof nome !== 'string' || nome === '') throw new Error('workspace non valido')
+        gp().proteggiWorkspace(nome, si === true); avvisaPin()
+      })
+      ipcMain.handle('pin:azzera', async (_e, pass: unknown) => { const e = await gp().azzera(String(pass ?? '')); avvisaPin(); return e })
+      ipcMain.handle('pin:richiudi', () => { gp().richiudi(); avvisaPin() })
+      ipcMain.handle('pin:chiusa', (_e, sessione: unknown, workspace: unknown) => gp().chiusa('locale', chatPin(sessione, workspace)))
+      ipcMain.handle('pin:protetta', (_e, sessione: unknown, workspace: unknown) => gp().protetta(chatPin(sessione, workspace)))
+      ipcMain.handle('pin:sblocca', (_e, sessione: unknown, workspace: unknown, pin: unknown) => {
+        const e = gp().sblocca('locale', chatPin(sessione, workspace), String(pin ?? '')); if (e.ok) avvisaPin(); return e
+      })
+      ipcMain.handle('pin:tocca', (_e, sessione: unknown, workspace: unknown) => { gp().tocca('locale', chatPin(sessione, workspace)) })
+      filtroIstruzioniPin.filtra = <T>(l: T[]): T[] => l.map((i) => {
+        const o = i as unknown as { chatId?: string; testo?: string }
+        const c = chatAperte.find((x) => x.id === o.chatId)
+        return c !== undefined && guardianoPin?.chiusa('locale', c) === true ? { ...o, testo: ANTEPRIMA_NASCOSTA, pin: 'chiusa' } as unknown as T : i
+      })
 
       // ── «Installa là» (0.46.0): aggiornare un altro PC da qui ──
       // Le rotte di quel PC sono quelle del telefono (/api/aggiornamento e i
@@ -2932,6 +2984,7 @@ if (!app.requestSingleInstanceLock()) {
       }
       const rotte = {
         dispositivi,
+        ...(guardianoPin !== undefined ? { pin: guardianoPin } : {}),
         chat: () => chatAperte.map(conAltrove),
         autopiloti: () => clientAutopilota.elenca(),
         rispondi: async (idDomanda: string, risposta: string) => {
@@ -3415,7 +3468,8 @@ if (!app.requestSingleInstanceLock()) {
           metodo: corpo === undefined ? 'GET' : 'POST',
           percorso,
           corpo,
-          dispositivo: 'pc'
+          // Lo schermo di questo PC (0.49.0): gli sblocchi del PIN sono i suoi.
+          dispositivo: 'locale'
         })
         return { stato: esito.stato, corpo: esito.corpo }
       })

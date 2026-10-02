@@ -16,6 +16,11 @@ import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/dom
 import { alberoChat } from '@shared/harness'
 import type { NoteAggiornamento } from '@shared/note-aggiornamento'
 import { leggiRichiestaPonte } from '@shared/ponte-telefono'
+import { ANTEPRIMA_NASCOSTA, oscuraChat, rifiutoChiusa, STATO_CHIUSA } from '@shared/pin-chat'
+import type { GuardianoPin } from './pin-guardiano'
+
+/** Le rotte che mostrano o scrivono dentro una chat: passano dal PIN (0.49.0). */
+const ROTTE_DENTRO_CHAT = new Set(['/api/storia', '/api/dentro', '/api/scrivi', '/api/scegli', '/api/chat/chiudi', '/api/chat/nome'])
 import type { TentativoFallito } from '@shared/tentativo-installazione'
 import type { AvvisoDrive } from '@shared/scoperta-pc'
 
@@ -89,6 +94,8 @@ export type Chat = {
   altrove?: string
   /** L'ultima riga vista nel terminale: dice a colpo d'occhio se si muove. */
   ultimaRiga?: string
+  /** Il workspace del riquadro (0.49.0): per il PIN dei workspace. */
+  workspace?: string
   /**
    * Dai segnali di Claude Code (0.45.0): chiede un permesso o una domanda,
    * l'errore che ha fermato il turno, e da dove viene lo stato (segnali, o
@@ -156,6 +163,13 @@ export type DipendenzeRotte = {
    * o l'errore con il motivo per esteso.
    */
   ponte?: (pc: string, percorso: string, corpo?: Record<string, unknown>) => Promise<{ stato: number; corpo: unknown }>
+  /**
+   * Il PIN delle chat (0.49.0). Ogni rotta che mostra o scrive dentro una
+   * chat passa da qui: una chat protetta e non sbloccata da **chi guarda**
+   * risponde 423 e niente contenuto; negli elenchi resta il nome senza
+   * anteprime.
+   */
+  pin?: GuardianoPin
   /** La linguetta «Istruzioni» dal telefono (0.41.0): le consegne alle sue chat, intere. */
   istruzioniAutopilota?: (id: string) => Promise<unknown[]>
   diffAutopilota?: (id: string, chiave: string, percorso: string) => Promise<string>
@@ -506,8 +520,20 @@ function firmaScelte(s: { opzioni: { testo: string }[] }): string {
   return s.opzioni.map((o) => o.testo).join(String.fromCharCode(10))
 }
 
-export function rotteClient(deps: DipendenzeRotte) {
+export function rotteClient(depsPieni: DipendenzeRotte) {
+  const deps = depsPieni
   const adesso = deps.adesso ?? (() => Date.now())
+  const g = deps.pin
+  /** Chi guarda, per gli sblocchi: questo schermo, un altro PC (anche il ponte), un telefono. */
+  const visoreDi = (dispositivo: string | undefined): string =>
+    dispositivo === undefined || dispositivo === 'locale' ? 'locale' : dispositivo === 'pc' ? 'pc' : `tel:${dispositivo}`
+  /** Le chat come le vede quel visore: le chiuse senza anteprime e senza schermo. */
+  const chatPer = (visore: string): Chat[] => g === undefined ? deps.chat() : deps.chat().map((c) => {
+    if (!g.protetta(c)) return c
+    if (!g.chiusa(visore, c)) return { ...c, pin: 'aperta' } as Chat
+    const { coda: _c, codaGrezza: _g, ...resto } = c
+    return { ...oscuraChat(resto as unknown as Record<string, unknown>), coda: [], codaGrezza: [] } as unknown as Chat
+  })
   /**
    * Una cartella e' conosciuta se sta nell'elenco per percorso **o per slug**:
    * lo slug e' esatto in andata, il percorso ricavato da uno slug no.
@@ -543,6 +569,35 @@ export function rotteClient(deps: DipendenzeRotte) {
     corpo: unknown
     dispositivo?: string
   }): Promise<Esito> => {
+    const visore = visoreDi(r.dispositivo)
+    // ── Il PIN delle chat (0.49.0) ──
+    if (g !== undefined) {
+      if (r.metodo === 'POST' && r.percorso === '/api/pin/sblocca') {
+        const c = depsPieni.chat().find((x) => x.id === stringa(r.corpo, 'chat'))
+        if (c === undefined) return { stato: 404, corpo: { errore: 'questa chat non è aperta qui' } }
+        const e = g.sblocca(visore, c, stringa(r.corpo, 'pin'))
+        return e.ok ? OK({ fatto: true }) : { stato: e.fraMs !== undefined ? 429 : 403, corpo: { errore: e.errore, ...(e.fraMs !== undefined ? { fraMs: e.fraMs } : {}) } }
+      }
+      if (ROTTE_DENTRO_CHAT.has(r.percorso)) {
+        const c = depsPieni.chat().find((x) => x.id === stringa(r.corpo, 'chat'))
+        if (c !== undefined && g.chiusa(visore, c)) return { stato: STATO_CHIUSA, corpo: rifiutoChiusa(c.titolo) }
+        if (c !== undefined && (r.percorso === '/api/scrivi' || r.percorso === '/api/scegli')) g.tocca(visore, c)
+      }
+    }
+    // Una vista per questa richiesta: chi guarda cambia da una richiesta all'altra.
+    // eslint-disable-next-line @typescript-eslint/no-shadow
+    const deps: DipendenzeRotte = g === undefined ? depsPieni : {
+      ...depsPieni,
+      chat: () => chatPer(visore),
+      ...(depsPieni.istruzioniAutopilota !== undefined ? {
+        // Le istruzioni mandate a una chat chiusa: si vede che c'è, non cosa dice.
+        istruzioniAutopilota: async (id: string) => (await (depsPieni.istruzioniAutopilota as (id: string) => Promise<unknown[]>)(id)).map((i) => {
+          const o = i as { chatId?: string; testo?: string }
+          const c = depsPieni.chat().find((x) => x.id === o.chatId)
+          return c !== undefined && g.chiusa(visore, c) ? { ...o, testo: ANTEPRIMA_NASCOSTA, pin: 'chiusa' } : i
+        })
+      } : {})
+    }
     if (r.percorso === '/api/stato') {
       // `autopilotiLetti` (0.37.0): se il servizio non risponde l'elenco arriva
       // vuoto, e il telefono lo prendeva per «nessun autopilota» — dimenticava

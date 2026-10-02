@@ -15,7 +15,9 @@
  */
 
 export const ROTTE_PONTE: readonly string[] = [
-  '/api/stato', '/api/storia', '/api/scrivi', '/api/scegli', '/api/sessioni/riprendi', '/api/apri'
+  '/api/stato', '/api/storia', '/api/scrivi', '/api/scegli', '/api/sessioni/riprendi', '/api/apri',
+  // Il PIN delle chat di quel PC (0.49.0): lo verifica lui.
+  '/api/pin/sblocca'
 ]
 
 export function rottaPonte(percorso: string): boolean {

@@ -157,8 +157,10 @@ export function statoPc(p: {
 }
 
 /** Il motivo vero di una risposta di quel PC (`undefined` = andata bene). */
-export function motivoDaStatoHttp(stato: number): 'chiave' | 'rifiutato' | 'chat' | 'http' | undefined {
+export function motivoDaStatoHttp(stato: number): 'chiave' | 'rifiutato' | 'chat' | 'pin' | 'http' | undefined {
   if (stato >= 200 && stato < 300) return undefined
+  // 423 (0.49.0): la chat là è protetta dal PIN e non è aperta per questo PC.
+  if (stato === 423) return 'pin'
   if (stato === 401) return 'chiave'
   if (stato === 403) return 'rifiutato'
   if (stato === 404) return 'chat'
@@ -178,6 +180,8 @@ export function messaggioErroreRemoto(motivo: string, nome: string, dettaglio?: 
       return statoPc({ nome, ping: { esito: 'chiave', indirizzo: '' }, battitoVivo: true, driveCollegato: true, porta: 0 }).cosaFare
     case 'rifiutato':
       return statoPc({ nome, ping: { esito: 'rifiutato', indirizzo: '' }, battitoVivo: true, driveCollegato: true, porta: 0 }).cosaFare
+    case 'pin':
+      return `Questa chat su ${nome} è protetta dal PIN: inseriscilo qui per vederla e scriverle. Lo controlla ${nome}, e si richiude dopo il tempo di inattività impostato là.`
     case 'cassaforte':
       return 'La cassaforte di questo PC è chiusa: la chiave per bussare a un altro PC si ricava da lì. Sbloccala (Account → Cassaforte) e riprova.'
     case 'http':

@@ -144,6 +144,7 @@ export function descriviSilenzio(motivo: string, pcNome: string, daMs: number): 
   // Mai «spento» (0.39.3): con dati vecchi non lo si sa.
   if (motivo === 'spento' || motivo === 'non-so') return { titolo: `Non so se ${pcNome} è acceso · non risponde da ${quanto} · riprovo da solo`, breve }
   if (motivo === 'chat') return { titolo: `${pcNome} risponde, ma questa chat là è stata chiusa`, breve: false }
+  if (motivo === 'pin') return { titolo: `🔒 Chat protetta dal PIN su ${pcNome}`, breve: false }
   if (motivo === 'senza-indirizzi') return { titolo: `Non so a che indirizzo bussare a ${pcNome}`, breve: false }
   if (motivo === 'rifiutato' || motivo === 'chiave') return { titolo: `${pcNome} risponde ma non mi fa entrare · riprovo da solo`, breve: false }
   return { titolo: `${pcNome} non risponde da ${quanto} · riprovo da solo`, breve }

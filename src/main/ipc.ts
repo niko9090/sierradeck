@@ -85,6 +85,13 @@ import { statSync } from 'node:fs'
 import { release } from 'node:os'
 import { riassumiConsumi, type Consumi } from '@shared/consumi'
 
+/**
+ * Il PIN delle chat (0.49.0): le istruzioni mandate a una chat chiusa per
+ * questo schermo arrivano alla linguetta senza il testo. Lo imposta index.ts,
+ * che ha il guardiano e le chat aperte.
+ */
+export const filtroIstruzioniPin: { filtra: <T>(l: T[]) => T[] } = { filtra: (l) => l }
+
 export type { SpawnRequest } from './validation'
 
 // Gli handler di `ipcMain` sono globali di processo, e le risorse qui sotto — il
@@ -1371,7 +1378,7 @@ export function registerAutopilotaIpc(client: ClientAutopilota): void {
     client.archivia(validaIdAutopilota(id), archivia !== false))
   ipcMain.handle('autopilota:elimina', (_e, id: unknown) => client.elimina(validaIdAutopilota(id)))
   ipcMain.handle('autopilota:domande', () => client.domande())
-  ipcMain.handle('autopilota:istruzioni', (_e, id: unknown) => client.istruzioni(validaIdAutopilota(id)))
+  ipcMain.handle('autopilota:istruzioni', async (_e, id: unknown) => filtroIstruzioniPin.filtra(await client.istruzioni(validaIdAutopilota(id))))
 
   // L'avvio al login vive nel Core e non nel servizio: è il Core a sapere dove
   // sono l'eseguibile e lo script compilato, e il servizio non deve poter
