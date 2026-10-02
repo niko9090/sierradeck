@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ascoltaSegnali, partitaConSegnali, prontaConSegnali } from './segnali-vivi'
 import { useLayoutStore } from './state/layout'
 import { useSessionStore } from './state/sessions'
 import { creaPersistenza } from './persistenza-layout'
@@ -179,6 +180,8 @@ function usaRiquadriInArrivo(): void {
   }, [])
 }
 
+ascoltaSegnali()
+
 export function App(): React.JSX.Element {
   const root = useLayoutStore((s) => s.root)
   // I colori scelti dall'utente, applicati alla radice del documento: le
@@ -245,7 +248,8 @@ export function App(): React.JSX.Element {
    * lungo facevano scadere l'attesa, e l'invio non partiva.
    */
   const prontaPerConsegna = useCallback(
-    (ptyId: string): boolean => prontoPerInvio(righe.current.attivitaDi(ptyId), righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite, Date.now()),
+    // I segnali di Claude Code prima (0.45.0): «aspetta» vale come pronta.
+    (ptyId: string): boolean => prontaConSegnali(ptyId, () => prontoPerInvio(righe.current.attivitaDi(ptyId), righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite, Date.now())),
     []
   )
   /**
@@ -256,7 +260,8 @@ export function App(): React.JSX.Element {
   // Definita piu' sotto: la consegna la chiama per tornare nel suo workspace.
   const aggiornaWorkspaceRef = useRef<(s: StatoWorkspace) => void>(() => undefined)
   const extraConsegna = useMemo(() => ({
-    partita: (ptyId: string, scritto?: string) => consegnaPartita(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite, scritto),
+    // Partita: il segnale «turno cominciato» di Claude Code (0.45.0); lo schermo come riserva.
+    partita: (ptyId: string, scritto?: string) => partitaConSegnali(ptyId, () => consegnaPartita(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite, scritto)),
     perso: (ptyId: string, scritto?: string) => testoPerso(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite, scritto ?? ''),
     // Ogni passo nel registro su file (0.38.2): dopo un guasto si legge li'.
     registra: (passo: string) => { void window.gestore.log.info(`[consegna] ${passo}`).catch(() => undefined) },

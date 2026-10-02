@@ -89,6 +89,14 @@ export type Chat = {
   /** L'ultima riga vista nel terminale: dice a colpo d'occhio se si muove. */
   ultimaRiga?: string
   /**
+   * Dai segnali di Claude Code (0.45.0): chiede un permesso o una domanda,
+   * l'errore che ha fermato il turno, e da dove viene lo stato (segnali, o
+   * lo schermo come riserva). Assenti per le chat senza segnali.
+   */
+  chiedeSegnale?: boolean
+  errore?: string
+  fonteStato?: 'segnali' | 'schermo'
+  /**
    * Le ultime righe, per chi vuole guardare dentro.
    *
    * Non viaggiano con l'elenco: si chiedono per **una** chat, quando la si
@@ -560,7 +568,8 @@ export function rotteClient(deps: DipendenzeRotte) {
           ...resto,
           // Se sullo schermo c'e' un elenco di scelte: e' il pallino della
           // scheda «Domande» del telefono, senza aprire la chat.
-          chiede: scelteVive(resto.id, codaGrezza ?? coda ?? []) !== undefined
+          // I segnali di Claude Code prima (0.45.0); lo schermo come riserva.
+          chiede: resto.chiedeSegnale ?? scelteVive(resto.id, codaGrezza ?? coda ?? []) !== undefined
         })),
         // I progetti sul Drive: chi li ha in mano e quanti comandi aspettano.
         progetti: deps.progetti?.() ?? [],

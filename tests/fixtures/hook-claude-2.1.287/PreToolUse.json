@@ -1,0 +1,17 @@
+{
+  "session_id": "a9cb6868-8398-4831-95fc-83b9b40b0a51",
+  "transcript_path": "C:\\Users\\nikof\\.claude\\projects\\C--progetti-prova\\a9cb6868-8398-4831-95fc-83b9b40b0a51.jsonl",
+  "cwd": "C:\\progetti\\prova",
+  "prompt_id": "33f63eda-e8fb-4363-b029-2424554470dd",
+  "permission_mode": "default",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "PowerShell",
+  "tool_input": {
+    "command": "echo ciao-sierradeck > file-di-prova.txt",
+    "description": "Write text to file-di-prova.txt"
+  },
+  "tool_use_id": "toolu_01T1gH21mtQTsMDFs94H4r72"
+}

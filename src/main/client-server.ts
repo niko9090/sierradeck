@@ -50,6 +50,13 @@ export type DipendenzeClient = {
    */
   polso?: (corpo: unknown) => string
   /**
+   * I segnali di Claude Code (0.45.0): gli hook delle chat ci mandano il loro
+   * JSON (`POST /api/segnale`, solo da 127.0.0.1, senza chiave: e' un
+   * processo di questo computer). Si risponde senza corpo: l'hook non stampa
+   * niente e non decide niente al posto di Claude Code.
+   */
+  segnale?: (corpo: unknown) => void
+  /**
    * La **chiave di casa**: quella che un altro PC con la stessa cassaforte
    * ricava per bussare qui (`sincronia.chiaveDiCasa('client-pc:<mio id>')`).
    * Chi la presenta entra come un dispositivo accoppiato, senza codice ne'
@@ -174,6 +181,17 @@ async function gestisci(
   // Il polso delle chat: nasce da un comando lanciato da Claude Code su questa
   // macchina, quindi vale solo dal loopback e non ha una chiave. Da fuori e'
   // una rotta che non esiste.
+  if (percorso === '/api/segnale') {
+    if (metodo !== 'POST' || !eLoopback(indirizzo) || deps.segnale === undefined) {
+      rispondi(res, { stato: 403, corpo: { errore: 'solo da questo computer' } })
+      return
+    }
+    try { deps.segnale(corpo) } catch (err) { console.warn('[client] segnale non letto:', err) }
+    res.writeHead(204)
+    res.end()
+    return
+  }
+
   if (percorso === '/api/polso') {
     if (metodo !== 'POST' || !eLoopback(indirizzo) || deps.polso === undefined) {
       rispondi(res, { stato: 403, corpo: { errore: 'solo da questo computer' } })

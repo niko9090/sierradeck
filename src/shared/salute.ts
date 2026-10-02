@@ -58,6 +58,8 @@ export type IngressiSalute = {
   tentativoFallito?: { titolo: string; motivo: string; strade: string[]; pagina: string; versione: string }
   errori: ErroreLog[]
   consegne: ConsegnaNonPartita[]
+  /** Le chat ferme per un errore dell'API, dai segnali di Claude Code (0.45.0). */
+  chatInErrore?: { titolo: string; errore: string }[]
   /** Da quante ore si leggono gli errori. */
   oreErrori: number
 }
@@ -188,6 +190,17 @@ export function componiSalute(i: IngressiSalute): Salute {
       spiegazione: `Dal registro di questo PC${e.volte > 1 ? `, la prima volta ${quantoFa(e.primo, i.adesso)}` : ''}: ${e.messaggio}`,
       cosaFare: 'Se si ripete e qualcosa non va, apri il registro e manda le righe di quell’ora a chi ti aiuta: dicono cosa è successo e in che ordine.',
       azioni: [{ id: 'apri-registro', testo: 'Apri la cartella del registro' }]
+    })
+  }
+
+  // ── Le chat ferme per un errore dell'API (segnale StopFailure, 0.45.0) ──
+  for (const c of i.chatInErrore ?? []) {
+    voci.push({
+      chiave: `chat-errore:${c.titolo}`, gruppo: 'errori', tono: 'guasto',
+      titolo: `La chat «${c.titolo}» si è fermata per un errore: ${c.errore.slice(0, 100)}`,
+      spiegazione: `Claude Code ha chiuso il turno per un errore dell’API (${c.errore}). Il lavoro fatto fin lì c’è; la chat aspetta. Se è il limite del piano, riparte quando il limite si azzera; se è l’accesso, va rifatto il login di Claude Code.`,
+      cosaFare: 'Scrivi alla chat di riprendere quando il motivo è passato; se è l’accesso, apri una chat e fai /login.',
+      azioni: []
     })
   }
 

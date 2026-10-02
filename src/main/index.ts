@@ -10,6 +10,7 @@ import { creaSpostaProgetto, impronteSessioni } from './sposta-progetto'
 import { saleDaQui, scendeQui, sessioneDiPercorso, type CasaChat } from '@shared/una-casa'
 import { esitoDaPasso } from '@shared/istruzioni-autopilota'
 import { componiSalute, erroriDalLog } from '@shared/salute'
+import { hookSegnali, leggiSegnale, SEGNALI_PER_CHAT, statoChat, statoDaSegnali, unisciConHook, type Segnale } from '@shared/segnali-chat'
 import { CERCA_OFFERTE_OGNI_MS, stradaBreve, type ChatNelloSchermo, type InfoStrada } from '@shared/strada-pc'
 import { doveMostrareDomande, eLinguettaStaccabile } from '@shared/finestra-pannello'
 import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell } from 'electron'
@@ -201,6 +202,49 @@ let serverClient: import('node:http').Server | undefined
 /** Le chat aperte, come le racconta il renderer: servono al Client. */
 let chatAperte: Chat[] = []
 /**
+ * Le chat come le manda la finestra, prima dei segnali (0.45.0): `chatAperte`
+ * si ricava da qui applicando lo stato dei segnali di Claude Code, a ogni
+ * aggiornamento della finestra e a ogni segnale.
+ */
+let chatDallaFinestra: Chat[] = []
+/** I segnali di Claude Code per sessione, gli ultimi. */
+const segnaliPerSessione = new Map<string, Segnale[]>()
+/** Le sessioni per cui il registro ha gia' detto «stato dallo schermo». */
+const riservaRaccontata = new Set<string>()
+function conSegnali(chat: Chat[]): Chat[] {
+  return chat.map((c) => {
+    const s = c.sessione === undefined ? undefined : statoDaSegnali(segnaliPerSessione.get(c.sessione) ?? [])
+    if (s === undefined) {
+      if (c.sessione !== undefined && c.viva === true && !riservaRaccontata.has(c.sessione)) {
+        riservaRaccontata.add(c.sessione)
+        registroGlobale?.info(`[segnali] «${c.titolo}»: nessun segnale da Claude Code, lo stato viene dallo schermo (riserva)`)
+      }
+      return { ...c, fonteStato: 'schermo' as const }
+    }
+    const v = statoChat({ segnali: s, schermo: { aspetta: c.aspetta === true, chiede: false } })
+    return {
+      ...c, aspetta: v.aspetta, chiedeSegnale: v.chiede, fonteStato: 'segnali' as const,
+      ...(v.errore !== undefined ? { errore: v.errore } : {}),
+      ...(s.fase === 'chiusa' ? { viva: false } : {})
+    }
+  })
+}
+function ricordaSegnale(corpo: unknown): void {
+  const s = leggiSegnale(corpo, new Date().toISOString())
+  if (s === undefined) return
+  const lista = [...(segnaliPerSessione.get(s.sessione) ?? []), s].slice(-SEGNALI_PER_CHAT)
+  segnaliPerSessione.set(s.sessione, lista)
+  if (s.evento === 'StopFailure') registroGlobale?.info(`[segnali] turno finito per un errore dell'API (sessione ${s.sessione}): ${s.errore ?? 'senza dettagli'}`)
+  chatAperte = conSegnali(chatDallaFinestra)
+  // Alle finestre: le consegne degli autopiloti lo usano prima dello schermo.
+  const st = statoDaSegnali(lista)
+  if (st !== undefined) {
+    for (const w of finestreDiChat()) {
+      if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('segnali:stato', { sessione: s.sessione, fase: st.fase, dal: st.dal })
+    }
+  }
+}
+/**
  * Il polso di ogni chat: quello che la riga di stato di Claude Code ci manda
  * (modello, costo, contesto, limiti del piano). In memoria e su disco
  * (`polso-chat.json`), perche' la spesa di ieri serve anche dopo un riavvio.
@@ -274,7 +318,11 @@ function rigaDiStatoPerChat(porta: number): Record<string, unknown> | undefined 
   return {
     statusLine: {
       type: 'command',
-      command: `curl -s -X POST -H "content-type: application/json" --data-binary @- http://127.0.0.1:${porta}/api/polso`,
+      // `curl.exe` e `"@-"` tra virgolette (0.45.0): Claude Code puo' lanciare
+      // i comandi con PowerShell, dove `curl` e' Invoke-WebRequest e un `@`
+      // nudo e' un'altra cosa; cosi' va sia con PowerShell sia con bash
+      // (provato il 02/10). Prima i limiti del piano restavano non letti.
+      command: `curl.exe -s -X POST -H "content-type: application/json" --data-binary "@-" http://127.0.0.1:${porta}/api/polso`,
       padding: 0
     }
   }
@@ -879,7 +927,11 @@ if (!app.requestSingleInstanceLock()) {
           }
           // La riga di stato che ci porta limiti del piano, costo e contesto.
           const riga = rigaDiStatoPerChat(impostazioni.preferenze().portaClient)
-          return riga === undefined ? base : fondiImpostazioni(base, riga)
+          const conRiga = riga === undefined ? base : fondiImpostazioni(base, riga)
+          // I segnali di Claude Code (0.45.0): gli hook di ogni chat ci
+          // mandano stato, permessi, turni ed errori. Si sommano a quelli
+          // dell'autopilota, non li sostituiscono.
+          return unisciConHook(conRiga, hookSegnali(impostazioni.preferenze().portaClient))
         },
         // La porta arriva come lettura e non come numero: gli hook di una chat
         // si compongono al momento dello spawn, molto dopo questa riga.
@@ -1533,6 +1585,7 @@ if (!app.requestSingleInstanceLock()) {
           ...(t !== undefined ? { tentativoFallito: { titolo: t.titolo, motivo: t.motivo, strade: t.strade, pagina: t.pagina, versione: t.versione } } : {}),
           errori: erroriDalLog(righe, adesso, ORE_ERRORI_SALUTE),
           consegne,
+          chatInErrore: chatAperte.filter((c) => c.errore !== undefined).map((c) => ({ titolo: c.titolo, errore: c.errore as string })),
           oreErrori: ORE_ERRORI_SALUTE
         })
       }
@@ -3236,6 +3289,8 @@ if (!app.requestSingleInstanceLock()) {
         dispositivi,
         // Il polso delle chat: la riga di stato di Claude Code ci manda il suo
         // JSON e riceve la riga da mostrare in fondo al terminale.
+        // I segnali di Claude Code (0.45.0): stato, permessi, turni, errori.
+        segnale: (corpo) => ricordaSegnale(corpo),
         polso: (corpo) => {
           const p = leggiPolso(corpo, Date.now())
           if (p === undefined) return ''
@@ -3346,7 +3401,9 @@ if (!app.requestSingleInstanceLock()) {
           // Una finestra chiusa non deve lasciare le sue chat nell'elenco.
           if (w === undefined || w.isDestroyed()) chatPerFinestra.delete(id)
         }
-        chatAperte = [...chatPerFinestra.values()].flat()
+        chatDallaFinestra = [...chatPerFinestra.values()].flat()
+        // Lo stato dai segnali di Claude Code, lo schermo come riserva (0.45.0).
+        chatAperte = conSegnali(chatDallaFinestra)
         // Il battito delle chat governate che stanno lavorando, al servizio:
         // e' il segnale di vita che il guardiano del silenzio non aveva, e
         // senza cui sospendeva chi lavorava da piu' di un'ora.

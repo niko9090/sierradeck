@@ -201,3 +201,23 @@ describe('indirizziInEvidenza', () => {
     expect(indirizziInEvidenza(indirizziLocali(soloVirtuali, undefined))).toHaveLength(1)
   })
 })
+
+describe('i segnali di Claude Code (0.45.0)', () => {
+  it('POST da questo computer: senza chiave, 204 senza corpo, il JSON arriva intero', async () => {
+    const dispositivi = apriDispositivi(mkdtempSync(join(tmpdir(), 'sd-cs-')))
+    const arrivati: unknown[] = []
+    server = creaServerClient({ dispositivi, rotta: () => ({ stato: 200, corpo: {} }), segnale: (c) => arrivati.push(c) })
+    await ascolta(server)
+    const porta = (server.address() as AddressInfo).port
+    const r = await fetch(`http://127.0.0.1:${porta}/api/segnale`, { method: 'POST', body: JSON.stringify({ hook_event_name: 'Stop', session_id: 's' }) })
+    expect(r.status).toBe(204)
+    expect(await r.text()).toBe('')
+    expect(arrivati).toEqual([{ hook_event_name: 'Stop', session_id: 's' }])
+  })
+  it('in GET o senza chi li riceve: 403', async () => {
+    const a = ambiente()
+    server = a.server
+    await ascolta(server)
+    expect((await chiama(server, '/api/segnale', { metodo: 'POST', corpo: {} })).stato).toBe(403)
+  })
+})

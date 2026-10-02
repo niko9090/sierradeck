@@ -82,6 +82,13 @@ describe('le voci del pannello', () => {
     expect(c?.azioni[0]).toMatchObject({ id: 'apri-autopilota', autopilota: 'ap-1' })
     expect(s.riassunto).toBe('2 cose da sistemare · 3 da guardare')
   })
+  it('una chat ferma per un errore dell’API (segnale StopFailure) è un guasto con cosa fare', () => {
+    const s = componiSalute({ ...base, chatInErrore: [{ titolo: 'Trading', errore: 'rate_limit: Claude usage limit reached' }] })
+    const v = s.voci.find((x) => x.chiave === 'chat-errore:Trading')
+    expect(v?.tono).toBe('guasto')
+    expect(v?.titolo).toContain('rate_limit')
+    expect(v?.cosaFare).toContain('/login')
+  })
   it('ogni voce ha una spiegazione per esteso', () => {
     const s = componiSalute({ ...base, drive: { configurato: false, connesso: false }, errori: erroriDalLog(REGISTRO, ADESSO, 6) })
     for (const v of s.voci) expect(v.spiegazione.length, v.chiave).toBeGreaterThan(40)

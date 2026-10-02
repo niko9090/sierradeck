@@ -445,6 +445,14 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Da dove aprire una chat del workspace: qui, dal vivo su un altro PC, o in attesa di quel PC. */
     daDove: (p: { cwd: string; sessionUuid?: string }): Promise<import('@shared/apertura-chat').Apertura> => ipcRenderer.invoke('chat:daDove', p)
   },
+  /** I segnali di Claude Code (0.45.0): la fase di ogni sessione, a ogni hook. */
+  segnali: {
+    suStato: (cb: (f: import('@shared/segnali-chat').FaseSessione) => void): (() => void) => {
+      const h = (_e: unknown, f: import('@shared/segnali-chat').FaseSessione): void => cb(f)
+      ipcRenderer.on('segnali:stato', h)
+      return () => { ipcRenderer.removeListener('segnali:stato', h) }
+    }
+  },
   /** «Salute del sistema» (0.44.0). */
   salute: {
     leggi: (): Promise<import('@shared/salute').Salute> => ipcRenderer.invoke('salute:leggi')

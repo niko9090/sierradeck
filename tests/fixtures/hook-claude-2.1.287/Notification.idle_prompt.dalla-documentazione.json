@@ -1,0 +1,8 @@
+{
+  "session_id": "a9cb6868-8398-4831-95fc-83b9b40b0a51",
+  "transcript_path": "C:\\Users\\nikof\\.claude\\projects\\C--progetti-prova\\a9cb6868-8398-4831-95fc-83b9b40b0a51.jsonl",
+  "cwd": "C:\\progetti\\prova",
+  "hook_event_name": "Notification",
+  "message": "Claude is waiting for your input",
+  "notification_type": "idle_prompt"
+}

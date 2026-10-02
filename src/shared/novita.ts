@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.45.0',
+    righe: [
+      '**Lo stato delle chat lo dice Claude Code, non più lo schermo.** Ogni chat aperta in SierraDeck avvisa il programma da sola quando comincia a lavorare, quando chiede un permesso o ti fa una domanda, quando ha finito il turno e ti aspetta, e quando si ferma per un errore. Prima SierraDeck lo capiva leggendo il terminale, e a volte sbagliava: una chat che lavorava sembrava ferma, o il contrario. La lettura dello schermo resta solo come riserva, per le chat che non mandano questi avvisi, e il registro dice quando la si sta usando. Anche gli autopiloti consegnano le istruzioni nel momento giusto, perché sanno con certezza quando la chat è libera.',
+      '**Le chat ferme per un errore si vedono.** Se una chat si ferma perché è finito il limite del piano o perché l’accesso a Claude è scaduto, in «♥ Salute» compare una voce rossa con il motivo e cosa fare.',
+      '**I limiti del piano si leggono di nuovo.** Su alcuni PC la riga che li legge non partiva, perché Claude Code usa PowerShell e lì il comando era diverso. Ora va sia con PowerShell sia con il terminale classico.'
+    ]
+  },
+  {
     versione: '0.44.0',
     righe: [
       '**I comandi dei criteri si controllano quando si scrivono.** Quando un autopilota, il supervisore o tu scrivete il comando che misura un criterio, SierraDeck lo guarda subito, prima che entri nel lavoro. Si ferma se ci sono variabili che la shell svuoterebbe (la trappola del 01/10, quando un criterio bocciava anche a lavoro fatto), virgolette che non si chiudono o uno script node che non funziona, e chi l’ha scritto riceve un messaggio che spiega cosa non va e come scriverlo. Un file che ancora non esiste è solo un avviso, perché può essere proprio il lavoro a doverlo creare.',
