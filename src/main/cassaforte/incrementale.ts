@@ -33,7 +33,14 @@ const NOME_MANIFESTO = 'sierradeck.manifesto'
  * da un altro computer, arriva con una data diversa e sembrava «piu' recente
  * sul Drive» a chi l'aveva scritta. Con l'impronta, uguale e' uguale.
  */
-export type VoceManifesto = { nome: string; size: number; mtime: number; sha?: string }
+export type VoceManifesto = {
+  nome: string; size: number; mtime: number; sha?: string
+  /**
+   * Il PC che l'ha caricata, cioe' la sua casa (0.42.0, «una chat, una
+   * casa»): lo «spazio» di ogni PC sul Drive. Solo sulle chat.
+   */
+  pc?: string
+}
 export type Manifesto = {
   versione: 1
   creatoIl: string
@@ -71,6 +78,18 @@ export async function conLimite<T>(items: T[], limite: number, fn: (x: T) => Pro
     }
   }
   await Promise.all(Array.from({ length: Math.min(limite, items.length) }, () => lavoratore()))
+}
+
+/**
+ * Una copia di sicurezza del manifesto com'e' sul Drive, con un altro nome
+ * (0.42.0, prima della migrazione). Non si cancella mai: e' il modo di
+ * tornare indietro. `false` se sul Drive non c'e' nessun manifesto.
+ */
+export async function copiaManifesto(archivio: Archivio, nome: string): Promise<boolean> {
+  const blob = await archivio.scarica(NOME_MANIFESTO)
+  if (blob === undefined) return false
+  await archivio.carica(nome, blob)
+  return true
 }
 
 export async function scriviManifesto(archivio: Archivio, maestra: Buffer, manifesto: Manifesto): Promise<void> {
@@ -231,10 +250,18 @@ export async function salvaIncrementale(deps: {
    * ricarica niente.
    */
   sostituto?: (percorso: string, contenuto: Buffer, base: Manifesto) => Promise<Buffer | undefined>
+  /**
+   * I percorsi che da qui **non salgono** (0.42.0): le chat che hanno casa su
+   * un altro PC. La copia di qui non deve sovrascrivere quella di casa.
+   */
+  escludi?: (percorso: string) => boolean
+  /** Chi carica: finisce sulle voci delle chat (`pc`), lo spazio di questo PC. */
+  proprietario?: string
 }): Promise<{ manifesto: Manifesto; caricati: number; cancellati: number; cancellatiPercorsi: string[]; conflitti: Conflitto[]; annullato?: boolean }> {
   const copie = deps.copieDiConflitto ?? PROGETTI
   const pcNome = deps.pcNome ?? 'questo-pc'
   const firma = await firmaRadici(deps.radici)
+  if (deps.escludi !== undefined) for (const p of [...firma.keys()]) if (deps.escludi(p)) firma.delete(p)
   const prec = deps.manifestoPrec
   const perPrefisso = new Map(deps.radici.map((r) => [r.prefisso, r]))
   const prefissiNostri = new Set(perPrefisso.keys())
@@ -295,7 +322,10 @@ export async function salvaIncrementale(deps: {
     const nome = nomeDi(percorso)
     await deps.archivio.carica(nome, await cifra(deps.maestra, contenuto))
     // Mutazione fra due `await`: JS e' a thread singolo, non c'e' corsa vera.
-    nuovo.file[percorso] = { nome, size: f.size, mtime: f.mtime, sha: impronta(contenuto) }
+    nuovo.file[percorso] = {
+      nome, size: f.size, mtime: f.mtime, sha: impronta(contenuto),
+      ...(deps.proprietario !== undefined && prefissoDi(percorso) === 'chat' ? { pc: deps.proprietario } : {})
+    }
     caricatiDavvero += 1
   }
   const scaricaChiaro = async (voce: VoceManifesto): Promise<Buffer | undefined> => {

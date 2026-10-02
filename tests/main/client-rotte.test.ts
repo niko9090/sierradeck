@@ -1079,7 +1079,7 @@ describe('il Drive dal telefono', () => {
     expect(senza.corpo).toEqual({})
   })
 
-  it('il catalogo, il lavoro e «porta qui» passano dal computer, e la chiave arriva intera', async () => {
+  it('il catalogo e il lavoro passano dal computer; «porta qui» dalla 0.42.0 no (una chat, una casa)', async () => {
     const portati: string[] = []
     const rotte = rotteClient(deps({
       driveCatalogo: () => Promise.resolve({ ok: true, catalogo: { progetti: [], workspace: [], totali: { progetti: 0, chat: 0, daPortare: 0, daAggiornare: 0, soloQui: 0, uguali: 0 }, letto: 'T' } }),
@@ -1090,21 +1090,30 @@ describe('il Drive dal telefono', () => {
     }))
     const cat = await rotte({ metodo: 'GET', percorso: '/api/drive/catalogo', corpo: undefined })
     expect(cat.corpo).toMatchObject({ ok: true, disponibile: true })
+    // Un progetto si sposta con «Sposta progetto» dal PC dove sta: dal
+    // telefono non si porta piu' niente di nascosto, e lo si dice.
     const porta = await rotte({ metodo: 'POST', percorso: '/api/drive/porta', corpo: { progetto: 'E:\\Users\\tecnico\\Wdeck' } })
-    expect(porta.corpo).toMatchObject({ ok: true })
+    expect(porta.corpo).toMatchObject({ ok: false })
+    expect((porta.corpo as { messaggio: string }).messaggio).toContain('Sposta progetto')
     const ws = await rotte({ metodo: 'POST', percorso: '/api/drive/portaWorkspace', corpo: { workspace: 'lavoro' } })
-    expect(ws.corpo).toMatchObject({ ok: true })
-    expect(portati).toEqual(['E:\\Users\\tecnico\\Wdeck', 'ws:lavoro'])
+    expect(ws.corpo).toMatchObject({ ok: false })
+    expect(portati).toEqual([])
     const lav = await rotte({ metodo: 'GET', percorso: '/api/drive/lavoro', corpo: undefined })
     expect((lav.corpo as { inCorso?: { fatto: number } }).inCorso?.fatto).toBe(1)
     const ann = await rotte({ metodo: 'POST', percorso: '/api/drive/annulla', corpo: {} })
     expect(ann.corpo).toEqual({ fatto: true })
   })
-  it('«porta qui» senza progetto e un 400, senza il computer che lo sa fare un 409', async () => {
-    const r = await rotteClient(deps())({ metodo: 'POST', percorso: '/api/drive/porta', corpo: {} })
-    expect(r.stato).toBe(400)
-    const r2 = await rotteClient(deps())({ metodo: 'POST', percorso: '/api/drive/porta', corpo: { progetto: 'x' } })
-    expect(r2.stato).toBe(409)
+  it('le rotte di «Sposta progetto» valgono solo per un altro PC con la chiave di casa (0.42.0)', async () => {
+    const ricevuti: unknown[] = []
+    const rotte = rotteClient(deps({
+      sposta: { pronto: () => ({ versione: '0.42.0', nome: 'LAPTOP' }), ricevi: async (c) => { ricevuti.push(c); return { ok: true } }, verifica: async () => ({ file: {} }) }
+    }))
+    expect((await rotte({ metodo: 'GET', percorso: '/api/sposta/pronto', corpo: undefined, dispositivo: 'telefono-1' })).stato).toBe(403)
+    expect((await rotte({ metodo: 'GET', percorso: '/api/sposta/pronto', corpo: undefined, dispositivo: 'pc' })).corpo).toEqual({ versione: '0.42.0', nome: 'LAPTOP' })
+    expect((await rotte({ metodo: 'POST', percorso: '/api/sposta/ricevi', corpo: { progetto: 'p1' }, dispositivo: 'pc' })).corpo).toEqual({ ok: true })
+    expect(ricevuti).toEqual([{ progetto: 'p1' }])
+    // Un computer che non sa ricevere: 404, come una versione vecchia.
+    expect((await rotteClient(deps())({ metodo: 'GET', percorso: '/api/sposta/pronto', corpo: undefined, dispositivo: 'pc' })).stato).toBe(404)
   })
 
   it('una chat la cui cartella e di un altro PC si segna «su X» e non si riapre qui (409, con la spiegazione)', async () => {

@@ -134,6 +134,11 @@ export type DipendenzeRotte = {
   stradaPc?: (pcId: string) => string | undefined
   /** La linguetta «File» dal telefono (0.38.0): solo lettura. */
   fileAutopilota?: (id: string) => Promise<unknown>
+  /**
+   * «Sposta progetto» (0.42.0), dal lato di chi riceve: solo per gli altri PC
+   * con la chiave di casa (dispositivo `pc`), mai per un telefono.
+   */
+  sposta?: { pronto: () => unknown; ricevi: (corpo: unknown) => Promise<unknown>; verifica: (sessioni: string[]) => Promise<unknown> }
   /** La linguetta «Istruzioni» dal telefono (0.41.0): le consegne alle sue chat, intere. */
   istruzioniAutopilota?: (id: string) => Promise<unknown[]>
   diffAutopilota?: (id: string, chiave: string, percorso: string) => Promise<string>
@@ -1147,19 +1152,23 @@ export function rotteClient(deps: DipendenzeRotte) {
     if (r.percorso === '/api/drive/catalogoStato') {
       return OK((deps.driveCatalogoStato?.() as object | undefined) ?? {})
     }
-    if (r.metodo === 'POST' && r.percorso === '/api/drive/porta') {
-      const chiave = stringa(r.corpo, 'progetto')
-      if (chiave === '') return { stato: 400, corpo: { errore: 'serve il progetto' } }
-      if (deps.drivePortaQui === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora portare qui dal Drive' } }
-      const esito = await deps.drivePortaQui(chiave).catch((e: unknown) => ({ ok: false, messaggio: String(e) }))
-      return OK(esito as object)
+    // «Porta qui» dal telefono non c'e' piu' (0.42.0, «una chat, una casa»):
+    // un progetto si sposta con «Sposta progetto», dal PC dove sta, che
+    // controlla, verifica e archivia. Portarlo qui di nascosto ne farebbe due
+    // case.
+    if (r.metodo === 'POST' && (r.percorso === '/api/drive/porta' || r.percorso === '/api/drive/portaWorkspace')) {
+      return OK({ ok: false, messaggio: 'Dalla 0.42.0 un progetto non si porta più qui dal catalogo: ogni chat ha una casa sola. Per spostarlo usa «Sposta progetto…» nella scheda Drive del PC dove sta adesso; da qui intanto le sue chat si guardano dal vivo.' })
     }
-    if (r.metodo === 'POST' && r.percorso === '/api/drive/portaWorkspace') {
-      const nome = stringa(r.corpo, 'workspace')
-      if (nome === '') return { stato: 400, corpo: { errore: 'serve il workspace' } }
-      if (deps.drivePortaQuiWorkspace === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora portare qui dal Drive' } }
-      const esito = await deps.drivePortaQuiWorkspace(nome).catch((e: unknown) => ({ ok: false, messaggio: String(e) }))
-      return OK(esito as object)
+    // «Sposta progetto» (0.42.0): chi riceve. Solo da un altro PC di casa.
+    if (r.percorso.startsWith('/api/sposta/')) {
+      if (r.dispositivo !== 'pc') return { stato: 403, corpo: { errore: 'solo un altro PC con la stessa cassaforte' } }
+      if (deps.sposta === undefined) return { stato: 404, corpo: { errore: 'questo computer non sa ancora ricevere un progetto' } }
+      if (r.percorso === '/api/sposta/pronto') return OK(deps.sposta.pronto() as object)
+      if (r.metodo === 'POST' && r.percorso === '/api/sposta/ricevi') return OK((await deps.sposta.ricevi(r.corpo).catch((e: unknown) => ({ ok: false, messaggio: String(e) }))) as object)
+      if (r.metodo === 'POST' && r.percorso === '/api/sposta/verifica') {
+        const s = (r.corpo as { sessioni?: unknown } | undefined)?.sessioni
+        return OK((await deps.sposta.verifica(Array.isArray(s) ? s.filter((x): x is string => typeof x === 'string') : [])) as object)
+      }
     }
     if (r.percorso === '/api/drive/lavoro') {
       return OK((deps.driveLavoro?.() as object | undefined) ?? {})

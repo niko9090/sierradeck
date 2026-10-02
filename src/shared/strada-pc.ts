@@ -215,7 +215,11 @@ export function segnaleValido(x: unknown, p: { io: string; da?: string; giro?: s
  * riquadro remoto, e nient'altro. Sulla rete di casa la chiave di casa apre
  * tutte le rotte del Client; da Internet si tiene la porta più stretta.
  */
-export const ROTTE_VIA_CANALE: readonly string[] = ['/api/pc', '/api/stato', '/api/storia', '/api/scrivi', '/api/scegli', '/api/sessioni/riprendi', '/api/apri']
+export const ROTTE_VIA_CANALE: readonly string[] = [
+  '/api/pc', '/api/stato', '/api/storia', '/api/scrivi', '/api/scegli', '/api/sessioni/riprendi', '/api/apri',
+  // «Sposta progetto» (0.42.0): anche fra due PC su reti diverse.
+  '/api/sposta/pronto', '/api/sposta/ricevi', '/api/sposta/verifica'
+]
 
 export function rottaPermessaSulCanale(percorso: string): boolean {
   return ROTTE_VIA_CANALE.includes(percorso.split('?')[0] ?? '')

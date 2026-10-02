@@ -1,4 +1,5 @@
 import type { ProgressoCatalogo } from '../../shared/catalogo-progresso'
+import { manifestoConProprietari, verificaMigrazione, type CaseChat } from '@shared/una-casa'
 import { existsSync, readFileSync, rmSync, renameSync, copyFileSync, statSync } from 'node:fs'
 import { ePercorsoDiServizio } from '@shared/slug-di-servizio'
 import { scriviAtomico } from '@shared/scrittura-atomica'
@@ -10,7 +11,7 @@ import { pesaRadici, radiciDaSincronizzare, percorsoSicuro, type Radice } from '
 import { giorniDiRitenzione, fuoriRitenzione } from './ritenzione-claude'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
-import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi, stessaFirma, giaArrivata, scriviManifesto, nomeDi, impronta } from './incrementale'
+import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi, stessaFirma, giaArrivata, scriviManifesto, nomeDi, impronta, copiaManifesto } from './incrementale'
 import { applicaBlocco } from './lavoro'
 import type { Lavoro, Presa, TipoLavoro } from './lavoro-in-corso'
 import { costruisciCatalogo, scelteDiPortaQui, type Catalogo } from './catalogo'
@@ -160,6 +161,16 @@ export type Sincronia = {
   ripristinaProgetto: (id: string) => Promise<{ ok: boolean; scritti?: number; messaggio?: string; conflitti?: number }>
   /** Piccoli oggetti cifrati sul Drive (presenze, staffette); assente se chiuso o scollegato. */
   scatola: () => Scatola | undefined
+  /** L'ultimo manifesto noto a questo PC (senza chiamare il Drive). */
+  manifestoNoto: () => Manifesto
+  /** Il manifesto com'e' adesso sul Drive; `undefined` se chiuso, scollegato o assente. */
+  manifestoDrive: () => Promise<Manifesto | undefined>
+  /**
+   * La migrazione «una chat, una casa» (0.42.0): il proprietario su ogni chat
+   * di cui si sa la casa. Copia di sicurezza prima, verifica dopo; nessun file
+   * cancellato o rinominato.
+   */
+  migraUnaCasa: (c: CaseChat) => Promise<{ ok: boolean; messaggio?: string; proprietari?: number; copia?: string }>
   /**
    * Il piano di fusione fra questo PC e il Drive collegato: cosa c'e' di qua,
    * di la', in comune, e cosa si farebbe. Se la cassaforte del Drive e' un'altra
@@ -279,6 +290,12 @@ export function apriSincronia(deps: {
   lavoro?: Lavoro
   /** Dove questo PC riceve i progetti che arrivano dal Drive (per «Porta qui»). */
   cartellaProgetti?: () => string
+  /**
+   * «Una chat, una casa» (0.42.0): quali chat salgono da qui (solo quelle di
+   * cui questo PC e' la casa) e quali scendono da sole (solo quelle di casa
+   * qui). Senza, tutto come prima.
+   */
+  unaCasa?: { saleDaQui: (percorso: string) => boolean; scendeQui: (percorso: string) => boolean }
 }): Sincronia {
   const adesso = deps.adesso ?? ((): string => new Date().toISOString())
   /** Quante chat l'ultimo arrivo ha lasciato sul Drive perche' fuori ritenzione: si scrive nel registro solo quando cambia. */
@@ -741,7 +758,11 @@ export function apriSincronia(deps: {
           adesso: adesso(),
           onProgresso: progressoVerso(l.presa),
           ...(l.presa !== undefined ? { segnale: l.presa.segnale } : {}),
-          sostituto: (percorso, contenuto, base) => unioneWorkspace(m, percorso, contenuto, base)
+          sostituto: (percorso, contenuto, base) => unioneWorkspace(m, percorso, contenuto, base),
+          // Una chat, una casa (0.42.0): le copie fuori casa non salgono, e
+          // ogni chat caricata porta il suo PC.
+          ...(deps.unaCasa !== undefined ? { escludi: (p: string) => !(deps.unaCasa as { saleDaQui: (p: string) => boolean }).saleDaQui(p) } : {}),
+          ...(deps.pcId !== undefined ? { proprietario: deps.pcId() } : {})
         })
         scriviManifestoLocale(esito.manifesto)
         const totali = Object.keys(esito.manifesto.file).length
@@ -1385,6 +1406,45 @@ export function apriSincronia(deps: {
       return r
     },
 
+    manifestoNoto() {
+      return leggiManifestoLocale()
+    },
+    async manifestoDrive() {
+      if (maestra === undefined || !deps.driveConnesso()) return undefined
+      const e = await leggiManifesto(deps.archivio(), maestra)
+      return e.stato === 'ok' ? e.manifesto : undefined
+    },
+    async migraUnaCasa(caseChat) {
+      if (maestra === undefined) return { ok: false, messaggio: 'cassaforte chiusa' }
+      if (!deps.driveConnesso()) return { ok: false, messaggio: 'Drive non collegato' }
+      const a = deps.archivio()
+      const esito = await leggiManifesto(a, maestra)
+      if (esito.stato === 'assente') return { ok: true, proprietari: 0 }
+      if (esito.stato !== 'ok') return { ok: false, messaggio: 'il manifesto del Drive non si apre con questa chiave: non tocco niente' }
+      const prima = esito.manifesto
+      const dopo = manifestoConProprietari(prima, caseChat) as Manifesto
+      const perse = verificaMigrazione(prima, dopo)
+      if (perse.length > 0) {
+        log(`MIGRAZIONE una-casa fermata: perderebbe ${perse.length} voci (${perse.slice(0, 5).join(', ')}): non scrivo niente`)
+        return { ok: false, messaggio: `la migrazione perderebbe ${perse.length} voci: non ho scritto niente` }
+      }
+      const proprietari = Object.entries(dopo.file).filter(([p, v]) => v.pc !== undefined && prima.file[p]?.pc === undefined).length
+      if (proprietari === 0) return { ok: true, proprietari: 0 }
+      const copia = `sierradeck.manifesto.prima-0.42-${deps.pcId?.() ?? 'pc'}-${adesso().slice(0, 10)}`
+      await copiaManifesto(a, copia)
+      await scriviManifesto(a, maestra, { ...dopo, creatoIl: adesso() })
+      // Riletto: ogni voce di prima deve esserci ancora, uguale.
+      const riletto = await leggiManifesto(a, maestra)
+      const ancora = riletto.stato === 'ok' ? verificaMigrazione(prima, riletto.manifesto) : Object.keys(prima.file)
+      if (ancora.length > 0) {
+        log(`MIGRAZIONE una-casa: dopo la scrittura mancano ${ancora.length} voci, rimetto la copia di sicurezza ${copia}`)
+        const blob = await a.scarica(copia)
+        if (blob !== undefined) await a.carica('sierradeck.manifesto', blob)
+        return { ok: false, messaggio: 'verifica dopo la scrittura non riuscita: rimesso il manifesto di prima' }
+      }
+      log(`MIGRAZIONE una-casa ok: ${proprietari} chat con il loro PC di casa nel manifesto; copia di sicurezza ${copia}`)
+      return { ok: true, proprietari, copia }
+    },
     async arrivo() {
       if (maestra === undefined || !deps.driveConnesso()) return { ok: true, scritti: 0 }
       const m = maestra
@@ -1413,6 +1473,9 @@ export function apriSincronia(deps: {
       let vecchie = 0
       const candidati = Object.entries(esitoM.manifesto.file).filter(([p, v]) => {
         if (prefissoDi(p) !== 'chat' || altroveQui(p, v.size)) return false
+        // Una chat, una casa (0.42.0): non scendono piu' da sole le chat degli
+        // altri PC. Si guardano dal vivo, o si spostano con «Sposta progetto».
+        if (deps.unaCasa !== undefined && !deps.unaCasa.scendeQui(p)) return false
         const locale = firma.get(p)
         // Non sul disco a quel percorso: e' nuova, oppure e' gia' arrivata e la
         // rimappatura l'ha spostata sotto lo slug di qui. Nel secondo caso il

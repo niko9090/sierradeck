@@ -5,6 +5,9 @@ import {
 import { creaPonteRtc } from './rtc/ponte-rtc'
 import { creaRtc } from './rtc/collegamento-rtc'
 import { creaCassettaDrive } from './rtc/cassetta-drive'
+import { creaUnaCasa, type ChatLocale, type UnaCasa } from './una-casa'
+import { creaSpostaProgetto, impronteSessioni } from './sposta-progetto'
+import { saleDaQui, scendeQui, sessioneDiPercorso, type CasaChat } from '@shared/una-casa'
 import { esitoDaPasso } from '@shared/istruzioni-autopilota'
 import { CERCA_OFFERTE_OGNI_MS, stradaBreve, type ChatNelloSchermo, type InfoStrada } from '@shared/strada-pc'
 import { doveMostrareDomande, eLinguettaStaccabile } from '@shared/finestra-pannello'
@@ -296,6 +299,13 @@ let postinoGlobale: Postino | undefined
  * strade nuove (0.40.0): il canale WebRTC e lo schermo per la cassetta sul
  * Drive. Nasce con il server del Client, piu' avanti dell'avvio del postino.
  */
+/**
+ * «Una chat, una casa» (0.42.0): nasce dopo la sincronia, che la consulta per
+ * sapere quali chat salgono e quali scendono. Finché non c'e', tutto come prima.
+ */
+let unaCasaGlobale: UnaCasa | undefined
+/** Il servizio della procedura «Sposta progetto», per le rotte del Client. */
+let spostaGlobale: { pronto: () => unknown; ricevi: (corpo: unknown) => Promise<unknown>; verifica: (sessioni: string[]) => Promise<unknown> } | undefined
 let rottaPerAltriPc: ((r: { metodo: string; percorso: string; corpo: unknown; dispositivo?: string }) => Promise<{ stato: number; corpo: unknown }>) | undefined
 /** Il lavoro con il Drive in corso, per non uscire sopra una fusione a meta'. */
 let lavoroGlobale: ReturnType<typeof creaLavoro> | undefined
@@ -1125,6 +1135,12 @@ if (!app.requestSingleInstanceLock()) {
       const sincronia = apriSincronia({
         dati,
         radiceClaude,
+        // Una chat, una casa (0.42.0): salgono solo le chat di casa qui;
+        // scendono da sole solo quelle di casa qui.
+        unaCasa: {
+          saleDaQui: (p) => unaCasaGlobale === undefined || saleDaQui(p, unaCasaGlobale.case(), identitaPc.leggi().id),
+          scendeQui: (p) => unaCasaGlobale === undefined || scendeQui(p, unaCasaGlobale.case(), identitaPc.leggi().id)
+        },
         progetti: progettiSync,
         pcNome: () => identitaPc.leggi().nome,
         pcId: () => identitaPc.leggi().id,
@@ -1461,6 +1477,146 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('remoto:apri', (_e, pc: unknown, cartella: unknown) =>
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/apri', { cartella: testo(cartella) }), pc))
       ipcMain.handle('remoto:prova', (_e, pc: unknown) => remoto.prova(testo(pc)))
+
+      // ── «Una chat, una casa» (0.42.0) ──
+      // Il progetto: .sierradeck/quaderno/2026-10-02-una-chat-una-casa-progetto.md
+      const radiceProgetti = join(radiceClaude, 'projects')
+      const chatLocaliDaIndice = (): ChatLocale[] => (db === undefined ? [] : listSessions(db)).map((s) => ({
+        sessione: s.uuid, slug: s.projectSlug, titolo: s.aiTitle ?? s.primoPrompt ?? s.uuid,
+        ...(s.cwd !== undefined ? { cwd: s.cwd } : {}), jsonl: s.jsonlPath,
+        ...(s.lastTimestamp !== undefined ? { ultimoMessaggio: s.lastTimestamp } : {})
+      })).filter((c) => existsSync(c.jsonl))
+      // Le chat sul Drive per sessione, dall'ultimo manifesto letto: dimensione e PC.
+      let indiceDrive = new Map<string, { size: number; pc?: string }>()
+      let indiceDriveIl = 0
+      const rileggiDrive = async (): Promise<void> => {
+        indiceDriveIl = Date.now()
+        const m = await sincronia.manifestoDrive().catch(() => undefined)
+        if (m === undefined) return
+        const n = new Map<string, { size: number; pc?: string }>()
+        for (const [p, v] of Object.entries(m.file)) {
+          if (!p.startsWith('chat/') || !p.endsWith('.jsonl') || p.split('/').length !== 3) continue
+          const s = sessioneDiPercorso(p)
+          const prima = n.get(s)
+          if (prima === undefined || v.size > prima.size) n.set(s, { size: v.size, ...(v.pc !== undefined ? { pc: v.pc } : {}) })
+        }
+        indiceDrive = n
+      }
+      const unaCasa = creaUnaCasa({
+        dati,
+        radiceProgetti,
+        io: () => identitaPc.leggi(),
+        scatola: () => sincronia.scatola(),
+        battiti: () => postino.altrui(),
+        chatLocali: chatLocaliDaIndice,
+        aperte: () => chatAperte.map((c) => ({ cwd: c.cwd, ...(c.sessione !== undefined ? { sessione: c.sessione } : {}) })),
+        sulDrive: (s) => indiceDrive.get(s),
+        log: registro.info
+      })
+      unaCasaGlobale = unaCasa
+      const fileMigrazione = join(dati, 'migrazione-una-casa.json')
+      let inGiroCasa = false
+      const giroCasa = async (): Promise<void> => {
+        if (inGiroCasa || sincronia.scatola() === undefined) return
+        inGiroCasa = true
+        try {
+          await unaCasa.sincronizza()
+          // Il manifesto intero si rilegge al massimo ogni quarto d'ora: e' grande, e
+          // le nascite possono aspettare. «Riordina» lo rilegge al momento.
+          if (Date.now() - indiceDriveIl > 15 * 60_000 || !existsSync(fileMigrazione)) await rileggiDrive()
+          if (!existsSync(fileMigrazione)) {
+            if (chatLocaliDaIndice().length === 0) return
+            // La migrazione, una volta per PC: le case con la regola, poi il
+            // proprietario nel manifesto (copia di sicurezza prima, verifica dopo).
+            const decise = await unaCasa.decidiTutte()
+            await unaCasa.memorizza(decise)
+            const m = await sincronia.migraUnaCasa(unaCasa.case())
+            if (m.ok) {
+              scriviJsonAtomico(fileMigrazione, { fatta: new Date().toISOString(), case: Object.keys(decise).length, proprietari: m.proprietari ?? 0, ...(m.copia !== undefined ? { copia: m.copia } : {}) }, 'migrazione')
+              registro.info(`[casa] migrazione «una chat, una casa» fatta: ${Object.keys(decise).length} case decise, ${m.proprietari ?? 0} chat con il loro PC nel manifesto${m.copia !== undefined ? `, copia di sicurezza ${m.copia}` : ''}`)
+            } else registro.info(`[casa] migrazione non fatta (riprovo al prossimo giro): ${m.messaggio ?? '?'}`)
+            return
+          }
+          await unaCasa.nascite((s) => indiceDrive.has(s))
+        } catch (err) {
+          registro.info(`[casa] giro non riuscito: ${String(err)}`)
+        } finally {
+          inGiroCasa = false
+        }
+      }
+      const timerCasa = setInterval(() => { void giroCasa() }, 2 * 60_000)
+      const primoCasa = setTimeout(() => { void giroCasa() }, 45_000)
+      app.on('before-quit', () => { clearInterval(timerCasa); clearTimeout(primoCasa) })
+
+      ipcMain.handle('casa:proposte', async () => { await rileggiDrive().catch(() => undefined); return unaCasa.proposte() })
+      ipcMain.handle('casa:riordina', (_e, sessioni: unknown) =>
+        unaCasa.riordina(Array.isArray(sessioni) ? sessioni.filter((s): s is string => typeof s === 'string') : []))
+      ipcMain.handle('casa:riordini', () => unaCasa.riordini())
+      ipcMain.handle('casa:annulla', (_e, id: unknown) => unaCasa.annulla(typeof id === 'string' ? id : ''))
+      ipcMain.handle('casa:stato', () => {
+        let migrazione: unknown = undefined
+        try { migrazione = JSON.parse(readFileSync(fileMigrazione, 'utf8')) } catch { migrazione = undefined }
+        const c = unaCasa.case().case
+        const io = identitaPc.leggi().id
+        return { migrazione, case: Object.keys(c).length, qui: Object.values(c).filter((x) => x.pc === io).length }
+      })
+
+      // «Sposta progetto» (0.42.0): la procedura a passi, dal PC dove sta il progetto.
+      const sposta = creaSpostaProgetto({
+        io: () => identitaPc.leggi(),
+        unaCasa,
+        chatLocali: chatLocaliDaIndice,
+        aperte: () => chatAperte.map((c) => ({ cwd: c.cwd, alLavoro: c.viva === true && c.aspetta !== true, ...(c.sessione !== undefined ? { sessione: c.sessione } : {}) })),
+        autopilotiAlLavoro: async (cwd) => {
+          const tutti = await clientAutopilota.elenca().catch(() => [])
+          return tutti.filter((a) => (a.stato === 'lavoro' || a.stato === 'intervista' || a.stato === 'attesa') && staDentro(a.cwd, cwd)).length
+        },
+        driveCollegato: () => contoDrive.stato().connesso,
+        cassaforteAperta: () => sincronia.chiaveDiCasa('prova') !== undefined,
+        altriPc: () => postino.altrui().map((b) => ({ pcId: b.pcId, nome: b.nome })),
+        chiamaPc: (pcId, percorso, corpo) => remoto.chiama(pcId, percorso, corpo),
+        stradaDi: (pcId) => { const s = remoto.stradaDi(pcId); return s === undefined ? undefined : stradaBreve(s.strada) },
+        progettoSulDrive: (cwd, metti) => {
+          const me = identitaPc.leggi().id
+          const gia = progettoDiCwd(registroProgetti.leggi(), cwd, me)
+          if (gia !== undefined) return { id: gia.id }
+          if (!metti) return {}
+          const { registro: reg, progetto } = aggiungiProgetto(registroProgetti.leggi(), { pcId: me, percorso: cwd, adesso: new Date().toISOString() })
+          registroProgetti.scrivi(reg)
+          registro.info(`[sposta] «${progetto.nome}» messo sul Drive da ${cwd}, per spostarlo`)
+          return { id: progetto.id, appenaMesso: true }
+        },
+        salva: () => sincronia.salva(),
+        log: registro.info
+      })
+      ipcMain.handle('sposta:progetti', () => sposta.progetti())
+      ipcMain.handle('sposta:pc', () => postino.altrui().map((b) => ({ pcId: b.pcId, nome: b.nome, versione: b.versione, battito: b.battito })))
+      ipcMain.handle('sposta:controlli', (_e, cwd: unknown, dest: unknown) => sposta.controlli(testo(cwd), testo(dest)))
+      ipcMain.handle('sposta:trasferisci', (_e, cwd: unknown, dest: unknown, metti: unknown) => sposta.trasferisci(testo(cwd), testo(dest), metti === true))
+      ipcMain.handle('sposta:verifica', (_e, cwd: unknown, dest: unknown) => sposta.verifica(testo(cwd), testo(dest)))
+      ipcMain.handle('sposta:casa', (_e, cwd: unknown, dest: unknown) => sposta.cambiaCasa(testo(cwd), testo(dest)))
+      ipcMain.handle('sposta:archivia', (_e, cwd: unknown, dest: unknown) => sposta.archivia(testo(cwd), testo(dest)))
+      // Dal lato di chi riceve: le rotte del Client per gli altri PC.
+      spostaGlobale = {
+        pronto: () => ({ versione: app.getVersion(), nome: identitaPc.leggi().nome }),
+        async ricevi(corpo) {
+          const c = (corpo ?? {}) as { progetto?: unknown; sessioni?: unknown; daNome?: unknown }
+          const progetto = typeof c.progetto === 'string' ? c.progetto : ''
+          const sessioni = Array.isArray(c.sessioni) ? c.sessioni.filter((s): s is string => typeof s === 'string') : []
+          if (progetto === '') return { ok: false, messaggio: 'manca il progetto' }
+          registro.info(`[sposta] ${typeof c.daNome === 'string' ? c.daNome : 'un altro PC'} mi sposta il progetto ${progetto} (${sessioni.length} chat): lo porto qui`)
+          const r = await sincronia.portaQui(progetto)
+          if (!r.ok) return { ok: false, messaggio: r.messaggio ?? 'Porta qui non riuscito' }
+          rimappaChat()
+          const io = identitaPc.leggi()
+          const nuove: Record<string, CasaChat> = {}
+          for (const s of sessioni) nuove[s] = { pc: io.id, pcNome: io.nome, decisaIl: new Date().toISOString(), da: 'sposta', motivo: `spostata su ${io.nome} con «Sposta progetto»` }
+          await unaCasa.memorizza(nuove)
+          const p = registroProgetti.leggi().progetti.find((x) => x.id === progetto)
+          return { ok: true, ...(p?.percorsi[io.id] !== undefined ? { cartella: p.percorsi[io.id] } : {}) }
+        },
+        verifica: async (sessioni) => ({ file: await impronteSessioni(radiceProgetti, sessioni) })
+      }
       // Sfalsato rispetto alla ronda dei progetti: due giri sul Drive nello
       // stesso istante non servono a nessuno.
       const timerPosta = setInterval(() => { void postino.giro() }, 30_000)
@@ -2563,6 +2719,13 @@ if (!app.requestSingleInstanceLock()) {
           return fileDellAutopilota(a)
         },
         istruzioniAutopilota: (id: string) => clientAutopilota.istruzioni(id),
+        // «Sposta progetto» dal lato di chi riceve (0.42.0).
+        // Pigro: il servizio nasce con la sincronia, che puo' arrivare dopo.
+        sposta: {
+          pronto: () => spostaGlobale?.pronto() ?? { errore: 'non pronto' },
+          ricevi: async (corpo: unknown) => spostaGlobale === undefined ? { ok: false, messaggio: 'la sincronia di questo PC non è ancora pronta' } : spostaGlobale.ricevi(corpo),
+          verifica: async (sessioni: string[]) => spostaGlobale === undefined ? { file: {} } : spostaGlobale.verifica(sessioni)
+        },
         diffAutopilota: async (id: string, chiave: string, percorso: string) => {
           const a = (await clientAutopilota.elenca()).find((x) => x.id === id)
           if (a === undefined) throw new Error('autopilota inesistente')
