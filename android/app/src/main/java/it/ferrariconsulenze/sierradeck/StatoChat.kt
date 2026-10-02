@@ -92,3 +92,24 @@ fun etichettaAltrove(nome: String, acceso: Boolean?): String = when (acceso) {
     false -> "su $nome · spento"
     null -> "su $nome"
 }
+
+
+/**
+ * La parola di stato per una riga larga `larghezzaDp` (0.43.0, app 2.46.0).
+ *
+ * Dall'analisi del 30/09 restava aperto: su uno schermo stretto «al lavoro ·
+ * la guida un autopilota» si prendeva tutto il posto e il nome della chat
+ * spariva. Sotto i 380 dp la parola diventa quella breve (al massimo dodici
+ * lettere); il significato intero resta in `spiegazione`, dentro la chat.
+ */
+fun parolaPerRiga(l: LetturaChat, larghezzaDp: Int): String =
+    if (larghezzaDp >= RIGA_LARGA_DP) l.parola else when (l.tono) {
+        TonoChat.SCEGLIE -> "scegli tu"
+        TonoChat.ASPETTA -> "aspetta te"
+        TonoChat.GUIDATA -> if (l.parola.startsWith("ferma")) "ferma · AP" else "lavora · AP"
+        TonoChat.SPENTA -> "spenta"
+        TonoChat.LAVORA -> "al lavoro"
+    }
+
+/** Da qui in su la riga ha posto per la parola intera. */
+const val RIGA_LARGA_DP = 380

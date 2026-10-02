@@ -37,6 +37,9 @@ class MainActivity : ComponentActivity() {
         Guasti.prendiNota(applicationContext)
         chiediPermessoNotifiche()
         preparaScanner()
+        // L'app cerca da sola la versione nuova (0.43.0): ogni otto ore e
+        // adesso, su GitHub, anche a computer spento e ad app chiusa.
+        try { ControlloApp.programma(applicationContext) } catch (e: Exception) { android.util.Log.i("SierraDeck", "controllo dell'app non programmato: ${e.message}") }
 
         val deposito = Collegamento(this)
         apriDoveChiede(intent)
@@ -114,8 +117,14 @@ class MainActivity : ComponentActivity() {
      */
     private fun apriDoveChiede(intent: android.content.Intent?) {
         if (intent == null) return
+        // La notifica dell'aggiornamento: si apre il dialogo di sempre.
+        val versione = intent.getStringExtra(ControlloApp.EXTRA_VERSIONE)
+        val apk = intent.getStringExtra(ControlloApp.EXTRA_APK)
+        if (versione != null && apk != null && Aggiornamenti.apkAmmesso(apk)) { Apertura.aggiornamento = versione to apk; return }
         if (intent.hasExtra(Ronda.EXTRA_CHAT) || intent.hasExtra(Ronda.EXTRA_DOMANDA)) Apertura.schedaRichiesta = Scheda.DOMANDE
         else if (intent.getStringExtra(Ronda.EXTRA_SCHEDA) == "lavori") Apertura.schedaRichiesta = Scheda.LAVORI
+        // Il riassunto degli avvisi (0.43.0) apre le Domande, dove c'e' tutto quello che aspetta.
+        else if (intent.getStringExtra(Ronda.EXTRA_SCHEDA) == "domande") Apertura.schedaRichiesta = Scheda.DOMANDE
     }
 
     private fun chiediPermessoNotifiche() {

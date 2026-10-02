@@ -92,7 +92,7 @@ fun righeMarkdown(testo: String): List<RigaMd> {
 fun inRigaMd(testo: String): AnnotatedString = buildAnnotatedString {
     val pezzi = testo.split("`")
     pezzi.forEachIndexed { i, p ->
-        if (i % 2 == 1 && i < pezzi.size - 1) withStyle(SpanStyle(fontFamily = FontFamily.Monospace)) { append(p) }
+        if (i % 2 == 1 && i < pezzi.size - 1) withStyle(SpanStyle(fontFamily = FontTerminale)) { append(p) }
         else {
             val b = p.split("**")
             b.forEachIndexed { j, q ->
@@ -111,10 +111,13 @@ fun LinguettaIstruzioni(api: Api, autopilota: String) {
     var nota by remember(autopilota) { mutableStateOf("") }
     var esito by remember(autopilota) { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(autopilota) {
+    // Un computer piu' vecchio della 0.41.0 non le ha: la linguetta si spegne e lo dice.
+    val spenta = FunzioniPc.disponibile(FunzionePc.ISTRUZIONI, PcCorrente.versione) == false
+    LaunchedEffect(autopilota, spenta) {
+        if (spenta) { guasto = FunzioniPc.testoMancante(FunzionePc.ISTRUZIONI); return@LaunchedEffect }
         while (isActive) {
             try { lista = api.istruzioniAutopilota(autopilota).istruzioni; guasto = null } catch (e: Exception) {
-                guasto = if (e is Api.Errore && e.codice == 409) "Questo computer non sa ancora mostrare le istruzioni: aggiornalo alla 0.41.0." else e.message ?: "il computer non risponde"
+                guasto = FunzioniPc.spiega(e, FunzionePc.ISTRUZIONI)
             }
             delay(4000)
         }
@@ -126,6 +129,7 @@ fun LinguettaIstruzioni(api: Api, autopilota: String) {
     guasto?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
     esito?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp) }
     val l = lista
+    if (spenta) return
     if (l == null && guasto == null) Text("Leggo le istruzioni…", color = Banco.testoQuieto, fontSize = 13.sp)
     if (l != null && l.isEmpty()) Text("Ancora nessuna istruzione salvata: si salvano dalla 0.41.0 in poi, quando l'autopilota le decide.", color = Banco.testoQuieto, fontSize = 13.sp)
     l?.forEachIndexed { k, i ->
@@ -152,7 +156,7 @@ fun LinguettaIstruzioni(api: Api, autopilota: String) {
                     for (r in righeMarkdown(i.testo)) when (r.tipo) {
                         "titolo" -> Text(inRigaMd(r.testo), color = Banco.testo, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         "voce" -> Text(buildAnnotatedString { append("• "); append(inRigaMd(r.testo)) }, color = Banco.testo, fontSize = 13.sp)
-                        "codice" -> Text(r.testo, color = Banco.testo, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                        "codice" -> Text(r.testo, color = Banco.testo, fontSize = 11.sp, fontFamily = FontTerminale)
                         "vuota" -> Spacer(Modifier.height(4.dp))
                         else -> Text(inRigaMd(r.testo), color = Banco.testo, fontSize = 13.sp)
                     }
@@ -164,7 +168,7 @@ fun LinguettaIstruzioni(api: Api, autopilota: String) {
                     Button(enabled = nota.isNotBlank(), onClick = {
                         val testo = nota
                         scope.launch {
-                            esito = try { api.correggiIstruzione(autopilota, i.id, testo); nota = ""; correggi = null; "Correzione mandata: la trovi nella chat con lui, con la sua risposta." } catch (e: Exception) { "Non mandata: ${e.message}" }
+                            esito = try { api.correggiIstruzione(autopilota, i.id, testo); nota = ""; correggi = null; "Correzione mandata: la trovi nella chat con lui, con la sua risposta." } catch (e: Exception) { if (FunzioniPc.mancaSulPc(e)) FunzioniPc.testoMancante(FunzionePc.CORREGGI) else "Non mandata: ${e.message}" }
                         }
                     }) { Text("Manda la correzione") }
                     Spacer(Modifier.width(8.dp))

@@ -1,0 +1,75 @@
+{
+  "id": "ap-1",
+  "nome": "Notte",
+  "obiettivo": "Test",
+  "obiettivoTuo": "Test",
+  "cwd": "C:p",
+  "criteri": [
+    {
+      "descrizione": "x",
+      "soddisfatto": true
+    },
+    {
+      "descrizione": "y",
+      "soddisfatto": false
+    }
+  ],
+  "stato": "lavoro",
+  "cicli": 0,
+  "iniziatoIl": "2026-08-12T10:00:00.000Z",
+  "ultimoEvento": "2026-08-12T10:00:00.000Z",
+  "decisioni": [],
+  "intervista": [],
+  "limiti": {
+    "cicliMax": 0,
+    "minutiMax": 0,
+    "stalloMax": 3
+  },
+  "tettoChat": 1,
+  "chats": [],
+  "compitiDaFare": [],
+  "modifiche": [],
+  "dialogo": [],
+  "daConsegnare": [],
+  "passaggi": [
+    {
+      "nome": "Prepara",
+      "stato": "fatto"
+    },
+    {
+      "nome": "Lavora",
+      "stato": "corrente",
+      "nota": "0 interventi"
+    },
+    {
+      "nome": "Fine",
+      "stato": "davanti"
+    }
+  ],
+  "misura": {
+    "percento": 50,
+    "di": "criteri",
+    "dettaglio": "1 di 2",
+    "tono": "lavoro"
+  },
+  "chat": [
+    {
+      "quando": "2026-08-12T10:00:00.000Z",
+      "da": "tu",
+      "testo": "Test"
+    }
+  ],
+  "domanda": false,
+  "pensa": false,
+  "albero": {
+    "id": "ap-1",
+    "tipo": "coordinatore",
+    "titolo": "Notte",
+    "stato": "lavoro",
+    "parola": "coordina",
+    "cartella": "C:p",
+    "cicli": 0,
+    "figli": []
+  },
+  "domandaId": "d-1"
+}

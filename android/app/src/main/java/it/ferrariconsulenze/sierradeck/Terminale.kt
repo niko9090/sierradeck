@@ -158,7 +158,7 @@ fun VistaTerminale(
                     } else {
                         Text(
                             riga,
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = FontTerminale,
                             fontSize = dimensione.sp,
                             lineHeight = (dimensione * 1.5f).sp,
                             modifier = Modifier.fillMaxWidth()
@@ -173,7 +173,7 @@ fun VistaTerminale(
                 for (grezza in grezze) {
                     Text(
                         ansiAnnotato(grezza),
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = FontTerminale,
                         fontSize = stretto.sp,
                         lineHeight = (stretto * 1.35f).sp,
                         softWrap = false,

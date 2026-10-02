@@ -1,0 +1,45 @@
+{
+  "domandeInAttesa": 1,
+  "chat": [
+    {
+      "id": "p-1",
+      "titolo": "Gestore",
+      "cwd": "C:p",
+      "chiede": false
+    }
+  ],
+  "progetti": [],
+  "autopiloti": [
+    {
+      "id": "ap-1",
+      "nome": "Notte",
+      "stato": "lavoro",
+      "led": "led--lavoro",
+      "cicli": 0,
+      "cwd": "C:p",
+      "fatti": 1,
+      "criteri": 2
+    }
+  ],
+  "autopilotiLetti": true,
+  "domande": [
+    {
+      "id": "d-1",
+      "autopilotaId": "ap-1",
+      "testo": "Quale chiave?"
+    }
+  ],
+  "workspace": {
+    "nomi": [
+      "lavoro",
+      "casa"
+    ],
+    "attivo": "lavoro"
+  },
+  "aggiornamento": {
+    "fase": "fermo"
+  },
+  "computer": {
+    "nome": ""
+  }
+}

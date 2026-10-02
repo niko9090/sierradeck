@@ -46,7 +46,7 @@ fun DialogoGuasto(nota: String, onChiudi: () -> Unit) {
                 Text(
                     text = nota,
                     color = Banco.testo,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = FontTerminale,
                     fontSize = 11.sp,
                     softWrap = false,
                     modifier = Modifier

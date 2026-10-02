@@ -179,12 +179,17 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
                                     // chat era uguale alle altre, e per sapere chi
                                     // aspettava bisognava indovinare dall'ultima riga.
                                     val lettura = leggiChat(viva)
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        LedChat(lettura.tono)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(viva.titolo.ifBlank { viva.cwd }, color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(lettura.parola, color = coloreTono(lettura.tono), fontSize = 11.sp, maxLines = 1)
+                                    // Sullo schermo stretto la parola breve (0.43.0): il
+                                    // nome della chat non deve sparire dietro lo stato.
+                                    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+                                        val parola = parolaPerRiga(lettura, maxWidth.value.toInt())
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            LedChat(lettura.tono)
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(viva.titolo.ifBlank { viva.cwd }, color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(parola, color = coloreTono(lettura.tono), fontSize = 11.sp, maxLines = 1, softWrap = false)
+                                        }
                                     }
                                     // Il progetto e' in mano a un altro PC: una parola quieta, non un avviso.
                                     if (!viva.altrove.isNullOrBlank()) {
@@ -196,7 +201,7 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
                                             viva.ultimaRiga!!,
                                             color = Banco.testoQuieto,
                                             fontSize = 12.sp,
-                                            fontFamily = FontFamily.Monospace,
+                                            fontFamily = FontTerminale,
                                             maxLines = 1
                                         )
                                     }
@@ -491,7 +496,7 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                             "${o.numero}",
                             color = Banco.testoQuieto,
                             fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = FontTerminale,
                             modifier = Modifier.padding(end = 10.dp)
                         )
                         Text(o.testo, color = Banco.testo, fontSize = 14.sp)

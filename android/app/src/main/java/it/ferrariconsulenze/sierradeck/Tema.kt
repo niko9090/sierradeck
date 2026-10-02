@@ -108,3 +108,16 @@ fun TemaSierraDeck(content: @Composable () -> Unit) {
         content = content
     )
 }
+
+/**
+ * Il carattere a spaziatura fissa dei terminali e del codice (0.43.0, app
+ * 2.46.0): JetBrains Mono, dentro l'APK (licenza SIL OFL 1.1, in
+ * `assets/licenze/JetBrainsMono-OFL.txt`). Quello di sistema non ha i
+ * caratteri di cornice e i blocchi di Claude Code (`╭ ▄ █`): Android li
+ * prendeva da un carattere proporzionale e nella griglia le colonne
+ * slittavano.
+ */
+val FontTerminale = androidx.compose.ui.text.font.FontFamily(
+    androidx.compose.ui.text.font.Font(R.font.jetbrains_mono, androidx.compose.ui.text.font.FontWeight.Normal),
+    androidx.compose.ui.text.font.Font(R.font.jetbrains_mono_bold, androidx.compose.ui.text.font.FontWeight.Bold)
+)

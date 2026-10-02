@@ -81,6 +81,8 @@ object Apertura {
 
     /** Porta alla scheda Chat, dentro quella chat. */
     fun apriChat(id: String) { chatRichiesta = id; schedaRichiesta = Scheda.CHAT }
+    /** Dalla notifica dell'aggiornamento (0.43.0): versione e APK da installare. */
+    var aggiornamento by mutableStateOf<Pair<String, String>?>(null)
 }
 
 /**
@@ -198,6 +200,10 @@ fun Principale(
     // finche' non esce una versione ancora piu' nuova.
     var appNuova by remember { mutableStateOf<Pair<String, String>?>(null) }
     var dialogoApp by remember { mutableStateOf(false) }
+    // Toccata la notifica dell'aggiornamento: il dialogo di sempre, subito.
+    LaunchedEffect(Apertura.aggiornamento) {
+        Apertura.aggiornamento?.let { appNuova = it; dialogoApp = true; Apertura.aggiornamento = null }
+    }
     // Ogni volta che l'app torna davanti si ricontrolla (al massimo ogni
     // dieci minuti): prima si guardava all'apertura e poi ogni sei ore, e
     // un'app rimasta aperta in sottofondo non vedeva la versione nuova.
@@ -244,11 +250,19 @@ fun Principale(
         } catch (_: Exception) {
         }
     }
+    // La versione del computer (0.43.0): le funzioni che non ha ancora si
+    // mostrano spente, con «arriva aggiornando il PC alla X». /api/ciao la
+    // dice da sempre; dalla 0.43.0 la porta anche /api/stato.
+    LaunchedEffect(api) {
+        PcCorrente.versione = null
+        try { PcCorrente.versione = api.ciao().versione.takeIf { it.isNotBlank() } } catch (_: Exception) { }
+    }
 
     LaunchedEffect(api) {
         while (isActive) {
             try {
                 val (letto, grezzo) = api.statoConTesto()
+                letto.computer?.versione?.takeIf { it.isNotBlank() }?.let { if (PcCorrente.versione != it) PcCorrente.versione = it }
                 // Lo stesso polso passa dalla guardia: una chat che finisce
                 // mentre guardi un'altra scheda si annuncia adesso, non alla
                 // prossima sveglia.

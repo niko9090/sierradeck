@@ -80,9 +80,7 @@ fun Domande(api: Api, stato: Stato?, onApriAutopilota: (String) -> Unit = {}) {
                 conversazioni = d.conversazioni
                 guasto = null
             } catch (e: Exception) {
-                guasto = if (e is Api.Errore && e.codice == 404)
-                    "Questo computer non ha ancora la sezione Domande: aggiornalo alla 0.30."
-                else e.message ?: "il computer non risponde"
+                guasto = FunzioniPc.spiega(e, FunzionePc.DOMANDE)
             }
             delay(2000)
         }
@@ -183,7 +181,7 @@ private fun Contesto(righe: List<String>) {
             .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
         for (r in righe) {
-            Text(r, color = Banco.testo, fontSize = 12.sp, fontFamily = FontFamily.Monospace, lineHeight = 17.sp)
+            Text(r, color = Banco.testo, fontSize = 12.sp, fontFamily = FontTerminale, lineHeight = 17.sp)
         }
     }
 }
@@ -325,7 +323,7 @@ private fun SchedaScelta(api: Api, v: VoceDomanda, gia: String?, onMandata: (Str
                             .padding(horizontal = 12.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("${o.numero}", color = Banco.testoQuieto, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(end = 10.dp))
+                        Text("${o.numero}", color = Banco.testoQuieto, fontSize = 12.sp, fontFamily = FontTerminale, modifier = Modifier.padding(end = 10.dp))
                         Text(o.testo, color = Banco.testo, fontSize = 14.sp)
                     }
                 }

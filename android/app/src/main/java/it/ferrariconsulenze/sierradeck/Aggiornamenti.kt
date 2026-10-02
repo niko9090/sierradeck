@@ -142,6 +142,9 @@ object Aggiornamenti {
         }
     }
 
+    /** Il file dell'ultima pubblicazione, direttamente da GitHub (il controllo in background, 0.43.0). */
+    fun fileDaGitHub(): String = leggi(FILE_APP, accetta = "application/json")
+
     private fun dalFile(ragioni: MutableList<String>): Pubblicata? {
         return try {
             val corpo = leggi(FILE_APP, accetta = "application/json")

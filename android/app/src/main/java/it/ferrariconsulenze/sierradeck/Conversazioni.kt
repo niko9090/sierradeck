@@ -201,7 +201,7 @@ private fun Messaggio(m: MessaggioConversazione, c: Conversazione, occupato: Boo
     if (m.da == "nota") {
         Text(
             (m.quando?.drop(11)?.take(5)?.let { "$it  " } ?: "") + m.testo,
-            color = Banco.testoQuieto, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+            color = Banco.testoQuieto, fontSize = 11.sp, fontFamily = FontTerminale,
             modifier = Modifier.padding(vertical = 2.dp)
         )
         return
@@ -238,7 +238,7 @@ private fun Messaggio(m: MessaggioConversazione, c: Conversazione, occupato: Boo
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("${o.numero}", color = Banco.testoQuieto, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(end = 10.dp))
+                        Text("${o.numero}", color = Banco.testoQuieto, fontSize = 12.sp, fontFamily = FontTerminale, modifier = Modifier.padding(end = 10.dp))
                         Text(o.testo, color = Banco.testo, fontSize = 14.sp)
                     }
                 }

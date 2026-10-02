@@ -347,8 +347,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                                 notaDialogo = null
                                 try { d = api.autopilota(breve.id) } catch (_: Exception) {}
                             } catch (e: Api.Errore) {
-                                notaDialogo = if (e.codice == 409)
-                                    "Questo computer non sa ancora dialogare con gli autopiloti: aggiornalo."
+                                notaDialogo = if (FunzioniPc.mancaSulPc(e)) FunzioniPc.testoMancante(FunzionePc.DIALOGO_AUTOPILOTA)
                                 else "Non sono riuscito a mandarlo (HTTP ${e.codice})."
                             } catch (e: Exception) {
                                 notaDialogo = "Non sono riuscito a mandarlo: ${e.message ?: "il computer non risponde"}"
@@ -714,7 +713,7 @@ private fun Criterio(c: Criterio) {
                 else -> primaRigaUscita(verifica.uscita).takeIf { it.isNotBlank() }?.let { " · $it" }
                     ?: " · non passato (codice ${verifica.codice ?: "?"})"
             }
-            Text(c.comando + esito, color = Banco.testoQuieto, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(start = 18.dp))
+            Text(c.comando + esito, color = Banco.testoQuieto, fontSize = 12.sp, fontFamily = FontTerminale, modifier = Modifier.padding(start = 18.dp))
         }
         if (c.raggiuntoIl != null) {
             // Solo l'ora: la data intera in ISO non si legge, e «alle 14:32»
@@ -755,7 +754,7 @@ private fun RigaChat(b: Battuta, nomeSuo: String, onVai: () -> Unit) {
         Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.Top) {
             Box(Modifier.width(2.dp).height(16.dp).background(filo))
             Spacer(Modifier.width(6.dp))
-            Text(ora, color = Banco.testoQuieto, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            Text(ora, color = Banco.testoQuieto, fontSize = 11.sp, fontFamily = FontTerminale)
             Spacer(Modifier.width(6.dp))
             Text(
                 b.testo + (b.volte?.let { " ×$it" } ?: "") + (b.dettaglio?.let { " — $it" } ?: ""),
@@ -1193,10 +1192,13 @@ private fun LinguettaFile(api: Api, autopilota: String) {
     var guasto by remember(autopilota) { mutableStateOf<String?>(null) }
     var scelto by remember(autopilota) { mutableStateOf<Pair<String, String>?>(null) }
     var diff by remember(autopilota) { mutableStateOf<String?>(null) }
-    LaunchedEffect(autopilota) {
+    // Un computer piu' vecchio della 0.38.0 non ha i file: si dice, senza chiedere.
+    val spenta = FunzioniPc.disponibile(FunzionePc.FILE_AUTOPILOTA, PcCorrente.versione) == false
+    LaunchedEffect(autopilota, spenta) {
+        if (spenta) { guasto = FunzioniPc.testoMancante(FunzionePc.FILE_AUTOPILOTA); return@LaunchedEffect }
         while (isActive) {
             try { file = api.fileAutopilota(autopilota); guasto = null } catch (e: Exception) {
-                guasto = if (e is Api.Errore && e.codice == 409) "Questo computer non sa ancora mostrare i file: aggiornalo." else e.message ?: "il computer non risponde"
+                guasto = FunzioniPc.spiega(e, FunzionePc.FILE_AUTOPILOTA)
             }
             delay(4000)
         }
@@ -1236,7 +1238,7 @@ private fun LinguettaFile(api: Api, autopilota: String) {
             r.testo,
             color = when (r.tipo) { "piu" -> Banco.verde; "meno" -> Banco.rosso; "testa", "blocco" -> Banco.testoQuieto; else -> Banco.testo },
             fontSize = 11.sp,
-            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+            fontFamily = FontTerminale
         )
     }
 }

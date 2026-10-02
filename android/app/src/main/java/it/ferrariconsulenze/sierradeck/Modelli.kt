@@ -122,7 +122,11 @@ data class VoceCoda(
 )
 
 @Serializable
-data class NomeComputer(val nome: String = "")
+data class NomeComputer(
+    val nome: String = "",
+    /** La versione del programma (dalla 0.43.0): l'app spegne le funzioni che il computer non ha ancora. */
+    val versione: String? = null
+)
 
 @Serializable
 data class Chat(
@@ -167,9 +171,22 @@ data class VoceDomanda(
     val titolo: String = "",
     val cwd: String = "",
     val righe: List<String> = emptyList(),
-    val opzioni: List<Opzione> = emptyList(),
+    /** Oggetti dalla 0.43.0 del PC; dalla 0.36 alla 0.42 per un autopilota erano stringhe: si leggono tutte e due. */
+    val opzioni: List<@Serializable(with = OpzioneTollerante::class) Opzione> = emptyList(),
     val corrente: Int = 0
 )
+
+/**
+ * Un'opzione scritta come oggetto o come stringa (0.43.0). I PC dalla 0.36
+ * alla 0.42 mandavano le risposte da toccare di un autopilota come stringhe,
+ * e l'app non leggeva piu' niente della scheda Domande.
+ */
+object OpzioneTollerante : kotlinx.serialization.json.JsonTransformingSerializer<Opzione>(Opzione.serializer()) {
+    override fun transformDeserialize(element: kotlinx.serialization.json.JsonElement): kotlinx.serialization.json.JsonElement =
+        if (element is kotlinx.serialization.json.JsonPrimitive && element.isString)
+            kotlinx.serialization.json.buildJsonObject { put("testo", element) }
+        else element
+}
 
 @Serializable
 data class Domande(

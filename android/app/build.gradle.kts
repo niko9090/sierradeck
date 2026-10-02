@@ -45,8 +45,8 @@ android {
         // programmi che si aggiornano quando hanno qualcosa di nuovo da dare, e
         // legarli vorrebbe dire pubblicare un APK identico ogni volta che
         // cambia una riga di SierraDeck. Qui si alza quando cambia *questa* app.
-        versionCode = 83
-        versionName = "2.45.0"
+        versionCode = 84
+        versionName = "2.46.0"
     }
 
     // Serve `BuildConfig.VERSION_NAME`: l'app deve sapere quale versione è per
@@ -99,6 +99,9 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // Il controllo degli aggiornamenti in background (0.43.0, app 2.46.0): ogni
+    // otto ore e all'avvio, direttamente su GitHub, anche a PC spento.
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     // La scansione del QR la fa Google Play Services, con la sua schermata.
     //

@@ -127,7 +127,7 @@ fun testoRiga(r: RigaNote): AnnotatedString = buildAnnotatedString {
         val stile = SpanStyle(
             fontWeight = if (t.grassetto || r.tipo == "titolo") FontWeight.Bold else null,
             fontStyle = if (t.corsivo) FontStyle.Italic else null,
-            fontFamily = if (t.codice) FontFamily.Monospace else null
+            fontFamily = if (t.codice) FontTerminale else null
         )
         if (t.link != null) {
             withLink(LinkAnnotation.Url(t.link, TextLinkStyles(SpanStyle(color = Banco.accento, textDecoration = TextDecoration.Underline)))) {

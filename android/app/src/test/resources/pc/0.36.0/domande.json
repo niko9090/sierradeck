@@ -1,0 +1,38 @@
+{
+  "voci": [
+    {
+      "tipo": "autopilota",
+      "id": "d-1",
+      "autopilotaId": "ap-1",
+      "autopilota": "Notte",
+      "origine": "lavoro",
+      "testo": "Quale chiave?"
+    }
+  ],
+  "conversazioni": [
+    {
+      "chiave": "ap:ap-1",
+      "tipo": "autopilota",
+      "titolo": "Notte",
+      "sotto": "C:p",
+      "chiede": true,
+      "messaggi": [
+        {
+          "da": "tu",
+          "testo": "Test",
+          "quando": "2026-08-12T10:00:00.000Z"
+        },
+        {
+          "da": "lui",
+          "testo": "Quale chiave?",
+          "tono": "domanda"
+        }
+      ],
+      "risposta": {
+        "via": "rispondi",
+        "domanda": "d-1"
+      },
+      "segnaposto": "Rispondi all’autopilota: arriva subito alla chat ferma"
+    }
+  ]
+}

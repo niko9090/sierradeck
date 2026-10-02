@@ -175,6 +175,12 @@ object Ronda {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(apri)
             .setAutoCancel(true)
+            // Raggruppate (0.43.0): tre chat che finiscono insieme sono una
+            // pila con un riassunto, non tre squilli separati; e lo stesso
+            // avviso aggiornato non risuona.
+            .setGroup(GRUPPO_AVVISI)
+            .setOnlyAlertOnce(true)
+            .setCategory(if (a.domanda != null || a.scelta != null) NotificationCompat.CATEGORY_MESSAGE else NotificationCompat.CATEGORY_STATUS)
 
         val bersaglio = a.domanda ?: a.chat
         if (bersaglio != null) {
@@ -205,7 +211,44 @@ object Ronda {
         }
 
         gestore(contesto).notify(a.id, costruttore.build())
+        riassumi(contesto)
     }
+
+    /**
+     * Il riassunto della pila (0.43.0): con due o piu' avvisi aperti, una
+     * notifica che li conta e ne elenca i titoli. Silenziosa: a suonare e'
+     * stato gia' l'avviso nuovo.
+     */
+    private fun riassumi(contesto: Context) {
+        val g = gestore(contesto)
+        val aperti = try {
+            g.activeNotifications.filter { it.notification.group == GRUPPO_AVVISI && it.id != ID_RIASSUNTO }
+        } catch (_: Exception) { return }
+        if (aperti.size < 2) { g.cancel(ID_RIASSUNTO); return }
+        val titoli = aperti.mapNotNull { it.notification.extras?.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString() }
+        val (titolo, righe) = riassuntoAvvisi(titoli)
+        val stile = NotificationCompat.InboxStyle().setBigContentTitle(titolo)
+        righe.forEach { stile.addLine(it) }
+        g.notify(
+            ID_RIASSUNTO,
+            NotificationCompat.Builder(contesto, CANALE_AVVISI)
+                .setSmallIcon(R.drawable.ic_notifica)
+                .setColor(COLORE_ICONA)
+                .setContentTitle(titolo)
+                .setContentText(righe.firstOrNull() ?: "")
+                .setStyle(stile)
+                .setGroup(GRUPPO_AVVISI)
+                .setGroupSummary(true)
+                .setSilent(true)
+                .setAutoCancel(true)
+                .setContentIntent(PendingIntent.getActivity(contesto, ID_RIASSUNTO, Intent(contesto, MainActivity::class.java).apply { putExtra(EXTRA_SCHEDA, "domande") }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+                .build()
+        )
+    }
+
+    /** Il gruppo degli avvisi e l'id del loro riassunto. */
+    const val GRUPPO_AVVISI = "sierradeck-avvisi"
+    const val ID_RIASSUNTO = 0x5D0
 
     /** La riga fissa del controllo continuo: esiste solo se lo accendi tu. */
     fun notificaPresenza(contesto: Context, riga: String): Notification =
@@ -247,4 +290,16 @@ object Ronda {
 
     private fun gestore(contesto: Context): NotificationManager =
         contesto.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+}
+
+
+/**
+ * Il riassunto di una pila di avvisi (0.43.0): «3 cose aspettano te» e i
+ * titoli, al massimo cinque (poi «e altre N»). Pura, per i test.
+ */
+fun riassuntoAvvisi(titoli: List<String>): Pair<String, List<String>> {
+    val n = titoli.size
+    val titolo = if (n == 1) "Una cosa aspetta te" else "$n cose aspettano te"
+    val righe = titoli.take(5) + (if (n > 5) listOf("e altre ${n - 5}") else emptyList())
+    return titolo to righe
 }
