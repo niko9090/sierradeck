@@ -51,7 +51,19 @@ export type VocePosta = {
   esito?: string
   /** Il postino ha gia' aperto una chat per questa voce: non ne apre un'altra. */
   apertaIl?: string
+  /**
+   * Chi l'ha scritta (0.49.1): una persona (`umano`, il predefinito: le voci
+   * di prima lo erano tutte) o un autopilota. Una persona verso una chat
+   * protetta dal PIN passa dal PIN; un autopilota no. Non si può cambiare per
+   * strada: la cassetta è cifrata e autenticata con la chiave della cassaforte.
+   */
+  origine?: 'umano' | 'autopilota'
+  /** Chi guarda, per il PIN (0.49.1): l'id del PC che scrive, o `tel:<telefono>@<PC>`. */
+  daVisore?: string
 }
+
+/** Il motivo, per esteso, di una voce rifiutata da una chat protetta (0.49.1). */
+export const ESITO_PROTETTA = 'Chat protetta: inserisci il PIN. Su quel PC questa chat è protetta dal PIN e non è aperta per chi ha scritto: aprila dal vivo (il riquadro della chat o «Chat … dal vivo» sul telefono), metti il PIN lì e rimanda il messaggio.'
 
 export type Posta = { voci: VocePosta[] }
 

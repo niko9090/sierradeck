@@ -151,5 +151,5 @@ export const ANTEPRIMA_NASCOSTA = '🔒 Chat protetta dal PIN'
 /** Il corpo del rifiuto, uguale su tutte le strade: lo stato HTTP è 423. */
 export const STATO_CHIUSA = 423
 export function rifiutoChiusa(titolo?: string): { errore: string; pin: 'chiusa' } {
-  return { errore: `${titolo !== undefined && titolo !== '' ? `«${titolo}» è protetta` : 'Questa chat è protetta'} dal PIN: inseriscilo per vederla e scriverle.`, pin: 'chiusa' }
+  return { errore: `Chat protetta: inserisci il PIN. ${titolo !== undefined && titolo !== '' ? `«${titolo}» è protetta` : 'Questa chat è protetta'} dal PIN: mettilo per vederla e scriverle (aprendola, o qui dove ti è chiesto).`, pin: 'chiusa' }
 }

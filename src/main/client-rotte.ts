@@ -153,6 +153,8 @@ export type DipendenzeRotte = {
    * Scrive a una chat di un altro PC (0.37.2): e' cosi' che si risponde, dalle
    * Domande, a una chat che aspetta su un altro computer acceso.
    */
+  /** Il PIN di una chat di un altro PC (0.49.1, dalle Domande): lo controlla quel PC. */
+  pinAltroPc?: (pcId: string, sessione: string, pin: string) => Promise<{ ok: true } | { ok: false; messaggio: string; stato?: number }>
   scriviAltroPc?: (pcId: string, sessione: string, testo: string) => Promise<{ ok: true } | { ok: false; messaggio: string }>
   /** La strada con cui si arriva a quel PC (0.40.0), in due parole: la pagina e l'app la mostrano accanto a «SU <PC>». */
   stradaPc?: (pcId: string) => string | undefined
@@ -273,7 +275,7 @@ export type DipendenzeRotte = {
   pcIo?: () => string
   pc?: () => Promise<BattitoPcTelefono[]>
   posta?: (pc: string) => Promise<{ voci: VocePostaTelefono[] } | undefined>
-  postaAggiungi?: (pc: string, voce: { cwd: string; testo: string; sessione?: string }) => Promise<{ voci: VocePostaTelefono[] } | undefined>
+  postaAggiungi?: (pc: string, voce: { cwd: string; testo: string; sessione?: string; origine?: 'umano' | 'autopilota'; daVisore?: string }) => Promise<{ voci: VocePostaTelefono[] } | undefined>
   postaTogli?: (pc: string, voce: string) => Promise<{ voci: VocePostaTelefono[] } | undefined>
   postaPulisci?: (pc: string) => Promise<{ voci: VocePostaTelefono[] } | undefined>
   /**
@@ -579,6 +581,14 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
   }): Promise<Esito> => {
     const visore = visoreDi(r.dispositivo)
     // ── Il PIN delle chat (0.49.0) ──
+    // Una chat di un altro PC (le Domande, 0.49.1): il PIN lo controlla quel PC,
+    // anche se qui il PIN non è mai stato acceso.
+    const altroveDelPin = r.metodo === 'POST' && r.percorso === '/api/pin/sblocca' ? leggiIdChatAltroPc(stringa(r.corpo, 'chat')) : undefined
+    if (altroveDelPin !== undefined) {
+      if (depsPieni.pinAltroPc === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora aprire con il PIN le chat degli altri PC' } }
+      const e = await depsPieni.pinAltroPc(altroveDelPin.pcId, altroveDelPin.sessione, stringa(r.corpo, 'pin'))
+      return e.ok ? OK({ fatto: true }) : { stato: e.stato ?? 502, corpo: { errore: e.messaggio } }
+    }
     if (g !== undefined) {
       if (r.metodo === 'POST' && r.percorso === '/api/pin/sblocca') {
         const c = depsPieni.chat().find((x) => x.id === stringa(r.corpo, 'chat'))
@@ -812,7 +822,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (altrove !== undefined) {
         if (deps.scriviAltroPc === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa scrivere alle chat degli altri PC' } }
         const esito = await deps.scriviAltroPc(altrove.pcId, altrove.sessione, testo.slice(0, TESTO_MAX)).catch((e: unknown) => ({ ok: false as const, messaggio: String(e) }))
-        if (!esito.ok) return { stato: 502, corpo: { errore: esito.messaggio } }
+        // 423 (0.49.1): la chat là è protetta dal PIN e chiusa per questo PC.
+        if (!esito.ok) return { stato: (esito as { pin?: boolean }).pin === true ? STATO_CHIUSA : 502, corpo: { errore: esito.messaggio, ...((esito as { pin?: boolean }).pin === true ? { pin: 'chiusa' } : {}) } }
         ricordaInviato(chat, testo)
         return OK({ fatto: true })
       }
@@ -1345,7 +1356,10 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (pc === '' || cwd === '' || testo === '') return { stato: 400, corpo: { errore: 'servono il pc, la cartella e il testo' } }
       if (testo.length > 4000) return { stato: 400, corpo: { errore: 'testo troppo lungo' } }
       if (deps.postaAggiungi === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora mandare azioni a un altro PC: aggiornalo' } }
-      const p = await deps.postaAggiungi(pc, { cwd, testo, ...(sessione !== '' ? { sessione } : {}) }).catch(() => undefined)
+      // Chi scrive (0.49.1): il telefono che passa da qui, o questo PC; sempre una persona.
+      const io = deps.pcIo?.() ?? ''
+      const daVisore = r.dispositivo === undefined || r.dispositivo === 'locale' || daAltroPc(r.dispositivo) ? io : `tel:${r.dispositivo}@${io}`
+      const p = await deps.postaAggiungi(pc, { cwd, testo, ...(sessione !== '' ? { sessione } : {}), origine: 'umano', ...(daVisore !== '' ? { daVisore } : {}) }).catch(() => undefined)
       if (p === undefined) return { stato: 409, corpo: { errore: 'la posta sta sul Drive: serve la cassaforte sbloccata e il Drive collegato' } }
       return OK({ fatto: true, voci: p.voci })
     }

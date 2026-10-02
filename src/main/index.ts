@@ -1332,6 +1332,12 @@ if (!app.requestSingleInstanceLock()) {
           ...(c.sessione !== undefined ? { sessione: c.sessione } : {}),
           titolo: c.titolo, cwd: c.cwd, viva: c.viva === true, aspetta: c.aspetta === true
         })),
+        // Il PIN delle chat (0.49.1): una persona che scrive dalla cassetta a una
+        // chat protetta passa dal PIN, come dal vivo — chi guarda è chi l'ha scritta.
+        chiusaPer: (c, v) => {
+          const aperta = chatAperte.find((x) => x.id === c.id)
+          return aperta !== undefined && guardianoPin?.chiusa(`pc:${v.daVisore ?? v.daPc}`, aperta) === true
+        },
         // Le cartelle in cui questo PC lavora: i progetti collegati qui e le
         // cartelle di tutte le chat dell'indice che qui esistono. E' cio' che
         // dice agli altri PC «questa cartella ce l'ho io»: cosi' una chat mia
@@ -1469,7 +1475,7 @@ if (!app.requestSingleInstanceLock()) {
           avvia: (pcId) => rtc.avvia(pcId),
           chiama: (pcId, percorso, corpo, visore) => rtc.chiama(pcId, percorso, corpo, visore)
         },
-        cassetta: { possibile: stradeLentePossibili, chiama: (pcId, percorso, corpo) => cassettaDrive.chiama(pcId, percorso, corpo) },
+        cassetta: { possibile: stradeLentePossibili, chiama: (pcId, percorso, corpo, visore) => cassettaDrive.chiama(pcId, percorso, corpo, visore) },
         battiti: () => postino.altrui(),
         chiavePer: (pcId) => sincronia.chiaveDiCasa(`client-pc:${pcId}`),
         mioNome: () => identitaPc.leggi().nome,
@@ -3046,7 +3052,19 @@ if (!app.requestSingleInstanceLock()) {
             await remoto.chiama(pcId, '/api/scrivi', { chat: String(c.id), testo: t })
             return { ok: true }
           } catch (e) {
-            return { ok: false, messaggio: e instanceof Error ? e.message : String(e) }
+            return { ok: false, messaggio: e instanceof Error ? e.message : String(e), ...(e instanceof ErroreRemoto && e.motivo === 'pin' ? { pin: true } : {}) }
+          }
+        },
+        // Il PIN di una chat di un altro PC, dalle Domande (0.49.1): lo controlla quel PC.
+        pinAltroPc: async (pcId: string, sessione: string, pin: string): Promise<{ ok: true } | { ok: false; messaggio: string; stato?: number }> => {
+          try {
+            const s = await remoto.chiama(pcId, '/api/stato') as { chat?: ChatSuPc[] }
+            const c = (Array.isArray(s.chat) ? s.chat : []).find((x) => x.sessione === sessione)
+            if (c === undefined) return { ok: false, messaggio: 'quella chat non è più aperta su quel PC', stato: 404 }
+            await remoto.chiama(pcId, '/api/pin/sblocca', { chat: String(c.id), pin })
+            return { ok: true }
+          } catch (e) {
+            return { ok: false, messaggio: e instanceof Error ? e.message : String(e), ...(e instanceof ErroreRemoto && e.stato !== undefined ? { stato: e.stato } : {}) }
           }
         },
         scriviAChat: (idChat: string, testo: string) => {
@@ -3200,7 +3218,7 @@ if (!app.requestSingleInstanceLock()) {
         pcIo: () => identitaPc.leggi().id,
         pc: () => postinoGlobale?.pc() ?? Promise.resolve([]),
         posta: (pc: string) => postinoGlobale?.posta(pc) ?? Promise.resolve(undefined),
-        postaAggiungi: (pc: string, voce: { cwd: string; testo: string; sessione?: string }) =>
+        postaAggiungi: (pc: string, voce: { cwd: string; testo: string; sessione?: string; origine?: 'umano' | 'autopilota'; daVisore?: string }) =>
           postinoGlobale?.aggiungi(pc, voce) ?? Promise.resolve(undefined),
         postaTogli: (pc: string, voce: string) => postinoGlobale?.togli(pc, voce) ?? Promise.resolve(undefined),
         postaPulisci: (pc: string) => postinoGlobale?.pulisci(pc) ?? Promise.resolve(undefined),
@@ -3462,7 +3480,8 @@ if (!app.requestSingleInstanceLock()) {
       rottaPerAltriPc = async (r) => { const e = await rottaTelefono(r); return { stato: e.stato, corpo: e.corpo } }
       /** Le rotte che la scheda Domande del PC puo' chiamare: solo rispondere. */
       // `/api/autopilota/vai`: il via dalla linguetta «Domande» (0.38.0).
-      const ROTTE_DOMANDE = ['/api/domande', '/api/rispondi', '/api/scrivi', '/api/scegli', '/api/autopilota/dialogo', '/api/autopilota/vai']
+      // `/api/pin/sblocca` (0.49.1): il PIN di una chat protetta, chiesto lì dove le si scrive.
+      const ROTTE_DOMANDE = ['/api/domande', '/api/rispondi', '/api/scrivi', '/api/scegli', '/api/autopilota/dialogo', '/api/autopilota/vai', '/api/pin/sblocca']
       ipcMain.removeHandler('domande:chiama')
       ipcMain.handle('domande:chiama', async (_e, percorso: unknown, corpo: unknown) => {
         if (typeof percorso !== 'string' || !ROTTE_DOMANDE.includes(percorso)) {

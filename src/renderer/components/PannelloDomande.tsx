@@ -87,6 +87,9 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
   const [scelta, setScelta] = useState<string | undefined>(undefined)
   const [testo, setTesto] = useState('')
   const [nota, setNota] = useState<string | undefined>(undefined)
+  // Il PIN delle chat (0.49.1): la chat a cui si scriveva è protetta. Si chiede qui, e poi si rimanda.
+  const [pinPer, setPinPer] = useState<{ percorso: string; corpo: Record<string, string>; ricordo: string } | undefined>(undefined)
+  const [pin, setPin] = useState('')
   const [inCorso, setInCorso] = useState(false)
   /** Quello che hai appena mandato, finche' il computer non lo rimette nel filo. */
   const [mandati, setMandati] = useState<Record<string, string[]>>({})
@@ -182,6 +185,11 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
       .chiama(percorso, corpo)
       .then((r) => {
         const errore = (r.corpo as { errore?: string } | undefined)?.errore
+        if (r.stato === 423) {
+          setPinPer({ percorso, corpo, ricordo })
+          setNota('Chat protetta: inserisci il PIN. Il messaggio non è partito: mettilo qui sotto e lo rimando.')
+          return
+        }
         if (r.stato >= 400 || errore !== undefined) {
           setNota(errore !== undefined && errore.includes('mandata') ? 'Già mandata: aspetta che lo schermo cambi.'
             : errore !== undefined && errore.includes('cambiata') ? 'La scelta è cambiata mentre toccavi: fra un attimo si aggiorna.'
@@ -343,6 +351,23 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                   <span className="misura">Ctrl+Invio manda. Quando il programma riceve la risposta, la domanda sparisce da qui.</span>
                 </div>
                 {nota !== undefined ? <div className="avviso">⚠ {nota}</div> : null}
+                {pinPer !== undefined ? (
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '4px 0' }}>
+                    <span aria-hidden="true">🔒</span>
+                    <input className="campo" type="password" inputMode="numeric" maxLength={8} placeholder="PIN" value={pin} style={{ width: 110 }}
+                      onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} />
+                    <button className="tasto tasto--mini" disabled={pin.length < 4} onClick={() => {
+                      const p = pinPer
+                      void window.gestore.domande.chiama('/api/pin/sblocca', { chat: p.corpo.chat ?? '', pin }).then((r) => {
+                        setPin('')
+                        if (r.stato >= 400) { setNota(`Non aperta: ${(r.corpo as { errore?: string } | undefined)?.errore ?? `il computer ha risposto ${r.stato}`}`); return }
+                        setPinPer(undefined)
+                        manda(p.percorso, p.corpo, p.ricordo)
+                      })
+                    }}>Apri e rimanda</button>
+                    <button className="tasto tasto--mini" onClick={() => { setPinPer(undefined); setNota(undefined) }}>Lascia stare</button>
+                  </div>
+                ) : null}
               </div>
             </section>
           ) : null}

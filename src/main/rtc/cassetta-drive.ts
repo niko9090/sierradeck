@@ -34,9 +34,9 @@ export function creaCassettaDrive(deps: {
   mioNome: () => string
   nomeDi: (pcId: string) => string
   /** Una voce nella cassetta della posta di quel PC (il postino). */
-  aggiungiPosta: (pcId: string, voce: { cwd: string; testo: string; sessione?: string }) => Promise<unknown>
+  aggiungiPosta: (pcId: string, voce: { cwd: string; testo: string; sessione?: string; daVisore?: string }) => Promise<unknown>
   adesso?: () => number
-}): { chiama: (pcId: string, percorso: string, corpo?: unknown) => Promise<EsitoCanale>; ultimoSchermo: (pcId: string) => string | undefined } {
+}): { chiama: (pcId: string, percorso: string, corpo?: unknown, visore?: string) => Promise<EsitoCanale>; ultimoSchermo: (pcId: string) => string | undefined } {
   const adesso = deps.adesso ?? ((): number => Date.now())
   const rinnovate = new Map<string, number>()
   const letti = new Map<string, { s: SchermoPc | undefined; il: number }>()
@@ -58,7 +58,7 @@ export function creaCassettaDrive(deps: {
 
   return {
     ultimoSchermo: (pcId) => letti.get(pcId)?.s?.scritto,
-    async chiama(pcId, percorso, corpo) {
+    async chiama(pcId, percorso, corpo, visore) {
       const nome = deps.nomeDi(pcId)
       const s = deps.scatola()
       if (s === undefined) return { stato: 503, corpo: { errore: 'il Drive di questo PC non è collegato: niente cassetta' } }
@@ -81,7 +81,7 @@ export function creaCassettaDrive(deps: {
       const testo = typeof (corpo as { testo?: unknown } | undefined)?.testo === 'string' ? (corpo as { testo: string }).testo : ''
       if (c === undefined) return { stato: 404, corpo: { errore: 'chat non più fra quelle aperte' } }
       if (testo.trim() === '') return { stato: 400, corpo: { errore: 'testo vuoto' } }
-      await deps.aggiungiPosta(pcId, { cwd: c.cwd, testo, ...(c.sessione !== undefined ? { sessione: c.sessione } : {}) })
+      await deps.aggiungiPosta(pcId, { cwd: c.cwd, testo, ...(c.sessione !== undefined ? { sessione: c.sessione } : {}), ...(visore !== undefined ? { daVisore: visore } : {}) })
       return { stato: 200, corpo: { fatto: true, viaDrive: true } }
     }
   }

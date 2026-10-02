@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.49.1',
+    righe: [
+      '**Il PIN delle chat, più stretto.** Lo sblocco vale solo per lo schermo che ha messo il PIN: se apri una chat protetta dal portatile, per un altro PC e per il telefono resta chiusa. E tutto quello che una persona scrive a una chat protetta passa dal PIN, anche dalle Domande e dalla cassetta sul Drive: se per chi scrive la chat è chiusa, il messaggio non arriva e compare «Chat protetta: inserisci il PIN». Dalla scheda Domande del PC il PIN si mette lì e il messaggio riparte. Le istruzioni degli autopiloti restano libere, come prima.'
+    ]
+  },
+  {
     versione: '0.49.0',
     righe: [
       '**Il PIN delle chat, se lo vuoi.** In Impostazioni → «PIN delle chat» imposti un PIN da 4 a 8 cifre e scegli dopo quanto tempo di inattività le chat si richiudono (15 minuti, se non cambi niente). Proteggi una chat dal tasto 🔐 nella testata del suo riquadro (anche con il tasto destro), oppure un intero workspace con il tasto destro sul suo nome. Al posto del terminale compare un lucchetto: niente testo e niente casella finché non metti il PIN. Negli elenchi, nelle Domande, nella Salute e nelle Istruzioni degli autopiloti resta il nome della chat, ma non quello che c’è dentro.',

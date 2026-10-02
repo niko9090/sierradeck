@@ -107,7 +107,7 @@ export type DipendenzeRemoto = {
   /** La quarta strada (0.40.0): la cassetta sul Drive, lenta, solo schermo e messaggi. */
   cassetta?: {
     possibile: () => boolean
-    chiama: (pcId: string, percorso: string, corpo?: unknown) => Promise<EsitoCanale>
+    chiama: (pcId: string, percorso: string, corpo?: unknown, visore?: string) => Promise<EsitoCanale>
   }
 }
 
@@ -393,7 +393,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     }
     if (m.mossa === 'aspetta-rtc') throw collegando(b.nome)
     if (m.mossa === 'drive' && deps.cassetta !== undefined) {
-      const e = await deps.cassetta.chiama(pcId, percorso, corpo)
+      const e = await deps.cassetta.chiama(pcId, percorso, corpo, visore)
       segnaStrada(pcId, b.nome, 'drive')
       return datiDa(e, b.nome)
     }

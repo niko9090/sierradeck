@@ -41,7 +41,7 @@ export {
   nomeBattitoPc, nomePosta, pcVivo, pcCheHaLaCartella, staSottoCartella,
   PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, RIAPRI_DOPO_MS, VOCI_MAX, TESTO_POSTA_MAX,
 } from '@shared/posta'
-import type { ChatDiPc, BattitoPc, VocePosta, Posta } from '@shared/posta'
+import { ESITO_PROTETTA, type ChatDiPc, type BattitoPc, type VocePosta, type Posta } from '@shared/posta'
 import { nomeRichiestaSchermo, nomeSchermo, richiestaSchermoViva, schermoDaScrivere, type ChatNelloSchermo } from '@shared/strada-pc'
 import {
   nomeBattitoPc, nomePosta, pcVivo,
@@ -90,7 +90,7 @@ export type Postino = {
    */
   altrui: () => BattitoPc[]
   posta: (pcId: string) => Promise<Posta | undefined>
-  aggiungi: (pcId: string, voce: { cwd: string; testo: string; sessione?: string }) => Promise<Posta | undefined>
+  aggiungi: (pcId: string, voce: { cwd: string; testo: string; sessione?: string; origine?: 'umano' | 'autopilota'; daVisore?: string }) => Promise<Posta | undefined>
   togli: (pcId: string, voceId: string) => Promise<Posta | undefined>
   /** Toglie le voci consegnate e fallite. */
   pulisci: (pcId: string) => Promise<Posta | undefined>
@@ -118,6 +118,11 @@ export function creaPostino(deps: {
   riprendiChat: (cwd: string, sessione: string) => void
   /** Scrive nella chat (testo + invio), come dal telefono. */
   scrivi: (idChat: string, testo: string) => void
+  /**
+   * Il PIN delle chat (0.49.1): questa chat è protetta e chiusa per chi ha
+   * scritto la voce? Allora una voce scritta da una persona non si consegna.
+   */
+  chiusaPer?: (chat: ChatDiPc, voce: VocePosta) => boolean
   adesso?: () => number
   nuovoId?: () => string
   log?: (m: string) => void
@@ -209,6 +214,12 @@ export function creaPostino(deps: {
     const chat = deps.chat()
     const pronta = scegliDestinataria(chat, voce)
     if (pronta !== undefined && pronta.id !== undefined) {
+      // L'input di una persona verso una chat protetta passa dal PIN (0.49.1).
+      if ((voce.origine ?? 'umano') === 'umano' && deps.chiusaPer?.(pronta, voce) === true) {
+        log(`[posta] «${voce.testo.slice(0, 60)}» da ${voce.daNome}: la chat «${pronta.titolo}» è protetta dal PIN e chiusa per chi l'ha scritta, non consegnata`)
+        await aggiorna({ ...voce, stato: 'fallita', consegnataIl: iso(), esito: ESITO_PROTETTA })
+        return
+      }
       deps.scrivi(pronta.id, voce.testo)
       log(`[posta] consegnato a «${pronta.titolo}» (${voce.cwd}) il comando di ${voce.daNome}: ${voce.testo.slice(0, 60)}`)
       await aggiorna({
@@ -329,7 +340,9 @@ export function creaPostino(deps: {
       return conPosta(pcId, (p) => ({
         voci: [...p.voci, {
           id: nuovoId(), testo, cwd, creataIl: iso(), daPc: deps.pcId(), daNome: deps.pcNome(), stato: 'attesa',
-          ...(voce.sessione !== undefined && voce.sessione !== '' ? { sessione: voce.sessione } : {})
+          ...(voce.sessione !== undefined && voce.sessione !== '' ? { sessione: voce.sessione } : {}),
+          origine: voce.origine ?? 'umano',
+          daVisore: voce.daVisore ?? deps.pcId()
         }]
       }))
     },
