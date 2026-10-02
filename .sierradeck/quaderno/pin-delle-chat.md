@@ -44,12 +44,28 @@ aprire (facoltativo ovviamente ed attivabile dalle impostazioni)».
 - Con 4 cifre l'impronta da sola si forza in fretta da chi ha il file: il freno
   vero sono le attese crescenti, che valgono solo passando dal programma.
 
+# 0.49.1: chiusi i due limiti della 0.49.0
+
+- **Sblocco per chi guarda, anche fra PC.** Chi chiede viaggia nel **numero a
+  caso della firma di casa** (`<a caso>~<base64url(visore)>`, `casa-firma.ts`
+  `nonceConVisore` / `visoreDaFirma`): è già sotto HMAC, quindi non si cambia
+  per strada, e i PC 0.47–0.49 accettano la firma come prima. Visore = `<id PC>`,
+  o `tel:<dispositivo>@<id PC>` dal ponte. Sul server diventa il dispositivo
+  `pc:<visore>`; sul WebRTC va nel messaggio sigillato (`visore`, o il PC del
+  canale). Un PC vecchio arriva come `pc` (anonimo): il PIN giusto **non** lascia
+  uno sblocco (`visoreAnonimo`), quindi da lui la chat resta chiusa.
+  Usare `daAltroPc()` per riconoscere un altro PC, mai `=== 'pc'`.
+- **Ogni input umano passa dal PIN.** Le voci della cassetta hanno `origine`
+  (`umano` predefinito, `autopilota`) e `daVisore`; l'etichetta è autenticata
+  dalla cifratura AES-GCM della cassaforte. Alla consegna il postino chiede
+  `chiusaPer(chat, voce)` con il visore `pc:<daVisore>`: se chiusa →
+  `fallita` con `ESITO_PROTETTA` («Chat protetta: inserisci il PIN…»).
+  Dalle Domande: 423 → campo PIN lì (`/api/pin/sblocca`, anche per le chat di
+  un altro PC con `pinAltroPc`) e rimanda.
+
 # Limiti noti
 
-- Gli sblocchi dagli altri PC sono condivisi fra tutti gli altri PC e il ponte
-  (visore `pc`): il server riceve solo «un PC con la chiave di casa».
-- La **cassetta della posta** («Azioni» verso un altro PC) e i messaggi via
-  Drive consegnano ancora il testo a una chat protetta: sono lavoro differito,
-  come le istruzioni degli autopiloti.
 - Chat appena aperta senza uuid di sessione: protetta solo se il suo workspace lo è.
+- Dall'app e dalla pagina del telefono la scheda Domande mostra «Chat protetta:
+  inserisci il PIN» e il PIN si mette aprendo la chat (non c'è un campo nelle Domande).
 - Prova dal vivo da fare con Nicholas (PC + telefono + altro PC).
