@@ -144,6 +144,9 @@ declare global {
         codaPulisci: (id: string) => Promise<Coda | undefined>
         suIberna: (cb: (m: { sessioni: string[] }) => void) => () => void
       }
+      salute: {
+        leggi: () => Promise<import('@shared/salute').Salute>
+      }
       casa: {
         proposte: () => Promise<{ gruppi: { pc: string; nome: string; chat: import('@shared/una-casa').FuoriCasa[] }[]; quante: number; aperte: number; qui: number }>
         riordina: (sessioni: string[]) => Promise<import('@shared/una-casa').RegistroRiordino>

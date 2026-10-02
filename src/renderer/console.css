@@ -4292,3 +4292,17 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .sposta__controllo { display: flex; gap: 8px; align-items: baseline; }
 .sposta__ok { color: var(--verde); font-weight: 700; }
 .sposta__no { color: var(--rosso); font-weight: 700; }
+
+/* «Salute del sistema» (0.44.0). */
+.salute__gruppo { display: flex; flex-direction: column; gap: 6px; }
+.salute__voce { border: 1px solid var(--incisione); border-left-width: 3px; border-radius: 6px; padding: 6px 10px; background: var(--chassis); }
+.salute__voce--ok { border-left-color: var(--verde); }
+.salute__voce--attenzione { border-left-color: var(--ambra); }
+.salute__voce--guasto { border-left-color: var(--rosso); }
+.salute__titolo { font-weight: 600; color: var(--testo); display: flex; gap: 6px; align-items: center; overflow-wrap: anywhere; }
+.salute__testo { color: var(--testo-quieto); font-size: var(--t1); line-height: 1.45; margin-top: 3px; user-select: text; overflow-wrap: anywhere; }
+.salute__azioni { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.salute__tono { font-size: var(--t1); padding: 0 8px; border-radius: 999px; border: 1px solid currentColor; }
+.salute__tono--ok { color: var(--verde); }
+.salute__tono--attenzione { color: var(--ambra); }
+.salute__tono--guasto { color: var(--rosso); }

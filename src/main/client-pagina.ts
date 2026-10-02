@@ -587,6 +587,9 @@ var notaDomandaAp = ''
 var notaDialogo = ''
 /** Il pannello aperto in fondo: le conversazioni, gli altri computer, le code, il Drive, i consumi, le impostazioni, il quaderno, o niente. */
 var pannelloAperto = null
+/** «Salute del sistema» (0.44.0): letta dal computer quando si apre. */
+var saluteVista = null
+var saluteErrore = ''
 var sessioniViste = null
 /** La coda condivisa aperta dal telefono: quale progetto, e le sue voci. */
 var codaProgetto = null
@@ -1578,6 +1581,34 @@ function pannello(s) {
       '<button class="primario" onclick="mettiInCoda()">Metti in coda</button></div></div>'
   })()
 
+  // «Salute del sistema» (0.44.0): le stesse voci del PC, con spiegazione e cosa fare.
+  const vistaSalute = pannelloAperto !== 'salute' ? '' : (() => {
+    const testa = '<div class="piastrella"><div class="titolo">Salute del sistema</div>' +
+      '<div class="sotto">Com’è messo il computer: il Drive, gli altri PC (ultimo segno, strada, versione), un aggiornamento non riuscito, gli errori delle ultime ore, le istruzioni degli autopiloti non partite. Ogni voce dice cosa vuol dire e cosa fare.</div>'
+    if (saluteErrore) return testa + '<div class="errore">' + esc(saluteErrore) + '</div><div class="riga"><button onclick="apriPannello(\\'salute\\')">Chiudi</button></div></div>'
+    if (!saluteVista) return testa + '<div class="sotto">Guardo…</div></div>'
+    const colore = (t) => t === 'ok' ? 'var(--verde)' : t === 'attenzione' ? '#e0a33c' : '#dc5f5f'
+    const nomi = { drive: 'Drive', pc: 'Gli altri PC', aggiornamento: 'Aggiornamento', errori: 'Errori delle ultime ore', consegne: 'Istruzioni non partite' }
+    const azione = (a) => a.id === 'scarica-a-mano' ? '<a href="' + esc(a.url) + '" target="_blank" rel="noopener">' + esc(a.testo) + '</a>'
+      : a.id === 'installa' ? '<button onclick="installaAggiornamento()">' + esc(a.testo) + '</button>'
+      : a.id === 'apri-autopilota' ? '<button onclick="vaiScheda(\\'lavori\\')">' + esc(a.testo) + '</button>'
+      : a.id === 'riprova-pc' ? '<button onclick="rileggiSalute()">' + esc(a.testo) + '</button>'
+      : '<span class="sotto">' + esc(a.testo) + ': dal computer</span>'
+    let corpo = '<div class="sotto" style="margin-top:6px;color:' + colore(saluteVista.tono) + '"><b>' + esc(saluteVista.riassunto) + '</b></div>'
+    for (const g of ['drive', 'pc', 'aggiornamento', 'errori', 'consegne']) {
+      const voci = (saluteVista.voci || []).filter((v) => v.gruppo === g)
+      if (voci.length === 0) continue
+      corpo += '<div class="serigrafia" style="margin-top:10px">' + esc(nomi[g]) + '</div>' + voci.map((v) =>
+        '<div class="salute-voce" style="border-left:3px solid ' + colore(v.tono) + ';padding:4px 8px;margin-top:6px">' +
+        '<div><b>' + esc(v.titolo) + '</b></div>' +
+        '<div class="sotto">' + esc(v.spiegazione) + '</div>' +
+        (v.cosaFare ? '<div class="sotto"><b>Cosa fare:</b> ' + esc(v.cosaFare) + '</div>' : '') +
+        ((v.azioni || []).length > 0 ? '<div class="riga">' + v.azioni.map(azione).join('') + '</div>' : '') +
+        '</div>').join('')
+    }
+    return testa + corpo + '<div class="riga"><button onclick="rileggiSalute()">Aggiorna</button><button onclick="apriPannello(\\'salute\\')">Chiudi</button></div></div>'
+  })()
+
   const vistaDrive = pannelloAperto !== 'drive' ? '' : (() => {
     const c = driveCatalogo
     const l = driveLavoro || {}
@@ -1795,9 +1826,10 @@ function pannello(s) {
       ((s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0) > 0 ? ' · ' + (s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0) : '') + '</button>' +
       '<button onclick="apriPannello(\\'pc\\')">Altri computer</button>' +
       '<button onclick="apriPannello(\\'drive\\')">Drive</button>' +
+      '<button onclick="apriPannello(\\'salute\\')">Salute</button>' +
       '<button onclick="apriPannello(\\'consumi\\')">Consumi</button>' +
       '<button onclick="apriPannello(\\'impostazioni\\')">Impostazioni</button></div>' +
-      elencoCode + elencoPc + vistaDrive + vistaConsumi + vistaImpostazioni
+      elencoCode + elencoPc + vistaDrive + vistaSalute + vistaConsumi + vistaImpostazioni
   }
 
   app.innerHTML = \`
@@ -2352,6 +2384,7 @@ window.apriPannello = async (quale) => {
     try { sessioniViste = (await chiedi('/api/sessioni')).sessioni || [] } catch (e) { sessioniViste = []; notaGlobale = 'Non riesco a leggere le conversazioni: ' + (e && e.message ? e.message : 'il computer non risponde') }
   }
   if (pannelloAperto === 'consumi') await leggiConsumi()
+  if (pannelloAperto === 'salute') await leggiSalute()
   if (pannelloAperto === 'pc') { pcAperto = null; postaVoci = null; await leggiPc() }
   if (pannelloAperto === 'drive') { driveRiavviato = false; await leggiDrive() }
   if (pannelloAperto === 'impostazioni') { await leggiPreferenze(); await leggiAggiornamento() }
@@ -2834,6 +2867,14 @@ window.scaricaAggiornamento = async () => {
  * computer con le chat aperte dentro: e' la cosa piu' invasiva che si possa
  * chiedere da qui, e si chiede dopo aver visto cosa cambia.
  */
+/** «Salute del sistema» (0.44.0). */
+async function leggiSalute() {
+  saluteVista = null
+  saluteErrore = ''
+  try { saluteVista = await chiedi('/api/salute') } catch (e) { saluteErrore = 'Il computer non sa ancora dire la sua salute (arriva aggiornandolo alla 0.44.0), o non risponde: ' + (e && e.message ? e.message : e) }
+}
+window.rileggiSalute = async () => { await leggiSalute(); pannello(ultimoStato) }
+
 window.installaAggiornamento = async () => {
   noteAgg = { leggo: true }
   pannello(ultimoStato)

@@ -30,7 +30,7 @@ import { MODELLI } from '../modelli'
  * qualcosa di nuovo: chi non vuole pensarci li usa e non ci pensa più.
  */
 
-export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'file' | 'drive' | 'domande' | undefined
+export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'file' | 'drive' | 'salute' | 'domande' | undefined
 
 type Props = {
   onApriSessioni: () => void
@@ -158,7 +158,7 @@ export function Console({
   useEffect(() => {
     const suRichiesta = (e: Event): void => {
       const quale = (e as CustomEvent<unknown>).detail
-      if (quale === 'drive' || quale === 'domande' || quale === 'workspace' || quale === 'autopiloti') onApri(quale)
+      if (quale === 'drive' || quale === 'salute' || quale === 'domande' || quale === 'workspace' || quale === 'autopiloti') onApri(quale)
     }
     window.addEventListener('sierradeck:apri-pannello', suRichiesta)
     return () => window.removeEventListener('sierradeck:apri-pannello', suRichiesta)
@@ -418,6 +418,14 @@ export function Console({
           title="Il magazzino comune dei tuoi PC: cosa c’è sul Drive, cosa hai già qui, e «Porta qui»"
         >
           ☁ Drive
+        </button>
+        <button
+          className="tasto"
+          onClick={() => commuta('salute')}
+          aria-expanded={aperto === 'salute'}
+          title="Salute del sistema: il Drive, gli altri PC (battito, strada, versione), un aggiornamento non riuscito, gli errori delle ultime ore, le istruzioni non partite — con cosa fare per ognuna"
+        >
+          ♥ Salute
         </button>
         <button
           // Domande in attesa e colonna chiusa: il tasto chiama (0.37.3),

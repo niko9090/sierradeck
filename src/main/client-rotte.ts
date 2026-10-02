@@ -139,6 +139,8 @@ export type DipendenzeRotte = {
    * con la chiave di casa (dispositivo `pc`), mai per un telefono.
    */
   sposta?: { pronto: () => unknown; ricevi: (corpo: unknown) => Promise<unknown>; verifica: (sessioni: string[]) => Promise<unknown> }
+  /** «Salute del sistema» (0.44.0): il Drive, gli altri PC, gli errori, con spiegazioni e azioni. */
+  salute?: () => Promise<unknown>
   /** La linguetta «Istruzioni» dal telefono (0.41.0): le consegne alle sue chat, intere. */
   istruzioniAutopilota?: (id: string) => Promise<unknown[]>
   diffAutopilota?: (id: string, chiave: string, percorso: string) => Promise<string>
@@ -654,6 +656,11 @@ export function rotteClient(deps: DipendenzeRotte) {
       // incontrava non leggeva piu' niente delle Domande (trovato dal test di
       // compatibilita', 0.43.0; dalla 0.41.0 ogni domanda ha le sue scelte).
       return OK({ voci: vociPerLeApp(voci), conversazioni, chiedono: quanteAspettano(conversazioni) })
+    }
+
+    // «Salute del sistema» (0.44.0), dietro la chiave: dice com'e' messo il PC.
+    if (r.percorso === '/api/salute' && deps.salute !== undefined) {
+      return OK((await deps.salute()) as object)
     }
 
     // I colori del computer, per vestire la pagina con la stessa grafica.

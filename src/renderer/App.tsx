@@ -53,6 +53,7 @@ import { ETICHETTA_LAVORO_TIPO, soloTransizioni } from './progresso-sync'
 import { Fumetti, Fumetto, FumettoLavoroDrive, useChiusuraAutomatica } from './components/Fumetti'
 import { decidiFumettiDrive, FUMETTO_ARRIVO_MS, FUMETTO_ESITO_OK_MS } from './fumetti-sync'
 import { PannelloDrive } from './components/PannelloDrive'
+import { PannelloSalute } from './components/PannelloSalute'
 import { PannelloDomande, apriDomandeAutopilota } from './components/PannelloDomande'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 
@@ -1552,6 +1553,14 @@ export function App(): React.JSX.Element {
         ) : null}
         {aperto === 'drive' ? (
           <PannelloDrive onChiudi={() => setAperto(undefined)} />
+        ) : null}
+        {aperto === 'salute' ? (
+          <PannelloSalute
+            onChiudi={() => setAperto(undefined)}
+            onApriDrive={() => { setSchedaImpostazioni('account'); setAperto('impostazioni') }}
+            onInstalla={() => apriInstalla(aggiornamento.versione ?? '')}
+            onApriAutopiloti={() => setAperto('autopiloti')}
+          />
         ) : null}
         {aperto === 'file' ? (
           // I server sono **del progetto**: la cartella della chat che hai

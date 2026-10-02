@@ -9,6 +9,7 @@ import { creaUnaCasa, type ChatLocale, type UnaCasa } from './una-casa'
 import { creaSpostaProgetto, impronteSessioni } from './sposta-progetto'
 import { saleDaQui, scendeQui, sessioneDiPercorso, type CasaChat } from '@shared/una-casa'
 import { esitoDaPasso } from '@shared/istruzioni-autopilota'
+import { componiSalute, erroriDalLog } from '@shared/salute'
 import { CERCA_OFFERTE_OGNI_MS, stradaBreve, type ChatNelloSchermo, type InfoStrada } from '@shared/strada-pc'
 import { doveMostrareDomande, eLinguettaStaccabile } from '@shared/finestra-pannello'
 import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell } from 'electron'
@@ -304,6 +305,11 @@ let postinoGlobale: Postino | undefined
  * sapere quali chat salgono e quali scendono. Finché non c'e', tutto come prima.
  */
 let unaCasaGlobale: UnaCasa | undefined
+/** «Salute del sistema» (0.44.0): nasce con le strade fra PC, la leggono il PC e il telefono. */
+let leggiSalute: () => Promise<import('@shared/salute').Salute> = async () => componiSalute({
+  adesso: Date.now(), versione: app.getVersion(), drive: { configurato: false, connesso: false }, pc: [], errori: [], consegne: [], oreErrori: ORE_ERRORI_SALUTE
+})
+const ORE_ERRORI_SALUTE = 6
 /** Il servizio della procedura «Sposta progetto», per le rotte del Client. */
 let spostaGlobale: { pronto: () => unknown; ricevi: (corpo: unknown) => Promise<unknown>; verifica: (sessioni: string[]) => Promise<unknown> } | undefined
 let rottaPerAltriPc: ((r: { metodo: string; percorso: string; corpo: unknown; dispositivo?: string }) => Promise<{ stato: number; corpo: unknown }>) | undefined
@@ -1477,6 +1483,60 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('remoto:apri', (_e, pc: unknown, cartella: unknown) =>
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/apri', { cartella: testo(cartella) }), pc))
       ipcMain.handle('remoto:prova', (_e, pc: unknown) => remoto.prova(testo(pc)))
+
+      // ── «Salute del sistema» (0.44.0) ──
+      // Il Drive, gli altri PC, l'aggiornamento non riuscito, gli errori delle
+      // ultime ore dal registro, le consegne non partite: un posto solo, con
+      // le spiegazioni e le azioni (src/shared/salute.ts).
+      leggiSalute = async () => {
+        const adesso = Date.now()
+        const st = contoDrive.stato()
+        const av = avvisoDrive()
+        const statoSync = await sincronia.stato().catch(() => undefined)
+        const battiti = await postino.pc().catch(() => postino.altrui())
+        const pc = await Promise.all(battiti.map(async (b) => {
+          const s = await remoto.statoDi(b.pcId, b.nome).catch(() => undefined)
+          const strada = remoto.stradaDi(b.pcId)
+          return {
+            pcId: b.pcId, nome: b.nome, versione: b.versione, battito: b.battito,
+            ...(s !== undefined ? { stato: s.stato } : {}),
+            ...(strada !== undefined && s?.stato === 'acceso' ? { strada: stradaBreve(strada.strada) } : {})
+          }
+        }))
+        // Gli errori: il registro di oggi, e quello di ieri se le ore lo toccano.
+        const righe: string[] = []
+        for (const giorni of [1, 0]) {
+          const d = new Date(adesso - giorni * 86_400_000).toISOString().slice(0, 10)
+          try { righe.push(...readFileSync(join(dirname(registro.file()), `sierradeck-${d}.log`), 'utf8').split('\n')) } catch { /* quel giorno non c'e' */ }
+        }
+        // Le consegne non partite delle ultime 24 ore, di ogni autopilota.
+        const consegne: import('@shared/salute').ConsegnaNonPartita[] = []
+        try {
+          for (const a of await clientAutopilota.elenca()) {
+            const lista = await clientAutopilota.istruzioni(a.id).catch(() => [])
+            for (const i of lista) {
+              if ((i.esito === 'non-partita' || i.esito === 'persa') && adesso - Date.parse(i.quando) < 86_400_000) {
+                consegne.push({ autopilota: a.id, nome: a.nome !== '' ? a.nome : a.obiettivo.slice(0, 40), quando: i.quando, chat: i.chatTitolo, esito: i.esito, inizio: i.testo.replace(/\s+/g, ' ').slice(0, 140) })
+              }
+            }
+          }
+        } catch { /* il servizio non risponde: niente consegne da dire */ }
+        const t = aggiornamenti?.stato().tentativoFallito
+        return componiSalute({
+          adesso, versione: app.getVersion(),
+          drive: {
+            configurato: st.configurato, connesso: st.connesso,
+            ...(av !== undefined ? { titolo: av.titolo, testo: av.testo } : {}),
+            ...(statoSync?.ultimoSalvataggio !== undefined ? { ultimoSalvataggio: statoSync.ultimoSalvataggio } : {})
+          },
+          pc,
+          ...(t !== undefined ? { tentativoFallito: { titolo: t.titolo, motivo: t.motivo, strade: t.strade, pagina: t.pagina, versione: t.versione } } : {}),
+          errori: erroriDalLog(righe, adesso, ORE_ERRORI_SALUTE),
+          consegne,
+          oreErrori: ORE_ERRORI_SALUTE
+        })
+      }
+      ipcMain.handle('salute:leggi', () => leggiSalute())
 
       // ── «Una chat, una casa» (0.42.0) ──
       // Il progetto: .sierradeck/quaderno/2026-10-02-una-chat-una-casa-progetto.md
@@ -3126,6 +3186,8 @@ if (!app.requestSingleInstanceLock()) {
           }
         },
         avvisoDrive: () => avvisoDrive(),
+        // «Salute del sistema» dal telefono (0.44.0).
+        salute: () => leggiSalute(),
         aggiornamento: () => aggiornamenti?.stato() ?? { fase: 'fermo' },
         cercaAggiornamento: () => { void aggiornamenti?.cerca(true) },
         scaricaAggiornamento: () => { void aggiornamenti?.scarica(true) },

@@ -445,6 +445,10 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Da dove aprire una chat del workspace: qui, dal vivo su un altro PC, o in attesa di quel PC. */
     daDove: (p: { cwd: string; sessionUuid?: string }): Promise<import('@shared/apertura-chat').Apertura> => ipcRenderer.invoke('chat:daDove', p)
   },
+  /** «Salute del sistema» (0.44.0). */
+  salute: {
+    leggi: (): Promise<import('@shared/salute').Salute> => ipcRenderer.invoke('salute:leggi')
+  },
   /** «Una chat, una casa» (0.42.0): le case delle chat, il riordino e il suo annullamento. */
   casa: {
     proposte: (): Promise<{ gruppi: { pc: string; nome: string; chat: import('@shared/una-casa').FuoriCasa[] }[]; quante: number; aperte: number; qui: number }> => ipcRenderer.invoke('casa:proposte'),
