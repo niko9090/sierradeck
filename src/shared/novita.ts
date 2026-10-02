@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.39.2',
+    righe: [
+      '**Se un aggiornamento non si installa, SierraDeck se ne accorge e te lo dice.** Prima di installare si segna quale versione sta provando a mettere; quando riparte controlla: se è ancora sulla versione di prima, nella striscia in alto compare «Ho provato a installare la X ma sei ancora sulla Y», invece di riproporti «Installa» come se fosse la prima volta.',
+      '**Con il perché, detto con la certezza che c’è.** Se il programma che installa ha lasciato scritto cosa è successo (l’installer uscito con un errore, non partito, mai finito), te lo dice. Altrimenti ti dice il motivo più probabile: una protezione di Windows, come Smart App Control o l’antivirus, che ha fermato l’installer, che non è firmato.',
+      '**E cosa puoi fare.** Scaricare l’installer a mano dalla pagina della versione (c’è il tasto che la apre), riprovare da «Installa», oppure la firma del codice, che risolve per tutti i PC e la decide Nicholas. Lo stesso avviso c’è dentro la finestra di «Installa» e sul telefono, nell’app (2.43.2) e nella pagina. Quando l’installazione riesce, l’avviso sparisce da solo.'
+    ]
+  },
+  {
     versione: '0.39.1',
     righe: [
       '**Le domande si leggono sempre per intero.** Quella che ti faceva un autopilota arrivava tagliata dopo cinquecento caratteri, e siccome davanti c’era l’obiettivo del lavoro, spesso della domanda vera non restava niente. Ora arriva intera, con i suoi a capo, e viene prima dell’obiettivo. Se è lunga, la parte che la mostra scorre: nella linguetta «Domande» (anche staccata in una sua finestra), nella colonna, nell’app e nella pagina del telefono.',

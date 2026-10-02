@@ -79,7 +79,27 @@ Nicholas ha mostrato una notifica: «Sicurezza di Windows – Parte di questa ap
 - **Probabilmente è la causa anche sul portatile che non aggiorna SierraDeck.** L'installer e `SierraDeck.exe` non sono firmati (vedi sopra), e già il 18/09 SAC bloccava `npm run pacchetto` su quel portatile (`build-sul-portatile.md`). Se è SAC, i passi «Consenti / Esegui comunque» qui sotto non bastano: finché l'app non è firmata, su quel PC si aggiorna solo a mano, e solo dove SAC lascia passare.
 - **È un motivo in più per la firma.** Un eseguibile firmato da un editore verificato, con Artifact Signing o un certificato OV/EV, passa SAC. È l'unica soluzione che vale su ogni PC.
 - **Smart App Control NON va spento.** Una volta spento non si riaccende senza reinstallare Windows. Non va proposto, nemmeno «per un attimo».
-- **Strumenti per i test:** il g++ bloccato era un compilatore non firmato (MinGW o MSYS) installato da una chat, non da questa. Per la compilazione nativa si usano solo strumenti firmati (i Build Tools di Visual Studio di Microsoft), oppure la si evita: `node-pty` arriva già compilato, e `@xterm/headless` è JavaScript puro. Le prove della 0.38.2 e della 0.39.0 non hanno compilato niente.
+- **Il g++ (correzione del 02/10).** La notifica di Smart App Control delle 09:02 su `bash.exe` → `g++.exe` **non c'entra con l'aggiornamento**. Era una chat che provava a compilare con un compilatore non firmato (MinGW o MSYS), mezz'ora prima del tentativo di installare la 0.39.0. Prova soltanto che Smart App Control è acceso e attivo su quel PC.
+- **Strumenti per i test:** per la compilazione nativa si usano solo strumenti firmati (i Build Tools di Visual Studio di Microsoft), oppure la si evita: `node-pty` arriva già compilato, e `@xterm/headless` è JavaScript puro. Le prove della 0.38.2 e della 0.39.0 non hanno compilato niente.
+
+# Il caso reale: 0.38.2 passata, 0.39.0 bloccata (portatile, 02/10)
+
+Dal log del portatile (`sierradeck-2026-10-02.log`, utente asus), orari UTC:
+
+| | 0.38.2 | 0.39.0 |
+|---|---|---|
+| «INSTALLA» | 06:32:17 | 09:32:12 |
+| SierraDeck Update vivo, SierraDeck si chiude | 06:32:22 | 09:32:21 |
+| Programma di nuovo acceso | **06:33:55, con la 0.38.2**: riuscita in 90 secondi, riaperto da SierraDeck Update | **09:47:30, ancora con la 0.38.2**: 15 minuti dopo, riaperto a mano |
+
+- Stesso PC, stesso installer non firmato, stessa strada. Una volta passa e la volta dopo no.
+- È il comportamento di una protezione basata sulla reputazione di ogni singolo file: ogni release ha un installer nuovo, senza storia.
+- Il log non dice cosa ha fermato l'installer: il diario di SierraDeck Update (`%TEMP%\sierradeck-update.log`) su quel PC non è stato letto. Il riavvio a mano dopo 15 minuti fa pensare che l'installer non sia mai finito e che SierraDeck Update non abbia riaperto il programma: se l'installer fosse uscito con un errore, l'avrebbe riaperto subito lui.
+- Dalla **0.39.2** SierraDeck se ne accorge da solo (scheda `installazione-non-riuscita.md`):
+  - avvisa al riavvio sul PC e sul telefono;
+  - scrive nel registro il diario di SierraDeck Update.
+  - La prossima volta il perché sarà scritto: codice di uscita, «non partito», tempo scaduto.
+- **È la prova concreta che serve la firma.** Senza firma ogni release può fermarsi su un PC con Smart App Control, e l'unica strada è installarla a mano (dove SAC lo permette). La decisione resta di Nicholas.
 
 # Segnalare il falso positivo a Microsoft
 
