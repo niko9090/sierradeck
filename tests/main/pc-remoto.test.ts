@@ -81,14 +81,15 @@ describe('le cose pure', () => {
 })
 
 describe('bussare a un altro PC', () => {
-  it('IL PUNTO: prova gli indirizzi in fila, si ricorda quello che risponde, e presenta la chiave di casa e il nome', async () => {
+  it('IL PUNTO: bussa a tutti gli indirizzi insieme (0.39.3), si ricorda quello che risponde, e presenta la chiave di casa e il nome', async () => {
     const { fetch: f, chiamate } = fintoFetch({ '192.168.1.50': { guasto: true }, '100.99.57.91': { corpo: { chat: [] } } })
     const log: string[] = []
     const c = client([PORTATILE], f, { log })
     const r = await c.chiama('B', '/api/stato')
     expect(r).toEqual({ chat: [] })
-    expect(chiamate.map((x) => x.url)).toEqual(['http://192.168.1.50:47640/api/stato', 'http://100.99.57.91:47640/api/stato'])
-    const intestazioni = chiamate[1]?.init.headers as Record<string, string>
+    // Prima il bussare breve su tutti (/api/pc), poi la chiamata vera su quello che ha risposto.
+    expect(chiamate.map((x) => x.url)).toEqual(['http://192.168.1.50:47640/api/pc', 'http://100.99.57.91:47640/api/pc', 'http://100.99.57.91:47640/api/stato'])
+    const intestazioni = chiamate[2]?.init.headers as Record<string, string>
     expect(intestazioni['x-sierradeck-chiave']).toBe('chiave-di-casa-B')
     expect(intestazioni['x-sierradeck-pc']).toBe('Torre')
     expect(c.indirizzoBuono('B')).toBe('100.99.57.91')
@@ -108,19 +109,22 @@ describe('bussare a un altro PC', () => {
     expect(c.indirizzoBuono('B')).toBe('100.99.57.91')
   })
 
-  it('senza battito, a cassaforte chiusa, a PC spento o senza indirizzi non si bussa nemmeno, e si dice perche’', async () => {
+  it('senza battito, a cassaforte chiusa o senza indirizzi non si bussa; con il battito vecchio si bussa lo stesso (0.39.3) e si dice «non so se è acceso»', async () => {
     const { fetch: f, chiamate } = fintoFetch({})
     expect(await motivo(client([], f).chiama('B', '/api/stato'))).toBe('sconosciuto')
     expect(await motivo(client([PORTATILE], f, { chiave: undefined }).chiama('B', '/api/stato'))).toBe('cassaforte')
     const spento = { ...PORTATILE, battito: new Date(ORA - 10 * 60_000).toISOString() }
     const errSpento = await client([spento], f).chiama('B', '/api/stato').catch((e: unknown) => e as ErroreRemoto)
-    expect((errSpento as ErroreRemoto).motivo).toBe('spento')
-    expect((errSpento as ErroreRemoto).message).toContain('Scrivile là')
+    expect((errSpento as ErroreRemoto).motivo).toBe('non-so')
+    expect((errSpento as ErroreRemoto).message).toContain('Non so se Portatile è acceso')
+    expect((errSpento as ErroreRemoto).message).not.toContain('è spento')
+    expect(chiamate.length).toBe(2)
+    chiamate.length = 0
     const vecchio: BattitoPc = { ...PORTATILE, versione: '0.32.1' }
     delete vecchio.indirizzi
     const errVecchio = await client([vecchio], f).chiama('B', '/api/stato').catch((e: unknown) => e as ErroreRemoto)
     expect((errVecchio as ErroreRemoto).motivo).toBe('senza-indirizzi')
-    expect((errVecchio as ErroreRemoto).message).toContain('0.33.0')
+    expect((errVecchio as ErroreRemoto).message).toContain('Non ho nessun indirizzo')
     expect(chiamate).toHaveLength(0)
   })
 
@@ -129,14 +133,14 @@ describe('bussare a un altro PC', () => {
     const e401 = await c401.chiama('B', '/api/stato').catch((e: unknown) => e as ErroreRemoto)
     expect((e401 as ErroreRemoto).motivo).toBe('chiave')
     expect((e401 as ErroreRemoto).message).toContain('stessa passphrase')
-    // Ha risposto: l'indirizzo e' buono anche se ci ha detto di no.
-    expect(c401.indirizzoBuono('B')).toBe('192.168.1.50')
     const e403 = await client([PORTATILE], fintoFetch({ '192.168.1.50': { stato: 403, corpo: { errore: 'solo dalla rete locale' } } }).fetch).chiama('B', '/api/stato').catch((e: unknown) => e as ErroreRemoto)
     expect((e403 as ErroreRemoto).motivo).toBe('rifiutato')
     expect((e403 as ErroreRemoto).message).toContain('accetta anche da fuori la rete locale')
     const e404 = await client([PORTATILE], fintoFetch({ '192.168.1.50': { stato: 404, corpo: { errore: 'chat non trovata' } } }).fetch).chiama('B', '/api/storia', { chat: 'x' }).catch((e: unknown) => e as ErroreRemoto)
     expect((e404 as ErroreRemoto).motivo).toBe('chat')
-    expect((e404 as ErroreRemoto).message).toBe('chat non trovata')
+    // Il motivo vero, per esteso (0.39.3): risponde, ma la chat la' e' chiusa.
+    expect((e404 as ErroreRemoto).message).toContain('questa chat là non è aperta')
+    expect((e404 as ErroreRemoto).message).toContain('chat non trovata')
   })
 
   it('se nessun indirizzo risponde lo dice con tutti gli indirizzi, la porta e cosa controllare — una volta nel registro', async () => {
@@ -149,7 +153,7 @@ describe('bussare a un altro PC', () => {
     expect((e as ErroreRemoto).message).toContain('porta 47640')
     expect((e as ErroreRemoto).message).toContain('Tailscale acceso su tutti e due')
     await c.chiama('B', '/api/stato').catch(() => undefined)
-    expect(log.filter((m) => m.includes('non risponde su nessuno'))).toHaveLength(1)
+    expect(log.filter((m) => m.includes('è acceso ma non risponde'))).toHaveLength(1)
     expect(c.indirizzoBuono('B')).toBeUndefined()
   })
 

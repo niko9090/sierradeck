@@ -12,6 +12,8 @@
  * dalla cassaforte condivisa: niente da accoppiare.
  */
 
+import type { StatoPc } from './scoperta-pc'
+
 /** Cio' che un riquadro remoto si ricorda: quale PC, quale chat. */
 export type ChatRemota = {
   pcId: string
@@ -100,6 +102,8 @@ export type PcRemoto = {
   indirizzi: string[]
   porta: number
   buono?: string
+  /** Com'e' dopo il bussare diretto (0.39.3), quando lo si e' chiesto. */
+  stato?: StatoPc
   chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean }[]
   cartelle: string[]
 }
@@ -129,7 +133,10 @@ export function descriviSilenzio(motivo: string, pcNome: string, daMs: number): 
   const quanto = secondi < 90 ? `${secondi} secondi` : `${Math.round(secondi / 60)} minuti`
   const breve = daMs < SILENZIO_BREVE_MS
   if (motivo === 'cassaforte') return { titolo: 'La cassaforte di qui è chiusa: riprovo appena la apri', breve: false }
-  if (motivo === 'spento') return { titolo: `${pcNome} è spento · non risponde da ${quanto} · riprovo da solo`, breve }
+  // Mai «spento» (0.39.3): con dati vecchi non lo si sa.
+  if (motivo === 'spento' || motivo === 'non-so') return { titolo: `Non so se ${pcNome} è acceso · non risponde da ${quanto} · riprovo da solo`, breve }
+  if (motivo === 'chat') return { titolo: `${pcNome} risponde, ma questa chat là è stata chiusa`, breve: false }
+  if (motivo === 'senza-indirizzi') return { titolo: `Non so a che indirizzo bussare a ${pcNome}`, breve: false }
   if (motivo === 'rifiutato' || motivo === 'chiave') return { titolo: `${pcNome} risponde ma non mi fa entrare · riprovo da solo`, breve: false }
   return { titolo: `${pcNome} non risponde da ${quanto} · riprovo da solo`, breve }
 }

@@ -1,4 +1,5 @@
 import { pcVivo, type BattitoPc } from './posta'
+import type { StatoPc } from './scoperta-pc'
 
 /**
  * Da dove aprire una chat del workspace: qui, dal vivo su un altro PC, o in
@@ -38,6 +39,11 @@ export type Apertura =
       /** L'ultimo battito di quel PC (ISO), se ce n'e' uno. */
       ultimoSegno?: string
       perche: string
+      /**
+       * Com'e' quel PC dopo il bussare diretto (0.39.3): il titolo e cosa fare,
+       * mai «spento» quando i dati sono vecchi (`statoPc` in scoperta-pc.ts).
+       */
+      statoPc?: StatoPc
     }
 
 export type DatiApertura = {
@@ -55,6 +61,13 @@ export type DatiApertura = {
   /** I battiti degli altri PC sul Drive. */
   battiti: BattitoPc[]
   adesso: number
+  /**
+   * I PC che hanno risposto al bussare diretto (0.39.3): accesi anche se il
+   * loro battito sul Drive e' vecchio — con il Drive scollegato lo e' sempre.
+   */
+  rispondono?: string[]
+  /** Com'e' ogni PC dopo il bussare, per il riquadro d'attesa. */
+  statiPc?: Record<string, StatoPc>
 }
 
 /** «non risponde da 12 minuti», «non ha mai lasciato un battito». */
@@ -73,16 +86,18 @@ export function decidiApertura(d: DatiApertura): Apertura {
   const altri = d.battiti.filter((b) => b.pcId !== d.io)
   const verso = (b: BattitoPc | undefined, pc: { id: string; nome: string }, perche: string): Apertura => {
     const nome = b?.nome !== undefined && b.nome !== '' ? b.nome : pc.nome
-    if (b !== undefined && pcVivo(b, d.adesso)) {
-      return { tipo: 'remoto', pc: { id: b.pcId, nome }, cwd: d.cwd, ...(d.sessione !== undefined ? { sessione: d.sessione } : {}), perche }
+    const id = b?.pcId ?? pc.id
+    if ((b !== undefined && pcVivo(b, d.adesso)) || (d.rispondono ?? []).includes(id)) {
+      return { tipo: 'remoto', pc: { id, nome }, cwd: d.cwd, ...(d.sessione !== undefined ? { sessione: d.sessione } : {}), perche }
     }
     return {
       tipo: 'attesa',
-      pc: { id: b?.pcId ?? pc.id, nome },
+      pc: { id, nome },
       cwd: d.cwd,
       ...(d.sessione !== undefined ? { sessione: d.sessione } : {}),
       ...(b?.battito !== undefined && b.battito !== '' ? { ultimoSegno: b.battito } : {}),
-      perche
+      perche,
+      ...(d.statiPc?.[id] !== undefined ? { statoPc: d.statiPc[id] } : {})
     }
   }
 

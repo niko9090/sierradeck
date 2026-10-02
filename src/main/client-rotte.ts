@@ -15,6 +15,7 @@ import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/dom
 import { alberoChat } from '@shared/harness'
 import type { NoteAggiornamento } from '@shared/note-aggiornamento'
 import type { TentativoFallito } from '@shared/tentativo-installazione'
+import type { AvvisoDrive } from '@shared/scoperta-pc'
 
 /**
  * Cosa può fare il Client, e cosa no.
@@ -270,6 +271,8 @@ export type DipendenzeRotte = {
   schermoDi?: (idChat: string) => Promise<string[] | undefined>
   /** L'orologio, per sapere da quanto una scelta e' stata mandata. */
   adesso?: () => number
+  /** La banda del Drive scollegato del computer (0.39.3), se c'e'. */
+  avvisoDrive?: () => AvvisoDrive | undefined
   aggiornamento: () => { fase: string; versione?: string; percento?: number; errore?: string; tentativoFallito?: TentativoFallito }
   /**
    * Cercare un aggiornamento **adesso**.
@@ -426,6 +429,13 @@ export function rotteLibere(deps: DipendenzeRotte) {
       })
     }
 
+    // Il bussare di un altro PC (0.39.3): dietro la chiave, quindi una
+    // risposta qui vuol dire «sono proprio io, e la tua chiave e' buona».
+    // Leggera: un PC la chiede a ogni indirizzo per sapere se e' acceso.
+    if (r.percorso === '/api/pc') {
+      return OK({ programma: 'SierraDeck', versione: deps.versione, nome: deps.nomeComputer?.() ?? '' })
+    }
+
     if (r.percorso === '/api/accoppia' && r.metodo === 'POST') {
       const codice = stringa(r.corpo, 'codice')
       const nome = stringa(r.corpo, 'nome')
@@ -579,6 +589,8 @@ export function rotteClient(deps: DipendenzeRotte) {
         // chiudere, e un'installazione avviata dallo schermo del computer, vista
         // da fuori, e' indistinguibile da un cavo staccato.
         aggiornamento: deps.aggiornamento(),
+        // Il Drive del computer scollegato (0.39.3): la stessa banda del PC.
+        ...(deps.avvisoDrive?.() !== undefined ? { driveScollegato: deps.avvisoDrive?.() } : {}),
         // Come si chiama questo computer.
         //
         // Serve a chi ne ha piu' di uno: un elenco di indirizzi IP non si legge,

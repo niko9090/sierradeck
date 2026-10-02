@@ -50,7 +50,8 @@ describe('da dove aprire una chat del workspace', () => {
 
   it('il riquadro remoto, quando quel PC smette di rispondere, dice lo stato e riprova da solo', () => {
     expect(descriviSilenzio('irraggiungibile', 'Portatile', 10_000)).toEqual({ titolo: 'Portatile non risponde da 10 secondi · riprovo da solo', breve: true })
-    expect(descriviSilenzio('spento', 'Portatile', 5 * 60_000)).toEqual({ titolo: 'Portatile è spento · non risponde da 5 minuti · riprovo da solo', breve: false })
+    // Mai «spento» (0.39.3): con dati vecchi non lo si sa.
+    expect(descriviSilenzio('spento', 'Portatile', 5 * 60_000)).toEqual({ titolo: 'Non so se Portatile è acceso · non risponde da 5 minuti · riprovo da solo', breve: false })
     expect(descriviSilenzio('cassaforte', 'Portatile', 0).titolo).toContain('cassaforte')
   })
 
