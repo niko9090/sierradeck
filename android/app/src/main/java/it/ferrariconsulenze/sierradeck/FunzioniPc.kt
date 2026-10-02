@@ -27,7 +27,8 @@ enum class FunzionePc(val minima: String, val nome: String) {
     STRADA_PC("0.40.0", "La strada verso gli altri PC"),
     ISTRUZIONI("0.41.0", "La linguetta Istruzioni"),
     CORREGGI("0.41.0", "«Correggi» sulle istruzioni"),
-    SALUTE("0.44.0", "La salute del sistema")
+    SALUTE("0.44.0", "La salute del sistema"),
+    PONTE("0.48.0", "Le chat degli altri PC dal vivo")
 }
 
 /** La versione del computer a cui si è collegati, quando la si sa. */

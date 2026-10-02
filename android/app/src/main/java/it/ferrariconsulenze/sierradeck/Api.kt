@@ -24,7 +24,10 @@ import okhttp3.RequestBody.Companion.toRequestBody
  * distinto da «il computer non risponde», perché la cura è diversa — ri-accoppiare
  * contro ricontrollare l'indirizzo.
  */
-class Api(private val indirizzo: String, private val chiave: String?) {
+class Api(private val indirizzo: String, private val chiave: String?, val ponte: String? = null) {
+
+    /** Lo stesso PC accoppiato, ma ogni chiamata va a `pcId` attraverso il ponte (PC 0.48.0). */
+    fun suPc(pcId: String): Api = Api(indirizzo, chiave, pcId)
 
     class Errore(val codice: Int, val corpo: String) :
         Exception("HTTP $codice: ${corpo.take(200)}") {
@@ -41,7 +44,16 @@ class Api(private val indirizzo: String, private val chiave: String?) {
         return b.build()
     }
 
-    private suspend fun corpoTesto(percorso: String, corpo: RequestBody?): String =
+    private suspend fun corpoTesto(percorso: String, corpo: RequestBody?): String {
+        val pc = ponte ?: return corpoTestoDiretto(percorso, corpo)
+        // Attraverso il ponte: solo le rotte del riquadro remoto, impacchettate
+        // per il PC accoppiato, che le gira all'altro.
+        if (percorso !in Ponte.ROTTE) throw Errore(403, Ponte.nonSiPuo(percorso))
+        val interno = corpo?.let { val b = okio.Buffer(); it.writeTo(b); b.readUtf8() }
+        return corpoTestoDiretto("/api/ponte", Ponte.corpo(pc, percorso, interno).toRequestBody(JSON_MEDIA))
+    }
+
+    private suspend fun corpoTestoDiretto(percorso: String, corpo: RequestBody?): String =
         withContext(Dispatchers.IO) {
             // Non un client solo: **quello legato alla rete giusta**. Un
             // indirizzo di casa deve uscire dal wifi, e Android da solo sceglie

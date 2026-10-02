@@ -439,7 +439,7 @@ fun Computer(api: Api, stato: Stato?) {
         // quel PC; consegna il suo postino, quando e' acceso.
         Sezione("Altri computer")
         Text(
-            "Gli altri PC che usano lo stesso Drive, con le chat che hanno aperte (dal loro battito, ogni pochi minuti): pallino ambra = aspetta te. Per comandarli dal vivo, accoppia il telefono anche a loro e passa da uno all'altro con la pillola in cima. «Azioni» lascia un'istruzione nella cassetta di quel PC: si esegue solo là, in una sua chat, quando è acceso — serve per una cartella che sta su quel PC (un disco di rete, un progetto che non viaggia). Se la cartella là non esiste, la voce fallisce e lo leggi qui.",
+            "Gli altri PC che usano lo stesso Drive, con le chat che hanno aperte (dal loro battito, ogni pochi minuti): pallino ambra = aspetta te. «Chat … dal vivo» apre le chat di quel PC da qui, attraverso il PC a cui il telefono è accoppiato (serve la 0.48.0 su questo PC): le vedi e le comandi come dal PC, con la fascia viola «SU …» in cima. Si raggiungono con le stesse strade del PC (rete di casa, Tailscale, collegamento diretto) e solo con la chiave della stessa cassaforte. «Azioni» lascia un'istruzione nella cassetta di quel PC: si esegue solo là, in una sua chat, quando è acceso — serve per una cartella che sta su quel PC (un disco di rete, un progetto che non viaggia). Se la cartella là non esiste, la voce fallisce e lo leggi qui.",
             color = Banco.testoQuieto, fontSize = 12.sp
         )
         Spacer(Modifier.height(8.dp))
@@ -466,6 +466,18 @@ fun Computer(api: Api, stato: Stato?) {
                                 postaVoci = emptyList(); postaTesto = ""; postaNota = null
                                 postaCwd = p.cartelle.firstOrNull() ?: ""
                             }) { Text(if (aperto) "Chiudi" else "Azioni") }
+                        }
+                        // Il ponte (PC 0.48.0): le chat di quel PC dal vivo, da qui,
+                        // passando dal PC a cui il telefono è accoppiato.
+                        val ponte = FunzioniPc.disponibile(FunzionePc.PONTE, PcCorrente.versione)
+                        Spacer(Modifier.height(6.dp))
+                        if (ponte == false) {
+                            Text(FunzioniPc.testoMancante(FunzionePc.PONTE) + " Si aggiorna il PC accoppiato, non quello da guardare.", color = Banco.testoQuieto, fontSize = 11.sp)
+                        } else {
+                            OutlinedButton(onClick = {
+                                SuPc.corrente = PcPonte(p.pcId, p.nome)
+                                Apertura.schedaRichiesta = Scheda.CHAT
+                            }) { Text("Chat di ${p.nome} dal vivo", fontSize = 12.sp, color = VIOLA_ALTRO_PC) }
                         }
                         // Le chat aperte su quel PC, con chi aspetta: il battito le
                         // porta da sempre e il telefono ne mostrava solo il numero.

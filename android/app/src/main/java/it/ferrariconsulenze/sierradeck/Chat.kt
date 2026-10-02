@@ -85,6 +85,13 @@ private const val RIGHE_MASSIME = 600
  */
 @Composable
 fun Chat(api: Api, stato: Stato?, deposito: Collegamento) {
+    // Le chat di un altro PC, attraverso il ponte (PC 0.48.0): le stesse
+    // schermate, con la fascia viola «SU <PC>» sempre in cima.
+    val su = SuPc.corrente
+    if (su != null) {
+        ChatSuAltroPc(api, su, deposito)
+        return
+    }
     var aperta by remember { mutableStateOf<String?>(null) }
     val chat = stato?.chat ?: emptyList()
     // «Apri la chat» dalla scheda Domande: si entra direttamente in quella.
@@ -103,6 +110,49 @@ fun Chat(api: Api, stato: Stato?, deposito: Collegamento) {
         DettaglioChat(api, corrente, deposito, onIndietro = { aperta = null })
     } else {
         ElencoChat(api, chat, stato?.workspace ?: Workspace(), onApri = { aperta = it.id })
+    }
+}
+
+/**
+ * Le chat di un altro PC dal vivo, chieste al PC accoppiato che fa da ponte.
+ * Lo stato si rilegge ogni due secondi e mezzo; se quel PC non si raggiunge,
+ * il perché arriva dal ponte per esteso (la strada, la chiave, «non so se è
+ * acceso») e si dice sotto la fascia.
+ */
+@Composable
+private fun ChatSuAltroPc(api: Api, su: PcPonte, deposito: Collegamento) {
+    val apiPc = remember(su.pcId, api) { api.suPc(su.pcId) }
+    var stato by remember(su.pcId) { mutableStateOf<Stato?>(null) }
+    var guasto by remember(su.pcId) { mutableStateOf<String?>(null) }
+    var aperta by remember(su.pcId) { mutableStateOf<String?>(null) }
+    LaunchedEffect(su.pcId) {
+        while (isActive) {
+            try {
+                stato = apiPc.stato(); guasto = null
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Api.Errore) {
+                guasto = if (e.codice == 404 || e.codice == 409) "Il PC accoppiato non fa ancora da ponte: aggiornalo alla 0.48.0 o più nuova, e da qui vedrai le chat di ${su.nome}."
+                else Nota.spiega(e, "leggere le chat di ${su.nome}")
+            } catch (e: Exception) {
+                guasto = "Non riesco a leggere le chat di ${su.nome}: ${e.message ?: "il PC accoppiato non risponde"}"
+            }
+            delay(2500)
+        }
+    }
+    BackHandler { if (aperta != null) aperta = null else SuPc.corrente = null }
+    Column(Modifier.fillMaxSize()) {
+        FasciaSuPc(su, null) { SuPc.corrente = null }
+        guasto?.let { Text(it, color = Banco.rosso, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) }
+        val chat = stato?.chat ?: emptyList()
+        val corrente = chat.firstOrNull { it.id == aperta }
+        when {
+            corrente != null -> DettaglioChat(apiPc, corrente, deposito, onIndietro = { aperta = null })
+            stato == null && guasto == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Busso a ${su.nome} attraverso il PC accoppiato…", color = Banco.testoQuieto)
+            }
+            else -> ElencoChat(apiPc, chat, stato?.workspace ?: Workspace(), onApri = { aperta = it.id })
+        }
     }
 }
 
@@ -131,10 +181,14 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
                     fontSize = 11.sp, maxLines = 2
                 )
             }
-            Spacer(Modifier.width(8.dp))
-            TastoContorno("+ Nuova") { mostraNuova = true }
-            Spacer(Modifier.width(8.dp))
-            TastoContorno("Riprendi") { mostraRiprendi = true }
+            // Su un altro PC (il ponte) niente cartella da sfogliare né elenco
+            // delle conversazioni salvate: il PC non le chiede dal riquadro remoto.
+            if (api.ponte == null) {
+                Spacer(Modifier.width(8.dp))
+                TastoContorno("+ Nuova") { mostraNuova = true }
+                Spacer(Modifier.width(8.dp))
+                TastoContorno("Riprendi") { mostraRiprendi = true }
+            }
         }
         if (gruppi.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -323,6 +377,12 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                     "Il computer risponde, ma per questa chat non manda niente. Succede se il riquadro non è a schermo sul computer: portalo in primo piano nel suo workspace."
                 else null
             } catch (e: Exception) {
+                if (api.ponte != null) {
+                    // Attraverso il ponte non c'e' il ripiego sullo schermo: si dice il perche'.
+                    guasto = if (e is Api.Errore) Nota.spiega(e, "leggere questa chat") else "Non riesco a leggere questa chat: ${e.message ?: "il PC non risponde"}"
+                    delay(2000)
+                    continue
+                }
                 // Un computer più vecchio non conosce la cronologia: si
                 // ripiega sullo schermo di adesso, che ha sempre saputo dare.
                 // Senza questo l’app restava per sempre su «sto leggendo»,
@@ -371,7 +431,8 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                     )
                 }
             }
-            Box {
+            // Rinominare e chiudere: solo sul PC accoppiato (il ponte ha i permessi del riquadro remoto).
+            if (api.ponte == null) Box {
                 IconButton(onClick = { menuAperto = true }, modifier = Modifier.size(36.dp)) {
                     Icon(Icons.Filled.MoreVert, "Altro", tint = Banco.testo)
                 }
