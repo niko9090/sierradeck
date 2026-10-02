@@ -847,7 +847,9 @@ async function chiedi(percorso, corpo) {
   if (!r.ok && r.status !== 409) {
     let motivo = ''
     try { motivo = (await r.json()).errore || '' } catch (e) { motivo = '' }
-    throw new Error(motivo || ('il computer ha risposto ' + r.status))
+    const err = new Error(motivo || ('il computer ha risposto ' + r.status))
+    err.stato = r.status
+    throw err
   }
   return r.json()
 }
@@ -1390,6 +1392,17 @@ function pannello(s) {
             onclick="chiudiChat('\${escJs(aperta.id)}')">\${confermando === 'chat-' + aperta.id ? 'Sicuro? Chiudi' : 'Chiudi la chat'}</button>
         </div>
       </div>\` : ''}
+    \${pinDentro ? \`
+    <div class="piastrella" style="text-align:center">
+      <div style="font-size:38px">🔒</div>
+      <div><b>Questa chat è protetta dal PIN</b></div>
+      <div class="sotto">Continua a lavorare sul computer: qui non si vede e non si scrive finché non metti il PIN. Lo controlla il computer, e la chat si richiude da sola dopo il tempo di inattività scelto là.</div>
+      <div class="riga">
+        <input id="pin-dentro" type="password" inputmode="numeric" maxlength="8" placeholder="PIN" autocomplete="off">
+        <button onclick="sbloccaPin()">Apri</button>
+      </div>
+      \${pinNota ? '<div class="sotto" style="color:#e0a33c">' + esc(pinNota) + '</div>' : ''}
+    </div>\` : \`
     <div class="dentro dentro--alto">\${righeGrezze.length
         // Vestite: il verde di un test passato e il rosso di uno fallito sono
         // meta' di quello che dice come sta andando.
@@ -1408,7 +1421,7 @@ function pannello(s) {
     <div class="riga ancorata">
       <input id="t-\${esc(aperta.id)}" placeholder="scrivi qui e invia">
       <button onclick="scrivi('\${escJs(aperta.id)}')">Invia</button>
-    </div>\`
+    </div>\`}\`
     : '<div class="sotto" style="padding:6px 16px 0">' + esc(riassuntoChat(s.chat || [])) + '</div>' + gruppiChat(s).map((g) =>
       '<div class="sotto" style="padding:10px 16px 2px;letter-spacing:.08em;text-transform:uppercase;font-size:11px">' +
         esc(g.workspace) + (g.attivo ? ' · davanti' : '') + ' · ' + g.voci.length + '</div>' +
@@ -1864,6 +1877,23 @@ window.guarda = async (id) => {
 }
 window.chiudiDentro = () => { dentro = null; righeDentro = []; righeGrezze = []; scelteDentro = null; notaScelta = null; pannello(ultimoStato) }
 
+// Il PIN delle chat (0.49.0): la chat aperta e' protetta e non sbloccata da questo telefono.
+var pinDentro = false
+var pinNota = ''
+window.sbloccaPin = async () => {
+  const campo = document.getElementById('pin-dentro')
+  const pin = campo ? campo.value : ''
+  if (!dentro || pin === '') return
+  try {
+    await chiedi('/api/pin/sblocca', { chat: dentro, pin })
+    pinNota = ''
+    await leggiDentro()
+  } catch (e) {
+    pinNota = String(e && e.message ? e.message : e)
+  }
+  pannello(ultimoStato)
+}
+
 async function leggiDentro() {
   if (!dentro) return
   try {
@@ -1874,7 +1904,16 @@ async function leggiDentro() {
     if (scelteDentro && sceltaRisposta && sceltaRisposta.firma === firmaScelte(scelteDentro) &&
         Date.now() - sceltaRisposta.quando < SCELTA_RISPOSTA_MS) scelteDentro = null
     if (scelteDentro) notaScelta = null
+    pinDentro = false
   } catch (e) {
+    // Protetta dal PIN (0.49.0): si resta sulla chat, con il lucchetto.
+    if (e && e.stato === 423) {
+      pinDentro = true
+      righeDentro = []
+      righeGrezze = []
+      scelteDentro = null
+      return
+    }
     // Una chat chiusa al computer mentre la si guardava: si torna all'elenco
     // invece di restare su un riquadro che non esiste piu'.
     dentro = null

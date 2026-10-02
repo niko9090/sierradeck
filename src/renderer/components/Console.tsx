@@ -10,6 +10,7 @@ import { workspaceDaAzione, type Azione } from '@shared/scorciatoie'
 import { azioneDelTasto, impostaScorciatoie } from '../scorciatoie-vive'
 import { fuocoAllaChatVicina } from '../fuoco-chat'
 import { MODELLI } from '../modelli'
+import { MenuPin } from './ChatConPin'
 
 /**
  * I modelli che si possono scegliere.
@@ -95,6 +96,14 @@ export function Console({
   workspaceCheChiamano,
   onApriNovita
 }: Props): React.JSX.Element {
+  // Il PIN dei workspace (0.49.0): il tasto destro sul nome del workspace.
+  const [menuPinWs, setMenuPinWs] = useState<{ nome: string; x: number; y: number } | undefined>(undefined)
+  const [pinWs, setPinWs] = useState<{ attivo: boolean; workspace: string[] }>({ attivo: false, workspace: [] })
+  useEffect(() => {
+    const leggi = (): void => { void window.gestore.pin.stato().then((s) => setPinWs({ attivo: s.attivo, workspace: s.workspace })).catch(() => undefined) }
+    leggi()
+    return window.gestore.pin.suCambiato(leggi)
+  }, [])
   const addPane = useLayoutStore((s) => s.addPane)
   const riquadri = useLayoutStore((s) => s.panes)
   const sessioni = useSessionStore((s) => s.sessions)
@@ -314,6 +323,7 @@ export function Console({
                 workspaceCheChiamano?.has(n) === true ? 'ws__voce--chiama' : ''
               ].filter((c) => c !== '').join(' ')}
               onClick={() => cambiaWorkspace(n)}
+              onContextMenu={(e) => { e.preventDefault(); setMenuPinWs({ nome: n, x: e.clientX, y: e.clientY }) }}
               title={
                 workspaceCheChiamano?.has(n) === true
                   ? `In «${n}» qualcuno aspetta una tua risposta`
@@ -321,9 +331,18 @@ export function Console({
               }
             >
               {n}
+              {pinWs.attivo && pinWs.workspace.includes(n) ? <span aria-label="protetto dal PIN" title="Protetto dal PIN"> 🔒</span> : null}
               {workspaceCheChiamano?.has(n) === true ? <span className="ws__chiama" aria-label="richiede il tuo intervento">●</span> : null}
             </button>
           ))}
+          {menuPinWs !== undefined ? (
+            <MenuPin x={menuPinWs.x} y={menuPinWs.y} onChiudi={() => setMenuPinWs(undefined)} voci={[
+              ...(!pinWs.attivo ? [{ testo: 'Il PIN è spento: accendilo dalle Impostazioni → PIN delle chat', azione: () => setMenuPinWs(undefined), spenta: true }] : []),
+              pinWs.workspace.includes(menuPinWs.nome)
+                ? { testo: `Togli il PIN da «${menuPinWs.nome}»`, azione: () => { void window.gestore.pin.proteggiWorkspace(menuPinWs.nome, false); setMenuPinWs(undefined) } }
+                : { testo: `Proteggi con il PIN tutto «${menuPinWs.nome}»`, azione: () => { void window.gestore.pin.proteggiWorkspace(menuPinWs.nome, true); setMenuPinWs(undefined) }, spenta: !pinWs.attivo }
+            ]} />
+          ) : null}
           {erroreWs !== undefined ? (
             <span className="misura" style={{ color: 'var(--ambra)' }} title={erroreWs}>⚠</span>
           ) : null}

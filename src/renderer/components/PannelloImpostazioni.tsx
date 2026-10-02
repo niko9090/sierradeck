@@ -8,6 +8,7 @@ import { PannelloConsumi } from './PannelloConsumi'
 import { SezioneScorciatoie } from './SezioneScorciatoie'
 import { useLayoutStore } from '../state/layout'
 import { contaChat, contaWorkspace, eChiusuraAutomatica, type Istantanea } from '@shared/istantanea'
+import { SezionePin } from './SezionePin'
 
 function quandoChiusura(iso: string): string {
   const d = new Date(iso)
@@ -435,6 +436,8 @@ function SchedaGenerali(): React.JSX.Element {
         </section>
 
         <SezioneTornaIndietro />
+
+        <SezionePin />
 
         <section className="impostazioni__gruppo">
           <h4>Comportamento</h4>

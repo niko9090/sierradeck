@@ -7,6 +7,7 @@ import { spostaRiquadro, spostaInWorkspace } from '../spostamento'
 import { memoriaWorkspace } from '../memoria-workspace'
 import { Terminal } from './Terminal'
 import { RiquadroRemoto } from './RiquadroRemoto'
+import { ChatConPin, TastoPin } from './ChatConPin'
 import { DiarioAutopilota } from './DiarioAutopilota'
 import { diarioDelRiquadro } from '../diario-autopilota'
 import type { Autopilota } from '@shared/autopilota'
@@ -360,6 +361,8 @@ export function Mosaic({
                     Cambiarlo a chat aperta si fa con `/model` nel terminale, che è
                     il gesto vero — lo spazio della testata va a comandi più utili. */}
                 <ComandoSposta paneId={paneId} />
+                {/* Il PIN delle chat (0.49.0): proteggere, togliere, richiudere. */}
+                {data.remoto === undefined ? <TastoPin sessione={data.sessionUuid} titolo={data.title} /> : null}
                 {/* Dormire non è chiudere: la conversazione resta, e quello che
                     si libera è il claude.exe che la teneva in piedi. Con
                     qualche workspace pieno se ne tengono accesi dieci per
@@ -425,6 +428,7 @@ export function Mosaic({
                     </button>
                   </div>
                 ) : (
+                <ChatConPin sessione={data.sessionUuid} titolo={data.title}>
                 <Terminal
                   paneId={paneId}
                   sessionUuid={data.sessionUuid}
@@ -435,6 +439,7 @@ export function Mosaic({
                   autopilota={data.autopilota}
                   onPtyId={setPtyId}
                 />
+                </ChatConPin>
                 )}
               </div>
               {(() => {

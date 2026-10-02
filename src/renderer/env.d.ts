@@ -76,7 +76,7 @@ declare global {
         chiudiAccoppiamento: () => Promise<void>
         revoca: (id: string) => Promise<unknown[]>
         annunciaChat: (
-          chat: { id: string; titolo: string; cwd: string; sessione?: string; ultimaRiga?: string; aspetta?: boolean; governata?: boolean; coda?: string[]; codaGrezza?: string[] }[]
+          chat: { id: string; titolo: string; cwd: string; sessione?: string; workspace?: string; ultimaRiga?: string; aspetta?: boolean; governata?: boolean; coda?: string[]; codaGrezza?: string[] }[]
         ) => void
         suApertura: (cb: (m: { cartella: string; modello?: string; sessione?: string; workspace?: string }) => void) => () => void
         suSalvataggio: (cb: (nome: string) => void) => () => void
@@ -146,6 +146,21 @@ declare global {
       }
       segnali: {
         suStato: (cb: (f: import('@shared/segnali-chat').FaseSessione) => void) => () => void
+      }
+      pin: {
+        stato: () => Promise<import('../main/pin-guardiano').StatoPin>
+        imposta: (nuovo: string, attuale?: string) => Promise<import('../main/pin-guardiano').EsitoPin>
+        attiva: (si: boolean) => Promise<import('../main/pin-guardiano').EsitoPin>
+        inattivita: (min: number) => Promise<void>
+        proteggiChat: (sessione: string, si: boolean) => Promise<void>
+        proteggiWorkspace: (nome: string, si: boolean) => Promise<void>
+        azzera: (passphrase: string) => Promise<import('../main/pin-guardiano').EsitoPin>
+        richiudi: () => Promise<void>
+        chiusa: (sessione: string | undefined, workspace: string | undefined) => Promise<boolean>
+        protetta: (sessione: string | undefined, workspace: string | undefined) => Promise<boolean>
+        sblocca: (sessione: string, workspace: string | undefined, pin: string) => Promise<import('../main/pin-guardiano').EsitoPin>
+        tocca: (sessione: string, workspace: string | undefined) => Promise<void>
+        suCambiato: (cb: () => void) => () => void
       }
       salute: {
         leggi: () => Promise<import('@shared/salute').Salute>
@@ -369,6 +384,7 @@ declare global {
         storia: (pc: string, chat: string, da: number, quante: number) => Promise<import('../shared/pc-remoto').EsitoRemoto<import('../shared/pc-remoto').StoriaRemota>>
         scrivi: (pc: string, chat: string, testo: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
         scegli: (pc: string, chat: string, opzione: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
+        pin: (pc: string, chat: string, pin: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
         riprendi: (pc: string, cartella: string, sessione: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
         apri: (pc: string, cartella: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
         prova: (pc: string) => Promise<{ ok: true; indirizzo: string; ms: number; versione?: string } | { ok: false; motivo: string; messaggio: string }>

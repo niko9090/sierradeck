@@ -7,6 +7,7 @@ import {
 } from '@shared/pc-remoto'
 import { etichettaStrada, type InfoStrada } from '@shared/strada-pc'
 import { ModalePosta } from './ModalePosta'
+import { CoperturaPin } from './ChatConPin'
 import { useLayoutStore } from '../state/layout'
 
 type Props = {
@@ -55,6 +56,8 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   const [testo, setTesto] = useState('')
   const [invio, setInvio] = useState(false)
   const [avviso, setAvviso] = useState<string | undefined>(undefined)
+  /** La chat là è protetta dal PIN e non è aperta per questo PC (0.49.0). */
+  const [chiusaPin, setChiusaPin] = useState(false)
   const [postaAperta, setPostaAperta] = useState(false)
   /** La strada con cui arriva quel PC (0.40.0): rete di casa, Tailscale, WebRTC o Drive. */
   const [strada, setStrada] = useState<InfoStrada | undefined>(undefined)
@@ -116,6 +119,8 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         if (!vivo) return
         if (r.strada !== undefined) setStrada(r.strada)
         if (!r.ok) {
+          // Protetta dal PIN là (0.49.0): niente schermo, la copertura con il lucchetto.
+          if (r.motivo === 'pin') { setChiusaPin(true); setStoria(undefined); setSilenzio(undefined); return }
           // La chat e' stata chiusa la', o quel PC e' sparito: si ricomincia a cercare.
           if (r.motivo === 'chat') { setFase({ tipo: 'cerco' }); setStoria(undefined); return }
           // Quel PC ha smesso di rispondere a meta': si resta sulla chat, con
@@ -124,6 +129,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           return
         }
         setSilenzio(undefined)
+        setChiusaPin(false)
         const el = schermo.current
         const inFondo = el === null || el.scrollTop + el.clientHeight >= el.scrollHeight - 12
         setStoria(r.dati)
@@ -212,7 +218,18 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         </div>
       ) : null}
 
-      {fase.tipo === 'viva' || storia !== undefined ? (
+      {chiusaPin && fase.tipo === 'viva' ? (
+        <CoperturaPin
+          titolo={fase.chat.titolo}
+          onSblocca={async (p) => {
+            const r = await window.gestore.remoto.pin(remoto.pcId, fase.chat.id, p)
+            if (r.ok) { setChiusaPin(false); return { ok: true } }
+            return { ok: false, errore: r.messaggio }
+          }}
+        />
+      ) : null}
+
+      {!chiusaPin && (fase.tipo === 'viva' || storia !== undefined) ? (
         <div className="remoto__schermo" ref={schermo} dangerouslySetInnerHTML={{ __html: html === '' ? '<span class="remoto__vuoto">Leggo lo schermo di quella chat…</span>' : html }} />
       ) : null}
 
@@ -289,7 +306,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
 
       {avviso !== undefined ? <div className="remoto__esito">{avviso}</div> : null}
 
-      {scelte !== undefined && chatId !== undefined ? (
+      {!chiusaPin && scelte !== undefined && chatId !== undefined ? (
         <div className="remoto__scelte">
           <div className="remoto__scelte-titolo">La chat aspetta una scelta: tocca l’opzione, la premo là per te.</div>
           {scelte.opzioni.map((o) => (
@@ -307,7 +324,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           className="campo remoto__campo"
           rows={2}
           value={testo}
-          disabled={chatId === undefined || silenzio !== undefined}
+          disabled={chatId === undefined || silenzio !== undefined || chiusaPin}
           placeholder={chatId === undefined ? `Quando la chat è viva su ${remoto.pcNome}, qui le scrivi.` : lento ? `Via Drive: il messaggio arriva a ${remoto.pcNome} al suo prossimo giro — Invio manda` : `Scrivi a questa chat su ${remoto.pcNome} — Invio manda, Maiusc+Invio va a capo`}
           onChange={(e) => setTesto(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); manda() } }}

@@ -210,7 +210,7 @@ contextBridge.exposeInMainWorld('gestore', {
     revoca: (id: string): Promise<unknown[]> => ipcRenderer.invoke('client:revoca', id),
     /** Le chat aperte, che il Core da solo non conosce. */
     annunciaChat: (
-      chat: { id: string; titolo: string; cwd: string; sessione?: string; ultimaRiga?: string; coda?: string[] }[]
+      chat: { id: string; titolo: string; cwd: string; sessione?: string; workspace?: string; ultimaRiga?: string; coda?: string[] }[]
     ): void => ipcRenderer.send('client:chat', chat),
     /**
      * Un'istruzione dell'autopilota da portare dentro una chat.
@@ -435,6 +435,7 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('remoto:storia', pc, chat, da, quante),
     scrivi: (pc: string, chat: string, testo: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:scrivi', pc, chat, testo),
     scegli: (pc: string, chat: string, opzione: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:scegli', pc, chat, opzione),
+    pin: (pc: string, chat: string, pin: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:pin', pc, chat, pin),
     riprendi: (pc: string, cartella: string, sessione: string): Promise<EsitoRemoto<{ fatto: boolean }>> =>
       ipcRenderer.invoke('remoto:riprendi', pc, cartella, sessione),
     apri: (pc: string, cartella: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:apri', pc, cartella),
@@ -454,6 +455,26 @@ contextBridge.exposeInMainWorld('gestore', {
     }
   },
   /** «Salute del sistema» (0.44.0). */
+  // Il PIN delle chat (0.49.0): lo schermo di questo PC.
+  pin: {
+    stato: (): Promise<import('../main/pin-guardiano').StatoPin> => ipcRenderer.invoke('pin:stato'),
+    imposta: (nuovo: string, attuale?: string): Promise<import('../main/pin-guardiano').EsitoPin> => ipcRenderer.invoke('pin:imposta', nuovo, attuale),
+    attiva: (si: boolean): Promise<import('../main/pin-guardiano').EsitoPin> => ipcRenderer.invoke('pin:attiva', si),
+    inattivita: (min: number): Promise<void> => ipcRenderer.invoke('pin:inattivita', min),
+    proteggiChat: (sessione: string, si: boolean): Promise<void> => ipcRenderer.invoke('pin:proteggiChat', sessione, si),
+    proteggiWorkspace: (nome: string, si: boolean): Promise<void> => ipcRenderer.invoke('pin:proteggiWorkspace', nome, si),
+    azzera: (passphrase: string): Promise<import('../main/pin-guardiano').EsitoPin> => ipcRenderer.invoke('pin:azzera', passphrase),
+    richiudi: (): Promise<void> => ipcRenderer.invoke('pin:richiudi'),
+    chiusa: (sessione: string | undefined, workspace: string | undefined): Promise<boolean> => ipcRenderer.invoke('pin:chiusa', sessione, workspace),
+    protetta: (sessione: string | undefined, workspace: string | undefined): Promise<boolean> => ipcRenderer.invoke('pin:protetta', sessione, workspace),
+    sblocca: (sessione: string, workspace: string | undefined, pin: string): Promise<import('../main/pin-guardiano').EsitoPin> => ipcRenderer.invoke('pin:sblocca', sessione, workspace, pin),
+    tocca: (sessione: string, workspace: string | undefined): Promise<void> => ipcRenderer.invoke('pin:tocca', sessione, workspace),
+    suCambiato: (cb: () => void): (() => void) => {
+      const f = (): void => cb()
+      ipcRenderer.on('pin:cambiato', f)
+      return () => { ipcRenderer.removeListener('pin:cambiato', f) }
+    }
+  },
   salute: {
     leggi: (): Promise<import('@shared/salute').Salute> => ipcRenderer.invoke('salute:leggi'),
     installaLa: (pcId: string): Promise<import('@shared/installa-la').AvanzamentoInstallaLa> => ipcRenderer.invoke('salute:installaLa', pcId),

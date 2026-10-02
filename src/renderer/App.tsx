@@ -351,6 +351,8 @@ export function App(): React.JSX.Element {
           // Quale conversazione: il Core la usa per sapere a chi consegnare le
           // istruzioni di un autopilota, e il telefono per guardarci dentro.
           sessione: p.sessionUuid,
+          // Il workspace della finestra (0.49.0): per il PIN dei workspace.
+          workspace: workspaceCorrente(),
           // Se ha finito di scrivere e sta aspettando te. È lo stesso
           // giudizio che usa l’autopilota per sapere quando può parlare —
           // il prompt visto, e poi un po’ di silenzio — e da un telefono è

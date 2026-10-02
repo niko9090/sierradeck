@@ -4306,3 +4306,23 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .salute__tono--ok { color: var(--verde); }
 .salute__tono--attenzione { color: var(--ambra); }
 .salute__tono--guasto { color: var(--rosso); }
+
+/* ── Il PIN delle chat (0.49.0) ── */
+.copertura-pin {
+  position: absolute; inset: 0; z-index: 5;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  background: var(--fondo, #0b0c0e); padding: 24px; text-align: center;
+}
+.copertura-pin__lucchetto { font-size: 42px; line-height: 1; }
+.copertura-pin__titolo { font-weight: 600; font-size: 15px; }
+.copertura-pin__spiega { max-width: 440px; font-size: 12.5px; line-height: 1.5; opacity: 0.75; }
+.copertura-pin__campo { width: 160px; text-align: center; letter-spacing: 6px; font-size: 18px; }
+.copertura-pin__errore { color: var(--ambra, #e0a33c); font-size: 12.5px; max-width: 440px; }
+.menu-pin {
+  position: fixed; z-index: 1000; display: flex; flex-direction: column; min-width: 240px;
+  background: var(--chassis-alto, #262a2e); border: 1px solid var(--incisione, #2f3439); border-radius: 4px; padding: 4px 0;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+.menu-pin__voce { background: none; border: 0; color: inherit; text-align: left; padding: 7px 14px; font-size: 13px; cursor: pointer; }
+.menu-pin__voce:hover:not(:disabled) { background: rgba(127, 127, 127, 0.18); }
+.menu-pin__voce:disabled { opacity: 0.5; cursor: default; }
