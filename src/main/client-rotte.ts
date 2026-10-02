@@ -15,6 +15,7 @@ import { domandeScheda } from '@shared/domande-autopilota'
 import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/domande-conversazioni'
 import { alberoChat } from '@shared/harness'
 import type { NoteAggiornamento } from '@shared/note-aggiornamento'
+import { leggiRichiestaPonte } from '@shared/ponte-telefono'
 import type { TentativoFallito } from '@shared/tentativo-installazione'
 import type { AvvisoDrive } from '@shared/scoperta-pc'
 
@@ -149,6 +150,12 @@ export type DipendenzeRotte = {
   sposta?: { pronto: () => unknown; ricevi: (corpo: unknown) => Promise<unknown>; verifica: (sessioni: string[]) => Promise<unknown> }
   /** «Salute del sistema» (0.44.0): il Drive, gli altri PC, gli errori, con spiegazioni e azioni. */
   salute?: () => Promise<unknown>
+  /**
+   * Il ponte del telefono (0.48.0): una rotta di un altro PC, chiesta da qui
+   * con le strade fra PC e la chiave di casa. Lo stato e il corpo di quel PC,
+   * o l'errore con il motivo per esteso.
+   */
+  ponte?: (pc: string, percorso: string, corpo?: Record<string, unknown>) => Promise<{ stato: number; corpo: unknown }>
   /** La linguetta «Istruzioni» dal telefono (0.41.0): le consegne alle sue chat, intere. */
   istruzioniAutopilota?: (id: string) => Promise<unknown[]>
   diffAutopilota?: (id: string, chiave: string, percorso: string) => Promise<string>
@@ -665,6 +672,18 @@ export function rotteClient(deps: DipendenzeRotte) {
       // incontrava non leggeva piu' niente delle Domande (trovato dal test di
       // compatibilita', 0.43.0; dalla 0.41.0 ogni domanda ha le sue scelte).
       return OK({ voci: vociPerLeApp(voci), conversazioni, chiedono: quanteAspettano(conversazioni) })
+    }
+
+    // Il ponte del telefono (0.48.0): le chat degli altri PC dal vivo,
+    // passando da qui. Solo un telefono accoppiato (un altro PC no: niente
+    // catene) e solo le rotte che il PC usa dal suo riquadro remoto.
+    if (r.percorso === '/api/ponte' && r.metodo === 'POST') {
+      if (r.dispositivo === 'pc') return { stato: 403, corpo: { errore: 'Il ponte è solo per il telefono: un altro PC bussa direttamente.' } }
+      if (deps.ponte === undefined) return { stato: 409, corpo: { errore: 'Questo computer non fa ancora da ponte verso gli altri PC.' } }
+      const l = leggiRichiestaPonte(r.corpo)
+      if (!l.ok) return { stato: l.stato, corpo: { errore: l.errore } }
+      const e = await deps.ponte(l.r.pc, l.r.percorso, l.r.corpo)
+      return { stato: e.stato, corpo: (e.corpo ?? {}) as object }
     }
 
     // «Salute del sistema» (0.44.0), dietro la chiave: dice com'e' messo il PC.

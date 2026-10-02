@@ -357,6 +357,8 @@ let postinoGlobale: Postino | undefined
  */
 let unaCasaGlobale: UnaCasa | undefined
 /** «Salute del sistema» (0.44.0): nasce con le strade fra PC, la leggono il PC e il telefono. */
+/** Il ponte del telefono (0.48.0): si accende quando c'e' il client verso gli altri PC. */
+let ponteVersoPc: ((pc: string, percorso: string, corpo?: Record<string, unknown>) => Promise<{ stato: number; corpo: unknown }>) | undefined
 let leggiSalute: () => Promise<import('@shared/salute').Salute> = async () => componiSalute({
   adesso: Date.now(), versione: app.getVersion(), drive: { configurato: false, connesso: false }, pc: [], errori: [], consegne: [], oreErrori: ORE_ERRORI_SALUTE
 })
@@ -1538,6 +1540,20 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('remoto:apri', (_e, pc: unknown, cartella: unknown) =>
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/apri', { cartella: testo(cartella) }), pc))
       ipcMain.handle('remoto:prova', (_e, pc: unknown) => remoto.prova(testo(pc)))
+      // Il ponte del telefono (0.48.0): le stesse chiamate del riquadro remoto,
+      // chieste dal telefono. Un telefono guarda un PC: una riga nel registro
+      // la prima volta (per PC), non a ogni giro.
+      const pontiDetti = new Set<string>()
+      ponteVersoPc = async (pc, percorso, corpo) => {
+        const nome = postino.altrui().find((b) => b.pcId === pc)?.nome ?? pc
+        if (!pontiDetti.has(pc)) { pontiDetti.add(pc); registro.info(`[ponte] il telefono guarda ${nome} attraverso questo PC`) }
+        try {
+          return { stato: 200, corpo: await remoto.chiama(pc, percorso, corpo) }
+        } catch (err) {
+          if (err instanceof ErroreRemoto) return { stato: err.stato ?? 502, corpo: { errore: err.message, motivo: err.motivo, su: nome } }
+          return { stato: 502, corpo: { errore: `${nome}: ${err instanceof Error ? err.message : String(err)}`, su: nome } }
+        }
+      }
 
       // ── «Salute del sistema» (0.44.0) ──
       // Il Drive, gli altri PC, l'aggiornamento non riuscito, gli errori delle
@@ -3356,6 +3372,9 @@ if (!app.requestSingleInstanceLock()) {
         avvisoDrive: () => avvisoDrive(),
         // «Salute del sistema» dal telefono (0.44.0).
         salute: () => leggiSalute(),
+        ponte: (pc: string, percorso: string, corpo?: Record<string, unknown>) => ponteVersoPc !== undefined
+          ? ponteVersoPc(pc, percorso, corpo)
+          : Promise.resolve({ stato: 409, corpo: { errore: 'Il collegamento con gli altri PC non è ancora pronto: riprova fra qualche secondo.' } }),
         aggiornamento: () => aggiornamenti?.stato() ?? { fase: 'fermo' },
         cercaAggiornamento: () => { void aggiornamenti?.cerca(true) },
         scaricaAggiornamento: () => { void aggiornamenti?.scarica(true) },
