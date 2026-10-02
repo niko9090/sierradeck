@@ -31,7 +31,7 @@ fun etichettaOrigine(d: DomandaScheda): String = when (d.origine) {
  * prima), «File», e quelle di sempre.
  */
 fun linguetteAutopilota(domande: Int): List<String> =
-    (if (domande > 0) listOf("domande") else emptyList()) + listOf("file", "obiettivo", "criteri", "compiti", "deciso", "altro")
+    (if (domande > 0) listOf("domande") else emptyList()) + listOf("istruzioni", "file", "obiettivo", "criteri", "compiti", "deciso", "altro")
 
 /** Una domanda nuova (che prima non c'era) fa avanti la linguetta. */
 fun domandaArrivata(prima: List<String>?, adesso: List<DomandaScheda>): Boolean =
@@ -59,4 +59,4 @@ fun rigaFile(f: FileCambiato): String =
  * le Domande hanno piu' posto. Il testo di una domanda non si taglia mai: oltre
  * questa altezza scorre.
  */
-fun altezzaLinguetta(chiave: String?): Int = if (chiave == "domande") 420 else 260
+fun altezzaLinguetta(chiave: String?): Int = if (chiave == "domande" || chiave == "istruzioni") 420 else 260

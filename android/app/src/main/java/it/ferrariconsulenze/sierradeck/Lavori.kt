@@ -375,6 +375,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
         val nomi = chiavi.map { k ->
             when (k) {
                 "domande" -> "Domande ${schede.size}"
+                "istruzioni" -> "Istruzioni"
                 "file" -> "File"
                 "obiettivo" -> "Obiettivo"
                 "criteri" -> "Criteri" + (det?.criteri?.takeIf { it.isNotEmpty() }?.let { " ${it.count { c -> c.soddisfatto }}/${it.size}" } ?: "")
@@ -424,6 +425,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
         if (linguettaAperta) Column(Modifier.fillMaxWidth().heightIn(max = tetto).verticalScroll(rememberScrollState()).padding(16.dp)) {
             when (chiavi.getOrNull(linguetta)) {
                 "domande" -> LinguettaDomande(api, breve.id, schede, onRisposto = { scope.launch { try { d = api.autopilota(breve.id) } catch (_: Exception) {} } })
+                "istruzioni" -> LinguettaIstruzioni(api, breve.id)
                 "file" -> LinguettaFile(api, breve.id)
                 "obiettivo" -> {
                     // Quello che hai scritto tu, e quello che lui ne ha fatto:

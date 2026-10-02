@@ -209,6 +209,16 @@ class Api(private val indirizzo: String, private val chiave: String?) {
      * compare in `AutopilotaDettaglio.dialogo` al giro dopo. Un computer con
      * una versione precedente risponde 409.
      */
+    /** La linguetta «Istruzioni» (0.41.0): le consegne alle sue chat, intere. */
+    suspend fun istruzioniAutopilota(id: String): IstruzioniAutopilota =
+        json.decodeFromString(corpoTesto("/api/autopilota/istruzioni", oggetto { put("autopilota", id) }))
+
+    /** «Correggi» su un'istruzione (0.41.0): la nota va nel dialogo, legata a quell'istruzione. */
+    suspend fun correggiIstruzione(id: String, istruzione: String, nota: String): Fatto =
+        json.decodeFromString(corpoTesto("/api/autopilota/correggi", oggetto {
+            put("autopilota", id); put("istruzione", istruzione); put("nota", nota)
+        }))
+
     suspend fun dialogaAutopilota(id: String, testo: String): Fatto =
         json.decodeFromString(corpoTesto("/api/autopilota/dialogo", oggetto {
             put("autopilota", id); put("testo", testo)
