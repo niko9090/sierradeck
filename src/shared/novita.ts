@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.42.0',
+    righe: [
+      '**Una chat, una casa.** Ogni chat adesso vive su un PC solo, la sua casa: il PC dove gira e dove sta la sua cartella. SierraDeck la decide da solo guardando dove è nata la chat, su quale PC c’è la sua cartella e dove ha lavorato per ultima, e se la ricorda. Le chat degli altri PC non vengono più copiate qui da sole: le guardi e ci scrivi dal vivo, come già succede. Così non ci sono più due copie della stessa chat che vanno avanti per conto loro.',
+      '**Il Drive è il salvataggio di ogni PC.** Ogni PC carica sul Drive solo le sue chat. La prima volta che si apre questa versione con il Drive collegato, SierraDeck sistema da solo quello che c’è sul Drive: prima fa una copia di sicurezza dell’elenco, poi controlla che non manchi niente. Nessun file viene cancellato.',
+      '**«Riordina le chat».** Nella scheda Drive c’è una finestra che elenca le chat presenti su questo PC ma con la casa su un altro, con il perché. Togli la spunta a quelle che secondo te sono di qui e conferma. Le copie non vengono cancellate: vanno in una cartella di recupero. Ogni riordino si annulla dalla stessa finestra.',
+      '**«Sposta progetto».** Per portare un progetto con le sue chat da un PC all’altro c’è una procedura a passi: scegli il progetto e il PC, SierraDeck controlla che si possa fare (chat chiuse, lavoro salvato, l’altro PC raggiungibile), lo trasferisce, verifica che ogni chat sia arrivata identica, cambia la casa e mette da parte le copie di qui. Fino alla verifica qui non cambia niente, e lo spostamento si annulla. Il vecchio «Porta qui» non c’è più, nemmeno dal telefono: c’è solo dentro questa procedura. Serve la 0.42.0 su tutti e due i PC.'
+    ]
+  },
+  {
     versione: '0.41.0',
     righe: [
       '**Vedi cosa l’autopilota scrive alle sue chat.** Nella scheda dell’autopilota c’è una linguetta nuova, «Istruzioni». Dentro trovi per intero ogni istruzione che ha mandato alle sue chat, dalla più recente, anche quando nella chat vedi solo «Leggi ed esegui le istruzioni in …». Per ognuna ci sono l’ora, la chat, il perché di quella mossa e com’è andata: in coda, consegnata, partita, oppure non partita. Il testo si seleziona e si copia.',
