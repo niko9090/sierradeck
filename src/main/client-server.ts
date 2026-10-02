@@ -4,7 +4,7 @@ import { execFile, execFileSync } from 'node:child_process'
 import { daReteLocale } from '@shared/rete-locale'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { timingSafeEqual } from 'node:crypto'
-import { creaControlloFirme, INTESTAZIONE_FIRMA, provaCasa } from './casa-firma'
+import { creaControlloFirme, INTESTAZIONE_FIRMA, provaCasa, visoreDaFirma } from './casa-firma'
 import type { Dispositivi } from './dispositivi'
 
 /**
@@ -240,7 +240,9 @@ async function gestisci(
   if (dispositivo === undefined && typeof firma === 'string' && firma !== '') {
     if (controlloFirme(deps.chiaveDiCasa?.(), firma, metodo, req.url ?? percorso)) {
       const nome = nomePcDa(req.headers)
-      dispositivo = { id: 'pc', nome: nome === '' ? 'un altro PC' : nome, collegatoIl: '' }
+      // Chi guarda (0.49.1): `pc:<id del PC>` o `pc:tel:<telefono>@<PC>` dal ponte; `pc` da un PC vecchio.
+      const visore = visoreDaFirma(firma)
+      dispositivo = { id: visore !== undefined ? `pc:${visore}` : 'pc', nome: nome === '' ? 'un altro PC' : nome, collegatoIl: '' }
     }
   }
   if (dispositivo === undefined && chiave !== '') {

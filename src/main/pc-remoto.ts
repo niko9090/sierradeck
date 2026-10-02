@@ -4,7 +4,7 @@ import { indirizziDaProvare, messaggioErroreRemoto, motivoDaStatoHttp, statoPc, 
 import { indirizzoPreferito, prossimaMossa, RIBUSSA_OGNI_MS, stradaDiIndirizzo, type InfoStrada, type Strada, type StatoRtc } from '@shared/strada-pc'
 import { ATTESA_DRIVE, NON_VIA_DRIVE } from './rtc/cassetta-drive'
 import type { EsitoCanale } from './rtc/collegamento-rtc'
-import { firmaRichiesta, INTESTAZIONE_FIRMA, nuovaSfida, provaValida } from './casa-firma'
+import { firmaRichiesta, INTESTAZIONE_FIRMA, nonceConVisore, nuovaSfida, provaValida } from './casa-firma'
 
 /**
  * Bussare a un altro PC: il Client di **quel** computer, chiamato da qui.
@@ -45,8 +45,11 @@ export class ErroreRemoto extends Error {
 }
 
 export type ClientPcRemoto = {
-  /** Una rotta di quel PC: il JSON della risposta, o un `ErroreRemoto`. */
-  chiama: (pcId: string, percorso: string, corpo?: unknown) => Promise<unknown>
+  /**
+   * Una rotta di quel PC: il JSON della risposta, o un `ErroreRemoto`.
+   * `visore` (0.49.1): chi guarda, se non è questo PC (il telefono dal ponte).
+   */
+  chiama: (pcId: string, percorso: string, corpo?: unknown, visore?: string) => Promise<unknown>
   /** L'indirizzo che ha risposto l'ultima volta, se c'e'. */
   indirizzoBuono: (pcId: string) => string | undefined
   /**
@@ -70,6 +73,8 @@ export type DipendenzeRemoto = {
   chiavePer: (pcId: string) => string | undefined
   /** Come mi presento nel registro di quel PC. */
   mioNome: () => string
+  /** Il mio id (0.49.1): chi guarda, per il PIN delle chat di quel PC. */
+  mioId?: () => string
   fetch?: typeof fetch
   adesso?: () => number
   /** Quanto si aspetta ogni indirizzo prima di passare al prossimo. */
@@ -97,7 +102,7 @@ export type DipendenzeRemoto = {
     stato: (pcId: string) => StatoRtc
     fallitoIl: (pcId: string) => number | undefined
     avvia: (pcId: string) => void
-    chiama: (pcId: string, percorso: string, corpo?: unknown) => Promise<EsitoCanale>
+    chiama: (pcId: string, percorso: string, corpo?: unknown, visore?: string) => Promise<EsitoCanale>
   }
   /** La quarta strada (0.40.0): la cassetta sul Drive, lenta, solo schermo e messaggi. */
   cassetta?: {
@@ -292,7 +297,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
    * quando quella strada non c'e' piu' (l'indirizzo buono ha smesso di
    * rispondere e il bussare non ne trova un altro): si passa alle strade dopo.
    */
-  const viaHttp = async (pcId: string, b: BattitoPc, chiave: string, percorso: string, corpo?: unknown): Promise<{ dati: unknown } | undefined> => {
+  const viaHttp = async (pcId: string, b: BattitoPc, chiave: string, percorso: string, corpo?: unknown, visore?: string): Promise<{ dati: unknown } | undefined> => {
     const porta = b.porta ?? PORTA_CLIENT_PREDEFINITA
     for (let tentativo = 0; tentativo < 2; tentativo += 1) {
       const ind = buoni.get(pcId)
@@ -307,7 +312,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
         risposta = await chiamaHttp(url, {
           method: metodo,
           headers: {
-            ...(modi.get(pcId) === 'chiave' ? { 'x-sierradeck-chiave': chiave } : { [INTESTAZIONE_FIRMA]: firmaRichiesta(chiave, metodo, u.pathname + u.search, adesso()) }),
+            ...(modi.get(pcId) === 'chiave' ? { 'x-sierradeck-chiave': chiave } : { [INTESTAZIONE_FIRMA]: firmaRichiesta(chiave, metodo, u.pathname + u.search, adesso(), nonceConVisore(visore)) }),
             'x-sierradeck-pc': encodeURIComponent(deps.mioNome()),
             ...(corpo === undefined ? {} : { 'content-type': 'application/json' })
           },
@@ -339,7 +344,9 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
   const collegando = (nome: string): ErroreRemoto => new ErroreRemoto('collegando',
     `Né la rete di casa né Tailscale arrivano a ${nome}: apro un collegamento diretto via Internet (WebRTC). Lo scambio iniziale passa dal Drive, e può volerci fino a un minuto e mezzo.`)
 
-  const chiama = async (pcId: string, percorso: string, corpo?: unknown): Promise<unknown> => {
+  const chiama = async (pcId: string, percorso: string, corpo?: unknown, chiChiede?: string): Promise<unknown> => {
+    const io = deps.mioId?.()
+    const visore = chiChiede ?? io
     const b = battitoDi(pcId)
     if (b === undefined) throw new ErroreRemoto('sconosciuto', 'Questo PC non ha mai lasciato un battito sul Drive: non so né come si chiama né dove bussare. Compare dopo il suo primo salvataggio automatico, con il Drive collegato su tutti e due.')
     const chiave = deps.chiavePer(pcId)
@@ -355,7 +362,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       if (!lenta || adesso() - (ultimoBussaIl.get(pcId) ?? 0) >= RIBUSSA_OGNI_MS) ping = await bussa(pcId)
     }
     if (buoni.get(pcId) !== undefined) {
-      const r = await viaHttp(pcId, b, chiave, percorso, corpo)
+      const r = await viaHttp(pcId, b, chiave, percorso, corpo, visore)
       if (r !== undefined) return r.dati
       ping = ultimiPing.get(pcId)
     }
@@ -373,7 +380,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     if (m.mossa === 'rtc' && deps.rtc !== undefined) {
       let e: EsitoCanale
       try {
-        e = await deps.rtc.chiama(pcId, percorso, corpo)
+        e = await deps.rtc.chiama(pcId, percorso, corpo, visore)
       } catch (err) {
         if (corpo !== undefined) {
           throw new ErroreRemoto('irraggiungibile', `Il collegamento diretto con ${b.nome} si è interrotto mentre mandavo (${err instanceof Error ? err.message : String(err)}): non so se il testo è arrivato. Guarda lo schermo prima di rimandarlo; intanto lo riapro.`)

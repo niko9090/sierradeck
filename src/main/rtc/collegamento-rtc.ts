@@ -66,7 +66,7 @@ export type DipendenzeRtc = {
   /** Gli altri PC da cui aspettarsi un'offerta. */
   altriPc: () => string[]
   /** Una richiesta arrivata sul canale, eseguita qui come se arrivasse dal Client. */
-  rotta: (percorso: string, corpo: unknown) => Promise<EsitoCanale>
+  rotta: (percorso: string, corpo: unknown, visore: string) => Promise<EsitoCanale>
   adesso?: () => number
   log?: (m: string) => void
   attendi?: (ms: number) => Promise<void>
@@ -80,7 +80,7 @@ export type Rtc = {
   /** Apre il collegamento verso quel PC, in sottofondo. Non fa niente se è già aperto o si sta aprendo. */
   avvia: (pcId: string) => void
   /** Una richiesta sul canale aperto: lancia se il canale non c'è o non risponde. */
-  chiama: (pcId: string, percorso: string, corpo?: unknown) => Promise<EsitoCanale>
+  chiama: (pcId: string, percorso: string, corpo?: unknown, visore?: string) => Promise<EsitoCanale>
   /** Un giro di chi risponde: le offerte per me sul Drive, e i canali inattivi da chiudere. */
   cercaOfferte: () => Promise<void>
   chiudiTutto: () => void
@@ -157,7 +157,8 @@ export function creaRtc(deps: DipendenzeRtc): Rtc {
       let esito: EsitoCanale
       if (!rottaPermessaSulCanale(m.percorso)) esito = { stato: 403, corpo: { errore: 'rotta non permessa sul collegamento diretto' } }
       else {
-        try { esito = await deps.rotta(m.percorso, m.corpo) } catch (err) { esito = { stato: 500, corpo: { errore: String(err) } } }
+        // Chi guarda (0.49.1): quello detto nel messaggio sigillato, o il PC dall'altra parte del canale.
+        try { esito = await deps.rotta(m.percorso, m.corpo, m.visore ?? c.pcId) } catch (err) { esito = { stato: 500, corpo: { errore: String(err) } } }
       }
       manda(c, { tipo: 'risposta', id: m.id, stato: esito.stato, corpo: esito.corpo })
       return
@@ -288,7 +289,7 @@ export function creaRtc(deps: DipendenzeRtc): Rtc {
       if (uscite.has(pcId)) return
       void apri(pcId).catch((err: unknown) => fallisci(pcId, uscite.get(pcId), String(err)))
     },
-    chiama(pcId, percorso, corpo) {
+    chiama(pcId, percorso, corpo, visore) {
       const c = uscite.get(pcId)
       if (c === undefined || c.stato !== 'aperto') return Promise.reject(new Error('il collegamento diretto non è aperto'))
       c.ultimoUso = adesso()
@@ -302,7 +303,7 @@ export function creaRtc(deps: DipendenzeRtc): Rtc {
           ko(new Error(`nessuna risposta sul collegamento diretto in ${Math.round(t.richiesta / 1000)} secondi`))
         }, t.richiesta)
         c.attese.set(id, { ok, ko, timer })
-        manda(c, { tipo: 'chiedi', id, percorso, ...(corpo !== undefined ? { corpo } : {}) })
+        manda(c, { tipo: 'chiedi', id, percorso, ...(corpo !== undefined ? { corpo } : {}), ...(visore !== undefined ? { visore } : {}) })
       })
     },
     async cercaOfferte() {

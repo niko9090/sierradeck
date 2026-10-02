@@ -18,6 +18,11 @@ export type StatoPin = Omit<ImpostazioniPin, 'impronta'> & { impostato: boolean 
 
 export type EsitoPin = { ok: true } | { ok: false; errore: string; fraMs?: number }
 
+/** Chi guarda senza dire chi è (un altro PC prima della 0.49.1): niente sblocco che resti. */
+export function visoreAnonimo(visore: string): boolean {
+  return visore === 'pc'
+}
+
 export type GuardianoPin = {
   stato: () => StatoPin
   /** Imposta o cambia il PIN. Se ce n'è già uno serve quello, o la password della cassaforte. */
@@ -115,10 +120,12 @@ export function creaGuardianoPin(deps: {
     sblocca(visore, c, pin) {
       if (!chatProtetta(imp, c)) return { ok: true }
       const e = prova(pin)
-      if (e.ok) tocca(sblocchi, visore, chiaveSblocco(c), adesso(), imp.inattivitaMin, true)
+      // Un PC prima della 0.49.1 non dice chi è (`pc`): il PIN giusto vale
+      // per quella richiesta e non resta aperto, se no si aprirebbe per tutti.
+      if (e.ok && !visoreAnonimo(visore)) tocca(sblocchi, visore, chiaveSblocco(c), adesso(), imp.inattivitaMin, true)
       return e
     },
-    tocca(visore, c) { tocca(sblocchi, visore, chiaveSblocco(c), adesso(), imp.inattivitaMin) },
+    tocca(visore, c) { if (!visoreAnonimo(visore)) tocca(sblocchi, visore, chiaveSblocco(c), adesso(), imp.inattivitaMin) },
     richiudi(visore) { richiudi(sblocchi, visore) }
   }
 }

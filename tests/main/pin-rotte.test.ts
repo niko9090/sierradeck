@@ -50,9 +50,10 @@ async function portatile(): Promise<{ porta: number; scritti: string[]; chiaveTe
   const t = dispositivi.accoppia(dispositivi.apriAccoppiamento().codice, 'telefono')
   return { porta: (s.address() as AddressInfo).port, scritti, chiaveTelefono: t?.chiave ?? '' }
 }
-const altroPc = (porta: number): ReturnType<typeof creaClientPcRemoto> => {
-  const b: BattitoPc = { pcId: 'lap', nome: 'LAPTOP', versione: '0.49.0', battito: new Date().toISOString(), cartelle: [], chat: [], indirizzi: ['127.0.0.1'], porta }
-  return creaClientPcRemoto({ battiti: () => [b], chiavePer: () => K, mioNome: () => 'FISSO' })
+/** Un altro PC: `io` è il suo id (0.49.1); senza, è un PC prima della 0.49.1 che non dice chi è. */
+const altroPc = (porta: number, io: string | null = 'fisso'): ReturnType<typeof creaClientPcRemoto> => {
+  const b: BattitoPc = { pcId: 'lap', nome: 'LAPTOP', versione: '0.49.1', battito: new Date().toISOString(), cartelle: [], chat: [], indirizzi: ['127.0.0.1'], porta }
+  return creaClientPcRemoto({ battiti: () => [b], chiavePer: () => K, mioNome: () => io ?? 'VECCHIO', ...(io !== null ? { mioId: () => io } : {}) })
 }
 
 describe('un altro PC con la firma di casa valida, ma senza il PIN', () => {
@@ -89,5 +90,26 @@ describe('un altro PC con la firma di casa valida, ma senza il PIN', () => {
     })).status
     expect([await prova('1'), await prova('2'), await prova('3')]).toEqual([403, 403, 429])
     expect(await prova('4821')).toBe(429)
+  })
+})
+
+describe('lo sblocco vale per chi guarda (0.49.1)', () => {
+  it('il PC A sblocca: il PC B e il telefono che passa dal ponte di A ricevono ancora il rifiuto', async () => {
+    const { porta } = await portatile()
+    const a = altroPc(porta, 'pc-a')
+    const b = altroPc(porta, 'pc-b')
+    expect(await a.chiama('lap', '/api/pin/sblocca', { chat: 'p-1', pin: '4821' })).toEqual({ fatto: true })
+    expect(JSON.stringify(await a.chiama('lap', '/api/storia', { chat: 'p-1', da: -1, quante: 50 }))).toContain('Rossi')
+    expect(((await b.chiama('lap', '/api/storia', { chat: 'p-1', da: -1, quante: 50 }).catch((x: unknown) => x)) as ErroreRemoto).motivo).toBe('pin')
+    // Il telefono che passa dal ponte di A: chi guarda è lui, non A.
+    expect(((await a.chiama('lap', '/api/storia', { chat: 'p-1', da: -1, quante: 50 }, 'tel:t1@pc-a').catch((x: unknown) => x)) as ErroreRemoto).motivo).toBe('pin')
+    expect(((await b.chiama('lap', '/api/scrivi', { chat: 'p-1', testo: 'x' }).catch((x: unknown) => x)) as ErroreRemoto).motivo).toBe('pin')
+  })
+  it('un PC che non dice chi è: il PIN giusto non resta aperto (e non apre per gli altri)', async () => {
+    const { porta } = await portatile()
+    const vecchio = altroPc(porta, null)
+    expect(await vecchio.chiama('lap', '/api/pin/sblocca', { chat: 'p-1', pin: '4821' })).toEqual({ fatto: true })
+    expect(((await vecchio.chiama('lap', '/api/storia', { chat: 'p-1', da: -1, quante: 50 }).catch((x: unknown) => x)) as ErroreRemoto).motivo).toBe('pin')
+    expect(((await altroPc(porta, 'pc-b').chiama('lap', '/api/storia', { chat: 'p-1', da: -1, quante: 50 }).catch((x: unknown) => x)) as ErroreRemoto).motivo).toBe('pin')
   })
 })

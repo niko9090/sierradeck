@@ -19,6 +19,14 @@ import { leggiRichiestaPonte } from '@shared/ponte-telefono'
 import { ANTEPRIMA_NASCOSTA, oscuraChat, rifiutoChiusa, STATO_CHIUSA } from '@shared/pin-chat'
 import type { GuardianoPin } from './pin-guardiano'
 
+/**
+ * Un altro PC con la chiave di casa: `pc` (prima della 0.49.1, senza dire chi
+ * è) o `pc:<chi guarda>` (0.49.1: il suo id, o `tel:<telefono>@<PC>` dal ponte).
+ */
+export function daAltroPc(dispositivo: string | undefined): boolean {
+  return dispositivo === 'pc' || (dispositivo?.startsWith('pc:') ?? false)
+}
+
 /** Le rotte che mostrano o scrivono dentro una chat: passano dal PIN (0.49.0). */
 const ROTTE_DENTRO_CHAT = new Set(['/api/storia', '/api/dentro', '/api/scrivi', '/api/scegli', '/api/chat/chiudi', '/api/chat/nome'])
 import type { TentativoFallito } from '@shared/tentativo-installazione'
@@ -162,7 +170,7 @@ export type DipendenzeRotte = {
    * con le strade fra PC e la chiave di casa. Lo stato e il corpo di quel PC,
    * o l'errore con il motivo per esteso.
    */
-  ponte?: (pc: string, percorso: string, corpo?: Record<string, unknown>) => Promise<{ stato: number; corpo: unknown }>
+  ponte?: (pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string) => Promise<{ stato: number; corpo: unknown }>
   /**
    * Il PIN delle chat (0.49.0). Ogni rotta che mostra o scrive dentro una
    * chat passa da qui: una chat protetta e non sbloccata da **chi guarda**
@@ -526,7 +534,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
   const g = deps.pin
   /** Chi guarda, per gli sblocchi: questo schermo, un altro PC (anche il ponte), un telefono. */
   const visoreDi = (dispositivo: string | undefined): string =>
-    dispositivo === undefined || dispositivo === 'locale' ? 'locale' : dispositivo === 'pc' ? 'pc' : `tel:${dispositivo}`
+    dispositivo === undefined || dispositivo === 'locale' ? 'locale' : daAltroPc(dispositivo) ? dispositivo : `tel:${dispositivo}`
   /** Le chat come le vede quel visore: le chiuse senza anteprime e senza schermo. */
   const chatPer = (visore: string): Chat[] => g === undefined ? deps.chat() : deps.chat().map((c) => {
     if (!g.protetta(c)) return c
@@ -733,11 +741,11 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     // passando da qui. Solo un telefono accoppiato (un altro PC no: niente
     // catene) e solo le rotte che il PC usa dal suo riquadro remoto.
     if (r.percorso === '/api/ponte' && r.metodo === 'POST') {
-      if (r.dispositivo === 'pc') return { stato: 403, corpo: { errore: 'Il ponte è solo per il telefono: un altro PC bussa direttamente.' } }
+      if (daAltroPc(r.dispositivo)) return { stato: 403, corpo: { errore: 'Il ponte è solo per il telefono: un altro PC bussa direttamente.' } }
       if (deps.ponte === undefined) return { stato: 409, corpo: { errore: 'Questo computer non fa ancora da ponte verso gli altri PC.' } }
       const l = leggiRichiestaPonte(r.corpo)
       if (!l.ok) return { stato: l.stato, corpo: { errore: l.errore } }
-      const e = await deps.ponte(l.r.pc, l.r.percorso, l.r.corpo)
+      const e = await deps.ponte(l.r.pc, l.r.percorso, l.r.corpo, r.dispositivo)
       return { stato: e.stato, corpo: (e.corpo ?? {}) as object }
     }
 
@@ -1259,7 +1267,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     }
     // «Sposta progetto» (0.42.0): chi riceve. Solo da un altro PC di casa.
     if (r.percorso.startsWith('/api/sposta/')) {
-      if (r.dispositivo !== 'pc') return { stato: 403, corpo: { errore: 'solo un altro PC con la stessa cassaforte' } }
+      if (!daAltroPc(r.dispositivo)) return { stato: 403, corpo: { errore: 'solo un altro PC con la stessa cassaforte' } }
       if (deps.sposta === undefined) return { stato: 404, corpo: { errore: 'questo computer non sa ancora ricevere un progetto' } }
       if (r.percorso === '/api/sposta/pronto') return OK(deps.sposta.pronto() as object)
       if (r.metodo === 'POST' && r.percorso === '/api/sposta/ricevi') return OK((await deps.sposta.ricevi(r.corpo).catch((e: unknown) => ({ ok: false, messaggio: String(e) }))) as object)

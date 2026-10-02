@@ -246,7 +246,7 @@ export function nonViaDrive(percorso: string, nomePc: string): string {
 /** Un messaggio sul canale, prima della cifratura. `n` cresce sempre: un messaggio ripetuto si scarta. */
 export type MessaggioCanale =
   | { n: number; tipo: 'ciao'; pc: string; nome: string }
-  | { n: number; tipo: 'chiedi'; id: string; percorso: string; corpo?: unknown }
+  | { n: number; tipo: 'chiedi'; id: string; percorso: string; corpo?: unknown; visore?: string }
   | { n: number; tipo: 'risposta'; id: string; stato: number; corpo: unknown }
 
 export function leggiMessaggioCanale(x: unknown): MessaggioCanale | undefined {
@@ -255,7 +255,12 @@ export function leggiMessaggioCanale(x: unknown): MessaggioCanale | undefined {
   if (typeof m.n !== 'number' || !Number.isInteger(m.n) || m.n < 0) return undefined
   if (m.tipo === 'ciao' && typeof m.pc === 'string') return { n: m.n, tipo: 'ciao', pc: m.pc, nome: typeof m.nome === 'string' ? m.nome : '' }
   if (m.tipo === 'chiedi' && typeof m.id === 'string' && typeof m.percorso === 'string') {
-    return { n: m.n, tipo: 'chiedi', id: m.id, percorso: m.percorso, ...(m.corpo !== undefined ? { corpo: m.corpo } : {}) }
+    return {
+      n: m.n, tipo: 'chiedi', id: m.id, percorso: m.percorso,
+      ...(m.corpo !== undefined ? { corpo: m.corpo } : {}),
+      // Chi guarda (0.49.1), per il PIN delle chat: dentro il messaggio sigillato.
+      ...(typeof m.visore === 'string' && /^[\w:@.-]{1,160}$/.test(m.visore) ? { visore: m.visore } : {})
+    }
   }
   if (m.tipo === 'risposta' && typeof m.id === 'string' && typeof m.stato === 'number') return { n: m.n, tipo: 'risposta', id: m.id, stato: m.stato, corpo: m.corpo }
   return undefined

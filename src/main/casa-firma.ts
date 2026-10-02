@@ -48,6 +48,31 @@ export function provaValida(chiave: string, sfida: string, prova: unknown): bool
   return typeof prova === 'string' && sfida.length >= 16 && uguali(prova, provaCasa(chiave, sfida))
 }
 
+/**
+ * Il numero a caso, con dentro **chi guarda** (0.49.1): `<a caso>~<visore in base64url>`.
+ * Sta nel numero a caso perché quello è già sotto HMAC: chi guarda non si può
+ * cambiare per strada, e i PC 0.47–0.49 (che non lo leggono) accettano la
+ * firma come prima. Serve al PIN delle chat: lo sblocco vale per quel PC, o
+ * per quel telefono che passa dal ponte, non per tutti.
+ */
+export function nonceConVisore(visore?: string): string {
+  const base = randomBytes(12).toString('base64url')
+  return visore !== undefined && visore !== '' ? `${base}~${Buffer.from(visore.slice(0, 160), 'utf8').toString('base64url')}` : base
+}
+
+/** Chi guarda, dalla firma (`undefined` per un PC prima della 0.49.1). Da leggere solo dopo averla controllata. */
+export function visoreDaFirma(firma: string): string | undefined {
+  const nonce = firma.split('.')[1] ?? ''
+  const i = nonce.indexOf('~')
+  if (i < 0) return undefined
+  try {
+    const v = Buffer.from(nonce.slice(i + 1), 'base64url').toString('utf8')
+    return /^[\w:@.-]{1,160}$/.test(v) ? v : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /** La firma di una richiesta: `<ms>.<numero a caso>.<hmac>`. */
 export function firmaRichiesta(chiave: string, metodo: string, percorso: string, adesso = Date.now(), nonce = randomBytes(12).toString('base64url')): string {
   return `${adesso}.${nonce}.${hmac(chiave, `sierradeck-casa-chiede|${metodo.toUpperCase()}|${percorso}|${adesso}|${nonce}`)}`

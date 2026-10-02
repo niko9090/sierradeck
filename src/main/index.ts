@@ -361,7 +361,7 @@ let unaCasaGlobale: UnaCasa | undefined
 /** Il PIN delle chat (0.49.0): il guardiano, uno per PC. */
 let guardianoPin: GuardianoPin | undefined
 /** Il ponte del telefono (0.48.0): si accende quando c'e' il client verso gli altri PC. */
-let ponteVersoPc: ((pc: string, percorso: string, corpo?: Record<string, unknown>) => Promise<{ stato: number; corpo: unknown }>) | undefined
+let ponteVersoPc: ((pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string) => Promise<{ stato: number; corpo: unknown }>) | undefined
 let leggiSalute: () => Promise<import('@shared/salute').Salute> = async () => componiSalute({
   adesso: Date.now(), versione: app.getVersion(), drive: { configurato: false, connesso: false }, pc: [], errori: [], consegne: [], oreErrori: ORE_ERRORI_SALUTE
 })
@@ -1444,9 +1444,9 @@ if (!app.requestSingleInstanceLock()) {
         mioNome: () => identitaPc.leggi().nome,
         chiaveDiCasa: (pcId) => sincronia.chiaveDiCasa(`client-pc:${pcId}`),
         altriPc: () => postino.altrui().map((b) => b.pcId),
-        rotta: async (percorso, corpo) => {
+        rotta: async (percorso, corpo, visore) => {
           if (rottaPerAltriPc === undefined) return { stato: 503, corpo: { errore: 'il Client di questo PC non è ancora pronto' } }
-          return rottaPerAltriPc({ metodo: corpo === undefined ? 'GET' : 'POST', percorso, corpo, dispositivo: 'pc' })
+          return rottaPerAltriPc({ metodo: corpo === undefined ? 'GET' : 'POST', percorso, corpo, dispositivo: `pc:${visore}` })
         },
         log: registro.info
       })
@@ -1467,12 +1467,14 @@ if (!app.requestSingleInstanceLock()) {
           stato: (pcId) => rtc.stato(pcId),
           fallitoIl: (pcId) => rtc.fallitoIl(pcId),
           avvia: (pcId) => rtc.avvia(pcId),
-          chiama: (pcId, percorso, corpo) => rtc.chiama(pcId, percorso, corpo)
+          chiama: (pcId, percorso, corpo, visore) => rtc.chiama(pcId, percorso, corpo, visore)
         },
         cassetta: { possibile: stradeLentePossibili, chiama: (pcId, percorso, corpo) => cassettaDrive.chiama(pcId, percorso, corpo) },
         battiti: () => postino.altrui(),
         chiavePer: (pcId) => sincronia.chiaveDiCasa(`client-pc:${pcId}`),
         mioNome: () => identitaPc.leggi().nome,
+        // Chi guarda (0.49.1): il PIN delle chat di quel PC si apre per questo PC, non per tutti.
+        mioId: () => identitaPc.leggi().id,
         log: registro.info,
         driveCollegato: () => contoDrive.stato().connesso,
         altriIndirizzi: async (pcId, nome) => ({
@@ -1561,11 +1563,13 @@ if (!app.requestSingleInstanceLock()) {
       // chieste dal telefono. Un telefono guarda un PC: una riga nel registro
       // la prima volta (per PC), non a ogni giro.
       const pontiDetti = new Set<string>()
-      ponteVersoPc = async (pc, percorso, corpo) => {
+      ponteVersoPc = async (pc, percorso, corpo, dispositivo) => {
         const nome = postino.altrui().find((b) => b.pcId === pc)?.nome ?? pc
         if (!pontiDetti.has(pc)) { pontiDetti.add(pc); registro.info(`[ponte] il telefono guarda ${nome} attraverso questo PC`) }
         try {
-          return { stato: 200, corpo: await remoto.chiama(pc, percorso, corpo) }
+          // Chi guarda è il telefono (0.49.1): il PIN di quel PC si apre per lui, non per questo PC.
+          const visore = dispositivo !== undefined && dispositivo !== '' ? `tel:${dispositivo}@${identitaPc.leggi().id}` : undefined
+          return { stato: 200, corpo: await remoto.chiama(pc, percorso, corpo, visore) }
         } catch (err) {
           if (err instanceof ErroreRemoto) return { stato: err.stato ?? 502, corpo: { errore: err.message, motivo: err.motivo, su: nome } }
           return { stato: 502, corpo: { errore: `${nome}: ${err instanceof Error ? err.message : String(err)}`, su: nome } }
@@ -3425,8 +3429,8 @@ if (!app.requestSingleInstanceLock()) {
         avvisoDrive: () => avvisoDrive(),
         // «Salute del sistema» dal telefono (0.44.0).
         salute: () => leggiSalute(),
-        ponte: (pc: string, percorso: string, corpo?: Record<string, unknown>) => ponteVersoPc !== undefined
-          ? ponteVersoPc(pc, percorso, corpo)
+        ponte: (pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string) => ponteVersoPc !== undefined
+          ? ponteVersoPc(pc, percorso, corpo, dispositivo)
           : Promise.resolve({ stato: 409, corpo: { errore: 'Il collegamento con gli altri PC non è ancora pronto: riprova fra qualche secondo.' } }),
         aggiornamento: () => aggiornamenti?.stato() ?? { fase: 'fermo' },
         cercaAggiornamento: () => { void aggiornamenti?.cerca(true) },
