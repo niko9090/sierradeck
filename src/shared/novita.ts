@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.48.0',
+    righe: [
+      '**Dal telefono, le chat di tutti i tuoi PC.** Nell’app (2.48.0), in Computer → Altri computer, ogni PC ha il tasto «Chat di … dal vivo». Apre le chat di quel PC come se il telefono fosse accoppiato a lui: le vedi mentre lavorano, leggi la loro storia, scrivi, premi le opzioni, riprendi o apri una chat. Il telefono passa dal PC a cui è accoppiato, che raggiunge l’altro con le sue strade (rete di casa, Tailscale, collegamento diretto) e con la chiave di casa. Il telefono quella chiave non la riceve mai. In cima c’è sempre la fascia viola «SU <nome del PC>», così sai sempre quale computer stai comandando; «Torna» riporta alle chat del PC accoppiato.',
+      '**Gli stessi permessi del PC.** Su un altro PC il telefono fa solo quello che il PC stesso fa dal suo riquadro remoto. Rinominare o chiudere una chat, sfogliare le cartelle, gli autopiloti, il Drive e gli aggiornamenti di quel PC si fanno dal PC accoppiato a lui, non attraverso un altro. Se il PC accoppiato ha una versione più vecchia della 0.48.0, il tasto non c’è e l’app dice di aggiornarlo.'
+    ]
+  },
+  {
     versione: '0.47.0',
     righe: [
       '**Solo i tuoi PC si parlano, e adesso lo dimostrano.** Un PC può vedere, comandare o aggiornare un altro PC solo se hanno lo stesso Drive e la stessa cassaforte. Prima di mandargli qualunque cosa, ora gli chiede di dimostrare di avere la chiave di casa, e la chiave non viaggia più sulla rete: ogni richiesta è firmata e vale una volta sola. Prima, se Tailscale trovava per nome un dispositivo che non era SierraDeck, quel dispositivo poteva ricevere la chiave; adesso non riceve niente e il registro lo dice. Valgono le stesse regole per la rete di casa, Tailscale, il collegamento diretto, il Drive, il telefono e «Installa là».',
