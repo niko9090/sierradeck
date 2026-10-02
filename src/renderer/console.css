@@ -4233,3 +4233,48 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 }
 .segno-remoto { color: var(--remoto); font-weight: 700; white-space: nowrap; }
 .avviso--drive { border-color: var(--rosso, #dc5f5f); }
+
+/* La linguetta «Istruzioni» (0.41.0): ogni consegna intera, selezionabile. */
+.istruzioni__spiega { margin: 0 0 var(--s2); color: var(--testo-quieto); font-size: var(--t1); line-height: 1.4; }
+.istruzione { border: 1px solid var(--incisione); border-radius: 6px; margin-bottom: var(--s2); background: var(--chassis); }
+.istruzione__testa { display: flex; gap: var(--s2); align-items: baseline; flex-wrap: wrap; padding: var(--s1) var(--s2); cursor: pointer; }
+.istruzione__chat { color: var(--testo); font-weight: 600; }
+.istruzione__prima { flex: 1 1 100%; min-width: 0; color: var(--testo-quieto); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.istruzione[open] .istruzione__prima { display: none; }
+.istruzione__esito { padding: 0 var(--s2); border-radius: 999px; border: 1px solid currentColor; font-size: var(--t1); }
+.istruzione__esito--ok { color: var(--verde, #5cb85c); }
+.istruzione__esito--attesa { color: var(--ambra); }
+.istruzione__esito--guasto { color: var(--rosso, #e5534b); font-weight: 600; }
+.istruzione__perche { padding: 0 var(--s2) var(--s1); color: var(--testo); line-height: 1.4; }
+.istruzione__corpo { padding: var(--s1) var(--s2); border-top: 1px solid var(--incisione); user-select: text; overflow-wrap: anywhere; }
+.istruzione__azioni { display: flex; gap: var(--s2); align-items: center; padding: var(--s1) var(--s2); }
+.istruzione__nota { color: var(--testo-quieto); font-size: var(--t1); }
+.istruzione__correggi { display: flex; flex-direction: column; gap: var(--s1); padding: 0 var(--s2) var(--s2); }
+
+/* Le domande con le loro parti (0.41.0). */
+.domande-ap__parti { display: flex; flex-direction: column; gap: var(--s2); }
+.domande-ap__domanda { font-size: var(--t3, 15px); font-weight: 600; color: var(--testo); white-space: pre-wrap; overflow-wrap: anywhere; }
+.domande-ap__sezione { display: flex; flex-direction: column; gap: 2px; }
+.domande-ap__scelta { display: flex; gap: var(--s2); align-items: baseline; flex-wrap: wrap; margin-top: 2px; }
+.domande-ap__scelta span { color: var(--testo); }
+
+/* La parte destra ridimensionabile (0.41.0): la barra fra la chat con
+   l'autopilota e le linguette, e le maniglie raggiungibili da tastiera. */
+.diario__due > .chatap { flex: 0 1 var(--diario-divisione, 55%); min-height: 120px; }
+.diario__due > .diario__lato { flex: 1 1 0; min-height: 120px; }
+.diario--largo .diario__due > .chatap { flex: 0 1 var(--diario-divisione, 55%); min-width: 200px; }
+.diario--largo .diario__due > .diario__lato { flex: 1 1 0; min-width: 200px; }
+.diario__divisione {
+  flex: 0 0 8px;
+  margin: calc(var(--s2) * -1) 0;
+  cursor: row-resize;
+  border-radius: 4px;
+  touch-action: none;
+}
+.diario--largo .diario__divisione { margin: 0 calc(var(--s3) * -1); cursor: col-resize; }
+.diario__divisione:hover, .diario__divisione:focus-visible { background: var(--luce-tenue); outline: none; }
+.domande-lato__maniglia { touch-action: none; }
+.domande-lato__maniglia:focus-visible { background: var(--luce-tenue); outline: none; }
+/* Niente esce dallo schermo: anche con una misura salvata grande, a finestra
+   stretta la colonna lascia sempre posto alle chat. */
+.domande-lato { max-width: calc(100vw - 520px); min-width: min(300px, 40vw); }

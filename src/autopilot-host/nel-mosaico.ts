@@ -29,7 +29,7 @@ export function esecutoreNelMosaico(p: {
   /** Dice al servizio quale sessione ha preso una chat, perché la ricordi. */
   ricorda: (autopilotaId: string, chatId: string, sessionId: string) => void
 }): {
-  avvia: (a: Autopilota, messaggio?: string, chat?: ChatGovernata) => Promise<void>
+  avvia: (a: Autopilota, messaggio?: string, chat?: ChatGovernata, perche?: string) => Promise<void>
   ferma: (id: string, chatId?: string) => void
   attivi: () => string[]
 } {
@@ -45,7 +45,7 @@ export function esecutoreNelMosaico(p: {
     chatId === undefined ? autopilotaId : `${autopilotaId}::${chatId}`
 
   return {
-    avvia(a, messaggio, chat) {
+    avvia(a, messaggio, chat, perche) {
       const chatId = chat?.id ?? a.id
       const k = chiave(a.id, chat?.id)
 
@@ -78,6 +78,12 @@ export function esecutoreNelMosaico(p: {
         // tutto il lavoro gia fatto sopra - e la chat lo leggeva per quello che
         // e: l'ordine di cominciare. Rifaceva da capo.
         testo: messaggio ?? (riprende(a, gia, chat) ? ripartiDaDove(a, chat) : primoCompito(a, chat)),
+        // Il perché, per la linguetta «Istruzioni» (0.41.0): non va nella chat.
+        perche: perche ?? (messaggio !== undefined
+          ? 'Una mossa del supervisore (il motivo non è stato annotato)'
+          : riprende(a, gia, chat)
+            ? 'Riprende il lavoro dopo un’interruzione: le dice da dove ripartire'
+            : 'Il primo compito della chat: l’obiettivo e i criteri'),
         // **Dove**, deciso da lui. Dedurlo cercando la sessione nei workspace
         // salvati funziona solo per una chat ripresa: quella che deve ancora
         // nascere lì dentro non c'è, e finiva nel workspace che avevi davanti.

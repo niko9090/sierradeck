@@ -1,4 +1,5 @@
 import type { ChatSalvata } from '@shared/workspace'
+import { leggiIstruzioni, notaCorreggi } from '@shared/istruzioni-autopilota'
 import type { Esito } from './client-server'
 import type { Dispositivi } from './dispositivi'
 import { chiaveFermo, eFermo, type Autopilota } from '@shared/autopilota'
@@ -133,6 +134,8 @@ export type DipendenzeRotte = {
   stradaPc?: (pcId: string) => string | undefined
   /** La linguetta «File» dal telefono (0.38.0): solo lettura. */
   fileAutopilota?: (id: string) => Promise<unknown>
+  /** La linguetta «Istruzioni» dal telefono (0.41.0): le consegne alle sue chat, intere. */
+  istruzioniAutopilota?: (id: string) => Promise<unknown[]>
   diffAutopilota?: (id: string, chiave: string, percorso: string) => Promise<string>
   /**
    * Apre una chat nuova in una cartella già conosciuta.
@@ -888,6 +891,25 @@ export function rotteClient(deps: DipendenzeRotte) {
       if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
       if (deps.fileAutopilota === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora mostrare i file: aggiornalo' } }
       try { return OK({ gruppi: await deps.fileAutopilota(id) }) } catch (e) { return { stato: 404, corpo: { errore: e instanceof Error ? e.message : String(e) } } }
+    }
+    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/istruzioni') {
+      const id = stringa(r.corpo, 'autopilota')
+      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
+      if (deps.istruzioniAutopilota === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora mostrare le istruzioni: aggiornalo' } }
+      try { return OK({ istruzioni: await deps.istruzioniAutopilota(id) }) } catch (e) { return { stato: 502, corpo: { errore: e instanceof Error ? e.message : String(e) } } }
+    }
+    // «Correggi» su un'istruzione (0.41.0): la nota va nel dialogo, legata a quell'istruzione.
+    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/correggi') {
+      const id = stringa(r.corpo, 'autopilota')
+      const quale = stringa(r.corpo, 'istruzione')
+      const nota = stringa(r.corpo, 'nota')
+      if (id === '' || quale === '' || nota.trim() === '') return { stato: 400, corpo: { errore: 'servono l autopilota, l istruzione e la nota' } }
+      if (deps.istruzioniAutopilota === undefined || deps.dialogaAutopilota === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora correggere le istruzioni: aggiornalo' } }
+      const tutte = leggiIstruzioni(await deps.istruzioniAutopilota(id))
+      const i = tutte.find((x) => x.id === quale)
+      if (i === undefined) return { stato: 404, corpo: { errore: 'istruzione non trovata' } }
+      const esito = await deps.dialogaAutopilota(id, notaCorreggi(i, nota.slice(0, TESTO_MAX)))
+      return OK({ fatto: esito.ricevuto })
     }
     if (r.metodo === 'POST' && r.percorso === '/api/autopilota/diff') {
       const id = stringa(r.corpo, 'autopilota')

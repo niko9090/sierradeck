@@ -1,7 +1,9 @@
+import { FORMA_DOMANDA, REGOLE_DOMANDA, leggiParti, type PartiDomanda } from '@shared/domanda-strutturata'
+
 export type ScambioIntervista = { domanda: string; risposta: string }
 
 export type EsitoIntervista =
-  | { tipo: 'domanda'; testo: string; opzioni?: string[] }
+  | { tipo: 'domanda'; testo: string; opzioni?: string[]; parti?: PartiDomanda }
   | {
       tipo: 'pronto'
       nome?: string
@@ -143,10 +145,12 @@ export function componiPromptIntervista(
           ...CONFIGURAZIONE
         ]
       : [
+          ...REGOLE_DOMANDA,
+          'Le scelte sono le risposte più probabili, che chi risponde da un telefono tocca invece di',
+          'scrivere; può sempre scrivere altro.',
+          '',
           'Rispondi con un solo oggetto JSON, senza altro testo. O una domanda:',
-          '{"domanda": "la tua domanda", "opzioni": ["risposta breve 1", "risposta breve 2"]}',
-          '(le "opzioni" sono facoltative, al massimo quattro: le risposte più probabili, che chi',
-          'risponde da un telefono tocca invece di scrivere. Può sempre scrivere altro.)',
+          `{"domanda": ${FORMA_DOMANDA}}`,
           '',
           'oppure la configurazione finale:',
           ...CONFIGURAZIONE
@@ -200,6 +204,14 @@ export function leggiEsitoIntervista(testo: string): EsitoIntervista | undefined
   if (typeof o !== 'object' || o === null) return undefined
   const r = o as Record<string, unknown>
 
+  // La domanda con le sue parti (0.41.0); una stringa con le «opzioni» come prima.
+  if (typeof r.domanda === 'object' && r.domanda !== null) {
+    const parti = leggiParti(r.domanda)
+    if (parti.domanda !== '') {
+      const opzioni = parti.scelte.map((s) => s.scelta).slice(0, 4)
+      return { tipo: 'domanda', testo: parti.domanda, ...(opzioni.length > 0 ? { opzioni } : {}), parti }
+    }
+  }
   const domanda = typeof r.domanda === 'string' ? r.domanda.trim() : ''
   if (domanda !== '') {
     const opzioni = Array.isArray(r.opzioni)

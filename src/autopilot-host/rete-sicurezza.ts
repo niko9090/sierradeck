@@ -1,4 +1,5 @@
 import type { Autopilota } from '@shared/autopilota'
+import { partiBloccato, partiNonMisurati } from '@shared/domanda-strutturata'
 import type { Decisione, EsitoVerifica } from './decisione'
 import { riassuntoFallimenti } from './decisione'
 import type { DecisioneSupervisore } from './decisione-supervisore'
@@ -88,6 +89,8 @@ export function applicaRete(
       return {
         mossa: {
           tipo: 'chiediUtente',
+          parti: partiNonMisurati(ignoti.map((e) => ({ descrizione: e.descrizione, comando: e.comando ?? '' }))),
+          dalProgramma: true,
           domanda:
             `Il lavoro sembra concluso, ma ${ignoti.length === 1 ? 'un criterio non e stato misurato' : `${ignoti.length} criteri non sono stati misurati`}: ` +
             `il comando di verifica non e' nemmeno partito.\n\n${elenco}\n\n` +
@@ -117,7 +120,7 @@ export function applicaRete(
     if (domanda === '') {
       return { mossa: dalleRegole(ctx), nota: '«chiedi» senza domanda: decidono le regole' }
     }
-    return { mossa: { tipo: 'chiediUtente', domanda } }
+    return { mossa: { tipo: 'chiediUtente', domanda, ...(decisione.parti !== undefined ? { parti: decisione.parti } : {}) } }
   }
 
   if (decisione.azione === 'correggiCriterio') {
@@ -187,6 +190,8 @@ function dalleRegole(ctx: Contesto): Decisione {
   if (strategieFinite(inCerchioDa, a.limiti.stalloMax)) {
     return {
       tipo: 'chiediUtente',
+      parti: partiBloccato(a.obiettivo, inCerchioDa, STRATEGIE.map((s) => s.nome), riassuntoFallimenti(esiti)),
+      dalProgramma: true,
       domanda:
         `Sono bloccato su «${a.obiettivo}».\n\n${riassuntoFallimenti(esiti)}\n\n` +
         `Ho provato ${inCerchioDa} volte e ho esaurito le strade che conosco: ` +

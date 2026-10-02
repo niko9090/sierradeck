@@ -37,7 +37,7 @@ function ResaInline({ nodi }: { nodi: NodoInline[] }): React.JSX.Element {
 }
 
 /** I blocchi di una scheda, resi in elementi React. */
-function ResaMarkdown({ testo }: { testo: string }): React.JSX.Element {
+export function ResaMarkdown({ testo }: { testo: string }): React.JSX.Element {
   // Analizzare a ogni battito sarebbe sprecato: il corpo cambia solo quando cambia.
   const blocchi = useMemo(() => analizzaMarkdown(testo), [testo])
   if (blocchi.length === 0) {

@@ -875,6 +875,8 @@ contextBridge.exposeInMainWorld('gestore', {
     diff: (id: string, chiave: string, percorso: string): Promise<string> => ipcRenderer.invoke('autopilota:diff', id, chiave, percorso),
     elimina: (id: string): Promise<void> => ipcRenderer.invoke('autopilota:elimina', id),
     domande: (): Promise<DomandaAperta[]> => ipcRenderer.invoke('autopilota:domande'),
+    /** La linguetta «Istruzioni» (0.41.0): le consegne alle sue chat, testo intero, perché ed esito. */
+    istruzioni: (id: string): Promise<import('@shared/istruzioni-autopilota').Istruzione[]> => ipcRenderer.invoke('autopilota:istruzioni', id),
     rispondi: (idDomanda: string, risposta: string): Promise<void> =>
       ipcRenderer.invoke('autopilota:rispondi', idDomanda, risposta),
     avvioAlLogin: (attivare?: boolean): Promise<{ installato: boolean; percorso: string }> =>

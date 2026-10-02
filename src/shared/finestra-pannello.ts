@@ -10,8 +10,8 @@
  * (`finestre-pannello.ts`), che **non** la tratta come una finestra di chat.
  */
 
-export type LinguettaStaccabile = 'domande' | 'lavoro' | 'file' | 'obiettivo' | 'criteri' | 'compiti' | 'diario'
-export const LINGUETTE_STACCABILI: LinguettaStaccabile[] = ['domande', 'lavoro', 'file', 'obiettivo', 'criteri', 'compiti', 'diario']
+export type LinguettaStaccabile = 'domande' | 'lavoro' | 'istruzioni' | 'file' | 'obiettivo' | 'criteri' | 'compiti' | 'diario'
+export const LINGUETTE_STACCABILI: LinguettaStaccabile[] = ['domande', 'lavoro', 'istruzioni', 'file', 'obiettivo', 'criteri', 'compiti', 'diario']
 
 export function eLinguettaStaccabile(x: unknown): x is LinguettaStaccabile {
   return typeof x === 'string' && (LINGUETTE_STACCABILI as string[]).includes(x)

@@ -1,4 +1,5 @@
 import type { Autopilota, ScambioDialogo } from './autopilota'
+import type { PartiDomanda } from './domanda-strutturata'
 
 /**
  * Le domande di un autopilota nella **linguetta «Domande» della sua scheda**
@@ -20,7 +21,7 @@ import type { Autopilota, ScambioDialogo } from './autopilota'
  */
 
 /** Una domanda aperta come la manda il servizio (`/domande`). */
-export type DomandaApertaServizio = { id: string; autopilotaId: string; testo: string; apertaIl?: number; opzioni?: string[] }
+export type DomandaApertaServizio = { id: string; autopilotaId: string; testo: string; apertaIl?: number; opzioni?: string[]; parti?: PartiDomanda; avvertenza?: string }
 
 export type DomandaScheda = {
   /** Stabile: `d:<id>` per una domanda del servizio, `via:<autopilota>` per il via. */
@@ -32,6 +33,9 @@ export type DomandaScheda = {
   opzioni: string[]
   /** Da dove viene, detto per chi legge. */
   origine: 'preparazione' | 'lavoro' | 'pubblica' | 'via'
+  /** Le cinque parti (0.41.0), quando il servizio le ha: si disegnano in ordine. */
+  parti?: PartiDomanda
+  avvertenza?: string
 }
 
 /** Il messaggio del via, uguale nella linguetta e nella traccia della chat. */
@@ -49,6 +53,8 @@ export function domandeScheda(a: Autopilota, aperte: DomandaApertaServizio[]): D
     idDomanda: d.id,
     testo: d.testo,
     opzioni: d.opzioni ?? [],
+    ...(d.parti !== undefined ? { parti: d.parti } : {}),
+    ...(d.avvertenza !== undefined ? { avvertenza: d.avvertenza } : {}),
     origine: a.stato === 'intervista' ? 'preparazione' : /pubblico adesso\?/i.test(d.testo) ? 'pubblica' : 'lavoro'
   }))
   if (a.stato === 'pronto') {

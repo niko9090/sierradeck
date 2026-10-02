@@ -5,6 +5,7 @@ import {
 import { creaPonteRtc } from './rtc/ponte-rtc'
 import { creaRtc } from './rtc/collegamento-rtc'
 import { creaCassettaDrive } from './rtc/cassetta-drive'
+import { esitoDaPasso } from '@shared/istruzioni-autopilota'
 import { CERCA_OFFERTE_OGNI_MS, stradaBreve, type ChatNelloSchermo, type InfoStrada } from '@shared/strada-pc'
 import { doveMostrareDomande, eLinguettaStaccabile } from '@shared/finestra-pannello'
 import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell } from 'electron'
@@ -1988,7 +1989,13 @@ if (!app.requestSingleInstanceLock()) {
       // I passi delle consegne dell'autopilota (0.38.2): ritirata, riquadro,
       // pronto o tetto, scritta, invio, partita. Prima stavano solo nella
       // console del renderer, e dopo un guasto il registro non diceva niente.
-      ipcMain.handle('log:info', (_e, messaggio: unknown) => registro.info(String(messaggio).slice(0, 2000)))
+      ipcMain.handle('log:info', (_e, messaggio: unknown) => {
+        const m = String(messaggio).slice(0, 2000)
+        registro.info(m)
+        // L'esito della consegna (0.41.0): partita o no, per la linguetta «Istruzioni».
+        const e = esitoDaPasso(m)
+        if (e !== undefined) void postaAlServizio('/consegne/esito', { id: e.consegna, esito: e.esito }).catch(() => undefined)
+      })
 
       // Il negozio: plugin (via il CLI di Claude Code, fonte di verità), skill e
       // MCP (letti dai file, spenti/accesi con un tocco chirurgico). Fare a clic
@@ -2555,6 +2562,7 @@ if (!app.requestSingleInstanceLock()) {
           if (a === undefined) throw new Error('autopilota inesistente')
           return fileDellAutopilota(a)
         },
+        istruzioniAutopilota: (id: string) => clientAutopilota.istruzioni(id),
         diffAutopilota: async (id: string, chiave: string, percorso: string) => {
           const a = (await clientAutopilota.elenca()).find((x) => x.id === id)
           if (a === undefined) throw new Error('autopilota inesistente')

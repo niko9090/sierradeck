@@ -19,10 +19,11 @@
  */
 
 import type { Autopilota } from '@shared/autopilota'
+import { FORMA_DOMANDA, REGOLE_DOMANDA, leggiParti, type PartiDomanda } from '@shared/domanda-strutturata'
 
 export type EsitoRisposta =
   | { tipo: 'rispondo'; risposta: string; perche?: string }
-  | { tipo: 'chiedi'; domanda: string; perche?: string }
+  | { tipo: 'chiedi'; domanda: string; perche?: string; parti?: PartiDomanda }
 
 /**
  * Il prompt per il supervisore.
@@ -67,12 +68,12 @@ export function componiPromptRisposta(a: Autopilota, domanda: string): string {
     '- una scelta sul suo prodotto o sui suoi dati che cambia cosa il prodotto È — non come',
     '  è fatto dentro — o un’azione distruttiva su roba sua che non si annulla.',
     '',
-    'Se chiedi, scrivi una domanda **che si capisce da sola**: cosa serve, perché serve adesso,',
-    'e cosa succede con ognuna delle risposte possibili. Chi la legge potrebbe essere lontano dal',
+    'Se chiedi, scrivi una domanda **che si capisce da sola**: chi la legge potrebbe essere lontano dal',
     'computer e non aver seguito niente di quello che è successo finora.',
+    ...REGOLE_DOMANDA,
     '',
     'Rispondi con un solo oggetto JSON, senza altro testo intorno:',
-    '{"azione": "rispondo|chiedi", "risposta": "...", "domanda": "...", "perche": "..."}',
+    `{"azione": "rispondo|chiedi", "risposta": "...", "domanda": ${FORMA_DOMANDA}, "perche": "..."}`,
     '',
     '- `risposta`: cosa scrivere nella chat. Va scritta **alla chat**, come le scriveresti tu:',
     '  è il messaggio che riceverà, non una spiegazione di cosa dovrebbe fare.',
@@ -114,12 +115,14 @@ export function leggiEsitoRisposta(testo: string): EsitoRisposta | undefined {
   if (o === undefined) return undefined
   const perche = testoDi(o.perche)
   const risposta = testoDi(o.risposta)
-  const domanda = testoDi(o.domanda)
+  // La domanda con le sue parti (0.41.0), o una stringa sola come prima.
+  const parti = o.domanda !== undefined && o.domanda !== null ? leggiParti(o.domanda) : undefined
+  const domanda = parti !== undefined && parti.domanda !== '' ? parti.domanda : testoDi(o.domanda)
   if (o.azione === 'rispondo' && risposta !== undefined) {
     return { tipo: 'rispondo', risposta, ...(perche !== undefined ? { perche } : {}) }
   }
   if (domanda !== undefined) {
-    return { tipo: 'chiedi', domanda, ...(perche !== undefined ? { perche } : {}) }
+    return { tipo: 'chiedi', domanda, ...(perche !== undefined ? { perche } : {}), ...(parti !== undefined ? { parti } : {}) }
   }
   return undefined
 }

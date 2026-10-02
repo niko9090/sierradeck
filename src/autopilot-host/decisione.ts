@@ -1,4 +1,5 @@
 import type { Autopilota } from '@shared/autopilota'
+import { partiBloccato, type PartiDomanda } from '@shared/domanda-strutturata'
 import { STRATEGIE, strategiaPer, strategieFinite } from './strategie'
 
 export type EsitoVerifica = {
@@ -48,7 +49,11 @@ export type Decisione =
   /** Il comando di un criterio va sostituito: misurava la cosa sbagliata. */
   | { tipo: 'correggiCriterio'; descrizione: string; comando: string }
   | { tipo: 'serveGiudizio' }
-  | { tipo: 'chiediUtente'; domanda: string }
+  /**
+   * `parti` (0.41.0): la domanda con le sue cinque parti. Le domande scritte
+   * dal programma le hanno sempre; quelle del supervisore vanno controllate.
+   */
+  | { tipo: 'chiediUtente'; domanda: string; parti?: PartiDomanda; dalProgramma?: boolean }
 
 /** Quanto di un'uscita finisce nel prompt della chat. */
 const USCITA_MAX = 1200
@@ -162,6 +167,8 @@ export function decidi(a: Autopilota, evento: EventoStop, esiti: EsitoVerifica[]
     if (strategia === undefined && strategieFinite(ripetute, a.limiti.stalloMax)) {
       return {
         tipo: 'chiediUtente',
+        parti: partiBloccato(a.obiettivo, ripetute, STRATEGIE.map((s) => s.nome), riassuntoFallimenti(esiti)),
+        dalProgramma: true,
         domanda:
           `Sono bloccato su «${a.obiettivo}».\n\n${riassuntoFallimenti(esiti)}\n\n` +
           `Ho provato ${ripetute} volte e ho esaurito le strade che conosco: ` +

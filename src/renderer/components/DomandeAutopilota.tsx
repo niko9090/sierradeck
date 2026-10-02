@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { sezioniDomanda } from '@shared/domanda-strutturata'
 import type { Autopilota } from '@shared/autopilota'
 import { etichettaOrigine, richiestaScheda, type DomandaScheda } from '@shared/domande-autopilota'
 
@@ -67,8 +68,32 @@ export function DomandeAutopilota({
           </span>
         ) : null}
       </div>
-      <div className="domande-ap__testo">{d.testo}</div>
-      {d.opzioni.length > 0 ? (
+      {d.parti !== undefined ? (
+        // Le cinque parti in ordine (0.41.0): la domanda, cosa sta facendo,
+        // perché, le scelte con le conseguenze, cosa fa se non rispondi.
+        <div className="domande-ap__parti">
+          {sezioniDomanda(d.parti, d.avvertenza).map((s, k) =>
+            s.tipo === 'domanda' ? <div key={k} className="domande-ap__domanda">{s.testo}</div>
+              : s.tipo === 'avvertenza' ? <div key={k} className="avviso">⚠ {s.testo}</div>
+              : s.tipo === 'scelte' ? (
+                <div key={k} className="domande-ap__sezione">
+                  <div className="serigrafia">{s.etichetta}</div>
+                  {s.scelte.map((c) => (
+                    <div key={c.scelta} className="domande-ap__scelta">
+                      <button className="tasto tasto--primario" disabled={inCorso} onClick={() => manda(c.scelta)} title="Risponde con questa scelta">{c.scelta}</button>
+                      <span>{c.conseguenza !== '' ? `→ ${c.conseguenza}` : ''}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div key={k} className="domande-ap__sezione">
+                  <div className="serigrafia">{s.etichetta}</div>
+                  <div className="domande-ap__testo">{s.testo}</div>
+                </div>
+              ))}
+        </div>
+      ) : <div className="domande-ap__testo">{d.testo}</div>}
+      {d.opzioni.length > 0 && d.parti === undefined ? (
         <div className="domande-ap__opzioni">
           {d.opzioni.map((o) => (
             <button key={o} className="tasto tasto--primario" disabled={inCorso} onClick={() => manda(o)} title="Risponde con questo testo">

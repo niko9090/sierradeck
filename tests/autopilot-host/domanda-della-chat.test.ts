@@ -121,14 +121,44 @@ describe('quando invece serve davvero l utente', () => {
     const aperte = await (await fetch(`http://127.0.0.1:${porta}/domande`)).json() as { testo: string }[]
     expect(aperte).toHaveLength(1)
     const testo = aperte[0]?.testo ?? ''
-    // Chi risponde può avere un telefono in mano e non aver seguito niente:
-    // serve chi chiede, a che lavoro, perché adesso, e cosa succede se tarda.
+    // Chi risponde può avere un telefono in mano e non aver seguito niente.
+    // Una domanda senza le sue cinque parti (0.41.0) torna al supervisore una
+    // volta; qui lui la riscrive uguale, quindi passa con l'avvertenza.
     expect(testo).toContain('Caccia bug')
-    expect(testo).toContain('Fai passare i test')
     expect(testo).toContain('Quale chiave SSH uso')
-    expect(testo).toContain('Se rispondi tardi riparte lo stesso')
+    expect(testo).toContain('Domanda incompleta anche dopo la riscrittura')
+    expect(promptVisti.some((x) => x.includes('Riscrivila completa'))).toBe(true)
     // E questa non l'ha risolta da sola: la chat non ha ricevuto niente.
     expect(scritti).toEqual([])
+  })
+
+  it('una domanda con le sue cinque parti arriva in ordine, con le scelte da toccare (0.41.0)', async () => {
+    giudizio = JSON.stringify({
+      azione: 'chiedi',
+      domanda: {
+        staFacendo: 'Sto preparando il rilascio sul server di produzione.',
+        domanda: 'Quale chiave SSH uso per il server di produzione?',
+        perche: 'Sul server ce ne sono due e non è scritto da nessuna parte quale.',
+        scelte: [
+          { scelta: 'id_ed25519', conseguenza: 'uso la chiave nuova e provo a collegarmi' },
+          { scelta: 'id_rsa', conseguenza: 'uso la chiave vecchia, quella dei rilasci di agosto' }
+        ],
+        seNonRispondi: 'resto fermo: non provo chiavi a caso su un server di produzione'
+      }
+    })
+    archivio.scrivi(alLavoro())
+    await notifica()
+    const aperte = await (await fetch(`http://127.0.0.1:${porta}/domande`)).json() as { testo: string; opzioni?: string[]; parti?: { scelte: unknown[] } }[]
+    const d = aperte[0]
+    expect(d?.opzioni).toEqual(['id_ed25519', 'id_rsa'])
+    expect(d?.parti?.scelte).toHaveLength(2)
+    const t = d?.testo ?? ''
+    expect(t.indexOf('Quale chiave SSH')).toBeLessThan(t.indexOf('Cosa sta facendo:'))
+    expect(t).toContain('Perché gli serve: Sul server ce ne sono due')
+    expect(t).toContain('• id_rsa → uso la chiave vecchia')
+    expect(t).toContain('Se non rispondi: resto fermo')
+    expect(t).not.toContain('incompleta')
+    expect(promptVisti.some((x) => x.includes('Riscrivila completa'))).toBe(false)
   })
 
   it('un supervisore che non risponde non fa inventare una risposta', async () => {

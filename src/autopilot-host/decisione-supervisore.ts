@@ -1,6 +1,7 @@
 import type { Autopilota } from '@shared/autopilota'
 import type { EsitoVerifica } from './decisione'
 import type { Interrogazione } from './supervisore'
+import { FORMA_DOMANDA, REGOLE_DOMANDA, leggiParti, type PartiDomanda } from '@shared/domanda-strutturata'
 
 /**
  * Il supervisore che decide, invece del semaforo che contava i codici d'uscita.
@@ -30,6 +31,8 @@ export type DecisioneSupervisore = {
   istruzioni?: string
   /** La domanda per l'utente. Serve a `chiedi`. */
   domanda?: string
+  /** Le sue cinque parti (0.41.0): cosa sta facendo, domanda, perché, scelte, se non rispondi. */
+  parti?: PartiDomanda
   /** Il criterio da correggere, con il comando nuovo. Serve a `correggiCriterio`. */
   criterio?: { descrizione: string; comando: string }
   /** Perché ha deciso così: finisce nella storia, ed è quello che si rilegge dopo. */
@@ -112,11 +115,13 @@ export function componiPromptDecisione(
     "  prodotto o sul suo denaro. Nient'altro: fermarsi per una domanda evitabile gli toglie proprio il",
     '  tempo che questo sistema esiste per fargli guadagnare.',
     '',
+    ...REGOLE_DOMANDA,
+    '',
     'Prima di decidere puoi guardare: leggi i file, esegui comandi, controlla il diff. Sei nella cartella',
     'di lavoro e hai gli strumenti. Non fidarti di quello che la chat dice di aver fatto: verificalo.',
     '',
     'Quando hai deciso, chiudi con un solo oggetto JSON e nient\'altro dopo:',
-    '{"azione": "prosegui|finito|correggiCriterio|chiedi", "istruzioni": "...", "domanda": "...",',
+    `{"azione": "prosegui|finito|correggiCriterio|chiedi", "istruzioni": "...", "domanda": ${FORMA_DOMANDA},`,
     ' "criterio": {"descrizione": "...", "comando": "..."}, "perche": "una riga: perché questa mossa"' +
       (harness !== ''
         ? ',\n "mosse": [{"tipo": "apriChat", "compito": "..."}, {"tipo": "chiudiChat", "chat": "c-2"}, {"tipo": "quaderno", "titolo": "...", "corpo": "..."}]}'
@@ -182,12 +187,15 @@ function interpreta(json: string): DecisioneSupervisore | undefined {
       : undefined
 
   const istruzioni = testoDi(g.istruzioni)
-  const domanda = testoDi(g.domanda)
+  // La domanda con le sue parti (0.41.0); una stringa sola vale «solo la domanda».
+  const parti = g.domanda !== undefined && g.domanda !== null ? leggiParti(g.domanda) : undefined
+  const domanda = parti !== undefined && parti.domanda !== '' ? parti.domanda : undefined
   const perche = testoDi(g.perche)
   return {
     azione,
     ...(istruzioni !== undefined ? { istruzioni } : {}),
     ...(domanda !== undefined ? { domanda } : {}),
+    ...(parti !== undefined && domanda !== undefined ? { parti } : {}),
     ...(criterio !== undefined ? { criterio } : {}),
     ...(perche !== undefined ? { perche } : {}),
     ...(Array.isArray(g.mosse) ? { mosse: g.mosse } : {})

@@ -371,6 +371,7 @@ declare global {
         diff: (id: string, chiave: string, percorso: string) => Promise<string>
         elimina: (id: string) => Promise<void>
         domande: () => Promise<DomandaAperta[]>
+        istruzioni: (id: string) => Promise<import('@shared/istruzioni-autopilota').Istruzione[]>
         rispondi: (idDomanda: string, risposta: string) => Promise<void>
         avvioAlLogin: (attivare?: boolean) => Promise<{ installato: boolean; percorso: string }>
       }

@@ -5,7 +5,7 @@ import type { LinguettaStaccabile } from '@shared/finestra-pannello'
 import { LinguettaAutopilota, useDomandeAutopilota } from './LinguettaAutopilota'
 
 const NOMI: Record<LinguettaStaccabile, string> = {
-  domande: 'Domande', lavoro: 'Sta facendo', file: 'File', obiettivo: 'Obiettivo', criteri: 'Criteri', compiti: 'Compiti', diario: 'Ha deciso'
+  domande: 'Domande', lavoro: 'Sta facendo', istruzioni: 'Istruzioni', file: 'File', obiettivo: 'Obiettivo', criteri: 'Criteri', compiti: 'Compiti', diario: 'Ha deciso'
 }
 
 /**

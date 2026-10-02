@@ -1,4 +1,5 @@
 import type { Autopilota } from '@shared/autopilota'
+import { leggiIstruzioni, type Istruzione } from '@shared/istruzioni-autopilota'
 
 export type NuovoAutopilota = {
   nome: string
@@ -91,6 +92,10 @@ export type ClientAutopilota = {
   nota: (id: string, testo: string) => Promise<void>
   elimina: (id: string) => Promise<void>
   domande: () => Promise<DomandaAperta[]>
+  /** La linguetta «Istruzioni» (0.41.0): cosa ha consegnato alle sue chat, intero, dalla più recente. */
+  istruzioni: (id: string) => Promise<Istruzione[]>
+  /** Com'è andata una consegna dentro la chat (dai passi del PC). */
+  esitoConsegna: (consegna: string, esito: 'partita' | 'non-partita') => Promise<void>
   rispondi: (idDomanda: string, risposta: string) => Promise<void>
   /** `true` se il servizio risponde; lo avvia se non c'è e riprova una volta. */
   assicuraServizio: () => Promise<boolean>
@@ -215,6 +220,8 @@ export function creaClientAutopilota(p: {
     },
     elimina: async (id) => { await chiama(`/autopiloti/${encodeURIComponent(id)}`, 'DELETE') },
     domande: async () => (await chiama('/domande', 'GET')) as DomandaAperta[],
+    istruzioni: async (id) => leggiIstruzioni(await chiama(`/istruzioni?ap=${encodeURIComponent(id)}`, 'GET')),
+    esitoConsegna: async (consegna, esito) => { await chiama('/consegne/esito', 'POST', { id: consegna, esito }) },
     rispondi: async (idDomanda, risposta) => {
       // `da: 'modale'` dice al servizio da dove è arrivata: serve al registro
       // delle domande, dove vale la prima risposta fra schermo e Telegram.

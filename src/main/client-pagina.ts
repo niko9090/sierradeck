@@ -474,6 +474,18 @@ export function paginaClient(): string {
   .file-ap__meno { color: var(--rosso); }
   .file-ap__stato--nuovo { color: var(--verde); }
   .file-ap__stato--cancellato { color: var(--rosso); }
+  /* La linguetta «Istruzioni» (0.41.0). */
+  .istr-ap { border: 1px solid var(--bordo); border-radius: 8px; padding: 6px 8px; margin-top: 8px; }
+  .istr-ap summary { cursor: pointer; }
+  .istr-ap__testo { margin-top: 6px; user-select: text; -webkit-user-select: text; overflow-wrap: anywhere; font-size: 13px; line-height: 1.45; }
+  .istr-ap__esito { font-size: 11px; padding: 0 6px; border-radius: 999px; border: 1px solid currentColor; }
+  .istr-ap__esito--partita, .istr-ap__esito--consegnata { color: var(--verde); }
+  .istr-ap__esito--in-coda { color: #e0a33c; }
+  .istr-ap__esito--non-partita, .istr-ap__esito--persa { color: #dc5f5f; }
+  .md-titolo { font-weight: 700; margin-top: 6px; }
+  .md-voce { padding-left: 8px; }
+  .md-vuota { height: 6px; }
+  .md-blocco { background: rgba(127,127,127,.12); padding: 6px; overflow: auto; font-size: 12px; }
   .diff-ap { margin: 6px 0 0; max-height: 60vh; overflow: auto; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
   .diff-ap__riga { white-space: pre; padding: 0 4px; }
   .diff-ap__riga--piu { background: rgba(84, 192, 122, .18); }
@@ -564,6 +576,10 @@ var apDomandaI = 0
 var apDomandeViste = null
 /** La linguetta «File» (0.38.0): l'elenco, il file scelto e il suo diff. */
 var apFile = null
+/** La linguetta «Istruzioni» (0.41.0): le consegne alle sue chat, intere; quale si corregge. */
+var apIstr = null
+var apIstrCorreggi = null
+var notaIstrAp = ''
 var apFileScelto = null
 var apDiff = null
 var notaDomandaAp = ''
@@ -1909,7 +1925,7 @@ window.guardaAp = async (id) => {
   await leggiAp()
   pannello(ultimoStato)
 }
-window.chiudiAp = () => { dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
+window.chiudiAp = () => { dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apIstr = null; apIstrCorreggi = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
 
 async function leggiAp() {
   if (!dentroAp) return
@@ -1925,6 +1941,9 @@ async function leggiAp() {
     apDomandeViste = chiavi
     if (apTab === 'file') {
       try { apFile = await chiedi('/api/autopilota/file', { autopilota: dentroAp }) } catch (e) { apFile = { errore: String(e && e.message ? e.message : e) } }
+    }
+    if (apTab === 'istruzioni') {
+      try { apIstr = await chiedi('/api/autopilota/istruzioni', { autopilota: dentroAp }) } catch (e) { apIstr = { errore: String(e && e.message ? e.message : e) } }
     }
   } catch (e) {
     // Eliminato mentre lo si guardava: si torna all'elenco invece di restare
@@ -1995,7 +2014,7 @@ function vistaAutopilota(a) {
 
   // ── Le linguette, sotto ──
   const schede = a.domandeScheda || []
-  const linguette = (schede.length > 0 ? [['domande', 'Domande']] : []).concat([['file', 'File'], ['obiettivo', 'Obiettivo'], ['criteri', 'Criteri'], ['compiti', 'Compiti'], ['deciso', 'Ha deciso']])
+  const linguette = (schede.length > 0 ? [['domande', 'Domande']] : []).concat([['istruzioni', 'Istruzioni'], ['file', 'File'], ['obiettivo', 'Obiettivo'], ['criteri', 'Criteri'], ['compiti', 'Compiti'], ['deciso', 'Ha deciso']])
   const conto = (id) => id === 'domande' ? ' <small class="conto-domande">' + schede.length + '</small>' : id === 'criteri' && (a.criteri || []).length
     ? ' <small>' + (a.criteri || []).filter((c) => c.soddisfatto).length + '/' + a.criteri.length + '</small>'
     : id === 'compiti' && (a.compitiDaFare || []).length ? ' <small>' + a.compitiDaFare.length + '</small>' : ''
@@ -2023,6 +2042,8 @@ function vistaAutopilota(a) {
       '<div class="sotto">' + (d.tipo === 'via' ? '«Vai» lo fa partire; se scrivi altro gli arriva come messaggio.' : 'La risposta arriva subito all’autopilota; nella chat qui sopra restano domanda e risposta. Poi la prossima, o la linguetta si chiude.') + '</div>'
   } else if (apTab === 'file') {
     dentro = vistaFileAp(apFile, apFileScelto, apDiff)
+  } else if (apTab === 'istruzioni') {
+    dentro = vistaIstruzioniAp(apIstr)
   } else if (apTab === 'obiettivo') {
     // Cosa gli hai chiesto, e cosa ne ha capito. La preparazione riscrive
     // l'obiettivo con parole sue: senza le tue accanto non c'e' modo di
@@ -2100,7 +2121,7 @@ window.apriTabAp = async (t) => {
   if (t === 'domande' && apTab !== 'domande') apTabPrima = apTab
   apTab = t
   pannello(ultimoStato)
-  if (t === 'file') { await leggiAp(); pannello(ultimoStato) }
+  if (t === 'file' || t === 'istruzioni') { await leggiAp(); pannello(ultimoStato) }
 }
 
 /** Come si risponde a una domanda della linguetta: la stessa regola del PC (richiestaScheda). */
@@ -2129,6 +2150,70 @@ window.rispondiSchedaAp = async (opzione) => {
     notaDomandaAp = 'Non sono riuscito a rispondere: ' + (e && e.message ? e.message : e)
     pannello(ultimoStato)
   }
+}
+
+/**
+ * Il Markdown di un'istruzione, **senza HTML che arrivi dal testo** (0.41.0):
+ * ogni riga passa prima da esc(), poi si aggiungono solo tag nostri — titoli,
+ * elenchi, grassetto, codice. Senza espressioni regolari: in questo template
+ * le barre si perdono.
+ */
+function mdSicuro(testo) {
+  const ACAPO = String.fromCharCode(10)
+  const APICE = String.fromCharCode(96)
+  const inRiga = (r) => {
+    // Codice in riga fra apici inversi, poi il grassetto fra doppi asterischi.
+    const pezzi = esc(r).split(APICE)
+    return pezzi.map((p, i) => i % 2 === 1 && i < pezzi.length - 1 ? '<code>' + p + '</code>' : p.split('**').map((q, j, tutti) => j % 2 === 1 && j < tutti.length - 1 ? '<b>' + q + '</b>' : q).join('')).join('')
+  }
+  let fuori = ''
+  let blocco = false
+  for (const r of String(testo || '').split(ACAPO)) {
+    const t = r.trim()
+    if (t.startsWith(APICE + APICE + APICE)) { blocco = !blocco; fuori += blocco ? '<pre class="md-blocco">' : '</pre>'; continue }
+    if (blocco) { fuori += esc(r) + ACAPO; continue }
+    if (t === '') { fuori += '<div class="md-vuota"></div>'; continue }
+    if (t.startsWith('#')) { let n = 0; while (t[n] === '#') n += 1; fuori += '<div class="md-titolo">' + inRiga(t.slice(n).trim()) + '</div>'; continue }
+    if (t.startsWith('- ') || t.startsWith('* ')) { fuori += '<div class="md-voce">• ' + inRiga(t.slice(2)) + '</div>'; continue }
+    fuori += '<div>' + inRiga(r) + '</div>'
+  }
+  if (blocco) fuori += '</pre>'
+  return fuori
+}
+
+/** La linguetta «Istruzioni» (0.41.0): cosa ha scritto alle sue chat, intero, dalla più recente. */
+function vistaIstruzioniAp(x) {
+  const intro = '<div class="sotto">Quello che l’autopilota ha scritto alle sue chat, per intero e dalla più recente. Nella chat spesso si vede solo «Leggi ed esegui le istruzioni in …»: il testo vero è questo. Per ognuna: l’ora, la chat, il perché della mossa e com’è andata. Se qualcosa è sbagliato, «Correggi» gli scrive una nota legata a quell’istruzione. Il testo si seleziona e si copia.</div>'
+  if (!x) return intro + '<div class="sotto">Leggo le istruzioni…</div>'
+  if (x.errore) return intro + '<div class="errore">' + esc(x.errore) + '</div>'
+  const lista = x.istruzioni || []
+  if (lista.length === 0) return intro + '<div class="sotto">Ancora nessuna istruzione salvata: si salvano dalla 0.41.0 in poi, quando l’autopilota le decide.</div>'
+  const esiti = { 'in-coda': 'in coda', consegnata: 'consegnata', partita: 'partita', 'non-partita': 'non partita', persa: 'mai arrivata' }
+  return intro + (notaIstrAp ? '<div class="sotto nota">' + esc(notaIstrAp) + '</div>' : '') + lista.map((i, k) =>
+    '<details class="istr-ap"' + (k === 0 ? ' open' : '') + '><summary>' +
+      '<span class="sotto">' + esc(new Date(i.quando).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })) + '</span> ' +
+      '<b>→ ' + esc(i.chatTitolo || i.chatId) + '</b> ' +
+      '<span class="istr-ap__esito istr-ap__esito--' + esc(i.esito) + '">' + esc(esiti[i.esito] || i.esito) + '</span></summary>' +
+      (i.perche ? '<div class="sotto"><b>Perché:</b> ' + esc(i.perche) + '</div>' : '') +
+      (i.cosa === 'interrompi' ? '<div class="sotto">Ha interrotto la chat (nessun testo).</div>' : '<div class="istr-ap__testo">' + mdSicuro(i.testo) + '</div>') +
+      (apIstrCorreggi === i.id
+        ? '<div class="riga"><textarea id="correggi-istr-ap" rows="3" placeholder="Cosa c’è di sbagliato, o cosa doveva scrivere invece"></textarea></div>' +
+          '<div class="riga"><button class="primario" data-i="' + esc(i.id) + '" onclick="mandaCorrezioneAp(this.dataset.i)">Manda la correzione</button><button onclick="correggiIstrAp(null)">Annulla</button></div>'
+        : '<div class="riga"><button data-i="' + esc(i.id) + '" onclick="correggiIstrAp(this.dataset.i)">Correggi</button></div>') +
+    '</details>'
+  ).join('')
+}
+window.correggiIstrAp = (id) => { apIstrCorreggi = id; notaIstrAp = ''; pannello(ultimoStato) }
+window.mandaCorrezioneAp = async (id) => {
+  const campo = document.getElementById('correggi-istr-ap')
+  const nota = campo ? campo.value.trim() : ''
+  if (!nota) return
+  try {
+    await chiedi('/api/autopilota/correggi', { autopilota: dentroAp, istruzione: id, nota: nota })
+    apIstrCorreggi = null
+    notaIstrAp = 'Correzione mandata: la trovi nella chat con lui, qui sopra, con la sua risposta.'
+  } catch (e) { notaIstrAp = 'Non mandata: ' + (e && e.message ? e.message : e) }
+  pannello(ultimoStato)
 }
 
 /** La linguetta «File» (0.38.0): l'elenco per chat e il diff del file scelto, in sola lettura. */

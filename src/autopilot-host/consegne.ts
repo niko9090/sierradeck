@@ -42,6 +42,19 @@ export type Consegna = {
    * autopiloti nati senza: la chat nasce dove si sta guardando.
    */
   workspace?: string
+  /**
+   * Il perché della mossa (0.41.0): la decisione del supervisore che l'ha
+   * fatta nascere. Non arriva nella chat: va nella linguetta «Istruzioni».
+   */
+  perche?: string
+}
+
+/** Chi vuole sapere cosa succede alle consegne (0.41.0: la linguetta «Istruzioni»). */
+export type OsservatoreConsegne = {
+  messa?: (c: Consegna) => void
+  confermata?: (id: string) => void
+  /** Lasciata andare dopo `TENTATIVI_MAX`: non è mai arrivata. */
+  persa?: (id: string) => void
 }
 
 export type Consegne = {
@@ -99,7 +112,8 @@ export const TENTATIVI_MAX = 5
 
 type InCoda = { consegna: Consegna; consegnataIl?: number; tentativi: number }
 
-export function creaConsegne(): Consegne {
+export function creaConsegne(osserva: OsservatoreConsegne = {}): Consegne {
+  const avvisa = (f: (() => void) | undefined): void => { try { f?.() } catch (err) { console.error('[consegne] osservatore:', err) } }
   const coda: InCoda[] = []
   let prossimo = 0
 
@@ -119,6 +133,7 @@ export function creaConsegne(): Consegne {
       if (vecchia !== -1) coda.splice(vecchia, 1)
       coda.push({ consegna, tentativi: 0 })
       if (coda.length > TETTO) coda.splice(0, coda.length - TETTO)
+      avvisa(osserva.messa === undefined ? undefined : () => osserva.messa?.(consegna))
       return consegna
     },
 
@@ -136,6 +151,7 @@ export function creaConsegne(): Consegne {
             `nessuno l'ha confermata`
           )
           coda.splice(i, 1)
+          avvisa(osserva.persa === undefined ? undefined : () => osserva.persa?.(riga.consegna.id))
           continue
         }
         riga.consegnataIl = adesso
@@ -148,9 +164,11 @@ export function creaConsegne(): Consegne {
     conferma(ids) {
       let tolte = 0
       for (let i = coda.length - 1; i >= 0; i -= 1) {
-        if (!ids.includes(coda[i]?.consegna.id ?? '')) continue
+        const id = coda[i]?.consegna.id ?? ''
+        if (!ids.includes(id)) continue
         coda.splice(i, 1)
         tolte += 1
+        avvisa(osserva.confermata === undefined ? undefined : () => osserva.confermata?.(id))
       }
       return tolte
     },

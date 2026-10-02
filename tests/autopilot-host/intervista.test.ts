@@ -23,11 +23,16 @@ describe('componiPromptIntervista', () => {
   it('ammette una domanda sola per volta', () => {
     // Cinque domande insieme sono un modulo da compilare: e' esattamente cio'
     // che questo meccanismo esiste per evitare.
-    expect(componiPromptIntervista(OBIETTIVO, CWD, [])).toContain('{"domanda": "la tua domanda"')
+    expect(componiPromptIntervista(OBIETTIVO, CWD, [])).toContain('{"domanda": {"staFacendo"')
   })
 
   it('una domanda puo proporre fino a quattro risposte da toccare (0.36.0)', () => {
-    expect(componiPromptIntervista(OBIETTIVO, CWD, [])).toContain('"opzioni"')
+    // Dalla 0.41.0 le risposte da toccare sono le «scelte», ognuna con la sua conseguenza.
+    expect(componiPromptIntervista(OBIETTIVO, CWD, [])).toContain('"scelte"')
+    expect(componiPromptIntervista(OBIETTIVO, CWD, [])).toContain('cinque parti')
+    const strutturata = leggiEsitoIntervista('{"domanda": {"staFacendo": "Leggo il progetto", "domanda": "Che database?", "perche": "serve per lo schema", "scelte": [{"scelta": "Postgres", "conseguenza": "uso Postgres"}, {"scelta": "SQLite", "conseguenza": "uso un file"}], "seNonRispondi": "scelgo SQLite"}}')
+    expect(strutturata).toMatchObject({ tipo: 'domanda', testo: 'Che database?', opzioni: ['Postgres', 'SQLite'] })
+    // Le risposte vecchie, con le «opzioni», si leggono ancora.
     const e = leggiEsitoIntervista('{"domanda": "Che database?", "opzioni": ["Postgres", "SQLite", "", 3, "MySQL", "Mongo", "altro"]}')
     expect(e).toEqual({ tipo: 'domanda', testo: 'Che database?', opzioni: ['Postgres', 'SQLite', 'MySQL', 'Mongo'] })
     expect(leggiEsitoIntervista('{"domanda": "Che database?"}')).toEqual({ tipo: 'domanda', testo: 'Che database?' })

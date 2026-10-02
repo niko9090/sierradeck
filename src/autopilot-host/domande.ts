@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import type { PartiDomanda } from '@shared/domanda-strutturata'
 
 export type Provenienza = 'modale' | 'telegram'
 
@@ -11,12 +12,19 @@ export type DomandaAperta = {
   scadeIl: number
   /** Le risposte da toccare, quando chi chiede le propone (0.36.0). */
   opzioni?: string[]
+  /**
+   * Le cinque parti della domanda (0.41.0): la linguetta «Domande» le disegna
+   * in ordine. `testo` le contiene già tutte, per chi le mostra in un blocco.
+   */
+  parti?: PartiDomanda
+  /** Passata incompleta dopo la riscrittura: lo si dice a chi la legge. */
+  avvertenza?: string
 }
 
 export type Risposta = { risposta: string; da: Provenienza }
 
 export type RegistroDomande = {
-  apri: (p: { autopilotaId: string; testo: string; scadenzaMs: number; opzioni?: string[] }) => DomandaAperta
+  apri: (p: { autopilotaId: string; testo: string; scadenzaMs: number; opzioni?: string[]; parti?: PartiDomanda; avvertenza?: string }) => DomandaAperta
   /**
    * Attende la risposta. Restituisce `undefined` se scade: chi aspettava è
    * libero, ma la domanda resta aperta per una risposta tardiva.
@@ -59,14 +67,16 @@ export function creaRegistroDomande(deps: { adesso: () => number }): RegistroDom
   let tardiva: ((id: string, risposta: string, da: Provenienza) => void) | undefined
 
   return {
-    apri({ autopilotaId, testo, scadenzaMs, opzioni }) {
+    apri({ autopilotaId, testo, scadenzaMs, opzioni, parti, avvertenza }) {
       const domanda: DomandaAperta = {
         id: `d-${randomUUID()}`,
         autopilotaId,
         testo,
         apertaIl: deps.adesso(),
         scadeIl: deps.adesso() + scadenzaMs,
-        ...(opzioni !== undefined && opzioni.length > 0 ? { opzioni } : {})
+        ...(opzioni !== undefined && opzioni.length > 0 ? { opzioni } : {}),
+        ...(parti !== undefined ? { parti } : {}),
+        ...(avvertenza !== undefined ? { avvertenza } : {})
       }
       voci.set(domanda.id, { domanda, attese: [] })
       return domanda

@@ -28,6 +28,10 @@ import { chatDaRiprendere, daRiprendere, intervisteDaRiprendere, riportaChiAspet
 import { componiPromptRisposta, domandaChiara, leggiEsitoRisposta } from './risposta-autonoma'
 import { componiDomanda } from './trascrizione'
 import {
+  domandaControllata, domandaPerRegistro, leggiParti, nomeDi, partiDallaChat, partiDaRisposta, partiPubblica, testoDomanda as testoDellaDomanda
+} from '@shared/domanda-strutturata'
+import { percheRecente, type EsitoIstruzione, type Istruzione } from '@shared/istruzioni-autopilota'
+import {
   chiaviChatVive, componiPromptDialogo, conMessaggioPerLaChat, conPreambolo, leggiEsitoDialogo,
   prendiMessaggiPer
 } from './dialogo'
@@ -54,7 +58,7 @@ export type Dipendenze = {
    * Avvia la chat governata. Con `messaggio`, riprende una sessione ferma
    * consegnandole quel testo — è la strada della risposta tardiva.
    */
-  avviaLavoro: (a: Autopilota, messaggio?: string, chat?: ChatGovernata) => Promise<void>
+  avviaLavoro: (a: Autopilota, messaggio?: string, chat?: ChatGovernata, perche?: string) => Promise<void>
   fermaLavoro: (id: string, chatId?: string) => void
   /**
    * Le istruzioni che aspettano di essere portate dentro una chat.
@@ -63,6 +67,11 @@ export type Dipendenze = {
    * direzione sola - quindi le mette qui e il Gestore le ritira quando passa.
    * Assente quando l'autopilota lavora ancora per conto suo.
    */
+  /** Le istruzioni consegnate, con testo intero, perché ed esito (0.41.0). */
+  istruzioni?: {
+    esito: (consegna: string, esito: EsitoIstruzione) => void
+    elenca: (autopilotaId: string) => Istruzione[]
+  }
   consegne?: {
     ritira: (adesso?: number) => unknown[]
     conferma: (ids: string[]) => number
@@ -526,7 +535,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    */
   const avviaLavoro = (a: Autopilota, messaggio?: string, chat?: ChatGovernata): Promise<void> => {
     ultimoTurno.set(chiaveTurno(a.id, chat?.id), Date.parse(deps.adesso()))
-    return deps.avviaLavoro(a, messaggio, chat)
+    // Il perché della mossa (0.41.0, linguetta «Istruzioni»): la decisione
+    // annotata subito prima. Chi manda un'istruzione la annota sempre prima.
+    return deps.avviaLavoro(a, messaggio, chat, messaggio === undefined ? undefined : percheRecente(a, deps.adesso()))
   }
 
   /**
@@ -1036,17 +1047,26 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
 
       // Una domanda: la si apre e si aspetta, senza tenere occupato nessuno.
+      // Con le sue cinque parti (0.41.0): incompleta, la preparazione la
+      // riscrive una volta nella sua sessione; poi passa con l'avvertenza.
+      const sessIntervista = corrente.sessioneIntervista
+      const prontaInt = await domandaControllata(
+        nomeDi(corrente),
+        esito.parti ?? leggiParti({ domanda: esito.testo, scelte: esito.opzioni ?? [] }),
+        async (richiesta) => (await deps.interroga(richiesta, corrente.cwd, sessIntervista, { timeoutMs: TEMPO_PREPARAZIONE_MS })).testo,
+        partiDaRisposta
+      )
       const domanda = deps.domande.apri({
         autopilotaId: corrente.id,
-        testo: esito.testo,
+        testo: prontaInt.testo,
         scadenzaMs: deps.scadenzaInterviataMs,
-        ...(esito.opzioni !== undefined ? { opzioni: esito.opzioni } : {})
+        ...domandaPerRegistro(prontaInt)
       })
-      contesto.set(domanda.id, { autopilotaId: corrente.id, testo: esito.testo })
+      contesto.set(domanda.id, { autopilotaId: corrente.id, testo: prontaInt.testo })
       // Intera (0.39.1): al riavvio del servizio la domanda si riapre da qui,
       // e tagliata arrivava a meta' nelle Domande.
-      salva({ ...corrente, motivoSospensione: esito.testo })
-      void deps.avvisa('domanda', corrente, esito.testo)
+      salva({ ...corrente, motivoSospensione: prontaInt.testo })
+      void deps.avvisa('domanda', corrente, prontaInt.testo)
 
       const risposta = await deps.domande.attendi(domanda.id)
       if (risposta === undefined) {
@@ -1813,7 +1833,21 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // obiettivo lungo (quelli veri sono di 800-1000 caratteri) i 500
       // caratteri finivano prima della domanda, e Nicholas vedeva l'obiettivo
       // a meta' e nessuna domanda: «le domande sono tutte tagliate».
-      const testoDomanda = domandaChiara(aggiornato, decisione.domanda)
+      // **Domande chiare** (0.41.0): cinque parti, controllate dal programma.
+      // Se mancano, il supervisore la riscrive una volta, nella sua sessione;
+      // poi passa comunque, con un'avvertenza. Quelle scritte dal programma
+      // sono complete per costruzione.
+      const sessioneSup = chatId !== undefined ? aggiornato.chats.find((c) => c.id === chatId)?.sessioneSupervisore : aggiornato.sessioneSupervisore
+      inLavorazione.add(id)
+      const pronta = await domandaControllata(
+        nomeDi(aggiornato),
+        decisione.parti ?? leggiParti(decisione.domanda),
+        decisione.dalProgramma === true ? undefined : async (richiesta) => (await deps.interroga(richiesta, aggiornato.cwd, sessioneSup)).testo,
+        partiDaRisposta
+      ).finally(() => inLavorazione.delete(id))
+      if (pronta.riscritta) annota(aggiornato, 'la domanda era incompleta: il supervisore l’ha riscritta')
+      if (pronta.avvertenza !== undefined) annota(aggiornato, `domanda passata incompleta: ${pronta.avvertenza}`)
+      const testoDomanda = pronta.testo
       // T5: una chat sorella ha gia' chiesto la stessa cosa? Allora questa si
       // aggancia a quella: a Nicholas arriva una domanda, non tre uguali, e la
       // risposta sblocca tutte le chat che la aspettano.
@@ -1831,7 +1865,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         : deps.domande.apri({
             autopilotaId: aggiornato.id,
             testo: testoDomanda,
-            scadenzaMs: deps.scadenzaDomandaMs
+            scadenzaMs: deps.scadenzaDomandaMs,
+            ...domandaPerRegistro(pronta)
           })
       if (gemella !== undefined) annota(aggiornato, `${chatId}: la sua domanda è uguale a una già aperta, aspetta la stessa risposta`)
       if (gemella === undefined) contesto.set(domanda.id, {
@@ -1968,8 +2003,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
     if (piano.pubblica !== 'no' && aggiornato.pubblicazioneIstruita !== true) {
       if (piano.pubblica === 'chiedi') {
-        const testo = `Il lavoro «${aggiornato.nome}» è finito e verificato${mandato ? ' ed è già su' : ''}. Pubblico adesso? Rispondi «sì» per pubblicare, «no» per lasciarlo così.`
-        const d = deps.domande.apri({ autopilotaId: aggiornato.id, testo, scadenzaMs: deps.scadenzaDomandaMs, opzioni: ['sì, pubblica', 'no, lascia così'] })
+        // Con le sue cinque parti (0.41.0), come ogni domanda.
+        const partiPub = partiPubblica(aggiornato.nome, mandato)
+        const testo = testoDellaDomanda(nomeDi(aggiornato), partiPub)
+        const d = deps.domande.apri({ autopilotaId: aggiornato.id, testo, scadenzaMs: deps.scadenzaDomandaMs, opzioni: partiPub.scelte.map((s) => s.scelta), parti: partiPub })
         contesto.set(d.id, { autopilotaId: aggiornato.id, testo, pubblica: true, ...(chatId !== undefined ? { chatId } : {}) })
         salva({ ...aggiornato, pubblicazioneInAttesa: true })
         void deps.avvisa('domanda', aggiornato, testo)
@@ -2121,11 +2158,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // Qui si arriva solo per quello che l'utente **solo** sa: una credenziale,
     // una spesa, una scelta sul suo prodotto. E allora la domanda deve essere
     // leggibile da chi ha un telefono in mano e non ha seguito niente.
-    const testo = domandaChiara(
-      a,
-      esito?.tipo === 'chiedi' ? esito.domanda : domandaGrezza,
-      esito?.perche
+    // Con le sue cinque parti (0.41.0): se il supervisore l'ha scritta
+    // incompleta la riscrive una volta; se il supervisore non ha risposto
+    // resta la domanda della chat, con l'avvertenza.
+    const pronta = await domandaControllata(
+      nomeDi(a),
+      esito?.tipo === 'chiedi' ? (esito.parti ?? leggiParti(esito.domanda)) : partiDallaChat(a, domandaGrezza),
+      esito?.tipo === 'chiedi' ? async (richiesta) => (await deps.interroga(richiesta, a.cwd, undefined)).testo : undefined,
+      partiDaRisposta
     )
+    const testo = pronta.testo
     // L'attesa deve avere una via d'uscita. Prima si salvava solo `stato:
     // 'attesa'` e ci si fermava lì: ma il guardiano guarda solo le chat «in
     // lavoro» e la ripresa al riavvio pure, e senza una domanda aperta non c'era
@@ -2137,7 +2179,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const domanda = deps.domande.apri({
       autopilotaId: a.id,
       testo,
-      scadenzaMs: deps.scadenzaDomandaMs
+      scadenzaMs: deps.scadenzaDomandaMs,
+      ...domandaPerRegistro(pronta)
     })
     contesto.set(domanda.id, {
       autopilotaId: a.id,
@@ -2657,6 +2700,23 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             ? corpo.ids.filter((x): x is string => typeof x === 'string')
             : []
           rispondi(res, 200, { confermate: deps.consegne?.conferma(ids) ?? 0 })
+          return
+        }
+
+        // La linguetta «Istruzioni» (0.41.0): cosa ha scritto alle sue chat, intero.
+        if (metodo === 'GET' && percorso === '/istruzioni') {
+          const ap = url.searchParams.get('ap') ?? ''
+          rispondi(res, 200, { istruzioni: ap === '' ? [] : (deps.istruzioni?.elenca(ap) ?? []) })
+          return
+        }
+
+        // Il PC dice com'e' andata dentro la chat: partita, o non partita.
+        if (metodo === 'POST' && percorso === '/consegne/esito') {
+          const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
+          const id = typeof corpo?.id === 'string' ? corpo.id : ''
+          const esito = corpo?.esito === 'partita' || corpo?.esito === 'non-partita' ? corpo.esito : undefined
+          if (id !== '' && esito !== undefined) deps.istruzioni?.esito(id, esito)
+          rispondi(res, 200, { ok: true })
           return
         }
 

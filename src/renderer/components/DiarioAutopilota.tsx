@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { MISURE, divisioneTrascinata, limita, passoFreccia, suggerimentoBarra } from '@shared/misure-pannelli'
 import type { Autopilota } from '@shared/autopilota'
 import { LARGHEZZA_DIARIO } from '@shared/preferenze'
 import { passoDaTasto, postoDalDocumento, quotaDiario } from '../diario-misura'
@@ -9,11 +10,12 @@ import { segnaSchedaInVista } from '../schede-in-vista'
 import { LinguettaAutopilota, useDomandeAutopilota } from './LinguettaAutopilota'
 
 /** Le linguette sotto la chat: una cosa per volta, ognuna con tutto lo spazio. */
-type Linguetta = 'domande' | 'lavoro' | 'file' | 'obiettivo' | 'criteri' | 'compiti' | 'diario'
+type Linguetta = 'domande' | 'lavoro' | 'istruzioni' | 'file' | 'obiettivo' | 'criteri' | 'compiti' | 'diario'
 
 const LINGUETTE: { id: Linguetta; nome: string; titolo: string }[] = [
   { id: 'domande', nome: 'Domande', titolo: 'Le sue domande non ancora risposte, una per volta: rispondi da qui' },
   { id: 'lavoro', nome: 'Sta facendo', titolo: 'Cosa sta scrivendo adesso la chat che esegue' },
+  { id: 'istruzioni', nome: 'Istruzioni', titolo: 'Quello che ha scritto alle sue chat, per intero: ora, chat, perché ed esito. «Correggi» gli scrive una nota su una di esse' },
   { id: 'file', nome: 'File', titolo: 'I file che ha cambiato, per chat, con il diff: solo da guardare' },
   { id: 'obiettivo', nome: 'Obiettivo', titolo: 'Cosa gli hai chiesto, cosa ha capito, a che punto è, le sue chat' },
   { id: 'criteri', nome: 'Criteri', titolo: 'Quando considera finito il lavoro, e come lo misura' },
@@ -53,6 +55,44 @@ export function DiarioAutopilota({
   onCambiato: () => void
 }): React.JSX.Element {
   const [aperto, setAperto] = useState(true)
+  /**
+   * La divisione fra la chat con lui e le linguette (0.41.0), in percentuale
+   * della scheda, dalle preferenze: resta anche dopo un riavvio.
+   */
+  const [divisione, setDivisione] = useState<number>(MISURE.divisione.predefinita)
+  const due = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const applica = (p: { divisioneAutopilota?: number }): void => { if (typeof p.divisioneAutopilota === 'number') setDivisione(limita('divisione', p.divisioneAutopilota)) }
+    window.gestore.preferenze.leggi().then(applica).catch(() => undefined)
+    return window.gestore.preferenze.suCambio(applica)
+  }, [])
+  const salvaDivisione = (v: number): void => {
+    setDivisione(v)
+    window.gestore.preferenze.leggi().then((p) => window.gestore.preferenze.imposta({ ...p, divisioneAutopilota: v })).catch(() => undefined)
+  }
+  const trascinaDivisione = (e: React.PointerEvent<HTMLDivElement>): void => {
+    const zona = due.current?.getBoundingClientRect()
+    if (zona === undefined) return
+    e.preventDefault()
+    const bersaglio = e.currentTarget
+    bersaglio.setPointerCapture(e.pointerId)
+    let ultima = divisione
+    const muovi = (ev: PointerEvent): void => {
+      ultima = largo
+        ? divisioneTrascinata({ inizio: zona.left, lunghezza: zona.width, posizione: ev.clientX })
+        : divisioneTrascinata({ inizio: zona.top, lunghezza: zona.height, posizione: ev.clientY })
+      setDivisione(ultima)
+    }
+    const molla = (): void => {
+      bersaglio.removeEventListener('pointermove', muovi)
+      bersaglio.removeEventListener('pointerup', molla)
+      bersaglio.removeEventListener('pointercancel', molla)
+      salvaDivisione(ultima)
+    }
+    bersaglio.addEventListener('pointermove', muovi)
+    bersaglio.addEventListener('pointerup', molla)
+    bersaglio.addEventListener('pointercancel', molla)
+  }
   const [linguetta, setLinguetta] = useState<Linguetta>('lavoro')
   /**
    * Le sue domande aperte (0.38.0): il numerino della linguetta «Domande» e
@@ -241,7 +281,7 @@ export function DiarioAutopilota({
   )
 
   return (
-    <aside className={largo ? 'diario diario--largo' : 'diario'} ref={(el) => { colonna.current = el; radice.current = el }}>
+    <aside className={largo ? 'diario diario--largo' : 'diario'} ref={(el) => { colonna.current = el; radice.current = el }} style={{ ['--diario-divisione' as string]: `${divisione}%` }}>
       {/* Il solco fra terminale e diario è anche il comando che li divide: si
           afferra dove già si guarda, senza andare nelle impostazioni. */}
       {largo ? null : (
@@ -249,12 +289,12 @@ export function DiarioAutopilota({
           className="diario__maniglia"
           onPointerDown={trascinaLargh}
           onKeyDown={tastiLargh}
-          onDoubleClick={() => salvaLargh(34)}
+          onDoubleClick={() => salvaLargh(MISURE.autopilota.predefinita)}
           role="separator"
           aria-orientation="vertical"
-          aria-label="Quanto spazio prende il diario"
+          aria-label="Quanto spazio prende la scheda dell’autopilota"
           tabIndex={0}
-          title="Trascina per cambiare la larghezza · doppio clic per rimetterla com’era"
+          title={suggerimentoBarra('autopilota')}
         />
       )}
       <div className="diario__testa">
@@ -315,8 +355,29 @@ export function DiarioAutopilota({
           <button className="tasto tasto--mini" onClick={() => setMancato(undefined)} aria-label="Togli la nota">×</button>
         </p>
       ) : null}
-      <div className="diario__due">
+      <div className="diario__due" ref={due}>
         <ChatAutopilota autopilota={autopilota} onCambiato={onCambiato} />
+        {/* La barra fra la chat con lui e le linguette (0.41.0): si trascina,
+            le frecce la spostano, il doppio clic la rimette a metà circa. */}
+        <div
+          className="diario__divisione"
+          role="separator"
+          aria-orientation={largo ? 'vertical' : 'horizontal'}
+          aria-label="Quanto spazio prende la chat con l’autopilota rispetto alle linguette"
+          aria-valuenow={divisione}
+          aria-valuemin={MISURE.divisione.min}
+          aria-valuemax={MISURE.divisione.max}
+          tabIndex={0}
+          title={suggerimentoBarra('divisione')}
+          onPointerDown={trascinaDivisione}
+          onDoubleClick={() => salvaDivisione(MISURE.divisione.predefinita)}
+          onKeyDown={(e) => {
+            const passo = passoFreccia('divisione', e.key, !largo)
+            if (passo === 0) return
+            e.preventDefault()
+            salvaDivisione(limita('divisione', divisione + passo))
+          }}
+        />
 
         <div className="diario__lato">
           <div className="diario__schede" role="tablist" ref={barra}>

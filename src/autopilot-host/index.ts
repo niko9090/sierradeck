@@ -11,6 +11,7 @@ import { creaServer } from './server'
 import { esecutoreReale } from './verifiche'
 import { interrogazioneReale } from './supervisore'
 import { creaConsegne } from './consegne'
+import { apriRegistroIstruzioni } from './istruzioni'
 import { esecutoreNelMosaico } from './nel-mosaico'
 import { creaRegistroDomande } from './domande'
 import { ultimoMessaggioAssistente } from './trascrizione'
@@ -199,7 +200,14 @@ export function avviaServizio(): void {
   // Le istruzioni che il Gestore verra a ritirare per scriverle dentro le
   // chat. Il servizio non puo chiamarlo: fra i due il confine va in una
   // direzione sola, ed e questa coda a farlo attraversare.
-  const consegne = creaConsegne()
+  // Ogni consegna, con il testo intero, il perche' e l'esito, resta scritta
+  // (0.41.0): e' la linguetta «Istruzioni».
+  const istruzioni = apriRegistroIstruzioni(archivio.cartella)
+  const consegne = creaConsegne({
+    messa: (c) => istruzioni.registra(c),
+    confermata: (id) => istruzioni.esito(id, 'consegnata'),
+    persa: (id) => istruzioni.esito(id, 'persa')
+  })
 
   const lavori = esecutoreNelMosaico({
     consegne,
@@ -222,7 +230,7 @@ export function avviaServizio(): void {
     interroga: interrogazioneReale(claudeCmd()),
     // Anche la chat: senza, il pezzo di lavoro della flotta si perdeva per
     // strada e ogni chat riceveva l obiettivo intero.
-    avviaLavoro: (a, messaggio, chat) => lavori.avvia(a, messaggio, chat),
+    avviaLavoro: (a, messaggio, chat, perche) => lavori.avvia(a, messaggio, chat, perche),
     fermaLavoro: (id, chatId) => lavori.ferma(id, chatId),
     avvisa,
     domande,
@@ -243,6 +251,7 @@ export function avviaServizio(): void {
     // questo programma.
     quaderno: (cwd, scheda) => { apriQuaderno().scrivi(cwd, scheda) },
     consegne,
+    istruzioni,
     // I worktree delle chat, l'unione dei rami, il push e il cloud (0.36.0).
     git: gitReale
   })

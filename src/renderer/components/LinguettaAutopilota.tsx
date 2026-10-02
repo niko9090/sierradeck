@@ -6,6 +6,7 @@ import { domandeScheda, type DomandaApertaServizio, type DomandaScheda } from '@
 import type { LinguettaStaccabile } from '@shared/finestra-pannello'
 import { DomandeAutopilota } from './DomandeAutopilota'
 import { FileAutopilota } from './FileAutopilota'
+import { IstruzioniAutopilota } from './IstruzioniAutopilota'
 import {
   CompitiAutopilota, CriteriAutopilota, ObiettivoAutopilota, RagionamentiAutopilota
 } from './SchedaAutopilota'
@@ -178,6 +179,8 @@ export function LinguettaAutopilota({
   switch (linguetta) {
     case 'domande':
       return <DomandeAutopilota autopilota={autopilota} domande={schede} onRisposto={onRisposto} />
+    case 'istruzioni':
+      return <IstruzioniAutopilota autopilota={autopilota} onCambiato={onCambiato} />
     case 'file':
       return <FileAutopilota autopilota={autopilota} />
     case 'obiettivo':
