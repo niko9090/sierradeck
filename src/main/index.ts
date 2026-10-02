@@ -106,7 +106,10 @@ import { createInterface } from 'node:readline'
 import { once } from 'node:events'
 import type { EsitoLavoro } from './cassaforte/lavoro-in-corso'
 import { pathToSlug } from './indexer/project-scanner'
+import { scriviAtomico } from '@shared/scrittura-atomica'
 import { decidiApertura, type Apertura } from '@shared/apertura-chat'
+import { avvisoDriveScollegato, scollegamentoDalRegistro, type AvvisoDrive, type StatoPc } from '@shared/scoperta-pc'
+import { indirizziTailscale } from './tailscale'
 import {
   elencoPlugin, installaPlugin, disinstallaPlugin, commutaPlugin,
   elencoMarketplace, aggiungiMarketplace, rimuoviMarketplace, aggiornaMarketplace, dettagliPlugin
@@ -137,6 +140,9 @@ import type { Richiesta } from './trasferimenti/coda'
  * questo che serve un tempo massimo: il silenzio di tutti è una risposta.
  */
 const righeInVolo = new Map<string, (dati: unknown) => void>()
+
+/** La banda del Drive scollegato (0.39.3): per il PC e per il telefono. */
+let avvisoDrive: () => AvvisoDrive | undefined = () => undefined
 
 /** Oltre questo non è più una risposta, è un’attesa. */
 const ATTESA_RIGHE_MS = 3000
@@ -1148,6 +1154,25 @@ if (!app.requestSingleInstanceLock()) {
       })
       sincroniaGlobale = sincronia
       registro.info(`Drive configurato: ${contoDrive.stato().configurato}, connesso: ${contoDrive.stato().connesso}`)
+      // Da quando e' scollegato (0.39.3). I PC scollegati prima della 0.39.3 non
+      // l'hanno scritto: lo si ricava dal registro, la prima riga che lo dice.
+      if (contoDrive.stato().configurato && !contoDrive.stato().connesso && contoDrive.scollegamento() === undefined) {
+        try {
+          const cartellaLog = join(dati, 'log')
+          const file = readdirSync(cartellaLog).filter((f) => /^sierradeck-d{4}-d{2}-d{2}.log$/.test(f)).sort()
+          const trovato = scollegamentoDalRegistro(file.map((f) => { try { return readFileSync(join(cartellaLog, f), 'utf8') } catch { return '' } }))
+          if (trovato !== undefined) {
+            contoDrive.ricordaScollegamento(trovato)
+            registro.info(`[drive] scollegato dal ${trovato.quando} (${trovato.motivo === 'revocata' ? 'Google ha rifiutato l autorizzazione, invalid_grant' : 'autorizzazione mancante'}): ricavato dal registro`)
+          }
+        } catch { /* la banda dira' «non so da quando» */ }
+      }
+      avvisoDrive = (): AvvisoDrive | undefined => {
+        const st = contoDrive.stato()
+        const dal = contoDrive.scollegamento()
+        return avvisoDriveScollegato({ configurato: st.configurato, connesso: st.connesso, ...(dal !== undefined ? { dal } : {}), adesso: Date.now() })
+      }
+      ipcMain.handle('drive:avvisoScollegato', () => avvisoDrive())
 
       // La ronda dei progetti: chi lavora a cosa, e il passaggio di testimone.
       const mandaATutte = (canale: string, dato: unknown): void => {
@@ -1274,11 +1299,29 @@ if (!app.requestSingleInstanceLock()) {
       // **Un altro PC dal vivo.** Bussare al Client di quel PC con la chiave
       // di casa: le sue chat aperte, lo schermo di una, scriverci, scegliere.
       // Vedi `pc-remoto.ts`.
+      // Gli indirizzi che hanno risposto, ricordati su disco (0.39.3): valgono
+      // anche quando il Drive e' scollegato e i battiti sono vecchi.
+      const fileIndirizzi = join(dati, 'pc-indirizzi.json')
+      const indirizziRicordati = (): Record<string, string[]> => {
+        try { const j = JSON.parse(readFileSync(fileIndirizzi, 'utf8')) as unknown; return typeof j === 'object' && j !== null ? j as Record<string, string[]> : {} } catch { return {} }
+      }
       const remoto = creaClientPcRemoto({
         battiti: () => postino.altrui(),
         chiavePer: (pcId) => sincronia.chiaveDiCasa(`client-pc:${pcId}`),
         mioNome: () => identitaPc.leggi().nome,
-        log: registro.info
+        log: registro.info,
+        driveCollegato: () => contoDrive.stato().connesso,
+        altriIndirizzi: async (pcId, nome) => ({
+          ricordati: (indirizziRicordati()[pcId] ?? []).filter((x) => typeof x === 'string'),
+          tailscale: await indirizziTailscale(nome)
+        }),
+        ricorda: (pcId, ind) => {
+          const tutti = indirizziRicordati()
+          const prima = tutti[pcId] ?? []
+          if (prima[0] === ind) return
+          tutti[pcId] = [ind, ...prima.filter((x) => x !== ind)].slice(0, 4)
+          try { scriviAtomico(fileIndirizzi, JSON.stringify(tutti, null, 2), 'remoto') } catch { /* la prossima volta */ }
+        }
       })
       const esitoRemoto = async <T,>(f: () => Promise<unknown>): Promise<EsitoRemoto<T>> => {
         try {
@@ -1289,16 +1332,22 @@ if (!app.requestSingleInstanceLock()) {
         }
       }
       const testo = (x: unknown): string => (typeof x === 'string' ? x : '')
-      ipcMain.handle('remoto:pc', async (): Promise<{ io: string; cassaforteAperta: boolean; pc: PcRemoto[] }> => {
+      ipcMain.handle('remoto:pc', async (_e, solo: unknown): Promise<{ io: string; cassaforteAperta: boolean; driveCollegato: boolean; pc: PcRemoto[] }> => {
         const adessoMs = Date.now()
         const battiti = await postino.pc().catch(() => postino.altrui())
+        // Per il PC di un riquadro (0.39.3): com'e' davvero, dopo il bussare.
+        // Un battito vecchio non vuol dire spento.
+        const stati: Record<string, StatoPc> = {}
+        if (typeof solo === 'string' && solo !== '') stati[solo] = await remoto.statoDi(solo).catch(() => undefined as unknown as StatoPc)
         return {
           io: identitaPc.leggi().id,
           cassaforteAperta: sincronia.chiaveDiCasa('prova') !== undefined,
+          driveCollegato: contoDrive.stato().connesso,
           pc: battiti.map((b) => ({
             pcId: b.pcId, nome: b.nome, versione: b.versione, battito: b.battito,
-            vivo: pcVivo(b, adessoMs), indirizzi: b.indirizzi ?? [], porta: b.porta ?? PORTA_CLIENT_PREDEFINITA,
+            vivo: pcVivo(b, adessoMs) || stati[b.pcId]?.stato === 'acceso', indirizzi: b.indirizzi ?? [], porta: b.porta ?? PORTA_CLIENT_PREDEFINITA,
             ...(remoto.indirizzoBuono(b.pcId) !== undefined ? { buono: remoto.indirizzoBuono(b.pcId) } : {}),
+            ...(stati[b.pcId] !== undefined ? { stato: stati[b.pcId] } : {}),
             chat: b.chat, cartelle: b.cartelle
           }))
         }
@@ -1401,7 +1450,7 @@ if (!app.requestSingleInstanceLock()) {
       // 0.36.1: da dove aprire una chat del workspace, PRIMA di aprirla. Se e'
       // di un altro PC che risponde, il riquadro diventa subito remoto; se quel
       // PC tace, un riquadro d'attesa; altrimenti si apre qui come sempre.
-      ipcMain.handle('chat:daDove', (_e, p: unknown): Apertura => {
+      ipcMain.handle('chat:daDove', async (_e, p: unknown): Promise<Apertura> => {
         const q = (p ?? {}) as { cwd?: unknown; sessionUuid?: unknown }
         if (typeof q.cwd !== 'string' || q.cwd === '') return { tipo: 'locale' }
         const cwd = q.cwd
@@ -1412,7 +1461,7 @@ if (!app.requestSingleInstanceLock()) {
           const trascrizioneQui =
             sessione !== undefined && existsSync(join(radiceClaude, 'projects', pathToSlug(cwd), `${sessione}.jsonl`))
           const di = cartellaQui ? undefined : altrove(cwd)
-          return decidiApertura({
+          const dati = {
             ...(sessione !== undefined ? { sessione } : {}),
             cwd,
             io,
@@ -1421,6 +1470,17 @@ if (!app.requestSingleInstanceLock()) {
             ...(di !== undefined ? { cartellaDi: di } : {}),
             battiti: postino.altrui(),
             adesso: Date.now()
+          }
+          const prima = decidiApertura(dati)
+          if (prima.tipo !== 'attesa' || prima.pc.id === '') return prima
+          // Il battito e' vecchio (con il Drive scollegato lo e' sempre): prima
+          // di dire «in attesa» si bussa direttamente a quel PC (0.39.3). Se
+          // risponde e' acceso, e la chat si apre dal vivo.
+          const stato = await remoto.statoDi(prima.pc.id, prima.pc.nome)
+          return decidiApertura({
+            ...dati,
+            rispondono: stato.stato === 'acceso' ? [prima.pc.id] : [],
+            statiPc: { [prima.pc.id]: stato }
           })
         } catch {
           return { tipo: 'locale' }
@@ -2814,6 +2874,7 @@ if (!app.requestSingleInstanceLock()) {
             }
           }
         },
+        avvisoDrive: () => avvisoDrive(),
         aggiornamento: () => aggiornamenti?.stato() ?? { fase: 'fermo' },
         cercaAggiornamento: () => { void aggiornamenti?.cerca(true) },
         scaricaAggiornamento: () => { void aggiornamenti?.scarica(true) },

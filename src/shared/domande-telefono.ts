@@ -58,6 +58,8 @@ export type VoceDomanda =
       cwd: string
       /** Le ultime righe di schermo, pulite: quello che ha scritto per ultimo. */
       righe: string[]
+      /** La chat e' su un altro PC (0.39.3): il suo nome, per il segno «SU <PC>». */
+      pcNome?: string
     }
 
 /**
@@ -194,6 +196,7 @@ export function raccogliDomande(p: {
         tipo: 'chat',
         chat: idChatAltroPc(pc.pcId, c.sessione),
         titolo: `${c.titolo || c.cwd} · su ${pc.nome}`,
+        pcNome: pc.nome,
         cwd: c.cwd,
         righe: [`Su ${pc.nome}: ha finito il turno e aspetta la tua prossima istruzione. Quello che scrivi qui arriva a questa chat, sul suo PC.`]
       })

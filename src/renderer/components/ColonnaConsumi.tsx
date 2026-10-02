@@ -92,6 +92,11 @@ export function ColonnaConsumi({ onChiudi, larghezza, onLarghezza, autopilotiAlL
   }
 
   const chat = consumi?.chatAperte ?? []
+  // Le chat di altri PC nei workspace (0.39.3): qui non si contano, si segnano.
+  const [remote, setRemote] = useState(0)
+  useEffect(() => {
+    window.gestore.workspace.remote().then((r) => setRemote(Object.values(r).reduce((a, b) => a + b, 0))).catch(() => undefined)
+  }, [consumi])
   const freno = consumi?.freno
   const vecchiaMin = Math.round(LETTURA_VECCHIA_MS / 60_000)
 
@@ -124,6 +129,11 @@ export function ColonnaConsumi({ onChiudi, larghezza, onLarghezza, autopilotiAlL
         </p>
 
         <div className="serigrafia consumi-lato__titolo">Contesto delle chat aperte</div>
+        {remote > 0 ? (
+          <p className="misura">
+            <span className="segno-remoto">{remote} {remote === 1 ? 'chat è' : 'chat sono'} SU ALTRI PC</span>: non compaiono qui, perché lavorano là e il loro contesto lo legge quel PC (aprilo là, o dalla sua pagina sul telefono).
+          </p>
+        ) : null}
         {chat.length === 0 ? (
           <p className="misura">Nessuna chat aperta.</p>
         ) : (

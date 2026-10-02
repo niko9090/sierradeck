@@ -4189,3 +4189,28 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .avviso--fallito { align-items: flex-start; border-color: var(--ambra); }
 .avviso-fallito__testo { flex: 1 1 auto; min-width: 0; line-height: 1.45; user-select: text; }
 .avviso-fallito__strade { display: block; margin-top: 4px; color: var(--testo-quieto); }
+
+/* Una chat di un altro PC (0.39.3): si riconosce a colpo d'occhio. Bordo e
+   testata nel colore «remoto» (viola), e «SU <PC>» grande nella testata. */
+:root { --remoto: #a77bf3; }
+.riquadro--remoto { box-shadow: inset 0 0 0 2px var(--remoto); }
+.riquadro--remoto .testata-riquadro { background: color-mix(in srgb, var(--remoto) 18%, var(--chassis)); }
+.etichetta-remoto {
+  flex: 0 0 auto;
+  padding: 1px 8px;
+  border-radius: 4px;
+  background: var(--remoto);
+  color: #14101c;
+  font-weight: 700;
+  font-size: var(--t2);
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+.remoto__dove {
+  font-size: var(--t2);
+  font-weight: 600;
+  color: var(--remoto);
+  padding: 2px 0;
+}
+.segno-remoto { color: var(--remoto); font-weight: 700; white-space: nowrap; }
+.avviso--drive { border-color: var(--rosso, #dc5f5f); }

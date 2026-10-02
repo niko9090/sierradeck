@@ -431,7 +431,7 @@ describe('la gerarchia di Adesso', () => {
   })
 
   it('e quando domina lei, tutto il resto collassa in una riga', () => {
-    const sch = script.slice(script.indexOf('adesso: fermo'))
+    const sch = script.slice(script.indexOf('adesso: driveScollegatoHtml(s) + fermo'))
     expect(sch.slice(0, 500)).toContain('altre cose in moto')
   })
 

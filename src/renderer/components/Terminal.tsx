@@ -489,16 +489,19 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
       {inAttesaDi !== undefined && altrove === undefined ? (
         <div className="attesa-chat chat-altrove" role="status" aria-live="polite">
           <div className="chat-altrove__titolo">
-            Questa chat è su {inAttesaDi.pc.nome} · {inAttesaDi.ultimoSegno !== undefined ? 'spento o non risponde' : 'non so se è acceso'}
+            {/* Mai «spento» (0.39.3): il Core ha bussato a tutti i suoi indirizzi, e il titolo dice com'e' andata. */}
+            Questa chat è su {inAttesaDi.pc.nome} · {inAttesaDi.statoPc !== undefined ? inAttesaDi.statoPc.titolo : 'non so se è acceso'}
           </div>
           <div className="chat-altrove__testo">
-            Il motivo: {inAttesaDi.perche}. La cartella è <code>{inAttesaDi.cwd}</code>. Il modo giusto per lavorarci da
+            {inAttesaDi.statoPc !== undefined && inAttesaDi.statoPc.cosaFare !== '' ? <><strong>{inAttesaDi.statoPc.cosaFare}</strong>{' '}</> : null}
+            Il motivo per cui è su quel PC: {inAttesaDi.perche}. La cartella è <code>{inAttesaDi.cwd}</code>. Il modo giusto per lavorarci da
             qui è aprirla <strong>dal vivo su {inAttesaDi.pc.nome}</strong>: questo riquadro mostra il terminale di quel PC
             e quello che scrivi arriva a lui, come dal telefono. Ma adesso {inAttesaDi.pc.nome}{' '}
             {daQuandoTace(inAttesaDi.ultimoSegno, Date.now())}
             {inAttesaDi.ultimoSegno !== undefined ? ` (ultimo segno sul Drive: ${new Date(inAttesaDi.ultimoSegno).toLocaleString('it-IT')})` : ''}.
-            Ogni PC acceso con SierraDeck lascia un segno sul Drive ogni 2 minuti; dopo 5 minuti di silenzio lo considero
-            spento, in sospensione o senza rete. Qui non è successo niente di male: la chat là non è stata toccata.
+            Ogni PC acceso con SierraDeck lascia un segno sul Drive ogni 2 minuti; quando il segno è vecchio busso
+            direttamente ai suoi indirizzi (rete locale e Tailscale): se risponde, la chat si apre dal vivo. Qui non è
+            successo niente di male: la chat là non è stata toccata.
           </div>
           <ul className="chat-altrove__testo">
             <li>

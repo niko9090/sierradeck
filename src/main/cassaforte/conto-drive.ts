@@ -6,6 +6,10 @@ import { connetti as connettiOAuth, creaFornitoreToken, esaminaDrive, type Getto
 import { creaMagazzinoDrive, creaArchivioDrive } from './google-drive'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
+import { leggiScollegamento, type Scollegamento } from '@shared/scoperta-pc'
+
+/** Quando e perche' il Drive si e' scollegato, accanto al token. */
+export const FILE_SCOLLEGATO = 'drive-scollegato.json'
 
 /**
  * Il «conto Drive» del programma: tiene i token dell'utente su file e offre i
@@ -50,6 +54,10 @@ export type ContoDrive = {
   connetti: (apriBrowser: (url: string) => void) => Promise<Riconoscimento>
   /** Dimentica i token: il prossimo uso richiederà di riconnettere. */
   disconnetti: () => void
+  /** Quando e perche' si e' scollegato, se e' scritto (0.39.3). */
+  scollegamento: () => Scollegamento | undefined
+  /** Scrive il momento ricavato dal registro, per i PC scollegati prima della 0.39.3. */
+  ricordaScollegamento: (s: Scollegamento) => void
   /**
    * Un magazzino su Drive per un file dentro appDataFolder. Senza nome, il file
    * dei dati; con nome (es. le chiavi), quel file. Lancia se non configurato.
@@ -78,6 +86,17 @@ export function apriContoDrive(dati: string): ContoDrive {
       console.error('[drive] token non rimosso:', err)
     }
   }
+  /**
+   * Quando e perche' il Drive si e' scollegato (0.39.3). Fino alla 0.39.2 il
+   * rifiuto di Google (`invalid_grant`) scartava il token e basta: dopo il
+   * riavvio restava solo «connesso: false», e per nove giorni nessuno l'ha
+   * saputo. Ora resta scritto, e la banda dice da quando e perche'.
+   */
+  const fileScollegato = join(dati, FILE_SCOLLEGATO)
+  const segnaScollegato = (motivo: Scollegamento['motivo']): void => {
+    try { scriviAtomico(fileScollegato, JSON.stringify({ quando: new Date().toISOString(), motivo }), 'drive') } catch { /* la banda dira' «non so da quando» */ }
+  }
+  const revocata = (): void => { scarta(); segnaScollegato('revocata') }
   const scrivi = (g: Gettoni): void => {
     try {
       scriviAtomico(fileToken, JSON.stringify(g), 'drive')
@@ -105,6 +124,7 @@ export function apriContoDrive(dati: string): ContoDrive {
       if (c === undefined) throw new Error('Google Drive non configurato: mancano le credenziali OAuth dell’app')
       const gettoni = await connettiOAuth({ config: c, apriBrowser })
       scrivi(gettoni)
+      try { rmSync(fileScollegato, { force: true }) } catch { /* resta: la banda guarda comunque «connesso» */ }
       // L'indirizzo e cosa c'e' dentro: per riconoscere il Drive giusto senza
       // doverlo ricordare fra dieci account.
       const esame = await esaminaDrive(gettoni.accessToken)
@@ -120,19 +140,27 @@ export function apriContoDrive(dati: string): ContoDrive {
       }
     },
 
-    disconnetti() { scarta() },
+    disconnetti() { scarta(); segnaScollegato('a-mano') },
+
+    scollegamento() {
+      try { return existsSync(fileScollegato) ? leggiScollegamento(JSON.parse(readFileSync(fileScollegato, 'utf8'))) : undefined } catch { return undefined }
+    },
+
+    ricordaScollegamento(s) {
+      try { scriviAtomico(fileScollegato, JSON.stringify(s), 'drive') } catch { /* niente */ }
+    },
 
     magazzino(nomeFile) {
       const c = config()
       if (c === undefined) throw new Error('Google Drive non configurato: mancano le credenziali OAuth dell’app')
-      const token = creaFornitoreToken({ config: c, leggi, scrivi, scarta })
+      const token = creaFornitoreToken({ config: c, leggi, scrivi, scarta: revocata })
       return creaMagazzinoDrive({ token, ...(nomeFile !== undefined ? { nomeFile } : {}) })
     },
 
     archivio() {
       const c = config()
       if (c === undefined) throw new Error('Google Drive non configurato: mancano le credenziali OAuth dell’app')
-      const token = creaFornitoreToken({ config: c, leggi, scrivi, scarta })
+      const token = creaFornitoreToken({ config: c, leggi, scrivi, scarta: revocata })
       return creaArchivioDrive({ token })
     }
   }

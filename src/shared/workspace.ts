@@ -859,3 +859,23 @@ export function chatSalvate(a: { workspace: WorkspaceSalvato[] }): ChatSalvata[]
   }
   return fuori
 }
+
+/**
+ * Quante chat di altri PC (riquadri remoti) ha ogni workspace (0.39.3): il
+ * menu dei workspace le segna, cosi' si sa prima di entrare che li' si lavora
+ * a distanza.
+ */
+export function remotePerWorkspace(a: { workspace: WorkspaceSalvato[] }): Record<string, number> {
+  const fuori: Record<string, number> = {}
+  for (const w of a.workspace) {
+    const viste = new Set<string>()
+    for (const slot of Object.values(w.perSlot)) {
+      for (const p of slot?.panes ?? []) {
+        if (p.remoto === undefined || viste.has(p.sessionUuid)) continue
+        viste.add(p.sessionUuid)
+        fuori[w.nome] = (fuori[w.nome] ?? 0) + 1
+      }
+    }
+  }
+  return fuori
+}

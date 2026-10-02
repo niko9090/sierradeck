@@ -482,6 +482,8 @@ export function paginaClient(): string {
   .conto-domande { background: var(--ambra); color: #111; border-radius: 8px; padding: 0 5px; }
   /* Il testo di una domanda: sempre intero, con i suoi a capo (0.39.1). Se e'
      lungo scorre lui, non si taglia mai. */
+  /* Una chat di un altro PC (0.39.3): il segno «SU <PC>», nel colore del remoto. */
+  .segno-remoto { color: #a77bf3; font-weight: 700; }
   .domanda-ap { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 60vh; overflow-y: auto; overscroll-behavior: contain; }
   .nota-ap .quando { font-family: ui-monospace, Consolas, monospace; color: var(--spento); flex: 0 0 auto; }
   .nota-ap--decisione { border-left-color: var(--accento); }
@@ -709,7 +711,7 @@ function vistaConversazioni() {
   var voci = elenco.map(function (c) {
     return '<button class="voce" data-k="' + esc(c.chiave) + '" onclick="apriConv(this.dataset.k)"' + (c.chiave === aperta.chiave ? ' aria-current="true"' : '') + '>' +
       '<span class="led ' + (c.chiede ? 'attesa' : 'spenta') + '"></span>' +
-      '<span class="voce__testo"><span class="voce__nome">' + esc(c.titolo) + '</span>' +
+      '<span class="voce__testo"><span class="voce__nome">' + (c.suPc ? '<b class="segno-remoto">SU ' + esc(c.suPc) + '</b> · ' : '') + esc(c.titolo) + '</span>' +
       '<span class="voce__sotto">' + (c.tipo === 'autopilota' ? 'ti aspetta (' + (c.quante || 1) + ') → apri' : c.chiede ? 'chat · aspetta che tu scelga' : 'chat · ha finito il turno') + '</span></span>' +
       '<span class="voce__freccia">›</span></button>'
   }).join('')
@@ -1759,11 +1761,11 @@ function pannello(s) {
     // in una riga: e' la ragione per cui questa schermata si legge in un
     // secondo e mezzo invece che scorrerla.
     domande: domandeConversazioni ? vistaConversazioni() : vistaDomande(s),
-    adesso: fermo + invito + domande + bloccati + aspettanoTe + panoramica +
+    adesso: driveScollegatoHtml(s) + fermo + invito + domande + bloccati + aspettanoTe + panoramica +
       (domande
         ? '<div class="solco"></div><button class="riga-altro" onclick="vaiScheda(\\'lavori\\')">altre cose in moto ›</button>'
         : (inMoto.length + (s.chat || []).length > 0 ? polso : '')),
-    chat:
+    chat: driveScollegatoHtml(s) +
       (chat || '<div class="vuoto">Nessuna chat aperta sul computer.</div>') + nuova +
       '<div class="riga"><button onclick="apriPannello(\\'sessioni\\')">Riprendi una conversazione</button></div>' +
       elencoSessioni,
@@ -2552,6 +2554,20 @@ function cartellaPrima() {
  * L'ultima installazione sul computer non e' riuscita (0.39.2): il perche' e le
  * strade, con il link alla pagina della versione (solo se e' su github.com).
  */
+/**
+ * Il Drive del computer scollegato (0.39.3): la stessa banda del PC, in cima
+ * ad «Adesso» e alle chat. Non si chiude: sparisce quando il Drive torna.
+ */
+function driveScollegatoHtml(s) {
+  var d = s && s.driveScollegato
+  if (!d) return ''
+  return '<div class="piastrella chiede drive-scollegato">' +
+    '<div class="serigrafia"><span class="led attesa"></span>' + esc(String(d.titolo || 'Drive scollegato').toUpperCase()) + '</div>' +
+    '<div class="sotto">' + esc(d.testo || '') + '</div>' +
+    '<div class="sotto" style="margin-top:6px"><b>Si ricollega dal computer</b>: Impostazioni → Account → Drive → «Collega» (si apre il browser per il consenso di Google).</div>' +
+    '</div>'
+}
+
 function fallitoHtml(a) {
   var f = a && a.tentativoFallito
   if (!f) return ''

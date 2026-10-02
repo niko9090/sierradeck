@@ -212,15 +212,18 @@ export async function rinnova(deps: {
  * Quello che si dice quando Google non rinnova piu'.
  *
  * `invalid_grant` al rinnovo vuol dire che il refresh token non vale piu': l'utente
- * ha revocato l'accesso, o — il caso visto sul campo — l'app OAuth in Google
- * Cloud e' in modalita' «test», e in quella modalita' Google fa scadere i
- * refresh token dopo sette giorni. Un salvataggio che fallisce con un codice
+ * ha revocato l'accesso, ha cambiato la password, o — il caso visto sul campo
+ * il 04/09 — l'app OAuth in Google Cloud era in modalita' «test», che fa
+ * scadere i refresh token dopo sette giorni. L'app e' pubblicata dal 04/09, ma
+ * il 23/09 Google ha risposto di nuovo `invalid_grant` su due PC: la causa
+ * precisa da qui non si vede (vedi la scheda drive-scollegato-dal-23-09 nel
+ * quaderno). Dalla 0.39.3 il momento resta scritto (`drive-scollegato.json`). Un salvataggio che fallisce con un codice
  * non lo dice a nessuno: qui si scollega il Drive, cosi' il pannello Account
  * torna a «non collegato» con il tasto per ricollegarlo.
  */
 export const AUTORIZZAZIONE_REVOCATA =
-  'Google non riconosce più l’autorizzazione di SierraDeck al tuo Drive: ricollega Google Drive dal pannello Account. ' +
-  '(Succede da solo ogni 7 giorni finché l’app OAuth in Google Cloud resta in modalità «test».)'
+  'Google non riconosce più l’autorizzazione di SierraDeck al tuo Drive (risposta «invalid_grant» al rinnovo): ricollega Google Drive dal pannello Account. ' +
+  'Succede se l’accesso è stato revocato dall’account Google, se è cambiata la password, o se il collegamento era stato fatto quando l’app OAuth era ancora in prova.'
 
 /**
  * Un fornitore di access token per `creaMagazzinoDrive`: restituisce quello in

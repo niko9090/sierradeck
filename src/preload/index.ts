@@ -349,6 +349,8 @@ contextBridge.exposeInMainWorld('gestore', {
   },
   /** Il Drive dell'utente (BYOS): stato, connessione (consenso via browser), distacco. */
   drive: {
+    /** La banda del Drive scollegato (0.39.3): titolo e testo, o niente se e' collegato. */
+    avvisoScollegato: (): Promise<import('@shared/scoperta-pc').AvvisoDrive | undefined> => ipcRenderer.invoke('drive:avvisoScollegato'),
     stato: (): Promise<{ configurato: boolean; connesso: boolean; email?: string }> =>
       ipcRenderer.invoke('drive:stato'),
     connetti: (): Promise<{
@@ -425,7 +427,8 @@ contextBridge.exposeInMainWorld('gestore', {
    * Passa dal Client di quel PC con la chiave di casa (stessa cassaforte).
    */
   remoto: {
-    pc: (): Promise<{ io: string; cassaforteAperta: boolean; pc: PcRemoto[] }> => ipcRenderer.invoke('remoto:pc'),
+    /** Con `solo`: per quel PC anche lo stato dopo il bussare diretto (0.39.3). */
+    pc: (solo?: string): Promise<{ io: string; cassaforteAperta: boolean; driveCollegato?: boolean; pc: PcRemoto[] }> => ipcRenderer.invoke('remoto:pc', solo),
     stato: (pc: string): Promise<EsitoRemoto<{ chat: ChatSuPc[]; computer?: { nome: string } }>> => ipcRenderer.invoke('remoto:stato', pc),
     trova: (pc: string, chat: ChatRemota): Promise<EsitoRemoto<ChatSuPc | undefined>> => ipcRenderer.invoke('remoto:trova', pc, chat),
     storia: (pc: string, chat: string, da: number, quante: number): Promise<EsitoRemoto<StoriaRemota>> =>
@@ -889,6 +892,8 @@ contextBridge.exposeInMainWorld('gestore', {
     stato: (): Promise<StatoWorkspace> => ipcRenderer.invoke('workspace:stato'),
     /** In quale workspace vive ogni chat: serve a dire da dove ti chiamano. */
     dove: (): Promise<Record<string, string>> => ipcRenderer.invoke('workspace:dove'),
+    /** Quante chat di altri PC ha ogni workspace (0.39.3). */
+    remote: (): Promise<Record<string, number>> => ipcRenderer.invoke('workspace:remote'),
     crea: (nome: string): Promise<StatoWorkspace> => ipcRenderer.invoke('workspace:crea', nome),
     elimina: (nome: string): Promise<StatoWorkspace> =>
       ipcRenderer.invoke('workspace:elimina', nome),

@@ -33,6 +33,8 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
   const [filtro, setFiltro] = useState('')
   const [evidenziato, setEvidenziato] = useState(0)
   const [conti, setConti] = useState<Map<string, number>>(new Map())
+  /** Quante chat di altri PC per workspace (0.39.3). */
+  const [remote, setRemote] = useState<Record<string, number>>({})
   const [posto, setPosto] = useState<{ top: number; left: number } | undefined>(undefined)
   const tasto = useRef<HTMLButtonElement>(null)
   const lista = useRef<HTMLDivElement>(null)
@@ -61,6 +63,7 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
     setFiltro('')
     setEvidenziato(Math.max(0, nomi.indexOf(attivo)))
     void window.gestore.workspace.dove().then((d) => setConti(contaChatPerWorkspace(d))).catch(() => undefined)
+    void window.gestore.workspace.remote().then(setRemote).catch(() => undefined)
     // La tendina ha il fuoco (tabIndex -1) così la tastiera arriva a lei e non
     // al terminale sotto.
     setTimeout(() => lista.current?.focus(), 0)
@@ -140,6 +143,11 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
                 <span className="ws-menu__spunta" aria-hidden>{n === attivo ? '✓' : ''}</span>
                 <span className="ws-menu__voce-nome">{n}</span>
                 {chiama ? <span className="ws__chiama" aria-label="richiede il tuo intervento">●</span> : null}
+                {(remote[n] ?? 0) > 0 ? (
+                  <span className="segno-remoto" title={`In «${n}» ${remote[n]} chat lavorano su un altro PC: si guardano e si comandano a distanza`}>
+                    {remote[n]} su altri PC
+                  </span>
+                ) : null}
                 <span className="ws-menu__conta">{quante === undefined ? '' : quante === 1 ? '1 chat' : `${quante} chat`}</span>
               </button>
             )

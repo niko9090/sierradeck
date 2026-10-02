@@ -278,7 +278,9 @@ export function Mosaic({
           // ricreato e nessun processo claude.exe viene ucciso.
           <div
             key={paneId}
-            className="riquadro"
+            // Una chat di un altro PC si riconosce a colpo d'occhio (0.39.3):
+            // bordo e colore suoi, e «SU <PC>» nella testata.
+            className={data.remoto !== undefined ? 'riquadro riquadro--remoto' : 'riquadro'}
             style={{
               position: 'absolute',
               left: `${rect.left * 100}%`,
@@ -308,6 +310,11 @@ export function Mosaic({
                   dicono che la testata si trascina prima che l'utente ci provi
                   per caso. */}
               <span className="presa" aria-hidden="true">⋮⋮</span>
+              {data.remoto !== undefined ? (
+                <span className="etichetta-remoto" title={`Questa chat lavora su ${data.remoto.pcNome}, non qui: quello che scrivi arriva là`}>
+                  SU {data.remoto.pcNome}
+                </span>
+              ) : null}
               {rinominando === paneId ? (
                 <input
                   autoFocus

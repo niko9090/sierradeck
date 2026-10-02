@@ -114,6 +114,7 @@ declare global {
         onCambiato: (cb: (utente: import('@shared/account').Utente | null) => void) => () => void
       }
       drive: {
+        avvisoScollegato: () => Promise<import('../shared/scoperta-pc').AvvisoDrive | undefined>
         stato: () => Promise<{ configurato: boolean; connesso: boolean; email?: string }>
         connetti: () => Promise<{
           ok: boolean; messaggio?: string
@@ -336,7 +337,7 @@ declare global {
         pulisci: (pc: string) => Promise<import('../shared/posta').Posta | undefined>
       }
       remoto: {
-        pc: () => Promise<{ io: string; cassaforteAperta: boolean; pc: import('../shared/pc-remoto').PcRemoto[] }>
+        pc: (solo?: string) => Promise<{ io: string; cassaforteAperta: boolean; driveCollegato?: boolean; pc: import('../shared/pc-remoto').PcRemoto[] }>
         stato: (pc: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ chat: import('../shared/pc-remoto').ChatSuPc[]; computer?: { nome: string } }>>
         trova: (pc: string, chat: import('../shared/pc-remoto').ChatRemota) => Promise<import('../shared/pc-remoto').EsitoRemoto<import('../shared/pc-remoto').ChatSuPc | undefined>>
         storia: (pc: string, chat: string, da: number, quante: number) => Promise<import('../shared/pc-remoto').EsitoRemoto<import('../shared/pc-remoto').StoriaRemota>>
@@ -382,6 +383,7 @@ declare global {
       workspace: {
         stato: () => Promise<StatoWorkspace>
         dove: () => Promise<Record<string, string>>
+        remote: () => Promise<Record<string, number>>
         crea: (nome: string) => Promise<StatoWorkspace>
         elimina: (nome: string) => Promise<StatoWorkspace>
         rinomina: (vecchio: string, nuovo: string) => Promise<StatoWorkspace>

@@ -9,6 +9,7 @@ import { PtyHostClient } from './pty-host-client'
 import type { HostToCore } from '@shared/protocol'
 import { openDatabase, listSessions, rimuoviSessioni, type Db } from './db'
 import { workspaceDelleSessioni } from '@shared/dove-chiedono'
+import { remotePerWorkspace } from '@shared/workspace'
 import { leggiAnteprima, type Anteprima } from './anteprima'
 import { indexAll } from './indexer/indexer'
 import { pathToSlug } from './indexer/project-scanner'
@@ -1060,6 +1061,7 @@ export function registerLayoutIpc(
   // che non hai davanti resta invisibile.
   ipcMain.handle('workspace:dove', (): Record<string, string> =>
     workspaceDelleSessioni(store.leggi()))
+  ipcMain.handle('workspace:remote', (): Record<string, number> => remotePerWorkspace(store.leggi()))
 
   // Creare rende attivo il nuovo workspace, quindi le altre finestre devono
   // seguirlo come per un cambio: senza, continuerebbero a salvare il proprio

@@ -59,6 +59,8 @@ export type Conversazione = {
   quante?: number
   /** L'autopilota di questa conversazione: la colonna porta alla sua linguetta «Domande». */
   autopilota?: string
+  /** La chat e' su un altro PC (0.39.3): «SU <PC>» nella colonna, nella pagina e nell'app. */
+  suPc?: string
 }
 
 /** Quanti messaggi della storia di un autopilota entrano nel filo. */
@@ -175,6 +177,7 @@ export function conversazioniDomande(p: {
         chiede: false,
         messaggi: [...tuoi, { da: 'lui', testo: schermo !== '' ? schermo : 'Ha finito il turno e aspetta la tua prossima istruzione.' }],
         risposta: { via: 'scrivi', chat: v.chat },
+        ...(v.pcNome !== undefined ? { suPc: v.pcNome } : {}),
         segnaposto: 'Scrivi alla chat la prossima istruzione'
       })
     }

@@ -610,6 +610,21 @@ export function App(): React.JSX.Element {
       .catch(() => setFinestraNote((f) => (f?.tipo === 'installa' ? { ...f, dati: { versione, installata: '', note: [], fonte: 'nessuna', dove: 'https://github.com/niko9090/sierradeck/releases', avviso: 'Non sono riuscito a leggere le note: le trovi scritte per esteso nella pagina delle versioni, https://github.com/niko9090/sierradeck/releases. Puoi installare lo stesso.' } } : f)))
   }, [])
   const [aperto, setAperto] = useState<PannelloAperto>(undefined)
+  /** La scheda con cui si aprono le Impostazioni (la banda del Drive apre «Account»). */
+  const [schedaImpostazioni, setSchedaImpostazioni] = useState<'generali' | 'account'>('generali')
+  /**
+   * Il Drive scollegato (0.39.3): una banda fissa, che non si chiude finche'
+   * resta scollegato. Il 23/09 Google ha rifiutato l'autorizzazione su due PC,
+   * e per nove giorni l'unico segno era una riga nel registro: intanto gli
+   * altri PC sembravano spenti.
+   */
+  const [driveScollegato, setDriveScollegato] = useState<import('@shared/scoperta-pc').AvvisoDrive | undefined>(undefined)
+  useEffect(() => {
+    const leggi = (): void => { window.gestore.drive.avvisoScollegato().then(setDriveScollegato).catch(() => undefined) }
+    leggi()
+    const t = setInterval(leggi, 30_000)
+    return () => clearInterval(t)
+  }, [])
   // Quante conversazioni della scheda Domande aspettano una risposta: il
   // numero sul tasto, letto dalle stesse rotte del telefono (0.36.0).
   const [domandeInAttesa, setDomandeInAttesa] = useState(0)
@@ -1396,6 +1411,22 @@ export function App(): React.JSX.Element {
         </div>
       ) : null}
 
+      {driveScollegato !== undefined ? (
+        <div className="avviso avviso--aggiornamento avviso--fallito avviso--drive" role="alert">
+          <span className="led led--attesa" />
+          <span className="avviso-fallito__testo">
+            <b>{driveScollegato.titolo}.</b> {driveScollegato.testo}
+          </span>
+          <button
+            className="tasto tasto--primario"
+            onClick={() => { setSchedaImpostazioni('account'); setAperto('impostazioni') }}
+            title="Apre Impostazioni → Account, dove c’è «Collega» per Google Drive"
+          >
+            Apri Account → Drive → Collega
+          </button>
+        </div>
+      ) : null}
+
       {/* L'ultima installazione non e' riuscita (0.39.2): si dice prima di
           tutto, con il perche' e le strade, invece di riproporre «Installa»
           come se fosse la prima volta. */}
@@ -1517,7 +1548,7 @@ export function App(): React.JSX.Element {
           />
         ) : null}
         {aperto === 'impostazioni' ? (
-          <PannelloImpostazioni onChiudi={() => setAperto(undefined)} />
+          <PannelloImpostazioni onChiudi={() => { setAperto(undefined); setSchedaImpostazioni('generali') }} tabIniziale={schedaImpostazioni} />
         ) : null}
         {aperto === 'drive' ? (
           <PannelloDrive onChiudi={() => setAperto(undefined)} />

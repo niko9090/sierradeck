@@ -48,6 +48,7 @@ function quando(iso: string): string {
 export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Element {
   const [pc, setPc] = useState<PcRemoto | undefined>(undefined)
   const [cassaforteAperta, setCassaforteAperta] = useState(true)
+  const [driveCollegato, setDriveCollegato] = useState(true)
   const [fase, setFase] = useState<Fase>({ tipo: 'cerco' })
   const [storia, setStoria] = useState<StoriaRemota | undefined>(undefined)
   const [testo, setTesto] = useState('')
@@ -72,9 +73,12 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   useEffect(() => {
     let vivo = true
     const leggi = (): void => {
-      void window.gestore.remoto.pc().then((r) => {
+      // Con il suo id: il Core bussa anche direttamente a quel PC (0.39.3),
+      // cosi' un battito vecchio non lo fa sembrare spento.
+      void window.gestore.remoto.pc(remoto.pcId).then((r) => {
         if (!vivo) return
         setCassaforteAperta(r.cassaforteAperta)
+        setDriveCollegato(r.driveCollegato !== false)
         setPc(r.pc.find((b) => b.pcId === remoto.pcId))
       }).catch(() => undefined)
     }
@@ -127,7 +131,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   }, [remoto.pcId, remoto.cwd, remoto.sessione])
 
   const chatId = fase.tipo === 'viva' ? fase.chat.id : undefined
-  const vivo = pc !== undefined && pcVivo({ ...pc, chat: pc.chat, cartelle: pc.cartelle }, Date.now())
+  const vivo = pc !== undefined && (pc.stato?.stato === 'acceso' || pcVivo({ ...pc, chat: pc.chat, cartelle: pc.cartelle }, Date.now()))
 
   const manda = (): void => {
     const t = testo.trim()
@@ -177,7 +181,9 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
             ? 'leggo il Drive…'
             : vivo
               ? `acceso${pc.buono !== undefined ? ` · risponde su ${descriviIndirizzo(pc.buono)}` : ''}`
-              : `spento, ultimo segno ${quando(pc.battito)}`}
+              : pc.stato !== undefined
+                ? pc.stato.titolo
+                : `non so se è acceso · ultimo segno sul Drive ${quando(pc.battito)}`}
           {fase.tipo === 'viva' && fase.chat.aspetta === true ? <span className="remoto__aspetta"> · aspetta te</span> : null}
         </span>
       </div>
@@ -229,7 +235,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           </div>
           <div className="remoto__avviso-testo">{fase.messaggio}</div>
           <div className="remoto__azioni">
-            {fase.motivo === 'spento' || fase.motivo === 'irraggiungibile' ? (
+            {driveCollegato && (fase.motivo === 'spento' || fase.motivo === 'non-so' || fase.motivo === 'irraggiungibile') ? (
               <button className="tasto tasto--primario" onClick={() => setPostaAperta(true)} title="Scrive nella cassetta di quel PC sul Drive: la esegue lui, in questa chat, quando torna acceso">
                 Scrivile nella cassetta, la fa quando torna
               </button>
@@ -237,7 +243,10 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
             <button className="tasto" onClick={riprova}>Riprova adesso</button>
           </div>
           <div className="remoto__nota">
-            Il riquadro riprova da solo ogni {Math.round(RILEGGI_REMOTO_OGNI_MS / 1000)} secondi. La conversazione la trovi anche nella copia sul Drive (Account → Drive), in sola lettura, aggiornata all’ultimo salvataggio di quel PC.
+            Il riquadro riprova da solo ogni {Math.round(RILEGGI_REMOTO_OGNI_MS / 1000)} secondi, bussando a tutti gli indirizzi di quel PC (anche quelli che Tailscale dà adesso).
+            {driveCollegato
+              ? ' La conversazione la trovi anche nella copia sul Drive (Account → Drive), in sola lettura, aggiornata all’ultimo salvataggio di quel PC.'
+              : ' Il Drive di questo PC è scollegato: niente copia da leggere e niente cassetta finché non lo ricolleghi (Account → Drive → Collega).'}
           </div>
         </div>
       ) : null}
@@ -267,6 +276,8 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         </div>
       ) : null}
 
+      {/* Su quale PC si scrive, sempre sopra la casella (0.39.3). */}
+      <div className="remoto__dove">Stai scrivendo su {remoto.pcNome}: quello che mandi arriva nel terminale di quel PC, non qui.</div>
       <div className="remoto__barra">
         <textarea
           className="campo remoto__campo"

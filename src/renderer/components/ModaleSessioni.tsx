@@ -413,7 +413,7 @@ function VoceChat({
             ? `${gruppo.cartella}\nApre una chat in questa cartella`
             : altrove.vivo
               ? `${gruppo.cartella}\nLa cartella sta su ${altrove.nome}, che è acceso: si apre dal vivo là, il riquadro mostra il suo terminale e quello che scrivi arriva a lui`
-              : `${gruppo.cartella}\nLa cartella sta su ${altrove.nome}, che adesso è spento: qui si apre in sola lettura, con la cassetta per lasciargli un'azione`}
+              : `${gruppo.cartella}\nLa cartella sta su ${altrove.nome}. Non so se è acceso (il suo segno sul Drive è vecchio): aprendola busso direttamente ai suoi indirizzi, e se risponde si apre dal vivo`}
         >
           <span
             className="voce-chat__titolo"
@@ -432,7 +432,7 @@ function VoceChat({
           </span>
           {altrove !== undefined ? (
             <span className={altrove.vivo ? 'voce-chat__altrove' : 'voce-chat__altrove voce-chat__altrove--spento'}>
-              su {altrove.nome} · {altrove.vivo ? 'acceso, dal vivo' : 'spento, sola lettura'}
+              <span className="segno-remoto">SU {altrove.nome}</span> · {altrove.vivo ? 'acceso, dal vivo' : 'non so se è acceso'}
             </span>
           ) : null}
         </button>
