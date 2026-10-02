@@ -303,6 +303,10 @@ class Api(private val indirizzo: String, private val chiave: String?) {
     suspend fun installaAggiornamento(): Fatto =
         json.decodeFromString(corpoTesto("/api/aggiornamento/installa", oggetto { }))
 
+    /** Cosa cambia con l'aggiornamento pronto: si mostra prima di «Installa» (0.39.0). */
+    suspend fun noteAggiornamento(): NoteAggiornamento =
+        json.decodeFromString(corpoTesto("/api/aggiornamento/note", null))
+
     /** Che versione ha il computer. Serve a dire «sei alla X» invece di niente. */
     suspend fun ciao(): Ciao = json.decodeFromString(corpoTesto("/api/ciao", null))
 

@@ -623,6 +623,10 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
     // Com'e' andato l'ultimo «Installa»: prima, se la richiesta falliva, lo
     // schermo «sto installando» compariva e spariva senza una parola.
     var esitoInstalla by remember { mutableStateOf<String?>(null) }
+    // La finestra delle note (0.39.0): «Installa» la apre, e solo il suo
+    // «Installa e riavvia» chiede davvero l'installazione al computer.
+    var finestraNote by remember { mutableStateOf(false) }
+    var noteLette by remember { mutableStateOf<NoteAggiornamento?>(null) }
 
     val descrizione = when (a?.fase) {
         "cerco" -> "Sto guardando se c’è qualcosa di nuovo…"
@@ -688,6 +692,35 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
             "pronto" -> Button(
                 shape = MaterialTheme.shapes.small,
                 onClick = {
+                    // Prima le note, poi la conferma: lo stesso «Installa» del PC.
+                    finestraNote = true
+                    noteLette = null
+                    scope.launch {
+                        noteLette = try {
+                            api.noteAggiornamento()
+                        } catch (e: Api.Errore) {
+                            noteMancanti(if (e.codice == 409 || e.codice == 404) "il computer ha una versione che non le sa ancora dare" else "HTTP ${e.codice}")
+                        } catch (e: Exception) {
+                            noteMancanti(e.message)
+                        }
+                    }
+                }
+            ) { Text("Installa") }
+            else -> OutlinedButton(
+                enabled = !cercando,
+                shape = MaterialTheme.shapes.small,
+                onClick = { cerca() }
+            ) { Text(if (cercando) "Cerco…" else "Cerca ora") }
+        }
+    }
+
+    if (finestraNote) {
+        DialogoNoteAggiornamento(
+            versione = a?.versione ?: "versione nuova",
+            note = noteLette,
+            onPiuTardi = { finestraNote = false },
+            onInstalla = {
+                finestraNote = false
                     scope.launch {
                         // Prima si segna, poi si chiede: fra la richiesta e la
                         // chiusura del computer possono passare pochi
@@ -710,14 +743,8 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
                             esitoInstalla = "Non sono riuscito a chiedere l’installazione: ${e.message ?: "il computer non risponde"}."
                         }
                     }
-                }
-            ) { Text("Installa") }
-            else -> OutlinedButton(
-                enabled = !cercando,
-                shape = MaterialTheme.shapes.small,
-                onClick = { cerca() }
-            ) { Text(if (cercando) "Cerco…" else "Cerca ora") }
-        }
+            }
+        )
     }
 
     // «Cerca» **sempre**, anche quando una versione è già pronta.

@@ -596,6 +596,8 @@ var schedeViste = null
 var schedaAperta = null
 var prefViste = null
 var aggiornamentoVisto = null
+/** Le note della finestra di «Installa»: null chiusa, { leggo: true } mentre arrivano. */
+var noteAgg = null
 // Il modulo per affidare un lavoro: aperto o no, e quale cartella e' scelta.
 var delegando = false
 var delegaCartella = -1
@@ -1686,15 +1688,15 @@ function pannello(s) {
       <div class="riga">
         \${aggiornamentoVisto && aggiornamentoVisto.fase === 'disponibile'
           ? '<button onclick="scaricaAggiornamento()">Scarica</button>' : ''}
-        \${aggiornamentoVisto && aggiornamentoVisto.fase === 'pronto'
-          ? '<button class="' + (confermando === 'agg' ? 'pericolo' : '') + '" onclick="installaAggiornamento()">' +
-            (confermando === 'agg' ? 'Sicuro? Aspetta le chat e riavvia' : 'Installa') + '</button>' : ''}
+        \${aggiornamentoVisto && aggiornamentoVisto.fase === 'pronto' && !noteAgg
+          ? '<button onclick="installaAggiornamento()">Installa</button>' : ''}
         \${aggiornamentoVisto && aggiornamentoVisto.fase === 'attendo'
           ? '<button disabled>' + (aggiornamentoVisto.attesa ? 'Aspetto il Drive…' : 'Aspetto le chat…') + '</button>' : ''}
         \${!aggiornamentoVisto || ['fermo', 'aggiornato', 'errore', 'pronto', 'disponibile'].indexOf(aggiornamentoVisto.fase) >= 0
           ? '<button onclick="cercaAggiornamento()">Cerca ora</button>' : ''}
         <button onclick="apriPannello('impostazioni')">Chiudi</button>
       </div>
+      \${noteAggHtml(noteAgg)}
     </div>\`
 
   const ws = (s.workspace && s.workspace.nomi || []).map((n) => \`
@@ -2570,6 +2572,50 @@ function descriviAggiornamento() {
   return 'Sei alla versione più recente.'
 }
 
+/**
+ * Un pezzo delle note, gia' scomposto dal computer (note-aggiornamento.ts):
+ * qui non si interpreta niente, si scrive testo con esc. Un link e' cliccabile
+ * solo se porta a https://github.com/ (lo controlla il computer, e di nuovo qui).
+ */
+function pezzoNoteHtml(p) {
+  var t = esc(p && p.testo)
+  if (p && p.codice) t = '<code>' + t + '</code>'
+  if (p && p.corsivo) t = '<i>' + t + '</i>'
+  if (p && p.grassetto) t = '<b>' + t + '</b>'
+  if (p && typeof p.link === 'string' && p.link.indexOf('https://github.com/') === 0) {
+    t = '<a href="' + esc(p.link) + '" target="_blank" rel="noopener noreferrer">' + t + '</a>'
+  }
+  return t
+}
+
+function bloccoNoteHtml(b) {
+  var pezzi = function (lista) { return (lista || []).map(pezzoNoteHtml).join('') }
+  if (!b) return ''
+  if (b.tipo === 'titolo') return '<div style="margin-top:8px"><b>' + pezzi(b.pezzi) + '</b></div>'
+  if (b.tipo === 'paragrafo') return '<div class="sotto" style="margin-top:6px">' + pezzi(b.pezzi) + '</div>'
+  if (b.tipo === 'codice') return '<pre style="white-space:pre-wrap;font-size:12px">' + esc(b.testo) + '</pre>'
+  if (b.tipo === 'elenco') return '<ul style="margin:6px 0 0 0;padding-left:18px">' + (b.voci || []).map(function (v) { return '<li class="sotto" style="margin-top:6px">' + pezzi(v) + '</li>' }).join('') + '</ul>'
+  return ''
+}
+
+/** La finestra di «Installa» sul telefono: le note, poi i due tasti. */
+function noteAggHtml(n) {
+  if (!n) return ''
+  if (n.leggo) return '<div class="solco"></div><div class="sotto">Leggo dal computer cosa cambia…</div>'
+  var note = n.note || []
+  var avviso = n.avviso ? '<div class="sotto" style="margin-top:8px"><b>' + (n.avviso ? (bloccoNoteHtml({ tipo: 'paragrafo', pezzi: [{ testo: n.avviso }] })) : '') + '</b></div>' : ''
+  var versioni = note.map(function (v, i) {
+    var etichetta = i === 0 && v.versione === n.versione ? 'LA NUOVA · ' + esc(v.versione) : 'SALTATA · ' + esc(v.versione)
+    return '<div class="serigrafia" style="margin-top:12px">' + etichetta + '</div>' + (v.blocchi || []).map(bloccoNoteHtml).join('')
+  }).join('')
+  return '<div class="solco"></div>' +
+    '<div class="titolo">Cosa cambia con la ' + esc(n.versione || 'versione nuova') + '</div>' +
+    (n.installata ? '<div class="sotto">Sul computer adesso c’è la ' + esc(n.installata) + (note.length > 1 ? ': qui sotto la nuova e le ' + (note.length - 1) + ' che aveva saltato.' : '.') + '</div>' : '') +
+    avviso + versioni +
+    '<div class="sotto" style="margin-top:12px"><b>Installa e riavvia</b>: il computer aspetta che le chat finiscano quello che hanno in mano, le avvisa, si chiude, installa e riparte da solo; chat e autopiloti riprendono da dove erano. Questa pagina non risponde per un minuto o due. <b>Più tardi</b>: non installa niente adesso; si installa da sola quando chiudi SierraDeck sul computer.</div>' +
+    '<div class="riga"><button class="pericolo" onclick="confermaInstalla()">Installa e riavvia</button><button onclick="piuTardiAggiornamento()">Più tardi</button></div>'
+}
+
 function limitiHtml(c) {
   var l = c && c.limiti
   // La frase di ogni finestra la scrive il computer (0.37.0, limiti-piano.ts):
@@ -2662,14 +2708,26 @@ window.scaricaAggiornamento = async () => {
 }
 
 /**
- * Installare chiude il programma sul computer, con le chat aperte dentro: e' la
- * cosa piu' invasiva che si possa chiedere da un telefono, e infatti si chiede
- * due volte.
+ * «Installa» dal telefono (0.39.0): prima le note di cosa cambia, le stesse
+ * della finestra del PC, poi la conferma. Installare chiude il programma sul
+ * computer con le chat aperte dentro: e' la cosa piu' invasiva che si possa
+ * chiedere da qui, e si chiede dopo aver visto cosa cambia.
  */
 window.installaAggiornamento = async () => {
-  if (confermando !== 'agg') { chiedeConferma('agg'); return }
-  confermando = null
+  noteAgg = { leggo: true }
+  pannello(ultimoStato)
+  try {
+    noteAgg = await chiedi('/api/aggiornamento/note')
+  } catch (e) {
+    noteAgg = { note: [], avviso: 'Non sono riuscito a leggere le note dal computer: le trovi scritte per esteso su https://github.com/niko9090/sierradeck/releases. Puoi installare lo stesso.' }
+  }
+  pannello(ultimoStato)
+}
+window.piuTardiAggiornamento = () => { noteAgg = null; pannello(ultimoStato) }
+window.confermaInstalla = async () => {
+  noteAgg = null
   await chiedi('/api/aggiornamento/installa', {})
+  await leggiAggiornamento()
   pannello(ultimoStato)
 }
 
