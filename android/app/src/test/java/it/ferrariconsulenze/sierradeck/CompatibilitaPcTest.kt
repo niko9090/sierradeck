@@ -49,7 +49,8 @@ class CompatibilitaPcTest {
         }
         assertEquals(setOf(FunzionePc.DIALOGO_AUTOPILOTA, FunzionePc.DOMANDE), accese["0.36.0"])
         assertEquals(setOf(FunzionePc.DIALOGO_AUTOPILOTA, FunzionePc.DOMANDE, FunzionePc.FILE_AUTOPILOTA), accese["0.38.0"])
-        assertEquals(FunzionePc.entries.toSet(), accese["0.42.0"])
+        assertEquals(FunzionePc.entries.filter { !Aggiornamenti.piuNuova("0.42.0", it.minima) }.toSet(), accese["0.42.0"])
+        assertFalse(FunzionePc.SALUTE in accese["0.42.0"]!!)
     }
 
     @Test

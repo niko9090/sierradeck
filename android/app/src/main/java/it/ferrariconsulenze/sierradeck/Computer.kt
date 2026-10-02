@@ -585,6 +585,12 @@ fun Computer(api: Api, stato: Stato?) {
 
         Divisore()
 
+        // ─── La salute del sistema (0.44.0) ───
+        Sezione("Salute del sistema")
+        SezioneSalute(api)
+        Spacer(Modifier.height(10.dp))
+        Divisore()
+
         // ─── Il Drive ───
         // Il magazzino comune dei PC, da sfogliare e da cui far portare
         // qualcosa al computer: la stessa scheda «Drive» del computer.

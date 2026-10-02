@@ -209,6 +209,9 @@ class Api(private val indirizzo: String, private val chiave: String?) {
      * compare in `AutopilotaDettaglio.dialogo` al giro dopo. Un computer con
      * una versione precedente risponde 409.
      */
+    /** «Salute del sistema» (0.44.0). */
+    suspend fun salute(): Salute = json.decodeFromString(corpoTesto("/api/salute", null))
+
     /** La linguetta «Istruzioni» (0.41.0): le consegne alle sue chat, intere. */
     suspend fun istruzioniAutopilota(id: String): IstruzioniAutopilota =
         json.decodeFromString(corpoTesto("/api/autopilota/istruzioni", oggetto { put("autopilota", id) }))
