@@ -14,6 +14,7 @@ import { domandeScheda } from '@shared/domande-autopilota'
 import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/domande-conversazioni'
 import { alberoChat } from '@shared/harness'
 import type { NoteAggiornamento } from '@shared/note-aggiornamento'
+import type { TentativoFallito } from '@shared/tentativo-installazione'
 
 /**
  * Cosa può fare il Client, e cosa no.
@@ -269,7 +270,7 @@ export type DipendenzeRotte = {
   schermoDi?: (idChat: string) => Promise<string[] | undefined>
   /** L'orologio, per sapere da quanto una scelta e' stata mandata. */
   adesso?: () => number
-  aggiornamento: () => { fase: string; versione?: string; percento?: number; errore?: string }
+  aggiornamento: () => { fase: string; versione?: string; percento?: number; errore?: string; tentativoFallito?: TentativoFallito }
   /**
    * Cercare un aggiornamento **adesso**.
    *

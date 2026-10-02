@@ -1,11 +1,16 @@
 import { autoUpdater } from 'electron-updater'
-import { copyFileSync, existsSync, readFileSync, renameSync, rmSync } from 'node:fs'
+import { copyFileSync, existsSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { avviaFinestraAggiornamento } from './finestra-aggiornamento'
-import { assicuraUpdater, avviaUpdater, updaterVivo } from './updater/compila'
+import { assicuraUpdater, avviaUpdater, diariUpdater, updaterVivo } from './updater/compila'
 import { PAGINA_VERSIONI, raccogliNote, type NoteAggiornamento } from '@shared/note-aggiornamento'
+import { scriviJsonAtomico } from '@shared/scrittura-atomica'
+import {
+  avvisoTentativoFallito, diagnosiDiario, esitoTentativo, leggiTentativo, paginaRelease,
+  type Tentativo, type TentativoFallito
+} from '@shared/tentativo-installazione'
 
 /**
  * Com'è messo l'aggiornamento, per l'interfaccia.
@@ -63,7 +68,16 @@ export type StatoAggiornamento = {
   percento?: number
   /** Che cosa è andato storto, se è andato storto. */
   errore?: string
+  /**
+   * L'ultima installazione non è riuscita (0.39.2): al riavvio la versione è
+   * ancora quella di prima. Resta in ogni stato finché la versione non cambia,
+   * così «Installa» non si ripropone come se fosse la prima volta.
+   */
+  tentativoFallito?: TentativoFallito
 }
+
+/** Il segno scritto un attimo prima di lanciare l'installer, accanto a `versione-installata.json`. */
+export const FILE_TENTATIVO = 'tentativo-installazione.json'
 
 export type Aggiornamenti = {
   stato: () => StatoAggiornamento
@@ -195,7 +209,61 @@ export function creaAggiornamenti(
       debug: () => {}
     }
   }
-  let stato: StatoAggiornamento = { fase: 'fermo' }
+  const dati = cartellaDati ?? app.getPath('userData')
+  const fileTentativo = join(dati, FILE_TENTATIVO)
+  /**
+   * Com'e' andata l'ultima installazione (0.39.2). Si legge una volta, adesso:
+   * il segno e' stato scritto dalla sessione di prima, un attimo prima di
+   * lanciare l'installer.
+   */
+  const tentativoFallito = ((): TentativoFallito | undefined => {
+    let tentativo: Tentativo | undefined
+    try {
+      if (existsSync(fileTentativo)) tentativo = leggiTentativo(JSON.parse(readFileSync(fileTentativo, 'utf8')))
+    } catch { /* un segno illeggibile vale come nessun segno */ }
+    const esito = esitoTentativo(tentativo, app.getVersion())
+    if (esito.tipo === 'nessuno') return undefined
+    if (esito.tipo === 'riuscito') {
+      nota(`l installazione della ${esito.tentativo.versione} (dalla ${esito.tentativo.da}) e riuscita: tolgo il segno`)
+      try { rmSync(fileTentativo, { force: true }) } catch { /* al prossimo avvio */ }
+      return undefined
+    }
+    // Il diario di SierraDeck Update, se e' di **questo** tentativo: e' l'unica
+    // fonte certa (il codice di uscita dell'installer). Uno piu' vecchio
+    // parla di un'altra installazione.
+    const da = Date.parse(esito.tentativo.quando)
+    let diario: string | undefined
+    for (const f of diariUpdater()) {
+      try {
+        if (existsSync(f) && (Number.isNaN(da) || statSync(f).mtimeMs >= da - 60_000)) { diario = readFileSync(f, 'utf8'); break }
+      } catch { /* si prova il prossimo */ }
+    }
+    const diagnosi = diagnosiDiario(diario)
+    const avviso = avvisoTentativoFallito(esito.tentativo, diagnosi, paginaRelease(esito.tentativo.versione))
+    guaio(`INSTALLAZIONE NON RIUSCITA: ${avviso.titolo} ${avviso.motivo}`)
+    guaio(diario === undefined
+      ? 'diario di SierraDeck Update: assente (nessuna prova del perche)'
+      : `diario di SierraDeck Update: ${diario.trim().split(/\r?\n/).slice(-12).join(' | ')}`)
+    return avviso
+  })()
+  let stato: StatoAggiornamento = { fase: 'fermo', ...(tentativoFallito !== undefined ? { tentativoFallito } : {}) }
+  /** Il segno prima di lanciare l'installer: al riavvio dira' se e' andata. */
+  const segnaTentativo = (versione: string): void => {
+    try {
+      scriviJsonAtomico(fileTentativo, { versione, da: app.getVersion(), quando: new Date().toISOString() }, 'tentativo')
+      nota(`segno il tentativo: installo la ${versione} dalla ${app.getVersion()}`)
+    } catch (err) {
+      guaio(`segno del tentativo non scritto: ${String(err)}`)
+    }
+  }
+  const togliSegno = (): void => { try { rmSync(fileTentativo, { force: true }) } catch { /* niente */ } }
+  // Anche l'installazione **alla chiusura** (quella di electron-updater, senza
+  // finestra) lascia il segno: se non riesce, al riavvio lo si dice lo stesso.
+  app.on('will-quit', () => {
+    if (!installazioneAvviata && autoUpdater.autoInstallOnAppQuit && stato.fase === 'pronto' && installerScaricato !== undefined) {
+      segnaTentativo(versioneScaricata ?? stato.versione ?? '?')
+    }
+  })
   /** Dove electron-updater ha messo l'installer: lo esegue SierraDeck Update. */
   let installerScaricato: string | undefined
   /**
@@ -219,6 +287,7 @@ export function creaAggiornamenti(
 
   const annuncia = (nuovo: StatoAggiornamento): void => {
     if (daTelefono) nuovo = { ...nuovo, daTelefono: true }
+    if (tentativoFallito !== undefined) nuovo = { ...nuovo, tentativoFallito }
     // Ogni cambio di fase nel registro; dello scaricamento solo i quarti, o
     // sarebbero cento righe per un file.
     const cambioFase = nuovo.fase !== stato.fase
@@ -509,6 +578,7 @@ export function creaAggiornamenti(
       // volte, e il programma resta fermo per tutto il tempo.
       const claude = claudeDaAggiornare?.()
       if (updater !== undefined && installer !== undefined) {
+        segnaTentativo(stato.versione ?? versioneScaricata ?? '?')
         const partito = avviaUpdater(updater, {
           installer,
           eseguibile: app.getPath('exe'),
@@ -531,6 +601,7 @@ export function creaAggiornamenti(
               if (!vivo) {
                 guaio('l updater non si e fatto vivo: non chiudo niente')
                 installazioneAvviata = false
+                togliSegno()
                 // **Si disfa tutto quello che la quiete aveva fatto.** Gli
                 // autopiloti tornano a ricevere il compito seguente, il file
                 // della pausa se ne va, e electron-updater torna a installare
@@ -559,11 +630,13 @@ export function creaAggiornamenti(
             })
           return
         }
+        togliSegno()
       }
 
       // Senza updater si torna alla strada di prima: meglio un aggiornamento
       // senza finestra che nessun aggiornamento.
       nota(`updater non disponibile (updater ${updater === undefined ? 'mancante' : 'ok'}, installer ${installer === undefined ? 'mancante' : 'ok'}): installo alla vecchia maniera, senza finestra`)
+      segnaTentativo(stato.versione ?? versioneScaricata ?? '?')
       const apertura = avviaFinestraAggiornamento({
         esePath: app.getPath('exe'),
         versione: stato.versione ?? '',

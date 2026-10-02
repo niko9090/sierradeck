@@ -809,6 +809,8 @@ export function App(): React.JSX.Element {
   }, [])
   const [attesaVisibile, setAttesaVisibile] = useState(false)
   const [aggiornamento, setAggiornamento] = useState<StatoAggiornamento>({ fase: 'fermo' })
+  /** L'avviso dell'installazione non riuscita, chiuso per questa sessione (torna al prossimo avvio). */
+  const [fallitoChiuso, setFallitoChiuso] = useState(false)
   // Il lavoro con il Drive (fusione, ripristino, salvataggio): una striscia in
   // alto come per un aggiornamento. Continua anche a pannello chiuso, da qui
   // si annulla, e finito resta l'esito finche' non lo chiudi. Prima «Fondi
@@ -1247,7 +1249,15 @@ export function App(): React.JSX.Element {
               : finestraNote.dati.installata !== '' ? `adesso hai la ${finestraNote.dati.installata}` : undefined}
           note={finestraNote.dati?.note}
           etichetta={(n, i) => (i === 0 && n.versione === finestraNote.versione ? `La nuova · ${n.versione}` : `Saltata · ${n.versione}`)}
-          {...(finestraNote.dati?.avviso !== undefined ? { avviso: finestraNote.dati.avviso } : {})}
+          {...(() => {
+            // Un tentativo andato male si dice anche qui, prima di riprovare (0.39.2).
+            const f = aggiornamento.tentativoFallito
+            const avvisi = [
+              ...(f !== undefined ? [`**${f.titolo}** ${f.motivo} Se non va di nuovo, scaricala a mano da ${f.pagina}`] : []),
+              ...(finestraNote.dati?.avviso !== undefined ? [finestraNote.dati.avviso] : [])
+            ]
+            return avvisi.length > 0 ? { avviso: avvisi.join(' ') } : {}
+          })()}
           spiegazione={
             <>
               <b>Installa e riavvia</b>: aspetto che le chat finiscano quello che hanno in mano (e il lavoro con il
@@ -1383,6 +1393,32 @@ export function App(): React.JSX.Element {
               qui. Non chiudere le chat a mano: l’installazione parte da sola.
             </span>
           )}
+        </div>
+      ) : null}
+
+      {/* L'ultima installazione non e' riuscita (0.39.2): si dice prima di
+          tutto, con il perche' e le strade, invece di riproporre «Installa»
+          come se fosse la prima volta. */}
+      {aggiornamento.tentativoFallito !== undefined && !fallitoChiuso && aggiornamento.fase !== 'installo' && aggiornamento.fase !== 'attendo' ? (
+        <div className="avviso avviso--aggiornamento avviso--fallito" role="alert">
+          <span className="led led--attesa" />
+          <span className="avviso-fallito__testo">
+            <b>{aggiornamento.tentativoFallito.titolo}</b> {aggiornamento.tentativoFallito.motivo}
+            <span className="avviso-fallito__strade">
+              Cosa puoi fare: {aggiornamento.tentativoFallito.strade.map((x, i) => <span key={i}>{i + 1}. {x} </span>)}
+            </span>
+          </span>
+          <button
+            className="tasto"
+            onClick={() => void window.gestore.sistema.apriEsterno(aggiornamento.tentativoFallito!.pagina)}
+            title={aggiornamento.tentativoFallito.pagina}
+          >
+            Scarica a mano
+          </button>
+          {aggiornamento.fase === 'pronto' ? (
+            <button className="tasto tasto--primario" onClick={() => apriInstalla(aggiornamento.versione ?? '')}>Riprova</button>
+          ) : null}
+          <button className="tasto" onClick={() => setFallitoChiuso(true)} title="Nascondi fino al prossimo avvio">×</button>
         </div>
       ) : null}
 

@@ -1097,7 +1097,7 @@ function impronta(s) {
     driveLavoro ? JSON.stringify(driveLavoro) : '',
     JSON.stringify(driveAperti || {}),
     prefViste ? prefViste.stile + '/' + prefViste.chiarore : '',
-    aggiornamentoVisto ? aggiornamentoVisto.fase + '/' + (aggiornamentoVisto.percento || 0) + '/' + (aggiornamentoVisto.errore || '') + '/' + (aggiornamentoVisto.attesa || '') + '/' + (aggiornamentoVisto.chatOccupate || 0) + '/' + (aggiornamentoVisto.testo || '') : '',
+    aggiornamentoVisto ? aggiornamentoVisto.fase + '/' + (aggiornamentoVisto.percento || 0) + '/' + (aggiornamentoVisto.errore || '') + '/' + (aggiornamentoVisto.attesa || '') + '/' + (aggiornamentoVisto.chatOccupate || 0) + '/' + (aggiornamentoVisto.testo || '') + '/' + (aggiornamentoVisto.tentativoFallito ? aggiornamentoVisto.tentativoFallito.quando : '') : '',
     cercatoAlle || '',
     consumiVisti ? JSON.stringify(consumiVisti) : '',
     // La scheda Domande: la sua lista arriva da una chiamata a parte. Senza
@@ -1687,6 +1687,7 @@ function pannello(s) {
       \`}
       <div class="sotto" style="margin-top:16px">Aggiornamento del computer</div>
       <div class="sotto">\${esc(descriviAggiornamento())}</div>
+      \${fallitoHtml(aggiornamentoVisto)}
       <div class="riga">
         \${aggiornamentoVisto && aggiornamentoVisto.fase === 'disponibile'
           ? '<button onclick="scaricaAggiornamento()">Scarica</button>' : ''}
@@ -2547,6 +2548,22 @@ function cartellaPrima() {
   return prima ? prima.cwd : ''
 }
 
+/**
+ * L'ultima installazione sul computer non e' riuscita (0.39.2): il perche' e le
+ * strade, con il link alla pagina della versione (solo se e' su github.com).
+ */
+function fallitoHtml(a) {
+  var f = a && a.tentativoFallito
+  if (!f) return ''
+  var pagina = typeof f.pagina === 'string' && f.pagina.indexOf('https://github.com/') === 0 ? f.pagina : ''
+  return '<div class="piastrella chiede fallito-agg" style="margin-top:8px">' +
+    '<div class="serigrafia"><span class="led attesa"></span>L’ULTIMA INSTALLAZIONE NON È RIUSCITA</div>' +
+    '<div class="sotto"><b>' + esc(f.titolo || '') + '</b> ' + esc(f.motivo || '') + '</div>' +
+    '<div class="sotto" style="margin-top:6px">Cosa puoi fare: ' + (f.strade || []).map(function (x, i) { return (i + 1) + '. ' + esc(x) }).join(' ') + '</div>' +
+    (pagina ? '<div class="riga"><a class="tasto-link" href="' + esc(pagina) + '" target="_blank" rel="noopener">Pagina della versione</a></div>' : '') +
+    '</div>'
+}
+
 /** A che punto e' l'aggiornamento del computer, detto in italiano. */
 function descriviAggiornamento() {
   const a = aggiornamentoVisto
@@ -2612,6 +2629,7 @@ function noteAggHtml(n) {
   }).join('')
   return '<div class="solco"></div>' +
     '<div class="titolo">Cosa cambia con la ' + esc(n.versione || 'versione nuova') + '</div>' +
+    fallitoHtml(aggiornamentoVisto) +
     (n.installata ? '<div class="sotto">Sul computer adesso c’è la ' + esc(n.installata) + (note.length > 1 ? ': qui sotto la nuova e le ' + (note.length - 1) + ' che aveva saltato.' : '.') + '</div>' : '') +
     avviso + versioni +
     '<div class="sotto" style="margin-top:12px"><b>Installa e riavvia</b>: il computer aspetta che le chat finiscano quello che hanno in mano, le avvisa, si chiude, installa e riparte da solo; chat e autopiloti riprendono da dove erano. Questa pagina non risponde per un minuto o due. <b>Più tardi</b>: non installa niente adesso; si installa da sola quando chiudi SierraDeck sul computer.</div>' +

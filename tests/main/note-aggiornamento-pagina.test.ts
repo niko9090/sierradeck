@@ -19,7 +19,8 @@ const estrai = (nome: string): string => {
 }
 const riga = (inizio: string): string => script.split('\n').find((r) => r.startsWith(inizio)) ?? ''
 const noteAggHtml = new Function(
-  `${riga('const esc =')}\n${estrai('pezzoNoteHtml')}\n${estrai('bloccoNoteHtml')}\n${estrai('noteAggHtml')}\nreturn noteAggHtml`
+  // `fallitoHtml` e `aggiornamentoVisto` (0.39.2): l'installazione non riuscita sta in testa alle note.
+  `${riga('const esc =')}\nvar aggiornamentoVisto = null\n${estrai('fallitoHtml')}\n${estrai('pezzoNoteHtml')}\n${estrai('bloccoNoteHtml')}\n${estrai('noteAggHtml')}\nreturn noteAggHtml`
 )() as (n: unknown) => string
 /** Dal computer al telefono le note passano come JSON. */
 const viaRete = (n: NoteAggiornamento): unknown => JSON.parse(JSON.stringify(n))
