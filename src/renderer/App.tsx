@@ -42,7 +42,7 @@ import { componiAvvisi, ricordaChiusi } from './avvisi'
 import { ColonnaConsumi } from './components/ColonnaConsumi'
 import { restaApertaLAltra } from './colonne-laterali'
 import type { StatoAccesso } from '../main/accesso'
-import { decidiColonnaDomande, quanteAspettano, type Conversazione } from '@shared/domande-conversazioni'
+import { azioneTastoDomande, decidiColonnaDomande, quanteAspettano, type Conversazione } from '@shared/domande-conversazioni'
 import { SchermataAvvio } from './components/SchermataAvvio'
 import { SchermataAccesso } from './components/SchermataAccesso'
 import { utenteCorrente, suCambioAccesso } from './accesso-supabase'
@@ -53,7 +53,7 @@ import { ETICHETTA_LAVORO_TIPO, soloTransizioni } from './progresso-sync'
 import { Fumetti, Fumetto, FumettoLavoroDrive, useChiusuraAutomatica } from './components/Fumetti'
 import { decidiFumettiDrive, FUMETTO_ARRIVO_MS, FUMETTO_ESITO_OK_MS } from './fumetti-sync'
 import { PannelloDrive } from './components/PannelloDrive'
-import { PannelloDomande } from './components/PannelloDomande'
+import { PannelloDomande, apriDomandeAutopilota } from './components/PannelloDomande'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 
 /**
@@ -698,6 +698,10 @@ export function App(): React.JSX.Element {
    * sola se e' chiusa e mette in evidenza quella conversazione. Non prende il
    * fuoco della tastiera: chi sta scrivendo in una chat continua a scrivere.
    * Chiusa a mano, si riapre solo per una domanda nuova, non per la stessa.
+   *
+   * Dalla 0.39.1 la colonna si apre da sola **solo per le chat**: la domanda di
+   * un autopilota fa avanti la linguetta «Domande» della sua scheda (o la sua
+   * finestra pannello), e la colonna resta com'era (`decidiColonnaDomande`).
    */
   const [evidenzaDomanda, setEvidenzaDomanda] = useState<{ chiave: string; quando: number } | undefined>(undefined)
   const colonnaDomandeRef = useRef(colonnaDomande)
@@ -707,6 +711,13 @@ export function App(): React.JSX.Element {
   // (0.37.3): solo dopo aver letto le preferenze, che altrimenti la
   // richiuderebbero arrivando dopo.
   const avvioDomande = useRef(true)
+  /** L'ultima lettura delle Domande: serve al tasto per sapere chi aspetta. */
+  const ultimeConversazioni = useRef<Conversazione[]>([])
+  // Il main chiede di mettere in vista la linguetta «Domande» di un autopilota
+  // che sta in questa finestra (0.39.1): la apre la sua scheda.
+  useEffect(() => window.gestore.pannello.suMostraDomande((id) => {
+    window.dispatchEvent(new CustomEvent('sierradeck:domande-autopilota', { detail: { id, gestito: false } }))
+  }), [])
   useEffect(() => {
     const viste = (): Set<string> => {
       if (domandeViste.current === undefined) {
@@ -722,6 +733,7 @@ export function App(): React.JSX.Element {
         .then((r) => {
           const corpo = r.corpo as { conversazioni?: Conversazione[]; chiedono?: number }
           const c = corpo.conversazioni ?? []
+          ultimeConversazioni.current = c
           setDomandeInAttesa(corpo.chiedono ?? quanteAspettano(c))
           if (!preferenzeLette.current) return
           const v = viste()
@@ -733,6 +745,9 @@ export function App(): React.JSX.Element {
             try { localStorage.setItem('domande-viste', JSON.stringify([...v].slice(-300))) } catch { /* senza memoria al prossimo avvio si riapre, non di piu' */ }
           }
           if (d.apri) apriColonnaDomandeRef.current()
+          // Le domande degli autopiloti: si fa avanti la loro linguetta, la
+          // colonna resta com'e' (0.39.1).
+          for (const id of d.linguette) void window.gestore.pannello.mostraDomande(id, true).catch(() => undefined)
           if (d.evidenzia !== undefined && (d.apri || d.nuove.length > 0)) setEvidenzaDomanda({ chiave: d.evidenzia, quando: Date.now() })
         })
         .catch(() => undefined)
@@ -1284,7 +1299,13 @@ export function App(): React.JSX.Element {
         ledAutopiloti={autopiloti.map((a) => ({ id: a.id, ...ledDi(a) }))}
         domandeInAttesa={domandeInAttesa}
         domandeAperte={colonnaDomande.aperta}
-        onDomande={() => commutaColonna('domande')}
+        onDomande={() => {
+          // Solo autopiloti in attesa: il tasto porta alla loro linguetta,
+          // non apre una colonna dove non ci sono (0.39.1).
+          const azione = azioneTastoDomande(ultimeConversazioni.current, colonnaDomande.aperta)
+          if (azione.tipo === 'linguetta') apriDomandeAutopilota(azione.autopilota)
+          else commutaColonna('domande')
+        }}
         consumiAperti={colonnaConsumi.aperta}
         onConsumi={() => commutaColonna('consumi')}
       />

@@ -425,7 +425,7 @@ export function Console({
           className={`tasto${domandeInAttesa > 0 && !domandeAperte ? ' tasto--chiama' : ''}`}
           onClick={() => onDomande?.()}
           aria-expanded={domandeAperte}
-          title={`${domandeAperte ? 'Chiude' : 'Apre'} la colonna delle Domande, accanto alle chat: tutto quello che aspetta una tua risposta — chat ferme su una domanda o un permesso, chat che hanno finito, autopiloti (domande iniziali, domande, il via, «Pubblico adesso?»)${domandeInAttesa > 0 ? `. Adesso ne aspettano ${domandeInAttesa}.` : '.'}`}
+          title={`${domandeAperte ? 'Chiude' : 'Apre'} la colonna delle Domande, accanto alle chat: tutto quello che aspetta una tua risposta — chat ferme su una domanda o un permesso, chat che hanno finito, autopiloti (domande iniziali, domande, il via, «Pubblico adesso?»)${domandeInAttesa > 0 ? `. Adesso ne aspettano ${domandeInAttesa}.` : '.'} Le domande degli autopiloti si rispondono nella linguetta «Domande» della loro scheda, che si fa avanti da sola: se aspettano solo loro, il tasto porta lì invece di aprire la colonna.`}
         >
           {domandeInAttesa > 0 ? <span className="led led--attesa" /> : null}Domande{domandeInAttesa > 0 ? ` ${domandeInAttesa}` : ''}
         </button>

@@ -130,3 +130,25 @@ export function leggiArchivioPannelli(raw: unknown): ArchivioPannelli {
     : []
   return { posizioni, aperti }
 }
+
+/**
+ * Dove si mettono in vista le domande di un autopilota (0.39.1), deciso dal
+ * main che sa quali finestre di chat mostrano la sua scheda:
+ * - la linguetta «Domande» e' **staccata** in una finestra pannello → si porta
+ *   avanti quella;
+ * - una finestra di chat ha la sua scheda → li' si apre la linguetta
+ *   (preferendo la finestra che l'ha chiesto, se ce l'ha);
+ * - nessuna delle due → si apre la linguetta «Domande» in una finestra pannello,
+ *   cosi' la domanda non resta invisibile.
+ * La colonna a destra non c'entra: per gli autopiloti non si apre.
+ */
+export function doveMostrareDomande(p: {
+  staccata: boolean
+  finestreConScheda: number[]
+  chiedente?: number
+}): { tipo: 'pannello' } | { tipo: 'scheda'; finestra: number } | { tipo: 'apri-pannello' } {
+  if (p.staccata) return { tipo: 'pannello' }
+  const prima = p.chiedente !== undefined && p.finestreConScheda.includes(p.chiedente) ? p.chiedente : p.finestreConScheda[0]
+  if (prima !== undefined) return { tipo: 'scheda', finestra: prima }
+  return { tipo: 'apri-pannello' }
+}

@@ -946,6 +946,20 @@ contextBridge.exposeInMainWorld('gestore', {
     aperti: (): Promise<{ autopilota: string; linguetta: string }[]> => ipcRenderer.invoke('pannello:aperti'),
     /** La finestra pannello chiede attenzione (una domanda nuova): lampeggia nella barra. */
     richiama: (): Promise<void> => ipcRenderer.invoke('pannello:richiama'),
+    /** Quali schede di autopilota mostra questa finestra (0.39.1): il main sa dove mostrare le loro domande. */
+    inVista: (autopiloti: string[]): void => ipcRenderer.send('pannello:inVista', autopiloti),
+    /**
+     * Mette in vista la linguetta «Domande» di un autopilota: nella finestra che
+     * ha la sua scheda, o la sua finestra pannello. `automatico`: l'ha chiesto il
+     * programma per una domanda nuova, non chi usa — niente fuoco rubato.
+     */
+    mostraDomande: (autopilota: string, automatico: boolean): Promise<void> =>
+      ipcRenderer.invoke('pannello:mostraDomande', autopilota, automatico),
+    suMostraDomande: (cb: (autopilota: string) => void): (() => void) => {
+      const h = (_e: unknown, id: string): void => cb(id)
+      ipcRenderer.on('domande:mostra', h)
+      return () => { ipcRenderer.removeListener('domande:mostra', h) }
+    },
     suCambio: (cb: (aperti: { autopilota: string; linguetta: string }[]) => void): (() => void) => {
       const h = (_e: unknown, a: { autopilota: string; linguetta: string }[]): void => cb(a)
       ipcRenderer.on('pannelli:cambiati', h)

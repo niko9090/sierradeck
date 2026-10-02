@@ -1,7 +1,8 @@
 import {
-  apriPannello, chiudiPannelliConLApp, finestreDiChat, impostaFinestrePannello, pannelliAperti, riapriPannelli, richiamaPannello, rimettiPannello
+  apriPannello, chiudiPannelliConLApp, finestreDiChat, impostaFinestrePannello, pannelliAperti, portaAvantiPannello, riapriPannelli, richiamaPannello,
+  rimettiPannello
 } from './finestre-pannello'
-import { eLinguettaStaccabile } from '@shared/finestra-pannello'
+import { doveMostrareDomande, eLinguettaStaccabile } from '@shared/finestra-pannello'
 import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell } from 'electron'
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
@@ -2150,6 +2151,53 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('pannello:richiama', (e) => {
         const w = BrowserWindow.fromWebContents(e.sender)
         if (w !== null) richiamaPannello(w)
+      })
+      // Le domande di un autopilota (0.39.1): si fa avanti la linguetta
+      // «Domande» della sua scheda, non la colonna a destra. Ogni finestra di
+      // chat dice quali schede di autopilota mostra; qui si sceglie dove
+      // mostrarle (`doveMostrareDomande`).
+      const schedeInVista = new Map<number, string[]>()
+      const mostrateDaSole = new Map<string, number>()
+      ipcMain.on('pannello:inVista', (e, ids: unknown) => {
+        if (!Array.isArray(ids)) return
+        const w = BrowserWindow.fromWebContents(e.sender)
+        if (w === null) return
+        const id = w.id
+        if (!schedeInVista.has(id)) w.once('closed', () => schedeInVista.delete(id))
+        schedeInVista.set(id, ids.filter((x): x is string => typeof x === 'string').slice(0, 200))
+      })
+      const mostraDomande = (id: string, automatico: boolean, chiedente: number | undefined): void => {
+        const finestreConScheda = finestreDiChat()
+          .filter((w) => !w.isDestroyed() && (schedeInVista.get(w.id) ?? []).includes(id))
+          .map((w) => w.id)
+        const staccata = pannelliAperti().some((p) => p.autopilota === id && p.linguetta === 'domande')
+        const dove = doveMostrareDomande({ staccata, finestreConScheda, ...(chiedente !== undefined ? { chiedente } : {}) })
+        if (dove.tipo === 'pannello') { portaAvantiPannello(id, 'domande', !automatico); return }
+        if (dove.tipo === 'scheda') {
+          const w = BrowserWindow.fromId(dove.finestra)
+          if (w === null || w.isDestroyed()) return
+          w.webContents.send('domande:mostra', id)
+          if (!automatico) { if (w.isMinimized()) w.restore(); w.show(); w.focus(); return }
+          // Arrivata da sola: in vista, senza togliere la tastiera a nessuno.
+          if (w.isMinimized()) w.restore()
+          if (!w.isVisible()) w.showInactive()
+          if (!w.isFocused()) { w.moveTop(); w.flashFrame(true) }
+          return
+        }
+        apriPannello(id, 'domande', { inattiva: automatico })
+      }
+      ipcMain.handle('pannello:mostraDomande', (e, id: unknown, automatico: unknown) => {
+        const ap = validaIdAutopilota(id)
+        const chiedente = BrowserWindow.fromWebContents(e.sender)?.id
+        if (automatico !== true) { mostraDomande(ap, false, chiedente); return }
+        // Da sola la chiedono tutte le finestre di chat insieme: basta una volta.
+        const adesso = Date.now()
+        if (adesso - (mostrateDaSole.get(ap) ?? 0) < 10_000) return
+        mostrateDaSole.set(ap, adesso)
+        // All'avvio le schede arrivano qualche secondo dopo la prima lettura
+        // delle domande: si aspetta che le finestre dicano cosa mostrano,
+        // invece di aprire una finestra pannello per una scheda che c'e'.
+        setTimeout(() => mostraDomande(ap, true, chiedente), 3000)
       })
       // Al riavvio: si riaprono dov'erano, se l'autopilota esiste ancora. Il
       // servizio puo' metterci qualche secondo: si prova due volte.

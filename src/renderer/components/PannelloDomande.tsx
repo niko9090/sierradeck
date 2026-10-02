@@ -62,14 +62,17 @@ export function spiegaRisposta(c: Conversazione): string {
 
 /**
  * Porta alla linguetta «Domande» della scheda di quell'autopilota (0.38.0).
- * La scheda sta nel riquadro della sua chat (`DiarioAutopilota`), che ascolta
- * questo evento; se in questa finestra non c'e', si apre il pannello degli
- * autopiloti (App.tsx).
+ * Dalla 0.39.1 decide il main dove (`doveMostrareDomande`): la finestra pannello
+ * se la linguetta e' staccata, altrimenti la finestra di chat che ha la sua
+ * scheda (anche un'altra), altrimenti la linguetta in una finestra pannello.
+ * Prima, senza la scheda in questa finestra, si apriva il pannello degli
+ * autopiloti, dove la domanda non c'era.
  */
 export function apriDomandeAutopilota(id: string): void {
-  const dettaglio = { id, gestito: false }
-  window.dispatchEvent(new CustomEvent('sierradeck:domande-autopilota', { detail: dettaglio }))
-  if (!dettaglio.gestito) window.dispatchEvent(new CustomEvent('sierradeck:apri-pannello', { detail: 'autopiloti' }))
+  void window.gestore.pannello.mostraDomande(id, false).catch(() => {
+    // Main vecchio o guasto: almeno la scheda di questa finestra, se c'e'.
+    window.dispatchEvent(new CustomEvent('sierradeck:domande-autopilota', { detail: { id, gestito: false } }))
+  })
 }
 
 /** Quanto resta evidenziata una domanda appena arrivata. */

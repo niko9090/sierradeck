@@ -263,19 +263,37 @@ export function domandeNuove(conversazioni: Conversazione[], viste: ReadonlySet<
 }
 
 /**
- * Cosa fa la colonna Domande del PC a ogni lettura (0.37.3).
+ * Una conversazione che sta nella **colonna**: quelle delle chat. Le domande di
+ * un autopilota stanno nella linguetta «Domande» della sua scheda (0.38.0), e
+ * dalla 0.39.1 non aprono piu' la colonna.
+ */
+function dellaColonna(c: Conversazione): boolean {
+  return c.tipo !== 'autopilota' || c.autopilota === undefined
+}
+
+/**
+ * Cosa fa la colonna Domande del PC a ogni lettura (0.37.3, cambiata nella 0.39.1).
  *
  * Nicholas (01/10, 13:52 UTC): «NON VEDO LE DOMANDEEEE!!!!». Nella 0.37.2 la
  * colonna si apriva da sola **solo** per una domanda mai vista: una domanda
- * gia' in attesa all'avvio e gia' «vista» (in un avvio precedente, o prima di
- * chiudere la colonna) restava segnalata solo dal numero sul tasto, e una
- * colonna chiusa non la mostrava. Ora:
- * - **all'avvio**, se c'e' qualcosa che aspetta una tua risposta, la colonna si
- *   apre e mette in vista la prima domanda, vista o no;
- * - durante il lavoro si apre per ogni domanda **nuova** (diversa da quelle gia'
- *   viste): chiusa a mano, resta chiusa solo finche' non ne arriva una diversa;
+ * gia' in attesa all'avvio e gia' «vista» restava segnalata solo dal numero sul
+ * tasto. Dalla 0.37.3:
+ * - **all'avvio**, se c'e' qualcosa che aspetta una tua risposta, si mette in
+ *   vista la prima domanda, vista o no;
+ * - durante il lavoro, ogni domanda **nuova** (diversa da quelle gia' viste) si
+ *   mette in vista: chiusa a mano, la colonna resta chiusa solo finche' non ne
+ *   arriva una diversa;
  * - finche' ci sono domande in attesa e la colonna e' chiusa, il tasto
  *   «Domande» chiama (`richiamo`): lampeggia d'ambra con il numero.
+ *
+ * **Dove** si mette in vista (Nicholas, 02/10: «quando c'è l'autopilota non
+ * deve aprirsi la parte domande a destra ma visualizzarsi nel tab domande
+ * sotto»):
+ * - una domanda di una **chat** apre la colonna (`apri`) e si evidenzia lì;
+ * - una domanda di un **autopilota** non tocca la colonna, chiusa resta chiusa:
+ *   si fa avanti la linguetta «Domande» della sua scheda (`linguette`, gli id
+ *   degli autopiloti), o la sua finestra pannello se e' staccata.
+ * Il numero sul tasto conta tutto, come prima.
  */
 export function decidiColonnaDomande(p: {
   conversazioni: Conversazione[]
@@ -283,15 +301,44 @@ export function decidiColonnaDomande(p: {
   aperta: boolean
   /** Prima lettura dopo l'avvio (con le preferenze gia' lette). */
   avvio: boolean
-}): { apri: boolean; evidenzia?: string; nuove: string[]; richiamo: boolean } {
+}): { apri: boolean; evidenzia?: string; nuove: string[]; richiamo: boolean; linguette: string[] } {
   const nuove = domandeNuove(p.conversazioni, p.viste)
+  const perChiave = new Map(p.conversazioni.map((c) => [c.chiave, c]))
   const inAttesa = p.conversazioni.filter((c) => c.chiede)
-  const evidenzia = nuove[0]?.chiave ?? (p.avvio ? inAttesa[0]?.chiave : undefined)
-  const apri = !p.aperta && (nuove.length > 0 || (p.avvio && inAttesa.length > 0))
+  const nuoveColonna = nuove.filter((n) => { const c = perChiave.get(n.chiave); return c !== undefined && dellaColonna(c) })
+  const attesaColonna = inAttesa.filter(dellaColonna)
+  const evidenzia = nuoveColonna[0]?.chiave ?? (p.avvio ? attesaColonna[0]?.chiave : undefined)
+  const apri = !p.aperta && (nuoveColonna.length > 0 || (p.avvio && attesaColonna.length > 0))
+  const linguette: string[] = []
+  const daMostrare = [
+    ...nuove.map((n) => perChiave.get(n.chiave)),
+    ...(p.avvio ? inAttesa : [])
+  ]
+  for (const c of daMostrare) {
+    if (c === undefined || dellaColonna(c) || c.autopilota === undefined) continue
+    if (!linguette.includes(c.autopilota)) linguette.push(c.autopilota)
+  }
   return {
     apri,
     ...(evidenzia !== undefined ? { evidenzia } : {}),
     nuove: nuove.map((n) => n.identita),
-    richiamo: inAttesa.length > 0 && !p.aperta && !apri
+    richiamo: inAttesa.length > 0 && !p.aperta && !apri,
+    linguette
   }
+}
+
+/**
+ * Il tasto «Domande» della console (0.39.1). Con la colonna aperta la chiude;
+ * chiusa, la apre — tranne quando ad aspettare sono **solo** autopiloti: le loro
+ * domande non stanno nella colonna, e il tasto porta alla linguetta «Domande»
+ * del primo. Il numerino sul tasto resta il conto di tutto.
+ */
+export function azioneTastoDomande(conversazioni: Conversazione[], aperta: boolean): { tipo: 'colonna' } | { tipo: 'linguetta'; autopilota: string } {
+  if (aperta) return { tipo: 'colonna' }
+  const chiedono = conversazioni.filter((c) => c.chiede)
+  const primo = chiedono[0]
+  if (primo !== undefined && primo.autopilota !== undefined && chiedono.every((c) => !dellaColonna(c))) {
+    return { tipo: 'linguetta', autopilota: primo.autopilota }
+  }
+  return { tipo: 'colonna' }
 }

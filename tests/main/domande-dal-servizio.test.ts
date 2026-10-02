@@ -64,9 +64,10 @@ describe('le domande del servizio arrivano nella colonna e la risposta torna', (
     expect(c?.messaggi.at(-1)?.testo).toContain('criterio della versione')
     expect(c?.messaggi.at(-1)?.opzioni?.map((o) => o.testo)).toEqual(['sì', 'no'])
 
-    // La colonna chiusa, domanda gia' vista: all'avvio si apre lo stesso.
+    // La colonna chiusa, domanda gia' vista: all'avvio si fa avanti la sua
+    // linguetta «Domande»; la colonna, per un autopilota, resta chiusa (0.39.1).
     const viste = new Set([`d:${d.id}`])
-    expect(decidiColonnaDomande({ conversazioni: corpo.conversazioni, viste, aperta: false, avvio: true })).toMatchObject({ apri: true, evidenzia: 'ap:ap-1' })
+    expect(decidiColonnaDomande({ conversazioni: corpo.conversazioni, viste, aperta: false, avvio: true })).toMatchObject({ apri: false, linguette: ['ap-1'] })
 
     // La risposta dalla colonna (la stessa richiesta di pagina e app).
     const q = richiestaRisposta(c!.risposta, 'sì')
@@ -87,24 +88,26 @@ describe('le domande del servizio arrivano nella colonna e la risposta torna', (
 })
 
 describe('la colonna non lascia una domanda in attesa senza farsi vedere (0.37.3)', () => {
+  // Domande di chat: sono quelle che stanno nella colonna (0.39.1).
   const domanda = (id: string): Conversazione => ({
-    chiave: `ap:${id}`, tipo: 'autopilota', titolo: id, sotto: '', chiede: true,
-    messaggi: [{ da: 'lui', testo: 'ok?', tono: 'domanda' }], risposta: { via: 'rispondi', domanda: id }, segnaposto: ''
+    chiave: `chat:${id}`, tipo: 'chat', titolo: id, sotto: '', chiede: true,
+    messaggi: [{ da: 'lui', testo: 'ok?', tono: 'domanda' }], risposta: { via: 'scrivi', chat: id }, segnaposto: ''
   })
+  const vista = (id: string): string => `k:${id}:ok?:`
   const finita: Conversazione = { chiave: 'chat:f', tipo: 'chat', titolo: 'f', sotto: '', chiede: false, messaggi: [], risposta: { via: 'scrivi', chat: 'f' }, segnaposto: '' }
 
   it('all avvio una domanda già in attesa (e già vista) apre la colonna', () => {
-    expect(decidiColonnaDomande({ conversazioni: [domanda('d1')], viste: new Set(['d:d1']), aperta: false, avvio: true }))
-      .toEqual({ apri: true, evidenzia: 'ap:d1', nuove: [], richiamo: false })
+    expect(decidiColonnaDomande({ conversazioni: [domanda('d1')], viste: new Set([vista('d1')]), aperta: false, avvio: true }))
+      .toEqual({ apri: true, evidenzia: 'chat:d1', nuove: [], richiamo: false, linguette: [] })
   })
   it('chiusa a mano, la stessa domanda non la riapre ma il tasto chiama; una diversa la riapre', () => {
-    const vista = decidiColonnaDomande({ conversazioni: [domanda('d1')], viste: new Set(['d:d1']), aperta: false, avvio: false })
-    expect(vista).toMatchObject({ apri: false, richiamo: true })
-    const nuova = decidiColonnaDomande({ conversazioni: [domanda('d1'), domanda('d2')], viste: new Set(['d:d1']), aperta: false, avvio: false })
-    expect(nuova).toMatchObject({ apri: true, evidenzia: 'ap:d2', nuove: ['d:d2'] })
+    const gia = decidiColonnaDomande({ conversazioni: [domanda('d1')], viste: new Set([vista('d1')]), aperta: false, avvio: false })
+    expect(gia).toMatchObject({ apri: false, richiamo: true })
+    const nuova = decidiColonnaDomande({ conversazioni: [domanda('d1'), domanda('d2')], viste: new Set([vista('d1')]), aperta: false, avvio: false })
+    expect(nuova).toMatchObject({ apri: true, evidenzia: 'chat:d2', nuove: [vista('d2')] })
   })
   it('niente in attesa: niente da aprire e il tasto non chiama; colonna aperta: niente da chiamare', () => {
     expect(decidiColonnaDomande({ conversazioni: [finita], viste: new Set(), aperta: false, avvio: true })).toMatchObject({ apri: false, richiamo: false })
-    expect(decidiColonnaDomande({ conversazioni: [domanda('d1')], viste: new Set(['d:d1']), aperta: true, avvio: false })).toMatchObject({ apri: false, richiamo: false })
+    expect(decidiColonnaDomande({ conversazioni: [domanda('d1')], viste: new Set([vista('d1')]), aperta: true, avvio: false })).toMatchObject({ apri: false, richiamo: false })
   })
 })

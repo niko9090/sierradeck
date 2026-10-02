@@ -5,6 +5,7 @@ import { passoDaTasto, postoDalDocumento, quotaDiario } from '../diario-misura'
 import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
 import { ChatAutopilota } from './ChatAutopilota'
 import { domandaArrivata } from '@shared/domande-autopilota'
+import { segnaSchedaInVista } from '../schede-in-vista'
 import { LinguettaAutopilota, useDomandeAutopilota } from './LinguettaAutopilota'
 
 /** Le linguette sotto la chat: una cosa per volta, ognuna con tutto lo spazio. */
@@ -95,7 +96,11 @@ export function DiarioAutopilota({
     const fuori = (e.clientX === 0 && e.clientY === 0) || e.clientX < r.left || e.clientX > r.right || e.clientY < r.top - 8 || e.clientY > r.bottom + 40
     if (fuori) stacca(l)
   }
-  // Dalla colonna Domande: «X ti aspetta → apri» porta qui, sulla linguetta.
+  // Il main deve sapere che questa finestra ha la sua scheda: e' qui che si
+  // mettono in vista le sue domande (0.39.1), non nella colonna a destra.
+  useEffect(() => segnaSchedaInVista(autopilota.id), [autopilota.id])
+  // Dalla colonna Domande, dal tasto «Domande» o da una domanda nuova (il main,
+  // `domande:mostra`): si apre la scheda sulla linguetta «Domande».
   const radice = useRef<HTMLElement | null>(null)
   useEffect(() => {
     const suApri = (e: Event): void => {
@@ -120,6 +125,8 @@ export function DiarioAutopilota({
     // Una domanda nuova: la linguetta si accende e si fa avanti (se e'
     // staccata in una sua finestra, lampeggia quella).
     if (domandaArrivata(viste.current, schede) && !staccate.includes('domande')) {
+      // Anche con la scheda chiusa sulla sua striscia: la domanda si deve vedere.
+      setAperto(true)
       setLinguetta((l) => {
         if (l !== 'domande') primaDelleDomande.current = l
         return 'domande'

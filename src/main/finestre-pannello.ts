@@ -76,14 +76,33 @@ export function pannelliAperti(): { autopilota: string; linguetta: LinguettaStac
   return [...aperte.values()]
 }
 
-/** Stacca una linguetta in una finestra vera, o la porta davanti se c'e' gia'. */
-export function apriPannello(autopilota: string, linguetta: LinguettaStaccabile): void {
+/**
+ * La finestra pannello di quella linguetta, se c'e', portata davanti. Con
+ * `prendiFuoco` falso (una domanda arrivata da sola, 0.39.1) si mostra sopra le
+ * altre senza togliere la tastiera a chi sta scrivendo, e lampeggia.
+ */
+export function portaAvantiPannello(autopilota: string, linguetta: LinguettaStaccabile, prendiFuoco: boolean): boolean {
   for (const [id, v] of aperte) {
-    if (v.autopilota === autopilota && v.linguetta === linguetta) {
-      const w = BrowserWindow.fromId(id)
-      if (w !== null && !w.isDestroyed()) { w.show(); w.focus(); return }
-    }
+    if (v.autopilota !== autopilota || v.linguetta !== linguetta) continue
+    const w = BrowserWindow.fromId(id)
+    if (w === null || w.isDestroyed()) continue
+    if (prendiFuoco) { w.show(); w.focus(); return true }
+    if (w.isMinimized()) w.restore()
+    if (!w.isVisible()) w.showInactive()
+    w.moveTop()
+    if (!w.isFocused()) w.flashFrame(true)
+    return true
   }
+  return false
+}
+
+/**
+ * Stacca una linguetta in una finestra vera, o la porta davanti se c'e' gia'.
+ * `inattiva` (0.39.1): la apre senza prendere la tastiera — quando la apre il
+ * programma da solo per una domanda, non chi la usa.
+ */
+export function apriPannello(autopilota: string, linguetta: LinguettaStaccabile, opzioni: { inattiva?: boolean } = {}): void {
+  if (portaAvantiPannello(autopilota, linguetta, opzioni.inattiva !== true)) return
   const chiave = chiavePannello(autopilota, linguetta)
   const dove = sistemaPosizione(archivio.posizioni[chiave], schermi())
   const win = new BrowserWindow({
@@ -91,6 +110,7 @@ export function apriPannello(autopilota: string, linguetta: LinguettaStaccabile)
     minWidth: 320, minHeight: 240,
     title: APP_NAME,
     backgroundColor: '#141517',
+    ...(opzioni.inattiva === true ? { show: false } : {}),
     autoHideMenuBar: true,
     // Le stesse difese delle finestre di chat.
     webPreferences: {
@@ -100,6 +120,7 @@ export function apriPannello(autopilota: string, linguetta: LinguettaStaccabile)
       sandbox: false
     }
   })
+  if (opzioni.inattiva === true) win.once('ready-to-show', () => { if (!win.isDestroyed()) { win.showInactive(); win.flashFrame(true) } })
   aperte.set(win.id, { autopilota, linguetta })
   archivio = segnaAperto(archivio, autopilota, linguetta, true)
   salva()

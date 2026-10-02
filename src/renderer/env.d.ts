@@ -415,6 +415,9 @@ declare global {
         rimetti: (autopilota: string, linguetta: string) => Promise<void>
         aperti: () => Promise<{ autopilota: string; linguetta: string }[]>
         richiama: () => Promise<void>
+        inVista: (autopiloti: string[]) => void
+        mostraDomande: (autopilota: string, automatico: boolean) => Promise<void>
+        suMostraDomande: (cb: (autopilota: string) => void) => () => void
         suCambio: (cb: (aperti: { autopilota: string; linguetta: string }[]) => void) => () => void
       }
     }
