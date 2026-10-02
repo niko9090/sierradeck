@@ -417,8 +417,11 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
             }
         }
         // Con un tetto: al massimo un terzo abbondante dello schermo, cosi' la
-        // chat e la casella restano sopra anche con la tastiera aperta.
-        if (linguettaAperta) Column(Modifier.fillMaxWidth().heightIn(max = 260.dp).verticalScroll(rememberScrollState()).padding(16.dp)) {
+        // chat e la casella restano sopra anche con la tastiera aperta. Le
+        // Domande hanno piu' posto (0.39.1): il testo e' sempre intero, e se e'
+        // lungo scorre la linguetta, non si taglia.
+        val tetto = altezzaLinguetta(chiavi.getOrNull(linguetta)).dp
+        if (linguettaAperta) Column(Modifier.fillMaxWidth().heightIn(max = tetto).verticalScroll(rememberScrollState()).padding(16.dp)) {
             when (chiavi.getOrNull(linguetta)) {
                 "domande" -> LinguettaDomande(api, breve.id, schede, onRisposto = { scope.launch { try { d = api.autopilota(breve.id) } catch (_: Exception) {} } })
                 "file" -> LinguettaFile(api, breve.id)

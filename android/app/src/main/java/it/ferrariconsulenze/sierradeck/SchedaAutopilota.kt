@@ -53,3 +53,10 @@ fun righeDiff(testo: String, max: Int = 2000): List<RigaDiff> = testo.split("\n"
 /** «modificato · +3 −1 · da salvare»: la riga di un file. */
 fun rigaFile(f: FileCambiato): String =
     "${f.stato} · " + (if (f.binario == true) "binario" else "+${f.piu} −${f.meno}") + " · " + (if (f.salvato) "in commit" else "da salvare")
+
+/**
+ * Quanto puo' crescere la linguetta aperta, in dp, prima di scorrere (0.39.1):
+ * le Domande hanno piu' posto. Il testo di una domanda non si taglia mai: oltre
+ * questa altezza scorre.
+ */
+fun altezzaLinguetta(chiave: String?): Int = if (chiave == "domande") 420 else 260
