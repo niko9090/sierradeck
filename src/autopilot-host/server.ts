@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import { isAbsolute, join } from 'node:path'
 import { existsSync, statSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import {
@@ -27,6 +28,7 @@ import {
 import { chatDaRiprendere, daRiprendere, intervisteDaRiprendere, riportaChiAspettava } from './ripresa'
 import { componiPromptRisposta, domandaChiara, leggiEsitoRisposta } from './risposta-autonoma'
 import { componiDomanda } from './trascrizione'
+import { esaminaComando, messaggioCriterio, vagliaCriteri } from '@shared/controllo-comandi'
 import {
   domandaControllata, domandaPerRegistro, leggiParti, nomeDi, partiDallaChat, partiDaRisposta, partiPubblica, testoDomanda as testoDellaDomanda
 } from '@shared/domanda-strutturata'
@@ -337,6 +339,11 @@ function criteriDa(raw: unknown): Criterio[] {
 }
 
 /** Obiettivo, criteri e compiti come sono adesso: la fotografia da cui si disfa. */
+/** Un file esiste, relativo alla cartella del progetto (per il controllo dei comandi). */
+function esisteIn(cwd: string): (p: string) => boolean {
+  return (p) => { try { return existsSync(isAbsolute(p) ? p : join(cwd, p)) } catch { return false } }
+}
+
 function istantaneaDi(a: Autopilota): Istantanea {
   return { obiettivo: a.obiettivo, criteri: a.criteri, compitiDaFare: a.compitiDaFare }
 }
@@ -380,6 +387,12 @@ function applicaCambio(
     // Un criterio che cambia riparte da non soddisfatto — anche quando la
     // descrizione resta la stessa e cambia il comando: tenere la spunta di
     // prima direbbe che una cosa mai misurata è già vera.
+    // I comandi nuovi si controllano adesso, non al primo giro (0.44.0): un
+    // comando che non puo' funzionare (la trappola del 01/10, virgolette
+    // sbilanciate, node -e rotto) non entra, e chi l'ha scritto sa perche'.
+    const nuovi = letti.filter((n) => n.comando !== undefined && !a.criteri.some((c) => c.comando === n.comando))
+    const v = vagliaCriteri(nuovi, esisteIn(a.cwd))
+    if (v.scartati.length > 0) return v.scartati.map((s) => s.messaggio).join('\n\n')
     criteri = letti.map((nuovo) => {
       const vecchio = a.criteri.find(
         (c) => c.descrizione === nuovo.descrizione && c.comando === nuovo.comando
@@ -1124,15 +1137,21 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     corrente: Autopilota,
     esito: { nome?: string; obiettivo?: string; criteri: { descrizione: string; comando?: string }[] }
   ): void => {
+    // I comandi controllati alla scrittura (0.44.0): uno sbagliato non entra;
+    // il criterio resta, senza comando (lo giudica il supervisore), e il
+    // perche' finisce nel diario, dove lo vedi.
+    const vaglio = vagliaCriteri(esito.criteri, esisteIn(corrente.cwd))
+    const scartati = new Set(vaglio.scartati.map((s) => s.criterio))
     const pronto: Autopilota = {
       ...corrente,
       stato: 'pronto',
       ...(esito.nome !== undefined ? { nome: esito.nome } : {}),
       ...(esito.obiettivo !== undefined ? { obiettivo: esito.obiettivo } : {}),
-      criteri: esito.criteri.map((c) => ({ ...c, soddisfatto: false })),
+      criteri: esito.criteri.map((c) => scartati.has(c) ? { descrizione: c.descrizione, soddisfatto: false } : { ...c, soddisfatto: false }),
       motivoSospensione: undefined,
       decisioni: [
         ...corrente.decisioni,
+        ...[...vaglio.scartati.map((s) => s.messaggio), ...vaglio.avvisi].map((cosa) => ({ quando: deps.adesso(), cosa })),
         {
           quando: deps.adesso(),
           cosa: `configurato da sé: ${esito.criteri.map((c) => c.descrizione).join(' · ')}`
@@ -1797,6 +1816,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // la domanda.
     if (decisione.tipo === 'correggiCriterio') {
       const { descrizione, comando } = decisione
+      // Controllato prima di applicarlo (0.44.0): un comando sbagliato non
+      // sostituisce quello di prima, e il supervisore legge perche'.
+      const esame = esaminaComando(comando, esisteIn(aggiornato.cwd))
+      if (!esame.ok) {
+        const msg = messaggioCriterio(descrizione, comando, esame)
+        annota(aggiornato, msg)
+        salva(aggiornato)
+        return { decision: 'block', reason: `${msg}\n\nIl criterio resta com'era. Prosegui verso l'obiettivo: ${aggiornato.obiettivo}` }
+      }
       const presi = tuoi(aggiornato)
       const conNuovoCriterio: Autopilota = {
         ...presi.autopilota,

@@ -1416,6 +1416,16 @@ describe('metterci le mani: modificare a mano', () => {
     expect(a.criteri[0].soddisfatto).toBe(false)
   })
 
+  it('rifiuta un comando che non può funzionare, con il motivo (0.44.0, la trappola del 01/10)', async () => {
+    const id = await creaAp()
+    const sbagliato = `bash -c "v=$(node -p \\"require('./package.json').version\\") && echo $v | grep -qE '^0\\.37\\.[0-9]+$'"`
+    const r = await chiama('PATCH', `/autopiloti/${id}`, { criteri: [{ descrizione: 'la versione', comando: sbagliato }] })
+    expect(r.stato).toBe(400)
+    expect(String(r.dati.errore)).toContain('la trappola del 01/10')
+    // Il criterio di prima resta.
+    expect((await chiama('GET', '/autopiloti')).dati[0].criteri[0].comando).not.toBe(sbagliato)
+  })
+
   it('rifiuta di lasciarlo senza una fine da raggiungere', async () => {
     const id = await creaAp()
     const r = await chiama('PATCH', `/autopiloti/${id}`, { criteri: [] })
