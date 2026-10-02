@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.44.0',
+    righe: [
+      '**I comandi dei criteri si controllano quando si scrivono.** Quando un autopilota, il supervisore o tu scrivete il comando che misura un criterio, SierraDeck lo guarda subito, prima che entri nel lavoro. Si ferma se ci sono variabili che la shell svuoterebbe (la trappola del 01/10, quando un criterio bocciava anche a lavoro fatto), virgolette che non si chiudono o uno script node che non funziona, e chi l’ha scritto riceve un messaggio che spiega cosa non va e come scriverlo. Un file che ancora non esiste è solo un avviso, perché può essere proprio il lavoro a doverlo creare.',
+      '**«Salute del sistema».** Nella barra c’è il tasto «♥ Salute», e c’è anche sul telefono, nella pagina e nell’app (2.47.0). Mostra in un posto solo: il Drive (collegato o no, perché e da quando); ogni altro PC con l’ultimo segno di vita, la strada con cui si raggiunge e la versione; un aggiornamento che non si è installato; gli errori delle ultime sei ore presi dal registro, raggruppati; le istruzioni degli autopiloti che non sono partite. Ogni voce spiega cosa vuol dire e cosa fare, e dove si può c’è il tasto che lo fa.'
+    ]
+  },
+  {
     versione: '0.43.0',
     righe: [
       '**L’app del telefono cerca da sola gli aggiornamenti.** Ogni otto ore e ogni volta che la apri guarda direttamente su GitHub se c’è una versione nuova, anche con il computer spento e con l’app chiusa. Quando la trova ti arriva una notifica con le novità e il tasto «Scarica e installa»; l’installazione la confermi tu, nella schermata di Android. Per ogni versione arriva una notifica sola.',
