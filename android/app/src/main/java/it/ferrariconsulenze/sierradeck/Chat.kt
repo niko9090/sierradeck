@@ -240,6 +240,7 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             LedChat(lettura.tono)
                                             Spacer(Modifier.width(8.dp))
+                                            if (viva.pin == "chiusa") Text("🔒 ", fontSize = 12.sp)
                                             Text(viva.titolo.ifBlank { viva.cwd }, color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                                             Spacer(Modifier.width(8.dp))
                                             Text(parola, color = coloreTono(lettura.tono), fontSize = 11.sp, maxLines = 1, softWrap = false)
@@ -349,6 +350,8 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
     // domanda successiva. Un computer aggiornato la nasconde da se'; questo
     // vale con quelli vecchi, e nel giro fra una lettura e l'altra.
     var sceltaRisposta by remember { mutableStateOf<Pair<String, Long>?>(null) }
+    // Il PIN delle chat (PC 0.49.0): chiusa per questo telefono = lucchetto, niente schermo né casella.
+    var chiusaPin by remember(chat.id) { mutableStateOf(chat.pin == "chiusa") }
 
     LaunchedEffect(chat.id, quante) {
         // Quante risposte **riuscite ma vuote** di fila.
@@ -365,6 +368,7 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                 // attaccata al fondo mentre la chat scrive, e cresce verso
                 // l'alto solo quando sei tu a chiederlo.
                 val letta = api.storia(chat.id, -1, quante)
+                chiusaPin = false
                 val firma = letta.scelte?.opzioni?.joinToString("\n") { it.testo }
                 val risposta = sceltaRisposta
                 storia = if (firma != null && risposta != null && risposta.first == firma &&
@@ -377,6 +381,11 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                     "Il computer risponde, ma per questa chat non manda niente. Succede se il riquadro non è a schermo sul computer: portalo in primo piano nel suo workspace."
                 else null
             } catch (e: Exception) {
+                if (PinChat.chiusa(e)) {
+                    chiusaPin = true; storia = null; guasto = null
+                    delay(2000)
+                    continue
+                }
                 if (api.ponte != null) {
                     // Attraverso il ponte non c'e' il ripiego sullo schermo: si dice il perche'.
                     guasto = if (e is Api.Errore) Nota.spiega(e, "leggere questa chat") else "Non riesco a leggere questa chat: ${e.message ?: "il PC non risponde"}"
@@ -476,6 +485,9 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
         }
         HorizontalDivider(color = Banco.incisione)
 
+        if (chiusaPin) {
+            CoperturaPinApp(api, chat.id, chat.titolo, onAperta = { chiusaPin = false }, modifier = Modifier.weight(1f).fillMaxWidth())
+        } else {
         // ─── terminale ───
         VistaTerminale(
             grezze = storia?.grezze ?: emptyList(),
@@ -632,6 +644,7 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                     modifier = Modifier.size(20.dp)
                 )
             }
+        }
         }
     }
 

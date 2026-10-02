@@ -148,7 +148,13 @@ data class Chat(
      * Ha un terminale acceso. Assente nei computer piu' vecchi: allora vale
      * «si'», che era come l'app la trattava prima di saperlo.
      */
-    val viva: Boolean = true
+    val viva: Boolean = true,
+    /**
+     * Il PIN delle chat (PC 0.49.0): `chiusa` = protetta e non sbloccata da
+     * questo telefono (niente ultima riga), `aperta` = protetta ma sbloccata.
+     * Assente se la chat non è protetta, o con un computer più vecchio.
+     */
+    val pin: String? = null
 )
 
 /**

@@ -127,6 +127,12 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             put("chat", chat); put("opzione", opzione)
         }))
 
+    /** Il PIN di una chat protetta (PC 0.49.0): lo controlla il computer di casa della chat. */
+    suspend fun sbloccaPin(chat: String, pin: String): Fatto =
+        json.decodeFromString(corpoTesto("/api/pin/sblocca", oggetto {
+            put("chat", chat); put("pin", pin)
+        }))
+
     suspend fun scrivi(chat: String, testo: String): Fatto =
         json.decodeFromString(corpoTesto("/api/scrivi", oggetto {
             put("chat", chat); put("testo", testo)
