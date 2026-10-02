@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { MISURE, larghezzaEffettiva, larghezzaTrascinata, limita, massimoColonna, passoFreccia, suggerimentoBarra } from '@shared/misure-pannelli'
+import { useLarghezzaFinestra } from '../larghezza-finestra'
 import type { Consumi } from '@shared/consumi'
 import { LARGHEZZA_CONSUMI } from '@shared/preferenze'
 import { SOGLIE_FRENO } from '@shared/harness'
@@ -21,6 +23,8 @@ type Props = {
   onChiudi: () => void
   larghezza: number
   onLarghezza: (px: number) => void
+  /** Quanto prende l'altra colonna aperta (0.41.0): le chat a sinistra restano leggibili. */
+  altreColonne?: number
   /** Quanti autopiloti stanno lavorando adesso: il freno vale per loro. */
   autopilotiAlLavoro: number
 }
@@ -34,7 +38,7 @@ const STATO: Record<string, string> = {
   azzerata: 'azzerata, in attesa'
 }
 
-export function ColonnaConsumi({ onChiudi, larghezza, onLarghezza, autopilotiAlLavoro }: Props): React.JSX.Element {
+export function ColonnaConsumi({ onChiudi, larghezza, onLarghezza, autopilotiAlLavoro, altreColonne }: Props): React.JSX.Element {
   const [consumi, setConsumi] = useState<Consumi | undefined>(undefined)
   const [errore, setErrore] = useState<string | undefined>(undefined)
   const [larga, setLarga] = useState(larghezza)
@@ -51,6 +55,8 @@ export function ColonnaConsumi({ onChiudi, larghezza, onLarghezza, autopilotiAlL
     return () => clearInterval(t)
   }, [])
 
+  const larghezzaFinestra = useLarghezzaFinestra()
+  const altre = altreColonne ?? 0
   /** La maniglia sul bordo sinistro, come nelle Domande: si salva al rilascio. */
   const trascina = (e: React.PointerEvent<HTMLDivElement>): void => {
     e.preventDefault()
@@ -60,7 +66,8 @@ export function ColonnaConsumi({ onChiudi, larghezza, onLarghezza, autopilotiAlL
     const iniziale = larga
     let ultima = iniziale
     const muovi = (ev: PointerEvent): void => {
-      ultima = Math.round(Math.min(LARGHEZZA_CONSUMI.max, Math.max(LARGHEZZA_CONSUMI.min, iniziale + (partenza - ev.clientX))))
+      // Dentro i limiti, e mai tanto da lasciare le chat illeggibili (0.41.0).
+      ultima = larghezzaTrascinata({ sezione: 'consumi', iniziale, partenzaX: partenza, x: ev.clientX, finestra: window.innerWidth, altreColonne: altre })
       setLarga(ultima)
     }
     const molla = (): void => {
@@ -70,6 +77,19 @@ export function ColonnaConsumi({ onChiudi, larghezza, onLarghezza, autopilotiAlL
     }
     bersaglio.addEventListener('pointermove', muovi)
     bersaglio.addEventListener('pointerup', molla)
+  }
+  /** Le frecce spostano il bordo a passi; il doppio clic torna alla misura iniziale (0.41.0). */
+  const tasti = (e: React.KeyboardEvent<HTMLDivElement>): void => {
+    const passo = passoFreccia('consumi', e.key)
+    if (passo === 0) return
+    e.preventDefault()
+    const nuova = Math.min(limita('consumi', larga + passo), massimoColonna('consumi', window.innerWidth, altre))
+    setLarga(nuova)
+    onLarghezza(nuova)
+  }
+  const iniziale = (): void => {
+    setLarga(MISURE.consumi.predefinita)
+    onLarghezza(MISURE.consumi.predefinita)
   }
 
   const limiti = consumi?.limiti
@@ -101,13 +121,17 @@ export function ColonnaConsumi({ onChiudi, larghezza, onLarghezza, autopilotiAlL
   const vecchiaMin = Math.round(LETTURA_VECCHIA_MS / 60_000)
 
   return (
-    <aside className="domande-lato consumi-lato" style={{ width: larga }} aria-label="Consumi e limiti">
+    <aside className="domande-lato consumi-lato" style={{ width: larghezzaEffettiva('consumi', larga, larghezzaFinestra, altre) }} aria-label="Consumi e limiti">
       <div
         className="domande-lato__maniglia"
         role="separator"
         aria-orientation="vertical"
-        title="Trascina per cambiare la larghezza della colonna «Consumi e limiti»"
+        aria-label="Larghezza della colonna «Consumi e limiti»"
+        tabIndex={0}
+        title={suggerimentoBarra('consumi')}
         onPointerDown={trascina}
+        onDoubleClick={iniziale}
+        onKeyDown={tasti}
       />
       <div className="domande-lato__testa">
         <span className="serigrafia">Consumi e limiti</span>

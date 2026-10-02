@@ -1618,6 +1618,7 @@ export function App(): React.JSX.Element {
         {colonnaDomande.aperta ? (
           <PannelloDomande
             larghezza={colonnaDomande.larghezza}
+            altreColonne={colonnaConsumi.aperta ? colonnaConsumi.larghezza : 0}
             onLarghezza={(px) => salvaColonnaDomande({ larghezza: px })}
             onChiudi={() => salvaColonnaDomande({ aperta: false })}
             onConteggio={setDomandeInAttesa}
@@ -1627,6 +1628,7 @@ export function App(): React.JSX.Element {
         {colonnaConsumi.aperta ? (
           <ColonnaConsumi
             larghezza={colonnaConsumi.larghezza}
+            altreColonne={colonnaDomande.aperta ? colonnaDomande.larghezza : 0}
             onLarghezza={salvaLarghezzaConsumi}
             onChiudi={() => commutaColonna('consumi')}
             autopilotiAlLavoro={autopiloti.filter((a) => a.stato === 'lavoro').length}

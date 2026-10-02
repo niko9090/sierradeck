@@ -98,6 +98,12 @@ export type Preferenze = {
   /** Quanto e' larga la colonna «Consumi e limiti», in pixel. */
   larghezzaConsumi: number
   /**
+   * Nella scheda dell'autopilota, quanta parte prende la chat con lui (in
+   * percentuale; il resto va alle linguette). La barra fra le due si
+   * trascina (0.41.0).
+   */
+  divisioneAutopilota: number
+  /**
    * Gli avvisi della banda chiusi con «Chiudi» (0.37.0): le loro chiavi
    * (un fermo di un autopilota, una lista di programmi mancanti). Nelle
    * preferenze perche' valgano anche dopo un riavvio; un fermo nuovo ha una
@@ -151,6 +157,7 @@ export const PREFERENZE_PREDEFINITE: Preferenze = {
   larghezzaDomande: 400,
   consumiLaterali: false,
   larghezzaConsumi: 380,
+  divisioneAutopilota: 55,
   avvisiChiusi: [],
   // Il banco e quello che c e sempre stato: chi non sceglie non deve
   // ritrovarsi un programma diverso da quello di ieri.
@@ -250,6 +257,10 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
       typeof o.larghezzaConsumi === 'number' && Number.isFinite(o.larghezzaConsumi)
         ? Math.round(Math.min(LARGHEZZA_CONSUMI.max, Math.max(LARGHEZZA_CONSUMI.min, o.larghezzaConsumi)))
         : PREFERENZE_PREDEFINITE.larghezzaConsumi,
+    divisioneAutopilota:
+      typeof o.divisioneAutopilota === 'number' && Number.isFinite(o.divisioneAutopilota)
+        ? Math.round(Math.min(80, Math.max(20, o.divisioneAutopilota)))
+        : PREFERENZE_PREDEFINITE.divisioneAutopilota,
     avvisiChiusi: Array.isArray(o.avvisiChiusi)
       ? o.avvisiChiusi.filter((c): c is string => typeof c === 'string' && c !== '' && c.length <= 600).slice(-200)
       : [],

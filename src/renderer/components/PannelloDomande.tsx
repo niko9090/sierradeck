@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { MISURE, larghezzaEffettiva, larghezzaTrascinata, limita, massimoColonna, passoFreccia, suggerimentoBarra } from '@shared/misure-pannelli'
+import { useLarghezzaFinestra } from '../larghezza-finestra'
 import { quanteAspettano, richiestaRisposta, type Conversazione } from '@shared/domande-conversazioni'
 import { LARGHEZZA_DOMANDE } from '@shared/preferenze'
 
@@ -24,6 +26,8 @@ type Props = {
   onConteggio?: (n: number) => void
   larghezza: number
   onLarghezza: (px: number) => void
+  /** Quanto prende l'altra colonna aperta (0.41.0): le chat a sinistra restano leggibili. */
+  altreColonne?: number
   /**
    * Una domanda nuova da mettere in vista (0.37.2): la colonna apre quella
    * conversazione e la evidenzia per qualche secondo, senza prendere il fuoco.
@@ -78,7 +82,7 @@ export function apriDomandeAutopilota(id: string): void {
 /** Quanto resta evidenziata una domanda appena arrivata. */
 const EVIDENZA_MS = 8000
 
-export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza, evidenza }: Props): React.JSX.Element {
+export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza, evidenza, altreColonne }: Props): React.JSX.Element {
   const [conversazioni, setConversazioni] = useState<Conversazione[] | undefined>(undefined)
   const [scelta, setScelta] = useState<string | undefined>(undefined)
   const [testo, setTesto] = useState('')
@@ -133,6 +137,8 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
     if (f !== null) f.scrollTop = f.scrollHeight
   }, [aperta?.chiave, quanti])
 
+  const finestra = useLarghezzaFinestra()
+  const altre = altreColonne ?? 0
   /** La maniglia sul bordo sinistro: si trascina la larghezza, si salva al rilascio. */
   const trascina = (e: React.PointerEvent<HTMLDivElement>): void => {
     e.preventDefault()
@@ -142,7 +148,8 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
     const iniziale = larga
     let ultima = iniziale
     const muovi = (ev: PointerEvent): void => {
-      ultima = Math.round(Math.min(LARGHEZZA_DOMANDE.max, Math.max(LARGHEZZA_DOMANDE.min, iniziale + (partenza - ev.clientX))))
+      // Dentro i limiti, e mai tanto da lasciare le chat illeggibili (0.41.0).
+      ultima = larghezzaTrascinata({ sezione: 'domande', iniziale, partenzaX: partenza, x: ev.clientX, finestra: window.innerWidth, altreColonne: altre })
       setLarga(ultima)
     }
     const molla = (): void => {
@@ -152,6 +159,19 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
     }
     bersaglio.addEventListener('pointermove', muovi)
     bersaglio.addEventListener('pointerup', molla)
+  }
+  /** Le frecce spostano il bordo a passi; il doppio clic torna alla misura iniziale (0.41.0). */
+  const tasti = (e: React.KeyboardEvent<HTMLDivElement>): void => {
+    const passo = passoFreccia('domande', e.key)
+    if (passo === 0) return
+    e.preventDefault()
+    const nuova = Math.min(limita('domande', larga + passo), massimoColonna('domande', window.innerWidth, altre))
+    setLarga(nuova)
+    onLarghezza(nuova)
+  }
+  const iniziale = (): void => {
+    setLarga(MISURE.domande.predefinita)
+    onLarghezza(MISURE.domande.predefinita)
   }
 
   const manda = (percorso: string, corpo: Record<string, string>, ricordo: string): void => {
@@ -188,13 +208,17 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
   const chiedono = elenco.filter((c) => c.chiede).length
 
   return (
-    <aside className="domande-lato" style={{ width: larga }} aria-label="Domande">
+    <aside className="domande-lato" style={{ width: larghezzaEffettiva('domande', larga, finestra, altre) }} aria-label="Domande">
       <div
         className="domande-lato__maniglia"
         role="separator"
         aria-orientation="vertical"
-        title="Trascina per cambiare la larghezza della colonna delle Domande"
+        aria-label="Larghezza della colonna delle Domande"
+        tabIndex={0}
+        title={suggerimentoBarra('domande')}
         onPointerDown={trascina}
+        onDoubleClick={iniziale}
+        onKeyDown={tasti}
       />
       <div className="domande-lato__testa">
         <span className="serigrafia">Domande</span>

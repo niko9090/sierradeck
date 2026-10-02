@@ -7,8 +7,9 @@
  * peggio di dover scegliere.
  */
 
-/** Sotto questa larghezza il mosaico delle chat non si legge piu'. */
-export const MOSAICO_MINIMO_PX = 520
+/** Sotto questa larghezza il mosaico delle chat non si legge piu' (la regola sta in `misure-pannelli`). */
+import { MOSAICO_MINIMO_PX } from '@shared/misure-pannelli'
+export { MOSAICO_MINIMO_PX }
 
 export type Colonna = 'domande' | 'consumi'
 
