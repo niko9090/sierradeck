@@ -219,3 +219,17 @@ export function raccogliDomande(p: {
 export function quanteChiedono(voci: VoceDomanda[]): number {
   return voci.filter((v) => v.tipo !== 'chat').length
 }
+
+
+/**
+ * Le voci come le leggono le app (0.43.0): le `opzioni` sempre come oggetti
+ * `{ numero, testo, scelta }`, anche quelle di un autopilota, che qui sono
+ * stringhe. Un'app (2.39 e successive) che incontrava una stringa al posto
+ * dell'oggetto non leggeva piu' niente della scheda Domande.
+ */
+export function vociPerLeApp(voci: VoceDomanda[]): unknown[] {
+  return voci.map((v) => {
+    if (v.tipo !== 'autopilota' || v.opzioni === undefined) return v
+    return { ...v, opzioni: v.opzioni.map((testo, i) => ({ numero: i + 1, testo, scelta: false })) }
+  })
+}

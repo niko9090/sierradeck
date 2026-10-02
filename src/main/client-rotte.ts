@@ -10,7 +10,7 @@ import { PREFERENZE_PREDEFINITE, tavolozza, type Preferenze } from '@shared/pref
 import { validateNomeWorkspace } from './validation'
 import { pathToSlug } from './indexer/project-scanner'
 import { scelteDiTerminale, tastiPerScegliere } from '@shared/scelte-terminale'
-import { leggiIdChatAltroPc, raccogliDomande } from '@shared/domande-telefono'
+import { leggiIdChatAltroPc, raccogliDomande, vociPerLeApp } from '@shared/domande-telefono'
 import { domandeScheda } from '@shared/domande-autopilota'
 import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/domande-conversazioni'
 import { alberoChat } from '@shared/harness'
@@ -607,7 +607,10 @@ export function rotteClient(deps: DipendenzeRotte) {
         // e «lo studio» invece si. Sta **qui** e non in `/api/ciao`, che si puo'
         // chiamare senza chiave: il nome di una macchina non si regala a
         // chiunque sia sulla rete, si dice a chi si e' gia' presentato.
-        computer: { nome: deps.nomeComputer?.() ?? '' }
+        // Dalla 0.43.0 anche la versione: l'app spegne (e spiega) le
+        // funzioni che questo computer non ha ancora. Un campo in piu':
+        // le app vecchie lo ignorano.
+        computer: { nome: deps.nomeComputer?.() ?? '', versione: deps.versione }
       })
     }
 
@@ -645,7 +648,12 @@ export function rotteClient(deps: DipendenzeRotte) {
       // disegnano il PC, la pagina e l'app. `voci` resta per le app vecchie.
       const conversazioni = conversazioniDomande({ voci, autopiloti, inviati: Object.fromEntries(inviati) })
       // Il numero sul tasto «Domande», uguale ovunque (0.37.2).
-      return OK({ voci, conversazioni, chiedono: quanteAspettano(conversazioni) })
+      // `voci` resta per le app vecchie (prima della 0.36.0 delle conversazioni),
+      // e le app leggono `opzioni` come oggetti {numero, testo, scelta}: le
+      // risposte da toccare di un autopilota erano stringhe, e un'app che le
+      // incontrava non leggeva piu' niente delle Domande (trovato dal test di
+      // compatibilita', 0.43.0; dalla 0.41.0 ogni domanda ha le sue scelte).
+      return OK({ voci: vociPerLeApp(voci), conversazioni, chiedono: quanteAspettano(conversazioni) })
     }
 
     // I colori del computer, per vestire la pagina con la stessa grafica.

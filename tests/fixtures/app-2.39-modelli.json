@@ -1,0 +1,1635 @@
+{
+ "origine": "android/app/src/main/java/it/ferrariconsulenze/sierradeck/Modelli.kt al tag v0.36.0 (app 2.39.0)",
+ "modelli": {
+  "Accoppiamento": {
+   "id": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "chiave": {
+    "tipo": "String",
+    "obbligatorio": false
+   }
+  },
+  "Stile": {
+   "token": {
+    "tipo": "Map<String, String>",
+    "obbligatorio": false
+   },
+   "stile": {
+    "tipo": "String",
+    "obbligatorio": false
+   }
+  },
+  "Stato": {
+   "chat": {
+    "tipo": "List<Chat>",
+    "obbligatorio": false
+   },
+   "autopiloti": {
+    "tipo": "List<AutopilotaBreve>",
+    "obbligatorio": false
+   },
+   "domande": {
+    "tipo": "List<Domanda>",
+    "obbligatorio": false
+   },
+   "workspace": {
+    "tipo": "Workspace",
+    "obbligatorio": false
+   },
+   "aggiornamento": {
+    "tipo": "Aggiornamento?",
+    "obbligatorio": false
+   },
+   "computer": {
+    "tipo": "NomeComputer?",
+    "obbligatorio": false
+   },
+   "progetti": {
+    "tipo": "List<ProgettoBreve>",
+    "obbligatorio": false
+   }
+  },
+  "ProgettoBreve": {
+   "id": {
+    "tipo": "String",
+    "obbligatorio": true
+   },
+   "nome": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "chi": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "pcNome": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "inCoda": {
+    "tipo": "Int",
+    "obbligatorio": false
+   }
+  },
+  "PcRemoto": {
+   "pcId": {
+    "tipo": "String",
+    "obbligatorio": true
+   },
+   "nome": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "versione": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "battito": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "vivo": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "cartelle": {
+    "tipo": "List<String>",
+    "obbligatorio": false
+   },
+   "chat": {
+    "tipo": "List<ChatDiPc>",
+    "obbligatorio": false
+   }
+  },
+  "ChatDiPc": {
+   "sessione": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "titolo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "cwd": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "aspetta": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   }
+  },
+  "ElencoPc": {
+   "io": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "pc": {
+    "tipo": "List<PcRemoto>",
+    "obbligatorio": false
+   },
+   "disponibile": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   }
+  },
+  "Posta": {
+   "voci": {
+    "tipo": "List<VocePosta>",
+    "obbligatorio": false
+   },
+   "disponibile": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "fatto": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   }
+  },
+  "VocePosta": {
+   "id": {
+    "tipo": "String",
+    "obbligatorio": true
+   },
+   "testo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "cwd": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "sessione": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "creataIl": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "daNome": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "stato": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "consegnataIl": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "esito": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "apertaIl": {
+    "tipo": "String?",
+    "obbligatorio": false
+   }
+  },
+  "Coda": {
+   "voci": {
+    "tipo": "List<VoceCoda>",
+    "obbligatorio": false
+   },
+   "disponibile": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "fatto": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   }
+  },
+  "VoceCoda": {
+   "id": {
+    "tipo": "String",
+    "obbligatorio": true
+   },
+   "testo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "creataIl": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "daNome": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "sessione": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "stato": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "consegnataIl": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "aNome": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "aSessione": {
+    "tipo": "String?",
+    "obbligatorio": false
+   }
+  },
+  "NomeComputer": {
+   "nome": {
+    "tipo": "String",
+    "obbligatorio": false
+   }
+  },
+  "Chat": {
+   "id": {
+    "tipo": "String",
+    "obbligatorio": true
+   },
+   "titolo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "cwd": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "sessione": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "ultimaRiga": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "altrove": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "chiede": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "aspetta": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "governata": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "viva": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   }
+  },
+  "VoceDomanda": {
+   "tipo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "id": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "autopilotaId": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "autopilota": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "origine": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "testo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "apertaIl": {
+    "tipo": "Long?",
+    "obbligatorio": false
+   },
+   "scadeIl": {
+    "tipo": "Long?",
+    "obbligatorio": false
+   },
+   "chat": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "titolo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "cwd": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "righe": {
+    "tipo": "List<String>",
+    "obbligatorio": false
+   },
+   "opzioni": {
+    "tipo": "List<Opzione>",
+    "obbligatorio": false
+   },
+   "corrente": {
+    "tipo": "Int",
+    "obbligatorio": false
+   }
+  },
+  "Domande": {
+   "voci": {
+    "tipo": "List<VoceDomanda>",
+    "obbligatorio": false
+   },
+   "conversazioni": {
+    "tipo": "List<Conversazione>",
+    "obbligatorio": false
+   }
+  },
+  "MessaggioConversazione": {
+   "da": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "testo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "quando": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "tono": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "opzioni": {
+    "tipo": "List<Opzione>?",
+    "obbligatorio": false
+   }
+  },
+  "ViaRisposta": {
+   "via": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "domanda": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "autopilota": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "chat": {
+    "tipo": "String?",
+    "obbligatorio": false
+   }
+  },
+  "ScelteConversazione": {
+   "chat": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "opzioni": {
+    "tipo": "List<Opzione>",
+    "obbligatorio": false
+   }
+  },
+  "Conversazione": {
+   "chiave": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "tipo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "titolo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "sotto": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "chiede": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "messaggi": {
+    "tipo": "List<MessaggioConversazione>",
+    "obbligatorio": false
+   },
+   "risposta": {
+    "tipo": "ViaRisposta",
+    "obbligatorio": false
+   },
+   "scelte": {
+    "tipo": "ScelteConversazione?",
+    "obbligatorio": false
+   },
+   "segnaposto": {
+    "tipo": "String",
+    "obbligatorio": false
+   }
+  },
+  "NodoAlbero": {
+   "id": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "tipo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "titolo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "stato": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "parola": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "ramo": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "cartella": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "cicli": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "figli": {
+    "tipo": "List<NodoAlbero>",
+    "obbligatorio": false
+   }
+  },
+  "AutopilotaBreve": {
+   "id": {
+    "tipo": "String",
+    "obbligatorio": true
+   },
+   "nome": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "stato": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "led": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "cicli": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "strategia": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "motivo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "cwd": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "fatti": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "criteri": {
+    "tipo": "Int",
+    "obbligatorio": false
+   }
+  },
+  "Domanda": {
+   "id": {
+    "tipo": "String",
+    "obbligatorio": true
+   },
+   "autopilotaId": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "testo": {
+    "tipo": "String",
+    "obbligatorio": false
+   }
+  },
+  "Workspace": {
+   "nomi": {
+    "tipo": "List<String>",
+    "obbligatorio": false
+   },
+   "attivo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "chat": {
+    "tipo": "List<ChatSalvata>",
+    "obbligatorio": false
+   }
+  },
+  "ChatSalvata": {
+   "workspace": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "sessione": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "cwd": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "titolo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "ibernata": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "altrove": {
+    "tipo": "String?",
+    "obbligatorio": false
+   }
+  },
+  "Dentro": {
+   "chat": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "titolo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "righe": {
+    "tipo": "List<String>",
+    "obbligatorio": false
+   },
+   "grezze": {
+    "tipo": "List<String>",
+    "obbligatorio": false
+   },
+   "scelte": {
+    "tipo": "Scelte?",
+    "obbligatorio": false
+   }
+  },
+  "Consumi": {
+   "oggi": {
+    "tipo": "Quota",
+    "obbligatorio": false
+   },
+   "settimana": {
+    "tipo": "Quota",
+    "obbligatorio": false
+   },
+   "totale": {
+    "tipo": "Quota",
+    "obbligatorio": false
+   },
+   "limiti": {
+    "tipo": "Limiti?",
+    "obbligatorio": false
+   },
+   "costo": {
+    "tipo": "Costo?",
+    "obbligatorio": false
+   }
+  },
+  "Finestra": {
+   "percento": {
+    "tipo": "Double",
+    "obbligatorio": false
+   },
+   "resettaIl": {
+    "tipo": "Long?",
+    "obbligatorio": false
+   }
+  },
+  "Limiti": {
+   "cinqueOre": {
+    "tipo": "Finestra?",
+    "obbligatorio": false
+   },
+   "settimana": {
+    "tipo": "Finestra?",
+    "obbligatorio": false
+   },
+   "letti": {
+    "tipo": "Long",
+    "obbligatorio": false
+   },
+   "modello": {
+    "tipo": "String?",
+    "obbligatorio": false
+   }
+  },
+  "Costo": {
+   "oggi": {
+    "tipo": "Double",
+    "obbligatorio": false
+   },
+   "settimana": {
+    "tipo": "Double",
+    "obbligatorio": false
+   },
+   "totale": {
+    "tipo": "Double",
+    "obbligatorio": false
+   },
+   "chat": {
+    "tipo": "Int",
+    "obbligatorio": false
+   }
+  },
+  "Quota": {
+   "ingresso": {
+    "tipo": "Long",
+    "obbligatorio": false
+   },
+   "uscita": {
+    "tipo": "Long",
+    "obbligatorio": false
+   },
+   "cache": {
+    "tipo": "Long",
+    "obbligatorio": false
+   },
+   "chat": {
+    "tipo": "Int",
+    "obbligatorio": false
+   }
+  },
+  "Cartelle": {
+   "cartelle": {
+    "tipo": "List<String>",
+    "obbligatorio": false
+   }
+  },
+  "AutopilotaDettaglio": {
+   "id": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "nome": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "obiettivo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "obiettivoTuo": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "stato": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "cicli": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "strategia": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "motivoSospensione": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "riprendiAlRiavvio": {
+    "tipo": "Boolean?",
+    "obbligatorio": false
+   },
+   "criteri": {
+    "tipo": "List<Criterio>",
+    "obbligatorio": false
+   },
+   "decisioni": {
+    "tipo": "List<Decisione>",
+    "obbligatorio": false
+   },
+   "passaggi": {
+    "tipo": "List<Passo>",
+    "obbligatorio": false
+   },
+   "misura": {
+    "tipo": "MisuraPasso",
+    "obbligatorio": false
+   },
+   "dialogo": {
+    "tipo": "List<ScambioDialogo>",
+    "obbligatorio": false
+   },
+   "chat": {
+    "tipo": "List<Battuta>",
+    "obbligatorio": false
+   },
+   "domanda": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "domandaId": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "pensa": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "compitiDaFare": {
+    "tipo": "List<String>",
+    "obbligatorio": false
+   },
+   "chats": {
+    "tipo": "List<ChatGovernataBreve>",
+    "obbligatorio": false
+   },
+   "albero": {
+    "tipo": "NodoAlbero?",
+    "obbligatorio": false
+   },
+   "ramoBase": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "pubblicazione": {
+    "tipo": "String?",
+    "obbligatorio": false
+   }
+  },
+  "Battuta": {
+   "quando": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "da": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "testo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "dettaglio": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "tono": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "volte": {
+    "tipo": "Int?",
+    "obbligatorio": false
+   }
+  },
+  "ChatGovernataBreve": {
+   "id": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "compito": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "stato": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "cicli": {
+    "tipo": "Int",
+    "obbligatorio": false
+   }
+  },
+  "ScambioDialogo": {
+   "quando": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "da": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "testo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "esito": {
+    "tipo": "String?",
+    "obbligatorio": false
+   }
+  },
+  "Criterio": {
+   "descrizione": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "comando": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "soddisfatto": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "raggiuntoIl": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "ultimaVerifica": {
+    "tipo": "UltimaVerifica?",
+    "obbligatorio": false
+   }
+  },
+  "UltimaVerifica": {
+   "quando": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "codice": {
+    "tipo": "Int?",
+    "obbligatorio": false
+   },
+   "uscita": {
+    "tipo": "String",
+    "obbligatorio": false
+   }
+  },
+  "Decisione": {
+   "quando": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "cosa": {
+    "tipo": "String",
+    "obbligatorio": false
+   }
+  },
+  "Passo": {
+   "stato": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "nome": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "nota": {
+    "tipo": "String?",
+    "obbligatorio": false
+   }
+  },
+  "MisuraPasso": {
+   "percento": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "di": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "dettaglio": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "tono": {
+    "tipo": "String",
+    "obbligatorio": false
+   }
+  },
+  "Schede": {
+   "schede": {
+    "tipo": "List<SchedaBreve>",
+    "obbligatorio": false
+   }
+  },
+  "SchedaBreve": {
+   "file": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "titolo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "quando": {
+    "tipo": "String",
+    "obbligatorio": false
+   }
+  },
+  "SchedaPiena": {
+   "file": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "titolo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "corpo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "quando": {
+    "tipo": "String",
+    "obbligatorio": false
+   }
+  },
+  "PreferenzeInvolucro": {
+   "preferenze": {
+    "tipo": "Preferenze",
+    "obbligatorio": false
+   }
+  },
+  "Preferenze": {
+   "stile": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "chiarore": {
+    "tipo": "Int",
+    "obbligatorio": false
+   }
+  },
+  "Aggiornamento": {
+   "fase": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "versione": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "percento": {
+    "tipo": "Int?",
+    "obbligatorio": false
+   },
+   "errore": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "chatOccupate": {
+    "tipo": "Int?",
+    "obbligatorio": false
+   },
+   "attesa": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "testo": {
+    "tipo": "String?",
+    "obbligatorio": false
+   }
+  },
+  "Sessioni": {
+   "sessioni": {
+    "tipo": "List<SessioneRipresa>",
+    "obbligatorio": false
+   }
+  },
+  "SessioneRipresa": {
+   "id": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "cwd": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "titolo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "quando": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "altrove": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "altroveAcceso": {
+    "tipo": "Boolean?",
+    "obbligatorio": false
+   }
+  },
+  "Fatto": {
+   "fatto": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "autopilota": {
+    "tipo": "String?",
+    "obbligatorio": false
+   }
+  },
+  "Storia": {
+   "chat": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "totale": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "da": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "righe": {
+    "tipo": "List<String>",
+    "obbligatorio": false
+   },
+   "grezze": {
+    "tipo": "List<String>",
+    "obbligatorio": false
+   },
+   "scelte": {
+    "tipo": "Scelte?",
+    "obbligatorio": false
+   }
+  },
+  "Scelte": {
+   "opzioni": {
+    "tipo": "List<Opzione>",
+    "obbligatorio": false
+   },
+   "corrente": {
+    "tipo": "Int",
+    "obbligatorio": false
+   }
+  },
+  "Opzione": {
+   "numero": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "testo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "scelta": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   }
+  },
+  "DatiNegozio": {
+   "plugin": {
+    "tipo": "List<PluginVoce>",
+    "obbligatorio": false
+   },
+   "skill": {
+    "tipo": "List<SkillVoce>",
+    "obbligatorio": false
+   },
+   "agenti": {
+    "tipo": "List<AgenteVoce>",
+    "obbligatorio": false
+   },
+   "mcp": {
+    "tipo": "List<McpVoce>",
+    "obbligatorio": false
+   },
+   "errore": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "nota": {
+    "tipo": "String?",
+    "obbligatorio": false
+   }
+  },
+  "PluginVoce": {
+   "id": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "nome": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "descrizione": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "marketplace": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "installato": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "abilitato": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   }
+  },
+  "SkillVoce": {
+   "nome": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "descrizione": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "origine": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "abilitata": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   }
+  },
+  "AgenteVoce": {
+   "nome": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "descrizione": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "origine": {
+    "tipo": "String",
+    "obbligatorio": false
+   }
+  },
+  "McpVoce": {
+   "nome": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "come": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "abilitato": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   }
+  },
+  "EsitoNegozio": {
+   "ok": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "messaggio": {
+    "tipo": "String?",
+    "obbligatorio": false
+   }
+  },
+  "Account": {
+   "entrato": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "email": {
+    "tipo": "String?",
+    "obbligatorio": false
+   }
+  },
+  "Ciao": {
+   "programma": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "versione": {
+    "tipo": "String",
+    "obbligatorio": false
+   }
+  },
+  "VoceCartella": {
+   "nome": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "percorso": {
+    "tipo": "String",
+    "obbligatorio": false
+   }
+  },
+  "Sfoglia": {
+   "percorso": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "su": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "voci": {
+    "tipo": "List<VoceCartella>",
+    "obbligatorio": false
+   },
+   "radici": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "progetto": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   }
+  },
+  "AppScaricabile": {
+   "versione": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "url": {
+    "tipo": "String",
+    "obbligatorio": false
+   }
+  },
+  "ContiCatalogo": {
+   "uguali": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "indietro": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "avanti": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "soloDrive": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "soloQui": {
+    "tipo": "Int",
+    "obbligatorio": false
+   }
+  },
+  "FileCatalogo": {
+   "totale": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "soloDrive": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "indietro": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "avanti": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "soloQui": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "uguali": {
+    "tipo": "Int",
+    "obbligatorio": false
+   }
+  },
+  "ChatCatalogo": {
+   "sessione": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "percorso": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "titolo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "quando": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "messaggi": {
+    "tipo": "Int?",
+    "obbligatorio": false
+   },
+   "workspace": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "stato": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "altroveQui": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "progetto": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "chiaveProgetto": {
+    "tipo": "String?",
+    "obbligatorio": false
+   }
+  },
+  "ProgettoCatalogo": {
+   "chiave": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "nome": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "cartellaOrigine": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "id": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "cartellaQui": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "quiEsiste": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "cartellaSulDrive": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "origine": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "chat": {
+    "tipo": "List<ChatCatalogo>",
+    "obbligatorio": false
+   },
+   "file": {
+    "tipo": "FileCatalogo",
+    "obbligatorio": false
+   },
+   "conti": {
+    "tipo": "ContiCatalogo",
+    "obbligatorio": false
+   },
+   "stato": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "ultimoTocco": {
+    "tipo": "String?",
+    "obbligatorio": false
+   }
+  },
+  "WorkspaceCatalogo": {
+   "nome": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "quiEsiste": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "chat": {
+    "tipo": "List<ChatCatalogo>",
+    "obbligatorio": false
+   },
+   "progetti": {
+    "tipo": "List<String>",
+    "obbligatorio": false
+   },
+   "daPortare": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "quiUguali": {
+    "tipo": "Int",
+    "obbligatorio": false
+   }
+  },
+  "TotaliCatalogo": {
+   "progetti": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "chat": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "daPortare": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "daAggiornare": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "soloQui": {
+    "tipo": "Int",
+    "obbligatorio": false
+   },
+   "uguali": {
+    "tipo": "Int",
+    "obbligatorio": false
+   }
+  },
+  "Catalogo": {
+   "progetti": {
+    "tipo": "List<ProgettoCatalogo>",
+    "obbligatorio": false
+   },
+   "workspace": {
+    "tipo": "List<WorkspaceCatalogo>",
+    "obbligatorio": false
+   },
+   "totali": {
+    "tipo": "TotaliCatalogo",
+    "obbligatorio": false
+   },
+   "letto": {
+    "tipo": "String",
+    "obbligatorio": false
+   }
+  },
+  "RispostaCatalogo": {
+   "ok": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "disponibile": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "catalogo": {
+    "tipo": "Catalogo?",
+    "obbligatorio": false
+   },
+   "messaggio": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "cassaforteDiversa": {
+    "tipo": "Boolean?",
+    "obbligatorio": false
+   }
+  },
+  "LavoroInCorso": {
+   "tipo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "avviato": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "fase": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "fatto": {
+    "tipo": "Int?",
+    "obbligatorio": false
+   },
+   "totale": {
+    "tipo": "Int?",
+    "obbligatorio": false
+   },
+   "unita": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "dettaglio": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "verso": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "caricati": {
+    "tipo": "Int?",
+    "obbligatorio": false
+   },
+   "scaricati": {
+    "tipo": "Int?",
+    "obbligatorio": false
+   },
+   "saltati": {
+    "tipo": "Int?",
+    "obbligatorio": false
+   },
+   "annullamento": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   }
+  },
+  "EsitoLavoro": {
+   "tipo": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "esito": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "messaggio": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "quando": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "riavvioConsigliato": {
+    "tipo": "Boolean?",
+    "obbligatorio": false
+   }
+  },
+  "StatoLavoro": {
+   "inCorso": {
+    "tipo": "LavoroInCorso?",
+    "obbligatorio": false
+   },
+   "ultimo": {
+    "tipo": "EsitoLavoro?",
+    "obbligatorio": false
+   }
+  },
+  "EsitoPorta": {
+   "ok": {
+    "tipo": "Boolean",
+    "obbligatorio": false
+   },
+   "messaggio": {
+    "tipo": "String?",
+    "obbligatorio": false
+   },
+   "errore": {
+    "tipo": "String?",
+    "obbligatorio": false
+   }
+  },
+  "ProgressoCatalogo": {
+   "fase": {
+    "tipo": "String",
+    "obbligatorio": false
+   },
+   "fatto": {
+    "tipo": "Int?",
+    "obbligatorio": false
+   },
+   "totale": {
+    "tipo": "Int?",
+    "obbligatorio": false
+   },
+   "avviato": {
+    "tipo": "String",
+    "obbligatorio": false
+   }
+  },
+  "StatoCatalogo": {
+   "inCorso": {
+    "tipo": "ProgressoCatalogo?",
+    "obbligatorio": false
+   }
+  }
+ }
+}
