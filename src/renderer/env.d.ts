@@ -149,6 +149,10 @@ declare global {
       }
       salute: {
         leggi: () => Promise<import('@shared/salute').Salute>
+        installaLa: (pcId: string) => Promise<import('@shared/installa-la').AvanzamentoInstallaLa>
+        installaLaStato: () => Promise<import('@shared/installa-la').AvanzamentoInstallaLa[]>
+        noteInstallaLa: (pcId: string) => Promise<import('@shared/note-aggiornamento').NoteAggiornamento>
+        suInstallaLa: (cb: (a: import('@shared/installa-la').AvanzamentoInstallaLa) => void) => () => void
       }
       casa: {
         proposte: () => Promise<{ gruppi: { pc: string; nome: string; chat: import('@shared/una-casa').FuoriCasa[] }[]; quante: number; aperte: number; qui: number }>

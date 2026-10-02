@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.46.0',
+    righe: [
+      '**«Installa là»: aggiorni un altro PC da qui.** In «♥ Salute», sotto ogni altro PC che ha una versione più vecchia di questo, c’è il tasto «Installa là». Prima ti mostra cosa cambia, versione per versione, e ti chiede la conferma. Poi quel PC scarica l’aggiornamento, aspetta che le sue chat finiscano il turno e che il lavoro con il Drive sia finito, si chiude, installa e riparte, e le chat là riprendono da sole. Sotto la voce di quel PC vedi ogni passo e com’è andata: «fatto» con la versione nuova, oppure «non riuscita» con il motivo, cosa fare e il tasto per la pagina della versione. Funziona solo con i PC che hanno lo stesso Drive e la stessa cassaforte: senza la chiave di casa quel PC non accetta il comando.'
+    ]
+  },
+  {
     versione: '0.45.0',
     righe: [
       '**Lo stato delle chat lo dice Claude Code, non più lo schermo.** Ogni chat aperta in SierraDeck avvisa il programma da sola quando comincia a lavorare, quando chiede un permesso o ti fa una domanda, quando ha finito il turno e ti aspetta, e quando si ferma per un errore. Prima SierraDeck lo capiva leggendo il terminale, e a volte sbagliava: una chat che lavorava sembrava ferma, o il contrario. La lettura dello schermo resta solo come riserva, per le chat che non mandano questi avvisi, e il registro dice quando la si sta usando. Anche gli autopiloti consegnano le istruzioni nel momento giusto, perché sanno con certezza quando la chat è libera.',

@@ -60,8 +60,11 @@ describe('le voci del pannello', () => {
     expect(lap?.titolo).toBe('LAPTOP · acceso · 0.38.2')
     expect(lap?.spiegazione).toContain('Ultimo battito sul Drive: 2 minuti fa')
     expect(lap?.spiegazione).toContain('via Tailscale')
-    expect(lap?.cosaFare).toContain('Aggiorna LAPTOP')
+    expect(lap?.cosaFare).toContain('LAPTOP')
     expect(lap?.tono).toBe('attenzione')
+    // 0.46.0: indietro e raggiungibile = «Installa là» con la versione di qui.
+    expect(lap?.azioni[0]).toMatchObject({ id: 'installa-la', pc: 'lap', versione: '0.44.0' })
+    expect(lap?.cosaFare).toContain('Installa là')
     const uff = s.voci.find((v) => v.chiave === 'pc:uff')
     expect(uff?.titolo).toContain('non so se è acceso')
     expect(uff?.spiegazione).toContain('9 giorni fa')

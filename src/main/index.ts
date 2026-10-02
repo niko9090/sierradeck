@@ -10,6 +10,9 @@ import { creaSpostaProgetto, impronteSessioni } from './sposta-progetto'
 import { saleDaQui, scendeQui, sessioneDiPercorso, type CasaChat } from '@shared/una-casa'
 import { esitoDaPasso } from '@shared/istruzioni-autopilota'
 import { componiSalute, erroriDalLog } from '@shared/salute'
+import { NOVITA, confrontaVersioni } from '@shared/novita'
+import { noteDaNovita, type NoteAggiornamento } from '@shared/note-aggiornamento'
+import { inCorso, passoInstallaLa, type AvanzamentoInstallaLa, type Memoria, type Osservazione, type StatoAggiornamentoRemoto } from '@shared/installa-la'
 import { hookSegnali, leggiSegnale, SEGNALI_PER_CHAT, statoChat, statoDaSegnali, unisciConHook, type Segnale } from '@shared/segnali-chat'
 import { CERCA_OFFERTE_OGNI_MS, stradaBreve, type ChatNelloSchermo, type InfoStrada } from '@shared/strada-pc'
 import { doveMostrareDomande, eLinguettaStaccabile } from '@shared/finestra-pannello'
@@ -1590,6 +1593,118 @@ if (!app.requestSingleInstanceLock()) {
         })
       }
       ipcMain.handle('salute:leggi', () => leggiSalute())
+
+      // ── «Installa là» (0.46.0): aggiornare un altro PC da qui ──
+      // Le rotte di quel PC sono quelle del telefono (/api/aggiornamento e i
+      // suoi comandi), raggiunte con le strade fra PC e la chiave di casa:
+      // un PC che non ha la stessa cassaforte non ha la chiave, e quel PC lo
+      // respinge (401). L'attesa della quiete la fa quel PC da solo. Qui si
+      // dirige un passo alla volta (src/shared/installa-la.ts) e si dice
+      // com'e' andata, anche quando l'installazione la' non riesce.
+      const installaLa = new Map<string, AvanzamentoInstallaLa>()
+      const annunciaInstallaLa = (a: AvanzamentoInstallaLa): void => {
+        installaLa.set(a.pcId, a)
+        for (const w of finestreDiChat()) if (!w.isDestroyed()) w.webContents.send('installaLa:stato', a)
+      }
+      const osservaPc = async (pcId: string): Promise<Osservazione> => {
+        try {
+          const ciao = await remoto.chiama(pcId, '/api/ciao') as { versione?: string } | undefined
+          const stato = await remoto.chiama(pcId, '/api/aggiornamento') as StatoAggiornamentoRemoto
+          return { ...(typeof ciao?.versione === 'string' ? { versione: ciao.versione } : {}), stato }
+        } catch (err) {
+          if (err instanceof ErroreRemoto && (err.motivo === 'lento' || err.motivo === 'chiave' || err.motivo === 'cassaforte')) throw err
+          return undefined
+        }
+      }
+      const avviaInstallaLa = (pcId: string): AvanzamentoInstallaLa => {
+        const gia = installaLa.get(pcId)
+        if (inCorso(gia) && gia !== undefined) return gia
+        const b = postino.altrui().find((x) => x.pcId === pcId)
+        const nome = b?.nome ?? pcId
+        const da = b?.versione ?? '?'
+        const iniziato = new Date().toISOString()
+        const m: Memoria = { cercato: false, scaricato: false, installato: false, iniziato: Date.now() }
+        const primo: AvanzamentoInstallaLa = { pcId, nome, fase: 'cerco', da, messaggio: `Busso a ${nome}…`, iniziato, aggiornato: iniziato }
+        annunciaInstallaLa(primo)
+        registro.info(`[installa là] ${nome}: chiesto da qui (ha la ${da}, questo PC la ${app.getVersion()})`)
+        void (async () => {
+          let ultimo = primo
+          for (;;) {
+            let o: Osservazione
+            try {
+              o = await osservaPc(pcId)
+            } catch (err) {
+              const motivo = err instanceof ErroreRemoto && err.motivo === 'lento'
+                ? `${nome} si raggiunge solo attraverso il Drive, e da lì non si può installare: serve la rete di casa, Tailscale o il collegamento diretto.`
+                : err instanceof Error ? err.message : String(err)
+              ultimo = { ...ultimo, fase: 'errore', messaggio: motivo, cosaFare: `Aggiorna ${nome} dal suo schermo, oppure riprova quando si raggiunge in modo diretto.`, aggiornato: new Date().toISOString() }
+              annunciaInstallaLa(ultimo)
+              registro.errore(`[installa là] ${nome}: ${motivo}`)
+              return
+            }
+            const adesso = Date.now()
+            if (o === undefined && m.installato && m.mutoDal === undefined) m.mutoDal = adesso
+            const p = passoInstallaLa(nome, da, o, m, adesso)
+            if (p.fase === 'attendo' || p.fase === 'installo') { if (p.chiedi === undefined) m.installato = true }
+            if (p.chiedi !== undefined) {
+              try {
+                await remoto.chiama(pcId, `/api/aggiornamento/${p.chiedi}`, {})
+                if (p.chiedi === 'cerca') m.cercato = true
+                if (p.chiedi === 'scarica') m.scaricato = true
+                if (p.chiedi === 'installa') m.installato = true
+              } catch (err) {
+                registro.info(`[installa là] ${nome}: «${p.chiedi}» non arrivato (${err instanceof Error ? err.message : String(err)}), riprovo`)
+              }
+            }
+            const prossimo: AvanzamentoInstallaLa = {
+              pcId, nome, fase: p.fase, da, messaggio: p.messaggio, iniziato, aggiornato: new Date().toISOString(),
+              ...(p.a !== undefined ? { a: p.a } : ultimo.a !== undefined ? { a: ultimo.a } : {}),
+              ...(p.cosaFare !== undefined ? { cosaFare: p.cosaFare } : {}),
+              ...(p.pagina !== undefined ? { pagina: p.pagina } : {})
+            }
+            if (prossimo.fase !== ultimo.fase) registro.info(`[installa là] ${nome}: ${prossimo.fase} — ${prossimo.messaggio}`)
+            ultimo = prossimo
+            annunciaInstallaLa(ultimo)
+            if (p.finito === true) {
+              if (p.fase === 'fatto') registro.info(`[installa là] ${nome}: aggiornato alla ${p.a ?? '?'}`)
+              else registro.errore(`[installa là] ${nome}: ${p.fase} — ${p.messaggio}`)
+              return
+            }
+            await new Promise((r) => setTimeout(r, 3000))
+          }
+        })()
+        return primo
+      }
+      ipcMain.handle('salute:installaLa', (_e, pcId: unknown) => {
+        if (typeof pcId !== 'string' || pcId === '') throw new Error('PC non valido')
+        return avviaInstallaLa(pcId)
+      })
+      ipcMain.handle('salute:installaLaStato', () => [...installaLa.values()])
+      // Le note per la conferma: quelle di quel PC (che cerca la versione e le
+      // legge da GitHub come fa per sé); se non risponde, quelle di qui fra la
+      // sua versione e questa.
+      ipcMain.handle('salute:noteInstallaLa', async (_e, pcId: unknown): Promise<NoteAggiornamento> => {
+        if (typeof pcId !== 'string') throw new Error('PC non valido')
+        const b = postino.altrui().find((x) => x.pcId === pcId)
+        const daQui = (avviso?: string): NoteAggiornamento => ({
+          versione: app.getVersion(), installata: b?.versione ?? '?',
+          note: noteDaNovita(NOVITA.filter((n) => confrontaVersioni(n.versione, b?.versione ?? '0') > 0 && confrontaVersioni(n.versione, app.getVersion()) <= 0)),
+          fonte: 'aggiornamento', dove: 'https://github.com/niko9090/sierradeck/releases',
+          ...(avviso !== undefined ? { avviso } : {})
+        })
+        try {
+          await remoto.chiama(pcId, '/api/aggiornamento/cerca', {})
+          for (let i = 0; i < 15; i += 1) {
+            const s = await remoto.chiama(pcId, '/api/aggiornamento') as StatoAggiornamentoRemoto
+            if (s.fase !== 'cerco' && s.fase !== 'fermo') break
+            await new Promise((r) => setTimeout(r, 1000))
+          }
+          const n = await remoto.chiama(pcId, '/api/aggiornamento/note') as NoteAggiornamento
+          return n.note.length > 0 ? n : daQui(n.avviso)
+        } catch (err) {
+          return daQui(`Non ho potuto leggere le note da ${b?.nome ?? 'quel PC'} (${err instanceof Error ? err.message : String(err)}): queste sono quelle scritte qui, dalla sua versione a questa.`)
+        }
+      })
 
       // ── «Una chat, una casa» (0.42.0) ──
       // Il progetto: .sierradeck/quaderno/2026-10-02-una-chat-una-casa-progetto.md

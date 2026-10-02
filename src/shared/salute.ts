@@ -19,6 +19,8 @@ export type AzioneSalute =
   | { id: 'scarica-a-mano'; testo: string; url: string }
   | { id: 'apri-autopilota'; testo: string; autopilota: string }
   | { id: 'riprova-pc'; testo: string; pc: string }
+  /** 0.46.0: aggiornare quel PC da qui (solo dal PC: il telefono la salta). */
+  | { id: 'installa-la'; testo: string; pc: string; versione: string }
 
 export type VoceSalute = {
   chiave: string
@@ -158,9 +160,11 @@ export function componiSalute(i: IngressiSalute): Salute {
       titolo: `${p.nome} · ${raggiungibile ? 'acceso' : 'non so se è acceso'} · ${p.versione}`,
       spiegazione: `Ultimo battito sul Drive: ${eta}. Adesso ${strada}. ${indietro ? `Ha la ${p.versione}, questo PC la ${i.versione}: alcune cose nuove (le chat dal vivo, lo spostamento dei progetti) là non ci sono ancora.` : 'Ha la stessa versione di questo PC, o più nuova.'}`,
       ...(raggiungibile
-        ? (indietro ? { cosaFare: `Aggiorna ${p.nome}: dal suo schermo «Installa», oppure aspetta che lo faccia da solo alla prossima apertura.` } : {})
+        ? (indietro ? { cosaFare: `Aggiorna ${p.nome}: «Installa là» qui sotto lo fa da questo PC (ti mostra prima cosa cambia, poi ${p.nome} aspetta che le sue chat finiscano il turno e si riavvia da solo). Oppure dal suo schermo «Installa».` } : {})
         : { cosaFare: `Accendi ${p.nome} con SierraDeck aperto e il Drive collegato. Se è acceso: stessa rete o Tailscale acceso su tutti e due; altrimenti il collegamento diretto via Internet parte da solo (serve il Drive).` }),
-      azioni: raggiungibile ? [] : [{ id: 'riprova-pc', testo: 'Riprova adesso', pc: p.pcId }]
+      azioni: raggiungibile
+        ? (indietro ? [{ id: 'installa-la', testo: `Installa là la ${i.versione}`, pc: p.pcId, versione: i.versione }] : [])
+        : [{ id: 'riprova-pc', testo: 'Riprova adesso', pc: p.pcId }]
     })
   }
 

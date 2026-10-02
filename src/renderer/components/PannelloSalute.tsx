@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { AzioneSalute, Salute, VoceSalute } from '@shared/salute'
+import { inCorso, type AvanzamentoInstallaLa } from '@shared/installa-la'
+import type { NoteAggiornamento } from '@shared/note-aggiornamento'
+import { ModaleNote } from './ModaleNote'
 
 /**
  * «Salute del sistema» (0.44.0): com'è messo SierraDeck, in un posto solo.
@@ -42,6 +45,24 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
     return () => clearInterval(t)
   }, [leggi])
 
+  // «Installa là» (0.46.0): l'avanzamento di ogni PC che si sta aggiornando da qui.
+  const [installazioni, setInstallazioni] = useState<Record<string, AvanzamentoInstallaLa>>({})
+  const [conferma, setConferma] = useState<{ pc: string; nome: string; versione: string; note?: NoteAggiornamento } | undefined>(undefined)
+  useEffect(() => {
+    void window.gestore.salute.installaLaStato().then((l) => setInstallazioni(Object.fromEntries(l.map((a) => [a.pcId, a]))))
+    return window.gestore.salute.suInstallaLa((a) => {
+      setInstallazioni((p) => ({ ...p, [a.pcId]: a }))
+      if (a.fase === 'fatto') leggi()
+    })
+  }, [leggi])
+  const chiediConferma = (pc: string, versione: string): void => {
+    const nome = salute?.voci.find((v) => v.chiave === `pc:${pc}`)?.titolo.split(' · ')[0] ?? pc
+    setConferma({ pc, nome, versione })
+    window.gestore.salute.noteInstallaLa(pc)
+      .then((note) => setConferma((c) => (c?.pc === pc ? { ...c, note } : c)))
+      .catch((e: unknown) => setConferma((c) => (c?.pc === pc ? { ...c, note: { versione, installata: '', note: [], fonte: 'nessuna', dove: 'https://github.com/niko9090/sierradeck/releases', avviso: `Non sono riuscito a leggere le note (${String(e)}): le trovi nella pagina delle versioni, https://github.com/niko9090/sierradeck/releases. Puoi installare lo stesso.` } } : c)))
+  }
+
   const esegui = (a: AzioneSalute): void => {
     switch (a.id) {
       case 'apri-drive': onApriDrive(); break
@@ -50,6 +71,7 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
       case 'scarica-a-mano': void window.gestore.sistema.apriEsterno(a.url); break
       case 'apri-autopilota': onApriAutopiloti(); break
       case 'riprova-pc': leggi(); break
+      case 'installa-la': chiediConferma(a.pc, a.versione); break
     }
   }
 
@@ -79,9 +101,30 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
                   <div className="salute__titolo"><span className={`led ${v.tono === 'ok' ? 'led--lavoro' : v.tono === 'attenzione' ? 'led--attesa' : 'led--fermo'}`} /> {v.titolo}</div>
                   <div className="salute__testo">{v.spiegazione}</div>
                   {v.cosaFare !== undefined ? <div className="salute__testo"><b>Cosa fare:</b> {v.cosaFare}</div> : null}
+                  {(() => {
+                    const inst = v.chiave.startsWith('pc:') ? installazioni[v.chiave.slice(3)] : undefined
+                    if (inst === undefined) return null
+                    const tono = inst.fase === 'fatto' ? 'ok' : inCorso(inst) ? 'attenzione' : 'guasto'
+                    return (
+                      <div className={`salute__voce salute__voce--${tono}`} style={{ marginTop: 6 }}>
+                        <div className="salute__titolo">
+                          <span className={`led ${tono === 'ok' ? 'led--lavoro' : tono === 'attenzione' ? 'led--attesa' : 'led--fermo'}`} />
+                          {' '}Installa là{inst.a !== undefined ? ` la ${inst.a}` : ''}: {inst.fase === 'fatto' ? 'fatto' : inst.fase === 'fallito' ? 'non riuscita' : inst.fase === 'errore' ? 'fermata' : 'in corso'}
+                        </div>
+                        <div className="salute__testo">{inst.messaggio}</div>
+                        {inst.cosaFare !== undefined ? <div className="salute__testo"><b>Cosa fare:</b> {inst.cosaFare}</div> : null}
+                        {inst.pagina !== undefined ? (
+                          <div className="salute__azioni"><button className="tasto tasto--mini" onClick={() => { void window.gestore.sistema.apriEsterno(inst.pagina as string) }}>Pagina della versione</button></div>
+                        ) : null}
+                      </div>
+                    )
+                  })()}
                   {v.azioni.length > 0 ? (
                     <div className="salute__azioni">
-                      {v.azioni.map((a) => <button key={a.id + a.testo} className="tasto tasto--mini" onClick={() => esegui(a)}>{a.testo}</button>)}
+                      {v.azioni.map((a) => {
+                        const occupato = a.id === 'installa-la' && inCorso(installazioni[a.pc])
+                        return <button key={a.id + a.testo} className="tasto tasto--mini" disabled={occupato} onClick={() => esegui(a)}>{occupato ? 'Installazione in corso…' : a.testo}</button>
+                      })}
                     </div>
                   ) : null}
                 </div>
@@ -90,6 +133,25 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
           )
         })}
       </div>
+      {conferma !== undefined ? (
+        <ModaleNote
+          titolo={`Installa là: ${conferma.nome} alla ${conferma.note?.versione !== undefined && conferma.note.versione !== '' ? conferma.note.versione : conferma.versione}`}
+          {...(conferma.note !== undefined && conferma.note.installata !== '' ? { sotto: `${conferma.nome} adesso ha la ${conferma.note.installata}` } : {})}
+          note={conferma.note?.note}
+          etichetta={(n, i) => (i === 0 ? `La ${n.versione} (quella che si installa)` : `Saltata: ${n.versione}`)}
+          {...(conferma.note?.avviso !== undefined ? { avviso: conferma.note.avviso } : {})}
+          spiegazione={<>Premendo «Installa su {conferma.nome}», {conferma.nome} scarica la versione (se non l’ha già), poi <b>aspetta che le sue chat finiscano il turno</b> e il lavoro con il Drive, si chiude, installa e riparte; le chat là riprendono da sole. Qui sotto la sua voce vedi ogni passo e com’è finita, anche se l’installazione non riesce. Su {conferma.nome} non devi fare niente; se c’è qualcuno davanti, vedrà l’aggiornamento in corso.</>}
+          tasti={<>
+            <button className="tasto" onClick={() => setConferma(undefined)}>Non ora</button>
+            <button className="tasto tasto--primario" autoFocus onClick={() => {
+              const pc = conferma.pc
+              setConferma(undefined)
+              void window.gestore.salute.installaLa(pc).then((a) => setInstallazioni((p) => ({ ...p, [a.pcId]: a })))
+            }}>Installa su {conferma.nome}</button>
+          </>}
+          onChiudi={() => setConferma(undefined)}
+        />
+      ) : null}
     </div>
   )
 }

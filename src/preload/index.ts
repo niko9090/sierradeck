@@ -455,7 +455,15 @@ contextBridge.exposeInMainWorld('gestore', {
   },
   /** «Salute del sistema» (0.44.0). */
   salute: {
-    leggi: (): Promise<import('@shared/salute').Salute> => ipcRenderer.invoke('salute:leggi')
+    leggi: (): Promise<import('@shared/salute').Salute> => ipcRenderer.invoke('salute:leggi'),
+    installaLa: (pcId: string): Promise<import('@shared/installa-la').AvanzamentoInstallaLa> => ipcRenderer.invoke('salute:installaLa', pcId),
+    installaLaStato: (): Promise<import('@shared/installa-la').AvanzamentoInstallaLa[]> => ipcRenderer.invoke('salute:installaLaStato'),
+    noteInstallaLa: (pcId: string): Promise<import('@shared/note-aggiornamento').NoteAggiornamento> => ipcRenderer.invoke('salute:noteInstallaLa', pcId),
+    suInstallaLa: (cb: (a: import('@shared/installa-la').AvanzamentoInstallaLa) => void): (() => void) => {
+      const f = (_e: unknown, a: import('@shared/installa-la').AvanzamentoInstallaLa): void => cb(a)
+      ipcRenderer.on('installaLa:stato', f)
+      return () => { ipcRenderer.removeListener('installaLa:stato', f) }
+    }
   },
   /** «Una chat, una casa» (0.42.0): le case delle chat, il riordino e il suo annullamento. */
   casa: {
