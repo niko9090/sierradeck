@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.39.3',
+    righe: [
+      '**Ricollega il Drive su ogni PC.** Dal 23/09 Google ha smesso di riconoscere l’autorizzazione di SierraDeck al Drive, sia su questo PC sia sul portatile: da allora gli altri PC non si vedevano, le chat non si salvavano e quelle aperte sull’altro PC sembravano spente. Adesso in cima compare una banda fissa, «Drive scollegato da N giorni», con il perché e il tasto che apre Account: lì premi «Collega» e dai il consenso a Google. Fallo su ogni PC dove vedi la banda. Non si chiude finché il Drive resta scollegato, e la vedi anche sul telefono.',
+      '**Le chat dell’altro PC si aprono anche senza Drive.** Prima, se il segno di vita di un PC sul Drive era vecchio, SierraDeck lo dava per spento senza nemmeno provarci. Adesso bussa direttamente a tutti i suoi indirizzi, sulla rete di casa e su Tailscale (anche quelli che Tailscale gli ha dato di nuovo): se risponde, la chat si apre dal vivo e ci scrivi.',
+      '**Mai più «spento» quando non lo sa.** Se nessun indirizzo risponde dice «non so se è acceso» e cosa fare: accenderlo, controllare la rete o Tailscale, ricollegare il Drive. Gli errori della chat remota dicono il motivo vero: il PC non si raggiunge, la chiave non è riconosciuta, oppure la chat là è stata chiusa.',
+      '**Una chat che lavora su un altro PC si riconosce subito.** Il riquadro ha bordo e testata viola e la scritta «SU» col nome del PC. Sopra la casella c’è scritto su quale PC stai scrivendo. Lo stesso segno compare in «Riprendi una conversazione», nel menu dei workspace, nelle Domande, nei Consumi e sul telefono (app 2.43.3).'
+    ]
+  },
+  {
     versione: '0.39.2',
     righe: [
       '**Se un aggiornamento non si installa, SierraDeck se ne accorge e te lo dice.** Prima di installare si segna quale versione sta provando a mettere; quando riparte controlla: se è ancora sulla versione di prima, nella striscia in alto compare «Ho provato a installare la X ma sei ancora sulla Y», invece di riproporti «Installa» come se fosse la prima volta.',
