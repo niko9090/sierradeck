@@ -581,7 +581,24 @@ data class Aggiornamento(
      * prende in prestito la porta rimasta libera. Quando c'e', questa e' la
      * verita' e non si deduce piu' niente dal silenzio.
      */
-    val testo: String? = null
+    val testo: String? = null,
+    /**
+     * L'ultima installazione sul computer non e' riuscita (0.39.2): al riavvio
+     * era ancora sulla versione di prima. Manca sui computer piu' vecchi.
+     */
+    val tentativoFallito: TentativoFallitoPc? = null
+)
+
+/** Il perche' e le strade di un'installazione non riuscita, scritti dal computer. */
+@Serializable
+data class TentativoFallitoPc(
+    val versione: String = "",
+    val da: String = "",
+    val quando: String = "",
+    val titolo: String = "",
+    val motivo: String = "",
+    val strade: List<String> = emptyList(),
+    val pagina: String = ""
 )
 
 // ─── /api/sessioni ───

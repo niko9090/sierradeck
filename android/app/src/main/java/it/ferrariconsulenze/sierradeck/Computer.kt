@@ -3,6 +3,8 @@ package it.ferrariconsulenze.sierradeck
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.border
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -697,7 +699,8 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
                     noteLette = null
                     scope.launch {
                         noteLette = try {
-                            api.noteAggiornamento()
+                            // Un tentativo andato male si dice anche qui, prima di riprovare (0.39.2).
+                            conTentativoFallito(api.noteAggiornamento(), a.tentativoFallito)
                         } catch (e: Api.Errore) {
                             noteMancanti(if (e.codice == 409 || e.codice == 404) "il computer ha una versione che non le sa ancora dare" else "HTTP ${e.codice}")
                         } catch (e: Exception) {
@@ -745,6 +748,22 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
                     }
             }
         )
+    }
+
+    // L'ultima installazione non è riuscita (0.39.2): il perché e le strade,
+    // con la pagina della versione per scaricarla a mano.
+    val fallito = a?.tentativoFallito
+    if (fallito != null && a.fase != "installo" && a.fase != "attendo") {
+        val uri = LocalUriHandler.current
+        Spacer(Modifier.height(8.dp))
+        Column(Modifier.fillMaxWidth().border(1.dp, Banco.ambra, MaterialTheme.shapes.small).padding(12.dp)) {
+            Text("L’ULTIMA INSTALLAZIONE NON È RIUSCITA", color = Banco.ambra, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            Text(testoTentativoFallito(fallito), color = Banco.testo, fontSize = 13.sp)
+            linkAmmessoApp(fallito.pagina)?.let { link ->
+                TextButton(onClick = { runCatching { uri.openUri(link) } }) { Text("Pagina della versione") }
+            }
+        }
     }
 
     // «Cerca» **sempre**, anche quando una versione è già pronta.

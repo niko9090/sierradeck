@@ -199,3 +199,19 @@ fun DialogoNoteAggiornamento(
         }
     )
 }
+
+/**
+ * L'ultima installazione sul computer non e' riuscita (0.39.2): il testo per
+ * esteso, uguale a quello del PC e della pagina — cosa e' successo, perche'
+ * (certo o probabile, come lo dice il computer), cosa si puo' fare.
+ */
+fun testoTentativoFallito(f: TentativoFallitoPc): String =
+    (listOf(f.titolo, f.motivo).filter { it.isNotBlank() }.joinToString(" ") +
+        if (f.strade.isEmpty()) "" else "\nCosa puoi fare:\n" + f.strade.mapIndexed { i, x -> "${i + 1}. $x" }.joinToString("\n")).trim()
+
+/** Le note di «Installa» con davanti l'avviso dell'ultimo tentativo andato male, se c'e'. */
+fun conTentativoFallito(n: NoteAggiornamento, f: TentativoFallitoPc?): NoteAggiornamento {
+    if (f == null) return n
+    val primo = "${f.titolo} ${f.motivo} Se non va di nuovo, scaricala a mano da ${f.pagina}".trim()
+    return n.copy(avviso = listOfNotNull(primo, n.avviso).joinToString("\n\n"))
+}
