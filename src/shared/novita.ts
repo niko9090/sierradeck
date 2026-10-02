@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.40.0',
+    righe: [
+      '**Le chat dell’altro PC si raggiungono anche da un’altra rete, senza Tailscale.** Se il portatile è in ufficio e il fisso a casa, e Tailscale non c’è, i due PC si collegano direttamente via Internet. Per trovarsi la prima volta si lasciano un biglietto cifrato sul Drive. Poi lo schermo e quello che scrivi viaggiano dritti da un PC all’altro, cifrati due volte, e solo i PC con la tua stessa cassaforte possono aprire il collegamento. Serve la 0.40.0 su tutti e due e il Drive collegato.',
+      '**Le strade si provano in ordine, dalla più veloce.** Prima la rete di casa, poi Tailscale, poi il collegamento diretto via Internet. Se nessuna di queste funziona resta il Drive, che è lento: lo schermo arriva ogni dieci-trenta secondi e si può solo leggere e mandare un messaggio, che l’altro PC consegna alla chat appena è pronta. Quando c’è di mezzo il Drive te lo dice una banda gialla, «Collegamento lento via Drive».',
+      '**Il riquadro della chat remota dice sempre da che strada passa.** In alto a destra trovi «rete di casa», «Tailscale», «diretto via Internet (WebRTC)» oppure «collegamento lento via Drive»; passandoci sopra col mouse c’è la spiegazione. Se una strada più veloce torna a funzionare, il riquadro ci passa da solo. Anche sul telefono, nelle Domande, accanto a «SU» col nome del PC c’è la strada (app 2.44.0).',
+      '**Un limite da sapere.** Alcune reti, soprattutto aziendali o dei telefoni, non lasciano passare un collegamento diretto fra due PC. In quel caso resta il Drive, lento ma sicuro.'
+    ]
+  },
+  {
     versione: '0.39.3',
     righe: [
       '**Ricollega il Drive su ogni PC.** Dal 23/09 Google ha smesso di riconoscere l’autorizzazione di SierraDeck al Drive, sia su questo PC sia sul portatile: da allora gli altri PC non si vedevano, le chat non si salvavano e quelle aperte sull’altro PC sembravano spente. Adesso in cima compare una banda fissa, «Drive scollegato da N giorni», con il perché e il tasto che apre Account: lì premi «Collega» e dai il consenso a Google. Fallo su ogni PC dove vedi la banda. Non si chiude finché il Drive resta scollegato, e la vedi anche sul telefono.',
