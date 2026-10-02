@@ -129,6 +129,8 @@ export type DipendenzeRotte = {
    * Domande, a una chat che aspetta su un altro computer acceso.
    */
   scriviAltroPc?: (pcId: string, sessione: string, testo: string) => Promise<{ ok: true } | { ok: false; messaggio: string }>
+  /** La strada con cui si arriva a quel PC (0.40.0), in due parole: la pagina e l'app la mostrano accanto a «SU <PC>». */
+  stradaPc?: (pcId: string) => string | undefined
   /** La linguetta «File» dal telefono (0.38.0): solo lettura. */
   fileAutopilota?: (id: string) => Promise<unknown>
   diffAutopilota?: (id: string, chiave: string, percorso: string) => Promise<string>
@@ -625,7 +627,10 @@ export function rotteClient(deps: DipendenzeRotte) {
         chat: deps.chat(),
         scelteDi: (id, righe) => scelteVive(id, righe),
         ...(deps.scriviAltroPc !== undefined
-          ? { altriPc: battiti.filter((b) => b.pcId !== io).map((b) => ({ pcId: b.pcId, nome: b.nome, vivo: battitoVivo(b.battito, ora), chat: b.chat })) }
+          ? { altriPc: battiti.filter((b) => b.pcId !== io).map((b) => {
+            const strada = deps.stradaPc?.(b.pcId)
+            return { pcId: b.pcId, nome: b.nome, vivo: battitoVivo(b.battito, ora), chat: b.chat, ...(strada !== undefined ? { strada } : {}) }
+          }) }
           : {})
       })
       // Le stesse voci come conversazioni a messaggi (0.36.0): e' quello che

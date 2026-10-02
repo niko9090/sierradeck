@@ -42,6 +42,7 @@ export {
   PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, RIAPRI_DOPO_MS, VOCI_MAX, TESTO_POSTA_MAX,
 } from '@shared/posta'
 import type { ChatDiPc, BattitoPc, VocePosta, Posta } from '@shared/posta'
+import { nomeRichiestaSchermo, nomeSchermo, richiestaSchermoViva, schermoDaScrivere, type ChatNelloSchermo } from '@shared/strada-pc'
 import {
   nomeBattitoPc, nomePosta, pcVivo,
   PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, RIAPRI_DOPO_MS, VOCI_MAX, TESTO_POSTA_MAX,
@@ -72,6 +73,12 @@ export function prossimaDaConsegnare(p: Posta): VocePosta | undefined {
 export type Postino = {
   /** Un giro: il battito, poi la prima voce in attesa della mia cassetta. */
   giro: () => Promise<void>
+  /**
+   * Il giro svelto (0.40.0), ogni dieci secondi: solo quando qualcuno mi
+   * guarda via Drive. Riscrive lo schermo e consegna la posta, senza aspettare
+   * il mezzo minuto del giro normale.
+   */
+  giroVeloce: () => Promise<void>
   /** Il mio id: per non elencarmi fra «gli altri PC». */
   io: () => string
   /** Gli altri PC sul Drive, con il battito. */
@@ -116,6 +123,11 @@ export function creaPostino(deps: {
   log?: (m: string) => void
   /** Dove ricordare i battiti degli altri PC fra un avvio e l'altro. */
   memoria?: { leggi: () => BattitoPc[]; scrivi: (b: BattitoPc[]) => void }
+  /**
+   * Lo schermo delle mie chat aperte, per chi mi guarda via Drive (0.40.0):
+   * l'ultima strada, quando nessuna strada diretta arriva qui.
+   */
+  fotografa?: () => Promise<ChatNelloSchermo[]>
 }): Postino {
   const adesso = deps.adesso ?? ((): number => Date.now())
   const log = deps.log ?? ((): void => {})
@@ -219,6 +231,25 @@ export function creaPostino(deps: {
     await aggiorna({ ...voce, apertaIl: iso() })
   }
 
+  /** Qualcuno mi guarda via Drive: fino a quando (ms), dall'ultima richiesta letta. */
+  let guardatoFino = 0
+  let ultimoSchermo = ''
+  let ultimoSchermoIl = 0
+  /** Lo schermo per chi mi guarda via Drive: solo se me l'ha chiesto da poco, e solo se è cambiato (o ogni minuto). */
+  const schermo = async (s: Scatola): Promise<void> => {
+    if (deps.fotografa === undefined) return
+    const r = richiestaSchermoViva(await s.leggi<unknown>(nomeRichiestaSchermo(deps.pcId())), adesso())
+    if (r === undefined) { guardatoFino = 0; return }
+    if (guardatoFino === 0) log(`[posta] ${r.daNome || r.da} guarda le mie chat via Drive (collegamento lento): scrivo il mio schermo sul Drive finché serve`)
+    guardatoFino = Date.parse(r.il) + 3 * 60_000
+    const sch = schermoDaScrivere({ nome: deps.pcNome(), adesso: adesso(), chat: await deps.fotografa() })
+    const firma = JSON.stringify(sch.chat)
+    if (firma === ultimoSchermo && adesso() - ultimoSchermoIl < 60_000) return
+    await s.scrivi(nomeSchermo(deps.pcId()), sch)
+    ultimoSchermo = firma
+    ultimoSchermoIl = adesso()
+  }
+
   const leggiAltrui = async (s: Scatola): Promise<BattitoPc[]> => {
     if (s.elenca === undefined) return []
     const nomi = await s.elenca('pc-')
@@ -258,10 +289,23 @@ export function creaPostino(deps: {
         // ogni mezzo minuto, e ogni lettura e' una richiesta al Drive.
         if (adesso() - altruiLettiIl >= BATTITO_PC_OGNI_MS) ricorda(await leggiAltrui(s))
         await consegna(s)
+        await schermo(s)
         if (inErrore) { inErrore = false; log('[posta] il Drive risponde di nuovo') }
       } catch (err) {
         if (!inErrore) { inErrore = true; log(`[posta] giro fallito (non lo ripeto finche' non torna a rispondere): ${String(err)}`) }
       } finally {
+        inGiro = false
+      }
+    },
+    async giroVeloce() {
+      if (inGiro || adesso() >= guardatoFino) return
+      const s = deps.scatola()
+      if (s === undefined) return
+      inGiro = true
+      try {
+        await consegna(s)
+        await schermo(s)
+      } catch { /* lo dice il giro normale */ } finally {
         inGiro = false
       }
     },

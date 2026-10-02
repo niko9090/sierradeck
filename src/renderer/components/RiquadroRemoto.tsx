@@ -5,6 +5,7 @@ import {
   trovaChatRemota, descriviIndirizzo, descriviSilenzio, RILEGGI_REMOTO_OGNI_MS, RIGHE_REMOTE,
   type ChatRemota, type ChatSuPc, type PcRemoto, type StoriaRemota
 } from '@shared/pc-remoto'
+import { etichettaStrada, type InfoStrada } from '@shared/strada-pc'
 import { ModalePosta } from './ModalePosta'
 import { useLayoutStore } from '../state/layout'
 
@@ -55,6 +56,8 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   const [invio, setInvio] = useState(false)
   const [avviso, setAvviso] = useState<string | undefined>(undefined)
   const [postaAperta, setPostaAperta] = useState(false)
+  /** La strada con cui arriva quel PC (0.40.0): rete di casa, Tailscale, WebRTC o Drive. */
+  const [strada, setStrada] = useState<InfoStrada | undefined>(undefined)
   /**
    * Quel PC non risponde piu' (0.36.1): da quando, perche', e l'ultimo
    * tentativo. Il riquadro non cade in un errore secco: tiene l'ultimo schermo
@@ -79,7 +82,9 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         if (!vivo) return
         setCassaforteAperta(r.cassaforteAperta)
         setDriveCollegato(r.driveCollegato !== false)
-        setPc(r.pc.find((b) => b.pcId === remoto.pcId))
+        const questo = r.pc.find((b) => b.pcId === remoto.pcId)
+        setPc(questo)
+        if (questo?.strada !== undefined) setStrada(questo.strada)
       }).catch(() => undefined)
     }
     leggi()
@@ -98,6 +103,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         if (f.tipo !== 'viva') {
           const s = await window.gestore.remoto.stato(remoto.pcId)
           if (!vivo) return
+          if (s.strada !== undefined) setStrada(s.strada)
           if (!s.ok) { taci(s.motivo, s.messaggio); setFase({ tipo: 'errore', motivo: s.motivo, messaggio: s.messaggio }); return }
           setSilenzio(undefined)
           const trovata = trovaChatRemota(s.dati.chat, remoto)
@@ -108,6 +114,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         }
         const r = await window.gestore.remoto.storia(remoto.pcId, f.chat.id, -1, RIGHE_REMOTE)
         if (!vivo) return
+        if (r.strada !== undefined) setStrada(r.strada)
         if (!r.ok) {
           // La chat e' stata chiusa la', o quel PC e' sparito: si ricomincia a cercare.
           if (r.motivo === 'chat') { setFase({ tipo: 'cerco' }); setStoria(undefined); return }
@@ -138,7 +145,10 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
     if (t === '' || chatId === undefined || invio) return
     setInvio(true)
     void window.gestore.remoto.scrivi(remoto.pcId, chatId, t).then((r) => {
-      if (r.ok) { setTesto(''); setAvviso(undefined) }
+      if (r.ok && (r.dati as { viaDrive?: boolean } | undefined)?.viaDrive === true) {
+        setTesto('')
+        setAvviso(`Messaggio lasciato nella cassetta di ${remoto.pcNome} sul Drive: lo consegna lui a questa chat al suo prossimo giro (dieci-trenta secondi), appena la chat aspetta. Lo vedi comparire qui sopra con lo schermo successivo.`)
+      } else if (r.ok) { setTesto(''); setAvviso(undefined) }
       else setAvviso(r.messaggio)
     }).catch((e: unknown) => setAvviso(String(e))).finally(() => setInvio(false))
   }
@@ -167,7 +177,10 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   }
 
   const html = storia === undefined ? '' : ansiInHtml(storia.grezze.join('\n'))
-  const scelte = storia?.scelte
+  const via = etichettaStrada(strada, remoto.pcNome)
+  const lento = via?.lento === true
+  // Via Drive le opzioni non si premono (0.40.0): si legge e si manda un messaggio.
+  const scelte = lento ? undefined : storia?.scelte
 
   return (
     <div className="remoto">
@@ -179,14 +192,25 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         <span className="remoto__stato">
           {pc === undefined
             ? 'leggo il Drive…'
-            : vivo
-              ? `acceso${pc.buono !== undefined ? ` · risponde su ${descriviIndirizzo(pc.buono)}` : ''}`
+            : vivo || via !== undefined
+              ? `acceso${via !== undefined ? '' : pc.buono !== undefined ? ` · risponde su ${descriviIndirizzo(pc.buono)}` : ''}`
               : pc.stato !== undefined
                 ? pc.stato.titolo
                 : `non so se è acceso · ultimo segno sul Drive ${quando(pc.battito)}`}
           {fase.tipo === 'viva' && fase.chat.aspetta === true ? <span className="remoto__aspetta"> · aspetta te</span> : null}
         </span>
+        {/* La strada usata, sempre in vista (0.40.0). */}
+        {via !== undefined ? (
+          <span className={lento ? 'remoto__strada remoto__strada--lenta' : 'remoto__strada'} title={via.testo}>{via.breve}</span>
+        ) : null}
       </div>
+      {lento ? (
+        <div className="remoto__lento" role="status">
+          <strong>Collegamento lento via Drive.</strong> {via?.testo}
+          {storia?.scritto !== undefined ? ` Schermo scritto da ${remoto.pcNome} alle ${new Date(storia.scritto).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.` : ''}
+          {' '}Appena una strada diretta torna a rispondere, il riquadro ci passa da solo.
+        </div>
+      ) : null}
 
       {fase.tipo === 'viva' || storia !== undefined ? (
         <div className="remoto__schermo" ref={schermo} dangerouslySetInnerHTML={{ __html: html === '' ? '<span class="remoto__vuoto">Leggo lo schermo di quella chat…</span>' : html }} />
@@ -243,7 +267,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
             <button className="tasto" onClick={riprova}>Riprova adesso</button>
           </div>
           <div className="remoto__nota">
-            Il riquadro riprova da solo ogni {Math.round(RILEGGI_REMOTO_OGNI_MS / 1000)} secondi, bussando a tutti gli indirizzi di quel PC (anche quelli che Tailscale dà adesso).
+            Il riquadro riprova da solo ogni {Math.round(RILEGGI_REMOTO_OGNI_MS / 1000)} secondi, in quest’ordine: la rete di casa, Tailscale (anche gli indirizzi che dà adesso), un collegamento diretto via Internet (WebRTC, aperto con uno scambio cifrato sul Drive) e infine il Drive, lento, solo per leggere e mandare un messaggio.
             {driveCollegato
               ? ' La conversazione la trovi anche nella copia sul Drive (Account → Drive), in sola lettura, aggiornata all’ultimo salvataggio di quel PC.'
               : ' Il Drive di questo PC è scollegato: niente copia da leggere e niente cassetta finché non lo ricolleghi (Account → Drive → Collega).'}
@@ -284,7 +308,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           rows={2}
           value={testo}
           disabled={chatId === undefined || silenzio !== undefined}
-          placeholder={chatId === undefined ? `Quando la chat è viva su ${remoto.pcNome}, qui le scrivi.` : `Scrivi a questa chat su ${remoto.pcNome} — Invio manda, Maiusc+Invio va a capo`}
+          placeholder={chatId === undefined ? `Quando la chat è viva su ${remoto.pcNome}, qui le scrivi.` : lento ? `Via Drive: il messaggio arriva a ${remoto.pcNome} al suo prossimo giro — Invio manda` : `Scrivi a questa chat su ${remoto.pcNome} — Invio manda, Maiusc+Invio va a capo`}
           onChange={(e) => setTesto(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); manda() } }}
         />

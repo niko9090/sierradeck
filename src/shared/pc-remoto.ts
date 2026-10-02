@@ -13,6 +13,7 @@
  */
 
 import type { StatoPc } from './scoperta-pc'
+import type { InfoStrada } from './strada-pc'
 
 /** Cio' che un riquadro remoto si ricorda: quale PC, quale chat. */
 export type ChatRemota = {
@@ -79,8 +80,8 @@ export function ordinaIndirizzi(indirizzi: string[], buono: string | undefined):
  * deve sapere **perche'** (spento, chiave, irraggiungibile) per dire cosa fare.
  */
 export type EsitoRemoto<T> =
-  | { ok: true; dati: T }
-  | { ok: false; motivo: string; messaggio: string; stato?: number }
+  | { ok: true; dati: T; strada?: InfoStrada }
+  | { ok: false; motivo: string; messaggio: string; stato?: number; strada?: InfoStrada }
 
 /** Lo schermo di una chat remota, com'e' adesso: `/api/storia` di quel PC. */
 export type StoriaRemota = {
@@ -90,6 +91,8 @@ export type StoriaRemota = {
   righe: string[]
   grezze: string[]
   scelte?: { opzioni: { numero: number; testo: string; scelta: boolean }[]; corrente: number }
+  /** Via Drive (0.40.0): quando quel PC ha scritto questo schermo, ISO. */
+  scritto?: string
 }
 
 /** Quel PC come lo vede il riquadro: il battito, se e' acceso, l'indirizzo che ha risposto. */
@@ -104,6 +107,8 @@ export type PcRemoto = {
   buono?: string
   /** Com'e' dopo il bussare diretto (0.39.3), quando lo si e' chiesto. */
   stato?: StatoPc
+  /** La strada usata l'ultima volta (0.40.0): rete di casa, Tailscale, WebRTC, Drive. */
+  strada?: InfoStrada
   chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean }[]
   cartelle: string[]
 }
@@ -133,6 +138,9 @@ export function descriviSilenzio(motivo: string, pcNome: string, daMs: number): 
   const quanto = secondi < 90 ? `${secondi} secondi` : `${Math.round(secondi / 60)} minuti`
   const breve = daMs < SILENZIO_BREVE_MS
   if (motivo === 'cassaforte') return { titolo: 'La cassaforte di qui è chiusa: riprovo appena la apri', breve: false }
+  // Le strade nuove (0.40.0): non e' un guasto, si sta aprendo un'altra strada.
+  if (motivo === 'collegando') return { titolo: `Cerco un’altra strada per ${pcNome} (diretto via Internet, poi Drive) · da ${quanto}`, breve: false }
+  if (motivo === 'lento') return { titolo: 'Con il collegamento lento via Drive questo non si può fare', breve: false }
   // Mai «spento» (0.39.3): con dati vecchi non lo si sa.
   if (motivo === 'spento' || motivo === 'non-so') return { titolo: `Non so se ${pcNome} è acceso · non risponde da ${quanto} · riprovo da solo`, breve }
   if (motivo === 'chat') return { titolo: `${pcNome} risponde, ma questa chat là è stata chiusa`, breve: false }

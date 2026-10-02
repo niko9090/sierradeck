@@ -61,6 +61,8 @@ export type Conversazione = {
   autopilota?: string
   /** La chat e' su un altro PC (0.39.3): «SU <PC>» nella colonna, nella pagina e nell'app. */
   suPc?: string
+  /** La strada per quel PC (0.40.0): «SU <PC> · Tailscale». */
+  viaPc?: string
 }
 
 /** Quanti messaggi della storia di un autopilota entrano nel filo. */
@@ -178,6 +180,7 @@ export function conversazioniDomande(p: {
         messaggi: [...tuoi, { da: 'lui', testo: schermo !== '' ? schermo : 'Ha finito il turno e aspetta la tua prossima istruzione.' }],
         risposta: { via: 'scrivi', chat: v.chat },
         ...(v.pcNome !== undefined ? { suPc: v.pcNome } : {}),
+        ...(v.viaPc !== undefined ? { viaPc: v.viaPc } : {}),
         segnaposto: 'Scrivi alla chat la prossima istruzione'
       })
     }

@@ -1,7 +1,11 @@
 import {
   apriPannello, chiudiPannelliConLApp, finestreDiChat, impostaFinestrePannello, pannelliAperti, portaAvantiPannello, riapriPannelli, richiamaPannello,
-  rimettiPannello
+  rimettiPannello, segnaFinestraDiServizio
 } from './finestre-pannello'
+import { creaPonteRtc } from './rtc/ponte-rtc'
+import { creaRtc } from './rtc/collegamento-rtc'
+import { creaCassettaDrive } from './rtc/cassetta-drive'
+import { CERCA_OFFERTE_OGNI_MS, stradaBreve, type ChatNelloSchermo, type InfoStrada } from '@shared/strada-pc'
 import { doveMostrareDomande, eLinguettaStaccabile } from '@shared/finestra-pannello'
 import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell } from 'electron'
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
@@ -286,6 +290,12 @@ let scopeStore: ScopeStore | undefined
 let registroGlobale: Registro | undefined
 /** Il postino di questo PC: le rotte del telefono lo raggiungono da qui. */
 let postinoGlobale: Postino | undefined
+/**
+ * Le rotte del Client, per le richieste che arrivano da un altro PC per le
+ * strade nuove (0.40.0): il canale WebRTC e lo schermo per la cassetta sul
+ * Drive. Nasce con il server del Client, piu' avanti dell'avvio del postino.
+ */
+let rottaPerAltriPc: ((r: { metodo: string; percorso: string; corpo: unknown; dispositivo?: string }) => Promise<{ stato: number; corpo: unknown }>) | undefined
 /** Il lavoro con il Drive in corso, per non uscire sopra una fusione a meta'. */
 let lavoroGlobale: ReturnType<typeof creaLavoro> | undefined
 /** L'elenco delle chat fermate per l'aggiornamento, com'era su disco all'avvio. */
@@ -1263,6 +1273,29 @@ if (!app.requestSingleInstanceLock()) {
           },
           scrivi: (b) => scriviJsonAtomico(join(dati, 'pc-altrui.json'), b, 'pc-altrui')
         },
+        // Lo schermo delle mie chat per chi mi guarda via Drive (0.40.0): le
+        // stesse rotte che chiamerebbe da vicino.
+        fotografa: async (): Promise<ChatNelloSchermo[]> => {
+          const r = rottaPerAltriPc
+          if (r === undefined) return []
+          const st = await r({ metodo: 'GET', percorso: '/api/stato', corpo: undefined, dispositivo: 'pc' })
+          const elenco = Array.isArray((st.corpo as { chat?: unknown } | undefined)?.chat) ? (st.corpo as { chat: ChatSuPc[] }).chat : []
+          const fuori: ChatNelloSchermo[] = []
+          for (const c of elenco.filter((x) => x.viva !== false).slice(0, 8)) {
+            const h = await r({ metodo: 'POST', percorso: '/api/storia', corpo: { chat: String(c.id), da: -1, quante: 80 }, dispositivo: 'pc' }).catch(() => undefined)
+            const d = (h?.corpo ?? {}) as { righe?: unknown; grezze?: unknown; totale?: unknown }
+            const righe = Array.isArray(d.righe) ? d.righe.filter((x): x is string => typeof x === 'string') : []
+            fuori.push({
+              id: String(c.id), cwd: String(c.cwd), titolo: String(c.titolo),
+              ...(typeof c.sessione === 'string' ? { sessione: c.sessione } : {}),
+              ...(typeof c.aspetta === 'boolean' ? { aspetta: c.aspetta } : {}),
+              ...(typeof c.viva === 'boolean' ? { viva: c.viva } : {}),
+              righe, grezze: Array.isArray(d.grezze) ? d.grezze.filter((x): x is string => typeof x === 'string') : righe,
+              totale: typeof d.totale === 'number' ? d.totale : righe.length
+            })
+          }
+          return fuori
+        },
         cartellaEsiste: (cwd) => { try { return statSync(cwd).isDirectory() } catch { return false } },
         apriChat: (cwd) => {
           for (const w of finestreDiChat()) {
@@ -1305,7 +1338,44 @@ if (!app.requestSingleInstanceLock()) {
       const indirizziRicordati = (): Record<string, string[]> => {
         try { const j = JSON.parse(readFileSync(fileIndirizzi, 'utf8')) as unknown; return typeof j === 'object' && j !== null ? j as Record<string, string[]> : {} } catch { return {} }
       }
+      // **Le strade nuove (0.40.0)**: WebRTC diretto via Internet, con lo
+      // scambio iniziale cifrato sul Drive, e la cassetta lenta sul Drive.
+      // Vedi `rtc/collegamento-rtc.ts` e `rtc/cassetta-drive.ts`.
+      const ponteRtc = creaPonteRtc({ preload: join(__dirname, '../preload/ponte-rtc.js'), escludi: segnaFinestraDiServizio, log: registro.info })
+      const stradeLentePossibili = (): boolean => sincronia.scatola() !== undefined
+      const rtc = creaRtc({
+        ponte: ponteRtc.ponte,
+        scatola: () => sincronia.scatola(),
+        io: () => identitaPc.leggi().id,
+        mioNome: () => identitaPc.leggi().nome,
+        chiaveDiCasa: (pcId) => sincronia.chiaveDiCasa(`client-pc:${pcId}`),
+        altriPc: () => postino.altrui().map((b) => b.pcId),
+        rotta: async (percorso, corpo) => {
+          if (rottaPerAltriPc === undefined) return { stato: 503, corpo: { errore: 'il Client di questo PC non è ancora pronto' } }
+          return rottaPerAltriPc({ metodo: corpo === undefined ? 'GET' : 'POST', percorso, corpo, dispositivo: 'pc' })
+        },
+        log: registro.info
+      })
+      const cassettaDrive = creaCassettaDrive({
+        scatola: () => sincronia.scatola(),
+        io: () => identitaPc.leggi().id,
+        mioNome: () => identitaPc.leggi().nome,
+        nomeDi: (pcId) => postino.altrui().find((b) => b.pcId === pcId)?.nome ?? 'quel PC',
+        aggiungiPosta: (pcId, voce) => postino.aggiungi(pcId, voce)
+      })
+      const timerRtc = setInterval(() => { void rtc.cercaOfferte().catch(() => undefined) }, CERCA_OFFERTE_OGNI_MS)
+      // Chi mi guarda via Drive: lo schermo e la posta ogni dieci secondi, non ogni mezzo minuto.
+      const timerSchermo = setInterval(() => { void postino.giroVeloce() }, 10_000)
+      app.on('before-quit', () => { clearInterval(timerRtc); clearInterval(timerSchermo); rtc.chiudiTutto(); ponteRtc.distruggi() })
       const remoto = creaClientPcRemoto({
+        rtc: {
+          possibile: stradeLentePossibili,
+          stato: (pcId) => rtc.stato(pcId),
+          fallitoIl: (pcId) => rtc.fallitoIl(pcId),
+          avvia: (pcId) => rtc.avvia(pcId),
+          chiama: (pcId, percorso, corpo) => rtc.chiama(pcId, percorso, corpo)
+        },
+        cassetta: { possibile: stradeLentePossibili, chiama: (pcId, percorso, corpo) => cassettaDrive.chiama(pcId, percorso, corpo) },
         battiti: () => postino.altrui(),
         chiavePer: (pcId) => sincronia.chiaveDiCasa(`client-pc:${pcId}`),
         mioNome: () => identitaPc.leggi().nome,
@@ -1323,12 +1393,17 @@ if (!app.requestSingleInstanceLock()) {
           try { scriviAtomico(fileIndirizzi, JSON.stringify(tutti, null, 2), 'remoto') } catch { /* la prossima volta */ }
         }
       })
-      const esitoRemoto = async <T,>(f: () => Promise<unknown>): Promise<EsitoRemoto<T>> => {
+      // Ogni esito porta la strada usata (0.40.0): il riquadro la mostra.
+      const esitoRemoto = async <T,>(f: () => Promise<unknown>, pc?: unknown): Promise<EsitoRemoto<T>> => {
+        const strada = (): { strada?: InfoStrada } => {
+          const s = typeof pc === 'string' ? remoto.stradaDi(pc) : undefined
+          return s !== undefined ? { strada: s } : {}
+        }
         try {
-          return { ok: true, dati: (await f()) as T }
+          return { ok: true, dati: (await f()) as T, ...strada() }
         } catch (err) {
-          if (err instanceof ErroreRemoto) return { ok: false, motivo: err.motivo, messaggio: err.message, ...(err.stato !== undefined ? { stato: err.stato } : {}) }
-          return { ok: false, motivo: 'http', messaggio: String(err) }
+          if (err instanceof ErroreRemoto) return { ok: false, motivo: err.motivo, messaggio: err.message, ...(err.stato !== undefined ? { stato: err.stato } : {}), ...strada() }
+          return { ok: false, motivo: 'http', messaggio: String(err), ...strada() }
         }
       }
       const testo = (x: unknown): string => (typeof x === 'string' ? x : '')
@@ -1347,6 +1422,7 @@ if (!app.requestSingleInstanceLock()) {
             pcId: b.pcId, nome: b.nome, versione: b.versione, battito: b.battito,
             vivo: pcVivo(b, adessoMs) || stati[b.pcId]?.stato === 'acceso', indirizzi: b.indirizzi ?? [], porta: b.porta ?? PORTA_CLIENT_PREDEFINITA,
             ...(remoto.indirizzoBuono(b.pcId) !== undefined ? { buono: remoto.indirizzoBuono(b.pcId) } : {}),
+            ...(remoto.stradaDi(b.pcId) !== undefined ? { strada: remoto.stradaDi(b.pcId) } : {}),
             ...(stati[b.pcId] !== undefined ? { stato: stati[b.pcId] } : {}),
             chat: b.chat, cartelle: b.cartelle
           }))
@@ -1362,7 +1438,7 @@ if (!app.requestSingleInstanceLock()) {
             ...(typeof c.viva === 'boolean' ? { viva: c.viva } : {})
           })) : []
           return { chat, ...(typeof r.computer === 'object' && r.computer !== null ? { computer: r.computer as { nome: string } } : {}) }
-        }))
+        }, pc))
       ipcMain.handle('remoto:trova', (_e, pc: unknown, r: unknown) =>
         esitoRemoto<ChatSuPc | undefined>(async () => {
           const rr = r as { cwd?: unknown; sessione?: unknown; pcId?: unknown; pcNome?: unknown }
@@ -1370,19 +1446,19 @@ if (!app.requestSingleInstanceLock()) {
           return trovaChatRemota(Array.isArray(s.chat) ? s.chat : [], {
             pcId: testo(pc), pcNome: testo(rr.pcNome), cwd: testo(rr.cwd), ...(typeof rr.sessione === 'string' ? { sessione: rr.sessione } : {})
           })
-        }))
+        }, pc))
       ipcMain.handle('remoto:storia', (_e, pc: unknown, chat: unknown, da: unknown, quante: unknown) =>
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/storia', {
           chat: testo(chat), da: typeof da === 'number' ? da : -1, quante: typeof quante === 'number' ? quante : 200
-        })))
+        }), pc))
       ipcMain.handle('remoto:scrivi', (_e, pc: unknown, chat: unknown, t: unknown) =>
-        esitoRemoto(() => remoto.chiama(testo(pc), '/api/scrivi', { chat: testo(chat), testo: testo(t) })))
+        esitoRemoto(() => remoto.chiama(testo(pc), '/api/scrivi', { chat: testo(chat), testo: testo(t) }), pc))
       ipcMain.handle('remoto:scegli', (_e, pc: unknown, chat: unknown, opzione: unknown) =>
-        esitoRemoto(() => remoto.chiama(testo(pc), '/api/scegli', { chat: testo(chat), opzione: testo(opzione) })))
+        esitoRemoto(() => remoto.chiama(testo(pc), '/api/scegli', { chat: testo(chat), opzione: testo(opzione) }), pc))
       ipcMain.handle('remoto:riprendi', (_e, pc: unknown, cartella: unknown, sessione: unknown) =>
-        esitoRemoto(() => remoto.chiama(testo(pc), '/api/sessioni/riprendi', { cartella: testo(cartella), sessione: testo(sessione) })))
+        esitoRemoto(() => remoto.chiama(testo(pc), '/api/sessioni/riprendi', { cartella: testo(cartella), sessione: testo(sessione) }), pc))
       ipcMain.handle('remoto:apri', (_e, pc: unknown, cartella: unknown) =>
-        esitoRemoto(() => remoto.chiama(testo(pc), '/api/apri', { cartella: testo(cartella) })))
+        esitoRemoto(() => remoto.chiama(testo(pc), '/api/apri', { cartella: testo(cartella) }), pc))
       ipcMain.handle('remoto:prova', (_e, pc: unknown) => remoto.prova(testo(pc)))
       // Sfalsato rispetto alla ronda dei progetti: due giri sul Drive nello
       // stesso istante non servono a nessuno.
@@ -2486,6 +2562,10 @@ if (!app.requestSingleInstanceLock()) {
         },
         // Le Domande rispondono anche alle chat degli altri PC accesi (0.37.2):
         // si cerca la chat per sessione sul Client di quel PC e le si scrive.
+        stradaPc: (pcId: string) => {
+          const s = remoto.stradaDi(pcId)
+          return s === undefined ? undefined : stradaBreve(s.strada)
+        },
         scriviAltroPc: async (pcId: string, sessione: string, t: string): Promise<{ ok: true } | { ok: false; messaggio: string }> => {
           try {
             const s = await remoto.chiama(pcId, '/api/stato') as { chat?: ChatSuPc[] }
@@ -2901,6 +2981,8 @@ if (!app.requestSingleInstanceLock()) {
       // scheda Domande del PC passa dalle stesse rotte, e cosi' ricorda gli
       // stessi messaggi mandati (0.36.0).
       const rottaTelefono = rotteClient(rotte)
+      // Le stesse rotte per le strade nuove da un altro PC (0.40.0).
+      rottaPerAltriPc = async (r) => { const e = await rottaTelefono(r); return { stato: e.stato, corpo: e.corpo } }
       /** Le rotte che la scheda Domande del PC puo' chiamare: solo rispondere. */
       // `/api/autopilota/vai`: il via dalla linguetta «Domande» (0.38.0).
       const ROTTE_DOMANDE = ['/api/domande', '/api/rispondi', '/api/scrivi', '/api/scegli', '/api/autopilota/dialogo', '/api/autopilota/vai']

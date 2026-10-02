@@ -1,6 +1,9 @@
 import { pcVivo, type BattitoPc } from '@shared/posta'
 import { descriviIndirizzo, PORTA_CLIENT_PREDEFINITA } from '@shared/pc-remoto'
 import { indirizziDaProvare, messaggioErroreRemoto, motivoDaStatoHttp, statoPc, type PingPc, type StatoPc } from '@shared/scoperta-pc'
+import { indirizzoPreferito, prossimaMossa, RIBUSSA_OGNI_MS, stradaDiIndirizzo, type InfoStrada, type Strada, type StatoRtc } from '@shared/strada-pc'
+import { ATTESA_DRIVE, NON_VIA_DRIVE } from './rtc/cassetta-drive'
+import type { EsitoCanale } from './rtc/collegamento-rtc'
 
 /**
  * Bussare a un altro PC: il Client di **quel** computer, chiamato da qui.
@@ -29,6 +32,8 @@ export type MotivoRemoto =
   | 'rifiutato'     // 403: quel PC rifiuta l'indirizzo da cui arriviamo
   | 'chat'          // 404: la chat non e' (piu') aperta la'
   | 'http'          // un altro errore di quel PC
+  | 'collegando'    // 0.40.0: il WebRTC si sta aprendo, o lo schermo via Drive non e' ancora arrivato
+  | 'lento'         // 0.40.0: via Drive questa cosa non si puo' fare
 
 export class ErroreRemoto extends Error {
   constructor(public readonly motivo: MotivoRemoto, messaggio: string, public readonly stato?: number) {
@@ -50,6 +55,8 @@ export type ClientPcRemoto = {
   bussa: (pcId: string, nome?: string) => Promise<PingPc>
   /** Com'e' quel PC dopo l'ultimo bussare (per il riquadro e il riquadro d'attesa). */
   statoDi: (pcId: string, nome?: string) => Promise<StatoPc>
+  /** La strada usata l'ultima volta che quel PC ha risposto (0.40.0): rete di casa, Tailscale, WebRTC, Drive. */
+  stradaDi: (pcId: string) => InfoStrada | undefined
   /** Prova a bussare: torna com'e' andata, senza lanciare. */
   prova: (pcId: string) => Promise<{ ok: true; indirizzo: string; ms: number; versione?: string } | { ok: false; motivo: MotivoRemoto; messaggio: string }>
 }
@@ -79,6 +86,22 @@ export type DipendenzeRemoto = {
   driveCollegato?: () => boolean
   /** Quanto si aspetta il bussare breve. */
   bussaMs?: number
+  /**
+   * La terza strada (0.40.0): il collegamento WebRTC diretto via Internet,
+   * quando ne' la rete di casa ne' Tailscale rispondono.
+   */
+  rtc?: {
+    possibile: () => boolean
+    stato: (pcId: string) => StatoRtc
+    fallitoIl: (pcId: string) => number | undefined
+    avvia: (pcId: string) => void
+    chiama: (pcId: string, percorso: string, corpo?: unknown) => Promise<EsitoCanale>
+  }
+  /** La quarta strada (0.40.0): la cassetta sul Drive, lenta, solo schermo e messaggi. */
+  cassetta?: {
+    possibile: () => boolean
+    chiama: (pcId: string, percorso: string, corpo?: unknown) => Promise<EsitoCanale>
+  }
 }
 
 const ATTESA_PREDEFINITA_MS = 4000
@@ -92,6 +115,15 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
   const bussaMs = deps.bussaMs ?? BUSSA_PREDEFINITA_MS
   const log = deps.log ?? ((): void => {})
   const buoni = new Map<string, string>()
+  /** La strada che ha funzionato l'ultima volta, per PC (0.40.0). */
+  const strade = new Map<string, InfoStrada>()
+  const ultimoBussaIl = new Map<string, number>()
+  const segnaStrada = (pcId: string, nome: string, strada: Strada, indirizzo?: string): void => {
+    const prima = strade.get(pcId)
+    if (prima?.strada === strada && prima.indirizzo === indirizzo) return
+    strade.set(pcId, { strada, ...(indirizzo !== undefined ? { indirizzo } : {}), dal: new Date(adesso()).toISOString() })
+    log(`[remoto] ${nome || pcId}: strada ${strada === 'lan' ? 'rete di casa' : strada === 'tailscale' ? 'Tailscale' : strada === 'webrtc' ? 'WebRTC (diretto via Internet)' : 'Drive (lenta)'}${indirizzo !== undefined ? ` · ${indirizzo}` : ''}`)
+  }
   /** L'ultimo bussare per PC: lo stato da mostrare, senza ribussare a ogni giro. */
   const ultimiPing = new Map<string, PingPc>()
   /** Un motivo per PC, raccontato una volta: il riquadro bussa ogni due secondi. */
@@ -149,11 +181,14 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
         clearTimeout(timer)
       }
     }))
-    const buona = risposte.find((x) => (x.stato >= 200 && x.stato < 300) || x.stato === 404)
+    ultimoBussaIl.set(pcId, adesso())
+    // Prima la rete di casa, poi Tailscale (0.40.0): rispondono insieme, e
+    // Tailscale a volte arriva prima.
+    const buona = indirizzoPreferito(risposte.filter((x) => (x.stato >= 200 && x.stato < 300) || x.stato === 404).map((x) => x.ind))
     let p: PingPc
     if (buona !== undefined) {
-      segnaBuono(pcId, nome, buona.ind, porta)
-      p = { esito: 'risponde', indirizzo: buona.ind }
+      segnaBuono(pcId, nome, buona, porta)
+      p = { esito: 'risponde', indirizzo: buona }
     } else {
       const chiaveNo = risposte.find((x) => x.stato === 401)
       const rifiuto = risposte.find((x) => x.stato === 403)
@@ -167,9 +202,11 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
 
   const statoDa = (pcId: string, p: PingPc | undefined, nomeNoto?: string): StatoPc => {
     const b = battitoDi(pcId)
+    // Il canale WebRTC aperto vale come una risposta: quel PC c'e'.
+    const viaRtc = p?.esito !== 'risponde' && deps.rtc?.stato(pcId) === 'aperto'
     return statoPc({
       nome: b?.nome ?? nomeNoto ?? 'quel PC',
-      ping: p,
+      ping: viaRtc ? { esito: 'risponde', indirizzo: 'WebRTC' } : p,
       battitoVivo: b !== undefined && pcVivo(b, adesso()),
       ...(b?.battito !== undefined ? { ultimoSegno: b.battito } : {}),
       driveCollegato: deps.driveCollegato?.() ?? true,
@@ -190,22 +227,27 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     return new ErroreRemoto(motivo, m, p.esito === 'chiave' ? 401 : p.esito === 'rifiutato' ? 403 : undefined)
   }
 
-  const chiama = async (pcId: string, percorso: string, corpo?: unknown): Promise<unknown> => {
-    const b = battitoDi(pcId)
-    if (b === undefined) throw new ErroreRemoto('sconosciuto', 'Questo PC non ha mai lasciato un battito sul Drive: non so né come si chiama né dove bussare. Compare dopo il suo primo salvataggio automatico, con il Drive collegato su tutti e due.')
-    const chiave = deps.chiavePer(pcId)
-    if (chiave === undefined) throw new ErroreRemoto('cassaforte', messaggioErroreRemoto('cassaforte', b.nome))
-    // Niente piu' «e' spento» guardando solo il battito (0.39.3): con il Drive
-    // scollegato il battito e' sempre vecchio. Senza un indirizzo buono, prima
-    // si bussa a tutti.
-    if (buoni.get(pcId) === undefined) {
-      const p = await bussa(pcId)
-      if (p.esito !== 'risponde') throw errorePer(pcId, p)
-    }
+  /** Da una risposta (HTTP, canale o cassetta) ai dati, o all'errore con il motivo vero. */
+  const datiDa = (e: EsitoCanale, nome: string): unknown => {
+    const errore = (e.corpo as { errore?: unknown } | undefined)?.errore
+    const dettaglio = typeof errore === 'string' ? errore : `errore ${e.stato}`
+    if (e.stato === ATTESA_DRIVE) throw new ErroreRemoto('collegando', dettaglio, e.stato)
+    if (e.stato === NON_VIA_DRIVE) throw new ErroreRemoto('lento', dettaglio, e.stato)
+    const motivo = motivoDaStatoHttp(e.stato)
+    if (motivo === undefined) return e.corpo
+    throw new ErroreRemoto(motivo, messaggioErroreRemoto(motivo, nome, dettaglio), e.stato)
+  }
+
+  /**
+   * La chiamata sulla strada diretta (rete di casa o Tailscale). `undefined`
+   * quando quella strada non c'e' piu' (l'indirizzo buono ha smesso di
+   * rispondere e il bussare non ne trova un altro): si passa alle strade dopo.
+   */
+  const viaHttp = async (pcId: string, b: BattitoPc, chiave: string, percorso: string, corpo?: unknown): Promise<{ dati: unknown } | undefined> => {
     const porta = b.porta ?? PORTA_CLIENT_PREDEFINITA
     for (let tentativo = 0; tentativo < 2; tentativo += 1) {
       const ind = buoni.get(pcId)
-      if (ind === undefined) break
+      if (ind === undefined) return undefined
       const controllo = new AbortController()
       const timer = setTimeout(() => controllo.abort(), attesaMs)
       let risposta: Response
@@ -226,7 +268,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
         // scrittura non si ripete (potrebbe essere arrivata): si dice e basta.
         buoni.delete(pcId)
         const p = await bussa(pcId)
-        if (p.esito !== 'risponde') throw errorePer(pcId, p)
+        if (p.esito !== 'risponde') return undefined
         if (corpo !== undefined) {
           throw new ErroreRemoto('irraggiungibile', `${b.nome} ha cambiato indirizzo mentre mandavo: non so se il testo è arrivato. Guarda lo schermo qui sopra (si aggiorna da solo) prima di rimandarlo.`)
         }
@@ -236,18 +278,73 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       raccontati.delete(pcId)
       let dati: unknown = undefined
       try { dati = await risposta.json() } catch { dati = undefined }
-      const motivo = motivoDaStatoHttp(risposta.status)
-      if (motivo === undefined) return dati
-      const errore = (dati as { errore?: unknown } | undefined)?.errore
-      const dettaglio = typeof errore === 'string' ? errore : `errore ${risposta.status}`
-      throw new ErroreRemoto(motivo, messaggioErroreRemoto(motivo, b.nome, dettaglio), risposta.status)
+      segnaStrada(pcId, b.nome, stradaDiIndirizzo(ind), ind)
+      return { dati: datiDa({ stato: risposta.status, corpo: dati }, b.nome) }
     }
-    throw errorePer(pcId, ultimiPing.get(pcId) ?? { esito: 'senza-indirizzi' })
+    return undefined
+  }
+
+  const collegando = (nome: string): ErroreRemoto => new ErroreRemoto('collegando',
+    `Né la rete di casa né Tailscale arrivano a ${nome}: apro un collegamento diretto via Internet (WebRTC). Lo scambio iniziale passa dal Drive, e può volerci fino a un minuto e mezzo.`)
+
+  const chiama = async (pcId: string, percorso: string, corpo?: unknown): Promise<unknown> => {
+    const b = battitoDi(pcId)
+    if (b === undefined) throw new ErroreRemoto('sconosciuto', 'Questo PC non ha mai lasciato un battito sul Drive: non so né come si chiama né dove bussare. Compare dopo il suo primo salvataggio automatico, con il Drive collegato su tutti e due.')
+    const chiave = deps.chiavePer(pcId)
+    if (chiave === undefined) throw new ErroreRemoto('cassaforte', messaggioErroreRemoto('cassaforte', b.nome))
+    // 1-2. La strada diretta: rete di casa, poi Tailscale. Niente piu' «e'
+    // spento» guardando solo il battito (0.39.3): senza un indirizzo buono si
+    // bussa a tutti. Usando WebRTC o il Drive si ribussa ogni mezzo minuto,
+    // non a ogni giro del riquadro: se quel PC torna raggiungibile, si torna
+    // alla strada veloce.
+    let ping = ultimiPing.get(pcId)
+    if (buoni.get(pcId) === undefined) {
+      const lenta = strade.get(pcId)?.strada === 'webrtc' || strade.get(pcId)?.strada === 'drive'
+      if (!lenta || adesso() - (ultimoBussaIl.get(pcId) ?? 0) >= RIBUSSA_OGNI_MS) ping = await bussa(pcId)
+    }
+    if (buoni.get(pcId) !== undefined) {
+      const r = await viaHttp(pcId, b, chiave, percorso, corpo)
+      if (r !== undefined) return r.dati
+      ping = ultimiPing.get(pcId)
+    }
+    // 3-4. WebRTC, poi la cassetta sul Drive.
+    const m = prossimaMossa({
+      diretta: false,
+      chiaveRifiutata: ping?.esito === 'chiave',
+      rtcPossibile: deps.rtc?.possibile() ?? false,
+      rtc: deps.rtc?.stato(pcId) ?? 'spento',
+      ...(deps.rtc?.fallitoIl(pcId) !== undefined ? { rtcFallitoIl: deps.rtc.fallitoIl(pcId) } : {}),
+      drivePossibile: deps.cassetta?.possibile() ?? false,
+      adesso: adesso()
+    })
+    if (m.avviaRtc) deps.rtc?.avvia(pcId)
+    if (m.mossa === 'rtc' && deps.rtc !== undefined) {
+      let e: EsitoCanale
+      try {
+        e = await deps.rtc.chiama(pcId, percorso, corpo)
+      } catch (err) {
+        if (corpo !== undefined) {
+          throw new ErroreRemoto('irraggiungibile', `Il collegamento diretto con ${b.nome} si è interrotto mentre mandavo (${err instanceof Error ? err.message : String(err)}): non so se il testo è arrivato. Guarda lo schermo prima di rimandarlo; intanto lo riapro.`)
+        }
+        throw new ErroreRemoto('collegando', `Il collegamento diretto con ${b.nome} si è interrotto: lo riapro da solo.`)
+      }
+      raccontati.delete(pcId)
+      segnaStrada(pcId, b.nome, 'webrtc')
+      return datiDa(e, b.nome)
+    }
+    if (m.mossa === 'aspetta-rtc') throw collegando(b.nome)
+    if (m.mossa === 'drive' && deps.cassetta !== undefined) {
+      const e = await deps.cassetta.chiama(pcId, percorso, corpo)
+      segnaStrada(pcId, b.nome, 'drive')
+      return datiDa(e, b.nome)
+    }
+    throw errorePer(pcId, ping ?? { esito: 'senza-indirizzi' })
   }
 
   return {
     chiama,
     indirizzoBuono: (pcId) => buoni.get(pcId),
+    stradaDi: (pcId) => strade.get(pcId),
     bussa,
     async statoDi(pcId, nome) {
       return statoDa(pcId, await bussa(pcId, nome), nome)

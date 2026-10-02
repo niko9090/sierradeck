@@ -3746,6 +3746,25 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .remoto__pc strong { color: var(--accento); }
 .remoto__stato { margin-left: auto; white-space: nowrap; }
 .remoto__aspetta { color: var(--ambra); font-weight: 600; }
+/* La strada usata (0.40.0): una pastiglia nella testata; ambra quando e' il Drive, lento. */
+.remoto__strada {
+  padding: 0 var(--s2);
+  border: 1px solid var(--remoto, #a77bf3);
+  border-radius: 999px;
+  color: var(--remoto, #a77bf3);
+  white-space: nowrap;
+}
+.remoto__strada--lenta { border-color: var(--ambra); color: var(--ambra); font-weight: 600; }
+.remoto__lento {
+  padding: var(--s1) var(--s3);
+  font-family: system-ui, sans-serif;
+  font-size: var(--t1);
+  line-height: 1.4;
+  color: var(--testo);
+  background: color-mix(in srgb, var(--ambra) 14%, transparent);
+  border-bottom: 1px solid var(--ambra);
+}
+.remoto__lento strong { color: var(--ambra); }
 .remoto__schermo {
   flex: 1;
   min-height: 0;

@@ -36,9 +36,20 @@ export function ePannello(win: BrowserWindow): boolean {
   return aperte.has(win.id)
 }
 
-/** Le finestre di chat: tutte tranne le finestre pannello. */
+/**
+ * Le finestre di servizio, mai visibili (0.40.0: il ponte WebRTC): non sono
+ * finestre di chat, e a una finestra nascosta non si manda niente.
+ */
+const diServizio = new Set<number>()
+export function segnaFinestraDiServizio(w: BrowserWindow): void {
+  const id = w.id
+  diServizio.add(id)
+  w.once('closed', () => diServizio.delete(id))
+}
+
+/** Le finestre di chat: tutte tranne le finestre pannello e quelle di servizio. */
 export function finestreDiChat(): BrowserWindow[] {
-  return BrowserWindow.getAllWindows().filter((w) => !aperte.has(w.id))
+  return BrowserWindow.getAllWindows().filter((w) => !aperte.has(w.id) && !diServizio.has(w.id))
 }
 
 function salva(): void {

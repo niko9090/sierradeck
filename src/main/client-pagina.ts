@@ -711,7 +711,7 @@ function vistaConversazioni() {
   var voci = elenco.map(function (c) {
     return '<button class="voce" data-k="' + esc(c.chiave) + '" onclick="apriConv(this.dataset.k)"' + (c.chiave === aperta.chiave ? ' aria-current="true"' : '') + '>' +
       '<span class="led ' + (c.chiede ? 'attesa' : 'spenta') + '"></span>' +
-      '<span class="voce__testo"><span class="voce__nome">' + (c.suPc ? '<b class="segno-remoto">SU ' + esc(c.suPc) + '</b> · ' : '') + esc(c.titolo) + '</span>' +
+      '<span class="voce__testo"><span class="voce__nome">' + (c.suPc ? '<b class="segno-remoto">SU ' + esc(c.suPc) + (c.viaPc ? ' (' + esc(c.viaPc) + ')' : '') + '</b> · ' : '') + esc(c.titolo) + '</span>' +
       '<span class="voce__sotto">' + (c.tipo === 'autopilota' ? 'ti aspetta (' + (c.quante || 1) + ') → apri' : c.chiede ? 'chat · aspetta che tu scelga' : 'chat · ha finito il turno') + '</span></span>' +
       '<span class="voce__freccia">›</span></button>'
   }).join('')

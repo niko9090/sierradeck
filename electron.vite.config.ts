@@ -61,7 +61,8 @@ export default defineConfig({
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
-    build: { rollupOptions: { input: resolve('src/preload/index.ts') } }
+    // Il ponte WebRTC (0.40.0) e' un secondo preload, per la sua finestra nascosta.
+    build: { rollupOptions: { input: { index: resolve('src/preload/index.ts'), 'ponte-rtc': resolve('src/preload/ponte-rtc.ts') } } }
   },
   renderer: {
     root: resolve('src/renderer'),

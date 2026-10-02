@@ -60,6 +60,8 @@ export type VoceDomanda =
       righe: string[]
       /** La chat e' su un altro PC (0.39.3): il suo nome, per il segno «SU <PC>». */
       pcNome?: string
+      /** E la strada per arrivarci (0.40.0): «rete di casa», «Tailscale», «WebRTC», «Drive, lento». */
+      viaPc?: string
     }
 
 /**
@@ -130,7 +132,14 @@ export type AutopilotaPerDomande = { id: string; nome: string; obiettivo: string
 export type DomandaPerDomande = { id: string; autopilotaId: string; testo: string; apertaIl?: number; scadeIl?: number; opzioni?: string[] }
 
 /** Le chat degli altri PC, dal loro battito sul Drive: solo quelle che aspettano contano. */
-export type AltroPcPerDomande = { pcId: string; nome: string; vivo: boolean; chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean }[] }
+export type AltroPcPerDomande = {
+  pcId: string
+  nome: string
+  vivo: boolean
+  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean }[]
+  /** La strada con cui questo computer arriva a quel PC (0.40.0), in due parole: la mostrano la pagina e l'app. */
+  strada?: string
+}
 
 /** La chat di un altro PC nelle Domande: `pc:<pcId>:<sessione>`, che `/api/scrivi` sa mandare la'. */
 export function idChatAltroPc(pcId: string, sessione: string): string {
@@ -197,6 +206,7 @@ export function raccogliDomande(p: {
         chat: idChatAltroPc(pc.pcId, c.sessione),
         titolo: `${c.titolo || c.cwd} · su ${pc.nome}`,
         pcNome: pc.nome,
+        ...(pc.strada !== undefined ? { viaPc: pc.strada } : {}),
         cwd: c.cwd,
         righe: [`Su ${pc.nome}: ha finito il turno e aspetta la tua prossima istruzione. Quello che scrivi qui arriva a questa chat, sul suo PC.`]
       })

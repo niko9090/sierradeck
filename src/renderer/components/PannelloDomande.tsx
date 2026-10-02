@@ -230,7 +230,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                 >
                   <span className={`led ${c.chiede ? 'led--attesa' : 'led--finito'}`} />
                   <span className="domande-pc__titolo">
-                    <b>{c.suPc !== undefined ? <span className="segno-remoto">SU {c.suPc} · </span> : null}{c.titolo}</b>
+                    <b>{c.suPc !== undefined ? <span className="segno-remoto">SU {c.suPc}{c.viaPc !== undefined ? ` (${c.viaPc})` : ''} · </span> : null}{c.titolo}</b>
                     <span className="misura">
                       {c.tipo === 'autopilota'
                         ? `ti aspetta (${c.quante ?? 1}) → apri`
