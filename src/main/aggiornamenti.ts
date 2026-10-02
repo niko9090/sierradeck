@@ -5,6 +5,7 @@ import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { avviaFinestraAggiornamento } from './finestra-aggiornamento'
 import { assicuraUpdater, avviaUpdater, updaterVivo } from './updater/compila'
+import { PAGINA_VERSIONI, raccogliNote, type NoteAggiornamento } from '@shared/note-aggiornamento'
 
 /**
  * Com'è messo l'aggiornamento, per l'interfaccia.
@@ -72,6 +73,20 @@ export type Aggiornamenti = {
   scarica: (dalTelefono?: boolean) => Promise<void>
   /** Chiude il programma e installa. L'utente ha detto di sì una seconda volta. */
   installa: () => Promise<void>
+  /**
+   * Cosa cambia con la versione pronta (0.39.0): le note della nuova e delle
+   * saltate, per la finestra di «Installa» sul PC e sul telefono.
+   */
+  note: () => Promise<NoteAggiornamento>
+  /**
+   * Un riavvio che **non** installa (dopo «Porta qui» o una fusione): spegne
+   * l'installazione alla chiusura per questa uscita. Senza, `relaunch` + `quit`
+   * con un aggiornamento pronto faceva partire l'installer silenzioso e la
+   * versione vecchia insieme (13/09), e dalla 0.39.0 nessuna installazione
+   * parte senza la finestra delle note. L'aggiornamento resta scaricato e al
+   * ritorno ricompare «Installa».
+   */
+  nonInstallareAllaChiusura: () => void
   /**
    * Cambia a caldo se gli aggiornamenti si scaricano da soli.
    *
@@ -194,6 +209,13 @@ export function creaAggiornamenti(
   let versioneScaricata: string | undefined
   /** Un'installazione per sessione: dopo, questo processo sta per morire comunque. */
   let installazioneAvviata = false
+  /**
+   * Le note che l'aggiornamento porta con se' (`info.releaseNotes`): la riserva
+   * se GitHub non risponde quando si apre la finestra di «Installa».
+   */
+  let noteDellAggiornamento: unknown
+  /** Le note gia' raccolte, per versione: la finestra si riapre senza richiedere. */
+  let noteRaccolte: { versione: string; quando: number; note: NoteAggiornamento } | undefined
 
   const annuncia = (nuovo: StatoAggiornamento): void => {
     if (daTelefono) nuovo = { ...nuovo, daTelefono: true }
@@ -235,6 +257,9 @@ export function creaAggiornamenti(
   // preferenza, e `impostaScaricoAutomatico` la cambia a caldo. Assente = acceso.
   autoUpdater.autoDownload = scaricaAutomatico?.() ?? true
   autoUpdater.autoInstallOnAppQuit = true
+  // Le note di tutte le versioni fra quella installata e la nuova, non solo
+  // dell'ultima: la finestra di «Installa» mostra anche quelle saltate.
+  autoUpdater.fullChangelog = true
 
   // L'accesso al server, quando ne chiede uno. Si legge una volta all'avvio:
   // cambiare le credenziali vuol dire riavviare, che è il gesto giusto per una
@@ -250,6 +275,7 @@ export function creaAggiornamenti(
   }
 
   autoUpdater.on('update-available', (info) => {
+    noteDellAggiornamento = info.releaseNotes ?? undefined
     annuncia({ fase: 'disponibile', versione: String(info.version) })
   })
   autoUpdater.on('update-not-available', () => {
@@ -277,6 +303,7 @@ export function creaAggiornamenti(
       installerScaricato = scaricato
     }
     versioneScaricata = String(info.version)
+    if (info.releaseNotes !== undefined && info.releaseNotes !== null) noteDellAggiornamento = info.releaseNotes
     annuncia({ fase: 'pronto', versione: String(info.version) })
   })
   autoUpdater.on('error', (err) => {
@@ -345,6 +372,35 @@ export function creaAggiornamenti(
     stato: () => stato,
     cerca,
     scarica: avviaScaricamento,
+    async note() {
+      const nuova = versioneScaricata ?? stato.versione ?? ''
+      const installata = app.getVersion()
+      if (nuova === '') {
+        return { versione: '', installata, note: [], fonte: 'nessuna', dove: PAGINA_VERSIONI, avviso: 'Non c’è nessun aggiornamento pronto da installare.' }
+      }
+      // Dieci minuti di memoria: riaprire la finestra non rifà la richiesta,
+      // e l'API pubblica di GitHub ne concede sessanta l'ora.
+      if (noteRaccolte !== undefined && noteRaccolte.versione === nuova && Date.now() - noteRaccolte.quando < 10 * 60_000) return noteRaccolte.note
+      const feed = cartellaDati !== undefined ? feedAlternativo(cartellaDati) : undefined
+      const [owner, repo] = feed?.provider === 'github' ? [feed.owner, feed.repo] : ['niko9090', 'sierradeck']
+      const note = await raccogliNote({
+        installata,
+        nuova,
+        releaseNotes: noteDellAggiornamento,
+        dove: `https://github.com/${owner}/${repo}/releases`,
+        rilasci: async () => {
+          const risposta = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases?per_page=100`, {
+            headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'SierraDeck' },
+            signal: AbortSignal.timeout(10_000)
+          })
+          if (!risposta.ok) throw new Error(`GitHub ha risposto ${risposta.status}`)
+          return (await risposta.json()) as unknown
+        }
+      })
+      nota(`note per la ${nuova}: ${note.note.length} versioni (fonte ${note.fonte})${note.avviso !== undefined ? ` · ${note.avviso}` : ''}`)
+      if (note.fonte === 'github') noteRaccolte = { versione: nuova, quando: Date.now(), note }
+      return note
+    },
     async installa() {
       // Una volta sola per sessione. Premere due volte, o due finestre che
       // premono insieme, facevano partire due updater: si chiudevano le
@@ -517,6 +573,10 @@ export function creaAggiornamenti(
         .then(() => preparaUscita?.())
         .catch((err: unknown) => guaio(`preparazione incompleta: ${String(err)}`))
         .finally(() => setTimeout(() => autoUpdater.quitAndInstall(true, true), 500))
+    },
+    nonInstallareAllaChiusura() {
+      nota('riavvio senza installare: l aggiornamento pronto resta in attesa di «Installa»')
+      autoUpdater.autoInstallOnAppQuit = false
     },
     impostaScaricoAutomatico(attivo) {
       autoUpdater.autoDownload = attivo

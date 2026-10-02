@@ -470,9 +470,23 @@ function SchedaGenerali(): React.JSX.Element {
             <span>Scarica gli aggiornamenti da solo appena li trova</span>
           </label>
           <div className="impostazioni__nota">
-            Acceso, scarica in secondo piano e non interrompe niente: l’aggiornamento
-            si installa quando chiudi. Spento, non scarica finché non premi «Scarica»
-            nella banda in alto — e quel tasto compare solo quando questo è spento.
+            Acceso, scarica in secondo piano e non interrompe niente. Quando è pronto, la striscia in alto mostra
+            «Installa»: ti fa vedere cosa cambia (la versione nuova e quelle che avevi saltato) e da lì scegli
+            «Installa e riavvia» o «Più tardi». Se chiudi SierraDeck senza installarlo, si installa alla chiusura.
+            Spento, non scarica finché non premi «Scarica» nella striscia in alto, e quel tasto compare solo quando
+            questo è spento.
+          </div>
+          {/* Le novità non si aprono più da sole all'avvio (0.39.0): questo è
+              il loro posto, insieme al numero di versione in alto a sinistra. */}
+          <div className="impostazioni__riga">
+            <button className="tasto" onClick={() => window.dispatchEvent(new CustomEvent('sierradeck:apri-novita'))}>
+              Novità di questa versione
+            </button>
+          </div>
+          <div className="impostazioni__nota">
+            Le novità non compaiono più da sole quando apri il programma: le leggi da qui, o premendo il numero di
+            versione in alto. Si apre la stessa finestra di «Installa», con quello che è cambiato nella versione che
+            hai adesso e nelle cinque prima.
           </div>
         </section>
 

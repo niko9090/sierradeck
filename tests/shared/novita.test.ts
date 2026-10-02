@@ -1,12 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import { NOVITA, novitaDi, novitaDaMostrare, novitaConLeUltime, confrontaVersioni } from '@shared/novita'
+import { NOVITA, novitaDi, novitaConLeUltime, confrontaVersioni } from '@shared/novita'
+import { analizzaMarkdown, noteDaNovita } from '@shared/note-aggiornamento'
 import { readFileSync } from 'node:fs'
 
 describe('NOVITA', () => {
   it('la versione del pacchetto ha le sue righe scritte', () => {
     // Il testo si scrive quando si fa la cosa, non dopo: se questa cade vuol
     // dire che si e' alzata la versione senza dire a chi usa il programma cosa
-    // e' cambiato, e la finestrella delle novita' non comparirebbe mai.
+    // e' cambiato. Dalla 0.39.0 conta ancora di piu': queste righe diventano
+    // il corpo della release, ed e' quello che la finestra di «Installa»
+    // mostra prima di installare.
     const pkg: unknown = JSON.parse(readFileSync('package.json', 'utf8'))
     const versione = (pkg as { version: string }).version
     expect(novitaDi(versione)).toBeDefined()
@@ -20,9 +23,8 @@ describe('NOVITA', () => {
   })
 
   it('ogni voce dice qualcosa, e in poche righe', () => {
-    // «Poche righe» e' il requisito, non un dettaglio: una finestra che si apre
-    // con venti punti elenco viene chiusa senza leggerla, e allora tanto vale
-    // non aprirla.
+    // «Poche righe» e' il requisito, non un dettaglio: una finestra con venti
+    // punti elenco viene chiusa senza leggerla, e allora tanto vale non aprirla.
     for (const n of NOVITA) {
       expect(n.righe.length).toBeGreaterThan(0)
       expect(n.righe.length).toBeLessThanOrEqual(8)
@@ -40,36 +42,32 @@ describe('NOVITA', () => {
   })
 })
 
-describe('novitaDaMostrare', () => {
-  it('mostra le novita di una versione mai vista', () => {
-    const versione = NOVITA[0]!.versione
-    expect(novitaDaMostrare(versione, '0.0.1')?.versione).toBe(versione)
+describe('le novita nella finestra delle note', () => {
+  it('ogni voce diventa una voce d elenco, con l attacco in grassetto e senza asterischi', () => {
+    // Le novita' non si aprono piu' da sole all'avvio (0.39.0): si leggono dal
+    // menu, nella stessa finestra di «Installa». La voce della versione deve
+    // arrivarci intera.
+    const pkg: unknown = JSON.parse(readFileSync('package.json', 'utf8'))
+    const versione = (pkg as { version: string }).version
+    const [resa] = noteDaNovita([novitaDi(versione)!])
+    const elenco = resa?.blocchi[0]
+    expect(elenco?.tipo).toBe('elenco')
+    if (elenco?.tipo !== 'elenco') return
+    expect(elenco.voci).toHaveLength(novitaDi(versione)!.righe.length)
+    for (const voce of elenco.voci) {
+      expect(voce[0]?.grassetto).toBe(true)
+      expect(voce.map((p) => p.testo).join('')).not.toContain('**')
+    }
   })
 
-  it('non le mostra una seconda volta', () => {
-    // Una finestra che ricompare a ogni avvio diventa un ostacolo fra l'utente
-    // e la prima chat, ed e' il motivo per cui si smette di leggere anche
-    // quella che conta.
-    const versione = NOVITA[0]!.versione
-    expect(novitaDaMostrare(versione, versione)).toBeUndefined()
-  })
-
-  it('una versione senza righe scritte non apre niente', () => {
-    // Meglio il silenzio di una finestra vuota che si apre per dire che non ha
-    // niente da dire.
-    expect(novitaDaMostrare('9.9.9', undefined)).toBeUndefined()
-  })
-
-  it('un PC aggiornato dopo giorni vede anche le versioni saltate, dalla piu recente', () => {
-    // Fra l'ultima vista e questa ci sono stati altri rilasci: quello che e'
-    // cambiato «mentre non guardavi» conta quanto l'ultima riga.
-    const versione = NOVITA[0]!.versione
-    const vecchia = NOVITA[3]!.versione
-    const n = novitaDaMostrare(versione, vecchia)
-    expect(n?.versione).toBe(versione)
-    expect(n?.altre?.map((a) => a.versione)).toEqual([NOVITA[1]!.versione, NOVITA[2]!.versione])
-    // Le voci dell'elenco restano pulite: `altre` sta solo sull'oggetto consegnato.
-    expect(NOVITA[0]).not.toHaveProperty('altre')
+  it('come corpo della release, ogni voce si rilegge uguale', () => {
+    // Le note della release si scrivono da queste righe («- » davanti, una
+    // riga vuota fra le voci): rilette dalla finestra, restano un elenco solo.
+    const n = NOVITA[0]!
+    const corpo = n.righe.map((r) => `- ${r}`).join('\n\n')
+    const b = analizzaMarkdown(corpo)
+    expect(b).toHaveLength(1)
+    expect(b[0]?.tipo === 'elenco' ? b[0].voci.length : 0).toBe(n.righe.length)
   })
 
   it('confronta le versioni per numero, non per testo', () => {
@@ -78,16 +76,8 @@ describe('novitaDaMostrare', () => {
     expect(confrontaVersioni('1.0.0', '1.0.0')).toBe(0)
   })
 
-  it('riaperte apposta, portano anche le ultime versioni prima', () => {
+  it('riaperte dal menu, portano anche le ultime versioni prima', () => {
     const n = novitaConLeUltime(NOVITA[0]!.versione, 2)
     expect(n.altre?.map((a) => a.versione)).toEqual([NOVITA[1]!.versione, NOVITA[2]!.versione])
-  })
-
-  it('alla primissima apertura, senza nessuna memoria, le mostra', () => {
-    // Chi installa SierraDeck per la prima volta non ha una versione
-    // precedente: le righe gli dicono cosa fa il programma, ed e' meglio di
-    // niente.
-    const versione = NOVITA[0]!.versione
-    expect(novitaDaMostrare(versione, undefined)?.versione).toBe(versione)
   })
 })

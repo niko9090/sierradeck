@@ -15,7 +15,7 @@ import type {
 } from '../main/autopilot-client'
 import type { StatoAccesso } from '../main/accesso'
 import type { StatoPreparazione } from '../main/preparazione'
-import type { Novita } from '@shared/novita'
+import type { NoteAggiornamento } from '@shared/note-aggiornamento'
 import type { PianoFusione, ScelteFusione, EsitoFusione } from '../main/cassaforte/fusione'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 import type { Consumi } from '@shared/consumi'
@@ -744,6 +744,8 @@ contextBridge.exposeInMainWorld('gestore', {
     cerca: (): Promise<void> => ipcRenderer.invoke('aggiornamenti:cerca'),
     scarica: (): Promise<void> => ipcRenderer.invoke('aggiornamenti:scarica'),
     installa: (): Promise<void> => ipcRenderer.invoke('aggiornamenti:installa'),
+    /** Cosa cambia con l'aggiornamento pronto: per la finestra di «Installa». */
+    note: (): Promise<NoteAggiornamento | undefined> => ipcRenderer.invoke('aggiornamenti:note'),
     suStato: (cb: (s: StatoAggiornamento) => void): (() => void) => {
       const h = (_e: unknown, s: StatoAggiornamento): void => cb(s)
       ipcRenderer.on('aggiornamenti:stato', h)
@@ -827,15 +829,7 @@ contextBridge.exposeInMainWorld('gestore', {
   accesso: {
     stato: (): Promise<StatoAccesso> => ipcRenderer.invoke('accesso:stato')
   },
-  novita: {
-    /**
-     * Le novità di questa versione, se non sono già state lette.
-     *
-     * Chiederle è anche dichiarare di averle viste: il segno lo mette il Core,
-     * perché con due finestre aperte comparirebbero in entrambe.
-     */
-    daMostrare: (): Promise<Novita | undefined> => ipcRenderer.invoke('novita:daMostrare')
-  },
+
   preparazione: {
     stato: (): Promise<StatoPreparazione> => ipcRenderer.invoke('preparazione:stato'),
     /** Apre un terminale che installa Claude Code e restituisce il suo id. */

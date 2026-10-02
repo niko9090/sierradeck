@@ -634,6 +634,19 @@ describe('i consumi, il quaderno, le preferenze e l aggiornamento', () => {
     await rotteClient(su)({ metodo: 'POST', percorso: '/api/aggiornamento/installa', corpo: {} })
     expect(fatti).toEqual(['cerca', 'scarica', 'installa'])
   })
+
+  it('da le note di cosa cambia prima di «Installa» (0.39.0), senza installare niente', async () => {
+    const fatti: string[] = []
+    const note = { versione: '0.39.0', installata: '0.38.2', note: [{ versione: '0.39.0', blocchi: [{ tipo: 'paragrafo' as const, pezzi: [{ testo: 'ciao' }] }] }], fonte: 'github' as const, dove: 'https://github.com/niko9090/sierradeck/releases' }
+    const su = deps({ noteAggiornamento: async () => note, installaAggiornamento: () => { fatti.push('installa') } })
+    const r = await rotteClient(su)({ metodo: 'GET', percorso: '/api/aggiornamento/note', corpo: undefined })
+    expect(r.stato).toBe(200)
+    expect(r.corpo).toEqual(note)
+    expect(fatti).toEqual([])
+    // Un computer che non le sa dare lo dice, invece di un 404 muto.
+    const vecchio = await rotteClient(deps())({ metodo: 'GET', percorso: '/api/aggiornamento/note', corpo: undefined })
+    expect(vecchio.stato).toBe(409)
+  })
 })
 
 describe('il via dal telefono', () => {

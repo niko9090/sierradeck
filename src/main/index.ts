@@ -60,7 +60,6 @@ import { frenoDaiLimiti, testoFreno } from '@shared/harness'
 import { creaWorkspace, eliminaWorkspace } from './workspace-operazioni'
 import type { SessionSummary } from '@shared/types'
 import { apriImpostazioniStore } from './impostazioni-store'
-import { novitaDaMostrare, type Novita } from '@shared/novita'
 import { apriEtichetteStore } from './etichette-store'
 import { apriChiavi } from './chiavi'
 import { apriQuaderno } from './quaderno-store'
@@ -2248,22 +2247,9 @@ if (!app.requestSingleInstanceLock()) {
         }
       })
 
-      // Le novità della versione, una volta sola.
-      //
-      // Chiederle **è** dichiarare di averle viste, e il segno si mette qui e
-      // non nel renderer: con due finestre aperte comparirebbero in tutte e
-      // due, e chi ne chiude una si ritroverebbe la stessa finestrella
-      // nell'altra. Chi chiede per primo la mostra, e per gli altri non c'è
-      // più niente da mostrare.
-      ipcMain.handle('novita:daMostrare', (): Novita | undefined => {
-        const versione = app.getVersion()
-        const novita = novitaDaMostrare(versione, impostazioni.leggi().ultimaVersioneVista)
-        // Il segno si mette comunque, anche quando non c'è niente da mostrare:
-        // altrimenti una versione senza righe scritte lascerebbe in eredità il
-        // ricordo di quella prima, e le sue novità si riaprirebbero.
-        impostazioni.segnaNovitaViste(versione)
-        return novita
-      })
+      // Le novità non si aprono più da sole all'avvio (0.39.0, Nicholas: «è
+      // fastidiosa»): si leggono dal menu, e quelle di una versione nuova si
+      // vedono **prima** di installarla, nella finestra di «Installa».
 
       // La cartella di scambio: quello che ci metti dal telefono lo trovi qui,
       // e viceversa. Vive accanto agli altri dati e si apre da un tasto, così
@@ -2529,11 +2515,9 @@ if (!app.requestSingleInstanceLock()) {
         driveLavoro: () => lavoro.stato(),
         driveAnnulla: () => lavoro.annulla(),
         driveRiavvia: async () => {
-          if (aggiornamenti?.stato().fase === 'pronto') {
-            registro.info('[sistema] riavvio dal telefono con un aggiornamento pronto: lo installo')
-            void aggiornamenti.installa()
-            return { ok: true, messaggio: 'C’era un aggiornamento pronto: lo installo e riparto con la versione nuova.' }
-          }
+          // Un aggiornamento pronto **non** si installa qui (0.39.0): passa
+          // sempre dalla finestra delle note. Si riavvia e basta, e
+          // l'aggiornamento resta in attesa del suo «Installa».
           const pronti = await attendiQuiete({
             chat: () => chatAperte,
             pausaAutopiloti: (attiva) => clientAutopilota.pausaAggiornamento(attiva),
@@ -2544,6 +2528,7 @@ if (!app.requestSingleInstanceLock()) {
           })
           if (!pronti) return { ok: false, messaggio: 'Non ho riavviato: c’erano chat ancora al lavoro. Riprova quando hanno finito.' }
           registro.info('[sistema] riavvio chiesto dal telefono dopo un lavoro con il Drive')
+          aggiornamenti?.nonInstallareAllaChiusura()
           app.relaunch()
           app.quit()
           return { ok: true }
@@ -2787,6 +2772,8 @@ if (!app.requestSingleInstanceLock()) {
         // Installare chiude il programma con le chat aperte dentro: dal telefono
         // la pagina lo chiede due volte, come al computer.
         installaAggiornamento: () => { void aggiornamenti?.installa() },
+        // Prima di «Installa» il telefono mostra le stesse note del PC (0.39.0).
+        noteAggiornamento: async () => aggiornamenti?.note(),
         caricaIstantanea: async (nome: string) => {
           // A UNA finestra sola, non a tutte. `istantanee:carica` orchestra già
           // l'intero ripristino: riempie le altre finestre (`layout:applica`) e ne
@@ -3176,21 +3163,19 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('aggiornamenti:cerca', () => aggiornamenti?.cerca())
       ipcMain.handle('aggiornamenti:scarica', () => aggiornamenti?.scarica())
       ipcMain.handle('aggiornamenti:installa', () => { void aggiornamenti?.installa() })
+      ipcMain.handle('aggiornamenti:note', () => aggiornamenti?.note())
       // Riavviare come per un aggiornamento: si aspetta che le chat finiscano
       // il turno, si avvisa, e si riparte. Dopo «Porta qui» o una fusione le
       // chat arrivate compaiono nei workspace solo al riavvio, e farlo a mano
       // era un passo in piu' che nessuno ricordava.
       ipcMain.handle('sistema:riavvia', async (): Promise<{ ok: boolean; messaggio?: string }> => {
-        // **Con un aggiornamento pronto, riavviare vuol dire installare.**
-        // `relaunch` + `quit` con `autoInstallOnAppQuit` acceso faceva partire
-        // l'installer silenzioso **e** la versione vecchia insieme: NSIS la
-        // uccideva un secondo dopo, senza `before-quit`. E' il «torna la
-        // vecchia e si chiude da sola» del 13 settembre.
-        if (aggiornamenti?.stato().fase === 'pronto') {
-          registro.info('[sistema] riavvio chiesto con un aggiornamento pronto: lo installo')
-          void aggiornamenti.installa()
-          return { ok: true, messaggio: 'C’era un aggiornamento pronto: lo installo e riparto con la versione nuova.' }
-        }
+        // Con un aggiornamento pronto, fino alla 0.38 riavviare voleva dire
+        // installare. Dalla 0.39.0 nessuna installazione parte senza la
+        // finestra delle note: si riavvia e basta, con l'installazione alla
+        // chiusura spenta per questa uscita (`relaunch` + `quit` con
+        // `autoInstallOnAppQuit` acceso faceva partire l'installer silenzioso
+        // e la versione vecchia insieme: il «torna la vecchia e si chiude da
+        // sola» del 13 settembre).
         const drive = await attendiLavoroDrive()
         if (!drive.ok) return { ok: false, messaggio: `Non ho riavviato: ${drive.perche}` }
         const pronti = await attendiQuiete({
@@ -3203,6 +3188,7 @@ if (!app.requestSingleInstanceLock()) {
         })
         if (!pronti) return { ok: false, messaggio: 'Non ho riavviato: c’erano chat ancora al lavoro. Riprova quando hanno finito.' }
         registro.info('[sistema] riavvio chiesto dopo un lavoro con il Drive')
+        aggiornamenti?.nonInstallareAllaChiusura()
         app.relaunch()
         app.quit()
         return { ok: true }

@@ -10,7 +10,7 @@ import type {
 } from '../main/autopilot-client'
 import type { StatoAccesso } from '../main/accesso'
 import type { StatoPreparazione } from '../main/preparazione'
-import type { Novita } from '@shared/novita'
+import type { NoteAggiornamento } from '@shared/note-aggiornamento'
 import type { Consumi } from '@shared/consumi'
 import type { Anteprima } from '../main/anteprima'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
@@ -294,6 +294,7 @@ declare global {
         cerca: () => Promise<void>
         scarica: () => Promise<void>
         installa: () => Promise<void>
+        note: () => Promise<NoteAggiornamento | undefined>
         suStato: (cb: (s: StatoAggiornamento) => void) => () => void
       }
       provider: {
@@ -392,9 +393,6 @@ declare global {
           cb: (r: { vecchio: string; nuovo: string; attivo: string }) => void
         ) => () => void
         onRipristinato: (cb: (s: StatoWorkspace) => void) => () => void
-      }
-      novita: {
-        daMostrare: () => Promise<Novita | undefined>
       }
       preparazione: {
         stato: () => Promise<StatoPreparazione>

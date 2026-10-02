@@ -33,8 +33,9 @@ import { avvisiConsumi, type AvvisoConsumi } from '@shared/polso-chat'
 import { ModaleAccesso } from './components/ModaleAccesso'
 import { ModalePreparazione } from './components/ModalePreparazione'
 import { ModaleTestimone, type AvvisoProgetto } from './components/ModaleTestimone'
-import { ModaleNovita } from './components/ModaleNovita'
-import { novitaConLeUltime, type Novita } from '@shared/novita'
+import { ModaleNote } from './components/ModaleNote'
+import { novitaConLeUltime } from '@shared/novita'
+import { noteDaNovita, type NotaResa, type NoteAggiornamento } from '@shared/note-aggiornamento'
 import type { StatoPreparazione } from '../main/preparazione'
 import { BandaAvvisi } from './components/BandaAvvisi'
 import { componiAvvisi, ricordaChiusi } from './avvisi'
@@ -578,7 +579,36 @@ export function App(): React.JSX.Element {
       if (pty !== undefined) window.gestore.pty.kill(pty)
     }
   }), [])
-  const [novita, setNovita] = useState<Novita | undefined>(undefined)
+  // La finestra delle note (0.39.0): o le novità della versione installata,
+  // chieste dal menu, o cosa cambia con l'aggiornamento pronto, da «Installa».
+  // All'avvio non si apre più da sola.
+  const [finestraNote, setFinestraNote] = useState<
+    { tipo: 'novita'; versione: string; note: NotaResa[] } | { tipo: 'installa'; versione: string; dati?: NoteAggiornamento } | undefined
+  >(undefined)
+  // Le novità della versione installata, richieste apposta: dalla 0.39.0
+  // all'avvio non si aprono più da sole. Si chiedono dal numero di versione
+  // in alto o dalle Impostazioni (che mandano `sierradeck:apri-novita`).
+  const apriNovita = useCallback((): void => {
+    window.gestore.sistema
+      .versione()
+      .then((v) => {
+        const n = novitaConLeUltime(v)
+        setFinestraNote({ tipo: 'novita', versione: n.versione, note: noteDaNovita([n, ...(n.altre ?? [])]) })
+      })
+      .catch(() => undefined)
+  }, [])
+  useEffect(() => {
+    const h = (): void => apriNovita()
+    window.addEventListener('sierradeck:apri-novita', h)
+    return () => window.removeEventListener('sierradeck:apri-novita', h)
+  }, [apriNovita])
+  const apriInstalla = useCallback((versione: string): void => {
+    setFinestraNote({ tipo: 'installa', versione })
+    window.gestore.aggiornamenti
+      .note()
+      .then((dati) => setFinestraNote((f) => (f?.tipo === 'installa' ? { ...f, dati: dati ?? { versione, installata: '', note: [], fonte: 'nessuna', dove: 'https://github.com/niko9090/sierradeck/releases', avviso: 'Gli aggiornamenti non sono attivi qui: le note le trovi nella pagina delle versioni, https://github.com/niko9090/sierradeck/releases.' } } : f)))
+      .catch(() => setFinestraNote((f) => (f?.tipo === 'installa' ? { ...f, dati: { versione, installata: '', note: [], fonte: 'nessuna', dove: 'https://github.com/niko9090/sierradeck/releases', avviso: 'Non sono riuscito a leggere le note: le trovi scritte per esteso nella pagina delle versioni, https://github.com/niko9090/sierradeck/releases. Puoi installare lo stesso.' } } : f)))
+  }, [])
   const [aperto, setAperto] = useState<PannelloAperto>(undefined)
   // Quante conversazioni della scheda Domande aspettano una risposta: il
   // numero sul tasto, letto dalle stesse rotte del telefono (0.36.0).
@@ -931,19 +961,6 @@ export function App(): React.JSX.Element {
     return () => clearInterval(h)
   }, [ricaricaAutopiloti])
 
-  // Cosa è cambiato in questa versione, alla prima apertura e basta. Chiederlo
-  // è anche dichiararlo letto — il segno lo mette il Core — quindi questa
-  // domanda va fatta una volta sola per finestra, e mai in un effetto che
-  // possa ripetersi.
-  useEffect(() => {
-    window.gestore.novita
-      .daMostrare()
-      .then((n) => { if (n !== undefined) setNovita(n) })
-      // Un elenco di novità che non arriva non è una ragione per disturbare
-      // nessuno: si continua senza.
-      .catch(() => undefined)
-  }, [])
-
   // Cosa c'è sul computer, chiesto una volta all'avvio. Chi installa SierraDeck
   // non deve sapere cos'è un PATH: se Claude Code manca, la banda lo dice e la
   // finestra della preparazione lo installa. Un errore qui non deve produrre un
@@ -1194,11 +1211,51 @@ export function App(): React.JSX.Element {
           di Nicholas): si aprono sempre nella colonna Domande a fianco delle
           chat, che si apre da sola per una domanda nuova (vedi sotto). */}
 
-      {/* Sopra a tutto e prima di tutto: è la prima apertura di una versione
-          nuova, e le poche righe che dicono cosa è cambiato non devono
-          contendersi lo schermo con la domanda «vuoi riprendere?». */}
-      {novita !== undefined ? (
-        <ModaleNovita novita={novita} onChiudi={() => setNovita(undefined)} />
+      {/* La finestra delle note: dal menu («Novità») o da «Installa». */}
+      {finestraNote?.tipo === 'novita' ? (
+        <ModaleNote
+          titolo="Cosa c’è di nuovo"
+          sotto={`versione installata ${finestraNote.versione}${finestraNote.note.length > 1 ? `, con le ${finestraNote.note.length - 1} prima` : ''}`}
+          note={finestraNote.note}
+          etichetta={(n, i) => (i === 0 ? `Questa versione · ${n.versione}` : `Versione ${n.versione}`)}
+          tasti={<button className="tasto tasto--primario" autoFocus onClick={() => setFinestraNote(undefined)}>Ho capito</button>}
+          onChiudi={() => setFinestraNote(undefined)}
+        />
+      ) : null}
+      {finestraNote?.tipo === 'installa' ? (
+        <ModaleNote
+          titolo={`Cosa cambia con la ${finestraNote.versione}`}
+          sotto={finestraNote.dati === undefined
+            ? 'leggo le note…'
+            : finestraNote.dati.note.length > 1
+              ? `dalla ${finestraNote.dati.installata} che hai adesso: ${finestraNote.dati.note.length} versioni, la nuova e quelle che avevi saltato`
+              : finestraNote.dati.installata !== '' ? `adesso hai la ${finestraNote.dati.installata}` : undefined}
+          note={finestraNote.dati?.note}
+          etichetta={(n, i) => (i === 0 && n.versione === finestraNote.versione ? `La nuova · ${n.versione}` : `Saltata · ${n.versione}`)}
+          {...(finestraNote.dati?.avviso !== undefined ? { avviso: finestraNote.dati.avviso } : {})}
+          spiegazione={
+            <>
+              <b>Installa e riavvia</b>: aspetto che le chat finiscano quello che hanno in mano (e il lavoro con il
+              Drive, se ce n’è), le avviso, chiudo SierraDeck, installo e riparto da solo; al ritorno chat e
+              autopiloti riprendono da dove erano. <b>Più tardi</b>: chiudo questa finestra e nella striscia in alto
+              resta «Installa»; se chiudi SierraDeck senza installare, la versione nuova si installa alla chiusura,
+              senza riavviare.
+            </>
+          }
+          tasti={
+            <>
+              <button className="tasto" onClick={() => setFinestraNote(undefined)}>Più tardi</button>
+              <button
+                className="tasto tasto--primario"
+                autoFocus
+                onClick={() => { setFinestraNote(undefined); void window.gestore.aggiornamenti.installa() }}
+              >
+                Installa e riavvia
+              </button>
+            </>
+          }
+          onChiudi={() => setFinestraNote(undefined)}
+        />
       ) : null}
 
       {modale === 'sessioni' ? <ModaleSessioni onChiudi={() => setModale(undefined)} /> : null}
@@ -1222,15 +1279,7 @@ export function App(): React.JSX.Element {
         workspaceNomi={workspace.nomi}
         onStatoWorkspace={aggiornaWorkspace}
         workspaceCheChiamano={workspaceChiamano}
-        onApriNovita={() => {
-          // Le novità di *questa* versione, richieste apposta: la finestra che
-          // compare da sé all'aggiornamento si vede una volta, e chi la chiude
-          // per fretta non deve restare senza.
-          window.gestore.sistema
-            .versione()
-            .then((v) => setNovita(novitaConLeUltime(v)))
-            .catch(() => undefined)
-        }}
+        onApriNovita={apriNovita}
             aggiornamento={aggiornamento}
         ledAutopiloti={autopiloti.map((a) => ({ id: a.id, ...ledDi(a) }))}
         domandeInAttesa={domandeInAttesa}
@@ -1353,15 +1402,17 @@ export function App(): React.JSX.Element {
                     il tasto tornava com'era e nessuno sapeva che non era
                     successo niente. */}
                 {aggiornamento.errore !== undefined ? <><b>{aggiornamento.errore}</b>{' '}</> : null}
-                La versione {aggiornamento.versione} è pronta: <b>si installa da sola</b> la prossima
-                volta che chiudi SierraDeck. Se la vuoi adesso, il programma si chiude e riparte —
-                le chat aperte tornano dal salvataggio automatico.
+                La versione {aggiornamento.versione} è pronta. «Installa» ti fa vedere prima cosa cambia;
+                da lì scegli se installarla adesso. Se chiudi SierraDeck senza installarla, si installa
+                da sola alla chiusura.
               </span>
+              {/* Dalla 0.39.0 nessuna installazione parte da qui: il tasto
+                  apre la finestra con le note, e lì c'è «Installa e riavvia». */}
               <button
                 className="tasto tasto--primario"
-                onClick={() => void window.gestore.aggiornamenti.installa()}
+                onClick={() => apriInstalla(aggiornamento.versione ?? '')}
               >
-                Installa e riavvia
+                Installa
               </button>
             </>
           )}

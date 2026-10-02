@@ -13,6 +13,7 @@ import { leggiIdChatAltroPc, raccogliDomande } from '@shared/domande-telefono'
 import { domandeScheda } from '@shared/domande-autopilota'
 import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/domande-conversazioni'
 import { alberoChat } from '@shared/harness'
+import type { NoteAggiornamento } from '@shared/note-aggiornamento'
 
 /**
  * Cosa può fare il Client, e cosa no.
@@ -279,6 +280,12 @@ export type DipendenzeRotte = {
   cercaAggiornamento: () => void
   scaricaAggiornamento: () => void
   installaAggiornamento: () => void
+  /**
+   * Cosa cambia con l'aggiornamento pronto: le stesse note della finestra di
+   * «Installa» del PC, gia' scomposte in blocchi sicuri (mai HTML). Il telefono
+   * le mostra prima di chiedere la conferma.
+   */
+  noteAggiornamento?: () => Promise<NoteAggiornamento | undefined>
   /** Le cartelle in cui si può aprire una chat: quelle già viste da Claude Code. */
   cartelle: () => Promise<string[]>
   /**
@@ -1046,6 +1053,12 @@ export function rotteClient(deps: DipendenzeRotte) {
     if (r.metodo === 'POST' && r.percorso === '/api/aggiornamento/cerca') {
       deps.cercaAggiornamento()
       return OK({ fatto: true })
+    }
+
+    if (r.percorso === '/api/aggiornamento/note') {
+      if (deps.noteAggiornamento === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora mostrare le note' } }
+      const note = await deps.noteAggiornamento()
+      return note === undefined ? { stato: 409, corpo: { errore: 'gli aggiornamenti non sono attivi su questo computer' } } : OK(note)
     }
 
     if (r.metodo === 'POST' && r.percorso === '/api/aggiornamento/scarica') {
