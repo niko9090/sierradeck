@@ -132,20 +132,24 @@ export function leggiEsitoRisposta(testo: string): EsitoRisposta | undefined {
  * domanda che dà per scontato il contesto — «uso la porta 8080?» — non è una
  * domanda a cui si può rispondere: è un indovinello.
  *
- * Quindi si nomina **chi** sta chiedendo e **a che lavoro**, poi la domanda, e
- * in fondo cosa succede se non si risponde. Quell'ultima riga è la più
- * importante delle tre: senza, una domanda che scade sembra un lavoro perso, e
- * chi la vede tardi lascia perdere invece di rispondere.
+ * Quindi si nomina **chi** sta chiedendo, poi la domanda, poi **a che
+ * lavoro**, e in fondo cosa succede se non si risponde. Quell'ultima riga è la
+ * più importante: senza, una domanda che scade sembra un lavoro perso, e chi la
+ * vede tardi lascia perdere invece di rispondere.
+ *
+ * La domanda viene **prima** dell'obiettivo (0.39.1): gli obiettivi veri sono
+ * lunghi 800-1000 caratteri, e messi davanti spingevano la domanda in fondo.
+ * Il testo non si taglia mai, ne' qui ne' da chi lo usa.
  */
 export function domandaChiara(a: Autopilota, domanda: string, perche?: string): string {
   const chi = a.nome !== '' ? a.nome : a.obiettivo.slice(0, 40)
   return [
     `«${chi}» si è fermato e ha bisogno di te.`,
     '',
-    `Sta lavorando a: ${a.obiettivo}`,
+    domanda.trim(),
     ...(perche !== undefined ? ['', `Perché serve adesso: ${perche}`] : []),
     '',
-    domanda.trim(),
+    `Sta lavorando a: ${a.obiettivo}`,
     '',
     'Rispondendo, la chat riprende da dov’era. Se rispondi tardi riparte lo stesso:',
     'non si perde niente di quello che ha già fatto.'

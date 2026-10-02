@@ -540,7 +540,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const inLavorazione = new Set<string>()
 
   /** Di chi è ogni domanda, e cosa chiedeva: serve alla risposta tardiva. */
-  const contesto = new Map<string, { autopilotaId: string; testo: string; chatId?: string; pubblica?: boolean }>()
+  const contesto = new Map<string, { autopilotaId: string; testo: string; grezza?: string; chatId?: string; pubblica?: boolean }>()
 
   /**
    * Una risposta arrivata dopo che la chat si era già fermata.
@@ -1043,7 +1043,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         ...(esito.opzioni !== undefined ? { opzioni: esito.opzioni } : {})
       })
       contesto.set(domanda.id, { autopilotaId: corrente.id, testo: esito.testo })
-      salva({ ...corrente, motivoSospensione: esito.testo.slice(0, MOTIVO_MAX) })
+      // Intera (0.39.1): al riavvio del servizio la domanda si riapre da qui,
+      // e tagliata arrivava a meta' nelle Domande.
+      salva({ ...corrente, motivoSospensione: esito.testo })
       void deps.avvisa('domanda', corrente, esito.testo)
 
       const risposta = await deps.domande.attendi(domanda.id)
@@ -1807,12 +1809,22 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // telefono in mano e non aver seguito niente delle ultime due ore, e una
       // domanda che da' per scontato il contesto non e' una domanda: e' un
       // indovinello.
-      const testoDomanda = domandaChiara(aggiornato, decisione.domanda).slice(0, MOTIVO_MAX)
+      // **Mai tagliata** (0.39.1). Prima finiva in `.slice(0, 500)`: con un
+      // obiettivo lungo (quelli veri sono di 800-1000 caratteri) i 500
+      // caratteri finivano prima della domanda, e Nicholas vedeva l'obiettivo
+      // a meta' e nessuna domanda: «le domande sono tutte tagliate».
+      const testoDomanda = domandaChiara(aggiornato, decisione.domanda)
       // T5: una chat sorella ha gia' chiesto la stessa cosa? Allora questa si
       // aggancia a quella: a Nicholas arriva una domanda, non tre uguali, e la
       // risposta sblocca tutte le chat che la aspettano.
       const gemella = chatId !== undefined
-        ? domandaGemella(deps.domande.aperte(aggiornato.id), aggiornato.id, testoDomanda)
+        // Si confrontano le domande vere, senza la cornice di `domandaChiara`:
+        // l'obiettivo, uguale per tutte, le faceva sembrare tutte gemelle.
+        ? domandaGemella(
+            deps.domande.aperte(aggiornato.id).map((d) => ({ ...d, testo: contesto.get(d.id)?.grezza ?? d.testo })),
+            aggiornato.id,
+            decisione.domanda
+          )
         : undefined
       const domanda = gemella !== undefined
         ? { id: gemella }
@@ -1825,6 +1837,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       if (gemella === undefined) contesto.set(domanda.id, {
         autopilotaId: aggiornato.id,
         testo: testoDomanda,
+        grezza: decisione.domanda,
         // Di quale chat era la domanda: serve a riprendere **solo lei** se la
         // risposta arriva tardi (vedi suRispostaTardiva). C'è solo per le flotte.
         ...(chatId !== undefined ? { chatId } : {})
@@ -1836,8 +1849,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // sotto: è ciò che blocca il claude.exe di QUESTA chat, non le altre.
       salva(
         chatId !== undefined
-          ? { ...conStatoChat(aggiornato, chatId, 'bloccata'), motivoSospensione: decisione.domanda.slice(0, MOTIVO_MAX) }
-          : { ...aggiornato, stato: 'attesa', motivoSospensione: decisione.domanda.slice(0, MOTIVO_MAX) }
+          ? { ...conStatoChat(aggiornato, chatId, 'bloccata'), motivoSospensione: decisione.domanda }
+          : { ...aggiornato, stato: 'attesa', motivoSospensione: decisione.domanda }
       )
       // L'avviso parte **prima** dell'attesa: mandarlo dopo significherebbe
       // avvisare l'utente quando l'attesa e' gia' finita, cioe' quando la
@@ -2112,7 +2125,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       a,
       esito?.tipo === 'chiedi' ? esito.domanda : domandaGrezza,
       esito?.perche
-    ).slice(0, MOTIVO_MAX)
+    )
     // L'attesa deve avere una via d'uscita. Prima si salvava solo `stato:
     // 'attesa'` e ci si fermava lì: ma il guardiano guarda solo le chat «in
     // lavoro» e la ripresa al riavvio pure, e senza una domanda aperta non c'era

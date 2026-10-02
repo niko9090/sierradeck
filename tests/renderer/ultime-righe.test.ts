@@ -158,10 +158,12 @@ describe('creaUltimeRighe', () => {
     // Conservare il flusso vorrebbe dire tenere in memoria ore di terminale
     // per ogni chat aperta.
     const r = creaUltimeRighe()
-    for (let i = 0; i < 100; i += 1) r.aggiorna('p1', `riga ${i}\n`)
+    // Sessanta righe (0.39.1): una domanda lunga con le sue scelte ci sta tutta.
+    for (let i = 0; i < 300; i += 1) r.aggiorna('p1', `riga ${i}\n`)
     const coda = r.codaDi('p1')
-    expect(coda.length).toBeLessThanOrEqual(14)
-    expect(coda[coda.length - 1]).toBe('riga 99')
+    expect(coda.length).toBeLessThanOrEqual(60)
+    expect(coda.length).toBeGreaterThan(40)
+    expect(coda[coda.length - 1]).toBe('riga 299')
   })
 })
 

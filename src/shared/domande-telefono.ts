@@ -60,18 +60,28 @@ export type VoceDomanda =
       righe: string[]
     }
 
-/** Quante righe di contesto si portano al telefono: uno sguardo, non una pagina. */
-const RIGHE_DI_CONTESTO = 8
+/**
+ * Quante righe si portano per una chat che ha **solo finito** il turno: uno
+ * sguardo, non una pagina. Per una chat ferma su una **domanda** (le scelte)
+ * non c'e' limite: si porta tutta la domanda (`contestoScelta`, 0.39.1).
+ */
+const RIGHE_DI_CONTESTO = 20
+
+/** Una riga che e' solo cornice (almeno dieci tratti): il bordo di sopra del riquadro della domanda. */
+const BORDO = /^[\s─━═╌╍┄┈╭╮╰╯┌┐└┘┏┓┗┛╔╗╚╝]*[─━═╌╍┄┈]{10,}[\s─━═╌╍┄┈╭╮╰╯┌┐└┘┏┓┗┛╔╗╚╝]*$/
 
 const NUMERATA = /^\s*(\d{1,2})[.)]\s+\S/
 
 /**
  * Le righe che stanno sopra l'elenco delle scelte: e' la domanda.
  *
- * Si parte dalla riga dell'opzione «1» andando all'indietro e si tengono le
- * ultime righe non vuote, tolte le cornici e gli spazi ai bordi. Se l'opzione
- * non si trova (lo schermo e' cambiato nel frattempo) si tengono le ultime
- * righe e basta.
+ * Si parte dalla riga dell'opzione «1» andando all'indietro fino al bordo di
+ * sopra del suo riquadro (una riga di sola cornice), e si tengono **tutte** le
+ * righe non vuote, tolte le cornici e gli spazi ai bordi. Se l'opzione non si
+ * trova (lo schermo e' cambiato nel frattempo) si tengono le ultime righe.
+ *
+ * Fino alla 0.39.0 se ne tenevano al massimo otto: una domanda piu' lunga
+ * arrivava senza l'inizio (Nicholas, 02/10: «le domande sono tutte tagliate»).
  */
 export function contestoScelta(righePulite: string[], primaOpzione: string): string[] {
   const nude = righePulite.map(pulisci)
@@ -80,10 +90,14 @@ export function contestoScelta(righePulite: string[], primaOpzione: string): str
     const r = nude[i] ?? ''
     if (NUMERATA.test(r) && r.replace(NUMERATA, '').trim() !== '' && r.includes(primaOpzione)) { taglio = i; break }
   }
+  if (taglio === nude.length) return ultimeRighe(righePulite)
   // Sopra la «1» possono stare altre righe numerate? No: la 1 e' la prima.
   // Ma sopra puo' esserci la riga vuota che le separa dalla domanda.
-  const sopra = nude.slice(0, taglio).filter((r) => r !== '')
-  return sopra.slice(-RIGHE_DI_CONTESTO)
+  let inizio = 0
+  for (let i = taglio - 1; i >= 0; i -= 1) {
+    if (BORDO.test(righePulite[i] ?? '')) { inizio = i + 1; break }
+  }
+  return nude.slice(inizio, taglio).filter((r) => r !== '')
 }
 
 /** Le ultime righe non vuote di uno schermo, pulite. */

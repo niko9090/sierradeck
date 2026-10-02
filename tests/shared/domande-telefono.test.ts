@@ -44,15 +44,23 @@ describe('raccogliDomande', () => {
 })
 
 describe('contestoScelta e ultimeRighe', () => {
-  it('tiene le righe sopra la prima opzione, senza cornici e senza vuote, al massimo otto', () => {
-    const righe = ['│ a │', '│ b │', '', '│ c │', '│ d │', '│ e │', '│ f │', '│ g │', '│ h │', '│ Vuoi procedere? │', '', '│ 1. Sì │', '│ 2. No │']
-    expect(contestoScelta(righe, 'Sì')).toEqual(['b', 'c', 'd', 'e', 'f', 'g', 'h', 'Vuoi procedere?'])
+  it('tiene tutte le righe sopra la prima opzione, dal bordo del riquadro, senza cornici e senza vuote (0.39.1)', () => {
+    // Fino alla 0.39.0 al massimo otto: una domanda piu' lunga perdeva l'inizio.
+    const righe = ['vecchio output', '╭────────────────────╮', '│ a │', '│ b │', '', '│ c │', '│ d │', '│ e │', '│ f │', '│ g │', '│ h │', '│ Vuoi procedere? │', '', '│ 1. Sì │', '│ 2. No │']
+    expect(contestoScelta(righe, 'Sì')).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'Vuoi procedere?'])
+    // Senza bordo: tutte le righe sopra.
+    expect(contestoScelta(righe.slice(2), 'Sì')).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'Vuoi procedere?'])
+  })
+  it('una domanda di quaranta righe arriva intera', () => {
+    const domanda = Array.from({ length: 40 }, (_x, i) => `riga ${i} della domanda`)
+    const righe = ['────────────────────', ...domanda.map((r) => `│ ${r} │`), '│ 1. Sì │', '│ 2. No │']
+    expect(contestoScelta(righe, 'Sì')).toEqual(domanda)
   })
   it('se l opzione non si trova piu, tiene le ultime righe e basta', () => {
     expect(contestoScelta(['x', 'y'], 'Sì')).toEqual(['x', 'y'])
   })
-  it('ultimeRighe: le ultime otto non vuote, pulite', () => {
-    const righe = Array.from({ length: 12 }, (_x, i) => `│ r${i} │`).concat([''])
-    expect(ultimeRighe(righe)).toEqual(['r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11'])
+  it('ultimeRighe (chat che ha solo finito il turno): le ultime venti non vuote, pulite', () => {
+    const righe = Array.from({ length: 25 }, (_x, i) => `│ r${i} │`).concat([''])
+    expect(ultimeRighe(righe)).toEqual(Array.from({ length: 20 }, (_x, i) => `r${i + 5}`))
   })
 })

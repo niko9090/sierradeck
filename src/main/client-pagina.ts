@@ -480,7 +480,9 @@ export function paginaClient(): string {
   .diff-ap__riga--meno { background: rgba(220, 95, 95, .18); }
   .diff-ap__riga--blocco, .diff-ap__riga--testa { color: var(--spento); }
   .conto-domande { background: var(--ambra); color: #111; border-radius: 8px; padding: 0 5px; }
-  .domanda-ap { white-space: pre-wrap; }
+  /* Il testo di una domanda: sempre intero, con i suoi a capo (0.39.1). Se e'
+     lungo scorre lui, non si taglia mai. */
+  .domanda-ap { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 60vh; overflow-y: auto; overscroll-behavior: contain; }
   .nota-ap .quando { font-family: ui-monospace, Consolas, monospace; color: var(--spento); flex: 0 0 auto; }
   .nota-ap--decisione { border-left-color: var(--accento); }
   .nota-ap--correzione { border-left-color: var(--ambra); }
@@ -1293,7 +1295,7 @@ function pannello(s) {
   const domande = (s.domande || []).slice(0, 1).map((d) => \`
     <div class="piastrella chiede">
       <div class="serigrafia"><span class="led attesa"></span>TI STA CHIEDENDO\${quante > 1 ? ' — 1 DI ' + quante : ''}</div>
-      <div class="grande">\${esc(d.testo)}</div>
+      <div class="grande domanda-ap">\${esc(d.testo)}</div>
       <div class="riga">
         <textarea id="r-\${esc(d.id)}" rows="3" placeholder="la tua risposta"></textarea>
       </div>

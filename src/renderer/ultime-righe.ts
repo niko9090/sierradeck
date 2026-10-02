@@ -286,15 +286,19 @@ export function chatAspetta(
   return dalloSchermo ?? false
 }
 
-/** Quante righe si tengono per chi vuole guardare dentro: uno sguardo, non un log. */
-const CODA_RIGHE = 14
+/**
+ * Quante righe si tengono per chi vuole guardare dentro: uno sguardo, non un log.
+ * Sessanta (0.39.1, prima quattordici): una domanda lunga con le sue scelte deve
+ * starci tutta, perche' le Domande la ricavano da qui (`contestoScelta`).
+ */
+const CODA_RIGHE = 60
 
 /**
  * Tiene l'ultima riga di ogni terminale, e le ultime poche.
  *
  * Non tutto il flusso: conservarlo vorrebbe dire tenere in memoria tutto quello
  * che ogni chat ha scritto da quando è aperta. Una riga per il colpo d'occhio,
- * quattordici per capire cosa sta succedendo senza aprire il computer.
+ * qualche decina per capire cosa sta succedendo senza aprire il computer.
  */
 export function creaUltimeRighe(): {
   aggiorna: (ptyId: string, dati: string) => void

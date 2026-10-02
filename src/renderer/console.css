@@ -4125,7 +4125,10 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .domande-ap__testa { display: flex; align-items: center; gap: var(--s2); }
 .domande-ap__conto { white-space: nowrap; font-size: var(--t1); }
 .domande-ap__testo {
+  /* Sempre intero, con i suoi a capo (0.39.1): se e' lungo scorre il pannello
+     della linguetta (o la finestra pannello), il testo non si taglia mai. */
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   line-height: 1.5;
   padding: var(--s2) var(--s3);
   border-left: 3px solid var(--ambra);

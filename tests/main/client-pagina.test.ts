@@ -422,7 +422,8 @@ describe('la gerarchia di Adesso', () => {
     const corpo = dom.slice(0, 900)
     expect(corpo).toContain('TI STA CHIEDENDO')
     // Il suo testo alla misura piu' grande della pagina.
-    expect(corpo).toContain('class="grande"')
+    // Con i suoi a capo e intera (0.39.1): `domanda-ap` e' pre-wrap e scorre.
+    expect(corpo).toContain('class="grande domanda-ap"')
     expect(stile).toMatch(/\.grande\s*\{[^}]*font-size:\s*var\(--t4\)/)
     // Una sola alla volta: la seconda aspetta il suo turno.
     expect(corpo).toContain('.slice(0, 1)')
