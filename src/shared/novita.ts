@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.39.1',
+    righe: [
+      '**Le domande si leggono sempre per intero.** Quella che ti faceva un autopilota arrivava tagliata dopo cinquecento caratteri, e siccome davanti c’era l’obiettivo del lavoro, spesso della domanda vera non restava niente. Ora arriva intera, con i suoi a capo, e viene prima dell’obiettivo. Se è lunga, la parte che la mostra scorre: nella linguetta «Domande» (anche staccata in una sua finestra), nella colonna, nell’app e nella pagina del telefono.',
+      '**Anche le domande delle chat arrivano intere.** Per una chat ferma su un permesso o su una scelta si prendevano le ultime otto righe sopra le opzioni: ora si prende tutto il riquadro della domanda.',
+      '**Con un autopilota non si apre più la colonna a destra.** Quando un autopilota ti fa una domanda, si fa avanti la linguetta «Domande» sotto la sua chat, con la scheda aperta anche se era chiusa; se la linguetta è staccata in una finestra, viene davanti quella finestra; se la sua chat non è aperta da nessuna parte, la linguetta si apre in una finestra sua. Non ti toglie la tastiera mentre scrivi. La colonna a destra si apre da sola solo per le chat senza autopilota.',
+      '**Il tasto «Domande» conta sempre tutto.** Se ad aspettare sono solo autopiloti, premerlo porta alla loro linguetta invece di aprire la colonna. App Android 2.43.1: la linguetta «Domande» ha più spazio e scorre.'
+    ]
+  },
+  {
     versione: '0.39.0',
     righe: [
       '**«Installa» ti fa vedere prima cosa cambia.** Quando c’è un aggiornamento pronto, la striscia in alto non dice più «Installa e riavvia» ma «Installa». Premuto, apre una finestra con le note della versione nuova e, se ne avevi saltate, di tutte quelle in mezzo, dalla più recente, scritte per esteso. In fondo ci sono due tasti: «Installa e riavvia» aspetta che le chat finiscano quello che hanno in mano, le avvisa, installa e riparte da solo, con chat e autopiloti che riprendono da dove erano; «Più tardi» chiude la finestra e lascia «Installa» nella striscia.',
