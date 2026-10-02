@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.39.0',
+    righe: [
+      '**«Installa» ti fa vedere prima cosa cambia.** Quando c’è un aggiornamento pronto, la striscia in alto non dice più «Installa e riavvia» ma «Installa». Premuto, apre una finestra con le note della versione nuova e, se ne avevi saltate, di tutte quelle in mezzo, dalla più recente, scritte per esteso. In fondo ci sono due tasti: «Installa e riavvia» aspetta che le chat finiscano quello che hanno in mano, le avvisa, installa e riparte da solo, con chat e autopiloti che riprendono da dove erano; «Più tardi» chiude la finestra e lascia «Installa» nella striscia.',
+      '**Niente si installa più senza passare da lì.** Anche il riavvio dopo «Porta qui» o una fusione ora riavvia e basta: l’aggiornamento pronto resta in attesa del suo «Installa». Se chiudi SierraDeck senza installarlo, si installa alla chiusura, senza riavviare, come prima.',
+      '**La finestra delle novità non si apre più da sola all’avvio.** Le novità della versione che hai le leggi quando vuoi: dalle Impostazioni («Novità di questa versione») o premendo il numero di versione in alto a sinistra. È la stessa finestra di «Installa».',
+      '**Dal telefono è uguale.** Nell’app e nella pagina, «Installa» mostra prima le stesse note e poi chiede «Installa e riavvia» o «Più tardi». App Android 2.43.0.'
+    ]
+  },
+  {
     versione: '0.38.2',
     righe: [
       '**L’autopilota torna a scrivere nelle sue chat anche subito dopo un aggiornamento.** Con la 0.38.1, se all’avvio eri in un altro workspace, l’istruzione dell’autopilota aspettava una chat che in quella finestra non c’era e dopo un minuto e mezzo si arrendeva senza dirlo: la chat restava con il campo vuoto. Ora torna da sola nel workspace della chat, sveglia la chat se dorme, e scrive comunque dopo pochi secondi se lo schermo non si fa riconoscere.',
@@ -1690,35 +1699,6 @@ export const NOVITA: Novita[] = [
 
 export function novitaDi(versione: string): Novita | undefined {
   return NOVITA.find((n) => n.versione === versione)
-}
-
-/**
- * Le novità da mostrare adesso, se ce ne sono.
- *
- * Due condizioni, entrambe necessarie: che per questa versione qualcosa sia
- * stato scritto, e che non sia già stato letto. Una finestra che ricompare a
- * ogni avvio diventa un ostacolo fra l'utente e la prima chat, ed è il motivo
- * per cui si smette di leggere anche quella che conta.
- *
- * Una versione senza righe scritte non mostra niente: meglio il silenzio di una
- * finestra vuota che si apre per dire che non ha niente da dire.
- */
-export function novitaDaMostrare(
-  versione: string,
-  ultimaVista: string | undefined
-): Novita | undefined {
-  if (versione === ultimaVista) return undefined
-  const corrente = novitaDi(versione)
-  if (corrente === undefined) return undefined
-  // Le versioni saltate: piu' nuove dell'ultima vista, piu' vecchie di questa.
-  // Alla primissima apertura non c'e' niente di saltato — mostrare tutta la
-  // storia a chi installa oggi sarebbe un muro di testo.
-  const altre = ultimaVista === undefined
-    ? []
-    : NOVITA.filter((n) =>
-        confrontaVersioni(n.versione, ultimaVista) > 0 && confrontaVersioni(n.versione, versione) < 0
-      ).sort((x, y) => confrontaVersioni(y.versione, x.versione))
-  return altre.length === 0 ? corrente : { ...corrente, altre }
 }
 
 /** Le novita' di questa versione con le ultime `quante` prima, per chi le riapre apposta. */
