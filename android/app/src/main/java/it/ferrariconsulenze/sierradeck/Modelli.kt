@@ -50,6 +50,8 @@ data class Stato(
      * indistinguibile da un cavo staccato.
      */
     val aggiornamento: Aggiornamento? = null,
+    /** Il Drive del computer scollegato (0.39.3): la banda in cima. Manca se e' collegato. */
+    val driveScollegato: AvvisoDrive? = null,
     /** Come si chiama questa macchina: serve a chi ne ha piu' di una. */
     val computer: NomeComputer? = null,
     /** I progetti sul Drive: chi li ha in mano e quanti comandi aspettano nella coda condivisa. */
@@ -260,7 +262,9 @@ data class Conversazione(
     /** Quante domande dentro (0.38.0). */
     val quante: Int? = null,
     /** L'autopilota di questa conversazione: si risponde nella sua scheda (0.38.0). */
-    val autopilota: String? = null
+    val autopilota: String? = null,
+    /** La chat e' su un altro PC (0.39.3): il suo nome, per il segno «SU <PC>». */
+    val suPc: String? = null
 )
 
 /** Un nodo dell'albero delle chat di un autopilota (T7, 0.36.0). */

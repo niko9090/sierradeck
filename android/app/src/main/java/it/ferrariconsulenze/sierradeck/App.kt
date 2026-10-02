@@ -355,6 +355,8 @@ fun Principale(
             // Un tasto che non ce l'ha fatta lo dice qui, in cima, qualunque
             // schermata tu stia guardando: prima falliva in silenzio.
             NotaGlobale()
+            // Il Drive del computer scollegato (0.39.3): non si chiude.
+            BandaDriveScollegato(stato?.driveScollegato)
             // Quello che non può aspettare, sopra tutto il resto: non è un
             // avviso qualunque, è la ragione per cui questo telefono esiste.
             BandaUrgenze(api, stato, connesso, onApriDomande = { scheda = Scheda.DOMANDE })

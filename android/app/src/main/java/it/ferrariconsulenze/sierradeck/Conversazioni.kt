@@ -127,7 +127,7 @@ fun VistaConversazioni(api: Api, elenco: List<Conversazione>, onRiletto: () -> U
                 ) {
                     Box(Modifier.size(8.dp).clip(CircleShape).background(if (c.chiede) Banco.ambra else Banco.testoQuieto))
                     Spacer(Modifier.width(6.dp))
-                    Text(c.titolo, color = Banco.testo, fontSize = 13.sp, maxLines = 1, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
+                    Text(titoloConSegno(c), color = if (c.suPc != null) ColoreRemoto else Banco.testo, fontSize = 13.sp, maxLines = 1, fontWeight = if (sel || c.suPc != null) FontWeight.Bold else FontWeight.Normal)
                 }
             }
         }
