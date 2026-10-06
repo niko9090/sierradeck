@@ -133,6 +133,16 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             put("chat", chat); put("pin", pin)
         }))
 
+    /**
+     * Le chiamate dell'invio di un file (PC 0.50.0): le stesse strade delle
+     * altre, ponte compreso. Un `IOException` vuol dire rete caduta: l'invio
+     * chiede al PC dove era arrivato e riparte.
+     */
+    fun trasporto(): Trasporto = object : Trasporto {
+        override suspend fun chiama(percorso: String, corpo: JsonObject): String =
+            corpoTesto(percorso, json.encodeToString(JsonObject.serializer(), corpo).toRequestBody(JSON_MEDIA))
+    }
+
     suspend fun scrivi(chat: String, testo: String): Fatto =
         json.decodeFromString(corpoTesto("/api/scrivi", oggetto {
             put("chat", chat); put("testo", testo)

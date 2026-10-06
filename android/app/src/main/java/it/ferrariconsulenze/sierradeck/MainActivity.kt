@@ -117,6 +117,13 @@ class MainActivity : ComponentActivity() {
      */
     private fun apriDoveChiede(intent: android.content.Intent?) {
         if (intent == null) return
+        // Condividi → SierraDeck (app 2.50.0): uno o più file da un'altra app.
+        if (intent.action == android.content.Intent.ACTION_SEND || intent.action == android.content.Intent.ACTION_SEND_MULTIPLE) {
+            val file = Condivisione.uriDa(intent)
+            if (file.isNotEmpty()) Apertura.condivisi = file
+            else Nota.mostra("SierraDeck riceve file, non testo: per mandare del testo a una chat scrivilo nella chat.")
+            return
+        }
         // La notifica dell'aggiornamento: si apre il dialogo di sempre.
         val versione = intent.getStringExtra(ControlloApp.EXTRA_VERSIONE)
         val apk = intent.getStringExtra(ControlloApp.EXTRA_APK)

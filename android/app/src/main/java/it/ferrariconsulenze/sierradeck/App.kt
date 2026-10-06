@@ -83,6 +83,8 @@ object Apertura {
     fun apriChat(id: String) { chatRichiesta = id; schedaRichiesta = Scheda.CHAT }
     /** Dalla notifica dell'aggiornamento (0.43.0): versione e APK da installare. */
     var aggiornamento by mutableStateOf<Pair<String, String>?>(null)
+    /** I file condivisi con SierraDeck da un'altra app (app 2.50.0): si apre «Manda a…». */
+    var condivisi by mutableStateOf<List<android.net.Uri>?>(null)
 }
 
 /**
@@ -339,6 +341,11 @@ fun Principale(
             },
             onChiudi = { dialogoApp = false }
         )
+    }
+
+    // Condividi → SierraDeck (app 2.50.0): «Manda a…» con le chat di tutti i PC e gli autopiloti.
+    Apertura.condivisi?.let { uris ->
+        SchermoMandaA(api, stato, uris, fissa = null, onChiudi = { Apertura.condivisi = null })
     }
 
     if (scegliComputer) {

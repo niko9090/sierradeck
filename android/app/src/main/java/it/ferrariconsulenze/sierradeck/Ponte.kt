@@ -38,7 +38,9 @@ import kotlinx.serialization.json.put
  */
 object Ponte {
     /** Le rotte che passano, uguali a `ROTTE_PONTE` del PC (src/shared/ponte-telefono.ts). */
-    val ROTTE = setOf("/api/stato", "/api/storia", "/api/scrivi", "/api/scegli", "/api/sessioni/riprendi", "/api/apri", "/api/pin/sblocca")
+    val ROTTE = setOf("/api/stato", "/api/storia", "/api/scrivi", "/api/scegli", "/api/sessioni/riprendi", "/api/apri", "/api/pin/sblocca",
+        // I file dal telefono (PC 0.50.0): a pezzi fino a quel PC.
+        "/api/allegati/inizia", "/api/allegati/pezzo", "/api/allegati/stato", "/api/allegati/fine", "/api/allegati/annulla")
 
     /** Il corpo di `/api/ponte`: il PC, la rotta, e il corpo della richiesta se c'è. */
     fun corpo(pc: String, percorso: String, corpoJson: String?): String {
@@ -52,7 +54,7 @@ object Ponte {
 
     /** Il rifiuto, nella stessa forma di quelli del PC (`{"errore": …}`). */
     fun nonSiPuo(percorso: String): String = Api.json.encodeToString(JsonElement.serializer(), buildJsonObject {
-        put("errore", "Su un altro PC il telefono può fare quello che fa il PC dal suo riquadro remoto: vedere le chat e la loro storia, scrivere, premere un’opzione, riprendere o aprire una chat. «$percorso» no.")
+        put("errore", "Su un altro PC il telefono può fare quello che fa il PC dal suo riquadro remoto: vedere le chat e la loro storia, scrivere, premere un’opzione, riprendere o aprire una chat, mandarle un file. «$percorso» no.")
     })
 }
 

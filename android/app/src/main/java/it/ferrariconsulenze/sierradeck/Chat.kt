@@ -333,6 +333,11 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
     var menuAperto by remember { mutableStateOf(false) }
     var rinominando by remember { mutableStateOf(false) }
     var chiudendo by remember { mutableStateOf(false) }
+    // «📎 Allega» (app 2.50.0): un file del telefono nel progetto di questa chat.
+    var allegando by remember(chat.id) { mutableStateOf<List<android.net.Uri>?>(null) }
+    val sceglieFile = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetMultipleContents()
+    ) { uris -> if (uris.isNotEmpty()) allegando = uris }
     val scope = rememberCoroutineScope()
     // Come si legge lo schermo: adattato alla larghezza, o la griglia esatta.
     // Sta qui e non dentro la vista perche' il tasto che lo cambia e' in testata.
@@ -594,6 +599,11 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
             Modifier.fillMaxWidth().background(Banco.chassis).padding(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Box(
+                Modifier.size(40.dp).clip(CircleShape).clickable { sceglieFile.launch("*/*") },
+                contentAlignment = Alignment.Center
+            ) { Text("📎", fontSize = 20.sp) }
+            Spacer(Modifier.width(6.dp))
             OutlinedTextField(
                 value = testo,
                 onValueChange = { testo = it.take(50_000) },
@@ -648,6 +658,10 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
         }
     }
 
+    allegando?.let { uris ->
+        // `api` è già quella giusta: del PC accoppiato, o del ponte verso l'altro PC.
+        SchermoMandaA(api, null, uris, fissa = DestinazioneFile("chat", chat.id, chat.titolo.ifBlank { chat.cwd }, sessione = chat.sessione)) { allegando = null }
+    }
     if (rinominando) {
         RinominaChat(
             titolo = chat.titolo,

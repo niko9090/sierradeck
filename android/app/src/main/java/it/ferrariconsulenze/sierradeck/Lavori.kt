@@ -172,6 +172,14 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
     // storto l'ultima volta (un 409 e' un computer da aggiornare).
     var messaggio by remember(breve.id) { mutableStateOf("") }
     var mandando by remember(breve.id) { mutableStateOf(false) }
+    // «📎 Allega» (app 2.50.0): un file nella sua cartella, e il messaggio nel suo dialogo.
+    var allegando by remember(breve.id) { mutableStateOf<List<android.net.Uri>?>(null) }
+    val sceglieFile = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetMultipleContents()
+    ) { uris -> if (uris.isNotEmpty()) allegando = uris }
+    allegando?.let { uris ->
+        SchermoMandaA(api, null, uris, fissa = DestinazioneFile("autopilota", breve.id, breve.nome)) { allegando = null }
+    }
     var notaDialogo by remember(breve.id) { mutableStateOf<String?>(null) }
     var linguetta by remember(breve.id) { mutableStateOf(0) }
     // Le linguette nascono **chiuse**: Nicholas (22/09, con una foto) — «non
@@ -356,6 +364,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                         }
                     }
                 ) { Text(if (mandando) "Mando…" else if (domanda) "Rispondi" else "Manda") }
+                OutlinedButton(enabled = !mandando, shape = MaterialTheme.shapes.small, onClick = { sceglieFile.launch("*/*") }) { Text("📎 Allega") }
                 Text(
                     if (domanda) "Arriva subito alla chat ferma." else "Risponde lui, il supervisore, in qualche minuto.",
                     color = Banco.testoQuieto, fontSize = 11.sp, modifier = Modifier.weight(1f)
