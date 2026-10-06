@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.50.0',
+    righe: [
+      '**I file dal telefono, dentro il progetto.** Dal telefono puoi mandare un file (una foto, un PDF, un documento) a una chat o a un autopilota: con «Condividi → SierraDeck» da qualunque app, con il tasto 📎 nella chat e «📎 Allega» nell’autopilota, o con «Scegli file» nella pagina del telefono. Il file finisce nella cartella del progetto di quella chat, in .sierradeck/allegati con la data di oggi, fuori da git, e la chat riceve una riga corta: «Nicholas ti ha mandato il file … Guardalo.», con la tua nota se l’hai scritta. L’autopilota lo trova nel suo dialogo.',
+      '**Anche verso gli altri PC, e senza perdere niente.** Nella schermata «Manda a…» ci sono le chat di tutti i PC accesi (con «SU <PC>») e gli autopiloti, prima quelle usate di recente. Il file viaggia a pezzi con la sua barra; se la rete cade riparte da dove era, e alla fine il computer dice «Arrivato» con il percorso. Fino a 100 MB per file; i programmi (.exe, .bat…) non si mandano. Valgono le stesse regole di sempre: solo i tuoi dispositivi e i PC dello stesso Drive, e una chat protetta chiede il PIN prima di ricevere il file. App Android 2.50.0.'
+    ]
+  },
+  {
     versione: '0.49.1',
     righe: [
       '**Il PIN delle chat, più stretto.** Lo sblocco vale solo per lo schermo che ha messo il PIN: se apri una chat protetta dal portatile, per un altro PC e per il telefono resta chiusa. E tutto quello che una persona scrive a una chat protetta passa dal PIN, anche dalle Domande e dalla cassetta sul Drive: se per chi scrive la chat è chiusa, il messaggio non arriva e compare «Chat protetta: inserisci il PIN». Dalla scheda Domande del PC il PIN si mette lì e il messaggio riparte. Le istruzioni degli autopiloti restano libere, come prima.'
