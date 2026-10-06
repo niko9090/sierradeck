@@ -25,6 +25,7 @@ import { createHash } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { APP_NAME, APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
 import { cartellaDati } from './migra-dati'
+import { apriAllegati } from './allegati'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { attendiQuiete, AVVISO_RIPRESA, leggiPausa, pausaAncoraValida } from './pausa-aggiornamento'
 import { chiaveMonitor } from '@shared/display-key'
@@ -2995,6 +2996,8 @@ if (!app.requestSingleInstanceLock()) {
       const rotte = {
         dispositivi,
         ...(guardianoPin !== undefined ? { pin: guardianoPin } : {}),
+        // I file dal telefono (0.50.0): gli invii a metà aspettano qui, poi vanno nel progetto della chat.
+        allegati: apriAllegati({ cartella: join(dati, 'allegati-in-arrivo') }),
         chat: () => chatAperte.map(conAltrove),
         autopiloti: () => clientAutopilota.elenca(),
         rispondi: async (idDomanda: string, risposta: string) => {

@@ -18,6 +18,11 @@ import type { NoteAggiornamento } from '@shared/note-aggiornamento'
 import { leggiRichiestaPonte } from '@shared/ponte-telefono'
 import { ANTEPRIMA_NASCOSTA, oscuraChat, rifiutoChiusa, STATO_CHIUSA } from '@shared/pin-chat'
 import type { GuardianoPin } from './pin-guardiano'
+import type { Allegati } from './allegati'
+import {
+  controllaAllegato, creaLimitatore, decidiDestinazione, leggiDestinazione, notaPulita, PEZZO_BYTE, ALLEGATO_MAX_BYTE,
+  pezzoBase64Valido, rigaPerAutopilota, rigaPerChat
+} from '@shared/allegati'
 
 /**
  * Un altro PC con la chiave di casa: `pc` (prima della 0.49.1, senza dire chi
@@ -180,6 +185,11 @@ export type DipendenzeRotte = {
    * anteprime.
    */
   pin?: GuardianoPin
+  /**
+   * I file dal telefono (0.50.0): gli invii a pezzi, salvati nel progetto
+   * della chat o dell'autopilota. Assente in un PC più vecchio: 409.
+   */
+  allegati?: Allegati
   /** La linguetta «Istruzioni» dal telefono (0.41.0): le consegne alle sue chat, intere. */
   istruzioniAutopilota?: (id: string) => Promise<unknown[]>
   diffAutopilota?: (id: string, chiave: string, percorso: string) => Promise<string>
@@ -573,6 +583,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     const s = scelteDiTerminale(righe.join(String.fromCharCode(10)))
     return giaRisposta(chat, s) ? undefined : s
   }
+  /** I file nuovi per minuto, per mittente (0.50.0). */
+  const limitaAllegati = creaLimitatore()
   return async (r: {
     metodo: string
     percorso: string
@@ -616,6 +628,99 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         })
       } : {})
     }
+    // ── I file dal telefono (0.50.0) ──
+    // Arrivano a pezzi e si salvano nel progetto della chat o dell'autopilota.
+    // Solo da chi è già passato dal muro (dispositivo accoppiato, o PC con la
+    // firma di casa, anche dal ponte); il PIN della chat vale come per scrivere.
+    if (r.metodo === 'POST' && r.percorso.startsWith('/api/allegati/')) {
+      const al = depsPieni.allegati
+      if (al === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora ricevere file: aggiornalo alla 0.50.0.' } }
+      const id = stringa(r.corpo, 'id')
+      /** La chat di destinazione, se è protetta e chiusa per chi manda. */
+      const chiusaPerChi = (tipo: string, a: string): Chat | undefined => {
+        if (tipo !== 'chat' || g === undefined) return undefined
+        const c = depsPieni.chat().find((x) => x.id === a)
+        return c !== undefined && g.chiusa(visore, c) ? c : undefined
+      }
+      if (r.percorso === '/api/allegati/inizia') {
+        const corpo = (typeof r.corpo === 'object' && r.corpo !== null ? r.corpo : {}) as Record<string, unknown>
+        const k = controllaAllegato({ nome: corpo.nome, byte: corpo.byte })
+        if (!k.ok) return { stato: k.stato, corpo: { errore: k.errore } }
+        const autopiloti = await depsPieni.autopiloti().catch(() => [] as Autopilota[])
+        const d = decidiDestinazione(leggiDestinazione(r.corpo), {
+          chat: depsPieni.chat(),
+          autopiloti: autopiloti.map((a) => ({ id: a.id, nome: a.nome !== '' ? a.nome : a.obiettivo, cwd: a.cwd })),
+          altroPc: (x) => leggiIdChatAltroPc(x) !== undefined
+        })
+        if (!d.ok) return { stato: d.stato, corpo: { errore: d.errore } }
+        const chiusa = chiusaPerChi(d.tipo, d.id)
+        if (chiusa !== undefined) return { stato: STATO_CHIUSA, corpo: rifiutoChiusa(chiusa.titolo) }
+        // Un invio nuovo conta per il limite; uno ripreso no.
+        if (al.leggi(id) === undefined && !limitaAllegati(visore, adesso())) {
+          return { stato: 429, corpo: { errore: 'Troppi file in un minuto da questo dispositivo: aspetta un momento e riprova.' } }
+        }
+        const sha = stringa(r.corpo, 'sha256').toLowerCase()
+        const nota = notaPulita(corpo.nota)
+        const e = al.inizia({
+          id, chi: visore, nome: k.nome, byte: corpo.byte as number, tipo: d.tipo, a: d.id, titolo: d.titolo, cwd: d.cwd,
+          ...(/^[a-f0-9]{64}$/.test(sha) ? { sha256: sha } : {}),
+          ...(nota !== '' ? { nota } : {})
+        })
+        if (!e.ok) return { stato: e.stato, corpo: { errore: e.errore } }
+        if (g !== undefined && d.tipo === 'chat') { const c = depsPieni.chat().find((x) => x.id === d.id); if (c !== undefined) g.tocca(visore, c) }
+        return OK({ id, ricevuti: e.ricevuti, pezzo: PEZZO_BYTE, massimo: ALLEGATO_MAX_BYTE, nome: k.nome, byte: corpo.byte, verso: d.titolo })
+      }
+      if (r.percorso === '/api/allegati/pezzo') {
+        const dati = (r.corpo as { dati?: unknown } | undefined)?.dati
+        if (!pezzoBase64Valido(dati)) return { stato: 400, corpo: { errore: 'Pezzo del file non valido.' } }
+        const e = al.pezzo(id, visore, numero(r.corpo, 'da', -1), Buffer.from(dati, 'base64'))
+        return e.ok ? OK({ ricevuti: e.ricevuti }) : { stato: e.stato, corpo: { errore: e.errore, ...(e.ricevuti !== undefined ? { ricevuti: e.ricevuti } : {}) } }
+      }
+      if (r.percorso === '/api/allegati/stato') {
+        const e = al.stato(id, visore)
+        return e.ok ? OK({ ricevuti: e.ricevuti, byte: e.byte }) : { stato: e.stato, corpo: { errore: e.errore } }
+      }
+      if (r.percorso === '/api/allegati/annulla') {
+        return OK({ fatto: al.annulla(id, visore) })
+      }
+      if (r.percorso === '/api/allegati/fine') {
+        const inv = al.leggi(id)
+        if (inv !== undefined && inv.chi === visore) {
+          // Il PIN si ricontrolla alla fine: la chat può essersi richiusa mentre il file viaggiava.
+          const chiusa = chiusaPerChi(inv.tipo, inv.a)
+          if (chiusa !== undefined) return { stato: STATO_CHIUSA, corpo: rifiutoChiusa(chiusa.titolo) }
+        }
+        const e = await al.finisci(id, visore)
+        if (!e.ok) return { stato: e.stato, corpo: { errore: e.errore } }
+        const { arrivato } = e
+        const i = arrivato.invio
+        let avvisata: 'chat' | 'autopilota' | undefined
+        let avviso: string | undefined
+        if (i.tipo === 'chat') {
+          const c = depsPieni.chat().find((x) => x.id === i.a)
+          if (c !== undefined) {
+            // Una consegna di una persona («umano»): è passata dal PIN, qui sopra e all'inizio.
+            const riga = rigaPerChat({ nome: arrivato.nome, percorso: arrivato.relativo, ...(i.nota !== undefined ? { nota: i.nota } : {}) })
+            deps.scriviAChat(c.id, riga)
+            ricordaInviato(c.id, riga)
+            if (g !== undefined) g.tocca(visore, c)
+            avvisata = 'chat'
+          } else {
+            avviso = 'La chat si è chiusa mentre il file arrivava: il file è nel progetto, ma la chat non è stata avvisata.'
+          }
+        } else if (deps.dialogaAutopilota !== undefined) {
+          const esito = await deps.dialogaAutopilota(i.a, rigaPerAutopilota({ nome: arrivato.nome, percorso: arrivato.assoluto, ...(i.nota !== undefined ? { nota: i.nota } : {}) })).catch(() => ({ ricevuto: false }))
+          if (esito.ricevuto) avvisata = 'autopilota'
+          else avviso = 'Il file è nel progetto, ma l’autopilota non ha risposto: diglielo tu nel dialogo.'
+        }
+        return OK({
+          arrivato: true, nome: arrivato.nome, percorso: arrivato.relativo, assoluto: arrivato.assoluto, cartella: i.cwd, verso: i.titolo,
+          ...(avvisata !== undefined ? { avvisata } : {}), ...(avviso !== undefined ? { avviso } : {})
+        })
+      }
+      return { stato: 404, corpo: { errore: 'non trovato' } }
+    }
+
     if (r.percorso === '/api/stato') {
       // `autopilotiLetti` (0.37.0): se il servizio non risponde l'elenco arriva
       // vuoto, e il telefono lo prendeva per «nessun autopilota» — dimenticava

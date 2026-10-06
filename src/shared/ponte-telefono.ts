@@ -9,7 +9,7 @@
  *
  * **Gli stessi permessi del PC**: passano solo le rotte che il PC stesso usa
  * dal suo riquadro remoto (vedere lo stato e la storia, scrivere, premere
- * un'opzione, riprendere o aprire una chat). Rinominare, chiudere, gli
+ * un'opzione, riprendere o aprire una chat; dalla 0.50.0 mandarle un file). Rinominare, chiudere, gli
  * autopiloti, il Drive, gli aggiornamenti di quel PC: no, come dal PC.
  * Un altro PC non può usare il ponte (niente catene).
  */
@@ -17,7 +17,9 @@
 export const ROTTE_PONTE: readonly string[] = [
   '/api/stato', '/api/storia', '/api/scrivi', '/api/scegli', '/api/sessioni/riprendi', '/api/apri',
   // Il PIN delle chat di quel PC (0.49.0): lo verifica lui.
-  '/api/pin/sblocca'
+  '/api/pin/sblocca',
+  // I file dal telefono (0.50.0): viaggiano a pezzi fino a quel PC, e si salvano nel progetto della chat là.
+  '/api/allegati/inizia', '/api/allegati/pezzo', '/api/allegati/stato', '/api/allegati/fine', '/api/allegati/annulla'
 ]
 
 export function rottaPonte(percorso: string): boolean {
@@ -33,7 +35,7 @@ export function leggiRichiestaPonte(x: unknown): { ok: true; r: RichiestaPonte }
   const percorso = typeof o.percorso === 'string' ? o.percorso.trim() : ''
   if (pc === '' || percorso === '') return { ok: false, stato: 400, errore: 'Manca il PC o la rotta da chiedere.' }
   if (!rottaPonte(percorso)) {
-    return { ok: false, stato: 403, errore: `Attraverso il ponte si può solo quello che il PC fa dal suo riquadro remoto: vedere le chat e la loro storia, scrivere, premere un’opzione, riprendere o aprire una chat. «${percorso}» no.` }
+    return { ok: false, stato: 403, errore: `Attraverso il ponte si può solo quello che il PC fa dal suo riquadro remoto: vedere le chat e la loro storia, scrivere, premere un’opzione, riprendere o aprire una chat, mandarle un file. «${percorso}» no.` }
   }
   const corpo = o.corpo
   if (corpo !== undefined && corpo !== null && (typeof corpo !== 'object' || Array.isArray(corpo))) return { ok: false, stato: 400, errore: 'Il corpo della richiesta non è un oggetto.' }

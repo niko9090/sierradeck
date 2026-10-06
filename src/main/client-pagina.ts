@@ -1418,8 +1418,10 @@ function pannello(s) {
         ).join('') + '</div>'
       : ''}
     \${notaScelta ? '<div class="sotto">' + esc(notaScelta) + '</div>' : ''}
+    \${allegatoNota ? '<div class="sotto">' + esc(allegatoNota) + '</div>' : ''}
     <div class="riga ancorata">
       <input id="t-\${esc(aperta.id)}" placeholder="scrivi qui e invia">
+      <button data-chat="\${esc(aperta.id)}" onclick="scegliFileChat(this.dataset.chat)" title="Scegli file: lo mandi a questa chat (fino a 100 MB). Finisce nella cartella del progetto, in .sierradeck/allegati, fuori da git. Se nella casella hai scritto qualcosa, va come nota." aria-label="Scegli file">📎</button>
       <button onclick="scrivi('\${escJs(aperta.id)}')">Invia</button>
     </div>\`}\`
     : '<div class="sotto" style="padding:6px 16px 0">' + esc(riassuntoChat(s.chat || [])) + '</div>' + gruppiChat(s).map((g) =>
@@ -1894,6 +1896,90 @@ window.sbloccaPin = async () => {
   pannello(ultimoStato)
 }
 
+/*
+ * I file dal telefono (0.50.0): «Scegli file» nella chat e nell'autopilota.
+ * Il file va a pezzi da 96 KB (il computer ne dice la misura), con
+ * l'avanzamento; se la rete cade si chiede al computer dove era arrivato e si
+ * riparte da li'. Arriva nella cartella del progetto, in .sierradeck/allegati,
+ * e la chat (o l'autopilota) riceve una riga che glielo dice. Il PIN della
+ * chat vale come per scrivere: 423 mostra il lucchetto.
+ */
+var allegatoNota = ''
+var allegatoDest = null
+const ALLEGATO_MAX = 100 * 1024 * 1024
+const sceltaFile = document.createElement('input')
+sceltaFile.type = 'file'
+sceltaFile.multiple = true
+sceltaFile.style.display = 'none'
+function apriScelta() { if (!sceltaFile.isConnected) document.body.appendChild(sceltaFile); sceltaFile.value = ''; sceltaFile.click() }
+function inMb(b) { return (b / 1048576).toFixed(1).replace('.', ',') + ' MB' }
+function nuovoIdInvio() {
+  const a = new Uint8Array(12)
+  crypto.getRandomValues(a)
+  return 'p' + Array.from(a, (x) => x.toString(16).padStart(2, '0')).join('')
+}
+function inBase64(buf) {
+  const u = new Uint8Array(buf)
+  let s = ''
+  for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000))
+  return btoa(s)
+}
+const aspetta = (ms) => new Promise((ok) => setTimeout(ok, ms))
+async function mandaUnFile(file, dest, nota) {
+  const id = nuovoIdInvio()
+  const i = await chiedi('/api/allegati/inizia', Object.assign({ id: id, nome: file.name, byte: file.size }, dest, nota ? { nota: nota } : {}))
+  if (i && i.errore) throw new Error(i.errore)
+  const pezzo = i.pezzo || 98304
+  var da = i.ricevuti || 0
+  var tentativi = 0
+  while (da < file.size) {
+    try {
+      const p = await chiedi('/api/allegati/pezzo', { id: id, da: da, dati: inBase64(await file.slice(da, da + pezzo).arrayBuffer()) })
+      // Anche il 409 (pezzo fuori posto) dice dove riprendere.
+      if (p && typeof p.ricevuti === 'number') da = p.ricevuti
+      else throw new Error((p && p.errore) || 'risposta inattesa dal computer')
+      tentativi = 0
+    } catch (e) {
+      // Un rifiuto vero (PIN, invio sparito, troppo grande) non si riprova; la rete caduta si'.
+      if (e && e.stato && e.stato < 500) throw e
+      tentativi += 1
+      if (tentativi > 8) throw e
+      allegatoNota = file.name + ': la rete è caduta, riprovo fra poco (' + tentativi + ')…'
+      pannello(ultimoStato)
+      await aspetta(Math.min(15000, 1000 * tentativi * tentativi))
+      try { const s = await chiedi('/api/allegati/stato', { id: id }); if (s && typeof s.ricevuti === 'number') da = s.ricevuti } catch (x) { }
+    }
+    allegatoNota = file.name + ': ' + Math.floor(da * 100 / Math.max(1, file.size)) + '% (' + inMb(da) + ' di ' + inMb(file.size) + ')'
+    pannello(ultimoStato)
+  }
+  const f = await chiedi('/api/allegati/fine', { id: id })
+  if (f && f.errore) throw new Error(f.errore)
+  return f
+}
+sceltaFile.onchange = async () => {
+  const file = Array.from(sceltaFile.files || [])
+  const dest = allegatoDest
+  if (!dest || file.length === 0) return
+  const campo = document.getElementById(dest.chat ? 't-' + dest.chat : 'dialogo-' + dest.autopilota)
+  const nota = campo ? campo.value.trim() : ''
+  const fatti = []
+  for (const f of file) {
+    if (f.size > ALLEGATO_MAX) { allegatoNota = f.name + ' è di ' + inMb(f.size) + ': il limite è 100 MB.'; pannello(ultimoStato); continue }
+    try {
+      const r = await mandaUnFile(f, dest, nota)
+      fatti.push('✓ arrivato: ' + r.nome + ' in ' + r.percorso + (r.avviso ? ' — ' + r.avviso : r.avvisata === 'chat' ? ' (la chat è avvisata)' : r.avvisata === 'autopilota' ? ' (è nel suo dialogo)' : ''))
+      allegatoNota = fatti.join(' · ')
+      if (campo) campo.value = ''
+    } catch (e) {
+      if (e && e.stato === 423 && dest.chat) pinDentro = true
+      allegatoNota = 'Non è arrivato ' + f.name + ': ' + (e && e.message ? e.message : 'il computer non risponde')
+    }
+    pannello(ultimoStato)
+  }
+}
+window.scegliFileChat = (id) => { allegatoDest = { chat: id }; allegatoNota = ''; apriScelta() }
+window.scegliFileAp = (id) => { allegatoDest = { autopilota: id }; allegatoNota = ''; apriScelta() }
+
 async function leggiDentro() {
   if (!dentro) return
   try {
@@ -2078,9 +2164,12 @@ function vistaAutopilota(a) {
       // Le sue domande non si rispondono da qui (0.38.0): stanno nella
       // linguetta «Domande», una per volta.
       '<button class="primario" data-ap="' + esc(a.id) + '" onclick="dialogaAp(this.dataset.ap)">Manda</button>' +
+      // I file dal telefono (0.50.0): nella sua cartella, e il messaggio nel suo dialogo.
+      '<button data-ap="' + esc(a.id) + '" onclick="scegliFileAp(this.dataset.ap)" title="Scegli file: lo mandi a questo autopilota (fino a 100 MB). Finisce nella sua cartella di lavoro, in .sierradeck/allegati, fuori da git, e lui lo trova nel dialogo. Se nella casella hai scritto qualcosa, va come nota.">📎 Allega</button>' +
       '<span class="sotto info-ap" title="Qui parli con l’autopilota, non con la chat che esegue. Risponde con parole sue; se è un’istruzione la applica e la consegna alla chat alla fine del turno che ha in mano. Se ha una domanda aperta, quello che scrivi è la risposta e arriva subito.">?</span>' +
     '</div>' +
-    (notaDialogo ? '<div class="errore">' + esc(notaDialogo) + '</div>' : '')
+    (notaDialogo ? '<div class="errore">' + esc(notaDialogo) + '</div>' : '') +
+    (allegatoNota ? '<div class="sotto">' + esc(allegatoNota) + '</div>' : '')
   setTimeout(scorriChatAp, 0)
 
   // ── Le linguette, sotto ──
