@@ -74,13 +74,21 @@ data class ProgettoBreve(
 data class PcRemoto(
     val pcId: String,
     val nome: String = "",
+    /** L'hostname e il nome scelto (PC 0.52.4): si mostra `mostra`, l'hostname piccolo sotto. */
+    val host: String = "",
+    val nomeScelto: String = "",
     val versione: String = "",
     val battito: String = "",
     /** Deciso dal computer, che ha l'ora giusta. */
     val vivo: Boolean = false,
     val cartelle: List<String> = emptyList(),
     val chat: List<ChatDiPc> = emptyList()
-)
+) {
+    /** Il nome da mostrare (`NomePc.daMostrare`). */
+    val mostra: String get() = NomePc.daMostrare(nomeScelto, nome, host)
+    /** L'hostname piccolo sotto, se dice qualcosa in più. */
+    val sotto: String? get() = NomePc.sottotitolo(nomeScelto, nome, host)
+}
 
 @Serializable
 data class ChatDiPc(val sessione: String? = null, val titolo: String = "", val cwd: String = "", val aspetta: Boolean = false)
@@ -125,7 +133,12 @@ data class VoceCoda(
 
 @Serializable
 data class NomeComputer(
+    /** Dalla 0.52.4 è il nome scelto (ripiego: l'hostname); prima era sempre l'hostname. */
     val nome: String = "",
+    /** L'hostname (dalla 0.52.4): solo come sottotitolo piccolo. */
+    val host: String = "",
+    /** Il nome scelto, se c'è (dalla 0.52.4). */
+    val nomeScelto: String = "",
     /** La versione del programma (dalla 0.43.0): l'app spegne le funzioni che il computer non ha ancora. */
     val versione: String? = null
 )

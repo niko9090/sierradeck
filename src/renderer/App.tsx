@@ -58,6 +58,7 @@ import { PannelloDrive } from './components/PannelloDrive'
 import { PannelloSalute } from './components/PannelloSalute'
 import { PannelloDomande, apriDomandeAutopilota } from './components/PannelloDomande'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
+import { useAvviaNomiPc } from './state/nomi-pc'
 
 /**
  * Quante righe dello schermo vanno al telefono.
@@ -184,6 +185,8 @@ function usaRiquadriInArrivo(): void {
 ascoltaSegnali()
 
 export function App(): React.JSX.Element {
+  // I nomi scelti dei PC, freschi dai battiti (0.52.4).
+  useAvviaNomiPc()
   const root = useLayoutStore((s) => s.root)
   // I colori scelti dall'utente, applicati alla radice del documento: le
   // variabili del foglio di stile esistono gia' — qui si limitano a cambiare

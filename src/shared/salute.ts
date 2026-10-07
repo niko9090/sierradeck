@@ -44,7 +44,10 @@ export type Salute = { scritto: string; tono: Tono; riassunto: string; voci: Voc
 
 export type PcPerSalute = {
   pcId: string
+  /** Il nome da mostrare (`nomeDaMostrare`). */
   nome: string
+  /** L'hostname, solo se diverso dal nome: va piccolo sotto (0.52.4). */
+  host?: string
   versione: string
   /** L'ultimo battito sul Drive, ISO. */
   battito?: string
@@ -60,7 +63,7 @@ export type ErroreLog = { messaggio: string; volte: number; ultimo: string; prim
 
 export type IngressiSalute = {
   /** Questo PC, per la mappa (0.51.0). */
-  io?: { id: string; nome: string }
+  io?: { id: string; nome: string; host?: string }
   adesso: number
   versione: string
   drive: { configurato: boolean; connesso: boolean; scollegatoDal?: string; motivoScollegato?: string; titolo?: string; testo?: string; ultimoSalvataggio?: string }

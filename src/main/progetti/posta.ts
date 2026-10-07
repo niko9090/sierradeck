@@ -100,6 +100,8 @@ export function creaPostino(deps: {
   scatola: () => Scatola | undefined
   pcId: () => string
   pcNome: () => string
+  /** L'hostname e il nome scelto (0.52.4), per il battito: gli altri mostrano il nome, l'hostname piccolo sotto. */
+  identita?: () => { host: string; nomeScelto?: string }
   versione: () => string
   /** Le chat aperte su questo PC, adesso. */
   chat: () => ChatDiPc[]
@@ -169,6 +171,10 @@ export function creaPostino(deps: {
     return {
       pcId: deps.pcId(),
       nome: deps.pcNome(),
+      ...(() => {
+        const i = deps.identita?.()
+        return i === undefined ? {} : { host: i.host, ...(i.nomeScelto !== undefined ? { nomeScelto: i.nomeScelto } : {}) }
+      })(),
       versione: deps.versione(),
       battito: iso(),
       cartelle: [...cartelle],

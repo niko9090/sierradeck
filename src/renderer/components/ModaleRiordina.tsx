@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { NomePc } from './NomePc'
 import { createPortal } from 'react-dom'
 import type { FuoriCasa, RegistroRiordino } from '@shared/una-casa'
 
@@ -90,7 +91,7 @@ export function ModaleRiordina({ onChiudi }: Props): React.JSX.Element {
                   <input type="checkbox" checked={scelte.has(c.sessione)} disabled={c.aperta || occupato} onChange={() => commuta(c.sessione)} />
                   <span className="riordina__testo">
                     <b>{c.titolo}</b> <span className="account__nota">· {kb(c.byte)}{c.aperta ? ' · aperta adesso: chiudila prima' : ''}</span>
-                    <span className="account__nota riordina__motivo">Casa proposta: {c.casa.pcNome}, perché {c.casa.motivo}.</span>
+                    <span className="account__nota riordina__motivo">Casa proposta: <NomePc id={c.casa.pc} nome={c.casa.pcNome} />, perché {c.casa.motivo}.</span>
                     {c.cwd !== undefined ? <span className="account__nota riordina__motivo">Cartella: {c.cwd}</span> : null}
                   </span>
                 </label>

@@ -101,7 +101,8 @@ import { resolveClaudeCommand } from './config'
 import { leggiAccesso } from './accesso'
 import { apriContoDrive } from './cassaforte/conto-drive'
 import { apriSincronia, type Sincronia } from './cassaforte/sincronia'
-import { apriIdentitaPc } from './progetti/pc'
+import { apriIdentitaPc, type IdentitaPcStore } from './progetti/pc'
+import { nomeDaMostrare, sottotitoloPc } from '@shared/nome-pc'
 import {
   aggiungiProgetto, apriRegistroProgetti, collegaProgetto, rimuoviProgetto, rimappaCwd, rimappaWorkspace,
   type ProgettoDrive
@@ -147,6 +148,23 @@ import type { Db } from './db'
 import { apriDestinazioni } from './trasferimenti/destinazioni'
 import { creaTrasferimenti, type Trasferimenti } from './trasferimenti/servizio'
 import type { Richiesta } from './trasferimenti/coda'
+
+/**
+ * Chi è questo PC (0.52.4): l'identità, con il nome scelto, letta anche dal
+ * Client (`/api/stato`, `/api/pc`) che nasce in un altro punto dell'avvio.
+ */
+let identitaPcGlobale: IdentitaPcStore | undefined
+/** Cambia il nome scelto e lo dice alle finestre; il battito lo porta agli altri PC al prossimo giro. */
+function impostaNomePc(nome: string): import('./progetti/pc').IdentitaPc {
+  if (identitaPcGlobale === undefined) throw new Error('identità del PC non ancora pronta')
+  const i = identitaPcGlobale.leggi().nome
+  const dopo = identitaPcGlobale.impostaNome(nome)
+  if (dopo.nome !== i) console.info(`[pc] nome di questo PC: «${i}» → «${dopo.nome}»`)
+  for (const w of finestreDiChat()) {
+    if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('pc:nomeCambiato', dopo)
+  }
+  return dopo
+}
 
 /**
  * Le domande di cronologia in volo, e chi le sta aspettando.
@@ -1086,6 +1104,7 @@ if (!app.requestSingleInstanceLock()) {
       // I progetti sul Drive: chi e' questo PC, dove riceve i progetti, e il
       // registro condiviso di quali cartelle viaggiano con le chat.
       const identitaPc = apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir(), documenti: () => app.getPath('documents') })
+      identitaPcGlobale = identitaPc
       // La regola dura dell'ospite (0.52.0), da subito: finché il servizio
       // delle case non è pronto, le case si leggono dal file di qui. Così
       // nemmeno il ripristino dei primi secondi avvia una chat che ha casa
@@ -1347,6 +1366,7 @@ if (!app.requestSingleInstanceLock()) {
         scatola: () => sincronia.scatola(),
         pcId: () => identitaPc.leggi().id,
         pcNome: () => identitaPc.leggi().nome,
+        identita: () => { const i = identitaPc.leggi(); return { host: i.host, ...(i.nomeScelto !== undefined ? { nomeScelto: i.nomeScelto } : {}) } },
         versione: () => app.getVersion(),
         chat: () => chatAperte.map((c) => ({
           id: c.id,
@@ -1620,7 +1640,8 @@ if (!app.requestSingleInstanceLock()) {
           const s = await remoto.statoDi(b.pcId, b.nome).catch(() => undefined)
           const strada = remoto.stradaDi(b.pcId)
           return {
-            pcId: b.pcId, nome: b.nome, versione: b.versione, battito: b.battito,
+            pcId: b.pcId, nome: nomeDaMostrare(b), versione: b.versione, battito: b.battito,
+            ...(sottotitoloPc(b) !== undefined ? { host: sottotitoloPc(b) } : {}),
             ...(s !== undefined ? { stato: s.stato } : {}),
             ...(strada !== undefined && s?.stato === 'acceso' ? { strada: stradaBreve(strada.strada) } : {})
           }
@@ -1646,7 +1667,7 @@ if (!app.requestSingleInstanceLock()) {
         const t = aggiornamenti?.stato().tentativoFallito
         return componiSalute({
           // La mappa dei PC (0.51.0): questo PC al centro.
-          io: { id: identitaPc.leggi().id, nome: identitaPc.leggi().nome },
+          io: { id: identitaPc.leggi().id, nome: identitaPc.leggi().nome, ...(sottotitoloPc(identitaPc.leggi()) !== undefined ? { host: identitaPc.leggi().host } : {}) },
           adesso, versione: app.getVersion(),
           drive: {
             configurato: st.configurato, connesso: st.connesso,
@@ -1994,6 +2015,9 @@ if (!app.requestSingleInstanceLock()) {
 
       ipcMain.handle('posta:io', () => identitaPc.leggi().id)
       ipcMain.handle('posta:pc', () => postino.pc())
+      // Il nome scelto di questo PC (0.52.4): «Altri computer» → «Questo PC».
+      ipcMain.handle('pc:identita', () => identitaPc.leggi())
+      ipcMain.handle('pc:impostaNome', (_e, nome: unknown) => impostaNomePc(String(nome ?? '')))
       ipcMain.handle('posta:leggi', (_e, pc: unknown) => (typeof pc === 'string' && pc !== '' ? postino.posta(pc) : Promise.resolve(undefined)))
       ipcMain.handle('posta:aggiungi', (_e, pc: unknown, voce: unknown) => {
         if (typeof pc !== 'string' || pc === '' || typeof voce !== 'object' || voce === null) return Promise.resolve(undefined)
@@ -3467,11 +3491,21 @@ if (!app.requestSingleInstanceLock()) {
           }
         },
         nomeComputer: () => {
+          if (identitaPcGlobale !== undefined) return identitaPcGlobale.leggi().nome
           try {
             return hostname()
           } catch {
             return ''
           }
+        },
+        identitaComputer: () => {
+          if (identitaPcGlobale === undefined) { let h = ''; try { h = hostname() } catch { h = '' } return { nome: h, host: h } }
+          const i = identitaPcGlobale.leggi()
+          return { nome: i.nome, host: i.host, ...(i.nomeScelto !== undefined ? { nomeScelto: i.nomeScelto } : {}) }
+        },
+        impostaNomeComputer: (nome: string) => {
+          const i = impostaNomePc(nome)
+          return { nome: i.nome, host: i.host, ...(i.nomeScelto !== undefined ? { nomeScelto: i.nomeScelto } : {}) }
         },
         installaPlugin: (id: string) => installaPlugin(id),
         commutaPlugin: (id: string, attivo: boolean) => commutaPlugin(id, attivo),

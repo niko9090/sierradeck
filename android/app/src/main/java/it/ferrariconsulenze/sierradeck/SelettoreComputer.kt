@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,7 +54,7 @@ import androidx.compose.ui.unit.sp
  * accorge che è dell'altro banco, si cambia e si continua.
  */
 @Composable
-fun PillolaComputer(nome: String, connesso: Boolean, linea: StatoLinea? = null, onApri: () -> Unit) {
+fun PillolaComputer(nome: String, connesso: Boolean, linea: StatoLinea? = null, sotto: String? = null, onApri: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -69,14 +70,20 @@ fun PillolaComputer(nome: String, connesso: Boolean, linea: StatoLinea? = null, 
                 .background(if (connesso) Banco.verde else Banco.rosso)
         )
         Spacer(Modifier.width(9.dp))
-        Text(
-            nome,
-            color = Banco.testo,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            modifier = Modifier.weight(1f)
-        )
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                nome,
+                color = Banco.testo,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+            // L'hostname, piccolo (2.52.4): il nome è quello scelto.
+            if (!sotto.isNullOrBlank()) {
+                Spacer(Modifier.width(6.dp))
+                Text(sotto, color = Banco.testoQuieto, fontSize = 10.sp, maxLines = 1)
+            }
+        }
         // La qualità del collegamento con questo computer, sempre in vista
         // (0.52.0): strada, tacche e ritardo; toccandola, la storia.
         if (linea != null) {
@@ -107,6 +114,8 @@ fun PillolaComputer(nome: String, connesso: Boolean, linea: StatoLinea? = null, 
 @Composable
 fun SelettoreComputer(
     correnteIndirizzo: String,
+    /** Cambia il nome anche sul computer collegato; false = non c'è riuscito (PC vecchio o spento). */
+    onRinominaSulPc: (suspend (String) -> Boolean)? = null,
     onScegli: (String) -> Unit,
     onAggiungi: () -> Unit,
     onChiudi: () -> Unit
@@ -116,6 +125,8 @@ fun SelettoreComputer(
     var daRinominare by remember { mutableStateOf<Postazioni.Postazione?>(null) }
     var daDimenticare by remember { mutableStateOf<Postazioni.Postazione?>(null) }
     val stato = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val giro = androidx.compose.runtime.rememberCoroutineScope()
+    var notaNome by remember { mutableStateOf<String?>(null) }
 
     ModalBottomSheet(
         onDismissRequest = onChiudi,
@@ -162,7 +173,8 @@ fun SelettoreComputer(
                             maxLines = 1
                         )
                         Text(
-                            Postazioni.hostDi(p.indirizzo),
+                            // L'hostname piccolo (2.52.4), poi l'indirizzo.
+                            listOfNotNull(NomePc.sottotitolo(p.nome, null, p.host), Postazioni.hostDi(p.indirizzo)).joinToString(" · "),
                             color = Banco.testoQuieto,
                             fontSize = 12.sp,
                             maxLines = 1
@@ -198,6 +210,7 @@ fun SelettoreComputer(
                 Text("Aggiungi un computer", color = Banco.accento, fontSize = 14.sp)
             }
 
+            notaNome?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) }
             Text(
                 "La spunta tiene una postazione per sempre. Quelle senza spunta sono di passaggio: " +
                     "restano le cinque più recenti e poi si tolgono di mezzo da sole.",
@@ -214,18 +227,46 @@ fun SelettoreComputer(
             onDismissRequest = { daRinominare = null },
             title = { Text("Come si chiama") },
             text = {
-                OutlinedTextField(
-                    value = nome,
-                    onValueChange = { nome = it.take(30) },
-                    singleLine = true,
-                    label = { Text("Nome") }
-                )
+                Column {
+                    OutlinedTextField(
+                        value = nome,
+                        onValueChange = { nome = it.take(NomePc.MAX) },
+                        singleLine = true,
+                        label = { Text("Nome") }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        if (p.indirizzo == correnteIndirizzo && onRinominaSulPc != null)
+                            "È il computer collegato adesso: il nome lo cambio anche là, così lo vedono gli altri PC, la pagina e ogni telefono. " +
+                                "Se il computer è spento o ha un SierraDeck più vecchio della 0.52.4, il nome resta solo su questo telefono. " +
+                                "Vuoto = si torna al nome del computer." +
+                                (p.host.takeIf { it.isNotBlank() }?.let { " Il nome tecnico della macchina ($it) resta scritto piccolo accanto." } ?: "")
+                        else
+                            "Il nome resta su questo telefono e vince su quello del computer. Per cambiarlo per tutti, collegati a quel computer e rinominalo da qui, " +
+                                "oppure dal computer stesso in «Altri computer». Vuoto = si torna al nome del computer.",
+                        color = Banco.testoQuieto,
+                        fontSize = 12.sp
+                    )
+                }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    Postazioni.rinomina(contesto, p.indirizzo, nome)
-                    elenco = Postazioni.elenca(contesto)
+                    val scritto = nome
+                    val sulPc = if (p.indirizzo == correnteIndirizzo) onRinominaSulPc else null
                     daRinominare = null
+                    if (sulPc == null) {
+                        Postazioni.rinomina(contesto, p.indirizzo, scritto)
+                        elenco = Postazioni.elenca(contesto)
+                    } else {
+                        giro.launch {
+                            val fatto = sulPc(NomePc.valido(scritto))
+                            // Salvato anche sul computer: da qui in poi segue quello che dice lui.
+                            Postazioni.rinomina(contesto, p.indirizzo, scritto, aMano = !fatto)
+                            elenco = Postazioni.elenca(contesto)
+                            notaNome = if (fatto) "Nome cambiato anche sul computer: gli altri PC lo vedono al prossimo battito (al massimo mezzo minuto)."
+                            else "Il computer non ha risposto (spento, o SierraDeck più vecchio della 0.52.4): il nome è salvato solo su questo telefono."
+                        }
+                    }
                 }) { Text("Salva") }
             },
             dismissButton = { TextButton(onClick = { daRinominare = null }) { Text("Annulla") } }

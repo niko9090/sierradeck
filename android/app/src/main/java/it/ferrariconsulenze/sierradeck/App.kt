@@ -221,8 +221,9 @@ fun Principale(
      * scegli dal selettore (gen > 0) o premi «Riprova»; i passi li ricava
      * `Viaggi.passi` da questi fatti (indirizzo, orari, motivi).
      */
-    val nomeScelto = Postazioni.elenca(contesto).firstOrNull { it.indirizzo == indirizzo }?.nome ?: Postazioni.hostDi(indirizzo)
-    val nomePrima = precedente?.let { p -> Postazioni.elenca(contesto).firstOrNull { it.indirizzo == p }?.nome ?: Postazioni.hostDi(p) }
+    // Il nome scelto (2.52.4): quello della postazione, che segue il nome dato sul computer.
+    val nomeScelto = intestazionePc(Postazioni.elenca(contesto).firstOrNull { it.indirizzo == indirizzo }, null, Postazioni.hostDi(indirizzo)).nome
+    val nomePrima = precedente?.let { p -> intestazionePc(Postazioni.elenca(contesto).firstOrNull { it.indirizzo == p }, null, Postazioni.hostDi(p)).nome }
     var viaggio by remember(indirizzo) { mutableStateOf(Viaggio(nomeScelto, nomePrima, System.currentTimeMillis(), Selezione.indirizziDi(indirizzo), emptyList())) }
     var schermataViaggio by remember(indirizzo) { mutableStateOf(gen > 0) }
     var versioneScelto by remember(indirizzo) { mutableStateOf<String?>(null) }
@@ -437,7 +438,13 @@ fun Principale(
                 // l'ultima volta, e come si chiama davvero — il nome della
                 // macchina lo sa solo lei, e un elenco di indirizzi IP non si
                 // legge.
-                Postazioni.usata(contesto, indirizzo, letto.computer?.nome)
+                // Dalla 2.52.4 anche l'hostname, a parte: il nome è quello scelto
+                // sul computer, e un PC più vecchio manda solo l'hostname.
+                Postazioni.usata(
+                    contesto, indirizzo,
+                    letto.computer?.let { NomePc.daMostrare(it.nomeScelto, it.nome, it.host) },
+                    letto.computer?.let { c -> c.host.ifBlank { if (c.nomeScelto.isBlank()) c.nome else "" } }
+                )
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Api.Errore) {
@@ -494,6 +501,10 @@ fun Principale(
     if (scegliComputer) {
         SelettoreComputer(
             correnteIndirizzo = indirizzo,
+            // La matita sul computer collegato cambia il nome anche là (PC 0.52.4).
+            onRinominaSulPc = { nome ->
+                try { api.nomePc(nome); true } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { false }
+            },
             onScegli = { scegliComputer = false; onVaiA(it) },
             onAggiungi = { scegliComputer = false; onVaiA("") },
             onChiudi = { scegliComputer = false }
@@ -509,10 +520,16 @@ fun Principale(
             // dentro «Computer», perche' cambiare macchina e' un gesto che si fa
             // **mentre** si sta facendo altro: guardi una chat, ti accorgi che e'
             // dell'altro banco, cambi e continui.
+            // Il nome scelto, l'hostname piccolo accanto (2.52.4): prima vinceva
+            // sempre il nome mandato dal computer, cioè il suo hostname.
+            val intestazione = intestazionePc(
+                Postazioni.elenca(contesto).firstOrNull { it.indirizzo == indirizzo },
+                stato?.computer,
+                Postazioni.hostDi(indirizzo)
+            )
             PillolaComputer(
-                nome = stato?.computer?.nome?.takeIf { it.isNotBlank() }
-                    ?: Postazioni.corrente(contesto)?.nome
-                    ?: Postazioni.hostDi(indirizzo),
+                nome = intestazione.nome,
+                sotto = intestazione.sotto,
                 connesso = connesso,
                 linea = lineaPc,
                 onApri = { scegliComputer = true }
@@ -534,7 +551,7 @@ fun Principale(
             // I tentativi del collegamento, sotto il computer scelto (0.52.1).
             if (!schermataViaggio && schedaTent && eventiTent.isNotEmpty()) {
                 // Il nome del computer **scelto**: la sua postazione, poi quello che dice lui.
-                val nomeTent = Postazioni.elenca(contesto).firstOrNull { it.indirizzo == indirizzo }?.nome ?: stato?.computer?.nome?.takeIf { it.isNotBlank() } ?: Postazioni.hostDi(indirizzo)
+                val nomeTent = intestazione.nome
                 val ultimoUso = Postazioni.elenca(contesto).firstOrNull { it.indirizzo == indirizzo }?.ultimoUso?.takeIf { it > 0 }
                 SchedaCollegamento(
                     Tentativi.passi(nomeTent, eventiTent),

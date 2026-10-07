@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.52.4',
+    righe: [
+      '**Ogni computer si chiama come lo chiami tu.** Prima, in alto nell’app e nel cambio di computer, compariva il nome tecnico della macchina (tipo «DESKTOP-…») invece di quello che le avevi dato. Adesso ogni PC ha il suo nome scelto: sul computer si scrive in «Altri computer» → «Questo PC», dal telefono con la matita accanto al computer collegato. Lasciato vuoto, si usa di nuovo il nome tecnico.',
+      '**Lo stesso nome dappertutto.** Il nome scelto viaggia con il segno di vita che ogni PC lascia sul Drive e con quello che il PC dice al telefono, quindi compare uguale: in alto nell’app, in «Mi collego a…» e in «Copia i dettagli», nei riquadri «SU …» degli altri PC, in «Riprendi» e in «Altri computer», nelle Domande, in Salute e nella mappa, in «Dove vive ogni chat» e nella pagina del telefono. Il nome tecnico resta scritto piccolo accanto, solo se è diverso, per riconoscere la macchina.',
+      '**Un nome scritto sul telefono non si perde.** Se rinomini dal telefono il computer collegato, il nome cambia anche sul computer e da lì lo vedono tutti. Se il computer è spento o ha un SierraDeck più vecchio, il nome resta sul telefono e vince su quello del computer. Gli altri PC vedono un nome nuovo al loro prossimo giro, entro mezzo minuto. App Android 2.52.4.'
+    ]
+  },
+  {
     versione: '0.52.3',
     righe: [
       '**Il cambio di computer, a tutto schermo e passo per passo.** Dal telefono, quando scegli un altro computer si apre una schermata intera con «Mi collego a NOME», la sua versione, l’ultima volta che ha risposto e un cronometro. Sotto, una riga per passo: stacco dal computer di prima, gli indirizzi del computer scelto, rete di casa, Tailscale, ponte o Internet, verifica della chiave, collegato. Ogni riga dice se è in corso, fatta (✓), non riuscita (✗) o saltata, con l’indirizzo e il tempo impiegato; sotto un passo non riuscito c’è il perché per esteso e cosa fare.',

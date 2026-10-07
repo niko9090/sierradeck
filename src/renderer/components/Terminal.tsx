@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNomePc } from '../state/nomi-pc'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { adattaSePuoi } from '../adatta-terminale'
@@ -91,6 +92,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
    * qui lo stesso, in una cartella vuota, sapendo che i file non ci sono.
    */
   const [altrove, setAltrove] = useState<ChatAltrove | undefined>(undefined)
+  const nomeAltrove = useNomePc(altrove?.pc.id, altrove?.pc.nome ?? '').nome
   const suAltrove = useRef(setAltrove)
   suAltrove.current = setAltrove
   const forzaQui = useRef(false)
@@ -135,6 +137,8 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
    * PC torna a lasciare il suo battito il riquadro diventa la chat dal vivo.
    */
   const [inAttesaDi, setInAttesaDi] = useState<Extract<Apertura, { tipo: 'attesa' }> | undefined>(undefined)
+  /** I nomi di adesso dei PC (0.52.4): quello scelto, non quello ricordato all'apertura. */
+  const nomeAttesa = useNomePc(inAttesaDi?.pc.id, inAttesaDi?.pc.nome ?? '').nome
   const suAttesaPc = useRef(setInAttesaDi)
   suAttesaPc.current = setInAttesaDi
   const ricontrollaRef = useRef<(() => void) | undefined>(undefined)
@@ -503,13 +507,13 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
         <div className="attesa-chat chat-altrove" role="status" aria-live="polite">
           <div className="chat-altrove__titolo">
             {/* Mai «spento» (0.39.3): il Core ha bussato a tutti i suoi indirizzi, e il titolo dice com'e' andata. */}
-            Questa chat è su {inAttesaDi.pc.nome} · {inAttesaDi.statoPc !== undefined ? inAttesaDi.statoPc.titolo : 'non so se è acceso'}
+            Questa chat è su {nomeAttesa} · {inAttesaDi.statoPc !== undefined ? inAttesaDi.statoPc.titolo : 'non so se è acceso'}
           </div>
           <div className="chat-altrove__testo">
             {inAttesaDi.statoPc !== undefined && inAttesaDi.statoPc.cosaFare !== '' ? <><strong>{inAttesaDi.statoPc.cosaFare}</strong>{' '}</> : null}
             Il motivo per cui è su quel PC: {inAttesaDi.perche}. La cartella è <code>{inAttesaDi.cwd}</code>. Il modo giusto per lavorarci da
-            qui è aprirla <strong>dal vivo su {inAttesaDi.pc.nome}</strong>: questo riquadro mostra il terminale di quel PC
-            e quello che scrivi arriva a lui, come dal telefono. Ma adesso {inAttesaDi.pc.nome}{' '}
+            qui è aprirla <strong>dal vivo su {nomeAttesa}</strong>: questo riquadro mostra il terminale di quel PC
+            e quello che scrivi arriva a lui, come dal telefono. Ma adesso {nomeAttesa}{' '}
             {daQuandoTace(inAttesaDi.ultimoSegno, Date.now())}
             {inAttesaDi.ultimoSegno !== undefined ? ` (ultimo segno sul Drive: ${new Date(inAttesaDi.ultimoSegno).toLocaleString('it-IT')})` : ''}.
             Ogni PC acceso con SierraDeck lascia un segno sul Drive ogni 2 minuti; quando il segno è vecchio busso
@@ -519,23 +523,23 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
           {inAttesaDi.perCasa === true ? (
             <ul className="chat-altrove__testo">
               <li>
-                <strong>Questa chat è ospitata da {inAttesaDi.pc.nome}</strong>: su questo PC non parte mai, nemmeno «lo
+                <strong>Questa chat è ospitata da {nomeAttesa}</strong>: su questo PC non parte mai, nemmeno «lo
                 stesso». È la regola che hai scelto, così non lavora su due PC alla volta.
               </li>
               <li>
                 <strong>Aspetta</strong> (è quello che succede se non fai niente): ricontrollo da solo ogni 20 secondi e,
-                appena {inAttesaDi.pc.nome} risponde, questo riquadro diventa la chat dal vivo su quel PC.
+                appena {nomeAttesa} risponde, questo riquadro diventa la chat dal vivo su quel PC.
               </li>
               <li>
                 <strong>Porta qui la chat</strong>: la sua casa diventa questo PC (te lo chiedo prima). Da lì in poi parte qui,
-                e su {inAttesaDi.pc.nome}, quando si riaccende, si apre dal vivo guardando questo.
+                e su {nomeAttesa}, quando si riaccende, si apre dal vivo guardando questo.
               </li>
             </ul>
           ) : (
           <ul className="chat-altrove__testo">
             <li>
               <strong>Aspetta</strong> (è quello che succede se non fai niente): ricontrollo da solo ogni 20 secondi e,
-              appena {inAttesaDi.pc.nome} torna a farsi sentire, questo riquadro diventa la chat dal vivo su quel PC.
+              appena {nomeAttesa} torna a farsi sentire, questo riquadro diventa la chat dal vivo su quel PC.
             </li>
             <li>
               <strong>Porta qui</strong> (scheda ☁ Drive della console): se il progetto è sul Drive, porta su questo PC
@@ -543,11 +547,11 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
             </li>
             <li>
               <strong>Chat nuova nella stessa cartella</strong>: apre qui una conversazione nuova, vuota, e chiude questo
-              riquadro. Quella su {inAttesaDi.pc.nome} resta dov’è.
+              riquadro. Quella su {nomeAttesa} resta dov’è.
             </li>
             <li>
               <strong>Apri qui lo stesso</strong>: riprende la conversazione su questo PC. Se è aperta anche su{' '}
-              {inAttesaDi.pc.nome}, da lì in poi le due copie vanno ognuna per conto suo; se la cartella qui non c’è,
+              {nomeAttesa}, da lì in poi le due copie vanno ognuna per conto suo; se la cartella qui non c’è,
               parte in una cartella vuota, senza i file del progetto.
             </li>
           </ul>
@@ -583,10 +587,10 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
       ) : null}
       {altrove !== undefined ? (
         <div className="attesa-chat chat-altrove" role="status" aria-live="polite">
-          <div className="chat-altrove__titolo">Questa chat lavora su {altrove.pc.nome}</div>
+          <div className="chat-altrove__titolo">Questa chat lavora su {nomeAltrove}</div>
           {altrove.casa === true ? (
             <div className="chat-altrove__testo">
-              <strong>È ospitata da {altrove.pc.nome}</strong>{altrove.perche !== undefined ? ` (${altrove.perche})` : ''}: su questo PC
+              <strong>È ospitata da {nomeAltrove}</strong>{altrove.perche !== undefined ? ` (${altrove.perche})` : ''}: su questo PC
               il suo claude.exe non parte mai, così non lavora su due PC alla volta. Si guarda e si comanda dal vivo là. Se
               vuoi che lavori qui, «Porta qui la chat» ne cambia la casa, dopo averti chiesto conferma.
             </div>
@@ -595,18 +599,18 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
             La sua cartella è <code>{altrove.cwd}</code>, e sta su quel computer: qui non c’è. Aprirla qui vorrebbe dire
             farla partire in una cartella vuota, senza i file del progetto: è quello che dava «directory non trovata»
             e gli errori in rosso. La strada giusta è guardarla <strong>dal vivo là</strong>: questo riquadro mostra il
-            terminale di quel PC e quello che scrivi arriva a lui, come dal telefono. Serve che {altrove.pc.nome} sia
+            terminale di quel PC e quello che scrivi arriva a lui, come dal telefono. Serve che {nomeAltrove} sia
             acceso e raggiungibile (stessa rete, o Tailscale su tutti e due); se è spento, resta la cassetta.
           </div>
           )}
           <div className="chat-altrove__azioni">
             {altrove.pc.id !== '' ? (
               <button className="tasto tasto--primario" onClick={() => guardaDalVivo(altrove)} title="Trasforma questo riquadro nella chat dal vivo su quel PC: vedi il suo terminale e gli scrivi da qui">
-                Guarda dal vivo su {altrove.pc.nome}
+                Guarda dal vivo su {nomeAltrove}
               </button>
             ) : null}
             <button className={altrove.pc.id !== '' ? 'tasto' : 'tasto tasto--primario'} onClick={() => scriviLa(altrove)} title="Metti un’azione nella cassetta di quel PC: la esegue lui, in questa chat, quando è acceso">
-              Scrivile là, su {altrove.pc.nome}
+              Scrivile là, su {nomeAltrove}
             </button>
             {altrove.casa === true ? (
               <button className="tasto" onClick={() => setPortaQui({ sessione: altrove.sessionUuid, pcNome: altrove.pc.nome })} title="La casa della chat diventa questo PC, dopo la conferma: poi parte qui">

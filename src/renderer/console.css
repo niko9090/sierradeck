@@ -4476,3 +4476,7 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .schermo-tentativi__fare { color: var(--testo); margin-top: 2px; }
 .schermo-tentativi__tasti { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 @media (prefers-reduced-motion: reduce) { .schermo-tentativi__passo--provo .schermo-tentativi__segno { animation: none; } }
+
+/* L'hostname piccolo accanto al nome scelto di un PC (0.52.4). */
+.nome-pc__host { font-size: 0.78em; font-weight: 400; color: var(--testo-quieto); opacity: 0.85; }
+.mappa-pc text.mappa-pc__host { font-size: 2.8px; fill: var(--testo-quieto); }

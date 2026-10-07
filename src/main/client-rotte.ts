@@ -1,4 +1,5 @@
 import type { ChatSalvata } from '@shared/workspace'
+import { nomeDaMostrare } from '@shared/nome-pc'
 import { leggiIstruzioni, notaCorreggi } from '@shared/istruzioni-autopilota'
 import type { Esito } from './client-server'
 import type { Dispositivi } from './dispositivi'
@@ -53,7 +54,7 @@ import type { AvvisoDrive } from '@shared/scoperta-pc'
  */
 
 export type BattitoPcTelefono = {
-  pcId: string; nome: string; versione: string; battito: string
+  pcId: string; nome: string; host?: string; nomeScelto?: string; versione: string; battito: string
   cartelle: string[]
   chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean }[]
 }
@@ -397,8 +398,12 @@ export type DipendenzeRotte = {
   /** Esce. Vale per il computer, non solo per il telefono che l'ha chiesto. */
   esciAccount?: () => Promise<void>
   versione: string
-  /** Il nome della macchina: serve al telefono per distinguere piu' computer. */
+  /** Il nome della macchina: serve al telefono per distinguere piu' computer. Dalla 0.52.4 è quello scelto (ripiego: l'hostname). */
   nomeComputer?: () => string
+  /** Nome scelto e hostname, separati (0.52.4): l'hostname si mostra solo come sottotitolo. */
+  identitaComputer?: () => { nome: string; host: string; nomeScelto?: string }
+  /** Cambia il nome scelto di questo PC (0.52.4), dal telefono; vuoto = torna all'hostname. */
+  impostaNomeComputer?: (nome: string) => { nome: string; host: string; nomeScelto?: string }
   /**
    * Le cartelle dentro una cartella, per scegliere dove aprire una chat nuova.
    *
@@ -498,7 +503,8 @@ export function rotteLibere(deps: DipendenzeRotte) {
     // risposta qui vuol dire «sono proprio io, e la tua chiave e' buona».
     // Leggera: un PC la chiede a ogni indirizzo per sapere se e' acceso.
     if (r.percorso === '/api/pc') {
-      return OK({ programma: 'SierraDeck', versione: deps.versione, nome: deps.nomeComputer?.() ?? '' })
+      const idn = deps.identitaComputer?.()
+      return OK({ programma: 'SierraDeck', versione: deps.versione, nome: idn?.nome ?? deps.nomeComputer?.() ?? '', ...(idn !== undefined ? { host: idn.host } : {}) })
     }
 
     if (r.percorso === '/api/accoppia' && r.metodo === 'POST') {
@@ -812,7 +818,17 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         // Dalla 0.43.0 anche la versione: l'app spegne (e spiega) le
         // funzioni che questo computer non ha ancora. Un campo in piu':
         // le app vecchie lo ignorano.
-        computer: { nome: deps.nomeComputer?.() ?? '', versione: deps.versione }
+        // Dalla 0.52.4 `nome` è quello scelto da chi usa il PC (ripiego:
+        // l'hostname), `host` il nome tecnico, `nomeScelto` solo se c'è.
+        computer: (() => {
+          const idn = deps.identitaComputer?.()
+          return {
+            nome: idn?.nome ?? deps.nomeComputer?.() ?? '',
+            ...(idn !== undefined ? { host: idn.host } : {}),
+            ...(idn?.nomeScelto !== undefined ? { nomeScelto: idn.nomeScelto } : {}),
+            versione: deps.versione
+          }
+        })()
       })
     }
 
@@ -842,7 +858,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         ...(deps.scriviAltroPc !== undefined
           ? { altriPc: battiti.filter((b) => b.pcId !== io).map((b) => {
             const strada = deps.stradaPc?.(b.pcId)
-            return { pcId: b.pcId, nome: b.nome, vivo: battitoVivo(b.battito, ora), chat: b.chat, ...(strada !== undefined ? { strada } : {}) }
+            return { pcId: b.pcId, nome: nomeDaMostrare(b), vivo: battitoVivo(b.battito, ora), chat: b.chat, ...(strada !== undefined ? { strada } : {}) }
           }) }
           : {})
       })
@@ -1398,6 +1414,15 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     // case.
     if (r.metodo === 'POST' && (r.percorso === '/api/drive/porta' || r.percorso === '/api/drive/portaWorkspace')) {
       return OK({ ok: false, messaggio: 'Dalla 0.42.0 un progetto non si porta più qui dal catalogo: ogni chat ha una casa sola. Per spostarlo usa «Sposta progetto…» nella scheda Drive del PC dove sta adesso; da qui intanto le sue chat si guardano dal vivo.' })
+    }
+    // Il nome scelto di questo PC (0.52.4), cambiato dal telefono: lo stesso
+    // campo di «Altri computer» sul PC. Da un altro PC no: ognuno si chiama
+    // come vuole chi ci lavora davanti, o il suo telefono.
+    if (r.percorso === '/api/nome-pc' && r.metodo === 'POST') {
+      if (daAltroPc(r.dispositivo)) return { stato: 403, corpo: { errore: 'il nome di un PC si cambia da quel PC o dal suo telefono' } }
+      if (deps.impostaNomeComputer === undefined) return { stato: 404, corpo: { errore: 'questo computer non sa ancora cambiare nome' } }
+      const nome = stringa(r.corpo, 'nome') ?? ''
+      return OK({ ok: true, ...deps.impostaNomeComputer(nome) })
     }
     // Le case delle chat (0.52.0): un altro PC di casa manda la sua scelta
     // («Ospitata da»), o chiede le nostre. Mai dal telefono né da fuori: la

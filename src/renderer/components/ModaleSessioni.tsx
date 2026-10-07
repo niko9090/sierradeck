@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { NomePc } from './NomePc'
 import { useSessionStore } from '../state/sessions'
 import { useLayoutStore } from '../state/layout'
 import {
@@ -432,7 +433,7 @@ function VoceChat({
           </span>
           {altrove !== undefined ? (
             <span className={altrove.vivo ? 'voce-chat__altrove' : 'voce-chat__altrove voce-chat__altrove--spento'}>
-              <span className="segno-remoto">SU {altrove.nome}</span> · {altrove.vivo ? 'acceso, dal vivo' : 'non so se è acceso'}
+              <span className="segno-remoto">SU <NomePc id={altrove.id} nome={altrove.nome} /></span> · {altrove.vivo ? 'acceso, dal vivo' : 'non so se è acceso'}
             </span>
           ) : null}
         </button>

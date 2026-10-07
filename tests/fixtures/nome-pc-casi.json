@@ -1,0 +1,9 @@
+[
+  { "caso": "il nome scelto vince", "pc": { "nomeScelto": "Studio", "nome": "PC-ESEMPIO", "host": "PC-ESEMPIO" }, "mostra": "Studio", "sotto": "PC-ESEMPIO" },
+  { "caso": "un PC 0.52.4 manda già il nome scelto in nome", "pc": { "nome": "Portatile", "host": "LAPTOP-ESEMPIO" }, "mostra": "Portatile", "sotto": "LAPTOP-ESEMPIO" },
+  { "caso": "un PC vecchio: solo l'hostname, niente sottotitolo", "pc": { "nome": "PC-ESEMPIO" }, "mostra": "PC-ESEMPIO", "sotto": null },
+  { "caso": "nome scelto vuoto: si ripiega", "pc": { "nomeScelto": "   ", "nome": "", "host": "PC-ESEMPIO" }, "mostra": "PC-ESEMPIO", "sotto": null },
+  { "caso": "hostname uguale a parte le maiuscole: niente sottotitolo", "pc": { "nomeScelto": "pc-esempio", "host": "PC-ESEMPIO" }, "mostra": "pc-esempio", "sotto": null },
+  { "caso": "a capo e spazi doppi si puliscono", "pc": { "nomeScelto": "  Fisso\n  di   casa ", "host": "PC-ESEMPIO" }, "mostra": "Fisso di casa", "sotto": "PC-ESEMPIO" },
+  { "caso": "niente di niente", "pc": {}, "mostra": "", "sotto": null }
+]

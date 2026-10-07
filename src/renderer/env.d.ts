@@ -377,6 +377,9 @@ declare global {
       posta: {
         io: () => Promise<string>
         pc: () => Promise<import('../shared/posta').BattitoPc[]>
+        identita: () => Promise<{ id: string; nome: string; host: string; nomeScelto?: string }>
+        impostaNome: (nome: string) => Promise<{ id: string; nome: string; host: string; nomeScelto?: string }>
+        suNomeCambiato: (cb: (i: { id: string; nome: string; host: string; nomeScelto?: string }) => void) => () => void
         leggi: (pc: string) => Promise<import('../shared/posta').Posta | undefined>
         aggiungi: (pc: string, voce: { cwd: string; testo: string; sessione?: string }) => Promise<import('../shared/posta').Posta | undefined>
         togli: (pc: string, voce: string) => Promise<import('../shared/posta').Posta | undefined>

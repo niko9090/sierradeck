@@ -1337,3 +1337,24 @@ describe('la linguetta «File» dal telefono (0.38.0)', () => {
     expect(vecchio.stato).toBe(409)
   })
 })
+
+describe('il nome scelto del PC (0.52.4)', () => {
+  const idn = (scelto: string | undefined): { nome: string; host: string; nomeScelto?: string } =>
+    ({ nome: scelto ?? 'PC-ESEMPIO', host: 'PC-ESEMPIO', ...(scelto !== undefined ? { nomeScelto: scelto } : {}) })
+  it('in /api/stato e /api/pc il nome scelto, con l’hostname a parte', async () => {
+    const d = deps({ identitaComputer: () => idn('Studio') })
+    const stato = await rotteClient(d)({ metodo: 'GET', percorso: '/api/stato', corpo: undefined })
+    expect((stato.corpo as { computer: unknown }).computer).toMatchObject({ nome: 'Studio', host: 'PC-ESEMPIO', nomeScelto: 'Studio' })
+    const pc = await rotteLibere(d)({ metodo: 'GET', percorso: '/api/pc', corpo: undefined })
+    expect(pc.corpo).toMatchObject({ nome: 'Studio', host: 'PC-ESEMPIO' })
+  })
+  it('il telefono lo cambia con /api/nome-pc; un altro PC no', async () => {
+    let scelto: string | undefined
+    const d = deps({ identitaComputer: () => idn(scelto), impostaNomeComputer: (n) => { scelto = n === '' ? undefined : n; return idn(scelto) } })
+    const r = await rotteClient(d)({ metodo: 'POST', percorso: '/api/nome-pc', corpo: { nome: 'Studio' }, dispositivo: 'telefono-1' })
+    expect(r.corpo).toMatchObject({ ok: true, nome: 'Studio', host: 'PC-ESEMPIO' })
+    const daPc = await rotteClient(d)({ metodo: 'POST', percorso: '/api/nome-pc', corpo: { nome: 'Altro' }, dispositivo: 'pc:pc-due' })
+    expect(daPc.stato).toBe(403)
+    expect(scelto).toBe('Studio')
+  })
+})

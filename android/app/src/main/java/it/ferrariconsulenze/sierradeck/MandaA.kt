@@ -149,7 +149,7 @@ fun SchermoMandaA(api: Api, stato: Stato?, uris: List<Uri>, fissa: DestinazioneF
             val e = api.pc()
             coroutineScope {
                 e.pc.filter { it.vivo && it.pcId != e.io }.map { p ->
-                    async { PcPonte(p.pcId, p.nome) to withTimeoutOrNull(8_000) { try { api.suPc(p.pcId).stato() } catch (_: Exception) { null } } }
+                    async { PcPonte(p.pcId, p.mostra) to withTimeoutOrNull(8_000) { try { api.suPc(p.pcId).stato() } catch (_: Exception) { null } } }
                 }.awaitAll()
             }
         } catch (_: Exception) { emptyList() }

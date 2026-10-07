@@ -416,6 +416,15 @@ contextBridge.exposeInMainWorld('gestore', {
   posta: {
     io: (): Promise<string> => ipcRenderer.invoke('posta:io'),
     pc: (): Promise<BattitoPc[]> => ipcRenderer.invoke('posta:pc'),
+    /** Chi è questo PC, con il nome scelto (0.52.4). */
+    identita: (): Promise<{ id: string; nome: string; host: string; nomeScelto?: string }> => ipcRenderer.invoke('pc:identita'),
+    /** Cambia il nome scelto di questo PC; vuoto = torna all'hostname. */
+    impostaNome: (nome: string): Promise<{ id: string; nome: string; host: string; nomeScelto?: string }> => ipcRenderer.invoke('pc:impostaNome', nome),
+    suNomeCambiato: (cb: (i: { id: string; nome: string; host: string; nomeScelto?: string }) => void): (() => void) => {
+      const h = (_e: unknown, i: { id: string; nome: string; host: string; nomeScelto?: string }): void => cb(i)
+      ipcRenderer.on('pc:nomeCambiato', h)
+      return () => ipcRenderer.off('pc:nomeCambiato', h)
+    },
     leggi: (pc: string): Promise<Posta | undefined> => ipcRenderer.invoke('posta:leggi', pc),
     aggiungi: (pc: string, voce: { cwd: string; testo: string; sessione?: string }): Promise<Posta | undefined> =>
       ipcRenderer.invoke('posta:aggiungi', pc, voce),

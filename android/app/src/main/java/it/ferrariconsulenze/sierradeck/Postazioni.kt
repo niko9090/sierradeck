@@ -45,12 +45,41 @@ object Postazioni {
     data class Postazione(
         /** L'indirizzo normalizzato: è l'identità, non il nome. */
         val indirizzo: String,
-        /** Come si chiama. Lo dice il computer stesso, o lo scrivi tu. */
+        /** Come si chiama. Lo dice il computer stesso (il suo nome scelto), o lo scrivi tu. */
         val nome: String,
         /** Spuntata: non si dimentica mai. */
         val tenuta: Boolean,
-        val ultimoUso: Long
+        val ultimoUso: Long,
+        /** Il nome tecnico della macchina (hostname), per il sottotitolo piccolo (2.52.4). */
+        val host: String = "",
+        /**
+         * Il nome l'hai scritto tu qui, e vince su quello del computer (2.52.4).
+         * Null = salvata prima della 2.52.4: lo decide `nomeDopo` al primo giro.
+         */
+        val aMano: Boolean? = null
     )
+
+    /**
+     * Il nome da tenere dopo un giro riuscito (2.52.4), puro.
+     *
+     * Fino alla 2.52.3 il primo nome arrivato dal computer era il suo
+     * hostname, e da lì in poi passava per «scritto a mano» e non cambiava più:
+     * per questo in alto restava «DESKTOP-…» anche dopo aver dato un nome al PC.
+     * Adesso un nome è a mano solo se l'hai scritto tu; per le postazioni di
+     * prima lo si capisce così: un nome uguale all'hostname, all'indirizzo o a
+     * quello che dice il computer non l'ha scritto nessuno.
+     *
+     * Restituisce il nome e se è a mano.
+     */
+    fun nomeDopo(vecchio: String, aMano: Boolean?, ripiego: String, nomePc: String?, hostPc: String?): Pair<String, Boolean> {
+        val dalPc = nomePc?.takeIf { it.isNotBlank() }
+        val manuale = aMano ?: (
+            vecchio.isNotBlank() && vecchio != ripiego &&
+                !vecchio.equals(hostPc ?: "", ignoreCase = true) &&
+                !vecchio.equals(dalPc ?: "", ignoreCase = true)
+            )
+        return if (manuale) vecchio to true else (dalPc ?: vecchio.ifBlank { ripiego }) to false
+    }
 
     private fun prefs(contesto: Context) =
         contesto.getSharedPreferences("sierradeck", Context.MODE_PRIVATE)
@@ -77,7 +106,9 @@ object Postazioni {
                             indirizzo = indirizzo,
                             nome = o.optString("nome", "").ifBlank { hostDi(indirizzo) },
                             tenuta = o.optBoolean("tenuta", false),
-                            ultimoUso = o.optLong("ultimoUso", 0L)
+                            ultimoUso = o.optLong("ultimoUso", 0L),
+                            host = o.optString("host", ""),
+                            aMano = if (o.has("aMano")) o.optBoolean("aMano", false) else null
                         )
                     )
                 }
@@ -111,7 +142,7 @@ object Postazioni {
      * dedotto dall'indirizzo — ma **non** su un nome scritto a mano: chi ha
      * chiamato un computer «studio» non vuole ritrovarselo «DESKTOP-4F2K1».
      */
-    fun usata(contesto: Context, indirizzo: String, nome: String? = null) {
+    fun usata(contesto: Context, indirizzo: String, nome: String? = null, host: String? = null) {
         if (indirizzo.isBlank()) return
         val tutte = elenca(contesto).toMutableList()
         // **Al minuto, non a ogni giro.** Questa la chiama il polso di
@@ -123,18 +154,16 @@ object Postazioni {
         val gia = tutte.firstOrNull { it.indirizzo == indirizzo }
         val nomeNuovo = nome?.takeIf { it.isNotBlank() }
         val fresca = gia != null && System.currentTimeMillis() - gia.ultimoUso < PASSO_USO_MS
-        val nienteDiNuovo = nomeNuovo == null || gia?.nome == nomeNuovo
+        val hostNuovo = host?.takeIf { it.isNotBlank() }
+        val nienteDiNuovo = (nomeNuovo == null || gia?.nome == nomeNuovo || gia?.aMano == true) &&
+            (hostNuovo == null || gia?.host == hostNuovo) && gia?.aMano != null
         if (fresca && nienteDiNuovo) return
         val i = tutte.indexOfFirst { it.indirizzo == indirizzo }
         val adesso = System.currentTimeMillis()
         if (i >= 0) {
             val vecchia = tutte[i]
-            val daTenere = if (vecchia.nome.isNotBlank() && vecchia.nome != hostDi(indirizzo)) {
-                vecchia.nome
-            } else {
-                nome?.takeIf { it.isNotBlank() } ?: vecchia.nome
-            }
-            tutte[i] = vecchia.copy(nome = daTenere, ultimoUso = adesso)
+            val (daTenere, aMano) = nomeDopo(vecchia.nome, vecchia.aMano, hostDi(indirizzo), nomeNuovo, hostNuovo)
+            tutte[i] = vecchia.copy(nome = daTenere, aMano = aMano, host = hostNuovo ?: vecchia.host, ultimoUso = adesso)
         } else {
             tutte.add(
                 Postazione(
@@ -143,16 +172,26 @@ object Postazioni {
                     // Chi si accoppia apposta con un computer quasi sempre ci
                     // tornerà: nasce tenuta, e si toglie la spunta se non era vero.
                     tenuta = true,
-                    ultimoUso = adesso
+                    ultimoUso = adesso,
+                    host = hostNuovo ?: "",
+                    aMano = false
                 )
             )
         }
         scrivi(contesto, pota(tutte))
     }
 
-    fun rinomina(contesto: Context, indirizzo: String, nome: String) {
+    /**
+     * Il nome scritto qui. `aMano = false` quando lo stesso nome è stato
+     * salvato anche sul computer (2.52.4): da lì in poi segue quello che dice
+     * il computer. Vuoto = si torna al nome del computer.
+     */
+    fun rinomina(contesto: Context, indirizzo: String, nome: String, aMano: Boolean = true) {
+        val pulito = NomePc.valido(nome)
         val tutte = elenca(contesto).map {
-            if (it.indirizzo == indirizzo) it.copy(nome = nome.trim().take(30).ifBlank { hostDi(indirizzo) }) else it
+            if (it.indirizzo != indirizzo) it
+            else if (pulito.isEmpty()) it.copy(nome = it.host.ifBlank { hostDi(indirizzo) }, aMano = false)
+            else it.copy(nome = pulito, aMano = aMano)
         }
         scrivi(contesto, tutte)
     }
@@ -192,6 +231,8 @@ object Postazioni {
                     .put("nome", p.nome)
                     .put("tenuta", p.tenuta)
                     .put("ultimoUso", p.ultimoUso)
+                    .put("host", p.host)
+                    .apply { if (p.aMano != null) put("aMano", p.aMano) }
             )
         }
         prefs(contesto).edit().putString(CHIAVE, a.toString()).apply()

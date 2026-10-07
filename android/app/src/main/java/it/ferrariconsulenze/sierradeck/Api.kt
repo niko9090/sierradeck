@@ -175,6 +175,10 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             put("chat", chat); put("nome", nome)
         }))
 
+    // ─── il nome scelto di questo computer (PC 0.52.4) ───
+    suspend fun nomePc(nome: String): NomeComputer =
+        json.decodeFromString(corpoTesto("/api/nome-pc", oggetto { put("nome", nome) }))
+
     // ─── workspace ───
     suspend fun cambiaWorkspace(nome: String): Fatto =
         json.decodeFromString(corpoTesto("/api/workspace", oggetto { put("nome", nome) }))

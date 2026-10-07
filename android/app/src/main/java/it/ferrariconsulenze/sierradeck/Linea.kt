@@ -212,7 +212,7 @@ data class InfoPonte(val strada: String? = null, val ritardoMs: Long? = null)
 /* ─── la mappa dei PC (pannello Salute) ─── */
 
 @Serializable
-data class NodoMappa(val id: String = "", val nome: String = "", val x: Double = 50.0, val y: Double = 50.0, val io: Boolean = false, val stato: String = "incerto")
+data class NodoMappa(val id: String = "", val nome: String = "", val host: String? = null, val x: Double = 50.0, val y: Double = 50.0, val io: Boolean = false, val stato: String = "incerto")
 @Serializable
 data class LineaMappa(val a: String = "", val strada: String? = null, val stato: String = "giu", val colore: String = "#f85149", val testo: String = "")
 @Serializable
@@ -347,6 +347,8 @@ fun MappaPcVista(m: MappaPc) {
     for (n in m.nodi) {
         val l = m.linee.firstOrNull { it.a == n.id }
         Text(if (n.io) "● ${n.nome} (questo PC, al centro)" else "● ${l?.testo ?: n.nome}", color = if (n.io) VIOLA_ALTRO_PC else l?.let { coloreDa(it.colore) } ?: Banco.testo, fontSize = 12.sp)
+        // L'hostname piccolo sotto il nome scelto (2.52.4).
+        if (!n.host.isNullOrBlank()) Text("   ${n.host}", color = Banco.testoQuieto, fontSize = 10.sp)
     }
     Text("Linea piena: si raggiunge direttamente. Tratteggiata ambra: solo via Drive, lento. Tratteggiata rossa: adesso non risponde.", color = Banco.testoQuieto, fontSize = 11.sp)
 }

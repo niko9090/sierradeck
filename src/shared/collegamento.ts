@@ -310,7 +310,7 @@ export function creaMemoriaInvii(quanti = 500, valeMs = 60 * 60_000): {
 /* La mappa dei PC (pannello Salute).                                  */
 /* ------------------------------------------------------------------ */
 
-export type NodoMappa = { id: string; nome: string; x: number; y: number; io?: true; stato: 'acceso' | 'incerto' | 'giu' }
+export type NodoMappa = { id: string; nome: string; host?: string; x: number; y: number; io?: true; stato: 'acceso' | 'incerto' | 'giu' }
 export type LineaMappa = { a: string; strada?: string; stato: 'ok' | 'lento' | 'giu'; colore: string; testo: string }
 export type MappaPc = { nodi: NodoMappa[]; linee: LineaMappa[] }
 
@@ -321,8 +321,10 @@ export const COLORI_MAPPA = { ok: '#3fb950', lento: '#d29922', giu: '#f85149' } 
  * La mappa: questo PC al centro, gli altri in cerchio, una linea per PC con
  * la strada e lo stato. Coordinate da 0 a 100: chi disegna le scala.
  */
-export function mappaPc(io: { id: string; nome: string }, altri: readonly { pcId: string; nome: string; stato?: string; strada?: string }[]): MappaPc {
-  const nodi: NodoMappa[] = [{ id: io.id, nome: io.nome, x: 50, y: 50, io: true, stato: 'acceso' }]
+export function mappaPc(io: { id: string; nome: string; host?: string }, altri: readonly { pcId: string; nome: string; host?: string; stato?: string; strada?: string }[]): MappaPc {
+  // L'hostname va piccolo sotto il nome (0.52.4), solo se è diverso.
+  const conHost = (h: string | undefined, nome: string): { host?: string } => (h !== undefined && h !== '' && h.toLowerCase() !== nome.toLowerCase() ? { host: h } : {})
+  const nodi: NodoMappa[] = [{ id: io.id, nome: io.nome, ...conHost(io.host, io.nome), x: 50, y: 50, io: true, stato: 'acceso' }]
   const linee: LineaMappa[] = []
   const n = altri.length
   altri.forEach((p, i) => {
@@ -332,7 +334,7 @@ export function mappaPc(io: { id: string; nome: string }, altri: readonly { pcId
     const acceso = p.stato === 'acceso'
     const lenta = p.strada !== undefined && /drive/i.test(p.strada)
     const stato: LineaMappa['stato'] = !acceso ? 'giu' : lenta ? 'lento' : 'ok'
-    nodi.push({ id: p.pcId, nome: p.nome, x, y, stato: acceso ? 'acceso' : p.stato === 'non-so' || p.stato === undefined ? 'incerto' : 'giu' })
+    nodi.push({ id: p.pcId, nome: p.nome, ...conHost(p.host, p.nome), x, y, stato: acceso ? 'acceso' : p.stato === 'non-so' || p.stato === undefined ? 'incerto' : 'giu' })
     linee.push({
       a: p.pcId,
       ...(p.strada !== undefined ? { strada: p.strada } : {}),

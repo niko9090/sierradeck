@@ -454,7 +454,8 @@ fun Computer(api: Api, stato: Stato?) {
                     Column(Modifier.padding(12.dp)) {
                         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text(p.nome, color = Banco.testo, maxLines = 1)
+                                Text(p.mostra, color = Banco.testo, maxLines = 1)
+                                p.sotto?.let { Text(it, color = Banco.testoQuieto, fontSize = 10.sp, maxLines = 1) }
                                 Text(
                                     (if (p.vivo) "acceso" else "spento, ultimo segno ${p.battito.take(16).replace('T', ' ')}") +
                                         " · ${p.chat.size} chat aperte · ${p.cartelle.size} cartelle",
@@ -475,9 +476,9 @@ fun Computer(api: Api, stato: Stato?) {
                             Text(FunzioniPc.testoMancante(FunzionePc.PONTE) + " Si aggiorna il PC accoppiato, non quello da guardare.", color = Banco.testoQuieto, fontSize = 11.sp)
                         } else {
                             OutlinedButton(onClick = {
-                                SuPc.corrente = PcPonte(p.pcId, p.nome)
+                                SuPc.corrente = PcPonte(p.pcId, p.mostra)
                                 Apertura.schedaRichiesta = Scheda.CHAT
-                            }) { Text("Chat di ${p.nome} dal vivo", fontSize = 12.sp, color = VIOLA_ALTRO_PC) }
+                            }) { Text("Chat di ${p.mostra} dal vivo", fontSize = 12.sp, color = VIOLA_ALTRO_PC) }
                         }
                         // Le chat aperte su quel PC, con chi aspetta: il battito le
                         // porta da sempre e il telefono ne mostrava solo il numero.
@@ -522,7 +523,7 @@ fun Computer(api: Api, stato: Stato?) {
                             }
                             Spacer(Modifier.height(8.dp))
                             if (p.cartelle.isNotEmpty()) {
-                                Text("In quale cartella di ${p.nome}:", color = Banco.testoQuieto, fontSize = 12.sp)
+                                Text("In quale cartella di ${p.mostra}:", color = Banco.testoQuieto, fontSize = 12.sp)
                                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     for (c in p.cartelle) {
                                         FilterChip(selected = postaCwd == c, onClick = { postaCwd = c }, label = { Text(c.substringAfterLast('\\').substringAfterLast('/'), fontSize = 12.sp) })
@@ -557,7 +558,7 @@ fun Computer(api: Api, stato: Stato?) {
                                         catch (e: Exception) { postaNota = "Non sono riuscito a mandare: ${e.message ?: "il computer non risponde"}" }
                                     }
                                 }
-                            ) { Text("Manda a ${p.nome}") }
+                            ) { Text("Manda a ${p.mostra}") }
                         }
                     }
                 }

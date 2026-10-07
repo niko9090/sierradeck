@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react'
+import { NomePc } from './NomePc'
+import { useNomiPc } from '../state/nomi-pc'
+import { NOME_PC_MAX, nomeDaMostrare, nomeSceltoValido } from '@shared/nome-pc'
 import {
   registra, entra, esci, utenteCorrente, suCambioAccesso, verificaCodice, reinviaCodice, type Utente
 } from '../accesso-supabase'
@@ -570,6 +573,7 @@ function SezioneComputer(): React.JSX.Element | null {
   }
   return (
     <div className="account__scheda account__scheda--largo">
+      <NomeQuestoPc />
       <h4 style={{ margin: '0 0 4px' }}>Altri computer</h4>
       <p className="account__nota">
         I PC che usano questo stesso Drive, con l’ultimo segno di vita. «Chat aperte» mostra le chat che quel PC ha davanti
@@ -591,7 +595,7 @@ function SezioneComputer(): React.JSX.Element | null {
             return (
               <li key={b.pcId} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <strong>{b.nome}</strong>
+                  <strong><NomePc id={b.pcId} nome={nomeDaMostrare(b)} /></strong>
                   <span className="account__nota" style={{ margin: 0 }}>
                     {' '}· {vivo ? 'acceso' : `spento, ultimo segno ${quando(b.battito)}`} · v{b.versione} · {b.chat.length} chat aperte{aspettano > 0 ? ` (${aspettano} aspettano)` : ''} · {b.cartelle.length} cartelle
                   </span>
@@ -625,6 +629,58 @@ function SezioneComputer(): React.JSX.Element | null {
         )
       }) : null}
       {aperto !== undefined ? <ModalePosta pc={aperto} vivo={pcVivo(aperto, adesso)} onChiudi={() => { setAperto(undefined); ricarica() }} /> : null}
+    </div>
+  )
+}
+
+/**
+ * Il nome di questo PC (0.52.4).
+ *
+ * Nicholas (07/10): nell'app e sugli altri PC si vedeva il nome tecnico della
+ * macchina invece di quello che le aveva dato lui. Il nome scelto qui va nel
+ * battito sul Drive e in quello che il PC dice al telefono: lo vedono gli
+ * altri PC, la pagina e l'app (che lo può anche cambiare da «Computer»).
+ */
+function NomeQuestoPc(): React.JSX.Element {
+  const io = useNomiPc((s) => s.io)
+  const [testo, setTesto] = useState<string | undefined>(undefined)
+  const [esito, setEsito] = useState<string | undefined>(undefined)
+  const valore = testo ?? io?.nomeScelto ?? ''
+  const salva = (nome: string): void => {
+    void window.gestore.posta.impostaNome(nome).then((i) => {
+      useNomiPc.setState({ io: i })
+      setTesto(undefined)
+      setEsito(i.nomeScelto !== undefined
+        ? `Fatto: questo PC adesso si chiama «${i.nome}». Gli altri PC e il telefono lo vedono al prossimo battito (al massimo mezzo minuto).`
+        : `Fatto: nessun nome scelto, si mostra il nome della macchina («${i.host}»).`)
+    }).catch((e: unknown) => setEsito(`Non è andata: ${String(e)}`))
+  }
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <h4 style={{ margin: '0 0 4px' }}>Questo PC</h4>
+      <p className="account__nota">
+        Il nome con cui questo computer compare dappertutto: in alto nell’app del telefono, nel cambio di computer, nei
+        riquadri «SU …» degli altri PC, in «Riprendi», in Salute e nella mappa, in «Dove vive ogni chat» e nella pagina
+        del telefono. Il nome tecnico della macchina{io !== undefined ? <> (<code>{io.host}</code>)</> : null} resta
+        scritto piccolo accanto, per riconoscerla. Lasciato vuoto, si usa il nome tecnico. Al massimo {NOME_PC_MAX} caratteri.
+      </p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          className="campo"
+          style={{ flex: 1, minWidth: 0 }}
+          value={valore}
+          maxLength={NOME_PC_MAX}
+          placeholder={io?.host ?? 'Nome di questo PC'}
+          aria-label="Nome di questo PC"
+          onChange={(e) => setTesto(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') salva(valore) }}
+        />
+        <button className="tasto tasto--mini" disabled={nomeSceltoValido(valore) === (io?.nomeScelto ?? '')} onClick={() => salva(valore)}>Salva</button>
+        {io?.nomeScelto !== undefined ? (
+          <button className="tasto tasto--mini" onClick={() => salva('')} title="Toglie il nome scelto: si torna al nome tecnico della macchina">Usa il nome tecnico</button>
+        ) : null}
+      </div>
+      {esito !== undefined ? <p className="account__nota" role="status">{esito}</p> : null}
     </div>
   )
 }

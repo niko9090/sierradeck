@@ -27,6 +27,7 @@ export function MappaPc({ mappa }: { mappa: Mappa }): React.JSX.Element {
           <g key={n.id}>
             <circle cx={n.x} cy={n.y} r={n.io === true ? 6 : 4.5} fill={n.io === true ? 'var(--remoto, #a77bf3)' : n.stato === 'acceso' ? 'var(--verde)' : n.stato === 'incerto' ? 'var(--spento)' : 'var(--rosso)'} />
             <text x={n.x} y={n.y + (n.io === true ? 10 : 8.5)} textAnchor="middle">{n.io === true ? `${n.nome} (questo)` : n.nome}</text>
+            {n.host !== undefined ? <text className="mappa-pc__host" x={n.x} y={n.y + (n.io === true ? 13.5 : 12)} textAnchor="middle">{n.host}</text> : null}
           </g>
         ))}
       </svg>

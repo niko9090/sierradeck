@@ -1210,6 +1210,8 @@ function fascia(s) {
 
 function pannello(s) {
   ultimoStato = s
+  // Il nome scelto del computer nel titolo della scheda del browser (0.52.4).
+  if (nomeDaMostrare(s.computer)) document.title = 'SierraDeck · ' + nomeDaMostrare(s.computer)
   const attivo = document.activeElement
   const staScrivendo = attivo && (attivo.tagName === 'INPUT' || attivo.tagName === 'TEXTAREA')
   // Chi sta scrivendo ha ragione: la pagina puo' aspettare due secondi.
@@ -1528,7 +1530,7 @@ function pannello(s) {
         (pcVisti === null ? '<div class="sotto" style="margin-top:8px">Leggo il Drive…</div>' : '') +
         (pcVisti !== null && pc.length === 0 ? '<div class="sotto" style="margin-top:8px">Nessun altro PC ha ancora lasciato un segno sul Drive: serve SierraDeck 0.27.0 o più nuovo su quel PC, con la cassaforte sbloccata e il Drive collegato.</div>' : '') +
         pc.map((b) =>
-          '<button class="cartella" data-pc="' + esc(b.pcId) + '" onclick="apriPc(this.dataset.pc)">' + esc(b.nome) +
+          '<button class="cartella" data-pc="' + esc(b.pcId) + '" onclick="apriPc(this.dataset.pc)">' + esc(nomeDaMostrare(b)) + hostPiccolo(b) +
           '<br><span class="sotto">' + (b.vivo ? 'acceso' : 'spento, ultimo segno ' + esc(String(b.battito || '').slice(0, 16).replace('T', ' '))) +
           ' · ' + (b.chat || []).length + ' chat aperte · ' + (b.cartelle || []).length + ' cartelle</span>' +
           (b.chat || []).slice(0, 8).map((c) =>
@@ -1542,8 +1544,8 @@ function pannello(s) {
     const attesa = voci.filter((v) => v.stato === 'attesa')
     const chiuse = voci.filter((v) => v.stato !== 'attesa')
     const cartelle = (b.cartelle || [])
-    return '<div class="piastrella"><div class="titolo">Azioni su ' + esc(b.nome) + ' · ' + (b.vivo ? 'acceso' : 'spento') + '</div>' +
-      '<div class="sotto">Quello che scrivi qui si esegue solo su ' + esc(b.nome) + ', nella cartella scelta, quando e\\' acceso: alla prima chat di quella cartella che aspetta, o a una nuova. Se la cartella la\\' non esiste, la voce fallisce e lo leggi qui.</div>' +
+    return '<div class="piastrella"><div class="titolo">Azioni su ' + esc(nomeDaMostrare(b)) + hostPiccolo(b) + ' · ' + (b.vivo ? 'acceso' : 'spento') + '</div>' +
+      '<div class="sotto">Quello che scrivi qui si esegue solo su ' + esc(nomeDaMostrare(b)) + ', nella cartella scelta, quando e\\' acceso: alla prima chat di quella cartella che aspetta, o a una nuova. Se la cartella la\\' non esiste, la voce fallisce e lo leggi qui.</div>' +
       (postaErrore ? '<div class="errore" style="margin-top:6px">' + esc(postaErrore) + '</div>' : '') +
       (attesa.length === 0 ? '<div class="sotto" style="margin-top:8px">Nessuna azione in attesa.</div>' : '') +
       attesa.map((v, i) =>
@@ -3519,7 +3521,7 @@ function rovesciaLinea(l, adesso) {
   return { testo: s > 0 ? 'riprovo fra ' + s + ' s' : 'riprovo adesso', colore: l.tentativo <= 2 ? 'ambra' : 'rosso' }
 }
 function vistaTentativi() {
-  const nome = ultimoStato && ultimoStato.computer && ultimoStato.computer.nome ? ultimoStato.computer.nome : 'il computer'
+  const nome = (ultimoStato && nomeDaMostrare(ultimoStato.computer)) || 'il computer'
   const strada = stradaPagina(location.hostname)
   const eventi = eventiDaLinea(linea, inizioPagina).map((e) => (e.tipo === 'riuscita' && strada !== undefined && e.strada === 'lan' ? Object.assign({}, e, { strada: strada }) : e))
   return passiCollegamento(nome, eventi)
@@ -3603,6 +3605,35 @@ async function mandaCoda() {
   if (codaPagina.some((x) => x.stato === 'attesa') && linea.fase === 'collegato') return mandaCoda()
 }
 
+/*
+ * Il nome di un PC da mostrare (0.52.4): quello scelto da Nicholas, poi quello
+ * che dice il PC, poi l'hostname, che altrimenti va solo piccolo accanto.
+ * Copia di src/shared/nome-pc.ts: tests/shared/nome-pc.test.ts le confronta.
+ */
+function pulitoPc(s) {
+  if (typeof s !== 'string') return ''
+  let t = ''
+  for (const ch of s) {
+    const c = ch.charCodeAt(0)
+    t += c < 32 || c === 127 ? ' ' : ch
+  }
+  return t.split(' ').filter((x) => x !== '').join(' ')
+}
+function nomeDaMostrare(pc) {
+  if (pc === null || pc === undefined) return ''
+  return pulitoPc(pc.nomeScelto) || pulitoPc(pc.nome) || pulitoPc(pc.host)
+}
+function sottotitoloPc(pc) {
+  if (pc === null || pc === undefined) return undefined
+  const h = pulitoPc(pc.host)
+  if (h === '') return undefined
+  return h.toLowerCase() === nomeDaMostrare(pc).toLowerCase() ? undefined : h
+}
+function hostPiccolo(pc) {
+  const h = sottotitoloPc(pc)
+  return h ? ' <small style="opacity:.6;font-weight:400">' + esc(h) + '</small>' : ''
+}
+
 /* La mappa dei PC nella Salute (0.51.0): le posizioni le decide il computer. */
 function mappaHtml(m) {
   if (!m || !m.nodi || m.nodi.length < 2) return ''
@@ -3616,7 +3647,8 @@ function mappaHtml(m) {
   }
   for (const n of m.nodi) {
     svg += '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + (n.io ? 6 : 4.5) + '" fill="' + (n.io ? '#a77bf3' : n.stato === 'acceso' ? '#3fb950' : n.stato === 'incerto' ? '#6f767e' : '#f85149') + '"/>' +
-      '<text x="' + n.x + '" y="' + (n.y + (n.io ? 10 : 8.5)) + '" text-anchor="middle" font-size="4" fill="currentColor">' + esc(n.io ? n.nome + ' (questo)' : n.nome) + '</text>'
+      '<text x="' + n.x + '" y="' + (n.y + (n.io ? 10 : 8.5)) + '" text-anchor="middle" font-size="4" fill="currentColor">' + esc(n.io ? n.nome + ' (questo)' : n.nome) + '</text>' +
+      (n.host ? '<text x="' + n.x + '" y="' + (n.y + (n.io ? 13.5 : 12)) + '" text-anchor="middle" font-size="2.8" fill="currentColor" opacity=".6">' + esc(n.host) + '</text>' : '')
   }
   return '<div class="serigrafia" style="margin-top:10px">Mappa dei PC</div>' + svg + '</svg>' +
     '<div class="sotto">Il computer al centro, gli altri intorno. Linea verde piena: si raggiunge direttamente (la strada è scritta sopra). Ambra tratteggiata: solo via Drive, lento. Rossa a puntini: adesso non risponde.</div>'

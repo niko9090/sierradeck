@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
+import { NomePc } from './NomePc'
+import { useNomePc } from '../state/nomi-pc'
 import { createPortal } from 'react-dom'
 import { MenuPin } from './ChatConPin'
 import { ModaleConferma } from './ModaleConferma'
@@ -59,7 +61,8 @@ export function TastoOspite({ paneId, sessione, titolo, remotoSu }: { paneId: st
     setConferma(undefined)
     void window.gestore.casa.scegli({ sessioni: [sessione], pc: p }).then((r) => setNota(r.messaggio)).catch((e: unknown) => setNota(`Non è andata: ${String(e)}`))
   }
-  const dove = casa?.pcNome ?? remotoSu
+  const nomeCasa = useNomePc(casa?.pc, casa?.pcNome ?? '').nome
+  const dove = casa !== undefined ? nomeCasa : remotoSu
   const scelta = casa?.da === 'nicholas' || casa?.da === 'sposta'
   return (
     <>
@@ -204,7 +207,7 @@ export function ModaleDoveVive({ onChiudi }: { onChiudi: () => void }): React.JS
                 <div key={r.sessione} className="dove__riga" title={r.cwd}>
                   <span className="riordina__testo">
                     <b>{r.titolo}</b>{' '}
-                    <span className="account__nota">· {r.qui ? 'parte qui' : `qui solo dal vivo su ${r.pcNome}`} · {fonte(r.fonte)}</span>
+                    <span className="account__nota">· {r.qui ? 'parte qui' : `qui solo dal vivo su ${d.pc.find((p) => p.id === r.pc)?.nome ?? r.pcNome}`} · {fonte(r.fonte)}</span>
                     <span className="account__nota riordina__motivo">{r.motivo}</span>
                   </span>
                   <select className="campo campo--mini" value={r.pc} disabled={occupato} onChange={(e) => scegli([r.sessione], e.target.value)}>
@@ -234,7 +237,7 @@ export function ModaleDoveVive({ onChiudi }: { onChiudi: () => void }): React.JS
           ) : null}
         </div>
         <div className="dialogo__piede" style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <span className="account__nota" style={{ flex: 1 }}>{d !== undefined ? `Questo PC: ${d.io.nome} · PC conosciuti: ${d.pc.map((p) => p.nome).join(', ')}` : ''}</span>
+          <span className="account__nota" style={{ flex: 1 }}>{d !== undefined ? <>Questo PC: <NomePc id={d.io.id} nome={d.io.nome} /> · PC conosciuti: {d.pc.map((p) => p.nome).join(', ')}</> : ''}</span>
           <button className="tasto" onClick={onChiudi}>Chiudi</button>
         </div>
       </div>

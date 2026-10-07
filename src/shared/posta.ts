@@ -17,7 +17,12 @@ export type ChatDiPc = {
 
 export type BattitoPc = {
   pcId: string
+  /** Il nome da mostrare: dalla 0.52.4 quello scelto da chi usa il PC, prima l'hostname. */
   nome: string
+  /** L'hostname (dalla 0.52.4): solo come sottotitolo piccolo. */
+  host?: string
+  /** Il nome scelto, se c'è (dalla 0.52.4). */
+  nomeScelto?: string
   versione: string
   /** Quando ha battuto l'ultima volta, ISO. */
   battito: string

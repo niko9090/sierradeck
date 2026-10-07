@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { NomePc } from './NomePc'
 import type { LayoutNode } from '@shared/layout-tree'
 import { computeGeometry } from '@shared/layout-geometry'
 import type { DividerBox } from '@shared/layout-geometry'
@@ -315,7 +316,7 @@ export function Mosaic({
               <span className="presa" aria-hidden="true">⋮⋮</span>
               {data.remoto !== undefined ? (
                 <span className="etichetta-remoto" title={`Questa chat lavora su ${data.remoto.pcNome}, non qui: quello che scrivi arriva là`}>
-                  SU {data.remoto.pcNome}
+                  SU <NomePc id={data.remoto.pcId} nome={data.remoto.pcNome} />
                 </span>
               ) : null}
               {/* La qualità del collegamento, sempre in vista accanto al PC (0.52.0). */}
