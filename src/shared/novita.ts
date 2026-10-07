@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.51.0',
+    righe: [
+      '**Il collegamento con gli altri PC si vede e regge meglio.** Accanto a «SU <PC>» c’è un indicatore: l’icona della strada (🏠 rete di casa, 🔐 Tailscale, 🌐 diretto via Internet, ☁️ Drive), le tacche della qualità e il ritardo in millisecondi. Toccandolo vedi la storia del collegamento: le cadute, i ritorni e i cambi di strada, con l’ora e il motivo. Quando la strada cambia compare per un attimo «Passo da X a Y».',
+      '**Se la linea cade, non perdi niente.** Il computer se ne accorge in pochi secondi e riprova da solo, con attese che crescono (1, 2, 5, 10, 30 secondi, poi ogni 30), senza arrendersi; una fascia dice il tentativo e fra quanti secondi il prossimo, con «Riprova adesso». Lo schermo resta, attenuato, e al ritorno si aggiorna. Quello che scrivi intanto resta «in attesa di invio» e parte al ritorno, una volta sola. Nel pannello Salute c’è la mappa dei PC, con le linee colorate per strada e stato. Tutto anche sul telefono, nell’app 2.51.0 e nella pagina.'
+    ]
+  },
+  {
     versione: '0.50.0',
     righe: [
       '**I file dal telefono, dentro il progetto.** Dal telefono puoi mandare un file (una foto, un PDF, un documento) a una chat o a un autopilota: con «Condividi → SierraDeck» da qualunque app, con il tasto 📎 nella chat e «📎 Allega» nell’autopilota, o con «Scegli file» nella pagina del telefono. Il file finisce nella cartella del progetto di quella chat, in .sierradeck/allegati con la data di oggi, fuori da git, e la chat riceve una riga corta: «Nicholas ti ha mandato il file … Guardalo.», con la tua nota se l’hai scritta. L’autopilota lo trova nel suo dialogo.',
