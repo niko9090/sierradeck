@@ -1,3 +1,4 @@
+import { rottaPermessaSulCanale } from '@shared/strada-pc'
 import { describe, it, expect } from 'vitest'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -1114,6 +1115,21 @@ describe('il Drive dal telefono', () => {
     expect(ricevuti).toEqual([{ progetto: 'p1' }])
     // Un computer che non sa ricevere: 404, come una versione vecchia.
     expect((await rotteClient(deps())({ metodo: 'GET', percorso: '/api/sposta/pronto', corpo: undefined, dispositivo: 'pc' })).stato).toBe(404)
+  })
+
+  it('le case delle chat («Ospitata da», 0.52.0) solo da un altro PC con la chiave di casa, e sul canale WebRTC', async () => {
+    const arrivate: unknown[] = []
+    const rotte = rotteClient(deps({
+      caseChat: { leggi: () => ({ versione: 1, case: { s: { pc: 'desk' } } }), ricevi: async (c) => { arrivate.push(c); return { ok: true, cambiate: 1 } } }
+    }))
+    // Il telefono (e chiunque non sia un PC di casa) non sceglie dove parte un claude.exe.
+    expect((await rotte({ metodo: 'POST', percorso: '/api/case', corpo: { case: {} }, dispositivo: 'telefono-1' })).stato).toBe(403)
+    expect((await rotte({ metodo: 'GET', percorso: '/api/case', corpo: undefined, dispositivo: 'telefono-1' })).stato).toBe(403)
+    expect((await rotte({ metodo: 'GET', percorso: '/api/case', corpo: undefined, dispositivo: 'pc' })).corpo).toEqual({ versione: 1, case: { s: { pc: 'desk' } } })
+    expect((await rotte({ metodo: 'POST', percorso: '/api/case', corpo: { case: { s: { pc: 'fisso' } } }, dispositivo: 'pc' })).corpo).toEqual({ ok: true, cambiate: 1 })
+    expect(arrivate).toEqual([{ case: { s: { pc: 'fisso' } } }])
+    expect((await rotteClient(deps())({ metodo: 'GET', percorso: '/api/case', corpo: undefined, dispositivo: 'pc' })).stato).toBe(404)
+    expect(rottaPermessaSulCanale('/api/case')).toBe(true)
   })
 
   it('una chat la cui cartella e di un altro PC si segna «su X» e non si riapre qui (409, con la spiegazione)', async () => {

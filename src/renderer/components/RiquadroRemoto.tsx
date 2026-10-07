@@ -15,6 +15,8 @@ import { CodaInvii, FasciaLinea, IndicatoreLinea, nuovoIdMessaggio, useAdesso } 
 import { ModalePosta } from './ModalePosta'
 import { CoperturaPin } from './ChatConPin'
 import { useLayoutStore } from '../state/layout'
+import { pubblicaLinea } from '../linee-remote'
+import { ConfermaPortaQui, useCasa } from './OspiteChat'
 
 type Props = {
   paneId: string
@@ -93,6 +95,16 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   /** Quello che scrivi, in coda finché non è arrivato (0.51.0): mai due volte. */
   const [coda, setCoda] = useState<VoceCoda[]>([])
   const avanza = (e: EventoLinea): void => { const n = passo(lineaRef.current, e); lineaRef.current = n; setLinea(n) }
+  // La testata del riquadro mostra lo stesso indicatore, accanto a «SU <PC>» (0.52.0).
+  useEffect(() => { pubblicaLinea(paneId, linea) }, [paneId, linea])
+  useEffect(() => () => pubblicaLinea(paneId, undefined), [paneId])
+  /**
+   * L'ospite non risponde (0.52.0): la chat ha casa là, e qui non parte da
+   * sola. «Porta qui la chat» cambia la casa, con la conferma, e il riquadro
+   * torna una chat di qui.
+   */
+  const casa = useCasa(remoto.sessione)
+  const [portaQui, setPortaQui] = useState(false)
   const adesso = useAdesso(linea.fase === 'ricollego' || (linea.cambio !== undefined && Date.now() - linea.cambio.il < CAMBIO_VISIBILE_MS + 1000))
   /** Una chiamata a quel PC, misurata: fa avanzare il collegamento. */
   const chiedi = async <T,>(f: () => Promise<EsitoRemoto<T>>): Promise<EsitoRemoto<T>> => {
@@ -272,6 +284,24 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         <IndicatoreLinea linea={linea} nomePc={remoto.pcNome} />
       </div>
       <FasciaLinea linea={linea} nomePc={remoto.pcNome} adesso={adesso} onRiprova={riprova} />
+      {linea.fase === 'ricollego' && remoto.sessione !== undefined && casa !== undefined && !casa.qui ? (
+        <div className="remoto__ospite" role="status">
+          <span>
+            Questa chat è <b>ospitata da {casa.pcNome}</b>: qui non parte da sola, si guarda dal vivo. Adesso {remoto.pcNome} non
+            risponde: non so se è acceso. Puoi aspettare (riprovo da solo) o portarla qui.
+          </span>
+          <button type="button" className="tasto tasto--mini" onClick={() => setPortaQui(true)} title="Cambia la casa della chat: diventa questo PC, dopo la conferma">Porta qui la chat</button>
+        </div>
+      ) : null}
+      {portaQui && remoto.sessione !== undefined ? (
+        <ConfermaPortaQui
+          titolo={title}
+          pcNome={remoto.pcNome}
+          sessione={remoto.sessione}
+          onAnnulla={() => setPortaQui(false)}
+          onFatto={() => { setPortaQui(false); useLayoutStore.getState().rendiLocale(paneId) }}
+        />
+      ) : null}
       {lento ? (
         <div className="remoto__lento" role="status">
           <strong>Collegamento lento via Drive.</strong> {via?.testo}

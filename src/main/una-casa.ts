@@ -36,7 +36,7 @@ export type UnaCasa = {
   decidiTutte: () => Promise<Record<string, CasaChat>>
   /** Le chat nuove (senza casa e mai sul Drive): casa qui, per nascita. */
   nascite: (sulDrive: (sessione: string) => boolean) => Promise<number>
-  riordina: (sessioni: string[], opz?: { tipo?: 'riordino' | 'sposta'; verso?: { pc: string; nome: string; cwd?: string }; casaNuova?: (s: string) => CasaChat }) => Promise<RegistroRiordino>
+  riordina: (sessioni: string[], opz?: { tipo?: 'riordino' | 'sposta' | 'ospite'; verso?: { pc: string; nome: string; cwd?: string }; casaNuova?: (s: string) => CasaChat }) => Promise<RegistroRiordino>
   riordini: () => RegistroRiordino[]
   annulla: (id: string) => Promise<{ ok: boolean; rimessi: number; restano: { sessione: string; perche: string; dove: string }[]; messaggio?: string }>
 }
@@ -235,12 +235,19 @@ export function creaUnaCasa(deps: {
       // Le case di prima tornano, con la forza di una scelta di Nicholas
       // (sono una scelta: annullare).
       const nuove: Record<string, CasaChat> = {}
+      // Una scelta dopo quella che annulla, anche nello stesso millisecondo:
+      // fra due scelte vince la più recente (0.52.0).
+      const dopoDi = (s: string): string => {
+        const prima = leggiLocali().case[s]?.decisaIl
+        const ora = adesso()
+        return prima !== undefined && ora <= prima ? new Date(Date.parse(prima) + 1).toISOString() : ora
+      }
       for (const [s, c] of Object.entries(r.casePrima)) {
         // Annullare uno spostamento riporta la casa qui: il registro e' nato
         // dopo il cambio di casa, e la casa «di prima» li' e' gia' quella nuova.
-        if (r.tipo === 'sposta') { nuove[s] = { pc: deps.io().id, pcNome: deps.io().nome, motivo: `annullato lo spostamento verso ${r.verso?.nome ?? 'l’altro PC'}: torna su questo PC`, decisaIl: adesso(), da: 'nicholas' }; continue }
-        if (c !== null) nuove[s] = { ...c, decisaIl: adesso(), da: 'nicholas', motivo: `riportata com'era: ${c.motivo}` }
-        else nuove[s] = { pc: deps.io().id, pcNome: deps.io().nome, motivo: 'annullato il riordino: torna su questo PC', decisaIl: adesso(), da: 'nicholas' }
+        if (r.tipo === 'sposta' || r.tipo === 'ospite') { nuove[s] = { pc: deps.io().id, pcNome: deps.io().nome, motivo: `annullato ${r.tipo === 'ospite' ? 'il cambio di ospite' : 'lo spostamento'} verso ${r.verso?.nome ?? 'l’altro PC'}: torna su questo PC`, decisaIl: dopoDi(s), da: 'nicholas', sceltaDa: deps.io().id }; continue }
+        if (c !== null) nuove[s] = { ...c, decisaIl: dopoDi(s), da: 'nicholas', motivo: `riportata com'era: ${c.motivo}` }
+        else nuove[s] = { pc: deps.io().id, pcNome: deps.io().nome, motivo: 'annullato il riordino: torna su questo PC', decisaIl: dopoDi(s), da: 'nicholas' }
       }
       await memorizza(nuove)
       scriviJsonAtomico(join(cartellaRiordini, `${id}.json`), { ...r, annullatoIl: adesso() }, 'riordino')

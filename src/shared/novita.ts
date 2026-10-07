@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.52.0',
+    righe: [
+      '**Ogni chat ha il suo PC, e lo scegli tu.** Nella testata di ogni chat c’è 🏠: con un clic (o con il tasto destro sul titolo) scegli «Ospitata da: PC». La finestra «Dove vive ogni chat…» (dal menu di 🏠 e dalla scheda Drive) elenca tutte le chat dei workspace con il loro PC, e lo cambi chat per chat o per un workspace intero. La scelta arriva subito agli altri PC accesi e, al più tardi in due minuti, a quelli che passano dal Drive; fra due scelte vince la più recente.',
+      '**Sugli altri PC quella chat non parte più.** Prima la stessa chat si apriva su tutti e due i PC: la regola «una chat, una casa» della 0.42 c’era, ma all’apertura nessuno la guardava. Ora su un PC che non è l’ospite la chat non avvia mai Claude Code, da nessuna strada (riapertura del workspace, «Riprendi», autopiloti, consegne, telefono, un clic): si apre dal vivo sull’ospite. Se l’ospite non risponde lo dice («non so se è acceso») e offre «Porta qui la chat», che chiede conferma. La copia che resta sugli altri PC va nella cartella di recupero appena la chat finisce il turno, mai a metà: non si cancella, e si annulla dalla stessa finestra.',
+      '**La qualità del collegamento sempre in vista.** Accanto a «SU <PC>», nella testata della chat, ci sono strada, tacche e ritardo; toccandoli vedi la storia. Nell’app 2.52.0 lo stesso indicatore sta in alto, accanto al computer scelto.'
+    ]
+  },
+  {
     versione: '0.51.0',
     righe: [
       '**Il collegamento con gli altri PC si vede e regge meglio.** Accanto a «SU <PC>» c’è un indicatore: l’icona della strada (🏠 rete di casa, 🔐 Tailscale, 🌐 diretto via Internet, ☁️ Drive), le tacche della qualità e il ritardo in millisecondi. Toccandolo vedi la storia del collegamento: le cadute, i ritorni e i cambi di strada, con l’ora e il motivo. Quando la strada cambia compare per un attimo «Passo da X a Y».',

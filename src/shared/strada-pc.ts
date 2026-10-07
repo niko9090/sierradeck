@@ -222,7 +222,9 @@ export const ROTTE_VIA_CANALE: readonly string[] = [
   // Il PIN delle chat (0.49.0): lo verifica il PC di casa della chat.
   '/api/pin/sblocca',
   // I file dal telefono attraverso il ponte (0.50.0): a pezzi da 96 KB, che stanno in un messaggio.
-  '/api/allegati/inizia', '/api/allegati/pezzo', '/api/allegati/stato', '/api/allegati/fine', '/api/allegati/annulla'
+  '/api/allegati/inizia', '/api/allegati/pezzo', '/api/allegati/stato', '/api/allegati/fine', '/api/allegati/annulla',
+  // Le case delle chat (0.52.0, «Ospitata da»): la scelta arriva subito agli altri PC.
+  '/api/case'
 ]
 
 export function rottaPermessaSulCanale(percorso: string): boolean {

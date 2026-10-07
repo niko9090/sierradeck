@@ -14,6 +14,7 @@ import { leggiAnteprima, type Anteprima } from './anteprima'
 import { indexAll } from './indexer/indexer'
 import { pathToSlug } from './indexer/project-scanner'
 import { messaggioChatAltrove } from '@shared/posta'
+import { fermaSeCasaAltrove } from '@shared/ospite-chat'
 import type { Avanzamento, IndexOutcome } from '@shared/types'
 import { APP_DATA_DIR_NAME } from '@shared/version'
 import { chiaveMonitor } from '@shared/display-key'
@@ -167,6 +168,16 @@ export function impostaRisolviCartella(f: (cwd: string, sessionUuid: string, for
   risolviCartella = f
 }
 
+/**
+ * La casa di ogni chat (0.52.0): se è un altro PC, qui il suo `claude.exe` non
+ * parte. Lo imposta il Core dalle case memorizzate; senza, nessuna chat ha
+ * casa altrove (i test, e il primo istante dopo l'avvio).
+ */
+let casaAltroveDi: (sessionUuid: string) => { id: string; nome: string; motivo: string } | undefined = () => undefined
+export function impostaGuardiaCasa(f: (sessionUuid: string) => { id: string; nome: string; motivo: string } | undefined): void {
+  casaAltroveDi = f
+}
+
 /** Chi vuole sapere di ogni chat che sta per aprirsi, con la sua cartella. */
 export function impostaPrimaDiAprire(f: (cwd: string) => void): void {
   primaDiAprire = f
@@ -249,6 +260,8 @@ export function registerPtyIpc(
     const req = validateSpawnRequest(raw)
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win === null) throw new Error('richiesta di spawn da una finestra sconosciuta')
+    // Prima di tutto la casa (0.52.0): con la casa altrove qui non parte niente.
+    fermaSeCasaAltrove(req, casaAltroveDi)
     // Una chat nata su un altro PC porta la cartella di la': qui si apre in
     // quella di qui (vedi `progetti/cartella-di-chat`), e la finestra lo sa.
     const risolta = risolviCartella(req.cwd, req.sessionUuid, req.forzaQui === true)

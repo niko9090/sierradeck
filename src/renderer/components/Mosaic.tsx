@@ -8,6 +8,8 @@ import { memoriaWorkspace } from '../memoria-workspace'
 import { Terminal } from './Terminal'
 import { RiquadroRemoto } from './RiquadroRemoto'
 import { ChatConPin, TastoPin } from './ChatConPin'
+import { TastoOspite } from './OspiteChat'
+import { IndicatoreDiRiquadro } from './LineaRemota'
 import { DiarioAutopilota } from './DiarioAutopilota'
 import { diarioDelRiquadro } from '../diario-autopilota'
 import type { Autopilota } from '@shared/autopilota'
@@ -316,6 +318,8 @@ export function Mosaic({
                   SU {data.remoto.pcNome}
                 </span>
               ) : null}
+              {/* La qualità del collegamento, sempre in vista accanto al PC (0.52.0). */}
+              {data.remoto !== undefined ? <IndicatoreDiRiquadro paneId={paneId} nomePc={data.remoto.pcNome} /> : null}
               {rinominando === paneId ? (
                 <input
                   autoFocus
@@ -338,6 +342,8 @@ export function Mosaic({
               ) : (
                 <span
                   className="testata-riquadro__titolo"
+                  // Il tasto destro sul titolo apre la scelta del PC ospite (0.52.0).
+                  onContextMenu={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent('sierradeck:ospite-menu', { detail: { paneId, x: e.clientX, y: e.clientY } })) }}
                   onDoubleClick={() => { setBozzaNome(data.title); setRinominando(paneId) }}
                   title="Due clic per dargli un nome tuo"
                 >
@@ -361,6 +367,8 @@ export function Mosaic({
                     Cambiarlo a chat aperta si fa con `/model` nel terminale, che è
                     il gesto vero — lo spazio della testata va a comandi più utili. */}
                 <ComandoSposta paneId={paneId} />
+                {/* L'ospite della chat (0.52.0): quale PC la fa girare; clic o tasto destro per sceglierlo. */}
+                <TastoOspite paneId={paneId} sessione={data.remoto?.sessione ?? data.sessionUuid} titolo={data.title} {...(data.remoto !== undefined ? { remotoSu: data.remoto.pcNome } : {})} />
                 {/* Il PIN delle chat (0.49.0): proteggere, togliere, richiudere. */}
                 {data.remoto === undefined ? <TastoPin sessione={data.sessionUuid} titolo={data.title} /> : null}
                 {/* Dormire non è chiudere: la conversazione resta, e quello che

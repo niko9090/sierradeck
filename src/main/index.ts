@@ -6,8 +6,10 @@ import { creaPonteRtc } from './rtc/ponte-rtc'
 import { creaRtc } from './rtc/collegamento-rtc'
 import { creaCassettaDrive } from './rtc/cassetta-drive'
 import { creaUnaCasa, type ChatLocale, type UnaCasa } from './una-casa'
+import { creaOspite, type Ospite } from './ospite'
+import { casaAltrove } from '@shared/ospite-chat'
 import { creaSpostaProgetto, impronteSessioni } from './sposta-progetto'
-import { saleDaQui, scendeQui, sessioneDiPercorso, type CasaChat } from '@shared/una-casa'
+import { leggiCase, saleDaQui, scendeQui, sessioneDiPercorso, type CasaChat } from '@shared/una-casa'
 import { esitoDaPasso } from '@shared/istruzioni-autopilota'
 import { componiSalute, erroriDalLog } from '@shared/salute'
 import { NOVITA, confrontaVersioni } from '@shared/novita'
@@ -111,7 +113,7 @@ import { creaClientPcRemoto, ErroreRemoto } from './pc-remoto'
 import { ultimeRighe as ultimeRigheDelRegistro } from './risoluzione'
 import { trovaChatRemota, PORTA_CLIENT_PREDEFINITA, type EsitoRemoto, type PcRemoto, type ChatSuPc } from '@shared/pc-remoto'
 import { progettoDiCwd, staDentro } from './progetti/registro'
-import { impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
+import { impostaGuardiaCasa, impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
 import { risolviCartellaDiChat, type CartellaDiChat } from './progetti/cartella-di-chat'
 import { pianificaRimappatura, pianificaRitorno, riscriviCwdRiga, type Spostamento } from './progetti/rimappa-di-massa'
 import { pcCheHaLaCartella, staSottoCartella, pcVivo, type BattitoPc } from '@shared/posta'
@@ -358,6 +360,8 @@ let postinoGlobale: Postino | undefined
  * sapere quali chat salgono e quali scendono. Finché non c'e', tutto come prima.
  */
 let unaCasaGlobale: UnaCasa | undefined
+/** L'ospite delle chat (0.52.0): nasce con la sincronia, come `unaCasaGlobale`. */
+let ospiteGlobale: Ospite | undefined
 /** «Salute del sistema» (0.44.0): nasce con le strade fra PC, la leggono il PC e il telefono. */
 /** Il PIN delle chat (0.49.0): il guardiano, uno per PC. */
 let guardianoPin: GuardianoPin | undefined
@@ -1082,6 +1086,22 @@ if (!app.requestSingleInstanceLock()) {
       // I progetti sul Drive: chi e' questo PC, dove riceve i progetti, e il
       // registro condiviso di quali cartelle viaggiano con le chat.
       const identitaPc = apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir(), documenti: () => app.getPath('documents') })
+      // La regola dura dell'ospite (0.52.0), da subito: finché il servizio
+      // delle case non è pronto, le case si leggono dal file di qui. Così
+      // nemmeno il ripristino dei primi secondi avvia una chat che ha casa
+      // altrove.
+      {
+        let daDisco: { letto: number; case: ReturnType<typeof leggiCase> } | undefined
+        impostaGuardiaCasa((s) => {
+          if (ospiteGlobale !== undefined) return ospiteGlobale.casaAltroveDi(s)
+          if (daDisco === undefined || Date.now() - daDisco.letto > 5000) {
+            let c = leggiCase(undefined)
+            try { c = leggiCase(JSON.parse(readFileSync(join(dati, 'case-chat.json'), 'utf8'))) } catch { /* nessuna casa ancora */ }
+            daDisco = { letto: Date.now(), case: c }
+          }
+          return casaAltrove(daDisco.case.case[s], identitaPc.leggi().id)
+        })
+      }
       const registroProgetti = apriRegistroProgetti(dati)
       let progettiInManoAdAltri = (): Set<string> => new Set()
       // Per il telefono: se il progetto di una chat e' in mano a un altro PC,
@@ -1826,6 +1846,41 @@ if (!app.requestSingleInstanceLock()) {
         log: registro.info
       })
       unaCasaGlobale = unaCasa
+      // L'ospite di ogni chat (0.52.0): «Ospitata da», propagata e fatta rispettare.
+      const mandaAlleFinestre = (canale: string, dato?: unknown): void => {
+        for (const w of finestreDiChat()) if (!w.isDestroyed()) w.webContents.send(canale, dato)
+      }
+      const ospite = creaOspite({
+        unaCasa,
+        io: () => identitaPc.leggi(),
+        altriPc: () => postino.altrui().map((b) => ({ id: b.pcId, nome: b.nome })),
+        chiamaPc: (pcId, percorso, corpo) => remoto.chiama(pcId, percorso, corpo),
+        chatLocali: chatLocaliDaIndice,
+        aperte: () => chatAperte.filter((c) => c.sessione !== undefined).map((c) => ({ sessione: c.sessione as string, alLavoro: c.viva === true && c.aspetta !== true })),
+        chatDeiWorkspace: () => (workspaceStore === undefined ? [] : chatSalvate(workspaceStore.leggi()).map((c) => ({ workspace: c.workspace, sessione: c.sessione, titolo: c.titolo, cwd: c.cwd }))),
+        salva: () => sincronia.salva(),
+        chiudiQui: (chat) => mandaAlleFinestre('casa:chiudiQui', chat),
+        avvisa: () => mandaAlleFinestre('casa:cambiate'),
+        log: registro.info
+      })
+      ospiteGlobale = ospite
+      const timerOspite = setInterval(() => { void ospite.giro() }, 10_000)
+      app.on('before-quit', () => { clearInterval(timerOspite) })
+      ipcMain.handle('casa:dove', () => ospite.dove())
+      ipcMain.handle('casa:scegli', (_e, p: unknown) => {
+        const q = (p ?? {}) as { sessioni?: unknown; pc?: unknown; workspace?: unknown }
+        const pc = (q.pc ?? {}) as { id?: unknown; nome?: unknown }
+        if (typeof pc.id !== 'string' || pc.id === '') return { ok: false, messaggio: 'PC non valido.' }
+        const sessioni = Array.isArray(q.sessioni) ? q.sessioni.filter((s): s is string => typeof s === 'string') : []
+        // `qui` = questo PC («Porta qui la chat»): il renderer non sa il suo id.
+        const scelto = pc.id === 'qui' ? identitaPc.leggi() : { id: pc.id, nome: typeof pc.nome === 'string' ? pc.nome : pc.id }
+        return ospite.scegli({ sessioni, pc: { id: scelto.id, nome: scelto.nome }, ...(typeof q.workspace === 'string' ? { workspace: q.workspace } : {}) })
+      })
+      ipcMain.handle('casa:di', (_e, s: unknown) => {
+        if (typeof s !== 'string') return undefined
+        const c = unaCasa.casaDi(s)
+        return c === undefined ? undefined : { pc: c.pc, pcNome: c.pcNome, da: c.da, motivo: c.motivo, qui: c.pc === identitaPc.leggi().id }
+      })
       const fileMigrazione = join(dati, 'migrazione-una-casa.json')
       let inGiroCasa = false
       const giroCasa = async (): Promise<void> => {
@@ -1850,6 +1905,8 @@ if (!app.requestSingleInstanceLock()) {
             return
           }
           await unaCasa.nascite((s) => indiceDrive.has(s))
+          // Le case arrivate dal Drive si fanno rispettare subito (0.52.0).
+          await ospite.giro()
         } catch (err) {
           registro.info(`[casa] giro non riuscito: ${String(err)}`)
         } finally {
@@ -2006,8 +2063,13 @@ if (!app.requestSingleInstanceLock()) {
           const trascrizioneQui =
             sessione !== undefined && existsSync(join(radiceClaude, 'projects', pathToSlug(cwd), `${sessione}.jsonl`))
           const di = cartellaQui ? undefined : altrove(cwd)
+          // La casa memorizzata prima di tutto (0.52.0).
+          const casa = sessione !== undefined ? ospiteGlobale?.casaAltroveDi(sessione) : undefined
+          const casaQui = sessione !== undefined && ospiteGlobale?.casaQui(sessione) === true
           const dati = {
             ...(sessione !== undefined ? { sessione } : {}),
+            ...(casa !== undefined ? { casa } : {}),
+            ...(casaQui ? { casaQui } : {}),
             cwd,
             io,
             trascrizioneQui,
@@ -3036,6 +3098,11 @@ if (!app.requestSingleInstanceLock()) {
         istruzioniAutopilota: (id: string) => clientAutopilota.istruzioni(id),
         // «Sposta progetto» dal lato di chi riceve (0.42.0).
         // Pigro: il servizio nasce con la sincronia, che puo' arrivare dopo.
+        // Le case delle chat da un altro PC (0.52.0). Pigro come «Sposta».
+        caseChat: {
+          leggi: () => ospiteGlobale?.leggi() ?? { versione: 1, case: {} },
+          ricevi: async (corpo: unknown) => ospiteGlobale === undefined ? { ok: false, messaggio: 'la sincronia di questo PC non è ancora pronta' } : ospiteGlobale.ricevi(corpo)
+        },
         sposta: {
           pronto: () => spostaGlobale?.pronto() ?? { errore: 'non pronto' },
           ricevi: async (corpo: unknown) => spostaGlobale === undefined ? { ok: false, messaggio: 'la sincronia di questo PC non è ancora pronta' } : spostaGlobale.ricevi(corpo),

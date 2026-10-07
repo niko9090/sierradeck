@@ -53,7 +53,7 @@ import androidx.compose.ui.unit.sp
  * accorge che è dell'altro banco, si cambia e si continua.
  */
 @Composable
-fun PillolaComputer(nome: String, connesso: Boolean, onApri: () -> Unit) {
+fun PillolaComputer(nome: String, connesso: Boolean, linea: StatoLinea? = null, onApri: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -77,6 +77,15 @@ fun PillolaComputer(nome: String, connesso: Boolean, onApri: () -> Unit) {
             maxLines = 1,
             modifier = Modifier.weight(1f)
         )
+        // La qualità del collegamento con questo computer, sempre in vista
+        // (0.52.0): strada, tacche e ritardo; toccandola, la storia.
+        if (linea != null) {
+            IndicatoreLinea(
+                linea, nome,
+                spiega = "Le cadute, i ritorni e i cambi di questo collegamento, con l'ora e il motivo (gli ultimi trenta). La strada è quella fra questo telefono e $nome: 🏠 rete di casa, 🔐 Tailscale, … quando non si capisce dall'indirizzo. Il ritardo è il giro completo di una lettura (dal telefono al computer e ritorno), misurato ogni due secondi. Le tacche: 4 = sotto 150 ms e niente perso; ne tolgono una le letture perse e il ritardo che sale (400 ms, 1 s). Se il collegamento cade, l'app riprova da sola."
+            )
+            Spacer(Modifier.width(8.dp))
+        }
         Text("cambia  ▾", color = Banco.testoQuieto, fontSize = 12.sp)
     }
 }

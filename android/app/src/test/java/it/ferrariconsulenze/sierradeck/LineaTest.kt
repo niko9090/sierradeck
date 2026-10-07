@@ -88,6 +88,17 @@ class LineaTest {
     }
 
     @Test
+    fun `la strada fra telefono e PC accoppiato, dall'indirizzo (0_52)`() {
+        assertEquals("tailscale", Linea.stradaDiIndirizzo("http://100.101.102.103:7420"))
+        assertEquals("lan", Linea.stradaDiIndirizzo("192.168.1.20:7420"))
+        assertEquals("lan", Linea.stradaDiIndirizzo("http://10.0.0.5:7420/"))
+        assertEquals("lan", Linea.stradaDiIndirizzo("172.20.1.1"))
+        assertNull(Linea.stradaDiIndirizzo("http://8.8.8.8:7420"))
+        assertNull(Linea.stradaDiIndirizzo("pc-fisso.local:7420"))
+        assertNull(Linea.stradaDiIndirizzo("100.200.1.1"))
+    }
+
+    @Test
     fun `la coda - scritto a linea giu parte al ritorno, una volta sola`() {
         var c = Linea.accoda(emptyList(), "m-1", "continua", 1)
         c = Linea.accoda(c, "m-1", "continua", 1)

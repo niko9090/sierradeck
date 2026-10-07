@@ -21,6 +21,7 @@ import type { Autopilota } from '@shared/autopilota'
 import type { StatoWorkspace } from '../main/ipc'
 import { Mosaic } from './components/Mosaic'
 import { ModaleSessioni } from './components/ModaleSessioni'
+import { ModaleDoveVive } from './components/OspiteChat'
 import { NOME_AUTOMATICO } from '@shared/istantanea'
 import { Console, type PannelloAperto } from './components/Console'
 import { PannelloWorkspace } from './components/PannelloWorkspace'
@@ -496,6 +497,28 @@ export function App(): React.JSX.Element {
   }), [])
 
   // Il nome che dai a una chat dal telefono: lo stesso che daresti qui.
+  /**
+   * L'ospite di una chat aperta qui è diventato un altro PC (0.52.0), e la
+   * chat ha finito il turno: il Core chiede di chiudere il suo claude.exe. Il
+   * riquadro resta al suo posto e diventa la chat dal vivo sull'ospite.
+   */
+  useEffect(() => window.gestore.casa.suChiudiQui((chat) => {
+    const s = useLayoutStore.getState()
+    for (const c of chat) {
+      for (const p of Object.values(s.panes)) {
+        if (p.remoto !== undefined || p.sessionUuid !== c.sessione) continue
+        if (p.ptyId !== undefined) window.gestore.pty.kill(p.ptyId)
+        s.rendiRemoto(p.id, { pcId: c.pc.id, pcNome: c.pc.nome, cwd: p.cwd, sessione: c.sessione })
+      }
+    }
+  }), [])
+  const [doveVive, setDoveVive] = useState(false)
+  useEffect(() => {
+    const apri = (): void => setDoveVive(true)
+    window.addEventListener('sierradeck:dove-vive', apri)
+    return () => window.removeEventListener('sierradeck:dove-vive', apri)
+  }, [])
+
   useEffect(() => window.gestore.client.suRinomina(({ chat, nome }) => {
     useLayoutStore.getState().rinominaPane(chat, nome)
   }), [])
@@ -1307,6 +1330,7 @@ export function App(): React.JSX.Element {
       ) : null}
 
       {modale === 'sessioni' ? <ModaleSessioni onChiudi={() => setModale(undefined)} /> : null}
+      {doveVive ? <ModaleDoveVive onChiudi={() => setDoveVive(false)} /> : null}
       {modale === 'accesso' ? <ModaleAccesso onChiudi={() => setModale(undefined)} /> : null}
       {avvisoProgetto !== undefined ? (
         <ModaleTestimone avviso={avvisoProgetto} onChiudi={() => setAvvisoProgetto(undefined)} />

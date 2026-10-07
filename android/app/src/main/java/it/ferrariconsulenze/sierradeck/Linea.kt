@@ -121,6 +121,22 @@ object Linea {
     fun stradaBreve(s: String?): String = when (s) { "lan" -> "rete di casa"; "tailscale" -> "Tailscale"; "webrtc" -> "WebRTC"; "drive" -> "Drive, lento"; else -> "strada non ancora nota" }
     fun icona(s: String?): String = when (s) { "lan" -> "🏠"; "tailscale" -> "🔐"; "webrtc" -> "🌐"; "drive" -> "☁️"; else -> "…" }
 
+    /**
+     * La strada fra il telefono e il PC accoppiato, dall'indirizzo (0.52.0):
+     * 100.64–127.x è Tailscale, gli indirizzi privati sono la rete di casa.
+     * Un nome o un indirizzo pubblico: non si sa.
+     */
+    fun stradaDiIndirizzo(indirizzo: String): String? {
+        val host = indirizzo.substringAfter("://").substringBefore("/").substringBeforeLast(":").trim('[', ']')
+        val p = host.split('.').mapNotNull { it.toIntOrNull() }
+        if (p.size != 4) return null
+        return when {
+            p[0] == 100 && p[1] in 64..127 -> "tailscale"
+            p[0] == 10 || (p[0] == 192 && p[1] == 168) || (p[0] == 172 && p[1] in 16..31) || p[0] == 127 -> "lan"
+            else -> null
+        }
+    }
+
     fun stradaMigliore(rispondono: Collection<String>): String? = ORDINE_STRADE.firstOrNull { it in rispondono }
     fun meglio(nuova: String, inUso: String?): Boolean = inUso == null || ORDINE_STRADE.indexOf(nuova) < ORDINE_STRADE.indexOf(inUso)
 
@@ -218,7 +234,7 @@ fun adessoVivo(attivo: Boolean): Long {
 
 /** Icona della strada, tacche e ritardo, accanto a «SU <PC>». Toccando: la storia. */
 @Composable
-fun IndicatoreLinea(linea: StatoLinea, nomePc: String) {
+fun IndicatoreLinea(linea: StatoLinea, nomePc: String, spiega: String? = null) {
     var storia by remember { mutableStateOf(false) }
     val q = Linea.qualita(linea.misure)
     val giu = linea.fase == "ricollego"
@@ -248,7 +264,7 @@ fun IndicatoreLinea(linea: StatoLinea, nomePc: String) {
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "Le cadute, i ritorni e i cambi di strada di questa schermata, con l'ora e il motivo (gli ultimi trenta). Le strade si provano in quest'ordine: rete di casa 🏠, Tailscale 🔐, collegamento diretto via Internet (WebRTC) 🌐, Drive ☁️ (lento). Quando ne torna una migliore il PC ci passa da solo, senza chiudere niente. Il ritardo è il giro completo: dal telefono al PC accoppiato, a $nomePc e ritorno. Le tacche: 4 = sotto 150 ms e niente perso; ne tolgono una le chiamate perse e il ritardo che sale (400 ms, 1 s).",
+                        spiega ?: "Le cadute, i ritorni e i cambi di strada di questa schermata, con l'ora e il motivo (gli ultimi trenta). Le strade si provano in quest'ordine: rete di casa 🏠, Tailscale 🔐, collegamento diretto via Internet (WebRTC) 🌐, Drive ☁️ (lento). Quando ne torna una migliore il PC ci passa da solo, senza chiudere niente. Il ritardo è il giro completo: dal telefono al PC accoppiato, a $nomePc e ritorno. Le tacche: 4 = sotto 150 ms e niente perso; ne tolgono una le chiamate perse e il ritardo che sale (400 ms, 1 s).",
                         color = Banco.testoQuieto, fontSize = 12.sp
                     )
                     Spacer(Modifier.height(8.dp))

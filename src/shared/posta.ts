@@ -116,7 +116,14 @@ export function pcCheHaLaCartella(cwd: string, battiti: BattitoPc[], me?: string
  * rossa, mostra di chi e' la chat e cosa si puo' fare.
  */
 export const PREFISSO_CHAT_ALTROVE = 'CHAT_DI_UN_ALTRO_PC:'
-export type ChatAltrove = { cwd: string; pc: { id: string; nome: string }; sessionUuid: string }
+export type ChatAltrove = {
+  cwd: string
+  pc: { id: string; nome: string }
+  sessionUuid: string
+  /** Fermata perché la sua casa è quel PC (0.52.0): «Apri qui lo stesso» non c'è, c'è «Porta qui la chat». */
+  casa?: true
+  perche?: string
+}
 
 export function messaggioChatAltrove(c: ChatAltrove): string {
   return PREFISSO_CHAT_ALTROVE + JSON.stringify(c)
@@ -130,6 +137,10 @@ export function leggiChatAltrove(err: unknown): ChatAltrove | undefined {
   try {
     const o = JSON.parse(testo.slice(i + PREFISSO_CHAT_ALTROVE.length)) as Partial<ChatAltrove>
     if (typeof o.cwd !== 'string' || typeof o.sessionUuid !== 'string' || typeof o.pc !== 'object' || o.pc === null) return undefined
-    return { cwd: o.cwd, sessionUuid: o.sessionUuid, pc: { id: String(o.pc.id ?? ''), nome: String(o.pc.nome ?? 'un altro PC') } }
+    return {
+      cwd: o.cwd, sessionUuid: o.sessionUuid, pc: { id: String(o.pc.id ?? ''), nome: String(o.pc.nome ?? 'un altro PC') },
+      ...(o.casa === true ? { casa: true as const } : {}),
+      ...(typeof o.perche === 'string' ? { perche: o.perche } : {})
+    }
   } catch { return undefined }
 }

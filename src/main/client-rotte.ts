@@ -172,6 +172,8 @@ export type DipendenzeRotte = {
    * con la chiave di casa (dispositivo `pc`), mai per un telefono.
    */
   sposta?: { pronto: () => unknown; ricevi: (corpo: unknown) => Promise<unknown>; verifica: (sessioni: string[]) => Promise<unknown> }
+  /** Le case delle chat (0.52.0, «Ospitata da»): solo fra PC della stessa cassaforte. */
+  caseChat?: { leggi: () => unknown; ricevi: (corpo: unknown) => Promise<unknown> }
   /** «Salute del sistema» (0.44.0): il Drive, gli altri PC, gli errori, con spiegazioni e azioni. */
   salute?: () => Promise<unknown>
   /**
@@ -1396,6 +1398,15 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     // case.
     if (r.metodo === 'POST' && (r.percorso === '/api/drive/porta' || r.percorso === '/api/drive/portaWorkspace')) {
       return OK({ ok: false, messaggio: 'Dalla 0.42.0 un progetto non si porta più qui dal catalogo: ogni chat ha una casa sola. Per spostarlo usa «Sposta progetto…» nella scheda Drive del PC dove sta adesso; da qui intanto le sue chat si guardano dal vivo.' })
+    }
+    // Le case delle chat (0.52.0): un altro PC di casa manda la sua scelta
+    // («Ospitata da»), o chiede le nostre. Mai dal telefono né da fuori: la
+    // casa decide dove parte un claude.exe.
+    if (r.percorso === '/api/case') {
+      if (!daAltroPc(r.dispositivo)) return { stato: 403, corpo: { errore: 'solo un altro PC con la stessa cassaforte' } }
+      if (deps.caseChat === undefined) return { stato: 404, corpo: { errore: 'questo computer non conosce ancora le case delle chat' } }
+      if (r.metodo === 'POST') return OK((await deps.caseChat.ricevi(r.corpo).catch((e: unknown) => ({ ok: false, messaggio: String(e) }))) as object)
+      return OK(deps.caseChat.leggi() as object)
     }
     // «Sposta progetto» (0.42.0): chi riceve. Solo da un altro PC di casa.
     if (r.percorso.startsWith('/api/sposta/')) {

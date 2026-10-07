@@ -54,6 +54,8 @@ type State = {
    * cartella vuota.
    */
   rendiRemoto: (paneId: string, remoto: NonNullable<PaneData['remoto']>) => void
+  /** Il contrario (0.52.0, «Porta qui la chat»): il riquadro torna una chat di qui, della stessa conversazione. */
+  rendiLocale: (paneId: string) => void
   /** Il nome che l'utente dà a un riquadro: vince su quello di Claude Code. */
   rinominaPane: (id: string, title: string) => void
   /**
@@ -398,6 +400,14 @@ export const useLayoutStore = create<State>((set, get) => ({
       if (p === undefined) return {}
       const { ptyId: _p, ibernata: _i, ...resto } = p
       return { panes: { ...s.panes, [paneId]: { ...resto, remoto } } }
+    }),
+
+  rendiLocale: (paneId) =>
+    set((s) => {
+      const p = s.panes[paneId]
+      if (p?.remoto === undefined) return {}
+      const { remoto, ...resto } = p
+      return { panes: { ...s.panes, [paneId]: { ...resto, sessionUuid: remoto.sessione ?? p.sessionUuid } } }
     }),
 
   esporta: () => {

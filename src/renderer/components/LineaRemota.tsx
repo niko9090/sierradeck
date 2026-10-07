@@ -3,6 +3,7 @@ import {
   cambioVisibile, iconaStrada, qualita, rigaStoria, testoRiconnessione, type Linea, type VoceCoda
 } from '@shared/collegamento'
 import { etichettaStrada } from '@shared/strada-pc'
+import { useLineaRemota } from '../linee-remote'
 
 /**
  * Il collegamento con un altro PC, a colpo d'occhio (0.51.0): l'icona della
@@ -21,6 +22,12 @@ export function useAdesso(attivo: boolean): number {
     return () => clearInterval(t)
   }, [attivo])
   return attivo ? adesso : Date.now()
+}
+
+/** Lo stesso indicatore nella testata del riquadro remoto, accanto a «SU <PC>» (0.52.0): sempre in vista. */
+export function IndicatoreDiRiquadro({ paneId, nomePc }: { paneId: string; nomePc: string }): React.JSX.Element | null {
+  const l = useLineaRemota(paneId)
+  return l === undefined ? null : <IndicatoreLinea linea={l} nomePc={nomePc} />
 }
 
 export function IndicatoreLinea({ linea, nomePc }: { linea: Linea; nomePc: string }): React.JSX.Element {

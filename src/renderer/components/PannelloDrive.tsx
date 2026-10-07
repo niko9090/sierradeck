@@ -147,12 +147,14 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
         Qui vedi tutto quello che sta sul Drive, raggruppato per progetto, cioè per la cartella in cui le chat lavorano: da dove viene, quante chat ha, quando è stato toccato l’ultima volta, e per ogni chat il nome e lo stato rispetto a questo PC.
         Dalla 0.42.0 vale <strong>«una chat, una casa»</strong>: ogni chat vive su un PC solo, quello dove gira e dove sta la sua cartella. Il Drive è il <strong>salvataggio</strong> di ogni PC: ognuno ci carica solo le sue chat, e le chat degli altri PC non scendono più da sole qui. Le guardi e ci scrivi dal vivo, dal loro riquadro (rete di casa, Tailscale, collegamento diretto o, lento, il Drive).
         <strong> «Sposta progetto…»</strong> porta un progetto con le sue chat da questo PC a un altro, a passi: controlla, trasferisce, verifica, cambia la casa e mette da parte le copie di qui, senza cancellare niente. Per portare qui un progetto di un altro PC usa «Sposta progetto…» su quel PC.
+        <strong> «Dove vive ogni chat…»</strong> (0.52.0) elenca le chat dei workspace con il PC che le ospita, e lì lo scegli, chat per chat o per un workspace intero: sugli altri PC quella chat non parte mai, si apre solo dal vivo.
         <strong> «Riordina le chat…»</strong> mostra le copie che stanno qui ma hanno casa altrove, con il perché, e le mette da parte quando confermi; ogni riordino si annulla.
         <strong> «Togli la cartella dal Drive»</strong> vale per i progetti che viaggiano con la cartella: i file della cartella salvati sul Drive vengono tolti e la cartella smette di viaggiare; le chat e le cartelle sui PC restano come sono. Per il resto dal Drive niente viene mai cancellato.
       </p>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '6px 0' }}>
         <button className="tasto tasto--primario" onClick={() => setSposta(true)} title="Porta un progetto con le sue chat da questo PC a un altro, con controlli, verifica e copia archiviata qui">Sposta progetto…</button>
         <button className="tasto" onClick={() => setRiordina(true)} title="Le chat che stanno qui ma hanno casa su un altro PC: le metti da parte (senza cancellarle) e lo annulli quando vuoi">Riordina le chat…</button>
+        <button className="tasto" onClick={() => window.dispatchEvent(new CustomEvent('sierradeck:dove-vive'))} title="Tutte le chat dei workspace con il PC che le ospita: lo scegli chat per chat o per workspace">Dove vive ogni chat…</button>
       </div>
 
       {lavoro.inCorso !== undefined ? <AvanzamentoLavoro lavoro={lavoro.inCorso} adesso={adesso} onAnnulla={() => void window.gestore.sync.annullaLavoro()} /> : null}

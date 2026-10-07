@@ -492,7 +492,21 @@ contextBridge.exposeInMainWorld('gestore', {
     riordina: (sessioni: string[]): Promise<import('@shared/una-casa').RegistroRiordino> => ipcRenderer.invoke('casa:riordina', sessioni),
     riordini: (): Promise<import('@shared/una-casa').RegistroRiordino[]> => ipcRenderer.invoke('casa:riordini'),
     annulla: (id: string): Promise<{ ok: boolean; rimessi: number; restano: { sessione: string; perche: string; dove: string }[]; messaggio?: string }> => ipcRenderer.invoke('casa:annulla', id),
-    stato: (): Promise<{ migrazione?: { fatta: string; case: number; proprietari: number; copia?: string }; case: number; qui: number }> => ipcRenderer.invoke('casa:stato')
+    stato: (): Promise<{ migrazione?: { fatta: string; case: number; proprietari: number; copia?: string }; case: number; qui: number }> => ipcRenderer.invoke('casa:stato'),
+    // L'ospite di ogni chat (0.52.0).
+    dove: (): Promise<{ io: { id: string; nome: string }; pc: { id: string; nome: string }[]; gruppi: import('@shared/ospite-chat').GruppoDove[]; traslochi: import('@shared/una-casa').RegistroRiordino[] }> => ipcRenderer.invoke('casa:dove'),
+    scegli: (p: { sessioni: string[]; pc: { id: string; nome: string }; workspace?: string }): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('casa:scegli', p),
+    di: (sessione: string): Promise<{ pc: string; pcNome: string; da: string; motivo: string; qui: boolean } | undefined> => ipcRenderer.invoke('casa:di', sessione),
+    suChiudiQui: (cb: (chat: { sessione: string; pc: { id: string; nome: string } }[]) => void): (() => void) => {
+      const h = (_e: Electron.IpcRendererEvent, chat: { sessione: string; pc: { id: string; nome: string } }[]): void => cb(chat)
+      ipcRenderer.on('casa:chiudiQui', h)
+      return () => { ipcRenderer.removeListener('casa:chiudiQui', h) }
+    },
+    suCambiate: (cb: () => void): (() => void) => {
+      const h = (): void => cb()
+      ipcRenderer.on('casa:cambiate', h)
+      return () => { ipcRenderer.removeListener('casa:cambiate', h) }
+    }
   },
   /** «Sposta progetto da un PC all'altro» (0.42.0): i passi della procedura. */
   sposta: {

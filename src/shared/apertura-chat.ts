@@ -27,10 +27,18 @@ import type { StatoPc } from './scoperta-pc'
  * Senza una prova si apre qui, con le diagnosi di sempre: una chat nuova non ha
  * ancora una trascrizione, e non deve finire su un altro PC che ha solo la
  * stessa cartella.
+ *
+ * **Prima di tutto, la casa (0.52.0).** La casa memorizzata (`case-chat`,
+ * «Ospitata da») vince su tutto: se è un altro PC la chat si apre là, anche se
+ * qui ci sono cartella e trascrizione; se è questo PC si apre qui, anche se un
+ * altro PC la tiene aperta per errore. Prima della 0.52 la casa non entrava in
+ * questa decisione: con la cartella presente su tutti e due i PC (i progetti
+ * sul Drive) e il battito che elenca solo le chat del workspace davanti, la
+ * stessa chat partiva su tutti e due.
  */
 export type Apertura =
   | { tipo: 'locale' }
-  | { tipo: 'remoto'; pc: { id: string; nome: string }; cwd: string; sessione?: string; perche: string }
+  | { tipo: 'remoto'; pc: { id: string; nome: string }; cwd: string; sessione?: string; perche: string; perCasa?: true }
   | {
       tipo: 'attesa'
       pc: { id: string; nome: string }
@@ -39,6 +47,8 @@ export type Apertura =
       /** L'ultimo battito di quel PC (ISO), se ce n'e' uno. */
       ultimoSegno?: string
       perche: string
+      /** La chat ha casa su quel PC (0.52.0): qui non parte, si offre «Porta qui la chat». */
+      perCasa?: true
       /**
        * Com'e' quel PC dopo il bussare diretto (0.39.3): il titolo e cosa fare,
        * mai «spento» quando i dati sono vecchi (`statoPc` in scoperta-pc.ts).
@@ -68,6 +78,10 @@ export type DatiApertura = {
   rispondono?: string[]
   /** Com'e' ogni PC dopo il bussare, per il riquadro d'attesa. */
   statiPc?: Record<string, StatoPc>
+  /** La casa memorizzata di questa chat, se è un altro PC (0.52.0). */
+  casa?: { id: string; nome: string; motivo: string }
+  /** La casa memorizzata è questo PC. */
+  casaQui?: boolean
 }
 
 /** «non risponde da 12 minuti», «non ha mai lasciato un battito». */
@@ -84,11 +98,12 @@ export function daQuandoTace(ultimoSegno: string | undefined, adesso: number): s
 
 export function decidiApertura(d: DatiApertura): Apertura {
   const altri = d.battiti.filter((b) => b.pcId !== d.io)
-  const verso = (b: BattitoPc | undefined, pc: { id: string; nome: string }, perche: string): Apertura => {
+  const verso = (b: BattitoPc | undefined, pc: { id: string; nome: string }, perche: string, perCasa = false): Apertura => {
     const nome = b?.nome !== undefined && b.nome !== '' ? b.nome : pc.nome
     const id = b?.pcId ?? pc.id
+    const casa = perCasa ? { perCasa: true as const } : {}
     if ((b !== undefined && pcVivo(b, d.adesso)) || (d.rispondono ?? []).includes(id)) {
-      return { tipo: 'remoto', pc: { id, nome }, cwd: d.cwd, ...(d.sessione !== undefined ? { sessione: d.sessione } : {}), perche }
+      return { tipo: 'remoto', pc: { id, nome }, cwd: d.cwd, ...(d.sessione !== undefined ? { sessione: d.sessione } : {}), perche, ...casa }
     }
     return {
       tipo: 'attesa',
@@ -97,9 +112,17 @@ export function decidiApertura(d: DatiApertura): Apertura {
       ...(d.sessione !== undefined ? { sessione: d.sessione } : {}),
       ...(b?.battito !== undefined && b.battito !== '' ? { ultimoSegno: b.battito } : {}),
       perche,
+      ...casa,
       ...(d.statiPc?.[id] !== undefined ? { statoPc: d.statiPc[id] } : {})
     }
   }
+
+  // 0. La casa memorizzata (0.52.0): vince su tutto il resto.
+  if (d.sessione !== undefined && d.casa !== undefined && d.casa.id !== '' && d.casa.id !== d.io) {
+    const b = altri.find((x) => x.pcId === d.casa?.id)
+    return verso(b, { id: d.casa.id, nome: d.casa.nome }, `la sua casa è ${d.casa.nome}${d.casa.motivo !== '' ? ` (${d.casa.motivo})` : ''}`, true)
+  }
+  if (d.sessione !== undefined && d.casaQui === true) return { tipo: 'locale' }
 
   // 1. Aperta su un altro PC: il suo battito la elenca. Il piu' recente vince.
   if (d.sessione !== undefined) {

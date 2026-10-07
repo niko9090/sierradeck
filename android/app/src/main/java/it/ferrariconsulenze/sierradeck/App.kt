@@ -166,6 +166,8 @@ fun Principale(
     }
     var stato by remember { mutableStateOf<Stato?>(null) }
     var connesso by remember { mutableStateOf(true) }
+    /** Il collegamento con questo computer, per l'indicatore in alto (0.52.0): la stessa macchina dei PC. */
+    var lineaPc by remember(indirizzo) { mutableStateOf(Linea.NUOVA) }
     var giriFalliti by remember { mutableIntStateOf(0) }
     /**
      * Quanti «non ti riconosco» di fila sono arrivati dal computer.
@@ -261,9 +263,12 @@ fun Principale(
     }
 
     LaunchedEffect(api) {
+        val strada = Linea.stradaDiIndirizzo(indirizzo)
         while (isActive) {
+            val t0 = System.currentTimeMillis()
             try {
                 val (letto, grezzo) = api.statoConTesto()
+                lineaPc = Linea.passo(lineaPc, EventoLinea.Ok(System.currentTimeMillis(), System.currentTimeMillis() - t0, strada))
                 letto.computer?.versione?.takeIf { it.isNotBlank() }?.let { if (PcCorrente.versione != it) PcCorrente.versione = it }
                 // Lo stesso polso passa dalla guardia: una chat che finisce
                 // mentre guardi un'altra scheda si annuncia adesso, non alla
@@ -301,11 +306,17 @@ fun Principale(
                 // macchina lo sa solo lei, e un elenco di indirizzi IP non si
                 // legge.
                 Postazioni.usata(contesto, indirizzo, letto.computer?.nome)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Api.Errore) {
                 if (e.daRiaccoppiare) rifiuti += 1
                 giriFalliti += 1; if (giriFalliti >= 2) connesso = false
+                // Una risposta del computer, anche un rifiuto, vuol dire che la linea c'è.
+                lineaPc = if (e.codice > 0) Linea.passo(lineaPc, EventoLinea.Ok(System.currentTimeMillis(), System.currentTimeMillis() - t0, strada))
+                else Linea.passo(lineaPc, EventoLinea.Errore(System.currentTimeMillis(), "irraggiungibile", e.message ?: "il computer non risponde"))
             } catch (e: Exception) {
                 giriFalliti += 1; if (giriFalliti >= 2) connesso = false
+                lineaPc = Linea.passo(lineaPc, EventoLinea.Errore(System.currentTimeMillis(), "irraggiungibile", e.message ?: "il computer non risponde"))
             }
             delay(2000)
         }
@@ -371,6 +382,7 @@ fun Principale(
                     ?: Postazioni.corrente(contesto)?.nome
                     ?: Postazioni.hostDi(indirizzo),
                 connesso = connesso,
+                linea = lineaPc,
                 onApri = { scegliComputer = true }
             )
             // Un tasto che non ce l'ha fatta lo dice qui, in cima, qualunque

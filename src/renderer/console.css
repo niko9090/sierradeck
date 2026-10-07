@@ -4383,3 +4383,37 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .mappa-pc { width: 100%; max-width: 420px; height: auto; display: block; margin: var(--s2) auto; }
 .mappa-pc text { font-family: system-ui, sans-serif; font-size: 4px; fill: var(--testo); }
 .mappa-pc__legenda { font-size: var(--t1); color: var(--testo-quieto); text-align: center; }
+
+/* L'ospite delle chat (0.52.0): «Porta qui la chat», «Dove vive ogni chat», la nota dopo una scelta. */
+.remoto__ospite {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--testo);
+  background: color-mix(in srgb, var(--ambra, #d29922) 14%, transparent);
+  border-bottom: 1px solid var(--incisione);
+}
+.remoto__ospite > span { flex: 1; }
+.dove__testa { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.dove__riga { display: flex; align-items: center; gap: 10px; padding: 4px 0; border-top: 1px solid var(--incisione); }
+.dove__riga .riordina__testo { flex: 1; min-width: 0; }
+.campo--mini { font-size: 12px; padding: 2px 4px; }
+.nota-ospite {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  max-width: 460px;
+  z-index: 60;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--testo);
+  background: var(--chassis, #1c1f24);
+  border: 1px solid var(--incisione);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}

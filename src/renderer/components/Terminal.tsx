@@ -18,6 +18,7 @@ import { daQuandoTace, type Apertura } from '@shared/apertura-chat'
 import { diagnostica, tettoAttesaMs, senzaSequenze, USCITA_PRECOCE_MS, type Diagnosi } from '../diagnosi-chat'
 import { SEGNI_DI_PROMPT } from '../ultime-righe'
 import { FinestraTemporanea } from './FinestraTemporanea'
+import { ConfermaPortaQui } from './OspiteChat'
 
 type Props = {
   paneId: string
@@ -109,6 +110,15 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
    */
   const guardaDalVivo = (c: ChatAltrove): void => {
     useLayoutStore.getState().rendiRemoto(paneId, { pcId: c.pc.id, pcNome: c.pc.nome, cwd: c.cwd, sessione: c.sessionUuid })
+  }
+  /** «Porta qui la chat» (0.52.0): la conferma, poi la casa diventa questo PC e si riapre qui. */
+  const [portaQui, setPortaQui] = useState<{ sessione: string; pcNome: string } | undefined>(undefined)
+  const dopoPortaQui = (): void => {
+    setPortaQui(undefined)
+    setAltrove(undefined)
+    setInAttesaDi(undefined)
+    riarma()
+    ricontrollaRef.current?.()
   }
   const apriQuiLoStesso = (): void => {
     forzaQui.current = true
@@ -284,7 +294,10 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
         // Lo spawn ha scoperto che la cartella e' di un altro PC: se quel PC
         // risponde il riquadro diventa remoto da solo, se tace aspetta. La
         // scelta di prima resta solo quando nemmeno qui si sa decidere.
-        if (forzaQui.current) { suAltrove.current(c); return }
+        // La casa altrove (0.52.0) non si scavalca con «apri qui lo stesso»:
+        // si torna a chiedere da dove aprirla, e diventa remota.
+        if (c.casa === true) forzaQui.current = false
+        else if (forzaQui.current) { suAltrove.current(c); return }
         window.gestore.remoto.daDove({ cwd: c.cwd, sessionUuid: c.sessionUuid }).then(
           (a) => { if (a.tipo === 'locale') suAltrove.current(c); else applica(a, () => suAltrove.current(c)) },
           () => { if (!smontato) suAltrove.current(c) }
@@ -503,6 +516,22 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
             direttamente ai suoi indirizzi (rete locale e Tailscale): se risponde, la chat si apre dal vivo. Qui non è
             successo niente di male: la chat là non è stata toccata.
           </div>
+          {inAttesaDi.perCasa === true ? (
+            <ul className="chat-altrove__testo">
+              <li>
+                <strong>Questa chat è ospitata da {inAttesaDi.pc.nome}</strong>: su questo PC non parte mai, nemmeno «lo
+                stesso». È la regola che hai scelto, così non lavora su due PC alla volta.
+              </li>
+              <li>
+                <strong>Aspetta</strong> (è quello che succede se non fai niente): ricontrollo da solo ogni 20 secondi e,
+                appena {inAttesaDi.pc.nome} risponde, questo riquadro diventa la chat dal vivo su quel PC.
+              </li>
+              <li>
+                <strong>Porta qui la chat</strong>: la sua casa diventa questo PC (te lo chiedo prima). Da lì in poi parte qui,
+                e su {inAttesaDi.pc.nome}, quando si riaccende, si apre dal vivo guardando questo.
+              </li>
+            </ul>
+          ) : (
           <ul className="chat-altrove__testo">
             <li>
               <strong>Aspetta</strong> (è quello che succede se non fai niente): ricontrollo da solo ogni 20 secondi e,
@@ -522,13 +551,16 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
               parte in una cartella vuota, senza i file del progetto.
             </li>
           </ul>
+          )}
           <div className="chat-altrove__azioni">
             <button className="tasto tasto--primario" onClick={() => ricontrollaRef.current?.()} title="Richiede subito se quel PC risponde, senza aspettare i 20 secondi">
               Ricontrolla adesso
             </button>
+            {inAttesaDi.perCasa !== true ? (
             <button className="tasto" onClick={() => apriScheda('drive')} title="Apre la scheda Drive della console, dove c’è «Porta qui»">
               Apri la scheda Drive…
             </button>
+            ) : null}
             <button className="tasto" onClick={nuovaChatQui} title="Apre una chat nuova nella stessa cartella e chiude questo riquadro">
               Chat nuova nella stessa cartella
             </button>
@@ -537,15 +569,28 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
                 Scrivile là, nella cassetta
               </button>
             ) : null}
+            {inAttesaDi.perCasa === true ? (
+              <button className="tasto" onClick={() => setPortaQui({ sessione: inAttesaDi.sessione ?? sessionUuid, pcNome: inAttesaDi.pc.nome })} title="La casa della chat diventa questo PC, dopo la conferma: poi parte qui">
+                Porta qui la chat
+              </button>
+            ) : (
             <button className="tasto" onClick={apriQuiLoStesso} title="Riprende la conversazione su questo PC: diventa una copia a sé">
               Apri qui lo stesso
             </button>
+            )}
           </div>
         </div>
       ) : null}
       {altrove !== undefined ? (
         <div className="attesa-chat chat-altrove" role="status" aria-live="polite">
           <div className="chat-altrove__titolo">Questa chat lavora su {altrove.pc.nome}</div>
+          {altrove.casa === true ? (
+            <div className="chat-altrove__testo">
+              <strong>È ospitata da {altrove.pc.nome}</strong>{altrove.perche !== undefined ? ` (${altrove.perche})` : ''}: su questo PC
+              il suo claude.exe non parte mai, così non lavora su due PC alla volta. Si guarda e si comanda dal vivo là. Se
+              vuoi che lavori qui, «Porta qui la chat» ne cambia la casa, dopo averti chiesto conferma.
+            </div>
+          ) : (
           <div className="chat-altrove__testo">
             La sua cartella è <code>{altrove.cwd}</code>, e sta su quel computer: qui non c’è. Aprirla qui vorrebbe dire
             farla partire in una cartella vuota, senza i file del progetto: è quello che dava «directory non trovata»
@@ -553,6 +598,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
             terminale di quel PC e quello che scrivi arriva a lui, come dal telefono. Serve che {altrove.pc.nome} sia
             acceso e raggiungibile (stessa rete, o Tailscale su tutti e due); se è spento, resta la cassetta.
           </div>
+          )}
           <div className="chat-altrove__azioni">
             {altrove.pc.id !== '' ? (
               <button className="tasto tasto--primario" onClick={() => guardaDalVivo(altrove)} title="Trasforma questo riquadro nella chat dal vivo su quel PC: vedi il suo terminale e gli scrivi da qui">
@@ -562,9 +608,15 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
             <button className={altrove.pc.id !== '' ? 'tasto' : 'tasto tasto--primario'} onClick={() => scriviLa(altrove)} title="Metti un’azione nella cassetta di quel PC: la esegue lui, in questa chat, quando è acceso">
               Scrivile là, su {altrove.pc.nome}
             </button>
+            {altrove.casa === true ? (
+              <button className="tasto" onClick={() => setPortaQui({ sessione: altrove.sessionUuid, pcNome: altrove.pc.nome })} title="La casa della chat diventa questo PC, dopo la conferma: poi parte qui">
+                Porta qui la chat
+              </button>
+            ) : (
             <button className="tasto" onClick={apriQuiLoStesso} title="Apre la chat qui, in una cartella vuota con lo stesso nome: i file del progetto non ci sono">
               Aprila qui lo stesso
             </button>
+            )}
           </div>
           <div className="chat-altrove__nota">
             Se invece vuoi lavorarci qui con i file, su quel PC metti la cartella sul Drive (Account → Progetti sul Drive):
@@ -604,6 +656,9 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
           {...(miniFinestra.nota !== undefined ? { nota: miniFinestra.nota } : {})}
           onChiudi={() => setMiniFinestra(undefined)}
         />
+      ) : null}
+      {portaQui !== undefined ? (
+        <ConfermaPortaQui titolo={title ?? cwd} pcNome={portaQui.pcNome} sessione={portaQui.sessione} onAnnulla={() => setPortaQui(undefined)} onFatto={dopoPortaQui} />
       ) : null}
       {postaPer !== undefined && (altrove !== undefined || inAttesaDi !== undefined) ? (
         <ModalePosta

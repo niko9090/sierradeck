@@ -103,7 +103,7 @@ export function ModaleRiordina({ onChiudi }: Props): React.JSX.Element {
               {riordini.map((r) => (
                 <div key={r.id} className="riordina__voce">
                   <span className="account__nota">
-                    {quando(r.quando)} · {r.tipo === 'sposta' ? `«Sposta progetto» verso ${r.verso?.nome ?? '?'}${r.verso?.cwd !== undefined ? ` (${r.verso.cwd})` : ''}` : 'riordino'} · {new Set(r.spostamenti.map((s) => s.sessione)).size} chat, {r.spostamenti.length} file
+                    {quando(r.quando)} · {r.tipo === 'sposta' ? `«Sposta progetto» verso ${r.verso?.nome ?? '?'}${r.verso?.cwd !== undefined ? ` (${r.verso.cwd})` : ''}` : r.tipo === 'ospite' ? `ospite cambiato: ${r.verso?.nome ?? '?'}` : 'riordino'} · {new Set(r.spostamenti.map((s) => s.sessione)).size} chat, {r.spostamenti.length} file
                     {r.annullatoIl !== undefined ? ` · annullato il ${quando(r.annullatoIl)}` : ''}
                   </span>
                   {r.annullatoIl === undefined ? (

@@ -30,6 +30,8 @@ export type CasaChat = {
   motivo: string
   decisaIl: string
   da: FonteCasa
+  /** Il PC dove Nicholas ha fatto la scelta (0.52.0, «Ospitata da»). */
+  sceltaDa?: string
 }
 
 export type CaseChat = { versione: 1; case: Record<string, CasaChat> }
@@ -44,6 +46,11 @@ function peso(f: FonteCasa): number { return f === 'nicholas' || f === 'sposta' 
  * forte; fra due della stessa forza, quella di Nicholas o di «Sposta» più
  * recente (è l'ultima scelta), quella della regola più vecchia (la prima
  * decisione non si ribalta da sola).
+ *
+ * Due PC che si dicono casa nello stesso istante (0.52.0): vince l'id di PC
+ * più grande, così ogni PC arriva alla stessa risposta in qualunque ordine
+ * unisca. Prima vinceva «l'ultima arrivata», e due PC potevano restare in
+ * disaccordo per sempre.
  */
 export function unisciCase(a: CaseChat, b: CaseChat): CaseChat {
   const fuori: Record<string, CasaChat> = { ...a.case }
@@ -51,9 +58,9 @@ export function unisciCase(a: CaseChat, b: CaseChat): CaseChat {
     const ca = fuori[s]
     if (ca === undefined) { fuori[s] = cb; continue }
     if (peso(cb.da) !== peso(ca.da)) { if (peso(cb.da) > peso(ca.da)) fuori[s] = cb; continue }
-    // Fra due scelte, vince l'ultima arrivata anche nello stesso istante.
-    const piuRecente = cb.decisaIl >= ca.decisaIl
-    if (peso(cb.da) === 2 ? piuRecente : cb.decisaIl < ca.decisaIl) fuori[s] = cb
+    if (cb.decisaIl === ca.decisaIl) { if (cb.pc > ca.pc) fuori[s] = cb; continue }
+    const piuRecente = cb.decisaIl > ca.decisaIl
+    if (peso(cb.da) === 2 ? piuRecente : !piuRecente) fuori[s] = cb
   }
   return { versione: 1, case: fuori }
 }
@@ -68,7 +75,7 @@ export function leggiCase(x: unknown): CaseChat {
     const o = v as Record<string, unknown>
     if (typeof o.pc !== 'string' || o.pc === '' || typeof o.decisaIl !== 'string') continue
     const da: FonteCasa = o.da === 'nascita' || o.da === 'nicholas' || o.da === 'sposta' ? o.da : 'regola'
-    fuori[s] = { pc: o.pc, pcNome: typeof o.pcNome === 'string' ? o.pcNome : o.pc, motivo: typeof o.motivo === 'string' ? o.motivo : '', decisaIl: o.decisaIl, da }
+    fuori[s] = { pc: o.pc, pcNome: typeof o.pcNome === 'string' ? o.pcNome : o.pc, motivo: typeof o.motivo === 'string' ? o.motivo : '', decisaIl: o.decisaIl, da, ...(typeof o.sceltaDa === 'string' ? { sceltaDa: o.sceltaDa } : {}) }
   }
   return { versione: 1, case: fuori }
 }
@@ -243,7 +250,8 @@ export function perCasa(v: FuoriCasa[]): { pc: string; nome: string; chat: Fuori
 export type Spostamento = { sessione: string; da: string; a: string }
 export type RegistroRiordino = {
   id: string
-  tipo: 'riordino' | 'sposta'
+  /** `ospite` (0.52.0): la copia di qui spostata perché Nicholas ha scelto un altro PC come ospite. */
+  tipo: 'riordino' | 'sposta' | 'ospite'
   quando: string
   /** Per «Sposta progetto»: dove è andato. */
   verso?: { pc: string; nome: string; cwd?: string }
