@@ -168,6 +168,58 @@ fun Principale(
     var connesso by remember { mutableStateOf(true) }
     /** Il collegamento con questo computer, per l'indicatore in alto (0.52.0): la stessa macchina dei PC. */
     var lineaPc by remember(indirizzo) { mutableStateOf(Linea.NUOVA) }
+    /**
+     * «Mi collego a NOME-PC…» (0.52.1): al cambio di computer (e all'apertura)
+     * si provano le strade in ordine e si vedono, con `Tentativi.passi`. Se
+     * un altro indirizzo salvato dello stesso computer risponde, ci si passa.
+     */
+    var eventiTent by remember(indirizzo) { mutableStateOf<List<EventoTentativo>>(emptyList()) }
+    var giroTent by remember(indirizzo) { mutableIntStateOf(0) }
+    var schedaTent by remember(indirizzo) { mutableStateOf(true) }
+    LaunchedEffect(indirizzo, giroTent) {
+        schedaTent = true
+        val ev = mutableListOf<EventoTentativo>()
+        fun e(x: EventoTentativo) { ev += x; eventiTent = ev.toList() }
+        eventiTent = emptyList()
+        val tutte = Postazioni.elenca(contesto)
+        val scelta = tutte.firstOrNull { it.indirizzo == indirizzo }
+        val candidati = listOf(indirizzo) + tutte.filter { scelta != null && it.nome == scelta.nome && it.indirizzo != indirizzo && deposito.chiaveDi(it.indirizzo).isNotBlank() }.map { it.indirizzo }
+        val perStrada = candidati.groupBy { Linea.stradaDiIndirizzo(it) ?: "lan" }
+        var ultimo = "nessuna strada ha risposto"
+        for (s in listOf("lan", "tailscale")) {
+            val indirizzi = perStrada[s]
+            if (indirizzi == null) {
+                e(EventoTentativo.Salta(s, if (s == "lan") "nessun indirizzo della rete di casa salvato per questo computer" else "nessun indirizzo Tailscale salvato per questo computer"))
+                continue
+            }
+            for (a in indirizzi) {
+                e(EventoTentativo.Provo(s, System.currentTimeMillis()))
+                val t0 = System.currentTimeMillis()
+                val riuscito = try {
+                    kotlinx.coroutines.withTimeout(5000) { Api(a, deposito.chiaveDi(a)).ciao() }
+                    true
+                } catch (x: kotlinx.coroutines.TimeoutCancellationException) {
+                    ultimo = "non ha risposto in 5 secondi"; false
+                } catch (x: kotlinx.coroutines.CancellationException) {
+                    throw x
+                } catch (x: Exception) {
+                    ultimo = x.message?.take(120) ?: "non risponde"; false
+                }
+                if (riuscito) {
+                    e(EventoTentativo.Riuscita(s, System.currentTimeMillis(), System.currentTimeMillis() - t0))
+                    // Lo stesso computer risponde a un altro suo indirizzo: si passa a quello.
+                    if (a != indirizzo) onVaiA(a)
+                    delay(2500)
+                    schedaTent = false
+                    return@LaunchedEffect
+                }
+                e(EventoTentativo.Fallita(s, System.currentTimeMillis(), ultimo))
+            }
+        }
+        e(EventoTentativo.Salta("webrtc", "dal telefono il ponte verso gli altri PC si apre dalla scheda Computer, «Altri computer»"))
+        e(EventoTentativo.Salta("drive", "il telefono non legge il Drive"))
+        e(EventoTentativo.Fallito(System.currentTimeMillis(), "nessuna strada ha risposto (ultimo motivo: $ultimo)"))
+    }
     var giriFalliti by remember { mutableIntStateOf(0) }
     /**
      * Quanti «non ti riconosco» di fila sono arrivati dal computer.
@@ -264,7 +316,13 @@ fun Principale(
 
     LaunchedEffect(api) {
         val strada = Linea.stradaDiIndirizzo(indirizzo)
+        var ultimaIl = 0L
         while (isActive) {
+            // Con la linea su si legge ogni due secondi; caduta, si riprova con
+            // le attese crescenti di `Linea` (0.52.1): è quello che conta il
+            // conto alla rovescia accanto all'indicatore.
+            if (!Linea.eOra(lineaPc, ultimaIl, System.currentTimeMillis())) { delay(250); continue }
+            ultimaIl = System.currentTimeMillis()
             val t0 = System.currentTimeMillis()
             try {
                 val (letto, grezzo) = api.statoConTesto()
@@ -318,7 +376,7 @@ fun Principale(
                 giriFalliti += 1; if (giriFalliti >= 2) connesso = false
                 lineaPc = Linea.passo(lineaPc, EventoLinea.Errore(System.currentTimeMillis(), "irraggiungibile", e.message ?: "il computer non risponde"))
             }
-            delay(2000)
+            delay(250)
         }
     }
 
@@ -385,6 +443,16 @@ fun Principale(
                 linea = lineaPc,
                 onApri = { scegliComputer = true }
             )
+            // I tentativi del collegamento, sotto il computer scelto (0.52.1).
+            if (schedaTent && eventiTent.isNotEmpty()) {
+                val nomeTent = stato?.computer?.nome?.takeIf { it.isNotBlank() } ?: Postazioni.corrente(contesto)?.nome ?: Postazioni.hostDi(indirizzo)
+                val ultimoUso = Postazioni.elenca(contesto).firstOrNull { it.indirizzo == indirizzo }?.ultimoUso?.takeIf { it > 0 }
+                SchedaCollegamento(
+                    Tentativi.passi(nomeTent, eventiTent),
+                    ultimoUso?.let { java.text.SimpleDateFormat("d MMM 'alle' HH:mm", java.util.Locale.ITALIAN).format(java.util.Date(it)) },
+                    onRiprova = { giroTent += 1; lineaPc = Linea.passo(lineaPc, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) }
+                )
+            }
             // Un tasto che non ce l'ha fatta lo dice qui, in cima, qualunque
             // schermata tu stia guardando: prima falliva in silenzio.
             NotaGlobale()

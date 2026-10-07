@@ -90,6 +90,9 @@ describe('la coda della pagina', () => {
       var chiave = 'k', rifiuti401 = 0, RIFIUTI_PER_ARRENDERSI = 5, ultimoStato = {}, ultimaImpronta = '', notaScelta = null, pinDentro = false
       var storiaLineaAperta = false, firmaLineaVista = ''
       function pannello() {}
+      // «Mi collego a…» (0.52.1) entra nella firma: qui non conta.
+      function vistaTentativi() { return {} }
+      function tentativiVisibili() { return false }
       var localStorage = { removeItem() {} }
       function ingresso() {}
       var document = { getElementById: () => null }

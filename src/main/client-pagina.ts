@@ -208,6 +208,7 @@ export function paginaClient(): string {
      significato di tutto quello che sta sotto, quindi sta sopra tutto. */
   .linea-pagina { margin: 6px 16px 0; font-size: 12px; opacity: .8; cursor: pointer; letter-spacing: .5px; }
   .linea-pagina--giu { color: #dc5f5f; opacity: 1; }
+  .linea-pagina--ambra { color: #e0a33c; }
   .schermata--giu .dentro, .schermata--giu .voce, .schermata--giu .piastrella:not(.linea-fascia) { opacity: .5; filter: grayscale(.6); }
   .scollegato {
     padding: var(--s2) var(--s3); border: 1px solid var(--rosso); border-radius: var(--raggio);
@@ -3426,7 +3427,7 @@ function rigaStoriaLinea(e) {
 /** Quello che cambia a schermo: se cambia, si ridisegna anche senza dati nuovi. */
 function firmaLinea() {
   const q = qualitaLinea(linea.misure)
-  return linea.fase + '|' + linea.tentativo + '|' + fraSecondiLinea(linea, Date.now()) + '|' + q.tacche + '|' + codaPagina.map((v) => v.id + v.stato).join(',') + '|' + storiaLineaAperta
+  return linea.fase + '|' + linea.tentativo + '|' + fraSecondiLinea(linea, Date.now()) + '|' + q.tacche + '|' + codaPagina.map((v) => v.id + v.stato).join(',') + '|' + storiaLineaAperta + '|' + tentativiVisibili(vistaTentativi())
 }
 function ridisegnaLinea() {
   const f = firmaLinea()
@@ -3437,12 +3438,115 @@ function ridisegnaLinea() {
 }
 window.riprovaLinea = () => { linea = passoLinea(linea, { tipo: 'riprova-adesso', il: Date.now() }); ridisegnaLinea() }
 window.apriStoriaLinea = () => { storiaLineaAperta = !storiaLineaAperta; ridisegnaLinea() }
+/* «Mi collego a…» (0.52.1): i passi dei tentativi, copia di passiCollegamento e eventiDaLinea. */
+const STRADE_TENTATIVI = ['lan', 'tailscale', 'webrtc', 'drive']
+var inizioPagina = Date.now()
+function nomeTentativo(s) { return s === 'lan' ? 'rete di casa' : s === 'tailscale' ? 'Tailscale' : s === 'webrtc' ? 'WebRTC / ponte' : s === 'drive' ? 'Drive (lento)' : s }
+function iconaTentativo(s) { return s === 'lan' ? '🏠' : s === 'tailscale' ? '🔐' : s === 'webrtc' ? '🌐' : s === 'drive' ? '☁️' : '…' }
+function passiCollegamento(nomePc, eventi) {
+  const passi = STRADE_TENTATIVI.map((s) => ({ strada: s, nome: nomeTentativo(s), icona: iconaTentativo(s), stato: 'attesa' }))
+  const di = (s) => passi.find((p) => p.strada === s)
+  let fase = 'provo'
+  let strada
+  let ritardoMs
+  let motivo
+  for (const e of eventi) {
+    if (e.tipo === 'provo') {
+      for (const p of passi) if (p.stato === 'provo' && p.strada !== e.strada) { p.stato = 'fallita'; p.motivo = 'non ha risposto' }
+      const p = di(e.strada)
+      if (p !== undefined) { p.stato = 'provo'; delete p.motivo }
+      fase = 'provo'
+    } else if (e.tipo === 'fallita' || e.tipo === 'salta') {
+      const p = di(e.strada)
+      if (p !== undefined) { p.stato = e.tipo === 'fallita' ? 'fallita' : 'salta'; p.motivo = e.motivo }
+    } else if (e.tipo === 'riuscita') {
+      const i = passi.findIndex((p) => p.strada === e.strada)
+      passi.forEach((p, j) => {
+        if (j === i) { p.stato = 'ok'; p.ms = e.ritardoMs; delete p.motivo; return }
+        if (j < i && (p.stato === 'attesa' || p.stato === 'provo')) { p.stato = p.stato === 'provo' ? 'fallita' : 'salta'; p.motivo = p.stato === 'fallita' ? 'non ha risposto' : 'non provata' }
+        if (j > i && p.stato === 'attesa') { p.stato = 'inutile'; p.motivo = 'non serve' }
+      })
+      fase = 'collegato'; strada = e.strada; ritardoMs = e.ritardoMs; motivo = undefined
+    } else {
+      for (const p of passi) {
+        if (p.stato === 'provo') { p.stato = 'fallita'; p.motivo = 'non ha risposto' }
+        if (p.stato === 'attesa') { p.stato = 'salta'; p.motivo = 'non disponibile' }
+      }
+      fase = 'fallito'; motivo = e.motivo
+    }
+  }
+  const ora = passi.find((p) => p.stato === 'provo')
+  const titolo = fase === 'collegato' ? 'Collegato a ' + nomePc : fase === 'fallito' ? 'Non riesco a collegarmi a ' + nomePc : 'Mi collego a ' + nomePc + '…'
+  const sotto = fase === 'collegato'
+    ? nomeTentativo(strada === undefined ? '' : strada) + ' · ' + (ritardoMs === undefined ? 0 : ritardoMs) + ' ms'
+    : fase === 'fallito'
+      ? (motivo === undefined ? 'nessuna strada ha risposto' : motivo)
+      : ora !== undefined ? 'provo ' + ora.nome : 'cerco la strada'
+  const fuori = { fase: fase, titolo: titolo, sotto: sotto, passi: passi }
+  if (strada !== undefined) fuori.strada = strada
+  if (ritardoMs !== undefined) fuori.ritardoMs = ritardoMs
+  if (motivo !== undefined) fuori.motivo = motivo
+  return fuori
+}
+function eventiDaLinea(l, inizio) {
+  const fuori = [{ tipo: 'provo', strada: 'lan', il: inizio }]
+  const primo = l.storia.find((e) => e.tipo === 'collegato' || e.tipo === 'tornato')
+  const misura = l.misure.find((m) => m.ok)
+  if (primo === undefined && l.motivo === 'collegando') {
+    fuori.push({ tipo: 'fallita', strada: 'lan', il: l.cadutaIl === undefined ? inizio : l.cadutaIl, motivo: 'non risponde' })
+    fuori.push({ tipo: 'fallita', strada: 'tailscale', il: l.cadutaIl === undefined ? inizio : l.cadutaIl, motivo: 'non risponde' })
+    fuori.push({ tipo: 'provo', strada: 'webrtc', il: l.cadutaIl === undefined ? inizio : l.cadutaIl })
+    return fuori
+  }
+  if (primo !== undefined) {
+    fuori.push({ tipo: 'riuscita', strada: primo.strada === undefined ? 'lan' : primo.strada, il: primo.il, ritardoMs: misura === undefined || misura.ritardoMs === undefined ? 0 : misura.ritardoMs })
+    return fuori
+  }
+  if (l.fase === 'ricollego') fuori.push({ tipo: 'fallito', il: l.cadutaIl === undefined ? inizio : l.cadutaIl, motivo: l.messaggio || l.motivo || 'non risponde' })
+  return fuori
+}
+/** La strada di questa pagina, dall'indirizzo con cui è aperta: solo intervalli standard. */
+function stradaPagina(host) {
+  const p = String(host || '').split('.').map((x) => Number.parseInt(x, 10))
+  if (p.length !== 4 || p.some((x) => Number.isNaN(x))) return undefined
+  if (p[0] === 100 && p[1] >= 64 && p[1] <= 127) return 'tailscale'
+  if (p[0] === 10 || (p[0] === 192 && p[1] === 168) || (p[0] === 172 && p[1] >= 16 && p[1] <= 31) || p[0] === 127) return 'lan'
+  return undefined
+}
+function rovesciaLinea(l, adesso) {
+  if (l.fase !== 'ricollego') return undefined
+  const s = fraSecondiLinea(l, adesso)
+  return { testo: s > 0 ? 'riprovo fra ' + s + ' s' : 'riprovo adesso', colore: l.tentativo <= 2 ? 'ambra' : 'rosso' }
+}
+function vistaTentativi() {
+  const nome = ultimoStato && ultimoStato.computer && ultimoStato.computer.nome ? ultimoStato.computer.nome : 'il computer'
+  const strada = stradaPagina(location.hostname)
+  const eventi = eventiDaLinea(linea, inizioPagina).map((e) => (e.tipo === 'riuscita' && strada !== undefined && e.strada === 'lan' ? Object.assign({}, e, { strada: strada }) : e))
+  return passiCollegamento(nome, eventi)
+}
+function tentativiVisibili(v) {
+  if (v.fase !== 'collegato') return true
+  const primo = linea.storia.find((e) => e.tipo === 'collegato' || e.tipo === 'tornato')
+  return primo !== undefined && Date.now() - primo.il < 2500
+}
+function tentativiHtml() {
+  const v = vistaTentativi()
+  if (!tentativiVisibili(v)) return ''
+  const segno = (s) => (s === 'ok' ? '✓' : s === 'fallita' ? '✗' : s === 'provo' ? '●' : s === 'attesa' ? '○' : '–')
+  const colore = v.fase === 'collegato' ? 'var(--verde)' : v.fase === 'fallito' ? '#dc5f5f' : 'inherit'
+  return '<div class="piastrella"><div class="titolo" style="color:' + colore + '">' + esc(v.titolo) + '</div><div class="sotto">' + esc(v.sotto) + '</div>' +
+    v.passi.map((p) => '<div class="sotto"' + (p.stato === 'provo' ? ' style="animation:pulsa 1.1s ease-in-out infinite"' : '') + '>' + segno(p.stato) + ' ' + p.icona + ' ' + esc(p.nome) +
+      (p.ms !== undefined ? ' · ' + p.ms + ' ms' : p.motivo !== undefined ? ' · ' + esc(p.motivo) : p.stato === 'provo' ? ' · provo…' : '') + '</div>').join('') +
+    (v.fase === 'fallito' ? '<div class="sotto">Controlla che il computer sia acceso con SierraDeck aperto e che il telefono sia sulla stessa rete o su Tailscale. Riprovo da solo con attese crescenti.</div><div class="riga"><button onclick="riprovaLinea()">Riprova</button></div>' : '') +
+    '</div>'
+}
 function lineaHtml() {
   const q = qualitaLinea(linea.misure)
   const giu = linea.fase === 'ricollego'
   const tacche = ['▂', '▄', '▆', '█'].map((c, i) => '<span style="opacity:' + (i < (giu ? 0 : q.tacche) ? 1 : 0.25) + '">' + c + '</span>').join('')
-  let h = '<div class="linea-pagina' + (giu ? ' linea-pagina--giu' : '') + '" onclick="apriStoriaLinea()" title="Il collegamento con il computer: le tacche dicono la qualità delle ultime chiamate, il numero il ritardo tipico. Tocca per la storia.">' +
-    '📶 ' + tacche + ' ' + (giu ? 'giù' : q.ritardoMs !== undefined ? q.ritardoMs + ' ms' : '…') + ' · ' + (giu ? 'collegamento caduto' : 'collegamento ' + q.parola) + '</div>'
+  const rov = rovesciaLinea(linea, Date.now())
+  let h = tentativiHtml() + '<div class="linea-pagina' + (giu ? ' linea-pagina--giu linea-pagina--' + rov.colore : '') + '" onclick="apriStoriaLinea()" title="Il collegamento con il computer: le tacche dicono la qualità delle ultime chiamate, il numero il ritardo tipico. Tocca per la storia.">' +
+    '📶 ' + tacche + ' ' + (giu ? 'giù · ' + rov.testo : q.ritardoMs !== undefined ? q.ritardoMs + ' ms' : '…') + ' · ' + (giu ? 'collegamento caduto' : 'collegamento ' + q.parola) + '</div>'
   if (giu) {
     const fra = fraSecondiLinea(linea, Date.now())
     h += '<div class="piastrella chiede linea-fascia"><b>Collegamento con il computer caduto da ' + durataBreve(Date.now() - (linea.cadutaIl || Date.now())) +

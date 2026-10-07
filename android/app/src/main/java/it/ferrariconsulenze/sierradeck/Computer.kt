@@ -619,6 +619,22 @@ fun Computer(api: Api, stato: Stato?) {
         AggiornamentoApp(api)
         Spacer(Modifier.height(10.dp))
         AggiornamentoPc(api, aggiornamento, versionePc)
+        Divisore()
+
+        // ─── Info (0.52.1) ───
+        // Quale app hai in mano, scritto per intero: per controllare che sia
+        // la 2.51 o successiva senza aprire le impostazioni di Android.
+        Sezione("Info")
+        Text(
+            "App installata: SierraDeck ${BuildConfig.VERSION_NAME} (codice di versione ${BuildConfig.VERSION_CODE}).",
+            color = Banco.testo, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp)
+        )
+        Text(
+            "Computer collegato: " + (versionePc?.let { "SierraDeck $it" } ?: "versione non ancora letta") + ". " +
+                "L'app e il programma sul computer si aggiornano ognuno per conto suo (qui sopra, «Aggiornamenti»). " +
+                "SierraDeck è di Nicholas Ferrari / Ferrari Consulenze.",
+            color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        )
 
         Spacer(Modifier.height(24.dp))
     }

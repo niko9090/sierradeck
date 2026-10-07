@@ -54,6 +54,19 @@ la dobbiamo migliorare».
   su WebRTC o Drive); la macchina vede il cambio dal campo `strada` delle
   risposte e lo annuncia.
 
+# «Mi collego a NOME-PC…» (0.52.1, app 2.52.1)
+
+Nicholas (07/10), dal telefono: «Ho cambiato pc e non si vede nessuna animazione e lo stato della connessione». Le tacche c'erano solo nel riquadro remoto; al cambio del computer in alto non c'era niente.
+
+- **Funzione pura** `passiCollegamento(nome, eventi)`: dagli eventi `provo`, `fallita`, `salta`, `riuscita` e `fallito` ricava i quattro passi nell'ordine rete di casa, Tailscale, WebRTC / ponte e Drive. Dà anche il titolo («Mi collego a…», «Collegato a…», «Non riesco a collegarmi a…») e la riga sotto.
+  - **Copie:** `Tentativi.passi` (app) e la pagina servita; `tests/shared/tentativi.test.ts` confronta la pagina con l'originale, `TentativiTest.kt` ripete gli scenari.
+- **Chi vede le strade singole e chi no:**
+  - l'**app**, al cambio di postazione (`LaunchedEffect(indirizzo, giroTent)` in `App.kt`), prova davvero l'indirizzo scelto e gli altri indirizzi salvati con lo stesso nome e una chiave. Li raggruppa con `Linea.stradaDiIndirizzo` (solo intervalli standard) e chiama `ciao()` con un tetto di 5 s. Se risponde un altro indirizzo ci passa; WebRTC e Drive dal telefono diretto sono «saltate», con il perché;
+  - il **riquadro remoto del PC**, il **ponte del telefono** e la **pagina** non vedono le strade singole: gli eventi si ricavano dalla macchina con `eventiDaLinea` / `Tentativi.daLinea`. Il primo tentativo è la rete di casa; `collegando` vuol dire che casa e Tailscale sono fallite e si apre WebRTC; il primo `collegato` / `tornato` dà la strada buona.
+- **A linea caduta:** `rovescia(l, adesso)` restituisce «riprovo fra N s», ambra fino al 2° tentativo e rosso dopo. Lo usano l'indicatore del PC, l'app e la pagina.
+- Il ciclo di lettura dell'app ora segue `Linea.eOra`: a linea su ogni 2 s, giù con le attese crescenti. È quello che conta il conto alla rovescia.
+- **Impostazioni → Info** nell'app: `BuildConfig.VERSION_NAME` e `VERSION_CODE`.
+
 # Da fare
 
 - Prova dal vivo con Nicholas: staccare il wifi del portatile con un riquadro

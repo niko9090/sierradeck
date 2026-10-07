@@ -11,7 +11,8 @@ import {
   prossimoDaMandare, type EventoLinea, type Linea, type VoceCoda
 } from '@shared/collegamento'
 import type { EsitoRemoto } from '@shared/pc-remoto'
-import { CodaInvii, FasciaLinea, IndicatoreLinea, nuovoIdMessaggio, useAdesso } from './LineaRemota'
+import { CodaInvii, FasciaLinea, IndicatoreLinea, nuovoIdMessaggio, SchedaCollegamento, useAdesso } from './LineaRemota'
+import { eventiDaLinea, passiCollegamento } from '@shared/collegamento'
 import { ModalePosta } from './ModalePosta'
 import { CoperturaPin } from './ChatConPin'
 import { useLayoutStore } from '../state/layout'
@@ -104,6 +105,19 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
    * torna una chat di qui.
    */
   const casa = useCasa(remoto.sessione)
+  /**
+   * «Mi collego a NOME-PC…» (0.52.1): al cambio di PC (un riquadro che
+   * diventa remoto, un workspace con chat di altri PC) i tentativi si vedono
+   * finché il primo collegamento non riesce, e per due secondi e mezzo dopo.
+   */
+  const inizioRef = useRef(Date.now())
+  const vistaTent = passiCollegamento(remoto.pcNome, eventiDaLinea(linea, inizioRef.current))
+  const [tentVisibili, setTentVisibili] = useState(true)
+  useEffect(() => {
+    if (vistaTent.fase !== 'collegato') { setTentVisibili(true); return }
+    const t = setTimeout(() => setTentVisibili(false), 2500)
+    return () => clearTimeout(t)
+  }, [vistaTent.fase])
   const [portaQui, setPortaQui] = useState(false)
   const adesso = useAdesso(linea.fase === 'ricollego' || (linea.cambio !== undefined && Date.now() - linea.cambio.il < CAMBIO_VISIBILE_MS + 1000))
   /** Una chiamata a quel PC, misurata: fa avanzare il collegamento. */
@@ -283,6 +297,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         {/* La strada, la qualità e il ritardo; toccando, la storia (0.51.0). */}
         <IndicatoreLinea linea={linea} nomePc={remoto.pcNome} />
       </div>
+      {tentVisibili ? <SchedaCollegamento vista={vistaTent} {...(pc?.battito !== undefined && pc.battito !== '' ? { ultimoSegno: `battito sul Drive ${quando(pc.battito)}` } : {})} onRiprova={riprova} /> : null}
       <FasciaLinea linea={linea} nomePc={remoto.pcNome} adesso={adesso} onRiprova={riprova} />
       {linea.fase === 'ricollego' && remoto.sessione !== undefined && casa !== undefined && !casa.qui ? (
         <div className="remoto__ospite" role="status">

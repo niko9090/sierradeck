@@ -239,7 +239,9 @@ fun IndicatoreLinea(linea: StatoLinea, nomePc: String, spiega: String? = null) {
     val q = Linea.qualita(linea.misure)
     val giu = linea.fase == "ricollego"
     val tacche = if (giu) 0 else q.tacche
-    val colore = when { giu -> Banco.rosso; tacche >= 3 -> Banco.verde; tacche == 2 -> Banco.ambra; else -> Banco.rosso }
+    // A linea caduta (0.52.1): ambra i primi tentativi, poi rosso, con il conto alla rovescia.
+    val rov = Tentativi.rovescia(linea, adessoVivo(giu))
+    val colore = when { giu -> if (rov?.second == "ambra") Banco.ambra else Banco.rosso; tacche >= 3 -> Banco.verde; tacche == 2 -> Banco.ambra; else -> Banco.rosso }
     Row(
         Modifier.background(Banco.fondo.copy(alpha = 0.6f)).clickable { storia = true }.padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.Bottom
@@ -250,7 +252,7 @@ fun IndicatoreLinea(linea: StatoLinea, nomePc: String, spiega: String? = null) {
             Box(Modifier.padding(horizontal = 1.dp).width(3.dp).height((4 + i * 3).dp).background(if (i < tacche) colore else Banco.incisione))
         }
         Spacer(Modifier.width(4.dp))
-        Text(if (giu) "giù" else q.ritardoMs?.let { "$it ms" } ?: "…", color = if (giu) Banco.rosso else Banco.testoQuieto, fontSize = 11.sp)
+        Text(if (giu) "giù · ${rov?.first ?: ""}" else q.ritardoMs?.let { "$it ms" } ?: "…", color = if (giu) colore else Banco.testoQuieto, fontSize = 11.sp)
     }
     if (storia) {
         AlertDialog(

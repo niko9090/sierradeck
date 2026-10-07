@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  cambioVisibile, iconaStrada, qualita, rigaStoria, testoRiconnessione, type Linea, type VoceCoda
+  cambioVisibile, iconaStrada, qualita, rigaStoria, rovescia, testoRiconnessione, type Linea, type VistaCollegamento, type VoceCoda
 } from '@shared/collegamento'
 import { etichettaStrada } from '@shared/strada-pc'
 import { useLineaRemota } from '../linee-remote'
@@ -34,18 +34,20 @@ export function IndicatoreLinea({ linea, nomePc }: { linea: Linea; nomePc: strin
   const [aperta, setAperta] = useState(false)
   const q = qualita(linea.misure)
   const giu = linea.fase === 'ricollego'
+  // A linea caduta (0.52.1): ambra i primi tentativi, poi rosso, e il conto alla rovescia.
+  const rov = rovescia(linea, useAdesso(giu))
   const via = linea.strada !== undefined ? etichettaStrada({ strada: linea.strada }, nomePc) : undefined
   const titolo = giu
     ? `Collegamento con ${nomePc} caduto: riprovo da solo. Tocca per la storia del collegamento.`
     : `${via?.testo ?? 'Strada non ancora nota.'} Qualità ${q.parola}${q.ritardoMs !== undefined ? `: ${q.ritardoMs} ms di ritardo tipico` : ''}${q.perdite > 0 ? `, ${Math.round(q.perdite * 100)}% di chiamate perse` : ''} (sulle ultime chiamate). Tocca per la storia del collegamento.`
   return (
     <span className="linea">
-      <button type="button" className={giu ? 'linea__tasto linea__tasto--giu' : 'linea__tasto'} title={titolo} aria-label={titolo} onClick={() => setAperta((x) => !x)}>
+      <button type="button" className={giu ? `linea__tasto linea__tasto--giu linea__tasto--${rov?.colore ?? 'rosso'}` : 'linea__tasto'} title={titolo} aria-label={titolo} onClick={() => setAperta((x) => !x)}>
         <span className="linea__icona">{iconaStrada(linea.strada)}</span>
         <span className={`linea__tacche linea__tacche--${giu ? 0 : q.tacche}`} aria-hidden="true">
           <i /><i /><i /><i />
         </span>
-        <span className="linea__ms">{giu ? 'giù' : q.ritardoMs !== undefined ? `${q.ritardoMs} ms` : '…'}</span>
+        <span className="linea__ms">{giu ? `giù · ${rov?.testo ?? ''}` : q.ritardoMs !== undefined ? `${q.ritardoMs} ms` : '…'}</span>
       </button>
       {aperta ? (
         <span className="linea__storia" role="dialog" aria-label="Storia del collegamento">
@@ -62,6 +64,37 @@ export function IndicatoreLinea({ linea, nomePc }: { linea: Linea; nomePc: strin
         </span>
       ) : null}
     </span>
+  )
+}
+
+/**
+ * «Mi collego a NOME-PC…» (0.52.1): i tentativi in ordine, poi la strada
+ * buona con il ritardo; se fallisce, il motivo, l'ultimo segno e «Riprova».
+ */
+export function SchedaCollegamento({ vista, ultimoSegno, onRiprova }: { vista: VistaCollegamento; ultimoSegno?: string; onRiprova: () => void }): React.JSX.Element {
+  const segno = (s: string): string => (s === 'ok' ? '✓' : s === 'fallita' ? '✗' : s === 'provo' ? '●' : s === 'attesa' ? '○' : '–')
+  return (
+    <div className={`tentativi tentativi--${vista.fase}`} role="status" aria-live="polite">
+      <div className="tentativi__titolo">{vista.titolo}</div>
+      <div className="tentativi__sotto">{vista.sotto}</div>
+      <ol className="tentativi__passi">
+        {vista.passi.map((p) => (
+          <li key={p.strada} className={`tentativi__passo tentativi__passo--${p.stato}`}>
+            <span className="tentativi__segno">{segno(p.stato)}</span> {p.icona} {p.nome}
+            <span className="tentativi__nota">{p.ms !== undefined ? ` · ${p.ms} ms` : p.motivo !== undefined ? ` · ${p.motivo}` : p.stato === 'provo' ? ' · provo…' : ''}</span>
+          </li>
+        ))}
+      </ol>
+      {vista.fase === 'fallito' ? (
+        <div className="tentativi__fallito">
+          <span>
+            {ultimoSegno !== undefined ? `L’ultimo segno di vita: ${ultimoSegno}. ` : ''}
+            Controlla che quel PC sia acceso con SierraDeck aperto. Riprovo da solo con attese crescenti; puoi anche riprovare adesso.
+          </span>
+          <button type="button" className="tasto tasto--mini" onClick={onRiprova}>Riprova</button>
+        </div>
+      ) : null}
+    </div>
   )
 }
 

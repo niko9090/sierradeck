@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.52.1',
+    righe: [
+      '**Quando cambi computer, vedi che si sta collegando.** Dal telefono, scegliendo un altro computer in alto, compare «Mi collego a NOME…» con le strade che prova una dopo l’altra (🏠 rete di casa, 🔐 Tailscale, 🌐 WebRTC / ponte, ☁️ Drive), ognuna con ✓, ✗ o il perché è saltata. Se il computer ha un altro indirizzo salvato che risponde, l’app ci passa da sola. A collegamento riuscito restano accanto al nome strada, tacche e ritardo. Se nessuna strada risponde, la scheda dice il motivo e l’ultima volta che il computer ha risposto, con «Riprova»: mai una schermata vuota. Lo stesso succede aprendo le chat di un altro PC dalla scheda Computer, nel riquadro di una chat di un altro PC sul computer e nella pagina del telefono.',
+      '**A linea caduta l’indicatore lo dice.** Diventa giallo nei primi tentativi e rosso dopo, con «riprovo fra N s». In Impostazioni → Info dell’app c’è la versione installata con il suo codice (adesso 2.52.1).'
+    ]
+  },
+  {
     versione: '0.52.0',
     righe: [
       '**Ogni chat ha il suo PC, e lo scegli tu.** Nella testata di ogni chat c’è 🏠: con un clic (o con il tasto destro sul titolo) scegli «Ospitata da: PC». La finestra «Dove vive ogni chat…» (dal menu di 🏠 e dalla scheda Drive) elenca tutte le chat dei workspace con il loro PC, e lo cambi chat per chat o per un workspace intero. La scelta arriva subito agli altri PC accesi e, al più tardi in due minuti, a quelli che passano dal Drive; fra due scelte vince la più recente.',

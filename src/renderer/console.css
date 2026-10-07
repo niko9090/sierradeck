@@ -4417,3 +4417,32 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
   cursor: pointer;
 }
+
+/* «Mi collego a NOME-PC…» (0.52.1) e la linea caduta con il conto alla rovescia. */
+.linea__tasto--ambra { border-color: var(--ambra); color: var(--ambra); }
+.linea__tasto--rosso { border-color: var(--rosso); color: var(--rosso); }
+.tentativi {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--incisione);
+  font-size: 12px;
+  line-height: 1.45;
+  background: color-mix(in srgb, var(--accento, #58a6ff) 8%, transparent);
+}
+.tentativi--fallito { background: color-mix(in srgb, var(--rosso) 10%, transparent); }
+.tentativi--collegato { background: color-mix(in srgb, var(--verde) 10%, transparent); }
+.tentativi__titolo { font-weight: 600; font-size: 13px; }
+.tentativi--fallito .tentativi__titolo { color: var(--rosso); }
+.tentativi--collegato .tentativi__titolo { color: var(--verde); }
+.tentativi__sotto { color: var(--testo-quieto); }
+.tentativi__passi { list-style: none; margin: 4px 0 0; padding: 0; }
+.tentativi__passo { font-variant-numeric: tabular-nums; }
+.tentativi__segno { display: inline-block; width: 14px; }
+.tentativi__passo--ok .tentativi__segno { color: var(--verde); }
+.tentativi__passo--fallita .tentativi__segno { color: var(--rosso); }
+.tentativi__passo--provo .tentativi__segno { color: var(--accento, #58a6ff); animation: tentativo-pulsa 1.1s ease-in-out infinite; }
+.tentativi__passo--salta, .tentativi__passo--inutile { color: var(--testo-quieto); }
+.tentativi__nota { color: var(--testo-quieto); }
+.tentativi__fallito { display: flex; gap: 10px; align-items: center; margin-top: 6px; }
+.tentativi__fallito > span { flex: 1; }
+@keyframes tentativo-pulsa { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .tentativi__passo--provo .tentativi__segno { animation: none; } }

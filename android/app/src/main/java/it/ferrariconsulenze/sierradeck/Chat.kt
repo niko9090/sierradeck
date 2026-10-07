@@ -160,6 +160,12 @@ private fun ChatSuAltroPc(api: Api, su: PcPonte, deposito: Collegamento) {
     BackHandler { if (aperta != null) aperta = null else SuPc.corrente = null }
     Column(Modifier.fillMaxSize()) {
         FasciaSuPc(su, null, linea) { SuPc.corrente = null }
+        // «Mi collego a NOME-PC…» (0.52.1): i tentativi finché il primo collegamento non riesce.
+        val inizioPonte = remember(su.pcId) { System.currentTimeMillis() }
+        var schedaPonte by remember(su.pcId) { mutableStateOf(true) }
+        val vistaPonte = Tentativi.passi(su.nome, Tentativi.daLinea(linea, inizioPonte))
+        LaunchedEffect(su.pcId, vistaPonte.fase) { if (vistaPonte.fase == "collegato") { delay(2500); schedaPonte = false } }
+        if (schedaPonte) SchedaCollegamento(vistaPonte, null, onRiprova = { linea = Linea.passo(linea, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) })
         FasciaLinea(linea, su.nome, onRiprova = { linea = Linea.passo(linea, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) })
         guasto?.let { Text(it, color = Banco.rosso, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) }
         val chat = stato?.chat ?: emptyList()

@@ -343,3 +343,134 @@ export function mappaPc(io: { id: string; nome: string }, altri: readonly { pcId
   })
   return { nodi, linee }
 }
+
+/* ------------------------------------------------------------------ */
+/* «Mi collego a NOME-PC…» (0.52.1): i passi dell'animazione.          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Nicholas (07/10): «Ho cambiato pc e non si vede nessuna animazione e lo
+ * stato della connessione». Al cambio di PC si vedono i tentativi in ordine
+ * (rete di casa, Tailscale, WebRTC/ponte, Drive), poi la strada buona con il
+ * ritardo; se nessuna risponde, il motivo e «Riprova». Questi passi si
+ * ricavano **solo** dagli eventi osservati: chi guarda non inventa tentativi.
+ * La stessa funzione è in `Linea.kt` (app) e nella pagina servita.
+ */
+export type EventoTentativo =
+  | { tipo: 'provo'; strada: string; il: number }
+  | { tipo: 'fallita'; strada: string; il: number; motivo: string }
+  | { tipo: 'salta'; strada: string; motivo: string }
+  | { tipo: 'riuscita'; strada: string; il: number; ritardoMs: number }
+  | { tipo: 'fallito'; il: number; motivo: string }
+
+export type StatoPasso = 'attesa' | 'provo' | 'ok' | 'fallita' | 'salta' | 'inutile'
+export type PassoCollegamento = { strada: string; nome: string; icona: string; stato: StatoPasso; motivo?: string; ms?: number }
+export type VistaCollegamento = {
+  fase: 'provo' | 'collegato' | 'fallito'
+  titolo: string
+  sotto: string
+  passi: PassoCollegamento[]
+  strada?: string
+  ritardoMs?: number
+  motivo?: string
+}
+
+export const STRADE_TENTATIVI = ['lan', 'tailscale', 'webrtc', 'drive'] as const
+
+export function nomeTentativo(s: string): string {
+  return s === 'lan' ? 'rete di casa' : s === 'tailscale' ? 'Tailscale' : s === 'webrtc' ? 'WebRTC / ponte' : s === 'drive' ? 'Drive (lento)' : s
+}
+
+function iconaTentativo(s: string): string {
+  return s === 'lan' ? '🏠' : s === 'tailscale' ? '🔐' : s === 'webrtc' ? '🌐' : s === 'drive' ? '☁️' : '…'
+}
+
+export function passiCollegamento(nomePc: string, eventi: readonly EventoTentativo[]): VistaCollegamento {
+  const passi: PassoCollegamento[] = STRADE_TENTATIVI.map((s) => ({ strada: s, nome: nomeTentativo(s), icona: iconaTentativo(s), stato: 'attesa' as StatoPasso }))
+  const di = (s: string): PassoCollegamento | undefined => passi.find((p) => p.strada === s)
+  let fase: VistaCollegamento['fase'] = 'provo'
+  let strada: string | undefined
+  let ritardoMs: number | undefined
+  let motivo: string | undefined
+  for (const e of eventi) {
+    if (e.tipo === 'provo') {
+      for (const p of passi) if (p.stato === 'provo' && p.strada !== e.strada) { p.stato = 'fallita'; p.motivo = 'non ha risposto' }
+      const p = di(e.strada)
+      if (p !== undefined) { p.stato = 'provo'; delete p.motivo }
+      fase = 'provo'
+    } else if (e.tipo === 'fallita' || e.tipo === 'salta') {
+      const p = di(e.strada)
+      if (p !== undefined) { p.stato = e.tipo === 'fallita' ? 'fallita' : 'salta'; p.motivo = e.motivo }
+    } else if (e.tipo === 'riuscita') {
+      const i = passi.findIndex((p) => p.strada === e.strada)
+      passi.forEach((p, j) => {
+        if (j === i) { p.stato = 'ok'; p.ms = e.ritardoMs; delete p.motivo; return }
+        if (j < i && (p.stato === 'attesa' || p.stato === 'provo')) { p.stato = p.stato === 'provo' ? 'fallita' : 'salta'; p.motivo = p.stato === 'fallita' ? 'non ha risposto' : 'non provata' }
+        if (j > i && p.stato === 'attesa') { p.stato = 'inutile'; p.motivo = 'non serve' }
+      })
+      fase = 'collegato'; strada = e.strada; ritardoMs = e.ritardoMs; motivo = undefined
+    } else {
+      for (const p of passi) {
+        if (p.stato === 'provo') { p.stato = 'fallita'; p.motivo = 'non ha risposto' }
+        if (p.stato === 'attesa') { p.stato = 'salta'; p.motivo = 'non disponibile' }
+      }
+      fase = 'fallito'; motivo = e.motivo
+    }
+  }
+  const ora = passi.find((p) => p.stato === 'provo')
+  const titolo = fase === 'collegato' ? `Collegato a ${nomePc}` : fase === 'fallito' ? `Non riesco a collegarmi a ${nomePc}` : `Mi collego a ${nomePc}…`
+  const sotto = fase === 'collegato'
+    ? `${nomeTentativo(strada ?? '')} · ${ritardoMs ?? 0} ms`
+    : fase === 'fallito'
+      ? (motivo ?? 'nessuna strada ha risposto')
+      : ora !== undefined ? `provo ${ora.nome}` : 'cerco la strada'
+  return { fase, titolo, sotto, passi, ...(strada !== undefined ? { strada } : {}), ...(ritardoMs !== undefined ? { ritardoMs } : {}), ...(motivo !== undefined ? { motivo } : {}) }
+}
+
+/**
+ * La strada dall'indirizzo (come `Linea.stradaDiIndirizzo` nell'app): solo gli
+ * intervalli standard — privati = rete di casa, 100.64/10 = Tailscale. Un
+ * nome o un indirizzo pubblico: non si sa.
+ */
+export function stradaDiIndirizzo(indirizzo: string): 'lan' | 'tailscale' | undefined {
+  const host = (indirizzo.includes('://') ? indirizzo.split('://')[1] ?? '' : indirizzo).split('/')[0]?.replace(/:\d+$/, '') ?? ''
+  const p = host.split('.').map((x) => Number.parseInt(x, 10))
+  if (p.length !== 4 || p.some((x) => Number.isNaN(x))) return undefined
+  const [a, b] = p as [number, number, number, number]
+  if (a === 100 && b >= 64 && b <= 127) return 'tailscale'
+  if (a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31) || a === 127) return 'lan'
+  return undefined
+}
+
+/** Il conto alla rovescia accanto all'indicatore a linea caduta, e il suo colore: ambra i primi tentativi, poi rosso. */
+export function rovescia(l: Linea, adesso: number): { testo: string; colore: 'ambra' | 'rosso' } | undefined {
+  if (l.fase !== 'ricollego') return undefined
+  const s = fraSecondi(l, adesso)
+  return { testo: s > 0 ? `riprovo fra ${s} s` : 'riprovo adesso', colore: l.tentativo <= 2 ? 'ambra' : 'rosso' }
+}
+
+/**
+ * Gli eventi dei tentativi ricavati dalla macchina della linea, per chi non
+ * vede le singole strade (il riquadro remoto del PC, il ponte del telefono):
+ * il primo tentativo parte dalla rete di casa; `collegando` vuol dire che
+ * rete di casa e Tailscale non rispondono e si apre WebRTC; il primo
+ * collegamento riuscito dice la strada buona; una caduta prima di averla è il
+ * fallimento, con il suo motivo.
+ */
+export function eventiDaLinea(l: Linea, inizio: number): EventoTentativo[] {
+  const fuori: EventoTentativo[] = [{ tipo: 'provo', strada: 'lan', il: inizio }]
+  const primo = l.storia.find((e) => e.tipo === 'collegato' || e.tipo === 'tornato')
+  const misura = l.misure.find((m) => m.ok)
+  if (primo === undefined && l.motivo === 'collegando') {
+    fuori.push({ tipo: 'fallita', strada: 'lan', il: l.cadutaIl ?? inizio, motivo: 'non risponde' })
+    fuori.push({ tipo: 'fallita', strada: 'tailscale', il: l.cadutaIl ?? inizio, motivo: 'non risponde' })
+    fuori.push({ tipo: 'provo', strada: 'webrtc', il: l.cadutaIl ?? inizio })
+    return fuori
+  }
+  if (primo !== undefined) {
+    fuori.push({ tipo: 'riuscita', strada: primo.strada ?? 'lan', il: primo.il, ritardoMs: misura?.ritardoMs ?? 0 })
+    return fuori
+  }
+  if (l.fase === 'ricollego') fuori.push({ tipo: 'fallito', il: l.cadutaIl ?? inizio, motivo: l.messaggio ?? l.motivo ?? 'non risponde' })
+  return fuori
+}
