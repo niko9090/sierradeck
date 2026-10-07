@@ -664,15 +664,16 @@ describe('quando una richiesta non riesce, la pagina lo dice', () => {
     expect(corpo).toMatch(/catch[\s\S]*non risponde/)
   })
 
-  it('il campo si svuota solo se il messaggio e partito', () => {
-    // Il campo si svuotava prima di sapere com'era andata nell'app; qui invece
-    // il rischio era il silenzio: la richiesta cadeva e non succedeva niente di
-    // visibile.
+  it('il testo non si perde mai: va in coda, e un rifiuto vero lo rimette nella casella', () => {
+    // Prima il rischio era il silenzio: la richiesta cadeva e non succedeva
+    // niente di visibile. Dalla 0.51.0 il testo entra nella coda (si vede
+    // «in attesa di invio») prima che la casella si svuoti, e parte al ritorno.
     const corpo = corpoDi('window.scrivi =')
-    expect(corpo).toContain('try {')
-    expect(corpo).toMatch(/catch[\s\S]*non sono riuscito a mandarlo/i)
-    // Lo svuotamento sta **dentro** il try, cioe' dopo la richiesta.
-    expect(corpo.indexOf('try {')).toBeLessThan(corpo.indexOf("campo.value = ''"))
+    expect(corpo.indexOf('codaPagina.push')).toBeGreaterThan(-1)
+    expect(corpo.indexOf('codaPagina.push')).toBeLessThan(corpo.indexOf("campo.value = ''"))
+    const coda = corpoDi('async function mandaCoda(')
+    expect(coda).toMatch(/catch[\s\S]*Non mandato[\s\S]*campo\.value = v\.testo/)
+    expect(coda).toContain('idMessaggio: v.id')
   })
 })
 

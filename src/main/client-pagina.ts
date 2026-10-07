@@ -206,6 +206,9 @@ export function paginaClient(): string {
 
   /* Quando il computer non risponde. Non un avviso fra gli altri: cambia il
      significato di tutto quello che sta sotto, quindi sta sopra tutto. */
+  .linea-pagina { margin: 6px 16px 0; font-size: 12px; opacity: .8; cursor: pointer; letter-spacing: .5px; }
+  .linea-pagina--giu { color: #dc5f5f; opacity: 1; }
+  .schermata--giu .dentro, .schermata--giu .voce, .schermata--giu .piastrella:not(.linea-fascia) { opacity: .5; filter: grayscale(.6); }
   .scollegato {
     padding: var(--s2) var(--s3); border: 1px solid var(--rosso); border-radius: var(--raggio);
     background: color-mix(in srgb, var(--rosso) 12%, transparent); font-size: var(--t2);
@@ -1609,7 +1612,7 @@ function pannello(s) {
       : a.id === 'apri-autopilota' ? '<button onclick="vaiScheda(\\'lavori\\')">' + esc(a.testo) + '</button>'
       : a.id === 'riprova-pc' ? '<button onclick="rileggiSalute()">' + esc(a.testo) + '</button>'
       : '<span class="sotto">' + esc(a.testo) + ': dal computer</span>'
-    let corpo = '<div class="sotto" style="margin-top:6px;color:' + colore(saluteVista.tono) + '"><b>' + esc(saluteVista.riassunto) + '</b></div>'
+    let corpo = '<div class="sotto" style="margin-top:6px;color:' + colore(saluteVista.tono) + '"><b>' + esc(saluteVista.riassunto) + '</b></div>' + mappaHtml(saluteVista.mappa)
     for (const g of ['drive', 'pc', 'aggiornamento', 'errori', 'consegne']) {
       const voci = (saluteVista.voci || []).filter((v) => v.gruppo === g)
       if (voci.length === 0) continue
@@ -1848,7 +1851,8 @@ function pannello(s) {
   }
 
   app.innerHTML = \`
-    <main class="schermata">
+    <main class="schermata\${linea.fase === 'ricollego' ? ' schermata--giu' : ''}">
+      \${lineaHtml()}
       \${notaGlobale ? '<div class="piastrella"><div class="errore">' + esc(notaGlobale) + '</div><div class="riga"><button onclick="chiudiNota()">Ok</button></div></div>' : ''}
       \${schermate[scheda] || schermate.adesso}
     </main>
@@ -3095,14 +3099,13 @@ window.scrivi = async (id) => {
   // Il campo si svuota **solo se e' partito**, e un guasto si dice: prima, se
   // la richiesta cadeva, non succedeva niente di visibile — si restava a
   // guardare un pulsante premuto senza sapere se il messaggio fosse andato.
-  try {
-    await chiedi('/api/scrivi', { chat: id, testo: campo.value })
-    campo.value = ''
-    notaScelta = null
-  } catch (e) {
-    notaScelta = 'Non sono riuscito a mandarlo: il computer non risponde.'
-    pannello(ultimoStato)
-  }
+  // Dalla 0.51.0 passa dalla coda: parte subito se la linea c'e', al ritorno
+  // se e' caduta, con il suo id (il computer non lo scrive mai due volte).
+  codaPagina.push({ id: nuovoIdMessaggio(), chat: id, testo: campo.value, stato: 'attesa' })
+  campo.value = ''
+  notaScelta = null
+  ridisegnaLinea()
+  await mandaCoda()
 }
 /**
  * Rispondere a un riquadro di scelta con un dito.
@@ -3359,11 +3362,172 @@ function avvisaSeServe(stato) {
   } catch (e) { }
 }
 
+/*
+ * Il collegamento con il computer (0.51.0). La stessa macchina degli stati
+ * del PC e dell'app (src/shared/collegamento.ts: i test le confrontano):
+ * keepalive ogni due secondi con un tempo massimo di sei, attese crescenti
+ * 1, 2, 5, 10, 30 secondi dopo una caduta (mai una resa), la qualita' dalle
+ * ultime chiamate, la storia delle cadute e dei ritorni, e la coda di
+ * quello che scrivi a linea giu': parte al ritorno, una volta sola (id per
+ * messaggio, che il computer ricorda).
+ */
+const ATTESE_LINEA = [1000, 2000, 5000, 10000, 30000]
+const KEEPALIVE_MS = 2000
+const SCADE_MS = 6000
+function attesaPrima(n) { return ATTESE_LINEA[Math.max(0, Math.min(n - 1, ATTESE_LINEA.length - 1))] }
+var linea = { fase: 'cerco', tentativo: 0, misure: [], storia: [] }
+var ultimaChiesta = 0
+var inVolo = false
+var storiaLineaAperta = false
+var firmaLineaVista = ''
+function passoLinea(l, e) {
+  if (e.tipo === 'riprova-adesso') return l.fase === 'ricollego' ? Object.assign({}, l, { prossimoIl: e.il }) : l
+  if (e.tipo === 'ok') {
+    let storia = l.storia
+    if (l.fase === 'ricollego' && l.cadutaIl !== undefined) storia = storia.concat([{ tipo: 'tornato', il: e.il, dopoMs: e.il - l.cadutaIl, tentativi: l.tentativo }])
+    else if (l.fase === 'cerco') storia = storia.concat([{ tipo: 'collegato', il: e.il }])
+    return { fase: 'collegato', tentativo: 0, misure: l.misure.concat([{ ok: true, ritardoMs: Math.max(0, Math.round(e.ritardoMs)), il: e.il }]).slice(-12), storia: storia.slice(-30) }
+  }
+  const tentativo = l.fase === 'ricollego' ? l.tentativo + 1 : 1
+  const storia = l.fase === 'ricollego' ? l.storia : l.storia.concat([{ tipo: 'caduta', il: e.il, motivo: e.motivo, messaggio: e.messaggio }]).slice(-30)
+  return {
+    fase: 'ricollego', tentativo: tentativo, storia: storia, misure: l.misure.concat([{ ok: false, il: e.il }]).slice(-12),
+    cadutaIl: l.fase === 'ricollego' ? (l.cadutaIl === undefined ? e.il : l.cadutaIl) : e.il,
+    prossimoIl: e.il + attesaPrima(tentativo), motivo: e.motivo, messaggio: e.messaggio
+  }
+}
+function qualitaLinea(misure) {
+  const ultime = misure.slice(-12)
+  if (ultime.length === 0) return { tacche: 0, perdite: 0, parola: 'non ancora misurata' }
+  const riuscite = ultime.filter((m) => m.ok && m.ritardoMs !== undefined).map((m) => m.ritardoMs).sort((a, b) => a - b)
+  const perdite = (ultime.length - ultime.filter((m) => m.ok).length) / ultime.length
+  if (riuscite.length === 0) return { tacche: 0, perdite: perdite, parola: 'non arriva niente' }
+  const meta = Math.floor(riuscite.length / 2)
+  const ritardoMs = Math.round(riuscite.length % 2 === 1 ? riuscite[meta] : (riuscite[meta - 1] + riuscite[meta]) / 2)
+  let tacche = ritardoMs < 150 ? 4 : ritardoMs < 400 ? 3 : ritardoMs < 1000 ? 2 : 1
+  if (perdite > 0) tacche -= 1
+  if (perdite > 0.25) tacche -= 1
+  tacche = Math.max(1, Math.min(4, tacche))
+  return { tacche: tacche, ritardoMs: ritardoMs, perdite: perdite, parola: tacche === 4 ? 'ottima' : tacche === 3 ? 'buona' : tacche === 2 ? 'incerta' : 'debole' }
+}
+function eOraLinea(l, ultima, adesso) {
+  if (l.fase === 'ricollego') return adesso >= (l.prossimoIl || 0)
+  return adesso - ultima >= KEEPALIVE_MS
+}
+function fraSecondiLinea(l, adesso) { return l.prossimoIl === undefined ? 0 : Math.max(0, Math.ceil((l.prossimoIl - adesso) / 1000)) }
+function oraBreve(il) { const d = new Date(il); const due = (x) => String(x).padStart(2, '0'); return due(d.getHours()) + ':' + due(d.getMinutes()) + ':' + due(d.getSeconds()) }
+function durataBreve(ms) { const s = Math.round(ms / 1000); return s < 90 ? s + ' s' : Math.round(s / 60) + ' min' }
+function rigaStoriaLinea(e) {
+  if (e.tipo === 'collegato') return oraBreve(e.il) + ' · collegato'
+  if (e.tipo === 'caduta') return oraBreve(e.il) + ' · caduta: ' + (e.messaggio || e.motivo)
+  if (e.tipo === 'tornato') return oraBreve(e.il) + ' · tornato dopo ' + durataBreve(e.dopoMs) + ' e ' + e.tentativi + (e.tentativi === 1 ? ' tentativo' : ' tentativi')
+  return oraBreve(e.il) + ' · ' + e.tipo
+}
+/** Quello che cambia a schermo: se cambia, si ridisegna anche senza dati nuovi. */
+function firmaLinea() {
+  const q = qualitaLinea(linea.misure)
+  return linea.fase + '|' + linea.tentativo + '|' + fraSecondiLinea(linea, Date.now()) + '|' + q.tacche + '|' + codaPagina.map((v) => v.id + v.stato).join(',') + '|' + storiaLineaAperta
+}
+function ridisegnaLinea() {
+  const f = firmaLinea()
+  if (f === firmaLineaVista) return
+  firmaLineaVista = f
+  ultimaImpronta = ''
+  pannello(ultimoStato)
+}
+window.riprovaLinea = () => { linea = passoLinea(linea, { tipo: 'riprova-adesso', il: Date.now() }); ridisegnaLinea() }
+window.apriStoriaLinea = () => { storiaLineaAperta = !storiaLineaAperta; ridisegnaLinea() }
+function lineaHtml() {
+  const q = qualitaLinea(linea.misure)
+  const giu = linea.fase === 'ricollego'
+  const tacche = ['▂', '▄', '▆', '█'].map((c, i) => '<span style="opacity:' + (i < (giu ? 0 : q.tacche) ? 1 : 0.25) + '">' + c + '</span>').join('')
+  let h = '<div class="linea-pagina' + (giu ? ' linea-pagina--giu' : '') + '" onclick="apriStoriaLinea()" title="Il collegamento con il computer: le tacche dicono la qualità delle ultime chiamate, il numero il ritardo tipico. Tocca per la storia.">' +
+    '📶 ' + tacche + ' ' + (giu ? 'giù' : q.ritardoMs !== undefined ? q.ritardoMs + ' ms' : '…') + ' · ' + (giu ? 'collegamento caduto' : 'collegamento ' + q.parola) + '</div>'
+  if (giu) {
+    const fra = fraSecondiLinea(linea, Date.now())
+    h += '<div class="piastrella chiede linea-fascia"><b>Collegamento con il computer caduto da ' + durataBreve(Date.now() - (linea.cadutaIl || Date.now())) +
+      ' · tentativo ' + linea.tentativo + ' · ' + (fra > 0 ? 'riprovo fra ' + fra + ' s' : 'riprovo adesso') + '.</b>' +
+      '<div class="sotto">' + (linea.messaggio ? esc(linea.messaggio) + '. ' : '') + 'Quello che vedi è l’ultimo arrivato, attenuato: al ritorno si aggiorna da solo. Riprovo con attese che crescono (1, 2, 5, 10, 30 secondi, poi ogni 30), senza arrendermi. Quello che scrivi intanto resta in coda e parte al ritorno, una volta sola.</div>' +
+      '<div class="riga"><button onclick="riprovaLinea()">Riprova adesso</button></div></div>'
+  }
+  if (storiaLineaAperta) {
+    h += '<div class="piastrella"><div class="titolo">Storia del collegamento</div>' +
+      '<div class="sotto">Le cadute e i ritorni di questa pagina con il computer, con l’ora e il motivo (gli ultimi trenta). Le tacche: 4 = ritardo sotto 150 ms e niente perso; ne tolgono una le chiamate perse e il ritardo che sale (400 ms, 1 s).</div>' +
+      (linea.storia.length === 0 ? '<div class="sotto">Ancora niente da raccontare.</div>' : linea.storia.slice().reverse().map((e) => '<div class="sotto" style="color:' + (e.tipo === 'caduta' ? '#dc5f5f' : 'var(--verde)') + '">' + esc(rigaStoriaLinea(e)) + '</div>').join('')) +
+      '<div class="riga"><button onclick="apriStoriaLinea()">Chiudi</button></div></div>'
+  }
+  if (codaPagina.length > 0) {
+    h += '<div class="piastrella">' + codaPagina.map((v) => '<div class="sotto" style="color:#e0a33c">' + (v.stato === 'invio' ? '↗ sto mandando' : '⏳ in attesa di invio') + ': «' + esc(v.testo.slice(0, 120)) + '»' +
+      (v.stato === 'attesa' ? ' <button data-id="' + esc(v.id) + '" onclick="togliDallaCoda(this.dataset.id)">Togli</button>' : '') + '</div>').join('') + '</div>'
+  }
+  return h
+}
+
+/* La coda di quello che scrivi (0.51.0). */
+var codaPagina = []
+function nuovoIdMessaggio() {
+  const a = new Uint8Array(12)
+  crypto.getRandomValues(a)
+  return 'm' + Array.from(a, (x) => x.toString(16).padStart(2, '0')).join('')
+}
+window.togliDallaCoda = (id) => { codaPagina = codaPagina.filter((v) => v.id !== id); ridisegnaLinea() }
+async function mandaCoda() {
+  if (linea.fase !== 'collegato' || codaPagina.some((v) => v.stato === 'invio')) return
+  const v = codaPagina.find((x) => x.stato === 'attesa')
+  if (!v) return
+  v.stato = 'invio'
+  ridisegnaLinea()
+  try {
+    await chiedi('/api/scrivi', { chat: v.chat, testo: v.testo, idMessaggio: v.id })
+    codaPagina = codaPagina.filter((x) => x.id !== v.id)
+    notaScelta = null
+  } catch (e) {
+    if (e && e.stato && e.stato < 500) {
+      // Un rifiuto vero (il PIN, la chat chiusa): non si riprova, si dice.
+      codaPagina = codaPagina.filter((x) => x.id !== v.id)
+      if (e.stato === 423) pinDentro = true
+      notaScelta = 'Non mandato: ' + (e.message || 'rifiutato dal computer')
+      // Il testo torna nella casella: non si perde.
+      const campo = document.getElementById('t-' + v.chat)
+      if (campo && !campo.value) campo.value = v.testo
+    } else {
+      v.stato = 'attesa'
+      linea = passoLinea(linea, { tipo: 'errore', il: Date.now(), motivo: 'irraggiungibile', messaggio: 'il messaggio non è partito' })
+    }
+  }
+  ridisegnaLinea()
+  if (codaPagina.some((x) => x.stato === 'attesa') && linea.fase === 'collegato') return mandaCoda()
+}
+
+/* La mappa dei PC nella Salute (0.51.0): le posizioni le decide il computer. */
+function mappaHtml(m) {
+  if (!m || !m.nodi || m.nodi.length < 2) return ''
+  const c = m.nodi[0]
+  let svg = '<svg viewBox="0 0 100 100" style="width:100%;max-width:360px;display:block;margin:8px auto" role="img" aria-label="Mappa dei collegamenti fra i PC">'
+  for (const l of m.linee) {
+    const n = m.nodi.find((x) => x.id === l.a)
+    if (!n) continue
+    svg += '<g><title>' + esc(l.testo) + '</title><line x1="' + c.x + '" y1="' + c.y + '" x2="' + n.x + '" y2="' + n.y + '" stroke="' + esc(l.colore) + '" stroke-width="1.2"' + (l.stato === 'giu' ? ' stroke-dasharray="2 2"' : l.stato === 'lento' ? ' stroke-dasharray="4 1.5"' : '') + '/>' +
+      '<text x="' + ((c.x + n.x) / 2) + '" y="' + ((c.y + n.y) / 2 - 1.5) + '" text-anchor="middle" font-size="4" fill="' + esc(l.colore) + '">' + esc(l.strada || (l.stato === 'giu' ? 'giù' : '')) + '</text></g>'
+  }
+  for (const n of m.nodi) {
+    svg += '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + (n.io ? 6 : 4.5) + '" fill="' + (n.io ? '#a77bf3' : n.stato === 'acceso' ? '#3fb950' : n.stato === 'incerto' ? '#6f767e' : '#f85149') + '"/>' +
+      '<text x="' + n.x + '" y="' + (n.y + (n.io ? 10 : 8.5)) + '" text-anchor="middle" font-size="4" fill="currentColor">' + esc(n.io ? n.nome + ' (questo)' : n.nome) + '</text>'
+  }
+  return '<div class="serigrafia" style="margin-top:10px">Mappa dei PC</div>' + svg + '</svg>' +
+    '<div class="sotto">Il computer al centro, gli altri intorno. Linea verde piena: si raggiunge direttamente (la strada è scritta sopra). Ambra tratteggiata: solo via Drive, lento. Rossa a puntini: adesso non risponde.</div>'
+}
+
 async function aggiorna() {
   try {
     if (!chiave) { await accoppiaDalQr() }
     if (!chiave) { ingresso(); return }
-    const stato = await chiedi('/api/stato')
+    inVolo = true
+    ultimaChiesta = Date.now()
+    const t0 = Date.now()
+    // Il keepalive (0.51.0): una risposta che non arriva in sei secondi vuol dire linea caduta.
+    const stato = await Promise.race([chiedi('/api/stato'), new Promise((_ok, ko) => setTimeout(() => ko(new Error('il computer non ha risposto in ' + Math.round(SCADE_MS / 1000) + ' secondi')), SCADE_MS))])
+    linea = passoLinea(linea, { tipo: 'ok', il: Date.now(), ritardoMs: Date.now() - t0 })
     // Ha risposto: da qui in poi quello che si vede e' di adesso.
     ultimoContatto = Date.now()
     // L'aggiornamento viaggia con il polso apposta, e la pagina lo ignorava:
@@ -3377,8 +3541,16 @@ async function aggiorna() {
     // guardare qualcosa di fermo mentre il resto si muove sarebbe peggio che
     // non guardare.
     await leggiDentro()
+    firmaLineaVista = firmaLinea()
     pannello(stato)
+    // Quello scritto a linea giu' parte adesso, una volta sola.
+    void mandaCoda()
   } catch (e) {
+    // La linea e' caduta (0.51.0): non un 401, che ha la sua strada.
+    if (!(e && e.message && e.message.indexOf('(401)') >= 0) && !(e && e.stato && e.stato < 500)) {
+      linea = passoLinea(linea, { tipo: 'errore', il: Date.now(), motivo: 'irraggiungibile', messaggio: e && e.message ? e.message : 'il computer non risponde' })
+      ridisegnaLinea()
+    }
     // Se non c'e' niente a schermo si mostra l'ingresso con il motivo: una
     // pagina vuota lascia solo la scelta di chiudere e riprovare alla cieca.
     if (!app.innerHTML.trim()) {
@@ -3392,6 +3564,8 @@ async function aggiorna() {
     giriFalliti += 1
     if (giriFalliti === 2) ultimaImpronta = ''
     if (giriFalliti >= 2) pannello(ultimoStato)
+  } finally {
+    inVolo = false
   }
 }
 
@@ -3411,7 +3585,13 @@ chiediDiAvvisare()
 aggiorna()
 // Due secondi: abbastanza da sembrare vivo, abbastanza poco da non tenere sveglia
 // la radio del telefono per niente.
-setInterval(() => { if (chiave && !document.hidden) aggiorna() }, 2000)
+// Il ritmo lo decide il collegamento (0.51.0): ogni due secondi da collegati,
+// con le attese crescenti da caduti; la fascia conta i secondi.
+setInterval(() => {
+  if (!chiave || document.hidden) return
+  if (!inVolo && eOraLinea(linea, ultimaChiesta, Date.now())) { aggiorna(); return }
+  if (linea.fase === 'ricollego') ridisegnaLinea()
+}, 250)
 setInterval(() => { if (chiave && !document.hidden && scheda === 'domande') leggiDomande() }, 2000)
 </script>
 </body>

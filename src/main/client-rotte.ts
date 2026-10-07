@@ -19,6 +19,8 @@ import { leggiRichiestaPonte } from '@shared/ponte-telefono'
 import { ANTEPRIMA_NASCOSTA, oscuraChat, rifiutoChiusa, STATO_CHIUSA } from '@shared/pin-chat'
 import type { GuardianoPin } from './pin-guardiano'
 import type { Allegati } from './allegati'
+import { creaMemoriaInvii, idMessaggioValido } from '@shared/collegamento'
+import type { Strada } from '@shared/strada-pc'
 import {
   controllaAllegato, creaLimitatore, decidiDestinazione, leggiDestinazione, notaPulita, PEZZO_BYTE, ALLEGATO_MAX_BYTE,
   pezzoBase64Valido, rigaPerAutopilota, rigaPerChat
@@ -177,7 +179,7 @@ export type DipendenzeRotte = {
    * con le strade fra PC e la chiave di casa. Lo stato e il corpo di quel PC,
    * o l'errore con il motivo per esteso.
    */
-  ponte?: (pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string) => Promise<{ stato: number; corpo: unknown }>
+  ponte?: (pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string) => Promise<{ stato: number; corpo: unknown; strada?: Strada }>
   /**
    * Il PIN delle chat (0.49.0). Ogni rotta che mostra o scrive dentro una
    * chat passa da qui: una chat protetta e non sbloccata da **chi guarda**
@@ -585,6 +587,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
   }
   /** I file nuovi per minuto, per mittente (0.50.0). */
   const limitaAllegati = creaLimitatore()
+  /** Gli id dei messaggi già consegnati (0.51.0): chi rimanda dopo una caduta non scrive due volte. */
+  const memoriaInvii = creaMemoriaInvii()
   return async (r: {
     metodo: string
     percorso: string
@@ -860,8 +864,14 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (deps.ponte === undefined) return { stato: 409, corpo: { errore: 'Questo computer non fa ancora da ponte verso gli altri PC.' } }
       const l = leggiRichiestaPonte(r.corpo)
       if (!l.ok) return { stato: l.stato, corpo: { errore: l.errore } }
+      const partito = Date.now()
       const e = await deps.ponte(l.r.pc, l.r.percorso, l.r.corpo, r.dispositivo)
-      return { stato: e.stato, corpo: (e.corpo ?? {}) as object }
+      // La strada fra questo PC e quello, e quanto ci ha messo (0.51.0): il
+      // telefono la mostra accanto a «SU <PC>». Un campo in più: le app
+      // vecchie lo ignorano.
+      const corpo = (e.corpo ?? {}) as object
+      const ponte = { ...(e.strada !== undefined ? { strada: e.strada } : {}), ritardoMs: Date.now() - partito }
+      return { stato: e.stato, corpo: Array.isArray(corpo) ? corpo : { ...corpo, ponte } }
     }
 
     // «Salute del sistema» (0.44.0), dietro la chiave: dice com'e' messo il PC.
@@ -922,6 +932,10 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const chat = stringa(r.corpo, 'chat')
       const testo = stringa(r.corpo, 'testo')
       if (chat === '' || testo === '') return { stato: 400, corpo: { errore: 'servono chat e testo' } }
+      // L'id del messaggio (0.51.0): se è già arrivato, si conferma senza riscriverlo.
+      const idM = stringa(r.corpo, 'idMessaggio')
+      const conId = idMessaggioValido(idM)
+      if (conId && memoriaInvii.gia(chat, idM, adesso())) return OK({ fatto: true, doppio: true })
       // Una chat di un altro PC (dalle Domande, 0.37.2): il testo va la'.
       const altrove = leggiIdChatAltroPc(chat)
       if (altrove !== undefined) {
@@ -930,10 +944,12 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         // 423 (0.49.1): la chat là è protetta dal PIN e chiusa per questo PC.
         if (!esito.ok) return { stato: (esito as { pin?: boolean }).pin === true ? STATO_CHIUSA : 502, corpo: { errore: esito.messaggio, ...((esito as { pin?: boolean }).pin === true ? { pin: 'chiusa' } : {}) } }
         ricordaInviato(chat, testo)
+        if (conId) memoriaInvii.segna(chat, idM, adesso())
         return OK({ fatto: true })
       }
       deps.scriviAChat(chat, testo.slice(0, TESTO_MAX))
       ricordaInviato(chat, testo)
+      if (conId) memoriaInvii.segna(chat, idM, adesso())
       return OK({ fatto: true })
     }
 

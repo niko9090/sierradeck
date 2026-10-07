@@ -1554,8 +1554,9 @@ if (!app.requestSingleInstanceLock()) {
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/storia', {
           chat: testo(chat), da: typeof da === 'number' ? da : -1, quante: typeof quante === 'number' ? quante : 200
         }), pc))
-      ipcMain.handle('remoto:scrivi', (_e, pc: unknown, chat: unknown, t: unknown) =>
-        esitoRemoto(() => remoto.chiama(testo(pc), '/api/scrivi', { chat: testo(chat), testo: testo(t) }), pc))
+      // L'id del messaggio (0.51.0): rimandato dopo una caduta, quel PC non lo scrive due volte.
+      ipcMain.handle('remoto:scrivi', (_e, pc: unknown, chat: unknown, t: unknown, id: unknown) =>
+        esitoRemoto(() => remoto.chiama(testo(pc), '/api/scrivi', { chat: testo(chat), testo: testo(t), ...(typeof id === 'string' && id !== '' ? { idMessaggio: id } : {}) }), pc))
       ipcMain.handle('remoto:scegli', (_e, pc: unknown, chat: unknown, opzione: unknown) =>
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/scegli', { chat: testo(chat), opzione: testo(opzione) }), pc))
       ipcMain.handle('remoto:riprendi', (_e, pc: unknown, cartella: unknown, sessione: unknown) =>
@@ -1576,7 +1577,9 @@ if (!app.requestSingleInstanceLock()) {
         try {
           // Chi guarda è il telefono (0.49.1): il PIN di quel PC si apre per lui, non per questo PC.
           const visore = dispositivo !== undefined && dispositivo !== '' ? `tel:${dispositivo}@${identitaPc.leggi().id}` : undefined
-          return { stato: 200, corpo: await remoto.chiama(pc, percorso, corpo, visore) }
+          const dati = await remoto.chiama(pc, percorso, corpo, visore)
+          const strada = remoto.stradaDi(pc)?.strada
+          return { stato: 200, corpo: dati, ...(strada !== undefined ? { strada } : {}) }
         } catch (err) {
           if (err instanceof ErroreRemoto) return { stato: err.stato ?? 502, corpo: { errore: err.message, motivo: err.motivo, su: nome } }
           return { stato: 502, corpo: { errore: `${nome}: ${err instanceof Error ? err.message : String(err)}`, su: nome } }
@@ -1622,6 +1625,8 @@ if (!app.requestSingleInstanceLock()) {
         } catch { /* il servizio non risponde: niente consegne da dire */ }
         const t = aggiornamenti?.stato().tentativoFallito
         return componiSalute({
+          // La mappa dei PC (0.51.0): questo PC al centro.
+          io: { id: identitaPc.leggi().id, nome: identitaPc.leggi().nome },
           adesso, versione: app.getVersion(),
           drive: {
             configurato: st.configurato, connesso: st.connesso,

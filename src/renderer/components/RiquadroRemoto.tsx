@@ -6,6 +6,12 @@ import {
   type ChatRemota, type ChatSuPc, type PcRemoto, type StoriaRemota
 } from '@shared/pc-remoto'
 import { etichettaStrada, type InfoStrada } from '@shared/strada-pc'
+import {
+  accoda, CAMBIO_VISIBILE_MS, consegnato, eOra, erroreDiStrada, inInvio, KEEPALIVE_SCADE_MS, LINEA_NUOVA, nonPartito, passo,
+  prossimoDaMandare, type EventoLinea, type Linea, type VoceCoda
+} from '@shared/collegamento'
+import type { EsitoRemoto } from '@shared/pc-remoto'
+import { CodaInvii, FasciaLinea, IndicatoreLinea, nuovoIdMessaggio, useAdesso } from './LineaRemota'
 import { ModalePosta } from './ModalePosta'
 import { CoperturaPin } from './ChatConPin'
 import { useLayoutStore } from '../state/layout'
@@ -74,6 +80,34 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   const faseRef = useRef<Fase>(fase)
   faseRef.current = fase
   const rendiRemoto = useLayoutStore((s) => s.rendiRemoto)
+  /**
+   * Il collegamento (0.51.0): la macchina degli stati di `@shared/collegamento`.
+   * Ogni chiamata la fa avanzare (riuscita: ritardo e strada; caduta: il
+   * prossimo tentativo con attesa crescente). Il giro chiede a quel PC ogni
+   * due secondi anche solo per sapere che c'è (keepalive), con un tempo
+   * massimo: oltre, la strada è caduta.
+   */
+  const [linea, setLinea] = useState<Linea>(LINEA_NUOVA)
+  const lineaRef = useRef<Linea>(linea)
+  const ultimaIl = useRef(0)
+  /** Quello che scrivi, in coda finché non è arrivato (0.51.0): mai due volte. */
+  const [coda, setCoda] = useState<VoceCoda[]>([])
+  const avanza = (e: EventoLinea): void => { const n = passo(lineaRef.current, e); lineaRef.current = n; setLinea(n) }
+  const adesso = useAdesso(linea.fase === 'ricollego' || (linea.cambio !== undefined && Date.now() - linea.cambio.il < CAMBIO_VISIBILE_MS + 1000))
+  /** Una chiamata a quel PC, misurata: fa avanzare il collegamento. */
+  const chiedi = async <T,>(f: () => Promise<EsitoRemoto<T>>): Promise<EsitoRemoto<T>> => {
+    const t0 = performance.now()
+    // Via Drive le risposte arrivano in decine di secondi: lì il tempo massimo è lungo.
+    const tetto = lineaRef.current.strada === 'drive' ? 90_000 : KEEPALIVE_SCADE_MS
+    const r = await Promise.race([
+      f(),
+      new Promise<EsitoRemoto<T>>((ok) => setTimeout(() => ok({ ok: false, motivo: 'irraggiungibile', messaggio: `${remoto.pcNome} non ha risposto in ${Math.round(tetto / 1000)} secondi` }), tetto))
+    ])
+    const ritardoMs = performance.now() - t0
+    if (r.ok) avanza({ tipo: 'ok', il: Date.now(), ritardoMs, ...(r.strada !== undefined ? { strada: r.strada.strada } : {}) })
+    else if (erroreDiStrada(r.motivo)) avanza({ tipo: 'errore', il: Date.now(), motivo: r.motivo, messaggio: r.messaggio, ...(r.strada !== undefined ? { strada: r.strada.strada } : {}) })
+    return r
+  }
 
   // Il battito di quel PC: acceso o spento, e da quale indirizzo risponde.
   useEffect(() => {
@@ -101,10 +135,11 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
     const giro = async (): Promise<void> => {
       if (inGiro.current) return
       inGiro.current = true
+      ultimaIl.current = Date.now()
       try {
         const f = faseRef.current
         if (f.tipo !== 'viva') {
-          const s = await window.gestore.remoto.stato(remoto.pcId)
+          const s = await chiedi(() => window.gestore.remoto.stato(remoto.pcId))
           if (!vivo) return
           if (s.strada !== undefined) setStrada(s.strada)
           if (!s.ok) { taci(s.motivo, s.messaggio); setFase({ tipo: 'errore', motivo: s.motivo, messaggio: s.messaggio }); return }
@@ -115,7 +150,8 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           setAvviso(undefined)
           return
         }
-        const r = await window.gestore.remoto.storia(remoto.pcId, f.chat.id, -1, RIGHE_REMOTE)
+        // Lo schermo di adesso: al ritorno dopo una caduta è questo a rimetterlo al punto giusto.
+        const r = await chiedi(() => window.gestore.remoto.storia(remoto.pcId, f.chat.id, -1, RIGHE_REMOTE))
         if (!vivo) return
         if (r.strada !== undefined) setStrada(r.strada)
         if (!r.ok) {
@@ -139,25 +175,48 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
       }
     }
     void giro()
-    const t = setInterval(() => { void giro() }, RILEGGI_REMOTO_OGNI_MS)
+    // Il ritmo lo decide il collegamento: ogni due secondi da collegati, con le attese crescenti da caduti.
+    const t = setInterval(() => { if (eOra(lineaRef.current, ultimaIl.current, Date.now())) void giro() }, 250)
     return () => { vivo = false; clearInterval(t) }
   }, [remoto.pcId, remoto.cwd, remoto.sessione])
 
   const chatId = fase.tipo === 'viva' ? fase.chat.id : undefined
   const vivo = pc !== undefined && (pc.stato?.stato === 'acceso' || pcVivo({ ...pc, chat: pc.chat, cartelle: pc.cartelle }, Date.now()))
 
+  /**
+   * Scrivere (0.51.0): il testo entra in coda con il suo id e parte appena la
+   * linea è su — subito, se lo è già. Se cade a metà torna in attesa con lo
+   * stesso id: quel PC lo riconosce e non lo scrive due volte.
+   */
   const manda = (): void => {
     const t = testo.trim()
-    if (t === '' || chatId === undefined || invio) return
-    setInvio(true)
-    void window.gestore.remoto.scrivi(remoto.pcId, chatId, t).then((r) => {
-      if (r.ok && (r.dati as { viaDrive?: boolean } | undefined)?.viaDrive === true) {
-        setTesto('')
-        setAvviso(`Messaggio lasciato nella cassetta di ${remoto.pcNome} sul Drive: lo consegna lui a questa chat al suo prossimo giro (dieci-trenta secondi), appena la chat aspetta. Lo vedi comparire qui sopra con lo schermo successivo.`)
-      } else if (r.ok) { setTesto(''); setAvviso(undefined) }
-      else setAvviso(r.messaggio)
-    }).catch((e: unknown) => setAvviso(String(e))).finally(() => setInvio(false))
+    if (t === '' || chatId === undefined) return
+    setCoda((c) => accoda(c, { id: nuovoIdMessaggio(), testo: t, il: Date.now() }))
+    setTesto('')
   }
+  useEffect(() => {
+    if (linea.fase !== 'collegato' || chatId === undefined) return
+    const v = prossimoDaMandare(coda)
+    if (v === undefined) return
+    setCoda((c) => inInvio(c, v.id))
+    void chiedi(() => window.gestore.remoto.scrivi(remoto.pcId, chatId, v.testo, v.id)).then((r) => {
+      if (r.ok) {
+        setCoda((c) => consegnato(c, v.id))
+        setAvviso((r.dati as { viaDrive?: boolean } | undefined)?.viaDrive === true
+          ? `Messaggio lasciato nella cassetta di ${remoto.pcNome} sul Drive: lo consegna lui a questa chat al suo prossimo giro (dieci-trenta secondi), appena la chat aspetta. Lo vedi comparire qui sopra con lo schermo successivo.`
+          : undefined)
+      } else if (erroreDiStrada(r.motivo)) {
+        setCoda((c) => nonPartito(c, v.id))
+      } else {
+        // Un rifiuto vero (il PIN, la chat chiusa là): non si riprova, si dice.
+        setCoda((c) => consegnato(c, v.id))
+        if (r.motivo === 'pin') setChiusaPin(true)
+        setTesto((x) => (x === '' ? v.testo : x))
+        setAvviso(`Non mandato: ${r.messaggio}`)
+      }
+    }).catch(() => setCoda((c) => nonPartito(c, v.id)))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linea.fase, coda, chatId])
   const scegli = (opzione: string): void => {
     if (chatId === undefined || invio) return
     setInvio(true)
@@ -174,7 +233,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
       else setAvviso(r.messaggio)
     }).catch((e: unknown) => setAvviso(String(e))).finally(() => setInvio(false))
   }
-  const riprova = (): void => { setFase({ tipo: 'cerco' }); setAvviso(undefined) }
+  const riprova = (): void => { setFase({ tipo: 'cerco' }); setAvviso(undefined); avanza({ tipo: 'riprova-adesso', il: Date.now() }) }
   const statoSilenzio = silenzio === undefined ? undefined : descriviSilenzio(silenzio.motivo, remoto.pcNome, silenzio.ora - silenzio.da)
   const guardaAltra = (c: ChatSuPc): void => {
     rendiRemoto(paneId, { pcId: remoto.pcId, pcNome: remoto.pcNome, cwd: c.cwd, ...(c.sessione !== undefined ? { sessione: c.sessione } : {}) })
@@ -209,7 +268,10 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         {via !== undefined ? (
           <span className={lento ? 'remoto__strada remoto__strada--lenta' : 'remoto__strada'} title={via.testo}>{via.breve}</span>
         ) : null}
+        {/* La strada, la qualità e il ritardo; toccando, la storia (0.51.0). */}
+        <IndicatoreLinea linea={linea} nomePc={remoto.pcNome} />
       </div>
+      <FasciaLinea linea={linea} nomePc={remoto.pcNome} adesso={adesso} onRiprova={riprova} />
       {lento ? (
         <div className="remoto__lento" role="status">
           <strong>Collegamento lento via Drive.</strong> {via?.testo}
@@ -230,7 +292,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
       ) : null}
 
       {!chiusaPin && (fase.tipo === 'viva' || storia !== undefined) ? (
-        <div className="remoto__schermo" ref={schermo} dangerouslySetInnerHTML={{ __html: html === '' ? '<span class="remoto__vuoto">Leggo lo schermo di quella chat…</span>' : html }} />
+        <div className={linea.fase === 'ricollego' ? 'remoto__schermo remoto__schermo--giu' : 'remoto__schermo'} ref={schermo} dangerouslySetInnerHTML={{ __html: html === '' ? '<span class="remoto__vuoto">Leggo lo schermo di quella chat…</span>' : html }} />
       ) : null}
 
       {fase.tipo === 'cerco' && storia === undefined ? (
@@ -284,23 +346,11 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
             <button className="tasto" onClick={riprova}>Riprova adesso</button>
           </div>
           <div className="remoto__nota">
-            Il riquadro riprova da solo ogni {Math.round(RILEGGI_REMOTO_OGNI_MS / 1000)} secondi, in quest’ordine: la rete di casa, Tailscale (anche gli indirizzi che dà adesso), un collegamento diretto via Internet (WebRTC, aperto con uno scambio cifrato sul Drive) e infine il Drive, lento, solo per leggere e mandare un messaggio.
+            Il riquadro riprova da solo, con attese che crescono (1, 2, 5, 10, 30 secondi, poi ogni 30: non si arrende mai), in quest’ordine: la rete di casa, Tailscale (anche gli indirizzi che dà adesso), un collegamento diretto via Internet (WebRTC, aperto con uno scambio cifrato sul Drive) e infine il Drive, lento, solo per leggere e mandare un messaggio.
             {driveCollegato
               ? ' La conversazione la trovi anche nella copia sul Drive (Account → Drive), in sola lettura, aggiornata all’ultimo salvataggio di quel PC.'
               : ' Il Drive di questo PC è scollegato: niente copia da leggere e niente cassetta finché non lo ricolleghi (Account → Drive → Collega).'}
           </div>
-        </div>
-      ) : null}
-
-      {fase.tipo === 'viva' && statoSilenzio !== undefined ? (
-        <div className="remoto__esito" role="status">
-          <strong>{statoSilenzio.titolo}.</strong>{' '}
-          {statoSilenzio.breve
-            ? 'Può essere un attimo di rete o una sospensione breve.'
-            : `${(silenzio?.messaggio ?? '').replace(/\.\s*$/, '')}.`}
-          {' '}Quello che vedi qui sopra è l’ultimo schermo arrivato; ogni {Math.round(RILEGGI_REMOTO_OGNI_MS / 1000)} secondi
-          ribusso e, appena {remoto.pcNome} risponde, riprende da solo. Intanto non si può scrivere: il testo non arriverebbe.
-          La chat là non viene toccata.
         </div>
       ) : null}
 
@@ -317,6 +367,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         </div>
       ) : null}
 
+      <CodaInvii coda={coda} onTogli={(id) => setCoda((c) => consegnato(c, id))} />
       {/* Su quale PC si scrive, sempre sopra la casella (0.39.3). */}
       <div className="remoto__dove">Stai scrivendo su {remoto.pcNome}: quello che mandi arriva nel terminale di quel PC, non qui.</div>
       <div className="remoto__barra">
@@ -324,17 +375,17 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           className="campo remoto__campo"
           rows={2}
           value={testo}
-          disabled={chatId === undefined || silenzio !== undefined || chiusaPin}
-          placeholder={chatId === undefined ? `Quando la chat è viva su ${remoto.pcNome}, qui le scrivi.` : lento ? `Via Drive: il messaggio arriva a ${remoto.pcNome} al suo prossimo giro — Invio manda` : `Scrivi a questa chat su ${remoto.pcNome} — Invio manda, Maiusc+Invio va a capo`}
+          disabled={chatId === undefined || chiusaPin}
+          placeholder={chatId === undefined ? `Quando la chat è viva su ${remoto.pcNome}, qui le scrivi.` : linea.fase === 'ricollego' ? 'Linea giù: quello che scrivi resta in coda e parte al ritorno, una volta sola — Invio mette in coda' : lento ? `Via Drive: il messaggio arriva a ${remoto.pcNome} al suo prossimo giro — Invio manda` : `Scrivi a questa chat su ${remoto.pcNome} — Invio manda, Maiusc+Invio va a capo`}
           onChange={(e) => setTesto(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); manda() } }}
         />
-        <button className="tasto tasto--primario" disabled={chatId === undefined || silenzio !== undefined || invio || testo.trim() === ''} onClick={manda} title="Manda il testo e Invio nel terminale di quella chat, su quel PC">
+        <button className="tasto tasto--primario" disabled={chatId === undefined || chiusaPin || testo.trim() === ''} onClick={manda} title="Manda il testo e Invio nel terminale di quella chat, su quel PC">
           Manda
         </button>
       </div>
       <div className="remoto__nota">
-        Niente gira qui: la chat lavora su {remoto.pcNome}, con i suoi file. Quello che vedi è il suo terminale, riletto ogni {Math.round(RILEGGI_REMOTO_OGNI_MS / 1000)} secondi; quello che scrivi arriva là come se lo digitassi su quella tastiera. Chiudere questo riquadro non chiude la chat là.
+        Niente gira qui: la chat lavora su {remoto.pcNome}, con i suoi file. Quello che vedi è il suo terminale, riletto ogni {Math.round(RILEGGI_REMOTO_OGNI_MS / 1000)} secondi (è anche il controllo che la linea ci sia); quello che scrivi arriva là come se lo digitassi su quella tastiera. Chiudere questo riquadro non chiude la chat là.
         {!cassaforteAperta ? ' La cassaforte di qui è chiusa: senza, non ho la chiave per bussare a quel PC (Account → Cassaforte).' : ''}
       </div>
       {postaAperta && pc !== undefined ? (

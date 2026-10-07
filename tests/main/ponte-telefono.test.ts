@@ -96,9 +96,12 @@ describe('il giro intero: telefono → PC accoppiato → portatile', () => {
   it('il telefono vede le chat del portatile e gli scrive; la risposta è quella del portatile, intera', async () => {
     const { portaFisso, chiaveTelefono, scritti } = await casa()
     const s = await ponte(portaFisso, chiaveTelefono, { pc: 'lap', percorso: '/api/stato' })
-    expect(s).toEqual({ stato: 200, dati: STATO_PORTATILE })
+    // Intera, più un campo (0.51.0): la strada e il tempo del giro, per l'indicatore del telefono.
+    const { ponte: giro, ...delPortatile } = s.dati
+    expect({ stato: s.stato, dati: delPortatile }).toEqual({ stato: 200, dati: STATO_PORTATILE })
+    expect(typeof (giro as { ritardoMs?: unknown }).ritardoMs).toBe('number')
     const w = await ponte(portaFisso, chiaveTelefono, { pc: 'lap', percorso: '/api/scrivi', corpo: { chat: 'p-1', testo: 'continua' } })
-    expect(w).toEqual({ stato: 200, dati: { fatto: true } })
+    expect(w).toMatchObject({ stato: 200, dati: { fatto: true } })
     expect(scritti).toEqual([{ chat: 'p-1', testo: 'continua' }])
   })
   it('gli errori del portatile tornano con il loro stato (409 = la domanda è cambiata: non si preme niente)', async () => {

@@ -433,7 +433,7 @@ contextBridge.exposeInMainWorld('gestore', {
     trova: (pc: string, chat: ChatRemota): Promise<EsitoRemoto<ChatSuPc | undefined>> => ipcRenderer.invoke('remoto:trova', pc, chat),
     storia: (pc: string, chat: string, da: number, quante: number): Promise<EsitoRemoto<StoriaRemota>> =>
       ipcRenderer.invoke('remoto:storia', pc, chat, da, quante),
-    scrivi: (pc: string, chat: string, testo: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:scrivi', pc, chat, testo),
+    scrivi: (pc: string, chat: string, testo: string, idMessaggio?: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:scrivi', pc, chat, testo, idMessaggio),
     scegli: (pc: string, chat: string, opzione: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:scegli', pc, chat, opzione),
     pin: (pc: string, chat: string, pin: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:pin', pc, chat, pin),
     riprendi: (pc: string, cartella: string, sessione: string): Promise<EsitoRemoto<{ fatto: boolean }>> =>

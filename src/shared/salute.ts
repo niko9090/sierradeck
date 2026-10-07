@@ -9,6 +9,8 @@
  * dal registro (raggruppati: lo stesso errore cento volte è una voce).
  */
 
+import { mappaPc, type MappaPc } from './collegamento'
+
 export type Tono = 'ok' | 'attenzione' | 'guasto'
 
 /** Un'azione che chi guarda può fare da lì: il PC e il telefono sanno eseguirle per `id`. */
@@ -34,7 +36,11 @@ export type VoceSalute = {
   azioni: AzioneSalute[]
 }
 
-export type Salute = { scritto: string; tono: Tono; riassunto: string; voci: VoceSalute[] }
+/**
+ * La mappa dei PC (0.51.0): questo PC al centro, gli altri in cerchio, una
+ * linea per PC colorata per strada e stato. Assente se non c'è nessun altro PC.
+ */
+export type Salute = { scritto: string; tono: Tono; riassunto: string; voci: VoceSalute[]; mappa?: MappaPc }
 
 export type PcPerSalute = {
   pcId: string
@@ -53,6 +59,8 @@ export type ConsegnaNonPartita = { autopilota: string; nome: string; quando: str
 export type ErroreLog = { messaggio: string; volte: number; ultimo: string; primo: string }
 
 export type IngressiSalute = {
+  /** Questo PC, per la mappa (0.51.0). */
+  io?: { id: string; nome: string }
   adesso: number
   versione: string
   drive: { configurato: boolean; connesso: boolean; scollegatoDal?: string; motivoScollegato?: string; titolo?: string; testo?: string; ultimoSalvataggio?: string }
@@ -226,5 +234,6 @@ export function componiSalute(i: IngressiSalute): Salute {
   const attenzioni = voci.filter((v) => v.tono === 'attenzione').length
   const riassunto = peggiore === 'ok' ? 'Tutto a posto.'
     : [guasti > 0 ? `${guasti} ${guasti === 1 ? 'cosa da sistemare' : 'cose da sistemare'}` : '', attenzioni > 0 ? `${attenzioni} da guardare` : ''].filter((x) => x !== '').join(' · ')
-  return { scritto: new Date(i.adesso).toISOString(), tono: peggiore, riassunto, voci }
+  const mappa = i.io !== undefined && i.pc.length > 0 ? mappaPc(i.io, i.pc) : undefined
+  return { scritto: new Date(i.adesso).toISOString(), tono: peggiore, riassunto, voci, ...(mappa !== undefined ? { mappa } : {}) }
 }

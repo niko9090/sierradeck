@@ -4326,3 +4326,60 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .menu-pin__voce { background: none; border: 0; color: inherit; text-align: left; padding: 7px 14px; font-size: 13px; cursor: pointer; }
 .menu-pin__voce:hover:not(:disabled) { background: rgba(127, 127, 127, 0.18); }
 .menu-pin__voce:disabled { opacity: 0.5; cursor: default; }
+
+/* ── Il collegamento con un altro PC (0.51.0): indicatore, fascia, storia ── */
+.remoto__schermo--giu { opacity: 0.45; filter: grayscale(0.6); transition: opacity 0.3s, filter 0.3s; }
+.linea { position: relative; display: inline-flex; }
+.linea__tasto {
+  display: inline-flex; align-items: center; gap: var(--s1);
+  padding: 0 var(--s2); border: 1px solid var(--luce-incisione); border-radius: 999px;
+  background: var(--chassis-premuto); color: var(--testo); font-size: var(--t1); cursor: pointer;
+}
+.linea__tasto--giu { border-color: var(--rosso); color: var(--rosso); }
+.linea__icona { font-size: var(--t2); }
+.linea__tacche { display: inline-flex; align-items: flex-end; gap: 1px; height: 10px; }
+.linea__tacche i { display: block; width: 3px; background: var(--spento); border-radius: 1px; }
+.linea__tacche i:nth-child(1) { height: 3px; }
+.linea__tacche i:nth-child(2) { height: 5px; }
+.linea__tacche i:nth-child(3) { height: 7px; }
+.linea__tacche i:nth-child(4) { height: 10px; }
+.linea__tacche--1 i:nth-child(-n+1) { background: var(--rosso); }
+.linea__tacche--2 i:nth-child(-n+2) { background: var(--ambra); }
+.linea__tacche--3 i:nth-child(-n+3) { background: var(--verde); }
+.linea__tacche--4 i:nth-child(-n+4) { background: var(--verde); }
+.linea__ms { font-variant-numeric: tabular-nums; color: var(--testo-quieto); }
+.linea__storia {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 30; width: 340px; max-height: 320px; overflow: auto;
+  display: flex; flex-direction: column; gap: 3px; padding: var(--s2);
+  background: var(--chassis-alto); border: 1px solid var(--luce-incisione); border-radius: var(--raggio);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4); font-family: system-ui, sans-serif; font-size: var(--t1);
+}
+.linea__storia-titolo { font-weight: 600; font-size: var(--t2); }
+.linea__storia-nota { color: var(--testo-quieto); line-height: 1.35; margin-bottom: var(--s1); }
+.linea__voce { font-variant-numeric: tabular-nums; }
+.linea__voce--caduta { color: var(--rosso); }
+.linea__voce--tornato, .linea__voce--collegato { color: var(--verde); }
+.linea__voce--cambio { color: var(--remoto, #a77bf3); }
+.linea__fascia {
+  display: flex; align-items: center; gap: var(--s2); padding: var(--s1) var(--s3);
+  background: color-mix(in srgb, var(--rosso) 16%, var(--chassis)); border-bottom: 1px solid var(--rosso);
+  font-family: system-ui, sans-serif; font-size: var(--t1); line-height: 1.35; color: var(--testo);
+}
+.linea__fascia-testo { flex: 1; }
+.linea__cambio {
+  padding: var(--s1) var(--s3); font-family: system-ui, sans-serif; font-size: var(--t2); font-weight: 600;
+  color: var(--remoto, #a77bf3); background: color-mix(in srgb, var(--remoto, #a77bf3) 14%, var(--chassis));
+  animation: linea-cambio 4s ease-out forwards;
+}
+@keyframes linea-cambio {
+  0% { opacity: 0; transform: translateY(-6px); }
+  10% { opacity: 1; transform: translateY(0); }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.linea__coda { display: flex; flex-direction: column; gap: 2px; padding: var(--s1) var(--s3); font-family: system-ui, sans-serif; font-size: var(--t1); color: var(--ambra); }
+.linea__coda-voce { display: flex; align-items: center; gap: var(--s2); justify-content: space-between; }
+/* La mappa dei PC nel pannello Salute. */
+.mappa-pc { width: 100%; max-width: 420px; height: auto; display: block; margin: var(--s2) auto; }
+.mappa-pc text { font-family: system-ui, sans-serif; font-size: 4px; fill: var(--testo); }
+.mappa-pc__legenda { font-size: var(--t1); color: var(--testo-quieto); text-align: center; }

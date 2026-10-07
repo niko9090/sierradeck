@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { MappaPc } from './MappaPc'
 import type { AzioneSalute, Salute, VoceSalute } from '@shared/salute'
 import { inCorso, type AvanzamentoInstallaLa } from '@shared/installa-la'
 import type { NoteAggiornamento } from '@shared/note-aggiornamento'
@@ -90,6 +91,7 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
       {errore !== undefined ? <div className="avviso">⚠ Non riesco a leggere lo stato: {errore}</div> : null}
       {salute === undefined && errore === undefined ? <p className="account__nota">Guardo il Drive, busso agli altri PC e leggo il registro…</p> : null}
       <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {salute?.mappa !== undefined ? <MappaPc mappa={salute.mappa} /> : null}
         {GRUPPI.map((g) => {
           const voci = (salute?.voci ?? []).filter((v) => v.gruppo === g.id)
           if (voci.length === 0) return null
