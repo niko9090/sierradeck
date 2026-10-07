@@ -26,7 +26,9 @@ data class StatoSelezione(
     /** Il numero del tentativo in corso o dell'ultimo: quelli con un numero diverso non contano più. */
     val gen: Int = 0,
     /** `provo`, `collegato`, `fallito`. */
-    val esito: String = "provo"
+    val esito: String = "provo",
+    /** La postazione scelta prima (2.52.3): per «Torna al PC di prima», solo se la chiedi tu. */
+    val precedente: String? = null
 )
 
 sealed class MossaSelezione {
@@ -44,7 +46,7 @@ object Selezione {
 
     fun tocca(s: StatoSelezione, indirizzo: String): Pair<StatoSelezione, MossaSelezione> {
         if (indirizzo == s.scelto) return s to MossaSelezione.Niente
-        val n = StatoSelezione(indirizzo, s.gen + 1, "provo")
+        val n = StatoSelezione(indirizzo, s.gen + 1, "provo", precedente = s.scelto.takeIf { it.isNotBlank() })
         return n to MossaSelezione.Collegati(n.gen, indirizzo, indirizziDi(indirizzo))
     }
 
@@ -52,6 +54,15 @@ object Selezione {
     fun riprova(s: StatoSelezione): Pair<StatoSelezione, MossaSelezione> {
         val n = s.copy(gen = s.gen + 1, esito = "provo")
         return n to MossaSelezione.Collegati(n.gen, s.scelto, indirizziDi(s.scelto))
+    }
+
+    /**
+     * «Torna al PC di prima» (2.52.3): una scelta come le altre, verso la
+     * postazione di prima e solo quella. Se non ce n'è una, niente.
+     */
+    fun tornaIndietro(s: StatoSelezione): Pair<StatoSelezione, MossaSelezione> {
+        val prima = s.precedente ?: return s to MossaSelezione.Niente
+        return tocca(s, prima)
     }
 
     /** L'esito di un tentativo: conta solo se è quello in corso; il computer scelto non cambia mai da solo. */

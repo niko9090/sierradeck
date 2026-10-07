@@ -4446,3 +4446,33 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .tentativi__fallito > span { flex: 1; }
 @keyframes tentativo-pulsa { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .tentativi__passo--provo .tentativi__segno { animation: none; } }
+
+/* Il collegamento a schermo pieno nel riquadro remoto (0.52.3). */
+.schermo-tentativi {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow-y: auto;
+  padding: 14px 16px;
+  background: var(--fondo);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.schermo-tentativi--ok { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.schermo-tentativi__fatto { font-size: 72px; color: var(--verde); line-height: 1; }
+.schermo-tentativi__titolo { font-size: 16px; font-weight: 600; color: var(--accento, #58a6ff); }
+.schermo-tentativi--fallito .schermo-tentativi__titolo { color: var(--rosso); }
+.schermo-tentativi--ok .schermo-tentativi__titolo { color: var(--testo); }
+.schermo-tentativi__sotto, .schermo-tentativi__nota, .schermo-tentativi__info { color: var(--testo-quieto); }
+.schermo-tentativi__nota { margin: 6px 0 8px; }
+.schermo-tentativi__passi { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--incisione); }
+.schermo-tentativi__passo { display: flex; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--incisione); }
+.schermo-tentativi__segno { width: 18px; font-weight: 700; text-align: center; }
+.schermo-tentativi__passo--ok .schermo-tentativi__segno { color: var(--verde); }
+.schermo-tentativi__passo--fallita .schermo-tentativi__segno, .schermo-tentativi__passo--fallita .schermo-tentativi__motivo { color: var(--rosso); }
+.schermo-tentativi__passo--provo .schermo-tentativi__segno { color: var(--accento, #58a6ff); animation: tentativo-pulsa 1.1s ease-in-out infinite; }
+.schermo-tentativi__passo--salta, .schermo-tentativi__passo--attesa { color: var(--testo-quieto); }
+.schermo-tentativi__corpo { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.schermo-tentativi__fare { color: var(--testo); margin-top: 2px; }
+.schermo-tentativi__tasti { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+@media (prefers-reduced-motion: reduce) { .schermo-tentativi__passo--provo .schermo-tentativi__segno { animation: none; } }

@@ -127,6 +127,15 @@ fun App(deposito: Collegamento, scansionaQr: ((String) -> Unit, (String) -> Unit
         chiave = deposito.chiave
         if (nuovo.isNotBlank() && indirizzo != selezione.scelto) selezione = selezione.copy(scelto = indirizzo)
     }
+    /** «Torna al PC di prima» (2.52.3): una scelta come le altre, con `Selezione.tornaIndietro`. */
+    fun tornaIndietro() {
+        val (s, mossa) = Selezione.tornaIndietro(selezione)
+        if (mossa !is MossaSelezione.Collegati) return
+        selezione = s
+        deposito.indirizzo = mossa.indirizzo
+        indirizzo = deposito.indirizzo
+        chiave = deposito.chiave
+    }
 
     Surface(color = Banco.fondo) {
         if (!collegato) {
@@ -146,6 +155,8 @@ fun App(deposito: Collegamento, scansionaQr: ((String) -> Unit, (String) -> Unit
                     deposito = deposito,
                     indirizzo = indirizzo,
                     gen = selezione.gen,
+                    precedente = selezione.precedente,
+                    onTornaIndietro = { tornaIndietro() },
                     onEsito = { g, ok -> selezione = Selezione.esito(selezione, g, indirizzo, ok) },
                     onVaiA = { vaiA(it) },
                     onScollega = { deposito.dimentica(); indirizzo = ""; chiave = "" }
@@ -176,6 +187,9 @@ fun Principale(
     gen: Int = 0,
     /** Com'è andato il collegamento a questo computer. */
     onEsito: (Int, Boolean) -> Unit = { _, _ -> },
+    /** La postazione scelta prima, per «Torna al PC di prima». */
+    precedente: String? = null,
+    onTornaIndietro: () -> Unit = {},
     /** Passa a un altro computer, o all'ingresso se gli si da' una stringa vuota. */
     onVaiA: (String) -> Unit,
     onScollega: () -> Unit
@@ -202,10 +216,22 @@ fun Principale(
     var eventiTent by remember(indirizzo) { mutableStateOf<List<EventoTentativo>>(emptyList()) }
     var giroTent by remember(indirizzo) { mutableIntStateOf(0) }
     var schedaTent by remember(indirizzo) { mutableStateOf(true) }
+    /**
+     * La schermata intera del cambio di computer (2.52.3): si apre quando lo
+     * scegli dal selettore (gen > 0) o premi «Riprova»; i passi li ricava
+     * `Viaggi.passi` da questi fatti (indirizzo, orari, motivi).
+     */
+    val nomeScelto = Postazioni.elenca(contesto).firstOrNull { it.indirizzo == indirizzo }?.nome ?: Postazioni.hostDi(indirizzo)
+    val nomePrima = precedente?.let { p -> Postazioni.elenca(contesto).firstOrNull { it.indirizzo == p }?.nome ?: Postazioni.hostDi(p) }
+    var viaggio by remember(indirizzo) { mutableStateOf(Viaggio(nomeScelto, nomePrima, System.currentTimeMillis(), Selezione.indirizziDi(indirizzo), emptyList())) }
+    var schermataViaggio by remember(indirizzo) { mutableStateOf(gen > 0) }
+    var versioneScelto by remember(indirizzo) { mutableStateOf<String?>(null) }
     LaunchedEffect(indirizzo, giroTent, gen) {
         schedaTent = true
         val ev = mutableListOf<EventoTentativo>()
-        fun e(x: EventoTentativo) { ev += x; eventiTent = ev.toList() }
+        val dettagli = mutableMapOf<String, DettaglioStrada>()
+        viaggio = Viaggio(nomeScelto, nomePrima, System.currentTimeMillis(), Selezione.indirizziDi(indirizzo), emptyList())
+        fun e(x: EventoTentativo) { ev += x; eventiTent = ev.toList(); viaggio = viaggio.copy(eventi = ev.toList(), dettagli = dettagli.toMap()) }
         eventiTent = emptyList()
         val perStrada = Selezione.indirizziDi(indirizzo).groupBy { Linea.stradaDiIndirizzo(it) ?: "lan" }
         var ultimo = "nessuna strada ha risposto"
@@ -216,10 +242,12 @@ fun Principale(
                 continue
             }
             for (a in indirizzi) {
-                e(EventoTentativo.Provo(s, System.currentTimeMillis()))
                 val t0 = System.currentTimeMillis()
+                dettagli[s] = DettaglioStrada(a, t0)
+                e(EventoTentativo.Provo(s, t0))
                 val riuscito = try {
-                    kotlinx.coroutines.withTimeout(5000) { Api(a, deposito.chiaveDi(a)).ciao() }
+                    val c = kotlinx.coroutines.withTimeout(5000) { Api(a, deposito.chiaveDi(a)).ciao() }
+                    versioneScelto = c.versione.takeIf { it.isNotBlank() }
                     true
                 } catch (x: kotlinx.coroutines.TimeoutCancellationException) {
                     ultimo = "non ha risposto in 5 secondi"; false
@@ -229,12 +257,34 @@ fun Principale(
                     ultimo = x.message?.take(120) ?: "non risponde"; false
                 }
                 if (riuscito) {
+                    dettagli[s] = DettaglioStrada(a, t0, System.currentTimeMillis())
                     e(EventoTentativo.Riuscita(s, System.currentTimeMillis(), System.currentTimeMillis() - t0))
-                    onEsito(gen, true)
-                    delay(2500)
-                    schedaTent = false
+                    // La verifica della chiave: /api/ciao risponde a chiunque, /api/stato solo a chi ha la chiave.
+                    val k0 = System.currentTimeMillis()
+                    viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0))
+                    val chiaveOk = try {
+                        kotlinx.coroutines.withTimeout(8000) { Api(a, deposito.chiaveDi(a)).stato() }
+                        viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0, System.currentTimeMillis()), chiaveOk = true)
+                        true
+                    } catch (x: kotlinx.coroutines.TimeoutCancellationException) {
+                        viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0, System.currentTimeMillis(), "il computer non ha confermato la chiave in 8 secondi (non ha risposto)"), chiaveOk = false); false
+                    } catch (x: kotlinx.coroutines.CancellationException) {
+                        throw x
+                    } catch (x: Api.Errore) {
+                        viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0, System.currentTimeMillis(), if (x.codice == 401) "il computer ha risposto 401: questa chiave non la riconosce" else "il computer ha risposto ${x.codice}"), chiaveOk = false); false
+                    } catch (x: Exception) {
+                        viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0, System.currentTimeMillis(), x.message?.take(160) ?: "non risponde"), chiaveOk = false); false
+                    }
+                    onEsito(gen, chiaveOk)
+                    if (chiaveOk) {
+                        delay(1200)
+                        schermataViaggio = false
+                        delay(1300)
+                        schedaTent = false
+                    }
                     return@LaunchedEffect
                 }
+                dettagli[s] = DettaglioStrada(a, t0, System.currentTimeMillis(), ultimo)
                 e(EventoTentativo.Fallita(s, System.currentTimeMillis(), ultimo))
             }
         }
@@ -467,15 +517,29 @@ fun Principale(
                 linea = lineaPc,
                 onApri = { scegliComputer = true }
             )
+            // Il cambio di computer a tutto schermo (2.52.3).
+            if (schermataViaggio) {
+                val ultimoUsoV = Postazioni.elenca(contesto).firstOrNull { it.indirizzo == indirizzo }?.ultimoUso?.takeIf { it > 0 }
+                SchermataViaggio(
+                    v = viaggio,
+                    versionePc = versioneScelto,
+                    ultimoSegno = ultimoUsoV?.let { java.text.SimpleDateFormat("d MMM 'alle' HH:mm", java.util.Locale.ITALIAN).format(java.util.Date(it)) },
+                    adesso = adessoVivo(true),
+                    puoiTornare = nomePrima,
+                    onRiprova = { giroTent += 1; lineaPc = Linea.passo(lineaPc, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) },
+                    onTornaIndietro = onTornaIndietro,
+                    onAnnulla = { schermataViaggio = false }
+                )
+            }
             // I tentativi del collegamento, sotto il computer scelto (0.52.1).
-            if (schedaTent && eventiTent.isNotEmpty()) {
+            if (!schermataViaggio && schedaTent && eventiTent.isNotEmpty()) {
                 // Il nome del computer **scelto**: la sua postazione, poi quello che dice lui.
                 val nomeTent = Postazioni.elenca(contesto).firstOrNull { it.indirizzo == indirizzo }?.nome ?: stato?.computer?.nome?.takeIf { it.isNotBlank() } ?: Postazioni.hostDi(indirizzo)
                 val ultimoUso = Postazioni.elenca(contesto).firstOrNull { it.indirizzo == indirizzo }?.ultimoUso?.takeIf { it > 0 }
                 SchedaCollegamento(
                     Tentativi.passi(nomeTent, eventiTent),
                     ultimoUso?.let { java.text.SimpleDateFormat("d MMM 'alle' HH:mm", java.util.Locale.ITALIAN).format(java.util.Date(it)) },
-                    onRiprova = { giroTent += 1; lineaPc = Linea.passo(lineaPc, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) }
+                    onRiprova = { giroTent += 1; schermataViaggio = true; lineaPc = Linea.passo(lineaPc, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) }
                 )
             }
             // Un tasto che non ce l'ha fatta lo dice qui, in cima, qualunque

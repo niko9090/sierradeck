@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.52.3',
+    righe: [
+      '**Il cambio di computer, a tutto schermo e passo per passo.** Dal telefono, quando scegli un altro computer si apre una schermata intera con «Mi collego a NOME», la sua versione, l’ultima volta che ha risposto e un cronometro. Sotto, una riga per passo: stacco dal computer di prima, gli indirizzi del computer scelto, rete di casa, Tailscale, ponte o Internet, verifica della chiave, collegato. Ogni riga dice se è in corso, fatta (✓), non riuscita (✗) o saltata, con l’indirizzo e il tempo impiegato; sotto un passo non riuscito c’è il perché per esteso e cosa fare.',
+      '**Riprova, torna indietro, copia.** I tasti sono «Riprova», «Torna a» il computer di prima (una scelta tua, mai automatica) e «Annulla», che chiude la schermata e lascia l’indicatore in alto a riprovare. «Copia i dettagli» mette negli appunti tutti i passi con orari, indirizzi, tempi e motivi, da mandare a chi ti aiuta. Se va a buon fine compare un ✓ per un istante e la schermata si chiude: in alto restano strada, tacche e ritardo.',
+      '**Anche sul computer.** Quando apri una chat di un altro PC, il riquadro mostra a schermo pieno gli stessi passi (indirizzi noti, le quattro strade, la chiave di casa, collegato), con «Copia i dettagli». App Android 2.52.3.'
+    ]
+  },
+  {
     versione: '0.52.2',
     righe: [
       '**Scegliendo un altro computer dal telefono, ti colleghi a quello.** Prima l’app si teneva in memoria il computer di prima: in alto e in «Mi collego a …» restava il suo nome, con le sue chat, e se quello nuovo non rispondeva sembrava che non riuscisse a collegarsi a quello già collegato. Inoltre provava anche altre postazioni con lo stesso nome, e poteva tornarci da sola.',

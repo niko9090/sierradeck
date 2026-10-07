@@ -474,3 +474,114 @@ export function eventiDaLinea(l: Linea, inizio: number): EventoTentativo[] {
   if (l.fase === 'ricollego') fuori.push({ tipo: 'fallito', il: l.cadutaIl ?? inizio, motivo: l.messaggio ?? l.motivo ?? 'non risponde' })
   return fuori
 }
+
+/* ------------------------------------------------------------------ */
+/* I passi dettagliati, per lo schermo pieno (0.52.3).                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Nicholas (07/10): «L'animazione del cambio pc vorrei che fosse a tutto
+ * schermo dettagliata così da capire bene cosa sta succedendo e dove ci sono
+ * errori». Sul PC, nel riquadro di una chat di un altro PC: gli indirizzi
+ * noti, le strade (da `passiCollegamento`), la chiave di casa, collegato,
+ * ognuno con indirizzo, tempo, motivo e cosa fare. Nell'app è `Viaggi.passi`.
+ */
+export type PassoDettagliato = {
+  id: string
+  titolo: string
+  icona: string
+  stato: 'attesa' | 'provo' | 'ok' | 'fallita' | 'salta'
+  indirizzo?: string
+  durataMs?: number
+  il?: number
+  motivo?: string
+  cosaFare?: string
+}
+
+const MOTIVI_CHIAVE = ['cassaforte', 'chiave']
+
+/** Il motivo di un passo fallito sul PC, tradotto in cosa fare. */
+export function cosaFarePc(motivo: string, strada: string, nomePc: string): string {
+  const m = motivo.toLowerCase()
+  if (strada === 'chiave' || m.includes('cassaforte') || m.includes('chiave')) {
+    return `${nomePc} risponde ma la chiave di casa non torna: i due PC devono avere lo stesso Drive di SierraDeck e la stessa cassaforte aperta. Apri Account → Cassaforte su tutti e due.`
+  }
+  if (m.includes('battito') || m.includes('sconosciuto')) return `${nomePc} non ha ancora lasciato il suo segno sul Drive: aprilo con il Drive collegato e aspetta il primo salvataggio automatico.`
+  if (strada === 'lan') return `Controlla che ${nomePc} sia acceso (non in sospensione) con SierraDeck aperto, sulla stessa rete di questo PC, e che il firewall di Windows lasci passare SierraDeck.`
+  if (strada === 'tailscale') return 'Controlla che Tailscale sia acceso su tutti e due i PC, con lo stesso account.'
+  if (strada === 'webrtc') return 'Il collegamento diretto via Internet passa dal Drive per lo scambio iniziale: controlla che il Drive sia collegato su tutti e due, e aspetta fino a un minuto e mezzo.'
+  if (strada === 'drive') return 'Controlla che il Drive sia collegato su tutti e due i PC (Account → Drive).'
+  return `Riprova; se non cambia, guarda il pannello Salute: dice com'è messo ${nomePc} visto da qui.`
+}
+
+export function passiDettagliati(p: { nomePc: string; linea: Linea; inizio: number; adesso: number; indirizzi?: string[]; indirizzoBuono?: string }): PassoDettagliato[] {
+  const { nomePc, linea, inizio, adesso } = p
+  const vista = passiCollegamento(nomePc, eventiDaLinea(linea, inizio))
+  const fuori: PassoDettagliato[] = []
+  const noti = p.indirizzi ?? []
+  fuori.push(noti.length > 0
+    ? { id: 'indirizzi', titolo: `Indirizzi di ${nomePc}`, icona: '📇', stato: 'ok', indirizzo: noti.join(', '), il: inizio, motivo: 'quelli che ha lasciato nel suo battito: provo solo questo PC' }
+    : { id: 'indirizzi', titolo: `Indirizzi di ${nomePc}`, icona: '📇', stato: 'salta', il: inizio, motivo: 'nessun indirizzo diretto conosciuto: restano le strade via Internet' })
+  const chiaveGiu = vista.fase !== 'collegato' && linea.fase === 'ricollego' && MOTIVI_CHIAVE.includes(linea.motivo ?? '')
+  for (const s of vista.passi) {
+    const stato: PassoDettagliato['stato'] = s.stato === 'inutile' ? 'salta' : s.stato
+    const diretta = s.strada === 'lan' || s.strada === 'tailscale'
+    const daNoti = noti.filter((x) => stradaDiIndirizzo(x) === s.strada).join(', ')
+    const indirizzo = s.stato === 'ok' && diretta ? p.indirizzoBuono : diretta && daNoti !== '' ? daNoti : undefined
+    const durataMs = s.stato === 'ok' ? s.ms : s.stato === 'provo' ? Math.max(0, adesso - inizio) : s.stato === 'fallita' && linea.cadutaIl !== undefined ? Math.max(0, linea.cadutaIl - inizio) : undefined
+    const motivo = s.stato === 'fallita' && vista.fase === 'fallito' && linea.messaggio !== undefined && !chiaveGiu ? linea.messaggio : s.motivo
+    fuori.push({
+      id: s.strada,
+      titolo: s.strada === 'webrtc' ? 'Ponte o Internet (WebRTC)' : nomeTentativo(s.strada).replace(/^./, (c) => c.toUpperCase()),
+      icona: s.icona,
+      stato,
+      ...(indirizzo !== undefined ? { indirizzo } : {}),
+      ...(durataMs !== undefined ? { durataMs } : {}),
+      ...(motivo !== undefined ? { motivo } : {}),
+      ...(stato === 'fallita' ? { cosaFare: cosaFarePc(motivo ?? '', s.strada, nomePc) } : {})
+    })
+  }
+  const ok = vista.fase === 'collegato'
+  fuori.push(ok
+    ? { id: 'chiave', titolo: 'Verifica della chiave di casa', icona: '🔑', stato: 'ok', motivo: `${nomePc} ha riconosciuto la chiave: stesso Drive, stessa cassaforte` }
+    : chiaveGiu
+      ? { id: 'chiave', titolo: 'Verifica della chiave di casa', icona: '🔑', stato: 'fallita', motivo: linea.messaggio ?? 'la chiave di casa non torna', cosaFare: cosaFarePc(linea.motivo ?? 'chiave', 'chiave', nomePc) }
+      : vista.fase === 'fallito'
+        ? { id: 'chiave', titolo: 'Verifica della chiave di casa', icona: '🔑', stato: 'salta', motivo: 'nessuna strada ha risposto: non c’è a chi chiederla' }
+        : { id: 'chiave', titolo: 'Verifica della chiave di casa', icona: '🔑', stato: 'attesa' })
+  fuori.push(ok
+    ? { id: 'collegato', titolo: `Collegato a ${nomePc}`, icona: '✅', stato: 'ok', motivo: vista.sotto }
+    : vista.fase === 'fallito'
+      ? { id: 'collegato', titolo: `Collegato a ${nomePc}`, icona: '✅', stato: 'fallita', durataMs: Math.max(0, adesso - inizio), motivo: 'non ancora: riprovo da solo con attese crescenti', cosaFare: 'Correggi il passo segnato con ✗ e premi «Riprova».' }
+      : { id: 'collegato', titolo: `Collegato a ${nomePc}`, icona: '✅', stato: 'attesa' })
+  return fuori
+}
+
+const PAROLA_STATO: Record<PassoDettagliato['stato'], string> = { ok: 'fatto', fallita: 'non riuscito', provo: 'in corso', salta: 'saltato', attesa: 'in attesa' }
+export function segnoPasso(s: PassoDettagliato['stato']): string { return s === 'ok' ? '✓' : s === 'fallita' ? '✗' : s === 'provo' ? '…' : s === 'salta' ? '–' : '○' }
+export function parolaPasso(s: PassoDettagliato['stato']): string { return PAROLA_STATO[s] }
+
+function oraDi(il: number): string {
+  const d = new Date(il)
+  const due = (x: number): string => String(x).padStart(2, '0')
+  return `${due(d.getHours())}:${due(d.getMinutes())}:${due(d.getSeconds())}`
+}
+
+/** «Copia i dettagli»: tutti i passi con orari, indirizzi, tempi e motivi. */
+export function testoDettagli(p: { nomePc: string; passi: PassoDettagliato[]; inizio: number; adesso: number; versione?: string; ultimoSegno?: string }): string {
+  const esito = p.passi.find((x) => x.id === 'collegato')?.stato
+  const righe = [
+    `SierraDeck · collegamento a ${p.nomePc}${p.versione !== undefined && p.versione !== '' ? ` (SierraDeck ${p.versione})` : ''}`,
+    `Iniziato alle ${oraDi(p.inizio)} · ${Math.round((p.adesso - p.inizio) / 1000)} s · esito: ${esito === 'ok' ? 'collegato' : esito === 'fallita' ? 'non collegato' : 'in corso'}`
+  ]
+  if (p.ultimoSegno !== undefined) righe.push(`Ultimo segno di ${p.nomePc}: ${p.ultimoSegno}`)
+  for (const x of p.passi) {
+    const parti = [`${x.il !== undefined ? `[${oraDi(x.il)}] ` : ''}${segnoPasso(x.stato)} ${x.titolo}: ${parolaPasso(x.stato)}`]
+    if (x.indirizzo !== undefined) parti.push(`indirizzo ${x.indirizzo}`)
+    if (x.durataMs !== undefined) parti.push(`${x.durataMs} ms`)
+    if (x.motivo !== undefined) parti.push(x.motivo)
+    righe.push(parti.join(' · '))
+    if (x.cosaFare !== undefined) righe.push(`    Cosa fare: ${x.cosaFare}`)
+  }
+  return righe.join('\n')
+}

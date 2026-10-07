@@ -91,6 +91,26 @@ Nicholas (07/10): «Io seleziono un altro pc e il programma va sempre in errore 
 - Sul PC, `RiquadroRemoto` ha `key` uguale a pcId|sessione: se un riquadro passa a un altro PC riparte da zero.
 - Il ponte (scheda Computer → altri PC) era già a posto: `ChatSuAltroPc` e la fascia sono chiavati su `su.pcId` e usano `su.nome`.
 
+# Il cambio di computer a tutto schermo (0.52.3, app 2.52.3)
+
+Nicholas (07/10): «L'animazione del cambio pc vorrei che fosse a tutto schermo dettagliata così da capire bene cosa sta succedendo e dove ci sono errori».
+
+- **App:**
+  - `Viaggi.passi(Viaggio, adesso)` (`Viaggio.kt`, pura) restituisce sette passi: stacco, indirizzi, rete di casa, Tailscale, ponte o Internet, chiave, collegato.
+    - Le strade vengono da `Tentativi.passi` (gli eventi), arricchite con `DettaglioStrada` (indirizzo, inizio, fine, motivo).
+    - `cosaFare(motivo, strada)` traduce il motivo in un'azione; `Viaggi.testo` dà il testo di «Copia i dettagli».
+  - La **verifica della chiave** è un passo vero: dopo `ciao()`, che risponde a chiunque, si chiama `stato()`, che vuole la chiave. Un 401 = chiave non riconosciuta → rifare l'accoppiamento.
+  - `SchermataViaggio.kt` è un `Dialog` a tutto schermo e si apre quando `gen > 0` (scelta dal selettore) o con «Riprova». A buon fine mostra ✓ per 1,2 s e poi si chiude.
+  - Tasti:
+    - «Torna a <PC di prima>» = `Selezione.tornaIndietro` (`StatoSelezione.precedente`): una scelta normale, mai automatica;
+    - «Annulla» chiude la schermata e resta sul PC scelto.
+  - Test: `ViaggioTest.kt`.
+- **PC:**
+  - `passiDettagliati` + `testoDettagli` + `cosaFarePc` in `collegamento.ts`, ricavati dalla macchina della linea. In più gli indirizzi del battito, l'indirizzo buono e il motivo `cassaforte` per la chiave.
+  - Schermo pieno nel riquadro remoto (`SchermoCollegamento` in `LineaRemota.tsx`) finché il primo collegamento non riesce.
+  - Test: `tests/shared/passi-dettagliati.test.ts`.
+- **La pagina servita non ha la schermata intera:** si collega solo al suo PC, che è anche quello che la serve, quindi ha solo la scheda piccola.
+
 # Da fare
 
 - Prova dal vivo con Nicholas: staccare il wifi del portatile con un riquadro

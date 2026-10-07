@@ -11,8 +11,8 @@ import {
   prossimoDaMandare, type EventoLinea, type Linea, type VoceCoda
 } from '@shared/collegamento'
 import type { EsitoRemoto } from '@shared/pc-remoto'
-import { CodaInvii, FasciaLinea, IndicatoreLinea, nuovoIdMessaggio, SchedaCollegamento, useAdesso } from './LineaRemota'
-import { eventiDaLinea, passiCollegamento } from '@shared/collegamento'
+import { CodaInvii, FasciaLinea, IndicatoreLinea, nuovoIdMessaggio, SchermoCollegamento, useAdesso } from './LineaRemota'
+import { eventiDaLinea, passiCollegamento, passiDettagliati } from '@shared/collegamento'
 import { ModalePosta } from './ModalePosta'
 import { CoperturaPin } from './ChatConPin'
 import { useLayoutStore } from '../state/layout'
@@ -113,6 +113,9 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   const inizioRef = useRef(Date.now())
   const vistaTent = passiCollegamento(remoto.pcNome, eventiDaLinea(linea, inizioRef.current))
   const [tentVisibili, setTentVisibili] = useState(true)
+  /** «Annulla» chiude lo schermo pieno; torna da sé se la linea ricade prima del primo collegamento. */
+  const [tentChiusi, setTentChiusi] = useState(false)
+  const orologioTent = useAdesso(tentVisibili && !tentChiusi)
   useEffect(() => {
     if (vistaTent.fase !== 'collegato') { setTentVisibili(true); return }
     const t = setTimeout(() => setTentVisibili(false), 2500)
@@ -297,7 +300,23 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         {/* La strada, la qualità e il ritardo; toccando, la storia (0.51.0). */}
         <IndicatoreLinea linea={linea} nomePc={remoto.pcNome} />
       </div>
-      {tentVisibili ? <SchedaCollegamento vista={vistaTent} {...(pc?.battito !== undefined && pc.battito !== '' ? { ultimoSegno: `battito sul Drive ${quando(pc.battito)}` } : {})} onRiprova={riprova} /> : null}
+      {/* Il collegamento a schermo pieno nel riquadro, passo per passo (0.52.3). */}
+      {tentVisibili && !tentChiusi ? (
+        <SchermoCollegamento
+          nomePc={remoto.pcNome}
+          passi={passiDettagliati({
+            nomePc: remoto.pcNome, linea, inizio: inizioRef.current, adesso: orologioTent,
+            ...(pc?.indirizzi !== undefined ? { indirizzi: pc.indirizzi } : {}),
+            ...(pc?.strada?.indirizzo !== undefined ? { indirizzoBuono: pc.strada.indirizzo } : pc?.buono !== undefined ? { indirizzoBuono: pc.buono } : {})
+          })}
+          inizio={inizioRef.current}
+          adesso={orologioTent}
+          {...(pc?.versione !== undefined && pc.versione !== '' ? { versione: pc.versione } : {})}
+          {...(pc?.battito !== undefined && pc.battito !== '' ? { ultimoSegno: `battito sul Drive ${quando(pc.battito)}` } : {})}
+          onRiprova={riprova}
+          onChiudi={() => setTentChiusi(true)}
+        />
+      ) : null}
       <FasciaLinea linea={linea} nomePc={remoto.pcNome} adesso={adesso} onRiprova={riprova} />
       {linea.fase === 'ricollego' && remoto.sessione !== undefined && casa !== undefined && !casa.qui ? (
         <div className="remoto__ospite" role="status">

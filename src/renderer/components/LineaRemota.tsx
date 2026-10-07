@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
-  cambioVisibile, iconaStrada, qualita, rigaStoria, rovescia, testoRiconnessione, type Linea, type VistaCollegamento, type VoceCoda
+  cambioVisibile, iconaStrada, parolaPasso, qualita, rigaStoria, rovescia, segnoPasso, testoDettagli, testoRiconnessione,
+  type Linea, type PassoDettagliato, type VistaCollegamento, type VoceCoda
 } from '@shared/collegamento'
 import { etichettaStrada } from '@shared/strada-pc'
 import { useLineaRemota } from '../linee-remote'
@@ -140,4 +141,68 @@ export function nuovoIdMessaggio(): string {
   const a = new Uint8Array(12)
   crypto.getRandomValues(a)
   return `m${Array.from(a, (x) => x.toString(16).padStart(2, '0')).join('')}`
+}
+
+/**
+ * Il collegamento a un altro PC a schermo pieno nel riquadro (0.52.3):
+ * cosa sta succedendo passo per passo e dove si ferma, con «Copia i
+ * dettagli». I passi li fa `passiDettagliati`.
+ */
+export function SchermoCollegamento({ nomePc, passi, inizio, adesso, versione, ultimoSegno, onRiprova, onChiudi }: {
+  nomePc: string
+  passi: PassoDettagliato[]
+  inizio: number
+  adesso: number
+  versione?: string
+  ultimoSegno?: string
+  onRiprova: () => void
+  onChiudi: () => void
+}): React.JSX.Element {
+  const [copiato, setCopiato] = useState(false)
+  const fine = passi.find((p) => p.id === 'collegato')?.stato
+  const fase = fine === 'ok' ? 'collegato' : fine === 'fallita' ? 'fallito' : 'provo'
+  if (fase === 'collegato') {
+    return (
+      <div className="schermo-tentativi schermo-tentativi--ok" role="status">
+        <div className="schermo-tentativi__fatto">✓</div>
+        <div className="schermo-tentativi__titolo">Collegato a {nomePc}</div>
+        <div className="schermo-tentativi__sotto">{passi.find((p) => p.id === 'collegato')?.motivo}</div>
+      </div>
+    )
+  }
+  const copia = (): void => {
+    const t = testoDettagli({ nomePc, passi, inizio, adesso, ...(versione !== undefined ? { versione } : {}), ...(ultimoSegno !== undefined ? { ultimoSegno } : {}) })
+    try { window.gestore.appunti.scrivi(t) } catch { void navigator.clipboard?.writeText(t) }
+    setCopiato(true)
+    setTimeout(() => setCopiato(false), 2500)
+  }
+  return (
+    <div className={`schermo-tentativi schermo-tentativi--${fase}`} role="status" aria-live="polite">
+      <div className="schermo-tentativi__titolo">{fase === 'fallito' ? `Non riesco a collegarmi a ${nomePc}` : `Mi collego a ${nomePc}…`}</div>
+      <div className="schermo-tentativi__sotto">
+        {[versione !== undefined && versione !== '' ? `SierraDeck ${versione}` : undefined, ultimoSegno !== undefined ? `ultimo segno ${ultimoSegno}` : undefined, `⏱ ${Math.round((adesso - inizio) / 1000)} s`].filter((x) => x !== undefined).join(' · ')}
+      </div>
+      <p className="schermo-tentativi__nota">
+        Ogni riga è un passo: ✓ fatto, ✗ non riuscito (sotto c’è il perché e cosa fare), … in corso, – saltato perché non serve. Le strade le prova questo PC in ordine: rete di casa, Tailscale, collegamento diretto via Internet, Drive. Riprovo da solo con attese che crescono; lo schermo della chat compare appena il collegamento c’è.
+      </p>
+      <ol className="schermo-tentativi__passi">
+        {passi.map((p) => (
+          <li key={p.id} className={`schermo-tentativi__passo schermo-tentativi__passo--${p.stato}`}>
+            <span className="schermo-tentativi__segno">{segnoPasso(p.stato)}</span>
+            <span className="schermo-tentativi__corpo">
+              <b>{p.icona} {p.titolo}</b>
+              <span className="schermo-tentativi__info">{[parolaPasso(p.stato), p.indirizzo, p.durataMs !== undefined ? `${p.durataMs} ms` : undefined].filter((x) => x !== undefined).join(' · ')}</span>
+              {p.motivo !== undefined ? <span className="schermo-tentativi__motivo">{p.motivo}</span> : null}
+              {p.cosaFare !== undefined ? <span className="schermo-tentativi__fare">Cosa fare: {p.cosaFare}</span> : null}
+            </span>
+          </li>
+        ))}
+      </ol>
+      <div className="schermo-tentativi__tasti">
+        <button type="button" className="tasto tasto--primario" onClick={onRiprova}>Riprova</button>
+        <button type="button" className="tasto" onClick={copia}>{copiato ? 'Copiati ✓' : 'Copia i dettagli'}</button>
+        <button type="button" className="tasto" onClick={onChiudi} title="Chiude questa schermata: il riquadro continua a riprovare da solo, e l’indicatore in alto dice com’è">Annulla</button>
+      </div>
+    </div>
+  )
 }
