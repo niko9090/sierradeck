@@ -74,7 +74,7 @@ val VIOLA_ALTRO_PC = Color(0xFFA77BF3)
  * mai esserci il dubbio di quale computer si stia comandando.
  */
 @Composable
-fun FasciaSuPc(pc: PcPonte, viaNome: String?, onTorna: () -> Unit) {
+fun FasciaSuPc(pc: PcPonte, viaNome: String?, linea: StatoLinea? = null, onTorna: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().background(VIOLA_ALTRO_PC.copy(alpha = 0.22f)).padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -86,6 +86,8 @@ fun FasciaSuPc(pc: PcPonte, viaNome: String?, onTorna: () -> Unit) {
                 color = Banco.testo, fontSize = 11.sp, maxLines = 2
             )
         }
+        // La strada, la qualità e il ritardo (0.51.0); toccando, la storia.
+        if (linea != null) { Spacer(Modifier.width(6.dp)); IndicatoreLinea(linea, pc.nome) }
         Spacer(Modifier.width(8.dp))
         OutlinedButton(onClick = onTorna) { Text("Torna", fontSize = 12.sp) }
     }

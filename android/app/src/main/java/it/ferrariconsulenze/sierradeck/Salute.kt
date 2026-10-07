@@ -51,7 +51,7 @@ data class VoceSalute(
 )
 
 @Serializable
-data class Salute(val scritto: String = "", val tono: String = "ok", val riassunto: String = "", val voci: List<VoceSalute> = emptyList())
+data class Salute(val scritto: String = "", val tono: String = "ok", val riassunto: String = "", val voci: List<VoceSalute> = emptyList(), val mappa: MappaPc? = null)
 
 /** I gruppi, in ordine, con il nome da mostrare. */
 val GRUPPI_SALUTE = listOf("drive" to "Drive", "pc" to "Gli altri PC", "aggiornamento" to "Aggiornamento", "errori" to "Errori delle ultime ore", "consegne" to "Istruzioni non partite")
@@ -93,6 +93,8 @@ fun SezioneSalute(api: Api) {
     if (s == null && guasto == null) Text("Guardo…", color = Banco.testoQuieto, fontSize = 13.sp)
     if (s != null) {
         Text(s.riassunto, color = coloreTonoSalute(s.tono), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        // La mappa dei PC (PC 0.51.0): questo PC al centro, gli altri intorno.
+        s.mappa?.takeIf { it.nodi.size > 1 }?.let { Spacer(Modifier.height(8.dp)); MappaPcVista(it) }
         for ((g, nome) in GRUPPI_SALUTE) {
             val voci = s.voci.filter { it.gruppo == g }
             if (voci.isEmpty()) continue

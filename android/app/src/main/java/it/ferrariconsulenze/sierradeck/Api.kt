@@ -143,9 +143,11 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             corpoTesto(percorso, json.encodeToString(JsonObject.serializer(), corpo).toRequestBody(JSON_MEDIA))
     }
 
-    suspend fun scrivi(chat: String, testo: String): Fatto =
+    /** `idMessaggio` (PC 0.51.0): rimandato dopo una caduta, il PC lo riconosce e non lo scrive due volte. */
+    suspend fun scrivi(chat: String, testo: String, idMessaggio: String? = null): Fatto =
         json.decodeFromString(corpoTesto("/api/scrivi", oggetto {
             put("chat", chat); put("testo", testo)
+            if (idMessaggio != null) put("idMessaggio", idMessaggio)
         }))
 
     // ─── domande dell'autopilota ───

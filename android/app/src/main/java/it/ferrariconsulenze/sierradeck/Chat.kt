@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import androidx.compose.ui.draw.alpha
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.BorderStroke
@@ -125,29 +126,46 @@ private fun ChatSuAltroPc(api: Api, su: PcPonte, deposito: Collegamento) {
     var stato by remember(su.pcId) { mutableStateOf<Stato?>(null) }
     var guasto by remember(su.pcId) { mutableStateOf<String?>(null) }
     var aperta by remember(su.pcId) { mutableStateOf<String?>(null) }
+    /**
+     * Il collegamento (0.51.0): la macchina di `Linea`. Ogni due secondi si
+     * chiede lo stato di quel PC anche solo per sapere che c'è (keepalive,
+     * sei secondi al massimo); se cade, si riprova con attese crescenti e la
+     * fascia lo dice, con «Riprova adesso». Lo schermo resta, attenuato.
+     */
+    var linea by remember(su.pcId) { mutableStateOf(Linea.NUOVA) }
+    var ultima by remember(su.pcId) { mutableStateOf(0L) }
     LaunchedEffect(su.pcId) {
         while (isActive) {
-            try {
-                stato = apiPc.stato(); guasto = null
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Api.Errore) {
-                guasto = if (e.codice == 404 || e.codice == 409) "Il PC accoppiato non fa ancora da ponte: aggiornalo alla 0.48.0 o più nuova, e da qui vedrai le chat di ${su.nome}."
-                else Nota.spiega(e, "leggere le chat di ${su.nome}")
-            } catch (e: Exception) {
-                guasto = "Non riesco a leggere le chat di ${su.nome}: ${e.message ?: "il PC accoppiato non risponde"}"
+            val ora = System.currentTimeMillis()
+            if (Linea.eOra(linea, ultima, ora)) {
+                ultima = ora
+                try {
+                    val s = kotlinx.coroutines.withTimeout(Linea.KEEPALIVE_SCADE_MS) { apiPc.stato() }
+                    stato = s; guasto = null
+                    linea = Linea.passo(linea, EventoLinea.Ok(System.currentTimeMillis(), System.currentTimeMillis() - ora, s.ponte?.strada))
+                } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                    linea = Linea.passo(linea, EventoLinea.Errore(System.currentTimeMillis(), "irraggiungibile", "${su.nome} non ha risposto in ${Linea.KEEPALIVE_SCADE_MS / 1000} secondi"))
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Api.Errore) {
+                    if (e.codice == 404 || e.codice == 409) guasto = "Il PC accoppiato non fa ancora da ponte: aggiornalo alla 0.48.0 o più nuova, e da qui vedrai le chat di ${su.nome}."
+                    else linea = Linea.passo(linea, EventoLinea.Errore(System.currentTimeMillis(), "irraggiungibile", Nota.spiega(e, "leggere le chat di ${su.nome}").removePrefix("Non sono riuscito a leggere le chat di ${su.nome}: ")))
+                } catch (e: Exception) {
+                    linea = Linea.passo(linea, EventoLinea.Errore(System.currentTimeMillis(), "irraggiungibile", e.message ?: "il PC accoppiato non risponde"))
+                }
             }
-            delay(2500)
+            delay(250)
         }
     }
     BackHandler { if (aperta != null) aperta = null else SuPc.corrente = null }
     Column(Modifier.fillMaxSize()) {
-        FasciaSuPc(su, null) { SuPc.corrente = null }
+        FasciaSuPc(su, null, linea) { SuPc.corrente = null }
+        FasciaLinea(linea, su.nome, onRiprova = { linea = Linea.passo(linea, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) })
         guasto?.let { Text(it, color = Banco.rosso, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) }
         val chat = stato?.chat ?: emptyList()
         val corrente = chat.firstOrNull { it.id == aperta }
         when {
-            corrente != null -> DettaglioChat(apiPc, corrente, deposito, onIndietro = { aperta = null })
+            corrente != null -> DettaglioChat(apiPc, corrente, deposito, onIndietro = { aperta = null }, giu = linea.fase == "ricollego")
             stato == null && guasto == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Busso a ${su.nome} attraverso il PC accoppiato…", color = Banco.testoQuieto)
             }
@@ -315,7 +333,14 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
 
 /** Il dettaglio: il terminale a polling e il campo per scrivere. */
 @Composable
-private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndietro: () -> Unit) {
+private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndietro: () -> Unit, giu: Boolean = false) {
+    /**
+     * Quello che scrivi (0.51.0): va in coda con un id e parte subito; se la
+     * rete cade resta «in attesa di invio» e riparte da solo, con attese
+     * crescenti, finché arriva. Il PC riconosce l'id e non lo scrive due volte.
+     */
+    var coda by remember(chat.id) { mutableStateOf<List<VoceCodaLinea>>(emptyList()) }
+    var tentativiCoda by remember(chat.id) { mutableStateOf(0) }
     // La finestra sulla conversazione: sempre attaccata al fondo, e alta
     // quanto le si chiede. Prima si vedevano ventiquattro righe — lo schermo
     // di adesso — e di tutto quello che c'era prima, niente.
@@ -330,6 +355,33 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
     // Quando una scelta non c'e' piu' nel momento del tocco: una riga, e sparisce
     // al giro dopo. Senza, il tocco andrebbe a vuoto in silenzio.
     var notaScelta by remember(chat.id) { mutableStateOf<String?>(null) }
+    // L'invio della coda (0.51.0): uno alla volta, con le attese crescenti di `Linea` dopo una caduta.
+    LaunchedEffect(chat.id) {
+        while (isActive) {
+            val v = Linea.prossimoDaMandare(coda)
+            if (v == null) { delay(200); continue }
+            if (tentativiCoda > 0) delay(Linea.attesaPrima(tentativiCoda))
+            coda = Linea.inInvio(coda, v.id)
+            try {
+                api.scrivi(chat.id, v.testo, v.id)
+                coda = Linea.consegnato(coda, v.id)
+                tentativiCoda = 0
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                coda = Linea.nonPartito(coda, v.id)
+                throw e
+            } catch (e: Api.Errore) {
+                if (e.codice in 400..499) {
+                    // Un rifiuto vero (il PIN, la chat chiusa): non si riprova; il testo torna nella casella.
+                    coda = Linea.consegnato(coda, v.id)
+                    if (testo.isBlank()) testo = v.testo
+                    notaScelta = Nota.spiega(e, "mandarlo")
+                } else { tentativiCoda += 1; coda = Linea.nonPartito(coda, v.id) }
+            } catch (e: Exception) {
+                tentativiCoda += 1
+                coda = Linea.nonPartito(coda, v.id)
+            }
+        }
+    }
     var menuAperto by remember { mutableStateOf(false) }
     var rinominando by remember { mutableStateOf(false) }
     var chiudendo by remember { mutableStateOf(false) }
@@ -505,9 +557,10 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                 caricando = true
                 quante = (quante + PASSO_RISALITA).coerceAtMost(RIGHE_MASSIME)
             },
-            modifier = Modifier.weight(1f).fillMaxWidth()
+            modifier = Modifier.weight(1f).fillMaxWidth().alpha(if (giu) 0.45f else 1f)
         )
         HorizontalDivider(color = Banco.incisione)
+        CodaLinea(coda) { id -> coda = Linea.consegnato(coda, id) }
 
         // ─── le scelte del terminale ───
         // Quando Claude Code disegna un elenco non aspetta parole: aspetta una
@@ -628,22 +681,10 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                     .clip(CircleShape)
                     .background(if (puoInviare) Banco.accento else Banco.incisione)
                     .clickable(enabled = puoInviare) {
-                        val da = testo
+                        // In coda con il suo id (0.51.0): parte subito, o al ritorno della linea.
+                        coda = Linea.accoda(coda, Linea.nuovoId(), testo, System.currentTimeMillis())
                         testo = ""
                         notaScelta = null
-                        scope.launch {
-                            // **Se non parte, torna nel campo.** Il testo si
-                            // svuotava prima di mandare e l'errore veniva
-                            // ingoiato: il messaggio spariva sotto gli occhi
-                            // senza essere arrivato da nessuna parte, e non
-                            // c'era modo di riaverlo se non riscrivendolo.
-                            try {
-                                api.scrivi(chat.id, da)
-                            } catch (e: Exception) {
-                                if (testo.isBlank()) testo = da
-                                notaScelta = "Non sono riuscito a mandarlo: ${e.message ?: "il computer non risponde"}"
-                            }
-                        }
                     },
                 contentAlignment = Alignment.Center
             ) {

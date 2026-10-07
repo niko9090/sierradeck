@@ -54,6 +54,8 @@ data class Stato(
     val driveScollegato: AvvisoDrive? = null,
     /** Come si chiama questa macchina: serve a chi ne ha piu' di una. */
     val computer: NomeComputer? = null,
+    /** Attraverso il ponte (PC 0.51.0): la strada fra il PC accoppiato e quello guardato, e il tempo del giro. */
+    val ponte: InfoPonte? = null,
     /** I progetti sul Drive: chi li ha in mano e quanti comandi aspettano nella coda condivisa. */
     val progetti: List<ProgettoBreve> = emptyList()
 )
