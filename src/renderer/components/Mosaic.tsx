@@ -417,7 +417,7 @@ export function Mosaic({
                 }}
               >
                 {data.remoto !== undefined ? (
-                  <RiquadroRemoto paneId={paneId} remoto={data.remoto} title={data.title} />
+                  <RiquadroRemoto key={`${data.remoto.pcId}|${data.remoto.sessione ?? ""}`} paneId={paneId} remoto={data.remoto} title={data.title} />
                 ) : data.ibernata === true ? (
                   // Il riquadro resta al suo posto: farlo sparire sarebbe
                   // indistinguibile dall'averlo chiuso, e la differenza è

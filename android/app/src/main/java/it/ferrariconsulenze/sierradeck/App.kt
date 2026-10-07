@@ -30,6 +30,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -109,10 +110,22 @@ fun App(deposito: Collegamento, scansionaQr: ((String) -> Unit, (String) -> Unit
      * `collegato` diventa falso e si finisce sulla schermata del QR — che e'
      * esattamente quello che serve in quel caso, senza un ramo apposta.
      */
+    /**
+     * La scelta del computer (2.52.2): `Selezione` dice se c'è da fare
+     * qualcosa. Il tocco su quello già scelto non fa niente; un altro apre un
+     * tentativo nuovo verso **quella** postazione soltanto.
+     */
+    var selezione by remember { mutableStateOf(Selezione.iniziale(deposito.indirizzo)) }
     fun vaiA(nuovo: String) {
+        if (nuovo.isNotBlank()) {
+            val (s, mossa) = Selezione.tocca(selezione, nuovo)
+            if (mossa is MossaSelezione.Niente) return
+            selezione = s
+        }
         deposito.indirizzo = nuovo
         indirizzo = deposito.indirizzo
         chiave = deposito.chiave
+        if (nuovo.isNotBlank() && indirizzo != selezione.scelto) selezione = selezione.copy(scelto = indirizzo)
     }
 
     Surface(color = Banco.fondo) {
@@ -123,13 +136,21 @@ fun App(deposito: Collegamento, scansionaQr: ((String) -> Unit, (String) -> Unit
                 onCollegato = { ind, ch -> indirizzo = ind; chiave = ch }
             )
         } else {
-            Principale(
-                api = remember(indirizzo, chiave) { Api(indirizzo, chiave) },
-                deposito = deposito,
-                indirizzo = indirizzo,
-                onVaiA = { vaiA(it) },
-                onScollega = { deposito.dimentica(); indirizzo = ""; chiave = "" }
-            )
+            // **Tutto daccapo per ogni computer** (2.52.2): con `key` lo stato
+            // letto, i contatori dei giri e i collegamenti del computer di prima
+            // se ne vanno al cambio. Prima restavano: nome in alto, «Mi collego
+            // a …» e chat erano ancora quelli del computer già collegato.
+            key(indirizzo) {
+                Principale(
+                    api = remember(indirizzo, chiave) { Api(indirizzo, chiave) },
+                    deposito = deposito,
+                    indirizzo = indirizzo,
+                    gen = selezione.gen,
+                    onEsito = { g, ok -> selezione = Selezione.esito(selezione, g, indirizzo, ok) },
+                    onVaiA = { vaiA(it) },
+                    onScollega = { deposito.dimentica(); indirizzo = ""; chiave = "" }
+                )
+            }
         }
     }
 }
@@ -151,6 +172,10 @@ fun Principale(
     deposito: Collegamento,
     /** L'indirizzo di adesso: serve al selettore per sapere quale e' in uso. */
     indirizzo: String,
+    /** Il numero del tentativo di selezione in corso (`Selezione`). */
+    gen: Int = 0,
+    /** Com'è andato il collegamento a questo computer. */
+    onEsito: (Int, Boolean) -> Unit = { _, _ -> },
     /** Passa a un altro computer, o all'ingresso se gli si da' una stringa vuota. */
     onVaiA: (String) -> Unit,
     onScollega: () -> Unit
@@ -170,21 +195,19 @@ fun Principale(
     var lineaPc by remember(indirizzo) { mutableStateOf(Linea.NUOVA) }
     /**
      * «Mi collego a NOME-PC…» (0.52.1): al cambio di computer (e all'apertura)
-     * si provano le strade in ordine e si vedono, con `Tentativi.passi`. Se
-     * un altro indirizzo salvato dello stesso computer risponde, ci si passa.
+     * si provano le strade e si vedono, con `Tentativi.passi`. Dalla 2.52.2
+     * **solo l'indirizzo della postazione scelta** (`Selezione.indirizziDi`):
+     * niente più ripiego su altre postazioni con lo stesso nome.
      */
     var eventiTent by remember(indirizzo) { mutableStateOf<List<EventoTentativo>>(emptyList()) }
     var giroTent by remember(indirizzo) { mutableIntStateOf(0) }
     var schedaTent by remember(indirizzo) { mutableStateOf(true) }
-    LaunchedEffect(indirizzo, giroTent) {
+    LaunchedEffect(indirizzo, giroTent, gen) {
         schedaTent = true
         val ev = mutableListOf<EventoTentativo>()
         fun e(x: EventoTentativo) { ev += x; eventiTent = ev.toList() }
         eventiTent = emptyList()
-        val tutte = Postazioni.elenca(contesto)
-        val scelta = tutte.firstOrNull { it.indirizzo == indirizzo }
-        val candidati = listOf(indirizzo) + tutte.filter { scelta != null && it.nome == scelta.nome && it.indirizzo != indirizzo && deposito.chiaveDi(it.indirizzo).isNotBlank() }.map { it.indirizzo }
-        val perStrada = candidati.groupBy { Linea.stradaDiIndirizzo(it) ?: "lan" }
+        val perStrada = Selezione.indirizziDi(indirizzo).groupBy { Linea.stradaDiIndirizzo(it) ?: "lan" }
         var ultimo = "nessuna strada ha risposto"
         for (s in listOf("lan", "tailscale")) {
             val indirizzi = perStrada[s]
@@ -207,8 +230,7 @@ fun Principale(
                 }
                 if (riuscito) {
                     e(EventoTentativo.Riuscita(s, System.currentTimeMillis(), System.currentTimeMillis() - t0))
-                    // Lo stesso computer risponde a un altro suo indirizzo: si passa a quello.
-                    if (a != indirizzo) onVaiA(a)
+                    onEsito(gen, true)
                     delay(2500)
                     schedaTent = false
                     return@LaunchedEffect
@@ -219,6 +241,8 @@ fun Principale(
         e(EventoTentativo.Salta("webrtc", "dal telefono il ponte verso gli altri PC si apre dalla scheda Computer, «Altri computer»"))
         e(EventoTentativo.Salta("drive", "il telefono non legge il Drive"))
         e(EventoTentativo.Fallito(System.currentTimeMillis(), "nessuna strada ha risposto (ultimo motivo: $ultimo)"))
+        // Resta su questo computer, con «Riprova»: mai un ritorno da solo su quello di prima.
+        onEsito(gen, false)
     }
     var giriFalliti by remember { mutableIntStateOf(0) }
     /**
@@ -445,7 +469,8 @@ fun Principale(
             )
             // I tentativi del collegamento, sotto il computer scelto (0.52.1).
             if (schedaTent && eventiTent.isNotEmpty()) {
-                val nomeTent = stato?.computer?.nome?.takeIf { it.isNotBlank() } ?: Postazioni.corrente(contesto)?.nome ?: Postazioni.hostDi(indirizzo)
+                // Il nome del computer **scelto**: la sua postazione, poi quello che dice lui.
+                val nomeTent = Postazioni.elenca(contesto).firstOrNull { it.indirizzo == indirizzo }?.nome ?: stato?.computer?.nome?.takeIf { it.isNotBlank() } ?: Postazioni.hostDi(indirizzo)
                 val ultimoUso = Postazioni.elenca(contesto).firstOrNull { it.indirizzo == indirizzo }?.ultimoUso?.takeIf { it > 0 }
                 SchedaCollegamento(
                     Tentativi.passi(nomeTent, eventiTent),

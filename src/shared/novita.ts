@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.52.2',
+    righe: [
+      '**Scegliendo un altro computer dal telefono, ti colleghi a quello.** Prima l’app si teneva in memoria il computer di prima: in alto e in «Mi collego a …» restava il suo nome, con le sue chat, e se quello nuovo non rispondeva sembrava che non riuscisse a collegarsi a quello già collegato. Inoltre provava anche altre postazioni con lo stesso nome, e poteva tornarci da sola.',
+      '**Solo il computer che hai scelto.** Ora, quando tocchi un computer, il collegamento di prima si stacca e tutto riparte da zero, solo verso quello che hai scelto e il suo indirizzo. Toccare quello già in uso non fa niente. Se il computer scelto non risponde, l’app resta lì e ti dice il motivo, con «Riprova»: non torna mai da sola su un altro. Lo stesso vale sul computer, quando un riquadro passa a guardare un altro PC. App Android 2.52.2.'
+    ]
+  },
+  {
     versione: '0.52.1',
     righe: [
       '**Quando cambi computer, vedi che si sta collegando.** Dal telefono, scegliendo un altro computer in alto, compare «Mi collego a NOME…» con le strade che prova una dopo l’altra (🏠 rete di casa, 🔐 Tailscale, 🌐 WebRTC / ponte, ☁️ Drive), ognuna con ✓, ✗ o il perché è saltata. Se il computer ha un altro indirizzo salvato che risponde, l’app ci passa da sola. A collegamento riuscito restano accanto al nome strada, tacche e ritardo. Se nessuna strada risponde, la scheda dice il motivo e l’ultima volta che il computer ha risposto, con «Riprova»: mai una schermata vuota. Lo stesso succede aprendo le chat di un altro PC dalla scheda Computer, nel riquadro di una chat di un altro PC sul computer e nella pagina del telefono.',

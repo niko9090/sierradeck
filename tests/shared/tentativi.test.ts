@@ -119,3 +119,12 @@ describe('la pagina del telefono usa la stessa funzione', () => {
     expect(script).toContain('onclick="riprovaLinea()">Riprova</button>')
   })
 })
+
+describe('il cambio di PC non si porta dietro il PC di prima (0.52.2)', () => {
+  it('il riquadro remoto riparte da zero quando cambia il PC che guarda', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const mosaic = readFileSync(join(__dirname, '../../src/renderer/components/Mosaic.tsx'), 'utf8')
+    expect(mosaic).toContain('<RiquadroRemoto key={`${data.remoto.pcId}|')
+  })
+})

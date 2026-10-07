@@ -67,6 +67,30 @@ Nicholas (07/10), dal telefono: «Ho cambiato pc e non si vede nessuna animazion
 - Il ciclo di lettura dell'app ora segue `Linea.eOra`: a linea su ogni 2 s, giù con le attese crescenti. È quello che conta il conto alla rovescia.
 - **Impostazioni → Info** nell'app: `BuildConfig.VERSION_NAME` e `VERSION_CODE`.
 
+# Difetto della 2.52.1: «prova a collegarsi a quello già collegato» (corretto nella 0.52.2, app 2.52.2)
+
+Nicholas (07/10): «Io seleziono un altro pc e il programma va sempre in errore e mi dice che sta provando a connettersi a quello che è già connesso».
+
+**Cause, nel codice dell'app:**
+1. **Stato vecchio.** In `Principale` sono `remember {}` **senza chiave sull'indirizzo** `stato`, `connesso`, `giriFalliti` e `rifiuti`. Al cambio di postazione:
+   - `stato` restava quello del PC di prima finché il nuovo non rispondeva;
+   - il nome in alto (`stato?.computer?.nome` prima di tutto) e il titolo «Mi collego a …» (stessa precedenza) dicevano il PC **già collegato**, con le sue chat sotto;
+   - se il nuovo non rispondeva, si leggeva «Non riesco a collegarmi a <il PC di prima>».
+2. **Indirizzi mischiati per nome.** La 2.52.1 provava anche «gli altri indirizzi salvati dello stesso computer», cercandoli per **nome** della postazione, che non è un'identità: poteva provare un'altra postazione e passarci da sola con `onVaiA`.
+3. Inoltre `withTimeout` non interrompe una chiamata OkHttp bloccante in `withContext(IO)`: il tetto di 5 s vale solo quando la chiamata torna. È un limite, non la causa.
+
+**Correzione:**
+- `key(indirizzo) { Principale(…) }` in `App`: al cambio tutto lo stato e tutti i `LaunchedEffect` del PC di prima se ne vanno, così il collegamento precedente si stacca.
+- **Funzione pura `Selezione`** (`Selezione.kt`, `SelezioneTest.kt`):
+  - il tocco sul PC già scelto non fa niente (`Niente`);
+  - ogni tocco nuovo porta un `gen`, e gli esiti con un `gen` vecchio non contano;
+  - `indirizziDi` restituisce **solo** l'indirizzo della postazione scelta;
+  - un fallimento resta sul PC scelto e «Riprova» va verso lo stesso.
+- Il nome nell'animazione viene dalla postazione scelta.
+- Il ripiego per nome è tolto.
+- Sul PC, `RiquadroRemoto` ha `key` uguale a pcId|sessione: se un riquadro passa a un altro PC riparte da zero.
+- Il ponte (scheda Computer → altri PC) era già a posto: `ChatSuAltroPc` e la fascia sono chiavati su `su.pcId` e usano `su.nome`.
+
 # Da fare
 
 - Prova dal vivo con Nicholas: staccare il wifi del portatile con un riquadro
