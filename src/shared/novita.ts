@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.54.0',
+    righe: [
+      '**I file dei progetti anche sul telefono.** Nell’app c’è la sezione «File»: sfogli i progetti di questo PC e, passando da lui, degli altri PC accesi. Un testo o un codice si legge con il carattere a larghezza fissa, un’immagine e un PDF si guardano, e ogni file si scarica in Download/SierraDeck, si condivide con un’altra app o si carica dal telefono nella cartella aperta. Si vede solo dentro le cartelle dei progetti, e un progetto con una chat protetta dal PIN chiede il PIN. La pagina del telefono ha la stessa cosa in versione semplice (Computer → File).',
+      '**«📱 Manda al telefono».** Dal pannello dei file del PC e dalla linguetta File di un autopilota un file va al telefono che scegli: arriva con una notifica («Hai ricevuto … da …») con Apri, Salva e Condividi. Se il telefono è spento o fuori casa il file aspetta sul PC (fino a due settimane) e arriva quando l’app si ricollega; se la rete cade a metà, riprende da dov’era. Finché non è arrivato lo puoi annullare dal PC. Limite: 100 MB per file, 30 file in attesa per telefono.',
+      '**Le chat ti mandano i file da sole.** Basta scrivere in una chat «mandami sul telefono il file …»: ogni chat aperta da SierraDeck ha lo strumento per farlo, solo per sé (la configurazione di Claude Code non si tocca). I file della cartella della chat partono subito; per un file fuori dalla cartella arriva prima una domanda nelle Domande, e parte solo se dici sì. Cartelle intere e file oltre 100 MB no. La chat ti dice com’è andata: in coda, consegnato, o rifiutato e perché. App Android 2.54.0.'
+    ]
+  },
+  {
     versione: '0.53.0',
     righe: [
       '**Il Negozio dice lo stato di ogni cosa, e cosa vuol dire.** Ogni plugin, skill e server MCP ha la sua etichetta (attivo, disattivato, aggiornamento disponibile, da approvare, errore) e sotto una frase che spiega cosa significa e cosa fare; dopo ogni azione compare cosa cambia e da quando. Mentre lavora mostra da quanti secondi, e se non riesce dice perché, accanto alla voce, con «Riprova».',

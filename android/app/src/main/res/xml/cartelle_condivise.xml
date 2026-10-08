@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Solo la cache dell'app, e solo per l'APK dell'aggiornamento: niente
-     documenti, niente foto, niente che non sia nostro. -->
+<!-- Solo cose nostre: la cache (l'APK dell'aggiornamento, le anteprime e gli
+     scaricamenti della sezione File) e i file arrivati dal computer
+     (app 2.54.0), per aprirli e condividerli con un'altra app. Niente
+     documenti o foto del telefono. -->
 <paths>
     <cache-path name="aggiornamenti" path="." />
+    <files-path name="ricevuti" path="ricevuti/" />
 </paths>

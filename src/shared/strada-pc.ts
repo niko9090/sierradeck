@@ -224,7 +224,10 @@ export const ROTTE_VIA_CANALE: readonly string[] = [
   // I file dal telefono attraverso il ponte (0.50.0): a pezzi da 96 KB, che stanno in un messaggio.
   '/api/allegati/inizia', '/api/allegati/pezzo', '/api/allegati/stato', '/api/allegati/fine', '/api/allegati/annulla',
   // Le case delle chat (0.52.0, «Ospitata da»): la scelta arriva subito agli altri PC.
-  '/api/case'
+  '/api/case',
+  // La sezione File del telefono attraverso il ponte (0.54.0): pezzi da 96 KB, come gli allegati.
+  '/api/file/progetti', '/api/file/elenco', '/api/file/leggi',
+  '/api/consegne', '/api/consegne/pezzo', '/api/consegne/ricevuta'
 ]
 
 export function rottaPermessaSulCanale(percorso: string): boolean {
@@ -240,6 +243,8 @@ export function nonViaDrive(percorso: string, nomePc: string): string {
     : percorso === '/api/sessioni/riprendi' ? 'riaprire una chat'
     : percorso === '/api/apri' ? 'aprire una chat nuova'
     : percorso.startsWith('/api/allegati/') ? 'mandare un file'
+    : percorso.startsWith('/api/file/') ? 'sfogliare i file dei progetti'
+    : percorso.startsWith('/api/consegne') ? 'ricevere i file mandati al telefono'
     : 'fare questa operazione'
   return `Con il collegamento lento via Drive non si può ${cosa} su ${nomePc}: si può solo leggere lo schermo e mandare un messaggio. Per il resto serve una strada diretta (rete di casa, Tailscale o WebRTC), oppure lascia un’azione nella cassetta.`
 }

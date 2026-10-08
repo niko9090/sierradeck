@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
 import { leggiDiff, type GruppoChat } from '@shared/file-autopilota'
+import { ModaleAlTelefono } from './ModaleAlTelefono'
 
 /** Ogni quanto si rilegge mentre la linguetta è aperta: git in sola lettura, leggero. */
 const OGNI_MS = 4000
@@ -21,6 +22,8 @@ export function FileAutopilota({ autopilota }: { autopilota: Autopilota }): Reac
   const [errore, setErrore] = useState<string | undefined>(undefined)
   const [scelto, setScelto] = useState<{ chiave: string; percorso: string } | undefined>(undefined)
   const [diff, setDiff] = useState<string | undefined>(undefined)
+  /** «📱 Manda al telefono» (0.54.0) del file scelto. */
+  const [alTel, setAlTel] = useState(false)
 
   const leggi = useCallback((): void => {
     window.gestore.autopilota.file(autopilota.id)
@@ -51,7 +54,7 @@ export function FileAutopilota({ autopilota }: { autopilota: Autopilota }): Reac
         I file che questo autopilota ha cambiato, per ogni cartella in cui lavora: la cartella del progetto e, se divide il lavoro, il worktree di ogni sua chat.
         Accanto a ogni file: com’è cambiato, le righe aggiunte (+) e tolte (−), e se è già salvato in un commit sul ramo della chat o ancora da salvare.
         Si rilegge da solo ogni {OGNI_MS / 1000} secondi mentre questa linguetta è aperta. Toccando un file vedi le righe tolte e aggiunte.
-        Qui si guarda soltanto: non si salva, non si annulla e non si cambia niente.
+        Qui si guarda soltanto: non si salva, non si annulla e non si cambia niente. Un file scelto si può mandare al telefono con «📱 Manda al telefono»: arriva quando l’app si collega.
       </p>
       {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
       {gruppi === undefined ? <p className="diario__vuoto">Leggo i file da git…</p> : null}
@@ -89,6 +92,9 @@ export function FileAutopilota({ autopilota }: { autopilota: Autopilota }): Reac
           <div className="file-ap__testa">
             <b>{scelto.percorso}</b>
             <span style={{ flex: 1 }} />
+            {gruppi?.find((g) => g.chiave === scelto.chiave)?.file.find((f) => f.percorso === scelto.percorso)?.stato !== 'cancellato' ? (
+              <button className="tasto tasto--mini" onClick={() => setAlTel(true)} title="Manda questo file al telefono">📱 Manda al telefono</button>
+            ) : null}
             <button className="tasto tasto--mini" onClick={() => setScelto(undefined)} aria-label="Chiudi il diff">×</button>
           </div>
           {diff === undefined ? <p className="misura">Leggo il diff…</p> : null}
@@ -104,6 +110,13 @@ export function FileAutopilota({ autopilota }: { autopilota: Autopilota }): Reac
             </pre>
           ) : null}
         </section>
+      ) : null}
+      {alTel && scelto !== undefined ? (
+        <ModaleAlTelefono
+          nome={scelto.percorso.split('/').pop() ?? scelto.percorso}
+          manda={(telefono, nota) => window.gestore.alTelefono.mandaDaAutopilota(autopilota.id, scelto.chiave, scelto.percorso, telefono, nota)}
+          onChiudi={() => setAlTel(false)}
+        />
       ) : null}
     </div>
   )

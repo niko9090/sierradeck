@@ -149,7 +149,9 @@ data class DestinazioneFile(
     val sessione: String? = null,
     val aspetta: Boolean = false,
     /** Protetta dal PIN e chiusa per questo telefono: il PIN si chiede prima di mandare. */
-    val protetta: Boolean = false
+    val protetta: Boolean = false,
+    /** Per `tipo = "cartella"`: la cartella dentro il progetto (`id`), relativa (`""` = il progetto). */
+    val cartella: String? = null
 ) {
     /** Per i «recenti»: la conversazione, non il riquadro, che cambia a ogni riavvio. */
     val chiave: String get() = "${pcId ?: ""}|$tipo|${sessione ?: id}"
@@ -196,7 +198,12 @@ object Invio {
             t.chiama("/api/allegati/inizia", buildJsonObject {
                 put("id", id); put("nome", s.nome); put("byte", s.byte)
                 if (s.sha256 != null) put("sha256", s.sha256)
-                if (dest.tipo == "autopilota") put("autopilota", dest.id) else put("chat", dest.id)
+                // Una cartella di un progetto (PC 0.54.0, «Carica qui» della sezione File).
+                when (dest.tipo) {
+                    "autopilota" -> put("autopilota", dest.id)
+                    "cartella" -> { put("progetto", dest.id); put("cartella", dest.cartella ?: "") }
+                    else -> put("chat", dest.id)
+                }
                 if (nota.isNotBlank()) put("nota", nota.trim())
             })
         } catch (e: CancellationException) { throw e

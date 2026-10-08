@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.QuestionAnswer
 import androidx.compose.material.icons.filled.SmartToy
@@ -70,7 +71,7 @@ import kotlinx.serialization.json.jsonPrimitive
  * qualunque schermata tu stia guardando. Le urgenze si portano a chi guarda;
  * non si mettono in una stanza in fondo al corridoio.
  */
-enum class Scheda { CHAT, DOMANDE, LAVORI, NEGOZIO, COMPUTER }
+enum class Scheda { CHAT, DOMANDE, LAVORI, NEGOZIO, FILE, COMPUTER }
 
 /**
  * Dove aprire l'app quando lo chiede qualcun altro: una notifica toccata.
@@ -369,6 +370,8 @@ fun Principale(
             // che Android pretende in cambio. Il servizio continuo lo accende
             // chi lo vuole, dalla scheda Computer.
             Sentinella.programma(contesto)
+            // I file dal PC al telefono (app 2.54.0): ogni quindici minuti, e uno subito.
+            RicevitoreConsegne.programma(contesto)
             if (Collegamento(contesto).controlloContinuo) GuardiaService.avvia(contesto)
         } catch (_: Exception) {
         }
@@ -583,6 +586,8 @@ fun Principale(
                     Scheda.DOMANDE -> Domande(api, stato, onApriAutopilota = { id -> apriAutopilota = id; scheda = Scheda.LAVORI })
                     Scheda.LAVORI -> Lavori(api, stato, apri = apriAutopilota, onAperto = { apriAutopilota = null })
                     Scheda.NEGOZIO -> Negozio(api)
+                    // La sezione File (app 2.54.0): i progetti dei PC e i file ricevuti.
+                    Scheda.FILE -> SezioneFile(api)
                     Scheda.COMPUTER -> Computer(api, stato)
                 }
             }
@@ -619,6 +624,7 @@ private fun Fascia(
         voce(attuale, Scheda.DOMANDE, if (chiedono > 0) "Domande · $chiedono" else "Domande", Icons.Filled.QuestionAnswer, allarme = allarmeDomande, onScegli)
         voce(attuale, Scheda.LAVORI, "Lavori", Icons.Filled.SmartToy, allarme = allarmeLavori, onScegli)
         voce(attuale, Scheda.NEGOZIO, "Negozio", Icons.Filled.Extension, allarme = null, onScegli)
+        voce(attuale, Scheda.FILE, "File", Icons.Filled.Folder, allarme = null, onScegli)
         voce(attuale, Scheda.COMPUTER, "Computer", Icons.Filled.Computer, allarme = null, onScegli)
     }
 }

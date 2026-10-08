@@ -905,9 +905,11 @@ async function chiedi(percorso, corpo) {
   // che le scelte e il Drive leggono da soli.
   if (!r.ok && r.status !== 409) {
     let motivo = ''
-    try { motivo = (await r.json()).errore || '' } catch (e) { motivo = '' }
+    let corpoErr = {}
+    try { corpoErr = (await r.json()) || {}; motivo = corpoErr.errore || '' } catch (e) { motivo = '' }
     const err = new Error(motivo || ('il computer ha risposto ' + r.status))
     err.stato = r.status
+    err.corpo = corpoErr
     throw err
   }
   return r.json()
@@ -1189,6 +1191,8 @@ function impronta(s) {
     // Il negozio: cosa si e' letto, cosa sta lavorando (coi secondi), i guasti e le conferme.
     pannelloAperto === 'negozio' ? JSON.stringify([negozioVisto, negozioErrore, negozioErroreMcp, negozioFamiglia, negozioTrovati, negozioParola, negozioNota, negozioProvoMcp, negozioGuasti, negozioConferme, Object.keys(negozioLavoro).map(function (k) { return k + Math.round((Date.now() - negozioLavoro[k].da) / 1000) })]) : '',
     domandeConversazioni ? JSON.stringify(domandeConversazioni) : '', domandaAperta || '',
+    // La sezione File (0.54.0): dove si è, cosa si guarda, l'avanzamento.
+    pannelloAperto === 'file' ? JSON.stringify([fileProgetti ? fileProgetti.length : -1, fileDove, fileElenco ? fileElenco.voci.length + fileElenco.percorso : '', fileVista ? fileVista.nome + fileVista.tipo : '', fileNota, fileErrore, filePin]) : '',
     (function () { try { return localStorage.getItem('sierradeck.nienteapp') || '' } catch (e) { return '' } })(),
     schedeViste ? schedeViste.length : '',
     sessioniViste ? sessioniViste.length : '',
@@ -1906,9 +1910,10 @@ function pannello(s) {
       '<button onclick="apriPannello(\\'drive\\')">Drive</button>' +
       '<button onclick="apriPannello(\\'salute\\')">Salute</button>' +
       '<button onclick="apriPannello(\\'negozio\\')">Negozio</button>' +
+      '<button onclick="apriPannello(\\'file\\')">File</button>' +
       '<button onclick="apriPannello(\\'consumi\\')">Consumi</button>' +
       '<button onclick="apriPannello(\\'impostazioni\\')">Impostazioni</button></div>' +
-      elencoCode + elencoPc + vistaDrive + vistaSalute + (pannelloAperto === 'negozio' ? negozioHtml() : '') + vistaConsumi + vistaImpostazioni
+      elencoCode + elencoPc + vistaDrive + vistaSalute + (pannelloAperto === 'negozio' ? negozioHtml() : '') + (pannelloAperto === 'file' ? fileHtml() : '') + vistaConsumi + vistaImpostazioni
   }
 
   app.innerHTML = \`
@@ -2759,6 +2764,175 @@ function negozioHtml() {
   return testa + (d.cartella ? '<div class="sotto">Cartella guardata: ' + esc(d.cartella) + '</div>' : '') + tab + avvisi + corpo + chiudi
 }
 
+/*
+ * La sezione File (0.54.0), in versione semplice: i progetti di questo
+ * computer, solo dentro le loro cartelle. Si sfoglia, si guarda un testo
+ * (con il carattere a larghezza fissa), un'immagine o un PDF, si scarica, e
+ * si carica un file nella cartella aperta (gli stessi pezzi dei file per le
+ * chat). Un progetto con una chat protetta dal PIN si apre solo con il PIN.
+ * I file che il PC manda al telefono si ricevono con l'app.
+ */
+var fileProgetti = null
+var fileErrore = ''
+var fileDove = null
+var fileElenco = null
+var fileVista = null
+var fileNota = ''
+var filePin = null
+function fileMotivo(e) { return e && e.message ? e.message : 'il computer non risponde' }
+async function leggiFileProgetti() {
+  fileErrore = ''
+  try {
+    const r = await chiedi('/api/file/progetti', {})
+    fileProgetti = (r && r.progetti) || []
+    if (r && r.errore) fileErrore = r.errore
+  } catch (e) {
+    fileProgetti = []
+    fileErrore = e && (e.stato === 404 || e.stato === 409) ? 'Questo computer non sa ancora mostrare i file dei progetti: arriva aggiornandolo alla 0.54.0.' : 'Non riesco a leggere i progetti: ' + fileMotivo(e)
+  }
+}
+async function fileVai(progetto, percorso) {
+  if (fileVista && fileVista.url) URL.revokeObjectURL(fileVista.url)
+  fileVista = null; filePin = null; fileErrore = ''
+  try {
+    fileElenco = await chiedi('/api/file/elenco', { progetto: progetto, percorso: percorso })
+    fileDove = { progetto: progetto, percorso: fileElenco.percorso || '' }
+  } catch (e) {
+    if (e && e.stato === 423) filePin = { progetto: progetto, percorso: percorso, chat: e.corpo && e.corpo.chat, errore: fileMotivo(e) }
+    else fileErrore = fileMotivo(e)
+  }
+  pannello(ultimoStato)
+}
+window.fileApri = (el) => { fileNota = ''; fileVai(el.dataset.p, el.dataset.r || '') }
+window.fileProgettiTutti = () => { if (fileVista && fileVista.url) URL.revokeObjectURL(fileVista.url); fileDove = null; fileElenco = null; fileVista = null; filePin = null; fileNota = ''; pannello(ultimoStato) }
+window.fileSblocca = async () => {
+  const c = document.getElementById('file-pin')
+  if (!filePin || !filePin.chat || !c) return
+  try { await chiedi('/api/pin/sblocca', { chat: filePin.chat, pin: c.value.trim() }); const p = filePin; await fileVai(p.progetto, p.percorso) } catch (e) { filePin.errore = fileMotivo(e); pannello(ultimoStato) }
+}
+/** Il file a pezzi, fino a massimo byte: con la ripresa se la rete cade. */
+async function fileLeggiTutto(percorso, massimo) {
+  const parti = []
+  var da = 0, byte = 0, mime = 'application/octet-stream', tentativi = 0
+  do {
+    try {
+      const r = await chiedi('/api/file/leggi', { progetto: fileDove.progetto, percorso: percorso, da: da })
+      byte = r.byte; mime = r.mime || mime
+      const bin = atob(r.dati || '')
+      const u = new Uint8Array(bin.length)
+      for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i)
+      parti.push(u); da += u.length; tentativi = 0
+      fileNota = percorso + ': ' + Math.floor(da * 100 / Math.max(1, byte)) + '% (' + inMb(da) + ' di ' + inMb(byte) + ')'
+      pannello(ultimoStato)
+      if (u.length === 0) break
+    } catch (e) {
+      if (e && e.stato && e.stato < 500) throw e
+      tentativi += 1
+      if (tentativi > 8) throw e
+      fileNota = percorso + ': la rete è caduta, riprovo fra poco (' + tentativi + ')…'
+      pannello(ultimoStato)
+      await aspetta(Math.min(15000, 1000 * tentativi * tentativi))
+    }
+  } while (da < byte && da < massimo)
+  return { parti: parti, byte: byte, mime: mime, tagliato: da < byte }
+}
+window.fileGuarda = async (el) => {
+  const percorso = el.dataset.r, tipo = el.dataset.t, nome = el.dataset.n
+  if (fileVista && fileVista.url) URL.revokeObjectURL(fileVista.url)
+  fileVista = null
+  try {
+    const t = await fileLeggiTutto(percorso, tipo === 'testo' ? 524288 : 20971520)
+    if (tipo === 'testo') {
+      fileVista = { nome: nome, tipo: tipo, testo: new TextDecoder('utf-8').decode(await new Blob(t.parti).arrayBuffer()), tagliato: t.tagliato }
+    } else if (t.tagliato) {
+      fileNota = nome + ' è troppo grande per vederlo qui (oltre 20 MB): scaricalo.'
+    } else {
+      fileVista = { nome: nome, tipo: tipo, url: URL.createObjectURL(new Blob(t.parti, { type: t.mime })) }
+    }
+    if (fileVista) fileNota = ''
+  } catch (e) { fileNota = 'Non riesco ad aprire ' + nome + ': ' + fileMotivo(e) }
+  pannello(ultimoStato)
+}
+window.fileScarica = async (el) => {
+  const percorso = el.dataset.r, nome = el.dataset.n
+  try {
+    const t = await fileLeggiTutto(percorso, Infinity)
+    const url = URL.createObjectURL(new Blob(t.parti, { type: t.mime }))
+    const a = document.createElement('a')
+    a.href = url; a.download = nome
+    document.body.appendChild(a); a.click(); a.remove()
+    setTimeout(function () { URL.revokeObjectURL(url) }, 60000)
+    fileNota = '✓ ' + nome + ' scaricato (' + inMb(t.byte) + '): lo trovi nei download del browser.'
+  } catch (e) { fileNota = 'Non riesco a scaricare ' + nome + ': ' + fileMotivo(e) }
+  pannello(ultimoStato)
+}
+window.fileChiudiVista = () => { if (fileVista && fileVista.url) URL.revokeObjectURL(fileVista.url); fileVista = null; pannello(ultimoStato) }
+const sceltaCarica = document.createElement('input')
+sceltaCarica.type = 'file'
+sceltaCarica.multiple = true
+sceltaCarica.style.display = 'none'
+window.fileCarica = () => { if (!sceltaCarica.isConnected) document.body.appendChild(sceltaCarica); sceltaCarica.value = ''; sceltaCarica.click() }
+sceltaCarica.onchange = async () => {
+  const dove = fileDove
+  if (!dove) return
+  const fatti = []
+  for (const f of Array.from(sceltaCarica.files || [])) {
+    if (f.size > ALLEGATO_MAX) { fatti.push(f.name + ' è di ' + inMb(f.size) + ': il limite è 100 MB.'); continue }
+    try {
+      const r = await mandaUnFile(f, { progetto: dove.progetto, cartella: dove.percorso }, '')
+      fatti.push('✓ caricato ' + r.nome + ' in ' + (r.percorso || r.nome))
+    } catch (e) { fatti.push('Non è arrivato ' + f.name + ': ' + fileMotivo(e)) }
+    fileNota = fatti.join(' · ')
+    pannello(ultimoStato)
+  }
+  allegatoNota = ''
+  await fileVai(dove.progetto, dove.percorso)
+  fileNota = fatti.join(' · ')
+  pannello(ultimoStato)
+}
+function fileHtml() {
+  var testa = '<div class="piastrella"><div class="titolo">File</div>' +
+    '<div class="sotto">I progetti di questo computer (le cartelle dove hai lavorato con Claude Code, le chat aperte, gli autopiloti), solo dentro le loro cartelle. Tocca una cartella per entrarci; un file di testo, un’immagine o un PDF si guardano qui, tutto il resto si scarica. «Carica qui» mette un file del telefono nella cartella aperta. I file che il computer ti manda («📱 Manda al telefono») arrivano nell’app SierraDeck.</div>'
+  var chiudi = '<div class="riga"><button onclick="apriPannello(\\'file\\')">Chiudi</button></div></div>'
+  var nota = fileNota ? '<div class="sotto"' + (fileNota.indexOf('✓') === 0 ? ' style="color:var(--verde)"' : '') + '>' + esc(fileNota) + '</div>' : ''
+  if (fileErrore) testa += '<div class="errore">⚠ ' + esc(fileErrore) + '</div>'
+  if (!fileProgetti) return testa + '<div class="sotto">Leggo i progetti dal computer…</div>' + chiudi
+  if (filePin) {
+    return testa + '<div class="errore">🔒 ' + esc(filePin.errore) + '</div>' +
+      (filePin.chat ? '<div class="riga"><input id="file-pin" type="password" inputmode="numeric" placeholder="PIN" onkeydown="if (event.key === \\'Enter\\') fileSblocca()"><button class="primario" onclick="fileSblocca()">Sblocca</button></div>' : '') +
+      '<div class="riga"><button onclick="fileProgettiTutti()">‹ Progetti</button></div>' + chiudi
+  }
+  if (!fileDove || !fileElenco) {
+    var elenco = fileProgetti.length ? fileProgetti.map(function (p) {
+      return '<div class="neg-voce"><button class="riga-altro" data-p="' + esc(p.percorso) + '" data-r="" onclick="fileApri(this)">' + (p.chiuso ? '🔒 ' : '📁 ') + esc(p.nome) + '</button>' +
+        (p.doppio || p.chiuso ? '<div class="sotto">' + esc(p.percorso) + (p.chiuso ? ' · protetto dal PIN di una sua chat' : '') + '</div>' : '') + '</div>'
+    }).join('') : '<div class="vuoto">Nessun progetto su questo computer: si vedono le cartelle dove hai già aperto una chat.</div>'
+    return testa + nota + elenco + chiudi
+  }
+  var pezzi = (fileDove.percorso || '').split('/').filter(function (x) { return x !== '' })
+  var progetto = (fileProgetti.find(function (p) { return p.percorso === fileDove.progetto }) || { nome: fileDove.progetto }).nome
+  var briciole = '<div class="riga" style="flex-wrap:wrap"><button onclick="fileProgettiTutti()">‹ Progetti</button>' +
+    '<button data-p="' + esc(fileDove.progetto) + '" data-r="" onclick="fileApri(this)">' + esc(progetto) + '</button>' +
+    pezzi.map(function (x, i) { return '<button data-p="' + esc(fileDove.progetto) + '" data-r="' + esc(pezzi.slice(0, i + 1).join('/')) + '" onclick="fileApri(this)">' + esc(x) + '</button>' }).join('') +
+    '<button class="primario" onclick="fileCarica()">Carica qui</button></div>'
+  var vista = ''
+  if (fileVista) {
+    var corpo = fileVista.tipo === 'testo'
+      ? '<pre class="contesto" style="max-height:60vh;overflow:auto;white-space:pre;font-family:var(--mono, monospace)">' + esc(fileVista.testo) + '</pre>' + (fileVista.tagliato ? '<div class="sotto">Qui ci sono i primi 512 KB: il resto si vede scaricandolo.</div>' : '')
+      : fileVista.tipo === 'immagine'
+        ? '<img src="' + fileVista.url + '" alt="' + esc(fileVista.nome) + '" style="max-width:100%;height:auto;display:block">'
+        : '<iframe src="' + fileVista.url + '" title="' + esc(fileVista.nome) + '" style="width:100%;height:60vh;border:0"></iframe><div class="sotto"><a href="' + fileVista.url + '" target="_blank" rel="noopener">Apri il PDF a tutto schermo</a> (se qui non si vede, il browser del telefono lo apre a parte).</div>'
+    vista = '<div class="piastrella"><div class="riga"><b style="flex:1">' + esc(fileVista.nome) + '</b><button onclick="fileChiudiVista()">Chiudi</button></div>' + corpo + '</div>'
+  }
+  var voci = fileElenco.voci.length ? fileElenco.voci.map(function (v) {
+    if (v.cartella) return '<div class="neg-voce"><button class="riga-altro" data-p="' + esc(fileDove.progetto) + '" data-r="' + esc(v.percorso) + '" onclick="fileApri(this)">📁 ' + esc(v.nome) + '</button></div>'
+    var attr = ' data-r="' + esc(v.percorso) + '" data-n="' + esc(v.nome) + '" data-t="' + esc(v.tipo) + '"'
+    return '<div class="neg-voce"><div><b>' + esc(v.nome) + '</b> <span class="sotto">' + inMb(v.byte) + (v.quando ? ' · ' + new Date(v.quando).toLocaleString('it-IT') : '') + '</span></div>' +
+      '<div class="riga">' + (v.tipo !== 'altro' ? '<button' + attr + ' onclick="fileGuarda(this)">Guarda</button>' : '') + '<button' + attr + ' onclick="fileScarica(this)">Scarica</button></div></div>'
+  }).join('') : '<div class="vuoto">Cartella vuota.</div>'
+  return testa + briciole + nota + vista + (fileElenco.tagliato ? '<div class="sotto">Ci sono più di 2000 voci: qui le prime.</div>' : '') + voci + chiudi
+}
+
 window.apriPannello = async (quale) => {
   pannelloAperto = pannelloAperto === quale ? null : quale
   // A ogni apertura, non solo la prima: letto una volta, l'elenco restava
@@ -2769,6 +2943,7 @@ window.apriPannello = async (quale) => {
   if (pannelloAperto === 'consumi') await leggiConsumi()
   if (pannelloAperto === 'salute') await leggiSalute()
   if (pannelloAperto === 'negozio') { negozioNota = ''; await leggiNegozio(); if (negozioFamiglia === 'mcp') negozioProvaMcp() }
+  if (pannelloAperto === 'file') { fileDove = null; fileElenco = null; fileVista = null; fileNota = ''; filePin = null; await leggiFileProgetti() }
   if (pannelloAperto === 'pc') { pcAperto = null; postaVoci = null; await leggiPc() }
   if (pannelloAperto === 'drive') { driveRiavviato = false; await leggiDrive() }
   if (pannelloAperto === 'impostazioni') { await leggiPreferenze(); await leggiAggiornamento() }

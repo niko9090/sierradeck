@@ -19,7 +19,7 @@ import { inCorso, passoInstallaLa, type AvanzamentoInstallaLa, type Memoria, typ
 import { hookSegnali, leggiSegnale, SEGNALI_PER_CHAT, statoChat, statoDaSegnali, unisciConHook, type Segnale } from '@shared/segnali-chat'
 import { CERCA_OFFERTE_OGNI_MS, stradaBreve, type ChatNelloSchermo, type InfoStrada } from '@shared/strada-pc'
 import { doveMostrareDomande, eLinguettaStaccabile } from '@shared/finestra-pannello'
-import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell } from 'electron'
+import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell, webContents } from 'electron'
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, watch, copyFileSync, writeFileSync } from 'node:fs'
@@ -70,7 +70,12 @@ import { listSessions } from './db'
 import { riassumiConsumi, type Consumi } from '@shared/consumi'
 import { costoPerPeriodo, leggiPolso, limitiAggiornati, rigaDiStato, type Polso } from '@shared/polso-chat'
 import { etichettaContesto, limitiPerFreno, unisciPolso } from '@shared/limiti-piano'
-import { diffDellAutopilota, fileDellAutopilota } from './file-autopilota'
+import { diffDellAutopilota, fileDellAutopilota, fileVeroDellAutopilota } from './file-autopilota'
+import { apriAlTelefono, type AlTelefono } from './al-telefono'
+import { apriFileProgetti } from './file-progetti'
+import { apriGettoni, configMcp, rispondiMcp, type Gettoni } from './mcp-telefono'
+import { confermaDaRisposta, idDomandaConferma, leggiIdDomandaConferma, OPZIONI_CONFERMA, testoConferma, testoStato } from '@shared/file-telefono'
+import type { Autopilota } from '@shared/autopilota'
 import { preparaConsegna } from '@shared/consegna-breve'
 import { scriviFileConsegna } from './consegne-file'
 import { frenoDaiLimiti, testoFreno } from '@shared/harness'
@@ -367,6 +372,10 @@ const BATTITO_AL_SERVIZIO_MS = 60_000
 let finestreStore: FinestreStore | undefined
 /** Lo scoping per-chat del Negozio: cosa spegnere per le chat di una cartella. */
 let scopeStore: ScopeStore | undefined
+/** I gettoni delle chat per lo strumento `manda_al_telefono` (0.54.0): uno per sessione. */
+let gettoniMcp: Gettoni | undefined
+/** La coda dei file per il telefono (0.54.0). */
+let alTelefono: AlTelefono | undefined
 // Il registro della sessione, visibile anche ai gestori globali qui sotto: loro
 // nascono al caricamento del modulo, prima che la sessione sia aperta, quindi
 // finché resta `undefined` ripiegano sulla sola console.
@@ -961,6 +970,7 @@ if (!app.requestSingleInstanceLock()) {
       // chat di una certa cartella. Va creato prima di `registerPtyIpc`, che lo
       // consulta a ogni avvio di chat per comporre le `--settings`.
       scopeStore = apriScopeStore(dati)
+      gettoniMcp = apriGettoni(join(dati, 'gettoni-mcp.json'))
       ptyClient = registerPtyIpc(
         () => providerStore?.env() ?? {},
         (cwd, autopilotaJson) => {
@@ -986,7 +996,10 @@ if (!app.requestSingleInstanceLock()) {
         () => portaAutopiloti,
         // I guasti dell'host nel registro: un riavvio abbandonato si deve
         // poter leggere il giorno dopo.
-        (m) => registro.errore(m)
+        (m) => registro.errore(m),
+        // Lo strumento `manda_al_telefono` (0.54.0): il server MCP di SierraDeck
+        // per questa sessione sola, con il suo gettone.
+        (c) => gettoniMcp === undefined ? undefined : configMcp(impostazioni.preferenze().portaClient, gettoniMcp.nuovo(c))
       )
       registerPreparazioneIpc(ptyClient, () => homedir(), {
         versione: () => app.getVersion(),
@@ -3138,6 +3151,17 @@ if (!app.requestSingleInstanceLock()) {
       // No: parte sempre, perche' e' da li' che si ottiene il primo
       // accoppiamento. A proteggerlo ci sono i due muri, non il silenzio.
       const dispositivi = apriDispositivi(dati)
+      // I file dal PC al telefono (0.54.0): la coda di ogni telefono, su disco.
+      const coda = apriAlTelefono({
+        cartella: join(dati, 'al-telefono'),
+        dispositivi: () => dispositivi.elenca(),
+        nomePc: () => { try { return identitaPcGlobale?.leggi().nome ?? hostname() } catch { return 'il PC' } }
+      })
+      alTelefono = coda
+      // A tutte le finestre, pannelli compresi: la linguetta File di un autopilota può stare in un pannello staccato.
+      coda.quandoCambia(() => {
+        for (const w of webContents.getAllWebContents()) if (!w.isDestroyed()) w.send('alTelefono:cambiata')
+      })
       /**
        * La sincronizzazione con il Drive e' accesa: connesso, cassaforte
        * aperta, salvataggio automatico acceso. Non solleva mai.
@@ -3183,12 +3207,37 @@ if (!app.requestSingleInstanceLock()) {
         ...(guardianoPin !== undefined ? { pin: guardianoPin } : {}),
         // I file dal telefono (0.50.0): gli invii a metà aspettano qui, poi vanno nel progetto della chat.
         allegati: apriAllegati({ cartella: join(dati, 'allegati-in-arrivo') }),
+        // La sezione File del telefono e della pagina (0.54.0): i progetti noti, in sola lettura.
+        fileProgetti: apriFileProgetti({
+          candidati: async (): Promise<string[]> => [
+            ...await (rotte.cartelle as () => Promise<string[]>)().catch(() => [] as string[]),
+            ...chatAperte.map((c) => c.cwd),
+            ...(await clientAutopilota.elenca().catch(() => [] as Autopilota[])).map((a) => a.cwd)
+          ],
+          home: homedir()
+        }),
+        alTelefono: coda,
         chat: () => chatAperte.map(conAltrove),
         autopiloti: () => clientAutopilota.elenca(),
         rispondi: async (idDomanda: string, risposta: string) => {
+          // Il sì o il no a un file che una chat vuole mandare al telefono (0.54.0).
+          const conferma = leggiIdDomandaConferma(idDomanda)
+          if (conferma !== undefined) {
+            const e = await coda.conferma(conferma, confermaDaRisposta(risposta))
+            if (!e.ok) throw new Error(e.errore)
+            return
+          }
           await clientAutopilota.rispondi(idDomanda, risposta)
         },
-        domande: () => clientAutopilota.domande(),
+        // Le domande degli autopiloti, e quelle di conferma dei file da mandare al telefono (0.54.0).
+        domande: async () => [
+          ...await clientAutopilota.domande(),
+          ...coda.elenco().filter((c) => c.stato === 'conferma').map((c) => ({
+            id: idDomandaConferma(c.id), autopilotaId: 'sierradeck:al-telefono', testo: testoConferma(c),
+            apertaIl: Date.parse(c.creata), opzioni: [...OPZIONI_CONFERMA],
+            da: `Manda al telefono · ${c.daChat ?? 'una chat'}`, sotto: `${c.origine} → ${c.aNome}`
+          }))
+        ],
         /**
          * Un pezzo di cronologia di una chat, chiesto dal telefono.
          *
@@ -3741,12 +3790,50 @@ if (!app.requestSingleInstanceLock()) {
         })
         return { stato: esito.stato, corpo: esito.corpo }
       })
+      // «📱 Manda al telefono» dal pannello dei file e dalla linguetta File (0.54.0).
+      const statoAlTelefono = (): unknown => ({
+        telefoni: coda.telefoni(),
+        elenco: coda.elenco().map((c) => ({ ...c, testo: testoStato(c) }))
+      })
+      ipcMain.removeHandler('alTelefono:stato')
+      ipcMain.handle('alTelefono:stato', () => statoAlTelefono())
+      ipcMain.removeHandler('alTelefono:manda')
+      ipcMain.handle('alTelefono:manda', async (_e, percorso: unknown, a: unknown, nota: unknown) => {
+        if (typeof percorso !== 'string' || typeof a !== 'string') throw new Error('richiesta IPC non valida')
+        const e = await coda.metti({ file: percorso, a, da: 'pc', ...(typeof nota === 'string' ? { nota } : {}) })
+        return e.ok ? { ok: true } : { ok: false, errore: e.errore }
+      })
+      ipcMain.removeHandler('alTelefono:mandaDaAutopilota')
+      ipcMain.handle('alTelefono:mandaDaAutopilota', async (_e, id: unknown, chiave: unknown, percorso: unknown, a: unknown, nota: unknown) => {
+        if (typeof id !== 'string' || typeof chiave !== 'string' || typeof percorso !== 'string' || typeof a !== 'string') throw new Error('richiesta IPC non valida')
+        const ap = (await clientAutopilota.elenca()).find((x) => x.id === id)
+        if (ap === undefined) return { ok: false, errore: 'Questo autopilota non c’è più.' }
+        let file: string
+        try { file = await fileVeroDellAutopilota(ap, chiave, percorso) } catch (err) { return { ok: false, errore: err instanceof Error ? err.message : String(err) } }
+        const e = await coda.metti({ file, a, da: 'pc', ...(typeof nota === 'string' ? { nota } : {}) })
+        return e.ok ? { ok: true } : { ok: false, errore: e.errore }
+      })
+      ipcMain.removeHandler('alTelefono:annulla')
+      ipcMain.handle('alTelefono:annulla', (_e, id: unknown) => {
+        if (typeof id !== 'string') throw new Error('richiesta IPC non valida')
+        coda.annulla(id)
+        return statoAlTelefono()
+      })
+      ipcMain.removeHandler('alTelefono:pulisci')
+      ipcMain.handle('alTelefono:pulisci', () => { coda.pulisci(); return statoAlTelefono() })
       serverClient = creaServerClient({
         dispositivi,
         // Il polso delle chat: la riga di stato di Claude Code ci manda il suo
         // JSON e riceve la riga da mostrare in fondo al terminale.
         // I segnali di Claude Code (0.45.0): stato, permessi, turni, errori.
         segnale: (corpo) => ricordaSegnale(corpo),
+        // Lo strumento `manda_al_telefono` delle chat (0.54.0).
+        mcp: (metodo, autorizzazione, corpo) => gettoniMcp === undefined
+          ? Promise.resolve({ stato: 503, corpo: { errore: 'gettoni non pronti' } })
+          : rispondiMcp({
+            gettoni: gettoniMcp, alTelefono: coda, versione: app.getVersion(),
+            titoloChat: (s) => chatAperte.find((c) => c.sessione === s)?.titolo
+          }, metodo, autorizzazione, corpo),
         polso: (corpo) => {
           const p = leggiPolso(corpo, Date.now())
           if (p === undefined) return ''

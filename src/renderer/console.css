@@ -4513,3 +4513,13 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 /* L'hostname piccolo accanto al nome scelto di un PC (0.52.4). */
 .nome-pc__host { font-size: 0.78em; font-weight: 400; color: var(--testo-quieto); opacity: 0.85; }
 .mappa-pc text.mappa-pc__host { font-size: 2.8px; fill: var(--testo-quieto); }
+
+/* «📱 Manda al telefono» (0.54.0): la scelta del telefono e la coda. */
+.al-tel { max-height: 80vh; overflow-y: auto; }
+.al-tel__telefoni { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+.al-tel__telefono { display: flex; align-items: baseline; gap: 6px; cursor: pointer; }
+.al-tel__elenco { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.al-tel__voce { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 6px; background: var(--fondo-2, rgba(127,127,127,.08)); }
+.al-tel__voce .tasto { align-self: flex-start; margin-top: 4px; }
+.al-tel__voce--consegnata { opacity: .85; }
+.al-tel__voce--annullata, .al-tel__voce--rifiutata, .al-tel__voce--scaduta { opacity: .6; }

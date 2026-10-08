@@ -743,6 +743,22 @@ contextBridge.exposeInMainWorld('gestore', {
     }
   },
 
+  /** I file dal PC al telefono (0.54.0): «📱 Manda al telefono» e la sua coda. */
+  alTelefono: {
+    stato: (): Promise<import('@shared/file-telefono').StatoAlTelefono> => ipcRenderer.invoke('alTelefono:stato'),
+    manda: (percorso: string, telefono: string, nota?: string): Promise<import('@shared/file-telefono').EsitoMandaAlTelefono> =>
+      ipcRenderer.invoke('alTelefono:manda', percorso, telefono, nota),
+    mandaDaAutopilota: (id: string, chiave: string, percorso: string, telefono: string, nota?: string): Promise<import('@shared/file-telefono').EsitoMandaAlTelefono> =>
+      ipcRenderer.invoke('alTelefono:mandaDaAutopilota', id, chiave, percorso, telefono, nota),
+    annulla: (id: string): Promise<import('@shared/file-telefono').StatoAlTelefono> => ipcRenderer.invoke('alTelefono:annulla', id),
+    pulisci: (): Promise<import('@shared/file-telefono').StatoAlTelefono> => ipcRenderer.invoke('alTelefono:pulisci'),
+    quandoCambia: (f: () => void): (() => void) => {
+      const h = (): void => f()
+      ipcRenderer.on('alTelefono:cambiata', h)
+      return () => ipcRenderer.off('alTelefono:cambiata', h)
+    }
+  },
+
   negozio: {
     plugin: (fresco) => ipcRenderer.invoke('negozio:plugin', fresco === true),
     installaPlugin: (id, accetta) => ipcRenderer.invoke('negozio:installaPlugin', id, accetta),

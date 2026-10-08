@@ -52,6 +52,8 @@ export type VoceDomanda =
       scadeIl?: number
       /** Le risposte da toccare, quando l'autopilota le propone. */
       opzioni?: string[]
+      /** La riga sotto il titolo, per una domanda che non è di un autopilota (0.54.0). */
+      sotto?: string
     }
   | {
       tipo: 'scelta'
@@ -141,7 +143,12 @@ export type ChatPerDomande = {
 
 export type AutopilotaPerDomande = { id: string; nome: string; obiettivo: string; stato: string }
 
-export type DomandaPerDomande = { id: string; autopilotaId: string; testo: string; apertaIl?: number; scadeIl?: number; opzioni?: string[] }
+/**
+ * `da` e `sotto` (0.54.0): una domanda che non viene da un autopilota — la
+ * conferma di un file che una chat vuole mandare al telefono — dice da sola
+ * chi chiede e di cosa si tratta.
+ */
+export type DomandaPerDomande = { id: string; autopilotaId: string; testo: string; apertaIl?: number; scadeIl?: number; opzioni?: string[]; da?: string; sotto?: string }
 
 /** Le chat degli altri PC, dal loro battito sul Drive: solo quelle che aspettano contano. */
 export type AltroPcPerDomande = {
@@ -184,12 +191,13 @@ export function raccogliDomande(p: {
       tipo: 'autopilota',
       id: d.id,
       autopilotaId: d.autopilotaId,
-      autopilota: a === undefined ? 'Un autopilota' : (a.nome !== '' ? a.nome : a.obiettivo),
+      autopilota: a === undefined ? (d.da ?? 'Un autopilota') : (a.nome !== '' ? a.nome : a.obiettivo),
       origine: a?.stato === 'intervista' ? 'intervista' : 'lavoro',
       testo: d.testo,
       ...(d.apertaIl !== undefined ? { apertaIl: d.apertaIl } : {}),
       ...(d.scadeIl !== undefined ? { scadeIl: d.scadeIl } : {}),
-      ...(d.opzioni !== undefined && d.opzioni.length > 0 ? { opzioni: d.opzioni } : {})
+      ...(d.opzioni !== undefined && d.opzioni.length > 0 ? { opzioni: d.opzioni } : {}),
+      ...(a === undefined && d.sotto !== undefined ? { sotto: d.sotto } : {})
     })
   }
   const ferme: VoceDomanda[] = []

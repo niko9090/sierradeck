@@ -432,6 +432,28 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     // ─── consumi ───
     suspend fun consumi(): Consumi = json.decodeFromString(corpoTesto("/api/consumi", null))
 
+    // ─── la sezione File (PC 0.54.0): i progetti del PC, in sola lettura ───
+    suspend fun fileProgetti(): ProgettiFile = json.decodeFromString(corpoTesto("/api/file/progetti", oggetto { }))
+
+    suspend fun fileElenco(progetto: String, percorso: String): ElencoFile =
+        json.decodeFromString(corpoTesto("/api/file/elenco", oggetto { put("progetto", progetto); put("percorso", percorso) }))
+
+    /** Un pezzo di un file del progetto, da `da` in poi (al più 96 KB). */
+    suspend fun fileLeggi(progetto: String, percorso: String, da: Long): PezzoFile =
+        json.decodeFromString(corpoTesto("/api/file/leggi", oggetto { put("progetto", progetto); put("percorso", percorso); put("da", da) }))
+
+    // ─── i file dal PC al telefono (PC 0.54.0) ───
+    /** Quelli che questo PC tiene per questo telefono. `nome`: come ci chiamiamo, per il PC che ci vede dal ponte. */
+    suspend fun consegne(nome: String): Consegne =
+        json.decodeFromString(corpoTesto("/api/consegne", oggetto { put("nome", nome) }))
+
+    suspend fun consegnaPezzo(id: String, da: Long): PezzoConsegna =
+        json.decodeFromString(corpoTesto("/api/consegne/pezzo", oggetto { put("id", id); put("da", da) }))
+
+    /** Tutto arrivato e l'impronta torna: il PC chiude la consegna e toglie la sua copia. */
+    suspend fun consegnaRicevuta(id: String, sha256: String): Fatto =
+        json.decodeFromString(corpoTesto("/api/consegne/ricevuta", oggetto { put("id", id); put("sha256", sha256) }))
+
     companion object {
         /** Le rotte che passano dal CLI di Claude Code e possono metterci minuti. */
         val ROTTE_LENTE = setOf(

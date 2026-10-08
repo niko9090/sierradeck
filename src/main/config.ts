@@ -55,7 +55,13 @@ export function buildClaudeArgs(
    * Per singola sessione e non nel file di Claude Code: `~/.claude/settings.json`
    * non si tocca, e le altre chat non si accorgono di nulla.
    */
-  impostazioni?: string
+  impostazioni?: string,
+  /**
+   * Il server MCP di SierraDeck per questa sessione (0.54.0): lo strumento
+   * `manda_al_telefono`, con il gettone della chat. Con `--mcp-config` vale
+   * solo per questa sessione: la configurazione di Claude Code non si tocca.
+   */
+  mcp?: string
 ): string[] {
   const args = riprendi
     ? ['--resume', sessionUuid, '--dangerously-skip-permissions']
@@ -64,6 +70,8 @@ export function buildClaudeArgs(
   // è ciò che dà un senso al quaderno. Va nel prompt di sistema di questa
   // sessione, non nei file dell'utente. Gli argomenti arrivano a node-pty come
   // array, quindi il testo con a capo e virgolette passa senza rischi di shell.
+  // `--mcp-config` prende più valori: va seguito da un'opzione, mai da un testo libero.
+  if (mcp !== undefined && mcp.trim() !== '') args.push('--mcp-config', mcp)
   args.push('--append-system-prompt', DIRETTIVA_QUADERNO)
   if (impostazioni !== undefined && impostazioni.trim() !== '') {
     args.push('--settings', impostazioni)

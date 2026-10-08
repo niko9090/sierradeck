@@ -84,6 +84,9 @@
           dalle notifiche. Non esportata, la fa scattare solo il sistema.
         -->
         <receiver android:name=".Sentinella" android:exported="false" />
+        <!-- «Salva» nella notifica di un file arrivato dal computer (app 2.54.0):
+             lo chiama solo il sistema per conto nostro. -->
+        <receiver android:name=".SalvaRicevuto" android:exported="false" />
         <!--
           Le sveglie non sopravvivono a due cose: lo spegnimento del telefono e
           l'aggiornamento dell'app. Il secondo se lo fa da se' - l'app si

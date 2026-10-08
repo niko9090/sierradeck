@@ -81,3 +81,18 @@ export async function diffDellAutopilota(a: Autopilota, chiave: string, percorso
   const argomenti = c.base === 'HEAD' ? ['diff', '-M', 'HEAD', '--', percorso] : ['diff', '-M', c.base, '--', percorso]
   return (await git(argomenti, dove)).uscita.slice(0, 400_000)
 }
+
+/**
+ * Il percorso vero di un file cambiato da quell'autopilota (0.54.0): «📱 Manda
+ * al telefono» dalla linguetta File. Come per il diff, il file deve stare
+ * nell'elenco appena calcolato per quella chat.
+ */
+export async function fileVeroDellAutopilota(a: Autopilota, chiave: string, percorso: string, git: Git = gitSoloLettura): Promise<string> {
+  if (!percorsoSicuro(percorso)) throw new Error('percorso non valido')
+  const gruppo = (await fileDellAutopilota(a, git)).find((g) => g.chiave === chiave)
+  const f = gruppo?.file.find((x) => x.percorso === percorso)
+  if (gruppo === undefined || f === undefined) throw new Error('quel file non è fra quelli cambiati da questo autopilota')
+  if (f.stato === 'cancellato') throw new Error('quel file è stato cancellato: non c’è più niente da mandare')
+  const radice = (await git(['rev-parse', '--show-toplevel'], gruppo.cartella)).uscita.trim()
+  return join(radice !== '' ? radice : gruppo.cartella, percorso)
+}

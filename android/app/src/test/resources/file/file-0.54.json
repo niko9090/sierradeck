@@ -1,0 +1,195 @@
+{
+  "regole": [
+    {
+      "nome": "index.ts",
+      "tipo": "testo",
+      "mime": "text/plain"
+    },
+    {
+      "nome": "README",
+      "tipo": "testo",
+      "mime": "text/plain"
+    },
+    {
+      "nome": "Dockerfile",
+      "tipo": "testo",
+      "mime": "text/plain"
+    },
+    {
+      "nome": ".gitignore",
+      "tipo": "testo",
+      "mime": "text/plain"
+    },
+    {
+      "nome": "note.md",
+      "tipo": "testo",
+      "mime": "text/plain"
+    },
+    {
+      "nome": "foto.JPG",
+      "tipo": "immagine",
+      "mime": "image/jpeg"
+    },
+    {
+      "nome": "schema.png",
+      "tipo": "immagine",
+      "mime": "image/png"
+    },
+    {
+      "nome": "fattura.pdf",
+      "tipo": "pdf",
+      "mime": "application/pdf"
+    },
+    {
+      "nome": "pagina.html",
+      "tipo": "testo",
+      "mime": "text/plain"
+    },
+    {
+      "nome": "dati.csv",
+      "tipo": "testo",
+      "mime": "text/csv"
+    },
+    {
+      "nome": "archivio.zip",
+      "tipo": "altro",
+      "mime": "application/zip"
+    },
+    {
+      "nome": "video.mp4",
+      "tipo": "altro",
+      "mime": "video/mp4"
+    },
+    {
+      "nome": "senza-estensione",
+      "tipo": "altro",
+      "mime": "application/octet-stream"
+    },
+    {
+      "nome": "setup.exe",
+      "tipo": "altro",
+      "mime": "application/octet-stream"
+    }
+  ],
+  "misure": [
+    {
+      "byte": 0,
+      "testo": "0 byte"
+    },
+    {
+      "byte": 40,
+      "testo": "40 byte"
+    },
+    {
+      "byte": 1023,
+      "testo": "1023 byte"
+    },
+    {
+      "byte": 1024,
+      "testo": "1 KB"
+    },
+    {
+      "byte": 12345,
+      "testo": "12 KB"
+    },
+    {
+      "byte": 1048575,
+      "testo": "1024 KB"
+    },
+    {
+      "byte": 1048576,
+      "testo": "1,0 MB"
+    },
+    {
+      "byte": 3500000,
+      "testo": "3,3 MB"
+    },
+    {
+      "byte": 104857600,
+      "testo": "100 MB"
+    }
+  ],
+  "progetti": {
+    "progetti": [
+      {
+        "nome": "Esempio",
+        "percorso": "C:\\Progetti\\Esempio",
+        "doppio": false
+      }
+    ]
+  },
+  "elenco": {
+    "ok": true,
+    "progetto": "C:\\Progetti\\Esempio",
+    "nome": "Esempio",
+    "percorso": "",
+    "voci": [
+      {
+        "nome": "src",
+        "percorso": "src",
+        "cartella": true,
+        "byte": 0,
+        "quando": 1791453600000,
+        "tipo": "altro"
+      },
+      {
+        "nome": "LEGGIMI.md",
+        "percorso": "LEGGIMI.md",
+        "cartella": false,
+        "byte": 10,
+        "quando": 1791453600000,
+        "tipo": "testo"
+      }
+    ],
+    "tagliato": false
+  },
+  "elencoSrc": {
+    "ok": true,
+    "progetto": "C:\\Progetti\\Esempio",
+    "nome": "src",
+    "percorso": "src",
+    "su": "",
+    "voci": [
+      {
+        "nome": "index.ts",
+        "percorso": "src/index.ts",
+        "cartella": false,
+        "byte": 19,
+        "quando": 1791453600000,
+        "tipo": "testo"
+      }
+    ],
+    "tagliato": false
+  },
+  "leggi": {
+    "ok": true,
+    "da": 0,
+    "byte": 19,
+    "quando": 1791453600000,
+    "nome": "index.ts",
+    "tipo": "testo",
+    "mime": "text/plain",
+    "dati": "ZXhwb3J0IGNvbnN0IHggPSAxCg==",
+    "letti": 19
+  },
+  "consegne": {
+    "consegne": [
+      {
+        "id": "consegna-esempio",
+        "nome": "LEGGIMI.md",
+        "byte": 10,
+        "sha256": "5952dbc726d79ae5e65afe4ce50f829eb8d8e54163101c49b234c65b7bfcdf85",
+        "daPc": "PC-ESEMPIO",
+        "creata": "2026-10-08T10:00:00.000Z",
+        "da": "chat",
+        "daChat": "Relazioni",
+        "nota": "da leggere"
+      }
+    ]
+  },
+  "pezzoConsegna": {
+    "dati": "IyBFc2VtcGlvCg==",
+    "letti": 10,
+    "byte": 10
+  }
+}

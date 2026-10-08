@@ -133,15 +133,17 @@ export function conversazioniDomande(p: {
         autopilota: v.autopilotaId,
         quante: 1,
         titolo: v.autopilota,
-        sotto: v.origine === 'intervista'
+        sotto: v.sotto ?? (v.origine === 'intervista'
           ? 'si prepara: ti fa una domanda prima di partire, e senza la tua risposta non comincia'
-          : (a?.cwd ?? ''),
+          : (a?.cwd ?? '')),
         chiede: true,
         messaggi,
         risposta: { via: 'rispondi', domanda: v.id },
-        segnaposto: v.origine === 'intervista'
-          ? 'Rispondi (o tocca un’opzione): la preparazione riparte con la tua risposta'
-          : 'Rispondi all’autopilota: arriva subito alla chat ferma'
+        segnaposto: v.sotto !== undefined
+          ? 'Tocca una risposta qui sopra, oppure scrivi «sì» o «no»'
+          : v.origine === 'intervista'
+            ? 'Rispondi (o tocca un’opzione): la preparazione riparte con la tua risposta'
+            : 'Rispondi all’autopilota: arriva subito alla chat ferma'
       })
       continue
     }

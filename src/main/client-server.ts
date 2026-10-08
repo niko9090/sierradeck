@@ -58,6 +58,12 @@ export type DipendenzeClient = {
    */
   segnale?: (corpo: unknown) => void
   /**
+   * Lo strumento `manda_al_telefono` delle chat (0.54.0): il server MCP di
+   * SierraDeck, solo da 127.0.0.1 e solo con il gettone della chat
+   * nell'intestazione `Authorization` (lo controlla chi risponde).
+   */
+  mcp?: (metodo: string, autorizzazione: string | undefined, corpo: unknown) => Promise<{ stato: number; corpo?: unknown }>
+  /**
    * La **chiave di casa**: quella che un altro PC con la stessa cassaforte
    * ricava per bussare qui (`sincronia.chiaveDiCasa('client-pc:<mio id>')`).
    * Chi la presenta entra come un dispositivo accoppiato, senza codice ne'
@@ -192,6 +198,25 @@ async function gestisci(
     try { deps.segnale(corpo) } catch (err) { console.warn('[client] segnale non letto:', err) }
     res.writeHead(204)
     res.end()
+    return
+  }
+
+  if (percorso === '/api/mcp') {
+    if (!eLoopback(indirizzo) || deps.mcp === undefined) {
+      rispondi(res, { stato: 403, corpo: { errore: 'solo da questo computer' } })
+      return
+    }
+    let e: { stato: number; corpo?: unknown }
+    try { e = await deps.mcp(metodo, req.headers.authorization, corpo) } catch (err) {
+      console.warn('[client] mcp:', err)
+      e = { stato: 500, corpo: { jsonrpc: '2.0', id: null, error: { code: -32603, message: String(err) } } }
+    }
+    if (e.corpo === undefined) {
+      res.writeHead(e.stato, e.stato === 405 ? { Allow: 'POST' } : {})
+      res.end()
+      return
+    }
+    rispondi(res, { stato: e.stato, corpo: e.corpo })
     return
   }
 

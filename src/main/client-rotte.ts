@@ -24,9 +24,12 @@ import type { Allegati } from './allegati'
 import { creaMemoriaInvii, idMessaggioValido } from '@shared/collegamento'
 import type { Strada } from '@shared/strada-pc'
 import {
-  controllaAllegato, creaLimitatore, decidiDestinazione, leggiDestinazione, notaPulita, PEZZO_BYTE, ALLEGATO_MAX_BYTE,
-  pezzoBase64Valido, rigaPerAutopilota, rigaPerChat
+  controllaAllegato, creaLimitatore, decidiDestinazione, leggiCartellaDestinazione, leggiDestinazione, notaPulita, PEZZO_BYTE, ALLEGATO_MAX_BYTE,
+  pezzoBase64Valido, rigaPerAutopilota, rigaPerChat, type DestinazioneDecisa
 } from '@shared/allegati'
+import type { FileProgetti } from './file-progetti'
+import type { AlTelefono } from './al-telefono'
+import { chiaveCartella, eTelefono, idConsegnaValido, nomiDistinti, rifiutoProgettoChiuso } from '@shared/file-telefono'
 
 /**
  * Un altro PC con la chiave di casa: `pc` (prima della 0.49.1, senza dire chi
@@ -206,6 +209,14 @@ export type DipendenzeRotte = {
    * della chat o dell'autopilota. Assente in un PC più vecchio: 409.
    */
   allegati?: Allegati
+  /**
+   * La sezione «File» del telefono e della pagina (0.54.0): i progetti di
+   * questo PC, in sola lettura, solo dentro le loro cartelle. Il PIN vale:
+   * un progetto con una chat protetta e chiusa per chi guarda non si apre.
+   */
+  fileProgetti?: FileProgetti
+  /** I file dal PC al telefono (0.54.0): la coda di ogni telefono, che lui ritira a pezzi. */
+  alTelefono?: AlTelefono
   /** La linguetta «Istruzioni» dal telefono (0.41.0): le consegne alle sue chat, intere. */
   istruzioniAutopilota?: (id: string) => Promise<unknown[]>
   diffAutopilota?: (id: string, chiave: string, percorso: string) => Promise<string>
@@ -655,6 +666,23 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     dispositivo?: string
   }): Promise<Esito> => {
     const visore = visoreDi(r.dispositivo)
+    /**
+     * Un progetto con una chat protetta dal PIN, chiusa per chi guarda (0.54.0):
+     * i suoi file non si vedono. Le chat aperte e quelle salvate nei workspace.
+     */
+    const progettoChiuso = async (cwd: string): Promise<ReturnType<typeof rifiutoProgettoChiuso> | undefined> => {
+      if (g === undefined) return undefined
+      const k = chiaveCartella(cwd)
+      const aperta = depsPieni.chat().find((c) => chiaveCartella(c.cwd) === k && g.protetta(c) && g.chiusa(visore, c))
+      if (aperta !== undefined) return rifiutoProgettoChiuso(aperta.titolo, aperta.id)
+      const salvate: ChatSalvata[] = (await depsPieni.workspace().catch(() => undefined))?.chat ?? []
+      const s = salvate.find((c) => {
+        if (chiaveCartella(c.cwd) !== k) return false
+        const per = { sessione: c.sessione, workspace: c.workspace }
+        return g.protetta(per) && g.chiusa(visore, per)
+      })
+      return s === undefined ? undefined : rifiutoProgettoChiuso(s.titolo)
+    }
     // ── Il PIN delle chat (0.49.0) ──
     // Una chat di un altro PC (le Domande, 0.49.1): il PIN lo controlla quel PC,
     // anche se qui il PIN non è mai stato acceso.
@@ -710,11 +738,26 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         const k = controllaAllegato({ nome: corpo.nome, byte: corpo.byte })
         if (!k.ok) return { stato: k.stato, corpo: { errore: k.errore } }
         const autopiloti = await depsPieni.autopiloti().catch(() => [] as Autopilota[])
-        const d = decidiDestinazione(leggiDestinazione(r.corpo), {
-          chat: depsPieni.chat(),
-          autopiloti: autopiloti.map((a) => ({ id: a.id, nome: a.nome !== '' ? a.nome : a.obiettivo, cwd: a.cwd })),
-          altroPc: (x) => leggiIdChatAltroPc(x) !== undefined
-        })
+        // «Carica» dalla sezione File (0.54.0): una cartella di un progetto, non una chat.
+        const inCartella = leggiCartellaDestinazione(r.corpo)
+        let sotto: string | undefined
+        let d: DestinazioneDecisa | { ok: true; tipo: 'cartella'; id: string; titolo: string; cwd: string }
+        if (inCartella !== undefined) {
+          const fp = depsPieni.fileProgetti
+          if (fp === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora ricevere file in una cartella: aggiornalo alla 0.54.0.' } }
+          const chiusoP = await progettoChiuso(inCartella.progetto)
+          if (chiusoP !== undefined) return { stato: STATO_CHIUSA, corpo: chiusoP }
+          const ris = await fp.risolvi(inCartella.progetto, inCartella.cartella)
+          if (!ris.ok) return { stato: ris.stato, corpo: { errore: ris.errore } }
+          sotto = inCartella.cartella
+          d = { ok: true, tipo: 'cartella', id: inCartella.progetto, titolo: inCartella.cartella === '' ? inCartella.progetto : inCartella.cartella, cwd: ris.radice }
+        } else {
+          d = decidiDestinazione(leggiDestinazione(r.corpo), {
+            chat: depsPieni.chat(),
+            autopiloti: autopiloti.map((a) => ({ id: a.id, nome: a.nome !== '' ? a.nome : a.obiettivo, cwd: a.cwd })),
+            altroPc: (x) => leggiIdChatAltroPc(x) !== undefined
+          })
+        }
         if (!d.ok) return { stato: d.stato, corpo: { errore: d.errore } }
         const chiusa = chiusaPerChi(d.tipo, d.id)
         if (chiusa !== undefined) return { stato: STATO_CHIUSA, corpo: rifiutoChiusa(chiusa.titolo) }
@@ -726,6 +769,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         const nota = notaPulita(corpo.nota)
         const e = al.inizia({
           id, chi: visore, nome: k.nome, byte: corpo.byte as number, tipo: d.tipo, a: d.id, titolo: d.titolo, cwd: d.cwd,
+          ...(sotto !== undefined ? { sotto } : {}),
           ...(/^[a-f0-9]{64}$/.test(sha) ? { sha256: sha } : {}),
           ...(nota !== '' ? { nota } : {})
         })
@@ -752,6 +796,10 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           // Il PIN si ricontrolla alla fine: la chat può essersi richiusa mentre il file viaggiava.
           const chiusa = chiusaPerChi(inv.tipo, inv.a)
           if (chiusa !== undefined) return { stato: STATO_CHIUSA, corpo: rifiutoChiusa(chiusa.titolo) }
+          if (inv.tipo === 'cartella') {
+            const chiusoP = await progettoChiuso(inv.a)
+            if (chiusoP !== undefined) return { stato: STATO_CHIUSA, corpo: chiusoP }
+          }
         }
         const e = await al.finisci(id, visore)
         if (!e.ok) return { stato: e.stato, corpo: { errore: e.errore } }
@@ -771,6 +819,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           } else {
             avviso = 'La chat si è chiusa mentre il file arrivava: il file è nel progetto, ma la chat non è stata avvisata.'
           }
+        } else if (i.tipo === 'cartella') {
+          // Caricato in una cartella dalla sezione File: nessuno da avvisare.
         } else if (deps.dialogaAutopilota !== undefined) {
           const esito = await deps.dialogaAutopilota(i.a, rigaPerAutopilota({ nome: arrivato.nome, percorso: arrivato.assoluto, ...(i.nota !== undefined ? { nota: i.nota } : {}) })).catch(() => ({ ricevuto: false }))
           if (esito.ricevuto) avvisata = 'autopilota'
@@ -780,6 +830,63 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           arrivato: true, nome: arrivato.nome, percorso: arrivato.relativo, assoluto: arrivato.assoluto, cartella: i.cwd, verso: i.titolo,
           ...(avvisata !== undefined ? { avvisata } : {}), ...(avviso !== undefined ? { avviso } : {})
         })
+      }
+      return { stato: 404, corpo: { errore: 'non trovato' } }
+    }
+
+    // ── La sezione «File» (0.54.0): i progetti di questo PC, in sola lettura ──
+    if (r.metodo === 'POST' && r.percorso.startsWith('/api/file/')) {
+      const fp = depsPieni.fileProgetti
+      if (fp === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora mostrare i file dei progetti: aggiornalo alla 0.54.0.' } }
+      if (r.percorso === '/api/file/progetti') {
+        const tutti = nomiDistinti(await fp.progetti())
+        const conPin = await Promise.all(tutti.map(async (p) => ((await progettoChiuso(p.percorso)) !== undefined ? { ...p, chiuso: true } : p)))
+        return OK({ progetti: conPin })
+      }
+      const progetto = stringa(r.corpo, 'progetto')
+      const percorso = typeof (r.corpo as { percorso?: unknown } | undefined)?.percorso === 'string' ? (r.corpo as { percorso: string }).percorso : ''
+      if (progetto === '') return { stato: 400, corpo: { errore: 'Manca il progetto.' } }
+      const chiusoP = await progettoChiuso(progetto)
+      if (chiusoP !== undefined) return { stato: STATO_CHIUSA, corpo: chiusoP }
+      if (r.percorso === '/api/file/elenco') {
+        const e = await fp.elenco(progetto, percorso)
+        return e.ok ? OK(e) : { stato: e.stato, corpo: { errore: e.errore } }
+      }
+      if (r.percorso === '/api/file/leggi') {
+        const e = await fp.leggi(progetto, percorso, numero(r.corpo, 'da', 0), numero(r.corpo, 'quanti', PEZZO_BYTE))
+        if (!e.ok) return { stato: e.stato, corpo: { errore: e.errore } }
+        const { dati, ...resto } = e
+        return OK({ ...resto, dati: dati.toString('base64'), letti: dati.length })
+      }
+      return { stato: 404, corpo: { errore: 'non trovato' } }
+    }
+
+    // ── I file dal PC al telefono (0.54.0): il telefono ritira la sua coda ──
+    if (r.metodo === 'POST' && (r.percorso === '/api/consegne' || r.percorso.startsWith('/api/consegne/'))) {
+      const t = depsPieni.alTelefono
+      if (t === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora mandare file al telefono: aggiornalo alla 0.54.0.' } }
+      if (!eTelefono(visore)) return { stato: 403, corpo: { errore: 'Le consegne sono per i telefoni: un altro PC o questo schermo non ne hanno.' } }
+      if (r.percorso === '/api/consegne') {
+        // Un telefono che passa dal ponte si presenta: da qui in poi gli si può mandare anche da questo PC.
+        const nome = stringa(r.corpo, 'nome')
+        t.visto(visore, nome === '' ? undefined : nome)
+        return OK({
+          consegne: t.perTelefono(visore).map((c) => ({
+            id: c.id, nome: c.nome, byte: c.byte, sha256: c.sha256, daPc: c.daPc, creata: c.creata, da: c.da,
+            ...(c.daChat !== undefined ? { daChat: c.daChat } : {}), ...(c.nota !== undefined ? { nota: c.nota } : {}),
+            ...(c.ricevuti !== undefined ? { ricevuti: c.ricevuti } : {})
+          }))
+        })
+      }
+      const id = stringa(r.corpo, 'id')
+      if (!idConsegnaValido(id)) return { stato: 400, corpo: { errore: 'Id della consegna non valido.' } }
+      if (r.percorso === '/api/consegne/pezzo') {
+        const e = t.pezzo(id, visore, numero(r.corpo, 'da', 0))
+        return e.ok ? OK({ dati: e.dati.toString('base64'), letti: e.dati.length, byte: e.byte }) : { stato: e.stato, corpo: { errore: e.errore } }
+      }
+      if (r.percorso === '/api/consegne/ricevuta') {
+        const e = t.ricevuta(id, visore, stringa(r.corpo, 'sha256'))
+        return e.ok ? OK({ fatto: true }) : { stato: e.stato, corpo: { errore: e.errore } }
       }
       return { stato: 404, corpo: { errore: 'non trovato' } }
     }
@@ -810,6 +917,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       }))
       return OK({
         domandeInAttesa,
+        // Quanti file aspettano questo telefono (0.54.0): l'app li ritira subito.
+        ...(depsPieni.alTelefono !== undefined && eTelefono(visore) ? { consegne: depsPieni.alTelefono.perTelefono(visore).length } : {}),
         // Senza la coda delle righe: l'elenco si chiede ogni due secondi, e
         // quello che si guarda dentro è una chat sola, quando la si apre.
         chat: deps.chat().map(({ coda, codaGrezza, ...resto }) => ({

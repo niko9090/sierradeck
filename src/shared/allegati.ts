@@ -130,15 +130,23 @@ export function giornoCartella(d: Date): string {
  * `esiste` riceve il percorso relativo (con `/`).
  */
 export function percorsoAllegato(nome: string, giorno: string, esiste: (relativo: string) => boolean): string {
-  const cartella = `${CARTELLA_ALLEGATI}/${giorno}`
+  return percorsoInCartella(`${CARTELLA_ALLEGATI}/${giorno}`, nome, esiste)
+}
+
+/**
+ * Lo stesso, in una cartella qualunque del progetto (0.54.0: «Carica» dalla
+ * sezione File del telefono). `cartella` è relativa, con `/`; `''` è il progetto.
+ */
+export function percorsoInCartella(cartella: string, nome: string, esiste: (relativo: string) => boolean): string {
+  const pre = cartella === '' ? '' : `${cartella}/`
   const p = nome.lastIndexOf('.')
   const base = p > 0 ? nome.slice(0, p) : nome
   const est = p > 0 ? nome.slice(p) : ''
   for (let i = 1; i < 1000; i++) {
-    const candidato = `${cartella}/${i === 1 ? nome : `${base} (${i})${est}`}`
+    const candidato = `${pre}${i === 1 ? nome : `${base} (${i})${est}`}`
     if (!esiste(candidato)) return candidato
   }
-  return `${cartella}/${base} (${Date.now()})${est}`
+  return `${pre}${base} (${Date.now()})${est}`
 }
 
 /* ------------------------------------------------------------------ */
@@ -196,6 +204,17 @@ export function percento(ricevuti: number, byte: number): number {
 /* ------------------------------------------------------------------ */
 
 export type Destinazione = { tipo: 'chat'; chat: string } | { tipo: 'autopilota'; autopilota: string }
+
+/**
+ * Una cartella di un progetto (0.54.0): «Carica» dalla sezione File. Il
+ * progetto e la cartella li controlla chi sfoglia (`file-progetti.ts`): qui
+ * solo la forma.
+ */
+export function leggiCartellaDestinazione(corpo: unknown): { progetto: string; cartella: string } | undefined {
+  const o = typeof corpo === 'object' && corpo !== null ? corpo as Record<string, unknown> : {}
+  if (typeof o.progetto !== 'string' || o.progetto.trim() === '') return undefined
+  return { progetto: o.progetto.trim(), cartella: typeof o.cartella === 'string' ? o.cartella : '' }
+}
 
 export function leggiDestinazione(corpo: unknown): Destinazione | undefined {
   const o = typeof corpo === 'object' && corpo !== null ? corpo as Record<string, unknown> : {}

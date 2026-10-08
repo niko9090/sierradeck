@@ -6,8 +6,9 @@ import {
 import { dirname, join, resolve, sep } from 'node:path'
 import {
   accettaPezzo, CARTELLA_ALLEGATI, giornoCartella, GITIGNORE_ALLEGATI, idInvioValido, INVIO_SCADE_MS,
-  PEZZO_BYTE, percorsoAllegato
+  PEZZO_BYTE, percorsoAllegato, percorsoInCartella
 } from '@shared/allegati'
+import { conBarre } from '@shared/file-telefono'
 
 /**
  * I file dal telefono, dal lato del disco (0.50.0).
@@ -33,9 +34,11 @@ export type Invio = {
   nome: string
   byte: number
   sha256?: string
-  tipo: 'chat' | 'autopilota'
-  /** L'id della chat o dell'autopilota. */
+  tipo: 'chat' | 'autopilota' | 'cartella'
+  /** L'id della chat o dell'autopilota; per una cartella, il progetto. */
   a: string
+  /** Solo per una cartella (0.54.0): dove, relativo al progetto (`''` = il progetto). */
+  sotto?: string
   titolo: string
   cwd: string
   nota?: string
@@ -146,14 +149,21 @@ export function apriAllegati(deps: { cartella: string; adesso?: () => number; se
       }
       if (!existsSync(i.cwd)) return { ok: false, stato: 409, errore: `La cartella del progetto (${i.cwd}) non c’è più su questo computer.` }
       const radice = resolve(i.cwd)
-      const allegati = resolve(radice, CARTELLA_ALLEGATI)
-      const relativo = percorsoAllegato(i.nome, giornoCartella(new Date(adesso())), (rel) => existsSync(resolve(radice, rel)))
+      const inCartella = i.tipo === 'cartella'
+      // Una cartella scelta dalla sezione File (0.54.0), o quella degli allegati della chat.
+      const contenitore = inCartella ? resolve(radice, i.sotto ?? '') : resolve(radice, CARTELLA_ALLEGATI)
+      if (inCartella && !existsSync(contenitore)) return { ok: false, stato: 409, errore: 'La cartella dove caricarlo non c’è più.' }
+      const relativo = inCartella
+        ? percorsoInCartella(conBarre(i.sotto ?? ''), i.nome, (rel) => existsSync(resolve(radice, rel)))
+        : percorsoAllegato(i.nome, giornoCartella(new Date(adesso())), (rel) => existsSync(resolve(radice, rel)))
       const assoluto = resolve(radice, relativo)
-      // Cintura e bretelle: il nome è già ripulito, ma il file deve stare dentro `.sierradeck/allegati`.
-      if (!dentro(allegati, assoluto)) return { ok: false, stato: 400, errore: 'Percorso non valido.' }
+      // Cintura e bretelle: il nome è già ripulito, ma il file deve stare dentro la sua cartella (e nel progetto).
+      if (!dentro(contenitore, assoluto) || !dentro(radice, assoluto)) return { ok: false, stato: 400, errore: 'Percorso non valido.' }
       mkdirSync(dirname(assoluto), { recursive: true })
-      const ignora = join(allegati, '.gitignore')
-      if (!existsSync(ignora)) writeFileSync(ignora, GITIGNORE_ALLEGATI, 'utf8')
+      if (!inCartella) {
+        const ignora = join(contenitore, '.gitignore')
+        if (!existsSync(ignora)) writeFileSync(ignora, GITIGNORE_ALLEGATI, 'utf8')
+      }
       try {
         renameSync(parte(id), assoluto)
       } catch {

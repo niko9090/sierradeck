@@ -204,7 +204,12 @@ export function registerPtyIpc(
    */
   portaAutopiloti: () => number = () => PORTA_AUTOPILOTA,
   /** Dove scrivere i guasti dell'host: il registro su file, quando c'e'. */
-  log?: (messaggio: string) => void
+  log?: (messaggio: string) => void,
+  /**
+   * Il `--mcp-config` della chat che nasce (0.54.0): il server MCP di
+   * SierraDeck con il gettone di quella sessione. Assente: niente strumenti.
+   */
+  strumentiPerChat?: (c: { pty: string; cwd: string; sessione: string }) => string | undefined
 ): PtyHostClient {
   const client = new PtyHostClient({
     nodePath: process.execPath,
@@ -301,7 +306,8 @@ export function registerPtyIpc(
           req.autopilota === undefined
             ? undefined
             : componiImpostazioni(req.autopilota.id, portaAutopiloti(), req.autopilota.chat)
-        )
+        ),
+        strumentiPerChat?.({ pty: id, cwd, sessione: req.sessionUuid })
       ),
       cols: req.cols,
       rows: req.rows,

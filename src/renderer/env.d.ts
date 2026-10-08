@@ -358,6 +358,14 @@ declare global {
         togli: (pc: string, voce: string) => Promise<import('../shared/posta').Posta | undefined>
         pulisci: (pc: string) => Promise<import('../shared/posta').Posta | undefined>
       }
+      alTelefono: {
+        stato: () => Promise<import('../shared/file-telefono').StatoAlTelefono>
+        manda: (percorso: string, telefono: string, nota?: string) => Promise<import('../shared/file-telefono').EsitoMandaAlTelefono>
+        mandaDaAutopilota: (id: string, chiave: string, percorso: string, telefono: string, nota?: string) => Promise<import('../shared/file-telefono').EsitoMandaAlTelefono>
+        annulla: (id: string) => Promise<import('../shared/file-telefono').StatoAlTelefono>
+        pulisci: () => Promise<import('../shared/file-telefono').StatoAlTelefono>
+        quandoCambia: (f: () => void) => () => void
+      }
       remoto: {
         pc: (solo?: string) => Promise<{ io: string; cassaforteAperta: boolean; driveCollegato?: boolean; pc: import('../shared/pc-remoto').PcRemoto[] }>
         stato: (pc: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ chat: import('../shared/pc-remoto').ChatSuPc[]; computer?: { nome: string } }>>

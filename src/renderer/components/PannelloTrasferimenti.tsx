@@ -3,6 +3,7 @@ import type {
   CodaVista, DestinazioneVista, ElencoVista, FileInModificaVista, RichiestaVista, VoceVista
 } from '../../preload'
 import { TerminaleRemoto } from './TerminaleRemoto'
+import { ModaleAlTelefono } from './ModaleAlTelefono'
 import { confrontaElenchi, segnoDi, type Confronto } from '@shared/confronto-file'
 import {
   aggiungiCampione, quantoManca, scriviQuantoManca, scriviVelocita, velocita, type Campione
@@ -56,6 +57,8 @@ export function PannelloTrasferimenti(
   const [collegato, setCollegato] = useState(false)
   const [chiede, setChiede] = useState<{ impronta: string; cambiata: boolean } | undefined>(undefined)
   const [errore, setErrore] = useState<string | undefined>(undefined)
+  /** «📱 Manda al telefono» (0.54.0): il file scelto di qua. */
+  const [alTel, setAlTel] = useState<{ percorso: string; nome: string } | undefined>(undefined)
   const [coda, setCoda] = useState<CodaVista>({ lavori: [], contando: 0 })
   const [modifica, setModifica] = useState<Partial<DestinazioneVista> | undefined>(undefined)
   const [password, setPassword] = useState('')
@@ -229,6 +232,13 @@ export function PannelloTrasferimenti(
         </div>
         {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
       </div>
+      {alTel !== undefined ? (
+        <ModaleAlTelefono
+          nome={alTel.nome}
+          manda={(telefono, nota) => window.gestore.alTelefono.manda(alTel.percorso, telefono, nota)}
+          onChiudi={() => setAlTel(undefined)}
+        />
+      ) : null}
 
       <div className="trasf">
         <Colonna
@@ -250,7 +260,8 @@ export function PannelloTrasferimenti(
             elimina: async (voci) => {
               for (const v of voci) await window.gestore.trasferimenti.eliminaLocale(v.percorso)
             },
-            mostra: (percorso) => { void window.gestore.trasferimenti.mostraNelSistema(percorso) }
+            mostra: (percorso) => { void window.gestore.trasferimenti.mostraNelSistema(percorso) },
+            alTelefono: (v) => setAlTel({ percorso: v.percorso, nome: v.nome })
           }}
           azione={{
             etichetta: `→  Carica${selLocale.presi.length > 1 ? ` (${selLocale.presi.length})` : ''}`,
@@ -587,6 +598,8 @@ export type Operazioni = {
   elimina: (voci: { percorso: string; cartella: boolean }[]) => Promise<void>
   /** Solo di qua: aprire la cartella nel gestore di file del sistema. */
   mostra?: (percorso: string) => void
+  /** Solo di qua (0.54.0): un file al telefono, con la sua coda. */
+  alTelefono?: (v: VoceVista) => void
   /**
    * Solo di là: aprire un file del server nel programma con cui lo apriresti
    * qui, e da quel momento ogni salvataggio risale.
@@ -877,6 +890,14 @@ function Colonna(
             onClick={() => { if (scelte[0] !== undefined) operazioni.modificaFile?.(scelte[0]) }}
             title="Apri qui e rimanda su a ogni salvataggio (doppio clic)"
           >Modifica</button>
+        ) : null}
+        {operazioni?.alTelefono !== undefined ? (
+          <button
+            className="tasto tasto--fantasma"
+            disabled={scelte.length !== 1 || scelte[0]?.cartella === true}
+            onClick={() => { if (scelte[0] !== undefined) operazioni.alTelefono?.(scelte[0]) }}
+            title="Manda il file scelto al telefono: arriva quando l’app si collega, anche più tardi. Le cartelle intere no (fanne uno .zip)."
+          >📱 Manda al telefono</button>
         ) : null}
         {operazioni?.mostra !== undefined ? (
           <button

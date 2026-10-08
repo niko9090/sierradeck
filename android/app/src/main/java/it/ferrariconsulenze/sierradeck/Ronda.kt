@@ -108,6 +108,8 @@ object Ronda {
         creaCanali(contesto)
         val avvisi = Avvisi.daAnnunciare(stato, gia, primoGiro)
         for (a in avvisi) avvisa(contesto, a)
+        // Il PC ha dei file per questo telefono (PC 0.54.0): si ritirano adesso, in sottofondo.
+        if (stato.optInt("consegne", 0) > 0) try { RicevitoreConsegne.subito(contesto) } catch (_: Exception) { }
         primoGiro = false
         salva(contesto)
     }

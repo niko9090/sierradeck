@@ -40,7 +40,10 @@ object Ponte {
     /** Le rotte che passano, uguali a `ROTTE_PONTE` del PC (src/shared/ponte-telefono.ts). */
     val ROTTE = setOf("/api/stato", "/api/storia", "/api/scrivi", "/api/scegli", "/api/sessioni/riprendi", "/api/apri", "/api/pin/sblocca",
         // I file dal telefono (PC 0.50.0): a pezzi fino a quel PC.
-        "/api/allegati/inizia", "/api/allegati/pezzo", "/api/allegati/stato", "/api/allegati/fine", "/api/allegati/annulla")
+        "/api/allegati/inizia", "/api/allegati/pezzo", "/api/allegati/stato", "/api/allegati/fine", "/api/allegati/annulla",
+        // La sezione File (PC 0.54.0): sfogliare i progetti di quel PC e ritirare i file che manda al telefono.
+        "/api/file/progetti", "/api/file/elenco", "/api/file/leggi",
+        "/api/consegne", "/api/consegne/pezzo", "/api/consegne/ricevuta")
 
     /** Il corpo di `/api/ponte`: il PC, la rotta, e il corpo della richiesta se c'è. */
     fun corpo(pc: String, percorso: String, corpoJson: String?): String {
