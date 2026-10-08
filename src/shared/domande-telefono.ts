@@ -148,7 +148,7 @@ export type AltroPcPerDomande = {
   pcId: string
   nome: string
   vivo: boolean
-  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean }[]
+  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; scelte?: { numero: number; testo: string; libera?: boolean; spuntata?: boolean; invio?: boolean }[] }[]
   /** La strada con cui questo computer arriva a quel PC (0.40.0), in due parole: la mostrano la pagina e l'app. */
   strada?: string
 }
@@ -212,7 +212,22 @@ export function raccogliDomande(p: {
   for (const pc of p.altriPc ?? []) {
     if (!pc.vivo) continue
     for (const c of pc.chat) {
-      if (!c.aspetta || c.sessione === undefined || c.sessione === '') continue
+      if (c.sessione === undefined || c.sessione === '') continue
+      // Ferma su una domanda (0.52.6): le opzioni dal suo battito, da toccare
+      // qui. La scelta passa dal ponte e quel PC la ricontrolla prima di premere.
+      if (c.scelte !== undefined && c.scelte.length >= 2) {
+        fuori.push({
+          tipo: 'scelta',
+          chat: idChatAltroPc(pc.pcId, c.sessione),
+          titolo: `${c.titolo || c.cwd} · su ${pc.nome}`,
+          cwd: c.cwd,
+          righe: [`Su ${pc.nome}: la chat aspetta che tu scelga. Tocca un'opzione: la premo là, dopo aver ricontrollato che la domanda sia ancora quella.`],
+          opzioni: c.scelte.map((o) => ({ numero: o.numero, testo: o.testo, scelta: false, ...(o.libera === true ? { libera: true } : {}), ...(o.spuntata !== undefined ? { spuntata: o.spuntata } : {}), ...(o.invio === true ? { invio: true } : {}) })),
+          corrente: 0
+        })
+        continue
+      }
+      if (!c.aspetta) continue
       ferme.push({
         tipo: 'chat',
         chat: idChatAltroPc(pc.pcId, c.sessione),

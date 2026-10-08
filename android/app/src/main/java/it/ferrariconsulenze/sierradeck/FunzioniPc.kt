@@ -22,7 +22,10 @@ import androidx.compose.runtime.setValue
  */
 enum class FunzionePc(val minima: String, val nome: String) {
     DIALOGO_AUTOPILOTA("0.27.0", "Il dialogo con gli autopiloti"),
+    CHAT_AUTOPILOTA("0.29.0", "La chat con l'autopilota"),
     DOMANDE("0.30.0", "La sezione Domande"),
+    ALBERO_AUTOPILOTA("0.36.0", "L'albero delle sue chat"),
+    DOMANDE_AUTOPILOTA("0.38.0", "La linguetta Domande dell'autopilota"),
     FILE_AUTOPILOTA("0.38.0", "La linguetta File"),
     STRADA_PC("0.40.0", "La strada verso gli altri PC"),
     ISTRUZIONI("0.41.0", "La linguetta Istruzioni"),
@@ -35,6 +38,8 @@ enum class FunzionePc(val minima: String, val nome: String) {
 /** La versione del computer a cui si è collegati, quando la si sa. */
 object PcCorrente {
     var versione by mutableStateOf<String?>(null)
+    /** Il nome con cui lo vedi in alto (2.52.6): negli avvisi «arriva aggiornando NOME alla X». */
+    var nome by mutableStateOf<String?>(null)
 }
 
 object FunzioniPc {
@@ -48,7 +53,19 @@ object FunzioniPc {
     }
 
     /** Il testo della funzione spenta. */
-    fun testoMancante(f: FunzionePc): String = "${f.nome} arriva aggiornando il PC alla ${f.minima}."
+    fun testoMancante(f: FunzionePc, nomePc: String? = PcCorrente.nome): String =
+        "${f.nome} arriva aggiornando ${nomePc?.takeIf { it.isNotBlank() } ?: "il PC"} alla ${f.minima}."
+
+    /**
+     * Le parti della scheda di un autopilota che quel PC non manda ancora
+     * (2.52.6): una riga ciascuna, sopra le linguette. Con un PC vecchio la
+     * scheda mostra quello che c'è e dice cosa manca, invece di parti vuote
+     * che sembrano un guasto. Vuoto se la versione non si sa.
+     */
+    fun avvisiScheda(versionePc: String?, nomePc: String?): List<String> =
+        listOf(FunzionePc.CHAT_AUTOPILOTA, FunzionePc.ALBERO_AUTOPILOTA, FunzionePc.DOMANDE_AUTOPILOTA, FunzionePc.FILE_AUTOPILOTA, FunzionePc.ISTRUZIONI)
+            .filter { disponibile(it, versionePc) == false }
+            .map { testoMancante(it, nomePc) }
 
     /**
      * L'errore vuol dire «il computer non ha ancora questa funzione»? Un 409

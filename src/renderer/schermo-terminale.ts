@@ -47,6 +47,8 @@ export type Cella = {
 
 export type RigaSchermo = {
   readonly length: number
+  /** xterm: la riga continua la precedente, spezzata solo perché il terminale era pieno (0.52.6). */
+  readonly isWrapped?: boolean
   getCell: (x: number) => Cella | undefined
 }
 
@@ -182,22 +184,30 @@ export function rigaVestita(riga: RigaSchermo): string {
 export function righeDaSchermo(
   schermo: Schermo,
   altezza: number,
-  quante: number
-): { pulite: string[]; grezze: string[] } {
+  quante: number,
+  colonne?: number
+): { pulite: string[]; grezze: string[]; continua: boolean[]; colonne?: number } {
   const fine = Math.min(schermo.baseY + altezza, schermo.length)
   const nude: string[] = []
   const vestite: string[] = []
+  const continua: boolean[] = []
   for (let y = schermo.baseY; y < fine; y += 1) {
     const riga = schermo.getLine(y)
     if (riga === undefined) continue
     nude.push(testoDiRiga(riga))
     vestite.push(rigaVestita(riga))
+    continua.push(riga.isWrapped === true)
   }
   while (nude.length > 0 && (nude[nude.length - 1] ?? '') === '') {
     nude.pop()
     vestite.pop()
+    continua.pop()
   }
-  return { pulite: nude.slice(-quante), grezze: vestite.slice(-quante) }
+  // Le colonne e le continuazioni (0.52.6): il telefono ricompone il testo per
+  // la sua larghezza (`ricomponiSchermo`). La prima riga tagliata non continua niente.
+  const tagliate = continua.slice(-quante)
+  if (tagliate.length > 0) tagliate[0] = false
+  return { pulite: nude.slice(-quante), grezze: vestite.slice(-quante), continua: tagliate, ...(colonne !== undefined ? { colonne } : {}) }
 }
 
 /**
@@ -208,14 +218,16 @@ export function righeDaSchermo(
  * toglie da qui, altrimenti si continuerebbe a leggere lo schermo di una chat
  * chiusa.
  */
-const schermi = new Map<string, { schermo: () => Schermo; altezza: () => number }>()
+const schermi = new Map<string, { schermo: () => Schermo; altezza: () => number; larghezza?: () => number }>()
 
 export function registraSchermo(
   ptyId: string,
   schermo: () => Schermo,
-  altezza: () => number
+  altezza: () => number,
+  /** Le colonne del terminale (0.52.6): servono al telefono per ricomporre il testo. */
+  larghezza?: () => number
 ): void {
-  schermi.set(ptyId, { schermo, altezza })
+  schermi.set(ptyId, { schermo, altezza, ...(larghezza !== undefined ? { larghezza } : {}) })
 }
 
 export function dimenticaSchermo(ptyId: string): void {
@@ -231,11 +243,11 @@ export function dimenticaSchermo(ptyId: string): void {
 export function righeDiPty(
   ptyId: string,
   quante: number
-): { pulite: string[]; grezze: string[] } | undefined {
+): { pulite: string[]; grezze: string[]; continua: boolean[]; colonne?: number } | undefined {
   const voce = schermi.get(ptyId)
   if (voce === undefined) return undefined
   try {
-    return righeDaSchermo(voce.schermo(), voce.altezza(), quante)
+    return righeDaSchermo(voce.schermo(), voce.altezza(), quante, voce.larghezza?.())
   } catch {
     // Un terminale smontato a metà lettura non deve far cadere l'annuncio di
     // tutte le altre chat.
@@ -259,7 +271,7 @@ export function finestraDiPty(
   ptyId: string,
   da: number,
   quante: number
-): { totale: number; da: number; pulite: string[]; grezze: string[] } | undefined {
+): { totale: number; da: number; pulite: string[]; grezze: string[]; continua: boolean[]; colonne?: number } | undefined {
   const voce = schermi.get(ptyId)
   if (voce === undefined) return undefined
   try {
@@ -270,13 +282,17 @@ export function finestraDiPty(
     const fine = Math.min(totale, inizio + passo)
     const pulite: string[] = []
     const grezze: string[] = []
+    const continua: boolean[] = []
     for (let y = inizio; y < fine; y += 1) {
       const riga = schermo.getLine(y)
       if (riga === undefined) continue
       pulite.push(testoDiRiga(riga))
       grezze.push(rigaVestita(riga))
+      // La prima della finestra non continua niente che si veda.
+      continua.push(y > inizio && riga.isWrapped === true)
     }
-    return { totale, da: inizio, pulite, grezze }
+    const colonne = voce.larghezza?.()
+    return { totale, da: inizio, pulite, grezze, continua, ...(colonne !== undefined ? { colonne } : {}) }
   } catch {
     return undefined
   }

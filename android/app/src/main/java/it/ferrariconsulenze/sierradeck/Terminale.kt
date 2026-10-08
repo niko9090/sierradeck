@@ -96,6 +96,39 @@ fun righeAdattate(grezze: List<String>): List<AnnotatedString> {
     return fuori
 }
 
+/** Un pezzo dello schermo in «Adatta» (2.52.6). */
+sealed class Blocco {
+    object Vuoto : Blocco()
+    data class Testo(val riga: AnnotatedString) : Blocco()
+    /** Righe che valgono per il loro allineamento: monospazio, senza andare a capo, scorrono di lato. */
+    data class Griglia(val righe: List<AnnotatedString>) : Blocco()
+}
+
+/**
+ * Le righe del PC come si leggono sul telefono (2.52.6): `Ricomponi` unisce il
+ * testo spezzato dal PC; le griglie consecutive stanno in un blocco solo.
+ */
+fun blocchiAdattati(grezze: List<String>, continua: List<Boolean>, colonne: Int): List<Blocco> {
+    val righe = Ricomponi.ricomponi(grezze, continua.takeIf { it.size == grezze.size }, colonne.takeIf { it > 0 })
+    val fuori = mutableListOf<Blocco>()
+    for (r in righe) {
+        when (r.tipo) {
+            "vuota" -> fuori.add(Blocco.Vuoto)
+            "griglia" -> {
+                val a = ansiAnnotato(r.vestita)
+                val ultimo = fuori.lastOrNull()
+                if (ultimo is Blocco.Griglia) fuori[fuori.size - 1] = Blocco.Griglia(ultimo.righe + a)
+                else fuori.add(Blocco.Griglia(listOf(a)))
+            }
+            else -> {
+                val t = senzaCornice(ansiAnnotato(r.vestita))
+                if (t.text.isNotEmpty()) fuori.add(Blocco.Testo(t))
+            }
+        }
+    }
+    return fuori
+}
+
 /**
  * Lo schermo della chat.
  *
@@ -110,6 +143,8 @@ fun righeAdattate(grezze: List<String>): List<AnnotatedString> {
 @Composable
 fun VistaTerminale(
     grezze: List<String>,
+    continua: List<Boolean> = emptyList(),
+    colonne: Int = 0,
     modo: ModoTerminale,
     dimensione: Int,
     piuSopra: Boolean = false,
@@ -150,19 +185,30 @@ fun VistaTerminale(
                 Box(Modifier.height(10.dp))
             }
             if (modo == ModoTerminale.ADATTA) {
-                val righe = righeAdattate(grezze)
-                if (righe.isEmpty()) VuotoInAttesa(guasto)
-                for (riga in righe) {
-                    if (riga.text.isEmpty()) {
-                        Box(Modifier.height(8.dp))
-                    } else {
-                        Text(
-                            riga,
+                // Ricomposto per la larghezza del telefono (2.52.6): il testo unito e a
+                // capo qui; tabelle e riquadri in una griglia che scorre di lato.
+                val blocchi = blocchiAdattati(grezze, continua, colonne)
+                if (blocchi.isEmpty()) VuotoInAttesa(guasto)
+                for (b in blocchi) {
+                    when (b) {
+                        is Blocco.Vuoto -> Box(Modifier.height(8.dp))
+                        is Blocco.Testo -> Text(
+                            b.riga,
                             fontFamily = FontTerminale,
                             fontSize = dimensione.sp,
                             lineHeight = (dimensione * 1.5f).sp,
                             modifier = Modifier.fillMaxWidth()
                         )
+                        is Blocco.Griglia -> Column(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 2.dp)) {
+                            for (r in b.righe) Text(
+                                r,
+                                fontFamily = FontTerminale,
+                                fontSize = dimensione.sp,
+                                lineHeight = (dimensione * 1.35f).sp,
+                                softWrap = false,
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
             } else {

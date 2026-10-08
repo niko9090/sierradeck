@@ -18,6 +18,7 @@
 
 import { FASI_CATALOGO } from '../shared/catalogo-progresso'
 import { ansiInHtml } from '@shared/ansi-html'
+import { ricomponiSchermo } from '@shared/ricomponi-schermo'
 
 /** Il cristallo, per la scheda del browser e per la schermata Home. */
 export const ICONA_SVG =
@@ -374,6 +375,11 @@ export function paginaClient(): string {
   /* Le ultime righe, quando si chiede di guardare dentro. Qui il testo va a
      capo davvero: non e' piu' un colpo d'occhio, e' la cosa che si sta
      leggendo per decidere se serve intervenire. */
+  /* 0.52.6: il testo va a capo sulla larghezza del telefono, una riga per
+     paragrafo; le griglie (tabelle, riquadri) restano allineate e scorrono. */
+  .r-t { white-space: pre-wrap; word-break: break-word; padding-left: 2ch; text-indent: -2ch; }
+  .r-v { height: 0.6em; }
+  .r-g { white-space: pre; overflow-x: auto; word-break: normal; margin: 2px 0; }
   .dentro {
     margin-top: var(--s2); padding: var(--s2); border-radius: var(--raggio); background: var(--fondo-cupo);
     font-family: ui-monospace, Consolas, monospace; font-size: var(--t1); color: var(--testo);
@@ -387,7 +393,7 @@ export function paginaClient(): string {
   }
   .cartella__nome { font-size: var(--t2); }
   /* Il percorso tagliato da sinistra: «…\\progetti\\sierradeck» dice quello che
-     serve, «C:\\Users\\nikof\\Documents\\…» non dice niente. */
+     serve, «C:\\Users\\nome\\Documents\\…» non dice niente. */
   .cartella__dove {
     font-family: ui-monospace, Consolas, monospace; font-size: var(--t0);
     color: var(--testo-quieto); direction: rtl; text-align: left;
@@ -537,6 +543,9 @@ export function paginaClient(): string {
 // test, e qui dentro ci arriva per intero: quello che gira nel telefono e'
 // esattamente il codice che e' stato verificato.
 ${ansiInHtml.toString()}
+// Il testo ricomposto per la larghezza del telefono (0.52.6): stesso codice
+// del modulo condiviso, con i suoi test.
+${ricomponiSchermo.toString()}
 
 const CHIAVE = 'sierradeck.chiave'
 let chiave = localStorage.getItem(CHIAVE) || ''
@@ -556,6 +565,30 @@ var righeDentro = []
 var cartelle = null
 // Le stesse righe con i loro colori: si vestono qui, nel telefono.
 var righeGrezze = []
+// Le continuazioni di xterm e le colonne del PC (0.52.6): un PC vecchio non le manda.
+var continuaDentro = null
+var colonneDentro = 0
+/*
+ * Lo schermo della chat per il telefono (0.52.6): il testo unito e a capo
+ * sulla larghezza di qui; tabelle, riquadri e colonne allineate in un blocco
+ * a griglia, in monospazio, che scorre di lato invece di andare a capo.
+ */
+function schermoHtml(grezze, continua, colonne) {
+  var righe = ricomponiSchermo({ grezze: grezze, continua: continua || undefined, colonne: colonne || undefined })
+  var html = ''
+  var griglia = []
+  function chiudi() {
+    if (griglia.length) html += '<div class="r-g">' + griglia.map(function (g) { return '<div>' + ansiInHtml(g) + '</div>' }).join('') + '</div>'
+    griglia = []
+  }
+  righe.forEach(function (r) {
+    if (r.tipo === 'griglia') { griglia.push(r.vestita); return }
+    chiudi()
+    html += r.tipo === 'vuota' ? '<div class="r-v"></div>' : '<div class="r-t">' + ansiInHtml(r.vestita) + '</div>'
+  })
+  chiudi()
+  return html
+}
 // Le scelte che il terminale sta aspettando, quando ne aspetta: le riconosce il
 // computer e le manda gia' pronte. Senza, dal telefono un riquadro di scelta e'
 // una cosa che si legge e basta.
@@ -1426,7 +1459,7 @@ function pannello(s) {
     <div class="dentro dentro--alto">\${righeGrezze.length
         // Vestite: il verde di un test passato e il rosso di uno fallito sono
         // meta' di quello che dice come sta andando.
-        ? ansiInHtml(righeGrezze.join(String.fromCharCode(10)))
+        ? schermoHtml(righeGrezze, continuaDentro, colonneDentro)
         : righeDentro.length ? esc(righeDentro.join(String.fromCharCode(10)))
         : 'Ancora niente da mostrare.'}</div>
     \${scelteDentro
@@ -2007,6 +2040,8 @@ async function leggiDentro() {
     const r = await chiedi('/api/dentro', { chat: dentro })
     righeDentro = r.righe || []
     righeGrezze = r.grezze || []
+    continuaDentro = Array.isArray(r.continua) && r.continua.length === righeGrezze.length ? r.continua : null
+    colonneDentro = typeof r.colonne === 'number' ? r.colonne : 0
     scelteDentro = r.scelte || null
     if (scelteDentro && sceltaRisposta && sceltaRisposta.firma === firmaScelte(scelteDentro) &&
         Date.now() - sceltaRisposta.quando < SCELTA_RISPOSTA_MS) scelteDentro = null

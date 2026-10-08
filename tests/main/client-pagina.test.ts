@@ -861,6 +861,22 @@ describe('la pagina: Domande come conversazioni e albero delle chat', () => {
     expect(script).toContain('domandeConversazioni ? vistaConversazioni() : vistaDomande(s)')
   })
 
+  it('0.52.6: lo schermo della chat ricomposto per il telefono, testo a capo e griglie che scorrono', () => {
+    const f = new Function(`${riga('const esc =')}\n${estrai('ansiInHtml')}\n${estrai('ricomponiSchermo')}\n${estrai('schermoHtml')}\nreturn schermoHtml`)() as (g: string[], c: boolean[] | null, n: number) => string
+    const grezze = ['● uno due tre quattro cinque', '  sei sette', '', '  │ a │ b │', '  │ c │ d │']
+    const html = f(grezze, [false, false, false, false, false], 30)
+    // Il paragrafo in un blocco solo (spezzato dal PC a 30 colonne), la tabella in una griglia.
+    expect(html).toContain('<div class="r-t">')
+    expect(html.match(/class="r-t"/g)).toHaveLength(1)
+    expect(html.match(/class="r-g"/g)).toHaveLength(1)
+    expect(html).toContain('sei sette')
+    // Un PC vecchio (niente colonne né continua): due righe di testo, la griglia c'è lo stesso.
+    const vecchio = f(grezze, null, 0)
+    expect(vecchio.match(/class="r-t"/g)).toHaveLength(2)
+    expect(vecchio.match(/class="r-g"/g)).toHaveLength(1)
+    expect(script).toContain("continuaDentro = Array.isArray(r.continua) && r.continua.length === righeGrezze.length ? r.continua : null")
+  })
+
   it('0.52.5: le opzioni delle domande di Claude Code, con spiegazione, caselle, «Type something.» e «Submit»', () => {
     const f = new Function(`${riga('const esc =')}\n${estrai('etichettaOpzione')}\nreturn etichettaOpzione`)() as (o: unknown) => string
     expect(f({ numero: 2, testo: 'Verde', scelta: false, descrizione: 'Il colore della natura' })).toBe('<span class="scelta__n">2</span>Verde<small class="scelta__descr">Il colore della natura</small>')

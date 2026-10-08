@@ -5,6 +5,13 @@
  * di Node, cosi' il renderer puo' importare senza trascinarsi `node:fs`.
  */
 
+/**
+ * Un'opzione di una domanda ferma sullo schermo di quel PC (0.52.6): viaggia
+ * nel battito, così le Domande degli altri PC hanno i pulsanti. La scelta poi
+ * passa dal ponte, e quel PC la ricontrolla sul suo schermo prima di premere.
+ */
+export type OpzioneBattito = { numero: number; testo: string; libera?: boolean; spuntata?: boolean; invio?: boolean }
+
 export type ChatDiPc = {
   /** L'id del riquadro su quel PC: serve per scriverci. Non viaggia sul Drive. */
   id?: string
@@ -13,6 +20,8 @@ export type ChatDiPc = {
   cwd: string
   viva: boolean
   aspetta: boolean
+  /** Le opzioni della domanda sullo schermo, se è ferma su una (0.52.6). Mai per una chat con il PIN. */
+  scelte?: OpzioneBattito[]
 }
 
 export type BattitoPc = {
@@ -29,7 +38,7 @@ export type BattitoPc = {
   /** Le cartelle in cui quel PC puo' lavorare adesso: chat aperte e progetti collegati. */
   cartelle: string[]
   /** Le chat aperte su quel PC, con se aspettano. */
-  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean }[]
+  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; scelte?: OpzioneBattito[] }[]
   /**
    * Dove bussare per guardare una sua chat dal vivo: gli indirizzi del suo
    * Client (rete di casa davanti, Tailscale dopo) e la porta. Mancano nei

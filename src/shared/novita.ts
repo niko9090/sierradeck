@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.52.6',
+    righe: [
+      '**Le chat si leggono bene sul telefono, qualunque sia il PC.** Claude Code va a capo da solo alla larghezza del terminale del computer: con un PC dallo schermo largo le frasi arrivavano spezzate a metà e le tabelle andavano a capo storte. Adesso nell’app e nella pagina il testo si rimette insieme e va a capo sulla larghezza del telefono, mentre tabelle e riquadri restano allineati come sul PC e scorrono di lato.',
+      '**Con un PC non ancora aggiornato non si rompe niente.** Lo schermo si mostra come prima, e nella scheda di un autopilota le parti che quel PC non manda ancora sono dette in una riga, con il nome del PC: «… arriva aggiornando NOME alla versione X», invece di linguette vuote.',
+      '**Le domande delle chat degli altri PC hanno i pulsanti.** Nella colonna Domande, sulla pagina e nell’app, una chat di un altro computer ferma su una domanda mostra le sue opzioni: tocchi, e la scelta arriva a quel PC, che controlla che la domanda sia ancora quella prima di premere. App Android 2.52.6.'
+    ]
+  },
+  {
     versione: '0.52.5',
     righe: [
       '**Rispondere alle domande delle chat funziona di nuovo.** Quando Claude Code fa una domanda con le opzioni (quelle con una spiegazione sotto ogni scelta), il programma non la riconosceva: nelle Domande, sulla pagina e nell’app compariva solo il campo di testo, e una risposta scritta lì faceva scegliere a Claude la prima opzione. Adesso la domanda arriva con i suoi pulsanti e le spiegazioni, dal PC, dal telefono e dagli altri PC, e la risposta arriva alla chat giusta.',

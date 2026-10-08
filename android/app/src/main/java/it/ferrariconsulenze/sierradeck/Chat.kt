@@ -466,7 +466,9 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                         totale = d.grezze.size,
                         da = 0,
                         righe = d.righe,
-                        grezze = d.grezze
+                        grezze = d.grezze,
+                        continua = d.continua,
+                        colonne = d.colonne
                     )
                     guasto = "Questo computer non sa ancora dare la conversazione intera: aggiornalo e potrai risalirla."
                 } catch (e2: Exception) {
@@ -554,6 +556,9 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
         // ─── terminale ───
         VistaTerminale(
             grezze = storia?.grezze ?: emptyList(),
+            // Per ricomporre il testo sulla larghezza del telefono (PC 0.52.6).
+            continua = storia?.continua ?: emptyList(),
+            colonne = storia?.colonne ?: 0,
             modo = modo,
             dimensione = dimensione,
             piuSopra = (storia?.da ?: 0) > 0,

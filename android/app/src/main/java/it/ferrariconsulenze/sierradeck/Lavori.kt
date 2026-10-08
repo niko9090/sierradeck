@@ -315,7 +315,10 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
             val domanda = false
             if (det != null && (det.domandeScheda.isNotEmpty() || det.domanda)) {
                 Text(
-                    "Ti ha fatto una domanda: è nella linguetta «Domande» qui sotto, con il numero di quelle aperte.",
+                    // Un PC prima della 0.38.0 non ha la linguetta: si dice dove rispondere.
+                    if (FunzioniPc.disponibile(FunzionePc.DOMANDE_AUTOPILOTA, PcCorrente.versione) == false)
+                        "Ti ha fatto una domanda: rispondi dalla scheda «Domande» dell'app. " + FunzioniPc.testoMancante(FunzionePc.DOMANDE_AUTOPILOTA)
+                    else "Ti ha fatto una domanda: è nella linguetta «Domande» qui sotto, con il numero di quelle aperte.",
                     color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 4.dp)
                 )
             }
@@ -377,6 +380,16 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
         HorizontalDivider(color = Banco.incisione)
 
         // ─── le linguette: la meta' di sotto ───
+        // Un PC vecchio (2.52.6): quello che non manda ancora, detto in una riga
+        // per parte, invece di linguette vuote che sembrano un guasto.
+        val avvisi = FunzioniPc.avvisiScheda(PcCorrente.versione, PcCorrente.nome)
+        if (avvisi.isNotEmpty()) {
+            Text(
+                avvisi.joinToString("\n"),
+                color = Banco.ambra, fontSize = 11.sp,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+        }
         // Le linguette per chiave (0.38.0): «Domande» per prima solo se ce ne sono.
         val schede = det?.domandeScheda ?: emptyList()
         val chiavi = linguetteAutopilota(schede.size)

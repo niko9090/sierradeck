@@ -47,8 +47,8 @@ class CompatibilitaPcTest {
             val pc = Api.json.decodeFromString(Ciao.serializer(), leggi(v, "ciao")).versione
             FunzionePc.entries.filter { FunzioniPc.disponibile(it, pc) == true }.toSet()
         }
-        assertEquals(setOf(FunzionePc.DIALOGO_AUTOPILOTA, FunzionePc.DOMANDE), accese["0.36.0"])
-        assertEquals(setOf(FunzionePc.DIALOGO_AUTOPILOTA, FunzionePc.DOMANDE, FunzionePc.FILE_AUTOPILOTA), accese["0.38.0"])
+        assertEquals(setOf(FunzionePc.DIALOGO_AUTOPILOTA, FunzionePc.CHAT_AUTOPILOTA, FunzionePc.DOMANDE, FunzionePc.ALBERO_AUTOPILOTA), accese["0.36.0"])
+        assertEquals(setOf(FunzionePc.DIALOGO_AUTOPILOTA, FunzionePc.CHAT_AUTOPILOTA, FunzionePc.DOMANDE, FunzionePc.ALBERO_AUTOPILOTA, FunzionePc.DOMANDE_AUTOPILOTA, FunzionePc.FILE_AUTOPILOTA), accese["0.38.0"])
         assertEquals(FunzionePc.entries.filter { !Aggiornamenti.piuNuova("0.42.0", it.minima) }.toSet(), accese["0.42.0"])
         assertFalse(FunzionePc.SALUTE in accese["0.42.0"]!!)
     }
@@ -89,5 +89,43 @@ class CompatibilitaPcTest {
         assertEquals(listOf("id_rsa", "id_ed25519"), d.voci[0].opzioni.map { it.testo })
         assertEquals(1, d.voci[1].opzioni[0].numero)
         assertTrue(d.voci[1].opzioni[0].scelta)
+    }
+
+    /**
+     * 2.52.6, Nicholas (08/10): «con certi PC nel cell si vede male l'autopilota».
+     * Con le risposte vere di un PC vecchio la scheda mostra quello che c'è e,
+     * sopra le linguette, una riga per ogni parte che manca, con il nome del PC.
+     */
+    @Test
+    fun `la scheda dell'autopilota di un PC vecchio - quello che c'è, e cosa arriva aggiornando NOME`() {
+        val a36 = Api.json.decodeFromString(AutopilotaDettaglio.serializer(), leggi("0.36.0", "autopilota"))
+        assertEquals("ap-1", a36.id)
+        assertTrue(a36.domandeScheda.isEmpty())
+        val avvisi36 = FunzioniPc.avvisiScheda("0.36.0", "PC-ESEMPIO")
+        assertEquals(
+            listOf(
+                "La linguetta Domande dell'autopilota arriva aggiornando PC-ESEMPIO alla 0.38.0.",
+                "La linguetta File arriva aggiornando PC-ESEMPIO alla 0.38.0.",
+                "La linguetta Istruzioni arriva aggiornando PC-ESEMPIO alla 0.41.0."
+            ),
+            avvisi36
+        )
+        // 0.38 (come un portatile rimasto indietro): manca solo Istruzioni.
+        assertEquals(listOf("La linguetta Istruzioni arriva aggiornando PC-ESEMPIO alla 0.41.0."), FunzioniPc.avvisiScheda("0.38.2", "PC-ESEMPIO"))
+        // Aggiornato, o versione sconosciuta: nessun avviso.
+        assertTrue(FunzioniPc.avvisiScheda("0.42.0", "PC-ESEMPIO").isEmpty())
+        assertTrue(FunzioniPc.avvisiScheda(null, "PC-ESEMPIO").isEmpty())
+        // Senza nome: «il PC», come prima.
+        assertEquals("La linguetta Istruzioni arriva aggiornando il PC alla 0.41.0.", FunzioniPc.testoMancante(FunzionePc.ISTRUZIONI, null))
+        // Molto vecchio (prima della chat con lui).
+        assertTrue(FunzioniPc.avvisiScheda("0.28.0", "PC-ESEMPIO").first().startsWith("La chat con l'autopilota arriva aggiornando PC-ESEMPIO alla 0.29.0"))
+    }
+
+    @Test
+    fun `lo schermo di una chat da un PC vecchio - niente colonne né continua, si mostra com'era`() {
+        val vecchio = Api.json.decodeFromString(Storia.serializer(), """{"chat":"p-1","totale":2,"da":0,"righe":["a","b"],"grezze":["● una riga","  un'altra"]}""")
+        assertEquals(0, vecchio.colonne)
+        assertTrue(vecchio.continua.isEmpty())
+        assertEquals(2, blocchiAdattati(vecchio.grezze, vecchio.continua, vecchio.colonne).size)
     }
 }

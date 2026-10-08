@@ -335,7 +335,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
         // un'interfaccia a tutto schermo si ridisegna in posizione, e rimetterne
         // insieme i pezzi in fila dava le scritte mischiate che si vedevano dal
         // telefono. La griglia di xterm quel lavoro l'ha gia' fatto.
-        registraSchermo(id, () => term.buffer.active, () => term.rows)
+        registraSchermo(id, () => term.buffer.active, () => term.rows, () => term.cols)
         ultimoPtyId.current = id
         avvio.current.onPtyId(paneId, id)
       }

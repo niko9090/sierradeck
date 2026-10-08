@@ -9,7 +9,7 @@ import { rotteClient, type DipendenzeRotte, type Chat } from '../../src/main/cli
 import { apriDispositivi } from '../../src/main/dispositivi'
 import { creaGuardianoPin } from '../../src/main/pin-guardiano'
 import { creaClientPcRemoto, ErroreRemoto } from '../../src/main/pc-remoto'
-import { GIU, INVIO } from '@shared/scelte-terminale'
+import { GIU, INVIO, scelteDiTerminale } from '@shared/scelte-terminale'
 import type { BattitoPc } from '@shared/posta'
 
 /**
@@ -198,3 +198,96 @@ describe('da un altro PC (ponte con la chiave di casa) e con il PIN', () => {
     expect(b.tasti).toEqual([{ chat: 'p-1', pezzi: [GIU, INVIO] }])
   })
 })
+
+/**
+ * 0.52.6: nella colonna Domande le chat degli **altri** PC ferme su una domanda
+ * hanno i pulsanti. Le opzioni arrivano dal battito di quel PC; la scelta va
+ * per il ponte, e quel PC la ricontrolla sul suo schermo prima di premere.
+ */
+describe('le domande delle chat di un altro PC hanno i pulsanti (0.52.6)', () => {
+  async function dueComputer(): Promise<{ a: ReturnType<typeof rotteClient>; b: Banco }> {
+    // Il PC B, con la chat ferma sulla domanda vera, dietro il suo server.
+    const b = banco('singola')
+    const dispositivi = apriDispositivi(mkdtempSync(join(tmpdir(), 'sd-domande-b-')))
+    const s = creaServerClient({ dispositivi, chiaveDiCasa: () => K, rotta: (r) => b.rotte(r) })
+    server.push(s)
+    await new Promise<void>((r) => s.listen(0, '127.0.0.1', () => r()))
+    const porta = (s.address() as AddressInfo).port
+    // Il battito di B, come lo scrive il postino: le opzioni dalla domanda sullo schermo.
+    const sc = scelteDiTerminale(schermo('singola').join('\n'))!
+    const battitoB: BattitoPc = {
+      pcId: 'pc-b', nome: 'PC-ESEMPIO', versione: '0.52.6', battito: new Date().toISOString(), cartelle: [], indirizzi: ['127.0.0.1'], porta,
+      chat: [{ sessione: 's-prova', titolo: 'Prova', cwd: 'C:\\Progetti\\Esempio', aspetta: false, scelte: sc.opzioni.map((o) => ({ numero: o.numero, testo: o.testo, ...(o.libera === true ? { libera: true } : {}) })) }]
+    }
+    const ponte = creaClientPcRemoto({ battiti: () => [battitoB], chiavePer: () => K, mioNome: () => 'PC-FISSO', mioId: () => 'pc-a' })
+    // Il PC A: le sue rotte, con il battito di B e la scelta per il ponte (come index.ts).
+    const a = rotteClient({
+      dispositivi: apriDispositivi(mkdtempSync(join(tmpdir(), 'sd-domande-a-'))),
+      chat: () => [], autopiloti: async () => [], domande: async () => [], workspace: async () => ({ nomi: [], attivo: '' }),
+      scriviAChat: () => undefined, aggiornamento: () => ({ fase: 'fermo' }),
+      pcIo: () => 'pc-a',
+      pc: async () => [battitoB],
+      scriviAltroPc: async () => ({ ok: true }),
+      scegliAltroPc: async (pcId: string, sessione: string, opzione: string, libera?: string) => {
+        try {
+          const st = await ponte.chiama(pcId, '/api/stato') as { chat: { id: string; sessione?: string }[] }
+          const c = st.chat.find((x) => x.sessione === sessione)
+          if (c === undefined) return { ok: false, messaggio: 'chat non più aperta', stato: 404 }
+          await ponte.chiama(pcId, '/api/scegli', { chat: c.id, opzione, ...(libera !== undefined ? { testo: libera } : {}) })
+          return { ok: true }
+        } catch (e) { return { ok: false, messaggio: String(e), ...((e as ErroreRemoto).stato !== undefined ? { stato: (e as ErroreRemoto).stato } : {}) } }
+      }
+    } as unknown as DipendenzeRotte)
+    return { a, b }
+  }
+
+  it('la colonna del PC A mostra la domanda di B con le opzioni; il tocco arriva a B con i tasti giusti', async () => {
+    const { a, b } = await dueComputer()
+    const d = await a({ metodo: 'GET', percorso: '/api/domande', corpo: undefined })
+    const voce = (d.corpo as { voci: { tipo: string; chat: string; titolo: string; opzioni: { testo: string; libera?: boolean }[] }[] }).voci.find((v) => v.chat === 'pc:pc-b:s-prova')
+    expect(voce?.tipo).toBe('scelta')
+    expect(voce?.titolo).toContain('su PC-ESEMPIO')
+    expect(voce?.opzioni.map((o) => o.testo)).toEqual(['Rosso', 'Verde', 'Blu', 'Type something.', 'Chat about this'])
+    expect(voce?.opzioni[3]?.libera).toBe(true)
+    // Le conversazioni (colonna, pagina, app) hanno le scelte da toccare.
+    const conv = (d.corpo as { conversazioni: { chiave: string; scelte?: { chat: string } }[] }).conversazioni.find((c) => c.scelte?.chat === 'pc:pc-b:s-prova')
+    expect(conv).toBeDefined()
+    expect((await a({ metodo: 'POST', percorso: '/api/scegli', corpo: { chat: 'pc:pc-b:s-prova', opzione: 'Blu' } })).corpo).toEqual({ fatto: true })
+    expect(b.tasti).toEqual([{ chat: 'p-1', pezzi: [GIU + GIU, INVIO] }])
+  })
+  it('la risposta libera e il rifiuto di B (domanda cambiata) passano per il ponte', async () => {
+    const { a, b } = await dueComputer()
+    expect((await a({ metodo: 'POST', percorso: '/api/scegli', corpo: { chat: 'pc:pc-b:s-prova', opzione: 'Type something.', testo: 'Arancione' } })).stato).toBe(200)
+    expect(b.tasti[0]?.pezzi).toEqual([GIU + GIU + GIU, 'Arancione', INVIO])
+    const cambiata = await a({ metodo: 'POST', percorso: '/api/scegli', corpo: { chat: 'pc:pc-b:s-prova', opzione: 'Viola' } })
+    expect(cambiata.stato).toBe(409)
+    expect(b.tasti).toHaveLength(1)
+  })
+  it('il battito porta le opzioni solo se la chat è ferma su una domanda, e mai per una chat con il PIN', () => {
+    const indice = readFileSync(join(__dirname, '../../src/main/index.ts'), 'utf8')
+    expect(indice).toContain("guardianoPin?.protetta(c) === true ? undefined : scelteDiTerminale(")
+    const postino = readFileSync(join(__dirname, '../../src/main/progetti/posta.ts'), 'utf8')
+    expect(postino).toContain('scelte: c.scelte.slice(0, 12)')
+  })
+})
+
+describe('le colonne e le continuazioni arrivano al telefono (0.52.6)', () => {
+  it('/api/storia e /api/dentro portano continua e colonne dalla finestra; senza finestra, niente (com’era)', async () => {
+    const finestra = { totale: 3, da: 0, pulite: ['a', 'b', 'c'], grezze: ['a', 'b', 'c'], continua: [false, true, false], colonne: 120 }
+    const b = banco('singola', { righeDi: async () => finestra } as Partial<DipendenzeRotte>)
+    const st = (await post(b, '/api/storia', { chat: 'p-1' })).corpo as Record<string, unknown>
+    expect(st.continua).toEqual([false, true, false])
+    expect(st.colonne).toBe(120)
+    const de = (await post(b, '/api/dentro', { chat: 'p-1' })).corpo as Record<string, unknown>
+    expect(de.colonne).toBe(120)
+    expect(de.grezze).toEqual(['a', 'b', 'c'])
+    const senza = banco('singola')
+    const s2 = (await post(senza, '/api/storia', { chat: 'p-1' })).corpo as Record<string, unknown>
+    expect(s2.continua).toBeUndefined()
+    expect(s2.colonne).toBeUndefined()
+    // Continua di lunghezza sbagliata: non si manda.
+    const storto = banco('singola', { righeDi: async () => ({ ...finestra, continua: [true] }) } as Partial<DipendenzeRotte>)
+    expect(((await post(storto, '/api/storia', { chat: 'p-1' })).corpo as Record<string, unknown>).continua).toBeUndefined()
+  })
+})
+

@@ -8,6 +8,7 @@ import { creaCassettaDrive } from './rtc/cassetta-drive'
 import { creaUnaCasa, type ChatLocale, type UnaCasa } from './una-casa'
 import { creaOspite, type Ospite } from './ospite'
 import { casaAltrove, casaPerAutopilota } from '@shared/ospite-chat'
+import { scelteDiTerminale } from '@shared/scelte-terminale'
 import { creaSpostaProgetto, impronteSessioni } from './sposta-progetto'
 import { leggiCase, saleDaQui, scendeQui, sessioneDiPercorso, type CasaChat } from '@shared/una-casa'
 import { esitoDaPasso } from '@shared/istruzioni-autopilota'
@@ -1379,11 +1380,17 @@ if (!app.requestSingleInstanceLock()) {
         pcNome: () => identitaPc.leggi().nome,
         identita: () => { const i = identitaPc.leggi(); return { host: i.host, ...(i.nomeScelto !== undefined ? { nomeScelto: i.nomeScelto } : {}) } },
         versione: () => app.getVersion(),
-        chat: () => chatAperte.map((c) => ({
-          id: c.id,
-          ...(c.sessione !== undefined ? { sessione: c.sessione } : {}),
-          titolo: c.titolo, cwd: c.cwd, viva: c.viva === true, aspetta: c.aspetta === true
-        })),
+        chat: () => chatAperte.map((c) => {
+          // Le opzioni di una domanda ferma (0.52.6), per le Domande degli altri
+          // PC. Mai per una chat con il PIN: il battito lo leggono tutti i PC.
+          const s = guardianoPin?.protetta(c) === true ? undefined : scelteDiTerminale((c.codaGrezza ?? c.coda ?? []).join(String.fromCharCode(10)))
+          return {
+            id: c.id,
+            ...(c.sessione !== undefined ? { sessione: c.sessione } : {}),
+            titolo: c.titolo, cwd: c.cwd, viva: c.viva === true, aspetta: c.aspetta === true,
+            ...(s !== undefined ? { scelte: s.opzioni.map((o) => ({ numero: o.numero, testo: o.testo.slice(0, 200), ...(o.libera === true ? { libera: true } : {}), ...(o.spuntata !== undefined ? { spuntata: o.spuntata } : {}), ...(o.invio === true ? { invio: true } : {}) })) } : {})
+          }
+        }),
         // Il PIN delle chat (0.49.1): una persona che scrive dalla cassetta a una
         // chat protetta passa dal PIN, come dal vivo — chi guarda è chi l'ha scritta.
         chiusaPer: (c, v) => {
@@ -3165,6 +3172,23 @@ if (!app.requestSingleInstanceLock()) {
             return { ok: true }
           } catch (e) {
             return { ok: false, messaggio: e instanceof Error ? e.message : String(e), ...(e instanceof ErroreRemoto && e.motivo === 'pin' ? { pin: true } : {}) }
+          }
+        },
+        // Una scelta per la chat di un altro PC, dalle Domande (0.52.6): passa
+        // dal ponte, e quel PC la ricontrolla sul suo schermo prima di premere.
+        scegliAltroPc: async (pcId: string, sessione: string, opzione: string, libera?: string): Promise<{ ok: true } | { ok: false; messaggio: string; stato?: number; pin?: boolean }> => {
+          try {
+            const s = await remoto.chiama(pcId, '/api/stato') as { chat?: ChatSuPc[] }
+            const c = (Array.isArray(s.chat) ? s.chat : []).find((x) => x.sessione === sessione)
+            if (c === undefined) return { ok: false, messaggio: 'quella chat non è più aperta su quel PC', stato: 404 }
+            await remoto.chiama(pcId, '/api/scegli', { chat: String(c.id), opzione, ...(libera !== undefined ? { testo: libera } : {}) })
+            return { ok: true }
+          } catch (e) {
+            return {
+              ok: false, messaggio: e instanceof Error ? e.message : String(e),
+              ...(e instanceof ErroreRemoto && e.stato !== undefined ? { stato: e.stato } : {}),
+              ...(e instanceof ErroreRemoto && e.motivo === 'pin' ? { pin: true } : {})
+            }
           }
         },
         // Il PIN di una chat di un altro PC, dalle Domande (0.49.1): lo controlla quel PC.

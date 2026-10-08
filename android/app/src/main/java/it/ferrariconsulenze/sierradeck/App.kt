@@ -25,6 +25,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -527,6 +528,8 @@ fun Principale(
                 stato?.computer,
                 Postazioni.hostDi(indirizzo)
             )
+            // Il nome per gli avvisi «arriva aggiornando NOME alla X» (2.52.6).
+            SideEffect { if (PcCorrente.nome != intestazione.nome) PcCorrente.nome = intestazione.nome }
             PillolaComputer(
                 nome = intestazione.nome,
                 sotto = intestazione.sotto,

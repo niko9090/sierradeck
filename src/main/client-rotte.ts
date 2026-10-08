@@ -11,6 +11,7 @@ import { PREFERENZE_PREDEFINITE, tavolozza, type Preferenze } from '@shared/pref
 import { validateNomeWorkspace } from './validation'
 import { pathToSlug } from './indexer/project-scanner'
 import { firmaScelte, rispostaDaTesto, scelteDiTerminale, tastiPerRisposta, type Scelta } from '@shared/scelte-terminale'
+import type { OpzioneBattito } from '@shared/posta'
 import { leggiIdChatAltroPc, raccogliDomande, vociPerLeApp } from '@shared/domande-telefono'
 import { domandeScheda } from '@shared/domande-autopilota'
 import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/domande-conversazioni'
@@ -56,7 +57,7 @@ import type { AvvisoDrive } from '@shared/scoperta-pc'
 export type BattitoPcTelefono = {
   pcId: string; nome: string; host?: string; nomeScelto?: string; versione: string; battito: string
   cartelle: string[]
-  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean }[]
+  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; scelte?: OpzioneBattito[] }[]
 }
 
 export type VocePostaTelefono = {
@@ -171,6 +172,8 @@ export type DipendenzeRotte = {
   /** Il PIN di una chat di un altro PC (0.49.1, dalle Domande): lo controlla quel PC. */
   pinAltroPc?: (pcId: string, sessione: string, pin: string) => Promise<{ ok: true } | { ok: false; messaggio: string; stato?: number }>
   scriviAltroPc?: (pcId: string, sessione: string, testo: string) => Promise<{ ok: true } | { ok: false; messaggio: string }>
+  /** Una scelta per la chat di un altro PC (0.52.6), dalle Domande: passa dal ponte. */
+  scegliAltroPc?: (pcId: string, sessione: string, opzione: string, libera?: string) => Promise<{ ok: true } | { ok: false; messaggio: string; stato?: number; pin?: boolean }>
   /** La strada con cui si arriva a quel PC (0.40.0), in due parole: la pagina e l'app la mostrano accanto a «SU <PC>». */
   stradaPc?: (pcId: string) => string | undefined
   /** La linguetta «File» dal telefono (0.38.0): solo lettura. */
@@ -550,6 +553,21 @@ export const RISPOSTA_FRESCA_MS = 8000
 export function battitoVivo(battito: string, ora: number): boolean {
   const t = Date.parse(battito)
   return Number.isFinite(t) && ora - t < 5 * 60_000
+}
+
+/** Un pezzo dello schermo di una chat, come lo manda la finestra. */
+type FinestraRighe = { totale: number; da: number; pulite: string[]; grezze: string[]; continua?: boolean[]; colonne?: number }
+
+/** Le righe che `/api/dentro` prende dalla finestra: quanto lo schermo che il PC tiene in memoria. */
+const RIGHE_DENTRO = 60
+
+/** Le colonne e le continuazioni, solo se ci sono e tornano con le righe. */
+function conLarghezza(f: FinestraRighe | undefined): { continua?: boolean[]; colonne?: number } {
+  if (f === undefined) return {}
+  return {
+    ...(Array.isArray(f.continua) && f.continua.length === f.grezze.length ? { continua: f.continua } : {}),
+    ...(typeof f.colonne === 'number' && f.colonne > 0 ? { colonne: f.colonne } : {})
+  }
 }
 
 /**
@@ -1028,6 +1046,21 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     if (r.metodo === 'POST' && r.percorso === '/api/scegli') {
       const id = stringa(r.corpo, 'chat')
       const voluta = stringa(r.corpo, 'opzione')
+      // La chat di un altro PC (0.52.6): la scelta va là, dove si ricontrolla sullo schermo vero.
+      const altrove = leggiIdChatAltroPc(id)
+      if (altrove !== undefined) {
+        if (deps.scegliAltroPc === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa scegliere nelle chat degli altri PC' } }
+        const libera = stringa(r.corpo, 'testo')
+        const e = await deps.scegliAltroPc(altrove.pcId, altrove.sessione, voluta, libera !== '' ? libera : undefined)
+          .catch((x: unknown) => ({ ok: false as const, messaggio: String(x) }))
+        if (!e.ok) {
+          const st = (e as { stato?: number }).stato
+          if ((e as { pin?: boolean }).pin === true) return { stato: STATO_CHIUSA, corpo: { errore: e.messaggio, pin: 'chiusa' } }
+          return { stato: st === 409 || st === 404 ? st : 502, corpo: { errore: e.messaggio } }
+        }
+        ricordaInviato(id, `scelto: ${voluta}`)
+        return OK({ fatto: true })
+      }
       const trovata = deps.chat().find((c) => c.id === id)
       if (trovata === undefined) return { stato: 404, corpo: { errore: 'chat non trovata' } }
       // Sullo schermo di **adesso**, chiesto alla finestra: la foto dell'elenco
@@ -1060,13 +1093,17 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const id = stringa(r.corpo, 'chat')
       const trovata = deps.chat().find((c) => c.id === id)
       if (trovata === undefined) return { stato: 404, corpo: { errore: 'chat non trovata' } }
+      // Lo schermo di adesso dalla finestra (0.52.6), con le colonne e le
+      // continuazioni per ricomporre il testo; la foto se nessuna risponde.
+      const vivo = (await deps.righeDi?.(id, -1, RIGHE_DENTRO).catch(() => undefined)) as FinestraRighe | undefined
       return OK({
         chat: trovata.id,
         titolo: trovata.titolo,
-        righe: trovata.coda ?? [],
+        righe: vivo?.pulite ?? trovata.coda ?? [],
         // Le righe vestite. Restano anche quelle ripulite: una versione vecchia
         // dell'app Android legge quelle, e non deve trovarsi lo schermo vuoto.
-        grezze: trovata.codaGrezza ?? [],
+        grezze: vivo?.grezze ?? trovata.codaGrezza ?? [],
+        ...conLarghezza(vivo),
         // Le scelte che il terminale sta aspettando, se ne sta aspettando.
         //
         // Si leggono qui e non sul telefono perche' qui si possono provare, e
@@ -1094,15 +1131,16 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const vestite = trovata?.codaGrezza ?? []
       const da = numero(r.corpo, 'da', -1)
       const quante = Math.max(1, Math.min(numero(r.corpo, 'quante', 120), 400))
-      const finestra = (await deps.righeDi?.(id, da, quante)) as
-        | { totale: number; da: number; pulite: string[]; grezze: string[] }
-        | undefined
+      const finestra = (await deps.righeDi?.(id, da, quante)) as FinestraRighe | undefined
       return OK({
         chat: id,
         totale: finestra?.totale ?? vestite.length,
         da: finestra?.da ?? 0,
         righe: finestra?.pulite ?? pulite,
         grezze: finestra?.grezze ?? vestite,
+        // Per ricomporre il testo sul telefono (0.52.6): le continuazioni di
+        // xterm e le colonne del terminale di qui. Senza (foto), non si unisce niente.
+        ...conLarghezza(finestra),
         // Le scelte si leggono **sempre dallo schermo di adesso**, mai dalla
         // finestra chiesta: chi ha risalito la conversazione sta guardando roba
         // vecchia, e i pulsanti devono restare quelli della domanda viva. Sono

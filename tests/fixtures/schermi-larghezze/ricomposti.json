@@ -1,0 +1,738 @@
+{
+ "claude-80": [
+  {
+   "tipo": "griglia",
+   "testo": " ▐▛███▛█   Claude Code v2.1.294"
+  },
+  {
+   "tipo": "testo",
+   "testo": "▝▜██████▀  Haiku 4.5 · Claude Max"
+  },
+  {
+   "tipo": "griglia",
+   "testo": " ▝▝   ▝▝   C:\\Progetti\\Esempio"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "❯ Non usare strumenti. Rispondi in italiano con: 1) un paragrafo unico di circa 90 parole su come si prepara il pane in casa; 2) una tabella markdown di 3 righe con le colonne Ingrediente, Quantità, Nota; 3) un blocco di codice python di 4 righe che stampa gli ingredienti. Nient altro."
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "● Preparare il pane in casa è semplice: mescola farina, acqua, sale e lievito in una ciotola. Impasta per 10 minuti fino a ottenere un composto liscio ed elastico. Lascia lievitare 2-3 ore a temperatura ambiente, coperto. Quando il volume raddoppia, rivolta l'impasto su una superficie infarinata, forma una pagnotta e posizionala su carta da forno. Ultima lievitazione di 1 ora. Inforna a 220°C per 30-35 minuti fino a doratura. Il risultato è pane croccante fuori e morbido dentro."
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ┌─────────────┬──────────┬──────────────────────┐"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Ingrediente │ Quantità │         Nota         │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ├─────────────┼──────────┼──────────────────────┤"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Farina      │ 500 g    │ Tipo 0 o 00          │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ├─────────────┼──────────┼──────────────────────┤"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Acqua       │ 350 ml   │ Temperatura ambiente │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ├─────────────┼──────────┼──────────────────────┤"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Sale        │ 10 g     │ Fino                 │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  └─────────────┴──────────┴──────────────────────┘"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "  ingredienti = {\"Farina\": \"500 g\", \"Acqua\": \"350 ml\", \"Sale\": \"10 g\"}"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  for nome, quantita in ingredienti.items():"
+  },
+  {
+   "tipo": "testo",
+   "testo": "      print(f\"{nome}: {quantita}\")"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "✻ Cogitated for 6s · done 13:25"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "❯"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  ⚠ Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker · r…"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  ⏸ manual mode on · ? for shortcuts"
+  }
+ ],
+ "claude-80-pc-vecchio": [
+  {
+   "tipo": "griglia",
+   "testo": " ▐▛███▛█   Claude Code v2.1.294"
+  },
+  {
+   "tipo": "testo",
+   "testo": "▝▜██████▀  Haiku 4.5 · Claude Max"
+  },
+  {
+   "tipo": "griglia",
+   "testo": " ▝▝   ▝▝   C:\\Progetti\\Esempio"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "❯ Non usare strumenti. Rispondi in italiano con: 1) un paragrafo unico di circa"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  90 parole su come si prepara il pane in casa; 2) una tabella markdown di 3"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  righe con le colonne Ingrediente, Quantità, Nota; 3) un blocco di codice"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  python di 4 righe che stampa gli ingredienti. Nient altro."
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "● Preparare il pane in casa è semplice: mescola farina, acqua, sale e lievito in"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  una ciotola. Impasta per 10 minuti fino a ottenere un composto liscio ed"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  elastico. Lascia lievitare 2-3 ore a temperatura ambiente, coperto. Quando il"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  volume raddoppia, rivolta l'impasto su una superficie infarinata, forma una"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  pagnotta e posizionala su carta da forno. Ultima lievitazione di 1 ora."
+  },
+  {
+   "tipo": "testo",
+   "testo": "  Inforna a 220°C per 30-35 minuti fino a doratura. Il risultato è pane"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  croccante fuori e morbido dentro."
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ┌─────────────┬──────────┬──────────────────────┐"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Ingrediente │ Quantità │         Nota         │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ├─────────────┼──────────┼──────────────────────┤"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Farina      │ 500 g    │ Tipo 0 o 00          │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ├─────────────┼──────────┼──────────────────────┤"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Acqua       │ 350 ml   │ Temperatura ambiente │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ├─────────────┼──────────┼──────────────────────┤"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Sale        │ 10 g     │ Fino                 │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  └─────────────┴──────────┴──────────────────────┘"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "  ingredienti = {\"Farina\": \"500 g\", \"Acqua\": \"350 ml\", \"Sale\": \"10 g\"}"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  for nome, quantita in ingredienti.items():"
+  },
+  {
+   "tipo": "testo",
+   "testo": "      print(f\"{nome}: {quantita}\")"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "✻ Cogitated for 6s · done 13:25"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "❯"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  ⚠ Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker · r…"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  ⏸ manual mode on · ? for shortcuts"
+  }
+ ],
+ "claude-120": [
+  {
+   "tipo": "griglia",
+   "testo": " ▐▛███▛█   Claude Code v2.1.294"
+  },
+  {
+   "tipo": "testo",
+   "testo": "▝▜██████▀  Haiku 4.5 · Claude Max"
+  },
+  {
+   "tipo": "griglia",
+   "testo": " ▝▝   ▝▝   C:\\Progetti\\Esempio"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "❯ Non usare strumenti. Rispondi in italiano con: 1) un paragrafo unico di circa 90 parole su come si prepara il pane in casa; 2) una tabella markdown di 3 righe con le colonne Ingrediente, Quantità, Nota; 3) un blocco di codice python di 4 righe che stampa gli ingredienti. Nient altro."
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "● Per preparare il pane in casa, inizia mescolando farina, acqua, lievito e sale. Impasta energicamente per 10 minuti fino a ottenere un composto omogeneo ed elastico. Lascia riposare l'impasto a temperatura ambiente per 8-12 ore, coperto. Poi piega l'impasto più volte per sviluppare il glutine, forma una palla e adagiala in una forma. Fai lievitare ancora 2-4 ore finché non raddoppia. Cuoci in forno a 230°C per 30-40 minuti fino a doratura."
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ┌─────────────────────────┬──────────┬────────────────────────┐"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │       Ingrediente       │ Quantità │          Nota          │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ├─────────────────────────┼──────────┼────────────────────────┤"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Farina di grano tenero  │ 500 g    │ Tipo 0 o 00            │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ├─────────────────────────┼──────────┼────────────────────────┤"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Acqua                   │ 350 ml   │ Temperatura ambiente   │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ├─────────────────────────┼──────────┼────────────────────────┤"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Lievito di birra fresco │ 7 g      │ O 2 g di lievito secco │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  └─────────────────────────┴──────────┴────────────────────────┘"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "  ingredienti = [\"Farina\", \"Acqua\", \"Lievito\", \"Sale\"]"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  for ing in ingredienti:"
+  },
+  {
+   "tipo": "testo",
+   "testo": "      print(f\"- {ing}\")"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "✻ Baked for 5s · done 13:25"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "❯"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  ⚠ Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker · restart with CLAUDE_CODE_FORCE_SESSION_PE…"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  ⏸ manual mode on · ? for shortcuts"
+  }
+ ],
+ "claude-120-pc-vecchio": [
+  {
+   "tipo": "griglia",
+   "testo": " ▐▛███▛█   Claude Code v2.1.294"
+  },
+  {
+   "tipo": "testo",
+   "testo": "▝▜██████▀  Haiku 4.5 · Claude Max"
+  },
+  {
+   "tipo": "griglia",
+   "testo": " ▝▝   ▝▝   C:\\Progetti\\Esempio"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "❯ Non usare strumenti. Rispondi in italiano con: 1) un paragrafo unico di circa 90 parole su come si prepara il pane in"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  casa; 2) una tabella markdown di 3 righe con le colonne Ingrediente, Quantità, Nota; 3) un blocco di codice python"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  di 4 righe che stampa gli ingredienti. Nient altro."
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "● Per preparare il pane in casa, inizia mescolando farina, acqua, lievito e sale. Impasta energicamente per 10 minuti"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  fino a ottenere un composto omogeneo ed elastico. Lascia riposare l'impasto a temperatura ambiente per 8-12 ore,"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  coperto. Poi piega l'impasto più volte per sviluppare il glutine, forma una palla e adagiala in una forma. Fai"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  lievitare ancora 2-4 ore finché non raddoppia. Cuoci in forno a 230°C per 30-40 minuti fino a doratura."
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ┌─────────────────────────┬──────────┬────────────────────────┐"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │       Ingrediente       │ Quantità │          Nota          │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ├─────────────────────────┼──────────┼────────────────────────┤"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Farina di grano tenero  │ 500 g    │ Tipo 0 o 00            │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ├─────────────────────────┼──────────┼────────────────────────┤"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Acqua                   │ 350 ml   │ Temperatura ambiente   │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ├─────────────────────────┼──────────┼────────────────────────┤"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Lievito di birra fresco │ 7 g      │ O 2 g di lievito secco │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  └─────────────────────────┴──────────┴────────────────────────┘"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "  ingredienti = [\"Farina\", \"Acqua\", \"Lievito\", \"Sale\"]"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  for ing in ingredienti:"
+  },
+  {
+   "tipo": "testo",
+   "testo": "      print(f\"- {ing}\")"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "✻ Baked for 5s · done 13:25"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "❯"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  ⚠ Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker · restart with CLAUDE_CODE_FORCE_SESSION_PE…"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  ⏸ manual mode on · ? for shortcuts"
+  }
+ ],
+ "claude-200": [
+  {
+   "tipo": "griglia",
+   "testo": " ▐▛███▛█   Claude Code v2.1.294"
+  },
+  {
+   "tipo": "testo",
+   "testo": "▝▜██████▀  Haiku 4.5 · Claude Max"
+  },
+  {
+   "tipo": "griglia",
+   "testo": " ▝▝   ▝▝   C:\\Progetti\\Esempio"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "❯ Non usare strumenti. Rispondi in italiano con: 1) un paragrafo unico di circa 90 parole su come si prepara il pane in casa; 2) una tabella markdown di 3 righe con le colonne Ingrediente, Quantità, Nota; 3) un blocco di codice python di 4 righe che stampa gli ingredienti. Nient altro."
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "● Preparare il pane in casa è semplice: mescola farina, acqua, sale e lievito. Impasta il tutto per 10 minuti finché non diventa elastica. Lascia riposare per 2 ore a temperatura ambiente, coprendo l'impasto con un panno umido. Piega l'impasto ogni 30 minuti. Dopo la lievitazione, trasferisci in una teglia infarinata, crea un taglio sulla superficie e lascia riposare ancora 30 minuti. Infine, inforna a 220°C per 25-30 minuti finché non è dorato e croccante."
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ┌──────────────────┬──────────┬──────────────────────┐"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │   Ingrediente    │ Quantità │         Nota         │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ├──────────────────┼──────────┼──────────────────────┤"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Farina           │ 500g     │ Tipo 0 o 00          │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ├──────────────────┼──────────┼──────────────────────┤"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Acqua            │ 350ml    │ Temperatura ambiente │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ├──────────────────┼──────────┼──────────────────────┤"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Lievito di birra │ 7g       │ Fresco o secco       │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  └──────────────────┴──────────┴──────────────────────┘"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "  ingredienti = {\"Farina\": \"500g\", \"Acqua\": \"350ml\", \"Lievito\": \"7g\"}"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  print(\"Ingredienti per il pane:\")"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  for nome, quantita in ingredienti.items():"
+  },
+  {
+   "tipo": "testo",
+   "testo": "      print(f\"{nome}: {quantita}\")"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "✻ Crunched for 12s · done 13:25"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "❯"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  ⚠ Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker · restart with CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 to keep future transcripts"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  ⏸ manual mode on · ? for shortcuts"
+  }
+ ],
+ "claude-200-pc-vecchio": [
+  {
+   "tipo": "griglia",
+   "testo": " ▐▛███▛█   Claude Code v2.1.294"
+  },
+  {
+   "tipo": "testo",
+   "testo": "▝▜██████▀  Haiku 4.5 · Claude Max"
+  },
+  {
+   "tipo": "griglia",
+   "testo": " ▝▝   ▝▝   C:\\Progetti\\Esempio"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "❯ Non usare strumenti. Rispondi in italiano con: 1) un paragrafo unico di circa 90 parole su come si prepara il pane in casa; 2) una tabella markdown di 3 righe con le colonne Ingrediente, Quantità,"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  Nota; 3) un blocco di codice python di 4 righe che stampa gli ingredienti. Nient altro."
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "● Preparare il pane in casa è semplice: mescola farina, acqua, sale e lievito. Impasta il tutto per 10 minuti finché non diventa elastica. Lascia riposare per 2 ore a temperatura ambiente, coprendo"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  l'impasto con un panno umido. Piega l'impasto ogni 30 minuti. Dopo la lievitazione, trasferisci in una teglia infarinata, crea un taglio sulla superficie e lascia riposare ancora 30 minuti. Infine,"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  inforna a 220°C per 25-30 minuti finché non è dorato e croccante."
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ┌──────────────────┬──────────┬──────────────────────┐"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │   Ingrediente    │ Quantità │         Nota         │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ├──────────────────┼──────────┼──────────────────────┤"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Farina           │ 500g     │ Tipo 0 o 00          │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ├──────────────────┼──────────┼──────────────────────┤"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Acqua            │ 350ml    │ Temperatura ambiente │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  ├──────────────────┼──────────┼──────────────────────┤"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  │ Lievito di birra │ 7g       │ Fresco o secco       │"
+  },
+  {
+   "tipo": "griglia",
+   "testo": "  └──────────────────┴──────────┴──────────────────────┘"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "  ingredienti = {\"Farina\": \"500g\", \"Acqua\": \"350ml\", \"Lievito\": \"7g\"}"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  print(\"Ingredienti per il pane:\")"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  for nome, quantita in ingredienti.items():"
+  },
+  {
+   "tipo": "testo",
+   "testo": "      print(f\"{nome}: {quantita}\")"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "✻ Crunched for 12s · done 13:25"
+  },
+  {
+   "tipo": "vuota",
+   "testo": ""
+  },
+  {
+   "tipo": "testo",
+   "testo": "❯"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  ⚠ Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker · restart with CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 to keep future transcripts"
+  },
+  {
+   "tipo": "testo",
+   "testo": "  ⏸ manual mode on · ? for shortcuts"
+  }
+ ]
+}

@@ -380,6 +380,8 @@ data class Dentro(
     val righe: List<String> = emptyList(),
     /** Righe grezze con i codici ANSI: sono queste che la nativa colora. */
     val grezze: List<String> = emptyList(),
+    val continua: List<Boolean> = emptyList(),
+    val colonne: Int = 0,
     val scelte: Scelte? = null
 )
 
@@ -688,6 +690,10 @@ data class Storia(
     val da: Int = 0,
     val righe: List<String> = emptyList(),
     val grezze: List<String> = emptyList(),
+    /** Riga per riga: continua la precedente, spezzata solo dal terminale del PC (PC 0.52.6). */
+    val continua: List<Boolean> = emptyList(),
+    /** Le colonne del terminale del PC (PC 0.52.6; 0 = PC più vecchio). */
+    val colonne: Int = 0,
     /**
      * Le scelte che il terminale sta aspettando, quando ne aspetta.
      *
