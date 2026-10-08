@@ -33,7 +33,11 @@ export type Consegna = {
 
 export type Ponte = {
   /** Il riquadro che ospita quella sessione, se in questa finestra c'è. */
-  riquadroDi: (sessionId: string) => { paneId: string; ptyId?: string } | undefined
+  /**
+   * `remotoSu`: il riquadro guarda la chat dal vivo su un altro PC (0.52.5),
+   * cioè qui il suo terminale non nasce. Il nome di quel PC.
+   */
+  riquadroDi: (sessionId: string) => { paneId: string; ptyId?: string; remotoSu?: string } | undefined
   apri: (c: Consegna) => string
   scrivi: (ptyId: string, testo: string) => void
   /**
@@ -71,6 +75,12 @@ export type Ponte = {
   sceltaAperta?: (ptyId: string) => boolean
   /** Il riquadro dorme: lo si sveglia, cosi' il suo terminale nasce. */
   sveglia?: (paneId: string) => void
+  /**
+   * Il riquadro è diventato remoto (0.52.5): lo si rimette qui, una volta. La
+   * chat di un autopilota di questo PC vive qui, e il cancello dell'ospite la
+   * lascia partire se la sua casa altrove era solo della regola.
+   */
+  riportaQui?: (paneId: string) => void
   /**
    * Il riquadro non e' in questa finestra (il workspace e' cambiato nel
    * frattempo): si torna nel suo workspace, una volta (0.38.2).
@@ -145,6 +155,9 @@ export const RIPROVA_MS = 400
  * dopo un minuto che restare fermi per sempre.
  */
 export const RESA_MS = 90_000
+
+/** Dopo aver rimesso qui un riquadro remoto, quanto si aspetta prima di dire che resta altrove (0.52.5). */
+export const ATTESA_RIPORTO_MS = 8_000
 
 /**
  * Dopo questo tempo senza «pronta» si scrive comunque (0.38.2): la chat
@@ -247,11 +260,32 @@ function attendiEConsegna(
   ponte: Ponte,
   dopo: (ms: number, cosa: () => void) => void,
   aspettato: number,
-  stato: { conPty?: number; tornato?: boolean; svegliato?: boolean; sceltaDetta?: boolean } = {}
+  stato: { conPty?: number; tornato?: boolean; svegliato?: boolean; sceltaDetta?: boolean; riportato?: number } = {}
 ): void {
   dopo(RIPROVA_MS, () => {
     const ora = ponte.riquadroDi(c.sessionId)
     const passato = aspettato + RIPROVA_MS
+    // Il riquadro guarda la chat su un altro PC (0.52.5, caso NexoraOS del
+    // 07/10): qui il terminale non nasce, e aspettare 90 secondi per poi dire
+    // «guasto» non aiuta nessuno. Si rimette qui una volta; se torna remoto,
+    // la casa è una scelta di Nicholas e lo si dice con il nome del PC.
+    if (ora?.remotoSu !== undefined) {
+      if (stato.riportato === undefined && ponte.riportaQui !== undefined) {
+        ponte.registra?.(`consegna ${c.id}: il riquadro guarda la chat su ${ora.remotoSu}, la riporto qui (è di un autopilota di questo PC)`)
+        ponte.riportaQui(ora.paneId)
+        attendiEConsegna(c, ponte, dopo, passato, { ...stato, riportato: passato })
+        return
+      }
+      // Il riquadro ci mette un attimo a cambiare: si giudica dopo qualche secondo.
+      if (stato.riportato === undefined || passato - stato.riportato >= ATTESA_RIPORTO_MS) {
+        ponte.registra?.(`consegna ${c.id}: la chat è ospitata da ${ora.remotoSu}, non la scrivo`)
+        ponte.segnala?.({
+          ptyId: '', chatId: c.chatId, autopilotaId: c.autopilotaId, titolo: c.titolo,
+          motivo: `la chat è ospitata da ${ora.remotoSu} per una scelta di Nicholas («Ospitata da»): su questo PC non parte, e l'autopilota che la governa è qui. Il compito non è stato scritto. Per farla lavorare qui: 🏠 sulla testata del riquadro → questo PC, oppure «Porta qui la chat»`
+        })
+        return
+      }
+    }
     if (ora?.ptyId !== undefined) {
       const da = stato.conPty ?? passato
       // Una scelta sullo schermo (permesso, fiducia, ripresa): non si scrive
@@ -440,7 +474,11 @@ export function ponteReale(
       const riquadri = Object.values(useLayoutStore.getState().panes)
       const trovato = riquadri.find((p) => p.sessionUuid === sessionId)
       if (trovato === undefined) return undefined
-      return { paneId: trovato.id, ...(trovato.ptyId !== undefined ? { ptyId: trovato.ptyId } : {}) }
+      return {
+        paneId: trovato.id,
+        ...(trovato.ptyId !== undefined ? { ptyId: trovato.ptyId } : {}),
+        ...(trovato.remoto !== undefined ? { remotoSu: trovato.remoto.pcNome !== '' ? trovato.remoto.pcNome : 'un altro PC' } : {})
+      }
     },
 
     // Sempre un riquadro suo, con la sessione decisa dal servizio: e' cio'

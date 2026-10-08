@@ -276,6 +276,12 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.on('client:scrivi', h)
       return () => { ipcRenderer.off('client:scrivi', h) }
     },
+    /** I tasti di una risposta a una domanda della chat, a pezzi (0.52.5). */
+    suTasti: (cb: (m: { chat: string; pezzi: string[] }) => void): (() => void) => {
+      const h = (_e: unknown, m: { chat: string; pezzi: string[] }): void => cb(m)
+      ipcRenderer.on('client:tasti', h)
+      return () => { ipcRenderer.off('client:tasti', h) }
+    },
     /**
      * «Riprendi»: il seguito di una chat interrotta da un aggiornamento.
      *

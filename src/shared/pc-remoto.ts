@@ -90,7 +90,7 @@ export type StoriaRemota = {
   da: number
   righe: string[]
   grezze: string[]
-  scelte?: { opzioni: { numero: number; testo: string; scelta: boolean }[]; corrente: number }
+  scelte?: { opzioni: { numero: number; testo: string; scelta: boolean; descrizione?: string; libera?: boolean; spuntata?: boolean; invio?: boolean }[]; corrente: number; multipla?: boolean }
   /** Via Drive (0.40.0): quando quel PC ha scritto questo schermo, ISO. */
   scritto?: string
 }

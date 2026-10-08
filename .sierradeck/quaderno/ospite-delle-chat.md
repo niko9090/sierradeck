@@ -58,3 +58,8 @@ tag: ["una-casa", "ospite", "multi-pc", "pc-remoto", "causa", "decisione-nichola
 - Se Nicholas fa «Porta qui» mentre l'altro PC aveva lavoro non ancora salvato sul Drive, quel lavoro resta nella copia archiviata dell'altro PC: non si perde, ma non arriva qui da solo.
 - Le chat nuove non hanno casa finché `nascite` non la scrive (giro di 2 minuti): fino ad allora sono di chi le ha create, come prima.
 - Da provare dal vivo con Nicholas: scegliere DESKTOP per una chat aperta su PC-Fisso, poi verificare che PC-Fisso la chiuda a fine turno, la apra dal vivo e la metta nel recupero, e che «Annulla» la rimetta.
+
+# 0.52.5 — le chat degli autopiloti
+
+Il cancello bloccava la chat di un autopilota la cui casa altrove era solo della regola (caso NexoraOS del 07/10: «terminale mai nato» dopo 90 s). Una chat governata vive sul PC del suo autopilota: `casaPerAutopilota` prende la casa se era della regola o della nascita; una scelta di Nicholas resta e la consegna lo dice subito. Dettagli e prove: `rispondere-alle-domande-delle-chat.md`.
+

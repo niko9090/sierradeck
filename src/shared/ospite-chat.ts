@@ -43,9 +43,16 @@ export function casaAltrove(c: CasaChat | undefined, io: string): (PcNoto & { mo
  * PC si ferma con il messaggio «chat di un altro PC», **anche con «apri qui
  * lo stesso»**. Il riquadro lo riconosce dal prefisso e diventa remoto. Si
  * sblocca solo cambiando la casa («Porta qui la chat», con la conferma).
+ *
+ * Una chat **governata da un autopilota** (0.52.5) porta con sé chi la
+ * governa: chi decide (`casa`) sa che l'autopilota è su questo PC e, se la
+ * casa era solo della regola, la prende (vedi `casaPerAutopilota`).
  */
-export function fermaSeCasaAltrove(req: { sessionUuid: string; cwd: string }, casa: (s: string) => (PcNoto & { motivo: string }) | undefined): void {
-  const fuori = casa(req.sessionUuid)
+export function fermaSeCasaAltrove(
+  req: { sessionUuid: string; cwd: string; autopilota?: { id: string; chat: string } },
+  casa: (s: string, autopilota?: { id: string; chat: string }) => (PcNoto & { motivo: string }) | undefined
+): void {
+  const fuori = casa(req.sessionUuid, req.autopilota)
   if (fuori === undefined) return
   throw new Error(messaggioChatAltrove({
     cwd: req.cwd,
@@ -54,6 +61,44 @@ export function fermaSeCasaAltrove(req: { sessionUuid: string; cwd: string }, ca
     casa: true,
     perche: `la sua casa è ${fuori.nome}${fuori.motivo !== '' ? ` (${fuori.motivo})` : ''}`
   }))
+}
+
+/**
+ * La casa di una chat governata da un autopilota di **questo** PC (0.52.5).
+ *
+ * Il difetto (diario dell'autopilota NexoraOS, 07/10 16:24 UTC): «in 90
+ * secondi il terminale della chat non è nato». La chat dell'autopilota aveva
+ * la casa su un altro PC, decisa dalla **regola** della migrazione 0.42 (il
+ * 02/10, «la sua cartella c'è solo su quel PC»). Poi la cartella è arrivata
+ * anche qui e l'autopilota è partito qui. Alla consegna il riquadro si è
+ * svegliato, il cancello della 0.52.0 ha rifiutato l'avvio, il riquadro è
+ * diventato remoto e la consegna si è arresa dopo 90 secondi.
+ *
+ * La regola: **una chat governata vive sul PC del suo autopilota.** Lui legge
+ * il suo schermo e i suoi segnali, e le scrive: da un altro PC non può.
+ * - nessuna casa, o casa qui → `qui`;
+ * - casa altrove decisa dalla regola o dalla nascita → `prendi`: la casa
+ *   diventa questo PC (fonte `sposta`, che pesa come una scelta e quindi
+ *   sposta anche la copia dell'altro PC), e la chat parte;
+ * - casa altrove **scelta da Nicholas** («Ospitata da», «Sposta») → `altrove`:
+ *   la sua scelta non si scavalca. La consegna lo dice chiaro, senza
+ *   chiamarlo guasto, e lui decide (riportarla qui o fermare l'autopilota).
+ */
+export type AvvioGovernata = { tipo: 'qui' } | { tipo: 'prendi'; casa: CasaChat } | { tipo: 'altrove' }
+
+export function casaPerAutopilota(p: { casa: CasaChat | undefined; io: PcNoto; autopilota: string; quando: string }): AvvioGovernata {
+  if (casaAltrove(p.casa, p.io.id) === undefined) return { tipo: 'qui' }
+  if (eScelta(p.casa)) return { tipo: 'altrove' }
+  return {
+    tipo: 'prendi',
+    casa: {
+      pc: p.io.id,
+      pcNome: p.io.nome,
+      motivo: `la governa un autopilota di ${p.io.nome} (${p.autopilota}): una chat governata vive sul PC del suo autopilota; prima era di ${p.casa?.pcNome ?? 'un altro PC'} per la regola`,
+      decisaIl: p.quando,
+      da: 'sposta'
+    }
+  }
 }
 
 /** La scelta «Ospitata da: PC», fatta da Nicholas su `chi` (il PC dove ha cliccato). */

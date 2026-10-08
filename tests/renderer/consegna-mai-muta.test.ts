@@ -12,7 +12,7 @@ const consegna: Consegna = { id: 'c-1', autopilotaId: 'ap-1', chatId: 'ch-1', cw
 
 /** Un tempo finto: `dopo` avanza un orologio e si esegue in ordine. */
 function banco(p: {
-  riquadro: () => { paneId: string; ptyId?: string } | undefined
+  riquadro: () => { paneId: string; ptyId?: string; remotoSu?: string } | undefined
   pronto?: () => boolean
   scelta?: () => boolean
   parteAlInvio?: boolean
@@ -47,6 +47,39 @@ function banco(p: {
   }
   return { ponte, dopo, corri, scritti, passi, segnali, tornato }
 }
+
+/**
+ * Caso NexoraOS (07/10 16:24 UTC): il riquadro della chat dell'autopilota era
+ * diventato remoto (casa su un altro PC) e la consegna aspettava 90 secondi per
+ * poi dire «guasto del programma: il terminale non è nato» (0.52.5).
+ */
+describe('la consegna a una chat diventata remota', () => {
+  it('la riporta qui una volta: se il cancello la lascia partire, il compito si scrive', () => {
+    let remota = true
+    const riportate: string[] = []
+    const b = banco({ riquadro: () => remota ? { paneId: 'p', remotoSu: 'DESKTOP' } : { paneId: 'p', ptyId: 'pty-1' }, pronto: () => true })
+    b.ponte.riportaQui = (id) => { riportate.push(id); remota = false }
+    eseguiConsegna(consegna, b.ponte, b.dopo)
+    b.corri()
+    expect(riportate).toEqual(['p'])
+    expect(b.scritti.some((s) => s.testo === consegna.testo)).toBe(true)
+    expect(b.segnali).toHaveLength(0)
+  })
+  it('se resta remota (scelta di Nicholas) lo dice subito e chiaro, senza chiamarlo guasto', () => {
+    const riportate: string[] = []
+    const b = banco({ riquadro: () => ({ paneId: 'p', remotoSu: 'DESKTOP' }) })
+    b.ponte.riportaQui = (id) => { riportate.push(id) }
+    eseguiConsegna(consegna, b.ponte, b.dopo)
+    b.corri()
+    expect(riportate).toEqual(['p'])
+    expect(b.segnali).toHaveLength(1)
+    expect(b.segnali[0]!.motivo).toContain('ospitata da DESKTOP')
+    expect(b.segnali[0]!.motivo).toContain('Porta qui la chat')
+    expect(b.segnali[0]!.motivo).not.toContain('guasto')
+    expect(b.scritti).toHaveLength(0)
+    expect(b.passi.join(String.fromCharCode(10))).toContain('la riporto qui')
+  })
+})
 
 describe('la consegna con un prompt mai riconosciuto', () => {
   it('scrive lo stesso entro il tetto, poi Invio, e registra ogni passo', () => {

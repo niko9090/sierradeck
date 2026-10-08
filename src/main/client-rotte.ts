@@ -10,7 +10,7 @@ import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopi
 import { PREFERENZE_PREDEFINITE, tavolozza, type Preferenze } from '@shared/preferenze'
 import { validateNomeWorkspace } from './validation'
 import { pathToSlug } from './indexer/project-scanner'
-import { scelteDiTerminale, tastiPerScegliere } from '@shared/scelte-terminale'
+import { firmaScelte, rispostaDaTesto, scelteDiTerminale, tastiPerRisposta, type Scelta } from '@shared/scelte-terminale'
 import { leggiIdChatAltroPc, raccogliDomande, vociPerLeApp } from '@shared/domande-telefono'
 import { domandeScheda } from '@shared/domande-autopilota'
 import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/domande-conversazioni'
@@ -157,6 +157,13 @@ export type DipendenzeRotte = {
    * gia' quella evidenziata e serve il solo invio.
    */
   scriviAChat: (idChat: string, testo: string) => void
+  /**
+   * Manda dei tasti a una chat **a pezzi**, uno dopo l'altro con una pausa,
+   * senza aggiungere niente (0.52.5): le frecce, poi il testo di una risposta
+   * libera, poi l'invio. Senza, si ripiega su `scriviAChat` (frecce e testo
+   * insieme, poi l'invio).
+   */
+  tastiAChat?: (idChat: string, pezzi: string[]) => void
   /**
    * Scrive a una chat di un altro PC (0.37.2): e' cosi' che si risponde, dalle
    * Domande, a una chat che aspetta su un altro computer acceso.
@@ -545,9 +552,14 @@ export function battitoVivo(battito: string, ora: number): boolean {
   return Number.isFinite(t) && ora - t < 5 * 60_000
 }
 
-/** La stessa domanda: le stesse opzioni, nello stesso ordine. Il cursore no: si muove prima dell'invio. */
-function firmaScelte(s: { opzioni: { testo: string }[] }): string {
-  return s.opzioni.map((o) => o.testo).join(String.fromCharCode(10))
+/**
+ * I tasti di una risposta, a pezzi (0.52.5). Un PC senza `tastiAChat` (i test
+ * vecchi) li riceve come prima: tutto tranne l'invio, poi l'invio.
+ */
+function mandaTasti(deps: DipendenzeRotte, chat: string, pezzi: string[]): void {
+  if (deps.tastiAChat !== undefined) { deps.tastiAChat(chat, pezzi); return }
+  const finale = pezzi[pezzi.length - 1] === String.fromCharCode(13)
+  deps.scriviAChat(chat, (finale ? pezzi.slice(0, -1) : pezzi).join(''))
 }
 
 export function rotteClient(depsPieni: DipendenzeRotte) {
@@ -587,6 +599,15 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     if (s === undefined) return false
     const r = risposte.get(chat)
     return r !== undefined && r.firma === firmaScelte(s) && adesso() - r.quando < RISPOSTA_FRESCA_MS
+  }
+  /**
+   * Le scelte sullo schermo di **adesso**, chiesto alla finestra: la foto
+   * dell'elenco ha fino a due secondi, e in due secondi la domanda puo' essere
+   * gia' stata risposta, da qui, un attimo fa. Senza finestra, la foto.
+   */
+  const scelteAdesso = async (c: Chat): Promise<Scelta | undefined> => {
+    const fresche = await deps.schermoDi?.(c.id).catch(() => undefined)
+    return scelteDiTerminale((fresche ?? c.codaGrezza ?? c.coda ?? []).join(String.fromCharCode(10)))
   }
   /** Le scelte da mostrare: nessuna, se sono quelle appena mandate. */
   const scelteVive = (chat: string, righe: string[]): ReturnType<typeof scelteDiTerminale> => {
@@ -965,6 +986,24 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         if (conId) memoriaInvii.segna(chat, idM, adesso())
         return OK({ fatto: true })
       }
+      // La chat è ferma su una scelta (0.52.5): il testo non si scrive nel
+      // selettore, dove Invio sceglieva la prima opzione. Si legge come
+      // un'opzione, la risposta libera o niente (`rispostaDaTesto`).
+      const trovata = deps.chat().find((c) => c.id === chat)
+      if (trovata !== undefined) {
+        const s = await scelteAdesso(trovata)
+        if (s !== undefined) {
+          const r = rispostaDaTesto(s, testo)
+          if ('errore' in r) return { stato: 409, corpo: { errore: r.errore, scelte: s } }
+          const k = tastiPerRisposta(s, r)
+          if ('errore' in k) return { stato: 409, corpo: { errore: k.errore, scelte: s } }
+          mandaTasti(deps, chat, k.pezzi)
+          risposte.set(chat, { firma: firmaScelte(s), quando: adesso() })
+          ricordaInviato(chat, r.tipo === 'opzione' ? `scelto: ${r.testo}` : testo)
+          if (conId) memoriaInvii.segna(chat, idM, adesso())
+          return OK({ fatto: true, comeScelta: r.tipo === 'opzione' ? r.testo : 'risposta libera' })
+        }
+      }
       deps.scriviAChat(chat, testo.slice(0, TESTO_MAX))
       ricordaInviato(chat, testo)
       if (conId) memoriaInvii.segna(chat, idM, adesso())
@@ -994,10 +1033,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       // Sullo schermo di **adesso**, chiesto alla finestra: la foto dell'elenco
       // ha fino a due secondi, e in due secondi la domanda puo' essere gia'
       // stata risposta — da qui, un attimo fa.
-      const fresche = await deps.schermoDi?.(id).catch(() => undefined)
-      const scelte = scelteDiTerminale(
-        (fresche ?? trovata.codaGrezza ?? trovata.coda ?? []).join(String.fromCharCode(10))
-      )
+      const scelte = await scelteAdesso(trovata)
       const dove = scelte?.opzioni.findIndex((o) => o.testo === voluta) ?? -1
       if (scelte === undefined || dove < 0) {
         return { stato: 409, corpo: { errore: 'la scelta e cambiata: guarda di nuovo' } }
@@ -1007,9 +1043,13 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (giaRisposta(id, scelte)) {
         return { stato: 409, corpo: { errore: 'gia mandata: aspetta che lo schermo cambi' } }
       }
-      deps.scriviAChat(id, tastiPerScegliere(scelte.corrente, dove))
+      // «Type something.» con il testo (0.52.5): la risposta libera.
+      const libera = stringa(r.corpo, 'testo')
+      const k = tastiPerRisposta(scelte, scelte.opzioni[dove]?.libera === true && libera.trim() !== '' ? { tipo: 'libera', testo: libera } : { tipo: 'opzione', testo: voluta })
+      if ('errore' in k) return { stato: 409, corpo: { errore: k.errore } }
+      mandaTasti(deps, id, k.pezzi)
       risposte.set(id, { firma: firmaScelte(scelte), quando: adesso() })
-      ricordaInviato(id, `scelto: ${voluta}`)
+      ricordaInviato(id, scelte.opzioni[dove]?.libera === true ? libera : `scelto: ${voluta}`)
       return OK({ fatto: true })
     }
 

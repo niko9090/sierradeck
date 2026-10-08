@@ -432,7 +432,7 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                 // l'alto solo quando sei tu a chiederlo.
                 val letta = api.storia(chat.id, -1, quante)
                 chiusaPin = false
-                val firma = letta.scelte?.opzioni?.joinToString("\n") { it.testo }
+                val firma = SceltaVista.firma(letta.scelte)
                 val risposta = sceltaRisposta
                 storia = if (firma != null && risposta != null && risposta.first == firma &&
                     System.currentTimeMillis() - risposta.second < SCELTA_RISPOSTA_MS
@@ -600,12 +600,14 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                                 shape = RoundedCornerShape(8.dp)
                             )
                             .clickable {
+                                // «Type something.» (2.52.5): si scrive nel campo qui sotto.
+                                if (o.libera) { notaScelta = SceltaVista.SCRIVI; return@clickable }
                                 val quale = o.testo
                                 // Sparisce subito: un pulsante che resta invita a
                                 // premerlo due volte, e il secondo tocco finirebbe
                                 // nella domanda dopo. E resta sparita finche' lo
                                 // schermo non cambia davvero.
-                                sceltaRisposta = scelte.opzioni.joinToString("\n") { it.testo } to System.currentTimeMillis()
+                                sceltaRisposta = (SceltaVista.firma(scelte) ?: "") to System.currentTimeMillis()
                                 storia = storia?.copy(scelte = null)
                                 notaScelta = null
                                 scope.launch {
@@ -618,25 +620,16 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                                         // risposto. Dirlo sempre nel primo modo
                                         // mandava a guardare lo schermo quando
                                         // il problema era la rete.
-                                        notaScelta = if (e is Api.Errore && e.codice == 409)
-                                            (if (e.corpo.contains("mandata")) "Già mandata: aspetta che lo schermo cambi."
-                                            else "La scelta è cambiata mentre toccavi: guarda di nuovo.")
-                                        else
-                                            "Non sono riuscito a mandarla: ${e.message ?: "il computer non risponde"}"
+                                        notaScelta = SceltaVista.rifiuto(e, "mandarla")
+                                        // Rifiutata: la domanda torna, si può ritoccare.
+                                        sceltaRisposta = null
                                     }
                                 }
                             }
                             .padding(horizontal = 12.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            "${o.numero}",
-                            color = Banco.testoQuieto,
-                            fontSize = 12.sp,
-                            fontFamily = FontTerminale,
-                            modifier = Modifier.padding(end = 10.dp)
-                        )
-                        Text(o.testo, color = Banco.testo, fontSize = 14.sp)
+                        TestoOpzione(o)
                     }
                 }
             }

@@ -19,6 +19,7 @@ import { CoperturaPin } from './ChatConPin'
 import { useLayoutStore } from '../state/layout'
 import { pubblicaLinea } from '../linee-remote'
 import { ConfermaPortaQui, useCasa } from './OspiteChat'
+import { EtichettaOpzione } from './EtichettaOpzione'
 
 type Props = {
   paneId: string
@@ -430,8 +431,13 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         <div className="remoto__scelte">
           <div className="remoto__scelte-titolo">La chat aspetta una scelta: tocca l’opzione, la premo là per te.</div>
           {scelte.opzioni.map((o) => (
-            <button key={`${o.numero}-${o.testo}`} className={o.scelta ? 'tasto tasto--primario' : 'tasto'} disabled={invio} onClick={() => scegli(o.testo)}>
-              {o.numero}. {o.testo}
+            <button key={`${o.numero}-${o.testo}`} className={o.scelta ? 'tasto tasto--primario' : 'tasto'} disabled={invio} title={o.descrizione}
+              onClick={() => {
+                // «Type something.» (0.52.5): la risposta si scrive nel campo qui sotto.
+                if (o.libera === true) { setAvviso('Scrivi la risposta nel campo qui sotto e mandala: arriva a Claude come risposta libera.'); return }
+                scegli(o.testo)
+              }}>
+              <EtichettaOpzione o={o} />
             </button>
           ))}
         </div>

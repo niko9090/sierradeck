@@ -1,0 +1,356 @@
+{
+  "due-1": {
+    "opzioni": [
+      {
+        "numero": 1,
+        "testo": "Rosso",
+        "scelta": true,
+        "descrizione": "Colore rosso"
+      },
+      {
+        "numero": 2,
+        "testo": "Blu",
+        "scelta": false,
+        "descrizione": "Colore blu"
+      },
+      {
+        "numero": 3,
+        "testo": "Type something.",
+        "scelta": false,
+        "libera": true
+      },
+      {
+        "numero": 4,
+        "testo": "Chat about this",
+        "scelta": false
+      }
+    ],
+    "corrente": 0
+  },
+  "due-2": {
+    "opzioni": [
+      {
+        "numero": 1,
+        "testo": "Uno",
+        "scelta": true,
+        "descrizione": "Numero uno"
+      },
+      {
+        "numero": 2,
+        "testo": "Due",
+        "scelta": false,
+        "descrizione": "Numero due"
+      },
+      {
+        "numero": 3,
+        "testo": "Type something.",
+        "scelta": false,
+        "libera": true
+      },
+      {
+        "numero": 4,
+        "testo": "Chat about this",
+        "scelta": false
+      }
+    ],
+    "corrente": 0
+  },
+  "due-riepilogo": {
+    "opzioni": [
+      {
+        "numero": 1,
+        "testo": "Submit answers",
+        "scelta": true
+      },
+      {
+        "numero": 2,
+        "testo": "Cancel",
+        "scelta": false
+      }
+    ],
+    "corrente": 0
+  },
+  "libera-scritta": {
+    "opzioni": [
+      {
+        "numero": 1,
+        "testo": "Gatto",
+        "scelta": false,
+        "descrizione": "Un felino domestico"
+      },
+      {
+        "numero": 2,
+        "testo": "Cane",
+        "scelta": false,
+        "descrizione": "Un canide domestico"
+      },
+      {
+        "numero": 3,
+        "testo": "Pappagallo",
+        "scelta": true,
+        "libera": true
+      },
+      {
+        "numero": 4,
+        "testo": "Chat about this",
+        "scelta": false
+      }
+    ],
+    "corrente": 2
+  },
+  "libera-sopra": {
+    "opzioni": [
+      {
+        "numero": 1,
+        "testo": "Gatto",
+        "scelta": false,
+        "descrizione": "Un felino domestico"
+      },
+      {
+        "numero": 2,
+        "testo": "Cane",
+        "scelta": false,
+        "descrizione": "Un canide domestico"
+      },
+      {
+        "numero": 3,
+        "testo": "Type something.",
+        "scelta": true,
+        "libera": true
+      },
+      {
+        "numero": 4,
+        "testo": "Chat about this",
+        "scelta": false
+      }
+    ],
+    "corrente": 2
+  },
+  "libera": {
+    "opzioni": [
+      {
+        "numero": 1,
+        "testo": "Gatto",
+        "scelta": true,
+        "descrizione": "Un felino domestico"
+      },
+      {
+        "numero": 2,
+        "testo": "Cane",
+        "scelta": false,
+        "descrizione": "Un canide domestico"
+      },
+      {
+        "numero": 3,
+        "testo": "Type something.",
+        "scelta": false,
+        "libera": true
+      },
+      {
+        "numero": 4,
+        "testo": "Chat about this",
+        "scelta": false
+      }
+    ],
+    "corrente": 0
+  },
+  "multi-dopo": {
+    "opzioni": [
+      {
+        "numero": 1,
+        "testo": "Submit answers",
+        "scelta": true
+      },
+      {
+        "numero": 2,
+        "testo": "Cancel",
+        "scelta": false
+      }
+    ],
+    "corrente": 0
+  },
+  "multi-spuntata": {
+    "opzioni": [
+      {
+        "numero": 1,
+        "testo": "Lunedì",
+        "scelta": true,
+        "descrizione": "Primo giorno della settimana lavorativa",
+        "spuntata": true
+      },
+      {
+        "numero": 2,
+        "testo": "Martedì",
+        "scelta": false,
+        "descrizione": "Secondo giorno della settimana lavorativa",
+        "spuntata": false
+      },
+      {
+        "numero": 3,
+        "testo": "Mercoledì",
+        "scelta": false,
+        "descrizione": "Terzo giorno della settimana lavorativa",
+        "spuntata": false
+      },
+      {
+        "numero": 4,
+        "testo": "Type something",
+        "scelta": false,
+        "spuntata": false,
+        "libera": true
+      },
+      {
+        "numero": 0,
+        "testo": "Submit",
+        "scelta": false,
+        "invio": true
+      },
+      {
+        "numero": 5,
+        "testo": "Chat about this",
+        "scelta": false
+      }
+    ],
+    "corrente": 0,
+    "multipla": true
+  },
+  "multi-submit": {
+    "opzioni": [
+      {
+        "numero": 1,
+        "testo": "Lunedì",
+        "scelta": false,
+        "descrizione": "Primo giorno della settimana lavorativa",
+        "spuntata": true
+      },
+      {
+        "numero": 2,
+        "testo": "Martedì",
+        "scelta": false,
+        "descrizione": "Secondo giorno della settimana lavorativa",
+        "spuntata": false
+      },
+      {
+        "numero": 3,
+        "testo": "Mercoledì",
+        "scelta": false,
+        "descrizione": "Terzo giorno della settimana lavorativa",
+        "spuntata": false
+      },
+      {
+        "numero": 4,
+        "testo": "Type something",
+        "scelta": false,
+        "spuntata": false,
+        "libera": true
+      },
+      {
+        "numero": 0,
+        "testo": "Submit",
+        "scelta": true,
+        "invio": true
+      },
+      {
+        "numero": 5,
+        "testo": "Chat about this",
+        "scelta": false
+      }
+    ],
+    "corrente": 4,
+    "multipla": true
+  },
+  "multi": {
+    "opzioni": [
+      {
+        "numero": 1,
+        "testo": "Lunedì",
+        "scelta": true,
+        "descrizione": "Primo giorno della settimana lavorativa",
+        "spuntata": false
+      },
+      {
+        "numero": 2,
+        "testo": "Martedì",
+        "scelta": false,
+        "descrizione": "Secondo giorno della settimana lavorativa",
+        "spuntata": false
+      },
+      {
+        "numero": 3,
+        "testo": "Mercoledì",
+        "scelta": false,
+        "descrizione": "Terzo giorno della settimana lavorativa",
+        "spuntata": false
+      },
+      {
+        "numero": 4,
+        "testo": "Type something",
+        "scelta": false,
+        "spuntata": false,
+        "libera": true
+      },
+      {
+        "numero": 0,
+        "testo": "Submit",
+        "scelta": false,
+        "invio": true
+      },
+      {
+        "numero": 5,
+        "testo": "Chat about this",
+        "scelta": false
+      }
+    ],
+    "corrente": 0,
+    "multipla": true
+  },
+  "permesso": {
+    "opzioni": [
+      {
+        "numero": 1,
+        "testo": "Yes",
+        "scelta": true
+      },
+      {
+        "numero": 2,
+        "testo": "No",
+        "scelta": false
+      }
+    ],
+    "corrente": 0
+  },
+  "singola": {
+    "opzioni": [
+      {
+        "numero": 1,
+        "testo": "Rosso",
+        "scelta": true,
+        "descrizione": "Il colore della passione e dell'energia"
+      },
+      {
+        "numero": 2,
+        "testo": "Verde",
+        "scelta": false,
+        "descrizione": "Il colore della natura e della calma"
+      },
+      {
+        "numero": 3,
+        "testo": "Blu",
+        "scelta": false,
+        "descrizione": "Il colore del cielo e della serenità"
+      },
+      {
+        "numero": 4,
+        "testo": "Type something.",
+        "scelta": false,
+        "libera": true
+      },
+      {
+        "numero": 5,
+        "testo": "Chat about this",
+        "scelta": false
+      }
+    ],
+    "corrente": 0
+  }
+}

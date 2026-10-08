@@ -23,7 +23,19 @@
  * Puro: chi chiama porta le tre liste e la funzione che riconosce le scelte.
  */
 
-export type OpzioneScelta = { numero: number; testo: string; scelta: boolean }
+export type OpzioneScelta = {
+  numero: number
+  testo: string
+  scelta: boolean
+  /** La spiegazione sotto l'opzione, nelle domande di Claude Code (0.52.5). */
+  descrizione?: string
+  /** «Type something.»: si risponde scrivendo, non toccando. */
+  libera?: boolean
+  /** Scelta multipla: la casella è spuntata. */
+  spuntata?: boolean
+  /** Scelta multipla: «Submit», manda le caselle spuntate. */
+  invio?: boolean
+}
 
 export type VoceDomanda =
   | {

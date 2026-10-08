@@ -173,8 +173,8 @@ export function impostaRisolviCartella(f: (cwd: string, sessionUuid: string, for
  * parte. Lo imposta il Core dalle case memorizzate; senza, nessuna chat ha
  * casa altrove (i test, e il primo istante dopo l'avvio).
  */
-let casaAltroveDi: (sessionUuid: string) => { id: string; nome: string; motivo: string } | undefined = () => undefined
-export function impostaGuardiaCasa(f: (sessionUuid: string) => { id: string; nome: string; motivo: string } | undefined): void {
+let casaAltroveDi: (sessionUuid: string, autopilota?: { id: string; chat: string }) => { id: string; nome: string; motivo: string } | undefined = () => undefined
+export function impostaGuardiaCasa(f: (sessionUuid: string, autopilota?: { id: string; chat: string }) => { id: string; nome: string; motivo: string } | undefined): void {
   casaAltroveDi = f
 }
 
@@ -261,6 +261,7 @@ export function registerPtyIpc(
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win === null) throw new Error('richiesta di spawn da una finestra sconosciuta')
     // Prima di tutto la casa (0.52.0): con la casa altrove qui non parte niente.
+    // Una chat governata porta il suo autopilota: vive sul suo PC (0.52.5).
     fermaSeCasaAltrove(req, casaAltroveDi)
     // Una chat nata su un altro PC porta la cartella di la': qui si apre in
     // quella di qui (vedi `progetti/cartella-di-chat`), e la finestra lo sa.

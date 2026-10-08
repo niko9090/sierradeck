@@ -710,7 +710,9 @@ data class Storia(
 data class Scelte(
     val opzioni: List<Opzione> = emptyList(),
     /** Su quale riga e' fermo il cursore adesso. */
-    val corrente: Int = 0
+    val corrente: Int = 0,
+    /** Scelta multipla (PC 0.52.5): ogni tocco spunta, «Submit» manda. */
+    val multipla: Boolean = false
 )
 
 @Serializable
@@ -718,7 +720,15 @@ data class Opzione(
     val numero: Int = 0,
     val testo: String = "",
     /** Quella su cui il cursore e' fermo: e' anche quella che prenderebbe un invio secco. */
-    val scelta: Boolean = false
+    val scelta: Boolean = false,
+    /** La spiegazione sotto l'opzione, nelle domande di Claude Code (PC 0.52.5). */
+    val descrizione: String = "",
+    /** «Type something.»: si risponde scrivendo nel campo, non toccando. */
+    val libera: Boolean = false,
+    /** Scelta multipla: la casella è spuntata (null = non è una casella). */
+    val spuntata: Boolean? = null,
+    /** Scelta multipla: la riga «Submit», che manda le spunte. */
+    val invio: Boolean = false
 )
 
 /** Quello che il computer ha in dotazione. */

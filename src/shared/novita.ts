@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.52.5',
+    righe: [
+      '**Rispondere alle domande delle chat funziona di nuovo.** Quando Claude Code fa una domanda con le opzioni (quelle con una spiegazione sotto ogni scelta), il programma non la riconosceva: nelle Domande, sulla pagina e nell’app compariva solo il campo di testo, e una risposta scritta lì faceva scegliere a Claude la prima opzione. Adesso la domanda arriva con i suoi pulsanti e le spiegazioni, dal PC, dal telefono e dagli altri PC, e la risposta arriva alla chat giusta.',
+      '**Scrivere la risposta va bene lo stesso.** Se scrivi il testo di un’opzione o il suo numero, sceglie quella; «sì» e «no» rispondono a un permesso; qualunque altra frase va nella voce «Type something.», cioè come risposta con parole tue. Se la domanda non accetta parole (un permesso), non si scrive niente e ti viene detto quali sono le opzioni.',
+      '**Scelta multipla e più domande insieme.** Nelle domande con le caselle ogni tocco spunta o toglie, e «Manda le scelte spuntate» le invia; quando Claude fa più domande insieme si risponde una alla volta e poi al riepilogo «Submit answers».',
+      '**Gli autopiloti non restano più bloccati dall’ospite delle chat.** Una chat governata da un autopilota vive sul PC del suo autopilota: se era stata assegnata a un altro PC solo dalla regola automatica, ora parte qui e la sua casa diventa questo PC, anche per gli altri PC. Se l’avevi scelta tu su un altro PC, la tua scelta resta e l’autopilota lo dice subito, senza aspettare 90 secondi e senza chiamarlo guasto. App Android 2.52.5.'
+    ]
+  },
+  {
     versione: '0.52.4',
     righe: [
       '**Ogni computer si chiama come lo chiami tu.** Prima, in alto nell’app e nel cambio di computer, compariva il nome tecnico della macchina (tipo «DESKTOP-…») invece di quello che le avevi dato. Adesso ogni PC ha il suo nome scelto: sul computer si scrive in «Altri computer» → «Questo PC», dal telefono con la matita accanto al computer collegato. Lasciato vuoto, si usa di nuovo il nome tecnico.',

@@ -850,7 +850,7 @@ describe('la pagina: Domande come conversazioni e albero delle chat', () => {
     }]
     const html = new Function(
       `var domandeConversazioni = ${JSON.stringify(conv)}; var domandaAperta = null; var domandeMandate = {};\n` +
-      `${riga('const esc =')}\n${estrai('oraDi')}\n${estrai('vistaConversazioni')}\nreturn vistaConversazioni()`
+      `${riga('const esc =')}\n${estrai('oraDi')}\n${estrai('etichettaOpzione')}\n${estrai('vistaConversazioni')}\nreturn vistaConversazioni()`
     )() as string
     expect(html).toContain('Posso scrivere config.json?')
     expect(html).toContain('battuta--domanda')
@@ -859,6 +859,21 @@ describe('la pagina: Domande come conversazioni e albero delle chat', () => {
     expect(html).toContain('battuta--tu')
     expect(html).toContain('onclick="rispondiConv(this.dataset.k)"')
     expect(script).toContain('domandeConversazioni ? vistaConversazioni() : vistaDomande(s)')
+  })
+
+  it('0.52.5: le opzioni delle domande di Claude Code, con spiegazione, caselle, «Type something.» e «Submit»', () => {
+    const f = new Function(`${riga('const esc =')}\n${estrai('etichettaOpzione')}\nreturn etichettaOpzione`)() as (o: unknown) => string
+    expect(f({ numero: 2, testo: 'Verde', scelta: false, descrizione: 'Il colore della natura' })).toBe('<span class="scelta__n">2</span>Verde<small class="scelta__descr">Il colore della natura</small>')
+    expect(f({ numero: 4, testo: 'Type something.', scelta: false, libera: true })).toContain('scrivile nel campo qui sotto')
+    expect(f({ numero: 1, testo: 'Lunedì', scelta: true, spuntata: true })).toContain('☑ Lunedì')
+    expect(f({ numero: 2, testo: 'Martedì', scelta: false, spuntata: false })).toContain('☐ Martedì')
+    expect(f({ numero: 0, testo: 'Submit', scelta: false, invio: true })).toContain('Manda le scelte spuntate (Submit)')
+    // Una spunta cambia la firma: la domanda non si nasconde come «già mandata».
+    const firma = new Function(`${estrai('firmaScelte')}\nreturn firmaScelte`)() as (s: unknown) => string
+    expect(firma({ opzioni: [{ testo: 'Lunedì', spuntata: true }] })).not.toBe(firma({ opzioni: [{ testo: 'Lunedì', spuntata: false }] }))
+    // Il motivo del computer (409) si mostra, anche nella coda della chat aperta.
+    expect(script).toContain("notaScelta = 'Non mandato: ' + esito.errore")
+    expect(script).toContain('if (esito && esito.errore) { notaGlobale = String(esito.errore)')
   })
 
   it('le domande iniziali di un autopilota: le opzioni si toccano e rispondono con quel testo', () => {
@@ -872,6 +887,7 @@ describe('la pagina: Domande come conversazioni e albero delle chat', () => {
 ` +
       `${riga('const esc =')}
 ${estrai('oraDi')}
+${estrai('etichettaOpzione')}
 ${estrai('vistaConversazioni')}
 return vistaConversazioni()`
     )() as string

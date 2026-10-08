@@ -271,6 +271,8 @@ export function App(): React.JSX.Element {
     registra: (passo: string) => { void window.gestore.log.info(`[consegna] ${passo}`).catch(() => undefined) },
     sceltaAperta: (ptyId: string) => sceltaSulloSchermo(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite),
     sveglia: (paneId: string) => { const p = useLayoutStore.getState().panes[paneId]; if (p?.ibernata === true) useLayoutStore.getState().sveglia(paneId) },
+    // La chat di un autopilota diventata remota (0.52.5): torna qui, e il cancello decide.
+    riportaQui: (paneId: string) => { const p = useLayoutStore.getState().panes[paneId]; if (p?.remoto !== undefined && p.autopilota !== undefined) useLayoutStore.getState().rendiLocale(paneId) },
     tornaNelSuoWorkspace: (c: { workspace?: string }) => {
       if (c.workspace === undefined || c.workspace === workspaceCorrente()) return
       void azioniDiFinestra().cambia(c.workspace).then(() => window.gestore.workspace.stato()).then(aggiornaWorkspaceRef.current).catch(() => undefined)
@@ -580,6 +582,18 @@ export function App(): React.JSX.Element {
     // nessuna freccia. Resta il solo invio.
     if (testo !== '') window.gestore.pty.write(idPty, testo)
     setTimeout(() => window.gestore.pty.write(idPty, String.fromCharCode(13)), PAUSA_PRIMA_DELL_INVIO_MS)
+  }), [])
+
+  // La risposta a una domanda della chat (0.52.5): i pezzi uno alla volta,
+  // con la stessa pausa del testo e dell'invio. Le frecce insieme vanno bene;
+  // il testo di una risposta libera e l'invio devono arrivare dopo.
+  useEffect(() => window.gestore.client.suTasti(({ chat, pezzi }) => {
+    const riquadro = useLayoutStore.getState().panes[chat]
+    if (riquadro?.ptyId === undefined || !Array.isArray(pezzi)) return
+    const idPty = riquadro.ptyId
+    pezzi.forEach((p, i) => {
+      if (typeof p === 'string' && p !== '') setTimeout(() => window.gestore.pty.write(idPty, p), i * PAUSA_PRIMA_DELL_INVIO_MS)
+    })
   }), [])
 
   useEffect(() => window.gestore.client.suWorkspace((nome) => {

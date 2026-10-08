@@ -89,6 +89,7 @@ declare global {
         ) => () => void
         rispondiRighe: (id: string, dati: unknown) => void
         suScrittura: (cb: (m: { chat: string; testo: string }) => void) => () => void
+        suTasti: (cb: (m: { chat: string; pezzi: string[] }) => void) => () => void
         suRipresaChat: (cb: (m: { sessione: string; testo: string }) => void) => () => void
         suWorkspace: (cb: (nome: string) => void) => () => void
       }

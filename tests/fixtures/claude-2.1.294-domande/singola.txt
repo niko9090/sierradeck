@@ -1,0 +1,24 @@
+
+[0;38;2;215;119;87m ▐[0;38;2;215;119;87;48;2;0;0;0m▛███▛█[0m   [0;1mClaude Code[0m [0;38;2;153;153;153mv2.1.294[0m
+[0;38;2;215;119;87m▝▜[0;38;2;215;119;87;48;2;0;0;0m█████[0;38;2;215;119;87m█▀  [0;38;2;153;153;153mHaiku 4.5 · Claude Max[0m
+[0;38;2;215;119;87m ▝▝   ▝▝   [0;38;2;153;153;153mC:\Progetti\Esempio[0m
+
+
+[0;38;2;153;153;153;48;2;55;55;55m❯ [0;38;2;255;255;255;48;2;55;55;55mUsa SUBITO lo strumento AskUserQuestion (nessun altro strumento) per chiedermi quale colore preferisco, con[0m
+[0;48;2;55;55;55m  [0;38;2;255;255;255;48;2;55;55;55muna sola domanda e tre opzioni: Rosso, Verde, Blu. Poi rispondi solo con il colore scelto, in una parola.[0m
+[0;38;2;153;153;153m──────────────────────────────────────────────────────────────────────────────────────────────────────────────[0m
+[0;38;2;0;0;0;48;2;177;185;249m ☐ Colore[0m
+
+[0;1;38;2;255;255;255mQuale colore preferisci?[0m
+
+[0;38;2;177;185;249m❯[0m [0;38;2;153;153;153m1.[0m [0;38;2;177;185;249mRosso[0m
+[0m     [0;38;2;153;153;153mIl colore della passione e dell'energia[0m
+[0m  [0;38;2;153;153;153m2.[0m Verde[0m
+[0m     [0;38;2;153;153;153mIl colore della natura e della calma[0m
+[0m  [0;38;2;153;153;153m3.[0m Blu[0m
+[0m     [0;38;2;153;153;153mIl colore del cielo e della serenità[0m
+[0m  [0;38;2;153;153;153m4. Type something.[0m
+[0;38;2;153;153;153m──────────────────────────────────────────────────────────────────────────────────────────────────────────────[0m
+[0m  5. Chat about this[0m
+
+[0;38;2;153;153;153mEnter to select · ↑/↓ to navigate · Esc to cancel[0m

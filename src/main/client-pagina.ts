@@ -281,6 +281,7 @@ export function paginaClient(): string {
   /* Quella dove il cursore e' fermo adesso: e' anche quella che si prenderebbe
      premendo invio e basta, quindi si vede da lontano quale sarebbe. */
   .scelta--ora { border-color: var(--ambra); }
+  .scelta__descr { display: block; font-size: var(--t1); color: var(--testo-quieto); margin-top: 2px; }
   .scelta__n {
     font-family: ui-monospace, Consolas, monospace; font-size: var(--t1);
     color: var(--testo-quieto); min-width: 1.4em;
@@ -564,7 +565,20 @@ var scelteDentro = null
 // ridisegnato, non una domanda nuova. Rimostrarla invitava al secondo tocco.
 var sceltaRisposta = null
 var SCELTA_RISPOSTA_MS = 8000
-function firmaScelte(s) { return s ? s.opzioni.map((o) => o.testo).join('\\n') : '' }
+function firmaScelte(s) { return s ? s.opzioni.map((o) => (o.spuntata ? '[x] ' : '') + o.testo).join('\\n') : '' }
+/*
+ * Un'opzione da toccare (0.52.5): il numero, la casella di una scelta
+ * multipla, il testo e, piccola sotto, la spiegazione che Claude Code mette a
+ * ogni opzione. «Type something.» dice di scrivere la risposta nel campo;
+ * «Submit» manda le caselle spuntate.
+ */
+function etichettaOpzione(o) {
+  var num = o.invio ? '↵' : String(o.numero)
+  var casella = o.spuntata === true ? '☑ ' : o.spuntata === false ? '☐ ' : ''
+  var testo = o.invio ? 'Manda le scelte spuntate (Submit)' : o.libera ? 'Rispondi con parole tue: scrivile nel campo qui sotto e mandale' : o.testo
+  var sotto = o.libera ? 'arriva a Claude come risposta libera («' + o.testo + '»)' : (o.descrizione || '')
+  return '<span class="scelta__n">' + esc(num) + '</span>' + esc(casella + testo) + (sotto ? '<small class="scelta__descr">' + esc(sotto) + '</small>' : '')
+}
 // Quando una scelta non c'e' piu': una riga, e sparisce da sola alla lettura
 // dopo. Senza, il tocco andrebbe a vuoto in silenzio e sembrerebbe un guasto.
 var notaScelta = null
@@ -685,7 +699,7 @@ function vistaDomande(s) {
       '<div class="sotto">' + esc(v.cwd) + '</div>' + contesto(v.righe) +
       (mandata ? '<div class="sotto">Scelta mandata: \u00ab' + esc(mandata) + '\u00bb. Sparisce appena lo schermo cambia.</div>'
         : '<div class="scelte">' + v.opzioni.map(function (o) {
-            return '<button class="' + (o.scelta ? 'scelta scelta--ora' : 'scelta') + '" data-chat="' + esc(v.chat) + '" data-testo="' + esc(o.testo) + '" onclick="scegliIn(this.dataset.chat, this.dataset.testo)"><b>' + o.numero + '</b> ' + esc(o.testo) + '</button>'
+            return '<button class="' + (o.scelta ? 'scelta scelta--ora' : 'scelta') + '" data-chat="' + esc(v.chat) + '" data-testo="' + esc(o.testo) + '" onclick="scegliIn(this.dataset.chat, this.dataset.testo)">' + etichettaOpzione(o) + '</button>'
           }).join('') + '</div>' +
           '<div class="riga"><textarea id="t-' + esc(v.chat) + '" rows="2" placeholder="oppure scrivile qualcosa"></textarea></div>' +
           '<div class="riga"><button data-chat="' + esc(v.chat) + '" onclick="scriviIn(this.dataset.chat)">Manda</button></div>') +
@@ -746,8 +760,8 @@ function vistaConversazioni() {
     var opzioni = (m.opzioni && m.opzioni.length)
       ? '<div class="scelte">' + m.opzioni.map(function (o) {
           return aperta.scelte
-            ? '<button class="scelta' + (o.scelta ? ' scelta--ora' : '') + '" data-chat="' + esc(aperta.scelte.chat) + '" data-testo="' + esc(o.testo) + '" onclick="scegliIn(this.dataset.chat, this.dataset.testo)"><span class="scelta__n">' + o.numero + '</span>' + esc(o.testo) + '</button>'
-            : '<button class="scelta" data-k="' + esc(aperta.chiave) + '" data-testo="' + esc(o.testo) + '" onclick="rispondiOpzione(this.dataset.k, this.dataset.testo)"><span class="scelta__n">' + o.numero + '</span>' + esc(o.testo) + '</button>'
+            ? '<button class="scelta' + (o.scelta ? ' scelta--ora' : '') + '" data-chat="' + esc(aperta.scelte.chat) + '" data-testo="' + esc(o.testo) + '" onclick="scegliIn(this.dataset.chat, this.dataset.testo)">' + etichettaOpzione(o) + '</button>'
+            : '<button class="scelta" data-k="' + esc(aperta.chiave) + '" data-testo="' + esc(o.testo) + '" onclick="rispondiOpzione(this.dataset.k, this.dataset.testo)">' + etichettaOpzione(o) + '</button>'
         }).join('') + '</div>'
       : ''
     return '<div class="battuta battuta--' + (m.da === 'tu' ? 'tu' : 'lui') + (m.tono === 'domanda' ? ' battuta--domanda' : '') + '">' +
@@ -1420,7 +1434,7 @@ function pannello(s) {
         scelteDentro.opzioni.map((o) =>
           '<button class="scelta' + (o.scelta ? ' scelta--ora' : '') +
           '" onclick="scegli(\\'' + escJs(o.testo) + '\\')">' +
-          '<span class="scelta__n">' + o.numero + '</span>' + esc(o.testo) + '</button>'
+          etichettaOpzione(o) + '</button>'
         ).join('') + '</div>'
       : ''}
     \${notaScelta ? '<div class="sotto">' + esc(notaScelta) + '</div>' : ''}
@@ -3070,7 +3084,7 @@ window.scegliIn = async (chat, testo) => {
   const voce = (domandeViste || []).find((v) => v.tipo === 'scelta' && v.chat === chat)
   try {
     var esito = await chiedi('/api/scegli', { chat: chat, opzione: testo })
-    if (esito && esito.errore) notaGlobale = String(esito.errore).indexOf('mandata') >= 0 ? 'Gi\u00e0 mandata: aspetta che lo schermo cambi.' : 'La scelta \u00e8 cambiata mentre toccavi: fra un attimo si aggiorna.'
+    if (esito && esito.errore) notaGlobale = String(esito.errore).indexOf('mandata') >= 0 ? 'Gi\u00e0 mandata: aspetta che lo schermo cambi.' : String(esito.errore).indexOf('cambiata') >= 0 ? 'La scelta \u00e8 cambiata mentre toccavi: fra un attimo si aggiorna.' : String(esito.errore)
     else if (voce) domandeMandate[chiaveVoce(voce)] = testo
   } catch (e) {
     notaGlobale = 'Non sono riuscito a mandare la scelta: ' + (e && e.message ? e.message : 'il computer non risponde')
@@ -3082,8 +3096,10 @@ window.scriviIn = async (chat) => {
   if (!campo || !campo.value.trim()) return
   const voce = (domandeViste || []).find((v) => v.chat === chat)
   try {
-    await chiedi('/api/scrivi', { chat: chat, testo: campo.value })
-    if (voce) domandeMandate[chiaveVoce(voce)] = campo.value.slice(0, 80)
+    var esito = await chiedi('/api/scrivi', { chat: chat, testo: campo.value })
+    // Una chat ferma su una scelta (0.52.5): il testo diventa la scelta, o il computer dice perché no.
+    if (esito && esito.errore) { notaGlobale = String(esito.errore); pannello(ultimoStato); return }
+    if (voce) domandeMandate[chiaveVoce(voce)] = esito && esito.comeScelta ? 'scelto: ' + esito.comeScelta : campo.value.slice(0, 80)
     campo.value = ''
   } catch (e) {
     notaGlobale = 'Non sono riuscito a mandarlo: ' + (e && e.message ? e.message : 'il computer non risponde')
@@ -3143,7 +3159,10 @@ window.scegli = async (testo) => {
     if (esito && esito.errore) {
       notaScelta = String(esito.errore).indexOf('mandata') >= 0
         ? 'Già mandata: aspetta che lo schermo cambi.'
-        : 'La scelta è cambiata mentre toccavi: guarda di nuovo.'
+        : String(esito.errore).indexOf('cambiata') >= 0 ? 'La scelta è cambiata mentre toccavi: guarda di nuovo.'
+        : String(esito.errore)
+      // «Type something.»: la scelta resta, si scrive nel campo qui sotto.
+      sceltaRisposta = null
     }
   } catch (e) {
     notaScelta = 'Non sono riuscito a mandarla: il computer non risponde.'
@@ -3584,9 +3603,16 @@ async function mandaCoda() {
   v.stato = 'invio'
   ridisegnaLinea()
   try {
-    await chiedi('/api/scrivi', { chat: v.chat, testo: v.testo, idMessaggio: v.id })
+    var esito = await chiedi('/api/scrivi', { chat: v.chat, testo: v.testo, idMessaggio: v.id })
     codaPagina = codaPagina.filter((x) => x.id !== v.id)
     notaScelta = null
+    // La chat aspettava una scelta e il testo non si capisce (0.52.5): non è
+    // partito niente, il computer dice quali sono le opzioni.
+    if (esito && esito.errore) {
+      notaScelta = 'Non mandato: ' + esito.errore
+      const campo = document.getElementById('t-' + v.chat)
+      if (campo && !campo.value) campo.value = v.testo
+    } else if (esito && esito.comeScelta) notaScelta = 'Mandato come risposta alla domanda: ' + esito.comeScelta
   } catch (e) {
     if (e && e.stato && e.stato < 500) {
       // Un rifiuto vero (il PIN, la chat chiusa): non si riprova, si dice.

@@ -7,7 +7,7 @@ import { creaRtc } from './rtc/collegamento-rtc'
 import { creaCassettaDrive } from './rtc/cassetta-drive'
 import { creaUnaCasa, type ChatLocale, type UnaCasa } from './una-casa'
 import { creaOspite, type Ospite } from './ospite'
-import { casaAltrove } from '@shared/ospite-chat'
+import { casaAltrove, casaPerAutopilota } from '@shared/ospite-chat'
 import { creaSpostaProgetto, impronteSessioni } from './sposta-progetto'
 import { leggiCase, saleDaQui, scendeQui, sessioneDiPercorso, type CasaChat } from '@shared/una-casa'
 import { esitoDaPasso } from '@shared/istruzioni-autopilota'
@@ -380,6 +380,8 @@ let postinoGlobale: Postino | undefined
 let unaCasaGlobale: UnaCasa | undefined
 /** L'ospite delle chat (0.52.0): nasce con la sincronia, come `unaCasaGlobale`. */
 let ospiteGlobale: Ospite | undefined
+/** Le chat di un autopilota partite prima che l'ospite fosse pronto: la loro casa si prende appena lo è (0.52.5). */
+const daPrendereDopo = new Map<string, string>()
 /** «Salute del sistema» (0.44.0): nasce con le strade fra PC, la leggono il PC e il telefono. */
 /** Il PIN delle chat (0.49.0): il guardiano, uno per PC. */
 let guardianoPin: GuardianoPin | undefined
@@ -1111,14 +1113,23 @@ if (!app.requestSingleInstanceLock()) {
       // altrove.
       {
         let daDisco: { letto: number; case: ReturnType<typeof leggiCase> } | undefined
-        impostaGuardiaCasa((s) => {
-          if (ospiteGlobale !== undefined) return ospiteGlobale.casaAltroveDi(s)
+        impostaGuardiaCasa((s, autopilota) => {
+          // Una chat governata da un autopilota di qui (0.52.5): vive qui,
+          // salvo una scelta di Nicholas (`casaPerAutopilota`).
+          if (ospiteGlobale !== undefined) return autopilota !== undefined ? ospiteGlobale.casaAltrovePerAutopilota(s, autopilota.id) : ospiteGlobale.casaAltroveDi(s)
           if (daDisco === undefined || Date.now() - daDisco.letto > 5000) {
             let c = leggiCase(undefined)
             try { c = leggiCase(JSON.parse(readFileSync(join(dati, 'case-chat.json'), 'utf8'))) } catch { /* nessuna casa ancora */ }
             daDisco = { letto: Date.now(), case: c }
           }
-          return casaAltrove(daDisco.case.case[s], identitaPc.leggi().id)
+          const io = identitaPc.leggi()
+          if (autopilota !== undefined) {
+            const d = casaPerAutopilota({ casa: daDisco.case.case[s], io: { id: io.id, nome: io.nome }, autopilota: autopilota.id, quando: new Date().toISOString() })
+            // Il servizio delle case non è ancora pronto: la casa si prende appena lo è.
+            if (d.tipo === 'prendi') { daPrendereDopo.set(s, autopilota.id); return undefined }
+            if (d.tipo === 'qui') return undefined
+          }
+          return casaAltrove(daDisco.case.case[s], io.id)
         })
       }
       const registroProgetti = apriRegistroProgetti(dati)
@@ -1885,6 +1896,8 @@ if (!app.requestSingleInstanceLock()) {
         log: registro.info
       })
       ospiteGlobale = ospite
+      for (const [s, ap] of daPrendereDopo) ospite.casaAltrovePerAutopilota(s, ap)
+      daPrendereDopo.clear()
       const timerOspite = setInterval(() => { void ospite.giro() }, 10_000)
       app.on('before-quit', () => { clearInterval(timerOspite) })
       ipcMain.handle('casa:dove', () => ospite.dove())
@@ -3170,6 +3183,14 @@ if (!app.requestSingleInstanceLock()) {
           for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
               w.webContents.send('client:scrivi', { chat: idChat, testo })
+            }
+          }
+        },
+        // La risposta a una domanda della chat, a pezzi (0.52.5): frecce, testo, invio.
+        tastiAChat: (idChat: string, pezzi: string[]) => {
+          for (const w of finestreDiChat()) {
+            if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+              w.webContents.send('client:tasti', { chat: idChat, pezzi })
             }
           }
         },

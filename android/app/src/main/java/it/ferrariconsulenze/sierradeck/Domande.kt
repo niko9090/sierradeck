@@ -236,7 +236,8 @@ private fun CampoRisposta(
                         onMandata(da)
                         testo = ""
                     } catch (e: Exception) {
-                        errore = "Non sono riuscito a mandarla: ${e.message ?: "il computer non risponde"}"
+                        // Il PC (0.52.5) dice perché: per esempio quali sono le opzioni di un permesso.
+                        errore = SceltaVista.rifiuto(e, "mandarla")
                     }
                     inCorso = false
                 }
@@ -308,23 +309,21 @@ private fun SchedaScelta(api: Api, v: VoceDomanda, gia: String?, onMandata: (Str
                             )
                             .clickable {
                                 errore = null
+                                // «Type something.» (2.52.5): si scrive nel campo qui sotto.
+                                if (o.libera) { errore = SceltaVista.SCRIVI; return@clickable }
                                 scope.launch {
                                     try {
                                         api.scegli(v.chat, o.testo)
                                         onMandata(o.testo)
                                     } catch (e: Exception) {
-                                        errore = if (e is Api.Errore && e.codice == 409)
-                                            (if (e.corpo.contains("mandata")) "Già mandata: aspetta che lo schermo cambi."
-                                            else "La scelta è cambiata mentre toccavi: fra un attimo si aggiorna.")
-                                        else "Non sono riuscito a mandarla: ${e.message ?: "il computer non risponde"}"
+                                        errore = SceltaVista.rifiuto(e, "mandarla")
                                     }
                                 }
                             }
                             .padding(horizontal = 12.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("${o.numero}", color = Banco.testoQuieto, fontSize = 12.sp, fontFamily = FontTerminale, modifier = Modifier.padding(end = 10.dp))
-                        Text(o.testo, color = Banco.testo, fontSize = 14.sp)
+                        TestoOpzione(o)
                     }
                 }
                 errore?.let {

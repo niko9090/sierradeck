@@ -101,9 +101,7 @@ fun VistaConversazioni(api: Api, elenco: List<Conversazione>, onRiletto: () -> U
                 testo = ""
                 onRiletto()
             } catch (e: Exception) {
-                nota = if (e is Api.Errore && e.codice == 409)
-                    (if (e.corpo.contains("mandata")) "Già mandata: aspetta che lo schermo cambi." else "La scelta è cambiata mentre toccavi: fra un attimo si aggiorna.")
-                else "Non sono riuscito a mandarlo: ${e.message ?: "il computer non risponde"}"
+                nota = SceltaVista.rifiuto(e, "mandarlo")
             }
             inCorso = false
         }
@@ -155,7 +153,9 @@ fun VistaConversazioni(api: Api, elenco: List<Conversazione>, onRiletto: () -> U
                     // (domande iniziali, «Pubblico adesso?»): toccare un'opzione e'
                     // rispondere con quel testo.
                     val scelte = aperta.scelte
-                    if (scelte != null) manda({ api.scegli(scelte.chat, o.testo) }, o.testo)
+                    // «Type something.» (2.52.5): si scrive nel campo qui sotto.
+                    if (scelte != null && o.libera) nota = SceltaVista.SCRIVI
+                    else if (scelte != null) manda({ api.scegli(scelte.chat, o.testo) }, o.testo)
                     else manda({ api.rispondiConversazione(aperta.risposta, o.testo) }, o.testo)
                 }
             }
@@ -238,8 +238,7 @@ private fun Messaggio(m: MessaggioConversazione, c: Conversazione, occupato: Boo
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("${o.numero}", color = Banco.testoQuieto, fontSize = 12.sp, fontFamily = FontTerminale, modifier = Modifier.padding(end = 10.dp))
-                        Text(o.testo, color = Banco.testo, fontSize = 14.sp)
+                        TestoOpzione(o)
                     }
                 }
             }

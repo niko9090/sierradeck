@@ -221,6 +221,65 @@ describe('ogni punto di avvio passa dal cancello', () => {
     const main = src('main/index.ts')
     expect(main).toContain('ospiteGlobale?.casaAltroveDi(sessione)')
     // Dalla prima istante, anche prima che il servizio delle case sia pronto.
-    expect(main).toContain("impostaGuardiaCasa((s) => {")
+    expect(main).toContain("impostaGuardiaCasa((s, autopilota) => {")
+  })
+})
+
+/**
+ * Caso NexoraOS (diario dell'autopilota, 07/10 16:24 UTC): «in 90 secondi il
+ * terminale della chat non è nato». La chat dell'autopilota aveva la casa su un
+ * altro PC per la **regola** della migrazione (02/10): il cancello della 0.52.0
+ * rifiutava l'avvio e il riquadro diventava remoto. Una chat governata vive sul
+ * PC del suo autopilota; una scelta di Nicholas resta.
+ */
+describe('la chat di un autopilota e il cancello dell’ospite (0.52.5)', () => {
+  const src = (p: string): string => readFileSync(join(__dirname, '../../src', p), 'utf8')
+  const governata = (pc: Pc, s: string): ReturnType<typeof leggiChatAltrove> | 'parte' => {
+    const ap = { id: 'ap-esempio', chat: 'ch-1' }
+    try {
+      fermaSeCasaAltrove({ sessionUuid: s, cwd: 'C:\\Money', autopilota: ap }, (x, a) => a !== undefined ? pc.ospite.casaAltrovePerAutopilota(x, a.id) : pc.ospite.casaAltroveDi(x))
+      return 'parte'
+    } catch (e) { return leggiChatAltrove(e) }
+  }
+
+  it('casa altrove per la regola: la chat governata parte qui, la casa diventa questo PC e lo sa anche l’altro PC', async () => {
+    const { a, b } = due()
+    // Come il 02/10: la regola ha messo la casa su DESKTOP.
+    await a.unaCasa.memorizza({ money: { pc: 'desk', pcNome: 'DESKTOP', motivo: 'la sua cartella c’è solo su DESKTOP', decisaIl: '2026-10-02T14:45:00.000Z', da: 'regola' } })
+    // Una chat qualunque resta ferma: il cancello vale come prima.
+    expect(avvio(a, 'money')).toMatchObject({ casa: true })
+    // Quella governata da un autopilota di qui parte.
+    expect(governata(a, 'money')).toBe('parte')
+    // E da adesso la casa è qui, anche per le chat non governate e sul disco.
+    expect(avvio(a, 'money')).toBe('parte')
+    await new Promise((r) => setTimeout(r, 50))
+    expect(a.unaCasa.casaDi('money')).toMatchObject({ pc: 'fisso', da: 'sposta' })
+    expect(a.unaCasa.casaDi('money')?.motivo).toContain('autopilota')
+    // L'altro PC lo sa subito (rotta /api/case): su DESKTOP non parte più.
+    expect(b.unaCasa.casaDi('money')).toMatchObject({ pc: 'fisso' })
+    expect(avvio(b, 'money')).toMatchObject({ casa: true, pc: { id: 'fisso' } })
+  })
+
+  it('casa altrove scelta da Nicholas: resta altrove anche per l’autopilota', async () => {
+    const { a } = due()
+    await a.ospite.scegli({ sessioni: ['money'], pc: { id: 'desk', nome: 'DESKTOP' } })
+    expect(governata(a, 'money')).toMatchObject({ casa: true, pc: { id: 'desk', nome: 'DESKTOP' } })
+    expect(a.unaCasa.casaDi('money')).toMatchObject({ pc: 'desk', da: 'nicholas' })
+  })
+
+  it('casa qui o nessuna casa: parte, senza toccare niente', () => {
+    const { a } = due()
+    expect(governata(a, 'sito')).toBe('parte')
+    expect(a.unaCasa.casaDi('sito')).toBeUndefined()
+  })
+
+  it('nel codice: lo spawn passa l’autopilota al cancello, e la guardia lo usa anche prima che l’ospite sia pronto', () => {
+    const main = src('main/index.ts')
+    expect(main).toContain('ospiteGlobale.casaAltrovePerAutopilota(s, autopilota.id)')
+    expect(main).toContain('casaPerAutopilota({ casa: daDisco.case.case[s]')
+    expect(main).toContain('for (const [s, ap] of daPrendereDopo) ospite.casaAltrovePerAutopilota(s, ap)')
+    // La richiesta di spawn porta l'autopilota (Terminal) e il cancello la legge tutta.
+    expect(src('renderer/components/Terminal.tsx')).toContain('...(ora.autopilota !== undefined ? { autopilota: ora.autopilota } : {})')
+    expect(src('shared/ospite-chat.ts')).toContain('const fuori = casa(req.sessionUuid, req.autopilota)')
   })
 })

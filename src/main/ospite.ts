@@ -1,6 +1,6 @@
 import { leggiCase, type CasaChat, type CaseChat, type RegistroRiordino } from '@shared/una-casa'
 import {
-  casaAltrove, pianoTrasloco, righeDove, sceltaOspite, sceltePerWorkspace,
+  casaAltrove, casaPerAutopilota, pianoTrasloco, righeDove, sceltaOspite, sceltePerWorkspace,
   type ChatApertaQui, type ChatDiWorkspace, type GruppoDove, type PcNoto
 } from '@shared/ospite-chat'
 import type { ChatLocale, UnaCasa } from './una-casa'
@@ -25,6 +25,13 @@ export type Ospite = {
   /** Per il cancello dello spawn e per «da dove aprirla». */
   casaAltroveDi: (sessione: string) => (PcNoto & { motivo: string }) | undefined
   casaQui: (sessione: string) => boolean
+  /**
+   * Il cancello per una chat governata da un autopilota di questo PC (0.52.5):
+   * se la casa altrove era solo della regola, la prende (subito in memoria,
+   * poi sul disco e agli altri PC) e la chat parte qui. Una scelta di Nicholas
+   * resta: si risponde con la casa altrove, come per le altre chat.
+   */
+  casaAltrovePerAutopilota: (sessione: string, autopilota: string) => (PcNoto & { motivo: string }) | undefined
   /** «Ospitata da: PC» per una o più chat (o per un workspace intero). */
   scegli: (p: { sessioni: string[]; pc: PcNoto; workspace?: string }) => Promise<{ ok: boolean; messaggio: string }>
   /** La schermata «Dove vive ogni chat». */
@@ -58,7 +65,10 @@ export function creaOspite(deps: {
   let inGiro = false
   const chiestaChiusura = new Map<string, number>()
 
-  const casaAltroveDi = (s: string): (PcNoto & { motivo: string }) | undefined => casaAltrove(deps.unaCasa.casaDi(s), deps.io().id)
+  /** Le case prese per un autopilota, finché il disco non le ha scritte. */
+  const prese = new Map<string, CasaChat>()
+  const casaDi = (s: string): CasaChat | undefined => prese.get(s) ?? deps.unaCasa.casaDi(s)
+  const casaAltroveDi = (s: string): (PcNoto & { motivo: string }) | undefined => casaAltrove(casaDi(s), deps.io().id)
 
   const giro = async (): Promise<void> => {
     if (inGiro) return
@@ -102,7 +112,26 @@ export function creaOspite(deps: {
 
   return {
     casaAltroveDi,
-    casaQui: (s) => deps.unaCasa.casaDi(s)?.pc === deps.io().id,
+    casaAltrovePerAutopilota(s, autopilota) {
+      const io = deps.io()
+      const prima = casaDi(s)
+      const d = casaPerAutopilota({ casa: prima, io, autopilota, quando: adesso() })
+      if (d.tipo === 'qui') return undefined
+      if (d.tipo === 'altrove') return casaAltrove(prima, io.id)
+      prese.set(s, d.casa)
+      log(`[ospite] la chat ${s} è governata da un autopilota di questo PC: la sua casa era ${prima?.pcNome ?? '?'} per la regola, ora è questo PC`)
+      void (async () => {
+        try {
+          await deps.unaCasa.memorizza({ [s]: d.casa })
+          await manda({ [s]: d.casa }).catch(() => 0)
+          deps.avvisa()
+        } catch (err) {
+          log(`[ospite] la casa presa per l'autopilota non è stata scritta: ${String(err)}`)
+        }
+      })()
+      return undefined
+    },
+    casaQui: (s) => casaDi(s)?.pc === deps.io().id,
     async scegli(p) {
       const sessioni = [...new Set(p.sessioni.filter((s) => typeof s === 'string' && s !== ''))]
       if (sessioni.length === 0) return { ok: false, messaggio: 'Nessuna chat scelta.' }

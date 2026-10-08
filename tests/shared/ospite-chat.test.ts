@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  casaAltrove, caseCambiate, eScelta, pianoTrasloco, righeDove, sceltaOspite, sceltePerWorkspace
+  casaAltrove, casaPerAutopilota, caseCambiate, eScelta, pianoTrasloco, righeDove, sceltaOspite, sceltePerWorkspace
 } from '@shared/ospite-chat'
 import { unisciCase, type CasaChat, type CaseChat } from '@shared/una-casa'
 import { decidiApertura, type DatiApertura } from '@shared/apertura-chat'
@@ -34,6 +34,31 @@ describe('la casa altrove', () => {
     const w = sceltePerWorkspace({ workspace: 'Trading', sessioni: ['a', 'b'], pc: LAP, chi: FISSO, quando: 'q' })
     expect(Object.keys(w)).toEqual(['a', 'b'])
     expect(w.a?.motivo).toContain('per tutto il workspace «Trading»')
+  })
+})
+
+describe('la chat di un autopilota (0.52.5, caso NexoraOS)', () => {
+  const q = '2026-10-08T09:00:00.000Z'
+  it('casa della regola o della nascita altrove: la prende il PC dell’autopilota, con il perché', () => {
+    for (const da of ['regola', 'nascita'] as const) {
+      const d = casaPerAutopilota({ casa: casa(DESK, da, '2026-10-02T14:45:00.000Z'), io: FISSO, autopilota: 'ap-esempio', quando: q })
+      expect(d.tipo).toBe('prendi')
+      if (d.tipo !== 'prendi') continue
+      expect(d.casa).toMatchObject({ pc: FISSO.id, pcNome: FISSO.nome, da: 'sposta', decisaIl: q })
+      expect(d.casa.motivo).toContain('autopilota')
+      expect(d.casa.motivo).toContain('DESKTOP')
+      // Pesa come una scelta: unita con la casa vecchia, vince lei su ogni PC.
+      expect(unisciCase(cc({ s: casa(DESK, da, '2026-10-02T14:45:00.000Z') }), cc({ s: d.casa })).case.s?.pc).toBe(FISSO.id)
+      expect(unisciCase(cc({ s: d.casa }), cc({ s: casa(DESK, da, '2026-10-02T14:45:00.000Z') })).case.s?.pc).toBe(FISSO.id)
+    }
+  })
+  it('scelta di Nicholas altrove: resta altrove', () => {
+    expect(casaPerAutopilota({ casa: casa(DESK, 'nicholas', 'x'), io: FISSO, autopilota: 'a', quando: q }).tipo).toBe('altrove')
+    expect(casaPerAutopilota({ casa: casa(DESK, 'sposta', 'x'), io: FISSO, autopilota: 'a', quando: q }).tipo).toBe('altrove')
+  })
+  it('casa qui o nessuna: qui', () => {
+    expect(casaPerAutopilota({ casa: undefined, io: FISSO, autopilota: 'a', quando: q }).tipo).toBe('qui')
+    expect(casaPerAutopilota({ casa: casa(FISSO, 'regola', 'x'), io: FISSO, autopilota: 'a', quando: q }).tipo).toBe('qui')
   })
 })
 

@@ -3,6 +3,7 @@ import { MISURE, larghezzaEffettiva, larghezzaTrascinata, limita, massimoColonna
 import { useLarghezzaFinestra } from '../larghezza-finestra'
 import { quanteAspettano, richiestaRisposta, type Conversazione } from '@shared/domande-conversazioni'
 import { LARGHEZZA_DOMANDE } from '@shared/preferenze'
+import { EtichettaOpzione } from './EtichettaOpzione'
 
 /**
  * Le Domande sul PC: una colonna laterale fissa, accanto alle chat (0.36.0).
@@ -309,7 +310,10 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                                 key={o.numero}
                                 className={`tasto${o.scelta ? ' tasto--primario' : ''}`}
                                 disabled={inCorso}
+                                title={o.libera === true ? 'Scrivi la risposta nel campo qui sotto e mandala: arriva a Claude come risposta libera' : o.descrizione}
                                 onClick={() => {
+                                  // «Type something.» (0.52.5): si risponde scrivendo nel campo qui sotto.
+                                  if (o.libera === true) { setNota('Scrivi la risposta nel campo qui sotto e premi «Manda»: arriva a Claude come risposta libera.'); return }
                                   // Una chat: si sceglie nell'elenco del terminale. Un
                                   // autopilota (domande iniziali, «Pubblico adesso?»):
                                   // toccare un'opzione e' rispondere con quel testo.
@@ -317,7 +321,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                                   else { const r = richiestaRisposta(aperta.risposta, o.testo); manda(r.percorso, r.corpo, o.testo) }
                                 }}
                               >
-                                {o.numero}. {o.testo}
+                                <EtichettaOpzione o={o} />
                               </button>
                             ))}
                           </span>
