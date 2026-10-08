@@ -1,0 +1,3 @@
+{"command":"uninstall","outcome":"failed","plugin":"nonce@prova-mkt","scope":"user","message":"Plugin \"nonce@prova-mkt\" not found in installed plugins","failureCode":"not_installed"}
+✘ Failed to uninstall plugin "nonce@prova-mkt": Plugin "nonce@prova-mkt" not found in installed plugins
+1

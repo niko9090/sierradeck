@@ -1,0 +1,2 @@
+{"command":"disable","outcome":"ok","plugin":"saluta@prova-mkt","pluginId":"saluta@prova-mkt","scope":"user","message":"Successfully disabled plugin: saluta (scope: user)"}
+0

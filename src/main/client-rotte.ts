@@ -40,6 +40,7 @@ export function daAltroPc(dispositivo: string | undefined): boolean {
 const ROTTE_DENTRO_CHAT = new Set(['/api/storia', '/api/dentro', '/api/scrivi', '/api/scegli', '/api/chat/chiudi', '/api/chat/nome'])
 import type { TentativoFallito } from '@shared/tentativo-installazione'
 import type { AvvisoDrive } from '@shared/scoperta-pc'
+import type { EsitoNegozio, McpVoce, PluginVoce, SkillVoce } from '@shared/negozio'
 
 /**
  * Cosa può fare il Client, e cosa no.
@@ -378,19 +379,30 @@ export type DipendenzeRotte = {
    * computer, dove vedi cosa stai togliendo.
    */
   negozio?: () => Promise<{
-    plugin: unknown[]
-    skill: unknown[]
+    /** Gli installati e i più installati (non i 3500 del catalogo: 0.53.0). */
+    plugin: PluginVoce[]
+    /** Quanti plugin ha il catalogo intero: il resto si trova cercando. */
+    totalePlugin?: number
+    skill: SkillVoce[]
     agenti: unknown[]
-    mcp: unknown[]
+    mcp: McpVoce[]
+    /** La cartella della chat da cui si leggono skill e MCP di progetto. */
+    cartella?: string
     /** Il negozio non ha potuto rispondere. Diverso da «non c'è niente». */
     errore?: string
     /** La spiegazione di un vuoto legittimo, tipo «nessuna chat aperta». */
     nota?: string
   }>
-  installaPlugin?: (id: string) => Promise<{ ok: boolean; messaggio?: string }>
-  commutaPlugin?: (id: string, attivo: boolean) => Promise<{ ok: boolean; messaggio?: string }>
-  commutaSkill?: (nome: string, attivo: boolean) => { ok: boolean; messaggio?: string }
-  commutaMcp?: (nome: string, attivo: boolean) => { ok: boolean; messaggio?: string }
+  /** La ricerca nel catalogo intero (0.53.0). */
+  cercaPlugin?: (q: string) => Promise<{ plugin: PluginVoce[]; totale: number; errore?: string }>
+  /** Gli MCP con lo stato del collegamento, provato da `claude mcp list` (0.53.0). */
+  saluteMcp?: () => Promise<{ mcp: McpVoce[]; errore?: string }>
+  installaPlugin?: (id: string, accetta?: string) => Promise<EsitoNegozio>
+  aggiornaPlugin?: (id: string, accetta?: string) => Promise<EsitoNegozio>
+  commutaPlugin?: (id: string, attivo: boolean) => Promise<EsitoNegozio>
+  commutaSkill?: (nome: string, attivo: boolean) => EsitoNegozio
+  commutaMcp?: (nome: string, attivo: boolean) => EsitoNegozio
+  approvaMcp?: (nome: string, si: boolean) => EsitoNegozio
   /**
    * Chi è entrato.
    *
@@ -1315,11 +1327,29 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       return OK(dati ?? { plugin: [], skill: [], agenti: [], mcp: [] })
     }
 
-    if (r.metodo === 'POST' && r.percorso === '/api/negozio/installa') {
+    // La ricerca nel catalogo: il telefono non riceve piu' 3500 plugin.
+    if (r.metodo === 'POST' && r.percorso === '/api/negozio/cerca') {
+      if (deps.cercaPlugin === undefined) return { stato: 404, corpo: { errore: 'questo computer non sa ancora cercare nel catalogo' } }
+      const trovati = await deps.cercaPlugin(stringa(r.corpo, 'q').slice(0, 100)).catch((e: unknown) => ({ plugin: [], totale: 0, errore: String(e) }))
+      return OK(trovati)
+    }
+
+    // Lo stato del collegamento degli MCP: qualche secondo, a parte.
+    if (r.percorso === '/api/negozio/salute-mcp') {
+      if (deps.saluteMcp === undefined) return { stato: 404, corpo: { errore: 'questo computer non sa ancora provare gli MCP' } }
+      return OK(await deps.saluteMcp().catch((e: unknown) => ({ mcp: [], errore: String(e) })))
+    }
+
+    // Installare e aggiornare. `accetta` e' l'impronta del comando del
+    // marketplace che la persona ha letto e confermato sul telefono.
+    if (r.metodo === 'POST' && (r.percorso === '/api/negozio/installa' || r.percorso === '/api/negozio/aggiorna')) {
       const id = stringa(r.corpo, 'id')
       if (id === '') return { stato: 400, corpo: { errore: 'serve l id' } }
-      const esito = await deps.installaPlugin?.(id)
-      return OK(esito ?? { ok: false, messaggio: 'questo computer non sa installare da qui' })
+      const accetta = stringa(r.corpo, 'accetta')
+      const fai = r.percorso === '/api/negozio/installa' ? deps.installaPlugin : deps.aggiornaPlugin
+      if (fai === undefined) return OK({ ok: false, messaggio: 'questo computer non sa farlo da qui: va aggiornato' })
+      const esito = await fai(id, accetta === '' ? undefined : accetta).catch((e: unknown) => ({ ok: false, messaggio: String(e) }))
+      return OK(esito)
     }
 
     // Accendere e spegnere: tre cose diverse dietro lo stesso gesto, e da qui
@@ -1334,6 +1364,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         cosa === 'plugin' ? await deps.commutaPlugin?.(nome, attivo)
         : cosa === 'skill' ? deps.commutaSkill?.(nome, attivo)
         : cosa === 'mcp' ? deps.commutaMcp?.(nome, attivo)
+        : cosa === 'mcp-approva' ? deps.approvaMcp?.(nome, attivo)
         : undefined
       return OK(esito ?? { ok: false, messaggio: 'non so accendere questa cosa' })
     }

@@ -1,0 +1,2 @@
+{"command":"enable","outcome":"ok","plugin":"saluta@prova-mkt","pluginId":"saluta@prova-mkt","scope":"user","message":"Successfully enabled plugin: saluta (scope: user)"}
+0

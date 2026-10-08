@@ -1,5 +1,10 @@
 import { execFile } from 'node:child_process'
 import { resolveClaudeCommand } from '../config'
+import {
+  esitoCli, statoPlugin, aggiornamentoDisponibile, cosaCambia, motivoLeggibile,
+  type EsitoCli, type PluginVoce, type AzioneNegozio
+} from '@shared/negozio'
+import { versioniCatalogo } from './lettura'
 
 /**
  * Il negozio, lato plugin: parla con `claude plugin …`, non coi file.
@@ -11,28 +16,27 @@ import { resolveClaudeCommand } from '../config'
  * ciò che è installato e ciò che si può installare, con l'`id` canonico
  * (`nome@marketplace`) che serve per installare, abilitare, disabilitare.
  *
+ * Dalla 0.53.0 ogni azione passa `--json` (Claude Code 2.1.x): una riga con
+ * `outcome` e `failureCode` invece dei glifi ✔/✘ da indovinare. E l'install non
+ * passa più `--yes` al buio: quel flag accetta il comando che un marketplace
+ * dichiara di voler eseguire, e un comando di un marketplace di terze parti
+ * si mostra a chi installa, non si accetta per lui.
+ *
  * Tutto **asincrono** e con un tetto di tempo: un'installazione tira giù roba
  * dalla rete, e questo è il processo principale — non deve mai bloccare la
  * finestra come è già successo altrove. Niente shell: `execFile` passa gli
  * argomenti come array, così un nome di plugin non può diventare un comando.
  */
 
-export type Plugin = {
-  /** `nome@marketplace`: l'identificatore per installare/abilitare/disabilitare. */
-  id: string
-  nome: string
-  descrizione: string
-  marketplace: string
-  installato: boolean
-  abilitato: boolean
-  installazioni?: number
-}
+export type Plugin = PluginVoce
 
-export type Esito = { ok: boolean; messaggio?: string }
+/** L'esito di un'azione, con la frase che dice cosa cambia quando è riuscita. */
+export type Esito = EsitoCli & { fatto?: string }
 
 const TIMEOUT_LETTURA = 30_000
-const TIMEOUT_INSTALLA = 120_000
-const MAX_BUFFER = 8 * 1024 * 1024
+const TIMEOUT_INSTALLA = 180_000
+/** Il catalogo di oggi è sui 4 MB (3500 plugin): spazio largo per domani. */
+const MAX_BUFFER = 32 * 1024 * 1024
 
 function claude(): string {
   return resolveClaudeCommand(process.env)
@@ -76,12 +80,15 @@ function motivoDi(err: { code?: unknown; killed?: boolean } | null, timeout: num
   return undefined
 }
 
-function esegui(args: string[], timeout: number): Promise<{ ok: boolean; stdout: string; stderr: string; motivo?: string }> {
+export type Uscita = { ok: boolean; stdout: string; stderr: string; motivo?: string }
+
+/** Esegue `claude …`. `cwd` conta per gli MCP: quelli «locali» e di progetto sono della cartella. */
+export function esegui(args: string[], timeout: number, cwd?: string): Promise<Uscita> {
   return new Promise((resolve) => {
     execFile(
       claude(),
       args,
-      { timeout, maxBuffer: MAX_BUFFER, windowsHide: true },
+      { timeout, maxBuffer: MAX_BUFFER, windowsHide: true, ...(cwd !== undefined ? { cwd } : {}) },
       (err, stdout, stderr) => {
         const motivo = motivoDi(err, timeout)
         resolve({ ok: err === null, stdout: stdout ?? '', stderr: stderr ?? '', ...(motivo !== undefined ? { motivo } : {}) })
@@ -101,6 +108,11 @@ type VoceCli = {
   enabled?: boolean
   disabled?: boolean
   status?: string
+  version?: string
+  folderVersion?: string
+  scope?: string
+  installPath?: string
+  source?: unknown
 }
 
 /** L'identificatore `nome@marketplace` di una voce, da qualunque campo arrivi:
@@ -113,37 +125,14 @@ export function idDi(v: { pluginId?: string; id?: string; name?: string; marketp
 }
 
 /**
- * L'esito di un comando che *stampa* ✔/✘ ma esce **sempre con 0**, anche quando
- * fallisce (è così che si comporta `claude plugin install/uninstall`): il glifo
- * è più affidabile del codice d'uscita. Con ✘ è un fallimento e si riporta cosa
- * ha detto; con ✔ è fatto; senza né l'uno né l'altro si ripiega sul codice.
+ * L'esito di un comando del CLI. Dalla 0.53.0 la strada buona è la riga
+ * `--json` (vedi `esitoCli`); i glifi ✔/✘ restano il ripiego per un CLI che
+ * non la stampa.
  */
 export function interpreta(r: { ok: boolean; stdout: string; stderr: string }, azioneFallita: string): Esito {
-  const out = `${r.stdout}\n${r.stderr}`
-  if (/✔/.test(out) && !/✘/.test(out)) return { ok: true }
-  const fallito = /✘/.test(out) || !r.ok
-  if (!fallito) return { ok: true }
-  // Il messaggio buono è la riga che spiega il perché («Failed to…», «Error…»),
-  // non tutto l'output col rumore tipo «Installing plugin…».
-  const righe = out.split('\n').map((x) => x.replace(/[✔✘]/g, '').trim()).filter((x) => x !== '')
-  const rilevante = righe.find((x) => /fail|error|not found|impossibile|non /i.test(x)) ?? righe[righe.length - 1]
-  return { ok: false, messaggio: (rilevante ?? azioneFallita).slice(0, 400) }
-}
-
-function normalizza(v: VoceCli, installato: boolean, abilitato: boolean): Plugin | undefined {
-  const id = idDi(v)
-  if (id === undefined) return undefined
-  const nome = v.name ?? id.split('@')[0] ?? id
-  const marketplace = v.marketplaceName ?? id.split('@')[1] ?? ''
-  return {
-    id,
-    nome,
-    descrizione: typeof v.description === 'string' ? v.description : '',
-    marketplace,
-    installato,
-    abilitato,
-    ...(typeof v.installCount === 'number' ? { installazioni: v.installCount } : {})
-  }
+  const e = esitoCli(r)
+  if (!e.ok && (e.messaggio === undefined || e.messaggio === '')) return { ...e, messaggio: azioneFallita }
+  return e
 }
 
 /** Se un plugin installato è abilitato: il CLI lo dice in un campo o nell'altro
@@ -155,12 +144,104 @@ function abilitatoDa(v: VoceCli): boolean {
   return true
 }
 
+/** Lo `sha` di una sorgente git del catalogo, se c'è. */
+function shaDi(source: unknown): string | undefined {
+  if (source === null || typeof source !== 'object') return undefined
+  const sha = (source as Record<string, unknown>).sha
+  return typeof sha === 'string' && sha !== '' ? sha : undefined
+}
+
+/**
+ * Dalla risposta vera di `plugin list --available --json` all'elenco del negozio.
+ *
+ * Il CLI 2.1.294 **toglie** dal catalogo i plugin già installati: la versione
+ * che c'è nel catalogo per loro si legge dai marketplace scaricati
+ * (`catalogo`), e per quelli presi da una cartella dal `folderVersion`.
+ */
+export function pluginDaCli(
+  dati: { installed?: VoceCli[]; available?: VoceCli[] },
+  catalogo: Map<string, { version?: string; sha?: string; description?: string }> = new Map()
+): PluginVoce[] {
+  const fuori: PluginVoce[] = []
+  const visti = new Set<string>()
+  for (const v of dati.installed ?? []) {
+    const id = idDi(v)
+    if (id === undefined || visti.has(id)) continue
+    visti.add(id)
+    const disponibile = (dati.available ?? []).find((a) => idDi(a) === id)
+    const nelCatalogo = catalogo.get(id) ?? (disponibile !== undefined
+      ? { ...(typeof disponibile.version === 'string' ? { version: disponibile.version } : {}), ...(shaDi(disponibile.source) !== undefined ? { sha: shaDi(disponibile.source) } : {}) }
+      : undefined)
+    const agg = aggiornamentoDisponibile(
+      { ...(typeof v.version === 'string' ? { version: v.version } : {}), ...(typeof v.folderVersion === 'string' ? { folderVersion: v.folderVersion } : {}) },
+      nelCatalogo
+    )
+    // Gli installati non portano la descrizione: la si prende dal catalogo.
+    const descrizione = typeof v.description === 'string' ? v.description
+      : typeof disponibile?.description === 'string' ? disponibile.description
+        : catalogo.get(id)?.description ?? ''
+    const installazioni = typeof disponibile?.installCount === 'number' ? disponibile.installCount : v.installCount
+    const p: PluginVoce = {
+      id,
+      nome: v.name ?? disponibile?.name ?? id.split('@')[0] ?? id,
+      descrizione,
+      marketplace: v.marketplaceName ?? id.split('@')[1] ?? '',
+      installato: true,
+      abilitato: abilitatoDa(v),
+      ...(typeof installazioni === 'number' ? { installazioni } : {}),
+      ...(typeof v.version === 'string' ? { versione: v.version } : {}),
+      ...(agg.aggiornamento ? { aggiornamento: true, ...(agg.nuova !== undefined ? { versioneNuova: agg.nuova } : {}) } : {}),
+      ...(typeof v.scope === 'string' ? { ambito: v.scope } : {}),
+      ...(typeof v.installPath === 'string' ? { percorso: v.installPath } : {})
+    }
+    fuori.push({ ...p, stato: statoPlugin(p) })
+  }
+  for (const v of dati.available ?? []) {
+    const id = idDi(v)
+    if (id === undefined || visti.has(id)) continue
+    visti.add(id)
+    const p: PluginVoce = {
+      id,
+      nome: v.name ?? id.split('@')[0] ?? id,
+      descrizione: typeof v.description === 'string' ? v.description : '',
+      marketplace: v.marketplaceName ?? id.split('@')[1] ?? '',
+      installato: false,
+      abilitato: false,
+      ...(typeof v.installCount === 'number' ? { installazioni: v.installCount } : {})
+    }
+    fuori.push({ ...p, stato: statoPlugin(p) })
+  }
+  return fuori
+}
+
+/**
+ * Il catalogo si legge in 3-5 secondi (3500 plugin): lo si tiene un minuto, e
+ * lo si butta dopo ogni azione che lo cambia. Il telefono e il pannello lo
+ * chiedono spesso; il CLI non deve ripartire ogni volta.
+ */
+const VALIDITA_CATALOGO_MS = 60_000
+let catalogoInMemoria: { quando: number; valore: Promise<{ plugin: Plugin[]; errore?: string }> } | undefined
+
+export function dimenticaCatalogo(): void {
+  catalogoInMemoria = undefined
+}
+
 /**
  * Tutti i plugin: quelli offerti dai marketplace, marcati con installato/abilitato.
  * Un fallimento del CLI non è un vuoto silenzioso — si restituisce il perché,
  * così l'interfaccia può dire «il negozio non risponde» invece di «nessun plugin».
  */
-export async function elencoPlugin(): Promise<{ plugin: Plugin[]; errore?: string }> {
+export function elencoPlugin(radiceClaude?: string, fresco = false): Promise<{ plugin: Plugin[]; errore?: string }> {
+  const adesso = Date.now()
+  if (!fresco && catalogoInMemoria !== undefined && adesso - catalogoInMemoria.quando < VALIDITA_CATALOGO_MS) return catalogoInMemoria.valore
+  const valore = leggiPlugin(radiceClaude)
+  catalogoInMemoria = { quando: adesso, valore }
+  // Un errore non si tiene: la prossima richiesta riprova.
+  void valore.then((r) => { if (r.errore !== undefined && catalogoInMemoria?.valore === valore) catalogoInMemoria = undefined })
+  return valore
+}
+
+async function leggiPlugin(radiceClaude?: string): Promise<{ plugin: Plugin[]; errore?: string }> {
   const r = await esegui(['plugin', 'list', '--available', '--json'], TIMEOUT_LETTURA)
   if (!r.ok) return { plugin: [], errore: r.motivo ?? (r.stderr || r.stdout || 'elenco plugin fallito').trim().slice(0, 400) }
   let dati: { installed?: VoceCli[]; available?: VoceCli[] }
@@ -169,72 +250,88 @@ export async function elencoPlugin(): Promise<{ plugin: Plugin[]; errore?: strin
   } catch {
     return { plugin: [], errore: 'risposta del CLI non leggibile' }
   }
-  const statoInstallati = new Map<string, boolean>()
-  for (const v of dati.installed ?? []) {
-    const id = idDi(v)
-    if (id !== undefined) statoInstallati.set(id, abilitatoDa(v))
-  }
-  const plugin: Plugin[] = []
-  for (const v of dati.available ?? []) {
-    const id = idDi(v) ?? ''
-    const installato = statoInstallati.has(id)
-    const p = normalizza(v, installato, installato ? statoInstallati.get(id) === true : false)
-    if (p !== undefined) plugin.push(p)
-  }
-  // Un installato che non è più nel catalogo (marketplace rimosso) va mostrato
-  // lo stesso: è roba dell'utente, non deve sparire perché la vetrina è cambiata.
-  for (const v of dati.installed ?? []) {
-    const id = idDi(v) ?? ''
-    if (id !== '' && !plugin.some((p) => p.id === id)) {
-      const p = normalizza(v, true, abilitatoDa(v))
-      if (p !== undefined) plugin.push(p)
-    }
-  }
-  return { plugin }
+  return { plugin: pluginDaCli(dati, radiceClaude !== undefined ? versioniCatalogo(radiceClaude) : new Map()) }
 }
 
-export async function installaPlugin(id: string): Promise<Esito> {
+/** Esegue un'azione che cambia i plugin: `--json`, esito letto, catalogo da rileggere. */
+async function azione(args: string[], timeout: number, cosa: AzioneNegozio, cwd?: string): Promise<Esito> {
+  const r = await esegui([...args, '--json'], timeout, cwd)
+  dimenticaCatalogo()
+  if (r.motivo !== undefined && r.stdout.trim() === '') return { ok: false, messaggio: r.motivo }
+  const e = esitoCli(r)
+  return e.ok ? { ...e, fatto: cosaCambia(cosa) } : e
+}
+
+/**
+ * Installa un plugin. `accetta` è l'impronta del comando del marketplace che
+ * la persona ha letto e confermato: senza, un plugin che ne chiede uno torna
+ * con `conferma` e non si installa.
+ */
+export async function installaPlugin(id: string, accetta?: string): Promise<Esito> {
   if (!idPluginValido(id)) return rifiuta(id)
-  return interpreta(await esegui(['plugin', 'install', id, '--yes'], TIMEOUT_INSTALLA), 'installazione fallita')
+  if (accetta !== undefined && !/^[0-9a-f]{64}$/i.test(accetta)) return { ok: false, messaggio: 'impronta del comando non valida' }
+  return azione(['plugin', 'install', id, ...(accetta !== undefined ? ['--accept-command', accetta] : [])], TIMEOUT_INSTALLA, 'installa')
+}
+
+export async function aggiornaPlugin(id: string, accetta?: string): Promise<Esito> {
+  if (!idPluginValido(id)) return rifiuta(id)
+  if (accetta !== undefined && !/^[0-9a-f]{64}$/i.test(accetta)) return { ok: false, messaggio: 'impronta del comando non valida' }
+  const e = await azione(['plugin', 'update', id, ...(accetta !== undefined ? ['--accept-command', accetta] : [])], TIMEOUT_INSTALLA, 'aggiorna')
+  if (e.ok && e.aggiornato?.giaUltima === true) {
+    return { ...e, fatto: `Era già all’ultima versione${e.aggiornato.a !== undefined ? ` (${e.aggiornato.a})` : ''}: niente da cambiare.` }
+  }
+  if (e.ok && e.aggiornato?.a !== undefined) {
+    return { ...e, fatto: `Aggiornato${e.aggiornato.da !== undefined ? ` dalla ${e.aggiornato.da}` : ''} alla ${e.aggiornato.a}. ${cosaCambia('aggiorna').replace(/^Aggiornato\. /, '')}` }
+  }
+  return e
 }
 
 export async function disinstallaPlugin(id: string): Promise<Esito> {
   if (!idPluginValido(id)) return rifiuta(id)
-  return interpreta(await esegui(['plugin', 'uninstall', id], TIMEOUT_INSTALLA), 'disinstallazione fallita')
+  return azione(['plugin', 'uninstall', id], TIMEOUT_INSTALLA, 'rimuovi-plugin')
 }
 
 export async function commutaPlugin(id: string, abilita: boolean): Promise<Esito> {
   if (!idPluginValido(id)) return rifiuta(id)
-  return interpreta(await esegui(['plugin', abilita ? 'enable' : 'disable', id], TIMEOUT_LETTURA), 'operazione fallita')
+  return azione(['plugin', abilita ? 'enable' : 'disable', id], TIMEOUT_LETTURA, abilita ? 'attiva-plugin' : 'disattiva-plugin')
 }
 
 export type Marketplace = {
   nome: string
-  /** Che tipo di sorgente: github, url, path… — per farlo capire a colpo d'occhio. */
+  /** Che tipo di sorgente: github, url, directory… — per farlo capire a colpo d'occhio. */
   tipo: string
   /** Il riferimento vero: il repo, l'indirizzo, o il percorso. */
   riferimento: string
   /** Quello ufficiale non si toglie: farne a meno vorrebbe dire un negozio vuoto. */
   ufficiale: boolean
+  /** Quando è stato riletto l'ultima volta dalla sua sorgente, se si sa. */
+  aggiornato?: string
 }
 
 const MARKETPLACE_UFFICIALE = 'claude-plugins-official'
 
+/** Dalla risposta vera di `plugin marketplace list --json` all'elenco delle fonti. */
+export function marketplaceDaCli(
+  arr: unknown,
+  aggiornati: Record<string, string> = {}
+): Marketplace[] {
+  return (Array.isArray(arr) ? arr as Array<{ name?: string; source?: string; repo?: string; url?: string; path?: string }> : [])
+    .filter((m): m is { name: string } & typeof m => typeof m?.name === 'string' && m.name !== '')
+    .map((m) => ({
+      nome: m.name,
+      tipo: typeof m.source === 'string' ? m.source : '?',
+      riferimento: m.repo ?? m.url ?? m.path ?? '',
+      ufficiale: m.name === MARKETPLACE_UFFICIALE,
+      ...(aggiornati[m.name] !== undefined ? { aggiornato: aggiornati[m.name] } : {})
+    }))
+}
+
 /** I marketplace configurati (lo store ufficiale più quelli aggiunti a mano). */
-export async function elencoMarketplace(): Promise<{ marketplace: Marketplace[]; errore?: string }> {
+export async function elencoMarketplace(aggiornati: Record<string, string> = {}): Promise<{ marketplace: Marketplace[]; errore?: string }> {
   const r = await esegui(['plugin', 'marketplace', 'list', '--json'], TIMEOUT_LETTURA)
-  if (!r.ok) return { marketplace: [], errore: (r.stderr || r.stdout || 'elenco marketplace fallito').trim().slice(0, 400) }
+  if (!r.ok) return { marketplace: [], errore: r.motivo ?? (r.stderr || r.stdout || 'elenco marketplace fallito').trim().slice(0, 400) }
   try {
-    const arr = JSON.parse(r.stdout) as Array<{ name?: string; source?: string; repo?: string; url?: string; path?: string }>
-    const marketplace = (Array.isArray(arr) ? arr : [])
-      .filter((m): m is { name: string } & typeof m => typeof m.name === 'string' && m.name !== '')
-      .map((m) => ({
-        nome: m.name,
-        tipo: typeof m.source === 'string' ? m.source : '?',
-        riferimento: m.repo ?? m.url ?? m.path ?? '',
-        ufficiale: m.name === MARKETPLACE_UFFICIALE
-      }))
-    return { marketplace }
+    return { marketplace: marketplaceDaCli(JSON.parse(r.stdout), aggiornati) }
   } catch {
     return { marketplace: [], errore: 'risposta del CLI non leggibile' }
   }
@@ -246,18 +343,24 @@ export async function aggiungiMarketplace(sorgente: string): Promise<Esito> {
   // vietarne meta'. Ma il trattino davanti resta fuori: e' l'unica cosa che
   // trasforma un valore in un'opzione.
   if (sorgente.trim() === '' || sorgente.trimStart().startsWith('-')) return rifiuta(sorgente)
-  return interpreta(await esegui(['plugin', 'marketplace', 'add', sorgente], TIMEOUT_INSTALLA), 'aggiunta fallita')
+  return azione(['plugin', 'marketplace', 'add', sorgente.trim()], TIMEOUT_INSTALLA, 'aggiungi-marketplace')
 }
 
 export async function rimuoviMarketplace(nome: string): Promise<Esito> {
   if (!idPluginValido(nome)) return rifiuta(nome)
-  return interpreta(await esegui(['plugin', 'marketplace', 'remove', nome], TIMEOUT_LETTURA), 'rimozione fallita')
+  return azione(['plugin', 'marketplace', 'remove', nome], TIMEOUT_LETTURA, 'togli-marketplace')
 }
 
 export async function aggiornaMarketplace(nome?: string): Promise<Esito> {
   if (nome !== undefined && nome !== '' && !idPluginValido(nome)) return rifiuta(nome)
-  const args = nome !== undefined && nome !== '' ? ['plugin', 'marketplace', 'update', nome] : ['plugin', 'marketplace', 'update']
-  return interpreta(await esegui(args, TIMEOUT_INSTALLA), 'aggiornamento fallito')
+  if (nome === undefined || nome === '') {
+    // Senza nome il CLI non stampa la riga --json: si legge come prima.
+    const r = await esegui(['plugin', 'marketplace', 'update'], TIMEOUT_INSTALLA)
+    dimenticaCatalogo()
+    const e = interpreta(r, 'aggiornamento non riuscito')
+    return e.ok ? { ...e, fatto: cosaCambia('aggiorna-marketplace') } : (r.motivo !== undefined ? { ok: false, messaggio: r.motivo } : e)
+  }
+  return azione(['plugin', 'marketplace', 'update', nome], TIMEOUT_INSTALLA, 'aggiorna-marketplace')
 }
 
 /**
@@ -270,6 +373,6 @@ export async function dettagliPlugin(id: string): Promise<{ testo: string; error
   if (!idPluginValido(id)) return { testo: '', errore: 'identificatore non valido' }
   const r = await esegui(['plugin', 'details', id], TIMEOUT_LETTURA)
   const testo = (r.stdout || '').trim()
-  if (!r.ok) return { testo: '', errore: (r.stderr || testo || 'dettagli non disponibili').trim().slice(0, 400) }
+  if (!r.ok) return { testo: '', errore: r.motivo ?? motivoLeggibile((r.stderr || testo || 'dettagli non disponibili').trim()) }
   return { testo }
 }

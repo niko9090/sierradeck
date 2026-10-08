@@ -1,5 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { statoSkill, type SkillVoce, type PluginVoce } from '@shared/negozio'
 
 /**
  * Il **negozio**, lato lettura: cosa c'è già e cosa si può installare.
@@ -17,29 +19,7 @@ import { join } from 'node:path'
  * vuoto, non un guasto.
  */
 
-export type PluginCatalogo = {
-  nome: string
-  descrizione: string
-  autore?: string
-  marketplace: string
-}
-
-export type ServitoreMcp = {
-  nome: string
-  /** Come è avviato: il comando o l'URL, per farlo vedere senza svelare troppo. */
-  come: string
-  abilitato: boolean
-}
-
-export type Skill = {
-  nome: string
-  descrizione: string
-  /** Da dove arriva: personale (utente), di progetto, o portata da un plugin. */
-  origine: 'utente' | 'progetto' | 'plugin'
-  percorso: string
-  /** Se è attiva: una in `skillOverrides` come «off» è installata ma spenta. */
-  abilitata: boolean
-}
+export type Skill = SkillVoce
 
 export type Agente = {
   nome: string
@@ -62,36 +42,54 @@ function leggiJson<T>(percorso: string): T | undefined {
   }
 }
 
-/** Il catalogo: tutti i plugin offerti dai marketplace scaricati. */
-export function catalogoPlugin(radiceClaude: string): PluginCatalogo[] {
+/**
+ * Dove stanno i file di Claude Code su questo computer. Con
+ * `CLAUDE_CONFIG_DIR` (lo usa chi tiene la configurazione altrove, e le
+ * prove del negozio) **anche** `.claude.json` sta lì dentro, non nella home:
+ * è così che si comporta Claude Code 2.1.294, provato.
+ */
+export function percorsiClaude(env: Record<string, string | undefined> = process.env, casa: string = homedir()): { radice: string; fileClaudeJson: string } {
+  const dir = env.CLAUDE_CONFIG_DIR
+  if (dir !== undefined && dir.trim() !== '') return { radice: dir, fileClaudeJson: join(dir, '.claude.json') }
+  return { radice: join(casa, '.claude'), fileClaudeJson: join(casa, '.claude.json') }
+}
+
+/**
+ * Le versioni nel catalogo dei marketplace scaricati (`id` → version o sha).
+ * Serve per i plugin **installati**: il CLI 2.1.294 li toglie dall'elenco
+ * dei disponibili, e senza questo non si saprebbe che c'è un aggiornamento.
+ */
+export function versioniCatalogo(radiceClaude: string): Map<string, { version?: string; sha?: string; description?: string }> {
+  const fuori = new Map<string, { version?: string; sha?: string; description?: string }>()
   const noti = leggiJson<Record<string, { installLocation?: string }>>(
     join(radiceClaude, 'plugins', 'known_marketplaces.json')
   )
-  if (noti === undefined) return []
-  const fuori: PluginCatalogo[] = []
+  if (noti === undefined) return fuori
   for (const [nomeMkt, dati] of Object.entries(noti)) {
-    const dove = dati.installLocation ?? join(radiceClaude, 'plugins', 'marketplaces', nomeMkt)
-    const cat = leggiJson<{ plugins?: Array<{ name?: string; description?: string; author?: { name?: string } | string }> }>(
+    const dove = dati?.installLocation ?? join(radiceClaude, 'plugins', 'marketplaces', nomeMkt)
+    const cat = leggiJson<{ plugins?: Array<{ name?: string; version?: string; source?: unknown; description?: unknown }> }>(
       join(dove, '.claude-plugin', 'marketplace.json')
     )
     for (const p of cat?.plugins ?? []) {
-      if (typeof p.name !== 'string') continue
-      const autore = typeof p.author === 'string' ? p.author : p.author?.name
-      fuori.push({
-        nome: p.name,
-        descrizione: typeof p.description === 'string' ? p.description : '',
-        ...(autore !== undefined ? { autore } : {}),
-        marketplace: nomeMkt
+      if (typeof p?.name !== 'string') continue
+      const src = p.source
+      const sha = src !== null && typeof src === 'object' && typeof (src as { sha?: unknown }).sha === 'string' ? (src as { sha: string }).sha : undefined
+      fuori.set(`${p.name}@${nomeMkt}`, {
+        ...(typeof p.version === 'string' ? { version: p.version } : {}),
+        ...(sha !== undefined ? { sha } : {}),
+        ...(typeof p.description === 'string' && p.description !== '' ? { description: p.description } : {})
       })
     }
   }
   return fuori
 }
 
-/** I marketplace conosciuti (nome → sorgente), per mostrarli e per aggiungerne. */
-export function marketplaceNoti(radiceClaude: string): string[] {
-  const noti = leggiJson<Record<string, unknown>>(join(radiceClaude, 'plugins', 'known_marketplaces.json'))
-  return noti === undefined ? [] : Object.keys(noti)
+/** Quando ogni marketplace è stato riletto dalla sua sorgente (nome → data ISO). */
+export function marketplaceAggiornati(radiceClaude: string): Record<string, string> {
+  const noti = leggiJson<Record<string, { lastUpdated?: unknown }>>(join(radiceClaude, 'plugins', 'known_marketplaces.json'))
+  const fuori: Record<string, string> = {}
+  for (const [nome, d] of Object.entries(noti ?? {})) if (typeof d?.lastUpdated === 'string') fuori[nome] = d.lastUpdated
+  return fuori
 }
 
 /**
@@ -110,21 +108,24 @@ export function chiaveProgetto(projects: Record<string, unknown> | undefined, cw
   return Object.keys(projects).find((k) => norm(k) === voluta) ?? cwd
 }
 
-/** Gli MCP configurati per un progetto, con se sono abilitati. */
-export function mcpDiProgetto(fileClaudeJson: string, cwd: string): ServitoreMcp[] {
-  const j = leggiJson<{ projects?: Record<string, {
-    mcpServers?: Record<string, { command?: string; url?: string; type?: string }>
-    enabledMcpjsonServers?: string[]
-    disabledMcpjsonServers?: string[]
-  }> }>(fileClaudeJson)
-  const prog = j?.projects?.[chiaveProgetto(j?.projects, cwd)]
-  if (prog?.mcpServers === undefined) return []
-  const disabilitati = new Set(prog.disabledMcpjsonServers ?? [])
-  return Object.entries(prog.mcpServers).map(([nome, cfg]) => ({
-    nome,
-    come: cfg.url ?? cfg.command ?? cfg.type ?? '?',
-    abilitato: !disabilitati.has(nome)
-  }))
+/**
+ * Un valore YAML su una riga: fra doppi apici con le sequenze di JSON (come
+ * le scrive il negozio, e come le legge Claude Code), fra apici semplici, o
+ * nudo.
+ */
+function valoreYaml(v: string): string {
+  const t = v.trim()
+  if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
+    try {
+      const x = JSON.parse(t) as unknown
+      if (typeof x === 'string') return x
+    } catch {
+      // non e' JSON: si tolgono solo gli apici
+    }
+    return t.slice(1, -1)
+  }
+  if (t.length >= 2 && t.startsWith("'") && t.endsWith("'")) return t.slice(1, -1).replace(/''/g, "'")
+  return t
 }
 
 /** Legge nome e descrizione dall'intestazione YAML di un SKILL.md. */
@@ -139,7 +140,7 @@ function leggiSkillMd(percorso: string, nomeCartella: string): { nome: string; d
       for (const riga of testa.split('\n')) {
         const m = /^\s*(name|description)\s*:\s*(.+?)\s*$/.exec(riga)
         if (m === null) continue
-        const val = (m[2] ?? '').replace(/^["']|["']$/g, '')
+        const val = valoreYaml(m[2] ?? '')
         if (m[1] === 'name') nome = val
         else descrizione = val
       }
@@ -150,21 +151,31 @@ function leggiSkillMd(percorso: string, nomeCartella: string): { nome: string; d
   return { nome, descrizione }
 }
 
-/** Le skill spente: i nomi che in `skillOverrides` valgono qualcosa di diverso
- * da attivo (per ora Claude Code usa «off»). Una skill assente qui è attiva. */
-function skillSpente(radiceClaude: string): Set<string> {
-  const s = leggiJson<{ skillOverrides?: Record<string, unknown> }>(join(radiceClaude, 'settings.json'))
-  const over = s?.skillOverrides
-  if (over === undefined) return new Set()
-  const spente = new Set<string>()
-  for (const [nome, val] of Object.entries(over)) {
-    if (typeof val === 'string' && /off|disab/i.test(val)) spente.add(nome)
+/**
+ * Gli override delle skill (`skillOverrides`: on, name-only,
+ * user-invocable-only, off), da tutti i file in cui Claude Code li legge:
+ * l'utente, poi il progetto (`.claude/settings.json`), poi il locale
+ * (`.claude/settings.local.json`), che vince. Prima si guardava solo il file
+ * dell'utente: una skill spenta per il progetto si vedeva accesa.
+ */
+export function overrideSkill(radiceClaude: string, cwd?: string): Map<string, string> {
+  const file = [join(radiceClaude, 'settings.json')]
+  if (cwd !== undefined) file.push(join(cwd, '.claude', 'settings.json'), join(cwd, '.claude', 'settings.local.json'))
+  const fuori = new Map<string, string>()
+  for (const f of file) {
+    const over = leggiJson<{ skillOverrides?: Record<string, unknown> }>(f)?.skillOverrides
+    if (over === undefined || over === null || typeof over !== 'object') continue
+    for (const [nome, val] of Object.entries(over)) if (typeof val === 'string') fuori.set(nome, val)
   }
-  return spente
+  return fuori
+}
+
+function spenta(val: string | undefined): boolean {
+  return val !== undefined && /^(off|disab)/i.test(val)
 }
 
 /** Le skill di una cartella `skills/`: ogni sottocartella con un `SKILL.md`. */
-function skillInCartella(cartellaSkills: string, origine: Skill['origine'], spente: Set<string>): Skill[] {
+function skillInCartella(cartellaSkills: string, origine: Skill['origine'], over: Map<string, string>, plugin?: { nome: string; acceso: boolean }): Skill[] {
   if (!existsSync(cartellaSkills)) return []
   const fuori: Skill[] = []
   let voci: string[]
@@ -177,17 +188,36 @@ function skillInCartella(cartellaSkills: string, origine: Skill['origine'], spen
     const md = join(cartellaSkills, nome, 'SKILL.md')
     if (!existsSync(md)) continue
     const { nome: n, descrizione } = leggiSkillMd(md, nome)
-    fuori.push({ nome: n, descrizione, origine, percorso: join(cartellaSkills, nome), abilitata: !spente.has(n) })
+    // Le skill di un plugin non sentono `skillOverrides` (documentazione di
+    // Claude Code): sono accese finché il plugin è acceso.
+    const val = plugin === undefined ? over.get(n) : undefined
+    const s: Skill = {
+      nome: plugin === undefined ? n : `${plugin.nome}:${n}`,
+      descrizione,
+      origine,
+      percorso: join(cartellaSkills, nome),
+      abilitata: plugin === undefined ? !spenta(val) : plugin.acceso,
+      ...(val !== undefined && !spenta(val) && val !== 'on' ? { override: val } : {}),
+      ...(plugin !== undefined ? { plugin: plugin.nome } : {})
+    }
+    fuori.push({ ...s, stato: statoSkill(s) })
   }
   return fuori
 }
 
-/** Le skill disponibili: personali (utente) e del progetto corrente. */
-export function skillDisponibili(radiceClaude: string, cwd?: string): Skill[] {
-  const spente = skillSpente(radiceClaude)
-  const utente = skillInCartella(join(radiceClaude, 'skills'), 'utente', spente)
-  const progetto = cwd !== undefined ? skillInCartella(join(cwd, '.claude', 'skills'), 'progetto', spente) : []
-  return [...utente, ...progetto]
+/**
+ * Le skill disponibili: personali (utente), del progetto corrente e, se si
+ * passano i plugin installati, quelle che portano loro (in sola lettura:
+ * si accendono e si spengono col plugin).
+ */
+export function skillDisponibili(radiceClaude: string, cwd?: string, plugin: PluginVoce[] = []): Skill[] {
+  const over = overrideSkill(radiceClaude, cwd)
+  const utente = skillInCartella(join(radiceClaude, 'skills'), 'utente', over)
+  const progetto = cwd !== undefined ? skillInCartella(join(cwd, '.claude', 'skills'), 'progetto', over) : []
+  const daPlugin = plugin
+    .filter((p) => p.installato && p.percorso !== undefined)
+    .flatMap((p) => skillInCartella(join(p.percorso as string, 'skills'), 'plugin', over, { nome: p.nome, acceso: p.abilitato }))
+  return [...utente, ...progetto, ...daPlugin]
 }
 
 /** Legge le voci volute dall'intestazione YAML di un file agente. */
@@ -201,7 +231,7 @@ function leggiTestaAgente(percorso: string): { nome?: string; descrizione?: stri
     for (const riga of testa.split('\n')) {
       const m = /^\s*(name|description|tools|model)\s*:\s*(.+?)\s*$/.exec(riga)
       if (m === null) continue
-      const val = (m[2] ?? '').replace(/^["']|["']$/g, '')
+      const val = valoreYaml(m[2] ?? '')
       if (m[1] === 'name') fuori.nome = val
       else if (m[1] === 'description') fuori.descrizione = val
       else if (m[1] === 'tools') fuori.strumenti = val

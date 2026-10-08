@@ -130,11 +130,15 @@ import { decidiApertura, type Apertura } from '@shared/apertura-chat'
 import { avvisoDriveScollegato, scollegamentoDalRegistro, type AvvisoDrive, type StatoPc } from '@shared/scoperta-pc'
 import { indirizziTailscale } from './tailscale'
 import {
-  elencoPlugin, installaPlugin, disinstallaPlugin, commutaPlugin,
+  elencoPlugin, installaPlugin, aggiornaPlugin, disinstallaPlugin, commutaPlugin,
   elencoMarketplace, aggiungiMarketplace, rimuoviMarketplace, aggiornaMarketplace, dettagliPlugin
 } from './negozio/cli'
-import { skillDisponibili, mcpDiProgetto, agentiDisponibili } from './negozio/lettura'
-import { commutaSkill, commutaMcp } from './negozio/azioni'
+import { skillDisponibili, agentiDisponibili, percorsiClaude, marketplaceAggiornati } from './negozio/lettura'
+import { commutaSkill, creaSkill, importaSkill, skillTogliibile } from './negozio/azioni'
+import {
+  elencoMcp, elencoMcpConSalute, commutaMcp, approvaMcp, aggiungiMcp, togliMcp, impostaVariabiliMcp
+} from './negozio/mcp'
+import { vetrina, cosaCambia, type AmbitoMcp, type NuovoMcpModulo, type ModificheMcpModulo } from '@shared/negozio'
 import {
   apriScopeStore, scopeVuoto, scopeInerte, componiScope, fondiImpostazioni, leggiGlobaliPerScope,
   type ScopeChat, type ScopeStore
@@ -965,8 +969,8 @@ if (!app.requestSingleInstanceLock()) {
           // nemmeno leggere i file. È il caso normale, e non deve costare nulla.
           let base = autopilotaJson
           if (!scopeInerte(scope)) {
-            const radice = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
-            const globali = leggiGlobaliPerScope({ radiceClaude: radice, fileClaudeJson: join(homedir(), '.claude.json'), cwd })
+            const { radice, fileClaudeJson } = percorsiClaude()
+            const globali = leggiGlobaliPerScope({ radiceClaude: radice, fileClaudeJson, cwd })
             base = fondiImpostazioni(autopilotaJson, componiScope({ scope, ...globali }))
           }
           // La riga di stato che ci porta limiti del piano, costo e contesto.
@@ -2787,32 +2791,102 @@ if (!app.requestSingleInstanceLock()) {
         if (typeof id === 'string') trasferimenti?.scollega(id)
       })
 
-      const fileClaudeJson = join(homedir(), '.claude.json')
+      const { fileClaudeJson } = percorsiClaude()
       const soloStringa = (x: unknown): string | undefined => (typeof x === 'string' && x.trim() !== '' ? x : undefined)
-      ipcMain.handle('negozio:plugin', () => elencoPlugin())
-      ipcMain.handle('negozio:installaPlugin', (_e, id: unknown) =>
-        soloStringa(id) !== undefined ? installaPlugin(id as string) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
+      const nonValida = { ok: false, messaggio: 'richiesta non valida' }
+      const ambitoMcp = (x: unknown): AmbitoMcp | undefined =>
+        x === 'locale' || x === 'utente' || x === 'progetto' || x === 'altro' ? x : undefined
+      /** La cartella delle skill personali o del progetto. */
+      const cartellaSkill = (dove: unknown, cwd: unknown): string | undefined =>
+        dove === 'utente' ? join(radiceClaude, 'skills')
+          : dove === 'progetto' && soloStringa(cwd) !== undefined ? join(cwd as string, '.claude', 'skills') : undefined
+      ipcMain.handle('negozio:plugin', (_e, fresco: unknown) => elencoPlugin(radiceClaude, fresco === true))
+      ipcMain.handle('negozio:installaPlugin', (_e, id: unknown, accetta: unknown) =>
+        soloStringa(id) !== undefined ? installaPlugin(id as string, soloStringa(accetta)) : nonValida)
+      ipcMain.handle('negozio:aggiornaPlugin', (_e, id: unknown, accetta: unknown) =>
+        soloStringa(id) !== undefined ? aggiornaPlugin(id as string, soloStringa(accetta)) : nonValida)
       ipcMain.handle('negozio:disinstallaPlugin', (_e, id: unknown) =>
-        soloStringa(id) !== undefined ? disinstallaPlugin(id as string) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
+        soloStringa(id) !== undefined ? disinstallaPlugin(id as string) : nonValida)
       ipcMain.handle('negozio:commutaPlugin', (_e, id: unknown, on: unknown) =>
-        soloStringa(id) !== undefined ? commutaPlugin(id as string, on === true) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
-      ipcMain.handle('negozio:skill', (_e, cwd: unknown) => skillDisponibili(radiceClaude, soloStringa(cwd)))
+        soloStringa(id) !== undefined ? commutaPlugin(id as string, on === true) : nonValida)
+      // Le skill portate dai plugin si leggono dalle loro cartelle: serve
+      // l'elenco dei plugin (quello in memoria, se c'è).
+      ipcMain.handle('negozio:skill', async (_e, cwd: unknown) => {
+        const p = await elencoPlugin(radiceClaude).catch(() => ({ plugin: [] }))
+        return skillDisponibili(radiceClaude, soloStringa(cwd), p.plugin)
+      })
       ipcMain.handle('negozio:commutaSkill', (_e, nome: unknown, on: unknown) =>
-        soloStringa(nome) !== undefined ? commutaSkill(radiceClaude, nome as string, on === true) : { ok: false, messaggio: 'richiesta non valida' })
+        soloStringa(nome) !== undefined ? commutaSkill(radiceClaude, nome as string, on === true) : nonValida)
+      ipcMain.handle('negozio:creaSkill', (_e, dove: unknown, cwd: unknown, dati: unknown) => {
+        const cartella = cartellaSkill(dove, cwd)
+        const d = (dati !== null && typeof dati === 'object' ? dati : {}) as Record<string, unknown>
+        if (cartella === undefined) return { ok: false, messaggio: 'Per una skill del progetto serve una chat aperta: è la sua cartella a dire quale progetto.' }
+        return creaSkill(cartella, {
+          nome: typeof d.nome === 'string' ? d.nome : '',
+          descrizione: typeof d.descrizione === 'string' ? d.descrizione : '',
+          istruzioni: typeof d.istruzioni === 'string' ? d.istruzioni : ''
+        })
+      })
+      ipcMain.handle('negozio:importaSkill', async (e, dove: unknown, cwd: unknown) => {
+        const cartella = cartellaSkill(dove, cwd)
+        if (cartella === undefined) return { ok: false, messaggio: 'Per una skill del progetto serve una chat aperta: è la sua cartella a dire quale progetto.' }
+        const win = BrowserWindow.fromWebContents(e.sender)
+        const opzioni = { title: 'Scegli la cartella della skill (quella con dentro SKILL.md)', properties: ['openDirectory' as const] }
+        const scelta = win === null ? await dialog.showOpenDialog(opzioni) : await dialog.showOpenDialog(win, opzioni)
+        const sorgente = scelta.filePaths[0]
+        if (scelta.canceled || sorgente === undefined) return { ok: false, messaggio: 'Nessuna cartella scelta.' }
+        return importaSkill(cartella, sorgente)
+      })
+      // Togliere una skill la sposta nel Cestino di Windows: si recupera.
+      // Solo una cartella che sta **direttamente** dentro una cartella delle
+      // skill: il percorso arriva dall'interfaccia e non deve indicare altro.
+      ipcMain.handle('negozio:togliSkill', async (_e, percorso: unknown, cwd: unknown) => {
+        const p = soloStringa(percorso)
+        const cartelle = [join(radiceClaude, 'skills'), ...(soloStringa(cwd) !== undefined ? [join(cwd as string, '.claude', 'skills')] : [])]
+        if (p === undefined || !skillTogliibile(p, cartelle)) return { ok: false, messaggio: 'Si possono togliere solo le skill personali o del progetto: quelle di un plugin vanno via col plugin.' }
+        try {
+          await shell.trashItem(p)
+          return { ok: true, fatto: cosaCambia('togli-skill') }
+        } catch (err) {
+          return { ok: false, messaggio: `Non sono riuscito a spostarla nel Cestino: ${String(err)}` }
+        }
+      })
       ipcMain.handle('negozio:mcp', (_e, cwd: unknown) =>
-        soloStringa(cwd) !== undefined ? mcpDiProgetto(fileClaudeJson, cwd as string) : [])
+        soloStringa(cwd) !== undefined ? elencoMcp(radiceClaude, fileClaudeJson, cwd as string) : [])
+      ipcMain.handle('negozio:saluteMcp', (_e, cwd: unknown) =>
+        soloStringa(cwd) !== undefined ? elencoMcpConSalute(radiceClaude, fileClaudeJson, cwd as string) : { mcp: [] })
       ipcMain.handle('negozio:commutaMcp', (_e, cwd: unknown, nome: unknown, on: unknown) =>
         soloStringa(cwd) !== undefined && soloStringa(nome) !== undefined
           ? commutaMcp(fileClaudeJson, cwd as string, nome as string, on === true)
-          : { ok: false, messaggio: 'richiesta non valida' })
+          : nonValida)
+      ipcMain.handle('negozio:approvaMcp', (_e, cwd: unknown, nome: unknown, si: unknown) =>
+        soloStringa(cwd) !== undefined && soloStringa(nome) !== undefined
+          ? approvaMcp(cwd as string, nome as string, si === true)
+          : nonValida)
+      ipcMain.handle('negozio:aggiungiMcp', (_e, cwd: unknown, dati: unknown) =>
+        soloStringa(cwd) !== undefined && dati !== null && typeof dati === 'object'
+          ? aggiungiMcp(cwd as string, dati as NuovoMcpModulo)
+          : nonValida)
+      ipcMain.handle('negozio:togliMcp', (_e, cwd: unknown, nome: unknown, ambito: unknown) => {
+        const a = ambitoMcp(ambito)
+        return soloStringa(cwd) !== undefined && soloStringa(nome) !== undefined && a !== undefined
+          ? togliMcp(cwd as string, nome as string, a)
+          : nonValida
+      })
+      ipcMain.handle('negozio:variabiliMcp', (_e, cwd: unknown, nome: unknown, ambito: unknown, modifiche: unknown) => {
+        const a = ambitoMcp(ambito)
+        return soloStringa(cwd) !== undefined && soloStringa(nome) !== undefined && a !== undefined && modifiche !== null && typeof modifiche === 'object'
+          ? impostaVariabiliMcp(fileClaudeJson, cwd as string, nome as string, a, modifiche as ModificheMcpModulo)
+          : nonValida
+      })
       ipcMain.handle('negozio:agenti', (_e, cwd: unknown) => agentiDisponibili(radiceClaude, soloStringa(cwd)))
       ipcMain.handle('negozio:dettagliPlugin', (_e, id: unknown) =>
         soloStringa(id) !== undefined ? dettagliPlugin(id as string) : Promise.resolve({ testo: '', errore: 'richiesta non valida' }))
-      ipcMain.handle('negozio:marketplace', () => elencoMarketplace())
+      ipcMain.handle('negozio:marketplace', () => elencoMarketplace(marketplaceAggiornati(radiceClaude)))
       ipcMain.handle('negozio:aggiungiMarketplace', (_e, sorgente: unknown) =>
-        soloStringa(sorgente) !== undefined ? aggiungiMarketplace(sorgente as string) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
+        soloStringa(sorgente) !== undefined ? aggiungiMarketplace(sorgente as string) : nonValida)
       ipcMain.handle('negozio:rimuoviMarketplace', (_e, nome: unknown) =>
-        soloStringa(nome) !== undefined ? rimuoviMarketplace(nome as string) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
+        soloStringa(nome) !== undefined ? rimuoviMarketplace(nome as string) : nonValida)
       ipcMain.handle('negozio:aggiornaMarketplace', (_e, nome: unknown) => aggiornaMarketplace(soloStringa(nome)))
       // Rivelare un file (una skill, un agente) nella cartella: solo roba nostra,
       // e solo se il percorso esiste davvero. `showItemInFolder` non esegue
@@ -3506,26 +3580,26 @@ if (!app.requestSingleInstanceLock()) {
          */
         negozio: async () => {
           const cwd = chatAperte[0]?.cwd
+          const { radice, fileClaudeJson } = percorsiClaude()
           // `elencoPlugin` torna **un oggetto** — `{ plugin, errore }` — non un
           // elenco: il CLI puo' fallire, e il modulo lo dice invece di fingere
-          // un negozio vuoto. Qui quell'oggetto finiva intero nel campo
-          // `plugin`, e un `as unknown[]` nascondeva lo scambio al compilatore.
-          // Dall'altra parte il telefono si aspetta una lista: la conversione
-          // saltava, e con lei **tutta** la risposta — non solo i plugin. Il
-          // negozio sul telefono era vuoto per questo.
-          const [daCli, skill, agenti, mcp] = await Promise.all([
-            elencoPlugin().catch(() => ({ plugin: [], errore: 'elenco plugin non riuscito' })),
-            Promise.resolve(skillDisponibili(radiceClaude, cwd)).catch(() => []),
-            Promise.resolve(agentiDisponibili(radiceClaude, cwd)).catch(() => []),
-            Promise.resolve(
-              cwd === undefined ? [] : mcpDiProgetto(join(homedir(),'.claude.json'), cwd)
-            ).catch(() => [])
-          ])
+          // un negozio vuoto (il negozio vuoto sul telefono del 28/08).
+          const daCli = await elencoPlugin(radice).catch(() => ({ plugin: [], errore: 'elenco plugin non riuscito' }))
+          // Il catalogo intero sono 3500 plugin, quasi 4 MB: al telefono vanno
+          // gli installati e i più installati, il resto con la ricerca.
+          const v = vetrina(daCli.plugin, '', 30)
+          const [skill, agenti, mcp] = [
+            (() => { try { return skillDisponibili(radice, cwd, daCli.plugin) } catch { return [] } })(),
+            (() => { try { return agentiDisponibili(radice, cwd) } catch { return [] } })(),
+            (() => { try { return cwd === undefined ? [] : elencoMcp(radice, fileClaudeJson, cwd) } catch { return [] } })()
+          ]
           return {
-            plugin: daCli.plugin as unknown[],
-            skill: skill as unknown[],
-            agenti: agenti as unknown[],
-            mcp: mcp as unknown[],
+            plugin: v.plugin,
+            totalePlugin: v.totale,
+            skill,
+            agenti,
+            mcp,
+            ...(cwd !== undefined ? { cartella: cwd } : {}),
             // «Non risponde» e «non c'e' niente» sono due cose diverse, e da un
             // telefono si vedevano identiche: uno scaffale vuoto.
             ...(daCli.errore !== undefined ? { errore: daCli.errore } : {}),
@@ -3534,6 +3608,17 @@ if (!app.requestSingleInstanceLock()) {
             // evita di far cercare un guasto che non c'e'.
             ...(cwd === undefined ? { nota: 'Nessuna chat aperta sul computer: posso mostrare solo le cose personali, non quelle del progetto.' } : {})
           }
+        },
+        cercaPlugin: async (q: string) => {
+          const daCli = await elencoPlugin(percorsiClaude().radice).catch(() => ({ plugin: [], errore: 'elenco plugin non riuscito' }))
+          const v = vetrina(daCli.plugin, q, 50)
+          return { plugin: v.plugin, totale: v.totale, ...(daCli.errore !== undefined ? { errore: daCli.errore } : {}) }
+        },
+        saluteMcp: async () => {
+          const cwd = chatAperte[0]?.cwd
+          if (cwd === undefined) return { mcp: [], errore: 'Nessuna chat aperta sul computer: non so in quale progetto guardare.' }
+          const { radice, fileClaudeJson } = percorsiClaude()
+          return elencoMcpConSalute(radice, fileClaudeJson, cwd)
         },
         nomeComputer: () => {
           if (identitaPcGlobale !== undefined) return identitaPcGlobale.leggi().nome
@@ -3552,13 +3637,19 @@ if (!app.requestSingleInstanceLock()) {
           const i = impostaNomePc(nome)
           return { nome: i.nome, host: i.host, ...(i.nomeScelto !== undefined ? { nomeScelto: i.nomeScelto } : {}) }
         },
-        installaPlugin: (id: string) => installaPlugin(id),
+        installaPlugin: (id: string, accetta?: string) => installaPlugin(id, accetta),
+        aggiornaPlugin: (id: string, accetta?: string) => aggiornaPlugin(id, accetta),
         commutaPlugin: (id: string, attivo: boolean) => commutaPlugin(id, attivo),
-        commutaSkill: (nome: string, attivo: boolean) => commutaSkill(radiceClaude, nome, attivo),
+        commutaSkill: (nome: string, attivo: boolean) => commutaSkill(percorsiClaude().radice, nome, attivo),
         commutaMcp: (nome: string, attivo: boolean) => {
           const cwd = chatAperte[0]?.cwd
-          if (cwd === undefined) return { ok: false, messaggio: 'nessuna chat aperta: non so in quale progetto' }
-          return commutaMcp(join(homedir(), '.claude.json'), cwd, nome, attivo)
+          if (cwd === undefined) return { ok: false, messaggio: 'Nessuna chat aperta sul computer: non so in quale progetto.' }
+          return commutaMcp(percorsiClaude().fileClaudeJson, cwd, nome, attivo)
+        },
+        approvaMcp: (nome: string, si: boolean) => {
+          const cwd = chatAperte[0]?.cwd
+          if (cwd === undefined) return { ok: false, messaggio: 'Nessuna chat aperta sul computer: non so in quale progetto.' }
+          return approvaMcp(cwd, nome, si)
         },
         account: async () => {
           const utente = await utenteAccount().catch(() => undefined)

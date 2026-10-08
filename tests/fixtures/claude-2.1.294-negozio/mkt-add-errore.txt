@@ -1,0 +1,3 @@
+{"command":"marketplace-add","outcome":"failed","message":"Path does not exist: C:\\nonesiste","failureCode":"invalid_source"}
+✘ Path does not exist: C:\nonesiste
+1

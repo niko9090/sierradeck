@@ -781,12 +781,12 @@ describe('la storia di una chat', () => {
 describe('il negozio e l account, da un telefono', () => {
   it('dice cosa c e in dotazione', async () => {
     const su = deps({
-      negozio: async () => ({
+      negozio: (async () => ({
         plugin: [{ id: 'a@m', nome: 'a', installato: true, abilitato: true }],
         skill: [{ nome: 's', abilitata: false }],
         agenti: [],
         mcp: []
-      })
+      })) as never
     })
     const esito = await rotteClient(su)({ metodo: 'GET', percorso: '/api/negozio', corpo: undefined })
     expect(esito.stato).toBe(200)
@@ -882,12 +882,12 @@ describe('il negozio e l account, da un telefono', () => {
 
   it('il negozio manda elenchi, non oggetti travestiti da elenchi', async () => {
     const su = deps({
-      negozio: async () => ({
+      negozio: (async () => ({
         plugin: [{ id: 'a@b', nome: 'a' }],
         skill: [],
         agenti: [],
         mcp: []
-      })
+      })) as never
     })
     const esito = await rotteClient(su)({ metodo: 'GET', percorso: '/api/negozio', corpo: undefined })
     const corpo = esito.corpo as Record<string, unknown>
@@ -1356,5 +1356,43 @@ describe('il nome scelto del PC (0.52.4)', () => {
     const daPc = await rotteClient(d)({ metodo: 'POST', percorso: '/api/nome-pc', corpo: { nome: 'Altro' }, dispositivo: 'pc:pc-due' })
     expect(daPc.stato).toBe(403)
     expect(scelto).toBe('Studio')
+  })
+})
+
+describe('il negozio dal telefono e dalla pagina (0.53.0)', () => {
+  it('cerca nel catalogo intero; un computer che non lo sa fare dice 404, non un vuoto', async () => {
+    let chiesto = ''
+    const su = deps({ cercaPlugin: async (q: string) => { chiesto = q; return { plugin: [], totale: 0 } } })
+    const r = await rotteClient(su)({ metodo: 'POST', percorso: '/api/negozio/cerca', corpo: { q: 'documenti' } })
+    expect(r.stato).toBe(200)
+    expect(chiesto).toBe('documenti')
+    expect((await rotteClient(deps({}))({ metodo: 'POST', percorso: '/api/negozio/cerca', corpo: { q: 'x' } })).stato).toBe(404)
+  })
+
+  it('installa e aggiorna portano l’impronta del comando confermato; senza impronta non si passa niente', async () => {
+    const chiamate: Array<[string, string, string | undefined]> = []
+    const su = deps({
+      installaPlugin: async (id: string, accetta?: string) => { chiamate.push(['installa', id, accetta]); return { ok: true, fatto: 'Installato.' } },
+      aggiornaPlugin: async (id: string, accetta?: string) => { chiamate.push(['aggiorna', id, accetta]); return { ok: true } }
+    })
+    const sha = 'b'.repeat(64)
+    const r1 = await rotteClient(su)({ metodo: 'POST', percorso: '/api/negozio/installa', corpo: { id: 'a@m', accetta: sha } })
+    expect(r1.corpo).toEqual({ ok: true, fatto: 'Installato.' })
+    await rotteClient(su)({ metodo: 'POST', percorso: '/api/negozio/aggiorna', corpo: { id: 'a@m' } })
+    expect(chiamate).toEqual([['installa', 'a@m', sha], ['aggiorna', 'a@m', undefined]])
+  })
+
+  it('approvare un MCP del .mcp.json passa da «commuta» con cosa = mcp-approva', async () => {
+    let visto: [string, boolean] | undefined
+    const su = deps({ approvaMcp: (nome: string, si: boolean) => { visto = [nome, si]; return { ok: true } } })
+    const r = await rotteClient(su)({ metodo: 'POST', percorso: '/api/negozio/commuta', corpo: { cosa: 'mcp-approva', nome: 'condiviso', attivo: true } })
+    expect(r.corpo).toEqual({ ok: true })
+    expect(visto).toEqual(['condiviso', true])
+  })
+
+  it('lo stato del collegamento degli MCP, a parte', async () => {
+    const su = deps({ saluteMcp: async () => ({ mcp: [], errore: 'Nessuna chat aperta sul computer.' }) })
+    const r = await rotteClient(su)({ metodo: 'GET', percorso: '/api/negozio/salute-mcp', corpo: undefined })
+    expect(r.corpo).toEqual({ mcp: [], errore: 'Nessuna chat aperta sul computer.' })
   })
 })

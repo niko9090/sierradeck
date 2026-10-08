@@ -1,0 +1,3 @@
+{"command":"install","outcome":"failed","plugin":"nonce@prova-mkt","scope":"user","message":"Plugin \"nonce\" not found in marketplace \"prova-mkt\". Your local copy may be out of date — try `claude plugin marketplace update prova-mkt`.","failureCode":"not_found"}
+✘ Failed to install plugin "nonce@prova-mkt": Plugin "nonce" not found in marketplace "prova-mkt". Your local copy may be out of date — try `claude plugin marketplace update prova-mkt`.
+1

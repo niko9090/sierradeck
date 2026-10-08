@@ -1,0 +1,14 @@
+[
+  {
+    "id": "saluta@prova-mkt",
+    "version": "1.0.0",
+    "scope": "user",
+    "enabled": true,
+    "installPath": "C:\\Utenti\\esempio\\.claude\\plugins\\cache\\prova-mkt\\saluta\\1.0.0",
+    "readFromFolder": "C:\\Progetti\\Esempio\\mercato\\plugins\\saluta",
+    "folderVersion": "1.0.0",
+    "installedAt": "2026-10-08T14:25:35.328Z",
+    "lastUpdated": "2026-10-08T14:25:35.328Z",
+    "projectEnabled": false
+  }
+]

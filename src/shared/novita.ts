@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.53.0',
+    righe: [
+      '**Il Negozio dice lo stato di ogni cosa, e cosa vuol dire.** Ogni plugin, skill e server MCP ha la sua etichetta (attivo, disattivato, aggiornamento disponibile, da approvare, errore) e sotto una frase che spiega cosa significa e cosa fare; dopo ogni azione compare cosa cambia e da quando. Mentre lavora mostra da quanti secondi, e se non riesce dice perché, accanto alla voce, con «Riprova».',
+      '**Spegnere un server MCP adesso lo spegne davvero.** Prima il Negozio scriveva l’interruttore nel posto che Claude Code usa solo per i server del progetto: un server personale o di una cartella restava acceso nelle chat. Vale anche per «Questa chat». In più si vedono tutti gli MCP (della cartella, personali e quelli del file .mcp.json del progetto, da approvare), si prova se si collegano, e se ne aggiungono, tolgono e cambiano le chiavi senza che i valori compaiano mai.',
+      '**Plugin da aggiornare, skill da aggiungere.** I plugin installati dicono quando c’è una versione nuova e si aggiornano con un tocco. Le skill si creano dal Negozio, si importano da una cartella e si tolgono (vanno nel Cestino). Un plugin che chiede di eseguire un comando per installarsi lo mostra prima, e si installa solo se confermi. Togliere una fonte avvisa che si porta via anche i suoi plugin.',
+      '**Il Negozio dal telefono e dalla pagina.** Nell’app si cerca nel catalogo intero (prima arrivavano tutti i 3500 plugin insieme), si installa e si aggiorna senza che l’app smetta di aspettare dopo 15 secondi, e gli MCP mostrano se sono collegati. La pagina servita ha il suo Negozio, in Computer: stessi stati e stesse parole. App Android 2.53.0.'
+    ]
+  },
+  {
     versione: '0.52.6',
     righe: [
       '**Le chat si leggono bene sul telefono, qualunque sia il PC.** Claude Code va a capo da solo alla larghezza del terminale del computer: con un PC dallo schermo largo le frasi arrivavano spezzate a metà e le tabelle andavano a capo storte. Adesso nell’app e nella pagina il testo si rimette insieme e va a capo sulla larghezza del telefono, mentre tabelle e riquadri restano allineati come sul PC e scorrono di lato.',

@@ -32,7 +32,8 @@ enum class FunzionePc(val minima: String, val nome: String) {
     CORREGGI("0.41.0", "«Correggi» sulle istruzioni"),
     SALUTE("0.44.0", "La salute del sistema"),
     PONTE("0.48.0", "Le chat degli altri PC dal vivo"),
-    ALLEGATI("0.50.0", "Mandare file dal telefono")
+    ALLEGATI("0.50.0", "Mandare file dal telefono"),
+    NEGOZIO("0.53.0", "La ricerca nel catalogo e la prova degli MCP")
 }
 
 /** La versione del computer a cui si è collegati, quando la si sa. */

@@ -1,0 +1,5 @@
+Checking MCP server health…
+
+claude.ai Claude Docs: https://api.anthropic.com/v1/pages/mcp - ✔ Connected
+personale: node C:/Progetti/Esempio/mcp-finto.js - ⊘ Disabled for this project (re-enable via /mcp)
+finto: node C:/Progetti/Esempio/mcp-finto.js - ✔ Connected

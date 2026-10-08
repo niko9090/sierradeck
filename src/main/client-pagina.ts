@@ -347,6 +347,14 @@ export function paginaClient(): string {
   .ingresso { max-width: 380px; margin: 40px auto; padding: 0 18px; text-align: center; }
   .ingresso input { width: 100%; text-align: center; font-size: 26px; letter-spacing: .3em; margin: 16px 0; }
   .errore { color: var(--ambra); font-size: var(--t1); margin-top: var(--s2); }
+  /* Il negozio (0.53.0): una voce per riga, lo stato col colore che decide il computer. */
+  .neg-voce { border-top: 1px solid var(--bordo); padding: 8px 0; }
+  .neg-stato { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px solid; border-radius: 999px; font-size: var(--t0); font-weight: 600; }
+  .neg-spiega { margin-top: 3px; line-height: 1.45; }
+  .neg-prog { height: 4px; margin-top: 6px; border-radius: 999px; background: var(--chassis-alto); overflow: hidden; }
+  .neg-prog span { display: block; width: 40%; height: 100%; background: var(--verde); animation: neg-scorre 1.1s ease-in-out infinite; }
+  @keyframes neg-scorre { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+  .neg-conferma { border-left: 3px solid var(--ambra); padding: 4px 8px; margin-top: 6px; }
   .panoramica { background: #131518; }
   /* Un collegamento che sembra un tasto: l'attributo download fa partire il
      file invece di aprire una pagina, e da un telefono e' la differenza fra
@@ -1178,6 +1186,8 @@ function impronta(s) {
     // questi, aprendola si restava su «Leggo dal computer…» finche' qualcosa
     // d'altro non cambiava, e «Mandata» dopo una risposta non compariva.
     domandeViste ? JSON.stringify(domandeViste) : '', domandeGuasto || '', Object.keys(domandeMandate).join(','),
+    // Il negozio: cosa si e' letto, cosa sta lavorando (coi secondi), i guasti e le conferme.
+    pannelloAperto === 'negozio' ? JSON.stringify([negozioVisto, negozioErrore, negozioErroreMcp, negozioFamiglia, negozioTrovati, negozioParola, negozioNota, negozioProvoMcp, negozioGuasti, negozioConferme, Object.keys(negozioLavoro).map(function (k) { return k + Math.round((Date.now() - negozioLavoro[k].da) / 1000) })]) : '',
     domandeConversazioni ? JSON.stringify(domandeConversazioni) : '', domandaAperta || '',
     (function () { try { return localStorage.getItem('sierradeck.nienteapp') || '' } catch (e) { return '' } })(),
     schedeViste ? schedeViste.length : '',
@@ -1895,9 +1905,10 @@ function pannello(s) {
       '<button onclick="apriPannello(\\'pc\\')">Altri computer</button>' +
       '<button onclick="apriPannello(\\'drive\\')">Drive</button>' +
       '<button onclick="apriPannello(\\'salute\\')">Salute</button>' +
+      '<button onclick="apriPannello(\\'negozio\\')">Negozio</button>' +
       '<button onclick="apriPannello(\\'consumi\\')">Consumi</button>' +
       '<button onclick="apriPannello(\\'impostazioni\\')">Impostazioni</button></div>' +
-      elencoCode + elencoPc + vistaDrive + vistaSalute + vistaConsumi + vistaImpostazioni
+      elencoCode + elencoPc + vistaDrive + vistaSalute + (pannelloAperto === 'negozio' ? negozioHtml() : '') + vistaConsumi + vistaImpostazioni
   }
 
   app.innerHTML = \`
@@ -2560,6 +2571,194 @@ window.rinomina = async (id) => {
   aggiorna()
 }
 
+/*
+ * Il negozio dalla pagina (0.53.0): la stessa vetrina dell'app, con gli
+ * stati, le spiegazioni e i «cosa cambia» scritti dal computer
+ * (shared/negozio). Si installa, si aggiorna, si accende e si spegne; quello
+ * che chiede percorsi o chiavi (aggiungere un MCP, una skill) resta al PC.
+ */
+var negozioVisto = null
+var negozioErrore = ''
+var negozioErroreMcp = ''
+var negozioFamiglia = 'plugin'
+var negozioTrovati = null
+var negozioParola = ''
+var negozioLavoro = {}
+var negozioGuasti = {}
+var negozioConferme = {}
+var negozioNota = ''
+var negozioProvoMcp = false
+async function leggiNegozio() {
+  negozioErrore = ''
+  try { negozioVisto = await chiedi('/api/negozio') } catch (e) { negozioErrore = 'Non riesco a leggere il negozio: ' + (e && e.message ? e.message : 'il computer non risponde') }
+}
+window.rileggiNegozio = async () => { negozioVisto = null; pannello(ultimoStato); await leggiNegozio(); pannello(ultimoStato) }
+async function negozioCercaOra() {
+  if (!negozioParola) { negozioTrovati = null; return }
+  try { negozioTrovati = await chiedi('/api/negozio/cerca', { q: negozioParola }) } catch (e) {
+    negozioTrovati = { plugin: [], totale: 0, errore: e && e.stato === 404 ? 'Questo computer non sa ancora cercare nel catalogo: arriva aggiornandolo alla 0.53.0.' : 'Ricerca non riuscita: ' + (e && e.message ? e.message : 'il computer non risponde') }
+  }
+}
+window.negozioCerca = async () => {
+  var c = document.getElementById('neg-cerca')
+  negozioParola = c ? c.value.trim() : ''
+  if (c) c.blur()
+  await negozioCercaOra()
+  pannello(ultimoStato)
+}
+async function negozioProvaMcp() {
+  negozioProvoMcp = true
+  negozioErroreMcp = ''
+  pannello(ultimoStato)
+  try {
+    var r = await chiedi('/api/negozio/salute-mcp')
+    if (negozioVisto && r && Array.isArray(r.mcp) && (r.mcp.length > 0 || !r.errore)) negozioVisto.mcp = r.mcp
+    if (r && r.errore) negozioErroreMcp = r.errore
+  } catch (e) {
+    negozioErroreMcp = e && e.stato === 404 ? 'Provare i collegamenti da qui arriva aggiornando il computer alla 0.53.0.' : 'Non ho potuto provare i collegamenti: ' + (e && e.message ? e.message : 'il computer non risponde')
+  }
+  negozioProvoMcp = false
+  pannello(ultimoStato)
+}
+window.negozioProvaMcp = () => negozioProvaMcp()
+window.negozioFamigliaScegli = (f) => {
+  negozioFamiglia = f
+  pannello(ultimoStato)
+  if (f === 'mcp') negozioProvaMcp()
+}
+/* Ogni azione: la voce occupata coi secondi, poi cosa cambia, o il motivo con «Riprova». */
+async function negozioFai(chiave, testo, percorso, corpo) {
+  delete negozioGuasti[chiave]
+  delete negozioConferme[chiave]
+  negozioLavoro[chiave] = { testo: testo, da: Date.now() }
+  negozioNota = ''
+  pannello(ultimoStato)
+  var giro = setInterval(function () { pannello(ultimoStato) }, 1000)
+  try {
+    var r = await chiedi(percorso, corpo)
+    if (r && r.ok) {
+      negozioNota = '✓ ' + (r.fatto || 'Fatto.')
+      await leggiNegozio()
+      await negozioCercaOra()
+    } else if (r && r.conferma) {
+      negozioConferme[chiave] = { comando: r.conferma.comando, testo: testo, percorso: percorso, corpo: Object.assign({}, corpo, { accetta: r.conferma.sha256 }) }
+    } else {
+      negozioGuasti[chiave] = { messaggio: (r && r.messaggio) || 'Non è riuscito, e il computer non ha detto perché.', testo: testo, percorso: percorso, corpo: corpo }
+    }
+  } catch (e) {
+    negozioGuasti[chiave] = { messaggio: e && e.message ? e.message : 'il computer non risponde', testo: testo, percorso: percorso, corpo: corpo }
+  } finally {
+    clearInterval(giro)
+    delete negozioLavoro[chiave]
+    pannello(ultimoStato)
+  }
+}
+window.negozioRiprova = (k) => { var g = negozioGuasti[k]; if (g) negozioFai(k, g.testo, g.percorso, g.corpo) }
+window.negozioConferma = (k) => { var c = negozioConferme[k]; if (c) negozioFai(k, c.testo, c.percorso, c.corpo) }
+window.negozioAnnulla = (k) => { delete negozioConferme[k]; pannello(ultimoStato) }
+window.negozioInstalla = (id) => negozioFai('p:' + id, 'Installo…', '/api/negozio/installa', { id: id })
+window.negozioAggiorna = (id) => negozioFai('p:' + id, 'Aggiorno…', '/api/negozio/aggiorna', { id: id })
+window.negozioCommuta = (cosa, nome, attivo) => negozioFai(cosa + ':' + nome, attivo ? 'Accendo…' : 'Spengo…', '/api/negozio/commuta', { cosa: cosa, nome: nome, attivo: attivo })
+function negozioTono(t) { return t === 'ok' ? 'var(--verde)' : t === 'attesa' ? 'var(--ambra)' : t === 'errore' ? 'var(--rosso)' : 'var(--testo-quieto)' }
+/* Lo stato lo scrive il computer; uno di prima della 0.53.0 non lo manda, e lo si dice come allora. */
+function negozioStatoDi(v, cosa) {
+  if (v.stato) return v.stato
+  if (cosa === 'plugin') return !v.installato ? { etichetta: 'da installare', tono: 'neutro', spiegazione: '' } : v.abilitato ? { etichetta: 'attivo', tono: 'ok', spiegazione: '' } : { etichetta: 'disattivato', tono: 'spento', spiegazione: '' }
+  if (cosa === 'skill') return v.abilitata === false ? { etichetta: 'disattivata', tono: 'spento', spiegazione: '' } : { etichetta: 'attiva', tono: 'ok', spiegazione: '' }
+  return v.abilitato === false ? { etichetta: 'disattivato', tono: 'spento', spiegazione: '' } : { etichetta: 'attivo', tono: 'neutro', spiegazione: '' }
+}
+function negozioTesta(nome, st, sotto) {
+  return '<div><b>' + esc(nome) + '</b> <span class="neg-stato" style="color:' + negozioTono(st.tono) + ';border-color:' + negozioTono(st.tono) + '">' + esc(st.etichetta) + '</span>' +
+    (sotto ? ' <span class="sotto">' + esc(sotto) + '</span>' : '') + '</div>'
+}
+function negozioSotto(chiave) {
+  var l = negozioLavoro[chiave]
+  if (l) return '<div class="sotto">' + esc(l.testo) + ' ' + Math.max(0, Math.round((Date.now() - l.da) / 1000)) + ' s</div><div class="neg-prog"><span></span></div>'
+  var c = negozioConferme[chiave]
+  if (c) return '<div class="neg-conferma"><div class="sotto">Per installarlo, il marketplace chiede di eseguire questo comando sul computer, con i tuoi permessi. Confermalo solo se ti fidi di chi lo pubblica.</div>' +
+    '<pre class="contesto">' + esc(c.comando || '(il computer non ha il testo del comando)') + '</pre>' +
+    '<div class="riga"><button data-k="' + esc(chiave) + '" onclick="negozioConferma(this.dataset.k)">Mi fido: esegui e installa</button><button data-k="' + esc(chiave) + '" onclick="negozioAnnulla(this.dataset.k)">Annulla</button></div></div>'
+  var g = negozioGuasti[chiave]
+  if (g) return '<div class="errore">⚠ ' + esc(g.messaggio) + '</div><div class="riga"><button data-k="' + esc(chiave) + '" onclick="negozioRiprova(this.dataset.k)">Riprova</button></div>'
+  return ''
+}
+function negozioRigaPlugin(p) {
+  var k = 'p:' + p.id
+  var st = negozioStatoDi(p, 'plugin')
+  var tasti = negozioLavoro[k] ? '' : !p.installato
+    ? '<button class="primario" data-id="' + esc(p.id) + '" onclick="negozioInstalla(this.dataset.id)">Installa</button>'
+    : '<button' + (p.aggiornamento ? ' class="primario"' : '') + ' data-id="' + esc(p.id) + '" onclick="negozioAggiorna(this.dataset.id)">Aggiorna</button>' +
+      '<button data-id="' + esc(p.id) + '" data-on="' + (p.abilitato ? '0' : '1') + '" onclick="negozioCommuta(\\'plugin\\', this.dataset.id, this.dataset.on === \\'1\\')">' + (p.abilitato ? 'Disattiva' : 'Attiva') + '</button>'
+  return '<div class="neg-voce">' + negozioTesta(p.nome, st, p.marketplace + (p.versione ? ' · v ' + p.versione : '') + (p.installazioni ? ' · ↧ ' + p.installazioni : '')) +
+    (p.descrizione ? '<div class="sotto">' + esc(p.descrizione) + '</div>' : '') +
+    (st.spiegazione ? '<div class="sotto neg-spiega">' + esc(st.spiegazione) + '</div>' : '') +
+    (tasti ? '<div class="riga">' + tasti + '</div>' : '') + negozioSotto(k) + '</div>'
+}
+function negozioRigaSkill(x) {
+  var k = 'skill:' + x.nome
+  var st = negozioStatoDi(x, 'skill')
+  var origine = x.origine === 'utente' ? 'personale' : x.origine === 'progetto' ? 'del progetto' : 'dal plugin ' + (x.plugin || '')
+  var tasti = negozioLavoro[k] || x.origine === 'plugin' ? '' :
+    '<button data-n="' + esc(x.nome) + '" data-on="' + (x.abilitata ? '0' : '1') + '" onclick="negozioCommuta(\\'skill\\', this.dataset.n, this.dataset.on === \\'1\\')">' + (x.abilitata ? 'Disattiva' : 'Attiva') + '</button>'
+  return '<div class="neg-voce">' + negozioTesta(x.nome, st, origine) +
+    (x.descrizione ? '<div class="sotto">' + esc(x.descrizione) + '</div>' : '') +
+    (st.spiegazione ? '<div class="sotto neg-spiega">' + esc(st.spiegazione) + '</div>' : '') +
+    (tasti ? '<div class="riga">' + tasti + '</div>' : '') + negozioSotto(k) + '</div>'
+}
+function negozioRigaMcp(m) {
+  var k = 'mcp:' + m.nome
+  var st = negozioStatoDi(m, 'mcp')
+  var dove = m.ambito === 'locale' ? 'solo questa cartella' : m.ambito === 'utente' ? 'tutti i progetti' : m.ambito === 'progetto' ? 'file .mcp.json del progetto' : m.ambito === 'altro' ? 'da un plugin o da claude.ai' : ''
+  var chiavi = (m.tipo === 'stdio' ? m.variabili : m.intestazioni) || []
+  var daApprovare = m.config === 'da-approvare' || m.config === 'rifiutato'
+  var acceso = m.config ? m.config === 'attivo' : m.abilitato !== false
+  var tasti = negozioLavoro[k] || m.ambito === 'altro' ? '' : daApprovare
+    ? '<button class="primario" data-n="' + esc(m.nome) + '" onclick="negozioCommuta(\\'mcp-approva\\', this.dataset.n, true)">Approva</button>' +
+      (m.config === 'da-approvare' ? '<button data-n="' + esc(m.nome) + '" onclick="negozioCommuta(\\'mcp-approva\\', this.dataset.n, false)">Rifiuta</button>' : '')
+    : '<button data-n="' + esc(m.nome) + '" data-on="' + (acceso ? '0' : '1') + '" onclick="negozioCommuta(\\'mcp\\', this.dataset.n, this.dataset.on === \\'1\\')">' + (acceso ? 'Disattiva' : 'Attiva') + '</button>'
+  return '<div class="neg-voce">' + negozioTesta(m.nome, st, [dove, m.tipo].filter(Boolean).join(' · ')) +
+    '<div class="sotto" style="font-family:var(--mono, monospace)">' + esc(m.come || '') + '</div>' +
+    (chiavi.length ? '<div class="sotto">' + (m.tipo === 'stdio' ? 'variabili' : 'intestazioni') + ': ' + esc(chiavi.join(', ')) + ' (i valori restano sul computer)</div>' : '') +
+    (st.spiegazione ? '<div class="sotto neg-spiega">' + esc(st.spiegazione) + '</div>' : '') +
+    (tasti ? '<div class="riga">' + tasti + '</div>' : '') + negozioSotto(k) + '</div>'
+}
+function negozioHtml() {
+  var testa = '<div class="piastrella"><div class="titolo">Negozio</div>' +
+    '<div class="sotto">Plugin, skill e server MCP di Claude Code su questo computer: cosa c’è, se è acceso, e cosa vuol dire. Da qui installi, aggiorni, accendi e spegni. Aggiungere o togliere una skill o un MCP, cambiarne le chiavi e rimuovere un plugin si fa dal computer, dove si vedono i percorsi.</div>'
+  var chiudi = '<div class="riga"><button onclick="rileggiNegozio()">Aggiorna</button><button onclick="apriPannello(\\'negozio\\')">Chiudi</button></div></div>'
+  if (negozioErrore) return testa + '<div class="errore">' + esc(negozioErrore) + '</div><div class="riga"><button onclick="rileggiNegozio()">Riprova</button></div>' + chiudi
+  if (!negozioVisto) return testa + '<div class="sotto">Leggo dal computer… (il catalogo ci mette qualche secondo)</div><div class="neg-prog"><span></span></div>' + chiudi
+  var d = negozioVisto
+  var fam = [['plugin', 'Plugin'], ['skill', 'Skill'], ['mcp', 'MCP'], ['agenti', 'Agenti']]
+  var tab = '<div class="riga">' + fam.map(function (f) {
+    return '<button' + (negozioFamiglia === f[0] ? ' class="primario"' : '') + ' onclick="negozioFamigliaScegli(\\'' + f[0] + '\\')">' + f[1] + '</button>'
+  }).join('') + '</div>'
+  var avvisi = (d.errore ? '<div class="errore">⚠ Il catalogo non risponde: ' + esc(d.errore) + '</div>' : '') +
+    (d.nota ? '<div class="sotto">' + esc(d.nota) + '</div>' : '') +
+    (negozioNota ? '<div class="sotto" style="color:var(--verde)">' + esc(negozioNota) + '</div>' : '')
+  var corpo = ''
+  if (negozioFamiglia === 'plugin') {
+    var elenco = negozioTrovati ? negozioTrovati.plugin || [] : d.plugin || []
+    var spiega = negozioTrovati
+      ? (negozioTrovati.errore ? '<div class="errore">' + esc(negozioTrovati.errore) + '</div>' : '<div class="sotto">' + negozioTrovati.totale + ' trovati con «' + esc(negozioParola) + '»' + (negozioTrovati.totale > elenco.length ? ', qui i primi ' + elenco.length : '') + '.</div>')
+      : '<div class="sotto">Gli installati e i più installati' + (d.totalePlugin ? ' dei ' + d.totalePlugin + ' del catalogo' : '') + '. Cerca una parola per trovare gli altri.</div>'
+    corpo = '<div class="riga"><input id="neg-cerca" placeholder="cerca nel catalogo (per esempio: documenti)" value="' + esc(negozioParola) + '" onkeydown="if (event.key === \\'Enter\\') negozioCerca()"><button onclick="negozioCerca()">Cerca</button></div>' +
+      spiega + (elenco.length ? elenco.map(negozioRigaPlugin).join('') : '<div class="vuoto">Nessun plugin.</div>')
+  } else if (negozioFamiglia === 'skill') {
+    corpo = (d.skill || []).length ? d.skill.map(negozioRigaSkill).join('') : '<div class="vuoto">Nessuna skill. Si aggiungono dal computer.</div>'
+  } else if (negozioFamiglia === 'mcp') {
+    corpo = '<div class="riga"><button onclick="negozioProvaMcp()"' + (negozioProvoMcp ? ' disabled' : '') + '>' + (negozioProvoMcp ? 'Provo i collegamenti…' : 'Verifica i collegamenti') + '</button></div>' +
+      (negozioProvoMcp ? '<div class="neg-prog"><span></span></div>' : '') +
+      (negozioErroreMcp ? '<div class="errore">' + esc(negozioErroreMcp) + '</div>' : '') +
+      ((d.mcp || []).length ? d.mcp.map(negozioRigaMcp).join('') : '<div class="vuoto">Nessun MCP per la cartella della prima chat aperta. Si aggiungono dal computer.</div>')
+  } else {
+    corpo = (d.agenti || []).length ? d.agenti.map(function (a) {
+      return '<div class="neg-voce"><div><b>' + esc(a.nome) + '</b> <span class="sotto">' + esc(a.origine === 'utente' ? 'personale' : 'del progetto') + '</span></div>' + (a.descrizione ? '<div class="sotto">' + esc(a.descrizione) + '</div>' : '') + '</div>'
+    }).join('') + '<div class="sotto">Gli agenti non si accendono: Claude li chiama quando servono.</div>' : '<div class="vuoto">Nessun agente.</div>'
+  }
+  return testa + (d.cartella ? '<div class="sotto">Cartella guardata: ' + esc(d.cartella) + '</div>' : '') + tab + avvisi + corpo + chiudi
+}
+
 window.apriPannello = async (quale) => {
   pannelloAperto = pannelloAperto === quale ? null : quale
   // A ogni apertura, non solo la prima: letto una volta, l'elenco restava
@@ -2569,6 +2768,7 @@ window.apriPannello = async (quale) => {
   }
   if (pannelloAperto === 'consumi') await leggiConsumi()
   if (pannelloAperto === 'salute') await leggiSalute()
+  if (pannelloAperto === 'negozio') { negozioNota = ''; await leggiNegozio(); if (negozioFamiglia === 'mcp') negozioProvaMcp() }
   if (pannelloAperto === 'pc') { pcAperto = null; postaVoci = null; await leggiPc() }
   if (pannelloAperto === 'drive') { driveRiavviato = false; await leggiDrive() }
   if (pannelloAperto === 'impostazioni') { await leggiPreferenze(); await leggiAggiornamento() }

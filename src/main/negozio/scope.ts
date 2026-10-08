@@ -106,7 +106,8 @@ export function componiScope(deps: {
   scope: ScopeChat
   enabledPluginGlobali: Record<string, boolean>
   skillOverridesGlobali: Record<string, string>
-  mcpDisabilitatiProgetto: string[]
+  /** Le voci di `deniedMcpServers` già nelle impostazioni: si tengono. */
+  mcpNegatiGlobali: unknown[]
 }): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   const { scope } = deps
@@ -121,9 +122,18 @@ export function componiScope(deps: {
     out.skillOverrides = so
   }
   if (scope.mcpSpenti.length > 0) {
-    // Le liste si fondono: unisco quelli già disabilitati nel progetto con i
-    // nuovi, senza doppioni.
-    out.disabledMcpjsonServers = [...new Set([...deps.mcpDisabilitatiProgetto, ...scope.mcpSpenti])]
+    // `deniedMcpServers` per nome: provato con Claude Code 2.1.294, con
+    // `--settings` la chat non avvia quel server, qualunque sia il posto in
+    // cui è definito. Prima si passava `disabledMcpjsonServers`, che vale
+    // solo per i server di `.mcp.json`: un server locale o personale restava
+    // acceso e la chat ne vedeva gli strumenti.
+    const gia = new Set(deps.mcpNegatiGlobali
+      .map((v) => (v !== null && typeof v === 'object' ? (v as { serverName?: unknown }).serverName : undefined))
+      .filter((n): n is string => typeof n === 'string'))
+    out.deniedMcpServers = [
+      ...deps.mcpNegatiGlobali,
+      ...scope.mcpSpenti.filter((n) => !gia.has(n)).map((serverName) => ({ serverName }))
+    ]
   }
   return out
 }
@@ -153,20 +163,12 @@ export function leggiGlobaliPerScope(deps: {
   radiceClaude: string
   fileClaudeJson: string
   cwd: string
-}): { enabledPluginGlobali: Record<string, boolean>; skillOverridesGlobali: Record<string, string>; mcpDisabilitatiProgetto: string[] } {
+}): { enabledPluginGlobali: Record<string, boolean>; skillOverridesGlobali: Record<string, string>; mcpNegatiGlobali: unknown[] } {
   const settings = leggiOgg(join(deps.radiceClaude, 'settings.json'))
-  const claudeJson = leggiOgg(deps.fileClaudeJson)
-  const progetti = claudeJson.projects
-  const prog = progetti !== null && typeof progetti === 'object' && !Array.isArray(progetti)
-    ? (progetti as Record<string, unknown>)[deps.cwd]
-    : undefined
-  const mcpDis = prog !== null && typeof prog === 'object'
-    ? listaStringhe((prog as Record<string, unknown>).disabledMcpjsonServers)
-    : []
   return {
     enabledPluginGlobali: soloBool(settings.enabledPlugins),
     skillOverridesGlobali: soloStr(settings.skillOverrides),
-    mcpDisabilitatiProgetto: mcpDis
+    mcpNegatiGlobali: Array.isArray(settings.deniedMcpServers) ? (settings.deniedMcpServers as unknown[]) : []
   }
 }
 

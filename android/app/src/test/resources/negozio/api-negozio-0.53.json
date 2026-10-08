@@ -1,0 +1,165 @@
+{
+  "plugin": [
+    {
+      "id": "saluta@prova-mkt",
+      "nome": "saluta",
+      "descrizione": "",
+      "marketplace": "prova-mkt",
+      "installato": true,
+      "abilitato": true,
+      "versione": "1.0.0",
+      "aggiornamento": true,
+      "versioneNuova": "1.1.0",
+      "ambito": "user",
+      "percorso": "C:\\Utenti\\esempio\\.claude\\plugins\\cache\\prova-mkt\\saluta\\1.0.0",
+      "stato": {
+        "etichetta": "aggiornamento disponibile",
+        "tono": "attesa",
+        "spiegazione": "Installata la 1.0.0, nel catalogo c’è la 1.1.0. «Aggiorna» scarica la nuova; le chat la usano da quando le riapri."
+      }
+    },
+    {
+      "id": "figma@anthropic-plugin-directory",
+      "nome": "figma",
+      "descrizione": "Figma design platform integration. Access design files, extract component information, read design tokens, and translate designs into code. Bridge the gap between design and development workflows.",
+      "marketplace": "anthropic-plugin-directory",
+      "installato": false,
+      "abilitato": false,
+      "stato": {
+        "etichetta": "da installare",
+        "tono": "neutro",
+        "spiegazione": "Non è installato. «Installa» lo scarica dal marketplace anthropic-plugin-directory e lo accende per tutte le chat di questo computer: le chat che apri da adesso lo usano subito."
+      }
+    },
+    {
+      "id": "frontend-design@anthropic-plugin-directory",
+      "nome": "frontend-design",
+      "descrizione": "Frontend design skill for UI/UX implementation",
+      "marketplace": "anthropic-plugin-directory",
+      "installato": false,
+      "abilitato": false,
+      "stato": {
+        "etichetta": "da installare",
+        "tono": "neutro",
+        "spiegazione": "Non è installato. «Installa» lo scarica dal marketplace anthropic-plugin-directory e lo accende per tutte le chat di questo computer: le chat che apri da adesso lo usano subito."
+      }
+    }
+  ],
+  "totalePlugin": 3,
+  "skill": [
+    {
+      "nome": "revisione-testi",
+      "descrizione": "Rivede i testi",
+      "origine": "utente",
+      "percorso": "C:/Utenti/esempio/.claude/skills/revisione-testi",
+      "abilitata": true,
+      "stato": {
+        "etichetta": "attiva",
+        "tono": "ok",
+        "spiegazione": "Attiva: vale in tutti i progetti di questo computer. Claude la usa quando serve. «Disattiva» la spegne senza cancellarla."
+      }
+    },
+    {
+      "nome": "saluta:ciao",
+      "descrizione": "Dice ciao",
+      "origine": "plugin",
+      "percorso": "C:/Utenti/esempio/.claude/plugins/cache/prova-mkt/saluta/1.1.0/skills/ciao",
+      "abilitata": true,
+      "plugin": "saluta",
+      "stato": {
+        "etichetta": "dal plugin",
+        "tono": "ok",
+        "spiegazione": "Arriva dal plugin saluta: è accesa finché il plugin è acceso. Si accende e si spegne con lui, dalla scheda Plugin."
+      }
+    }
+  ],
+  "agenti": [],
+  "mcp": [
+    {
+      "nome": "finto",
+      "ambito": "locale",
+      "tipo": "stdio",
+      "come": "node C:/Progetti/Esempio/mcp-finto.js",
+      "variabili": [
+        "PROVA_CHIAVE"
+      ],
+      "intestazioni": [],
+      "config": "attivo",
+      "abilitato": true,
+      "stato": {
+        "etichetta": "connesso",
+        "tono": "ok",
+        "spiegazione": "Attivo e collegato: le chat ne vedono gli strumenti."
+      },
+      "salute": "connesso"
+    },
+    {
+      "nome": "condiviso",
+      "ambito": "progetto",
+      "tipo": "stdio",
+      "come": "node C:/Progetti/Esempio/mcp-finto.js",
+      "variabili": [],
+      "intestazioni": [],
+      "config": "da-approvare",
+      "abilitato": false,
+      "stato": {
+        "etichetta": "da approvare",
+        "tono": "attesa",
+        "spiegazione": "Sta nel file .mcp.json del progetto, e Claude Code non lo avvia finché qualcuno non lo approva. «Approva» lo autorizza per questa cartella; «Rifiuta» lo lascia spento."
+      },
+      "salute": "da-approvare"
+    },
+    {
+      "nome": "rotto",
+      "ambito": "utente",
+      "tipo": "http",
+      "come": "http://127.0.0.1:9/mcp",
+      "variabili": [],
+      "intestazioni": [
+        "Authorization"
+      ],
+      "config": "attivo",
+      "abilitato": true,
+      "stato": {
+        "etichetta": "errore",
+        "tono": "errore",
+        "spiegazione": "Configurato ma non si collega: ECONNREFUSED: ECONNREFUSED: Unable to connect. Is the computer able to access the url?. Controlla il comando o l’indirizzo e le variabili, poi «Verifica di nuovo». Le chat non ne vedono gli strumenti."
+      },
+      "salute": "errore",
+      "motivo": "ECONNREFUSED: ECONNREFUSED: Unable to connect. Is the computer able to access the url?"
+    },
+    {
+      "nome": "personale",
+      "ambito": "altro",
+      "tipo": "stdio",
+      "come": "node C:/Progetti/Esempio/mcp-finto.js",
+      "variabili": [],
+      "intestazioni": [],
+      "config": "spento",
+      "abilitato": false,
+      "salute": "spento",
+      "stato": {
+        "etichetta": "disattivato",
+        "tono": "spento",
+        "spiegazione": "Spento per questa cartella: le chat non lo avviano. La configurazione resta com’è; «Attiva» lo riaccende per le chat che apri da adesso."
+      }
+    },
+    {
+      "nome": "claude.ai Claude Docs",
+      "ambito": "altro",
+      "tipo": "http",
+      "come": "https://api.anthropic.com/v1/pages/mcp",
+      "variabili": [],
+      "intestazioni": [],
+      "config": "attivo",
+      "abilitato": true,
+      "salute": "connesso",
+      "stato": {
+        "etichetta": "connesso",
+        "tono": "ok",
+        "spiegazione": "Attivo e collegato: le chat ne vedono gli strumenti."
+      }
+    }
+  ],
+  "cartella": "C:/Progetti/Esempio"
+}

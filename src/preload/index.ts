@@ -8,6 +8,7 @@ import type { Autopilota } from '@shared/autopilota'
 import type { BattitoPc, Posta } from '@shared/posta'
 import type { EsitoRemoto, PcRemoto, ChatSuPc, ChatRemota, StoriaRemota } from '@shared/pc-remoto'
 import type { StatoWorkspace } from '../main/ipc'
+import type { ApiNegozio } from '@shared/negozio'
 import type { Utente, EsitoAccesso } from '@shared/account'
 import type { Istantanea } from '@shared/istantanea'
 import type {
@@ -743,47 +744,33 @@ contextBridge.exposeInMainWorld('gestore', {
   },
 
   negozio: {
-    plugin: (): Promise<{ plugin: Array<{
-      id: string; nome: string; descrizione: string; marketplace: string
-      installato: boolean; abilitato: boolean; installazioni?: number
-    }>; errore?: string }> => ipcRenderer.invoke('negozio:plugin'),
-    installaPlugin: (id: string): Promise<{ ok: boolean; messaggio?: string }> =>
-      ipcRenderer.invoke('negozio:installaPlugin', id),
-    disinstallaPlugin: (id: string): Promise<{ ok: boolean; messaggio?: string }> =>
-      ipcRenderer.invoke('negozio:disinstallaPlugin', id),
-    commutaPlugin: (id: string, on: boolean): Promise<{ ok: boolean; messaggio?: string }> =>
-      ipcRenderer.invoke('negozio:commutaPlugin', id, on),
-    skill: (cwd?: string): Promise<Array<{
-      nome: string; descrizione: string; origine: 'utente' | 'progetto' | 'plugin'
-      percorso: string; abilitata: boolean
-    }>> => ipcRenderer.invoke('negozio:skill', cwd),
-    commutaSkill: (nome: string, on: boolean): Promise<{ ok: boolean; messaggio?: string }> =>
-      ipcRenderer.invoke('negozio:commutaSkill', nome, on),
-    mcp: (cwd: string): Promise<Array<{ nome: string; come: string; abilitato: boolean }>> =>
-      ipcRenderer.invoke('negozio:mcp', cwd),
-    commutaMcp: (cwd: string, nome: string, on: boolean): Promise<{ ok: boolean; messaggio?: string }> =>
-      ipcRenderer.invoke('negozio:commutaMcp', cwd, nome, on),
-    agenti: (cwd?: string): Promise<Array<{
-      nome: string; descrizione: string; origine: 'utente' | 'progetto'
-      percorso: string; strumenti?: string; modello?: string
-    }>> => ipcRenderer.invoke('negozio:agenti', cwd),
-    dettagliPlugin: (id: string): Promise<{ testo: string; errore?: string }> =>
-      ipcRenderer.invoke('negozio:dettagliPlugin', id),
-    marketplace: (): Promise<{ marketplace: Array<{
-      nome: string; tipo: string; riferimento: string; ufficiale: boolean
-    }>; errore?: string }> => ipcRenderer.invoke('negozio:marketplace'),
-    aggiungiMarketplace: (sorgente: string): Promise<{ ok: boolean; messaggio?: string }> =>
-      ipcRenderer.invoke('negozio:aggiungiMarketplace', sorgente),
-    rimuoviMarketplace: (nome: string): Promise<{ ok: boolean; messaggio?: string }> =>
-      ipcRenderer.invoke('negozio:rimuoviMarketplace', nome),
-    aggiornaMarketplace: (nome?: string): Promise<{ ok: boolean; messaggio?: string }> =>
-      ipcRenderer.invoke('negozio:aggiornaMarketplace', nome),
-    rivela: (percorso: string): Promise<void> => ipcRenderer.invoke('negozio:rivela', percorso),
-    scope: (cwd: string): Promise<{ pluginSpenti: string[]; skillSpente: string[]; mcpSpenti: string[] }> =>
-      ipcRenderer.invoke('negozio:scope', cwd),
-    impostaScope: (cwd: string, scope: { pluginSpenti: string[]; skillSpente: string[]; mcpSpenti: string[] }): Promise<{ ok: boolean; messaggio?: string }> =>
-      ipcRenderer.invoke('negozio:impostaScope', cwd, scope)
-  },
+    plugin: (fresco) => ipcRenderer.invoke('negozio:plugin', fresco === true),
+    installaPlugin: (id, accetta) => ipcRenderer.invoke('negozio:installaPlugin', id, accetta),
+    aggiornaPlugin: (id, accetta) => ipcRenderer.invoke('negozio:aggiornaPlugin', id, accetta),
+    disinstallaPlugin: (id) => ipcRenderer.invoke('negozio:disinstallaPlugin', id),
+    commutaPlugin: (id, on) => ipcRenderer.invoke('negozio:commutaPlugin', id, on),
+    skill: (cwd) => ipcRenderer.invoke('negozio:skill', cwd),
+    commutaSkill: (nome, on) => ipcRenderer.invoke('negozio:commutaSkill', nome, on),
+    creaSkill: (dove, cwd, dati) => ipcRenderer.invoke('negozio:creaSkill', dove, cwd, dati),
+    importaSkill: (dove, cwd) => ipcRenderer.invoke('negozio:importaSkill', dove, cwd),
+    togliSkill: (percorso, cwd) => ipcRenderer.invoke('negozio:togliSkill', percorso, cwd),
+    mcp: (cwd) => ipcRenderer.invoke('negozio:mcp', cwd),
+    saluteMcp: (cwd) => ipcRenderer.invoke('negozio:saluteMcp', cwd),
+    commutaMcp: (cwd, nome, on) => ipcRenderer.invoke('negozio:commutaMcp', cwd, nome, on),
+    approvaMcp: (cwd, nome, si) => ipcRenderer.invoke('negozio:approvaMcp', cwd, nome, si),
+    aggiungiMcp: (cwd, dati) => ipcRenderer.invoke('negozio:aggiungiMcp', cwd, dati),
+    togliMcp: (cwd, nome, ambito) => ipcRenderer.invoke('negozio:togliMcp', cwd, nome, ambito),
+    variabiliMcp: (cwd, nome, ambito, modifiche) => ipcRenderer.invoke('negozio:variabiliMcp', cwd, nome, ambito, modifiche),
+    agenti: (cwd) => ipcRenderer.invoke('negozio:agenti', cwd),
+    dettagliPlugin: (id) => ipcRenderer.invoke('negozio:dettagliPlugin', id),
+    marketplace: () => ipcRenderer.invoke('negozio:marketplace'),
+    aggiungiMarketplace: (sorgente) => ipcRenderer.invoke('negozio:aggiungiMarketplace', sorgente),
+    rimuoviMarketplace: (nome) => ipcRenderer.invoke('negozio:rimuoviMarketplace', nome),
+    aggiornaMarketplace: (nome) => ipcRenderer.invoke('negozio:aggiornaMarketplace', nome),
+    rivela: (percorso) => ipcRenderer.invoke('negozio:rivela', percorso),
+    scope: (cwd) => ipcRenderer.invoke('negozio:scope', cwd),
+    impostaScope: (cwd, scope) => ipcRenderer.invoke('negozio:impostaScope', cwd, scope)
+  } satisfies ApiNegozio,
   chiavi: {
     stato: (): Promise<{ allAvvio: boolean; workspace: string[] }> =>
       ipcRenderer.invoke('chiavi:stato'),

@@ -1,0 +1,3 @@
+{"command":"disable","outcome":"failed","plugin":"saluta@prova-mkt","message":"Plugin \"saluta@prova-mkt\" is already disabled","failureCode":"already_in_goal_state","alreadyInGoalState":true}
+✘ Failed to disable plugin "saluta@prova-mkt": Plugin "saluta@prova-mkt" is already disabled
+1

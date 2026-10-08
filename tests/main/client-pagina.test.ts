@@ -964,3 +964,81 @@ describe('la pagina: linguette Domande e File dell autopilota (0.38.0)', () => {
     expect(html).toContain('diff-ap__riga--meno')
   })
 })
+
+describe('il negozio nella pagina (0.53.0)', () => {
+  const riga = (inizio: string): string => script.split(String.fromCharCode(10)).find((r) => r.trimStart().startsWith(inizio)) ?? ''
+  const estrai = (nome: string): string => {
+    const inizio = script.indexOf(`function ${nome}(`)
+    expect(inizio, `${nome} non e nella pagina`).toBeGreaterThan(-1)
+    let profondita = 0
+    for (let i = script.indexOf('{', inizio); i < script.length; i++) {
+      if (script[i] === '{') profondita++
+      else if (script[i] === '}' && --profondita === 0) return script.slice(inizio, i + 1)
+    }
+    throw new Error(`${nome} non si chiude`)
+  }
+  const disegna = (visto: unknown, famiglia: string, extra = ''): string => {
+    const corpo = [riga('const esc ='), 'var negozioVisto = arguments[0], negozioFamiglia = arguments[1], negozioErrore = "", negozioErroreMcp = "", negozioTrovati = null, negozioParola = "", negozioLavoro = {}, negozioGuasti = {}, negozioConferme = {}, negozioNota = "", negozioProvoMcp = false', extra,
+      ...['negozioTono', 'negozioStatoDi', 'negozioTesta', 'negozioSotto', 'negozioRigaPlugin', 'negozioRigaSkill', 'negozioRigaMcp', 'negozioHtml'].map(estrai), 'return negozioHtml()'].join('\n')
+    return new Function(corpo)(visto, famiglia) as string
+  }
+
+  it('lo stato e la spiegazione arrivano dal computer, con i tasti giusti per ogni stato', () => {
+    const html = disegna({
+      plugin: [
+        { id: 'a@m', nome: 'a', descrizione: 'primo', marketplace: 'm', installato: true, abilitato: true, aggiornamento: true, versione: '1.0.0', stato: { etichetta: 'aggiornamento disponibile', tono: 'attesa', spiegazione: 'Installata la 1.0.0, nel catalogo c’è la 1.1.0.' } },
+        { id: 'b@m', nome: 'b', descrizione: '', marketplace: 'm', installato: false, abilitato: false, stato: { etichetta: 'da installare', tono: 'neutro', spiegazione: 'Non è installato.' } }
+      ],
+      totalePlugin: 3542, skill: [], agenti: [], mcp: []
+    }, 'plugin')
+    expect(html).toContain('aggiornamento disponibile')
+    expect(html).toContain('var(--ambra)')
+    expect(html).toContain('nel catalogo c’è la 1.1.0')
+    expect(html).toContain('negozioAggiorna(this.dataset.id)')
+    expect(html).toContain('negozioInstalla(this.dataset.id)')
+    expect(html).toContain('dei 3542 del catalogo')
+    expect(html).toContain('id="neg-cerca"')
+  })
+
+  it('MCP: da approvare ha Approva e Rifiuta, in errore dice il motivo; i valori delle chiavi non ci sono', () => {
+    const html = disegna({
+      plugin: [], skill: [], agenti: [],
+      mcp: [
+        { nome: 'condiviso', ambito: 'progetto', tipo: 'stdio', come: 'node b.js', variabili: ['TOKEN'], intestazioni: [], config: 'da-approvare', abilitato: false, stato: { etichetta: 'da approvare', tono: 'attesa', spiegazione: 'Sta nel file .mcp.json del progetto.' } },
+        { nome: 'rotto', ambito: 'utente', tipo: 'http', come: 'http://127.0.0.1:9/mcp', variabili: [], intestazioni: ['Authorization'], config: 'attivo', abilitato: true, salute: 'errore', stato: { etichetta: 'errore', tono: 'errore', spiegazione: 'Configurato ma non si collega: ECONNREFUSED.' } }
+      ]
+    }, 'mcp')
+    expect(html).toContain("negozioCommuta('mcp-approva', this.dataset.n, true)")
+    expect(html).toContain('Rifiuta')
+    expect(html).toContain('ECONNREFUSED')
+    expect(html).toContain('var(--rosso)')
+    expect(html).toContain('intestazioni: Authorization (i valori restano sul computer)')
+  })
+
+  it('un computer di prima (niente stato): si dice come allora, senza rompersi', () => {
+    const html = disegna({ plugin: [{ id: 'a@m', nome: 'a', descrizione: '', marketplace: 'm', installato: true, abilitato: false }], skill: [{ nome: 's', descrizione: '', origine: 'utente', abilitata: true }], agenti: [], mcp: [{ nome: 'x', come: 'node', abilitato: true }] }, 'plugin')
+    expect(html).toContain('disattivato')
+    expect(disegna({ plugin: [], skill: [{ nome: 's', descrizione: '', origine: 'utente', abilitata: true }], agenti: [], mcp: [] }, 'skill')).toContain('attiva')
+    expect(disegna({ plugin: [], skill: [], agenti: [], mcp: [{ nome: 'x', come: 'node', abilitato: true }] }, 'mcp')).toContain('Disattiva')
+  })
+
+  it('un guasto ha il motivo e «Riprova»; un comando da confermare si mostra prima di eseguirlo', () => {
+    const conGuasto = disegna({ plugin: [{ id: 'a@m', nome: 'a', descrizione: '', marketplace: 'm', installato: false, abilitato: false }], skill: [], agenti: [], mcp: [] }, 'plugin',
+      'negozioGuasti["p:a@m"] = { messaggio: "Non arrivo in rete per scaricarlo" }')
+    expect(conGuasto).toContain('Non arrivo in rete per scaricarlo')
+    expect(conGuasto).toContain('negozioRiprova(this.dataset.k)')
+    const conConferma = disegna({ plugin: [{ id: 'a@m', nome: 'a', descrizione: '', marketplace: 'm', installato: false, abilitato: false }], skill: [], agenti: [], mcp: [] }, 'plugin',
+      'negozioConferme["p:a@m"] = { comando: "npx esempio-installa" }')
+    expect(conConferma).toContain('npx esempio-installa')
+    expect(conConferma).toContain('Mi fido: esegui e installa')
+    const alLavoro = disegna({ plugin: [{ id: 'a@m', nome: 'a', descrizione: '', marketplace: 'm', installato: false, abilitato: false }], skill: [], agenti: [], mcp: [] }, 'plugin',
+      'negozioLavoro["p:a@m"] = { testo: "Installo…", da: Date.now() - 12000 }')
+    expect(alLavoro).toContain('Installo… 12 s')
+    expect(alLavoro).not.toContain('negozioInstalla(')
+  })
+
+  it('si apre dalla schermata Computer', () => {
+    expect(script).toContain("apriPannello(\\'negozio\\')")
+    expect(script).toContain("if (pannelloAperto === 'negozio') { negozioNota = ''; await leggiNegozio()")
+  })
+})

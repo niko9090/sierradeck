@@ -1,7 +1,7 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { scriviAtomico } from '@shared/scrittura-atomica'
-import { join } from 'node:path'
-import { chiaveProgetto } from './lettura'
+import { basename, dirname, join, resolve } from 'node:path'
+import { cosaCambia } from '@shared/negozio'
 
 /**
  * Il negozio, lato scrittura per skill e MCP: qui non c'è un CLID a cui delegare
@@ -17,7 +17,7 @@ import { chiaveProgetto } from './lettura'
  * riesce che un file corrotto.
  */
 
-export type EsitoAzione = { ok: boolean; messaggio?: string }
+export type EsitoAzione = { ok: boolean; messaggio?: string; fatto?: string }
 
 function leggiOggetto(percorso: string): Record<string, unknown> | undefined {
   if (!existsSync(percorso)) return {}
@@ -64,39 +64,62 @@ export function commutaSkill(radiceClaude: string, nome: string, abilita: boolea
   // un salvataggio fallito tornava indietro come `ok: true`: il pannello
   // diceva fatto, e non era cambiato niente.
   return scrivi(percorso, s)
-    ? { ok: true }
+    ? { ok: true, fatto: cosaCambia(abilita ? 'attiva-skill' : 'disattiva-skill') }
     : { ok: false, messaggio: 'settings.json non salvato: guarda il registro' }
 }
 
 /**
- * Attiva o disattiva un MCP di un progetto: `disabledMcpjsonServers` del progetto
- * dentro `~/.claude.json`. Si crea il ramo del progetto solo se serve, e non si
- * inventa nulla che non ci fosse già.
+ * Una skill nuova, scritta da zero: `<cartella skills>/<nome>/SKILL.md` con
+ * l'intestazione che Claude Code legge (nome e descrizione) e le istruzioni
+ * sotto. Il nome segue la regola della documentazione: minuscole, numeri e
+ * trattini, fino a 64. Se c'è già una skill con quel nome non si scrive sopra.
  */
-export function commutaMcp(fileClaudeJson: string, cwd: string, nome: string, abilita: boolean): EsitoAzione {
-  const j = leggiOggetto(fileClaudeJson)
-  if (j === undefined) return { ok: false, messaggio: '.claude.json non leggibile' }
-  const projects = (j.projects !== null && typeof j.projects === 'object' && !Array.isArray(j.projects)
-    ? j.projects
-    : {}) as Record<string, unknown>
-  // La chiave con cui Claude Code conosce questa cartella (barre e maiuscole
-  // a parte): scrivere sotto un'altra creerebbe un ramo che nessuno legge.
-  const chiave = chiaveProgetto(projects, cwd)
-  const prog = (projects[chiave] !== null && typeof projects[chiave] === 'object' && !Array.isArray(projects[chiave])
-    ? { ...(projects[chiave] as Record<string, unknown>) }
-    : {}) as Record<string, unknown>
-  const disabilitati = new Set(Array.isArray(prog.disabledMcpjsonServers)
-    ? (prog.disabledMcpjsonServers as unknown[]).filter((x): x is string => typeof x === 'string')
-    : [])
-  if (abilita) disabilitati.delete(nome)
-  else disabilitati.add(nome)
-  if (disabilitati.size === 0) delete prog.disabledMcpjsonServers
-  else prog.disabledMcpjsonServers = [...disabilitati]
-  projects[chiave] = prog
-  j.projects = projects
-  // Come sopra: e' il valore di ritorno a dire com'e' andata, non un'eccezione
-  // che non arrivera' mai.
-  return scrivi(fileClaudeJson, j)
-    ? { ok: true }
-    : { ok: false, messaggio: '.claude.json non salvato: guarda il registro' }
+export function creaSkill(cartellaSkills: string, d: { nome: string; descrizione: string; istruzioni: string }): EsitoAzione {
+  const nome = d.nome.trim()
+  if (!NOME_SKILL.test(nome)) return { ok: false, messaggio: 'Il nome di una skill è fatto di lettere minuscole, numeri e trattini (fino a 64), per esempio «revisione-testi».' }
+  const descrizione = d.descrizione.replace(/\s+/g, ' ').trim()
+  if (descrizione === '') return { ok: false, messaggio: 'Serve la descrizione: è da lì che Claude capisce quando usarla.' }
+  if (d.istruzioni.trim() === '') return { ok: false, messaggio: 'Servono le istruzioni: cosa deve fare Claude quando usa la skill.' }
+  const dove = join(cartellaSkills, nome)
+  if (existsSync(dove)) return { ok: false, messaggio: `C’è già una skill «${nome}» in quella cartella: scegli un altro nome, o togli prima quella.` }
+  try {
+    mkdirSync(dove, { recursive: true })
+  } catch (e) {
+    return { ok: false, messaggio: `Non riesco a creare la cartella: ${String(e)}` }
+  }
+  const testo = `---\nname: ${nome}\ndescription: ${JSON.stringify(descrizione)}\n---\n\n${d.istruzioni.trim()}\n`
+  return scriviAtomico(join(dove, 'SKILL.md'), testo, 'negozio')
+    ? { ok: true, fatto: cosaCambia('aggiungi-skill') }
+    : { ok: false, messaggio: 'SKILL.md non salvato: guarda il registro.' }
+}
+
+const NOME_SKILL = /^[a-z0-9][a-z0-9-]{0,63}$/
+
+/**
+ * Una skill già fatta, da una cartella che contiene il suo SKILL.md: si copia
+ * tutta (gli script e i file che usa stanno lì accanto).
+ */
+export function importaSkill(cartellaSkills: string, sorgente: string): EsitoAzione {
+  if (!existsSync(join(sorgente, 'SKILL.md'))) return { ok: false, messaggio: 'In quella cartella non c’è un SKILL.md: una skill è una cartella con dentro il suo SKILL.md.' }
+  const nome = basename(sorgente.replace(/[\\/]+$/, ''))
+  const dove = join(cartellaSkills, nome)
+  if (existsSync(dove)) return { ok: false, messaggio: `C’è già una skill «${nome}» lì: togli prima quella, o rinomina la cartella.` }
+  try {
+    mkdirSync(cartellaSkills, { recursive: true })
+    cpSync(sorgente, dove, { recursive: true, errorOnExist: true })
+  } catch (e) {
+    return { ok: false, messaggio: `Copia non riuscita: ${String(e)}` }
+  }
+  return { ok: true, fatto: cosaCambia('aggiungi-skill') }
+}
+
+/**
+ * Si può togliere solo una skill che sta **direttamente** dentro una delle
+ * cartelle delle skill (personali o del progetto) e ha il suo SKILL.md: il
+ * percorso arriva dall'interfaccia, e non deve poter indicare altro.
+ */
+export function skillTogliibile(percorso: string, cartelleSkills: string[]): boolean {
+  const norm = (x: string): string => resolve(x).replace(/[\\/]+$/, '').toLowerCase()
+  const genitore = norm(dirname(resolve(percorso)))
+  return cartelleSkills.some((c) => norm(c) === genitore) && existsSync(join(percorso, 'SKILL.md'))
 }

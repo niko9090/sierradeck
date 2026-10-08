@@ -1,0 +1,2 @@
+{"command":"marketplace-update","outcome":"ok","marketplace":"prova-mkt","message":"Validating local marketplace\nSuccessfully updated marketplace: prova-mkt"}
+0

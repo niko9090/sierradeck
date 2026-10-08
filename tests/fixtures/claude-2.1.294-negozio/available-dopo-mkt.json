@@ -1,0 +1,42 @@
+{
+  "installed": [
+    {
+      "id": "saluta@prova-mkt",
+      "version": "1.0.0",
+      "scope": "user",
+      "enabled": true,
+      "installPath": "C:\\Utenti\\esempio\\.claude\\plugins\\cache\\prova-mkt\\saluta\\1.0.0",
+      "readFromFolder": "C:\\Progetti\\Esempio\\mercato\\plugins\\saluta",
+      "folderVersion": "1.1.0",
+      "installedAt": "2026-10-08T14:25:35.328Z",
+      "lastUpdated": "2026-10-08T14:25:35.328Z",
+      "projectEnabled": false
+    }
+  ],
+  "available": [
+    {
+      "pluginId": "frontend-design@anthropic-plugin-directory",
+      "name": "frontend-design",
+      "description": "Frontend design skill for UI/UX implementation",
+      "marketplaceName": "anthropic-plugin-directory",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/claude-plugins-official",
+        "path": "plugins/frontend-design",
+        "sha": "b78ac49cdc6b3d7b61c4439470e311f4291265b1"
+      }
+    },
+    {
+      "pluginId": "figma@anthropic-plugin-directory",
+      "name": "figma",
+      "description": "Figma design platform integration. Access design files, extract component information, read design tokens, and translate designs into code. Bridge the gap between design and development workflows.",
+      "marketplaceName": "anthropic-plugin-directory",
+      "version": "2.2.127",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/figma/mcp-server-guide.git",
+        "sha": "f0493295acf5f7cbdebcbcc483c06de814420cb1"
+      }
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import type { Avanzamento, IndexOutcome, SessionSummary } from '@shared/types'
 import type { LayoutSalvato, PaneSalvato } from '@shared/workspace'
 import type { Autopilota } from '@shared/autopilota'
 import type { StatoWorkspace } from '../main/ipc'
+import type { ApiNegozio } from '@shared/negozio'
 import type { Istantanea } from '@shared/istantanea'
 import type {
   NuovoAutopilota, DomandaAperta, CambioAutopilota, RicevutaDialogo, RispostaParlata
@@ -287,36 +288,7 @@ declare global {
           }) => void
         ) => () => void
       }
-      negozio: {
-        plugin: () => Promise<{ plugin: Array<{
-          id: string; nome: string; descrizione: string; marketplace: string
-          installato: boolean; abilitato: boolean; installazioni?: number
-        }>; errore?: string }>
-        installaPlugin: (id: string) => Promise<{ ok: boolean; messaggio?: string }>
-        disinstallaPlugin: (id: string) => Promise<{ ok: boolean; messaggio?: string }>
-        commutaPlugin: (id: string, on: boolean) => Promise<{ ok: boolean; messaggio?: string }>
-        skill: (cwd?: string) => Promise<Array<{
-          nome: string; descrizione: string; origine: 'utente' | 'progetto' | 'plugin'
-          percorso: string; abilitata: boolean
-        }>>
-        commutaSkill: (nome: string, on: boolean) => Promise<{ ok: boolean; messaggio?: string }>
-        mcp: (cwd: string) => Promise<Array<{ nome: string; come: string; abilitato: boolean }>>
-        commutaMcp: (cwd: string, nome: string, on: boolean) => Promise<{ ok: boolean; messaggio?: string }>
-        agenti: (cwd?: string) => Promise<Array<{
-          nome: string; descrizione: string; origine: 'utente' | 'progetto'
-          percorso: string; strumenti?: string; modello?: string
-        }>>
-        dettagliPlugin: (id: string) => Promise<{ testo: string; errore?: string }>
-        marketplace: () => Promise<{ marketplace: Array<{
-          nome: string; tipo: string; riferimento: string; ufficiale: boolean
-        }>; errore?: string }>
-        aggiungiMarketplace: (sorgente: string) => Promise<{ ok: boolean; messaggio?: string }>
-        rimuoviMarketplace: (nome: string) => Promise<{ ok: boolean; messaggio?: string }>
-        aggiornaMarketplace: (nome?: string) => Promise<{ ok: boolean; messaggio?: string }>
-        rivela: (percorso: string) => Promise<void>
-        scope: (cwd: string) => Promise<{ pluginSpenti: string[]; skillSpente: string[]; mcpSpenti: string[] }>
-        impostaScope: (cwd: string, scope: { pluginSpenti: string[]; skillSpente: string[]; mcpSpenti: string[] }) => Promise<{ ok: boolean; messaggio?: string }>
-      }
+      negozio: ApiNegozio
       chiavi: {
         stato: () => Promise<{ allAvvio: boolean; workspace: string[] }>
         impostaAvvio: (parola: string) => Promise<{ allAvvio: boolean; workspace: string[] }>

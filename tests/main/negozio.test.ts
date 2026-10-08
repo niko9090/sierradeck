@@ -2,9 +2,10 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { commutaSkill, commutaMcp } from '../../src/main/negozio/azioni'
-import { skillDisponibili, mcpDiProgetto, agentiDisponibili, chiaveProgetto } from '../../src/main/negozio/lettura'
-import { idDi, interpreta, idPluginValido, installaPlugin, commutaPlugin } from '../../src/main/negozio/cli'
+import { commutaSkill, creaSkill, importaSkill, skillTogliibile } from '../../src/main/negozio/azioni'
+import { skillDisponibili, agentiDisponibili, chiaveProgetto, percorsiClaude, versioniCatalogo } from '../../src/main/negozio/lettura'
+import { idDi, interpreta, idPluginValido, installaPlugin, commutaPlugin, aggiornaPlugin, pluginDaCli, marketplaceDaCli } from '../../src/main/negozio/cli'
+import { elencoMcp, conSalute, commutaMcp, approvaMcp, configDaModulo, impostaVariabiliMcp, applicaModifiche } from '../../src/main/negozio/mcp'
 
 /**
  * Il negozio tocca i file più delicati dell'utente (`~/.claude.json`,
@@ -25,8 +26,11 @@ function scriviJson(percorso: string, dati: unknown): void {
   writeFileSync(percorso, JSON.stringify(dati, null, 2), 'utf8')
 }
 
-describe('commutaMcp', () => {
-  it('disattiva un MCP senza toccare il resto di .claude.json', () => {
+describe('commutaMcp (0.53.0: la chiave giusta)', () => {
+  it('spegne con disabledMcpServers, la lista dell’interruttore di /mcp, senza toccare il resto di .claude.json', () => {
+    // Provato con Claude Code 2.1.294: disabledMcpjsonServers (quello che si
+    // scriveva prima) vale solo per i server di .mcp.json, e un server locale
+    // «spento» così restava acceso nelle chat.
     scriviJson(claudeJson, {
       numStartups: 42,
       mcpServers: { globale: { command: 'x' } },
@@ -38,28 +42,33 @@ describe('commutaMcp', () => {
 
     const esito = commutaMcp(claudeJson, '/mio', 'uno', false)
     expect(esito.ok).toBe(true)
+    expect(esito.fatto).toContain('che apri da adesso')
 
     const dopo = JSON.parse(readFileSync(claudeJson, 'utf8'))
-    // La chiave voluta è cambiata…
-    expect(dopo.projects['/mio'].disabledMcpjsonServers).toEqual(['uno'])
+    expect(dopo.projects['/mio'].disabledMcpServers).toEqual(['uno'])
+    expect(dopo.projects['/mio'].disabledMcpjsonServers).toBeUndefined()
     // …e tutto il resto è identico.
     expect(dopo.numStartups).toBe(42)
     expect(dopo.mcpServers).toEqual({ globale: { command: 'x' } })
     expect(dopo.projects['/altro']).toEqual({ mcpServers: { suo: { url: 'http://a' } } })
     expect(dopo.projects['/mio'].mcpServers).toEqual({ uno: { command: 'a' }, due: { url: 'http://b' } })
     expect(dopo.projects['/mio'].allowedTools).toEqual(['Read'])
+    // Anche un server personale (di tutti i progetti) si spegne per questa cartella.
+    commutaMcp(claudeJson, '/mio', 'globale', false)
+    const voci = elencoMcp(radice, claudeJson, '/mio')
+    expect(voci.find((v) => v.nome === 'globale')).toMatchObject({ ambito: 'utente', config: 'spento', abilitato: false })
   })
 
-  it('riattivare toglie la voce dai disabilitati, e la lettura lo riflette', () => {
+  it('riaccendere toglie la voce, e pulisce quella scritta per sbaglio dalle versioni di prima', () => {
     scriviJson(claudeJson, {
-      projects: { '/mio': { mcpServers: { uno: { command: 'a' } }, disabledMcpjsonServers: ['uno'] } }
+      projects: { '/mio': { mcpServers: { uno: { command: 'a' } }, disabledMcpServers: ['uno'], disabledMcpjsonServers: ['uno'] } }
     })
-    expect(mcpDiProgetto(claudeJson, '/mio')[0]?.abilitato).toBe(false)
-
+    expect(elencoMcp(radice, claudeJson, '/mio')[0]?.config).toBe('spento')
     commutaMcp(claudeJson, '/mio', 'uno', true)
     const dopo = JSON.parse(readFileSync(claudeJson, 'utf8'))
-    expect(dopo.projects['/mio'].disabledMcpjsonServers).toBeUndefined()
-    expect(mcpDiProgetto(claudeJson, '/mio')[0]?.abilitato).toBe(true)
+    expect(dopo.projects['/mio'].disabledMcpServers).toEqual([])
+    expect(dopo.projects['/mio'].disabledMcpjsonServers).toEqual([])
+    expect(elencoMcp(radice, claudeJson, '/mio')[0]?.config).toBe('attivo')
   })
 
   it('non scrive e segnala se il file è illeggibile', () => {
@@ -68,6 +77,184 @@ describe('commutaMcp', () => {
     expect(esito.ok).toBe(false)
     // Il file resta com'era: meglio un'azione mancata che una corrotta.
     expect(readFileSync(claudeJson, 'utf8')).toBe('{ rotto')
+  })
+})
+
+describe('elencoMcp: tutti e tre i posti, come una chat li vede', () => {
+  it('locali, personali e del .mcp.json (da approvare), coi nomi delle variabili ma mai i valori', () => {
+    const progetto = join(radice, 'progetto')
+    mkdirSync(join(progetto, '.claude'), { recursive: true })
+    scriviJson(claudeJson, {
+      mcpServers: { personale: { type: 'stdio', command: 'node', args: ['server.js'], env: {} } },
+      projects: { [progetto]: { mcpServers: { finto: { type: 'stdio', command: 'node', args: ['a.js', '--token', 'segreto123'], env: { PROVA_CHIAVE: 'abc123' } } } } }
+    })
+    scriviJson(join(progetto, '.mcp.json'), { mcpServers: { condiviso: { command: 'node', args: ['b.js'] }, approvato: { type: 'http', url: 'https://esempio.it/mcp', headers: { Authorization: 'Bearer xyz' } } } })
+    scriviJson(join(progetto, '.claude', 'settings.local.json'), { enabledMcpjsonServers: ['approvato'] })
+    const voci = elencoMcp(radice, claudeJson, progetto)
+    expect(voci.map((v) => [v.nome, v.ambito, v.config])).toEqual([
+      ['finto', 'locale', 'attivo'],
+      ['condiviso', 'progetto', 'da-approvare'],
+      ['approvato', 'progetto', 'attivo'],
+      ['personale', 'utente', 'attivo']
+    ])
+    const finto = voci[0]
+    expect(finto?.variabili).toEqual(['PROVA_CHIAVE'])
+    expect(JSON.stringify(voci)).not.toContain('abc123')
+    expect(JSON.stringify(voci)).not.toContain('segreto123')
+    expect(JSON.stringify(voci)).not.toContain('Bearer xyz')
+    expect(voci[2]?.intestazioni).toEqual(['Authorization'])
+    expect(voci[1]?.stato?.etichetta).toBe('da approvare')
+  })
+
+  it('con lo stato del collegamento da `claude mcp list` vero: errori col motivo, e quelli di claude.ai in sola lettura', () => {
+    const progetto = join(radice, 'progetto')
+    mkdirSync(progetto, { recursive: true })
+    scriviJson(claudeJson, { projects: { [progetto]: { mcpServers: { finto: { command: 'node' }, rotto: { type: 'http', url: 'http://127.0.0.1:9/mcp' } } } } })
+    const testo = readFileSync(join(__dirname, '..', 'fixtures', 'claude-2.1.294-negozio', 'mcp-list-errori.txt'), 'utf8') +
+      readFileSync(join(__dirname, '..', 'fixtures', 'claude-2.1.294-negozio', 'mcp-list.txt'), 'utf8')
+    const voci = conSalute(elencoMcp(radice, claudeJson, progetto), testo)
+    expect(voci.find((v) => v.nome === 'rotto')).toMatchObject({ salute: 'errore', stato: { tono: 'errore' } })
+    expect(voci.find((v) => v.nome === 'rotto')?.stato?.spiegazione).toContain('ECONNREFUSED')
+    expect(voci.find((v) => v.nome === 'finto')?.stato?.etichetta).toBe('connesso')
+    expect(voci.find((v) => v.nome === 'claude.ai Claude Docs')).toMatchObject({ ambito: 'altro', salute: 'connesso' })
+  })
+
+  it('approvare e rifiutare scrivono in .claude/settings.local.json del progetto, dove li tiene Claude Code', () => {
+    const progetto = join(radice, 'progetto')
+    mkdirSync(progetto, { recursive: true })
+    scriviJson(join(progetto, '.mcp.json'), { mcpServers: { condiviso: { command: 'node' } } })
+    expect(approvaMcp(progetto, 'condiviso', true).ok).toBe(true)
+    expect(elencoMcp(radice, claudeJson, progetto)[0]?.config).toBe('attivo')
+    expect(approvaMcp(progetto, 'condiviso', false).ok).toBe(true)
+    const s = JSON.parse(readFileSync(join(progetto, '.claude', 'settings.local.json'), 'utf8'))
+    expect(s).toEqual({ enabledMcpjsonServers: [], disabledMcpjsonServers: ['condiviso'] })
+    expect(elencoMcp(radice, claudeJson, progetto)[0]?.config).toBe('rifiutato')
+  })
+})
+
+describe('aggiungere un MCP e cambiarne le variabili', () => {
+  it('il modulo diventa la configurazione di `claude mcp add-json`, controllata', () => {
+    expect(configDaModulo({ nome: 'files', ambito: 'locale', tipo: 'stdio', comando: 'npx', argomenti: ['-y', 'server-files', ''], variabili: { CHIAVE_API: 'x' } }))
+      .toEqual({ ok: true, json: { type: 'stdio', command: 'npx', args: ['-y', 'server-files'], env: { CHIAVE_API: 'x' } } })
+    expect(configDaModulo({ nome: 'web', ambito: 'utente', tipo: 'http', url: 'https://esempio.it/mcp', intestazioni: { Authorization: 'Bearer x' } }))
+      .toEqual({ ok: true, json: { type: 'http', url: 'https://esempio.it/mcp', headers: { Authorization: 'Bearer x' } } })
+    expect(configDaModulo({ nome: '--help', ambito: 'locale', tipo: 'stdio', comando: 'x' }).ok).toBe(false)
+    expect(configDaModulo({ nome: 'x', ambito: 'locale', tipo: 'stdio', comando: ' ' }).ok).toBe(false)
+    expect(configDaModulo({ nome: 'x', ambito: 'locale', tipo: 'http', url: 'esempio.it' }).ok).toBe(false)
+    expect(configDaModulo({ nome: 'x', ambito: 'locale', tipo: 'stdio', comando: 'a', variabili: { 'DUE PAROLE': 'v' } }).ok).toBe(false)
+  })
+
+  it('cambia una variabile senza conoscere le altre (il telefono non le vede mai), ne toglie una con null', () => {
+    const a = applicaModifiche({ command: 'node', env: { UNO: '1', DUE: '2' } }, { variabili: { DUE: '22', TRE: '3', UNO: null } })
+    expect(a).toEqual({ ok: true, cfg: { command: 'node', env: { DUE: '22', TRE: '3' } } })
+  })
+
+  it('nel file giusto per ogni posto, una voce sola', () => {
+    const progetto = join(radice, 'progetto')
+    mkdirSync(progetto, { recursive: true })
+    scriviJson(claudeJson, { numStartups: 3, mcpServers: { personale: { command: 'p' } }, projects: { [progetto]: { mcpServers: { finto: { command: 'node', env: { A: '1' } } } } } })
+    scriviJson(join(progetto, '.mcp.json'), { mcpServers: { condiviso: { command: 'node' } } })
+    expect(impostaVariabiliMcp(claudeJson, progetto, 'finto', 'locale', { variabili: { B: '2' } }).ok).toBe(true)
+    expect(impostaVariabiliMcp(claudeJson, progetto, 'personale', 'utente', { intestazioni: { 'X-Chiave': 'k' } }).ok).toBe(true)
+    expect(impostaVariabiliMcp(claudeJson, progetto, 'condiviso', 'progetto', { variabili: { TOKEN: '${TOKEN}' } }).ok).toBe(true)
+    const j = JSON.parse(readFileSync(claudeJson, 'utf8'))
+    expect(j.numStartups).toBe(3)
+    expect(j.projects[progetto].mcpServers.finto.env).toEqual({ A: '1', B: '2' })
+    expect(j.mcpServers.personale.headers).toEqual({ 'X-Chiave': 'k' })
+    expect(JSON.parse(readFileSync(join(progetto, '.mcp.json'), 'utf8')).mcpServers.condiviso.env).toEqual({ TOKEN: '${TOKEN}' })
+    expect(impostaVariabiliMcp(claudeJson, progetto, 'sparito', 'locale', { variabili: { A: '1' } }).ok).toBe(false)
+  })
+})
+
+describe('skill: aggiungere, importare, togliere', () => {
+  it('una skill nuova scrive SKILL.md con nome e descrizione, e non scrive sopra una che c’è', () => {
+    const cartella = join(radice, 'skills')
+    const e = creaSkill(cartella, { nome: 'revisione-testi', descrizione: 'Rivede i testi: «virgolette» e "apici"', istruzioni: 'Correggi gli errori.' })
+    expect(e.ok).toBe(true)
+    expect(e.fatto).toContain('anche nelle chat già aperte')
+    const s = skillDisponibili(radice)
+    expect(s.map((x) => [x.nome, x.descrizione])).toEqual([['revisione-testi', 'Rivede i testi: «virgolette» e "apici"']])
+    expect(creaSkill(cartella, { nome: 'revisione-testi', descrizione: 'x', istruzioni: 'y' }).ok).toBe(false)
+    expect(creaSkill(cartella, { nome: 'Con Spazi', descrizione: 'x', istruzioni: 'y' }).ok).toBe(false)
+    expect(creaSkill(cartella, { nome: 'vuota', descrizione: '', istruzioni: 'y' }).ok).toBe(false)
+  })
+
+  it('importa una cartella con il suo SKILL.md e i file accanto; senza SKILL.md no', () => {
+    const sorgente = join(radice, 'fuori', 'mia-skill')
+    mkdirSync(join(sorgente, 'script'), { recursive: true })
+    writeFileSync(join(sorgente, 'SKILL.md'), '---\nname: mia-skill\ndescription: prova\n---\nfai')
+    writeFileSync(join(sorgente, 'script', 'aiuto.py'), 'print(1)')
+    const progetto = join(radice, 'progetto')
+    expect(importaSkill(join(progetto, '.claude', 'skills'), sorgente).ok).toBe(true)
+    expect(readFileSync(join(progetto, '.claude', 'skills', 'mia-skill', 'script', 'aiuto.py'), 'utf8')).toBe('print(1)')
+    expect(skillDisponibili(radice, progetto).map((x) => [x.nome, x.origine])).toEqual([['mia-skill', 'progetto']])
+    expect(importaSkill(join(progetto, '.claude', 'skills'), join(radice, 'fuori')).ok).toBe(false)
+  })
+
+  it('si toglie solo una skill che sta direttamente in una cartella delle skill', () => {
+    const cartella = join(radice, 'skills')
+    creaSkill(cartella, { nome: 'una', descrizione: 'x', istruzioni: 'y' })
+    expect(skillTogliibile(join(cartella, 'una'), [cartella])).toBe(true)
+    expect(skillTogliibile(join(cartella, 'una', '..', '..'), [cartella])).toBe(false)
+    expect(skillTogliibile(radice, [cartella])).toBe(false)
+    expect(skillTogliibile(join(cartella, 'nessuna'), [cartella])).toBe(false)
+  })
+
+  it('le spente si leggono anche dalle impostazioni del progetto; quelle dei plugin si accendono col plugin', () => {
+    const progetto = join(radice, 'progetto')
+    creaSkill(join(progetto, '.claude', 'skills'), { nome: 'locale', descrizione: 'x', istruzioni: 'y' })
+    creaSkill(join(radice, 'skills'), { nome: 'mia', descrizione: 'x', istruzioni: 'y' })
+    scriviJson(join(progetto, '.claude', 'settings.local.json'), { skillOverrides: { locale: 'off', mia: 'name-only' } })
+    const plug = join(radice, 'plugins', 'cache', 'm', 'saluta', '1.0.0')
+    mkdirSync(join(plug, 'skills', 'ciao'), { recursive: true })
+    writeFileSync(join(plug, 'skills', 'ciao', 'SKILL.md'), '---\nname: ciao\ndescription: Dice ciao\n---\n')
+    const s = skillDisponibili(radice, progetto, [{ id: 'saluta@m', nome: 'saluta', descrizione: '', marketplace: 'm', installato: true, abilitato: false, percorso: plug }])
+    expect(s.map((x) => [x.nome, x.origine, x.abilitata, x.stato?.etichetta])).toEqual([
+      ['mia', 'utente', true, 'solo il nome'],
+      ['locale', 'progetto', false, 'disattivata'],
+      ['saluta:ciao', 'plugin', false, 'plugin spento']
+    ])
+  })
+})
+
+describe('plugin e fonti dalle risposte vere del CLI 2.1.294', () => {
+  const fx = (f: string): string => readFileSync(join(__dirname, '..', 'fixtures', 'claude-2.1.294-negozio', f), 'utf8')
+
+  it('un installato non è nel catalogo dei disponibili: si vede lo stesso, con l’aggiornamento dalla cartella', () => {
+    const p = pluginDaCli(JSON.parse(fx('available-dopo-mkt.json')))
+    const saluta = p.find((x) => x.id === 'saluta@prova-mkt')
+    expect(saluta).toMatchObject({ installato: true, abilitato: true, versione: '1.0.0', aggiornamento: true, versioneNuova: '1.1.0', ambito: 'user' })
+    expect(saluta?.stato?.etichetta).toBe('aggiornamento disponibile')
+    expect(p.filter((x) => !x.installato).map((x) => x.stato?.etichetta)).toEqual(['da installare', 'da installare'])
+  })
+
+  it('spento, e il numero di installazioni dal catalogo vero', () => {
+    const spento = pluginDaCli({ installed: JSON.parse(fx('list-spento.json')) })
+    expect(spento[0]).toMatchObject({ abilitato: false, stato: { etichetta: 'disattivato' } })
+    const cat = pluginDaCli(JSON.parse(fx('available-catalogo-vero.json')))
+    expect(cat.length).toBe(6)
+    expect(cat.filter((x) => (x.installazioni ?? 0) > 0)).toHaveLength(4)
+  })
+
+  it('la versione nel catalogo di un marketplace scaricato (per i plugin già installati)', () => {
+    const mkt = join(radice, 'plugins', 'marketplaces', 'm')
+    mkdirSync(join(mkt, '.claude-plugin'), { recursive: true })
+    scriviJson(join(radice, 'plugins', 'known_marketplaces.json'), { m: { installLocation: mkt } })
+    scriviJson(join(mkt, '.claude-plugin', 'marketplace.json'), { plugins: [{ name: 'a', version: '2.0.0' }, { name: 'b', source: { source: 'url', sha: 'abc' } }] })
+    expect([...versioniCatalogo(radice)]).toEqual([['a@m', { version: '2.0.0' }], ['b@m', { sha: 'abc' }]])
+    const p = pluginDaCli({ installed: [{ id: 'a@m', version: '1.0.0', enabled: true }] }, versioniCatalogo(radice))
+    expect(p[0]).toMatchObject({ aggiornamento: true, versioneNuova: '2.0.0' })
+  })
+
+  it('le fonti: anche quella in una cartella («directory»)', () => {
+    expect(marketplaceDaCli(JSON.parse(fx('mkt-list.json')), { 'prova-mkt': '2026-10-08T10:00:00.000Z' })).toEqual([
+      { nome: 'prova-mkt', tipo: 'directory', riferimento: 'C:\\Progetti\\Esempio\\mercato', ufficiale: false, aggiornato: '2026-10-08T10:00:00.000Z' }
+    ])
+  })
+
+  it('CLAUDE_CONFIG_DIR sposta anche .claude.json (provato con 2.1.294)', () => {
+    expect(percorsiClaude({ CLAUDE_CONFIG_DIR: 'D:\\cfg' }, 'C:\\Utenti\\esempio')).toEqual({ radice: 'D:\\cfg', fileClaudeJson: join('D:\\cfg', '.claude.json') })
+    expect(percorsiClaude({}, 'C:\\Utenti\\esempio')).toEqual({ radice: join('C:\\Utenti\\esempio', '.claude'), fileClaudeJson: join('C:\\Utenti\\esempio', '.claude.json') })
   })
 })
 
@@ -210,6 +397,9 @@ describe('un identificatore non deve poter diventare un opzione', () => {
     expect(esito.messaggio).toContain('non valido')
     const altro = await commutaPlugin('-x', true)
     expect(altro.ok).toBe(false)
+    expect((await aggiornaPlugin('-y')).ok).toBe(false)
+    // Nemmeno un'impronta del comando che non sia un sha256.
+    expect((await installaPlugin('buono@m', '--yes')).messaggio).toContain('impronta')
   })
 })
 
@@ -238,26 +428,26 @@ describe('un salvataggio che non riesce non deve dirsi riuscito', () => {
 
 describe('la cartella come la scrive Claude Code', () => {
   it('trova la chiave esistente a meno di barre, maiuscole e barra finale; nuova solo se nessuna', () => {
-    // Sul PC di Nicholas la stessa cartella sta due volte in ~/.claude.json:
-    // `C:\\Users\\nikof` e `C:/Users/nikof`. Con il confronto esatto la scheda
-    // MCP era vuota e «commuta» creava un ramo che Claude Code non guarda.
-    const projects = { 'C:/Users/nikof/Documents/SierraDeck': {}, 'D:\\altro\\': {} }
-    expect(chiaveProgetto(projects, 'C:\\Users\\nikof\\Documents\\SierraDeck')).toBe('C:/Users/nikof/Documents/SierraDeck')
-    expect(chiaveProgetto(projects, 'c:\\users\\NIKOF\\documents\\sierradeck\\')).toBe('C:/Users/nikof/Documents/SierraDeck')
+    // Sullo stesso PC la stessa cartella sta due volte in ~/.claude.json:
+    // `C:\\Progetti\\Esempio` e `C:/Progetti/Esempio`. Con il confronto esatto la
+    // scheda MCP era vuota e «commuta» creava un ramo che Claude Code non guarda.
+    const projects = { 'C:/Progetti/Esempio': {}, 'D:\\altro\\': {} }
+    expect(chiaveProgetto(projects, 'C:\\Progetti\\Esempio')).toBe('C:/Progetti/Esempio')
+    expect(chiaveProgetto(projects, 'c:\\progetti\\ESEMPIO\\')).toBe('C:/Progetti/Esempio')
     expect(chiaveProgetto(projects, 'D:\\altro')).toBe('D:\\altro\\')
     expect(chiaveProgetto(projects, 'E:\\nuova')).toBe('E:\\nuova')
     expect(chiaveProgetto(undefined, 'E:\\nuova')).toBe('E:\\nuova')
   })
 
-  it('mcpDiProgetto e commutaMcp lavorano sulla chiave che c e gia', () => {
+  it('elencoMcp e commutaMcp lavorano sulla chiave che c e gia', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sd-negozio-chiave-'))
     const file = join(dir, '.claude.json')
     writeFileSync(file, JSON.stringify({ projects: { 'C:/lavoro/app': { mcpServers: { fs: { command: 'npx' } } } } }), 'utf8')
-    expect(mcpDiProgetto(file, 'C:\\lavoro\\app').map((m) => m.nome)).toEqual(['fs'])
+    expect(elencoMcp(dir, file, 'C:\\lavoro\\app').map((m) => m.nome)).toEqual(['fs'])
     expect(commutaMcp(file, 'C:\\lavoro\\app', 'fs', false).ok).toBe(true)
-    const dopo = JSON.parse(readFileSync(file, 'utf8')) as { projects: Record<string, { disabledMcpjsonServers?: string[] }> }
+    const dopo = JSON.parse(readFileSync(file, 'utf8')) as { projects: Record<string, { disabledMcpServers?: string[] }> }
     expect(Object.keys(dopo.projects)).toEqual(['C:/lavoro/app'])
-    expect(dopo.projects['C:/lavoro/app']?.disabledMcpjsonServers).toEqual(['fs'])
+    expect(dopo.projects['C:/lavoro/app']?.disabledMcpServers).toEqual(['fs'])
     rmSync(dir, { recursive: true, force: true })
   })
 })

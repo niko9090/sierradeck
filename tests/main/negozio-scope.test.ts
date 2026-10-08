@@ -19,7 +19,7 @@ describe('componiScope', () => {
       scope: scopeVuoto(),
       enabledPluginGlobali: { 'a@m': true },
       skillOverridesGlobali: {},
-      mcpDisabilitatiProgetto: []
+      mcpNegatiGlobali: []
     })
     expect(out).toEqual({})
   })
@@ -29,7 +29,7 @@ describe('componiScope', () => {
       scope: { pluginSpenti: ['b@m'], skillSpente: [], mcpSpenti: [] },
       enabledPluginGlobali: { 'a@m': true, 'b@m': true },
       skillOverridesGlobali: {},
-      mcpDisabilitatiProgetto: []
+      mcpNegatiGlobali: []
     })
     // a@m resta true (non lo perdiamo), b@m diventa false.
     expect(out.enabledPlugins).toEqual({ 'a@m': true, 'b@m': false })
@@ -41,19 +41,22 @@ describe('componiScope', () => {
       scope: { pluginSpenti: [], skillSpente: ['mia'], mcpSpenti: [] },
       enabledPluginGlobali: {},
       skillOverridesGlobali: { altra: 'off' },
-      mcpDisabilitatiProgetto: []
+      mcpNegatiGlobali: []
     })
     expect(out.skillOverrides).toEqual({ altra: 'off', mia: 'off' })
   })
 
-  it('unisce gli MCP spenti a quelli già disabilitati nel progetto, senza doppioni', () => {
+  it('0.53.0: spegne gli MCP con deniedMcpServers (vale per locali, personali e .mcp.json), tenendo quelli già negati', () => {
+    // Provato con Claude Code 2.1.294: con disabledMcpjsonServers un server
+    // locale restava acceso; con deniedMcpServers la chat non lo avvia.
     const out = componiScope({
       scope: { pluginSpenti: [], skillSpente: [], mcpSpenti: ['uno', 'due'] },
       enabledPluginGlobali: {},
       skillOverridesGlobali: {},
-      mcpDisabilitatiProgetto: ['uno', 'tre']
+      mcpNegatiGlobali: [{ serverName: 'uno' }, { serverUrl: 'https://esempio.it/*' }]
     })
-    expect(new Set(out.disabledMcpjsonServers as string[])).toEqual(new Set(['uno', 'due', 'tre']))
+    expect(out.deniedMcpServers).toEqual([{ serverName: 'uno' }, { serverUrl: 'https://esempio.it/*' }, { serverName: 'due' }])
+    expect(out.disabledMcpjsonServers).toBeUndefined()
   })
 })
 
@@ -117,27 +120,28 @@ describe('leggiGlobaliPerScope', () => {
   beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'sd-glob-')) })
   afterEach(() => { rmSync(dir, { recursive: true, force: true }) })
 
-  it('legge enabledPlugins/skillOverrides dal settings e i MCP disabilitati del progetto', () => {
+  it('legge enabledPlugins, skillOverrides e deniedMcpServers dal settings', () => {
     const radice = join(dir, '.claude')
     mkdirSync(radice, { recursive: true })
     writeFileSync(join(radice, 'settings.json'), JSON.stringify({
       enabledPlugins: { 'a@m': true, 'b@m': false },
-      skillOverrides: { s: 'off' }
+      skillOverrides: { s: 'off' },
+      deniedMcpServers: [{ serverName: 'srv1' }]
     }))
     const claudeJson = join(dir, '.claude.json')
-    writeFileSync(claudeJson, JSON.stringify({ projects: { '/p': { disabledMcpjsonServers: ['srv1'] } } }))
+    writeFileSync(claudeJson, JSON.stringify({ projects: { '/p': { disabledMcpjsonServers: ['altro'] } } }))
 
     const g = leggiGlobaliPerScope({ radiceClaude: radice, fileClaudeJson: claudeJson, cwd: '/p' })
     expect(g.enabledPluginGlobali).toEqual({ 'a@m': true, 'b@m': false })
     expect(g.skillOverridesGlobali).toEqual({ s: 'off' })
-    expect(g.mcpDisabilitatiProgetto).toEqual(['srv1'])
+    expect(g.mcpNegatiGlobali).toEqual([{ serverName: 'srv1' }])
   })
 
   it('file mancanti = globali vuoti, non un errore', () => {
     const g = leggiGlobaliPerScope({ radiceClaude: join(dir, 'niente'), fileClaudeJson: join(dir, 'niente.json'), cwd: '/p' })
     expect(g.enabledPluginGlobali).toEqual({})
     expect(g.skillOverridesGlobali).toEqual({})
-    expect(g.mcpDisabilitatiProgetto).toEqual([])
+    expect(g.mcpNegatiGlobali).toEqual([])
   })
 })
 

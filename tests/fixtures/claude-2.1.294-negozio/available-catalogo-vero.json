@@ -1,0 +1,65 @@
+{
+  "installed": [],
+  "available": [
+    {
+      "pluginId": "frontend-design@claude-plugins-official",
+      "name": "frontend-design",
+      "description": "Create distinctive, production-grade frontend interfaces with high design quality. Generates creative, polished code that avoids generic AI aesthetics.",
+      "marketplaceName": "claude-plugins-official",
+      "source": "./plugins/frontend-design",
+      "installCount": 1290640
+    },
+    {
+      "pluginId": "superpowers@claude-plugins-official",
+      "name": "superpowers",
+      "description": "Superpowers teaches Claude brainstorming, subagent driven development with built in code review, systematic debugging, and red/green TDD. Additionally, it teaches Claude how to author and test new skills.",
+      "marketplaceName": "claude-plugins-official",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/obra/superpowers.git",
+        "sha": "5bf4e78011075bcfc0dc295f0724994cd123ee71"
+      },
+      "installCount": 1153057
+    },
+    {
+      "pluginId": "code-review@claude-plugins-official",
+      "name": "code-review",
+      "description": "Automated code review for pull requests using multiple specialized agents with confidence-based scoring to filter false positives",
+      "marketplaceName": "claude-plugins-official",
+      "source": "./plugins/code-review",
+      "installCount": 492072
+    },
+    {
+      "pluginId": "context7@claude-plugins-official",
+      "name": "context7",
+      "description": "Upstash Context7 MCP server for up-to-date documentation lookup. Connects to Context7's hosted remote MCP server (https://mcp.context7.com/mcp) — no local Node.js or npx required — to pull version-specific documentation and code examples directly from source repositories into your LLM context. Works anonymously out of the box; set CONTEXT7_API_KEY for higher rate limits.",
+      "marketplaceName": "claude-plugins-official",
+      "source": "./external_plugins/context7",
+      "installCount": 458090
+    },
+    {
+      "pluginId": "frontend-design@anthropic-plugin-directory",
+      "name": "frontend-design",
+      "description": "Frontend design skill for UI/UX implementation",
+      "marketplaceName": "anthropic-plugin-directory",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/claude-plugins-official",
+        "path": "plugins/frontend-design",
+        "sha": "b78ac49cdc6b3d7b61c4439470e311f4291265b1"
+      }
+    },
+    {
+      "pluginId": "figma@anthropic-plugin-directory",
+      "name": "figma",
+      "description": "Figma design platform integration. Access design files, extract component information, read design tokens, and translate designs into code. Bridge the gap between design and development workflows.",
+      "marketplaceName": "anthropic-plugin-directory",
+      "version": "2.2.127",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/figma/mcp-server-guide.git",
+        "sha": "f0493295acf5f7cbdebcbcc483c06de814420cb1"
+      }
+    }
+  ]
+}

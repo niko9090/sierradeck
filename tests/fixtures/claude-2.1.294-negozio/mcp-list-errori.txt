@@ -1,0 +1,6 @@
+Checking MCP server health…
+
+personale: node C:/Progetti/Esempio/mcp-finto.js - ✔ Connected
+condiviso: node C:/Progetti/Esempio/mcp-finto.js - ⏸ Pending approval (run `claude` to approve)
+finto: node C:/Progetti/Esempio/mcp-finto.js - ✔ Connected
+rotto: http://127.0.0.1:9/mcp (HTTP) - ✘ Failed to connect — ECONNREFUSED: ECONNREFUSED: Unable to connect. Is the computer able to access the url?

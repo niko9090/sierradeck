@@ -1,5 +1,6 @@
 package it.ferrariconsulenze.sierradeck
 
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -60,8 +61,14 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             // la rete che porta a Internet — che con una VPN accesa, o con un
             // wifi che giudica scadente, non e' la stessa cosa. Il perche' sta
             // per intero in `Rete`.
-            Rete.clientePer(Indirizzi.hostDi(indirizzo))
-                .newCall(richiesta(percorso, corpo)).execute().use { r ->
+            val cliente = Rete.clientePer(Indirizzi.hostDi(indirizzo)).let { c ->
+                // Le rotte del negozio aspettano Claude Code: un'installazione
+                // da GitHub ci mette fino a un paio di minuti. Con i 15 secondi
+                // di sempre l'app diceva «non riuscito» mentre il computer
+                // stava ancora installando (prova dell'08/10).
+                if (percorso in ROTTE_LENTE) c.newBuilder().readTimeout(LENTE_SECONDI, TimeUnit.SECONDS).build() else c
+            }
+            cliente.newCall(richiesta(percorso, corpo)).execute().use { r ->
                 val testo = r.body?.string() ?: ""
                 if (!r.isSuccessful) throw Errore(r.code, testo)
                 testo
@@ -370,9 +377,25 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             })
         )
 
-    /** Installa un plugin. Passa dal CLI di Claude Code: ci mette qualche secondo. */
-    suspend fun installaPlugin(id: String): EsitoNegozio =
-        json.decodeFromString(corpoTesto("/api/negozio/installa", oggetto { put("id", id) }))
+    /**
+     * Installa un plugin. Passa dal CLI di Claude Code: da qualche secondo a un
+     * paio di minuti. `accetta` è l'impronta del comando del marketplace che
+     * la persona ha letto e confermato.
+     */
+    suspend fun installaPlugin(id: String, accetta: String? = null): EsitoNegozio =
+        json.decodeFromString(corpoTesto("/api/negozio/installa", oggetto { put("id", id); accetta?.let { put("accetta", it) } }))
+
+    /** Aggiorna un plugin installato all'ultima versione del suo marketplace (0.53.0). */
+    suspend fun aggiornaPlugin(id: String, accetta: String? = null): EsitoNegozio =
+        json.decodeFromString(corpoTesto("/api/negozio/aggiorna", oggetto { put("id", id); accetta?.let { put("accetta", it) } }))
+
+    /** Cerca nel catalogo intero (0.53.0; un computer di prima risponde 404). */
+    suspend fun cercaPlugin(q: String): RicercaNegozio =
+        json.decodeFromString(corpoTesto("/api/negozio/cerca", oggetto { put("q", q) }))
+
+    /** Gli MCP con lo stato del collegamento: il computer li prova uno per uno (0.53.0). */
+    suspend fun saluteMcp(): SaluteMcp =
+        json.decodeFromString(corpoTesto("/api/negozio/salute-mcp", null))
 
     /**
      * Le cartelle dentro una cartella del computer.
@@ -410,6 +433,14 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun consumi(): Consumi = json.decodeFromString(corpoTesto("/api/consumi", null))
 
     companion object {
+        /** Le rotte che passano dal CLI di Claude Code e possono metterci minuti. */
+        val ROTTE_LENTE = setOf(
+            "/api/negozio", "/api/negozio/installa", "/api/negozio/aggiorna",
+            "/api/negozio/commuta", "/api/negozio/cerca", "/api/negozio/salute-mcp"
+        )
+        /** Il CLI ne concede 180 a un'installazione: qualcosa in più, per la rete. */
+        const val LENTE_SECONDI = 200L
+
         private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
 
         /** Tollerante in lettura, esplicito in scrittura: regge un desktop più
