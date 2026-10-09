@@ -128,7 +128,7 @@ fun Lavori(apiAccoppiato: Api, statoAccoppiato: Stato?, apri: String? = null, on
         DettaglioAutopilota(api, breve, onIndietro = { aperto = null })
     } else {
         Column(Modifier.fillMaxSize()) {
-            if (su != null) FasciaSuPc(su, null) { SuPc.corrente = null }
+            if (su != null) { FasciaSuPc(su, null) { SuPc.corrente = null }; BandaPcIndietro(apiAccoppiato, su.pcId, su.nome, statoSu?.computer?.versione) }
             FasciaLavori(lista) { delega = true }
             if (lista.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
@@ -650,7 +650,7 @@ private fun AzioniAutopilota(api: Api, id: String, stato: String) {
             ) { Text(if (inCorso) "Riprendo…" else "Riprendi da dove si è fermato") }
             // Archiviare un autopilota fermo (app 2.56.0), come dal pannello del PC.
             if (stato == "sospeso" || stato == "fallito") {
-                TextButton(enabled = !inCorso, onClick = { fai("archiviarlo") { api.archiviaAutopilota(id, true) } }) {
+                TextButton(enabled = !inCorso, onClick = { inCorso = true; scope.launch { tentaGestione("archiviarlo", SuPc.corrente?.nome, FunzionePc.PARITA) { api.archiviaAutopilota(id, true) }; inCorso = false } }) {
                     Text("Archivia — esce dall’elenco dei lavori, non si cancella niente")
                 }
             }

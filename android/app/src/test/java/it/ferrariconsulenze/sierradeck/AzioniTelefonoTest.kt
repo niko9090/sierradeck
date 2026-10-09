@@ -96,7 +96,7 @@ class AzioniTelefonoTest {
         val vecchio = Api.Errore(403, """{"errore":"Attraverso il ponte si può solo quello che il PC fa dal suo riquadro remoto: … «/api/sfoglia» no."}""")
         assertTrue(spiegaGestione(vecchio, "sfogliare le cartelle", "PC-ESEMPIO").contains("di prima della 0.55.0"))
         val manca = Api.Errore(404, """{"errore":"non trovato"}""")
-        assertEquals("Mettere a dormire, spostare le chat, rinominare i workspace e gestire gli altri PC dal telefono arriva aggiornando PC-ESEMPIO alla 0.55.0.", spiegaGestione(manca, "mettere a dormire la chat", "PC-ESEMPIO"))
+        assertEquals("Mettere a dormire, spostare le chat, rinominare i workspace e gestire gli altri PC dal telefono arriva aggiornando PC-ESEMPIO alla 0.55.0. Si aggiorna con «Installa là», in cima alla schermata di quel PC.", spiegaGestione(manca, "mettere a dormire la chat", "PC-ESEMPIO"))
         val vero = Api.Errore(409, """{"errore":"L’ultimo workspace non si può eliminare: non resterebbe dove salvare il layout."}""")
         assertTrue(spiegaGestione(vero, "eliminare il workspace", null).endsWith("non resterebbe dove salvare il layout."))
     }

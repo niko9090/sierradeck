@@ -262,6 +262,12 @@ export function avviaServizio(): void {
       // giusta — è la stessa tecnica del daemon Telegram — ma va detto,
       // altrimenti sembra che il servizio non sia mai partito.
       console.error(`[autopilota] porta ${PORTA} gia occupata: un altro servizio e vivo, esco`)
+      // Nel registro (0.56.2): il banner «sessione avviata» c'è già, e senza
+      // questa riga un doppione che esce sembra un riavvio del servizio.
+      try {
+        apriRegistro(join(cartellaStato(), '..'), process.env.SIERRADECK_VERSIONE ?? '?', 'servizio')
+          .info(`[servizio] la porta ${PORTA} è già del servizio in funzione: questo doppione esce, quello di prima continua`)
+      } catch { /* il registro non ferma l'uscita */ }
       process.exit(0)
     }
     console.error('[autopilota] errore del server:', err)

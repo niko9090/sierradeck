@@ -163,6 +163,8 @@ private fun ChatSuAltroPc(api: Api, su: PcPonte, deposito: Collegamento) {
     BackHandler { if (aperta != null) aperta = null else SuPc.corrente = null }
     Column(Modifier.fillMaxSize()) {
         FasciaSuPc(su, null, linea) { SuPc.corrente = null }
+        // Quel PC è indietro (app 2.56.2): lo si dice, con «Installa là».
+        BandaPcIndietro(api, su.pcId, su.nome, stato?.computer?.versione)
         // «Mi collego a NOME-PC…» (0.52.1): i tentativi finché il primo collegamento non riesce.
         val inizioPonte = remember(su.pcId) { System.currentTimeMillis() }
         var schedaPonte by remember(su.pcId) { mutableStateOf(true) }
@@ -178,13 +180,13 @@ private fun ChatSuAltroPc(api: Api, su: PcPonte, deposito: Collegamento) {
             stato == null && guasto == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Busso a ${su.nome} attraverso il PC accoppiato…", color = Banco.testoQuieto)
             }
-            else -> ElencoChat(apiPc, chat, stato?.workspace ?: Workspace(), onApri = { aperta = it.id }, nomePc = su.nome)
+            else -> ElencoChat(apiPc, chat, stato?.workspace ?: Workspace(), onApri = { aperta = it.id }, nomePc = su.nome, versionePc = stato?.computer?.versione)
         }
     }
 }
 
 @Composable
-private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri: (Chat) -> Unit, nomePc: String? = null) {
+private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri: (Chat) -> Unit, nomePc: String? = null, versionePc: String? = PcCorrente.versione) {
     var mostraNuova by remember { mutableStateOf(false) }
     var mostraWorkspace by remember { mutableStateOf(false) }
     var mostraRiprendi by remember { mutableStateOf(false) }
@@ -335,7 +337,9 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
         onApri = { percorso, ws ->
             scope.launch {
                 if (tentaGestione("aprire una chat in quella cartella", nomePc) { api.apriNuova(percorso, ws, NuovaChat.nome, NuovaChat.modello) } != null)
-                    Nota.mostra("Chat aperta in «${percorso.substringAfterLast(Char(92)).substringAfterLast('/')}»" + (if (ws.isNullOrBlank()) "" else ", nel workspace «$ws»") + ": compare qui fra un paio di secondi.")
+                    if (FunzioniPc.disponibile(FunzionePc.PARITA, versionePc) == false)
+                        Nota.mostra("Chat aperta. ${nomePc ?: "Quel PC"} ha la $versionePc: la mette nel workspace davanti e con il nome della cartella; nome, workspace e modello scelti qui arrivano aggiornandolo con «Installa là».")
+                    else Nota.mostra("Chat aperta in «${percorso.substringAfterLast(Char(92)).substringAfterLast('/')}»" + (if (ws.isNullOrBlank()) "" else ", nel workspace «$ws»") + ": compare qui fra un paio di secondi.")
             }
         },
         onChiudi = { mostraNuova = false }
@@ -768,7 +772,7 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
         DialogoConferma(AzioniTelefono.confermaPin(titoloChat, proteggi), onSi = {
             pinDa = null
             scope.launch {
-                if (tentaGestione(if (proteggi) "proteggere la chat" else "togliere il PIN", nomePc) { api.proteggiChat(chat.id, proteggi) } != null)
+                if (tentaGestione(if (proteggi) "proteggere la chat" else "togliere il PIN", nomePc, FunzionePc.PARITA) { api.proteggiChat(chat.id, proteggi) } != null)
                     Nota.mostra(if (proteggi) "«$titoloChat» è protetta dal PIN." else "«$titoloChat» non ha più il PIN.")
             }
         }, onNo = { pinDa = null })
@@ -777,7 +781,7 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
     ospiteIn?.let { (id, nomeOspite) ->
         DialogoConferma(AzioniTelefono.confermaOspite(titoloChat, nomeOspite, id == "qui"), onSi = {
             ospiteIn = null
-            scope.launch { tentaGestione("scegliere l’ospite", nomePc) { api.ospiteChat(chat.id, id, nomeOspite) }?.let { Nota.mostra(it.messaggio.ifBlank { "Fatto: «$titoloChat» è ospitata da $nomeOspite." }) } }
+            scope.launch { tentaGestione("scegliere l’ospite", nomePc, FunzionePc.PARITA) { api.ospiteChat(chat.id, id, nomeOspite) }?.let { Nota.mostra(it.messaggio.ifBlank { "Fatto: «$titoloChat» è ospitata da $nomeOspite." }) } }
         }, onNo = { ospiteIn = null })
     }
     spostaIn?.let { verso ->

@@ -216,6 +216,8 @@ fun Computer(api: Api, stato: Stato?) {
                                 postaCwd = p.cartelle.firstOrNull() ?: ""
                             }) { Text(if (aperto) "Chiudi" else "Azioni") }
                         }
+                        // Indietro con la versione (app 2.56.2): cosa manca là, e «Installa là».
+                        if (p.vivo) BandaPcIndietro(api, p.pcId, p.mostra, p.versione)
                         // Il ponte (PC 0.48.0): le chat di quel PC dal vivo, da qui,
                         // passando dal PC a cui il telefono è accoppiato.
                         val ponte = FunzioniPc.disponibile(FunzionePc.PONTE, PcCorrente.versione)

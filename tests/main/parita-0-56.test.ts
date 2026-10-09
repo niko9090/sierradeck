@@ -73,4 +73,17 @@ describe('le mancanze della parità, dal telefono', () => {
     expect((await vai(r, '/api/apri', { cartella: 'C:\\Progetti\\Esempio', modello: 'gpt-qualcosa' })).stato).toBe(400)
     expect(aperte).toEqual([{ c: 'C:\\Progetti\\Esempio', m: 'sonnet', w: undefined, n: 'Relazione' }])
   })
+  it('«Installa là» dal telefono (0.56.2): dal telefono sì, da un altro PC no; senza Salute pronta lo dice', async () => {
+    const chiesti: string[] = []
+    const r = base({ installaLa: (pc: string) => { chiesti.push(pc); return { pcId: pc, fase: 'cerco', messaggio: 'Busso…' } }, installaLaStato: () => [{ pcId: 'pc-esempio-id', fase: 'cerco' }] })
+    expect(await vai(r, '/api/installa-la', { pc: 'pc-esempio-id' })).toMatchObject({ stato: 200, corpo: { fatto: true } })
+    expect((await r({ metodo: 'POST', percorso: '/api/installa-la', corpo: { pc: 'pc-esempio-id' }, dispositivo: 'pc:altro' })).stato).toBe(403)
+    expect((await vai(r, '/api/installa-la', {})).stato).toBe(400)
+    expect(await vai(r, '/api/installa-la/stato')).toMatchObject({ stato: 200, corpo: { avanzamenti: [{ pcId: 'pc-esempio-id' }] } })
+    expect(chiesti).toEqual(['pc-esempio-id'])
+    // Un PC che non c'è: 404 subito, invece di riprovare per sempre (ripasso 0.56.2).
+    expect((await vai(base({ installaLa: () => ({ sconosciuto: true }) }), '/api/installa-la', { pc: 'nessuno' })).stato).toBe(404)
+    const senza = base({ installaLa: () => undefined })
+    expect((await vai(senza, '/api/installa-la', { pc: 'x' })).stato).toBe(409)
+  })
 })

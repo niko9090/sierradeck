@@ -144,6 +144,14 @@ const ATTESA_PREDEFINITA_MS = 3000
 export function creaClientAutopilota(p: {
   porta: number
   avviaServizio: () => void
+  /**
+   * La porta del servizio accetta connessioni? (0.56.2) Se sì il servizio c'è,
+   * solo lento a rispondere alla salute: non se ne avvia un doppione. Senza,
+   * il comportamento di prima.
+   */
+  portaInAscolto?: () => Promise<boolean>
+  /** Dove raccontare cosa si è deciso (il registro del Gestore). */
+  log?: (m: string) => void
   attesaMs?: number
   /**
    * La versione di **questa** applicazione.
@@ -154,6 +162,7 @@ export function creaClientAutopilota(p: {
   versione?: string
 }): ClientAutopilota {
   const attesaMs = p.attesaMs ?? ATTESA_PREDEFINITA_MS
+  let inVerifica: Promise<boolean> | undefined
   const base = `http://127.0.0.1:${p.porta}`
 
   /**
@@ -247,7 +256,16 @@ export function creaClientAutopilota(p: {
       return typeof esito?.ripresi === 'number' ? esito.ripresi : 0
     },
 
-    async assicuraServizio() {
+    assicuraServizio() {
+      // Una sola verifica alla volta (0.56.2): due chiamate insieme avviavano
+      // due servizi nello stesso istante (registro del 09/10, 07:45:02).
+      if (inVerifica !== undefined) return inVerifica
+      inVerifica = verifica().finally(() => { inVerifica = undefined })
+      return inVerifica
+    }
+  }
+
+  async function verifica(): Promise<boolean> {
       const salute = async (): Promise<{ vivo?: unknown; versione?: unknown } | undefined> => {
         try {
           return (await chiama('/salute', 'GET')) as { vivo?: unknown; versione?: unknown }
@@ -283,12 +301,19 @@ export function creaClientAutopilota(p: {
         await new Promise((r) => setTimeout(r, attesaMs))
         return vivo()
       }
+      // Il servizio c'è ma non ha risposto in tempo (0.56.2): era occupato,
+      // non morto. Avviarne un altro faceva solo nascere un doppione che
+      // trovava la porta presa e usciva — nel registro sembrava un riavvio.
+      if (p.portaInAscolto !== undefined && (await p.portaInAscolto().catch(() => false))) {
+        p.log?.(`[autopilota] il servizio non ha risposto alla salute in ${Math.round(attesaMs / 1000)} s ma è in ascolto: è occupato, non ne avvio un altro`)
+        return vivo()
+      }
+      p.log?.('[autopilota] il servizio non è in ascolto: lo avvio')
       p.avviaServizio()
       // Un solo tentativo di riavvio: se non risale, insistere non cambierebbe
       // niente e il pannello deve poterlo dire subito invece di restare in
       // caricamento.
       await new Promise((r) => setTimeout(r, attesaMs))
       return vivo()
-    }
   }
 }

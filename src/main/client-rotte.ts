@@ -277,6 +277,12 @@ export type DipendenzeRotte = {
   azioneFinestra?: (a: AzioneFinestra) => Promise<EsitoAzioneFinestra>
   /** La cartella dell'utente: un autopilota non lavora lì né in una radice di disco. */
   cartellaUtente?: () => string
+  /**
+   * «Installa là» dal telefono (0.56.2): questo PC aggiorna un altro PC della
+   * cassaforte, come dalla Salute. `undefined` = la Salute non è ancora pronta.
+   */
+  installaLa?: (pcId: string) => unknown
+  installaLaStato?: () => unknown[]
   /** Archiviare un autopilota fermo (0.56.0), come dal pannello del PC. */
   archiviaAutopilota?: (id: string, archivia: boolean) => Promise<void>
   /** Proteggere o no una chat con il PIN (0.56.0): `pin:proteggiChat` del PC. */
@@ -1934,6 +1940,23 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       }
       deps.chiudiChat(id)
       return OK({ fatto: true })
+    }
+
+    // «Installa là» dal telefono (0.56.2): solo dal telefono accoppiato a questo PC, mai attraverso il ponte.
+    if (r.percorso === '/api/installa-la/stato') {
+      if (deps.installaLaStato === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora aggiornare gli altri PC dal telefono: aggiornalo alla 0.56.2.' } }
+      return OK({ avanzamenti: deps.installaLaStato() })
+    }
+    if (r.metodo === 'POST' && r.percorso === '/api/installa-la') {
+      if (daAltroPc(r.dispositivo)) return { stato: 403, corpo: { errore: '«Installa là» si chiede dal telefono accoppiato a questo PC, non da un altro PC.' } }
+      const pc = stringa(r.corpo, 'pc')
+      if (pc === '') return { stato: 400, corpo: { errore: 'Quale PC aggiornare?' } }
+      if (deps.installaLa === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora aggiornare gli altri PC dal telefono: aggiornalo alla 0.56.2.' } }
+      const a = deps.installaLa(pc)
+      if (a === undefined) return { stato: 409, corpo: { errore: 'La Salute di questo PC non è ancora pronta: riprova fra qualche secondo.' } }
+      // Un PC che non ha mai lasciato un battito sul Drive (ripasso 0.56.2): prima si accettava e si riprovava per sempre.
+      if ((a as { sconosciuto?: unknown }).sconosciuto === true) return { stato: 404, corpo: { errore: 'Questo PC non è fra quelli della cassaforte (non ha mai lasciato un battito sul Drive): non so dove bussare per aggiornarlo.' } }
+      return OK({ fatto: true, avanzamento: a })
     }
 
     // I modelli fra cui scegliere per una chat nuova (0.56.0): gli stessi della fascia del PC.

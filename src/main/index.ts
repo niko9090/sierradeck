@@ -24,6 +24,7 @@ import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, watch, copyFileSync, writeFileSync } from 'node:fs'
 import { homedir, hostname } from 'node:os'
+import { createConnection } from 'node:net'
 import { createHash } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { APP_NAME, APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
@@ -304,7 +305,9 @@ function conSegnali(chat: Chat[]): Chat[] {
     if (s === undefined) {
       if (c.sessione !== undefined && c.viva === true && !riservaRaccontata.has(c.sessione)) {
         riservaRaccontata.add(c.sessione)
-        registroGlobale?.info(`[segnali] «${c.titolo}»: nessun segnale da Claude Code, lo stato viene dallo schermo (riserva)`)
+        // Dopo un avvio è normale (0.56.2): una chat ferma non manda niente
+        // finché non fa qualcosa. Il primo segnale si scrive quando arriva.
+        registroGlobale?.info(`[segnali] «${c.titolo}»: ancora nessun segnale da Claude Code da quando il programma è partito (la chat non ha ancora fatto niente): per ora lo stato viene dallo schermo`)
       }
       return { ...c, fonteStato: 'schermo' as const }
     }
@@ -319,6 +322,12 @@ function conSegnali(chat: Chat[]): Chat[] {
 function ricordaSegnale(corpo: unknown): void {
   const s = leggiSegnale(corpo, new Date().toISOString())
   if (s === undefined) return
+  // Il primo segnale di ogni chat nel registro (0.56.2): prima si leggeva solo
+  // «nessun segnale», e non c'era modo di sapere se gli hook funzionassero.
+  if (!segnaliPerSessione.has(s.sessione)) {
+    const t = chatDallaFinestra.find((c) => c.sessione === s.sessione)?.titolo ?? s.sessione
+    registroGlobale?.info(`[segnali] «${t}»: arrivano i segnali di Claude Code (primo: ${s.evento}), lo stato viene da lì`)
+  }
   const lista = [...(segnaliPerSessione.get(s.sessione) ?? []), s].slice(-SEGNALI_PER_CHAT)
   segnaliPerSessione.set(s.sessione, lista)
   if (s.evento === 'StopFailure') registroGlobale?.info(`[segnali] turno finito per un errore dell'API (sessione ${s.sessione}): ${s.errore ?? 'senza dettagli'}`)
@@ -444,6 +453,8 @@ let postinoGlobale: Postino | undefined
  * sapere quali chat salgono e quali scendono. Finché non c'e', tutto come prima.
  */
 let unaCasaGlobale: UnaCasa | undefined
+/** «Installa là» per il telefono (0.56.2): nasce con la Salute. */
+let installaLaGlobale: { avvia: (pcId: string) => AvanzamentoInstallaLa; stato: () => AvanzamentoInstallaLa[]; conosce: (pcId: string) => boolean } | undefined
 /** «Parte da solo» (0.55.0): gli autopiloti a cui il PC darà il via quando sono pronti. */
 let partenzeSubitoGlobale: import('./partenze-subito').PartenzeSubito | undefined
 /** L'ospite delle chat (0.52.0): nasce con la sincronia, come `unaCasaGlobale`. */
@@ -950,6 +961,17 @@ function avviaServizioAutopilota(): void {
  * perché due host non si conoscono e i terminali del primo diventerebbero
  * irraggiungibili dal secondo.
  */
+/** La porta locale accetta connessioni? (0.56.2) In mezzo secondo, o no. */
+function portaInAscolto(porta: number): Promise<boolean> {
+  return new Promise((ok) => {
+    const s = createConnection({ host: '127.0.0.1', port: porta })
+    const fine = (v: boolean): void => { s.destroy(); ok(v) }
+    s.setTimeout(500, () => fine(false))
+    s.once('connect', () => fine(true))
+    s.once('error', () => fine(false))
+  })
+}
+
 /**
  * La finestra a cui affidare una chat chiesta da fuori (telefono, cassetta di
  * un altro PC): quella che mostra già `workspace`, altrimenti la prima. Prima
@@ -1926,6 +1948,8 @@ if (!app.requestSingleInstanceLock()) {
         return avviaInstallaLa(pcId)
       })
       ipcMain.handle('salute:installaLaStato', () => [...installaLa.values()])
+      // Anche dal telefono (0.56.2): un PC vecchio si aggiorna passando da questo.
+      installaLaGlobale = { avvia: avviaInstallaLa, stato: () => [...installaLa.values()], conosce: (pcId) => postino.altrui().some((x) => x.pcId === pcId) }
       // Le note per la conferma: quelle di quel PC (che cerca la versione e le
       // legge da GitHub come fa per sé); se non risponde, quelle di qui fra la
       // sua versione e questa.
@@ -3016,6 +3040,8 @@ if (!app.requestSingleInstanceLock()) {
       const clientAutopilota = creaClientAutopilota({
         porta: portaAutopiloti,
         avviaServizio: avviaServizioAutopilota,
+        portaInAscolto: () => portaInAscolto(portaAutopiloti),
+        log: (m) => registro.info(m),
         versione: app.getVersion()
       })
       // «Parte da solo» (0.55.0): chi è pronto riceve il via dal PC.
@@ -3650,6 +3676,8 @@ if (!app.requestSingleInstanceLock()) {
         azioneFinestra: (a: AzioneFinestra) => azioneAlleFinestre(a),
         // Le mancanze della parità (0.56.0): archiviare, il PIN, l'ospite, dal telefono.
         archiviaAutopilota: (id: string, archivia: boolean) => clientAutopilota.archivia(id, archivia),
+        installaLa: (pcId: string) => installaLaGlobale === undefined ? undefined : installaLaGlobale.conosce(pcId) ? installaLaGlobale.avvia(pcId) : { sconosciuto: true },
+        installaLaStato: () => installaLaGlobale?.stato() ?? [],
         proteggiChat: (sessione: string, si: boolean) => {
           guardianoPin?.proteggiChat(sessione, si)
           for (const w of finestreDiChat()) if (!w.isDestroyed()) w.webContents.send('pin:cambiato')

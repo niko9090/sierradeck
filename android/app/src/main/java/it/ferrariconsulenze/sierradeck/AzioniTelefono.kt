@@ -52,6 +52,12 @@ sealed class EsitoBozza {
 }
 
 @Serializable
+data class AvanzamentoLa(val pcId: String = "", val nome: String = "", val fase: String = "", val messaggio: String = "")
+
+@Serializable
+data class StatoInstallaLa(val avanzamenti: List<AvanzamentoLa> = emptyList())
+
+@Serializable
 data class EsitoOspite(val fatto: Boolean = false, val messaggio: String = "")
 
 @Serializable

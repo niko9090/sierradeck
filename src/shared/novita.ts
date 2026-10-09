@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.56.2',
+    righe: [
+      '**Un PC con la versione vecchia lo dice, e si aggiorna dal telefono.** Guardando dal telefono un PC rimasto indietro, in cima compare cosa là non c’è ancora e il tasto «Installa là»: il PC a cui è collegato il telefono lo aggiorna, e si installa quando le sue chat finiscono il turno. Le azioni che un PC vecchio non conosce dicono la versione giusta che serve, e una chat nuova o un lavoro affidato a un PC vecchio avvisano che nome, workspace e modello là non arrivano.',
+      '**Niente più servizio degli autopiloti «riavviato» per finta.** Quando il servizio era occupato e tardava a rispondere, il programma ne avviava un secondo che usciva subito: nel registro sembrava un riavvio. Adesso, se il servizio è in ascolto, lo aspetta; i doppioni non nascono più e, se capita, il registro lo dice.',
+      '**Il registro dice quando arrivano i segnali delle chat.** «Nessun segnale da Claude Code» dopo un riavvio era normale (la chat non aveva ancora fatto niente) ma sembrava un guasto: ora è scritto così, e si legge anche quando i segnali arrivano. App Android 2.56.2.'
+    ]
+  },
+  {
     versione: '0.56.1',
     righe: [
       '**I messaggi degli autopiloti arrivano anche dopo un riavvio.** Quando al riavvio arrivavano insieme i compiti per due chat in workspace diversi, la finestra veniva portata prima in uno e subito dopo nell’altro: la prima chat non tornava mai a schermo, il compito non veniva scritto e la chat restava ferma. Adesso le consegne si danno il turno: una porta la finestra nel suo workspace e scrive, poi tocca all’altra. App Android invariata (2.56.0).'

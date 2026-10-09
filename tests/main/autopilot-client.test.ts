@@ -62,6 +62,23 @@ describe('creaClientAutopilota', () => {
     expect(avvii).toBe(1)
   })
 
+  it('un servizio occupato (porta in ascolto, salute lenta): niente doppione (0.56.2)', async () => {
+    // Registro del 09/10: due «sessione avviata» del servizio nello stesso istante, senza riavvio.
+    let avvii = 0
+    const righe: string[] = []
+    const client = creaClientAutopilota({ porta: 47596, avviaServizio: () => { avvii += 1 }, attesaMs: 200, portaInAscolto: async () => true, log: (m) => { righe.push(m) } })
+    expect(await client.assicuraServizio()).toBe(false)
+    expect(avvii).toBe(0)
+    expect(righe.join(' ')).toContain('è occupato, non ne avvio un altro')
+  })
+
+  it('due verifiche insieme avviano al massimo un servizio (0.56.2)', async () => {
+    let avvii = 0
+    const client = creaClientAutopilota({ porta: 47595, avviaServizio: () => { avvii += 1 }, attesaMs: 200, portaInAscolto: async () => false })
+    await Promise.all([client.assicuraServizio(), client.assicuraServizio(), client.assicuraServizio()])
+    expect(avvii).toBe(1)
+  })
+
   it('riferisce il motivo quando il servizio rifiuta la richiesta', async () => {
     server = createServer((_req, res) => {
       res.writeHead(400, { 'Content-Type': 'application/json' })

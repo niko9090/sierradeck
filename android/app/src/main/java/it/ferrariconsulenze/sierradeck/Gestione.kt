@@ -1,5 +1,6 @@
 package it.ferrariconsulenze.sierradeck
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -42,8 +43,11 @@ import kotlinx.coroutines.launch
  * ancora (404 «non trovato»), un PC accoppiato di prima della 0.55.0 che non
  * la lascia passare dal ponte (403 «riquadro remoto»), o il motivo vero.
  */
-fun spiegaGestione(e: Api.Errore, cosa: String, nomePc: String?): String = when {
-    e.codice == 404 && e.corpo.contains("\"non trovato\"") -> FunzioniPc.testoMancante(FunzionePc.GESTIONE, nomePc)
+fun spiegaGestione(e: Api.Errore, cosa: String, nomePc: String?, f: FunzionePc = FunzionePc.GESTIONE): String = when {
+    e.codice == 404 && e.corpo.contains("\"non trovato\"") -> FunzioniPc.testoMancante(f, nomePc) + " Si aggiorna con «Installa là», in cima alla schermata di quel PC."
+    // Un PC di prima della 0.55.0 vuole una cartella dove Claude Code ha già lavorato (risposta vera della 0.50 e della 0.54).
+    e.codice == 403 && e.corpo.contains("cartella non conosciuta") ->
+        "${nomePc ?: "Quel PC"} è di prima della 0.55.0: lì un autopilota si affida solo in una cartella dove Claude Code ha già lavorato. Scegline una dall’elenco, o aggiornalo con «Installa là»." 
     e.codice == 403 && e.corpo.contains("riquadro remoto") ->
         "Il PC a cui il telefono è accoppiato è di prima della 0.55.0 e attraverso il ponte lascia solo guardare e scrivere: aggiorna lui (Computer → Aggiornamento) e da qui potrai $cosa anche sugli altri PC."
     else -> Nota.spiega(e, cosa)
@@ -189,13 +193,58 @@ fun SceltaWorkspaceRiga(nomi: List<String>, scelto: String, onScegli: (String) -
 }
 
 /** Come `tenta`, con le spiegazioni della gestione (PC vecchio, ponte vecchio). */
-suspend fun <T> tentaGestione(cosa: String, nomePc: String?, azione: suspend () -> T): T? =
+suspend fun <T> tentaGestione(cosa: String, nomePc: String?, f: FunzionePc = FunzionePc.GESTIONE, azione: suspend () -> T): T? =
     try {
         azione()
     } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
     } catch (e: Api.Errore) {
-        Nota.mostra(spiegaGestione(e, cosa, nomePc)); null
+        Nota.mostra(spiegaGestione(e, cosa, nomePc, f)); null
     } catch (e: Exception) {
         Nota.mostra("Non sono riuscito a $cosa: ${e.message ?: "il computer non risponde"}"); null
     }
+
+
+/**
+ * Un PC indietro con la versione (app 2.56.2): lo si dice in cima, con quello
+ * che là non c'è ancora e il tasto «Installa là», che chiede al PC accoppiato
+ * di aggiornarlo (come dalla Salute del PC). Mai un errore muto.
+ */
+object PcIndietro {
+    /** Il testo, o `null` se quel PC è aggiornato quanto serve. */
+    fun testo(nome: String, versione: String?, accoppiato: String?): String? {
+        if (versione.isNullOrBlank()) return null
+        val mancano = FunzionePc.entries.filter { FunzioniPc.disponibile(it, versione) == false && it.minima != FunzionePc.INSTALLA_LA.minima }
+        val indietroDalCollegato = accoppiato != null && Aggiornamenti.piuNuova(versione, accoppiato)
+        if (mancano.isEmpty() && !indietroDalCollegato) return null
+        val cosa = if (mancano.isEmpty()) "" else " Là non ci sono ancora: " + mancano.joinToString("; ") { it.nome.replaceFirstChar { c -> c.lowercase() } } + "."
+        return "$nome ha la versione $versione" + (accoppiato?.let { ", il PC a cui è collegato il telefono la $it" } ?: "") + ".$cosa Aggiornalo con «Installa là»: si installa quando le sue chat finiscono il turno, e niente si perde."
+    }
+}
+
+@Composable
+fun BandaPcIndietro(apiAccoppiato: Api, pcId: String, nome: String, versione: String?) {
+    val testo = PcIndietro.testo(nome, versione, PcCorrente.versione) ?: return
+    val scope = rememberCoroutineScope()
+    var nota by remember(pcId) { mutableStateOf<String?>(null) }
+    var segui by remember(pcId) { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(pcId, segui) {
+        while (segui) {
+            nota = try { apiAccoppiato.installaLaStato().avanzamenti.firstOrNull { it.pcId == pcId }?.messaggio ?: nota } catch (_: Exception) { nota }
+            kotlinx.coroutines.delay(3000)
+        }
+    }
+    Column(Modifier.fillMaxWidth().background(Banco.ambra.copy(alpha = 0.14f)).padding(horizontal = 12.dp, vertical = 6.dp)) {
+        Text(testo, color = Banco.testo, fontSize = 12.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = {
+                scope.launch {
+                    nota = try { apiAccoppiato.installaLa(pcId); segui = true; "Chiesto: busso a $nome…" } catch (e: Api.Errore) {
+                        if (FunzioniPc.mancaSulPc(e)) FunzioniPc.testoMancante(FunzionePc.INSTALLA_LA, PcCorrente.nome) + " Intanto si aggiorna dalla Salute del PC." else Nota.spiega(e, "chiedere l’aggiornamento di $nome")
+                    } catch (e: Exception) { "Non sono riuscito a chiederlo: ${e.message ?: "il computer non risponde"}" }
+                }
+            }) { Text("Installa là") }
+            nota?.let { Text(it, color = Banco.testoQuieto, fontSize = 11.sp, modifier = Modifier.weight(1f)) }
+        }
+    }
+}

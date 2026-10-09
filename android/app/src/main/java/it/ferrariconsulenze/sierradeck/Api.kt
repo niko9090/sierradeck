@@ -243,6 +243,12 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun spostaChat(chat: String, workspace: String): Fatto =
         json.decodeFromString(corpoTesto("/api/chat/sposta", oggetto { put("chat", chat); put("workspace", workspace) }))
 
+    // ─── «Installa là» dal telefono (PC 0.56.2): sempre al PC accoppiato ───
+    suspend fun installaLa(pc: String): Fatto =
+        json.decodeFromString(corpoTesto("/api/installa-la", oggetto { put("pc", pc) }))
+
+    suspend fun installaLaStato(): StatoInstallaLa = json.decodeFromString(corpoTesto("/api/installa-la/stato", null))
+
     // ─── le mancanze della parità (PC 0.56.0) ───
     suspend fun archiviaAutopilota(id: String, archivia: Boolean = true): Fatto =
         json.decodeFromString(corpoTesto("/api/autopilota/archivia", oggetto { put("autopilota", id); put("archivia", archivia) }))
