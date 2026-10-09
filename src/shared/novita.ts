@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.56.1',
+    righe: [
+      '**I messaggi degli autopiloti arrivano anche dopo un riavvio.** Quando al riavvio arrivavano insieme i compiti per due chat in workspace diversi, la finestra veniva portata prima in uno e subito dopo nell’altro: la prima chat non tornava mai a schermo, il compito non veniva scritto e la chat restava ferma. Adesso le consegne si danno il turno: una porta la finestra nel suo workspace e scrive, poi tocca all’altra. App Android invariata (2.56.0).'
+    ]
+  },
+  {
     versione: '0.56.0',
     righe: [
       '**Niente più «non connesso» mentre la chat scorre.** L’indicatore del collegamento contava solo un controllo che ogni tanto tardava, e bastava un ritardo di sei secondi per dire «giù» anche se lo schermo della chat continuava ad arrivare. Adesso ogni risposta del computer conta come segno di vita. Prima di «non connesso» c’è la «linea lenta» in giallo, e «non connesso» compare solo dopo venti secondi senza niente e tre tentativi falliti di fila. Lo stato è uno solo per ogni PC, uguale nell’indicatore in alto, nella chat, nel cambio di PC e nella Salute, su PC, app e pagina.',

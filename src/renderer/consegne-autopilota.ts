@@ -169,6 +169,27 @@ export const TETTO_PRONTEZZA_MS = 8000
 /** Dopo questo tempo senza riquadro si torna nel suo workspace (una volta). */
 export const RIQUADRO_PERSO_MS = 6000
 
+/**
+ * Il turno sul workspace della finestra (0.56.1).
+ *
+ * Il difetto del 09/10, al riavvio dopo l'aggiornamento: arrivano insieme due
+ * consegne per due chat in workspace diversi (NexoraOS e SierraDeck), con una
+ * finestra sola. La prima la porta nel suo workspace, mezzo secondo dopo la
+ * seconda la riporta nel suo: la prima chat non torna più a schermo e dopo 90 s
+ * la consegna si arrende («riquadro mai trovato») — la chat resta ferma.
+ *
+ * Adesso il cambio di workspace è di **una** consegna alla volta: chi lo trova
+ * occupato da un'altra, in un altro workspace, aspetta che quella abbia scritto
+ * (o si sia arresa) e poi va nel suo. Il tempo d'attesa del turno non conta per
+ * la resa.
+ */
+let turno: { id: string; workspace?: string } | undefined
+/** Quante volte al massimo una consegna torna nel suo workspace. */
+export const TORNATE_MAX = 3
+/** Per i test. */
+export function liberaTurno(): void { turno = undefined }
+function lasciaTurno(c: Consegna): void { if (turno?.id === c.id) turno = undefined }
+
 export function eseguiConsegna(
   c: Consegna,
   ponte: Ponte,
@@ -260,7 +281,7 @@ function attendiEConsegna(
   ponte: Ponte,
   dopo: (ms: number, cosa: () => void) => void,
   aspettato: number,
-  stato: { conPty?: number; tornato?: boolean; svegliato?: boolean; sceltaDetta?: boolean; riportato?: number } = {}
+  stato: { conPty?: number; tornato?: boolean; tornate?: number; ultimaTornata?: number; inAttesaTurno?: number; svegliato?: boolean; sceltaDetta?: boolean; riportato?: number } = {}
 ): void {
   dopo(RIPROVA_MS, () => {
     const ora = ponte.riquadroDi(c.sessionId)
@@ -301,6 +322,7 @@ function attendiEConsegna(
       }
       if (ponte.prontoARicevere(ora.ptyId)) {
         ponte.registra?.(`consegna ${c.id}: pronta dopo ${Math.round(passato / 100) / 10} s`)
+        lasciaTurno(c)
         scriviEInvia(ora.ptyId, c, ponte, dopo)
         return
       }
@@ -309,6 +331,7 @@ function attendiEConsegna(
       // tentativi fanno il resto.
       if (passato - da >= TETTO_PRONTEZZA_MS) {
         ponte.registra?.(`consegna ${c.id}: tetto di ${TETTO_PRONTEZZA_MS / 1000} s scaduto senza «pronta», scrivo lo stesso`)
+        lasciaTurno(c)
         scriviEInvia(ora.ptyId, c, ponte, dopo)
         return
       }
@@ -325,13 +348,28 @@ function attendiEConsegna(
     // Il riquadro non c'e' piu' in questa finestra: il workspace e' cambiato
     // dopo l'arrivo della consegna (all'avvio, il ripristino del workspace
     // attivo). Si torna nel suo, una volta.
-    if (ora === undefined && passato >= RIQUADRO_PERSO_MS && stato.tornato !== true && ponte.tornaNelSuoWorkspace !== undefined) {
+    // Una consegna alla volta (0.56.1): se un'altra sta usando la finestra in
+    // un altro workspace, si aspetta che abbia scritto; poi si torna (anche
+    // più di una volta, se nel frattempo la finestra è stata portata via).
+    const tornate = stato.tornate ?? (stato.tornato === true ? 1 : 0)
+    if (ora === undefined && passato - (stato.ultimaTornata ?? 0) >= RIQUADRO_PERSO_MS && tornate < TORNATE_MAX && ponte.tornaNelSuoWorkspace !== undefined) {
+      const occupato = turno !== undefined && turno.id !== c.id && turno.workspace !== c.workspace
+      const atteso = (stato.inAttesaTurno ?? 0) + RIPROVA_MS
+      if (occupato && atteso < RESA_MS) {
+        if (stato.inAttesaTurno === undefined) ponte.registra?.(`consegna ${c.id}: la finestra è nel workspace di un'altra consegna (${turno?.id ?? ''}), aspetto che abbia scritto`)
+        // L'attesa del turno non conta per la resa (fino a un tetto: poi il turno si prende lo stesso).
+        attendiEConsegna(c, ponte, dopo, aspettato, { ...stato, inAttesaTurno: atteso })
+        return
+      }
+      turno = { id: c.id, ...(c.workspace !== undefined ? { workspace: c.workspace } : {}) }
       ponte.registra?.(`consegna ${c.id}: il riquadro non c'è più in questa finestra, torno nel suo workspace${c.workspace !== undefined ? ` «${c.workspace}»` : ''}`)
       ponte.tornaNelSuoWorkspace(c)
-      attendiEConsegna(c, ponte, dopo, passato, { ...stato, tornato: true })
+      const { inAttesaTurno: _a, ...senza } = stato
+      attendiEConsegna(c, ponte, dopo, passato, { ...senza, tornato: true, tornate: tornate + 1, ultimaTornata: passato })
       return
     }
     if (passato >= RESA_MS) {
+      lasciaTurno(c)
       // Mai muti: nel registro e nel diario dell'autopilota, anche senza un
       // terminale (prima, senza pty, la resa era silenziosa).
       console.error(`[autopilota] la chat ${c.chatId} non è pronta dopo ${Math.round(passato / 1000)}s: istruzione non consegnata`)
