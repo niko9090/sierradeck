@@ -51,6 +51,15 @@ sealed class EsitoBozza {
     data class No(val campo: String, val errore: String) : EsitoBozza()
 }
 
+@Serializable
+data class EsitoOspite(val fatto: Boolean = false, val messaggio: String = "")
+
+@Serializable
+data class ModelloClaude(val valore: String = "", val etichetta: String = "")
+
+@Serializable
+data class ElencoModelli(val modelli: List<ModelloClaude> = emptyList())
+
 /** Una scelta con la sua spiegazione (regole di pubblicazione, partenze). */
 data class Voce(val valore: String, val etichetta: String, val spiega: String)
 
@@ -101,6 +110,21 @@ object AzioniTelefono {
         "Rinominare «$nome»?",
         "Cambia solo il nome: le chat restano dove sono e chi lavora continua a lavorare.",
         "Rinomina"
+    )
+
+    /** Il testo del PC (OspiteChat.tsx), per un altro PC e per questo. */
+    fun confermaOspite(titolo: String, pcNome: String, questo: Boolean) = Conferma(
+        "Ospitata da $pcNome",
+        if (questo) "«$titolo» lavorerà su questo PC ($pcNome): il suo claude.exe parte qui, e sugli altri PC si apre solo dal vivo, guardando questo. Se la chat è aperta su un altro PC, là viene chiusa appena finisce il turno (mai a metà) e la copia di là va nella sua cartella di recupero: non si cancella niente, e si annulla da «Dove vive ogni chat». Se la copia più avanti è su un altro PC, prima di cambiare fai salvare quel PC sul Drive: qui arriva da sola."
+        else "«$titolo» lavorerà su $pcNome: il suo claude.exe parte solo lì. Qui, e su ogni altro PC, si apre dal vivo su $pcNome. Prima salvo la copia di qui sul Drive, così $pcNome la trova; poi, appena la chat finisce il turno (mai a metà), la copia di qui va nella cartella di recupero di SierraDeck. Non si cancella niente, e si annulla da «Dove vive ogni chat».",
+        "Ospitata da $pcNome"
+    )
+
+    fun confermaPin(titolo: String, proteggi: Boolean) = Conferma(
+        if (proteggi) "Proteggere «$titolo» con il PIN?" else "Togliere il PIN a «$titolo»?",
+        if (proteggi) "Da adesso, per vedere e scrivere questa chat da un telefono, da un altro PC o da questo schermo serve il PIN scelto sul computer. La chat continua a lavorare come prima; si richiude da sola dopo il tempo di inattività impostato là."
+        else "Da adesso la chat si vede e si scrive senza PIN, da ogni telefono e PC della tua cassaforte. Il PIN resta per le altre chat protette.",
+        if (proteggi) "Proteggi" else "Togli il PIN"
     )
 
     fun confermaEliminaAutopilota(nome: String) = Conferma(

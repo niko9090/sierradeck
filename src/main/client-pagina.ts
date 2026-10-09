@@ -23,6 +23,7 @@ import {
   PARTENZE, ULTIMO_WORKSPACE, confermaChiudi, confermaDormi, confermaEliminaAutopilota, confermaEliminaWorkspace, confermaSposta
 } from '@shared/azioni-telefono'
 import { REGOLE_PUBBLICAZIONE } from '@shared/harness'
+import { normalizza as normalizzaImp, sezioniDi } from '@shared/impostazioni-struttura'
 
 /** Il cristallo, per la scheda del browser e per la schermata Home. */
 export const ICONA_SVG =
@@ -567,6 +568,30 @@ var CONFERME = ${JSON.stringify({
 var PARTENZE = ${JSON.stringify(PARTENZE)}
 var REGOLE = ${JSON.stringify(REGOLE_PUBBLICAZIONE)}
 var ULTIMO_WORKSPACE = ${JSON.stringify(ULTIMO_WORKSPACE)}
+// Le sezioni e le voci delle impostazioni per la pagina (0.56.0), da src/shared/impostazioni-struttura.ts.
+var IMPOSTAZIONI_PAGINA = ${JSON.stringify(sezioniDi('pagina').map((g) => ({ sezione: g.sezione, voci: g.voci.map((v) => ({ id: v.id, titolo: v.titolo, spiega: v.spiega, chiave: normalizzaImp([v.titolo, v.spiega, ...(v.parole ?? []), g.sezione.titolo].join(' ')) })) })))}
+/** La ricerca: le sezioni con almeno una voce che contiene tutte le parole (senza accenti). Aspetto si cerca per titolo. */
+function filtraImpostazioni(q) {
+  const parole = q.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().split(/\\s+/).filter(Boolean)
+  for (const el of document.querySelectorAll('[data-sezione]')) {
+    const id = el.getAttribute('data-sezione')
+    const g = IMPOSTAZIONI_PAGINA.find((x) => x.sezione.id === id)
+    const chiavi = g ? g.voci.map((v) => v.chiave) : ['aspetto stile colore chiarore banco foglio tema']
+    const vede = parole.length === 0 || chiavi.some((c) => parole.every((p) => c.indexOf(p) >= 0))
+    el.style.display = vede ? '' : 'none'
+  }
+}
+/** «Copia i dettagli» (0.56.0): versioni e collegamento in un testo solo, per chiedere aiuto. Niente chiavi. */
+window.copiaDettagli = async () => {
+  const st = ultimoStato || {}
+  const q = qualitaLinea(linea.misure)
+  const righe = ['SierraDeck — dettagli per l’aiuto (pagina)', 'Computer: ' + ((st.computer && st.computer.nome) || 'non letto') + ', SierraDeck ' + ((st.computer && st.computer.versione) || 'versione non letta'),
+    'Collegamento: ' + linea.fase + ', qualità ' + q.parola + (q.ritardoMs !== undefined ? ', ' + q.ritardoMs + ' ms' : ''), 'Browser: ' + navigator.userAgent]
+  for (const e of linea.storia.slice(-8)) righe.push('  ' + rigaStoriaLinea(e))
+  try { await navigator.clipboard.writeText(righe.join(String.fromCharCode(10))); notaGlobale = 'Dettagli copiati: incollali dove chiedi aiuto. Non ci sono chiavi né password.' }
+  catch (e) { notaGlobale = 'Non riesco a copiare da qui: ' + righe.join(' · ') }
+  pannello(ultimoStato)
+}
 function testoConferma(tipo, nome, ws) {
   var c = CONFERME[tipo]
   var metti = function (t) { return t.split('§N').join(nome || '').split('§W').join(ws || '') }
@@ -906,6 +931,7 @@ var RIFIUTI_PER_ARRENDERSI = 5
 var rifiuti401 = 0
 
 async function chiedi(percorso, corpo) {
+  const t0 = Date.now()
   const r = await fetch(percorso, {
     method: corpo ? 'POST' : 'GET',
     headers: chiave ? { 'x-sierradeck-chiave': chiave, 'content-type': 'application/json' } : { 'content-type': 'application/json' },
@@ -917,6 +943,11 @@ async function chiedi(percorso, corpo) {
     throw new Error('il computer non riconosce questo dispositivo (401)')
   }
   rifiuti401 = 0
+  // Ogni risposta del computer è un segno di vita (0.56.0): la storia della
+  // chat, lo scrivere, i file. Lo stato lo conta già il giro di «aggiorna».
+  if (percorso !== '/api/stato' && typeof linea !== 'undefined' && linea.fase !== 'cerco') {
+    linea = passoLinea(linea, { tipo: 'ok', il: Date.now(), ritardoMs: Date.now() - t0 })
+  }
   // Un 4xx o 5xx non e' una risposta: prima tornava come oggetto e i tasti
   // procedevano come se fosse andata (il modulo «Affida» si chiudeva, il
   // campo del nome si svuotava). Il 409 no: e' una risposta con un motivo,
@@ -1432,6 +1463,7 @@ function pannello(s) {
               : apAperto.stato === 'finito'
                 ? '<span class="sotto">ha finito: non c’è altro da fare</span>'
                 : '<button data-ap="' + esc(apAperto.id) + '" onclick="riprendiAp(this.dataset.ap)">Riprendi</button>'}
+        \${apAperto.stato === 'sospeso' || apAperto.stato === 'fallito' ? '<button data-ap="' + esc(apAperto.id) + '" onclick="archiviaAp(this.dataset.ap)" title="Esce dall’elenco dei lavori; non si cancella niente">Archivia</button>' : ''}
         <button onclick="apriPannello('quaderno')">Quaderno</button>
       </div>
       <div class="riga">
@@ -1843,34 +1875,61 @@ function pannello(s) {
       <div class="riga"><button onclick="apriPannello('quaderno')">Chiudi</button></div>
     </div>\`
 
+  // Le impostazioni rifatte (0.56.0), in versione semplice: la ricerca in alto,
+  // «Aggiornamenti» in cima, poi le sezioni del PC e dell'app con la loro spiegazione.
+  const intestaImp = (id) => { const g = IMPOSTAZIONI_PAGINA.find((x) => x.sezione.id === id); return g ? '<div class="titolo">' + esc(g.sezione.titolo) + '</div><div class="sotto">' + esc(g.sezione.spiega) + '</div>' : '' }
+  const vociImp = (id) => { const g = IMPOSTAZIONI_PAGINA.find((x) => x.sezione.id === id); return g ? g.voci.map((v) => '<div class="sotto" style="margin-top:8px"><b>' + esc(v.titolo) + '</b> — ' + esc(v.spiega) + '</div>').join('') : '' }
   const vistaImpostazioni = pannelloAperto !== 'impostazioni' ? '' : \`
     <div class="piastrella">
       <div class="titolo">Impostazioni</div>
-      \${prefViste === null ? '<div class="sotto">Non sono riuscito a leggerle.</div>' : \`
-        <div class="sotto" style="margin-top:10px">Stile della console</div>
-        <div class="ws" style="margin-top:8px">
-          <button class="\${prefViste.stile === 'banco' ? 'attivo' : ''}" onclick="cambiaPref('stile', 'banco')">Banco</button>
-          <button class="\${prefViste.stile === 'foglio' ? 'attivo' : ''}" onclick="cambiaPref('stile', 'foglio')">Foglio</button>
-        </div>
-        <div class="sotto" style="margin-top:14px">Chiarore: \${prefViste.chiarore}</div>
-        <input type="range" min="0" max="100" value="\${prefViste.chiarore}" style="width:100%"
-          onchange="cambiaPref('chiarore', Number(this.value))">
-      \`}
-      <div class="sotto" style="margin-top:16px">Aggiornamento del computer</div>
+      <div class="riga"><input id="cerca-impostazioni" placeholder="Cerca (per esempio: aggiornamento, colore, notifiche)" oninput="filtraImpostazioni(this.value)"></div>
+      <div class="riga"><button onclick="apriPannello('impostazioni')">Chiudi</button></div>
+    </div>
+    <div class="piastrella" data-sezione="aggiornamenti">
+      \${intestaImp('aggiornamenti')}
+      <div class="sotto" style="margin-top:10px">Versioni: computer \${esc((s.computer && s.computer.versione) || 'non ancora letta')} · pagina servita da quel computer, sempre della stessa versione.</div>
+      <div class="sotto" style="margin-top:10px"><b>Aggiornamento del computer</b></div>
       <div class="sotto">\${esc(descriviAggiornamento())}</div>
-      \${fallitoHtml(aggiornamentoVisto)}
+      \${fallitoHtml(aggiornamentoVisto) || '<div class="sotto">Ultimo tentativo: nessuna installazione non riuscita da ricordare.</div>'}
       <div class="riga">
         \${aggiornamentoVisto && aggiornamentoVisto.fase === 'disponibile'
           ? '<button onclick="scaricaAggiornamento()">Scarica</button>' : ''}
         \${aggiornamentoVisto && aggiornamentoVisto.fase === 'pronto' && !noteAgg
-          ? '<button onclick="installaAggiornamento()">Installa</button>' : ''}
+          ? '<button onclick="installaAggiornamento()">Cosa cambia e installa</button>' : ''}
         \${aggiornamentoVisto && aggiornamentoVisto.fase === 'attendo'
           ? '<button disabled>' + (aggiornamentoVisto.attesa ? 'Aspetto il Drive…' : 'Aspetto le chat…') + '</button>' : ''}
         \${!aggiornamentoVisto || ['fermo', 'aggiornato', 'errore', 'pronto', 'disponibile'].indexOf(aggiornamentoVisto.fase) >= 0
           ? '<button onclick="cercaAggiornamento()">Cerca ora</button>' : ''}
-        <button onclick="apriPannello('impostazioni')">Chiudi</button>
       </div>
       \${noteAggHtml(noteAgg)}
+      \${vociImp('aggiornamenti')}
+    </div>
+    <div class="piastrella" data-sezione="drive">
+      \${intestaImp('drive')}
+      \${vociImp('drive')}
+      <div class="riga"><button onclick="apriPannello('drive')">Apri il Drive</button></div>
+    </div>
+    <div class="piastrella" data-sezione="aspetto">
+      <div class="titolo">Aspetto</div>
+      \${prefViste === null ? '<div class="sotto">Non sono riuscito a leggerle.</div>' : \`
+        <div class="sotto" style="margin-top:10px">Stile della console — «Banco»: cornici sottili, più righe; «Foglio»: più aria, angoli morbidi. Vale anche per il computer.</div>
+        <div class="ws" style="margin-top:8px">
+          <button class="\${prefViste.stile === 'banco' ? 'attivo' : ''}" onclick="cambiaPref('stile', 'banco')">Banco</button>
+          <button class="\${prefViste.stile === 'foglio' ? 'attivo' : ''}" onclick="cambiaPref('stile', 'foglio')">Foglio</button>
+        </div>
+        <div class="sotto" style="margin-top:14px">Chiarore del fondo: \${prefViste.chiarore} (0 nero, 100 chiaro). Vale anche per il computer e l’app.</div>
+        <input type="range" min="0" max="100" value="\${prefViste.chiarore}" style="width:100%"
+          onchange="cambiaPref('chiarore', Number(this.value))">
+      \`}
+    </div>
+    <div class="piastrella" data-sezione="notifiche">
+      \${intestaImp('notifiche')}
+      \${vociImp('notifiche')}
+    </div>
+    <div class="piastrella" data-sezione="info">
+      \${intestaImp('info')}
+      \${vociImp('info')}
+      <div class="riga"><button onclick="copiaDettagli()">Copia i dettagli</button></div>
     </div>\`
 
   const ws = (s.workspace && s.workspace.nomi || []).map((n) => \`
@@ -2613,6 +2672,13 @@ window.eliminaAp = async (id) => {
   confermando = null
   if (dentroAp === id) { dentroAp = null; apDettaglio = null }
   await chiedi('/api/autopilota/elimina', { autopilota: id })
+  aggiorna()
+}
+
+// Archiviare un autopilota fermo (0.56.0), come dal pannello del PC: esce dall'elenco, non si cancella niente.
+window.archiviaAp = async (id) => {
+  try { await chiedi('/api/autopilota/archivia', { autopilota: id, archivia: true }); if (dentroAp === id) { dentroAp = null; apDettaglio = null } }
+  catch (e) { notaGlobale = 'Non l’ho archiviato: ' + ((e && e.message) || 'il computer non risponde') }
   aggiorna()
 }
 
@@ -3925,21 +3991,40 @@ var ultimaChiesta = 0
 var inVolo = false
 var storiaLineaAperta = false
 var firmaLineaVista = ''
+// «Linea lenta» prima di «non connesso» (0.56.0): giù solo dopo 20 s senza
+// nessun dato e 3 fallimenti di fila; da giù si torna verdi con 2 risposte.
+const LENTA_DOPO_MS = 8000
+const GIU_DOPO_MS = 20000
+const GIU_DOPO_FALLITI = 3
+const TORNA_DOPO_OK = 2
 function passoLinea(l, e) {
   if (e.tipo === 'riprova-adesso') return l.fase === 'ricollego' ? Object.assign({}, l, { prossimoIl: e.il }) : l
+  const misura = (ok) => l.misure.concat([ok ? { ok: true, ritardoMs: Math.max(0, Math.round(e.ritardoMs)), il: e.il } : { ok: false, il: e.il }]).slice(-12)
   if (e.tipo === 'ok') {
+    const okDiFila = (l.okDiFila || 0) + 1
+    if (l.fase === 'ricollego' && okDiFila < TORNA_DOPO_OK) {
+      return Object.assign({}, l, { fase: 'lenta', ultimoOk: e.il, falliti: 0, okDiFila: okDiFila, prossimoIl: undefined, misure: misura(true) })
+    }
     let storia = l.storia
-    if (l.fase === 'ricollego' && l.cadutaIl !== undefined) storia = storia.concat([{ tipo: 'tornato', il: e.il, dopoMs: e.il - l.cadutaIl, tentativi: l.tentativo }])
+    if (l.cadutaIl !== undefined) storia = storia.concat([{ tipo: 'tornato', il: e.il, dopoMs: e.il - l.cadutaIl, tentativi: l.tentativo }])
     else if (l.fase === 'cerco') storia = storia.concat([{ tipo: 'collegato', il: e.il }])
-    return { fase: 'collegato', tentativo: 0, misure: l.misure.concat([{ ok: true, ritardoMs: Math.max(0, Math.round(e.ritardoMs)), il: e.il }]).slice(-12), storia: storia.slice(-30) }
+    return { fase: 'collegato', tentativo: 0, misure: misura(true), storia: storia.slice(-30), ultimoOk: e.il, falliti: 0, okDiFila: okDiFila }
+  }
+  const falliti = (l.falliti || 0) + 1
+  if (l.fase !== 'ricollego' && l.ultimoOk !== undefined && (falliti < GIU_DOPO_FALLITI || e.il - l.ultimoOk < GIU_DOPO_MS)) {
+    return Object.assign({}, l, { fase: 'lenta', falliti: falliti, okDiFila: 0, motivo: e.motivo, messaggio: e.messaggio === undefined ? l.messaggio : e.messaggio, misure: misura(false) })
   }
   const tentativo = l.fase === 'ricollego' ? l.tentativo + 1 : 1
   const storia = l.fase === 'ricollego' ? l.storia : l.storia.concat([{ tipo: 'caduta', il: e.il, motivo: e.motivo, messaggio: e.messaggio }]).slice(-30)
   return {
-    fase: 'ricollego', tentativo: tentativo, storia: storia, misure: l.misure.concat([{ ok: false, il: e.il }]).slice(-12),
-    cadutaIl: l.fase === 'ricollego' ? (l.cadutaIl === undefined ? e.il : l.cadutaIl) : e.il,
+    fase: 'ricollego', tentativo: tentativo, storia: storia, misure: misura(false), falliti: falliti, okDiFila: 0, ultimoOk: l.ultimoOk,
+    cadutaIl: l.fase === 'ricollego' ? (l.cadutaIl === undefined ? e.il : l.cadutaIl) : (l.ultimoOk === undefined ? e.il : l.ultimoOk),
     prossimoIl: e.il + attesaPrima(tentativo), motivo: e.motivo, messaggio: e.messaggio
   }
+}
+/** La fase da mostrare: collegati ma muti da 8 s è «linea lenta» (come faseVista del PC). */
+function faseVistaLinea(l, adesso) {
+  return l.fase === 'collegato' && l.ultimoOk !== undefined && adesso - l.ultimoOk >= LENTA_DOPO_MS ? 'lenta' : l.fase
 }
 function qualitaLinea(misure) {
   const ultime = misure.slice(-12)
@@ -4087,10 +4172,12 @@ function tentativiHtml() {
 function lineaHtml() {
   const q = qualitaLinea(linea.misure)
   const giu = linea.fase === 'ricollego'
+  // «Linea lenta» (0.56.0): qualcosa non arriva, ma non è caduta. Giallo, senza la fascia rossa.
+  const lenta = !giu && faseVistaLinea(linea, Date.now()) === 'lenta'
   const tacche = ['▂', '▄', '▆', '█'].map((c, i) => '<span style="opacity:' + (i < (giu ? 0 : q.tacche) ? 1 : 0.25) + '">' + c + '</span>').join('')
   const rov = rovesciaLinea(linea, Date.now())
   let h = tentativiHtml() + '<div class="linea-pagina' + (giu ? ' linea-pagina--giu linea-pagina--' + rov.colore : '') + '" onclick="apriStoriaLinea()" title="Il collegamento con il computer: le tacche dicono la qualità delle ultime chiamate, il numero il ritardo tipico. Tocca per la storia.">' +
-    '📶 ' + tacche + ' ' + (giu ? 'giù · ' + rov.testo : q.ritardoMs !== undefined ? q.ritardoMs + ' ms' : '…') + ' · ' + (giu ? 'collegamento caduto' : 'collegamento ' + q.parola) + '</div>'
+    '📶 ' + tacche + ' ' + (giu ? 'giù · ' + rov.testo : q.ritardoMs !== undefined ? q.ritardoMs + ' ms' : '…') + ' · ' + (giu ? 'non connesso' : lenta ? '<span style="color:#e0a33c">linea lenta</span>' : 'collegamento ' + q.parola) + '</div>'
   if (giu) {
     const fra = fraSecondiLinea(linea, Date.now())
     h += '<div class="piastrella chiede linea-fascia"><b>Collegamento con il computer caduto da ' + durataBreve(Date.now() - (linea.cadutaIl || Date.now())) +
@@ -4120,7 +4207,8 @@ function nuovoIdMessaggio() {
 }
 window.togliDallaCoda = (id) => { codaPagina = codaPagina.filter((v) => v.id !== id); ridisegnaLinea() }
 async function mandaCoda() {
-  if (linea.fase !== 'collegato' || codaPagina.some((v) => v.stato === 'invio')) return
+  // Con la linea lenta si manda lo stesso: le risposte arrivano (0.56.0).
+  if (linea.fase === 'ricollego' || linea.fase === 'cerco' || codaPagina.some((v) => v.stato === 'invio')) return
   const v = codaPagina.find((x) => x.stato === 'attesa')
   if (!v) return
   v.stato = 'invio'
@@ -4151,7 +4239,7 @@ async function mandaCoda() {
     }
   }
   ridisegnaLinea()
-  if (codaPagina.some((x) => x.stato === 'attesa') && linea.fase === 'collegato') return mandaCoda()
+  if (codaPagina.some((x) => x.stato === 'attesa') && linea.fase !== 'ricollego' && linea.fase !== 'cerco') return mandaCoda()
 }
 
 /*

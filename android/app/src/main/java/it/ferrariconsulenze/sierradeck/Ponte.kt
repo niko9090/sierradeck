@@ -49,6 +49,7 @@ object Ponte {
         // la cartella per una chat nuova, le conversazioni, gli autopiloti.
         "/api/workspace", "/api/workspace/crea", "/api/workspace/elimina", "/api/workspace/rinomina",
         "/api/chat/chiudi", "/api/chat/dormi", "/api/chat/sveglia", "/api/chat/sposta", "/api/chat/nome",
+        "/api/autopilota/archivia", "/api/pin/proteggi", "/api/chat/ospite", "/api/modelli",
         "/api/sfoglia", "/api/cartelle", "/api/sessioni",
         "/api/autopilota", "/api/autopilota/crea", "/api/autopilota/ferma", "/api/autopilota/riprendi", "/api/autopilota/vai",
         "/api/autopilota/elimina", "/api/autopilota/riavvio", "/api/autopilota/dialogo", "/api/autopilota/file", "/api/autopilota/diff",

@@ -452,10 +452,10 @@ export function App(): React.JSX.Element {
 
   // Una chat nuova chiesta dal telefono. Solo in una cartella che Claude Code
   // conosce già — il controllo lo fa il Core, qui si apre e basta.
-  useEffect(() => window.gestore.client.suApertura(({ cartella, modello, sessione, workspace }) => {
-    // Il nome è l'ultimo pezzo del percorso: dal telefono non si scrive un
-    // titolo, e «Documenti\Progetto» dice più di «chat 4».
-    const nome = cartella.split(/[\\/]/).filter((p) => p !== '').pop() ?? cartella
+  useEffect(() => window.gestore.client.suApertura(({ cartella, modello, sessione, workspace, nome: nomeScelto }) => {
+    // Il nome: quello scritto sul telefono (0.56.0), altrimenti l'ultimo pezzo
+    // del percorso — «Documenti\Progetto» dice più di «chat 4».
+    const nome = nomeScelto !== undefined && nomeScelto.trim() !== '' ? nomeScelto.trim() : (cartella.split(/[\\/]/).filter((p) => p !== '').pop() ?? cartella)
     const conSessione = sessione !== undefined && sessione !== ''
     const apri = (): void => {
       const stato = useLayoutStore.getState()
@@ -715,6 +715,12 @@ export function App(): React.JSX.Element {
       .then((dati) => setFinestraNote((f) => (f?.tipo === 'installa' ? { ...f, dati: dati ?? { versione, installata: '', note: [], fonte: 'nessuna', dove: 'https://github.com/niko9090/sierradeck/releases', avviso: 'Gli aggiornamenti non sono attivi qui: le note le trovi nella pagina delle versioni, https://github.com/niko9090/sierradeck/releases.' } } : f)))
       .catch(() => setFinestraNote((f) => (f?.tipo === 'installa' ? { ...f, dati: { versione, installata: '', note: [], fonte: 'nessuna', dove: 'https://github.com/niko9090/sierradeck/releases', avviso: 'Non sono riuscito a leggere le note: le trovi scritte per esteso nella pagina delle versioni, https://github.com/niko9090/sierradeck/releases. Puoi installare lo stesso.' } } : f)))
   }, [])
+  // «Cosa cambia e installa» dalle Impostazioni → Aggiornamenti (0.56.0): la stessa finestra delle note.
+  useEffect(() => {
+    const h = (e: Event): void => apriInstalla(String((e as CustomEvent).detail ?? ''))
+    window.addEventListener('sierradeck:apri-installa', h)
+    return () => window.removeEventListener('sierradeck:apri-installa', h)
+  }, [apriInstalla])
   const [aperto, setAperto] = useState<PannelloAperto>(undefined)
   /** La scheda con cui si aprono le Impostazioni (la banda del Drive apre «Account»). */
   const [schedaImpostazioni, setSchedaImpostazioni] = useState<'generali' | 'account'>('generali')

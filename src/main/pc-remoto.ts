@@ -4,6 +4,7 @@ import { indirizziDaProvare, messaggioErroreRemoto, motivoDaStatoHttp, statoPc, 
 import { indirizzoPreferito, prossimaMossa, RIBUSSA_OGNI_MS, stradaDiIndirizzo, type InfoStrada, type Strada, type StatoRtc } from '@shared/strada-pc'
 import { ATTESA_DRIVE, NON_VIA_DRIVE } from './rtc/cassetta-drive'
 import type { EsitoCanale } from './rtc/collegamento-rtc'
+import { GIU_DOPO_MS } from '@shared/collegamento'
 import { firmaRichiesta, INTESTAZIONE_FIRMA, nonceConVisore, nuovaSfida, provaValida } from './casa-firma'
 
 /**
@@ -78,6 +79,8 @@ export type ClientPcRemoto = {
   statoDi: (pcId: string, nome?: string) => Promise<StatoPc>
   /** La strada usata l'ultima volta che quel PC ha risposto (0.40.0): rete di casa, Tailscale, WebRTC, Drive. */
   stradaDi: (pcId: string) => InfoStrada | undefined
+  /** Da quanti ms quel PC ha risposto l'ultima volta a qualcosa (0.56.0); `undefined` = mai. */
+  vivoDa: (pcId: string) => number | undefined
   /** Prova a bussare: torna com'e' andata, senza lanciare. */
   prova: (pcId: string) => Promise<{ ok: true; indirizzo: string; ms: number; versione?: string } | { ok: false; motivo: MotivoRemoto; messaggio: string }>
 }
@@ -360,7 +363,24 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
   const collegando = (nome: string): ErroreRemoto => new ErroreRemoto('collegando',
     `Né la rete di casa né Tailscale arrivano a ${nome}: apro un collegamento diretto via Internet (WebRTC). Lo scambio iniziale passa dal Drive, e può volerci fino a un minuto e mezzo.`)
 
+  /**
+   * L'ultimo segno di vita di ogni PC (0.56.0): **qualunque** risposta, anche
+   * un rifiuto con il suo motivo (vuol dire che quel PC c'è). La Salute e la
+   * mappa lo guardano prima di bussare: senza, un ping andato a vuoto diceva
+   * «non risponde» mentre lo schermo delle sue chat arrivava.
+   */
+  const vivoIl = new Map<string, number>()
   const chiama = async (pcId: string, percorso: string, corpo?: unknown, chiChiede?: string): Promise<unknown> => {
+    try {
+      const r = await chiamaDentro(pcId, percorso, corpo, chiChiede)
+      vivoIl.set(pcId, adesso())
+      return r
+    } catch (err) {
+      if (err instanceof ErroreRemoto && err.motivo === 'http') vivoIl.set(pcId, adesso())
+      throw err
+    }
+  }
+  const chiamaDentro = async (pcId: string, percorso: string, corpo?: unknown, chiChiede?: string): Promise<unknown> => {
     const io = deps.mioId?.()
     const visore = chiChiede ?? io
     const b = battitoDi(pcId)
@@ -422,8 +442,13 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     stradaDi: (pcId) => strade.get(pcId),
     bussa,
     async statoDi(pcId, nome) {
+      // Ha risposto da poco a qualcosa (lo schermo di una chat, uno scrivi): è acceso, senza bussare.
+      const vivo = vivoIl.get(pcId)
+      const ind = buoni.get(pcId)
+      if (vivo !== undefined && ind !== undefined && adesso() - vivo < GIU_DOPO_MS) return statoDa(pcId, { esito: 'risponde', indirizzo: ind }, nome)
       return statoDa(pcId, await bussa(pcId, nome), nome)
     },
+    vivoDa: (pcId) => { const v = vivoIl.get(pcId); return v === undefined ? undefined : adesso() - v },
     async prova(pcId) {
       const da = adesso()
       try {

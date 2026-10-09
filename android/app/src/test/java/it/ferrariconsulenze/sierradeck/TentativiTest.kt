@@ -61,8 +61,10 @@ class TentativiTest {
     fun `a linea caduta - conto alla rovescia e colore`() {
         val su = Linea.passo(Linea.NUOVA, EventoLinea.Ok(0, 30, "lan"))
         assertNull(Tentativi.rovescia(su, 0))
-        val giu = Linea.passo(su, EventoLinea.Errore(10_000, "irraggiungibile"))
-        assertEquals("riprovo fra 1 s" to "ambra", Tentativi.rovescia(giu, 10_000))
+        // Giù solo dopo tre fallimenti e 20 s di silenzio (app 2.56.0).
+        var giu = su
+        for (t in listOf(10_000L, 16_000L, 22_000L)) giu = Linea.passo(giu, EventoLinea.Errore(t, "irraggiungibile"))
+        assertEquals("riprovo fra 1 s" to "ambra", Tentativi.rovescia(giu, 22_000))
         var l = giu
         repeat(3) { l = Linea.passo(l, EventoLinea.Errore(l.prossimoIl!!, "irraggiungibile")) }
         assertEquals("rosso", Tentativi.rovescia(l, l.prossimoIl!! - 4500)?.second)

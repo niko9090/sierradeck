@@ -206,9 +206,16 @@ fun Principale(
         Apertura.schedaRichiesta?.let { scheda = it; Apertura.schedaRichiesta = null }
     }
     var stato by remember { mutableStateOf<Stato?>(null) }
-    var connesso by remember { mutableStateOf(true) }
-    /** Il collegamento con questo computer, per l'indicatore in alto (0.52.0): la stessa macchina dei PC. */
-    var lineaPc by remember(indirizzo) { mutableStateOf(Linea.NUOVA) }
+    /**
+     * Il collegamento con questo computer (app 2.56.0): **uno solo**, quello di
+     * `Collegamenti`, fatto avanzare da ogni risposta dell'`Api` — lo stato, la
+     * storia della chat, lo scrivere. Prima qui c'erano due controlli in più
+     * (la linea di questo giro e «connesso» dopo due giri a vuoto) che dicevano
+     * «non connesso» mentre la chat scorreva.
+     */
+    remember(indirizzo) { Collegamenti.azzera(Collegamenti.ACCOPPIATO); indirizzo }
+    val lineaPc = Collegamenti.di(Collegamenti.ACCOPPIATO)
+    val connesso = lineaPc.fase != "ricollego"
     /**
      * «Mi collego a NOME-PC…» (0.52.1): al cambio di computer (e all'apertura)
      * si provano le strade e si vedono, con `Tentativi.passi`. Dalla 2.52.2
@@ -400,12 +407,11 @@ fun Principale(
             // Con la linea su si legge ogni due secondi; caduta, si riprova con
             // le attese crescenti di `Linea` (0.52.1): è quello che conta il
             // conto alla rovescia accanto all'indicatore.
-            if (!Linea.eOra(lineaPc, ultimaIl, System.currentTimeMillis())) { delay(250); continue }
+            if (!Linea.eOra(Collegamenti.di(Collegamenti.ACCOPPIATO), ultimaIl, System.currentTimeMillis())) { delay(250); continue }
             ultimaIl = System.currentTimeMillis()
             val t0 = System.currentTimeMillis()
             try {
                 val (letto, grezzo) = api.statoConTesto()
-                lineaPc = Linea.passo(lineaPc, EventoLinea.Ok(System.currentTimeMillis(), System.currentTimeMillis() - t0, strada))
                 letto.computer?.versione?.takeIf { it.isNotBlank() }?.let { if (PcCorrente.versione != it) PcCorrente.versione = it }
                 // Lo stesso polso passa dalla guardia: una chat che finisce
                 // mentre guardi un'altra scheda si annuncia adesso, non alla
@@ -437,7 +443,7 @@ fun Principale(
                 // quando risponde la versione nuova.
                 val ferma = letto.aggiornamento?.fase == "pronto" && letto.aggiornamento?.errore != null
                 if (ferma && Installazione.da != null) Installazione.finita(contesto)
-                stato = letto; connesso = true; giriFalliti = 0; rifiuti = 0
+                stato = letto; giriFalliti = 0; rifiuti = 0
                 // Ogni giro riuscito aggiorna la postazione: quando si e' usata
                 // l'ultima volta, e come si chiama davvero — il nome della
                 // macchina lo sa solo lei, e un elenco di indirizzi IP non si
@@ -453,13 +459,12 @@ fun Principale(
                 throw e
             } catch (e: Api.Errore) {
                 if (e.daRiaccoppiare) rifiuti += 1
-                giriFalliti += 1; if (giriFalliti >= 2) connesso = false
-                // Una risposta del computer, anche un rifiuto, vuol dire che la linea c'è.
-                lineaPc = if (e.codice > 0) Linea.passo(lineaPc, EventoLinea.Ok(System.currentTimeMillis(), System.currentTimeMillis() - t0, strada))
-                else Linea.passo(lineaPc, EventoLinea.Errore(System.currentTimeMillis(), "irraggiungibile", e.message ?: "il computer non risponde"))
+                // Una risposta del computer, anche un rifiuto, vuol dire che la linea c'è: lo conta l'`Api`.
+                giriFalliti += 1
             } catch (e: Exception) {
-                giriFalliti += 1; if (giriFalliti >= 2) connesso = false
-                lineaPc = Linea.passo(lineaPc, EventoLinea.Errore(System.currentTimeMillis(), "irraggiungibile", e.message ?: "il computer non risponde"))
+                // Una caduta della rete la conta l'`Api` (IOException); qui il resto, una volta.
+                giriFalliti += 1
+                if (e !is java.io.IOException) Collegamenti.passo(Collegamenti.ACCOPPIATO, EventoLinea.Errore(System.currentTimeMillis(), "irraggiungibile", e.message ?: "il computer non risponde"))
             }
             delay(250)
         }
@@ -549,7 +554,7 @@ fun Principale(
                     ultimoSegno = ultimoUsoV?.let { java.text.SimpleDateFormat("d MMM 'alle' HH:mm", java.util.Locale.ITALIAN).format(java.util.Date(it)) },
                     adesso = adessoVivo(true),
                     puoiTornare = nomePrima,
-                    onRiprova = { giroTent += 1; lineaPc = Linea.passo(lineaPc, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) },
+                    onRiprova = { giroTent += 1; Collegamenti.passo(Collegamenti.ACCOPPIATO, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) },
                     onTornaIndietro = onTornaIndietro,
                     onAnnulla = { schermataViaggio = false }
                 )
@@ -562,7 +567,7 @@ fun Principale(
                 SchedaCollegamento(
                     Tentativi.passi(nomeTent, eventiTent),
                     ultimoUso?.let { java.text.SimpleDateFormat("d MMM 'alle' HH:mm", java.util.Locale.ITALIAN).format(java.util.Date(it)) },
-                    onRiprova = { giroTent += 1; schermataViaggio = true; lineaPc = Linea.passo(lineaPc, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) }
+                    onRiprova = { giroTent += 1; schermataViaggio = true; Collegamenti.passo(Collegamenti.ACCOPPIATO, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) }
                 )
             }
             // Un tasto che non ce l'ha fatta lo dice qui, in cima, qualunque

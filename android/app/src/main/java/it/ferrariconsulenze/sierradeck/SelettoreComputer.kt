@@ -67,7 +67,8 @@ fun PillolaComputer(nome: String, connesso: Boolean, linea: StatoLinea? = null, 
             Modifier
                 .size(8.dp)
                 .clip(CircleShape)
-                .background(if (connesso) Banco.verde else Banco.rosso)
+                // Giallo per la linea lenta (app 2.56.0): qualcosa non arriva, ma non è caduta.
+                .background(if (!connesso) Banco.rosso else if (linea != null && Linea.faseVista(linea, adessoVivo(true)) == "lenta") Banco.ambra else Banco.verde)
         )
         Spacer(Modifier.width(9.dp))
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  cambioVisibile, iconaStrada, parolaPasso, qualita, rigaStoria, rovescia, segnoPasso, testoDettagli, testoRiconnessione,
+  cambioVisibile, faseVista, iconaStrada, parolaPasso, qualita, rigaStoria, rovescia, segnoPasso, testoDettagli, testoRiconnessione,
   type Linea, type PassoDettagliato, type VistaCollegamento, type VoceCoda
 } from '@shared/collegamento'
 import { etichettaStrada } from '@shared/strada-pc'
@@ -36,7 +36,10 @@ export function IndicatoreLinea({ linea, nomePc }: { linea: Linea; nomePc: strin
   const q = qualita(linea.misure)
   const giu = linea.fase === 'ricollego'
   // A linea caduta (0.52.1): ambra i primi tentativi, poi rosso, e il conto alla rovescia.
-  const rov = rovescia(linea, useAdesso(giu))
+  const adesso = useAdesso(true)
+  const rov = rovescia(linea, adesso)
+  // «Linea lenta» (0.56.0): qualcosa non arriva ma non è caduta — giallo, niente «giù».
+  const lenta = !giu && faseVista(linea, adesso) === 'lenta'
   const via = linea.strada !== undefined ? etichettaStrada({ strada: linea.strada }, nomePc) : undefined
   const titolo = giu
     ? `Collegamento con ${nomePc} caduto: riprovo da solo. Tocca per la storia del collegamento.`
@@ -48,7 +51,7 @@ export function IndicatoreLinea({ linea, nomePc }: { linea: Linea; nomePc: strin
         <span className={`linea__tacche linea__tacche--${giu ? 0 : q.tacche}`} aria-hidden="true">
           <i /><i /><i /><i />
         </span>
-        <span className="linea__ms">{giu ? `giù · ${rov?.testo ?? ''}` : q.ritardoMs !== undefined ? `${q.ritardoMs} ms` : '…'}</span>
+        <span className="linea__ms" style={lenta ? { color: 'var(--ambra, #d29922)' } : undefined}>{giu ? `non connesso · ${rov?.testo ?? ''}` : lenta ? 'linea lenta' : q.ritardoMs !== undefined ? `${q.ritardoMs} ms` : '…'}</span>
       </button>
       {aperta ? (
         <span className="linea__storia" role="dialog" aria-label="Storia del collegamento">

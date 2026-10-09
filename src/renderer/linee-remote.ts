@@ -1,5 +1,32 @@
 import { useSyncExternalStore } from 'react'
-import type { Linea } from '@shared/collegamento'
+import { LINEA_NUOVA, passo, type EventoLinea, type Linea } from '@shared/collegamento'
+
+/**
+ * Un solo collegamento **per PC** (0.56.0), non uno per riquadro: tutti i
+ * riquadri di quel PC lo fanno avanzare con ogni loro risposta (schermo,
+ * storia, scrivi) e lo leggono uguale. Prima ogni riquadro aveva la sua
+ * macchina, e uno poteva dire «giù» mentre l'altro riceveva lo schermo.
+ */
+const perPc = new Map<string, Linea>()
+const chiPc = new Set<() => void>()
+
+export function avanzaLineaPc(pcId: string, e: EventoLinea): Linea {
+  const n = passo(perPc.get(pcId) ?? LINEA_NUOVA, e)
+  perPc.set(pcId, n)
+  for (const f of chiPc) f()
+  return n
+}
+
+export function lineaPc(pcId: string): Linea {
+  return perPc.get(pcId) ?? LINEA_NUOVA
+}
+
+export function useLineaPc(pcId: string): Linea {
+  return useSyncExternalStore(
+    (f) => { chiPc.add(f); return () => { chiPc.delete(f) } },
+    () => perPc.get(pcId) ?? LINEA_NUOVA
+  )
+}
 
 /**
  * Il collegamento di ogni riquadro remoto, per chi lo mostra fuori dal

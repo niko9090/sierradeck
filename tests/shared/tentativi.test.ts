@@ -52,8 +52,11 @@ describe('dalla macchina della linea (riquadro remoto, ponte, pagina)', () => {
   it('a linea caduta: conto alla rovescia, ambra i primi tentativi e poi rosso', () => {
     const su = passo(LINEA_NUOVA, { tipo: 'ok', il: 0, ritardoMs: 30, strada: 'lan' })
     expect(rovescia(su, 0)).toBeUndefined()
-    const giu = passo(su, { tipo: 'errore', il: 10_000, motivo: 'irraggiungibile' })
-    expect(rovescia(giu, 10_000)).toEqual({ testo: 'riprovo fra 1 s', colore: 'ambra' })
+    // Giù solo dopo tre fallimenti e 20 s senza niente (0.56.0): prima è «linea lenta», senza conto alla rovescia.
+    let giu = passo(su, { tipo: 'errore', il: 10_000, motivo: 'irraggiungibile' })
+    expect(rovescia(giu, 10_000)).toBeUndefined()
+    for (const il of [16_000, 22_000]) giu = passo(giu, { tipo: 'errore', il, motivo: 'irraggiungibile' })
+    expect(rovescia(giu, 22_000)).toEqual({ testo: 'riprovo fra 1 s', colore: 'ambra' })
     let l: Linea = giu
     for (let i = 0; i < 3; i++) l = passo(l, { tipo: 'errore', il: l.prossimoIl as number, motivo: 'irraggiungibile' })
     expect(rovescia(l, (l.prossimoIl as number) - 4500)).toEqual({ testo: 'riprovo fra 5 s', colore: 'rosso' })

@@ -70,7 +70,7 @@ Le ho trovate facendo girare l'`Api` vera dell'app (test Kotlin `ProvaDalVeroTes
 
 | Cosa | PC | App 2.55.0 | Pagina | Note |
 |---|---|---|---|---|
-| Chat nuova (cartella) | ✓ (+ nome, modello, Drive) | ✓ sfoglia, workspace, anche altri PC | ✓ cartelle note | modello, nome e «sul Drive» solo dal PC |
+| Chat nuova (cartella) | ✓ (+ nome, modello, Drive) | ✓ sfoglia, workspace, nome e modello (0.56), anche altri PC | ✓ cartelle note | «sul Drive» solo dal PC |
 | Rinominare una chat | ✓ | ✓ (ora anche il nome della conversazione) | ✓ | |
 | Mettere a dormire / svegliare | ✓ ⏸ | ✓ | ✓ | nuovo |
 | Chiudere (togliere dal workspace) | ✓ × (senza conferma) | ✓ con conferma | ✓ con conferma | |
@@ -79,15 +79,15 @@ Le ho trovate facendo girare l'`Api` vera dell'app (test Kotlin `ProvaDalVeroTes
 | Riprendere una conversazione | ✓ | ✓ anche altri PC | ✓ | |
 | Buttare le conversazioni | ✓ (cestino) | — | — | lasciato al PC: non si disfa dal telefono |
 | PIN: aprire | ✓ | ✓ | ✓ | |
-| PIN: proteggere / togliere | ✓ | — | — | da decidere con Nicholas (un PIN messo dal telefono…) |
-| Ospite «Ospitata da» | ✓ | — (si vede «il progetto è in mano a…») | — | da fare: scelta con conferma lunga |
+| PIN: proteggere / togliere | ✓ | ✓ (0.56; togliere solo a chat aperta con il PIN) | — | il PIN stesso si sceglie solo sul PC |
+| Ospite «Ospitata da» | ✓ | ✓ (0.56, con la conferma lunga del PC) | — | |
 | Workspace: creare, andarci | ✓ | ✓ | ✓ | |
 | Workspace: rinominare | ✓ | ✓ | ✓ (quello davanti) | nuovo |
 | Workspace: eliminare | ✓ | ✓ | ✓ (quello davanti) | nuovo; copia di sicurezza, ultimo protetto |
 | Workspace: spegnere quelli dietro | ✓ | — | — | da valutare |
 | Autopilota: creare | ✓ | ✓ PC, cartella, workspace, nome, criteri, regola, cloud, partenza | ✓ stessi campi | validazione condivisa |
 | Autopilota: ferma / riprendi / vai / elimina / riavvio / dialogo / correggi | ✓ | ✓ anche altri PC | ✓ | |
-| Autopilota: archiviare | ✓ | — | — | manca la rotta; da fare |
+| Autopilota: archiviare | ✓ | ✓ (0.56) | ✓ (0.56) | solo fermi (sospeso o fallito) |
 | Autopilota: cambiare criteri e compiti a mano | ✓ | — (si fa scrivendogli) | — | |
 
 # Prove dal vero (09/10)
@@ -126,8 +126,5 @@ Anche `ProvaDalVeroTest` (Kotlin, l'`Api` dell'app) è passato contro la copia d
   - dormi, sposta e chiudi;
   - elimina workspace;
   - Affida su un altro PC con «parte da solo».
-- Nel PC, `ModaleSessioni` (Riprendi) apre una conversazione locale **senza** `sessionUuid` (`addPane(cwd, titolo)`), quindi potrebbe partire una chat nuova invece di riprenderla. L'ha visto l'inventario leggendo il codice, non l'ho provato e non l'ho toccato.
-- Mancano ancora, vedi la tabella:
-  - ospite e PIN dal telefono;
-  - archiviare un autopilota;
-  - nome e modello della chat nuova.
+- **Corretto nella 0.56.0:** nel PC «Riprendi» (`ModaleSessioni`) apriva una conversazione locale senza `sessionUuid`, e nasceva una chat nuova e vuota. Provato dal vero sulla copia di prova (scelta la sessione `11111111-…`, nato il riquadro con un'altra); ora passa da `comeRiprendere` (`src/renderer/riprendi-sessione.ts`, test `tests/renderer/riprendi-sessione.test.ts`) e la riprende davvero, o sveglia quella già a schermo.
+- Mancano ancora: spegnere i workspace dietro, buttare conversazioni (lasciato al PC apposta), il PIN e l'ospite nella pagina.

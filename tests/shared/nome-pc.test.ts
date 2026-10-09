@@ -108,7 +108,8 @@ describe('sul PC si mostra ovunque il nome di adesso', () => {
     expect(leggi('src/renderer/components/OspiteChat.tsx')).toContain('useNomePc(casa?.pc')
     expect(leggi('src/renderer/components/MappaPc.tsx')).toContain('n.host')
     const account = leggi('src/renderer/components/PannelloAccount.tsx')
-    expect(account).toContain('<NomeQuestoPc />')
+    // Il nome di questo PC sta in Impostazioni → Computer dalla 0.56.0; il componente resta in PannelloAccount.
+    expect(leggi('src/renderer/components/PannelloImpostazioni.tsx')).toContain('<NomeQuestoPc />')
     expect(account).toContain('window.gestore.posta.impostaNome(')
   })
 })

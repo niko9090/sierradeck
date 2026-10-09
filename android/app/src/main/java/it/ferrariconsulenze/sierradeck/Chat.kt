@@ -132,26 +132,29 @@ private fun ChatSuAltroPc(api: Api, su: PcPonte, deposito: Collegamento) {
      * sei secondi al massimo); se cade, si riprova con attese crescenti e la
      * fascia lo dice, con «Riprova adesso». Lo schermo resta, attenuato.
      */
-    var linea by remember(su.pcId) { mutableStateOf(Linea.NUOVA) }
+    // Lo stato del collegamento con quel PC è uno solo (app 2.56.0): lo fanno
+    // avanzare questo controllo **e** ogni altra risposta (la storia della chat
+    // aperta, lo scrivere), che passano dall'`Api`. Un controllo lento non dice
+    // più «giù» mentre lo schermo arriva.
+    val linea = Collegamenti.di(su.pcId)
     var ultima by remember(su.pcId) { mutableStateOf(0L) }
     LaunchedEffect(su.pcId) {
         while (isActive) {
             val ora = System.currentTimeMillis()
-            if (Linea.eOra(linea, ultima, ora)) {
+            if (Linea.eOra(Collegamenti.di(su.pcId), ultima, ora)) {
                 ultima = ora
                 try {
                     val s = kotlinx.coroutines.withTimeout(Linea.KEEPALIVE_SCADE_MS) { apiPc.stato() }
                     stato = s; guasto = null
-                    linea = Linea.passo(linea, EventoLinea.Ok(System.currentTimeMillis(), System.currentTimeMillis() - ora, s.ponte?.strada))
                 } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-                    linea = Linea.passo(linea, EventoLinea.Errore(System.currentTimeMillis(), "irraggiungibile", "${su.nome} non ha risposto in ${Linea.KEEPALIVE_SCADE_MS / 1000} secondi"))
+                    Collegamenti.passo(su.pcId, EventoLinea.Errore(System.currentTimeMillis(), "irraggiungibile", "${su.nome} non ha risposto in ${Linea.KEEPALIVE_SCADE_MS / 1000} secondi"))
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Api.Errore) {
                     if (e.codice == 404 || e.codice == 409) guasto = "Il PC accoppiato non fa ancora da ponte: aggiornalo alla 0.48.0 o più nuova, e da qui vedrai le chat di ${su.nome}."
-                    else linea = Linea.passo(linea, EventoLinea.Errore(System.currentTimeMillis(), "irraggiungibile", Nota.spiega(e, "leggere le chat di ${su.nome}").removePrefix("Non sono riuscito a leggere le chat di ${su.nome}: ")))
                 } catch (e: Exception) {
-                    linea = Linea.passo(linea, EventoLinea.Errore(System.currentTimeMillis(), "irraggiungibile", e.message ?: "il PC accoppiato non risponde"))
+                    // Le cadute della rete le conta già l'`Api`.
+                    if (e !is java.io.IOException) Collegamenti.passo(su.pcId, EventoLinea.Errore(System.currentTimeMillis(), "irraggiungibile", e.message ?: "il computer non risponde"))
                 }
             }
             delay(250)
@@ -165,8 +168,8 @@ private fun ChatSuAltroPc(api: Api, su: PcPonte, deposito: Collegamento) {
         var schedaPonte by remember(su.pcId) { mutableStateOf(true) }
         val vistaPonte = Tentativi.passi(su.nome, Tentativi.daLinea(linea, inizioPonte))
         LaunchedEffect(su.pcId, vistaPonte.fase) { if (vistaPonte.fase == "collegato") { delay(2500); schedaPonte = false } }
-        if (schedaPonte) SchedaCollegamento(vistaPonte, null, onRiprova = { linea = Linea.passo(linea, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) })
-        FasciaLinea(linea, su.nome, onRiprova = { linea = Linea.passo(linea, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) })
+        if (schedaPonte) SchedaCollegamento(vistaPonte, null, onRiprova = { Collegamenti.passo(su.pcId, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) })
+        FasciaLinea(linea, su.nome, onRiprova = { Collegamenti.passo(su.pcId, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) })
         guasto?.let { Text(it, color = Banco.rosso, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) }
         val chat = stato?.chat ?: emptyList()
         val corrente = chat.firstOrNull { it.id == aperta }
@@ -331,7 +334,7 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
         workspace = workspace,
         onApri = { percorso, ws ->
             scope.launch {
-                if (tentaGestione("aprire una chat in quella cartella", nomePc) { api.apri(percorso, workspace = ws) } != null)
+                if (tentaGestione("aprire una chat in quella cartella", nomePc) { api.apriNuova(percorso, ws, NuovaChat.nome, NuovaChat.modello) } != null)
                     Nota.mostra("Chat aperta in «${percorso.substringAfterLast(Char(92)).substringAfterLast('/')}»" + (if (ws.isNullOrBlank()) "" else ", nel workspace «$ws»") + ": compare qui fra un paio di secondi.")
             }
         },
@@ -403,6 +406,10 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
     var addormentando by remember { mutableStateOf(false) }
     var spostando by remember { mutableStateOf(false) }
     var spostaIn by remember { mutableStateOf<String?>(null) }
+    // Il PIN e l'ospite (app 2.56.0), come i tasti 🔐 e 🏠 del riquadro sul PC.
+    var pinDa by remember { mutableStateOf<Boolean?>(null) }
+    var ospite by remember { mutableStateOf(false) }
+    var ospiteIn by remember { mutableStateOf<Pair<String, String>?>(null) }
     // «📎 Allega» (app 2.50.0): un file del telefono nel progetto di questa chat.
     var allegando by remember(chat.id) { mutableStateOf<List<android.net.Uri>?>(null) }
     val sceglieFile = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -530,6 +537,8 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                         scope.launch { if (tentaGestione("svegliare la chat", nomePc) { api.svegliaChat(chat.id) } != null) Nota.mostra("La chat si sveglia sul computer: riparte da dove era.") }
                     })
                     DropdownMenuItem(text = { Text("Sposta in un altro workspace…") }, onClick = { menuAperto = false; spostando = true })
+                    DropdownMenuItem(text = { Text(if (chat.pin == null) "Proteggi con il PIN…" else "Togli il PIN…") }, onClick = { menuAperto = false; pinDa = chat.pin == null })
+                    DropdownMenuItem(text = { Text("Ospitata da… (quale PC la fa girare)") }, onClick = { menuAperto = false; ospite = true })
                     DropdownMenuItem(text = { Text("Chiudi la chat…") }, onClick = { menuAperto = false; chiudendo = true })
                 }
             }
@@ -755,6 +764,22 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
         SceltaWorkspace("Sposta «$titoloChat» in…", workspace.nomi, tranne = workspace.chat.firstOrNull { it.sessione == chat.sessione }?.workspace ?: workspace.attivo,
             onScegli = { spostando = false; spostaIn = it }, onChiudi = { spostando = false })
     }
+    pinDa?.let { proteggi ->
+        DialogoConferma(AzioniTelefono.confermaPin(titoloChat, proteggi), onSi = {
+            pinDa = null
+            scope.launch {
+                if (tentaGestione(if (proteggi) "proteggere la chat" else "togliere il PIN", nomePc) { api.proteggiChat(chat.id, proteggi) } != null)
+                    Nota.mostra(if (proteggi) "«$titoloChat» è protetta dal PIN." else "«$titoloChat» non ha più il PIN.")
+            }
+        }, onNo = { pinDa = null })
+    }
+    if (ospite) SceltaOspite(api, onScegli = { id, nome -> ospite = false; ospiteIn = id to nome }, onChiudi = { ospite = false })
+    ospiteIn?.let { (id, nomeOspite) ->
+        DialogoConferma(AzioniTelefono.confermaOspite(titoloChat, nomeOspite, id == "qui"), onSi = {
+            ospiteIn = null
+            scope.launch { tentaGestione("scegliere l’ospite", nomePc) { api.ospiteChat(chat.id, id, nomeOspite) }?.let { Nota.mostra(it.messaggio.ifBlank { "Fatto: «$titoloChat» è ospitata da $nomeOspite." }) } }
+        }, onNo = { ospiteIn = null })
+    }
     spostaIn?.let { verso ->
         DialogoConferma(AzioniTelefono.confermaSposta(titoloChat, verso), onSi = {
             spostaIn = null
@@ -803,6 +828,11 @@ internal fun SceltaCartella(api: Api, workspace: Workspace = Workspace(), onApri
     var giro by remember { mutableStateOf<Sfoglia?>(null) }
     // Dove nasce la chat (0.55.0): il predefinito è il workspace davanti sul computer.
     var ws by remember { mutableStateOf(workspace.attivo) }
+    // Nome e modello (app 2.56.0), come «+ Nuova chat» del PC.
+    var nomeChat by remember { mutableStateOf("") }
+    var modello by remember { mutableStateOf("default") }
+    var modelli by remember { mutableStateOf<List<ModelloClaude>>(emptyList()) }
+    LaunchedEffect(Unit) { modelli = try { api.modelli().modelli } catch (_: Exception) { emptyList() } }
     var caricando by remember { mutableStateOf(true) }
     var guasto by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -841,6 +871,15 @@ internal fun SceltaCartella(api: Api, workspace: Workspace = Workspace(), onApri
         text = {
             Column(Modifier.fillMaxWidth().height(380.dp)) {
                 SceltaWorkspaceRiga(workspace.nomi, ws) { ws = it }
+                if (etichetta == "Apri qui") {
+                    OutlinedTextField(value = nomeChat, onValueChange = { nomeChat = it.take(80) }, singleLine = true,
+                        placeholder = { Text("Nome (facoltativo): se vuoto, quello della cartella", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth())
+                    if (modelli.isNotEmpty()) {
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            for (m in modelli) androidx.compose.material3.FilterChip(selected = modello == m.valore, onClick = { modello = m.valore }, label = { Text(m.etichetta, fontSize = 11.sp) })
+                        }
+                    }
+                }
                 // «Su» e «apri qui» stanno **fuori** dall'elenco che scorre: sono
                 // i due gesti che servono sempre, e cercarli in fondo a
                 // duecento cartelle vorrebbe dire non averli.
@@ -854,6 +893,7 @@ internal fun SceltaCartella(api: Api, workspace: Workspace = Workspace(), onApri
                             shape = MaterialTheme.shapes.small,
                             onClick = {
                                 onChiudi()
+                                NuovaChat.nome = nomeChat; NuovaChat.modello = modello
                                 onApri(g.percorso, ws.ifBlank { null })
                             }
                         ) { Text(if (g.progetto) "$etichetta (progetto)" else etichetta) }
@@ -1050,5 +1090,36 @@ fun LedChat(tono: TonoChat?) {
             .size(10.dp)
             .clip(CircleShape)
             .then(if (tono == null || tono == TonoChat.SPENTA) Modifier.border(1.dp, c, CircleShape) else Modifier.background(c))
+    )
+}
+
+
+/** Nome e modello scelti nella finestra della chat nuova, per chi la apre (la finestra si chiude nello stesso tocco). */
+internal object NuovaChat { var nome: String = ""; var modello: String = "default" }
+
+/** Quale PC ospita la chat: questo, o uno degli altri accesi della stessa cassaforte. */
+@Composable
+private fun SceltaOspite(api: Api, onScegli: (String, String) -> Unit, onChiudi: () -> Unit) {
+    var pc by remember { mutableStateOf<ElencoPc?>(null) }
+    LaunchedEffect(Unit) { pc = try { api.pc() } catch (_: Exception) { ElencoPc() } }
+    AlertDialog(
+        onDismissRequest = onChiudi,
+        title = { Text("Ospitata da…") },
+        text = {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                Text("Il PC ospite è quello su cui la chat lavora davvero: il suo claude.exe parte solo lì, e sugli altri si apre dal vivo guardando lui. Cambiarlo non cancella niente e si annulla da «Dove vive ogni chat» sul PC.", color = Banco.testoQuieto, fontSize = 12.sp)
+                Spacer(Modifier.height(8.dp))
+                Text("Il computer di questa chat", color = Banco.testo, modifier = Modifier.fillMaxWidth().clickableCartella { onScegli("qui", PcCorrente.nome ?: "questo PC") }.padding(vertical = 10.dp))
+                HorizontalDivider(color = Banco.incisione)
+                val altri = pc?.pc?.filter { it.pcId != pc?.io } ?: emptyList()
+                if (pc == null) Text("Leggo gli altri PC…", color = Banco.testoQuieto, fontSize = 12.sp)
+                for (p in altri) {
+                    Text(p.mostra + if (p.vivo) "" else " (spento)", color = if (p.vivo) Banco.testo else Banco.testoQuieto,
+                        modifier = Modifier.fillMaxWidth().clickableCartella { onScegli(p.pcId, p.mostra) }.padding(vertical = 10.dp))
+                    HorizontalDivider(color = Banco.incisione)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onChiudi) { Text("Annulla") } }
     )
 }

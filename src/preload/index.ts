@@ -226,8 +226,8 @@ contextBridge.exposeInMainWorld('gestore', {
       return () => { ipcRenderer.off('autopilota:consegna', h) }
     },
     /** Una chat nuova, chiesta da un telefono in una cartella già conosciuta. */
-    suApertura: (cb: (m: { cartella: string; modello?: string; sessione?: string; workspace?: string }) => void): (() => void) => {
-      const h = (_e: unknown, m: { cartella: string; modello?: string; sessione?: string; workspace?: string }): void => cb(m)
+    suApertura: (cb: (m: { cartella: string; modello?: string; sessione?: string; workspace?: string; nome?: string }) => void): (() => void) => {
+      const h = (_e: unknown, m: { cartella: string; modello?: string; sessione?: string; workspace?: string; nome?: string }): void => cb(m)
       ipcRenderer.on('client:apri', h)
       return () => { ipcRenderer.off('client:apri', h) }
     },

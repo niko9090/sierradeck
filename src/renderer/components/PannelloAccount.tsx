@@ -573,7 +573,7 @@ function SezioneComputer(): React.JSX.Element | null {
   }
   return (
     <div className="account__scheda account__scheda--largo">
-      <NomeQuestoPc />
+      {/* Il nome di questo PC sta in Impostazioni → Computer (0.56.0). */}
       <h4 style={{ margin: '0 0 4px' }}>Altri computer</h4>
       <p className="account__nota">
         I PC che usano questo stesso Drive, con l’ultimo segno di vita. «Chat aperte» mostra le chat che quel PC ha davanti
@@ -641,7 +641,7 @@ function SezioneComputer(): React.JSX.Element | null {
  * battito sul Drive e in quello che il PC dice al telefono: lo vedono gli
  * altri PC, la pagina e l'app (che lo può anche cambiare da «Computer»).
  */
-function NomeQuestoPc(): React.JSX.Element {
+export function NomeQuestoPc(): React.JSX.Element {
   const io = useNomiPc((s) => s.io)
   const [testo, setTesto] = useState<string | undefined>(undefined)
   const [esito, setEsito] = useState<string | undefined>(undefined)

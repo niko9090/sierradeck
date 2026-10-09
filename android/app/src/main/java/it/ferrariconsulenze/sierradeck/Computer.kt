@@ -139,307 +139,47 @@ fun Computer(api: Api, stato: Stato?) {
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
-
-        // ─── Workspace ───
-        // Tutto dentro una tessera sola: prima i workspace erano chip sospesi e
-        // sotto, staccato, un campo con una scritta di fianco — tre cose che non
-        // sembravano la stessa cosa. Qui si vede subito dove sei e dove puoi
-        // andare, e il campo per crearne uno sta nello stesso pannello.
-        Sezione("Workspace")
-        val ws = stato?.workspace
-        // Rinominare ed eliminare (app 2.55.0): prima la funzione c'era ma
-        // nessun tasto la chiamava, e un workspace dal telefono non si toglieva.
-        var gestisci by remember { mutableStateOf(false) }
-        if (gestisci) GestioneWorkspace(api, ws ?: Workspace(), PcCorrente.nome, onChiudi = { gestisci = false })
-        Tessera(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(12.dp)) {
-                if ((ws?.nomi ?: emptyList()).isEmpty()) {
-                    Text("Nessun workspace.", color = Banco.testoQuieto, fontSize = 13.sp)
-                } else {
-                    Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        for (nome in ws?.nomi ?: emptyList()) {
-                            VoceWorkspace(
-                                nome = nome,
-                                attivo = nome == ws?.attivo,
-                                onClick = { scope.launch { tenta("cambiare workspace") { api.cambiaWorkspace(nome) } } }
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                HorizontalDivider(color = Banco.incisione)
-                Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = nuovoWs,
-                        onValueChange = { nuovoWs = it.take(40) },
-                        placeholder = { Text("Nome del nuovo", color = Banco.testoQuieto, fontSize = 14.sp) },
-                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Banco.accento,
-                            unfocusedBorderColor = Banco.incisione,
-                            focusedContainerColor = Banco.fondo,
-                            unfocusedContainerColor = Banco.fondo
-                        ),
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Button(
-                        enabled = nuovoWs.isNotBlank(),
-                        shape = MaterialTheme.shapes.small,
-                        onClick = {
-                            val e = AzioniTelefono.erroreNomeWorkspace(nuovoWs, ws?.nomi ?: emptyList())
-                            if (e != null) { Nota.mostra(e); return@Button }
-                            val n = nuovoWs.trim(); nuovoWs = ""
-                            scope.launch { tentaGestione("creare il workspace «$n»", PcCorrente.nome) { api.creaWorkspace(n) } }
-                        }
-                    ) { Text("Crea") }
-                }
-                Spacer(Modifier.height(6.dp))
-                TextButton(onClick = { gestisci = true }) { Text("Rinomina o elimina un workspace…") }
-            }
-        }
-
-        Divisore()
-
-        // ─── Avvisi ───
-        Sezione("Avvisi")
-        Tessera(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(14.dp)) {
-                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Controllo continuo", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        Text(
-                            if (continuo) "Guardo ogni cinque secondi. Android in cambio mostra una riga fissa nelle notifiche."
-                            else "Guardo ogni paio di minuti, senza lasciare niente nelle notifiche.",
-                            color = Banco.testoQuieto,
-                            fontSize = 12.sp
-                        )
-                    }
-                    Switch(
-                        checked = continuo,
-                        onCheckedChange = { acceso ->
-                            continuo = acceso
-                            deposito.controlloContinuo = acceso
-                            if (acceso) {
-                                Sentinella.ferma(contesto)
-                                GuardiaService.avvia(contesto)
-                            } else {
-                                GuardiaService.ferma(contesto)
-                                Sentinella.programma(contesto)
-                            }
-                        }
-                    )
-                }
-                val notificheAttive = androidx.core.app.NotificationManagerCompat.from(contesto).areNotificationsEnabled()
-                if (!notificheAttive) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Le notifiche di SierraDeck sono spente in Android: gli avvisi non possono arrivare, qualunque cosa faccia l’app.",
-                        color = Banco.ambra, fontSize = 12.sp
-                    )
-                    TextButton(onClick = {
-                        try {
-                            contesto.startActivity(
-                                android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, contesto.packageName)
-                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                            )
-                        } catch (e: Exception) { /* senza la schermata di sistema resta il testo */ }
-                    }) { Text("Accendile nelle impostazioni di Android") }
-                }
-                val energia = contesto.getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
-                if (energia != null && !energia.isIgnoringBatteryOptimizations(contesto.packageName)) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Android limita l’app in sottofondo: a telefono fermo un avviso può arrivare con minuti di ritardo. Se vuoi gli avvisi puntuali, escludi SierraDeck dal risparmio batteria.",
-                        color = Banco.testoQuieto, fontSize = 12.sp
-                    )
-                    TextButton(onClick = {
-                        try {
-                            contesto.startActivity(
-                                android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                            )
-                        } catch (e: Exception) { /* idem */ }
-                    }) { Text("Apri il risparmio batteria") }
-                }
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Accendilo quando stai aspettando qualcosa adesso: un avviso arriva in cinque secondi invece che in qualche minuto. Spegnendolo la riga fissa sparisce.",
-                    color = Banco.testoQuieto,
-                    fontSize = 11.sp
-                )
-            }
-        }
-
-        Divisore()
-
-        // ─── Account ───
-        // Era in sola lettura, e il ragionamento era che una password scritta
-        // su un telefono la può leggere chi ti sta accanto. Regge per l'inizio
-        // e non per il seguito: un account da cui **non si può uscire** non è
-        // prudenza, è una trappola, e chi ne ha due non aveva nessun modo di
-        // passare dall'uno all'altro senza andare al computer. La prudenza
-        // vera è chiedere conferma prima di uscire, non togliere il comando.
-        Sezione("Account")
-        Account(
-            account = account,
-            onCambiato = { scope.launch { account = try { api.account() } catch (_: Exception) { account } } },
-            api = api
+        // ─── Le impostazioni rifatte (app 2.56.0) ───
+        // Nicholas (09/10): «Nelle impostazioni l'aggiornamento lo puoi mettere
+        // in alto all'inizio? E sistemare tutto il menu impostazioni». Le
+        // sezioni e le spiegazioni sono quelle del PC (assets/impostazioni.json),
+        // «Aggiornamenti» in cima, e la ricerca in alto.
+        val struttura = remember { ImpostazioniVoci.carica(contesto) }
+        var cercaImp by remember { mutableStateOf("") }
+        val visibili = ImpostazioniVoci.sezioniVisibili(struttura, cercaImp)
+        OutlinedTextField(
+            value = cercaImp, onValueChange = { cercaImp = it.take(60) }, singleLine = true,
+            placeholder = { Text("Cerca nelle impostazioni (per esempio: aggiornamento, PIN, notifiche)", fontSize = 13.sp) },
+            modifier = Modifier.fillMaxWidth()
         )
-
-        Divisore()
-
-        // ─── Consumi ───
-        Sezione("Consumi (token)")
-        val c = consumi
-        if (c == null) Text("Carico…", color = Banco.testoQuieto)
-        else {
-            Text(
-                "↑ token mandati a Claude, ↓ token ricevuti, ⟳ letti dalla cache (costano molto meno); «chat» è quante conversazioni hanno lavorato nel periodo.",
-                color = Banco.testoQuieto, fontSize = 11.sp
-            )
-            QuotaRiga("Oggi", c.oggi)
-            QuotaRiga("7 giorni", c.settimana)
-            QuotaRiga("Totale", c.totale)
-            Spacer(Modifier.height(8.dp))
-            Text("LIMITI DEL PIANO", color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp)
-            val l = c.limiti
-            FinestraRiga("Finestra di 5 ore", l?.cinqueOre, "Al 100% le chat si fermano fino all’azzeramento.")
-            FinestraRiga("Settimana", l?.settimana, "Il tetto settimanale su tutti i modelli.")
-            Text(
-                if (l == null) "Non ancora letti: arrivano dalla riga di stato di Claude Code dopo la prima risposta di una chat aperta dal computer (solo con abbonamento Pro o Max)."
-                else "Letti " + quandoLetti(l.letti, System.currentTimeMillis()) + ": gli stessi numeri di /usage in Claude Code. Fra tutte le chat aperte dal computer vale la lettura più recente; si aggiornano a ogni risposta, e qui ogni mezzo minuto. Una lettura di più di 20 minuti è segnata vecchia: il valore vero può essere più alto.",
-                color = Banco.testoQuieto, fontSize = 11.sp
-            )
-            // Il contesto di ogni chat aperta, con la frase del computer
-            // (0.37): uguale alla console e alla pagina.
-            if (c.chatAperte.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                Text("CONTESTO DELLE CHAT APERTE", color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp)
-                for (ch in c.chatAperte) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(rigaContesto(ch), color = Banco.testo, fontSize = 12.sp)
+        if (cercaImp.isNotBlank()) {
+            val trovate = ImpostazioniVoci.cerca(struttura, cercaImp)
+            if (trovate.isEmpty()) Text("Niente con «${cercaImp.trim()}». Prova con un’altra parola.", color = Banco.testoQuieto, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
+            for (v in trovate) {
+                Column(Modifier.padding(vertical = 6.dp)) {
+                    Text(v.titolo, color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(v.spiega, color = Banco.testoQuieto, fontSize = 12.sp)
                 }
-                Text(
-                    "Il contesto è la memoria di lavoro della chat: si conta come Claude Code, solo con i token in ingresso. Al 90% conviene farle riassumere dove è arrivata, prima che lo compatti da sola.",
-                    color = Banco.testoQuieto, fontSize = 11.sp
-                )
-            }
-            c.freno?.let { fr ->
-                Spacer(Modifier.height(8.dp))
-                Text("FRENO DEGLI AUTOPILOTI", color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp)
-                Text("${fr.titolo}: ${fr.spiegazione.ifEmpty { fr.motivo }}", color = Banco.testoQuieto, fontSize = 12.sp)
-            }
-            c.costo?.let { k ->
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "Spesa stimata da Claude Code: oggi ${"%.2f".format(k.oggi)} $, 7 giorni ${"%.2f".format(k.settimana)} $. Con un abbonamento è un’indicazione, non una fattura.",
-                    color = Banco.testoQuieto, fontSize = 11.sp
-                )
             }
         }
-
-        Divisore()
-
-        // ─── Le code dei progetti ───
-        // Un comando in fila per un progetto lo consegna il PC che ha il
-        // testimone, appena una chat ha finito: da qui si vede, si aggiunge,
-        // si toglie. Poco per volta: il telefono non e' il posto per scriverne
-        // dieci.
-        Sezione("Code dei progetti")
-        Text(
-            "Una fila di istruzioni per progetto, sul Drive: le consegna il PC che ha il progetto in mano, una per volta, alla prima chat del progetto che ha finito il turno. Serve a lasciare il lavoro dopo quello di adesso senza stare a guardare. Si rilegge ogni dieci secondi mentre è aperta.",
-            color = Banco.testoQuieto, fontSize = 12.sp
-        )
         Spacer(Modifier.height(8.dp))
-        val progetti = stato?.progetti ?: emptyList()
-        if (progetti.isEmpty()) Text("Nessun progetto sul Drive: le code esistono solo per i progetti portati sul Drive (sul computer: Account → Progetti).", color = Banco.testoQuieto, fontSize = 13.sp)
-        else for (p in progetti) {
-            val aperto = codaAperta == p.id
-            Tessera(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Column(Modifier.padding(12.dp)) {
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(p.nome, color = Banco.testo, maxLines = 1)
-                            Text(
-                                "${p.inCoda} in coda · " + when (p.chi) {
-                                    "io" -> "in lavoro qui"
-                                    "altro" -> "in mano a ${p.pcNome ?: "un altro PC"}"
-                                    else -> "libero: nessun PC lo sta usando"
-                                },
-                                color = Banco.testoQuieto, fontSize = 12.sp
-                            )
-                        }
-                        OutlinedButton(onClick = { codaAperta = if (aperto) null else p.id; codaVoci = emptyList(); codaTesto = "" }) {
-                            Text(if (aperto) "Chiudi" else "Coda")
-                        }
-                    }
-                    if (aperto) {
-                        Spacer(Modifier.height(10.dp))
-                        HorizontalDivider(color = Banco.incisione)
-                        Spacer(Modifier.height(10.dp))
-                        if (!codaDisponibile) {
-                            Text("La coda sta sul Drive: sul computer serve la cassaforte sbloccata e il Drive collegato.", color = Banco.testoQuieto, fontSize = 12.sp)
-                        }
-                        codaGuasto?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
-                        val attesa = codaVoci.filter { it.stato == "attesa" }
-                        val consegnate = codaVoci.filter { it.stato == "consegnata" }
-                        if (attesa.isEmpty()) Text("Nessun comando in attesa.", color = Banco.testoQuieto, fontSize = 13.sp)
-                        attesa.forEachIndexed { i, v ->
-                            Row(Modifier.padding(vertical = 4.dp), verticalAlignment = androidx.compose.ui.Alignment.Top) {
-                                Column(Modifier.weight(1f)) {
-                                    Text("${i + 1}. ${v.testo}", color = Banco.testo, fontSize = 13.sp)
-                                    Text("da ${v.daNome}" + (if (v.sessione != null) " · per una chat precisa" else " · alla prima chat libera"), color = Banco.testoQuieto, fontSize = 11.sp)
-                                }
-                                TextButton(onClick = { scope.launch { tenta("togliere la voce dalla coda") { api.codaTogli(p.id, v.id).voci }?.let { codaVoci = it } } }) { Text("Togli") }
-                            }
-                        }
-                        if (consegnate.isNotEmpty()) {
-                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                Text("${consegnate.size} consegnate", color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                                TextButton(onClick = { scope.launch { tenta("pulire la coda") { api.codaPulisci(p.id).voci }?.let { codaVoci = it } } }) { Text("Pulisci") }
-                            }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = codaTesto,
-                            onValueChange = { codaTesto = it.take(4000) },
-                            placeholder = { Text("Il comando da mettere in fila", color = Banco.testoQuieto, fontSize = 14.sp) },
-                            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
-                            minLines = 2,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Banco.accento,
-                                unfocusedBorderColor = Banco.incisione,
-                                focusedContainerColor = Banco.fondo,
-                                unfocusedContainerColor = Banco.fondo
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Button(
-                            enabled = codaTesto.isNotBlank(),
-                            shape = MaterialTheme.shapes.small,
-                            onClick = {
-                                val t = codaTesto.trim(); codaTesto = ""
-                                scope.launch {
-                                    // Se non parte, il comando torna nel campo: riscriverlo e' il modo peggiore di riaverlo.
-                                    val voci = tenta("mettere in coda") { api.codaAggiungi(p.id, t).voci }
-                                    if (voci != null) codaVoci = voci else if (codaTesto.isBlank()) codaTesto = t
-                                }
-                            }
-                        ) { Text("Metti in coda") }
-                    }
-                }
-            }
+
+        if ("aggiornamenti" in visibili) {
+            GruppoImpostazioni(struttura, "aggiornamenti")
+
+        // ─── Aggiornamenti ───
+        // Due programmi, due aggiornamenti, e prima ce n'era uno solo: si
+        // vedeva quello del computer e dell'app non si sapeva niente —
+        // nemmeno quale versione si avesse in mano.
+        Sezione("Aggiornamenti")
+        AggiornamentoApp(api)
+        Spacer(Modifier.height(10.dp))
+        AggiornamentoPc(api, aggiornamento, versionePc)
+            Divisore()
         }
 
-        Divisore()
+        if ("computer" in visibili) {
+            GruppoImpostazioni(struttura, "computer")
 
         // Gli altri computer, e le azioni da eseguire solo la'. Nicholas
         // (2026-09-14): «se sto operando su una chat su una cartella in rete
@@ -575,7 +315,200 @@ fun Computer(api: Api, stato: Stato?) {
 
         // I salvataggi con nome non esistono piu' (0.34.0 / app 2.37.0): il
         // computer riapre da solo l'ultima composizione all'avvio.
-        Divisore()
+            Divisore()
+        }
+
+        if ("chat" in visibili) {
+            GruppoImpostazioni(struttura, "chat")
+
+        // ─── Workspace ───
+        // Tutto dentro una tessera sola: prima i workspace erano chip sospesi e
+        // sotto, staccato, un campo con una scritta di fianco — tre cose che non
+        // sembravano la stessa cosa. Qui si vede subito dove sei e dove puoi
+        // andare, e il campo per crearne uno sta nello stesso pannello.
+        Sezione("Workspace")
+        val ws = stato?.workspace
+        // Rinominare ed eliminare (app 2.55.0): prima la funzione c'era ma
+        // nessun tasto la chiamava, e un workspace dal telefono non si toglieva.
+        var gestisci by remember { mutableStateOf(false) }
+        if (gestisci) GestioneWorkspace(api, ws ?: Workspace(), PcCorrente.nome, onChiudi = { gestisci = false })
+        Tessera(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(12.dp)) {
+                if ((ws?.nomi ?: emptyList()).isEmpty()) {
+                    Text("Nessun workspace.", color = Banco.testoQuieto, fontSize = 13.sp)
+                } else {
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        for (nome in ws?.nomi ?: emptyList()) {
+                            VoceWorkspace(
+                                nome = nome,
+                                attivo = nome == ws?.attivo,
+                                onClick = { scope.launch { tenta("cambiare workspace") { api.cambiaWorkspace(nome) } } }
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                HorizontalDivider(color = Banco.incisione)
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = nuovoWs,
+                        onValueChange = { nuovoWs = it.take(40) },
+                        placeholder = { Text("Nome del nuovo", color = Banco.testoQuieto, fontSize = 14.sp) },
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Banco.accento,
+                            unfocusedBorderColor = Banco.incisione,
+                            focusedContainerColor = Banco.fondo,
+                            unfocusedContainerColor = Banco.fondo
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Button(
+                        enabled = nuovoWs.isNotBlank(),
+                        shape = MaterialTheme.shapes.small,
+                        onClick = {
+                            val e = AzioniTelefono.erroreNomeWorkspace(nuovoWs, ws?.nomi ?: emptyList())
+                            if (e != null) { Nota.mostra(e); return@Button }
+                            val n = nuovoWs.trim(); nuovoWs = ""
+                            scope.launch { tentaGestione("creare il workspace «$n»", PcCorrente.nome) { api.creaWorkspace(n) } }
+                        }
+                    ) { Text("Crea") }
+                }
+                Spacer(Modifier.height(6.dp))
+                TextButton(onClick = { gestisci = true }) { Text("Rinomina o elimina un workspace…") }
+            }
+        }
+            Divisore()
+
+        // ─── Le code dei progetti ───
+        // Un comando in fila per un progetto lo consegna il PC che ha il
+        // testimone, appena una chat ha finito: da qui si vede, si aggiunge,
+        // si toglie. Poco per volta: il telefono non e' il posto per scriverne
+        // dieci.
+        Sezione("Code dei progetti")
+        Text(
+            "Una fila di istruzioni per progetto, sul Drive: le consegna il PC che ha il progetto in mano, una per volta, alla prima chat del progetto che ha finito il turno. Serve a lasciare il lavoro dopo quello di adesso senza stare a guardare. Si rilegge ogni dieci secondi mentre è aperta.",
+            color = Banco.testoQuieto, fontSize = 12.sp
+        )
+        Spacer(Modifier.height(8.dp))
+        val progetti = stato?.progetti ?: emptyList()
+        if (progetti.isEmpty()) Text("Nessun progetto sul Drive: le code esistono solo per i progetti portati sul Drive (sul computer: Account → Progetti).", color = Banco.testoQuieto, fontSize = 13.sp)
+        else for (p in progetti) {
+            val aperto = codaAperta == p.id
+            Tessera(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Column(Modifier.padding(12.dp)) {
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(p.nome, color = Banco.testo, maxLines = 1)
+                            Text(
+                                "${p.inCoda} in coda · " + when (p.chi) {
+                                    "io" -> "in lavoro qui"
+                                    "altro" -> "in mano a ${p.pcNome ?: "un altro PC"}"
+                                    else -> "libero: nessun PC lo sta usando"
+                                },
+                                color = Banco.testoQuieto, fontSize = 12.sp
+                            )
+                        }
+                        OutlinedButton(onClick = { codaAperta = if (aperto) null else p.id; codaVoci = emptyList(); codaTesto = "" }) {
+                            Text(if (aperto) "Chiudi" else "Coda")
+                        }
+                    }
+                    if (aperto) {
+                        Spacer(Modifier.height(10.dp))
+                        HorizontalDivider(color = Banco.incisione)
+                        Spacer(Modifier.height(10.dp))
+                        if (!codaDisponibile) {
+                            Text("La coda sta sul Drive: sul computer serve la cassaforte sbloccata e il Drive collegato.", color = Banco.testoQuieto, fontSize = 12.sp)
+                        }
+                        codaGuasto?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
+                        val attesa = codaVoci.filter { it.stato == "attesa" }
+                        val consegnate = codaVoci.filter { it.stato == "consegnata" }
+                        if (attesa.isEmpty()) Text("Nessun comando in attesa.", color = Banco.testoQuieto, fontSize = 13.sp)
+                        attesa.forEachIndexed { i, v ->
+                            Row(Modifier.padding(vertical = 4.dp), verticalAlignment = androidx.compose.ui.Alignment.Top) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("${i + 1}. ${v.testo}", color = Banco.testo, fontSize = 13.sp)
+                                    Text("da ${v.daNome}" + (if (v.sessione != null) " · per una chat precisa" else " · alla prima chat libera"), color = Banco.testoQuieto, fontSize = 11.sp)
+                                }
+                                TextButton(onClick = { scope.launch { tenta("togliere la voce dalla coda") { api.codaTogli(p.id, v.id).voci }?.let { codaVoci = it } } }) { Text("Togli") }
+                            }
+                        }
+                        if (consegnate.isNotEmpty()) {
+                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                Text("${consegnate.size} consegnate", color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                                TextButton(onClick = { scope.launch { tenta("pulire la coda") { api.codaPulisci(p.id).voci }?.let { codaVoci = it } } }) { Text("Pulisci") }
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = codaTesto,
+                            onValueChange = { codaTesto = it.take(4000) },
+                            placeholder = { Text("Il comando da mettere in fila", color = Banco.testoQuieto, fontSize = 14.sp) },
+                            textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                            minLines = 2,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Banco.accento,
+                                unfocusedBorderColor = Banco.incisione,
+                                focusedContainerColor = Banco.fondo,
+                                unfocusedContainerColor = Banco.fondo
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Button(
+                            enabled = codaTesto.isNotBlank(),
+                            shape = MaterialTheme.shapes.small,
+                            onClick = {
+                                val t = codaTesto.trim(); codaTesto = ""
+                                scope.launch {
+                                    // Se non parte, il comando torna nel campo: riscriverlo e' il modo peggiore di riaverlo.
+                                    val voci = tenta("mettere in coda") { api.codaAggiungi(p.id, t).voci }
+                                    if (voci != null) codaVoci = voci else if (codaTesto.isBlank()) codaTesto = t
+                                }
+                            }
+                        ) { Text("Metti in coda") }
+                    }
+                }
+            }
+        }
+            Divisore()
+        }
+
+        if ("drive" in visibili) {
+            GruppoImpostazioni(struttura, "drive")
+
+        // ─── Il Drive ───
+        // Il magazzino comune dei PC, da sfogliare e da cui far portare
+        // qualcosa al computer: la stessa scheda «Drive» del computer.
+        Sezione("Drive")
+        SezioneDrive(api)
+        Spacer(Modifier.height(10.dp))
+            Divisore()
+
+        // ─── Account ───
+        // Era in sola lettura, e il ragionamento era che una password scritta
+        // su un telefono la può leggere chi ti sta accanto. Regge per l'inizio
+        // e non per il seguito: un account da cui **non si può uscire** non è
+        // prudenza, è una trappola, e chi ne ha due non aveva nessun modo di
+        // passare dall'uno all'altro senza andare al computer. La prudenza
+        // vera è chiedere conferma prima di uscire, non togliere il comando.
+        Sezione("Account")
+        Account(
+            account = account,
+            onCambiato = { scope.launch { account = try { api.account() } catch (_: Exception) { account } } },
+            api = api
+        )
+            Divisore()
+        }
+
+        if ("aspetto" in visibili) {
+            GruppoImpostazioni(struttura, "aspetto")
 
         // ─── Impostazioni ───
         Sezione("Aspetto")
@@ -586,7 +519,7 @@ fun Computer(api: Api, stato: Stato?) {
                     selected = (p?.stile ?: "banco") == chiave,
                     onClick = {
                         pref = p?.copy(stile = chiave) ?: Preferenze(stile = chiave)
-                        scope.launch { tenta("cambiare lo stile") { api.impostaStile(chiave) } }
+                        scope.launch { if (tenta("cambiare lo stile") { api.impostaStile(chiave) } != null) try { Banco.applica(api.stile()) } catch (_: Exception) { } }
                     },
                     label = { Text(etichetta) }
                 )
@@ -600,35 +533,147 @@ fun Computer(api: Api, stato: Stato?) {
             onValueChange = { chiarore = it },
             valueRange = 0f..100f,
             onValueChangeFinished = {
-                scope.launch { tenta("cambiare il chiarore del fondo") { api.impostaChiarore(chiarore.toInt()) } }
+                scope.launch { if (tenta("cambiare il chiarore del fondo") { api.impostaChiarore(chiarore.toInt()) } != null) try { Banco.applica(api.stile()) } catch (_: Exception) { } }
             }
         )
+            Divisore()
+        }
 
-        Divisore()
+        if ("notifiche" in visibili) {
+            GruppoImpostazioni(struttura, "notifiche")
+
+        // ─── Avvisi ───
+        Sezione("Avvisi")
+        Tessera(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp)) {
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Controllo continuo", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text(
+                            if (continuo) "Guardo ogni cinque secondi. Android in cambio mostra una riga fissa nelle notifiche."
+                            else "Guardo ogni paio di minuti, senza lasciare niente nelle notifiche.",
+                            color = Banco.testoQuieto,
+                            fontSize = 12.sp
+                        )
+                    }
+                    Switch(
+                        checked = continuo,
+                        onCheckedChange = { acceso ->
+                            continuo = acceso
+                            deposito.controlloContinuo = acceso
+                            if (acceso) {
+                                Sentinella.ferma(contesto)
+                                GuardiaService.avvia(contesto)
+                            } else {
+                                GuardiaService.ferma(contesto)
+                                Sentinella.programma(contesto)
+                            }
+                        }
+                    )
+                }
+                val notificheAttive = androidx.core.app.NotificationManagerCompat.from(contesto).areNotificationsEnabled()
+                if (!notificheAttive) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Le notifiche di SierraDeck sono spente in Android: gli avvisi non possono arrivare, qualunque cosa faccia l’app.",
+                        color = Banco.ambra, fontSize = 12.sp
+                    )
+                    TextButton(onClick = {
+                        try {
+                            contesto.startActivity(
+                                android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, contesto.packageName)
+                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        } catch (e: Exception) { /* senza la schermata di sistema resta il testo */ }
+                    }) { Text("Accendile nelle impostazioni di Android") }
+                }
+                val energia = contesto.getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
+                if (energia != null && !energia.isIgnoringBatteryOptimizations(contesto.packageName)) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Android limita l’app in sottofondo: a telefono fermo un avviso può arrivare con minuti di ritardo. Se vuoi gli avvisi puntuali, escludi SierraDeck dal risparmio batteria.",
+                        color = Banco.testoQuieto, fontSize = 12.sp
+                    )
+                    TextButton(onClick = {
+                        try {
+                            contesto.startActivity(
+                                android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        } catch (e: Exception) { /* idem */ }
+                    }) { Text("Apri il risparmio batteria") }
+                }
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Accendilo quando stai aspettando qualcosa adesso: un avviso arriva in cinque secondi invece che in qualche minuto. Spegnendolo la riga fissa sparisce.",
+                    color = Banco.testoQuieto,
+                    fontSize = 11.sp
+                )
+            }
+        }
+            Divisore()
+        }
+
+        if ("info" in visibili) {
+            GruppoImpostazioni(struttura, "info")
 
         // ─── La salute del sistema (0.44.0) ───
         Sezione("Salute del sistema")
         SezioneSalute(api)
         Spacer(Modifier.height(10.dp))
-        Divisore()
+            Divisore()
 
-        // ─── Il Drive ───
-        // Il magazzino comune dei PC, da sfogliare e da cui far portare
-        // qualcosa al computer: la stessa scheda «Drive» del computer.
-        Sezione("Drive")
-        SezioneDrive(api)
-        Spacer(Modifier.height(10.dp))
-        Divisore()
-
-        // ─── Aggiornamenti ───
-        // Due programmi, due aggiornamenti, e prima ce n'era uno solo: si
-        // vedeva quello del computer e dell'app non si sapeva niente —
-        // nemmeno quale versione si avesse in mano.
-        Sezione("Aggiornamenti")
-        AggiornamentoApp(api)
-        Spacer(Modifier.height(10.dp))
-        AggiornamentoPc(api, aggiornamento, versionePc)
-        Divisore()
+        // ─── Consumi ───
+        Sezione("Consumi (token)")
+        val c = consumi
+        if (c == null) Text("Carico…", color = Banco.testoQuieto)
+        else {
+            Text(
+                "↑ token mandati a Claude, ↓ token ricevuti, ⟳ letti dalla cache (costano molto meno); «chat» è quante conversazioni hanno lavorato nel periodo.",
+                color = Banco.testoQuieto, fontSize = 11.sp
+            )
+            QuotaRiga("Oggi", c.oggi)
+            QuotaRiga("7 giorni", c.settimana)
+            QuotaRiga("Totale", c.totale)
+            Spacer(Modifier.height(8.dp))
+            Text("LIMITI DEL PIANO", color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp)
+            val l = c.limiti
+            FinestraRiga("Finestra di 5 ore", l?.cinqueOre, "Al 100% le chat si fermano fino all’azzeramento.")
+            FinestraRiga("Settimana", l?.settimana, "Il tetto settimanale su tutti i modelli.")
+            Text(
+                if (l == null) "Non ancora letti: arrivano dalla riga di stato di Claude Code dopo la prima risposta di una chat aperta dal computer (solo con abbonamento Pro o Max)."
+                else "Letti " + quandoLetti(l.letti, System.currentTimeMillis()) + ": gli stessi numeri di /usage in Claude Code. Fra tutte le chat aperte dal computer vale la lettura più recente; si aggiornano a ogni risposta, e qui ogni mezzo minuto. Una lettura di più di 20 minuti è segnata vecchia: il valore vero può essere più alto.",
+                color = Banco.testoQuieto, fontSize = 11.sp
+            )
+            // Il contesto di ogni chat aperta, con la frase del computer
+            // (0.37): uguale alla console e alla pagina.
+            if (c.chatAperte.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text("CONTESTO DELLE CHAT APERTE", color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp)
+                for (ch in c.chatAperte) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(rigaContesto(ch), color = Banco.testo, fontSize = 12.sp)
+                }
+                Text(
+                    "Il contesto è la memoria di lavoro della chat: si conta come Claude Code, solo con i token in ingresso. Al 90% conviene farle riassumere dove è arrivata, prima che lo compatti da sola.",
+                    color = Banco.testoQuieto, fontSize = 11.sp
+                )
+            }
+            c.freno?.let { fr ->
+                Spacer(Modifier.height(8.dp))
+                Text("FRENO DEGLI AUTOPILOTI", color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp)
+                Text("${fr.titolo}: ${fr.spiegazione.ifEmpty { fr.motivo }}", color = Banco.testoQuieto, fontSize = 12.sp)
+            }
+            c.costo?.let { k ->
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Spesa stimata da Claude Code: oggi ${"%.2f".format(k.oggi)} $, 7 giorni ${"%.2f".format(k.settimana)} $. Con un abbonamento è un’indicazione, non una fattura.",
+                    color = Banco.testoQuieto, fontSize = 11.sp
+                )
+            }
+        }
+            Divisore()
 
         // ─── Info (0.52.1) ───
         // Quale app hai in mano, scritto per intero: per controllare che sia
@@ -644,6 +689,16 @@ fun Computer(api: Api, stato: Stato?) {
                 "SierraDeck è di Nicholas Ferrari / Ferrari Consulenze.",
             color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
         )
+        // «Copia i dettagli» (app 2.56.0): versioni e collegamento in un testo solo, per chiedere aiuto. Niente chiavi.
+        TextButton(onClick = {
+            val l = Collegamenti.di(Collegamenti.ACCOPPIATO)
+            val testo = Dettagli.testo(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, PcCorrente.nome, versionePc, l, System.currentTimeMillis())
+            val cm = contesto.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("SierraDeck", testo))
+            Nota.mostra("Dettagli copiati: incollali dove chiedi aiuto. Non ci sono chiavi né password.")
+        }) { Text("Copia i dettagli") }
+            Divisore()
+        }
 
         Spacer(Modifier.height(24.dp))
     }
@@ -1214,4 +1269,32 @@ fun quandoLetti(letti: Long, adesso: Long, zona: java.util.TimeZone = java.util.
     if (stessoGiorno(l, ieri)) return "ieri alle $ora"
     val data = java.text.SimpleDateFormat("d MMM", java.util.Locale.ITALY).apply { timeZone = zona }.format(java.util.Date(letti))
     return "il $data alle $ora (da allora nessuna chat aperta dal computer ha risposto)"
+}
+
+
+/** La testata di una sezione delle impostazioni: il titolo e cosa c'è dentro (app 2.56.0). */
+@Composable
+private fun GruppoImpostazioni(s: StrutturaImp, id: String) {
+    val sez = s.sezioni.firstOrNull { it.id == id } ?: return
+    Spacer(Modifier.height(10.dp))
+    Text(sez.titolo.uppercase(), color = Banco.accento, fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 1.2.sp)
+    Text(sez.spiega, color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
+}
+
+
+/** «Copia i dettagli» (app 2.56.0): un testo da incollare quando si chiede aiuto. Senza chiavi né indirizzi. */
+object Dettagli {
+    fun testo(app: String, codice: Int, nomePc: String?, versionePc: String?, l: StatoLinea, adesso: Long): String {
+        val q = Linea.qualita(l.misure)
+        val fase = Linea.parolaFase(Linea.faseVista(l, adesso))
+        val righe = mutableListOf(
+            "SierraDeck — dettagli per l’aiuto",
+            "App: $app (codice $codice)",
+            "Computer: ${nomePc ?: "non ancora letto"}, SierraDeck ${versionePc ?: "versione non ancora letta"}",
+            "Collegamento: $fase, strada ${Linea.stradaBreve(l.strada)}, qualità ${q.parola}" + (q.ritardoMs?.let { ", $it ms" } ?: "")
+        )
+        val storia = l.storia.takeLast(8)
+        if (storia.isNotEmpty()) { righe += "Ultimi eventi del collegamento:"; for (e in storia) righe += "  " + Linea.rigaStoria(e) }
+        return righe.joinToString("\n")
+    }
 }

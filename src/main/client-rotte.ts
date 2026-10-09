@@ -18,6 +18,7 @@ import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/dom
 import { alberoChat } from '@shared/harness'
 import type { NoteAggiornamento } from '@shared/note-aggiornamento'
 import { leggiRichiestaPonte } from '@shared/ponte-telefono'
+import { MODELLI } from '@shared/modelli'
 import {
   bozzaDaCorpo, controllaBozzaAutopilota, controllaNomeWorkspace, ULTIMO_WORKSPACE,
   type AzioneFinestra, type EsitoAzioneFinestra, type RichiestaAutopilota
@@ -44,7 +45,7 @@ export function daAltroPc(dispositivo: string | undefined): boolean {
 }
 
 /** Le rotte che mostrano o scrivono dentro una chat: passano dal PIN (0.49.0). */
-const ROTTE_DENTRO_CHAT = new Set(['/api/storia', '/api/dentro', '/api/scrivi', '/api/scegli', '/api/chat/chiudi', '/api/chat/nome', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta'])
+const ROTTE_DENTRO_CHAT = new Set(['/api/storia', '/api/dentro', '/api/scrivi', '/api/scegli', '/api/chat/chiudi', '/api/chat/nome', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta', '/api/chat/ospite'])
 import type { TentativoFallito } from '@shared/tentativo-installazione'
 import type { AvvisoDrive } from '@shared/scoperta-pc'
 import type { EsitoNegozio, McpVoce, PluginVoce, SkillVoce } from '@shared/negozio'
@@ -231,7 +232,7 @@ export type DipendenzeRotte = {
    * più, che si chiude al computer. È per questo che c'è, mentre chiudere no.
    */
   /** `workspace`: dove metterla (0.55.0); senza, quello che la finestra ha davanti. */
-  apriChat: (cartella: string, modello?: string, workspace?: string) => void
+  apriChat: (cartella: string, modello?: string, workspace?: string, nome?: string) => void
   /**
    * I workspace, e **tutte** le chat che contengono.
    *
@@ -276,6 +277,12 @@ export type DipendenzeRotte = {
   azioneFinestra?: (a: AzioneFinestra) => Promise<EsitoAzioneFinestra>
   /** La cartella dell'utente: un autopilota non lavora lì né in una radice di disco. */
   cartellaUtente?: () => string
+  /** Archiviare un autopilota fermo (0.56.0), come dal pannello del PC. */
+  archiviaAutopilota?: (id: string, archivia: boolean) => Promise<void>
+  /** Proteggere o no una chat con il PIN (0.56.0): `pin:proteggiChat` del PC. */
+  proteggiChat?: (sessione: string, si: boolean) => void
+  /** «Ospitata da» (0.56.0): `casa:scegli` del PC. `pc.id = 'qui'` = questo PC. */
+  scegliOspite?: (sessioni: string[], pc: { id: string; nome: string }) => Promise<{ ok: boolean; messaggio: string }>
   /**
    * Elimina un autopilota. È la prima cosa che *disfa* qualcosa da qui.
    *
@@ -1335,6 +1342,9 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         return { stato: 404, corpo: { errore: 'cartella inesistente' } }
       }
       const modello = stringa(r.corpo, 'modello')
+      // Il modello (0.56.0): solo uno dell'elenco del PC.
+      if (modello !== '' && !MODELLI.some((m) => m.valore === modello)) return { stato: 400, corpo: { errore: `«${modello}» non è un modello che il computer conosce: sceglilo dall'elenco.` } }
+      const nomeChat = stringa(r.corpo, 'nome').trim().slice(0, 80)
       // Il workspace (0.55.0): solo uno che c'è. Un nome sbagliato non deve
       // creare un workspace di nascosto.
       const ws = stringa(r.corpo, 'workspace')
@@ -1342,7 +1352,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         const nomi = (await deps.workspace().catch(() => undefined))?.nomi ?? []
         if (!nomi.includes(ws)) return { stato: 404, corpo: { errore: `il workspace «${ws}» non c'è su questo computer: crealo prima, o scegline uno dell'elenco` } }
       }
-      deps.apriChat(cartella, modello === '' ? undefined : modello, ws === '' ? undefined : ws)
+      deps.apriChat(cartella, modello === '' ? undefined : modello, ws === '' ? undefined : ws, nomeChat === '' ? undefined : nomeChat)
       return OK({ fatto: true })
     }
 
@@ -1924,6 +1934,47 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       }
       deps.chiudiChat(id)
       return OK({ fatto: true })
+    }
+
+    // I modelli fra cui scegliere per una chat nuova (0.56.0): gli stessi della fascia del PC.
+    if (r.percorso === '/api/modelli') return OK({ modelli: MODELLI })
+
+    // Archiviare un autopilota fermo (0.56.0): come dal pannello del PC.
+    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/archivia') {
+      const id = stringa(r.corpo, 'autopilota')
+      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
+      if (deps.archiviaAutopilota === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora archiviare da qui: aggiornalo alla 0.56.0.' } }
+      const a = (await deps.autopiloti().catch(() => [] as Autopilota[])).find((x) => x.id === id)
+      if (a === undefined) return { stato: 404, corpo: { errore: 'Questo autopilota non c’è più.' } }
+      const archivia = (r.corpo as { archivia?: unknown } | undefined)?.archivia !== false
+      if (archivia && !eFermo(a)) return { stato: 409, corpo: { errore: 'Si archivia solo un autopilota fermo (sospeso o fallito): prima fermalo con «Ferma».' } }
+      await deps.archiviaAutopilota(id, archivia)
+      return OK({ fatto: true })
+    }
+
+    // Il PIN di una chat dal telefono (0.56.0). Proteggere si può sempre;
+    // togliere la protezione solo a chat aperta per chi guarda (dopo il PIN),
+    // altrimenti chiunque avesse il telefono la toglierebbe senza saperlo.
+    if (r.metodo === 'POST' && r.percorso === '/api/pin/proteggi') {
+      if (g === undefined || deps.proteggiChat === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora proteggere una chat da qui: aggiornalo alla 0.56.0.' } }
+      if (!g.stato().impostato) return { stato: 409, corpo: { errore: 'Sul computer non c’è ancora un PIN: si sceglie là, in Impostazioni → Chat e autopiloti → PIN. Poi da qui si protegge ogni chat.' } }
+      const c = depsPieni.chat().find((x) => x.id === stringa(r.corpo, 'chat'))
+      if (c === undefined || c.sessione === undefined || c.sessione === '') return { stato: 404, corpo: { errore: 'Questa chat non è aperta sul computer, o non ha ancora una conversazione.' } }
+      const si = (r.corpo as { si?: unknown } | undefined)?.si !== false
+      if (!si && g.protetta(c) && g.chiusa(visore, c)) return { stato: STATO_CHIUSA, corpo: { ...rifiutoChiusa(c.titolo), chat: c.id } }
+      deps.proteggiChat(c.sessione, si)
+      return OK({ fatto: true })
+    }
+
+    // «Ospitata da» (0.56.0): quale PC fa girare questa chat, con la conferma lunga del PC.
+    if (r.metodo === 'POST' && r.percorso === '/api/chat/ospite') {
+      if (deps.scegliOspite === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora scegliere l’ospite da qui: aggiornalo alla 0.56.0.' } }
+      const c = depsPieni.chat().find((x) => x.id === stringa(r.corpo, 'chat'))
+      if (c === undefined || c.sessione === undefined || c.sessione === '') return { stato: 404, corpo: { errore: 'Questa chat non è aperta sul computer, o non ha ancora una conversazione.' } }
+      const pc = stringa(r.corpo, 'pc')
+      if (pc === '') return { stato: 400, corpo: { errore: 'Scegli il PC che la ospita.' } }
+      const e = await deps.scegliOspite([c.sessione], { id: pc, nome: stringa(r.corpo, 'pcNome') || pc })
+      return e.ok ? OK({ fatto: true, messaggio: e.messaggio }) : { stato: 409, corpo: { errore: e.messaggio } }
     }
 
     // Mettere a dormire, svegliare, spostare in un altro workspace (0.55.0):

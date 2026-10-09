@@ -641,12 +641,20 @@ private fun AzioniAutopilota(api: Api, id: String, stato: String) {
             onClick = { fai("fermarlo") { api.fermaAutopilota(id) } },
             modifier = Modifier.fillMaxWidth()
         ) { Text(if (inCorso) "Fermo…" else "Si sta preparando (legge il progetto; se ha un dubbio ti chiede qui e nelle Domande): ferma") }
-        else -> Button(
-            enabled = !inCorso,
-            shape = MaterialTheme.shapes.small,
-            onClick = { fai("riprenderlo") { api.riprendiAutopilota(id) } },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text(if (inCorso) "Riprendo…" else "Riprendi da dove si è fermato") }
+        else -> Column {
+            Button(
+                enabled = !inCorso,
+                shape = MaterialTheme.shapes.small,
+                onClick = { fai("riprenderlo") { api.riprendiAutopilota(id) } },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (inCorso) "Riprendo…" else "Riprendi da dove si è fermato") }
+            // Archiviare un autopilota fermo (app 2.56.0), come dal pannello del PC.
+            if (stato == "sospeso" || stato == "fallito") {
+                TextButton(enabled = !inCorso, onClick = { fai("archiviarlo") { api.archiviaAutopilota(id, true) } }) {
+                    Text("Archivia — esce dall’elenco dei lavori, non si cancella niente")
+                }
+            }
+        }
     }
 }
 

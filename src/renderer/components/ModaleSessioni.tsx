@@ -11,6 +11,7 @@ import {
 } from '../raggruppa-sessioni'
 import { descriviAvanzamento } from '../avanzamento-vista'
 import { ModaleConferma } from './ModaleConferma'
+import { comeRiprendere } from '../riprendi-sessione'
 import type { SessionSummary } from '@shared/types'
 import type { Anteprima } from '../../main/anteprima'
 import type { PcRemoto } from '@shared/pc-remoto'
@@ -191,17 +192,19 @@ export function ModaleSessioni({ onChiudi }: { onChiudi: () => void }): React.JS
   }
 
   const apri = (s: SessionSummary, titolo: string): void => {
-    const cwd = s.cwd ?? s.projectPath
-    const a = altrove[cwd]
     // Una chat di un altro PC acceso si apre **dal vivo la'**: il riquadro
     // bussa a quel PC e mostra il suo terminale. Se e' spento si apre il
     // riquadro normale, che spiega e offre la cassetta e «Aprila qui lo stesso».
-    if (a !== undefined && a.id !== '' && a.vivo) {
-      addPane(cwd, titolo, undefined, { sessionUuid: s.uuid, remoto: { pcId: a.id, pcNome: a.nome, cwd, sessione: s.uuid } })
-      onChiudi()
-      return
+    // Una di qui si apre **con il suo identificativo** (0.56.0): prima nasceva
+    // una chat nuova e vuota nella stessa cartella (`riprendi-sessione.ts`).
+    const scelta = comeRiprendere(s, altrove[s.cwd ?? s.projectPath], Object.values(useLayoutStore.getState().panes))
+    if (scelta.tipo === 'gia') {
+      if (scelta.sveglia) useLayoutStore.getState().sveglia(scelta.paneId)
+    } else if (scelta.tipo === 'remota') {
+      addPane(scelta.cwd, titolo, undefined, { sessionUuid: scelta.sessionUuid, remoto: scelta.remoto })
+    } else {
+      addPane(scelta.cwd, titolo, undefined, { sessionUuid: scelta.sessionUuid })
     }
-    addPane(cwd, titolo)
     onChiudi()
   }
 

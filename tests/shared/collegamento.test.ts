@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   accoda, attesaPrima, erroreDiStrada, cambioVisibile, CAMBIO_VISIBILE_MS, consegnato, creaMemoriaInvii, eOra, fraSecondi, iconaStrada, inInvio,
   KEEPALIVE_OGNI_MS, LINEA_NUOVA, mappaPc, meglio, nonPartito, passo, prossimoDaMandare, qualita, rigaStoria, stradaMigliore,
-  taccheTesto, testoRiconnessione, type Linea
+  taccheTesto, testoRiconnessione, faseVista, parolaFase, LENTA_DOPO_MS, type Linea
 } from '@shared/collegamento'
 
 /** 0.51.0: il collegamento verso un altro PC, con le cadute simulate. */
@@ -28,19 +28,25 @@ describe('la qualità', () => {
 })
 
 describe('la macchina degli stati, con cadute, ritorni e cambi di strada', () => {
-  it('collegato su rete di casa → caduta → tentativi con attese crescenti → torna via WebRTC → torna la rete di casa', () => {
+  it('collegato su rete di casa → caduta vera → tentativi con attese crescenti → torna via WebRTC → torna la rete di casa', () => {
     let l: Linea = passo(LINEA_NUOVA, { tipo: 'ok', il: 0, ritardoMs: 30, strada: 'lan' })
     expect(l).toMatchObject({ fase: 'collegato', strada: 'lan', tentativo: 0 })
     expect(eOra(l, 0, KEEPALIVE_OGNI_MS - 1)).toBe(false)
     expect(eOra(l, 0, KEEPALIVE_OGNI_MS)).toBe(true)
-    // Il keepalive non risponde: caduta.
+    // Il keepalive non risponde: prima «linea lenta», al ritmo di sempre (0.56.0).
     l = passo(l, { tipo: 'errore', il: 10_000, motivo: 'irraggiungibile', messaggio: 'non risponde' })
-    expect(l).toMatchObject({ fase: 'ricollego', tentativo: 1, prossimoIl: 11_000, cadutaIl: 10_000 })
-    expect(testoRiconnessione(l, 'LAPTOP', 10_000)).toBe('Collegamento con LAPTOP caduto da 0 s · tentativo 1 · riprovo fra 1 s')
-    expect(eOra(l, 10_000, 10_500)).toBe(false)
-    expect(eOra(l, 10_000, 11_000)).toBe(true)
+    expect(l).toMatchObject({ fase: 'lenta', falliti: 1 })
+    expect(l.prossimoIl).toBeUndefined()
+    l = passo(l, { tipo: 'errore', il: 16_000, motivo: 'irraggiungibile', messaggio: 'non risponde' })
+    expect(l.fase).toBe('lenta')
+    // Tre fallimenti di fila e più di 20 s senza niente: caduta, che comincia dall'ultimo segno di vita.
+    l = passo(l, { tipo: 'errore', il: 22_000, motivo: 'irraggiungibile', messaggio: 'non risponde' })
+    expect(l).toMatchObject({ fase: 'ricollego', tentativo: 1, prossimoIl: 23_000, cadutaIl: 0 })
+    expect(testoRiconnessione(l, 'LAPTOP', 22_000)).toBe('Collegamento con LAPTOP caduto da 22 s · tentativo 1 · riprovo fra 1 s')
+    expect(eOra(l, 22_000, 22_500)).toBe(false)
+    expect(eOra(l, 22_000, 23_000)).toBe(true)
     const attese: number[] = []
-    let t = 11_000
+    let t = 23_000
     for (let i = 0; i < 5; i++) {
       l = passo(l, { tipo: 'errore', il: t, motivo: 'irraggiungibile' })
       attese.push((l.prossimoIl ?? 0) - t)
@@ -51,24 +57,58 @@ describe('la macchina degli stati, con cadute, ritorni e cambi di strada', () =>
     // «Riprova adesso»: il prossimo tentativo è subito.
     l = passo(l, { tipo: 'riprova-adesso', il: t - 20_000 })
     expect(fraSecondi(l, t - 20_000)).toBe(0)
-    // Torna, ma per un'altra strada.
+    // Torna, per un'altra strada: la prima risposta fa «lenta», la seconda «collegato» (isteresi).
     l = passo(l, { tipo: 'ok', il: t, ritardoMs: 180, strada: 'webrtc' })
+    expect(l).toMatchObject({ fase: 'lenta', strada: 'webrtc' })
+    l = passo(l, { tipo: 'ok', il: t + 2000, ritardoMs: 170, strada: 'webrtc' })
     expect(l).toMatchObject({ fase: 'collegato', strada: 'webrtc', tentativo: 0 })
     expect(l.prossimoIl).toBeUndefined()
-    expect(cambioVisibile(l, t + 1000)).toBe('Passo da rete di casa a WebRTC')
-    expect(cambioVisibile(l, t + CAMBIO_VISIBILE_MS + 1)).toBeUndefined()
     // La rete di casa torna: si ripassa da sola, senza cadute.
     l = passo(l, { tipo: 'ok', il: t + 30_000, ritardoMs: 20, strada: 'lan' })
     expect(cambioVisibile(l, t + 30_001)).toBe('Passo da WebRTC a rete di casa')
-    expect(l.storia.map((e) => e.tipo)).toEqual(['collegato', 'caduta', 'tornato', 'cambio', 'cambio'])
+    expect(l.storia.map((e) => e.tipo)).toEqual(['collegato', 'caduta', 'tornato', 'cambio'])
     const tornato = l.storia[2]
     expect(tornato).toMatchObject({ tipo: 'tornato', tentativi: 6 })
     expect(rigaStoria(l.storia[1]!)).toContain('caduta (rete di casa): non risponde')
-    expect(rigaStoria(tornato!)).toMatch(/tornato \(WebRTC\) dopo \d+ s e 6 tentativi/)
+    expect(rigaStoria(tornato!)).toMatch(/tornato \(WebRTC\) dopo \d+ (s|min) e 6 tentativi/)
+  })
+  it('il caso di Nicholas (09/10): lo schermo arriva mentre il controllo fallisce — mai «non connesso»', () => {
+    // Ogni due secondi il controllo dello stato scade (pesante, 6 s); intanto
+    // la storia della chat arriva ogni secondo e mezzo. Per due minuti.
+    let l: Linea = passo(LINEA_NUOVA, { tipo: 'ok', il: 0, ritardoMs: 40, strada: 'tailscale' })
+    const fasi = new Set<string>()
+    for (let t = 1000; t <= 120_000; t += 500) {
+      if (t % 2000 === 0) l = passo(l, { tipo: 'errore', il: t, motivo: 'irraggiungibile', messaggio: 'non ha risposto in 6 secondi' })
+      if (t % 1500 === 0) l = passo(l, { tipo: 'ok', il: t, ritardoMs: 300, strada: 'tailscale' })
+      fasi.add(faseVista(l, t))
+    }
+    expect(fasi.has('ricollego')).toBe(false)
+    expect(l.storia.map((e) => e.tipo)).toEqual(['collegato'])
+  })
+  it('una richiesta appesa senza errore: «linea lenta» dopo 8 s di silenzio, verde alla risposta', () => {
+    const l = passo(LINEA_NUOVA, { tipo: 'ok', il: 0, ritardoMs: 40 })
+    expect(faseVista(l, LENTA_DOPO_MS - 1)).toBe('collegato')
+    expect(faseVista(l, LENTA_DOPO_MS)).toBe('lenta')
+    expect(faseVista(passo(l, { tipo: 'ok', il: LENTA_DOPO_MS + 100, ritardoMs: 9000 }), LENTA_DOPO_MS + 200)).toBe('collegato')
+    expect(parolaFase('lenta')).toEqual({ parola: 'linea lenta', colore: 'ambra' })
+    expect(parolaFase('ricollego')).toEqual({ parola: 'non connesso', colore: 'rosso' })
+  })
+  it('molti fallimenti ma un segno di vita recente: lenta; tanto silenzio ma pochi fallimenti: lenta', () => {
+    let l: Linea = passo(LINEA_NUOVA, { tipo: 'ok', il: 0, ritardoMs: 40 })
+    for (let i = 1; i <= 5; i++) l = passo(l, { tipo: 'errore', il: i * 1000, motivo: 'irraggiungibile' })
+    expect(l.fase).toBe('lenta')
+    let m: Linea = passo(LINEA_NUOVA, { tipo: 'ok', il: 0, ritardoMs: 40 })
+    m = passo(m, { tipo: 'errore', il: 60_000, motivo: 'irraggiungibile' })
+    m = passo(m, { tipo: 'errore', il: 61_000, motivo: 'irraggiungibile' })
+    expect(m.fase).toBe('lenta')
+    m = passo(m, { tipo: 'errore', il: 62_000, motivo: 'irraggiungibile' })
+    expect(m.fase).toBe('ricollego')
+    // Senza mai un segno di vita (il primo collegamento): giù subito, come prima, per la schermata dei tentativi.
+    expect(passo(LINEA_NUOVA, { tipo: 'errore', il: 0, motivo: 'irraggiungibile' }).fase).toBe('ricollego')
   })
   it('la storia si tiene corta, le misure anche', () => {
     let l: Linea = LINEA_NUOVA
-    for (let i = 0; i < 100; i++) l = passo(l, i % 2 === 0 ? { tipo: 'ok', il: i * 1000, ritardoMs: 10 } : { tipo: 'errore', il: i * 1000, motivo: 'x' })
+    for (let i = 0; i < 100; i++) l = passo(l, { tipo: 'ok', il: i * 1000, ritardoMs: 10, strada: i % 2 === 0 ? 'lan' : 'webrtc' })
     expect(l.storia.length).toBe(30)
     expect(l.misure.length).toBe(12)
   })

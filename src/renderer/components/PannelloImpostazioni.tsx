@@ -9,6 +9,16 @@ import { SezioneScorciatoie } from './SezioneScorciatoie'
 import { useLayoutStore } from '../state/layout'
 import { contaChat, contaWorkspace, eChiusuraAutomatica, type Istantanea } from '@shared/istantanea'
 import { SezionePin } from './SezionePin'
+import { SezioneAggiornamenti } from './SezioneAggiornamenti'
+import { NomeQuestoPc } from './PannelloAccount'
+import { cercaImpostazioni, SEZIONI, type IdSezione } from '@shared/impostazioni-struttura'
+
+/** La testata di una sezione: il titolo e la frase che dice cosa c'è dentro (0.56.0). */
+function Testa({ id }: { id: IdSezione }): React.JSX.Element | null {
+  const sez = SEZIONI.find((x) => x.id === id)
+  if (sez === undefined) return null
+  return <><h4>{sez.titolo}</h4><div className="impostazioni__nota">{sez.spiega}</div></>
+}
 
 function quandoChiusura(iso: string): string {
   const d = new Date(iso)
@@ -253,8 +263,19 @@ const ACCENTI = ['#4aa3ff', '#54c07a', '#e0a33c', '#dc5f5f', '#b18cf0', '#37c8c3
  * mentre le fai: cambiare colore e dover premere «Salva» per vedere com'è
  * significa sceglierlo alla cieca.
  */
-function SchedaGenerali(): React.JSX.Element {
+function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Element {
   const [p, setP] = useState<Preferenze>(PREFERENZE_PREDEFINITE)
+  // La ricerca e le sezioni (0.56.0).
+  const [q, setQ] = useState('')
+  const visibili = new Set(cercaImpostazioni(q, 'pc').map((v) => v.id))
+  const vede = (...id: string[]): boolean => id.some((x) => visibili.has(x))
+  const [versione, setVersione] = useState('')
+  useEffect(() => { void window.gestore.sistema.versione().then(setVersione).catch(() => undefined) }, [])
+  const [nota, setNota] = useState<string | undefined>(undefined)
+  const copiaDettagli = (): void => {
+    const testo = [`SierraDeck ${versione} — dettagli per l’aiuto`, `Sistema: ${navigator.userAgent}`, `Stile: ${p.stile}, porte ${p.portaClient}/${p.portaAutopiloti}, fuori dalla rete: ${p.clientOltreLaRete ? 'sì' : 'no'}`].join(String.fromCharCode(10))
+    void navigator.clipboard.writeText(testo).then(() => setNota('Dettagli copiati: incollali dove chiedi aiuto. Non ci sono chiavi né password.')).catch(() => setNota(testo))
+  }
   const [errore, setErrore] = useState<string | undefined>(undefined)
   const [salvato, setSalvato] = useState(false)
 
@@ -292,9 +313,177 @@ function SchedaGenerali(): React.JSX.Element {
 
       {errore !== undefined ? <div className="riga__stato" style={{ color: 'var(--ambra)' }}>{errore}</div> : null}
 
+      {/* La ricerca in alto (0.56.0): sezioni e voci da @shared/impostazioni-struttura. */}
+      <input
+        className="campo"
+        style={{ width: '100%', margin: '8px 0' }}
+        value={q}
+        placeholder="Cerca nelle impostazioni (per esempio: aggiornamento, PIN, porta, colore)"
+        onChange={(e) => setQ(e.target.value)}
+      />
+      {q.trim() !== '' && visibili.size === 0 ? <div className="impostazioni__nota">Niente con «{q.trim()}». Prova con un’altra parola.</div> : null}
       <div className="impostazioni">
-        <section className="impostazioni__gruppo">
-          <h4>Aspetto</h4>
+        {vede('versioni', 'aggiorna-pc', 'scarica-da-solo', 'ultimo-tentativo') ? (
+          <section className="impostazioni__gruppo">
+            <Testa id="aggiornamenti" />
+            <SezioneAggiornamenti p={p} cambia={cambia} versione={versione} />
+          </section>
+        ) : null}
+
+        {vede('nome-pc', 'altri-pc', 'accoppiamento', 'porte', 'oltre-la-rete') ? (
+          <section className="impostazioni__gruppo">
+            <Testa id="computer" />
+            {vede('nome-pc') ? <NomeQuestoPc /> : null}
+            {vede('altri-pc') ? (
+              <div className="impostazioni__riga">
+                <span>Altri computer e strade</span>
+                <button className="tasto" onClick={() => window.dispatchEvent(new CustomEvent('sierradeck:apri-pannello', { detail: 'salute' }))}>Apri la mappa dei PC (Salute)</button>
+                <button className="tasto" onClick={onAccount}>Elenco e cassetta (Account)</button>
+              </div>
+            ) : null}
+            {vede('oltre-la-rete') ? <>
+          <label className="impostazioni__riga impostazioni__riga--spunta">
+            <input
+              type="checkbox"
+              checked={p.clientOltreLaRete}
+              onChange={(e) => cambia({ clientOltreLaRete: e.target.checked })}
+            />
+            <span>Accetta il Client anche da fuori la rete locale (VPN, altra sede)</span>
+          </label>
+          <div className="impostazioni__nota">
+            Con questo acceso resta <b>solo</b> la chiave del dispositivo a difendere
+            un programma che esegue codice. Tienilo spento se non ti serve.
+          </div>
+            </> : null}
+            {vede('porte') ? <>
+          <label className="impostazioni__riga">
+            <span>Porta del Client</span>
+            <input
+              type="number"
+              value={p.portaClient}
+              onChange={(e) => cambia({ portaClient: Number(e.target.value) })}
+            />
+          </label>
+          <label className="impostazioni__riga">
+            <span>Porta degli autopiloti</span>
+            <input
+              type="number"
+              value={p.portaAutopiloti}
+              onChange={(e) => cambia({ portaAutopiloti: Number(e.target.value) })}
+            />
+          </label>
+          <div className="impostazioni__nota">
+            Le porte cambiate valgono al prossimo avvio: un servizio in ascolto non
+            cambia porta mentre qualcuno ci sta parlando.
+          </div>
+            </> : null}
+          </section>
+        ) : null}
+        {vede('accoppiamento') ? <SezioneClient /> : null}
+
+        {vede('pin', 'ospite', 'iberna', 'attesa-chat', 'posto-autopilota') ? (
+          <section className="impostazioni__gruppo">
+            <Testa id="chat" />
+            {vede('ospite') ? (
+              <div className="impostazioni__riga">
+                <span>Dove vive ogni chat</span>
+                <button className="tasto" onClick={() => window.dispatchEvent(new Event('sierradeck:dove-vive'))}>Apri «Dove vive ogni chat»</button>
+              </div>
+            ) : null}
+            {vede('iberna') ? <>
+          <label className="impostazioni__riga impostazioni__riga--spunta">
+            <input
+              type="checkbox"
+              checked={p.ibernaCambiandoWorkspace}
+              onChange={(e) => cambia({ ibernaCambiandoWorkspace: e.target.checked })}
+            />
+            <span>Cambiando workspace, manda a dormire le chat che lasci</span>
+          </label>
+          <div className="impostazioni__nota">
+            Ogni chat aperta tiene acceso un <b>claude.exe</b>. Spento, restano tutte
+            vive e tornare è istantaneo; acceso, si chiudono e la conversazione
+            riparte da dove era con un tocco.
+          </div>
+            </> : null}
+            {vede('attesa-chat') ? <>
+          <label className="impostazioni__riga impostazioni__riga--spunta">
+            <input
+              type="checkbox"
+              checked={p.mostraAttesaChat}
+              onChange={(e) => cambia({ mostraAttesaChat: e.target.checked })}
+            />
+            <span>Mostra l’avanzamento mentre una chat lunga si apre</span>
+          </label>
+            <div className="impostazioni__nota">Mentre una conversazione lunga si riapre il riquadro mostra quanto manca, invece di restare vuoto.</div>
+            </> : null}
+            {vede('posto-autopilota') ? <>
+          <label className="impostazioni__riga">
+            <span>Dove mostrarlo</span>
+            <select
+              value={p.postoAutopilota}
+              onChange={(e) => cambia({ postoAutopilota: e.target.value as Preferenze['postoAutopilota'] })}
+            >
+              <option value="destra">A destra della chat</option>
+              <option value="sinistra">A sinistra</option>
+              <option value="sopra">Sopra</option>
+              <option value="sotto">Sotto</option>
+            </select>
+          </label>
+          <label className="impostazioni__riga">
+            <span>Quanto spazio prende</span>
+            <input
+              type="range"
+              min={15}
+              max={70}
+              value={p.larghezzaAutopilota}
+              onChange={(e) => cambia({ larghezzaAutopilota: Number(e.target.value) })}
+            />
+          </label>
+          <div className="impostazioni__nota">
+            Di lato è larghezza, sopra o sotto è altezza: è sempre la stessa
+            misura, presa sull’asse su cui il diario cresce. Si può anche
+            trascinare il solco fra terminale e diario.
+          </div>
+            </> : null}
+            <div className="impostazioni__nota">«Riparti al login» degli autopiloti sta nel pannello Autopiloti, accanto all’elenco: vale per tutti insieme.</div>
+          </section>
+        ) : null}
+        {vede('pin') ? <SezionePin /> : null}
+
+        {vede('drive', 'torna-indietro', 'fumetti-sincronia') ? (
+          <section className="impostazioni__gruppo">
+            <Testa id="drive" />
+            {vede('drive') ? (
+              <div className="impostazioni__riga">
+                <span>Drive e cassaforte</span>
+                <button className="tasto" onClick={onAccount}>Apri Account → Drive</button>
+              </div>
+            ) : null}
+            {vede('fumetti-sincronia') ? <>
+          <label className="impostazioni__riga impostazioni__riga--spunta">
+            <input
+              type="checkbox"
+              checked={p.fumettiSincroniaAutomatica}
+              onChange={(e) => cambia({ fumettiSincroniaAutomatica: e.target.checked })}
+            />
+            <span>Mostra un fumetto anche per la sincronia automatica con il Drive</span>
+          </label>
+          <div className="impostazioni__nota">
+            La sincronia con il Drive non sta più in una striscia in alto: gli avvisi sono fumetti in basso a
+            destra, che compaiono e spariscono senza spostare i riquadri. Il lavoro che chiedi tu (Fondi, Ripristina,
+            Porta qui) ha sempre il suo fumetto con la barra, «Dettagli» e «Annulla». Il lavoro automatico
+            (il salvataggio ogni cinque minuti, l’arrivo delle chat) spento non si vede: se ne parla solo se va
+            male. Acceso, mostra una riga piccola con la percentuale, senza tasti.
+          </div>
+            </> : null}
+          </section>
+        ) : null}
+        {vede('torna-indietro') ? <SezioneTornaIndietro /> : null}
+
+        {vede('colore', 'stile', 'scorciatoie') ? (
+          <section className="impostazioni__gruppo">
+            <Testa id="aspetto" />
+            {vede('colore') ? <>
           <label className="impostazioni__riga">
             <span>Colore</span>
             <span className="accenti">
@@ -326,69 +515,8 @@ function SchedaGenerali(): React.JSX.Element {
               onChange={(e) => cambia({ chiarore: Number(e.target.value) })}
             />
           </label>
-          <div className="impostazioni__nota">
-            Il chiarore va da 0 (fondo nero) a 100 (fondo chiaro); il predefinito è {PREFERENZE_PREDEFINITE.chiarore}, e
-            si applica subito a tutta la finestra. «Torna ai valori di fabbrica» rimette accento, chiarore, stile e
-            porte ai predefiniti ({PREFERENZE_PREDEFINITE.accento}, {PREFERENZE_PREDEFINITE.chiarore},
-            porte {PREFERENZE_PREDEFINITE.portaClient} e {PREFERENZE_PREDEFINITE.portaAutopiloti}) senza toccare chat,
-            workspace o account. Se una modifica non resta al prossimo avvio, il file delle impostazioni non si è
-            scritto: qui compare un errore e il registro dice perché.
-          </div>
-        </section>
-
-        <section className="impostazioni__gruppo">
-          <h4>Rete</h4>
-          <label className="impostazioni__riga">
-            <span>Porta del Client</span>
-            <input
-              type="number"
-              value={p.portaClient}
-              onChange={(e) => cambia({ portaClient: Number(e.target.value) })}
-            />
-          </label>
-          <label className="impostazioni__riga">
-            <span>Porta degli autopiloti</span>
-            <input
-              type="number"
-              value={p.portaAutopiloti}
-              onChange={(e) => cambia({ portaAutopiloti: Number(e.target.value) })}
-            />
-          </label>
-          <div className="impostazioni__nota">
-            Le porte cambiate valgono al prossimo avvio: un servizio in ascolto non
-            cambia porta mentre qualcuno ci sta parlando.
-          </div>
-          <label className="impostazioni__riga impostazioni__riga--spunta">
-            <input
-              type="checkbox"
-              checked={p.clientOltreLaRete}
-              onChange={(e) => cambia({ clientOltreLaRete: e.target.checked })}
-            />
-            <span>Accetta il Client anche da fuori la rete locale (VPN, altra sede)</span>
-          </label>
-          <div className="impostazioni__nota">
-            Con questo acceso resta <b>solo</b> la chiave del dispositivo a difendere
-            un programma che esegue codice. Tienilo spento se non ti serve.
-          </div>
-          <label className="impostazioni__riga impostazioni__riga--spunta">
-            <input
-              type="checkbox"
-              checked={p.ibernaCambiandoWorkspace}
-              onChange={(e) => cambia({ ibernaCambiandoWorkspace: e.target.checked })}
-            />
-            <span>Cambiando workspace, manda a dormire le chat che lasci</span>
-          </label>
-          <div className="impostazioni__nota">
-            Ogni chat aperta tiene acceso un <b>claude.exe</b>. Spento, restano tutte
-            vive e tornare è istantaneo; acceso, si chiudono e la conversazione
-            riparte da dove era con un tocco.
-          </div>
-        </section>
-
-        <SezioneClient />
-
-        <section className="impostazioni__gruppo">
-          <h4>Come si veste</h4>
+            </> : null}
+            {vede('stile') ? <>
           <label className="impostazioni__riga">
             <span>Stile della console</span>
             <select
@@ -404,96 +532,23 @@ function SchedaGenerali(): React.JSX.Element {
               ? 'Cornice sottile e riquadri a filo: su uno schermo pieno sono quattro righe di terminale in più per chat. Si impara per posizione.'
               : 'Più aria e angoli morbidi: quattro righe in meno, restituite in riposo per gli occhi dopo otto ore davanti allo schermo.'}
           </div>
+            </> : null}
+          </section>
+        ) : null}
+        {vede('scorciatoie') ? <SezioneScorciatoie p={p} cambia={cambia} /> : null}
 
-          <h4>Autopilota</h4>
-          <label className="impostazioni__riga">
-            <span>Dove mostrarlo</span>
-            <select
-              value={p.postoAutopilota}
-              onChange={(e) => cambia({ postoAutopilota: e.target.value as Preferenze['postoAutopilota'] })}
-            >
-              <option value="destra">A destra della chat</option>
-              <option value="sinistra">A sinistra</option>
-              <option value="sopra">Sopra</option>
-              <option value="sotto">Sotto</option>
-            </select>
-          </label>
-          <label className="impostazioni__riga">
-            <span>Quanto spazio prende</span>
-            <input
-              type="range"
-              min={15}
-              max={70}
-              value={p.larghezzaAutopilota}
-              onChange={(e) => cambia({ larghezzaAutopilota: Number(e.target.value) })}
-            />
-          </label>
-          <div className="impostazioni__nota">
-            Di lato è larghezza, sopra o sotto è altezza: è sempre la stessa
-            misura, presa sull’asse su cui il diario cresce. Si può anche
-            trascinare il solco fra terminale e diario.
-          </div>
-        </section>
-
-        <SezioneTornaIndietro />
-
-        <SezionePin />
-
-        <section className="impostazioni__gruppo">
-          <h4>Comportamento</h4>
-          <label className="impostazioni__riga impostazioni__riga--spunta">
-            <input
-              type="checkbox"
-              checked={p.mostraAttesaChat}
-              onChange={(e) => cambia({ mostraAttesaChat: e.target.checked })}
-            />
-            <span>Mostra l’avanzamento mentre una chat lunga si apre</span>
-          </label>
-          <label className="impostazioni__riga impostazioni__riga--spunta">
-            <input
-              type="checkbox"
-              checked={p.fumettiSincroniaAutomatica}
-              onChange={(e) => cambia({ fumettiSincroniaAutomatica: e.target.checked })}
-            />
-            <span>Mostra un fumetto anche per la sincronia automatica con il Drive</span>
-          </label>
-          <div className="impostazioni__nota">
-            La sincronia con il Drive non sta più in una striscia in alto: gli avvisi sono fumetti in basso a
-            destra, che compaiono e spariscono senza spostare i riquadri. Il lavoro che chiedi tu (Fondi, Ripristina,
-            Porta qui) ha sempre il suo fumetto con la barra, «Dettagli» e «Annulla». Il lavoro automatico
-            (il salvataggio ogni cinque minuti, l’arrivo delle chat) spento non si vede: se ne parla solo se va
-            male. Acceso, mostra una riga piccola con la percentuale, senza tasti.
-          </div>
-          <label className="impostazioni__riga impostazioni__riga--spunta">
-            <input
-              type="checkbox"
-              checked={p.scaricaAggiornamentiAutomatico}
-              onChange={(e) => cambia({ scaricaAggiornamentiAutomatico: e.target.checked })}
-            />
-            <span>Scarica gli aggiornamenti da solo appena li trova</span>
-          </label>
-          <div className="impostazioni__nota">
-            Acceso, scarica in secondo piano e non interrompe niente. Quando è pronto, la striscia in alto mostra
-            «Installa»: ti fa vedere cosa cambia (la versione nuova e quelle che avevi saltato) e da lì scegli
-            «Installa e riavvia» o «Più tardi». Se chiudi SierraDeck senza installarlo, si installa alla chiusura.
-            Spento, non scarica finché non premi «Scarica» nella striscia in alto, e quel tasto compare solo quando
-            questo è spento.
-          </div>
-          {/* Le novità non si aprono più da sole all'avvio (0.39.0): questo è
-              il loro posto, insieme al numero di versione in alto a sinistra. */}
-          <div className="impostazioni__riga">
-            <button className="tasto" onClick={() => window.dispatchEvent(new CustomEvent('sierradeck:apri-novita'))}>
-              Novità di questa versione
-            </button>
-          </div>
-          <div className="impostazioni__nota">
-            Le novità non compaiono più da sole quando apri il programma: le leggi da qui, o premendo il numero di
-            versione in alto. Si apre la stessa finestra di «Installa», con quello che è cambiato nella versione che
-            hai adesso e nelle cinque prima.
-          </div>
-        </section>
-
-        <SezioneScorciatoie p={p} cambia={cambia} />
+        {vede('salute', 'registro', 'copia-dettagli') ? (
+          <section className="impostazioni__gruppo">
+            <Testa id="info" />
+            <div className="impostazioni__riga">
+              {vede('salute') ? <button className="tasto" onClick={() => window.dispatchEvent(new CustomEvent('sierradeck:apri-pannello', { detail: 'salute' }))}>Salute del sistema</button> : null}
+              {vede('registro') ? <button className="tasto" onClick={() => void window.gestore.log.apri()}>Apri il registro</button> : null}
+              {vede('copia-dettagli') ? <button className="tasto" onClick={copiaDettagli}>Copia i dettagli</button> : null}
+            </div>
+            {nota !== undefined ? <div className="impostazioni__nota">{nota}</div> : null}
+            <div className="impostazioni__nota">«Torna ai valori di fabbrica», in cima, rimette tutte le preferenze di questa scheda ai predefiniti (colori, stile, porte, colonne, scorciatoie, comportamenti) senza toccare chat, workspace, PIN o account.</div>
+          </section>
+        ) : null}
       </div>
     </div>
   )
@@ -545,7 +600,7 @@ export function PannelloImpostazioni(
         </div>
       </div>
       <div className="impostazioni__corpo">
-        {tab === 'generali' ? <SchedaGenerali /> : null}
+        {tab === 'generali' ? <SchedaGenerali onAccount={() => setTab('account')} /> : null}
         {tab === 'ai' ? <PannelloProvider incorporato /> : null}
         {tab === 'account' ? <PannelloAccount incorporato /> : null}
         {tab === 'consumi' ? <PannelloConsumi incorporato /> : null}

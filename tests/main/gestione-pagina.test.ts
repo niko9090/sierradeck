@@ -19,8 +19,9 @@ describe('la pagina: gestire chat e workspace', () => {
   it('le conferme sono quelle del PC, con il nome al suo posto', () => {
     // Si valuta solo il pezzo dei testi, come gira nel telefono.
     const inizio = script.indexOf('var CONFERME =')
-    const fine = script.indexOf('function testoConferma(')
-    const corpoFn = script.slice(fine, script.indexOf('\n}\n', fine) + 2)
+    const fine = script.indexOf('// Le sezioni e le voci delle impostazioni')
+    const inizioFn = script.indexOf('function testoConferma(')
+    const corpoFn = script.slice(inizioFn, script.indexOf('\n}\n', inizioFn) + 2)
     const testo = new Function(script.slice(inizio, fine) + corpoFn + ';return testoConferma')() as (t: string, n: string, w?: string) => { titolo: string; testo: string; azione: string }
     expect(testo('chiudi', 'Esempio')).toEqual(confermaChiudi('Esempio'))
     expect(testo('dormi', 'Esempio')).toEqual(confermaDormi('Esempio'))

@@ -26,10 +26,15 @@ const estrai = (inizio: string): string => {
   throw new Error('non si chiude')
 }
 
+/** Le soglie della linea lenta (0.56.0), come stanno nella pagina. */
+const COSTANTI = ['LENTA_DOPO_MS', 'GIU_DOPO_MS', 'GIU_DOPO_FALLITI', 'TORNA_DOPO_OK']
+  .map((n) => script.split(String.fromCharCode(10)).find((r) => r.startsWith(`const ${n} =`)) ?? '').join(';')
+
 type Pagina = { passoLinea: (l: unknown, e: unknown) => Record<string, unknown>; qualitaLinea: (m: unknown) => Record<string, unknown>; eOraLinea: (l: unknown, u: number, a: number) => boolean }
 const pagina = new Function(`
   const ATTESE_LINEA = [1000, 2000, 5000, 10000, 30000]
   const KEEPALIVE_MS = 2000
+  ${COSTANTI}
   ${estrai('function attesaPrima(')}
   ${estrai('function passoLinea(')}
   ${estrai('function qualitaLinea(')}
@@ -61,8 +66,10 @@ describe('la pagina e il PC hanno la stessa macchina del collegamento', () => {
         b = pagina.passoLinea(b, e)
         expect(b.fase).toBe(a.fase)
         expect(b.tentativo).toBe(a.tentativo)
-        expect(b.prossimoIl).toBe(a.fase === 'ricollego' ? a.prossimoIl : undefined)
-        expect(b.cadutaIl).toBe(a.fase === 'ricollego' ? a.cadutaIl : undefined)
+        expect(b.prossimoIl).toBe(a.prossimoIl)
+        expect(b.cadutaIl).toBe(a.cadutaIl)
+        expect(b.ultimoOk).toBe(a.ultimoOk)
+        expect(b.falliti ?? 0).toBe(a.falliti ?? 0)
         expect((b.storia as { tipo: string }[]).map((s) => s.tipo)).toEqual(a.storia.map((s) => s.tipo))
         expect(pagina.qualitaLinea(b.misure)).toEqual(qualita(a.misure))
         expect(pagina.eOraLinea(b, e.il - 1500, e.il + 700)).toBe(eOra(a, e.il - 1500, e.il + 700))
@@ -99,6 +106,7 @@ describe('la coda della pagina', () => {
       var window = {}
       const ATTESE_LINEA = [1000, 2000, 5000, 10000, 30000]
       const KEEPALIVE_MS = 2000
+      ${COSTANTI}
       ${estrai('async function chiedi(')}
       ${estrai('function attesaPrima(')}
       ${estrai('function passoLinea(')}

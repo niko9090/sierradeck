@@ -3438,9 +3438,9 @@ if (!app.requestSingleInstanceLock()) {
         // **Una** finestra, non tutte (0.55.0): con due finestre aperte una
         // richiesta dal telefono apriva due chat nella stessa cartella, una
         // per finestra. Va in quella che mostra il workspace scelto, se c'è.
-        apriChat: (cartella: string, modello?: string, workspace?: string) => {
+        apriChat: (cartella: string, modello?: string, workspace?: string, nome?: string) => {
           finestraPerAprire(workspace)?.webContents.send('client:apri', {
-            cartella, ...(modello !== undefined ? { modello } : {}), ...(workspace !== undefined ? { workspace } : {})
+            cartella, ...(modello !== undefined ? { modello } : {}), ...(workspace !== undefined ? { workspace } : {}), ...(nome !== undefined ? { nome } : {})
           })
         },
         // Le cartelle che Claude Code ha già visto: sono quelle in cui aprire
@@ -3648,6 +3648,17 @@ if (!app.requestSingleInstanceLock()) {
           return { id: a.id }
         },
         azioneFinestra: (a: AzioneFinestra) => azioneAlleFinestre(a),
+        // Le mancanze della parità (0.56.0): archiviare, il PIN, l'ospite, dal telefono.
+        archiviaAutopilota: (id: string, archivia: boolean) => clientAutopilota.archivia(id, archivia),
+        proteggiChat: (sessione: string, si: boolean) => {
+          guardianoPin?.proteggiChat(sessione, si)
+          for (const w of finestreDiChat()) if (!w.isDestroyed()) w.webContents.send('pin:cambiato')
+        },
+        scegliOspite: async (sessioni: string[], pc: { id: string; nome: string }) => {
+          if (ospiteGlobale === undefined || identitaPcGlobale === undefined) return { ok: false, messaggio: 'La sincronia di questo PC non è ancora pronta: riprova fra qualche secondo.' }
+          const scelto = pc.id === 'qui' ? identitaPcGlobale.leggi() : pc
+          return ospiteGlobale.scegli({ sessioni, pc: { id: scelto.id, nome: scelto.nome } })
+        },
         cartellaUtente: () => homedir(),
         versione: app.getVersion(),
         apk: () => apkDisponibile(),

@@ -81,7 +81,24 @@ export function qualita(misure: readonly Misura[]): Qualita {
 /* La macchina degli stati.                                            */
 /* ------------------------------------------------------------------ */
 
-export type FaseLinea = 'cerco' | 'collegato' | 'ricollego'
+/**
+ * `lenta` (0.56.0): qualcosa non è arrivato, ma la linea non è dichiarata
+ * giù. Si dichiara giù (`ricollego`, «non connesso») solo dopo
+ * `GIU_DOPO_MS` senza **nessun** dato e `GIU_DOPO_FALLITI` fallimenti di fila.
+ */
+export type FaseLinea = 'cerco' | 'collegato' | 'lenta' | 'ricollego'
+
+/**
+ * Le soglie del collegamento (0.56.0). Nicholas (09/10): «ci sono volte che
+ * dice che non è connesso e la chat però scorre». Prima bastava **un** giro di
+ * controllo scaduto (6 s) per dichiarare la caduta, mentre lo schermo della
+ * chat continuava ad arrivare da altre richieste che l'indicatore non contava.
+ */
+export const LENTA_DOPO_MS = 8000
+export const GIU_DOPO_MS = 20_000
+export const GIU_DOPO_FALLITI = 3
+/** Da «giù» si torna verdi con due risposte di fila: una sola fa «lenta» (isteresi, niente sfarfallio). */
+export const TORNA_DOPO_OK = 2
 
 export type EventoStoria =
   | { tipo: 'collegato'; il: number; strada?: Strada }
@@ -106,6 +123,11 @@ export type Linea = {
   storia: EventoStoria[]
   /** L'ultimo cambio di strada, per l'animazione «passo da X a Y». */
   cambio?: { da: Strada; a: Strada; il: number }
+  /** L'ultimo segno di vita (0.56.0): qualunque risposta, non solo il controllo. */
+  ultimoOk?: number
+  /** I fallimenti di fila, e le risposte di fila dopo una caduta (0.56.0). */
+  falliti?: number
+  okDiFila?: number
 }
 
 export const LINEA_NUOVA: Linea = { fase: 'cerco', tentativo: 0, misure: [], storia: [] }
@@ -128,8 +150,18 @@ export function passo(l: Linea, e: EventoLinea): Linea {
   if (e.tipo === 'ok') {
     let storia = l.storia
     let cambio = l.cambio
-    if (l.fase === 'ricollego' && l.cadutaIl !== undefined) {
-      storia = conStoria(storia, { tipo: 'tornato', il: e.il, dopoMs: e.il - l.cadutaIl, tentativi: l.tentativo, ...(e.strada !== undefined ? { strada: e.strada } : {}) })
+    const okDiFila = (l.okDiFila ?? 0) + 1
+    // Isteresi (0.56.0): da «giù» la prima risposta fa solo «lenta».
+    if (l.fase === 'ricollego' && okDiFila < TORNA_DOPO_OK) {
+      return {
+        ...l, fase: 'lenta', ultimoOk: e.il, falliti: 0, okDiFila, prossimoIl: undefined,
+        misure: conMisura(l.misure, { ok: true, ritardoMs: Math.max(0, Math.round(e.ritardoMs)), il: e.il }),
+        ...(e.strada !== undefined ? { strada: e.strada } : {})
+      }
+    }
+    const daCaduta = l.cadutaIl
+    if (daCaduta !== undefined) {
+      storia = conStoria(storia, { tipo: 'tornato', il: e.il, dopoMs: e.il - daCaduta, tentativi: l.tentativo, ...(e.strada !== undefined ? { strada: e.strada } : {}) })
     } else if (l.fase === 'cerco') {
       storia = conStoria(storia, { tipo: 'collegato', il: e.il, ...(e.strada !== undefined ? { strada: e.strada } : {}) })
     }
@@ -139,20 +171,32 @@ export function passo(l: Linea, e: EventoLinea): Linea {
     }
     const { prossimoIl: _p, cadutaIl: _c, motivo: _m, messaggio: _g, ...resto } = l
     return {
-      ...resto, fase: 'collegato', tentativo: 0, storia,
+      ...resto, fase: 'collegato', tentativo: 0, storia, ultimoOk: e.il, falliti: 0, okDiFila,
       misure: conMisura(l.misure, { ok: true, ritardoMs: Math.max(0, Math.round(e.ritardoMs)), il: e.il }),
       ...(e.strada !== undefined ? { strada: e.strada } : l.strada !== undefined ? { strada: l.strada } : {}),
       ...(cambio !== undefined ? { cambio } : {})
     }
   }
   // Un errore della strada.
+  const falliti = (l.falliti ?? 0) + 1
+  // Prima di dichiarare la caduta (0.56.0): con un segno di vita recente, o
+  // pochi fallimenti di fila, la linea è solo «lenta». Si continua a chiedere
+  // al ritmo di sempre, senza attese crescenti.
+  if (l.fase !== 'ricollego' && l.ultimoOk !== undefined && (falliti < GIU_DOPO_FALLITI || e.il - l.ultimoOk < GIU_DOPO_MS)) {
+    return {
+      ...l, fase: 'lenta', falliti, okDiFila: 0, motivo: e.motivo,
+      ...(e.messaggio !== undefined ? { messaggio: e.messaggio } : {}),
+      misure: conMisura(l.misure, { ok: false, il: e.il })
+    }
+  }
   const tentativo = l.fase === 'ricollego' ? l.tentativo + 1 : 1
   const storia = l.fase === 'ricollego' ? l.storia : conStoria(l.storia, {
     tipo: 'caduta', il: e.il, motivo: e.motivo, ...(e.messaggio !== undefined ? { messaggio: e.messaggio } : {}), ...(l.strada !== undefined ? { strada: l.strada } : {})
   })
   return {
-    ...l, fase: 'ricollego', tentativo, storia,
-    cadutaIl: l.fase === 'ricollego' ? (l.cadutaIl ?? e.il) : e.il,
+    ...l, fase: 'ricollego', tentativo, storia, falliti, okDiFila: 0,
+    // La caduta comincia dall'ultimo segno di vita, non dall'ultimo errore.
+    cadutaIl: l.fase === 'ricollego' ? (l.cadutaIl ?? e.il) : (l.ultimoOk ?? e.il),
     prossimoIl: e.il + attesaPrima(tentativo),
     motivo: e.motivo,
     ...(e.messaggio !== undefined ? { messaggio: e.messaggio } : {}),
@@ -166,6 +210,24 @@ export function passo(l: Linea, e: EventoLinea): Linea {
  */
 export function erroreDiStrada(motivo: string): boolean {
   return !['chat', 'pin', 'lento'].includes(motivo)
+}
+
+/**
+ * La fase da mostrare adesso (0.56.0): collegati ma senza nessun dato da
+ * `LENTA_DOPO_MS` (una richiesta appesa, senza errore) è «lenta». È la
+ * stessa per l'indicatore in alto, la chat, il cambio di PC e la Salute.
+ */
+export function faseVista(l: Linea, adesso: number): FaseLinea {
+  if (l.fase === 'collegato' && l.ultimoOk !== undefined && adesso - l.ultimoOk >= LENTA_DOPO_MS) return 'lenta'
+  return l.fase
+}
+
+/** In parole, per l'indicatore: verde, giallo («linea lenta»), rosso («non connesso»). */
+export function parolaFase(f: FaseLinea): { parola: string; colore: 'verde' | 'ambra' | 'rosso' | 'grigio' } {
+  return f === 'collegato' ? { parola: 'collegato', colore: 'verde' }
+    : f === 'lenta' ? { parola: 'linea lenta', colore: 'ambra' }
+    : f === 'ricollego' ? { parola: 'non connesso', colore: 'rosso' }
+    : { parola: 'mi collego…', colore: 'grigio' }
 }
 
 /** È ora di chiedere? Collegati: ogni `KEEPALIVE_OGNI_MS`; giù: quando arriva il prossimo tentativo. */

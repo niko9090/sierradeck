@@ -60,6 +60,16 @@ object Linea {
     const val MISURE_TENUTE = 12
     const val STORIA_TENUTA = 30
     const val CAMBIO_VISIBILE_MS = 4000L
+    /**
+     * «Linea lenta» prima di «non connesso» (PC 0.56.0, app 2.56.0): giù solo
+     * dopo `GIU_DOPO_MS` senza **nessun** dato e `GIU_DOPO_FALLITI` fallimenti
+     * di fila; da giù si torna verdi con `TORNA_DOPO_OK` risposte di fila.
+     * Nicholas (09/10): «dice che non è connesso e la chat però scorre».
+     */
+    const val LENTA_DOPO_MS = 8000L
+    const val GIU_DOPO_MS = 20_000L
+    const val GIU_DOPO_FALLITI = 3
+    const val TORNA_DOPO_OK = 2
     val ORDINE_STRADE = listOf("lan", "tailscale", "webrtc", "drive")
     val NUOVA = StatoLinea()
 
@@ -83,10 +93,16 @@ object Linea {
 
     fun passo(l: StatoLinea, e: EventoLinea): StatoLinea = when (e) {
         is EventoLinea.RiprovaAdesso -> if (l.fase == "ricollego") l.copy(prossimoIl = e.il) else l
-        is EventoLinea.Ok -> {
+        is EventoLinea.Ok -> run {
+            val okDiFila = l.okDiFila + 1
+            val misura = (l.misure + MisuraLinea(true, maxOf(0L, e.ritardoMs), e.il)).takeLast(MISURE_TENUTE)
+            // Isteresi: da giù la prima risposta fa solo «lenta».
+            if (l.fase == "ricollego" && okDiFila < TORNA_DOPO_OK) {
+                return@run l.copy(fase = "lenta", ultimoOk = e.il, falliti = 0, okDiFila = okDiFila, prossimoIl = null, misure = misura, strada = e.strada ?: l.strada)
+            }
             var storia = l.storia
             var cambio = l.cambio
-            if (l.fase == "ricollego" && l.cadutaIl != null) storia = (storia + EventoStoria("tornato", e.il, strada = e.strada, dopoMs = e.il - l.cadutaIl, tentativi = l.tentativo))
+            if (l.cadutaIl != null) storia = (storia + EventoStoria("tornato", e.il, strada = e.strada, dopoMs = e.il - l.cadutaIl, tentativi = l.tentativo))
             else if (l.fase == "cerco") storia = storia + EventoStoria("collegato", e.il, strada = e.strada)
             if (e.strada != null && l.strada != null && e.strada != l.strada) {
                 storia = storia + EventoStoria("cambio", e.il, da = l.strada, a = e.strada)
@@ -95,20 +111,33 @@ object Linea {
             l.copy(
                 fase = "collegato", tentativo = 0, prossimoIl = null, cadutaIl = null, motivo = null, messaggio = null,
                 strada = e.strada ?: l.strada, storia = storia.takeLast(STORIA_TENUTA), cambio = cambio,
-                misure = (l.misure + MisuraLinea(true, maxOf(0L, e.ritardoMs), e.il)).takeLast(MISURE_TENUTE)
+                misure = misura, ultimoOk = e.il, falliti = 0, okDiFila = okDiFila
             )
         }
-        is EventoLinea.Errore -> {
+        is EventoLinea.Errore -> run {
+            val falliti = l.falliti + 1
+            // Prima di dichiarare la caduta: con un segno di vita recente, o pochi fallimenti di fila, è solo «lenta».
+            if (l.fase != "ricollego" && l.ultimoOk != null && (falliti < GIU_DOPO_FALLITI || e.il - l.ultimoOk < GIU_DOPO_MS)) {
+                return@run l.copy(fase = "lenta", falliti = falliti, okDiFila = 0, motivo = e.motivo, messaggio = e.messaggio ?: l.messaggio,
+                    misure = (l.misure + MisuraLinea(false, null, e.il)).takeLast(MISURE_TENUTE))
+            }
             val tentativo = if (l.fase == "ricollego") l.tentativo + 1 else 1
             val storia = if (l.fase == "ricollego") l.storia else (l.storia + EventoStoria("caduta", e.il, strada = l.strada, motivo = e.motivo, messaggio = e.messaggio)).takeLast(STORIA_TENUTA)
             l.copy(
-                fase = "ricollego", tentativo = tentativo, storia = storia,
-                cadutaIl = if (l.fase == "ricollego") (l.cadutaIl ?: e.il) else e.il,
+                fase = "ricollego", tentativo = tentativo, storia = storia, falliti = falliti, okDiFila = 0,
+                // La caduta comincia dall'ultimo segno di vita.
+                cadutaIl = if (l.fase == "ricollego") (l.cadutaIl ?: e.il) else (l.ultimoOk ?: e.il),
                 prossimoIl = e.il + attesaPrima(tentativo), motivo = e.motivo, messaggio = e.messaggio ?: l.messaggio,
                 misure = (l.misure + MisuraLinea(false, null, e.il)).takeLast(MISURE_TENUTE)
             )
         }
     }
+
+    /** La fase da mostrare: collegati ma muti da `LENTA_DOPO_MS` è «lenta». La stessa per tutte le schermate. */
+    fun faseVista(l: StatoLinea, adesso: Long): String =
+        if (l.fase == "collegato" && l.ultimoOk != null && adesso - l.ultimoOk >= LENTA_DOPO_MS) "lenta" else l.fase
+
+    fun parolaFase(f: String): String = when (f) { "collegato" -> "collegato"; "lenta" -> "linea lenta"; "ricollego" -> "non connesso"; else -> "mi collego…" }
 
     fun eOra(l: StatoLinea, ultimaIl: Long, adesso: Long): Boolean =
         if (l.fase == "ricollego") adesso >= (l.prossimoIl ?: 0L) else adesso - ultimaIl >= KEEPALIVE_OGNI_MS
@@ -196,8 +225,30 @@ data class StatoLinea(
     val misure: List<MisuraLinea> = emptyList(),
     val storia: List<EventoStoria> = emptyList(),
     /** da, a, quando: per l'animazione «passo da X a Y». */
-    val cambio: Triple<String, String, Long>? = null
+    val cambio: Triple<String, String, Long>? = null,
+    /** L'ultimo segno di vita (app 2.56.0): qualunque risposta, non solo il controllo. */
+    val ultimoOk: Long? = null,
+    val falliti: Int = 0,
+    val okDiFila: Int = 0
 )
+
+/**
+ * Un solo collegamento **per PC** (app 2.56.0), condiviso da indicatore in
+ * alto, chat, cambio di PC e Lavori. Lo fa avanzare ogni risposta dell'`Api`
+ * verso quel PC (stato, storia, scrivi, file…): `"accoppiato"` per il PC a cui
+ * il telefono è accoppiato, l'id del PC per quelli raggiunti dal ponte.
+ */
+object Collegamenti {
+    const val ACCOPPIATO = "accoppiato"
+    private val linee = androidx.compose.runtime.mutableStateMapOf<String, StatoLinea>()
+    fun di(chiave: String): StatoLinea = linee[chiave] ?: Linea.NUOVA
+    @Synchronized fun passo(chiave: String, e: EventoLinea): StatoLinea {
+        val n = Linea.passo(linee[chiave] ?: Linea.NUOVA, e)
+        linee[chiave] = n
+        return n
+    }
+    @Synchronized fun azzera(chiave: String) { linee.remove(chiave) }
+}
 sealed class EventoLinea {
     data class Ok(val il: Long, val ritardoMs: Long, val strada: String? = null) : EventoLinea()
     data class Errore(val il: Long, val motivo: String, val messaggio: String? = null) : EventoLinea()
@@ -239,9 +290,12 @@ fun IndicatoreLinea(linea: StatoLinea, nomePc: String, spiega: String? = null) {
     val q = Linea.qualita(linea.misure)
     val giu = linea.fase == "ricollego"
     val tacche = if (giu) 0 else q.tacche
+    val adesso = adessoVivo(true)
+    // «Linea lenta» (app 2.56.0): qualcosa non arriva ma non è caduta — giallo, niente «giù».
+    val lenta = !giu && Linea.faseVista(linea, adesso) == "lenta"
     // A linea caduta (0.52.1): ambra i primi tentativi, poi rosso, con il conto alla rovescia.
-    val rov = Tentativi.rovescia(linea, adessoVivo(giu))
-    val colore = when { giu -> if (rov?.second == "ambra") Banco.ambra else Banco.rosso; tacche >= 3 -> Banco.verde; tacche == 2 -> Banco.ambra; else -> Banco.rosso }
+    val rov = Tentativi.rovescia(linea, adesso)
+    val colore = when { giu -> if (rov?.second == "ambra") Banco.ambra else Banco.rosso; lenta -> Banco.ambra; tacche >= 3 -> Banco.verde; tacche == 2 -> Banco.ambra; else -> Banco.rosso }
     Row(
         Modifier.background(Banco.fondo.copy(alpha = 0.6f)).clickable { storia = true }.padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.Bottom
@@ -252,7 +306,7 @@ fun IndicatoreLinea(linea: StatoLinea, nomePc: String, spiega: String? = null) {
             Box(Modifier.padding(horizontal = 1.dp).width(3.dp).height((4 + i * 3).dp).background(if (i < tacche) colore else Banco.incisione))
         }
         Spacer(Modifier.width(4.dp))
-        Text(if (giu) "giù · ${rov?.first ?: ""}" else q.ritardoMs?.let { "$it ms" } ?: "…", color = if (giu) colore else Banco.testoQuieto, fontSize = 11.sp)
+        Text(if (giu) "non connesso · ${rov?.first ?: ""}" else if (lenta) "linea lenta" else q.ritardoMs?.let { "$it ms" } ?: "…", color = if (giu || lenta) colore else Banco.testoQuieto, fontSize = 11.sp)
     }
     if (storia) {
         AlertDialog(
@@ -261,7 +315,7 @@ fun IndicatoreLinea(linea: StatoLinea, nomePc: String, spiega: String? = null) {
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(
-                        "Adesso: " + (if (giu) "caduto, riprovo da solo" else "${Linea.stradaBreve(linea.strada)}, qualità ${q.parola}" + (q.ritardoMs?.let { ", $it ms di ritardo tipico" } ?: "") + (if (q.perdite > 0) ", ${Math.round(q.perdite * 100)}% di chiamate perse" else "")) + ".",
+                        "Adesso: " + (if (giu) "non connesso: niente arriva da più di ${Linea.GIU_DOPO_MS / 1000} secondi, riprovo da solo" else if (lenta) "linea lenta: qualcosa tarda o non arriva, ma il collegamento c'è ancora" else "${Linea.stradaBreve(linea.strada)}, qualità ${q.parola}" + (q.ritardoMs?.let { ", $it ms di ritardo tipico" } ?: "") + (if (q.perdite > 0) ", ${Math.round(q.perdite * 100)}% di chiamate perse" else "")) + ".",
                         color = Banco.testo, fontSize = 13.sp
                     )
                     Spacer(Modifier.height(6.dp))

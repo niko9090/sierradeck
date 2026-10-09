@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.56.0',
+    righe: [
+      '**Niente più «non connesso» mentre la chat scorre.** L’indicatore del collegamento contava solo un controllo che ogni tanto tardava, e bastava un ritardo di sei secondi per dire «giù» anche se lo schermo della chat continuava ad arrivare. Adesso ogni risposta del computer conta come segno di vita. Prima di «non connesso» c’è la «linea lenta» in giallo, e «non connesso» compare solo dopo venti secondi senza niente e tre tentativi falliti di fila. Lo stato è uno solo per ogni PC, uguale nell’indicatore in alto, nella chat, nel cambio di PC e nella Salute, su PC, app e pagina.',
+      '**Impostazioni rifatte, con gli aggiornamenti in cima.** Sul PC, nell’app e nella pagina le impostazioni cominciano con «Aggiornamenti»: le versioni, se ce n’è una nuova, cosa cambia, il tasto per installarla e com’è andato l’ultimo tentativo. Poi vengono le sezioni per argomento (Computer, Chat e autopiloti, Drive e salvataggi, Aspetto, Notifiche, Info e aiuto), ogni voce spiega cosa fa, e in alto c’è la ricerca. Le voci doppie o che non facevano più niente sono state tolte; nell’app stile e chiarore ora cambiano subito anche i suoi colori, e c’è «Copia i dettagli» per chiedere aiuto.',
+      '**«Riprendi» riprende davvero.** Sul PC, scegliendo una conversazione di questo computer nell’elenco «Riprendi», nasceva una chat nuova e vuota nella stessa cartella. Adesso si riapre quella scelta, con la sua storia; se è già a schermo si sveglia invece di aprirla due volte.',
+      '**Dal telefono anche PIN, ospite, archivio, nome e modello.** Nel menu di una chat ci sono «Proteggi con il PIN» (toglierlo si può solo dopo aver aperto la chat con il PIN), e «Ospitata da…» per scegliere il PC che la fa girare, con la stessa conferma del PC. Un autopilota fermo si archivia, dall’app e dalla pagina. Una chat nuova si apre con il nome e il modello che scegli. App Android 2.56.0.'
+    ]
+  },
+  {
     versione: '0.55.0',
     righe: [
       '**Workspace e chat nuove dal telefono, anche sugli altri PC.** Creare un workspace o aprire una chat nuova su un PC diverso da quello a cui il telefono è accoppiato finiva in un errore: l’app stessa lo rifiutava prima di chiederlo. Adesso si crea, si sfoglia la cartella e si apre la chat su quel PC, nel workspace che scegli. E con due finestre aperte sul PC la chat nuova non nasce più due volte.',

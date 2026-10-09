@@ -8,7 +8,7 @@ import {
 } from '@shared/pc-remoto'
 import { etichettaStrada, type InfoStrada } from '@shared/strada-pc'
 import {
-  accoda, CAMBIO_VISIBILE_MS, consegnato, eOra, erroreDiStrada, inInvio, KEEPALIVE_SCADE_MS, LINEA_NUOVA, nonPartito, passo,
+  accoda, CAMBIO_VISIBILE_MS, consegnato, eOra, erroreDiStrada, inInvio, KEEPALIVE_SCADE_MS, nonPartito,
   prossimoDaMandare, type EventoLinea, type Linea, type VoceCoda
 } from '@shared/collegamento'
 import type { EsitoRemoto } from '@shared/pc-remoto'
@@ -17,7 +17,7 @@ import { eventiDaLinea, passiCollegamento, passiDettagliati } from '@shared/coll
 import { ModalePosta } from './ModalePosta'
 import { CoperturaPin } from './ChatConPin'
 import { useLayoutStore } from '../state/layout'
-import { pubblicaLinea } from '../linee-remote'
+import { avanzaLineaPc, lineaPc, pubblicaLinea, useLineaPc } from '../linee-remote'
 import { ConfermaPortaQui, useCasa } from './OspiteChat'
 import { EtichettaOpzione } from './EtichettaOpzione'
 
@@ -95,12 +95,13 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
    * due secondi anche solo per sapere che c'è (keepalive), con un tempo
    * massimo: oltre, la strada è caduta.
    */
-  const [linea, setLinea] = useState<Linea>(LINEA_NUOVA)
-  const lineaRef = useRef<Linea>(linea)
+  // Lo stato del collegamento è di quel PC, condiviso da tutti i suoi riquadri (0.56.0).
+  const linea = useLineaPc(remoto.pcId)
+  const lineaRef = { get current(): Linea { return lineaPc(remoto.pcId) } }
   const ultimaIl = useRef(0)
   /** Quello che scrivi, in coda finché non è arrivato (0.51.0): mai due volte. */
   const [coda, setCoda] = useState<VoceCoda[]>([])
-  const avanza = (e: EventoLinea): void => { const n = passo(lineaRef.current, e); lineaRef.current = n; setLinea(n) }
+  const avanza = (e: EventoLinea): void => { avanzaLineaPc(remoto.pcId, e) }
   // La testata del riquadro mostra lo stesso indicatore, accanto a «SU <PC>» (0.52.0).
   useEffect(() => { pubblicaLinea(paneId, linea) }, [paneId, linea])
   useEffect(() => () => pubblicaLinea(paneId, undefined), [paneId])
@@ -230,7 +231,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
     setTesto('')
   }
   useEffect(() => {
-    if (linea.fase !== 'collegato' || chatId === undefined) return
+    if (linea.fase === 'ricollego' || linea.fase === 'cerco' || chatId === undefined) return
     const v = prossimoDaMandare(coda)
     if (v === undefined) return
     setCoda((c) => inInvio(c, v.id))

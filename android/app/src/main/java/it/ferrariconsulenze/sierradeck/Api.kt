@@ -46,12 +46,43 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     }
 
     private suspend fun corpoTesto(percorso: String, corpo: RequestBody?): String {
-        val pc = ponte ?: return corpoTestoDiretto(percorso, corpo)
+        val pc = ponte ?: return conSegno(Collegamenti.ACCOPPIATO, null) { corpoTestoDiretto(percorso, corpo) }
         // Attraverso il ponte: solo le rotte del riquadro remoto, impacchettate
         // per il PC accoppiato, che le gira all'altro.
         if (percorso !in Ponte.ROTTE) throw Errore(403, Ponte.nonSiPuo(percorso))
         val interno = corpo?.let { val b = okio.Buffer(); it.writeTo(b); b.readUtf8() }
-        return corpoTestoDiretto("/api/ponte", Ponte.corpo(pc, percorso, interno).toRequestBody(JSON_MEDIA))
+        return conSegno(pc, Collegamenti.ACCOPPIATO) { corpoTestoDiretto("/api/ponte", Ponte.corpo(pc, percorso, interno).toRequestBody(JSON_MEDIA)) }
+    }
+
+    /**
+     * Ogni risposta è un segno di vita del PC (app 2.56.0): la storia della
+     * chat, lo scrivere, i file, non solo il controllo dello stato. Prima
+     * l'indicatore contava solo quello, e un controllo scaduto diceva «giù»
+     * mentre lo schermo della chat continuava ad arrivare.
+     *
+     * Per il PC accoppiato qualunque risposta HTTP vuol dire che c'è; per un
+     * PC del ponte un 502/504 vuol dire che il PC accoppiato c'è ma quello no.
+     */
+    private suspend fun conSegno(chiave: String, tramite: String?, chiamata: suspend () -> String): String {
+        val t0 = System.currentTimeMillis()
+        try {
+            val r = chiamata()
+            val ora = System.currentTimeMillis()
+            Collegamenti.passo(chiave, EventoLinea.Ok(ora, ora - t0, if (tramite == null) Linea.stradaDiIndirizzo(indirizzo) else null))
+            if (tramite != null) Collegamenti.passo(tramite, EventoLinea.Ok(ora, ora - t0))
+            return r
+        } catch (e: Errore) {
+            val ora = System.currentTimeMillis()
+            val quelloNo = tramite != null && (e.codice == 502 || e.codice == 504)
+            if (quelloNo) Collegamenti.passo(chiave, EventoLinea.Errore(ora, "irraggiungibile", Nota.spiega(e, "raggiungerlo").removePrefix("Non sono riuscito a raggiungerlo: ")))
+            else Collegamenti.passo(chiave, EventoLinea.Ok(ora, ora - t0))
+            if (tramite != null) Collegamenti.passo(tramite, EventoLinea.Ok(ora, ora - t0))
+            throw e
+        } catch (e: java.io.IOException) {
+            Collegamenti.passo(chiave, EventoLinea.Errore(System.currentTimeMillis(), "irraggiungibile", e.message ?: "il computer non risponde"))
+            if (tramite != null) Collegamenti.passo(tramite, EventoLinea.Errore(System.currentTimeMillis(), "irraggiungibile", e.message ?: "il computer non risponde"))
+            throw e
+        }
     }
 
     private suspend fun corpoTestoDiretto(percorso: String, corpo: RequestBody?): String =
@@ -211,6 +242,28 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     /** ⇄ verso un altro workspace. */
     suspend fun spostaChat(chat: String, workspace: String): Fatto =
         json.decodeFromString(corpoTesto("/api/chat/sposta", oggetto { put("chat", chat); put("workspace", workspace) }))
+
+    // ─── le mancanze della parità (PC 0.56.0) ───
+    suspend fun archiviaAutopilota(id: String, archivia: Boolean = true): Fatto =
+        json.decodeFromString(corpoTesto("/api/autopilota/archivia", oggetto { put("autopilota", id); put("archivia", archivia) }))
+
+    suspend fun proteggiChat(chat: String, si: Boolean): Fatto =
+        json.decodeFromString(corpoTesto("/api/pin/proteggi", oggetto { put("chat", chat); put("si", si) }))
+
+    /** `pc = "qui"` = il PC che risponde. */
+    suspend fun ospiteChat(chat: String, pc: String, pcNome: String): EsitoOspite =
+        json.decodeFromString(corpoTesto("/api/chat/ospite", oggetto { put("chat", chat); put("pc", pc); put("pcNome", pcNome) }))
+
+    suspend fun modelli(): ElencoModelli = json.decodeFromString(corpoTesto("/api/modelli", null))
+
+    /** Una chat nuova con nome e modello (PC 0.56.0). */
+    suspend fun apriNuova(cartella: String, workspace: String?, nome: String?, modello: String?): Fatto =
+        json.decodeFromString(corpoTesto("/api/apri", oggetto {
+            put("cartella", cartella)
+            if (!workspace.isNullOrBlank()) put("workspace", workspace)
+            if (!nome.isNullOrBlank()) put("nome", nome.trim())
+            if (!modello.isNullOrBlank() && modello != "default") put("modello", modello)
+        }))
 
     suspend fun rinominaWorkspace(nome: String, nuovo: String): Fatto =
         json.decodeFromString(corpoTesto("/api/workspace/rinomina", oggetto { put("nome", nome); put("nuovo", nuovo) }))
