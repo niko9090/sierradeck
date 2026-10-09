@@ -731,6 +731,11 @@ export function App(): React.JSX.Element {
    * altri PC sembravano spenti.
    */
   const [driveScollegato, setDriveScollegato] = useState<import('@shared/scoperta-pc').AvvisoDrive | undefined>(undefined)
+  // Dalla 0.56.3 è una riga sola che si chiude; chiusa resta chiusa finché il
+  // problema è lo stesso (la `chiave` è il momento dello scollegamento).
+  const [driveChiuso, setDriveChiuso] = useState<string | undefined>(() => { try { return localStorage.getItem('sierradeck.driveChiuso') ?? undefined } catch { return undefined } })
+  const [drivePerche, setDrivePerche] = useState(false)
+  const chiudiDrive = (chiave: string): void => { setDriveChiuso(chiave); try { localStorage.setItem('sierradeck.driveChiuso', chiave) } catch { /* resta chiusa fino al riavvio */ } }
   useEffect(() => {
     const leggi = (): void => { window.gestore.drive.avvisoScollegato().then(setDriveScollegato).catch(() => undefined) }
     leggi()
@@ -1524,19 +1529,33 @@ export function App(): React.JSX.Element {
         </div>
       ) : null}
 
-      {driveScollegato !== undefined ? (
-        <div className="avviso avviso--aggiornamento avviso--fallito avviso--drive" role="alert">
+      {driveScollegato !== undefined && (driveScollegato.chiave === undefined || driveScollegato.chiave !== driveChiuso) ? (
+        <div className="avviso avviso--drive avviso--riga" role="status">
           <span className="led led--attesa" />
-          <span className="avviso-fallito__testo">
-            <b>{driveScollegato.titolo}.</b> {driveScollegato.testo}
+          <span className="avviso-riga__testo">
+            {driveScollegato.breve ?? driveScollegato.titolo}
+            {drivePerche ? <span className="avviso-riga__perche">{driveScollegato.testo}</span> : null}
           </span>
+          <button className="tasto" onClick={() => setDrivePerche((x) => !x)} title="La spiegazione intera: cosa è successo e cosa non funziona finché resta scollegato">
+            {drivePerche ? 'Meno' : 'Perché?'}
+          </button>
           <button
             className="tasto tasto--primario"
             onClick={() => { setSchedaImpostazioni('account'); setAperto('impostazioni') }}
-            title="Apre Impostazioni → Account, dove c’è «Collega» per Google Drive"
+            title="Apre Impostazioni → Account: lì «Collega» apre il browser per il consenso di Google"
           >
-            Apri Account → Drive → Collega
+            Ricollega il Drive
           </button>
+          {driveScollegato.chiave !== undefined ? (
+            <button
+              className="tasto"
+              onClick={() => chiudiDrive(driveScollegato.chiave as string)}
+              title="Nasconde questa riga. Ricompare solo se il Drive si scollega un’altra volta; lo stato resta comunque in Impostazioni → Account"
+              aria-label="Chiudi l’avviso del Drive"
+            >
+              ×
+            </button>
+          ) : null}
         </div>
       ) : null}
 

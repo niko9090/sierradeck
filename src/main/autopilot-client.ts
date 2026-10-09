@@ -131,7 +131,8 @@ export type ClientAutopilota = {
    * sospendeva mentre lavorava. Il Gestore invece la vede — lo schermo dice
    * «esc to interrupt» — e ogni minuto lo dice al servizio.
    */
-  battiti: (segni: { autopilota: string; chat: string }[]) => Promise<void>
+  /** `ferme` (0.56.3): le chat governate che lo schermo dice ferme ad aspettare. */
+  battiti: (segni: { autopilota: string; chat: string }[], ferme?: { autopilota: string; chat: string }[]) => Promise<void>
   /**
    * Lo stato del programma, in sola lettura, per l'autopilota (T1, 0.36.0):
    * chat aperte, limiti del piano, domande in attesa, progetti, altri PC.
@@ -243,8 +244,8 @@ export function creaClientAutopilota(p: {
       return typeof esito?.toccati === 'number' ? esito.toccati : 0
     },
 
-    async battiti(segni) {
-      await chiama('/battiti', 'POST', { segni })
+    async battiti(segni, ferme = []) {
+      await chiama('/battiti', 'POST', { segni, ferme })
     },
 
     async statoProgramma(stato) {

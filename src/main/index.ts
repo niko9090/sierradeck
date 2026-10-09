@@ -4099,9 +4099,16 @@ if (!app.requestSingleInstanceLock()) {
           const segni = chatAperte
             .filter((c) => c.viva === true && c.aspetta !== true && c.autopilota !== undefined)
             .map((c) => ({ autopilota: c.autopilota!.id, chat: c.autopilota!.chat }))
-          if (segni.length > 0) {
+          // E quelle ferme ad aspettare (0.56.3): se hanno messaggi in coda,
+          // il servizio glieli porta senza aspettare un segnale di fine turno
+          // che può non arrivare. Non chi sta facendo una domanda: scriverle
+          // dentro sceglierebbe una risposta al posto di Nicholas.
+          const ferme = chatAperte
+            .filter((c) => c.viva === true && c.aspetta === true && c.chiedeSegnale !== true && c.autopilota !== undefined)
+            .map((c) => ({ autopilota: c.autopilota!.id, chat: c.autopilota!.chat }))
+          if (segni.length > 0 || ferme.length > 0) {
             ultimoBattitoAlServizio = ora
-            void clientAutopilota.battiti(segni).catch(() => undefined)
+            void clientAutopilota.battiti(segni, ferme).catch(() => undefined)
           }
         }
         // T1: lo stato del programma, in sola lettura, all'autopilota — chi

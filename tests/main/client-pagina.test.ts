@@ -1043,3 +1043,41 @@ describe('il negozio nella pagina (0.53.0)', () => {
     expect(script).toContain("if (pannelloAperto === 'negozio') { negozioNota = ''; await leggiNegozio()")
   })
 })
+
+describe('Drive scollegato nella pagina (0.56.3)', () => {
+  const estrai = (nome: string): string => {
+    const inizio = script.indexOf(`function ${nome}(`)
+    expect(inizio, `${nome} non e nella pagina`).toBeGreaterThan(-1)
+    let profondita = 0
+    for (let i = script.indexOf('{', inizio); i < script.length; i++) {
+      if (script[i] === '{') profondita++
+      else if (script[i] === '}' && --profondita === 0) return script.slice(inizio, i + 1)
+    }
+    throw new Error(`${nome} non si chiude`)
+  }
+  const fai = (chiuso: string): ((s: unknown) => string) => new Function(
+    'chiuso',
+    `var localStorage = { getItem: function () { return chiuso } };
+     function esc(t) { return String(t) }
+     ${estrai('driveChiuso')}
+     ${estrai('driveScollegatoHtml')}
+     return driveScollegatoHtml`
+  )(chiuso) as (s: unknown) => string
+  const avviso = { titolo: 'Drive scollegato da oggi', testo: 'Spiegazione intera', breve: 'Google Drive scollegato da oggi: …', chiave: '2026-10-09T11:19:48.000Z' }
+
+  it('una riga sola con la spiegazione da aprire, e il tasto per chiudere', () => {
+    const h = fai('')({ driveScollegato: avviso })
+    expect(h).toContain('class="drive-riga"')
+    expect(h).toContain('Google Drive scollegato da oggi')
+    expect(h).toContain('<details><summary>Perché e come si sistema</summary>')
+    expect(h).toContain('onclick="chiudiDrive(this.dataset.k)"')
+    expect(h).not.toContain('piastrella')
+  })
+  it('chiusa resta chiusa per lo stesso problema, e torna con uno nuovo', () => {
+    expect(fai(avviso.chiave)({ driveScollegato: avviso })).toBe('')
+    expect(fai('2026-09-23T10:51:47.607Z')({ driveScollegato: avviso })).toContain('drive-riga')
+  })
+  it('senza avviso dal PC, niente', () => {
+    expect(fai('')({})).toBe('')
+  })
+})

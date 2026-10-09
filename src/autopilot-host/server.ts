@@ -12,7 +12,7 @@ import {
 } from './decisione'
 import { chiediDecisione } from './decisione-supervisore'
 import { applicaRete } from './rete-sicurezza'
-import { chiaveTurno, chiTace, motivoSilenzio } from './guardiano'
+import { chatFerme, chiaveTurno, chiTace, FERMA_DA_MS, motivoSilenzio } from './guardiano'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
 import { STRATEGIE } from './strategie'
@@ -524,6 +524,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * piu' di un'ora.
    */
   const ultimoSegno = new Map<string, number>()
+  /**
+   * Da quando il Gestore vede ferma ad aspettare ogni chat governata (0.56.3):
+   * la prima volta che lo dice, finché non la rivede lavorare o non le si
+   * manda un turno. Vedi `chatFerme`.
+   */
+  const fermaDal = new Map<string, number>()
   const ultimoSegnale = (chiave: string): number | undefined => {
     const turno = ultimoTurno.get(chiave)
     const segno = ultimoSegno.get(chiave)
@@ -548,6 +554,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    */
   const avviaLavoro = (a: Autopilota, messaggio?: string, chat?: ChatGovernata): Promise<void> => {
     ultimoTurno.set(chiaveTurno(a.id, chat?.id), Date.parse(deps.adesso()))
+    // Le si manda un turno: non è più «ferma ad aspettare» finché il Gestore
+    // non lo rivede.
+    fermaDal.delete(chiaveTurno(a.id, chat?.id))
     // Il perché della mossa (0.41.0, linguetta «Istruzioni»): la decisione
     // annotata subito prima. Chi manda un'istruzione la annota sempre prima.
     return deps.avviaLavoro(a, messaggio, chat, messaggio === undefined ? undefined : percheRecente(a, deps.adesso()))
@@ -849,7 +858,57 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
   }
 
+  /**
+   * Porta alle chat ferme quello che hanno in coda (0.56.3).
+   *
+   * Una chat al lavoro, ferma ad aspettare da `FERMA_DA_MS`, con messaggi per
+   * lei in `daConsegnare`: glieli si manda adesso, con l'invito a riprendere
+   * da dove era, invece di aspettare un segnale di fine turno che non verrà.
+   * Con `forza` (il «riprendi» detto a un autopilota già al lavoro) la si
+   * rimette in moto anche senza messaggi, e senza aspettare la soglia: chi
+   * lo chiede la vede ferma.
+   *
+   * Non tocca chi ha una fermata in lavorazione (i criteri durano minuti) né
+   * chi ha un dialogo in corso, che riscriverebbe la coda con la sua copia;
+   * `daDialogo` è il dialogo stesso che ha finito.
+   */
+  const consegnaAlleChatFerme = (opz: { autopilota?: string; forza?: boolean; daDialogo?: boolean } = {}): number => {
+    const ora = Date.parse(deps.adesso())
+    if (Number.isNaN(ora)) return 0
+    let mandate = 0
+    for (const elenco of deps.archivio.elenca()) {
+      if (opz.autopilota !== undefined && elenco.id !== opz.autopilota) continue
+      if (inLavorazione.has(elenco.id)) continue
+      if (opz.daDialogo !== true && dialoghiInCorso.has(elenco.id)) continue
+      const ferme = chatFerme(elenco, (k) => fermaDal.get(k), ora, opz.forza === true ? 0 : FERMA_DA_MS)
+      let a = elenco
+      for (const f of ferme) {
+        const presi = prendiMessaggiPer(a, f.chatId ?? a.id)
+        if (presi.testi.length === 0 && opz.forza !== true) continue
+        const chat = f.chatId === undefined ? undefined : presi.autopilota.chats.find((c) => c.id === f.chatId)
+        a = {
+          ...presi.autopilota,
+          decisioni: [...presi.autopilota.decisioni, {
+            quando: deps.adesso(),
+            cosa: presi.testi.length > 0
+              ? `la chat${f.chatId !== undefined ? ` ${f.chatId}` : ''} era ferma da ${Math.round(f.da / 1000)} s con ${presi.testi.length} messaggi in coda: glieli porto adesso, senza aspettare la fine del turno`
+              : `«riprendi» con la chat${f.chatId !== undefined ? ` ${f.chatId}` : ''} ferma: la rimetto al lavoro`
+          }]
+        }
+        salva(a)
+        const seguito = ripartiDaDove(a, chat)
+        console.info(`[autopilota] ${a.id}${f.chatId !== undefined ? `::${f.chatId}` : ''} ferma da ${Math.round(f.da / 1000)} s: ${presi.testi.length > 0 ? `consegno ${presi.testi.length} messaggi in coda` : 'riprendo il giro (chiesto)'}`)
+        void avviaLavoro(a, presi.testi.length > 0 ? conPreambolo(presi.testi, seguito) : seguito, chat).catch((err: unknown) => {
+          console.error(`[autopilota] consegna alla chat ferma di ${a.id} fallita:`, err)
+        })
+        mandate += 1
+      }
+    }
+    return mandate
+  }
+
   const controllaChatFerme = (): void => {
+    consegnaAlleChatFerme()
     rispettaFreno()
     const limite = deps.silenzioMassimoMs ?? SILENZIO_MASSIMO_MS
     const ora = Date.parse(deps.adesso())
@@ -1283,6 +1342,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
 
   /** I dialoghi a cui si sta rispondendo adesso, uno per autopilota. */
   const dialoghiInCorso = new Map<string, Promise<void>>()
+  /** Chi ha detto «riprendi» con la chat ferma: il giro parte a dialogo finito. */
+  const giriDaForzare = new Set<string>()
 
   /**
    * Risponde a una tua battuta e applica quello che chiedeva.
@@ -1427,6 +1488,18 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           fatti.push(`partenza fallita: ${err instanceof Error ? err.message : String(err)}`.slice(0, 200))
         }
         fresco = deps.archivio.leggi(id) ?? partito
+      } else if (fresco.stato === 'lavoro') {
+        // 0.56.3: prima si rispondeva «era già in moto» e basta, anche con la
+        // chat ferma da un'ora. Se il Gestore la vede ferma, il giro si forza
+        // a dialogo finito (la coda si riscrive qui sotto).
+        const ora = Date.parse(deps.adesso())
+        const ferme = chatFerme(fresco, (k) => fermaDal.get(k), ora, 0)
+        if (ferme.length > 0) {
+          giriDaForzare.add(id)
+          fatti.push(ferme.length === 1 ? 'la chat era ferma: la rimetto al lavoro' : `${ferme.length} chat erano ferme: le rimetto al lavoro`)
+        } else {
+          fatti.push('era già in moto e la chat sta lavorando')
+        }
       } else {
         fatti.push(`era già in moto (${fresco.stato})`)
       }
@@ -2285,6 +2358,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             ? ((corpo as Record<string, unknown>).segni as unknown[])
             : []
           const ora = Date.parse(deps.adesso())
+          // La chat singola arriva con il proprio id come `chat`: per la
+          // chiave vale «nessuna chat» (stessa convenzione dell'hook).
+          const chiaveDi = (autopilota: string, chat: unknown): string =>
+            chiaveTurno(autopilota, typeof chat === 'string' && chat !== autopilota ? chat : undefined)
           let contati = 0
           for (const s of grezzi) {
             if (typeof s !== 'object' || s === null) continue
@@ -2292,9 +2369,22 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             if (typeof autopilota !== 'string' || autopilota === '') continue
             ultimoSegno.set(chiaveTurno(autopilota, typeof chat === 'string' ? chat : undefined), ora)
             ultimoSegno.set(chiaveTurno(autopilota), ora)
+            fermaDal.delete(chiaveDi(autopilota, chat))
             contati += 1
           }
-          rispondi(res, 200, { contati })
+          // Le chat governate ferme ad aspettare (0.56.3): da quando.
+          const ferme = typeof corpo === 'object' && corpo !== null && Array.isArray((corpo as Record<string, unknown>).ferme)
+            ? ((corpo as Record<string, unknown>).ferme as unknown[])
+            : []
+          for (const s of ferme) {
+            if (typeof s !== 'object' || s === null) continue
+            const { autopilota, chat } = s as Record<string, unknown>
+            if (typeof autopilota !== 'string' || autopilota === '') continue
+            const k = chiaveDi(autopilota, chat)
+            if (!fermaDal.has(k)) fermaDal.set(k, ora)
+          }
+          const consegnate = consegnaAlleChatFerme()
+          rispondi(res, 200, { contati, consegnate })
           return
         }
 
@@ -2701,6 +2791,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           const prima = dialoghiInCorso.get(id) ?? Promise.resolve()
           const questo = prima
             .then(() => rispondiAlDialogo(id, testo, quando))
+            .then(() => {
+              // A dialogo finito, con la coda già riscritta: un messaggio per
+              // una chat ferma parte subito, e un «riprendi» la rimette in moto.
+              const forza = giriDaForzare.delete(id)
+              consegnaAlleChatFerme({ autopilota: id, forza, daDialogo: true })
+            })
             .catch((err: unknown) => {
               console.error(`[autopilota] ${id} — dialogo non concluso:`, err)
             })

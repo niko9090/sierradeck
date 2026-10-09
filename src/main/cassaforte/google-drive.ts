@@ -31,6 +31,11 @@ type Fetch = typeof fetch
 export type DriveDeps = {
   /** Un access token valido per lo scope drive.appdata. Chi lo dà lo rinnova. */
   token: () => Promise<string>
+  /**
+   * Rinnovo forzato dopo un 401 (0.56.3): riceve il token rifiutato e ne dà uno
+   * nuovo. Senza, un 401 resta un errore come prima.
+   */
+  rinnova?: (fallito: string) => Promise<string>
   /** Quale file dentro appDataFolder: i dati cifrati, o le chiavi. Predefinito: i dati. */
   nomeFile?: string
   /** Iniettabile per i test; di default il `fetch` dell'ambiente. */
@@ -39,8 +44,39 @@ export type DriveDeps = {
 
 type FileDrive = { id: string; version: string }
 
+/**
+ * Un 401 di Google con un token che per il nostro orologio è ancora valido
+ * (0.56.3, caso del 09/10): si rinnova adesso e si ripete la stessa chiamata,
+ * una volta. Prima si ritentava con lo stesso token per un'ora, finché non
+ * scadeva da sé: il Drive risultava fermo senza che nessuno lo sapesse.
+ * Solo per le chiamate che portano `Authorization: Bearer`.
+ */
+export function conRinnovo(f: Fetch, rinnova?: (fallito: string) => Promise<string>): Fetch {
+  if (rinnova === undefined) return f
+  return (async (input: Parameters<Fetch>[0], init?: Parameters<Fetch>[1]): Promise<Response> => {
+    const r = await f(input, init)
+    if (r.status !== 401) return r
+    const h = new Headers(init?.headers)
+    const auth = h.get('Authorization') ?? ''
+    if (!auth.startsWith('Bearer ')) return r
+    let nuovo: string
+    try {
+      nuovo = await rinnova(auth.slice('Bearer '.length))
+    } catch (e) {
+      // Il rinnovo stesso non riesce (autorizzazione revocata, nessun refresh
+      // token): ritentare la chiamata non serve, e si scollegherebbe di nuovo.
+      if (e instanceof Error) (e as Error & { definitivo?: boolean }).definitivo = true
+      throw e
+    }
+    h.set('Authorization', `Bearer ${nuovo}`)
+    const intestazioni: Record<string, string> = {}
+    h.forEach((v, k) => { intestazioni[k] = v })
+    return f(input, { ...init, headers: intestazioni })
+  }) as Fetch
+}
+
 export function creaMagazzinoDrive(deps: DriveDeps): Magazzino {
-  const f: Fetch = deps.fetch ?? fetch
+  const f: Fetch = conRinnovo(deps.fetch ?? fetch, deps.rinnova)
   const nomeFile = deps.nomeFile ?? NOME_FILE_PREDEFINITO
   const intestazioni = (tk: string): Record<string, string> => ({ Authorization: `Bearer ${tk}` })
 
@@ -184,7 +220,7 @@ export function creaMagazzinoDrive(deps: DriveDeps): Magazzino {
  * interi), quindi niente flusso ripristinabile qui.
  */
 export function creaArchivioDrive(deps: DriveDeps): Archivio {
-  const f: Fetch = deps.fetch ?? fetch
+  const f: Fetch = conRinnovo(deps.fetch ?? fetch, deps.rinnova)
   const intestazioni = (tk: string): Record<string, string> => ({ Authorization: `Bearer ${tk}` })
 
   const errore = async (r: Response, cosa: string): Promise<Error & { stato?: number }> => {
@@ -216,7 +252,7 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
       try {
         r = await fai()
       } catch (e) {
-        if (i >= RITENTI) throw e
+        if (i >= RITENTI || (e as { definitivo?: boolean }).definitivo === true) throw e
         await pausa(attesa); attesa *= 2; continue
       }
       if (!r.ok && transitorio(r.status) && i < RITENTI) { await pausa(attesa); attesa *= 2; continue }

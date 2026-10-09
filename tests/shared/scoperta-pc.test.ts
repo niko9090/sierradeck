@@ -139,10 +139,24 @@ describe('la banda del Drive scollegato', () => {
     expect(a?.testo).toContain('non è un guasto di questo PC')
     expect(a?.testo).toContain('Account → Drive → Collega')
   })
-  it('collegato o non configurato: niente banda; senza data: senza giorni', () => {
+  it('collegato o non configurato: niente banda', () => {
     expect(avvisoDriveScollegato({ configurato: true, connesso: true, adesso: ADESSO })).toBeUndefined()
     expect(avvisoDriveScollegato({ configurato: false, connesso: false, adesso: ADESSO })).toBeUndefined()
-    expect(avvisoDriveScollegato({ configurato: true, connesso: false, adesso: ADESSO })?.titolo).toBe('Drive scollegato: gli altri PC non si vedono')
+  })
+  it('0.56.3: mai a chi il Drive non l ha mai collegato, né a chi l ha scollegato a mano', () => {
+    // «configurato» = il programma ha le credenziali OAuth: vale per tutti.
+    expect(avvisoDriveScollegato({ configurato: true, connesso: false, adesso: ADESSO })).toBeUndefined()
+    expect(avvisoDriveScollegato({ configurato: true, connesso: false, dal: { quando: '2026-09-23T10:51:47.607Z', motivo: 'a-mano' }, adesso: ADESSO })).toBeUndefined()
+    // Dal registro, «manca l autorizzazione» lo scrive anche chi non l ha mai collegato.
+    expect(avvisoDriveScollegato({ configurato: true, connesso: false, dal: { quando: '2026-09-23T10:51:47.607Z', motivo: 'sconosciuto' }, adesso: ADESSO })).toBeUndefined()
+  })
+  it('0.56.3: una riga breve e una chiave che cambia solo con un problema nuovo', () => {
+    const a = avvisoDriveScollegato({ configurato: true, connesso: false, dal: { quando: '2026-09-23T10:51:47.607Z', motivo: 'revocata' }, adesso: ADESSO })
+    expect(a?.breve).toContain('Google Drive scollegato da 9 giorni')
+    expect(a?.breve).toContain('dal PC')
+    expect(a?.chiave).toBe('2026-09-23T10:51:47.607Z')
+    const b = avvisoDriveScollegato({ configurato: true, connesso: false, dal: { quando: '2026-10-09T11:19:48.000Z', motivo: 'revocata' }, adesso: ADESSO })
+    expect(b?.chiave).not.toBe(a?.chiave)
   })
   it('il segno su disco si legge solo se è sano', () => {
     expect(leggiScollegamento({ quando: '2026-09-23T10:51:47.607Z', motivo: 'revocata' })).toEqual({ quando: '2026-09-23T10:51:47.607Z', motivo: 'revocata' })

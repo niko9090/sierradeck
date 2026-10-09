@@ -234,6 +234,20 @@ export const AUTORIZZAZIONE_REVOCATA =
  * `scarta` butta via i token quando Google dice che non valgono piu': da quel
  * momento il Drive risulta scollegato, che e' la verita'.
  */
+/**
+ * Il fornitore: chiamato, dà il token; `rinnova(fallito)` lo rinnova anche se
+ * per il nostro orologio non è scaduto (0.56.3).
+ */
+export type FornitoreToken = (() => Promise<string>) & {
+  /**
+   * Google ha risposto 401 con questo token: lo si rinnova adesso. Se nel
+   * frattempo un altro chiamante l'ha già rinnovato, si dà quello nuovo senza
+   * chiedere di nuovo. Lancia `AUTORIZZAZIONE_REVOCATA` solo se il rinnovo
+   * stesso risponde `invalid_grant`.
+   */
+  rinnova: (fallito?: string) => Promise<string>
+}
+
 export function creaFornitoreToken(deps: {
   config: ConfigOAuth
   leggi: () => Gettoni | undefined
@@ -241,35 +255,55 @@ export function creaFornitoreToken(deps: {
   scarta?: () => void
   fetch?: Fetch
   adesso?: () => number
-}): () => Promise<string> {
+}): FornitoreToken {
   const adesso = deps.adesso ?? Date.now
-  return async () => {
+  /**
+   * Un rinnovo alla volta (0.56.3): con trenta progetti che cercano insieme e
+   * il token da rinnovare, partivano trenta rinnovi. Chi arriva mentre uno è in
+   * corso aspetta quello.
+   */
+  let inRinnovo: Promise<string> | undefined
+  const rinnovaOra = (): Promise<string> => {
+    if (inRinnovo !== undefined) return inRinnovo
+    inRinnovo = (async () => {
+      const g = deps.leggi()
+      if (g === undefined) throw new Error('Google Drive non connesso: manca l’autorizzazione')
+      if (g.refreshToken === undefined) throw new Error('token scaduto e nessun refresh token: riconnetti Google Drive')
+      let nuovi: Gettoni
+      try {
+        nuovi = await rinnova({
+          config: deps.config,
+          refreshToken: g.refreshToken,
+          ...(deps.fetch !== undefined ? { fetch: deps.fetch } : {}),
+          adesso
+        })
+      } catch (err) {
+        const testo = err instanceof Error ? err.message : String(err)
+        if (testo.includes('invalid_grant')) {
+          deps.scarta?.()
+          throw new Error(AUTORIZZAZIONE_REVOCATA)
+        }
+        throw err
+      }
+      // Il rinnovo non riporta l'indirizzo: lo si conserva da prima.
+      deps.scrivi({ ...nuovi, ...(g.email !== undefined ? { email: g.email } : {}) })
+      return nuovi.accessToken
+    })().finally(() => { inRinnovo = undefined })
+    return inRinnovo
+  }
+  const fornitore = (async () => {
     const g = deps.leggi()
     if (g === undefined) throw new Error('Google Drive non connesso: manca l’autorizzazione')
     if (g.scadeIl - adesso() > MARGINE_MS) return g.accessToken
-    if (g.refreshToken === undefined) {
-      throw new Error('token scaduto e nessun refresh token: riconnetti Google Drive')
-    }
-    let nuovi: Gettoni
-    try {
-      nuovi = await rinnova({
-        config: deps.config,
-        refreshToken: g.refreshToken,
-        ...(deps.fetch !== undefined ? { fetch: deps.fetch } : {}),
-        adesso
-      })
-    } catch (err) {
-      const testo = err instanceof Error ? err.message : String(err)
-      if (testo.includes('invalid_grant')) {
-        deps.scarta?.()
-        throw new Error(AUTORIZZAZIONE_REVOCATA)
-      }
-      throw err
-    }
-    // Il rinnovo non riporta l'indirizzo: lo si conserva da prima.
-    deps.scrivi({ ...nuovi, ...(g.email !== undefined ? { email: g.email } : {}) })
-    return nuovi.accessToken
+    return rinnovaOra()
+  }) as FornitoreToken
+  fornitore.rinnova = async (fallito?: string) => {
+    const g = deps.leggi()
+    // Un altro chiamante ha già rinnovato dopo questo 401: si usa il suo.
+    if (g !== undefined && fallito !== undefined && g.accessToken !== fallito && g.scadeIl - adesso() > MARGINE_MS) return g.accessToken
+    return rinnovaOra()
   }
+  return fornitore
 }
 
 /**

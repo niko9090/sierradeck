@@ -2,7 +2,7 @@ import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
 import { configGoogle } from '../google-config'
-import { connetti as connettiOAuth, creaFornitoreToken, esaminaDrive, type Gettoni } from './oauth-google'
+import { connetti as connettiOAuth, creaFornitoreToken, esaminaDrive, type FornitoreToken, type Gettoni } from './oauth-google'
 import { creaMagazzinoDrive, creaArchivioDrive } from './google-drive'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
@@ -106,6 +106,13 @@ export function apriContoDrive(dati: string): ContoDrive {
   }
 
   const config = (): ReturnType<typeof configGoogle> => configGoogle(dati)
+  /**
+   * Un fornitore solo per tutto il programma (0.56.3): prima ne nasceva uno per
+   * ogni magazzino e archivio, e ognuno rinnovava per conto suo.
+   */
+  let fornitore: FornitoreToken | undefined
+  const tokenUnico = (c: NonNullable<ReturnType<typeof configGoogle>>): FornitoreToken =>
+    (fornitore ??= creaFornitoreToken({ config: c, leggi, scrivi, scarta: revocata }))
 
   return {
     stato() {
@@ -153,15 +160,15 @@ export function apriContoDrive(dati: string): ContoDrive {
     magazzino(nomeFile) {
       const c = config()
       if (c === undefined) throw new Error('Google Drive non configurato: mancano le credenziali OAuth dell’app')
-      const token = creaFornitoreToken({ config: c, leggi, scrivi, scarta: revocata })
-      return creaMagazzinoDrive({ token, ...(nomeFile !== undefined ? { nomeFile } : {}) })
+      const token = tokenUnico(c)
+      return creaMagazzinoDrive({ token, rinnova: token.rinnova, ...(nomeFile !== undefined ? { nomeFile } : {}) })
     },
 
     archivio() {
       const c = config()
       if (c === undefined) throw new Error('Google Drive non configurato: mancano le credenziali OAuth dell’app')
-      const token = creaFornitoreToken({ config: c, leggi, scrivi, scarta: revocata })
-      return creaArchivioDrive({ token })
+      const token = tokenUnico(c)
+      return creaArchivioDrive({ token, rinnova: token.rinnova })
     }
   }
 }

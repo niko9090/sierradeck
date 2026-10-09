@@ -68,3 +68,7 @@ Con i PC tutti accesi, una chat aperta sull'altro PC dà errori e non si può sc
   - registro del 23/09 e banda.
 - `tests/main/pc-remoto-scoperta.test.ts`: il client con un fetch finto. Il vecchio Tailscale è muto, il nuovo risponde: si va dal vivo. Poi 401, 404 della chat chiusa, versione senza `/api/pc`.
 - Kotlin: `DriveScollegatoTest`.
+
+# Aggiornamento 0.56.3
+
+La «banda fissa che non si chiude» non c'è più: dopo il 401 del 09/10 l'avviso è una riga chiudibile, solo per `revocata`. Vedi `drive-401-rinnovo-e-avviso-0-56-3.md`.

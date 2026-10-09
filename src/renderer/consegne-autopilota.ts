@@ -39,6 +39,19 @@ export type Ponte = {
    */
   riquadroDi: (sessionId: string) => { paneId: string; ptyId?: string; remotoSu?: string } | undefined
   apri: (c: Consegna) => string
+  /**
+   * Segna il riquadro come governato da quell'autopilota, se non lo era
+   * (0.56.3). Torna `true` se ha cambiato qualcosa.
+   *
+   * Il difetto del 09/10: una chat aperta a mano e poi affidata a un
+   * autopilota riceveva le consegne nel riquadro trovato, ma il riquadro non
+   * sapeva di essere governato. Al riavvio `claude.exe` rinasceva **senza
+   * l'hook di fine turno** dell'autopilota (lo compone `pty:spawn` solo da
+   * questo segno), e il Gestore non mandava nemmeno i battiti di quella chat
+   * al servizio: l'autopilota restava «al lavoro» con la coda piena, i cicli
+   * fermi, e la chat «ferma, aspetta te».
+   */
+  governa?: (paneId: string, autopilota: { id: string; chat: string }) => boolean
   scrivi: (ptyId: string, testo: string) => void
   /**
    * Se quel terminale sta davvero ascoltando: ha disegnato il suo prompt e ha
@@ -199,6 +212,10 @@ export function eseguiConsegna(
   // tutte: se la consegna è arrivata qui, è di questa finestra.
   const gia = ponte.riquadroDi(c.sessionId)
   ponte.registra?.(`consegna ${c.id || '(ripresa)'} per «${c.titolo || c.sessionId}»: ritirata (${c.cosa}, ${c.testo.length} caratteri); riquadro ${gia === undefined ? 'non trovato' : gia.ptyId === undefined ? 'trovato, terminale non ancora nato' : 'trovato'}`)
+  if (gia !== undefined && gia.remotoSu === undefined && c.autopilotaId !== '' && c.chatId !== '' &&
+      ponte.governa?.(gia.paneId, { id: c.autopilotaId, chat: c.chatId }) === true) {
+    ponte.registra?.(`consegna ${c.id || '(ripresa)'}: il riquadro non sapeva di essere governato, lo segno (${gia.ptyId === undefined ? 'il terminale nasce con l hook di fine turno' : 'l hook di fine turno arriva al prossimo avvio del terminale; intanto i messaggi in coda li porta il battito della chat ferma'})`)
+  }
 
   if (c.cosa === 'interrompi') {
     // Ctrl+C, come lo premeresti tu: ferma quello che sta facendo senza
@@ -529,6 +546,13 @@ export function ponteReale(
         sessionUuid: c.sessionId,
         autopilota: { id: c.autopilotaId, chat: c.chatId }
       }),
+    governa: (paneId, autopilota) => {
+      const p = useLayoutStore.getState().panes[paneId]
+      if (p === undefined) return false
+      if (p.autopilota?.id === autopilota.id && p.autopilota.chat === autopilota.chat) return false
+      useLayoutStore.getState().assegnaAutopilota(paneId, autopilota)
+      return true
+    },
     scrivi: (ptyId, testo) => { window.gestore.pty.write(ptyId, testo) }
   }
 }

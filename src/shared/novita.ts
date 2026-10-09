@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.56.3',
+    righe: [
+      '**Il Drive non si ferma più per un’ora in silenzio.** Quando Google rifiuta un accesso al Drive prima del previsto, SierraDeck chiede subito un permesso nuovo e ripete l’operazione. Prima continuava a riprovare con quello vecchio finché non scadeva da solo, e nel frattempo gli altri PC sembravano spariti. Il Drive risulta «scollegato» solo quando è proprio Google a dire che il collegamento non vale più: allora bisogna ricollegarlo dal PC.',
+      '**L’avviso del Drive non copre più niente.** Sul PC, nella pagina e nell’app è una riga sottile in cima, con «Perché?» per la spiegazione intera, il tasto per ricollegare (sul PC) e la × per chiuderla. Chiusa resta chiusa finché non succede un problema nuovo. Non compare più a chi il Drive non l’ha mai collegato, né a chi l’ha scollegato apposta, né mentre il programma sta ancora riprovando da solo.',
+      '**Un autopilota non lascia più ferma la sua chat con le istruzioni in coda.** Se la chat è ferma ad aspettare da più di mezzo minuto e l’autopilota ha messaggi per lei, glieli porta subito, senza aspettare una fine del turno che può non arrivare. Un messaggio scritto all’autopilota mentre la chat è ferma parte subito. «Riprendi» detto a un autopilota già al lavoro rimette in moto la chat ferma, invece di rispondere «era già in moto».',
+      '**Le chat aperte a mano e poi affidate a un autopilota diventano sue davvero.** Prima ricevevano le istruzioni ma, al riavvio, ripartivano senza il segnale di fine turno: l’autopilota non sapeva mai quando avevano finito. Adesso il riquadro viene segnato alla prima istruzione, e il registro lo dice. App Android 2.56.3.'
+    ]
+  },
+  {
     versione: '0.56.2',
     righe: [
       '**Un PC con la versione vecchia lo dice, e si aggiorna dal telefono.** Guardando dal telefono un PC rimasto indietro, in cima compare cosa là non c’è ancora e il tasto «Installa là»: il PC a cui è collegato il telefono lo aggiorna, e si installa quando le sue chat finiscono il turno. Le azioni che un PC vecchio non conosce dicono la versione giusta che serve, e una chat nuova o un lavoro affidato a un PC vecchio avvisano che nome, workspace e modello là non arrivano.',

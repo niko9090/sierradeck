@@ -251,3 +251,41 @@ describe('mai la chat di qualcun altro', () => {
     expect(tua?.autopilota).toBeUndefined()
   })
 })
+
+describe('il riquadro trovato diventa governato (0.56.3)', () => {
+  // Il difetto del 09/10: la chat aperta a mano e poi affidata a un autopilota
+  // riceveva le consegne, ma il riquadro non sapeva di essere governato. Al
+  // riavvio claude.exe rinasceva senza l hook di fine turno dell autopilota, e
+  // il Gestore non mandava i battiti di quella chat: coda piena, cicli fermi.
+  it('la consegna segna il riquadro che trova, e lo scrive nel registro', () => {
+    const b = banco({ 'sess-1': { paneId: 'p-1', ptyId: 'pty-1' } })
+    const segnati: Array<{ paneId: string; id: string; chat: string }> = []
+    const passi: string[] = []
+    b.ponte.governa = (paneId, a) => { segnati.push({ paneId, ...a }); return true }
+    b.ponte.registra = (p) => { passi.push(p) }
+    eseguiConsegna(consegna(), b.ponte, b.dopo)
+    expect(segnati).toEqual([{ paneId: 'p-1', id: 'ap-1', chat: 'ch-1' }])
+    expect(passi.some((p) => p.includes('non sapeva di essere governato'))).toBe(true)
+  })
+
+  it('non tocca i riquadri che guardano un altro PC, né le consegne senza autopilota', () => {
+    const segnati: string[] = []
+    const remoto = banco({ 'sess-1': { paneId: 'p-1', remotoSu: 'PC-ESEMPIO' } as { paneId: string } })
+    remoto.ponte.governa = (paneId) => { segnati.push(paneId); return true }
+    eseguiConsegna(consegna(), remoto.ponte, remoto.dopo)
+    const senza = banco({ 'sess-1': { paneId: 'p-2', ptyId: 'pty-2' } })
+    senza.ponte.governa = (paneId) => { segnati.push(paneId); return true }
+    eseguiConsegna(consegna({ autopilotaId: '', cosa: 'interrompi', testo: '' }), senza.ponte, senza.dopo)
+    expect(segnati).toEqual([])
+  })
+
+  it('il ponte vero mette il segno nel riquadro una volta sola', () => {
+    const paneId = useLayoutStore.getState().addPane('C:\Progetti\Esempio', 'Esempio', undefined, { sessionUuid: 'sess-governa' })
+    const ponte = ponteReale(() => true)
+    expect(useLayoutStore.getState().panes[paneId]?.autopilota).toBeUndefined()
+    expect(ponte.governa?.(paneId, { id: 'ap-1', chat: 'ap-1' })).toBe(true)
+    expect(useLayoutStore.getState().panes[paneId]?.autopilota).toEqual({ id: 'ap-1', chat: 'ap-1' })
+    expect(ponte.governa?.(paneId, { id: 'ap-1', chat: 'ap-1' })).toBe(false)
+    expect(ponte.governa?.('p-che-non-c-e', { id: 'ap-1', chat: 'ap-1' })).toBe(false)
+  })
+})

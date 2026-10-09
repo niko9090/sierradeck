@@ -145,6 +145,12 @@ export function paginaClient(): string {
   .led.nessuno { background: transparent; box-shadow: none; }
   .led.rosso { background: var(--rosso); box-shadow: 0 0 6px color-mix(in srgb, var(--rosso) 70%, transparent); }
   .piastrella { min-width: 0; }
+  /* Il Drive scollegato (0.56.3): una riga, mai sopra il contenuto, si chiude. */
+  .drive-riga { display: flex; align-items: flex-start; gap: var(--s2); padding: 4px var(--s2); border-left: 3px solid var(--rosso); font-size: var(--t1); color: var(--testo); }
+  .drive-riga .led { margin-top: 4px; flex: 0 0 auto; }
+  .drive-riga__testo { flex: 1 1 auto; min-width: 0; line-height: 1.4; }
+  .drive-riga summary { color: var(--testo-quieto); cursor: pointer; margin-top: 2px; }
+  .drive-riga__chiudi { flex: 0 0 auto; min-width: 36px; min-height: 36px; background: none; border: 0; color: var(--testo-quieto); font-size: 18px; }
   .piastrella {
     background: var(--chassis); border: 1px solid var(--bordo);
     border-radius: var(--raggio); padding: var(--s3);
@@ -3411,16 +3417,26 @@ function cartellaPrima() {
  * strade, con il link alla pagina della versione (solo se e' su github.com).
  */
 /**
- * Il Drive del computer scollegato (0.39.3): la stessa banda del PC, in cima
- * ad «Adesso» e alle chat. Non si chiude: sparisce quando il Drive torna.
+ * Il Drive del computer scollegato (0.39.3). Dalla 0.56.3 una riga sola in
+ * cima, che si chiude: chiusa resta chiusa finché il problema è lo stesso
+ * (\`chiave\` = il momento dello scollegamento). La spiegazione intera si apre
+ * con «Perché e come si sistema».
  */
+function driveChiuso() { try { return localStorage.getItem('sierradeck.driveChiuso') || '' } catch (e) { return '' } }
+function chiudiDrive(k) { try { localStorage.setItem('sierradeck.driveChiuso', k) } catch (e) {} ; aggiorna() }
 function driveScollegatoHtml(s) {
   var d = s && s.driveScollegato
   if (!d) return ''
-  return '<div class="piastrella chiede drive-scollegato">' +
-    '<div class="serigrafia"><span class="led attesa"></span>' + esc(String(d.titolo || 'Drive scollegato').toUpperCase()) + '</div>' +
-    '<div class="sotto">' + esc(d.testo || '') + '</div>' +
-    '<div class="sotto" style="margin-top:6px"><b>Si ricollega dal computer</b>: Impostazioni → Account → Drive → «Collega» (si apre il browser per il consenso di Google).</div>' +
+  if (d.chiave && d.chiave === driveChiuso()) return ''
+  return '<div class="drive-riga">' +
+    '<span class="led attesa"></span>' +
+    '<div class="drive-riga__testo">' + esc(d.breve || d.titolo || 'Google Drive scollegato') +
+      '<details><summary>Perché e come si sistema</summary>' +
+        '<div class="sotto">' + esc(d.testo || '') + '</div>' +
+        '<div class="sotto" style="margin-top:6px"><b>Si ricollega dal computer</b>: Impostazioni → Account → Drive → «Collega» (si apre il browser per il consenso di Google). Dal telefono non si può: il consenso di Google si dà sul PC.</div>' +
+      '</details>' +
+    '</div>' +
+    (d.chiave ? '<button class="drive-riga__chiudi" data-k="' + esc(d.chiave) + '" onclick="chiudiDrive(this.dataset.k)" aria-label="Chiudi l’avviso del Drive" title="Ricompare solo se il Drive si scollega un’altra volta">×</button>' : '') +
     '</div>'
 }
 

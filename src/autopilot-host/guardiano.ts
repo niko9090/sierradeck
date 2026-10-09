@@ -32,6 +32,53 @@ export function chiaveTurno(autopilotaId: string, chatId?: string): string {
   return chatId === undefined || chatId === '' ? autopilotaId : `${autopilotaId}::${chatId}`
 }
 
+/** Una chat al lavoro che il Gestore vede ferma ad aspettare (0.56.3). */
+export type ChatFerma = {
+  /** La chiave di `chiaveTurno`. */
+  chiave: string
+  /** Assente per la chat singola: i suoi messaggi stanno sotto l'id dell'autopilota. */
+  chatId?: string
+  /** Da quanti millisecondi è ferma. */
+  da: number
+}
+
+/**
+ * Quanto una chat governata deve restare ferma ad aspettare prima che
+ * l'autopilota le porti da solo quello che ha in coda (0.56.3). Abbastanza per
+ * lasciar arrivare il segnale di fine turno, che di solito arriva in un
+ * attimo; poco rispetto ai minuti che Nicholas ha visto con «ferma, aspetta te».
+ */
+export const FERMA_DA_MS = 30_000
+
+/**
+ * Le chat al lavoro che il Gestore vede ferme ad aspettare da almeno `soglia`.
+ *
+ * Il difetto del 09/10: un autopilota «al lavoro» con i messaggi in coda, e la
+ * chat ferma da minuti. I messaggi entrano solo come risposta al segnale di
+ * fine turno (hook `Stop`); se quel segnale non arriva, o se il messaggio è
+ * entrato in coda **dopo** che la chat si era già fermata, nessun altro
+ * segnale arriverà mai e la coda resta lì. Lo schermo, che il Gestore guarda,
+ * lo sa: questa funzione dice chi è in quella situazione.
+ */
+export function chatFerme(
+  a: Autopilota,
+  fermaDal: (chiave: string) => number | undefined,
+  ora: number,
+  soglia: number
+): ChatFerma[] {
+  if (a.stato !== 'lavoro' || a.fermatoPerAggiornamento === true) return []
+  const candidate: Array<{ chiave: string; chatId?: string }> = a.chats.length === 0
+    ? [{ chiave: chiaveTurno(a.id) }]
+    : a.chats.filter((c) => c.stato === 'lavoro').map((c) => ({ chiave: chiaveTurno(a.id, c.id), chatId: c.id }))
+  const fuori: ChatFerma[] = []
+  for (const c of candidate) {
+    const dal = fermaDal(c.chiave)
+    if (dal === undefined || ora - dal < soglia) continue
+    fuori.push({ ...c, da: ora - dal })
+  }
+  return fuori
+}
+
 export function chiTace(
   a: Autopilota,
   quandoHaParlato: (chiave: string) => number | undefined,

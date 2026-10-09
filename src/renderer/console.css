@@ -4266,6 +4266,11 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 }
 .segno-remoto { color: var(--remoto); font-weight: 700; white-space: nowrap; }
 .avviso--drive { border-color: var(--rosso, #dc5f5f); }
+/* L'avviso del Drive in una riga (0.56.3): mai sopra il contenuto, si chiude. */
+.avviso--riga { padding: 2px var(--s2); white-space: normal; align-items: flex-start; flex: 0 0 auto; }
+.avviso--riga .tasto { padding: 1px 8px; font-size: var(--t1); flex: 0 0 auto; }
+.avviso-riga__testo { flex: 1 1 auto; min-width: 0; line-height: 1.4; user-select: text; }
+.avviso-riga__perche { display: block; margin-top: 2px; color: var(--testo-quieto); }
 
 /* La linguetta «Istruzioni» (0.41.0): ogni consegna intera, selezionabile. */
 .istruzioni__spiega { margin: 0 0 var(--s2); color: var(--testo-quieto); font-size: var(--t1); line-height: 1.4; }

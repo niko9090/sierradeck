@@ -228,16 +228,28 @@ export function scollegamentoDalRegistro(testi: string[]): Scollegamento | undef
   return undefined
 }
 
-/** La banda fissa del Drive scollegato, uguale su PC, pagina e app. */
-export type AvvisoDrive = { titolo: string; testo: string; giorni?: number }
+/**
+ * L'avviso del Drive scollegato, uguale su PC, pagina e app. Dalla 0.56.3 è una
+ * riga sola (`breve`) con il tasto per sistemare; `titolo` e `testo` sono la
+ * spiegazione intera, che si apre a richiesta. `chiave` cambia solo con un
+ * problema nuovo: chi chiude la riga non la rivede finché `chiave` è la stessa.
+ */
+export type AvvisoDrive = { titolo: string; testo: string; giorni?: number; breve?: string; chiave?: string }
 
 /**
- * La banda del Drive scollegato (0.39.3). C'e' finche' il Drive e' configurato
- * ma non collegato, e non si chiude: senza Drive gli altri PC non si vedono,
- * le chat non si salvano e le cassette non partono.
+ * L'avviso del Drive scollegato (0.39.3, rifatto nella 0.56.3).
+ *
+ * Compare SOLO quando c'è da fare qualcosa: un Drive che era collegato e che
+ * Google non riconosce più (`invalid_grant` al rinnovo). Non compare:
+ * - a chi il Drive non l'ha mai collegato (`configurato` vuol dire solo che il
+ *   programma ha le credenziali OAuth, cioè sempre: prima la banda usciva a tutti);
+ * - a chi l'ha scollegato a mano;
+ * - mentre il programma ritenta da solo (un 401 o un guasto di rete non
+ *   scollegano più: si rinnova il token e si riprova).
  */
 export function avvisoDriveScollegato(p: { configurato: boolean; connesso: boolean; dal?: Scollegamento; adesso: number }): AvvisoDrive | undefined {
   if (!p.configurato || p.connesso) return undefined
+  if (p.dal === undefined || p.dal.motivo !== 'revocata') return undefined
   const t = p.dal !== undefined ? Date.parse(p.dal.quando) : Number.NaN
   const giorni = Number.isNaN(t) ? undefined : Math.max(0, Math.floor((p.adesso - t) / 86_400_000))
   const da = giorni === undefined ? '' : giorni === 0 ? ' da oggi' : giorni === 1 ? ' da 1 giorno' : ` da ${giorni} giorni`
@@ -252,6 +264,8 @@ export function avvisoDriveScollegato(p: { configurato: boolean; connesso: boole
   return {
     titolo: `Drive scollegato${da}: gli altri PC non si vedono`,
     testo: `${perche} Senza Drive: i segni di vita degli altri PC non arrivano (le loro chat possono sembrare spente anche se sono accese: SierraDeck prova lo stesso a bussare direttamente), le chat di qui non si salvano, la cassetta «Scrivile là» non parte. Ricollegalo: Account → Drive → Collega, su ogni PC dove compare questa banda.`,
+    breve: `Google Drive scollegato${da}: Google non riconosce più l’autorizzazione, quindi gli altri PC non si vedono e le chat non si salvano sul Drive. Si sistema ricollegandolo dal PC.`,
+    chiave: p.dal.quando,
     ...(giorni !== undefined ? { giorni } : {})
   }
 }
