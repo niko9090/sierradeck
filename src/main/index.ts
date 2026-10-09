@@ -35,6 +35,8 @@ import { chiaveMonitor } from '@shared/display-key'
 import { apriFinestreStore, type FinestreStore } from './finestre-store'
 import { AMBIENTE_PORTA_AUTOPILOTI, PORTA_AUTOPILOTA } from '@shared/autopilota'
 import { finestraPerRipresa } from './consegne-layout'
+import type { AzioneFinestra, EsitoAzioneFinestra, RichiestaAutopilota } from '@shared/azioni-telefono'
+import { apriPartenzeSubito } from './partenze-subito'
 import {
   collegaFinestra,
   workspaceDellaFinestra,
@@ -43,6 +45,7 @@ import {
   registerLayoutIpc,
   registerFinestreIpc,
   registerAutopilotaIpc,
+  mettiDaParteArchivio,
   registerIstantaneeIpc,
   registerPreparazioneIpc,
   claudeRoot,
@@ -204,6 +207,55 @@ ipcMain.on(
     attesa(m.dati)
   }
 )
+
+/**
+ * Le azioni del telefono che la finestra sa fare come dal PC (0.55.0): i
+ * workspace (crea, elimina, rinomina) e le chat (dormi, sveglia, chiudi,
+ * togli). La finestra le esegue con lo **stesso codice** dei suoi tasti — la
+ * copia di sicurezza prima di eliminare, i terminali spenti, le altre finestre
+ * avvisate — e risponde com'è andata. Prima il telefono scriveva l'archivio dal
+ * Core, per un'altra strada: niente copia di sicurezza, e i claude.exe di un
+ * workspace eliminato restavano accesi senza più una vista da cui spegnerli.
+ */
+const azioniInVolo = new Map<string, (e: EsitoAzioneFinestra) => void>()
+const ATTESA_AZIONE_MS = 15_000
+
+ipcMain.on('client:esitoAzione', (_e, m: { id?: unknown; ok?: unknown; errore?: unknown }) => {
+  const id = typeof m?.id === 'string' ? m.id : ''
+  const attesa = azioniInVolo.get(id)
+  if (attesa === undefined) return
+  azioniInVolo.delete(id)
+  attesa({ ok: m.ok === true, ...(typeof m.errore === 'string' && m.errore !== '' ? { errore: m.errore } : {}) })
+})
+
+/**
+ * Chiede l'azione alle finestre: per un workspace a una sola (quella che mostra
+ * l'attivo), per una chat a tutte — risponde solo quella che ha il riquadro,
+ * le altre tacciono. Senza risposta entro 15 secondi lo dice.
+ */
+function azioneAlleFinestre(azione: AzioneFinestra): Promise<EsitoAzioneFinestra> {
+  const vive = finestreDiChat().filter((w) => !w.isDestroyed() && !w.webContents.isDestroyed())
+  const destinatarie = azione.tipo === 'workspace'
+    ? [finestraPerAprire(workspaceStore?.leggi().attivo)].filter((w): w is BrowserWindow => w !== undefined)
+    : vive
+  if (destinatarie.length === 0) {
+    return Promise.resolve({ ok: false, errore: 'sul computer non c’è nessuna finestra di SierraDeck aperta: aprila (dall’icona vicino all’orologio) e riprova' })
+  }
+  return new Promise((risolvi) => {
+    const id = `azione-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const scadenza = setTimeout(() => {
+      azioniInVolo.delete(id)
+      risolvi({
+        ok: false,
+        errore: azione.tipo === 'chat'
+          ? 'nessuna finestra del computer ha questa chat a schermo, o non ha risposto in 15 secondi: guarda il computer'
+          : 'la finestra del computer non ha risposto in 15 secondi: guarda il computer, l’azione potrebbe essere a metà'
+      })
+    }, ATTESA_AZIONE_MS)
+    azioniInVolo.set(id, (e) => { clearTimeout(scadenza); risolvi(e) })
+    for (const w of destinatarie) w.webContents.send('client:azione', { id, ...azione })
+  })
+}
 
 function chiediRigheAlleFinestre(
   chat: string,
@@ -392,6 +444,8 @@ let postinoGlobale: Postino | undefined
  * sapere quali chat salgono e quali scendono. Finché non c'e', tutto come prima.
  */
 let unaCasaGlobale: UnaCasa | undefined
+/** «Parte da solo» (0.55.0): gli autopiloti a cui il PC darà il via quando sono pronti. */
+let partenzeSubitoGlobale: import('./partenze-subito').PartenzeSubito | undefined
 /** L'ospite delle chat (0.52.0): nasce con la sincronia, come `unaCasaGlobale`. */
 let ospiteGlobale: Ospite | undefined
 /** Le chat di un autopilota partite prima che l'ospite fosse pronto: la loro casa si prende appena lo è (0.52.5). */
@@ -896,6 +950,37 @@ function avviaServizioAutopilota(): void {
  * perché due host non si conoscono e i terminali del primo diventerebbero
  * irraggiungibili dal secondo.
  */
+/**
+ * La finestra a cui affidare una chat chiesta da fuori (telefono, cassetta di
+ * un altro PC): quella che mostra già `workspace`, altrimenti la prima. Prima
+ * il messaggio andava a tutte, e ognuna apriva la sua copia della chat.
+ */
+function finestraPerAprire(workspace: string | undefined): BrowserWindow | undefined {
+  const vive = finestreDiChat().filter((w) => !w.isDestroyed() && !w.webContents.isDestroyed())
+  const scelta = finestraPerRipresa(workspace, vive.map((w) => ({
+    id: w.id,
+    ...(workspaceDellaFinestra(w.id) !== undefined ? { workspace: workspaceDellaFinestra(w.id) } : {})
+  })))
+  return vive.find((w) => w.id === scelta)
+}
+
+/**
+ * Le prove dal vero su una copia a parte (0.55.0): con `SIERRADECK_PROVA` il
+ * programma tiene dati e lucchetto in quella cartella, e non tocca quelli di
+ * tutti i giorni. Windows non legge `%APPDATA%` per la cartella dei dati, quindi
+ * cambiarla da fuori non bastava: la seconda copia trovava il lucchetto della
+ * prima e si chiudeva. Senza la variabile non cambia niente.
+ */
+const cartellaProva = process.env.SIERRADECK_PROVA
+if (cartellaProva !== undefined && cartellaProva !== '') {
+  app.setPath('appData', cartellaProva)
+  app.setPath('userData', join(cartellaProva, 'SierraDeck'))
+  // Anche per i processi figli: il servizio degli autopiloti cerca i suoi dati
+  // in `%APPDATA%`, e senza questa riga una copia di prova governava gli
+  // autopiloti veri.
+  process.env.APPDATA = cartellaProva
+}
+
 if (!app.requestSingleInstanceLock()) {
   app.exit(0)
 } else {
@@ -1048,7 +1133,12 @@ if (!app.requestSingleInstanceLock()) {
           ? entraAccount(email, password)
           : Promise.resolve(rispostaErrore))
       ipcMain.handle('account:esci', () => esciAccount())
-      ipcMain.handle('account:utente', () => utenteAccount())
+      // Nella copia di prova (`SIERRADECK_PROVA`) si entra con un utente
+      // d'esempio: l'account vero non si usa fuori dal programma di tutti i
+      // giorni, e senza la finestra resterebbe ferma alla schermata d'accesso.
+      ipcMain.handle('account:utente', () => cartellaProva !== undefined && cartellaProva !== ''
+        ? Promise.resolve({ id: 'prova', email: 'prova@esempio.it' })
+        : utenteAccount())
       ipcMain.handle('account:verifica', (_e, email: unknown, codice: unknown) =>
         typeof email === 'string' && typeof codice === 'string'
           ? verificaCodiceAccount(email, codice)
@@ -1473,11 +1563,7 @@ if (!app.requestSingleInstanceLock()) {
           return fuori
         },
         cartellaEsiste: (cwd) => { try { return statSync(cwd).isDirectory() } catch { return false } },
-        apriChat: (cwd) => {
-          for (const w of finestreDiChat()) {
-            if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('client:apri', { cartella: cwd })
-          }
-        },
+        apriChat: (cwd) => { finestraPerAprire(undefined)?.webContents.send('client:apri', { cartella: cwd }) },
         riprendiChat: (cwd, sessione) => {
           const dove = workspaceStore === undefined ? undefined : workspaceDellaSessione(workspaceStore.leggi(), sessione)
           const vive = finestreDiChat().filter((w) => !w.isDestroyed() && !w.webContents.isDestroyed())
@@ -1656,7 +1742,7 @@ if (!app.requestSingleInstanceLock()) {
           const strada = remoto.stradaDi(pc)?.strada
           return { stato: 200, corpo: dati, ...(strada !== undefined ? { strada } : {}) }
         } catch (err) {
-          if (err instanceof ErroreRemoto) return { stato: err.stato ?? 502, corpo: { errore: err.message, motivo: err.motivo, su: nome } }
+          if (err instanceof ErroreRemoto) return { stato: err.stato ?? 502, corpo: { ...(err.altro ?? {}), errore: err.message, motivo: err.motivo, su: nome } }
           return { stato: 502, corpo: { errore: `${nome}: ${err instanceof Error ? err.message : String(err)}`, su: nome } }
         }
       }
@@ -2932,7 +3018,15 @@ if (!app.requestSingleInstanceLock()) {
         avviaServizio: avviaServizioAutopilota,
         versione: app.getVersion()
       })
-      registerAutopilotaIpc(clientAutopilota)
+      // «Parte da solo» (0.55.0): chi è pronto riceve il via dal PC.
+      const partenze = apriPartenzeSubito(dati, {
+        elenca: () => clientAutopilota.elenca(),
+        vai: (id) => clientAutopilota.vai(id),
+        log: (m) => registro.info(m)
+      })
+      partenzeSubitoGlobale = partenze
+      setInterval(() => { void partenze.giro().catch(() => undefined) }, 15_000)
+      registerAutopilotaIpc(clientAutopilota, (id) => partenze.segna(id))
 
       // Le finestre pannello (0.38.0): le linguette della scheda dell'autopilota
       // staccate in finestre vere. Non sono finestre di chat (finestre-pannello.ts).
@@ -3341,12 +3435,13 @@ if (!app.requestSingleInstanceLock()) {
             }
           }
         },
-        apriChat: (cartella: string, modello?: string) => {
-          for (const w of finestreDiChat()) {
-            if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
-              w.webContents.send('client:apri', { cartella, modello })
-            }
-          }
+        // **Una** finestra, non tutte (0.55.0): con due finestre aperte una
+        // richiesta dal telefono apriva due chat nella stessa cartella, una
+        // per finestra. Va in quella che mostra il workspace scelto, se c'è.
+        apriChat: (cartella: string, modello?: string, workspace?: string) => {
+          finestraPerAprire(workspace)?.webContents.send('client:apri', {
+            cartella, ...(modello !== undefined ? { modello } : {}), ...(workspace !== undefined ? { workspace } : {})
+          })
         },
         // Le cartelle che Claude Code ha già visto: sono quelle in cui aprire
         // ha senso, ed essendo un elenco chiuso è anche il muro che impedisce
@@ -3535,17 +3630,25 @@ if (!app.requestSingleInstanceLock()) {
         // Senza criteri: li ricava l'autopilota nella preparazione, guardando
         // il progetto. Da un telefono, un modulo da compilare sarebbe il modo
         // piu' sicuro per non delegare mai niente.
-        creaAutopilota: async (obiettivo: string, cartella: string, opzioni?: { pubblicazione?: 'beta' | 'stabile' | 'unica'; vaSulCloud?: boolean }) => {
+        // Gli stessi campi della finestra del PC (0.55.0). Senza workspace
+        // scelto, quello che il PC ha davanti, come dal pannello.
+        creaAutopilota: async (r: RichiestaAutopilota) => {
+          await clientAutopilota.assicuraServizio()
+          const attivo = workspaceStore?.leggi().attivo
           const a = await clientAutopilota.crea({
-            nome: obiettivo.slice(0, 40),
-            obiettivo,
-            cwd: cartella,
-            criteri: [],
-            ...(opzioni?.pubblicazione !== undefined ? { pubblicazione: opzioni.pubblicazione } : {}),
-            ...(opzioni?.vaSulCloud === true ? { vaSulCloud: true } : {})
+            nome: r.nome,
+            obiettivo: r.obiettivo,
+            cwd: r.cwd,
+            criteri: r.criteri,
+            pubblicazione: r.pubblicazione,
+            ...(r.vaSulCloud === true ? { vaSulCloud: true } : {}),
+            ...(r.workspace !== undefined ? { workspace: r.workspace } : attivo !== undefined && attivo !== '' ? { workspace: attivo } : {})
           })
+          if (r.partenza === 'subito') partenzeSubitoGlobale?.segna(a.id)
           return { id: a.id }
         },
+        azioneFinestra: (a: AzioneFinestra) => azioneAlleFinestre(a),
+        cartellaUtente: () => homedir(),
         versione: app.getVersion(),
         apk: () => apkDisponibile(),
         // I colori del computer, per vestire il telefono allo stesso modo.
@@ -3598,6 +3701,8 @@ if (!app.requestSingleInstanceLock()) {
           if (store === undefined) return
           const precedente = store.leggi()
           const dopo = eliminaWorkspace(precedente, nome)
+          // La stessa copia del pannello: senza finestre si passa di qui.
+          mettiDaParteArchivio(store.percorso, 'workspaces.prima-dell-eliminazione.json')
           store.scrivi(dopo)
           // Se si è cancellato il workspace ATTIVO, l'attivo si è spostato su un
           // altro: le finestre che mostravano quello cancellato devono seguirlo,

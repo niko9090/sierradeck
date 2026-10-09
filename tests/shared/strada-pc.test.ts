@@ -93,7 +93,9 @@ describe('la segnalazione sul Drive', () => {
 describe('le rotte', () => {
   it('sul canale solo quelle del riquadro remoto', () => {
     for (const r of ['/api/stato', '/api/storia', '/api/scrivi', '/api/scegli', '/api/pc']) expect(rottaPermessaSulCanale(r)).toBe(true)
-    for (const r of ['/api/autopilota', '/api/rispondi', '/api/file', '/']) expect(rottaPermessaSulCanale(r)).toBe(false)
+    for (const r of ['/api/drive/porta', '/api/rispondi', '/api/file', '/api/account/esci', '/']) expect(rottaPermessaSulCanale(r)).toBe(false)
+    // La gestione dal telefono attraverso il ponte (0.55.0).
+    for (const r of ['/api/autopilota', '/api/autopilota/crea', '/api/workspace/crea', '/api/chat/dormi']) expect(rottaPermessaSulCanale(r)).toBe(true)
   })
   it('via Drive si dice cosa non si può fare, e perché', () => {
     expect(nonViaDrive('/api/scegli', 'LAPTOP')).toContain('premere un’opzione')

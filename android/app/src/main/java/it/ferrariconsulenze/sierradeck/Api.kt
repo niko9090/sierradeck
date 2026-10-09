@@ -193,10 +193,27 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     // ─── aprire / riprendere chat ───
     suspend fun cartelle(): Cartelle = json.decodeFromString(corpoTesto("/api/cartelle", null))
 
-    suspend fun apri(cartella: String, modello: String? = null): Fatto =
+    /** `workspace` (PC 0.55.0): dove metterla; senza, quello che il PC ha davanti. */
+    suspend fun apri(cartella: String, modello: String? = null, workspace: String? = null): Fatto =
         json.decodeFromString(corpoTesto("/api/apri", oggetto {
             put("cartella", cartella); if (modello != null) put("modello", modello)
+            if (!workspace.isNullOrBlank()) put("workspace", workspace)
         }))
+
+    // ─── le azioni del riquadro, come i tasti del PC (PC 0.55.0) ───
+    /** ⏸: si chiude il claude.exe, la chat resta al suo posto. */
+    suspend fun dormiChat(chat: String): Fatto =
+        json.decodeFromString(corpoTesto("/api/chat/dormi", oggetto { put("chat", chat) }))
+
+    suspend fun svegliaChat(chat: String): Fatto =
+        json.decodeFromString(corpoTesto("/api/chat/sveglia", oggetto { put("chat", chat) }))
+
+    /** ⇄ verso un altro workspace. */
+    suspend fun spostaChat(chat: String, workspace: String): Fatto =
+        json.decodeFromString(corpoTesto("/api/chat/sposta", oggetto { put("chat", chat); put("workspace", workspace) }))
+
+    suspend fun rinominaWorkspace(nome: String, nuovo: String): Fatto =
+        json.decodeFromString(corpoTesto("/api/workspace/rinomina", oggetto { put("nome", nome); put("nuovo", nuovo) }))
 
     suspend fun sessioni(): Sessioni = json.decodeFromString(corpoTesto("/api/sessioni", null))
 
@@ -218,6 +235,20 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         json.decodeFromString(corpoTesto("/api/autopilota/crea", oggetto {
             put("obiettivo", obiettivo); put("cartella", cartella)
             put("pubblicazione", pubblicazione); put("vaSulCloud", cloud)
+        }))
+
+    /**
+     * Con tutti i campi della finestra del PC (PC 0.55.0), già controllati da
+     * `AzioniTelefono.controlla`. Un PC di prima legge obiettivo, cartella,
+     * regola e cloud, e ignora il resto.
+     */
+    suspend fun creaAutopilota(r: RichiestaAutopilota): Fatto =
+        json.decodeFromString(corpoTesto("/api/autopilota/crea", oggetto {
+            put("obiettivo", r.obiettivo); put("cartella", r.cwd); put("nome", r.nome)
+            put("criteri", r.criteri.joinToString("\n") { it.descrizione })
+            put("pubblicazione", r.pubblicazione); put("vaSulCloud", r.vaSulCloud == true)
+            put("partenza", r.partenza)
+            r.workspace?.let { put("workspace", it) }
         }))
 
     /**

@@ -7,10 +7,11 @@
  * firmata (0.47.0): il telefono gli chiede `POST /api/ponte {pc, percorso,
  * corpo}` e lui la gira a quel PC. Il telefono non ha mai la chiave di casa.
  *
- * **Gli stessi permessi del PC**: passano solo le rotte che il PC stesso usa
- * dal suo riquadro remoto (vedere lo stato e la storia, scrivere, premere
- * un'opzione, riprendere o aprire una chat; dalla 0.50.0 mandarle un file). Rinominare, chiudere, gli
- * autopiloti, il Drive, gli aggiornamenti di quel PC: no, come dal PC.
+ * **Gli stessi permessi del PC**: passano le rotte che il PC stesso usa dal
+ * suo riquadro remoto (vedere lo stato e la storia, scrivere, premere
+ * un'opzione, riprendere o aprire una chat; dalla 0.50.0 mandarle un file) e,
+ * dalla 0.55.0, quelle per gestire chat, workspace e autopiloti di quel PC.
+ * Il Drive, gli aggiornamenti, l'account e il negozio di quel PC: no.
  * Un altro PC non può usare il ponte (niente catene).
  */
 
@@ -22,7 +23,17 @@ export const ROTTE_PONTE: readonly string[] = [
   '/api/allegati/inizia', '/api/allegati/pezzo', '/api/allegati/stato', '/api/allegati/fine', '/api/allegati/annulla',
   // La sezione File (0.54.0): sfogliare i progetti di quel PC, in sola lettura, e ritirare i file che quel PC manda al telefono.
   '/api/file/progetti', '/api/file/elenco', '/api/file/leggi',
-  '/api/consegne', '/api/consegne/pezzo', '/api/consegne/ricevuta'
+  '/api/consegne', '/api/consegne/pezzo', '/api/consegne/ricevuta',
+  // Gestire quel PC dal telefono (0.55.0), come dal PC che hai davanti: i
+  // workspace, chiudere/togliere/rinominare una chat, la cartella per una chat
+  // nuova, le conversazioni da riprendere e gli autopiloti. Passa solo verso
+  // un PC della stessa cassaforte (la chiave di casa, regola della 0.47).
+  '/api/workspace', '/api/workspace/crea', '/api/workspace/elimina', '/api/workspace/rinomina',
+  '/api/chat/chiudi', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta', '/api/chat/nome',
+  '/api/sfoglia', '/api/cartelle', '/api/sessioni',
+  '/api/autopilota', '/api/autopilota/crea', '/api/autopilota/ferma', '/api/autopilota/riprendi', '/api/autopilota/vai',
+  '/api/autopilota/elimina', '/api/autopilota/riavvio', '/api/autopilota/dialogo', '/api/autopilota/file', '/api/autopilota/diff',
+  '/api/autopilota/istruzioni', '/api/autopilota/correggi', '/api/quaderno', '/api/quaderno/scheda'
 ]
 
 export function rottaPonte(percorso: string): boolean {
@@ -38,7 +49,7 @@ export function leggiRichiestaPonte(x: unknown): { ok: true; r: RichiestaPonte }
   const percorso = typeof o.percorso === 'string' ? o.percorso.trim() : ''
   if (pc === '' || percorso === '') return { ok: false, stato: 400, errore: 'Manca il PC o la rotta da chiedere.' }
   if (!rottaPonte(percorso)) {
-    return { ok: false, stato: 403, errore: `Attraverso il ponte si può solo quello che il PC fa dal suo riquadro remoto: vedere le chat e la loro storia, scrivere, premere un’opzione, riprendere o aprire una chat, mandarle un file, sfogliare i file dei progetti e ricevere quelli mandati al telefono. «${percorso}» no.` }
+    return { ok: false, stato: 403, errore: `Attraverso il ponte passano le chat (vederle, scriverle, aprirle, chiuderle, rinominarle), i workspace, gli autopiloti, i file dei progetti e quelli mandati al telefono. Il Drive, gli aggiornamenti, l’account e il negozio di un altro PC si gestiscono da quel PC. «${percorso}» no.` }
   }
   const corpo = o.corpo
   if (corpo !== undefined && corpo !== null && (typeof corpo !== 'object' || Array.isArray(corpo))) return { ok: false, stato: 400, errore: 'Il corpo della richiesta non è un oggetto.' }

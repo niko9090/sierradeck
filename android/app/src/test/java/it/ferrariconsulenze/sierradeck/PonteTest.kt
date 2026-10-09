@@ -112,13 +112,15 @@ class PonteTest {
     }
 
     @Test
-    fun `quello che il PC non fa dal riquadro remoto non parte nemmeno`() = runBlocking {
+    fun `il Drive, gli aggiornamenti e l'account di un altro PC non partono nemmeno`() = runBlocking {
+        // Dalla 2.55.0 la gestione di chat, workspace e autopiloti passa (AzioniTelefonoTest);
+        // il resto si fa da quel PC.
         val arrivati = mutableListOf<String>()
         val s = PcFinto({ 200 to "{}" }, arrivati)
         try {
             val api = Api("http://127.0.0.1:${s.porta}", "k").suPc("lap")
             val azioni = listOf<suspend () -> Unit>(
-                { api.rinominaChat("p-1", "x") }, { api.chiudiChat("p-1") }, { api.sfoglia() }, { api.sessioni() }, { api.installaAggiornamento() }
+                { api.installaAggiornamento() }, { api.esciAccount() }, { api.driveAnnulla() }, { api.cercaAggiornamentoPc() }
             )
             for (azione in azioni) {
                 try { azione(); fail("doveva essere rifiutata") } catch (e: Api.Errore) { assertEquals(403, e.codice) }

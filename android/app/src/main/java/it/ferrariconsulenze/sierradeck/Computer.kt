@@ -147,6 +147,10 @@ fun Computer(api: Api, stato: Stato?) {
         // andare, e il campo per crearne uno sta nello stesso pannello.
         Sezione("Workspace")
         val ws = stato?.workspace
+        // Rinominare ed eliminare (app 2.55.0): prima la funzione c'era ma
+        // nessun tasto la chiamava, e un workspace dal telefono non si toglieva.
+        var gestisci by remember { mutableStateOf(false) }
+        if (gestisci) GestioneWorkspace(api, ws ?: Workspace(), PcCorrente.nome, onChiudi = { gestisci = false })
         Tessera(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp)) {
                 if ((ws?.nomi ?: emptyList()).isEmpty()) {
@@ -188,11 +192,15 @@ fun Computer(api: Api, stato: Stato?) {
                         enabled = nuovoWs.isNotBlank(),
                         shape = MaterialTheme.shapes.small,
                         onClick = {
+                            val e = AzioniTelefono.erroreNomeWorkspace(nuovoWs, ws?.nomi ?: emptyList())
+                            if (e != null) { Nota.mostra(e); return@Button }
                             val n = nuovoWs.trim(); nuovoWs = ""
-                            scope.launch { tenta("creare il workspace «$n»") { api.creaWorkspace(n) } }
+                            scope.launch { tentaGestione("creare il workspace «$n»", PcCorrente.nome) { api.creaWorkspace(n) } }
                         }
                     ) { Text("Crea") }
                 }
+                Spacer(Modifier.height(6.dp))
+                TextButton(onClick = { gestisci = true }) { Text("Rinomina o elimina un workspace…") }
             }
         }
 

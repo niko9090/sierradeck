@@ -927,7 +927,8 @@ return vistaConversazioni()`
 
   it('Affida manda la regola di pubblicazione e il cloud', () => {
     expect(script).toContain('id="delega-pubblicazione"')
-    expect(script).toContain('pubblicazione: pubblicazione, vaSulCloud: cloud')
+    expect(script).toContain("pubblicazione: val('delega-pubblicazione') || 'stabile'")
+    expect(script).toContain("vaSulCloud: !!(document.getElementById('delega-cloud') || {}).checked")
   })
 })
 

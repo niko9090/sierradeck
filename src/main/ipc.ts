@@ -655,7 +655,7 @@ function layoutVuoto(): LayoutSalvato {
  * sicurezza non è riuscita — ma lo si registra, perché una copia mancata è
  * proprio ciò che si vorrebbe sapere il giorno in cui serve.
  */
-function mettiDaParteArchivio(percorso: string, nomeCopia: string): void {
+export function mettiDaParteArchivio(percorso: string, nomeCopia: string): void {
   try {
     if (!existsSync(percorso)) return
     copyFileSync(percorso, join(dirname(percorso), nomeCopia))
@@ -1340,7 +1340,11 @@ function annunciaCambio(
  * riprenderlo dopo che è caduto — senza un pulsante «riavvia» che l'utente
  * dovrebbe sapere di dover premere.
  */
-export function registerAutopilotaIpc(client: ClientAutopilota): void {
+export function registerAutopilotaIpc(
+  client: ClientAutopilota,
+  /** «Parte da solo» (0.55.0): il PC gli darà il via quando è pronto. */
+  partenzaSubito?: (id: string) => void
+): void {
   ipcMain.handle('autopilota:elenca', async () => {
     await client.assicuraServizio()
     return client.elenca()
@@ -1348,7 +1352,9 @@ export function registerAutopilotaIpc(client: ClientAutopilota): void {
   ipcMain.handle('autopilota:crea', async (_e, raw: unknown) => {
     const richiesta = validaNuovoAutopilota(raw)
     await client.assicuraServizio()
-    return client.crea(richiesta)
+    const creato = await client.crea(richiesta)
+    if ((raw as { partenza?: unknown }).partenza === 'subito') partenzaSubito?.(creato.id)
+    return creato
   })
   ipcMain.handle('autopilota:vai', (_e, id: unknown) => client.vai(validaIdAutopilota(id)))
   ipcMain.handle('autopilota:modifica', (_e, id: unknown, cambio: unknown) =>

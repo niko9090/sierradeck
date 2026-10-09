@@ -354,45 +354,59 @@ describe('quello che il Client puo fare', () => {
     expect(aperta).toBe(conosciuta)
   })
 
-  it('crea un autopilota, nella sola cartella che il computer conosce', async () => {
+  it('crea un autopilota con i campi della finestra del PC; mai nella radice di un disco o nella cartella dell utente', async () => {
     // Delegare un lavoro e' la cosa piu' utile che si possa fare da fermi, in
     // piedi, con una mano sola: le domande della preparazione arrivano poi
-    // sullo stesso telefono, e si risponde da li'.
-    const creati: { obiettivo: string; cartella: string }[] = []
+    // sullo stesso telefono, e si risponde da li'. Dalla 0.55.0 con gli stessi
+    // campi del PC e la stessa validazione (`controllaBozzaAutopilota`).
+    const creati: unknown[] = []
     const su = deps({
-      creaAutopilota: (obiettivo, cartella) => {
-        creati.push({ obiettivo, cartella })
-        return Promise.resolve({ id: 'ap-9' })
-      }
+      creaAutopilota: (r) => { creati.push(r); return Promise.resolve({ id: 'ap-9' }) },
+      cartellaUtente: () => 'C:\\Users\\esempio',
+      cartellaEsiste: () => Promise.resolve(true)
     })
+    // Un telefono di prima: obiettivo e cartella conosciuta.
     const buona = await rotteClient(su)({
       metodo: 'POST',
       percorso: '/api/autopilota/crea',
       corpo: { obiettivo: 'Sistema il lettore di CSV', cartella: 'C:\\lavoro' }
     })
-    expect(buona.stato).toBe(200)
-    expect(creati).toEqual([{ obiettivo: 'Sistema il lettore di CSV', cartella: 'C:\\lavoro' }])
-
-    // La stessa regola di «apri»: una cartella qualunque arrivata dalla rete
-    // manderebbe un agente a lavorare dove capita.
-    const fuori = await rotteClient(su)({
+    expect(buona).toMatchObject({ stato: 200, corpo: { fatto: true, autopilota: 'ap-9' } })
+    expect(creati[0]).toEqual({ nome: 'Sistema il lettore di CSV', obiettivo: 'Sistema il lettore di CSV', cwd: 'C:\\lavoro', criteri: [], pubblicazione: 'stabile', partenza: 'via' })
+    // Tutti i campi (app 2.55.0): una cartella mai vista ma che esiste, sfogliata.
+    const piena = await rotteClient(su)({
       metodo: 'POST',
       percorso: '/api/autopilota/crea',
-      corpo: { obiettivo: 'x', cartella: 'C:\Windows\System32' }
+      corpo: { obiettivo: 'Porta i test a verde', cartella: 'D:\\Progetti\\Esempio', nome: 'Test verdi', criteri: 'npm test passa' + String.fromCharCode(10) + 'il quaderno ha la scheda', pubblicazione: 'beta', vaSulCloud: true, workspace: 'casa', partenza: 'subito' }
     })
-    expect(fuori.stato).toBe(403)
-    expect(creati).toHaveLength(1)
+    expect(piena.stato).toBe(200)
+    expect(creati[1]).toEqual({ nome: 'Test verdi', obiettivo: 'Porta i test a verde', cwd: 'D:\\Progetti\\Esempio', criteri: [{ descrizione: 'npm test passa' }, { descrizione: 'il quaderno ha la scheda' }], pubblicazione: 'beta', vaSulCloud: true, workspace: 'casa', partenza: 'subito' })
+
+    // La radice di un disco e la cartella dell'utente: no, con il perché.
+    for (const cartella of ['C:\\', 'C:\\Users\\esempio', 'C:\\Users']) {
+      const fuori = await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/crea', corpo: { obiettivo: 'x', cartella } })
+      expect(fuori.stato, cartella).toBe(403)
+      expect((fuori.corpo as { campo: string }).campo).toBe('cwd')
+    }
+    // Un workspace che non c'è, una regola sconosciuta, un pezzo di nome al posto della cartella.
+    expect((await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/crea', corpo: { obiettivo: 'x', cartella: 'C:\\lavoro', workspace: 'altrove' } })).stato).toBe(404)
+    expect(await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/crea', corpo: { obiettivo: 'x', cartella: 'C:\\lavoro', pubblicazione: 'sempre' } })).toMatchObject({ stato: 400, corpo: { campo: 'pubblicazione' } })
+    expect(await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/crea', corpo: { obiettivo: 'x', cartella: 'lavoro' } })).toMatchObject({ stato: 400, corpo: { campo: 'cwd' } })
+    // Una cartella che non esiste.
+    const nonCe = await rotteClient({ ...su, cartellaEsiste: () => Promise.resolve(false) })({ metodo: 'POST', percorso: '/api/autopilota/crea', corpo: { obiettivo: 'x', cartella: 'D:\\Sparita' } })
+    expect(nonCe.stato).toBe(404)
+    expect(creati).toHaveLength(2)
   })
 
   it('senza obiettivo non crea niente', async () => {
-    const creati: string[] = []
+    const creati: unknown[] = []
     const su = deps({
-      creaAutopilota: (o) => { creati.push(o); return Promise.resolve({ id: 'ap-9' }) }
+      creaAutopilota: (r) => { creati.push(r); return Promise.resolve({ id: 'ap-9' }) }
     })
     const r = await rotteClient(su)({
-      metodo: 'POST', percorso: '/api/autopilota/crea', corpo: { cartella: 'C:\lavoro' }
+      metodo: 'POST', percorso: '/api/autopilota/crea', corpo: { cartella: 'C:\\lavoro' }
     })
-    expect(r.stato).toBe(400)
+    expect(r).toMatchObject({ stato: 400, corpo: { campo: 'obiettivo', errore: 'Scrivi prima cosa vuoi ottenere.' } })
     expect(creati).toEqual([])
   })
 
@@ -552,15 +566,57 @@ describe('riprendere una conversazione, e i workspace per intero', () => {
     expect(r.stato).toBe(403)
   })
 
-  it('crea ed elimina un workspace', async () => {
+  it('crea ed elimina un workspace (senza finestre: le strade di prima, con i controlli)', async () => {
     const fatti: string[] = []
+    let nomi = ['lavoro', 'casa']
     const su = deps({
-      creaWorkspace: (n) => { fatti.push('crea:' + n); return Promise.resolve() },
-      eliminaWorkspace: (n) => { fatti.push('elimina:' + n); return Promise.resolve() }
+      workspace: () => Promise.resolve({ nomi, attivo: 'lavoro' }),
+      creaWorkspace: (n) => { fatti.push('crea:' + n); nomi = [...nomi, n]; return Promise.resolve() },
+      eliminaWorkspace: (n) => { fatti.push('elimina:' + n); nomi = nomi.filter((x) => x !== n); return Promise.resolve() }
     })
     await rotteClient(su)({ metodo: 'POST', percorso: '/api/workspace/crea', corpo: { nome: 'sera' } })
     await rotteClient(su)({ metodo: 'POST', percorso: '/api/workspace/elimina', corpo: { nome: 'sera' } })
     expect(fatti).toEqual(['crea:sera', 'elimina:sera'])
+    // Uno che non c'è: lo dice, invece di far finta.
+    expect((await rotteClient(su)({ metodo: 'POST', percorso: '/api/workspace/elimina', corpo: { nome: 'sera' } })).stato).toBe(404)
+    // L'ultimo resta, come sul PC.
+    nomi = ['lavoro']
+    const ultimo = await rotteClient(su)({ metodo: 'POST', percorso: '/api/workspace/elimina', corpo: { nome: 'lavoro' } })
+    expect(ultimo).toMatchObject({ stato: 409, corpo: { errore: 'L’ultimo workspace non si può eliminare: non resterebbe dove salvare il layout.' } })
+    expect(fatti).toHaveLength(2)
+  })
+
+  it('con la finestra (0.55.0): crea, elimina, rinomina, dormi, sveglia, chiudi, sposta passano dai tasti del PC', async () => {
+    const chieste: unknown[] = []
+    let esito = { ok: true } as { ok: boolean; errore?: string }
+    const su = deps({
+      azioneFinestra: (a) => { chieste.push(a); return Promise.resolve(esito) },
+      chat: () => [{ id: 'p-1', titolo: 'CSV', cwd: 'C:\\lavoro', coda: [] }] as never
+    })
+    const r = rotteClient(su)
+    const vai = (percorso: string, corpo: object): ReturnType<typeof r> => r({ metodo: 'POST', percorso, corpo })
+    expect((await vai('/api/workspace/crea', { nome: 'sera' })).stato).toBe(200)
+    expect((await vai('/api/workspace/elimina', { nome: 'casa' })).stato).toBe(200)
+    expect((await vai('/api/workspace/rinomina', { nome: 'casa', nuovo: 'Casa nuova' })).stato).toBe(200)
+    expect(await vai('/api/workspace/rinomina', { nome: 'casa', nuovo: 'lavoro' })).toMatchObject({ stato: 400, corpo: { errore: '«lavoro» esiste già: scegli un altro nome.' } })
+    expect((await vai('/api/chat/dormi', { chat: 'p-1' })).stato).toBe(200)
+    expect((await vai('/api/chat/sveglia', { chat: 'p-1' })).stato).toBe(200)
+    expect((await vai('/api/chat/chiudi', { chat: 'p-1' })).stato).toBe(200)
+    expect((await vai('/api/chat/sposta', { chat: 'p-1', workspace: 'casa' })).stato).toBe(200)
+    expect((await vai('/api/chat/sposta', { chat: 'p-1', workspace: 'nessuno' })).stato).toBe(404)
+    expect((await vai('/api/chat/dormi', { chat: 'p-9' })).stato).toBe(404)
+    expect(chieste).toEqual([
+      { tipo: 'workspace', azione: 'crea', nome: 'sera' },
+      { tipo: 'workspace', azione: 'elimina', nome: 'casa' },
+      { tipo: 'workspace', azione: 'rinomina', nome: 'casa', nuovo: 'Casa nuova' },
+      { tipo: 'chat', azione: 'dormi', chat: 'p-1' },
+      { tipo: 'chat', azione: 'sveglia', chat: 'p-1' },
+      { tipo: 'chat', azione: 'chiudi', chat: 'p-1' },
+      { tipo: 'chat', azione: 'sposta', chat: 'p-1', workspace: 'casa' }
+    ])
+    // La finestra dice di no: il telefono legge il perché.
+    esito = { ok: false, errore: 'il disco ha rifiutato workspaces.json' }
+    expect(await vai('/api/workspace/elimina', { nome: 'casa' })).toMatchObject({ stato: 409, corpo: { errore: 'Il workspace «casa» non è stato eliminato: il disco ha rifiutato workspaces.json.' } })
   })
 
   it('i salvataggi con nome non esistono piu’: elenco vuoto per le app vecchie, e un rifiuto che spiega', async () => {

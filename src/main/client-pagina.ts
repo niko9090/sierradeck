@@ -19,6 +19,10 @@
 import { FASI_CATALOGO } from '../shared/catalogo-progresso'
 import { ansiInHtml } from '@shared/ansi-html'
 import { ricomponiSchermo } from '@shared/ricomponi-schermo'
+import {
+  PARTENZE, ULTIMO_WORKSPACE, confermaChiudi, confermaDormi, confermaEliminaAutopilota, confermaEliminaWorkspace, confermaSposta
+} from '@shared/azioni-telefono'
+import { REGOLE_PUBBLICAZIONE } from '@shared/harness'
 
 /** Il cristallo, per la scheda del browser e per la schermata Home. */
 export const ICONA_SVG =
@@ -554,6 +558,20 @@ ${ansiInHtml.toString()}
 // Il testo ricomposto per la larghezza del telefono (0.52.6): stesso codice
 // del modulo condiviso, con i suoi test.
 ${ricomponiSchermo.toString()}
+// Le conferme, le partenze e le regole (0.55.0): gli stessi testi del PC e
+// dell'app, da src/shared/azioni-telefono.ts. §N è il nome, §W il workspace.
+var CONFERME = ${JSON.stringify({
+  dormi: confermaDormi('§N'), chiudi: confermaChiudi('§N'), sposta: confermaSposta('§N', '§W'),
+  eliminaWorkspace: confermaEliminaWorkspace('§N'), eliminaAutopilota: confermaEliminaAutopilota('§N')
+})}
+var PARTENZE = ${JSON.stringify(PARTENZE)}
+var REGOLE = ${JSON.stringify(REGOLE_PUBBLICAZIONE)}
+var ULTIMO_WORKSPACE = ${JSON.stringify(ULTIMO_WORKSPACE)}
+function testoConferma(tipo, nome, ws) {
+  var c = CONFERME[tipo]
+  var metti = function (t) { return t.split('§N').join(nome || '').split('§W').join(ws || '') }
+  return { titolo: metti(c.titolo), testo: metti(c.testo), azione: metti(c.azione) }
+}
 
 const CHIAVE = 'sierradeck.chiave'
 let chiave = localStorage.getItem(CHIAVE) || ''
@@ -1455,9 +1473,19 @@ function pannello(s) {
           <button onclick="rinomina('\${escJs(aperta.id)}')">Nome</button>
         </div>
         <div class="riga">
-          <button class="\${confermando === 'chat-' + aperta.id ? 'pericolo' : ''}"
-            onclick="chiudiChat('\${escJs(aperta.id)}')">\${confermando === 'chat-' + aperta.id ? 'Sicuro? Chiudi' : 'Chiudi la chat'}</button>
+          \${aperta.viva === false
+            ? '<button onclick="azioneChat(\\'sveglia\\', \\'' + escJs(aperta.id) + '\\')">Svegliala</button>'
+            : '<button onclick="chiediAzione(\\'dormi\\', \\'' + escJs(aperta.id) + '\\')">Metti a dormire</button>'}
+          <button class="pericolo" onclick="chiediAzione('chiudi', '\${escJs(aperta.id)}')">Chiudi la chat…</button>
         </div>
+        \${((s.workspace && s.workspace.nomi) || []).length > 1 ? \`
+        <div class="riga">
+          <select id="sposta-\${esc(aperta.id)}" style="flex:1">
+            \${(s.workspace.nomi || []).filter((n) => n !== aperta.workspace).map((n) => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('')}
+          </select>
+          <button onclick="chiediAzione('sposta', '\${escJs(aperta.id)}')">Sposta lì</button>
+        </div>\` : ''}
+        \${confermaHtml(aperta.id)}
       </div>\` : ''}
     \${pinDentro ? \`
     <div class="piastrella" style="text-align:center">
@@ -1546,19 +1574,31 @@ function pannello(s) {
            <textarea id="delega-obiettivo" rows="8" placeholder="Tutto quello che serve: l’obiettivo, i vincoli (cosa non toccare), come si capisce che ha finito. Nessun limite: puoi incollare un documento."></textarea>
            <div class="sotto">Arriva a lui parola per parola, come mandato. Poi legge il progetto, ti fa al massimo un paio di domande (le trovi nella scheda Domande) e aspetta il tuo «Vai».</div>
          </div>
-         <div class="sotto" style="margin-top:10px">In quale cartella?</div>
+         <div class="sotto" style="margin-top:10px">In quale cartella lavora? Scegline una o scrivi il percorso intero.</div>
+         <div class="riga"><input id="delega-cwd" placeholder="per esempio C:\\\\Progetti\\\\Esempio"></div>
          \${(cartelle || []).length === 0
            ? '<div class="sotto" style="margin-top:8px">Nessuna cartella conosciuta.</div>'
            : (cartelle || []).map((c, i) =>
                '<button class="cartella' + (delegaCartella === i ? ' attivo' : '') + '" onclick="scegliPer(' + i + ')">' +
                '<span class="cartella__nome">' + (delegaCartella === i ? '✓ ' : '') + esc(c.split(/[\\\\/]/).filter(Boolean).pop() || c) + '</span>' +
                '<span class="cartella__dove">' + esc(c) + '</span></button>').join('')}
+         \${((s.workspace && s.workspace.nomi) || []).length > 0 ? \`
+         <div class="sotto" style="margin-top:10px">In quale workspace nascono le sue chat</div>
+         <select id="delega-workspace" style="width:100%;margin-top:6px">
+           \${s.workspace.nomi.map((n) => '<option value="' + esc(n) + '"' + (n === s.workspace.attivo ? ' selected' : '') + '>' + esc(n) + '</option>').join('')}
+         </select>\` : ''}
+         <div class="riga"><input id="delega-nome" placeholder="Nome (facoltativo): se vuoto, le prime parole dell’obiettivo"></div>
          <div class="sotto" style="margin-top:10px">Pubblicazione del progetto</div>
          <select id="delega-pubblicazione" style="width:100%;margin-top:6px">
-           <option value="stabile">stabile: chiede prima</option>
-           <option value="beta">beta: pubblica sempre</option>
-           <option value="unica">versione unica: decide il progetto</option>
+           \${REGOLE.map((r) => '<option value="' + r.valore + '"' + (r.valore === 'stabile' ? ' selected' : '') + '>' + esc(r.etichetta) + '</option>').join('')}
          </select>
+         <div class="sotto">\${REGOLE.map((r) => '<b>' + esc(r.etichetta) + '</b>: ' + esc(r.spiega)).join('<br>')}</div>
+         <div class="sotto" style="margin-top:10px">Partenza</div>
+         <select id="delega-partenza" style="width:100%;margin-top:6px">
+           \${PARTENZE.map((p) => '<option value="' + p.valore + '">' + esc(p.etichetta) + '</option>').join('')}
+         </select>
+         <div class="sotto">\${PARTENZE.map((p) => '<b>' + esc(p.etichetta) + '</b>: ' + esc(p.spiega)).join('<br>')}</div>
+         <div class="riga"><textarea id="delega-criteri" rows="3" placeholder="Come si capisce che ha finito (facoltativo, uno per riga). Se vuoto se li ricava lui."></textarea></div>
          <label class="spunta" style="display:block;margin-top:8px"><input type="checkbox" id="delega-cloud"> va sul cloud: le chat stanno sul Drive</label>
          <div class="sotto">Il «cloud» è il Drive di SierraDeck, dove si salvano le chat. Se le chat di questo progetto stanno sul Drive (questa spunta, oppure la sincronizzazione Drive del progetto già accesa) lavora in autonomia completa, senza farti domande: commit, unione dei suoi rami, push e pubblicazione secondo la regola qui accanto. Il remoto git e gli script di pubblicazione del progetto servono solo a sapere dove mandare su e con quale comando pubblicare. Senza Drive fa commit sui suoi rami e li unisce, e basta: niente push, niente pubblicazione. Quante chat apre lo decide lui, dentro il freno sui limiti del piano.</div>
          <div class="riga">
@@ -1878,10 +1918,18 @@ function pannello(s) {
   // non c'e' piu': era un menu alla **fine** di uno scorrimento infinito, che
   // apriva i suoi pannelli ancora piu' sotto — con sei chat aperte, «Consumi»
   // era a dodici schermate dal pollice.
+  // Rinominare ed eliminare (0.55.0), sul workspace davanti, come il pannello del PC.
+  const attivoWs = (s.workspace && s.workspace.attivo) || ''
   const paneWorkspace = ws
     ? '<div class="piastrella"><div class="titolo">Workspace</div><div class="ws" style="margin-top:10px">' + ws + '</div>' +
       '<div class="riga"><input id="ws-nuovo" placeholder="un workspace nuovo">' +
-      '<button onclick="creaWorkspace()">Crea</button></div></div>'
+      '<button onclick="creaWorkspace()">Crea</button></div>' +
+      (attivoWs ? '<div class="riga"><input id="ws-rinomina" placeholder="nome nuovo per «' + esc(attivoWs) + '»">' +
+        '<button onclick="rinominaWorkspace()">Rinomina</button></div>' +
+        '<div class="riga">' + ((s.workspace.nomi || []).length > 1
+          ? '<button class="pericolo" onclick="chiediAzione(\\'eliminaWorkspace\\', \\'' + escJs(attivoWs) + '\\')">Elimina «' + esc(attivoWs) + '»…</button>'
+          : '<span class="sotto">' + esc(ULTIMO_WORKSPACE) + '</span>') + '</div>' + confermaHtml('ws:' + attivoWs) : '') +
+      '</div>'
     : ''
 
   const schermate = {
@@ -2114,16 +2162,30 @@ window.apriDelega = async () => {
   if (cartelle.length === 1) delegaCartella = 0
   pannello(ultimoStato)
 }
-window.scegliPer = (i) => { delegaCartella = i; pannello(ultimoStato) }
+window.scegliPer = (i) => {
+  delegaCartella = i
+  const c = document.getElementById('delega-cwd')
+  if (c && (cartelle || [])[i]) c.value = cartelle[i]
+  pannello(ultimoStato)
+}
 window.affida = async () => {
-  const campo = document.getElementById('delega-obiettivo')
-  const obiettivo = campo && campo.value.trim()
-  const cartella = (cartelle || [])[delegaCartella]
-  // Niente silenzio: un tasto che non fa niente sembra rotto.
-  if (!obiettivo || !cartella) { notaGlobale = 'Per affidare un lavoro servono cosa deve fare e la cartella.'; pannello(ultimoStato); return }
-  const pubblicazione = (document.getElementById('delega-pubblicazione') || {}).value || 'stabile'
-  const cloud = !!(document.getElementById('delega-cloud') || {}).checked
-  await chiedi('/api/autopilota/crea', { obiettivo: obiettivo, cartella: cartella, pubblicazione: pubblicazione, vaSulCloud: cloud })
+  const val = (id) => { const e = document.getElementById(id); return e ? e.value : '' }
+  // La validazione è quella del PC (0.55.0): la fa il computer con la stessa
+  // funzione della sua finestra, e il perché torna qui per esteso.
+  const corpo = {
+    obiettivo: val('delega-obiettivo'), cartella: val('delega-cwd').trim() || (cartelle || [])[delegaCartella] || '',
+    nome: val('delega-nome'), criteri: val('delega-criteri'),
+    pubblicazione: val('delega-pubblicazione') || 'stabile', partenza: val('delega-partenza') || 'via',
+    vaSulCloud: !!(document.getElementById('delega-cloud') || {}).checked
+  }
+  if (val('delega-workspace')) corpo.workspace = val('delega-workspace')
+  try {
+    await chiedi('/api/autopilota/crea', corpo)
+  } catch (e) {
+    notaGlobale = 'Non l’ho affidato: ' + ((e && e.message) || 'il computer non risponde')
+    pannello(ultimoStato)
+    return
+  }
   delegando = false
   delegaCartella = -1
   cartelle = null
@@ -3147,6 +3209,57 @@ window.creaWorkspace = async () => {
   if (!campo || !campo.value.trim()) return
   await chiedi('/api/workspace/crea', { nome: campo.value.trim() })
   campo.value = ''
+  aggiorna()
+}
+
+window.rinominaWorkspace = async () => {
+  const campo = document.getElementById('ws-rinomina')
+  const nuovo = campo && campo.value.trim()
+  const vecchio = ultimoStato && ultimoStato.workspace && ultimoStato.workspace.attivo
+  if (!nuovo || !vecchio) return
+  try { await chiedi('/api/workspace/rinomina', { nome: vecchio, nuovo: nuovo }); campo.value = '' }
+  catch (e) { notaGlobale = 'Non l’ho rinominato: ' + ((e && e.message) || 'il computer non risponde') }
+  aggiorna()
+}
+
+/**
+ * Le azioni con la conferma del PC (0.55.0): la prima pressione mostra cosa
+ * succede e cosa no, per esteso; la seconda la fa.
+ */
+var confermaPg = null
+window.chiediAzione = (tipo, id) => {
+  const st = ultimoStato || {}
+  const c = (st.chat || []).find((x) => x.id === id)
+  const ws = tipo === 'sposta' ? ((document.getElementById('sposta-' + id) || {}).value || '') : ''
+  const nome = tipo === 'eliminaWorkspace' ? id : (c ? (c.titolo || c.cwd) : id)
+  confermaPg = { tipo: tipo, id: id, ws: ws, chiave: tipo === 'eliminaWorkspace' ? 'ws:' + id : id, testo: testoConferma(tipo, nome, ws) }
+  pannello(ultimoStato)
+}
+function confermaHtml(chiave) {
+  if (!confermaPg || confermaPg.chiave !== chiave) return ''
+  const t = confermaPg.testo
+  return '<div class="piastrella chiede"><div class="titolo">' + esc(t.titolo) + '</div><div class="sotto">' + esc(t.testo) + '</div>' +
+    '<div class="riga"><button class="pericolo" onclick="faiAzione()">' + esc(t.azione) + '</button>' +
+    '<button onclick="confermaPg = null; pannello(ultimoStato)">Annulla</button></div></div>'
+}
+window.faiAzione = async () => {
+  const a = confermaPg
+  confermaPg = null
+  if (!a) return
+  try {
+    if (a.tipo === 'eliminaWorkspace') await chiedi('/api/workspace/elimina', { nome: a.id })
+    else if (a.tipo === 'sposta') await chiedi('/api/chat/sposta', { chat: a.id, workspace: a.ws })
+    else if (a.tipo === 'dormi') await chiedi('/api/chat/dormi', { chat: a.id })
+    else if (a.tipo === 'chiudi') { await chiedi('/api/chat/chiudi', { chat: a.id }); if (dentro === a.id) { dentro = null; righeDentro = []; righeGrezze = [] } }
+    if (a.tipo === 'sposta' && dentro === a.id) { dentro = null; righeDentro = []; righeGrezze = [] }
+  } catch (e) {
+    notaGlobale = 'Non è andata: ' + ((e && e.message) || 'il computer non risponde')
+  }
+  aggiorna()
+}
+window.azioneChat = async (azione, id) => {
+  try { await chiedi('/api/chat/' + azione, { chat: id }) }
+  catch (e) { notaGlobale = 'Non è andata: ' + ((e && e.message) || 'il computer non risponde') }
   aggiorna()
 }
 

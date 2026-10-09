@@ -132,7 +132,8 @@ describe('il collegamento WebRTC fra due PC', () => {
     fisso.rtc.avvia('lap')
     await finche(() => fisso.rtc.stato('lap') === 'aperto')
     smetti()
-    expect((await fisso.rtc.chiama('lap', '/api/autopilota', { autopilota: 'x' })).stato).toBe(403)
+    // Dalla 0.55.0 la gestione di chat, workspace e autopiloti passa; il Drive di quel PC no.
+    expect((await fisso.rtc.chiama('lap', '/api/drive/porta', { progetto: 'x' })).stato).toBe(403)
     expect(lap.chiamate).toEqual([])
   })
 

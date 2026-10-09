@@ -89,6 +89,8 @@ declare global {
           cb: (m: { id: string; chat: string; da: number; quante: number; schermo?: boolean }) => void
         ) => () => void
         rispondiRighe: (id: string, dati: unknown) => void
+        suAzione: (cb: (m: { id: string } & Record<string, unknown>) => void) => () => void
+        esitoAzione: (id: string, ok: boolean, errore?: string) => void
         suScrittura: (cb: (m: { chat: string; testo: string }) => void) => () => void
         suTasti: (cb: (m: { chat: string; pezzi: string[] }) => void) => () => void
         suRipresaChat: (cb: (m: { sessione: string; testo: string }) => void) => () => void
@@ -382,7 +384,7 @@ declare global {
       }
       autopilota: {
         elenca: () => Promise<Autopilota[]>
-        crea: (p: NuovoAutopilota) => Promise<Autopilota>
+        crea: (p: NuovoAutopilota & { partenza?: 'via' | 'subito' }) => Promise<Autopilota>
         /** Il via a chi si è preparato e aspetta di essere letto. */
         vai: (id: string) => Promise<Autopilota>
         /** Cambia obiettivo, criteri o compiti. Quello che non nomini resta com'era. */

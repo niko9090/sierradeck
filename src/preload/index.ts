@@ -272,6 +272,16 @@ contextBridge.exposeInMainWorld('gestore', {
     rispondiRighe: (id: string, dati: unknown): void => {
       ipcRenderer.send('client:righe', { id, dati })
     },
+    /** Un'azione del telefono su workspace o chat (0.55.0), da fare come dai tasti del PC. */
+    suAzione: (cb: (m: { id: string } & Record<string, unknown>) => void): (() => void) => {
+      const h = (_e: unknown, m: { id: string } & Record<string, unknown>): void => cb(m)
+      ipcRenderer.on('client:azione', h)
+      return () => { ipcRenderer.off('client:azione', h) }
+    },
+    /** Com'è andata. */
+    esitoAzione: (id: string, ok: boolean, errore?: string): void => {
+      ipcRenderer.send('client:esitoAzione', { id, ok, ...(errore !== undefined ? { errore } : {}) })
+    },
     suScrittura: (cb: (m: { chat: string; testo: string }) => void): (() => void) => {
       const h = (_e: unknown, m: { chat: string; testo: string }): void => cb(m)
       ipcRenderer.on('client:scrivi', h)
@@ -938,7 +948,7 @@ contextBridge.exposeInMainWorld('gestore', {
   },
   autopilota: {
     elenca: (): Promise<Autopilota[]> => ipcRenderer.invoke('autopilota:elenca'),
-    crea: (p: NuovoAutopilota): Promise<Autopilota> => ipcRenderer.invoke('autopilota:crea', p),
+    crea: (p: NuovoAutopilota & { partenza?: 'via' | 'subito' }): Promise<Autopilota> => ipcRenderer.invoke('autopilota:crea', p),
     /** Il via a chi si è preparato e aspetta di essere letto. */
     vai: (id: string): Promise<Autopilota> => ipcRenderer.invoke('autopilota:vai', id),
     /** Cambia obiettivo, criteri o compiti. Quello che non nomini resta com'era. */

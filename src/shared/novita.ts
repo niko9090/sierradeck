@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.55.0',
+    righe: [
+      '**Workspace e chat nuove dal telefono, anche sugli altri PC.** Creare un workspace o aprire una chat nuova su un PC diverso da quello a cui il telefono è accoppiato finiva in un errore: l’app stessa lo rifiutava prima di chiederlo. Adesso si crea, si sfoglia la cartella e si apre la chat su quel PC, nel workspace che scegli. E con due finestre aperte sul PC la chat nuova non nasce più due volte.',
+      '**Chiudere, mettere a dormire, spostare ed eliminare dal telefono.** Nel menu di una chat ci sono «Metti a dormire» (il suo claude.exe si chiude, la chat resta al suo posto e si sveglia quando vuoi), «Sposta in un altro workspace» e «Chiudi la chat»; da «Workspace» si rinomina e si elimina un workspace. Le conferme sono quelle del PC, e dicono per intero cosa succede e cosa no: le conversazioni non si cancellano mai, ed eliminando un workspace il PC mette da parte la copia di sicurezza come dal suo pannello. Il PIN delle chat vale anche qui.',
+      '**Affidare un lavoro dal telefono come dal PC.** «Affida un lavoro» chiede su quale PC, in quale cartella (le chat aperte, i progetti recenti, o sfogliando), in quale workspace, il nome, i criteri di fine, la regola di pubblicazione, il cloud e la partenza. Il telefono e il PC controllano la richiesta con le stesse regole. La pagina del telefono ha gli stessi campi.',
+      '**«Parte da solo».** Una scelta nuova per gli autopiloti, sul PC e sul telefono: legge il progetto e fa le sue domande come sempre, poi comincia senza aspettare il tuo «Vai».',
+      '**Gli autopiloti degli altri PC.** Guardando un altro PC dal telefono («Chat di … dal vivo»), anche la scheda Lavori mostra i suoi autopiloti, e da lì si fermano, si riprendono e si eliminano. App Android 2.55.0.'
+    ]
+  },
+  {
     versione: '0.54.0',
     righe: [
       '**I file dei progetti anche sul telefono.** Nell’app c’è la sezione «File»: sfogli i progetti di questo PC e, passando da lui, degli altri PC accesi. Un testo o un codice si legge con il carattere a larghezza fissa, un’immagine e un PDF si guardano, e ogni file si scarica in Download/SierraDeck, si condivide con un’altra app o si carica dal telefono nella cartella aperta. Si vede solo dentro le cartelle dei progetti, e un progetto con una chat protetta dal PIN chiede il PIN. La pagina del telefono ha la stessa cosa in versione semplice (Computer → File).',

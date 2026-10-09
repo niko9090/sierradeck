@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { REGOLE_PUBBLICAZIONE, type RegolaPubblicazione } from '@shared/harness'
+import { BOZZA_AUTOPILOTA_VUOTA, controllaBozzaAutopilota, PARTENZE, type BozzaAutopilota, type Partenza } from '@shared/azioni-telefono'
 import type { Autopilota } from '@shared/autopilota'
 import { descriviAutopilota, ledDi } from '@shared/autopilota-vista'
 import { destinazioni } from '../destinazioni-autopilota'
 import { useLayoutStore } from '../state/layout'
 import { useSessionStore } from '../state/sessions'
 
-type Bozza = { obiettivo: string; cwd: string; nome: string; criteri: string; pubblicazione: RegolaPubblicazione; cloud: boolean }
-
+// La bozza è la stessa del telefono (0.55.0): `@shared/azioni-telefono`.
 // La regola di partenza e' «stabile»: chiede prima di pubblicare. E' la scelta
-// che non fa niente di irreversibile senza di te.
-const BOZZA_VUOTA: Bozza = { obiettivo: '', cwd: '', nome: '', criteri: '', pubblicazione: 'stabile', cloud: false }
+// che non fa niente di irreversibile senza di te. La partenza è «via».
+type Bozza = BozzaAutopilota
+const BOZZA_VUOTA: Bozza = BOZZA_AUTOPILOTA_VUOTA
 
 /** Il valore della voce che riapre il campo libero, quando la lista non basta. */
 const ALTRA = '::altra'
@@ -89,29 +90,24 @@ export function PannelloAutopiloti({
       .finally(() => setInCorso(false))
   }
 
+  // La stessa validazione del telefono (0.55.0): il primo problema, in parole.
+  const controllo = bozza === undefined ? undefined : controllaBozzaAutopilota({ ...bozza, workspace: workspaceAttivo })
   const crea = (): void => {
-    if (bozza === undefined) return
-    if (bozza.obiettivo.trim() === '' || bozza.cwd.trim() === '') return
+    if (controllo === undefined || !controllo.ok) return
+    const r = controllo.richiesta
     esegui(async () => {
-      // Nessun criterio da qui: li ricava l'autopilota nell'intervista, dopo
-      // aver guardato il progetto e chiesto solo ciò che il codice non dice.
-      // Scriverli a mano era lavoro che ricadeva sull'utente proprio nel
-      // momento in cui stava delegando.
       // I criteri, se scritti, uno per riga: se no li ricava lui nell'intervista.
-      const criteri = bozza.criteri.split(/\r?\n/).map((r) => r.trim()).filter((r) => r !== '').map((descrizione) => ({ descrizione }))
+      // Quante chat: non si sceglie piu' qui (decisione di Nicholas, 30/09).
+      // Le decide lui in base a quanto il lavoro si divide, dentro il freno sui
+      // limiti del piano. Qui si sceglie cosa fa a lavoro finito.
+      // Il workspace è quello da cui sta partendo: è lì che il suo lavoro
+      // dovrà comparire, anche fra tre ore, quando chi lo ha avviato starà
+      // guardando altro.
       await window.gestore.autopilota.crea({
-        nome: bozza.nome.trim() !== '' ? bozza.nome.trim().slice(0, 80) : bozza.obiettivo.trim().split(/\s+/).slice(0, 8).join(' ').slice(0, 60),
-        obiettivo: bozza.obiettivo.trim(),
-        cwd: bozza.cwd.trim(),
-        criteri,
-        // Quante chat: non si sceglie piu' qui (decisione di Nicholas, 30/09).
-        // Le decide lui in base a quanto il lavoro si divide, dentro il freno sui
-        // limiti del piano. Qui si sceglie cosa fa a lavoro finito.
-        pubblicazione: bozza.pubblicazione,
-        ...(bozza.cloud ? { vaSulCloud: true } : {}),
-        // Da dove sta partendo: è lì che il suo lavoro dovrà comparire, anche
-        // fra tre ore, quando chi lo ha avviato starà guardando altro.
-        ...(workspaceAttivo.trim() !== '' ? { workspace: workspaceAttivo.trim() } : {})
+        nome: r.nome, obiettivo: r.obiettivo, cwd: r.cwd, criteri: r.criteri, pubblicazione: r.pubblicazione,
+        ...(r.vaSulCloud === true ? { vaSulCloud: true } : {}),
+        ...(r.workspace !== undefined ? { workspace: r.workspace } : {}),
+        partenza: r.partenza
       })
       setBozza(undefined)
     })
@@ -297,6 +293,18 @@ export function PannelloAutopiloti({
           </p>
 
           <label className="etichetta nuovo-ap__blocco">
+            <span className="serigrafia">Partenza</span>
+            <select
+              className="campo"
+              value={bozza.partenza}
+              onChange={(e) => setBozza({ ...bozza, partenza: e.target.value as Partenza })}
+            >
+              {PARTENZE.map((p) => <option key={p.valore} value={p.valore}>{p.etichetta}</option>)}
+            </select>
+            <span className="misura">{PARTENZE.find((p) => p.valore === bozza.partenza)?.spiega}</span>
+          </label>
+
+          <label className="etichetta nuovo-ap__blocco">
             <span className="serigrafia">Come si capisce che ha finito (facoltativo, uno per riga)</span>
             <textarea
               className="campo campo--criteri"
@@ -312,14 +320,15 @@ export function PannelloAutopiloti({
             <button
               className="tasto tasto--primario"
               onClick={crea}
-              disabled={inCorso || bozza.obiettivo.trim() === '' || bozza.cwd.trim() === ''}
-              title={bozza.obiettivo.trim() === '' ? 'Scrivi prima cosa vuoi ottenere' : bozza.cwd.trim() === '' ? 'Scegli la cartella' : 'Prepara l’autopilota'}
+              disabled={inCorso || controllo?.ok !== true}
+              title={controllo !== undefined && !controllo.ok ? controllo.errore : 'Prepara l’autopilota'}
             >
               {inCorso ? 'Preparo…' : 'Prepara'}
             </button>
             <button className="tasto" onClick={() => setBozza(undefined)} disabled={inCorso}>Annulla</button>
             <span className="misura" style={{ flex: '1 1 100%', marginTop: 4 }}>
-              Cosa succede dopo: legge il progetto, ti fa al massimo un paio di domande (nella sua scheda, nella scheda «Domande» del telefono, e per notifica), si scrive i criteri se non li hai dati, e aspetta il tuo «Vai». Non parte da solo. Puoi cambiargli obiettivo e vincoli anche dopo, scrivendogli nella sua scheda.
+              {controllo !== undefined && !controllo.ok && bozza.obiettivo.trim() !== '' ? <>⚠ {controllo.errore} </> : null}
+              Cosa succede dopo: legge il progetto, ti fa al massimo un paio di domande (nella sua scheda, nella scheda «Domande» del telefono, e per notifica), si scrive i criteri se non li hai dati, e {bozza.partenza === 'subito' ? 'appena è pronto comincia da solo, senza aspettare il tuo «Vai»' : 'aspetta il tuo «Vai». Non parte da solo'}. Puoi cambiargli obiettivo e vincoli anche dopo, scrivendogli nella sua scheda.
             </span>
           </div>
         </div>

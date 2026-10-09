@@ -14,6 +14,8 @@ import { chatAspetta, consegnaPartita, creaUltimeRighe, prontoPerInvio, sceltaSu
 import { creaBattito, stessiAttivi } from './battito'
 import { eseguiConsegna, ponteReale, scriviQuandoPronta, type InvioMancato } from './consegne-autopilota'
 import { memoriaWorkspace } from './memoria-workspace'
+import { spostaInWorkspace } from './spostamento'
+import { leggiAzioneFinestra } from '@shared/azioni-telefono'
 import { impostaWorkspaceCorrente, workspaceCorrente } from './workspace-corrente'
 import { impostaMostraAttesa } from './preferenze-vive'
 import { leggiConsegne } from '../main/autopilota-consegne'
@@ -525,7 +527,63 @@ export function App(): React.JSX.Element {
   }, [])
 
   useEffect(() => window.gestore.client.suRinomina(({ chat, nome }) => {
-    useLayoutStore.getState().rinominaPane(chat, nome)
+    const s = useLayoutStore.getState()
+    s.rinominaPane(chat, nome)
+    // Come i due clic sulla testata: il nome vale anche per l'elenco delle
+    // conversazioni (0.55.0). Dal telefono restava solo sul riquadro.
+    const sessione = s.panes[chat]?.sessionUuid
+    if (sessione !== undefined && sessione !== '') void window.gestore.etichette.imposta(sessione, nome).catch(() => undefined)
+  }), [])
+
+  /**
+   * Le azioni del telefono su workspace e chat (0.55.0), con lo stesso codice
+   * dei tasti di questa finestra: ⏸, «Svegliala», ×, ⇄ verso un workspace, e
+   * crea/elimina/rinomina del pannello Workspace. Per una chat risponde solo
+   * la finestra che ce l'ha: le altre tacciono.
+   */
+  useEffect(() => window.gestore.client.suAzione((m) => {
+    const a = leggiAzioneFinestra(m)
+    const rispondi = (ok: boolean, errore?: string): void => window.gestore.client.esitoAzione(m.id, ok, errore)
+    if (a === undefined) { rispondi(false, 'azione non riconosciuta da questa versione del programma'); return }
+    const fai = async (): Promise<boolean> => {
+      if (a.tipo === 'workspace') {
+        const azioni = azioniDiFinestra()
+        const s = a.azione === 'rinomina' ? await window.gestore.workspace.rinomina(a.nome, a.nuovo)
+          : a.azione === 'crea' ? await azioni.crea(a.nome)
+          : await azioni.elimina(a.nome)
+        aggiornaWorkspace(s)
+        return true
+      }
+      const store = useLayoutStore.getState()
+      const p = store.panes[a.chat]
+      if (p === undefined) return false
+      if (a.azione === 'dormi') {
+        if (p.remoto !== undefined) throw new Error(`questa chat lavora su ${p.remoto.pcNome}: si mette a dormire da là`)
+        const pty = store.iberna(a.chat)
+        if (pty !== undefined) window.gestore.pty.kill(pty)
+      } else if (a.azione === 'sveglia') {
+        if (p.ibernata === true) store.sveglia(a.chat)
+      } else if (a.azione === 'chiudi') {
+        if (p.ptyId !== undefined) window.gestore.pty.kill(p.ptyId)
+        store.closePane(a.chat)
+      } else if (a.azione === 'sposta') {
+        let errore: unknown
+        await spostaInWorkspace({
+          stacca: (id) => useLayoutStore.getState().staccaPane(id),
+          consegna: (dove, pane) => window.gestore.workspace.spostaChat(dove, pane),
+          ricorda: (dove, pane) => memoriaWorkspace().aggiungi(dove, pane),
+          chiudiTerminale: (ptyId) => window.gestore.pty.kill(ptyId),
+          dimentica: (id) => { useLayoutStore.getState().dimenticaCeduti([id]); useLayoutStore.getState().closePane(id) },
+          accogli: (pane) => useLayoutStore.getState().accogliPane(pane),
+          segnala: (err) => { errore = err }
+        }, a.chat, a.workspace)
+        if (errore !== undefined) throw errore instanceof Error ? errore : new Error(String(errore))
+      }
+      return true
+    }
+    void fai()
+      .then((mia) => { if (mia) rispondi(true) })
+      .catch((e: unknown) => rispondi(false, e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e)))
   }), [])
 
   // Quello che scrivi dal telefono arriva alla chat come se lo avessi digitato.

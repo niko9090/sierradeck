@@ -18,6 +18,10 @@ import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/dom
 import { alberoChat } from '@shared/harness'
 import type { NoteAggiornamento } from '@shared/note-aggiornamento'
 import { leggiRichiestaPonte } from '@shared/ponte-telefono'
+import {
+  bozzaDaCorpo, controllaBozzaAutopilota, controllaNomeWorkspace, ULTIMO_WORKSPACE,
+  type AzioneFinestra, type EsitoAzioneFinestra, type RichiestaAutopilota
+} from '@shared/azioni-telefono'
 import { ANTEPRIMA_NASCOSTA, oscuraChat, rifiutoChiusa, STATO_CHIUSA } from '@shared/pin-chat'
 import type { GuardianoPin } from './pin-guardiano'
 import type { Allegati } from './allegati'
@@ -29,7 +33,7 @@ import {
 } from '@shared/allegati'
 import type { FileProgetti } from './file-progetti'
 import type { AlTelefono } from './al-telefono'
-import { chiaveCartella, eTelefono, idConsegnaValido, nomiDistinti, rifiutoProgettoChiuso } from '@shared/file-telefono'
+import { chiaveCartella, eTelefono, idConsegnaValido, nomiDistinti, radiceAmmessa, rifiutoProgettoChiuso } from '@shared/file-telefono'
 
 /**
  * Un altro PC con la chiave di casa: `pc` (prima della 0.49.1, senza dire chi
@@ -40,7 +44,7 @@ export function daAltroPc(dispositivo: string | undefined): boolean {
 }
 
 /** Le rotte che mostrano o scrivono dentro una chat: passano dal PIN (0.49.0). */
-const ROTTE_DENTRO_CHAT = new Set(['/api/storia', '/api/dentro', '/api/scrivi', '/api/scegli', '/api/chat/chiudi', '/api/chat/nome'])
+const ROTTE_DENTRO_CHAT = new Set(['/api/storia', '/api/dentro', '/api/scrivi', '/api/scegli', '/api/chat/chiudi', '/api/chat/nome', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta'])
 import type { TentativoFallito } from '@shared/tentativo-installazione'
 import type { AvvisoDrive } from '@shared/scoperta-pc'
 import type { EsitoNegozio, McpVoce, PluginVoce, SkillVoce } from '@shared/negozio'
@@ -226,7 +230,8 @@ export type DipendenzeRotte = {
    * Aprire non distrugge niente: nel peggiore dei casi resta un riquadro in
    * più, che si chiude al computer. È per questo che c'è, mentre chiudere no.
    */
-  apriChat: (cartella: string, modello?: string) => void
+  /** `workspace`: dove metterla (0.55.0); senza, quello che la finestra ha davanti. */
+  apriChat: (cartella: string, modello?: string, workspace?: string) => void
   /**
    * I workspace, e **tutte** le chat che contengono.
    *
@@ -256,11 +261,21 @@ export type DipendenzeRotte = {
    * arrivano su questo stesso telefono.
    */
   creaAutopilota: (
-    obiettivo: string,
-    cartella: string,
-    /** La regola di pubblicazione e il cloud, scelti dal telefono (0.36.0). */
-    opzioni?: { pubblicazione?: 'beta' | 'stabile' | 'unica'; vaSulCloud?: boolean }
+    /**
+     * Gli stessi campi della finestra del PC (0.55.0), già controllati da
+     * `controllaBozzaAutopilota`: nome, obiettivo, cartella, criteri,
+     * pubblicazione, cloud, workspace, partenza.
+     */
+    richiesta: RichiestaAutopilota
   ) => Promise<{ id: string }>
+  /**
+   * Le azioni sui workspace e sulle chat fatte dalla finestra, con il codice
+   * dei suoi tasti (0.55.0). Senza (i test vecchi, un PC senza finestre) si
+   * usano le strade di prima, dove ci sono.
+   */
+  azioneFinestra?: (a: AzioneFinestra) => Promise<EsitoAzioneFinestra>
+  /** La cartella dell'utente: un autopilota non lavora lì né in una radice di disco. */
+  cartellaUtente?: () => string
   /**
    * Elimina un autopilota. È la prima cosa che *disfa* qualcosa da qui.
    *
@@ -1320,7 +1335,14 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         return { stato: 404, corpo: { errore: 'cartella inesistente' } }
       }
       const modello = stringa(r.corpo, 'modello')
-      deps.apriChat(cartella, modello === '' ? undefined : modello)
+      // Il workspace (0.55.0): solo uno che c'è. Un nome sbagliato non deve
+      // creare un workspace di nascosto.
+      const ws = stringa(r.corpo, 'workspace')
+      if (ws !== '') {
+        const nomi = (await deps.workspace().catch(() => undefined))?.nomi ?? []
+        if (!nomi.includes(ws)) return { stato: 404, corpo: { errore: `il workspace «${ws}» non c'è su questo computer: crealo prima, o scegline uno dell'elenco` } }
+      }
+      deps.apriChat(cartella, modello === '' ? undefined : modello, ws === '' ? undefined : ws)
       return OK({ fatto: true })
     }
 
@@ -1404,29 +1426,33 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     // Affidare un lavoro. La cartella passa dallo stesso muro di «apri»: un
     // percorso qualunque arrivato dalla rete manderebbe un agente a lavorare
     // dove capita, e con un autopilota nessuno se ne accorgerebbe per ore.
+    // Dalla 0.55.0 con gli stessi campi e la stessa validazione della finestra
+    // del PC (`controllaBozzaAutopilota`). La cartella non deve più essere
+    // fra quelle già viste da Claude Code — dal PC si sceglie «Altra
+    // cartella…», e dal telefono ora si sfoglia — ma deve esistere, e non può
+    // essere la radice di un disco né la cartella dell'utente: lì un agente
+    // autonomo non deve lavorare.
     if (r.metodo === 'POST' && r.percorso === '/api/autopilota/crea') {
-      const obiettivo = stringa(r.corpo, 'obiettivo')
-      const cartella = stringa(r.corpo, 'cartella')
-      if (obiettivo === '' || cartella === '') {
-        return { stato: 400, corpo: { errore: 'servono l obiettivo e la cartella' } }
-      }
+      const controllo = controllaBozzaAutopilota(bozzaDaCorpo(r.corpo))
+      if (!controllo.ok) return { stato: 400, corpo: { errore: controllo.errore, campo: controllo.campo } }
+      const richiesta = controllo.richiesta
       const ammesse = await deps.cartelle().catch(() => [] as string[])
-      if (!conosciuta(ammesse, cartella)) {
-        return { stato: 403, corpo: { errore: 'cartella non conosciuta' } }
+      const casa = deps.cartellaUtente?.() ?? ''
+      if (!conosciuta(ammesse, richiesta.cwd) && !radiceAmmessa(richiesta.cwd, casa)) {
+        return { stato: 403, corpo: { errore: 'Un autopilota non lavora nella radice di un disco né nella cartella dell’utente: lì ci sono i file di tutto il computer. Scegli la cartella del progetto.', campo: 'cwd' } }
       }
       // E deve esistere: un autopilota in una cartella che non c'e' si scopre
       // ore dopo, quando il supervisore non parte.
-      if (deps.cartellaEsiste !== undefined && !(await deps.cartellaEsiste(cartella).catch(() => false))) {
-        return { stato: 404, corpo: { errore: 'cartella inesistente su questo computer' } }
+      if (deps.cartellaEsiste !== undefined && !(await deps.cartellaEsiste(richiesta.cwd).catch(() => false))) {
+        return { stato: 404, corpo: { errore: `La cartella ${richiesta.cwd} non c’è su questo computer: scegline una dall’elenco o sfogliando.`, campo: 'cwd' } }
       }
-      const corpoCrea = (r.corpo ?? {}) as Record<string, unknown>
-      const pubblicazione = corpoCrea.pubblicazione === 'beta' || corpoCrea.pubblicazione === 'stabile' || corpoCrea.pubblicazione === 'unica'
-        ? corpoCrea.pubblicazione
-        : undefined
-      const creato = await deps.creaAutopilota(obiettivo.slice(0, OBIETTIVO_MAX), cartella, {
-        ...(pubblicazione !== undefined ? { pubblicazione } : {}),
-        ...(corpoCrea.vaSulCloud === true ? { vaSulCloud: true } : {})
-      })
+      if (richiesta.workspace !== undefined) {
+        const nomi = (await deps.workspace().catch(() => undefined))?.nomi ?? []
+        if (nomi.length > 0 && !nomi.includes(richiesta.workspace)) {
+          return { stato: 404, corpo: { errore: `Il workspace «${richiesta.workspace}» non c’è su questo computer: scegline uno dell’elenco.`, campo: 'workspace' } }
+        }
+      }
+      const creato = await deps.creaAutopilota({ ...richiesta, obiettivo: richiesta.obiettivo.slice(0, OBIETTIVO_MAX) })
       return OK({ fatto: true, autopilota: creato.id })
     }
 
@@ -1801,7 +1827,14 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       // nome workspace.
       let nome: string
       try { nome = validateNomeWorkspace(stringa(r.corpo, 'nome')) }
-      catch { return { stato: 400, corpo: { errore: 'nome non valido' } } }
+      catch { return { stato: 400, corpo: { errore: controllaNomeWorkspace(stringa(r.corpo, 'nome')).ok ? 'nome non valido' : (controllaNomeWorkspace(stringa(r.corpo, 'nome')) as { errore: string }).errore } } }
+      // Come dal pannello del PC (0.55.0): la finestra lo crea, ci va e lo
+      // dice alle altre. Un nome che c'è già non è un errore: ci si va.
+      if (deps.azioneFinestra !== undefined) {
+        const e = await deps.azioneFinestra({ tipo: 'workspace', azione: 'crea', nome })
+        if (!e.ok) return { stato: 409, corpo: { errore: `Il workspace «${nome}» non è stato creato: ${e.errore ?? 'la finestra del computer non ha detto perché'}.` } }
+        return OK({ fatto: true })
+      }
       await deps.creaWorkspace(nome)
       return OK({ fatto: true })
     }
@@ -1810,7 +1843,45 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       let nome: string
       try { nome = validateNomeWorkspace(stringa(r.corpo, 'nome')) }
       catch { return { stato: 400, corpo: { errore: 'nome non valido' } } }
+      const ws = await deps.workspace().catch(() => undefined)
+      if (ws !== undefined && !ws.nomi.includes(nome)) return { stato: 404, corpo: { errore: `Il workspace «${nome}» non c’è più su questo computer.` } }
+      if (ws !== undefined && ws.nomi.length <= 1) return { stato: 409, corpo: { errore: ULTIMO_WORKSPACE } }
+      // Il PIN (0.55.0): un workspace con dentro una chat protetta e chiusa per
+      // chi guarda non si elimina da qui finché quella chat non è aperta.
+      if (g !== undefined && ws !== undefined) {
+        const chiusa = (ws.chat ?? []).find((c) => {
+          if (c.workspace !== nome) return false
+          const per = { sessione: c.sessione, workspace: c.workspace }
+          return g.protetta(per) && g.chiusa(visore, per)
+        })
+        const aperta = chiusa === undefined ? depsPieni.chat().find((c) => (c as { workspace?: string }).workspace === nome && g.protetta(c) && g.chiusa(visore, c)) : undefined
+        if (chiusa !== undefined || aperta !== undefined) {
+          const titolo = chiusa?.titolo ?? aperta?.titolo ?? ''
+          return { stato: STATO_CHIUSA, corpo: { ...rifiutoChiusa(titolo), errore: `Nel workspace «${nome}» c’è la chat «${titolo}», protetta dal PIN: aprila con il PIN, poi elimina il workspace.`, ...(aperta !== undefined ? { chat: aperta.id } : {}) } }
+        }
+      }
+      // Come dal pannello del PC (0.55.0): copia di sicurezza, terminali spenti.
+      if (deps.azioneFinestra !== undefined) {
+        const e = await deps.azioneFinestra({ tipo: 'workspace', azione: 'elimina', nome })
+        if (!e.ok) return { stato: 409, corpo: { errore: `Il workspace «${nome}» non è stato eliminato: ${e.errore ?? 'la finestra del computer non ha detto perché'}.` } }
+        return OK({ fatto: true })
+      }
       await deps.eliminaWorkspace(nome)
+      return OK({ fatto: true })
+    }
+
+    // Rinominare un workspace (0.55.0), come «✎ Rinomina» del pannello: le
+    // chat non si toccano, cambia l'etichetta.
+    if (r.metodo === 'POST' && r.percorso === '/api/workspace/rinomina') {
+      const vecchio = stringa(r.corpo, 'nome')
+      const ws = await deps.workspace().catch(() => undefined)
+      if (ws !== undefined && !ws.nomi.includes(vecchio)) return { stato: 404, corpo: { errore: `Il workspace «${vecchio}» non c’è più su questo computer.` } }
+      const nuovo = controllaNomeWorkspace(stringa(r.corpo, 'nuovo'), (ws?.nomi ?? []).filter((n) => n !== vecchio))
+      if (!nuovo.ok) return { stato: 400, corpo: { errore: nuovo.errore } }
+      if (nuovo.nome === vecchio) return OK({ fatto: true })
+      if (deps.azioneFinestra === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora rinominare un workspace da qui: aggiornalo alla 0.55.0.' } }
+      const e = await deps.azioneFinestra({ tipo: 'workspace', azione: 'rinomina', nome: vecchio, nuovo: nuovo.nome })
+      if (!e.ok) return { stato: 409, corpo: { errore: `Il workspace non è stato rinominato: ${e.errore ?? 'la finestra del computer non ha detto perché'}.` } }
       return OK({ fatto: true })
     }
 
@@ -1845,7 +1916,35 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     if (r.metodo === 'POST' && r.percorso === '/api/chat/chiudi') {
       const id = stringa(r.corpo, 'chat')
       if (id === '') return { stato: 400, corpo: { errore: 'serve la chat' } }
+      if (deps.azioneFinestra !== undefined) {
+        if (!depsPieni.chat().some((c) => c.id === id)) return { stato: 404, corpo: { errore: 'Questa chat non è più aperta sul computer: forse l’ha già chiusa qualcuno.' } }
+        const e = await deps.azioneFinestra({ tipo: 'chat', azione: 'chiudi', chat: id })
+        if (!e.ok) return { stato: 409, corpo: { errore: `La chat non è stata chiusa: ${e.errore ?? 'la finestra del computer non ha detto perché'}.` } }
+        return OK({ fatto: true })
+      }
       deps.chiudiChat(id)
+      return OK({ fatto: true })
+    }
+
+    // Mettere a dormire, svegliare, spostare in un altro workspace (0.55.0):
+    // i tasti ⏸, «Svegliala» e ⇄ del riquadro sul PC.
+    if (r.metodo === 'POST' && (r.percorso === '/api/chat/dormi' || r.percorso === '/api/chat/sveglia' || r.percorso === '/api/chat/sposta')) {
+      const id = stringa(r.corpo, 'chat')
+      if (id === '') return { stato: 400, corpo: { errore: 'serve la chat' } }
+      if (deps.azioneFinestra === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora farlo da qui: aggiornalo alla 0.55.0.' } }
+      const c = depsPieni.chat().find((x) => x.id === id)
+      if (c === undefined) return { stato: 404, corpo: { errore: 'Questa chat non è più aperta sul computer: forse l’ha già chiusa qualcuno.' } }
+      if (r.percorso === '/api/chat/sposta') {
+        const verso = stringa(r.corpo, 'workspace')
+        const ws = await deps.workspace().catch(() => undefined)
+        if (verso === '' || (ws !== undefined && !ws.nomi.includes(verso))) return { stato: 404, corpo: { errore: `Il workspace «${verso}» non c’è su questo computer: scegline uno dell’elenco.` } }
+        const e = await deps.azioneFinestra({ tipo: 'chat', azione: 'sposta', chat: id, workspace: verso })
+        if (!e.ok) return { stato: 409, corpo: { errore: `La chat non è stata spostata: ${e.errore ?? 'la finestra del computer non ha detto perché'}.` } }
+        return OK({ fatto: true })
+      }
+      const azione = r.percorso === '/api/chat/dormi' ? 'dormi' : 'sveglia'
+      const e = await deps.azioneFinestra({ tipo: 'chat', azione, chat: id })
+      if (!e.ok) return { stato: 409, corpo: { errore: `${azione === 'dormi' ? 'La chat non si è addormentata' : 'La chat non si è svegliata'}: ${e.errore ?? 'la finestra del computer non ha detto perché'}.` } }
       return OK({ fatto: true })
     }
 

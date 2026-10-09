@@ -227,7 +227,14 @@ export const ROTTE_VIA_CANALE: readonly string[] = [
   '/api/case',
   // La sezione File del telefono attraverso il ponte (0.54.0): pezzi da 96 KB, come gli allegati.
   '/api/file/progetti', '/api/file/elenco', '/api/file/leggi',
-  '/api/consegne', '/api/consegne/pezzo', '/api/consegne/ricevuta'
+  '/api/consegne', '/api/consegne/pezzo', '/api/consegne/ricevuta',
+  // Gestire quel PC dal telefono attraverso il ponte (0.55.0): le stesse di ROTTE_PONTE.
+  '/api/workspace', '/api/workspace/crea', '/api/workspace/elimina', '/api/workspace/rinomina',
+  '/api/chat/chiudi', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta', '/api/chat/nome',
+  '/api/sfoglia', '/api/cartelle', '/api/sessioni',
+  '/api/autopilota', '/api/autopilota/crea', '/api/autopilota/ferma', '/api/autopilota/riprendi', '/api/autopilota/vai',
+  '/api/autopilota/elimina', '/api/autopilota/riavvio', '/api/autopilota/dialogo', '/api/autopilota/file', '/api/autopilota/diff',
+  '/api/autopilota/istruzioni', '/api/autopilota/correggi', '/api/quaderno', '/api/quaderno/scheda'
 ]
 
 export function rottaPermessaSulCanale(percorso: string): boolean {

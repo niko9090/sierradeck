@@ -108,9 +108,9 @@ fun Chat(api: Api, stato: Stato?, deposito: Collegamento) {
     val corrente = chat.firstOrNull { it.id == aperta }
     if (corrente != null) {
         BackHandler { aperta = null }
-        DettaglioChat(api, corrente, deposito, onIndietro = { aperta = null })
+        DettaglioChat(api, corrente, deposito, onIndietro = { aperta = null }, workspace = stato?.workspace ?: Workspace(), nomePc = PcCorrente.nome)
     } else {
-        ElencoChat(api, chat, stato?.workspace ?: Workspace(), onApri = { aperta = it.id })
+        ElencoChat(api, chat, stato?.workspace ?: Workspace(), onApri = { aperta = it.id }, nomePc = PcCorrente.nome)
     }
 }
 
@@ -171,18 +171,19 @@ private fun ChatSuAltroPc(api: Api, su: PcPonte, deposito: Collegamento) {
         val chat = stato?.chat ?: emptyList()
         val corrente = chat.firstOrNull { it.id == aperta }
         when {
-            corrente != null -> DettaglioChat(apiPc, corrente, deposito, onIndietro = { aperta = null }, giu = linea.fase == "ricollego")
+            corrente != null -> DettaglioChat(apiPc, corrente, deposito, onIndietro = { aperta = null }, giu = linea.fase == "ricollego", workspace = stato?.workspace ?: Workspace(), nomePc = su.nome)
             stato == null && guasto == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Busso a ${su.nome} attraverso il PC accoppiato…", color = Banco.testoQuieto)
             }
-            else -> ElencoChat(apiPc, chat, stato?.workspace ?: Workspace(), onApri = { aperta = it.id })
+            else -> ElencoChat(apiPc, chat, stato?.workspace ?: Workspace(), onApri = { aperta = it.id }, nomePc = su.nome)
         }
     }
 }
 
 @Composable
-private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri: (Chat) -> Unit) {
+private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri: (Chat) -> Unit, nomePc: String? = null) {
     var mostraNuova by remember { mutableStateOf(false) }
+    var mostraWorkspace by remember { mutableStateOf(false) }
     var mostraRiprendi by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     // Tutte le chat del computer, raggruppate per workspace: prima quello
@@ -205,14 +206,14 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
                     fontSize = 11.sp, maxLines = 2
                 )
             }
-            // Su un altro PC (il ponte) niente cartella da sfogliare né elenco
-            // delle conversazioni salvate: il PC non le chiede dal riquadro remoto.
-            if (api.ponte == null) {
-                Spacer(Modifier.width(8.dp))
-                TastoContorno("+ Nuova") { mostraNuova = true }
-                Spacer(Modifier.width(8.dp))
-                TastoContorno("Riprendi") { mostraRiprendi = true }
-            }
+            // Anche su un altro PC, attraverso il ponte (0.55.0): prima qui
+            // non c'era niente, e creare una chat là era impossibile.
+            Spacer(Modifier.width(6.dp))
+            TastoContorno("+ Nuova") { mostraNuova = true }
+            Spacer(Modifier.width(6.dp))
+            TastoContorno("Riprendi") { mostraRiprendi = true }
+            Spacer(Modifier.width(6.dp))
+            TastoContorno("Workspace") { mostraWorkspace = true }
         }
         if (gruppi.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -327,9 +328,16 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
     // richiesta arrivava, ma la risposta (e un eventuale «no») si perdeva.
     if (mostraNuova) SceltaCartella(
         api,
-        onApri = { percorso -> scope.launch { tenta("aprire una chat in quella cartella") { api.apri(percorso) } } },
+        workspace = workspace,
+        onApri = { percorso, ws ->
+            scope.launch {
+                if (tentaGestione("aprire una chat in quella cartella", nomePc) { api.apri(percorso, workspace = ws) } != null)
+                    Nota.mostra("Chat aperta in «${percorso.substringAfterLast(Char(92)).substringAfterLast('/')}»" + (if (ws.isNullOrBlank()) "" else ", nel workspace «$ws»") + ": compare qui fra un paio di secondi.")
+            }
+        },
         onChiudi = { mostraNuova = false }
     )
+    if (mostraWorkspace) GestioneWorkspace(api, workspace, nomePc, onChiudi = { mostraWorkspace = false })
     if (mostraRiprendi) SceltaSessione(
         api,
         onScegli = { s -> scope.launch { tenta("riprendere la conversazione") { api.riprendiSessione(s.cwd, s.id) } } },
@@ -339,7 +347,7 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
 
 /** Il dettaglio: il terminale a polling e il campo per scrivere. */
 @Composable
-private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndietro: () -> Unit, giu: Boolean = false) {
+private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndietro: () -> Unit, giu: Boolean = false, workspace: Workspace = Workspace(), nomePc: String? = null) {
     /**
      * Quello che scrivi (0.51.0): va in coda con un id e parte subito; se la
      * rete cade resta «in attesa di invio» e riparte da solo, con attese
@@ -391,6 +399,10 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
     var menuAperto by remember { mutableStateOf(false) }
     var rinominando by remember { mutableStateOf(false) }
     var chiudendo by remember { mutableStateOf(false) }
+    // ⏸ e ⇄ del riquadro sul PC (0.55.0).
+    var addormentando by remember { mutableStateOf(false) }
+    var spostando by remember { mutableStateOf(false) }
+    var spostaIn by remember { mutableStateOf<String?>(null) }
     // «📎 Allega» (app 2.50.0): un file del telefono nel progetto di questa chat.
     var allegando by remember(chat.id) { mutableStateOf<List<android.net.Uri>?>(null) }
     val sceglieFile = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -505,14 +517,20 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                     )
                 }
             }
-            // Rinominare e chiudere: solo sul PC accoppiato (il ponte ha i permessi del riquadro remoto).
-            if (api.ponte == null) Box {
+            // Le azioni del riquadro sul PC (0.55.0), anche su un altro PC attraverso il ponte.
+            Box {
                 IconButton(onClick = { menuAperto = true }, modifier = Modifier.size(36.dp)) {
                     Icon(Icons.Filled.MoreVert, "Altro", tint = Banco.testo)
                 }
                 DropdownMenu(expanded = menuAperto, onDismissRequest = { menuAperto = false }) {
                     DropdownMenuItem(text = { Text("Rinomina") }, onClick = { menuAperto = false; rinominando = true })
-                    DropdownMenuItem(text = { Text("Chiudi la chat") }, onClick = { menuAperto = false; chiudendo = true })
+                    if (chat.viva) DropdownMenuItem(text = { Text("Metti a dormire") }, onClick = { menuAperto = false; addormentando = true })
+                    else DropdownMenuItem(text = { Text("Svegliala") }, onClick = {
+                        menuAperto = false
+                        scope.launch { if (tentaGestione("svegliare la chat", nomePc) { api.svegliaChat(chat.id) } != null) Nota.mostra("La chat si sveglia sul computer: riparte da dove era.") }
+                    })
+                    DropdownMenuItem(text = { Text("Sposta in un altro workspace…") }, onClick = { menuAperto = false; spostando = true })
+                    DropdownMenuItem(text = { Text("Chiudi la chat…") }, onClick = { menuAperto = false; chiudendo = true })
                 }
             }
         }
@@ -714,25 +732,34 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
             onChiudi = { rinominando = false }
         )
     }
+    val titoloChat = chat.titolo.ifBlank { chat.cwd }
     if (chiudendo) {
-        AlertDialog(
-            onDismissRequest = { chiudendo = false },
-            title = { Text("Chiudere la chat?") },
-            text = { Text("La conversazione resta salvata, ma il suo terminale si spegne.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    chiudendo = false
-                    // Si torna all'elenco **dopo** che il computer ha detto si':
-                    // tornare prima cancellava questo scope con la risposta
-                    // dentro, e un rifiuto restava muto. Se non va, si resta
-                    // qui e la nota in cima dice perche'.
-                    scope.launch {
-                        if (tenta("chiudere la chat") { api.chiudiChat(chat.id) } != null) onIndietro()
-                    }
-                }) { Text("Chiudi", color = Banco.rosso) }
-            },
-            dismissButton = { TextButton(onClick = { chiudendo = false }) { Text("Annulla") } }
-        )
+        DialogoConferma(AzioniTelefono.confermaChiudi(titoloChat), pericolo = true, onSi = {
+            chiudendo = false
+            // Si torna all'elenco **dopo** che il computer ha detto si':
+            // tornare prima cancellava questo scope con la risposta
+            // dentro, e un rifiuto restava muto. Se non va, si resta
+            // qui e la nota in cima dice perche'.
+            scope.launch {
+                if (tentaGestione("chiudere la chat", nomePc) { api.chiudiChat(chat.id) } != null) onIndietro()
+            }
+        }, onNo = { chiudendo = false })
+    }
+    if (addormentando) {
+        DialogoConferma(AzioniTelefono.confermaDormi(titoloChat), onSi = {
+            addormentando = false
+            scope.launch { if (tentaGestione("mettere a dormire la chat", nomePc) { api.dormiChat(chat.id) } != null) Nota.mostra("«$titoloChat» dorme: il suo claude.exe è chiuso, la conversazione è al suo posto. «Svegliala» dal menu la riaccende.") }
+        }, onNo = { addormentando = false })
+    }
+    if (spostando) {
+        SceltaWorkspace("Sposta «$titoloChat» in…", workspace.nomi, tranne = workspace.chat.firstOrNull { it.sessione == chat.sessione }?.workspace ?: workspace.attivo,
+            onScegli = { spostando = false; spostaIn = it }, onChiudi = { spostando = false })
+    }
+    spostaIn?.let { verso ->
+        DialogoConferma(AzioniTelefono.confermaSposta(titoloChat, verso), onSi = {
+            spostaIn = null
+            scope.launch { if (tentaGestione("spostare la chat", nomePc) { api.spostaChat(chat.id, verso) } != null) { Nota.mostra("«$titoloChat» è in «$verso»: riparte quando sul computer si passa a quel workspace."); onIndietro() } }
+        }, onNo = { spostaIn = null })
     }
 }
 
@@ -772,8 +799,10 @@ private fun RinominaChat(titolo: String, onSalva: (String) -> Unit, onChiudi: ()
  * progetti già noti — invece che dalla radice.
  */
 @Composable
-private fun SceltaCartella(api: Api, onApri: (String) -> Unit, onChiudi: () -> Unit) {
+internal fun SceltaCartella(api: Api, workspace: Workspace = Workspace(), onApri: (String, String?) -> Unit, onChiudi: () -> Unit, etichetta: String = "Apri qui", titolo: String = "Apri una chat in…") {
     var giro by remember { mutableStateOf<Sfoglia?>(null) }
+    // Dove nasce la chat (0.55.0): il predefinito è il workspace davanti sul computer.
+    var ws by remember { mutableStateOf(workspace.attivo) }
     var caricando by remember { mutableStateOf(true) }
     var guasto by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -785,7 +814,7 @@ private fun SceltaCartella(api: Api, onApri: (String) -> Unit, onChiudi: () -> U
                 giro = api.sfoglia(dove)
                 guasto = null
             } catch (e: Exception) {
-                guasto = "Questo computer non sa ancora sfogliare le cartelle da qui: aggiornalo."
+                guasto = if (e is Api.Errore) spiegaGestione(e, "sfogliare le cartelle", null) else "Questo computer non sa ancora sfogliare le cartelle da qui: aggiornalo."
             }
             caricando = false
         }
@@ -798,7 +827,7 @@ private fun SceltaCartella(api: Api, onApri: (String) -> Unit, onChiudi: () -> U
         onDismissRequest = onChiudi,
         title = {
             Column {
-                Text("Apri una chat in…")
+                Text(titolo)
                 if (g != null && !g.radici) {
                     Text(
                         g.percorso,
@@ -810,7 +839,8 @@ private fun SceltaCartella(api: Api, onApri: (String) -> Unit, onChiudi: () -> U
             }
         },
         text = {
-            Column(Modifier.fillMaxWidth().height(340.dp)) {
+            Column(Modifier.fillMaxWidth().height(380.dp)) {
+                SceltaWorkspaceRiga(workspace.nomi, ws) { ws = it }
                 // «Su» e «apri qui» stanno **fuori** dall'elenco che scorre: sono
                 // i due gesti che servono sempre, e cercarli in fondo a
                 // duecento cartelle vorrebbe dire non averli.
@@ -824,9 +854,9 @@ private fun SceltaCartella(api: Api, onApri: (String) -> Unit, onChiudi: () -> U
                             shape = MaterialTheme.shapes.small,
                             onClick = {
                                 onChiudi()
-                                onApri(g.percorso)
+                                onApri(g.percorso, ws.ifBlank { null })
                             }
-                        ) { Text(if (g.progetto) "Apri qui (progetto)" else "Apri qui") }
+                        ) { Text(if (g.progetto) "$etichetta (progetto)" else etichetta) }
                     }
                     HorizontalDivider(color = Banco.incisione)
                 }

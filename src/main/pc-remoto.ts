@@ -38,10 +38,26 @@ export type MotivoRemoto =
   | 'pin'           // 0.49.0: la chat la' e' protetta dal PIN (423)
 
 export class ErroreRemoto extends Error {
-  constructor(public readonly motivo: MotivoRemoto, messaggio: string, public readonly stato?: number) {
+  constructor(
+    public readonly motivo: MotivoRemoto,
+    messaggio: string,
+    public readonly stato?: number,
+    /**
+     * Gli altri campi della risposta di quel PC (0.55.0): il campo da
+     * correggere, la chat da aprire con il PIN. Il ponte li gira al telefono.
+     */
+    public readonly altro?: Record<string, unknown>
+  ) {
     super(messaggio)
     this.name = 'ErroreRemoto'
   }
+}
+
+/** I campi di una risposta d'errore oltre a `errore`: quelli che il ponte gira intatti. */
+export function campiOltreErrore(corpo: unknown): Record<string, unknown> | undefined {
+  if (typeof corpo !== 'object' || corpo === null || Array.isArray(corpo)) return undefined
+  const { errore: _e, ...resto } = corpo as Record<string, unknown>
+  return Object.keys(resto).length > 0 ? resto : undefined
 }
 
 export type ClientPcRemoto = {
@@ -289,7 +305,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     if (e.stato === NON_VIA_DRIVE) throw new ErroreRemoto('lento', dettaglio, e.stato)
     const motivo = motivoDaStatoHttp(e.stato)
     if (motivo === undefined) return e.corpo
-    throw new ErroreRemoto(motivo, messaggioErroreRemoto(motivo, nome, dettaglio), e.stato)
+    throw new ErroreRemoto(motivo, messaggioErroreRemoto(motivo, nome, dettaglio), e.stato, campiOltreErrore(e.corpo))
   }
 
   /**

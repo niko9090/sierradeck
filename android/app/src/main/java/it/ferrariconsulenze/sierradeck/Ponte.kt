@@ -32,9 +32,10 @@ import kotlinx.serialization.json.put
  * Drive) e la chiave di casa, che il telefono non ha mai. La risposta è
  * quella dell'altro PC, intera: le schermate delle chat sono le stesse.
  *
- * **Gli stessi permessi del PC**: solo quello che il PC fa dal suo riquadro
- * remoto. Rinominare e chiudere una chat, la cartella nuova da sfogliare, le
- * conversazioni salvate: no, e i tasti non si mostrano.
+ * **Gli stessi permessi del PC**: quello che il PC fa dal suo riquadro remoto
+ * e, dalla 0.55.0, la gestione di chat, workspace e autopiloti di quel PC
+ * (prima no, e creare un workspace o una chat là finiva in un rifiuto del
+ * telefono stesso, senza che nessun PC ne sapesse niente).
  */
 object Ponte {
     /** Le rotte che passano, uguali a `ROTTE_PONTE` del PC (src/shared/ponte-telefono.ts). */
@@ -43,7 +44,15 @@ object Ponte {
         "/api/allegati/inizia", "/api/allegati/pezzo", "/api/allegati/stato", "/api/allegati/fine", "/api/allegati/annulla",
         // La sezione File (PC 0.54.0): sfogliare i progetti di quel PC e ritirare i file che manda al telefono.
         "/api/file/progetti", "/api/file/elenco", "/api/file/leggi",
-        "/api/consegne", "/api/consegne/pezzo", "/api/consegne/ricevuta")
+        "/api/consegne", "/api/consegne/pezzo", "/api/consegne/ricevuta",
+        // Gestire quel PC (PC 0.55.0): workspace, chiudere/togliere/rinominare le chat,
+        // la cartella per una chat nuova, le conversazioni, gli autopiloti.
+        "/api/workspace", "/api/workspace/crea", "/api/workspace/elimina", "/api/workspace/rinomina",
+        "/api/chat/chiudi", "/api/chat/dormi", "/api/chat/sveglia", "/api/chat/sposta", "/api/chat/nome",
+        "/api/sfoglia", "/api/cartelle", "/api/sessioni",
+        "/api/autopilota", "/api/autopilota/crea", "/api/autopilota/ferma", "/api/autopilota/riprendi", "/api/autopilota/vai",
+        "/api/autopilota/elimina", "/api/autopilota/riavvio", "/api/autopilota/dialogo", "/api/autopilota/file", "/api/autopilota/diff",
+        "/api/autopilota/istruzioni", "/api/autopilota/correggi", "/api/quaderno", "/api/quaderno/scheda")
 
     /** Il corpo di `/api/ponte`: il PC, la rotta, e il corpo della richiesta se c'è. */
     fun corpo(pc: String, percorso: String, corpoJson: String?): String {
@@ -57,7 +66,7 @@ object Ponte {
 
     /** Il rifiuto, nella stessa forma di quelli del PC (`{"errore": …}`). */
     fun nonSiPuo(percorso: String): String = Api.json.encodeToString(JsonElement.serializer(), buildJsonObject {
-        put("errore", "Su un altro PC il telefono può fare quello che fa il PC dal suo riquadro remoto: vedere le chat e la loro storia, scrivere, premere un’opzione, riprendere o aprire una chat, mandarle un file. «$percorso» no.")
+        put("errore", "Su un altro PC il telefono gestisce le chat, i workspace, gli autopiloti e i file dei progetti. Il Drive, gli aggiornamenti, l’account e il negozio di quel PC si gestiscono da lui, o accoppiando il telefono a lui. «$percorso» no.")
     })
 }
 

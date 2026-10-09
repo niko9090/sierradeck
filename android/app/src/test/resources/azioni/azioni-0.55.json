@@ -1,0 +1,385 @@
+{
+  "autopilota": [
+    {
+      "nome": "vuota",
+      "bozza": {
+        "obiettivo": "",
+        "cwd": "",
+        "nome": "",
+        "criteri": "",
+        "pubblicazione": "stabile",
+        "cloud": false,
+        "partenza": "via",
+        "workspace": ""
+      },
+      "esito": {
+        "ok": false,
+        "campo": "obiettivo",
+        "errore": "Scrivi prima cosa vuoi ottenere."
+      }
+    },
+    {
+      "nome": "solo spazi",
+      "bozza": {
+        "obiettivo": "   ",
+        "cwd": "C:\\Progetti\\Esempio",
+        "nome": "",
+        "criteri": "",
+        "pubblicazione": "stabile",
+        "cloud": false,
+        "partenza": "via",
+        "workspace": ""
+      },
+      "esito": {
+        "ok": false,
+        "campo": "obiettivo",
+        "errore": "Scrivi prima cosa vuoi ottenere."
+      }
+    },
+    {
+      "nome": "senza cartella",
+      "bozza": {
+        "obiettivo": "Sistema il lettore di CSV",
+        "cwd": "",
+        "nome": "",
+        "criteri": "",
+        "pubblicazione": "stabile",
+        "cloud": false,
+        "partenza": "via",
+        "workspace": ""
+      },
+      "esito": {
+        "ok": false,
+        "campo": "cwd",
+        "errore": "Scegli la cartella in cui lavora."
+      }
+    },
+    {
+      "nome": "cartella relativa",
+      "bozza": {
+        "obiettivo": "x",
+        "cwd": "Esempio",
+        "nome": "",
+        "criteri": "",
+        "pubblicazione": "stabile",
+        "cloud": false,
+        "partenza": "via",
+        "workspace": ""
+      },
+      "esito": {
+        "ok": false,
+        "campo": "cwd",
+        "errore": "La cartella dev’essere un percorso intero del computer (per esempio C:\\Progetti\\Esempio): sceglila dall’elenco o sfogliando."
+      }
+    },
+    {
+      "nome": "minima",
+      "bozza": {
+        "obiettivo": "Sistema il lettore di CSV",
+        "cwd": "C:\\Progetti\\Esempio",
+        "nome": "",
+        "criteri": "",
+        "pubblicazione": "stabile",
+        "cloud": false,
+        "partenza": "via",
+        "workspace": ""
+      },
+      "esito": {
+        "ok": true,
+        "richiesta": {
+          "nome": "Sistema il lettore di CSV",
+          "obiettivo": "Sistema il lettore di CSV",
+          "cwd": "C:\\Progetti\\Esempio",
+          "criteri": [],
+          "pubblicazione": "stabile",
+          "partenza": "via"
+        }
+      }
+    },
+    {
+      "nome": "obiettivo lungo senza nome",
+      "bozza": {
+        "obiettivo": "Porta i test a verde e poi scrivi la scheda del quaderno con le cause trovate",
+        "cwd": "D:\\Lavoro\\Esempio",
+        "nome": "",
+        "criteri": "",
+        "pubblicazione": "stabile",
+        "cloud": false,
+        "partenza": "via",
+        "workspace": ""
+      },
+      "esito": {
+        "ok": true,
+        "richiesta": {
+          "nome": "Porta i test a verde e poi scrivi",
+          "obiettivo": "Porta i test a verde e poi scrivi la scheda del quaderno con le cause trovate",
+          "cwd": "D:\\Lavoro\\Esempio",
+          "criteri": [],
+          "pubblicazione": "stabile",
+          "partenza": "via"
+        }
+      }
+    },
+    {
+      "nome": "piena",
+      "bozza": {
+        "obiettivo": "  Porta i test a verde  ",
+        "cwd": " C:\\Progetti\\Esempio ",
+        "nome": " Test verdi ",
+        "criteri": "npm test passa\r\n\r\n  il quaderno ha la scheda  \n",
+        "pubblicazione": "beta",
+        "cloud": true,
+        "partenza": "subito",
+        "workspace": " Lavoro "
+      },
+      "esito": {
+        "ok": true,
+        "richiesta": {
+          "nome": "Test verdi",
+          "obiettivo": "Porta i test a verde",
+          "cwd": "C:\\Progetti\\Esempio",
+          "criteri": [
+            {
+              "descrizione": "npm test passa"
+            },
+            {
+              "descrizione": "il quaderno ha la scheda"
+            }
+          ],
+          "pubblicazione": "beta",
+          "vaSulCloud": true,
+          "workspace": "Lavoro",
+          "partenza": "subito"
+        }
+      }
+    },
+    {
+      "nome": "rete",
+      "bozza": {
+        "obiettivo": "x",
+        "cwd": "\\\\server\\condivisa\\Esempio",
+        "nome": "",
+        "criteri": "",
+        "pubblicazione": "stabile",
+        "cloud": false,
+        "partenza": "via",
+        "workspace": ""
+      },
+      "esito": {
+        "ok": true,
+        "richiesta": {
+          "nome": "x",
+          "obiettivo": "x",
+          "cwd": "\\\\server\\condivisa\\Esempio",
+          "criteri": [],
+          "pubblicazione": "stabile",
+          "partenza": "via"
+        }
+      }
+    },
+    {
+      "nome": "regola sconosciuta",
+      "bozza": {
+        "obiettivo": "x",
+        "cwd": "C:\\Progetti\\Esempio",
+        "nome": "",
+        "criteri": "",
+        "pubblicazione": "sempre",
+        "cloud": false,
+        "partenza": "via",
+        "workspace": ""
+      },
+      "esito": {
+        "ok": false,
+        "campo": "pubblicazione",
+        "errore": "Scegli la regola di pubblicazione: beta, stabile o versione unica."
+      }
+    },
+    {
+      "nome": "partenza sconosciuta",
+      "bozza": {
+        "obiettivo": "x",
+        "cwd": "C:\\Progetti\\Esempio",
+        "nome": "",
+        "criteri": "",
+        "pubblicazione": "stabile",
+        "cloud": false,
+        "partenza": "domani",
+        "workspace": ""
+      },
+      "esito": {
+        "ok": false,
+        "campo": "partenza",
+        "errore": "Scegli quando parte: dopo il tuo «Vai» o da solo."
+      }
+    },
+    {
+      "nome": "workspace troppo lungo",
+      "bozza": {
+        "obiettivo": "x",
+        "cwd": "C:\\Progetti\\Esempio",
+        "nome": "",
+        "criteri": "",
+        "pubblicazione": "stabile",
+        "cloud": false,
+        "partenza": "via",
+        "workspace": "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww"
+      },
+      "esito": {
+        "ok": false,
+        "campo": "workspace",
+        "errore": "Il nome è troppo lungo: al massimo 60 caratteri."
+      }
+    },
+    {
+      "nome": "nome lungo",
+      "bozza": {
+        "obiettivo": "x",
+        "cwd": "C:\\Progetti\\Esempio",
+        "nome": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+        "criteri": "",
+        "pubblicazione": "stabile",
+        "cloud": false,
+        "partenza": "via",
+        "workspace": ""
+      },
+      "esito": {
+        "ok": true,
+        "richiesta": {
+          "nome": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+          "obiettivo": "x",
+          "cwd": "C:\\Progetti\\Esempio",
+          "criteri": [],
+          "pubblicazione": "stabile",
+          "partenza": "via"
+        }
+      }
+    }
+  ],
+  "nomiWorkspace": [
+    {
+      "nome": "",
+      "esistenti": [],
+      "esito": {
+        "ok": false,
+        "errore": "Scrivi il nome del workspace."
+      }
+    },
+    {
+      "nome": "  Sera  ",
+      "esistenti": [],
+      "esito": {
+        "ok": true,
+        "nome": "Sera"
+      }
+    },
+    {
+      "nome": "Lavoro",
+      "esistenti": [
+        "Lavoro"
+      ],
+      "esito": {
+        "ok": false,
+        "errore": "«Lavoro» esiste già: scegli un altro nome."
+      }
+    },
+    {
+      "nome": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "esistenti": [],
+      "esito": {
+        "ok": false,
+        "errore": "Il nome è troppo lungo: al massimo 60 caratteri."
+      }
+    },
+    {
+      "nome": "a\tb",
+      "esistenti": [],
+      "esito": {
+        "ok": false,
+        "errore": "Il nome non può contenere caratteri di controllo."
+      }
+    },
+    {
+      "nome": "Città",
+      "esistenti": [
+        "Lavoro"
+      ],
+      "esito": {
+        "ok": true,
+        "nome": "Città"
+      }
+    }
+  ],
+  "nomeDaObiettivo": [
+    {
+      "obiettivo": "Una frase di nove parole che si ferma alla ottava sola",
+      "nome": "Una frase di nove parole che si ferma"
+    },
+    {
+      "obiettivo": "breve",
+      "nome": "breve"
+    }
+  ],
+  "partenze": [
+    {
+      "valore": "via",
+      "etichetta": "aspetta il mio «Vai»",
+      "spiega": "Legge il progetto, ti fa al massimo un paio di domande, si scrive i criteri se non li hai dati e aspetta il tuo «Vai» prima di cominciare. Non parte da solo."
+    },
+    {
+      "valore": "subito",
+      "etichetta": "parte da solo",
+      "spiega": "Legge il progetto e, se ha domande, le fa come sempre; appena ha le risposte e i criteri comincia a lavorare senza aspettare il tuo «Vai»."
+    }
+  ],
+  "regole": [
+    {
+      "valore": "beta",
+      "etichetta": "beta: pubblica sempre",
+      "spiega": "A lavoro finito e verificato pubblica da solo, senza chiedere: va bene per un progetto in prova, dove un difetto costa poco."
+    },
+    {
+      "valore": "stabile",
+      "etichetta": "stabile: chiede prima",
+      "spiega": "Fa commit, unisce i suoi rami e (con le chat sul Drive) manda su, ma prima di pubblicare ti chiede il sì nella scheda Domande, con il riassunto di cosa esce."
+    },
+    {
+      "valore": "unica",
+      "etichetta": "versione unica: decide il progetto",
+      "spiega": "Segue la regola di pubblicazione scritta nel progetto (CLAUDE.md, quaderno, script). Se il progetto non ne ha una, chiede."
+    }
+  ],
+  "ultimoWorkspace": "L’ultimo workspace non si può eliminare: non resterebbe dove salvare il layout.",
+  "conferme": {
+    "dormi": {
+      "titolo": "Mettere a dormire «Esempio»?",
+      "testo": "Si chiude il suo claude.exe sul computer e smette di occupare memoria. La chat resta nel suo workspace, al suo posto, con tutta la conversazione: con «Svegliala» riparte da dove era. Se sta lavorando adesso, il lavoro di questo turno si interrompe a metà: aspetta che abbia finito, se non sei sicuro.",
+      "azione": "Metti a dormire"
+    },
+    "chiudi": {
+      "titolo": "Chiudere «Esempio»?",
+      "testo": "Si chiude il suo claude.exe e la chat esce dal workspace: sul computer il suo riquadro sparisce. La conversazione non si cancella: resta su disco e si riapre quando vuoi da «Riprendi», con tutta la sua storia. Se sta lavorando adesso, il lavoro di questo turno si interrompe a metà. Per spegnerla lasciandola al suo posto usa invece «Metti a dormire».",
+      "azione": "Chiudi la chat"
+    },
+    "sposta": {
+      "titolo": "Spostare «Esempio» in «Lavoro»?",
+      "testo": "La chat esce da questo workspace ed entra in «Lavoro». Il suo claude.exe si chiude adesso e riparte con tutta la conversazione quando sul computer si passa a «Lavoro». Niente si perde; se sta lavorando adesso, il lavoro di questo turno si interrompe a metà.",
+      "azione": "Sposta la chat"
+    },
+    "eliminaWorkspace": {
+      "titolo": "Eliminare il workspace «Lavoro»?",
+      "testo": "Il workspace sparisce dalla fascia e le chat che contiene escono dalla disposizione: i loro terminali si spengono. Le conversazioni restano su disco e si ritrovano nell’elenco Chat (Sessioni), da dove si riaprono in un altro workspace. Prima di eliminare viene messa da parte una copia dell’archivio dei workspace (workspaces.prima-dell-eliminazione.json, nella cartella dei dati). Se il workspace viaggia anche sul Drive, lì resta: si toglie da lì con «Togli dal Drive» nella scheda Drive.",
+      "azione": "Elimina il workspace"
+    },
+    "rinominaWorkspace": {
+      "titolo": "Rinominare «Lavoro»?",
+      "testo": "Cambia solo il nome: le chat restano dove sono e chi lavora continua a lavorare.",
+      "azione": "Rinomina"
+    },
+    "eliminaAutopilota": {
+      "titolo": "Eliminare l’autopilota «Test verdi»?",
+      "testo": "L’autopilota sparisce dall’elenco e le sue chat si fermano. I file che ha già cambiato nel progetto restano come sono (e i suoi commit restano nel git del progetto), ma il suo diario, le domande e i passaggi non si recuperano più. Per fermarlo e basta usa «Ferma»: si riprende quando vuoi.",
+      "azione": "Elimina l’autopilota"
+    }
+  }
+}
