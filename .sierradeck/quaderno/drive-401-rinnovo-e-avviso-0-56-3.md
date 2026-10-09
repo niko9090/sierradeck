@@ -53,3 +53,19 @@ Il motivo della revoca non sta in nessun registro, come il 23/09 (scheda `drive-
 # Se ricapita
 
 Nel registro, un 401 seguito subito da un rinnovo riuscito è normale. Un `invalid_grant` vuol dire che Google ha tolto il permesso: si ricollega dal PC, Impostazioni → Account → Drive → «Collega».
+
+# Aggiornamento 0.56.4: la causa vera è il limite dei 7 giorni
+
+Il supervisore chiedeva se il «revocata» delle 11:19 fosse un falso del vecchio difetto. **Non lo era.** Le prove:
+- **Il rinnovo di prova:** il refresh token della copia di stato delle 10:09 (`copie-di-versione/0.56.0-…/google-drive-token.json`) riceve da Google **400 `invalid_grant` — «Token has been expired or revoked.»**
+- **I tempi:** il Drive era stato ricollegato il **02/10 alle 10:20:59** UTC (registro di quel giorno); il primo 401 è del **09/10 alle 10:20:47**. Sette giorni esatti.
+- **Il token in uso:** nella copia scadeva alle 10:20:46.
+
+È il limite di Google per le app OAuth in stato **«Testing»**: refresh token e access token valgono 7 giorni. Il 23/09 è successo lo stesso. **L'app OAuth di SierraDeck va messa «In production»** nella console di Google Cloud, alla schermata di consenso OAuth. Lo può fare solo Nicholas; finché non lo fa, il Drive cade ogni 7 giorni.
+
+**Nella 0.56.4:**
+- su `invalid_grant` il token non si cancella più: va in `google-drive-token.rifiutato.json`;
+- all'avvio `contoDrive.riprovaRevocata()` fa **un** rinnovo di prova per scollegamento. Il token è quello messo da parte, oppure, per gli scollegamenti più vecchi, quello dell'ultima copia di stato fatta prima dello scollegamento. Mentre prova, l'avviso tace;
+- esiti: `tornato` (il Drive si ricollega da solo), `revocata` (`verificata: true`, non si riprova), `niente`, `non-so` (rete: si riprova al prossimo avvio);
+- `Gettoni.collegatoIl` (al consenso, conservato dal rinnovo) e `Scollegamento.collegatoIl`: se il rifiuto arriva a 7 giorni ±6 h dal collegamento, l'avviso lo spiega e dice cosa fare in Google Cloud;
+- test: `tests/main/drive-riprova-revocata.test.ts`.

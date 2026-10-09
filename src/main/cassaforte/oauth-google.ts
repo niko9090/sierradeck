@@ -53,6 +53,12 @@ export type Gettoni = {
    * rinnovo lo conserva.
    */
   email?: string
+  /**
+   * Quando è stato dato il consenso, epoch ms (0.56.4). Il rinnovo lo conserva.
+   * Serve a riconoscere il limite di Google sulle app OAuth «in prova»: il
+   * permesso dura sette giorni esatti dal consenso.
+   */
+  collegatoIl?: number
 }
 
 /**
@@ -286,7 +292,7 @@ export function creaFornitoreToken(deps: {
         throw err
       }
       // Il rinnovo non riporta l'indirizzo: lo si conserva da prima.
-      deps.scrivi({ ...nuovi, ...(g.email !== undefined ? { email: g.email } : {}) })
+      deps.scrivi({ ...nuovi, ...(g.email !== undefined ? { email: g.email } : {}), ...(g.collegatoIl !== undefined ? { collegatoIl: g.collegatoIl } : {}) })
       return nuovi.accessToken
     })().finally(() => { inRinnovo = undefined })
     return inRinnovo

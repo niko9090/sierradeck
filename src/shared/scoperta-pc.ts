@@ -198,13 +198,26 @@ export type Scollegamento = {
   quando: string
   /** `revocata`: Google ha risposto `invalid_grant` al rinnovo; `a-mano`: «Scollega» dal pannello. */
   motivo: 'revocata' | 'a-mano' | 'sconosciuto'
+  /** Quando era stato dato il consenso, ISO (0.56.4): sette giorni esatti = app OAuth «in prova». */
+  collegatoIl?: string
+  /**
+   * Un rinnovo di prova fatto dopo lo scollegamento ha confermato il rifiuto
+   * di Google (0.56.4). Finché manca, all'avvio se ne tenta uno prima di
+   * chiedere di ricollegare.
+   */
+  verificata?: boolean
 }
 
 export function leggiScollegamento(grezzo: unknown): Scollegamento | undefined {
   if (typeof grezzo !== 'object' || grezzo === null) return undefined
   const o = grezzo as Record<string, unknown>
   if (typeof o.quando !== 'string' || Number.isNaN(Date.parse(o.quando))) return undefined
-  return { quando: o.quando, motivo: o.motivo === 'revocata' || o.motivo === 'a-mano' ? o.motivo : 'sconosciuto' }
+  return {
+    quando: o.quando,
+    motivo: o.motivo === 'revocata' || o.motivo === 'a-mano' ? o.motivo : 'sconosciuto',
+    ...(typeof o.collegatoIl === 'string' && !Number.isNaN(Date.parse(o.collegatoIl)) ? { collegatoIl: o.collegatoIl } : {}),
+    ...(o.verificata === true ? { verificata: true } : {})
+  }
 }
 
 /**
@@ -254,8 +267,12 @@ export function avvisoDriveScollegato(p: { configurato: boolean; connesso: boole
   const giorni = Number.isNaN(t) ? undefined : Math.max(0, Math.floor((p.adesso - t) / 86_400_000))
   const da = giorni === undefined ? '' : giorni === 0 ? ' da oggi' : giorni === 1 ? ' da 1 giorno' : ` da ${giorni} giorni`
   const data = Number.isNaN(t) ? '' : new Date(t).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })
-  const perche = p.dal?.motivo === 'revocata'
-    ? `Il ${data} Google ha rifiutato l’autorizzazione di SierraDeck al tuo Drive (risposta «invalid_grant» al rinnovo): non è un guasto di questo PC, è Google che non riconosce più il collegamento. Succede se l’accesso è stato revocato dall’account Google, se è cambiata la password, o se il collegamento era stato fatto mentre l’app era in prova.`
+  const durata = p.dal?.collegatoIl !== undefined ? t - Date.parse(p.dal.collegatoIl) : Number.NaN
+  const setteGiorni = !Number.isNaN(durata) && Math.abs(durata - 7 * 86_400_000) < 6 * 3_600_000
+  const perche = p.dal?.motivo === 'revocata' && setteGiorni
+    ? `Il ${data} Google ha smesso di riconoscere l’autorizzazione di SierraDeck al tuo Drive, sette giorni esatti dopo il collegamento (${new Date(Date.parse(p.dal.collegatoIl ?? '')).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })}). È il limite che Google mette alle app OAuth ancora «in prova» (Testing): il permesso dura una settimana. Ricollegarlo funziona per altri sette giorni; per non doverlo più rifare, l’app OAuth di SierraDeck va messa «In produzione» nella console di Google Cloud (schermata di consenso OAuth).`
+    : p.dal?.motivo === 'revocata'
+    ? `Il ${data} Google ha rifiutato l’autorizzazione di SierraDeck al tuo Drive (risposta «invalid_grant» al rinnovo, e un secondo rinnovo di prova ha dato lo stesso): non è un guasto di questo PC, è Google che non riconosce più il collegamento. Succede se l’accesso è stato revocato dall’account Google, se è cambiata la password, o se l’app OAuth è ancora «in prova» (lì il permesso dura sette giorni).`
     : p.dal?.motivo === 'a-mano'
       ? `Il ${data} il Drive è stato scollegato da qui («Scollega» nel pannello Account).`
       : data !== ''

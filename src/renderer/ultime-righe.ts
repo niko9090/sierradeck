@@ -115,6 +115,8 @@ const QUIETE_MS = 700
 export type AttivitaTerminale = {
   /** Quando è arrivato l'ultimo dato, in millisecondi. */
   ultimoDato: number
+  /** Quando è arrivato il primo dato (0.56.4): l'età del terminale. */
+  primoDato?: number
   /** Se il prompt si è mai visto: prima di allora non c'è nessuno che ascolti. */
   prontoVisto: boolean
   /**
@@ -191,7 +193,26 @@ const RIGHE_DEL_FONDO = 12
  *   → non partita; se e' vuota (o mostra il suggerimento «Try …») → partita.
  * `undefined` se lo schermo non lo dice.
  */
-export function consegnaPartita(righe: string[] | undefined, scritto?: string): boolean | undefined {
+/**
+ * Quante righe «❯ …» sullo schermo, campo escluso, cominciano con quel testo
+ * (0.56.4). Si conta prima di scrivere e dopo l'invio: conta solo una riga
+ * **in più**. Il 09/10, dopo un riavvio, la conversazione ripresa mostrava lo
+ * stesso identico messaggio di una consegna precedente, e lo si prendeva per
+ * quello appena mandato: il testo perso non veniva mai riscritto.
+ */
+export function contaMandati(righe: string[] | undefined, scritto: string): number {
+  if (righe === undefined || righe.length === 0) return 0
+  const inizio = scritto.trim().slice(0, 24)
+  if (inizio === '') return 0
+  const conCampo = righe.map((r, i) => ({ r, i })).filter((x) => /^\s*[│|]?\s*❯/.test(x.r))
+  const fondo = righe.length - RIGHE_DEL_FONDO
+  const ultimo = conCampo[conCampo.length - 1]
+  // L'ultima riga «❯» in fondo è il campo di adesso, non un messaggio mandato.
+  const mandati = ultimo !== undefined && ultimo.i >= fondo ? conCampo.slice(0, -1) : conCampo
+  return mandati.filter((x) => testoDelCampo(x.r).startsWith(inizio)).length
+}
+
+export function consegnaPartita(righe: string[] | undefined, scritto?: string, prima?: number): boolean | undefined {
   if (righe === undefined || righe.length === 0) return undefined
   const fondo = righe.slice(-RIGHE_DEL_FONDO)
   if (fondo.some((r) => ATTIVITA_SULLO_SCHERMO.test(r))) return true
@@ -206,6 +227,8 @@ export function consegnaPartita(righe: string[] | undefined, scritto?: string): 
     // Campo vuoto: partita solo se il messaggio sta fra quelli mandati (una
     // riga «❯ …» sopra il campo). Senza testo noto, come prima: partita.
     if (inizio === '') return true
+    // Con il conto di prima (0.56.4): vale solo una riga in più.
+    if (prima !== undefined) return contaMandati(righe, scritto ?? '') > prima ? true : undefined
     return campi.slice(0, -1).some((x) => testoDelCampo(x.r).startsWith(inizio)) ? true : undefined
   }
   return undefined
@@ -220,12 +243,14 @@ function testoDelCampo(r: string): string {
  * mandati non c'e', e la chat non lavora. Succede se lo si digita mentre
  * Claude Code sta ancora caricando una conversazione ripresa.
  */
-export function testoPerso(righe: string[] | undefined, scritto: string): boolean {
+export function testoPerso(righe: string[] | undefined, scritto: string, prima?: number): boolean {
   if (righe === undefined || righe.length === 0 || scritto.trim() === '') return false
   const fondo = righe.slice(-RIGHE_DEL_FONDO)
   if (fondo.some((r) => ATTIVITA_SULLO_SCHERMO.test(r))) return false
   const inizio = scritto.trim().slice(0, 24)
-  if (righe.some((r) => /❯/.test(r) && testoDelCampo(r).startsWith(inizio))) return false
+  // Fra i messaggi mandati: con il conto di prima (0.56.4) solo se ce n'è uno
+  // in più; senza, come prima (qualunque riga uguale).
+  if (prima !== undefined ? contaMandati(righe, scritto) > prima : righe.some((r) => /❯/.test(r) && testoDelCampo(r).startsWith(inizio))) return false
   const campi = fondo.filter((r) => /^\s*[│|]?\s*❯/.test(r))
   const campo = campi[campi.length - 1]
   return campo !== undefined && (testoDelCampo(campo) === '' || /^Try "/.test(testoDelCampo(campo)))
@@ -346,6 +371,7 @@ export function creaUltimeRighe(): {
       const prima = attivita.get(ptyId)
       attivita.set(ptyId, {
         ultimoDato: Date.now(),
+        primoDato: prima?.primoDato ?? Date.now(),
         prontoVisto: prima?.prontoVisto === true || SEGNI_DI_PROMPT.test(dati),
         // Morto una volta, morto per sempre: un terminale puo' sputare i suoi
         // ultimi dati **dopo** l'exit (coda del PTY, o eventi riordinati), e

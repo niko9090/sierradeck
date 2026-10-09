@@ -1,8 +1,8 @@
-import { existsSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
 import { configGoogle } from '../google-config'
-import { connetti as connettiOAuth, creaFornitoreToken, esaminaDrive, type FornitoreToken, type Gettoni } from './oauth-google'
+import { connetti as connettiOAuth, creaFornitoreToken, esaminaDrive, rinnova, type FornitoreToken, type Gettoni } from './oauth-google'
 import { creaMagazzinoDrive, creaArchivioDrive } from './google-drive'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
@@ -56,6 +56,14 @@ export type ContoDrive = {
   disconnetti: () => void
   /** Quando e perche' si e' scollegato, se e' scritto (0.39.3). */
   scollegamento: () => Scollegamento | undefined
+  /**
+   * Dopo un rifiuto di Google, un rinnovo di prova prima di chiedere di
+   * ricollegare (0.56.4), una volta per scollegamento. `tornato`: il segno era
+   * un falso, il Drive è di nuovo collegato. `revocata`: confermato. `niente`:
+   * nessun token da provare (non si riprova più). `non-so`: rete giù, si
+   * riproverà al prossimo avvio.
+   */
+  riprovaRevocata: () => Promise<'tornato' | 'revocata' | 'niente' | 'non-so'>
   /** Scrive il momento ricavato dal registro, per i PC scollegati prima della 0.39.3. */
   ricordaScollegamento: (s: Scollegamento) => void
   /**
@@ -93,10 +101,51 @@ export function apriContoDrive(dati: string): ContoDrive {
    * saputo. Ora resta scritto, e la banda dice da quando e perche'.
    */
   const fileScollegato = join(dati, FILE_SCOLLEGATO)
-  const segnaScollegato = (motivo: Scollegamento['motivo']): void => {
-    try { scriviAtomico(fileScollegato, JSON.stringify({ quando: new Date().toISOString(), motivo }), 'drive') } catch { /* la banda dira' «non so da quando» */ }
+  /**
+   * Il token rifiutato, messo da parte invece di cancellato (0.56.4): serve al
+   * rinnovo di prova. Prima si cancellava, e un rifiuto sbagliato non si
+   * poteva più verificare.
+   */
+  const fileMessoDaParte = join(dati, 'google-drive-token.rifiutato.json')
+  const segnaScollegato = (motivo: Scollegamento['motivo'], extra: Partial<Scollegamento> = {}): void => {
+    try { scriviAtomico(fileScollegato, JSON.stringify({ quando: new Date().toISOString(), motivo, ...extra }), 'drive') } catch { /* la banda dira' «non so da quando» */ }
   }
-  const revocata = (): void => { scarta(); segnaScollegato('revocata') }
+  const leggiSegno = (): Scollegamento | undefined => {
+    try { return existsSync(fileScollegato) ? leggiScollegamento(JSON.parse(readFileSync(fileScollegato, 'utf8'))) : undefined } catch { return undefined }
+  }
+  const revocata = (): void => {
+    const g = leggi()
+    try { if (existsSync(fileToken)) renameSync(fileToken, fileMessoDaParte) } catch { scarta() }
+    segnaScollegato('revocata', g?.collegatoIl !== undefined ? { collegatoIl: new Date(g.collegatoIl).toISOString() } : {})
+  }
+  /**
+   * Il token da provare: quello messo da parte, o per gli scollegamenti di
+   * prima della 0.56.4 (il token era stato cancellato) l'ultimo salvato nelle
+   * copie di stato fatte prima dello scollegamento.
+   */
+  const tokenDaProvare = (prima: number): Gettoni | undefined => {
+    const leggiDa = (f: string): Gettoni | undefined => {
+      try {
+        const g = JSON.parse(readFileSync(f, 'utf8')) as Gettoni
+        return typeof g.refreshToken === 'string' && g.refreshToken !== '' ? g : undefined
+      } catch { return undefined }
+    }
+    if (existsSync(fileMessoDaParte)) return leggiDa(fileMessoDaParte)
+    const copie = join(dati, 'copie-di-versione')
+    try {
+      const candidati = readdirSync(copie)
+        .map((d) => join(copie, d, 'google-drive-token.json'))
+        .filter((f) => existsSync(f))
+        .map((f) => ({ f, quando: statSync(f).mtimeMs }))
+        .filter((x) => x.quando < prima)
+        .sort((a, b) => b.quando - a.quando)
+      for (const c of candidati) {
+        const g = leggiDa(c.f)
+        if (g !== undefined) return g
+      }
+    } catch { /* nessuna copia */ }
+    return undefined
+  }
   const scrivi = (g: Gettoni): void => {
     try {
       scriviAtomico(fileToken, JSON.stringify(g), 'drive')
@@ -129,9 +178,10 @@ export function apriContoDrive(dati: string): ContoDrive {
     async connetti(apriBrowser) {
       const c = config()
       if (c === undefined) throw new Error('Google Drive non configurato: mancano le credenziali OAuth dell’app')
-      const gettoni = await connettiOAuth({ config: c, apriBrowser })
+      const gettoni = { ...(await connettiOAuth({ config: c, apriBrowser })), collegatoIl: Date.now() }
       scrivi(gettoni)
       try { rmSync(fileScollegato, { force: true }) } catch { /* resta: la banda guarda comunque «connesso» */ }
+      try { rmSync(fileMessoDaParte, { force: true }) } catch { /* niente */ }
       // L'indirizzo e cosa c'e' dentro: per riconoscere il Drive giusto senza
       // doverlo ricordare fra dieci account.
       const esame = await esaminaDrive(gettoni.accessToken)
@@ -147,11 +197,33 @@ export function apriContoDrive(dati: string): ContoDrive {
       }
     },
 
-    disconnetti() { scarta(); segnaScollegato('a-mano') },
+    disconnetti() { scarta(); try { rmSync(fileMessoDaParte, { force: true }) } catch { /* niente */ } segnaScollegato('a-mano') },
 
-    scollegamento() {
-      try { return existsSync(fileScollegato) ? leggiScollegamento(JSON.parse(readFileSync(fileScollegato, 'utf8'))) : undefined } catch { return undefined }
+    async riprovaRevocata() {
+      const s = leggiSegno()
+      const c = config()
+      if (s === undefined || s.motivo !== 'revocata' || s.verificata === true || c === undefined || leggi() !== undefined) return 'non-so'
+      const g = tokenDaProvare(Date.parse(s.quando))
+      const conferma = <T extends 'revocata' | 'niente'>(esito: T): T => {
+        try { rmSync(fileMessoDaParte, { force: true }) } catch { /* niente */ }
+        // Il momento resta quello vero, non quello della verifica.
+        try { scriviAtomico(fileScollegato, JSON.stringify({ ...s, verificata: true }), 'drive') } catch { /* niente */ }
+        return esito
+      }
+      if (g?.refreshToken === undefined) return conferma('niente')
+      try {
+        const nuovi = await rinnova({ config: c, refreshToken: g.refreshToken })
+        scrivi({ ...nuovi, ...(g.email !== undefined ? { email: g.email } : {}), ...(g.collegatoIl !== undefined ? { collegatoIl: g.collegatoIl } : {}) })
+        try { rmSync(fileScollegato, { force: true }) } catch { /* niente */ }
+        try { rmSync(fileMessoDaParte, { force: true }) } catch { /* niente */ }
+        return 'tornato'
+      } catch (err) {
+        const testo = err instanceof Error ? err.message : String(err)
+        return testo.includes('invalid_grant') ? conferma('revocata') : 'non-so'
+      }
     },
+
+    scollegamento: () => leggiSegno(),
 
     ricordaScollegamento(s) {
       try { scriviAtomico(fileScollegato, JSON.stringify(s), 'drive') } catch { /* niente */ }

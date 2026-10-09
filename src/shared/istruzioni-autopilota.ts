@@ -114,10 +114,12 @@ export function testoEsito(e: EsitoIstruzione): { breve: string; titolo: string;
  * partita` e `consegna c-5: non partita (…)`. Solo quelli finali; gli altri
  * passi (ritirata, invio…) non cambiano niente.
  */
-export function esitoDaPasso(passo: string): { consegna: string; esito: 'partita' | 'non-partita' } | undefined {
-  const m = /consegna (\S+): (partita|non partita)\b/.exec(passo)
+export function esitoDaPasso(passo: string): { consegna: string; esito: 'partita' | 'non-partita' | 'non-consegnata' } | undefined {
+  const m = /consegna (\S+): (partita|non partita|non consegnata)\b/.exec(passo)
   if (m === null || m[1] === undefined || m[1] === '') return undefined
-  return { consegna: m[1], esito: m[2] === 'partita' ? 'partita' : 'non-partita' }
+  // «non consegnata» (0.56.4): la finestra ha smesso di provare; il servizio
+  // rimette in coda i messaggi che quella consegna portava.
+  return { consegna: m[1], esito: m[2] === 'partita' ? 'partita' : m[2] === 'non consegnata' ? 'non-consegnata' : 'non-partita' }
 }
 
 /**

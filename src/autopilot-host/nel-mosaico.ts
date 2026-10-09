@@ -29,7 +29,8 @@ export function esecutoreNelMosaico(p: {
   /** Dice al servizio quale sessione ha preso una chat, perché la ricordi. */
   ricorda: (autopilotaId: string, chatId: string, sessionId: string) => void
 }): {
-  avvia: (a: Autopilota, messaggio?: string, chat?: ChatGovernata, perche?: string) => Promise<void>
+  /** Torna l'id della consegna messa in coda (0.56.4). */
+  avvia: (a: Autopilota, messaggio?: string, chat?: ChatGovernata, perche?: string) => Promise<string>
   ferma: (id: string, chatId?: string) => void
   attivi: () => string[]
 } {
@@ -62,7 +63,7 @@ export function esecutoreNelMosaico(p: {
         ...(a.workspace !== undefined ? { workspace: a.workspace } : {})
       })
 
-      p.consegne.metti({
+      const messa = p.consegne.metti({
         autopilotaId: a.id,
         chatId,
         // La chat di una flotta lavora nel suo git worktree (0.36.0): nasce li',
@@ -89,7 +90,7 @@ export function esecutoreNelMosaico(p: {
         // nascere lì dentro non c'è, e finiva nel workspace che avevi davanti.
         ...(a.workspace !== undefined ? { workspace: a.workspace } : {})
       })
-      return Promise.resolve()
+      return Promise.resolve(messa.id)
     },
 
     ferma(id, chatId) {

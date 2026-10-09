@@ -206,8 +206,13 @@ export function avviaServizio(): void {
   const consegne = creaConsegne({
     messa: (c) => istruzioni.registra(c),
     confermata: (id) => istruzioni.esito(id, 'consegnata'),
-    persa: (id) => istruzioni.esito(id, 'persa')
+    persa: (id) => {
+      istruzioni.esito(id, 'persa')
+      // Mai ritirata dal Gestore: i messaggi che portava tornano in coda (0.56.4).
+      serverPronto?.riportaInCoda(id, 'nessuna finestra l ha ritirata')
+    }
   })
+  let serverPronto: { riportaInCoda: (consegna: string, perche: string) => void } | undefined
 
   const lavori = esecutoreNelMosaico({
     consegne,
@@ -256,6 +261,7 @@ export function avviaServizio(): void {
     git: gitReale
   })
 
+  serverPronto = server
   server.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
       // Istanza unica: qualcun altro è già in ascolto. Uscire è la risposta

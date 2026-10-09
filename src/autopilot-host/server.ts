@@ -4,7 +4,7 @@ import { existsSync, statSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import {
   DIALOGO_RICORDATO, MODIFICHE_RICORDATE, nuovoAutopilota,
-  type Autopilota, type ChatGovernata, type Criterio, type Decisione, type Istantanea
+  type Autopilota, type ChatGovernata, type Criterio, type Decisione, type Istantanea, type MessaggioPerLaChat
 } from '@shared/autopilota'
 import type { Archivio } from './archivio'
 import {
@@ -35,7 +35,7 @@ import {
 import { percheRecente, type EsitoIstruzione, type Istruzione } from '@shared/istruzioni-autopilota'
 import {
   chiaviChatVive, componiPromptDialogo, conMessaggioPerLaChat, conPreambolo, leggiEsitoDialogo,
-  prendiMessaggiPer
+  prendiMessaggiPer, rimettiInCoda
 } from './dialogo'
 import { primoCompito, ripartiDaDove, riprende } from './nel-mosaico'
 import type { RegistroDomande } from './domande'
@@ -60,7 +60,8 @@ export type Dipendenze = {
    * Avvia la chat governata. Con `messaggio`, riprende una sessione ferma
    * consegnandole quel testo — è la strada della risposta tardiva.
    */
-  avviaLavoro: (a: Autopilota, messaggio?: string, chat?: ChatGovernata, perche?: string) => Promise<void>
+  /** Può tornare l'id della consegna (0.56.4): serve a tenere «in volo» i messaggi che porta. */
+  avviaLavoro: (a: Autopilota, messaggio?: string, chat?: ChatGovernata, perche?: string) => Promise<void | string>
   fermaLavoro: (id: string, chatId?: string) => void
   /**
    * Le istruzioni che aspettano di essere portate dentro una chat.
@@ -426,6 +427,11 @@ export type ServerAutopiloti = Server & {
    */
   /** `servizioAppenaPartito`: chi aspettava una risposta a una domanda ormai persa torna al lavoro. */
   riprendiLavori: (opzioni?: { servizioAppenaPartito?: boolean }) => number
+  /**
+   * Una consegna non è arrivata nella chat (0.56.4: la finestra ha smesso di
+   * provare, o nessuno l'ha mai ritirata): i messaggi che portava tornano in coda.
+   */
+  riportaInCoda: (consegna: string, perche: string) => void
 }
 
 /**
@@ -552,7 +558,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * appena avviato ha comunque tutto il tempo di silenzio davanti a se' prima
    * di essere considerato fermo.
    */
-  const avviaLavoro = (a: Autopilota, messaggio?: string, chat?: ChatGovernata): Promise<void> => {
+  const avviaLavoro = (a: Autopilota, messaggio?: string, chat?: ChatGovernata, presi: MessaggioPerLaChat[] = []): Promise<void> => {
     ultimoTurno.set(chiaveTurno(a.id, chat?.id), Date.parse(deps.adesso()))
     // Le si manda un turno: non è più «ferma ad aspettare» finché il Gestore
     // non lo rivede.
@@ -560,6 +566,50 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // Il perché della mossa (0.41.0, linguetta «Istruzioni»): la decisione
     // annotata subito prima. Chi manda un'istruzione la annota sempre prima.
     return deps.avviaLavoro(a, messaggio, chat, messaggio === undefined ? undefined : percheRecente(a, deps.adesso()))
+      .then((consegna) => {
+        // I messaggi tolti dalla coda restano «in volo» finché la chat non
+        // risulta partita (0.56.4). Senza un id di consegna (in prova) si
+        // fa come prima.
+        if (typeof consegna === 'string' && consegna !== '' && presi.length > 0) segnaInVolo(a.id, consegna, presi)
+      })
+  }
+
+  const segnaInVolo = (id: string, consegna: string, messaggi: MessaggioPerLaChat[]): void => {
+    const a = deps.archivio.leggi(id)
+    if (a === undefined) return
+    // Un id di consegna si ripete dopo un riavvio del servizio: quello vecchio
+    // con lo stesso id torna in coda prima di essere sostituito.
+    const vecchio = (a.inVolo ?? []).find((v) => v.consegna === consegna)
+    const base = vecchio === undefined ? a : rimettiInCoda(a, vecchio.messaggi)
+    salva({ ...base, inVolo: [...(base.inVolo ?? []).filter((v) => v.consegna !== consegna), { consegna, quando: deps.adesso(), messaggi }] })
+  }
+
+  /** La consegna è partita: i suoi messaggi sono nella chat, si dimenticano. */
+  const consegnaPartita = (consegna: string): void => {
+    for (const a of deps.archivio.elenca()) {
+      if (!(a.inVolo ?? []).some((v) => v.consegna === consegna)) continue
+      salva({ ...a, inVolo: (a.inVolo ?? []).filter((v) => v.consegna !== consegna) })
+    }
+  }
+
+  const riportaInCoda = (consegna: string, perche: string, giro = 0): void => {
+    for (const a of deps.archivio.elenca()) {
+      const v = (a.inVolo ?? []).find((x) => x.consegna === consegna)
+      if (v === undefined) continue
+      // Chi ha una fermata o un dialogo in corso riscrive la coda con la sua
+      // copia: si riprova fra poco, invece di farsi cancellare.
+      if (inLavorazione.has(a.id) || dialoghiInCorso.has(a.id)) {
+        if (giro < 60) setTimeout(() => { riportaInCoda(consegna, perche, giro + 1) }, 5000).unref?.()
+        continue
+      }
+      const rimessi = rimettiInCoda(a, v.messaggi)
+      salva({
+        ...rimessi,
+        inVolo: (a.inVolo ?? []).filter((x) => x.consegna !== consegna),
+        decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: `la consegna ${consegna} non è arrivata nella chat (${perche}): rimetto in coda ${v.messaggi.length} messaggi, ripartono appena la chat è ferma` }]
+      })
+      console.info(`[autopilota] ${a.id} — consegna ${consegna} non arrivata (${perche}): ${v.messaggi.length} messaggi di nuovo in coda`)
+    }
   }
 
   /**
@@ -650,7 +700,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       void avviaLavoro(
         ripresa,
         conPreambolo(presi.testi, componiRisposta(dati.testo, risposta)),
-        { ...chat, stato: 'lavoro' }
+        { ...chat, stato: 'lavoro' },
+        presi.presi
       ).catch((err: unknown) => {
         console.error(`[autopilota] ripresa della chat ${dati.chatId} di ${dati.autopilotaId} fallita:`, err)
       })
@@ -666,7 +717,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     })
     void avviaLavoro(
       presi.autopilota,
-      conPreambolo(presi.testi, componiRisposta(dati.testo, risposta))
+      conPreambolo(presi.testi, componiRisposta(dati.testo, risposta)),
+      undefined,
+      presi.presi
     ).catch((err: unknown) => {
       console.error(`[autopilota] ripresa di ${dati.autopilotaId} fallita:`, err)
     })
@@ -898,7 +951,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         salva(a)
         const seguito = ripartiDaDove(a, chat)
         console.info(`[autopilota] ${a.id}${f.chatId !== undefined ? `::${f.chatId}` : ''} ferma da ${Math.round(f.da / 1000)} s: ${presi.testi.length > 0 ? `consegno ${presi.testi.length} messaggi in coda` : 'riprendo il giro (chiesto)'}`)
-        void avviaLavoro(a, presi.testi.length > 0 ? conPreambolo(presi.testi, seguito) : seguito, chat).catch((err: unknown) => {
+        void avviaLavoro(a, presi.testi.length > 0 ? conPreambolo(presi.testi, seguito) : seguito, chat, presi.presi).catch((err: unknown) => {
           console.error(`[autopilota] consegna alla chat ferma di ${a.id} fallita:`, err)
         })
         mandate += 1
@@ -963,6 +1016,19 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // servizio si rimette al lavoro: il turno dopo rifara' la domanda, che e'
     // esattamente cio' che serve quando la domanda e' andata perduta.
     if (opzioni.servizioAppenaPartito === true) {
+      // Le consegne vivono in memoria: quelle «in volo» col servizio di prima
+      // non arriveranno più. I loro messaggi tornano in coda (0.56.4).
+      for (const a of deps.archivio.elenca()) {
+        const volo = a.inVolo ?? []
+        if (volo.length === 0) continue
+        const n = volo.reduce((s, v) => s + v.messaggi.length, 0)
+        salva({
+          ...volo.reduce((x, v) => rimettiInCoda(x, v.messaggi), a),
+          inVolo: [],
+          decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: `il servizio è ripartito con ${n} messaggi ancora in viaggio verso la chat: li rimetto in coda` }]
+        })
+        console.info(`[autopilota] ${a.id} — ${n} messaggi in viaggio al riavvio: di nuovo in coda`)
+      }
       const rimessi = riportaChiAspettava(deps.archivio.elenca(), deps.adesso())
       for (const a of rimessi) salva(a)
       if (rimessi.length > 0) {
@@ -1320,7 +1386,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         ripreso,
         presi.testi.length === 0
           ? undefined
-          : conPreambolo(presi.testi, riprende(ripreso, ripreso.sessionId) ? ripartiDaDove(ripreso) : primoCompito(ripreso))
+          : conPreambolo(presi.testi, riprende(ripreso, ripreso.sessionId) ? ripartiDaDove(ripreso) : primoCompito(ripreso)),
+        undefined,
+        presi.presi
       )
       return ripreso
     }
@@ -1334,7 +1402,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         presi.testi.length === 0
           ? undefined
           : conPreambolo(presi.testi, riprende(ripreso, chat.sessionId, chat) ? ripartiDaDove(ripreso, chat) : primoCompito(ripreso, chat)),
-        chat
+        chat,
+        presi.presi
       )
     }
     return ripreso
@@ -1819,6 +1888,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // E il dialogo con te, con i messaggi che aspettano di entrare nella chat.
     aggiornato.dialogo = conCambiUtente.dialogo
     aggiornato.daConsegnare = conCambiUtente.daConsegnare
+    // I messaggi in viaggio (0.56.4) li cambiano gli esiti delle consegne, che
+    // arrivano mentre la fermata lavora: vale quello che c'è su disco.
+    aggiornato.inVolo = ancora.inVolo
     // **I tuoi messaggi entrano adesso**, davanti alle istruzioni del turno:
     // la chat ha appena chiuso un turno ed e' l'unico momento in cui un
     // messaggio non le arriva in mezzo a un'azione. Si prendono solo nei rami
@@ -2838,8 +2910,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         if (metodo === 'POST' && percorso === '/consegne/esito') {
           const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
           const id = typeof corpo?.id === 'string' ? corpo.id : ''
-          const esito = corpo?.esito === 'partita' || corpo?.esito === 'non-partita' ? corpo.esito : undefined
-          if (id !== '' && esito !== undefined) deps.istruzioni?.esito(id, esito)
+          const esito = corpo?.esito === 'partita' || corpo?.esito === 'non-partita' || corpo?.esito === 'non-consegnata' ? corpo.esito : undefined
+          if (id !== '' && esito !== undefined) {
+            deps.istruzioni?.esito(id, esito === 'non-consegnata' ? 'non-partita' : esito)
+            // 0.56.4: solo «partita» toglie i messaggi dalla coda per sempre;
+            // «non consegnata» (la finestra ha smesso) li rimette in coda.
+            if (esito === 'partita') consegnaPartita(id)
+            if (esito === 'non-consegnata') riportaInCoda(id, 'la chat non l ha presa nemmeno insistendo')
+          }
           rispondi(res, 200, { ok: true })
           return
         }
@@ -2983,5 +3061,5 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     })()
   })
 
-  return Object.assign(server, { riprendiInterviste, controllaChatFerme, riprendiLavori })
+  return Object.assign(server, { riprendiInterviste, controllaChatFerme, riprendiLavori, riportaInCoda: (c: string, p: string) => { riportaInCoda(c, p) } })
 }

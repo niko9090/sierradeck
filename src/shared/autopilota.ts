@@ -312,6 +312,14 @@ export type Autopilota = {
   /** I tuoi messaggi che aspettano il momento giusto per entrare nella chat. */
   daConsegnare: MessaggioPerLaChat[]
   /**
+   * I messaggi tolti dalla coda per una consegna che non risulta ancora
+   * partita (0.56.4), con l'id della consegna. Tornano in `daConsegnare` se la
+   * consegna non parte, se va persa o se il servizio riparte; spariscono solo
+   * quando la chat risulta partita. Prima si toglievano dalla coda appena
+   * decisa la consegna: il 09/10 una consegna persa al riavvio li ha buttati.
+   */
+  inVolo?: Array<{ consegna: string; quando: string; messaggi: MessaggioPerLaChat[] }>
+  /**
    * La regola di pubblicazione del progetto, scelta alla creazione (0.36.0):
    * `beta` pubblica sempre, `stabile` chiede prima, `unica` segue il progetto.
    */
@@ -765,7 +773,21 @@ export function parseAutopilota(raw: unknown): {
             const m = parseMessaggioPerLaChat(x)
             return m !== undefined ? [m] : []
           })
-        : []
+        : [],
+      ...(Array.isArray(o.inVolo)
+        ? {
+            inVolo: o.inVolo.flatMap((v: unknown) => {
+              if (typeof v !== 'object' || v === null) return []
+              const r = v as Record<string, unknown>
+              if (typeof r.consegna !== 'string' || !Array.isArray(r.messaggi)) return []
+              const messaggi = r.messaggi.flatMap((x) => {
+                const m = parseMessaggioPerLaChat(x)
+                return m !== undefined ? [m] : []
+              })
+              return messaggi.length === 0 ? [] : [{ consegna: r.consegna, quando: typeof r.quando === 'string' ? r.quando : '', messaggi }]
+            })
+          }
+        : {})
     },
     scartati
   }

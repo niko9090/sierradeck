@@ -1451,7 +1451,26 @@ if (!app.requestSingleInstanceLock()) {
           }
         } catch { /* la banda dira' «non so da quando» */ }
       }
+      // Prima di chiedere di ricollegare, un rinnovo di prova (0.56.4): se il
+      // rifiuto era un falso, il Drive torna da solo. Intanto l'avviso tace.
+      let verificaDrive = false
+      if (contoDrive.stato().configurato && !contoDrive.stato().connesso && contoDrive.scollegamento()?.motivo === 'revocata' && contoDrive.scollegamento()?.verificata !== true) {
+        verificaDrive = true
+        void contoDrive.riprovaRevocata()
+          .then((e) => {
+            registro.info(e === 'tornato'
+              ? '[drive] rinnovo di prova riuscito: il rifiuto era un falso, il Drive è di nuovo collegato'
+              : e === 'revocata'
+                ? '[drive] rinnovo di prova: Google conferma il rifiuto (invalid_grant), serve ricollegare'
+                : e === 'niente'
+                  ? '[drive] rinnovo di prova non possibile: il token rifiutato non c è più, serve ricollegare'
+                  : '[drive] rinnovo di prova non fatto (rete giù): riprovo al prossimo avvio')
+          })
+          .catch(() => undefined)
+          .finally(() => { verificaDrive = false })
+      }
       avvisoDrive = (): AvvisoDrive | undefined => {
+        if (verificaDrive) return undefined
         const st = contoDrive.stato()
         const dal = contoDrive.scollegamento()
         return avvisoDriveScollegato({ configurato: st.configurato, connesso: st.connesso, ...(dal !== undefined ? { dal } : {}), adesso: Date.now() })

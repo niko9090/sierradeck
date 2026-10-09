@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.56.4',
+    righe: [
+      '**Le istruzioni di un autopilota non si perdono più dopo un aggiornamento.** Una chat che rinasce sta ancora riprendendo la conversazione: adesso l’istruzione aspetta che sia davvero pronta (fino a 45 secondi invece di 8), e se il testo si perde lo riscrive. Prima non se ne accorgeva quando nella conversazione c’era già lo stesso messaggio di una volta precedente.',
+      '**Non si arrende dopo venti secondi.** Se la chat non prende l’istruzione, riprova a intervalli sempre più lunghi per circa tre minuti. Se proprio non parte, lo scrive nel diario dell’autopilota e le istruzioni tornano nella sua coda: ripartono da sole appena la chat è ferma.',
+      '**La coda dell’autopilota si svuota solo quando la chat è partita.** Prima i messaggi uscivano dalla coda appena decisi, e una consegna andata male li buttava via. Adesso restano «in viaggio» finché la chat non si mette al lavoro, e tornano in coda se la consegna non arriva, se nessuna finestra la ritira o se il servizio riparte.',
+      '**Drive: prima di chiedere di ricollegarlo, un rinnovo di prova.** Quando Google rifiuta il permesso, il programma lo riprova una volta da solo all’avvio: se era un falso, il Drive torna collegato senza fare niente. Se il rifiuto arriva sette giorni esatti dopo il collegamento, l’avviso dice perché: l’app OAuth di SierraDeck è ancora «in prova» su Google, e lì il permesso dura una settimana. App Android 2.56.3, invariata.'
+    ]
+  },
+  {
     versione: '0.56.3',
     righe: [
       '**Il Drive non si ferma più per un’ora in silenzio.** Quando Google rifiuta un accesso al Drive prima del previsto, SierraDeck chiede subito un permesso nuovo e ripete l’operazione. Prima continuava a riprovare con quello vecchio finché non scadeva da solo, e nel frattempo gli altri PC sembravano spariti. Il Drive risulta «scollegato» solo quando è proprio Google a dire che il collegamento non vale più: allora bisogna ricollegarlo dal PC.',

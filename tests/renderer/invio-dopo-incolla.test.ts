@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { eseguiConsegna, premiInvio, TENTATIVI_INVIO, type Ponte, type InvioMancato, type Consegna } from '../../src/renderer/consegne-autopilota'
+import { eseguiConsegna, premiInvio, INSISTENZA_MS, TENTATIVI_INVIO, type Ponte, type InvioMancato, type Consegna } from '../../src/renderer/consegne-autopilota'
 import { consegnaPartita, prontoPerInvio } from '../../src/renderer/ultime-righe'
 import { preparaConsegna, rigaCorta, serveFile, fileConsegna, SOGLIA_RIGA } from '@shared/consegna-breve'
 
@@ -122,13 +122,16 @@ describe('la riga corta, con il ponte finto', () => {
     expect(b.scritti.filter((t) => t === INVIO)).toHaveLength(TENTATIVI_INVIO + 2)
     expect(b.segnali).toEqual([])
   })
-  it('non parte mai: guasto del programma nel diario, nessuna domanda per Nicholas', () => {
+  it('non parte mai: insiste a intervalli crescenti, poi lo dice chiaro (le istruzioni tornano in coda), nessuna domanda per Nicholas', () => {
     const b = banco({ prontoDopo: 0, parte: () => false })
     eseguiConsegna(consegna, b.ponte, b.dopo)
     b.corri()
-    expect(b.scritti.filter((t) => t === INVIO)).toHaveLength(2 * (TENTATIVI_INVIO + 1))
+    // Due modi da quattro invii, poi un invio per ogni giro d'insistenza (0.56.4).
+    expect(b.scritti.filter((t) => t === INVIO)).toHaveLength(2 * (TENTATIVI_INVIO + 1) + INSISTENZA_MS.length)
     expect(b.segnali).toHaveLength(1)
-    expect(b.segnali[0]?.motivo).toContain('guasto del programma')
+    expect(b.segnali[0]?.motivo).toContain('non è partito')
+    expect(b.segnali[0]?.motivo).toContain('tornate nella coda')
+    expect(b.segnali[0]?.motivo).not.toContain('Invio')
   })
 })
 

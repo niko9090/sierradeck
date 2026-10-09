@@ -232,8 +232,9 @@ export function conMessaggioPerLaChat(
 export function prendiMessaggiPer(
   a: Autopilota,
   chiave: string
-): { autopilota: Autopilota; testi: string[] } {
+): { autopilota: Autopilota; testi: string[]; presi: MessaggioPerLaChat[] } {
   const testi: string[] = []
+  const presi: MessaggioPerLaChat[] = []
   const restanti: MessaggioPerLaChat[] = []
   for (const m of a.daConsegnare) {
     if (!m.chats.includes(chiave)) {
@@ -241,11 +242,33 @@ export function prendiMessaggiPer(
       continue
     }
     testi.push(m.testo)
+    presi.push({ ...m, chats: [chiave] })
     const chats = m.chats.filter((c) => c !== chiave)
     if (chats.length > 0) restanti.push({ ...m, chats })
   }
-  if (testi.length === 0) return { autopilota: a, testi }
-  return { autopilota: { ...a, daConsegnare: restanti }, testi }
+  if (testi.length === 0) return { autopilota: a, testi, presi }
+  return { autopilota: { ...a, daConsegnare: restanti }, testi, presi }
+}
+
+/**
+ * Rimette in coda i messaggi di una consegna che non è partita (0.56.4), in
+ * testa e senza doppioni: un messaggio ancora in coda per un'altra chat
+ * riprende anche questa.
+ */
+export function rimettiInCoda(a: Autopilota, messaggi: MessaggioPerLaChat[]): Autopilota {
+  let coda = [...a.daConsegnare]
+  const davanti: MessaggioPerLaChat[] = []
+  for (const m of messaggi) {
+    const gia = coda.find((x) => x.id === m.id)
+    if (gia !== undefined) {
+      coda = coda.map((x) => (x.id === m.id ? { ...x, chats: [...new Set([...x.chats, ...m.chats])] } : x))
+    } else {
+      const doppio = davanti.find((x) => x.id === m.id)
+      if (doppio !== undefined) doppio.chats = [...new Set([...doppio.chats, ...m.chats])]
+      else davanti.push({ ...m })
+    }
+  }
+  return { ...a, daConsegnare: [...davanti, ...coda].slice(-DA_CONSEGNARE_MAX) }
 }
 
 /**
