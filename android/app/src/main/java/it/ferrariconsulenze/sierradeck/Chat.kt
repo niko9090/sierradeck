@@ -958,8 +958,11 @@ private fun SceltaSessione(api: Api, onScegli: (SessioneRipresa) -> Unit, onChiu
     // Un guasto non e' «niente da riprendere»: prima le due cose si
     // confondevano, e un computer che non rispondeva sembrava senza storia.
     var guasto by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) {
-        sessioni = try { api.sessioni().sessioni } catch (e: Exception) {
+    // Le chat senza nome (PC 0.60.0): fuori dall'elenco, contate; la casella le rimette.
+    var senzaNome by remember { mutableStateOf(false) }
+    var nascoste by remember { mutableStateOf(0) }
+    LaunchedEffect(senzaNome) {
+        sessioni = try { api.sessioni(senzaNome).also { nascoste = it.nascoste }.sessioni } catch (e: Exception) {
             guasto = "Non riesco a leggere le conversazioni dal computer: ${e.message ?: "non risponde"}. Chiudi e riprova fra poco."
             emptyList()
         }
@@ -974,6 +977,9 @@ private fun SceltaSessione(api: Api, onScegli: (SessioneRipresa) -> Unit, onChiu
                     "Le conversazioni di Claude Code su questo computer, dalla più recente. Toccandone una si riapre sul computer con tutta la sua storia, nel workspace dove era salvata. Quelle «su un altro PC» vivono là: toccandone una le scrivi da qui, e quel PC la avvia in sottofondo — là non si apre nessuna finestra — e il messaggio parte appena è pronta.",
                     color = Banco.testoQuieto, fontSize = 11.sp
                 )
+                if (nascoste > 0 || senzaNome) TextButton(onClick = { senzaNome = !senzaNome }) {
+                    Text(ChatSenzaNome.testo(senzaNome, nascoste), fontSize = 12.sp)
+                }
                 Spacer(Modifier.height(6.dp))
                 when {
                     guasto != null -> Text(guasto!!, color = Banco.ambra, fontSize = 13.sp)

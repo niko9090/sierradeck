@@ -6,6 +6,7 @@ import {
   type CasaChat, type CaseChat, type ChatQui, type Decisione, type FuoriCasa, type IndiziChat, type RegistroRiordino, type Spostamento
 } from '@shared/una-casa'
 import type { BattitoPc } from '@shared/posta'
+import { nomeNormalizzato } from '@shared/progetti-unificati'
 import type { Scatola } from './progetti/presenza'
 
 /**
@@ -91,7 +92,9 @@ export function creaUnaCasa(deps: {
       pcId: b.pcId,
       nome: b.nome,
       haCartella: c.cwd !== undefined && (b.cartelle.some((x) => uguale(x, c.cwd as string) || dentro(c.cwd as string, x)) || b.chat.some((x) => uguale(x.cwd, c.cwd as string))),
-      aperta: b.chat.some((x) => x.sessione === c.sessione)
+      aperta: b.chat.some((x) => x.sessione === c.sessione),
+      // Stesso nome = stesso progetto (0.60.0): una sua cartella con il nome di questa.
+      ...(c.cwd !== undefined && b.cartelle.some((x) => nomeNormalizzato(ultimaCartella(x)) === nomeNormalizzato(ultimaCartella(c.cwd as string))) ? { stessoNome: true } : {})
     }))
     const d = deps.sulDrive(c.sessione)
     return {
@@ -255,6 +258,11 @@ export function creaUnaCasa(deps: {
       return { ok: true, rimessi: rimessi.length, restano: p.restano }
     }
   }
+}
+
+/** Il nome dell'ultima cartella di un percorso. */
+function ultimaCartella(p: string): string {
+  return p.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? p
 }
 
 function uguale(a: string, b: string): boolean {

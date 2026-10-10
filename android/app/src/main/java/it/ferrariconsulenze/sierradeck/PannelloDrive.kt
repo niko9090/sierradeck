@@ -1,6 +1,8 @@
 package it.ferrariconsulenze.sierradeck
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Spacer
@@ -33,6 +35,12 @@ import kotlinx.serialization.Serializable
  * succede e cosa no. Il riassunto della rimozione sicura e «Ripristina» ci
  * sono anche qui. Le regole stanno sul PC (src/shared/pannello-drive.ts):
  * PannelloDriveTest controlla la lettura sulla risposta vera di un PC alla 0.58.
+ *
+ * App 2.60.0 (PC 0.60.0): stesso nome = stesso progetto (una riga, con gli id
+ * del registro, le cartelle e i workspace dello stesso nome); «Rendi residente
+ * qui» prima analizza tutte le copie e mostra il riassunto, con «Conferma e
+ * unisci» e «Annulla»; le unioni fatte si annullano per 30 giorni; le chat
+ * senza nome non sono negli elenchi (una casella le rimette).
  */
 
 @Serializable data class ProblemaDrive(val tipo: String = "", val titolo: String = "", val spiega: String = "", val cosaFare: String = "")
@@ -42,13 +50,24 @@ import kotlinx.serialization.Serializable
 @Serializable data class RigaChatDrive(
     val sessione: String = "", val titolo: String = "", val cwd: String? = null, val progetto: String? = null,
     val residente: ResidenteDrive? = null, val copie: List<CopiaDrive> = emptyList(), val ultimoUso: String? = null,
-    val stato: String = "", val copiaQui: Boolean = false, val problemi: List<ProblemaDrive> = emptyList()
+    val stato: String = "", val copiaQui: Boolean = false, val problemi: List<ProblemaDrive> = emptyList(),
+    /** 0.60.0: senza nome, fuori dagli elenchi principali (non cancellata). */
+    val senzaNome: Boolean = false
 )
 @Serializable data class RigaProgettoDrive(
     val id: String = "", val nome: String = "", val residente: ResidenteDrive? = null, val voluto: Boolean = false,
     val cartellaQui: Boolean = false, val chat: Int = 0, val ultimoUso: String? = null, val stato: String = "",
-    val problemi: List<ProblemaDrive> = emptyList(), val azioni: List<AzioneProgettoDrive> = emptyList()
+    val problemi: List<ProblemaDrive> = emptyList(), val azioni: List<AzioneProgettoDrive> = emptyList(),
+    // 0.60.0: stesso nome = stesso progetto.
+    val ids: List<String> = emptyList(), val cartellaTrovata: String? = null, val workspace: List<String> = emptyList(),
+    val daUnire: Int = 0, val chatSenzaNome: Int = 0
 )
+@Serializable data class RiassuntoResidenzaDrive(val destinazione: String = "", val nuova: Boolean = false, val righe: List<String> = emptyList())
+@Serializable data class StatoResidenzaDrive(
+    val progetto: String = "", val nome: String = "", val fase: String = "", val messaggio: String = "",
+    val riassunto: RiassuntoResidenzaDrive? = null, val unione: String? = null
+)
+@Serializable data class UnioneFattaDrive(val id: String = "", val progetto: String = "", val nome: String = "", val quando: String = "", val destinazione: String = "", val scadeIl: String = "")
 @Serializable data class PcDrive(val id: String = "", val nome: String = "")
 @Serializable data class AzionePianoDrive(val tipo: String = "", val progetto: String = "", val nome: String = "", val perche: String = "")
 @Serializable data class PianoDrive(val azioni: List<AzionePianoDrive> = emptyList())
@@ -58,7 +77,9 @@ import kotlinx.serialization.Serializable
 @Serializable data class PannelloDrive(
     val io: PcDrive = PcDrive(), val pc: List<PcDrive> = emptyList(),
     val chat: List<RigaChatDrive> = emptyList(), val progetti: List<RigaProgettoDrive> = emptyList(),
-    val pcDaAggiornare: List<String> = emptyList(), val piano: PianoDrive? = null, val rimozione: RimozioneDrive = RimozioneDrive()
+    val pcDaAggiornare: List<String> = emptyList(), val piano: PianoDrive? = null, val rimozione: RimozioneDrive = RimozioneDrive(),
+    /** 0.60.0: «Rendi residente» con analisi e unione, e le unioni annullabili. */
+    val residenza: List<StatoResidenzaDrive> = emptyList(), val unioni: List<UnioneFattaDrive> = emptyList()
 )
 @Serializable data class EsitoAzioneDrive(val ok: Boolean = false, val messaggio: String = "")
 
@@ -72,7 +93,8 @@ object PannelloDriveRegole {
             else -> true
         }
     }
-    fun chat(p: PannelloDrive, filtro: String): List<RigaChatDrive> = p.chat.filter {
+    fun chat(p: PannelloDrive, filtro: String, senzaNome: Boolean = false): List<RigaChatDrive> = p.chat.filter {
+        if (!senzaNome && it.senzaNome) return@filter false
         when (filtro) {
             "sbagliati" -> it.problemi.isNotEmpty()
             "questo-pc" -> it.residente?.qui == true
@@ -84,6 +106,32 @@ object PannelloDriveRegole {
     fun copie(r: RigaChatDrive): String = if (r.copie.isEmpty()) "nessuna" else r.copie.joinToString(", ") { it.nome + when (it.dove) { "qui" -> " (qui)"; "disco" -> " (sul suo disco)"; else -> " (sul Drive)" } }
     /** Le sessioni di un progetto per il cambio di residente: le sue chat e lo stato voluto. */
     fun sessioniProgetto(p: PannelloDrive, progetto: String): List<String> = p.chat.filter { it.progetto == progetto }.map { it.sessione } + "progetto:$progetto"
+    /** Le chat senza nome, nascoste dagli elenchi (0.60.0). */
+    fun nascoste(p: PannelloDrive): Int = p.chat.count { it.senzaNome }
+    /** Lo stato di «Rendi residente» di un progetto, se c'è (un annullato non si mostra). */
+    fun residenza(p: PannelloDrive, progetto: String): StatoResidenzaDrive? = p.residenza.firstOrNull { it.progetto == progetto && it.fase != "annullata" }
+    fun titoloResidenza(fase: String): String = when (fase) {
+        "analisi" -> "Raccolgo e confronto le copie…"
+        "unisco" -> "Unisco…"
+        "attesa-conferma" -> "Riassunto: cosa unisco, cosa tengo, cosa va in recupero"
+        "fatta" -> "Unito"
+        "in-uso" -> "In attesa"
+        else -> "Non riuscito"
+    }
+    /** Il PC sta ancora lavorando: il pannello si rilegge da solo. */
+    fun lavora(p: PannelloDrive): Boolean = p.residenza.any { it.fase == "analisi" || it.fase == "unisco" }
+    /** «Stesso nome, stesso progetto»: cosa c'è da unire, detto per esteso. */
+    fun doppi(r: RigaProgettoDrive): String? {
+        if (r.ids.size <= 1 && r.workspace.size <= 1) return null
+        val registro = if (r.ids.size > 1) "${r.ids.size} voci nel registro del Drive" else "una voce nel registro"
+        val ws = if (r.workspace.size > 1) ", workspace " + r.workspace.joinToString(", ") { "«$it»" } else ""
+        return "Stesso nome, stesso progetto: $registro$ws. Qui li vedi come uno solo; «Rendi residente qui» li unisce davvero, dopo il riassunto."
+    }
+    fun cartellaQui(r: RigaProgettoDrive): String = when {
+        !r.cartellaQui -> "no"
+        r.cartellaTrovata != null -> "sì, ${r.cartellaTrovata} (trovata per nome)"
+        else -> "sì"
+    }
 }
 
 private data class DaConfermare(val titolo: String, val testo: String, val bottone: String, val fai: suspend () -> EsitoAzioneDrive)
@@ -98,6 +146,7 @@ fun SezionePannelloDrive(api: Api) {
     var filtro by remember { mutableStateOf("tutti") }
     var conferma by remember { mutableStateOf<DaConfermare?>(null) }
     var quante by remember { mutableStateOf(60) }
+    var senzaNome by remember { mutableStateOf(false) }
     val spenta = FunzioniPc.disponibile(FunzionePc.PANNELLO_DRIVE, PcCorrente.versione) == false
     suspend fun leggi() { try { p = api.pannelloDrive(); guasto = null } catch (e: Exception) { guasto = FunzioniPc.spiega(e, FunzionePc.PANNELLO_DRIVE) } }
     fun fai(azione: suspend () -> EsitoAzioneDrive, cosa: String) {
@@ -108,6 +157,9 @@ fun SezionePannelloDrive(api: Api) {
         }
     }
     LaunchedEffect(spenta) { if (!spenta) leggi() }
+    // Analisi e unione lavorano sul PC: finché lavorano, il pannello si rilegge.
+    val lavora = p?.let { PannelloDriveRegole.lavora(it) } == true
+    LaunchedEffect(lavora) { while (lavora) { kotlinx.coroutines.delay(2500); leggi(); if (p?.let { PannelloDriveRegole.lavora(it) } != true) break } }
 
     Text(
         "Ogni chat e ogni progetto ha un PC residente: è lì che lavora; sugli altri PC si apre dal vivo, e il progetto lì è «solo cloud». Qui vedi il residente, chi ne ha una copia, l’ultimo uso e lo stato; in ambra le assegnazioni sbagliate, con il perché e cosa fare. Ogni cambio chiede conferma e non cancella niente: le copie tolte vanno nella cartella di recupero per 30 giorni.",
@@ -136,6 +188,15 @@ fun SezionePannelloDrive(api: Api) {
             TextButton(onClick = { conferma = DaConfermare("Ripristina «${c.nome}»", "La cartella torna in ${c.percorsoOriginale}. Se lì adesso c’è un’altra cartella non la sovrascrivo e te lo dico.", "Ripristina") { api.azioneDrive("ripristina", "", c.id) } }) { Text("Ripristina") }
         }
     }
+    if (d.unioni.isNotEmpty()) {
+        Spacer(Modifier.height(6.dp))
+        Text("UNIONI FATTE", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Text("I progetti uniti con «Rendi residente qui» negli ultimi 30 giorni. «Annulla l’unione» rimette com’erano cartelle, file, chat, workspace e registro; niente si cancella.", color = Banco.testoQuieto, fontSize = 12.sp)
+        for (u in d.unioni) {
+            Text("${u.nome} · unito il ${QuadernoPersonaleTesti.quando(u.quando)} in ${u.destinazione} · annullabile fino al ${QuadernoPersonaleTesti.quando(u.scadeIl)}", color = Banco.testo, fontSize = 12.sp)
+            TextButton(onClick = { conferma = DaConfermare("Annulla l’unione di «${u.nome}»", "Le cartelle doppie tornano al loro posto dalla cartella di recupero, i file sostituiti tornano com’erano, quelli entrati con l’unione escono e vanno nei recuperati (non si cancellano), le trascrizioni e i workspace tornano com’erano. La casa delle chat resta questo PC.", "Annulla l’unione") { api.azioneDrive("annulla-unione", u.progetto, u.id) } }) { Text("Annulla l’unione") }
+        }
+    }
     d.piano?.takeIf { it.azioni.isNotEmpty() }?.let { pi ->
         Spacer(Modifier.height(6.dp))
         Text("PIANO DI ALLINEAMENTO DI QUESTO PC", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -144,7 +205,13 @@ fun SezionePannelloDrive(api: Api) {
     Spacer(Modifier.height(6.dp))
     FlowRow {
         TextButton(onClick = { vista = "progetti"; quante = 60 }) { Text(if (vista == "progetti") "[Progetti ${d.progetti.size}]" else "Progetti ${d.progetti.size}") }
-        TextButton(onClick = { vista = "chat"; quante = 60 }) { Text(if (vista == "chat") "[Chat ${d.chat.size}]" else "Chat ${d.chat.size}") }
+        val visibili = d.chat.size - (if (senzaNome) 0 else PannelloDriveRegole.nascoste(d))
+        TextButton(onClick = { vista = "chat"; quante = 60 }) { Text(if (vista == "chat") "[Chat $visibili]" else "Chat $visibili") }
+    }
+    if (vista == "chat" && PannelloDriveRegole.nascoste(d) > 0) {
+        TextButton(onClick = { senzaNome = !senzaNome; quante = 60 }) {
+            Text((if (senzaNome) "☑" else "☐") + " mostra anche le senza nome (${PannelloDriveRegole.nascoste(d)}, nascoste: non sono cancellate, restano nel loro progetto)", fontSize = 12.sp)
+        }
     }
     FlowRow {
         for ((id, nome) in listOf("tutti" to "Tutti", "sbagliati" to "Sbagliati", "questo-pc" to "Di questo PC", "solo-cloud" to "Solo cloud")) {
@@ -158,8 +225,19 @@ fun SezionePannelloDrive(api: Api) {
         for (r in righe.take(quante)) {
             Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                 Text("${r.nome}  ${PannelloDriveRegole.stato(r.stato)}", color = if (r.problemi.isEmpty()) Banco.testo else Banco.ambra, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                Text("Residente: ${r.residente?.let { it.nome + (if (it.qui) " (questo PC)" else "") } ?: "nessuno"} · qui sul disco: ${if (r.cartellaQui) "sì" else "no"} · ${r.chat} chat · ultimo uso: ${r.ultimoUso?.let { QuadernoPersonaleTesti.quando(it) } ?: "mai"}", color = Banco.testoQuieto, fontSize = 12.sp)
+                Text("Residente: ${r.residente?.let { it.nome + (if (it.qui) " (questo PC)" else "") } ?: "nessuno"} · qui sul disco: ${PannelloDriveRegole.cartellaQui(r)} · ${r.chat} chat${if (r.chatSenzaNome > 0) " (di cui ${r.chatSenzaNome} senza nome)" else ""} · ultimo uso: ${r.ultimoUso?.let { QuadernoPersonaleTesti.quando(it) } ?: "mai"}", color = Banco.testoQuieto, fontSize = 12.sp)
+                PannelloDriveRegole.doppi(r)?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp) }
                 for (x in r.problemi) Text("${x.titolo}. ${x.spiega} Cosa fare: ${x.cosaFare}", color = Banco.ambra, fontSize = 12.sp)
+                PannelloDriveRegole.residenza(d, r.id)?.let { st ->
+                    Text(PannelloDriveRegole.titoloResidenza(st.fase), color = Banco.verde, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    val righe = st.riassunto?.righe
+                    if (st.fase == "attesa-conferma" && righe != null) for (x in righe) Text("• $x", color = Banco.testo, fontSize = 12.sp)
+                    else Text(st.messaggio, color = Banco.testo, fontSize = 12.sp)
+                    if (st.fase == "attesa-conferma" || st.fase == "in-uso") FlowRow {
+                        OutlinedButton(onClick = { conferma = DaConfermare("Conferma e unisci «${r.nome}»", (righe ?: listOf(st.messaggio)).joinToString("\n\n"), "Conferma e unisci") { api.azioneDrive("conferma-residenza", r.id) } }) { Text("Conferma e unisci") }
+                        TextButton(onClick = { fai({ api.azioneDrive("annulla-residenza", r.id) }, "annullare") }) { Text("Annulla") }
+                    }
+                }
                 FlowRow {
                     for (a in r.azioni) TextButton(onClick = {
                         if (a.conferma == null) fai({ api.azioneDrive(a.id, r.id) }, a.titolo.lowercase())
@@ -175,7 +253,7 @@ fun SezionePannelloDrive(api: Api) {
         }
         if (righe.size > quante) TextButton(onClick = { quante += 60 }) { Text("Altri ${righe.size - quante}") }
     } else {
-        val righe = PannelloDriveRegole.chat(d, filtro)
+        val righe = PannelloDriveRegole.chat(d, filtro, senzaNome)
         if (righe.isEmpty()) Text("Nessuna chat con questo filtro.", color = Banco.testoQuieto, fontSize = 12.sp)
         for (r in righe.take(quante)) {
             Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
@@ -199,7 +277,8 @@ fun SezionePannelloDrive(api: Api) {
         AlertDialog(
             onDismissRequest = { conferma = null },
             title = { Text(c.titolo) },
-            text = { Text(c.testo) },
+            // Il riassunto di «Rendi residente» è lungo: si scorre.
+            text = { Column(Modifier.verticalScroll(rememberScrollState())) { Text(c.testo) } },
             confirmButton = { TextButton(onClick = { conferma = null; fai(c.fai, c.titolo.lowercase()) }) { Text(c.bottone) } },
             dismissButton = { TextButton(onClick = { conferma = null }) { Text("Annulla") } }
         )

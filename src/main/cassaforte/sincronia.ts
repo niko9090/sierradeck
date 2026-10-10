@@ -168,6 +168,12 @@ export type Sincronia = {
   /** Il manifesto com'e' adesso sul Drive; `undefined` se chiuso, scollegato o assente. */
   manifestoDrive: () => Promise<Manifesto | undefined>
   /**
+   * Un file del Drive in chiaro, secondo quel manifesto (0.60.0, «Rendi
+   * residente»: le copie degli altri PC si scaricano una per una, solo quelle
+   * che servono). Solo lettura: niente lavoro esclusivo, niente manifesto scritto.
+   */
+  leggiFileDrive: (percorso: string, manifesto: Manifesto) => Promise<Buffer | undefined>
+  /**
    * La migrazione «una chat, una casa» (0.42.0): il proprietario su ogni chat
    * di cui si sa la casa. Copia di sicurezza prima, verifica dopo; nessun file
    * cancellato o rinominato.
@@ -1420,6 +1426,14 @@ export function apriSincronia(deps: {
       if (maestra === undefined || !deps.driveConnesso()) return undefined
       const e = await leggiManifesto(deps.archivio(), maestra)
       return e.stato === 'ok' ? e.manifesto : undefined
+    },
+    async leggiFileDrive(percorso, manifesto) {
+      if (maestra === undefined || !deps.driveConnesso()) return undefined
+      const v = manifesto.file[percorso]
+      if (v === undefined) return undefined
+      const blob = await deps.archivio().scarica(v.nome)
+      if (blob === undefined) return undefined
+      return decifra(maestra, blob)
     },
     async migraUnaCasa(caseChat) {
       if (maestra === undefined) return { ok: false, messaggio: 'cassaforte chiusa' }

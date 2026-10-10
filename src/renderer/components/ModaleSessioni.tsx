@@ -15,6 +15,7 @@ import { comeRiprendere } from '../riprendi-sessione'
 import type { SessionSummary } from '@shared/types'
 import type { Anteprima } from '../../main/anteprima'
 import type { PcRemoto } from '@shared/pc-remoto'
+import { eSenzaNome } from '@shared/progetti-unificati'
 
 /** Di chi e' la cartella di una chat, quando non e' di questo PC. */
 type Altrove = { id: string; nome: string; vivo: boolean }
@@ -151,7 +152,12 @@ export function ModaleSessioni({ onChiudi }: { onChiudi: () => void }): React.JS
     return () => { vivo = false }
   }, [cartelle])
   const quantiAltrove = useMemo(() => gruppi.filter((g) => altrove[g.cartella] !== undefined).length, [gruppi, altrove])
-  const visibili = useMemo(() => filtra(gruppi, cerca), [gruppi, cerca])
+  // Le chat senza nome (0.60.0): niente titolo di Claude, niente domanda,
+  // niente etichetta. Fuori dall'elenco (si lavora per progetti e workspace),
+  // non cancellate: la casella le rimette, e il conto dice quante sono.
+  const [senzaNome, setSenzaNome] = useState(false)
+  const anonime = useMemo(() => new Set(gruppi.filter((g) => etichette[g.principale.uuid] === undefined && eSenzaNome(g.principale.aiTitle ?? g.principale.primoPrompt, g.principale.uuid)).map((g) => g.principale.uuid)), [gruppi, etichette])
+  const visibili = useMemo(() => filtra(senzaNome ? gruppi : gruppi.filter((g) => !anonime.has(g.principale.uuid)), cerca), [gruppi, cerca, senzaNome, anonime])
   const progetti = useMemo(() => perProgetto(visibili), [visibili])
 
   /** Tutte le trascrizioni delle chat segnate: una chat è più file. */
@@ -278,6 +284,11 @@ export function ModaleSessioni({ onChiudi }: { onChiudi: () => void }): React.JS
           style={{ width: '100%', marginBottom: 10 }}
         />
 
+        {anonime.size > 0 ? (
+          <label className="misura" style={{ display: 'block', paddingBottom: 8 }} title="Le chat senza un titolo non stanno nell’elenco: non sono cancellate, e restano nel loro progetto.">
+            <input type="checkbox" checked={senzaNome} onChange={(e) => setSenzaNome(e.target.checked)} /> mostra anche le chat senza nome ({anonime.size}, nascoste: non sono cancellate)
+          </label>
+        ) : null}
         {vistaProgresso !== undefined ? (
           <div className="misura" style={{ paddingBottom: 8 }}>
             {vistaProgresso.titolo} · {vistaProgresso.conteggio ?? ''}{' '}

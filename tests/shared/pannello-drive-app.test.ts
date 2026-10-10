@@ -4,11 +4,13 @@ import { dirname, join } from 'node:path'
 import { datiPannello } from '../../src/main/pannello-drive-dati'
 import { paginaClient } from '../../src/main/client-pagina'
 import { chiaveProgetto, sceltaProgetto } from '../../src/shared/allineamento'
+import { testoRiassunto } from '../../src/shared/residenza'
 
 /**
  * Il pannello delle chat e dei progetti del Drive come lo manda un PC alla
  * 0.58.0 (`/api/drive/pannello`), su dati d'esempio. L'app lo legge da
- * `android/app/src/test/resources/pannello-drive/pannello-0.58.json`
+ * `android/app/src/test/resources/pannello-drive/pannello-0.60.json`
+ * (dalla 0.60.0; `pannello-0.58.json` resta com'era: l'app legge anche i PC vecchi)
  * (PannelloDriveTest); la pagina lo disegna qui sotto. `AGGIORNA=1` riscrive.
  */
 const ORA = Date.parse('2026-10-10T18:00:00Z')
@@ -24,14 +26,34 @@ function esempio(): Record<string, unknown> {
       's-uno': { pc: 'pc-port', pcNome: 'PORTATILE-ESEMPIO', motivo: 'scelta', decisaIl: '2026-10-01T00:00:00Z', da: 'nicholas' },
       ...sceltaProgetto({ id: 'prog-g', nome: 'Gestionale', pc: { id: 'pc-port', nome: 'PORTATILE-ESEMPIO' }, chi: { id: 'pc-qui', nome: 'PC-ESEMPIO' }, quando: '2026-10-05T00:00:00Z' })
     } },
-    locali: [{ sessione: 's-due', titolo: 'Note di prova', cwd: 'C:\\Progetti\\Gestionale', mtime: ORA - 7_200_000 }],
+    locali: [
+      { sessione: 's-due', titolo: 'Note di prova', cwd: 'C:\\Progetti\\Gestionale', mtime: ORA - 7_200_000 },
+      // 0.60.0: una chat senza nome, attaccata al suo progetto per cartella e nascosta dagli elenchi.
+      { sessione: 's-tre', titolo: '', cwd: 'C:\\Progetti\\Gestionale\\sotto', mtime: ORA - 9_000_000 }
+    ],
     manifesto: undefined, aperteQui: [], titoliNoti: [{ sessione: 's-uno', titolo: 'Fatture' }],
-    progetti: [{ id: 'prog-g', nome: 'Gestionale', percorsi: { 'pc-qui': 'C:\\Progetti\\Gestionale', 'pc-port': 'D:\\Lavoro\\Gestionale' } }],
+    progetti: [
+      { id: 'prog-g', nome: 'Gestionale', percorsi: { 'pc-qui': 'C:\\Progetti\\Gestionale', 'pc-port': 'D:\\Lavoro\\Gestionale' }, aggiuntoIl: '2026-09-01T00:00:00Z' },
+      // 0.60.0: lo stesso progetto registrato una seconda volta da un altro PC (stesso nome, normalizzato).
+      { id: 'prog-g2', nome: 'gestionale (2)', percorsi: { 'pc-port': 'E:\\Copie\\gestionale (2)' }, aggiuntoIl: '2026-09-20T00:00:00Z' }
+    ],
+    workspaceQui: ['Gestionale', 'gestionale (2)', 'Altro'],
     adesso: ORA,
     piano: { azioni: [{ tipo: 'solo-cloud', progetto: 'prog-g', nome: 'Gestionale', percorso: 'C:\\Progetti\\Gestionale', residente: 'PORTATILE-ESEMPIO', perche: 'Il residente di «Gestionale» è PORTATILE-ESEMPIO: qui dovrebbe essere solo cloud.' }], senzaScelta: 0 }
   })
+  const corpo = {
+    nome: 'Gestionale', pcNome: 'PC-ESEMPIO', destinazione: 'C:\\Progetti\\Gestionale', nuova: false, git: false,
+    copie: [{ chiave: 'drive:prog-g2', tipo: 'drive' as const, etichetta: 'sul Drive, salvata da PORTATILE-ESEMPIO (prog-g)', uguali: 10, aggiunti: 2, sostituiti: 1, recuperati: 1, esclusi: 0, vaInRecupero: false }],
+    file: { uguali: 10, aggiunti: 2, sostituiti: 1, recuperati: 1, note: 1 },
+    chat: { daSpostare: 0, delProgetto: 3, daAltriPc: 1 },
+    workspace: { tiene: 'Gestionale', uniti: ['gestionale (2)'], aperti: [] },
+    registro: { principale: 'prog-g', uniti: ['prog-g2'] },
+    recupero: [], inUso: [], recuperati: '.sierradeck/recuperati/unione-2026-10-10-18-00-00'
+  }
   return JSON.parse(JSON.stringify({
     ...p,
+    residenza: [{ progetto: 'prog-g', nome: 'Gestionale', fase: 'attesa-conferma', messaggio: testoRiassunto(corpo).join(' '), riassunto: { ...corpo, righe: testoRiassunto(corpo) }, quando: new Date(ORA).toISOString() }],
+    unioni: [{ id: 'Sito-2026-10-09', progetto: 'prog-s', nome: 'Sito', quando: '2026-10-09T10:00:00.000Z', destinazione: 'C:\\Progetti\\Sito', scadeIl: '2026-11-08T10:00:00.000Z' }],
     rimozione: {
       stati: [{ progetto: 'prog-g', nome: 'Gestionale', residente: 'PORTATILE-ESEMPIO', fase: 'attesa-conferma', messaggio: 'Progetto «Gestionale», confrontato da PORTATILE-ESEMPIO (il residente).', quando: new Date(ORA).toISOString() }],
       inRecupero: [{ id: 'Vecchio-2026', progetto: 'prog-v', nome: 'Vecchio', percorsoOriginale: 'C:\\Progetti\\Vecchio', dove: 'C:\\Dati\\recupero-progetti\\Vecchio-2026', quando: '2026-10-01T10:00:00.000Z', motivo: 'solo cloud', scadeIl: '2026-10-31T10:00:00.000Z' }]
@@ -42,7 +64,7 @@ function esempio(): Record<string, unknown> {
 describe('il pannello del Drive per la pagina e per l’app', () => {
   const atteso = esempio()
   it('la risposta è quella che l’app si aspetta', () => {
-    const file = join('android', 'app', 'src', 'test', 'resources', 'pannello-drive', 'pannello-0.58.json')
+    const file = join('android', 'app', 'src', 'test', 'resources', 'pannello-drive', 'pannello-0.60.json')
     if (process.env.AGGIORNA === '1' || !existsSync(file)) { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, JSON.stringify(atteso, null, 2) + '\n') }
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(atteso)
   })
@@ -68,11 +90,13 @@ describe('il pannello del Drive per la pagina e per l’app', () => {
     const riga = (inizio: string): string => script.split(String.fromCharCode(10)).find((r) => r.trimStart().startsWith(inizio)) ?? ''
     const disegna = new Function('pdDati', `
       ${riga('const esc =')}; ${riga('const escJs =')}
-      var pdErrore = ''; var pdVista = 'progetti'; var pdFiltro = 'tutti'; var pdDaConfermare = ''
+      var pdErrore = ''; var pdVista = 'progetti'; var pdFiltro = 'tutti'; var pdDaConfermare = ''; var pdSenzaNome = false
       ${estrai('pdQuando')} ${estrai('pdStato')} ${estrai('pdProblemi')} ${estrai('pdFiltra')} ${estrai('pdScegliPc')} ${estrai('pannelloDriveHtml')}
       return pannelloDriveHtml()`) as (d: unknown) => string
     const h = disegna(atteso)
     for (const t of ['Gestionale', 'Conferma e togli da questo PC', 'Ripristina', 'Rendi residente qui', 'Rendi solo cloud qui', 'va aggiornato alla 0.58', 'Piano di allineamento']) expect(h).toContain(t)
+    // 0.60.0: un progetto solo per nome, il riassunto di «Rendi residente» con la conferma, le unioni annullabili.
+    for (const t of ['Stesso nome, stesso progetto: 2 voci nel registro', 'Conferma e unisci', 'Annulla l’unione', '(di cui 1 senza nome)', '«gestionale (2)» entra in «Gestionale»']) expect(h).toContain(t)
   })
   it('«Progetti» è una destinazione propria della pagina (0.58.2)', () => {
     const html = paginaClient()

@@ -31,8 +31,12 @@ const sha256 = (file: string): Promise<string> => new Promise((ok, ko) => {
   createReadStream(file).on('data', (d) => h.update(d)).on('end', () => ok(h.digest('hex'))).on('error', ko)
 })
 
-/** I file di un progetto, con impronta; i collegamenti non si seguono, `node_modules` e i recuperati no. */
-export async function elencaFile(cartella: string, max = FILE_MAX): Promise<VoceFile[] | { troppi: number }> {
+/**
+ * I file di un progetto, con impronta; i collegamenti non si seguono,
+ * `node_modules` e i recuperati no. `scarta` (0.60.0): altre cartelle da
+ * saltare senza nemmeno leggerle (l'unione salta `.git`).
+ */
+export async function elencaFile(cartella: string, max = FILE_MAX, scarta?: (relativo: string) => boolean): Promise<VoceFile[] | { troppi: number }> {
   const fuori: VoceFile[] = []
   const coda = ['']
   let visti = 0
@@ -42,7 +46,7 @@ export async function elencaFile(cartella: string, max = FILE_MAX): Promise<Voce
     try { voci = readdirSync(join(cartella, rel)) } catch { continue }
     for (const n of voci) {
       const r = rel === '' ? n : `${rel}/${n}`
-      if (esclusa(r)) continue
+      if (esclusa(r) || scarta?.(r) === true) continue
       const p = join(cartella, r)
       let s
       try { s = lstatSync(p) } catch { continue }
@@ -174,6 +178,54 @@ export function creaLatoResidente(deps: {
 
 export type { FaseRimozione, StatoRimozione } from '@shared/rimozione-sicura'
 
+/** L'elenco delle cartelle in recupero, condiviso dalla rimozione sicura e dall'unione (0.60.0). */
+export function fileElencoRecupero(dati: string): string { return join(dati, 'recupero-progetti', 'elenco.json') }
+export function leggiElencoRecupero(dati: string): CartellaInRecupero[] {
+  try { const x = JSON.parse(readFileSync(fileElencoRecupero(dati), 'utf8')) as unknown; return Array.isArray(x) ? x as CartellaInRecupero[] : [] } catch { return [] }
+}
+function scriviElencoRecupero(dati: string, e: CartellaInRecupero[]): void {
+  mkdirSync(dirname(fileElencoRecupero(dati)), { recursive: true })
+  scriviJsonAtomico(fileElencoRecupero(dati), e, 'rimozione')
+}
+
+/**
+ * Sposta una cartella nella cartella di recupero di SierraDeck (30 giorni,
+ * ripristinabile da «Cartelle in recupero»). Sullo stesso disco, così è un
+ * rename: niente copie a metà. Un file in uso → `in-uso`, la cartella resta.
+ */
+export function spostaCartellaInRecupero(dati: string, cartella: string, info: { progetto: string; nome: string; motivo: string; quando: string }):
+  { ok: true; id: string; dove: string } | { ok: false; inUso: boolean; messaggio: string } {
+  const stessoDisco = parse(resolve(cartella)).root.toLowerCase() === parse(resolve(dati)).root.toLowerCase()
+  const id = `${info.nome.replace(/[^A-Za-z0-9_-]+/g, '-')}-${info.quando.replace(/[:.]/g, '-')}`
+  const dove = stessoDisco ? join(dati, 'recupero-progetti', id) : join(dirname(resolve(cartella)), '.sierradeck-recupero', id)
+  try {
+    mkdirSync(dirname(dove), { recursive: true })
+    renameSync(cartella, dove)
+  } catch (err) {
+    const codice = (err as { code?: string }).code ?? ''
+    if (codice === 'EBUSY' || codice === 'EPERM' || codice === 'EACCES') return { ok: false, inUso: true, messaggio: `un programma usa un file della cartella (${codice}): chiudi quello che la usa (un editor, un terminale, un server) e riprova` }
+    return { ok: false, inUso: false, messaggio: `non sono riuscito a spostarla: ${String(err)}; è ancora al suo posto` }
+  }
+  scriviElencoRecupero(dati, [...leggiElencoRecupero(dati), {
+    id, progetto: info.progetto, nome: info.nome, percorsoOriginale: cartella, dove, quando: info.quando, scadeIl: scadenza(info.quando), motivo: info.motivo
+  }])
+  return { ok: true, id, dove }
+}
+
+/** Rimette al suo posto una cartella in recupero: mai sopra un'altra cartella. */
+export function ripristinaDaRecupero(dati: string, id: string, quando: string): { ok: boolean; messaggio: string; nome?: string; percorso?: string } {
+  const e = leggiElencoRecupero(dati)
+  const c = e.find((x) => x.id === id)
+  if (c === undefined || c.ripristinataIl !== undefined) return { ok: false, messaggio: 'Questa cartella non è più in recupero.' }
+  if (existsSync(c.percorsoOriginale)) return { ok: false, messaggio: `Al suo posto (${c.percorsoOriginale}) adesso c’è un’altra cartella: non la sovrascrivo. Spostala o rinominala, poi riprova.` }
+  try {
+    mkdirSync(dirname(c.percorsoOriginale), { recursive: true })
+    renameSync(c.dove, c.percorsoOriginale)
+  } catch (err) { return { ok: false, messaggio: `Non riesco a rimetterla: ${String(err)}. È ancora in ${c.dove}.` } }
+  scriviElencoRecupero(dati, e.map((x) => (x.id === id ? { ...x, ripristinataIl: quando } : x)))
+  return { ok: true, messaggio: `Rimessa al suo posto: ${c.percorsoOriginale}.`, nome: c.nome, percorso: c.percorsoOriginale }
+}
+
 export type Rimozione = {
   avvia: (progetto: string) => Promise<StatoRimozione>
   conferma: (progetto: string) => StatoRimozione
@@ -205,16 +257,9 @@ export function creaRimozione(deps: {
   const adesso = deps.adesso ?? (() => Date.now())
   const iso = (): string => new Date(adesso()).toISOString()
   const stati = new Map<string, StatoRimozione>()
-  const fileElenco = join(deps.dati, 'recupero-progetti', 'elenco.json')
-  const leggiElenco = (): CartellaInRecupero[] => { try { const x = JSON.parse(readFileSync(fileElenco, 'utf8')) as unknown; return Array.isArray(x) ? x as CartellaInRecupero[] : [] } catch { return [] } }
-  const scriviElenco = (e: CartellaInRecupero[]): void => { mkdirSync(dirname(fileElenco), { recursive: true }); scriviJsonAtomico(fileElenco, e, 'rimozione') }
+  const leggiElenco = (): CartellaInRecupero[] => leggiElencoRecupero(deps.dati)
+  const scriviElenco = (e: CartellaInRecupero[]): void => scriviElencoRecupero(deps.dati, e)
   const metti = (s: StatoRimozione): StatoRimozione => { stati.set(s.progetto, s); deps.avvisa?.(); return s }
-
-  /** Dove va la cartella: sullo stesso disco (lo spostamento è un rename, niente copie a metà). */
-  const destinazione = (cartella: string, id: string): string => {
-    const stessoDisco = parse(resolve(cartella)).root.toLowerCase() === parse(resolve(deps.dati)).root.toLowerCase()
-    return stessoDisco ? join(deps.dati, 'recupero-progetti', id) : join(dirname(resolve(cartella)), '.sierradeck-recupero', id)
-  }
 
   const sposta = (st: StatoRimozione): StatoRimozione => {
     const g = deps.progetto(st.progetto)
@@ -222,24 +267,14 @@ export function creaRimozione(deps: {
     if (g === undefined || cartella === undefined || !existsSync(cartella)) return metti({ ...st, fase: 'errore', messaggio: 'La cartella di questo PC non c’è più: niente da spostare.' })
     const uso = deps.inUso(cartella)
     if (uso !== undefined) return metti({ ...st, fase: 'in-uso', messaggio: `Non la tolgo adesso: ${uso}. Aspetto: riprova quando ha finito.` })
-    const id = `${g.nome.replace(/[^A-Za-z0-9_-]+/g, '-')}-${iso().replace(/[:.]/g, '-')}`
-    const dove = destinazione(cartella, id)
-    mkdirSync(dirname(dove), { recursive: true })
-    try {
-      // Uno spostamento, mai una cancellazione. Se un programma tiene aperto un file, Windows lo rifiuta.
-      renameSync(cartella, dove)
-    } catch (err) {
-      const codice = (err as { code?: string }).code ?? ''
-      if (codice === 'EBUSY' || codice === 'EPERM' || codice === 'EACCES') {
-        return metti({ ...st, fase: 'in-uso', messaggio: `Non la tolgo adesso: un programma usa un file della cartella (${codice}). Chiudi quello che la usa (un editor, un terminale, un server) e riprova.` })
-      }
-      return metti({ ...st, fase: 'errore', messaggio: `Non sono riuscito a spostarla: ${String(err)}. È ancora al suo posto.` })
-    }
     const quando = iso()
-    scriviElenco([...leggiElenco(), {
-      id, progetto: g.id, nome: g.nome, percorsoOriginale: cartella, dove, quando, scadeIl: scadenza(quando),
+    // Uno spostamento, mai una cancellazione. Se un programma tiene aperto un file, Windows lo rifiuta.
+    const r = spostaCartellaInRecupero(deps.dati, cartella, {
+      progetto: g.id, nome: g.nome, quando,
       motivo: `solo cloud: il residente è ${st.residente}; confronto fatto, ${st.riassunto?.recuperati.length ?? 0} voci recuperate là`
-    }])
+    })
+    if (!r.ok) return metti({ ...st, fase: r.inUso ? 'in-uso' : 'errore', messaggio: `Non la tolgo adesso: ${r.messaggio}.` })
+    const dove = r.dove
     deps.log?.(`[rimozione] «${g.nome}» tolto da questo PC: la cartella è in ${dove} per 30 giorni, ripristinabile`)
     return metti({ ...st, fase: 'spostata', messaggio: `Tolto da questo PC. La cartella è nella cartella di recupero di SierraDeck fino al ${new Date(Date.parse(scadenza(quando))).toLocaleDateString('it-IT')}: «Ripristina» la rimette dov’era.` })
   }
@@ -317,18 +352,11 @@ export function creaRimozione(deps: {
     stati: () => [...stati.values()],
     inRecupero: () => leggiElenco(),
     ripristina(id) {
-      const e = leggiElenco()
-      const c = e.find((x) => x.id === id)
-      if (c === undefined || c.ripristinataIl !== undefined) return { ok: false, messaggio: 'Questa cartella non è più in recupero.' }
-      if (existsSync(c.percorsoOriginale)) return { ok: false, messaggio: `Al suo posto (${c.percorsoOriginale}) adesso c’è un’altra cartella: non la sovrascrivo. Spostala o rinominala, poi riprova.` }
-      try {
-        mkdirSync(dirname(c.percorsoOriginale), { recursive: true })
-        renameSync(c.dove, c.percorsoOriginale)
-      } catch (err) { return { ok: false, messaggio: `Non riesco a rimetterla: ${String(err)}. È ancora in ${c.dove}.` } }
-      scriviElenco(e.map((x) => (x.id === id ? { ...x, ripristinataIl: iso() } : x)))
-      deps.log?.(`[rimozione] «${c.nome}» ripristinato in ${c.percorsoOriginale}`)
+      const r = ripristinaDaRecupero(deps.dati, id, iso())
+      if (!r.ok) return { ok: false, messaggio: r.messaggio }
+      deps.log?.(`[rimozione] «${r.nome ?? id}» ripristinato in ${r.percorso ?? '?'}`)
       deps.avvisa?.()
-      return { ok: true, messaggio: `Rimessa al suo posto: ${c.percorsoOriginale}.` }
+      return { ok: true, messaggio: r.messaggio }
     },
     async cestina(id) {
       const c = leggiElenco().find((x) => x.id === id)

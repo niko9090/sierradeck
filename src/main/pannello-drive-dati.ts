@@ -2,7 +2,7 @@ import { sessioneDiPercorso, type CaseChat } from '@shared/una-casa'
 import { costruisciPannello, type ChatIngresso, type Pannello, type PcNoto, type ProgettoIngresso } from '@shared/pannello-drive'
 import type { PianoAllineamento } from '@shared/allineamento'
 import { cartellaDaSlug } from './cassaforte/catalogo'
-import { staDentro } from './progetti/registro'
+import { gruppoDiCartella, raggruppaProgetti, type GruppoProgetti } from '@shared/progetti-unificati'
 import type { Manifesto } from './cassaforte/incrementale'
 
 /**
@@ -26,6 +26,10 @@ export function datiPannello(p: {
   progetti: ProgettoIngresso[]
   adesso: number
   piano?: PianoAllineamento
+  /** I nomi dei workspace di questo PC (0.60.0). */
+  workspaceQui?: string[]
+  /** Se una cartella esiste qui: per le cartelle trovate per nome (0.60.0). */
+  esiste?: (percorso: string) => boolean
 }): Pannello {
   const chat = new Map<string, ChatIngresso>()
   const prendi = (s: string): ChatIngresso => {
@@ -82,19 +86,65 @@ export function datiPannello(p: {
     const c = prendi(s)
     c.aperta = [...new Set([...(c.aperta ?? []), p.io.id])]
   }
+  const gruppi = raggruppaProgetti(p.progetti, p.case)
   for (const c of chat.values()) {
     if (c.titolo === '') c.titolo = `chat ${c.sessione.slice(0, 8)}`
-    // Il progetto: la cartella della chat dentro una delle cartelle del progetto, su qualunque PC.
+    // Il progetto (0.60.0): la cartella della chat dentro una cartella del
+    // progetto, su qualunque PC; o una cartella con il suo nome. Così anche
+    // le chat senza nome restano attaccate al loro progetto.
     if (c.cwd !== undefined) {
-      const g = p.progetti.find((x) => Object.values(x.percorsi).some((r) => staDentro(c.cwd as string, r)))
-      if (g !== undefined) c.progetto = g.id
+      const g = gruppoDiCartella(c.cwd, gruppi)
+      if (g !== undefined) c.progetto = g.gruppo.id
     }
   }
+  const cartelleTrovate = primaTrovata(cartelleTrovateQui(gruppi, p.io.id, p.locali, p.esiste))
+  const altreQui = Object.fromEntries(Object.entries(cartelleTrovateQui(gruppi, p.io.id, p.locali, p.esiste, true)).map(([id, v]) => [id, v.length]))
   const pannello = costruisciPannello({
     io: p.io, pc: p.pc.map(({ chat: _c, locali, ...x }) => ({ ...x, diceLocali: localiDi(locali) !== undefined })),
-    case: p.case, chat: [...chat.values()], progetti: p.progetti, adesso: p.adesso
+    case: p.case, chat: [...chat.values()], progetti: p.progetti, adesso: p.adesso,
+    ...(p.workspaceQui !== undefined ? { workspaceQui: p.workspaceQui } : {}),
+    cartelleTrovate,
+    altreCartelleQui: altreQui
   })
   return p.piano === undefined ? pannello : { ...pannello, piano: p.piano }
+}
+
+/**
+ * Le cartelle di questo PC con il nome di un progetto, non registrate
+ * (0.60.0): dove lavorano le chat di qui. Per ogni gruppo, dalla chat più
+ * recente. Senza `anche`, solo per i gruppi che qui non hanno nessuna
+ * cartella registrata (il pannello dice «qui sul disco: sì», il piano non
+ * riporta giù accanto); con `anche`, pure quelle accanto a una registrata:
+ * «Rendi residente qui» le unisce tutte.
+ */
+export function cartelleTrovateQui(
+  gruppi: GruppoProgetti[],
+  io: string,
+  locali: { cwd?: string; mtime?: number }[],
+  esiste?: (percorso: string) => boolean,
+  anche = false
+): Record<string, string[]> {
+  const trovate = new Map<string, Map<string, { radice: string; mtime: number }>>()
+  for (const l of locali) {
+    if (l.cwd === undefined) continue
+    const g = gruppoDiCartella(l.cwd, gruppi)
+    if (g === undefined || !g.perNome) continue
+    const registrate = g.gruppo.percorsi.filter((x) => x.pc === io)
+    if (!anche && registrate.length > 0) continue
+    const k = g.radice.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase()
+    if (registrate.some((x) => x.percorso.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase() === k)) continue
+    if (esiste !== undefined && !esiste(g.radice)) continue
+    const m = trovate.get(g.gruppo.id) ?? new Map<string, { radice: string; mtime: number }>()
+    const prima = m.get(k)
+    if (prima === undefined || (l.mtime ?? 0) > prima.mtime) m.set(k, { radice: g.radice, mtime: l.mtime ?? 0 })
+    trovate.set(g.gruppo.id, m)
+  }
+  return Object.fromEntries([...trovate].map(([id, m]) => [id, [...m.values()].sort((a, b) => b.mtime - a.mtime).map((x) => x.radice)]))
+}
+
+/** La prima (la più usata di recente) per ogni gruppo. */
+export function primaTrovata(t: Record<string, string[]>): Record<string, string> {
+  return Object.fromEntries(Object.entries(t).flatMap(([id, v]) => (v[0] === undefined ? [] : [[id, v[0]]])))
 }
 
 /** Il campo `locali` di un battito, letto con prudenza: arriva da un altro PC. */

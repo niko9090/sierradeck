@@ -3,7 +3,7 @@ import { ePercorsoDiServizio } from '@shared/slug-di-servizio'
 import { prefissoDi } from './incrementale'
 import type { Archivio as ArchivioWorkspace } from '@shared/workspace'
 import type { RegistroProgetti, ProgettoDrive } from '../progetti/registro'
-import { normalizzaPercorso } from '../progetti/registro'
+import { normalizzaPercorso, unionePiuRecente } from '../progetti/registro'
 
 /**
  * Il catalogo del Drive: cosa c'e' lassu', raggruppato per progetto, e come
@@ -217,7 +217,8 @@ export function costruisciCatalogo(p: {
     perId.set(x.id, gia === undefined ? x : {
       ...gia,
       percorsi: { ...x.percorsi, ...gia.percorsi },
-      ...(gia.origini !== undefined || x.origini !== undefined ? { origini: [...new Set([...(gia.origini ?? []), ...(x.origini ?? [])])] } : {})
+      ...(gia.origini !== undefined || x.origini !== undefined ? { origini: [...new Set([...(gia.origini ?? []), ...(x.origini ?? [])])] } : {}),
+      ...unionePiuRecente(gia, x)
     })
   }
   const registro: RegistroProgetti = { versione: 1, progetti: [...perId.values()] }

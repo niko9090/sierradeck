@@ -1,6 +1,6 @@
 ---
 titolo: "Gestire chat, workspace e autopiloti dal telefono (0.55.0, app 2.55.0): le cause del 09/10, la parità con il PC, la copia di prova"
-quando: 2026-10-09T10:15:00+02:00
+quando: 2026-10-11T01:40:00+02:00
 tag: ["telefono", "app", "pagina", "ponte", "workspace", "chat", "autopiloti", "parità", "prove-dal-vero", "copia-di-prova"]
 ---
 
@@ -89,6 +89,30 @@ Le ho trovate facendo girare l'`Api` vera dell'app (test Kotlin `ProvaDalVeroTes
 | Autopilota: ferma / riprendi / vai / elimina / riavvio / dialogo / correggi | ✓ | ✓ anche altri PC | ✓ | |
 | Autopilota: archiviare | ✓ | ✓ (0.56) | ✓ (0.56) | solo fermi (sospeso o fallito) |
 | Autopilota: cambiare criteri e compiti a mano | ✓ | — (si fa scrivendogli) | — | |
+
+# Parità PC ↔ app ↔ pagina, dalla 0.55 alla 0.60 (aggiornata l'11/10, app 2.60.0)
+
+Controllata nel codice (rotte chiamate da `client-pagina.ts` e dai file Kotlin) e con i test Kotlin sulle risposte vere del PC.
+
+| Uscita | Cosa | PC | App | Pagina | Note e motivi |
+|---|---|---|---|---|---|
+| 0.56 | Impostazioni rifatte (struttura condivisa) | ✓ | ✓ | ✓ | `assets/impostazioni.json` |
+| 0.56 | PIN: proteggere/togliere, ospite «Ospitata da», nome e modello della chat nuova | ✓ | ✓ | PIN solo aprire; ospite — | la pagina è il ripiego senza app: le scelte di casa e PIN restano a PC e app |
+| 0.56.2 | «Installa là» (aggiornare un altro PC) | ✓ | ✓ (Salute, Gestione) | — | dalla pagina si aggiorna il PC che la serve; gli altri PC dall'app o dal loro schermo |
+| 0.54 | File fra PC e telefono, «Manda al telefono» | ✓ | ✓ (sezione File, coda con ripresa) | sfoglia e scarica | la coda verso il telefono ha senso solo nell'app (riceve anche a schermo spento) |
+| 0.57 | Quaderno personale cifrato, dati riservati con consenso | ✓ | ✓ | ✓ | il consenso arriva nelle Domande |
+| 0.58 | Pannello chat e progetti (residente, copie, sbagliati, rimozione sicura, recupero) | ✓ | ✓ `PannelloDrive.kt` | ✓ | testi scritti dal PC |
+| 0.58.2 | «Progetti» voce propria | ✓ | ✓ barra in basso | ✓ | `PannelloDriveTest` |
+| 0.58.4 | Scrivere in una chat remota chiusa: parte in sottofondo, campo mai muto, Riprova | ✓ | ✓ `Sottofondo.kt` | ✓ | `SottofondoTest` |
+| 0.58.4 | «Chat usate da altri PC» con «Mostra qui» | ✓ | — | — | «Mostra qui» porta la chat **sullo schermo del PC**: dal telefono la chat in sottofondo si vede e si scrive già fra le chat di quel PC |
+| 0.59 | Autopiloti degli altri PC: scheda, scrivere, rispondere, ferma, riprendi | ✓ | ✓ `AutopilotiAltri.kt` | ✓ | `AutopilotiAltriTest`; tutto passa dal ponte |
+| 0.59 | Una chat che si apre a schermo va nel suo workspace | ✓ | ✓ | ✓ | lo decide il PC che la apre (`workspaceDiApertura`): vale per ogni strada, telefono compreso |
+| 0.60 | Stesso nome = stesso progetto (una riga, id, cartelle e workspace uniti) | ✓ | ✓ | ✓ | `ProgettiUnificatiTest` |
+| 0.60 | «Rendi residente qui» con analisi, riassunto, Conferma e unisci / Annulla | ✓ | ✓ (il riassunto si scorre) | ✓ (conferma in due tocchi) | analisi e unione girano sul PC; app e pagina si rileggono finché lavora |
+| 0.60 | «Annulla l'unione» (30 giorni) | ✓ | ✓ | ✓ | |
+| 0.60 | Chat senza nome fuori dagli elenchi, casella «mostra anche le senza nome» | ✓ | ✓ (Riprendi e pannello) | ✓ (Riprendi e pannello) | `/api/sessioni` dice `nascoste` |
+
+**Mancanze rimaste, con il motivo:** «Mostra qui» (vedi sopra); nella pagina ospite, gestione del PIN e «Installa là» (la pagina è il ripiego quando l'app non c'è, e quelle scelte restano a PC e app); spegnere i workspace dietro e buttare conversazioni (lasciati al PC apposta, vedi sopra).
 
 # Prove dal vero (09/10)
 

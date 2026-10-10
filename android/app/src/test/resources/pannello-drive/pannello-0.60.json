@@ -1,0 +1,288 @@
+{
+  "io": {
+    "id": "pc-qui",
+    "nome": "PC-ESEMPIO",
+    "battito": "2026-10-10T18:00:00.000Z"
+  },
+  "pc": [
+    {
+      "id": "pc-port",
+      "nome": "PORTATILE-ESEMPIO",
+      "battito": "2026-10-10T17:59:00.000Z",
+      "diceLocali": true
+    },
+    {
+      "id": "pc-vecchio",
+      "nome": "PC-VECCHIO",
+      "battito": "2026-10-10T17:58:00.000Z",
+      "diceLocali": false
+    }
+  ],
+  "chat": [
+    {
+      "sessione": "s-due",
+      "titolo": "Note di prova",
+      "cwd": "C:\\Progetti\\Gestionale",
+      "progetto": "prog-g",
+      "copie": [
+        {
+          "pc": "pc-qui",
+          "nome": "PC-ESEMPIO",
+          "dove": "qui",
+          "quando": "2026-10-10T16:00:00.000Z"
+        }
+      ],
+      "ultimoUso": "2026-10-10T16:00:00.000Z",
+      "stato": "solo-cloud",
+      "copiaQui": true,
+      "problemi": [
+        {
+          "tipo": "senza-casa",
+          "titolo": "Senza casa",
+          "spiega": "Nessun PC è la sua casa: qualunque PC la apra la fa girare e la carica sul Drive.",
+          "cosaFare": "Scegli il PC residente qui sotto: diventa la sua casa, e gli altri la aprono dal vivo guardando quello."
+        }
+      ]
+    },
+    {
+      "sessione": "s-tre",
+      "titolo": "chat s-tre",
+      "cwd": "C:\\Progetti\\Gestionale\\sotto",
+      "progetto": "prog-g",
+      "copie": [
+        {
+          "pc": "pc-qui",
+          "nome": "PC-ESEMPIO",
+          "dove": "qui",
+          "quando": "2026-10-10T15:30:00.000Z"
+        }
+      ],
+      "ultimoUso": "2026-10-10T15:30:00.000Z",
+      "stato": "solo-cloud",
+      "copiaQui": true,
+      "senzaNome": true,
+      "problemi": [
+        {
+          "tipo": "senza-casa",
+          "titolo": "Senza casa",
+          "spiega": "Nessun PC è la sua casa: qualunque PC la apra la fa girare e la carica sul Drive.",
+          "cosaFare": "Scegli il PC residente qui sotto: diventa la sua casa, e gli altri la aprono dal vivo guardando quello."
+        }
+      ]
+    },
+    {
+      "sessione": "s-uno",
+      "titolo": "Fatture",
+      "cwd": "D:\\Lavoro\\Gestionale",
+      "progetto": "prog-g",
+      "residente": {
+        "pc": "pc-port",
+        "nome": "PORTATILE-ESEMPIO",
+        "fonte": "nicholas",
+        "motivo": "scelta",
+        "qui": false
+      },
+      "copie": [
+        {
+          "pc": "pc-port",
+          "nome": "PORTATILE-ESEMPIO",
+          "dove": "disco",
+          "quando": "2026-10-10T17:00:00.000Z"
+        }
+      ],
+      "ultimoUso": "2026-10-10T17:00:00.000Z",
+      "stato": "residente",
+      "copiaQui": false,
+      "problemi": []
+    }
+  ],
+  "progetti": [
+    {
+      "id": "prog-g",
+      "ids": [
+        "prog-g",
+        "prog-g2"
+      ],
+      "nome": "Gestionale",
+      "residente": {
+        "pc": "pc-port",
+        "nome": "PORTATILE-ESEMPIO",
+        "qui": false
+      },
+      "voluto": true,
+      "cartelle": [
+        {
+          "pc": "pc-qui",
+          "nome": "PC-ESEMPIO",
+          "percorso": "C:\\Progetti\\Gestionale"
+        },
+        {
+          "pc": "pc-port",
+          "nome": "PORTATILE-ESEMPIO",
+          "percorso": "D:\\Lavoro\\Gestionale"
+        },
+        {
+          "pc": "pc-port",
+          "nome": "PORTATILE-ESEMPIO",
+          "percorso": "E:\\Copie\\gestionale (2)"
+        }
+      ],
+      "cartellaQui": true,
+      "workspace": [
+        "Gestionale",
+        "gestionale (2)"
+      ],
+      "daUnire": 2,
+      "chat": 3,
+      "chatSenzaNome": 1,
+      "ultimoUso": "2026-10-10T17:00:00.000Z",
+      "stato": "residente",
+      "problemi": [
+        {
+          "tipo": "progetto-doppio",
+          "titolo": "Registrato 2 volte",
+          "spiega": "Lo stesso progetto («Gestionale», stesso nome) è nel registro del Drive con 2 id diversi: sono nati salvando lo stesso progetto da PC diversi. Qui li vedi come uno solo.",
+          "cosaFare": "«Rendi residente qui» (dal PC dove vuoi che viva) li unisce davvero: raccoglie tutte le copie, ti mostra cosa unisce, cosa tiene e cosa va in recupero, e fa solo dopo la tua conferma."
+        }
+      ],
+      "azioni": [
+        {
+          "id": "apri",
+          "titolo": "Apri",
+          "testo": "Apre una chat nuova nella cartella del progetto su questo PC (PC-ESEMPIO)."
+        },
+        {
+          "id": "residente-qui",
+          "titolo": "Rendi residente qui",
+          "testo": "Questo PC (PC-ESEMPIO) diventerà il residente di «Gestionale» (adesso è PORTATILE-ESEMPIO). Prima raccolgo tutte le copie — le cartelle con lo stesso nome qui, quelle degli altri PC salvate sul Drive (registrato 2 volte), le chat, le note e il quaderno, i workspace «Gestionale», «gestionale (2)» — e le confronto per impronta. Poi ti mostro un riassunto: cosa unisco, cosa tengo, cosa va in recupero. Solo con la tua conferma il progetto diventa uno solo qui, con un workspace solo; le copie doppie vanno nella cartella di recupero per 30 giorni e si possono rimettere. Niente si cancella. Le 3 chat lavoreranno qui; sugli altri PC il progetto diventa «solo cloud», tolto solo dopo il loro confronto e la tua conferma.",
+          "conferma": "Analizza le copie e prepara il riassunto"
+        },
+        {
+          "id": "solo-cloud-qui",
+          "titolo": "Rendi solo cloud qui",
+          "testo": "Toglie «Gestionale» da questo PC, in sicurezza: PORTATILE-ESEMPIO (il residente) confronta i file e le chat di qui con i suoi, copia da lui, nella sua cartella .sierradeck/recuperati, quello che c’è solo qui o è più nuovo, e ti mostra il riassunto. Solo con la tua conferma la cartella di qui va nella cartella di recupero di SierraDeck, per 30 giorni, e «Ripristina» la rimette dov’era. Se PORTATILE-ESEMPIO non si raggiunge, non si toglie niente.",
+          "conferma": "Confronta e prepara il riassunto"
+        }
+      ]
+    }
+  ],
+  "letto": "2026-10-10T18:00:00.000Z",
+  "pcDaAggiornare": [
+    "PC-VECCHIO"
+  ],
+  "piano": {
+    "azioni": [
+      {
+        "tipo": "solo-cloud",
+        "progetto": "prog-g",
+        "nome": "Gestionale",
+        "percorso": "C:\\Progetti\\Gestionale",
+        "residente": "PORTATILE-ESEMPIO",
+        "perche": "Il residente di «Gestionale» è PORTATILE-ESEMPIO: qui dovrebbe essere solo cloud."
+      }
+    ],
+    "senzaScelta": 0
+  },
+  "residenza": [
+    {
+      "progetto": "prog-g",
+      "nome": "Gestionale",
+      "fase": "attesa-conferma",
+      "messaggio": "Resta la cartella C:\\Progetti\\Gestionale. Copia sul Drive, salvata da PORTATILE-ESEMPIO (prog-g): 10 file uguali, 2 aggiunti, 1 più recente al posto del vecchio, 1 versione nei recuperati. Fra questi, 1 è una nota o una scheda del quaderno: stessa regola, niente si perde. Le versioni che non restano al loro posto vanno in C:\\Progetti\\Gestionale\\.sierradeck\\recuperati\\unione-2026-10-10-18-00-00, divise per copia di provenienza. Chat: 3 chat del progetto lavorano su PC-ESEMPIO; 1 chat sta solo su altri PC o sul Drive: scendono qui al prossimo salvataggio. Workspace: «gestionale (2)» entra in «Gestionale» con le loro chat; il doppio si toglie (salvati per «Annulla l’unione»). Registro del Drive: 1 doppione unito al progetto principale; i loro file sul Drive restano dove sono. Non succede: nessun file cancellato; nessuna chat chiusa a metà turno; gli altri PC non perdono la loro copia finché lì non confermi «Rendi solo cloud». «Conferma e unisci» fa tutto questo; «Annulla» lascia tutto com’è. Dopo, per 30 giorni, «Annulla l’unione» rimette le cartelle, i file sostituiti e i workspace com’erano.",
+      "riassunto": {
+        "nome": "Gestionale",
+        "pcNome": "PC-ESEMPIO",
+        "destinazione": "C:\\Progetti\\Gestionale",
+        "nuova": false,
+        "git": false,
+        "copie": [
+          {
+            "chiave": "drive:prog-g2",
+            "tipo": "drive",
+            "etichetta": "sul Drive, salvata da PORTATILE-ESEMPIO (prog-g)",
+            "uguali": 10,
+            "aggiunti": 2,
+            "sostituiti": 1,
+            "recuperati": 1,
+            "esclusi": 0,
+            "vaInRecupero": false
+          }
+        ],
+        "file": {
+          "uguali": 10,
+          "aggiunti": 2,
+          "sostituiti": 1,
+          "recuperati": 1,
+          "note": 1
+        },
+        "chat": {
+          "daSpostare": 0,
+          "delProgetto": 3,
+          "daAltriPc": 1
+        },
+        "workspace": {
+          "tiene": "Gestionale",
+          "uniti": [
+            "gestionale (2)"
+          ],
+          "aperti": []
+        },
+        "registro": {
+          "principale": "prog-g",
+          "uniti": [
+            "prog-g2"
+          ]
+        },
+        "recupero": [],
+        "inUso": [],
+        "recuperati": ".sierradeck/recuperati/unione-2026-10-10-18-00-00",
+        "righe": [
+          "Resta la cartella C:\\Progetti\\Gestionale.",
+          "Copia sul Drive, salvata da PORTATILE-ESEMPIO (prog-g): 10 file uguali, 2 aggiunti, 1 più recente al posto del vecchio, 1 versione nei recuperati.",
+          "Fra questi, 1 è una nota o una scheda del quaderno: stessa regola, niente si perde.",
+          "Le versioni che non restano al loro posto vanno in C:\\Progetti\\Gestionale\\.sierradeck\\recuperati\\unione-2026-10-10-18-00-00, divise per copia di provenienza.",
+          "Chat: 3 chat del progetto lavorano su PC-ESEMPIO; 1 chat sta solo su altri PC o sul Drive: scendono qui al prossimo salvataggio.",
+          "Workspace: «gestionale (2)» entra in «Gestionale» con le loro chat; il doppio si toglie (salvati per «Annulla l’unione»).",
+          "Registro del Drive: 1 doppione unito al progetto principale; i loro file sul Drive restano dove sono.",
+          "Non succede: nessun file cancellato; nessuna chat chiusa a metà turno; gli altri PC non perdono la loro copia finché lì non confermi «Rendi solo cloud».",
+          "«Conferma e unisci» fa tutto questo; «Annulla» lascia tutto com’è. Dopo, per 30 giorni, «Annulla l’unione» rimette le cartelle, i file sostituiti e i workspace com’erano."
+        ]
+      },
+      "quando": "2026-10-10T18:00:00.000Z"
+    }
+  ],
+  "unioni": [
+    {
+      "id": "Sito-2026-10-09",
+      "progetto": "prog-s",
+      "nome": "Sito",
+      "quando": "2026-10-09T10:00:00.000Z",
+      "destinazione": "C:\\Progetti\\Sito",
+      "scadeIl": "2026-11-08T10:00:00.000Z"
+    }
+  ],
+  "rimozione": {
+    "stati": [
+      {
+        "progetto": "prog-g",
+        "nome": "Gestionale",
+        "residente": "PORTATILE-ESEMPIO",
+        "fase": "attesa-conferma",
+        "messaggio": "Progetto «Gestionale», confrontato da PORTATILE-ESEMPIO (il residente).",
+        "quando": "2026-10-10T18:00:00.000Z"
+      }
+    ],
+    "inRecupero": [
+      {
+        "id": "Vecchio-2026",
+        "progetto": "prog-v",
+        "nome": "Vecchio",
+        "percorsoOriginale": "C:\\Progetti\\Vecchio",
+        "dove": "C:\\Dati\\recupero-progetti\\Vecchio-2026",
+        "quando": "2026-10-01T10:00:00.000Z",
+        "motivo": "solo cloud",
+        "scadeIl": "2026-10-31T10:00:00.000Z"
+      }
+    ]
+  }
+}

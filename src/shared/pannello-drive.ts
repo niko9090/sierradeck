@@ -1,5 +1,7 @@
 import type { CaseChat, FonteCasa } from './una-casa'
-import { casaProgetto, type PianoAllineamento } from './allineamento'
+import type { PianoAllineamento } from './allineamento'
+import { casaDelGruppo, eSenzaNome, raggruppaProgetti, workspaceDelGruppo, type GruppoProgetti } from './progetti-unificati'
+import type { StatoResidenza } from './residenza'
 
 /**
  * Il pannello delle chat e dei progetti del Drive (0.58.0, tappa 1).
@@ -39,11 +41,11 @@ export type ChatIngresso = {
   aperta?: string[]
 }
 
-export type ProgettoIngresso = { id: string; nome: string; percorsi: Record<string, string> }
+export type ProgettoIngresso = { id: string; nome: string; percorsi: Record<string, string>; aggiuntoIl?: string; unitoIn?: string }
 
 export type TipoProblema =
   | 'senza-casa' | 'due-case' | 'casa-sconosciuta' | 'casa-assente' | 'copia-piu-recente'
-  | 'progetto-senza-casa' | 'progetto-diviso'
+  | 'progetto-senza-casa' | 'progetto-diviso' | 'progetto-doppio'
 
 export type Problema = { tipo: TipoProblema; titolo: string; spiega: string; cosaFare: string }
 
@@ -62,11 +64,16 @@ export type RigaChat = {
   stato: StatoRiga
   /** Questo PC ne ha una copia sul disco. */
   copiaQui: boolean
+  /** Senza nome (0.60.0): fuori dagli elenchi principali, contata nel suo progetto. */
+  senzaNome?: boolean
   problemi: Problema[]
 }
 
 export type RigaProgetto = {
+  /** L'id principale del gruppo (0.60.0: stesso nome = stesso progetto). */
   id: string
+  /** Tutti gli id del registro con questo nome (normalizzato), il principale per primo. */
+  ids: string[]
   nome: string
   residente?: { pc: string; nome: string; qui: boolean }
   /** Il residente è una scelta per il progetto (0.58.0), non la maggioranza delle sue chat. */
@@ -75,9 +82,20 @@ export type RigaProgetto = {
   cartelle: { pc: string; nome: string; percorso: string }[]
   /** Questo PC ha la cartella. */
   cartellaQui: boolean
+  /**
+   * Una cartella di qui con il nome del progetto ma non registrata (0.60.0):
+   * per esempio il SierraDeck su cui si lavora, registrato solo dal portatile.
+   */
+  cartellaTrovata?: string
+  /** I workspace di questo PC con lo stesso nome (normalizzato). */
+  workspace: string[]
+  /** Quante copie da unire: id doppi, cartelle di qui in più, workspace doppi. */
+  daUnire: number
   /** Le azioni da questo PC, con i loro testi (0.58.0, tappa 4). */
   azioni: AzioneProgetto[]
   chat: number
+  /** Di cui senza nome: nascoste dagli elenchi, contate qui (0.60.0). */
+  chatSenzaNome: number
   ultimoUso?: string
   stato: StatoRiga
   problemi: Problema[]
@@ -93,7 +111,13 @@ export type Pannello = {
   pcDaAggiornare: string[]
   /** Il piano di allineamento di questo PC (0.58.0, tappa 2): si mostra e basta. */
   piano?: PianoAllineamento
+  /** «Rendi residente» con analisi e unione (0.60.0): le analisi in corso e i riassunti da confermare. */
+  residenza?: StatoResidenza[]
+  /** Le unioni fatte negli ultimi 30 giorni: «Annulla l’unione» (0.60.0). */
+  unioni?: UnioneFatta[]
 }
+
+export type UnioneFatta = { id: string; progetto: string; nome: string; quando: string; destinazione: string; scadeIl: string }
 
 /** Oltre questo un PC senza battito si considera assente. */
 export const ASSENTE_DOPO_MS = 30 * 86_400_000
@@ -108,11 +132,19 @@ export function costruisciPannello(p: {
   chat: ChatIngresso[]
   progetti: ProgettoIngresso[]
   adesso: number
+  /** I nomi dei workspace di questo PC (0.60.0). */
+  workspaceQui?: string[]
+  /** Per gruppo (id principale): una cartella di qui trovata per nome, non registrata. */
+  cartelleTrovate?: Record<string, string>
+  /** Per gruppo: quante cartelle di qui con il nome del progetto stanno accanto a quelle registrate. */
+  altreCartelleQui?: Record<string, number>
 }): Pannello {
   const tutti = [p.io, ...p.pc.filter((x) => x.id !== p.io.id)]
   const nomeDi = (id: string): string => tutti.find((x) => x.id === id)?.nome ?? `PC ${id.slice(0, 6)}`
   const chat = p.chat.map((c) => rigaChat(c, p, nomeDi))
-  const progetti = p.progetti.map((g) => rigaProgetto(g, chat.filter((c) => c.progetto === g.id), p, nomeDi, p.case))
+  // Stesso nome = stesso progetto (0.60.0): una riga per gruppo.
+  const gruppi = raggruppaProgetti(p.progetti, p.case)
+  const progetti = gruppi.map((g) => rigaProgetto(g, chat.filter((c) => c.progetto !== undefined && g.ids.includes(c.progetto)), p, nomeDi, p.case))
   // Le chat in ordine: prima le sbagliate, poi le più recenti.
   chat.sort((a, b) => (b.problemi.length > 0 ? 1 : 0) - (a.problemi.length > 0 ? 1 : 0) || (b.ultimoUso ?? '').localeCompare(a.ultimoUso ?? ''))
   progetti.sort((a, b) => (b.problemi.length > 0 ? 1 : 0) - (a.problemi.length > 0 ? 1 : 0) || a.nome.localeCompare(b.nome))
@@ -140,6 +172,7 @@ function rigaChat(c: ChatIngresso, p: { io: PcNoto; pc: PcNoto[]; case: CaseChat
     ...(ultimo > 0 ? { ultimoUso: iso(ultimo) as string } : {}),
     stato: conflitto ? 'conflitto' : copiaResidente ? 'residente' : 'solo-cloud',
     copiaQui: c.copie.some((x) => x.dove === 'qui'),
+    ...(eSenzaNome(c.titolo, c.sessione) ? { senzaNome: true } : {}),
     problemi
   }
 }
@@ -207,8 +240,12 @@ export function problemiChat(
   return fuori
 }
 
-function rigaProgetto(g: ProgettoIngresso, chat: RigaChat[], p: { io: PcNoto; adesso: number }, nomeDi: (id: string) => string, cc: CaseChat): RigaProgetto {
-  const voluto = casaProgetto(cc, g.id)
+function rigaProgetto(
+  g: GruppoProgetti, chat: RigaChat[],
+  p: { io: PcNoto; adesso: number; workspaceQui?: string[]; cartelleTrovate?: Record<string, string>; altreCartelleQui?: Record<string, number> },
+  nomeDi: (id: string) => string, cc: CaseChat
+): RigaProgetto {
+  const voluto = casaDelGruppo(cc, g.ids)
   const conta = new Map<string, number>()
   for (const c of chat) if (c.residente !== undefined) conta.set(c.residente.pc, (conta.get(c.residente.pc) ?? 0) + 1)
   const ordinati = [...conta.entries()].sort((a, b) => b[1] - a[1])
@@ -237,15 +274,34 @@ function rigaProgetto(g: ProgettoIngresso, chat: RigaChat[], p: { io: PcNoto; ad
   }
   const ultimo = chat.map((c) => c.ultimoUso ?? '').sort().pop()
   const conflitto = chat.some((c) => c.stato === 'conflitto')
+  const qui = g.percorsi.filter((x) => x.pc === p.io.id)
+  const trovata = qui.length === 0 ? p.cartelleTrovate?.[g.id] : undefined
+  const workspace = workspaceDelGruppo(p.workspaceQui ?? [], g)
+  // Le cartelle di qui: registrate, più quelle con lo stesso nome trovate dalle chat.
+  const cartelleQui = qui.length + (p.altreCartelleQui?.[g.id] ?? 0)
+  const daUnire = (g.ids.length - 1) + Math.max(0, cartelleQui - 1) + Math.max(0, workspace.length - 1)
+  if (g.ids.length > 1) {
+    problemi.push({
+      tipo: 'progetto-doppio',
+      titolo: `Registrato ${g.ids.length} volte`,
+      spiega: `Lo stesso progetto («${g.nome}», stesso nome) è nel registro del Drive con ${g.ids.length} id diversi${qui.length > 1 ? `, e qui ha ${qui.length} cartelle (${qui.map((x) => x.percorso).join(', ')})` : ''}: sono nati salvando lo stesso progetto da PC diversi. Qui li vedi come uno solo.`,
+      cosaFare: '«Rendi residente qui» (dal PC dove vuoi che viva) li unisce davvero: raccoglie tutte le copie, ti mostra cosa unisce, cosa tiene e cosa va in recupero, e fa solo dopo la tua conferma.'
+    })
+  }
+  const residenteHa = primo !== undefined && g.percorsi.some((x) => x.pc === primo[0])
   const riga: RigaProgetto = {
-    id: g.id, nome: g.nome,
+    id: g.id, ids: g.ids, nome: g.nome,
     ...(primo !== undefined ? { residente: { pc: primo[0], nome: voluto?.pcNome ?? nomeDi(primo[0]), qui: primo[0] === p.io.id } } : {}),
     voluto: voluto !== undefined,
-    cartelle: Object.entries(g.percorsi).map(([pc, percorso]) => ({ pc, nome: nomeDi(pc), percorso })),
-    cartellaQui: g.percorsi[p.io.id] !== undefined,
+    cartelle: g.percorsi.map((x) => ({ pc: x.pc, nome: nomeDi(x.pc), percorso: x.percorso })),
+    cartellaQui: qui.length > 0 || trovata !== undefined,
+    ...(trovata !== undefined ? { cartellaTrovata: trovata } : {}),
+    workspace,
+    daUnire,
     chat: chat.length,
+    chatSenzaNome: chat.filter((c) => c.senzaNome === true).length,
     ...(ultimo !== undefined && ultimo !== '' ? { ultimoUso: ultimo } : {}),
-    stato: conflitto ? 'conflitto' : primo !== undefined && g.percorsi[primo[0]] !== undefined ? 'residente' : 'solo-cloud',
+    stato: conflitto ? 'conflitto' : residenteHa || (primo?.[0] === p.io.id && trovata !== undefined) ? 'residente' : 'solo-cloud',
     problemi,
     azioni: []
   }
@@ -254,10 +310,14 @@ function rigaProgetto(g: ProgettoIngresso, chat: RigaChat[], p: { io: PcNoto; ad
 
 export type FiltroPannello = 'tutti' | 'sbagliati' | 'questo-pc' | 'solo-cloud'
 
-/** Le righe di un filtro e di una ricerca (titolo, cartella, PC). */
-export function filtraChat(righe: RigaChat[], filtro: FiltroPannello, q = ''): RigaChat[] {
+/**
+ * Le righe di un filtro e di una ricerca (titolo, cartella, PC). Le chat
+ * senza nome non ci sono (0.60.0), salvo con `senzaNome`: «mostra anche le senza nome».
+ */
+export function filtraChat(righe: RigaChat[], filtro: FiltroPannello, q = '', senzaNome = false): RigaChat[] {
   const parole = q.toLowerCase().split(/\s+/).filter((x) => x !== '')
   return righe.filter((r) => {
+    if (!senzaNome && r.senzaNome === true) return false
     if (filtro === 'sbagliati' && r.problemi.length === 0) return false
     if (filtro === 'questo-pc' && r.residente?.qui !== true) return false
     if (filtro === 'solo-cloud' && (r.copiaQui || r.residente?.qui === true)) return false
@@ -298,6 +358,7 @@ export function testiCambioResidente(p: {
       ? `Su ${da}, che era la casa, ogni chat aperta viene chiusa a fine turno (mai a metà) e la sua copia va nella cartella di recupero di SierraDeck.`
       : 'Su ogni altro PC che ne ha una copia, la copia va nella cartella di recupero di SierraDeck a fine turno.',
     `Se la casa era su questo PC, prima di cambiarla salvo sul Drive, così ${verso} trova la copia più avanti.`,
+    ...(p.cosa === 'progetto' && p.verso.pc !== p.io ? [`Le copie con lo stesso nome non si uniscono da qui: per unirle (file, chat, note, workspace, con riassunto e conferma) usa «Rendi residente qui» su ${verso}, dal suo pannello o dal telefono scegliendo quel PC.`] : []),
     ...(p.cosa === 'progetto' ? [`Il progetto diventa «residente su ${verso}, solo cloud sugli altri PC»: ${verso}, se non ce l’ha, lo porta giù dal Drive da solo quando la cartella non c’è (senza sovrascrivere niente); gli altri PC lo mettono nel loro piano come «da rendere solo cloud», ma non lo tolgono finché un controllo non ha recuperato quello che c’è solo lì e tu non hai confermato.`] : [])
   ]
   const nonSuccede = [
@@ -321,6 +382,9 @@ export function testiCambioResidente(p: {
 
 export type IdAzioneProgetto = 'apri' | 'porta-qui' | 'residente-qui' | 'solo-cloud-qui'
 
+/** Le azioni del riassunto di «Rendi residente» (0.60.0), dal pannello, dalla pagina e dall'app. */
+export type IdAzioneResidenza = 'conferma-residenza' | 'annulla-residenza' | 'annulla-unione'
+
 /**
  * Un'azione su un progetto, con i testi già scritti dal PC: il pannello, la
  * pagina e l'app li mostrano uguali. `conferma` = chiede prima di fare.
@@ -332,7 +396,7 @@ export function azioniProgetto(r: RigaProgetto, io: PcNoto): AzioneProgetto[] {
   const fuori: AzioneProgetto[] = []
   const residente = r.residente?.nome ?? 'nessun PC'
   if (r.cartellaQui) {
-    fuori.push({ id: 'apri', titolo: 'Apri', testo: `Apre una chat nuova nella cartella del progetto su questo PC (${io.nome}).` })
+    fuori.push({ id: 'apri', titolo: 'Apri', testo: `Apre una chat nuova nella cartella del progetto su questo PC (${io.nome})${r.cartellaTrovata !== undefined ? `: ${r.cartellaTrovata}` : ''}.` })
   } else {
     fuori.push({
       id: 'porta-qui', titolo: 'Porta qui',
@@ -340,11 +404,15 @@ export function azioniProgetto(r: RigaProgetto, io: PcNoto): AzioneProgetto[] {
       conferma: 'Porta qui il progetto'
     })
   }
-  if (r.residente?.qui !== true) {
+  // «Rendi residente qui» (0.60.0): prima l'analisi di tutte le copie e un
+  // riassunto, poi l'unione solo con la conferma. Resta anche quando questo
+  // PC è già il residente ma ci sono copie da unire.
+  if (r.residente?.qui !== true || r.daUnire > 0) {
+    const gia = r.residente?.qui === true
     fuori.push({
-      id: 'residente-qui', titolo: 'Rendi residente qui',
-      testo: `Questo PC (${io.nome}) diventa il residente di «${r.nome}»: le sue ${r.chat} chat lavorano qui, sugli altri PC si aprono dal vivo e il progetto lì diventa «solo cloud» (tolto solo dopo il confronto e la tua conferma). Adesso il residente è ${residente}.${r.cartellaQui ? '' : ' Qui la cartella non c’è: la porto giù dal Drive da sola, senza sovrascrivere niente.'} Non si cancella niente, e si torna indietro scegliendo di nuovo ${residente}.`,
-      conferma: 'Rendi residente qui'
+      id: 'residente-qui', titolo: gia ? 'Unisci qui le copie' : 'Rendi residente qui',
+      testo: `${gia ? `Questo PC (${io.nome}) è già il residente di «${r.nome}», ma ci sono copie da unire.` : `Questo PC (${io.nome}) diventerà il residente di «${r.nome}» (adesso è ${residente}).`} Prima raccolgo tutte le copie — le cartelle con lo stesso nome qui, quelle degli altri PC salvate sul Drive${r.ids.length > 1 ? ` (registrato ${r.ids.length} volte)` : ''}, le chat, le note e il quaderno${r.workspace.length > 1 ? `, i workspace ${r.workspace.map((w) => `«${w}»`).join(', ')}` : ''} — e le confronto per impronta. Poi ti mostro un riassunto: cosa unisco, cosa tengo, cosa va in recupero. Solo con la tua conferma il progetto diventa uno solo qui, con un workspace solo; le copie doppie vanno nella cartella di recupero per 30 giorni e si possono rimettere. Niente si cancella. Le ${r.chat} chat lavoreranno qui; sugli altri PC il progetto diventa «solo cloud», tolto solo dopo il loro confronto e la tua conferma.`,
+      conferma: 'Analizza le copie e prepara il riassunto'
     })
   }
   if (r.cartellaQui && r.residente !== undefined && r.residente.qui !== true) {

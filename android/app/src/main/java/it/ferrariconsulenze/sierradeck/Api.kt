@@ -306,7 +306,8 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun rinominaWorkspace(nome: String, nuovo: String): Fatto =
         json.decodeFromString(corpoTesto("/api/workspace/rinomina", oggetto { put("nome", nome); put("nuovo", nuovo) }))
 
-    suspend fun sessioni(): Sessioni = json.decodeFromString(corpoTesto("/api/sessioni", null))
+    suspend fun sessioni(senzaNome: Boolean = false): Sessioni =
+        json.decodeFromString(corpoTesto("/api/sessioni", if (senzaNome) oggetto { put("senzaNome", true) } else null))
 
     suspend fun riprendiSessione(cartella: String, sessione: String): Fatto =
         json.decodeFromString(corpoTesto("/api/sessioni/riprendi", oggetto {

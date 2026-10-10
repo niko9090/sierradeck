@@ -1,4 +1,5 @@
 import type { CasaChat, CaseChat } from './una-casa'
+import { casaDelGruppo, raggruppaProgetti, type MembroProgetto } from './progetti-unificati'
 
 /**
  * L'allineamento dei PC alle scelte (0.58.0, tappa 2).
@@ -62,42 +63,70 @@ export function cartellaDiProgettoValida(percorso: string, home: string): boolea
   return true
 }
 
+/**
+ * Il piano, **per progetto unificato** (0.60.0: stesso nome = stesso
+ * progetto). Il registro del 10/10: «SierraDeck» e un «Wdeck» erano
+ * registrati solo con la cartella del portatile; reso residente questo PC, il
+ * piano li vedeva «assenti» e partiva da solo «porta qui» — 661 file in una
+ * cartella nuova accanto a quella vera. Adesso un progetto è qui se c'è una
+ * cartella di **uno qualunque** dei suoi id, e una cartella di qui con lo
+ * stesso nome (`trovate`) ferma l'automatico: la unisce «Rendi residente qui».
+ */
 export function pianoAllineamento(p: {
   io: string
   case: CaseChat
-  progetti: { id: string; nome: string; percorsi: Record<string, string> }[]
+  progetti: MembroProgetto[]
   /** Se una cartella esiste su questo PC. */
   esiste: (percorso: string) => boolean
   home: string
+  /** Per progetto (id principale del gruppo): una cartella di qui con lo stesso nome, non registrata. */
+  trovate?: Record<string, string>
 }): PianoAllineamento {
   const azioni: AzionePiano[] = []
   let senzaScelta = 0
-  for (const g of p.progetti) {
-    const voluto = casaProgetto(p.case, g.id)
+  for (const g of raggruppaProgetti(p.progetti, p.case)) {
+    const voluto = casaDelGruppo(p.case, g.ids)
     if (voluto === undefined) { senzaScelta += 1; continue }
-    const mio = g.percorsi[p.io]
-    const quiValido = mio !== undefined && cartellaDiProgettoValida(mio, p.home)
-    const quiC = quiValido && p.esiste(mio as string)
+    const mie = g.percorsi.filter((x) => x.pc === p.io).map((x) => x.percorso)
+    const valide = mie.filter((m) => cartellaDiProgettoValida(m, p.home))
+    const presente = valide.find((m) => p.esiste(m))
+    const trovata = p.trovate?.[g.id]
     if (voluto.pc === p.io) {
-      if (quiC) continue
-      // La cartella c'è ma non è registrata come valida, o c'è altro al suo posto: si chiede.
-      const automatica = mio === undefined || (quiValido && !p.esiste(mio))
+      if (presente !== undefined) continue
+      if (trovata !== undefined) {
+        azioni.push({
+          tipo: 'porta-qui', progetto: g.id, nome: g.nome, automatica: false,
+          perche: `Questo PC è il residente di «${g.nome}», e qui c’è già una cartella con lo stesso nome (${trovata}): non la riscarico accanto. «Unisci qui le copie» la confronta con le altre e ne fa una sola, con la tua conferma.`
+        })
+        continue
+      }
+      // Niente registrato qui, o registrato e sparito: si porta giù da solo. Altrimenti (cartella registrata male) si chiede.
+      const automatica = mie.length === 0 || (valide.length === mie.length && valide.every((m) => !p.esiste(m)))
       azioni.push({
         tipo: 'porta-qui', progetto: g.id, nome: g.nome, automatica,
         perche: automatica
           ? `Questo PC è il residente di «${g.nome}», ma qui il progetto non c’è: lo porto giù dal Drive in una cartella nuova, senza sovrascrivere niente.`
-          : `Questo PC è il residente di «${g.nome}», ma la sua cartella qui non è utilizzabile (${mio ?? 'nessuna'}): scegli tu dove portarlo.`
+          : `Questo PC è il residente di «${g.nome}», ma la sua cartella qui non è utilizzabile (${mie.join(', ')}): scegli tu dove portarlo.`
       })
       continue
     }
-    if (quiC) {
+    if (presente !== undefined) {
       azioni.push({
-        tipo: 'solo-cloud', progetto: g.id, nome: g.nome, percorso: mio as string, residente: voluto.pcNome,
-        perche: `Il residente di «${g.nome}» è ${voluto.pcNome}: qui dovrebbe essere solo cloud. La copia di qui (${mio}) per ora resta dov’è: toglierla passa da un controllo che recupera prima quello che c’è solo qui, e da una tua conferma.`
+        tipo: 'solo-cloud', progetto: g.id, nome: g.nome, percorso: presente, residente: voluto.pcNome,
+        perche: `Il residente di «${g.nome}» è ${voluto.pcNome}: qui dovrebbe essere solo cloud. La copia di qui (${presente}) per ora resta dov’è: toglierla passa da un controllo che recupera prima quello che c’è solo qui, e da una tua conferma.`
       })
     }
   }
   return { azioni, senzaScelta }
+}
+
+/**
+ * Un «porta qui» automatico non riuscito si riprova al giro dopo se il motivo
+ * passa da solo (0.60.0): il 10/10 «Salvo sul Drive» era in corso, il porta
+ * qui ha risposto LAVORO_IN_CORSO e non è più ripartito.
+ */
+export function daRiprovare(messaggio: string): boolean {
+  return /LAVORO_IN_CORSO|sta gia'? girando|sta già girando|uno alla volta/i.test(messaggio)
 }
 
 /** Una riga per il registro quando il piano cambia (vuota se non c'è niente da fare). */

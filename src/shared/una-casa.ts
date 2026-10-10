@@ -91,8 +91,12 @@ export type IndiziChat = {
   cartellaQui: boolean
   /** È aperta adesso qui (un riquadro con questa conversazione). */
   apertaQui?: boolean
-  /** Gli altri PC noti: se hanno la cartella e se la chat è aperta là adesso. */
-  altri: { pcId: string; nome: string; haCartella: boolean; aperta: boolean }[]
+  /**
+   * Gli altri PC noti: se hanno la cartella e se la chat è aperta là adesso.
+   * `stessoNome` (0.60.0): hanno una cartella con lo stesso nome in un altro
+   * percorso, cioè lo stesso progetto.
+   */
+  altri: { pcId: string; nome: string; haCartella: boolean; aperta: boolean; stessoNome?: boolean }[]
   /** La copia sul Drive, se c'è: lunghezza e chi l'ha caricata (dalla 0.42.0). */
   drive?: { size: number; pc?: string }
 }
@@ -112,9 +116,13 @@ export function decidiCasa(i: IndiziChat, io: { id: string; nome: string }, memo
   if (i.qui !== undefined && i.drive === undefined && !i.altri.some((a) => a.aperta)) {
     return { pc: io.id, pcNome: io.nome, motivo: `è nata su ${io.nome}: non è mai stata su nessun altro PC`, regola: 'nascita' }
   }
-  // 2. La cartella c'è su un PC solo.
+  // 2. La cartella c'è su un PC solo. Non se un altro PC ha una cartella con
+  // lo stesso nome (0.60.0): è lo stesso progetto, e la casa la decide il
+  // progetto (scelta di Nicholas) o l'attività, non il percorso. Il caso
+  // «MT5»: la regola aveva dato la casa al PC con un'altra «Trading».
   const conCartella = [...(i.cartellaQui ? [{ pcId: io.id, nome: io.nome }] : []), ...i.altri.filter((a) => a.haCartella)]
-  if (i.cwd !== undefined && conCartella.length === 1) {
+  const stessoNome = i.altri.filter((a) => !a.haCartella && a.stessoNome === true)
+  if (i.cwd !== undefined && conCartella.length === 1 && stessoNome.length === 0) {
     const c = conCartella[0] as { pcId: string; nome: string }
     return { pc: c.pcId, pcNome: c.nome, motivo: `la sua cartella${dove} c'è solo su ${c.nome}`, regola: 'cartella' }
   }

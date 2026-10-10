@@ -6,6 +6,7 @@ import { percorsoSicuro, ripristina, type Radice } from './raccolta'
 import { leggiManifesto, scriviManifesto, nomeDi, prefissoDi, stessaFirma, nomeCopiaConflitto, manifestoVuoto, type Manifesto, conLimite, PARALLELI, impronta } from './incrementale'
 import { aggiungiPaneA, unaChatUnWorkspace, type Archivio as ArchivioWorkspace, type LayoutSalvato } from '@shared/workspace'
 import type { RegistroProgetti, ProgettoDrive } from '../progetti/registro'
+import { unionePiuRecente } from '../progetti/registro'
 
 /**
  * Fondere un PC con un Drive che ha gia' altre conversazioni.
@@ -366,7 +367,9 @@ export function fondiRegistri(a: RegistroProgetti, b: RegistroProgetti): Registr
     perId.set(p.id, gia === undefined ? p : {
       ...gia,
       percorsi: { ...p.percorsi, ...gia.percorsi },
-      ...(gia.origini !== undefined || p.origini !== undefined ? { origini: [...new Set([...(gia.origini ?? []), ...(p.origini ?? [])])] } : {})
+      ...(gia.origini !== undefined || p.origini !== undefined ? { origini: [...new Set([...(gia.origini ?? []), ...(p.origini ?? [])])] } : {}),
+      // Un'unione confermata da Nicholas (0.60.0) non si perde unendo i registri: vince la più recente.
+      ...unionePiuRecente(gia, p)
     })
   }
   // Lo stesso progetto adottato da due PC nello stesso momento ha due id:

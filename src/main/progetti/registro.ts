@@ -33,6 +33,16 @@ export type ProgettoDrive = {
    * che la citano vengono rimappate su quella di qui (`rimappaCwd`).
    */
   origini?: string[]
+  /**
+   * Unito in un altro progetto (0.60.0, «Rendi residente» confermato da
+   * Nicholas): l'id del principale. Resta nel registro perché i suoi file sul
+   * Drive stanno sotto il suo prefisso, ma non sale più da nessun PC e si
+   * mostra dentro il principale. Stringa vuota = separato di nuovo («Annulla
+   * l'unione»). Unendo i registri dei PC vince la scelta con `unitoIl` più recente.
+   */
+  unitoIn?: string
+  /** Quando è stato unito (o separato). */
+  unitoIl?: string
 }
 
 export type RegistroProgetti = { versione: 1; progetti: ProgettoDrive[] }
@@ -66,7 +76,9 @@ export function parseRegistro(raw: unknown): RegistroProgetti {
     progetti.push({
       id: q.id, nome: q.nome, percorsi,
       aggiuntoIl: typeof q.aggiuntoIl === 'string' ? q.aggiuntoIl : '',
-      ...(origini.length > 0 ? { origini } : {})
+      ...(origini.length > 0 ? { origini } : {}),
+      ...(typeof q.unitoIn === 'string' && q.unitoIn !== q.id && (q.unitoIn !== '' || typeof q.unitoIl === 'string') ? { unitoIn: q.unitoIn } : {}),
+      ...(typeof q.unitoIl === 'string' ? { unitoIl: q.unitoIl } : {})
     })
   }
   return { versione: 1, progetti }
@@ -146,6 +158,19 @@ export function collegaProgetto(reg: RegistroProgetti, id: string, pcId: string,
     ...reg,
     progetti: reg.progetti.map((x) => (x.id === id ? { ...x, percorsi: { ...x.percorsi, [pcId]: percorso } } : x))
   }
+}
+
+/** L'unione più recente fra due copie dello stesso progetto (0.60.0). */
+export function unionePiuRecente(a: ProgettoDrive, b: ProgettoDrive): { unitoIn?: string; unitoIl?: string } {
+  const sa = a.unitoIl ?? (a.unitoIn !== undefined ? '0' : '')
+  const sb = b.unitoIl ?? (b.unitoIn !== undefined ? '0' : '')
+  const v = sb > sa ? b : a
+  return { ...(v.unitoIn !== undefined ? { unitoIn: v.unitoIn } : {}), ...(v.unitoIl !== undefined ? { unitoIl: v.unitoIl } : {}) }
+}
+
+/** Unito in un altro progetto, adesso (la stringa vuota è «separato di nuovo»). */
+export function eUnito(p: { unitoIn?: string }): boolean {
+  return p.unitoIn !== undefined && p.unitoIn !== ''
 }
 
 export function rimuoviProgetto(reg: RegistroProgetti, id: string): RegistroProgetti {

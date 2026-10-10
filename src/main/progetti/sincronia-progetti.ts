@@ -2,7 +2,7 @@ import { existsSync, mkdirSync } from 'node:fs'
 import type { Radice } from '../cassaforte/raccolta'
 import { elencaFileProgetto } from './file'
 import {
-  collegaProgetto, percorsoLocale, prefissoProgetto, PREFISSO_PROGETTI,
+  collegaProgetto, eUnito, normalizzaPercorso, percorsoLocale, prefissoProgetto, PREFISSO_PROGETTI,
   type ProgettoDrive, type RegistroProgettiStore
 } from './registro'
 
@@ -59,10 +59,19 @@ export function creaProgettiSync(deps: {
       const pc = deps.pcId()
       const esclusi = deps.esclusi?.() ?? new Set<string>()
       const fuori: Radice[] = []
-      for (const p of deps.registro.leggi().progetti) {
-        if (esclusi.has(p.id)) continue
+      // Una cartella sale una volta sola (0.60.0): lo stesso progetto
+      // registrato con più id e la stessa cartella saliva una volta per id.
+      // Sale sotto l'id più vecchio; un id unito in un altro non sale più.
+      const viste = new Set<string>()
+      const ordinati = [...deps.registro.leggi().progetti].sort((a, b) => (a.aggiuntoIl ?? '').localeCompare(b.aggiuntoIl ?? '') || a.id.localeCompare(b.id))
+      for (const p of ordinati) {
+        if (esclusi.has(p.id) || eUnito(p)) continue
         const mio = p.percorsi[pc]
-        if (mio !== undefined && esiste(mio)) fuori.push(radiceDi(p, mio))
+        if (mio === undefined || !esiste(mio)) continue
+        const k = normalizzaPercorso(mio)
+        if (viste.has(k)) continue
+        viste.add(k)
+        fuori.push(radiceDi(p, mio))
       }
       return fuori
     },
@@ -74,6 +83,8 @@ export function creaProgettiSync(deps: {
       const fuori: Radice[] = []
       for (const p of reg.progetti) {
         if (soloId !== undefined && !soloId.has(p.id)) continue
+        // Unito in un altro (0.60.0): i suoi file arrivano con il principale.
+        if (eUnito(p)) continue
         const locale = percorsoLocale(p, pc, deps.cartellaProgetti())
         if (locale.nuovo) {
           reg = collegaProgetto(reg, p.id, pc, locale.percorso)

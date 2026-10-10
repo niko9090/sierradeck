@@ -41,6 +41,17 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.60.0',
+    righe: [
+      '**Stesso nome, stesso progetto.** Nel pannello «Progetti» i progetti con lo stesso nome — anche scritto in modo diverso, con un «(2)» in fondo, o con la cartella in un percorso diverso su ogni PC — sono uno solo. Lo stesso per i workspace con lo stesso nome. Sotto ogni progetto vedi quante volte era registrato e quali workspace gli appartengono.',
+      '**«Rendi residente qui» prima guarda, poi unisce.** Raccoglie tutte le copie del progetto (le cartelle di questo PC, quelle degli altri PC salvate sul Drive, le chat, le note e il quaderno), le confronta file per file e ti mostra un riassunto: cosa unisce, cosa tiene, cosa va in recupero. Solo con «Conferma e unisci» il progetto diventa uno solo, con un workspace solo; le copie doppie vanno nella cartella di recupero per 30 giorni. Niente si cancella, e «Annulla l’unione» rimette tutto com’era.',
+      '**Non riscarica più un progetto che c’è già.** Rendere residente «SierraDeck» o «Wdeck» su questo PC faceva partire un «porta qui» dal Drive in una cartella nuova, accanto a quella vera, perché il progetto era registrato con un altro nome di cartella. Adesso il PC riconosce la sua cartella con lo stesso nome; e se un salvataggio sul Drive è in corso, il «porta qui» aspetta e riprova invece di fermarsi per sempre.',
+      '**Una casa sola per progetto.** Quando scegli il PC residente di un progetto, vale per tutte le sue chat, anche quelle che una regola automatica aveva messo altrove per via di una cartella con lo stesso nome su un altro PC (era il caso di MT5). Una scelta fatta dopo per una chat sola resta.',
+      '**Le chat senza nome spariscono dagli elenchi.** Quelle senza un titolo non stanno più in «Riprendi» e nel pannello: si lavora per progetti e workspace. Non sono cancellate, restano contate nel loro progetto, e la casella «mostra anche le senza nome» le rimette.',
+      '**Anche dal telefono e dalla pagina.** Progetti unificati, riassunto da confermare, «Annulla l’unione» e chat senza nome nascoste ci sono anche nell’app (Android 2.60.0) e nella pagina.'
+    ]
+  },
+  {
     versione: '0.59.0',
     righe: [
       '**Gli autopiloti degli altri PC, da qui.** In «Autopiloti» compaiono anche quelli che girano sugli altri tuoi PC, con scritto «gira su …». Apri la loro scheda come quella degli autopiloti di qui: stato, criteri, ultime mosse, domande in attesa e dialogo. Puoi scrivergli, rispondere alle domande, fermarli e farli riprendere: tutto arriva al PC dove girano.',

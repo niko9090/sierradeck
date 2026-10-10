@@ -334,7 +334,8 @@ export type DipendenzeRotte = {
    * conversazione nuova nella cartella — con tutto quello che c'era dentro
    * rimasto da un'altra parte.
    */
-  sessioni: () => Promise<{ id: string; cwd: string; titolo: string; quando: string }[]>
+  /** `senzaNome` (0.60.0): niente titolo di Claude né domanda; fuori dall'elenco salvo richiesta. */
+  sessioni: () => Promise<{ id: string; cwd: string; titolo: string; quando: string; senzaNome?: boolean }[]>
   /**
    * La cartella di una chat e' di un altro PC (il suo battito, il registro, il
    * Drive lo dicono): il nome di quel PC. Dal telefono la chat si segna
@@ -1739,7 +1740,13 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     }
 
     if (r.percorso === '/api/sessioni') {
-      const elenco = await deps.sessioni().catch(() => [])
+      // Le chat senza nome (0.60.0) non sono nell'elenco: si lavora per
+      // progetti e workspace. Non sono cancellate: `nascoste` dice quante, e
+      // `{ senzaNome: true }` le rimette («mostra anche le senza nome»).
+      const tutte = await deps.sessioni().catch(() => [])
+      const conAnonime = typeof r.corpo === 'object' && r.corpo !== null && (r.corpo as { senzaNome?: unknown }).senzaNome === true
+      const elenco = (conAnonime ? tutte : tutte.filter((s) => s.senzaNome !== true)).slice(0, 30)
+      const nascoste = conAnonime ? 0 : tutte.filter((s) => s.senzaNome === true).length
       const conAltrove = elenco.map((s) => ({ s, su: deps.chatAltrove?.(s.cwd) }))
       // «su X · acceso / spento», come l'elenco «Riprendi» sul computer
       // (0.33.0): il telefono diceva solo «su X», e non si sapeva se quel PC
@@ -1757,7 +1764,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           altrove: su,
           ...(accesi.has(su) ? { altroveAcceso: accesi.get(su) } : {}),
           ...(idDi.has(su) ? { altrovePc: idDi.get(su) } : {})
-        })
+        }),
+        nascoste
       })
     }
 

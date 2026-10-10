@@ -648,8 +648,9 @@ data class TentativoFallitoPc(
 )
 
 // ─── /api/sessioni ───
+/** `nascoste` (PC 0.60.0): le chat senza nome fuori dall'elenco, non cancellate. */
 @Serializable
-data class Sessioni(val sessioni: List<SessioneRipresa> = emptyList())
+data class Sessioni(val sessioni: List<SessioneRipresa> = emptyList(), val nascoste: Int = 0)
 
 @Serializable
 data class SessioneRipresa(
@@ -670,7 +671,9 @@ data class SessioneRipresa(
      */
     val altroveAcceso: Boolean? = null,
     /** L'id di quel PC (PC 0.58.4): per scriverle da qui, e là parte in sottofondo. */
-    val altrovePc: String? = null
+    val altrovePc: String? = null,
+    /** Senza nome (PC 0.60.0): c'è solo con «mostra anche le senza nome». */
+    val senzaNome: Boolean = false
 )
 
 // ─── risposta generica delle azioni ───

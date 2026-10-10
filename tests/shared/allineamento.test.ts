@@ -36,7 +36,7 @@ describe('il piano di allineamento', () => {
     case: cc(scelta('p-qui', 'pc-qui'), scelta('p-port', 'pc-port'), scelta('p-nuovo', 'pc-qui'))
   })
   it('residente qui e presente: niente; residente altrove e presente qui: «solo cloud»; residente qui e assente: «porta qui» da solo', () => {
-    expect(piano.azioni.map((a) => `${a.tipo}:${a.progetto}`)).toEqual(['solo-cloud:p-port', 'porta-qui:p-nuovo'])
+    expect(piano.azioni.map((a) => `${a.tipo}:${a.progetto}`).sort()).toEqual(['porta-qui:p-nuovo', 'solo-cloud:p-port'])
     const porta = piano.azioni.find((a) => a.tipo === 'porta-qui')
     expect(porta?.tipo === 'porta-qui' && porta.automatica).toBe(true)
     expect(piano.senzaScelta).toBe(1)

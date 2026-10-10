@@ -168,3 +168,7 @@ Test in `tests/main/rimozione-sicura.test.ts`, su cartelle temporanee:
   - Due testi corretti dopo la prova: «Quel PC» al posto di «Questo PC», e il messaggio del cambio di residente che parla del progetto e non di «la chat».
   - Copia e cartelle finte cancellate; nessun claude.exe orfano.
 - **Da fare dal vero con Nicholas**: il giro intero fra due PC veri, con il Drive (piano di allineamento e «Rendi solo cloud qui» con il residente acceso).
+
+# Dalla 0.60.0
+
+Il pannello mostra un progetto per nome (normalizzato), e «Rendi residente qui» analizza e unisce le copie con un riassunto da confermare. Vedi `progetti-unificati-e-rendi-residente-0-60-0.md`.

@@ -32,7 +32,9 @@ type Cambio = { cosa: 'chat' | 'progetto'; nome: string; sessioni: string[]; da?
 export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): React.JSX.Element {
   const [d, setD] = useState<Pannello | undefined>(undefined)
   const [errore, setErrore] = useState<string | undefined>(undefined)
-  const [vista, setVista] = useState<'chat' | 'progetti'>('chat')
+  // Si lavora per progetti e workspace (0.60.0): il pannello si apre sui progetti.
+  const [vista, setVista] = useState<'chat' | 'progetti'>('progetti')
+  const [senzaNome, setSenzaNome] = useState(false)
   const [filtro, setFiltro] = useState<FiltroPannello>('tutti')
   const [q, setQ] = useState('')
   const [quante, setQuante] = useState(PASSO)
@@ -72,7 +74,21 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
   useEffect(() => { setQuante(PASSO) }, [vista, filtro, q])
 
   const pc = useMemo(() => (d === undefined ? [] : [d.io, ...d.pc]), [d])
-  const chat = useMemo(() => (d === undefined ? [] : filtraChat(d.chat, filtro, q)), [d, filtro, q])
+  const chat = useMemo(() => (d === undefined ? [] : filtraChat(d.chat, filtro, q, senzaNome)), [d, filtro, q, senzaNome])
+  const nascoste = d === undefined ? 0 : d.chat.filter((c) => c.senzaNome === true).length
+  /** «Rendi residente» (0.60.0): conferma, annulla, annulla l'unione. */
+  const residenza = (azione: 'conferma-residenza' | 'annulla-residenza' | 'annulla-unione', progetto: string, id?: string): void => {
+    setOccupato(true); setMsg(undefined)
+    void window.gestore.casa.azione({ azione, progetto, ...(id !== undefined ? { id } : {}) }).then((r) => { setMsg(r.messaggio); leggi() })
+      .catch((e: unknown) => setMsg(`Non è andata: ${String(e)}`)).finally(() => setOccupato(false))
+  }
+  // Mentre un'analisi o un'unione lavora, il pannello si rilegge da solo.
+  const lavora = d?.residenza?.some((s) => s.fase === 'analisi' || s.fase === 'unisco') === true
+  useEffect(() => {
+    if (!lavora) return
+    const t = setInterval(leggi, 2000)
+    return () => clearInterval(t)
+  }, [lavora, leggi])
   const progetti = useMemo(() => (d === undefined ? [] : filtraProgetti(d.progetti, filtro, q)), [d, filtro, q])
   const sbagliati = d === undefined ? 0 : (vista === 'chat' ? d.chat : d.progetti).filter((r) => r.problemi.length > 0).length
 
@@ -167,6 +183,25 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
           </div>
         ) : null}
         {msg !== undefined ? <div className="riga__stato" style={{ marginBottom: 6 }}>{msg}</div> : null}
+        {d !== undefined && (d.unioni ?? []).length > 0 ? (
+          <div className="riordina__gruppo" style={{ marginBottom: 8 }}>
+            <span className="serigrafia">Unioni fatte</span>
+            <p className="account__nota" style={{ margin: '4px 0' }}>
+              I progetti uniti con «Rendi residente qui» negli ultimi 30 giorni. «Annulla l’unione» rimette com’erano le cartelle
+              doppie (dalla cartella di recupero), i file sostituiti, le trascrizioni delle chat, i workspace e il registro; i file
+              entrati con l’unione escono e vanno nei recuperati, non si cancellano. La casa delle chat resta su questo PC: se vuoi,
+              scegline un’altra.
+            </p>
+            {(d.unioni ?? []).map((u) => (
+              <div key={u.id} className="dove__riga" title={u.destinazione}>
+                <span className="riordina__testo" style={{ flex: 1 }}>
+                  <b>{u.nome}</b> <span className="account__nota">· unito il {quando(u.quando)} in {u.destinazione} · annullabile fino al {quando(u.scadeIl)}</span>
+                </span>
+                <button className="tasto tasto--mini" disabled={occupato} onClick={() => residenza('annulla-unione', u.progetto, u.id)}>Annulla l’unione</button>
+              </div>
+            ))}
+          </div>
+        ) : null}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
           <button className={`tasto tasto--mini${vista === 'chat' ? ' tasto--acceso' : ''}`} onClick={() => setVista('chat')}>Chat{d !== undefined ? ` (${d.chat.length})` : ''}</button>
           <button className={`tasto tasto--mini${vista === 'progetti' ? ' tasto--acceso' : ''}`} onClick={() => setVista('progetti')}>Progetti{d !== undefined ? ` (${d.progetti.length})` : ''}</button>
@@ -177,6 +212,11 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
             </button>
           ))}
           <input className="campo campo--mini" placeholder="Cerca titolo, cartella o PC" value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1, minWidth: 160 }} />
+          {vista === 'chat' && nascoste > 0 ? (
+            <label className="account__nota" title="Le chat senza un titolo non stanno negli elenchi: si lavora per progetti e workspace. Non sono cancellate, e restano contate nel loro progetto.">
+              <input type="checkbox" checked={senzaNome} onChange={(e) => setSenzaNome(e.target.checked)} /> mostra anche le senza nome ({nascoste})
+            </label>
+          ) : null}
         </div>
 
         {rim.inRecupero.filter((c) => c.ripristinataIl === undefined).length > 0 ? (
@@ -231,10 +271,35 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
                   <span className="account__nota" style={{ display: 'block' }}>
                     Residente: {r.residente === undefined ? <i>nessuno</i> : <b>{r.residente.nome}{r.residente.qui ? ' (questo PC)' : ''}</b>}
                     {r.residente !== undefined ? (r.voluto ? ' (scelto per il progetto: gli altri PC lo tengono solo cloud)' : ' (dalla maggior parte delle sue chat: non ancora scelto)') : null}
-                    {' · '}{r.chat} chat · cartella su: {r.cartelle.length === 0 ? 'nessun PC' : r.cartelle.map((c) => c.nome).join(', ')}
-                    {' · '}qui sul disco: {r.cartellaQui ? 'sì' : 'no'}{' · '}ultimo uso: {quando(r.ultimoUso)}
+                    {' · '}{r.chat} chat{r.chatSenzaNome > 0 ? ` (di cui ${r.chatSenzaNome} senza nome)` : ''} · cartella su: {r.cartelle.length === 0 ? 'nessun PC' : [...new Set(r.cartelle.map((c) => c.nome))].join(', ')}
+                    {' · '}qui sul disco: {r.cartellaQui ? (r.cartellaTrovata !== undefined ? `sì, ${r.cartellaTrovata} (trovata per nome, non ancora registrata)` : 'sì') : 'no'}{' · '}ultimo uso: {quando(r.ultimoUso)}
+                    {r.ids.length > 1 || r.workspace.length > 1 ? (
+                      <span style={{ display: 'block' }}>
+                        Stesso nome, stesso progetto: {r.ids.length > 1 ? `${r.ids.length} voci nel registro del Drive` : 'una voce nel registro'}
+                        {r.cartelle.filter((c) => c.pc === d.io.id).length > 1 ? `, ${r.cartelle.filter((c) => c.pc === d.io.id).length} cartelle qui (${r.cartelle.filter((c) => c.pc === d.io.id).map((c) => c.percorso).join(', ')})` : ''}
+                        {r.workspace.length > 1 ? `, workspace ${r.workspace.map((w) => `«${w}»`).join(', ')}` : ''}: qui li vedi come uno solo; «{r.residente?.qui === true ? 'Unisci qui le copie' : 'Rendi residente qui'}» li unisce davvero, dopo il riassunto.
+                      </span>
+                    ) : null}
                   </span>
                   {problemi(r)}
+                  {(() => {
+                    const st = d.residenza?.find((x) => x.progetto === r.id)
+                    if (st === undefined || st.fase === 'annullata') return null
+                    return (
+                      <div className="account__nota" style={{ borderLeft: '3px solid var(--verde)', paddingLeft: 6, marginTop: 4 }}>
+                        <b>{st.fase === 'analisi' ? 'Raccolgo e confronto le copie…' : st.fase === 'unisco' ? 'Unisco…' : st.fase === 'attesa-conferma' ? 'Riassunto: cosa unisco, cosa tengo, cosa va in recupero' : st.fase === 'fatta' ? 'Unito' : st.fase === 'in-uso' ? 'In attesa' : 'Non riuscito'}</b>
+                        {st.riassunto !== undefined && st.fase === 'attesa-conferma'
+                          ? <ul style={{ margin: '4px 0', paddingLeft: 18 }}>{st.riassunto.righe.map((x) => <li key={x}>{x}</li>)}</ul>
+                          : <div>{st.messaggio}</div>}
+                        {st.fase === 'attesa-conferma' || st.fase === 'in-uso' ? (
+                          <div style={{ marginTop: 4 }}>
+                            <button className="tasto tasto--mini tasto--acceso" disabled={occupato} onClick={() => residenza('conferma-residenza', r.id)}>Conferma e unisci</button>{' '}
+                            <button className="tasto tasto--mini" disabled={occupato} onClick={() => residenza('annulla-residenza', r.id)}>Annulla</button>
+                          </div>
+                        ) : null}
+                      </div>
+                    )
+                  })()}
                   {(() => {
                     const st = rim.stati.find((x) => x.progetto === r.id)
                     if (st === undefined) return null
@@ -253,12 +318,17 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
                 </span>
                 <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <select className="campo campo--mini" value="" disabled={occupato} title="Scegli il PC residente del progetto: le sue chat vivono lì, gli altri PC lo tengono solo cloud"
-                    onChange={(e) => sceltaPc(e.target.value, (verso) => setCambio({
+                    onChange={(e) => sceltaPc(e.target.value, (verso) => {
+                      // Questo PC (0.60.0): prima l'analisi delle copie e il riassunto, poi l'unione con la conferma.
+                      const qui = r.azioni.find((a) => a.id === 'residente-qui')
+                      if (verso.pc === d.io.id && qui !== undefined) { setAzioneDa({ progetto: r.id, nome: r.nome, a: qui }); return }
+                      setCambio({
                       // Anche lo stato voluto del progetto (0.58.0): residente là, solo cloud sugli altri.
                       cosa: 'progetto', nome: r.nome, sessioni: [...sessioni, chiaveProgetto(r.id)],
                       ...(r.residente !== undefined ? { da: { pc: r.residente.pc, nome: r.residente.nome } } : {}),
                       verso, cartellaLa: r.cartelle.some((c) => c.pc === verso.pc)
-                    }))}>
+                    })
+                    })}>
                     <option value="">Rendi residente…</option>
                     {pc.map((p) => <option key={p.id} value={p.id}>{p.nome}{p.id === d.io.id ? ' (questo PC)' : ''}</option>)}
                   </select>

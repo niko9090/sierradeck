@@ -1452,3 +1452,25 @@ describe('il negozio dal telefono e dalla pagina (0.53.0)', () => {
     expect(r.corpo).toEqual({ mcp: [], errore: 'Nessuna chat aperta sul computer.' })
   })
 })
+
+describe('le chat senza nome (0.60.0)', () => {
+  const d = deps({
+    sessioni: () => Promise.resolve([
+      { id: 's-a', cwd: 'C:\\lavoro', titolo: 'Fatture', quando: '2026-10-10T10:00:00Z' },
+      { id: 's-b', cwd: 'C:\\lavoro', titolo: 'lavoro', quando: '2026-10-10T09:00:00Z', senzaNome: true }
+    ])
+  })
+  it('non sono nell’elenco, ma il conto dice quante sono nascoste', async () => {
+    const r = await rotteClient(d)({ metodo: 'GET', percorso: '/api/sessioni', corpo: undefined })
+    const c = r.corpo as { sessioni: { id: string }[]; nascoste: number }
+    expect(c.sessioni.map((s) => s.id)).toEqual(['s-a'])
+    expect(c.nascoste).toBe(1)
+  })
+  it('«mostra anche le senza nome» le rimette: non sono cancellate', async () => {
+    const r = await rotteClient(d)({ metodo: 'POST', percorso: '/api/sessioni', corpo: { senzaNome: true } })
+    const c = r.corpo as { sessioni: { id: string; senzaNome?: boolean }[]; nascoste: number }
+    expect(c.sessioni.map((s) => s.id)).toEqual(['s-a', 's-b'])
+    expect(c.sessioni[1]?.senzaNome).toBe(true)
+    expect(c.nascoste).toBe(0)
+  })
+})
