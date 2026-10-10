@@ -423,7 +423,7 @@ Due richieste arrivate mentre il mandato era chiuso, fatte in autonomia.
 
 **Il telefono.** Dal PC (alle 01:48) tutto risulta a posto: server in ascolto
 su tutte le interfacce, firewall con le regole giuste, indirizzo del QR
-`192.168.1.191` (profilo Privato). Ma il telefono accoppiato (SM-S938B) non
+`192.0.2.10` (profilo Privato). Ma il telefono accoppiato (SM-S938B) non
 si presenta a questo PC dal **10 settembre**, e nei registri non c'è nessuna
 riga del Client perché i rifiuti (403 rete, 401 chiave) andavano solo in
 console. Corretto: `creaServerClient({ log })` scrive nel registro i rifiuti

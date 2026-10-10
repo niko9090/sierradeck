@@ -25,7 +25,7 @@ Il PC (fino alla 0.33.0) risponde `pronto` + `errore` quando l'attesa della quie
 
 # Come si e' debuggato (riusabile)
 
-Debug wireless Android via Tailscale: `adb pair <ip>:<porta della finestra "Associa"> <codice>` (la porta di associazione e' DIVERSA da quella della schermata principale), poi `adb connect <ip>:<porta principale>`; `adb exec-out screencap -p > file.png` e leggere l'immagine. L'app release non e' debuggable (`run-as` no) e non logga gli errori HTTP: le foto dello schermo sono l'unica prova. Il telefono di Nicholas: S25 Ultra, `100.120.40.52` in Tailscale.
+Debug wireless Android via Tailscale: `adb pair <ip>:<porta della finestra "Associa"> <codice>` (la porta di associazione e' DIVERSA da quella della schermata principale), poi `adb connect <ip>:<porta principale>`; `adb exec-out screencap -p > file.png` e leggere l'immagine. L'app release non e' debuggable (`run-as` no) e non logga gli errori HTTP: le foto dello schermo sono l'unica prova. Il telefono di Nicholas: S25 Ultra, `100.64.0.11` in Tailscale.
 
 # Scoperto per strada
 

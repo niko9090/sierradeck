@@ -9,9 +9,9 @@ tag: ["telefono", "client", "diagnosi", "registro", "android"]
 - SierraDeck 0.25.1 in esecuzione (la 0.26.0 è pubblicata dalle 23:57 ma
   non ancora installata: si installa alla chiusura); il server del Client
   ascolta su `0.0.0.0:47640`, il servizio autopiloti su `127.0.0.1:47630`.
-- Rete: Ethernet 2 `192.168.1.191` (profilo **Privato**, con gateway → è
+- Rete: Ethernet 2 `192.0.2.10` (profilo **Privato**, con gateway → è
   l'indirizzo del QR, `indirizzoPrincipale` con `Get-NetIPConfiguration`),
-  Tailscale `100.100.60.114` (Privato), più due adattatori virtuali
+  Tailscale `100.64.0.10` (Privato), più due adattatori virtuali
   (192.168.56.1 VirtualBox, 172.17.80.1 Hyper-V) che il QR non usa.
 - Firewall: regole «sierradeck.exe» TCP e UDP, in entrata, Consenti,
   Privato+Pubblico, sul percorso giusto
@@ -46,9 +46,9 @@ registro dirà una di queste tre cose:
 1. Aprire l'app e leggere il messaggio sotto «non risponde»: dice da quale
    rete sta provando. Se c'è una VPN, usare l'indirizzo Tailscale (100.…).
 2. Nelle postazioni dell'app controllare che l'indirizzo sia
-   `192.168.1.191:47640` (il QR di adesso), non un vecchio IP.
+   `192.0.2.10:47640` (il QR di adesso), non un vecchio IP.
 3. Dopo l'aggiornamento alla 0.27.0, riprovare e leggere il registro
    (Account → «Registro attività»): le righe `[client]` dicono il resto.
-4. Se le righe non ci sono e l'indirizzo è giusto: `curl http://192.168.1.191:47640/api/ciao`
+4. Se le righe non ci sono e l'indirizzo è giusto: `curl http://192.0.2.10:47640/api/ciao`
    da un altro PC sulla stessa rete; se non risponde è il firewall o la
    rete, non SierraDeck.

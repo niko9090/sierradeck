@@ -113,12 +113,12 @@ describe('il postino', () => {
 
   it('il battito dice dove bussare (indirizzi e porta), e gli altri lo leggono; senza rete non lo dice', async () => {
     const scatola = scatolaInMemoria()
-    const torre = ambiente({ pcId: 'A', nome: 'Torre', scatola, rete: { indirizzi: ['192.168.1.191', '100.100.60.114'], porta: 47640 } })
+    const torre = ambiente({ pcId: 'A', nome: 'Torre', scatola, rete: { indirizzi: ['192.0.2.10', '100.64.0.10'], porta: 47640 } })
     const portatile = ambiente({ pcId: 'B', nome: 'Portatile', scatola })
     await torre.postino.giro()
     await portatile.postino.giro()
     const [vista] = await portatile.postino.pc()
-    expect(vista?.indirizzi).toEqual(['192.168.1.191', '100.100.60.114'])
+    expect(vista?.indirizzi).toEqual(['192.0.2.10', '100.64.0.10'])
     expect(vista?.porta).toBe(47640)
     const [vistaB] = await torre.postino.pc()
     expect(vistaB?.indirizzi).toBeUndefined()

@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.57.2',
+    righe: [
+      '**Niente più dati delle tue macchine nel codice pubblico.** Indirizzi di rete, nomi e codici dei tuoi PC che erano rimasti in commenti, test e note di versione sono stati sostituiti con valori d’esempio. Il programma funziona esattamente come prima.',
+      '**App Android 2.57.2**, con la stessa pulizia nei commenti.'
+    ]
+  },
+  {
     versione: '0.57.1',
     righe: [
       '**Le istruzioni degli autopiloti non spariscono più dopo un riavvio del servizio.** Il servizio ricominciava a contare le consegne da 1 a ogni avvio, e il programma scambiava una consegna nuova per una vecchia già scritta: la confermava senza scriverla, e il file con le istruzioni veniva sovrascritto. Adesso i numeri continuano, e una consegna si riconosce anche dal suo testo.',
@@ -1033,7 +1040,7 @@ export const NOVITA: Novita[] = [
     versione: '0.12.23',
     righe: [
       '**Dal telefono si passa da un computer all’altro con un tocco.** Chi ne ha più di uno in casa restava legato al primo con cui si era accoppiato: per cambiarlo bisognava buttare via l’accoppiamento e rifarlo col QR. Ora c’è l’elenco delle **postazioni** — in cima a ogni schermata, con il nome del computer che stai guardando — e tornare a uno già visto non chiede nessun codice: la chiave di ognuno era già salvata, mancava solo il modo di sceglierla.',
-      '**Le postazioni spuntate non si dimenticano mai**, quelle di passaggio si potano da sole. E ognuna si può rinominare: «studio» si legge, `192.168.1.191` no.',
+      '**Le postazioni spuntate non si dimenticano mai**, quelle di passaggio si potano da sole. E ognuna si può rinominare: «studio» si legge, `192.0.2.10` no.',
       '**Il computer dice come si chiama** (dietro la chiave, non a chiunque sia sulla rete), così l’elenco sul telefono porta nomi veri invece di indirizzi.'
     ]
   },

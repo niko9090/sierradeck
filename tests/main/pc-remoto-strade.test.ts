@@ -11,8 +11,8 @@ import { provaCasa } from '../../src/main/casa-firma'
  * sta usando.
  */
 const LAPTOP: BattitoPc = {
-  pcId: 'lap', nome: 'LAPTOP-E60QM2D1', versione: '0.40.0', battito: '2026-10-02T11:59:00.000Z',
-  cartelle: [], chat: [], indirizzi: ['192.168.1.177', '100.117.177.78'], porta: 47640
+  pcId: 'lap', nome: 'PORTATILE-ESEMPIO', versione: '0.40.0', battito: '2026-10-02T11:59:00.000Z',
+  cartelle: [], chat: [], indirizzi: ['192.0.2.20', '100.64.0.20'], porta: 47640
 }
 type Risposta = { status: number; json: () => Promise<unknown> }
 const risponde = (status: number, corpo: unknown = {}): Risposta => ({ status, json: async () => corpo })
@@ -62,13 +62,13 @@ describe('le strade, in ordine', () => {
   it('1. rete di casa: risponde anche Tailscale, ma si usa la rete di casa, e lo si dice', async () => {
     const { c, chiamate } = ambiente({ rete: (url) => url.includes('/api/pc') ? risponde(200) : risponde(200, { chat: [] }) })
     await c.chiama('lap', '/api/stato')
-    expect(chiamate.at(-1)).toBe('http://192.168.1.177:47640/api/stato')
-    expect(c.stradaDi('lap')).toMatchObject({ strada: 'lan', indirizzo: '192.168.1.177' })
+    expect(chiamate.at(-1)).toBe('http://192.0.2.20:47640/api/stato')
+    expect(c.stradaDi('lap')).toMatchObject({ strada: 'lan', indirizzo: '192.0.2.20' })
   })
   it('2. Tailscale, quando la rete di casa tace', async () => {
-    const { c } = ambiente({ rete: (url) => url.startsWith('http://100.117.177.78') ? risponde(200, { chat: [] }) : 'muto' })
+    const { c } = ambiente({ rete: (url) => url.startsWith('http://100.64.0.20') ? risponde(200, { chat: [] }) : 'muto' })
     await c.chiama('lap', '/api/stato')
-    expect(c.stradaDi('lap')).toMatchObject({ strada: 'tailscale', indirizzo: '100.117.177.78' })
+    expect(c.stradaDi('lap')).toMatchObject({ strada: 'tailscale', indirizzo: '100.64.0.20' })
   })
   it('3. niente strada diretta: si apre il WebRTC e intanto si dice «cerco un’altra strada»', async () => {
     const { c, avviati, viaDrive } = ambiente({ rete: () => 'muto', rtc: { stato: 'spento' }, drive: { stato: 200, corpo: {} } })

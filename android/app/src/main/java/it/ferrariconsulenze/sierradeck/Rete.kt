@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
  * quasi sempre tre insieme: il wifi, i dati mobili, e una VPN. Android ne
  * sceglie una come predefinita, e la sceglie guardando **chi porta a Internet**,
  * non chi porta al computer di casa. Basta un wifi che il telefono giudica
- * scadente, o una VPN accesa, perché una richiesta a `192.168.1.191` esca dai
+ * scadente, o una VPN accesa, perché una richiesta a `192.0.2.10` esca dai
  * dati mobili o entri nel tunnel — e da lì quell'indirizzo non esiste.
  *
  * Il risultato, per chi guarda lo schermo, è «non risponde»: identico a un

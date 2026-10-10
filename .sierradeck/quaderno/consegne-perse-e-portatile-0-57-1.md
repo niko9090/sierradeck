@@ -52,3 +52,14 @@ Con la 0.57.1 sui due PC, si apre da questo PC una chat del portatile. Nel regis
 - `[remoto] <portatile>: bussato a N indirizzi, nessuno va bene — …`, con il motivo per ogni indirizzo.
 
 Con queste righe si sa dove si rompe.
+
+# 0.57.2: dati delle macchine tolti dal repository
+
+Commenti, test, novità e schede contenevano ancora indirizzi di rete, nomi e id reali dei PC. Sono stati sostituiti con valori d'esempio:
+- rete di casa `192.0.2.x`, Tailscale `100.64.0.x`;
+- nomi `PC-ESEMPIO`, `PORTATILE-ESEMPIO`;
+- id inventati.
+
+Le relazioni fra i valori sono rimaste le stesse, quindi i test riproducono gli stessi casi. La storia di git non è stata riscritta: lo decide Nicholas.
+
+Prima di ogni commit va passato sul diff il controllo dei dati privati. Lo stesso controllo va fatto sulle schede.

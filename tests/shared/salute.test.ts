@@ -7,7 +7,7 @@ import { componiSalute, erroriDalLog, quantoFa, type IngressiSalute } from '@sha
  */
 const ADESSO = Date.parse('2026-10-02T15:00:00.000Z')
 const REGISTRO = [
-  '2026-10-02T01:23:45.181Z [info] [app] [client] SM-S938B (::ffff:100.120.40.52) collegato',
+  '2026-10-02T01:23:45.181Z [info] [app] [client] SM-S938B (::ffff:100.64.0.11) collegato',
   "2026-10-02T13:53:17.744Z [info] [app] automatico: salvataggio non riuscito (LAVORO_IN_CORSO: sul Drive sta gia' girando «Salvo sul Drive».",
   "2026-10-02T14:08:17.751Z [info] [app] automatico: salvataggio non riuscito (LAVORO_IN_CORSO: sul Drive sta gia' girando «Salvo sul Drive».",
   '2026-10-02T14:43:16.932Z [ERRORE] [app] [electron-updater] Cannot download differentially, fallback to full download: Error: sha512 checksum mismatch',

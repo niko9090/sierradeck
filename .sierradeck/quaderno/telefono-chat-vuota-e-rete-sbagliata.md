@@ -55,7 +55,7 @@ bene, e taceva l'unica che non andava.
 Android la rete.** Un telefono ha quasi sempre tre reti insieme — wifi, dati
 mobili, VPN — e Android sceglie la predefinita guardando **chi porta a
 Internet**, non chi porta al computer di casa. Basta un wifi giudicato scadente,
-o una VPN accesa, perche' una richiesta a `192.168.1.191` esca dai dati mobili o
+o una VPN accesa, perche' una richiesta a `192.0.2.10` esca dai dati mobili o
 entri nel tunnel, dove quell'indirizzo non esiste.
 
 **Come sta adesso** (`Rete.kt`):

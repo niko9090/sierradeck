@@ -9,8 +9,8 @@ import { provaCasa } from '../../src/main/casa-firma'
  * se uno risponde la chat si comanda dal vivo, anche con il Drive scollegato.
  */
 const VECCHIO: BattitoPc = {
-  pcId: 'lap', nome: 'LAPTOP-E60QM2D1', versione: '0.39.2', battito: '2026-09-23T03:34:56.764Z',
-  cartelle: [], chat: [], indirizzi: ['100.72.165.79'], porta: 47640
+  pcId: 'lap', nome: 'PORTATILE-ESEMPIO', versione: '0.39.2', battito: '2026-09-23T03:34:56.764Z',
+  cartelle: [], chat: [], indirizzi: ['100.64.0.21'], porta: 47640
 }
 type Risposta = { status: number; json: () => Promise<unknown> }
 const risponde = (status: number, corpo: unknown = {}): Risposta => ({ status, json: async () => corpo })
@@ -45,12 +45,12 @@ function client(rete: (url: string) => Risposta | 'muto', extra: { ricordati?: s
 describe('il client remoto con il battito vecchio', () => {
   it('il caso vero: il vecchio indirizzo Tailscale è muto, quello nuovo risponde → la chiamata va', async () => {
     const { c, chiamate, ricordati } = client(
-      (url) => url.startsWith('http://100.117.177.78:47640') ? risponde(200, { chat: [{ id: 'x' }] }) : 'muto',
-      { tailscale: ['100.117.177.78'] }
+      (url) => url.startsWith('http://100.64.0.20:47640') ? risponde(200, { chat: [{ id: 'x' }] }) : 'muto',
+      { tailscale: ['100.64.0.20'] }
     )
     await expect(c.chiama('lap', '/api/stato')).resolves.toEqual({ chat: [{ id: 'x' }] })
-    expect(c.indirizzoBuono('lap')).toBe('100.117.177.78')
-    expect(ricordati).toContain('100.117.177.78')
+    expect(c.indirizzoBuono('lap')).toBe('100.64.0.20')
+    expect(ricordati).toContain('100.64.0.20')
     expect(chiamate.some((u) => u.includes('/api/casa'))).toBe(true)
   })
   it('nessuno risponde: «non so se è acceso», mai «spento»', async () => {
@@ -58,7 +58,7 @@ describe('il client remoto con il battito vecchio', () => {
     const err = await c.chiama('lap', '/api/stato').catch((e: unknown) => e)
     expect(err).toBeInstanceOf(ErroreRemoto)
     expect((err as ErroreRemoto).motivo).toBe('non-so')
-    expect((err as ErroreRemoto).message).toContain('Non so se LAPTOP-E60QM2D1 è acceso')
+    expect((err as ErroreRemoto).message).toContain('Non so se PORTATILE-ESEMPIO è acceso')
     expect((err as ErroreRemoto).message).not.toMatch(/è spento/)
     expect((await c.statoDi('lap')).stato).toBe('non-so')
   })

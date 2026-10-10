@@ -20,8 +20,8 @@ Con i PC tutti accesi, una chat aperta sull'altro PC dà errori e non si può sc
 - **Il nostro difetto**: dopo lo scarto **non restava scritto niente**. Dal riavvio solo «connesso: false», nessuna banda, per 9 giorni.
 - **Gli altri PC «spenti».** I battiti passano solo dal Drive. In `pc-altrui.json` il battito del LAPTOP è fermo al 23/09 alle 03:34.
   - `pc-remoto.ts` lanciava `spento` appena il battito era vecchio, **senza bussare**.
-  - Il portatile invece rispondeva subito: su `192.168.1.177` (rete locale) e su `100.117.177.78`, Tailscale.
-  - Il battito diceva ancora `100.72.165.79`, un indirizzo Tailscale **cambiato**.
+  - Il portatile invece rispondeva subito: su `192.0.2.20` (rete locale) e su `100.64.0.20`, Tailscale.
+  - Il battito diceva ancora `100.64.0.21`, un indirizzo Tailscale **cambiato**.
 
 # Cosa è cambiato
 
@@ -56,7 +56,7 @@ Con i PC tutti accesi, una chat aperta sull'altro PC dà errori e non si può sc
 # Da fare con Nicholas (prova dal vivo)
 
 1. Su ogni PC: Account → Drive → **Collega**, con lo stesso account di prima. Ogni PC tiene il suo account Google: è una decisione di Nicholas del 04/09.
-2. Aprire una chat del portatile dal PC fisso: deve aprirsi dal vivo, viola, «SU LAPTOP-E60QM2D1».
+2. Aprire una chat del portatile dal PC fisso: deve aprirsi dal vivo, viola, «SU PORTATILE-ESEMPIO».
 3. Se torna `invalid_grant` dopo pochi giorni: controllare in Google Cloud Console che l'app OAuth sia «In production» e non «Testing».
 
 # Test

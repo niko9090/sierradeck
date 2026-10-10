@@ -8,7 +8,7 @@ import { indirizziTailscaleDi } from '@shared/scoperta-pc'
  *
  * Il battito sul Drive ricorda gli indirizzi di quando e' stato scritto, ma
  * quelli di Tailscale possono cambiare: il 02/10 il battito del portatile
- * diceva 100.72.165.79, e Tailscale lo dava a 100.117.177.78. Si chiede a
+ * diceva 100.64.0.21, e Tailscale lo dava a 100.64.0.20. Si chiede a
  * `tailscale status --json` (il programma ufficiale, firmato), con un tetto di
  * tre secondi e una memoria di un minuto. Senza Tailscale installato: niente.
  */

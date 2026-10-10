@@ -10,9 +10,9 @@
  * - i battiti passano solo dal Drive, e in `pc-altrui.json` quello del
  *   LAPTOP è fermo al 23/09 alle 03:34;
  * - il Core lo dava «spento» senza nemmeno bussare, ma il portatile era
- *   acceso e rispondeva subito: sulla rete locale (192.168.1.177) e su
- *   Tailscale, con un indirizzo **nuovo** (100.117.177.78, mentre il
- *   battito diceva ancora 100.72.165.79).
+ *   acceso e rispondeva subito: sulla rete locale (192.0.2.20) e su
+ *   Tailscale, con un indirizzo **nuovo** (100.64.0.20, mentre il
+ *   battito diceva ancora 100.64.0.21).
  *
  * Qui le regole pure:
  * - quali indirizzi provare: quello che ha risposto, quelli ricordati, quelli

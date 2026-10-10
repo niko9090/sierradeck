@@ -141,6 +141,6 @@ prefisso `chat` non si perde mai una copia (la perdente diventa una
 conversazione a parte «… (da X)»). Test per tutte e due. Precedenza alta:
 va prima del punto A.
 
-Nota di stato: il portatile LAPTOP-E60QM2D1 ha il Drive **non connesso** dal
+Nota di stato: il portatile PORTATILE-ESEMPIO ha il Drive **non connesso** dal
 16/09 («Drive configurato: true, connesso: false» a ogni avvio): non riceve
 né manda niente dal 15/09 14:33. Va ricollegato da Account → Google Drive.

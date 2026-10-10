@@ -14,7 +14,7 @@ compilare). Risultato: chi ha installato la 0.29.0 ha letto nel registro
 `Drive configurato: false` e, ogni 5 minuti, `SALVA fallito: Google Drive
 non configurato: mancano le credenziali OAuth dell'app`. Il portatile ci è
 rimasto dalle 16:49 alle 17:40: niente salvataggi, niente arrivi. Il fisso
-era ancora alla 0.28.2 (battito `pc-deb4db2834a7`), quindi non toccato.
+era ancora alla 0.28.2 (battito `pc-f6e5d4c3b2a1`), quindi non toccato.
 
 # Come si è rimediato
 

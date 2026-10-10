@@ -18,11 +18,11 @@ describe('l’ordine delle strade', () => {
   })
   it('fra gli indirizzi che rispondono, prima la rete di casa e poi Tailscale', () => {
     // I dati veri del portatile: risponde su tutti e due; Tailscale arriva prima.
-    expect(indirizzoPreferito(['100.117.177.78', '192.168.1.177'])).toBe('192.168.1.177')
-    expect(indirizzoPreferito(['100.117.177.78'])).toBe('100.117.177.78')
+    expect(indirizzoPreferito(['100.64.0.20', '192.0.2.20'])).toBe('192.0.2.20')
+    expect(indirizzoPreferito(['100.64.0.20'])).toBe('100.64.0.20')
     expect(indirizzoPreferito([])).toBeUndefined()
-    expect(stradaDiIndirizzo('100.117.177.78')).toBe('tailscale')
-    expect(stradaDiIndirizzo('192.168.1.177')).toBe('lan')
+    expect(stradaDiIndirizzo('100.64.0.20')).toBe('tailscale')
+    expect(stradaDiIndirizzo('192.0.2.20')).toBe('lan')
   })
 })
 
@@ -55,8 +55,8 @@ describe('cosa fare a una chiamata', () => {
 
 describe('come si racconta la strada nel riquadro', () => {
   it('rete di casa e Tailscale con l’indirizzo; WebRTC cifrato; Drive lento e dichiarato', () => {
-    expect(etichettaStrada({ strada: 'lan', indirizzo: '192.168.1.177' }, 'LAPTOP')?.breve).toBe('rete di casa · 192.168.1.177')
-    expect(etichettaStrada({ strada: 'tailscale', indirizzo: '100.117.177.78' }, 'LAPTOP')?.breve).toBe('Tailscale · 100.117.177.78')
+    expect(etichettaStrada({ strada: 'lan', indirizzo: '192.0.2.20' }, 'LAPTOP')?.breve).toBe('rete di casa · 192.0.2.20')
+    expect(etichettaStrada({ strada: 'tailscale', indirizzo: '100.64.0.20' }, 'LAPTOP')?.breve).toBe('Tailscale · 100.64.0.20')
     const w = etichettaStrada({ strada: 'webrtc' }, 'LAPTOP')
     expect(w?.breve).toBe('diretto via Internet (WebRTC)')
     expect(w?.testo).toContain('chiave di casa')

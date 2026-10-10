@@ -38,7 +38,7 @@ finito.
 - **La spunta «tienila»** era la richiesta esplicita: spuntata non si dimentica
   mai, non spuntata è di passaggio e restano le cinque più recenti. Senza quella
   distinzione l'elenco diventa una discarica di indirizzi provati una volta.
-- Rinominare: «studio» si legge, `192.168.1.191` no. Un nome scritto a mano vince
+- Rinominare: «studio» si legge, `192.0.2.10` no. Un nome scritto a mano vince
   su quello che manda il computer — chi ha chiamato una macchina «studio» non
   vuole ritrovarsela «DESKTOP-4F2K1».
 - Il computer manda il proprio hostname in **`/api/stato`**, non in `/api/ciao`:

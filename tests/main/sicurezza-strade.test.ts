@@ -101,7 +101,7 @@ describe('rete di casa e Tailscale: il Client di un PC respinge chi non ha la ch
 })
 
 describe('chi bussa non si fida di chi risponde: niente chiave a un estraneo', () => {
-  const BATTITO: BattitoPc = { pcId: 'lap', nome: 'LAPTOP', versione: '0.47.0', battito: new Date().toISOString(), cartelle: [], chat: [], indirizzi: ['192.168.1.177'], porta: 47640 }
+  const BATTITO: BattitoPc = { pcId: 'lap', nome: 'LAPTOP', versione: '0.47.0', battito: new Date().toISOString(), cartelle: [], chat: [], indirizzi: ['192.0.2.20'], porta: 47640 }
   /** La rete finta: per indirizzo, chi c'è. */
   function rete(chi: Record<string, 'portatile' | 'estraneo-sierradeck' | 'non-sierradeck' | 'vecchio-sierradeck'>, chiaviViste: string[]): typeof fetch {
     return (async (url: string, init?: RequestInit) => {
@@ -147,18 +147,18 @@ describe('chi bussa non si fida di chi risponde: niente chiave a un estraneo', (
   })
   it('il portatile vero, in mezzo agli estranei, si trova; la chiave non viaggia, le richieste sono firmate', async () => {
     const viste: string[] = []
-    const c = cliente(rete({ '192.168.1.177': 'portatile', '100.64.0.9': 'non-sierradeck', '100.64.0.10': 'estraneo-sierradeck' }, viste), BATTITO, ['100.64.0.9', '100.64.0.10'])
+    const c = cliente(rete({ '192.0.2.20': 'portatile', '100.64.0.9': 'non-sierradeck', '100.64.0.10': 'estraneo-sierradeck' }, viste), BATTITO, ['100.64.0.9', '100.64.0.10'])
     expect(await c.chiama('lap', '/api/stato')).toEqual({ chat: [] })
-    expect(c.indirizzoBuono('lap')).toBe('192.168.1.177')
+    expect(c.indirizzoBuono('lap')).toBe('192.0.2.20')
     expect(viste.some((v) => v.includes(K))).toBe(false)
-    expect(viste.some((v) => v.startsWith('192.168.1.177|') && /^\d+\.[\w-]+\.[\w-]+$/.test(v.split('|')[1] ?? ''))).toBe(true)
+    expect(viste.some((v) => v.startsWith('192.0.2.20|') && /^\d+\.[\w-]+\.[\w-]+$/.test(v.split('|')[1] ?? ''))).toBe(true)
   })
   it('un PC 0.47+ che ha già provato la chiave non torna al vecchio modo, nemmeno se un indirizzo del battito risponde come un vecchio', async () => {
     const viste: string[] = []
-    const chi: Record<string, 'portatile' | 'vecchio-sierradeck'> = { '192.168.1.177': 'portatile' }
+    const chi: Record<string, 'portatile' | 'vecchio-sierradeck'> = { '192.0.2.20': 'portatile' }
     const c = cliente(rete(chi, viste), { ...BATTITO, versione: '0.44.0' }, [])
     await c.chiama('lap', '/api/stato')
-    chi['192.168.1.177'] = 'vecchio-sierradeck'
+    chi['192.0.2.20'] = 'vecchio-sierradeck'
     await c.bussa('lap')
     expect(viste.some((v) => v.includes(K))).toBe(false)
   })

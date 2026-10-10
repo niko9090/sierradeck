@@ -40,7 +40,7 @@ prima volta), ma esce `app-release-unsigned.apk`: vedi sotto.
    stanno solo sul fisso (`C:\Users\nikof\`). Senza, l'APK esce non firmato e
    Android non lo installa sopra quello che c'è (firma diversa). Vanno copiati
    in `C:\Users\asus\` (RDP, chiavetta, o dal fisso via rete: il fisso
-   risponde su Tailscale `100.100.60.114`, SSH 22 e SMB 445, ma con password;
+   risponde su Tailscale `100.64.0.10`, SSH 22 e SMB 445, ma con password;
    le chiavi SSH del portatile non sono autorizzate là).
 2. **Smart App Control** (Windows 11, acceso su questo portatile,
    `HKLM\SYSTEM\CurrentControlSet\Control\CI\Policy\VerifiedAndReputablePolicyState = 1`).

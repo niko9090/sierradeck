@@ -20,7 +20,7 @@ nome** (pc id vuoto) e «Scrivile là» senza destinatario.
 ## Le tre cause
 
 1. **Il registro `progetti-drive.json` diceva «di un altro PC» per cartelle
-   che esistono qui.** Il pc id `058be1ee679e` dichiara 17 percorsi
+   che esistono qui.** Il pc id `a1b2c3d4e5f6` dichiara 17 percorsi
    `C:\Users\<utente>\Progetti SierraDeck\<X>`; 11 esistono su questo disco.
    Stesso utente sui due PC (o un vecchio id di questa macchina: `pc.json`
    riscritto il 06/09). `altrove()` (index.ts) girava sul registro e
