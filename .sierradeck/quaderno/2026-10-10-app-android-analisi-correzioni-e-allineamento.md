@@ -47,4 +47,4 @@ sessione: 1ff78f5e-523c-43b4-b74f-044d9691131d
 ## In numeri
 
 - interventi: 58
-- cartella: `E:\Users\nikof\Documents\SierraDeck`
+- cartella: `la cartella del progetto SierraDeck`
