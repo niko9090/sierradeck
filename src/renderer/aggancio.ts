@@ -72,6 +72,10 @@ export function creaAggancio(deps: AggancioDeps): Aggancio {
 
   const mostra = (msg: HostToCore): void => {
     if (msg.kind === 'data') deps.scrivi(msg.data)
+    // Uno spawn che ha adottato una chat in sottofondo (0.58.4): il Core
+    // risponde con il pty che c'era già, e quello che ha scritto finora arriva
+    // come `scrollback`. Fuori da quel caso, dopo uno spawn non ne arrivano.
+    else if (msg.kind === 'scrollback') deps.scrivi(msg.data)
     else if (msg.kind === 'exit') {
       deps.scrivi(`\r\n\x1b[33m[sessione terminata: ${msg.code}]\x1b[0m\r\n`)
       // Un pty uscito non e' piu' un terminale: l'id si dimentica, cosi'

@@ -183,6 +183,31 @@ export function impostaPrimaDiAprire(f: (cwd: string) => void): void {
   primaDiAprire = f
 }
 
+/**
+ * **Le chat in sottofondo** (0.58.4): un pty senza riquadro in nessuna
+ * finestra, avviato per un altro PC (o per il telefono) che le scrive. I suoi
+ * eventi non hanno una finestra proprietaria: vanno a chi li ha chiesti qui.
+ */
+const senzaFinestra = new Map<string, (msg: HostToCore) => void>()
+export function ascoltaSenzaFinestra(id: string, cb: (msg: HostToCore) => void): void { senzaFinestra.set(id, cb) }
+export function smettiSenzaFinestra(id: string): void { senzaFinestra.delete(id) }
+/**
+ * Una finestra apre una chat che sta già girando in sottofondo (un workspace
+ * ripristinato con quel riquadro, «Mostra qui»): invece di un secondo
+ * `claude --resume` sulla stessa conversazione, la finestra prende quel pty.
+ * Lo imposta il Core; restituisce l'id del pty da adottare, o niente.
+ */
+let adottaDalSottofondo: (sessionUuid: string) => string | undefined = () => undefined
+export function impostaAdozioneSottofondo(f: (sessionUuid: string) => string | undefined): void {
+  adottaDalSottofondo = f
+}
+/** Avvia un pty senza finestra (0.58.4): lo imposta `registerPtyIpc`. */
+let avviaSenzaFinestra: ((req: { sessionUuid: string; cwd: string; title?: string; cols: number; rows: number }) => string) | undefined
+export function avviaPtySenzaFinestra(req: { sessionUuid: string; cwd: string; title?: string; cols: number; rows: number }): string {
+  if (avviaSenzaFinestra === undefined) throw new Error('i terminali di questo PC non sono ancora pronti')
+  return avviaSenzaFinestra(req)
+}
+
 export function registerPtyIpc(
   ambienteChat: () => Record<string, string> = () => ({}),
   /**
@@ -222,6 +247,9 @@ export function registerPtyIpc(
     // sono spiegati e verificati accanto a `instradaEventoHost`, in
     // window-manager.ts: qui e' provabile, dentro questa chiusura non lo sarebbe.
     if (instradaEventoHost(registro, msg)) return
+    // Un pty in sottofondo (0.58.4): nessuna finestra, lo segue il Core.
+    const sf = senzaFinestra.get(msg.id)
+    if (sf !== undefined) { sf(msg); return }
     // Un evento senza destinatario non deve sparire: succede fra la chiusura di
     // una finestra e l'arrivo dell'`exit` dei suoi pty, ed è normale — ma se
     // succedesse in altri momenti sarebbe un difetto di instradamento, e senza
@@ -265,6 +293,17 @@ export function registerPtyIpc(
     const req = validateSpawnRequest(raw)
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win === null) throw new Error('richiesta di spawn da una finestra sconosciuta')
+    // La stessa conversazione gira già in sottofondo (0.58.4): la finestra la
+    // prende, con quello che ha scritto finora, e non ne parte una seconda.
+    const adottato = adottaDalSottofondo(req.sessionUuid)
+    if (adottato !== undefined) {
+      registro.assegna(adottato, win.id)
+      client.send({ id: adottato, kind: 'attach' })
+      return adottato
+    }
+    return avvia(req, win)
+  })
+  const avvia = (req: ReturnType<typeof validateSpawnRequest>, win: BrowserWindow | undefined): string => {
     // Prima di tutto la casa (0.52.0): con la casa altrove qui non parte niente.
     // Una chat governata porta il suo autopilota: vive sul suo PC (0.52.5).
     fermaSeCasaAltrove(req, casaAltroveDi)
@@ -277,13 +316,13 @@ export function registerPtyIpc(
       throw new Error(messaggioChatAltrove({ cwd: risolta.cwd, pc: risolta.pc, sessionUuid: req.sessionUuid }))
     }
     const cwd = risolta
-    if (cwd !== req.cwd) win.webContents.send('chat:cartellaCambiata', { sessionUuid: req.sessionUuid, da: req.cwd, a: cwd })
+    if (cwd !== req.cwd) win?.webContents.send('chat:cartellaCambiata', { sessionUuid: req.sessionUuid, da: req.cwd, a: cwd })
     // Se il progetto di questa cartella e' in mano a un altro PC, lo si dice
     // adesso, prima della prima riga: la chat si apre lo stesso, e la scelta —
     // prendere il testimone o continuare a rischio — e' della persona.
     primaDiAprire(cwd)
     const id = randomUUID()
-    registro.assegna(id, win.id)
+    if (win !== undefined) registro.assegna(id, win.id)
     client.send({
       id,
       kind: 'spawn',
@@ -317,7 +356,8 @@ export function registerPtyIpc(
       env: ambienteChat()
     })
     return id
-  })
+  }
+  avviaSenzaFinestra = (r) => avvia(validateSpawnRequest(r), undefined)
   // A senso unico come write/resize/kill: la risposta è `scrollback` o
   // `assente` e arriva sul canale degli eventi, dove il riquadro è già in
   // ascolto. Una promise qui costringerebbe a un secondo percorso per lo stesso

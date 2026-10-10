@@ -385,6 +385,12 @@ declare global {
         pulisci: () => Promise<import('../shared/file-telefono').StatoAlTelefono>
         quandoCambia: (f: () => void) => () => void
       }
+      sottofondo: {
+        elenco: () => Promise<import('../shared/sottofondo').StatoSottofondo[]>
+        mostra: (sessione: string) => Promise<{ ok: boolean; messaggio?: string }>
+        chiudi: (sessione: string) => Promise<boolean>
+        suCambiato: (cb: () => void) => () => void
+      }
       remoto: {
         pc: (solo?: string) => Promise<{ io: string; cassaforteAperta: boolean; driveCollegato?: boolean; pc: import('../shared/pc-remoto').PcRemoto[] }>
         stato: (pc: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ chat: import('../shared/pc-remoto').ChatSuPc[]; computer?: { nome: string } }>>
@@ -396,6 +402,8 @@ declare global {
         pin: (pc: string, chat: string, pin: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
         riprendi: (pc: string, cartella: string, sessione: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
         apri: (pc: string, cartella: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
+        sottofondo: (p: { pc: string; cwd: string; sessione: string; titolo?: string; testo?: string; id?: string }) => Promise<import('../shared/pc-remoto').EsitoRemoto<import('../shared/sottofondo').StatoSottofondo> & { vecchio?: boolean }>
+        sottofondoStato: (pc: string, sessione: string) => Promise<{ stato?: import('../shared/sottofondo').StatoSottofondo; errore?: string; attesi: string[] } | undefined>
         prova: (pc: string) => Promise<{ ok: true; indirizzo: string; ms: number; versione?: string } | { ok: false; motivo: string; messaggio: string }>
         altroveDi: (cwds: string[]) => Promise<Record<string, { id: string; nome: string }>>
         daDove: (p: { cwd: string; sessionUuid?: string }) => Promise<import('@shared/apertura-chat').Apertura>

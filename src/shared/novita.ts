@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.58.4',
+    righe: [
+      '**Scrivi a una chat di un altro PC anche se là è chiusa.** Il campo del riquadro non è più bloccato: scrivi e basta. L’altro PC avvia la chat in sottofondo — là non si apre nessuna finestra, non cambia il workspace e non ti ruba lo schermo — e il tuo messaggio parte appena la chat è pronta. Mentre succede il campo dice cosa sta facendo («La sto avviando su…»); se qualcosa va storto dice il perché, con Riprova, e il messaggio non si perde.',
+      '**«Avvia là in sottofondo».** Al posto di «Riprendila là»: la chat parte sull’altro PC senza farsi vedere, e da qui la segui e le scrivi come se fosse aperta.',
+      '**Chat usate da altri PC.** Sul PC dove vive la chat compare un tasto discreto, «⧉ Usate da altri PC», con chi la sta usando e cosa fa. «Mostra qui» la porta in un riquadro senza riavviarla; «Chiudi» la ferma (la conversazione resta). Restano vive anche se nessuna finestra le mostra, e ripartono da sole se quel PC si riavvia.',
+      '**Anche dal telefono e dalla pagina.** In «Riprendi una conversazione», toccando una chat che vive su un altro PC le scrivi da lì: parte in sottofondo allo stesso modo. App Android 2.58.4.',
+      '**Le domande senza numeri si rispondono da lontano.** Come «Ti fidi di questa cartella?» di Claude Code: prima da un altro PC o dal telefono non si potevano premere.'
+    ]
+  },
+  {
     versione: '0.58.3',
     righe: [
       '**«Riapri là» lascia traccia.** Quando chiedi a un altro PC di riaprire una chat, il registro scrive la richiesta, la risposta di quel PC e il momento in cui la chat compare là. Se dopo un minuto non è comparsa, lo scrive: niente più passaggi muti.'

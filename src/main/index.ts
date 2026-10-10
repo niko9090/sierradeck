@@ -135,6 +135,10 @@ import { ultimeRighe as ultimeRigheDelRegistro } from './risoluzione'
 import { trovaChatRemota, PORTA_CLIENT_PREDEFINITA, type EsitoRemoto, type PcRemoto, type ChatSuPc } from '@shared/pc-remoto'
 import { progettoDiCwd, staDentro } from './progetti/registro'
 import { impostaGuardiaCasa, impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
+import { ascoltaSenzaFinestra, smettiSenzaFinestra, impostaAdozioneSottofondo, avviaPtySenzaFinestra } from './ipc'
+import { creaSottofondo, cancelliSottofondo, type Sottofondo, type TerminaleMuto } from './sottofondo'
+import { Terminal as TerminaleSenzaFinestra } from '@xterm/headless'
+import { testoConsegnato, type StatoSottofondo } from '@shared/sottofondo'
 import { risolviCartellaDiChat, type CartellaDiChat } from './progetti/cartella-di-chat'
 import { pianificaRimappatura, pianificaRitorno, riscriviCwdRiga, type Spostamento } from './progetti/rimappa-di-massa'
 import { pcCheHaLaCartella, staSottoCartella, pcVivo, type BattitoPc } from '@shared/posta'
@@ -275,6 +279,9 @@ function chiediRigheAlleFinestre(
   /** Lo schermo disegnato, non una finestra di cronologia. */
   schermo = false
 ): Promise<unknown> {
+  // Una chat in sottofondo (0.58.4): lo schermo lo tiene il Core, non una finestra.
+  const sf = sottofondo?.perId(chat)
+  if (sf !== undefined) return Promise.resolve(sottofondo?.righe(sf, da, quante))
   return new Promise((risolvi) => {
     const finestre = finestreDiChat().filter(
       (w) => !w.isDestroyed() && !w.webContents.isDestroyed()
@@ -291,6 +298,12 @@ function chiediRigheAlleFinestre(
 }
 
 let ptyClient: PtyHostClient | undefined
+/** Le chat in sottofondo (0.58.4): senza riquadro, per chi le usa da lontano. */
+let sottofondo: Sottofondo | undefined
+/** Le chat di questo PC: quelle dei riquadri e quelle in sottofondo. */
+function chatDiQui(): Chat[] {
+  return [...chatDallaFinestra, ...(sottofondo?.chat() ?? [])]
+}
 let db: Db | undefined
 let workspaceStore: WorkspaceStore | undefined
 let providerStore: ReturnType<typeof apriProviderStore> | undefined
@@ -341,7 +354,7 @@ function ricordaSegnale(corpo: unknown): void {
   const lista = [...(segnaliPerSessione.get(s.sessione) ?? []), s].slice(-SEGNALI_PER_CHAT)
   segnaliPerSessione.set(s.sessione, lista)
   if (s.evento === 'StopFailure') registroGlobale?.info(`[segnali] turno finito per un errore dell'API (sessione ${s.sessione}): ${s.errore ?? 'senza dettagli'}`)
-  chatAperte = conSegnali(chatDallaFinestra)
+  chatAperte = conSegnali(chatDiQui())
   // Alle finestre: le consegne degli autopiloti lo usano prima dello schermo.
   const st = statoDaSegnali(lista)
   if (st !== undefined) {
@@ -1147,6 +1160,43 @@ if (!app.requestSingleInstanceLock()) {
         // per questa sessione sola, con il suo gettone.
         (c) => gettoniMcp === undefined ? undefined : configMcp(impostazioni.preferenze().portaClient, gettoniMcp.nuovo(c))
       )
+      // Le chat in sottofondo (0.58.4): nascono qui, con il PTY host appena acceso.
+      {
+        const client = ptyClient
+        sottofondo = creaSottofondo({
+          dati,
+          avviaPty: (r) => avviaPtySenzaFinestra(r),
+          ascolta: ascoltaSenzaFinestra,
+          smetti: smettiSenzaFinestra,
+          scrivi: (id, data) => client.send({ id, kind: 'write', data }),
+          ferma: (id) => client.send({ id, kind: 'kill' }),
+          creaTerminale: (cols, rows) => new TerminaleSenzaFinestra({ cols, rows, scrollback: 5000, allowProposedApi: true }) as unknown as TerminaleMuto,
+          log: (m) => registro.info(m),
+          cambiato: () => {
+            chatAperte = conSegnali(chatDiQui())
+            for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('sottofondo:cambiato')
+          }
+        })
+        // Una finestra che apre la stessa conversazione la prende dal
+        // sottofondo (un workspace ripristinato, «Mostra qui»): mai due
+        // `claude --resume` sulla stessa chat.
+        impostaAdozioneSottofondo((s) => {
+          const c = sottofondo?.cedi(s)
+          if (c !== undefined) registro.info(`[sottofondo] «${c.titolo}» (${s.slice(0, 8)}): una finestra di questo PC la apre e la prende com’è, senza un secondo avvio`)
+          return c?.ptyId
+        })
+        const sf = sottofondo
+        // Dopo un riavvio di questo PC le chat in sottofondo ripartono, con il
+        // testo ancora in coda (fra venti secondi: case e cartelle pronte).
+        setTimeout(() => {
+          const n = sf.riprendi((v) => (existsSync(v.cwd) ? undefined : `la cartella ${v.cwd} qui non c’è più`))
+          if (n > 0) registro.info(`[sottofondo] ${n} chat in sottofondo ripartite dopo l’avvio`)
+        }, 20_000).unref()
+        setInterval(() => {
+          sf.giro()
+          if (sf.elenco().length > 0) chatAperte = conSegnali(chatDiQui())
+        }, 500).unref()
+      }
       registerPreparazioneIpc(ptyClient, () => homedir(), {
         versione: () => app.getVersion(),
         ultimeRigheRegistro: (n) => {
@@ -1853,6 +1903,91 @@ if (!app.requestSingleInstanceLock()) {
         })()
         return r
       })
+      // **Avvia là in sottofondo** (0.58.4, decisione di Nicholas): una chat che
+      // vive su un altro PC ed è chiusa là si usa da qui senza aprirla a schermo
+      // là. Il PC di casa la avvia senza riquadro; il testo aspetta in coda e
+      // parte appena la chat è pronta. Ogni passo nel registro, `[apertura]`:
+      // la richiesta, la risposta, la chat pronta, il testo consegnato.
+      const seguiti = new Map<string, { stato?: StatoSottofondo; errore?: string; attesi: Set<string>; nome: string; titolo: string; finoA: number; vivo: boolean }>()
+      const segui = (verso: string, s: string): void => {
+        const k = `${verso}|${s}`
+        const f = seguiti.get(k)
+        if (f === undefined || f.vivo) return
+        f.vivo = true
+        const passo = (m: string): void => { registro.info(`[apertura] «${f.titolo}» (${s.slice(0, 8)}): ${m}`) }
+        void (async () => {
+          let fase = f.stato?.fase
+          while (Date.now() < f.finoA) {
+            await new Promise((ok) => setTimeout(ok, 2000))
+            try {
+              const st = await remoto.chiama(verso, '/api/sottofondo/stato', { sessione: s }) as StatoSottofondo
+              f.stato = st
+              f.errore = undefined
+              if (st.fase !== fase) { passo(`su ${f.nome}, in sottofondo: ${st.messaggio}`); fase = st.fase }
+              for (const id of [...f.attesi]) {
+                if (testoConsegnato(st, id)) { f.attesi.delete(id); passo(`testo ${id} consegnato su ${f.nome}, in sottofondo — apertura remota riuscita`) }
+              }
+              if (st.fase === 'chiusa') { passo(`su ${f.nome} la chat si è chiusa: ${st.messaggio}`); break }
+              if (f.attesi.size === 0 && st.fase !== 'avvio' && st.fase !== 'lenta' && st.fase !== 'consegna') break
+            } catch (e) {
+              const m = e instanceof Error ? e.message : String(e)
+              if (f.errore !== m) passo(`${f.nome} non risponde sullo stato del sottofondo: ${m} (riprovo)`)
+              f.errore = m
+            }
+          }
+          if (f.attesi.size > 0) passo(`dopo l’attesa il testo ${[...f.attesi].join(', ')} non risulta ancora consegnato su ${f.nome}: il riquadro lo dice, con Riprova`)
+          f.vivo = false
+        })()
+      }
+      ipcMain.handle('remoto:sottofondo', async (_e, p: unknown) => {
+        const q = (typeof p === 'object' && p !== null ? p : {}) as Record<string, unknown>
+        const verso = testo(q.pc); const cwd = testo(q.cwd); const s = testo(q.sessione)
+        const titolo = testo(q.titolo) !== '' ? testo(q.titolo) : s.slice(0, 8)
+        const scritto = typeof q.testo === 'string' && q.testo.trim() !== '' ? q.testo : undefined
+        const id = typeof q.id === 'string' ? q.id : undefined
+        const nome = postino.altrui().find((b) => b.pcId === verso)?.nome ?? verso
+        const passo = (m: string): void => { registro.info(`[apertura] «${titolo}» (${s.slice(0, 8)}): ${m}`) }
+        passo(`chiedo a ${nome} di avviarla in sottofondo, senza finestre là${scritto !== undefined ? `, con un testo in coda (${id ?? ''}, ${scritto.length} caratteri)` : ''}`)
+        const r = await esitoRemoto<StatoSottofondo>(() => remoto.chiama(verso, '/api/sottofondo/avvia', { cartella: cwd, sessione: s, titolo, ...(scritto !== undefined && id !== undefined ? { testo: scritto, idMessaggio: id } : {}) }), verso)
+        if (!r.ok) {
+          // Un PC che non conosce la rotta: va aggiornato (lo si dice così, non con un 404).
+          const vecchio = r.stato === 404 || /non sa ancora avviare le chat in sottofondo/.test(r.messaggio)
+          const messaggio = vecchio ? `${nome} ha una versione che non sa avviare le chat in sottofondo: va aggiornato alla 0.58.4 (Impostazioni → Altri computer → Installa là). Intanto puoi aprirla là a schermo.` : r.messaggio
+          passo(`${nome} non l’ha avviata: ${messaggio}`)
+          return { ...r, messaggio, ...(vecchio ? { vecchio: true } : {}) }
+        }
+        passo(`${nome} risponde: ${r.dati.messaggio}`)
+        const k = `${verso}|${s}`
+        const f = seguiti.get(k) ?? { attesi: new Set<string>(), nome, titolo, finoA: 0, vivo: false }
+        f.stato = r.dati
+        f.nome = nome
+        f.finoA = Date.now() + 240_000
+        if (id !== undefined && scritto !== undefined) {
+          if (testoConsegnato(r.dati, id)) passo(`testo ${id} consegnato su ${nome} — apertura remota riuscita`)
+          else f.attesi.add(id)
+        }
+        seguiti.set(k, f)
+        segui(verso, s)
+        return r
+      })
+      ipcMain.handle('remoto:sottofondoStato', (_e, pc: unknown, sessione: unknown) => {
+        const f = seguiti.get(`${testo(pc)}|${testo(sessione)}`)
+        return f === undefined ? undefined : { ...(f.stato !== undefined ? { stato: f.stato } : {}), ...(f.errore !== undefined ? { errore: f.errore } : {}), attesi: [...f.attesi] }
+      })
+      // **Sul PC di casa: le chat usate da altri PC** (0.58.4): l'elenco, «Mostra
+      // qui» (la porta in un riquadro senza riavviarla) e «Chiudi».
+      ipcMain.handle('sottofondo:elenco', () => sottofondo?.elenco() ?? [])
+      ipcMain.handle('sottofondo:mostra', (e, sessione: unknown) => {
+        const s = sottofondo?.stato(testo(sessione))
+        if (s === undefined || !sottofondo?.ha(s.sessione)) return { ok: false, messaggio: 'questa chat non gira più in sottofondo' }
+        const w = BrowserWindow.fromWebContents(e.sender)
+        if (w === null) return { ok: false, messaggio: 'finestra sconosciuta' }
+        registro.info(`[sottofondo] «${s.titolo}» (${s.sessione.slice(0, 8)}): «Mostra qui» — la porto in un riquadro di questa finestra, senza riavviarla`)
+        // Il riquadro nuovo chiede lo spawn, e lo spawn la prende dal sottofondo.
+        w.webContents.send('client:apri', { cartella: s.cwd, sessione: s.sessione, nome: s.titolo })
+        return { ok: true }
+      })
+      ipcMain.handle('sottofondo:chiudi', (_e, sessione: unknown) => sottofondo?.chiudi(testo(sessione)) ?? false)
       ipcMain.handle('remoto:apri', (_e, pc: unknown, cartella: unknown) =>
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/apri', { cartella: testo(cartella) }), pc))
       ipcMain.handle('remoto:prova', (_e, pc: unknown) => remoto.prova(testo(pc)))
@@ -3816,6 +3951,9 @@ if (!app.requestSingleInstanceLock()) {
           }
         },
         scriviAChat: (idChat: string, testo: string) => {
+          // In sottofondo (0.58.4): in coda, parte quando la chat è pronta.
+          const sf = sottofondo?.perId(idChat)
+          if (sf !== undefined) { sottofondo?.scrivi(sf, testo, `w-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, sottofondo.stato(sf)?.perChi ?? { id: '', nome: 'chi la guarda' }); return }
           for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
               w.webContents.send('client:scrivi', { chat: idChat, testo })
@@ -3824,6 +3962,8 @@ if (!app.requestSingleInstanceLock()) {
         },
         // La risposta a una domanda della chat, a pezzi (0.52.5): frecce, testo, invio.
         tastiAChat: (idChat: string, pezzi: string[]) => {
+          const sf = sottofondo?.perId(idChat)
+          if (sf !== undefined) { sottofondo?.tasti(sf, pezzi); return }
           for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
               w.webContents.send('client:tasti', { chat: idChat, pezzi })
@@ -4003,6 +4143,8 @@ if (!app.requestSingleInstanceLock()) {
         // Chiudere e rinominare una chat le sa fare la finestra, che e' l'unica
         // a conoscere i suoi riquadri: qui si annuncia, come per «apri».
         chiudiChat: (idChat: string) => {
+          const sf = sottofondo?.perId(idChat)
+          if (sf !== undefined) { sottofondo?.chiudi(sf); return }
           for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
               w.webContents.send('client:chiudiChat', idChat)
@@ -4080,6 +4222,22 @@ if (!app.requestSingleInstanceLock()) {
         // in quello che la finestra ha davanti la spostava, e con due finestre
         // la apriva due volte. Si dice alla finestra dove vive, e lei ci va.
         chatAltrove: (cwd: string) => (existsSync(cwd) ? undefined : altroveRiquadro(cwd)?.nome),
+        // Le chat in sottofondo (0.58.4): l'avvio con i cancelli di questo PC.
+        sottofondo: {
+          avvia: cancelliSottofondo({
+            sottofondo: () => sottofondo,
+            io: () => { const i = identitaPc.leggi(); return { id: i.id, nome: i.nome } },
+            nomePc: (id) => postino.altrui().find((b) => b.pcId === id)?.nome,
+            casaAltrove: (s) => ospiteGlobale?.casaAltroveDi(s),
+            esiste: (cwd) => existsSync(cwd),
+            inRiquadro: (s) => chatDallaFinestra.find((c) => c.sessione === s),
+            scriviInRiquadro: (idChat, testo) => {
+              for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('client:scrivi', { chat: idChat, testo })
+            },
+            log: (m) => registroGlobale?.info(m)
+          }),
+          stato: (s: string) => sottofondo?.stato(s)
+        },
         riprendiSessione: (cwd: string, sessione: string) => {
           const dove = workspaceStore === undefined
             ? undefined
@@ -4488,7 +4646,7 @@ if (!app.requestSingleInstanceLock()) {
         }
         chatDallaFinestra = [...chatPerFinestra.values()].flat()
         // Lo stato dai segnali di Claude Code, lo schermo come riserva (0.45.0).
-        chatAperte = conSegnali(chatDallaFinestra)
+        chatAperte = conSegnali(chatDiQui())
         // Il battito delle chat governate che stanno lavorando, al servizio:
         // e' il segnale di vita che il guardiano del silenzio non aveva, e
         // senza cui sospendeva chi lavorava da piu' di un'ora.

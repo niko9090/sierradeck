@@ -11,6 +11,7 @@ import { azioneDelTasto, impostaScorciatoie } from '../scorciatoie-vive'
 import { fuocoAllaChatVicina } from '../fuoco-chat'
 import { MODELLI } from '../modelli'
 import { MenuPin } from './ChatConPin'
+import { SottofondoQui } from './SottofondoQui'
 
 /**
  * I modelli che si possono scegliere.
@@ -445,6 +446,7 @@ export function Console({
         >
           ▦ Progetti
         </button>
+        <SottofondoQui />
         <button
           className="tasto"
           onClick={() => commuta('salute')}

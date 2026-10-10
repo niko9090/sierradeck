@@ -4528,3 +4528,18 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .al-tel__voce .tasto { align-self: flex-start; margin-top: 4px; }
 .al-tel__voce--consegnata { opacity: .85; }
 .al-tel__voce--annullata, .al-tel__voce--rifiutata, .al-tel__voce--scaduta { opacity: .6; }
+
+/* Chat usate da altri PC (0.58.4): l'elenco discreto delle chat in sottofondo. */
+.sottofondo-qui { position: relative; display: inline-block; }
+.sottofondo-qui__elenco {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 60;
+  width: min(460px, 90vw); max-height: 70vh; overflow: auto;
+  background: var(--chassis); color: var(--testo);
+  border: 1px solid var(--luce-incisione); border-radius: var(--raggio); padding: 10px 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.sottofondo-qui__titolo { font-weight: 600; margin-bottom: 4px; }
+.sottofondo-qui__nota { font-size: 12px; opacity: 0.8; margin: 4px 0 8px; line-height: 1.4; }
+.sottofondo-qui__voce { border-top: 1px solid var(--incisione); padding: 8px 0; }
+.sottofondo-qui__nome { font-weight: 600; }
+.sottofondo-qui__dettagli { font-size: 12px; opacity: 0.8; word-break: break-all; }

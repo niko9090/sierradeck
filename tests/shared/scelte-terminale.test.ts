@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { scelteDiTerminale, tastiPerScegliere, GIU, SU } from '../../src/shared/scelte-terminale'
+import { scelteDiTerminale, tastiPerScegliere, tastiPerRisposta, GIU, SU } from '../../src/shared/scelte-terminale'
 
 /**
  * Il difetto: dal telefono, quando la chat disegna un riquadro di scelta, non
@@ -113,5 +113,35 @@ describe('i tasti da premere', () => {
     // E' il caso normale — la prima opzione e' quasi sempre quella evidenziata
     // — quindi la sequenza vuota deve essere legittima, non un errore.
     expect(tastiPerScegliere(0, 0)).toBe('')
+  })
+})
+
+describe('un selettore senza numeri (0.58.4, la domanda di fiducia di una cartella)', () => {
+  const SCHERMO = [
+    ' Accessing workspace:',
+    '',
+    ' C:\Prove\progetto',
+    '',
+    ' Quick safety check: Is this a project you created or one you trust?',
+    '',
+    ' Security guide',
+    '',
+    ' ❯ No, exit',
+    '   Yes, I trust this folder',
+    '',
+    ' Enter to confirm · Esc to cancel'
+  ].join('\n')
+  it('si riconosce, con l’opzione sotto il cursore', () => {
+    const s = scelteDiTerminale(SCHERMO)
+    expect(s?.opzioni.map((o) => o.testo)).toEqual(['No, exit', 'Yes, I trust this folder'])
+    expect(s?.corrente).toBe(0)
+  })
+  it('si sceglie con le frecce, non con un numero', () => {
+    const s = scelteDiTerminale(SCHERMO)!
+    const k = tastiPerRisposta(s, { tipo: 'opzione', testo: 'Yes, I trust this folder' })
+    expect(k).toEqual({ pezzi: ['\u001b[B', '\r'] })
+  })
+  it('il campo normale di Claude Code non è un selettore', () => {
+    expect(scelteDiTerminale(' ❯ \n  ? for shortcuts')).toBeUndefined()
   })
 })

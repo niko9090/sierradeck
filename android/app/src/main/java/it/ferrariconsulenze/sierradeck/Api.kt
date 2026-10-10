@@ -309,6 +309,19 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             put("cartella", cartella); put("sessione", sessione)
         }))
 
+    /**
+     * Le chat in sottofondo (PC 0.58.4): quel PC avvia la conversazione senza
+     * finestre e il testo parte appena è pronta. Si chiama con `suPc(pc)`.
+     */
+    suspend fun avviaSottofondo(cartella: String, sessione: String, titolo: String, testo: String?, idMessaggio: String?): StatoSottofondo =
+        json.decodeFromString(corpoTesto("/api/sottofondo/avvia", oggetto {
+            put("cartella", cartella); put("sessione", sessione); put("titolo", titolo)
+            if (testo != null && idMessaggio != null) { put("testo", testo); put("idMessaggio", idMessaggio) }
+        }))
+
+    suspend fun statoSottofondo(sessione: String): StatoSottofondo =
+        json.decodeFromString(corpoTesto("/api/sottofondo/stato", oggetto { put("sessione", sessione) }))
+
     // ─── autopiloti: dettaglio, crea, elimina, riavvio ───
     suspend fun autopilota(id: String): AutopilotaDettaglio =
         json.decodeFromString(corpoTesto("/api/autopilota", oggetto { put("autopilota", id) }))

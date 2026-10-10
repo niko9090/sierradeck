@@ -51,6 +51,7 @@ const ROTTE_DENTRO_CHAT = new Set(['/api/storia', '/api/dentro', '/api/scrivi', 
 import type { TentativoFallito } from '@shared/tentativo-installazione'
 import type { AvvisoDrive } from '@shared/scoperta-pc'
 import type { EsitoNegozio, McpVoce, PluginVoce, SkillVoce } from '@shared/negozio'
+import { idTestoValido, type StatoSottofondo } from '@shared/sottofondo'
 
 /**
  * Cosa può fare il Client, e cosa no.
@@ -149,6 +150,11 @@ export type Chat = {
    * differenza fra un terminale e la sua trascrizione sbiancata.
    */
   codaGrezza?: string[]
+  /**
+   * Gira in sottofondo (0.58.4): nessun riquadro su questo PC, la usa da
+   * lontano chi è scritto qui (un altro PC, o il telefono).
+   */
+  sottofondo?: { id: string; nome: string }
 }
 
 export type DipendenzeRotte = {
@@ -425,6 +431,16 @@ export type DipendenzeRotte = {
   noteAggiornamento?: () => Promise<NoteAggiornamento | undefined>
   /** Le cartelle in cui si può aprire una chat: quelle già viste da Claude Code. */
   cartelle: () => Promise<string[]>
+  /**
+   * Le chat in sottofondo (0.58.4): una chat di questo PC chiusa qui, usata da
+   * un altro PC o dal telefono, parte senza riquadro e senza finestre. Assente:
+   * un PC che non lo sa fare (il chiamante lo dice, «va aggiornato»).
+   */
+  sottofondo?: {
+    avvia: (r: { cartella: string; sessione: string; titolo: string; testo?: string; idMessaggio?: string; visore: string }) =>
+      Promise<{ ok: true; stato: StatoSottofondo } | { ok: false; codice: number; messaggio: string }>
+    stato: (sessione: string) => StatoSottofondo | undefined
+  }
   /**
    * Il negozio, da un telefono.
    *
@@ -1704,15 +1720,18 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       // (0.33.0): il telefono diceva solo «su X», e non si sapeva se quel PC
       // fosse li' a rispondere. I battiti si leggono solo se servono.
       const accesi = new Map<string, boolean>()
+      /** L'id di quel PC (0.58.4): per scriverle in sottofondo attraverso il ponte. */
+      const idDi = new Map<string, string>()
       if (conAltrove.some((x) => x.su !== undefined) && deps.pc !== undefined) {
         const ora = adesso()
-        for (const b of await deps.pc().catch(() => [] as BattitoPcTelefono[])) accesi.set(b.nome, battitoVivo(b.battito, ora))
+        for (const b of await deps.pc().catch(() => [] as BattitoPcTelefono[])) { accesi.set(b.nome, battitoVivo(b.battito, ora)); idDi.set(b.nome, b.pcId) }
       }
       return OK({
         sessioni: conAltrove.map(({ s, su }) => su === undefined ? s : {
           ...s,
           altrove: su,
-          ...(accesi.has(su) ? { altroveAcceso: accesi.get(su) } : {})
+          ...(accesi.has(su) ? { altroveAcceso: accesi.get(su) } : {}),
+          ...(idDi.has(su) ? { altrovePc: idDi.get(su) } : {})
         })
       })
     }
@@ -1857,6 +1876,50 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const p = await deps.postaPulisci?.(pc).catch(() => undefined)
       if (p === undefined) return { stato: 409, corpo: { errore: 'posta non raggiungibile' } }
       return OK({ fatto: true, voci: p.voci })
+    }
+
+    // ── Le chat in sottofondo (0.58.4) ──
+    // Una chat di questo PC, chiusa qui, che un altro PC o il telefono vuole
+    // usare: parte senza riquadro, il testo aspetta in coda. Stessi cancelli
+    // di «riprendi» (la cartella conosciuta, la cartella qui), più il PIN e la
+    // casa (quest'ultima la controlla chi la avvia).
+    if (r.metodo === 'POST' && (r.percorso === '/api/sottofondo/avvia' || r.percorso === '/api/sottofondo/stato')) {
+      const sf = depsPieni.sottofondo
+      if (sf === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora avviare le chat in sottofondo: va aggiornato alla 0.58.4' } }
+      const sessione = stringa(r.corpo, 'sessione')
+      if (!/^[0-9a-f-]{36}$/i.test(sessione)) return { stato: 400, corpo: { errore: 'serve la conversazione' } }
+      /** Il PIN della chat, con il workspace in cui è salvata (se lo è). */
+      const chiusaPin = async (): Promise<string | undefined> => {
+        if (g === undefined) return undefined
+        const aperta = depsPieni.chat().find((c) => c.sessione === sessione)
+        if (aperta !== undefined) return g.protetta(aperta) && g.chiusa(visore, aperta) ? aperta.titolo : undefined
+        const salvata = ((await depsPieni.workspace().catch(() => undefined))?.chat ?? []).find((c) => c.sessione === sessione)
+        const per = { sessione, ...(salvata?.workspace !== undefined ? { workspace: salvata.workspace } : {}) }
+        return g.protetta(per) && g.chiusa(visore, per) ? (salvata?.titolo ?? '') : undefined
+      }
+      if (r.percorso === '/api/sottofondo/stato') {
+        const s = sf.stato(sessione)
+        if (s === undefined) return { stato: 404, corpo: { errore: 'questa conversazione non gira in sottofondo qui' } }
+        const pin = await chiusaPin()
+        if (pin !== undefined) return { stato: STATO_CHIUSA, corpo: rifiutoChiusa(pin === '' ? undefined : pin) }
+        return OK(s)
+      }
+      const cartella = stringa(r.corpo, 'cartella')
+      const testo = stringa(r.corpo, 'testo').slice(0, TESTO_MAX)
+      const idM = stringa(r.corpo, 'idMessaggio')
+      if (cartella === '') return { stato: 400, corpo: { errore: 'serve la cartella' } }
+      if (testo !== '' && !idTestoValido(idM)) return { stato: 400, corpo: { errore: 'il testo va mandato con il suo id' } }
+      const ammesse = await deps.cartelle().catch(() => [] as string[])
+      if (!conosciuta(ammesse, cartella)) return { stato: 403, corpo: { errore: `cartella non conosciuta su questo PC: ${cartella}` } }
+      const su = deps.chatAltrove?.(cartella)
+      if (su !== undefined) return { stato: 409, corpo: { errore: `la cartella ${cartella} qui non c’è: questa chat lavora su «${su}», avviala là` } }
+      const pin = await chiusaPin()
+      if (pin !== undefined) return { stato: STATO_CHIUSA, corpo: rifiutoChiusa(pin === '' ? undefined : pin) }
+      const titolo = stringa(r.corpo, 'titolo').slice(0, 200)
+      const e = await sf.avvia({ cartella, sessione, titolo: titolo !== '' ? titolo : (cartella.split(/[\\/]/).filter((p) => p !== '').pop() ?? sessione.slice(0, 8)), ...(testo !== '' ? { testo, idMessaggio: idM } : {}), visore })
+      if (!e.ok) return { stato: e.codice, corpo: { errore: e.messaggio } }
+      if (testo !== '') ricordaInviato(e.stato.chat, testo)
+      return OK(e.stato)
     }
 
     if (r.metodo === 'POST' && r.percorso === '/api/sessioni/riprendi') {

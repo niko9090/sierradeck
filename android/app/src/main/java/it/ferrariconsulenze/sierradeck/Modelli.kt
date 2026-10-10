@@ -668,7 +668,9 @@ data class SessioneRipresa(
      * stessa etichetta del computer, «su X · acceso» o «spento». Assente nei
      * computer piu' vecchi.
      */
-    val altroveAcceso: Boolean? = null
+    val altroveAcceso: Boolean? = null,
+    /** L'id di quel PC (PC 0.58.4): per scriverle da qui, e là parte in sottofondo. */
+    val altrovePc: String? = null
 )
 
 // ─── risposta generica delle azioni ───

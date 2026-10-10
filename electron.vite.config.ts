@@ -57,7 +57,15 @@ export default defineConfig({
         }
       }
     },
-    resolve: { alias: { '@shared': resolve('src/shared') } }
+    resolve: {
+      alias: {
+        '@shared': resolve('src/shared'),
+        // Il terminale senza finestra delle chat in sottofondo (0.58.4): il
+        // campo `module` del pacchetto punta a un file che non c'è, si usa il
+        // CommonJS che c'è.
+        '@xterm/headless': resolve('node_modules/@xterm/headless/lib-headless/xterm-headless.js')
+      }
+    }
   },
   preload: {
     plugins: [externalizeDepsPlugin()],

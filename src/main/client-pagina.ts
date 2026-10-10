@@ -19,6 +19,7 @@
 import { FASI_CATALOGO } from '../shared/catalogo-progresso'
 import { ansiInHtml } from '@shared/ansi-html'
 import { ricomponiSchermo } from '@shared/ricomponi-schermo'
+import { testoAvvio } from '@shared/sottofondo'
 import {
   PARTENZE, ULTIMO_WORKSPACE, confermaChiudi, confermaDormi, confermaEliminaAutopilota, confermaEliminaWorkspace, confermaSposta
 } from '@shared/azioni-telefono'
@@ -566,6 +567,7 @@ ${ansiInHtml.toString()}
 // Il testo ricomposto per la larghezza del telefono (0.52.6): stesso codice
 // del modulo condiviso, con i suoi test.
 ${ricomponiSchermo.toString()}
+${testoAvvio.toString()}
 // Le conferme, le partenze e le regole (0.55.0): gli stessi testi del PC e
 // dell'app, da src/shared/azioni-telefono.ts. §N è il nome, §W il workspace.
 var CONFERME = ${JSON.stringify({
@@ -700,6 +702,14 @@ var pannelloAperto = null
 var saluteVista = null
 var saluteErrore = ''
 var sessioniViste = null
+/**
+ * Scrivere a una chat chiusa su un altro PC (0.58.4): quel PC la avvia in
+ * sottofondo, senza finestre, e il testo parte appena è pronta. Qui: quale
+ * conversazione, lo stato e l'eventuale errore con Riprova.
+ */
+var sfScelta = -1
+var sfStato = null
+var sfGiro = null
 /** La coda condivisa aperta dal telefono: quale progetto, e le sue voci. */
 var codaProgetto = null
 var codaVoci = null
@@ -1649,13 +1659,14 @@ function pannello(s) {
   const elencoSessioni = pannelloAperto !== 'sessioni' ? '' : \`
     <div class="piastrella">
       <div class="titolo">Riprendi una conversazione</div>
-      <div class="sotto">Le conversazioni di Claude Code su questo computer, dalla più recente: toccandone una si riapre sul computer con tutta la sua storia, nel workspace dove era salvata. Quelle «su un altro PC» hanno la cartella là: da qui non si riaprono (partirebbero in una cartella vuota) — scrivile da Computer → Altri computer.</div>
+      <div class="sotto">Le conversazioni di Claude Code su questo computer, dalla più recente: toccandone una si riapre sul computer con tutta la sua storia, nel workspace dove era salvata. Quelle «su un altro PC» vivono là: toccandone una le scrivi da qui, e quel PC la avvia in sottofondo — là non si apre nessuna finestra e non cambia niente sullo schermo — e il messaggio parte appena è pronta.</div>
+      \${sfScelta >= 0 ? sottofondoHtml() : ''}
       \${(sessioniViste || []).length === 0
         ? '<div class="sotto" style="margin-top:8px">Nessuna conversazione trovata.</div>'
         : (sessioniViste || []).slice(0, 20).map((x, i) =>
             '<button class="cartella" onclick="riprendiSessione(' + i + ')">' +
             esc(x.titolo) + (x.altrove ? ' <span class="sotto">· su ' + esc(x.altrove) + (x.altroveAcceso === true ? ' · acceso' : x.altroveAcceso === false ? ' · spento' : '') + '</span>' : '') +
-            '<br><span class="sotto">' + esc(x.cwd) + (x.altrove ? ' (cartella di quel PC: qui non si apre, scrivile da Computer → Altri computer)' : '') + '</span></button>').join('')}
+            '<br><span class="sotto">' + esc(x.cwd) + (x.altrove ? (x.altrovePc ? ' (vive su quel PC: tocca per scriverle, parte là in sottofondo)' : ' (cartella di quel PC: qui non si apre, scrivile da Computer → Altri computer)') : '') + '</span></button>').join('')}
       <div class="riga"><button onclick="apriPannello('sessioni')">Chiudi</button></div>
     </div>\`
 
@@ -3112,9 +3123,89 @@ window.riprendiSalvata = async (cwd, sessione, altrove) => {
 }
 
 /** Riprende **quella** conversazione, con la sua storia dentro. */
+/** Il riquadro per scrivere a una chat chiusa su un altro PC (0.58.4). */
+function sottofondoHtml() {
+  const s = (sessioniViste || [])[sfScelta]
+  if (!s) return ''
+  const st = sfStato || {}
+  const fase = st.fase || ''
+  return '<div class="piastrella" style="margin-top:8px">' +
+    '<div class="titolo">Scrivi a «' + esc(s.titolo) + '» su ' + esc(s.altrove) + '</div>' +
+    '<div class="sotto">Quel PC la avvia in sottofondo (claude --resume nella sua cartella, senza riquadro e senza finestre: là non si vede niente e non cambia il workspace). Il messaggio aspetta in coda e parte appena la chat è pronta; poi la trovi fra le chat di ' + esc(s.altrove) + ' e la segui da lì.</div>' +
+    (fase ? '<div class="' + (fase === 'errore' ? 'errore' : 'sotto') + '" style="margin-top:6px">' + esc(testoAvvio(fase, s.altrove, !!st.testo)) + (st.messaggio ? ' — ' + esc(fase === 'errore' ? 'Perché: ' + st.messaggio : 'Da ' + s.altrove + ': ' + st.messaggio) : '') + '</div>' : '') +
+    (st.testo && fase && fase !== 'fatto' ? '<div class="sotto">Il tuo messaggio, in attesa: «' + esc(st.testo.slice(0, 160)) + '». Non si perde: Riprova lo rimanda una volta sola.</div>' : '') +
+    (fase === 'fatto' ? '<div class="sotto">Messaggio consegnato: la chat gira su ' + esc(s.altrove) + ' in sottofondo.</div>' : '') +
+    '<div class="riga"><textarea id="sf-testo" rows="3" placeholder="Il messaggio per questa chat: parte appena è pronta là"></textarea></div>' +
+    '<div class="riga">' +
+      '<button class="primario" onclick="sfManda(true)">Manda</button>' +
+      '<button onclick="sfManda(false)">Avvia senza scrivere</button>' +
+      (fase === 'errore' ? '<button onclick="sfRiprova()">Riprova</button>' : '') +
+      '<button onclick="sfChiudi()">Chiudi</button>' +
+    '</div></div>'
+}
+
+window.sfChiudi = () => { sfScelta = -1; sfStato = null; if (sfGiro) { clearInterval(sfGiro); sfGiro = null } pannello(ultimoStato) }
+
+async function sfChiedi(s, corpo) {
+  return chiedi('/api/ponte', { pc: s.altrovePc, percorso: '/api/sottofondo/avvia', corpo: corpo })
+}
+
+window.sfManda = async (conTesto) => {
+  const s = (sessioniViste || [])[sfScelta]
+  if (!s) return
+  const el = document.getElementById('sf-testo')
+  const testo = conTesto && el ? el.value.trim() : ''
+  if (conTesto && testo === '') return
+  const id = testo ? 'p-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) : ''
+  sfStato = { fase: 'chiedo', testo: testo, id: id }
+  pannello(ultimoStato)
+  await sfInvia(s)
+}
+
+window.sfRiprova = async () => {
+  const s = (sessioniViste || [])[sfScelta]
+  if (!s || !sfStato) return
+  sfStato = { fase: 'chiedo', testo: sfStato.testo, id: sfStato.id }
+  pannello(ultimoStato)
+  await sfInvia(s)
+}
+
+async function sfInvia(s) {
+  const st = sfStato
+  try {
+    const r = await sfChiedi(s, { cartella: s.cwd, sessione: s.id, titolo: s.titolo, ...(st.testo ? { testo: st.testo, idMessaggio: st.id } : {}) })
+    if (r && r.errore) { sfStato = { ...st, fase: 'errore', messaggio: r.errore }; pannello(ultimoStato); return }
+    sfStato = { ...st, fase: r.fase || 'avvio', messaggio: r.messaggio || '' }
+    if (st.id && (r.consegnati || []).includes(st.id)) sfStato.fase = 'fatto'
+  } catch (e) {
+    const m = e && e.message ? e.message : 'quel PC non risponde'
+    sfStato = { ...st, fase: 'errore', messaggio: /404|non trovat/.test(m) ? s.altrove + ' va aggiornato alla 0.58.4 per avviare le chat in sottofondo' : m }
+  }
+  pannello(ultimoStato)
+  if (sfStato.fase === 'errore' || sfStato.fase === 'fatto') return
+  if (sfGiro) clearInterval(sfGiro)
+  const inizio = Date.now()
+  sfGiro = setInterval(async () => {
+    if (!sfStato || sfStato.fase === 'errore' || sfStato.fase === 'fatto') { clearInterval(sfGiro); sfGiro = null; return }
+    try {
+      const r = await chiedi('/api/ponte', { pc: s.altrovePc, percorso: '/api/sottofondo/stato', corpo: { sessione: s.id } })
+      if (r && r.fase) {
+        sfStato = { ...sfStato, fase: r.fase, messaggio: r.messaggio || '' }
+        if (sfStato.id && (r.consegnati || []).includes(sfStato.id)) sfStato.fase = 'fatto'
+        else if (!sfStato.id && (r.fase === 'pronta' || r.fase === 'aspetta' || r.fase === 'lavora')) sfStato.fase = 'fatto'
+        if (r.fase === 'chiusa') sfStato.fase = 'errore'
+      }
+    } catch (e) { /* al giro dopo */ }
+    if (Date.now() - inizio > 240000 && sfStato.fase !== 'fatto') sfStato = { ...sfStato, fase: 'errore', messaggio: 'dopo quattro minuti il messaggio non risulta ancora consegnato' }
+    pannello(ultimoStato)
+  }, 2000)
+}
+
 window.riprendiSessione = async (i) => {
   const s = (sessioniViste || [])[i]
   if (!s) return
+  // Vive su un altro PC (0.58.4): si scrive da qui, quel PC la avvia in sottofondo.
+  if (s.altrove && s.altrovePc) { sfScelta = i; sfStato = null; pannello(ultimoStato); return }
   if (s.altrove) { notaGlobale = 'Questa conversazione lavora su ' + s.altrove + ': la sua cartella qui non c’è. Riaprila da quel PC, o scrivile da Computer → Altri computer.'; pannello(ultimoStato); return }
   await chiedi('/api/sessioni/riprendi', { cartella: s.cwd, sessione: s.id })
   pannelloAperto = null

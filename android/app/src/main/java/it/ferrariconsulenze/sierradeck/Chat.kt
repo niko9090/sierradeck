@@ -190,6 +190,8 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
     var mostraNuova by remember { mutableStateOf(false) }
     var mostraWorkspace by remember { mutableStateOf(false) }
     var mostraRiprendi by remember { mutableStateOf(false) }
+    /** Una conversazione che vive su un altro PC, a cui scrivere in sottofondo (PC 0.58.4). */
+    var sottofondoPer by remember { mutableStateOf<SessioneRipresa?>(null) }
     val scope = rememberCoroutineScope()
     // Tutte le chat del computer, raggruppate per workspace: prima quello
     // davanti, poi gli altri. Dentro ogni gruppo prima le vive, poi quelle
@@ -347,9 +349,14 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
     if (mostraWorkspace) GestioneWorkspace(api, workspace, nomePc, onChiudi = { mostraWorkspace = false })
     if (mostraRiprendi) SceltaSessione(
         api,
-        onScegli = { s -> scope.launch { tenta("riprendere la conversazione") { api.riprendiSessione(s.cwd, s.id) } } },
+        onScegli = { s ->
+            // Vive su un altro PC (PC 0.58.4): le si scrive da qui, e là parte in sottofondo.
+            if (!s.altrove.isNullOrBlank() && !s.altrovePc.isNullOrBlank()) sottofondoPer = s
+            else scope.launch { tenta("riprendere la conversazione") { api.riprendiSessione(s.cwd, s.id) } }
+        },
         onChiudi = { mostraRiprendi = false }
     )
+    sottofondoPer?.let { s -> DialogoSottofondo(api, s, onChiudi = { sottofondoPer = null }) }
 }
 
 /** Il dettaglio: il terminale a polling e il campo per scrivere. */
@@ -964,7 +971,7 @@ private fun SceltaSessione(api: Api, onScegli: (SessioneRipresa) -> Unit, onChiu
         text = {
             Column(Modifier.fillMaxWidth().height(320.dp).verticalScroll(rememberScrollState())) {
                 Text(
-                    "Le conversazioni di Claude Code su questo computer, dalla più recente. Toccandone una si riapre sul computer con tutta la sua storia, nel workspace dove era salvata. Quelle «su un altro PC» hanno la cartella là: da qui non si riaprono (partirebbero in una cartella vuota) — scrivile da Computer → Altri computer.",
+                    "Le conversazioni di Claude Code su questo computer, dalla più recente. Toccandone una si riapre sul computer con tutta la sua storia, nel workspace dove era salvata. Quelle «su un altro PC» vivono là: toccandone una le scrivi da qui, e quel PC la avvia in sottofondo — là non si apre nessuna finestra — e il messaggio parte appena è pronta.",
                     color = Banco.testoQuieto, fontSize = 11.sp
                 )
                 Spacer(Modifier.height(6.dp))

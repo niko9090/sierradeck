@@ -217,6 +217,8 @@ export function segnaleValido(x: unknown, p: { io: string; da?: string; giro?: s
  */
 export const ROTTE_VIA_CANALE: readonly string[] = [
   '/api/pc', '/api/stato', '/api/storia', '/api/scrivi', '/api/scegli', '/api/sessioni/riprendi', '/api/apri',
+  // Le chat in sottofondo (0.58.4): avviarle e seguirle anche via Internet.
+  '/api/sottofondo/avvia', '/api/sottofondo/stato',
   // «Sposta progetto» (0.42.0): anche fra due PC su reti diverse.
   '/api/sposta/pronto', '/api/sposta/ricevi', '/api/sposta/verifica',
   // Il PIN delle chat (0.49.0): lo verifica il PC di casa della chat.
@@ -251,6 +253,7 @@ export function nonViaDrive(percorso: string, nomePc: string): string {
   const cosa = percorso === '/api/scegli' ? 'premere un’opzione'
     : percorso === '/api/sessioni/riprendi' ? 'riaprire una chat'
     : percorso === '/api/apri' ? 'aprire una chat nuova'
+    : percorso.startsWith('/api/sottofondo/') ? 'avviare una chat in sottofondo'
     : percorso.startsWith('/api/allegati/') ? 'mandare un file'
     : percorso.startsWith('/api/file/') ? 'sfogliare i file dei progetti'
     : percorso.startsWith('/api/consegne') ? 'ricevere i file mandati al telefono'

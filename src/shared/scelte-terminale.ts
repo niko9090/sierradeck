@@ -160,7 +160,38 @@ export function scelteDiTerminale(schermo: string): Scelta | undefined {
     if (blocco !== undefined) return blocco
     // Non era un elenco di scelte: si riprende da sopra il blocco provato.
   }
-  return undefined
+  return selettoreSenzaNumeri(righe)
+}
+
+/** Il piede di un selettore di Claude Code: «Enter to confirm · Esc to cancel». */
+const PIEDE_SELETTORE = /Enter to confirm|Esc to cancel/i
+
+/**
+ * Un selettore **senza numeri** (0.58.4), visto dal vero con la domanda di
+ * fiducia di una cartella nuova: «❯ No, exit / Yes, I trust this folder»
+ * sopra «Enter to confirm · Esc to cancel». Prima non si riconosceva: chi
+ * usava la chat da lontano (in sottofondo, dal telefono) non poteva
+ * rispondere. Le opzioni sono il blocco di righe subito sopra il piede, con
+ * una sola sotto il cursore; si scelgono con le frecce, come le altre.
+ */
+function selettoreSenzaNumeri(righe: Riga[]): Scelta | undefined {
+  let piede = -1
+  for (let i = righe.length - 1, viste = 0; i >= 0 && viste < 4; i -= 1) {
+    const r = righe[i] as Riga
+    if (r.nuda === '') continue
+    viste += 1
+    if (PIEDE_SELETTORE.test(r.nuda)) { piede = i; break }
+  }
+  if (piede < 0) return undefined
+  let j = piede - 1
+  while (j >= 0 && (righe[j] as Riga).nuda === '') j -= 1
+  const blocco: Riga[] = []
+  while (j >= 0 && (righe[j] as Riga).nuda !== '' && !SEPARATORE.test((righe[j] as Riga).nuda)) { blocco.unshift(righe[j] as Riga); j -= 1 }
+  if (blocco.length < 2 || blocco.length > 9) return undefined
+  if (blocco.filter((r) => r.cursore).length !== 1) return undefined
+  if (blocco.some((r) => r.nuda.length > 100)) return undefined
+  const opzioni: Opzione[] = blocco.map((r, k) => ({ numero: k + 1, testo: r.nuda, scelta: r.cursore }))
+  return { opzioni, corrente: opzioni.findIndex((o) => o.scelta) }
 }
 
 type Grezza = Opzione & { separatoPrima: boolean; invioDopo?: { scelta: boolean } }

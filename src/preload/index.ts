@@ -452,6 +452,20 @@ contextBridge.exposeInMainWorld('gestore', {
    * Un altro PC dal vivo: le sue chat aperte, lo schermo di una, scriverci.
    * Passa dal Client di quel PC con la chiave di casa (stessa cassaforte).
    */
+  /**
+   * Le chat in sottofondo di questo PC (0.58.4): usate da altri PC o dal
+   * telefono, senza riquadro. L'elenco, «Mostra qui», «Chiudi».
+   */
+  sottofondo: {
+    elenco: (): Promise<import('../shared/sottofondo').StatoSottofondo[]> => ipcRenderer.invoke('sottofondo:elenco'),
+    mostra: (sessione: string): Promise<{ ok: boolean; messaggio?: string }> => ipcRenderer.invoke('sottofondo:mostra', sessione),
+    chiudi: (sessione: string): Promise<boolean> => ipcRenderer.invoke('sottofondo:chiudi', sessione),
+    suCambiato: (cb: () => void): (() => void) => {
+      const h = (): void => cb()
+      ipcRenderer.on('sottofondo:cambiato', h)
+      return () => { ipcRenderer.off('sottofondo:cambiato', h) }
+    }
+  },
   remoto: {
     /** Con `solo`: per quel PC anche lo stato dopo il bussare diretto (0.39.3). */
     pc: (solo?: string): Promise<{ io: string; cassaforteAperta: boolean; driveCollegato?: boolean; pc: PcRemoto[] }> => ipcRenderer.invoke('remoto:pc', solo),
@@ -467,6 +481,12 @@ contextBridge.exposeInMainWorld('gestore', {
     riprendi: (pc: string, cartella: string, sessione: string): Promise<EsitoRemoto<{ fatto: boolean }>> =>
       ipcRenderer.invoke('remoto:riprendi', pc, cartella, sessione),
     apri: (pc: string, cartella: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:apri', pc, cartella),
+    /** «Avvia là in sottofondo» (0.58.4), con il testo da mandare appena è pronta. */
+    sottofondo: (p: { pc: string; cwd: string; sessione: string; titolo?: string; testo?: string; id?: string }): Promise<EsitoRemoto<import('../shared/sottofondo').StatoSottofondo> & { vecchio?: boolean }> =>
+      ipcRenderer.invoke('remoto:sottofondo', p),
+    /** Lo stato seguito dal Core (nessuna chiamata di rete). */
+    sottofondoStato: (pc: string, sessione: string): Promise<{ stato?: import('../shared/sottofondo').StatoSottofondo; errore?: string; attesi: string[] } | undefined> =>
+      ipcRenderer.invoke('remoto:sottofondoStato', pc, sessione),
     prova: (pc: string): Promise<{ ok: true; indirizzo: string; ms: number; versione?: string } | { ok: false; motivo: string; messaggio: string }> =>
       ipcRenderer.invoke('remoto:prova', pc),
     /** Di quali di queste cartelle e' padrone un altro PC: per l'elenco delle conversazioni. */
