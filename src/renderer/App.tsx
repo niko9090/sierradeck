@@ -24,6 +24,7 @@ import type { StatoWorkspace } from '../main/ipc'
 import { Mosaic } from './components/Mosaic'
 import { ModaleSessioni } from './components/ModaleSessioni'
 import { ModaleDoveVive } from './components/OspiteChat'
+import { ModalePannelloDrive } from './components/ModalePannelloDrive'
 import { NOME_AUTOMATICO } from '@shared/istantanea'
 import { Console, type PannelloAperto } from './components/Console'
 import { PannelloWorkspace } from './components/PannelloWorkspace'
@@ -530,6 +531,13 @@ export function App(): React.JSX.Element {
     const apri = (): void => setDoveVive(true)
     window.addEventListener('sierradeck:dove-vive', apri)
     return () => window.removeEventListener('sierradeck:dove-vive', apri)
+  }, [])
+  // Il pannello delle chat e dei progetti del Drive (0.58.0).
+  const [pannelloDrive, setPannelloDrive] = useState(false)
+  useEffect(() => {
+    const apri = (): void => setPannelloDrive(true)
+    window.addEventListener('sierradeck:pannello-drive', apri)
+    return () => window.removeEventListener('sierradeck:pannello-drive', apri)
   }, [])
 
   useEffect(() => window.gestore.client.suRinomina(({ chat, nome }) => {
@@ -1423,6 +1431,7 @@ export function App(): React.JSX.Element {
 
       {modale === 'sessioni' ? <ModaleSessioni onChiudi={() => setModale(undefined)} /> : null}
       {doveVive ? <ModaleDoveVive onChiudi={() => setDoveVive(false)} /> : null}
+      {pannelloDrive ? <ModalePannelloDrive onChiudi={() => setPannelloDrive(false)} /> : null}
       {modale === 'accesso' ? <ModaleAccesso onChiudi={() => setModale(undefined)} /> : null}
       {avvisoProgetto !== undefined ? (
         <ModaleTestimone avviso={avvisoProgetto} onChiudi={() => setAvvisoProgetto(undefined)} />

@@ -154,6 +154,7 @@ export function PannelloDrive({ onChiudi }: Props): React.JSX.Element {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '6px 0' }}>
         <button className="tasto tasto--primario" onClick={() => setSposta(true)} title="Porta un progetto con le sue chat da questo PC a un altro, con controlli, verifica e copia archiviata qui">Sposta progetto…</button>
         <button className="tasto" onClick={() => setRiordina(true)} title="Le chat che stanno qui ma hanno casa su un altro PC: le metti da parte (senza cancellarle) e lo annulli quando vuoi">Riordina le chat…</button>
+        <button className="tasto" onClick={() => window.dispatchEvent(new CustomEvent('sierradeck:pannello-drive'))} title="Tutte le chat e i progetti del Drive: PC residente, copie, ultimo uso, assegnazioni sbagliate, e il cambio del residente">Chat e progetti del Drive…</button>
         <button className="tasto" onClick={() => window.dispatchEvent(new CustomEvent('sierradeck:dove-vive'))} title="Tutte le chat dei workspace con il PC che le ospita: lo scegli chat per chat o per workspace">Dove vive ogni chat…</button>
       </div>
 

@@ -181,6 +181,7 @@ declare global {
         stato: () => Promise<{ migrazione?: { fatta: string; case: number; proprietari: number; copia?: string }; case: number; qui: number }>
         dove: () => Promise<{ io: { id: string; nome: string }; pc: { id: string; nome: string }[]; gruppi: import('@shared/ospite-chat').GruppoDove[]; traslochi: import('@shared/una-casa').RegistroRiordino[] }>
         scegli: (p: { sessioni: string[]; pc: { id: string; nome: string }; workspace?: string }) => Promise<{ ok: boolean; messaggio: string }>
+        pannello: () => Promise<import('../shared/pannello-drive').Pannello>
         di: (sessione: string) => Promise<{ pc: string; pcNome: string; da: string; motivo: string; qui: boolean } | undefined>
         suChiudiQui: (cb: (chat: { sessione: string; pc: { id: string; nome: string } }[]) => void) => () => void
         suCambiate: (cb: () => void) => () => void

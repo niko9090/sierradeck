@@ -78,6 +78,7 @@ import { etichettaContesto, limitiPerFreno, unisciPolso } from '@shared/limiti-p
 import { diffDellAutopilota, fileDellAutopilota, fileVeroDellAutopilota } from './file-autopilota'
 import { apriAlTelefono, type AlTelefono } from './al-telefono'
 import { apriQuadernoPersonale } from './quaderno-personale'
+import { datiPannello } from './pannello-drive-dati'
 import { apriFileProgetti } from './file-progetti'
 import { apriGettoni, configMcp, rispondiMcp, type Gettoni } from './mcp-telefono'
 import { confermaDaRisposta, idDomandaConferma, leggiIdDomandaConferma, OPZIONI_CONFERMA, testoConferma, testoStato } from '@shared/file-telefono'
@@ -2099,6 +2100,26 @@ if (!app.requestSingleInstanceLock()) {
       const timerOspite = setInterval(() => { void ospite.giro() }, 10_000)
       app.on('before-quit', () => { clearInterval(timerOspite) })
       ipcMain.handle('casa:dove', () => ospite.dove())
+      // Il pannello delle chat e dei progetti del Drive (0.58.0): stesse fonti, regole in @shared/pannello-drive.
+      ipcMain.handle('casa:pannello', async () => {
+        const io = identitaPc.leggi()
+        const locali = chatLocaliDaIndice().map((c) => {
+          let mtime: number | undefined
+          try { mtime = statSync(c.jsonl).mtimeMs } catch { mtime = undefined }
+          return { sessione: c.sessione, titolo: c.titolo, ...(c.cwd !== undefined ? { cwd: c.cwd } : {}), ...(mtime !== undefined ? { mtime } : {}) }
+        })
+        return datiPannello({
+          io: { id: io.id, nome: io.nome, battito: new Date().toISOString() },
+          pc: postino.altrui().map((b) => ({ id: b.pcId, nome: nomeDaMostrare(b), battito: b.battito, chat: b.chat })),
+          case: unaCasa.case(),
+          locali,
+          manifesto: await sincronia.manifestoDrive().catch(() => undefined),
+          aperteQui: chatAperte.map((c) => c.sessione).filter((s): s is string => s !== undefined),
+          titoliNoti: workspaceStore === undefined ? [] : chatSalvate(workspaceStore.leggi()).filter((c) => c.sessione !== undefined).map((c) => ({ sessione: c.sessione as string, titolo: c.titolo, cwd: c.cwd })),
+          progetti: registroProgetti.leggi().progetti.map((g) => ({ id: g.id, nome: g.nome, percorsi: g.percorsi })),
+          adesso: Date.now()
+        })
+      })
       ipcMain.handle('casa:scegli', (_e, p: unknown) => {
         const q = (p ?? {}) as { sessioni?: unknown; pc?: unknown; workspace?: unknown }
         const pc = (q.pc ?? {}) as { id?: unknown; nome?: unknown }
