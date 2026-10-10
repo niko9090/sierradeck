@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.58.2',
+    righe: [
+      '**Le chat che vivono su un altro PC si aprono dal PC giusto.** Un riquadro salvato restava per sempre puntato sul PC di quando era stato salvato, anche quando la chat stava su un altro: si apriva il PC sbagliato e non succedeva niente. Adesso a ogni apertura il programma ricontrolla dove la chat c’è davvero, corregge la casa decisa da sola dalla regola (mai una tua scelta) e porta il riquadro lì, dicendo perché.',
+      '**Ogni passo dell’apertura sta nel registro.** Quale PC si guardava, la casa, chi ha la chat, cosa si è deciso, se il PC risponde e se lì la chat è aperta: quando qualcosa non va si legge dove si è fermato.',
+      '**«Progetti» è una voce propria.** Nella barra del PC (▦ Progetti), fra le destinazioni della pagina e nella barra in basso dell’app: tutte le chat e i progetti dei tuoi PC, con il residente e le azioni. App Android 2.58.2.'
+    ]
+  },
+  {
     versione: '0.58.1',
     righe: [
       '**Quando un altro PC «risponde ma non è lui», adesso si sa perché.** Chi risponde dice la sua impronta (non il suo nome né il suo codice): se a quell’indirizzo risponde un altro SierraDeck, per esempio una seconda copia del programma che occupa la porta, il registro e il riquadro lo dicono e spiegano cosa fare; se è proprio quel PC ma con un’altra cassaforte, dicono anche questo.',

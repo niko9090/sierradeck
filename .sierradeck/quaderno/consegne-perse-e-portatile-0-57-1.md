@@ -101,3 +101,29 @@ Con il giro delle strade (0.57.3) il registro finalmente dice cosa succede quand
 - Test in `tests/main/portatile-non-raggiunto.test.ts`.
 
 **Da verificare dal vero:** con la 0.58.1 sul portatile, il registro di qui dirà quale dei due casi è. Se è «un altro SierraDeck», sul portatile va chiusa l'altra copia (Gestione attività: i processi SierraDeck/electron in più) e riavviato SierraDeck.
+
+# 0.58.2: la chat «MT5» che non si apriva da questo PC
+
+**Cosa è successo (10/10, dopo le 19:24 UTC).** Il portatile era ormai raggiungibile («strada rete di casa» alle 19:07 e alle 19:17), ma aprendo il workspace «MT5» non succedeva niente, e il registro non scriveva nessuna riga.
+
+**Causa.**
+- Il workspace «MT5» di questo PC aveva un **riquadro remoto salvato** che puntava a un altro PC fisso, non al portatile.
+- La casa di quella chat l'aveva decisa **la regola**, il 02/10: «la sua cartella … c'è solo su quel PC». Era però un'altra cartella con lo stesso nome, «Trading», in un altro percorso.
+- La chat sta sul disco del portatile: il battito 0.58 del portatile la elenca, con la cartella giusta. Il PC fisso non ha né la chat né quella cartella fra le sue.
+- Un riquadro remoto salvato si apriva **sempre sul PC di quando era stato salvato**: nessuno ricontrollava la casa né le copie. Il giro del riquadro poi non scrive nel registro quando una chiamata va bene: la chat «non aperta là» restava muta.
+
+**Correzione (0.58.2).**
+- `decidiAperturaRemota` in `src/shared/apertura-remota.ts`: una casa **della regola** si corregge quando il PC di casa non ha la chat e un altro PC sì. «Non ha la chat» vuol dire:
+  - le copie del suo battito (0.58) non la elencano;
+  - oppure, per un PC più vecchio, la cartella della chat non è fra le sue.
+
+  La correzione viene salvata come `sposta`, quindi vince sulla regola vecchia quando le case si uniscono. **Una scelta di Nicholas non si tocca mai**: si dice soltanto.
+- IPC `remoto:apertura`: ogni riquadro remoto la chiama quando si apre. Scrive ogni passo nel registro con il prefisso `[apertura] «titolo» (sessione)`:
+  - il PC guardato e la casa, con le copie e se il PC di casa ha la chat;
+  - la decisione, ed eventualmente la casa corretta;
+  - se il PC giusto risponde, con la strada, e se là la chat è aperta: «apertura remota riuscita», oppure «non aperta: c'è «Riapri là»».
+- Il riquadro va sul PC giusto, o torna locale, e dice perché a schermo.
+
+**Test:** `tests/shared/apertura-remota.test.ts`.
+
+**«Progetti»**: è una voce propria nella barra del PC («▦ Progetti»), fra le destinazioni della pagina («PROGETTI») e nella barra in basso dell'app (app 2.58.2).

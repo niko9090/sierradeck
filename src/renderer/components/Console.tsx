@@ -440,6 +440,13 @@ export function Console({
         </button>
         <button
           className="tasto"
+          onClick={() => window.dispatchEvent(new CustomEvent('sierradeck:pannello-drive'))}
+          title="Progetti: tutte le chat e tutti i progetti dei tuoi PC, dove lavora ognuno (il PC residente), chi ne ha una copia, cosa è assegnato male; e le azioni: Apri, Porta qui, Rendi residente qui, Rendi solo cloud qui"
+        >
+          ▦ Progetti
+        </button>
+        <button
+          className="tasto"
           onClick={() => commuta('salute')}
           aria-expanded={aperto === 'salute'}
           title="Salute del sistema: il Drive, gli altri PC (battito, strada, versione), un aggiornamento non riuscito, gli errori delle ultime ore, le istruzioni non partite — con cosa fare per ognuna"

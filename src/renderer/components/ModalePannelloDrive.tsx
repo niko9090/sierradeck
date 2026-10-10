@@ -109,7 +109,7 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
     <div className="velo" onMouseDown={(e) => { if (e.target === e.currentTarget && cambio === undefined) onChiudi() }}>
       <div className="dialogo dialogo--largo" onMouseDown={(e) => e.stopPropagation()} style={{ maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}>
         <div className="dialogo__testa">
-          <span className="serigrafia">Chat e progetti del Drive</span>
+          <span className="serigrafia">Progetti · chat e progetti dei tuoi PC</span>
           <span style={{ flex: 1 }} />
           <button className="tasto tasto--mini" onClick={leggi} disabled={occupato} title="Rileggi le case, le copie e il Drive">Aggiorna</button>
           <button className="tasto tasto--mini" onClick={onChiudi} aria-label="Chiudi">×</button>

@@ -495,10 +495,8 @@ fun Computer(api: Api, stato: Stato?) {
         // qualcosa al computer: la stessa scheda «Drive» del computer.
         Sezione("Drive")
         SezioneDrive(api)
-        // ─── Chat e progetti del Drive (app 2.58.0, PC 0.58.0) ───
-        Spacer(Modifier.height(10.dp))
-        Sezione("Chat e progetti del Drive")
-        SezionePannelloDrive(api)
+        // Il pannello delle chat e dei progetti è la voce «Progetti» della barra in basso (app 2.58.2).
+        Text("Le chat e i progetti dei tuoi PC, con il PC residente e le azioni, stanno nella voce «Progetti» della barra in basso.", color = Banco.testoQuieto, fontSize = 12.sp)
         Spacer(Modifier.height(10.dp))
             Divisore()
 

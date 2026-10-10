@@ -1,5 +1,7 @@
 package it.ferrariconsulenze.sierradeck
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Spacer
@@ -8,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Computer
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Forum
@@ -71,7 +74,7 @@ import kotlinx.serialization.json.jsonPrimitive
  * qualunque schermata tu stia guardando. Le urgenze si portano a chi guarda;
  * non si mettono in una stanza in fondo al corridoio.
  */
-enum class Scheda { CHAT, DOMANDE, LAVORI, NEGOZIO, FILE, COMPUTER }
+enum class Scheda { CHAT, DOMANDE, LAVORI, NEGOZIO, FILE, PROGETTI, COMPUTER }
 
 /**
  * Dove aprire l'app quando lo chiede qualcun altro: una notifica toccata.
@@ -593,6 +596,8 @@ fun Principale(
                     Scheda.NEGOZIO -> Negozio(api)
                     // La sezione File (app 2.54.0): i progetti dei PC e i file ricevuti.
                     Scheda.FILE -> SezioneFile(api)
+                    // «Progetti» (app 2.58.2): il pannello delle chat e dei progetti del Drive come voce propria.
+                    Scheda.PROGETTI -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) { SezionePannelloDrive(api) }
                     Scheda.COMPUTER -> Computer(api, stato)
                 }
             }
@@ -630,6 +635,7 @@ private fun Fascia(
         voce(attuale, Scheda.LAVORI, "Lavori", Icons.Filled.SmartToy, allarme = allarmeLavori, onScegli)
         voce(attuale, Scheda.NEGOZIO, "Negozio", Icons.Filled.Extension, allarme = null, onScegli)
         voce(attuale, Scheda.FILE, "File", Icons.Filled.Folder, allarme = null, onScegli)
+        voce(attuale, Scheda.PROGETTI, "Progetti", Icons.Filled.Dashboard, allarme = null, onScegli)
         voce(attuale, Scheda.COMPUTER, "Computer", Icons.Filled.Computer, allarme = null, onScegli)
     }
 }

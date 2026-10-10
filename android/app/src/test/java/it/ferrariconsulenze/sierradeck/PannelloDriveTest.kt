@@ -58,4 +58,10 @@ class PannelloDriveTest {
         val letto = Api.json.decodeFromString(PannelloDrive.serializer(), "{\"io\":{\"id\":\"a\",\"nome\":\"A\"},\"campoNuovo\":1}")
         assertTrue(letto.progetti.isEmpty())
     }
+
+    @Test
+    fun `Progetti è una voce propria della barra in basso`() {
+        assertTrue(Scheda.entries.contains(Scheda.PROGETTI))
+        assertTrue(Scheda.entries.indexOf(Scheda.PROGETTI) < Scheda.entries.indexOf(Scheda.COMPUTER))
+    }
 }

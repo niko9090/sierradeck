@@ -1313,7 +1313,7 @@ function domandeInAttesa(s) {
 function fascia(s) {
   const chiedono = domandeInAttesa(s)
   const voci = [
-    ['adesso', 'ADESSO'], ['domande', chiedono > 0 ? 'DOMANDE \u00b7 ' + chiedono : 'DOMANDE'], ['chat', 'CHAT'], ['lavori', 'LAVORI'], ['computer', 'COMPUTER']
+    ['adesso', 'ADESSO'], ['domande', chiedono > 0 ? 'DOMANDE \u00b7 ' + chiedono : 'DOMANDE'], ['chat', 'CHAT'], ['lavori', 'LAVORI'], ['progetti', 'PROGETTI'], ['computer', 'COMPUTER']
   ]
   return '<nav class="fascia">' + voci.map((v) => {
     const l = ledDestinazione(v[0], s)
@@ -2004,6 +2004,8 @@ function pannello(s) {
     : ''
 
   const schermate = {
+    // «Progetti» (0.58.2): il pannello delle chat e dei progetti come destinazione propria.
+    progetti: pannelloDriveHtml(),
     // Uno solo domina alla volta: una domanda, poi un lavoro fermo, poi il
     // polso, poi la calma. Quando domina una domanda tutto il resto collassa
     // in una riga: e' la ragione per cui questa schermata si legge in un
@@ -2027,7 +2029,7 @@ function pannello(s) {
       ((s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0) > 0 ? ' · ' + (s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0) : '') + '</button>' +
       '<button onclick="apriPannello(\\'pc\\')">Altri computer</button>' +
       '<button onclick="apriPannello(\\'drive\\')">Drive</button>' +
-      '<button onclick="apriPannello(\\'pannellodrive\\')">Chat e progetti</button>' +
+      '<button onclick="vaiScheda(\\'progetti\\')">Progetti</button>' +
       '<button onclick="apriPannello(\\'salute\\')">Salute</button>' +
       '<button onclick="apriPannello(\\'negozio\\')">Negozio</button>' +
       '<button onclick="apriPannello(\\'file\\')">File</button>' +
@@ -3992,6 +3994,7 @@ window.vaiScheda = (nome) => {
   if (scheda === nome) return
   scheda = nome
   if (nome === 'domande') { domandeViste = null; leggiDomande() }
+  if (nome === 'progetti') { pdDati = null; pdErrore = ''; pdDaConfermare = ''; leggiPannelloDrive().then(() => pannello(ultimoStato)) }
   // Un pannello aperto appartiene alla schermata in cui e' stato aperto: se lo
   // si lascia aperto cambiando destinazione, ricompare dove non c'entra.
   pannelloAperto = null

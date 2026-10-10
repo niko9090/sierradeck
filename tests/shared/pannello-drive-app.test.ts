@@ -74,4 +74,9 @@ describe('il pannello del Drive per la pagina e per l’app', () => {
     const h = disegna(atteso)
     for (const t of ['Gestionale', 'Conferma e togli da questo PC', 'Ripristina', 'Rendi residente qui', 'Rendi solo cloud qui', 'va aggiornato alla 0.58', 'Piano di allineamento']) expect(h).toContain(t)
   })
+  it('«Progetti» è una destinazione propria della pagina (0.58.2)', () => {
+    const html = paginaClient()
+    expect(html).toContain("['progetti', 'PROGETTI']")
+    expect(html).toContain('progetti: pannelloDriveHtml()')
+  })
 })

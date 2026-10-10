@@ -79,6 +79,7 @@ import { diffDellAutopilota, fileDellAutopilota, fileVeroDellAutopilota } from '
 import { apriAlTelefono, type AlTelefono } from './al-telefono'
 import { apriQuadernoPersonale } from './quaderno-personale'
 import { datiPannello } from './pannello-drive-dati'
+import { casaCorretta, decidiAperturaRemota, type CopiaNota } from '@shared/apertura-remota'
 import type { Pannello } from '@shared/pannello-drive'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
 import { creaLatoResidente, creaRimozione, type LatoResidente, type Rimozione } from './rimozione-sicura'
@@ -2141,6 +2142,74 @@ if (!app.requestSingleInstanceLock()) {
       const timerOspite = setInterval(() => { void ospite.giro() }, 10_000)
       app.on('before-quit', () => { clearInterval(timerOspite) })
       ipcMain.handle('casa:dove', () => ospite.dove())
+      /**
+       * **L'apertura di una chat di un altro PC** (0.58.2), passo per passo nel
+       * registro. Il caso «MT5» del 10/10: il riquadro remoto salvato puntava al
+       * PC della casa decisa dalla regola, che la chat non ce l'aveva; nessuno
+       * lo ricontrollava, e il registro taceva. Qui: la casa, le copie (battiti
+       * 0.58 e questo PC), se il PC di casa la ha (le sue copie o almeno la sua
+       * cartella), la decisione (correggere una casa della regola, mai una
+       * scelta di Nicholas), e se là la chat è aperta.
+       */
+      ipcMain.handle('remoto:apertura', async (_e, p: unknown) => {
+        const q = (typeof p === 'object' && p !== null ? p : {}) as Record<string, unknown>
+        const s = typeof q.sessione === 'string' ? q.sessione : ''
+        const cwd = typeof q.cwd === 'string' ? q.cwd : ''
+        const titolo = typeof q.titolo === 'string' && q.titolo !== '' ? q.titolo : s.slice(0, 8)
+        const daPc = typeof q.pcId === 'string' ? q.pcId : ''
+        const io = identitaPc.leggi()
+        const battiti = postino.altrui()
+        const nomeDi = (id: string): string => (id === io.id ? io.nome : battiti.find((b) => b.pcId === id)?.nome ?? id)
+        const passo = (m: string): void => { registro.info(`[apertura] «${titolo}» (${s.slice(0, 8)}): ${m}`) }
+        if (s === '') { passo('niente sessione: resta com’è'); return { pc: daPc, nome: nomeDi(daPc), qui: false, messaggio: '' } }
+        passo(`il riquadro guarda ${nomeDi(daPc)} (${cwd})`)
+        const casa = unaCasa.casaDi(s)
+        const quiLaHo = chatLocaliDaIndice().some((c) => c.sessione === s)
+        const copie: CopiaNota[] = [
+          ...(quiLaHo ? [{ pc: io.id, nome: io.nome }] : []),
+          ...battiti.flatMap((b) => {
+            const l = (b.locali?.chat ?? []).find((c) => c.sessione === s)
+            return l === undefined ? [] : [{ pc: b.pcId, nome: b.nome, ...(l.mtime !== undefined ? { mtime: l.mtime } : {}) }]
+          })
+        ]
+        let casaLaHa: boolean | undefined
+        let comeLoSo = ''
+        if (casa !== undefined) {
+          const bc = battiti.find((b) => b.pcId === casa.pc)
+          if (casa.pc === io.id) { casaLaHa = quiLaHo; comeLoSo = 'questo PC' }
+          else if (bc?.locali !== undefined) { casaLaHa = bc.locali.chat.some((c) => c.sessione === s); comeLoSo = 'il suo battito (copie sul disco)' }
+          else if (bc !== undefined && bc.cartelle.length > 0 && cwd !== '') {
+            casaLaHa = bc.cartelle.some((c) => staDentro(cwd, c) || staDentro(c, cwd)) ? undefined : false
+            comeLoSo = casaLaHa === false ? `il suo battito: la cartella ${cwd} non è fra le sue` : 'il suo battito ha la cartella, ma non dice le chat'
+          }
+        }
+        passo(`casa ${casa === undefined ? 'nessuna' : `${casa.pcNome} (${casa.da})`}; copie sul disco: ${copie.length === 0 ? 'nessuna nota' : copie.map((c) => c.nome).join(', ')}; il PC di casa ${casaLaHa === true ? 'la ha' : casaLaHa === false ? 'NON la ha' : 'non si sa se la ha'}${comeLoSo !== '' ? ` (${comeLoSo})` : ''}`)
+        const d = decidiAperturaRemota({ sessione: s, casa, copie, casaLaHa })
+        let verso = d.pc
+        let messaggio = ''
+        if (d.tipo === 'correggi') {
+          await unaCasa.memorizza({ [s]: casaCorretta(d, new Date().toISOString()) })
+          passo(`casa corretta: ${d.daNome} → ${d.nome} — ${d.perche}`)
+          messaggio = `Questa chat sta su ${d.nome === io.nome ? 'questo PC' : d.nome}, non su ${d.daNome}: ${d.perche}. Ho corretto la sua casa e la apro da lì.`
+        } else if (d.tipo === 'scelta-senza-copia') {
+          passo(`attenzione: ${d.perche}; la scelta di Nicholas resta`)
+          messaggio = `La casa scelta per questa chat è ${d.nome}, ma lì la chat non c’è: c’è su ${d.altrove.map((c) => c.nome).join(', ')}. La scelta è tua e non la cambio: se vuoi aprirla da lì, scegli lì la casa (🏠 sulla testata, o il pannello «Progetti»).`
+        } else {
+          passo(d.perche)
+        }
+        if (verso === '') verso = daPc
+        if (verso === io.id) { passo('la chat è di questo PC: il riquadro torna locale'); return { pc: io.id, nome: io.nome, qui: true, messaggio } }
+        // Là, la chat è aperta? Una chiamata sola, con il suo esito nel registro.
+        try {
+          const st = await remoto.chiama(verso, '/api/stato') as { chat?: ChatSuPc[] }
+          const trovata = trovaChatRemota(Array.isArray(st.chat) ? st.chat : [], { pcId: verso, pcNome: nomeDi(verso), cwd, sessione: s })
+          const strada = remoto.stradaDi(verso)
+          passo(`${nomeDi(verso)} risponde${strada !== undefined ? ` (${strada.strada}${strada.indirizzo !== undefined ? ` · ${strada.indirizzo}` : ''})` : ''}: ${trovata !== undefined ? 'la chat è aperta là, la mostro dal vivo — apertura remota riuscita' : 'la chat non è aperta là: nel riquadro c’è «Riapri là»'}`)
+        } catch (err) {
+          passo(`${nomeDi(verso)} non risponde: ${err instanceof Error ? err.message : String(err)}`)
+        }
+        return { pc: verso, nome: nomeDi(verso), qui: false, messaggio }
+      })
       // **La rimozione sicura** (0.58.0, tappa 3). Il lato del residente: confronta
       // e riceve i recuperati, nella cartella dei recuperati del progetto.
       const cartellaQui = (progetto: string): string | undefined => {

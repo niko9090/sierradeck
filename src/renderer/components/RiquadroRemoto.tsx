@@ -165,6 +165,25 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
     return () => { vivo = false; clearInterval(t) }
   }, [remoto.pcId])
 
+  // **All'apertura** (0.58.2): il Core ricontrolla dove vive davvero la chat
+  // (casa, copie, cartelle), corregge una casa sbagliata della regola, e scrive
+  // ogni passo nel registro. Se la chat sta su un altro PC il riquadro ci va;
+  // se è di questo PC torna locale. Prima un riquadro salvato restava per
+  // sempre sul PC di quando era stato salvato (il caso «MT5»).
+  useEffect(() => {
+    let vivo = true
+    void window.gestore.remoto.apertura({ pcId: remoto.pcId, cwd: remoto.cwd, ...(remoto.sessione !== undefined ? { sessione: remoto.sessione } : {}), ...(title !== undefined && title !== '' ? { titolo: title } : {}) })
+      .then((r) => {
+        if (!vivo) return
+        if (r.messaggio !== '') setAvviso(r.messaggio)
+        if (r.qui) { useLayoutStore.getState().rendiLocale(paneId); return }
+        if (r.pc !== '' && r.pc !== remoto.pcId) rendiRemoto(paneId, { ...remoto, pcId: r.pc, pcNome: r.nome })
+      })
+      .catch((e: unknown) => { if (vivo) setAvviso(`Non riesco a controllare dove vive questa chat: ${String(e)}`) })
+    return () => { vivo = false }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remoto.pcId, remoto.sessione])
+
   // Il giro: trova la chat la', poi leggine lo schermo ogni due secondi.
   useEffect(() => {
     let vivo = true

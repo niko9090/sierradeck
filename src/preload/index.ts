@@ -457,6 +457,8 @@ contextBridge.exposeInMainWorld('gestore', {
     pc: (solo?: string): Promise<{ io: string; cassaforteAperta: boolean; driveCollegato?: boolean; pc: PcRemoto[] }> => ipcRenderer.invoke('remoto:pc', solo),
     stato: (pc: string): Promise<EsitoRemoto<{ chat: ChatSuPc[]; computer?: { nome: string } }>> => ipcRenderer.invoke('remoto:stato', pc),
     trova: (pc: string, chat: ChatRemota): Promise<EsitoRemoto<ChatSuPc | undefined>> => ipcRenderer.invoke('remoto:trova', pc, chat),
+    // Dove aprire davvero una chat di un altro PC (0.58.2), con ogni passo nel registro.
+    apertura: (p: { pcId: string; cwd: string; sessione?: string; titolo?: string }): Promise<{ pc: string; nome: string; qui: boolean; messaggio: string }> => ipcRenderer.invoke('remoto:apertura', p),
     storia: (pc: string, chat: string, da: number, quante: number): Promise<EsitoRemoto<StoriaRemota>> =>
       ipcRenderer.invoke('remoto:storia', pc, chat, da, quante),
     scrivi: (pc: string, chat: string, testo: string, idMessaggio?: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:scrivi', pc, chat, testo, idMessaggio),
