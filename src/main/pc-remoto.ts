@@ -1,6 +1,6 @@
 import { pcVivo, type BattitoPc } from '@shared/posta'
 import { descriviIndirizzo, PORTA_CLIENT_PREDEFINITA } from '@shared/pc-remoto'
-import { indirizziDaProvare, messaggioErroreRemoto, motivoDaStatoHttp, statoPc, type PingPc, type StatoPc } from '@shared/scoperta-pc'
+import { indirizziDaProvare, messaggioErroreRemoto, motivoDaStatoHttp, statoPc, testoProva, type PingPc, type ProvaIndirizzo, type StatoPc } from '@shared/scoperta-pc'
 import { indirizzoPreferito, prossimaMossa, RIBUSSA_OGNI_MS, stradaDiIndirizzo, type InfoStrada, type Strada, type StatoRtc } from '@shared/strada-pc'
 import { ATTESA_DRIVE, NON_VIA_DRIVE } from './rtc/cassetta-drive'
 import type { EsitoCanale } from './rtc/collegamento-rtc'
@@ -190,7 +190,8 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     const b = battitoDi(pcId)
     const nome = b?.nome ?? nomeNoto ?? ''
     const chiave = deps.chiavePer(pcId)
-    const altri = deps.altriIndirizzi !== undefined && nome !== ''
+    // Anche senza nome (0.57.1): gli indirizzi ricordati valgono lo stesso.
+    const altri = deps.altriIndirizzi !== undefined
       ? await deps.altriIndirizzi(pcId, nome).catch(() => ({}) as { ricordati?: string[]; tailscale?: string[] })
       : {}
     const indirizzi = indirizziDaProvare({
@@ -202,6 +203,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     if (indirizzi.length === 0) {
       const p: PingPc = { esito: 'senza-indirizzi' }
       ultimiPing.set(pcId, p)
+      racconta(`${pcId}#bussa`, `${nome || pcId}: non ho nessun indirizzo a cui bussare (né dal battito, né da Tailscale, né ricordato)`)
       return p
     }
     const porta = b?.porta ?? PORTA_CLIENT_PREDEFINITA
@@ -255,19 +257,27 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     // Tailscale a volte arriva prima.
     const buone = risposte.filter((x) => x.modo !== undefined)
     const buona = indirizzoPreferito(buone.map((x) => x.ind))
+    // Cosa ha detto ogni indirizzo (0.57.1): nel registro quando cambia, e nel riquadro.
+    const prove: ProvaIndirizzo[] = risposte.map((x) => ({
+      indirizzo: x.ind,
+      esito: x.modo !== undefined ? 'risponde' : x.estraneo === true ? 'estraneo' : x.stato === 401 ? 'cassaforte' : x.stato === 0 ? 'muto' : 'http',
+      ...(x.stato !== 0 ? { stato: x.stato } : {})
+    }))
+    if (buona === undefined) racconta(`${pcId}#bussa`, `${nome || pcId}: bussato a ${indirizzi.length} indirizzi, nessuno va bene — ${prove.map(testoProva).join('; ')}`)
     let p: PingPc
     if (buona !== undefined) {
       const modo = buone.find((x) => x.ind === buona)?.modo
       if (modo === 'firma') conFirma.add(pcId)
+      raccontati.delete(`${pcId}#bussa`)
       modi.set(pcId, modo ?? 'chiave')
       segnaBuono(pcId, nome, buona, porta)
       p = { esito: 'risponde', indirizzo: buona }
     } else {
       const chiaveNo = risposte.find((x) => x.stato === 401)
       const rifiuto = risposte.find((x) => x.stato === 403)
-      p = chiaveNo !== undefined ? { esito: 'chiave', indirizzo: chiaveNo.ind }
-        : rifiuto !== undefined ? { esito: 'rifiutato', indirizzo: rifiuto.ind }
-        : { esito: 'muto', provati: indirizzi.map(descriviIndirizzo) }
+      p = chiaveNo !== undefined ? { esito: 'chiave', indirizzo: chiaveNo.ind, prove }
+        : rifiuto !== undefined ? { esito: 'rifiutato', indirizzo: rifiuto.ind, prove }
+        : { esito: 'muto', provati: indirizzi.map(descriviIndirizzo), prove }
     }
     ultimiPing.set(pcId, p)
     return p
@@ -412,7 +422,10 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       drivePossibile: deps.cassetta?.possibile() ?? false,
       adesso: adesso()
     })
-    if (m.avviaRtc) deps.rtc?.avvia(pcId)
+    if (m.avviaRtc) {
+      racconta(`${pcId}#strada`, `${b.nome}: né la rete di casa né Tailscale rispondono, provo il collegamento diretto via Internet (WebRTC)`)
+      deps.rtc?.avvia(pcId)
+    }
     if (m.mossa === 'rtc' && deps.rtc !== undefined) {
       let e: EsitoCanale
       try {
@@ -429,6 +442,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     }
     if (m.mossa === 'aspetta-rtc') throw collegando(b.nome)
     if (m.mossa === 'drive' && deps.cassetta !== undefined) {
+      if (deps.rtc?.fallitoIl(pcId) !== undefined) racconta(`${pcId}#strada`, `${b.nome}: anche il collegamento diretto (WebRTC) non è riuscito, passo dal Drive (lento: solo schermo e messaggi)`)
       const e = await deps.cassetta.chiama(pcId, percorso, corpo, visore)
       segnaStrada(pcId, b.nome, 'drive')
       return datiDa(e, b.nome)

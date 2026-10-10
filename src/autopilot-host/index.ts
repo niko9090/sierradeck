@@ -11,6 +11,7 @@ import { creaServer } from './server'
 import { esecutoreReale } from './verifiche'
 import { interrogazioneReale } from './supervisore'
 import { creaConsegne } from './consegne'
+import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { apriRegistroIstruzioni } from './istruzioni'
 import { esecutoreNelMosaico } from './nel-mosaico'
 import { creaRegistroDomande } from './domande'
@@ -203,6 +204,10 @@ export function avviaServizio(): void {
   // Ogni consegna, con il testo intero, il perche' e l'esito, resta scritta
   // (0.41.0): e' la linguetta «Istruzioni».
   const istruzioni = apriRegistroIstruzioni(archivio.cartella)
+  // Il numero delle consegne non riparte da c-1 a ogni avvio (0.57.1).
+  const fileNumeri = join(archivio.cartella, 'consegne-numero.json')
+  let primoNumero = 0
+  try { primoNumero = Number((JSON.parse(readFileSync(fileNumeri, 'utf8')) as { ultimo?: unknown }).ultimo) || 0 } catch { /* primo avvio */ }
   const consegne = creaConsegne({
     messa: (c) => istruzioni.registra(c),
     confermata: (id) => istruzioni.esito(id, 'consegnata'),
@@ -210,8 +215,13 @@ export function avviaServizio(): void {
       istruzioni.esito(id, 'persa')
       // Mai ritirata dal Gestore: i messaggi che portava tornano in coda (0.56.4).
       serverPronto?.riportaInCoda(id, 'nessuna finestra l ha ritirata')
+    },
+    // Sostituita da una più nuova prima del ritiro (0.57.1): i suoi messaggi tornano in coda.
+    sostituita: (id, da) => {
+      istruzioni.esito(id, 'persa')
+      serverPronto?.riportaInCoda(id, `sostituita dalla ${da} prima di essere ritirata`)
     }
-  })
+  }, { primo: primoNumero, ricorda: (n) => { scriviJsonAtomico(fileNumeri, { ultimo: n }, 'consegne') } })
   let serverPronto: { riportaInCoda: (consegna: string, perche: string) => void } | undefined
 
   const lavori = esecutoreNelMosaico({

@@ -132,15 +132,37 @@ describe('la conferma di consegna', () => {
     expect(c.inAttesa()).toBe(0)
   })
 
-  it('una consegna nuova per la stessa chat sostituisce quella in volo', () => {
+  it('una consegna nuova per la stessa chat sostituisce quella non ancora ritirata, e lo dice', () => {
     // Sono istruzioni successive dello stesso ragionamento: consegnare anche
-    // quella vecchia farebbe lavorare la chat su un ordine gia' superato.
-    const c = creaConsegne()
+    // quella vecchia farebbe lavorare la chat su un ordine gia' superato. Ma i
+    // suoi messaggi non devono sparire (0.57.1): chi osserva li rimette in coda.
+    const sostituite: string[] = []
+    const c = creaConsegne({ sostituita: (id, da) => { sostituite.push(`${id}>${da}`) } })
     c.metti(una({ testo: 'la prima' }))
-    c.ritira(1000)
     c.metti(una({ testo: 'la seconda' }))
     expect(c.inAttesa()).toBe(1)
     expect(c.ritira(2000).map((x) => x.testo)).toEqual(['la seconda'])
+    expect(sostituite).toEqual(['c-1>c-2'])
+  })
+
+  it('quella già presa da una finestra non si toglie: la sta scrivendo (0.57.1)', () => {
+    const sostituite: string[] = []
+    const c = creaConsegne({ sostituita: (id) => { sostituite.push(id) } })
+    c.metti(una({ testo: 'la prima' }))
+    c.ritira(1000)
+    c.metti(una({ testo: 'la seconda' }))
+    expect(c.inAttesa()).toBe(2)
+    expect(sostituite).toEqual([])
+  })
+
+  it('i numeri non ripartono da c-1 dopo un riavvio del servizio (0.57.1)', () => {
+    let ricordato = 0
+    const prima = creaConsegne({}, { primo: 0, ricorda: (n) => { ricordato = n } })
+    prima.metti(una({ chatId: 'a' })); prima.metti(una({ chatId: 'b' })); prima.metti(una({ chatId: 'c' }))
+    expect(ricordato).toBe(3)
+    // Il servizio riparte: la prossima è la c-4, non un'altra c-1.
+    const dopo = creaConsegne({}, { primo: ricordato })
+    expect(dopo.metti(una()).id).toBe('c-4')
   })
 
   it('dimenticare un autopilota toglie anche quelle gia in volo', () => {

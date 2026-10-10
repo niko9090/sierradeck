@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ascoltaSegnali, partitaConSegnali, prontaConSegnali } from './segnali-vivi'
+import { ascoltaSegnali, lavoraConSegnali, partitaConSegnali, prontaConSegnali } from './segnali-vivi'
 import { useLayoutStore } from './state/layout'
 import { useSessionStore } from './state/sessions'
 import { creaPersistenza } from './persistenza-layout'
@@ -10,7 +10,7 @@ import { giaSalvatoCome } from '@shared/doppioni'
 import type { Istantanea } from '@shared/istantanea'
 import { chiChiede, workspaceCheChiamano } from '@shared/dove-chiedono'
 import { attivaChiusuraFuori, attivaTrascinamento } from './trascina-finestre'
-import { chatAspetta, consegnaPartita, contaMandati, creaUltimeRighe, prontoPerInvio, sceltaSulloSchermo, testoPerso, ultimaRigaDalloSchermo } from './ultime-righe'
+import { chatAspetta, consegnaPartita, contaMandati, creaUltimeRighe, lavoraSulloSchermo, prontoPerInvio, sceltaSulloSchermo, testoPerso, ultimaRigaDalloSchermo } from './ultime-righe'
 import { creaBattito, stessiAttivi } from './battito'
 import { eseguiConsegna, ponteReale, scriviQuandoPronta, type InvioMancato } from './consegne-autopilota'
 import { memoriaWorkspace } from './memoria-workspace'
@@ -273,6 +273,8 @@ export function App(): React.JSX.Element {
     // lo mostra), e da quanto il terminale parla (una chat che riprende).
     mandati: (ptyId: string, scritto: string) => contaMandati(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite, scritto),
     natoDa: (ptyId: string) => { const p = righe.current.attivitaDi(ptyId).primoDato; return p === undefined ? undefined : Date.now() - p },
+    // 0.57.1: un turno in corso non si scrive sopra.
+    lavora: (ptyId: string) => lavoraConSegnali(ptyId, () => lavoraSulloSchermo(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite)),
     // Ogni passo nel registro su file (0.38.2): dopo un guasto si legge li'.
     registra: (passo: string) => { void window.gestore.log.info(`[consegna] ${passo}`).catch(() => undefined) },
     sceltaAperta: (ptyId: string) => sceltaSulloSchermo(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite),

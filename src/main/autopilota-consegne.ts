@@ -148,6 +148,18 @@ export function finestraPerConsegna(
 export const RICORDATE_MAX = 100
 
 /**
+ * Come si riconosce una consegna già scritta (0.57.1): l'id **e** la chat e il
+ * testo. L'id da solo non basta: fino alla 0.57.0 il servizio ripartiva da c-1
+ * a ogni avvio, e una c-3 nuova veniva presa per la c-3 di prima, confermata e
+ * mai scritta. Il 10/10 sono sparite così due istruzioni.
+ */
+export function chiaveConsegna(c: Consegna): string {
+  let h = 0
+  for (let i = 0; i < c.testo.length; i += 1) h = (Math.imul(h, 31) + c.testo.charCodeAt(i)) | 0
+  return `${c.id}|${c.sessionId}|${c.cosa}|${c.testo.length}|${h}`
+}
+
+/**
  * Passa a ritirare finché non gli si dice di smettere.
  *
  * Un giro che fallisce non ferma i successivi: il servizio può essere spento,
@@ -192,9 +204,10 @@ export function avviaRitiro(p: {
           ricevute += 1
           // Già scritta: la conferma non era arrivata, l'istruzione sì. Si
           // riconferma e basta — riscriverla la farebbe eseguire due volte.
-          if (gia.includes(c.id)) { arrivate.push(c.id); continue }
+          const chiave = chiaveConsegna(c)
+          if (gia.includes(chiave)) { arrivate.push(c.id); continue }
           if (p.consegna(c) === false) continue
-          gia.push(c.id)
+          gia.push(chiave)
           if (gia.length > RICORDATE_MAX) gia.splice(0, gia.length - RICORDATE_MAX)
           arrivate.push(c.id)
         }

@@ -1,5 +1,5 @@
 import { useLayoutStore } from './state/layout'
-import { partitaDaSegnali, prontaDaSegnali, type FaseSessione } from '@shared/segnali-chat'
+import { lavoraDaSegnali, partitaDaSegnali, prontaDaSegnali, type FaseSessione } from '@shared/segnali-chat'
 
 /**
  * Lo stato delle chat dai segnali di Claude Code (0.45.0), come lo manda il
@@ -23,6 +23,11 @@ function faseDiPty(ptyId: string): FaseSessione | undefined {
 /** Pronta per una consegna: dai segnali se lo sanno, altrimenti dallo schermo. */
 export function prontaConSegnali(ptyId: string, dalloSchermo: () => boolean, adesso = Date.now()): boolean {
   return prontaDaSegnali(faseDiPty(ptyId), adesso) ?? dalloSchermo()
+}
+
+/** Sta lavorando (0.57.1): lo schermo se lo mostra, altrimenti i segnali. */
+export function lavoraConSegnali(ptyId: string, dalloSchermo: () => boolean, adesso = Date.now()): boolean {
+  return dalloSchermo() || lavoraDaSegnali(faseDiPty(ptyId), adesso) === true
 }
 
 /** Partita: i segnali la dicono con certezza; altrimenti lo schermo. */

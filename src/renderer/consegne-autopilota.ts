@@ -79,6 +79,11 @@ export type Ponte = {
    */
   natoDa?: (ptyId: string) => number | undefined
   /**
+   * La chat sta lavorando (0.57.1): un turno in corso. Non le si scrive sopra
+   * e il tetto non scatta: si aspetta che il turno finisca.
+   */
+  lavora?: (ptyId: string) => boolean
+  /**
    * Dopo l'invio il testo non c'e' da nessuna parte: ne' nel campo ne' fra i
    * messaggi mandati, e la chat non lavora (0.38.2). E' stato digitato mentre
    * Claude Code non ascoltava: va riscritto, un altro Invio non basta.
@@ -200,6 +205,11 @@ export const TETTO_PRONTEZZA_MS = 8000
 export const TETTO_RIPRESA_MS = 45_000
 /** Sotto quest'età un terminale si considera «appena nato». */
 export const TERMINALE_GIOVANE_MS = 60_000
+/**
+ * Quanto si aspetta al massimo la fine di un turno (0.57.1) prima di tornare
+ * alle regole di sempre: un turno lungo dura minuti, non ore.
+ */
+export const ATTESA_TURNO_MAX_MS = 45 * 60_000
 
 /**
  * Dopo i due modi, si insiste (0.56.4) a intervalli crescenti: ogni volta si
@@ -327,7 +337,7 @@ function attendiEConsegna(
   ponte: Ponte,
   dopo: (ms: number, cosa: () => void) => void,
   aspettato: number,
-  stato: { conPty?: number; giovane?: boolean; tornato?: boolean; tornate?: number; ultimaTornata?: number; inAttesaTurno?: number; svegliato?: boolean; sceltaDetta?: boolean; riportato?: number } = {}
+  stato: { conPty?: number; giovane?: boolean; lavoroDa?: number; tornato?: boolean; tornate?: number; ultimaTornata?: number; inAttesaTurno?: number; svegliato?: boolean; sceltaDetta?: boolean; riportato?: number } = {}
 ): void {
   dopo(RIPROVA_MS, () => {
     const ora = ponte.riquadroDi(c.sessionId)
@@ -355,8 +365,10 @@ function attendiEConsegna(
     }
     if (ora?.ptyId !== undefined) {
       const da = stato.conPty ?? passato
-      // Appena nato quando lo si è visto la prima volta: sta riprendendo.
-      const giovane = stato.giovane ?? ((ponte.natoDa?.(ora.ptyId) ?? Number.POSITIVE_INFINITY) < TERMINALE_GIOVANE_MS)
+      // Appena nato quando lo si è visto la prima volta: sta riprendendo. Se
+      // non si sa da quanto parla (0.57.1: nessun dato ancora visto da questa
+      // finestra, appena aperta), si è pazienti come con uno giovane.
+      const giovane = stato.giovane ?? (ponte.natoDa !== undefined && (ponte.natoDa(ora.ptyId) ?? 0) < TERMINALE_GIOVANE_MS)
       const tetto = giovane ? TETTO_RIPRESA_MS : TETTO_PRONTEZZA_MS
       // Una scelta sullo schermo (permesso, fiducia, ripresa): non si scrive
       // alla cieca. La chat compare nelle Domande con le sue opzioni; qui la si
@@ -368,6 +380,17 @@ function attendiEConsegna(
         }
         if (passato < RESA_MS * 10) attendiEConsegna(c, ponte, dopo, passato, { ...stato, conPty: da, giovane, sceltaDetta: true })
         return
+      }
+      // **Sta lavorando** (0.57.1): un turno in corso non si interrompe e non
+      // gli si scrive sopra. Il tetto non scatta: si aspetta la fine del turno.
+      if (ponte.lavora?.(ora.ptyId) === true && !ponte.prontoARicevere(ora.ptyId)) {
+        const lavoroDa = stato.lavoroDa ?? passato
+        if (stato.lavoroDa === undefined) ponte.registra?.(`consegna ${c.id}: la chat sta lavorando, aspetto che finisca il turno prima di scrivere`)
+        if (passato - lavoroDa < ATTESA_TURNO_MAX_MS) {
+          attendiEConsegna(c, ponte, dopo, passato, { ...stato, conPty: passato, giovane, lavoroDa })
+          return
+        }
+        if (passato - lavoroDa < ATTESA_TURNO_MAX_MS + RIPROVA_MS) ponte.registra?.(`consegna ${c.id}: il turno dura da più di ${ATTESA_TURNO_MAX_MS / 60_000} minuti, torno alle regole di sempre`)
       }
       if (ponte.prontoARicevere(ora.ptyId)) {
         ponte.registra?.(`consegna ${c.id}: pronta dopo ${Math.round(passato / 100) / 10} s`)

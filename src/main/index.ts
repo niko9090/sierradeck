@@ -138,7 +138,7 @@ import type { EsitoLavoro } from './cassaforte/lavoro-in-corso'
 import { pathToSlug } from './indexer/project-scanner'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { decidiApertura, type Apertura } from '@shared/apertura-chat'
-import { avvisoDriveScollegato, scollegamentoDalRegistro, type AvvisoDrive, type StatoPc } from '@shared/scoperta-pc'
+import { avvisoDriveScollegato, indirizzoUtile, scollegamentoDalRegistro, type AvvisoDrive, type StatoPc } from '@shared/scoperta-pc'
 import { indirizziTailscale } from './tailscale'
 import {
   elencoPlugin, installaPlugin, aggiornaPlugin, disinstallaPlugin, commutaPlugin,
@@ -439,6 +439,8 @@ let scopeStore: ScopeStore | undefined
 let gettoniMcp: Gettoni | undefined
 /** La coda dei file per il telefono (0.54.0). */
 let alTelefono: AlTelefono | undefined
+/** Chi impara gli indirizzi dei PC che ci chiamano (0.57.1): nasce con il client degli altri PC. */
+let pcVistoGlobale: ((pcId: string, indirizzo: string) => void) | undefined
 // Il registro della sessione, visibile anche ai gestori globali qui sotto: loro
 // nascono al caricamento del modulo, prima che la sessione sia aperta, quindi
 // finché resta `undefined` ripiegano sulla sola console.
@@ -1659,6 +1661,22 @@ if (!app.requestSingleInstanceLock()) {
       const indirizziRicordati = (): Record<string, string[]> => {
         try { const j = JSON.parse(readFileSync(fileIndirizzi, 'utf8')) as unknown; return typeof j === 'object' && j !== null ? j as Record<string, string[]> : {} } catch { return {} }
       }
+      /** Ricorda un indirizzo di un PC (davanti agli altri, al massimo quattro). */
+      const ricordaIndirizzo = (pcId: string, ind: string): boolean => {
+        const tutti = indirizziRicordati()
+        const prima = tutti[pcId] ?? []
+        if (prima[0] === ind) return false
+        tutti[pcId] = [ind, ...prima.filter((x) => x !== ind)].slice(0, 4)
+        try { scriviAtomico(fileIndirizzi, JSON.stringify(tutti, null, 2), 'remoto') } catch { /* la prossima volta */ }
+        return true
+      }
+      pcVistoGlobale = (pcId, ind) => {
+        if (pcId === identitaPc.leggi().id || !indirizzoUtile(ind) || ind.startsWith('127.')) return
+        if ((indirizziRicordati()[pcId] ?? []).includes(ind)) return
+        ricordaIndirizzo(pcId, ind)
+        const nome = postino.altrui().find((b) => b.pcId === pcId)?.nome ?? pcId
+        registro.info(`[remoto] ${nome} si è collegato a questo PC da ${ind}: lo ricordo, è un indirizzo a cui bussare anche da qui`)
+      }
       // **Le strade nuove (0.40.0)**: WebRTC diretto via Internet, con lo
       // scambio iniziale cifrato sul Drive, e la cassetta lenta sul Drive.
       // Vedi `rtc/collegamento-rtc.ts` e `rtc/cassetta-drive.ts`.
@@ -1706,15 +1724,10 @@ if (!app.requestSingleInstanceLock()) {
         driveCollegato: () => contoDrive.stato().connesso,
         altriIndirizzi: async (pcId, nome) => ({
           ricordati: (indirizziRicordati()[pcId] ?? []).filter((x) => typeof x === 'string'),
-          tailscale: await indirizziTailscale(nome)
+          // Anche per indirizzo del battito (0.57.1): su Tailscale un PC può avere un altro nome.
+          tailscale: await indirizziTailscale(nome, postino.altrui().find((b) => b.pcId === pcId)?.indirizzi ?? [])
         }),
-        ricorda: (pcId, ind) => {
-          const tutti = indirizziRicordati()
-          const prima = tutti[pcId] ?? []
-          if (prima[0] === ind) return
-          tutti[pcId] = [ind, ...prima.filter((x) => x !== ind)].slice(0, 4)
-          try { scriviAtomico(fileIndirizzi, JSON.stringify(tutti, null, 2), 'remoto') } catch { /* la prossima volta */ }
-        }
+        ricorda: (pcId, ind) => { ricordaIndirizzo(pcId, ind) }
       })
       // Ogni esito porta la strada usata (0.40.0): il riquadro la mostra.
       const esitoRemoto = async <T,>(f: () => Promise<unknown>, pc?: unknown): Promise<EsitoRemoto<T>> => {
@@ -4034,6 +4047,8 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('alTelefono:pulisci', () => { coda.pulisci(); return statoAlTelefono() })
       serverClient = creaServerClient({
         dispositivi,
+        // Il PC che ci chiama con la firma di casa: il suo indirizzo si impara (0.57.1).
+        pcVisto: (pcId, ind) => { pcVistoGlobale?.(pcId, ind) },
         // Il polso delle chat: la riga di stato di Claude Code ci manda il suo
         // JSON e riceve la riga da mostrare in fondo al terminale.
         // I segnali di Claude Code (0.45.0): stato, permessi, turni, errori.

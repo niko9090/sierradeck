@@ -161,7 +161,19 @@ const CAMPO_SULLO_SCHERMO = /❯|bypass permissions|shift\+tab|\[Pasted text #\d
  * thinking)», «✻ … (12s · ↓ 340 tokens)». Vista con un Claude Code vero
  * (2.1.287): «esc to interrupt» non c'e' sempre, questa si'.
  */
-const ATTIVITA_SULLO_SCHERMO = /\(\d+s ·|esc to interrupt|interrupt to stop/i
+const ATTIVITA_SULLO_SCHERMO = /\((?:\d+[hm] )*\d+s ·|esc to interrupt|interrupt to stop/i
+
+/**
+ * La chat sta lavorando, letto dal fondo dello schermo (0.57.1): la riga
+ * d'attività («(12s · thinking)», «(1m 4s · ↓ 300 tokens)») o «esc to
+ * interrupt». Il 10/10 una consegna è stata scritta dopo il tetto di otto
+ * secondi dentro una chat che stava lavorando: il testo è rimasto nel campo.
+ */
+export function lavoraSulloSchermo(righe: string[] | undefined): boolean {
+  if (righe === undefined || righe.length === 0) return false
+  return righe.slice(-RIGHE_DEL_FONDO_LAVORO).some((r) => ATTIVITA_SULLO_SCHERMO.test(r))
+}
+const RIGHE_DEL_FONDO_LAVORO = 12
 
 /**
  * Lo schermo mostra una scelta da fare (0.38.2): un elenco numerato con il

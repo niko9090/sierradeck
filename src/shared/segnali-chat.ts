@@ -192,6 +192,18 @@ export function prontaDaSegnali(f: FaseSessione | undefined, adesso: number): bo
 }
 
 /**
+ * Sta lavorando? Dai segnali (0.57.1): un turno cominciato da meno di dieci
+ * minuti e non ancora finito. Oltre, un «lavora» senza fine può essere un
+ * segnale perso: decide lo schermo.
+ */
+export function lavoraDaSegnali(f: FaseSessione | undefined, adesso: number): boolean | undefined {
+  if (f === undefined) return undefined
+  if (f.fase === 'aspetta') return false
+  if (f.fase === 'lavora' && adesso - Date.parse(f.dal) < 10 * 60_000) return true
+  return undefined
+}
+
+/**
  * La consegna e' partita? Dai segnali: un turno cominciato (`UserPromptSubmit`)
  * o un permesso chiesto da poco. `undefined` = i segnali non lo dicono.
  */

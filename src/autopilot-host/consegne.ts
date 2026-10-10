@@ -55,6 +55,12 @@ export type OsservatoreConsegne = {
   confermata?: (id: string) => void
   /** Lasciata andare dopo `TENTATIVI_MAX`: non è mai arrivata. */
   persa?: (id: string) => void
+  /**
+   * Tolta dalla coda prima di essere ritirata, perché per la stessa chat ne è
+   * arrivata una più nuova (0.57.1). I messaggi che portava non sono nella
+   * nuova: devono tornare in coda, non sparire.
+   */
+  sostituita?: (id: string, da: string) => void
 }
 
 export type Consegne = {
@@ -112,14 +118,25 @@ export const TENTATIVI_MAX = 5
 
 type InCoda = { consegna: Consegna; consegnataIl?: number; tentativi: number }
 
-export function creaConsegne(osserva: OsservatoreConsegne = {}): Consegne {
+export function creaConsegne(
+  osserva: OsservatoreConsegne = {},
+  /**
+   * Il numero da cui ripartire e dove ricordarlo (0.57.1). Prima ogni avvio del
+   * servizio ripartiva da c-1: il Gestore, che ricorda gli id già scritti,
+   * scambiava la c-3 nuova per la c-3 di prima e la confermava **senza
+   * scriverla** — e il file c-3.md di prima veniva sovrascritto. Il 10/10 due
+   * istruzioni sul portatile sono sparite così.
+   */
+  numeri: { primo?: number; ricorda?: (ultimo: number) => void } = {}
+): Consegne {
   const avvisa = (f: (() => void) | undefined): void => { try { f?.() } catch (err) { console.error('[consegne] osservatore:', err) } }
   const coda: InCoda[] = []
-  let prossimo = 0
+  let prossimo = Math.max(0, Math.floor(numeri.primo ?? 0))
 
   return {
     metti(c) {
       prossimo += 1
+      try { numeri.ricorda?.(prossimo) } catch (err) { console.error('[consegne] numero non ricordato:', err) }
       const consegna: Consegna = { ...c, id: `c-${prossimo}` }
       // Una scrittura nuova per la stessa chat sostituisce quella non ancora
       // ritirata: sono istruzioni successive dello stesso ragionamento, e
@@ -129,8 +146,13 @@ export function creaConsegne(osserva: OsservatoreConsegne = {}): Consegne {
         (x) => x.consegna.chatId === c.chatId
           && x.consegna.autopilotaId === c.autopilotaId
           && x.consegna.cosa === c.cosa
+          // Già presa da una finestra (0.57.1): la sta scrivendo, non si toglie.
+          && x.consegnataIl === undefined
       )
-      if (vecchia !== -1) coda.splice(vecchia, 1)
+      if (vecchia !== -1) {
+        const tolta = coda.splice(vecchia, 1)[0]
+        if (tolta !== undefined) avvisa(osserva.sostituita === undefined ? undefined : () => osserva.sostituita?.(tolta.consegna.id, consegna.id))
+      }
       coda.push({ consegna, tentativi: 0 })
       if (coda.length > TETTO) coda.splice(0, coda.length - TETTO)
       avvisa(osserva.messa === undefined ? undefined : () => osserva.messa?.(consegna))

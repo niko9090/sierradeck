@@ -24,7 +24,31 @@
  */
 
 /** Com'è andato un bussare breve a quel PC, su tutti i suoi indirizzi insieme. */
-export type PingPc =
+/**
+ * Com'è andato un indirizzo quando si è bussato (0.57.1). Prima il bussare
+ * diceva solo l'esito finale, e un «non risponde» non spiegava niente: il
+ * 10/10 non si sapeva se al portatile si era bussato, a quali indirizzi, e
+ * cosa avevano risposto.
+ */
+export type ProvaIndirizzo = {
+  indirizzo: string
+  esito: 'risponde' | 'estraneo' | 'cassaforte' | 'muto' | 'http'
+  stato?: number
+}
+
+/** Una riga per indirizzo, per il registro e per il riquadro. */
+export function testoProva(p: ProvaIndirizzo): string {
+  const dove = `${p.indirizzo} (${/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(p.indirizzo) ? 'Tailscale' : 'rete locale'})`
+  switch (p.esito) {
+    case 'risponde': return `${dove}: risponde e prova la chiave di casa`
+    case 'estraneo': return `${dove}: risponde, ma non prova la chiave di casa (non è quel PC, o è di un'altra cassaforte)`
+    case 'cassaforte': return `${dove}: risponde, ma là la cassaforte è chiusa`
+    case 'muto': return `${dove}: nessuna risposta`
+    case 'http': return `${dove}: risponde con l'errore ${p.stato ?? '?'}`
+  }
+}
+
+export type PingPc = (
   | { esito: 'risponde'; indirizzo: string }
   /** Risponde, ma non riconosce la chiave di casa (401). */
   | { esito: 'chiave'; indirizzo: string }
@@ -34,6 +58,10 @@ export type PingPc =
   | { esito: 'muto'; provati: string[] }
   /** Non c'è nessun indirizzo da provare. */
   | { esito: 'senza-indirizzi' }
+) & {
+  /** Cosa ha detto ogni indirizzo (0.57.1). */
+  prove?: ProvaIndirizzo[]
+}
 
 const IPV4 = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/
 
@@ -45,19 +73,31 @@ export function indirizzoUtile(ind: string): boolean {
 }
 
 /**
- * Gli indirizzi Tailscale di un PC, da `tailscale status --json`, cercato per
- * nome. Il nome del PC nel battito è il nome di Windows, lo stesso che
- * Tailscale chiama `HostName`. Le maiuscole non contano.
+ * Gli indirizzi Tailscale di un PC, da `tailscale status --json`.
+ *
+ * Si riconosce in tre modi (0.57.1): per **indirizzo** (uno di quelli che il
+ * PC ha scritto nel suo battito è fra i suoi `TailscaleIPs`), per **nome**
+ * (`HostName`, il nome di Windows) o per **nome DNS** (la prima parte di
+ * `DNSName`). Fino alla 0.57.0 solo per nome: il 10/10 il portatile su
+ * Tailscale aveva un nome diverso da quello di Windows, e non si trovava. Le
+ * maiuscole non contano.
  */
-export function indirizziTailscaleDi(status: unknown, nomePc: string): { indirizzi: string[]; online?: boolean } {
-  if (typeof status !== 'object' || status === null || nomePc.trim() === '') return { indirizzi: [] }
+export function indirizziTailscaleDi(status: unknown, nomePc: string, noti: string[] = []): { indirizzi: string[]; online?: boolean } {
+  if (typeof status !== 'object' || status === null || (nomePc.trim() === '' && noti.length === 0)) return { indirizzi: [] }
   const peer = (status as { Peer?: unknown }).Peer
   if (typeof peer !== 'object' || peer === null) return { indirizzi: [] }
   const chi = nomePc.trim().toLowerCase()
+  const lui = (q: { HostName?: unknown; DNSName?: unknown; TailscaleIPs?: unknown }): boolean => {
+    const ips = Array.isArray(q.TailscaleIPs) ? q.TailscaleIPs : []
+    if (noti.some((n) => ips.includes(n))) return true
+    if (chi === '') return false
+    if (typeof q.HostName === 'string' && q.HostName.trim().toLowerCase() === chi) return true
+    return typeof q.DNSName === 'string' && q.DNSName.split('.')[0]?.trim().toLowerCase() === chi
+  }
   for (const p of Object.values(peer as Record<string, unknown>)) {
     if (typeof p !== 'object' || p === null) continue
-    const q = p as { HostName?: unknown; TailscaleIPs?: unknown; Online?: unknown }
-    if (typeof q.HostName !== 'string' || q.HostName.trim().toLowerCase() !== chi) continue
+    const q = p as { HostName?: unknown; DNSName?: unknown; TailscaleIPs?: unknown; Online?: unknown }
+    if (!lui(q)) continue
     const ips = Array.isArray(q.TailscaleIPs) ? q.TailscaleIPs.filter((x): x is string => typeof x === 'string' && indirizzoUtile(x)) : []
     return { indirizzi: ips, ...(typeof q.Online === 'boolean' ? { online: q.Online } : {}) }
   }
@@ -120,7 +160,7 @@ export function statoPc(p: {
     return {
       stato: 'chiave',
       titolo: `${n} risponde ma non riconosce la chiave`,
-      cosaFare: `Su ${n} la cassaforte è chiusa (aprila là: Account → Cassaforte), oppure i due PC hanno due cassaforti diverse: la chiave si ricava dalla stessa passphrase, deve essere la stessa da tutte e due le parti.`
+      cosaFare: `Su ${n} la cassaforte è chiusa (aprila là: Account → Cassaforte), oppure i due PC hanno due cassaforti diverse: la chiave si ricava dalla stessa passphrase, deve essere la stessa da tutte e due le parti.${(ping.prove ?? []).length > 0 ? ` Cosa ho provato: ${(ping.prove ?? []).map(testoProva).join('; ')}.` : ''}`
     }
   }
   if (ping?.esito === 'rifiutato') {
@@ -142,17 +182,19 @@ export function statoPc(p: {
     }
   }
   const provati = ping.provati.join(', ')
+  // Cosa ha detto ogni indirizzo (0.57.1), quando lo si sa.
+  const prove = (ping.prove ?? []).length > 0 ? ` Cosa ho provato: ${(ping.prove ?? []).map(testoProva).join('; ')}.` : ''
   if (p.battitoVivo) {
     return {
       stato: 'irraggiungibile',
       titolo: `${n} è acceso ma non risponde`,
-      cosaFare: `Secondo il Drive è acceso, ma nessuno dei suoi indirizzi risponde sulla porta ${p.porta} (${provati}). O è su un’altra rete (a casa uno e in ufficio l’altro: serve Tailscale acceso su tutti e due), o il firewall di Windows su quel PC blocca la porta ${p.porta}.`
+      cosaFare: `Secondo il Drive è acceso, ma nessuno dei suoi indirizzi risponde sulla porta ${p.porta} (${provati}). O è su un’altra rete (a casa uno e in ufficio l’altro: serve Tailscale acceso su tutti e due), o il firewall di Windows su quel PC blocca la porta ${p.porta}.${prove} Intanto provo il collegamento diretto via Internet (WebRTC) e, se non va, il Drive.`
     }
   }
   return {
     stato: 'non-so',
     titolo: `Non so se ${n} è acceso`,
-    cosaFare: `Non ne ho notizie recenti: ${perche}. Ho bussato a tutti i suoi indirizzi (${provati}) e nessuno ha risposto: può essere spento, su un’altra rete, o con il firewall che chiude la porta ${p.porta}. Accendilo o controllalo; se è acceso, attiva Tailscale su tutti e due i PC. Questo riquadro riprova da solo.${p.driveCollegato ? '' : ' E ricollega il Drive (Account → Drive → Collega): senza, gli altri PC non si vedono.'}`
+    cosaFare: `Non ne ho notizie recenti: ${perche}. Ho bussato a tutti i suoi indirizzi (${provati}) e nessuno ha risposto: può essere spento, su un’altra rete, o con il firewall che chiude la porta ${p.porta}. Accendilo o controllalo; se è acceso, attiva Tailscale su tutti e due i PC. Questo riquadro riprova da solo.${prove}${p.driveCollegato ? '' : ' E ricollega il Drive (Account → Drive → Collega): senza, gli altri PC non si vedono.'}`
   }
 }
 

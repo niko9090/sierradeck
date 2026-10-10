@@ -35,6 +35,13 @@ export type Rotta = (
 export type DipendenzeClient = {
   dispositivi: Dispositivi
   /**
+   * Un altro PC della stessa cassaforte ci ha chiamato con una firma valida, da
+   * quell'indirizzo (0.57.1): è un indirizzo a cui si può bussare anche noi. Il
+   * 10/10 il portatile si collegava a questo PC dalla rete di casa, ma da qui
+   * non lo si trovava: l'indirizzo non veniva imparato.
+   */
+  pcVisto?: (pcId: string, indirizzo: string) => void
+  /**
    * `true` per accettare anche da fuori la rete locale — una VPN che assegna
    * indirizzi pubblici, un altro ufficio. Resta allora **solo** la chiave del
    * dispositivo: due muri diventano uno, ed è una scelta di chi lo accende.
@@ -268,6 +275,10 @@ async function gestisci(
       // Chi guarda (0.49.1): `pc:<id del PC>` o `pc:tel:<telefono>@<PC>` dal ponte; `pc` da un PC vecchio.
       const visore = visoreDaFirma(firma)
       dispositivo = { id: visore !== undefined ? `pc:${visore}` : 'pc', nome: nome === '' ? 'un altro PC' : nome, collegatoIl: '' }
+      // Un PC (non un telefono che passa dal suo ponte): il suo indirizzo si impara.
+      if (visore !== undefined && /^[\w-]{4,64}$/.test(visore)) {
+        try { deps.pcVisto?.(visore, indirizzo.replace(/^::ffff:/, '')) } catch { /* solo un aiuto */ }
+      }
     }
   }
   if (dispositivo === undefined && chiave !== '') {

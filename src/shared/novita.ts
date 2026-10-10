@@ -41,6 +41,17 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.57.1',
+    righe: [
+      '**Le istruzioni degli autopiloti non spariscono più dopo un riavvio del servizio.** Il servizio ricominciava a contare le consegne da 1 a ogni avvio, e il programma scambiava una consegna nuova per una vecchia già scritta: la confermava senza scriverla, e il file con le istruzioni veniva sovrascritto. Adesso i numeri continuano, e una consegna si riconosce anche dal suo testo.',
+      '**Una chat che sta lavorando non viene interrotta.** Se arriva un’istruzione mentre la chat è a metà di un turno, il programma aspetta che finisca invece di scriverle sopra dopo otto secondi, quando il testo restava nel campo senza partire.',
+      '**Nessun messaggio dell’autopilota va perso per strada.** Se un’istruzione nuova ne sostituisce una non ancora consegnata, i messaggi di quella vecchia tornano nella coda dell’autopilota.',
+      '**Gli altri PC si trovano anche se su Tailscale hanno un altro nome.** Il programma riconosce un PC su Tailscale anche dai suoi indirizzi e dal nome di rete, e ricorda l’indirizzo da cui un altro PC della tua cassaforte si collega, per poterlo raggiungere a sua volta.',
+      '**«Non risponde» adesso dice cosa ha provato.** Il registro e il riquadro elencano ogni indirizzo provato e cosa ha risposto (nessuna risposta, cassaforte chiusa, non è quel PC), e quando si passa al collegamento diretto o al Drive.',
+      '**App Android 2.57.0**, invariata.'
+    ]
+  },
+  {
     versione: '0.57.0',
     righe: [
       '**Il quaderno personale.** Un posto per i tuoi dati riservati, come l’email di contatto, la sede o la partita IVA, che una chat a volte deve scrivere ma che non devono finire nel codice. Stanno solo su questo PC, in un file cifrato. Li trovi in Impostazioni → Chat e autopiloti → Quaderno personale, sul PC, sul telefono e nella pagina. All’inizio è vuoto: le voci le aggiungi tu.',

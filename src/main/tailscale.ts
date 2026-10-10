@@ -16,8 +16,8 @@ let memoria: { quando: number; stato: unknown } | undefined
 
 function eseguibile(): string | undefined {
   const candidati = [
-    join(process.env.ProgramFiles ?? 'C:\Program Files', 'Tailscale', 'tailscale.exe'),
-    join(process.env['ProgramFiles(x86)'] ?? 'C:\Program Files (x86)', 'Tailscale', 'tailscale.exe')
+    join(process.env.ProgramFiles ?? 'C:\\Program Files', 'Tailscale', 'tailscale.exe'),
+    join(process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)', 'Tailscale', 'tailscale.exe')
   ]
   return candidati.find((c) => existsSync(c))
 }
@@ -36,6 +36,7 @@ function statoTailscale(): Promise<unknown> {
   })
 }
 
-export async function indirizziTailscale(nomePc: string): Promise<string[]> {
-  return indirizziTailscaleDi(await statoTailscale(), nomePc).indirizzi
+/** `noti`: gli indirizzi del battito di quel PC, per riconoscerlo anche se su Tailscale ha un altro nome (0.57.1). */
+export async function indirizziTailscale(nomePc: string, noti: string[] = []): Promise<string[]> {
+  return indirizziTailscaleDi(await statoTailscale(), nomePc, noti).indirizzi
 }
