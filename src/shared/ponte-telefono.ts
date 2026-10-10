@@ -34,7 +34,9 @@ export const ROTTE_PONTE: readonly string[] = [
   '/api/sfoglia', '/api/cartelle', '/api/sessioni',
   '/api/autopilota', '/api/autopilota/crea', '/api/autopilota/ferma', '/api/autopilota/riprendi', '/api/autopilota/vai',
   '/api/autopilota/elimina', '/api/autopilota/riavvio', '/api/autopilota/dialogo', '/api/autopilota/file', '/api/autopilota/diff',
-  '/api/autopilota/istruzioni', '/api/autopilota/correggi', '/api/quaderno', '/api/quaderno/scheda'
+  '/api/autopilota/istruzioni', '/api/autopilota/correggi', '/api/quaderno', '/api/quaderno/scheda',
+  // Il pannello delle chat e dei progetti del Drive di quel PC (0.58.0).
+  '/api/drive/pannello', '/api/drive/azione'
 ]
 
 export function rottaPonte(percorso: string): boolean {

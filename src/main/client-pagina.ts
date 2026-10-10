@@ -2027,12 +2027,13 @@ function pannello(s) {
       ((s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0) > 0 ? ' · ' + (s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0) : '') + '</button>' +
       '<button onclick="apriPannello(\\'pc\\')">Altri computer</button>' +
       '<button onclick="apriPannello(\\'drive\\')">Drive</button>' +
+      '<button onclick="apriPannello(\\'pannellodrive\\')">Chat e progetti</button>' +
       '<button onclick="apriPannello(\\'salute\\')">Salute</button>' +
       '<button onclick="apriPannello(\\'negozio\\')">Negozio</button>' +
       '<button onclick="apriPannello(\\'file\\')">File</button>' +
       '<button onclick="apriPannello(\\'consumi\\')">Consumi</button>' +
       '<button onclick="apriPannello(\\'impostazioni\\')">Impostazioni</button></div>' +
-      elencoCode + elencoPc + vistaDrive + vistaSalute + (pannelloAperto === 'negozio' ? negozioHtml() : '') + (pannelloAperto === 'file' ? fileHtml() : '') + vistaConsumi + vistaImpostazioni
+      elencoCode + elencoPc + vistaDrive + (pannelloAperto === 'pannellodrive' ? pannelloDriveHtml() : '') + vistaSalute + (pannelloAperto === 'negozio' ? negozioHtml() : '') + (pannelloAperto === 'file' ? fileHtml() : '') + vistaConsumi + vistaImpostazioni
   }
 
   app.innerHTML = \`
@@ -3086,6 +3087,7 @@ window.apriPannello = async (quale) => {
   if (pannelloAperto === 'file') { fileDove = null; fileElenco = null; fileVista = null; fileNota = ''; filePin = null; await leggiFileProgetti() }
   if (pannelloAperto === 'pc') { pcAperto = null; postaVoci = null; await leggiPc() }
   if (pannelloAperto === 'drive') { driveRiavviato = false; await leggiDrive() }
+  if (pannelloAperto === 'pannellodrive') { pdDati = null; pdErrore = ''; pdDaConfermare = ''; await leggiPannelloDrive() }
   if (pannelloAperto === 'impostazioni') { await leggiPreferenze(); await leggiAggiornamento(); await leggiQuadernoPersonale() }
   if (pannelloAperto === 'quaderno') {
     schedaAperta = null
@@ -3666,6 +3668,120 @@ function quadernoPersonaleHtml() {
     h += '<div class="sotto">' + esc(qpQuando(u.quando)) + ' · «' + esc(u.chat) + '» ha chiesto <b>' + esc(u.voce) + '</b> — ' + esc(QP_ESITI[u.esito] || u.esito) + '. Motivo: «' + esc(u.motivo) + '»</div>'
   }
   return h
+}
+
+// Il pannello delle chat e dei progetti del Drive (0.58.0): gli stessi dati e
+// le stesse azioni del PC, con i testi già scritti dal PC. Le conferme in due tocchi.
+var pdDati = null
+var pdErrore = ''
+var pdVista = 'progetti'
+var pdFiltro = 'tutti'
+var pdDaConfermare = ''
+window.leggiPannelloDrive = async () => {
+  try {
+    const r = await chiedi('/api/drive/pannello', {})
+    if (r && r.errore) { pdDati = null; pdErrore = r.errore } else { pdDati = r; pdErrore = '' }
+  } catch (e) { pdDati = null; pdErrore = (e && e.message) || String(e) }
+}
+window.pdCambia = (cosa, valore) => { if (cosa === 'vista') pdVista = valore; else pdFiltro = valore; pdDaConfermare = ''; pannello(ultimoStato) }
+window.pdAzione = async (azione, progetto, conferma, id) => {
+  const chiave = azione + ':' + progetto + ':' + (id || '')
+  if (conferma && pdDaConfermare !== chiave) { pdDaConfermare = chiave; pannello(ultimoStato); return }
+  pdDaConfermare = ''
+  try { const r = await chiedi('/api/drive/azione', { azione: azione, progetto: progetto, id: id || '' }); notaGlobale = (r && r.messaggio) || 'Fatto.' }
+  catch (e) { notaGlobale = 'Non è andata: ' + ((e && e.message) || e) }
+  await leggiPannelloDrive(); pannello(ultimoStato)
+}
+window.pdResidente = async (progetto, sessione, pcId) => {
+  if (!pdDati || !pcId) return
+  const pc = [pdDati.io].concat(pdDati.pc).find((x) => x.id === pcId)
+  if (!pc) return
+  const sessioni = progetto ? pdDati.chat.filter((c) => c.progetto === progetto).map((c) => c.sessione).concat(['progetto:' + progetto]) : [sessione]
+  const chiave = 'residente:' + (progetto || sessione) + ':' + pcId
+  if (pdDaConfermare !== chiave) { pdDaConfermare = chiave; pannello(ultimoStato); return }
+  pdDaConfermare = ''
+  try { const r = await chiedi('/api/drive/azione', { azione: 'residente', sessioni: sessioni, pc: { id: pc.id, nome: pc.nome } }); notaGlobale = (r && r.messaggio) || 'Fatto.' }
+  catch (e) { notaGlobale = 'Non è andata: ' + ((e && e.message) || e) }
+  await leggiPannelloDrive(); pannello(ultimoStato)
+}
+function pdQuando(iso) { if (!iso) return 'mai'; try { return new Date(iso).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }) } catch (e) { return iso } }
+function pdStato(s) { return s === 'residente' ? '<span style="color:var(--verde,#3c9)">● residente</span>' : s === 'conflitto' ? '<span style="color:var(--ambra,#e0a33c)">● in conflitto</span>' : '<span class="sotto">● solo cloud</span>' }
+function pdProblemi(r) {
+  return (r.problemi || []).map((x) => '<div class="sotto" style="border-left:3px solid var(--ambra,#e0a33c);padding-left:6px;margin-top:4px"><b>' + esc(x.titolo) + '.</b> ' + esc(x.spiega) + ' <i>Cosa fare:</i> ' + esc(x.cosaFare) + '</div>').join('')
+}
+function pdFiltra(righe, progetti) {
+  return righe.filter((r) => {
+    if (pdFiltro === 'sbagliati') return (r.problemi || []).length > 0
+    if (pdFiltro === 'questo-pc') return r.residente && r.residente.qui
+    if (pdFiltro === 'solo-cloud') return progetti ? !(r.cartellaQui || (r.residente && r.residente.qui)) : !(r.copiaQui || (r.residente && r.residente.qui))
+    return true
+  })
+}
+function pdScegliPc(progetto, sessione, attuale) {
+  const tutti = [pdDati.io].concat(pdDati.pc)
+  let h = '<select onchange="pdResidente(\\'' + escJs(progetto) + '\\', \\'' + escJs(sessione) + '\\', this.value)"><option value="">Rendi residente…</option>'
+  for (const p of tutti) h += '<option value="' + esc(p.id) + '"' + (p.id === attuale ? ' disabled' : '') + '>' + esc(p.nome) + (p.id === pdDati.io.id ? ' (questo PC)' : '') + '</option>'
+  h += '</select>'
+  const chiave = pdDaConfermare.indexOf('residente:' + (progetto || sessione) + ':') === 0 ? pdDaConfermare : ''
+  if (chiave) {
+    const pcId = chiave.split(':').slice(2).join(':')
+    const pc = tutti.find((x) => x.id === pcId)
+    h += '<div class="sotto" style="margin-top:6px">' + esc(pc ? pc.nome : pcId) + ' diventa il residente: le chat lavorano lì, sugli altri PC si aprono dal vivo, e le copie degli altri PC vanno nella cartella di recupero a fine turno. Non si cancella niente; si torna indietro scegliendo di nuovo il PC di prima.' +
+      (progetto ? ' Il progetto diventa «solo cloud» sugli altri PC: lì si toglie solo dopo il confronto con il residente e la tua conferma.' : '') +
+      '</div><div class="riga"><button class="primario" onclick="pdResidente(\\'' + escJs(progetto) + '\\', \\'' + escJs(sessione) + '\\', \\'' + escJs(pcId) + '\\')">Conferma</button><button onclick="pdCambia(\\'filtro\\', pdFiltro)">Annulla</button></div>'
+  }
+  return h
+}
+function pannelloDriveHtml() {
+  let h = '<div class="piastrella"><div class="titolo">Chat e progetti del Drive</div>' +
+    '<div class="sotto">Ogni chat e ogni progetto ha un PC residente: è lì che lavora; sugli altri PC si apre dal vivo, e il progetto lì è «solo cloud». Qui vedi il residente, chi ne ha una copia, l’ultimo uso e lo stato; in ambra le assegnazioni sbagliate, con il perché e cosa fare. Ogni cambio chiede conferma e non cancella niente: le copie tolte vanno nella cartella di recupero per 30 giorni.</div>'
+  if (pdErrore) return h + '<div class="sotto" style="color:var(--ambra,#e0a33c)">' + esc(pdErrore) + '</div><div class="riga"><button onclick="apriPannello(\\'pannellodrive\\')">Chiudi</button></div></div>'
+  if (!pdDati) return h + '<div class="sotto">Leggo…</div></div>'
+  if ((pdDati.pcDaAggiornare || []).length > 0) h += '<div class="sotto" style="color:var(--ambra,#e0a33c);margin-top:6px">' + esc(pdDati.pcDaAggiornare.join(', ')) + ': non dice ancora quali chat e progetti ha sul disco, va aggiornato alla 0.58.</div>'
+  const rim = pdDati.rimozione || { stati: [], inRecupero: [] }
+  for (const st of rim.stati) {
+    h += '<div class="sotto" style="border-left:3px solid var(--accento,#e0a33c);padding-left:6px;margin-top:8px"><b>Togliere «' + esc(st.nome) + '» da questo PC:</b> ' + esc(st.messaggio) + '</div>'
+    if (st.fase === 'attesa-conferma' || st.fase === 'in-uso') h += '<div class="riga"><button class="primario" onclick="pdAzione(\\'conferma\\', \\'' + escJs(st.progetto) + '\\', false)">Conferma e togli da questo PC</button><button onclick="pdAzione(\\'annulla\\', \\'' + escJs(st.progetto) + '\\', false)">Annulla</button></div>'
+  }
+  const inRec = (rim.inRecupero || []).filter((c) => !c.ripristinataIl)
+  if (inRec.length > 0) {
+    h += '<div class="sotto" style="margin-top:10px"><b>Cartelle in recupero</b> — tolte da questo PC, non cancellate: «Ripristina» le rimette dov’erano.</div>'
+    for (const c of inRec) h += '<div class="sotto" style="margin-top:4px"><b>' + esc(c.nome) + '</b> · tolta il ' + esc(pdQuando(c.quando)) + ' · resta fino al ' + esc(pdQuando(c.scadeIl)) + '</div><div class="riga"><button onclick="pdAzione(\\'ripristina\\', \\'\\', true, \\'' + escJs(c.id) + '\\')">' + (pdDaConfermare === 'ripristina::' + c.id ? 'Tocca ancora: rimetti in ' + esc(c.percorsoOriginale) : 'Ripristina') + '</button></div>'
+  }
+  if (pdDati.piano && pdDati.piano.azioni.length > 0) {
+    h += '<div class="sotto" style="margin-top:10px"><b>Piano di allineamento di questo PC</b></div>'
+    for (const a of pdDati.piano.azioni) h += '<div class="sotto" style="margin-top:4px">' + (a.tipo === 'porta-qui' ? '↓ ' : '☁ ') + esc(a.perche) + '</div>'
+  }
+  h += '<div class="riga" style="margin-top:8px">' +
+    ['progetti', 'chat'].map((v) => '<button' + (pdVista === v ? ' class="primario"' : '') + ' onclick="pdCambia(\\'vista\\', \\'' + v + '\\')">' + (v === 'progetti' ? 'Progetti (' + pdDati.progetti.length + ')' : 'Chat (' + pdDati.chat.length + ')') + '</button>').join('') + '</div>' +
+    '<div class="riga">' + [['tutti', 'Tutti'], ['sbagliati', 'Sbagliati'], ['questo-pc', 'Di questo PC'], ['solo-cloud', 'Solo cloud']].map((f) => '<button' + (pdFiltro === f[0] ? ' class="primario"' : '') + ' onclick="pdCambia(\\'filtro\\', \\'' + f[0] + '\\')">' + f[1] + '</button>').join('') + '</div></div>'
+  if (pdVista === 'progetti') {
+    const righe = pdFiltra(pdDati.progetti, true)
+    if (righe.length === 0) h += '<div class="piastrella"><div class="sotto">Nessun progetto con questo filtro.</div></div>'
+    for (const r of righe.slice(0, 200)) {
+      h += '<div class="piastrella"><div><b>' + esc(r.nome) + '</b> ' + pdStato(r.stato) + '</div>' +
+        '<div class="sotto">Residente: ' + (r.residente ? esc(r.residente.nome) + (r.residente.qui ? ' (questo PC)' : '') + (r.voluto ? '' : ' (dalla maggior parte delle chat)') : 'nessuno') + ' · qui sul disco: ' + (r.cartellaQui ? 'sì' : 'no') + ' · ' + r.chat + ' chat · ultimo uso: ' + esc(pdQuando(r.ultimoUso)) + '</div>' + pdProblemi(r)
+      const st = rim.stati.find((x) => x.progetto === r.id)
+      if (st) h += '<div class="sotto" style="margin-top:4px"><i>Togliere da questo PC:</i> ' + esc(st.messaggio) + '</div>'
+      h += '<div class="riga">'
+      for (const a of r.azioni) h += '<button onclick="pdAzione(\\'' + a.id + '\\', \\'' + escJs(r.id) + '\\', ' + (a.conferma ? 'true' : 'false') + ')">' + esc(a.titolo) + '</button>'
+      h += '</div>'
+      for (const a of r.azioni) {
+        if (pdDaConfermare === a.id + ':' + r.id + ':') h += '<div class="sotto" style="margin-top:6px">' + esc(a.testo) + '</div><div class="riga"><button class="primario" onclick="pdAzione(\\'' + a.id + '\\', \\'' + escJs(r.id) + '\\', true)">' + esc(a.conferma || a.titolo) + '</button><button onclick="pdCambia(\\'filtro\\', pdFiltro)">Annulla</button></div>'
+      }
+      h += pdScegliPc(r.id, '', r.residente ? r.residente.pc : '') + '</div>'
+    }
+  } else {
+    const righe = pdFiltra(pdDati.chat, false)
+    if (righe.length === 0) h += '<div class="piastrella"><div class="sotto">Nessuna chat con questo filtro.</div></div>'
+    for (const r of righe.slice(0, 150)) {
+      h += '<div class="piastrella"><div><b>' + esc(r.titolo) + '</b> ' + pdStato(r.stato) + '</div>' +
+        '<div class="sotto">Residente: ' + (r.residente ? esc(r.residente.nome) + (r.residente.qui ? ' (questo PC)' : '') : 'nessuno') + ' · copie: ' + (r.copie.length === 0 ? 'nessuna' : r.copie.map((c) => esc(c.nome) + (c.dove === 'qui' ? ' (qui)' : c.dove === 'disco' ? ' (sul suo disco)' : ' (sul Drive)')).join(', ')) + ' · ultimo uso: ' + esc(pdQuando(r.ultimoUso)) + '</div>' +
+        pdProblemi(r) + pdScegliPc('', r.sessione, r.residente ? r.residente.pc : '') + '</div>'
+    }
+    if (righe.length > 150) h += '<div class="piastrella"><div class="sotto">E altre ' + (righe.length - 150) + ': usa i filtri.</div></div>'
+  }
+  return h + '<div class="riga"><button onclick="leggiPannelloDrive().then(() => pannello(ultimoStato))">Aggiorna</button><button onclick="apriPannello(\\'pannellodrive\\')">Chiudi</button></div>'
 }
 
 /** Cambiare una preferenza: il computer la mescola con quelle che ha gia'. */

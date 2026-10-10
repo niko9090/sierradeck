@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.58.0',
+    righe: [
+      '**Il pannello delle chat e dei progetti del Drive.** Dal pannello Drive, «Chat e progetti del Drive…» mostra tutte le chat e tutti i progetti: il PC residente (dove lavorano), chi ne ha una copia, l’ultimo uso e lo stato (residente, solo cloud, in conflitto). Filtri e ricerca per trovarli; in ambra le assegnazioni sbagliate, ognuna con il perché e cosa fare: senza casa, con due case, con la casa su un PC sparito o assente da un mese, con una copia più recente fuori casa.',
+      '**Il PC residente si sceglie da lì, con una conferma che spiega tutto.** Cosa succede, cosa non succede, cosa fare se qualcosa non torna. Per un progetto la scelta vale per tutte le sue chat: il residente lo tiene sul disco, gli altri PC lo tengono «solo cloud».',
+      '**I PC si allineano da soli.** Ogni PC dice agli altri quali chat e progetti ha sul disco, e a ogni giro confronta le scelte con il suo disco: se è il residente e il progetto manca, lo porta giù dal Drive (da solo solo quando non sovrascrive niente); se non lo è, lo propone come «solo cloud».',
+      '**Togliere un progetto da un PC senza perdere niente.** «Rendi solo cloud qui» chiede al PC residente di confrontare file e chat; quello che c’è solo qui o è più nuovo viene copiato da lui, in una cartella dei recuperati, mai sopra i suoi file. Poi un riassunto, anche nelle Domande, con «Conferma e togli da questo PC». La cartella non si cancella: va nella cartella di recupero per 30 giorni, e «Ripristina» la rimette dov’era. Se il residente non risponde, non si toglie niente.',
+      '**Su telefono e pagina, lo stesso pannello.** Le stesse righe, le stesse azioni (Apri, Porta qui, Rendi residente qui, Rendi solo cloud qui) e le stesse conferme, anche per gli altri PC attraverso il ponte. App Android 2.58.0.'
+    ]
+  },
+  {
     versione: '0.57.3',
     righe: [
       '**Il programma controlla da solo come raggiunge gli altri PC.** All’avvio e ogni dieci minuti bussa agli altri tuoi PC accesi e si segna la strada che funziona (rete di casa o Tailscale). Prima lo scopriva solo quando aprivi una loro chat: se un PC non si raggiungeva, lo sapevi al clic. Adesso il registro e la Salute lo dicono prima, con cosa ha risposto ogni indirizzo.',

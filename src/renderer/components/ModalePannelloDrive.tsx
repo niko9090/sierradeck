@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { filtraChat, filtraProgetti, testiCambioResidente, type FiltroPannello, type Pannello, type RigaChat, type RigaProgetto } from '@shared/pannello-drive'
+import { filtraChat, filtraProgetti, testiCambioResidente, type AzioneProgetto, type FiltroPannello, type Pannello, type RigaChat, type RigaProgetto } from '@shared/pannello-drive'
 import { ModaleSposta } from './ModaleSposta'
 import { chiaveProgetto, eChiaveProgetto } from '@shared/allineamento'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
@@ -40,6 +40,12 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
   const [msg, setMsg] = useState<string | undefined>(undefined)
   const [occupato, setOccupato] = useState(false)
   const [sposta, setSposta] = useState<string | undefined>(undefined)
+  const [azioneDa, setAzioneDa] = useState<{ progetto: string; nome: string; a: AzioneProgetto } | undefined>(undefined)
+  const faiAzione = (progetto: string, a: AzioneProgetto): void => {
+    setOccupato(true); setMsg(undefined)
+    void window.gestore.casa.azione({ azione: a.id, progetto }).then((r) => { setMsg(r.messaggio); setAzioneDa(undefined); leggi() })
+      .catch((e: unknown) => setMsg(`Non è andata: ${String(e)}`)).finally(() => setOccupato(false))
+  }
   const [rim, setRim] = useState<{ stati: StatoRimozione[]; inRecupero: CartellaInRecupero[] }>({ stati: [], inRecupero: [] })
   const leggi = useCallback((): void => {
     void window.gestore.casa.pannello().then((p) => { setD(p); setErrore(undefined) }).catch((e: unknown) => setErrore(`Non riesco a leggere le chat e le case: ${String(e)}`))
@@ -226,9 +232,24 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
                     Residente: {r.residente === undefined ? <i>nessuno</i> : <b>{r.residente.nome}{r.residente.qui ? ' (questo PC)' : ''}</b>}
                     {r.residente !== undefined ? (r.voluto ? ' (scelto per il progetto: gli altri PC lo tengono solo cloud)' : ' (dalla maggior parte delle sue chat: non ancora scelto)') : null}
                     {' · '}{r.chat} chat · cartella su: {r.cartelle.length === 0 ? 'nessun PC' : r.cartelle.map((c) => c.nome).join(', ')}
-                    {' · '}ultimo uso: {quando(r.ultimoUso)}
+                    {' · '}qui sul disco: {r.cartellaQui ? 'sì' : 'no'}{' · '}ultimo uso: {quando(r.ultimoUso)}
                   </span>
                   {problemi(r)}
+                  {(() => {
+                    const st = rim.stati.find((x) => x.progetto === r.id)
+                    if (st === undefined) return null
+                    return (
+                      <div className="account__nota" style={{ borderLeft: '3px solid var(--accento, #4aa3ff)', paddingLeft: 6, marginTop: 4 }}>
+                        <i>Togliere da questo PC:</i> {st.messaggio}
+                        {st.fase === 'attesa-conferma' || st.fase === 'in-uso' ? (
+                          <div style={{ marginTop: 4 }}>
+                            <button className="tasto tasto--mini tasto--acceso" disabled={occupato} onClick={() => rimuovi('conferma', r.id)}>Conferma e togli da questo PC</button>{' '}
+                            <button className="tasto tasto--mini" disabled={occupato} onClick={() => rimuovi('annulla', r.id)}>Annulla</button>
+                          </div>
+                        ) : null}
+                      </div>
+                    )
+                  })()}
                 </span>
                 <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <select className="campo campo--mini" value="" disabled={occupato} title="Scegli il PC residente del progetto: le sue chat vivono lì, gli altri PC lo tengono solo cloud"
@@ -242,6 +263,10 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
                     {pc.map((p) => <option key={p.id} value={p.id}>{p.nome}{p.id === d.io.id ? ' (questo PC)' : ''}</option>)}
                   </select>
                   {qui !== undefined ? <button className="tasto tasto--mini" disabled={occupato} onClick={() => setSposta(qui.percorso)} title="Sposta anche i file del progetto su un altro PC, con i controlli e la verifica">Sposta con i file…</button> : null}
+                  {r.azioni.map((a) => (
+                    <button key={a.id} className="tasto tasto--mini" disabled={occupato} title={a.testo}
+                      onClick={() => (a.conferma === undefined ? faiAzione(r.id, a) : setAzioneDa({ progetto: r.id, nome: r.nome, a }))}>{a.titolo}</button>
+                  ))}
                 </span>
               </div>
             )
@@ -266,6 +291,18 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button className="tasto" disabled={occupato} onClick={() => setCambio(undefined)}>Annulla</button>
               <button className="tasto tasto--acceso" disabled={occupato} onClick={conferma}>{occupato ? 'Cambio…' : 'Conferma'}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {azioneDa !== undefined ? (
+        <div className="velo" onMouseDown={(e) => { if (e.target === e.currentTarget && !occupato) setAzioneDa(undefined) }}>
+          <div className="dialogo" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="dialogo__testa"><span className="serigrafia">{azioneDa.a.titolo}: {azioneDa.nome}</span></div>
+            <p className="account__nota">{azioneDa.a.testo}</p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="tasto" disabled={occupato} onClick={() => setAzioneDa(undefined)}>Annulla</button>
+              <button className="tasto tasto--acceso" disabled={occupato} onClick={() => faiAzione(azioneDa.progetto, azioneDa.a)}>{occupato ? 'Un momento…' : azioneDa.a.conferma}</button>
             </div>
           </div>
         </div>

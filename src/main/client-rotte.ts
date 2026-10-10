@@ -236,6 +236,9 @@ export type DipendenzeRotte = {
    * firmata), mai da un telefono.
    */
   rimozione?: LatoResidente
+  /** Il pannello delle chat e dei progetti del Drive e le sue azioni (0.58.0, tappa 4). */
+  pannelloDrive?: () => Promise<unknown>
+  azioneDrive?: (corpo: unknown) => Promise<{ ok: boolean; messaggio: string }>
   /** La linguetta «Istruzioni» dal telefono (0.41.0): le consegne alle sue chat, intere. */
   istruzioniAutopilota?: (id: string) => Promise<unknown[]>
   diffAutopilota?: (id: string, chiave: string, percorso: string) => Promise<string>
@@ -901,6 +904,15 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         return OK({ ...resto, dati: dati.toString('base64'), letti: dati.length })
       }
       return { stato: 404, corpo: { errore: 'non trovato' } }
+    }
+
+    // ── Il pannello del Drive dal telefono (0.58.0): diretto o dal ponte, mai da un altro PC ──
+    if (r.metodo === 'POST' && (r.percorso === '/api/drive/pannello' || r.percorso === '/api/drive/azione')) {
+      if (depsPieni.pannelloDrive === undefined || depsPieni.azioneDrive === undefined) return { stato: 409, corpo: { errore: 'Questo computer non ha ancora il pannello delle chat e dei progetti del Drive: aggiornalo alla 0.58.0.' } }
+      if (visore.startsWith('pc:') && !visore.startsWith('pc:tel:')) return { stato: 403, corpo: { errore: 'Il pannello si usa da questo PC o da un telefono, non da un altro PC.' } }
+      if (r.percorso === '/api/drive/pannello') return OK(await depsPieni.pannelloDrive())
+      const e = await depsPieni.azioneDrive(r.corpo)
+      return e.ok ? OK(e) : { stato: 409, corpo: { errore: e.messaggio } }
     }
 
     // ── La rimozione sicura (0.58.0): il confronto e il recupero, solo fra PC ──

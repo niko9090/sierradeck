@@ -262,7 +262,8 @@ export function creaRimozione(deps: {
       try {
         analisi = await deps.chiama(g.residente.pc, '/api/rimozione/analisi', { progetto, nome: g.nome, daNome: deps.io().nome, file, chat }) as typeof analisi
       } catch (err) {
-        return metti({ ...base, fase: 'errore', messaggio: `${g.residente.nome} (il residente) non si raggiunge: ${err instanceof Error ? err.message : String(err)}. Senza il suo confronto non tolgo niente: riprova quando è acceso e raggiungibile.` })
+        const perche = (err instanceof Error ? err.message : String(err)).replace(/^Questo PC /, 'Quel PC ').replace(/[.\s]+$/, '')
+        return metti({ ...base, fase: 'errore', messaggio: `${g.residente.nome} (il residente) non si raggiunge: ${perche}. Senza il suo confronto non tolgo niente: riprova quando è acceso e raggiungibile.` })
       }
       if (analisi.ok !== true || !Array.isArray(analisi.voci) || typeof analisi.cartella !== 'string') {
         return metti({ ...base, fase: 'errore', messaggio: `${g.residente.nome} non ha potuto confrontare: ${analisi.errore ?? 'risposta non valida'}. Non tolgo niente.` })

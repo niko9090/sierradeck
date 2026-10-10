@@ -53,7 +53,9 @@ object Ponte {
         "/api/sfoglia", "/api/cartelle", "/api/sessioni",
         "/api/autopilota", "/api/autopilota/crea", "/api/autopilota/ferma", "/api/autopilota/riprendi", "/api/autopilota/vai",
         "/api/autopilota/elimina", "/api/autopilota/riavvio", "/api/autopilota/dialogo", "/api/autopilota/file", "/api/autopilota/diff",
-        "/api/autopilota/istruzioni", "/api/autopilota/correggi", "/api/quaderno", "/api/quaderno/scheda")
+        "/api/autopilota/istruzioni", "/api/autopilota/correggi", "/api/quaderno", "/api/quaderno/scheda",
+        // Il pannello delle chat e dei progetti del Drive di quel PC (PC 0.58.0).
+        "/api/drive/pannello", "/api/drive/azione")
 
     /** Il corpo di `/api/ponte`: il PC, la rotta, e il corpo della richiesta se c'è. */
     fun corpo(pc: String, percorso: String, corpoJson: String?): String {

@@ -79,8 +79,10 @@ import { diffDellAutopilota, fileDellAutopilota, fileVeroDellAutopilota } from '
 import { apriAlTelefono, type AlTelefono } from './al-telefono'
 import { apriQuadernoPersonale } from './quaderno-personale'
 import { datiPannello } from './pannello-drive-dati'
+import type { Pannello } from '@shared/pannello-drive'
+import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
 import { creaLatoResidente, creaRimozione, type LatoResidente, type Rimozione } from './rimozione-sicura'
-import { cartellaDiProgettoValida, casaProgetto, pianoAllineamento, rigaPiano, type PianoAllineamento } from '@shared/allineamento'
+import { cartellaDiProgettoValida, casaProgetto, chiaveProgetto, pianoAllineamento, rigaPiano, type PianoAllineamento } from '@shared/allineamento'
 import { LOCALI_MAX_CHAT, type LocaliBattito } from '@shared/posta'
 import { apriFileProgetti } from './file-progetti'
 import { apriGettoni, configMcp, rispondiMcp, type Gettoni } from './mcp-telefono'
@@ -449,6 +451,9 @@ let pcVistoGlobale: ((pcId: string, indirizzo: string) => void) | undefined
 let localiBattito: (() => LocaliBattito) | undefined
 /** La rimozione sicura (0.58.0, tappa 3): il lato di chi toglie e quello del residente. */
 let rimozioneGlobale: Rimozione | undefined
+/** Il pannello del Drive e le sue azioni (0.58.0, tappa 4), anche per il telefono. */
+let pannelloDriveGlobale: (() => Promise<unknown>) | undefined
+let azioneDriveGlobale: ((corpo: unknown) => Promise<{ ok: boolean; messaggio: string }>) | undefined
 let residenteRimozioneGlobale: LatoResidente | undefined
 let pianoCorrente: (() => PianoAllineamento | undefined) | undefined
 // Il registro della sessione, visibile anche ai gestori globali qui sotto: loro
@@ -2173,7 +2178,7 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('rimozione:ripristina', (_e, id: unknown) => (typeof id === 'string' ? rim.ripristina(id) : { ok: false, messaggio: 'id non valido' }))
       ipcMain.handle('rimozione:cestina', (_e, id: unknown) => (typeof id === 'string' ? rim.cestina(id) : { ok: false, messaggio: 'id non valido' }))
       // Il pannello delle chat e dei progetti del Drive (0.58.0): stesse fonti, regole in @shared/pannello-drive.
-      ipcMain.handle('casa:pannello', async () => {
+      const leggiPannello = async (): Promise<Pannello> => {
         const io = identitaPc.leggi()
         const locali = chatLocaliDaIndice().map((c) => {
           let mtime: number | undefined
@@ -2192,7 +2197,62 @@ if (!app.requestSingleInstanceLock()) {
           adesso: Date.now(),
           ...(pianoCorrente?.() !== undefined ? { piano: pianoCorrente?.() as PianoAllineamento } : {})
         })
+      }
+      // Il pannello con lo stato della rimozione sicura (0.58.0): lo stesso per il PC, la pagina e l'app.
+      const pannelloCompleto = async (): Promise<Pannello & { rimozione: { stati: StatoRimozione[]; inRecupero: CartellaInRecupero[] } }> => ({
+        ...(await leggiPannello()),
+        rimozione: { stati: rimozioneGlobale?.stati() ?? [], inRecupero: rimozioneGlobale?.inRecupero() ?? [] }
       })
+      pannelloDriveGlobale = pannelloCompleto
+      ipcMain.handle('casa:pannello', () => leggiPannello())
+      /**
+       * Le azioni del pannello e dell'elenco dei progetti (0.58.0, tappa 4), una
+       * sola strada per il PC, la pagina e l'app: aprire, portare qui, scegliere
+       * il residente, rendere solo cloud (il giro sicuro), confermare, annullare,
+       * ripristinare.
+       */
+      azioneDriveGlobale = async (corpo: unknown): Promise<{ ok: boolean; messaggio: string }> => {
+        const c = (typeof corpo === 'object' && corpo !== null ? corpo : {}) as Record<string, unknown>
+        const testoDi = (x: unknown): string => (typeof x === 'string' ? x : '')
+        const azione = testoDi(c.azione)
+        const progetto = testoDi(c.progetto)
+        const g = registroProgetti.leggi().progetti.find((x) => x.id === progetto)
+        const io = identitaPc.leggi()
+        const fine = (s: StatoRimozione | undefined): { ok: boolean; messaggio: string } => ({ ok: s !== undefined && s.fase !== 'errore', messaggio: s?.messaggio ?? 'Niente da fare.' })
+        if (azione === 'apri') {
+          const cartella = cartellaQui(progetto)
+          if (cartella === undefined) return { ok: false, messaggio: 'Su questo PC il progetto non ha una cartella: prima «Porta qui».' }
+          finestraPerAprire(undefined)?.webContents.send('client:apri', { cartella })
+          return { ok: true, messaggio: `Apro una chat nuova in ${cartella}.` }
+        }
+        if (azione === 'porta-qui') {
+          if (g === undefined) return { ok: false, messaggio: 'Progetto sconosciuto.' }
+          const e = await sincronia.portaQui(progetto)
+          return e.ok ? { ok: true, messaggio: `«${g.nome}» portato qui dal Drive.` } : { ok: false, messaggio: e.messaggio }
+        }
+        if (azione === 'residente-qui' || azione === 'residente') {
+          const q = (typeof c.pc === 'object' && c.pc !== null ? c.pc : {}) as Record<string, unknown>
+          const pc = azione === 'residente-qui' ? { id: io.id, nome: io.nome } : { id: testoDi(q.id), nome: testoDi(q.nome) }
+          if (pc.id === '') return { ok: false, messaggio: 'PC non valido.' }
+          const sessioni = azione === 'residente-qui'
+            ? [...(await leggiPannello()).chat.filter((x) => x.progetto === progetto).map((x) => x.sessione), chiaveProgetto(progetto)]
+            : (Array.isArray(c.sessioni) ? c.sessioni.filter((x): x is string => typeof x === 'string').slice(0, 2000) : [])
+          if (sessioni.length === 0) return { ok: false, messaggio: 'Niente da cambiare.' }
+          const e = await ospite.scegli({ sessioni, pc: { id: pc.id, nome: pc.nome || pc.id } })
+          // Per un progetto il messaggio parla del progetto, non di «la chat».
+          const conProgetto = sessioni.some((x) => x.startsWith('progetto:'))
+          const nomeProgetto = conProgetto ? (g?.nome ?? 'il progetto') : undefined
+          if (!e.ok || nomeProgetto === undefined) return e
+          const quante = sessioni.filter((x) => !x.startsWith('progetto:')).length
+          return { ok: true, messaggio: `«${nomeProgetto}»: residente ${pc.id === io.id ? `questo PC (${io.nome})` : pc.nome}${quante > 0 ? `, con le sue ${quante} chat` : ''}. Sugli altri PC diventa «solo cloud»: lì si toglie solo dopo il confronto con il residente e la tua conferma.` }
+        }
+        if (azione === 'solo-cloud-qui') return fine(await rimozioneGlobale?.avvia(progetto))
+        if (azione === 'conferma') return fine(rimozioneGlobale?.conferma(progetto))
+        if (azione === 'annulla') return fine(rimozioneGlobale?.annulla(progetto))
+        if (azione === 'ripristina') return rimozioneGlobale?.ripristina(testoDi(c.id)) ?? { ok: false, messaggio: 'non pronto' }
+        return { ok: false, messaggio: `Azione sconosciuta: ${azione}` }
+      }
+      ipcMain.handle('casa:azione', (_e, corpo: unknown) => azioneDriveGlobale?.(corpo))
       ipcMain.handle('casa:scegli', (_e, p: unknown) => {
         const q = (p ?? {}) as { sessioni?: unknown; pc?: unknown; workspace?: unknown }
         const pc = (q.pc ?? {}) as { id?: unknown; nome?: unknown }
@@ -3536,6 +3596,8 @@ if (!app.requestSingleInstanceLock()) {
         }),
         alTelefono: coda,
         quadernoPersonale,
+        pannelloDrive: () => pannelloDriveGlobale?.() ?? Promise.resolve({ errore: 'non pronto' }),
+        azioneDrive: (c: unknown) => azioneDriveGlobale?.(c) ?? Promise.resolve({ ok: false, messaggio: 'Il pannello non è ancora pronto: la cassaforte o il Drive non sono aperti.' }),
         // Letto a ogni richiesta: nasce con «una chat, una casa».
         rimozione: {
           analizza: async (c: unknown) => residenteRimozioneGlobale === undefined ? { ok: false as const, errore: 'Questo PC non è ancora pronto (cassaforte o Drive non aperti).' } : residenteRimozioneGlobale.analizza(c),

@@ -523,6 +523,8 @@ contextBridge.exposeInMainWorld('gestore', {
     dove: (): Promise<{ io: { id: string; nome: string }; pc: { id: string; nome: string }[]; gruppi: import('@shared/ospite-chat').GruppoDove[]; traslochi: import('@shared/una-casa').RegistroRiordino[] }> => ipcRenderer.invoke('casa:dove'),
     // Il pannello delle chat e dei progetti del Drive (0.58.0).
     pannello: (): Promise<import('@shared/pannello-drive').Pannello> => ipcRenderer.invoke('casa:pannello'),
+    // Le azioni del pannello e dell'elenco dei progetti (0.58.0, tappa 4).
+    azione: (corpo: { azione: string; progetto?: string; id?: string }): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('casa:azione', corpo),
     // La rimozione sicura (0.58.0, tappa 3).
     rimozione: {
       avvia: (id: string): Promise<import('@shared/rimozione-sicura').StatoRimozione> => ipcRenderer.invoke('rimozione:avvia', id),

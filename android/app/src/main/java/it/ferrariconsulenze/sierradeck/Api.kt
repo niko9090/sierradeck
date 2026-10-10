@@ -253,6 +253,19 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun archiviaAutopilota(id: String, archivia: Boolean = true): Fatto =
         json.decodeFromString(corpoTesto("/api/autopilota/archivia", oggetto { put("autopilota", id); put("archivia", archivia) }))
 
+    /** Il pannello delle chat e dei progetti del Drive (PC 0.58.0), anche attraverso il ponte. */
+    suspend fun pannelloDrive(): PannelloDrive = json.decodeFromString(corpoTesto("/api/drive/pannello", oggetto { }))
+
+    suspend fun azioneDrive(azione: String, progetto: String, id: String = ""): EsitoAzioneDrive =
+        json.decodeFromString(corpoTesto("/api/drive/azione", oggetto { put("azione", azione); put("progetto", progetto); put("id", id) }))
+
+    suspend fun residenteDrive(sessioni: List<String>, pc: PcDrive): EsitoAzioneDrive =
+        json.decodeFromString(corpoTesto("/api/drive/azione", oggetto {
+            put("azione", "residente")
+            put("sessioni", kotlinx.serialization.json.JsonArray(sessioni.map { kotlinx.serialization.json.JsonPrimitive(it) }))
+            put("pc", kotlinx.serialization.json.buildJsonObject { put("id", pc.id); put("nome", pc.nome) })
+        }))
+
     /** Il Quaderno personale (PC 0.57.0): solo il PC accoppiato, mai attraverso il ponte. */
     suspend fun quadernoPersonale(): StatoQuadernoPersonale =
         json.decodeFromString(corpoTesto("/api/quaderno-personale", oggetto { }))

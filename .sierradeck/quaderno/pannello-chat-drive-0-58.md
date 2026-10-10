@@ -141,3 +141,30 @@ Test in `tests/main/rimozione-sicura.test.ts`, su cartelle temporanee:
 - cartella in uso;
 - scadenza;
 - accesso alle rotte.
+
+# Tappa 4: elenco dei progetti, pagina, app, prove
+
+- **Azioni di un progetto** (`azioniProgetto` in `src/shared/pannello-drive.ts`):
+  - Apri, Porta qui, Rendi residente qui, Rendi solo cloud qui;
+  - i testi li scrive il PC, quindi PC, pagina e app mostrano le stesse parole;
+  - un'unica strada per eseguirle, `azioneDriveGlobale` in `index.ts`: IPC `casa:azione` sul PC, `/api/drive/azione` dal telefono.
+- **Telefono.**
+  - `/api/drive/pannello` e `/api/drive/azione`, anche attraverso il ponte (`ROTTE_PONTE`, `Ponte.ROTTE`, `strada-pc`); un altro PC diretto riceve 403.
+  - Pagina: «Chat e progetti», conferme in due tocchi.
+  - App: `PannelloDrive.kt` nella sezione Drive, con `AlertDialog` e il testo del PC; `FunzionePc.PANNELLO_DRIVE` 0.58.0.
+  - Test: `tests/shared/pannello-drive-app.test.ts` scrive la risposta vera in `android/app/src/test/resources/pannello-drive/pannello-0.58.json`, che `PannelloDriveTest.kt` rilegge. Lo stesso test disegna la pagina.
+
+## Prove (10/10)
+
+- **Due PC veri in rete** (`tests/main/rimozione-due-pc.test.ts`):
+  - due server Client veri su 127.0.0.1, firma con la chiave di casa, il client remoto vero con la sua strada («rete di casa»), cartelle temporanee;
+  - confronto → il file utile solo sul non residente arriva in `.sierradeck/recuperati/<PC>-<data>/` del residente → conferma → la cartella va in recupero → «Ripristina» la rimette;
+  - con la chiave di un'altra cassaforte: niente confronto, niente rimozione.
+- **Copia di prova `SIERRADECK_PROVA`** (porte 47650/47651, Claude Code con configurazione vuota, il programma vero non toccato). **Solo il lato locale**: una copia sola non ha un secondo PC né il Drive, quindi niente battiti e niente piano.
+  - Il pannello mostra il progetto finto con il residente voluto e le tre azioni con i testi.
+  - «Rendi solo cloud qui» con il residente irraggiungibile risponde «non si raggiunge … non tolgo niente», e la cartella è rimasta intatta.
+  - «Rendi residente qui» scrive `progetto:<id>` in `case-chat.json` e le azioni diventano solo «Apri».
+  - «Apri» apre una chat nella cartella del progetto.
+  - Due testi corretti dopo la prova: «Quel PC» al posto di «Questo PC», e il messaggio del cambio di residente che parla del progetto e non di «la chat».
+  - Copia e cartelle finte cancellate; nessun claude.exe orfano.
+- **Da fare dal vero con Nicholas**: il giro intero fra due PC veri, con il Drive (piano di allineamento e «Rendi solo cloud qui» con il residente acceso).

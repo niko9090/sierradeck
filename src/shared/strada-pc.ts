@@ -235,7 +235,8 @@ export const ROTTE_VIA_CANALE: readonly string[] = [
   '/api/sfoglia', '/api/cartelle', '/api/sessioni',
   '/api/autopilota', '/api/autopilota/crea', '/api/autopilota/ferma', '/api/autopilota/riprendi', '/api/autopilota/vai',
   '/api/autopilota/elimina', '/api/autopilota/riavvio', '/api/autopilota/dialogo', '/api/autopilota/file', '/api/autopilota/diff',
-  '/api/autopilota/istruzioni', '/api/autopilota/correggi', '/api/quaderno', '/api/quaderno/scheda'
+  '/api/autopilota/istruzioni', '/api/autopilota/correggi', '/api/quaderno', '/api/quaderno/scheda',
+  '/api/drive/pannello', '/api/drive/azione'
 ]
 
 export function rottaPermessaSulCanale(percorso: string): boolean {

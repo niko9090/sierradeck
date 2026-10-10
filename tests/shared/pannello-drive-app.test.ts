@@ -1,0 +1,77 @@
+import { describe, it, expect } from 'vitest'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { datiPannello } from '../../src/main/pannello-drive-dati'
+import { paginaClient } from '../../src/main/client-pagina'
+import { chiaveProgetto, sceltaProgetto } from '../../src/shared/allineamento'
+
+/**
+ * Il pannello delle chat e dei progetti del Drive come lo manda un PC alla
+ * 0.58.0 (`/api/drive/pannello`), su dati d'esempio. L'app lo legge da
+ * `android/app/src/test/resources/pannello-drive/pannello-0.58.json`
+ * (PannelloDriveTest); la pagina lo disegna qui sotto. `AGGIORNA=1` riscrive.
+ */
+const ORA = Date.parse('2026-10-10T18:00:00Z')
+
+function esempio(): Record<string, unknown> {
+  const p = datiPannello({
+    io: { id: 'pc-qui', nome: 'PC-ESEMPIO', battito: new Date(ORA).toISOString() },
+    pc: [
+      { id: 'pc-port', nome: 'PORTATILE-ESEMPIO', battito: new Date(ORA - 60_000).toISOString(), locali: { chat: [{ sessione: 's-uno', cwd: 'D:\\Lavoro\\Gestionale', mtime: ORA - 3_600_000 }], progetti: [] } },
+      { id: 'pc-vecchio', nome: 'PC-VECCHIO', battito: new Date(ORA - 120_000).toISOString() }
+    ],
+    case: { versione: 1, case: {
+      's-uno': { pc: 'pc-port', pcNome: 'PORTATILE-ESEMPIO', motivo: 'scelta', decisaIl: '2026-10-01T00:00:00Z', da: 'nicholas' },
+      ...sceltaProgetto({ id: 'prog-g', nome: 'Gestionale', pc: { id: 'pc-port', nome: 'PORTATILE-ESEMPIO' }, chi: { id: 'pc-qui', nome: 'PC-ESEMPIO' }, quando: '2026-10-05T00:00:00Z' })
+    } },
+    locali: [{ sessione: 's-due', titolo: 'Note di prova', cwd: 'C:\\Progetti\\Gestionale', mtime: ORA - 7_200_000 }],
+    manifesto: undefined, aperteQui: [], titoliNoti: [{ sessione: 's-uno', titolo: 'Fatture' }],
+    progetti: [{ id: 'prog-g', nome: 'Gestionale', percorsi: { 'pc-qui': 'C:\\Progetti\\Gestionale', 'pc-port': 'D:\\Lavoro\\Gestionale' } }],
+    adesso: ORA,
+    piano: { azioni: [{ tipo: 'solo-cloud', progetto: 'prog-g', nome: 'Gestionale', percorso: 'C:\\Progetti\\Gestionale', residente: 'PORTATILE-ESEMPIO', perche: 'Il residente di «Gestionale» è PORTATILE-ESEMPIO: qui dovrebbe essere solo cloud.' }], senzaScelta: 0 }
+  })
+  return JSON.parse(JSON.stringify({
+    ...p,
+    rimozione: {
+      stati: [{ progetto: 'prog-g', nome: 'Gestionale', residente: 'PORTATILE-ESEMPIO', fase: 'attesa-conferma', messaggio: 'Progetto «Gestionale», confrontato da PORTATILE-ESEMPIO (il residente).', quando: new Date(ORA).toISOString() }],
+      inRecupero: [{ id: 'Vecchio-2026', progetto: 'prog-v', nome: 'Vecchio', percorsoOriginale: 'C:\\Progetti\\Vecchio', dove: 'C:\\Dati\\recupero-progetti\\Vecchio-2026', quando: '2026-10-01T10:00:00.000Z', motivo: 'solo cloud', scadeIl: '2026-10-31T10:00:00.000Z' }]
+    }
+  }).replace(/"letto":"[^"]*"/, '"letto":"2026-10-10T18:00:00.000Z"'))
+}
+
+describe('il pannello del Drive per la pagina e per l’app', () => {
+  const atteso = esempio()
+  it('la risposta è quella che l’app si aspetta', () => {
+    const file = join('android', 'app', 'src', 'test', 'resources', 'pannello-drive', 'pannello-0.58.json')
+    if (process.env.AGGIORNA === '1' || !existsSync(file)) { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, JSON.stringify(atteso, null, 2) + '\n') }
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(atteso)
+  })
+  it('il progetto ha le azioni con i testi del PC: rendi residente qui, rendi solo cloud qui', () => {
+    const g = (atteso.progetti as { azioni: { id: string; testo: string }[] }[])[0]!
+    expect(g.azioni.map((a) => a.id)).toEqual(['apri', 'residente-qui', 'solo-cloud-qui'])
+    expect(g.azioni.find((a) => a.id === 'solo-cloud-qui')?.testo).toContain('cartella di recupero')
+    expect(atteso.pcDaAggiornare).toEqual(['PC-VECCHIO'])
+    expect(Object.keys((atteso as { case?: unknown }).case ?? {})).not.toContain(chiaveProgetto('prog-g'))
+  })
+  it('la pagina lo disegna: riassunto, conferma, ripristina, azioni', () => {
+    const html = paginaClient()
+    const script = html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('</script>'))
+    const estrai = (nome: string): string => {
+      const inizio = script.indexOf(`function ${nome}(`)
+      let p = 0
+      for (let i = script.indexOf('{', inizio); i < script.length; i++) {
+        if (script[i] === '{') p++
+        else if (script[i] === '}' && --p === 0) return script.slice(inizio, i + 1)
+      }
+      throw new Error(nome)
+    }
+    const riga = (inizio: string): string => script.split(String.fromCharCode(10)).find((r) => r.trimStart().startsWith(inizio)) ?? ''
+    const disegna = new Function('pdDati', `
+      ${riga('const esc =')}; ${riga('const escJs =')}
+      var pdErrore = ''; var pdVista = 'progetti'; var pdFiltro = 'tutti'; var pdDaConfermare = ''
+      ${estrai('pdQuando')} ${estrai('pdStato')} ${estrai('pdProblemi')} ${estrai('pdFiltra')} ${estrai('pdScegliPc')} ${estrai('pannelloDriveHtml')}
+      return pannelloDriveHtml()`) as (d: unknown) => string
+    const h = disegna(atteso)
+    for (const t of ['Gestionale', 'Conferma e togli da questo PC', 'Ripristina', 'Rendi residente qui', 'Rendi solo cloud qui', 'va aggiornato alla 0.58', 'Piano di allineamento']) expect(h).toContain(t)
+  })
+})

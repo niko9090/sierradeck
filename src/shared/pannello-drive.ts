@@ -75,6 +75,8 @@ export type RigaProgetto = {
   cartelle: { pc: string; nome: string; percorso: string }[]
   /** Questo PC ha la cartella. */
   cartellaQui: boolean
+  /** Le azioni da questo PC, con i loro testi (0.58.0, tappa 4). */
+  azioni: AzioneProgetto[]
   chat: number
   ultimoUso?: string
   stato: StatoRiga
@@ -235,7 +237,7 @@ function rigaProgetto(g: ProgettoIngresso, chat: RigaChat[], p: { io: PcNoto; ad
   }
   const ultimo = chat.map((c) => c.ultimoUso ?? '').sort().pop()
   const conflitto = chat.some((c) => c.stato === 'conflitto')
-  return {
+  const riga: RigaProgetto = {
     id: g.id, nome: g.nome,
     ...(primo !== undefined ? { residente: { pc: primo[0], nome: voluto?.pcNome ?? nomeDi(primo[0]), qui: primo[0] === p.io.id } } : {}),
     voluto: voluto !== undefined,
@@ -244,8 +246,10 @@ function rigaProgetto(g: ProgettoIngresso, chat: RigaChat[], p: { io: PcNoto; ad
     chat: chat.length,
     ...(ultimo !== undefined && ultimo !== '' ? { ultimoUso: ultimo } : {}),
     stato: conflitto ? 'conflitto' : primo !== undefined && g.percorsi[primo[0]] !== undefined ? 'residente' : 'solo-cloud',
-    problemi
+    problemi,
+    azioni: []
   }
+  return { ...riga, azioni: azioniProgetto(riga, p.io) }
 }
 
 export type FiltroPannello = 'tutti' | 'sbagliati' | 'questo-pc' | 'solo-cloud'
@@ -309,4 +313,46 @@ export function testiCambioResidente(p: {
     'Per tornare indietro, scegli di nuovo il PC di prima: le copie si riprendono dalla cartella di recupero.'
   ]
   return { titolo: `Rendi ${verso} residente`, succede, nonSuccede, seNonTorna }
+}
+
+/* ------------------------------------------------------------------ */
+/* L'elenco dei progetti su ogni PC e le loro azioni (0.58.0, tappa 4). */
+/* ------------------------------------------------------------------ */
+
+export type IdAzioneProgetto = 'apri' | 'porta-qui' | 'residente-qui' | 'solo-cloud-qui'
+
+/**
+ * Un'azione su un progetto, con i testi già scritti dal PC: il pannello, la
+ * pagina e l'app li mostrano uguali. `conferma` = chiede prima di fare.
+ */
+export type AzioneProgetto = { id: IdAzioneProgetto; titolo: string; testo: string; conferma?: string }
+
+/** Le azioni possibili di un progetto da questo PC, con cosa fanno e cosa no. */
+export function azioniProgetto(r: RigaProgetto, io: PcNoto): AzioneProgetto[] {
+  const fuori: AzioneProgetto[] = []
+  const residente = r.residente?.nome ?? 'nessun PC'
+  if (r.cartellaQui) {
+    fuori.push({ id: 'apri', titolo: 'Apri', testo: `Apre una chat nuova nella cartella del progetto su questo PC (${io.nome}).` })
+  } else {
+    fuori.push({
+      id: 'porta-qui', titolo: 'Porta qui',
+      testo: `Scarica dal Drive il progetto «${r.nome}» su questo PC: le chat e i file salvati. Non sovrascrive niente: se qui ci sono file con lo stesso nome restano, e quelli del Drive arrivano accanto. Non cambia il residente.`,
+      conferma: 'Porta qui il progetto'
+    })
+  }
+  if (r.residente?.qui !== true) {
+    fuori.push({
+      id: 'residente-qui', titolo: 'Rendi residente qui',
+      testo: `Questo PC (${io.nome}) diventa il residente di «${r.nome}»: le sue ${r.chat} chat lavorano qui, sugli altri PC si aprono dal vivo e il progetto lì diventa «solo cloud» (tolto solo dopo il confronto e la tua conferma). Adesso il residente è ${residente}.${r.cartellaQui ? '' : ' Qui la cartella non c’è: la porto giù dal Drive da sola, senza sovrascrivere niente.'} Non si cancella niente, e si torna indietro scegliendo di nuovo ${residente}.`,
+      conferma: 'Rendi residente qui'
+    })
+  }
+  if (r.cartellaQui && r.residente !== undefined && r.residente.qui !== true) {
+    fuori.push({
+      id: 'solo-cloud-qui', titolo: 'Rendi solo cloud qui',
+      testo: `Toglie «${r.nome}» da questo PC, in sicurezza: ${residente} (il residente) confronta i file e le chat di qui con i suoi, copia da lui, nella sua cartella .sierradeck/recuperati, quello che c’è solo qui o è più nuovo, e ti mostra il riassunto. Solo con la tua conferma la cartella di qui va nella cartella di recupero di SierraDeck, per 30 giorni, e «Ripristina» la rimette dov’era. Se ${residente} non si raggiunge, non si toglie niente.`,
+      conferma: 'Confronta e prepara il riassunto'
+    })
+  }
+  return fuori
 }
