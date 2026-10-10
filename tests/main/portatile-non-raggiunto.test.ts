@@ -134,3 +134,16 @@ describe('il PC che ci chiama con la firma di casa lascia il suo indirizzo (0.57
     expect(visti).toEqual([['portatile-id', '127.0.0.1']])
   })
 })
+
+describe('il bussare riuscito dice la strada (0.57.3)', () => {
+  it('rete di casa o Tailscale, nel registro come «strada»', async () => {
+    const log: string[] = []
+    const c = creaClientPcRemoto({
+      battiti: () => [PORTATILE], chiavePer: () => CHIAVE, mioNome: () => 'PC-FISSO', adesso: () => ORA, attesaMs: 50, bussaMs: 200,
+      fetch: finto({ '100.70.0.5': 'sierradeck' }), log: (m) => { log.push(m) }
+    })
+    expect((await c.bussa('portatile-id')).esito).toBe('risponde')
+    expect(log).toContain('[remoto] PC-ESEMPIO: strada Tailscale · 100.70.0.5')
+    expect(c.stradaDi('portatile-id')?.strada).toBe('tailscale')
+  })
+})

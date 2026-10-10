@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.57.3',
+    righe: [
+      '**Il programma controlla da solo come raggiunge gli altri PC.** All’avvio e ogni dieci minuti bussa agli altri tuoi PC accesi e si segna la strada che funziona (rete di casa o Tailscale). Prima lo scopriva solo quando aprivi una loro chat: se un PC non si raggiungeva, lo sapevi al clic. Adesso il registro e la Salute lo dicono prima, con cosa ha risposto ogni indirizzo.',
+      '**App Android 2.57.2**, invariata.'
+    ]
+  },
+  {
     versione: '0.57.2',
     righe: [
       '**Niente più dati delle tue macchine nel codice pubblico.** Indirizzi di rete, nomi e codici dei tuoi PC che erano rimasti in commenti, test e note di versione sono stati sostituiti con valori d’esempio. Il programma funziona esattamente come prima.',

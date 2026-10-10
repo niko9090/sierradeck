@@ -63,3 +63,20 @@ Commenti, test, novità e schede contenevano ancora indirizzi di rete, nomi e id
 Le relazioni fra i valori sono rimaste le stesse, quindi i test riproducono gli stessi casi. La storia di git non è stata riscritta: lo decide Nicholas.
 
 Prima di ogni commit va passato sul diff il controllo dei dati privati. Lo stesso controllo va fatto sulle schede.
+
+# 0.57.2 sul PC vero, e 0.57.3: il giro delle strade
+
+**La 0.57.2 sul PC vero (10/10, 17:38 UTC).** Dopo l'aggiornamento le due consegne «riprendi» sono partite:
+- la chat «App Android»: «pronta dopo 18.4 s», poi «partita»;
+- NexoraOS: «pronta dopo 21.6 s», tre invii, poi «partita».
+
+Nessun «non consegnata».
+
+**Il portatile.** Nel registro nessuna riga, perché nessuno aveva aperto una sua chat: al portatile si bussava **solo al clic**. Non c'era quindi un modo di sapere la strada, o di vedere il guasto, prima che Nicholas ci provasse.
+
+**0.57.3:**
+- all'avvio (dopo 30 s) e ogni 10 minuti il programma bussa agli altri PC vivi sul Drive (`giroStrade` in `index.ts`);
+- un bussare riuscito segna subito la strada: nel registro `[remoto] <PC>: strada Tailscale · …` oppure `rete di casa`;
+- se non riesce, la riga `bussato a N indirizzi, nessuno va bene — …` dice cosa ha risposto ogni indirizzo.
+
+Test in `tests/main/portatile-non-raggiunto.test.ts`.

@@ -271,6 +271,8 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       raccontati.delete(`${pcId}#bussa`)
       modi.set(pcId, modo ?? 'chiave')
       segnaBuono(pcId, nome, buona, porta)
+      // La strada si sa già dal bussare (0.57.3): rete di casa o Tailscale.
+      segnaStrada(pcId, nome, stradaDiIndirizzo(buona), buona)
       p = { esito: 'risponde', indirizzo: buona }
     } else {
       const chiaveNo = risposte.find((x) => x.stato === 401)

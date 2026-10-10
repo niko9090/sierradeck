@@ -1729,6 +1729,20 @@ if (!app.requestSingleInstanceLock()) {
         }),
         ricorda: (pcId, ind) => { ricordaIndirizzo(pcId, ind) }
       })
+      // **Il giro delle strade** (0.57.3): all'avvio e ogni dieci minuti si bussa
+      // agli altri PC vivi sul Drive. Prima si bussava solo aprendo una loro
+      // chat, e un PC che non si raggiungeva lo si scopriva al clic, senza una
+      // riga nel registro (il portatile, 10/10). Una richiesta per indirizzo a
+      // `/api/casa`; nel registro solo quando la strada o l'esito cambiano.
+      const giroStrade = async (): Promise<void> => {
+        for (const b of postino.altrui()) {
+          if (!pcVivo(b, Date.now())) continue
+          await remoto.bussa(b.pcId, b.nome).catch(() => undefined)
+        }
+      }
+      const primoGiroStrade = setTimeout(() => { void giroStrade() }, 30_000)
+      const timerStrade = setInterval(() => { void giroStrade() }, 10 * 60_000)
+      app.on('before-quit', () => { clearTimeout(primoGiroStrade); clearInterval(timerStrade) })
       // Ogni esito porta la strada usata (0.40.0): il riquadro la mostra.
       const esitoRemoto = async <T,>(f: () => Promise<unknown>, pc?: unknown): Promise<EsitoRemoto<T>> => {
         const strada = (): { strada?: InfoStrada } => {
