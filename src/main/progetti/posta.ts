@@ -41,7 +41,7 @@ export {
   nomeBattitoPc, nomePosta, pcVivo, pcCheHaLaCartella, staSottoCartella,
   PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, RIAPRI_DOPO_MS, VOCI_MAX, TESTO_POSTA_MAX,
 } from '@shared/posta'
-import { ESITO_PROTETTA, type ChatDiPc, type BattitoPc, type VocePosta, type Posta } from '@shared/posta'
+import { ESITO_PROTETTA, type ChatDiPc, type BattitoPc, type LocaliBattito, type VocePosta, type Posta } from '@shared/posta'
 import { nomeRichiestaSchermo, nomeSchermo, richiestaSchermoViva, schermoDaScrivere, type ChatNelloSchermo } from '@shared/strada-pc'
 import {
   nomeBattitoPc, nomePosta, pcVivo,
@@ -113,6 +113,8 @@ export function creaPostino(deps: {
    * non li porta e da fuori la chat si vede solo dalla copia sul Drive.
    */
   rete?: () => { indirizzi: string[]; porta: number }
+  /** Le chat e i progetti sul disco di questo PC (0.58.0). */
+  locali?: () => LocaliBattito | undefined
   cartellaEsiste: (cwd: string) => boolean
   /** Apre una chat nuova in quella cartella (in una finestra). */
   apriChat: (cwd: string) => void
@@ -186,7 +188,8 @@ export function creaPostino(deps: {
       })),
       // Dove bussare: e' cio' che permette a un altro PC di aprire una mia
       // chat dal vivo invece di aspettare la copia dal Drive.
-      ...(rete !== undefined && rete.indirizzi.length > 0 ? { indirizzi: rete.indirizzi, porta: rete.porta } : {})
+      ...(rete !== undefined && rete.indirizzi.length > 0 ? { indirizzi: rete.indirizzi, porta: rete.porta } : {}),
+      ...(() => { const l = deps.locali?.(); return l === undefined ? {} : { locali: l } })()
     }
   }
 

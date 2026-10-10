@@ -75,3 +75,23 @@ Lo stato è `conflitto` con «due case» o «copia più recente». Il filtro «S
 - `recupero-riordino` e `riordini/` non hanno scadenza. La regola dei 30 giorni annullabili arriva nella tappa 3.
 - Un trasloco che fallisce (file bloccato) viene ritentato ogni 10 s, con un registro nuovo ogni volta.
 - Le copie degli altri PC si conoscono solo da chi ha caricato sul Drive. Nella tappa 2 il battito porterà l'elenco delle sessioni locali.
+
+# Tappa 2: i PC si allineano alle scelte
+
+- **Copie locali nel battito.**
+  - `BattitoPc.locali` (facoltativo) porta `{ chat: [{sessione, cwd, mtime}], progetti: [{id, percorso}] }`, con al massimo 2000 chat, le più recenti.
+  - L'ora dell'ultimo messaggio è arrotondata a 10 minuti, così una chat che lavora non riscrive il battito a ogni giro. Il calcolo si rifà al massimo una volta al minuto (`localiBattito` in `index.ts`).
+  - Il pannello le mostra come copie «sul suo disco» e le usa nelle regole.
+  - Un PC senza il campo finisce in `pcDaAggiornare`: «non dice ancora… va aggiornato».
+  - Il campo si legge con prudenza (`localiDi`): un battito rovinato non rompe niente.
+- **Stato voluto dei progetti in `case-chat`**, con chiave `progetto:<id>` (`src/shared/allineamento.ts`).
+  - Si unisce come le case delle chat: vince la scelta più recente di Nicholas.
+  - Un PC vecchio lo porta avanti senza saperlo, e `pianoTrasloco` lo ignora: guarda solo le sessioni che ha.
+  - Il pannello lo scrive con `casa.scegli`, mettendo la chiave del progetto insieme alle sue chat: la stessa strada, con il salvataggio, la spinta agli altri PC e il Drive.
+- **Piano di allineamento** (`pianoAllineamento`, a ogni giro di `giroCasa` → `allineaQui`):
+  - questo PC è il residente e il progetto qui non c'è → «porta qui». Parte da solo (`sincronia.portaQui(id)`, una volta per progetto) **solo se la cartella non esiste affatto**; altrimenti aspetta;
+  - questo PC non è il residente e il progetto qui c'è → «solo cloud». **Solo mostrato**: niente si toglie, quello è la tappa 3;
+  - una cartella registrata male (radice di un disco, profilo dell'utente o una sua cartella madre) non entra mai in un piano (`cartellaDiProgettoValida`);
+  - nel registro `[allinea] …` quando il piano cambia; nel pannello la sezione «Piano di allineamento di questo PC».
+- **Sicurezza**: le case e lo stato voluto viaggiano solo fra PC della stessa chiave di casa (`/api/case` e Drive cifrato). Il piano nomina solo le cartelle registrate dei progetti.
+- **Test**: `tests/shared/allineamento.test.ts` e `tests/main/pannello-drive-dati.test.ts` (battiti vecchi e rovinati).

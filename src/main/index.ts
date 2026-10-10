@@ -79,6 +79,8 @@ import { diffDellAutopilota, fileDellAutopilota, fileVeroDellAutopilota } from '
 import { apriAlTelefono, type AlTelefono } from './al-telefono'
 import { apriQuadernoPersonale } from './quaderno-personale'
 import { datiPannello } from './pannello-drive-dati'
+import { pianoAllineamento, rigaPiano, type PianoAllineamento } from '@shared/allineamento'
+import { LOCALI_MAX_CHAT, type LocaliBattito } from '@shared/posta'
 import { apriFileProgetti } from './file-progetti'
 import { apriGettoni, configMcp, rispondiMcp, type Gettoni } from './mcp-telefono'
 import { confermaDaRisposta, idDomandaConferma, leggiIdDomandaConferma, OPZIONI_CONFERMA, testoConferma, testoStato } from '@shared/file-telefono'
@@ -442,6 +444,9 @@ let gettoniMcp: Gettoni | undefined
 let alTelefono: AlTelefono | undefined
 /** Chi impara gli indirizzi dei PC che ci chiamano (0.57.1): nasce con il client degli altri PC. */
 let pcVistoGlobale: ((pcId: string, indirizzo: string) => void) | undefined
+/** Le copie locali per il battito e il piano di allineamento (0.58.0): nascono con «una chat, una casa». */
+let localiBattito: (() => LocaliBattito) | undefined
+let pianoCorrente: (() => PianoAllineamento | undefined) | undefined
 // Il registro della sessione, visibile anche ai gestori globali qui sotto: loro
 // nascono al caricamento del modulo, prima che la sessione sia aperta, quindi
 // finché resta `undefined` ripiegano sulla sola console.
@@ -1642,6 +1647,8 @@ if (!app.requestSingleInstanceLock()) {
         // L'indirizzo principale lo dice Windows, con calma e ogni tanto:
         // il battito lo legge dal ricordo, senza aspettare nessuno.
         rete: () => ({ indirizzi: indirizziLocali(undefined, principaleRicordato), porta: impostazioni.preferenze().portaClient }),
+        // Le copie sul disco (0.58.0): il pannello degli altri PC le mostra.
+        locali: () => localiBattito?.(),
         log: registro.info
       })
       postinoGlobale = postino
@@ -2049,6 +2056,26 @@ if (!app.requestSingleInstanceLock()) {
         ...(s.cwd !== undefined ? { cwd: s.cwd } : {}), jsonl: s.jsonlPath,
         ...(s.lastTimestamp !== undefined ? { ultimoMessaggio: s.lastTimestamp } : {})
       })).filter((c) => existsSync(c.jsonl))
+      // Le copie locali nel battito (0.58.0): le chat più recenti e i progetti
+      // con la cartella qui. Ricalcolate al massimo ogni minuto; l'ora
+      // dell'ultimo messaggio arrotondata a dieci minuti, perché una chat che
+      // lavora non riscriva il battito a ogni giro.
+      let localiInMemoria: { il: number; l: LocaliBattito } | undefined
+      localiBattito = () => {
+        if (localiInMemoria !== undefined && Date.now() - localiInMemoria.il < 60_000) return localiInMemoria.l
+        const me = identitaPc.leggi().id
+        const dieci = 10 * 60_000
+        const chat = chatLocaliDaIndice()
+          .map((c) => ({ sessione: c.sessione, ...(c.cwd !== undefined ? { cwd: c.cwd } : {}), mtime: c.ultimoMessaggio !== undefined ? Math.floor(Date.parse(c.ultimoMessaggio) / dieci) * dieci : 0 }))
+          .sort((a, b) => b.mtime - a.mtime)
+          .slice(0, LOCALI_MAX_CHAT)
+          .map((c) => (c.mtime === 0 || Number.isNaN(c.mtime) ? { sessione: c.sessione, ...(c.cwd !== undefined ? { cwd: c.cwd } : {}) } : c))
+        const progetti = registroProgetti.leggi().progetti
+          .filter((g) => g.percorsi[me] !== undefined && existsSync(g.percorsi[me] as string))
+          .map((g) => ({ id: g.id, percorso: g.percorsi[me] as string }))
+        localiInMemoria = { il: Date.now(), l: { chat, progetti } }
+        return localiInMemoria.l
+      }
       // Le chat sul Drive per sessione, dall'ultimo manifesto letto: dimensione e PC.
       let indiceDrive = new Map<string, { size: number; pc?: string }>()
       let indiceDriveIl = 0
@@ -2117,7 +2144,8 @@ if (!app.requestSingleInstanceLock()) {
           aperteQui: chatAperte.map((c) => c.sessione).filter((s): s is string => s !== undefined),
           titoliNoti: workspaceStore === undefined ? [] : chatSalvate(workspaceStore.leggi()).filter((c) => c.sessione !== undefined).map((c) => ({ sessione: c.sessione as string, titolo: c.titolo, cwd: c.cwd })),
           progetti: registroProgetti.leggi().progetti.map((g) => ({ id: g.id, nome: g.nome, percorsi: g.percorsi })),
-          adesso: Date.now()
+          adesso: Date.now(),
+          ...(pianoCorrente?.() !== undefined ? { piano: pianoCorrente?.() as PianoAllineamento } : {})
         })
       })
       ipcMain.handle('casa:scegli', (_e, p: unknown) => {
@@ -2136,6 +2164,33 @@ if (!app.requestSingleInstanceLock()) {
       })
       const fileMigrazione = join(dati, 'migrazione-una-casa.json')
       let inGiroCasa = false
+      /**
+       * Il piano di allineamento di questo PC (0.58.0, tappa 2): a ogni giro lo
+       * stato voluto dei progetti contro il disco. Si mostra nel pannello e va
+       * nel registro quando cambia. L'unica cosa che parte da sola è «porta
+       * qui» quando la cartella non esiste affatto (non sovrascrive niente), una
+       * volta per progetto: niente si toglie, quella è la tappa 3.
+       */
+      const allineaQui = async (): Promise<void> => {
+        const piano = pianoAllineamento({
+          io: identitaPc.leggi().id, case: unaCasa.case(), progetti: registroProgetti.leggi().progetti,
+          esiste: (p) => existsSync(p), home: homedir()
+        })
+        ultimoPiano = piano
+        const riga = rigaPiano(piano)
+        if (riga !== ultimaRigaPiano) { ultimaRigaPiano = riga; if (riga !== '') registro.info(`[allinea] ${riga}`) }
+        for (const a of piano.azioni) {
+          if (a.tipo !== 'porta-qui' || !a.automatica || portatiQui.has(a.progetto)) continue
+          portatiQui.add(a.progetto)
+          const e = await sincronia.portaQui(a.progetto).catch((err: unknown) => ({ ok: false, messaggio: String(err) }))
+          registro.info(`[allinea] porta qui «${a.nome}» (questo PC è il residente, la cartella non c'era): ${e.ok ? 'fatto' : `non riuscito — ${(e as { messaggio?: string }).messaggio ?? '?'}`}`)
+          break
+        }
+      }
+      let ultimoPiano: PianoAllineamento | undefined
+      let ultimaRigaPiano = ''
+      const portatiQui = new Set<string>()
+      pianoCorrente = () => ultimoPiano
       const giroCasa = async (): Promise<void> => {
         if (inGiroCasa || sincronia.scatola() === undefined) return
         inGiroCasa = true
@@ -2160,6 +2215,8 @@ if (!app.requestSingleInstanceLock()) {
           await unaCasa.nascite((s) => indiceDrive.has(s))
           // Le case arrivate dal Drive si fanno rispettare subito (0.52.0).
           await ospite.giro()
+          // L'allineamento ai residenti dei progetti (0.58.0, tappa 2).
+          await allineaQui()
         } catch (err) {
           registro.info(`[casa] giro non riuscito: ${String(err)}`)
         } finally {

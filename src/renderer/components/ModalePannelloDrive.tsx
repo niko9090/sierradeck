@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { filtraChat, filtraProgetti, testiCambioResidente, type FiltroPannello, type Pannello, type RigaChat, type RigaProgetto } from '@shared/pannello-drive'
 import { ModaleSposta } from './ModaleSposta'
+import { chiaveProgetto, eChiaveProgetto } from '@shared/allineamento'
 
 /**
  * Il pannello delle chat e dei progetti del Drive (0.58.0, tappa 1).
@@ -82,7 +83,7 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
   )
 
   const testi = cambio === undefined || d === undefined ? undefined
-    : testiCambioResidente({ cosa: cambio.cosa, nome: cambio.nome, ...(cambio.da !== undefined ? { da: cambio.da } : {}), verso: cambio.verso, io: d.io.id, chat: cambio.sessioni.length, ...(cambio.cartellaLa !== undefined ? { cartellaLa: cambio.cartellaLa } : {}) })
+    : testiCambioResidente({ cosa: cambio.cosa, nome: cambio.nome, ...(cambio.da !== undefined ? { da: cambio.da } : {}), verso: cambio.verso, io: d.io.id, chat: cambio.sessioni.filter((s) => !eChiaveProgetto(s)).length, ...(cambio.cartellaLa !== undefined ? { cartellaLa: cambio.cartellaLa } : {}) })
 
   return createPortal(
     <div className="velo" onMouseDown={(e) => { if (e.target === e.currentTarget && cambio === undefined) onChiudi() }}>
@@ -103,6 +104,27 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
           Delle copie degli altri PC si sa quello che hanno caricato sul Drive: una copia mai salvata là, da qui non si vede.
         </p>
         {errore !== undefined ? <div className="riga__stato" style={{ color: 'var(--ambra)' }}>{errore}</div> : null}
+        {d !== undefined && d.pcDaAggiornare.length > 0 ? (
+          <div className="riga__stato" style={{ color: 'var(--ambra)', marginBottom: 6 }}>
+            {d.pcDaAggiornare.join(', ')} non {d.pcDaAggiornare.length === 1 ? 'dice' : 'dicono'} ancora quali chat e progetti {d.pcDaAggiornare.length === 1 ? 'ha' : 'hanno'} sul disco: {d.pcDaAggiornare.length === 1 ? 'va aggiornato' : 'vanno aggiornati'} alla 0.58. Fino ad allora, di {d.pcDaAggiornare.length === 1 ? 'quel PC' : 'quei PC'} si vedono solo le copie caricate sul Drive.
+          </div>
+        ) : null}
+        {d?.piano !== undefined && d.piano.azioni.length > 0 ? (
+          <div className="riordina__gruppo" style={{ marginBottom: 8 }}>
+            <span className="serigrafia">Piano di allineamento di questo PC</span>
+            <p className="account__nota" style={{ margin: '4px 0' }}>
+              Cosa serve perché questo PC rispetti le scelte: i progetti di cui è residente devono esserci, gli altri restano solo cloud.
+              «Porta qui» parte da solo solo quando la cartella qui non c’è affatto, quindi non sovrascrive niente; negli altri casi
+              aspetta te. Per ora <b>niente viene tolto</b>: rendere solo cloud un progetto passerà da un controllo che recupera
+              prima quello che c’è solo qui, e da una tua conferma.
+            </p>
+            {d.piano.azioni.map((a) => (
+              <div key={`${a.tipo}:${a.progetto}`} className="account__nota" style={{ borderLeft: `3px solid ${a.tipo === 'porta-qui' ? 'var(--verde)' : 'var(--ambra)'}`, paddingLeft: 6, marginTop: 3 }}>
+                <b>{a.tipo === 'porta-qui' ? (a.automatica ? 'Porto qui' : 'Da portare qui (decidi tu)') : 'Da rendere solo cloud (solo mostrato)'}: {a.nome}.</b> {a.perche}
+              </div>
+            ))}
+          </div>
+        ) : null}
         {msg !== undefined ? <div className="riga__stato" style={{ marginBottom: 6 }}>{msg}</div> : null}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
           <button className={`tasto tasto--mini${vista === 'chat' ? ' tasto--acceso' : ''}`} onClick={() => setVista('chat')}>Chat{d !== undefined ? ` (${d.chat.length})` : ''}</button>
@@ -126,7 +148,7 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
                 <b>{r.titolo}</b> {pallino(r.stato)}
                 <span className="account__nota" style={{ display: 'block' }}>
                   Residente: {r.residente === undefined ? <i>nessuno</i> : <b>{r.residente.nome}{r.residente.qui ? ' (questo PC)' : ''}</b>}
-                  {' · '}copie: {r.copie.length === 0 ? 'nessuna' : r.copie.map((c) => `${c.nome}${c.dove === 'qui' ? ' (qui sul disco)' : ' (sul Drive)'}`).join(', ')}
+                  {' · '}copie: {r.copie.length === 0 ? 'nessuna' : r.copie.map((c) => `${c.nome}${c.dove === 'qui' ? ' (qui sul disco)' : c.dove === 'disco' ? ' (sul suo disco)' : ' (caricata sul Drive)'}`).join(', ')}
                   {' · '}ultimo uso: {quando(r.ultimoUso)}
                   {r.cwd !== undefined ? <> · <span>{r.cwd}</span></> : null}
                 </span>
@@ -148,15 +170,17 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
                   <b>{r.nome}</b> {pallino(r.stato)}
                   <span className="account__nota" style={{ display: 'block' }}>
                     Residente: {r.residente === undefined ? <i>nessuno</i> : <b>{r.residente.nome}{r.residente.qui ? ' (questo PC)' : ''}</b>}
+                    {r.residente !== undefined ? (r.voluto ? ' (scelto per il progetto: gli altri PC lo tengono solo cloud)' : ' (dalla maggior parte delle sue chat: non ancora scelto)') : null}
                     {' · '}{r.chat} chat · cartella su: {r.cartelle.length === 0 ? 'nessun PC' : r.cartelle.map((c) => c.nome).join(', ')}
                     {' · '}ultimo uso: {quando(r.ultimoUso)}
                   </span>
                   {problemi(r)}
                 </span>
                 <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <select className="campo campo--mini" value="" disabled={occupato || sessioni.length === 0} title={sessioni.length === 0 ? 'Il progetto non ha chat da spostare' : 'Cambia il PC residente di tutte le chat del progetto'}
+                  <select className="campo campo--mini" value="" disabled={occupato} title="Scegli il PC residente del progetto: le sue chat vivono lì, gli altri PC lo tengono solo cloud"
                     onChange={(e) => sceltaPc(e.target.value, (verso) => setCambio({
-                      cosa: 'progetto', nome: r.nome, sessioni,
+                      // Anche lo stato voluto del progetto (0.58.0): residente là, solo cloud sugli altri.
+                      cosa: 'progetto', nome: r.nome, sessioni: [...sessioni, chiaveProgetto(r.id)],
                       ...(r.residente !== undefined ? { da: { pc: r.residente.pc, nome: r.residente.nome } } : {}),
                       verso, cartellaLa: r.cartelle.some((c) => c.pc === verso.pc)
                     }))}>
@@ -178,7 +202,7 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
         <div className="velo" onMouseDown={(e) => { if (e.target === e.currentTarget && !occupato) setCambio(undefined) }}>
           <div className="dialogo" onMouseDown={(e) => e.stopPropagation()}>
             <div className="dialogo__testa"><span className="serigrafia">{testi.titolo}</span></div>
-            <p className="account__nota"><b>{cambio.cosa === 'chat' ? `Chat «${cambio.nome}»` : `Progetto «${cambio.nome}», ${cambio.sessioni.length} chat`}</b>: residente adesso {cambio.da === undefined ? 'nessuno' : cambio.da.nome}, dopo {cambio.verso.nome}.</p>
+            <p className="account__nota"><b>{cambio.cosa === 'chat' ? `Chat «${cambio.nome}»` : `Progetto «${cambio.nome}», ${cambio.sessioni.filter((s) => !eChiaveProgetto(s)).length} chat`}</b>: residente adesso {cambio.da === undefined ? 'nessuno' : cambio.da.nome}, dopo {cambio.verso.nome}.</p>
             <p className="account__nota"><b>Cosa succede</b></p>
             <ul className="account__nota">{testi.succede.map((t) => <li key={t}>{t}</li>)}</ul>
             <p className="account__nota"><b>Cosa non succede</b></p>

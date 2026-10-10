@@ -1,4 +1,5 @@
 import type { CaseChat, FonteCasa } from './una-casa'
+import { casaProgetto, type PianoAllineamento } from './allineamento'
 
 /**
  * Il pannello delle chat e dei progetti del Drive (0.58.0, tappa 1).
@@ -14,10 +15,19 @@ import type { CaseChat, FonteCasa } from './una-casa'
  * progetto» (progetti). Vedi la scheda `pannello-chat-drive-0-58.md`.
  */
 
-export type PcNoto = { id: string; nome: string; battito?: string }
+export type PcNoto = {
+  id: string
+  nome: string
+  battito?: string
+  /** Il suo battito dice le copie locali (0.58.0). `false`: PC da aggiornare. */
+  diceLocali?: boolean
+}
 
-/** Una copia di una chat: sul disco di questo PC, o caricata sul Drive da un PC. */
-export type CopiaChat = { pc: string; dove: 'qui' | 'drive'; mtime?: number }
+/**
+ * Una copia di una chat: sul disco di questo PC (`qui`), sul disco di un altro
+ * PC come lo dice il suo battito (`disco`, 0.58.0), o caricata sul Drive da un PC.
+ */
+export type CopiaChat = { pc: string; dove: 'qui' | 'disco' | 'drive'; mtime?: number }
 
 export type ChatIngresso = {
   sessione: string
@@ -47,7 +57,7 @@ export type RigaChat = {
   cwd?: string
   progetto?: string
   residente?: Residente
-  copie: { pc: string; nome: string; dove: 'qui' | 'drive'; quando?: string }[]
+  copie: { pc: string; nome: string; dove: 'qui' | 'disco' | 'drive'; quando?: string }[]
   ultimoUso?: string
   stato: StatoRiga
   /** Questo PC ne ha una copia sul disco. */
@@ -59,6 +69,8 @@ export type RigaProgetto = {
   id: string
   nome: string
   residente?: { pc: string; nome: string; qui: boolean }
+  /** Il residente è una scelta per il progetto (0.58.0), non la maggioranza delle sue chat. */
+  voluto: boolean
   /** I PC che hanno la cartella del progetto. */
   cartelle: { pc: string; nome: string; percorso: string }[]
   /** Questo PC ha la cartella. */
@@ -69,7 +81,17 @@ export type RigaProgetto = {
   problemi: Problema[]
 }
 
-export type Pannello = { io: PcNoto; pc: PcNoto[]; chat: RigaChat[]; progetti: RigaProgetto[]; letto: string }
+export type Pannello = {
+  io: PcNoto
+  pc: PcNoto[]
+  chat: RigaChat[]
+  progetti: RigaProgetto[]
+  letto: string
+  /** I PC il cui battito non dice ancora le copie locali: vanno aggiornati (0.58.0). */
+  pcDaAggiornare: string[]
+  /** Il piano di allineamento di questo PC (0.58.0, tappa 2): si mostra e basta. */
+  piano?: PianoAllineamento
+}
 
 /** Oltre questo un PC senza battito si considera assente. */
 export const ASSENTE_DOPO_MS = 30 * 86_400_000
@@ -88,11 +110,14 @@ export function costruisciPannello(p: {
   const tutti = [p.io, ...p.pc.filter((x) => x.id !== p.io.id)]
   const nomeDi = (id: string): string => tutti.find((x) => x.id === id)?.nome ?? `PC ${id.slice(0, 6)}`
   const chat = p.chat.map((c) => rigaChat(c, p, nomeDi))
-  const progetti = p.progetti.map((g) => rigaProgetto(g, chat.filter((c) => c.progetto === g.id), p, nomeDi))
+  const progetti = p.progetti.map((g) => rigaProgetto(g, chat.filter((c) => c.progetto === g.id), p, nomeDi, p.case))
   // Le chat in ordine: prima le sbagliate, poi le più recenti.
   chat.sort((a, b) => (b.problemi.length > 0 ? 1 : 0) - (a.problemi.length > 0 ? 1 : 0) || (b.ultimoUso ?? '').localeCompare(a.ultimoUso ?? ''))
   progetti.sort((a, b) => (b.problemi.length > 0 ? 1 : 0) - (a.problemi.length > 0 ? 1 : 0) || a.nome.localeCompare(b.nome))
-  return { io: p.io, pc: p.pc, chat, progetti, letto: new Date(p.adesso).toISOString() }
+  return {
+    io: p.io, pc: p.pc, chat, progetti, letto: new Date(p.adesso).toISOString(),
+    pcDaAggiornare: p.pc.filter((x) => x.diceLocali === false).map((x) => x.nome)
+  }
 }
 
 function rigaChat(c: ChatIngresso, p: { io: PcNoto; pc: PcNoto[]; case: CaseChat; adesso: number }, nomeDi: (id: string) => string): RigaChat {
@@ -180,11 +205,12 @@ export function problemiChat(
   return fuori
 }
 
-function rigaProgetto(g: ProgettoIngresso, chat: RigaChat[], p: { io: PcNoto; adesso: number }, nomeDi: (id: string) => string): RigaProgetto {
+function rigaProgetto(g: ProgettoIngresso, chat: RigaChat[], p: { io: PcNoto; adesso: number }, nomeDi: (id: string) => string, cc: CaseChat): RigaProgetto {
+  const voluto = casaProgetto(cc, g.id)
   const conta = new Map<string, number>()
   for (const c of chat) if (c.residente !== undefined) conta.set(c.residente.pc, (conta.get(c.residente.pc) ?? 0) + 1)
   const ordinati = [...conta.entries()].sort((a, b) => b[1] - a[1])
-  const primo = ordinati[0]
+  const primo: [string, number] | undefined = voluto !== undefined ? [voluto.pc, conta.get(voluto.pc) ?? 0] : ordinati[0]
   const problemi: Problema[] = []
   if (chat.length > 0 && primo === undefined) {
     problemi.push({
@@ -211,7 +237,8 @@ function rigaProgetto(g: ProgettoIngresso, chat: RigaChat[], p: { io: PcNoto; ad
   const conflitto = chat.some((c) => c.stato === 'conflitto')
   return {
     id: g.id, nome: g.nome,
-    ...(primo !== undefined ? { residente: { pc: primo[0], nome: nomeDi(primo[0]), qui: primo[0] === p.io.id } } : {}),
+    ...(primo !== undefined ? { residente: { pc: primo[0], nome: voluto?.pcNome ?? nomeDi(primo[0]), qui: primo[0] === p.io.id } } : {}),
+    voluto: voluto !== undefined,
     cartelle: Object.entries(g.percorsi).map(([pc, percorso]) => ({ pc, nome: nomeDi(pc), percorso })),
     cartellaQui: g.percorsi[p.io.id] !== undefined,
     chat: chat.length,
@@ -266,7 +293,8 @@ export function testiCambioResidente(p: {
     p.da !== undefined && p.da.pc !== p.verso.pc
       ? `Su ${da}, che era la casa, ogni chat aperta viene chiusa a fine turno (mai a metà) e la sua copia va nella cartella di recupero di SierraDeck.`
       : 'Su ogni altro PC che ne ha una copia, la copia va nella cartella di recupero di SierraDeck a fine turno.',
-    `Se la casa era su questo PC, prima di cambiarla salvo sul Drive, così ${verso} trova la copia più avanti.`
+    `Se la casa era su questo PC, prima di cambiarla salvo sul Drive, così ${verso} trova la copia più avanti.`,
+    ...(p.cosa === 'progetto' ? [`Il progetto diventa «residente su ${verso}, solo cloud sugli altri PC»: ${verso}, se non ce l’ha, lo porta giù dal Drive da solo quando la cartella non c’è (senza sovrascrivere niente); gli altri PC lo mettono nel loro piano come «da rendere solo cloud», ma non lo tolgono finché un controllo non ha recuperato quello che c’è solo lì e tu non hai confermato.`] : [])
   ]
   const nonSuccede = [
     'Non si cancella niente: le copie tolte restano nella cartella di recupero, e la scelta si annulla da «Dove vive ogni chat».',

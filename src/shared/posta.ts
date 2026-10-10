@@ -46,7 +46,21 @@ export type BattitoPc = {
    */
   indirizzi?: string[]
   porta?: number
+  /**
+   * Le chat e i progetti che quel PC ha sul disco (0.58.0). Mancano nei
+   * battiti di prima: il pannello lo dice («va aggiornato»).
+   */
+  locali?: LocaliBattito
 }
+
+/** Le copie locali di un PC: chat (sessione, cartella, ultimo messaggio) e progetti (id, cartella). */
+export type LocaliBattito = {
+  chat: { sessione: string; cwd?: string; mtime?: number }[]
+  progetti: { id: string; percorso: string }[]
+}
+
+/** Quante chat al massimo nel battito: le più recenti. */
+export const LOCALI_MAX_CHAT = 2000
 
 export type VocePosta = {
   id: string

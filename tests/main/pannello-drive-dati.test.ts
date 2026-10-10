@@ -48,3 +48,28 @@ describe('le fonti del pannello delle chat del Drive', () => {
     expect(p.progetti[0]?.chat).toBe(2)
   })
 })
+
+describe('le copie locali dal battito (0.58.0, tappa 2)', () => {
+  const base = {
+    io: { id: 'pc-qui', nome: 'PC-ESEMPIO' },
+    case: { versione: 1 as const, case: {} },
+    locali: [], manifesto: undefined, aperteQui: [], titoliNoti: [], progetti: [], adesso: Date.parse('2026-10-10T18:00:00Z')
+  }
+  it('un PC nuovo dice le sue copie sul disco; uno vecchio no, e va aggiornato', () => {
+    const p = datiPannello({
+      ...base,
+      pc: [
+        { id: 'pc-port', nome: 'PORTATILE-ESEMPIO', locali: { chat: [{ sessione: 's-1', cwd: 'D:\\Lavoro', mtime: 5 }, { nonValida: true }], progetti: [] } },
+        { id: 'pc-vecchio', nome: 'PC-VECCHIO' }
+      ]
+    })
+    expect(p.chat[0]?.copie).toEqual([{ pc: 'pc-port', nome: 'PORTATILE-ESEMPIO', dove: 'disco', quando: new Date(5).toISOString() }])
+    expect(p.pcDaAggiornare).toEqual(['PC-VECCHIO'])
+    expect(p.pc.find((x) => x.id === 'pc-port')?.diceLocali).toBe(true)
+  })
+  it('un battito vecchio o rovinato non rompe niente', () => {
+    const p = datiPannello({ ...base, pc: [{ id: 'pc-x', nome: 'PC-X', locali: 'rotto' }, { id: 'pc-y', nome: 'PC-Y', locali: { chat: 'no' } }] })
+    expect(p.chat).toEqual([])
+    expect(p.pcDaAggiornare).toEqual(['PC-X', 'PC-Y'])
+  })
+})

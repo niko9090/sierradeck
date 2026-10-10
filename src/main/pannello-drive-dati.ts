@@ -1,5 +1,6 @@
 import { sessioneDiPercorso, type CaseChat } from '@shared/una-casa'
 import { costruisciPannello, type ChatIngresso, type Pannello, type PcNoto, type ProgettoIngresso } from '@shared/pannello-drive'
+import type { PianoAllineamento } from '@shared/allineamento'
 import { cartellaDaSlug } from './cassaforte/catalogo'
 import { staDentro } from './progetti/registro'
 import type { Manifesto } from './cassaforte/incrementale'
@@ -16,7 +17,7 @@ import type { Manifesto } from './cassaforte/incrementale'
  */
 export function datiPannello(p: {
   io: PcNoto
-  pc: (PcNoto & { chat?: { sessione?: string; titolo?: string; cwd?: string }[] })[]
+  pc: (PcNoto & { chat?: { sessione?: string; titolo?: string; cwd?: string }[]; locali?: unknown })[]
   case: CaseChat
   locali: { sessione: string; titolo: string; cwd?: string; mtime?: number }[]
   manifesto: Manifesto | undefined
@@ -24,6 +25,7 @@ export function datiPannello(p: {
   titoliNoti: { sessione: string; titolo: string; cwd?: string }[]
   progetti: ProgettoIngresso[]
   adesso: number
+  piano?: PianoAllineamento
 }): Pannello {
   const chat = new Map<string, ChatIngresso>()
   const prendi = (s: string): ChatIngresso => {
@@ -36,6 +38,14 @@ export function datiPannello(p: {
     c.titolo = l.titolo
     if (l.cwd !== undefined) c.cwd = l.cwd
     c.copie.push({ pc: p.io.id, dove: 'qui', ...(l.mtime !== undefined ? { mtime: l.mtime } : {}) })
+  }
+  // Le copie sul disco degli altri PC, come le dice il loro battito (0.58.0).
+  for (const b of p.pc) {
+    for (const x of localiDi(b.locali)?.chat ?? []) {
+      const c = prendi(x.sessione)
+      if (c.cwd === undefined && x.cwd !== undefined) c.cwd = x.cwd
+      c.copie.push({ pc: b.id, dove: 'disco', ...(x.mtime !== undefined ? { mtime: x.mtime } : {}) })
+    }
   }
   for (const [percorso, v] of Object.entries(p.manifesto?.file ?? {})) {
     if (!percorso.startsWith('chat/') || !percorso.endsWith('.jsonl') || percorso.split('/').length !== 3) continue
@@ -80,7 +90,24 @@ export function datiPannello(p: {
       if (g !== undefined) c.progetto = g.id
     }
   }
-  return costruisciPannello({
-    io: p.io, pc: p.pc.map(({ chat: _c, ...x }) => x), case: p.case, chat: [...chat.values()], progetti: p.progetti, adesso: p.adesso
+  const pannello = costruisciPannello({
+    io: p.io, pc: p.pc.map(({ chat: _c, locali, ...x }) => ({ ...x, diceLocali: localiDi(locali) !== undefined })),
+    case: p.case, chat: [...chat.values()], progetti: p.progetti, adesso: p.adesso
   })
+  return p.piano === undefined ? pannello : { ...pannello, piano: p.piano }
+}
+
+/** Il campo `locali` di un battito, letto con prudenza: arriva da un altro PC. */
+function localiDi(x: unknown): { chat: { sessione: string; cwd?: string; mtime?: number }[] } | undefined {
+  if (typeof x !== 'object' || x === null) return undefined
+  const chat = (x as { chat?: unknown }).chat
+  if (!Array.isArray(chat)) return undefined
+  return {
+    chat: chat.flatMap((c) => {
+      if (typeof c !== 'object' || c === null) return []
+      const o = c as Record<string, unknown>
+      if (typeof o.sessione !== 'string' || o.sessione === '') return []
+      return [{ sessione: o.sessione, ...(typeof o.cwd === 'string' ? { cwd: o.cwd } : {}), ...(typeof o.mtime === 'number' ? { mtime: o.mtime } : {}) }]
+    })
+  }
 }
