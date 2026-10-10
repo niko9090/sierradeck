@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 
 /**
  * La chiave di casa fra PC senza farla viaggiare (0.47.0).
@@ -33,6 +33,19 @@ function uguali(a: string, b: string): boolean {
   const x = Buffer.from(a)
   const y = Buffer.from(b)
   return x.length === y.length && x.length > 0 && timingSafeEqual(x, y)
+}
+
+/**
+ * L'impronta di un PC (0.58.1): chi risponde a `/api/casa` la dice, e chi bussa
+ * la confronta con quella del PC a cui voleva arrivare. Non rivela l'id (è
+ * un'impronta) e non serve a entrare: serve a capire, quando la prova della
+ * chiave di casa non torna, se a quell'indirizzo risponde **un altro
+ * SierraDeck** (una seconda copia del programma che occupa la porta) o lo
+ * stesso PC con un'altra cassaforte. Il 10/10 il portatile rispondeva con una
+ * prova sbagliata, e non si sapeva perché.
+ */
+export function improntaPc(id: string): string {
+  return createHash('sha256').update(`sierradeck-pc|${id}`, 'utf8').digest('hex').slice(0, 12)
 }
 
 export function nuovaSfida(): string {

@@ -82,6 +82,7 @@ import { datiPannello } from './pannello-drive-dati'
 import type { Pannello } from '@shared/pannello-drive'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
 import { creaLatoResidente, creaRimozione, type LatoResidente, type Rimozione } from './rimozione-sicura'
+import { improntaPc } from './casa-firma'
 import { cartellaDiProgettoValida, casaProgetto, chiaveProgetto, pianoAllineamento, rigaPiano, type PianoAllineamento } from '@shared/allineamento'
 import { LOCALI_MAX_CHAT, type LocaliBattito } from '@shared/posta'
 import { apriFileProgetti } from './file-progetti'
@@ -449,6 +450,8 @@ let alTelefono: AlTelefono | undefined
 let pcVistoGlobale: ((pcId: string, indirizzo: string) => void) | undefined
 /** Le copie locali per il battito e il piano di allineamento (0.58.0): nascono con «una chat, una casa». */
 let localiBattito: (() => LocaliBattito) | undefined
+/** Il Client di questo PC è in ascolto sulla sua porta (0.58.1). */
+let statoClient: { inAscolto: boolean; errore?: string } | undefined
 /** La rimozione sicura (0.58.0, tappa 3): il lato di chi toglie e quello del residente. */
 let rimozioneGlobale: Rimozione | undefined
 /** Il pannello del Drive e le sue azioni (0.58.0, tappa 4), anche per il telefono. */
@@ -1658,6 +1661,8 @@ if (!app.requestSingleInstanceLock()) {
         rete: () => ({ indirizzi: indirizziLocali(undefined, principaleRicordato), porta: impostazioni.preferenze().portaClient }),
         // Le copie sul disco (0.58.0): il pannello degli altri PC le mostra.
         locali: () => localiBattito?.(),
+        // Il Client in ascolto o no (0.58.1): gli altri PC lo leggono prima di bussare.
+        client: () => statoClient,
         log: registro.info
       })
       postinoGlobale = postino
@@ -4281,23 +4286,35 @@ if (!app.requestSingleInstanceLock()) {
         // questa, senza accoppiarsi. A cassaforte chiusa non c'e', e da fuori
         // si riceve «dispositivo non riconosciuto».
         chiaveDiCasa: () => sincronia.chiaveDiCasa(`client-pc:${identitaPc.leggi().id}`),
+        // Chi sono (0.58.1): l'impronta, per chi bussa e non riconosce la prova.
+        impronta: () => improntaPc(identitaPc.leggi().id),
         rotta: rottaTelefono,
         rottaLibera: rotteLibere(rotte),
         // I rifiuti e il primo contatto di ogni dispositivo nel registro: e'
         // l'unico modo di capire dal PC perche' il telefono «non funziona».
         log: (m) => registro.info(m)
       })
-      serverClient.on('error', (err) => {
-        // Una porta occupata non deve impedire al programma di aprirsi: si dice
-        // e si va avanti, e chi vuole il Client la cambia nelle impostazioni.
-        console.error(`[client] non in ascolto sulla ${porta}:`, err)
+      const srv = serverClient
+      srv.on('error', (err: NodeJS.ErrnoException) => {
+        // Una porta occupata non deve impedire al programma di aprirsi. Ma va
+        // detta (0.58.1): prima finiva solo nella console, il battito diceva lo
+        // stesso «bussate qui», e gli altri PC bussavano a chi occupava la
+        // porta. Ora nel registro, nel battito, e si riprova ogni 30 secondi.
+        statoClient = { inAscolto: false, errore: `${err.code ?? 'errore'}: ${err.code === 'EADDRINUSE' ? `un altro programma usa la porta ${porta} (forse una seconda copia di SierraDeck)` : err.message}` }
+        registro.errore(`[client] non in ascolto sulla porta ${porta}: ${statoClient.errore}. Riprovo fra 30 secondi.`)
+        setTimeout(() => { try { if (!srv.listening) srv.listen(porta) } catch { /* riprova al prossimo errore */ } }, 30_000).unref?.()
       })
       // Su tutte le interfacce, perche' il telefono arriva dal wifi: a chiudere
       // la porta ci pensa il controllo della rete locale, richiesta per
       // richiesta, che e' un muro piu' solido di un bind.
-      serverClient.listen(porta, () => {
-        console.log(`[client] in ascolto sulla porta ${porta}: ${indirizziLocali().join(', ')}`)
+      srv.on('listening', () => {
+        const prima = statoClient?.inAscolto === false
+        statoClient = { inAscolto: true }
+        const riga = `[client] in ascolto sulla porta ${porta}: ${indirizziLocali().join(', ')}`
+        console.log(riga)
+        if (prima) registro.info(`${riga} (la porta si è liberata)`)
       })
+      srv.listen(porta)
 
       ipcMain.handle('client:stato', async () => {
         // La domanda a Windows è asincrona: il processo che disegna la finestra

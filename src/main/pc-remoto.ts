@@ -1,6 +1,7 @@
 import { pcVivo, type BattitoPc } from '@shared/posta'
 import { descriviIndirizzo, PORTA_CLIENT_PREDEFINITA } from '@shared/pc-remoto'
 import { indirizziDaProvare, messaggioErroreRemoto, motivoDaStatoHttp, statoPc, testoProva, type PingPc, type ProvaIndirizzo, type StatoPc } from '@shared/scoperta-pc'
+import { improntaPc } from './casa-firma'
 import { indirizzoPreferito, prossimaMossa, RIBUSSA_OGNI_MS, stradaDiIndirizzo, type InfoStrada, type Strada, type StatoRtc } from '@shared/strada-pc'
 import { ATTESA_DRIVE, NON_VIA_DRIVE } from './rtc/cassetta-drive'
 import type { EsitoCanale } from './rtc/collegamento-rtc'
@@ -212,7 +213,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     // solo chi risponde con l'HMAC della chiave di quel PC e' proprio lui. La
     // chiave non parte verso nessuno. Un PC prima della 0.47 non conosce
     // `/api/casa`: per lui il vecchio modo, solo agli indirizzi del suo battito.
-    type Risposta = { ind: string; stato: number; modo?: 'firma' | 'chiave'; estraneo?: true }
+    type Risposta = { ind: string; stato: number; modo?: 'firma' | 'chiave'; estraneo?: true; chi?: 'altro-sierradeck' | 'stessa-identita' }
     const conAttesa = async <T>(f: (s: AbortSignal) => Promise<T>): Promise<T | undefined> => {
       const controllo = new AbortController()
       const timer = setTimeout(() => controllo.abort(), bussaMs)
@@ -226,13 +227,15 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
         })
         let corpo: unknown
         try { corpo = await r.json() } catch { corpo = undefined }
-        return { stato: r.status, prova: (corpo as { prova?: unknown } | undefined)?.prova }
+        const c = corpo as { prova?: unknown; impronta?: unknown } | undefined
+        return { stato: r.status, prova: c?.prova, ...(typeof c?.impronta === 'string' ? { impronta: c.impronta } : {}) }
       })
       if (casa === undefined) return { ind, stato: 0 }
       if (casa.stato === 200) {
-        return chiave !== undefined && provaValida(chiave, sfida, casa.prova)
-          ? { ind, stato: 200, modo: 'firma' }
-          : { ind, stato: 401, estraneo: true }
+        if (chiave !== undefined && provaValida(chiave, sfida, casa.prova)) return { ind, stato: 200, modo: 'firma' }
+        // Chi è, se lo dice (0.58.1): un altro SierraDeck sulla stessa porta, o lo stesso PC con un'altra cassaforte.
+        const chi = 'impronta' in casa && typeof casa.impronta === 'string' ? (casa.impronta === improntaPc(pcId) ? 'stessa-identita' as const : 'altro-sierradeck' as const) : undefined
+        return { ind, stato: 401, estraneo: true, ...(chi !== undefined ? { chi } : {}) }
       }
       // Cassaforte chiusa la': non e' un estraneo, ma non entra nessuno.
       if (casa.stato === 503) return { ind, stato: 401 }
@@ -260,10 +263,13 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     // Cosa ha detto ogni indirizzo (0.57.1): nel registro quando cambia, e nel riquadro.
     const prove: ProvaIndirizzo[] = risposte.map((x) => ({
       indirizzo: x.ind,
-      esito: x.modo !== undefined ? 'risponde' : x.estraneo === true ? 'estraneo' : x.stato === 401 ? 'cassaforte' : x.stato === 0 ? 'muto' : 'http',
+      esito: x.modo !== undefined ? 'risponde' : x.chi !== undefined ? x.chi : x.estraneo === true ? 'estraneo' : x.stato === 401 ? 'cassaforte' : x.stato === 0 ? 'muto' : 'http',
       ...(x.stato !== 0 ? { stato: x.stato } : {})
     }))
-    if (buona === undefined) racconta(`${pcId}#bussa`, `${nome || pcId}: bussato a ${indirizzi.length} indirizzi, nessuno va bene — ${prove.map(testoProva).join('; ')}`)
+    // Quel PC dice da sé che il suo Client non è in ascolto (0.58.1): lo si mette davanti.
+    const client = (b as { client?: { inAscolto?: unknown; errore?: unknown } } | undefined)?.client
+    const nonAscolta = client?.inAscolto === false ? `${nome || pcId} dice che il suo SierraDeck non è in ascolto sulla porta ${porta}${typeof client.errore === 'string' ? ` (${client.errore})` : ''}. ` : ''
+    if (buona === undefined) racconta(`${pcId}#bussa`, `${nonAscolta}${nome || pcId}: bussato a ${indirizzi.length} indirizzi, nessuno va bene — ${prove.map(testoProva).join('; ')}`)
     let p: PingPc
     if (buona !== undefined) {
       const modo = buone.find((x) => x.ind === buona)?.modo

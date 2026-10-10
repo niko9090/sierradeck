@@ -80,3 +80,24 @@ Nessun «non consegnata».
 - se non riesce, la riga `bussato a N indirizzi, nessuno va bene — …` dice cosa ha risposto ogni indirizzo.
 
 Test in `tests/main/portatile-non-raggiunto.test.ts`.
+
+# 0.58.1: la causa vista dal vero (10/10, 18:58 UTC, la 0.58.0 su questo PC)
+
+Con il giro delle strade (0.57.3) il registro finalmente dice cosa succede quando si bussa al portatile:
+
+> `[remoto] <portatile>: bussato a 3 indirizzi, nessuno va bene — <rete di casa>: risponde, ma non prova la chiave di casa; <Tailscale>: risponde, ma non prova la chiave di casa; …`
+
+**I fatti:**
+- su tutte e due le strade il portatile risponde a `/api/casa` con `programma: SierraDeck` e la sua versione (0.58.0, la stessa del battito), ma la **prova della chiave di casa non torna**;
+- alle 17:40 il portatile si è collegato a **questo** PC con una firma valida della chiave di casa, e con il suo id (l'indirizzo è stato imparato): quindi ha la stessa cassaforte;
+- la prova è `HMAC(maestra, "client-pc:<id del PC che risponde>")`. Stessa maestra e prova diversa vogliono dire che **chi risponde sulla porta 47640 del portatile non ha l'identità del battito**.
+
+**La spiegazione più probabile:** sul portatile una seconda copia di SierraDeck, con la stessa cassaforte e un'altra identità (per esempio una copia di prova o di sviluppo avviata con i dati copiati), occupa la porta 47640. Il SierraDeck vero del portatile non riesce ad ascoltare. Il difetto del programma che lo nascondeva: con la porta occupata, il Client scriveva l'errore **solo nella console**, non riprovava, e il battito diceva lo stesso «bussate qui». Gli altri PC bussavano così a chi occupava la porta.
+
+**0.58.1:**
+- `/api/casa` risponde anche con l'**impronta** di chi risponde (`improntaPc(id)`, sha256 troncato: non rivela l'id e non serve a entrare);
+- chi bussa la confronta con quella del PC voluto. Impronta diversa: «risponde un ALTRO SierraDeck, non quello del battito: una seconda copia del programma occupa la porta…». Impronta uguale: «è proprio quel PC, ma la sua cassaforte è diversa»;
+- un Client che non può ascoltare: riga di **errore nel registro**, nuovo tentativo ogni 30 s, e nel battito `client: { inAscolto: false, errore }`. Chi bussa lo legge e lo dice per primo: «<PC> dice che il suo SierraDeck non è in ascolto sulla porta 47640 (EADDRINUSE…)». Quando la porta si libera: «(la porta si è liberata)».
+- Test in `tests/main/portatile-non-raggiunto.test.ts`.
+
+**Da verificare dal vero:** con la 0.58.1 sul portatile, il registro di qui dirà quale dei due casi è. Se è «un altro SierraDeck», sul portatile va chiusa l'altra copia (Gestione attività: i processi SierraDeck/electron in più) e riavviato SierraDeck.

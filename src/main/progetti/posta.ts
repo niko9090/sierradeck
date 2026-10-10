@@ -115,6 +115,8 @@ export function creaPostino(deps: {
   rete?: () => { indirizzi: string[]; porta: number }
   /** Le chat e i progetti sul disco di questo PC (0.58.0). */
   locali?: () => LocaliBattito | undefined
+  /** Lo stato del Client di questo PC (0.58.1). */
+  client?: () => { inAscolto: boolean; errore?: string } | undefined
   cartellaEsiste: (cwd: string) => boolean
   /** Apre una chat nuova in quella cartella (in una finestra). */
   apriChat: (cwd: string) => void
@@ -189,7 +191,8 @@ export function creaPostino(deps: {
       // Dove bussare: e' cio' che permette a un altro PC di aprire una mia
       // chat dal vivo invece di aspettare la copia dal Drive.
       ...(rete !== undefined && rete.indirizzi.length > 0 ? { indirizzi: rete.indirizzi, porta: rete.porta } : {}),
-      ...(() => { const l = deps.locali?.(); return l === undefined ? {} : { locali: l } })()
+      ...(() => { const l = deps.locali?.(); return l === undefined ? {} : { locali: l } })(),
+      ...(() => { const c = deps.client?.(); return c === undefined ? {} : { client: c } })()
     }
   }
 

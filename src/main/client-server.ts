@@ -79,6 +79,8 @@ export type DipendenzeClient = {
    * da un altro PC non si entra, e lo dice il registro.
    */
   chiaveDiCasa?: () => string | undefined
+  /** L'impronta di questo PC (0.58.1), detta a chi bussa con `/api/casa`. */
+  impronta?: () => string | undefined
   /**
    * Dove raccontare i rifiuti (rete, chiave). Fino alla 0.26.0 andavano solo
    * in console: quando il telefono «non funziona», dal registro del PC non si
@@ -254,7 +256,8 @@ async function gestisci(
       rispondi(res, { stato: 503, corpo: { errore: 'cassaforte chiusa: niente chiave di casa' } })
       return
     }
-    rispondi(res, { stato: 200, corpo: { programma: 'SierraDeck', prova: provaCasa(casa, sfida) } })
+    const impronta = deps.impronta?.()
+    rispondi(res, { stato: 200, corpo: { programma: 'SierraDeck', prova: provaCasa(casa, sfida), ...(impronta !== undefined ? { impronta } : {}) } })
     return
   }
 

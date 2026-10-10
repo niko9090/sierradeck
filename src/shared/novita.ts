@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.58.1',
+    righe: [
+      '**Quando un altro PC «risponde ma non è lui», adesso si sa perché.** Chi risponde dice la sua impronta (non il suo nome né il suo codice): se a quell’indirizzo risponde un altro SierraDeck, per esempio una seconda copia del programma che occupa la porta, il registro e il riquadro lo dicono e spiegano cosa fare; se è proprio quel PC ma con un’altra cassaforte, dicono anche questo.',
+      '**Un SierraDeck che non riesce ad ascoltare sulla sua porta lo dice.** Prima l’errore finiva solo in una console nascosta e gli altri PC bussavano a vuoto. Adesso va nel registro, il programma riprova ogni 30 secondi, e il suo battito avvisa gli altri PC, che lo mostrano per primo.',
+      '**App Android 2.58.0**, invariata.'
+    ]
+  },
+  {
     versione: '0.58.0',
     righe: [
       '**Il pannello delle chat e dei progetti del Drive.** Dal pannello Drive, «Chat e progetti del Drive…» mostra tutte le chat e tutti i progetti: il PC residente (dove lavorano), chi ne ha una copia, l’ultimo uso e lo stato (residente, solo cloud, in conflitto). Filtri e ricerca per trovarli; in ambra le assegnazioni sbagliate, ognuna con il perché e cosa fare: senza casa, con due case, con la casa su un PC sparito o assente da un mese, con una copia più recente fuori casa.',

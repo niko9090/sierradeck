@@ -4,7 +4,9 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { creaClientPcRemoto } from '../../src/main/pc-remoto'
-import { provaCasa } from '../../src/main/casa-firma'
+import { improntaPc, provaCasa } from '../../src/main/casa-firma'
+import { creaServerClient } from '../../src/main/client-server'
+import { apriDispositivi } from '../../src/main/dispositivi'
 import { indirizziTailscaleDi, statoPc, testoProva } from '../../src/shared/scoperta-pc'
 import type { BattitoPc } from '../../src/shared/posta'
 
@@ -145,5 +147,45 @@ describe('il bussare riuscito dice la strada (0.57.3)', () => {
     expect((await c.bussa('portatile-id')).esito).toBe('risponde')
     expect(log).toContain('[remoto] PC-ESEMPIO: strada Tailscale · 100.70.0.5')
     expect(c.stradaDi('portatile-id')?.strada).toBe('tailscale')
+  })
+})
+
+describe('chi risponde quando la prova non torna (0.58.1)', () => {
+  // Un PC che risponde a /api/casa con la prova di un'altra chiave e un'impronta a scelta.
+  const conImpronta = (impronta: string): typeof fetch => (async (url: string | URL | Request) => {
+    const u = new URL(String(url))
+    if (u.pathname === '/api/casa') return new Response(JSON.stringify({ programma: 'SierraDeck', prova: provaCasa('altra-chiave', u.searchParams.get('sfida') ?? ''), impronta }), { status: 200 })
+    return new Response('{}', { status: 200 })
+  }) as typeof fetch
+  const prova = async (impronta: string, client?: { inAscolto: boolean; errore?: string }) => {
+    const log: string[] = []
+    const c = creaClientPcRemoto({
+      battiti: () => [{ ...PORTATILE, indirizzi: ['192.168.1.20'], ...(client !== undefined ? { client } : {}) }],
+      chiavePer: () => CHIAVE, mioNome: () => 'PC-FISSO', adesso: () => ORA, attesaMs: 50, bussaMs: 200,
+      fetch: conImpronta(impronta), log: (m) => { log.push(m) }
+    })
+    await c.bussa('portatile-id')
+    return log.find((m) => m.includes('bussato a')) ?? ''
+  }
+  it('un altro SierraDeck sulla stessa porta (impronta diversa): lo dice, con cosa fare', async () => {
+    const riga = await prova(improntaPc('un-altro-id'))
+    expect(riga).toContain('risponde un ALTRO SierraDeck')
+    expect(riga).toContain('seconda copia del programma occupa la porta')
+  })
+  it('lo stesso PC con un’altra cassaforte (impronta uguale)', async () => {
+    expect(await prova(improntaPc('portatile-id'))).toContain('la sua cassaforte è diversa')
+  })
+  it('il PC dice nel battito che il suo Client non è in ascolto', async () => {
+    const riga = await prova(improntaPc('un-altro-id'), { inAscolto: false, errore: 'EADDRINUSE: un altro programma usa la porta 47640' })
+    expect(riga).toMatch(/^\[remoto\] PC-ESEMPIO dice che il suo SierraDeck non è in ascolto sulla porta 47640 \(EADDRINUSE/)
+  })
+  it('il Client dice la sua impronta a /api/casa', async () => {
+    const s = creaServerClient({ dispositivi: apriDispositivi(mkdtempSync(join(tmpdir(), 'sd-imp-'))), chiaveDiCasa: () => CHIAVE, impronta: () => improntaPc('pc-esempio-id'), rotta: async () => ({ stato: 200, corpo: {} }) })
+    await new Promise<void>((r) => s.listen(0, '127.0.0.1', () => r()))
+    const porta = (s.address() as AddressInfo).port
+    const j = await (await fetch(`http://127.0.0.1:${porta}/api/casa?sfida=0123456789abcdef0123456789abcdef`)).json() as { impronta?: string }
+    s.close()
+    expect(j.impronta).toBe(improntaPc('pc-esempio-id'))
+    expect(j.impronta).not.toContain('pc-esempio-id')
   })
 })

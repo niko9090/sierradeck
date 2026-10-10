@@ -51,6 +51,12 @@ export type BattitoPc = {
    * battiti di prima: il pannello lo dice («va aggiornato»).
    */
   locali?: LocaliBattito
+  /**
+   * Il Client di quel PC (0.58.1): se non riesce ad ascoltare sulla sua porta
+   * (un altro programma la occupa) lo dice, invece di far bussare gli altri a
+   * vuoto o, peggio, a chi la occupa.
+   */
+  client?: { inAscolto: boolean; errore?: string }
 }
 
 /** Le copie locali di un PC: chat (sessione, cartella, ultimo messaggio) e progetti (id, cartella). */

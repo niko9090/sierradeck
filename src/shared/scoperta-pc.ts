@@ -32,7 +32,7 @@
  */
 export type ProvaIndirizzo = {
   indirizzo: string
-  esito: 'risponde' | 'estraneo' | 'cassaforte' | 'muto' | 'http'
+  esito: 'risponde' | 'estraneo' | 'altro-sierradeck' | 'stessa-identita' | 'cassaforte' | 'muto' | 'http'
   stato?: number
 }
 
@@ -42,6 +42,8 @@ export function testoProva(p: ProvaIndirizzo): string {
   switch (p.esito) {
     case 'risponde': return `${dove}: risponde e prova la chiave di casa`
     case 'estraneo': return `${dove}: risponde, ma non prova la chiave di casa (non è quel PC, o è di un'altra cassaforte)`
+    case 'altro-sierradeck': return `${dove}: risponde un ALTRO SierraDeck, non quello del battito: su quel PC una seconda copia del programma occupa la porta, e il SierraDeck vero non è in ascolto (chiudi l'altra copia, poi riavvia SierraDeck su quel PC)`
+    case 'stessa-identita': return `${dove}: è proprio quel PC, ma la sua prova della chiave di casa non torna: la sua cassaforte è diversa da quella di qui (va aperta con la stessa passphrase)`
     case 'cassaforte': return `${dove}: risponde, ma là la cassaforte è chiusa`
     case 'muto': return `${dove}: nessuna risposta`
     case 'http': return `${dove}: risponde con l'errore ${p.stato ?? '?'}`
