@@ -127,3 +127,15 @@ Con il giro delle strade (0.57.3) il registro finalmente dice cosa succede quand
 **Test:** `tests/shared/apertura-remota.test.ts`.
 
 **«Progetti»**: è una voce propria nella barra del PC («▦ Progetti»), fra le destinazioni della pagina («PROGETTI») e nella barra in basso dell'app (app 2.58.2).
+
+# 0.58.3: «Riapri là» nel registro
+
+**Verifica dal vero della 0.58.2 (10/10, 19:51 UTC).** Il registro ha mostrato la correzione: casa della regola sull'altro PC fisso → «casa corretta» → il portatile risponde in rete di casa. La chat però non era aperta là, quindi il riquadro offriva «Riapri là». Una chat salvata resta così: la casa giusta non vuol dire che la chat sia già in esecuzione.
+
+**Buco.** Il clic su «Riapri là» (IPC `remoto:riprendi`) non scriveva niente: né la richiesta, né l'esito, né il momento in cui la chat compariva. La riga «apertura remota riuscita» poteva quindi uscire solo riaprendo il riquadro.
+
+**Correzione (0.58.3).** `remoto:riprendi` scrive `[apertura] riapri là (sessione): …`:
+- la richiesta;
+- il rifiuto, con il messaggio del PC;
+- l'accettazione;
+- poi controlla `/api/stato` di quel PC ogni 3 secondi per 60 secondi e scrive «apertura remota riuscita» quando la chat compare, oppure che non è comparsa.

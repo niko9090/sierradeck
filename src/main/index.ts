@@ -1829,8 +1829,30 @@ if (!app.requestSingleInstanceLock()) {
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/scrivi', { chat: testo(chat), testo: testo(t), ...(typeof id === 'string' && id !== '' ? { idMessaggio: id } : {}) }), pc))
       ipcMain.handle('remoto:scegli', (_e, pc: unknown, chat: unknown, opzione: unknown) =>
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/scegli', { chat: testo(chat), opzione: testo(opzione) }), pc))
-      ipcMain.handle('remoto:riprendi', (_e, pc: unknown, cartella: unknown, sessione: unknown) =>
-        esitoRemoto(() => remoto.chiama(testo(pc), '/api/sessioni/riprendi', { cartella: testo(cartella), sessione: testo(sessione) }), pc))
+      // «Riapri là» (0.58.3): la richiesta, il suo esito e la chat che compare là
+      // finiscono nel registro come gli altri passi dell'apertura remota.
+      ipcMain.handle('remoto:riprendi', async (_e, pc: unknown, cartella: unknown, sessione: unknown) => {
+        const verso = testo(pc); const cwd = testo(cartella); const s = testo(sessione)
+        const nome = postino.altrui().find((b) => b.pcId === verso)?.nome ?? verso
+        const passo = (m: string): void => { registro.info(`[apertura] riapri là (${s.slice(0, 8)}): ${m}`) }
+        passo(`chiedo a ${nome} di riaprire la chat nella sua cartella (${cwd})`)
+        const r = await esitoRemoto(() => remoto.chiama(verso, '/api/sessioni/riprendi', { cartella: cwd, sessione: s }), pc)
+        if (!r.ok) { passo(`${nome} non l’ha riaperta: ${r.messaggio}`); return r }
+        passo(`${nome} ha accettato: aspetto che la chat compaia là`)
+        void (async () => {
+          for (let i = 0; i < 20; i++) {
+            await new Promise((ok) => setTimeout(ok, 3000))
+            try {
+              const st = await remoto.chiama(verso, '/api/stato') as { chat?: ChatSuPc[] }
+              if (trovaChatRemota(Array.isArray(st.chat) ? st.chat : [], { pcId: verso, pcNome: nome, cwd, sessione: s }) !== undefined) {
+                passo(`la chat è aperta su ${nome}, la mostro dal vivo — apertura remota riuscita`); return
+              }
+            } catch { /* riprova al giro dopo */ }
+          }
+          passo(`dopo 60 secondi la chat non compare ancora su ${nome}: il riquadro lo dice e si può riprovare`)
+        })()
+        return r
+      })
       ipcMain.handle('remoto:apri', (_e, pc: unknown, cartella: unknown) =>
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/apri', { cartella: testo(cartella) }), pc))
       ipcMain.handle('remoto:prova', (_e, pc: unknown) => remoto.prova(testo(pc)))

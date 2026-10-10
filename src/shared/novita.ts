@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.58.3',
+    righe: [
+      '**«Riapri là» lascia traccia.** Quando chiedi a un altro PC di riaprire una chat, il registro scrive la richiesta, la risposta di quel PC e il momento in cui la chat compare là. Se dopo un minuto non è comparsa, lo scrive: niente più passaggi muti.'
+    ]
+  },
+  {
     versione: '0.58.2',
     righe: [
       '**Le chat che vivono su un altro PC si aprono dal PC giusto.** Un riquadro salvato restava per sempre puntato sul PC di quando era stato salvato, anche quando la chat stava su un altro: si apriva il PC sbagliato e non succedeva niente. Adesso a ogni apertura il programma ricontrolla dove la chat c’è davvero, corregge la casa decisa da sola dalla regola (mai una tua scelta) e porta il riquadro lì, dicendo perché.',
