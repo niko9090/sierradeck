@@ -1,0 +1,30 @@
+{
+  "pc": [
+    {
+      "pcId": "pc-port",
+      "nome": "PORTATILE-ESEMPIO",
+      "strada": "lan",
+      "autopiloti": [
+        {
+          "id": "ap-prova",
+          "nome": "Autopilota di prova",
+          "stato": "attesa",
+          "led": "ambra",
+          "cicli": 3,
+          "strategia": "",
+          "motivo": "aspetta te",
+          "cwd": "C:\\Prove\\ap",
+          "fatti": 1,
+          "criteri": 3
+        }
+      ]
+    },
+    {
+      "pcId": "pc-vecchio",
+      "nome": "PC-VECCHIO",
+      "autopiloti": [],
+      "errore": "PC-VECCHIO non risponde: Non risponde. Strade provate, in quest’ordine: la rete di casa, Tailscale, il collegamento diretto via Internet (WebRTC) e il Drive (lento: solo lettura e messaggi). I suoi autopiloti continuano a lavorare là: qui li rivedi appena risponde (il controllo si ripete da solo).",
+      "motivo": "irraggiungibile"
+    }
+  ]
+}

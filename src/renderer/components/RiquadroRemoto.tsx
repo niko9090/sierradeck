@@ -21,6 +21,7 @@ import { avanzaLineaPc, lineaPc, pubblicaLinea, useLineaPc } from '../linee-remo
 import { ConfermaPortaQui, useCasa } from './OspiteChat'
 import { EtichettaOpzione } from './EtichettaOpzione'
 import { testoAvvio, testoConsegnato, type FaseSottofondo } from '@shared/sottofondo'
+import { workspaceCorrente } from '../workspace-corrente'
 
 type Props = {
   paneId: string
@@ -297,7 +298,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   const riprendiLa = (): void => {
     if (remoto.sessione === undefined) return
     setInvio(true)
-    void window.gestore.remoto.riprendi(remoto.pcId, remoto.cwd, remoto.sessione).then((r) => {
+    void window.gestore.remoto.riprendi(remoto.pcId, remoto.cwd, remoto.sessione, workspaceCorrente()).then((r) => {
       if (r.ok) { setAvviso(`Chiesto a ${nomePc} di riaprire la chat: fra qualche secondo compare qui.`); setFase({ tipo: 'cerco' }) }
       else setAvviso(r.messaggio)
     }).catch((e: unknown) => setAvviso(String(e))).finally(() => setInvio(false))
@@ -309,7 +310,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
     const conTesto = t !== undefined && id !== undefined ? { testo: t, id } : {}
     setAvviso(undefined)
     setAvvio({ fase: 'chiedo', ...conTesto, dal: Date.now() })
-    void window.gestore.remoto.sottofondo({ pc: remoto.pcId, cwd: remoto.cwd, sessione: remoto.sessione, ...(title !== undefined && title !== '' ? { titolo: title } : {}), ...conTesto })
+    void window.gestore.remoto.sottofondo({ pc: remoto.pcId, cwd: remoto.cwd, sessione: remoto.sessione, workspace: workspaceCorrente(), ...(title !== undefined && title !== '' ? { titolo: title } : {}), ...conTesto })
       .then((r) => {
         if (!r.ok) { setAvvio({ fase: 'errore', messaggio: r.messaggio, ...(r.vecchio === true ? { vecchio: true } : {}), ...conTesto, dal: Date.now() }); return }
         // Già consegnato (la chat era aperta in un riquadro là): fatto.

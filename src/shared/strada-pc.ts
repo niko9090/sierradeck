@@ -219,6 +219,8 @@ export const ROTTE_VIA_CANALE: readonly string[] = [
   '/api/pc', '/api/stato', '/api/storia', '/api/scrivi', '/api/scegli', '/api/sessioni/riprendi', '/api/apri',
   // Le chat in sottofondo (0.58.4): avviarle e seguirle anche via Internet.
   '/api/sottofondo/avvia', '/api/sottofondo/stato',
+  // Gli autopiloti di quel PC (0.59.0): rispondere alle loro domande.
+  '/api/rispondi',
   // «Sposta progetto» (0.42.0): anche fra due PC su reti diverse.
   '/api/sposta/pronto', '/api/sposta/ricevi', '/api/sposta/verifica',
   // Il PIN delle chat (0.49.0): lo verifica il PC di casa della chat.

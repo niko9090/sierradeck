@@ -342,7 +342,8 @@ export type DipendenzeRotte = {
    */
   chatAltrove?: (cwd: string) => string | undefined
   /** Riapre **quella** conversazione, con la sua storia, nel workspace dove sta salvata. */
-  riprendiSessione: (cwd: string, sessione: string) => void
+  /** `chiesto` (0.59.0): il workspace del riquadro di chi chiede, per aprirla nel suo. */
+  riprendiSessione: (cwd: string, sessione: string, chiesto?: string) => void
   creaWorkspace: (nome: string) => Promise<void>
   eliminaWorkspace: (nome: string) => Promise<void>
   /**
@@ -431,13 +432,15 @@ export type DipendenzeRotte = {
   noteAggiornamento?: () => Promise<NoteAggiornamento | undefined>
   /** Le cartelle in cui si può aprire una chat: quelle già viste da Claude Code. */
   cartelle: () => Promise<string[]>
+  /** Gli autopiloti degli altri PC (0.59.0), per la pagina e l'app. */
+  autopilotiAltri?: () => Promise<import('@shared/autopiloti-altri').AutopilotiDiPc[]>
   /**
    * Le chat in sottofondo (0.58.4): una chat di questo PC chiusa qui, usata da
    * un altro PC o dal telefono, parte senza riquadro e senza finestre. Assente:
    * un PC che non lo sa fare (il chiamante lo dice, «va aggiornato»).
    */
   sottofondo?: {
-    avvia: (r: { cartella: string; sessione: string; titolo: string; testo?: string; idMessaggio?: string; visore: string }) =>
+    avvia: (r: { cartella: string; sessione: string; titolo: string; testo?: string; idMessaggio?: string; visore: string; workspace?: string }) =>
       Promise<{ ok: true; stato: StatoSottofondo } | { ok: false; codice: number; messaggio: string }>
     stato: (sessione: string) => StatoSottofondo | undefined
   }
@@ -720,6 +723,15 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
   const limitaAllegati = creaLimitatore()
   /** Gli id dei messaggi già consegnati (0.51.0): chi rimanda dopo una caduta non scrive due volte. */
   const memoriaInvii = creaMemoriaInvii()
+  /**
+   * Il servizio degli autopiloti non ha risposto in tempo (0.59.0): non un
+   * «guasto interno» muto. Quello che si è chiesto può essere già successo
+   * (fermare una chat che lavora richiede secondi): la scheda si aggiorna.
+   */
+  const lentoDelServizio = (cosa: string, e: unknown): Esito => ({
+    stato: 504,
+    corpo: { errore: `il servizio degli autopiloti di questo computer non ha risposto in tempo mentre provavo a ${cosa} (${e instanceof Error ? e.message.slice(0, 160) : String(e).slice(0, 160)}): può darsi che sia già successo, guarda lo stato nella scheda fra qualche secondo prima di riprovare` }
+  })
   return async (r: {
     metodo: string
     percorso: string
@@ -1144,6 +1156,14 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     // Il ponte del telefono (0.48.0): le chat degli altri PC dal vivo,
     // passando da qui. Solo un telefono accoppiato (un altro PC no: niente
     // catene) e solo le rotte che il PC usa dal suo riquadro remoto.
+    // Gli autopiloti degli altri PC (0.59.0): l'elenco, PC per PC, con il
+    // perché di chi non risponde. Le azioni passano dal ponte, come le chat.
+    if (r.percorso === '/api/autopiloti/altri') {
+      if (daAltroPc(r.dispositivo)) return { stato: 403, corpo: { errore: 'Gli autopiloti degli altri PC si chiedono a ognuno direttamente.' } }
+      if (deps.autopilotiAltri === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora mostrare gli autopiloti degli altri PC: va aggiornato alla 0.59.0.' } }
+      return OK({ pc: await deps.autopilotiAltri().catch(() => []) })
+    }
+
     if (r.percorso === '/api/ponte' && r.metodo === 'POST') {
       if (daAltroPc(r.dispositivo)) return { stato: 403, corpo: { errore: 'Il ponte è solo per il telefono: un altro PC bussa direttamente.' } }
       if (deps.ponte === undefined) return { stato: 409, corpo: { errore: 'Questo computer non fa ancora da ponte verso gli altri PC.' } }
@@ -1447,14 +1467,18 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     if (r.metodo === 'POST' && r.percorso === '/api/autopilota/ferma') {
       const id = stringa(r.corpo, 'autopilota')
       if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
-      await deps.fermaAutopilota(id)
+      // Il servizio può metterci a fermare una chat che lavora (0.59.0, visto dal
+      // vero): il fermo avviene, ma la risposta scade. Lo si dice com'è.
+      const e = await deps.fermaAutopilota(id).then(() => undefined, (x: unknown) => x)
+      if (e !== undefined) return lentoDelServizio('fermarlo', e)
       return OK({ fatto: true })
     }
 
     if (r.metodo === 'POST' && r.percorso === '/api/autopilota/riprendi') {
       const id = stringa(r.corpo, 'autopilota')
       if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
-      await deps.riprendiAutopilota(id)
+      const e = await deps.riprendiAutopilota(id).then(() => undefined, (x: unknown) => x)
+      if (e !== undefined) return lentoDelServizio('farlo riprendere', e)
       return OK({ fatto: true })
     }
 
@@ -1514,7 +1538,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (deps.dialogaAutopilota === undefined) {
         return { stato: 409, corpo: { errore: 'questo computer non sa ancora dialogare con gli autopiloti: aggiornalo' } }
       }
-      const esito = await deps.dialogaAutopilota(id, testo.slice(0, TESTO_MAX))
+      const esito = await deps.dialogaAutopilota(id, testo.slice(0, TESTO_MAX)).catch((x: unknown) => x as Error)
+      if (esito instanceof Error) return lentoDelServizio('mandargli il messaggio', esito)
       return OK({ fatto: esito.ricevuto })
     }
 
@@ -1916,7 +1941,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const pin = await chiusaPin()
       if (pin !== undefined) return { stato: STATO_CHIUSA, corpo: rifiutoChiusa(pin === '' ? undefined : pin) }
       const titolo = stringa(r.corpo, 'titolo').slice(0, 200)
-      const e = await sf.avvia({ cartella, sessione, titolo: titolo !== '' ? titolo : (cartella.split(/[\\/]/).filter((p) => p !== '').pop() ?? sessione.slice(0, 8)), ...(testo !== '' ? { testo, idMessaggio: idM } : {}), visore })
+      const wsChiesto = stringa(r.corpo, 'workspace').slice(0, 120)
+      const e = await sf.avvia({ cartella, sessione, titolo: titolo !== '' ? titolo : (cartella.split(/[\\/]/).filter((p) => p !== '').pop() ?? sessione.slice(0, 8)), ...(testo !== '' ? { testo, idMessaggio: idM } : {}), ...(wsChiesto !== '' ? { workspace: wsChiesto } : {}), visore })
       if (!e.ok) return { stato: e.codice, corpo: { errore: e.messaggio } }
       if (testo !== '') ricordaInviato(e.stato.chat, testo)
       return OK(e.stato)
@@ -1957,7 +1983,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           : `Sul computer, aprendola dall'elenco «Riprendi», il riquadro si collega da solo dal vivo a «${su}» e ci lavori a distanza.`
         return { stato: 409, corpo: { errore: `questa chat è su «${su}»${stato}: la sua cartella ${cartella} sta là, qui non c'è, e da qui partirebbe in una cartella vuota. ${sulComputer} Per lasciarle un'azione: Computer → «Altri computer».` } }
       }
-      deps.riprendiSessione(cartella, sessione)
+      const chiesto = stringa(r.corpo, 'workspace').slice(0, 120)
+      deps.riprendiSessione(cartella, sessione, chiesto !== '' ? chiesto : undefined)
       return OK({ fatto: true })
     }
 

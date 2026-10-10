@@ -6,6 +6,7 @@ import { descriviAutopilota, ledDi } from '@shared/autopilota-vista'
 import { destinazioni } from '../destinazioni-autopilota'
 import { useLayoutStore } from '../state/layout'
 import { useSessionStore } from '../state/sessions'
+import { AutopilotiAltriPc } from './AutopilotiAltriPc'
 
 // La bozza è la stessa del telefono (0.55.0): `@shared/azioni-telefono`.
 // La regola di partenza e' «stabile»: chiede prima di pubblicare. E' la scelta
@@ -439,6 +440,8 @@ export function PannelloAutopiloti({
           </div>
         )
       })}
+      {/* Gli autopiloti degli altri PC (0.59.0): stessa chiave di casa, «gira su <PC>». */}
+      <AutopilotiAltriPc />
     </div>
   )
 }

@@ -550,7 +550,7 @@ describe('capire cosa combina un autopilota', () => {
     expect(v.indexOf('id="flusso-ap"')).toBeLessThan(v.indexOf('casella +'))
     expect(v.indexOf('casella +')).toBeLessThan(v.indexOf('barraLinguette +'))
     expect(v).toContain('dialogaAp(this.dataset.ap)')
-    expect(script).toContain("chiedi('/api/autopilota/dialogo'")
+    expect(script).toContain("chiediAp('/api/autopilota/dialogo'")
   })
 
   it('le domande non si rispondono dalla chat ma dalla linguetta «Domande», una per volta (0.38.0)', () => {

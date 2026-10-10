@@ -42,6 +42,8 @@ object Ponte {
     val ROTTE = setOf("/api/stato", "/api/storia", "/api/scrivi", "/api/scegli", "/api/sessioni/riprendi", "/api/apri", "/api/pin/sblocca",
         // Le chat in sottofondo (PC 0.58.4): scrivere a una chat chiusa su quel PC.
         "/api/sottofondo/avvia", "/api/sottofondo/stato",
+        // Rispondere alle domande di un autopilota di quel PC (PC 0.59.0).
+        "/api/rispondi",
         // I file dal telefono (PC 0.50.0): a pezzi fino a quel PC.
         "/api/allegati/inizia", "/api/allegati/pezzo", "/api/allegati/stato", "/api/allegati/fine", "/api/allegati/annulla",
         // La sezione File (PC 0.54.0): sfogliare i progetti di quel PC e ritirare i file che manda al telefono.

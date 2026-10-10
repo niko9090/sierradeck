@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.59.0',
+    righe: [
+      '**Gli autopiloti degli altri PC, da qui.** In «Autopiloti» compaiono anche quelli che girano sugli altri tuoi PC, con scritto «gira su …». Apri la loro scheda come quella degli autopiloti di qui: stato, criteri, ultime mosse, domande in attesa e dialogo. Puoi scrivergli, rispondere alle domande, fermarli e farli riprendere: tutto arriva al PC dove girano.',
+      '**Anche dal telefono e dalla pagina.** Nella scheda dei lavori c’è «Su altri PC»: toccandone uno si apre la sua scheda e quello che fai va al PC dove gira. App Android 2.59.0.',
+      '**Se quel PC non risponde, te lo dice.** Con il perché e le strade provate (rete di casa, Tailscale, collegamento diretto, Drive); i suoi autopiloti intanto continuano a lavorare là.',
+      '**La chat si apre nel suo workspace.** Quando una chat si apre a schermo — «Riapri là», «Mostra qui», dal telefono, da un altro PC — va nel workspace a cui appartiene: quello del suo autopilota, quello dove era salvata, quello da cui la stai usando o quello del suo progetto. Mai in quello che hai davanti per caso; se manca, lo crea con il suo nome.',
+      '**Fermare un autopilota che lavora non dà più «guasto interno».** Se ci mette qualche secondo lo dice, e ti invita a guardare lo stato prima di riprovare.'
+    ]
+  },
+  {
     versione: '0.58.4',
     righe: [
       '**Scrivi a una chat di un altro PC anche se là è chiusa.** Il campo del riquadro non è più bloccato: scrivi e basta. L’altro PC avvia la chat in sottofondo — là non si apre nessuna finestra, non cambia il workspace e non ti ruba lo schermo — e il tuo messaggio parte appena la chat è pronta. Mentre succede il campo dice cosa sta facendo («La sto avviando su…»); se qualcosa va storto dice il perché, con Riprova, e il messaggio non si perde.',

@@ -113,6 +113,16 @@ fun Lavori(apiAccoppiato: Api, statoAccoppiato: Stato?, apri: String? = null, on
     }
     val stato = if (su != null) statoSu else statoAccoppiato
     var aperto by remember { mutableStateOf<String?>(null) }
+    // Gli autopiloti degli altri PC (PC 0.59.0): dal PC accoppiato, ogni 15 secondi.
+    var altri by remember { mutableStateOf<List<AutopilotiDiPc>?>(null) }
+    var apertoAltro by remember { mutableStateOf<Pair<String, String>?>(null) }
+    LaunchedEffect(su?.pcId) {
+        if (su != null) return@LaunchedEffect
+        while (isActive) {
+            altri = try { apiAccoppiato.autopilotiAltri() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { altri ?: emptyList() }
+            delay(15_000)
+        }
+    }
     // Dalla scheda Domande: «apri la sua linguetta Domande» (0.38.0).
     LaunchedEffect(apri) { if (apri != null) { aperto = apri; onAperto() } }
     var delega by remember { mutableStateOf(false) }
@@ -123,14 +133,31 @@ fun Lavori(apiAccoppiato: Api, statoAccoppiato: Stato?, apri: String? = null, on
     }
 
     val breve = lista.firstOrNull { it.id == aperto }
-    if (breve != null) {
+    val altro = apertoAltro?.let { (pc, id) -> altri?.firstOrNull { it.pcId == pc }?.let { p -> p.autopiloti.firstOrNull { it.id == id }?.let { p to it } } }
+    if (altro != null) {
+        // La scheda di sempre, con le chiamate al PC dove gira (attraverso il ponte).
+        BackHandler { apertoAltro = null }
+        val apiAltro = remember(altro.first.pcId) { apiAccoppiato.suPc(altro.first.pcId) }
+        Column(Modifier.fillMaxSize()) {
+            Text(
+                "${AutopilotiAltri.giraSu(altro.first.nome)}: lavora là, con i file di là. Quello che fai qui lo esegue ${altro.first.nome}.",
+                color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+            )
+            DettaglioAutopilota(apiAltro, altro.second, onIndietro = { apertoAltro = null })
+        }
+    } else if (breve != null) {
         BackHandler { aperto = null }
         DettaglioAutopilota(api, breve, onIndietro = { aperto = null })
     } else {
         Column(Modifier.fillMaxSize()) {
             if (su != null) { FasciaSuPc(su, null) { SuPc.corrente = null }; BandaPcIndietro(apiAccoppiato, su.pcId, su.nome, statoSu?.computer?.versione) }
             FasciaLavori(lista) { delega = true }
-            if (lista.isEmpty()) {
+            if (lista.isEmpty() && AutopilotiAltri.righe(altri ?: emptyList()).isNotEmpty()) {
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 6.dp)) {
+                    item { Text("Nessun autopilota su questo PC.", color = Banco.testoQuieto, fontSize = 13.sp, modifier = Modifier.padding(12.dp)) }
+                    altriPc(altri) { pc, id -> apertoAltro = pc to id }
+                }
+            } else if (lista.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Nessun autopilota.", color = Banco.testo, fontWeight = FontWeight.Bold)
@@ -154,10 +181,29 @@ fun Lavori(apiAccoppiato: Api, statoAccoppiato: Stato?, apri: String? = null, on
                     items(ordinati, key = { it.id }) { ap ->
                         VoceAutopilota(ap) { aperto = ap.id }
                     }
+                    altriPc(altri) { pc, id -> apertoAltro = pc to id }
                 }
             }
         }
         if (delega) Delega(apiAccoppiato, statoAccoppiato, onChiudi = { delega = false })
+    }
+}
+
+/** «Su altri PC» (PC 0.59.0): gli autopiloti degli altri PC, con «gira su <PC>», e chi non risponde con il perché. */
+private fun androidx.compose.foundation.lazy.LazyListScope.altriPc(altri: List<AutopilotiDiPc>?, onApri: (String, String) -> Unit) {
+    if (altri == null || altri.isEmpty()) return
+    item {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Text("SU ALTRI PC", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text("Gli autopiloti che girano sugli altri PC della tua stessa chiave di casa: lavorano là, con i file di là. Da qui li guardi e li governi; ogni azione va al PC dove girano.", color = Banco.testoQuieto, fontSize = 11.sp)
+            for (g in AutopilotiAltri.guasti(altri)) Text("⚠ ${g.errore}", color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+        }
+    }
+    items(AutopilotiAltri.righe(altri), key = { "${it.first.pcId}-${it.second.id}" }) { (p, ap) ->
+        Column {
+            VoceAutopilota(ap) { onApri(p.pcId, ap.id) }
+            Text(AutopilotiAltri.giraSu(p.nome), color = Banco.ambra, fontSize = 11.sp, modifier = Modifier.padding(start = 40.dp, bottom = 4.dp))
+        }
     }
 }
 

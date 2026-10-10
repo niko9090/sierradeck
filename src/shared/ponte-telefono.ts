@@ -19,6 +19,8 @@ export const ROTTE_PONTE: readonly string[] = [
   '/api/stato', '/api/storia', '/api/scrivi', '/api/scegli', '/api/sessioni/riprendi', '/api/apri',
   // Le chat in sottofondo (0.58.4): scrivere dal telefono a una chat chiusa su quel PC.
   '/api/sottofondo/avvia', '/api/sottofondo/stato',
+  // Rispondere alle domande di un autopilota di quel PC (0.59.0).
+  '/api/rispondi',
   // Il PIN delle chat di quel PC (0.49.0): lo verifica lui.
   '/api/pin/sblocca',
   // I file dal telefono (0.50.0): viaggiano a pezzi fino a quel PC, e si salvano nel progetto della chat là.

@@ -163,7 +163,8 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
     perChi: v.voce.perChi,
     titolo: v.voce.titolo,
     cwd: v.voce.cwd,
-    dal: v.voce.dal
+    dal: v.voce.dal,
+    ...(v.voce.workspace !== undefined ? { workspace: v.voce.workspace } : {})
   })
 
   const avviaViva = (voce: VoceSottofondo): Viva => {
@@ -269,7 +270,7 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
      * Avvia (o ritrova) la chat in sottofondo e mette in coda il testo, se c'è.
      * I cancelli (casa, cartella, PIN, chiave di casa) li ha già passati chi chiama.
      */
-    avvia(r: { sessione: string; cwd: string; titolo: string; perChi: ChiUsa; testo?: string; idMessaggio?: string }): StatoSottofondo {
+    avvia(r: { sessione: string; cwd: string; titolo: string; perChi: ChiUsa; testo?: string; idMessaggio?: string; workspace?: string }): StatoSottofondo {
       let v = vive.get(r.sessione)
       if (v === undefined) {
         const orfana = codaOrfana.get(r.sessione)
@@ -281,6 +282,7 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
       } else if (v.voce.perChi.id !== r.perChi.id) {
         v.voce = { ...v.voce, perChi: r.perChi }
       }
+      if (r.workspace !== undefined && r.workspace !== '' && v.voce.workspace !== r.workspace) v.voce = { ...v.voce, workspace: r.workspace }
       if (r.testo !== undefined && r.testo.trim() !== '' && r.idMessaggio !== undefined) {
         if (v.fermi.has(r.idMessaggio)) {
           // Riprova di chi l'ha mandato: il testo fermo torna in giro, con i tentativi da capo.
@@ -400,7 +402,7 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
   }
 }
 
-export type RichiestaSottofondo = { cartella: string; sessione: string; titolo: string; testo?: string; idMessaggio?: string; visore: string }
+export type RichiestaSottofondo = { cartella: string; sessione: string; titolo: string; testo?: string; idMessaggio?: string; visore: string; workspace?: string }
 export type EsitoSottofondo = { ok: true; stato: StatoSottofondo } | { ok: false; codice: number; messaggio: string }
 
 /**
@@ -440,7 +442,7 @@ export function cancelliSottofondo(d: {
       return { ok: true, stato: { sessione: q.sessione, chat: aperta.id, fase: 'lavora', messaggio: 'già aperta in un riquadro di questo PC: il testo è arrivato lì', inCoda: 0, consegnati: q.idMessaggio !== undefined ? [q.idMessaggio] : [], perChi, titolo: aperta.titolo, cwd: aperta.cwd, dal: new Date().toISOString() } }
     }
     try {
-      return { ok: true, stato: sf.avvia({ sessione: q.sessione, cwd: q.cartella, titolo: q.titolo, perChi, ...(q.testo !== undefined && q.idMessaggio !== undefined ? { testo: q.testo, idMessaggio: q.idMessaggio } : {}) }) }
+      return { ok: true, stato: sf.avvia({ sessione: q.sessione, cwd: q.cartella, titolo: q.titolo, perChi, ...(q.workspace !== undefined ? { workspace: q.workspace } : {}), ...(q.testo !== undefined && q.idMessaggio !== undefined ? { testo: q.testo, idMessaggio: q.idMessaggio } : {}) }) }
     } catch (e) {
       const m = e instanceof Error ? e.message : String(e)
       passo(`non avviata: ${m}`)

@@ -68,6 +68,8 @@ export type ClientPcRemoto = {
    * `visore` (0.49.1): chi guarda, se non è questo PC (il telefono dal ponte).
    */
   chiama: (pcId: string, percorso: string, corpo?: unknown, visore?: string) => Promise<unknown>
+  /** Cosa ha detto ogni indirizzo all'ultimo bussare (0.59.0). Facoltativo: i finti dei test non lo hanno. */
+  proveDi?: (pcId: string) => string[]
   /** L'indirizzo che ha risposto l'ultima volta, se c'e'. */
   indirizzoBuono: (pcId: string) => string | undefined
   /**
@@ -462,6 +464,8 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     chiama,
     indirizzoBuono: (pcId) => buoni.get(pcId),
     stradaDi: (pcId) => strade.get(pcId),
+    /** Cosa ha detto ogni indirizzo all'ultimo bussare (0.59.0): le strade provate, per dirle a chi aspetta. */
+    proveDi: (pcId: string): string[] => (ultimiPing.get(pcId)?.prove ?? []).map(testoProva),
     bussa,
     async statoDi(pcId, nome) {
       // Ha risposto da poco a qualcosa (lo schermo di una chat, uno scrivi): è acceso, senza bussare.

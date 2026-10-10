@@ -456,6 +456,12 @@ contextBridge.exposeInMainWorld('gestore', {
    * Le chat in sottofondo di questo PC (0.58.4): usate da altri PC o dal
    * telefono, senza riquadro. L'elenco, «Mostra qui», «Chiudi».
    */
+  /** Gli autopiloti degli altri PC (0.59.0): l'elenco e le azioni, al PC dove gira. */
+  autopilotiAltri: {
+    elenco: (): Promise<import('../shared/autopiloti-altri').AutopilotiDiPc[]> => ipcRenderer.invoke('autopiloti:altri'),
+    azione: (pc: string, percorso: string, corpo: Record<string, unknown>): Promise<{ ok: true; dati: unknown } | { ok: false; stato: number; messaggio: string }> =>
+      ipcRenderer.invoke('autopiloti:altroPc', pc, percorso, corpo)
+  },
   sottofondo: {
     elenco: (): Promise<import('../shared/sottofondo').StatoSottofondo[]> => ipcRenderer.invoke('sottofondo:elenco'),
     mostra: (sessione: string): Promise<{ ok: boolean; messaggio?: string }> => ipcRenderer.invoke('sottofondo:mostra', sessione),
@@ -478,11 +484,11 @@ contextBridge.exposeInMainWorld('gestore', {
     scrivi: (pc: string, chat: string, testo: string, idMessaggio?: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:scrivi', pc, chat, testo, idMessaggio),
     scegli: (pc: string, chat: string, opzione: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:scegli', pc, chat, opzione),
     pin: (pc: string, chat: string, pin: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:pin', pc, chat, pin),
-    riprendi: (pc: string, cartella: string, sessione: string): Promise<EsitoRemoto<{ fatto: boolean }>> =>
-      ipcRenderer.invoke('remoto:riprendi', pc, cartella, sessione),
+    riprendi: (pc: string, cartella: string, sessione: string, workspace?: string): Promise<EsitoRemoto<{ fatto: boolean }>> =>
+      ipcRenderer.invoke('remoto:riprendi', pc, cartella, sessione, workspace),
     apri: (pc: string, cartella: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:apri', pc, cartella),
     /** «Avvia là in sottofondo» (0.58.4), con il testo da mandare appena è pronta. */
-    sottofondo: (p: { pc: string; cwd: string; sessione: string; titolo?: string; testo?: string; id?: string }): Promise<EsitoRemoto<import('../shared/sottofondo').StatoSottofondo> & { vecchio?: boolean }> =>
+    sottofondo: (p: { pc: string; cwd: string; sessione: string; titolo?: string; testo?: string; id?: string; workspace?: string }): Promise<EsitoRemoto<import('../shared/sottofondo').StatoSottofondo> & { vecchio?: boolean }> =>
       ipcRenderer.invoke('remoto:sottofondo', p),
     /** Lo stato seguito dal Core (nessuna chiamata di rete). */
     sottofondoStato: (pc: string, sessione: string): Promise<{ stato?: import('../shared/sottofondo').StatoSottofondo; errore?: string; attesi: string[] } | undefined> =>

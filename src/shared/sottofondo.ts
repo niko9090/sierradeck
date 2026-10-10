@@ -22,6 +22,8 @@ export type VoceSottofondo = {
   coda: TestoInCoda[]
   /** Gli id dei testi già scritti (gli ultimi): un secondo invio uguale non si riscrive. */
   consegnati: string[]
+  /** Il workspace del riquadro di chi la usa (0.59.0): per «Mostra qui». */
+  workspace?: string
 }
 
 /**
@@ -48,6 +50,7 @@ export type StatoSottofondo = {
   titolo: string
   cwd: string
   dal: string
+  workspace?: string
 }
 
 /** Quanti id consegnati si ricordano per chat. */
@@ -103,7 +106,8 @@ export function leggiElencoSottofondo(grezzo: unknown): VoceSottofondo[] {
       perChi: { id: typeof per?.id === 'string' ? per.id : '', nome: typeof per?.nome === 'string' ? per.nome : 'un altro PC' },
       dal: typeof o.dal === 'string' ? o.dal : '',
       coda,
-      consegnati: Array.isArray(o.consegnati) ? (o.consegnati as unknown[]).filter((x): x is string => typeof x === 'string').slice(-CONSEGNATI_RICORDATI) : []
+      consegnati: Array.isArray(o.consegnati) ? (o.consegnati as unknown[]).filter((x): x is string => typeof x === 'string').slice(-CONSEGNATI_RICORDATI) : [],
+      ...(typeof o.workspace === 'string' && o.workspace !== '' ? { workspace: o.workspace } : {})
     })
   }
   return fuori

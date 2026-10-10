@@ -118,6 +118,10 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
 
     // ─── stato e stile ───
     suspend fun stato(): Stato = json.decodeFromString(corpoTesto("/api/stato", null))
+
+    /** Gli autopiloti degli altri PC (PC 0.59.0): li raccoglie il PC accoppiato, con la firma di casa. */
+    suspend fun autopilotiAltri(): List<AutopilotiDiPc> =
+        json.decodeFromString(RispostaAutopilotiAltri.serializer(), corpoTesto("/api/autopiloti/altri", null)).pc
     /** Tutto quello che aspetta una risposta da te (dalla 0.30 del computer: prima 404). */
     suspend fun domande(): Domande = json.decodeFromString(corpoTesto("/api/domande", null))
     /** Lo stato letto, insieme al testo grezzo: la guardia degli avvisi lo legge come JSON generico. */

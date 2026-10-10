@@ -677,6 +677,33 @@ function etichettaOpzione(o) {
 var notaScelta = null
 /** L'autopilota che si sta guardando dentro, e tutto quello che si sa di lui. */
 var dentroAp = null
+/**
+ * Gli autopiloti degli altri PC (0.59.0): l'elenco PC per PC
+ * (\`/api/autopiloti/altri\`), e il PC dell'autopilota aperto. Con \`apPc\`
+ * ogni chiamata della scheda passa dal ponte e arriva al PC dove gira.
+ */
+var apPc = null
+var apPcNome = ''
+var altriAp = null
+var altriApLetto = 0
+async function chiediAp(percorso, corpo) {
+  if (!apPc) return chiedi(percorso, corpo)
+  return chiedi('/api/ponte', { pc: apPc, percorso: percorso, corpo: corpo })
+}
+function altriApHtml() {
+  if (altriAp === null) return '<div class="sotto" style="margin-top:8px">Chiedo agli altri PC i loro autopiloti…</div>'
+  if (altriAp.length === 0) return ''
+  return '<div class="titolo-sezione" style="margin-top:12px">Su altri PC</div>' +
+    '<div class="sotto">Gli autopiloti che girano sugli altri PC della tua stessa chiave di casa: lavorano là, con i file di là. Da qui li guardi e li governi; ogni azione va al PC dove girano.</div>' +
+    altriAp.map((p) => (p.errore ? '<div class="errore" style="margin-top:6px">' + esc(p.errore) + '</div>' : '') +
+      ((p.autopiloti || []).length === 0 && !p.errore ? '<div class="sotto">' + esc(p.nome) + ': nessun autopilota.</div>' : '') +
+      (p.autopiloti || []).map((a) =>
+        '<button class="voce" onclick="guardaAp(\\'' + escJs(a.id) + '\\', \\'' + escJs(p.pcId) + '\\', \\'' + escJs(p.nome) + '\\')">' +
+          '<span class="led ' + led(a) + '"></span>' +
+          '<span class="voce__testo"><span class="voce__nome">' + esc(a.nome) + '</span>' +
+          '<span class="voce__sotto">gira su ' + esc(p.nome) + ' · ' + esc(a.strategia ? 'bloccato, provo: ' + a.strategia : (a.motivo || a.stato)) + (a.criteri !== undefined ? ' · ' + a.fatti + '/' + a.criteri : '') + '</span></span>' +
+          '<span class="voce__freccia">›</span></button>').join('')).join('')
+}
 var apDettaglio = null
 /** Quale linguetta e' aperta sotto la chat con l'autopilota. */
 var apTab = 'obiettivo'
@@ -1458,12 +1485,14 @@ function pannello(s) {
       <div class="riga"><button class="primario" onclick="rispondi('\${escJs(d.id)}')">Rispondi</button></div>
     </div>\`).join('')
 
-  const apAperto = (s.autopiloti || []).find((a) => a.id === dentroAp)
+  const apAperto = apPc
+    ? (((altriAp || []).find((p) => p.pcId === apPc) || {}).autopiloti || []).find((a) => a.id === dentroAp)
+    : (s.autopiloti || []).find((a) => a.id === dentroAp)
   const autopiloti = apAperto
     ? \`
     <div class="testata-dentro">
       <button class="indietro" onclick="chiudiAp()" aria-label="Torna all’elenco">‹</button>
-      <div class="testata-dentro__nome"><span class="led \${led(apAperto)}"></span>\${esc(apAperto.nome)}</div>
+      <div class="testata-dentro__nome"><span class="led \${led(apAperto)}"></span>\${esc(apAperto.nome)}\${apPc ? ' <span class="sotto">· gira su ' + esc(apPcNome) + '</span>' : ''}</div>
     </div>
     <div class="piastrella">
       <div class="sotto">\${esc(apAperto.strategia ? 'bloccato, provo: ' + apAperto.strategia : (apAperto.motivo || apAperto.stato))}</div>
@@ -1496,7 +1525,7 @@ function pannello(s) {
         <span class="voce__sotto">\${esc(a.strategia ? 'bloccato, provo: ' + a.strategia : (a.motivo || a.stato))} · \${a.fatti}/\${a.criteri}</span>
       </span>
       <span class="voce__freccia">›</span>
-    </button>\`).join('')
+    </button>\`).join('') + altriApHtml()
 
   // ── Le chat ─────────────────────────────────────────────────────────────
   // Prima ogni chat portava sempre sei comandi: campo, Invia, Guarda dentro,
@@ -2294,19 +2323,22 @@ window.apriDomandeAp = async (id) => {
   vaiScheda('lavori')
   await guardaAp(id)
 }
-window.guardaAp = async (id) => {
+window.guardaAp = async (id, pc, nomePc) => {
+  // Un autopilota di un altro PC (0.59.0): da qui ogni chiamata passa dal ponte.
+  apPc = pc || null
+  apPcNome = nomePc || ''
   dentroAp = id
   apDettaglio = null
   pannello(ultimoStato)
   await leggiAp()
   pannello(ultimoStato)
 }
-window.chiudiAp = () => { dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apIstr = null; apIstrCorreggi = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
+window.chiudiAp = () => { apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apIstr = null; apIstrCorreggi = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
 
 async function leggiAp() {
   if (!dentroAp) return
   try {
-    apDettaglio = await chiedi('/api/autopilota', { autopilota: dentroAp })
+    apDettaglio = await chiediAp('/api/autopilota', { autopilota: dentroAp })
     // Le domande della linguetta (0.38.0): una nuova la fa avanti; finite, si
     // torna alla linguetta di prima.
     const chiavi = (apDettaglio.domandeScheda || []).map((d) => d.chiave)
@@ -2316,12 +2348,15 @@ async function leggiAp() {
     if (apDomandaI >= chiavi.length) apDomandaI = 0
     apDomandeViste = chiavi
     if (apTab === 'file') {
-      try { apFile = await chiedi('/api/autopilota/file', { autopilota: dentroAp }) } catch (e) { apFile = { errore: String(e && e.message ? e.message : e) } }
+      try { apFile = await chiediAp('/api/autopilota/file', { autopilota: dentroAp }) } catch (e) { apFile = { errore: String(e && e.message ? e.message : e) } }
     }
     if (apTab === 'istruzioni') {
-      try { apIstr = await chiedi('/api/autopilota/istruzioni', { autopilota: dentroAp }) } catch (e) { apIstr = { errore: String(e && e.message ? e.message : e) } }
+      try { apIstr = await chiediAp('/api/autopilota/istruzioni', { autopilota: dentroAp }) } catch (e) { apIstr = { errore: String(e && e.message ? e.message : e) } }
     }
   } catch (e) {
+    // Un autopilota di un altro PC (0.59.0): quel PC non risponde. Lo si dice,
+    // con il perché e le strade provate, e la scheda resta: riprova da sola.
+    if (apPc) { notaGlobale = (e && e.message) ? e.message : (apPcNome + ' non risponde'); return }
     // Eliminato mentre lo si guardava: si torna all'elenco invece di restare
     // su un pannello che non descrive piu' niente.
     dentroAp = null
@@ -2588,7 +2623,7 @@ window.mandaCorrezioneAp = async (id) => {
   const nota = campo ? campo.value.trim() : ''
   if (!nota) return
   try {
-    await chiedi('/api/autopilota/correggi', { autopilota: dentroAp, istruzione: id, nota: nota })
+    await chiediAp('/api/autopilota/correggi', { autopilota: dentroAp, istruzione: id, nota: nota })
     apIstrCorreggi = null
     notaIstrAp = 'Correzione mandata: la trovi nella chat con lui, qui sopra, con la sua risposta.'
   } catch (e) { notaIstrAp = 'Non mandata: ' + (e && e.message ? e.message : e) }
@@ -2627,7 +2662,7 @@ window.apriFileAp = async (chat, percorso) => {
   apDiff = null
   pannello(ultimoStato)
   try {
-    const r = await chiedi('/api/autopilota/diff', { autopilota: dentroAp, chat: chat, percorso: percorso })
+    const r = await chiediAp('/api/autopilota/diff', { autopilota: dentroAp, chat: chat, percorso: percorso })
     apDiff = r && r.diff !== undefined ? r.diff : '⚠ ' + (r && r.errore ? r.errore : 'diff non disponibile')
   } catch (e) { apDiff = '⚠ ' + (e && e.message ? e.message : e) }
   pannello(ultimoStato)
@@ -2642,7 +2677,7 @@ window.rispondiAp = async (id, domanda) => {
   const testo = campo ? campo.value.trim() : ''
   if (!testo) return
   try {
-    await chiedi('/api/rispondi', { domanda: domanda, risposta: testo })
+    await chiediAp('/api/rispondi', { domanda: domanda, risposta: testo })
     notaDialogo = ''
     if (campo) campo.value = ''
     await leggiAp()
@@ -2663,7 +2698,7 @@ window.dialogaAp = async (id) => {
   const testo = campo ? campo.value.trim() : ''
   if (!testo) return
   try {
-    const r = await chiedi('/api/autopilota/dialogo', { autopilota: id, testo: testo })
+    const r = await chiediAp('/api/autopilota/dialogo', { autopilota: id, testo: testo })
     if (r && r.errore) { notaDialogo = r.errore; pannello(ultimoStato); return }
     notaDialogo = ''
     if (campo) campo.value = ''
@@ -2697,19 +2732,19 @@ window.eliminaAp = async (id) => {
   if (confermando !== 'ap-' + id) { chiedeConferma('ap-' + id); return }
   confermando = null
   if (dentroAp === id) { dentroAp = null; apDettaglio = null }
-  await chiedi('/api/autopilota/elimina', { autopilota: id })
+  await chiediAp('/api/autopilota/elimina', { autopilota: id })
   aggiorna()
 }
 
 // Archiviare un autopilota fermo (0.56.0), come dal pannello del PC: esce dall'elenco, non si cancella niente.
 window.archiviaAp = async (id) => {
-  try { await chiedi('/api/autopilota/archivia', { autopilota: id, archivia: true }); if (dentroAp === id) { dentroAp = null; apDettaglio = null } }
+  try { await chiediAp('/api/autopilota/archivia', { autopilota: id, archivia: true }); if (dentroAp === id) { dentroAp = null; apDettaglio = null } }
   catch (e) { notaGlobale = 'Non l’ho archiviato: ' + ((e && e.message) || 'il computer non risponde') }
   aggiorna()
 }
 
 window.riavvioAp = async (id, riprendi) => {
-  await chiedi('/api/autopilota/riavvio', { autopilota: id, riprendi: riprendi })
+  await chiediAp('/api/autopilota/riavvio', { autopilota: id, riprendi: riprendi })
   if (dentroAp === id) await leggiAp()
   aggiorna()
 }
@@ -4112,11 +4147,11 @@ window.addEventListener('popstate', (ev) => {
 })
 
 window.vaiA = async (nome) => { await chiedi('/api/workspace', { nome }); aggiorna() }
-window.fermaAp = async (id) => { await chiedi('/api/autopilota/ferma', { autopilota: id }); aggiorna() }
-window.riprendiAp = async (id) => { await chiedi('/api/autopilota/riprendi', { autopilota: id }); aggiorna() }
+window.fermaAp = async (id) => { await chiediAp('/api/autopilota/ferma', { autopilota: id }); aggiorna() }
+window.riprendiAp = async (id) => { await chiediAp('/api/autopilota/riprendi', { autopilota: id }); aggiorna() }
 // Il via a chi si e' preparato: dal telefono come dal computer, perche' e' li'
 // che si scopre di averlo pronto mentre si e' altrove.
-window.vaiAp = async (id) => { await chiedi('/api/autopilota/vai', { autopilota: id }); aggiorna() }
+window.vaiAp = async (id) => { await chiediAp('/api/autopilota/vai', { autopilota: id }); aggiorna() }
 
 /**
  * Il codice arrivato inquadrando il QR.
@@ -4621,6 +4656,11 @@ async function aggiorna() {
     // la percentuale non avanzava, il LED di «Computer» si accendeva solo
     // aprendo Impostazioni, un'installazione partita dal PC non si vedeva.
     if (stato && stato.aggiornamento) aggiornamentoVisto = stato.aggiornamento
+    // Gli autopiloti degli altri PC (0.59.0): ogni 15 secondi, senza fermare il giro.
+    if (Date.now() - altriApLetto > 15000) {
+      altriApLetto = Date.now()
+      chiedi('/api/autopiloti/altri').then((r) => { altriAp = (r && r.pc) || []; if (apPc && dentroAp) leggiAp().then(() => pannello(ultimoStato)); else pannello(ultimoStato) }).catch(() => { if (altriAp === null) altriAp = [] })
+    }
     giriFalliti = 0
     avvisaSeServe(stato)
     if (dentroAp) await leggiAp()

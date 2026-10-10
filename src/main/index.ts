@@ -139,6 +139,8 @@ import { ascoltaSenzaFinestra, smettiSenzaFinestra, impostaAdozioneSottofondo, a
 import { creaSottofondo, cancelliSottofondo, type Sottofondo, type TerminaleMuto } from './sottofondo'
 import { Terminal as TerminaleSenzaFinestra } from '@xterm/headless'
 import { testoConsegnato, type StatoSottofondo } from '@shared/sottofondo'
+import { workspaceDiApertura } from '@shared/workspace-apertura'
+import { autopilotiDaStato, erroreAltroPc, rottaAutopilotaAltroPc, type AutopilotiDiPc } from '@shared/autopiloti-altri'
 import { risolviCartellaDiChat, type CartellaDiChat } from './progetti/cartella-di-chat'
 import { pianificaRimappatura, pianificaRitorno, riscriviCwdRiga, type Spostamento } from './progetti/rimappa-di-massa'
 import { pcCheHaLaCartella, staSottoCartella, pcVivo, type BattitoPc } from '@shared/posta'
@@ -298,6 +300,27 @@ function chiediRigheAlleFinestre(
 }
 
 let ptyClient: PtyHostClient | undefined
+/**
+ * **Apre una chat a schermo nel workspace a cui appartiene** (0.59.0), mai in
+ * quello attivo: «Riapri là», il telefono, il ponte, un altro PC, «Mostra
+ * qui». La scelta (`workspaceDiApertura`) e il perché vanno nel registro.
+ */
+async function apriNelSuoWorkspace(cwd: string, sessione: string, o: { chiesto?: string; titolo?: string; come: string; elencaAutopiloti: () => Promise<{ nome?: string; workspace?: string; sessionId?: string; cwd: string }[]> }): Promise<void> {
+  const store = workspaceStore
+  const autopiloti = await o.elencaAutopiloti().catch(() => [])
+  const archivio = store?.leggi() ?? { versione: 1, attivo: '', workspace: [] }
+  const s = workspaceDiApertura({ sessione, cwd, autopiloti, archivio, ...(o.chiesto !== undefined && o.chiesto !== '' ? { chiesto: o.chiesto } : {}) })
+  if (s.creare && store !== undefined) {
+    const a = store.leggi()
+    if (!a.workspace.some((w) => w.nome === s.nome)) store.scrivi({ ...a, workspace: [...a.workspace, { nome: s.nome, perSlot: {} }] })
+  }
+  const vive = finestreDiChat().filter((w) => !w.isDestroyed() && !w.webContents.isDestroyed())
+  const scelta = finestraPerRipresa(s.nome, vive.map((w) => ({ id: w.id, ...(workspaceDellaFinestra(w.id) !== undefined ? { workspace: workspaceDellaFinestra(w.id) } : {}) })))
+  const finestra = vive.find((w) => w.id === scelta)
+  registroGlobale?.info(`[apertura] «${o.titolo ?? sessione.slice(0, 8)}» (${sessione.slice(0, 8)}): ${o.come} nel workspace «${s.nome}» — ${s.perche}${s.creare ? ' (su questo PC non c’era: creato con quel nome)' : ''}${finestra === undefined ? '; nessuna finestra aperta: non la apro' : ''}`)
+  if (finestra === undefined) return
+  finestra.webContents.send('client:apri', { cartella: cwd, sessione, workspace: s.nome, ...(o.titolo !== undefined && o.titolo !== '' ? { nome: o.titolo } : {}) })
+}
 /** Le chat in sottofondo (0.58.4): senza riquadro, per chi le usa da lontano. */
 let sottofondo: Sottofondo | undefined
 /** Le chat di questo PC: quelle dei riquadri e quelle in sottofondo. */
@@ -502,6 +525,10 @@ const daPrendereDopo = new Map<string, string>()
 let guardianoPin: GuardianoPin | undefined
 /** Il ponte del telefono (0.48.0): si accende quando c'e' il client verso gli altri PC. */
 let ponteVersoPc: ((pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string) => Promise<{ stato: number; corpo: unknown }>) | undefined
+/** Gli autopiloti degli altri PC della stessa chiave di casa (0.59.0). */
+let autopilotiAltri: (() => Promise<AutopilotiDiPc[]>) | undefined
+/** Un'azione su un autopilota di un altro PC: la rotta di sempre, chiamata là (0.59.0). */
+let azioneAutopilotaAltroPc: ((pc: string, percorso: string, corpo: Record<string, unknown>, visore?: string) => Promise<{ ok: true; dati: unknown } | { ok: false; stato: number; messaggio: string }>) | undefined
 let leggiSalute: () => Promise<import('@shared/salute').Salute> = async () => componiSalute({
   adesso: Date.now(), versione: app.getVersion(), drive: { configurato: false, connesso: false }, pc: [], errori: [], consegne: [], oreErrori: ORE_ERRORI_SALUTE
 })
@@ -1881,12 +1908,13 @@ if (!app.requestSingleInstanceLock()) {
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/scegli', { chat: testo(chat), opzione: testo(opzione) }), pc))
       // «Riapri là» (0.58.3): la richiesta, il suo esito e la chat che compare là
       // finiscono nel registro come gli altri passi dell'apertura remota.
-      ipcMain.handle('remoto:riprendi', async (_e, pc: unknown, cartella: unknown, sessione: unknown) => {
-        const verso = testo(pc); const cwd = testo(cartella); const s = testo(sessione)
+      ipcMain.handle('remoto:riprendi', async (_e, pc: unknown, cartella: unknown, sessione: unknown, ws: unknown) => {
+        const verso = testo(pc); const cwd = testo(cartella); const s = testo(sessione); const workspace = testo(ws)
         const nome = postino.altrui().find((b) => b.pcId === verso)?.nome ?? verso
         const passo = (m: string): void => { registro.info(`[apertura] riapri là (${s.slice(0, 8)}): ${m}`) }
         passo(`chiedo a ${nome} di riaprire la chat nella sua cartella (${cwd})`)
-        const r = await esitoRemoto(() => remoto.chiama(verso, '/api/sessioni/riprendi', { cartella: cwd, sessione: s }), pc)
+        if (workspace !== '') passo(`il suo riquadro qui sta nel workspace «${workspace}»: lo dico a ${nome}, che la apre nel suo`)
+        const r = await esitoRemoto(() => remoto.chiama(verso, '/api/sessioni/riprendi', { cartella: cwd, sessione: s, ...(workspace !== '' ? { workspace } : {}) }), pc)
         if (!r.ok) { passo(`${nome} non l’ha riaperta: ${r.messaggio}`); return r }
         passo(`${nome} ha accettato: aspetto che la chat compaia là`)
         void (async () => {
@@ -1945,10 +1973,11 @@ if (!app.requestSingleInstanceLock()) {
         const titolo = testo(q.titolo) !== '' ? testo(q.titolo) : s.slice(0, 8)
         const scritto = typeof q.testo === 'string' && q.testo.trim() !== '' ? q.testo : undefined
         const id = typeof q.id === 'string' ? q.id : undefined
+        const ws = testo(q.workspace)
         const nome = postino.altrui().find((b) => b.pcId === verso)?.nome ?? verso
         const passo = (m: string): void => { registro.info(`[apertura] «${titolo}» (${s.slice(0, 8)}): ${m}`) }
         passo(`chiedo a ${nome} di avviarla in sottofondo, senza finestre là${scritto !== undefined ? `, con un testo in coda (${id ?? ''}, ${scritto.length} caratteri)` : ''}`)
-        const r = await esitoRemoto<StatoSottofondo>(() => remoto.chiama(verso, '/api/sottofondo/avvia', { cartella: cwd, sessione: s, titolo, ...(scritto !== undefined && id !== undefined ? { testo: scritto, idMessaggio: id } : {}) }), verso)
+        const r = await esitoRemoto<StatoSottofondo>(() => remoto.chiama(verso, '/api/sottofondo/avvia', { cartella: cwd, sessione: s, titolo, ...(ws !== '' ? { workspace: ws } : {}), ...(scritto !== undefined && id !== undefined ? { testo: scritto, idMessaggio: id } : {}) }), verso)
         if (!r.ok) {
           // Un PC che non conosce la rotta: va aggiornato (lo si dice così, non con un 404).
           const vecchio = r.stato === 404 || /non sa ancora avviare le chat in sottofondo/.test(r.messaggio)
@@ -1982,9 +2011,10 @@ if (!app.requestSingleInstanceLock()) {
         if (s === undefined || !sottofondo?.ha(s.sessione)) return { ok: false, messaggio: 'questa chat non gira più in sottofondo' }
         const w = BrowserWindow.fromWebContents(e.sender)
         if (w === null) return { ok: false, messaggio: 'finestra sconosciuta' }
-        registro.info(`[sottofondo] «${s.titolo}» (${s.sessione.slice(0, 8)}): «Mostra qui» — la porto in un riquadro di questa finestra, senza riavviarla`)
-        // Il riquadro nuovo chiede lo spawn, e lo spawn la prende dal sottofondo.
-        w.webContents.send('client:apri', { cartella: s.cwd, sessione: s.sessione, nome: s.titolo })
+        registro.info(`[sottofondo] «${s.titolo}» (${s.sessione.slice(0, 8)}): «Mostra qui» — la porto in un riquadro, senza riavviarla`)
+        // Il riquadro nuovo chiede lo spawn, e lo spawn la prende dal
+        // sottofondo; nel suo workspace (0.59.0), mai in quello davanti.
+        void apriNelSuoWorkspace(s.cwd, s.sessione, { ...(s.workspace !== undefined ? { chiesto: s.workspace } : {}), titolo: s.titolo, come: '«Mostra qui»: la porto a schermo', elencaAutopiloti: () => clientAutopilota.elenca() })
         return { ok: true }
       })
       ipcMain.handle('sottofondo:chiudi', (_e, sessione: unknown) => sottofondo?.chiudi(testo(sessione)) ?? false)
@@ -1998,9 +2028,55 @@ if (!app.requestSingleInstanceLock()) {
       // chieste dal telefono. Un telefono guarda un PC: una riga nel registro
       // la prima volta (per PC), non a ogni giro.
       const pontiDetti = new Set<string>()
+      // **Gli autopiloti degli altri PC** (0.59.0): l'elenco dal loro
+      // `/api/stato`, chiesto con la firma di casa; se un PC non risponde, il
+      // perché con le strade provate. Ogni PC una volta, in parallelo.
+      autopilotiAltri = async () => {
+        const io = identitaPc.leggi()
+        const battiti = (await postino.pc().catch(() => postino.altrui())).filter((b) => b.pcId !== io.id)
+        return Promise.all(battiti.map(async (b): Promise<AutopilotiDiPc> => {
+          const nome = nomeDaMostrare(b)
+          try {
+            const st = await remoto.chiama(b.pcId, '/api/stato')
+            const strada = remoto.stradaDi(b.pcId)?.strada
+            return { pcId: b.pcId, nome, autopiloti: autopilotiDaStato(st), ...(strada !== undefined ? { strada } : {}) }
+          } catch (err) {
+            const m = err instanceof Error ? err.message : String(err)
+            return { pcId: b.pcId, nome, autopiloti: [], errore: erroreAltroPc(nome, m, remoto.proveDi?.(b.pcId) ?? []), ...(err instanceof ErroreRemoto ? { motivo: err.motivo } : {}) }
+          }
+        }))
+      }
+      azioneAutopilotaAltroPc = async (pc, percorso, corpo, visore) => {
+        const nome = postino.altrui().find((b) => b.pcId === pc)?.nome ?? pc
+        if (!rottaAutopilotaAltroPc(percorso)) return { ok: false, stato: 403, messaggio: `«${percorso}» non è un’azione su un autopilota` }
+        const cosa = percorso === '/api/autopilota/dialogo' ? 'scrivo all’autopilota' : percorso === '/api/autopilota/ferma' ? 'fermo l’autopilota' : percorso === '/api/autopilota/riprendi' ? 'faccio riprendere l’autopilota' : percorso === '/api/rispondi' ? 'rispondo alla domanda dell’autopilota' : percorso === '/api/autopilota/vai' ? 'do il via all’autopilota' : ''
+        const chi = typeof corpo.autopilota === 'string' ? corpo.autopilota : typeof corpo.domanda === 'string' ? `domanda ${corpo.domanda}` : ''
+        try {
+          const dati = await remoto.chiama(pc, percorso, corpo, visore)
+          if (cosa !== '') registro.info(`[autopiloti] ${cosa} ${chi} su ${nome}: fatto (strada ${remoto.stradaDi(pc)?.strada ?? '?'})`)
+          return { ok: true, dati }
+        } catch (err) {
+          const m = err instanceof Error ? err.message : String(err)
+          const stato = err instanceof ErroreRemoto ? err.stato ?? 502 : 502
+          const messaggio = stato === 404 && percorso === '/api/autopilota' ? `${nome} non ha (più) questo autopilota` : (err instanceof ErroreRemoto && (err.motivo === 'irraggiungibile' || err.motivo === 'senza-indirizzi' || err.motivo === 'non-so') ? erroreAltroPc(nome, m, remoto.proveDi?.(pc) ?? []) : `${nome}: ${m}`)
+          if (cosa !== '') registro.info(`[autopiloti] ${cosa} ${chi} su ${nome}: NON riuscito — ${messaggio}`)
+          return { ok: false, stato, messaggio }
+        }
+      }
+      ipcMain.handle('autopiloti:altri', () => autopilotiAltri?.() ?? [])
+      ipcMain.handle('autopiloti:altroPc', (_e, pc: unknown, percorso: unknown, corpo: unknown) =>
+        azioneAutopilotaAltroPc === undefined ? { ok: false, stato: 409, messaggio: 'il collegamento con gli altri PC non è ancora pronto' }
+          : azioneAutopilotaAltroPc(String(pc), String(percorso), typeof corpo === 'object' && corpo !== null ? corpo as Record<string, unknown> : {}))
       ponteVersoPc = async (pc, percorso, corpo, dispositivo) => {
         const nome = postino.altrui().find((b) => b.pcId === pc)?.nome ?? pc
         if (!pontiDetti.has(pc)) { pontiDetti.add(pc); registro.info(`[ponte] il telefono guarda ${nome} attraverso questo PC`) }
+        // Le azioni sugli autopiloti di quel PC (0.59.0): la stessa strada del
+        // PC, così anche quelle chieste dal telefono finiscono nel registro.
+        if (percorso !== '/api/autopilota' && rottaAutopilotaAltroPc(percorso) && azioneAutopilotaAltroPc !== undefined) {
+          const visoreTel = dispositivo !== undefined && dispositivo !== '' ? `tel:${dispositivo}@${identitaPc.leggi().id}` : undefined
+          const e = await azioneAutopilotaAltroPc(pc, percorso, corpo ?? {}, visoreTel)
+          return e.ok ? { stato: 200, corpo: e.dati } : { stato: e.stato, corpo: { errore: e.messaggio, su: nome } }
+        }
         try {
           // Chi guarda è il telefono (0.49.1): il PIN di quel PC si apre per lui, non per questo PC.
           const visore = dispositivo !== undefined && dispositivo !== '' ? `tel:${dispositivo}@${identitaPc.leggi().id}` : undefined
@@ -4238,21 +4314,10 @@ if (!app.requestSingleInstanceLock()) {
           }),
           stato: (s: string) => sottofondo?.stato(s)
         },
-        riprendiSessione: (cwd: string, sessione: string) => {
-          const dove = workspaceStore === undefined
-            ? undefined
-            : workspaceDellaSessione(workspaceStore.leggi(), sessione)
-          const vive = finestreDiChat()
-            .filter((w) => !w.isDestroyed() && !w.webContents.isDestroyed())
-          const scelta = finestraPerRipresa(dove, vive.map((w) => ({
-            id: w.id,
-            ...(workspaceDellaFinestra(w.id) !== undefined ? { workspace: workspaceDellaFinestra(w.id) } : {})
-          })))
-          const finestra = vive.find((w) => w.id === scelta)
-          if (finestra === undefined) return
-          finestra.webContents.send('client:apri', {
-            cartella: cwd, sessione, ...(dove !== undefined ? { workspace: dove } : {})
-          })
+        // Nel suo workspace (0.59.0): dell'autopilota, del riquadro salvato,
+        // del riquadro di chi chiede, del progetto, della cartella. Mai quello attivo.
+        riprendiSessione: (cwd: string, sessione: string, chiesto?: string) => {
+          void apriNelSuoWorkspace(cwd, sessione, { ...(chiesto !== undefined ? { chiesto } : {}), come: 'riapro la conversazione (chiesta da un altro PC o dal telefono)', elencaAutopiloti: () => clientAutopilota.elenca() })
         },
         creaWorkspace: async (nome: string) => {
           const store = workspaceStore
@@ -4412,6 +4477,7 @@ if (!app.requestSingleInstanceLock()) {
         avvisoDrive: () => avvisoDrive(),
         // «Salute del sistema» dal telefono (0.44.0).
         salute: () => leggiSalute(),
+        autopilotiAltri: () => autopilotiAltri?.() ?? Promise.resolve([]),
         ponte: (pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string) => ponteVersoPc !== undefined
           ? ponteVersoPc(pc, percorso, corpo, dispositivo)
           : Promise.resolve({ stato: 409, corpo: { errore: 'Il collegamento con gli altri PC non è ancora pronto: riprova fra qualche secondo.' } }),

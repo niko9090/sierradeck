@@ -4543,3 +4543,17 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .sottofondo-qui__voce { border-top: 1px solid var(--incisione); padding: 8px 0; }
 .sottofondo-qui__nome { font-weight: 600; }
 .sottofondo-qui__dettagli { font-size: 12px; opacity: 0.8; word-break: break-all; }
+
+/* La scheda di un autopilota su un altro PC (0.59.0). */
+.scheda-remota-sfondo { position: fixed; inset: 0; z-index: 80; background: rgba(0, 0, 0, 0.45); display: flex; align-items: center; justify-content: center; }
+.scheda-remota {
+  width: min(720px, 94vw); max-height: 88vh; overflow: auto;
+  background: var(--chassis); color: var(--testo);
+  border: 1px solid var(--luce-incisione); border-radius: var(--raggio); padding: 12px 14px;
+}
+.scheda-remota__testa { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.scheda-remota__criteri { margin: 2px 0 8px; padding-left: 18px; }
+.scheda-remota__domanda { border: 1px solid var(--incisione); border-radius: var(--raggio); padding: 6px 8px; margin: 4px 0; }
+.scheda-remota__chat { max-height: 260px; overflow: auto; margin: 4px 0 8px; font-size: 12px; }
+.scheda-remota__battuta { padding: 2px 0; }
+.scheda-remota__battuta--tu { color: var(--testo-quieto); }

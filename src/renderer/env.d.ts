@@ -385,6 +385,10 @@ declare global {
         pulisci: () => Promise<import('../shared/file-telefono').StatoAlTelefono>
         quandoCambia: (f: () => void) => () => void
       }
+      autopilotiAltri: {
+        elenco: () => Promise<import('../shared/autopiloti-altri').AutopilotiDiPc[]>
+        azione: (pc: string, percorso: string, corpo: Record<string, unknown>) => Promise<{ ok: true; dati: unknown } | { ok: false; stato: number; messaggio: string }>
+      }
       sottofondo: {
         elenco: () => Promise<import('../shared/sottofondo').StatoSottofondo[]>
         mostra: (sessione: string) => Promise<{ ok: boolean; messaggio?: string }>
@@ -400,9 +404,9 @@ declare global {
         scrivi: (pc: string, chat: string, testo: string, idMessaggio?: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
         scegli: (pc: string, chat: string, opzione: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
         pin: (pc: string, chat: string, pin: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
-        riprendi: (pc: string, cartella: string, sessione: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
+        riprendi: (pc: string, cartella: string, sessione: string, workspace?: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
         apri: (pc: string, cartella: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
-        sottofondo: (p: { pc: string; cwd: string; sessione: string; titolo?: string; testo?: string; id?: string }) => Promise<import('../shared/pc-remoto').EsitoRemoto<import('../shared/sottofondo').StatoSottofondo> & { vecchio?: boolean }>
+        sottofondo: (p: { pc: string; cwd: string; sessione: string; titolo?: string; testo?: string; id?: string; workspace?: string }) => Promise<import('../shared/pc-remoto').EsitoRemoto<import('../shared/sottofondo').StatoSottofondo> & { vecchio?: boolean }>
         sottofondoStato: (pc: string, sessione: string) => Promise<{ stato?: import('../shared/sottofondo').StatoSottofondo; errore?: string; attesi: string[] } | undefined>
         prova: (pc: string) => Promise<{ ok: true; indirizzo: string; ms: number; versione?: string } | { ok: false; motivo: string; messaggio: string }>
         altroveDi: (cwds: string[]) => Promise<Record<string, { id: string; nome: string }>>
