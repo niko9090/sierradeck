@@ -10,10 +10,10 @@ caricata in WebView) a **app Android NATIVA in Jetpack Compose**. Rilascio **a
 parità raggiunta** (non incrementale nello store, ma incrementale nel codice).
 Costo accettato: da qui in poi ogni modifica mobile richiede un nuovo APK (prima
 migliorando la pagina desktop il telefono la riceveva gratis). Rebrand: **via
-«glos»**, il prodotto è di **Ferrari Consulenze — Nicholas Ferrari**.
+il vecchio nome**, il prodotto è di **Ferrari Consulenze — Nicholas Ferrari**.
 
 ## Fatto (Stadio 1, commit 9240712, assembleDebug verde)
-- Package `it.glos.sierradeck` → **`it.ferrariconsulenze.sierradeck`** (appId +
+- Package col vecchio nome → **`it.ferrariconsulenze.sierradeck`** (appId +
   namespace + tutti i .kt). ⚠️ Cambio di appId ⇒ chi ha la vecchia app dovrà
   DISINSTALLARE e reinstallare (l'update non la riconosce). Accettato.
 - Stack aggiunto: plugin compose-compiler + kotlin-serialization (2.0.21),
@@ -102,7 +102,7 @@ chiuso. Body max 256KB. **Niente streaming**: tutto polling.
     del programma **senza** APK allegato avrebbe fatto sparire l'app dal
     telefono, in silenzio. Ora entrambi scorrono `/releases?per_page=20` e
     tengono la **versione più alta** fra tutti gli APK allegati.
-  - ⚠️ Cambio appId: la vecchia `it.glos.*` NON si auto-aggiorna a
+  - ⚠️ Cambio appId: la vecchia app col vecchio package NON si auto-aggiorna a
     `it.ferrariconsulenze.*` (package diverso) → prima installazione a mano.
 - **Restyling FATTO** (commit c3fd521): tema **vivo** da `/api/stile` — l'app
   indossa accento/chiarore/stile scelti sul PC; `Banco` è ora stato reattivo

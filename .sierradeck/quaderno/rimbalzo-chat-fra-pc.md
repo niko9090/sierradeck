@@ -12,7 +12,7 @@ non si apre nulla». Il portatile è alla 0.28.2, acceso, e sincronizza.
 Ogni 5 minuti, 168 volte in un giorno: `ARRIVO: 15 chat da portare qui` →
 `15 chat tornate nella cartella del loro PC (E:\Documents\Progetti
 SierraDeck\fionda apl, …\Wdeck)` → `8 chat rimappate nelle cartelle di qui
-(C:\Users\nikof\Progetti SierraDeck\Wdeck)` → al SALVA `conflitto … vince
+(C:\Users\<utente>\Progetti SierraDeck\Wdeck)` → al SALVA `conflitto … vince
 questo` sulle stesse chat. Una chat presa in mezzo punta a una cartella che
 qui non c'è → all'apertura «Questa chat lavora su un altro PC» **senza
 nome** (pc id vuoto) e «Scrivile là» senza destinatario.
@@ -21,7 +21,7 @@ nome** (pc id vuoto) e «Scrivile là» senza destinatario.
 
 1. **Il registro `progetti-drive.json` diceva «di un altro PC» per cartelle
    che esistono qui.** Il pc id `058be1ee679e` dichiara 17 percorsi
-   `C:\Users\nikof\Progetti SierraDeck\<X>`; 11 esistono su questo disco.
+   `C:\Users\<utente>\Progetti SierraDeck\<X>`; 11 esistono su questo disco.
    Stesso utente sui due PC (o un vecchio id di questa macchina: `pc.json`
    riscritto il 06/09). `altrove()` (index.ts) girava sul registro e
    rispondeva «un altro PC»; `pianificaRitorno` spostava le chat sotto lo
@@ -65,7 +65,7 @@ copiato da un backup: `LaptopBackup` del 5/7) e va rigenerato sul portatile.
 
 4766 file di SierraDeck, 1919 di questo PC. Slug per macchina nel
 manifesto: `E--Documents-Progetti-SierraDeck-*` 835 chat (attivo OGGI: è
-l'altro PC), `E--Users-nikof-*` 725 (qui), `X--*` 345 (fino all'8/9),
-`C--Users-nikof-*` 326, `C--Users-tecnico-*` 154 (fino al 9/9),
-`E--obsidian-Glos` 69, `C--Users-asus` 2. Almeno tre macchine hanno
-scritto su questo Drive. Conto: n.ferrariconsulenze@gmail.com.
+l'altro PC), `E--Users-<utente>-*` 725 (qui), `X--*` 345 (fino all'8/9),
+`C--Users-<utente>-*` 326, `C--Users-<altro utente>-*` 154 (fino al 9/9),
+una cartella di note 69, `C--Users-asus` 2. Almeno tre macchine hanno
+scritto su questo Drive. Conto: l’account Google di Nicholas.

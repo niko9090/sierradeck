@@ -323,6 +323,11 @@ fun Computer(api: Api, stato: Stato?) {
         if ("chat" in visibili) {
             GruppoImpostazioni(struttura, "chat")
 
+        // ─── Il quaderno personale (app 2.57.0, PC 0.57.0) ───
+        Sezione("Quaderno personale")
+        SezioneQuadernoPersonale(api)
+        Spacer(Modifier.height(10.dp))
+
         // ─── Workspace ───
         // Tutto dentro una tessera sola: prima i workspace erano chip sospesi e
         // sotto, staccato, un campo con una scritta di fianco — tre cose che non

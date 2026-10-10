@@ -3,7 +3,10 @@
 # Un installer e non una cartella da copiare: il programma va nel menu Start,
 # si disinstalla dal pannello di Windows, e — soprattutto — sa aggiornarsi da
 # solo, cosa che una cartella copiata a mano non può fare.
-appId: it.glos.sierradeck
+#
+# L'appId è anche l'AppUserModelID di Windows (vedi `src/main/identita-app.ts`,
+# che deve dire lo stesso). È cambiato nella 0.57.0, per decisione di Nicholas.
+appId: it.ferrariconsulenze.sierradeck
 productName: SierraDeck
 copyright: Copyright © 2026 Ferrari Consulenze
 
@@ -76,6 +79,15 @@ nsis:
   # questo qui è `false`: un solo padrone del riavvio.
   runAfterFinish: false
   deleteAppDataOnUninstall: false
+  # La chiave dell'installazione per Windows: quella delle installazioni di
+  # prima della 0.57.0, quando l'appId era un altro. Senza, electron-builder la
+  # ricaverebbe dall'appId nuovo e l'aggiornamento diventerebbe un secondo
+  # programma, con due voci in «App installate». Non va cambiata
+  # (`GUID_INSTALLAZIONE` in `src/main/identita-app.ts`).
+  guid: 8e5eec75-f025-512f-b3e4-78d055eb2b1f
+  # Aggiorna l'AppUserModelID del collegamento fissato sulla barra delle
+  # applicazioni, che l'installer da solo non tocca.
+  include: build/installer.nsh
 
 # Dove il programma cerca gli aggiornamenti. `generic` e non un servizio: basta
 # una cartella raggiungibile via HTTP — anche sulla rete di casa — dove si

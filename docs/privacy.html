@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SierraDeck – Privacy</title>
+<meta name="description" content="Informativa sulla privacy di SierraDeck: quali dati tratta, quali servizi esterni usa, dove restano i dati e come si cancellano.">
+<link rel="icon" href="icona.svg" type="image/svg+xml">
+<link rel="stylesheet" href="stile.css">
+</head>
+<body>
+<header>
+  <img src="icona.svg" alt="">
+  <span class="nome">SierraDeck</span>
+  <nav>
+    <a href="./">Presentazione</a>
+    <a href="privacy.html" aria-current="page">Privacy</a>
+    <a href="termini.html">Termini d’uso</a>
+  </nav>
+</header>
+<main>
+  <h1>Informativa sulla privacy</h1>
+  <p class="sotto">Ultimo aggiornamento: 10 ottobre 2026. Vale per il programma SierraDeck per Windows, per l’app SierraDeck per Android e per la pagina che il programma serve sulla rete di casa.</p>
+
+  <h2>1. Chi è il titolare</h2>
+  <p><b>Ferrari Consulenze</b> – Nicholas Ferrari, via Martiri della Libertà 15, Sorbolo (PR), Italia – P.IVA IT02941850345 – email <a href="mailto:n.ferrariconsulenze@gmail.com">n.ferrariconsulenze@gmail.com</a>.</p>
+
+  <h2>2. In breve</h2>
+  <ul>
+    <li>SierraDeck lavora <b>sul tuo computer</b>: le conversazioni di Claude Code, i progetti e le impostazioni restano nelle tue cartelle.</li>
+    <li>L’unico dato che il titolare conserva su un server è il tuo <b>account SierraDeck</b> (email e password), per l’accesso al programma.</li>
+    <li>Google Drive è <b>facoltativo</b>. Se lo colleghi, SierraDeck usa solo la sua cartella nascosta e ci mette solo dati <b>cifrati sul tuo PC prima di partire</b>, con una chiave che Google e il titolare non hanno.</li>
+    <li><b>Niente pubblicità, niente statistiche d’uso, niente tracciamenti</b>, niente segnalazioni automatiche di errori a server esterni.</li>
+  </ul>
+
+  <h2>3. I servizi esterni che il programma contatta</h2>
+  <p>Questo elenco è ricavato dal codice del programma e dell’app. Oltre a questi, il programma parla solo con i tuoi dispositivi: il telefono accoppiato e gli altri tuoi PC, sulla rete di casa, attraverso Tailscale se lo usi, o con un collegamento diretto cifrato.</p>
+  <div class="tabella"><table>
+    <tr><th>Servizio</th><th>Quando</th><th>Cosa riceve</th></tr>
+    <tr><td><b>Supabase</b> (autenticazione dell’account SierraDeck)</td><td>Alla registrazione, all’accesso, all’uscita e al rinnovo automatico della sessione</td><td>La tua email e la password (Supabase la conserva solo in forma cifrata non reversibile); un codice di conferma inviato alla tua email; l’indirizzo IP della richiesta. Supabase tratta questi dati per conto del titolare.</td></tr>
+    <tr><td><b>Google</b> – accesso e <b>Google Drive</b> (facoltativo)</td><td>Quando premi «Collega» e, dopo, durante il salvataggio automatico</td><td>Il consenso con il permesso <code>drive.appdata</code> e la lettura dell’indirizzo email del tuo account Google (per mostrarti quale account è collegato). Nel Drive vanno solo file cifrati: vedi il punto 4.</td></tr>
+    <tr><td><b>STUN di Google e Cloudflare</b> (<code>stun.l.google.com</code>, <code>stun.cloudflare.com</code>)</td><td>Solo quando apri una chat di un altro tuo PC e né la rete di casa né Tailscale lo raggiungono</td><td>L’indirizzo IP pubblico e la porta del PC, per trovare la strada fra i due PC. Il contenuto del collegamento non passa da loro ed è cifrato.</td></tr>
+    <tr><td><b>GitHub</b> (aggiornamenti)</td><td>Il programma all’avvio e ogni 6 ore; l’app all’avvio e ogni 8 ore circa</td><td>Una richiesta all’elenco delle versioni e il download degli aggiornamenti: GitHub vede l’indirizzo IP e il nome del programma. Nessun tuo dato.</td></tr>
+    <tr><td><b>Claude Code / Anthropic</b></td><td>Quando usi le chat</td><td>SierraDeck non chiama i server di Anthropic: avvia Claude Code, installato e collegato al tuo account Anthropic da te. Quello che scrivi nelle chat lo riceve Anthropic secondo i suoi termini e la sua informativa. Per installare o aggiornare Claude Code, se lo chiedi, il programma usa l’installatore ufficiale di <code>claude.ai</code> e il registro npm.</td></tr>
+    <tr><td><b>Google Play Services</b> (solo app Android)</td><td>Quando inquadri il codice QR per accoppiare il telefono</td><td>Il lettore di codici di Google, che lavora sul telefono; l’app non ha il permesso della fotocamera.</td></tr>
+    <tr><td><b>Server SFTP</b> scelti da te</td><td>Solo se aggiungi una destinazione SFTP e trasferisci file</td><td>I file che decidi di trasferire e le credenziali di quel server. Le password restano nel portachiavi di Windows.</td></tr>
+    <tr><td><b>Telegram</b> (facoltativo, spento in partenza)</td><td>Solo se configuri un bot Telegram per gli avvisi degli autopiloti</td><td>Nome e obiettivo dell’autopilota, le sue domande e i criteri di fine, al bot che hai indicato.</td></tr>
+    <tr><td><b>Negozio di plugin e server MCP</b></td><td>Solo se installi plugin o server MCP</td><td>Le installazioni le fa Claude Code dai cataloghi che scegli; ogni server MCP che aggiungi riceve quello che Claude Code gli manda.</td></tr>
+  </table></div>
+  <p class="sotto">Tailscale, se lo usi, è un tuo servizio: SierraDeck legge solo lo stato del programma Tailscale installato sul PC e non contatta i server di Tailscale.</p>
+
+  <h2>4. Google Drive e i dati degli utenti Google</h2>
+  <p>Il collegamento al Drive serve solo a salvare e ritrovare le tue chat e la disposizione delle finestre fra i tuoi PC. SierraDeck chiede il solo permesso <code>https://www.googleapis.com/auth/drive.appdata</code>: una cartella nascosta riservata all’app, separata dai tuoi file. <b>Non può vedere, leggere o modificare gli altri file del tuo Drive.</b></p>
+  <ul>
+    <li><b>Cifratura dal tuo PC.</b> Chat, workspace, l’indice dei salvataggi e i messaggi fra i tuoi PC sono cifrati con AES-256-GCM sul PC, prima dell’invio, con una chiave principale protetta dalla tua parola d’ordine (e da una chiave di recupero che conservi tu). Google conserva solo dati cifrati; il titolare non ha la chiave e non riceve copia dei dati.</li>
+    <li><b>Cosa resta visibile a Google:</b> i nomi dei file (quelli dei dati sono impronte, non nomi leggibili), le dimensioni, le date, e il file delle chiavi, che contiene solo chiavi a loro volta cifrate.</li>
+    <li><b>Sul PC</b> restano il token di accesso di Google e l’email del tuo account, nella cartella dei dati del programma.</li>
+    <li><b>Nessuna condivisione:</b> i dati ricevuti dalle API di Google non vengono trasferiti a terzi, non sono usati per pubblicità e non sono letti da persone.</li>
+  </ul>
+  <p>L’uso e il trasferimento ad altre app delle informazioni ricevute dalle API di Google rispettano le <a href="https://developers.google.com/terms/api-services-user-data-policy">Norme sui dati utente dei servizi API di Google</a>, compresi i requisiti di Uso limitato.</p>
+  <p lang="en" class="sotto"><b>In English.</b> SierraDeck requests only the <code>drive.appdata</code> scope, a hidden app-specific folder; it cannot see any other file in your Drive. Everything it stores there is encrypted on your PC with AES-256-GCM, using a key protected by your passphrase, before upload; neither Google nor the developer can read it. Google user data is used only to save and sync your own SierraDeck data between your own computers, is not shared with third parties, not used for advertising and not read by humans. SierraDeck’s use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements. You can disconnect at any time from SierraDeck or at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</p>
+
+  <h2>5. Dati sul tuo computer e sul telefono</h2>
+  <ul>
+    <li><b>Sul PC</b>, nella cartella dei dati di SierraDeck (<code>%APPDATA%\SierraDeck</code>): impostazioni, disposizione delle finestre, elenco dei dispositivi accoppiati, sessione dell’account SierraDeck, token del Drive, autopiloti e i loro registri. Le conversazioni restano nelle cartelle di Claude Code.</li>
+    <li><b>Quaderno personale</b>: se lo usi, i dati riservati che ci scrivi (per esempio un’email o un indirizzo) restano solo su quel PC, in un file cifrato con una chiave custodita dal portachiavi di Windows. Una chat li riceve solo se lo consenti, ogni volta o per quella chat; ogni richiesta resta in un elenco che puoi consultare. Una volta consentito, il dato entra nella conversazione di Claude Code e quindi la riceve anche Anthropic, come tutto quello che scrivi nelle chat.</li>
+    <li><b>Sul telefono</b>, l’app conserva la chiave di accoppiamento con il PC, le preferenze e i file che scegli di ricevere. Parla solo con indirizzi della rete di casa o di Tailscale, oltre a GitHub per gli aggiornamenti.</li>
+    <li>Il titolare non riceve questi dati.</li>
+  </ul>
+
+  <h2>6. Perché e su quale base</h2>
+  <ul>
+    <li><b>Account SierraDeck</b>: per darti accesso al programma (esecuzione del contratto, cioè dei <a href="termini.html">termini d’uso</a>). Senza account il programma non si usa.</li>
+    <li><b>Google Drive, STUN, Telegram, SFTP</b>: solo perché li hai attivati tu, per le funzioni che hai chiesto.</li>
+    <li><b>Aggiornamenti da GitHub</b>: legittimo interesse a mantenere il programma sicuro e funzionante; puoi impedire lo scaricamento automatico nelle impostazioni.</li>
+  </ul>
+
+  <h2>7. Per quanto tempo</h2>
+  <ul>
+    <li>L’account SierraDeck resta finché non chiedi di cancellarlo.</li>
+    <li>I dati sul tuo PC, sul telefono e nel tuo Drive restano finché non li cancelli tu: sono tuoi e sotto il tuo controllo.</li>
+  </ul>
+
+  <h2>8. Come si cancellano</h2>
+  <ul>
+    <li><b>Account SierraDeck</b>: scrivi a <a href="mailto:n.ferrariconsulenze@gmail.com">n.ferrariconsulenze@gmail.com</a> dall’indirizzo dell’account; viene cancellato entro 30 giorni.</li>
+    <li><b>Google Drive</b>: in SierraDeck, Impostazioni → Account → Drive, «Scollega»; puoi anche togliere l’accesso da <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a> e cancellare i dati nascosti dell’app dal Drive (Impostazioni di Drive → Gestisci app → SierraDeck → Elimina dati app nascosti).</li>
+    <li><b>Dati sul PC</b>: la disinstallazione non li cancella, per non perdere il lavoro; per toglierli cancella la cartella <code>%APPDATA%\SierraDeck</code>. Le voci del Quaderno personale si tolgono una per una dalle impostazioni.</li>
+    <li><b>Telefono</b>: disinstallare l’app cancella i suoi dati.</li>
+  </ul>
+
+  <h2>9. I tuoi diritti</h2>
+  <p>Puoi chiedere al titolare l’accesso ai dati che ti riguardano, la rettifica, la cancellazione, la limitazione, la portabilità e opporti al trattamento, scrivendo a <a href="mailto:n.ferrariconsulenze@gmail.com">n.ferrariconsulenze@gmail.com</a>. Puoi anche proporre reclamo al Garante per la protezione dei dati personali (<a href="https://www.garanteprivacy.it">garanteprivacy.it</a>).</p>
+
+  <h2>10. Trasferimenti fuori dall’Unione europea</h2>
+  <p>Supabase, Google, Cloudflare e GitHub possono trattare dati anche fuori dallo Spazio economico europeo; in quei casi valgono le garanzie previste dai loro contratti (per esempio le clausole contrattuali standard della Commissione europea). Per Google Drive, i dati che arrivano a Google sono comunque cifrati.</p>
+
+  <h2>11. Minori</h2>
+  <p>SierraDeck è uno strumento di lavoro per sviluppatori e non è destinato a chi ha meno di 16 anni.</p>
+
+  <h2>12. Modifiche</h2>
+  <p>Se questa informativa cambia, la nuova versione viene pubblicata su questa pagina con la data in cima. Per i cambiamenti importanti lo diciamo anche nelle note di aggiornamento del programma.</p>
+</main>
+<footer>
+  © 2026 Ferrari Consulenze · <a href="./">SierraDeck</a> · <a href="termini.html">Termini d’uso</a>
+</footer>
+</body>
+</html>

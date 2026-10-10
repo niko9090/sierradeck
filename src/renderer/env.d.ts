@@ -360,6 +360,13 @@ declare global {
         togli: (pc: string, voce: string) => Promise<import('../shared/posta').Posta | undefined>
         pulisci: (pc: string) => Promise<import('../shared/posta').Posta | undefined>
       }
+      quadernoPersonale: {
+        stato: () => Promise<import('../shared/quaderno-personale').StatoQuadernoPersonale>
+        salva: (v: { id?: string; nome: string; valore: string; nota?: string }) => Promise<{ ok: true } | { ok: false; errore: string }>
+        togli: (id: string) => Promise<boolean>
+        revoca: (sessione: string, voce: string) => Promise<boolean>
+        quandoCambia: (f: () => void) => () => void
+      }
       alTelefono: {
         stato: () => Promise<import('../shared/file-telefono').StatoAlTelefono>
         manda: (percorso: string, telefono: string, nota?: string) => Promise<import('../shared/file-telefono').EsitoMandaAlTelefono>

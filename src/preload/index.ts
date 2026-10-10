@@ -753,6 +753,19 @@ contextBridge.exposeInMainWorld('gestore', {
     }
   },
 
+  /** Il Quaderno personale (0.57.0): i dati riservati, i consensi «sempre» e l'elenco degli usi. */
+  quadernoPersonale: {
+    stato: (): Promise<import('@shared/quaderno-personale').StatoQuadernoPersonale> => ipcRenderer.invoke('quadernoPersonale:stato'),
+    salva: (v: { id?: string; nome: string; valore: string; nota?: string }): Promise<{ ok: true } | { ok: false; errore: string }> =>
+      ipcRenderer.invoke('quadernoPersonale:salva', v),
+    togli: (id: string): Promise<boolean> => ipcRenderer.invoke('quadernoPersonale:togli', id),
+    revoca: (sessione: string, voce: string): Promise<boolean> => ipcRenderer.invoke('quadernoPersonale:revoca', sessione, voce),
+    quandoCambia: (f: () => void): (() => void) => {
+      const h = (): void => f()
+      ipcRenderer.on('quadernoPersonale:cambiato', h)
+      return () => ipcRenderer.off('quadernoPersonale:cambiato', h)
+    }
+  },
   /** I file dal PC al telefono (0.54.0): «📱 Manda al telefono» e la sua coda. */
   alTelefono: {
     stato: (): Promise<import('@shared/file-telefono').StatoAlTelefono> => ipcRenderer.invoke('alTelefono:stato'),

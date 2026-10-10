@@ -437,7 +437,7 @@ describe('lo strumento manda_al_telefono delle chat', () => {
     expect(i.corpo).toMatchObject({ result: { protocolVersion: '2025-06-18', serverInfo: { name: 'sierradeck' }, capabilities: { tools: {} } } })
     expect((await a.mcp({ jsonrpc: '2.0', method: 'notifications/initialized' })).stato).toBe(202)
     const l = await a.mcp({ jsonrpc: '2.0', id: 2, method: 'tools/list' })
-    expect((l.corpo as { result: { tools: { name: string }[] } }).result.tools.map((t) => t.name)).toEqual(['manda_al_telefono', 'stato_invio_al_telefono'])
+    expect((l.corpo as { result: { tools: { name: string }[] } }).result.tools.map((t) => t.name)).toEqual(['manda_al_telefono', 'stato_invio_al_telefono', 'chiedi_dato_personale'])
   })
   it('un file sotto la cartella della chat parte senza chiedere: «in coda», e lo stato si legge dopo', async () => {
     const a = await ambiente()

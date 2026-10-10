@@ -1,0 +1,54 @@
+/* Le pagine pubbliche di SierraDeck (GitHub Pages, cartella docs/). */
+:root {
+  --fondo: #f6f7f9;
+  --carta: #ffffff;
+  --testo: #1d232b;
+  --quieto: #5b6572;
+  --accento: #2f7fd1;
+  --verde: #2e9e5b;
+  --bordo: #dde2e8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fondo: #12161b;
+    --carta: #1a2027;
+    --testo: #e6eaef;
+    --quieto: #9aa5b1;
+    --accento: #5aa7f0;
+    --verde: #49c27c;
+    --bordo: #2b333d;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--fondo);
+  color: var(--testo);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+header, main, footer { max-width: 780px; margin: 0 auto; padding: 0 16px; }
+header { padding-top: 28px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+header img { width: 44px; height: 44px; }
+header .nome { font-size: 22px; font-weight: 700; letter-spacing: .2px; }
+nav { margin-left: auto; display: flex; gap: 14px; flex-wrap: wrap; font-size: 15px; }
+nav a, main a, footer a { color: var(--accento); text-decoration: none; }
+nav a:hover, main a:hover, footer a:hover { text-decoration: underline; }
+nav a[aria-current="page"] { color: var(--testo); font-weight: 600; }
+main { padding-top: 12px; padding-bottom: 32px; }
+h1 { font-size: 30px; line-height: 1.25; margin: 22px 0 10px; }
+h2 { font-size: 21px; margin: 30px 0 8px; }
+h3 { font-size: 17px; margin: 20px 0 6px; }
+p, li { color: var(--testo); }
+.sotto { color: var(--quieto); }
+.scheda { background: var(--carta); border: 1px solid var(--bordo); border-radius: 10px; padding: 14px 18px; margin: 14px 0; }
+.griglia { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.griglia .scheda { margin: 0; }
+.scheda h3 { margin-top: 2px; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th, td { text-align: left; vertical-align: top; padding: 8px 6px; border-bottom: 1px solid var(--bordo); }
+th { color: var(--quieto); font-weight: 600; }
+.tabella { overflow-x: auto; }
+code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: .92em; overflow-wrap: anywhere; }
+.led { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--verde); margin-right: 6px; }
+footer { border-top: 1px solid var(--bordo); padding-top: 14px; padding-bottom: 28px; font-size: 14px; color: var(--quieto); }

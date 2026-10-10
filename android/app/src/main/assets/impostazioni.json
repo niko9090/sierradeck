@@ -216,6 +216,25 @@
       ]
     },
     {
+      "id": "quaderno-personale",
+      "sezione": "chat",
+      "titolo": "Quaderno personale",
+      "spiega": "I tuoi dati riservati (email di contatto, sede, partita IVA…) che una chat a volte deve scrivere ma che non vanno nel codice. Stanno solo su questo PC, cifrati; una chat li chiede e tu scegli ogni volta nelle Domande: una volta, sempre per quella chat, o no. Qui li aggiungi, li cambi, vedi chi li ha chiesti e revochi i «sempre».",
+      "parole": [
+        "dati personali",
+        "privacy",
+        "email",
+        "partita iva",
+        "consenso",
+        "riservati"
+      ],
+      "dove": [
+        "pc",
+        "app",
+        "pagina"
+      ]
+    },
+    {
       "id": "ospite",
       "sezione": "chat",
       "titolo": "Dove vive ogni chat",
@@ -471,6 +490,7 @@
         "porte",
         "oltre-la-rete",
         "pin",
+        "quaderno-personale",
         "ospite",
         "iberna",
         "attesa-chat",
@@ -497,6 +517,7 @@
         "nome-pc",
         "altri-pc",
         "cambia-computer",
+        "quaderno-personale",
         "drive",
         "colore",
         "stile",
@@ -513,6 +534,7 @@
         "versioni",
         "aggiorna-pc",
         "ultimo-tentativo",
+        "quaderno-personale",
         "drive",
         "notifiche-pagina",
         "copia-dettagli",

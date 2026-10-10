@@ -105,7 +105,7 @@ Anche `ProvaDalVeroTest` (Kotlin, l'`Api` dell'app) è passato contro la copia d
 
 - **`SIERRADECK_PROVA=<cartella>`** (0.55.0): dati, `userData` e lucchetto in quella cartella, e `APPDATA` dei processi figli (il servizio degli autopiloti) puntato lì.
   - Senza `APPDATA` il servizio della copia leggeva **gli autopiloti veri**. È successo una volta il 09/10: niente cambiato negli autopiloti, l'ho fermata subito.
-- In `<cartella>/SierraDeck/impostazioni.json` vanno porte diverse: `portaClient` 47650 e `portaAutopiloti` 47651, più `SIERRADECK_PORTA_AUTOPILOTI=47651`.
+- In `<cartella>/SierraDeck/impostazioni.json` vanno porte diverse, **dentro `preferenze`**: `{"versione":1,"preferenze":{"portaClient":47650,"portaAutopiloti":47651}}`. Messe in cima al file vengono ignorate (successo il 10/10): la copia usa la 47630 del servizio vero, prende le sue consegne e, se la versione è diversa, lo «sostituisce» spegnendolo. `SIERRADECK_PORTA_AUTOPILOTI` da sola non basta: il programma la passa al servizio, non la legge.
 - **`CLAUDE_CONFIG_DIR`** in una cartella di prova, con una copia delle credenziali senza `refreshToken`.
 - Il «telefono»: un `dispositivi.json` con il segno (sha256) di una chiave nota.
 - Con `SIERRADECK_PROVA` l'account è un utente d'esempio: senza, la finestra resta alla schermata d'accesso e le chat non partono.

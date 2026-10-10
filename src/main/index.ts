@@ -3,6 +3,7 @@ import {
   rimettiPannello, segnaFinestraDiServizio
 } from './finestre-pannello'
 import { creaPonteRtc } from './rtc/ponte-rtc'
+import { APP_ID, portePerLaProva } from './identita-app'
 import { creaRtc } from './rtc/collegamento-rtc'
 import { creaCassettaDrive } from './rtc/cassetta-drive'
 import { creaUnaCasa, type ChatLocale, type UnaCasa } from './una-casa'
@@ -76,6 +77,7 @@ import { costoPerPeriodo, leggiPolso, limitiAggiornati, rigaDiStato, type Polso 
 import { etichettaContesto, limitiPerFreno, unisciPolso } from '@shared/limiti-piano'
 import { diffDellAutopilota, fileDellAutopilota, fileVeroDellAutopilota } from './file-autopilota'
 import { apriAlTelefono, type AlTelefono } from './al-telefono'
+import { apriQuadernoPersonale } from './quaderno-personale'
 import { apriFileProgetti } from './file-progetti'
 import { apriGettoni, configMcp, rispondiMcp, type Gettoni } from './mcp-telefono'
 import { confermaDaRisposta, idDomandaConferma, leggiIdDomandaConferma, OPZIONI_CONFERMA, testoConferma, testoStato } from '@shared/file-telefono'
@@ -1003,6 +1005,10 @@ if (cartellaProva !== undefined && cartellaProva !== '') {
   process.env.APPDATA = cartellaProva
 }
 
+// Lo stesso AppUserModelID che l'installer scrive nei collegamenti: senza,
+// Windows tiene separati la finestra e il collegamento fissato.
+if (process.platform === 'win32') app.setAppUserModelId(APP_ID)
+
 if (!app.requestSingleInstanceLock()) {
   app.exit(0)
 } else {
@@ -1068,6 +1074,18 @@ if (!app.requestSingleInstanceLock()) {
       // autopiloti serve gia' al registro dei canali delle chat, che nasce
       // prima — e una porta letta dopo averla usata e' una porta ignorata.
       const impostazioni = apriImpostazioniStore(dati)
+      if (cartellaProva !== undefined && cartellaProva !== '') {
+        // Una copia di prova sulle porte del programma vero parla con il suo
+        // servizio degli autopiloti: ne ritira le consegne e, se la versione è
+        // diversa, lo spegne per «sostituirlo» (successo il 10/10, con le porte
+        // scritte fuori da `preferenze`). Qui non può succedere.
+        const p = impostazioni.preferenze()
+        const sicure = portePerLaProva(p)
+        if (sicure.portaClient !== p.portaClient || sicure.portaAutopiloti !== p.portaAutopiloti) {
+          impostazioni.impostaPreferenze({ ...p, ...sicure })
+          console.log(`[prova] porte del programma vero evitate: client ${sicure.portaClient}, autopiloti ${sicure.portaAutopiloti}`)
+        }
+      }
       portaAutopiloti = impostazioni.preferenze().portaAutopiloti
       // Da qui in poi i gestori globali scrivono nel file, non solo in console.
       registroGlobale = registro
@@ -3297,6 +3315,17 @@ if (!app.requestSingleInstanceLock()) {
         nomePc: () => { try { return identitaPcGlobale?.leggi().nome ?? hostname() } catch { return 'il PC' } }
       })
       alTelefono = coda
+      // Il Quaderno personale (0.57.0): i dati riservati di Nicholas, cifrati,
+      // che le chat chiedono con `chiedi_dato_personale` e lui concede nelle Domande.
+      const quadernoPersonale = apriQuadernoPersonale({
+        cartella: dati,
+        portachiavi: {
+          disponibile: () => safeStorage.isEncryptionAvailable(),
+          avvolgi: (k) => safeStorage.encryptString(k.toString('base64')).toString('base64'),
+          svolgi: (s) => Buffer.from(safeStorage.decryptString(Buffer.from(s, 'base64')), 'base64')
+        },
+        cambiate: () => { for (const w of webContents.getAllWebContents()) if (!w.isDestroyed()) w.send('quadernoPersonale:cambiato') }
+      })
       // A tutte le finestre, pannelli compresi: la linguetta File di un autopilota può stare in un pannello staccato.
       coda.quandoCambia(() => {
         for (const w of webContents.getAllWebContents()) if (!w.isDestroyed()) w.send('alTelefono:cambiata')
@@ -3356,10 +3385,13 @@ if (!app.requestSingleInstanceLock()) {
           home: homedir()
         }),
         alTelefono: coda,
+        quadernoPersonale,
         chat: () => chatAperte.map(conAltrove),
         autopiloti: () => clientAutopilota.elenca(),
         rispondi: async (idDomanda: string, risposta: string) => {
           // Il sì o il no a un file che una chat vuole mandare al telefono (0.54.0).
+          // Il consenso a un dato del quaderno personale (0.57.0).
+          if (quadernoPersonale.rispondi(idDomanda, risposta)) return
           const conferma = leggiIdDomandaConferma(idDomanda)
           if (conferma !== undefined) {
             const e = await coda.conferma(conferma, confermaDaRisposta(risposta))
@@ -3375,7 +3407,8 @@ if (!app.requestSingleInstanceLock()) {
             id: idDomandaConferma(c.id), autopilotaId: 'sierradeck:al-telefono', testo: testoConferma(c),
             apertaIl: Date.parse(c.creata), opzioni: [...OPZIONI_CONFERMA],
             da: `Manda al telefono · ${c.daChat ?? 'una chat'}`, sotto: `${c.origine} → ${c.aNome}`
-          }))
+          })),
+          ...quadernoPersonale.domande()
         ],
         /**
          * Un pezzo di cronologia di una chat, chiesto dal telefono.
@@ -3960,6 +3993,21 @@ if (!app.requestSingleInstanceLock()) {
       })
       ipcMain.removeHandler('alTelefono:stato')
       ipcMain.handle('alTelefono:stato', () => statoAlTelefono())
+      // Il Quaderno personale (0.57.0) dal pannello del PC. Le finestre le avvisa lui, a ogni cambiamento.
+      ipcMain.removeHandler('quadernoPersonale:stato')
+      ipcMain.handle('quadernoPersonale:stato', () => quadernoPersonale.stato())
+      ipcMain.removeHandler('quadernoPersonale:salva')
+      ipcMain.handle('quadernoPersonale:salva', (_e, v: unknown) => {
+        const o = (typeof v === 'object' && v !== null ? v : {}) as Record<string, unknown>
+        const s = (x: unknown): string => (typeof x === 'string' ? x : '')
+        const e = quadernoPersonale.salva({ ...(s(o.id) !== '' ? { id: s(o.id) } : {}), nome: s(o.nome), valore: s(o.valore), ...(s(o.nota) !== '' ? { nota: s(o.nota) } : {}) })
+        return e.ok ? { ok: true } : { ok: false, errore: e.errore }
+      })
+      ipcMain.removeHandler('quadernoPersonale:togli')
+      ipcMain.handle('quadernoPersonale:togli', (_e, id: unknown) => typeof id === 'string' && quadernoPersonale.togli(id))
+      ipcMain.removeHandler('quadernoPersonale:revoca')
+      ipcMain.handle('quadernoPersonale:revoca', (_e, sessione: unknown, voce: unknown) =>
+        typeof sessione === 'string' && typeof voce === 'string' && quadernoPersonale.revoca(sessione, voce))
       ipcMain.removeHandler('alTelefono:manda')
       ipcMain.handle('alTelefono:manda', async (_e, percorso: unknown, a: unknown, nota: unknown) => {
         if (typeof percorso !== 'string' || typeof a !== 'string') throw new Error('richiesta IPC non valida')
@@ -3994,7 +4042,7 @@ if (!app.requestSingleInstanceLock()) {
         mcp: (metodo, autorizzazione, corpo) => gettoniMcp === undefined
           ? Promise.resolve({ stato: 503, corpo: { errore: 'gettoni non pronti' } })
           : rispondiMcp({
-            gettoni: gettoniMcp, alTelefono: coda, versione: app.getVersion(),
+            gettoni: gettoniMcp, alTelefono: coda, quadernoPersonale, versione: app.getVersion(),
             titoloChat: (s) => chatAperte.find((c) => c.sessione === s)?.titolo
           }, metodo, autorizzazione, corpo),
         polso: (corpo) => {

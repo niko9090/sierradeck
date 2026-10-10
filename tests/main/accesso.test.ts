@@ -23,15 +23,15 @@ describe('leggiAccesso', () => {
       config: {
         hasCompletedOnboarding: true,
         oauthAccount: {
-          emailAddress: 'tech@glos.it',
-          organizationName: 'Glos',
+          emailAddress: 'esempio@example.com',
+          organizationName: 'Esempio',
           seatTier: 'max',
           billingType: 'subscription'
         }
       }
     }))
     expect(a.autenticato).toBe(true)
-    expect(a.email).toBe('tech@glos.it')
+    expect(a.email).toBe('esempio@example.com')
     expect(a.piano).toBe('max')
   })
 

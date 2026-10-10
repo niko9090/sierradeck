@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    Il simbolo di SierraDeck: una vetta tagliata a facce, come un cristallo.
+
+    Una sola sagoma compatta — così regge a 16 pixel, dove un disegno
+    dettagliato diventa una macchia — e cinque piani che prendono la luce in
+    modo diverso, come le facce di un minerale spaccato. La luce viene da
+    sinistra, la stessa direzione dei tasti in rilievo dell'interfaccia.
+
+    La scheggia verde sulla cima è il LED che nella fascia dice «sta
+    lavorando»: chi lo ha visto lassù ritrova qui lo stesso segno.
+
+    *Sierra* è la catena di montagne, e in spagnolo è anche la sega: il profilo
+    dentellato che il nome porta con sé.
+  -->
+  <defs>
+    <linearGradient id="chassis" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#22262a"/>
+      <stop offset="1" stop-color="#131518"/>
+    </linearGradient>
+    <linearGradient id="neve" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#cdd3d9"/>
+    </linearGradient>
+    <linearGradient id="verde" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7fe0a3"/>
+      <stop offset="1" stop-color="#3aa564"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#chassis)"/>
+  <rect x="5" y="5" width="502" height="502" rx="109" fill="none" stroke="#3a4046" stroke-width="5"/>
+
+  <!-- Le cinque facce, dalla più illuminata alla più in ombra. La cima è
+       spostata a destra: una montagna simmetrica sembra un triangolo, una
+       asimmetrica sembra una montagna. -->
+  <g>
+    <path d="M268 92 L392 306 L268 306 Z" fill="url(#neve)"/>
+    <path d="M268 92 L132 306 L268 306 Z" fill="#7d858d"/>
+    <path d="M132 306 L268 306 L200 412 Z" fill="#525a62"/>
+    <path d="M268 306 L392 306 L326 412 Z" fill="#363d44"/>
+    <path d="M200 412 L326 412 L268 306 Z" fill="#252b31"/>
+  </g>
+
+  <!-- La scheggia accesa: la cima che lavora. -->
+  <path d="M268 92 L312 168 L268 168 Z" fill="url(#verde)"/>
+
+  <!-- Il filo di luce sul bordo alto, come sui tasti: dice che è un oggetto
+       illuminato, non un disegno piatto. -->
+  <path d="M268 92 L392 306" fill="none" stroke="#ffffff" stroke-opacity="0.5" stroke-width="3"/>
+</svg>

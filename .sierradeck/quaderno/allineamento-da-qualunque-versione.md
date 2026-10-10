@@ -110,6 +110,8 @@ chat resta un gesto di chi la chiude.
   (ripristino istantanee, `workspace:cambia`, sync `ripristina`) è un punto
   dove una perdita non viene fermata: ora il ripristino non cancella e ha la
   copia; `workspace:cambia` e la sync `ripristina` restano da guardare.
-- **`appId` (`it.glos.sierradeck`) non si tocca**: cambiarlo farebbe
-  installare un secondo programma invece di aggiornare — vedi la nota sulla
-  proprietà del prodotto.
+- **`appId`**: fino alla 0.56.4 non si toccava, perché cambiarlo avrebbe fatto
+  installare un secondo programma invece di aggiornare. Nella 0.57.0 è passato
+  a `it.ferrariconsulenze.sierradeck` per decisione di Nicholas, tenendo fissa
+  la GUID dell'installazione (`nsis.guid`): vedi la scheda
+  `appid-ferrari-consulenze-0-57-0.md`.

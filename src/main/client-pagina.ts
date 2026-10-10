@@ -24,6 +24,7 @@ import {
 } from '@shared/azioni-telefono'
 import { REGOLE_PUBBLICAZIONE } from '@shared/harness'
 import { normalizza as normalizzaImp, sezioniDi } from '@shared/impostazioni-struttura'
+import { testoEsito } from '@shared/quaderno-personale'
 
 /** Il cristallo, per la scheda del browser e per la schermata Home. */
 export const ICONA_SVG =
@@ -1915,6 +1916,11 @@ function pannello(s) {
       \${vociImp('drive')}
       <div class="riga"><button onclick="apriPannello('drive')">Apri il Drive</button></div>
     </div>
+    <div class="piastrella" data-sezione="chat">
+      \${intestaImp('chat')}
+      \${vociImp('chat')}
+      \${quadernoPersonaleHtml()}
+    </div>
     <div class="piastrella" data-sezione="aspetto">
       <div class="titolo">Aspetto</div>
       \${prefViste === null ? '<div class="sotto">Non sono riuscito a leggerle.</div>' : \`
@@ -3080,7 +3086,7 @@ window.apriPannello = async (quale) => {
   if (pannelloAperto === 'file') { fileDove = null; fileElenco = null; fileVista = null; fileNota = ''; filePin = null; await leggiFileProgetti() }
   if (pannelloAperto === 'pc') { pcAperto = null; postaVoci = null; await leggiPc() }
   if (pannelloAperto === 'drive') { driveRiavviato = false; await leggiDrive() }
-  if (pannelloAperto === 'impostazioni') { await leggiPreferenze(); await leggiAggiornamento() }
+  if (pannelloAperto === 'impostazioni') { await leggiPreferenze(); await leggiAggiornamento(); await leggiQuadernoPersonale() }
   if (pannelloAperto === 'quaderno') {
     schedaAperta = null
     // La stessa cartella da cui poi si aprono le schede (cartellaPrima):
@@ -3578,6 +3584,88 @@ window.chiudiScheda = () => { schedaAperta = null; pannello(ultimoStato) }
 
 window.leggiPreferenze = async () => {
   try { prefViste = (await chiedi('/api/preferenze')).preferenze } catch (e) { prefViste = null }
+}
+
+// Il Quaderno personale (0.57.0): i dati riservati di Nicholas, gestiti anche
+// da qui. Le regole e i testi sono quelli di src/shared/quaderno-personale.ts.
+var qpStato = null
+var qpErrore = ''
+var qpVisti = {}
+var qpBozza = { id: '', nome: '', valore: '', nota: '' }
+var qpDaTogliere = ''
+var QP_ESITI = ${JSON.stringify(Object.fromEntries((['una-volta', 'sempre', 'gia-consentita', 'negato', 'nessuna-risposta', 'voce-assente'] as const).map((e) => [e, testoEsito(e)])))}
+window.leggiQuadernoPersonale = async () => {
+  try {
+    const r = await chiedi('/api/quaderno-personale', {})
+    if (r && r.errore) { qpStato = null; qpErrore = r.errore } else { qpStato = r; qpErrore = '' }
+  } catch (e) { qpStato = null; qpErrore = (e && e.message) || String(e) }
+}
+function qpNascosto(v) { return v.length <= 4 ? '••••' : v.slice(0, 2) + '•'.repeat(Math.min(12, v.length - 4)) + v.slice(-2) }
+function qpQuando(iso) { try { return new Date(iso).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }) } catch (e) { return iso } }
+window.qpMostra = (id) => { qpVisti[id] = !qpVisti[id]; pannello(ultimoStato) }
+window.qpModifica = (id) => {
+  const v = qpStato && qpStato.voci.find((x) => x.id === id)
+  if (!v) return
+  qpBozza = { id: v.id, nome: v.nome, valore: v.valore, nota: v.nota || '' }
+  for (const k of ['qp-nome', 'qp-valore', 'qp-nota']) { const el = document.getElementById(k); if (el) el.value = '' }
+  pannello(ultimoStato)
+}
+window.qpAnnulla = () => { qpBozza = { id: '', nome: '', valore: '', nota: '' }; for (const k of ['qp-nome', 'qp-valore', 'qp-nota']) { const el = document.getElementById(k); if (el) el.value = '' } pannello(ultimoStato) }
+window.qpSalva = async () => {
+  const val = (k) => { const el = document.getElementById(k); return el ? el.value : '' }
+  const corpo = { nome: val('qp-nome'), valore: val('qp-valore'), nota: val('qp-nota') }
+  if (qpBozza.id) corpo.id = qpBozza.id
+  try {
+    await chiedi('/api/quaderno-personale/salva', corpo)
+    notaGlobale = (qpBozza.id ? 'Cambiata: «' : 'Aggiunta: «') + corpo.nome.trim() + '».'
+    qpBozza = { id: '', nome: '', valore: '', nota: '' }
+    for (const k of ['qp-nome', 'qp-valore', 'qp-nota']) { const el = document.getElementById(k); if (el) el.value = '' }
+    await leggiQuadernoPersonale()
+  } catch (e) { notaGlobale = 'Non salvata: ' + ((e && e.message) || e) }
+  pannello(ultimoStato)
+}
+window.qpTogli = async (id) => {
+  if (qpDaTogliere !== id) { qpDaTogliere = id; pannello(ultimoStato); return }
+  qpDaTogliere = ''
+  try { await chiedi('/api/quaderno-personale/togli', { id }); notaGlobale = 'Voce tolta, con i suoi «sempre».'; await leggiQuadernoPersonale() }
+  catch (e) { notaGlobale = 'Non tolta: ' + ((e && e.message) || e) }
+  pannello(ultimoStato)
+}
+window.qpRevoca = async (sessione, voce) => {
+  try { await chiedi('/api/quaderno-personale/revoca', { sessione, voce }); notaGlobale = 'Revocato: quella chat dovrà chiedere ogni volta.'; await leggiQuadernoPersonale() }
+  catch (e) { notaGlobale = 'Non revocato: ' + ((e && e.message) || e) }
+  pannello(ultimoStato)
+}
+function quadernoPersonaleHtml() {
+  let h = '<div class="sotto" style="margin-top:12px"><b>Quaderno personale</b></div>' +
+    '<div class="sotto">I tuoi dati riservati (email di contatto, sede, partita IVA…) che una chat a volte deve scrivere. Stanno solo su questo computer, cifrati: non nel codice, non nei progetti, non nel Drive. Nessuna chat li legge da sola: li chiede, e tu scegli nelle Domande «Consenti una volta», «Sempre per questa chat» o «No». Senza risposta in due minuti vale no.</div>'
+  if (qpErrore) return h + '<div class="sotto" style="color:var(--ambra)">' + esc(qpErrore) + '</div>'
+  if (!qpStato) return h + '<div class="sotto">Leggo…</div>'
+  if (!qpStato.disponibile) return h + '<div class="sotto" style="color:var(--ambra)">' + esc(qpStato.perche || 'Non disponibile su questo computer.') + '</div>'
+  if (qpStato.voci.length === 0) h += '<div class="sotto" style="margin-top:6px">Il quaderno è vuoto. Aggiungi la prima voce qui sotto: il nome è quello che la chat chiederà («Email di contatto», «Sede legale», «Partita IVA»).</div>'
+  for (const v of qpStato.voci) {
+    h += '<div class="sotto" style="margin-top:8px"><b>' + esc(v.nome) + '</b>' + (v.nota ? ' · ' + esc(v.nota) : '') + '<br><code>' + esc(qpVisti[v.id] ? v.valore : qpNascosto(v.valore)) + '</code></div>' +
+      '<div class="riga"><button onclick="qpMostra(\\'' + escJs(v.id) + '\\')">' + (qpVisti[v.id] ? 'Nascondi' : 'Mostra') + '</button>' +
+      '<button onclick="qpModifica(\\'' + escJs(v.id) + '\\')">Modifica</button>' +
+      '<button onclick="qpTogli(\\'' + escJs(v.id) + '\\')">' + (qpDaTogliere === v.id ? 'Sicuro? Tocca ancora per togliere' : 'Togli') + '</button></div>'
+  }
+  h += '<div class="sotto" style="margin-top:10px">' + (qpBozza.id ? 'Modifica «' + esc(qpBozza.nome) + '»' : 'Nuova voce') + '</div>' +
+    '<div class="riga"><input id="qp-nome" maxlength="80" placeholder="nome, es. Email di contatto" value="' + esc(qpBozza.nome) + '"></div>' +
+    '<div class="riga"><input id="qp-valore" maxlength="2000" placeholder="valore" value="' + esc(qpBozza.valore) + '"></div>' +
+    '<div class="riga"><input id="qp-nota" maxlength="300" placeholder="nota facoltativa: a cosa serve" value="' + esc(qpBozza.nota) + '"></div>' +
+    '<div class="riga"><button onclick="qpSalva()">' + (qpBozza.id ? 'Salva' : 'Aggiungi') + '</button>' + (qpBozza.id ? '<button onclick="qpAnnulla()">Annulla</button>' : '') + '</div>'
+  h += '<div class="sotto" style="margin-top:10px"><b>Consensi «sempre per questa chat»</b></div>'
+  if (qpStato.consensi.length === 0) h += '<div class="sotto">Nessuno: ogni richiesta passa dalle Domande.</div>'
+  for (const k of qpStato.consensi) {
+    h += '<div class="sotto">«' + esc(k.chat) + '» può avere <b>' + esc(k.voce) + '</b> senza chiedere, dal ' + esc(qpQuando(k.dal)) + '</div>' +
+      '<div class="riga"><button onclick="qpRevoca(\\'' + escJs(k.sessione) + '\\', \\'' + escJs(k.voceId) + '\\')">Revoca</button></div>'
+  }
+  h += '<div class="sotto" style="margin-top:10px"><b>Chi li ha chiesti</b></div>'
+  if (qpStato.usi.length === 0) h += '<div class="sotto">Ancora nessuna richiesta.</div>'
+  for (const u of qpStato.usi.slice(0, 15)) {
+    h += '<div class="sotto">' + esc(qpQuando(u.quando)) + ' · «' + esc(u.chat) + '» ha chiesto <b>' + esc(u.voce) + '</b> — ' + esc(QP_ESITI[u.esito] || u.esito) + '. Motivo: «' + esc(u.motivo) + '»</div>'
+  }
+  return h
 }
 
 /** Cambiare una preferenza: il computer la mescola con quelle che ha gia'. */

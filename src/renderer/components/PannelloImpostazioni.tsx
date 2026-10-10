@@ -9,6 +9,7 @@ import { SezioneScorciatoie } from './SezioneScorciatoie'
 import { useLayoutStore } from '../state/layout'
 import { contaChat, contaWorkspace, eChiusuraAutomatica, type Istantanea } from '@shared/istantanea'
 import { SezionePin } from './SezionePin'
+import { SezioneQuadernoPersonale } from './SezioneQuadernoPersonale'
 import { SezioneAggiornamenti } from './SezioneAggiornamenti'
 import { NomeQuestoPc } from './PannelloAccount'
 import { cercaImpostazioni, SEZIONI, type IdSezione } from '@shared/impostazioni-struttura'
@@ -449,6 +450,7 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
           </section>
         ) : null}
         {vede('pin') ? <SezionePin /> : null}
+        {vede('quaderno-personale') ? <SezioneQuadernoPersonale /> : null}
 
         {vede('drive', 'torna-indietro', 'fumetti-sincronia') ? (
           <section className="impostazioni__gruppo">

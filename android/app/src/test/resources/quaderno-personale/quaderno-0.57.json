@@ -1,0 +1,40 @@
+{
+  "stato": {
+    "disponibile": true,
+    "voci": [
+      {
+        "id": "id-esempio",
+        "nome": "Email di contatto",
+        "valore": "esempio@example.com",
+        "nota": "per le pagine pubbliche",
+        "modificata": "2026-10-10T10:00:01.000Z"
+      }
+    ],
+    "consensi": [],
+    "usi": [
+      {
+        "id": "id-esempio",
+        "quando": "2026-10-10T10:00:03.000Z",
+        "chat": "Pagina legale",
+        "sessione": "s-esempio",
+        "voce": "Email di contatto",
+        "motivo": "nella pagina dei contatti",
+        "esito": "nessuna-risposta"
+      }
+    ],
+    "richieste": []
+  },
+  "esiti": {
+    "una-volta": "dato, una volta",
+    "sempre": "dato, e consentito sempre per questa chat",
+    "gia-consentita": "dato senza chiedere (consentito sempre)",
+    "negato": "negato",
+    "nessuna-risposta": "nessuna risposta in due minuti: negato",
+    "voce-assente": "voce non presente nel quaderno"
+  },
+  "nascosti": {
+    "abc": "••••",
+    "esempio@example.com": "es••••••••••••om",
+    "IT00000000000": "IT•••••••••00"
+  }
+}

@@ -214,7 +214,9 @@ object PcIndietro {
     /** Il testo, o `null` se quel PC è aggiornato quanto serve. */
     fun testo(nome: String, versione: String?, accoppiato: String?): String? {
         if (versione.isNullOrBlank()) return null
-        val mancano = FunzionePc.entries.filter { FunzioniPc.disponibile(it, versione) == false && it.minima != FunzionePc.INSTALLA_LA.minima }
+        // Il quaderno personale non conta: è solo del PC accoppiato e non passa dal ponte,
+        // quindi su un altro PC non manca niente di quello che il telefono userebbe là.
+        val mancano = FunzionePc.entries.filter { FunzioniPc.disponibile(it, versione) == false && it.minima != FunzionePc.INSTALLA_LA.minima && it != FunzionePc.QUADERNO_PERSONALE }
         val indietroDalCollegato = accoppiato != null && Aggiornamenti.piuNuova(versione, accoppiato)
         if (mancano.isEmpty() && !indietroDalCollegato) return null
         val cosa = if (mancano.isEmpty()) "" else " Là non ci sono ancora: " + mancano.joinToString("; ") { it.nome.replaceFirstChar { c -> c.lowercase() } } + "."

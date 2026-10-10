@@ -5,6 +5,7 @@ import { isAbsolute, resolve } from 'node:path'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { esitoPerLaChat, inCorso, nomeCartella, telefonoPredefinito, type Consegna } from '@shared/file-telefono'
 import type { AlTelefono } from './al-telefono'
+import type { QuadernoPersonale } from './quaderno-personale'
 import { dentroOUguale } from './file-progetti'
 
 /**
@@ -96,12 +97,27 @@ export const STRUMENTI_MCP = [
     title: 'Com’è andato un invio al telefono',
     description: 'Dice a che punto è un file mandato con manda_al_telefono: in attesa di conferma, in coda, in viaggio, consegnato, annullato o rifiutato.',
     inputSchema: { type: 'object', properties: { id: { type: 'string', description: 'L’id dell’invio, come l’ha restituito manda_al_telefono.' } }, required: ['id'] }
+  },
+  {
+    name: 'chiedi_dato_personale',
+    title: 'Chiedi un dato personale di Nicholas',
+    description: 'Chiede un dato del «Quaderno personale» di Nicholas (per esempio l’email di contatto, la sede, la partita IVA), che non sta nel codice né nel repository. Nicholas decide ogni volta nelle Domande di SierraDeck: una volta, sempre per questa chat, o no; senza risposta in due minuti vale no. Usalo solo quando il dato serve davvero per il lavoro chiesto, e dì il motivo con parole tue. Se la voce non c’è, la risposta elenca quelle presenti. Non scrivere il dato in file del repository, test, commit o quaderno del progetto se Nicholas non te l’ha chiesto per quel posto preciso.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        voce: { type: 'string', description: 'Il nome della voce, come si chiama nel quaderno personale (per esempio «Email di contatto»).' },
+        motivo: { type: 'string', description: 'Perché ti serve e dove lo scriverai: Nicholas lo legge prima di decidere.' }
+      },
+      required: ['voce', 'motivo']
+    }
   }
 ] as const
 
 export type DipendenzeMcp = {
   gettoni: Gettoni
   alTelefono: AlTelefono
+  /** Il Quaderno personale (0.57.0): senza, `chiedi_dato_personale` risponde che non c'è. */
+  quadernoPersonale?: QuadernoPersonale
   /** Il titolo della chat di quella sessione, se è aperta: va nella domanda di conferma. */
   titoloChat: (sessione: string) => string | undefined
   versione: string
@@ -170,7 +186,7 @@ async function una(deps: DipendenzeMcp, chat: ChatDelGettone, r: Rpc): Promise<R
       protocolVersion: versione,
       capabilities: { tools: { listChanged: false } },
       serverInfo: { name: NOME_SERVER_MCP, title: 'SierraDeck', version: deps.versione },
-      instructions: 'SierraDeck: per mandare un file al telefono di Nicholas usa manda_al_telefono.'
+      instructions: 'SierraDeck: per mandare un file al telefono di Nicholas usa manda_al_telefono. Per un suo dato riservato (email, sede, partita IVA…) usa chiedi_dato_personale: non cercarlo nei file e non inventarlo.'
     })
   }
   if (notifica) return undefined
@@ -188,6 +204,13 @@ async function una(deps: DipendenzeMcp, chat: ChatDelGettone, r: Rpc): Promise<R
       // Una chat vede solo i suoi invii: quelli partiti da un'altra chat, per lei, non esistono.
       const sua = c !== undefined && c.daSessione === chat.sessione ? c : undefined
       return risposta({ content: [{ type: 'text', text: sua === undefined ? 'Nessun invio con questo id.' : esitoPerLaChat(sua) }], isError: sua === undefined })
+    }
+    if (nome === 'chiedi_dato_personale') {
+      const q = deps.quadernoPersonale
+      const e = q === undefined
+        ? { testo: 'Rifiutato: il quaderno personale non è disponibile su questo PC.', errore: true }
+        : await q.chiedi({ sessione: chat.sessione, titolo: deps.titoloChat(chat.sessione) ?? nomeCartella(chat.cwd) }, arg.voce, arg.motivo)
+      return risposta({ content: [{ type: 'text', text: e.testo }], isError: e.errore })
     }
     return errore(-32602, `Strumento sconosciuto: ${String(nome)}`)
   }

@@ -34,6 +34,7 @@ import {
 } from '@shared/allegati'
 import type { FileProgetti } from './file-progetti'
 import type { AlTelefono } from './al-telefono'
+import type { QuadernoPersonale } from './quaderno-personale'
 import { chiaveCartella, eTelefono, idConsegnaValido, nomiDistinti, radiceAmmessa, rifiutoProgettoChiuso } from '@shared/file-telefono'
 
 /**
@@ -222,6 +223,12 @@ export type DipendenzeRotte = {
   fileProgetti?: FileProgetti
   /** I file dal PC al telefono (0.54.0): la coda di ogni telefono, che lui ritira a pezzi. */
   alTelefono?: AlTelefono
+  /**
+   * Il Quaderno personale (0.57.0): i dati riservati di Nicholas. Si gestisce
+   * da questo PC e dai telefoni accoppiati a lui, mai da un altro PC né da un
+   * telefono che passa dal ponte: i dati stanno solo qui.
+   */
+  quadernoPersonale?: QuadernoPersonale
   /** La linguetta «Istruzioni» dal telefono (0.41.0): le consegne alle sue chat, intere. */
   istruzioniAutopilota?: (id: string) => Promise<unknown[]>
   diffAutopilota?: (id: string, chiave: string, percorso: string) => Promise<string>
@@ -885,6 +892,31 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         if (!e.ok) return { stato: e.stato, corpo: { errore: e.errore } }
         const { dati, ...resto } = e
         return OK({ ...resto, dati: dati.toString('base64'), letti: dati.length })
+      }
+      return { stato: 404, corpo: { errore: 'non trovato' } }
+    }
+
+    // ── Il Quaderno personale (0.57.0): solo questo schermo e i telefoni accoppiati qui ──
+    if (r.metodo === 'POST' && (r.percorso === '/api/quaderno-personale' || r.percorso.startsWith('/api/quaderno-personale/'))) {
+      const q = depsPieni.quadernoPersonale
+      if (q === undefined) return { stato: 409, corpo: { errore: 'Questo computer non ha ancora il quaderno personale: aggiornalo alla 0.57.0.' } }
+      if (!(visore === 'locale' || visore.startsWith('tel:'))) {
+        return { stato: 403, corpo: { errore: 'Il quaderno personale di un PC si gestisce solo da quel PC o da un telefono accoppiato direttamente a lui: i dati non viaggiano verso gli altri PC.' } }
+      }
+      if (r.percorso === '/api/quaderno-personale') return OK(q.stato())
+      if (r.percorso === '/api/quaderno-personale/salva') {
+        const id = stringa(r.corpo, 'id')
+        const nota = stringa(r.corpo, 'nota')
+        const e = q.salva({ ...(id !== '' ? { id } : {}), nome: stringa(r.corpo, 'nome'), valore: stringa(r.corpo, 'valore'), ...(nota !== '' ? { nota } : {}) })
+        return e.ok ? OK({ voce: e.voce, stato: q.stato() }) : { stato: 400, corpo: { errore: e.errore } }
+      }
+      if (r.percorso === '/api/quaderno-personale/togli') {
+        return q.togli(stringa(r.corpo, 'id')) ? OK({ stato: q.stato() }) : { stato: 404, corpo: { errore: 'Questa voce non c’è più.' } }
+      }
+      if (r.percorso === '/api/quaderno-personale/revoca') {
+        return q.revoca(stringa(r.corpo, 'sessione'), stringa(r.corpo, 'voce'))
+          ? OK({ stato: q.stato() })
+          : { stato: 404, corpo: { errore: 'Questo consenso non c’è più: forse è già stato revocato.' } }
       }
       return { stato: 404, corpo: { errore: 'non trovato' } }
     }

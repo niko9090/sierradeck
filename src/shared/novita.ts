@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.57.0',
+    righe: [
+      '**Il quaderno personale.** Un posto per i tuoi dati riservati, come l’email di contatto, la sede o la partita IVA, che una chat a volte deve scrivere ma che non devono finire nel codice. Stanno solo su questo PC, in un file cifrato. Li trovi in Impostazioni → Chat e autopiloti → Quaderno personale, sul PC, sul telefono e nella pagina. All’inizio è vuoto: le voci le aggiungi tu.',
+      '**Le chat chiedono, tu decidi ogni volta.** Una chat che ha bisogno di un dato del quaderno lo chiede dicendo quale e perché. La richiesta compare nelle Domande, sul PC e con una notifica sul telefono: «Consenti una volta», «Sempre per questa chat» o «No». Se non rispondi entro due minuti vale no. Ogni richiesta resta nell’elenco «Chi li ha chiesti», e i «sempre» si revocano con un tocco.',
+      '**SierraDeck ha le sue pagine pubbliche.** Presentazione, informativa sulla privacy e termini d’uso, a nome di Ferrari Consulenze. L’informativa elenca uno per uno i servizi esterni che il programma usa davvero. Sono il passo che serve per togliere il Drive dallo stato «in prova» di Google, quello che lo scollegava ogni sette giorni.',
+      '**Il programma ha il nome nuovo anche per Windows.** L’identità con cui Windows lo riconosce adesso è quella di Ferrari Consulenze. L’aggiornamento lo sostituisce senza reinstallare: stessa voce in «App installate», stessa cartella, dati intatti. Anche l’icona fissata sulla barra delle applicazioni continua a raccogliere la finestra.',
+      '**App Android 2.57.0** con il quaderno personale nelle impostazioni.'
+    ]
+  },
+  {
     versione: '0.56.4',
     righe: [
       '**Le istruzioni di un autopilota non si perdono più dopo un aggiornamento.** Una chat che rinasce sta ancora riprendendo la conversazione: adesso l’istruzione aspetta che sia davvero pronta (fino a 45 secondi invece di 8), e se il testo si perde lo riscrive. Prima non se ne accorgeva quando nella conversazione c’era già lo stesso messaggio di una volta precedente.',

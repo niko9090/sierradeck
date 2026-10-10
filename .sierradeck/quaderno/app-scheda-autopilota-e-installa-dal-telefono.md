@@ -29,4 +29,4 @@ Debug wireless Android via Tailscale: `adb pair <ip>:<porta della finestra "Asso
 
 # Scoperto per strada
 
-Un **terzo PC, DESKTOP-G24D499** («desktop-glos-niko», 100.113.83.97), gira la 0.29.1 e non scrive il battito sul Drive dal 21/09 sera pur essendo acceso: da controllare la' (cassaforte chiusa? Drive scollegato?). Il portatile si e' aggiornato da solo alla 0.33.0.
+Un **terzo PC**, gira la 0.29.1 e non scrive il battito sul Drive dal 21/09 sera pur essendo acceso: da controllare la' (cassaforte chiusa? Drive scollegato?). Il portatile si e' aggiornato da solo alla 0.33.0.

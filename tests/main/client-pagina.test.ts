@@ -1081,3 +1081,45 @@ describe('Drive scollegato nella pagina (0.56.3)', () => {
     expect(fai('')({})).toBe('')
   })
 })
+
+describe('il Quaderno personale nella pagina (0.57.0)', () => {
+  const estrai = (nome: string): string => {
+    const inizio = script.indexOf(`function ${nome}(`)
+    expect(inizio, `${nome} non e nella pagina`).toBeGreaterThan(-1)
+    let profondita = 0
+    for (let i = script.indexOf('{', inizio); i < script.length; i++) {
+      if (script[i] === '{') profondita++
+      else if (script[i] === '}' && --profondita === 0) return script.slice(inizio, i + 1)
+    }
+    throw new Error(`${nome} non si chiude`)
+  }
+  const riga = (inizio: string): string => script.split(String.fromCharCode(10)).find((r) => r.trimStart().startsWith(inizio)) ?? ''
+  const html = (stato: unknown, visti: Record<string, boolean> = {}): string => (new Function('qpStato', 'qpVisti', `
+    ${riga('const esc =')}; ${riga('const escJs =')}
+    var qpErrore = ''; var qpBozza = { id: '', nome: '', valore: '', nota: '' }; var qpDaTogliere = ''
+    ${riga('var QP_ESITI =')}
+    ${estrai('qpNascosto')} ${estrai('qpQuando')} ${estrai('quadernoPersonaleHtml')}
+    return quadernoPersonaleHtml()`) as (s: unknown, v: Record<string, boolean>) => string)(stato, visti)
+  const stato = {
+    disponibile: true,
+    voci: [{ id: 'v1', nome: 'Email di contatto', valore: 'esempio@example.com', modificata: '2026-10-10T10:00:00Z' }],
+    consensi: [{ sessione: 's1', chat: 'Pagina legale', voceId: 'v1', voce: 'Email di contatto', dal: '2026-10-10T10:00:00Z' }],
+    usi: [{ id: 'u1', quando: '2026-10-10T10:00:00Z', chat: 'Pagina legale', sessione: 's1', voce: 'Email di contatto', motivo: 'contatti', esito: 'negato' }],
+    richieste: []
+  }
+  it('il valore resta nascosto finché non si tocca «Mostra»', () => {
+    const h = html(stato)
+    expect(h).toContain('Email di contatto')
+    expect(h).not.toContain('esempio@example.com')
+    expect(html(stato, { v1: true })).toContain('esempio@example.com')
+  })
+  it('mostra i consensi da revocare e gli usi con l esito in parole', () => {
+    const h = html(stato)
+    expect(h).toContain('qpRevoca(')
+    expect(h).toContain('negato')
+    expect(h).toContain('Motivo: «contatti»')
+  })
+  it('un PC senza il quaderno lo dice', () => {
+    expect(html({ disponibile: false, perche: 'Il portachiavi di Windows non è disponibile', voci: [], consensi: [], usi: [], richieste: [] })).toContain('portachiavi')
+  })
+})

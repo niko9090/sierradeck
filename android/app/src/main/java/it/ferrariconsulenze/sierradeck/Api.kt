@@ -253,6 +253,21 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun archiviaAutopilota(id: String, archivia: Boolean = true): Fatto =
         json.decodeFromString(corpoTesto("/api/autopilota/archivia", oggetto { put("autopilota", id); put("archivia", archivia) }))
 
+    /** Il Quaderno personale (PC 0.57.0): solo il PC accoppiato, mai attraverso il ponte. */
+    suspend fun quadernoPersonale(): StatoQuadernoPersonale =
+        json.decodeFromString(corpoTesto("/api/quaderno-personale", oggetto { }))
+
+    suspend fun salvaVocePersonale(id: String?, nome: String, valore: String, nota: String): EsitoQuadernoPersonale =
+        json.decodeFromString(corpoTesto("/api/quaderno-personale/salva", oggetto {
+            if (id != null) put("id", id); put("nome", nome); put("valore", valore); put("nota", nota)
+        }))
+
+    suspend fun togliVocePersonale(id: String): EsitoQuadernoPersonale =
+        json.decodeFromString(corpoTesto("/api/quaderno-personale/togli", oggetto { put("id", id) }))
+
+    suspend fun revocaConsensoPersonale(sessione: String, voce: String): EsitoQuadernoPersonale =
+        json.decodeFromString(corpoTesto("/api/quaderno-personale/revoca", oggetto { put("sessione", sessione); put("voce", voce) }))
+
     suspend fun proteggiChat(chat: String, si: Boolean): Fatto =
         json.decodeFromString(corpoTesto("/api/pin/proteggi", oggetto { put("chat", chat); put("si", si) }))
 
