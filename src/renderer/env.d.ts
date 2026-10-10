@@ -182,6 +182,14 @@ declare global {
         dove: () => Promise<{ io: { id: string; nome: string }; pc: { id: string; nome: string }[]; gruppi: import('@shared/ospite-chat').GruppoDove[]; traslochi: import('@shared/una-casa').RegistroRiordino[] }>
         scegli: (p: { sessioni: string[]; pc: { id: string; nome: string }; workspace?: string }) => Promise<{ ok: boolean; messaggio: string }>
         pannello: () => Promise<import('../shared/pannello-drive').Pannello>
+        rimozione: {
+          avvia: (id: string) => Promise<import('../shared/rimozione-sicura').StatoRimozione>
+          conferma: (id: string) => Promise<import('../shared/rimozione-sicura').StatoRimozione>
+          annulla: (id: string) => Promise<import('../shared/rimozione-sicura').StatoRimozione>
+          stati: () => Promise<{ stati: import('../shared/rimozione-sicura').StatoRimozione[]; inRecupero: import('../shared/rimozione-sicura').CartellaInRecupero[] }>
+          ripristina: (id: string) => Promise<{ ok: boolean; messaggio: string }>
+          cestina: (id: string) => Promise<{ ok: boolean; messaggio: string }>
+        }
         di: (sessione: string) => Promise<{ pc: string; pcNome: string; da: string; motivo: string; qui: boolean } | undefined>
         suChiudiQui: (cb: (chat: { sessione: string; pc: { id: string; nome: string } }[]) => void) => () => void
         suCambiate: (cb: () => void) => () => void

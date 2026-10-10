@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { filtraChat, filtraProgetti, testiCambioResidente, type FiltroPannello, type Pannello, type RigaChat, type RigaProgetto } from '@shared/pannello-drive'
 import { ModaleSposta } from './ModaleSposta'
 import { chiaveProgetto, eChiaveProgetto } from '@shared/allineamento'
+import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
 
 /**
  * Il pannello delle chat e dei progetti del Drive (0.58.0, tappa 1).
@@ -39,9 +40,22 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
   const [msg, setMsg] = useState<string | undefined>(undefined)
   const [occupato, setOccupato] = useState(false)
   const [sposta, setSposta] = useState<string | undefined>(undefined)
+  const [rim, setRim] = useState<{ stati: StatoRimozione[]; inRecupero: CartellaInRecupero[] }>({ stati: [], inRecupero: [] })
   const leggi = useCallback((): void => {
     void window.gestore.casa.pannello().then((p) => { setD(p); setErrore(undefined) }).catch((e: unknown) => setErrore(`Non riesco a leggere le chat e le case: ${String(e)}`))
+    void window.gestore.casa.rimozione.stati().then(setRim).catch(() => undefined)
   }, [])
+  /** La rimozione sicura (tappa 3): confronto, recupero, riassunto; poi conferma o annulla. */
+  const rimuovi = (azione: 'avvia' | 'conferma' | 'annulla', id: string): void => {
+    setOccupato(true); setMsg(undefined)
+    void window.gestore.casa.rimozione[azione](id).then((s) => { setMsg(s.messaggio); leggi() })
+      .catch((e: unknown) => setMsg(`Non è andata: ${String(e)}`)).finally(() => setOccupato(false))
+  }
+  const recupero = (azione: 'ripristina' | 'cestina', id: string): void => {
+    setOccupato(true)
+    void window.gestore.casa.rimozione[azione](id).then((r) => { setMsg(r.messaggio); leggi() })
+      .catch((e: unknown) => setMsg(`Non è andata: ${String(e)}`)).finally(() => setOccupato(false))
+  }
   useEffect(() => {
     leggi()
     const via = window.gestore.casa.suCambiate(leggi)
@@ -115,14 +129,35 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
             <p className="account__nota" style={{ margin: '4px 0' }}>
               Cosa serve perché questo PC rispetti le scelte: i progetti di cui è residente devono esserci, gli altri restano solo cloud.
               «Porta qui» parte da solo solo quando la cartella qui non c’è affatto, quindi non sovrascrive niente; negli altri casi
-              aspetta te. Per ora <b>niente viene tolto</b>: rendere solo cloud un progetto passerà da un controllo che recupera
-              prima quello che c’è solo qui, e da una tua conferma.
+              aspetta te. Rendere solo cloud un progetto non toglie niente da solo: «Confronta e togli» chiede al PC residente
+              di confrontare i file e le chat di qui con i suoi, copia là (nella sua cartella <code>.sierradeck/recuperati</code>,
+              mai sopra i suoi file) quello che c’è solo qui o è più nuovo, e ti mostra il riassunto. Solo con la tua conferma
+              la cartella di qui va nella cartella di recupero di SierraDeck, per 30 giorni, ripristinabile. Se non c’è
+              nessuna differenza la conferma è automatica. Se il residente non si raggiunge, non si toglie niente.
             </p>
-            {d.piano.azioni.map((a) => (
-              <div key={`${a.tipo}:${a.progetto}`} className="account__nota" style={{ borderLeft: `3px solid ${a.tipo === 'porta-qui' ? 'var(--verde)' : 'var(--ambra)'}`, paddingLeft: 6, marginTop: 3 }}>
-                <b>{a.tipo === 'porta-qui' ? (a.automatica ? 'Porto qui' : 'Da portare qui (decidi tu)') : 'Da rendere solo cloud (solo mostrato)'}: {a.nome}.</b> {a.perche}
-              </div>
-            ))}
+            {d.piano.azioni.map((a) => {
+              const st = rim.stati.find((s) => s.progetto === a.progetto)
+              return (
+                <div key={`${a.tipo}:${a.progetto}`} className="account__nota" style={{ borderLeft: `3px solid ${a.tipo === 'porta-qui' ? 'var(--verde)' : 'var(--ambra)'}`, paddingLeft: 6, marginTop: 3 }}>
+                  <b>{a.tipo === 'porta-qui' ? (a.automatica ? 'Porto qui' : 'Da portare qui (decidi tu)') : 'Da rendere solo cloud'}: {a.nome}.</b> {a.perche}
+                  {a.tipo === 'solo-cloud' ? (
+                    <div style={{ marginTop: 4 }}>
+                      {st !== undefined ? <div style={{ marginBottom: 4 }}><i>{st.fase === 'attesa-conferma' ? 'Riassunto' : 'Stato'}:</i> {st.messaggio}</div> : null}
+                      {st?.riassunto !== undefined && st.riassunto.recuperati.length > 0
+                        ? <div style={{ marginBottom: 4 }}>Recuperati: {st.riassunto.recuperati.slice(0, 10).map((x) => x.dove).join('; ')}{st.riassunto.recuperati.length > 10 ? ` e altri ${st.riassunto.recuperati.length - 10}` : ''}</div> : null}
+                      {st?.fase === 'attesa-conferma' || st?.fase === 'in-uso' ? (
+                        <>
+                          <button className="tasto tasto--mini tasto--acceso" disabled={occupato} onClick={() => rimuovi('conferma', a.progetto)}>Conferma e togli da questo PC</button>{' '}
+                          <button className="tasto tasto--mini" disabled={occupato} onClick={() => rimuovi('annulla', a.progetto)}>Annulla</button>
+                        </>
+                      ) : st?.fase === 'analisi' || st?.fase === 'recupero' ? null : (
+                        <button className="tasto tasto--mini" disabled={occupato} onClick={() => rimuovi('avvia', a.progetto)}>Confronta con {a.residente} e togli…</button>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              )
+            })}
           </div>
         ) : null}
         {msg !== undefined ? <div className="riga__stato" style={{ marginBottom: 6 }}>{msg}</div> : null}
@@ -138,6 +173,25 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
           <input className="campo campo--mini" placeholder="Cerca titolo, cartella o PC" value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1, minWidth: 160 }} />
         </div>
 
+        {rim.inRecupero.filter((c) => c.ripristinataIl === undefined).length > 0 ? (
+          <div className="riordina__gruppo" style={{ marginBottom: 8 }}>
+            <span className="serigrafia">Cartelle in recupero</span>
+            <p className="account__nota" style={{ margin: '4px 0' }}>
+              Le cartelle dei progetti tolte da questo PC: non sono cancellate, sono spostate qui sotto per 30 giorni.
+              «Ripristina» le rimette dov’erano. Alla scadenza ti chiedo nelle Domande se metterle nel Cestino di Windows:
+              da sole non spariscono mai.
+            </p>
+            {rim.inRecupero.filter((c) => c.ripristinataIl === undefined).map((c) => (
+              <div key={c.id} className="dove__riga" title={c.dove}>
+                <span className="riordina__testo" style={{ flex: 1 }}>
+                  <b>{c.nome}</b> <span className="account__nota">· tolta il {quando(c.quando)} da {c.percorsoOriginale} · resta fino al {quando(c.scadeIl)} · {c.motivo}</span>
+                </span>
+                <button className="tasto tasto--mini" disabled={occupato} onClick={() => recupero('ripristina', c.id)}>Ripristina</button>
+                {Date.parse(c.scadeIl) <= Date.now() ? <button className="tasto tasto--mini" disabled={occupato} onClick={() => recupero('cestina', c.id)}>Nel Cestino</button> : null}
+              </div>
+            ))}
+          </div>
+        ) : null}
         <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 6, paddingRight: 4 }}>
           {d === undefined && errore === undefined ? <p className="account__nota">Leggo le case, le copie di questo PC e il manifesto del Drive…</p> : null}
           {d !== undefined && vista === 'chat' && chat.length === 0 ? <p className="account__nota">Nessuna chat con questo filtro.</p> : null}

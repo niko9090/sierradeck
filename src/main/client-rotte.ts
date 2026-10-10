@@ -35,6 +35,7 @@ import {
 import type { FileProgetti } from './file-progetti'
 import type { AlTelefono } from './al-telefono'
 import type { QuadernoPersonale } from './quaderno-personale'
+import type { LatoResidente } from './rimozione-sicura'
 import { chiaveCartella, eTelefono, idConsegnaValido, nomiDistinti, radiceAmmessa, rifiutoProgettoChiuso } from '@shared/file-telefono'
 
 /**
@@ -229,6 +230,12 @@ export type DipendenzeRotte = {
    * telefono che passa dal ponte: i dati stanno solo qui.
    */
   quadernoPersonale?: QuadernoPersonale
+  /**
+   * Il lato del residente nella rimozione sicura (0.58.0, tappa 3): confronto e
+   * recupero. Solo da un altro PC della stessa chiave di casa (richiesta
+   * firmata), mai da un telefono.
+   */
+  rimozione?: LatoResidente
   /** La linguetta «Istruzioni» dal telefono (0.41.0): le consegne alle sue chat, intere. */
   istruzioniAutopilota?: (id: string) => Promise<unknown[]>
   diffAutopilota?: (id: string, chiave: string, percorso: string) => Promise<string>
@@ -893,6 +900,18 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         const { dati, ...resto } = e
         return OK({ ...resto, dati: dati.toString('base64'), letti: dati.length })
       }
+      return { stato: 404, corpo: { errore: 'non trovato' } }
+    }
+
+    // ── La rimozione sicura (0.58.0): il confronto e il recupero, solo fra PC ──
+    if (r.metodo === 'POST' && r.percorso.startsWith('/api/rimozione/')) {
+      const lato = depsPieni.rimozione
+      if (lato === undefined) return { stato: 409, corpo: { errore: 'Questo PC non sa ancora confrontare un progetto da togliere: va aggiornato alla 0.58.0.' } }
+      if (!visore.startsWith('pc:') || visore.startsWith('pc:tel:')) return { stato: 403, corpo: { errore: 'Il confronto e il recupero si fanno solo fra PC della stessa cassaforte.' } }
+      // Sempre 200 con `ok`: un rifiuto del residente è una risposta, non «non raggiungibile».
+      if (r.percorso === '/api/rimozione/analisi') return OK(await lato.analizza(r.corpo))
+      if (r.percorso === '/api/rimozione/stato') return OK(lato.stato(r.corpo))
+      if (r.percorso === '/api/rimozione/pezzo') return OK(await lato.pezzo(r.corpo))
       return { stato: 404, corpo: { errore: 'non trovato' } }
     }
 

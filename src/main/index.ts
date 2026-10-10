@@ -79,7 +79,8 @@ import { diffDellAutopilota, fileDellAutopilota, fileVeroDellAutopilota } from '
 import { apriAlTelefono, type AlTelefono } from './al-telefono'
 import { apriQuadernoPersonale } from './quaderno-personale'
 import { datiPannello } from './pannello-drive-dati'
-import { pianoAllineamento, rigaPiano, type PianoAllineamento } from '@shared/allineamento'
+import { creaLatoResidente, creaRimozione, type LatoResidente, type Rimozione } from './rimozione-sicura'
+import { cartellaDiProgettoValida, casaProgetto, pianoAllineamento, rigaPiano, type PianoAllineamento } from '@shared/allineamento'
 import { LOCALI_MAX_CHAT, type LocaliBattito } from '@shared/posta'
 import { apriFileProgetti } from './file-progetti'
 import { apriGettoni, configMcp, rispondiMcp, type Gettoni } from './mcp-telefono'
@@ -446,6 +447,9 @@ let alTelefono: AlTelefono | undefined
 let pcVistoGlobale: ((pcId: string, indirizzo: string) => void) | undefined
 /** Le copie locali per il battito e il piano di allineamento (0.58.0): nascono con «una chat, una casa». */
 let localiBattito: (() => LocaliBattito) | undefined
+/** La rimozione sicura (0.58.0, tappa 3): il lato di chi toglie e quello del residente. */
+let rimozioneGlobale: Rimozione | undefined
+let residenteRimozioneGlobale: LatoResidente | undefined
 let pianoCorrente: (() => PianoAllineamento | undefined) | undefined
 // Il registro della sessione, visibile anche ai gestori globali qui sotto: loro
 // nascono al caricamento del modulo, prima che la sessione sia aperta, quindi
@@ -2127,6 +2131,47 @@ if (!app.requestSingleInstanceLock()) {
       const timerOspite = setInterval(() => { void ospite.giro() }, 10_000)
       app.on('before-quit', () => { clearInterval(timerOspite) })
       ipcMain.handle('casa:dove', () => ospite.dove())
+      // **La rimozione sicura** (0.58.0, tappa 3). Il lato del residente: confronta
+      // e riceve i recuperati, nella cartella dei recuperati del progetto.
+      const cartellaQui = (progetto: string): string | undefined => {
+        const p = registroProgetti.leggi().progetti.find((g) => g.id === progetto)?.percorsi[identitaPc.leggi().id]
+        return p !== undefined && cartellaDiProgettoValida(p, homedir()) ? p : undefined
+      }
+      residenteRimozioneGlobale = creaLatoResidente({
+        io: () => identitaPc.leggi(),
+        cartellaDi: cartellaQui,
+        chatQui: (s) => chatLocaliDaIndice().find((c) => c.sessione === s)?.jsonl,
+        cartellaChat: (progetto) => { const p = cartellaQui(progetto); return p === undefined ? undefined : join(radiceProgetti, pathToSlug(p)) },
+        log: registro.info
+      })
+      // Il lato di chi toglie: confronto chiesto al residente, recupero, riassunto, spostamento.
+      rimozioneGlobale = creaRimozione({
+        dati,
+        io: () => identitaPc.leggi(),
+        progetto: (id) => {
+          const g = registroProgetti.leggi().progetti.find((x) => x.id === id)
+          if (g === undefined) return undefined
+          const voluto = casaProgetto(unaCasa.case(), id)
+          const cartella = cartellaQui(id)
+          return { id, nome: g.nome, ...(cartella !== undefined ? { cartella } : {}), ...(voluto !== undefined ? { residente: { pc: voluto.pc, nome: voluto.pcNome } } : {}) }
+        },
+        chatDi: (cartella) => chatLocaliDaIndice().filter((c) => c.cwd !== undefined && staDentro(c.cwd, cartella)).map((c) => ({ sessione: c.sessione, jsonl: c.jsonl })),
+        inUso: (cartella) => {
+          const aperta = chatAperte.find((c) => c.viva === true && staDentro(c.cwd, cartella))
+          return aperta === undefined ? undefined : `la chat «${aperta.titolo}» è aperta su questa cartella${aperta.aspetta === true ? '' : ' e sta lavorando'}`
+        },
+        chiama: (pc, percorso, corpo) => remoto.chiama(pc, percorso, corpo),
+        cestino: (p) => shell.trashItem(p),
+        log: registro.info,
+        avvisa: () => { for (const w of webContents.getAllWebContents()) if (!w.isDestroyed()) w.send('casa:cambiate') }
+      })
+      const rim = rimozioneGlobale
+      ipcMain.handle('rimozione:avvia', (_e, id: unknown) => (typeof id === 'string' ? rim.avvia(id) : undefined))
+      ipcMain.handle('rimozione:conferma', (_e, id: unknown) => (typeof id === 'string' ? rim.conferma(id) : undefined))
+      ipcMain.handle('rimozione:annulla', (_e, id: unknown) => (typeof id === 'string' ? rim.annulla(id) : undefined))
+      ipcMain.handle('rimozione:stati', () => ({ stati: rim.stati(), inRecupero: rim.inRecupero() }))
+      ipcMain.handle('rimozione:ripristina', (_e, id: unknown) => (typeof id === 'string' ? rim.ripristina(id) : { ok: false, messaggio: 'id non valido' }))
+      ipcMain.handle('rimozione:cestina', (_e, id: unknown) => (typeof id === 'string' ? rim.cestina(id) : { ok: false, messaggio: 'id non valido' }))
       // Il pannello delle chat e dei progetti del Drive (0.58.0): stesse fonti, regole in @shared/pannello-drive.
       ipcMain.handle('casa:pannello', async () => {
         const io = identitaPc.leggi()
@@ -3491,12 +3536,20 @@ if (!app.requestSingleInstanceLock()) {
         }),
         alTelefono: coda,
         quadernoPersonale,
+        // Letto a ogni richiesta: nasce con «una chat, una casa».
+        rimozione: {
+          analizza: async (c: unknown) => residenteRimozioneGlobale === undefined ? { ok: false as const, errore: 'Questo PC non è ancora pronto (cassaforte o Drive non aperti).' } : residenteRimozioneGlobale.analizza(c),
+          stato: (c: unknown) => residenteRimozioneGlobale === undefined ? { ok: false as const, errore: 'non pronto' } : residenteRimozioneGlobale.stato(c),
+          pezzo: async (c: unknown) => residenteRimozioneGlobale === undefined ? { ok: false as const, errore: 'non pronto' } : residenteRimozioneGlobale.pezzo(c)
+        },
         chat: () => chatAperte.map(conAltrove),
         autopiloti: () => clientAutopilota.elenca(),
         rispondi: async (idDomanda: string, risposta: string) => {
           // Il sì o il no a un file che una chat vuole mandare al telefono (0.54.0).
           // Il consenso a un dato del quaderno personale (0.57.0).
           if (quadernoPersonale.rispondi(idDomanda, risposta)) return
+          // Togliere un progetto da questo PC (0.58.0): conferma o annulla.
+          if (rimozioneGlobale?.rispondi(idDomanda, risposta) === true) return
           const conferma = leggiIdDomandaConferma(idDomanda)
           if (conferma !== undefined) {
             const e = await coda.conferma(conferma, confermaDaRisposta(risposta))
@@ -3513,7 +3566,8 @@ if (!app.requestSingleInstanceLock()) {
             apertaIl: Date.parse(c.creata), opzioni: [...OPZIONI_CONFERMA],
             da: `Manda al telefono · ${c.daChat ?? 'una chat'}`, sotto: `${c.origine} → ${c.aNome}`
           })),
-          ...quadernoPersonale.domande()
+          ...quadernoPersonale.domande(),
+          ...(rimozioneGlobale?.domande() ?? [])
         ],
         /**
          * Un pezzo di cronologia di una chat, chiesto dal telefono.

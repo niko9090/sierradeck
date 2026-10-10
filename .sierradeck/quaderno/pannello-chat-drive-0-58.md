@@ -95,3 +95,49 @@ Lo stato è `conflitto` con «due case» o «copia più recente». Il filtro «S
   - nel registro `[allinea] …` quando il piano cambia; nel pannello la sezione «Piano di allineamento di questo PC».
 - **Sicurezza**: le case e lo stato voluto viaggiano solo fra PC della stessa chiave di casa (`/api/case` e Drive cifrato). Il piano nomina solo le cartelle registrate dei progetti.
 - **Test**: `tests/shared/allineamento.test.ts` e `tests/main/pannello-drive-dati.test.ts` (battiti vecchi e rovinati).
+
+# Tappa 3: la rimozione sicura (niente si perde, mai)
+
+**Regole** in `src/shared/rimozione-sicura.ts`, **disco e rete** in `src/main/rimozione-sicura.ts`.
+
+1. **Avvio.** Il PC che deve rendere il progetto solo cloud (pannello, piano → «Confronta con … e togli…») fa l'elenco dei suoi file del progetto (`elencaFile`):
+   - per ogni file percorso, dimensione, data e sha256;
+   - esclusi i collegamenti, `node_modules` e i recuperati;
+   - oltre 50 000 file si ferma, perché non si potrebbe garantire niente.
+
+   Poi elenca le sue chat della cartella e manda tutto al **residente** (`/api/rimozione/analisi`, tramite `remoto.chiama`): richiesta firmata, sulle strade che ci sono.
+2. **Il residente classifica** (`classifica`):
+   - `uguale`: stessa impronta, anche se il file è a un altro percorso;
+   - `doppione`: più vecchio del suo;
+   - `utile`: manca, è più recente, oppure è una chat più lunga.
+
+   Se il residente non si raggiunge, o non ha la cartella, si ferma tutto: niente analisi, niente rimozione, e il pannello dice perché.
+3. **Recupero.** Le voci utili vanno a pezzi da 96 KB, con ripresa (`/api/rimozione/stato` dice quanto è già arrivato), in `<progetto del residente>/.sierradeck/recuperati/<PC>-<data>/`.
+   - `destinazioneRecupero` rifiuta qualunque percorso fuori da lì.
+   - L'impronta viene controllata alla fine.
+   - Se il file esiste già si scrive `nome (2)`: **mai sopra un file**.
+   - Le chat vanno in `…/chat/<sessione>.jsonl`. Se il residente non ha affatto quella chat, entra anche fra le sue chat di Claude Code (un file nuovo, niente sovrascritto).
+4. **Riassunto** (`riassunto`), nel pannello e nelle Domande (`rimozione:<id>`). Dice:
+   - quante voci sono uguali e quanti i doppioni;
+   - cosa è stato recuperato e dove;
+   - cosa non si è potuto recuperare e perché.
+
+   Tasti «Conferma e togli da questo PC» / «Annulla». La conferma è **automatica solo con zero voci utili e zero errori**.
+5. **Rimozione = spostamento.**
+   - Prima di spostare: nessuna chat aperta sulla cartella (`inUso`). Altrimenti si aspetta e lo si dice.
+   - Poi un `rename`: se Windows rifiuta (EBUSY/EPERM, un programma la usa) la fase è «in uso», con il motivo.
+   - Dove va: in `<dati>/recupero-progetti/<id>` se sta sullo stesso disco dei dati, altrimenti in `<cartella madre>/.sierradeck-recupero/<id>`, sempre sullo stesso disco, quindi niente copie a metà.
+   - Elenco in `recupero-progetti/elenco.json`, con data, motivo e scadenza a 30 giorni.
+   - «Ripristina» rimette la cartella al suo posto, ma non sopra un'altra cartella.
+   - Alla scadenza c'è una domanda: «Mettila nel Cestino» (`shell.trashItem`, che si può ancora riprendere) oppure «Tienila» (altri 30 giorni). **Nessun rm, nessuna rimozione definitiva automatica.**
+6. **Sicurezza.** `/api/rimozione/*` risponde solo a un altro PC con la firma della chiave di casa (visore `pc:`): niente telefoni, niente ponte, niente schermo locale. Risponde sempre 200 con `ok`, così un rifiuto non sembra un «non raggiungibile».
+
+Test in `tests/main/rimozione-sicura.test.ts`, su cartelle temporanee:
+- classificazione;
+- giro intero con recupero e ripristino;
+- mai sopra i file;
+- conferma automatica;
+- residente irraggiungibile;
+- cartella in uso;
+- scadenza;
+- accesso alle rotte.

@@ -523,6 +523,15 @@ contextBridge.exposeInMainWorld('gestore', {
     dove: (): Promise<{ io: { id: string; nome: string }; pc: { id: string; nome: string }[]; gruppi: import('@shared/ospite-chat').GruppoDove[]; traslochi: import('@shared/una-casa').RegistroRiordino[] }> => ipcRenderer.invoke('casa:dove'),
     // Il pannello delle chat e dei progetti del Drive (0.58.0).
     pannello: (): Promise<import('@shared/pannello-drive').Pannello> => ipcRenderer.invoke('casa:pannello'),
+    // La rimozione sicura (0.58.0, tappa 3).
+    rimozione: {
+      avvia: (id: string): Promise<import('@shared/rimozione-sicura').StatoRimozione> => ipcRenderer.invoke('rimozione:avvia', id),
+      conferma: (id: string): Promise<import('@shared/rimozione-sicura').StatoRimozione> => ipcRenderer.invoke('rimozione:conferma', id),
+      annulla: (id: string): Promise<import('@shared/rimozione-sicura').StatoRimozione> => ipcRenderer.invoke('rimozione:annulla', id),
+      stati: (): Promise<{ stati: import('@shared/rimozione-sicura').StatoRimozione[]; inRecupero: import('@shared/rimozione-sicura').CartellaInRecupero[] }> => ipcRenderer.invoke('rimozione:stati'),
+      ripristina: (id: string): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('rimozione:ripristina', id),
+      cestina: (id: string): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('rimozione:cestina', id)
+    },
     scegli: (p: { sessioni: string[]; pc: { id: string; nome: string }; workspace?: string }): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('casa:scegli', p),
     di: (sessione: string): Promise<{ pc: string; pcNome: string; da: string; motivo: string; qui: boolean } | undefined> => ipcRenderer.invoke('casa:di', sessione),
     suChiudiQui: (cb: (chat: { sessione: string; pc: { id: string; nome: string } }[]) => void): (() => void) => {
