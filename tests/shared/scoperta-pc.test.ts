@@ -16,8 +16,8 @@ import type { BattitoPc } from '@shared/posta'
 const ADESSO = Date.parse('2026-10-02T12:00:00Z')
 const LAPTOP: BattitoPc = {
   pcId: 'a1b2c3d4e5f6', nome: 'PORTATILE-ESEMPIO', versione: '0.33.0', battito: '2026-09-23T03:34:56.764Z',
-  cartelle: ['C:\\Users\\nikof\\Documents\\Trading\\Trading'],
-  chat: [{ sessione: '2eedc5a4-7a19-4e2f-841e-d7f1527d9e5c', titolo: 'Spostamento progetto su PC fisso', cwd: 'C:\\Users\\nikof\\Documents\\Trading\\Trading', aspetta: true }],
+  cartelle: ['C:\\Users\\utente\\Documents\\Trading\\Trading'],
+  chat: [{ sessione: '11111111-2222-4333-8444-555555555555', titolo: 'Chat di esempio', cwd: 'C:\\Users\\utente\\Documents\\Trading\\Trading', aspetta: true }],
   indirizzi: ['192.0.2.20', '100.64.0.21', '172.28.192.1', '169.254.206.169'],
   porta: 47640
 }
@@ -86,7 +86,7 @@ describe('com e quel PC dopo il bussare: mai «spento» se non lo so', () => {
 
 describe('decidiApertura con il bussare diretto', () => {
   const dati = {
-    sessione: '2eedc5a4-7a19-4e2f-841e-d7f1527d9e5c', cwd: 'C:\\Users\\nikof\\Documents\\Trading\\Trading',
+    sessione: '11111111-2222-4333-8444-555555555555', cwd: 'C:\\Users\\utente\\Documents\\Trading\\Trading',
     io: 'f6e5d4c3b2a1', trascrizioneQui: true, cartellaQui: true, battiti: [LAPTOP], adesso: ADESSO
   }
   it('il caso vero: battito di nove giorni fa, ma il portatile risponde → la chat si apre dal vivo', () => {

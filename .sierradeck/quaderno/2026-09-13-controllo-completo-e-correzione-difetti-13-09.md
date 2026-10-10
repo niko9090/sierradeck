@@ -31,4 +31,4 @@ Esegui per intero il mandato scritto in .sierradeck/quaderno/mandato-controllo-c
 ## In numeri
 
 - interventi: 4
-- cartella: `E:\Users\nikof\Documents\SierraDeck`
+- cartella: `E:\Users\utente\Documents\SierraDeck`

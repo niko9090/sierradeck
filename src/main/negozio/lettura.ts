@@ -96,7 +96,7 @@ export function marketplaceAggiornati(radiceClaude: string): Record<string, stri
  * La chiave con cui `~/.claude.json` conosce una cartella.
  *
  * Claude Code la scrive come la riceve: sullo stesso PC la stessa cartella
- * sta due volte, `C:\\Users\\nikof` e `C:/Users/nikof`. Con un confronto
+ * sta due volte, `C:\\Users\\utente` e `C:/Users/utente`. Con un confronto
  * esatto la scheda MCP era vuota e «commuta» creava un ramo nuovo sotto una
  * chiave che Claude Code non guarda. Si prende la chiave esistente che
  * coincide a meno di barre, maiuscole e barra finale; nuova solo se nessuna.

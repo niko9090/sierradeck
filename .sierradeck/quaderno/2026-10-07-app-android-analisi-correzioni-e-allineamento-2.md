@@ -48,4 +48,4 @@ Versione 0.52.0 dopo git fetch, voce in novita.ts, scheda nel quaderno, APK alza
 ## In numeri
 
 - interventi: 39
-- cartella: `E:\Users\nikof\Documents\SierraDeck`
+- cartella: `E:\Users\utente\Documents\SierraDeck`

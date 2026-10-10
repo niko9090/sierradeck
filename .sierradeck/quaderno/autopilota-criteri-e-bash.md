@@ -9,7 +9,7 @@ tag: ["autopilota", "criteri", "windows", "trappole"]
 Tutti i criteri di un autopilota falliscono insieme, con lo stesso errore:
 
 ```
-/bin/bash: C:UsersnikofAppDataLocalTempsierradeck-criterio-vLURTbcriterio.sh: No such file or directory
+/bin/bash: C:UsersutenteAppDataLocalTempsierradeck-criterio-vLURTbcriterio.sh: No such file or directory
 ```
 
 Le barre rovesce del percorso sono sparite. Non e' un file rovinato: e' un'altra

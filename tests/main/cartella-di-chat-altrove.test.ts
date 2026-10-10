@@ -8,7 +8,7 @@ import type { RegistroProgetti } from '../../src/main/progetti/registro'
  * cartella vuota di qui e davano «directory non trovata». La regola nuova:
  * la cartella di un altro PC non si adotta.
  */
-const PROGETTI = 'C:\\Users\\nikof\\Progetti SierraDeck'
+const PROGETTI = 'C:\\Users\\utente\\Progetti SierraDeck'
 const vuoto: RegistroProgetti = { versione: 1, progetti: [] }
 const ORIGINE = 'E:\\Documents\\Progetti SierraDeck\\fionda apl'
 const portatile = (cwd: string): { id: string; nome: string } | undefined => (cwd.startsWith('E:\\Documents\\') ? { id: 'P', nome: 'Portatile' } : undefined)
@@ -34,7 +34,7 @@ describe('la cartella di un altro PC non si adotta', () => {
   })
 
   it('una cartella che nessun PC ha (un vecchio percorso di questo stesso PC) si adotta come prima', () => {
-    const r = risolviCartellaDiChat({ cwd: 'C:\\Users\\nikof\\Documents\\Money', registro: vuoto, pcId: 'F', cartellaProgetti: PROGETTI, esiste: () => false, adesso: 'T', altrove: portatile })
+    const r = risolviCartellaDiChat({ cwd: 'C:\\Users\\utente\\Documents\\Money', registro: vuoto, pcId: 'F', cartellaProgetti: PROGETTI, esiste: () => false, adesso: 'T', altrove: portatile })
     expect(r.motivo).toBe('adottata')
   })
 

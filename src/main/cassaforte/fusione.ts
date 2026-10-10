@@ -107,7 +107,7 @@ function slugDi(percorso: string): string {
   return parti.length >= 3 ? (parti[1] ?? '') : ''
 }
 
-/** Dal nome della cartella di Claude Code (`E--Users-nikof-Documents-SierraDeck`) a qualcosa di leggibile. */
+/** Dal nome della cartella di Claude Code (`E--Users-utente-Documents-SierraDeck`) a qualcosa di leggibile. */
 function cartellaDaSlug(slug: string): string {
   const m = /^([A-Za-z])--(.*)$/.exec(slug)
   if (m === null) return slug

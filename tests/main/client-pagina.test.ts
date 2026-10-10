@@ -495,7 +495,7 @@ describe('la profondita, e i bordi', () => {
   })
 
   it('il percorso di una cartella si taglia da sinistra', () => {
-    // «…\\progetti\\sierradeck» dice quello che serve; «C:\\Users\\nikof\\…» no.
+    // «…\\progetti\\sierradeck» dice quello che serve; «C:\\Users\\utente\\…» no.
     expect(script).toContain('cartella__nome')
     expect(stile).toMatch(/\.cartella__dove\s*\{[^}]*direction:\s*rtl/)
   })

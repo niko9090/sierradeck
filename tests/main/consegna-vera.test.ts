@@ -29,7 +29,7 @@ describe.skipIf(!conClaude || !voluta)('una consegna vera, appena la chat rinasc
     const pty = await import('node-pty')
     const { Terminal } = (await import(join(headless!, 'lib-headless', 'xterm-headless.js'))) as { Terminal: new (o: object) => { write: (d: string) => void; buffer: { active: { viewportY: number; getLine: (y: number) => { translateToString: (t: boolean) => string } | undefined } }; rows: number } }
     const cartella = process.cwd()
-    const progetti = join(homedir(), '.claude', 'projects', 'E--Users-nikof-Documents-SierraDeck')
+    const progetti = join(homedir(), '.claude', 'projects', 'E--Users-utente-Documents-SierraDeck')
     const origine = process.env.SIERRADECK_SESSIONE_LUNGA ?? '80c8b89a-7275-4fbc-8e1c-839921bfc883'
     const nuova = randomUUID()
     const copia = join(progetti, `${nuova}.jsonl`)

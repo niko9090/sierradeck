@@ -12,7 +12,7 @@ const REGISTRO = [
   "2026-10-02T14:08:17.751Z [info] [app] automatico: salvataggio non riuscito (LAVORO_IN_CORSO: sul Drive sta gia' girando «Salvo sul Drive».",
   '2026-10-02T14:43:16.932Z [ERRORE] [app] [electron-updater] Cannot download differentially, fallback to full download: Error: sha512 checksum mismatch',
   "2026-10-02T14:46:10.769Z [ERRORE] [app] [sistema] il lavoro con il Drive (arrivo) non e' finito in tempo: non chiudo",
-  '    at newError (C:\\Users\\nikof\\AppData\\Local\\Programs\\SierraDeck\\resources\\app.asar\\node_modules\\builder-util-runtime\\out\\error.js:5:19)',
+  '    at newError (C:\\Users\\utente\\AppData\\Local\\Programs\\SierraDeck\\resources\\app.asar\\node_modules\\builder-util-runtime\\out\\error.js:5:19)',
   '2026-10-02T03:00:00.000Z [ERRORE] [app] troppo vecchio per le ultime 6 ore'
 ]
 const base: IngressiSalute = {

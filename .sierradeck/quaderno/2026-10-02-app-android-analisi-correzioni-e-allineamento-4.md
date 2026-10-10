@@ -58,4 +58,4 @@ Poi pas
 ## In numeri
 
 - interventi: 29
-- cartella: `E:\Users\nikof\Documents\SierraDeck`
+- cartella: `E:\Users\utente\Documents\SierraDeck`

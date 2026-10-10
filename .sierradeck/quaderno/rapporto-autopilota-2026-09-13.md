@@ -22,7 +22,7 @@ va ricompilato e bumpato (2.29.0).
   in esecuzione quando hai provato.
 - Ma non bastava: quel gancio sistemava solo la chat che aprivi, e l'elenco
   continuava a mostrare tutte le altre sotto la cartella dell'altro PC
-  (`C:\Users\nikof\Documents\Wdeck` del portatile sul fisso, e viceversa).
+  (`C:\Users\utente\Documents\Wdeck` del portatile sul fisso, e viceversa).
 - Terzo motivo, dal telefono: `/api/sessioni/riprendi`
   (`src/main/client-rotte.ts`) confrontava la cartella con l'elenco ricavato
   dai nomi delle cartelle di Claude Code, che perdono trattini, sottolineature
@@ -33,7 +33,7 @@ va ricompilato e bumpato (2.29.0).
 
 - Le chat c'erano: alle 20:10Z la fusione ha scaricato 532 file, e
   l'indice del fisso (`index.db`, 1272 sessioni) contiene gli slug del
-  portatile (`C--Users-nikof-Documents-Portfolio` 539, `…-Wdeck` 9,
+  portatile (`C--Users-utente-Documents-Portfolio` 539, `…-Wdeck` 9,
   `…-Game-ascensore` 30, …; 621 sono sessioni «observer» del plugin
   claude-mem, non tue chat).
 - L'indice però si rileggeva **solo all'avvio** e col pulsante «Rileggi»

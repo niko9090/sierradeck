@@ -3,7 +3,7 @@
  *
  * Il plugin claude-mem tiene le sue sessioni «observer» in
  * `~/.claude-mem/observer-sessions`, e Claude Code le archivia come un
- * progetto qualunque (slug `C--Users-nikof--claude-mem-observer-sessions`):
+ * progetto qualunque (slug `C--Users-utente--claude-mem-observer-sessions`):
  * sul fisso erano 621 voci nell'elenco Chat, viaggiavano sul Drive come
  * chat, e non si aprivano in modo utile.
  *

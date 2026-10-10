@@ -66,7 +66,7 @@ export function trovaGit(
  * stub dello Store in `WindowsApps`. La prima è una bash vera — di Linux — e
  * non vede il disco di Windows: ricevendo lo script `C:\Users\...\criterio.sh`
  * ne mangia le barre rovesce e risponde
- * `/bin/bash: C:UsersnikofAppData...criterio.sh: No such file or directory`.
+ * `/bin/bash: C:UsersutenteAppData...criterio.sh: No such file or directory`.
  *
  * Non è teoria: preferendola, **nessun criterio poteva essere misurato**. Ogni
  * verifica tornava «non misurabile», il supervisore giudicava un lavoro di cui

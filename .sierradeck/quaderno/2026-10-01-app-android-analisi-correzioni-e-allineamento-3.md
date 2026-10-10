@@ -48,10 +48,10 @@ Sull
 - **2026-10-01 21:38** — su tua richiesta: Hai ragione: l'autopilota esiste proprio perché tu non debba premere niente. Invio deve partire da solo, sempre.
 
 Cosa stai vedendo: nella 0.37.5 avevo fatto aggiungere un paracadute. Se l'autopilota manda il compito e gli sembra che la chat non sia partita, invece di stare zitto ti mostra «Premi In
-- **2026-10-01 21:55** — comando bloccato dal programma: SierraDeck blocca questa cancellazione: «/e/Users/nikof/Documents/SierraDeck/.sierradeck/consegne/prova.md» è fuori dalle cartelle di questo autopilota (E:\Users\nikof\Documents\SierraDeck, E:\Users\nikof\Documents\SierraDeck.sierradeck-wt). Si cancellano solo file dentro le sue cartelle.
+- **2026-10-01 21:55** — comando bloccato dal programma: SierraDeck blocca questa cancellazione: «/e/Users/utente/Documents/SierraDeck/.sierradeck/consegne/prova.md» è fuori dalle cartelle di questo autopilota (E:\Users\utente\Documents\SierraDeck, E:\Users\utente\Documents\SierraDeck.sierradeck-wt). Si cancellano solo file dentro le sue cartelle.
 - **2026-10-01 22:03** — supervisore → finito: Ho controllato tutto. Il commit ef03fc9 riporta la causa vera (un falso allarme, provato con Claude Code 2.1.287), la consegna con file più riga corta e il controllo che non legge più lo scrollback. Nel codice la banda «Premi Invio» non c'è più, resta solo un commento, e i test delle consegne ci sono. La v0.38.1 è pubblicata, non in bozza, con i 5 allegati. Origin è allineato.
 
 ## In numeri
 
 - interventi: 20
-- cartella: `E:\Users\nikof\Documents\SierraDeck`
+- cartella: `E:\Users\utente\Documents\SierraDeck`

@@ -17,7 +17,7 @@ async function preparaPC(nome: string): Promise<{ dati: string; claude: string }
   const claude = join(radice, nome, 'claude')
   await mkdir(dati, { recursive: true })
   await writeFile(join(dati, 'workspaces.json'), `{"pc":"${nome}"}`)
-  const slug = join(claude, 'projects', 'E--Users-nikof-Progetto')
+  const slug = join(claude, 'projects', 'E--Users-utente-Progetto')
   await mkdir(slug, { recursive: true })
   await writeFile(join(slug, 's.jsonl'), `chat di ${nome}\n`)
   return { dati, claude }
@@ -48,7 +48,7 @@ describe('il motore di sincronizzazione', () => {
     // Su B ora c'è lo stato di A.
     expect(await readFile(join(b.dati, 'workspaces.json'), 'utf8')).toBe('{"pc":"A"}')
     expect(await readFile(
-      join(b.claude, 'projects', 'E--Users-nikof-Progetto', 's.jsonl'), 'utf8'
+      join(b.claude, 'projects', 'E--Users-utente-Progetto', 's.jsonl'), 'utf8'
     )).toBe('chat di A\n')
   })
 

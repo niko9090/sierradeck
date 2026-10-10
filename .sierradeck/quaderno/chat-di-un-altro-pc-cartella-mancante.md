@@ -80,7 +80,7 @@ si avviano mostrano directory che non vengono trovate e errori in rosso
 praticamente sempre». Diagnosi dal registro del fisso (14-15/09): dopo ogni
 arrivo dal Drive «63/48/13 chat rimappate», e la chat «fionda apl» del
 portatile (`E:\Documents\Progetti SierraDeck\fionda apl`) stava qui in
-`C:\Users\nikof\Progetti SierraDeck\fionda apl`, **vuota**. Il meccanismo
+`C:\Users\utente\Progetti SierraDeck\fionda apl`, **vuota**. Il meccanismo
 del 13-14/09 era sbagliato in un caso: **adottava anche le cartelle che un
 altro PC ha davvero**, rapendo la chat in una cartella senza file. In più
 `altroveQui` escludeva per sempre gli aggiornamenti della copia vera

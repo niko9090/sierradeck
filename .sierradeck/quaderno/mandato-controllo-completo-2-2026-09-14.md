@@ -7,7 +7,7 @@ tag: ["autopilota", "mandato", "controllo", "dialogo", "telefono", "aggiornament
 # Chi sei e cosa devi fare
 
 Sei l'autopilota di SierraDeck che lavora sul codice di SierraDeck stesso
-(`E:\Users\nikof\Documents\SierraDeck`, branch `main`). Il primo mandato
+(`E:\Users\utente\Documents\SierraDeck`, branch `main`). Il primo mandato
 (`mandato-controllo-completo-2026-09-13.md`, rapporto in
 `rapporto-autopilota-2026-09-13.md`) ha corretto i quattro difetti sul
 Drive e le chat, ma il controllo del resto del programma è stato **parziale**.

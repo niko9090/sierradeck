@@ -10,8 +10,8 @@ ho più spazio … con lo Sposta nelle proprietà della cartella».
 ## Cosa c'è sotto
 
 - Claude Code salva ogni chat in `~/.claude/projects/<slug del percorso>/`
-  (`C--Users-nikof-Documents-Portfolio`) e dentro ogni riga c'è `cwd`. Le
-  chat stanno sotto il profilo (`C:\Users\nikof\.claude`), NON dentro
+  (`C--Users-utente-Documents-Portfolio`) e dentro ogni riga c'è `cwd`. Le
+  chat stanno sotto il profilo (`C:\Users\utente\.claude`), NON dentro
   Documenti: lo spostamento non le tocca e non le perde. Ma per Claude Code
   `E:\…\Portfolio` è un progetto **diverso** da `C:\…\Portfolio`: senza
   rimappatura, `--resume` dalla cartella nuova non le trova.
@@ -23,9 +23,9 @@ ho più spazio … con lo Sposta nelle proprietà della cartella».
   file. Il registro `progetti-drive.json` ne porta i segni: «Wdeck» adottato
   4 volte da 4 origini diverse.
 - Stato trovato il 16/09: `[Environment]::GetFolderPath('MyDocuments')` già
-  `E:\Users\nikof\Documents`; `C:\Users\nikof\Documents` ancora piena
+  `E:\Users\utente\Documents`; `C:\Users\utente\Documents` ancora piena
   (Portfolio in copia alle 22:41, 105 voci; su E: c'era una vecchia copia di
-  aprile con 21 voci → le due si fondono); 11 slug sotto `C--Users-nikof-
+  aprile con 21 voci → le due si fondono); 11 slug sotto `C--Users-utente-
   Documents-*`, **Portfolio = 580 chat**, Trading\Trading 2, Wdeck 8 (che ha
   già lo slug su E:). Dentro C:\Documents ci sono anche i collegamenti
   simbolici Immagini/Musica/Video → Pictures/Music/Videos.
@@ -37,7 +37,7 @@ ho più spazio … con lo Sposta nelle proprietà della cartella».
 `app.getPath('documents')` e, se differiscono, traduce il percorso vecchio nel
 nuovo (`sostituisciPrefisso`) **quando la sottocartella esiste lì**: motivo
 `spostata`, prima di ogni altra regola, anche di «altrove» (l'altro PC può
-avere ancora lo stesso `C:\Users\nikof\Documents\...`). La trascrizione si
+avere ancora lo stesso `C:\Users\utente\Documents\...`). La trascrizione si
 sposta sotto lo slug nuovo con il `cwd` riscritto, come per le altre
 rimappature. Test: `tests/main/cartella-di-chat-spostata.test.ts`.
 
@@ -54,18 +54,18 @@ rimappature. Test: `tests/main/cartella-di-chat-spostata.test.ts`.
    le chat non sono perse: stanno sotto `Progetti SierraDeck\<nome>` con
    l'origine nel registro; si rimettono a posto con «Porta qui» o a mano
    (spostare il `.jsonl` sotto lo slug nuovo e riscrivere `cwd`).
-4. Non toccare `C:\Users\nikof\.claude` e `%APPDATA%\sierradeck`: non
+4. Non toccare `C:\Users\utente\.claude` e `%APPDATA%\sierradeck`: non
    c'entrano con Documenti.
 5. I workspace salvati (`workspaces.json`) tengono il `cwd` di ogni riquadro:
    una chat aperta da un workspace passa comunque da `risolviSuDisco`, quindi
    la regola vale anche lì.
 
-## 16/09 sera — FATTO: C:\Users\nikof\Documents svuotata in E:\Users\nikof\Documents
+## 16/09 sera — FATTO: C:\Users\utente\Documents svuotata in E:\Users\utente\Documents
 
-Ordine di Nicholas: «liberare spazio su C:, tutto su E:\Users\nikof\Documents,
+Ordine di Nicholas: «liberare spazio su C:, tutto su E:\Users\utente\Documents,
 tenendo i più recenti come unici». Fatti verificati prima di partire: la
-Documenti di sistema era GIÀ E:\Users\nikof\Documents (dal 5/7/2026); C:\
-Users\nikof\Documents era una cartella normale rimasta indietro (13 voci,
+Documenti di sistema era GIÀ E:\Users\utente\Documents (dal 5/7/2026); C:\
+Users\utente\Documents era una cartella normale rimasta indietro (13 voci,
 29,4 GB: foto S25 28,7 GB, Trading, Portfolio con 580 chat e bot, Downloads
 doppione, junction Immagini/Musica/Video → Pictures/Music/Videos).
 
@@ -74,7 +74,7 @@ una volta sola; log nello scratchpad della sessione):
 1. 15 attività pianificate puntavano a C:\…\Documents (Portfolio Monitor,
    Bot Watchdog, BTC Entry Watch, 11 Nexus, MT5): **serve l'amministratore**
    per disabilitarle/riscriverle e per fermare i loro python elevati.
-   Script `E:\Users\nikof\Documents\completa-spostamento-admin.ps1`, lanciato
+   Script `E:\Users\utente\Documents\completa-spostamento-admin.ps1`, lanciato
    con `Start-Process -Verb RunAs` (UAC): ferma i bot, porta gli ultimi 6
    file (log/stato) su E:, riscrive le 15 attività via Export/Register XML.
    Mentre gli script non c'erano più, le attività scattavano e fallivano
@@ -82,7 +82,7 @@ una volta sola; log nello scratchpad della sessione):
 2. Percorso C: → E: riscritto dentro 41 file di testo di Portfolio e Trading
    (vbs, bat, ps1, py, md, xml delle task, settings). Git di Trading integro.
 3. Chat: 583 `.jsonl` + 53 cartelle subagenti spostate da
-   `C--Users-nikof-Documents-{Portfolio,Trading-Trading}` allo slug `E--…`
+   `C--Users-utente-Documents-{Portfolio,Trading-Trading}` allo slug `E--…`
    con `cwd` riscritto (script `rimappa-chat.mjs`, stessa logica di
    `riscriviCwdRiga`/`spostaSidecar`; salta le chat scritte da meno di 5
    min). L'indice di SierraDeck si aggiorna al giro dopo (upsert per uuid,
@@ -100,26 +100,26 @@ ScheduledTask` funzionano senza admin, `Disable`/`Register` no.
 
 Ogni 5 minuti: «22 chat tornate nella cartella del loro PC (E:\Documents\
 Progetti SierraDeck\fionda apl, …\Wdeck)» e subito dopo «9 chat rimappate
-nelle cartelle di qui (C:\Users\nikof\Progetti SierraDeck\Wdeck, …\inbox)».
+nelle cartelle di qui (C:\Users\utente\Progetti SierraDeck\Wdeck, …\inbox)».
 `pianificaRitorno` e `pianificaRimappatura` si rimbalzano le stesse chat:
 il registro `progetti-drive.json` ha 4 progetti «Wdeck» con origini diverse.
 Da guardare a mente fredda (con Nicholas), non stasera.
 
 ## Esito finale (16/09, 23:40) e una cosa imparata sui gemelli
 
-- C:\Users\nikof\Documents non esiste più; C: da 38 a 68 GB liberi.
+- C:\Users\utente\Documents non esiste più; C: da 38 a 68 GB liberi.
 - Indice SierraDeck dopo il riavvio con la 0.28.2: Portfolio 581 chat e
   Trading 2 sotto E:. Quattro righe restavano con il percorso vecchio perché
   lo scanner incrementale confronta size+mtime per uuid e la riscrittura
   del `cwd` (C→E, stessa lunghezza) con mtime conservato non cambiava
   niente: bastato `touch` sui 4 file, riletti al giro dopo.
-- Le due chat della RADICE `C:\Users\nikof\Documents` (06f40c88, 929a3244)
+- Le due chat della RADICE `C:\Users\utente\Documents` (06f40c88, 929a3244)
   sono finite in `Progetti SierraDeck\Documents` **non** per la regola
   nuova (provata con il registro vero: dà `spostata`), ma perché sono
   **gemelle**: il portatile le aveva adottate in `E:\Documents\Progetti
   SierraDeck\Documents`, la copia è arrivata dal Drive sotto quello slug,
   l'indice tiene UNA riga per uuid e la riga puntava alla copia del
   portatile → rimappata via registro nella cartella adottata di qui. Le
-  originali le ho spostate a mano sotto `E--Users-nikof-Documents`. È il
+  originali le ho spostate a mano sotto `E--Users-utente-Documents`. È il
   problema «gemelli» già aperto: l'indice per uuid non regge due copie.
 - `Money` (cartella sparita da mesi) va nella sua cartella adottata: giusto.

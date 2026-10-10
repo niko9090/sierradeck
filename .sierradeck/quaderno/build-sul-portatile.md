@@ -37,7 +37,7 @@ prima volta), ma esce `app-release-unsigned.apk`: vedi sotto.
 # I due blocchi (che il portatile non può togliere da solo)
 
 1. **Chiave dell'APK.** `~/.sierradeck-chiave.jks` e `~/.sierradeck-chiave.pass`
-   stanno solo sul fisso (`C:\Users\nikof\`). Senza, l'APK esce non firmato e
+   stanno solo sul fisso (`C:\Users\utente\`). Senza, l'APK esce non firmato e
    Android non lo installa sopra quello che c'è (firma diversa). Vanno copiati
    in `C:\Users\asus\` (RDP, chiavetta, o dal fisso via rete: il fisso
    risponde su Tailscale `100.64.0.10`, SSH 22 e SMB 445, ma con password;

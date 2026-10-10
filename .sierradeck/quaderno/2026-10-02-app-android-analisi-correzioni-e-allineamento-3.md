@@ -50,4 +50,4 @@ Due difetti del 02/10. (A) 0.39.2: un'installazione fallita va rilevata al riavv
 ## In numeri
 
 - interventi: 26
-- cartella: `E:\Users\nikof\Documents\SierraDeck`
+- cartella: `E:\Users\utente\Documents\SierraDeck`

@@ -22,7 +22,7 @@ async function preparaSorgente(): Promise<{ dati: string; claude: string }> {
   await writeFile(join(dati, 'index.db'), 'CACHE RIGENERABILE') // NON deve entrare
   await mkdir(join(dati, 'Cache'), { recursive: true })
   await writeFile(join(dati, 'Cache', 'roba'), 'spazzatura di electron') // NON deve entrare
-  const slug = join(claude, 'projects', 'E--Users-nikof-Progetto')
+  const slug = join(claude, 'projects', 'E--Users-utente-Progetto')
   await mkdir(slug, { recursive: true })
   await writeFile(join(slug, 'sessione-1.jsonl'), '{"riga":1}\n{"riga":2}\n')
   await writeFile(join(slug, 'appunti.txt'), 'non è una chat') // NON deve entrare
@@ -35,7 +35,7 @@ describe('raccogliere', () => {
     const voci = await raccogli(radiciDaSincronizzare(dati, claude))
     const percorsi = voci.map((v) => v.percorso).sort()
     expect(percorsi).toEqual([
-      'chat/E--Users-nikof-Progetto/sessione-1.jsonl',
+      'chat/E--Users-utente-Progetto/sessione-1.jsonl',
       'sierradeck/impostazioni.json',
       'sierradeck/workspaces.json'
     ])
@@ -56,7 +56,7 @@ describe('ripristinare', () => {
 
     expect(await readFile(join(dati2, 'workspaces.json'), 'utf8')).toBe('{"attivo":"SierraDeck"}')
     expect(await readFile(
-      join(claude2, 'projects', 'E--Users-nikof-Progetto', 'sessione-1.jsonl'), 'utf8'
+      join(claude2, 'projects', 'E--Users-utente-Progetto', 'sessione-1.jsonl'), 'utf8'
     )).toBe('{"riga":1}\n{"riga":2}\n')
   })
 
@@ -99,7 +99,7 @@ describe('il giro completo con cifratura', () => {
 
     expect(await readFile(join(dati2, 'impostazioni.json'), 'utf8')).toBe('{"tema":"scuro"}')
     expect(await readFile(
-      join(claude2, 'projects', 'E--Users-nikof-Progetto', 'sessione-1.jsonl'), 'utf8'
+      join(claude2, 'projects', 'E--Users-utente-Progetto', 'sessione-1.jsonl'), 'utf8'
     )).toBe('{"riga":1}\n{"riga":2}\n')
   })
 })

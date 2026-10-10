@@ -38,7 +38,7 @@ const base = {
   cwd: 'E:\\Progetti\\SitoX',
   host: 'esempio.it',
   porta: 22,
-  utente: 'nikof',
+  utente: 'utente',
   metodo: 'password' as const
 }
 

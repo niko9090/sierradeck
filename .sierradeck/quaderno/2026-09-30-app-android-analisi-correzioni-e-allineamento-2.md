@@ -41,4 +41,4 @@ Oggi ogni autopilota governa una sola chat. Le consegne (src/main/autopilo
 ## In numeri
 
 - interventi: 3
-- cartella: `E:\Users\nikof\Documents\SierraDeck`
+- cartella: `E:\Users\utente\Documents\SierraDeck`

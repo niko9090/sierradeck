@@ -467,7 +467,7 @@ tronca, e verifica `releases/latest`.
 
 Causa trovata nel registro del fisso: una chat viva sul portatile (cartella
 `E:\Documents\Progetti SierraDeck\fionda apl`) veniva **adottata** qui in
-`C:\Users\nikof\Progetti SierraDeck\fionda apl`, cartella vuota, con la
+`C:\Users\utente\Progetti SierraDeck\fionda apl`, cartella vuota, con la
 trascrizione spostata e il `cwd` riscritto; Claude ripartiva senza i file.
 Dopo ogni arrivo dal Drive il registro diceva «63/48/13 chat rimappate», e
 `altroveQui` teneva fuori per sempre la copia vera. Corretto in `ec54fc1`

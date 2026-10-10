@@ -47,4 +47,4 @@ Ho guardato il codice, e oggi non funziona così. Da quando a
 ## In numeri
 
 - interventi: 7
-- cartella: `E:\Users\nikof\Documents\SierraDeck`
+- cartella: `E:\Users\utente\Documents\SierraDeck`

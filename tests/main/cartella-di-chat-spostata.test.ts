@@ -4,15 +4,15 @@ import type { RegistroProgetti } from '../../src/main/progetti/registro'
 
 /**
  * Nicholas (2026-09-16): «sto spostando la cartella documenti in E:\ così ho
- * più spazio». Le chat tengono dentro `C:\Users\nikof\Documents\Portfolio`
+ * più spazio». Le chat tengono dentro `C:\Users\utente\Documents\Portfolio`
  * (580 chat); dopo lo spostamento la cartella sta in
- * `E:\Users\nikof\Documents\Portfolio`. Senza questa regola venivano adottate
+ * `E:\Users\utente\Documents\Portfolio`. Senza questa regola venivano adottate
  * in «Progetti SierraDeck\Portfolio», vuota.
  */
-const PROGETTI = 'C:\\Users\\nikof\\Progetti SierraDeck'
+const PROGETTI = 'C:\\Users\\utente\\Progetti SierraDeck'
 const vuoto: RegistroProgetti = { versione: 1, progetti: [] }
-const VECCHIA = 'C:\\Users\\nikof\\Documents'
-const NUOVA = 'E:\\Users\\nikof\\Documents'
+const VECCHIA = 'C:\\Users\\utente\\Documents'
+const NUOVA = 'E:\\Users\\utente\\Documents'
 const spostate = [{ da: VECCHIA, a: NUOVA }]
 const esisteSuE = (p: string): boolean => p.toLowerCase().startsWith(NUOVA.toLowerCase())
 
@@ -27,7 +27,7 @@ describe('la cartella Documenti si e spostata', () => {
 
   it('anche una sottocartella profonda, e senza badare a maiuscole', () => {
     const r = risolviCartellaDiChat({
-      cwd: 'c:\\users\\nikof\\documents\\Trading\\Trading', registro: vuoto, pcId: 'F', cartellaProgetti: PROGETTI,
+      cwd: 'c:\\users\\utente\\documents\\Trading\\Trading', registro: vuoto, pcId: 'F', cartellaProgetti: PROGETTI,
       esiste: esisteSuE, adesso: 'T', radiciSpostate: spostate
     })
     expect(r.motivo).toBe('spostata')

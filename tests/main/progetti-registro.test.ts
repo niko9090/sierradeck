@@ -72,25 +72,25 @@ describe('il registro dei progetti', () => {
 
 describe('rimappare le cwd delle chat', () => {
   const adesso = '2026-09-04T17:00:00.000Z'
-  const reg = aggiungiProgetto(registroVuoto(), { pcId: 'A', percorso: 'E:\\Users\\nikof\\Documents\\SierraDeck', adesso, id: 'p1' }).registro
+  const reg = aggiungiProgetto(registroVuoto(), { pcId: 'A', percorso: 'E:\\Users\\utente\\Documents\\SierraDeck', adesso, id: 'p1' }).registro
 
   it('una cartella che c e non si tocca', () => {
     expect(rimappaCwd('C:\\qualunque', reg, 'B', 'C:\\Progetti', () => true)).toEqual({ cwd: 'C:\\qualunque' })
   })
 
   it('una cwd dentro il progetto di un altro PC diventa la stessa sottocartella qui', () => {
-    const r = rimappaCwd('E:\\Users\\nikof\\Documents\\SierraDeck\\android', reg, 'B', 'C:\\Progetti', () => false)
+    const r = rimappaCwd('E:\\Users\\utente\\Documents\\SierraDeck\\android', reg, 'B', 'C:\\Progetti', () => false)
     expect(r.cwd).toBe('C:\\Progetti\\SierraDeck\\android')
     expect(r.progetto?.id).toBe('p1')
     expect(r.nuovo).toBe(true)
     // La radice stessa.
-    expect(rimappaCwd('e:/users/nikof/documents/sierradeck', reg, 'B', 'C:\\Progetti', () => false).cwd)
+    expect(rimappaCwd('e:/users/utente/documents/sierradeck', reg, 'B', 'C:\\Progetti', () => false).cwd)
       .toBe('C:\\Progetti\\SierraDeck')
   })
 
   it('se il progetto ha gia una cartella qui, si usa quella', () => {
     const col = collegaProgetto(reg, 'p1', 'B', 'D:\\Lavoro\\SD')
-    const r = rimappaCwd('E:\\Users\\nikof\\Documents\\SierraDeck\\src', col, 'B', 'C:\\Progetti', () => false)
+    const r = rimappaCwd('E:\\Users\\utente\\Documents\\SierraDeck\\src', col, 'B', 'C:\\Progetti', () => false)
     expect(r).toEqual({ cwd: 'D:\\Lavoro\\SD\\src', progetto: col.progetti[0], nuovo: false })
   })
 
@@ -105,13 +105,13 @@ describe('rimappare le cwd delle chat', () => {
     const archivio = {
       versione: 1, attivo: 'a',
       workspace: [
-        { nome: 'a', perSlot: chat('p1', 'E:\\Users\\nikof\\Documents\\SierraDeck') },
+        { nome: 'a', perSlot: chat('p1', 'E:\\Users\\utente\\Documents\\SierraDeck') },
         { nome: 'b', perSlot: chat('p2', 'C:\\esiste') }
       ]
     }
     const { archivio: dopo, cambi } = rimappaWorkspace(archivio, (cwd) =>
       rimappaCwd(cwd, reg, 'B', 'C:\\Progetti', (p) => p === 'C:\\esiste').cwd)
-    expect(cambi).toEqual([{ sessione: 's-p1', da: 'E:\\Users\\nikof\\Documents\\SierraDeck', a: 'C:\\Progetti\\SierraDeck' }])
+    expect(cambi).toEqual([{ sessione: 's-p1', da: 'E:\\Users\\utente\\Documents\\SierraDeck', a: 'C:\\Progetti\\SierraDeck' }])
     expect(dopo.workspace[0]?.perSlot['1']?.panes[0]?.cwd).toBe('C:\\Progetti\\SierraDeck')
     expect(dopo.workspace[1]).toEqual(archivio.workspace[1])
     // Senza cambi, lo stesso oggetto: chi chiama non riscrive niente.

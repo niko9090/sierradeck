@@ -15,7 +15,7 @@ describe('i divieti, fatti rispettare dal programma (T4)', () => {
     expect(giudicaStrumento(bash('rm -rf E:\\Progetti\\sito.sierradeck-wt\\a1-c-1\\tmp'), [PROGETTO, WT]).ok).toBe(true)
     const fuori = giudicaStrumento(bash('rm -rf ../altro-progetto'), [PROGETTO, WT])
     expect(fuori.ok).toBe(false)
-    expect(giudicaStrumento(bash('npm test && Remove-Item -Recurse C:\\Users\\nikof\\Documents'), [PROGETTO]).ok).toBe(false)
+    expect(giudicaStrumento(bash('npm test && Remove-Item -Recurse C:\\Users\\utente\\Documents'), [PROGETTO]).ok).toBe(false)
     expect(giudicaStrumento(bash('del /q C:\\Windows\\temp\\x.txt'), [PROGETTO]).ok).toBe(false)
   })
 
@@ -181,7 +181,7 @@ describe('i divieti senza falsi allarmi (0.37.1)', () => {
       'echo "$(rm -rf /c/altro)"',
       'echo `rm -rf /c/altro`',
       "bash <<'EOF'\nrm -rf /c/altro\nEOF",
-      'Remove-Item -Recurse C:\\Users\\nikof\\Documents',
+      'Remove-Item -Recurse C:\\Users\\utente\\Documents',
       'powershell -Command "Remove-Item -Recurse -Force C:\\Altro"',
       'cmd /c rd /s /q C:\\Altro',
       'del /q C:\\Windows\\temp\\x.txt'

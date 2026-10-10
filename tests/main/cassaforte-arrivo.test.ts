@@ -30,8 +30,8 @@ function driveCondiviso(): { magazzino: (nome?: string) => Magazzino; archivio: 
   }
 }
 
-const SLUG_P = 'C--Users-nikof-Documents-Wdeck'
-const SLUG_F = 'E--Users-nikof-Documents-Wdeck'
+const SLUG_P = 'C--Users-utente-Documents-Wdeck'
+const SLUG_F = 'E--Users-utente-Documents-Wdeck'
 
 function pc(nome: string): { dati: string; claude: string; progetti: string } {
   const radice = mkdtempSync(join(tmpdir(), `sd-arrivo-${nome}-`))

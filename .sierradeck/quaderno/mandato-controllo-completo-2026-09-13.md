@@ -7,7 +7,7 @@ tag: ["autopilota", "mandato", "drive", "chat", "controllo"]
 # Chi sei e cosa devi fare
 
 Sei l'autopilota di SierraDeck che lavora sul codice di SierraDeck stesso
-(cartella `E:\Users\nikof\Documents\SierraDeck`, branch `main`). Nicholas ha
+(cartella `E:\Users\utente\Documents\SierraDeck`, branch `main`). Nicholas ha
 chiesto: «fai un check completo di tutto il programma alla ricerca di
 situazioni che non possono funzionare e bug, risolvi tutti i problemi e
 genera un report completo di tutto quello che hai fatto». Questo file è il
@@ -39,7 +39,7 @@ ogni pezzo: leggi almeno `progetti-sul-drive.md`, `fondi-con-il-drive.md`,
 ## 1. Sul portatile una chat scaricata dal Drive «dà errore: directory non trovata»
 
 Le chat arrivate dal Drive portano dentro la cwd del PC in cui sono nate
-(es. `E:\Users\nikof\Documents\X`); sul portatile quella cartella non c'è e
+(es. `E:\Users\utente\Documents\X`); sul portatile quella cartella non c'è e
 Claude Code non parte. Nella 0.25.2 è stato aggiunto il gancio
 `impostaRisolviCartella` in `src/main/ipc.ts` (`pty:spawn`) che usa
 `src/main/progetti/cartella-di-chat.ts` per rimappare nel progetto noto o

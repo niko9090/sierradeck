@@ -830,7 +830,7 @@ private fun RinominaChat(titolo: String, onSalva: (String) -> Unit, onChiudi: ()
  * Prima c'era solo l'elenco delle cartelle già conosciute, e un progetto nuovo
  * — o uno vecchio mai aperto dal telefono — non c'era modo di sceglierlo. La
  * risposta non poteva essere un campo di testo: nessuno digita
- * `E:\Users\nikof\Documents\Qualcosa` su una tastiera del telefono. Quindi si
+ * `E:\Users\utente\Documents\Qualcosa` su una tastiera del telefono. Quindi si
  * sfoglia, partendo dai posti che contano — i dischi, la tua cartella, i
  * progetti già noti — invece che dalla radice.
  */

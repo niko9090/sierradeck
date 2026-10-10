@@ -51,4 +51,4 @@ Resta valida la regola di sicurezza della 0.47. Versione 0.51.0 dopo git fetch, 
 ## In numeri
 
 - interventi: 37
-- cartella: `E:\Users\nikof\Documents\SierraDeck`
+- cartella: `E:\Users\utente\Documents\SierraDeck`

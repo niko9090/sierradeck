@@ -8,7 +8,7 @@ tag: ["autopilota", "consegna", "workspace", "trappola", "0.27.0"]
 
 Il 13 settembre il primo mandato (`mandato-controllo-completo-2026-09-13.md`)
 è stato consegnato **dentro la chat di Claude Code che Nicholas stava già
-usando** in `E:\Users\nikof\Documents\SierraDeck` (sessione `ffea9ea8-…`),
+usando** in `E:\Users\utente\Documents\SierraDeck` (sessione `ffea9ea8-…`),
 non in una chat nuova dell'autopilota. La sua conversazione ha continuato con
 l'autopilota sopra, il terminale è «rinato» sotto i suoi occhi e l'autopilota
 ha registrato come `sessionId` quello della sua chat.

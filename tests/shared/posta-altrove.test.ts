@@ -39,7 +39,7 @@ describe('pcCheHaLaCartella', () => {
   })
 
   it('una cartella che nessuno ha: undefined; e me stesso non conto', () => {
-    expect(pcCheHaLaCartella('C:\\Users\\nikof\\Documents\\Money', [portatile, torre])).toBeUndefined()
+    expect(pcCheHaLaCartella('C:\\Users\\utente\\Documents\\Money', [portatile, torre])).toBeUndefined()
     expect(pcCheHaLaCartella('D:\\dev\\Wdeck', [portatile, torre], 'T')).toBeUndefined()
   })
 

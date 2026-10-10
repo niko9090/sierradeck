@@ -11,7 +11,7 @@ import {
  */
 const FISSO = { id: 'fisso', nome: 'PC-Fisso' }
 const LAP = { pcId: 'lap', nome: 'LAPTOP' }
-const base: IndiziChat = { sessione: 's1', cwd: 'C:\\Users\\nikof\\Documents\\Trading', qui: { size: 1000 }, cartellaQui: true, altri: [] }
+const base: IndiziChat = { sessione: 's1', cwd: 'C:\\Users\\utente\\Documents\\Trading', qui: { size: 1000 }, cartellaQui: true, altri: [] }
 const casa = (pc: string, da: CasaChat['da'], decisaIl: string): CasaChat => ({ pc, pcNome: pc, motivo: 'm', decisaIl, da })
 
 describe('la regola della casa', () => {
