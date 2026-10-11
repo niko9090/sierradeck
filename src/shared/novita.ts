@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.60.3',
+    righe: [
+      '**In «Progetti» compaiono anche i progetti messi sul Drive da un altro PC.** Prima il pannello guardava solo l’elenco dei progetti di questo PC, che impara quelli degli altri solo con una «Fusione»: un progetto nuovo del fisso non si vedeva sul portatile, e lì «Porta qui» rispondeva «Progetto sconosciuto». Ora il pannello aggiunge i progetti dell’elenco sul Drive che hanno davvero dei file sul Drive (quelli tolti con «Togli» non ricompaiono), e «Porta qui» li scarica e li aggiunge all’elenco di questo PC.'
+    ]
+  },
+  {
     versione: '0.60.2',
     righe: [
       '**Il pannello «Progetti» di un altro PC si apre anche dal telefono e da qui.** Il collaudo fra i due PC ha trovato che il pannello impiegava 15 secondi a prepararsi, mentre chi lo chiedeva attraverso un altro PC aspettava al massimo 4 secondi, e l’app 15: non arrivava mai. Ora il pannello e le sue azioni hanno fino a 45 secondi sul PC e di più sull’app, anche attraverso il ponte.',

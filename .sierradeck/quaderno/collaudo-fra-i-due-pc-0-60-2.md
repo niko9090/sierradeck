@@ -36,3 +36,18 @@ tag: ["collaudo", "ponte", "altri PC", "pannello", "drive", "timeout", "0.60.2"]
 - una richiesta scaduta mentre quel PC risponde allo stesso indirizzo dà ora «risponde, ma non ha finito entro N secondi», non «ha cambiato indirizzo».
 
 **Test:** `tests/main/pc-remoto.test.ts` (richieste lente), `tests/shared/memoria-breve.test.ts`, `ProgettiUnificatiTest.kt`.
+
+# Il secondo difetto (corretto nella 0.60.3)
+
+**Un progetto messo sul Drive da un PC non compariva nel pannello dell'altro.**
+- Il registro dei progetti sale sul Drive come un file qualunque (`sierradeck/progetti-drive.json`, vince il più recente).
+- Il registro di un PC impara i progetti degli altri **solo** in `eseguiFusione` («Fondi con il Drive», «Porta qui»), che scrive `fondiRegistri(qui, Drive)`.
+- Il pannello (`leggiPannello`) leggeva solo il registro di qui, e l'azione `porta-qui` rispondeva «Progetto sconosciuto» prima ancora di chiedere al catalogo, che invece unisce il registro del Drive e trova il progetto per id.
+
+**Correzione.**
+- `registroConIlDrive` (in `fusione.ts`) dà il registro di qui più i progetti del registro sul Drive che hanno file sotto `progetto-<id>/`. Così un progetto tolto con «Togli», che non ha più file, non ricompare.
+- Il registro sul Drive si legge con il manifesto, nella stessa memoria di 60 secondi.
+- Serve solo per guardare: il registro di qui si scrive solo dalla fusione di «Porta qui».
+- `porta-qui` accetta anche questi progetti e scrive `[allinea] porta qui «…»` con l'esito.
+
+**Non toccato (da decidere se serve):** il registro sul Drive resta «vince il più recente». Un'unione vera a ogni salvataggio, come per `workspaces.json`, chiederebbe le lapidi per «Togli».

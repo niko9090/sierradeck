@@ -128,8 +128,10 @@ import { apriIdentitaPc, type IdentitaPcStore } from './progetti/pc'
 import { nomeDaMostrare, sottotitoloPc } from '@shared/nome-pc'
 import {
   aggiungiProgetto, apriRegistroProgetti, collegaProgetto, rimuoviProgetto, rimappaCwd, rimappaWorkspace,
-  type ProgettoDrive
+  parseRegistro, prefissoProgetto, type ProgettoDrive, type RegistroProgetti
 } from './progetti/registro'
+import { registroConIlDrive } from './cassaforte/fusione'
+import type { Manifesto } from './cassaforte/incrementale'
 import { creaProgettiSync } from './progetti/sincronia-progetti'
 import { creaRonda } from './progetti/presenza'
 import { creaPostino, type Postino } from './progetti/posta'
@@ -2506,7 +2508,22 @@ if (!app.requestSingleInstanceLock()) {
       // a ogni lettura costava secondi (12 mila voci), e il pannello, riletto
       // ogni pochi secondi mentre lavora, non arrivava più attraverso il ponte.
       // Vale un minuto; chi chiede mentre si scarica aspetta lo stesso.
-      const manifestoPannello = memoriaBreve(() => sincronia.manifestoDrive().catch(() => undefined), 60_000)
+      // Con il manifesto si legge il registro dei progetti sul Drive: il
+      // pannello mostra anche i progetti messi sul Drive da un altro PC.
+      const quadroPannello = memoriaBreve(async (): Promise<{ manifesto: Manifesto; registro?: RegistroProgetti } | undefined> => {
+        const manifesto = await sincronia.manifestoDrive().catch(() => undefined)
+        if (manifesto === undefined) return undefined
+        const grezzo = await sincronia.leggiFileDrive('sierradeck/progetti-drive.json', manifesto).catch(() => undefined)
+        let registro: RegistroProgetti | undefined
+        try { registro = grezzo === undefined ? undefined : parseRegistro(JSON.parse(grezzo.toString('utf8'))) } catch { registro = undefined }
+        return { manifesto, ...(registro !== undefined ? { registro } : {}) }
+      }, 60_000)
+      /** Il registro di qui più i progetti che sul Drive hanno file (solo per guardare e per «Porta qui»). */
+      const registroDelPannello = async (): Promise<RegistroProgetti> => {
+        const q = await quadroPannello()
+        const prefissi = new Set(Object.keys(q?.manifesto.file ?? {}).map((k) => k.split('/')[0] ?? ''))
+        return registroConIlDrive(registroProgetti.leggi(), q?.registro, (id) => prefissi.has(prefissoProgetto(id)))
+      }
       const leggiPannello = async (): Promise<Pannello> => {
         const inizio = Date.now()
         const io = identitaPc.leggi()
@@ -2516,7 +2533,8 @@ if (!app.requestSingleInstanceLock()) {
           return { sessione: c.sessione, titolo: c.titolo, ...(c.cwd !== undefined ? { cwd: c.cwd } : {}), ...(mtime !== undefined ? { mtime } : {}) }
         })
         const dalManifesto = Date.now()
-        const manifesto = await manifestoPannello()
+        const manifesto = (await quadroPannello())?.manifesto
+        const registroVisto = await registroDelPannello()
         const msManifesto = Date.now() - dalManifesto
         const pannello = datiPannello({
           io: { id: io.id, nome: io.nome, battito: new Date().toISOString() },
@@ -2526,7 +2544,7 @@ if (!app.requestSingleInstanceLock()) {
           manifesto,
           aperteQui: chatAperte.map((c) => c.sessione).filter((s): s is string => s !== undefined),
           titoliNoti: workspaceStore === undefined ? [] : chatSalvate(workspaceStore.leggi()).filter((c) => c.sessione !== undefined).map((c) => ({ sessione: c.sessione as string, titolo: c.titolo, cwd: c.cwd })),
-          progetti: registroProgetti.leggi().progetti.map((g) => ({ id: g.id, nome: g.nome, percorsi: g.percorsi, ...(g.aggiuntoIl !== '' ? { aggiuntoIl: g.aggiuntoIl } : {}), ...(g.unitoIn !== undefined ? { unitoIn: g.unitoIn } : {}) })),
+          progetti: registroVisto.progetti.map((g) => ({ id: g.id, nome: g.nome, percorsi: g.percorsi, ...(g.aggiuntoIl !== '' ? { aggiuntoIl: g.aggiuntoIl } : {}), ...(g.unitoIn !== undefined ? { unitoIn: g.unitoIn } : {}) })),
           adesso: Date.now(),
           ...(pianoCorrente?.() !== undefined ? { piano: pianoCorrente?.() as PianoAllineamento } : {}),
           workspaceQui: workspaceStore === undefined ? [] : workspaceStore.leggi().workspace.map((w) => w.nome),
@@ -2626,9 +2644,15 @@ if (!app.requestSingleInstanceLock()) {
           return { ok: true, messaggio: `Apro una chat nuova in ${cartella}.` }
         }
         if (azione === 'porta-qui') {
-          if (g === undefined) return { ok: false, messaggio: 'Progetto sconosciuto.' }
+          // Anche un progetto che questo PC conosce solo dal registro sul
+          // Drive (0.60.2): «Porta qui» lo trova dal catalogo, e la fusione
+          // lo aggiunge al registro di qui.
+          const daPortare = g ?? (await registroDelPannello()).progetti.find((x) => x.id === progetto)
+          if (daPortare === undefined) return { ok: false, messaggio: 'Progetto sconosciuto: non è né nel registro di questo PC né in quello sul Drive.' }
+          registro.info(`[allinea] porta qui «${daPortare.nome}» chiesto dal pannello${g === undefined ? ' (noto solo dal registro sul Drive)' : ''}`)
           const e = await sincronia.portaQui(progetto)
-          return e.ok ? { ok: true, messaggio: `«${g.nome}» portato qui dal Drive.` } : { ok: false, messaggio: e.messaggio }
+          registro.info(`[allinea] porta qui «${daPortare.nome}»: ${e.ok ? 'fatto' : `non riuscito — ${e.messaggio}`}`)
+          return e.ok ? { ok: true, messaggio: `«${daPortare.nome}» portato qui dal Drive.` } : { ok: false, messaggio: e.messaggio }
         }
         // «Rendi residente qui» (0.60.0): prima l'analisi di tutte le copie e il
         // riassunto; l'unione e il cambio di residente solo con la conferma.

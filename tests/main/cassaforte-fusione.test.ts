@@ -6,7 +6,7 @@ import { randomBytes } from 'node:crypto'
 import { archivioInMemoria } from '../../src/main/cassaforte/archivio'
 import { salvaIncrementale, manifestoVuoto, leggiManifesto } from '../../src/main/cassaforte/incrementale'
 import { firmaRadici, type Radice } from '../../src/main/cassaforte/raccolta'
-import { pianifica, sceltePredefinite, fondiArchivi, fondiRegistri, eseguiFusione } from '../../src/main/cassaforte/fusione'
+import { pianifica, sceltePredefinite, fondiArchivi, fondiRegistri, eseguiFusione, registroConIlDrive } from '../../src/main/cassaforte/fusione'
 import type { Archivio } from '@shared/workspace'
 
 /**
@@ -93,6 +93,23 @@ describe('la fusione', () => {
     const f = fondiRegistri(a, b)
     expect(f.progetti.map((p) => p.id)).toEqual(['p1', 'p2'])
     expect(f.progetti[0]!.percorsi).toEqual({ A: 'C:\\x', B: 'D:\\x' })
+  })
+
+  it('il pannello vede anche i progetti messi sul Drive da un altro PC, ma non quelli tolti (0.60.2)', () => {
+    // Collaudo dell'11/10: il fisso mette un progetto sul Drive, il pannello del portatile non lo mostrava.
+    const qui = { versione: 1 as const, progetti: [{ id: 'p1', nome: 'X', percorsi: { B: 'D:\\x' }, aggiuntoIl: '' }] }
+    const drive = { versione: 1 as const, progetti: [
+      { id: 'p1', nome: 'X', percorsi: { A: 'C:\\x' }, aggiuntoIl: '' },
+      { id: 'p-nuovo', nome: 'Prova', percorsi: { A: 'C:\\prova' }, aggiuntoIl: '' },
+      { id: 'p-tolto', nome: 'Tolto', percorsi: { A: 'C:\\tolto' }, aggiuntoIl: '' }
+    ] }
+    const conFile = (id: string): boolean => id !== 'p-tolto'
+    const r = registroConIlDrive(qui, drive, conFile)
+    expect(r.progetti.map((p) => p.id)).toEqual(['p1', 'p-nuovo'])
+    // Quello noto prende anche i percorsi degli altri PC; quelli di qui vincono.
+    expect(r.progetti[0]!.percorsi).toEqual({ A: 'C:\\x', B: 'D:\\x' })
+    // Senza registro sul Drive resta quello di qui, tale e quale.
+    expect(registroConIlDrive(qui, undefined, conFile)).toBe(qui)
   })
 
   it('esegue le scelte: carica, scarica, copia, e il resto del Drive resta com e', async () => {

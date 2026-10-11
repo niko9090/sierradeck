@@ -396,6 +396,29 @@ export function fondiRegistri(a: RegistroProgetti, b: RegistroProgetti): Registr
   return { versione: 1, progetti: fusi }
 }
 
+/**
+ * Il registro da mostrare nel pannello «Progetti» (0.60.2): quello di questo
+ * PC più i progetti del registro sul Drive che hanno davvero dei file sul
+ * Drive.
+ *
+ * Il registro di un PC impara i progetti degli altri solo con una fusione o un
+ * «Porta qui»: un progetto messo sul Drive dal fisso non compariva nel
+ * pannello del portatile, e «Porta qui» lì non c'era (collaudo dell'11/10).
+ * Solo la vista: il registro di qui non si scrive. Un progetto tolto con
+ * «Togli» non ha più file sul Drive, e quindi non ricompare.
+ */
+export function registroConIlDrive(qui: RegistroProgetti, drive: RegistroProgetti | undefined, conFileSulDrive: (id: string) => boolean): RegistroProgetti {
+  if (drive === undefined) return qui
+  const noti = new Set(qui.progetti.map((p) => p.id))
+  const daAggiungere = drive.progetti.filter((p) => !noti.has(p.id) && conFileSulDrive(p.id))
+  // Quelli noti prendono i percorsi degli altri PC che il Drive conosce.
+  const progetti = qui.progetti.map((p) => {
+    const d = drive.progetti.find((x) => x.id === p.id)
+    return d === undefined ? p : { ...p, percorsi: { ...d.percorsi, ...p.percorsi } }
+  })
+  return { versione: 1, progetti: [...progetti, ...daAggiungere] }
+}
+
 function discoDi(radici: Map<string, Radice>, percorso: string): string | undefined {
   const r = radici.get(prefissoDi(percorso))
   if (r === undefined) return undefined
