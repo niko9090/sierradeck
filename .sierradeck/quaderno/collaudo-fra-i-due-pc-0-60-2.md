@@ -107,6 +107,8 @@ Sul portatile il workspace attivo (MT5) e i suoi riquadri sono rimasti uguali.
 - Correzione: `progettiInRecupero(dati)` (le voci di `recupero-progetti/elenco.json` non ancora ripristinate) va a `pianoAllineamento` come `inRecupero`. Un progetto con una cartella di qui nel recupero ha solo il «porta qui» proposto, mai automatico.
 - «Ripristina» segna la voce `ripristinataIl`, quindi lo stop sparisce e lo stato torna quello di prima.
 - Test: `tests/main/allineamento-recupero.test.ts`.
+- **Verificato dal vero (0.60.7 su tutti e due i PC):** alle 10:06 la cartella riportata è tornata nel recupero. Il giro dopo scrive `[allinea] da portare qui … «SierraDeck-prova-collaudo» (da confermare)` e non la riscarica: alle 10:10, dopo due giri, la cartella non c'era.
+- **Autopilota di prova sul portatile:** «finito». Non si archivia senza «Ferma», e «Ferma» è vietato a una chat governata: resta da archiviare a mano.
 
 **Le cose fatte da lontano non rubano lo schermo** (regola già data da Nicholas). Prima erano proposte, poi fatte:
 - `/api/workspace/crea` usa `aggiungiWorkspace`, che lascia l'attivo com'è e avvisa le finestre con `workspace:cambiato`, quindi nessuna cambia;
