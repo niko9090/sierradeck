@@ -62,3 +62,37 @@ export function leggiRichiestaPonte(x: unknown): { ok: true; r: RichiestaPonte }
   if (corpo !== undefined && corpo !== null && (typeof corpo !== 'object' || Array.isArray(corpo))) return { ok: false, stato: 400, errore: 'Il corpo della richiesta non è un oggetto.' }
   return { ok: true, r: { pc, percorso, ...(corpo !== undefined && corpo !== null ? { corpo: corpo as Record<string, unknown> } : {}) } }
 }
+
+/**
+ * Cosa scrivere nel registro di questo PC per una richiesta del telefono
+ * attraverso il ponte (0.60.3). `undefined` = una lettura, che non si scrive.
+ *
+ * Il collaudo fra i due PC (11/10) ha trovato che dal telefono si scriveva a
+ * una chat dell'altro PC, la si apriva, se ne creava un workspace, e nel
+ * registro del PC che faceva da ponte non restava niente: solo dal PC, con i
+ * suoi passi `[apertura]`, si poteva dimostrare che cosa era successo.
+ */
+export function azioneDelPonte(percorso: string, corpo?: Record<string, unknown>): string | undefined {
+  const s = (k: string): string => (typeof corpo?.[k] === 'string' ? corpo[k] as string : '')
+  const chat = s('chat') !== '' ? ` nella chat ${s('chat').slice(0, 12)}` : ''
+  switch (percorso) {
+    case '/api/scrivi': return `scrivo${chat} (${s('testo').length} caratteri${s('idMessaggio') !== '' ? `, ${s('idMessaggio')}` : ''})`
+    case '/api/scegli': return `scelgo${chat}`
+    case '/api/apri': return `apro una chat nuova in ${s('cartella')}${s('workspace') !== '' ? ` nel workspace «${s('workspace')}»` : ''}`
+    case '/api/sessioni/riprendi': return `riapro la chat ${s('sessione').slice(0, 8)} in ${s('cartella')}`
+    case '/api/chat/chiudi': return `chiudo la chat${chat}`
+    case '/api/chat/dormi': return `metto a dormire la chat${chat}`
+    case '/api/chat/sveglia': return `sveglio la chat${chat}`
+    case '/api/chat/sposta': return `sposto la chat${chat}`
+    case '/api/chat/nome': return `rinomino la chat${chat}`
+    case '/api/chat/ospite': return `cambio la casa della chat${chat}`
+    case '/api/workspace/crea': return `creo il workspace «${s('nome')}»`
+    case '/api/workspace/elimina': return `tolgo il workspace «${s('nome')}»`
+    case '/api/workspace/rinomina': return `rinomino il workspace «${s('nome')}»`
+    case '/api/autopilota/crea': return `creo un autopilota in ${s('cartella') !== '' ? s('cartella') : s('cwd')}`
+    case '/api/autopilota/archivia': return `${corpo?.archivia === false ? 'tolgo dall’archivio' : 'archivio'} l’autopilota ${s('autopilota')}`
+    case '/api/autopilota/elimina': return `elimino l’autopilota ${s('autopilota')}`
+    case '/api/drive/azione': return `azione «${s('azione')}» del pannello sul progetto ${s('progetto') !== '' ? s('progetto') : s('id')}`
+    default: return undefined
+  }
+}

@@ -50,4 +50,14 @@ tag: ["collaudo", "ponte", "altri PC", "pannello", "drive", "timeout", "0.60.2"]
 - Serve solo per guardare: il registro di qui si scrive solo dalla fusione di «Porta qui».
 - `porta-qui` accetta anche questi progetti e scrive `[allinea] porta qui «…»` con l'esito.
 
+# Il terzo difetto (corretto nella 0.60.4): il ponte non lasciava traccia
+
+**Il problema.** Dal telefono, attraverso il ponte, si scriveva o si apriva una chat sull'altro PC, e nel registro del PC ponte restava solo `[ponte] il telefono guarda X`, una volta. I passi `[apertura]` (avvio in sottofondo, pronta, testo consegnato) li scriveva solo il riquadro del PC (IPC `remoto:sottofondo`).
+
+**Correzione.**
+- `ponteVersoPc` manda `/api/sottofondo/avvia` alla stessa funzione del riquadro (`sottofondoRemotoGlobale`), con il visore del telefono per il PIN. Così il telefono lascia gli stessi passi `[apertura]` e lo stesso seguito fino al testo consegnato.
+- Le altre azioni passano da `azioneDelPonte` (in `shared/ponte-telefono.ts`) e scrivono `[ponte] dal telefono: … su X: fatto (strada …)` oppure `NON riuscito — …`. Le letture non si scrivono.
+
+**«Riapri là» sull'altro PC cambia ciò che si vede là.** `apriNelSuoWorkspace` porta la prima finestra nel workspace della chat: è voluto. Nel collaudo si rimette il workspace di prima con `POST /api/workspace {nome}` attraverso il ponte.
+
 **Non toccato (da decidere se serve):** il registro sul Drive resta «vince il più recente». Un'unione vera a ogni salvataggio, come per `workspaces.json`, chiederebbe le lapidi per «Togli».

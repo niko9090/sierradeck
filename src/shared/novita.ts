@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.60.4',
+    righe: [
+      '**Quello che fai dal telefono sugli altri PC resta nel registro.** Il PC a cui è collegato il telefono scrive ogni azione che passa da lui verso un altro PC: scrivere in una chat, aprirla o riaprirla, rinominarla, creare un workspace o un autopilota, «Porta qui». Scrive anche se è riuscita, e per quale strada. Le sole letture non si scrivono.',
+      '**Scrivere dal telefono a una chat chiusa di un altro PC segue la stessa strada del PC.** La chat parte là in sottofondo, senza finestre, e il registro di questo PC racconta ogni passo: la richiesta, la risposta, la chat pronta e il testo consegnato.'
+    ]
+  },
+  {
     versione: '0.60.3',
     righe: [
       '**In «Progetti» compaiono anche i progetti messi sul Drive da un altro PC.** Prima il pannello guardava solo l’elenco dei progetti di questo PC, che impara quelli degli altri solo con una «Fusione»: un progetto nuovo del fisso non si vedeva sul portatile, e lì «Porta qui» rispondeva «Progetto sconosciuto». Ora il pannello aggiunge i progetti dell’elenco sul Drive che hanno davvero dei file sul Drive (quelli tolti con «Togli» non ricompaiono), e «Porta qui» li scarica e li aggiunge all’elenco di questo PC.'

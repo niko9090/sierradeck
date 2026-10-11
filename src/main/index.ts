@@ -144,6 +144,7 @@ import { ascoltaSenzaFinestra, smettiSenzaFinestra, impostaAdozioneSottofondo, a
 import { creaSottofondo, cancelliSottofondo, type Sottofondo, type TerminaleMuto } from './sottofondo'
 import { Terminal as TerminaleSenzaFinestra } from '@xterm/headless'
 import { testoConsegnato, type StatoSottofondo } from '@shared/sottofondo'
+import { azioneDelPonte } from '@shared/ponte-telefono'
 import { workspaceDiApertura } from '@shared/workspace-apertura'
 import { autopilotiDaStato, erroreAltroPc, rottaAutopilotaAltroPc, type AutopilotiDiPc } from '@shared/autopiloti-altri'
 import { risolviCartellaDiChat, type CartellaDiChat } from './progetti/cartella-di-chat'
@@ -536,6 +537,8 @@ let ponteVersoPc: ((pc: string, percorso: string, corpo?: Record<string, unknown
 let autopilotiAltri: (() => Promise<AutopilotiDiPc[]>) | undefined
 /** Un'azione su un autopilota di un altro PC: la rotta di sempre, chiamata là (0.59.0). */
 let azioneAutopilotaAltroPc: ((pc: string, percorso: string, corpo: Record<string, unknown>, visore?: string) => Promise<{ ok: true; dati: unknown } | { ok: false; stato: number; messaggio: string }>) | undefined
+/** Avviare in sottofondo una chat di un altro PC (0.60.3): dal riquadro di qui e dal telefono attraverso il ponte. */
+let sottofondoRemotoGlobale: ((q: Record<string, unknown>, visore?: string) => Promise<EsitoRemoto<StatoSottofondo> & { vecchio?: boolean }>) | undefined
 let leggiSalute: () => Promise<import('@shared/salute').Salute> = async () => componiSalute({
   adesso: Date.now(), versione: app.getVersion(), drive: { configurato: false, connesso: false }, pc: [], errori: [], consegne: [], oreErrori: ORE_ERRORI_SALUTE
 })
@@ -1974,8 +1977,13 @@ if (!app.requestSingleInstanceLock()) {
           f.vivo = false
         })()
       }
-      ipcMain.handle('remoto:sottofondo', async (_e, p: unknown) => {
-        const q = (typeof p === 'object' && p !== null ? p : {}) as Record<string, unknown>
+      /**
+       * Avviare in sottofondo una chat che vive su un altro PC: dal riquadro di
+       * qui (IPC) e, dalla 0.60.3, dal telefono attraverso il ponte. Stessi
+       * passi `[apertura]` nel registro di questo PC, e lo stesso seguito fino
+       * al testo consegnato.
+       */
+      const sottofondoRemoto = async (q: Record<string, unknown>, visore?: string): Promise<EsitoRemoto<StatoSottofondo> & { vecchio?: boolean }> => {
         const verso = testo(q.pc); const cwd = testo(q.cwd); const s = testo(q.sessione)
         const titolo = testo(q.titolo) !== '' ? testo(q.titolo) : s.slice(0, 8)
         const scritto = typeof q.testo === 'string' && q.testo.trim() !== '' ? q.testo : undefined
@@ -1984,7 +1992,7 @@ if (!app.requestSingleInstanceLock()) {
         const nome = postino.altrui().find((b) => b.pcId === verso)?.nome ?? verso
         const passo = (m: string): void => { registro.info(`[apertura] «${titolo}» (${s.slice(0, 8)}): ${m}`) }
         passo(`chiedo a ${nome} di avviarla in sottofondo, senza finestre là${scritto !== undefined ? `, con un testo in coda (${id ?? ''}, ${scritto.length} caratteri)` : ''}`)
-        const r = await esitoRemoto<StatoSottofondo>(() => remoto.chiama(verso, '/api/sottofondo/avvia', { cartella: cwd, sessione: s, titolo, ...(ws !== '' ? { workspace: ws } : {}), ...(scritto !== undefined && id !== undefined ? { testo: scritto, idMessaggio: id } : {}) }), verso)
+        const r = await esitoRemoto<StatoSottofondo>(() => remoto.chiama(verso, '/api/sottofondo/avvia', { cartella: cwd, sessione: s, titolo, ...(ws !== '' ? { workspace: ws } : {}), ...(scritto !== undefined && id !== undefined ? { testo: scritto, idMessaggio: id } : {}) }, visore), verso)
         if (!r.ok) {
           // Un PC che non conosce la rotta: va aggiornato (lo si dice così, non con un 404).
           const vecchio = r.stato === 404 || /non sa ancora avviare le chat in sottofondo/.test(r.messaggio)
@@ -2005,7 +2013,9 @@ if (!app.requestSingleInstanceLock()) {
         seguiti.set(k, f)
         segui(verso, s)
         return r
-      })
+      }
+      sottofondoRemotoGlobale = sottofondoRemoto
+      ipcMain.handle('remoto:sottofondo', (_e, p: unknown) => sottofondoRemoto((typeof p === 'object' && p !== null ? p : {}) as Record<string, unknown>))
       ipcMain.handle('remoto:sottofondoStato', (_e, pc: unknown, sessione: unknown) => {
         const f = seguiti.get(`${testo(pc)}|${testo(sessione)}`)
         return f === undefined ? undefined : { ...(f.stato !== undefined ? { stato: f.stato } : {}), ...(f.errore !== undefined ? { errore: f.errore } : {}), attesi: [...f.attesi] }
@@ -2084,13 +2094,24 @@ if (!app.requestSingleInstanceLock()) {
           const e = await azioneAutopilotaAltroPc(pc, percorso, corpo ?? {}, visoreTel)
           return e.ok ? { stato: 200, corpo: e.dati } : { stato: e.stato, corpo: { errore: e.messaggio, su: nome } }
         }
+        // Chi guarda è il telefono (0.49.1): il PIN di quel PC si apre per lui, non per questo PC.
+        const visore = dispositivo !== undefined && dispositivo !== '' ? `tel:${dispositivo}@${identitaPc.leggi().id}` : undefined
+        // Una chat chiusa di quel PC, avviata in sottofondo dal telefono
+        // (0.60.3): la stessa strada del riquadro di qui, con i passi [apertura].
+        if (percorso === '/api/sottofondo/avvia' && sottofondoRemotoGlobale !== undefined) {
+          const c = corpo ?? {}
+          const r = await sottofondoRemotoGlobale({ pc, cwd: c.cartella, sessione: c.sessione, titolo: c.titolo, workspace: c.workspace, testo: c.testo, id: c.idMessaggio }, visore)
+          return r.ok ? { stato: 200, corpo: r.dati, ...(r.strada !== undefined ? { strada: r.strada.strada } : {}) } : { stato: r.stato ?? 502, corpo: { errore: r.messaggio, motivo: r.motivo, su: nome, ...(r.vecchio === true ? { vecchio: true } : {}) } }
+        }
+        // Le azioni del telefono su quel PC nel registro di qui (0.60.3): le letture no.
+        const azione = azioneDelPonte(percorso, corpo)
         try {
-          // Chi guarda è il telefono (0.49.1): il PIN di quel PC si apre per lui, non per questo PC.
-          const visore = dispositivo !== undefined && dispositivo !== '' ? `tel:${dispositivo}@${identitaPc.leggi().id}` : undefined
           const dati = await remoto.chiama(pc, percorso, corpo, visore)
           const strada = remoto.stradaDi(pc)?.strada
+          if (azione !== undefined) registro.info(`[ponte] dal telefono: ${azione} su ${nome}: fatto (strada ${strada ?? '?'})`)
           return { stato: 200, corpo: dati, ...(strada !== undefined ? { strada } : {}) }
         } catch (err) {
+          if (azione !== undefined) registro.info(`[ponte] dal telefono: ${azione} su ${nome}: NON riuscito — ${err instanceof Error ? err.message : String(err)}`)
           if (err instanceof ErroreRemoto) return { stato: err.stato ?? 502, corpo: { ...(err.altro ?? {}), errore: err.message, motivo: err.motivo, su: nome } }
           return { stato: 502, corpo: { errore: `${nome}: ${err instanceof Error ? err.message : String(err)}`, su: nome } }
         }
