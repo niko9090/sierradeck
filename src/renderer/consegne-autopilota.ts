@@ -116,6 +116,13 @@ export type Ponte = {
    * frattempo): si torna nel suo workspace, una volta (0.38.2).
    */
   tornaNelSuoWorkspace?: (c: Consegna) => void
+  /**
+   * Il riquadro non è più sullo schermo (0.60.8): invece di riportare la
+   * finestra nel suo workspace, la consegna passa al Core, che la porta in
+   * sottofondo. Lo schermo non cambia mai per una consegna. Quando c'è, vince
+   * su `tornaNelSuoWorkspace`.
+   */
+  passaAlSottofondo?: (c: Consegna) => void
 }
 
 /** Un compito rimasto nel campo di una chat, senza partire. */
@@ -423,6 +430,12 @@ function attendiEConsegna(
     // Una consegna alla volta (0.56.1): se un'altra sta usando la finestra in
     // un altro workspace, si aspetta che abbia scritto; poi si torna (anche
     // più di una volta, se nel frattempo la finestra è stata portata via).
+    if (ora === undefined && passato >= RIQUADRO_PERSO_MS && ponte.passaAlSottofondo !== undefined) {
+      lasciaTurno(c)
+      ponte.registra?.(`consegna ${c.id}: il riquadro non c'è più in questa finestra (il workspace è cambiato): passa in sottofondo, senza cambiare lo schermo`)
+      ponte.passaAlSottofondo(c)
+      return
+    }
     const tornate = stato.tornate ?? (stato.tornato === true ? 1 : 0)
     if (ora === undefined && passato - (stato.ultimaTornata ?? 0) >= RIQUADRO_PERSO_MS && tornate < TORNATE_MAX && ponte.tornaNelSuoWorkspace !== undefined) {
       const occupato = turno !== undefined && turno.id !== c.id && turno.workspace !== c.workspace

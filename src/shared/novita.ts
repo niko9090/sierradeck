@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.60.8',
+    righe: [
+      '**Gli autopiloti non cambiano più il workspace che hai sullo schermo.** Se il workspace di un autopilota non è quello che stai guardando, la sua chat lavora in sottofondo, senza riquadro e senza finestre: riceve le istruzioni quando è pronta, mai sopra un turno in corso, e l’autopilota sa quando ha finito come sempre. Tu resti nel tuo progetto.',
+      '**Quando apri quel workspace, la chat dell’autopilota è lì com’è, senza ripartire.** Il riquadro prende il terminale che lavorava in sottofondo, e le istruzioni rimaste in coda passano al riquadro. Vale anche dopo un riavvio o un aggiornamento, e con più autopiloti in workspace diversi: non si aspettano più a turno.'
+    ]
+  },
+  {
     versione: '0.60.7',
     righe: [
       '**Un progetto messo nella cartella di recupero non torna da solo.** Se la cartella di un progetto di cui questo PC è il residente va nella cartella di recupero, il giro di allineamento non la riscarica più dal Drive dopo due minuti: la propone, e la decidi tu. «Ripristina» rimette la cartella al suo posto e tutto torna com’era.',

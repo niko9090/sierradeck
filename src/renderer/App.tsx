@@ -12,7 +12,7 @@ import { chiChiede, workspaceCheChiamano } from '@shared/dove-chiedono'
 import { attivaChiusuraFuori, attivaTrascinamento } from './trascina-finestre'
 import { chatAspetta, consegnaPartita, contaMandati, creaUltimeRighe, lavoraSulloSchermo, prontoPerInvio, sceltaSulloSchermo, testoPerso, ultimaRigaDalloSchermo } from './ultime-righe'
 import { creaBattito, stessiAttivi } from './battito'
-import { eseguiConsegna, ponteReale, scriviQuandoPronta, type InvioMancato } from './consegne-autopilota'
+import { eseguiConsegna, ponteReale, scriviQuandoPronta, type InvioMancato, type Consegna } from './consegne-autopilota'
 import { memoriaWorkspace } from './memoria-workspace'
 import { spostaInWorkspace } from './spostamento'
 import { leggiAzioneFinestra } from '@shared/azioni-telefono'
@@ -282,10 +282,8 @@ export function App(): React.JSX.Element {
     sveglia: (paneId: string) => { const p = useLayoutStore.getState().panes[paneId]; if (p?.ibernata === true) useLayoutStore.getState().sveglia(paneId) },
     // La chat di un autopilota diventata remota (0.52.5): torna qui, e il cancello decide.
     riportaQui: (paneId: string) => { const p = useLayoutStore.getState().panes[paneId]; if (p?.remoto !== undefined && p.autopilota !== undefined) useLayoutStore.getState().rendiLocale(paneId) },
-    tornaNelSuoWorkspace: (c: { workspace?: string }) => {
-      if (c.workspace === undefined || c.workspace === workspaceCorrente()) return
-      void azioniDiFinestra().cambia(c.workspace).then(() => window.gestore.workspace.stato()).then(aggiornaWorkspaceRef.current).catch(() => undefined)
-    },
+    // 0.60.8: mai riportare la finestra nel workspace di una consegna; la consegna passa in sottofondo.
+    passaAlSottofondo: (c: Consegna) => { void window.gestore.autopilota.inSottofondo(c).catch(() => undefined) },
     segnala: (s: InvioMancato) => {
       if (s.autopilotaId === '') return
       void window.gestore.autopilota.nota(s.autopilotaId, `guasto del programma: il compito è nella chat «${s.titolo || s.chatId}» ma non è partito (${s.motivo}).`).catch(() => undefined)
@@ -434,16 +432,11 @@ export function App(): React.JSX.Element {
       // salvata in un altro workspace: consegnare qui aprirebbe una seconda
       // copia sotto i tuoi occhi, e il lavoro andrebbe in quella - mentre
       // quella vera resta ferma in un posto che non stai guardando.
+      // 0.60.8: **mai cambiare il workspace sullo schermo** per una consegna.
+      // Se il suo workspace non è quello di questa finestra, va in sottofondo.
       if (c.workspace !== undefined && c.workspace !== workspaceCorrente()) {
-        void azioniDiFinestra()
-          .cambia(c.workspace)
-          .then(() => window.gestore.workspace.stato())
-          .then(aggiornaWorkspace)
-          .then(porta)
-          .catch((e: unknown) => {
-            console.error('[autopilota] non sono riuscito ad andare nel suo workspace:', e)
-            porta()
-          })
+        void window.gestore.log.info(`[consegna] consegna ${c.id}: il suo workspace «${c.workspace}» non è quello di questa finestra: passa in sottofondo, senza cambiare lo schermo`).catch(() => undefined)
+        void window.gestore.autopilota.inSottofondo(c).catch(() => undefined)
         continue
       }
       porta()

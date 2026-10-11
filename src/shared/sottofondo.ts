@@ -24,6 +24,13 @@ export type VoceSottofondo = {
   consegnati: string[]
   /** Il workspace del riquadro di chi la usa (0.59.0): per «Mostra qui». */
   workspace?: string
+  /**
+   * La chat di un autopilota (0.60.8): il suo workspace non era sullo schermo,
+   * e la consegna l'ha avviata qui invece di cambiare il workspace. Con questo
+   * il terminale nasce con gli hook dell'autopilota (fine turno, divieti),
+   * anche dopo un riavvio.
+   */
+  autopilota?: { id: string; chat: string }
 }
 
 /**
@@ -107,7 +114,11 @@ export function leggiElencoSottofondo(grezzo: unknown): VoceSottofondo[] {
       dal: typeof o.dal === 'string' ? o.dal : '',
       coda,
       consegnati: Array.isArray(o.consegnati) ? (o.consegnati as unknown[]).filter((x): x is string => typeof x === 'string').slice(-CONSEGNATI_RICORDATI) : [],
-      ...(typeof o.workspace === 'string' && o.workspace !== '' ? { workspace: o.workspace } : {})
+      ...(typeof o.workspace === 'string' && o.workspace !== '' ? { workspace: o.workspace } : {}),
+      ...(() => {
+        const a = o.autopilota as Record<string, unknown> | undefined
+        return a !== undefined && a !== null && typeof a.id === 'string' && a.id !== '' && typeof a.chat === 'string' && a.chat !== '' ? { autopilota: { id: a.id, chat: a.chat } } : {}
+      })()
     })
   }
   return fuori

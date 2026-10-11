@@ -202,8 +202,28 @@ export function impostaAdozioneSottofondo(f: (sessionUuid: string) => string | u
   adottaDalSottofondo = f
 }
 /** Avvia un pty senza finestra (0.58.4): lo imposta `registerPtyIpc`. */
-let avviaSenzaFinestra: ((req: { sessionUuid: string; cwd: string; title?: string; cols: number; rows: number }) => string) | undefined
-export function avviaPtySenzaFinestra(req: { sessionUuid: string; cwd: string; title?: string; cols: number; rows: number }): string {
+let avviaSenzaFinestra: ((req: { sessionUuid: string; cwd: string; title?: string; cols: number; rows: number; autopilota?: { id: string; chat: string } }) => string) | undefined
+/**
+ * I pty delle chat accesi adesso, con la loro conversazione (0.60.8). Servono
+ * a non far partire un secondo `claude --resume` in sottofondo per una chat
+ * che una finestra tiene accesa in un workspace che non mostra.
+ */
+const ptySessione = new Map<string, string>()
+/** Il pty acceso di una conversazione, se c'è (in una finestra o in sottofondo). */
+export function ptyDiSessione(sessionUuid: string): string | undefined {
+  for (const [pty, s] of ptySessione) if (s === sessionUuid) return pty
+  return undefined
+}
+/** Toglie un pty alla sua finestra e ne chiede lo scrollback per il sottofondo (0.60.8). Lo imposta `registerPtyIpc`. */
+let agganciaAlSottofondo: ((ptyId: string) => void) | undefined
+export function agganciaPtyAlSottofondo(ptyId: string): void { agganciaAlSottofondo?.(ptyId) }
+/**
+ * Una finestra riaggancia un pty (torna nel workspace che lo teneva): se nel
+ * frattempo lo usava il sottofondo, glielo cede prima (0.60.8). Lo imposta il Core.
+ */
+let primaDiRiagganciare: (ptyId: string) => void = () => {}
+export function impostaPrimaDiRiagganciare(f: (ptyId: string) => void): void { primaDiRiagganciare = f }
+export function avviaPtySenzaFinestra(req: { sessionUuid: string; cwd: string; title?: string; cols: number; rows: number; autopilota?: { id: string; chat: string } }): string {
   if (avviaSenzaFinestra === undefined) throw new Error('i terminali di questo PC non sono ancora pronti')
   return avviaSenzaFinestra(req)
 }
@@ -243,6 +263,7 @@ export function registerPtyIpc(
   })
 
   client.on((msg: HostToCore) => {
+    if (msg.kind === 'exit' || msg.kind === 'assente') ptySessione.delete(msg.id)
     // L'ordine fra instradamento e rilascio, e il perche' del ritorno booleano,
     // sono spiegati e verificati accanto a `instradaEventoHost`, in
     // window-manager.ts: qui e' provabile, dentro questa chiusura non lo sarebbe.
@@ -323,6 +344,7 @@ export function registerPtyIpc(
     primaDiAprire(cwd)
     const id = randomUUID()
     if (win !== undefined) registro.assegna(id, win.id)
+    ptySessione.set(id, req.sessionUuid)
     client.send({
       id,
       kind: 'spawn',
@@ -358,6 +380,10 @@ export function registerPtyIpc(
     return id
   }
   avviaSenzaFinestra = (r) => avvia(validateSpawnRequest(r), undefined)
+  agganciaAlSottofondo = (ptyId) => {
+    registro.rilascia(ptyId)
+    client.send({ id: ptyId, kind: 'attach' })
+  }
   // A senso unico come write/resize/kill: la risposta è `scrollback` o
   // `assente` e arriva sul canale degli eventi, dove il riquadro è già in
   // ascolto. Una promise qui costringerebbe a un secondo percorso per lo stesso
@@ -367,6 +393,7 @@ export function registerPtyIpc(
       const id = validatePtyId(rawId)
       const win = BrowserWindow.fromWebContents(event.sender)
       if (win === null) throw new Error('richiesta di attach da una finestra sconosciuta')
+      primaDiRiagganciare(id)
       registro.assegna(id, win.id)
       client.send({ id, kind: 'attach' })
     } catch (err) {

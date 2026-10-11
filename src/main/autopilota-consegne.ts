@@ -76,6 +76,45 @@ export function versoIlSuoWorkspace(
 }
 
 /**
+ * Dove portare una consegna (0.60.8): nella finestra o **in sottofondo**.
+ *
+ * Nicholas: la chat dell'autopilota «la deve aprire senza visualizzarla…
+ * andiamo avanti nei PC in progetti diversi». Una consegna non cambia mai il
+ * workspace sullo schermo: se la chat non è in un riquadro che si vede e il suo
+ * workspace non è quello di nessuna finestra, lavora in sottofondo (pty senza
+ * finestra, schermo con `@xterm/headless`), e il riquadro la adotta quando
+ * quel workspace si apre.
+ *
+ * - la chat è in un riquadro di una finestra (quello che si vede): la finestra;
+ * - è già in sottofondo, o accesa in un workspace che nessuna finestra mostra: il sottofondo;
+ * - il suo workspace non è sullo schermo: il sottofondo;
+ * - altrimenti (il suo workspace si vede, o non ne ha uno): la finestra, come sempre.
+ */
+export function doveConsegnare(p: {
+  workspace?: string
+  /** La conversazione è in un riquadro di una finestra, nel workspace che mostra. */
+  inFinestra: boolean
+  /** Gira già in sottofondo. */
+  inSottofondo: boolean
+  /** Ha un terminale acceso, ma in un workspace che la finestra tiene nascosto. */
+  accesaNascosta: boolean
+  /** I workspace sullo schermo, uno per finestra. */
+  visibili: readonly string[]
+}): 'finestra' | 'sottofondo' {
+  if (p.inFinestra) return 'finestra'
+  if (p.inSottofondo || p.accesaNascosta) return 'sottofondo'
+  if (p.workspace !== undefined && !p.visibili.includes(p.workspace)) return 'sottofondo'
+  return 'finestra'
+}
+
+/** L'id del testo in sottofondo per una consegna: lo stesso per la stessa istruzione, mai uguale per due diverse. */
+export function idTestoConsegna(c: Consegna): string {
+  let h = 0
+  for (let i = 0; i < c.testo.length; i += 1) h = (Math.imul(h, 31) + c.testo.charCodeAt(i)) | 0
+  return `ap-${c.id.replace(/[^A-Za-z0-9_-]/g, '')}-${(h >>> 0).toString(36)}`.slice(0, 80)
+}
+
+/**
  * Legge le consegne da un valore qualunque, senza mai sollevare.
  *
  * Il servizio è nostro, ma la risposta arriva da un altro processo attraverso

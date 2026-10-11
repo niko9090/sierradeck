@@ -430,6 +430,8 @@ declare global {
         riprendiAlRiavvio: (id: string, riprendi: boolean) => Promise<void>
         archivia: (id: string, archivia: boolean) => Promise<void>
         nota: (id: string, testo: string) => Promise<void>
+        /** Una consegna il cui workspace non è sullo schermo (0.60.8): la porta il Core in sottofondo. */
+        inSottofondo: (c: unknown) => Promise<boolean>
         file: (id: string) => Promise<import('@shared/file-autopilota').GruppoChat[]>
         diff: (id: string, chiave: string, percorso: string) => Promise<string>
         elimina: (id: string) => Promise<void>

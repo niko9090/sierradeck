@@ -77,7 +77,15 @@ export type TerminaleMuto = {
 export type DipendenzeSottofondo = {
   /** La cartella dei dati di SierraDeck: ci sta `sottofondo.json`. */
   dati: string
-  avviaPty: (r: { sessionUuid: string; cwd: string; title?: string; cols: number; rows: number }) => string
+  avviaPty: (r: { sessionUuid: string; cwd: string; title?: string; cols: number; rows: number; autopilota?: { id: string; chat: string } }) => string
+  /**
+   * Prende un pty già acceso (0.60.8): la chat di un autopilota viva in un
+   * workspace che nessuna finestra mostra. Toglie il pty alla finestra e ne
+   * chiede lo scrollback, che arriva qui. Senza, `prendi` non si usa.
+   */
+  aggancia?: (ptyId: string) => void
+  /** Un testo è partito davvero (0.60.8): chi l'ha mandato lo scrive nel suo registro. */
+  consegnato?: (voce: VoceSottofondo, id: string) => void
   ascolta: (ptyId: string, cb: (msg: HostToCore) => void) => void
   smetti: (ptyId: string) => void
   scrivi: (ptyId: string, data: string) => void
@@ -136,6 +144,12 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
   }
 
   const evento = (v: Viva, msg: HostToCore): void => {
+    if (msg.kind === 'scrollback') {
+      // Un pty preso da una finestra (0.60.8): lo schermo di prima, per sapere quando è pronto.
+      v.term.write(msg.data)
+      v.attivita.ultimoDato = adesso()
+      return
+    }
     if (msg.kind === 'data') {
       const ora = adesso()
       v.attivita.ultimoDato = ora
@@ -167,13 +181,19 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
     ...(v.voce.workspace !== undefined ? { workspace: v.voce.workspace } : {})
   })
 
-  const avviaViva = (voce: VoceSottofondo): Viva => {
+  const avviaViva = (voce: VoceSottofondo, gia?: string): Viva => {
     const term = d.creaTerminale(COLONNE_SOTTOFONDO, RIGHE_SOTTOFONDO)
-    const ptyId = d.avviaPty({ sessionUuid: voce.sessione, cwd: voce.cwd, title: voce.titolo, cols: COLONNE_SOTTOFONDO, rows: RIGHE_SOTTOFONDO })
+    const ptyId = gia ?? d.avviaPty({ sessionUuid: voce.sessione, cwd: voce.cwd, title: voce.titolo, cols: COLONNE_SOTTOFONDO, rows: RIGHE_SOTTOFONDO, ...(voce.autopilota !== undefined ? { autopilota: voce.autopilota } : {}) })
     const v: Viva = { voce, ptyId, term, attivita: { ultimoDato: adesso(), prontoVisto: false }, fase: 'avvio', messaggio: '', avviataIl: adesso(), scritture: new Map(), fermi: new Set() }
     d.ascolta(ptyId, (msg) => evento(v, msg))
     vive.set(voce.sessione, v)
     finite.delete(voce.sessione)
+    if (gia !== undefined) {
+      // Già accesa: niente secondo `claude --resume`, si prende il suo terminale.
+      d.aggancia?.(gia)
+      cambiaFase(v, 'avvio', `presa in sottofondo per ${voce.perChi.nome}: era accesa in un workspace che nessuna finestra mostra, continua senza riavviarsi e senza cambiare lo schermo`)
+      return v
+    }
     cambiaFase(v, 'avvio', `avviata in sottofondo per ${voce.perChi.nome} nella cartella ${voce.cwd}: nessun riquadro, nessuna finestra`)
     return v
   }
@@ -211,6 +231,7 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
           v.scritture.delete(s.id)
           salva()
           cambiaFase(v, 'lavora', `testo consegnato (${s.id}): la chat lavora`)
+          d.consegnato?.(v.voce, s.id)
           continue
         }
         if (testoPerso(righe, s.testo, s.prima)) {
@@ -270,15 +291,16 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
      * Avvia (o ritrova) la chat in sottofondo e mette in coda il testo, se c'è.
      * I cancelli (casa, cartella, PIN, chiave di casa) li ha già passati chi chiama.
      */
-    avvia(r: { sessione: string; cwd: string; titolo: string; perChi: ChiUsa; testo?: string; idMessaggio?: string; workspace?: string }): StatoSottofondo {
+    avvia(r: { sessione: string; cwd: string; titolo: string; perChi: ChiUsa; testo?: string; idMessaggio?: string; workspace?: string; autopilota?: { id: string; chat: string }; ptyGia?: string }): StatoSottofondo {
       let v = vive.get(r.sessione)
       if (v === undefined) {
         const orfana = codaOrfana.get(r.sessione)
         codaOrfana.delete(r.sessione)
-        const voce: VoceSottofondo = orfana !== undefined
+        const base: VoceSottofondo = orfana !== undefined
           ? { ...orfana, perChi: r.perChi }
           : { sessione: r.sessione, cwd: r.cwd, titolo: r.titolo, perChi: r.perChi, dal: new Date(adesso()).toISOString(), coda: [], consegnati: [] }
-        v = avviaViva(voce)
+        const voce: VoceSottofondo = r.autopilota !== undefined ? { ...base, autopilota: r.autopilota } : base
+        v = avviaViva(voce, r.ptyGia)
       } else if (v.voce.perChi.id !== r.perChi.id) {
         v.voce = { ...v.voce, perChi: r.perChi }
       }
@@ -311,7 +333,7 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
       return undefined
     },
     /** Le chat per `/api/stato` e per il battito: come quelle dei riquadri. */
-    chat(): { id: string; titolo: string; cwd: string; sessione: string; aspetta: boolean; viva: boolean; ultimaRiga: string; coda: string[]; codaGrezza: string[]; sottofondo: ChiUsa }[] {
+    chat(): { id: string; titolo: string; cwd: string; sessione: string; aspetta: boolean; viva: boolean; ultimaRiga: string; coda: string[]; codaGrezza: string[]; sottofondo: ChiUsa; autopilota?: { id: string; chat: string } }[] {
       const ora = adesso()
       return [...vive.values()].map((v) => {
         const r = (() => { try { return righeDaSchermo(v.term.buffer.active, v.term.rows, 60) } catch { return { pulite: [] as string[], grezze: [] as string[] } } })()
@@ -325,7 +347,8 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
           ultimaRiga: ultimaRigaDalloSchermo(r.pulite),
           coda: r.pulite,
           codaGrezza: r.grezze,
-          sottofondo: v.voce.perChi
+          sottofondo: v.voce.perChi,
+          ...(v.voce.autopilota !== undefined ? { autopilota: v.voce.autopilota } : {})
         }
       })
     },
@@ -366,14 +389,25 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
      * «Mostra qui» (e l'adozione da parte di una finestra): il pty esce dal
      * sottofondo **senza fermarsi**, e il riquadro lo riaggancia.
      */
-    cedi(sessione: string): { ptyId: string; cwd: string; titolo: string; sessione: string } | undefined {
+    cedi(sessione: string): { ptyId: string; cwd: string; titolo: string; sessione: string; coda: { id: string; testo: string }[]; autopilota?: { id: string; chat: string }; workspace?: string } | undefined {
       const v = vive.get(sessione)
       if (v === undefined) return undefined
       togli(sessione, false)
       // Il testo ancora in coda: lo scrive chi guarda adesso, a schermo.
       codaOrfana.delete(sessione)
       d.log(`[sottofondo] ${nome(v)}: passa in un riquadro di questo PC, senza riavviarsi${v.voce.coda.length > 0 ? ` (${v.voce.coda.length} testi ancora in coda: restano a te)` : ''}`)
-      return { ptyId: v.ptyId, cwd: v.voce.cwd, titolo: v.voce.titolo, sessione }
+      // Il testo che stava scrivendo adesso conta come ancora da scrivere: partito o no, lo ricontrolla il riquadro.
+      return {
+        ptyId: v.ptyId, cwd: v.voce.cwd, titolo: v.voce.titolo, sessione,
+        coda: v.voce.coda.map((x) => ({ id: x.id, testo: x.testo })),
+        ...(v.voce.autopilota !== undefined ? { autopilota: v.voce.autopilota } : {}),
+        ...(v.voce.workspace !== undefined ? { workspace: v.voce.workspace } : {})
+      }
+    },
+    /** La chat in sottofondo che usa quel pty (0.60.8), per chi lo riaggancia a una finestra. */
+    sessioneDelPty(ptyId: string): string | undefined {
+      for (const v of vive.values()) if (v.ptyId === ptyId) return v.voce.sessione
+      return undefined
     },
     /** «Chiudi»: la conversazione resta su disco, il processo si ferma. */
     chiudi(sessione: string): boolean {

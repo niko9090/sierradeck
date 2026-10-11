@@ -26,7 +26,7 @@ import { basename, dirname, join, resolve, sep } from 'node:path'
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, watch, copyFileSync, writeFileSync } from 'node:fs'
 import { homedir, hostname } from 'node:os'
 import { createConnection } from 'node:net'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { APP_NAME, APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
 import { cartellaDati } from './migra-dati'
@@ -115,7 +115,7 @@ import { apkDisponibile } from './apk-disponibile'
 import { creaLavoro } from './cassaforte/lavoro-in-corso'
 import { scanProjects } from './indexer/project-scanner'
 import { get as httpGet, request as httpRequest } from 'node:http'
-import { avviaRitiro, finestraPerConsegna, versoIlSuoWorkspace } from './autopilota-consegne'
+import { avviaRitiro, doveConsegnare, leggiConsegne, finestraPerConsegna, idTestoConsegna, versoIlSuoWorkspace, type Consegna } from './autopilota-consegne'
 import type { Chat } from './client-rotte'
 import { apriProviderStore } from './provider-store'
 import { creaAggiornamenti, type EsitoQuiete } from './aggiornamenti'
@@ -141,7 +141,7 @@ import { ultimeRighe as ultimeRigheDelRegistro } from './risoluzione'
 import { trovaChatRemota, PORTA_CLIENT_PREDEFINITA, type EsitoRemoto, type PcRemoto, type ChatSuPc } from '@shared/pc-remoto'
 import { progettoDiCwd, staDentro } from './progetti/registro'
 import { impostaGuardiaCasa, impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
-import { ascoltaSenzaFinestra, smettiSenzaFinestra, impostaAdozioneSottofondo, avviaPtySenzaFinestra } from './ipc'
+import { ascoltaSenzaFinestra, smettiSenzaFinestra, impostaAdozioneSottofondo, avviaPtySenzaFinestra, agganciaPtyAlSottofondo, impostaPrimaDiRiagganciare, ptyDiSessione } from './ipc'
 import { statoDi as statoWorkspaceDi } from './ipc'
 import { creaSottofondo, cancelliSottofondo, type Sottofondo, type TerminaleMuto } from './sottofondo'
 import { Terminal as TerminaleSenzaFinestra } from '@xterm/headless'
@@ -180,7 +180,7 @@ import { apriRegistro, type Registro } from './registro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
-import { ordineDeiMonitor, quanteFinestre, workspaceDellaSessione, chatSalvate } from '@shared/workspace'
+import { ordineDeiMonitor, quanteFinestre, workspaceDellaSessione, chatSalvate, aggiungiPaneA, type LayoutSalvato } from '@shared/workspace'
 import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
 import { apriDestinazioni } from './trasferimenti/destinazioni'
@@ -1211,6 +1211,9 @@ if (!app.requestSingleInstanceLock()) {
           ferma: (id) => client.send({ id, kind: 'kill' }),
           creaTerminale: (cols, rows) => new TerminaleSenzaFinestra({ cols, rows, scrollback: 5000, allowProposedApi: true }) as unknown as TerminaleMuto,
           log: (m) => registro.info(m),
+          aggancia: (ptyId) => agganciaPtyAlSottofondo(ptyId),
+          // Il testo di un autopilota partito in sottofondo (0.60.8): nel registro come le consegne a schermo.
+          consegnato: (voce, id) => { if (voce.autopilota !== undefined) registro.info(`[consegna] ${id} per «${voce.titolo}»: partita, in sottofondo (workspace «${voce.workspace ?? '?'}» non sullo schermo)`) },
           cambiato: () => {
             chatAperte = conSegnali(chatDiQui())
             for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('sottofondo:cambiato')
@@ -1219,9 +1222,18 @@ if (!app.requestSingleInstanceLock()) {
         // Una finestra che apre la stessa conversazione la prende dal
         // sottofondo (un workspace ripristinato, «Mostra qui»): mai due
         // `claude --resume` sulla stessa chat.
+        // Una finestra torna nel workspace che teneva acceso il pty preso dal
+        // sottofondo (0.60.8): il sottofondo lo cede, senza fermarlo.
+        impostaPrimaDiRiagganciare((ptyId) => {
+          const s = sottofondo?.sessioneDelPty(ptyId)
+          if (s === undefined) return
+          const c = sottofondo?.cedi(s)
+          if (c !== undefined) registro.info(`[sottofondo] «${c.titolo}» (${s.slice(0, 8)}): la finestra torna nel suo workspace e riprende il terminale com’è`)
+        })
         impostaAdozioneSottofondo((s) => {
           const c = sottofondo?.cedi(s)
           if (c !== undefined) registro.info(`[sottofondo] «${c.titolo}» (${s.slice(0, 8)}): una finestra di questo PC la apre e la prende com’è, senza un secondo avvio`)
+          if (c !== undefined) riconsegnaDopoAdozione(c)
           return c?.ptyId
         })
         const sf = sottofondo
@@ -4963,6 +4975,84 @@ if (!app.requestSingleInstanceLock()) {
       // scrivere le mette in una coda nel suo servizio, e da qui si va a
       // ritirarle — è il Gestore l'unico che ha le finestre, e quindi l'unico
       // che può portarle dentro una chat vera.
+      /**
+       * Le istruzioni di un autopilota ancora in coda quando una finestra adotta
+       * la sua chat dal sottofondo (0.60.8): il servizio le ha già date per
+       * consegnate, quindi non devono perdersi. Vanno alla finestra che ora
+       * mostra quella chat, come una consegna normale (che aspetta la chat
+       * pronta e la conferma «partita»). Si aspetta che la finestra la elenchi.
+       */
+      const riconsegnaDopoAdozione = (c: { sessione: string; cwd: string; titolo: string; coda: { id: string; testo: string }[]; autopilota?: { id: string; chat: string }; workspace?: string }, tentativo = 0): void => {
+        if (c.autopilota === undefined || c.coda.length === 0) return
+        const finestra = finestreDiChat().find((w) => !w.isDestroyed() && (chatPerFinestra.get(w.id) ?? []).some((x) => x.sessione === c.sessione))
+        if (finestra === undefined) {
+          if (tentativo < 40) { setTimeout(() => riconsegnaDopoAdozione(c, tentativo + 1), 1500); return }
+          registro.info(`[consegna] «${c.titolo}»: ${c.coda.length} istruzioni dell’autopilota erano in coda in sottofondo, ma nessuna finestra mostra la chat dopo 60 s: le rimetto in sottofondo`)
+          for (const t of c.coda) sottofondo?.avvia({ sessione: c.sessione, cwd: c.cwd, titolo: c.titolo, perChi: { id: `autopilota:${c.autopilota.id}`, nome: 'il suo autopilota' }, testo: t.testo, idMessaggio: t.id, autopilota: c.autopilota, ...(c.workspace !== undefined ? { workspace: c.workspace } : {}) })
+          return
+        }
+        for (const t of c.coda) {
+          registro.info(`[consegna] ${t.id} per «${c.titolo}»: la chat è passata in un riquadro, l’istruzione ancora in coda va lì`)
+          finestra.webContents.send('autopilota:consegna', { id: t.id, autopilotaId: c.autopilota.id, chatId: c.autopilota.chat, cwd: c.cwd, sessionId: c.sessione, titolo: c.titolo, cosa: 'scrivi', testo: t.testo, ...(c.workspace !== undefined ? { workspace: c.workspace } : {}) })
+        }
+      }
+      /**
+       * Una consegna in sottofondo (0.60.8). Le regole delle consegne restano:
+       * il testo aspetta la chat pronta, non si scrive sopra un turno in corso
+       * (`campoPronto`, `lavoraSulloSchermo`), e resta in `sottofondo.json`
+       * finché non è partito davvero — anche dopo un riavvio. La chat entra
+       * nel suo workspace salvato, così aprendolo il riquadro la adotta.
+       */
+      const consegnaInSottofondo = (sf: Sottofondo, c: Consegna, ptyGia: string | undefined): boolean => {
+        const passo = (m: string): void => { registro.info(`[consegna] consegna ${c.id} per «${c.titolo}»: ${m}`) }
+        const ws = c.workspace
+        if (c.cosa === 'interrompi') {
+          if (sf.ha(c.sessionId)) { sf.tasti(c.sessionId, [String.fromCharCode(3)]); passo('interrotta in sottofondo (Ctrl+C), senza cambiare lo schermo') }
+          else passo('niente da interrompere: la chat non è accesa')
+          return true
+        }
+        const pronta = preparaConsegna(c, (rel, testo) => scriviFileConsegna(c.cwd, rel, testo))
+        const idTesto = idTestoConsegna(c)
+        try {
+          sf.avvia({
+            sessione: c.sessionId, cwd: c.cwd, titolo: c.titolo || c.sessionId.slice(0, 8),
+            perChi: { id: `autopilota:${c.autopilotaId}`, nome: 'il suo autopilota' },
+            testo: pronta.testo, idMessaggio: idTesto,
+            ...(ws !== undefined ? { workspace: ws } : {}),
+            ...(c.autopilotaId !== '' ? { autopilota: { id: c.autopilotaId, chat: c.chatId } } : {}),
+            ...(ptyGia !== undefined && !sf.ha(c.sessionId) ? { ptyGia } : {})
+          })
+        } catch (e) {
+          // Non si conferma: resta nella coda del servizio e si riprova al giro dopo.
+          passo(`non avviata in sottofondo (${e instanceof Error ? e.message : String(e)}): resta in coda`)
+          return false
+        }
+        passo(`il suo workspace «${ws ?? '?'}» non è sullo schermo: lavora in sottofondo, senza cambiare workspace (testo ${idTesto} in coda, parte quando la chat è pronta)`)
+        // Nel suo workspace salvato: aprendolo, il riquadro la adotta senza riavviarla.
+        if (ws !== undefined && workspaceStore !== undefined) {
+          const a = workspaceStore.leggi()
+          const gia = a.workspace.some((w) => Object.values(w.perSlot).some((l) => l.panes.some((p) => p.sessionUuid === c.sessionId)))
+          const w = a.workspace.find((x) => x.nome === ws)
+          if (!gia && w !== undefined) {
+            const slot = Object.keys(w.perSlot)[0] ?? '1'
+            const pane = { id: `pane-${randomUUID()}`, sessionUuid: c.sessionId, cwd: c.cwd, title: c.titolo || c.sessionId.slice(0, 8), ...(c.autopilotaId !== '' ? { autopilota: { id: c.autopilotaId, chat: c.chatId } } : {}) }
+            const attuale = w.perSlot[slot] ?? { root: undefined, panes: [] }
+            workspaceStore.scrivi({ ...a, workspace: a.workspace.map((x) => (x.nome === ws ? { ...x, perSlot: { ...x.perSlot, [slot]: aggiungiPaneA(attuale as LayoutSalvato, pane) } } : x)) })
+            for (const f of finestreDiChat()) if (!f.isDestroyed() && !f.webContents.isDestroyed()) f.webContents.send('workspace:chatArrivata', { workspace: ws, pane })
+            passo(`messa nel workspace «${ws}»: aprendolo, il riquadro la prende com’è`)
+          }
+        }
+        return true
+      }
+      // Dal renderer (0.60.8): una consegna che la finestra non può portare
+      // senza cambiare workspace torna qui e va in sottofondo.
+      ipcMain.handle('autopilota:inSottofondo', (_e, raw: unknown) => {
+        const c = leggiConsegne({ consegne: [raw] })[0]
+        const sf = sottofondo
+        if (c === undefined || sf === undefined) return false
+        const conWs = versoIlSuoWorkspace(c, (sessionId) => workspaceStore === undefined ? undefined : workspaceDellaSessione(workspaceStore.leggi(), sessionId))
+        return consegnaInSottofondo(sf, conWs, ptyDiSessione(c.sessionId))
+      })
       fermaRitiroConsegne = avviaRitiro({
         chiedi: async () => {
           // **Non si ritira senza avere dove mettere.** Ritirare svuota la coda
@@ -4989,7 +5079,27 @@ if (!app.requestSingleInstanceLock()) {
         conferma: async (ids) => { await postaAlServizio('/consegne/conferma', { ids }) },
         consegna: (c) => {
           const vive = finestreDiChat().filter((w) => !w.isDestroyed())
-          const dove = finestraPerConsegna(c.sessionId, chatPerFinestra, vive.map((w) => w.id))
+          // **Mai cambiare il workspace sullo schermo** (0.60.8): se la chat non
+          // si vede e il suo workspace non è quello di nessuna finestra, lavora
+          // in sottofondo, e il riquadro la adotta quando quel workspace si apre.
+          const conWs = versoIlSuoWorkspace(c, (sessionId) =>
+            workspaceStore === undefined ? undefined : workspaceDellaSessione(workspaceStore.leggi(), sessionId))
+          const inFinestra = vive.some((w) => (chatPerFinestra.get(w.id) ?? []).some((x) => x.sessione === c.sessionId))
+          const ptyAcceso = ptyDiSessione(c.sessionId)
+          const sf = sottofondo
+          const verso = sf === undefined ? 'finestra' : doveConsegnare({
+            ...(conWs.workspace !== undefined ? { workspace: conWs.workspace } : {}),
+            inFinestra,
+            inSottofondo: sf.ha(c.sessionId),
+            accesaNascosta: !inFinestra && ptyAcceso !== undefined && !sf.ha(c.sessionId),
+            visibili: vive.map((w) => workspaceDellaFinestra(w.id)).filter((x): x is string => x !== undefined)
+          })
+          if (verso === 'sottofondo' && sf !== undefined) return consegnaInSottofondo(sf, conWs, inFinestra ? undefined : ptyAcceso)
+          // La finestra che ha la chat; altrimenti quella che mostra il suo
+          // workspace (0.60.8: con due finestre la prima avrebbe cambiato workspace).
+          const conLaChat = vive.find((w) => (chatPerFinestra.get(w.id) ?? []).some((x) => x.sessione === c.sessionId))
+          const colSuoWs = conWs.workspace === undefined ? undefined : vive.find((w) => workspaceDellaFinestra(w.id) === conWs.workspace)
+          const dove = conLaChat?.id ?? colSuoWs?.id ?? finestraPerConsegna(c.sessionId, chatPerFinestra, vive.map((w) => w.id))
           const finestra = vive.find((w) => w.id === dove)
           if (finestra === undefined || finestra.webContents.isDestroyed()) {
             // Non si conferma: l'istruzione resta nella coda del servizio e
