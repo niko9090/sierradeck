@@ -12,6 +12,7 @@ import { fuocoAllaChatVicina } from '../fuoco-chat'
 import { MODELLI } from '../modelli'
 import { MenuPin } from './ChatConPin'
 import { SottofondoQui } from './SottofondoQui'
+import { MENU_PRINCIPALE, type IdMenu } from '@shared/menu-principale'
 
 /**
  * I modelli che si possono scegliere.
@@ -32,7 +33,12 @@ import { SottofondoQui } from './SottofondoQui'
  * qualcosa di nuovo: chi non vuole pensarci li usa e non ci pensa più.
  */
 
-export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'file' | 'drive' | 'salute' | 'domande' | undefined
+/**
+ * I pannelli che scorrono sopra il mosaico. Il vecchio «drive» non c'è più
+ * (0.61.0): le sue funzioni stanno in Progetti. «chat» è il pannello «Chat e
+ * workspace» del menu principale.
+ */
+export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'file' | 'salute' | 'chat' | undefined
 
 type Props = {
   onApriSessioni: () => void
@@ -65,10 +71,10 @@ type Props = {
   domandeAperte?: boolean
   /** Apre o chiude la colonna laterale delle Domande. */
   onDomande?: () => void
-  /** La colonna laterale «Consumi e limiti» e' aperta (0.37.0). */
-  consumiAperti?: boolean
-  /** Apre o chiude la colonna «Consumi e limiti». */
-  onConsumi?: () => void
+  /** Il pannello Progetti è aperto (0.61.0: è la prima voce del menu). */
+  progettiAperti?: boolean
+  /** Apre o chiude il pannello Progetti. */
+  onProgetti?: () => void
 }
 
 /**
@@ -90,8 +96,8 @@ export function Console({
   domandeInAttesa = 0,
   domandeAperte = false,
   onDomande,
-  consumiAperti = false,
-  onConsumi,
+  progettiAperti = false,
+  onProgetti,
   aggiornamento,
   onStatoWorkspace,
   workspaceCheChiamano,
@@ -164,15 +170,24 @@ export function Console({
   // Le scorciatoie vive seguono le preferenze: la tabella sta in
   // `scorciatoie-vive` perche' la legge anche il terminale, a ogni tasto.
   // Un riquadro puo' chiedere di aprire una scheda della console: il riquadro
-  // d'attesa di una chat su un PC spento apre la scheda Drive per «Porta qui».
+  // d'attesa di una chat su un PC spento apre Progetti per «Porta qui».
   useEffect(() => {
     const suRichiesta = (e: Event): void => {
       const quale = (e as CustomEvent<unknown>).detail
-      if (quale === 'drive' || quale === 'salute' || quale === 'domande' || quale === 'workspace' || quale === 'autopiloti') onApri(quale)
+      // Il vecchio «drive» (0.61.0) è Progetti; «domande» è la colonna.
+      if (quale === 'drive' || quale === 'progetti') { if (!progettiAperti) onProgetti?.() }
+      else if (quale === 'domande') { if (!domandeAperte) onDomande?.() }
+      else if (quale === 'salute' || quale === 'workspace' || quale === 'autopiloti' || quale === 'chat' || quale === 'negozio' || quale === 'quaderno' || quale === 'file' || quale === 'impostazioni') onApri(quale)
     }
     window.addEventListener('sierradeck:apri-pannello', suRichiesta)
     return () => window.removeEventListener('sierradeck:apri-pannello', suRichiesta)
-  }, [onApri])
+  }, [onApri, onProgetti, onDomande, progettiAperti, domandeAperte])
+  // «+ Nuova chat» dal pannello «Chat e workspace» (0.61.0): la stessa finestra della chat nuova.
+  useEffect(() => {
+    const suNuova = (): void => setNuovaChat(proponiNuovaChat(Object.values(useLayoutStore.getState().panes), useSessionStore.getState().sessions, casa))
+    window.addEventListener('sierradeck:nuova-chat', suNuova)
+    return () => window.removeEventListener('sierradeck:nuova-chat', suNuova)
+  }, [casa])
 
   useEffect(() => {
     const applica = (p: { scorciatoie: Parameters<typeof impostaScorciatoie>[0] }): void => impostaScorciatoie(p.scorciatoie)
@@ -206,7 +221,7 @@ export function Console({
         case 'elencoChat': onApriSessioni(); return
         case 'impostazioni': commuta('impostazioni'); return
         case 'autopiloti': commuta('autopiloti'); return
-        case 'drive': commuta('drive'); return
+        case 'drive': onProgetti?.(); return
         case 'quaderno': commuta('quaderno'); return
         case 'negozio': commuta('negozio'); return
         case 'chiudiPannello':
@@ -229,6 +244,15 @@ export function Console({
   })
 
   const inAttesa = ledAutopiloti.some((l) => l.classe === 'led--attesa')
+  /** Il pannello di quella voce è aperto: il suo tasto resta acceso. */
+  const statoVoce = (id: IdMenu): boolean =>
+    id === 'progetti' ? progettiAperti : id === 'domande' ? domandeAperte : aperto === id
+  /** Cosa fa ogni voce del menu principale. */
+  const premi = (id: IdMenu): void => {
+    if (id === 'progetti') onProgetti?.()
+    else if (id === 'domande') onDomande?.()
+    else commuta(id)
+  }
 
 
   return (
@@ -250,18 +274,77 @@ export function Console({
         />
       ) : null}
 
-    <div className="console">
+    {/* **Il menu principale** (0.61.0): sette voci, in ordine d'importanza,
+        sempre in vista, uguali sul telefono e nella pagina. Ognuna apre il
+        suo pannello; il tasto del pannello aperto resta acceso. */}
+    <nav className="console console--principale" aria-label="Menu principale">
+      {MENU_PRINCIPALE.map((v) => {
+        const acceso = statoVoce(v.id)
+        const numero = v.id === 'autopiloti' ? ledAutopiloti.length : v.id === 'domande' ? domandeInAttesa : 0
+        const chiama = (v.id === 'domande' && domandeInAttesa > 0 && !domandeAperte) || (v.id === 'autopiloti' && inAttesa && aperto !== 'autopiloti')
+        return (
+          <button
+            key={v.id}
+            className={`tasto-menu${chiama ? ' tasto--chiama' : ''}`}
+            onClick={() => premi(v.id)}
+            aria-expanded={acceso}
+            title={v.spiega}
+          >
+            <span className="tasto-menu__icona" aria-hidden="true">{v.icona}</span>
+            <span className="tasto-menu__nome">{v.nome}</span>
+            {numero > 0 ? <span className={v.id === 'domande' ? 'tasto-menu__numero tasto-menu__numero--chiama' : 'tasto-menu__numero'}>{numero}</span> : null}
+          </button>
+        )
+      })}
+      <div className="sezione sezione--vuota" />
+      <div className="sezione">
+        {/* La versione e il modo di cercare un aggiornamento quando si vuole:
+            l'attesa automatica è ogni sei ore, e chi ha appena pubblicato non
+            ha voglia di aspettarle. */}
+        <button
+          className="versione"
+          onClick={onApriNovita}
+          title="Cosa è cambiato in questa versione"
+        >
+          v{versione}
+        </button>
+        {/* Cosa sta facendo l’aggiornamento, in due parole. Assente quando
+            non c’è niente da dire: una spia che è sempre accesa non è una
+            spia, è decorazione. */}
+        {spiaAggiornamento(aggiornamento) !== undefined ? (
+          <span
+            className={`spia-agg spia-agg--${aggiornamento?.fase ?? "fermo"}`}
+            title={
+              aggiornamento?.daTelefono === true
+                ? 'Richiesto da un telefono accoppiato'
+                : 'Aggiornamento del programma'
+            }
+          >
+            {spiaAggiornamento(aggiornamento)}
+          </span>
+        ) : null}
+        <button
+          className="tasto tasto--icona"
+          onClick={() => void window.gestore.aggiornamenti.cerca()}
+          title="Cerca ora un aggiornamento"
+        >
+          ⟳
+        </button>
+      </div>
+    </nav>
+
+    {/* La riga delle chat: i gesti di ogni minuto (riprendere, aprire una
+        chat, cambiare workspace) senza aprire un pannello. Tutto il resto di
+        «Chat e workspace» sta nel suo pannello. */}
+    <div className="console console--chat">
       <div className="sezione">
         <button
           className="tasto"
           onClick={onApriSessioni}
-          title="Riprendi una conversazione già esistente"
+          title="Riprendi una conversazione già esistente: l’elenco di tutte le chat, per cartella, anche quelle chiuse"
         >
-          ▣ Riprendi
+          ↺ Riprendi
         </button>
-      </div>
-
-      <div className="sezione">
         <button
           className="tasto tasto--primario"
           onClick={() => setNuovaChat(proponiNuovaChat(Object.values(riquadri), sessioni, casa))}
@@ -279,19 +362,7 @@ export function Console({
             <option key={m.valore} value={m.valore}>{m.etichetta}</option>
           ))}
         </select>
-        <button
-          className="tasto"
-          onClick={() => window.gestore.finestre.nuova()}
-          title="Apre una finestra sul primo monitor libero"
-        >
-          ⧉ Finestra
-        </button>
       </div>
-
-      {/* Lo spazio vuoto sta qui, fra i comandi e lo stato: cosi' i tasti che
-          si premono restano ancorati a sinistra dove l'occhio li cerca, e lo
-          stato di workspace e autopiloti resta ancorato a destra. */}
-      <div className="sezione sezione--vuota" />
 
       {/* L'unica sezione che cede: quando la finestra si stringe e' questa a
           stringersi e a scorrere, perche' i workspace sono tanti e cambiano di
@@ -351,140 +422,14 @@ export function Console({
             className="tasto tasto--icona"
             onClick={() => commuta('workspace')}
             aria-expanded={aperto === 'workspace'}
-            title="Crea o elimina un workspace"
+            title="Crea, rinomina o elimina un workspace"
           >
             ⋯
           </button>
         </div>
       </div>
-
       <div className="sezione">
-        {/* La versione e il modo di cercare un aggiornamento quando si vuole:
-            l'attesa automatica è ogni sei ore, e chi ha appena pubblicato non
-            ha voglia di aspettarle. */}
-        <button
-          className="versione"
-          onClick={onApriNovita}
-          title="Cosa è cambiato in questa versione"
-        >
-          v{versione}
-        </button>
-        {/* Cosa sta facendo l’aggiornamento, in due parole. Assente quando
-            non c’è niente da dire: una spia che è sempre accesa non è una
-            spia, è decorazione. */}
-        {spiaAggiornamento(aggiornamento) !== undefined ? (
-          <span
-            className={`spia-agg spia-agg--${aggiornamento?.fase ?? "fermo"}`}
-            title={
-              aggiornamento?.daTelefono === true
-                ? 'Richiesto da un telefono accoppiato'
-                : 'Aggiornamento del programma'
-            }
-          >
-            {spiaAggiornamento(aggiornamento)}
-          </span>
-        ) : null}
-        <button
-          className="tasto tasto--icona"
-          onClick={() => void window.gestore.aggiornamenti.cerca()}
-          title="Cerca ora un aggiornamento"
-        >
-          ⟳
-        </button>
-      </div>
-
-      <div className="sezione">
-        {/* Niente fila di LED qui: lo stesso stato si legge nella colonna di
-            fianco e nel pannello, e in alto toglieva soltanto spazio alle chat.
-            Il numero sul tasto basta a dire quanti stanno lavorando. */}
-        {/* AI, Account e Consumi vivono ora DENTRO le Impostazioni, a schede:
-            un menu solo invece di quattro tasti che affollavano la barra. */}
-        <button
-          className="tasto"
-          onClick={() => commuta('impostazioni')}
-          aria-expanded={aperto === 'impostazioni'}
-          title="Impostazioni: aspetto, rete, AI, account, consumi"
-        >
-          ⚙ Impostazioni
-        </button>
-        <button
-          className="tasto"
-          onClick={() => commuta('quaderno')}
-          aria-expanded={aperto === 'quaderno'}
-          title="Cosa è stato fatto in questa cartella, in schede"
-        >
-          ▤ Quaderno
-        </button>
-        <button
-          className="tasto"
-          onClick={() => commuta('negozio')}
-          aria-expanded={aperto === 'negozio'}
-          title="Plugin, skill e MCP di Claude Code — installa e attiva a clic"
-        >
-          ▣ Negozio
-        </button>
-        <button
-          className="tasto"
-          onClick={() => commuta('file')}
-          aria-expanded={aperto === 'file'}
-          title="I file del progetto, qui e sul suo server: sfoglia, scarica, carica"
-        >
-          ⇅ File
-        </button>
-        <button
-          className="tasto"
-          onClick={() => commuta('drive')}
-          aria-expanded={aperto === 'drive'}
-          title="Il magazzino comune dei tuoi PC: cosa c’è sul Drive, cosa hai già qui, e «Porta qui»"
-        >
-          ☁ Drive
-        </button>
-        <button
-          className="tasto"
-          onClick={() => window.dispatchEvent(new CustomEvent('sierradeck:pannello-drive'))}
-          title="Progetti: tutte le chat e tutti i progetti dei tuoi PC, dove lavora ognuno (il PC residente), chi ne ha una copia, cosa è assegnato male; e le azioni: Apri, Porta qui, Rendi residente qui, Rendi solo cloud qui"
-        >
-          ▦ Progetti
-        </button>
         <SottofondoQui />
-        <button
-          className="tasto"
-          onClick={() => commuta('salute')}
-          aria-expanded={aperto === 'salute'}
-          title="Salute del sistema: il Drive, gli altri PC (battito, strada, versione), un aggiornamento non riuscito, gli errori delle ultime ore, le istruzioni non partite — con cosa fare per ognuna"
-        >
-          ♥ Salute
-        </button>
-        <button
-          // Domande in attesa e colonna chiusa: il tasto chiama (0.37.3),
-          // lampeggia d'ambra con il numero finche' non lo apri.
-          className={`tasto${domandeInAttesa > 0 && !domandeAperte ? ' tasto--chiama' : ''}`}
-          onClick={() => onDomande?.()}
-          aria-expanded={domandeAperte}
-          title={`${domandeAperte ? 'Chiude' : 'Apre'} la colonna delle Domande, accanto alle chat: tutto quello che aspetta una tua risposta — chat ferme su una domanda o un permesso, chat che hanno finito, autopiloti (domande iniziali, domande, il via, «Pubblico adesso?»)${domandeInAttesa > 0 ? `. Adesso ne aspettano ${domandeInAttesa}.` : '.'} Le domande degli autopiloti si rispondono nella linguetta «Domande» della loro scheda, che si fa avanti da sola: se aspettano solo loro, il tasto porta lì invece di aprire la colonna.`}
-        >
-          {domandeInAttesa > 0 ? <span className="led led--attesa" /> : null}Domande{domandeInAttesa > 0 ? ` ${domandeInAttesa}` : ''}
-        </button>
-        <button
-          className="tasto"
-          onClick={() => onConsumi?.()}
-          aria-expanded={consumiAperti}
-          title={`${consumiAperti ? 'Chiude' : 'Apre'} la colonna «Consumi e limiti», accanto alle chat: quanto resta della finestra di 5 ore e della settimana del piano (con l’età della lettura), il contesto di ogni chat aperta e cosa sta facendo il freno degli autopiloti. Se c’è posto resta aperta insieme alle Domande.`}
-        >
-          Consumi
-        </button>
-        <button
-          className="tasto"
-          onClick={() => commuta('autopiloti')}
-          aria-expanded={aperto === 'autopiloti'}
-          title={
-            inAttesa
-              ? 'Un autopilota aspetta una tua risposta'
-              : 'Avvia e governa gli autopiloti'
-          }
-        >
-          Autopiloti{ledAutopiloti.length > 0 ? ` ${ledAutopiloti.length}` : ''} ▾
-        </button>
       </div>
     </div>
     </>

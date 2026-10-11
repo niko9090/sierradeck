@@ -25,6 +25,7 @@ import {
 } from '@shared/azioni-telefono'
 import { REGOLE_PUBBLICAZIONE } from '@shared/harness'
 import { normalizza as normalizzaImp, sezioniDi } from '@shared/impostazioni-struttura'
+import { MENU_PRINCIPALE } from '@shared/menu-principale'
 import { testoEsito } from '@shared/quaderno-personale'
 
 /** Il cristallo, per la scheda del browser e per la schermata Home. */
@@ -129,9 +130,9 @@ export function paginaClient(): string {
      chat e vedi lampeggiare in fondo che qualcuno ti aspetta. */
   .fascia {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
-    /* Cinque voci, cinque colonne: con quattro, «Computer» andava a capo su
-       una seconda riga e copriva l'ultima piastrella. */
-    display: grid; grid-template-columns: repeat(5, 1fr);
+    /* Le sette voci del menu principale (0.61.0), sette colonne: i nomi
+       lunghi vanno a capo al trattino morbido invece di uscire. */
+    display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
     background: var(--fondo); border-top: 1px solid var(--bordo);
     padding-bottom: env(safe-area-inset-bottom);
   }
@@ -140,7 +141,9 @@ export function paginaClient(): string {
     min-height: 56px; border: 0; border-radius: 0; background: none; color: var(--testo-quieto);
   }
   .fascia__voce--qui { color: var(--testo); background: var(--chassis); }
-  .fascia__nome { font-size: var(--t0); letter-spacing: .1em; }
+  .fascia__nome { font-size: 10px; line-height: 1.15; letter-spacing: .02em; text-align: center; hyphens: manual; overflow-wrap: normal; padding: 0 1px; }
+  .fascia__icona { position: relative; font-size: 18px; line-height: 1; }
+  .fascia__icona .led { position: absolute; top: -3px; right: -9px; width: 7px; height: 7px; }
   .fascia .led { margin-right: 0; }
   /* Una destinazione senza niente da segnalare non porta un puntino grigio:
      porta il vuoto. Un LED spento acceso su tutto e' rumore. */
@@ -578,6 +581,8 @@ var CONFERME = ${JSON.stringify({
 var PARTENZE = ${JSON.stringify(PARTENZE)}
 var REGOLE = ${JSON.stringify(REGOLE_PUBBLICAZIONE)}
 var ULTIMO_WORKSPACE = ${JSON.stringify(ULTIMO_WORKSPACE)}
+// Il menu principale (0.61.0), lo stesso del PC e dell'app: src/shared/menu-principale.ts.
+var MENU = ${JSON.stringify(MENU_PRINCIPALE.map((v) => ({ id: v.id, breve: v.breve, icona: v.icona, spiega: v.spiega })))}
 // Le sezioni e le voci delle impostazioni per la pagina (0.56.0), da src/shared/impostazioni-struttura.ts.
 var IMPOSTAZIONI_PAGINA = ${JSON.stringify(sezioniDi('pagina').map((g) => ({ sezione: g.sezione, voci: g.voci.map((v) => ({ id: v.id, titolo: v.titolo, spiega: v.spiega, chiave: normalizzaImp([v.titolo, v.spiega, ...(v.parole ?? []), g.sezione.titolo].join(' ')) })) })))}
 /** La ricerca: le sezioni con almeno una voce che contiene tutte le parole (senza accenti). Aspetto si cerca per titolo. */
@@ -957,7 +962,8 @@ var ultimaImpronta = ''
  * ancora piu' sotto. In basso e' il posto giusto, e' dove arriva il pollice.
  * La cura e' una fascia fissa, non una fascia in meno.
  */
-var scheda = 'adesso'
+// Si parte dalle Domande (0.61.0): sono quelle che aspettano te, con sotto quello che è in moto.
+var scheda = 'domande'
 /**
  * La chat di cui e' aperto il menu «altro».
  *
@@ -1276,6 +1282,8 @@ function impronta(s) {
     // compariva, si apriva il Drive e restava «Leggo il Drive…».
     apDettaglio ? apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.chat || []).length + '/' + apDettaglio.domanda + '/' + apDettaglio.pensa + '/' + apDettaglio.riprendiAlRiavvio : '',
     apTab,
+    // Salute e Impostazioni sono destinazioni (0.61.0): quello che leggono entrando ridisegna la pagina.
+    saluteVista ? saluteVista.riassunto + '/' + (saluteVista.voci || []).length : '', saluteErrore || '',
     notaDialogo || '', notaGlobale || '',
     cartelle ? cartelle.length : '',
     codaProgetto || '', codaErrore || '',
@@ -1299,7 +1307,7 @@ function impronta(s) {
     pannelloAperto === 'negozio' ? JSON.stringify([negozioVisto, negozioErrore, negozioErroreMcp, negozioFamiglia, negozioTrovati, negozioParola, negozioNota, negozioProvoMcp, negozioGuasti, negozioConferme, Object.keys(negozioLavoro).map(function (k) { return k + Math.round((Date.now() - negozioLavoro[k].da) / 1000) })]) : '',
     domandeConversazioni ? JSON.stringify(domandeConversazioni) : '', domandaAperta || '',
     // La sezione File (0.54.0): dove si è, cosa si guarda, l'avanzamento.
-    pannelloAperto === 'file' ? JSON.stringify([fileProgetti ? fileProgetti.length : -1, fileDove, fileElenco ? fileElenco.voci.length + fileElenco.percorso : '', fileVista ? fileVista.nome + fileVista.tipo : '', fileNota, fileErrore, filePin]) : '',
+    (pannelloAperto === 'file' || scheda === 'file') ? JSON.stringify([fileProgetti ? fileProgetti.length : -1, fileDove, fileElenco ? fileElenco.voci.length + fileElenco.percorso : '', fileVista ? fileVista.nome + fileVista.tipo : '', fileNota, fileErrore, filePin]) : '',
     (function () { try { return localStorage.getItem('sierradeck.nienteapp') || '' } catch (e) { return '' } })(),
     schedeViste ? schedeViste.length : '',
     sessioniViste ? sessioniViste.length : '',
@@ -1332,7 +1340,7 @@ function rimettiScorrimento(dove) {
  * chat e vedi lampeggiare in fondo che qualcuno ti aspetta.
  */
 function ledDestinazione(nome, s) {
-  if (giriFalliti >= 2) return nome === 'computer' ? 'rosso' : 'fermo'
+  if (giriFalliti >= 2) return nome === 'salute' ? 'rosso' : 'fermo'
   const aps = s.autopiloti || []
   // Dal LED deciso dal computer, come ogni altro LED della pagina: chi si
   // prepara e fa una domanda chiede, chi si prepara in silenzio e' in moto.
@@ -1341,13 +1349,13 @@ function ledDestinazione(nome, s) {
     aps.some((a) => ledAutopilota(a, false) === 'attesa')
   const fermi = aps.some((a) => ledAutopilota(a, false) === 'rosso')
   const moto = aps.some((a) => ledAutopilota(a, false) === 'lavoro')
-  if (nome === 'adesso') return chiede ? 'attesa' : fermi ? 'rosso' : moto ? 'lavoro' : ''
-  if (nome === 'domande') return domandeInAttesa(s) > 0 ? 'attesa' : ''
-  if (nome === 'lavori') return aps.some((a) => ledAutopilota(a, false) === 'attesa') ? 'attesa' : fermi ? 'rosso' : moto ? 'lavoro' : ''
+  if (nome === 'domande') return domandeInAttesa(s) > 0 || chiede ? 'attesa' : ''
+  if (nome === 'autopiloti') return aps.some((a) => ledAutopilota(a, false) === 'attesa') ? 'attesa' : fermi ? 'rosso' : moto ? 'lavoro' : ''
   if (nome === 'chat') return chatCheChiedono > 0 ? 'attesa' : (s.chat || []).some((c) => statoChat(c).tono === 'lavoro' || statoChat(c).tono === 'guidata') ? 'lavoro' : ''
-  // Il computer normalmente non ha LED, e lo accende solo quando c'e' qualcosa
-  // che riguarda **la macchina**: un aggiornamento pronto, o il silenzio.
-  return aggiornamentoVisto && aggiornamentoVisto.fase === 'pronto' ? 'attesa' : ''
+  // Le impostazioni normalmente non hanno LED, e lo accendono solo quando c'e'
+  // qualcosa che riguarda **la macchina**: un aggiornamento pronto.
+  if (nome === 'impostazioni') return aggiornamentoVisto && aggiornamentoVisto.fase === 'pronto' ? 'attesa' : ''
+  return ''
 }
 
 /**
@@ -1363,16 +1371,15 @@ function domandeInAttesa(s) {
 /** La fascia fissa, sempre visibile, mai nascosta dallo scorrimento. */
 function fascia(s) {
   const chiedono = domandeInAttesa(s)
-  const voci = [
-    ['adesso', 'ADESSO'], ['domande', chiedono > 0 ? 'DOMANDE \u00b7 ' + chiedono : 'DOMANDE'], ['chat', 'CHAT'], ['lavori', 'LAVORI'], ['progetti', 'PROGETTI'], ['computer', 'COMPUTER']
-  ]
-  return '<nav class="fascia">' + voci.map((v) => {
-    const l = ledDestinazione(v[0], s)
-    return '<button class="fascia__voce' + (scheda === v[0] ? ' fascia__voce--qui' : '') + '"' +
-      (scheda === v[0] ? ' aria-current="page"' : '') +
-      ' onclick="vaiScheda(\\'' + v[0] + '\\')">' +
-      '<span class="led ' + (l || 'nessuno') + '"></span>' +
-      '<span class="fascia__nome">' + v[1] + '</span></button>'
+  // Il menu principale (0.61.0): le sette voci del PC, nello stesso ordine.
+  return '<nav class="fascia" aria-label="Menu principale">' + MENU.map((v) => {
+    const l = ledDestinazione(v.id, s)
+    const numero = v.id === 'domande' && chiedono > 0 ? ' \u00b7 ' + chiedono : ''
+    return '<button class="fascia__voce' + (scheda === v.id ? ' fascia__voce--qui' : '') + '"' +
+      (scheda === v.id ? ' aria-current="page"' : '') + ' title="' + esc(v.spiega) + '"' +
+      ' onclick="vaiScheda(\\'' + v.id + '\\')">' +
+      '<span class="fascia__icona" aria-hidden="true">' + v.icona + '<span class="led ' + (l || 'nessuno') + '"></span></span>' +
+      '<span class="fascia__nome">' + v.breve + numero + '</span></button>'
   }).join('') + '</nav>'
 }
 
@@ -1463,7 +1470,7 @@ function pannello(s) {
     '<div class="misura-riga">' + a.fatti + ' criteri su ' + a.criteri + ' · ' + a.cicli + ' interventi</div>' +
     '<div class="riga">' +
     '<button data-ap="' + esc(a.id) + '" onclick="riprendiAp(this.dataset.ap)">Riprendi</button>' +
-    '<button onclick="vaiScheda(\\'lavori\\')">Guarda</button></div></div>'
+    '<button onclick="vaiScheda(\\'autopiloti\\')">Guarda</button></div></div>'
   ).join('')
 
   /** Chi aspetta te senza essere una domanda: si vede qui, con il gesto. */
@@ -1798,16 +1805,16 @@ function pannello(s) {
   })()
 
   // «Salute del sistema» (0.44.0): le stesse voci del PC, con spiegazione e cosa fare.
-  const vistaSalute = pannelloAperto !== 'salute' ? '' : (() => {
+  const vistaSalute = scheda !== 'salute' ? '' : (() => {
     const testa = '<div class="piastrella"><div class="titolo">Salute del sistema</div>' +
       '<div class="sotto">Com’è messo il computer: il Drive, gli altri PC (ultimo segno, strada, versione), un aggiornamento non riuscito, gli errori delle ultime ore, le istruzioni degli autopiloti non partite. Ogni voce dice cosa vuol dire e cosa fare.</div>'
-    if (saluteErrore) return testa + '<div class="errore">' + esc(saluteErrore) + '</div><div class="riga"><button onclick="apriPannello(\\'salute\\')">Chiudi</button></div></div>'
+    if (saluteErrore) return testa + '<div class="errore">' + esc(saluteErrore) + '</div></div>'
     if (!saluteVista) return testa + '<div class="sotto">Guardo…</div></div>'
     const colore = (t) => t === 'ok' ? 'var(--verde)' : t === 'attenzione' ? '#e0a33c' : '#dc5f5f'
     const nomi = { drive: 'Drive', pc: 'Gli altri PC', aggiornamento: 'Aggiornamento', errori: 'Errori delle ultime ore', consegne: 'Istruzioni non partite' }
     const azione = (a) => a.id === 'scarica-a-mano' ? '<a href="' + esc(a.url) + '" target="_blank" rel="noopener">' + esc(a.testo) + '</a>'
       : a.id === 'installa' ? '<button onclick="installaAggiornamento()">' + esc(a.testo) + '</button>'
-      : a.id === 'apri-autopilota' ? '<button onclick="vaiScheda(\\'lavori\\')">' + esc(a.testo) + '</button>'
+      : a.id === 'apri-autopilota' ? '<button onclick="vaiScheda(\\'autopiloti\\')">' + esc(a.testo) + '</button>'
       : a.id === 'riprova-pc' ? '<button onclick="rileggiSalute()">' + esc(a.testo) + '</button>'
       : '<span class="sotto">' + esc(a.testo) + ': dal computer</span>'
     let corpo = '<div class="sotto" style="margin-top:6px;color:' + colore(saluteVista.tono) + '"><b>' + esc(saluteVista.riassunto) + '</b></div>' + mappaHtml(saluteVista.mappa)
@@ -1822,7 +1829,7 @@ function pannello(s) {
         ((v.azioni || []).length > 0 ? '<div class="riga">' + v.azioni.map(azione).join('') + '</div>' : '') +
         '</div>').join('')
     }
-    return testa + corpo + '<div class="riga"><button onclick="rileggiSalute()">Aggiorna</button><button onclick="apriPannello(\\'salute\\')">Chiudi</button></div></div>'
+    return testa + corpo + '<div class="riga"><button onclick="rileggiSalute()">Aggiorna</button></div></div>'
   })()
 
   const vistaDrive = pannelloAperto !== 'drive' ? '' : (() => {
@@ -1941,11 +1948,10 @@ function pannello(s) {
   // «Aggiornamenti» in cima, poi le sezioni del PC e dell'app con la loro spiegazione.
   const intestaImp = (id) => { const g = IMPOSTAZIONI_PAGINA.find((x) => x.sezione.id === id); return g ? '<div class="titolo">' + esc(g.sezione.titolo) + '</div><div class="sotto">' + esc(g.sezione.spiega) + '</div>' : '' }
   const vociImp = (id) => { const g = IMPOSTAZIONI_PAGINA.find((x) => x.sezione.id === id); return g ? g.voci.map((v) => '<div class="sotto" style="margin-top:8px"><b>' + esc(v.titolo) + '</b> — ' + esc(v.spiega) + '</div>').join('') : '' }
-  const vistaImpostazioni = pannelloAperto !== 'impostazioni' ? '' : \`
+  const vistaImpostazioni = scheda !== 'impostazioni' ? '' : \`
     <div class="piastrella">
       <div class="titolo">Impostazioni</div>
       <div class="riga"><input id="cerca-impostazioni" placeholder="Cerca (per esempio: aggiornamento, colore, notifiche)" oninput="filtraImpostazioni(this.value)"></div>
-      <div class="riga"><button onclick="apriPannello('impostazioni')">Chiudi</button></div>
     </div>
     <div class="piastrella" data-sezione="aggiornamenti">
       \${intestaImp('aggiornamenti')}
@@ -1969,7 +1975,7 @@ function pannello(s) {
     <div class="piastrella" data-sezione="drive">
       \${intestaImp('drive')}
       \${vociImp('drive')}
-      <div class="riga"><button onclick="apriPannello('drive')">Apri il Drive</button></div>
+      <div class="sotto">Il contenuto del Drive, «Porta qui» e il salvataggio stanno in PROGETTI.</div>
     </div>
     <div class="piastrella" data-sezione="chat">
       \${intestaImp('chat')}
@@ -2058,47 +2064,43 @@ function pannello(s) {
       '</div>'
     : ''
 
+  // In moto adesso (era la scheda «Adesso»): sta sotto le Domande (0.61.0).
+  const inMotoAdesso = driveScollegatoHtml(s) + fermo + invito + bloccati + aspettanoTe + panoramica +
+    (inMoto.length + (s.chat || []).length > 0 ? polso : '')
+  const inCoda = (s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0)
+  // Le sette destinazioni del menu principale (0.61.0), nello stesso ordine del PC.
   const schermate = {
-    // «Progetti» (0.58.2): il pannello delle chat e dei progetti come destinazione propria.
-    progetti: pannelloDriveHtml(),
+    // «Progetti»: il pannello delle chat e dei progetti, con quello che era del Drive e delle code.
+    progetti: pannelloDriveHtml() +
+      '<div class="riga"><button onclick="apriPannello(\\'code\\')">Code dei progetti' + (inCoda > 0 ? ' \u00b7 ' + inCoda : '') + '</button>' +
+      '<button onclick="apriPannello(\\'drive\\')">Il contenuto del Drive</button>' +
+      '<button onclick="apriPannello(\\'quaderno\\')">Quaderno</button></div>' +
+      elencoCode + vistaDrive + vistaQuaderno,
+    autopiloti:
+      (autopiloti || '<div class="vuoto">Nessun autopilota su questo computer.</div>') + delega,
     // Uno solo domina alla volta: una domanda, poi un lavoro fermo, poi il
-    // polso, poi la calma. Quando domina una domanda tutto il resto collassa
-    // in una riga: e' la ragione per cui questa schermata si legge in un
-    // secondo e mezzo invece che scorrerla.
-    domande: domandeConversazioni ? vistaConversazioni() : vistaDomande(s),
-    adesso: driveScollegatoHtml(s) + fermo + invito + domande + bloccati + aspettanoTe + panoramica +
-      (domande
-        ? '<div class="solco"></div><button class="riga-altro" onclick="vaiScheda(\\'lavori\\')">altre cose in moto ›</button>'
-        : (inMoto.length + (s.chat || []).length > 0 ? polso : '')),
+    // polso, poi la calma. Sotto, quello che è in moto adesso.
+    domande: (domandeConversazioni ? vistaConversazioni() : vistaDomande(s)) +
+      (inMotoAdesso ? '<div class="solco"></div><div class="titolo">In moto adesso</div>' + inMotoAdesso : ''),
     chat: driveScollegatoHtml(s) +
       (notaChiusa ? '<div class="nota-chiusa" role="status">' + esc(notaChiusa) + ' <button class="riga-altro" onclick="notaChiusa=\\'\\';pannello(ultimoStato)">ok</button></div>' : '') +
       (chat || '<div class="vuoto">Nessuna chat aperta sul computer.</div>') + nuova +
-      '<div class="riga"><button onclick="apriPannello(\\'sessioni\\')">Riprendi una conversazione</button></div>' +
-      elencoSessioni,
-    lavori:
-      (autopiloti || '<div class="vuoto">Nessun lavoro affidato.</div>') + delega +
-      '<div class="riga"><button onclick="apriPannello(\\'quaderno\\')">Quaderno</button></div>' +
-      vistaQuaderno,
-    computer:
-      paneWorkspace +
-      '<div class="riga"><button onclick="apriPannello(\\'code\\')">Code' +
-      ((s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0) > 0 ? ' · ' + (s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0) : '') + '</button>' +
-      '<button onclick="apriPannello(\\'pc\\')">Altri computer</button>' +
-      '<button onclick="apriPannello(\\'drive\\')">Drive</button>' +
-      '<button onclick="vaiScheda(\\'progetti\\')">Progetti</button>' +
-      '<button onclick="apriPannello(\\'salute\\')">Salute</button>' +
-      '<button onclick="apriPannello(\\'negozio\\')">Negozio</button>' +
-      '<button onclick="apriPannello(\\'file\\')">File</button>' +
-      '<button onclick="apriPannello(\\'consumi\\')">Consumi</button>' +
-      '<button onclick="apriPannello(\\'impostazioni\\')">Impostazioni</button></div>' +
-      elencoCode + elencoPc + vistaDrive + (pannelloAperto === 'pannellodrive' ? pannelloDriveHtml() : '') + vistaSalute + (pannelloAperto === 'negozio' ? negozioHtml() : '') + (pannelloAperto === 'file' ? fileHtml() : '') + vistaConsumi + vistaImpostazioni
+      '<div class="riga"><button onclick="apriPannello(\\'sessioni\\')">Riprendi una conversazione</button>' +
+      '<button onclick="apriPannello(\\'negozio\\')">Negozio</button></div>' +
+      elencoSessioni + (pannelloAperto === 'negozio' ? negozioHtml() : '') + paneWorkspace,
+    file: fileHtml(),
+    salute:
+      '<div class="riga"><button onclick="apriPannello(\\'pc\\')">Gli altri computer</button>' +
+      '<button onclick="apriPannello(\\'consumi\\')">Consumi</button></div>' +
+      elencoPc + vistaConsumi + vistaSalute,
+    impostazioni: vistaImpostazioni
   }
 
   app.innerHTML = \`
     <main class="schermata\${linea.fase === 'ricollego' ? ' schermata--giu' : ''}">
       \${lineaHtml()}
       \${notaGlobale ? '<div class="piastrella"><div class="errore">' + esc(notaGlobale) + '</div><div class="riga"><button onclick="chiudiNota()">Ok</button></div></div>' : ''}
-      \${schermate[scheda] || schermate.adesso}
+      \${schermate[scheda] || schermate.domande}
     </main>
     \${fascia(s)}\`
 
@@ -2340,7 +2342,7 @@ window.apriDomandeAp = async (id) => {
   apTabPrima = apTab === 'domande' ? apTabPrima : apTab
   apTab = 'domande'
   apDomandaI = 0
-  vaiScheda('lavori')
+  vaiScheda('autopiloti')
   await guardaAp(id)
 }
 window.guardaAp = async (id, pc, nomePc) => {
@@ -3102,7 +3104,8 @@ sceltaCarica.onchange = async () => {
 function fileHtml() {
   var testa = '<div class="piastrella"><div class="titolo">File</div>' +
     '<div class="sotto">I progetti di questo computer (le cartelle dove hai lavorato con Claude Code, le chat aperte, gli autopiloti), solo dentro le loro cartelle. Tocca una cartella per entrarci; un file di testo, un’immagine o un PDF si guardano qui, tutto il resto si scarica. «Carica qui» mette un file del telefono nella cartella aperta. I file che il computer ti manda («📱 Manda al telefono») arrivano nell’app SierraDeck.</div>'
-  var chiudi = '<div class="riga"><button onclick="apriPannello(\\'file\\')">Chiudi</button></div></div>'
+  // File è una destinazione del menu (0.61.0): niente «Chiudi», che non chiuderebbe niente.
+  var chiudi = '</div>'
   var nota = fileNota ? '<div class="sotto"' + (fileNota.indexOf('✓') === 0 ? ' style="color:var(--verde)"' : '') + '>' + esc(fileNota) + '</div>' : ''
   if (fileErrore) testa += '<div class="errore">⚠ ' + esc(fileErrore) + '</div>'
   if (!fileProgetti) return testa + '<div class="sotto">Leggo i progetti dal computer…</div>' + chiudi
@@ -3895,7 +3898,7 @@ function pdScegliPc(progetto, sessione, attuale) {
 function pannelloDriveHtml() {
   let h = '<div class="piastrella"><div class="titolo">Chat e progetti del Drive</div>' +
     '<div class="sotto">Ogni chat e ogni progetto ha un PC residente: è lì che lavora; sugli altri PC si apre dal vivo, e il progetto lì è «solo cloud». Qui vedi il residente, chi ne ha una copia, l’ultimo uso e lo stato; in ambra le assegnazioni sbagliate, con il perché e cosa fare. Ogni cambio chiede conferma e non cancella niente: le copie tolte vanno nella cartella di recupero per 30 giorni.</div>'
-  if (pdErrore) return h + '<div class="sotto" style="color:var(--ambra,#e0a33c)">' + esc(pdErrore) + '</div><div class="riga"><button onclick="apriPannello(\\'pannellodrive\\')">Chiudi</button></div></div>'
+  if (pdErrore) return h + '<div class="sotto" style="color:var(--ambra,#e0a33c)">' + esc(pdErrore) + '</div></div>'
   if (!pdDati) return h + '<div class="sotto">Leggo…</div></div>'
   if ((pdDati.pcDaAggiornare || []).length > 0) h += '<div class="sotto" style="color:var(--ambra,#e0a33c);margin-top:6px">' + esc(pdDati.pcDaAggiornare.join(', ')) + ': non dice ancora quali chat e progetti ha sul disco, va aggiornato alla 0.58.</div>'
   const rim = pdDati.rimozione || { stati: [], inRecupero: [] }
@@ -3959,7 +3962,7 @@ function pannelloDriveHtml() {
     }
     if (righe.length > 150) h += '<div class="piastrella"><div class="sotto">E altre ' + (righe.length - 150) + ': usa i filtri.</div></div>'
   }
-  return h + '<div class="riga"><button onclick="leggiPannelloDrive().then(() => pannello(ultimoStato))">Aggiorna</button><button onclick="apriPannello(\\'pannellodrive\\')">Chiudi</button></div>'
+  return h + '<div class="riga"><button onclick="leggiPannelloDrive().then(() => pannello(ultimoStato))">Aggiorna</button></div>'
 }
 
 /** Cambiare una preferenza: il computer la mescola con quelle che ha gia'. */
@@ -4171,6 +4174,10 @@ window.vaiScheda = (nome) => {
   scheda = nome
   if (nome === 'domande') { domandeViste = null; leggiDomande() }
   if (nome === 'progetti') { pdDati = null; pdErrore = ''; pdDaConfermare = ''; leggiPannelloDrive().then(() => pannello(ultimoStato)) }
+  // Salute, File e Impostazioni (0.61.0) sono destinazioni: si leggono entrando.
+  if (nome === 'salute') leggiSalute().then(() => pannello(ultimoStato))
+  if (nome === 'impostazioni') Promise.all([leggiPreferenze(), leggiAggiornamento(), leggiQuadernoPersonale()]).then(() => pannello(ultimoStato))
+  if (nome === 'file') { fileDove = null; fileElenco = null; fileVista = null; fileNota = ''; filePin = null; leggiFileProgetti().then(() => pannello(ultimoStato)) }
   // Un pannello aperto appartiene alla schermata in cui e' stato aperto: se lo
   // si lascia aperto cambiando destinazione, ricompare dove non c'entra.
   pannelloAperto = null
@@ -4191,7 +4198,7 @@ window.addEventListener('popstate', (ev) => {
     pannello(ultimoStato)
     return
   }
-  const dove = (ev.state && ev.state.scheda) || 'adesso'
+  const dove = (ev.state && ev.state.scheda) || 'domande'
   scheda = dove
   pannello(ultimoStato)
 })

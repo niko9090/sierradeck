@@ -4557,3 +4557,58 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .scheda-remota__chat { max-height: 260px; overflow: auto; margin: 4px 0 8px; font-size: 12px; }
 .scheda-remota__battuta { padding: 2px 0; }
 .scheda-remota__battuta--tu { color: var(--testo-quieto); }
+
+/* ─────────────── il menu principale (0.61.0) ───────────────
+   Nicholas (11/10): «pratico, intuitivo, tutte le funzioni in vista ordinate
+   per importanza». Sette tasti grandi, ognuno con il suo segno e il suo nome,
+   sempre visibili; sotto, la riga delle chat (riprendi, nuova chat, workspace). */
+.console--principale { height: 54px; align-items: center; gap: 4px; padding: 0 var(--s2); }
+.console--chat {
+  height: 40px;
+  background: var(--chassis);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 2px 6px rgba(0, 0, 0, 0.35);
+  z-index: 9;
+}
+.tasto-menu {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: var(--raggio);
+  border: 1px solid var(--bordo, rgba(255, 255, 255, 0.1));
+  background: color-mix(in srgb, var(--chassis-alto) 85%, transparent);
+  color: var(--testo);
+  font-size: calc(var(--t2) + 1px);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 120ms var(--uscita), border-color 120ms var(--uscita);
+}
+.tasto-menu:hover { border-color: var(--accento); background: color-mix(in srgb, var(--accento) 12%, var(--chassis-alto)); }
+.tasto-menu[aria-expanded='true'] { border-color: var(--accento); background: color-mix(in srgb, var(--accento) 24%, var(--chassis-alto)); }
+.tasto-menu__icona { font-size: 18px; line-height: 1; width: 20px; text-align: center; opacity: 0.9; }
+.tasto-menu__nome { white-space: nowrap; }
+.tasto-menu__numero {
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: var(--t1); font-weight: 700;
+  background: color-mix(in srgb, var(--accento) 30%, transparent);
+}
+.tasto-menu__numero--chiama { background: var(--ambra); color: #1a1205; }
+/* Le finestre strette: resta il segno, il nome va nel suggerimento. */
+@media (max-width: 1180px) {
+  .tasto-menu { padding: 0 10px; gap: 6px; }
+}
+@media (max-width: 980px) {
+  .tasto-menu__nome { display: none; }
+}
+
+/* Il pannello «Chat e workspace» (0.61.0): i comandi delle chat, ognuno con cosa fa. */
+.hub { display: flex; flex-direction: column; gap: var(--s3); }
+.hub__gruppo { display: flex; flex-direction: column; gap: var(--s2); }
+.hub__titolo { font-size: var(--t1); letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.7; margin: var(--s2) 0 0; }
+.hub__voce { display: grid; grid-template-columns: 210px 1fr; gap: var(--s3); align-items: start; }
+.hub__voce .tasto { justify-content: flex-start; text-align: left; }
+.hub__spiega { font-size: var(--t2); color: var(--testo-quieto); line-height: 1.45; }

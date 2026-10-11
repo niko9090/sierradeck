@@ -112,3 +112,36 @@ Sul PC le linguette dei workspace, il modello e «+ Nuova chat» restano in una 
 
 - **Pagina:** la fascia aveva 6 voci in una griglia da 5. «Chiudi» nella scheda Progetti apriva il pannello invece di chiuderlo.
 - **PC:** `apri-pannello` con `domande` non disegnava niente. Il fumetto «Consumi» apriva Impostazioni → Generali. Icone ripetute (`▣` per Riprendi e Negozio, `⧉` per Finestra e Usate da altri PC). «Porta qui» del vecchio Drive non aveva più un tasto.
+
+# Come è fatto (0.61.0)
+
+- **Una definizione sola:** `src/shared/menu-principale.ts`, con `MENU_PRINCIPALE` (id, nome, icona, nome corto `breve`, spiegazione) e `FUNZIONI` (ogni funzione di prima e la voce dove si trova adesso). La pagina la riceve come `var MENU`; l'app la legge da `assets/menu.json`, scritto da `tests/shared/menu-principale.test.ts` con `AGGIORNA=1`.
+- **PC:** in `Console.tsx` due righe, `console--principale` (le sette voci, grandi, con icona e nome) e `console--chat` (Riprendi, + Nuova chat, modello, linguette dei workspace, Usate da altri PC). «Chat e workspace» è `PannelloChat.tsx`.
+- **Il vecchio pannello «☁ Drive»** è `ContenutoDrive.tsx`, una sezione in fondo a Progetti che si legge solo quando la apri. «Salvataggio e arrivo» è `SalvataggioDrive` (`SezioneSync` con `parte="salvataggio"`); Account mostra `parte="account"`. «Altri computer» è `AltriComputer`, in Salute.
+- **App:** `enum class Scheda(id, breve)`; la vecchia `Computer()` si mostra a parti (`ParteComputer`: IMPOSTAZIONI, SALUTE, PROGETTI, CHAT). Dentro Chat le linguette Chat / Workspace / Negozio, dentro Progetti «Progetti e chat» / «Drive e code».
+- **Le richieste vecchie** (`apri-pannello` con `drive`, la scorciatoia Ctrl+Shift+D, «Apri Progetti…» del riquadro che aspetta un PC spento) aprono Progetti.
+
+# Prova dal vero (11/10, copia `SIERRADECK_PROVA`, porte 47650/47651)
+
+- **Screenshot** fuori dal repository, in `Documents\sierradeck-screenshot-0-61-0`:
+  - PC: `01-barra`, `02-progetti`, `03-progetti-salvataggio`, `04-impostazioni-account`, `05-impostazioni-generali`, `06-chat-e-workspace`, `07-salute`;
+  - pagina, a 390 punti, in Edge senza finestra con una cartella utente temporanea: `pagina-progetti`, `pagina-domande`, `pagina-chat`, `pagina-salute`, `pagina-impostazioni`, `pagina-file`, `pagina-autopiloti`.
+- **Cosa ho verificato:**
+  - «Apri Impostazioni → Account» da Progetti apre la scheda giusta;
+  - la scheda Consumi non c'è più tra le Impostazioni;
+  - la fascia della pagina va a capo al trattino morbido.
+- **App:** nessun emulatore su questo PC; valgono la compilazione e i test Kotlin.
+- **Difetti trovati e corretti durante la prova:**
+  - in «Chat e workspace», senza chat usate da altri PC la riga perdeva il tasto (ora c'è «Usate da altri PC (nessuna)», spento);
+  - nella pagina Salute, File e Impostazioni avevano un «Chiudi» che non chiudeva niente;
+  - Salute restava su «Guardo…» perché quello che legge non era nell'`impronta` della pagina (senza, la pagina non si ridisegna).
+
+# Trappole
+
+- Nella pagina una destinazione nuova che legge dati suoi deve:
+  - leggerli in `vaiScheda`;
+  - mostrarli con `scheda === …`, non con `pannelloAperto`;
+  - metterli nell'`impronta`.
+
+  Altrimenti resta su «Leggo…».
+- Gli heredoc di Git Bash tolgono le barre rovesciate. Le modifiche a `client-pagina.ts` (con i suoi apici preceduti da due barre rovesciate) si fanno con l'Edit o con uno script Python scritto in un file.

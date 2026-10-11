@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.61.0',
+    righe: [
+      '**Un menu solo, in alto, in ordine d’importanza: Progetti, Autopiloti, Domande, Chat e workspace, File, Salute, Impostazioni.** Sette tasti grandi, ognuno con il suo segno e il suo nome, sempre in vista. Sotto restano «Riprendi», «+ Nuova chat» e i workspace, che servono a ogni minuto. Lo stesso menu, nello stesso ordine, c’è nell’app e nella pagina del telefono.',
+      '**Progetti è la casa di tutto quello che riguarda progetti e Drive.** Il vecchio pannello «☁ Drive» non c’è più. In cima a Progetti trovi Sposta progetto, Riordina le chat, Dove vive ogni chat e il Quaderno. In fondo trovi «Salvataggio e arrivo» (Salva ora, Ripristina, il salvataggio automatico, Fondi con il Drive, i progetti sul Drive) e «Il contenuto del Drive». Nelle Impostazioni resta solo il collegamento dell’account Google.',
+      '**Le Impostazioni hanno solo le preferenze.** Non rimandano più a pannelli che hanno già il loro tasto. Gli altri computer e i Consumi sono in Salute. Il Negozio e la finestra nuova sono in «Chat e workspace», dove ogni comando dice cosa fa e cosa non fa.'
+    ]
+  },
+  {
     versione: '0.60.10',
     righe: [
       '**«Chiudi» funziona anche su una chat in sottofondo.** Se la chiudi dal telefono o da un altro PC, si chiude subito, invece di aspettare quindici secondi una finestra che non la mostra e non chiuderla. Anche questa chiusura vale come «chiusa da te»: gli altri PC che la guardano chiudono il loro riquadro.'

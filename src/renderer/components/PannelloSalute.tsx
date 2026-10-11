@@ -4,6 +4,9 @@ import type { AzioneSalute, Salute, VoceSalute } from '@shared/salute'
 import { inCorso, type AvanzamentoInstallaLa } from '@shared/installa-la'
 import type { NoteAggiornamento } from '@shared/note-aggiornamento'
 import { ModaleNote } from './ModaleNote'
+import { AltriComputer } from './PannelloAccount'
+import { PannelloConsumi } from './PannelloConsumi'
+import { voceMenu } from '@shared/menu-principale'
 
 /**
  * «Salute del sistema» (0.44.0): com'è messo SierraDeck, in un posto solo.
@@ -21,6 +24,9 @@ type Props = {
   onApriDrive: () => void
   onInstalla: () => void
   onApriAutopiloti: () => void
+  /** Apre o chiude la colonna «Consumi e limiti» accanto alle chat (0.61.0: il suo tasto è qui). */
+  onConsumi?: () => void
+  consumiAperti?: boolean
 }
 
 const GRUPPI: { id: VoceSalute['gruppo']; nome: string }[] = [
@@ -31,7 +37,9 @@ const GRUPPI: { id: VoceSalute['gruppo']; nome: string }[] = [
   { id: 'consegne', nome: 'Istruzioni degli autopiloti non partite' }
 ]
 
-export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopiloti }: Props): React.JSX.Element {
+export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopiloti, onConsumi, consumiAperti = false }: Props): React.JSX.Element {
+  /** Le parti in fondo (0.61.0): gli altri computer e i consumi, aperte a richiesta. */
+  const [parte, setParte] = useState<'altri-pc' | 'consumi' | undefined>(undefined)
   const [salute, setSalute] = useState<Salute | undefined>(undefined)
   const [leggo, setLeggo] = useState(false)
   const [errore, setErrore] = useState<string | undefined>(undefined)
@@ -79,12 +87,20 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
   return (
     <div className="pannello pannello--largo">
       <div className="pannello__testa">
-        <span className="serigrafia">Salute del sistema</span>
+        <span className="serigrafia">{voceMenu('salute').icona} Salute del sistema</span>
         {salute !== undefined ? <span className={`salute__tono salute__tono--${salute.tono}`}>{salute.riassunto}</span> : null}
         <span style={{ flex: 1 }} />
         <button className="tasto tasto--mini" onClick={leggi} disabled={leggo}>{leggo ? 'Guardo…' : 'Aggiorna'}</button>
         <button className="tasto tasto--mini" onClick={onChiudi}>Chiudi</button>
       </div>
+      {/* Le azioni in vista in cima (0.61.0): prima erano in Impostazioni → Account e nel tasto «Consumi» della barra. */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '2px 0 6px' }}>
+        <button className="tasto" aria-expanded={parte === 'altri-pc'} onClick={() => setParte(parte === 'altri-pc' ? undefined : 'altri-pc')} title="I PC che usano lo stesso Drive: acceso o spento, versione, le chat che hanno aperte (da guardare dal vivo) e la cassetta per lasciargli un’azione">Gli altri computer</button>
+        <button className="tasto" aria-expanded={consumiAperti} onClick={() => onConsumi?.()} title="La colonna «Consumi e limiti» accanto alle chat: quanto resta della finestra di 5 ore e della settimana del piano, il contesto di ogni chat aperta, cosa fa il freno degli autopiloti. Resta aperta mentre lavori">Consumi e limiti (colonna)</button>
+        <button className="tasto" aria-expanded={parte === 'consumi'} onClick={() => setParte(parte === 'consumi' ? undefined : 'consumi')} title="I consumi per esteso: i token per giorno e per chat, i limiti del piano e le regole del freno">Consumi per esteso</button>
+      </div>
+      {parte === 'altri-pc' ? <div style={{ maxHeight: '40vh', overflowY: 'auto', marginBottom: 8 }}><AltriComputer /></div> : null}
+      {parte === 'consumi' ? <div style={{ maxHeight: '50vh', overflowY: 'auto', marginBottom: 8 }}><PannelloConsumi incorporato /></div> : null}
       <p className="account__nota">
         Com’è messo SierraDeck su questo PC, in un posto solo: il Drive (collegato o no, perché e da quando), gli altri PC (quando si sono fatti vivi l’ultima volta, con quale strada si raggiungono adesso, che versione hanno), un aggiornamento che non si è installato, gli errori delle ultime ore scritti nel registro, le istruzioni degli autopiloti che non sono partite. Ogni voce dice cosa vuol dire e cosa fare; dove si può, il tasto lo fa. Si rilegge da solo ogni minuto; «Aggiorna» bussa di nuovo agli altri PC adesso.
       </p>

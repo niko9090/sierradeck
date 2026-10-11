@@ -62,6 +62,7 @@ class PannelloDriveTest {
     @Test
     fun `Progetti è una voce propria della barra in basso`() {
         assertTrue(Scheda.entries.contains(Scheda.PROGETTI))
-        assertTrue(Scheda.entries.indexOf(Scheda.PROGETTI) < Scheda.entries.indexOf(Scheda.COMPUTER))
+        // 0.61.0: Progetti è la prima voce del menu principale.
+        assertTrue(Scheda.entries.indexOf(Scheda.PROGETTI) == 0)
     }
 }

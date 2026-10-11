@@ -1,0 +1,53 @@
+{
+  "voci": [
+    {
+      "id": "progetti",
+      "nome": "Progetti",
+      "breve": "Progetti",
+      "icona": "▦",
+      "spiega": "Tutti i tuoi progetti e le loro chat, su tutti i PC: dove lavora ognuno (il PC residente), chi ne ha una copia, cosa è assegnato male. Da qui Apri, Porta qui, Rendi residente, il contenuto del Drive, il salvataggio e l’arrivo dal Drive, e il quaderno del progetto."
+    },
+    {
+      "id": "autopiloti",
+      "nome": "Autopiloti",
+      "breve": "Auto­piloti",
+      "icona": "◉",
+      "spiega": "Gli autopiloti di questo PC e quelli degli altri PC: cosa stanno facendo, cosa aspettano da te, e i comandi per crearli, fermarli, farli ripartire e archiviarli."
+    },
+    {
+      "id": "domande",
+      "nome": "Domande",
+      "breve": "Domande",
+      "icona": "?",
+      "spiega": "Tutto quello che aspetta una tua risposta: chat ferme su una domanda o un permesso, chat che hanno finito, domande degli autopiloti. Si apre accanto alle chat e resta aperta mentre lavori."
+    },
+    {
+      "id": "chat",
+      "nome": "Chat e workspace",
+      "breve": "Chat",
+      "icona": "▭",
+      "spiega": "Le chat e i workspace: nuova chat, riprendi una conversazione, crea, rinomina ed elimina i workspace, le chat usate da altri PC, una nuova finestra, e il Negozio con gli strumenti delle chat (plugin, skill, MCP)."
+    },
+    {
+      "id": "file",
+      "nome": "File",
+      "breve": "File",
+      "icona": "⇅",
+      "spiega": "I file del progetto della chat che hai davanti, qui e sul suo server, e quelli da mandare al telefono: sfoglia, scarica, carica."
+    },
+    {
+      "id": "salute",
+      "nome": "Salute",
+      "breve": "Salute",
+      "icona": "♥",
+      "spiega": "Come sta il sistema: il Drive, gli altri computer (acceso o spento, strada, versione, chat aperte, guarda dal vivo, cassetta), gli aggiornamenti, gli errori delle ultime ore e i consumi del piano, con cosa fare per ognuno."
+    },
+    {
+      "id": "impostazioni",
+      "nome": "Impostazioni",
+      "breve": "Imposta­zioni",
+      "icona": "⚙",
+      "spiega": "Solo le preferenze: aggiornamenti, nome del computer e rete, comportamento delle chat, l’account Google, aspetto, notifiche. Niente che abbia già un suo tasto in questa barra."
+    }
+  ]
+}

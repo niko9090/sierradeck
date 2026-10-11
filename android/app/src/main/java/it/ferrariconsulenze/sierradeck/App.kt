@@ -12,6 +12,8 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.QuestionAnswer
@@ -55,6 +57,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.text.font.FontWeight
@@ -65,7 +68,14 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
- * Le cinque destinazioni della fascia in basso.
+ * **Il menu principale** (app 2.61.0, PC 0.61.0): le sette voci del PC, nello
+ * stesso ordine, con lo stesso nome corto della pagina. L'ordine e i nomi
+ * vengono da `src/shared/menu-principale.ts`, scritti in `assets/menu.json`:
+ * `MenuPrincipaleTest` controlla che questo enum sia uguale.
+ *
+ * Prima (fino alla 2.60): Chat, Domande, Lavori, Negozio, File, Progetti,
+ * Computer. Lavori è diventato Autopiloti, il Negozio sta dentro Chat,
+ * «Computer» si è diviso fra Impostazioni, Salute e Progetti.
  *
  * «Adesso» non c'è più, ed è stata una rimozione, non una perdita: nove volte
  * su dieci era vuota, e quando non lo era diceva cose che dovevi **andare a
@@ -74,7 +84,18 @@ import kotlinx.serialization.json.jsonPrimitive
  * qualunque schermata tu stia guardando. Le urgenze si portano a chi guarda;
  * non si mettono in una stanza in fondo al corridoio.
  */
-enum class Scheda { CHAT, DOMANDE, LAVORI, NEGOZIO, FILE, PROGETTI, COMPUTER }
+enum class Scheda(val id: String, val breve: String) {
+    PROGETTI("progetti", "Progetti"),
+    AUTOPILOTI("autopiloti", "Auto\u00adpiloti"),
+    DOMANDE("domande", "Domande"),
+    CHAT("chat", "Chat"),
+    FILE("file", "File"),
+    SALUTE("salute", "Salute"),
+    IMPOSTAZIONI("impostazioni", "Imposta\u00adzioni")
+}
+
+/** Dentro «Chat» (app 2.61.0): le chat, i workspace e il Negozio. */
+enum class ParteChat { CHAT, WORKSPACE, NEGOZIO }
 
 /**
  * Dove aprire l'app quando lo chiede qualcun altro: una notifica toccata.
@@ -590,15 +611,42 @@ fun Principale(
             }
             Box(Modifier.weight(1f).fillMaxSize()) {
                 when (scheda) {
-                    Scheda.CHAT -> Chat(api, stato, deposito)
-                    Scheda.DOMANDE -> Domande(api, stato, onApriAutopilota = { id -> apriAutopilota = id; scheda = Scheda.LAVORI })
-                    Scheda.LAVORI -> Lavori(api, stato, apri = apriAutopilota, onAperto = { apriAutopilota = null })
-                    Scheda.NEGOZIO -> Negozio(api)
+                    // «Progetti» (app 2.58.2): il pannello delle chat e dei progetti; dalla 2.61.0 con il Drive e le code dei progetti.
+                    Scheda.PROGETTI -> Column(Modifier.fillMaxSize()) {
+                        var drive by remember { mutableStateOf(false) }
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            for ((d, t) in listOf(false to "Progetti e chat", true to "Drive e code")) {
+                                TextButton(onClick = { drive = d }) { Text(t, color = if (drive == d) Banco.accento else Banco.testoQuieto, fontWeight = if (drive == d) FontWeight.Bold else FontWeight.Normal) }
+                            }
+                        }
+                        Box(Modifier.weight(1f)) {
+                            if (!drive) Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) { SezionePannelloDrive(api) }
+                            // Il contenuto del Drive e le code dei progetti: prima erano nella scheda «Computer».
+                            else Computer(api, stato, ParteComputer.PROGETTI)
+                        }
+                    }
+                    Scheda.AUTOPILOTI -> Lavori(api, stato, apri = apriAutopilota, onAperto = { apriAutopilota = null })
+                    Scheda.DOMANDE -> Domande(api, stato, onApriAutopilota = { id -> apriAutopilota = id; scheda = Scheda.AUTOPILOTI })
+                    Scheda.CHAT -> Column(Modifier.fillMaxSize()) {
+                        var parte by remember { mutableStateOf(ParteChat.CHAT) }
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            for ((p, t) in listOf(ParteChat.CHAT to "Chat", ParteChat.WORKSPACE to "Workspace", ParteChat.NEGOZIO to "Negozio")) {
+                                TextButton(onClick = { parte = p }) { Text(t, color = if (parte == p) Banco.accento else Banco.testoQuieto, fontWeight = if (parte == p) FontWeight.Bold else FontWeight.Normal) }
+                            }
+                        }
+                        Box(Modifier.weight(1f)) {
+                            when (parte) {
+                                ParteChat.CHAT -> Chat(api, stato, deposito)
+                                ParteChat.WORKSPACE -> Computer(api, stato, ParteComputer.CHAT)
+                                ParteChat.NEGOZIO -> Negozio(api)
+                            }
+                        }
+                    }
                     // La sezione File (app 2.54.0): i progetti dei PC e i file ricevuti.
                     Scheda.FILE -> SezioneFile(api)
-                    // «Progetti» (app 2.58.2): il pannello delle chat e dei progetti del Drive come voce propria.
-                    Scheda.PROGETTI -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) { SezionePannelloDrive(api) }
-                    Scheda.COMPUTER -> Computer(api, stato)
+                    // Salute (app 2.61.0): la salute del sistema, gli altri computer e i consumi.
+                    Scheda.SALUTE -> Computer(api, stato, ParteComputer.SALUTE)
+                    Scheda.IMPOSTAZIONI -> Computer(api, stato, ParteComputer.IMPOSTAZIONI)
                 }
             }
         }
@@ -629,14 +677,20 @@ private fun Fascia(
     val aspettano = stato?.chat?.count { leggiChat(it).tono == TonoChat.ASPETTA } ?: 0
     val allarmeChat: Color? = if (aspettano > 0) Banco.ambra else null
 
+    // Il menu principale (app 2.61.0): le sette voci del PC, nello stesso ordine.
     NavigationBar(containerColor = Banco.chassis) {
-        voce(attuale, Scheda.CHAT, if (aspettano > 0) "Chat · $aspettano" else "Chat", Icons.Filled.Forum, allarme = allarmeChat, onScegli)
-        voce(attuale, Scheda.DOMANDE, if (chiedono > 0) "Domande · $chiedono" else "Domande", Icons.Filled.QuestionAnswer, allarme = allarmeDomande, onScegli)
-        voce(attuale, Scheda.LAVORI, "Lavori", Icons.Filled.SmartToy, allarme = allarmeLavori, onScegli)
-        voce(attuale, Scheda.NEGOZIO, "Negozio", Icons.Filled.Extension, allarme = null, onScegli)
-        voce(attuale, Scheda.FILE, "File", Icons.Filled.Folder, allarme = null, onScegli)
-        voce(attuale, Scheda.PROGETTI, "Progetti", Icons.Filled.Dashboard, allarme = null, onScegli)
-        voce(attuale, Scheda.COMPUTER, "Computer", Icons.Filled.Computer, allarme = null, onScegli)
+        for (s in Scheda.entries) {
+            val (icona, allarme, numero) = when (s) {
+                Scheda.PROGETTI -> Triple(Icons.Filled.Dashboard, null, 0)
+                Scheda.AUTOPILOTI -> Triple(Icons.Filled.SmartToy, allarmeLavori, 0)
+                Scheda.DOMANDE -> Triple(Icons.Filled.QuestionAnswer, allarmeDomande, chiedono)
+                Scheda.CHAT -> Triple(Icons.Filled.Forum, allarmeChat, aspettano)
+                Scheda.FILE -> Triple(Icons.Filled.Folder, null, 0)
+                Scheda.SALUTE -> Triple(Icons.Filled.Favorite, null, 0)
+                Scheda.IMPOSTAZIONI -> Triple(Icons.Filled.Settings, null, 0)
+            }
+            voce(attuale, s, s.breve, icona, allarme = allarme, onScegli, numero = numero)
+        }
     }
 }
 
@@ -648,21 +702,24 @@ private fun androidx.compose.foundation.layout.RowScope.voce(
     icona: ImageVector,
     /** Il colore del pallino, o `null` se non c'e' niente da segnalare. */
     allarme: Color?,
-    onScegli: (Scheda) -> Unit
+    onScegli: (Scheda) -> Unit,
+    /** Il numero nel pallino (domande, chat che aspettano): con sette voci non sta nel nome. */
+    numero: Int = 0
 ) {
     NavigationBarItem(
         selected = attuale == quale,
         onClick = { onScegli(quale) },
         icon = {
             if (allarme != null) {
-                BadgedBox(badge = { Badge(containerColor = allarme) }) {
+                BadgedBox(badge = { Badge(containerColor = allarme) { if (numero > 0) Text("$numero", fontSize = 9.sp) } }) {
                     Icon(icona, contentDescription = testo)
                 }
             } else {
                 Icon(icona, contentDescription = testo)
             }
         },
-        label = { Text(testo) },
+        label = { Text(testo, fontSize = 10.sp, lineHeight = 11.sp, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
+        alwaysShowLabel = true,
         colors = NavigationBarItemDefaults.colors(
             selectedIconColor = Banco.accento,
             selectedTextColor = Banco.testo,

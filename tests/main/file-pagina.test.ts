@@ -115,8 +115,9 @@ describe('la sezione File della pagina', () => {
     expect(pag.html()).toContain('id="file-pin"')
     expect(pag.html()).toContain('Progetto protetto')
   })
-  it('il tasto File sta in Computer, e lo script si legge', () => {
-    expect(script).toContain('apriPannello(\\\'file\\\')')
+  it('File è una voce del menu principale (0.61.0), e lo script si legge', () => {
+    expect(script).toContain('file: fileHtml()')
+    expect(script).toContain("if (nome === 'file') {")
     expect(() => new Function(script)).not.toThrow()
   })
 })

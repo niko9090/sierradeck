@@ -22,13 +22,14 @@ describe('la colonna «Consumi e limiti»', () => {
     expect(restaApertaLAltra({ larghezzaFinestra: 1100, larghezzaDomande: 400, larghezzaConsumi: 380 })).toBe(false)
   })
 
-  it('si apre dal tasto «Consumi» della console ed è una colonna accanto al mosaico', () => {
+  it('si apre da ♥ Salute (0.61.0: il tasto «Consumi» non è più nella barra) ed è una colonna accanto al mosaico', () => {
     const app = readFileSync('src/renderer/App.tsx', 'utf8')
     expect(app).toContain('colonnaConsumi.aperta ? (')
     expect(app).toContain('consumiLaterali: consumi')
     expect(app).toContain('larghezzaConsumi: px')
-    const console_ = readFileSync('src/renderer/components/Console.tsx', 'utf8')
-    expect(console_).toContain('onClick={() => onConsumi?.()}')
+    const salute = readFileSync('src/renderer/components/PannelloSalute.tsx', 'utf8')
+    expect(salute).toContain('onClick={() => onConsumi?.()}')
+    expect(app).toContain("onConsumi={() => commutaColonna('consumi')}")
     const colonna = readFileSync('src/renderer/components/ColonnaConsumi.tsx', 'utf8')
     // Le sezioni e i testi per esteso: cosa guarda, da dove arriva, se non torna.
     for (const t of ['Limiti del piano', 'Contesto delle chat aperte', 'Freno degli autopiloti', 'Se non torna', 'Da dove arrivano']) expect(colonna).toContain(t)

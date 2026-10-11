@@ -290,14 +290,16 @@ describe('la pagina si puo leggere, e non mente', () => {
 })
 
 describe('la fascia in basso', () => {
-  it('ha quattro destinazioni, ed e fissa', () => {
+  it('ha le sette voci del menu principale (0.61.0), nell’ordine del PC, ed e fissa', () => {
     // «La barra in basso non e' il problema: *quella* barra lo era.» Era un
     // riquadro di bottoni alla fine di uno scorrimento infinito, che apriva i
     // suoi pannelli ancora piu' sotto — con sei chat aperte «Consumi» era a
-    // dodici schermate dal pollice.
-    for (const voce of ['ADESSO', 'CHAT', 'LAVORI', 'COMPUTER']) {
-      expect(script).toContain(voce)
-    }
+    // dodici schermate dal pollice. Dalla 0.61.0 le voci vengono dal menu
+    // condiviso con il PC e l'app.
+    expect(script).toContain('var MENU = ')
+    const menu = JSON.parse(script.slice(script.indexOf('var MENU = ') + 11, script.indexOf('\n', script.indexOf('var MENU = ')))) as { id: string }[]
+    expect(menu.map((v) => v.id)).toEqual(['progetti', 'autopiloti', 'domande', 'chat', 'file', 'salute', 'impostazioni'])
+    expect(script).toContain('MENU.map((v) =>')
     const stile = html.slice(html.indexOf('<style>'), html.indexOf('</style>'))
     expect(stile).toMatch(/\.fascia\s*\{[^}]*position:\s*fixed/)
     // E lascia spazio a se stessa: senza, l'ultima piastrella finisce sotto i
@@ -323,12 +325,13 @@ describe('la fascia in basso', () => {
     expect(f).toContain('class="led ')
   })
 
-  it('il computer accende il suo LED solo quando riguarda la macchina', () => {
+  it('le impostazioni accendono il loro LED solo per un aggiornamento pronto, la salute per il silenzio', () => {
     const led = script.slice(script.indexOf('function ledDestinazione('))
     const corpo = led.slice(0, led.indexOf('function fascia('))
     // Aggiornamento pronto, o silenzio: non gli autopiloti.
     expect(corpo).toContain('aggiornamentoVisto')
-    expect(corpo).toContain("nome === 'computer'")
+    expect(corpo).toContain("nome === 'impostazioni'")
+    expect(corpo).toContain("nome === 'salute' ? 'rosso'")
   })
 
   it('cambiare destinazione lascia una traccia, cosi indietro non esce dall app', () => {
@@ -344,14 +347,23 @@ describe('la fascia in basso', () => {
   it('ogni destinazione ha il suo contenuto, e quello che non c entra non compare', () => {
     const sch = script.slice(script.indexOf('const schermate = {'))
     const corpo = sch.slice(0, sch.indexOf('app.innerHTML'))
-    // Il quaderno sta con i lavori: e' quello che l'autopilota produce.
-    expect(corpo).toContain('vistaQuaderno')
-    // I consumi e i salvataggi stanno con il computer.
-    expect(corpo).toContain('vistaConsumi')
+    const parte = (da: string, a: string): string => corpo.slice(corpo.indexOf(da), corpo.indexOf(a))
+    // 0.61.0: il quaderno, le code e il Drive stanno in Progetti.
+    expect(parte('progetti:', 'autopiloti:')).toContain('vistaQuaderno')
+    expect(parte('progetti:', 'autopiloti:')).toContain('vistaDrive')
+    expect(parte('progetti:', 'autopiloti:')).toContain('elencoCode')
+    // I consumi e gli altri computer in Salute.
+    expect(parte('salute:', 'impostazioni:')).toContain('vistaConsumi')
+    expect(parte('salute:', 'impostazioni:')).toContain('elencoPc')
     // I salvataggi con nome non esistono piu' (0.34.0).
     expect(corpo).not.toContain('elencoSalvataggi')
-    // «Affida un lavoro» sta in Lavori, non in mezzo alle chat.
-    expect(corpo.slice(corpo.indexOf('lavori:'), corpo.indexOf('computer:'))).toContain('delega')
+    // «Affida un lavoro» sta in Autopiloti, non in mezzo alle chat.
+    expect(parte('autopiloti:', 'domande:')).toContain('delega')
+    // I workspace e il Negozio con le chat.
+    expect(parte('chat:', 'file:')).toContain('paneWorkspace')
+    expect(parte('chat:', 'file:')).toContain('negozioHtml()')
+    // Il Drive non ha più un tasto suo in un menu «Computer».
+    expect(corpo).not.toContain('computer:')
   })
 })
 
@@ -430,9 +442,10 @@ describe('la gerarchia di Adesso', () => {
     expect(corpo).toContain('1 DI ')
   })
 
-  it('e quando domina lei, tutto il resto collassa in una riga', () => {
-    const sch = script.slice(script.indexOf('adesso: driveScollegatoHtml(s) + fermo'))
-    expect(sch.slice(0, 500)).toContain('altre cose in moto')
+  it('sotto le Domande, quello che è in moto adesso (0.61.0: era la scheda «Adesso»)', () => {
+    const sch = script.slice(script.indexOf('const inMotoAdesso = '))
+    expect(sch.slice(0, 300)).toContain('fermo + invito + bloccati')
+    expect(script).toContain('In moto adesso')
   })
 
   it('quello che si e fermato e rosso, e il suo LED non pulsa', () => {
@@ -743,8 +756,9 @@ describe('analisi del telefono, 30/09', () => {
     expect(pure.quandoLetti(0, adesso)).toBe('')
   })
 
-  it('cinque voci in fascia, cinque colonne: Computer non va a capo', () => {
-    expect(stile).toMatch(/\.fascia\s*\{[^}]*repeat\(5, 1fr\)/)
+  it('sette voci in fascia, sette colonne (0.61.0): i nomi lunghi vanno a capo al trattino morbido', () => {
+    expect(stile).toMatch(/\.fascia\s*\{[^}]*repeat\(7, minmax\(0, 1fr\)\)/)
+    expect(stile).toContain('hyphens: manual')
   })
 
   it('le righe delle decisioni non sovrascrivono piu le righe degli elenchi', () => {

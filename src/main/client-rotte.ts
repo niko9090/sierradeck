@@ -1800,7 +1800,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     // controlla, verifica e archivia. Portarlo qui di nascosto ne farebbe due
     // case.
     if (r.metodo === 'POST' && (r.percorso === '/api/drive/porta' || r.percorso === '/api/drive/portaWorkspace')) {
-      return OK({ ok: false, messaggio: 'Dalla 0.42.0 un progetto non si porta più qui dal catalogo: ogni chat ha una casa sola. Per spostarlo usa «Sposta progetto…» nella scheda Drive del PC dove sta adesso; da qui intanto le sue chat si guardano dal vivo.' })
+      return OK({ ok: false, messaggio: 'Dalla 0.42.0 un progetto non si porta più qui dal catalogo: ogni chat ha una casa sola. Per spostarlo usa «Sposta progetto…» in Progetti, sul PC dove sta adesso; da qui intanto le sue chat si guardano dal vivo.' })
     }
     // Il nome scelto di questo PC (0.52.4), cambiato dal telefono: lo stesso
     // campo di «Altri computer» sul PC. Da un altro PC no: ognuno si chiama

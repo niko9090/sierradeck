@@ -542,7 +542,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
               appena {nomeAttesa} torna a farsi sentire, questo riquadro diventa la chat dal vivo su quel PC.
             </li>
             <li>
-              <strong>Porta qui</strong> (scheda ☁ Drive della console): se il progetto è sul Drive, porta su questo PC
+              <strong>Porta qui</strong> (in ▦ Progetti, la prima voce del menu): se il progetto è sul Drive, porta su questo PC
               la cartella e le chat. Da lì in poi la chat si apre qui, con i suoi file.
             </li>
             <li>
@@ -561,8 +561,8 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
               Ricontrolla adesso
             </button>
             {inAttesaDi.perCasa !== true ? (
-            <button className="tasto" onClick={() => apriScheda('drive')} title="Apre la scheda Drive della console, dove c’è «Porta qui»">
-              Apri la scheda Drive…
+            <button className="tasto" onClick={() => apriScheda('progetti')} title="Apre Progetti, dove c’è «Porta qui» per ogni progetto">
+              Apri Progetti…
             </button>
             ) : null}
             <button className="tasto" onClick={nuovaChatQui} title="Apre una chat nuova nella stessa cartella e chiude questo riquadro">

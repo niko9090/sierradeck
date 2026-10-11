@@ -111,6 +111,10 @@ Controllata nel codice (rotte chiamate da `client-pagina.ts` e dai file Kotlin) 
 | 0.60 | «Rendi residente qui» con analisi, riassunto, Conferma e unisci / Annulla | ✓ | ✓ (il riassunto si scorre) | ✓ (conferma in due tocchi) | analisi e unione girano sul PC; app e pagina si rileggono finché lavora |
 | 0.60 | «Annulla l'unione» (30 giorni) | ✓ | ✓ | ✓ | |
 | 0.60 | Chat senza nome fuori dagli elenchi, casella «mostra anche le senza nome» | ✓ | ✓ (Riprendi e pannello) | ✓ (Riprendi e pannello) | `/api/sessioni` dice `nascoste` |
+| 0.60.9 | Chat chiusa da te sul PC di casa → si chiude anche dove la guardi | ✓ il riquadro remoto si chiude, riga `[apertura]` | ✓ torna all'elenco e lo dice con l'ora (`ChiuseDaTe.kt`) | ✓ idem (`notaChiusa`) | `chiuse` in `/api/stato`; `ChiuseDaTeTest` |
+| 0.61 | Menu principale unico: Progetti, Autopiloti, Domande, Chat e workspace, File, Salute, Impostazioni | ✓ barra in alto | ✓ fascia in basso (`Scheda`) | ✓ fascia in basso (`MENU`) | una definizione: `src/shared/menu-principale.ts` → `assets/menu.json`; `MenuPrincipaleTest` |
+| 0.61 | Il vecchio «Drive» dentro Progetti (contenuto, Porta qui, salvataggio e arrivo, code) | ✓ | ✓ linguetta «Drive e code» | ✓ tasti in PROGETTI | |
+| 0.61 | Altri computer e Consumi in Salute; Workspace e Negozio in Chat; Impostazioni solo preferenze | ✓ | ✓ | ✓ | inventario: `menu-rifatti-0-61-0-inventario.md` |
 
 **Mancanze rimaste, con il motivo:** «Mostra qui» (vedi sopra); nella pagina ospite, gestione del PIN e «Installa là» (la pagina è il ripiego quando l'app non c'è, e quelle scelte restano a PC e app); spegnere i workspace dietro e buttare conversazioni (lasciati al PC apposta, vedi sopra).
 

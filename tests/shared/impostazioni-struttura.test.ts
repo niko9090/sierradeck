@@ -30,11 +30,13 @@ describe('la struttura delle impostazioni', () => {
   it('le voci tolte perché morte o doppie non tornano', () => {
     // salvaAllaChiusura non la legge nessuno; Domande e Consumi a lato si accendono dalla barra; «riparti al login» sta nel pannello Autopiloti.
     for (const via of ['salva-chiusura', 'domande-laterali', 'consumi-laterali', 'autopiloti-login']) expect(VOCI.some((v) => v.id === via), via).toBe(false)
+    // 0.61.0: niente voci che aprono un pannello con un suo tasto nel menu principale.
+    for (const via of ['altri-pc', 'ospite', 'salute', 'drive']) expect(VOCI.some((v) => v.id === via), via).toBe(false)
   })
   it('la ricerca: senza accenti né maiuscole, tutte le parole, nell’ordine delle sezioni', () => {
     expect(normalizza('Novità È')).toBe('novita e')
     expect(cercaImpostazioni('NOVITÀ', 'pc').map((v) => v.id)).toEqual(['aggiorna-pc'])
-    expect(cercaImpostazioni('drive salva', 'pc').map((v) => v.id)).toEqual(['drive', 'torna-indietro', 'fumetti-sincronia'])
+    expect(cercaImpostazioni('drive salva', 'pc').map((v) => v.id)).toEqual(['account-google', 'torna-indietro', 'fumetti-sincronia'])
     expect(cercaImpostazioni('non esiste per niente', 'app')).toEqual([])
     expect(cercaImpostazioni('', 'pagina').length).toBe(VOCI.filter((v) => v.dove.includes('pagina')).length)
     // Una sezione vuota per quel posto non si mostra (il PC non ha Notifiche).

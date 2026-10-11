@@ -112,7 +112,7 @@ fun SezioneSalute(api: Api) {
                                 when (a.id) {
                                     "scarica-a-mano" -> a.url?.let { try { contesto.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) } catch (_: Exception) {} }
                                     "riprova-pc" -> scope.launch { leggi() }
-                                    "apri-autopilota" -> Apertura.schedaRichiesta = Scheda.LAVORI
+                                    "apri-autopilota" -> Apertura.schedaRichiesta = Scheda.AUTOPILOTI
                                 }
                             }) { Text(t, fontSize = 12.sp) }
                             Spacer(Modifier.width(6.dp))

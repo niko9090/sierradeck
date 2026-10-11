@@ -62,12 +62,27 @@ private fun tokenBrevi(n: Long): String = when {
 }
 
 /**
+ * Le parti di quella che era la scheda «Computer» (app 2.61.0, PC 0.61.0):
+ * Nicholas voleva il menu ordinato per importanza, uguale al PC. Le
+ * impostazioni vere restano in Impostazioni; gli altri computer e i consumi
+ * vanno in Salute; il Drive e le code dei progetti in Progetti; i workspace
+ * in Chat.
+ */
+enum class ParteComputer { IMPOSTAZIONI, SALUTE, PROGETTI, CHAT }
+
+/**
  * «Computer»: ciò che si governa del banco da lontano — i workspace, gli
  * avvisi, l'account, i consumi e i limiti del piano, le code dei progetti, gli
- * altri computer, l'aspetto, il Drive e gli aggiornamenti.
+ * altri computer, l'aspetto, il Drive e gli aggiornamenti. Dalla 2.61.0 si
+ * mostra a parti (`ParteComputer`), una per voce del menu principale.
  */
 @Composable
-fun Computer(api: Api, stato: Stato?) {
+fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOSTAZIONI) {
+    // Quale parte mostrare (app 2.61.0): le voci del menu principale prendono ognuna la sua.
+    val imp = parte == ParteComputer.IMPOSTAZIONI
+    val sal = parte == ParteComputer.SALUTE
+    val prog = parte == ParteComputer.PROGETTI
+    val chat = parte == ParteComputer.CHAT
     val scope = rememberCoroutineScope()
     var consumi by remember { mutableStateOf<Consumi?>(null) }
     var account by remember { mutableStateOf<Account?>(null) }
@@ -147,6 +162,7 @@ fun Computer(api: Api, stato: Stato?) {
         val struttura = remember { ImpostazioniVoci.carica(contesto) }
         var cercaImp by remember { mutableStateOf("") }
         val visibili = ImpostazioniVoci.sezioniVisibili(struttura, cercaImp)
+        if (imp) {
         OutlinedTextField(
             value = cercaImp, onValueChange = { cercaImp = it.take(60) }, singleLine = true,
             placeholder = { Text("Cerca nelle impostazioni (per esempio: aggiornamento, PIN, notifiche)", fontSize = 13.sp) },
@@ -163,8 +179,9 @@ fun Computer(api: Api, stato: Stato?) {
             }
         }
         Spacer(Modifier.height(8.dp))
+        }
 
-        if ("aggiornamenti" in visibili) {
+        if (imp && "aggiornamenti" in visibili) {
             GruppoImpostazioni(struttura, "aggiornamenti")
 
         // ─── Aggiornamenti ───
@@ -178,9 +195,11 @@ fun Computer(api: Api, stato: Stato?) {
             Divisore()
         }
 
-        if ("computer" in visibili) {
-            GruppoImpostazioni(struttura, "computer")
+        if ((imp || sal) && "computer" in visibili) {
+            if (imp) GruppoImpostazioni(struttura, "computer")
+        if (imp) Text("Gli altri computer, con le loro chat aperte e la cassetta, stanno in Salute. Per cambiare il computer a cui è collegata l’app tocca il suo nome in alto.", color = Banco.testoQuieto, fontSize = 12.sp)
 
+        if (sal) {
         // Gli altri computer, e le azioni da eseguire solo la'. Nicholas
         // (2026-09-14): «se sto operando su una chat su una cartella in rete
         // gli altri come fanno a operare li'?». Si scrive nella cassetta di
@@ -314,20 +333,24 @@ fun Computer(api: Api, stato: Stato?) {
                 }
             }
         }
+        }
 
         // I salvataggi con nome non esistono piu' (0.34.0 / app 2.37.0): il
         // computer riapre da solo l'ultima composizione all'avvio.
-            Divisore()
+            if (sal) Divisore()
         }
 
-        if ("chat" in visibili) {
-            GruppoImpostazioni(struttura, "chat")
+        if ((imp || chat || prog) && "chat" in visibili) {
+            if (imp) GruppoImpostazioni(struttura, "chat")
 
+        if (imp) {
         // ─── Il quaderno personale (app 2.57.0, PC 0.57.0) ───
         Sezione("Quaderno personale")
         SezioneQuadernoPersonale(api)
         Spacer(Modifier.height(10.dp))
+        }
 
+        if (chat) {
         // ─── Workspace ───
         // Tutto dentro una tessera sola: prima i workspace erano chip sospesi e
         // sotto, staccato, un campo con una scritta di fianco — tre cose che non
@@ -391,8 +414,10 @@ fun Computer(api: Api, stato: Stato?) {
                 TextButton(onClick = { gestisci = true }) { Text("Rinomina o elimina un workspace…") }
             }
         }
-            Divisore()
+        }
+            if (chat) Divisore()
 
+        if (prog) {
         // ─── Le code dei progetti ───
         // Un comando in fila per un progetto lo consegna il PC che ha il
         // testimone, appena una chat ha finito: da qui si vede, si aggiunge,
@@ -484,22 +509,26 @@ fun Computer(api: Api, stato: Stato?) {
                 }
             }
         }
-            Divisore()
+        }
+            if (prog) Divisore()
         }
 
-        if ("drive" in visibili) {
-            GruppoImpostazioni(struttura, "drive")
+        if ((imp || prog) && "drive" in visibili) {
+            if (imp) GruppoImpostazioni(struttura, "drive")
 
+        if (prog) {
         // ─── Il Drive ───
         // Il magazzino comune dei PC, da sfogliare e da cui far portare
         // qualcosa al computer: la stessa scheda «Drive» del computer.
         Sezione("Drive")
         SezioneDrive(api)
-        // Il pannello delle chat e dei progetti è la voce «Progetti» della barra in basso (app 2.58.2).
-        Text("Le chat e i progetti dei tuoi PC, con il PC residente e le azioni, stanno nella voce «Progetti» della barra in basso.", color = Banco.testoQuieto, fontSize = 12.sp)
+        // Il pannello delle chat e dei progetti è la linguetta accanto, «Progetti e chat» (app 2.61.0).
+        Text("Le chat e i progetti dei tuoi PC, con il PC residente e le azioni, stanno nella linguetta «Progetti e chat», qui accanto.", color = Banco.testoQuieto, fontSize = 12.sp)
         Spacer(Modifier.height(10.dp))
-            Divisore()
+        }
+            if (prog) Divisore()
 
+        if (imp) {
         // ─── Account ───
         // Era in sola lettura, e il ragionamento era che una password scritta
         // su un telefono la può leggere chi ti sta accanto. Regge per l'inizio
@@ -513,10 +542,11 @@ fun Computer(api: Api, stato: Stato?) {
             onCambiato = { scope.launch { account = try { api.account() } catch (_: Exception) { account } } },
             api = api
         )
-            Divisore()
+        }
+            if (imp) Divisore()
         }
 
-        if ("aspetto" in visibili) {
+        if (imp && "aspetto" in visibili) {
             GruppoImpostazioni(struttura, "aspetto")
 
         // ─── Impostazioni ───
@@ -548,7 +578,7 @@ fun Computer(api: Api, stato: Stato?) {
             Divisore()
         }
 
-        if ("notifiche" in visibili) {
+        if (imp && "notifiche" in visibili) {
             GruppoImpostazioni(struttura, "notifiche")
 
         // ─── Avvisi ───
@@ -624,15 +654,18 @@ fun Computer(api: Api, stato: Stato?) {
             Divisore()
         }
 
-        if ("info" in visibili) {
-            GruppoImpostazioni(struttura, "info")
+        if ((imp || sal) && "info" in visibili) {
+            if (imp) GruppoImpostazioni(struttura, "info")
 
+        if (sal) {
         // ─── La salute del sistema (0.44.0) ───
         Sezione("Salute del sistema")
         SezioneSalute(api)
         Spacer(Modifier.height(10.dp))
-            Divisore()
+        }
+            if (sal) Divisore()
 
+        if (sal) {
         // ─── Consumi ───
         Sezione("Consumi (token)")
         val c = consumi
@@ -682,8 +715,10 @@ fun Computer(api: Api, stato: Stato?) {
                 )
             }
         }
-            Divisore()
+        }
+            if (sal) Divisore()
 
+        if (imp) {
         // ─── Info (0.52.1) ───
         // Quale app hai in mano, scritto per intero: per controllare che sia
         // la 2.51 o successiva senza aprire le impostazioni di Android.
@@ -706,7 +741,8 @@ fun Computer(api: Api, stato: Stato?) {
             cm.setPrimaryClip(android.content.ClipData.newPlainText("SierraDeck", testo))
             Nota.mostra("Dettagli copiati: incollali dove chiedi aiuto. Non ci sono chiavi né password.")
         }) { Text("Copia i dettagli") }
-            Divisore()
+        }
+            if (imp) Divisore()
         }
 
         Spacer(Modifier.height(24.dp))

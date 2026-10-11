@@ -4,7 +4,6 @@ import {
 } from '@shared/preferenze'
 import { PannelloProvider } from './PannelloProvider'
 import { PannelloAccount } from './PannelloAccount'
-import { PannelloConsumi } from './PannelloConsumi'
 import { SezioneScorciatoie } from './SezioneScorciatoie'
 import { useLayoutStore } from '../state/layout'
 import { contaChat, contaWorkspace, eChiusuraAutomatica, type Istantanea } from '@shared/istantanea'
@@ -99,7 +98,8 @@ function SezioneTornaIndietro(): React.JSX.Element {
 }
 
 /** Le schede del menu Impostazioni. */
-export type TabImpostazioni = 'generali' | 'ai' | 'account' | 'consumi'
+/** Le schede (0.61.0: Consumi è in Salute, accanto alla sua colonna). */
+export type TabImpostazioni = 'generali' | 'ai' | 'account'
 
 type StatoClient = Awaited<ReturnType<typeof window.gestore.client.stato>>
 
@@ -331,17 +331,10 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
           </section>
         ) : null}
 
-        {vede('nome-pc', 'altri-pc', 'accoppiamento', 'porte', 'oltre-la-rete') ? (
+        {vede('nome-pc', 'accoppiamento', 'porte', 'oltre-la-rete') ? (
           <section className="impostazioni__gruppo">
             <Testa id="computer" />
             {vede('nome-pc') ? <NomeQuestoPc /> : null}
-            {vede('altri-pc') ? (
-              <div className="impostazioni__riga">
-                <span>Altri computer e strade</span>
-                <button className="tasto" onClick={() => window.dispatchEvent(new CustomEvent('sierradeck:apri-pannello', { detail: 'salute' }))}>Apri la mappa dei PC (Salute)</button>
-                <button className="tasto" onClick={onAccount}>Elenco e cassetta (Account)</button>
-              </div>
-            ) : null}
             {vede('oltre-la-rete') ? <>
           <label className="impostazioni__riga impostazioni__riga--spunta">
             <input
@@ -382,15 +375,9 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
         ) : null}
         {vede('accoppiamento') ? <SezioneClient /> : null}
 
-        {vede('pin', 'ospite', 'iberna', 'attesa-chat', 'posto-autopilota') ? (
+        {vede('pin', 'iberna', 'attesa-chat', 'posto-autopilota') ? (
           <section className="impostazioni__gruppo">
             <Testa id="chat" />
-            {vede('ospite') ? (
-              <div className="impostazioni__riga">
-                <span>Dove vive ogni chat</span>
-                <button className="tasto" onClick={() => window.dispatchEvent(new Event('sierradeck:dove-vive'))}>Apri «Dove vive ogni chat»</button>
-              </div>
-            ) : null}
             {vede('iberna') ? <>
           <label className="impostazioni__riga impostazioni__riga--spunta">
             <input
@@ -452,13 +439,13 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
         {vede('pin') ? <SezionePin /> : null}
         {vede('quaderno-personale') ? <SezioneQuadernoPersonale /> : null}
 
-        {vede('drive', 'torna-indietro', 'fumetti-sincronia') ? (
+        {vede('account-google', 'torna-indietro', 'fumetti-sincronia') ? (
           <section className="impostazioni__gruppo">
             <Testa id="drive" />
-            {vede('drive') ? (
+            {vede('account-google') ? (
               <div className="impostazioni__riga">
-                <span>Drive e cassaforte</span>
-                <button className="tasto" onClick={onAccount}>Apri Account → Drive</button>
+                <span>Account Google del Drive e passphrase della cassaforte: nella scheda «Account», qui sopra. Il contenuto del Drive, «Porta qui» e il salvataggio stanno in ▦ Progetti.</span>
+                <button className="tasto" onClick={onAccount}>Vai alla scheda Account</button>
               </div>
             ) : null}
             {vede('fumetti-sincronia') ? <>
@@ -539,11 +526,10 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
         ) : null}
         {vede('scorciatoie') ? <SezioneScorciatoie p={p} cambia={cambia} /> : null}
 
-        {vede('salute', 'registro', 'copia-dettagli') ? (
+        {vede('registro', 'copia-dettagli') ? (
           <section className="impostazioni__gruppo">
             <Testa id="info" />
             <div className="impostazioni__riga">
-              {vede('salute') ? <button className="tasto" onClick={() => window.dispatchEvent(new CustomEvent('sierradeck:apri-pannello', { detail: 'salute' }))}>Salute del sistema</button> : null}
               {vede('registro') ? <button className="tasto" onClick={() => void window.gestore.log.apri()}>Apri il registro</button> : null}
               {vede('copia-dettagli') ? <button className="tasto" onClick={copiaDettagli}>Copia i dettagli</button> : null}
             </div>
@@ -598,14 +584,12 @@ export function PannelloImpostazioni(
           {bottone('generali', 'Generali')}
           {bottone('ai', 'AI')}
           {bottone('account', 'Account')}
-          {bottone('consumi', 'Consumi')}
         </div>
       </div>
       <div className="impostazioni__corpo">
         {tab === 'generali' ? <SchedaGenerali onAccount={() => setTab('account')} /> : null}
         {tab === 'ai' ? <PannelloProvider incorporato /> : null}
         {tab === 'account' ? <PannelloAccount incorporato /> : null}
-        {tab === 'consumi' ? <PannelloConsumi incorporato /> : null}
       </div>
     </div>
   )

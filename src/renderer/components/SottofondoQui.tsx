@@ -27,7 +27,7 @@ function quando(iso: string): string {
   return new Date(t).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
 }
 
-export function SottofondoQui(): React.JSX.Element | null {
+export function SottofondoQui({ vuoto }: { vuoto?: React.ReactNode } = {}): React.JSX.Element | null {
   const [elenco, setElenco] = useState<StatoSottofondo[]>([])
   const [aperto, setAperto] = useState(false)
   const [esito, setEsito] = useState<string | undefined>(undefined)
@@ -40,7 +40,8 @@ export function SottofondoQui(): React.JSX.Element | null {
     const t = setInterval(leggi, 5000)
     return () => { vivo = false; via(); clearInterval(t) }
   }, [])
-  if (elenco.length === 0) return null
+  // Nessuna: niente tasto nella barra; nel pannello «Chat e workspace» (0.61.0) si dice.
+  if (elenco.length === 0) return vuoto === undefined ? null : <>{vuoto}</>
   return (
     <span className="sottofondo-qui">
       <button
@@ -49,7 +50,7 @@ export function SottofondoQui(): React.JSX.Element | null {
         aria-expanded={aperto}
         title="Chat di questo PC che un altro PC (o il telefono) sta usando in sottofondo: girano qui senza riquadro e senza finestre"
       >
-        ⧉ Usate da altri PC ({elenco.length})
+        ⇄ Usate da altri PC ({elenco.length})
       </button>
       {aperto ? (
         <div className="sottofondo-qui__elenco" role="dialog" aria-label="Chat usate da altri PC">

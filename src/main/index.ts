@@ -2736,7 +2736,10 @@ if (!app.requestSingleInstanceLock()) {
         if (azione === 'annulla-unione') return residenza.annullaUnione(testoDi(c.id))
         if (azione === 'residente') {
           const q = (typeof c.pc === 'object' && c.pc !== null ? c.pc : {}) as Record<string, unknown>
-          const pc = { id: testoDi(q.id), nome: testoDi(q.nome) }
+          // Il nome lo sa questo PC (0.61.0): quello mandato da chi chiede poteva essere
+          // «questo PC» detto da un altro, e finiva salvato come nome del residente.
+          const noto = testoDi(q.id) === io.id ? io.nome : postino.altrui().find((b) => b.pcId === testoDi(q.id))?.nome
+          const pc = { id: testoDi(q.id), nome: noto ?? testoDi(q.nome) }
           if (pc.id === '') return { ok: false, messaggio: 'PC non valido.' }
           const sessioni = Array.isArray(c.sessioni) ? c.sessioni.filter((x): x is string => typeof x === 'string').slice(0, 2000) : []
           if (sessioni.length === 0) return { ok: false, messaggio: 'Niente da cambiare.' }

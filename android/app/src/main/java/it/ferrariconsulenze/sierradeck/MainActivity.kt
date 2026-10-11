@@ -129,7 +129,7 @@ class MainActivity : ComponentActivity() {
         val apk = intent.getStringExtra(ControlloApp.EXTRA_APK)
         if (versione != null && apk != null && Aggiornamenti.apkAmmesso(apk)) { Apertura.aggiornamento = versione to apk; return }
         if (intent.hasExtra(Ronda.EXTRA_CHAT) || intent.hasExtra(Ronda.EXTRA_DOMANDA)) Apertura.schedaRichiesta = Scheda.DOMANDE
-        else if (intent.getStringExtra(Ronda.EXTRA_SCHEDA) == "lavori") Apertura.schedaRichiesta = Scheda.LAVORI
+        else if (intent.getStringExtra(Ronda.EXTRA_SCHEDA) == "lavori") Apertura.schedaRichiesta = Scheda.AUTOPILOTI
         // Il riassunto degli avvisi (0.43.0) apre le Domande, dove c'e' tutto quello che aspetta.
         else if (intent.getStringExtra(Ronda.EXTRA_SCHEDA) == "domande") Apertura.schedaRichiesta = Scheda.DOMANDE
     }

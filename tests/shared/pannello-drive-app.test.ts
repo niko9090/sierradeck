@@ -100,7 +100,7 @@ describe('il pannello del Drive per la pagina e per l’app', () => {
   })
   it('«Progetti» è una destinazione propria della pagina (0.58.2)', () => {
     const html = paginaClient()
-    expect(html).toContain("['progetti', 'PROGETTI']")
+    expect(html).toContain('"id":"progetti"')
     expect(html).toContain('progetti: pannelloDriveHtml()')
   })
 })

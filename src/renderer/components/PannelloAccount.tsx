@@ -163,7 +163,14 @@ type StatoSync = {
  * ripristina. Un solo componente perché è un solo flusso, a stati: cosa mostrare
  * dipende da dove sei (Drive? cassaforte? sbloccato?).
  */
-function SezioneSync(): React.JSX.Element | null {
+/**
+ * Il Drive e la cassaforte. Dalla 0.61.0 in due parti:
+ * - `account` (Impostazioni → Account): collegare l'account Google, la
+ *   passphrase della cassaforte, sbloccarla, cambiarla;
+ * - `salvataggio` (Progetti → «Salvataggio e arrivo»): Salva ora, Ripristina,
+ *   il salvataggio automatico, «Fondi con il Drive» e i progetti sul Drive.
+ */
+function SezioneSync({ parte }: { parte: 'account' | 'salvataggio' }): React.JSX.Element | null {
   const [drive, setDrive] = useState<StatoDrive | undefined>(undefined)
   const [sync, setSync] = useState<StatoSync | undefined>(undefined)
   const [pw, setPw] = useState('')
@@ -192,7 +199,6 @@ function SezioneSync(): React.JSX.Element | null {
     void window.gestore.sync.auto().then(setAuto).catch(() => {})
   }
   const commutaAuto = (): void => { void window.gestore.sync.auto(!auto).then(setAuto).catch(() => {}) }
-  const apriLog = (): void => { void window.gestore.log.apri() }
   useEffect(aggiorna, [])
   useEffect(() => window.gestore.sync.onProgresso(setProgresso), [])
 
@@ -307,7 +313,7 @@ function SezioneSync(): React.JSX.Element | null {
       })() : null}
 
       {/* Riepilogo a colpo d'occhio, quando è tutto pronto */}
-      {pronto ? (
+      {pronto && parte === 'salvataggio' ? (
         <div className="account__hero">
           <div className={sync.ultimoSalvataggio !== undefined ? 'account__hero-stato account__hero-stato--ok' : 'account__hero-stato'}>
             {sync.ultimoSalvataggio !== undefined ? '✓ Tutto al sicuro' : '○ Non hai ancora salvato'}
@@ -321,8 +327,20 @@ function SezioneSync(): React.JSX.Element | null {
         </div>
       ) : null}
 
-      {/* Le due schede: Drive e Cassaforte, sempre visibili */}
-      <div className="account__schede">
+      {/* Le due schede: Drive e Cassaforte, sempre visibili (in Impostazioni → Account) */}
+      {parte === 'salvataggio' && !pronto ? (
+        <div className="account__scheda account__scheda--largo">
+          <p className="account__nota">
+            {!drive.connesso
+              ? 'Il Drive non è collegato: le chat non si salvano e gli altri PC non si vedono. Si collega da Impostazioni → Account, con il tuo account Google.'
+              : 'La cassaforte è chiusa: senza la passphrase non si salva e non si legge niente dal Drive. Si apre da Impostazioni → Account.'}
+          </p>
+          <div className="account__tasti">
+            <button className="tasto tasto--primario" onClick={() => window.dispatchEvent(new Event('sierradeck:apri-account'))}>Apri Impostazioni → Account</button>
+          </div>
+        </div>
+      ) : null}
+      {parte === 'account' ? <div className="account__schede">
         <div className="account__scheda">
           <div className="account__scheda-tit">☁️ Drive</div>
           <div className={drive.connesso ? 'account__pallino account__pallino--ok' : 'account__pallino'}>
@@ -351,7 +369,7 @@ function SezioneSync(): React.JSX.Element | null {
             </div>
           ) : null}
         </div>
-      </div>
+      </div> : null}
 
       {fusioneAperta ? (
         <ModaleFusione
@@ -360,7 +378,7 @@ function SezioneSync(): React.JSX.Element | null {
         />
       ) : null}
 
-      {riconoscimento !== undefined && drive.connesso ? (
+      {parte === 'account' && riconoscimento !== undefined && drive.connesso ? (
         <div className="account__scheda account__scheda--largo">
           <div className="account__scheda-tit">🔎 Il Drive collegato</div>
           <p className="account__nota">
@@ -392,7 +410,7 @@ function SezioneSync(): React.JSX.Element | null {
       ) : null}
 
       {/* L'area che cambia: chiave di recupero / crea / sblocca / cambia / cruscotto */}
-      {chiaveRecupero !== undefined ? (
+      {parte === 'salvataggio' && !pronto ? null : chiaveRecupero !== undefined ? (
         <div className="account__scheda account__scheda--largo account__recupero">
           <p className="riga__stato"><strong>Salva la tua chiave di recupero.</strong> È l’unico modo per rientrare se dimentichi la passphrase — non te la mostreremo di nuovo, e senza di essa (e senza passphrase) i dati non si recuperano.</p>
           <code className="account__codice">{chiaveRecupero}</code>
@@ -471,6 +489,15 @@ function SezioneSync(): React.JSX.Element | null {
             </button>
           </div>
         </div>
+      ) : pronto && parte === 'account' ? (
+        <div className="account__scheda account__scheda--largo">
+          <p className="account__nota">
+            Drive collegato e cassaforte aperta: è tutto pronto. Il salvataggio (Salva ora, Ripristina, il salvataggio automatico, «Fondi con il Drive») e i progetti sul Drive stanno in <b>Progetti → «Salvataggio e arrivo»</b>; gli altri computer in <b>Salute</b>.
+          </p>
+          <div className="account__tasti">
+            <button className="tasto" onClick={() => window.dispatchEvent(new CustomEvent('sierradeck:apri-pannello', { detail: 'progetti' }))}>Apri Progetti</button>
+          </div>
+        </div>
       ) : pronto ? (
         <>
           <div className="account__scheda account__scheda--largo">
@@ -517,18 +544,15 @@ function SezioneSync(): React.JSX.Element | null {
             </div>
           </div>
 
-          <SezioneProgetti inCorso={inCorso} onCambio={aggiorna} />
-
-          <SezioneComputer />
-
           <div className="account__opzioni">
             <label className="account__toggle">
               <input type="checkbox" checked={auto} onChange={commutaAuto} />
               <span>Salvataggio automatico</span>
-              <span className="account__nota">{auto ? 'ogni 15 min (5 con un progetto sul Drive), se cambia qualcosa, e alla chiusura' : 'spento'}</span>
+              <span className="account__nota">{auto ? 'ogni 15 min (5 con un progetto sul Drive), se cambia qualcosa, e alla chiusura' : 'spento: si salva solo con «Salva ora»'}</span>
             </label>
-            <button className="account__link" onClick={apriLog}>Registro attività ▸</button>
           </div>
+
+          <SezioneProgetti inCorso={inCorso} onCambio={aggiorna} />
         </>
       ) : !drive.connesso ? (
         <div className="account__scheda account__scheda--largo">
@@ -546,7 +570,8 @@ function SezioneSync(): React.JSX.Element | null {
  * in cui lavora, le chat aperte. Da qui si vede chi c'e' e si scrive nella
  * sua cassetta; consegna il suo postino, quando quel PC e' acceso.
  */
-function SezioneComputer(): React.JSX.Element | null {
+/** In Salute dalla 0.61.0 («Gli altri computer»). */
+export function AltriComputer(): React.JSX.Element | null {
   const [pc, setPc] = useState<BattitoPc[] | undefined>(undefined)
   const [aperto, setAperto] = useState<BattitoPc | undefined>(undefined)
   const [adesso, setAdesso] = useState(Date.now())
@@ -751,9 +776,8 @@ export function PannelloAccount({ onChiudi, incorporato = false }: Props): React
     utente !== undefined ? (
         <div className="account">
           <p className="account__chi">Entrato come <strong>{utente.email}</strong></p>
-          <SezioneSync />
+          <SezioneSync parte="account" />
           <div className="account__tasti">
-            <button className="tasto" onClick={() => void window.gestore.log.apri()}>Apri i log</button>
             <span style={{ flex: 1 }} />
             <button className="tasto" onClick={() => void esci()}>Esci</button>
           </div>
@@ -893,4 +917,13 @@ export function PannelloAccount({ onChiudi, incorporato = false }: Props): React
       {corpo}
     </div>
   )
+}
+
+/**
+ * **Salvataggio e arrivo** (0.61.0), una sezione di Progetti: Salva ora,
+ * Ripristina, il salvataggio automatico, «Fondi con il Drive» e i progetti sul
+ * Drive. Erano in Impostazioni → Account, dove Nicholas non li cercava.
+ */
+export function SalvataggioDrive(): React.JSX.Element | null {
+  return <SezioneSync parte="salvataggio" />
 }

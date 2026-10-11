@@ -510,7 +510,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           <div className="remoto__nota">
             Il riquadro riprova da solo, con attese che crescono (1, 2, 5, 10, 30 secondi, poi ogni 30: non si arrende mai), in quest’ordine: la rete di casa, Tailscale (anche gli indirizzi che dà adesso), un collegamento diretto via Internet (WebRTC, aperto con uno scambio cifrato sul Drive) e infine il Drive, lento, solo per leggere e mandare un messaggio.
             {driveCollegato
-              ? ' La conversazione la trovi anche nella copia sul Drive (Account → Drive), in sola lettura, aggiornata all’ultimo salvataggio di quel PC.'
+              ? ' La conversazione la trovi anche nella copia sul Drive (▦ Progetti → «Il contenuto del Drive»), in sola lettura, aggiornata all’ultimo salvataggio di quel PC.'
               : ' Il Drive di questo PC è scollegato: niente copia da leggere e niente cassetta finché non lo ricolleghi (Account → Drive → Collega).'}
           </div>
         </div>

@@ -27,9 +27,9 @@ describe('la colonna delle Domande sul PC', () => {
     expect(app).toContain('larghezzaDomande: cambio.larghezza')
     expect(app).not.toContain("aperto === 'domande'")
     const console_ = readFileSync('src/renderer/components/Console.tsx', 'utf8')
-    expect(console_).toContain('onClick={() => onDomande?.()}')
-    // Il conteggio sul tasto.
-    expect(console_).toContain("Domande{domandeInAttesa > 0 ? ` ${domandeInAttesa}` : ''}")
+    // Dalla 0.61.0 è la terza voce del menu principale: il tasto chiama onDomande, con il numero.
+    expect(console_).toContain("else if (id === 'domande') onDomande?.()")
+    expect(console_).toContain("v.id === 'domande' ? domandeInAttesa")
     // La finestra modale non c'e' piu' (0.37.2, decisione di Nicholas): le
     // domande si aprono sempre a fianco della chat.
     expect(app).not.toContain('<DomandaModale')
@@ -82,7 +82,8 @@ describe('le domande si aprono a fianco, non in una finestra (0.37.2)', () => {
 describe('il tasto «Domande» chiama quando c è qualcosa in attesa (0.37.3)', () => {
   it('ambra e pulsante con la colonna chiusa, fermo per chi spegne le animazioni', () => {
     const console_ = readFileSync('src/renderer/components/Console.tsx', 'utf8')
-    expect(console_).toContain("domandeInAttesa > 0 && !domandeAperte ? ' tasto--chiama' : ''")
+    expect(console_).toContain("(v.id === 'domande' && domandeInAttesa > 0 && !domandeAperte)")
+    expect(console_).toContain("chiama ? ' tasto--chiama' : ''")
     const css = readFileSync('src/renderer/console.css', 'utf8')
     expect(css).toMatch(/\.tasto--chiama\s*\{[^}]*animation/)
     expect(css).toMatch(/prefers-reduced-motion: reduce\)\s*\{\s*\.tasto--chiama\s*\{\s*animation: none/)

@@ -57,7 +57,7 @@ import { righeDiPty, finestraDiPty } from './schermo-terminale'
 import { ETICHETTA_LAVORO_TIPO, soloTransizioni } from './progresso-sync'
 import { Fumetti, Fumetto, FumettoLavoroDrive, useChiusuraAutomatica } from './components/Fumetti'
 import { decidiFumettiDrive, FUMETTO_ARRIVO_MS, FUMETTO_ESITO_OK_MS } from './fumetti-sync'
-import { PannelloDrive } from './components/PannelloDrive'
+import { PannelloChat } from './components/PannelloChat'
 import { PannelloSalute } from './components/PannelloSalute'
 import { PannelloDomande, apriDomandeAutopilota } from './components/PannelloDomande'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
@@ -526,12 +526,19 @@ export function App(): React.JSX.Element {
     window.addEventListener('sierradeck:dove-vive', apri)
     return () => window.removeEventListener('sierradeck:dove-vive', apri)
   }, [])
-  // Il pannello delle chat e dei progetti del Drive (0.58.0).
+  // Il pannello delle chat e dei progetti del Drive (0.58.0): dalla 0.61.0
+  // è «Progetti», la prima voce del menu principale.
   const [pannelloDrive, setPannelloDrive] = useState(false)
   useEffect(() => {
     const apri = (): void => setPannelloDrive(true)
     window.addEventListener('sierradeck:pannello-drive', apri)
     return () => window.removeEventListener('sierradeck:pannello-drive', apri)
+  }, [])
+  // «Apri Impostazioni → Account» da Progetti, quando il Drive non è collegato o la cassaforte è chiusa (0.61.0).
+  useEffect(() => {
+    const apri = (): void => { setPannelloDrive(false); setSchedaImpostazioni('account'); setAperto('impostazioni') }
+    window.addEventListener('sierradeck:apri-account', apri)
+    return () => window.removeEventListener('sierradeck:apri-account', apri)
   }, [])
 
   useEffect(() => window.gestore.client.suRinomina(({ chat, nome }) => {
@@ -1459,8 +1466,8 @@ export function App(): React.JSX.Element {
           if (azione.tipo === 'linguetta') apriDomandeAutopilota(azione.autopilota)
           else commutaColonna('domande')
         }}
-        consumiAperti={colonnaConsumi.aperta}
-        onConsumi={() => commutaColonna('consumi')}
+        progettiAperti={pannelloDrive}
+        onProgetti={() => setPannelloDrive((a) => !a)}
       />
 
       {/* L'aggiornamento sta sopra la banda degli avvisi: non è un guasto da
@@ -1692,8 +1699,13 @@ export function App(): React.JSX.Element {
         {aperto === 'impostazioni' ? (
           <PannelloImpostazioni onChiudi={() => { setAperto(undefined); setSchedaImpostazioni('generali') }} tabIniziale={schedaImpostazioni} />
         ) : null}
-        {aperto === 'drive' ? (
-          <PannelloDrive onChiudi={() => setAperto(undefined)} />
+        {aperto === 'chat' ? (
+          <PannelloChat
+            workspace={workspace}
+            onApriSessioni={() => setModale('sessioni')}
+            onApri={setAperto}
+            onChiudi={() => setAperto(undefined)}
+          />
         ) : null}
         {aperto === 'salute' ? (
           <PannelloSalute
@@ -1701,6 +1713,8 @@ export function App(): React.JSX.Element {
             onApriDrive={() => { setSchedaImpostazioni('account'); setAperto('impostazioni') }}
             onInstalla={() => apriInstalla(aggiornamento.versione ?? '')}
             onApriAutopiloti={() => setAperto('autopiloti')}
+            onConsumi={() => commutaColonna('consumi')}
+            consumiAperti={colonnaConsumi.aperta}
           />
         ) : null}
         {aperto === 'file' ? (
@@ -1808,7 +1822,7 @@ export function App(): React.JSX.Element {
               {' '}({(ETICHETTA_LAVORO_TIPO as Record<string, string>)[chatArrivate.tipo] ?? chatArrivate.tipo}).
               {' '}{chatArrivate.quante === 1 ? 'È già nell’elenco Chat' : 'Sono già nell’elenco Chat'}
               {chatArrivate.rimappate > 0 ? ` (${chatArrivate.rimappate} ${chatArrivate.rimappate === 1 ? 'spostata' : 'spostate'} nella cartella di qui)` : ''}.
-              {' '}Per averle in un workspace: scheda Drive → «Porta qui il workspace».
+              {' '}Le trovi anche in ▦ Progetti, con il PC dove vivono.
             </span>
             <button className="tasto tasto--mini" onClick={() => { setChatArrivate(undefined); setModale('sessioni') }} title="L’elenco di tutte le chat, per cartella">Elenco</button>
             <button className="tasto tasto--mini" onClick={() => setChatArrivate(undefined)} title="Chiudi">×</button>
@@ -1835,7 +1849,7 @@ export function App(): React.JSX.Element {
             <span className={`led ${avvisoConsumi.tono === 'errore' ? 'led--fermo' : 'led--attesa'}`} />
             <span className="fumetto__testo">
               {avvisoConsumi.testo}{' '}
-              <button className="collegamento" onClick={() => { setAvvisoConsumi(undefined); setAperto('impostazioni') }} title="Il pannello dei consumi, dentro le Impostazioni">Consumi</button>
+              <button className="collegamento" onClick={() => { setAvvisoConsumi(undefined); if (!colonnaConsumi.aperta) commutaColonna('consumi') }} title="La colonna «Consumi e limiti», accanto alle chat (anche da ♥ Salute)">Consumi</button>
             </span>
             <button className="tasto tasto--mini" onClick={() => setAvvisoConsumi(undefined)} title="Chiudi">×</button>
           </Fumetto>

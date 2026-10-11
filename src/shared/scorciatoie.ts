@@ -57,7 +57,7 @@ export const DESCRIZIONE_AZIONE: Record<Azione, string> = {
   elencoChat: 'L’elenco delle chat per cartella («Riprendi una conversazione»)',
   impostazioni: 'Apre o chiude le Impostazioni',
   autopiloti: 'Apre o chiude gli Autopiloti',
-  drive: 'Apre o chiude la scheda Drive',
+  drive: 'Apre o chiude Progetti (con il contenuto del Drive)',
   quaderno: 'Apre o chiude il Quaderno',
   negozio: 'Apre o chiude il Negozio',
   chiudiPannello: 'Chiude il pannello aperto e torna alla chat'

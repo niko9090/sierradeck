@@ -2,6 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { filtraChat, filtraProgetti, testiCambioResidente, type AzioneProgetto, type FiltroPannello, type Pannello, type RigaChat, type RigaProgetto } from '@shared/pannello-drive'
 import { ModaleSposta } from './ModaleSposta'
+import { ModaleRiordina } from './ModaleRiordina'
+import { ContenutoDrive } from './ContenutoDrive'
+import { SalvataggioDrive } from './PannelloAccount'
+import { voceMenu } from '@shared/menu-principale'
 import { chiaveProgetto, eChiaveProgetto } from '@shared/allineamento'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
 
@@ -14,6 +18,14 @@ import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicur
  * qualcosa non torna. Il cambio passa da `casa.scegli` (la stessa strada di
  * «Ospitata da» e «Porta qui»); spostare anche i file di un progetto è
  * «Sposta progetto», che si apre da qui. Le regole: `@shared/pannello-drive`.
+ *
+ * Dalla 0.61.0 è **la prima voce del menu principale**, la casa di tutto
+ * quello che riguarda progetti e Drive: in cima le azioni frequenti (Sposta,
+ * Riordina, Dove vive ogni chat, il Quaderno), in fondo quello che era del
+ * vecchio pannello «☁ Drive» e di Impostazioni → Account: «Salvataggio e
+ * arrivo» (Salva ora, Ripristina, salvataggio automatico, Fondi, i progetti
+ * sul Drive) e «Il contenuto del Drive» (il catalogo per progetto e per
+ * workspace), che si apre solo quando serve perché leggere il Drive è lento.
  */
 
 const STATO: Record<RigaChat['stato'], { testo: string; colore: string; spiega: string }> = {
@@ -42,6 +54,9 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
   const [msg, setMsg] = useState<string | undefined>(undefined)
   const [occupato, setOccupato] = useState(false)
   const [sposta, setSposta] = useState<string | undefined>(undefined)
+  const [riordina, setRiordina] = useState(false)
+  /** Le due sezioni in fondo (0.61.0): chiuse finché non le apri. */
+  const [inFondo, setInFondo] = useState<{ salvataggio: boolean; drive: boolean }>({ salvataggio: false, drive: false })
   const [azioneDa, setAzioneDa] = useState<{ progetto: string; nome: string; a: AzioneProgetto } | undefined>(undefined)
   const faiAzione = (progetto: string, a: AzioneProgetto): void => {
     setOccupato(true); setMsg(undefined)
@@ -67,10 +82,10 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
   useEffect(() => {
     leggi()
     const via = window.gestore.casa.suCambiate(leggi)
-    const suTasto = (e: KeyboardEvent): void => { if (e.key === 'Escape' && cambio === undefined && sposta === undefined) onChiudi() }
+    const suTasto = (e: KeyboardEvent): void => { if (e.key === 'Escape' && cambio === undefined && sposta === undefined && !riordina) onChiudi() }
     window.addEventListener('keydown', suTasto)
     return () => { via(); window.removeEventListener('keydown', suTasto) }
-  }, [leggi, onChiudi, cambio, sposta])
+  }, [leggi, onChiudi, cambio, sposta, riordina])
   useEffect(() => { setQuante(PASSO) }, [vista, filtro, q])
 
   const pc = useMemo(() => (d === undefined ? [] : [d.io, ...d.pc]), [d])
@@ -125,10 +140,20 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
     <div className="velo" onMouseDown={(e) => { if (e.target === e.currentTarget && cambio === undefined) onChiudi() }}>
       <div className="dialogo dialogo--largo" onMouseDown={(e) => e.stopPropagation()} style={{ maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}>
         <div className="dialogo__testa">
-          <span className="serigrafia">Progetti · chat e progetti dei tuoi PC</span>
+          <span className="serigrafia">{voceMenu('progetti').icona} Progetti · chat e progetti dei tuoi PC</span>
           <span style={{ flex: 1 }} />
           <button className="tasto tasto--mini" onClick={leggi} disabled={occupato} title="Rileggi le case, le copie e il Drive">Aggiorna</button>
           <button className="tasto tasto--mini" onClick={onChiudi} aria-label="Chiudi">×</button>
+        </div>
+        {/* Le azioni frequenti, in vista in cima (0.61.0). */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '0 0 8px' }}>
+          <button className="tasto" disabled={occupato} onClick={() => setSposta('')} title="Porta un progetto con le sue chat e i suoi file da questo PC a un altro: controlla, trasferisce, verifica, cambia il residente e mette da parte le copie di qui, senza cancellare niente">Sposta progetto…</button>
+          <button className="tasto" disabled={occupato} onClick={() => setRiordina(true)} title="Le chat che stanno qui ma hanno casa su un altro PC, con il perché: le metti da parte quando confermi (non si cancellano), e ogni riordino si annulla">Riordina le chat…</button>
+          <button className="tasto" onClick={() => window.dispatchEvent(new Event('sierradeck:dove-vive'))} title="Le chat dei workspace con il PC che le ospita: lo scegli chat per chat o per un workspace intero. Sugli altri PC quella chat non parte mai, si guarda dal vivo">Dove vive ogni chat…</button>
+          <button className="tasto" onClick={() => { onChiudi(); window.dispatchEvent(new CustomEvent('sierradeck:apri-pannello', { detail: 'quaderno' })) }} title="Il quaderno del progetto della chat che hai davanti: le schede con le decisioni, i vincoli e gli errori risolti, da leggere e modificare">Quaderno del progetto</button>
+          <span style={{ flex: 1 }} />
+          <button className="tasto" onClick={() => setInFondo({ salvataggio: true, drive: inFondo.drive })} title="Salva ora, Ripristina, il salvataggio automatico, «Fondi con il Drive» e i progetti sul Drive: in fondo a questo pannello">Salvataggio e arrivo ↓</button>
+          <button className="tasto" onClick={() => setInFondo({ salvataggio: inFondo.salvataggio, drive: true })} title="Il catalogo di tutto quello che sta sul Drive, per progetto e per workspace: in fondo a questo pannello">Il contenuto del Drive ↓</button>
         </div>
         <p className="account__nota" style={{ margin: '0 0 8px' }}>
           Ogni chat ha un <b>PC residente</b>: è lì che gira il suo claude.exe, e sugli altri PC si apre solo dal vivo, guardando quello.
@@ -344,6 +369,26 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
           {d !== undefined && (vista === 'chat' ? chat.length : progetti.length) > quante
             ? <button className="tasto" onClick={() => setQuante(quante + PASSO)}>Mostra altre {Math.min(PASSO, (vista === 'chat' ? chat.length : progetti.length) - quante)}</button>
             : null}
+
+          {/* In fondo, le cose rare (0.61.0): erano il vecchio «☁ Drive» e Impostazioni → Account. */}
+          <div className="riordina__gruppo" style={{ marginTop: 12 }}>
+            <button className="account__link" aria-expanded={inFondo.salvataggio} onClick={() => setInFondo({ ...inFondo, salvataggio: !inFondo.salvataggio })} style={{ textAlign: 'left' }}>
+              <span className="serigrafia">{inFondo.salvataggio ? '▾' : '▸'} Salvataggio e arrivo</span>
+            </button>
+            <p className="account__nota" style={{ margin: '4px 0' }}>
+              Ogni PC salva sul Drive, cifrate, le sue chat e le cartelle dei progetti che viaggiano: qui vedi quando è stato l’ultimo salvataggio, lo fai subito con «Salva ora», riporti qui quello che c’è sul Drive con «Ripristina», accendi o spegni il salvataggio automatico, e con «Fondi con il Drive» scegli voce per voce cosa portare su e cosa giù. Più sotto, i progetti la cui cartella viaggia sul Drive, con la loro coda e chi li ha in mano. Collegare l’account Google e la passphrase della cassaforte stanno in Impostazioni → Account.
+            </p>
+            {inFondo.salvataggio ? <SalvataggioDrive /> : null}
+          </div>
+          <div className="riordina__gruppo" style={{ marginTop: 8 }}>
+            <button className="account__link" aria-expanded={inFondo.drive} onClick={() => setInFondo({ ...inFondo, drive: !inFondo.drive })} style={{ textAlign: 'left' }}>
+              <span className="serigrafia">{inFondo.drive ? '▾' : '▸'} Il contenuto del Drive</span>
+            </button>
+            <p className="account__nota" style={{ margin: '4px 0' }}>
+              Tutto quello che sta sul Drive, per progetto (la cartella) e per workspace, con lo stato di ogni chat rispetto a questo PC: già qui, solo sul Drive, più avanti qui o là. Da qui «Apri» una chat, togli dal Drive la cartella di un progetto o un workspace (e li rimetti). Leggere il Drive richiede qualche secondo: si legge quando apri questa parte.
+            </p>
+            {inFondo.drive ? <ContenutoDrive onChiudi={onChiudi} /> : null}
+          </div>
         </div>
       </div>
 
@@ -377,7 +422,8 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
           </div>
         </div>
       ) : null}
-      {sposta !== undefined ? <ModaleSposta cwdIniziale={sposta} onChiudi={() => { setSposta(undefined); leggi() }} /> : null}
+      {sposta !== undefined ? <ModaleSposta {...(sposta !== '' ? { cwdIniziale: sposta } : {})} onChiudi={() => { setSposta(undefined); leggi() }} /> : null}
+      {riordina ? <ModaleRiordina onChiudi={() => { setRiordina(false); leggi() }} /> : null}
     </div>,
     document.body
   )
