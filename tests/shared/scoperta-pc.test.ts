@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   avvisoDriveScollegato, indirizziDaProvare, indirizziTailscaleDi, indirizzoUtile, leggiScollegamento,
-  messaggioErroreRemoto, motivoDaStatoHttp, scollegamentoDalRegistro, statoPc
+  messaggioErroreRemoto, motivoDaStatoHttp, scollegamentoDalRegistro, statoPc, RIFIUTO_DI_RETE
 } from '@shared/scoperta-pc'
 import { decidiApertura } from '@shared/apertura-chat'
 import { descriviSilenzio } from '@shared/pc-remoto'
@@ -112,6 +112,15 @@ describe('gli errori del riquadro remoto con il motivo vero', () => {
     expect(messaggioErroreRemoto('chat', 'LAPTOP', 'chat inesistente')).toContain('questa chat là non è aperta')
     expect(messaggioErroreRemoto('chiave', 'LAPTOP')).toContain('cassaforte')
     expect(messaggioErroreRemoto('cassaforte', 'LAPTOP')).toContain('Sbloccala')
+  })
+  it('un 403 con un suo motivo lo dice, solo quello della rete parla di rete (0.60.5)', () => {
+    // Collaudo fra i due PC: «cartella non conosciuta» diventava «arriviamo da fuori la sua rete locale».
+    const motivo = messaggioErroreRemoto('rifiutato', 'LAPTOP', 'cartella non conosciuta su questo PC: C:/prova')
+    expect(motivo).toBe('LAPTOP rifiuta la richiesta: «cartella non conosciuta su questo PC: C:/prova».')
+    expect(motivo).not.toContain('rete locale')
+    expect(messaggioErroreRemoto('rifiutato', 'LAPTOP', RIFIUTO_DI_RETE)).toContain('rete locale')
+    expect(messaggioErroreRemoto('rifiutato', 'LAPTOP')).toContain('rete locale')
+    expect(messaggioErroreRemoto('rifiutato', 'LAPTOP', 'errore 403')).toContain('rete locale')
   })
   it('il titolo del silenzio non dice mai «spento»', () => {
     expect(descriviSilenzio('spento', 'LAPTOP', 60_000).titolo).toBe('Non so se LAPTOP è acceso · non risponde da 60 secondi · riprovo da solo')

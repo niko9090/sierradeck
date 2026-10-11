@@ -4247,6 +4247,15 @@ if (!app.requestSingleInstanceLock()) {
             const progetti = await scanProjects(claudeRoot()).catch(() => [])
             for (const p of progetti) viste.add(p.path)
           }
+          // Le cartelle dei progetti di questo PC (0.60.5), anche senza chat:
+          // un progetto appena portato qui con «Porta qui» non ne ha ancora, e
+          // la sua prima chat non si poteva avviare dal telefono né da un altro
+          // PC («cartella non conosciuta», trovato dal collaudo fra i due PC).
+          const io = identitaPc.leggi().id
+          for (const p of registroProgetti.leggi().progetti) {
+            const c = p.percorsi[io]
+            if (c !== undefined && c !== '' && existsSync(c)) viste.add(c)
+          }
           return [...viste]
         },
         cartellaEsiste: async (percorso: string) => {

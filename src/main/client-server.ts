@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { networkInterfaces } from 'node:os'
 import { execFile, execFileSync } from 'node:child_process'
 import { daReteLocale } from '@shared/rete-locale'
+import { RIFIUTO_DI_RETE } from '@shared/scoperta-pc'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { timingSafeEqual } from 'node:crypto'
 import { creaControlloFirme, INTESTAZIONE_FIRMA, provaCasa, visoreDaFirma } from './casa-firma'
@@ -188,7 +189,7 @@ async function gestisci(
   if (!daReteLocale(indirizzo) && deps.oltreLaRete?.() !== true) {
     console.warn(`[client] richiesta da fuori la rete locale, rifiutata: ${indirizzo}`)
     racconta(`rete:${indirizzo}`, `richiesta da fuori la rete locale, rifiutata: ${indirizzo} (per accettarla: Impostazioni → «accetta anche da fuori la rete locale»)`)
-    rispondi(res, { stato: 403, corpo: { errore: 'solo dalla rete locale' } })
+    rispondi(res, { stato: 403, corpo: { errore: RIFIUTO_DI_RETE } })
     return
   }
 

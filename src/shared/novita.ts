@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.60.5',
+    righe: [
+      '**La prima chat di un progetto appena portato su un PC si avvia anche da lontano.** Un progetto arrivato con «Porta qui» non aveva ancora chat, e quel PC non riconosceva la sua cartella: dal telefono o da un altro PC non ci si poteva aprire una chat. Ora le cartelle dei progetti di un PC valgono come conosciute.',
+      '**Quando un altro PC rifiuta una richiesta, il messaggio dice il motivo vero.** Prima ogni rifiuto diventava «arriviamo da fuori la sua rete locale», anche quando il motivo era un altro, per esempio una cartella che quel PC non conosceva.'
+    ]
+  },
+  {
     versione: '0.60.4',
     righe: [
       '**Quello che fai dal telefono sugli altri PC resta nel registro.** Il PC a cui è collegato il telefono scrive ogni azione che passa da lui verso un altro PC: scrivere in una chat, aprirla o riaprirla, rinominarla, creare un workspace o un autopilota, «Porta qui». Scrive anche se è riuscita, e per quale strada. Le sole letture non si scrivono.',

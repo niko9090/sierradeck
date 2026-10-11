@@ -60,4 +60,10 @@ tag: ["collaudo", "ponte", "altri PC", "pannello", "drive", "timeout", "0.60.2"]
 
 **«Riapri là» sull'altro PC cambia ciò che si vede là.** `apriNelSuoWorkspace` porta la prima finestra nel workspace della chat: è voluto. Nel collaudo si rimette il workspace di prima con `POST /api/workspace {nome}` attraverso il ponte.
 
+# Il quarto e il quinto difetto (corretti nella 0.60.5)
+
+**La prima chat di un progetto appena portato non partiva da lontano.** `deps.cartelle()` (le cartelle «conosciute», usate da `/api/sottofondo/avvia`, `/api/apri`, `/api/autopilota/crea`) veniva solo dalle trascrizioni delle chat. Un progetto arrivato con «Porta qui» non ne ha, quindi 403 «cartella non conosciuta». Ora contano anche i percorsi di questo PC nel registro dei progetti, se esistono.
+
+**Ogni 403 diventava «arriviamo da fuori la sua rete locale».** `messaggioErroreRemoto('rifiutato')` ignorava il motivo detto da quel PC. Ora solo il 403 della rete (`RIFIUTO_DI_RETE`, «solo dalla rete locale», condiviso con `client-server.ts`) dà quella spiegazione. Gli altri dicono «X rifiuta la richiesta: «motivo»».
+
 **Non toccato (da decidere se serve):** il registro sul Drive resta «vince il più recente». Un'unione vera a ogni salvataggio, come per `workspaces.json`, chiederebbe le lapidi per «Togli».

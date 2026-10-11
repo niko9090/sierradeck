@@ -216,6 +216,9 @@ export function motivoDaStatoHttp(stato: number): 'chiave' | 'rifiutato' | 'chat
  * prima ogni errore diventava «non risponde» o «è spento», anche quando quel
  * PC rispondeva e diceva un'altra cosa.
  */
+/** Il corpo del 403 di un PC che rifiuta chi arriva da fuori la sua rete locale (client-server). */
+export const RIFIUTO_DI_RETE = 'solo dalla rete locale'
+
 export function messaggioErroreRemoto(motivo: string, nome: string, dettaglio?: string): string {
   switch (motivo) {
     case 'chat':
@@ -223,6 +226,12 @@ export function messaggioErroreRemoto(motivo: string, nome: string, dettaglio?: 
     case 'chiave':
       return statoPc({ nome, ping: { esito: 'chiave', indirizzo: '' }, battitoVivo: true, driveCollegato: true, porta: 0 }).cosaFare
     case 'rifiutato':
+      // Il 403 della rete («solo dalla rete locale») ha la sua spiegazione;
+      // ogni altro 403 ha un motivo suo, detto da quel PC (0.60.5: «cartella
+      // non conosciuta» diventava «arriviamo da fuori la sua rete locale»).
+      if (dettaglio !== undefined && dettaglio !== '' && dettaglio !== RIFIUTO_DI_RETE && !/^errore \d+$/.test(dettaglio)) {
+        return `${nome} rifiuta la richiesta: «${dettaglio}».`
+      }
       return statoPc({ nome, ping: { esito: 'rifiutato', indirizzo: '' }, battitoVivo: true, driveCollegato: true, porta: 0 }).cosaFare
     case 'pin':
       return `Questa chat su ${nome} è protetta dal PIN: inseriscilo qui per vederla e scriverle. Lo controlla ${nome}, e si richiude dopo il tempo di inattività impostato là.`
