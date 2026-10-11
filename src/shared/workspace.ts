@@ -62,7 +62,12 @@ export type PaneSalvato = {
    * claude.exe qui, bussa al Client di quel PC. Si salva perche' al riavvio
    * deve tornare a guardare la stessa chat, non aprirne una qui.
    */
-  remoto?: { pcId: string; pcNome: string; cwd: string; sessione?: string }
+  /**
+   * `dal` (0.60.9): quando questo riquadro remoto è stato aperto qui, ISO. Una
+   * chat chiusa a mano sul PC di casa **dopo** quel momento chiude anche il
+   * riquadro; una riaperta qui dopo la chiusura resta (vale l'ultima azione).
+   */
+  remoto?: { pcId: string; pcNome: string; cwd: string; sessione?: string; dal?: string }
 }
 
 export type LayoutSalvato = {
@@ -495,7 +500,8 @@ function remoto(raw: unknown): { remoto: NonNullable<PaneSalvato['remoto']> } | 
   const cwd = stringaNonVuota(o.cwd)
   if (pcId === undefined || cwd === undefined) return undefined
   const sessione = stringaNonVuota(o.sessione)
-  return { remoto: { pcId, pcNome: typeof o.pcNome === 'string' ? o.pcNome.slice(0, 80) : 'un altro PC', cwd, ...(sessione !== undefined ? { sessione } : {}) } }
+  const dal = stringaNonVuota(o.dal)
+  return { remoto: { pcId, pcNome: typeof o.pcNome === 'string' ? o.pcNome.slice(0, 80) : 'un altro PC', cwd, ...(sessione !== undefined ? { sessione } : {}), ...(dal !== undefined && !Number.isNaN(Date.parse(dal)) ? { dal } : {}) } }
 }
 
 /**

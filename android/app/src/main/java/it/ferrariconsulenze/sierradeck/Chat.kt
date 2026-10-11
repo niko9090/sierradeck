@@ -100,9 +100,17 @@ fun Chat(api: Api, stato: Stato?, deposito: Collegamento) {
         Apertura.chatRichiesta?.let { aperta = it; Apertura.chatRichiesta = null }
     }
 
-    // Se la chat aperta sparisce (chiusa altrove), si torna all'elenco da soli.
+    // Se la chat aperta sparisce (chiusa altrove), si torna all'elenco da soli;
+    // chiusa da te sul computer (PC 0.60.9): lo si dice, con l'ora.
+    var ultimaVista by remember { mutableStateOf<Chat?>(null) }
+    var avvisoChiusa by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(chat, aperta) {
-        if (aperta != null && chat.none { it.id == aperta }) aperta = null
+        val v = chat.firstOrNull { it.id == aperta }
+        if (v != null) ultimaVista = v
+        if (aperta != null && v == null) {
+            ChiuseDaTe.chiusaDi(ultimaVista, chat, stato?.chiuse ?: emptyList())?.let { avvisoChiusa = ChiuseDaTe.avviso(ultimaVista?.titolo ?: "", it) }
+            aperta = null
+        }
     }
 
     val corrente = chat.firstOrNull { it.id == aperta }
@@ -110,7 +118,10 @@ fun Chat(api: Api, stato: Stato?, deposito: Collegamento) {
         BackHandler { aperta = null }
         DettaglioChat(api, corrente, deposito, onIndietro = { aperta = null }, workspace = stato?.workspace ?: Workspace(), nomePc = PcCorrente.nome)
     } else {
-        ElencoChat(api, chat, stato?.workspace ?: Workspace(), onApri = { aperta = it.id }, nomePc = PcCorrente.nome)
+        Column(Modifier.fillMaxSize()) {
+            AvvisoChiusa(avvisoChiusa) { avvisoChiusa = null }
+            ElencoChat(api, chat, stato?.workspace ?: Workspace(), onApri = { avvisoChiusa = null; aperta = it.id }, nomePc = PcCorrente.nome)
+        }
     }
 }
 
@@ -174,6 +185,17 @@ private fun ChatSuAltroPc(api: Api, su: PcPonte, deposito: Collegamento) {
         FasciaLinea(linea, su.nome, onRiprova = { Collegamenti.passo(su.pcId, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) })
         guasto?.let { Text(it, color = Banco.rosso, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) }
         val chat = stato?.chat ?: emptyList()
+        // Chiusa da te su quel PC (0.60.9): si torna all'elenco e lo si dice.
+        var ultimaVista by remember(su.pcId) { mutableStateOf<Chat?>(null) }
+        var avvisoChiusa by remember(su.pcId) { mutableStateOf<String?>(null) }
+        LaunchedEffect(chat, aperta) {
+            val v = chat.firstOrNull { it.id == aperta }
+            if (v != null) ultimaVista = v
+            if (aperta != null && v == null && stato != null) {
+                ChiuseDaTe.chiusaDi(ultimaVista, chat, stato?.chiuse ?: emptyList())?.let { avvisoChiusa = ChiuseDaTe.avviso(ultimaVista?.titolo ?: "", it); aperta = null }
+            }
+        }
+        AvvisoChiusa(avvisoChiusa) { avvisoChiusa = null }
         val corrente = chat.firstOrNull { it.id == aperta }
         when {
             corrente != null -> DettaglioChat(apiPc, corrente, deposito, onIndietro = { aperta = null }, giu = linea.fase == "ricollego", workspace = stato?.workspace ?: Workspace(), nomePc = su.nome)
@@ -183,6 +205,18 @@ private fun ChatSuAltroPc(api: Api, su: PcPonte, deposito: Collegamento) {
             else -> ElencoChat(apiPc, chat, stato?.workspace ?: Workspace(), onApri = { aperta = it.id }, nomePc = su.nome, versionePc = stato?.computer?.versione)
         }
     }
+}
+
+/** La riga «l'hai chiusa sul computer» sopra l'elenco (PC 0.60.9); un tocco la toglie. */
+@Composable
+private fun AvvisoChiusa(testo: String?, onVia: () -> Unit) {
+    if (testo == null) return
+    Text(
+        testo,
+        color = Banco.testoQuieto,
+        fontSize = 13.sp,
+        modifier = Modifier.fillMaxWidth().clickable { onVia() }.padding(horizontal = 12.dp, vertical = 8.dp)
+    )
 }
 
 @Composable

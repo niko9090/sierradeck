@@ -390,7 +390,11 @@ export function Mosaic({
                 </button>
                 ) : null}
                 <button
-                  onClick={() => closePane(paneId)}
+                  onClick={() => {
+                    // Chiusa da te (0.60.9): gli altri PC che la guardano chiudono il loro riquadro.
+                    if (data.remoto === undefined) void window.gestore.remoto.segnaChiusa(data.sessionUuid, data.title).catch(() => undefined)
+                    closePane(paneId)
+                  }}
                   className="comando-riquadro"
                   title={data.remoto !== undefined ? `Chiude questo riquadro: la chat resta aperta su ${data.remoto.pcNome}` : 'Chiude la chat e termina il suo claude.exe'}
                   aria-label={`Chiudi ${data.title}`}

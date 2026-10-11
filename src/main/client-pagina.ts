@@ -357,6 +357,7 @@ export function paginaClient(): string {
   /* La cartella scelta per un lavoro: prima la classe c'era e la regola no. */
   .cartella.attivo { border-color: var(--accento); color: var(--testo); }
   .vuoto { color: var(--testo-quieto); text-align: center; padding: var(--s4) var(--s2); font-size: var(--t2); }
+  .nota-chiusa { margin: var(--s2); padding: var(--s2); border-radius: 8px; background: var(--fondo-alto, rgba(127,127,127,.12)); font-size: var(--t2); }
   .ingresso { max-width: 380px; margin: 40px auto; padding: 0 18px; text-align: center; }
   .ingresso input { width: 100%; text-align: center; font-size: 26px; letter-spacing: .3em; margin: 16px 0; }
   .errore { color: var(--ambra); font-size: var(--t1); margin-top: var(--s2); }
@@ -621,6 +622,8 @@ const app = document.getElementById('app')
 // Quello che si sta guardando adesso. Con var e non let: i tasti della pagina
 // sono attributi onclick, e cercano i nomi su window.
 var dentro = null
+// Una chat chiusa da te sul computer mentre la guardavi da qui (0.60.9): lo si dice, una riga.
+var notaChiusa = ''
 var righeDentro = []
 var cartelle = null
 // Le stesse righe con i loro colori: si vestono qui, nel telefono.
@@ -2068,6 +2071,7 @@ function pannello(s) {
         ? '<div class="solco"></div><button class="riga-altro" onclick="vaiScheda(\\'lavori\\')">altre cose in moto ›</button>'
         : (inMoto.length + (s.chat || []).length > 0 ? polso : '')),
     chat: driveScollegatoHtml(s) +
+      (notaChiusa ? '<div class="nota-chiusa" role="status">' + esc(notaChiusa) + ' <button class="riga-altro" onclick="notaChiusa=\\'\\';pannello(ultimoStato)">ok</button></div>' : '') +
       (chat || '<div class="vuoto">Nessuna chat aperta sul computer.</div>') + nuova +
       '<div class="riga"><button onclick="apriPannello(\\'sessioni\\')">Riprendi una conversazione</button></div>' +
       elencoSessioni,
@@ -2224,7 +2228,7 @@ sceltaFile.onchange = async () => {
 window.scegliFileChat = (id) => { allegatoDest = { chat: id }; allegatoNota = ''; apriScelta() }
 window.scegliFileAp = (id) => { allegatoDest = { autopilota: id }; allegatoNota = ''; apriScelta() }
 
-async function leggiDentro() {
+async function leggiDentro(nuovo) {
   if (!dentro) return
   try {
     const r = await chiedi('/api/dentro', { chat: dentro })
@@ -2247,7 +2251,11 @@ async function leggiDentro() {
       return
     }
     // Una chat chiusa al computer mentre la si guardava: si torna all'elenco
-    // invece di restare su un riquadro che non esiste piu'.
+    // invece di restare su un riquadro che non esiste piu'. Chiusa da te là
+    // (0.60.9, \`chiuse\` in /api/stato): lo si dice, con l'ora.
+    var vista = ((ultimoStato && ultimoStato.chat) || []).filter(function (c) { return c.id === dentro })[0]
+    var chiusa = vista && vista.sessione ? (((nuovo || ultimoStato || {}).chiuse) || []).filter(function (c) { return c.sessione === vista.sessione })[0] : null
+    if (chiusa) notaChiusa = '«' + (vista.titolo || 'La chat') + '» l’hai chiusa sul computer alle ' + new Date(chiusa.il).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) + ': si chiude anche qui. La conversazione non è cancellata: la ritrovi in «Riprendi una conversazione».'
     dentro = null
     righeDentro = []
     righeGrezze = []
@@ -4709,7 +4717,7 @@ async function aggiorna() {
     // Se si sta guardando dentro una chat, anche quelle righe si rinfrescano:
     // guardare qualcosa di fermo mentre il resto si muove sarebbe peggio che
     // non guardare.
-    await leggiDentro()
+    await leggiDentro(stato)
     firmaLineaVista = firmaLinea()
     pannello(stato)
     // Quello scritto a linea giu' parte adesso, una volta sola.

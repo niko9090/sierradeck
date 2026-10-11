@@ -30,7 +30,12 @@ export type PaneData = {
    */
   autopilota?: { id: string; chat: string }
   /** Guarda dal vivo una chat di un altro PC: niente claude.exe qui, si bussa la'. */
-  remoto?: { pcId: string; pcNome: string; cwd: string; sessione?: string }
+  remoto?: { pcId: string; pcNome: string; cwd: string; sessione?: string; dal?: string }
+}
+
+/** Un riquadro remoto nuovo porta l'ora in cui lo si apre qui (0.60.9); uno che c'era la tiene. */
+function conDal(r: NonNullable<PaneData['remoto']>): NonNullable<PaneData['remoto']> {
+  return r.dal !== undefined ? r : { ...r, dal: new Date().toISOString() }
 }
 
 type State = {
@@ -246,7 +251,7 @@ export const useLayoutStore = create<State>((set, get) => ({
       title: normalizzaTitolo(title),
       ...(model !== undefined ? { model } : {}),
       ...(extra?.autopilota !== undefined ? { autopilota: extra.autopilota } : {}),
-      ...(extra?.remoto !== undefined ? { remoto: extra.remoto } : {})
+      ...(extra?.remoto !== undefined ? { remoto: conDal(extra.remoto) } : {})
     }
     const { root } = get()
     const esistenti = root ? listPaneIds(root) : []
@@ -399,7 +404,9 @@ export const useLayoutStore = create<State>((set, get) => ({
       const p = s.panes[paneId]
       if (p === undefined) return {}
       const { ptyId: _p, ibernata: _i, ...resto } = p
-      return { panes: { ...s.panes, [paneId]: { ...resto, remoto } } }
+      // Lo stesso riquadro che cambia PC (la casa corretta) tiene il suo `dal`.
+      const dal = remoto.dal ?? p.remoto?.dal
+      return { panes: { ...s.panes, [paneId]: { ...resto, remoto: conDal(dal !== undefined ? { ...remoto, dal } : remoto) } } }
     }),
 
   rendiLocale: (paneId) =>

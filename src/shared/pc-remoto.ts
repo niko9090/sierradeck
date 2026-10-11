@@ -23,6 +23,8 @@ export type ChatRemota = {
   cwd: string
   /** La conversazione, se la si conosce: senza, vale la prima chat aperta la' in quella cartella. */
   sessione?: string
+  /** Quando il riquadro è stato aperto qui (0.60.9): vedi `chiusaDopo` in `@shared/chiuse`. */
+  dal?: string
 }
 
 /** Una chat aperta su quel PC, come la racconta la sua `/api/stato`. */

@@ -223,6 +223,12 @@ export function agganciaPtyAlSottofondo(ptyId: string): void { agganciaAlSottofo
  */
 let primaDiRiagganciare: (ptyId: string) => void = () => {}
 export function impostaPrimaDiRiagganciare(f: (ptyId: string) => void): void { primaDiRiagganciare = f }
+/**
+ * Una conversazione si riaccende qui (0.60.9): una finestra, il sottofondo, una
+ * ripresa da lontano. Non è più «chiusa da te». Lo imposta il Core.
+ */
+let allaRiapertura: (sessionUuid: string) => void = () => {}
+export function impostaAllaRiapertura(f: (sessionUuid: string) => void): void { allaRiapertura = f }
 export function avviaPtySenzaFinestra(req: { sessionUuid: string; cwd: string; title?: string; cols: number; rows: number; autopilota?: { id: string; chat: string } }): string {
   if (avviaSenzaFinestra === undefined) throw new Error('i terminali di questo PC non sono ancora pronti')
   return avviaSenzaFinestra(req)
@@ -345,6 +351,7 @@ export function registerPtyIpc(
     const id = randomUUID()
     if (win !== undefined) registro.assegna(id, win.id)
     ptySessione.set(id, req.sessionUuid)
+    allaRiapertura(req.sessionUuid)
     client.send({
       id,
       kind: 'spawn',

@@ -498,8 +498,9 @@ export function App(): React.JSX.Element {
   // comando puo' stare su un telefono senza essere pericoloso.
   useEffect(() => window.gestore.client.suChiusura((idChat) => {
     const stato = useLayoutStore.getState()
-    const pty = stato.panes[idChat]?.ptyId
-    if (pty !== undefined) window.gestore.pty.kill(pty)
+    const p = stato.panes[idChat]
+    if (p?.ptyId !== undefined) window.gestore.pty.kill(p.ptyId)
+    if (p !== undefined && p.remoto === undefined) void window.gestore.remoto.segnaChiusa(p.sessionUuid, p.title, 'dal telefono').catch(() => undefined)
     stato.closePane(idChat)
   }), [])
 
@@ -572,6 +573,7 @@ export function App(): React.JSX.Element {
         if (p.ibernata === true) store.sveglia(a.chat)
       } else if (a.azione === 'chiudi') {
         if (p.ptyId !== undefined) window.gestore.pty.kill(p.ptyId)
+        if (p.remoto === undefined) void window.gestore.remoto.segnaChiusa(p.sessionUuid, p.title, 'da lontano').catch(() => undefined)
         store.closePane(a.chat)
       } else if (a.azione === 'sposta') {
         let errore: unknown

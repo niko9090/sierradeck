@@ -22,6 +22,7 @@ import { ConfermaPortaQui, useCasa } from './OspiteChat'
 import { EtichettaOpzione } from './EtichettaOpzione'
 import { testoAvvio, testoConsegnato, type FaseSottofondo } from '@shared/sottofondo'
 import { workspaceCorrente } from '../workspace-corrente'
+import { chiusaDopo } from '@shared/chiuse'
 
 type Props = {
   paneId: string
@@ -81,6 +82,8 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
    * e parte appena è pronta. Qui si vede cosa succede, mai un campo muto.
    */
   const [avvio, setAvvio] = useState<{ fase: FaseSottofondo | 'chiedo' | 'errore'; messaggio?: string; testo?: string; id?: string; vecchio?: boolean; dal: number } | undefined>(undefined)
+  const avvioRef = useRef(avvio)
+  avvioRef.current = avvio
   /** La strada con cui arriva quel PC (0.40.0): rete di casa, Tailscale, WebRTC o Drive. */
   const [strada, setStrada] = useState<InfoStrada | undefined>(undefined)
   /**
@@ -208,6 +211,16 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           if (!s.ok) { taci(s.motivo, s.messaggio); setFase({ tipo: 'errore', motivo: s.motivo, messaggio: s.messaggio }); return }
           setSilenzio(undefined)
           const trovata = trovaChatRemota(s.dati.chat, remoto)
+          // Chiusa da te sul PC di casa dopo che questo riquadro è stato aperto
+          // (0.60.9): si chiude anche qui, invece di cercarla e proporre «Riapri
+          // là». La conversazione resta: «Riprendi una conversazione», «Progetti».
+          const chiusa = trovata === undefined && avvioRef.current === undefined ? chiusaDopo(s.dati.chiuse, remoto.sessione, remoto.dal) : undefined
+          if (chiusa !== undefined && remoto.sessione !== undefined) {
+            vivo = false
+            void window.gestore.remoto.chiusaACasa({ sessione: remoto.sessione, pcNome: nomePc, il: chiusa.il, ...(title !== '' ? { titolo: title } : {}) }).catch(() => undefined)
+            useLayoutStore.getState().closePane(paneId)
+            return
+          }
           if (trovata === undefined) { setFase({ tipo: 'non-aperta', altre: s.dati.chat }); return }
           setFase({ tipo: 'viva', chat: trovata })
           setAvviso(undefined)

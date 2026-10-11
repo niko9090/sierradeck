@@ -137,6 +137,14 @@ describe('lo stato', () => {
     const r = await rotteClient(deps())({ metodo: 'GET', percorso: '/api/stato', corpo: undefined })
     expect((r.corpo as { domande: unknown[] }).domande).toHaveLength(1)
   })
+
+  it('porta le chat chiuse da te (0.60.9), e niente campo se non ce ne sono', async () => {
+    const chiuse = [{ sessione: '11111111-2222-4333-8444-555555555555', il: '2026-10-11T15:47:00.000Z' }]
+    const r = await rotteClient({ ...deps(), chiuse: () => chiuse })({ metodo: 'GET', percorso: '/api/stato', corpo: undefined })
+    expect((r.corpo as { chiuse?: unknown }).chiuse).toEqual(chiuse)
+    const v = await rotteClient({ ...deps(), chiuse: () => [] })({ metodo: 'GET', percorso: '/api/stato', corpo: undefined })
+    expect(v.corpo).not.toHaveProperty('chiuse')
+  })
 })
 
 describe('quello che il Client puo fare', () => {

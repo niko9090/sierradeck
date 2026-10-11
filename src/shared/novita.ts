@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.60.9',
+    righe: [
+      '**Una chat che chiudi sul PC di casa si chiude anche dove la guardi.** Se chiudi una chat sul PC dove vive (con la × o con «Chiudi» dal telefono), il riquadro che la guarda da un altro PC si chiude da solo invece di continuare a cercarla e a proporre «Riapri là». Il registro di quel PC lo scrive, e la pagina e l’app tornano all’elenco dicendo a che ora l’hai chiusa. La conversazione non si cancella: resta in «Riprendi una conversazione» e nel pannello «Progetti».',
+      '**Un riavvio non conta come chiusura.** Solo quando la chiudi tu la chat risulta «chiusa»: dopo un riavvio, un aggiornamento o un guasto gli altri PC continuano a proporti di riaprirla. Se la riapri o le scrivi da qualunque PC non è più chiusa, e un riquadro che riapri dopo la chiusura resta aperto. Un riquadro che chiudi qui resta chiuso anche dopo un riavvio, e non chiude la chat sul PC di casa.'
+    ]
+  },
+  {
     versione: '0.60.8',
     righe: [
       '**Gli autopiloti non cambiano più il workspace che hai sullo schermo.** Se il workspace di un autopilota non è quello che stai guardando, la sua chat lavora in sottofondo, senza riquadro e senza finestre: riceve le istruzioni quando è pronta, mai sopra un turno in corso, e l’autopilota sa quando ha finito come sempre. Tu resti nel tuo progetto.',

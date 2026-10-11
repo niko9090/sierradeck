@@ -357,6 +357,11 @@ export type DipendenzeRotte = {
    * nella coda condivisa: dal telefono si vede, si aggiunge, si toglie.
    */
   progetti?: () => { id: string; nome: string; chi: 'io' | 'altro' | 'libero'; pcNome?: string; inCoda: number }[]
+  /**
+   * Le chat chiuse da te su questo PC (0.60.9), con l'ora: un altro PC che le
+   * guarda chiude il suo riquadro, la pagina e l'app lo dicono. Assente nei test.
+   */
+  chiuse?: () => { sessione: string; il: string }[]
   coda?: (progetto: string) => Promise<{ voci: VoceCodaTelefono[] } | undefined>
   codaAggiungi?: (progetto: string, testo: string, sessione?: string) => Promise<{ voci: VoceCodaTelefono[] } | undefined>
   codaTogli?: (progetto: string, voce: string) => Promise<{ voci: VoceCodaTelefono[] } | undefined>
@@ -1055,6 +1060,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         })),
         // I progetti sul Drive: chi li ha in mano e quanti comandi aspettano.
         progetti: deps.progetti?.() ?? [],
+        // Le chat chiuse da te qui (0.60.9): chiusa a casa = chiusa anche dove la si guarda.
+        ...((): { chiuse?: { sessione: string; il: string }[] } => { const c = deps.chiuse?.() ?? []; return c.length > 0 ? { chiuse: c } : {} })(),
         // Solo quello che serve a una piastrella: mandare tutto lo stato di un
         // autopilota su una rete di casa, ogni due secondi, sarebbe spedire un
         // libro per leggerne il titolo.

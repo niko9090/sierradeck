@@ -143,6 +143,9 @@ import { progettoDiCwd, staDentro } from './progetti/registro'
 import { impostaGuardiaCasa, impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
 import { ascoltaSenzaFinestra, smettiSenzaFinestra, impostaAdozioneSottofondo, avviaPtySenzaFinestra, agganciaPtyAlSottofondo, impostaPrimaDiRiagganciare, ptyDiSessione } from './ipc'
 import { statoDi as statoWorkspaceDi } from './ipc'
+import { impostaAllaRiapertura } from './ipc'
+import { creaChiuseStore } from './chiuse-store'
+import { leggiChiuse, rigaChiusaACasa, type ChiusaDaTe } from '@shared/chiuse'
 import { creaSottofondo, cancelliSottofondo, type Sottofondo, type TerminaleMuto } from './sottofondo'
 import { Terminal as TerminaleSenzaFinestra } from '@xterm/headless'
 import { testoConsegnato, type StatoSottofondo } from '@shared/sottofondo'
@@ -1116,6 +1119,20 @@ if (!app.requestSingleInstanceLock()) {
       // Il registro della sessione: prima riga = versione e ambiente, così un
       // log allegato dice subito «quale versione stava girando davvero».
       const registro = apriRegistro(dati, app.getVersion())
+      // Le chat chiuse da te (0.60.9): «chiusa» con l'ora, per i PC che la
+      // guardano da lontano (`chiuse` in /api/stato). Riaccenderla la toglie.
+      const chiuse = creaChiuseStore({ dati, log: (m) => registro.info(m) })
+      impostaAllaRiapertura((s) => chiuse.togli(s))
+      ipcMain.handle('chiuse:segna', (_e, s: unknown, titolo: unknown, da: unknown) => {
+        if (typeof s === 'string' && s !== '') chiuse.segna(s, typeof titolo === 'string' && titolo !== '' ? titolo : undefined, typeof da === 'string' && da !== '' ? da : undefined)
+      })
+      // Il riquadro remoto si chiude perché la chat l'hai chiusa sul PC di casa: la riga [apertura].
+      ipcMain.handle('remoto:chiusaACasa', (_e, p: unknown) => {
+        const q = (typeof p === 'object' && p !== null ? p : {}) as Record<string, unknown>
+        const s = typeof q.sessione === 'string' ? q.sessione : ''
+        const titolo = typeof q.titolo === 'string' && q.titolo !== '' ? q.titolo : s.slice(0, 8)
+        registro.info(`[apertura] «${titolo}» (${s.slice(0, 8)}): ${rigaChiusaACasa(typeof q.pcNome === 'string' ? q.pcNome : '?', typeof q.il === 'string' ? q.il : '')}`)
+      })
       // Il PIN delle chat (0.49.0): le impostazioni con la sola impronta in
       // pin-chat.json, accanto ai dati; gli sblocchi solo in memoria (si
       // richiude tutto alla chiusura dell'app).
@@ -1903,7 +1920,7 @@ if (!app.requestSingleInstanceLock()) {
         }
       })
       ipcMain.handle('remoto:stato', (_e, pc: unknown) =>
-        esitoRemoto<{ chat: ChatSuPc[]; computer?: { nome: string } }>(async () => {
+        esitoRemoto<{ chat: ChatSuPc[]; chiuse?: ChiusaDaTe[]; computer?: { nome: string } }>(async () => {
           const r = await remoto.chiama(testo(pc), '/api/stato') as { chat?: unknown; computer?: unknown }
           const chat = Array.isArray(r.chat) ? (r.chat as ChatSuPc[]).map((c) => ({
             id: String(c.id), cwd: String(c.cwd), titolo: String(c.titolo),
@@ -1911,7 +1928,9 @@ if (!app.requestSingleInstanceLock()) {
             ...(typeof c.aspetta === 'boolean' ? { aspetta: c.aspetta } : {}),
             ...(typeof c.viva === 'boolean' ? { viva: c.viva } : {})
           })) : []
-          return { chat, ...(typeof r.computer === 'object' && r.computer !== null ? { computer: r.computer as { nome: string } } : {}) }
+          // Le chat chiuse da te là (0.60.9): un PC vecchio non le manda.
+          const chiuseLa = leggiChiuse((r as { chiuse?: unknown }).chiuse)
+          return { chat, ...(chiuseLa.length > 0 ? { chiuse: chiuseLa } : {}), ...(typeof r.computer === 'object' && r.computer !== null ? { computer: r.computer as { nome: string } } : {}) }
         }, pc))
       ipcMain.handle('remoto:trova', (_e, pc: unknown, r: unknown) =>
         esitoRemoto<ChatSuPc | undefined>(async () => {
@@ -4337,6 +4356,8 @@ if (!app.requestSingleInstanceLock()) {
             progetto: existsSync(join(dove, '.claude')) || existsSync(join(dove, 'CLAUDE.md'))
           }
         },
+        // Le chat chiuse da te qui (0.60.9): chi le guarda da lontano chiude il suo riquadro.
+        chiuse: () => chiuse.elenco(),
         // I progetti sul Drive per il telefono: dal registro, con lo stato
         // dell'ultima ronda quando c'e'.
         progetti: () => registroProgetti.leggi().progetti.map((p) => {

@@ -57,8 +57,13 @@ data class Stato(
     /** Attraverso il ponte (PC 0.51.0): la strada fra il PC accoppiato e quello guardato, e il tempo del giro. */
     val ponte: InfoPonte? = null,
     /** I progetti sul Drive: chi li ha in mano e quanti comandi aspettano nella coda condivisa. */
-    val progetti: List<ProgettoBreve> = emptyList()
+    val progetti: List<ProgettoBreve> = emptyList(),
+    /** Le chat chiuse da te sul computer (PC 0.60.9), con l'ora: chi le guarda da qui lo dice e torna all'elenco. */
+    val chiuse: List<ChiusaDaTe> = emptyList()
 )
+
+@Serializable
+data class ChiusaDaTe(val sessione: String = "", val il: String = "")
 
 @Serializable
 data class ProgettoBreve(
