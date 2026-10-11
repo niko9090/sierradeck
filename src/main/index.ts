@@ -38,6 +38,7 @@ import { apriFinestreStore, type FinestreStore } from './finestre-store'
 import { AMBIENTE_PORTA_AUTOPILOTI, PORTA_AUTOPILOTA } from '@shared/autopilota'
 import { finestraPerRipresa } from './consegne-layout'
 import type { AzioneFinestra, EsitoAzioneFinestra, RichiestaAutopilota } from '@shared/azioni-telefono'
+import { workspaceDellAutopilota } from '@shared/azioni-telefono'
 import { apriPartenzeSubito } from './partenze-subito'
 import {
   collegaFinestra,
@@ -85,7 +86,7 @@ import { casaCorretta, decidiAperturaRemota, type CopiaNota } from '@shared/aper
 import type { Pannello } from '@shared/pannello-drive'
 import { memoriaBreve } from '@shared/memoria-breve'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
-import { creaLatoResidente, creaRimozione, type LatoResidente, type Rimozione } from './rimozione-sicura'
+import { creaLatoResidente, creaRimozione, progettiInRecupero, type LatoResidente, type Rimozione } from './rimozione-sicura'
 import { improntaPc } from './casa-firma'
 import { cartellaDiProgettoValida, daRiprovare, pianoAllineamento, rigaPiano, type PianoAllineamento } from '@shared/allineamento'
 import { LOCALI_MAX_CHAT, type LocaliBattito } from '@shared/posta'
@@ -96,7 +97,7 @@ import type { Autopilota } from '@shared/autopilota'
 import { preparaConsegna } from '@shared/consegna-breve'
 import { scriviFileConsegna } from './consegne-file'
 import { frenoDaiLimiti, testoFreno } from '@shared/harness'
-import { creaWorkspace, eliminaWorkspace } from './workspace-operazioni'
+import { aggiungiWorkspace, creaWorkspace, eliminaWorkspace } from './workspace-operazioni'
 import type { SessionSummary } from '@shared/types'
 import { apriImpostazioniStore } from './impostazioni-store'
 import { apriEtichetteStore } from './etichette-store'
@@ -141,6 +142,7 @@ import { trovaChatRemota, PORTA_CLIENT_PREDEFINITA, type EsitoRemoto, type PcRem
 import { progettoDiCwd, staDentro } from './progetti/registro'
 import { impostaGuardiaCasa, impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
 import { ascoltaSenzaFinestra, smettiSenzaFinestra, impostaAdozioneSottofondo, avviaPtySenzaFinestra } from './ipc'
+import { statoDi as statoWorkspaceDi } from './ipc'
 import { creaSottofondo, cancelliSottofondo, type Sottofondo, type TerminaleMuto } from './sottofondo'
 import { Terminal as TerminaleSenzaFinestra } from '@xterm/headless'
 import { testoConsegnato, type StatoSottofondo } from '@shared/sottofondo'
@@ -2741,7 +2743,9 @@ if (!app.requestSingleInstanceLock()) {
         const io = identitaPc.leggi().id
         const piano = pianoAllineamento({
           io, case: unaCasa.case(), progetti: registroProgetti.leggi().progetti,
-          esiste: (p) => existsSync(p), home: homedir(), trovate: trovateQui()
+          esiste: (p) => existsSync(p), home: homedir(), trovate: trovateQui(),
+          // Una cartella di qui messa nel recupero (0.60.7) vuol dire «qui no» finché non si ripristina.
+          inRecupero: progettiInRecupero(dati)
         })
         ultimoPiano = piano
         const riga = rigaPiano(piano)
@@ -4427,10 +4431,21 @@ if (!app.requestSingleInstanceLock()) {
         // il progetto. Da un telefono, un modulo da compilare sarebbe il modo
         // piu' sicuro per non delegare mai niente.
         // Gli stessi campi della finestra del PC (0.55.0). Senza workspace
-        // scelto, quello che il PC ha davanti, come dal pannello.
+        // scelto, da lontano (0.60.7) uno suo, aggiunto senza cambiare lo
+        // schermo: mai quello che il PC ha davanti.
         creaAutopilota: async (r: RichiestaAutopilota) => {
           await clientAutopilota.assicuraServizio()
-          const attivo = workspaceStore?.leggi().attivo
+          let suo: string | undefined
+          if (r.workspace === undefined && workspaceStore !== undefined) {
+            suo = workspaceDellAutopilota(r.nome ?? '', r.cwd)
+            const prima = workspaceStore.leggi()
+            const dopo = aggiungiWorkspace(prima, suo)
+            if (dopo !== prima) {
+              workspaceStore.scrivi(dopo)
+              for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(dopo), precedente: dopo.attivo })
+            }
+            registro.info(`[autopilota] creato da lontano senza workspace: il suo è «${suo}», lo schermo di questo PC resta su «${dopo.attivo}»`)
+          }
           const a = await clientAutopilota.crea({
             nome: r.nome,
             obiettivo: r.obiettivo,
@@ -4438,7 +4453,7 @@ if (!app.requestSingleInstanceLock()) {
             criteri: r.criteri,
             pubblicazione: r.pubblicazione,
             ...(r.vaSulCloud === true ? { vaSulCloud: true } : {}),
-            ...(r.workspace !== undefined ? { workspace: r.workspace } : attivo !== undefined && attivo !== '' ? { workspace: attivo } : {})
+            ...(r.workspace !== undefined ? { workspace: r.workspace } : suo !== undefined ? { workspace: suo } : {})
           })
           if (r.partenza === 'subito') partenzeSubitoGlobale?.segna(a.id)
           return { id: a.id }
@@ -4507,6 +4522,19 @@ if (!app.requestSingleInstanceLock()) {
         // del riquadro di chi chiede, del progetto, della cartella. Mai quello attivo.
         riprendiSessione: (cwd: string, sessione: string, chiesto?: string) => {
           void apriNelSuoWorkspace(cwd, sessione, { ...(chiesto !== undefined ? { chiesto } : {}), come: 'riapro la conversazione (chiesta da un altro PC o dal telefono)', elencaAutopiloti: () => clientAutopilota.elenca() })
+        },
+        aggiungiWorkspace: async (nome: string) => {
+          const store = workspaceStore
+          if (store === undefined) return
+          const prima = store.leggi()
+          const dopo = aggiungiWorkspace(prima, nome)
+          if (dopo === prima) return
+          store.scrivi(dopo)
+          // Le finestre aggiornano l'elenco; l'attivo è lo stesso, quindi nessuna cambia.
+          for (const w of finestreDiChat()) {
+            if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(dopo), precedente: dopo.attivo })
+          }
+          registro.info(`[workspace] «${nome}» creato da lontano: lo schermo di questo PC resta su «${dopo.attivo}»`)
         },
         creaWorkspace: async (nome: string) => {
           const store = workspaceStore

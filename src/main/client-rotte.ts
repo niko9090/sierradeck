@@ -346,6 +346,11 @@ export type DipendenzeRotte = {
   /** `chiesto` (0.59.0): il workspace del riquadro di chi chiede, per aprirla nel suo. */
   riprendiSessione: (cwd: string, sessione: string, chiesto?: string) => void
   creaWorkspace: (nome: string) => Promise<void>
+  /**
+   * Un workspace nuovo senza cambiare quello sullo schermo (0.60.7): questa
+   * rotta arriva sempre da lontano. Senza, la strada di prima.
+   */
+  aggiungiWorkspace?: (nome: string) => Promise<void>
   eliminaWorkspace: (nome: string) => Promise<void>
   /**
    * I progetti sul Drive con chi li ha in mano e quanti comandi aspettano
@@ -2005,6 +2010,12 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       let nome: string
       try { nome = validateNomeWorkspace(stringa(r.corpo, 'nome')) }
       catch { return { stato: 400, corpo: { errore: controllaNomeWorkspace(stringa(r.corpo, 'nome')).ok ? 'nome non valido' : (controllaNomeWorkspace(stringa(r.corpo, 'nome')) as { errore: string }).errore } } }
+      // Da lontano (0.60.7): si aggiunge e lo schermo di questo PC resta dov'è.
+      // Un nome che c'è già non è un errore.
+      if (deps.aggiungiWorkspace !== undefined) {
+        await deps.aggiungiWorkspace(nome)
+        return OK({ fatto: true })
+      }
       // Come dal pannello del PC (0.55.0): la finestra lo crea, ci va e lo
       // dice alle altre. Un nome che c'è già non è un errore: ci si va.
       if (deps.azioneFinestra !== undefined) {

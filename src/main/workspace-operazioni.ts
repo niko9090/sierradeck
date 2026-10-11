@@ -116,6 +116,18 @@ export function creaWorkspace(a: Archivio, nome: string): Archivio {
 }
 
 /**
+ * Un workspace nuovo chiesto **da lontano** (0.60.7): dal telefono o da un
+ * altro PC. Si aggiunge, ma lo schermo di questo PC resta su quello che
+ * mostrava: le cose fatte da un altro PC non rubano lo schermo (decisione di
+ * Nicholas). Il collaudo dell'11/10 l'ha visto succedere: il portatile è
+ * passato da MT5 a un workspace vuoto, creato dal fisso.
+ */
+export function aggiungiWorkspace(a: Archivio, nome: string): Archivio {
+  if (a.workspace.some((w) => w.nome === nome)) return a
+  return { ...a, workspace: [...a.workspace, { nome, perSlot: {} }] }
+}
+
+/**
  * Cambia nome a un workspace, senza toccare le sue chat.
  *
  * Rinominare è solo un'etichetta: i riquadri, le conversazioni e i loro

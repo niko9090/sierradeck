@@ -717,7 +717,7 @@ function validaIdDomanda(raw: unknown): string {
   return raw
 }
 
-function statoDi(a: Archivio): StatoWorkspace {
+export function statoDi(a: Archivio): StatoWorkspace {
   return { nomi: a.workspace.map((w) => w.nome), attivo: a.attivo }
 }
 

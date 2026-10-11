@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  aggiungiWorkspace,
   creaWorkspace,
   eliminaWorkspace,
   rinominaWorkspace,
@@ -29,6 +30,19 @@ function conSessione(id: string, sessione: string): LayoutSalvato {
 function archivioCon(nomi: string[], attivo = nomi[0]!): Archivio {
   return { ...archivioVuoto(), attivo, workspace: nomi.map((nome) => ({ nome, perSlot: {} })) }
 }
+
+describe('aggiungiWorkspace (0.60.7, da lontano)', () => {
+  // Collaudo dell'11/10: un workspace creato dal fisso ha portato lo schermo del portatile via da MT5.
+  it('aggiunge il workspace ma lo schermo resta su quello di prima', () => {
+    const a = aggiungiWorkspace(archivioCon(['MT5', 'Altro'], 'MT5'), 'Prova')
+    expect(a.workspace.map((w) => w.nome)).toEqual(['MT5', 'Altro', 'Prova'])
+    expect(a.attivo).toBe('MT5')
+  })
+  it('un nome che c’è già non cambia niente', () => {
+    const prima = archivioCon(['MT5', 'Prova'], 'MT5')
+    expect(aggiungiWorkspace(prima, 'Prova')).toBe(prima)
+  })
+})
 
 describe('creaWorkspace', () => {
   it('aggiunge un workspace vuoto e lo rende attivo', () => {

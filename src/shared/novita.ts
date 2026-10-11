@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.60.7',
+    righe: [
+      '**Un progetto messo nella cartella di recupero non torna da solo.** Se la cartella di un progetto di cui questo PC è il residente va nella cartella di recupero, il giro di allineamento non la riscarica più dal Drive dopo due minuti: la propone, e la decidi tu. «Ripristina» rimette la cartella al suo posto e tutto torna com’era.',
+      '**Le cose fatte da lontano non cambiano lo schermo di un PC.** Un workspace creato dal telefono o da un altro PC si aggiunge, ma lo schermo di quel PC resta sul workspace che mostrava.',
+      '**Un autopilota creato da lontano senza workspace ha un workspace suo**, con il suo nome, invece di finire in quello che quel PC ha davanti.'
+    ]
+  },
+  {
     versione: '0.60.6',
     righe: [
       '**Nel registro anche il cambio di workspace chiesto dal telefono su un altro PC.** Quando dal telefono fai passare un altro PC a un altro workspace, il PC a cui è collegato il telefono lo scrive nel registro, perché cambia quello che si vede sullo schermo di là. Le righe che raccontano le azioni sulle chat ora si leggono meglio: per esempio «sposto la chat … nel workspace …».'

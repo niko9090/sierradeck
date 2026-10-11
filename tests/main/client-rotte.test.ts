@@ -586,6 +586,19 @@ describe('riprendere una conversazione, e i workspace per intero', () => {
     expect(fatti).toHaveLength(2)
   })
 
+  it('un workspace creato da lontano non cambia lo schermo di questo PC (0.60.7)', async () => {
+    const aggiunti: string[] = []
+    const finestra: unknown[] = []
+    const su = deps({
+      aggiungiWorkspace: (n) => { aggiunti.push(n); return Promise.resolve() },
+      azioneFinestra: (a) => { finestra.push(a); return Promise.resolve({ ok: true }) }
+    })
+    expect((await rotteClient(su)({ metodo: 'POST', percorso: '/api/workspace/crea', corpo: { nome: 'Prova' } })).stato).toBe(200)
+    expect(aggiunti).toEqual(['Prova'])
+    // Non passa dai tasti della finestra, che lo creerebbero andandoci.
+    expect(finestra).toEqual([])
+  })
+
   it('con la finestra (0.55.0): crea, elimina, rinomina, dormi, sveglia, chiudi, sposta passano dai tasti del PC', async () => {
     const chieste: unknown[] = []
     let esito = { ok: true } as { ok: boolean; errore?: string }

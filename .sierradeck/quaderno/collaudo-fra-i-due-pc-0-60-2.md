@@ -98,7 +98,23 @@ Sul portatile il workspace attivo (MT5) e i suoi riquadri sono rimasti uguali.
 - **`/api/workspace/crea` rende attivo il workspace nuovo** su quel PC: cambia lo schermo là. Nel collaudo si rimette subito quello di prima.
 - **`/api/stato` elenca solo le chat del workspace attivo.** `/api/chat/sposta` e `/api/chat/dormi` di una chat in un workspace non attivo rispondono 404: bisogna passare a quel workspace, agire e tornare indietro.
 
-# Proposte per Nicholas (non cambiate: sono scelte sue)
+# Dopo il collaudo (0.60.7)
+
+**Il progetto di prova è tornato da solo.**
+- Alle 09:28 la copia del residente (questo PC) è andata nella cartella di recupero.
+- Alle 09:29:45 il giro di allineamento ha visto «residente qui, cartella sparita» e alle 09:30:21 l'ha riscaricata (`porta qui … questo PC è il residente, la cartella non c'era`).
+- Causa: lo stato voluto non sapeva del recupero.
+- Correzione: `progettiInRecupero(dati)` (le voci di `recupero-progetti/elenco.json` non ancora ripristinate) va a `pianoAllineamento` come `inRecupero`. Un progetto con una cartella di qui nel recupero ha solo il «porta qui» proposto, mai automatico.
+- «Ripristina» segna la voce `ripristinataIl`, quindi lo stop sparisce e lo stato torna quello di prima.
+- Test: `tests/main/allineamento-recupero.test.ts`.
+
+**Le cose fatte da lontano non rubano lo schermo** (regola già data da Nicholas). Prima erano proposte, poi fatte:
+- `/api/workspace/crea` usa `aggiungiWorkspace`, che lascia l'attivo com'è e avvisa le finestre con `workspace:cambiato`, quindi nessuna cambia;
+- `/api/autopilota/crea` senza workspace dà all'autopilota un workspace suo (`workspaceDellAutopilota`: il nome, poi la cartella, poi «Autopilota»), aggiunto nello stesso modo.
+
+**Resta aperto: le consegne cambiano lo schermo.** Quando un autopilota consegna nella sua chat, `suConsegna` nel renderer porta la finestra al workspace dell'autopilota con `cambia`, e le altre finestre seguono. Un workspace suo evita che la chat compaia dentro MT5, ma la consegna cambia comunque ciò che si vede. Per non farlo servirebbero le chat degli autopilota in sottofondo quando il loro workspace non è sullo schermo: è una scelta da proporre a Nicholas.
+
+# Proposte (fatte nella 0.60.7, vedi sopra)
 
 1. Un workspace creato **da lontano** (telefono o altro PC) non diventa attivo sullo schermo di quel PC.
 2. Un autopilota creato da lontano senza workspace va in un workspace suo, con il suo nome, e non in quello che quel PC ha davanti.

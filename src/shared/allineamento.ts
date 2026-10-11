@@ -81,6 +81,14 @@ export function pianoAllineamento(p: {
   home: string
   /** Per progetto (id principale del gruppo): una cartella di qui con lo stesso nome, non registrata. */
   trovate?: Record<string, string>
+  /**
+   * Gli id dei progetti con una cartella di questo PC nella cartella di
+   * recupero (0.60.7). Toglierla vuol dire «qui no»: senza, il giro dopo il
+   * residente la vedeva sparita e la riscaricava da solo (collaudo dell'11/10,
+   * il progetto di prova tornato due minuti dopo). «Ripristina» toglie la voce
+   * dal recupero, e con lei questo stop: lo stato torna quello di prima.
+   */
+  inRecupero?: ReadonlySet<string>
 }): PianoAllineamento {
   const azioni: AzionePiano[] = []
   let senzaScelta = 0
@@ -93,6 +101,13 @@ export function pianoAllineamento(p: {
     const trovata = p.trovate?.[g.id]
     if (voluto.pc === p.io) {
       if (presente !== undefined) continue
+      if (g.ids.some((id) => p.inRecupero?.has(id) === true)) {
+        azioni.push({
+          tipo: 'porta-qui', progetto: g.id, nome: g.nome, automatica: false,
+          perche: `Questo PC è il residente di «${g.nome}», ma la sua cartella di qui è nella cartella di recupero: non la riscarico da solo. «Ripristina» la rimette dov’era; «Porta qui» la riscarica dal Drive.`
+        })
+        continue
+      }
       if (trovata !== undefined) {
         azioni.push({
           tipo: 'porta-qui', progetto: g.id, nome: g.nome, automatica: false,

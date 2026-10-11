@@ -123,6 +123,22 @@ export function controllaNomeWorkspace(nome: string, esistenti: readonly string[
   return { ok: true, nome: pulito }
 }
 
+/**
+ * Il workspace di un autopilota creato **da lontano** senza sceglierne uno
+ * (0.60.7): uno suo, con il suo nome (o quello della cartella), e mai quello
+ * che quel PC ha davanti. Nel collaudo dell'11/10 la chat dell'autopilota di
+ * prova è comparsa dentro MT5, sullo schermo del portatile.
+ */
+export function workspaceDellAutopilota(nome: string, cwd: string): string {
+  const daCartella = cwd.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? ''
+  for (const candidato of [nome, daCartella, 'Autopilota']) {
+    // eslint-disable-next-line no-control-regex
+    const pulito = candidato.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, NOME_WORKSPACE_MAX).trim()
+    if (controllaNomeWorkspace(pulito).ok) return pulito
+  }
+  return 'Autopilota'
+}
+
 /* ------------------------------------------------------------------ */
 /* Un autopilota nuovo                                                  */
 /* ------------------------------------------------------------------ */

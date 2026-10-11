@@ -213,6 +213,15 @@ export function spostaCartellaInRecupero(dati: string, cartella: string, info: {
 }
 
 /** Rimette al suo posto una cartella in recupero: mai sopra un'altra cartella. */
+/**
+ * I progetti con una cartella di questo PC ancora nella cartella di recupero
+ * (0.60.7): per l'allineamento vogliono dire «qui no», finché non si
+ * ripristinano. Quelle già rimesse al loro posto non contano.
+ */
+export function progettiInRecupero(dati: string): Set<string> {
+  return new Set(leggiElencoRecupero(dati).filter((c) => c.ripristinataIl === undefined && c.progetto !== '').map((c) => c.progetto))
+}
+
 export function ripristinaDaRecupero(dati: string, id: string, quando: string): { ok: boolean; messaggio: string; nome?: string; percorso?: string } {
   const e = leggiElencoRecupero(dati)
   const c = e.find((x) => x.id === id)
