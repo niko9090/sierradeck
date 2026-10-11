@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.60.10',
+    righe: [
+      '**«Chiudi» funziona anche su una chat in sottofondo.** Se la chiudi dal telefono o da un altro PC, si chiude subito, invece di aspettare quindici secondi una finestra che non la mostra e non chiuderla. Anche questa chiusura vale come «chiusa da te»: gli altri PC che la guardano chiudono il loro riquadro.'
+    ]
+  },
+  {
     versione: '0.60.9',
     righe: [
       '**Una chat che chiudi sul PC di casa si chiude anche dove la guardi.** Se chiudi una chat sul PC dove vive (con la × o con «Chiudi» dal telefono), il riquadro che la guarda da un altro PC si chiude da solo invece di continuare a cercarla e a proporre «Riapri là». Il registro di quel PC lo scrive, e la pagina e l’app tornano all’elenco dicendo a che ora l’hai chiusa. La conversazione non si cancella: resta in «Riprendi una conversazione» e nel pannello «Progetti».',

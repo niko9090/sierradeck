@@ -1123,6 +1123,13 @@ if (!app.requestSingleInstanceLock()) {
       // guardano da lontano (`chiuse` in /api/stato). Riaccenderla la toglie.
       const chiuse = creaChiuseStore({ dati, log: (m) => registro.info(m) })
       impostaAllaRiapertura((s) => chiuse.togli(s))
+      /** Chiude una chat in sottofondo perché l'hai chiesto tu (0.60.9): è una chiusura voluta. */
+      const chiudiSottofondoDaTe = (sessione: string, da: string): boolean => {
+        const titolo = sottofondo?.chat().find((c) => c.sessione === sessione)?.titolo
+        const fatto = sottofondo?.chiudi(sessione) ?? false
+        if (fatto) chiuse.segna(sessione, titolo, da)
+        return fatto
+      }
       ipcMain.handle('chiuse:segna', (_e, s: unknown, titolo: unknown, da: unknown) => {
         if (typeof s === 'string' && s !== '') chiuse.segna(s, typeof titolo === 'string' && titolo !== '' ? titolo : undefined, typeof da === 'string' && da !== '' ? da : undefined)
       })
@@ -2067,7 +2074,8 @@ if (!app.requestSingleInstanceLock()) {
         void apriNelSuoWorkspace(s.cwd, s.sessione, { ...(s.workspace !== undefined ? { chiesto: s.workspace } : {}), titolo: s.titolo, come: '«Mostra qui»: la porto a schermo', elencaAutopiloti: () => clientAutopilota.elenca() })
         return { ok: true }
       })
-      ipcMain.handle('sottofondo:chiudi', (_e, sessione: unknown) => sottofondo?.chiudi(testo(sessione)) ?? false)
+      // Chiusa da te (0.60.9): «chiusa» anche per chi la guarda da lontano.
+      ipcMain.handle('sottofondo:chiudi', (_e, sessione: unknown) => chiudiSottofondoDaTe(testo(sessione), 'da questo PC'))
       ipcMain.handle('remoto:apri', (_e, pc: unknown, cartella: unknown) =>
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/apri', { cartella: testo(cartella) }), pc))
       ipcMain.handle('remoto:prova', (_e, pc: unknown) => remoto.prova(testo(pc)))
@@ -4440,7 +4448,7 @@ if (!app.requestSingleInstanceLock()) {
         // a conoscere i suoi riquadri: qui si annuncia, come per «apri».
         chiudiChat: (idChat: string) => {
           const sf = sottofondo?.perId(idChat)
-          if (sf !== undefined) { sottofondo?.chiudi(sf); return }
+          if (sf !== undefined) { chiudiSottofondoDaTe(sf, 'da lontano'); return }
           for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
               w.webContents.send('client:chiudiChat', idChat)
@@ -4491,7 +4499,13 @@ if (!app.requestSingleInstanceLock()) {
           if (r.partenza === 'subito') partenzeSubitoGlobale?.segna(a.id)
           return { id: a.id }
         },
-        azioneFinestra: (a: AzioneFinestra) => azioneAlleFinestre(a),
+        azioneFinestra: (a: AzioneFinestra) => {
+          // Una chat in sottofondo non sta in nessuna finestra (0.60.9): «Chiudi»
+          // da lontano la chiude qui, invece di aspettare 15 secondi una finestra.
+          const sf = a.tipo === 'chat' && a.azione === 'chiudi' ? sottofondo?.perId(a.chat) : undefined
+          if (sf !== undefined) return Promise.resolve(chiudiSottofondoDaTe(sf, 'da lontano') ? { ok: true } : { ok: false, errore: 'la chat in sottofondo non si è chiusa' })
+          return azioneAlleFinestre(a)
+        },
         // Le mancanze della parità (0.56.0): archiviare, il PIN, l'ospite, dal telefono.
         archiviaAutopilota: (id: string, archivia: boolean) => clientAutopilota.archivia(id, archivia),
         installaLa: (pcId: string) => installaLaGlobale === undefined ? undefined : installaLaGlobale.conosce(pcId) ? installaLaGlobale.avvia(pcId) : { sconosciuto: true },
