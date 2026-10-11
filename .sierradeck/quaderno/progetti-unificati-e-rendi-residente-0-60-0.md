@@ -96,4 +96,5 @@ La casa delle chat **non** torna indietro: si sceglie di nuovo.
   - Riassunto corretto, conferma, unione verificata sul disco, poi «Annulla l'unione»: tutto com'era.
   - La prova ha scoperto due difetti, corretti con un test: la cartella accanto a una registrata e lo stato «Unito» rimasto dopo l'annullamento.
   - Copia fermata e cartelle cancellate.
+- **Dopo l'installazione (11/10 mattina, 0.60.0 su questo PC e sul portatile):** il registro vero dice `[allinea] da portare qui «SierraDeck» (da confermare)` e poi niente: il piano vede la cartella con lo stesso nome e non riscarica più da solo. È il comportamento voluto: l'unione la decide Nicholas con «Unisci qui le copie».
 - **Da fare con Nicholas:** sul PC vero, «Rendi residente qui» su «Wdeck» e «SierraDeck» si ferma al riassunto; si unisce solo se lui conferma. Il Drive collegato aggiunge le copie del portatile.
