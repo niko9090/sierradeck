@@ -74,18 +74,20 @@ export function leggiRichiestaPonte(x: unknown): { ok: true; r: RichiestaPonte }
  */
 export function azioneDelPonte(percorso: string, corpo?: Record<string, unknown>): string | undefined {
   const s = (k: string): string => (typeof corpo?.[k] === 'string' ? corpo[k] as string : '')
-  const chat = s('chat') !== '' ? ` nella chat ${s('chat').slice(0, 12)}` : ''
+  const nella = s('chat') !== '' ? ` nella chat ${s('chat').slice(0, 12)}` : ''
+  const la = `la chat${s('chat') !== '' ? ` ${s('chat').slice(0, 12)}` : ''}`
   switch (percorso) {
-    case '/api/scrivi': return `scrivo${chat} (${s('testo').length} caratteri${s('idMessaggio') !== '' ? `, ${s('idMessaggio')}` : ''})`
-    case '/api/scegli': return `scelgo${chat}`
+    case '/api/scrivi': return `scrivo${nella} (${s('testo').length} caratteri${s('idMessaggio') !== '' ? `, ${s('idMessaggio')}` : ''})`
+    case '/api/scegli': return `scelgo${nella}`
     case '/api/apri': return `apro una chat nuova in ${s('cartella')}${s('workspace') !== '' ? ` nel workspace «${s('workspace')}»` : ''}`
     case '/api/sessioni/riprendi': return `riapro la chat ${s('sessione').slice(0, 8)} in ${s('cartella')}`
-    case '/api/chat/chiudi': return `chiudo la chat${chat}`
-    case '/api/chat/dormi': return `metto a dormire la chat${chat}`
-    case '/api/chat/sveglia': return `sveglio la chat${chat}`
-    case '/api/chat/sposta': return `sposto la chat${chat}`
-    case '/api/chat/nome': return `rinomino la chat${chat}`
-    case '/api/chat/ospite': return `cambio la casa della chat${chat}`
+    case '/api/chat/chiudi': return `chiudo ${la}`
+    case '/api/chat/dormi': return `metto a dormire ${la}`
+    case '/api/chat/sveglia': return `sveglio ${la}`
+    case '/api/chat/sposta': return `sposto ${la} nel workspace «${s('workspace')}»`
+    case '/api/chat/nome': return `rinomino ${la}`
+    case '/api/chat/ospite': return `cambio la casa della ${la.slice(3)}`
+    case '/api/workspace': return corpo === undefined ? undefined : `passo al workspace «${s('nome')}» (sullo schermo di quel PC)`
     case '/api/workspace/crea': return `creo il workspace «${s('nome')}»`
     case '/api/workspace/elimina': return `tolgo il workspace «${s('nome')}»`
     case '/api/workspace/rinomina': return `rinomino il workspace «${s('nome')}»`

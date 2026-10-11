@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.60.6',
+    righe: [
+      '**Nel registro anche il cambio di workspace chiesto dal telefono su un altro PC.** Quando dal telefono fai passare un altro PC a un altro workspace, il PC a cui è collegato il telefono lo scrive nel registro, perché cambia quello che si vede sullo schermo di là. Le righe che raccontano le azioni sulle chat ora si leggono meglio: per esempio «sposto la chat … nel workspace …».'
+    ]
+  },
+  {
     versione: '0.60.5',
     righe: [
       '**La prima chat di un progetto appena portato su un PC si avvia anche da lontano.** Un progetto arrivato con «Porta qui» non aveva ancora chat, e quel PC non riconosceva la sua cartella: dal telefono o da un altro PC non ci si poteva aprire una chat. Ora le cartelle dei progetti di un PC valgono come conosciute.',
