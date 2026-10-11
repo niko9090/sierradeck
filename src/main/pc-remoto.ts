@@ -101,6 +101,8 @@ export type DipendenzeRemoto = {
   adesso?: () => number
   /** Quanto si aspetta ogni indirizzo prima di passare al prossimo. */
   attesaMs?: number
+  /** Quanto si aspetta una richiesta di `ROTTE_LENTE` (0.60.2). */
+  attesaLentaMs?: number
   log?: (m: string) => void
   /**
    * Altri indirizzi oltre al battito (0.39.3): quelli che hanno risposto in
@@ -134,6 +136,14 @@ export type DipendenzeRemoto = {
 }
 
 const ATTESA_PREDEFINITA_MS = 4000
+/**
+ * Le richieste che quel PC prepara con calma (0.60.2): il pannello del Drive
+ * legge il manifesto dal Drive e guarda ogni progetto, e su un PC con migliaia
+ * di file ci mette ben più di 4 secondi. Con l'attesa normale non arrivava
+ * mai attraverso il ponte: il collaudo fra i due PC ha trovato 15 secondi.
+ */
+export const ROTTE_LENTE: readonly string[] = ['/api/drive/pannello', '/api/drive/azione']
+const ATTESA_LENTA_PREDEFINITA_MS = 45_000
 /** Il bussare breve: un secondo e mezzo per tutti gli indirizzi insieme. */
 const BUSSA_PREDEFINITA_MS = 1500
 
@@ -141,6 +151,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
   const adesso = deps.adesso ?? ((): number => Date.now())
   const chiamaHttp = deps.fetch ?? ((...a: Parameters<typeof fetch>) => fetch(...a))
   const attesaMs = deps.attesaMs ?? ATTESA_PREDEFINITA_MS
+  const attesaLentaMs = deps.attesaLentaMs ?? ATTESA_LENTA_PREDEFINITA_MS
   const bussaMs = deps.bussaMs ?? BUSSA_PREDEFINITA_MS
   const log = deps.log ?? ((): void => {})
   const buoni = new Map<string, string>()
@@ -342,7 +353,8 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       const ind = buoni.get(pcId)
       if (ind === undefined) return undefined
       const controllo = new AbortController()
-      const timer = setTimeout(() => controllo.abort(), attesaMs)
+      const attesa = ROTTE_LENTE.includes(percorso) ? attesaLentaMs : attesaMs
+      const timer = setTimeout(() => controllo.abort(), attesa)
       let risposta: Response
       try {
         const url = `http://${ind}:${porta}${percorso}`
@@ -360,13 +372,23 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
         })
       } catch {
         clearTimeout(timer)
+        const scaduta = controllo.signal.aborted
         // L'indirizzo buono ha smesso di rispondere: si ribussa a tutti. Una
         // scrittura non si ripete (potrebbe essere arrivata): si dice e basta.
         buoni.delete(pcId)
         const p = await bussa(pcId)
         if (p.esito !== 'risponde') return undefined
+        // Risponde allo stesso indirizzo: non era sparito, era solo lento a
+        // preparare questa risposta (0.60.2). Lo si dice così, non «ha cambiato indirizzo».
+        // Una scrittura scaduta resta incerta: potrebbe essere arrivata.
+        const incerta = percorso === '/api/scrivi'
+          ? 'non so se il testo è arrivato. Guarda lo schermo qui sopra (si aggiorna da solo) prima di rimandarlo.'
+          : 'non so se la richiesta è arrivata. Guarda lo stato qui sopra (si aggiorna da solo) prima di rifarla.'
+        if (scaduta && p.indirizzo === ind) {
+          throw new ErroreRemoto('http', `${b.nome} risponde, ma non ha finito entro ${Math.round(attesa / 1000)} secondi: ${corpo === undefined ? 'riprova fra poco.' : incerta}`, 504)
+        }
         if (corpo !== undefined) {
-          throw new ErroreRemoto('irraggiungibile', `${b.nome} ha cambiato indirizzo mentre mandavo: non so se il testo è arrivato. Guarda lo schermo qui sopra (si aggiorna da solo) prima di rimandarlo.`)
+          throw new ErroreRemoto('irraggiungibile', `${b.nome} ha cambiato indirizzo mentre mandavo: ${incerta}`)
         }
         continue
       }

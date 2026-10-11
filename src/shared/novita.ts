@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.60.2',
+    righe: [
+      '**Il pannello «Progetti» di un altro PC si apre anche dal telefono e da qui.** Il collaudo fra i due PC ha trovato che il pannello impiegava 15 secondi a prepararsi, mentre chi lo chiedeva attraverso un altro PC aspettava al massimo 4 secondi, e l’app 15: non arrivava mai. Ora il pannello e le sue azioni hanno fino a 45 secondi sul PC e di più sull’app, anche attraverso il ponte.',
+      '**Il pannello è più veloce.** A ogni lettura riscaricava dal Drive l’elenco completo dei file salvati (oltre 12 mila voci). Ora lo tiene per un minuto, e se è lento lo scrive nel registro con il tempo impiegato.',
+      '**Errori più precisi fra i PC.** Quando un PC risponde ma non finisce in tempo, il messaggio dice proprio questo e non più «ha cambiato indirizzo». E parla di «testo» solo quando si stava mandando un testo.'
+    ]
+  },
+  {
     versione: '0.60.1',
     righe: [
       '**Le prove di «Rendi residente» non dipendono più dal giorno.** Una prova dava alla copia sul Drive una data fissa (11 ottobre) e al file di questo PC l’ora del momento: dal giorno dopo il file di qui risultava il più recente e la prova falliva, anche se il programma confrontava le date nel modo giusto. Ora le date della prova sono fissate rispetto ad adesso. Il programma non cambia: nell’unione il file più recente vince, e in una cartella con git i file restano sempre come sono.'

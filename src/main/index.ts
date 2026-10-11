@@ -83,6 +83,7 @@ import { creaResidenza, type Residenza } from './residenza'
 import { armonizzaCase, casaDelGruppo, dentroCartella, eSenzaNome, gruppoDiCartella, gruppoDiId, raggruppaProgetti } from '@shared/progetti-unificati'
 import { casaCorretta, decidiAperturaRemota, type CopiaNota } from '@shared/apertura-remota'
 import type { Pannello } from '@shared/pannello-drive'
+import { memoriaBreve } from '@shared/memoria-breve'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
 import { creaLatoResidente, creaRimozione, type LatoResidente, type Rimozione } from './rimozione-sicura'
 import { improntaPc } from './casa-firma'
@@ -2501,19 +2502,28 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('rimozione:ripristina', (_e, id: unknown) => (typeof id === 'string' ? rim.ripristina(id) : { ok: false, messaggio: 'id non valido' }))
       ipcMain.handle('rimozione:cestina', (_e, id: unknown) => (typeof id === 'string' ? rim.cestina(id) : { ok: false, messaggio: 'id non valido' }))
       // Il pannello delle chat e dei progetti del Drive (0.58.0): stesse fonti, regole in @shared/pannello-drive.
+      // Il manifesto del Drive per il pannello (0.60.2): scaricarlo e decifrarlo
+      // a ogni lettura costava secondi (12 mila voci), e il pannello, riletto
+      // ogni pochi secondi mentre lavora, non arrivava più attraverso il ponte.
+      // Vale un minuto; chi chiede mentre si scarica aspetta lo stesso.
+      const manifestoPannello = memoriaBreve(() => sincronia.manifestoDrive().catch(() => undefined), 60_000)
       const leggiPannello = async (): Promise<Pannello> => {
+        const inizio = Date.now()
         const io = identitaPc.leggi()
         const locali = chatLocaliDaIndice().map((c) => {
           let mtime: number | undefined
           try { mtime = statSync(c.jsonl).mtimeMs } catch { mtime = undefined }
           return { sessione: c.sessione, titolo: c.titolo, ...(c.cwd !== undefined ? { cwd: c.cwd } : {}), ...(mtime !== undefined ? { mtime } : {}) }
         })
-        return datiPannello({
+        const dalManifesto = Date.now()
+        const manifesto = await manifestoPannello()
+        const msManifesto = Date.now() - dalManifesto
+        const pannello = datiPannello({
           io: { id: io.id, nome: io.nome, battito: new Date().toISOString() },
           pc: postino.altrui().map((b) => ({ id: b.pcId, nome: nomeDaMostrare(b), battito: b.battito, chat: b.chat })),
           case: unaCasa.case(),
           locali,
-          manifesto: await sincronia.manifestoDrive().catch(() => undefined),
+          manifesto,
           aperteQui: chatAperte.map((c) => c.sessione).filter((s): s is string => s !== undefined),
           titoliNoti: workspaceStore === undefined ? [] : chatSalvate(workspaceStore.leggi()).filter((c) => c.sessione !== undefined).map((c) => ({ sessione: c.sessione as string, titolo: c.titolo, cwd: c.cwd })),
           progetti: registroProgetti.leggi().progetti.map((g) => ({ id: g.id, nome: g.nome, percorsi: g.percorsi, ...(g.aggiuntoIl !== '' ? { aggiuntoIl: g.aggiuntoIl } : {}), ...(g.unitoIn !== undefined ? { unitoIn: g.unitoIn } : {}) })),
@@ -2522,6 +2532,10 @@ if (!app.requestSingleInstanceLock()) {
           workspaceQui: workspaceStore === undefined ? [] : workspaceStore.leggi().workspace.map((w) => w.nome),
           esiste: existsSync
         })
+        // Quanto ci mette, quando è lento: il ponte aspetta al massimo 45 secondi.
+        const ms = Date.now() - inizio
+        if (ms > 3000) registro.info(`[pannello] pronto in ${(ms / 1000).toFixed(1)} s (manifesto del Drive ${(msManifesto / 1000).toFixed(1)} s, ${locali.length} chat di qui)`)
+        return pannello
       }
       // Il pannello con lo stato della rimozione sicura (0.58.0) e dell'unione
       // (0.60.0): lo stesso per il PC, la pagina e l'app.

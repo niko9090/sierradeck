@@ -51,7 +51,7 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         // per il PC accoppiato, che le gira all'altro.
         if (percorso !in Ponte.ROTTE) throw Errore(403, Ponte.nonSiPuo(percorso))
         val interno = corpo?.let { val b = okio.Buffer(); it.writeTo(b); b.readUtf8() }
-        return conSegno(pc, Collegamenti.ACCOPPIATO) { corpoTestoDiretto("/api/ponte", Ponte.corpo(pc, percorso, interno).toRequestBody(JSON_MEDIA)) }
+        return conSegno(pc, Collegamenti.ACCOPPIATO) { corpoTestoDiretto("/api/ponte", Ponte.corpo(pc, percorso, interno).toRequestBody(JSON_MEDIA), lenta = percorso in ROTTE_LENTE) }
     }
 
     /**
@@ -85,7 +85,7 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         }
     }
 
-    private suspend fun corpoTestoDiretto(percorso: String, corpo: RequestBody?): String =
+    private suspend fun corpoTestoDiretto(percorso: String, corpo: RequestBody?, lenta: Boolean = percorso in ROTTE_LENTE): String =
         withContext(Dispatchers.IO) {
             // Non un client solo: **quello legato alla rete giusta**. Un
             // indirizzo di casa deve uscire dal wifi, e Android da solo sceglie
@@ -97,7 +97,7 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
                 // da GitHub ci mette fino a un paio di minuti. Con i 15 secondi
                 // di sempre l'app diceva «non riuscito» mentre il computer
                 // stava ancora installando (prova dell'08/10).
-                if (percorso in ROTTE_LENTE) c.newBuilder().readTimeout(LENTE_SECONDI, TimeUnit.SECONDS).build() else c
+                if (lenta) c.newBuilder().readTimeout(LENTE_SECONDI, TimeUnit.SECONDS).build() else c
             }
             cliente.newCall(richiesta(percorso, corpo)).execute().use { r ->
                 val testo = r.body?.string() ?: ""
@@ -591,10 +591,14 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         json.decodeFromString(corpoTesto("/api/consegne/ricevuta", oggetto { put("id", id); put("sha256", sha256) }))
 
     companion object {
-        /** Le rotte che passano dal CLI di Claude Code e possono metterci minuti. */
+        /** Le rotte che possono metterci più dei 15 secondi di sempre: il CLI di Claude Code (minuti) e il pannello del Drive. */
         val ROTTE_LENTE = setOf(
             "/api/negozio", "/api/negozio/installa", "/api/negozio/aggiorna",
-            "/api/negozio/commuta", "/api/negozio/cerca", "/api/negozio/salute-mcp"
+            "/api/negozio/commuta", "/api/negozio/cerca", "/api/negozio/salute-mcp",
+            // Il pannello del Drive (PC 0.60.2): sul PC ci mette anche 15
+            // secondi, quanto l'attesa di sempre; attraverso il ponte di più.
+            // Vale anche quando passa dal ponte: lì la rotta è dentro il corpo.
+            "/api/drive/pannello", "/api/drive/azione"
         )
         /** Il CLI ne concede 180 a un'installazione: qualcosa in più, per la rete. */
         const val LENTE_SECONDI = 200L

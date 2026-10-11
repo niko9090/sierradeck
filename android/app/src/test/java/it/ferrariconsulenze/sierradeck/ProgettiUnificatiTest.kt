@@ -79,4 +79,14 @@ class ProgettiUnificatiTest {
         assertTrue(vecchio.progetti.single().ids.isEmpty())
         assertNull(PannelloDriveRegole.doppi(vecchio.progetti.single()))
     }
+
+    @Test
+    fun `il pannello del Drive aspetta a lungo - anche attraverso il ponte (PC 0_60_2)`() {
+        // Collaudo dell'11/10: il pannello ci mette 15 secondi sul PC, quanto
+        // l'attesa di sempre dell'app; attraverso il ponte non arrivava mai.
+        assertTrue("/api/drive/pannello" in Api.ROTTE_LENTE)
+        assertTrue("/api/drive/azione" in Api.ROTTE_LENTE)
+        assertTrue("/api/drive/pannello" in Ponte.ROTTE)
+        assertTrue(Api.LENTE_SECONDI >= 60)
+    }
 }

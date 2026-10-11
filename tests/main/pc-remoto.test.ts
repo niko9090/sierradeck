@@ -25,7 +25,7 @@ type Chiamata = { url: string; init: RequestInit }
  * della chiave di casa (`chiaveCasa`, di solito quella giusta); `vecchio` e'
  * un PC prima della 0.47, che `/api/casa` non la conosce (401).
  */
-function fintoFetch(risposte: Record<string, { stato?: number; corpo?: unknown; guasto?: boolean; lento?: boolean; vecchio?: boolean; chiaveCasa?: string }>): { fetch: typeof fetch; chiamate: Chiamata[] } {
+function fintoFetch(risposte: Record<string, { stato?: number; corpo?: unknown; guasto?: boolean; lento?: boolean; ritardo?: number; vecchio?: boolean; chiaveCasa?: string }>): { fetch: typeof fetch; chiamate: Chiamata[] } {
   const chiamate: Chiamata[] = []
   const f = (async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const u = String(url)
@@ -40,12 +40,19 @@ function fintoFetch(risposte: Record<string, { stato?: number; corpo?: unknown; 
       if (r.vecchio === true) return new Response(JSON.stringify({ errore: 'dispositivo non riconosciuto' }), { status: 401 })
       return new Response(JSON.stringify({ prova: provaCasa(r.chiaveCasa ?? 'chiave-di-casa-B', new URL(u).searchParams.get('sfida') ?? '') }), { status: 200 })
     }
+    // Risponde, ma solo dopo un po': come il pannello del Drive su un PC con migliaia di file.
+    if (r.ritardo !== undefined) {
+      await new Promise<void>((ris, rif) => {
+        const t = setTimeout(ris, r.ritardo)
+        init?.signal?.addEventListener('abort', () => { clearTimeout(t); rif(new DOMException('aborted', 'AbortError')) })
+      })
+    }
     return new Response(JSON.stringify(r.corpo ?? { ok: true }), { status: r.stato ?? 200, headers: { 'content-type': 'application/json' } })
   }) as typeof fetch
   return { fetch: f, chiamate }
 }
 
-function client(battiti: BattitoPc[], f: typeof fetch, opts: { chiave?: string | undefined; attesaMs?: number; log?: string[] } = {}): ReturnType<typeof creaClientPcRemoto> {
+function client(battiti: BattitoPc[], f: typeof fetch, opts: { chiave?: string | undefined; attesaMs?: number; attesaLentaMs?: number; log?: string[] } = {}): ReturnType<typeof creaClientPcRemoto> {
   return creaClientPcRemoto({
     battiti: () => battiti,
     chiavePer: () => ('chiave' in opts ? opts.chiave : 'chiave-di-casa-B'),
@@ -53,6 +60,7 @@ function client(battiti: BattitoPc[], f: typeof fetch, opts: { chiave?: string |
     fetch: f,
     adesso: () => ORA,
     attesaMs: opts.attesaMs ?? 50,
+    ...(opts.attesaLentaMs !== undefined ? { attesaLentaMs: opts.attesaLentaMs } : {}),
     log: (m) => { opts.log?.push(m) }
   })
 }
@@ -203,5 +211,31 @@ describe('i due lati insieme: il Client vero di un PC e il client remoto dell’
     } finally {
       server.close()
     }
+  })
+})
+
+describe('le richieste lente (0.60.2, collaudo fra i due PC)', () => {
+  // Il pannello del Drive del portatile ci metteva 15 secondi: con l'attesa di
+  // 4 il ponte non lo portava mai, e diceva «ha cambiato indirizzo… il testo».
+  it('il pannello del Drive ha l’attesa lunga e arriva', async () => {
+    const { fetch: f } = fintoFetch({ '192.168.1.50': { ritardo: 80, corpo: { progetti: [] } } })
+    const c = client([PORTATILE], f, { attesaMs: 30, attesaLentaMs: 1000 })
+    expect(await c.chiama('B', '/api/drive/pannello', {})).toEqual({ progetti: [] })
+  })
+
+  it('una richiesta normale troppo lenta dice che quel PC risponde ma non ha finito, non «ha cambiato indirizzo»', async () => {
+    const { fetch: f } = fintoFetch({ '192.168.1.50': { ritardo: 200 } })
+    const c = client([PORTATILE], f, { attesaMs: 30, attesaLentaMs: 1000 })
+    const lettura = await c.chiama('B', '/api/stato').catch((e: unknown) => e as ErroreRemoto)
+    expect(lettura).toBeInstanceOf(ErroreRemoto)
+    expect((lettura as ErroreRemoto).message).toContain('Portatile risponde, ma non ha finito entro')
+    expect((lettura as ErroreRemoto).message).toContain('riprova fra poco')
+    expect((lettura as ErroreRemoto).message).not.toContain('cambiato indirizzo')
+    // Una scrittura scaduta resta incerta: lo si dice, con le parole giuste per cosa si mandava.
+    const scrittura = await c.chiama('B', '/api/scrivi', { chat: 'p1', testo: 'ciao' }).catch((e: unknown) => e as ErroreRemoto)
+    expect((scrittura as ErroreRemoto).message).toContain('non so se il testo è arrivato')
+    const azione = await c.chiama('B', '/api/chat/nome', { chat: 'p1', nome: 'prova' }).catch((e: unknown) => e as ErroreRemoto)
+    expect((azione as ErroreRemoto).message).toContain('non so se la richiesta è arrivata')
+    expect((azione as ErroreRemoto).message).not.toContain('testo')
   })
 })
