@@ -96,5 +96,9 @@ La casa delle chat **non** torna indietro: si sceglie di nuovo.
   - Riassunto corretto, conferma, unione verificata sul disco, poi «Annulla l'unione»: tutto com'era.
   - La prova ha scoperto due difetti, corretti con un test: la cartella accanto a una registrata e lo stato «Unito» rimasto dopo l'annullamento.
   - Copia fermata e cartelle cancellate.
+- **Trappola (0.60.1): date scritte a mano nei test.** Il giorno dopo la pubblicazione due prove di `tests/main/residenza.test.ts` fallivano: niente «sostituito», stile.css rimasto «vecchio».
+  - Causa: il manifesto finto del Drive aveva `mtime` fisso al 2026-10-11, mentre stile.css di qui aveva l'ora della prova. Dal 11/10 (UTC) il file di qui era il più recente.
+  - Il codice era giusto: `pianoUnione` confronta `mtime`, e il controllo git guarda solo `<destinazione>/.git` (non risale le cartelle; la cartella temporanea sta in `tmpdir()`).
+  - Ora le date della prova sono `Date.now() - n giorni`, impostate con `utimesSync`. **Regola:** nelle prove che confrontano «più recente» con file veri, mai date fisse accanto all'ora del momento.
 - **Dopo l'installazione (11/10 mattina, 0.60.0 su questo PC e sul portatile):** il registro vero dice `[allinea] da portare qui «SierraDeck» (da confermare)` e poi niente: il piano vede la cartella con lo stesso nome e non riscarica più da solo. È il comportamento voluto: l'unione la decide Nicholas con «Unisci qui le copie».
 - **Da fare con Nicholas:** sul PC vero, «Rendi residente qui» su «Wdeck» e «SierraDeck» si ferma al riassunto; si unisce solo se lui conferma. Il Drive collegato aggiunge le copie del portatile.

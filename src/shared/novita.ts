@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.60.1',
+    righe: [
+      '**Le prove di «Rendi residente» non dipendono più dal giorno.** Una prova dava alla copia sul Drive una data fissa (11 ottobre) e al file di questo PC l’ora del momento: dal giorno dopo il file di qui risultava il più recente e la prova falliva, anche se il programma confrontava le date nel modo giusto. Ora le date della prova sono fissate rispetto ad adesso. Il programma non cambia: nell’unione il file più recente vince, e in una cartella con git i file restano sempre come sono.'
+    ]
+  },
+  {
     versione: '0.60.0',
     righe: [
       '**Stesso nome, stesso progetto.** Nel pannello «Progetti» i progetti con lo stesso nome — anche scritto in modo diverso, con un «(2)» in fondo, o con la cartella in un percorso diverso su ogni PC — sono uno solo. Lo stesso per i workspace con lo stesso nome. Sotto ogni progetto vedi quante volte era registrato e quali workspace gli appartengono.',

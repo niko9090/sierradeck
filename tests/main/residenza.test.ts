@@ -34,8 +34,15 @@ function prepara() {
   scrivi(join(doppia, 'index.html'), 'v1')
   scrivi(join(doppia, 'solo-doppia.txt'), 'utile')
   scrivi(join(doppia, '.sierradeck', 'quaderno', 'scheda.md'), 'là')
+  // Le date si fissano rispetto ad adesso, mai con un giorno scritto a mano:
+  // fino alla 0.60.0 il Drive aveva il 2026-10-11 fisso e stile.css l'ora
+  // della prova, così dal 11/10 il file di qui risultava più recente.
+  const ora = Date.now()
+  const giorni = (n: number): Date => new Date(ora - n * 86_400_000)
+  // stile.css di qui ha 3 giorni: la copia del Drive (1 giorno) è più recente.
+  utimesSync(join(vera, 'stile.css'), giorni(3), giorni(3))
   // La scheda della copia doppia è più vecchia: resta quella di qui, l'altra nei recuperati.
-  utimesSync(join(doppia, '.sierradeck', 'quaderno', 'scheda.md'), new Date('2026-01-01'), new Date('2026-01-01'))
+  utimesSync(join(doppia, '.sierradeck', 'quaderno', 'scheda.md'), giorni(30), giorni(30))
   // La trascrizione di una chat della copia doppia.
   const slug = (cwd: string): string => join(claude, cwd.replace(/[^A-Za-z0-9]/g, '-'))
   const jsonlDoppia = join(slug(doppia), 'sess-d.jsonl')
@@ -49,7 +56,7 @@ function prepara() {
   const fileDrive: Record<string, string> = { 'progetto-p-port/stile.css': 'nuovissimo', 'progetto-p-port/dal-portatile.md': 'portatile' }
   const manifesto: Manifesto = {
     versione: 1, creatoIl: '2026-10-10T00:00:00Z',
-    file: Object.fromEntries(Object.entries(fileDrive).map(([p, s]) => [p, { nome: `f_${sha(p)}`, size: s.length, mtime: Date.parse('2026-10-11T00:00:00Z'), sha: sha(s) }]))
+    file: Object.fromEntries(Object.entries(fileDrive).map(([p, s]) => [p, { nome: `f_${sha(p)}`, size: s.length, mtime: giorni(1).getTime(), sha: sha(s) }]))
   }
   const registro = apriRegistroProgetti(dati)
   registro.scrivi({ versione: 1, progetti: [
