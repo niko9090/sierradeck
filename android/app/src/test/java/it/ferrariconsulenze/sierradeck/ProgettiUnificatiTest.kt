@@ -33,11 +33,14 @@ class ProgettiUnificatiTest {
     }
 
     @Test
-    fun `Rendi residente qui e' il trasloco, con il testo del PC (0_65)`() {
-        val a = p.progetti.single().azioni.first { it.id == "residente-qui" }
-        assertEquals("Conferma: trasloca qui", a.conferma)
-        assertTrue(a.testo.contains("solo alla fine le copie vecchie vanno nel recupero"))
+    fun `le azioni del progetto sono tre e semplici, con il testo del PC (0_65_1)`() {
+        val g = p.progetti.single()
+        val a = g.azioni.first { it.id == "residente-qui" }
+        assertEquals("Lavora su questo PC", a.titolo)
+        assertEquals("Conferma: lavora qui", a.conferma)
+        assertTrue(a.testo.contains("solo alla fine metto nel recupero le copie vecchie"))
         assertTrue(a.testo.contains("Niente si cancella"))
+        assertTrue(g.azioni.all { it.titolo in setOf("Apri", "Lavora su questo PC", "Togli da questo PC") })
     }
 
     @Test

@@ -51,7 +51,7 @@ object Ponte {
         "/api/consegne", "/api/consegne/pezzo", "/api/consegne/ricevuta",
         // Gestire quel PC (PC 0.55.0): workspace, chiudere/togliere/rinominare le chat,
         // la cartella per una chat nuova, le conversazioni, gli autopiloti.
-        "/api/workspace", "/api/workspace/crea", "/api/workspace/elimina", "/api/workspace/rinomina",
+        "/api/workspace", "/api/workspace/crea", "/api/workspace/elimina", "/api/workspace/rinomina", "/api/workspace/storia", "/api/workspace/progetto",
         "/api/chat/chiudi", "/api/chat/dormi", "/api/chat/sveglia", "/api/chat/sposta", "/api/chat/nome",
         // Le chat e gli autopiloti di prova (PC 0.63.0/0.64.0): il PC li accetta solo per le cartelle «SierraDeck-prova-…».
         "/api/prova/chiudi", "/api/prova/autopilota",

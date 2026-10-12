@@ -83,7 +83,13 @@ describe('la fusione', () => {
     const senza = fondiArchivi(archivioPc, archivioDrive, 'unione', ['lavoro']) as Archivio
     expect(senza.workspace[0]!.perSlot['1']!.panes.map((p) => p.sessionUuid)).toEqual(['u-pc'])
     expect(fondiArchivi(archivioPc, archivioDrive, 'pc')).toBe(archivioPc)
-    expect(fondiArchivi(archivioPc, archivioDrive, 'drive')).toBe(archivioDrive)
+    // «Tieni quelli del Drive» (0.65.1): vale per i workspace in comune; quelli solo di questo PC restano.
+    const tieniDrive = fondiArchivi(archivioPc, archivioDrive, 'drive') as Archivio
+    expect(tieniDrive.workspace.map((w) => w.nome)).toEqual([...archivioDrive.workspace.map((w) => w.nome), ...archivioPc.workspace.filter((w) => !archivioDrive.workspace.some((x) => x.nome === w.nome)).map((w) => w.nome)])
+    expect(tieniDrive.workspace.some((w) => w.nome === 'solo-pc')).toBe(true)
+    expect(fondiArchivi(undefined, archivioDrive, 'drive')).toBe(archivioDrive)
+    // Per il Drive invece resta quello del Drive.
+    expect(fondiArchivi(archivioPc, archivioDrive, 'drive', [], { perDrive: true })).toBe(archivioDrive)
     expect(fondiArchivi(undefined, archivioDrive, 'unione')).toBe(archivioDrive)
   })
 
@@ -161,4 +167,36 @@ describe('la fusione', () => {
     expect(uno.origini).toEqual(['c:/users/n/documents/server_home/', 'C:\\Users\\n\\Documents\\Server_home'])
   })
 
+})
+
+/**
+ * Le liste dei workspace di ogni PC (0.65.1). Il caso del 12/10: ogni «Porta
+ * qui» di un progetto fondeva nella lista del PC TUTTI i workspace del Drive,
+ * e i PC finivano per mostrare la stessa lista; un riquadro di un altro PC che
+ * guardava questo, arrivato qui, guardava sé stesso.
+ */
+describe('la lista dei workspace di un PC resta sua', () => {
+  const pc = { versione: 1, attivo: 'mio', workspace: [{ nome: 'mio', perSlot: {} }, { nome: 'Gestionale', perSlot: {} }] } as unknown as Archivio
+  const drive = {
+    versione: 1, attivo: 'x',
+    workspace: [
+      { nome: 'altro-1', perSlot: {} }, { nome: 'altro-2', perSlot: {} },
+      { nome: 'Progetto Nuovo', perSlot: { 1: { root: undefined, panes: [{ id: 'q', sessionUuid: 's9', cwd: 'C:\\y', title: 'y', remoto: { pcId: 'pc-io', pcNome: 'IO', cwd: 'C:\\vero', sessione: 's9' } }] } } }
+    ]
+  } as unknown as Archivio
+  it('«Porta qui» di un progetto aggiunge solo il workspace del progetto, non tutti quelli del Drive', () => {
+    const escludi = drive.workspace.map((w) => w.nome).filter((n) => n !== 'Progetto Nuovo')
+    const fuso = fondiArchivi(pc, drive, 'unione', escludi, { io: 'pc-io' }) as Archivio
+    expect(fuso.workspace.map((w) => w.nome)).toEqual(['mio', 'Gestionale', 'Progetto Nuovo'])
+  })
+  it('un riquadro del Drive che guarda questo PC arriva qui locale, nella sua cartella vera', () => {
+    const fuso = fondiArchivi(pc, drive, 'unione', [], { io: 'pc-io' }) as Archivio
+    const p = fuso.workspace.find((w) => w.nome === 'Progetto Nuovo')!.perSlot[1]!.panes[0]!
+    expect(p.remoto).toBeUndefined()
+    expect(p.cwd).toBe('C:\\vero')
+  })
+  it('«tieni quelli del Drive» non toglie mai i workspace che ha solo questo PC', () => {
+    const fuso = fondiArchivi(pc, drive, 'drive', [], { io: 'pc-io' }) as Archivio
+    expect(fuso.workspace.map((w) => w.nome)).toEqual(['altro-1', 'altro-2', 'Progetto Nuovo', 'mio', 'Gestionale'])
+  })
 })

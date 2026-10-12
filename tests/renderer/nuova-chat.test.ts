@@ -2,6 +2,22 @@ import { describe, it, expect } from 'vitest'
 import { nomeDaCartella, proponiNuovaChat, validaNuovaChat, nomeCartellaDaNome, componiNuovaChat, unisciPercorso } from '../../src/renderer/nuova-chat'
 import type { PaneData } from '../../src/renderer/state/layout'
 
+describe('la chat nuova nasce nel progetto del suo workspace (0.65.1)', () => {
+  const basi = { documenti: 'C:\\Users\\utente\\Documents', progetti: 'C:\\Users\\utente\\Progetti SierraDeck', casa: 'C:\\Users\\utente', workspace: 'C:\\Users\\utente\\Progetti SierraDeck\\visitafacile' }
+  it('«Nel progetto del workspace»: la cartella del progetto, il nome libero', () => {
+    expect(componiNuovaChat({ nome: '', posto: 'workspace', altrove: '', basi })).toEqual({ ok: true, cartella: basi.workspace, nome: 'visitafacile', daCreare: false })
+    expect(componiNuovaChat({ nome: 'Preventivo', posto: 'workspace', altrove: '', basi })).toMatchObject({ ok: true, cartella: basi.workspace, nome: 'Preventivo' })
+    const { workspace: _w, ...senza } = basi
+    expect(componiNuovaChat({ nome: 'x', posto: 'workspace', altrove: '', basi: senza }).ok).toBe(false)
+  })
+  it('«Altrove» non accetta la cartella utente, Documenti o la radice di un disco', () => {
+    for (const c of ['C:\\Users\\utente', 'C:\\Users\\utente\\Documents', 'D:\\']) {
+      expect(componiNuovaChat({ nome: 'x', posto: 'altrove', altrove: c, basi }).ok).toBe(false)
+    }
+    expect(componiNuovaChat({ nome: 'x', posto: 'altrove', altrove: 'D:\\Lavoro\\Gestionale', basi }).ok).toBe(true)
+  })
+})
+
 function riquadro(cwd: string): PaneData {
   return { id: 'p1', sessionUuid: 'u1', cwd, title: 't' }
 }
@@ -115,3 +131,4 @@ describe('il nome fa la cartella (0.19.0)', () => {
     expect(unisciPercorso('/home/nik/Documents', 'x')).toBe('/home/nik/Documents/x')
   })
 })
+

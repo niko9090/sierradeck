@@ -379,6 +379,16 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
                         }
                     }
                 }
+                // «Su altri PC» (PC 0.65.1): a parte, sotto quelli di questo PC.
+                val altrove = ws?.altrove ?: emptyList()
+                if (altrove.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text("SU ALTRI PC", color = Banco.testoQuieto, fontSize = 11.sp)
+                        Aiuto("Workspace che vivono su altri PC e qui non ci sono. La lista di questo PC resta sua: qui si vedono a parte.", di = "SU ALTRI PC")
+                    }
+                    for (p in altrove) Text("${p.nome}: ${p.workspace.joinToString(", ")}", color = Banco.testo, fontSize = 13.sp)
+                }
                 Spacer(Modifier.height(12.dp))
                 HorizontalDivider(color = Banco.incisione)
                 Spacer(Modifier.height(12.dp))

@@ -1,3 +1,4 @@
+import { annotaEliminato } from './workspace-ritrova'
 import { finestreDiChat } from './finestre-pannello'
 import { app, ipcMain, screen, shell, BrowserWindow } from 'electron'
 import { diffDellAutopilota, fileDellAutopilota } from './file-autopilota'
@@ -1014,7 +1015,9 @@ export function registerLayoutIpc(
    * chi. Si poteva solo ragionare sul codice e sperare. Da qui in poi ogni
    * trasloco lascia una riga nel registro della sessione.
    */
-  registra: (messaggio: string) => void = () => {}
+  registra: (messaggio: string) => void = () => {},
+  /** Un workspace appena creato da qui (0.65.1): diventa un progetto. */
+  dopoCreato: (nome: string) => void = () => {}
 ): void {
   /**
    * Il layout che spetta a questa finestra, con lo scontrino che le dà diritto a
@@ -1182,6 +1185,7 @@ export function registerLayoutIpc(
     const precedente = store.leggi()
     const a = creaWorkspace(precedente, validateNomeWorkspace(raw))
     scriviOSolleva(a, 'il workspace nuovo')
+    dopoCreato(validateNomeWorkspace(raw))
     if (a.attivo !== precedente.attivo) annunciaCambio(event, a, precedente.attivo)
     return statoDi(a)
   })
@@ -1194,6 +1198,8 @@ export function registerLayoutIpc(
     // chat di un workspace.
     mettiDaParteArchivio(store.percorso, 'workspaces.prima-dell-eliminazione.json')
     scriviOSolleva(a, "l'eliminazione del workspace")
+    // Annotata (0.65.1): un workspace eliminato da Nicholas non si «ritrova» dalle copie.
+    annotaEliminato(dirname(store.percorso), validateNomeWorkspace(raw))
     if (a.attivo !== precedente.attivo) annunciaCambio(event, a, precedente.attivo)
     return statoDi(a)
   })

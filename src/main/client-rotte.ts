@@ -214,6 +214,12 @@ export type DipendenzeRotte = {
    * collauda, solo per i progetti «SierraDeck-prova-…» (lo controlla questo PC).
    */
   provaTrasloco?: (corpo: unknown) => Promise<{ ok: boolean; messaggio: string; stato?: number }>
+  /** Una chat nuova (0.65.1): mai nella cartella utente, in Documenti o nella radice di un disco. */
+  cartellaPerChatNuova?: (cartella: string, workspace: string | undefined) => Promise<{ ok: true; cartella: string } | { ok: false; motivo: string }>
+  /** Un workspace diventa un progetto (0.65.1). */
+  progettoDelWorkspace?: (nome: string) => Promise<{ ok: boolean; messaggio: string; cartella?: string }>
+  /** La storia della lista dei workspace (0.65.1), in sola lettura. */
+  storiaWorkspace?: () => unknown
   /** Le case delle chat (0.52.0, «Ospitata da»): solo fra PC della stessa cassaforte. */
   caseChat?: { leggi: () => unknown; ricevi: (corpo: unknown) => Promise<unknown> }
   /** «Salute del sistema» (0.44.0): il Drive, gli altri PC, gli errori, con spiegazioni e azioni. */
@@ -277,7 +283,7 @@ export type DipendenzeRotte = {
    * mostra accanto a quelle vive (`chat` qui sopra), così nel tab Chat si vede
    * tutto quello che c'è sul computer e non solo il workspace davanti.
    */
-  workspace: () => Promise<{ nomi: string[]; attivo: string; chat?: ChatSalvata[] }>
+  workspace: () => Promise<{ nomi: string[]; attivo: string; chat?: ChatSalvata[]; altrove?: { pc: string; nome: string; workspace: string[] }[] }>
   cambiaWorkspace: (nome: string) => Promise<void>
   /** Ferma o riprende un autopilota: due gesti reversibili, quindi ammessi. */
   fermaAutopilota: (id: string) => Promise<void>
@@ -1472,8 +1478,16 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
      * una cartella, cosi' un errore di battitura non crea una chat nel vuoto.
      */
     if (r.metodo === 'POST' && r.percorso === '/api/apri') {
-      const cartella = stringa(r.corpo, 'cartella')
+      let cartella = stringa(r.corpo, 'cartella')
       if (cartella === '') return { stato: 400, corpo: { errore: 'serve la cartella' } }
+      // Mai la cartella utente, Documenti o la radice di un disco (0.65.1): con
+      // un workspace la chat va nel suo progetto, senza si dice perché no.
+      if (deps.cartellaPerChatNuova !== undefined) {
+        const wsChiesto = stringa(r.corpo, 'workspace')
+        const e = await deps.cartellaPerChatNuova(cartella, wsChiesto === '' ? undefined : wsChiesto)
+        if (!e.ok) return { stato: 400, corpo: { errore: e.motivo } }
+        cartella = e.cartella
+      }
       const ammesse = await deps.cartelle().catch(() => [] as string[])
       const esiste = ammesse.includes(cartella) || (await deps.cartellaEsiste?.(cartella).catch(() => false)) === true
       if (!esiste) {
@@ -2295,6 +2309,22 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       return OK({ fatto: true })
     }
 
+    // La storia della lista dei workspace di questo PC (0.65.1), in sola lettura:
+    // la lista di adesso, le copie di sicurezza, i ritrovati all'avvio.
+    if (r.percorso === '/api/workspace/storia') {
+      if (deps.storiaWorkspace === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora dire la storia dei workspace: aggiornalo alla 0.65.1.' } }
+      return OK(deps.storiaWorkspace() as object)
+    }
+    // Un workspace diventa un progetto (0.65.1): la cartella con il suo nome
+    // nella radice dei progetti, residente questo PC; le sue chat mai usate in
+    // Documenti o nella cartella utente passano lì.
+    if (r.metodo === 'POST' && r.percorso === '/api/workspace/progetto') {
+      if (deps.progettoDelWorkspace === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora fare un progetto da un workspace: aggiornalo alla 0.65.1.' } }
+      const nome = stringa(r.corpo, 'nome')
+      if (nome === '') return { stato: 400, corpo: { errore: 'serve il nome del workspace' } }
+      const e = await deps.progettoDelWorkspace(nome)
+      return e.ok ? OK(e) : { stato: 409, corpo: { errore: e.messaggio } }
+    }
     if (r.metodo === 'POST' && r.percorso === '/api/workspace') {
       const nome = stringa(r.corpo, 'nome')
       if (nome === '') return { stato: 400, corpo: { errore: 'serve il nome' } }

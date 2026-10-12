@@ -373,22 +373,7 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
                   })()}
                 </span>
                 <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <select className="campo campo--mini" value="" disabled={occupato} title="Scegli il PC residente del progetto: le sue chat vivono lì, gli altri PC lo tengono solo cloud"
-                    onChange={(e) => sceltaPc(e.target.value, (verso) => {
-                      // Questo PC (0.60.0): prima l'analisi delle copie e il riassunto, poi l'unione con la conferma.
-                      const qui = r.azioni.find((a) => a.id === 'residente-qui')
-                      if (verso.pc === d.io.id && qui !== undefined) { setAzioneDa({ progetto: r.id, nome: r.nome, a: qui }); return }
-                      setCambio({
-                      // Anche lo stato voluto del progetto (0.58.0): residente là, solo cloud sugli altri.
-                      cosa: 'progetto', nome: r.nome, sessioni: [...sessioni, chiaveProgetto(r.id)],
-                      ...(r.residente !== undefined ? { da: { pc: r.residente.pc, nome: r.residente.nome } } : {}),
-                      verso, cartellaLa: r.cartelle.some((c) => c.pc === verso.pc)
-                    })
-                    })}>
-                    <option value="">Rendi residente…</option>
-                    {pc.map((p) => <option key={p.id} value={p.id}>{p.nome}{p.id === d.io.id ? ' (questo PC)' : ''}</option>)}
-                  </select>
-                  {qui !== undefined ? <button className="tasto tasto--mini" disabled={occupato} onClick={() => setSposta(qui.percorso)} title="Sposta anche i file del progetto su un altro PC, con i controlli e la verifica">Sposta con i file…</button> : null}
+                  {/* Solo le tre azioni (0.65.1): il residente e le copie si vedono, ma non sono azioni. */}
                   {r.azioni.map((a) => (
                     <button key={a.id} className="tasto tasto--mini" disabled={occupato} title={a.testo}
                       onClick={() => (a.conferma === undefined ? faiAzione(r.id, a) : setAzioneDa({ progetto: r.id, nome: r.nome, a }))}>{a.titolo}</button>

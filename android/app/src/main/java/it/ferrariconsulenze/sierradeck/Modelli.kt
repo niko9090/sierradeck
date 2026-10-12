@@ -361,8 +361,13 @@ data class Workspace(
      * queste sono anche le altre — degli altri workspace, o spente — e si
      * riaprono con un tocco. Assente nei computer con una versione precedente.
      */
-    val chat: List<ChatSalvata> = emptyList()
+    val chat: List<ChatSalvata> = emptyList(),
+    /** PC 0.65.1: i workspace degli altri PC che qui non ci sono, a parte («Su altri PC»). */
+    val altrove: List<WorkspaceAltrove> = emptyList()
 )
+
+@Serializable
+data class WorkspaceAltrove(val pc: String = "", val nome: String = "", val workspace: List<String> = emptyList())
 
 /** Una chat come sta nell'archivio del computer. */
 @Serializable

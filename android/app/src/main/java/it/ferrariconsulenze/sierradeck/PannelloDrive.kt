@@ -284,11 +284,7 @@ fun SezionePannelloDrive(api: Api) {
                         if (a.conferma == null) fai({ api.azioneDrive(a.id, r.id) }, a.titolo.lowercase())
                         else conferma = DaConfermare("${a.titolo}: ${r.nome}", a.testo, a.conferma) { api.azioneDrive(a.id, r.id) }
                     }) { Text(a.titolo, fontSize = 12.sp) }
-                    for (pc in tutti.filter { it.id != r.residente?.pc && it.id != d.io.id }) TextButton(onClick = {
-                        conferma = DaConfermare("Rendi residente ${pc.nome}", "${pc.nome} diventa il residente di «${r.nome}»: le sue chat lavorano lì, sugli altri PC si aprono dal vivo, e qui il progetto diventa «solo cloud» (tolto solo dopo il confronto e la tua conferma). Non si cancella niente; si torna indietro scegliendo di nuovo il PC di prima.", "Conferma") {
-                            api.residenteDrive(PannelloDriveRegole.sessioniProgetto(d, r.id), pc)
-                        }
-                    }) { Text("Residente: ${pc.nome}", fontSize = 12.sp) }
+                    // Solo le tre azioni del PC (0.65.1): il residente si vede, ma non si sceglie da qui.
                 }
             }
         }

@@ -81,7 +81,7 @@ import { apriAlTelefono, type AlTelefono } from './al-telefono'
 import { apriQuadernoPersonale } from './quaderno-personale'
 import { cartelleTrovateQui, datiPannello, primaTrovata } from './pannello-drive-dati'
 import { creaResidenza, type Residenza } from './residenza'
-import { armonizzaCase, casaDelGruppo, dentroCartella, eSenzaNome, gruppoDiCartella, gruppoDiId, raggruppaProgetti } from '@shared/progetti-unificati'
+import { armonizzaCase, casaDelGruppo, dentroCartella, eSenzaNome, gruppoDiCartella, gruppoDiId, nomeNormalizzato, raggruppaProgetti } from '@shared/progetti-unificati'
 import { decidiAperturaRemota, type CopiaNota } from '@shared/apertura-remota'
 import type { Pannello } from '@shared/pannello-drive'
 import { memoriaBreve } from '@shared/memoria-breve'
@@ -90,6 +90,8 @@ import { creaLatoResidente, creaRimozione, progettiInRecupero, type LatoResident
 import { improntaPc } from './casa-firma'
 import { creaSpazioDrive, type SpazioDrive, type StatoSpazio } from './spazio-drive'
 import { creaTrasloco, type TraslocoApi } from './trasloco'
+import { cartellaDaNomeWorkspace, cartellaVietataPerChat, suAltriPc } from '@shared/workspace-riparazioni'
+import { annotaEliminato, copieDellaLista, riparaListaAllAvvio, type EsitoAvvio } from './workspace-ritrova'
 import { cartellaDiProva, PREFISSO_CARTELLA_PROVA } from '@shared/chat-di-prova'
 import type { Trasloco } from '@shared/trasloco'
 import { cartellaDiProgettoValida, daRiprovare, pianoAllineamento, rigaPiano, type PianoAllineamento } from '@shared/allineamento'
@@ -188,7 +190,7 @@ import { apriRegistro, type Registro } from './registro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
-import { ordineDeiMonitor, quanteFinestre, workspaceDellaSessione, chatSalvate, aggiungiPaneA, type LayoutSalvato } from '@shared/workspace'
+import { ordineDeiMonitor, quanteFinestre, workspaceDellaSessione, chatSalvate, aggiungiPaneA, type LayoutSalvato, type PaneSalvato, type WorkspaceSalvato } from '@shared/workspace'
 import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
 import { apriDestinazioni } from './trasferimenti/destinazioni'
@@ -517,6 +519,12 @@ let pianoCorrente: (() => PianoAllineamento | undefined) | undefined
 /** «Rendi residente» con analisi e unione (0.60.0). */
 let residenzaGlobale: Residenza | undefined
 let spazioGlobale: SpazioDrive | undefined
+/** L'ultima riparazione della lista dei workspace all'avvio (0.65.1), per `/api/workspace/storia`. */
+let ultimaRiparazione: (EsitoAvvio & { quando: string }) | undefined
+/** «Creare un workspace crea il progetto» (0.65.1): la cartella del progetto di un workspace, creata se serve. */
+let progettoPerWorkspaceGlobale: ((nome: string) => Promise<string | undefined>) | undefined
+/** Un workspace che c'è già diventa un progetto, con le sue chat mai usate (0.65.1). */
+let progettoDelWorkspaceGlobale: ((nome: string) => Promise<{ ok: boolean; messaggio: string; cartella?: string }>) | undefined
 let traslocoGlobale: TraslocoApi | undefined
 /** I traslochi chiesti da qui con «Sposta progetto», che girano su un altro PC (0.65.0): l'ultimo stato letto da lui. */
 const traslochiSeguiti = new Map<string, { pc: string; ultimo?: Trasloco; letto: number }>()
@@ -1320,10 +1328,16 @@ if (!app.requestSingleInstanceLock()) {
       caricaPolsi(join(dati, 'polso-chat.json'))
       db = registerSessionIpc(dati, arricchisciConsumi)
       workspaceStore = apriWorkspaceStore(dati)
+      // La lista dei workspace di questo PC (0.65.1), prima che nasca una finestra:
+      // i workspace spariti ritrovati dalle copie, i riquadri che guardano sé stessi riparati.
+      try {
+        const esito = riparaListaAllAvvio({ dati, store: workspaceStore, io: apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir(), documenti: () => app.getPath('documents') }).leggi(), radiceProgetti: join(homedir(), '.claude', 'projects'), log: registro.info })
+        ultimaRiparazione = { ...esito, quando: new Date().toISOString() }
+      } catch (err) { registro.info(`[workspace] riparazione all’avvio non riuscita: ${String(err)}`) }
       // Dove stavano le finestre: va aperto prima che ne nasca una, perche' e'
       // la prima ad avere bisogno di sapere dove tornare.
       finestreStore = apriFinestreStore(dati)
-      registerLayoutIpc(workspaceStore, registro.info)
+      registerLayoutIpc(workspaceStore, registro.info, (nome) => { void progettoPerWorkspaceGlobale?.(nome).catch(() => undefined) })
       registerFinestreIpc(apriNuovaFinestra)
 
       // L'account (Supabase) vive nel MAIN: il renderer ha la CSP severa
@@ -1815,6 +1829,7 @@ if (!app.requestSingleInstanceLock()) {
         rete: () => ({ indirizzi: indirizziLocali(undefined, principaleRicordato), porta: impostazioni.preferenze().portaClient }),
         // Le copie sul disco (0.58.0): il pannello degli altri PC le mostra.
         locali: () => localiBattito?.(),
+        workspace: () => workspaceStore?.leggi().workspace.map((w) => w.nome),
         // Il Client in ascolto o no (0.58.1): gli altri PC lo leggono prima di bussare.
         client: () => statoClient,
         log: registro.info
@@ -2492,6 +2507,81 @@ if (!app.requestSingleInstanceLock()) {
         log: registro.info
       })
       unaCasaGlobale = unaCasa
+      /**
+       * **Creare un workspace crea il progetto** (0.65.1). Il caso «visitafacile»:
+       * un workspace nato con la chat nella cartella Documenti non era un
+       * progetto, non compariva nella lista e nessun PC lo considerava suo.
+       * Adesso: una cartella con lo stesso nome nella radice dei progetti di
+       * questo PC (riusata se c'è già, mai sovrascritta), registrata, e questo
+       * PC residente. Se il progetto esiste già su un altro PC non si crea
+       * niente: resta suo, e qui si guarda da là.
+       */
+      progettoPerWorkspaceGlobale = async (nome: string): Promise<string | undefined> => {
+        const io = identitaPc.leggi()
+        if (nome.trim() === '' || nomeNormalizzato(nome) === nomeNormalizzato('Predefinito')) return undefined
+        const gruppi = raggruppaProgetti(registroProgetti.leggi().progetti, unaCasa.case())
+        const g = gruppi.find((x) => nomeNormalizzato(x.nome) === nomeNormalizzato(nome))
+        const qui = g?.percorsi.find((x) => x.pc === io.id && existsSync(x.percorso))?.percorso
+        if (qui !== undefined) return qui
+        if (g !== undefined && g.percorsi.some((x) => x.pc !== io.id)) return undefined
+        const radice = io.cartellaProgetti
+        const cartella = join(radice, cartellaDaNomeWorkspace(nome))
+        if (!cartellaDiProgettoValida(cartella, homedir())) { registro.info(`[workspace] «${nome}»: la cartella ${cartella} non va bene per un progetto, non la creo`); return undefined }
+        try { mkdirSync(cartella, { recursive: true }) } catch (err) { registro.info(`[workspace] «${nome}»: cartella del progetto non creata (${String(err)})`); return undefined }
+        const { registro: reg, progetto } = aggiungiProgetto(registroProgetti.leggi(), { pcId: io.id, percorso: cartella, adesso: new Date().toISOString() })
+        registroProgetti.scrivi(reg)
+        const quando = new Date().toISOString()
+        await unaCasa.memorizza({ [`progetto:${progetto.id}`]: { pc: io.id, pcNome: io.nome, decisaIl: quando, da: 'nicholas', sceltaDa: io.id, motivo: `workspace «${nome}» creato su ${io.nome}: il progetto nasce qui` } })
+        registro.info(`[workspace] «${nome}»: progetto creato in ${cartella}, residente ${io.nome}`)
+        return cartella
+      }
+      /**
+       * Un workspace che c'è già diventa un progetto (0.65.1, «visitafacile»):
+       * la cartella del progetto, e le sue chat **mai usate** (senza
+       * trascrizione da nessuna parte) che lavoravano nella cartella utente, in
+       * Documenti o in una cartella che non c'è, passano lì. Una chat con la
+       * sua trascrizione non si sposta mai. Se il workspace è a schermo lo fa
+       * la finestra (chiude il riquadro vuoto e ne apre uno nel progetto), così
+       * il suo prossimo salvataggio non lo rimette com'era.
+       */
+      progettoDelWorkspaceGlobale = async (nome: string) => {
+        const store = workspaceStore
+        if (store === undefined) return { ok: false, messaggio: 'non pronto' }
+        if (!store.leggi().workspace.some((w) => w.nome === nome)) return { ok: false, messaggio: `Il workspace «${nome}» non c’è su questo PC.` }
+        const cartella = await progettoPerWorkspaceGlobale?.(nome)
+        if (cartella === undefined) return { ok: false, messaggio: `«${nome}» ha già un progetto su un altro PC, o la sua cartella non va bene: resta com’è.` }
+        const io = identitaPc.leggi()
+        const vietate = { casa: homedir(), documenti: app.getPath('documents') }
+        const conTrascrizione = new Set([...chatLocaliDaIndice().map((c) => c.sessione), ...postino.altrui().flatMap((b) => (b.locali?.chat ?? []).map((c) => c.sessione))])
+        const daSpostare = (p: PaneSalvato): boolean =>
+          (p.remoto === undefined || p.remoto.pcId === io.id) &&
+          (p.sessionUuid === undefined || !conTrascrizione.has(p.sessionUuid)) &&
+          (cartellaVietataPerChat(p.cwd, vietate) || (p.remoto !== undefined && cartellaVietataPerChat(p.remoto.cwd, vietate)) || !existsSync(p.cwd))
+        const a = store.leggi()
+        const w = a.workspace.find((x) => x.nome === nome) as WorkspaceSalvato
+        const panes = Object.values(w.perSlot).flatMap((l) => l.panes).filter(daSpostare)
+        if (panes.length === 0) return { ok: true, cartella, messaggio: `«${nome}» è un progetto in ${cartella}, residente ${io.nome}.` }
+        const aSchermo = finestreDiChat().some((f) => !f.isDestroyed() && workspaceDellaFinestra(f.id) === nome)
+        if (aSchermo) {
+          for (const p of panes) await azioneAlleFinestre({ tipo: 'chat', azione: 'chiudi', chat: p.id }).catch(() => undefined)
+          finestraPerAprire(nome)?.webContents.send('client:apri', { cartella, workspace: nome, nome })
+        } else {
+          mettiDaParteArchivio(store.percorso, 'workspaces.prima-della-riparazione.json')
+          store.scrivi({
+            ...a,
+            workspace: a.workspace.map((x) => (x.nome !== nome ? x : {
+              ...x,
+              perSlot: Object.fromEntries(Object.entries(x.perSlot).map(([k, l]) => [k, { ...l, panes: l.panes.map((p) => {
+                if (!daSpostare(p)) return p
+                const { remoto: _r, ...locale } = p
+                return { ...locale, cwd: cartella, title: p.title === 'Documents' || p.title === 'Documenti' ? nome : p.title }
+              }) }]))
+            }))
+          })
+        }
+        registro.info(`[workspace] «${nome}»: ${panes.length} chat mai usate (senza trascrizione) passano nel progetto ${cartella}${aSchermo ? ', dalla finestra che lo mostra' : ''}`)
+        return { ok: true, cartella, messaggio: `«${nome}» è un progetto in ${cartella}, residente ${io.nome}; ${panes.length} chat vuote ora partono lì.` }
+      }
       // L'ospite di ogni chat (0.52.0): «Ospitata da», propagata e fatta rispettare.
       const mandaAlleFinestre = (canale: string, dato?: unknown): void => {
         for (const w of finestreDiChat()) if (!w.isDestroyed()) w.webContents.send(canale, dato)
@@ -2515,6 +2605,11 @@ if (!app.requestSingleInstanceLock()) {
       const timerOspite = setInterval(() => { void ospite.giro() }, 10_000)
       app.on('before-quit', () => { clearInterval(timerOspite) })
       ipcMain.handle('casa:dove', () => ospite.dove())
+      // «Su altri PC» (0.65.1): i workspace dei battiti degli altri PC che qui non ci sono.
+      ipcMain.handle('workspace:altriPc', () => suAltriPc(
+        workspaceStore?.leggi().workspace.map((w) => w.nome) ?? [],
+        postino.altrui().map((b) => ({ pc: b.pcId, nome: nomeDaMostrare(b), ...(b.workspace !== undefined ? { workspace: b.workspace } : {}) }))
+      ))
       /**
        * **L'apertura di una chat di un altro PC** (0.58.2), passo per passo nel
        * registro. Il caso «MT5» del 10/10: il riquadro remoto salvato puntava al
@@ -3621,10 +3716,11 @@ if (!app.requestSingleInstanceLock()) {
         return elencoProgetti()
       })
       // Le due cartelle-base di una chat nuova: Documenti e quella dei progetti.
-      ipcMain.handle('sistema:cartelleBase', () => ({
-        documenti: app.getPath('documents'),
-        progetti: identitaPc.leggi().cartellaProgetti
-      }))
+      ipcMain.handle('sistema:cartelleBase', async (_e, ws: unknown) => {
+        // La cartella del progetto del workspace (0.65.1): lì nascono le chat nuove.
+        const cartella = typeof ws === 'string' && ws !== '' ? await progettoPerWorkspaceGlobale?.(ws).catch(() => undefined) : undefined
+        return { documenti: app.getPath('documents'), progetti: identitaPc.leggi().cartellaProgetti, casa: homedir(), ...(cartella !== undefined ? { workspace: cartella } : {}) }
+      })
       // Creare la cartella di una chat nuova: solo sotto Documenti o sotto la
       // cartella dei progetti, mai altrove — un percorso scritto a mano con un
       // errore non deve diventare una cartella a caso.
@@ -4446,6 +4542,21 @@ if (!app.requestSingleInstanceLock()) {
         quadernoPersonale,
         pannelloDrive: () => pannelloDriveGlobale?.() ?? Promise.resolve({ errore: 'non pronto' }),
         trasloco: () => latoTraslocoGlobale,
+        cartellaPerChatNuova: async (cartella: string, ws: string | undefined) => {
+          if (!cartellaVietataPerChat(cartella, { casa: homedir(), documenti: app.getPath('documents') })) return { ok: true as const, cartella }
+          const delWs = ws !== undefined ? await progettoPerWorkspaceGlobale?.(ws).catch(() => undefined) : undefined
+          if (delWs !== undefined) { registro.info(`[workspace] chat nuova chiesta in ${cartella}: va nel progetto del workspace «${ws}», ${delWs}`); return { ok: true as const, cartella: delWs } }
+          return { ok: false as const, motivo: 'Una chat nuova non lavora nella cartella utente, in Documenti o nella radice di un disco: scegli la cartella di un progetto, o aprila in un workspace.' }
+        },
+        progettoDelWorkspace: (nome: string) => progettoDelWorkspaceGlobale?.(nome) ?? Promise.resolve({ ok: false, messaggio: 'non pronto' }),
+        storiaWorkspace: () => {
+          const qui = workspaceStore?.leggi().workspace.map((w) => w.nome) ?? []
+          return {
+            qui,
+            copie: copieDellaLista(dati).map((c) => ({ file: c.file, quando: c.quando, nomi: c.archivio.workspace.map((w) => w.nome) })),
+            ...(ultimaRiparazione !== undefined ? { riparazione: { quando: ultimaRiparazione.quando, ritrovati: ultimaRiparazione.ritrovati.map((x) => ({ nome: x.nome, da: x.da })), riparati: ultimaRiparazione.riparati } } : {})
+          }
+        },
         provaTrasloco: (corpo: unknown) => provaTraslocoGlobale?.(corpo) ?? Promise.resolve({ ok: false, messaggio: 'Il trasloco non è ancora pronto: la cassaforte o il Drive non sono aperti.' }),
         azioneDrive: (c: unknown) => azioneDriveGlobale?.(c) ?? Promise.resolve({ ok: false, messaggio: 'Il pannello non è ancora pronto: la cassaforte o il Drive non sono aperti.' }),
         // Letto a ogni richiesta: nasce con «una chat, una casa».
@@ -4756,7 +4867,9 @@ if (!app.requestSingleInstanceLock()) {
             attivo: a?.attivo ?? '',
             // Tutte le chat, non solo quelle a schermo: dal telefono si vuole
             // vedere tutto quello che c'e' sul computer, raggruppato per workspace.
-            chat: a === undefined ? [] : chatSalvate(a).map(conAltrove)
+            chat: a === undefined ? [] : chatSalvate(a).map(conAltrove),
+            // «Su altri PC» (0.65.1): i workspace degli altri PC che qui non ci sono, a parte.
+            altrove: suAltriPc((a?.workspace ?? []).map((w) => w.nome), postino.altrui().map((b) => ({ pc: b.pcId, nome: nomeDaMostrare(b), ...(b.workspace !== undefined ? { workspace: b.workspace } : {}) })))
           }
         },
         cambiaWorkspace: async (nome: string) => {
@@ -4912,6 +5025,7 @@ if (!app.requestSingleInstanceLock()) {
           const dopo = aggiungiWorkspace(prima, nome)
           if (dopo === prima) return
           store.scrivi(dopo)
+          await progettoPerWorkspaceGlobale?.(nome).catch(() => undefined)
           // Le finestre aggiornano l'elenco; l'attivo è lo stesso, quindi nessuna cambia.
           for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(dopo), precedente: dopo.attivo })
@@ -4922,6 +5036,7 @@ if (!app.requestSingleInstanceLock()) {
           const store = workspaceStore
           if (store === undefined) return
           store.scrivi(creaWorkspace(store.leggi(), nome))
+          await progettoPerWorkspaceGlobale?.(nome).catch(() => undefined)
           for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('client:workspace', nome)
           }
@@ -4934,6 +5049,7 @@ if (!app.requestSingleInstanceLock()) {
           // La stessa copia del pannello: senza finestre si passa di qui.
           mettiDaParteArchivio(store.percorso, 'workspaces.prima-dell-eliminazione.json')
           store.scrivi(dopo)
+          annotaEliminato(dati, nome)
           // Se si è cancellato il workspace ATTIVO, l'attivo si è spostato su un
           // altro: le finestre che mostravano quello cancellato devono seguirlo,
           // o resterebbero su un nome che non esiste più e il salvataggio

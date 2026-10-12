@@ -35,6 +35,9 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
   const [conti, setConti] = useState<Map<string, number>>(new Map())
   /** Quante chat di altri PC per workspace (0.39.3). */
   const [remote, setRemote] = useState<Record<string, number>>({})
+  /** I workspace degli altri PC che qui non ci sono (0.65.1): a parte, sotto. */
+  const [altrove, setAltrove] = useState<{ pc: string; nome: string; workspace: string[] }[]>([])
+  const [porto, setPorto] = useState<string | undefined>(undefined)
   const [posto, setPosto] = useState<{ top: number; left: number } | undefined>(undefined)
   const tasto = useRef<HTMLButtonElement>(null)
   const lista = useRef<HTMLDivElement>(null)
@@ -64,6 +67,7 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
     setEvidenziato(Math.max(0, nomi.indexOf(attivo)))
     void window.gestore.workspace.dove().then((d) => setConti(contaChatPerWorkspace(d))).catch(() => undefined)
     void window.gestore.workspace.remote().then(setRemote).catch(() => undefined)
+    void window.gestore.workspace.altriPc().then(setAltrove).catch(() => undefined)
     // La tendina ha il fuoco (tabIndex -1) così la tastiera arriva a lei e non
     // al terminale sotto.
     setTimeout(() => lista.current?.focus(), 0)
@@ -153,6 +157,27 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
             )
           })}
         </div>
+        {altrove.length > 0 && filtro === '' ? (
+          <div className="ws-menu__lista" style={{ borderTop: '1px solid var(--incisione, #333)', marginTop: 4, paddingTop: 4 }}>
+            <div className="ws-menu__cerca" title="La lista di questo PC resta sua: questi workspace vivono su altri PC. «Porta qui» li aggiunge qui, con le loro chat.">Su altri PC</div>
+            {altrove.flatMap((p) => p.workspace.map((n) => (
+              <div key={`${p.pc}:${n}`} className="ws-menu__voce" style={{ opacity: 0.85 }}>
+                <span className="ws-menu__spunta" aria-hidden />
+                <span className="ws-menu__voce-nome">{n}</span>
+                <span className="ws-menu__conta">{p.nome}</span>
+                <button className="tasto tasto--mini" tabIndex={-1} disabled={porto !== undefined}
+                  title={`Aggiunge «${n}» ai workspace di questo PC, con le sue chat. Su ${p.nome} non cambia niente.`}
+                  onClick={() => {
+                    setPorto(n)
+                    void window.gestore.sync.portaQuiWorkspace(n).finally(() => {
+                      setPorto(undefined)
+                      void window.gestore.workspace.altriPc().then(setAltrove).catch(() => undefined)
+                    })
+                  }}>{porto === n ? '…' : 'Porta qui'}</button>
+              </div>
+            )))}
+          </div>
+        ) : null}
         <div className="ws-menu__piede">
           <span className="ws-menu__aiuto">↑↓ e Invio, oppure scrivi il nome</span>
           <button className="tasto" tabIndex={-1} onClick={() => { onAperto(false); onGestisci() }}>Crea, rinomina o elimina…</button>

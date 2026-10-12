@@ -1,3 +1,4 @@
+import { riparaArchivio } from '@shared/workspace-riparazioni'
 import { readFile, stat } from 'node:fs/promises'
 import type { Archivio as ArchivioDrive } from './archivio'
 import { cifra, decifra } from './cifratura'
@@ -314,7 +315,23 @@ export function fondiArchivi(
    * le lapidi non entrano nel suo file e un workspace che il PC ha resta suo
    * — una lapide toglie dal Drive, mai da un PC.
    */
-  opzioni: { perDrive?: boolean } = {}
+  opzioni: { perDrive?: boolean; io?: string } = {}
+): ArchivioWorkspace | undefined {
+  const fuso = fondiArchiviGrezzo(pc, drive, modo, escludi, opzioni)
+  // Per un PC (0.65.1): un riquadro che dal Drive arriva a guardare questo
+  // stesso PC torna locale. Era il «visitafacile» del 12/10: ogni PC diceva
+  // che la chat era «dell'altro», e l'altro era sé stesso.
+  if (fuso === undefined || opzioni.perDrive === true || opzioni.io === undefined) return fuso
+  const io = opzioni.io
+  return riparaArchivio(fuso, io, { haChat: () => true, casaAltrove: () => undefined }).archivio as ArchivioWorkspace
+}
+
+function fondiArchiviGrezzo(
+  pc: ArchivioWorkspace | undefined,
+  drive: ArchivioWorkspace | undefined,
+  modo: ModoWorkspace,
+  escludi: string[],
+  opzioni: { perDrive?: boolean }
 ): ArchivioWorkspace | undefined {
   const perDrive = opzioni.perDrive === true
   const tolti = drive?.tolti ?? {}
@@ -327,7 +344,16 @@ export function fondiArchivi(
     return resto
   }
   if (modo === 'pc') return perDrive ? (pc ?? drive) : senzaLapidi(pc ?? drive)
-  if (modo === 'drive') return perDrive ? (drive ?? pc) : senzaLapidi(drive ?? pc)
+  if (modo === 'drive') {
+    if (perDrive) return drive ?? pc
+    // Per un PC «tieni quelli del Drive» vale per i workspace che ci sono da
+    // tutte e due le parti: quelli che ha solo questo PC restano (0.65.1). La
+    // lista di un PC non si sostituisce mai con quella di un altro.
+    if (pc === undefined || drive === undefined) return senzaLapidi(drive ?? pc)
+    const soloQui = pc.workspace.filter((w) => !drive.workspace.some((x) => x.nome === w.nome))
+    const d = senzaLapidi(drive) as ArchivioWorkspace
+    return { ...d, workspace: [...d.workspace, ...soloQui] }
+  }
   if (pc === undefined) return perDrive ? drive : senzaLapidi(drive)
   if (drive === undefined) return perDrive ? pc : senzaLapidi(pc)
   const fuori = new Set(escludi)

@@ -2076,6 +2076,11 @@ function pannello(s) {
   const attivoWs = (s.workspace && s.workspace.attivo) || ''
   const paneWorkspace = ws
     ? '<div class="piastrella"><div class="titolo">Workspace</div><div class="ws" style="margin-top:10px">' + ws + '</div>' +
+      // «Su altri PC» (0.65.1): i workspace degli altri PC, a parte; la lista di questo PC resta sua.
+      ((s.workspace && s.workspace.altrove || []).length > 0
+        ? '<div class="sotto" style="margin-top:10px"><b>Su altri PC</b>' + aiuto('su-altri-pc', 'Workspace che vivono su altri PC e qui non ci sono. La lista di questo PC resta sua: qui si vedono a parte.') + '</div>' +
+          (s.workspace.altrove || []).map((p) => '<div class="sotto">' + esc(p.nome) + ': ' + p.workspace.map(esc).join(', ') + '</div>').join('')
+        : '') +
       '<div class="riga"><input id="ws-nuovo" placeholder="un workspace nuovo">' +
       '<button onclick="creaWorkspace()">Crea</button></div>' +
       (attivoWs ? '<div class="riga"><input id="ws-rinomina" placeholder="nome nuovo per «' + esc(attivoWs) + '»">' +
@@ -4027,7 +4032,8 @@ function pannelloDriveHtml() {
       for (const a of r.azioni) {
         if (pdDaConfermare === a.id + ':' + r.id + ':') h += '<div class="sotto" style="margin-top:6px">' + esc(a.testo) + '</div><div class="riga"><button class="primario" onclick="pdAzione(\\'' + a.id + '\\', \\'' + escJs(r.id) + '\\', true)">' + esc(a.conferma || a.titolo) + '</button><button onclick="pdCambia(\\'filtro\\', pdFiltro)">Annulla</button></div>'
       }
-      h += pdScegliPc(r.id, '', r.residente ? r.residente.pc : '') + '</div>'
+      // Solo le tre azioni (0.65.1): il residente si vede, ma non si sceglie da qui.
+      h += '</div>'
     }
   } else {
     const righe = pdFiltra(pdDati.chat, false)

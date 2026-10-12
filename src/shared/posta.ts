@@ -51,6 +51,8 @@ export type BattitoPc = {
    * battiti di prima: il pannello lo dice («va aggiornato»).
    */
   locali?: LocaliBattito
+  /** I workspace di quel PC (0.65.1), per la sezione «Su altri PC». Mancano nei battiti di prima. */
+  workspace?: string[]
   /**
    * Il Client di quel PC (0.58.1): se non riesce ad ascoltare sulla sua porta
    * (un altro programma la occupa) lo dice, invece di far bussare gli altri a

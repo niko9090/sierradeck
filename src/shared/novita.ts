@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.66.0',
+    righe: [
+      '**Ogni PC ha i suoi workspace.** «Porta qui» e «Ripristina» non sostituiscono né riempiono più la lista di un PC con quella degli altri. I workspace degli altri PC si vedono a parte, sotto, in «Su altri PC». All’avvio i workspace spariti si ritrovano dalle copie di sicurezza e si rimettono, senza togliere niente.',
+      '**Creare un workspace crea il progetto**: una cartella con lo stesso nome fra i progetti, e questo PC come residente. Le chat nuove partono lì, mai in Documenti o nella cartella utente.',
+      '**Un PC non si vede più come «altro PC».** I riquadri che guardavano il PC stesso tornano locali da soli.',
+      '**Nella lista dei progetti, tre azioni**: «Apri», «Lavora su questo PC» e «Togli da questo PC». La spiegazione è dietro il «?».'
+    ]
+  },
+  {
     versione: '0.65.0',
     righe: [
       '**«Sposta progetto» e «Rendi residente» sono un passaggio solo, e non cancella più niente.** Il PC che diventa residente raccoglie le copie, le confronta file per file, unisce qui quello che serve e solo alla fine mette le copie vecchie nel recupero dei loro PC. Lo segui passo per passo in «Progetti»; se un PC non risponde si ferma e riprende da lì. «Annulla tutto» per 30 giorni.',

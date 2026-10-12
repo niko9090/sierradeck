@@ -2,6 +2,7 @@ import type { SessionSummary } from '@shared/types'
 import type { PaneData } from './state/layout'
 import { normalizzaTitolo } from '@shared/titolo'
 import { cartellaPerNuovaChat } from './cartella-nuova-chat'
+import { cartellaVietataPerChat } from '@shared/workspace-riparazioni'
 
 export type PropostaChat = { cartella: string; nome: string }
 
@@ -67,10 +68,17 @@ export function validaNuovaChat(p: { cartella: string; nome: string }): EsitoNuo
 }
 
 /** Dove nasce una chat nuova: Documenti, la cartella dei progetti SierraDeck, o una cartella scelta. */
-export type PostoChat = 'documenti' | 'progetti' | 'altrove'
+export type PostoChat = 'workspace' | 'documenti' | 'progetti' | 'altrove'
 
 /** Le due cartelle-base del PC, chieste al Core. */
-export type BasiCartelle = { documenti: string; progetti: string }
+export type BasiCartelle = {
+  documenti: string
+  progetti: string
+  /** La cartella dell'utente (0.65.1): una chat non ci lavora mai direttamente. */
+  casa?: string
+  /** La cartella del progetto del workspace di adesso (0.65.1): lì nascono le chat nuove. */
+  workspace?: string
+}
 
 /**
  * Il nome della cartella che si crea per una chat, dal suo nome.
@@ -110,8 +118,17 @@ export type EsitoNuovaChatComposta =
  * cartella deve esistere, e il nome se manca prende quello della cartella.
  */
 export function componiNuovaChat(p: { nome: string; posto: PostoChat; altrove: string; basi: BasiCartelle }): EsitoNuovaChatComposta {
+  if (p.posto === 'workspace') {
+    if (p.basi.workspace === undefined) return { ok: false, motivo: 'Questo workspace non ha ancora una cartella di progetto.' }
+    const nome = normalizzaTitolo(p.nome)
+    return { ok: true, cartella: p.basi.workspace, nome: nome === '' ? nomeDaCartella(p.basi.workspace) : nome, daCreare: false }
+  }
   if (p.posto === 'altrove') {
     const e = validaNuovaChat({ cartella: p.altrove, nome: p.nome })
+    // Mai la cartella dell'utente, Documenti o la radice di un disco (0.65.1): lì dentro non è un progetto.
+    if (e.ok && cartellaVietataPerChat(e.cartella, { casa: p.basi.casa ?? '', documenti: p.basi.documenti })) {
+      return { ok: false, motivo: 'Non la cartella utente, Documenti o la radice di un disco: scegli o crea la cartella di un progetto.' }
+    }
     return e.ok ? { ...e, daCreare: false } : e
   }
   const nome = normalizzaTitolo(p.nome)

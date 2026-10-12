@@ -32,7 +32,7 @@ export const ROTTE_PONTE: readonly string[] = [
   // workspace, chiudere/togliere/rinominare una chat, la cartella per una chat
   // nuova, le conversazioni da riprendere e gli autopiloti. Passa solo verso
   // un PC della stessa cassaforte (la chiave di casa, regola della 0.47).
-  '/api/workspace', '/api/workspace/crea', '/api/workspace/elimina', '/api/workspace/rinomina',
+  '/api/workspace', '/api/workspace/crea', '/api/workspace/elimina', '/api/workspace/rinomina', '/api/workspace/storia', '/api/workspace/progetto',
   '/api/chat/chiudi', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta', '/api/chat/nome',
   // Chiudere una chat di prova (0.63.0): se lo è, lo decide il PC dove vive.
   '/api/prova/chiudi', '/api/prova/autopilota',

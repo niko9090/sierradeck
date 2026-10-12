@@ -11,6 +11,7 @@ import { pesaRadici, radiciDaSincronizzare, percorsoSicuro, type Radice } from '
 import { giorniDiRitenzione, fuoriRitenzione } from './ritenzione-claude'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
+import { nomeNormalizzato } from '@shared/progetti-unificati'
 import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, type VoceManifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi, stessaFirma, giaArrivata, scriviManifesto, nomeDi, impronta, copiaManifesto } from './incrementale'
 import { applicaBlocco } from './lavoro'
 import type { Lavoro, Presa, TipoLavoro } from './lavoro-in-corso'
@@ -338,7 +339,9 @@ export function apriSincronia(deps: {
     return nome.endsWith('.jsonl') ? nome.slice(0, -'.jsonl'.length) : nome
   }
   /** I file dell'assetto che sono di ogni PC: non si portano qui da un altro. */
-  const PER_PC = new Set(['sierradeck/impostazioni.json', 'sierradeck/istantanee.json'])
+  // Dalla 0.65.1 anche la lista dei workspace: «Ripristina» la porta qui solo
+  // se manca (un PC nuovo); se c'è, è di questo PC e non si sostituisce.
+  const PER_PC = new Set(['sierradeck/impostazioni.json', 'sierradeck/istantanee.json', 'sierradeck/workspaces.json'])
   /**
    * Una copia di un file dell'assetto prima di un ripristino completo, in
    * `<nome>.prima-del-ripristino-drive.json` accanto all'originale.
@@ -419,6 +422,9 @@ export function apriSincronia(deps: {
    * workspace di questo PC li decide questo PC); sul Drive vive l'unione, che
    * e' la memoria lunga da cui ogni PC prende cio' che vuole.
    */
+  /** I workspace del Drive da lasciare fuori dalla lista di questo PC: tutti tranne quelli scelti. */
+  const tranneQuesti = (a: ArchivioWorkspace | undefined, tieni: (nome: string) => boolean): string[] =>
+    (a?.workspace ?? []).map((w) => w.nome).filter((n) => !tieni(n))
   const unioneWorkspace = async (m: Buffer, percorso: string, contenuto: Buffer, base: Manifesto): Promise<Buffer | undefined> => {
     if (percorso !== 'sierradeck/workspaces.json') return undefined
     const raw = await leggiJsonDalDrive(deps.archivio(), m, base, percorso)
@@ -1026,7 +1032,7 @@ export function apriSincronia(deps: {
         // come file qualunque, insieme alle scelte.
         const rawArchivio = await leggiJsonDalDrive(deps.archivio(), m, manifestoDrive, 'sierradeck/workspaces.json')
         const archivioDrive = rawArchivio === undefined ? undefined : parseArchivio(rawArchivio).archivio
-        const archivioFuso = fondiArchivi(deps.workspaceLocale?.leggi(), archivioDrive, scelte.workspace.modo, scelte.workspace.escludi)
+        const archivioFuso = fondiArchivi(deps.workspaceLocale?.leggi(), archivioDrive, scelte.workspace.modo, scelte.workspace.escludi, { ...(deps.pcId !== undefined ? { io: deps.pcId() } : {}) })
         if (archivioFuso !== undefined) deps.workspaceLocale?.scrivi(archivioFuso)
         const registroDrive = parseRegistro(await leggiJsonDalDrive(deps.archivio(), m, manifestoDrive, 'sierradeck/progetti-drive.json'))
         const registroFuso = fondiRegistri(deps.registroProgetti?.leggi() ?? { versione: 1, progetti: [] }, registroDrive)
@@ -1154,7 +1160,10 @@ export function apriSincronia(deps: {
       if (!pronta.ok) return pronta
       const voci = scelteDiPortaQui(g, q.manifestoDrive, q.firmaPc)
       log(`PORTA QUI «${g.nome}»: ${Object.keys(voci).length} voci da scaricare`)
-      return this.eseguiFusione({ voci, workspace: { modo: 'unione', escludi: [] } })
+      // Solo il workspace del progetto (stesso nome) entra nella lista di questo
+      // PC (0.65.1): prima entravano TUTTI i workspace del Drive, e le liste dei
+      // PC diventavano tutte uguali.
+      return this.eseguiFusione({ voci, workspace: { modo: 'unione', escludi: tranneQuesti(q.archivioDrive, (n) => nomeNormalizzato(n) === nomeNormalizzato(g.nome)) } })
     },
 
     async togliWorkspaceDalDrive(nome) {
@@ -1249,9 +1258,9 @@ export function apriSincronia(deps: {
         Object.assign(voci, scelteDiPortaQui(g, q.manifestoDrive, q.firmaPc, sue))
       }
       log(`PORTA QUI workspace «${nome}»: ${Object.keys(voci).length} voci da scaricare, ${w.progetti.length} progetti`)
-      // «unione» senza esclusioni: il workspace del Drive entra qui con le sue
-      // chat, accanto a quelle che ci sono gia'.
-      return this.eseguiFusione({ voci, workspace: { modo: 'unione', escludi: [] } })
+      // Il workspace del Drive entra qui con le sue chat, accanto a quelle che
+      // ci sono gia'; gli altri workspace del Drive no (0.65.1).
+      return this.eseguiFusione({ voci, workspace: { modo: 'unione', escludi: tranneQuesti(q.archivioDrive, (n) => n === nome) } })
     },
 
     async adottaCassaforteDelDrive() {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { workspaceCorrente } from '../workspace-corrente'
 import {
   componiNuovaChat, nomeCartellaDaNome, unisciPercorso, validaNuovaChat,
   type BasiCartelle, type PostoChat, type PropostaChat
@@ -30,7 +31,8 @@ type Props = {
  */
 export function ModaleNuovaChat({ proposta, onApri, onAnnulla }: Props): React.JSX.Element {
   const [nome, setNome] = useState('')
-  const [posto, setPosto] = useState<PostoChat>('documenti')
+  // Nel progetto del workspace, se ce l'ha (0.65.1); se no fra i progetti.
+  const [posto, setPosto] = useState<PostoChat>('progetti')
   const [altrove, setAltrove] = useState(proposta.cartella)
   const [basi, setBasi] = useState<BasiCartelle | undefined>(undefined)
   const [esiste, setEsiste] = useState<boolean | undefined>(undefined)
@@ -40,7 +42,10 @@ export function ModaleNuovaChat({ proposta, onApri, onAnnulla }: Props): React.J
   const [apro, setApro] = useState(false)
 
   useEffect(() => {
-    void window.gestore.sistema.cartelleBase().then(setBasi).catch(() => undefined)
+    void window.gestore.sistema.cartelleBase(workspaceCorrente()).then((b) => {
+      setBasi(b)
+      if (b.workspace !== undefined) setPosto('workspace')
+    }).catch(() => undefined)
     void window.gestore.sync.stato().then((s) => {
       const pronto = s.driveConnesso && s.sbloccato
       setDrivePronto(pronto)
@@ -77,7 +82,7 @@ export function ModaleNuovaChat({ proposta, onApri, onAnnulla }: Props): React.J
     if (!esito.ok || !pronta) return
     const { cartella, nome: titolo } = esito
     setErrore(undefined)
-    if (posto === 'altrove') {
+    if (posto === 'altrove' || posto === 'workspace') {
       onApri(cartella, titolo, { sulDrive: false })
       return
     }
@@ -103,6 +108,7 @@ export function ModaleNuovaChat({ proposta, onApri, onAnnulla }: Props): React.J
   const cartellaNome = nomeCartellaDaNome(nome)
   const anteprima = (p: PostoChat): string => {
     if (basi === undefined) return '…'
+    if (p === 'workspace') return basi.workspace ?? ''
     if (p === 'documenti') return unisciPercorso(basi.documenti, cartellaNome)
     if (p === 'progetti') return unisciPercorso(basi.progetti, cartellaNome)
     return validaNuovaChat({ cartella: altrove, nome }).ok ? altrove.trim() : ''
@@ -138,11 +144,12 @@ export function ModaleNuovaChat({ proposta, onApri, onAnnulla }: Props): React.J
           onKeyDown={(e) => { if (e.key === 'Enter') apri() }}
         />
         <div className="misura" style={{ minHeight: 18, marginBottom: 10 }}>
-          {posto === 'altrove' ? 'Lasciandolo vuoto prende il nome della cartella.' : `La cartella si chiamerà «${cartellaNome}».`}
+          {posto === 'altrove' || posto === 'workspace' ? 'Lasciandolo vuoto prende il nome della cartella.' : `La cartella si chiamerà «${cartellaNome}».`}
         </div>
 
         <span className="serigrafia">Dove sta</span>
         <div className="nuova-chat__posti">
+          {basi?.workspace !== undefined ? scelta('workspace', `Nel progetto «${workspaceCorrente()}»`, anteprima('workspace')) : null}
           {scelta('documenti', 'In Documenti', anteprima('documenti'))}
           {scelta('progetti', 'Fra i progetti SierraDeck', anteprima('progetti'))}
           {scelta('altrove', 'Altrove', posto === 'altrove' ? '' : (anteprima('altrove') || 'una cartella che esiste già'))}

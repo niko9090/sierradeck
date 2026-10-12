@@ -97,7 +97,7 @@ describe('il pannello del Drive per la pagina e per l’app', () => {
       ${estrai('pdQuando')} ${estrai('pdStato')} ${estrai('pdProblemi')} ${estrai('pdFiltra')} ${estrai('pdScegliPc')} ${estrai('pannelloDriveHtml')}
       return pannelloDriveHtml()`) as (d: unknown) => string
     const h = disegna(atteso)
-    for (const t of ['Gestionale', 'Conferma e togli da questo PC', 'Ripristina', 'Rendi residente qui', 'Rendi solo cloud qui', 'va aggiornato alla 0.58', 'Piano di allineamento']) expect(h).toContain(t)
+    for (const t of ['Gestionale', 'Conferma e togli da questo PC', 'Ripristina', 'Lavora su questo PC', 'Togli da questo PC', 'va aggiornato alla 0.58', 'Piano di allineamento']) expect(h).toContain(t)
     // 0.60.0: un progetto solo per nome, il riassunto di «Rendi residente» con la conferma, le unioni annullabili.
     for (const t of ['Stesso nome, stesso progetto: 2 voci nel registro', 'Conferma e unisci', 'Annulla l’unione', '(di cui 1 senza nome)', '«gestionale (2)» entra in «Gestionale»']) expect(h).toContain(t)
     // 0.65.0: il trasloco passo per passo (fermo, con il motivo e «Riprendi») e lo spazio sul Drive.

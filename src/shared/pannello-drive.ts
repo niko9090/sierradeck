@@ -397,35 +397,35 @@ export type IdAzioneResidenza = 'conferma-residenza' | 'annulla-residenza' | 'an
  */
 export type AzioneProgetto = { id: IdAzioneProgetto; titolo: string; testo: string; conferma?: string }
 
-/** Le azioni possibili di un progetto da questo PC, con cosa fanno e cosa no. */
+/**
+ * Le azioni di un progetto da questo PC (0.65.1, Nicholas: «semplificare le
+ * azioni e renderle più chiare»): tre, con un nome che dice cosa succede. Il
+ * residente e le copie restano visibili ma non sono azioni. Il testo è la
+ * spiegazione dietro il «?».
+ * - «Apri»: una chat nuova nella cartella di qui;
+ * - «Lavora su questo PC»: il trasloco (crea la cartella se manca, porta qui
+ *   file, chat e note, unisce, e solo alla fine le copie vecchie nel recupero);
+ * - «Togli da questo PC»: resta sul Drive e sul PC dove lavora, dopo il
+ *   confronto e il recupero.
+ */
 export function azioniProgetto(r: RigaProgetto, io: PcNoto): AzioneProgetto[] {
   const fuori: AzioneProgetto[] = []
   const residente = r.residente?.nome ?? 'nessun PC'
   if (r.cartellaQui) {
-    fuori.push({ id: 'apri', titolo: 'Apri', testo: `Apre una chat nuova nella cartella del progetto su questo PC (${io.nome})${r.cartellaTrovata !== undefined ? `: ${r.cartellaTrovata}` : ''}.` })
-  } else {
-    fuori.push({
-      id: 'porta-qui', titolo: 'Porta qui',
-      testo: `Scarica dal Drive il progetto «${r.nome}» su questo PC: le chat e i file salvati. Non sovrascrive niente: se qui ci sono file con lo stesso nome restano, e quelli del Drive arrivano accanto. Non cambia il residente.`,
-      conferma: 'Porta qui il progetto'
-    })
+    fuori.push({ id: 'apri', titolo: 'Apri', testo: `Una chat nuova nella cartella del progetto su questo PC${r.cartellaTrovata !== undefined ? ` (${r.cartellaTrovata})` : ''}.` })
   }
-  // «Rendi residente qui» (0.60.0): prima l'analisi di tutte le copie e un
-  // riassunto, poi l'unione solo con la conferma. Resta anche quando questo
-  // PC è già il residente ma ci sono copie da unire.
-  if (r.residente?.qui !== true || r.daUnire > 0) {
-    const gia = r.residente?.qui === true
+  if (r.residente?.qui !== true || !r.cartellaQui || r.daUnire > 0) {
     fuori.push({
-      id: 'residente-qui', titolo: gia ? 'Unisci qui le copie' : 'Rendi residente qui',
-      testo: `${gia ? `Questo PC (${io.nome}) è già il residente di «${r.nome}», ma ci sono copie da unire.` : `Questo PC (${io.nome}) diventa il residente di «${r.nome}» (adesso è ${residente}).`} Un passaggio solo, automatico (0.65.0): gli altri PC salvano la loro copia sul Drive; confronto tutte le copie per impronta${r.ids.length > 1 ? ` (registrato ${r.ids.length} volte)` : ''}; unisco qui i file che mancano, le chat${r.workspace.length > 1 ? ` e i workspace ${r.workspace.map((w) => `«${w}»`).join(', ')} in uno` : ''}, con le versioni diverse nei recuperati; solo alla fine le copie vecchie vanno nel recupero dei loro PC, dopo aver copiato qui quello che c’era solo là. Lo segui passo per passo; se un PC non risponde mi fermo e riprendo da lì. Niente si cancella: «Annulla tutto» per 30 giorni.`,
-      conferma: 'Conferma: trasloca qui'
+      id: 'residente-qui', titolo: 'Lavora su questo PC',
+      testo: `«${r.nome}» lavora su ${io.nome}${r.residente?.qui === true ? '' : ` (adesso su ${residente})`}. Tutto da solo: ${r.cartellaQui ? '' : 'creo la cartella, '}porto qui file, chat e note, confronto le copie, unisco${r.workspace.length > 1 ? ' i workspace in uno' : ' il workspace'}, e solo alla fine metto nel recupero le copie vecchie degli altri PC, dopo aver copiato qui quello che c’era solo là. Lo segui passo per passo. Niente si cancella: «Annulla tutto» per 30 giorni.`,
+      conferma: 'Conferma: lavora qui'
     })
   }
   if (r.cartellaQui && r.residente !== undefined && r.residente.qui !== true) {
     fuori.push({
-      id: 'solo-cloud-qui', titolo: 'Rendi solo cloud qui',
-      testo: `Toglie «${r.nome}» da questo PC, in sicurezza: ${residente} (il residente) confronta i file e le chat di qui con i suoi, copia da lui, nella sua cartella .sierradeck/recuperati, quello che c’è solo qui o è più nuovo, e ti mostra il riassunto. Solo con la tua conferma la cartella di qui va nella cartella di recupero di SierraDeck, per 30 giorni, e «Ripristina» la rimette dov’era. Se ${residente} non si raggiunge, non si toglie niente.`,
-      conferma: 'Confronta e prepara il riassunto'
+      id: 'solo-cloud-qui', titolo: 'Togli da questo PC',
+      testo: `«${r.nome}» resta sul Drive e su ${residente}. Prima ${residente} confronta la copia di qui con la sua e si prende quello che c’è solo qui; poi la cartella di qui va nella cartella di recupero per 30 giorni («Ripristina» la rimette). Se ${residente} non risponde non tolgo niente.`,
+      conferma: 'Conferma: togli da qui'
     })
   }
   return fuori

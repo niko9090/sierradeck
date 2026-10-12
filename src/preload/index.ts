@@ -889,8 +889,8 @@ contextBridge.exposeInMainWorld('gestore', {
     cartellaEsiste: (percorso: string): Promise<boolean> =>
       ipcRenderer.invoke('sistema:cartellaEsiste', percorso),
     /** Documenti e la cartella dei progetti SierraDeck: dove nasce una chat nuova. */
-    cartelleBase: (): Promise<{ documenti: string; progetti: string }> =>
-      ipcRenderer.invoke('sistema:cartelleBase'),
+    cartelleBase: (workspace?: string): Promise<{ documenti: string; progetti: string; casa?: string; workspace?: string }> =>
+      ipcRenderer.invoke('sistema:cartelleBase', workspace),
     /** Riavvia il programma come per un aggiornamento: aspetta che le chat finiscano, poi riparte. */
     riavvia: (): Promise<{ ok: boolean; messaggio?: string }> => ipcRenderer.invoke('sistema:riavvia'),
     /** Crea la cartella di una chat nuova (solo sotto Documenti o sotto i progetti). */
@@ -1061,6 +1061,8 @@ contextBridge.exposeInMainWorld('gestore', {
     dove: (): Promise<Record<string, string>> => ipcRenderer.invoke('workspace:dove'),
     /** Quante chat di altri PC ha ogni workspace (0.39.3). */
     remote: (): Promise<Record<string, number>> => ipcRenderer.invoke('workspace:remote'),
+    /** I workspace degli altri PC che qui non ci sono (0.65.1), PC per PC. */
+    altriPc: (): Promise<{ pc: string; nome: string; workspace: string[] }[]> => ipcRenderer.invoke('workspace:altriPc'),
     crea: (nome: string): Promise<StatoWorkspace> => ipcRenderer.invoke('workspace:crea', nome),
     elimina: (nome: string): Promise<StatoWorkspace> =>
       ipcRenderer.invoke('workspace:elimina', nome),

@@ -149,19 +149,19 @@
         {
           "id": "apri",
           "titolo": "Apri",
-          "testo": "Apre una chat nuova nella cartella del progetto su questo PC (PC-ESEMPIO)."
+          "testo": "Una chat nuova nella cartella del progetto su questo PC."
         },
         {
           "id": "residente-qui",
-          "titolo": "Rendi residente qui",
-          "testo": "Questo PC (PC-ESEMPIO) diventa il residente di «Gestionale» (adesso è PORTATILE-ESEMPIO). Un passaggio solo, automatico (0.65.0): gli altri PC salvano la loro copia sul Drive; confronto tutte le copie per impronta (registrato 2 volte); unisco qui i file che mancano, le chat e i workspace «Gestionale», «gestionale (2)» in uno, con le versioni diverse nei recuperati; solo alla fine le copie vecchie vanno nel recupero dei loro PC, dopo aver copiato qui quello che c’era solo là. Lo segui passo per passo; se un PC non risponde mi fermo e riprendo da lì. Niente si cancella: «Annulla tutto» per 30 giorni.",
-          "conferma": "Conferma: trasloca qui"
+          "titolo": "Lavora su questo PC",
+          "testo": "«Gestionale» lavora su PC-ESEMPIO (adesso su PORTATILE-ESEMPIO). Tutto da solo: porto qui file, chat e note, confronto le copie, unisco i workspace in uno, e solo alla fine metto nel recupero le copie vecchie degli altri PC, dopo aver copiato qui quello che c’era solo là. Lo segui passo per passo. Niente si cancella: «Annulla tutto» per 30 giorni.",
+          "conferma": "Conferma: lavora qui"
         },
         {
           "id": "solo-cloud-qui",
-          "titolo": "Rendi solo cloud qui",
-          "testo": "Toglie «Gestionale» da questo PC, in sicurezza: PORTATILE-ESEMPIO (il residente) confronta i file e le chat di qui con i suoi, copia da lui, nella sua cartella .sierradeck/recuperati, quello che c’è solo qui o è più nuovo, e ti mostra il riassunto. Solo con la tua conferma la cartella di qui va nella cartella di recupero di SierraDeck, per 30 giorni, e «Ripristina» la rimette dov’era. Se PORTATILE-ESEMPIO non si raggiunge, non si toglie niente.",
-          "conferma": "Confronta e prepara il riassunto"
+          "titolo": "Togli da questo PC",
+          "testo": "«Gestionale» resta sul Drive e su PORTATILE-ESEMPIO. Prima PORTATILE-ESEMPIO confronta la copia di qui con la sua e si prende quello che c’è solo qui; poi la cartella di qui va nella cartella di recupero per 30 giorni («Ripristina» la rimette). Se PORTATILE-ESEMPIO non risponde non tolgo niente.",
+          "conferma": "Conferma: togli da qui"
         }
       ]
     }

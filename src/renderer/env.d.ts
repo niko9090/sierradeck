@@ -317,7 +317,7 @@ declare global {
         autopilotiAlLavoro: (quanti: number) => void
         scegliCartella: () => Promise<string | undefined>
         cartellaEsiste: (percorso: string) => Promise<boolean>
-        cartelleBase: () => Promise<{ documenti: string; progetti: string }>
+        cartelleBase: (workspace?: string) => Promise<{ documenti: string; progetti: string; casa?: string; workspace?: string }>
         riavvia: () => Promise<{ ok: boolean; messaggio?: string }>
         creaCartella: (percorso: string) => Promise<boolean>
         titoloFinestra: (testo: string) => void
@@ -454,6 +454,7 @@ declare global {
         stato: () => Promise<StatoWorkspace>
         dove: () => Promise<Record<string, string>>
         remote: () => Promise<Record<string, number>>
+        altriPc: () => Promise<{ pc: string; nome: string; workspace: string[] }[]>
         crea: (nome: string) => Promise<StatoWorkspace>
         elimina: (nome: string) => Promise<StatoWorkspace>
         rinomina: (vecchio: string, nuovo: string) => Promise<StatoWorkspace>
