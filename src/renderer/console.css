@@ -4838,3 +4838,18 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .salute .progetti__riga { grid-template-columns: 150px minmax(0, 1fr) auto; }
 .salute .salute__largo { width: 640px; }
 @media (max-width: 1279px) { .salute .salute__largo { width: min(640px, 100%); } }
+
+/* ── Impostazioni a piena pagina (0.70.0) ── */
+.impostazioni-vista__corpo { flex: 1; min-height: 0; display: flex; }
+.impostazioni-vista__nav { width: 220px; flex: none; padding: 10px 8px; border-right: 1px solid var(--incisione); background: var(--chassis); display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+.impostazioni-vista__separa { height: 1px; background: var(--incisione); margin: 8px 4px; }
+.impostazioni-vista__voce--accesa { background: var(--chassis-acceso); }
+.impostazioni-vista__destra { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.impostazioni-vista__destra .impostazioni__corpo { max-width: 960px; }
+.impostazioni__tessere { display: grid; grid-template-columns: repeat(4, minmax(0, 220px)); gap: 8px; padding: 12px 16px 4px; }
+.impostazioni__tessera { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 12px; background: var(--chassis); border: 1px solid var(--incisione); border-radius: var(--raggio); color: var(--testo); cursor: pointer; font: inherit; text-align: left; }
+.impostazioni__tessera:hover { background: var(--chassis-alto); }
+@media (max-width: 959px) {
+  .impostazioni-vista__nav { width: 160px; }
+  .impostazioni__tessere { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

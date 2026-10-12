@@ -13,12 +13,17 @@ import { SezioneAggiornamenti } from './SezioneAggiornamenti'
 import { Aiuto } from './Aiuto'
 import { NomeQuestoPc } from './PannelloAccount'
 import { cercaImpostazioni, SEZIONI, type IdSezione } from '@shared/impostazioni-struttura'
+import { statoCassaforte, statoDrive, statoTelefoni, statoVersione } from '@shared/stato-sistema'
+import type { Colore, StatoVista } from '@shared/stato-vista'
+
+const COLORE_IMP: Record<Colore, string> = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', blu: 'var(--blu)', quieto: 'var(--testo-quieto)' }
 
 /** La testata di una sezione: il titolo, e cosa c'è dentro dietro al suo «?» (0.62.0). */
 function Testa({ id }: { id: IdSezione }): React.JSX.Element | null {
   const sez = SEZIONI.find((x) => x.id === id)
   if (sez === undefined) return null
-  return <h4 className="con-aiuto">{sez.titolo}<Aiuto di={sez.titolo}>{sez.spiega}</Aiuto></h4>
+  // L'àncora (0.70.0): la navigazione a sinistra ci porta.
+  return <h4 id={`imp-${id}`} className="con-aiuto" style={{ scrollMarginTop: 12 }}>{sez.titolo}<Aiuto di={sez.titolo}>{sez.spiega}</Aiuto></h4>
 }
 
 /**
@@ -289,6 +294,12 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
   useEffect(() => {
     window.gestore.preferenze.leggi().then(setP).catch(() => undefined)
   }, [])
+  // «Torna ai valori di fabbrica» arriva da «Strumenti ▾» (0.70.0), dopo la conferma.
+  useEffect(() => {
+    const suFabbrica = (): void => cambia(PREFERENZE_PREDEFINITE)
+    window.addEventListener('sierradeck:impostazioni-fabbrica', suFabbrica)
+    return () => window.removeEventListener('sierradeck:impostazioni-fabbrica', suFabbrica)
+  })
 
   const cambia = (parziale: Partial<Preferenze>): void => {
     const nuove = { ...p, ...parziale }
@@ -310,14 +321,7 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
 
   return (
     <div className="impostazioni-scheda">
-      <div className="impostazioni__barra">
-        {salvato ? <span className="riga__stato">salvate</span> : null}
-        <span style={{ flex: 1 }} />
-        <button className="tasto" onClick={() => cambia(PREFERENZE_PREDEFINITE)}>
-          Torna ai valori di fabbrica
-        </button>
-        <Aiuto di="Torna ai valori di fabbrica">Rimette tutte le preferenze di questa scheda ai predefiniti (colori, stile, porte, colonne, scorciatoie, comportamenti) senza toccare chat, workspace, PIN o account.</Aiuto>
-      </div>
+      {salvato ? <div className="impostazioni__barra"><span className="riga__stato">salvate</span></div> : null}
 
       {errore !== undefined ? <div className="riga__stato" style={{ color: 'var(--ambra)' }}>{errore}</div> : null}
 
@@ -437,7 +441,7 @@ Di lato è larghezza, sopra o sotto è altezza: è sempre la stessa
             />
           </label>
             </> : null}
-            <div className="impostazioni__nota con-aiuto">«Riparti al login» degli autopiloti: nel pannello Autopiloti.<Aiuto>«Riparti al login» degli autopiloti sta nel pannello Autopiloti, accanto all’elenco: vale per tutti insieme.</Aiuto></div>
+            <div className="impostazioni__nota con-aiuto">«Riparti al login» degli autopiloti: Autopiloti → Strumenti ▾.<Aiuto>«Riparti al login» degli autopiloti sta in Autopiloti, nel menu «Strumenti ▾»: vale per tutti insieme.</Aiuto></div>
           </section>
         ) : null}
         {vede('pin') ? <SezionePin /> : null}
@@ -562,34 +566,79 @@ export function PannelloImpostazioni(
     return () => window.removeEventListener('keydown', suTasto)
   }, [onChiudi])
 
-  const bottone = (t: TabImpostazioni, testo: string): React.JSX.Element => (
-    <button
-      className={`impostazioni__tab${tab === t ? ' impostazioni__tab--attiva' : ''}`}
-      onClick={() => setTab(t)}
-      aria-pressed={tab === t}
-    >
-      {testo}
+
+  // ── 0.70.0: a tutta finestra, la navigazione a sinistra, gli stati in cima ──
+  const [menu, setMenu] = useState(false)
+  const [fabbrica, setFabbrica] = useState(false)
+  const [stati, setStati] = useState<{ versione?: StatoVista; drive?: StatoVista; cassaforte?: StatoVista; telefoni?: StatoVista }>({})
+  useEffect(() => {
+    void window.gestore.aggiornamenti.stato().then((a) => setStati((x) => ({ ...x, versione: statoVersione(a) }))).catch(() => undefined)
+    void window.gestore.drive.stato().then((d) => setStati((x) => ({ ...x, drive: statoDrive(d) }))).catch(() => undefined)
+    void window.gestore.sync.stato().then((c) => setStati((x) => ({ ...x, cassaforte: statoCassaforte(c) }))).catch(() => undefined)
+    void window.gestore.client.stato().then((c) => setStati((x) => ({ ...x, telefoni: statoTelefoni(c.dispositivi.length) }))).catch(() => undefined)
+  }, [])
+  const vai = (id: string): void => {
+    if (tab !== 'generali') setTab('generali')
+    setTimeout(() => document.getElementById(`imp-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+  }
+  const tessera = (titolo: string, st: StatoVista | undefined, dove: () => void): React.JSX.Element => (
+    <button className="impostazioni__tessera" onClick={dove} title={st?.ragione}>
+      <span className="progetti__quieto">{titolo}</span>
+      <span style={{ color: COLORE_IMP[st?.colore ?? 'quieto'] }}>● {st?.parola ?? '…'}</span>
     </button>
   )
 
   return (
-    <div className="pannello pannello--impostazioni">
-      <div className="impostazioni__testa">
-        <div className="impostazioni__testa-riga">
-          <strong>Impostazioni</strong>
-          <span style={{ flex: 1 }} />
-          <button className="tasto" onClick={onChiudi}>Chiudi</button>
-        </div>
-        <div className="impostazioni__tabs">
-          {bottone('generali', 'Generali')}
-          {bottone('ai', 'AI')}
-          {bottone('account', 'Account')}
-        </div>
+    <div className="progetti impostazioni-vista" role="dialog" aria-label="Impostazioni">
+      <div className="progetti__testa">
+        <span className="progetti__titolo">⚙ Impostazioni</span>
+        <span style={{ flex: 1 }} />
+        <span style={{ position: 'relative' }}>
+          <button className="tasto tasto--mini" aria-expanded={menu} onClick={() => setMenu(!menu)}>Strumenti ▾</button>
+          {menu ? (
+            <div className="progetti__menu" onMouseLeave={() => setMenu(false)}>
+              <button className="progetti__voce" onClick={() => { setMenu(false); setFabbrica(true) }} title="Rimette le preferenze ai predefiniti, senza toccare chat, workspace, PIN o account">Torna ai valori di fabbrica…</button>
+              <button className="progetti__voce" onClick={() => { setMenu(false); void window.gestore.log.apri() }}>Apri il registro</button>
+            </div>
+          ) : null}
+        </span>
+        <Aiuto di="Impostazioni">Solo le preferenze: aggiornamenti, nome del computer e rete, comportamento delle chat, l’account Google, aspetto, notifiche. A sinistra le sezioni; in cima come stanno versione, Drive, cassaforte e telefoni (un clic porta alla sezione). In «Generali» c’è anche la ricerca.</Aiuto>
+        <button className="tasto tasto--mini" onClick={onChiudi} aria-label="Chiudi">×</button>
       </div>
-      <div className="impostazioni__corpo">
-        {tab === 'generali' ? <SchedaGenerali onAccount={() => setTab('account')} /> : null}
-        {tab === 'ai' ? <PannelloProvider incorporato /> : null}
-        {tab === 'account' ? <PannelloAccount incorporato /> : null}
+      {fabbrica ? (
+        <div className="progetti__attende" style={{ color: 'var(--rosso)' }}>
+          <span style={{ flex: 1 }}>Tutte le preferenze tornano ai valori di fabbrica (colori, porte, colonne, scorciatoie). Chat, workspace, PIN e account restano.</span>
+          <button className="tasto tasto--mini tasto--pericolo" onClick={() => { setFabbrica(false); setTab('generali'); setTimeout(() => window.dispatchEvent(new Event('sierradeck:impostazioni-fabbrica')), 50) }}>Sì, torna ai valori di fabbrica</button>
+          <button className="tasto tasto--mini" autoFocus onClick={() => setFabbrica(false)}>Annulla</button>
+        </div>
+      ) : null}
+      <div className="impostazioni-vista__corpo">
+        <nav className="impostazioni-vista__nav" aria-label="Sezioni">
+          {SEZIONI.map((x) => (
+            <button key={x.id} className="progetti__voce" onClick={() => vai(x.id)} title={x.spiega}>
+              {x.titolo}
+              {x.id === 'aggiornamenti' && stati.versione !== undefined ? <span style={{ float: 'right', color: COLORE_IMP[stati.versione.colore] }}>●</span> : null}
+              {x.id === 'drive' && stati.drive !== undefined ? <span style={{ float: 'right', color: COLORE_IMP[stati.drive.colore] }}>●</span> : null}
+            </button>
+          ))}
+          <div className="impostazioni-vista__separa" />
+          <button className={`progetti__voce${tab === 'ai' ? ' impostazioni-vista__voce--accesa' : ''}`} onClick={() => setTab('ai')}>AI</button>
+          <button className={`progetti__voce${tab === 'account' ? ' impostazioni-vista__voce--accesa' : ''}`} onClick={() => setTab('account')}>Account e Drive</button>
+          {tab !== 'generali' ? <button className="progetti__voce" onClick={() => setTab('generali')}>‹ Generali</button> : null}
+        </nav>
+        <div className="impostazioni-vista__destra">
+          <div className="impostazioni__tessere">
+            {tessera('Versione', stati.versione, () => vai('aggiornamenti'))}
+            {tessera('Drive', stati.drive, () => setTab('account'))}
+            {tessera('Cassaforte', stati.cassaforte, () => setTab('account'))}
+            {tessera('Telefoni', stati.telefoni, () => vai('computer'))}
+          </div>
+          <div className="impostazioni__corpo">
+            {tab === 'generali' ? <SchedaGenerali onAccount={() => setTab('account')} /> : null}
+            {tab === 'ai' ? <PannelloProvider incorporato /> : null}
+            {tab === 'account' ? <PannelloAccount incorporato /> : null}
+          </div>
+        </div>
       </div>
     </div>
   )

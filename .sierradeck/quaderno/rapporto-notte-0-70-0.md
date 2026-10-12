@@ -119,3 +119,25 @@ Le foto sono in `note/foto-0-70/`, sul PC fisso (fuori da git: mostrano le carte
 **Test**: `tests/shared/salute-vista.test.ts` (5) e, nell'app, `SaluteVistaTest`.
 
 **Aperto**: secondo la revisione, tre fonti dicono lo stato di un altro PC in modi che possono non coincidere: la Salute («non so se è acceso»), «Altri computer» (acceso, dal battito) e la mappa («giù»). La regola unica (`statoComputer`) non l'ho fatta stanotte: tocca il collegamento fra PC, e va provata con i PC veri, non nella copia.
+
+## (e) Impostazioni
+**Cosa cambia**
+- **A tutta finestra**, con la navigazione a sinistra: le sette sezioni (un clic porta lì), poi «AI» e «Account e Drive». Accanto ad Aggiornamenti e a Drive c'è il pallino del loro stato.
+- **In cima quattro riquadri**, ognuno con la sua parola: Versione (aggiornato, nuova, pronta, errore), Drive (collegato, scollegato, non configurato), Cassaforte (aperta, chiusa, da creare, diversa), Telefoni (N accoppiati, nessuno). Un clic porta alla sezione. Le stesse regole servono ad Account e Drive (`src/shared/stato-sistema.ts`).
+- **«Torna ai valori di fabbrica»** non è più il primo tasto: sta in «Strumenti ▾» e chiede conferma, con «Annulla» già scelto.
+- **Il contenuto delle sezioni** (le voci, la ricerca, i «?») resta com'era, solo più largo.
+- **Telefono**: le impostazioni erano già un elenco di sezioni, come chiedeva la revisione. Non le ho toccate, e le quattro tessere stanno solo sul PC.
+
+**Azioni di prima → dove sono adesso**
+
+| Prima | Adesso |
+|---|---|
+| Linguette Generali / AI / Account | navigazione a sinistra (Generali = le sezioni; AI; Account e Drive) |
+| Torna ai valori di fabbrica (primo tasto) | Strumenti ▾ → Torna ai valori di fabbrica… con conferma |
+| Apri il registro, Copia i dettagli | in «Info e aiuto», come prima; il registro anche in Strumenti ▾ |
+| Ricerca nelle impostazioni | in Generali, come prima |
+| Tutte le voci (aggiornamenti, porte, PIN, quaderno personale, aspetto, notifiche…) | invariate |
+
+**Test**: `tests/shared/stato-sistema.test.ts` (4).
+
+**Aperto**: dalla revisione, «Avanzate ▸» chiuso per le porte e per «fuori dalla rete». Le voci sono rimaste dove erano: spostarle cambia la ricerca e le prove della pagina, e non volevo romperle stanotte.
