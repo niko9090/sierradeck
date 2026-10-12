@@ -111,3 +111,7 @@ aspetta proprio te.
   latest.yml». È passeggero: il controllo dei 10 minuti lo rimette a posto.
 - «fionda apl» su DESKTOP dopo la 0.67.3: solo le 2 chat vere.
 - Dispositivo temporaneo del collaudo tolto, copia di prova cancellata.
+- **Rimedio provato con la 0.67.4:** release creata come **bozza**
+  (`gh release create … --draft`), poi `npm run pubblica` e `npm run allega-apk`
+  caricano nella bozza, e solo alla fine `gh release edit vX --draft=false
+  --latest`. Nessun PC vede la release prima che `latest.yml` ci sia.
