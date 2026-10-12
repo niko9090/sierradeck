@@ -100,6 +100,12 @@ Legenda: ✅ funziona · 🔧 era rotto, corretto nella 0.68.0 (con test) · ⏳
   di memoria, poi risposta subito e rilettura in sottofondo. Test in
   `progetti-posta-altrui.test.ts`.
 
+- **D5 nome dell'utente nelle schede di fine lavoro**: la scheda che un
+  autopilota lascia nel quaderno del progetto (che va in git, repository
+  pubblico) scriveva la cartella e i messaggi con `C:\Users\<nome>\…`. Ora
+  `senzaUtente` li scrive `~\…`; la scheda di oggi è stata ripulita. Test
+  `scheda-senza-utente.test.ts`.
+
 ## Aperti
 - Il registro dei progetti ha molti doppioni per id (Wdeck ×4, Gestore ×3…):
   li unisce «stesso nome = stesso progetto» nella vista, ma moltiplicano i giri

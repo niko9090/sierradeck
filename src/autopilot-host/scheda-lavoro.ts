@@ -20,7 +20,20 @@ export function titoloScheda(a: Autopilota): string {
   return nome !== '' ? nome : a.obiettivo.slice(0, 80)
 }
 
+/**
+ * I percorsi senza il nome dell'utente (0.68.0): `C:\Users\<nome>\…` → `~\…`.
+ * La scheda finisce nel quaderno del progetto, che si mette in git e può essere
+ * pubblico: il controllo del 12/10 ne ha trovata una con la cartella utente.
+ */
+export function senzaUtente(testo: string): string {
+  return testo.replace(/[A-Za-z]:[\\/](?:Users|Utenti)[\\/][^\\/\s`'"«»]+/g, '~')
+}
+
 export function corpoScheda(a: Autopilota): string {
+  return senzaUtente(corpoGrezzo(a))
+}
+
+function corpoGrezzo(a: Autopilota): string {
   const criteri = a.criteri.length === 0
     ? '_Nessun criterio: il lavoro è stato giudicato a mano._'
     : a.criteri.map((c) => `- ${c.soddisfatto ? '✅' : '⬜'} ${c.descrizione}`).join('\n')

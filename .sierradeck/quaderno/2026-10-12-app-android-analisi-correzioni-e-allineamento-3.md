@@ -42,7 +42,7 @@ sessione: 1ff78f5e-523c-43b4-b74f-044d9691131d
 - l'ultima pubblicata è la **0.66.4**, completa e con l'app Android firmata giusta (2.66.1).
 
 Quindi è vero: nessun 
-- **2026-10-12 16:58** — comando bloccato dal programma: SierraDeck blocca questa cancellazione: «C:\Users\nikof\AppData\Local\Temp\claude\E--Users-nikof-Documents-SierraDeck\1ff78f5e-523c-43b4-b74f-044d9691131d\scratchpad\collaudo\Env:FILE» è fuori dalle cartelle di questo autopilota (E:\Users\nikof\Documents\SierraDeck, E:\Users\nikof\Documents\SierraDeck.sierradeck-wt). Si cancellano solo file dentro le sue cartelle.
+- **2026-10-12 16:58** — comando bloccato dal programma: SierraDeck blocca questa cancellazione: «~\AppData\Local\Temp\…\scratchpad\collaudo\Env:FILE» è fuori dalle cartelle di questo autopilota (~\Documents\SierraDeck, ~\Documents\SierraDeck.sierradeck-wt). Si cancellano solo file dentro le sue cartelle.
 - **2026-10-12 17:03** — supervisore → prosegui: La richiesta prioritaria di Nicholas sugli aggiornamenti bloccati non è stata fatta nella 0.67.0, e infatti nessun PC si è aggiornato; senza quella correzione nemmeno la verifica di Fionda può partire.
 - **2026-10-12 17:54** — supervisore → chiediUtente: La chat deve fermarsi per lasciar installare la 0.67.3; serve comunque una decisione di Nicholas sulle pulizie del Drive quasi pieno, che solo lui può dare.
 - **2026-10-12 18:31** — Il servizio è ripartito e la domanda aperta è andata perduta: torno al lavoro e la rifaccio.
@@ -54,4 +54,4 @@ Quindi è vero: nessun
 ## In numeri
 
 - interventi: 104
-- cartella: `E:\Users\nikof\Documents\SierraDeck`
+- cartella: `~\Documents\SierraDeck`
