@@ -619,7 +619,9 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             // Il pannello del Drive (PC 0.60.2): sul PC ci mette anche 15
             // secondi, quanto l'attesa di sempre; attraverso il ponte di più.
             // Vale anche quando passa dal ponte: lì la rotta è dentro il corpo.
-            "/api/drive/pannello", "/api/drive/azione"
+            "/api/drive/pannello", "/api/drive/azione",
+            // PC 0.68.0: l'elenco delle conversazioni e l'avvio in sottofondo di un altro PC.
+            "/api/sessioni", "/api/sessioni/riprendi", "/api/sottofondo/avvia"
         )
         /** Il CLI ne concede 180 a un'installazione: qualcosa in più, per la rete. */
         const val LENTE_SECONDI = 200L

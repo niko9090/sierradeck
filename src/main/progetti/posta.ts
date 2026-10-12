@@ -83,6 +83,8 @@ export type Postino = {
   io: () => string
   /** Gli altri PC sul Drive, con il battito. */
   pc: () => Promise<BattitoPc[]>
+  /** Come `pc`, ma subito: i battiti in memoria (un minuto), riletti in sottofondo (0.68.0). */
+  pcSubito: () => Promise<BattitoPc[]>
   /**
    * Gli altri PC come li ricordo: l'ultimo elenco letto, anche a Drive
    * spento. Serve a decidere, senza aspettare la rete, se una cartella e'
@@ -95,6 +97,9 @@ export type Postino = {
   /** Toglie le voci consegnate e fallite. */
   pulisci: (pcId: string) => Promise<Posta | undefined>
 }
+
+/** Quanto valgono i battiti già letti per chi li chiede (0.68.0). */
+export const MEMORIA_BATTITI_MS = 60_000
 
 export function creaPostino(deps: {
   scatola: () => Scatola | undefined
@@ -149,6 +154,8 @@ export function creaPostino(deps: {
   let inGiro = false
   let altrui: BattitoPc[] = deps.memoria?.leggi() ?? []
   let altruiLettiIl = 0
+  /** La rilettura dei battiti in corso, una sola alla volta (0.68.0). */
+  let inLettura: Promise<BattitoPc[]> | undefined
   let ultimoBattito = ''
   let ultimoBattitoIl = 0
   let inErrore = false
@@ -344,6 +351,22 @@ export function creaPostino(deps: {
       const letti = await leggiAltrui(s)
       ricorda(letti)
       return letti
+    },
+    pcSubito() {
+      const s = deps.scatola()
+      if (s === undefined) return Promise.resolve(altrui)
+      // Rileggere i battiti dal Drive ci mette anche 20 secondi (controllo del
+      // 12/10, 0.68.0): «Domande» e la lista dei PC del telefono aspettavano
+      // ogni volta. Un minuto di memoria; poi si risponde con quelli che ci sono
+      // e si rilegge in sottofondo. Si aspetta il Drive solo se non c'è niente.
+      if (altruiLettiIl > 0 && adesso() - altruiLettiIl < MEMORIA_BATTITI_MS) return Promise.resolve(altrui)
+      if (inLettura === undefined) {
+        inLettura = leggiAltrui(s)
+          .then((letti) => { ricorda(letti); return letti })
+          .finally(() => { inLettura = undefined })
+      }
+      if (altrui.length > 0) { void inLettura.catch(() => undefined); return Promise.resolve(altrui) }
+      return inLettura
     },
     altrui: () => altrui,
     async posta(pcId) {

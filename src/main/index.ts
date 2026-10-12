@@ -1953,7 +1953,7 @@ if (!app.requestSingleInstanceLock()) {
       const testo = (x: unknown): string => (typeof x === 'string' ? x : '')
       ipcMain.handle('remoto:pc', async (_e, solo: unknown): Promise<{ io: string; cassaforteAperta: boolean; driveCollegato: boolean; pc: PcRemoto[] }> => {
         const adessoMs = Date.now()
-        const battiti = await postino.pc().catch(() => postino.altrui())
+        const battiti = await postino.pcSubito().catch(() => postino.altrui())
         // Per il PC di un riquadro (0.39.3): com'e' davvero, dopo il bussare.
         // Un battito vecchio non vuol dire spento.
         const stati: Record<string, StatoPc> = {}
@@ -2027,10 +2027,10 @@ if (!app.requestSingleInstanceLock()) {
       setInterval(giroRispecchia, 2 * 60_000).unref?.()
       ipcMain.handle('remoto:trova', (_e, pc: unknown, r: unknown) =>
         esitoRemoto<ChatSuPc | undefined>(async () => {
-          const rr = r as { cwd?: unknown; sessione?: unknown; pcId?: unknown; pcNome?: unknown }
+          const rr = r as { cwd?: unknown; sessione?: unknown; pcId?: unknown; pcNome?: unknown; titolo?: unknown }
           const s = await remoto.chiama(testo(pc), '/api/stato') as { chat?: ChatSuPc[] }
           return trovaChatRemota(Array.isArray(s.chat) ? s.chat : [], {
-            pcId: testo(pc), pcNome: testo(rr.pcNome), cwd: testo(rr.cwd), ...(typeof rr.sessione === 'string' ? { sessione: rr.sessione } : {})
+            pcId: testo(pc), pcNome: testo(rr.pcNome), cwd: testo(rr.cwd), ...(typeof rr.sessione === 'string' ? { sessione: rr.sessione } : {}), ...(typeof rr.titolo === 'string' ? { titolo: rr.titolo } : {})
           })
         }, pc))
       ipcMain.handle('remoto:storia', (_e, pc: unknown, chat: unknown, da: unknown, quante: unknown) =>
@@ -2177,7 +2177,7 @@ if (!app.requestSingleInstanceLock()) {
       // perché con le strade provate. Ogni PC una volta, in parallelo.
       autopilotiAltri = async () => {
         const io = identitaPc.leggi()
-        const battiti = (await postino.pc().catch(() => postino.altrui())).filter((b) => b.pcId !== io.id)
+        const battiti = (await postino.pcSubito().catch(() => postino.altrui())).filter((b) => b.pcId !== io.id)
         return Promise.all(battiti.map(async (b): Promise<AutopilotiDiPc> => {
           const nome = nomeDaMostrare(b)
           try {
@@ -2253,7 +2253,8 @@ if (!app.requestSingleInstanceLock()) {
         const st = contoDrive.stato()
         const av = avvisoDrive()
         const statoSync = await sincronia.stato().catch(() => undefined)
-        const battiti = await postino.pc().catch(() => postino.altrui())
+        // Subito (0.68.0): la Salute aspettava fino a 20 s di rilettura dal Drive.
+        const battiti = await postino.pcSubito().catch(() => postino.altrui())
         const pc = await Promise.all(battiti.map(async (b) => {
           const s = await remoto.statoDi(b.pcId, b.nome).catch(() => undefined)
           const strada = remoto.stradaDi(b.pcId)
@@ -2614,6 +2615,14 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('casa:dove', () => ospite.dove())
       // La casa memorizzata di una chat (0.67.0): il riquadro remoto si toglie da solo solo se è il PC che guarda.
       ipcMain.handle('casa:pcDi', (_e, s: unknown) => (typeof s === 'string' ? unaCasa.casaDi(s)?.pc : undefined))
+      // La stessa chat ripresa con un id nuovo (0.68.0): l'id nuovo prende la casa del vecchio, se non ne ha una.
+      ipcMain.handle('casa:idNuovo', async (_e, vecchia: unknown, nuova: unknown) => {
+        if (typeof vecchia !== 'string' || typeof nuova !== 'string' || vecchia === nuova) return
+        const c = unaCasa.casaDi(vecchia)
+        if (c === undefined || unaCasa.casaDi(nuova) !== undefined) return
+        await unaCasa.memorizza({ [nuova]: c })
+        registro.info(`[casa] ${vecchia.slice(0, 8)} → ${nuova.slice(0, 8)}: stessa chat ripresa con un id nuovo, stessa casa (${c.pcNome})`)
+      })
       // «Su altri PC» → «Apri» (0.67.0): il workspace di quel PC, qui con un riquadro
       // dal vivo per ogni sua chat. Le chat restano là; la finestra che chiede ci va.
       ipcMain.handle('workspace:apriDaAltroPc', async (e, pcId: unknown, nome: unknown) => {
@@ -2622,9 +2631,11 @@ if (!app.requestSingleInstanceLock()) {
         if (store === undefined) return { ok: false, messaggio: 'non pronto' }
         const pcNome = postino.altrui().find((b) => b.pcId === pcId)?.nome ?? pcId.slice(0, 8)
         let chat: { workspace: string; sessione?: string; cwd: string; titolo: string }[] = []
+        let aperteLa: ChatSuPc[] = []
         try {
-          const st = await remoto.chiama(pcId, '/api/stato') as { workspace?: { chat?: unknown } }
+          const st = await remoto.chiama(pcId, '/api/stato') as { workspace?: { chat?: unknown }; chat?: unknown }
           chat = Array.isArray(st.workspace?.chat) ? (st.workspace?.chat as typeof chat) : []
+          aperteLa = Array.isArray(st.chat) ? (st.chat as ChatSuPc[]) : []
         } catch (err) {
           return { ok: false, messaggio: `${pcNome} non risponde (${err instanceof Error ? err.message : String(err)}): riprova quando è acceso.` }
         }
@@ -2639,6 +2650,15 @@ if (!app.requestSingleInstanceLock()) {
         }) }
         if (dopo !== prima && !store.scrivi(dopo)) return { ok: false, messaggio: 'la lista dei workspace non si è scritta' }
         registro.info(`[workspace] «${nome}» di ${pcNome} aperto qui: ${ws.panes.length} chat dal vivo, che restano su ${pcNome}`)
+        // Là partono in sottofondo quelle non aperte (0.68.0): un workspace che sul
+        // PC di casa non è sullo schermo non ha terminali, e qui i riquadri
+        // dicevano «la chat non è aperta là» (caso fionda, 12/10).
+        for (const p of ws.panes) {
+          const r = p.remoto
+          if (r === undefined || r.sessione === undefined) continue
+          if (trovaChatRemota(aperteLa, { pcId, pcNome, cwd: r.cwd, sessione: r.sessione, titolo: p.title }) !== undefined) continue
+          void sottofondoRemoto({ pc: pcId, cwd: r.cwd, sessione: r.sessione, titolo: p.title, workspace: nome }).catch((err: unknown) => registro.info(`[workspace] «${p.title}»: avvio in sottofondo su ${pcNome} non riuscito: ${String(err)}`))
+        }
         for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(dopo), precedente: dopo.attivo })
         e.sender.send('client:workspace', nome)
         return { ok: true, messaggio: `«${nome}» aperto: ${ws.panes.length} chat dal vivo su ${pcNome}.` }
@@ -2715,7 +2735,8 @@ if (!app.requestSingleInstanceLock()) {
         // Là, la chat è aperta? Una chiamata sola, con il suo esito nel registro.
         try {
           const st = await remoto.chiama(verso, '/api/stato') as { chat?: ChatSuPc[] }
-          const trovata = trovaChatRemota(Array.isArray(st.chat) ? st.chat : [], { pcId: verso, pcNome: nomeDi(verso), cwd, sessione: s })
+          const trovata = trovaChatRemota(Array.isArray(st.chat) ? st.chat : [], { pcId: verso, pcNome: nomeDi(verso), cwd, sessione: s, titolo })
+          if (trovata?.sessione !== undefined && trovata.sessione !== s) passo(`là è aperta con un id nuovo (${trovata.sessione.slice(0, 8)}): stessa cartella, stesso titolo — il riquadro passa all’id nuovo`)
           const strada = remoto.stradaDi(verso)
           passo(`${nomeDi(verso)} risponde${strada !== undefined ? ` (${strada.strada}${strada.indirizzo !== undefined ? ` · ${strada.indirizzo}` : ''})` : ''}: ${trovata !== undefined ? 'la chat è aperta là, la mostro dal vivo — apertura remota riuscita' : 'la chat non è aperta là: nel riquadro c’è «Riapri là»'}`)
         } catch (err) {
@@ -3468,7 +3489,7 @@ if (!app.requestSingleInstanceLock()) {
       app.on('before-quit', () => { clearInterval(timerPosta); clearTimeout(primaPosta) })
 
       ipcMain.handle('posta:io', () => identitaPc.leggi().id)
-      ipcMain.handle('posta:pc', () => postino.pc())
+      ipcMain.handle('posta:pc', () => postino.pcSubito())
       // Il nome scelto di questo PC (0.52.4): «Altri computer» → «Questo PC».
       ipcMain.handle('pc:identita', () => identitaPc.leggi())
       ipcMain.handle('pc:impostaNome', (_e, nome: unknown) => impostaNomePc(String(nome ?? '')))
@@ -4975,7 +4996,8 @@ if (!app.requestSingleInstanceLock()) {
         codaPulisci: (id: string) => ronda.pulisciCoda(id),
         // La posta per un PC, dal telefono: gli altri computer e le loro cassette.
         pcIo: () => identitaPc.leggi().id,
-        pc: () => postinoGlobale?.pc() ?? Promise.resolve([]),
+        // Subito (0.68.0): rileggere dal Drive a ogni domanda del telefono costava 20 s.
+        pc: () => postinoGlobale?.pcSubito() ?? Promise.resolve([]),
         posta: (pc: string) => postinoGlobale?.posta(pc) ?? Promise.resolve(undefined),
         postaAggiungi: (pc: string, voce: { cwd: string; testo: string; sessione?: string; origine?: 'umano' | 'autopilota'; daVisore?: string }) =>
           postinoGlobale?.aggiungi(pc, voce) ?? Promise.resolve(undefined),

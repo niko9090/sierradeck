@@ -214,7 +214,12 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           if (s.strada !== undefined) setStrada(s.strada)
           if (!s.ok) { taci(s.motivo, s.messaggio); setFase({ tipo: 'errore', motivo: s.motivo, messaggio: s.messaggio }); return }
           setSilenzio(undefined)
-          const trovata = trovaChatRemota(s.dati.chat, remoto)
+          const trovata = trovaChatRemota(s.dati.chat, { ...remoto, ...(title !== '' ? { titolo: title } : {}) })
+          // Là con un id nuovo (0.68.0): il riquadro, e con lui il workspace, passa a quello.
+          if (trovata?.sessione !== undefined && remoto.sessione !== undefined && trovata.sessione !== remoto.sessione) {
+            void window.gestore.casa.idNuovo(remoto.sessione, trovata.sessione).catch(() => undefined)
+            rendiRemoto(paneId, { ...remoto, sessione: trovata.sessione })
+          }
           // Chiusa da te sul PC di casa dopo che questo riquadro è stato aperto
           // (0.60.9): si chiude anche qui, invece di cercarla e proporre «Riapri
           // là». La conversazione resta: «Riprendi una conversazione», «Progetti».

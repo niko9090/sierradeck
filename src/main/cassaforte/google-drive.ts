@@ -25,6 +25,8 @@ import type { Archivio, VoceArchivio } from './archivio'
 const NOME_FILE_PREDEFINITO = 'sierradeck.cassaforte'
 const API = 'https://www.googleapis.com/drive/v3'
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3'
+/** Quanto vale un «non c'è» per chi legge (0.68.0): tre minuti, poi si ricerca. */
+export const ASSENTE_PER_MS = 3 * 60_000
 
 type Fetch = typeof fetch
 
@@ -268,15 +270,24 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
   // vecchio (file cancellato e ricreato altrove) si scopre con un 404 e si
   // dimentica.
   const idPerNome = new Map<string, string>()
-  const trovaPerNome = async (tk: string, nome: string): Promise<{ id: string } | undefined> => {
+  /**
+   * I nomi cercati e non trovati, con quando (0.68.0). Il 12/10 Google ha
+   * risposto per ore «403 Quota exceeded … Total Query Cost per minute»: ogni
+   * giro rileggeva file che non esistono (presenze dei progetti, posta), e un
+   * file che non c'è non si ricordava, quindi si ricercava ogni volta.
+   */
+  const assenti = new Map<string, number>()
+  const trovaPerNome = async (tk: string, nome: string, fresco = false): Promise<{ id: string } | undefined> => {
     const noto = idPerNome.get(nome)
     if (noto !== undefined) return { id: noto }
+    const visto = assenti.get(nome)
+    if (!fresco && visto !== undefined && Date.now() - visto < ASSENTE_PER_MS) return undefined
     const q = encodeURIComponent(`name='${nome}'`)
     const url = `${API}/files?spaces=appDataFolder&fields=${encodeURIComponent('files(id)')}&q=${q}`
     const r = await conRitenta(() => f(url, { headers: intestazioni(tk) }), 'ricerca')
     const j = (await r.json()) as { files?: Array<{ id?: string }> }
     const id = j.files?.[0]?.id
-    if (id !== undefined) idPerNome.set(nome, id)
+    if (id !== undefined) { idPerNome.set(nome, id); assenti.delete(nome) } else assenti.set(nome, Date.now())
     return id === undefined ? undefined : { id }
   }
 
@@ -302,6 +313,7 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
           if (file.id !== undefined && file.name !== undefined) {
             mappa.set(file.name, { id: file.id, versione: String(file.version ?? '') })
             idPerNome.set(file.name, file.id)
+            assenti.delete(file.name)
           }
         }
         pageToken = j.nextPageToken
@@ -337,7 +349,8 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
       let attesa = 600
       for (let i = 0; ; i += 1) {
         try {
-          const file = await trovaPerNome(tk, nome)
+          // Fresco: mai creare un doppione perché «non c'era» tre minuti fa.
+          const file = await trovaPerNome(tk, nome, true)
           if (file !== undefined) {
             await scriviMediaSu(tk, file.id, blocco)
           } else {
@@ -350,6 +363,7 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
             const { id } = (await r.json()) as { id?: string }
             if (id === undefined) throw new Error('Drive: creazione senza id')
             idPerNome.set(nome, id)
+            assenti.delete(nome)
             await scriviMediaSu(tk, id, blocco)
           }
           onProgresso?.(blocco.length, blocco.length)

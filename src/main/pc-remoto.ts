@@ -148,7 +148,11 @@ export const ROTTE_LENTE: readonly string[] = [
   // scrivere la casa e il registro ci mettono più di 4 secondi. Visto dal vero il
   // 12/10: «salva» del portatile scadeva, il trasloco si fermava e ripartiva dopo.
   '/api/trasloco/salva', '/api/trasloco/togli', '/api/trasloco/ripristina', '/api/trasloco/avvia', '/api/trasloco/annulla',
-  '/api/workspace/crea', '/api/workspace/progetto'
+  '/api/workspace/crea', '/api/workspace/progetto',
+  // Il controllo a tappeto del 12/10 (0.68.0): «Riprendi» di un altro PC dal
+  // telefono scadeva (504 dopo 4 s: l'elenco delle conversazioni là ci mette
+  // di più), e così l'avvio in sottofondo, che fa partire claude.
+  '/api/sessioni', '/api/sessioni/riprendi', '/api/sottofondo/avvia', '/api/file/progetti', '/api/file/elenco'
 ]
 const ATTESA_LENTA_PREDEFINITA_MS = 45_000
 /** Il bussare breve: un secondo e mezzo per tutti gli indirizzi insieme. */

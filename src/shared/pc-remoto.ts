@@ -25,6 +25,8 @@ export type ChatRemota = {
   sessione?: string
   /** Quando il riquadro è stato aperto qui (0.60.9): vedi `chiusaDopo` in `@shared/chiuse`. */
   dal?: string
+  /** Il titolo della chat, per riconoscerla se là ha un id nuovo (0.68.0). */
+  titolo?: string
 }
 
 /** Una chat aperta su quel PC, come la racconta la sua `/api/stato`. */
@@ -48,7 +50,14 @@ export function trovaChatRemota(chat: ChatSuPc[], r: ChatRemota): ChatSuPc | und
   if (r.sessione !== undefined && r.sessione !== '') {
     const precisa = chat.find((c) => c.sessione === r.sessione)
     if (precisa !== undefined) return precisa
-    return undefined
+    // Ripresa con un id nuovo (0.68.0): Claude Code può riprendere una
+    // conversazione scrivendola sotto un altro id. Vale come aperta la chat
+    // nella stessa cartella con lo stesso titolo, se è una sola: prima il PC di
+    // casa rispondeva «non aperta» per una chat che Nicholas vedeva aperta.
+    const t = (r.titolo ?? '').trim().toLowerCase()
+    if (t === '') return undefined
+    const stesse = chat.filter((c) => pulisci(c.cwd) === pulisci(r.cwd) && c.titolo.trim().toLowerCase() === t)
+    return stesse.length === 1 ? stesse[0] : undefined
   }
   return chat.find((c) => pulisci(c.cwd) === pulisci(r.cwd))
 }

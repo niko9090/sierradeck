@@ -557,6 +557,7 @@ contextBridge.exposeInMainWorld('gestore', {
     dove: (): Promise<{ io: { id: string; nome: string }; pc: { id: string; nome: string }[]; gruppi: import('@shared/ospite-chat').GruppoDove[]; traslochi: import('@shared/una-casa').RegistroRiordino[] }> => ipcRenderer.invoke('casa:dove'),
     /** La casa memorizzata di una chat: l'id del PC (0.67.0). */
     casaDi: (sessione: string): Promise<string | undefined> => ipcRenderer.invoke('casa:pcDi', sessione),
+    idNuovo: (vecchia: string, nuova: string): Promise<void> => ipcRenderer.invoke('casa:idNuovo', vecchia, nuova),
     // Il pannello delle chat e dei progetti del Drive (0.58.0).
     pannello: (): Promise<import('@shared/pannello-drive').Pannello> => ipcRenderer.invoke('casa:pannello'),
     // Le azioni del pannello e dell'elenco dei progetti (0.58.0, tappa 4).

@@ -406,7 +406,9 @@ export const useLayoutStore = create<State>((set, get) => ({
       const { ptyId: _p, ibernata: _i, ...resto } = p
       // Lo stesso riquadro che cambia PC (la casa corretta) tiene il suo `dal`.
       const dal = remoto.dal ?? p.remoto?.dal
-      return { panes: { ...s.panes, [paneId]: { ...resto, remoto: conDal(dal !== undefined ? { ...remoto, dal } : remoto) } } }
+      // La stessa chat là con un id nuovo (0.68.0): anche il riquadro salvato passa a quello.
+      const idNuovo = remoto.sessione !== undefined && p.remoto?.sessione !== undefined && remoto.sessione !== p.remoto.sessione ? { sessionUuid: remoto.sessione } : {}
+      return { panes: { ...s.panes, [paneId]: { ...resto, ...idNuovo, remoto: conDal(dal !== undefined ? { ...remoto, dal } : remoto) } } }
     }),
 
   rendiLocale: (paneId) =>

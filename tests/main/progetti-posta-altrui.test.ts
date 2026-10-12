@@ -60,3 +60,30 @@ describe('gli altri PC ricordati', () => {
     expect(postino.altrui()[0]?.nome).toBe('Portatile')
   })
 })
+
+describe('i battiti per chi li chiede, subito (0.68.0)', () => {
+  it('un minuto di memoria; poi risponde con quelli che ha e rilegge in sottofondo; aspetta il Drive solo la prima volta', async () => {
+    const scatola = scatolaInMemoria()
+    await scatola.scrivi(nomeBattitoPc('P'), battitoDi('P', 'Portatile', []))
+    let orologio = Date.parse('2026-09-15T08:00:00.000Z')
+    const postino = creaPostino({
+      scatola: () => scatola, pcId: () => 'F', pcNome: () => 'Fisso', versione: () => '0.27.0',
+      chat: () => [], cartelle: () => [], cartellaEsiste: () => true,
+      apriChat: () => undefined, riprendiChat: () => undefined, scrivi: () => undefined,
+      adesso: () => orologio
+    })
+    // La prima volta non c'è niente: si aspetta il Drive.
+    expect((await postino.pcSubito()).map((b) => b.nome)).toEqual(['Portatile'])
+    const letture = scatola.letture
+    // Entro un minuto: dalla memoria, senza toccare il Drive.
+    await scatola.scrivi(nomeBattitoPc('D'), battitoDi('D', 'Desktop', []))
+    orologio += 30_000
+    expect((await postino.pcSubito()).map((b) => b.nome)).toEqual(['Portatile'])
+    expect(scatola.letture).toBe(letture)
+    // Dopo un minuto: risponde subito con quelli di prima, e intanto rilegge.
+    orologio += 40_000
+    expect((await postino.pcSubito()).map((b) => b.nome)).toEqual(['Portatile'])
+    await new Promise((ok) => setTimeout(ok, 10))
+    expect(postino.altrui().map((b) => b.nome).sort()).toEqual(['Desktop', 'Portatile'])
+  })
+})

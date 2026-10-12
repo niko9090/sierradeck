@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.68.0',
+    righe: [
+      '**Le chat di un altro PC non risultano più «non avviate» quando lo sono.** «Apri» da «Su altri PC» le fa partire là in sottofondo, e una chat ripresa con un id nuovo si riconosce lo stesso (stessa cartella, stesso titolo).',
+      '**Il Drive non va più oltre i limiti di Google.** I giri cercavano di continuo file che non esistono: per ore Google ha risposto «quota superata». Ora un «non c’è» si ricorda per tre minuti.',
+      '**Domande, Salute e gli altri PC si aprono subito:** prima aspettavano fino a 30 secondi la rilettura dal Drive. Dal telefono, «Riprendi» di un altro PC non scade più dopo 4 secondi.'
+    ]
+  },
+  {
     versione: '0.67.4',
     righe: [
       '**«Documents» non è più un progetto.** Le cartelle di sistema (Documenti, Desktop, Download) non diventano mai progetti né workspace; il workspace «Documents» creato per sbaglio se ne va da solo e le sue chat tornano nel workspace del loro progetto, o in «Predefinito».',
