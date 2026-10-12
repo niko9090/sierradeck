@@ -40,7 +40,8 @@ const UNA_RIGA = (t: string): string => t.replace(/\s+/g, ' ').trim().slice(0, 1
 export function statoAutopilotaDalVivo(a: Pick<Autopilota, 'stato' | 'ultimoEvento' | 'decisioni'> & { domanda?: unknown }, ora: number, ultimoSegno?: number): StatoDalVivo {
   const etichetta: EtichettaDalVivo = a.stato === 'finito'
     ? 'finito'
-    : a.stato === 'attesa' || (a.stato === 'lavoro' && a.domanda !== undefined && a.domanda !== null)
+    // Solo una domanda vera: `haDomandaAperta` dice `false` quando non c'è (visto dal vero il 12/10).
+    : a.stato === 'attesa' || (a.stato === 'lavoro' && a.domanda !== undefined && a.domanda !== null && a.domanda !== false)
       ? 'aspetta te'
       : a.stato === 'lavoro' || a.stato === 'intervista'
         ? 'al lavoro'

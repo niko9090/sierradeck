@@ -77,3 +77,12 @@ describe('in sottofondo: si scrive durante il turno solo un testo «anche al lav
     expect(f.scritto).toEqual(['urgente', '\r'])
   })
 })
+
+describe('in sottofondo il servizio sa che la consegna è partita (0.68.1)', () => {
+  it('dall’id del testo si risale alla consegna', async () => {
+    const { consegnaDaIdTesto, idTestoConsegna } = await import('../../src/main/autopilota-consegne')
+    const id = idTestoConsegna({ id: 'c-12', autopilotaId: 'ap-1', chatId: 'ap-1', cwd: 'C:\p', sessionId: 's', titolo: 't', cosa: 'scrivi', testo: 'fai anche questo' })
+    expect(consegnaDaIdTesto(id)).toBe('c-12')
+    expect(consegnaDaIdTesto('w-abc')).toBeUndefined()
+  })
+})

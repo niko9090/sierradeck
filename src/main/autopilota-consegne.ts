@@ -110,6 +110,17 @@ export function doveConsegnare(p: {
 }
 
 /** L'id del testo in sottofondo per una consegna: lo stesso per la stessa istruzione, mai uguale per due diverse. */
+/**
+ * La consegna di un testo in sottofondo, dal suo id (`ap-<consegna>-<impronta>`).
+ * Serve a dire al servizio che è partita (0.68.1): prima il sottofondo lo
+ * scriveva solo nel registro, il servizio non lo sapeva e i messaggi restavano
+ * «in consegna» per sempre — e dopo un suo riavvio sarebbero stati riconsegnati.
+ */
+export function consegnaDaIdTesto(id: string): string | undefined {
+  const m = /^ap-(.+)-[0-9a-z]+$/.exec(id)
+  return m?.[1]
+}
+
 export function idTestoConsegna(c: Consegna): string {
   let h = 0
   for (let i = 0; i < c.testo.length; i += 1) h = (Math.imul(h, 31) + c.testo.charCodeAt(i)) | 0

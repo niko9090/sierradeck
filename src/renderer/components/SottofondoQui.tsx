@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { StatoSottofondo } from '@shared/sottofondo'
 import { Aiuto } from './Aiuto'
 import { durata, etichettaSottofondo, SENZA_SEGNI_MS } from '@shared/stato-dal-vivo'
@@ -32,6 +33,14 @@ function quando(iso: string): string {
 export function SottofondoQui({ vuoto }: { vuoto?: React.ReactNode } = {}): React.JSX.Element | null {
   const [elenco, setElenco] = useState<StatoSottofondo[]>([])
   const [aperto, setAperto] = useState(false)
+  // In un portale attaccato al body (0.68.1): dentro la barra veniva tagliato.
+  const tasto = useRef<HTMLButtonElement>(null)
+  const [posto, setPosto] = useState<{ top: number; right: number } | undefined>(undefined)
+  useLayoutEffect(() => {
+    if (!aperto) return
+    const r = tasto.current?.getBoundingClientRect()
+    if (r !== undefined) setPosto({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) })
+  }, [aperto])
   const [esito, setEsito] = useState<string | undefined>(undefined)
   /** «Guarda» (0.68.1): lo schermo dal vivo di una chat, riletto ogni due secondi. */
   const [guardo, setGuardo] = useState<string | undefined>(undefined)
@@ -58,6 +67,7 @@ export function SottofondoQui({ vuoto }: { vuoto?: React.ReactNode } = {}): Reac
   return (
     <span className="sottofondo-qui">
       <button
+        ref={tasto}
         className="tasto"
         onClick={() => setAperto((a) => !a)}
         aria-expanded={aperto}
@@ -65,8 +75,8 @@ export function SottofondoQui({ vuoto }: { vuoto?: React.ReactNode } = {}): Reac
       >
         ⇄ Al lavoro in sottofondo ({elenco.length})
       </button>
-      {aperto ? (
-        <div className="sottofondo-qui__elenco" role="dialog" aria-label="Chat usate da altri PC">
+      {aperto && posto !== undefined ? createPortal(
+        <div className="sottofondo-qui__elenco" role="dialog" aria-label="Al lavoro in sottofondo" style={{ position: 'fixed', top: posto.top, right: posto.right }}>
           <div className="sottofondo-qui__titolo con-aiuto">Al lavoro in sottofondo
             <Aiuto di="Al lavoro in sottofondo">
               Si vede sempre chi lavora (anche senza riquadro): le chat degli autopiloti il cui workspace non è sullo schermo, e quelle usate da un altro PC o dal telefono. «Guarda» mostra lo schermo dal vivo senza cambiare workspace.{' '}
@@ -104,7 +114,7 @@ export function SottofondoQui({ vuoto }: { vuoto?: React.ReactNode } = {}): Reac
             <pre className="sottofondo-qui__schermo" style={{ maxHeight: 320, overflow: 'auto', fontSize: 11, background: 'var(--sfondo-terminale, #0d1117)', padding: 6, margin: '6px 0' }}>{schermo.join(String.fromCharCode(10))}</pre>
           ) : null}
           {esito !== undefined ? <div className="sottofondo-qui__nota">{esito}</div> : null}
-        </div>
+        </div>, document.body
       ) : null}
     </span>
   )

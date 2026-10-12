@@ -124,7 +124,7 @@ import { apkDisponibile } from './apk-disponibile'
 import { creaLavoro } from './cassaforte/lavoro-in-corso'
 import { scanProjects } from './indexer/project-scanner'
 import { get as httpGet, request as httpRequest } from 'node:http'
-import { avviaRitiro, doveConsegnare, leggiConsegne, finestraPerConsegna, idTestoConsegna, versoIlSuoWorkspace, type Consegna } from './autopilota-consegne'
+import { avviaRitiro, consegnaDaIdTesto, doveConsegnare, leggiConsegne, finestraPerConsegna, idTestoConsegna, versoIlSuoWorkspace, type Consegna } from './autopilota-consegne'
 import type { Chat } from './client-rotte'
 import { apriProviderStore } from './provider-store'
 import { creaAggiornamenti, type EsitoQuiete } from './aggiornamenti'
@@ -1271,7 +1271,13 @@ if (!app.requestSingleInstanceLock()) {
           log: (m) => registro.info(m),
           aggancia: (ptyId) => agganciaPtyAlSottofondo(ptyId),
           // Il testo di un autopilota partito in sottofondo (0.60.8): nel registro come le consegne a schermo.
-          consegnato: (voce, id) => { if (voce.autopilota !== undefined) registro.info(`[consegna] ${id} per «${voce.titolo}»: partita, in sottofondo (workspace «${voce.workspace ?? '?'}» non sullo schermo)`) },
+          consegnato: (voce, id) => {
+            if (voce.autopilota === undefined) return
+            registro.info(`[consegna] ${id} per «${voce.titolo}»: partita, in sottofondo (workspace «${voce.workspace ?? '?'}» non sullo schermo)`)
+            // E lo si dice al servizio (0.68.1): i messaggi passano a «consegnato alle…».
+            const consegna = consegnaDaIdTesto(id)
+            if (consegna !== undefined) void postaAlServizio('/consegne/esito', { id: consegna, esito: 'partita' }).catch(() => undefined)
+          },
           cambiato: () => {
             chatAperte = conSegnali(chatDiQui())
             for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('sottofondo:cambiato')

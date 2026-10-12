@@ -13,6 +13,8 @@ describe('lo stato di un autopilota, dal vivo', () => {
     expect(statoAutopilotaDalVivo({ ...base, stato: 'lavoro' }, ORA, ORA).etichetta).toBe('al lavoro')
     expect(statoAutopilotaDalVivo({ ...base, stato: 'attesa' }, ORA).etichetta).toBe('aspetta te')
     expect(statoAutopilotaDalVivo({ ...base, stato: 'lavoro', domanda: { testo: '?' } }, ORA).etichetta).toBe('aspetta te')
+    // Senza domanda aperta `haDomandaAperta` dà false: resta «al lavoro» (visto dal vero il 12/10).
+    expect(statoAutopilotaDalVivo({ ...base, stato: 'lavoro', domanda: false }, ORA, ORA).etichetta).toBe('al lavoro')
     expect(statoAutopilotaDalVivo({ ...base, stato: 'sospeso' }, ORA).etichetta).toBe('fermo')
     expect(statoAutopilotaDalVivo({ ...base, stato: 'finito' }, ORA).etichetta).toBe('finito')
   })
