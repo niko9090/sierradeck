@@ -10,7 +10,11 @@
 /** Chi la usa: un altro PC, il telefono, o questo PC stesso. */
 export type ChiUsa = { id: string; nome: string }
 
-export type TestoInCoda = { id: string; testo: string; quando: string }
+export type TestoInCoda = {
+  id: string; testo: string; quando: string
+  /** Si scrive anche se la chat sta lavorando (0.68.1): Claude Code lo legge appena può. */
+  ancheAlLavoro?: boolean
+}
 
 /** Una voce dell'elenco su disco (`sottofondo.json`). */
 export type VoceSottofondo = {

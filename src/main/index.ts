@@ -5678,7 +5678,9 @@ if (!app.requestSingleInstanceLock()) {
             testo: pronta.testo, idMessaggio: idTesto,
             ...(ws !== undefined ? { workspace: ws } : {}),
             ...(c.autopilotaId !== '' ? { autopilota: { id: c.autopilotaId, chat: c.chatId } } : {}),
-            ...(ptyGia !== undefined && !sf.ha(c.sessionId) ? { ptyGia } : {})
+            ...(ptyGia !== undefined && !sf.ha(c.sessionId) ? { ptyGia } : {}),
+            // In coda da più di due minuti (0.68.1): si scrive anche se la chat lavora.
+            ...(c.ancheAlLavoro === true ? { ancheAlLavoro: true } : {})
           })
         } catch (e) {
           // Non si conferma: resta nella coda del servizio e si riprova al giro dopo.

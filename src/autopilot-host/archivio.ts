@@ -39,6 +39,33 @@ function validaId(id: string): string {
  * Il suffisso numerato evita che un secondo avvio con lo stesso problema
  * sovrascriva il salvataggio del primo.
  */
+/**
+ * I file del servizio che stanno accanto agli autopiloti e non sono
+ * autopiloti (0.68.1). Il 12/10 `elenca` leggeva anche `consegne-numero.json`,
+ * lo rifiutava e lo metteva da parte come «illeggibile» a ogni giro (47 copie):
+ * il contatore delle consegne ripartiva da c-1 e il Gestore confermava consegne
+ * di altri — gli ordini degli autopiloti non arrivavano alle chat.
+ */
+export const FILE_DEL_SERVIZIO = new Set(['consegne-numero.json'])
+
+/**
+ * Il numero più alto fra il contatore e le sue copie messe da parte per
+ * sbaglio (`consegne-numero.json.illeggibile-N`): si riparte da lì.
+ */
+export function ultimoNumeroConsegne(cartella: string): number {
+  let massimo = 0
+  let nomi: string[] = []
+  try { nomi = readdirSync(cartella) } catch { return 0 }
+  for (const nome of nomi) {
+    if (nome !== 'consegne-numero.json' && !nome.startsWith('consegne-numero.json.illeggibile-')) continue
+    try {
+      const n = Number((JSON.parse(readFileSync(join(cartella, nome), 'utf8')) as { ultimo?: unknown }).ultimo)
+      if (Number.isFinite(n) && n > massimo) massimo = Math.floor(n)
+    } catch { /* non è un contatore */ }
+  }
+  return massimo
+}
+
 function mettiDaParte(percorso: string): void {
   for (let n = 1; n < 1000; n += 1) {
     const destinazione = `${percorso}.illeggibile-${n}`
@@ -120,7 +147,7 @@ export function apriArchivio(cartella: string): Archivio {
       for (const nome of readdirSync(cartella)) {
         // Solo i file che abbiamo scritto noi: accanto possono esserci i
         // .illeggibile messi da parte, e non vanno riletti a ogni giro.
-        if (!nome.endsWith('.json')) continue
+        if (!nome.endsWith('.json') || FILE_DEL_SERVIZIO.has(nome)) continue
         const percorso = join(cartella, nome)
         vistiOra.add(percorso)
         let st

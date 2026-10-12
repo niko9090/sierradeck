@@ -51,6 +51,37 @@ export type ChatFerma = {
 export const FERMA_DA_MS = 30_000
 
 /**
+ * Dopo quanto un messaggio in coda si porta anche a una chat che sta lavorando
+ * (0.68.1). «STO SCRIVENDO NEGLI AUTOPILOTI MA NON RIESCONO AD IMPARTIRE ORDINI
+ * ALLE CHAT» (Nicholas, 12/10): una chat che lavora per ore non si ferma mai, e
+ * la coda aspettava la fine del turno. Provato dal vero il 12/10: Claude Code
+ * accetta un testo scritto durante il turno, non interrompe quello che fa e lo
+ * legge appena può.
+ */
+export const IN_CODA_AL_LAVORO_MS = 2 * 60_000
+
+/**
+ * Le chat al lavoro (non ferme) con un messaggio in coda da almeno `soglia`:
+ * gli si porta adesso, anche durante il turno. Le chiavi sono quelle della coda
+ * (`chatId`, o l'id dell'autopilota per la chat singola).
+ */
+export function chatConCodaVecchia(a: Autopilota, ora: number, soglia: number, ferme: ReadonlySet<string>): { chatId?: string; da: number }[] {
+  if (a.stato !== 'lavoro' || a.fermatoPerAggiornamento === true) return []
+  const candidate: { chiave: string; chatId?: string }[] = a.chats.length === 0
+    ? [{ chiave: a.id }]
+    : a.chats.filter((c) => c.stato === 'lavoro').map((c) => ({ chiave: c.id, chatId: c.id }))
+  const fuori: { chatId?: string; da: number }[] = []
+  for (const c of candidate) {
+    if (ferme.has(c.chiave)) continue
+    const quando = a.daConsegnare.filter((m) => m.chats.includes(c.chiave)).map((m) => Date.parse(m.quando)).filter((t) => !Number.isNaN(t))
+    if (quando.length === 0) continue
+    const piuVecchio = Math.min(...quando)
+    if (ora - piuVecchio >= soglia) fuori.push({ ...(c.chatId !== undefined ? { chatId: c.chatId } : {}), da: ora - piuVecchio })
+  }
+  return fuori
+}
+
+/**
  * Le chat al lavoro che il Gestore vede ferme ad aspettare da almeno `soglia`.
  *
  * Il difetto del 09/10: un autopilota «al lavoro» con i messaggi in coda, e la

@@ -47,6 +47,11 @@ export type Consegna = {
    * fatta nascere. Non arriva nella chat: va nella linguetta «Istruzioni».
    */
   perche?: string
+  /**
+   * Da scrivere anche se la chat sta lavorando (0.68.1): messaggi in coda da più
+   * di due minuti. Il Gestore non aspetta la fine del turno.
+   */
+  ancheAlLavoro?: boolean
 }
 
 /** Chi vuole sapere cosa succede alle consegne (0.41.0: la linguetta «Istruzioni»). */

@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { get } from 'node:http'
 import { portaAutopilotiDa } from '@shared/autopilota'
 import { APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
-import { apriArchivio } from './archivio'
+import { apriArchivio, ultimoNumeroConsegne } from './archivio'
 import { apriQuaderno } from '../main/quaderno-store'
 import { apriRegistro } from '../main/registro'
 import { creaServer } from './server'
@@ -206,8 +206,9 @@ export function avviaServizio(): void {
   const istruzioni = apriRegistroIstruzioni(archivio.cartella)
   // Il numero delle consegne non riparte da c-1 a ogni avvio (0.57.1).
   const fileNumeri = join(archivio.cartella, 'consegne-numero.json')
-  let primoNumero = 0
-  try { primoNumero = Number((JSON.parse(readFileSync(fileNumeri, 'utf8')) as { ultimo?: unknown }).ultimo) || 0 } catch { /* primo avvio */ }
+  // Anche dalle copie messe da parte per sbaglio fino alla 0.68.0 (vedi FILE_DEL_SERVIZIO).
+  const primoNumero = ultimoNumeroConsegne(archivio.cartella)
+  console.info(`[consegna] il numero delle consegne riparte da c-${primoNumero + 1}`)
   const consegne = creaConsegne({
     messa: (c) => istruzioni.registra(c),
     confermata: (id) => istruzioni.esito(id, 'consegnata'),
@@ -245,7 +246,7 @@ export function avviaServizio(): void {
     interroga: interrogazioneReale(claudeCmd()),
     // Anche la chat: senza, il pezzo di lavoro della flotta si perdeva per
     // strada e ogni chat riceveva l obiettivo intero.
-    avviaLavoro: (a, messaggio, chat, perche) => lavori.avvia(a, messaggio, chat, perche),
+    avviaLavoro: (a, messaggio, chat, perche, opz) => lavori.avvia(a, messaggio, chat, perche, opz),
     fermaLavoro: (id, chatId) => lavori.ferma(id, chatId),
     avvisa,
     domande,

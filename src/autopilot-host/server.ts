@@ -12,7 +12,7 @@ import {
 } from './decisione'
 import { chiediDecisione } from './decisione-supervisore'
 import { applicaRete } from './rete-sicurezza'
-import { chatFerme, chiaveTurno, chiTace, FERMA_DA_MS, motivoSilenzio } from './guardiano'
+import { chatConCodaVecchia, chatFerme, chiaveTurno, chiTace, FERMA_DA_MS, IN_CODA_AL_LAVORO_MS, motivoSilenzio } from './guardiano'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
 import { STRATEGIE } from './strategie'
@@ -61,7 +61,7 @@ export type Dipendenze = {
    * consegnandole quel testo — è la strada della risposta tardiva.
    */
   /** Può tornare l'id della consegna (0.56.4): serve a tenere «in volo» i messaggi che porta. */
-  avviaLavoro: (a: Autopilota, messaggio?: string, chat?: ChatGovernata, perche?: string) => Promise<void | string>
+  avviaLavoro: (a: Autopilota, messaggio?: string, chat?: ChatGovernata, perche?: string, opz?: { ancheAlLavoro?: boolean }) => Promise<void | string>
   fermaLavoro: (id: string, chatId?: string) => void
   /**
    * Le istruzioni che aspettano di essere portate dentro una chat.
@@ -558,14 +558,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * appena avviato ha comunque tutto il tempo di silenzio davanti a se' prima
    * di essere considerato fermo.
    */
-  const avviaLavoro = (a: Autopilota, messaggio?: string, chat?: ChatGovernata, presi: MessaggioPerLaChat[] = []): Promise<void> => {
+  const avviaLavoro = (a: Autopilota, messaggio?: string, chat?: ChatGovernata, presi: MessaggioPerLaChat[] = [], opz?: { ancheAlLavoro?: boolean }): Promise<void> => {
     ultimoTurno.set(chiaveTurno(a.id, chat?.id), Date.parse(deps.adesso()))
     // Le si manda un turno: non è più «ferma ad aspettare» finché il Gestore
     // non lo rivede.
     fermaDal.delete(chiaveTurno(a.id, chat?.id))
     // Il perché della mossa (0.41.0, linguetta «Istruzioni»): la decisione
     // annotata subito prima. Chi manda un'istruzione la annota sempre prima.
-    return deps.avviaLavoro(a, messaggio, chat, messaggio === undefined ? undefined : percheRecente(a, deps.adesso()))
+    return deps.avviaLavoro(a, messaggio, chat, messaggio === undefined ? undefined : percheRecente(a, deps.adesso()), opz)
       .then((consegna) => {
         // I messaggi tolti dalla coda restano «in volo» finché la chat non
         // risulta partita (0.56.4). Senza un id di consegna (in prova) si
@@ -953,6 +953,29 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         console.info(`[autopilota] ${a.id}${f.chatId !== undefined ? `::${f.chatId}` : ''} ferma da ${Math.round(f.da / 1000)} s: ${presi.testi.length > 0 ? `consegno ${presi.testi.length} messaggi in coda` : 'riprendo il giro (chiesto)'}`)
         void avviaLavoro(a, presi.testi.length > 0 ? conPreambolo(presi.testi, seguito) : seguito, chat, presi.presi).catch((err: unknown) => {
           console.error(`[autopilota] consegna alla chat ferma di ${a.id} fallita:`, err)
+        })
+        mandate += 1
+      }
+      // Le chat che lavorano e hanno un messaggio in coda da più di due minuti
+      // (0.68.1): glielo si porta adesso, durante il turno. Claude Code lo legge
+      // appena può, senza interrompere quello che sta facendo.
+      if (opz.forza === true) continue
+      const giaFerme = new Set(ferme.map((f) => f.chatId ?? a.id))
+      for (const v of chatConCodaVecchia(a, ora, IN_CODA_AL_LAVORO_MS, giaFerme)) {
+        const presi = prendiMessaggiPer(a, v.chatId ?? a.id)
+        if (presi.testi.length === 0) continue
+        const chat = v.chatId === undefined ? undefined : presi.autopilota.chats.find((c) => c.id === v.chatId)
+        a = {
+          ...presi.autopilota,
+          decisioni: [...presi.autopilota.decisioni, {
+            quando: deps.adesso(),
+            cosa: `la chat${v.chatId !== undefined ? ` ${v.chatId}` : ''} lavora e ${presi.testi.length === 1 ? 'un messaggio aspettava' : `${presi.testi.length} messaggi aspettavano`} da ${Math.round(v.da / 60_000)} min: glieli scrivo adesso, durante il turno`
+          }]
+        }
+        salva(a)
+        console.info(`[consegna] ${a.id}${v.chatId !== undefined ? `::${v.chatId}` : ''}: ${presi.testi.length} messaggi in coda da ${Math.round(v.da / 1000)} s, la chat lavora: li scrivo durante il turno`)
+        void avviaLavoro(a, conPreambolo(presi.testi, 'Leggi questo appena puoi, senza interrompere quello che stai facendo, e tienine conto.'), chat, presi.presi, { ancheAlLavoro: true }).catch((err: unknown) => {
+          console.error(`[consegna] consegna durante il turno a ${a.id} fallita:`, err)
         })
         mandate += 1
       }

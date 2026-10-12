@@ -30,7 +30,7 @@ export function esecutoreNelMosaico(p: {
   ricorda: (autopilotaId: string, chatId: string, sessionId: string) => void
 }): {
   /** Torna l'id della consegna messa in coda (0.56.4). */
-  avvia: (a: Autopilota, messaggio?: string, chat?: ChatGovernata, perche?: string) => Promise<string>
+  avvia: (a: Autopilota, messaggio?: string, chat?: ChatGovernata, perche?: string, opz?: { ancheAlLavoro?: boolean }) => Promise<string>
   ferma: (id: string, chatId?: string) => void
   attivi: () => string[]
 } {
@@ -46,7 +46,7 @@ export function esecutoreNelMosaico(p: {
     chatId === undefined ? autopilotaId : `${autopilotaId}::${chatId}`
 
   return {
-    avvia(a, messaggio, chat, perche) {
+    avvia(a, messaggio, chat, perche, opz) {
       const chatId = chat?.id ?? a.id
       const k = chiave(a.id, chat?.id)
 
@@ -88,7 +88,8 @@ export function esecutoreNelMosaico(p: {
         // **Dove**, deciso da lui. Dedurlo cercando la sessione nei workspace
         // salvati funziona solo per una chat ripresa: quella che deve ancora
         // nascere lì dentro non c'è, e finiva nel workspace che avevi davanti.
-        ...(a.workspace !== undefined ? { workspace: a.workspace } : {})
+        ...(a.workspace !== undefined ? { workspace: a.workspace } : {}),
+        ...(opz?.ancheAlLavoro === true ? { ancheAlLavoro: true } : {})
       })
       return Promise.resolve(messa.id)
     },

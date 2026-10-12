@@ -22,6 +22,8 @@ export type Consegna = {
   titolo: string
   cosa: 'scrivi' | 'interrompi'
   testo: string
+  /** Messaggi in coda da più di due minuti (0.68.1): si scrivono anche se la chat lavora. */
+  ancheAlLavoro?: boolean
   /**
    * Il workspace dove quella conversazione e' gia' salvata.
    *
@@ -149,7 +151,9 @@ export function leggiConsegne(raw: unknown): Consegna[] {
       titolo: testo('titolo'),
       cosa,
       testo: testo('testo'),
-      ...(testo('workspace') !== '' ? { workspace: testo('workspace') } : {})
+      ...(testo('workspace') !== '' ? { workspace: testo('workspace') } : {}),
+      // In coda da più di due minuti (0.68.1): si scrive anche se la chat lavora.
+      ...(c.ancheAlLavoro === true ? { ancheAlLavoro: true } : {})
     })
   }
   return buone

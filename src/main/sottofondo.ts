@@ -9,7 +9,8 @@ import {
 } from '../renderer/ultime-righe'
 import {
   type FaseSottofondo, type StatoSottofondo, type VoceSottofondo, type ChiUsa,
-  idChatSottofondo, accodaTesto, prossimoTesto, segnaConsegnato, giaConsegnato, leggiElencoSottofondo
+  idChatSottofondo, accodaTesto, prossimoTesto, segnaConsegnato, giaConsegnato, leggiElencoSottofondo,
+  type TestoInCoda
 } from '@shared/sottofondo'
 
 /**
@@ -266,6 +267,14 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
         cambiaFase(v, 'scelta', 'la chat aspetta una scelta: si risponde dal riquadro di chi la usa (le opzioni sono sullo schermo)')
         continue
       }
+      // Un testo che si scrive anche durante il turno (0.68.1): basta il campo
+      // sullo schermo. Claude Code lo legge appena può, senza interrompere.
+      const urgente = !pronta && v.attivita.morto !== true && campoPronto(righe) ? v.voce.coda.find((x) => !v.fermi.has(x.id) && x.ancheAlLavoro === true) : undefined
+      if (urgente !== undefined) {
+        scriviTesto(v, urgente, righe, ora)
+        d.log(`[consegna] ${nome(v)}: la chat lavora, scrivo lo stesso il testo ${urgente.id} (in coda da ${Math.round((ora - Date.parse(urgente.quando)) / 1000)} s)`)
+        continue
+      }
       if (!pronta) {
         if (v.fase === 'avvio' && ora - v.avviataIl > ATTESA_PRONTA_MAX_MS) cambiaFase(v, 'lenta', `dopo ${Math.round(ATTESA_PRONTA_MAX_MS / 1000)} secondi Claude Code non ha ancora mostrato il campo: lo schermo si legge dal riquadro di chi la usa`)
         else if (lavoraSulloSchermo(righe)) cambiaFase(v, 'lavora', 'la chat lavora')
@@ -276,14 +285,19 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
         if (v.fermi.size === 0) cambiaFase(v, 'pronta', v.fase === 'avvio' || v.fase === 'lenta' ? 'chat pronta: aspetta un messaggio' : 'la chat ha finito e aspetta')
         continue
       }
-      const prima = contaMandati(righe, prossimo.testo)
-      const multiriga = prossimo.testo.includes('\n')
-      const testo = multiriga && v.term.modes?.bracketedPasteMode !== false ? `\x1b[200~${prossimo.testo}\x1b[201~` : prossimo.testo
-      v.inScrittura = { id: prossimo.id, testo: prossimo.testo, prima, invii: 1, il: ora }
-      d.scrivi(v.ptyId, testo)
-      timer(() => { if (vive.get(v.voce.sessione) === v) d.scrivi(v.ptyId, '\r') }, PAUSA_INVIO_MS)
+      scriviTesto(v, prossimo, righe, ora)
       cambiaFase(v, 'consegna', `chat pronta: scrivo il testo ${prossimo.id} (${prossimo.testo.length} caratteri)`)
     }
+  }
+
+  /** Scrive un testo in coda nel campo, poi Invio; il giro dopo controlla che sia partito. */
+  const scriviTesto = (v: Viva, prossimo: TestoInCoda, righe: string[], ora: number): void => {
+    const prima = contaMandati(righe, prossimo.testo)
+    const multiriga = prossimo.testo.includes('\n')
+    const testo = multiriga && v.term.modes?.bracketedPasteMode !== false ? `\x1b[200~${prossimo.testo}\x1b[201~` : prossimo.testo
+    v.inScrittura = { id: prossimo.id, testo: prossimo.testo, prima, invii: 1, il: ora }
+    d.scrivi(v.ptyId, testo)
+    timer(() => { if (vive.get(v.voce.sessione) === v) d.scrivi(v.ptyId, '\r') }, PAUSA_INVIO_MS)
   }
 
   return {
@@ -291,7 +305,7 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
      * Avvia (o ritrova) la chat in sottofondo e mette in coda il testo, se c'è.
      * I cancelli (casa, cartella, PIN, chiave di casa) li ha già passati chi chiama.
      */
-    avvia(r: { sessione: string; cwd: string; titolo: string; perChi: ChiUsa; testo?: string; idMessaggio?: string; workspace?: string; autopilota?: { id: string; chat: string }; ptyGia?: string }): StatoSottofondo {
+    avvia(r: { sessione: string; cwd: string; titolo: string; perChi: ChiUsa; testo?: string; idMessaggio?: string; workspace?: string; autopilota?: { id: string; chat: string }; ptyGia?: string; ancheAlLavoro?: boolean }): StatoSottofondo {
       let v = vive.get(r.sessione)
       if (v === undefined) {
         const orfana = codaOrfana.get(r.sessione)
@@ -313,7 +327,7 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
           d.log(`[sottofondo] ${nome(v)}: Riprova per il testo ${r.idMessaggio}: torna in giro`)
         } else if (giaConsegnato(v.voce, r.idMessaggio)) d.log(`[sottofondo] ${nome(v)}: il testo ${r.idMessaggio} era già arrivato o è già in coda, non lo scrivo due volte`)
         else {
-          v.voce = accodaTesto(v.voce, { id: r.idMessaggio, testo: r.testo, quando: new Date(adesso()).toISOString() })
+          v.voce = accodaTesto(v.voce, { id: r.idMessaggio, testo: r.testo, quando: new Date(adesso()).toISOString(), ...(r.ancheAlLavoro === true ? { ancheAlLavoro: true } : {}) })
           d.log(`[sottofondo] ${nome(v)}: testo ${r.idMessaggio} in coda (${r.testo.length} caratteri), parte appena la chat è pronta`)
         }
       }
