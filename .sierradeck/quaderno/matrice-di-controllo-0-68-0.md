@@ -139,7 +139,7 @@ portatile 0.67.4 con la 0.68.0 pronta, in attesa della quiete.
 - «HomeAssistant» e «HA» sono lo stesso progetto?
 - Pulizie del Drive (14,9 GB su 16,1).
 
-## 0.68.1 (preparata, NON pubblicata finché Nicholas non dice come)
+## 0.69.0 (era la 0.68.1; preparata, NON pubblicata finché Nicholas non dice come)
 Regola di Nicholas: «HO DETTO CHE INSTALLO IO E BASTA», «UN SOLO AGGIORNAMENTO
 QUANDO HAI RISOLTO TUTTO».
 - **D6 installazione automatica tolta del tutto** (era della 0.67.1): niente
@@ -171,3 +171,44 @@ QUANDO HAI RISOLTO TUTTO».
 - Riprendi di un altro PC dal ponte: risponde ✅
 - fionda «non avviate»: riconoscimento con id nuovo nei test; «Apri» si prova
   solo dallo schermo (al prossimo «Apri» di Nicholas) — motivato
+
+### Nella 0.69.0, oltre a D6 e D7 (tutto con test, commit e push, niente pubblicato)
+- **D8 contatore delle consegne**: `archivio.elenca()` metteva da parte `consegne-numero.json` (47 copie `.illeggibile`), e gli id ripartivano da c-1 a ogni riavvio. ✅ (`contatore-consegne.test.ts`)
+- **D9 ordini durante il turno**: un messaggio in coda da più di 2 minuti si scrive anche a una chat al lavoro, senza interromperla. Provato dal vero su una chat di prova. ✅
+- **D10 si vede chi lavora** (c-3): «al lavoro / aspetta te / fermo / finito», l'ultima azione, «nessun segno da 10 min», «consegnato alle hh:mm» o «in attesa da N min» con «Manda adesso», «Al lavoro in sottofondo» con «Guarda». Su PC, pagina e app; provato nella copia di prova. ✅
+- **D11 consegne in sottofondo**: restavano «in consegna» per sempre; ora c'è l'esito «partita». ✅
+- **D12 Drive**:
+  - le chat sono compresse (si accende solo quando tutti i PC sono alla 0.69);
+  - dist/out/coverage/recuperati restano a casa, e i file oltre 50 MB pure;
+  - il recupero scaduto si svuota da solo;
+  - lo spazio è visibile per progetto;
+  - l'inventario è nella scheda `cosa-si-salva-sul-drive-0-69-0.md`;
+  - le doppie (2,13 GB) vanno solo mostrate a Nicholas. ✅
+- **D13 lentezza**: vedi la tabella sotto. ✅
+- **D14 Progetti a piena pagina** (richiesta di Nicholas): scheda `vista-progetti-0-69-0.md`, foto in `note/foto-0-69/`. ✅
+- **D15 pagina «Progetti» ferma su «Leggo…»**: la pagina calcola un'impronta per decidere se ridisegnare, e non guardava il pannello. ✅
+- Gli autopiloti degli altri PC, in sola lettura (12/10 sera): QUI App Android coda 1, 74 consegne (2 non partite); DESKTOP Fionda 1 «in volo» (era D11); nessun id ripetuto.
+
+### I giri periodici (inventario 12/10 sera, codice della 0.68.0)
+| Giro | Ogni | Cosa legge | Costo stimato (52 progetti nel registro, 2 altri PC) | 0.69.0 |
+|---|---|---|---|---|
+| ronda dei progetti | 30 s | Drive: presenza, testimone e coda di **ogni** progetto del registro | ~310 richieste/min, quasi tutte ricerche di file che non ci sono: è la causa dei 403 «Total Query Cost» | ogni 5 min se il progetto non ha chat vive qui; testimone solo se la presenza è mia → ~30/min |
+| archivio del Drive | a ogni chiamata | — | se ne creava uno nuovo a ogni chiamata, quindi ricordi nome→id e «non c'è» persi: ogni lettura = ricerca + scaricamento | uno per collegamento; «non c'è» vale 20 s |
+| offerte WebRTC | 10 s | Drive: una ricerca per PC, anche se spento | 12/min | solo i PC accesi; con il «non c'è» ~6/min |
+| postino | 30 s | Drive: cassetta, richiesta dello schermo, battito (scritto ogni 2 min) | ~5/min | lettura senza ricerca ~3/min |
+| battiti degli altri | ~1 min | Drive: elenco + scaricamenti; disco: `pc-altrui.json` riscritto sempre | ~5/min, 1 scrittura/min | `pc-altrui.json` solo se cambia |
+| salvataggio automatico | 5 min | disco: due giri di cartelle; Drive: manifesto; disco: `sync-manifesto.json` (qualche MB) riscritto sempre | 0,8/min + qualche MB/5 min | manifesto locale solo se cambia; registro senza «SALVA richiesto» |
+| ospite | 10 s | disco: indice delle chat + ogni trascrizione | CPU | 30 s; il log «aspetto» solo quando cambia |
+| Domande (finestra) | 3 s | servizio autopiloti + battiti | — | 15 s a finestra nascosta |
+| pagina: PC, lavoro Drive, coda | 10 s / 2 s / 10 s | Drive | anche a pagina nascosta | ferme a pagina nascosta |
+| app: stato | 2 s | PC | anche con l'app dietro | 15 s con l'app dietro |
+| rileggi principale | 10 min | powershell `Get-NetIPConfiguration` | un processo ogni 10 min | invariato |
+
+### Numeri, prima e dopo
+- **Questo PC, 0.68.0, 12/10 23:00** (PowerShell, 60 s, sola lettura): CPU 0,9% del PC (8 core), RAM 682 MB, 0,5 MB scritti al minuto (6 processi SierraDeck). Il registro di oggi: 1.600 rifiuti 403 dal Drive fra le 16 e le 20 (0.67.4), **zero** dopo l'installazione della 0.68.0 (19:53); 217 righe in 1,5 ore.
+- **Portatile e desk-nik-glos «prima»**: i loro battiti della 0.68.0 non portano ancora le risorse, e il ponte non passa la Salute per scelta. I numeri arrivano dalla 0.69.0 (Salute → «Quanto lavora SierraDeck», con CPU, RAM, richieste al Drive al minuto e rifiuti, per ogni PC).
+- **Dopo**: si leggono dalla Salute di un PC qualsiasi quando i 3 PC sono sulla 0.69.0. Stima dal codice: da ~330 a ~45 richieste al Drive al minuto per PC.
+
+### Matrice rieseguita sulla 0.68.0 installata (13/10 ~00:10, sola lettura)
+- 3 PC sulla 0.68.0, fase «aggiornato». Workspace: 16 / 16 / 16; niente cartelle di sistema, niente doppioni, niente sessioni interne. «Su altri PC» c'è dappertutto (fionda visibile). Chat, autopiloti, consegne e domande si leggono. Progetti: 30 / 33 / 27, nessuno di sistema, con lo spazio. Sessioni, file e modelli rispondono. ✅
+- Via ponte, Salute, Domande, case e autopiloti degli altri PC rispondono 403: **per scelta** (si gestiscono dal loro PC). Le tre righe «NO» di questo PC sono errori dello script di prova (chiave sbagliata, cartella vuota, `/api/case` solo per i PC), non del programma.
