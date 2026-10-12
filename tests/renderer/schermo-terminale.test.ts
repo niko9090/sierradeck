@@ -112,6 +112,17 @@ describe('righeDaSchermo', () => {
     expect(righeDaSchermo(s, 5, 10).pulite).toEqual(['uno', '', 'due'])
   })
 
+  it('una cornice rimasta sola in fondo, dopo il vuoto, non nasconde la domanda (0.70.0)', () => {
+    // Visto dal vero: AskUserQuestion in cima, trenta righe vuote, il bordo
+    // della casella in fondo. Le ultime 24 righe erano solo vuoto e cornice.
+    const vuote = Array.from({ length: 30 }, () => riga(''))
+    const s = schermoDa([riga('Di che colore?'), riga('❯ 1. Rosso'), riga('  2. Verde'), riga('Enter to select'), ...vuote, riga('──────────────────── Lavoro-esempio ─')])
+    expect(righeDaSchermo(s, 35, 24).pulite).toEqual(['Di che colore?', '❯ 1. Rosso', '  2. Verde', 'Enter to select'])
+    // Una cornice attaccata al testo resta: fa parte del disegno.
+    const s2 = schermoDa([riga('testo'), riga('──────────────────────')])
+    expect(righeDaSchermo(s2, 2, 24).pulite).toEqual(['testo', '──────────────────────'])
+  })
+
   it('tiene le ultime quante gliene chiedi', () => {
     const s = schermoDa([riga('a'), riga('b'), riga('c'), riga('d')])
     expect(righeDaSchermo(s, 4, 2).pulite).toEqual(['c', 'd'])

@@ -316,8 +316,13 @@ data class Conversazione(
     /** La chat e' su un altro PC (0.39.3): il suo nome, per il segno «SU <PC>». */
     val suPc: String? = null,
     /** La strada con cui il computer arriva a quel PC (0.40.0): «rete di casa», «Tailscale», «WebRTC», «Drive, lento». */
-    val viaPc: String? = null
+    val viaPc: String? = null,
+    /** PC 0.70: il tipo in una parola (permesso, scelta, domanda, autopilota, ha finito). */
+    val vista: StatoVistaDrive? = null
 )
+
+/** Aspetta davvero te (PC 0.70): tutto tranne le chat che hanno solo finito il turno. */
+fun aspettaTe(c: Conversazione): Boolean = c.vista?.let { it.id != "finito" } ?: (c.chiede || c.tipo == "autopilota")
 
 /** Un nodo dell'albero delle chat di un autopilota (T7, 0.36.0). */
 @Serializable

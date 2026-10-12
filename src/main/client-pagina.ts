@@ -944,8 +944,21 @@ function richiestaDi(r, testo) {
  * parla con lui; con una chat che aspetta, e' lei a scrivere la domanda o il
  * permesso, con le opzioni da toccare.
  */
+// «Aspettano te» di partenza (0.70.0): le chat che hanno solo finito il turno stanno in «Tutte».
+var domandeFiltro = 'aspettano'
+window.filtroDomande = function (f) { domandeFiltro = f; pannello(ultimoStato) }
 function vistaConversazioni() {
-  var elenco = domandeConversazioni || []
+  function aspettaTeConv(c) { return c.vista ? c.vista.id !== 'finito' : (c.chiede || c.tipo === 'autopilota') }
+  var filtro = typeof domandeFiltro === 'string' ? domandeFiltro : 'aspettano'
+  var tutte = domandeConversazioni || []
+  var nAspettano = tutte.filter(aspettaTeConv).length
+  var elenco = filtro === 'aspettano' ? tutte.filter(aspettaTeConv) : tutte
+  var filtri = tutte.length === 0 ? '' : '<div class="riga" style="gap:6px;flex-wrap:wrap">' +
+    '<button' + (filtro === 'aspettano' ? ' class="primario"' : '') + ' onclick="filtroDomande(\\'aspettano\\')" style="flex:none;width:auto;min-height:0;padding:6px 12px">Aspettano te ' + nAspettano + '</button>' +
+    '<button' + (filtro === 'tutte' ? ' class="primario"' : '') + ' onclick="filtroDomande(\\'tutte\\')" style="flex:none;width:auto;min-height:0;padding:6px 12px">Tutte ' + tutte.length + '</button></div>'
+  if (elenco.length === 0 && tutte.length > 0) {
+    return filtri + '<div class="piastrella"><div class="sotto">Niente ti aspetta. Le chat che hanno finito il turno sono in «Tutte».</div></div>'
+  }
   if (elenco.length === 0) {
     return '<div class="piastrella"><div class="grande">Niente da rispondere' + aiuto('domande-vuote', 'Qui compaiono, come conversazioni e senza bloccare niente: gli autopiloti che ti chiedono qualcosa (prima di partire o mentre lavorano) — ci parli come nella loro scheda; le chat che aspettano una scelta o un permesso — scrivono qui la domanda con le opzioni da toccare; e le chat che hanno finito il turno e aspettano la tua istruzione. La stessa cosa che vedi sul PC e nell’app.') + '</div></div>'
   }
@@ -954,7 +967,8 @@ function vistaConversazioni() {
     return '<button class="voce" data-k="' + esc(c.chiave) + '" onclick="apriConv(this.dataset.k)"' + (c.chiave === aperta.chiave ? ' aria-current="true"' : '') + '>' +
       '<span class="led ' + (c.chiede ? 'attesa' : 'spenta') + '"></span>' +
       '<span class="voce__testo"><span class="voce__nome">' + (c.suPc ? '<b class="segno-remoto">SU ' + esc(c.suPc) + (c.viaPc ? ' (' + esc(c.viaPc) + ')' : '') + '</b> · ' : '') + esc(c.nome || c.titolo) + '</span>' +
-      '<span class="voce__sotto">' + (c.tipo === 'autopilota' ? 'ti aspetta (' + (c.quante || 1) + ') → apri' : c.chiede ? 'chat · aspetta che tu scelga' : 'chat · ha finito il turno') + '</span></span>' +
+      // Il tipo in una parola (0.70.0), deciso dal PC: permesso, scelta, domanda, autopilota, ha finito.
+      '<span class="voce__sotto">' + (c.vista ? '<b style="color:' + ({ verde: 'var(--verde,#3c9)', ambra: 'var(--ambra,#e0a33c)', rosso: 'var(--rosso,#dc5f5f)', blu: 'var(--blu,#4aa3ff)', quieto: 'var(--testo-quieto,#9aa1a9)' })[c.vista.colore] + '">' + esc(c.vista.parola) + '</b>' + (c.tipo === 'autopilota' ? ' · ti aspetta (' + (c.quante || 1) + ') → apri' : '') : (c.tipo === 'autopilota' ? 'ti aspetta (' + (c.quante || 1) + ') → apri' : c.chiede ? 'chat · aspetta che tu scelga' : 'chat · ha finito il turno')) + '</span></span>' +
       '<span class="voce__freccia">›</span></button>'
   }).join('')
   var messaggi = aperta.messaggi.map(function (m) {
@@ -976,13 +990,13 @@ function vistaConversazioni() {
   // Le domande di un autopilota non si rispondono qui (0.38.0): si rispondono
   // nella sua scheda, linguetta «Domande», una per volta.
   if (aperta.tipo === 'autopilota' && aperta.autopilota) {
-    return '<div class="piastrella">' + voci + '</div>' +
+    return filtri + '<div class="piastrella">' + voci + '</div>' +
       '<div class="piastrella chiede"><div class="serigrafia">' + esc(aperta.titolo) + '</div>' +
       '<div class="sotto">Ti aspetta con ' + ((aperta.quante || 1) === 1 ? 'una domanda' : (aperta.quante + ' domande')) + '.' + aiuto('domande-ap', 'Le domande di un autopilota si rispondono nella sua scheda, linguetta «Domande», una per volta, con le opzioni da toccare; dopo la risposta domanda e risposta restano nella chat con lui.') + '</div>' +
       '<div class="riga"><button class="primario" data-ap="' + esc(aperta.autopilota) + '" onclick="apriDomandeAp(this.dataset.ap)">Apri la sua linguetta Domande</button></div></div>'
   }
   var mandata = domandeMandate[aperta.chiave]
-  return '<div class="piastrella">' + voci + '</div>' +
+  return filtri + '<div class="piastrella">' + voci + '</div>' +
     '<div class="piastrella' + (aperta.chiede ? ' chiede' : '') + '">' +
     '<div class="serigrafia">' + esc(aperta.titolo) + '</div><div class="sotto">' + esc(aperta.sotto) + '</div>' +
     '<div class="flusso-ap">' + messaggi +
@@ -1366,7 +1380,7 @@ function impronta(s) {
     domandeViste ? JSON.stringify(domandeViste) : '', domandeGuasto || '', Object.keys(domandeMandate).join(','),
     // Il negozio: cosa si e' letto, cosa sta lavorando (coi secondi), i guasti e le conferme.
     pannelloAperto === 'negozio' ? JSON.stringify([negozioVisto, negozioErrore, negozioErroreMcp, negozioFamiglia, negozioTrovati, negozioParola, negozioNota, negozioProvoMcp, negozioGuasti, negozioConferme, Object.keys(negozioLavoro).map(function (k) { return k + Math.round((Date.now() - negozioLavoro[k].da) / 1000) })]) : '',
-    domandeConversazioni ? JSON.stringify(domandeConversazioni) : '', domandaAperta || '',
+    domandeConversazioni ? JSON.stringify(domandeConversazioni) : '', domandaAperta || '', domandeFiltro,
     // La sezione File (0.54.0): dove si è, cosa si guarda, l'avanzamento.
     (pannelloAperto === 'file' || scheda === 'file') ? JSON.stringify([fileProgetti ? fileProgetti.length : -1, fileDove, fileElenco ? fileElenco.voci.length + fileElenco.percorso : '', fileVista ? fileVista.nome + fileVista.tipo : '', fileNota, fileErrore, filePin]) : '',
     (function () { try { return localStorage.getItem('sierradeck.nienteapp') || '' } catch (e) { return '' } })(),

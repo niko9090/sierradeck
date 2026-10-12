@@ -181,6 +181,13 @@ export function rigaVestita(riga: RigaSchermo): string {
  * restano, perché lì il vuoto è composizione, e toglierlo appiccica fra loro
  * cose che sullo schermo sono separate.
  */
+/** Una riga di sola cornice (almeno dieci tratti), con al più un'etichetta corta: «──── Lavoro ─». */
+export function eCorniceSola(riga: string): boolean {
+  const tratti = (riga.match(/[─-╿]/g) ?? []).length
+  const altro = riga.replace(/[─-╿\s]/g, '').length
+  return tratti >= 10 && altro <= 40
+}
+
 export function righeDaSchermo(
   schermo: Schermo,
   altezza: number,
@@ -198,10 +205,16 @@ export function righeDaSchermo(
     vestite.push(rigaVestita(riga))
     continua.push(riga.isWrapped === true)
   }
-  while (nude.length > 0 && (nude[nude.length - 1] ?? '') === '') {
-    nude.pop()
-    vestite.pop()
-    continua.pop()
+  const togli = (): void => { nude.pop(); vestite.pop(); continua.pop() }
+  for (;;) {
+    while (nude.length > 0 && (nude[nude.length - 1] ?? '') === '') togli()
+    // 0.70.0: una cornice rimasta da sola in fondo, dopo righe vuote (il bordo
+    // della casella di Claude Code ridisegnato più in alto): non è contenuto.
+    // Senza toglierla, le ultime 24 righe erano solo vuoto e quella cornice, e
+    // una domanda (AskUserQuestion) più su non arrivava né alle Domande né al telefono.
+    const ultima = nude[nude.length - 1] ?? ''
+    if (nude.length > 1 && (nude[nude.length - 2] ?? '') === '' && eCorniceSola(ultima)) { togli(); continue }
+    break
   }
   // Le colonne e le continuazioni (0.52.6): il telefono ricompone il testo per
   // la sua larghezza (`ricomponiSchermo`). La prima riga tagliata non continua niente.

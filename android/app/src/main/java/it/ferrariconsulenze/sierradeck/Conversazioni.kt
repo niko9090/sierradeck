@@ -75,8 +75,12 @@ fun domandeInAttesa(s: Stato): Int = s.domandeInAttesa ?: (s.domande.size + s.ch
  * mostrano la stessa cosa.
  */
 @Composable
-fun VistaConversazioni(api: Api, elenco: List<Conversazione>, onRiletto: () -> Unit, onApriAutopilota: (String) -> Unit = {}) {
+fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Unit, onApriAutopilota: (String) -> Unit = {}) {
     var apertaChiave by remember { mutableStateOf<String?>(null) }
+    // PC 0.70: di partenza solo quello che aspetta davvero te; le chat che hanno finito il turno in «Tutte».
+    var soloAspettano by remember { mutableStateOf(true) }
+    val nAspettano = tutte.count { aspettaTe(it) }
+    val elenco = if (soloAspettano && nAspettano > 0) tutte.filter { aspettaTe(it) } else tutte
     val aperta = elenco.firstOrNull { it.chiave == apertaChiave } ?: elenco.first()
     // Quello che hai appena mandato, finche' il computer non lo rimette nel filo.
     val mandati = remember { mutableStateMapOf<String, List<String>>() }
@@ -113,6 +117,10 @@ fun VistaConversazioni(api: Api, elenco: List<Conversazione>, onRiletto: () -> U
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).background(Banco.chassis).padding(8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            if (nAspettano > 0 && nAspettano < tutte.size) {
+                Text(if (soloAspettano) "Aspettano te $nAspettano · Tutte ${tutte.size} ›" else "‹ Solo chi aspetta te ($nAspettano)", color = Banco.accento, fontSize = 13.sp,
+                    modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable { soloAspettano = !soloAspettano }.padding(horizontal = 8.dp, vertical = 8.dp))
+            }
             for (c in elenco) {
                 val sel = c.chiave == aperta.chiave
                 Row(
@@ -123,7 +131,7 @@ fun VistaConversazioni(api: Api, elenco: List<Conversazione>, onRiletto: () -> U
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(if (c.chiede) Banco.ambra else Banco.testoQuieto))
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(c.vista?.let { coloreVista(it.colore) } ?: if (c.chiede) Banco.ambra else Banco.testoQuieto))
                     Spacer(Modifier.width(6.dp))
                     Text(titoloConSegno(c), color = if (c.suPc != null) ColoreRemoto else Banco.testo, fontSize = 13.sp, maxLines = 1, fontWeight = if (sel || c.suPc != null) FontWeight.Bold else FontWeight.Normal)
                 }
@@ -131,7 +139,7 @@ fun VistaConversazioni(api: Api, elenco: List<Conversazione>, onRiletto: () -> U
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
             Text(
-                (if (aperta.tipo == "autopilota") "Autopilota · " else if (aperta.chiede) "Chat · aspetta che tu scelga · " else "Chat · ha finito il turno · ") + aperta.sotto,
+                (aperta.vista?.let { "${it.parola} · " } ?: if (aperta.tipo == "autopilota") "Autopilota · " else if (aperta.chiede) "Chat · aspetta che tu scelga · " else "Chat · ha finito il turno · ") + aperta.sotto,
                 color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 2
             )
             // Le domande di un autopilota si rispondono nella sua scheda,

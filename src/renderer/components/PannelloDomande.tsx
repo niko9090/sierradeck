@@ -5,6 +5,9 @@ import { quanteAspettano, richiestaRisposta, type Conversazione } from '@shared/
 import { LARGHEZZA_DOMANDE } from '@shared/preferenze'
 import { EtichettaOpzione } from './EtichettaOpzione'
 import { Aiuto } from './Aiuto'
+import { aspettaTe, messaggiInVista, ordinaDomande, prossimaDomanda, tipoDomanda } from '@shared/domande-vista'
+
+const COLORE_DOMANDA: Record<string, string> = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', blu: 'var(--blu)', quieto: 'var(--testo-quieto)' }
 
 /**
  * Le Domande sul PC: una colonna laterale fissa, accanto alle chat (0.36.0).
@@ -100,6 +103,10 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
   const [pinPer, setPinPer] = useState<{ percorso: string; corpo: Record<string, string>; ricordo: string } | undefined>(undefined)
   const [pin, setPin] = useState('')
   const [inCorso, setInCorso] = useState(false)
+  // 0.70.0: di partenza solo quello che aspetta davvero te; le chat che hanno solo finito il turno in «Tutte».
+  const [filtro, setFiltro] = useState<'aspettano' | 'tutte'>('aspettano')
+  // I messaggi più vecchi della conversazione aperta restano chiusi finché non li chiedi.
+  const [tuttiIMessaggi, setTuttiIMessaggi] = useState(false)
   /** Quello che hai appena mandato, finche' il computer non lo rimette nel filo. */
   const [mandati, setMandati] = useState<Record<string, string[]>>({})
   const flusso = useRef<HTMLDivElement>(null)
@@ -139,8 +146,11 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
     return () => clearInterval(h)
   }, [leggi])
 
-  const elenco = conversazioni ?? []
+  const tutte = ordinaDomande(conversazioni ?? [])
+  const quanteAspettanoTe = tutte.filter(aspettaTe).length
+  const elenco = filtro === 'aspettano' ? tutte.filter(aspettaTe) : tutte
   const aperta = elenco.find((c) => c.chiave === scelta) ?? elenco[0]
+  useEffect(() => { setTuttiIMessaggi(false) }, [aperta?.chiave])
 
   // In fondo, come ogni chat, quando cambia il numero dei messaggi.
   const quanti = aperta?.messaggi.length ?? 0
@@ -207,6 +217,9 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
         }
         setMandati((m) => ({ ...m, [aperta.chiave]: [...(m[aperta.chiave] ?? []), ricordo] }))
         setTesto('')
+        // Risposta data: si passa da sola alla prossima che aspetta te (0.70.0).
+        const prossima = prossimaDomanda(tutte, aperta.chiave)
+        if (prossima !== undefined && aspettaTe(aperta)) setScelta(prossima)
         leggi()
       })
       .catch((e: unknown) => setNota(`Non sono riuscito a mandarlo: ${String(e)}`))
@@ -222,7 +235,6 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
   // I messaggi mandati da qui che il computer non ha ancora rimesso nel filo.
   const inAttesa = (aperta === undefined ? [] : mandati[aperta.chiave] ?? [])
     .filter((t) => !aperta?.messaggi.some((m) => m.da === 'tu' && (m.testo === t || m.testo === `scelto: ${t}`)))
-  const chiedono = elenco.filter((c) => c.chiede).length
 
   return (
     <aside className="domande-lato" style={{ width: larghezzaEffettiva('domande', larga, finestra, altre) }} aria-label="Domande">
@@ -243,9 +255,12 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
           <p>Tutto quello che aspetta una tua risposta, come conversazioni: le chat ferme su una domanda o un permesso, le chat che hanno finito il turno, gli autopiloti (le domande iniziali della preparazione, una domanda mentre lavorano, il «dammi il via», il «Pubblico adesso?»). Resta aperta accanto alle chat; è la stessa cosa che vedi nell’app e nella pagina del telefono.</p>
           <p>Quando una chat si ferma su una domanda o un permesso, o un autopilota ti chiede qualcosa, compare qui con il modo di rispondere; il numero sul tasto «Domande» dice quante aspettano.</p>
         </Aiuto>
-        <span className="misura">
-          {conversazioni === undefined ? 'leggo…' : chiedono > 0 ? `${chiedono} aspettano una tua risposta` : 'nessuna domanda in attesa'}
-        </span>
+        {conversazioni === undefined ? <span className="misura">leggo…</span> : (
+          <span className="domande-lato__filtri" role="tablist">
+            <button role="tab" aria-selected={filtro === 'aspettano'} className={`progetti__gruppo${filtro === 'aspettano' ? ' progetti__gruppo--acceso' : ''}${quanteAspettanoTe > 0 ? ' progetti__gruppo--ambra' : ''}`} onClick={() => setFiltro('aspettano')}>Aspettano te <span className="progetti__conto">{quanteAspettanoTe}</span></button>
+            <button role="tab" aria-selected={filtro === 'tutte'} className={`progetti__gruppo${filtro === 'tutte' ? ' progetti__gruppo--acceso' : ''}`} onClick={() => setFiltro('tutte')}>Tutte <span className="progetti__conto">{tutte.length}</span></button>
+          </span>
+        )}
         <span style={{ flex: 1 }} />
         <button className="tasto tasto--mini" onClick={onChiudi} title="Chiude la colonna. Si riapre dal tasto «Domande» della console.">×</button>
       </div>
@@ -254,7 +269,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
         <p className="misura domande-lato__vuoto">
           {conversazioni === undefined
             ? 'Leggo dal programma…'
-            : 'Niente da rispondere adesso.'}
+            : filtro === 'aspettano' && tutte.length > 0 ? 'Niente ti aspetta. Le chat che hanno finito il turno sono in «Tutte».' : 'Niente da rispondere adesso.'}
         </p>
       ) : (
         <>
@@ -274,9 +289,9 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                   <span className="domande-pc__titolo">
                     <b>{c.suPc !== undefined ? <span className="segno-remoto">SU {c.suPc}{c.viaPc !== undefined ? ` (${c.viaPc})` : ''} · </span> : null}{c.titolo}</b>
                     <span className="misura">
-                      {c.tipo === 'autopilota'
-                        ? `ti aspetta (${c.quante ?? 1}) → apri`
-                        : c.chiede ? 'chat · aspetta che tu scelga' : 'chat · ha finito il turno'}
+                      {/* Il tipo in una parola (0.70.0): permesso, scelta, domanda, autopilota, ha finito. */}
+                      <span style={{ color: COLORE_DOMANDA[tipoDomanda(c).colore] }}>{tipoDomanda(c).parola}</span>
+                      {c.tipo === 'autopilota' ? ` · ti aspetta (${c.quante ?? 1}) → apri` : ''}
                     </span>
                   </span>
                 </button>
@@ -303,7 +318,8 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
             <section className="chatap domande-lato__chat" aria-label={`Conversazione con ${aperta.titolo}`}>
               <div className="misura domande-lato__chi con-aiuto">{rigaRisposta(aperta)} <Aiuto di="come rispondere">{spiegaRisposta(aperta)}</Aiuto></div>
               <div className="chatap__flusso" ref={flusso} aria-live="polite">
-                {aperta.messaggi.map((m, i) => (
+                {(() => { const { nascosti } = messaggiInVista(aperta.messaggi, tuttiIMessaggi); return nascosti > 0 ? <button className="account__link" onClick={() => setTuttiIMessaggi(true)}>{nascosti === 1 ? '1 messaggio prima ▾' : `${nascosti} messaggi prima ▾`}</button> : null })()}
+                {messaggiInVista(aperta.messaggi, tuttiIMessaggi).vista.map((m, i) => (
                   m.da === 'nota' ? (
                     <div key={i} className="chatap__riga chatap__riga--nota">
                       <span className="chatap__quando">{orario(m.quando)}</span>
@@ -363,7 +379,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                   <button className="tasto tasto--primario" onClick={scrivi} disabled={inCorso || testo.trim() === ''}>
                     {inCorso ? 'Mando…' : aperta.risposta.via === 'rispondi' ? 'Rispondi' : 'Manda'}
                   </button>
-                  <span className="misura">Ctrl+Invio manda. Quando il programma riceve la risposta, la domanda sparisce da qui.</span>
+                  <Aiuto di="mandare">Ctrl+Invio manda. Quando il programma riceve la risposta, la domanda sparisce da qui e si passa alla prossima che ti aspetta.</Aiuto>
                 </div>
                 {nota !== undefined ? <div className="avviso">⚠ {nota}</div> : null}
                 {pinPer !== undefined ? (

@@ -1,3 +1,4 @@
+import { ordinaDomande, tipoDomanda } from '@shared/domande-vista'
 import { vistaAutopilota } from '@shared/autopiloti-vista'
 import { nomiDistinti as nomiChatDistinti } from '@shared/chat-vista'
 import { oraBreve, statoAutopilotaDalVivo, statoMessaggi } from '@shared/stato-dal-vivo'
@@ -1216,7 +1217,9 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       // risposte da toccare di un autopilota erano stringhe, e un'app che le
       // incontrava non leggeva piu' niente delle Domande (trovato dal test di
       // compatibilita', 0.43.0; dalla 0.41.0 ogni domanda ha le sue scelte).
-      return OK({ voci: vociPerLeApp(voci), conversazioni, chiedono: quanteAspettano(conversazioni) })
+      // Il tipo in una parola e l'ordine (0.70.0): prima i permessi, poi le scelte, le domande, gli autopiloti; le finite in fondo.
+      const conTipo = ordinaDomande(conversazioni).map((c) => ({ ...c, vista: tipoDomanda(c) }))
+      return OK({ voci: vociPerLeApp(voci), conversazioni: conTipo, chiedono: quanteAspettano(conversazioni) })
     }
 
     // Il ponte del telefono (0.48.0): le chat degli altri PC dal vivo,

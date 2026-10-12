@@ -70,3 +70,29 @@ Le foto sono in `note/foto-0-70/`, sul PC fisso (fuori da git: mostrano le carte
 **Test**: `tests/shared/autopiloti-vista.test.ts` (8) e, nell'app, `VistaAutopilotaTest`.
 
 **Aperto**: la scheda dell'autopilota accanto alla chat (la colonna stretta nel riquadro) non è stata ridisegnata stanotte. Toccarla vuol dire toccare il ridimensionamento del terminale, e va provata con calma.
+
+## (c) Domande
+**Cosa cambia**
+- **Di partenza «Aspettano te»**: le chat che hanno solo finito il turno stanno in «Tutte». Prima tre «aspettano» si perdevano fra cinque righe uguali.
+- **Il tipo in una parola**, deciso dal PC (`src/shared/domande-vista.ts`): permesso (rosso), scelta e domanda (ambra), autopilota (blu), ha finito. Prima i permessi, le finite in fondo.
+- **Dopo una risposta si passa da soli alla prossima** che aspetta te.
+- **Nella conversazione si vedono gli ultimi 4 messaggi**; quelli di prima si aprono con «N messaggi prima ▾». La riga fissa «Ctrl+Invio manda…» sta dietro il «?».
+- **Telefono** (pagina e app): gli stessi «Aspettano te N · Tutte M» e la parola colorata del tipo.
+
+**Difetto trovato e corretto stanotte**
+- **Il sintomo**: una domanda di Claude Code con le opzioni (AskUserQuestion) in cima a un riquadro alto non arrivava né alle Domande né al telefono. Il riquadro diceva «ferma» e le Domande «0».
+- **La causa**: al telefono e alle Domande vanno le ultime 24 righe dello schermo, togliendo le vuote in fondo. Sotto la domanda però c'erano trenta righe vuote e poi una cornice rimasta da un vecchio disegno («──── Lavoro-esempio ─»), che fermava il taglio delle vuote. Così le 24 righe erano solo vuoto e cornice.
+- **La correzione**: una cornice sola in fondo, dopo righe vuote, si toglie (`eCorniceSola` in `schermo-terminale.ts`, con test). Provato dal vero nella copia di prova: «Aspettano te 1», tipo «scelta», le opzioni toccabili, e il riquadro dice «aspetta te».
+
+**Azioni di prima → dove sono adesso**
+
+| Prima | Adesso |
+|---|---|
+| Elenco di tutte le conversazioni | «Tutte»; di partenza «Aspettano te» |
+| Opzioni da toccare, testo libero, Manda/Rispondi, PIN | come prima |
+| Rimando alla linguetta «Domande» di un autopilota | come prima |
+| Tutta la storia della conversazione | gli ultimi 4 messaggi + «N messaggi prima ▾» |
+| Riga fissa «Ctrl+Invio manda…» | dietro il «?» |
+| Larghezza trascinabile, × chiudi | come prima |
+
+**Test**: `tests/shared/domande-vista.test.ts` (5), una prova della cornice in `tests/renderer/schermo-terminale.test.ts`, e nell'app `AspettaTeTest`.
