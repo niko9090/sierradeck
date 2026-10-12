@@ -36,7 +36,7 @@ describe('testi corti, la spiegazione dietro al «?» (0.62.0)', () => {
     expect(trovati).toEqual([])
   })
   it('le voci del menu principale hanno il loro «?»', () => {
-    for (const f of ['PannelloChat.tsx', 'ModalePannelloDrive.tsx', 'PannelloSalute.tsx', 'PannelloImpostazioni.tsx', 'PannelloDomande.tsx', 'PannelloAutopiloti.tsx']) {
+    for (const f of ['PannelloChat.tsx', 'VistaProgetti.tsx', 'PannelloSalute.tsx', 'PannelloImpostazioni.tsx', 'PannelloDomande.tsx', 'PannelloAutopiloti.tsx']) {
       expect(sorgente(f), f).toContain('<Aiuto')
     }
     expect(sorgente('PannelloChat.tsx')).not.toContain('hub__spiega')

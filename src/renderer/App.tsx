@@ -24,7 +24,7 @@ import type { StatoWorkspace } from '../main/ipc'
 import { Mosaic } from './components/Mosaic'
 import { ModaleSessioni } from './components/ModaleSessioni'
 import { ModaleDoveVive } from './components/OspiteChat'
-import { ModalePannelloDrive } from './components/ModalePannelloDrive'
+import { VistaProgetti } from './components/VistaProgetti'
 import { NOME_AUTOMATICO } from '@shared/istantanea'
 import { Console, type PannelloAperto } from './components/Console'
 import { PannelloWorkspace } from './components/PannelloWorkspace'
@@ -1458,7 +1458,7 @@ export function App(): React.JSX.Element {
 
       {modale === 'sessioni' ? <ModaleSessioni onChiudi={() => setModale(undefined)} /> : null}
       {doveVive ? <ModaleDoveVive onChiudi={() => setDoveVive(false)} /> : null}
-      {pannelloDrive ? <ModalePannelloDrive onChiudi={() => setPannelloDrive(false)} /> : null}
+      {pannelloDrive ? <VistaProgetti onChiudi={() => setPannelloDrive(false)} /> : null}
       {modale === 'accesso' ? <ModaleAccesso onChiudi={() => setModale(undefined)} /> : null}
       {avvisoProgetto !== undefined ? (
         <ModaleTestimone avviso={avvisoProgetto} onChiudi={() => setAvvisoProgetto(undefined)} />

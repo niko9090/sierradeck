@@ -1,3 +1,4 @@
+import type { VistaProgetto } from './progetti-vista'
 import { eSessioneInterna } from './workspace-riparazioni'
 import type { Trasloco } from './trasloco'
 import type { StatoSpazio } from './spazio-drive'
@@ -42,6 +43,8 @@ export type ChatIngresso = {
   copie: CopiaChat[]
   /** I PC dove è aperta adesso. */
   aperta?: string[]
+  /** I PC dove sta lavorando adesso (0.69.0): aperta e non ferma ad aspettare. */
+  alLavoro?: string[]
 }
 
 export type ProgettoIngresso = { id: string; nome: string; percorsi: Record<string, string>; aggiuntoIl?: string; unitoIn?: string }
@@ -69,6 +72,8 @@ export type RigaChat = {
   copiaQui: boolean
   /** Senza nome (0.60.0): fuori dagli elenchi principali, contata nel suo progetto. */
   senzaNome?: boolean
+  /** Sta lavorando adesso (0.69.0), e su quali PC. */
+  alLavoroSu?: string[]
   problemi: Problema[]
 }
 
@@ -117,6 +122,10 @@ export type RigaProgetto = {
   ultimoUso?: string
   stato: StatoRiga
   problemi: Problema[]
+  /** Le chat con nome che lavorano adesso (0.69.0). */
+  alLavoro?: number
+  /** Come si mostra (0.69.0): lo calcola il PC, pagina e app lo disegnano. Vedi `@shared/progetti-vista`. */
+  vista?: VistaProgetto
 }
 
 export type Pannello = {
@@ -194,6 +203,7 @@ function rigaChat(c: ChatIngresso, p: { io: PcNoto; pc: PcNoto[]; case: CaseChat
     ...(ultimo > 0 ? { ultimoUso: iso(ultimo) as string } : {}),
     stato: conflitto ? 'conflitto' : copiaResidente ? 'residente' : 'solo-cloud',
     copiaQui: c.copie.some((x) => x.dove === 'qui'),
+    ...(c.alLavoro !== undefined && c.alLavoro.length > 0 ? { alLavoroSu: c.alLavoro.map(nomeDi) } : {}),
     // Le sessioni interne degli autopiloti (0.67.3) non sono chat da elencare né da aprire.
     ...(eSenzaNome(c.titolo, c.sessione) || eSessioneInterna({ titolo: c.titolo }, new Set()) ? { senzaNome: true } : {}),
     problemi
@@ -323,6 +333,7 @@ function rigaProgetto(
     daUnire,
     chat: chat.length,
     chatSenzaNome: chat.filter((c) => c.senzaNome === true).length,
+    alLavoro: chat.filter((c) => c.senzaNome !== true && (c.alLavoroSu?.length ?? 0) > 0).length,
     ...(ultimo !== undefined && ultimo !== '' ? { ultimoUso: ultimo } : {}),
     stato: conflitto ? 'conflitto' : residenteHa || (primo?.[0] === p.io.id && trovata !== undefined) ? 'residente' : 'solo-cloud',
     problemi,

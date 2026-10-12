@@ -6,13 +6,14 @@ import { paginaClient } from '../../src/main/client-pagina'
 import { chiaveProgetto, sceltaProgetto } from '../../src/shared/allineamento'
 import { testoRiassunto } from '../../src/shared/residenza'
 import { ferma, nuovoTrasloco, segna } from '../../src/shared/trasloco'
+import { conVista } from '../../src/shared/progetti-vista'
 
 /**
  * Il pannello delle chat e dei progetti del Drive come lo manda un PC alla
  * 0.58.0 (`/api/drive/pannello`), su dati d'esempio. L'app lo legge da
  * `android/app/src/test/resources/pannello-drive/pannello-0.60.json`
  * (dalla 0.60.0; `pannello-0.58.json` resta com'era: l'app legge anche i PC vecchi)
- * (PannelloDriveTest); la pagina lo disegna qui sotto. `AGGIORNA=1` riscrive.
+ * (PannelloDriveTest; dalla 0.69.0 `pannello-0.69.json`, con la vista dei progetti); la pagina lo disegna qui sotto. `AGGIORNA=1` riscrive.
  */
 const ORA = Date.parse('2026-10-10T18:00:00Z')
 
@@ -32,7 +33,7 @@ function esempio(): Record<string, unknown> {
       // 0.60.0: una chat senza nome, attaccata al suo progetto per cartella e nascosta dagli elenchi.
       { sessione: 's-tre', titolo: '', cwd: 'C:\\Progetti\\Gestionale\\sotto', mtime: ORA - 9_000_000 }
     ],
-    manifesto: undefined, aperteQui: [], titoliNoti: [{ sessione: 's-uno', titolo: 'Fatture' }],
+    manifesto: undefined, aperteQui: ['s-due'], alLavoroQui: ['s-due'], titoliNoti: [{ sessione: 's-uno', titolo: 'Fatture' }],
     progetti: [
       { id: 'prog-g', nome: 'Gestionale', percorsi: { 'pc-qui': 'C:\\Progetti\\Gestionale', 'pc-port': 'D:\\Lavoro\\Gestionale' }, aggiuntoIl: '2026-09-01T00:00:00Z' },
       // 0.60.0: lo stesso progetto registrato una seconda volta da un altro PC (stesso nome, normalizzato).
@@ -51,12 +52,15 @@ function esempio(): Record<string, unknown> {
     registro: { principale: 'prog-g', uniti: ['prog-g2'] },
     recupero: [], inUso: [], recuperati: '.sierradeck/recuperati/unione-2026-10-10-18-00-00'
   }
+  const rimozione = [{ progetto: 'prog-g', nome: 'Gestionale', residente: 'PORTATILE-ESEMPIO', fase: 'attesa-conferma' as const, messaggio: 'Progetto «Gestionale», confrontato da PORTATILE-ESEMPIO (il residente).', quando: new Date(ORA).toISOString() }]
+  // La vista dei progetti (0.69.0): la calcola il PC, l'app e la pagina la disegnano.
+  const conLaVista = conVista(p, { rimozione })
   return JSON.parse(JSON.stringify({
-    ...p,
+    ...conLaVista,
     residenza: [{ progetto: 'prog-g', nome: 'Gestionale', fase: 'attesa-conferma', messaggio: testoRiassunto(corpo).join(' '), riassunto: { ...corpo, righe: testoRiassunto(corpo) }, quando: new Date(ORA).toISOString() }],
     unioni: [{ id: 'Sito-2026-10-09', progetto: 'prog-s', nome: 'Sito', quando: '2026-10-09T10:00:00.000Z', destinazione: 'C:\\Progetti\\Sito', scadeIl: '2026-11-08T10:00:00.000Z' }],
     rimozione: {
-      stati: [{ progetto: 'prog-g', nome: 'Gestionale', residente: 'PORTATILE-ESEMPIO', fase: 'attesa-conferma', messaggio: 'Progetto «Gestionale», confrontato da PORTATILE-ESEMPIO (il residente).', quando: new Date(ORA).toISOString() }],
+      stati: rimozione,
       inRecupero: [{ id: 'Vecchio-2026', progetto: 'prog-v', nome: 'Vecchio', percorsoOriginale: 'C:\\Progetti\\Vecchio', dove: 'C:\\Dati\\recupero-progetti\\Vecchio-2026', quando: '2026-10-01T10:00:00.000Z', motivo: 'solo cloud', scadeIl: '2026-10-31T10:00:00.000Z' }]
     }
   }).replace(/"letto":"[^"]*"/, '"letto":"2026-10-10T18:00:00.000Z"'))
@@ -65,7 +69,8 @@ function esempio(): Record<string, unknown> {
 describe('il pannello del Drive per la pagina e per l’app', () => {
   const atteso = esempio()
   it('la risposta è quella che l’app si aspetta', () => {
-    const file = join('android', 'app', 'src', 'test', 'resources', 'pannello-drive', 'pannello-0.60.json')
+    // Dalla 0.69.0 con la vista; `pannello-0.60.json` resta com'era, per i PC di prima.
+    const file = join('android', 'app', 'src', 'test', 'resources', 'pannello-drive', 'pannello-0.69.json')
     if (process.env.AGGIORNA === '1' || !existsSync(file)) { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, JSON.stringify(atteso, null, 2) + '\n') }
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(atteso)
   })

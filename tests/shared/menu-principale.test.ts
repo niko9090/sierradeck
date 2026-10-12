@@ -48,8 +48,10 @@ describe('sul PC: ogni voce dell’inventario si raggiunge', () => {
     expect(console_).toContain("if (quale === 'drive' || quale === 'progetti')")
     expect(console_).toContain("case 'drive': onProgetti?.(); return")
   })
-  it('Progetti: le azioni frequenti in cima, il Drive e il salvataggio in fondo', () => {
-    const p = leggi('src/renderer/components/ModalePannelloDrive.tsx')
+  it('Progetti (0.69.0, a piena pagina): gli strumenti rari in «Strumenti ▾», niente più finestra stretta', () => {
+    const p = leggi('src/renderer/components/VistaProgetti.tsx')
+    expect(existsSync('src/renderer/components/ModalePannelloDrive.tsx')).toBe(false)
+    expect(p).toContain('Strumenti ▾')
     for (const t of ['Sposta progetto…', 'Riordina le chat…', 'Dove vive ogni chat…', 'Quaderno del progetto', 'Salvataggio e arrivo', 'Il contenuto del Drive', '<SalvataggioDrive />', '<ContenutoDrive']) expect(p, t).toContain(t)
     const a = leggi('src/renderer/components/PannelloAccount.tsx')
     for (const t of ['Salva ora', 'Ripristina', 'Salvataggio automatico', 'Fondi con il Drive…', '<SezioneProgetti', 'export function SalvataggioDrive']) expect(a, t).toContain(t)

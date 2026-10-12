@@ -17,11 +17,13 @@ import type { Manifesto } from './cassaforte/incrementale'
  */
 export function datiPannello(p: {
   io: PcNoto
-  pc: (PcNoto & { chat?: { sessione?: string; titolo?: string; cwd?: string }[]; locali?: unknown })[]
+  pc: (PcNoto & { chat?: { sessione?: string; titolo?: string; cwd?: string; aspetta?: boolean }[]; locali?: unknown })[]
   case: CaseChat
   locali: { sessione: string; titolo: string; cwd?: string; mtime?: number }[]
   manifesto: Manifesto | undefined
   aperteQui: string[]
+  /** Le chat di qui che lavorano adesso (0.69.0). */
+  alLavoroQui?: string[]
   titoliNoti: { sessione: string; titolo: string; cwd?: string }[]
   progetti: ProgettoIngresso[]
   adesso: number
@@ -79,12 +81,18 @@ export function datiPannello(p: {
       if (x.sessione === undefined || !chat.has(x.sessione)) continue
       const c = prendi(x.sessione)
       c.aperta = [...new Set([...(c.aperta ?? []), b.id])]
+      if (x.aspetta === false) c.alLavoro = [...new Set([...(c.alLavoro ?? []), b.id])]
     }
   }
   for (const s of p.aperteQui) {
     if (!chat.has(s)) continue
     const c = prendi(s)
     c.aperta = [...new Set([...(c.aperta ?? []), p.io.id])]
+  }
+  for (const s of p.alLavoroQui ?? []) {
+    if (!chat.has(s)) continue
+    const c = prendi(s)
+    c.alLavoro = [...new Set([...(c.alLavoro ?? []), p.io.id])]
   }
   const gruppi = raggruppaProgetti(p.progetti.filter((x) => !eNomeDiSistema(x.nome)), p.case)
   for (const c of chat.values()) {

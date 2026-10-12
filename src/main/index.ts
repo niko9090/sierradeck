@@ -86,6 +86,7 @@ import { creaResidenza, type Residenza } from './residenza'
 import { armonizzaCase, casaDelGruppo, dentroCartella, eSenzaNome, gruppoDiCartella, gruppoDiId, nomeNormalizzato, raggruppaProgetti } from '@shared/progetti-unificati'
 import { decidiAperturaRemota, type CopiaNota } from '@shared/apertura-remota'
 import { conSpazioDrive, type Pannello } from '@shared/pannello-drive'
+import { conVista } from '@shared/progetti-vista'
 import { memoriaBreve } from '@shared/memoria-breve'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
 import { creaLatoResidente, creaRimozione, progettiInRecupero, spostaCartellaInRecupero, type LatoResidente, type Rimozione } from './rimozione-sicura'
@@ -2873,6 +2874,7 @@ if (!app.requestSingleInstanceLock()) {
           locali,
           manifesto,
           aperteQui: chatAperte.map((c) => c.sessione).filter((s): s is string => s !== undefined),
+          alLavoroQui: chatAperte.filter((c) => c.viva === true && c.aspetta !== true).map((c) => c.sessione).filter((s): s is string => s !== undefined),
           titoliNoti: workspaceStore === undefined ? [] : chatSalvate(workspaceStore.leggi()).filter((c) => c.sessione !== undefined).map((c) => ({ sessione: c.sessione as string, titolo: c.titolo, cwd: c.cwd })),
           progetti: registroVisto.progetti.map((g) => ({ id: g.id, nome: g.nome, percorsi: g.percorsi, ...(g.aggiuntoIl !== '' ? { aggiuntoIl: g.aggiuntoIl } : {}), ...(g.unitoIn !== undefined ? { unitoIn: g.unitoIn } : {}) })),
           adesso: Date.now(),
@@ -2913,7 +2915,12 @@ if (!app.requestSingleInstanceLock()) {
       const primoSpazio = setTimeout(() => { void spazio.giro() }, 20_000)
       app.on('before-quit', () => { clearInterval(timerSpazio); clearTimeout(primoSpazio) })
       ipcMain.handle('spazio:stato', (_e, forza: unknown) => spazio.stato(forza === true))
-      const pannelloCompleto = async (): Promise<Pannello & { rimozione: { stati: StatoRimozione[]; inRecupero: CartellaInRecupero[] }; unioni: ReturnType<Residenza['unioni']>; spazio?: StatoSpazio }> => ({
+      // La vista di ogni progetto (0.69.0): stato in una parola, gruppi, testi delle colonne.
+      const pannelloCompleto = async (): Promise<Pannello & { rimozione: { stati: StatoRimozione[]; inRecupero: CartellaInRecupero[] }; unioni: ReturnType<Residenza['unioni']>; spazio?: StatoSpazio }> => {
+        const p = await pannelloSenzaVista()
+        return conVista(p, { ...(p.traslochi !== undefined ? { traslochi: p.traslochi } : {}), ...(p.residenza !== undefined ? { residenza: p.residenza } : {}), ...(p.piano !== undefined ? { piano: p.piano } : {}), rimozione: p.rimozione.stati })
+      }
+      const pannelloSenzaVista = async (): Promise<Pannello & { rimozione: { stati: StatoRimozione[]; inRecupero: CartellaInRecupero[] }; unioni: ReturnType<Residenza['unioni']>; spazio?: StatoSpazio }> => ({
         ...(await (async () => {
           const p = await leggiPannello()
           // Lo spazio sul Drive di ogni progetto (0.69.0), con l'avviso dei file grandi.

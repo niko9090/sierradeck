@@ -30,6 +30,7 @@
   --verde: #54c07a;
   --ambra: #e0a33c;
   --rosso: #dc5f5f;
+  --blu: #4aa3ff;
   --spento: #4a5058;
 
   /* Gli altri grigi dello chassis. Stanno qui come ripiego — li veste
@@ -4642,3 +4643,161 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .aiuto__testo { max-height: 60vh; overflow-y: auto; }
 .con-aiuto > .scheda__titolo, .con-aiuto > h4, .con-aiuto > h5 { margin: 0; }
 .salute__titolo.con-aiuto { display: flex; }
+
+/* ── Progetti a piena pagina (0.69.0) ─────────────────────────────────────
+   «Sfrutta la larghezza della pagina» (Nicholas, 12/10): la vista copre la
+   finestra, tabella a sinistra e dettaglio a destra (420 px). Sotto i 1280 px
+   il dettaglio si appoggia sopra la tabella; sotto i 960 px Copie e Spazio
+   spariscono e il dettaglio prende tutto. */
+.progetti {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  background: var(--fondo);
+  color: var(--testo);
+}
+.progetti__testa {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 16px;
+  background: var(--chassis);
+  border-bottom: 1px solid var(--incisione);
+  flex-wrap: wrap;
+}
+.progetti__titolo { font-weight: 700; font-size: 15px; white-space: nowrap; }
+.progetti__gruppi { display: flex; gap: 2px; }
+.progetti__gruppo {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--raggio);
+  color: var(--testo-quieto);
+  padding: 4px 10px;
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+.progetti__gruppo:hover { color: var(--testo); background: var(--luce-tenue); }
+.progetti__gruppo--acceso { color: var(--testo); border-color: var(--primario-alto); background: var(--chassis-acceso); }
+.progetti__conto { color: var(--testo-spento); font-variant-numeric: tabular-nums; margin-left: 2px; }
+.progetti__gruppo--ambra .progetti__conto { color: var(--ambra); font-weight: 700; }
+.progetti__cerca { width: 240px; }
+.progetti__menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 5;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--chassis-alto);
+  border: 1px solid var(--primario);
+  border-radius: var(--raggio);
+  box-shadow: 0 8px 24px var(--ombra-media);
+}
+.progetti__voce {
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: var(--testo);
+  padding: 7px 10px;
+  border-radius: var(--raggio);
+  cursor: pointer;
+  font: inherit;
+}
+.progetti__voce:hover { background: var(--luce-viva); }
+.progetti__striscia {
+  padding: 6px 16px;
+  color: var(--ambra);
+  background: color-mix(in srgb, var(--ambra) 8%, transparent);
+  border-bottom: 1px solid var(--incisione);
+  font-size: 13px;
+}
+.progetti__striscia--info { color: var(--testo); background: var(--luce-tenue); }
+.progetti__corpo { position: relative; flex: 1; min-height: 0; display: flex; }
+.progetti__tabella { flex: 1; min-width: 0; overflow: auto; }
+.progetti__riga {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) 160px 110px 140px 110px 220px;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--incisione);
+  cursor: pointer;
+}
+.progetti__riga:hover { background: var(--luce-tenue); }
+.progetti__riga:focus-visible { outline: 1px solid var(--blu); outline-offset: -1px; }
+.progetti__riga--scelta { background: var(--luce-viva); }
+.progetti__riga--testa {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  min-height: 34px;
+  background: var(--chassis);
+  cursor: default;
+}
+.progetti__riga--testa .progetti__cella {
+  background: transparent;
+  border: 0;
+  color: var(--testo-quieto);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-align: inherit;
+  padding: 0 12px 0 0;
+}
+.progetti__riga--testa .progetti__cella:hover { color: var(--testo); }
+.progetti__riga--testa .progetti__cella--chat, .progetti__riga--testa .progetti__cella--spazio { text-align: right; }
+.progetti__riga--vuota { cursor: default; background: linear-gradient(90deg, var(--luce-tenue), transparent); }
+.progetti__cella { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 12px; }
+.progetti__cella--chat, .progetti__cella--spazio { text-align: right; font-variant-numeric: tabular-nums; }
+.progetti__quieto { color: var(--testo-quieto); font-size: 12px; }
+.progetti__forte { font-weight: 700; }
+.progetti__vuoto { padding: 32px 16px; color: var(--testo-quieto); }
+.progetti__dettaglio {
+  width: 420px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--chassis);
+  border-left: 1px solid var(--incisione);
+}
+.progetti__dtesta { display: flex; align-items: center; gap: 8px; padding: 12px 16px 4px; }
+.progetti__dtitolo { flex: 1; min-width: 0; font-size: 18px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.progetti__pillola { border: 1px solid; border-radius: 999px; padding: 1px 8px; font-size: 12px; white-space: nowrap; }
+.progetti__azioni { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 16px 10px; border-bottom: 1px solid var(--incisione); }
+.progetti__attende {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 16px;
+  color: var(--ambra);
+  background: color-mix(in srgb, var(--ambra) 10%, transparent);
+  border-bottom: 1px solid var(--incisione);
+}
+.progetti__dcorpo { flex: 1; min-height: 0; overflow: auto; padding: 8px 16px 16px; display: flex; flex-direction: column; gap: 14px; }
+.progetti__sezione { display: flex; flex-direction: column; gap: 4px; }
+.progetti__voceelenco { display: flex; gap: 8px; align-items: center; min-height: 26px; font-size: 13px; }
+.progetti__percorso { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 1279px) {
+  .progetti__corpo--destra .progetti__dettaglio {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    box-shadow: -12px 0 32px var(--ombra-media);
+  }
+}
+@media (max-width: 959px) {
+  .progetti__riga { grid-template-columns: minmax(160px, 1fr) 130px 120px 180px; }
+  .progetti__cella--copie, .progetti__cella--spazio { display: none; }
+  .progetti__corpo--destra .progetti__dettaglio { width: 100%; }
+  .progetti__cerca { width: 160px; }
+}
