@@ -4449,6 +4449,7 @@ if (!app.requestSingleInstanceLock()) {
           clientAutopilota.riprendiAlRiavvio(id, riprendi),
         // Chiudere e rinominare una chat le sa fare la finestra, che e' l'unica
         // a conoscere i suoi riquadri: qui si annuncia, come per «apri».
+        log: (riga: string) => registro.info(riga),
         chiudiChat: (idChat: string) => {
           const sf = sottofondo?.perId(idChat)
           if (sf !== undefined) { chiudiSottofondoDaTe(sf, 'da lontano'); return }

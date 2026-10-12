@@ -235,6 +235,7 @@ export const ROTTE_VIA_CANALE: readonly string[] = [
   // Gestire quel PC dal telefono attraverso il ponte (0.55.0): le stesse di ROTTE_PONTE.
   '/api/workspace', '/api/workspace/crea', '/api/workspace/elimina', '/api/workspace/rinomina',
   '/api/chat/chiudi', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta', '/api/chat/nome',
+  '/api/prova/chiudi',
   '/api/autopilota/archivia', '/api/pin/proteggi', '/api/chat/ospite', '/api/modelli',
   '/api/sfoglia', '/api/cartelle', '/api/sessioni',
   '/api/autopilota', '/api/autopilota/crea', '/api/autopilota/ferma', '/api/autopilota/riprendi', '/api/autopilota/vai',

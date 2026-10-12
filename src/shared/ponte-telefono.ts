@@ -34,6 +34,8 @@ export const ROTTE_PONTE: readonly string[] = [
   // un PC della stessa cassaforte (la chiave di casa, regola della 0.47).
   '/api/workspace', '/api/workspace/crea', '/api/workspace/elimina', '/api/workspace/rinomina',
   '/api/chat/chiudi', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta', '/api/chat/nome',
+  // Chiudere una chat di prova (0.63.0): se lo è, lo decide il PC dove vive.
+  '/api/prova/chiudi',
   '/api/autopilota/archivia', '/api/pin/proteggi', '/api/chat/ospite', '/api/modelli',
   '/api/sfoglia', '/api/cartelle', '/api/sessioni',
   '/api/autopilota', '/api/autopilota/crea', '/api/autopilota/ferma', '/api/autopilota/riprendi', '/api/autopilota/vai',
@@ -82,6 +84,7 @@ export function azioneDelPonte(percorso: string, corpo?: Record<string, unknown>
     case '/api/apri': return `apro una chat nuova in ${s('cartella')}${s('workspace') !== '' ? ` nel workspace «${s('workspace')}»` : ''}`
     case '/api/sessioni/riprendi': return `riapro la chat ${s('sessione').slice(0, 8)} in ${s('cartella')}`
     case '/api/chat/chiudi': return `chiudo ${la}`
+    case '/api/prova/chiudi': return `chiudo la chat di prova${s('chat') !== '' ? ` ${s('chat').slice(0, 12)}` : ''}`
     case '/api/chat/dormi': return `metto a dormire ${la}`
     case '/api/chat/sveglia': return `sveglio ${la}`
     case '/api/chat/sposta': return `sposto ${la} nel workspace «${s('workspace')}»`

@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.63.0',
+    righe: [
+      '**Le chat di prova si chiudono senza di te.** Una chat che lavora in una cartella «SierraDeck-prova-…» la può chiudere anche chi sta collaudando il programma fra i PC, senza chiederti un gesto. Lo decide il PC dove la chat vive, guardando la sua cartella, e lo scrive nel registro. Le tue chat restano intoccabili: chiuderle è vietato agli autopiloti come prima.'
+    ]
+  },
+  {
     versione: '0.62.0',
     righe: [
       '**Meno testo, un «?» dove serve.** Nei pannelli restano i tasti, i numeri e al più una riga corta. La spiegazione completa (cosa fa, cosa non succede, cosa fare se qualcosa non torna) si apre toccando il «?» accanto alla cosa che non conosci, e si richiude con un altro tocco, con Esc o toccando altrove. Vale sul PC, nella pagina del telefono e nell’app.'

@@ -19,6 +19,7 @@ import { alberoChat } from '@shared/harness'
 import type { NoteAggiornamento } from '@shared/note-aggiornamento'
 import { leggiRichiestaPonte } from '@shared/ponte-telefono'
 import { MODELLI } from '@shared/modelli'
+import { cartellaDiProva, PREFISSO_CARTELLA_PROVA } from '@shared/chat-di-prova'
 import {
   bozzaDaCorpo, controllaBozzaAutopilota, controllaNomeWorkspace, ULTIMO_WORKSPACE,
   type AzioneFinestra, type EsitoAzioneFinestra, type RichiestaAutopilota
@@ -47,7 +48,7 @@ export function daAltroPc(dispositivo: string | undefined): boolean {
 }
 
 /** Le rotte che mostrano o scrivono dentro una chat: passano dal PIN (0.49.0). */
-const ROTTE_DENTRO_CHAT = new Set(['/api/storia', '/api/dentro', '/api/scrivi', '/api/scegli', '/api/chat/chiudi', '/api/chat/nome', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta', '/api/chat/ospite'])
+const ROTTE_DENTRO_CHAT = new Set(['/api/storia', '/api/dentro', '/api/scrivi', '/api/scegli', '/api/chat/chiudi', '/api/prova/chiudi', '/api/chat/nome', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta', '/api/chat/ospite'])
 import type { TentativoFallito } from '@shared/tentativo-installazione'
 import type { AvvisoDrive } from '@shared/scoperta-pc'
 import type { EsitoNegozio, McpVoce, PluginVoce, SkillVoce } from '@shared/negozio'
@@ -159,6 +160,8 @@ export type Chat = {
 
 export type DipendenzeRotte = {
   dispositivi: Dispositivi
+  /** Una riga nel registro di questo PC (0.63.0: le chat di prova chiuse da chi collauda). */
+  log?: (riga: string) => void
   /** Le chat aperte adesso, in tutte le finestre. */
   chat: () => Chat[]
   autopiloti: () => Promise<Autopilota[]>
@@ -2108,9 +2111,18 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
 
     // Chiudere una chat non chiude la conversazione: quella resta su disco e si
     // riprende. È la ragione per cui questo comando può stare su un telefono.
-    if (r.metodo === 'POST' && r.percorso === '/api/chat/chiudi') {
+    // Le chat di prova (0.63.0): le chiude anche chi collauda, senza la rotta
+    // vietata alle chat governate. Se è di prova lo decide questo PC, dalla
+    // cartella in cui la chat lavora qui; le altre chat si rifiutano.
+    if (r.metodo === 'POST' && (r.percorso === '/api/chat/chiudi' || r.percorso === '/api/prova/chiudi')) {
       const id = stringa(r.corpo, 'chat')
       if (id === '') return { stato: 400, corpo: { errore: 'serve la chat' } }
+      if (r.percorso === '/api/prova/chiudi') {
+        const c = depsPieni.chat().find((x) => x.id === id)
+        if (c === undefined) return { stato: 404, corpo: { errore: 'Questa chat non è più aperta sul computer: forse l’ha già chiusa qualcuno.' } }
+        if (!cartellaDiProva(c.cwd)) return { stato: 403, corpo: { errore: `«${c.titolo}» non è una chat di prova: così si chiudono solo le chat che lavorano in una cartella «${PREFISSO_CARTELLA_PROVA}…». Le altre le chiudi tu.` } }
+        deps.log?.(`[prova] chiudo la chat di prova «${c.titolo}» (${id}) in ${c.cwd}: chiesto da chi collauda`)
+      }
       if (deps.azioneFinestra !== undefined) {
         if (!depsPieni.chat().some((c) => c.id === id)) return { stato: 404, corpo: { errore: 'Questa chat non è più aperta sul computer: forse l’ha già chiusa qualcuno.' } }
         const e = await deps.azioneFinestra({ tipo: 'chat', azione: 'chiudi', chat: id })
