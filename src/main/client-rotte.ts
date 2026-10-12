@@ -345,6 +345,12 @@ export type DipendenzeRotte = {
    * «su X» e non si riapre qui: si scrive la' con la posta.
    */
   chatAltrove?: (cwd: string) => string | undefined
+  /**
+   * Apre qui il riquadro **dal vivo** di una chat che vive su un altro PC
+   * (0.64.0), come «Riprendi» della finestra. Solo se chi chiede lo dice
+   * (`dalVivo: true`): senza, la risposta resta quella di sempre.
+   */
+  apriRemota?: (cwd: string, sessione: string, titolo: string) => Promise<{ ok: boolean; errore?: string }>
   /** Riapre **quella** conversazione, con la sua storia, nel workspace dove sta salvata. */
   /** `chiesto` (0.59.0): il workspace del riquadro di chi chiede, per aprirla nel suo. */
   riprendiSessione: (cwd: string, sessione: string, chiesto?: string) => void
@@ -1988,6 +1994,11 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         return { stato: 403, corpo: { errore: 'cartella non conosciuta' } }
       }
       const su = deps.chatAltrove?.(cartella)
+      if (su !== undefined && (r.corpo as { dalVivo?: unknown } | undefined)?.dalVivo === true && deps.apriRemota !== undefined) {
+        const e = await deps.apriRemota(cartella, sessione, stringa(r.corpo, 'titolo').slice(0, 200))
+        if (!e.ok) return { stato: 409, corpo: { errore: `Il riquadro dal vivo verso «${su}» non si è aperto: ${e.errore ?? 'la finestra del computer non ha detto perché'}.` } }
+        return OK({ fatto: true, dalVivo: su })
+      }
       if (su !== undefined) {
         // «Altri computer», come si chiama la sezione sul PC, nella pagina e
         // nell'app: il testo diceva «Altri PC», che non esisteva da nessuna parte.
@@ -2152,6 +2163,29 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
 
     // I modelli fra cui scegliere per una chat nuova (0.56.0): gli stessi della fascia del PC.
     if (r.percorso === '/api/modelli') return OK({ modelli: MODELLI })
+
+    // Gli autopiloti di prova (0.64.0): fermarli, farli riprendere e
+    // archiviarli li può chi collauda, senza le rotte vietate alle chat
+    // governate. Se è di prova lo decide questo PC, dalla cartella in cui
+    // l'autopilota lavora qui; gli altri si rifiutano.
+    if (r.metodo === 'POST' && r.percorso === '/api/prova/autopilota') {
+      const id = stringa(r.corpo, 'autopilota')
+      const azione = stringa(r.corpo, 'azione')
+      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
+      if (azione !== 'ferma' && azione !== 'riprendi' && azione !== 'archivia') return { stato: 400, corpo: { errore: 'l’azione è «ferma», «riprendi» o «archivia»' } }
+      const a = (await deps.autopiloti().catch(() => [] as Autopilota[])).find((x) => x.id === id)
+      if (a === undefined) return { stato: 404, corpo: { errore: 'Questo autopilota non c’è più.' } }
+      if (!cartellaDiProva(a.cwd)) return { stato: 403, corpo: { errore: `«${a.nome}» non è un autopilota di prova: così si fermano, riprendono e archiviano solo quelli che lavorano in una cartella «${PREFISSO_CARTELLA_PROVA}…». Gli altri li governi tu.` } }
+      if (azione === 'archivia') {
+        if (deps.archiviaAutopilota === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora archiviare da qui.' } }
+        if (!eFermo(a)) return { stato: 409, corpo: { errore: 'Si archivia solo un autopilota fermo (sospeso o fallito): prima fermalo.' } }
+      }
+      deps.log?.(`[prova] ${azione === 'ferma' ? 'fermo' : azione === 'riprendi' ? 'faccio riprendere' : 'archivio'} l’autopilota di prova «${a.nome}» (${id}) in ${a.cwd}: chiesto da chi collauda`)
+      if (azione === 'archivia') { await deps.archiviaAutopilota!(id, true); return OK({ fatto: true }) }
+      const e = await (azione === 'ferma' ? deps.fermaAutopilota(id) : deps.riprendiAutopilota(id)).then(() => undefined, (x: unknown) => x)
+      if (e !== undefined) return lentoDelServizio(azione === 'ferma' ? 'fermarlo' : 'farlo riprendere', e)
+      return OK({ fatto: true })
+    }
 
     // Archiviare un autopilota fermo (0.56.0): come dal pannello del PC.
     if (r.metodo === 'POST' && r.percorso === '/api/autopilota/archivia') {

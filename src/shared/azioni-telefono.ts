@@ -26,6 +26,11 @@ export type AzioneFinestra =
   | { tipo: 'workspace'; azione: 'rinomina'; nome: string; nuovo: string }
   | { tipo: 'chat'; azione: 'dormi' | 'sveglia' | 'chiudi'; chat: string }
   | { tipo: 'chat'; azione: 'sposta'; chat: string; workspace: string }
+  /**
+   * Apre qui il riquadro **dal vivo** di una chat che vive su un altro PC
+   * (0.64.0), come «Riprendi» della finestra: qui `chat` è la conversazione.
+   */
+  | { tipo: 'chat'; azione: 'apriRemota'; chat: string; cwd: string; titolo: string; pcId: string; pcNome: string }
 
 export type EsitoAzioneFinestra = { ok: boolean; errore?: string }
 
@@ -41,6 +46,7 @@ export function leggiAzioneFinestra(x: unknown): AzioneFinestra | undefined {
   if (o.tipo === 'chat' && s('chat') !== '') {
     if (o.azione === 'dormi' || o.azione === 'sveglia' || o.azione === 'chiudi') return { tipo: 'chat', azione: o.azione, chat: s('chat') }
     if (o.azione === 'sposta' && s('workspace') !== '') return { tipo: 'chat', azione: 'sposta', chat: s('chat'), workspace: s('workspace') }
+    if (o.azione === 'apriRemota' && s('cwd') !== '' && s('pcId') !== '') return { tipo: 'chat', azione: 'apriRemota', chat: s('chat'), cwd: s('cwd'), titolo: s('titolo'), pcId: s('pcId'), pcNome: s('pcNome') }
   }
   return undefined
 }

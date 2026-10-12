@@ -263,7 +263,9 @@ ipcMain.on('client:esitoAzione', (_e, m: { id?: unknown; ok?: unknown; errore?: 
  */
 function azioneAlleFinestre(azione: AzioneFinestra): Promise<EsitoAzioneFinestra> {
   const vive = finestreDiChat().filter((w) => !w.isDestroyed() && !w.webContents.isDestroyed())
-  const destinatarie = azione.tipo === 'workspace'
+  // Un riquadro da aprire (0.64.0) va a una finestra sola, come un workspace:
+  // a tutte, la stessa chat comparirebbe due volte.
+  const destinatarie = azione.tipo === 'workspace' || azione.azione === 'apriRemota'
     ? [finestraPerAprire(workspaceStore?.leggi().attivo)].filter((w): w is BrowserWindow => w !== undefined)
     : vive
   if (destinatarie.length === 0) {
@@ -4553,6 +4555,14 @@ if (!app.requestSingleInstanceLock()) {
         // in quello che la finestra ha davanti la spostava, e con due finestre
         // la apriva due volte. Si dice alla finestra dove vive, e lei ci va.
         chatAltrove: (cwd: string) => (existsSync(cwd) ? undefined : altroveRiquadro(cwd)?.nome),
+        // «Riprendi» da lontano di una chat che vive su un altro PC (0.64.0): il
+        // riquadro dal vivo, come lo apre «Riprendi» della finestra.
+        apriRemota: async (cwd: string, sessione: string, titolo: string) => {
+          const a = existsSync(cwd) ? undefined : altroveRiquadro(cwd)
+          if (a === undefined) return { ok: false, errore: 'la sua cartella è su questo PC: si riprende qui, non dal vivo da un altro' }
+          registro.info(`[apertura] «${titolo !== '' ? titolo : sessione.slice(0, 8)}» (${sessione.slice(0, 8)}): «Riprendi» da lontano — apro qui il riquadro dal vivo verso ${a.nome}`)
+          return azioneAlleFinestre({ tipo: 'chat', azione: 'apriRemota', chat: sessione, cwd, titolo, pcId: a.id, pcNome: a.nome })
+        },
         // Le chat in sottofondo (0.58.4): l'avvio con i cancelli di questo PC.
         sottofondo: {
           avvia: cancelliSottofondo({

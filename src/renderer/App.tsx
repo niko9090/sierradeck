@@ -570,6 +570,13 @@ export function App(): React.JSX.Element {
         return true
       }
       const store = useLayoutStore.getState()
+      if (a.azione === 'apriRemota') {
+        // Come «Riprendi» della finestra (riprendi-sessione.ts): già a schermo
+        // non si apre due volte; se no il riquadro dal vivo verso quel PC.
+        if (Object.values(store.panes).some((x) => x.sessionUuid === a.chat)) return true
+        store.addPane(a.cwd, a.titolo !== '' ? a.titolo : (a.cwd.split(/[\\/]/).filter((x) => x !== '').pop() ?? a.chat.slice(0, 8)), undefined, { sessionUuid: a.chat, remoto: { pcId: a.pcId, pcNome: a.pcNome, cwd: a.cwd, sessione: a.chat } })
+        return true
+      }
       const p = store.panes[a.chat]
       if (p === undefined) return false
       if (a.azione === 'dormi') {

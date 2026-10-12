@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.64.0',
+    righe: [
+      '**Anche gli autopiloti di prova si governano senza di te.** Un autopilota che lavora in una cartella «SierraDeck-prova-…» lo può fermare, far riprendere e archiviare chi sta collaudando il programma. Lo decide il PC dove l’autopilota gira e lo scrive nel registro; i tuoi autopiloti restano intoccabili come prima.',
+      '**Il riquadro dal vivo si apre anche da lontano.** Chi collauda fra i PC può chiedere al computer di aprire una chat che vive su un altro PC, come fa il suo «Riprendi»: in una finestra sola, con le righe [apertura] nel registro. Le tue finestre restano come sono finché nessuno lo chiede.'
+    ]
+  },
+  {
     versione: '0.63.0',
     righe: [
       '**Le chat di prova si chiudono senza di te.** Una chat che lavora in una cartella «SierraDeck-prova-…» la può chiudere anche chi sta collaudando il programma fra i PC, senza chiederti un gesto. Lo decide il PC dove la chat vive, guardando la sua cartella, e lo scrive nel registro. Le tue chat restano intoccabili: chiuderle è vietato agli autopiloti come prima.'
