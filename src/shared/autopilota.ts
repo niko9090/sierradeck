@@ -107,6 +107,9 @@ export type ScambioDialogo = {
   traccia?: true
 }
 
+/** Quanti messaggi consegnati si ricordano per autopilota (0.68.1). */
+export const CONSEGNATI_RICORDATI_AUTOPILOTA = 20
+
 /** Oltre queste battute, le più vecchie si dimenticano: la scheda le mostra, l'archivio non è un log. */
 export const DIALOGO_RICORDATO = 60
 
@@ -319,6 +322,12 @@ export type Autopilota = {
    * decisa la consegna: il 09/10 una consegna persa al riavvio li ha buttati.
    */
   inVolo?: Array<{ consegna: string; quando: string; messaggi: MessaggioPerLaChat[] }>
+  /**
+   * Gli ultimi messaggi arrivati nella chat, con quando (0.68.1): la scheda dice
+   * «consegnato alle hh:mm». Prima un messaggio consegnato spariva e non si
+   * capiva se l'autopilota avesse comandato o no.
+   */
+  consegnatiDi?: Array<{ id: string; testo: string; quando: string; consegnatoIl: string }>
   /**
    * La regola di pubblicazione del progetto, scelta alla creazione (0.36.0):
    * `beta` pubblica sempre, `stabile` chiede prima, `unica` segue il progetto.
@@ -786,6 +795,17 @@ export function parseAutopilota(raw: unknown): {
               })
               return messaggi.length === 0 ? [] : [{ consegna: r.consegna, quando: typeof r.quando === 'string' ? r.quando : '', messaggi }]
             })
+          }
+        : {}),
+      ...(Array.isArray(o.consegnatiDi)
+        ? {
+            consegnatiDi: o.consegnatiDi.flatMap((v: unknown) => {
+              if (typeof v !== 'object' || v === null) return []
+              const r = v as Record<string, unknown>
+              return typeof r.id === 'string' && typeof r.testo === 'string' && typeof r.consegnatoIl === 'string'
+                ? [{ id: r.id, testo: r.testo, quando: typeof r.quando === 'string' ? r.quando : r.consegnatoIl, consegnatoIl: r.consegnatoIl }]
+                : []
+            }).slice(-CONSEGNATI_RICORDATI_AUTOPILOTA)
           }
         : {})
     },

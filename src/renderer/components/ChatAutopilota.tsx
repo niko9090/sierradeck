@@ -1,3 +1,4 @@
+import { MessaggiVersoLaChat, RigaDalVivo } from './DalVivoAutopilota'
 import { useEffect, useRef, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
@@ -64,6 +65,8 @@ export function ChatAutopilota({
 
   return (
     <section className="chatap" aria-label="Chat con l’autopilota">
+      <RigaDalVivo autopilota={autopilota} />
+      <MessaggiVersoLaChat autopilota={autopilota} {...(onCambiato !== undefined ? { onCambiato } : {})} />
       <div className="chatap__flusso" ref={flusso} aria-live="polite">
         {battute.map((b, i) => (
           <div

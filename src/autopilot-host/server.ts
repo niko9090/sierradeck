@@ -40,7 +40,7 @@ import {
 import { primoCompito, ripartiDaDove, riprende } from './nel-mosaico'
 import type { RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
-import { TETTO_CHAT_MAX, conMomentoDelFermo, eFermo } from '@shared/autopilota'
+import { CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, eFermo } from '@shared/autopilota'
 import { OPZIONE_VIA, TESTO_VIA, tracciaDopoRisposta } from '@shared/domande-autopilota'
 import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
 import { giudicaMossa, giudicaStrumento, leggiMosse, rispostaPreTool } from './divieti'
@@ -587,8 +587,17 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   /** La consegna è partita: i suoi messaggi sono nella chat, si dimenticano. */
   const consegnaPartita = (consegna: string): void => {
     for (const a of deps.archivio.elenca()) {
-      if (!(a.inVolo ?? []).some((v) => v.consegna === consegna)) continue
-      salva({ ...a, inVolo: (a.inVolo ?? []).filter((v) => v.consegna !== consegna) })
+      const v = (a.inVolo ?? []).find((x) => x.consegna === consegna)
+      if (v === undefined) continue
+      // Si ricordano con l'ora (0.68.1): la scheda dice «consegnato alle hh:mm».
+      const ora = deps.adesso()
+      const arrivati = v.messaggi.map((m) => ({ id: m.id, testo: m.testo.slice(0, 400), quando: m.quando, consegnatoIl: ora }))
+      console.info(`[consegna] ${a.id}: consegna ${consegna} partita, ${arrivati.length} messaggi nella chat`)
+      salva({
+        ...a,
+        inVolo: (a.inVolo ?? []).filter((x) => x.consegna !== consegna),
+        consegnatiDi: [...(a.consegnatiDi ?? []).filter((x) => !arrivati.some((y) => y.id === x.id)), ...arrivati].slice(-CONSEGNATI_RICORDATI_AUTOPILOTA)
+      })
     }
   }
 
@@ -925,7 +934,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * chi ha un dialogo in corso, che riscriverebbe la coda con la sua copia;
    * `daDialogo` è il dialogo stesso che ha finito.
    */
-  const consegnaAlleChatFerme = (opz: { autopilota?: string; forza?: boolean; daDialogo?: boolean } = {}): number => {
+  const consegnaAlleChatFerme = (opz: { autopilota?: string; forza?: boolean; daDialogo?: boolean; subito?: boolean } = {}): number => {
     const ora = Date.parse(deps.adesso())
     if (Number.isNaN(ora)) return 0
     let mandate = 0
@@ -933,7 +942,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       if (opz.autopilota !== undefined && elenco.id !== opz.autopilota) continue
       if (inLavorazione.has(elenco.id)) continue
       if (opz.daDialogo !== true && dialoghiInCorso.has(elenco.id)) continue
-      const ferme = chatFerme(elenco, (k) => fermaDal.get(k), ora, opz.forza === true ? 0 : FERMA_DA_MS)
+      const ferme = chatFerme(elenco, (k) => fermaDal.get(k), ora, opz.forza === true || opz.subito === true ? 0 : FERMA_DA_MS)
       let a = elenco
       for (const f of ferme) {
         const presi = prendiMessaggiPer(a, f.chatId ?? a.id)
@@ -961,7 +970,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // appena può, senza interrompere quello che sta facendo.
       if (opz.forza === true) continue
       const giaFerme = new Set(ferme.map((f) => f.chatId ?? a.id))
-      for (const v of chatConCodaVecchia(a, ora, IN_CODA_AL_LAVORO_MS, giaFerme)) {
+      // «Manda adesso» (0.68.1): senza aspettare i due minuti.
+      for (const v of chatConCodaVecchia(a, ora, opz.subito === true ? 0 : IN_CODA_AL_LAVORO_MS, giaFerme)) {
         const presi = prendiMessaggiPer(a, v.chatId ?? a.id)
         if (presi.testi.length === 0) continue
         const chat = v.chatId === undefined ? undefined : presi.autopilota.chats.find((c) => c.id === v.chatId)
@@ -2542,7 +2552,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         }
 
         if (metodo === 'GET' && percorso === '/autopiloti') {
-          rispondi(res, 200, deps.archivio.elenca())
+          // Con l'ultimo segno di vita delle sue chat (0.68.1), per «nessun
+          // segno da 10 min»: segnali di Claude Code e turni mandati.
+          rispondi(res, 200, deps.archivio.elenca().map((a) => {
+            const chiavi = a.chats.length === 0 ? [chiaveTurno(a.id)] : a.chats.map((c) => chiaveTurno(a.id, c.id))
+            const segni = chiavi.map((k) => ultimoSegnale(k)).filter((t): t is number => t !== undefined)
+            return segni.length === 0 ? a : { ...a, ultimoSegno: new Date(Math.max(...segni)).toISOString() }
+          }))
           return
         }
 
@@ -2644,6 +2660,20 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
 
         // «Archivia» (0.37.0): un autopilota fermo messo da parte, che non deve
         // ripartire. Solo da fermo: uno che lavora non si archivia.
+        // «Manda adesso» (0.68.1): i messaggi in coda di questo autopilota escono
+        // subito — alla chat ferma come sempre, a quella che lavora durante il turno.
+        const mandaAdesso = /^\/autopiloti\/([^/]+)\/manda-adesso$/.exec(percorso)
+        if (metodo === 'POST' && mandaAdesso !== null) {
+          const id = decodeURIComponent(mandaAdesso[1]!)
+          const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
+          if (a === undefined) { rispondi(res, 404, { errore: 'autopilota inesistente' }); return }
+          if (a.daConsegnare.length === 0) { rispondi(res, 200, { mandate: 0, messaggio: 'non c’è niente in attesa' }); return }
+          if (a.stato !== 'lavoro') { rispondi(res, 409, { errore: 'l’autopilota non è al lavoro: i messaggi partono quando riprende' }); return }
+          const mandate = consegnaAlleChatFerme({ autopilota: id, subito: true })
+          console.info(`[consegna] ${id}: «Manda adesso» — ${mandate} consegne`)
+          rispondi(res, 200, { mandate })
+          return
+        }
         const archivia = /^\/autopiloti\/([^/]+)\/archivia$/.exec(percorso)
         if (metodo === 'POST' && archivia !== null) {
           const id = decodeURIComponent(archivia[1]!)

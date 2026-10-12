@@ -1,3 +1,4 @@
+import { oraBreve, statoAutopilotaDalVivo, statoMessaggi } from '@shared/stato-dal-vivo'
 import type { ChatSalvata } from '@shared/workspace'
 import { nomeDaMostrare } from '@shared/nome-pc'
 import { leggiIstruzioni, notaCorreggi } from '@shared/istruzioni-autopilota'
@@ -43,6 +44,12 @@ import { chiaveCartella, eTelefono, idConsegnaValido, nomiDistinti, radiceAmmess
  * Un altro PC con la chiave di casa: `pc` (prima della 0.49.1, senza dire chi
  * è) o `pc:<chi guarda>` (0.49.1: il suo id, o `tel:<telefono>@<PC>` dal ponte).
  */
+/** L'ultimo segno di vita delle chat di un autopilota, se il servizio lo dice (0.68.1). */
+function segnoDi(a: Autopilota): number | undefined {
+  const t = Date.parse(((a as unknown as { ultimoSegno?: string }).ultimoSegno) ?? '')
+  return Number.isNaN(t) ? undefined : t
+}
+
 export function daAltroPc(dispositivo: string | undefined): boolean {
   return dispositivo === 'pc' || (dispositivo?.startsWith('pc:') ?? false)
 }
@@ -330,6 +337,8 @@ export type DipendenzeRotte = {
   installaLaStato?: () => unknown[]
   /** Archiviare un autopilota fermo (0.56.0), come dal pannello del PC. */
   archiviaAutopilota?: (id: string, archivia: boolean) => Promise<void>
+  /** «Manda adesso» (0.68.1). */
+  mandaAdessoAutopilota?: (id: string) => Promise<{ mandate: number; messaggio?: string }>
   /** Proteggere o no una chat con il PIN (0.56.0): `pin:proteggiChat` del PC. */
   proteggiChat?: (sessione: string, si: boolean) => void
   /** «Ospitata da» (0.56.0): `casa:scegli` del PC. `pc.id = 'qui'` = questo PC. */
@@ -1101,6 +1110,9 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           // console. Il telefono ne aveva una sua, scritta a mano, e sbagliava
           // dove conta: fallito e finito avevano lo stesso puntino grigio.
           led: ledDi(a).classe,
+          // Si vede sempre chi lavora (0.68.1): «al lavoro · da 12 min · ultima
+          // azione», e «nessun segno da 10 min». Le parole le decide il PC.
+          dalVivo: statoAutopilotaDalVivo({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, adesso(), segnoDi(a)),
           cicli: a.cicli,
           strategia: a.strategia,
           // Perche' si e' fermato. «Sospeso» da solo manda a cercare altrove:
@@ -1260,7 +1272,10 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         // La linguetta «Domande» (0.38.0): le sue domande una per volta, con la
         // stessa funzione del PC (preparazione, lavoro, «Pubblico adesso?», via).
         domandeScheda: domandeScheda(a, tutteLeDomande),
-        ...(mia !== undefined ? { domandaId: mia.id } : {})
+        ...(mia !== undefined ? { domandaId: mia.id } : {}),
+        // Lo stato dal vivo e quello di ogni messaggio verso la chat (0.68.1).
+        dalVivo: statoAutopilotaDalVivo({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, adesso(), segnoDi(a)),
+        messaggi: statoMessaggi(a, adesso(), oraBreve)
       })
     }
 
@@ -2266,6 +2281,15 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     }
 
     // Archiviare un autopilota fermo (0.56.0): come dal pannello del PC.
+    // «Manda adesso» (0.68.1): i messaggi in coda per la chat escono subito.
+    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/manda-adesso') {
+      const id = stringa(r.corpo, 'autopilota')
+      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
+      if (deps.mandaAdessoAutopilota === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora mandare subito i messaggi: aggiornalo alla 0.68.1.' } }
+      const e = await deps.mandaAdessoAutopilota(id).catch((x: unknown) => ({ mandate: 0, messaggio: String(x) }))
+      deps.log?.(`[consegna] «Manda adesso» per l’autopilota ${id}: ${e.mandate} consegne${e.messaggio !== undefined ? ` (${e.messaggio})` : ''}`)
+      return OK(e)
+    }
     if (r.metodo === 'POST' && r.percorso === '/api/autopilota/archivia') {
       const id = stringa(r.corpo, 'autopilota')
       if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }

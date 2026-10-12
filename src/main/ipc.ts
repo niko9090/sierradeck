@@ -1483,6 +1483,7 @@ export function registerAutopilotaIpc(
   ipcMain.handle('autopilota:archivia', (_e, id: unknown, archivia: unknown) =>
     client.archivia(validaIdAutopilota(id), archivia !== false))
   ipcMain.handle('autopilota:elimina', (_e, id: unknown) => client.elimina(validaIdAutopilota(id)))
+  ipcMain.handle('autopilota:mandaAdesso', (_e, id: unknown) => client.mandaAdesso(validaIdAutopilota(id)))
   ipcMain.handle('autopilota:domande', () => client.domande())
   ipcMain.handle('autopilota:istruzioni', async (_e, id: unknown) => filtroIstruzioniPin.filtra(await client.istruzioni(validaIdAutopilota(id))))
 

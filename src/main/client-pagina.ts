@@ -726,6 +726,34 @@ async function chiediAp(percorso, corpo) {
   if (!apPc) return chiedi(percorso, corpo)
   return chiedi('/api/ponte', { pc: apPc, percorso: percorso, corpo: corpo })
 }
+/**
+ * Si vede sempre chi lavora (0.68.1): le parole le decide il PC («al lavoro ·
+ * da 12 min», l'ultima azione, «nessun segno da 10 min»); qui si mostrano.
+ */
+function dalVivoHtml(v) {
+  if (!v || typeof v !== 'object') return ''
+  var colore = v.etichetta === 'al lavoro' ? 'var(--verde)' : v.etichetta === 'aspetta te' ? 'var(--ambra,#e0a33c)' : 'var(--testo-quieto,#8b949e)'
+  return '<span class="voce__sotto"><b style="color:' + colore + '">' + esc(v.etichetta || '') + '</b>' + (v.da ? ' · da ' + esc(v.da) : '') +
+    (v.senzaSegni ? ' · <span style="color:var(--ambra,#e0a33c)">⚠ ' + esc(v.senzaSegni) + '</span>' : '') + '</span>' +
+    (v.ultimaAzione ? '<span class="voce__sotto" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(v.ultimaAzione) + '</span>' : '')
+}
+/** I messaggi verso la chat, con il loro stato e «Manda adesso» (0.68.1). */
+function messaggiApHtml(m) {
+  if (!Array.isArray(m) || m.length === 0) return ''
+  return '<div class="titolo-sezione" style="margin-top:8px">Messaggi per la chat' + aiuto('ap-messaggi', 'I messaggi tuoi e dell’autopilota per la chat che lavora. Entrano alla fine del turno; se aspettano più di due minuti si scrivono anche durante il turno. «Manda adesso» non aspetta.') + '</div>' +
+    m.map(function (x) {
+      var col = x.stato === 'consegnato' ? 'var(--verde)' : x.stato === 'in attesa' ? 'var(--ambra,#e0a33c)' : 'var(--testo-quieto,#8b949e)'
+      return '<div class="sotto" style="display:flex;gap:8px;align-items:baseline"><span style="color:' + col + ';white-space:nowrap">' + esc(x.dettaglio || '') + '</span>' +
+        '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(x.testo || '') + '</span>' +
+        (x.mandaAdesso ? '<button onclick="mandaAdessoAp()">Manda adesso</button>' : '') + '</div>'
+    }).join('')
+}
+window.mandaAdessoAp = async () => {
+  if (!dentroAp) return
+  try { await chiediAp('/api/autopilota/manda-adesso', { autopilota: dentroAp }) } catch (e) { /* lo dice lo stato al giro dopo */ }
+  await leggiAp()
+}
+
 function altriApHtml() {
   if (altriAp === null) return '<div class="sotto" style="margin-top:8px">Chiedo agli altri PC i loro autopiloti…</div>'
   if (altriAp.length === 0) return ''
@@ -736,7 +764,7 @@ function altriApHtml() {
         '<button class="voce" onclick="guardaAp(\\'' + escJs(a.id) + '\\', \\'' + escJs(p.pcId) + '\\', \\'' + escJs(p.nome) + '\\')">' +
           '<span class="led ' + led(a) + '"></span>' +
           '<span class="voce__testo"><span class="voce__nome">' + esc(a.nome) + '</span>' +
-          '<span class="voce__sotto">gira su ' + esc(p.nome) + ' · ' + esc(a.strategia ? 'bloccato, provo: ' + a.strategia : (a.motivo || a.stato)) + (a.criteri !== undefined ? ' · ' + a.fatti + '/' + a.criteri : '') + '</span></span>' +
+          '<span class="voce__sotto">gira su ' + esc(p.nome) + ' · ' + esc(a.strategia ? 'bloccato, provo: ' + a.strategia : (a.motivo || a.stato)) + (a.criteri !== undefined ? ' · ' + a.fatti + '/' + a.criteri : '') + '</span>' + dalVivoHtml(a.dalVivo) + '</span>' +
           '<span class="voce__freccia">›</span></button>').join('')).join('')
 }
 var apDettaglio = null
@@ -1287,7 +1315,7 @@ function impronta(s) {
   const chat = (s.chat || []).map((c) => c.id + '|' + c.titolo + '|' + (c.ultimaRiga || '') + '|' + (c.chiede ? 1 : 0) + (c.aspetta ? 1 : 0) + (c.governata ? 1 : 0) + (c.viva === false ? 0 : 1) + '|' + (c.altrove || '')).join('~') +
     '#' + ((s.workspace && s.workspace.chat) || []).map((c) => c.sessione + '|' + c.workspace + '|' + c.titolo + '|' + (c.altrove || '')).join('~')
   const aps = (s.autopiloti || []).map((a) =>
-    a.id + '|' + a.stato + '|' + a.cicli + '|' + a.fatti + '|' + a.criteri + '|' + (a.strategia || '') + '|' + (a.led || '') + '|' + (a.motivo || '') + '|' + (a.nome || '')
+    a.id + '|' + a.stato + '|' + a.cicli + '|' + a.fatti + '|' + a.criteri + '|' + (a.strategia || '') + '|' + (a.led || '') + '|' + (a.motivo || '') + '|' + (a.nome || '') + '|' + JSON.stringify(a.dalVivo || '')
   ).join('~') + '#' + (s.progetti || []).map((p) => p.id + ':' + p.inCoda + ':' + p.chi).join(',')
   const dom = (s.domande || []).map((d) => d.id + '|' + d.testo).join('~')
   const ws = s.workspace ? (s.workspace.nomi || []).join(',') + '>' + s.workspace.attivo : ''
@@ -1307,7 +1335,7 @@ function impronta(s) {
     // di loro nell'impronta, a computer fermo (nessuna chat che scrive) la
     // pagina restava com'era: si toccava un autopilota e il suo dettaglio non
     // compariva, si apriva il Drive e restava «Leggo il Drive…».
-    apDettaglio ? apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.chat || []).length + '/' + apDettaglio.domanda + '/' + apDettaglio.pensa + '/' + apDettaglio.riprendiAlRiavvio : '',
+    apDettaglio ? JSON.stringify(apDettaglio.dalVivo || '') + JSON.stringify(apDettaglio.messaggi || []) + apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.chat || []).length + '/' + apDettaglio.domanda + '/' + apDettaglio.pensa + '/' + apDettaglio.riprendiAlRiavvio : '',
     apTab,
     // Salute e Impostazioni sono destinazioni (0.61.0): quello che leggono entrando ridisegna la pagina.
     saluteVista ? saluteVista.riassunto + '/' + (saluteVista.voci || []).length : '', saluteErrore || '',
@@ -1480,7 +1508,9 @@ function pannello(s) {
       // ciò che questo stato esiste per impedire. Visto in fotografia. E dice
       // lo stato vero (aspetta te, sceglie, guidata), non «verde» per tutte.
       '<div class="polso"><span class="led ' + ledChat(c) + '"></span>' +
-      '<span class="polso__nome">' + esc(c.titolo) + '</span><span class="voce__stato voce__stato--' + statoChat(c).tono + '">' + esc(statoChat(c).parola) + '</span></div>' +
+      '<span class="polso__nome">' + esc(c.titolo) + '</span><span class="voce__stato voce__stato--' + statoChat(c).tono + '">' + esc(statoChat(c).parola) + '</span>' +
+      // Al lavoro in sottofondo (0.68.1): si vede sempre, e «Guarda» mostra lo schermo dal vivo senza cambiare niente sul PC.
+      (c.sottofondo ? '<span class="sotto" style="margin-left:6px">in sottofondo</span><button style="margin-left:6px" data-chat="' + esc(c.id) + '" onclick="guarda(this.dataset.chat)">Guarda</button>' : '') + '</div>' +
       (c.ultimaRiga ? '<div class="battito">' + esc(c.ultimaRiga) + '</div>' : '')
     ).join('')
 
@@ -1546,6 +1576,7 @@ function pannello(s) {
       <div class="sotto">\${esc(apAperto.strategia ? 'bloccato, provo: ' + apAperto.strategia : (apAperto.motivo || apAperto.stato))}</div>
       <div class="misura-riga">\${apAperto.fatti} criteri su \${apAperto.criteri} · \${apAperto.cicli} interventi</div>
       <div class="barra"><i style="width:\${apAperto.criteri ? Math.round(apAperto.fatti / apAperto.criteri * 100) : 0}%"></i></div>
+      \${apDettaglio ? dalVivoHtml(apDettaglio.dalVivo) + messaggiApHtml(apDettaglio.messaggi) : ''}
       \${apDettaglio ? vistaAutopilota(apDettaglio) : ''}
       <div class="riga">
         \${apAperto.stato === 'pronto'
@@ -1571,6 +1602,7 @@ function pannello(s) {
       <span class="voce__testo">
         <span class="voce__nome">\${esc(a.nome)}</span>
         <span class="voce__sotto">\${esc(a.strategia ? 'bloccato, provo: ' + a.strategia : (a.motivo || a.stato))} · \${a.fatti}/\${a.criteri}</span>
+        \${dalVivoHtml(a.dalVivo)}
       </span>
       <span class="voce__freccia">›</span>
     </button>\`).join('') + altriApHtml()

@@ -394,6 +394,7 @@ declare global {
       }
       sottofondo: {
         elenco: () => Promise<import('../shared/sottofondo').StatoSottofondo[]>
+        schermo: (sessione: string) => Promise<string[] | null>
         mostra: (sessione: string) => Promise<{ ok: boolean; messaggio?: string }>
         chiudi: (sessione: string) => Promise<boolean>
         suCambiato: (cb: () => void) => () => void
@@ -435,6 +436,7 @@ declare global {
         riprendi: (id: string) => Promise<void>
         riprendiAlRiavvio: (id: string, riprendi: boolean) => Promise<void>
         archivia: (id: string, archivia: boolean) => Promise<void>
+        mandaAdesso: (id: string) => Promise<{ mandate: number; messaggio?: string }>
         nota: (id: string, testo: string) => Promise<void>
         /** Una consegna il cui workspace non è sullo schermo (0.60.8): la porta il Core in sottofondo. */
         inSottofondo: (c: unknown) => Promise<boolean>

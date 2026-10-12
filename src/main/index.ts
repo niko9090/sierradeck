@@ -2150,6 +2150,8 @@ if (!app.requestSingleInstanceLock()) {
       // **Sul PC di casa: le chat usate da altri PC** (0.58.4): l'elenco, «Mostra
       // qui» (la porta in un riquadro senza riavviarla) e «Chiudi».
       ipcMain.handle('sottofondo:elenco', () => sottofondo?.elenco() ?? [])
+      // «Guarda» (0.68.1): lo schermo dal vivo di una chat in sottofondo, senza cambiare workspace.
+      ipcMain.handle('sottofondo:schermo', (_e, sessione: unknown) => (typeof sessione === 'string' ? sottofondo?.schermo(sessione) ?? null : null))
       ipcMain.handle('sottofondo:mostra', (e, sessione: unknown) => {
         const s = sottofondo?.stato(testo(sessione))
         if (s === undefined || !sottofondo?.ha(s.sessione)) return { ok: false, messaggio: 'questa chat non gira più in sottofondo' }
@@ -5120,6 +5122,7 @@ if (!app.requestSingleInstanceLock()) {
         },
         // Le mancanze della parità (0.56.0): archiviare, il PIN, l'ospite, dal telefono.
         archiviaAutopilota: (id: string, archivia: boolean) => clientAutopilota.archivia(id, archivia),
+        mandaAdessoAutopilota: (id: string) => clientAutopilota.mandaAdesso(id),
         installaLa: (pcId: string) => installaLaGlobale === undefined ? undefined : installaLaGlobale.conosce(pcId) ? installaLaGlobale.avvia(pcId) : { sconosciuto: true },
         installaLaStato: () => installaLaGlobale?.stato() ?? [],
         proteggiChat: (sessione: string, si: boolean) => {

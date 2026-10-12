@@ -266,6 +266,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
     }
 
     val det = d
+    val scopeMessaggi = rememberCoroutineScope()
     val chat = det?.chat ?: emptyList()
     val pensa = det?.pensa == true
     val guarda = det != null && det.stato == "intervista" && !det.domanda
@@ -311,6 +312,13 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                             // Due righe: il motivo intero sta gia' nella striscia in alto e
                             // nella linguetta «Obiettivo»; qui deve restare posto alla chat.
                             Text(perche, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 2)
+                        }
+                    }
+                    // Si vede sempre chi lavora, e lo stato di ogni messaggio (PC 0.68.1).
+                    (det?.dalVivo ?: breve.dalVivo)?.let { DalVivo(it) }
+                    MessaggiVersoLaChat(det?.messaggi ?: emptyList()) {
+                        scopeMessaggi.launch {
+                            try { api.mandaAdessoAutopilota(breve.id); d = api.autopilota(breve.id) } catch (_: Exception) { }
                         }
                     }
                 }
@@ -1229,6 +1237,8 @@ private fun VoceAutopilota(ap: AutopilotaBreve, onApri: () -> Unit) {
                     Spacer(Modifier.height(4.dp))
                     Text(sotto, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 2)
                 }
+                // Si vede sempre chi lavora (PC 0.68.1).
+                ap.dalVivo?.let { DalVivo(it) }
                 if (ap.criteri > 0) {
                     Spacer(Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1382,5 +1392,44 @@ private fun LinguettaFile(api: Api, autopilota: String) {
             fontSize = 11.sp,
             fontFamily = FontTerminale
         )
+    }
+}
+
+
+/** «al lavoro · da 12 min», l'ultima azione, «nessun segno da 10 min» (PC 0.68.1): le parole del PC. */
+@Composable
+fun DalVivo(v: StatoDalVivo) {
+    val colore = when (v.etichetta) {
+        "al lavoro" -> Banco.verde
+        "aspetta te" -> Banco.ambra
+        else -> Banco.testoQuieto
+    }
+    Spacer(Modifier.height(4.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(v.etichetta, color = colore, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        if (v.da.isNotBlank()) Text(" · da ${v.da}", color = Banco.testoQuieto, fontSize = 12.sp)
+        v.senzaSegni?.let { Text(" · ⚠ $it", color = Banco.ambra, fontSize = 12.sp) }
+    }
+    if (v.ultimaAzione.isNotBlank()) Text(v.ultimaAzione, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
+}
+
+/** I messaggi verso la chat con il loro stato, e «Manda adesso» (PC 0.68.1). */
+@Composable
+fun MessaggiVersoLaChat(messaggi: List<StatoMessaggio>, onManda: () -> Unit) {
+    if (messaggi.isEmpty()) return
+    Spacer(Modifier.height(8.dp))
+    Text("Messaggi per la chat", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    for (m in messaggi) {
+        val colore = when (m.stato) {
+            "consegnato" -> Banco.verde
+            "in attesa" -> Banco.ambra
+            else -> Banco.testoQuieto
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+            Text(m.dettaglio, color = colore, fontSize = 12.sp)
+            Spacer(Modifier.width(8.dp))
+            Text(m.testo, color = Banco.testo, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f))
+            if (m.mandaAdesso) TextButton(onClick = onManda) { Text("Manda adesso", fontSize = 12.sp) }
+        }
     }
 }

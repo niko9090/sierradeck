@@ -1,3 +1,4 @@
+import { RigaDalVivo } from './DalVivoAutopilota'
 import { useEffect, useMemo, useState } from 'react'
 import { REGOLE_PUBBLICAZIONE, type RegolaPubblicazione } from '@shared/harness'
 import { BOZZA_AUTOPILOTA_VUOTA, controllaBozzaAutopilota, PARTENZE, type BozzaAutopilota, type Partenza } from '@shared/azioni-telefono'
@@ -342,7 +343,7 @@ export function PannelloAutopiloti({
           <div key={a.id} className="riga">
             <span className={`led ${led.classe}`} title={led.titolo} />
             <span className="riga__nome">{d.titolo}</span>
-            <span className="riga__stato">{d.sottotitolo}</span>
+            <span className="riga__stato">{d.sottotitolo}<RigaDalVivo autopilota={a} /></span>
             <span className="misura">{d.avanzamento}</span>
             {/* In preparazione può servire tutt'e due: fermarla, o farla
                 ripartire quando è rimasta appesa a una domanda scaduta. Il

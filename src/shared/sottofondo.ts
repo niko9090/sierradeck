@@ -62,6 +62,10 @@ export type StatoSottofondo = {
   cwd: string
   dal: string
   workspace?: string
+  /** L'ultima volta che la chat ha scritto qualcosa sullo schermo (0.68.1): «nessun segno da 10 min». */
+  ultimoDatoIl?: string
+  /** La chat di un autopilota (0.68.1): l'elenco «Al lavoro in sottofondo» lo dice. */
+  autopilota?: string
 }
 
 /** Quanti id consegnati si ricordano per chat. */

@@ -88,6 +88,8 @@ export type ClientAutopilota = {
   riprendiAlRiavvio: (id: string, riprendi: boolean) => Promise<void>
   /** Mette da parte un autopilota fermo che non deve ripartire (o lo toglie dall'archivio). */
   archivia: (id: string, archivia: boolean) => Promise<void>
+  /** «Manda adesso» (0.68.1): i messaggi in coda escono subito. */
+  mandaAdesso: (id: string) => Promise<{ mandate: number; messaggio?: string }>
   /** Una riga nel diario dell'autopilota, scritta dal programma. */
   nota: (id: string, testo: string) => Promise<void>
   elimina: (id: string) => Promise<void>
@@ -225,6 +227,7 @@ export function creaClientAutopilota(p: {
     nota: async (id, testo) => {
       await chiama(`/autopiloti/${encodeURIComponent(id)}/nota`, 'POST', { testo })
     },
+    mandaAdesso: async (id) => (await chiama(`/autopiloti/${encodeURIComponent(id)}/manda-adesso`, 'POST', {})) as { mandate: number; messaggio?: string },
     archivia: async (id, archivia) => {
       await chiama(`/autopiloti/${encodeURIComponent(id)}/archivia`, 'POST', { archivia })
     },

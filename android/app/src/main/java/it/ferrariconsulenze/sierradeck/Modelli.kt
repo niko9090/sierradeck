@@ -174,8 +174,13 @@ data class Chat(
      * questo telefono (niente ultima riga), `aperta` = protetta ma sbloccata.
      * Assente se la chat non è protetta, o con un computer più vecchio.
      */
-    val pin: String? = null
+    val pin: String? = null,
+    /** Lavora in sottofondo, senza riquadro sullo schermo del PC (PC 0.58.4; mostrato dalla 0.68.1). */
+    val sottofondo: ChiSottofondo? = null
 )
+
+@Serializable
+data class ChiSottofondo(val id: String = "", val nome: String = "")
 
 /**
  * Una voce della scheda «Domande»: una sola forma per tre famiglie, con i
@@ -340,7 +345,30 @@ data class AutopilotaBreve(
     val motivo: String = "",
     val cwd: String = "",
     val fatti: Int = 0,
-    val criteri: Int = 0
+    val criteri: Int = 0,
+    /** Si vede sempre chi lavora (PC 0.68.1): le parole le decide il PC. */
+    val dalVivo: StatoDalVivo? = null
+)
+
+/** «al lavoro · da 12 min», l'ultima azione, «nessun segno da 10 min» (PC 0.68.1). */
+@Serializable
+data class StatoDalVivo(
+    val etichetta: String = "",
+    val da: String = "",
+    val ultimaAzione: String = "",
+    val senzaSegni: String? = null
+)
+
+/** Un messaggio verso la chat e il suo stato vero (PC 0.68.1). */
+@Serializable
+data class StatoMessaggio(
+    val id: String = "",
+    val testo: String = "",
+    /** in attesa | in consegna | consegnato */
+    val stato: String = "",
+    /** «consegnato alle 20:31», «in attesa da 3 min». */
+    val dettaglio: String = "",
+    val mandaAdesso: Boolean = false
 )
 
 @Serializable
@@ -460,6 +488,9 @@ data class Cartelle(val cartelle: List<String> = emptyList())
 // ─── /api/autopilota (dettaglio) = tutto l'autopilota + passaggi + misura ───
 @Serializable
 data class AutopilotaDettaglio(
+    /** PC 0.68.1: stato dal vivo e messaggi verso la chat. */
+    val dalVivo: StatoDalVivo? = null,
+    val messaggi: List<StatoMessaggio> = emptyList(),
     val id: String = "",
     val nome: String = "",
     /** L'obiettivo come l'ha capito lui (riscritto dalla preparazione). */

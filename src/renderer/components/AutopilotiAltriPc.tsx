@@ -1,3 +1,5 @@
+import { MessaggiPronti, RigaDalVivoPronta } from './DalVivoAutopilota'
+import type { StatoDalVivo, StatoMessaggio } from '@shared/stato-dal-vivo'
 import { useEffect, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
 import { descriviAutopilota, ledDi } from '@shared/autopilota-vista'
@@ -49,7 +51,7 @@ export function AutopilotiAltriPc(): React.JSX.Element | null {
               <div key={`${p.pcId}-${a.id}`} className="riga">
                 <span className={`led ${led.classe}`} title={led.titolo} />
                 <span className="riga__nome">{d.titolo}</span>
-                <span className="riga__stato">{d.sottotitolo} · <strong>{giraSu(p.nome)}</strong></span>
+                <span className="riga__stato">{d.sottotitolo} · <strong>{giraSu(p.nome)}</strong><RigaDalVivoPronta dalVivo={(a as { dalVivo?: StatoDalVivo }).dalVivo} /></span>
                 <button className="tasto" onClick={() => setAperto({ pcId: p.pcId, nomePc: p.nome, id: a.id })}>Apri la scheda</button>
               </div>
             )
@@ -104,6 +106,8 @@ function SchedaAutopilotaRemoto({ pcId, nomePc, id, onChiudi }: { pcId: string; 
         {a !== undefined && d !== undefined ? (
           <>
             <div className="riga"><span className={`led ${ledDi(a).classe}`} /> <span>{d.sottotitolo}</span> <span className="misura">{d.avanzamento}</span></div>
+            <RigaDalVivoPronta dalVivo={(a as { dalVivo?: StatoDalVivo }).dalVivo} />
+            <MessaggiPronti messaggi={(a as { messaggi?: StatoMessaggio[] }).messaggi} inCorso={inCorso} onManda={() => esegui('/api/autopilota/manda-adesso', { autopilota: id }, `Mandato su ${nomePc}: entra nella chat adesso.`)} />
             <div className="serigrafia">Obiettivo</div>
             <p style={{ margin: '2px 0 8px' }}>{a.obiettivo}</p>
             <div className="serigrafia">Criteri di fine</div>

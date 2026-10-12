@@ -179,7 +179,9 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
     titolo: v.voce.titolo,
     cwd: v.voce.cwd,
     dal: v.voce.dal,
-    ...(v.voce.workspace !== undefined ? { workspace: v.voce.workspace } : {})
+    ...(v.voce.workspace !== undefined ? { workspace: v.voce.workspace } : {}),
+    ...(v.attivita.ultimoDato > 0 ? { ultimoDatoIl: new Date(v.attivita.ultimoDato).toISOString() } : {}),
+    ...(v.voce.autopilota !== undefined ? { autopilota: v.voce.autopilota.id } : {})
   })
 
   const avviaViva = (voce: VoceSottofondo, gia?: string): Viva => {
@@ -341,6 +343,11 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
       return v !== undefined ? statoDi(v) : finite.get(sessione)
     },
     elenco(): StatoSottofondo[] { return [...vive.values()].map(statoDi) },
+    /** Lo schermo di adesso di una chat in sottofondo (0.68.1, «Guarda»): niente si apre, niente cambia. */
+    schermo(sessione: string, quante = RIGHE_SOTTOFONDO): string[] | undefined {
+      const v = vive.get(sessione)
+      return v === undefined ? undefined : righeFondo(v, quante)
+    },
     ha(sessione: string): boolean { return vive.has(sessione) },
     perId(idChat: string): string | undefined {
       for (const v of vive.values()) if (idChatSottofondo(v.voce.sessione) === idChat) return v.voce.sessione

@@ -36,7 +36,7 @@ export const ROTTE_PONTE: readonly string[] = [
   '/api/chat/chiudi', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta', '/api/chat/nome',
   // Chiudere una chat di prova (0.63.0): se lo è, lo decide il PC dove vive.
   '/api/prova/chiudi', '/api/prova/autopilota', '/api/prova/togli-progetto',
-  '/api/autopilota/archivia', '/api/pin/proteggi', '/api/chat/ospite', '/api/modelli',
+  '/api/autopilota/archivia', '/api/autopilota/manda-adesso', '/api/pin/proteggi', '/api/chat/ospite', '/api/modelli',
   '/api/sfoglia', '/api/cartelle', '/api/sessioni',
   '/api/autopilota', '/api/autopilota/crea', '/api/autopilota/ferma', '/api/autopilota/riprendi', '/api/autopilota/vai',
   '/api/autopilota/elimina', '/api/autopilota/riavvio', '/api/autopilota/dialogo', '/api/autopilota/file', '/api/autopilota/diff',
@@ -103,6 +103,7 @@ export function azioneDelPonte(percorso: string, corpo?: Record<string, unknown>
     case '/api/workspace/elimina': return `tolgo il workspace «${s('nome')}»`
     case '/api/workspace/rinomina': return `rinomino il workspace «${s('nome')}»`
     case '/api/autopilota/crea': return `creo un autopilota in ${s('cartella') !== '' ? s('cartella') : s('cwd')}`
+    case '/api/autopilota/manda-adesso': return `mando subito i messaggi in coda dell’autopilota ${s('autopilota')}`
     case '/api/autopilota/archivia': return `${corpo?.archivia === false ? 'tolgo dall’archivio' : 'archivio'} l’autopilota ${s('autopilota')}`
     case '/api/autopilota/elimina': return `elimino l’autopilota ${s('autopilota')}`
     case '/api/drive/azione': return `azione «${s('azione')}» del pannello sul progetto ${s('progetto') !== '' ? s('progetto') : s('id')}`

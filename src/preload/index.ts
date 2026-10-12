@@ -464,6 +464,8 @@ contextBridge.exposeInMainWorld('gestore', {
   },
   sottofondo: {
     elenco: (): Promise<import('../shared/sottofondo').StatoSottofondo[]> => ipcRenderer.invoke('sottofondo:elenco'),
+    /** Lo schermo di adesso, senza aprire niente (0.68.1, «Guarda»). */
+    schermo: (sessione: string): Promise<string[] | null> => ipcRenderer.invoke('sottofondo:schermo', sessione),
     mostra: (sessione: string): Promise<{ ok: boolean; messaggio?: string }> => ipcRenderer.invoke('sottofondo:mostra', sessione),
     chiudi: (sessione: string): Promise<boolean> => ipcRenderer.invoke('sottofondo:chiudi', sessione),
     suCambiato: (cb: () => void): (() => void) => {
@@ -1034,6 +1036,8 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('autopilota:riprendiAlRiavvio', id, riprendi),
     /** «Archivia»: un autopilota fermo messo da parte (false lo toglie dall'archivio). */
     archivia: (id: string, archivia: boolean): Promise<void> => ipcRenderer.invoke('autopilota:archivia', id, archivia),
+    /** «Manda adesso» (0.68.1): i messaggi in coda escono subito, anche durante il turno. */
+    mandaAdesso: (id: string): Promise<{ mandate: number; messaggio?: string }> => ipcRenderer.invoke('autopilota:mandaAdesso', id),
     /** Una riga nel diario dell'autopilota, scritta dal programma. */
     nota: (id: string, testo: string): Promise<void> => ipcRenderer.invoke('autopilota:nota', id, testo),
     /** Una consegna il cui workspace non è sullo schermo (0.60.8): la porta il Core in sottofondo. */

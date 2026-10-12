@@ -36,7 +36,7 @@ export type AutopilotiDiPc = {
 /** Le rotte che da qui si chiamano sul PC dove gira l'autopilota. */
 export const ROTTE_AUTOPILOTA_ALTRO_PC: readonly string[] = [
   '/api/autopilota', '/api/autopilota/dialogo', '/api/autopilota/ferma', '/api/autopilota/riprendi',
-  '/api/autopilota/vai', '/api/autopilota/istruzioni', '/api/autopilota/file', '/api/rispondi'
+  '/api/autopilota/vai', '/api/autopilota/istruzioni', '/api/autopilota/file', '/api/rispondi', '/api/autopilota/manda-adesso'
 ]
 
 export function rottaAutopilotaAltroPc(percorso: string): boolean {
