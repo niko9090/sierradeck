@@ -1,6 +1,17 @@
 import { describe, it, expect } from 'vitest'
-import { esclusaDallUnione, pianoUnione, scegliDestinazione, testoRiassunto } from '../../src/shared/residenza'
+import { esclusaDallUnione, idsDaConfrontareSulDrive, pianoUnione, scegliDestinazione, testoRiassunto } from '../../src/shared/residenza'
 import type { VoceFile } from '../../src/shared/rimozione-sicura'
+
+// 0.66.1, visto dal vero nel trasloco del progetto di prova: la cartella di qui
+// registrata ma nel recupero faceva ignorare la copia sul Drive, e la cartella
+// nuova restava vuota (i file arrivavano solo nei recuperati).
+describe('quali copie sul Drive si confrontano', () => {
+  it('una cartella di qui che c’è davvero è il salvataggio del suo id; una registrata ma sparita no', () => {
+    const registrate = [{ id: 'p1', percorso: 'C:\\Progetti\\prova' }, { id: 'p2', percorso: 'C:\\Progetti\\altro' }]
+    expect(idsDaConfrontareSulDrive(['p1', 'p2', 'p3'], registrate, (p) => p.endsWith('altro'))).toEqual(['p1', 'p3'])
+    expect(idsDaConfrontareSulDrive(['p1'], registrate, () => true)).toEqual([])
+  })
+})
 
 // 0.60.0: «Rendi residente» con analisi e unione, le regole pure.
 const f = (percorso: string, sha: string, mtime: number): VoceFile => ({ percorso, size: 1, mtime, sha })

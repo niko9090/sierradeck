@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.66.1',
+    righe: [
+      '**Il trasloco porta i file nella cartella del progetto.** Se qui c’era una cartella registrata ma tolta (nel recupero), la copia sul Drive non si confrontava e i file arrivavano solo nei «recuperati». Adesso entrano al loro posto.',
+      '**Fra i PC, «salva sul Drive» e «crea workspace» non scadono più dopo 4 secondi.** Il trasloco non si ferma più per niente al primo passo.',
+      '**Un workspace diventa progetto anche quando la sua chat mai usata stava in una cartella qualunque**, non solo in Documenti o nella cartella utente.'
+    ]
+  },
+  {
     versione: '0.66.0',
     righe: [
       '**Ogni PC ha i suoi workspace.** «Porta qui» e «Ripristina» non sostituiscono né riempiono più la lista di un PC con quella degli altri. I workspace degli altri PC si vedono a parte, sotto, in «Su altri PC». All’avvio i workspace spariti si ritrovano dalle copie di sicurezza e si rimettono, senza togliere niente.',

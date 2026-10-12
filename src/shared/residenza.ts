@@ -196,3 +196,14 @@ export function testoRiassunto(r: Omit<RiassuntoResidenza, 'righe'>): string[] {
   righe.push('«Conferma e unisci» fa tutto questo; «Annulla» lascia tutto com’è. Dopo, per 30 giorni, «Annulla l’unione» rimette le cartelle, i file sostituiti e i workspace com’erano.')
   return righe
 }
+
+/**
+ * Gli id del progetto i cui file sul Drive vanno confrontati (0.66.1). I file
+ * di un id con una cartella di qui **che c'è davvero** sono il salvataggio di
+ * quella cartella e non contano due volte; una cartella registrata ma sparita
+ * (nel recupero) non salva niente, e la copia sul Drive si confronta.
+ */
+export function idsDaConfrontareSulDrive(ids: string[], registrate: { id: string; percorso: string }[], esiste: (p: string) => boolean): string[] {
+  const conCartellaQui = new Set(registrate.filter((x) => esiste(x.percorso)).map((x) => x.id))
+  return ids.filter((x) => !conCartellaQui.has(x))
+}

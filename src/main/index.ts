@@ -80,6 +80,7 @@ import { diffDellAutopilota, fileDellAutopilota, fileVeroDellAutopilota } from '
 import { apriAlTelefono, type AlTelefono } from './al-telefono'
 import { apriQuadernoPersonale } from './quaderno-personale'
 import { cartelleTrovateQui, datiPannello, primaTrovata } from './pannello-drive-dati'
+import { idsDaConfrontareSulDrive } from '@shared/residenza'
 import { creaResidenza, type Residenza } from './residenza'
 import { armonizzaCase, casaDelGruppo, dentroCartella, eSenzaNome, gruppoDiCartella, gruppoDiId, nomeNormalizzato, raggruppaProgetti } from '@shared/progetti-unificati'
 import { decidiAperturaRemota, type CopiaNota } from '@shared/apertura-remota'
@@ -2553,10 +2554,13 @@ if (!app.requestSingleInstanceLock()) {
         const io = identitaPc.leggi()
         const vietate = { casa: homedir(), documenti: app.getPath('documents') }
         const conTrascrizione = new Set([...chatLocaliDaIndice().map((c) => c.sessione), ...postino.altrui().flatMap((b) => (b.locali?.chat ?? []).map((c) => c.sessione))])
+        // Le cartelle dei progetti di questo PC: una chat che lavora dentro una di queste è già al suo posto.
+        const cartelleProgetti = raggruppaProgetti(registroProgetti.leggi().progetti, unaCasa.case()).flatMap((g) => g.percorsi.filter((x) => x.pc === io.id).map((x) => x.percorso))
+        const inUnProgetto = (c: string): boolean => cartelleProgetti.some((r) => dentroCartella(c, r))
         const daSpostare = (p: PaneSalvato): boolean =>
           (p.remoto === undefined || p.remoto.pcId === io.id) &&
           (p.sessionUuid === undefined || !conTrascrizione.has(p.sessionUuid)) &&
-          (cartellaVietataPerChat(p.cwd, vietate) || (p.remoto !== undefined && cartellaVietataPerChat(p.remoto.cwd, vietate)) || !existsSync(p.cwd))
+          (cartellaVietataPerChat(p.cwd, vietate) || (p.remoto !== undefined && cartellaVietataPerChat(p.remoto.cwd, vietate)) || !existsSync(p.cwd) || !inUnProgetto(p.cwd))
         const a = store.leggi()
         const w = a.workspace.find((x) => x.nome === nome) as WorkspaceSalvato
         const panes = Object.values(w.perSlot).flatMap((l) => l.panes).filter(daSpostare)
@@ -2849,8 +2853,11 @@ if (!app.requestSingleInstanceLock()) {
           const battiti = postino.altrui()
           const nomeDi = (pc: string): string => (pc === io.id ? io.nome : battiti.find((b) => b.pcId === pc)?.nome ?? pc.slice(0, 8))
           // I file sul Drive di un id con una cartella di qui sono il salvataggio di quella cartella: non contano due volte.
-          const conCartellaQui = new Set(registrate.map((x) => x.id))
-          const drive = g.ids.filter((x) => !conCartellaQui.has(x)).map((x) => {
+          // Solo le cartelle che ci sono davvero (0.66.1): una registrata ma sparita
+          // (nel recupero) non è il salvataggio di niente, e la copia sul Drive va
+          // confrontata. Visto dal vero il 12/10: il trasloco del progetto di prova
+          // creava la cartella vuota e i file finivano solo nei recuperati.
+          const drive = idsDaConfrontareSulDrive(g.ids, registrate, existsSync).map((x) => {
             const altri = g.percorsi.filter((p) => p.id === x && p.pc !== io.id).map((p) => nomeDi(p.pc))
             return { id: x, etichetta: `sul Drive, salvata da ${altri.length > 0 ? [...new Set(altri)].join(' e ') : 'un altro PC'} (${x.slice(0, 6)})` }
           })

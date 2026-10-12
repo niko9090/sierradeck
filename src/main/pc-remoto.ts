@@ -142,7 +142,14 @@ const ATTESA_PREDEFINITA_MS = 4000
  * di file ci mette ben più di 4 secondi. Con l'attesa normale non arrivava
  * mai attraverso il ponte: il collaudo fra i due PC ha trovato 15 secondi.
  */
-export const ROTTE_LENTE: readonly string[] = ['/api/drive/pannello', '/api/drive/azione']
+export const ROTTE_LENTE: readonly string[] = [
+  '/api/drive/pannello', '/api/drive/azione',
+  // Il trasloco e i workspace che diventano progetti (0.66.1): salvare sul Drive,
+  // scrivere la casa e il registro ci mettono più di 4 secondi. Visto dal vero il
+  // 12/10: «salva» del portatile scadeva, il trasloco si fermava e ripartiva dopo.
+  '/api/trasloco/salva', '/api/trasloco/togli', '/api/trasloco/ripristina', '/api/trasloco/avvia', '/api/trasloco/annulla',
+  '/api/workspace/crea', '/api/workspace/progetto'
+]
 const ATTESA_LENTA_PREDEFINITA_MS = 45_000
 /** Il bussare breve: un secondo e mezzo per tutti gli indirizzi insieme. */
 const BUSSA_PREDEFINITA_MS = 1500
