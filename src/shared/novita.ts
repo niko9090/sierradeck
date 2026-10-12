@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.66.2',
+    righe: [
+      '**Il trasloco confronta anche il lavoro dell’altro PC sullo stesso progetto.** Quando un progetto ha la cartella su due PC, i file salvati dall’altro entrano nella cartella del progetto, non più solo nei «recuperati».'
+    ]
+  },
+  {
     versione: '0.66.1',
     righe: [
       '**Il trasloco porta i file nella cartella del progetto.** Se qui c’era una cartella registrata ma tolta (nel recupero), la copia sul Drive non si confrontava e i file arrivavano solo nei «recuperati». Adesso entrano al loro posto.',

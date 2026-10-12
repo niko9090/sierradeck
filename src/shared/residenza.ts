@@ -198,12 +198,15 @@ export function testoRiassunto(r: Omit<RiassuntoResidenza, 'righe'>): string[] {
 }
 
 /**
- * Gli id del progetto i cui file sul Drive vanno confrontati (0.66.1). I file
- * di un id con una cartella di qui **che c'è davvero** sono il salvataggio di
- * quella cartella e non contano due volte; una cartella registrata ma sparita
- * (nel recupero) non salva niente, e la copia sul Drive si confronta.
+ * Gli id del progetto i cui file sul Drive vanno confrontati (0.66.1, 0.66.2).
+ * I file di un id sono il salvataggio della cartella di qui **solo** se qui la
+ * cartella c'è davvero e nessun altro PC ha una cartella per lo stesso id: se
+ * ce l'ha, sotto quell'id sul Drive c'è anche il suo lavoro, e va confrontato.
+ * Visto dal vero nel trasloco di prova del 12/10: il portatile salvava sotto
+ * lo stesso id, e i suoi file arrivavano solo nei recuperati.
  */
-export function idsDaConfrontareSulDrive(ids: string[], registrate: { id: string; percorso: string }[], esiste: (p: string) => boolean): string[] {
-  const conCartellaQui = new Set(registrate.filter((x) => esiste(x.percorso)).map((x) => x.id))
+export function idsDaConfrontareSulDrive(ids: string[], registrate: { id: string; percorso: string }[], esiste: (p: string) => boolean, altrove: { id: string }[] = []): string[] {
+  const anche = new Set(altrove.map((x) => x.id))
+  const conCartellaQui = new Set(registrate.filter((x) => esiste(x.percorso) && !anche.has(x.id)).map((x) => x.id))
   return ids.filter((x) => !conCartellaQui.has(x))
 }

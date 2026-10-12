@@ -11,6 +11,11 @@ describe('quali copie sul Drive si confrontano', () => {
     expect(idsDaConfrontareSulDrive(['p1', 'p2', 'p3'], registrate, (p) => p.endsWith('altro'))).toEqual(['p1', 'p3'])
     expect(idsDaConfrontareSulDrive(['p1'], registrate, () => true)).toEqual([])
   })
+  it('se un altro PC ha una cartella per lo stesso id, sotto quell’id sul Drive c’è anche il suo lavoro: si confronta (0.66.2)', () => {
+    const registrate = [{ id: 'p1', percorso: 'C:\\Progetti\\prova' }]
+    expect(idsDaConfrontareSulDrive(['p1'], registrate, () => true, [{ id: 'p1' }])).toEqual(['p1'])
+    expect(idsDaConfrontareSulDrive(['p1'], registrate, () => true, [{ id: 'altro' }])).toEqual([])
+  })
 })
 
 // 0.60.0: «Rendi residente» con analisi e unione, le regole pure.
