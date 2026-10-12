@@ -27,9 +27,15 @@ describe('ogni progetto ha il suo workspace sul PC dove vive', () => {
     expect(workspaceDaCreare([{ nome: 'fionda', residenteQui: false, chat }], qui(['Lavoro']), [])).toEqual([])
     expect(workspaceDaCreare([{ nome: 'fionda', residenteQui: true, chat }], qui(['Lavoro']), ['Fionda'])).toEqual([])
   })
-  it('una chat che sta già in un altro workspace resta lì: una chat, un workspace', () => {
-    const r = workspaceDaCreare([{ nome: 'fionda', residenteQui: true, chat }], qui(['Lavoro'], { Lavoro: ['s1'] }), [])
+  it('una chat che sta già in «Predefinito» resta lì: una chat, un workspace', () => {
+    const r = workspaceDaCreare([{ nome: 'fionda', residenteQui: true, chat }], qui(['Predefinito'], { Predefinito: ['s1'] }), [])
     expect(r[0]?.panes.map((p) => p.sessionUuid)).toEqual(['s2'])
+  })
+  it('niente doppioni (0.67.2): stesso nome a parte spazi e trattini, o le sue chat già in un altro workspace', () => {
+    // «NAS-film» accanto a «Nas film», e «HomeAssistant» accanto a «HA» che ne aveva già la chat (12/10).
+    expect(workspaceDaCreare([{ nome: 'NAS-film', residenteQui: true, chat }], qui(['Nas film']), [])).toEqual([])
+    expect(workspaceDaCreare([{ nome: 'Home_Assistant', residenteQui: true, chat }], qui(['home assistant']), [])).toEqual([])
+    expect(workspaceDaCreare([{ nome: 'HomeAssistant', residenteQui: true, chat }], qui(['HA'], { HA: ['s1'] }), [])).toEqual([])
   })
 })
 

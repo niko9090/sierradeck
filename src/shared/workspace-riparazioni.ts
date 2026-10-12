@@ -120,7 +120,8 @@ export function suAltriPc(qui: string[], altri: { pc: string; nome: string; work
 /* Ogni progetto ha il suo workspace (0.67.0).                         */
 /* ------------------------------------------------------------------ */
 
-const norma = (n: string): string => n.normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ')
+// Spazi, trattini e trattini bassi non contano (0.67.2): «Nas film» è «NAS-film».
+const norma = (n: string): string => n.normalize('NFKC').trim().toLowerCase().replace(/[\s_-]+/g, '')
 
 /** Un progetto visto da questo PC, per decidere il suo workspace. */
 export type ProgettoPerWorkspace = {
@@ -141,9 +142,14 @@ export function workspaceDaCreare(progetti: ProgettoPerWorkspace[], qui: Archivi
   const nomiQui = new Set(qui.workspace.map((w) => norma(w.nome)))
   const tolti = new Set(eliminati.map(norma))
   const giaInUnWorkspace = new Set(qui.workspace.flatMap((w) => Object.values(w.perSlot).flatMap((l) => l.panes.map((p) => p.sessionUuid))).filter((s): s is string => s !== undefined))
+  // Le chat che stanno già in un workspace che non è «Predefinito» (0.67.2):
+  // quel workspace è già il workspace del progetto, con un altro nome («HA»
+  // per il progetto «HomeAssistant»). Predefinito no: è dove finisce tutto.
+  const inUnWorkspaceVero = new Set(qui.workspace.filter((w) => norma(w.nome) !== 'predefinito').flatMap((w) => Object.values(w.perSlot).flatMap((l) => l.panes.map((p) => p.sessionUuid))).filter((s): s is string => s !== undefined))
   const fuori: { nome: string; panes: PaneSalvato[] }[] = []
   for (const p of progetti) {
     if (!p.residenteQui || nomiQui.has(norma(p.nome)) || tolti.has(norma(p.nome))) continue
+    if (p.chat.some((c) => inUnWorkspaceVero.has(c.sessione))) continue
     nomiQui.add(norma(p.nome))
     const panes = p.chat.filter((c) => !giaInUnWorkspace.has(c.sessione)).map((c): PaneSalvato => ({ id: `pane-${c.sessione}`, sessionUuid: c.sessione, cwd: c.cwd, title: c.titolo }))
     for (const x of panes) if (x.sessionUuid !== undefined) giaInUnWorkspace.add(x.sessionUuid)

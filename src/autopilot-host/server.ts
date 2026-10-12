@@ -1369,6 +1369,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * I messaggi che aspettavano entrano **davanti** al testo di ripresa: chi
    * ha scritto «riprendi e fai anche X» non deve aspettare il turno dopo.
    */
+  /**
+   * «Riprendi» lascia una riga nel diario (0.67.2). Il 12/10 l'autopilota di
+   * un progetto era «fermato dall'utente» e dopo un aggiornamento risultava al
+   * lavoro: il riavvio non riprende i sospesi (`daRiprendere`), ma dal diario
+   * non si poteva dire chi lo avesse ripreso, né quando.
+   */
+  const conRipresaNelDiario = (a: Autopilota): Autopilota => ({
+    ...a,
+    decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: `ripreso su tua richiesta («Riprendi»)${a.stato === 'sospeso' && a.motivoSospensione !== undefined ? `: era fermo (${a.motivoSospensione})` : ''}` }]
+  })
   const riprendiAutopilota = async (a: Autopilota): Promise<Autopilota> => {
     const eraFinito = a.stato === 'finito'
     let ripreso: Autopilota = {
@@ -1541,7 +1551,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           fatti.push('ripresa la preparazione')
         } else {
           try {
-            fresco = await riprendiAutopilota(fresco)
+            fresco = await riprendiAutopilota(conRipresaNelDiario(fresco))
             fatti.push('ripreso')
           } catch (err) {
             fatti.push(`ripresa fallita: ${err instanceof Error ? err.message : String(err)}`.slice(0, 200))
@@ -2820,7 +2830,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             // Senza togliere il motivo, un autopilota ripreso resta con scritto
             // addosso perche' si era fermato la volta prima, e il pannello - o una
             // notifica - lo raccontano come se fosse successo adesso.
-            await riprendiAutopilota(a)
+            await riprendiAutopilota(conRipresaNelDiario(a))
           }
           rispondi(res, 200, deps.archivio.leggi(id))
           return

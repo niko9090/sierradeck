@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.67.2',
+    righe: [
+      '**Niente workspace doppi per i progetti.** «NAS-film» e «Nas film» sono lo stesso nome, e un progetto che ha già le sue chat in un workspace (come «HA») non ne riceve un altro.',
+      '**«Riprendi» resta nel diario dell’autopilota**, con l’ora: si vede sempre chi l’ha rimesso in moto.'
+    ]
+  },
+  {
     versione: '0.67.1',
     righe: [
       '**Gli aggiornamenti si installano da soli.** Appena la versione nuova è scaricata, gli autopiloti finiscono il turno e non ne cominciano un altro; quando tutte le chat sono ferme il PC si aggiorna, riparte e riprende tutto da solo. Se una tua chat lavora da più di 20 minuti te lo dice, con il nome.',

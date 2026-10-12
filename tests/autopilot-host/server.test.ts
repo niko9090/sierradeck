@@ -1968,6 +1968,8 @@ describe('«Archivia» e il momento del fermo (0.37.0)', () => {
     expect(dopo?.stato).toBe('lavoro')
     expect(dopo?.fermatoIl).toBeUndefined()
     expect(dopo?.archiviato).toBeUndefined()
+    // 0.67.2: «Riprendi» resta nel diario, con quando e da che stato veniva.
+    expect(dopo?.decisioni.some((d) => d.cosa.startsWith('ripreso su tua richiesta («Riprendi»)'))).toBe(true)
   })
 })
 

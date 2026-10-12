@@ -1,5 +1,5 @@
 ---
-titolo: "Aggiornamenti bloccati su tutti i PC (12/10) e controllo generale — 0.67.1"
+titolo: "Aggiornamenti bloccati su tutti i PC (12/10) e controllo generale — 0.67.1/0.67.2"
 quando: 2026-10-12T19:30:00+02:00
 tag: ["aggiornamenti", "quiete", "autopiloti", "controllo-generale", "0.67.1"]
 ---
@@ -62,3 +62,29 @@ aspetta proprio te.
   in «Predefinito» con il suo autopilota sospeso.
 - Da verificare dopo l'installazione: versioni finali, workspace creati PC per
   PC, Fionda sotto «Su altri PC» qui e sul portatile.
+
+## Esito vero (12/10, 17:2x UTC)
+- Questo PC è salito alla 0.67.1 appena chiuso il turno dell'autopilota (la
+  versione vecchia installava solo con «Installa»: chiesto a quiete).
+- «Installa là» dal PC fisso: DESKTOP e portatile **0.67.1 in ~2 minuti**
+  ciascuno (scarico → installo → fatto), con la quiete arrivata da sola.
+- Workspace creati dalla 0.67.x, PC per PC:
+  - PC fisso: «Documents», «gen», «HomeAssistant»;
+  - DESKTOP (residente di fionda): «convertitore», «Documents», **«fionda
+    apl»**, «NAS-film», «glos video», «video installazione»;
+  - portatile: nessuno (non è residente di progetti senza workspace).
+- «fionda apl» compare sotto «Su altri PC» sul PC fisso e sul portatile.
+
+## Due difetti visti nel giro vero → 0.67.2
+- **Workspace doppi**: «NAS-film» accanto a «Nas film» (DESKTOP) e
+  «HomeAssistant» accanto a «HA» (PC fisso, che ne aveva già la chat). Ora il
+  nome si confronta senza spazi/trattini/trattini bassi, e un progetto con le
+  chat già in un workspace (non «Predefinito») non ne riceve un altro. I due
+  doppioni già creati NON li ho tolti: li toglie Nicholas se vuole (eliminati
+  restano eliminati, `annotaEliminato`).
+- **«Riprendi» non lasciava traccia** nel diario: l'autopilota di fionda su
+  DESKTOP era «fermato dall'utente» e dopo l'aggiornamento risultava al
+  lavoro. Il codice NON riprende i sospesi al riavvio (`daRiprendere` prende
+  solo `lavoro`; la pausa per aggiornamento tocca solo `lavoro`): lo ha ripreso
+  qualcuno con «Riprendi», che però non scriveva niente. Ora scrive «ripreso su
+  tua richiesta («Riprendi»)» con lo stato di prima.
