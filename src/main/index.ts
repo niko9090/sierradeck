@@ -92,7 +92,7 @@ import { creaLatoResidente, creaRimozione, progettiInRecupero, type LatoResident
 import { improntaPc } from './casa-firma'
 import { creaSpazioDrive, type SpazioDrive, type StatoSpazio } from './spazio-drive'
 import { creaTrasloco, type TraslocoApi } from './trasloco'
-import { cartellaDaNomeWorkspace, cartellaVietataPerChat, suAltriPc, workspaceDaAltroPc, workspaceDaCreare } from '@shared/workspace-riparazioni'
+import { cartellaDaNomeWorkspace, cartellaVietataPerChat, eSessioneInterna, sessioniInterne, suAltriPc, togliInterneAggiunte, workspaceDaAltroPc, workspaceDaCreare } from '@shared/workspace-riparazioni'
 import { leggiEliminati } from './workspace-ritrova'
 import { annotaEliminato, copieDellaLista, riparaListaAllAvvio, type EsitoAvvio } from './workspace-ritrova'
 import { cartellaDiProva, PREFISSO_CARTELLA_PROVA } from '@shared/chat-di-prova'
@@ -193,7 +193,7 @@ import { apriRegistro, type Registro } from './registro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
-import { ordineDeiMonitor, quanteFinestre, workspaceDellaSessione, chatSalvate, aggiungiPaneA, type Archivio as ArchivioWs, type LayoutSalvato, type PaneSalvato, type WorkspaceSalvato } from '@shared/workspace'
+import { ordineDeiMonitor, quanteFinestre, workspaceDellaSessione, chatSalvate, aggiungiPaneA, parseArchivio, type Archivio as ArchivioWs, type LayoutSalvato, type PaneSalvato, type WorkspaceSalvato } from '@shared/workspace'
 import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
 import { apriDestinazioni } from './trasferimenti/destinazioni'
@@ -3291,11 +3291,26 @@ if (!app.requestSingleInstanceLock()) {
         const store = workspaceStore
         if (store === undefined) return []
         const p = await leggiPannello()
+        // Le sessioni interne degli autopiloti non sono chat (0.67.3).
+        const interne = sessioniInterne(await clientAutopilota.elenca().catch(() => []))
+        // E i loro riquadri già aggiunti dalla 0.67.1/0.67.2 si tolgono, solo quelli
+        // che non c'erano prima che si creassero i workspace dei progetti.
+        const copiaPrima = join(dirname(store.percorso), 'workspaces.prima-dei-progetti.json')
+        if (existsSync(copiaPrima)) {
+          try {
+            const prima = parseArchivio(JSON.parse(readFileSync(copiaPrima, 'utf8')) as unknown).archivio
+            const pulito = togliInterneAggiunte(store.leggi(), prima, interne)
+            if (pulito.tolti.length > 0 && store.scrivi(pulito.archivio)) {
+              for (const t of pulito.tolti) registro.info(`[workspace] «${t.workspace}»: tolto il riquadro di una sessione interna di un autopilota («${t.titolo}…»), aggiunto per sbaglio con il workspace del progetto`)
+              for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(pulito.archivio), precedente: pulito.archivio.attivo })
+            }
+          } catch (err) { registro.info(`[workspace] copia prima dei progetti illeggibile: ${String(err)}`) }
+        }
         const progetti = p.progetti.map((r) => ({
           nome: r.nome,
           residenteQui: r.residente?.qui === true,
           chat: p.chat
-            .filter((c) => c.progetto !== undefined && r.ids.includes(c.progetto) && c.copiaQui && c.senzaNome !== true && c.cwd !== undefined)
+            .filter((c) => c.progetto !== undefined && r.ids.includes(c.progetto) && c.copiaQui && c.senzaNome !== true && c.cwd !== undefined && !eSessioneInterna(c, interne))
             .map((c) => ({ sessione: c.sessione, titolo: c.titolo, cwd: c.cwd as string }))
         }))
         const prima = store.leggi()
@@ -3311,7 +3326,8 @@ if (!app.requestSingleInstanceLock()) {
             return { ...w, perSlot: { ...w.perSlot, 1: layout } }
           }) }
         }
-        mettiDaParteArchivio(store.percorso, 'workspaces.prima-dei-progetti.json')
+        // Una volta sola: è la lista com'era prima di ogni workspace dei progetti.
+        if (!existsSync(copiaPrima)) mettiDaParteArchivio(store.percorso, 'workspaces.prima-dei-progetti.json')
         if (!store.scrivi(dopo)) { registro.info('[workspace] workspace dei progetti non scritti: la lista resta com’era'); return [] }
         for (const n of nuovi) registro.info(`[workspace] «${n.nome}»: il progetto vive qui e non aveva un workspace — creato con ${n.panes.length} chat, senza cambiare lo schermo`)
         for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(dopo), precedente: dopo.attivo })

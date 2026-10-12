@@ -1,4 +1,5 @@
 import type { Archivio, PaneSalvato, WorkspaceSalvato } from './workspace'
+import { removePane } from './layout-tree'
 
 /**
  * Le riparazioni dei workspace di un PC (0.65.1). Regole pure.
@@ -165,7 +166,7 @@ export function workspaceDaCreare(progetti: ProgettoPerWorkspace[], qui: Archivi
  */
 export function workspaceDaAltroPc(nome: string, pc: { id: string; nome: string }, chat: { workspace: string; sessione?: string; cwd: string; titolo: string }[]): { nome: string; panes: PaneSalvato[] } {
   const panes = chat
-    .filter((c) => c.workspace === nome && c.sessione !== undefined && c.sessione !== '')
+    .filter((c) => c.workspace === nome && c.sessione !== undefined && c.sessione !== '' && !eSessioneInterna(c, new Set()))
     .map((c): PaneSalvato => ({
       id: `pane-${c.sessione as string}`, sessionUuid: c.sessione as string, cwd: c.cwd, title: c.titolo,
       remoto: { pcId: pc.id, pcNome: pc.nome, cwd: c.cwd, sessione: c.sessione as string }
@@ -193,3 +194,66 @@ export function cartellaVietataPerChat(cartella: string, vietate: { casa: string
   return c === n(vietate.casa) || (vietate.documenti !== undefined && vietate.documenti !== '' && c === n(vietate.documenti))
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Le sessioni interne degli autopiloti non sono chat (0.67.3).        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Come cominciano le conversazioni che il servizio autopiloti apre per sé:
+ * supervisore, dialogo con chi ha affidato il lavoro, preparazione. Il titolo
+ * di una chat è il suo primo messaggio.
+ */
+const INIZI_INTERNI = [
+  'Sei il supervisore di una chat',
+  'Sei l\'autopilota che sta portando avanti',
+  'Sei l autopilota che sta portando avanti',
+  'Stai preparando un autopilota'
+]
+
+/**
+ * Le sessioni interne degli autopiloti, da non mettere mai in un workspace.
+ * Il 12/10 il workspace «fionda apl» creato dalla 0.67.1 ne conteneva due
+ * (dialogo e preparazione) accanto alle chat vere: aprirlo le avrebbe fatte
+ * ripartire in un terminale, accanto al servizio che le usa.
+ */
+export function sessioniInterne(autopiloti: { sessioneSupervisore?: string; sessioneIntervista?: string; chats?: { sessioneSupervisore?: string }[] }[]): Set<string> {
+  const fuori = new Set<string>()
+  for (const a of autopiloti) {
+    if (a.sessioneSupervisore !== undefined) fuori.add(a.sessioneSupervisore)
+    if (a.sessioneIntervista !== undefined) fuori.add(a.sessioneIntervista)
+    for (const c of a.chats ?? []) if (c.sessioneSupervisore !== undefined) fuori.add(c.sessioneSupervisore)
+  }
+  return fuori
+}
+
+export function eSessioneInterna(c: { sessione?: string; titolo?: string }, interne: ReadonlySet<string>): boolean {
+  if (c.sessione !== undefined && interne.has(c.sessione)) return true
+  const t = (c.titolo ?? '').trim()
+  return INIZI_INTERNI.some((i) => t.startsWith(i))
+}
+
+/**
+ * Toglie dai workspace i riquadri delle sessioni interne **aggiunti dalla
+ * 0.67.x**: quelli che non c'erano nella copia fatta prima di creare i
+ * workspace dei progetti. Tutto il resto resta com'è.
+ */
+export function togliInterneAggiunte(a: Archivio, prima: Archivio | undefined, interne: ReadonlySet<string>): { archivio: Archivio; tolti: { workspace: string; titolo: string }[] } {
+  const cerano = new Set((prima?.workspace ?? []).flatMap((w) => Object.values(w.perSlot).flatMap((l) => l.panes.map((p) => p.sessionUuid))).filter((s): s is string => s !== undefined))
+  const tolti: { workspace: string; titolo: string }[] = []
+  const workspace = a.workspace.map((w): WorkspaceSalvato => {
+    let tocca = false
+    const perSlot = Object.fromEntries(Object.entries(w.perSlot).map(([k, l]) => {
+      const via = l.panes.filter((p) => p.sessionUuid !== undefined && !cerano.has(p.sessionUuid) && eSessioneInterna({ sessione: p.sessionUuid, titolo: p.title }, interne))
+      if (via.length === 0) return [k, l]
+      tocca = true
+      for (const p of via) tolti.push({ workspace: w.nome, titolo: p.title.slice(0, 60) })
+      // Anche dall'albero del layout, o resterebbe un posto vuoto che rimanda a un riquadro che non c'è.
+      let root = l.root
+      for (const p of via) root = root === undefined ? undefined : removePane(root, p.id)
+      return [k, { ...l, root, panes: l.panes.filter((p) => !via.includes(p)) }]
+    }))
+    return tocca ? { ...w, perSlot } : w
+  })
+  return { archivio: tolti.length > 0 ? { ...a, workspace } : a, tolti }
+}

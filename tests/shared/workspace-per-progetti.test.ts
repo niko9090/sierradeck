@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { workspaceDaAltroPc, workspaceDaCreare } from '@shared/workspace-riparazioni'
+import { eSessioneInterna, sessioniInterne, togliInterneAggiunte, workspaceDaAltroPc, workspaceDaCreare } from '@shared/workspace-riparazioni'
 import { chatDelProgetto, comeAprireChat, type RigaChat } from '@shared/pannello-drive'
 import type { Archivio } from '@shared/workspace'
 
@@ -66,5 +66,41 @@ describe('le chat di un progetto nel pannello, e come si aprono', () => {
     expect(comeAprireChat(riga({ cwd: 'C:\\qui', residente: { pc: 'pc-qui', nome: 'QUI', fonte: 'regola', motivo: '', qui: true } }), progetto)).toEqual({ tipo: 'qui', cwd: 'C:\\qui' })
     expect(comeAprireChat(riga({ cwd: 'C:\\copia', residente: { pc: 'pc-desk', nome: 'DESK-ESEMPIO', fonte: 'regola', motivo: '', qui: false } }), progetto)).toEqual({ tipo: 'altrove', pc: 'pc-desk', nome: 'DESK-ESEMPIO', cwd: 'E:\\Progetti\\fionda' })
     expect(comeAprireChat(riga({}), progetto)).toBeUndefined()
+  })
+})
+
+describe('le sessioni interne degli autopiloti non sono chat (0.67.3)', () => {
+  it('si riconoscono dall’id (supervisore, preparazione) o dal primo messaggio fisso', () => {
+    const interne = sessioniInterne([{ sessioneSupervisore: 'sup', sessioneIntervista: 'int', chats: [{ sessioneSupervisore: 'sup2' }] }])
+    expect([...interne].sort()).toEqual(['int', 'sup', 'sup2'])
+    expect(eSessioneInterna({ sessione: 'x', titolo: 'Sei l\'autopilota che sta portando avanti questo lavoro. Chi te lo ha…' }, new Set())).toBe(true)
+    expect(eSessioneInterna({ sessione: 'x', titolo: 'Stai preparando un autopilota: un agente…' }, new Set())).toBe(true)
+    expect(eSessioneInterna({ sessione: 'sup', titolo: 'qualunque' }, interne)).toBe(true)
+    expect(eSessioneInterna({ sessione: 'x', titolo: 'Fionda: errore sul telefono' }, interne)).toBe(false)
+  })
+  it('«Apri» da un altro PC non porta le sessioni interne', () => {
+    const w = workspaceDaAltroPc('fionda', { id: 'pc-desk', nome: 'DESK-ESEMPIO' }, [
+      { workspace: 'fionda', sessione: 's1', cwd: 'E:\\Progetti\\fionda', titolo: 'Fionda: app' },
+      { workspace: 'fionda', sessione: 's2', cwd: 'E:\\Progetti\\fionda', titolo: 'Stai preparando un autopilota: …' }
+    ])
+    expect(w.panes.map((p) => p.sessionUuid)).toEqual(['s1'])
+  })
+  it('si tolgono solo i riquadri interni aggiunti dopo la copia «prima dei progetti», anche dall’albero del layout', () => {
+    const pane = (s: string, t: string) => ({ id: `p-${s}`, sessionUuid: s, cwd: 'C:\\x', title: t })
+    const ora = {
+      versione: 1, attivo: 'fionda',
+      workspace: [{ nome: 'fionda', perSlot: { 1: {
+        root: { type: 'split', id: 'sp', direction: 'horizontal', sizes: [0.5, 0.5], children: [{ type: 'pane', id: 'p-s1' }, { type: 'pane', id: 'p-s2' }] },
+        panes: [pane('s1', 'Fionda: app'), pane('s2', 'Stai preparando un autopilota: …')]
+      } } }, { nome: 'Vecchio', perSlot: { 1: { root: { type: 'pane', id: 'p-s3' }, panes: [pane('s3', 'Sei il supervisore di una chat che…')] } } }]
+    } as unknown as Archivio
+    const prima = { versione: 1, attivo: 'Vecchio', workspace: [{ nome: 'Vecchio', perSlot: { 1: { root: { type: 'pane', id: 'p-s3' }, panes: [pane('s3', 'Sei il supervisore di una chat che…')] } } }] } as unknown as Archivio
+    const r = togliInterneAggiunte(ora, prima, new Set())
+    expect(r.tolti).toEqual([{ workspace: 'fionda', titolo: 'Stai preparando un autopilota: …' }])
+    const f = r.archivio.workspace[0]?.perSlot[1]
+    expect(f?.panes.map((p) => p.sessionUuid)).toEqual(['s1'])
+    expect(JSON.stringify(f?.root)).not.toContain('p-s2')
+    // Quello che c'era prima resta com'era.
+    expect(r.archivio.workspace[1]).toBe(ora.workspace[1])
   })
 })

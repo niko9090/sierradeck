@@ -1,3 +1,4 @@
+import { eSessioneInterna } from './workspace-riparazioni'
 import type { Trasloco } from './trasloco'
 import type { StatoSpazio } from './spazio-drive'
 import type { CaseChat, FonteCasa } from './una-casa'
@@ -178,7 +179,8 @@ function rigaChat(c: ChatIngresso, p: { io: PcNoto; pc: PcNoto[]; case: CaseChat
     ...(ultimo > 0 ? { ultimoUso: iso(ultimo) as string } : {}),
     stato: conflitto ? 'conflitto' : copiaResidente ? 'residente' : 'solo-cloud',
     copiaQui: c.copie.some((x) => x.dove === 'qui'),
-    ...(eSenzaNome(c.titolo, c.sessione) ? { senzaNome: true } : {}),
+    // Le sessioni interne degli autopiloti (0.67.3) non sono chat da elencare né da aprire.
+    ...(eSenzaNome(c.titolo, c.sessione) || eSessioneInterna({ titolo: c.titolo }, new Set()) ? { senzaNome: true } : {}),
     problemi
   }
 }
