@@ -83,10 +83,7 @@ fun SezioneSalute(api: Api) {
         try { salute = api.salute(); guasto = null } catch (e: Exception) { guasto = FunzioniPc.spiega(e, FunzionePc.SALUTE) }
     }
     LaunchedEffect(spenta) { if (!spenta) leggi() }
-    Text(
-        "Com'è messo il computer: il Drive, gli altri PC (ultimo segno, strada, versione), un aggiornamento non riuscito, gli errori delle ultime ore, le istruzioni degli autopiloti non partite. Ogni voce dice cosa vuol dire e cosa fare.",
-        color = Banco.testoQuieto, fontSize = 12.sp
-    )
+    RigaConAiuto("Com’è messo il computer.", "Com'è messo il computer: il Drive, gli altri PC (ultimo segno, strada, versione), un aggiornamento non riuscito, gli errori delle ultime ore, le istruzioni degli autopiloti non partite. Ogni voce dice cosa vuol dire e cosa fare.")
     if (spenta) { Text(FunzioniPc.testoMancante(FunzionePc.SALUTE), color = Banco.ambra, fontSize = 13.sp); return }
     guasto?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
     val s = salute

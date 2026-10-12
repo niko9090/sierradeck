@@ -162,6 +162,24 @@ export function paginaClient(): string {
   }
   .titolo { font-size: var(--t3); font-weight: 600; margin-bottom: var(--s1); }
   .sotto { font-size: var(--t1); color: var(--testo-quieto); }
+  /* Il tasto «?» (0.62.0, decisione di Nicholas): a vista restano i tasti e i
+     numeri; la spiegazione completa si apre sotto, a tutta larghezza, solo a
+     chi la tocca. Resta aperta anche quando la pagina si ridisegna. */
+  .aiuto {
+    display: inline-flex; align-items: center; justify-content: center; vertical-align: middle;
+    width: 24px; height: 24px; min-width: 24px; min-height: 24px; padding: 0; margin-left: 6px;
+    border-radius: 50%; font-size: var(--t1); font-weight: 700; line-height: 1;
+    color: var(--testo-quieto); background: var(--chassis); border: 1px solid var(--luce-incisione);
+  }
+  .aiuto--aperto { color: var(--testo); border-color: var(--testo-quieto); }
+  .aiuto-testo {
+    display: block; width: 100%; flex-basis: 100%; box-sizing: border-box; margin: 6px 0;
+    padding: var(--s2) var(--s3); border-left: 3px solid var(--testo-quieto); border-radius: var(--raggio);
+    background: var(--chassis-alto, var(--chassis)); color: var(--testo);
+    font-size: var(--t1); font-weight: 400; line-height: 1.45; letter-spacing: normal; text-transform: none; text-align: left; white-space: normal;
+  }
+  .aiuto-testo p { margin: 0 0 6px; }
+  .aiuto-testo p:last-child { margin-bottom: 0; }
   /* La serigrafia: le lettere incise sotto i LED di un banco. E' la sola
      struttura di questa pagina, e non si usa da nessun'altra parte. */
   .serigrafia {
@@ -596,6 +614,16 @@ function filtraImpostazioni(q) {
     el.style.display = vede ? '' : 'none'
   }
 }
+// Il tasto «?» (0.62.0): aiuto(id, testoHtml) disegna il tondino e, se è
+// aperto, la spiegazione sotto. Lo stato sta in aiutiAperti, non nel DOM: la
+// pagina si ridisegna di continuo, e un <details> si richiuderebbe da solo.
+var aiutiAperti = {}
+function aiuto(id, testoHtml) {
+  const aperto = aiutiAperti[id] === true
+  return '<button class="aiuto' + (aperto ? ' aiuto--aperto' : '') + '" data-aiuto="' + esc(id) + '" aria-expanded="' + aperto + '" aria-label="Spiegazione" title="Cos’è?" onclick="commutaAiuto(this.dataset.aiuto)">?</button>' +
+    (aperto ? '<div class="aiuto-testo" role="note">' + testoHtml + '</div>' : '')
+}
+window.commutaAiuto = (id) => { aiutiAperti[id] = aiutiAperti[id] !== true; pannello(ultimoStato) }
 /** «Copia i dettagli» (0.56.0): versioni e collegamento in un testo solo, per chiedere aiuto. Niente chiavi. */
 window.copiaDettagli = async () => {
   const st = ultimoStato || {}
@@ -701,8 +729,7 @@ async function chiediAp(percorso, corpo) {
 function altriApHtml() {
   if (altriAp === null) return '<div class="sotto" style="margin-top:8px">Chiedo agli altri PC i loro autopiloti…</div>'
   if (altriAp.length === 0) return ''
-  return '<div class="titolo-sezione" style="margin-top:12px">Su altri PC</div>' +
-    '<div class="sotto">Gli autopiloti che girano sugli altri PC della tua stessa chiave di casa: lavorano là, con i file di là. Da qui li guardi e li governi; ogni azione va al PC dove girano.</div>' +
+  return '<div class="titolo-sezione" style="margin-top:12px">Su altri PC' + aiuto('ap-altri', 'Gli autopiloti che girano sugli altri PC della tua stessa chiave di casa: lavorano là, con i file di là. Da qui li guardi e li governi; ogni azione va al PC dove girano.') + '</div>' +
     altriAp.map((p) => (p.errore ? '<div class="errore" style="margin-top:6px">' + esc(p.errore) + '</div>' : '') +
       ((p.autopiloti || []).length === 0 && !p.errore ? '<div class="sotto">' + esc(p.nome) + ': nessun autopilota.</div>' : '') +
       (p.autopiloti || []).map((a) =>
@@ -823,7 +850,7 @@ function vistaDomande(s) {
   domandeViste.forEach(function (v) { vive[chiaveVoce(v)] = true })
   Object.keys(domandeMandate).forEach(function (k) { if (!vive[k]) delete domandeMandate[k] })
   if (domandeViste.length === 0) {
-    return '<div class="piastrella"><div class="grande">Niente da rispondere</div><div class="sotto">Qui compaiono, senza bloccare niente: le domande che un autopilota ti fa prima di partire o mentre lavora; le scelte che una chat aspetta (un permesso, \u00abvuoi procedere?\u00bb, un elenco numerato); e le chat che hanno finito e aspettano una tua istruzione. Ogni voce ha dentro il modo di rispondere e sparisce da sola quando il computer riceve la risposta.</div></div>'
+    return '<div class="piastrella"><div class="grande">Niente da rispondere' + aiuto('domande-vuote', 'Qui compaiono, senza bloccare niente: le domande che un autopilota ti fa prima di partire o mentre lavora; le scelte che una chat aspetta (un permesso, \u00abvuoi procedere?\u00bb, un elenco numerato); e le chat che hanno finito e aspettano una tua istruzione. Ogni voce ha dentro il modo di rispondere e sparisce da sola quando il computer riceve la risposta.') + '</div></div>'
   }
   var contesto = function (righe) {
     return righe && righe.length ? '<pre class="contesto">' + righe.map(esc).join(String.fromCharCode(10)) + '</pre>' : ''
@@ -889,7 +916,7 @@ function richiestaDi(r, testo) {
 function vistaConversazioni() {
   var elenco = domandeConversazioni || []
   if (elenco.length === 0) {
-    return '<div class="piastrella"><div class="grande">Niente da rispondere</div><div class="sotto">Qui compaiono, come conversazioni e senza bloccare niente: gli autopiloti che ti chiedono qualcosa (prima di partire o mentre lavorano) — ci parli come nella loro scheda; le chat che aspettano una scelta o un permesso — scrivono qui la domanda con le opzioni da toccare; e le chat che hanno finito il turno e aspettano la tua istruzione. La stessa cosa che vedi sul PC e nell’app.</div></div>'
+    return '<div class="piastrella"><div class="grande">Niente da rispondere' + aiuto('domande-vuote', 'Qui compaiono, come conversazioni e senza bloccare niente: gli autopiloti che ti chiedono qualcosa (prima di partire o mentre lavorano) — ci parli come nella loro scheda; le chat che aspettano una scelta o un permesso — scrivono qui la domanda con le opzioni da toccare; e le chat che hanno finito il turno e aspettano la tua istruzione. La stessa cosa che vedi sul PC e nell’app.') + '</div></div>'
   }
   var aperta = elenco.find(function (c) { return c.chiave === domandaAperta }) || elenco[0]
   var voci = elenco.map(function (c) {
@@ -920,7 +947,7 @@ function vistaConversazioni() {
   if (aperta.tipo === 'autopilota' && aperta.autopilota) {
     return '<div class="piastrella">' + voci + '</div>' +
       '<div class="piastrella chiede"><div class="serigrafia">' + esc(aperta.titolo) + '</div>' +
-      '<div class="sotto">Ti aspetta con ' + ((aperta.quante || 1) === 1 ? 'una domanda' : (aperta.quante + ' domande')) + '. Le domande di un autopilota si rispondono nella sua scheda, linguetta «Domande», una per volta, con le opzioni da toccare; dopo la risposta domanda e risposta restano nella chat con lui.</div>' +
+      '<div class="sotto">Ti aspetta con ' + ((aperta.quante || 1) === 1 ? 'una domanda' : (aperta.quante + ' domande')) + '.' + aiuto('domande-ap', 'Le domande di un autopilota si rispondono nella sua scheda, linguetta «Domande», una per volta, con le opzioni da toccare; dopo la risposta domanda e risposta restano nella chat con lui.') + '</div>' +
       '<div class="riga"><button class="primario" data-ap="' + esc(aperta.autopilota) + '" onclick="apriDomandeAp(this.dataset.ap)">Apri la sua linguetta Domande</button></div></div>'
   }
   var mandata = domandeMandate[aperta.chiave]
@@ -1589,8 +1616,7 @@ function pannello(s) {
     \${pinDentro ? \`
     <div class="piastrella" style="text-align:center">
       <div style="font-size:38px">🔒</div>
-      <div><b>Questa chat è protetta dal PIN</b></div>
-      <div class="sotto">Continua a lavorare sul computer: qui non si vede e non si scrive finché non metti il PIN. Lo controlla il computer, e la chat si richiude da sola dopo il tempo di inattività scelto là.</div>
+      <div><b>Questa chat è protetta dal PIN</b>\${aiuto('pin', 'Continua a lavorare sul computer: qui non si vede e non si scrive finché non metti il PIN. Lo controlla il computer, e la chat si richiude da sola dopo il tempo di inattività scelto là.')}</div>
       <div class="riga">
         <input id="pin-dentro" type="password" inputmode="numeric" maxlength="8" placeholder="PIN" autocomplete="off">
         <button onclick="sbloccaPin()">Apri</button>
@@ -1667,11 +1693,9 @@ function pannello(s) {
   const delega = !delegando
     ? '<div class="piastrella"><div class="riga"><button onclick="apriDelega()">Affida un lavoro</button></div></div>'
     : \`<div class="piastrella chiede">
-         <div class="titolo">Cosa vuoi che faccia?</div>
-         <div class="sotto">Descrivilo con parole tue. Ti farà le domande che gli servono, qui.</div>
+         <div class="titolo">Cosa vuoi che faccia?\${aiuto('delega', 'Descrivilo con parole tue. Arriva a lui parola per parola, come mandato. Poi legge il progetto, ti fa al massimo un paio di domande (le trovi nella scheda Domande) e aspetta il tuo «Vai».')}</div>
          <div class="riga">
            <textarea id="delega-obiettivo" rows="8" placeholder="Tutto quello che serve: l’obiettivo, i vincoli (cosa non toccare), come si capisce che ha finito. Nessun limite: puoi incollare un documento."></textarea>
-           <div class="sotto">Arriva a lui parola per parola, come mandato. Poi legge il progetto, ti fa al massimo un paio di domande (le trovi nella scheda Domande) e aspetta il tuo «Vai».</div>
          </div>
          <div class="sotto" style="margin-top:10px">In quale cartella lavora? Scegline una o scrivi il percorso intero.</div>
          <div class="riga"><input id="delega-cwd" placeholder="per esempio C:\\\\Progetti\\\\Esempio"></div>
@@ -1687,19 +1711,16 @@ function pannello(s) {
            \${s.workspace.nomi.map((n) => '<option value="' + esc(n) + '"' + (n === s.workspace.attivo ? ' selected' : '') + '>' + esc(n) + '</option>').join('')}
          </select>\` : ''}
          <div class="riga"><input id="delega-nome" placeholder="Nome (facoltativo): se vuoto, le prime parole dell’obiettivo"></div>
-         <div class="sotto" style="margin-top:10px">Pubblicazione del progetto</div>
+         <div class="sotto" style="margin-top:10px">Pubblicazione del progetto\${aiuto('delega-regole', REGOLE.map((r) => '<b>' + esc(r.etichetta) + '</b>: ' + esc(r.spiega)).join('<br>'))}</div>
          <select id="delega-pubblicazione" style="width:100%;margin-top:6px">
            \${REGOLE.map((r) => '<option value="' + r.valore + '"' + (r.valore === 'stabile' ? ' selected' : '') + '>' + esc(r.etichetta) + '</option>').join('')}
          </select>
-         <div class="sotto">\${REGOLE.map((r) => '<b>' + esc(r.etichetta) + '</b>: ' + esc(r.spiega)).join('<br>')}</div>
-         <div class="sotto" style="margin-top:10px">Partenza</div>
+         <div class="sotto" style="margin-top:10px">Partenza\${aiuto('delega-partenze', PARTENZE.map((p) => '<b>' + esc(p.etichetta) + '</b>: ' + esc(p.spiega)).join('<br>'))}</div>
          <select id="delega-partenza" style="width:100%;margin-top:6px">
            \${PARTENZE.map((p) => '<option value="' + p.valore + '">' + esc(p.etichetta) + '</option>').join('')}
          </select>
-         <div class="sotto">\${PARTENZE.map((p) => '<b>' + esc(p.etichetta) + '</b>: ' + esc(p.spiega)).join('<br>')}</div>
          <div class="riga"><textarea id="delega-criteri" rows="3" placeholder="Come si capisce che ha finito (facoltativo, uno per riga). Se vuoto se li ricava lui."></textarea></div>
-         <label class="spunta" style="display:block;margin-top:8px"><input type="checkbox" id="delega-cloud"> va sul cloud: le chat stanno sul Drive</label>
-         <div class="sotto">Il «cloud» è il Drive di SierraDeck, dove si salvano le chat. Se le chat di questo progetto stanno sul Drive (questa spunta, oppure la sincronizzazione Drive del progetto già accesa) lavora in autonomia completa, senza farti domande: commit, unione dei suoi rami, push e pubblicazione secondo la regola qui accanto. Il remoto git e gli script di pubblicazione del progetto servono solo a sapere dove mandare su e con quale comando pubblicare. Senza Drive fa commit sui suoi rami e li unisce, e basta: niente push, niente pubblicazione. Quante chat apre lo decide lui, dentro il freno sui limiti del piano.</div>
+         <label class="spunta" style="display:block;margin-top:8px"><input type="checkbox" id="delega-cloud"> va sul cloud: le chat stanno sul Drive</label>\${aiuto('delega-cloud', 'Il «cloud» è il Drive di SierraDeck, dove si salvano le chat. Se le chat di questo progetto stanno sul Drive (questa spunta, oppure la sincronizzazione Drive del progetto già accesa) lavora in autonomia completa, senza farti domande: commit, unione dei suoi rami, push e pubblicazione secondo la regola qui accanto. Il remoto git e gli script di pubblicazione del progetto servono solo a sapere dove mandare su e con quale comando pubblicare. Senza Drive fa commit sui suoi rami e li unisce, e basta: niente push, niente pubblicazione. Quante chat apre lo decide lui, dentro il freno sui limiti del piano.')}
          <div class="riga">
            <button class="primario" onclick="affida()">Affida</button>
            <button onclick="delegando = false; delegaCartella = -1; cartelle = null; pannello(ultimoStato)">Lascia stare</button>
@@ -1708,8 +1729,7 @@ function pannello(s) {
 
   const elencoSessioni = pannelloAperto !== 'sessioni' ? '' : \`
     <div class="piastrella">
-      <div class="titolo">Riprendi una conversazione</div>
-      <div class="sotto">Le conversazioni di Claude Code su questo computer, dalla più recente: toccandone una si riapre sul computer con tutta la sua storia, nel workspace dove era salvata. Quelle «su un altro PC» vivono là: toccandone una le scrivi da qui, e quel PC la avvia in sottofondo — là non si apre nessuna finestra e non cambia niente sullo schermo — e il messaggio parte appena è pronta.</div>
+      <div class="titolo">Riprendi una conversazione\${aiuto('sessioni', 'Le conversazioni di Claude Code su questo computer, dalla più recente: toccandone una si riapre sul computer con tutta la sua storia, nel workspace dove era salvata. Quelle «su un altro PC» vivono là: toccandone una le scrivi da qui, e quel PC la avvia in sottofondo — là non si apre nessuna finestra e non cambia niente sullo schermo — e il messaggio parte appena è pronta.')}</div>
       \${sfScelta >= 0 ? sottofondoHtml() : ''}
       \${sessioniNascoste > 0 || sessioniSenzaNome ? '<div class="riga"><label class="sotto"><input type="checkbox"' + (sessioniSenzaNome ? ' checked' : '') + ' onchange="mostraSenzaNome()"> mostra anche le senza nome' + (sessioniNascoste > 0 ? ' (' + sessioniNascoste + ', nascoste: non sono cancellate)' : '') + '</label></div>' : ''}
       \${(sessioniViste || []).length === 0
@@ -1726,8 +1746,7 @@ function pannello(s) {
   const elencoPc = pannelloAperto !== 'pc' ? '' : (() => {
     const pc = pcVisti || []
     if (pcAperto === null) {
-      return '<div class="piastrella"><div class="titolo">Altri computer</div>' +
-        '<div class="sotto">I PC che usano questo stesso Drive, con le chat che hanno aperte (dal loro battito, ogni pochi minuti): pallino ambra = aspetta te. Per comandarli dal vivo apri la loro pagina (stesso indirizzo, sul loro IP). Toccandone uno lasci un’azione nella sua cassetta: si esegue solo là, in una sua chat, quando è acceso — è la strada per una cartella che sta su quel PC (un disco di rete, un progetto che non viaggia).</div>' +
+      return '<div class="piastrella"><div class="titolo">Altri computer' + aiuto('altri-pc', 'I PC che usano questo stesso Drive, con le chat che hanno aperte (dal loro battito, ogni pochi minuti): pallino ambra = aspetta te. Per comandarli dal vivo apri la loro pagina (stesso indirizzo, sul loro IP). Toccandone uno lasci un’azione nella sua cassetta: si esegue solo là, in una sua chat, quando è acceso — è la strada per una cartella che sta su quel PC (un disco di rete, un progetto che non viaggia).') + '</div>' +
         (postaErrore ? '<div class="errore" style="margin-top:6px">' + esc(postaErrore) + '</div>' : '') +
         (pcVisti === null ? '<div class="sotto" style="margin-top:8px">Leggo il Drive…</div>' : '') +
         (pcVisti !== null && pc.length === 0 ? '<div class="sotto" style="margin-top:8px">Nessun altro PC ha ancora lasciato un segno sul Drive: serve SierraDeck 0.27.0 o più nuovo su quel PC, con la cassaforte sbloccata e il Drive collegato.</div>' : '') +
@@ -1746,8 +1765,7 @@ function pannello(s) {
     const attesa = voci.filter((v) => v.stato === 'attesa')
     const chiuse = voci.filter((v) => v.stato !== 'attesa')
     const cartelle = (b.cartelle || [])
-    return '<div class="piastrella"><div class="titolo">Azioni su ' + esc(nomeDaMostrare(b)) + hostPiccolo(b) + ' · ' + (b.vivo ? 'acceso' : 'spento') + '</div>' +
-      '<div class="sotto">Quello che scrivi qui si esegue solo su ' + esc(nomeDaMostrare(b)) + ', nella cartella scelta, quando e\\' acceso: alla prima chat di quella cartella che aspetta, o a una nuova. Se la cartella la\\' non esiste, la voce fallisce e lo leggi qui.</div>' +
+    return '<div class="piastrella"><div class="titolo">Azioni su ' + esc(nomeDaMostrare(b)) + hostPiccolo(b) + ' · ' + (b.vivo ? 'acceso' : 'spento') + aiuto('posta', 'Quello che scrivi qui si esegue solo su ' + esc(nomeDaMostrare(b)) + ', nella cartella scelta, quando e\\' acceso: alla prima chat di quella cartella che aspetta, o a una nuova. Se la cartella la\\' non esiste, la voce fallisce e lo leggi qui.') + '</div>' +
       (postaErrore ? '<div class="errore" style="margin-top:6px">' + esc(postaErrore) + '</div>' : '') +
       (attesa.length === 0 ? '<div class="sotto" style="margin-top:8px">Nessuna azione in attesa.</div>' : '') +
       attesa.map((v, i) =>
@@ -1772,8 +1790,7 @@ function pannello(s) {
   const elencoCode = pannelloAperto !== 'code' ? '' : (() => {
     const progetti = (s.progetti || [])
     if (codaProgetto === null) {
-      return '<div class="piastrella"><div class="titolo">Code dei progetti</div>' +
-        '<div class="sotto">Una fila di istruzioni per progetto, sul Drive: le consegna il PC che ha il progetto in mano, una per volta, alla prima chat del progetto che ha finito il turno. Serve a lasciare il lavoro dopo quello di adesso senza stare a guardare.</div>' +
+      return '<div class="piastrella"><div class="titolo">Code dei progetti' + aiuto('code', 'Una fila di istruzioni per progetto, sul Drive: le consegna il PC che ha il progetto in mano, una per volta, alla prima chat del progetto che ha finito il turno. Serve a lasciare il lavoro dopo quello di adesso senza stare a guardare.') + '</div>' +
         (progetti.length === 0
           ? '<div class="sotto" style="margin-top:8px">Nessun progetto sul Drive: le code esistono solo per i progetti portati sul Drive (sul computer: Account → Progetti).</div>'
           : progetti.map((p) =>
@@ -1806,8 +1823,7 @@ function pannello(s) {
 
   // «Salute del sistema» (0.44.0): le stesse voci del PC, con spiegazione e cosa fare.
   const vistaSalute = scheda !== 'salute' ? '' : (() => {
-    const testa = '<div class="piastrella"><div class="titolo">Salute del sistema</div>' +
-      '<div class="sotto">Com’è messo il computer: il Drive, gli altri PC (ultimo segno, strada, versione), un aggiornamento non riuscito, gli errori delle ultime ore, le istruzioni degli autopiloti non partite. Ogni voce dice cosa vuol dire e cosa fare.</div>'
+    const testa = '<div class="piastrella"><div class="titolo">Salute del sistema' + aiuto('salute', 'Com’è messo il computer: il Drive, gli altri PC (ultimo segno, strada, versione), un aggiornamento non riuscito, gli errori delle ultime ore, le istruzioni degli autopiloti non partite. Ogni voce dice cosa vuol dire e cosa fare.') + '</div>'
     if (saluteErrore) return testa + '<div class="errore">' + esc(saluteErrore) + '</div></div>'
     if (!saluteVista) return testa + '<div class="sotto">Guardo…</div></div>'
     const colore = (t) => t === 'ok' ? 'var(--verde)' : t === 'attenzione' ? '#e0a33c' : '#dc5f5f'
@@ -1823,8 +1839,7 @@ function pannello(s) {
       if (voci.length === 0) continue
       corpo += '<div class="serigrafia" style="margin-top:10px">' + esc(nomi[g]) + '</div>' + voci.map((v) =>
         '<div class="salute-voce" style="border-left:3px solid ' + colore(v.tono) + ';padding:4px 8px;margin-top:6px">' +
-        '<div><b>' + esc(v.titolo) + '</b></div>' +
-        '<div class="sotto">' + esc(v.spiegazione) + '</div>' +
+        '<div><b>' + esc(v.titolo) + '</b>' + (v.spiegazione ? aiuto('salute:' + g + ':' + v.titolo, esc(v.spiegazione)) : '') + '</div>' +
         (v.cosaFare ? '<div class="sotto"><b>Cosa fare:</b> ' + esc(v.cosaFare) + '</div>' : '') +
         ((v.azioni || []).length > 0 ? '<div class="riga">' + v.azioni.map(azione).join('') + '</div>' : '') +
         '</div>').join('')
@@ -1837,8 +1852,7 @@ function pannello(s) {
     const l = driveLavoro || {}
     const inc = l.inCorso
     const occupato = !!inc || driveInCorso !== null
-    let testa = '<div class="piastrella"><div class="titolo">Drive · il magazzino dei tuoi PC</div>' +
-      '<div class="sotto">Cosa c\\'è sul Drive e cosa il computer ha già. Un progetto è la cartella in cui le chat lavorano; un workspace è una fascia a schermo con dentro delle chat. «Porta qui» fa scaricare al computer la cartella se viaggia con le chat, le chat che gli mancano, e le mette nel loro workspace; poi il computer si riavvia da solo per mostrarle. Niente viene mai cancellato.</div>'
+    let testa = '<div class="piastrella"><div class="titolo">Drive · il magazzino dei tuoi PC' + aiuto('drive', 'Cosa c\\'è sul Drive e cosa il computer ha già. Un progetto è la cartella in cui le chat lavorano; un workspace è una fascia a schermo con dentro delle chat. «Porta qui» fa scaricare al computer la cartella se viaggia con le chat, le chat che gli mancano, e le mette nel loro workspace; poi il computer si riavvia da solo per mostrarle. Niente viene mai cancellato.') + '</div>'
     if (inc) {
       const perc = (inc.totale || 0) > 0 ? Math.round((inc.fatto || 0) * 100 / inc.totale) : 0
       testa += '<div style="margin-top:10px"><b>' + esc(etichettaLavoro(inc.tipo)) + '</b> — ' +
@@ -1872,7 +1886,7 @@ function pannello(s) {
         '<div style="margin-top:8px"><b>Fase ' + (i + 1) + ' di ' + FASI_CATALOGO.length + ' · ' + esc(f.nome) + '</b>' + conteggio + '</div>' +
         '<div class="sotto">' + esc(f.spiegazione) + '</div>' +
         '<div class="sotto" style="margin-top:6px">' + FASI_CATALOGO.map((g, k) => (k < i ? '✓ ' : k === i ? '▶ ' : '○ ') + esc(g.nome)).join(' · ') + '</div>' +
-        '<div class="sotto" style="margin-top:6px">Leggere il Drive non tocca niente: il computer legge e basta. Quando ha finito compare il catalogo.</div></div>'
+        '<div class="sotto" style="margin-top:6px">Leggere il Drive non tocca niente.' + aiuto('drive-leggo', 'Leggere il Drive non tocca niente: il computer legge e basta. Quando ha finito compare il catalogo.') + '</div></div>'
       if (!c) return testa + '<div class="riga"><button onclick="apriPannello(\\'drive\\')">Chiudi</button></div></div>'
     }
     if (!c) return testa + '<div class="sotto" style="margin-top:8px">Il Drive non è stato letto: «Aggiorna» riprova.</div><div class="riga"><button onclick="leggiDrive()">Aggiorna</button><button onclick="apriPannello(\\'drive\\')">Chiudi</button></div></div>'
@@ -1946,8 +1960,16 @@ function pannello(s) {
 
   // Le impostazioni rifatte (0.56.0), in versione semplice: la ricerca in alto,
   // «Aggiornamenti» in cima, poi le sezioni del PC e dell'app con la loro spiegazione.
-  const intestaImp = (id) => { const g = IMPOSTAZIONI_PAGINA.find((x) => x.sezione.id === id); return g ? '<div class="titolo">' + esc(g.sezione.titolo) + '</div><div class="sotto">' + esc(g.sezione.spiega) + '</div>' : '' }
-  const vociImp = (id) => { const g = IMPOSTAZIONI_PAGINA.find((x) => x.sezione.id === id); return g ? g.voci.map((v) => '<div class="sotto" style="margin-top:8px"><b>' + esc(v.titolo) + '</b> — ' + esc(v.spiega) + '</div>').join('') : '' }
+  // 0.62.0: la sezione e le sue voci si spiegano tutte nel «?» del titolo.
+  // Sotto restano solo i comandi: le voci in fila con il loro «?» ripetevano
+  // i titoli di quello che c'era già sopra.
+  const intestaImp = (id) => {
+    const g = IMPOSTAZIONI_PAGINA.find((x) => x.sezione.id === id)
+    if (!g) return ''
+    const testo = (g.sezione.spiega ? '<p>' + esc(g.sezione.spiega) + '</p>' : '') + g.voci.map((v) => '<p><b>' + esc(v.titolo) + '</b>: ' + esc(v.spiega) + '</p>').join('')
+    return '<div class="titolo">' + esc(g.sezione.titolo) + (testo ? aiuto('imp:' + id, testo) : '') + '</div>'
+  }
+  const vociImp = () => ''
   const vistaImpostazioni = scheda !== 'impostazioni' ? '' : \`
     <div class="piastrella">
       <div class="titolo">Impostazioni</div>
@@ -1955,7 +1977,7 @@ function pannello(s) {
     </div>
     <div class="piastrella" data-sezione="aggiornamenti">
       \${intestaImp('aggiornamenti')}
-      <div class="sotto" style="margin-top:10px">Versioni: computer \${esc((s.computer && s.computer.versione) || 'non ancora letta')} · pagina servita da quel computer, sempre della stessa versione.</div>
+      <div class="sotto" style="margin-top:10px">Versione del computer: \${esc((s.computer && s.computer.versione) || 'non ancora letta')}\${aiuto('imp-versioni', 'Questa pagina la serve quel computer: è sempre della sua stessa versione.')}</div>
       <div class="sotto" style="margin-top:10px"><b>Aggiornamento del computer</b></div>
       <div class="sotto">\${esc(descriviAggiornamento())}</div>
       \${fallitoHtml(aggiornamentoVisto) || '<div class="sotto">Ultimo tentativo: nessuna installazione non riuscita da ricordare.</div>'}
@@ -1985,12 +2007,12 @@ function pannello(s) {
     <div class="piastrella" data-sezione="aspetto">
       <div class="titolo">Aspetto</div>
       \${prefViste === null ? '<div class="sotto">Non sono riuscito a leggerle.</div>' : \`
-        <div class="sotto" style="margin-top:10px">Stile della console — «Banco»: cornici sottili, più righe; «Foglio»: più aria, angoli morbidi. Vale anche per il computer.</div>
+        <div class="sotto" style="margin-top:10px">Stile della console\${aiuto('imp-stile', '«Banco»: cornici sottili, più righe; «Foglio»: più aria, angoli morbidi. Vale anche per il computer.')}</div>
         <div class="ws" style="margin-top:8px">
           <button class="\${prefViste.stile === 'banco' ? 'attivo' : ''}" onclick="cambiaPref('stile', 'banco')">Banco</button>
           <button class="\${prefViste.stile === 'foglio' ? 'attivo' : ''}" onclick="cambiaPref('stile', 'foglio')">Foglio</button>
         </div>
-        <div class="sotto" style="margin-top:14px">Chiarore del fondo: \${prefViste.chiarore} (0 nero, 100 chiaro). Vale anche per il computer e l’app.</div>
+        <div class="sotto" style="margin-top:14px">Chiarore del fondo: \${prefViste.chiarore}\${aiuto('imp-chiarore', '0 è nero, 100 chiaro. Vale anche per il computer e l’app.')}</div>
         <input type="range" min="0" max="100" value="\${prefViste.chiarore}" style="width:100%"
           onchange="cambiaPref('chiarore', Number(this.value))">
       \`}
@@ -2510,9 +2532,9 @@ function vistaAutopilota(a) {
         (c.ultimaVerifica ? ' · ' + (c.ultimaVerifica.codice === 0 ? 'passato' : esc(primaRigaUscita(c.ultimaVerifica.uscita)) || 'non passato') : ' · mai misurato') +
       '</div></li>'
     ).join('')
-    dentro = '<div class="serigrafia">Finisce quando</div>' +
+    dentro = '<div class="serigrafia">Finisce quando' + aiuto('ap-criteri', 'Il comando sotto ogni criterio è quello che lo misura a ogni fermata. Per riscriverli usa il PC, o diglielo nella chat qui sopra.') + '</div>' +
       (criteri ? '<ul class="criteri">' + criteri + '</ul>' : '<div class="sotto">Ancora nessun criterio: li scrive lui alla fine della preparazione.</div>') +
-      '<div class="sotto" style="margin-top:8px">Il comando sotto ogni criterio è quello che lo misura a ogni fermata. Per riscriverli usa il PC, o diglielo nella chat qui sopra.</div>'
+      ''
   } else if (apTab === 'compiti') {
     const compiti = (a.compitiDaFare || []).map((c) => '<li>' + esc(c) + '</li>').join('')
     dentro = '<div class="serigrafia">Prima fa</div>' +
@@ -2619,7 +2641,7 @@ function mdSicuro(testo) {
 
 /** La linguetta «Istruzioni» (0.41.0): cosa ha scritto alle sue chat, intero, dalla più recente. */
 function vistaIstruzioniAp(x) {
-  const intro = '<div class="sotto">Quello che l’autopilota ha scritto alle sue chat, per intero e dalla più recente. Nella chat spesso si vede solo «Leggi ed esegui le istruzioni in …»: il testo vero è questo. Per ognuna: l’ora, la chat, il perché della mossa e com’è andata. Se qualcosa è sbagliato, «Correggi» gli scrive una nota legata a quell’istruzione. Il testo si seleziona e si copia.</div>'
+  const intro = '<div class="sotto">Le istruzioni date alle sue chat' + aiuto('ap-istruzioni', 'Quello che l’autopilota ha scritto alle sue chat, per intero e dalla più recente. Nella chat spesso si vede solo «Leggi ed esegui le istruzioni in …»: il testo vero è questo. Per ognuna: l’ora, la chat, il perché della mossa e com’è andata. Se qualcosa è sbagliato, «Correggi» gli scrive una nota legata a quell’istruzione. Il testo si seleziona e si copia.') + '</div>'
   if (!x) return intro + '<div class="sotto">Leggo le istruzioni…</div>'
   if (x.errore) return intro + '<div class="errore">' + esc(x.errore) + '</div>'
   const lista = x.istruzioni || []
@@ -2656,7 +2678,7 @@ window.mandaCorrezioneAp = async (id) => {
 function vistaFileAp(f, scelto, diff) {
   if (!f) return '<div class="sotto">Leggo i file da git…</div>'
   if (f.errore) return '<div class="errore">' + esc(f.errore) + '</div>'
-  const intro = '<div class="sotto">I file che ha cambiato, per la cartella del progetto e per il worktree di ogni sua chat: com’è cambiato, righe aggiunte (+) e tolte (−), e se è già in un commit o ancora da salvare. Toccando un file vedi le righe. Qui si guarda soltanto.</div>'
+  const intro = '<div class="sotto">I file che ha cambiato' + aiuto('ap-file', 'I file che ha cambiato, per la cartella del progetto e per il worktree di ogni sua chat: com’è cambiato, righe aggiunte (+) e tolte (−), e se è già in un commit o ancora da salvare. Toccando un file vedi le righe. Qui si guarda soltanto.') + '</div>'
   const gruppi = (f.gruppi || []).map((g) =>
     '<div class="serigrafia" style="margin-top:8px">' + esc(g.nome) + (g.ramo ? ' · ' + esc(g.ramo) : '') + '</div>' +
     '<div class="sotto">Confronto ' + esc(g.base) + '</div>' +
@@ -2939,8 +2961,7 @@ function negozioRigaMcp(m) {
     (tasti ? '<div class="riga">' + tasti + '</div>' : '') + negozioSotto(k) + '</div>'
 }
 function negozioHtml() {
-  var testa = '<div class="piastrella"><div class="titolo">Negozio</div>' +
-    '<div class="sotto">Plugin, skill e server MCP di Claude Code su questo computer: cosa c’è, se è acceso, e cosa vuol dire. Da qui installi, aggiorni, accendi e spegni. Aggiungere o togliere una skill o un MCP, cambiarne le chiavi e rimuovere un plugin si fa dal computer, dove si vedono i percorsi.</div>'
+  var testa = '<div class="piastrella"><div class="titolo">Negozio' + aiuto('negozio', 'Plugin, skill e server MCP di Claude Code su questo computer: cosa c’è, se è acceso, e cosa vuol dire. Da qui installi, aggiorni, accendi e spegni. Aggiungere o togliere una skill o un MCP, cambiarne le chiavi e rimuovere un plugin si fa dal computer, dove si vedono i percorsi.') + '</div>'
   var chiudi = '<div class="riga"><button onclick="rileggiNegozio()">Aggiorna</button><button onclick="apriPannello(\\'negozio\\')">Chiudi</button></div></div>'
   if (negozioErrore) return testa + '<div class="errore">' + esc(negozioErrore) + '</div><div class="riga"><button onclick="rileggiNegozio()">Riprova</button></div>' + chiudi
   if (!negozioVisto) return testa + '<div class="sotto">Leggo dal computer… (il catalogo ci mette qualche secondo)</div><div class="neg-prog"><span></span></div>' + chiudi
@@ -3102,8 +3123,7 @@ sceltaCarica.onchange = async () => {
   pannello(ultimoStato)
 }
 function fileHtml() {
-  var testa = '<div class="piastrella"><div class="titolo">File</div>' +
-    '<div class="sotto">I progetti di questo computer (le cartelle dove hai lavorato con Claude Code, le chat aperte, gli autopiloti), solo dentro le loro cartelle. Tocca una cartella per entrarci; un file di testo, un’immagine o un PDF si guardano qui, tutto il resto si scarica. «Carica qui» mette un file del telefono nella cartella aperta. I file che il computer ti manda («📱 Manda al telefono») arrivano nell’app SierraDeck.</div>'
+  var testa = '<div class="piastrella"><div class="titolo">File' + aiuto('file', 'I progetti di questo computer (le cartelle dove hai lavorato con Claude Code, le chat aperte, gli autopiloti), solo dentro le loro cartelle. Tocca una cartella per entrarci; un file di testo, un’immagine o un PDF si guardano qui, tutto il resto si scarica. «Carica qui» mette un file del telefono nella cartella aperta. I file che il computer ti manda («📱 Manda al telefono») arrivano nell’app SierraDeck.') + '</div>'
   // File è una destinazione del menu (0.61.0): niente «Chiudi», che non chiuderebbe niente.
   var chiudi = '</div>'
   var nota = fileNota ? '<div class="sotto"' + (fileNota.indexOf('✓') === 0 ? ' style="color:var(--verde)"' : '') + '>' + esc(fileNota) + '</div>' : ''
@@ -3188,8 +3208,7 @@ function sottofondoHtml() {
   const st = sfStato || {}
   const fase = st.fase || ''
   return '<div class="piastrella" style="margin-top:8px">' +
-    '<div class="titolo">Scrivi a «' + esc(s.titolo) + '» su ' + esc(s.altrove) + '</div>' +
-    '<div class="sotto">Quel PC la avvia in sottofondo (claude --resume nella sua cartella, senza riquadro e senza finestre: là non si vede niente e non cambia il workspace). Il messaggio aspetta in coda e parte appena la chat è pronta; poi la trovi fra le chat di ' + esc(s.altrove) + ' e la segui da lì.</div>' +
+    '<div class="titolo">Scrivi a «' + esc(s.titolo) + '» su ' + esc(s.altrove) + aiuto('sottofondo', 'Quel PC la avvia in sottofondo (claude --resume nella sua cartella, senza riquadro e senza finestre: là non si vede niente e non cambia il workspace). Il messaggio aspetta in coda e parte appena la chat è pronta; poi la trovi fra le chat di ' + esc(s.altrove) + ' e la segui da lì.') + '</div>' +
     (fase ? '<div class="' + (fase === 'errore' ? 'errore' : 'sotto') + '" style="margin-top:6px">' + esc(testoAvvio(fase, s.altrove, !!st.testo)) + (st.messaggio ? ' — ' + esc(fase === 'errore' ? 'Perché: ' + st.messaggio : 'Da ' + s.altrove + ': ' + st.messaggio) : '') + '</div>' : '') +
     (st.testo && fase && fase !== 'fatto' ? '<div class="sotto">Il tuo messaggio, in attesa: «' + esc(st.testo.slice(0, 160)) + '». Non si perde: Riprova lo rimanda una volta sola.</div>' : '') +
     (fase === 'fatto' ? '<div class="sotto">Messaggio consegnato: la chat gira su ' + esc(s.altrove) + ' in sottofondo.</div>' : '') +
@@ -3679,7 +3698,7 @@ function noteAggHtml(n) {
     fallitoHtml(aggiornamentoVisto) +
     (n.installata ? '<div class="sotto">Sul computer adesso c’è la ' + esc(n.installata) + (note.length > 1 ? ': qui sotto la nuova e le ' + (note.length - 1) + ' che aveva saltato.' : '.') + '</div>' : '') +
     avviso + versioni +
-    '<div class="sotto" style="margin-top:12px"><b>Installa e riavvia</b>: il computer aspetta che le chat finiscano quello che hanno in mano, le avvisa, si chiude, installa e riparte da solo; chat e autopiloti riprendono da dove erano. Questa pagina non risponde per un minuto o due. <b>Più tardi</b>: non installa niente adesso; si installa da sola quando chiudi SierraDeck sul computer.</div>' +
+    '<div class="sotto" style="margin-top:12px">Cosa fanno i due tasti' + aiuto('installa', '<b>Installa e riavvia</b>: il computer aspetta che le chat finiscano quello che hanno in mano, le avvisa, si chiude, installa e riparte da solo; chat e autopiloti riprendono da dove erano. Questa pagina non risponde per un minuto o due. <b>Più tardi</b>: non installa niente adesso; si installa da sola quando chiudi SierraDeck sul computer.') + '</div>' +
     '<div class="riga"><button class="pericolo" onclick="confermaInstalla()">Installa e riavvia</button><button onclick="piuTardiAggiornamento()">Più tardi</button></div>'
 }
 
@@ -3704,17 +3723,17 @@ function limitiHtml(c) {
       return '<div style="margin-top:8px"><div class="sotto"><b>' + esc(x.titolo || String(x.sessione || '').slice(0, 8)) + '</b>' + (x.modello ? ' \u00b7 ' + esc(x.modello) : '') + ': ' + esc(x.contestoEtichetta || 'contesto non ancora letto') + '</div>' +
         '<div class="barra"><i style="width:' + cp + '%;background:' + (cp >= 90 ? '#e0a33c' : '#4aa3ff') + '"></i></div></div>'
     }).join('') +
-    '<div class="sotto" style="margin-top:6px">Il contesto \u00e8 la memoria di lavoro della chat: si conta come Claude Code, solo con i token in ingresso. Al 90% conviene farle riassumere dove \u00e8 arrivata, prima che lo compatti da sola.</div>'
+    '<div class="sotto" style="margin-top:6px">Cos\u2019\u00e8 il contesto' + aiuto('contesto', 'Il contesto \u00e8 la memoria di lavoro della chat: si conta come Claude Code, solo con i token in ingresso. Al 90% conviene farle riassumere dove \u00e8 arrivata, prima che lo compatti da sola.') + '</div>'
   var freno = c && c.freno
     ? '<div class="serigrafia" style="margin-top:12px">FRENO DEGLI AUTOPILOTI</div><div class="sotto" style="margin-top:6px"><b>' + esc(c.freno.titolo || '') + '</b>: ' + esc(c.freno.spiegazione || c.freno.motivo || '') + '</div>'
     : ''
   var spesa = c && c.costo
-    ? '<div class="sotto" style="margin-top:10px"><b>Spesa stimata da Claude Code</b>: oggi ' + Number(c.costo.oggi || 0).toFixed(2) + ' $, 7 giorni ' + Number(c.costo.settimana || 0).toFixed(2) + ' $. Con un abbonamento \u00e8 un\u2019indicazione, non una fattura.</div>'
+    ? '<div class="sotto" style="margin-top:10px"><b>Spesa stimata da Claude Code</b>: oggi ' + Number(c.costo.oggi || 0).toFixed(2) + ' $, 7 giorni ' + Number(c.costo.settimana || 0).toFixed(2) + ' $.' + aiuto('spesa', 'Con un abbonamento \u00e8 un\u2019indicazione, non una fattura.') + '</div>'
     : ''
   return '<div class="solco"></div><div class="serigrafia">LIMITI DEL PIANO</div>' +
     barra('Finestra di 5 ore', l && l.cinqueOre, 'Al 100% le chat si fermano fino all\u2019azzeramento.') +
     barra('Settimana', l && l.settimana, 'Il tetto settimanale su tutti i modelli.') +
-    (l ? '<div class="sotto" style="margin-top:6px">Letti ' + (quandoLetti(l.letti, Date.now()) || 'di recente') + ': sono gli stessi numeri di /usage in Claude Code. Fra tutte le chat aperte dal computer vale la lettura pi\u00f9 recente; si aggiornano a ogni risposta, e qui ogni mezzo minuto. Una lettura di pi\u00f9 di 20 minuti \u00e8 segnata vecchia: il valore vero pu\u00f2 essere pi\u00f9 alto.</div>'
+    (l ? '<div class="sotto" style="margin-top:6px">Letti ' + (quandoLetti(l.letti, Date.now()) || 'di recente') + '.' + aiuto('limiti', 'Sono gli stessi numeri di /usage in Claude Code. Fra tutte le chat aperte dal computer vale la lettura pi\u00f9 recente; si aggiornano a ogni risposta, e qui ogni mezzo minuto. Una lettura di pi\u00f9 di 20 minuti \u00e8 segnata vecchia: il valore vero pu\u00f2 essere pi\u00f9 alto.') + '</div>'
       : '<div class="sotto" style="margin-top:6px">Arrivano dalla riga di stato di Claude Code dopo la prima risposta di una chat aperta dal computer (solo con abbonamento Pro o Max).</div>') +
     contesti + freno + spesa
 }
@@ -3790,8 +3809,7 @@ window.qpRevoca = async (sessione, voce) => {
   pannello(ultimoStato)
 }
 function quadernoPersonaleHtml() {
-  let h = '<div class="sotto" style="margin-top:12px"><b>Quaderno personale</b></div>' +
-    '<div class="sotto">I tuoi dati riservati (email di contatto, sede, partita IVA…) che una chat a volte deve scrivere. Stanno solo su questo computer, cifrati: non nel codice, non nei progetti, non nel Drive. Nessuna chat li legge da sola: li chiede, e tu scegli nelle Domande «Consenti una volta», «Sempre per questa chat» o «No». Senza risposta in due minuti vale no.</div>'
+  let h = '<div class="sotto" style="margin-top:12px"><b>Quaderno personale</b>' + aiuto('quaderno-personale', 'I tuoi dati riservati (email di contatto, sede, partita IVA…) che una chat a volte deve scrivere. Stanno solo su questo computer, cifrati: non nel codice, non nei progetti, non nel Drive. Nessuna chat li legge da sola: li chiede, e tu scegli nelle Domande «Consenti una volta», «Sempre per questa chat» o «No». Senza risposta in due minuti vale no.') + '</div>'
   if (qpErrore) return h + '<div class="sotto" style="color:var(--ambra)">' + esc(qpErrore) + '</div>'
   if (!qpStato) return h + '<div class="sotto">Leggo…</div>'
   if (!qpStato.disponibile) return h + '<div class="sotto" style="color:var(--ambra)">' + esc(qpStato.perche || 'Non disponibile su questo computer.') + '</div>'
@@ -3896,8 +3914,7 @@ function pdScegliPc(progetto, sessione, attuale) {
   return h
 }
 function pannelloDriveHtml() {
-  let h = '<div class="piastrella"><div class="titolo">Chat e progetti del Drive</div>' +
-    '<div class="sotto">Ogni chat e ogni progetto ha un PC residente: è lì che lavora; sugli altri PC si apre dal vivo, e il progetto lì è «solo cloud». Qui vedi il residente, chi ne ha una copia, l’ultimo uso e lo stato; in ambra le assegnazioni sbagliate, con il perché e cosa fare. Ogni cambio chiede conferma e non cancella niente: le copie tolte vanno nella cartella di recupero per 30 giorni.</div>'
+  let h = '<div class="piastrella"><div class="titolo">Chat e progetti del Drive' + aiuto('progetti', 'Ogni chat e ogni progetto ha un PC residente: è lì che lavora; sugli altri PC si apre dal vivo, e il progetto lì è «solo cloud». Qui vedi il residente, chi ne ha una copia, l’ultimo uso e lo stato; in ambra le assegnazioni sbagliate, con il perché e cosa fare. Ogni cambio chiede conferma e non cancella niente: le copie tolte vanno nella cartella di recupero per 30 giorni.') + '</div>'
   if (pdErrore) return h + '<div class="sotto" style="color:var(--ambra,#e0a33c)">' + esc(pdErrore) + '</div></div>'
   if (!pdDati) return h + '<div class="sotto">Leggo…</div></div>'
   if ((pdDati.pcDaAggiornare || []).length > 0) h += '<div class="sotto" style="color:var(--ambra,#e0a33c);margin-top:6px">' + esc(pdDati.pcDaAggiornare.join(', ')) + ': non dice ancora quali chat e progetti ha sul disco, va aggiornato alla 0.58.</div>'
@@ -3908,12 +3925,12 @@ function pannelloDriveHtml() {
   }
   const inRec = (rim.inRecupero || []).filter((c) => !c.ripristinataIl)
   if (inRec.length > 0) {
-    h += '<div class="sotto" style="margin-top:10px"><b>Cartelle in recupero</b> — tolte da questo PC, non cancellate: «Ripristina» le rimette dov’erano.</div>'
+    h += '<div class="sotto" style="margin-top:10px"><b>Cartelle in recupero</b>' + aiuto('recupero', 'Tolte da questo PC, non cancellate: «Ripristina» le rimette dov’erano.') + '</div>'
     for (const c of inRec) h += '<div class="sotto" style="margin-top:4px"><b>' + esc(c.nome) + '</b> · tolta il ' + esc(pdQuando(c.quando)) + ' · resta fino al ' + esc(pdQuando(c.scadeIl)) + '</div><div class="riga"><button onclick="pdAzione(\\'ripristina\\', \\'\\', true, \\'' + escJs(c.id) + '\\')">' + (pdDaConfermare === 'ripristina::' + c.id ? 'Tocca ancora: rimetti in ' + esc(c.percorsoOriginale) : 'Ripristina') + '</button></div>'
   }
   const unioni = pdDati.unioni || []
   if (unioni.length > 0) {
-    h += '<div class="sotto" style="margin-top:10px"><b>Unioni fatte</b> — i progetti uniti con «Rendi residente qui» negli ultimi 30 giorni. «Annulla l’unione» rimette com’erano cartelle, file, chat, workspace e registro; niente si cancella.</div>'
+    h += '<div class="sotto" style="margin-top:10px"><b>Unioni fatte</b>' + aiuto('unioni', 'I progetti uniti con «Rendi residente qui» negli ultimi 30 giorni. «Annulla l’unione» rimette com’erano cartelle, file, chat, workspace e registro; niente si cancella.') + '</div>'
     for (const u of unioni) h += '<div class="sotto" style="margin-top:4px"><b>' + esc(u.nome) + '</b> · unito il ' + esc(pdQuando(u.quando)) + ' in ' + esc(u.destinazione) + ' · annullabile fino al ' + esc(pdQuando(u.scadeIl)) + '</div><div class="riga"><button onclick="pdAzione(\\'annulla-unione\\', \\'' + escJs(u.progetto) + '\\', true, \\'' + escJs(u.id) + '\\')">' + (pdDaConfermare === 'annulla-unione:' + u.progetto + ':' + u.id ? 'Tocca ancora: annulla l’unione' : 'Annulla l’unione') + '</button></div>'
   }
   if (pdDati.piano && pdDati.piano.azioni.length > 0) {
@@ -4588,12 +4605,11 @@ function lineaHtml() {
     const fra = fraSecondiLinea(linea, Date.now())
     h += '<div class="piastrella chiede linea-fascia"><b>Collegamento con il computer caduto da ' + durataBreve(Date.now() - (linea.cadutaIl || Date.now())) +
       ' · tentativo ' + linea.tentativo + ' · ' + (fra > 0 ? 'riprovo fra ' + fra + ' s' : 'riprovo adesso') + '.</b>' +
-      '<div class="sotto">' + (linea.messaggio ? esc(linea.messaggio) + '. ' : '') + 'Quello che vedi è l’ultimo arrivato, attenuato: al ritorno si aggiorna da solo. Riprovo con attese che crescono (1, 2, 5, 10, 30 secondi, poi ogni 30), senza arrendermi. Quello che scrivi intanto resta in coda e parte al ritorno, una volta sola.</div>' +
+      '<div class="sotto">' + (linea.messaggio ? esc(linea.messaggio) + '. ' : '') + 'Riprovo da solo.' + aiuto('linea-giu', 'Quello che vedi è l’ultimo arrivato, attenuato: al ritorno si aggiorna da solo. Riprovo con attese che crescono (1, 2, 5, 10, 30 secondi, poi ogni 30), senza arrendermi. Quello che scrivi intanto resta in coda e parte al ritorno, una volta sola.') + '</div>' +
       '<div class="riga"><button onclick="riprovaLinea()">Riprova adesso</button></div></div>'
   }
   if (storiaLineaAperta) {
-    h += '<div class="piastrella"><div class="titolo">Storia del collegamento</div>' +
-      '<div class="sotto">Le cadute e i ritorni di questa pagina con il computer, con l’ora e il motivo (gli ultimi trenta). Le tacche: 4 = ritardo sotto 150 ms e niente perso; ne tolgono una le chiamate perse e il ritardo che sale (400 ms, 1 s).</div>' +
+    h += '<div class="piastrella"><div class="titolo">Storia del collegamento' + aiuto('storia-linea', 'Le cadute e i ritorni di questa pagina con il computer, con l’ora e il motivo (gli ultimi trenta). Le tacche: 4 = ritardo sotto 150 ms e niente perso; ne tolgono una le chiamate perse e il ritardo che sale (400 ms, 1 s).') + '</div>' +
       (linea.storia.length === 0 ? '<div class="sotto">Ancora niente da raccontare.</div>' : linea.storia.slice().reverse().map((e) => '<div class="sotto" style="color:' + (e.tipo === 'caduta' ? '#dc5f5f' : 'var(--verde)') + '">' + esc(rigaStoriaLinea(e)) + '</div>').join('')) +
       '<div class="riga"><button onclick="apriStoriaLinea()">Chiudi</button></div></div>'
   }
@@ -4693,8 +4709,8 @@ function mappaHtml(m) {
       '<text x="' + n.x + '" y="' + (n.y + (n.io ? 10 : 8.5)) + '" text-anchor="middle" font-size="4" fill="currentColor">' + esc(n.io ? n.nome + ' (questo)' : n.nome) + '</text>' +
       (n.host ? '<text x="' + n.x + '" y="' + (n.y + (n.io ? 13.5 : 12)) + '" text-anchor="middle" font-size="2.8" fill="currentColor" opacity=".6">' + esc(n.host) + '</text>' : '')
   }
-  return '<div class="serigrafia" style="margin-top:10px">Mappa dei PC</div>' + svg + '</svg>' +
-    '<div class="sotto">Il computer al centro, gli altri intorno. Linea verde piena: si raggiunge direttamente (la strada è scritta sopra). Ambra tratteggiata: solo via Drive, lento. Rossa a puntini: adesso non risponde.</div>'
+  return '<div class="serigrafia" style="margin-top:10px">Mappa dei PC' + aiuto('mappa', 'Il computer al centro, gli altri intorno. Linea verde piena: si raggiunge direttamente (la strada è scritta sopra). Ambra tratteggiata: solo via Drive, lento. Rossa a puntini: adesso non risponde.') + '</div>' + svg + '</svg>' +
+    ''
 }
 
 async function aggiorna() {

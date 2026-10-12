@@ -90,7 +90,8 @@ describe('il pannello del Drive per la pagina e per l’app', () => {
     const riga = (inizio: string): string => script.split(String.fromCharCode(10)).find((r) => r.trimStart().startsWith(inizio)) ?? ''
     const disegna = new Function('pdDati', `
       ${riga('const esc =')}; ${riga('const escJs =')}
-      var pdErrore = ''; var pdVista = 'progetti'; var pdFiltro = 'tutti'; var pdDaConfermare = ''; var pdSenzaNome = false
+      var pdErrore = ''; var pdVista = 'progetti'; var pdFiltro = 'tutti'; var pdDaConfermare = ''; var pdSenzaNome = false, aiutiAperti = {}
+      ${estrai('aiuto')}
       ${estrai('pdQuando')} ${estrai('pdStato')} ${estrai('pdProblemi')} ${estrai('pdFiltra')} ${estrai('pdScegliPc')} ${estrai('pannelloDriveHtml')}
       return pannelloDriveHtml()`) as (d: unknown) => string
     const h = disegna(atteso)

@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
+import { Aiuto } from './Aiuto'
 import type { BattitoPc, VocePosta } from '@shared/posta'
 
 type Props = {
@@ -79,8 +80,7 @@ export function ModalePosta({ pc, vivo, onChiudi, presel }: Props): React.JSX.El
       <div className="dialogo dialogo--largo" onMouseDown={(e) => e.stopPropagation()}>
         <div className="dialogo__testa">
           <span className="serigrafia">Azioni su {pc.nome} · {vivo ? 'acceso' : `spento (ultimo segno ${quando(pc.battito)})`}</span>
-        </div>
-        <p className="account__nota" style={{ margin: '0 0 8px' }}>
+          <Aiuto di="Azioni su un altro PC">
           Quello che scrivi qui si esegue <b>solo su {pc.nome}</b>, in una sua chat, nella cartella che scegli: è la strada per
           una cartella che sta là (un disco di rete montato solo su quel PC, un progetto che non viaggia sul Drive). La voce
           resta in attesa sul Drive finché quel PC è acceso e con il Drive collegato; il suo postino passa ogni mezzo minuto e
@@ -89,7 +89,9 @@ export function ModalePosta({ pc, vivo, onChiudi, presel }: Props): React.JSX.El
           esiste, la voce fallisce e lo dice qui. Il lavoro fatto lo vedi come sempre: la chat sale sul Drive con il
           salvataggio automatico e arriva qui, e dal telefono puoi guardare dentro la chat di quel PC. Non si esegue niente
           su questo PC.
-        </p>
+          </Aiuto>
+        </div>
+        <p className="account__nota" style={{ margin: '0 0 8px' }}>Si esegue solo su {pc.nome}, in una sua chat: mai su questo PC.</p>
         {msg !== undefined ? <div className="riga__stato">{msg}</div> : null}
 
         <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 6, paddingRight: 4 }}>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
 import { notaCorreggi, testoEsito, type Istruzione } from '@shared/istruzioni-autopilota'
 import { ResaMarkdown } from './PannelloQuaderno'
+import { Aiuto } from './Aiuto'
 
 /**
  * La linguetta «Istruzioni» (0.41.0): quello che l'autopilota ha scritto alle
@@ -98,10 +99,13 @@ export function IstruzioniAutopilota({ autopilota, onCambiato }: { autopilota: A
   }, [leggi])
   return (
     <div className="diario__voci istruzioni">
-      <p className="istruzioni__spiega">
+      <p className="istruzioni__spiega con-aiuto">
+        Quello che ha scritto alle sue chat, dalla più recente
+        <Aiuto di="Istruzioni">
         Quello che l’autopilota ha scritto alle sue chat, per intero e dalla più recente. Nella chat spesso vedi solo «Leggi ed esegui le istruzioni in …»: il testo vero è questo.
         Per ognuna trovi l’ora, la chat, il perché della mossa e com’è andata: «in coda» (decisa, non ancora scritta), «consegnata» (scritta nella chat), «partita» (la chat si è messa al lavoro), «non partita» o «mai arrivata» (un guasto, annotato nel suo diario).
         Se qualcosa è sbagliato, «Correggi» gli scrive una nota legata a quell’istruzione.
+        </Aiuto>
       </p>
       {errore !== undefined && lista === undefined ? <p className="diario__vuoto">Non riesco a leggere le istruzioni: {errore}</p> : null}
       {lista === undefined && errore === undefined ? <p className="diario__vuoto">Leggo le istruzioni…</p> : null}

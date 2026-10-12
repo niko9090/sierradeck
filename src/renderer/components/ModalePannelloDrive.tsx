@@ -5,6 +5,7 @@ import { ModaleSposta } from './ModaleSposta'
 import { ModaleRiordina } from './ModaleRiordina'
 import { ContenutoDrive } from './ContenutoDrive'
 import { SalvataggioDrive } from './PannelloAccount'
+import { Aiuto } from './Aiuto'
 import { voceMenu } from '@shared/menu-principale'
 import { chiaveProgetto, eChiaveProgetto } from '@shared/allineamento'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
@@ -141,6 +142,15 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
       <div className="dialogo dialogo--largo" onMouseDown={(e) => e.stopPropagation()} style={{ maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}>
         <div className="dialogo__testa">
           <span className="serigrafia">{voceMenu('progetti').icona} Progetti · chat e progetti dei tuoi PC</span>
+          <Aiuto di="Progetti">
+          Ogni chat ha un <b>PC residente</b>: è lì che gira il suo claude.exe, e sugli altri PC si apre solo dal vivo, guardando quello.
+          Qui vedi tutte le chat e tutti i progetti che stanno sul Drive o su questo PC: chi è il residente, quali PC ne hanno una
+          copia (qui sul disco, oppure caricata sul Drive da un PC), quando sono state usate l’ultima volta e lo stato:
+          <b> residente</b> (il PC residente ne ha la copia), <b>solo cloud</b> (c’è sul Drive, ma il residente non ne ha la copia, o non ha una casa),
+          <b> in conflitto</b> (lavora fuori dalla sua casa). In ambra le <b>assegnazioni sbagliate</b>, ognuna con il perché e cosa fare.
+          Cambiare il residente chiede sempre una conferma, e non cancella mai niente: le copie tolte vanno nella cartella di recupero.
+          Delle copie degli altri PC si sa quello che hanno caricato sul Drive: una copia mai salvata là, da qui non si vede.
+          </Aiuto>
           <span style={{ flex: 1 }} />
           <button className="tasto tasto--mini" onClick={leggi} disabled={occupato} title="Rileggi le case, le copie e il Drive">Aggiorna</button>
           <button className="tasto tasto--mini" onClick={onChiudi} aria-label="Chiudi">×</button>
@@ -155,15 +165,6 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
           <button className="tasto" onClick={() => setInFondo({ salvataggio: true, drive: inFondo.drive })} title="Salva ora, Ripristina, il salvataggio automatico, «Fondi con il Drive» e i progetti sul Drive: in fondo a questo pannello">Salvataggio e arrivo ↓</button>
           <button className="tasto" onClick={() => setInFondo({ salvataggio: inFondo.salvataggio, drive: true })} title="Il catalogo di tutto quello che sta sul Drive, per progetto e per workspace: in fondo a questo pannello">Il contenuto del Drive ↓</button>
         </div>
-        <p className="account__nota" style={{ margin: '0 0 8px' }}>
-          Ogni chat ha un <b>PC residente</b>: è lì che gira il suo claude.exe, e sugli altri PC si apre solo dal vivo, guardando quello.
-          Qui vedi tutte le chat e tutti i progetti che stanno sul Drive o su questo PC: chi è il residente, quali PC ne hanno una
-          copia (qui sul disco, oppure caricata sul Drive da un PC), quando sono state usate l’ultima volta e lo stato:
-          <b> residente</b> (il PC residente ne ha la copia), <b>solo cloud</b> (c’è sul Drive, ma il residente non ne ha la copia, o non ha una casa),
-          <b> in conflitto</b> (lavora fuori dalla sua casa). In ambra le <b>assegnazioni sbagliate</b>, ognuna con il perché e cosa fare.
-          Cambiare il residente chiede sempre una conferma, e non cancella mai niente: le copie tolte vanno nella cartella di recupero.
-          Delle copie degli altri PC si sa quello che hanno caricato sul Drive: una copia mai salvata là, da qui non si vede.
-        </p>
         {errore !== undefined ? <div className="riga__stato" style={{ color: 'var(--ambra)' }}>{errore}</div> : null}
         {d !== undefined && d.pcDaAggiornare.length > 0 ? (
           <div className="riga__stato" style={{ color: 'var(--ambra)', marginBottom: 6 }}>
@@ -172,8 +173,7 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
         ) : null}
         {d?.piano !== undefined && d.piano.azioni.length > 0 ? (
           <div className="riordina__gruppo" style={{ marginBottom: 8 }}>
-            <span className="serigrafia">Piano di allineamento di questo PC</span>
-            <p className="account__nota" style={{ margin: '4px 0' }}>
+            <span className="con-aiuto"><span className="serigrafia">Piano di allineamento di questo PC</span><Aiuto>
               Cosa serve perché questo PC rispetti le scelte: i progetti di cui è residente devono esserci, gli altri restano solo cloud.
               «Porta qui» parte da solo solo quando la cartella qui non c’è affatto, quindi non sovrascrive niente; negli altri casi
               aspetta te. Rendere solo cloud un progetto non toglie niente da solo: «Confronta e togli» chiede al PC residente
@@ -181,7 +181,7 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
               mai sopra i suoi file) quello che c’è solo qui o è più nuovo, e ti mostra il riassunto. Solo con la tua conferma
               la cartella di qui va nella cartella di recupero di SierraDeck, per 30 giorni, ripristinabile. Se non c’è
               nessuna differenza la conferma è automatica. Se il residente non si raggiunge, non si toglie niente.
-            </p>
+            </Aiuto></span>
             {d.piano.azioni.map((a) => {
               const st = rim.stati.find((s) => s.progetto === a.progetto)
               return (
@@ -210,13 +210,12 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
         {msg !== undefined ? <div className="riga__stato" style={{ marginBottom: 6 }}>{msg}</div> : null}
         {d !== undefined && (d.unioni ?? []).length > 0 ? (
           <div className="riordina__gruppo" style={{ marginBottom: 8 }}>
-            <span className="serigrafia">Unioni fatte</span>
-            <p className="account__nota" style={{ margin: '4px 0' }}>
+            <span className="con-aiuto"><span className="serigrafia">Unioni fatte</span><Aiuto>
               I progetti uniti con «Rendi residente qui» negli ultimi 30 giorni. «Annulla l’unione» rimette com’erano le cartelle
               doppie (dalla cartella di recupero), i file sostituiti, le trascrizioni delle chat, i workspace e il registro; i file
               entrati con l’unione escono e vanno nei recuperati, non si cancellano. La casa delle chat resta su questo PC: se vuoi,
               scegline un’altra.
-            </p>
+            </Aiuto></span>
             {(d.unioni ?? []).map((u) => (
               <div key={u.id} className="dove__riga" title={u.destinazione}>
                 <span className="riordina__testo" style={{ flex: 1 }}>
@@ -246,12 +245,11 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
 
         {rim.inRecupero.filter((c) => c.ripristinataIl === undefined).length > 0 ? (
           <div className="riordina__gruppo" style={{ marginBottom: 8 }}>
-            <span className="serigrafia">Cartelle in recupero</span>
-            <p className="account__nota" style={{ margin: '4px 0' }}>
+            <span className="con-aiuto"><span className="serigrafia">Cartelle in recupero</span><Aiuto>
               Le cartelle dei progetti tolte da questo PC: non sono cancellate, sono spostate qui sotto per 30 giorni.
               «Ripristina» le rimette dov’erano. Alla scadenza ti chiedo nelle Domande se metterle nel Cestino di Windows:
               da sole non spariscono mai.
-            </p>
+            </Aiuto></span>
             {rim.inRecupero.filter((c) => c.ripristinataIl === undefined).map((c) => (
               <div key={c.id} className="dove__riga" title={c.dove}>
                 <span className="riordina__testo" style={{ flex: 1 }}>
@@ -372,21 +370,19 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
 
           {/* In fondo, le cose rare (0.61.0): erano il vecchio «☁ Drive» e Impostazioni → Account. */}
           <div className="riordina__gruppo" style={{ marginTop: 12 }}>
-            <button className="account__link" aria-expanded={inFondo.salvataggio} onClick={() => setInFondo({ ...inFondo, salvataggio: !inFondo.salvataggio })} style={{ textAlign: 'left' }}>
+            <span className="con-aiuto"><button className="account__link" aria-expanded={inFondo.salvataggio} onClick={() => setInFondo({ ...inFondo, salvataggio: !inFondo.salvataggio })} style={{ textAlign: 'left' }}>
               <span className="serigrafia">{inFondo.salvataggio ? '▾' : '▸'} Salvataggio e arrivo</span>
-            </button>
-            <p className="account__nota" style={{ margin: '4px 0' }}>
+            </button><Aiuto>
               Ogni PC salva sul Drive, cifrate, le sue chat e le cartelle dei progetti che viaggiano: qui vedi quando è stato l’ultimo salvataggio, lo fai subito con «Salva ora», riporti qui quello che c’è sul Drive con «Ripristina», accendi o spegni il salvataggio automatico, e con «Fondi con il Drive» scegli voce per voce cosa portare su e cosa giù. Più sotto, i progetti la cui cartella viaggia sul Drive, con la loro coda e chi li ha in mano. Collegare l’account Google e la passphrase della cassaforte stanno in Impostazioni → Account.
-            </p>
+            </Aiuto></span>
             {inFondo.salvataggio ? <SalvataggioDrive /> : null}
           </div>
           <div className="riordina__gruppo" style={{ marginTop: 8 }}>
-            <button className="account__link" aria-expanded={inFondo.drive} onClick={() => setInFondo({ ...inFondo, drive: !inFondo.drive })} style={{ textAlign: 'left' }}>
+            <span className="con-aiuto"><button className="account__link" aria-expanded={inFondo.drive} onClick={() => setInFondo({ ...inFondo, drive: !inFondo.drive })} style={{ textAlign: 'left' }}>
               <span className="serigrafia">{inFondo.drive ? '▾' : '▸'} Il contenuto del Drive</span>
-            </button>
-            <p className="account__nota" style={{ margin: '4px 0' }}>
+            </button><Aiuto>
               Tutto quello che sta sul Drive, per progetto (la cartella) e per workspace, con lo stato di ogni chat rispetto a questo PC: già qui, solo sul Drive, più avanti qui o là. Da qui «Apri» una chat, togli dal Drive la cartella di un progetto o un workspace (e li rimetti). Leggere il Drive richiede qualche secondo: si legge quando apri questa parte.
-            </p>
+            </Aiuto></span>
             {inFondo.drive ? <ContenutoDrive onChiudi={onChiudi} /> : null}
           </div>
         </div>
@@ -397,12 +393,16 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
           <div className="dialogo" onMouseDown={(e) => e.stopPropagation()}>
             <div className="dialogo__testa"><span className="serigrafia">{testi.titolo}</span></div>
             <p className="account__nota"><b>{cambio.cosa === 'chat' ? `Chat «${cambio.nome}»` : `Progetto «${cambio.nome}», ${cambio.sessioni.filter((s) => !eChiaveProgetto(s)).length} chat`}</b>: residente adesso {cambio.da === undefined ? 'nessuno' : cambio.da.nome}, dopo {cambio.verso.nome}.</p>
-            <p className="account__nota"><b>Cosa succede</b></p>
-            <ul className="account__nota">{testi.succede.map((t) => <li key={t}>{t}</li>)}</ul>
-            <p className="account__nota"><b>Cosa non succede</b></p>
-            <ul className="account__nota">{testi.nonSuccede.map((t) => <li key={t}>{t}</li>)}</ul>
-            <p className="account__nota"><b>Se qualcosa non torna</b></p>
-            <ul className="account__nota">{testi.seNonTorna.map((t) => <li key={t}>{t}</li>)}</ul>
+            <div className="account__nota con-aiuto">Non si cancella niente: le copie tolte vanno nella cartella di recupero.
+              <Aiuto di="cambio del residente">
+                <b>Cosa succede</b>
+                <ul>{testi.succede.map((t) => <li key={t}>{t}</li>)}</ul>
+                <b>Cosa non succede</b>
+                <ul>{testi.nonSuccede.map((t) => <li key={t}>{t}</li>)}</ul>
+                <b>Se qualcosa non torna</b>
+                <ul>{testi.seNonTorna.map((t) => <li key={t}>{t}</li>)}</ul>
+              </Aiuto>
+            </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button className="tasto" disabled={occupato} onClick={() => setCambio(undefined)}>Annulla</button>
               <button className="tasto tasto--acceso" disabled={occupato} onClick={conferma}>{occupato ? 'Cambio…' : 'Conferma'}</button>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { cerca, type Scheda } from '@shared/quaderno'
 import { analizzaMarkdown, type NodoBlocco, type NodoInline } from '@shared/markdown'
+import { Aiuto } from './Aiuto'
 
 type Props = {
   /** La cartella di lavoro proposta all'apertura: quella del riquadro davanti. */
@@ -230,17 +231,16 @@ export function PannelloQuaderno({ cwd, cartelle, onChiudi }: Props): React.JSX.
         <button className="tasto" onClick={() => void window.gestore.quaderno.apri(quale)}>
           Apri cartella
         </button>
-        <button className="tasto" onClick={onChiudi}>Chiudi</button>
-      </div>
-
-      {errore !== undefined ? <div className="riga__stato">{errore}</div> : null}
-      {/* La regola dei testi: cosa guarda, cosa fa da solo, cosa non fa. */}
-      <p className="misura" style={{ margin: '4px 0 8px' }}>
+        <Aiuto di="Quaderno">
         Le schede sono file Markdown in <code>.sierradeck/quaderno</code> dentro la cartella scelta qui sopra
         ({quale}); le scrivono gli autopiloti a fine lavoro e tu da «+ Scheda». Mentre scrivi, la scheda si salva
         da sola dopo un momento («salvo…» poi «salvato»); «Elimina» cancella il file dal disco, senza cestino. Se
         compare un errore, il file non è stato scritto: guarda il registro e riprova.
-      </p>
+        </Aiuto>
+        <button className="tasto" onClick={onChiudi}>Chiudi</button>
+      </div>
+
+      {errore !== undefined ? <div className="riga__stato">{errore}</div> : null}
 
       <div className="quaderno">
         <div className="quaderno__elenco">

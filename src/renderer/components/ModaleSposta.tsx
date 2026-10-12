@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Aiuto } from './Aiuto'
 import { PASSI_SPOSTA, sipuoSpostare, type Controllo } from '@shared/una-casa'
 
 /**
@@ -69,7 +70,7 @@ export function ModaleSposta({ onChiudi, cwdIniziale }: Props): React.JSX.Elemen
             </li>
           ))}
         </ol>
-        <p className="account__nota" style={{ margin: '8px 0' }}><b>{passo + 1}. {p?.titolo}.</b> {p?.testo}</p>
+        <p className="account__nota con-aiuto" style={{ margin: '8px 0' }}><b>{passo + 1}. {p?.titolo}.</b> <Aiuto di={p?.titolo}>{p?.testo}</Aiuto></p>
 
         <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4 }}>
           {passo === 0 ? (
@@ -136,7 +137,7 @@ export function ModaleSposta({ onChiudi, cwdIniziale }: Props): React.JSX.Elemen
           {passo === 5 && esiti[5]?.ok === true ? (
             <p className="account__nota">
               Il progetto adesso vive su {nomeDest}: le sue chat le apri da lì, e da qui le guardi dal vivo. Se hai cambiato idea,
-              «Annulla lo spostamento» è in Drive → «Riordina le chat…», in fondo: rimette qui le chat e la loro casa.
+              «Annulla lo spostamento» è in Progetti → «Riordina le chat…», in fondo: rimette qui le chat e la loro casa.
             </p>
           ) : null}
         </div>

@@ -5,6 +5,7 @@ import type { Consumi } from '@shared/consumi'
 import { LARGHEZZA_CONSUMI } from '@shared/preferenze'
 import { SOGLIE_FRENO } from '@shared/harness'
 import { LETTURA_VECCHIA_MS } from '@shared/limiti-piano'
+import { Aiuto } from './Aiuto'
 
 /**
  * «Consumi e limiti» sul PC: una colonna laterale fissa accanto alle chat
@@ -99,14 +100,13 @@ export function ColonnaConsumi({ onChiudi, larghezza, onLarghezza, autopilotiAlL
     return (
       <div className="limite">
         <div className="limite__testa">
-          <span className="riga__nome">{nome}</span>
+          <span className="riga__nome con-aiuto">{nome}<Aiuto di={nome}>{cosa}</Aiuto></span>
           <span className="misura">{f === undefined ? 'non ancora letta' : `${f.stato === 'azzerata' ? '—' : `${p}%`} · ${STATO[f.stato] ?? f.stato}`}</span>
         </div>
         <div className="limite__barra" title={f === undefined ? 'non ancora letta' : `${p}%`}>
           <span className={`limite__pieno ${classe}`} style={{ width: `${Math.max(f === undefined || f.stato === 'azzerata' ? 0 : 1, p)}%` }} />
         </div>
         <div className="misura consumi-lato__frase">{f === undefined ? 'Nessuna chat aperta dal computer l’ha ancora letta.' : f.etichetta}</div>
-        <div className="misura consumi-lato__spiega">{cosa}</div>
       </div>
     )
   }
@@ -135,24 +135,19 @@ export function ColonnaConsumi({ onChiudi, larghezza, onLarghezza, autopilotiAlL
       />
       <div className="domande-lato__testa">
         <span className="serigrafia">Consumi e limiti</span>
+        <Aiuto di="Consumi e limiti">Quanto resta del tuo piano Claude, quanto è piena la memoria di ogni chat aperta e cosa fanno di conseguenza gli autopiloti. Si rilegge da sola ogni {OGNI_MS / 1000} secondi; è la stessa lettura che vedi nella pagina e nell’app del telefono.</Aiuto>
         <span className="misura">{consumi === undefined ? 'leggo…' : limiti === undefined ? 'limiti non letti' : limiti.vecchio ? 'lettura vecchia' : 'aggiornati'}</span>
         <span style={{ flex: 1 }} />
         <button className="tasto tasto--mini" onClick={onChiudi} title="Chiude la colonna. Si riapre dal tasto «Consumi» della console.">×</button>
       </div>
       <div className="consumi-lato__corpo">
-        <p className="misura domande-lato__cosa">
-          Quanto resta del tuo piano Claude, quanto è piena la memoria di ogni chat aperta e cosa fanno di conseguenza gli autopiloti. Si rilegge da sola ogni {OGNI_MS / 1000} secondi; è la stessa lettura che vedi nella pagina e nell’app del telefono.
-        </p>
         {errore !== undefined ? <div className="avviso">⚠ Non riesco a leggere i consumi: {errore}</div> : null}
 
-        <div className="serigrafia consumi-lato__titolo">Limiti del piano</div>
+        <div className="serigrafia consumi-lato__titolo con-aiuto">Limiti del piano<Aiuto di="Limiti del piano">Da dove arrivano: Claude Code li passa alla riga di stato di ogni chat aperta da SierraDeck dopo ogni risposta (sono gli stessi numeri di «/usage»; solo con abbonamento Pro o Max). Fra tutte le chat vale la lettura più recente: la finestra più nuova e, dentro la stessa finestra, la lettura confermata per ultima — non la chat che ha scritto per ultima né il numero più alto. «Letto N minuti fa» è l’età della lettura; oltre {vecchiaMin} minuti è segnata vecchia, perché nel frattempo puoi aver consumato da un altro dispositivo. Dopo l’ora di azzeramento la finestra si dice «azzerata, in attesa»: il numero nuovo arriva alla prossima risposta. Una chat con chiave API o con un modello senza limiti non cancella il valore buono.</Aiuto></div>
         {finestra('Finestra di 5 ore', limiti?.cinqueOre, 'La percentuale è quanto hai usato della finestra mobile di cinque ore del tuo abbonamento, su tutte le chat e su tutti i tuoi dispositivi. Al 100% le chat si fermano fino all’ora di azzeramento, poi si riparte da zero.')}
         {finestra('Settimana', limiti?.settimana, 'La percentuale è quanto hai usato del tetto settimanale, su tutti i modelli. Chi lo tocca resta fermo fino al giorno e all’ora di azzeramento, qualunque sia la finestra di cinque ore.')}
-        <p className="misura consumi-lato__spiega">
-          Da dove arrivano: Claude Code li passa alla riga di stato di ogni chat aperta da SierraDeck dopo ogni risposta (sono gli stessi numeri di «/usage»; solo con abbonamento Pro o Max). Fra tutte le chat vale la lettura più recente: la finestra più nuova e, dentro la stessa finestra, la lettura confermata per ultima — non la chat che ha scritto per ultima né il numero più alto. «Letto N minuti fa» è l’età della lettura; oltre {vecchiaMin} minuti è segnata vecchia, perché nel frattempo puoi aver consumato da un altro dispositivo. Dopo l’ora di azzeramento la finestra si dice «azzerata, in attesa»: il numero nuovo arriva alla prossima risposta. Una chat con chiave API o con un modello senza limiti non cancella il valore buono.
-        </p>
 
-        <div className="serigrafia consumi-lato__titolo">Contesto delle chat aperte</div>
+        <div className="serigrafia consumi-lato__titolo con-aiuto">Contesto delle chat aperte<Aiuto di="Contesto delle chat aperte">Il contesto è la memoria di lavoro della chat: quanta parte della sua finestra (200 mila token, o un milione con i modelli a contesto esteso) è occupata dalla conversazione. Si conta come Claude Code, solo con i token in ingresso (testo nuovo più cache), non con le risposte. Al 90% conviene farle riassumere dove è arrivata: vicino al pieno Claude Code la compatta da sola e può perdere dettagli. Dopo «/compact» il numero torna alla risposta successiva.</Aiuto></div>
         {remote > 0 ? (
           <p className="misura">
             <span className="segno-remoto">{remote} {remote === 1 ? 'chat è' : 'chat sono'} SU ALTRI PC</span>: non compaiono qui, perché lavorano là e il loro contesto lo legge quel PC (aprilo là, o dalla sua pagina sul telefono).
@@ -177,11 +172,8 @@ export function ColonnaConsumi({ onChiudi, larghezza, onLarghezza, autopilotiAlL
             )
           })
         )}
-        <p className="misura consumi-lato__spiega">
-          Il contesto è la memoria di lavoro della chat: quanta parte della sua finestra (200 mila token, o un milione con i modelli a contesto esteso) è occupata dalla conversazione. Si conta come Claude Code, solo con i token in ingresso (testo nuovo più cache), non con le risposte. Al 90% conviene farle riassumere dove è arrivata: vicino al pieno Claude Code la compatta da sola e può perdere dettagli. Dopo «/compact» il numero torna alla risposta successiva.
-        </p>
 
-        <div className="serigrafia consumi-lato__titolo">Freno degli autopiloti</div>
+        <div className="serigrafia consumi-lato__titolo con-aiuto">Freno degli autopiloti<Aiuto di="Freno degli autopiloti">Il freno guarda la stessa lettura qui sopra e vale per tutti gli autopiloti: sotto il {SOGLIE_FRENO.nienteNuove}% della finestra più piena aprono tutte le chat utili; dal {SOGLIE_FRENO.nienteNuove}% non ne aprono di nuove; dall’{SOGLIE_FRENO.una}% ne tengono una sola; dal {SOGLIE_FRENO.fermo}% si fermano a fine turno e ripartono da soli all’azzeramento. Senza limiti letti lavorano con una chat sola. Le tue chat non le tocca.</Aiuto></div>
         {freno === undefined ? (
           <p className="misura">Non ancora calcolato.</p>
         ) : (
@@ -193,14 +185,8 @@ export function ColonnaConsumi({ onChiudi, larghezza, onLarghezza, autopilotiAlL
             <div className="misura consumi-lato__frase">{freno.spiegazione}</div>
           </div>
         )}
-        <p className="misura consumi-lato__spiega">
-          Il freno guarda la stessa lettura qui sopra e vale per tutti gli autopiloti: sotto il {SOGLIE_FRENO.nienteNuove}% della finestra più piena aprono tutte le chat utili; dal {SOGLIE_FRENO.nienteNuove}% non ne aprono di nuove; dall’{SOGLIE_FRENO.una}% ne tengono una sola; dal {SOGLIE_FRENO.fermo}% si fermano a fine turno e ripartono da soli all’azzeramento. Senza limiti letti lavorano con una chat sola. Le tue chat non le tocca.
-        </p>
 
-        <div className="serigrafia consumi-lato__titolo">Se non torna</div>
-        <p className="misura consumi-lato__spiega">
-          Limiti «non ancora letti» o fermi a lungo: fai rispondere una chat aperta da SierraDeck (anche una domanda breve) e aspetta qualche secondo. Se restano vuoti hai una chiave API a consumo (lì le finestre non esistono) oppure la riga di stato di Claude Code è sostituita da una tua in «~/.claude/settings.json»: SierraDeck non la tocca. Un numero diverso da «/usage» di solito è una lettura vecchia: guarda «letto N minuti fa». Il perché di ogni lettura è nel registro (Impostazioni → Registro).
-        </p>
+        <div className="serigrafia consumi-lato__titolo con-aiuto">Se non torna<Aiuto di="Se non torna">Limiti «non ancora letti» o fermi a lungo: fai rispondere una chat aperta da SierraDeck (anche una domanda breve) e aspetta qualche secondo. Se restano vuoti hai una chiave API a consumo (lì le finestre non esistono) oppure la riga di stato di Claude Code è sostituita da una tua in «~/.claude/settings.json»: SierraDeck non la tocca. Un numero diverso da «/usage» di solito è una lettura vecchia: guarda «letto N minuti fa». Il perché di ogni lettura è nel registro (Impostazioni → Registro).</Aiuto></div>
       </div>
     </aside>
   )

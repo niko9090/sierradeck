@@ -4609,6 +4609,35 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .hub { display: flex; flex-direction: column; gap: var(--s3); }
 .hub__gruppo { display: flex; flex-direction: column; gap: var(--s2); }
 .hub__titolo { font-size: var(--t1); letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.7; margin: var(--s2) 0 0; }
-.hub__voce { display: grid; grid-template-columns: 210px 1fr; gap: var(--s3); align-items: start; }
-.hub__voce .tasto { justify-content: flex-start; text-align: left; }
+.hub__voce { display: flex; gap: var(--s2); align-items: center; }
+.hub__voce .tasto { justify-content: flex-start; text-align: left; min-width: 230px; }
 .hub__spiega { font-size: var(--t2); color: var(--testo-quieto); line-height: 1.45; }
+
+/* Il tasto «?» (0.62.0): la spiegazione completa si apre solo a chi la
+   chiede. Sullo schermo restano i tasti. */
+.aiuto { position: relative; display: inline-flex; vertical-align: middle; flex: none; }
+.aiuto__tasto {
+  font: inherit; font-size: var(--t1); font-weight: 700; line-height: 1;
+  width: 20px; height: 20px; border-radius: 50%; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--testo-quieto); background: var(--chassis);
+  border: 1px solid var(--luce-incisione); cursor: pointer;
+}
+.aiuto__tasto:hover, .aiuto__tasto--aperto { color: var(--testo); border-color: var(--testo-quieto); background: var(--chassis-alto); }
+.aiuto__testo {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
+  width: min(420px, 80vw); padding: var(--s3);
+  font-size: var(--t2); font-weight: 400; line-height: 1.5; letter-spacing: normal; text-transform: none;
+  white-space: normal; text-align: left; color: var(--testo);
+  background: var(--chassis-alto); border: 1px solid var(--luce-incisione); border-radius: var(--raggio);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+.aiuto__testo--sinistra { left: auto; right: 0; }
+.aiuto__testo p { margin: 0 0 var(--s2); }
+.aiuto__testo p:last-child { margin-bottom: 0; }
+.con-aiuto { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.aiuto__testo ul { margin: 2px 0 var(--s2); padding-left: 18px; }
+.aiuto__testo--su { top: auto; bottom: calc(100% + 6px); max-height: 55vh; overflow-y: auto; }
+.aiuto__testo { max-height: 60vh; overflow-y: auto; }
+.con-aiuto > .scheda__titolo, .con-aiuto > h4, .con-aiuto > h5 { margin: 0; }
+.salute__titolo.con-aiuto { display: flex; }

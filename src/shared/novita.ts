@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.62.0',
+    righe: [
+      '**Meno testo, un «?» dove serve.** Nei pannelli restano i tasti, i numeri e al più una riga corta. La spiegazione completa (cosa fa, cosa non succede, cosa fare se qualcosa non torna) si apre toccando il «?» accanto alla cosa che non conosci, e si richiude con un altro tocco, con Esc o toccando altrove. Vale sul PC, nella pagina del telefono e nell’app.'
+    ]
+  },
+  {
     versione: '0.61.0',
     righe: [
       '**Un menu solo, in alto, in ordine d’importanza: Progetti, Autopiloti, Domande, Chat e workspace, File, Salute, Impostazioni.** Sette tasti grandi, ognuno con il suo segno e il suo nome, sempre in vista. Sotto restano «Riprendi», «+ Nuova chat» e i workspace, che servono a ogni minuto. Lo stesso menu, nello stesso ordine, c’è nell’app e nella pagina del telefono.',

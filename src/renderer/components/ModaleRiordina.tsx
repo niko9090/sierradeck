@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NomePc } from './NomePc'
+import { Aiuto } from './Aiuto'
 import { createPortal } from 'react-dom'
 import type { FuoriCasa, RegistroRiordino } from '@shared/una-casa'
 
@@ -68,13 +69,16 @@ export function ModaleRiordina({ onChiudi }: Props): React.JSX.Element {
           <span style={{ flex: 1 }} />
           <button className="tasto tasto--mini" onClick={onChiudi} aria-label="Chiudi">×</button>
         </div>
-        <p className="account__nota" style={{ margin: '0 0 8px' }}>
+        <p className="account__nota con-aiuto" style={{ margin: '0 0 8px' }}>
+          Togli la spunta a quelle che sono di qui, poi «Riordina»: le copie non si cancellano.
+          <Aiuto di="Riordina le chat">
           Ogni chat ha <b>una casa</b>: il PC dove gira e dove sta la sua cartella. Qui sotto ci sono le chat che stanno su
           questo PC ma hanno casa su un altro, cioè delle copie arrivate dal Drive. Per ognuna c’è il PC di casa proposto e il
           perché: dove è nata, dove c’è la sua cartella, dove ha lavorato per ultima. Togli la spunta a quelle che secondo te
           sono di qui, poi premi «Riordina». Le copie spuntate <b>non vengono cancellate</b>: vanno nella cartella di recupero
           di SierraDeck, e da qui le guardi dal vivo sul loro PC. Ogni riordino si annulla dall’elenco in fondo. Le chat
           aperte adesso non si spostano: chiudi prima il loro riquadro (la conversazione non si perde).
+          </Aiuto>
         </p>
         {msg !== undefined ? <div className="riga__stato" style={{ marginBottom: 8 }}>{msg}</div> : null}
         {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}

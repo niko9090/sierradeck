@@ -3,6 +3,7 @@ import type { Consumi } from '@shared/consumi'
 import { andamentoOggi, formattaToken, quotaCache } from '@shared/consumi'
 import { oraDi } from '@shared/polso-chat'
 import type { StatoAccesso } from '../../main/accesso'
+import { Aiuto } from './Aiuto'
 
 /**
  * Quanto si è consumato, con quale account, e a che punto sono i limiti.
@@ -70,14 +71,13 @@ export function PannelloConsumi({ onChiudi, incorporato = false }: { onChiudi?: 
     return (
       <div className="limite">
         <div className="limite__testa">
-          <span className="riga__nome">{nome}</span>
+          <span className="riga__nome con-aiuto">{nome}<Aiuto di={nome}>{spiega}</Aiuto></span>
           {/* La frase di `limiti-piano.ts` (0.37.0): letto quando, azzerata, vecchia. */}
           <span className="misura">{f === undefined ? 'non ancora letta' : f.etichetta ?? `${p}% usato${f.resettaIl !== undefined ? ` · si azzera ${oraDi(f.resettaIl, adesso)}` : ''}`}</span>
         </div>
         <div className="limite__barra" title={`${p}%`}>
           <span className={`limite__pieno ${classe}`} style={{ width: `${Math.max(f === undefined ? 0 : 1, p)}%` }} />
         </div>
-        <div className="misura" style={{ marginTop: 2 }}>{spiega}</div>
       </div>
     )
   }
@@ -102,13 +102,12 @@ export function PannelloConsumi({ onChiudi, incorporato = false }: { onChiudi?: 
         {finestra('Finestra di 5 ore', 'Anthropic conta l’uso in una finestra mobile di cinque ore: al 100% le chat si fermano fino all’ora di azzeramento, poi si riparte da zero.', limiti?.cinqueOre)}
         {finestra('Settimana', 'Il tetto settimanale su tutti i modelli: si azzera nel giorno e all’ora indicati. Chi lo tocca resta fermo fino ad allora, qualunque sia la finestra di cinque ore.', limiti?.settimana)}
       </div>
-      <p className="misura" style={{ margin: '6px 0 14px', lineHeight: 1.5 }}>
-        {limiti === undefined
-          ? 'Non ancora letti. Arrivano dalla riga di stato di Claude Code dopo la prima risposta di una chat aperta da SierraDeck, e solo con un abbonamento Pro o Max (con una chiave API a consumo non ci sono finestre). Se restano vuoti anche dopo una risposta, guarda il registro.'
-          : `Letti ${oraDi(limiti.letti, adesso)}${limiti.modello !== undefined ? ` da una chat con ${limiti.modello}` : ''}. Sono gli stessi numeri di «/usage» in Claude Code: fra tutte le chat vale la lettura più recente, e si aggiornano a ogni risposta. Oltre 20 minuti la lettura è segnata vecchia; dopo l’azzeramento si aspetta la lettura nuova invece di mostrare il valore di prima. Sopra l’80% compare un avviso in basso a destra, sopra il 95% uno rosso.`}
+      <p className="misura con-aiuto" style={{ margin: '6px 0 14px' }}>
+        {limiti === undefined ? 'Non ancora letti.' : `Letti ${oraDi(limiti.letti, adesso)}${limiti.modello !== undefined ? ` da una chat con ${limiti.modello}` : ''}.`}
+        <Aiuto di="limiti del piano">{limiti === undefined ? 'Arrivano dalla riga di stato di Claude Code dopo la prima risposta di una chat aperta da SierraDeck, e solo con un abbonamento Pro o Max (con una chiave API a consumo non ci sono finestre). Se restano vuoti anche dopo una risposta, guarda il registro.' : 'Sono gli stessi numeri di «/usage» in Claude Code: fra tutte le chat vale la lettura più recente, e si aggiornano a ogni risposta. Oltre 20 minuti la lettura è segnata vecchia; dopo l’azzeramento si aspetta la lettura nuova invece di mostrare il valore di prima. Sopra l’80% compare un avviso in basso a destra, sopra il 95% uno rosso.'}</Aiuto>
       </p>
 
-      <div className="serigrafia" style={{ marginBottom: 6 }}>Spesa stimata da Claude Code</div>
+      <div className="serigrafia con-aiuto" style={{ marginBottom: 6 }}>Spesa stimata da Claude Code<Aiuto di="spesa stimata">È il costo che Claude Code stessa calcola per ogni sessione con i prezzi di listino, sommato per giorno: con un abbonamento non è una fattura, ma dice quanto vale il lavoro fatto. Una chat lunga più giorni conta tutta nel giorno dell’ultima risposta. Si conosce solo per le chat aperte da SierraDeck da questa versione in poi.</Aiuto></div>
       <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', padding: '4px 0 6px' }}>
         {(['oggi', 'settimana', 'totale'] as const).map((k) => (
           <div key={k} className="consumo">
@@ -117,13 +116,10 @@ export function PannelloConsumi({ onChiudi, incorporato = false }: { onChiudi?: 
           </div>
         ))}
       </div>
-      <p className="misura" style={{ margin: '0 0 14px', lineHeight: 1.5 }}>
-        È il costo che Claude Code stessa calcola per ogni sessione con i prezzi di listino, sommato per giorno: con un abbonamento non è una fattura, ma dice quanto vale il lavoro fatto. Una chat lunga più giorni conta tutta nel giorno dell’ultima risposta. Si conosce solo per le chat aperte da SierraDeck da questa versione in poi.
-      </p>
 
       {consumi !== undefined && consumi.chatAperte !== undefined && consumi.chatAperte.length > 0 ? (
         <div style={{ marginBottom: 14 }}>
-          <div className="serigrafia" style={{ marginBottom: 6 }}>Le chat aperte adesso</div>
+          <div className="serigrafia con-aiuto" style={{ marginBottom: 6 }}>Le chat aperte adesso<Aiuto di="contesto">Il contesto è la memoria di lavoro della chat: al 90% conviene farle riassumere dove è arrivata, perché quando Claude Code lo compatta può perdere dettagli.</Aiuto></div>
           {consumi.chatAperte.map((c) => (
             <div key={c.sessione} className="riga" style={{ gap: 12 }}>
               <span className="riga__nome" style={{ minWidth: 140 }}>{c.titolo ?? c.sessione.slice(0, 8)}</span>
@@ -134,13 +130,10 @@ export function PannelloConsumi({ onChiudi, incorporato = false }: { onChiudi?: 
               <span className="misura">contesto {c.contestoEtichetta ?? `${c.contestoPercento ?? 0}%`}{c.costoUsd !== undefined ? ` · ${dollari(c.costoUsd)}` : ''}</span>
             </div>
           ))}
-          <p className="misura" style={{ margin: '4px 0 0', lineHeight: 1.5 }}>
-            Il contesto è la memoria di lavoro della chat: al 90% conviene farle riassumere dove è arrivata, perché quando Claude Code lo compatta può perdere dettagli.
-          </p>
         </div>
       ) : null}
 
-      <div className="serigrafia" style={{ marginBottom: 6 }}>Token</div>
+      <div className="serigrafia con-aiuto" style={{ marginBottom: 6 }}>Token<Aiuto di="token">I token sono letti dalle trascrizioni di Claude Code e sono la misura vera di quanto si consuma; i limiti e la spesa arrivano da Claude Code stessa. Se una chat non compare fra quelle aperte, è stata aperta prima di questa versione: riaprirla basta.</Aiuto></div>
       <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', padding: '4px 0 12px' }}>
         {colonna(
           consumi === undefined
@@ -158,7 +151,7 @@ export function PannelloConsumi({ onChiudi, incorporato = false }: { onChiudi?: 
 
       {consumi !== undefined && consumi.perModello !== undefined && consumi.perModello.length > 0 ? (
         <div style={{ marginBottom: 12 }}>
-          <div className="serigrafia" style={{ marginBottom: 6 }}>Per modello (ultimi 7 giorni)</div>
+          <div className="serigrafia con-aiuto" style={{ marginBottom: 6 }}>Per modello (ultimi 7 giorni)<Aiuto di="per modello">I modelli grandi pesano di più sui limiti: se la finestra sale in fretta, spostare i compiti semplici su un modello più piccolo la fa durare.</Aiuto></div>
           {consumi.perModello.map((m) => {
             const massimo = consumi.perModello?.[0]?.token ?? 1
             return (
@@ -171,9 +164,6 @@ export function PannelloConsumi({ onChiudi, incorporato = false }: { onChiudi?: 
               </div>
             )
           })}
-          <p className="misura" style={{ margin: '4px 0 0', lineHeight: 1.5 }}>
-            I modelli grandi pesano di più sui limiti: se la finestra sale in fretta, spostare i compiti semplici su un modello più piccolo la fa durare.
-          </p>
         </div>
       ) : null}
 
@@ -194,10 +184,6 @@ export function PannelloConsumi({ onChiudi, incorporato = false }: { onChiudi?: 
           })}
         </div>
       ) : null}
-
-      <p className="misura" style={{ marginTop: 10, lineHeight: 1.5 }}>
-        I token sono letti dalle trascrizioni di Claude Code e sono la misura vera di quanto si consuma; i limiti e la spesa arrivano da Claude Code stessa. Se una chat non compare fra quelle aperte, è stata aperta prima di questa versione: riaprirla basta.
-      </p>
     </>
   )
 

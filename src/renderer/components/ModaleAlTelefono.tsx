@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useState } from 'react'
 import { inCorso, misura, type EsitoMandaAlTelefono, type StatoAlTelefono } from '@shared/file-telefono'
+import { Aiuto } from './Aiuto'
 
 /**
  * «📱 Manda al telefono» (0.54.0): da qui un file del PC va al telefono.
@@ -60,16 +61,12 @@ export function ModaleAlTelefono({
       <div className="dialogo dialogo--medio al-tel" onMouseDown={(e) => e.stopPropagation()}>
         <div className="dialogo__testa">
           <span className="serigrafia">📱 {nome !== undefined ? `Manda al telefono: ${nome}` : 'File per il telefono'}</span>
+          {nome !== undefined ? <Aiuto di="Manda al telefono">Il file si copia in una coda per il telefono che scegli e arriva quando l’app SierraDeck si collega a questo PC: subito se è aperta, altrimenti al prossimo controllo in sottofondo. Se il telefono è spento o fuori casa, aspetta qui (fino a due settimane) e arriva dopo. Sul telefono compare una notifica con Apri, Salva e Condividi. Limite: 100 MB per file, 30 file in attesa per telefono.</Aiuto> : null}
           <span style={{ flex: 1 }} />
           <button className="tasto tasto--mini" onClick={onChiudi} aria-label="Chiudi">×</button>
         </div>
         {nome !== undefined ? (
           <>
-            <p className="misura" style={{ lineHeight: 1.5 }}>
-              Il file si copia in una coda per il telefono che scegli e arriva quando l’app SierraDeck si collega a questo PC: subito se è aperta,
-              altrimenti al prossimo controllo in sottofondo. Se il telefono è spento o fuori casa, aspetta qui (fino a due settimane) e arriva dopo.
-              Sul telefono compare una notifica con Apri, Salva e Condividi. Limite: 100 MB per file, 30 file in attesa per telefono.
-            </p>
             {stato !== undefined && stato.telefoni.length === 0 ? (
               <div className="avviso">Nessun telefono accoppiato a questo PC. Collega l’app da Impostazioni → Client (il codice o il QR), poi riprova.</div>
             ) : null}

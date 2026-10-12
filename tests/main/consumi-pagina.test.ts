@@ -19,7 +19,7 @@ const estrai = (nome: string): string => {
   throw new Error('non si chiude')
 }
 const riga = (inizio: string): string => script.split('\n').find((r) => r.startsWith(inizio)) ?? ''
-const limitiHtml = new Function(`${riga('const esc =')}\n${estrai('quandoLetti')}\n${estrai('limitiHtml')}\nreturn limitiHtml`)() as (c: unknown) => string
+const limitiHtml = new Function(`${riga('const esc =')}\nvar aiutiAperti = {}\n${estrai('aiuto')}\n${estrai('quandoLetti')}\n${estrai('limitiHtml')}\nreturn limitiHtml`)() as (c: unknown) => string
 
 describe('i consumi della pagina', () => {
   it('mostrano la finestra azzerata «in attesa di una lettura nuova», non il vecchio valore', () => {

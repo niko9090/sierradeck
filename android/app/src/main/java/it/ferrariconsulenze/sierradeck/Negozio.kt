@@ -197,12 +197,8 @@ fun Negozio(api: Api) {
                 Column(Modifier.weight(1f)) {
                     Serigrafia("Negozio")
                     Spacer(Modifier.height(3.dp))
-                    Text(
-                        "Plugin, skill e server MCP di Claude Code sul computer: cosa c’è, se è acceso, e cosa vuol dire. " +
-                            "Aggiungere o togliere skill e MCP si fa dal computer.",
-                        color = Banco.testoQuieto,
-                        fontSize = 12.sp
-                    )
+                    RigaConAiuto("Gli strumenti delle chat sul computer.", "Plugin, skill e server MCP di Claude Code sul computer: cosa c’è, se è acceso, e cosa vuol dire. " +
+                            "Aggiungere o togliere skill e MCP si fa dal computer.")
                 }
             }
             HorizontalDivider(color = Banco.incisione)

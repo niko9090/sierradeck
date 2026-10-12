@@ -3,6 +3,7 @@ import type { StatoPreparazione } from '../../main/preparazione'
 import type { StatoAccesso } from '../../main/accesso'
 import { passoDi } from '../preparazione-vista'
 import { TerminaleSemplice } from './TerminaleSemplice'
+import { Aiuto } from './Aiuto'
 
 type Props = {
   onChiudi: () => void
@@ -116,10 +117,13 @@ export function ModalePreparazione({ onChiudi, onPreparazione }: Props): React.J
 
         {terminale !== undefined ? <TerminaleSemplice ptyId={terminale} /> : null}
         {terminale !== undefined && passo === 'installa' ? (
-          <p style={{ margin: '8px 0 0', fontSize: 12, lineHeight: 1.6, color: 'var(--testo-quieto)' }}>
+          <p className="con-aiuto" style={{ margin: '8px 0 0', fontSize: 12, lineHeight: 1.6, color: 'var(--testo-quieto)' }}>
+            Se l’installazione si blocca con un errore
+            <Aiuto di="installazione bloccata">
             Se qui sopra compare «Cannot create process, error code: 5», è l’antivirus che ha bloccato l’installatore
             (lo scarica nella cartella TEMP e lo scambia per un programma indesiderato): mettilo in pausa o aggiungi
             un’esclusione, poi riprova. In alternativa, in una PowerShell: <code>irm https://claude.ai/install.ps1 | iex</code>
+            </Aiuto>
           </p>
         ) : null}
 

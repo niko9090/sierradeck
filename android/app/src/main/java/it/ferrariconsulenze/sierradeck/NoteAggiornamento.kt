@@ -182,12 +182,7 @@ fun DialogoNoteAggiornamento(
                         }
                     }
                     Spacer(Modifier.height(14.dp))
-                    Text(
-                        "«Installa e riavvia»: il computer aspetta che le chat finiscano quello che hanno in mano, le avvisa, si chiude, installa e riparte da solo; chat e autopiloti riprendono da dove erano. Per un minuto o due non risponde.\n«Più tardi»: non installa niente adesso; si installa da sola quando chiudi SierraDeck sul computer.",
-                        color = Banco.testoQuieto,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
+                    RigaConAiuto("Il computer aspetta che le chat finiscano, poi installa e riparte.", "«Installa e riavvia»: il computer aspetta che le chat finiscano quello che hanno in mano, le avvisa, si chiude, installa e riparte da solo; chat e autopiloti riprendono da dove erano. Per un minuto o due non risponde.\n«Più tardi»: non installa niente adesso; si installa da sola quando chiudi SierraDeck sul computer.")
                 }
             }
         },

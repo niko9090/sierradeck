@@ -122,10 +122,7 @@ fun LinguettaIstruzioni(api: Api, autopilota: String) {
             delay(4000)
         }
     }
-    Text(
-        "Quello che l'autopilota ha scritto alle sue chat, per intero e dalla più recente. Nella chat spesso vedi solo «Leggi ed esegui le istruzioni in …»: il testo vero è questo. Tocca un'istruzione per aprirla; tieni premuto sul testo per copiarlo. «Correggi» gli scrive una nota legata a quell'istruzione.",
-        color = Banco.testoQuieto, fontSize = 12.sp
-    )
+    RigaConAiuto("Le istruzioni scritte alle sue chat, per intero.", "Quello che l'autopilota ha scritto alle sue chat, per intero e dalla più recente. Nella chat spesso vedi solo «Leggi ed esegui le istruzioni in …»: il testo vero è questo. Tocca un'istruzione per aprirla; tieni premuto sul testo per copiarlo. «Correggi» gli scrive una nota legata a quell'istruzione.")
     guasto?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
     esito?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp) }
     val l = lista

@@ -194,8 +194,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.altriPc(altri: List<A
     if (altri == null || altri.isEmpty()) return
     item {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Text("SU ALTRI PC", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Text("Gli autopiloti che girano sugli altri PC della tua stessa chiave di casa: lavorano là, con i file di là. Da qui li guardi e li governi; ogni azione va al PC dove girano.", color = Banco.testoQuieto, fontSize = 11.sp)
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { Text("SU ALTRI PC", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold); Aiuto("Gli autopiloti che girano sugli altri PC della tua stessa chiave di casa: lavorano là, con i file di là. Da qui li guardi e li governi; ogni azione va al PC dove girano.", di = "SU ALTRI PC") }
             for (g in AutopilotiAltri.guasti(altri)) Text("⚠ ${g.errore}", color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
         }
     }
@@ -564,10 +563,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                     } else {
                         for (c in det.criteri) Criterio(c)
                         Spacer(Modifier.height(8.dp))
-                        Text(
-                            "Il comando sotto ogni criterio è quello che lo misura a ogni fermata. Per riscriverli usa il PC, o diglielo nella chat qui sopra.",
-                            color = Banco.testoQuieto, fontSize = 12.sp
-                        )
+                        RigaConAiuto("Per riscriverli usa il PC, o diglielo nella chat.", "Il comando sotto ogni criterio è quello che lo misura a ogni fermata. Per riscriverli usa il PC, o diglielo nella chat qui sopra.")
                     }
                 }
                 "compiti" -> {
@@ -952,17 +948,13 @@ private fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
         text = {
             Column(Modifier.fillMaxWidth().height(560.dp).verticalScroll(rememberScrollState())) {
                 // ─── su quale PC ───
-                Text("Su quale computer lavora", color = Banco.testoQuieto, fontSize = 12.sp)
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { Text("Su quale computer lavora", color = Banco.testoQuieto, fontSize = 12.sp); Aiuto("L’autopilota vive sul computer che scegli: lì legge i file, apre le sue chat e lascia il quaderno. Gli altri PC accesi della stessa cassaforte si raggiungono attraverso quello a cui il telefono è accoppiato.", di = "Su quale computer lavora") }
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     androidx.compose.material3.FilterChip(selected = pcScelto == null, onClick = { pcScelto = null }, label = { Text(PcCorrente.nome ?: "questo PC", fontSize = 12.sp) })
                     for (p in altriPc) {
                         androidx.compose.material3.FilterChip(selected = pcScelto?.pcId == p.pcId, onClick = { pcScelto = PcPonte(p.pcId, p.mostra) }, label = { Text(p.mostra, fontSize = 12.sp, color = VIOLA_ALTRO_PC) })
                     }
                 }
-                Text(
-                    "L’autopilota vive sul computer che scegli: lì legge i file, apre le sue chat e lascia il quaderno. Gli altri PC accesi della stessa cassaforte si raggiungono attraverso quello a cui il telefono è accoppiato.",
-                    color = Banco.testoQuieto, fontSize = 11.sp
-                )
                 if (vecchio) Text("$nomeDest ha la ${versioneDest ?: "versione di prima"}: riceve solo obiettivo, cartella (fra quelle già viste da Claude Code), regola e cloud; nome, criteri, workspace e partenza arrivano aggiornandolo alla 0.55.0.", color = Banco.ambra, fontSize = 11.sp)
                 Spacer(Modifier.height(10.dp))
 
@@ -978,7 +970,7 @@ private fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                 Spacer(Modifier.height(10.dp))
 
                 // ─── la cartella ───
-                Text("In quale cartella lavora", color = Banco.testoQuieto, fontSize = 12.sp)
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { Text("In quale cartella lavora", color = Banco.testoQuieto, fontSize = 12.sp); Aiuto("La cartella del progetto: è lì che legge i file, lancia i comandi e lascia il quaderno. Non la radice di un disco né la cartella dell’utente.", di = "In quale cartella lavora") }
                 if (bozza.cwd.isNotBlank()) Text(bozza.cwd, color = Banco.accento, fontSize = 12.sp, maxLines = 2)
                 val aperte = (statoDest?.chat ?: emptyList()).map { it.cwd }.filter { it.isNotBlank() }.distinct()
                 val recenti = (cartelle ?: emptyList()).filter { it !in aperte }
@@ -992,7 +984,6 @@ private fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                     for (c in recenti.take(30)) RigaCartella(c, c == bozza.cwd) { bozza = bozza.copy(cwd = c) }
                 }
                 TextButton(onClick = { sfoglia = true }) { Text("Altra cartella: sfoglia $nomeDest…") }
-                Text("La cartella del progetto: è lì che legge i file, lancia i comandi e lascia il quaderno. Non la radice di un disco né la cartella dell’utente.", color = Banco.testoQuieto, fontSize = 11.sp)
                 Spacer(Modifier.height(10.dp))
 
                 // ─── il workspace ───
@@ -1012,26 +1003,20 @@ private fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                 Spacer(Modifier.height(10.dp))
 
                 // ─── pubblicazione, cloud, partenza ───
-                Text("Pubblicazione del progetto", color = Banco.testoQuieto, fontSize = 12.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) { Text("Pubblicazione del progetto", color = Banco.testoQuieto, fontSize = 12.sp); Aiuto(AzioniTelefono.REGOLE.joinToString("\n\n") { "${it.etichetta}: ${it.spiega}" }, di = "Pubblicazione del progetto") }
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (r in AzioniTelefono.REGOLE) androidx.compose.material3.FilterChip(selected = bozza.pubblicazione == r.valore, onClick = { bozza = bozza.copy(pubblicazione = r.valore) }, label = { Text(r.etichetta, fontSize = 12.sp) })
                 }
-                Text(AzioniTelefono.REGOLE.firstOrNull { it.valore == bozza.pubblicazione }?.spiega ?: "", color = Banco.testoQuieto, fontSize = 11.sp)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Switch(checked = bozza.cloud, onCheckedChange = { bozza = bozza.copy(cloud = it) })
                     Spacer(Modifier.width(8.dp))
-                    Text("va sul cloud: le chat stanno sul Drive", color = Banco.testo, fontSize = 13.sp)
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { Text("va sul cloud: le chat stanno sul Drive", color = Banco.testo, fontSize = 13.sp); Aiuto("Il «cloud» è il Drive di SierraDeck, dove si salvano le chat. Se le chat di questo progetto stanno sul Drive (questa spunta, oppure la sincronizzazione Drive del progetto già accesa) lavora in autonomia completa, senza farti domande: commit, unione dei suoi rami, push e pubblicazione secondo la regola qui sopra. Il remoto git e gli script di pubblicazione del progetto servono solo a sapere dove mandare su e con quale comando pubblicare. Senza Drive fa commit sui suoi rami e li unisce, e basta: niente push, niente pubblicazione.", di = "va sul cloud: le chat stanno sul Drive") }
                 }
-                Text(
-                    "Il «cloud» è il Drive di SierraDeck, dove si salvano le chat. Se le chat di questo progetto stanno sul Drive (questa spunta, oppure la sincronizzazione Drive del progetto già accesa) lavora in autonomia completa, senza farti domande: commit, unione dei suoi rami, push e pubblicazione secondo la regola qui sopra. Il remoto git e gli script di pubblicazione del progetto servono solo a sapere dove mandare su e con quale comando pubblicare. Senza Drive fa commit sui suoi rami e li unisce, e basta: niente push, niente pubblicazione.",
-                    color = Banco.testoQuieto, fontSize = 11.sp
-                )
                 Spacer(Modifier.height(8.dp))
-                Text("Partenza", color = Banco.testoQuieto, fontSize = 12.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) { Text("Partenza", color = Banco.testoQuieto, fontSize = 12.sp); Aiuto(AzioniTelefono.PARTENZE.joinToString("\n\n") { "${it.etichetta}: ${it.spiega}" }, di = "Partenza") }
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (p in AzioniTelefono.PARTENZE) androidx.compose.material3.FilterChip(selected = bozza.partenza == p.valore, onClick = { bozza = bozza.copy(partenza = p.valore) }, label = { Text(p.etichetta, fontSize = 12.sp) })
                 }
-                Text(AzioniTelefono.PARTENZE.firstOrNull { it.valore == bozza.partenza }?.spiega ?: "", color = Banco.testoQuieto, fontSize = 11.sp)
                 Spacer(Modifier.height(10.dp))
 
                 // ─── criteri ───
@@ -1040,9 +1025,9 @@ private fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                     label = { Text("Come si capisce che ha finito (facoltativo, uno per riga)") },
                     modifier = Modifier.fillMaxWidth().height(110.dp)
                 )
-                Text("Sono i criteri di fine: li verifica lui, uno per uno, prima di dichiararsi finito. Se li lasci vuoti se li ricava da solo, guardando il progetto.", color = Banco.testoQuieto, fontSize = 11.sp)
+                RigaConAiuto("Se li lasci vuoti li ricava lui.", "Sono i criteri di fine: li verifica lui, uno per uno, prima di dichiararsi finito. Se li lasci vuoti se li ricava da solo, guardando il progetto.")
                 Spacer(Modifier.height(8.dp))
-                Text("Quante chat apre lo decide lui, dentro il freno sui limiti del piano. Non tocca mai chat e autopiloti non suoi, «Porta qui», l’account, le preferenze né file fuori dalle sue cartelle.", color = Banco.testoQuieto, fontSize = 11.sp)
+                RigaConAiuto("Quante chat apre lo decide lui.", "Quante chat apre lo decide lui, dentro il freno sui limiti del piano. Non tocca mai chat e autopiloti non suoi, «Porta qui», l’account, le preferenze né file fuori dalle sue cartelle.")
                 (errore ?: (controllo as? EsitoBozza.No)?.takeIf { bozza.obiettivo.isNotBlank() }?.errore)?.let {
                     Spacer(Modifier.height(6.dp)); Text(it, color = Banco.rosso, fontSize = 12.sp)
                 }
@@ -1368,10 +1353,7 @@ private fun LinguettaFile(api: Api, autopilota: String) {
         diff = null
         diff = try { api.diffAutopilota(autopilota, s.first, s.second).diff } catch (e: Exception) { "⚠ ${e.message ?: "diff non disponibile"}" }
     }
-    Text(
-        "I file che ha cambiato, per la cartella del progetto e per il worktree di ogni sua chat. Tocca un file per vedere le righe tolte e aggiunte. Qui si guarda soltanto.",
-        color = Banco.testoQuieto, fontSize = 12.sp
-    )
+    RigaConAiuto("I file che ha cambiato: tocca un file per vedere le righe.", "I file che ha cambiato, per la cartella del progetto e per il worktree di ogni sua chat. Tocca un file per vedere le righe tolte e aggiunte. Qui si guarda soltanto.")
     guasto?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
     val f = file
     if (f == null && guasto == null) Text("Leggo i file…", color = Banco.testoQuieto, fontSize = 13.sp)

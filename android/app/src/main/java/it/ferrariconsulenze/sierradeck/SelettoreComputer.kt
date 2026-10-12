@@ -212,13 +212,8 @@ fun SelettoreComputer(
             }
 
             notaNome?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) }
-            Text(
-                "La spunta tiene una postazione per sempre. Quelle senza spunta sono di passaggio: " +
-                    "restano le cinque più recenti e poi si tolgono di mezzo da sole.",
-                color = Banco.testoQuieto,
-                fontSize = 11.sp,
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp)
-            )
+            RigaConAiuto("La spunta tiene una postazione per sempre.", "La spunta tiene una postazione per sempre. Quelle senza spunta sono di passaggio: " +
+                    "restano le cinque più recenti e poi si tolgono di mezzo da sole.", modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp))
         }
     }
 

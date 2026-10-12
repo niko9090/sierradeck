@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AlberoChat } from './AlberoChat'
+import { Aiuto } from './Aiuto'
 import type { Autopilota, Criterio } from '@shared/autopilota'
 import { misuraPasso, passaggi } from '@shared/autopilota-vista'
 import { diario } from '../diario-autopilota'
@@ -60,8 +61,14 @@ export function ObiettivoAutopilota({ autopilota }: { autopilota: Autopilota }):
 
       {/* Le chat che eseguono: una per compito. Con una sola chat la riga dice
           solo che c'è; con la flotta si vede chi fa cosa e chi è ferma. */}
-      <div className="serigrafia scheda__titolo">
-        {autopilota.chats.length > 1 ? `Le sue chat (${autopilota.chats.length})` : 'La sua chat'}
+      <div className="con-aiuto">
+        <span className="serigrafia scheda__titolo">
+          {autopilota.chats.length > 1 ? `Le sue chat (${autopilota.chats.length})` : 'La sua chat'}
+        </span>
+        <Aiuto di="la sua chat">
+          La sua chat è nel mosaico, con il suo riquadro: qui a fianco. Il supervisore è lui, quello con
+          cui parli nella chat qui sopra: guarda la chat che esegue a ogni fermata e le dice come proseguire.
+        </Aiuto>
       </div>
       {autopilota.chats.length === 0 ? (
         <p className="scheda__spiega">
@@ -74,10 +81,6 @@ export function ObiettivoAutopilota({ autopilota }: { autopilota: Autopilota }):
         // compito, lo stato, il ramo del worktree e i giri.
         <AlberoChat autopilota={autopilota} />
       )}
-      <p className="scheda__spiega">
-        La sua chat è nel mosaico, con il suo riquadro: qui a fianco. Il supervisore è lui, quello con
-        cui parli nella chat qui sopra: guarda la chat che esegue a ogni fermata e le dice come proseguire.
-      </p>
     </div>
   )
 }
@@ -141,11 +144,18 @@ export function CriteriAutopilota({ autopilota, onCambiato }: Props): React.JSX.
 
   return (
     <div className="scheda">
-      <div className="serigrafia scheda__titolo">Finisce quando</div>
+      <div className="con-aiuto">
+        <span className="serigrafia scheda__titolo">Finisce quando</span>
+        <Aiuto di="Finisce quando">
+          Clicca un criterio per riscriverlo. Il comando sotto è quello che lo misura a ogni fermata:
+          codice 0 vuol dire passato. Senza comando lo giudica il supervisore leggendo il lavoro. Un
+          cambio si applica subito e si disfa dalla chat con «Disfa». Se non ce n’è ancora nessuno,
+          li scrive lui alla fine della preparazione, dopo aver guardato il progetto.
+        </Aiuto>
+      </div>
       {autopilota.criteri.length === 0 ? (
         <p className="scheda__spiega">
-          Ancora nessun criterio: li scrive lui alla fine della preparazione, dopo aver guardato il
-          progetto. Poi qui li leggi e li correggi.
+          Ancora nessun criterio: li scrive lui alla fine della preparazione.
         </p>
       ) : null}
       <ul className="scheda__criteri">
@@ -227,11 +237,6 @@ export function CriteriAutopilota({ autopilota, onCambiato }: Props): React.JSX.
           </li>
         )}
       </ul>
-      <p className="scheda__spiega">
-        Clicca un criterio per riscriverlo. Il comando sotto è quello che lo misura a ogni fermata:
-        codice 0 vuol dire passato. Senza comando lo giudica il supervisore leggendo il lavoro. Un
-        cambio si applica subito e si disfa dalla chat con «Disfa».
-      </p>
       {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
     </div>
   )
@@ -265,11 +270,16 @@ export function CompitiAutopilota({ autopilota, onCambiato }: Props): React.JSX.
 
   return (
     <div className="scheda">
-      <div className="serigrafia scheda__titolo">Prima fa</div>
+      <div className="con-aiuto">
+        <span className="serigrafia scheda__titolo">Prima fa</span>
+        <Aiuto di="Prima fa">
+          I compiti in coda. Un compito scritto qui lo prende la prima chat che si libera, prima di
+          tornare all’obiettivo. Con × lo togli dalla coda.
+        </Aiuto>
+      </div>
       {autopilota.compitiDaFare.length === 0 ? (
         <p className="scheda__spiega">
-          Niente in coda: lavora sull’obiettivo. Un compito scritto qui lo prende la prima chat che
-          si libera, prima di tornare all’obiettivo.
+          Niente in coda: lavora sull’obiettivo.
         </p>
       ) : (
         <ol className="scheda__compiti">

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Aiuto } from './Aiuto'
 import { testoEsito, valoreNascosto, type StatoQuadernoPersonale, type VocePersonale } from '@shared/quaderno-personale'
 
 /**
@@ -39,19 +40,17 @@ export function SezioneQuadernoPersonale(): React.JSX.Element {
   const usi = s === undefined ? [] : tuttiGliUsi ? s.usi : s.usi.slice(0, 15)
   return (
     <section className="impostazioni__gruppo">
-      <h4>Quaderno personale</h4>
-      <div className="impostazioni__nota">
-        I tuoi dati riservati che una chat a volte deve scrivere, per esempio in una pagina legale o in un modulo: l’email di contatto, la sede, la partita IVA. Non stanno nel codice, nei progetti o nel Drive: solo su questo PC, in un file cifrato (AES-256) la cui chiave è custodita dal portachiavi di Windows del tuo utente. Copiato su un altro computer, il file non si apre.
-      </div>
-      <div className="impostazioni__nota">
-        <b>Come li usa una chat.</b> Nessuna chat li legge da sola. Una chat (o un autopilota) che ne ha bisogno usa lo strumento «chiedi_dato_personale» e dice quale voce vuole e perché. Nelle Domande, qui di lato, sul telefono e nella pagina, compare la richiesta con tre scelte: «Consenti una volta», «Sempre per questa chat» (vale per quella conversazione finché non lo revochi qui sotto), «No». Se non rispondi entro due minuti vale no, e la chat lo sa. Ogni richiesta, data o negata, resta nell’elenco degli usi.
-      </div>
+      <h4 className="con-aiuto">Quaderno personale<Aiuto di="Quaderno personale">
+        <p>I tuoi dati riservati che una chat a volte deve scrivere, per esempio in una pagina legale o in un modulo: l’email di contatto, la sede, la partita IVA. Non stanno nel codice, nei progetti o nel Drive: solo su questo PC, in un file cifrato (AES-256) la cui chiave è custodita dal portachiavi di Windows del tuo utente. Copiato su un altro computer, il file non si apre.</p>
+        <p><b>Come li usa una chat.</b> Nessuna chat li legge da sola. Una chat (o un autopilota) che ne ha bisogno usa lo strumento «chiedi_dato_personale» e dice quale voce vuole e perché. Nelle Domande, qui di lato, sul telefono e nella pagina, compare la richiesta con tre scelte: «Consenti una volta», «Sempre per questa chat» (vale per quella conversazione finché non lo revochi qui sotto), «No». Se non rispondi entro due minuti vale no, e la chat lo sa. Ogni richiesta, data o negata, resta nell’elenco degli usi.</p>
+      </Aiuto></h4>
+      <div className="impostazioni__nota">I tuoi dati riservati, cifrati solo su questo PC: una chat li chiede, tu decidi.</div>
       {s === undefined ? <div className="impostazioni__nota">Leggo…</div> : !s.disponibile ? (
         <div className="impostazioni__nota" style={{ color: 'var(--ambra)' }}>{s.perche ?? 'Il quaderno personale non è disponibile su questo PC.'}</div>
       ) : (
         <>
           {s.voci.length === 0 ? (
-            <div className="impostazioni__nota">Il quaderno è vuoto. Aggiungi qui sotto la prima voce: il nome è quello che la chat chiederà, quindi scegline uno chiaro («Email di contatto», «Sede legale», «Partita IVA»).</div>
+            <div className="impostazioni__nota con-aiuto">Il quaderno è vuoto.<Aiuto di="prima voce">Aggiungi qui sotto la prima voce: il nome è quello che la chat chiederà, quindi scegline uno chiaro («Email di contatto», «Sede legale», «Partita IVA»).</Aiuto></div>
           ) : s.voci.map((v) => (
             <div key={v.id} className="impostazioni__riga" style={{ flexWrap: 'wrap', gap: 6 }}>
               <span title={v.nota}><b>{v.nome}</b>{v.nota !== undefined ? <span className="impostazioni__nota"> · {v.nota}</span> : null}</span>
@@ -79,7 +78,7 @@ export function SezioneQuadernoPersonale(): React.JSX.Element {
             </div>
           ))}
 
-          <h5 style={{ margin: '12px 0 4px' }}>Chi li ha chiesti</h5>
+          <h5 className="con-aiuto" style={{ margin: '12px 0 4px' }}>Chi li ha chiesti<Aiuto di="Chi li ha chiesti">Si tengono le ultime 500 richieste. Il valore di una voce non compare mai in questo elenco.</Aiuto></h5>
           {s.usi.length === 0 ? <div className="impostazioni__nota">Ancora nessuna richiesta.</div> : (
             <>
               {usi.map((u) => (
@@ -90,7 +89,6 @@ export function SezioneQuadernoPersonale(): React.JSX.Element {
               {s.usi.length > 15 ? <button className="tasto" onClick={() => setTuttiGliUsi(!tuttiGliUsi)}>{tuttiGliUsi ? 'Mostra solo gli ultimi' : `Mostra tutti (${s.usi.length})`}</button> : null}
             </>
           )}
-          <div className="impostazioni__nota">Si tengono le ultime 500 richieste. Il valore di una voce non compare mai in questo elenco.</div>
         </>
       )}
       {nota !== undefined ? <div className="riga__stato" style={{ color: nota.ok ? 'var(--verde)' : 'var(--ambra)' }}>{nota.testo}</div> : null}

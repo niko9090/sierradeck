@@ -6,6 +6,7 @@ import { AvanzamentoLavoro } from './AvanzamentoLavoro'
 import { AttesaDrive } from './AttesaDrive'
 import type { ProgressoCatalogo } from '../../shared/catalogo-progresso'
 import { ModaleConferma } from './ModaleConferma'
+import { Aiuto } from './Aiuto'
 
 type Props = {
   /** Chiude il pannello Progetti (dopo «Apri» su una chat). */
@@ -143,16 +144,16 @@ export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
   return (
     <div className="contenuto-drive">
       <div className="pannello__testa">
-        <span style={{ flex: 1 }} />
-        <button className="tasto tasto--mini" onClick={leggi} disabled={leggo} title="Rilegge il Drive: cambia quando un altro PC salva">{leggo ? 'Leggo…' : 'Rileggi il Drive'}</button>
-      </div>
-
-      <p className="account__nota">
+        <Aiuto di="Il contenuto del Drive">
         Qui vedi tutto quello che sta sul Drive, raggruppato per progetto, cioè per la cartella in cui le chat lavorano: da dove viene, quante chat ha, quando è stato toccato l’ultima volta, e per ogni chat il nome e lo stato rispetto a questo PC.
         Dalla 0.42.0 vale <strong>«una chat, una casa»</strong>: ogni chat vive su un PC solo, quello dove gira e dove sta la sua cartella. Il Drive è il <strong>salvataggio</strong> di ogni PC: ognuno ci carica solo le sue chat, e le chat degli altri PC non scendono più da sole qui. Le guardi e ci scrivi dal vivo, dal loro riquadro (rete di casa, Tailscale, collegamento diretto o, lento, il Drive).
         «Sposta progetto…», «Riordina le chat…» e «Dove vive ogni chat…» sono in cima a Progetti; il salvataggio e l’arrivo dal Drive poco sopra, in «Salvataggio e arrivo».
         <strong> «Togli la cartella dal Drive»</strong> vale per i progetti che viaggiano con la cartella: i file della cartella salvati sul Drive vengono tolti e la cartella smette di viaggiare; le chat e le cartelle sui PC restano come sono. Per il resto dal Drive niente viene mai cancellato.
-      </p>
+        </Aiuto>
+        <span style={{ flex: 1 }} />
+        <button className="tasto tasto--mini" onClick={leggi} disabled={leggo} title="Rilegge il Drive: cambia quando un altro PC salva">{leggo ? 'Leggo…' : 'Rileggi il Drive'}</button>
+      </div>
+
 
       {lavoro.inCorso !== undefined ? <AvanzamentoLavoro lavoro={lavoro.inCorso} adesso={adesso} onAnnulla={() => void window.gestore.sync.annullaLavoro()} /> : null}
       {messaggio !== undefined ? <div className="riga__stato" style={{ marginTop: 6 }}>{messaggio}</div> : null}
@@ -181,10 +182,12 @@ export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
           <div className="drive__viste">
             <button className={`tasto tasto--mini${vista === 'progetti' ? ' tasto--acceso' : ''}`} aria-pressed={vista === 'progetti'} onClick={() => setVista('progetti')}>Per progetto (cartella)</button>
             <button className={`tasto tasto--mini${vista === 'workspace' ? ' tasto--acceso' : ''}`} aria-pressed={vista === 'workspace'} onClick={() => setVista('workspace')}>Per workspace ({catalogo.workspace.length})</button>
-            <span className="drive__sotto" style={{ marginLeft: 6 }}>
-              {vista === 'progetti'
-                ? 'Un progetto è la cartella in cui le chat lavorano. «Porta qui» prende cartella e chat.'
-                : 'Un workspace è una disposizione di chat, anche di progetti diversi. Le chat di un altro PC non si copiano qui: si guardano dal vivo, o il loro progetto si sposta con «Sposta progetto…».'}
+            <span style={{ marginLeft: 6 }}>
+              <Aiuto di={vista === 'progetti' ? 'Per progetto' : 'Per workspace'}>
+                {vista === 'progetti'
+                  ? 'Un progetto è la cartella in cui le chat lavorano. «Porta qui» prende cartella e chat.'
+                  : 'Un workspace è una disposizione di chat, anche di progetti diversi. Le chat di un altro PC non si copiano qui: si guardano dal vivo, o il loro progetto si sposta con «Sposta progetto…».'}
+              </Aiuto>
             </span>
           </div>
           {vista === 'workspace' ? (
@@ -342,8 +345,11 @@ export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
               )
             })}
           </div>
-          <p className="account__nota" style={{ fontSize: 12, marginTop: 8 }}>
-            Letto il {quando(catalogo.letto)}. Il Drive cambia quando un altro PC salva: «Rileggi il Drive» lo rilegge. Le chat «solo qui» e «più avanti» salgono da sole con il salvataggio automatico, o subito con «Salva ora» in «Salvataggio e arrivo».
+          <p className="account__nota con-aiuto" style={{ fontSize: 12, marginTop: 8 }}>
+            Letto il {quando(catalogo.letto)}.
+            <Aiuto di="quando si legge il Drive">
+              Il Drive cambia quando un altro PC salva: «Rileggi il Drive» lo rilegge. Le chat «solo qui» e «più avanti» salgono da sole con il salvataggio automatico, o subito con «Salva ora» in «Salvataggio e arrivo».
+            </Aiuto>
           </p>
         </>
       ) : !leggo && messaggio === undefined ? <p className="account__nota">Il Drive non è stato letto: «Rileggi il Drive» riprova.</p> : null}

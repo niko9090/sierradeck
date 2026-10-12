@@ -10,14 +10,23 @@ import { contaChat, contaWorkspace, eChiusuraAutomatica, type Istantanea } from 
 import { SezionePin } from './SezionePin'
 import { SezioneQuadernoPersonale } from './SezioneQuadernoPersonale'
 import { SezioneAggiornamenti } from './SezioneAggiornamenti'
+import { Aiuto } from './Aiuto'
 import { NomeQuestoPc } from './PannelloAccount'
 import { cercaImpostazioni, SEZIONI, type IdSezione } from '@shared/impostazioni-struttura'
 
-/** La testata di una sezione: il titolo e la frase che dice cosa c'è dentro (0.56.0). */
+/** La testata di una sezione: il titolo, e cosa c'è dentro dietro al suo «?» (0.62.0). */
 function Testa({ id }: { id: IdSezione }): React.JSX.Element | null {
   const sez = SEZIONI.find((x) => x.id === id)
   if (sez === undefined) return null
-  return <><h4>{sez.titolo}</h4><div className="impostazioni__nota">{sez.spiega}</div></>
+  return <h4 className="con-aiuto">{sez.titolo}<Aiuto di={sez.titolo}>{sez.spiega}</Aiuto></h4>
+}
+
+/**
+ * Un «?» dentro una `<label>`: senza, un clic sulla spiegazione aperta
+ * accenderebbe o spegnerebbe la spunta della voce.
+ */
+function NellEtichetta({ children }: { children: React.ReactNode }): React.JSX.Element {
+  return <span onClick={(e) => e.preventDefault()}><Aiuto>{children}</Aiuto></span>
 }
 
 function quandoChiusura(iso: string): string {
@@ -54,14 +63,13 @@ function SezioneTornaIndietro(): React.JSX.Element {
   }
   return (
     <section className="impostazioni__gruppo">
-      <h4>Torna a com’era</h4>
-      <div className="impostazioni__nota">
+      <h4 className="con-aiuto">Torna a com’era<Aiuto di="Torna a com’era">
         All’avvio SierraDeck riapre da solo l’ultima composizione: workspace, chat, finestre, autopiloti. Non c’è
         niente da salvare. Ogni volta che chiudi, però, conserva com’erano le cose: qui trovi le ultime tre chiusure.
         Servono se un aggiornamento o un blocco hanno lasciato i riquadri rotti o vuoti: scegli una chiusura e torna
         tutto com’era allora. Le chat che hai davanti adesso vengono sostituite (quelle chiuse restano nell’elenco
         «Riprendi», non si perdono). Le stesse chat viaggiano anche sul Drive.
-      </div>
+      </Aiuto></h4>
       {chiusure === undefined ? <div className="impostazioni__nota">Leggo…</div> : null}
       {chiusure !== undefined && chiusure.length === 0 ? (
         <div className="impostazioni__nota">Nessuna chiusura registrata ancora: la prima arriva quando chiudi SierraDeck con delle chat aperte.</div>
@@ -140,10 +148,9 @@ function SezioneClient(): React.JSX.Element {
   const codice = stato.accoppiamento?.codice
   return (
     <section className="impostazioni__gruppo">
-      <h4>Client — telefono, tablet, touch</h4>
-      <div className="impostazioni__nota">
+      <h4 className="con-aiuto">Client — telefono, tablet, touch<Aiuto di="Client">
         Apri sul telefono uno di questi indirizzi, poi «Aggiungi alla schermata Home».
-      </div>
+      </Aiuto></h4>
       {stato.indirizzi.length === 0 ? (
         <div className="impostazioni__nota">Nessuna rete locale trovata.</div>
       ) : (
@@ -177,15 +184,18 @@ function SezioneClient(): React.JSX.Element {
       {codice !== undefined ? (
         <>
           <div className="impostazioni__riga">
-            <span>Codice da digitare</span>
+            <span className="con-aiuto">Codice da digitare<Aiuto di="codice">
+              Vale tre minuti e per un dispositivo solo. Il codice non passa mai
+              dalla rete: sta sullo schermo, e nel quadrato qui sotto.
+            </Aiuto></span>
             <strong className="codice-accoppiamento">{codice}</strong>
           </div>
           {qr.length > 0 ? (
             <>
-              <div className="impostazioni__nota">
+              <div className="impostazioni__nota con-aiuto">Inquadra con la fotocamera del telefono.<Aiuto di="codice da inquadrare">
                 Inquadra con la fotocamera del telefono: si collega da solo, senza
                 digitare niente. Se ci sono più reti, prova il primo che funziona.
-              </div>
+              </Aiuto></div>
               <div className="qr-fila">
                 {qr.slice(0, 2).map((q) => (
                   <figure key={q.indirizzo} className="qr">
@@ -209,10 +219,6 @@ function SezioneClient(): React.JSX.Element {
               ) : null}
             </>
           ) : null}
-          <div className="impostazioni__nota">
-            Vale tre minuti e per un dispositivo solo. Il codice non passa mai
-            dalla rete: sta sullo schermo, e nel quadrato qui sopra.
-          </div>
           <button
             className="tasto"
             onClick={() => { setQr([]); void window.gestore.client.chiudiAccoppiamento().then(ricarica) }}
@@ -310,6 +316,7 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
         <button className="tasto" onClick={() => cambia(PREFERENZE_PREDEFINITE)}>
           Torna ai valori di fabbrica
         </button>
+        <Aiuto di="Torna ai valori di fabbrica">Rimette tutte le preferenze di questa scheda ai predefiniti (colori, stile, porte, colonne, scorciatoie, comportamenti) senza toccare chat, workspace, PIN o account.</Aiuto>
       </div>
 
       {errore !== undefined ? <div className="riga__stato" style={{ color: 'var(--ambra)' }}>{errore}</div> : null}
@@ -342,12 +349,11 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
               checked={p.clientOltreLaRete}
               onChange={(e) => cambia({ clientOltreLaRete: e.target.checked })}
             />
-            <span>Accetta il Client anche da fuori la rete locale (VPN, altra sede)</span>
-          </label>
-          <div className="impostazioni__nota">
-            Con questo acceso resta <b>solo</b> la chiave del dispositivo a difendere
+            <span className="con-aiuto">Accetta il Client anche da fuori la rete locale (VPN, altra sede)<NellEtichetta>
+Con questo acceso resta <b>solo</b> la chiave del dispositivo a difendere
             un programma che esegue codice. Tienilo spento se non ti serve.
-          </div>
+</NellEtichetta></span>
+          </label>
             </> : null}
             {vede('porte') ? <>
           <label className="impostazioni__riga">
@@ -359,17 +365,16 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
             />
           </label>
           <label className="impostazioni__riga">
-            <span>Porta degli autopiloti</span>
+            <span className="con-aiuto">Porta degli autopiloti<NellEtichetta>
+Le porte cambiate valgono al prossimo avvio: un servizio in ascolto non
+            cambia porta mentre qualcuno ci sta parlando.
+</NellEtichetta></span>
             <input
               type="number"
               value={p.portaAutopiloti}
               onChange={(e) => cambia({ portaAutopiloti: Number(e.target.value) })}
             />
           </label>
-          <div className="impostazioni__nota">
-            Le porte cambiate valgono al prossimo avvio: un servizio in ascolto non
-            cambia porta mentre qualcuno ci sta parlando.
-          </div>
             </> : null}
           </section>
         ) : null}
@@ -385,13 +390,12 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
               checked={p.ibernaCambiandoWorkspace}
               onChange={(e) => cambia({ ibernaCambiandoWorkspace: e.target.checked })}
             />
-            <span>Cambiando workspace, manda a dormire le chat che lasci</span>
-          </label>
-          <div className="impostazioni__nota">
-            Ogni chat aperta tiene acceso un <b>claude.exe</b>. Spento, restano tutte
+            <span className="con-aiuto">Cambiando workspace, manda a dormire le chat che lasci<NellEtichetta>
+Ogni chat aperta tiene acceso un <b>claude.exe</b>. Spento, restano tutte
             vive e tornare è istantaneo; acceso, si chiudono e la conversazione
             riparte da dove era con un tocco.
-          </div>
+</NellEtichetta></span>
+          </label>
             </> : null}
             {vede('attesa-chat') ? <>
           <label className="impostazioni__riga impostazioni__riga--spunta">
@@ -400,9 +404,10 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
               checked={p.mostraAttesaChat}
               onChange={(e) => cambia({ mostraAttesaChat: e.target.checked })}
             />
-            <span>Mostra l’avanzamento mentre una chat lunga si apre</span>
+            <span className="con-aiuto">Mostra l’avanzamento mentre una chat lunga si apre<NellEtichetta>
+Mentre una conversazione lunga si riapre il riquadro mostra quanto manca, invece di restare vuoto.
+</NellEtichetta></span>
           </label>
-            <div className="impostazioni__nota">Mentre una conversazione lunga si riapre il riquadro mostra quanto manca, invece di restare vuoto.</div>
             </> : null}
             {vede('posto-autopilota') ? <>
           <label className="impostazioni__riga">
@@ -418,7 +423,11 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
             </select>
           </label>
           <label className="impostazioni__riga">
-            <span>Quanto spazio prende</span>
+            <span className="con-aiuto">Quanto spazio prende<NellEtichetta>
+Di lato è larghezza, sopra o sotto è altezza: è sempre la stessa
+            misura, presa sull’asse su cui il diario cresce. Si può anche
+            trascinare il solco fra terminale e diario.
+</NellEtichetta></span>
             <input
               type="range"
               min={15}
@@ -427,13 +436,8 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
               onChange={(e) => cambia({ larghezzaAutopilota: Number(e.target.value) })}
             />
           </label>
-          <div className="impostazioni__nota">
-            Di lato è larghezza, sopra o sotto è altezza: è sempre la stessa
-            misura, presa sull’asse su cui il diario cresce. Si può anche
-            trascinare il solco fra terminale e diario.
-          </div>
             </> : null}
-            <div className="impostazioni__nota">«Riparti al login» degli autopiloti sta nel pannello Autopiloti, accanto all’elenco: vale per tutti insieme.</div>
+            <div className="impostazioni__nota con-aiuto">«Riparti al login» degli autopiloti: nel pannello Autopiloti.<Aiuto>«Riparti al login» degli autopiloti sta nel pannello Autopiloti, accanto all’elenco: vale per tutti insieme.</Aiuto></div>
           </section>
         ) : null}
         {vede('pin') ? <SezionePin /> : null}
@@ -444,7 +448,7 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
             <Testa id="drive" />
             {vede('account-google') ? (
               <div className="impostazioni__riga">
-                <span>Account Google del Drive e passphrase della cassaforte: nella scheda «Account», qui sopra. Il contenuto del Drive, «Porta qui» e il salvataggio stanno in ▦ Progetti.</span>
+                <span className="con-aiuto">Account Google e passphrase della cassaforte: scheda «Account».<Aiuto di="account Google">Account Google del Drive e passphrase della cassaforte: nella scheda «Account», qui sopra. Il contenuto del Drive, «Porta qui» e il salvataggio stanno in ▦ Progetti.</Aiuto></span>
                 <button className="tasto" onClick={onAccount}>Vai alla scheda Account</button>
               </div>
             ) : null}
@@ -455,15 +459,14 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
               checked={p.fumettiSincroniaAutomatica}
               onChange={(e) => cambia({ fumettiSincroniaAutomatica: e.target.checked })}
             />
-            <span>Mostra un fumetto anche per la sincronia automatica con il Drive</span>
-          </label>
-          <div className="impostazioni__nota">
-            La sincronia con il Drive non sta più in una striscia in alto: gli avvisi sono fumetti in basso a
+            <span className="con-aiuto">Mostra un fumetto anche per la sincronia automatica con il Drive<NellEtichetta>
+La sincronia con il Drive non sta più in una striscia in alto: gli avvisi sono fumetti in basso a
             destra, che compaiono e spariscono senza spostare i riquadri. Il lavoro che chiedi tu (Fondi, Ripristina,
             Porta qui) ha sempre il suo fumetto con la barra, «Dettagli» e «Annulla». Il lavoro automatico
             (il salvataggio ogni cinque minuti, l’arrivo delle chat) spento non si vede: se ne parla solo se va
             male. Acceso, mostra una riga piccola con la percentuale, senza tasti.
-          </div>
+</NellEtichetta></span>
+          </label>
             </> : null}
           </section>
         ) : null}
@@ -507,7 +510,10 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
             </> : null}
             {vede('stile') ? <>
           <label className="impostazioni__riga">
-            <span>Stile della console</span>
+            <span className="con-aiuto">Stile della console<NellEtichetta>
+              <b>Banco</b>: cornice sottile e riquadri a filo: su uno schermo pieno sono quattro righe di terminale in più per chat. Si impara per posizione.<br />
+              <b>Foglio</b>: più aria e angoli morbidi: quattro righe in meno, restituite in riposo per gli occhi dopo otto ore davanti allo schermo.
+</NellEtichetta></span>
             <select
               value={p.stile}
               onChange={(e) => cambia({ stile: e.target.value as Preferenze['stile'] })}
@@ -516,11 +522,6 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
               <option value="foglio">Foglio — piatta, arieggiata, morbida</option>
             </select>
           </label>
-          <div className="impostazioni__nota">
-            {p.stile === 'banco'
-              ? 'Cornice sottile e riquadri a filo: su uno schermo pieno sono quattro righe di terminale in più per chat. Si impara per posizione.'
-              : 'Più aria e angoli morbidi: quattro righe in meno, restituite in riposo per gli occhi dopo otto ore davanti allo schermo.'}
-          </div>
             </> : null}
           </section>
         ) : null}
@@ -534,7 +535,6 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
               {vede('copia-dettagli') ? <button className="tasto" onClick={copiaDettagli}>Copia i dettagli</button> : null}
             </div>
             {nota !== undefined ? <div className="impostazioni__nota">{nota}</div> : null}
-            <div className="impostazioni__nota">«Torna ai valori di fabbrica», in cima, rimette tutte le preferenze di questa scheda ai predefiniti (colori, stile, porte, colonne, scorciatoie, comportamenti) senza toccare chat, workspace, PIN o account.</div>
           </section>
         ) : null}
       </div>

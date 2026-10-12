@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Aiuto } from './Aiuto'
 import type { Preferenze } from '@shared/preferenze'
 import {
   combinazioneDi, DESCRIZIONE_AZIONE, doppioni, GRUPPI_AZIONI, SCORCIATOIE_PREDEFINITE, type Azione
@@ -49,16 +50,15 @@ export function SezioneScorciatoie({ p, cambia }: Props): React.JSX.Element {
 
   return (
     <section className="impostazioni__gruppo">
-      <h4>Scorciatoie da tastiera</h4>
-      <div className="impostazioni__nota">
+      <h4 className="con-aiuto">Scorciatoie da tastiera<Aiuto di="Scorciatoie da tastiera">
         Valgono in tutta la finestra, anche con il cursore dentro una chat: la combinazione non arriva a Claude
         Code. Per cambiarne una premi «Cambia» e poi i tasti che vuoi (Esc per lasciar stare); «Togli» la spegne.
         Servono Ctrl o Alt, oppure un tasto funzione: una lettera da sola è scrittura, non un comando. I tasti si
         leggono per posizione, quindi Alt+1 è il tasto «1» anche sulla tastiera italiana con Maiusc. Di fabbrica
         non c’è nessun Ctrl+lettera, perché li usa quasi tutti Claude Code, e nessun Ctrl+Alt, perché sulla
         tastiera italiana è AltGr («€», «@»). Ctrl+Shift+C e Ctrl+Shift+V restano copia e incolla.
-        {dop.size > 0 ? ' Le righe in ambra hanno gli stessi tasti di un’altra: risponde la prima dell’elenco.' : ''}
-      </div>
+      </Aiuto></h4>
+      {dop.size > 0 ? <div className="impostazioni__nota">Le righe in ambra hanno gli stessi tasti di un’altra: risponde la prima dell’elenco.</div> : null}
       {GRUPPI_AZIONI.map((g) => (
         <div key={g.titolo} className="scorciatoie__gruppo">
           <div className="scorciatoie__titolo">{g.titolo}</div>

@@ -22,13 +22,14 @@ describe('la pagina: scrivere a una chat chiusa su un altro PC', () => {
   const riga = (inizio: string): string => script.split(String.fromCharCode(10)).find((r) => r.trimStart().startsWith(inizio)) ?? ''
   const disegna = (stato: unknown): string => (new Function('sfStato', 'sessioniViste', `
     ${riga('const esc =')}
-    var sfScelta = 0
+    var sfScelta = 0, aiutiAperti = {}
+    ${estrai('aiuto')}
     ${estrai('testoAvvio')} ${estrai('sottofondoHtml')}
     return sottofondoHtml()`) as (s: unknown, v: unknown) => string)(stato, [{ id: 's-1', titolo: 'Prova', cwd: 'C:\\Prove', altrove: 'PORTATILE-ESEMPIO', altrovePc: 'pc-esempio' }])
 
   it('il riquadro c’è, con il campo e i tasti', () => {
     const h = disegna(null)
-    for (const t of ['Scrivi a «Prova» su PORTATILE-ESEMPIO', 'in sottofondo', 'sf-testo', 'Manda', 'Avvia senza scrivere']) expect(h).toContain(t)
+    for (const t of ['Scrivi a «Prova» su PORTATILE-ESEMPIO', 'data-aiuto="sottofondo"', 'sf-testo', 'Manda', 'Avvia senza scrivere']) expect(h).toContain(t)
   })
   it('mentre parte dice cosa succede, con il messaggio in attesa', () => {
     const h = disegna({ fase: 'avvio', testo: 'ciao', id: 'p-1', messaggio: 'avviata in sottofondo' })

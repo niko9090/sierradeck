@@ -5,6 +5,7 @@ import {
 } from '@shared/collegamento'
 import { etichettaStrada } from '@shared/strada-pc'
 import { useLineaRemota } from '../linee-remote'
+import { Aiuto } from './Aiuto'
 
 /**
  * Il collegamento con un altro PC, a colpo d'occhio (0.51.0): l'icona della
@@ -55,11 +56,7 @@ export function IndicatoreLinea({ linea, nomePc }: { linea: Linea; nomePc: strin
       </button>
       {aperta ? (
         <span className="linea__storia" role="dialog" aria-label="Storia del collegamento">
-          <span className="linea__storia-titolo">Storia del collegamento con {nomePc}</span>
-          <span className="linea__storia-nota">
-            Le cadute, i ritorni e i cambi di strada di questa finestra, con l’ora e il motivo (gli ultimi trenta). Le strade si provano in quest’ordine: rete di casa 🏠, Tailscale 🔐, collegamento diretto via Internet (WebRTC) 🌐, Drive ☁️ (lento: solo leggere e scrivere). Quando ne torna una migliore, ci si passa da soli senza chiudere niente.
-            Le tacche: 4 = ritardo sotto 150 ms e niente perso; ne tolgono una le chiamate perse, e il ritardo che sale (400 ms, 1 s).
-          </span>
+          <span className="linea__storia-titolo con-aiuto">Storia del collegamento con {nomePc}<Aiuto di="storia del collegamento">Le cadute, i ritorni e i cambi di strada di questa finestra, con l’ora e il motivo (gli ultimi trenta). Le strade si provano in quest’ordine: rete di casa 🏠, Tailscale 🔐, collegamento diretto via Internet (WebRTC) 🌐, Drive ☁️ (lento: solo leggere e scrivere). Quando ne torna una migliore, ci si passa da soli senza chiudere niente. Le tacche: 4 = ritardo sotto 150 ms e niente perso; ne tolgono una le chiamate perse, e il ritardo che sale (400 ms, 1 s).</Aiuto></span>
           {linea.storia.length === 0 ? <span className="linea__voce">Ancora niente da raccontare.</span> : null}
           {[...linea.storia].reverse().map((e, i) => (
             <span key={`${e.il}-${i}`} className={`linea__voce linea__voce--${e.tipo}`}>{rigaStoria(e)}</span>
@@ -181,13 +178,10 @@ export function SchermoCollegamento({ nomePc, passi, inizio, adesso, versione, u
   }
   return (
     <div className={`schermo-tentativi schermo-tentativi--${fase}`} role="status" aria-live="polite">
-      <div className="schermo-tentativi__titolo">{fase === 'fallito' ? `Non riesco a collegarmi a ${nomePc}` : `Mi collego a ${nomePc}…`}</div>
+      <div className="schermo-tentativi__titolo con-aiuto">{fase === 'fallito' ? `Non riesco a collegarmi a ${nomePc}` : `Mi collego a ${nomePc}…`}<Aiuto di="i passi del collegamento">Ogni riga è un passo: ✓ fatto, ✗ non riuscito (sotto c’è il perché e cosa fare), … in corso, – saltato perché non serve. Le strade le prova questo PC in ordine: rete di casa, Tailscale, collegamento diretto via Internet, Drive. Riprovo da solo con attese che crescono; lo schermo della chat compare appena il collegamento c’è.</Aiuto></div>
       <div className="schermo-tentativi__sotto">
         {[versione !== undefined && versione !== '' ? `SierraDeck ${versione}` : undefined, ultimoSegno !== undefined ? `ultimo segno ${ultimoSegno}` : undefined, `⏱ ${Math.round((adesso - inizio) / 1000)} s`].filter((x) => x !== undefined).join(' · ')}
       </div>
-      <p className="schermo-tentativi__nota">
-        Ogni riga è un passo: ✓ fatto, ✗ non riuscito (sotto c’è il perché e cosa fare), … in corso, – saltato perché non serve. Le strade le prova questo PC in ordine: rete di casa, Tailscale, collegamento diretto via Internet, Drive. Riprovo da solo con attese che crescono; lo schermo della chat compare appena il collegamento c’è.
-      </p>
       <ol className="schermo-tentativi__passi">
         {passi.map((p) => (
           <li key={p.id} className={`schermo-tentativi__passo schermo-tentativi__passo--${p.stato}`}>

@@ -1,5 +1,6 @@
 import type { LavoroInCorso } from '../../main/cassaforte/lavoro-in-corso'
 import { descriviLavoro, durataBreve, passiDelLavoro, stimaResidua } from '../progresso-sync'
+import { Aiuto } from './Aiuto'
 
 type Props = {
   lavoro: LavoroInCorso
@@ -105,8 +106,11 @@ export function AvanzamentoLavoro({ lavoro, adesso, onAnnulla, compatto, onDetta
         ))}
       </ol>
 
-      <p className="account__nota" style={{ fontSize: 12, margin: '8px 0 0' }}>
-        Puoi chiudere questa finestra: il lavoro continua lo stesso e lo ritrovi nella striscia in alto. «Annulla» si ferma fra un file e l’altro, mai a metà di uno: quello già fatto resta fatto e l’indice del Drive resta coerente; il resto lo rifai al prossimo giro con le stesse scelte.
+      <p className="account__nota con-aiuto" style={{ fontSize: 12, margin: '8px 0 0' }}>
+        Puoi chiudere questa finestra: il lavoro continua lo stesso.
+        <Aiuto di="chiudere o annullare">
+          Puoi chiudere questa finestra: il lavoro continua lo stesso e lo ritrovi nella striscia in alto. «Annulla» si ferma fra un file e l’altro, mai a metà di uno: quello già fatto resta fatto e l’indice del Drive resta coerente; il resto lo rifai al prossimo giro con le stesse scelte.
+        </Aiuto>
       </p>
       {onAnnulla !== undefined ? (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>

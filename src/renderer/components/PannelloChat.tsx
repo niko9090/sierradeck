@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { voceMenu } from '@shared/menu-principale'
 import { SottofondoQui } from './SottofondoQui'
+import { Aiuto } from './Aiuto'
 import type { PannelloAperto } from './Console'
 
 type Props = {
@@ -15,9 +16,9 @@ type Props = {
  * **Chat e workspace** (0.61.0), la quarta voce del menu principale.
  *
  * I gesti di ogni minuto (riprendere, aprire una chat, cambiare workspace)
- * restano anche nella riga sotto il menu. Qui ci sono tutti, ognuno con cosa
- * fa e cosa non fa, insieme a quelli più rari che prima avevano un tasto a
- * testa nella barra (la finestra nuova, il Negozio).
+ * restano anche nella riga sotto il menu. Qui ci sono tutti, insieme a quelli
+ * più rari che prima avevano un tasto a testa nella barra (la finestra nuova,
+ * il Negozio). Cosa fa ognuno si legge dal suo «?» (0.62.0).
  */
 export function PannelloChat({ workspace, onApriSessioni, onApri, onChiudi }: Props): React.JSX.Element {
   useEffect(() => {
@@ -29,20 +30,19 @@ export function PannelloChat({ workspace, onApriSessioni, onApri, onChiudi }: Pr
   const voce = (tasto: React.JSX.Element, spiega: string): React.JSX.Element => (
     <div className="hub__voce">
       {tasto}
-      <div className="hub__spiega">{spiega}</div>
+      <Aiuto>{spiega}</Aiuto>
     </div>
   )
   return (
     <div className="pannello">
       <div className="pannello__testa">
         <span className="serigrafia">{v.icona} {v.nome}</span>
+        <Aiuto di={v.nome}>{v.spiega}</Aiuto>
         <span className="misura">workspace «{workspace.attivo}» · {workspace.nomi.length} in tutto</span>
         <span style={{ flex: 1 }} />
         <button className="tasto" onClick={onChiudi}>Chiudi</button>
       </div>
       <div className="hub">
-        <p className="hub__spiega">{v.spiega}</p>
-
         <div className="hub__gruppo">
           <h4 className="hub__titolo">Le chat</h4>
           {voce(

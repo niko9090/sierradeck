@@ -196,10 +196,7 @@ fun SchermoMandaA(api: Api, stato: Stato?, uris: List<Uri>, fissa: DestinazioneF
                 Text(if (fissa != null) "Manda a «${fissa.titolo}»" else "Manda a…", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
                 TextButton(enabled = !mandando, onClick = onChiudi) { Text(if (file.isNotEmpty() && file.all { it.ok }) "Fatto" else "Chiudi") }
             }
-            Text(
-                "Il file finisce nella cartella del progetto di quella chat (o dell'autopilota), in .sierradeck/allegati/ con la data di oggi, fuori da git: SierraDeck non lo apre e non lo esegue. La chat riceve una riga corta che glielo dice; l'autopilota lo trova nel suo dialogo. Fino a 100 MB per file; i programmi (.exe, .bat…) no. Tieni l'app aperta finché non vedi «Arrivato»: se la rete cade riparte da dove era.",
-                color = Banco.testoQuieto, fontSize = 12.sp
-            )
+            RigaConAiuto("Finisce nella cartella del progetto di quella chat.", "Il file finisce nella cartella del progetto di quella chat (o dell'autopilota), in .sierradeck/allegati/ con la data di oggi, fuori da git: SierraDeck non lo apre e non lo esegue. La chat riceve una riga corta che glielo dice; l'autopilota lo trova nel suo dialogo. Fino a 100 MB per file; i programmi (.exe, .bat…) no. Tieni l'app aperta finché non vedi «Arrivato»: se la rete cade riparte da dove era.")
             Spacer(Modifier.height(8.dp))
             for (s in file) {
                 Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {

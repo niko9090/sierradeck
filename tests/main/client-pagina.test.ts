@@ -967,7 +967,7 @@ describe('la pagina: linguette Domande e File dell autopilota (0.38.0)', () => {
   })
   it('la linguetta File mostra l elenco per chat e il diff colorato', () => {
     const riga = (inizio: string): string => script.split('\n').find((r) => r.startsWith(inizio)) ?? ''
-    const vistaFileAp = new Function(`${riga('const esc =')}\n${estrai('vistaFileAp')}\nreturn vistaFileAp`)() as (f: unknown, s: unknown, d: unknown) => string
+    const vistaFileAp = new Function(`${riga('const esc =')}\nvar aiutiAperti = {}\n${estrai('aiuto')}\n${estrai('vistaFileAp')}\nreturn vistaFileAp`)() as (f: unknown, s: unknown, d: unknown) => string
     const html = vistaFileAp(
       { gruppi: [{ chiave: 'principale', nome: 'Cartella del progetto', base: 'dal commit da cui è partito', file: [{ percorso: 'a.ts', stato: 'modificato', piu: 2, meno: 1, salvato: false }] }] },
       { chat: 'principale', percorso: 'a.ts' },
@@ -994,6 +994,7 @@ describe('il negozio nella pagina (0.53.0)', () => {
   }
   const disegna = (visto: unknown, famiglia: string, extra = ''): string => {
     const corpo = [riga('const esc ='), 'var negozioVisto = arguments[0], negozioFamiglia = arguments[1], negozioErrore = "", negozioErroreMcp = "", negozioTrovati = null, negozioParola = "", negozioLavoro = {}, negozioGuasti = {}, negozioConferme = {}, negozioNota = "", negozioProvoMcp = false', extra,
+      'var aiutiAperti = {}', estrai('aiuto'),
       ...['negozioTono', 'negozioStatoDi', 'negozioTesta', 'negozioSotto', 'negozioRigaPlugin', 'negozioRigaSkill', 'negozioRigaMcp', 'negozioHtml'].map(estrai), 'return negozioHtml()'].join('\n')
     return new Function(corpo)(visto, famiglia) as string
   }
@@ -1112,6 +1113,7 @@ describe('il Quaderno personale nella pagina (0.57.0)', () => {
     ${riga('const esc =')}; ${riga('const escJs =')}
     var qpErrore = ''; var qpBozza = { id: '', nome: '', valore: '', nota: '' }; var qpDaTogliere = ''
     ${riga('var QP_ESITI =')}
+    var aiutiAperti = {}; ${estrai('aiuto')}
     ${estrai('qpNascosto')} ${estrai('qpQuando')} ${estrai('quadernoPersonaleHtml')}
     return quadernoPersonaleHtml()`) as (s: unknown, v: Record<string, boolean>) => string)(stato, visti)
   const stato = {
@@ -1135,5 +1137,57 @@ describe('il Quaderno personale nella pagina (0.57.0)', () => {
   })
   it('un PC senza il quaderno lo dice', () => {
     expect(html({ disponibile: false, perche: 'Il portachiavi di Windows non è disponibile', voci: [], consensi: [], usi: [], richieste: [] })).toContain('portachiavi')
+  })
+})
+
+describe('il tasto «?» della pagina (0.62.0)', () => {
+  const estrai = (nome: string): string => {
+    const inizio = script.indexOf(`function ${nome}(`)
+    expect(inizio, `${nome} non e nella pagina`).toBeGreaterThan(-1)
+    let profondita = 0
+    for (let i = script.indexOf('{', inizio); i < script.length; i++) {
+      if (script[i] === '{') profondita++
+      else if (script[i] === '}' && --profondita === 0) return script.slice(inizio, i + 1)
+    }
+    throw new Error(`${nome} non si chiude`)
+  }
+  const riga = (inizio: string): string => script.split(String.fromCharCode(10)).find((r) => r.trimStart().startsWith(inizio)) ?? ''
+  // Una pagina finta che si ridisegna come quella vera: `pannello` rifà tutto l'HTML.
+  const pagina = (): { disegna: () => string; tocca: (id: string) => void } => new Function(`
+    var window = {}; var ultimoStato = {}; var disegnato = ''
+    ${riga('const esc =')}
+    var aiutiAperti = {}
+    ${estrai('aiuto')}
+    ${riga('window.commutaAiuto =')}
+    function pannello() { disegnato = '<div class="titolo">Code dei progetti' + aiuto('code', 'La <b>spiegazione</b> completa') + '</div>' }
+    return { disegna: function () { pannello(); return disegnato }, tocca: function (id) { window.commutaAiuto(id) } }
+  `)() as { disegna: () => string; tocca: (id: string) => void }
+
+  it('a vista solo il tondino; toccato apre la spiegazione completa, ritoccato la chiude', () => {
+    const p = pagina()
+    const chiuso = p.disegna()
+    expect(chiuso).toContain('class="aiuto"')
+    expect(chiuso).toContain('aria-expanded="false"')
+    expect(chiuso).not.toContain('aiuto-testo')
+    expect(chiuso).not.toContain('spiegazione')
+    p.tocca('code')
+    const aperto = p.disegna()
+    expect(aperto).toContain('aria-expanded="true"')
+    expect(aperto).toContain('<div class="aiuto-testo" role="note">La <b>spiegazione</b> completa</div>')
+    p.tocca('code')
+    expect(p.disegna()).not.toContain('aiuto-testo')
+  })
+  it('resta aperta quando la pagina si ridisegna (lo stato non sta nel DOM)', () => {
+    const p = pagina()
+    p.tocca('code')
+    p.disegna(); p.disegna()
+    expect(p.disegna()).toContain('aiuto-testo')
+  })
+  it('le schermate principali hanno il loro «?» e lo script resta valido', () => {
+    for (const id of ["aiuto('code'", "aiuto('salute'", "aiuto('file'", "aiuto('negozio'", "aiuto('sessioni'", "aiuto('altri-pc'", "aiuto('progetti'", "aiuto('imp:'"]) {
+      expect(script, id).toContain(id)
+    }
+    expect(html).toContain('.aiuto-testo {')
+    expect(() => new Function(script)).not.toThrow()
   })
 })

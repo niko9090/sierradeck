@@ -243,11 +243,8 @@ fun SezioneFile(api: Api) {
             val tutti = progetti
             LazyColumn(Modifier.fillMaxSize()) {
                 item("spiega") {
-                    Text(
-                        "I progetti di $nomePc: le cartelle dove hai lavorato con Claude Code, delle chat aperte e degli autopiloti. Si vede solo quello che c'è dentro; " +
-                            "un testo, un'immagine o un PDF si guardano qui, il resto si scarica o si condivide. I file che il PC ti manda sono in «Ricevuti».",
-                        color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                    )
+                    RigaConAiuto("I progetti di $nomePc.", "I progetti di $nomePc: le cartelle dove hai lavorato con Claude Code, delle chat aperte e degli autopiloti. Si vede solo quello che c'è dentro; " +
+                            "un testo, un'immagine o un PDF si guardano qui, il resto si scarica o si condivide. I file che il PC ti manda sono in «Ricevuti».", modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp))
                 }
                 if (tutti == null) item("leggo") { Text("Leggo i progetti…", color = Banco.testoQuieto, modifier = Modifier.padding(14.dp)) }
                 else if (tutti.isEmpty() && errore == null) item("vuoto") { Text("Nessun progetto su $nomePc: compaiono le cartelle dove hai aperto almeno una chat.", color = Banco.testoQuieto, modifier = Modifier.padding(14.dp)) }
@@ -446,11 +443,8 @@ private fun ParteRicevuti(onNota: (String?) -> Unit, nota: String?) {
     LazyColumn(Modifier.fillMaxSize()) {
         item("spiega") {
             Column(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
-                Text(
-                    "I file che un PC ti ha mandato con «📱 Manda al telefono» o da una chat. Arrivano da soli quando l'app si collega (aperta, o ogni quindici minuti in sottofondo con la rete), " +
-                        "anche se erano partiti a telefono spento; se la rete cade, riprendono da dov'erano. Stanno nell'app finché non li togli; «Salva» ne mette una copia in Download/SierraDeck.",
-                    color = Banco.testoQuieto, fontSize = 12.sp
-                )
+                RigaConAiuto("I file che i PC ti hanno mandato.", "I file che un PC ti ha mandato con «📱 Manda al telefono» o da una chat. Arrivano da soli quando l'app si collega (aperta, o ogni quindici minuti in sottofondo con la rete), " +
+                        "anche se erano partiti a telefono spento; se la rete cade, riprendono da dov'erano. Stanno nell'app finché non li togli; «Salva» ne mette una copia in Download/SierraDeck.")
                 Row(Modifier.padding(top = 8.dp)) {
                     Voce(if (controllo) "Controllo…" else "Controlla adesso", attiva = true) {
                         if (controllo) return@Voce

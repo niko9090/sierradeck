@@ -172,9 +172,9 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
             val trovate = ImpostazioniVoci.cerca(struttura, cercaImp)
             if (trovate.isEmpty()) Text("Niente con «${cercaImp.trim()}». Prova con un’altra parola.", color = Banco.testoQuieto, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
             for (v in trovate) {
-                Column(Modifier.padding(vertical = 6.dp)) {
-                    Text(v.titolo, color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text(v.spiega, color = Banco.testoQuieto, fontSize = 12.sp)
+                Row(Modifier.padding(vertical = 2.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text(v.titolo, color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Aiuto(v.spiega, di = v.titolo)
                 }
             }
         }
@@ -197,18 +197,17 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
 
         if ((imp || sal) && "computer" in visibili) {
             if (imp) GruppoImpostazioni(struttura, "computer")
-        if (imp) Text("Gli altri computer, con le loro chat aperte e la cassetta, stanno in Salute. Per cambiare il computer a cui è collegata l’app tocca il suo nome in alto.", color = Banco.testoQuieto, fontSize = 12.sp)
+        if (imp) Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text("Gli altri computer stanno in Salute.", color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            Aiuto("Gli altri computer, con le loro chat aperte e la cassetta, stanno in Salute. Per cambiare il computer a cui è collegata l’app tocca il suo nome in alto.", di = "Altri computer")
+        }
 
         if (sal) {
         // Gli altri computer, e le azioni da eseguire solo la'. Nicholas
         // (2026-09-14): «se sto operando su una chat su una cartella in rete
         // gli altri come fanno a operare li'?». Si scrive nella cassetta di
         // quel PC; consegna il suo postino, quando e' acceso.
-        Sezione("Altri computer")
-        Text(
-            "Gli altri PC che usano lo stesso Drive, con le chat che hanno aperte (dal loro battito, ogni pochi minuti): pallino ambra = aspetta te. «Chat … dal vivo» apre le chat di quel PC da qui, attraverso il PC a cui il telefono è accoppiato (serve la 0.48.0 su questo PC): le vedi e le comandi come dal PC, con la fascia viola «SU …» in cima. Si raggiungono con le stesse strade del PC (rete di casa, Tailscale, collegamento diretto) e solo con la chiave della stessa cassaforte. «Azioni» lascia un'istruzione nella cassetta di quel PC: si esegue solo là, in una sua chat, quando è acceso — serve per una cartella che sta su quel PC (un disco di rete, un progetto che non viaggia). Se la cartella là non esiste, la voce fallisce e lo leggi qui.",
-            color = Banco.testoQuieto, fontSize = 12.sp
-        )
+        Sezione("Altri computer", aiuto = "Gli altri PC che usano lo stesso Drive, con le chat che hanno aperte (dal loro battito, ogni pochi minuti): pallino ambra = aspetta te. «Chat … dal vivo» apre le chat di quel PC da qui, attraverso il PC a cui il telefono è accoppiato (serve la 0.48.0 su questo PC): le vedi e le comandi come dal PC, con la fascia viola «SU …» in cima. Si raggiungono con le stesse strade del PC (rete di casa, Tailscale, collegamento diretto) e solo con la chiave della stessa cassaforte. «Azioni» lascia un'istruzione nella cassetta di quel PC: si esegue solo là, in una sua chat, quando è acceso — serve per una cartella che sta su quel PC (un disco di rete, un progetto che non viaggia). Se la cartella là non esiste, la voce fallisce e lo leggi qui.")
         Spacer(Modifier.height(8.dp))
         val pcs = pcVisti
         when {
@@ -423,11 +422,7 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
         // testimone, appena una chat ha finito: da qui si vede, si aggiunge,
         // si toglie. Poco per volta: il telefono non e' il posto per scriverne
         // dieci.
-        Sezione("Code dei progetti")
-        Text(
-            "Una fila di istruzioni per progetto, sul Drive: le consegna il PC che ha il progetto in mano, una per volta, alla prima chat del progetto che ha finito il turno. Serve a lasciare il lavoro dopo quello di adesso senza stare a guardare. Si rilegge ogni dieci secondi mentre è aperta.",
-            color = Banco.testoQuieto, fontSize = 12.sp
-        )
+        Sezione("Code dei progetti", aiuto = "Una fila di istruzioni per progetto, sul Drive: le consegna il PC che ha il progetto in mano, una per volta, alla prima chat del progetto che ha finito il turno. Serve a lasciare il lavoro dopo quello di adesso senza stare a guardare. Si rilegge ogni dieci secondi mentre è aperta.")
         Spacer(Modifier.height(8.dp))
         val progetti = stato?.progetti ?: emptyList()
         if (progetti.isEmpty()) Text("Nessun progetto sul Drive: le code esistono solo per i progetti portati sul Drive (sul computer: Account → Progetti).", color = Banco.testoQuieto, fontSize = 13.sp)
@@ -523,7 +518,7 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
         Sezione("Drive")
         SezioneDrive(api)
         // Il pannello delle chat e dei progetti è la linguetta accanto, «Progetti e chat» (app 2.61.0).
-        Text("Le chat e i progetti dei tuoi PC, con il PC residente e le azioni, stanno nella linguetta «Progetti e chat», qui accanto.", color = Banco.testoQuieto, fontSize = 12.sp)
+        Text("Chat e progetti dei tuoi PC: linguetta «Progetti e chat».", color = Banco.testoQuieto, fontSize = 12.sp)
         Spacer(Modifier.height(10.dp))
         }
             if (prog) Divisore()
@@ -587,10 +582,13 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
             Column(Modifier.padding(14.dp)) {
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Controllo continuo", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Text("Controllo continuo", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Aiuto("Accendilo quando stai aspettando qualcosa adesso: un avviso arriva in cinque secondi invece che in qualche minuto. Android in cambio mostra una riga fissa nelle notifiche; spegnendolo la riga fissa sparisce e l’app guarda ogni paio di minuti.", di = "Controllo continuo")
+                        }
                         Text(
-                            if (continuo) "Guardo ogni cinque secondi. Android in cambio mostra una riga fissa nelle notifiche."
-                            else "Guardo ogni paio di minuti, senza lasciare niente nelle notifiche.",
+                            if (continuo) "Guardo ogni cinque secondi."
+                            else "Guardo ogni paio di minuti.",
                             color = Banco.testoQuieto,
                             fontSize = 12.sp
                         )
@@ -630,10 +628,10 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
                 val energia = contesto.getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
                 if (energia != null && !energia.isIgnoringBatteryOptimizations(contesto.packageName)) {
                     Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Android limita l’app in sottofondo: a telefono fermo un avviso può arrivare con minuti di ritardo. Se vuoi gli avvisi puntuali, escludi SierraDeck dal risparmio batteria.",
-                        color = Banco.testoQuieto, fontSize = 12.sp
-                    )
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text("Gli avvisi possono arrivare in ritardo.", color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        Aiuto("Android limita l’app in sottofondo: a telefono fermo un avviso può arrivare con minuti di ritardo. Se vuoi gli avvisi puntuali, escludi SierraDeck dal risparmio batteria.", di = "Risparmio batteria")
+                    }
                     TextButton(onClick = {
                         try {
                             contesto.startActivity(
@@ -643,12 +641,6 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
                         } catch (e: Exception) { /* idem */ }
                     }) { Text("Apri il risparmio batteria") }
                 }
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Accendilo quando stai aspettando qualcosa adesso: un avviso arriva in cinque secondi invece che in qualche minuto. Spegnendolo la riga fissa sparisce.",
-                    color = Banco.testoQuieto,
-                    fontSize = 11.sp
-                )
             }
         }
             Divisore()
@@ -667,40 +659,43 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
 
         if (sal) {
         // ─── Consumi ───
-        Sezione("Consumi (token)")
+        Sezione("Consumi (token)", aiuto = "↑ token mandati a Claude, ↓ token ricevuti, ⟳ letti dalla cache (costano molto meno); «chat» è quante conversazioni hanno lavorato nel periodo.")
         val c = consumi
         if (c == null) Text("Carico…", color = Banco.testoQuieto)
         else {
-            Text(
-                "↑ token mandati a Claude, ↓ token ricevuti, ⟳ letti dalla cache (costano molto meno); «chat» è quante conversazioni hanno lavorato nel periodo.",
-                color = Banco.testoQuieto, fontSize = 11.sp
-            )
             QuotaRiga("Oggi", c.oggi)
             QuotaRiga("7 giorni", c.settimana)
             QuotaRiga("Totale", c.totale)
             Spacer(Modifier.height(8.dp))
-            Text("LIMITI DEL PIANO", color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp)
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("LIMITI DEL PIANO", color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp)
+                Aiuto(
+                    "La finestra di 5 ore: al 100% le chat si fermano fino all’azzeramento. La settimana: il tetto settimanale su tutti i modelli. " +
+                        "I numeri sono gli stessi di /usage in Claude Code e arrivano dalla riga di stato di Claude Code dopo la prima risposta di una chat aperta dal computer (solo con abbonamento Pro o Max). " +
+                        "Fra tutte le chat aperte dal computer vale la lettura più recente; si aggiornano a ogni risposta, e qui ogni mezzo minuto. Una lettura di più di 20 minuti è segnata vecchia: il valore vero può essere più alto.",
+                    di = "Limiti del piano"
+                )
+            }
             val l = c.limiti
-            FinestraRiga("Finestra di 5 ore", l?.cinqueOre, "Al 100% le chat si fermano fino all’azzeramento.")
-            FinestraRiga("Settimana", l?.settimana, "Il tetto settimanale su tutti i modelli.")
+            FinestraRiga("Finestra di 5 ore", l?.cinqueOre)
+            FinestraRiga("Settimana", l?.settimana)
             Text(
-                if (l == null) "Non ancora letti: arrivano dalla riga di stato di Claude Code dopo la prima risposta di una chat aperta dal computer (solo con abbonamento Pro o Max)."
-                else "Letti " + quandoLetti(l.letti, System.currentTimeMillis()) + ": gli stessi numeri di /usage in Claude Code. Fra tutte le chat aperte dal computer vale la lettura più recente; si aggiornano a ogni risposta, e qui ogni mezzo minuto. Una lettura di più di 20 minuti è segnata vecchia: il valore vero può essere più alto.",
+                if (l == null) "Non ancora letti."
+                else "Letti " + quandoLetti(l.letti, System.currentTimeMillis()) + ".",
                 color = Banco.testoQuieto, fontSize = 11.sp
             )
             // Il contesto di ogni chat aperta, con la frase del computer
             // (0.37): uguale alla console e alla pagina.
             if (c.chatAperte.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
-                Text("CONTESTO DELLE CHAT APERTE", color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp)
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text("CONTESTO DELLE CHAT APERTE", color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp)
+                    Aiuto("Il contesto è la memoria di lavoro della chat: si conta come Claude Code, solo con i token in ingresso. Al 90% conviene farle riassumere dove è arrivata, prima che lo compatti da sola.", di = "Contesto")
+                }
                 for (ch in c.chatAperte) {
                     Spacer(Modifier.height(4.dp))
                     Text(rigaContesto(ch), color = Banco.testo, fontSize = 12.sp)
                 }
-                Text(
-                    "Il contesto è la memoria di lavoro della chat: si conta come Claude Code, solo con i token in ingresso. Al 90% conviene farle riassumere dove è arrivata, prima che lo compatti da sola.",
-                    color = Banco.testoQuieto, fontSize = 11.sp
-                )
             }
             c.freno?.let { fr ->
                 Spacer(Modifier.height(8.dp))
@@ -710,7 +705,7 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
             c.costo?.let { k ->
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Spesa stimata da Claude Code: oggi ${"%.2f".format(k.oggi)} $, 7 giorni ${"%.2f".format(k.settimana)} $. Con un abbonamento è un’indicazione, non una fattura.",
+                    "Spesa stimata: oggi ${"%.2f".format(k.oggi)} $, 7 giorni ${"%.2f".format(k.settimana)} $.",
                     color = Banco.testoQuieto, fontSize = 11.sp
                 )
             }
@@ -729,7 +724,6 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
         )
         Text(
             "Computer collegato: " + (versionePc?.let { "SierraDeck $it" } ?: "versione non ancora letta") + ". " +
-                "L'app e il programma sul computer si aggiornano ognuno per conto suo (qui sopra, «Aggiornamenti»). " +
                 "SierraDeck è di Nicholas Ferrari / Ferrari Consulenze.",
             color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
         )
@@ -1051,7 +1045,7 @@ private fun oraDiAdesso(): String =
 
 /** Una finestra dei limiti del piano: nome, percentuale, azzeramento, e la barra colorata. */
 @Composable
-private fun FinestraRiga(nome: String, f: Finestra?, spiega: String) {
+private fun FinestraRiga(nome: String, f: Finestra?) {
     val p = if (f == null) 0 else f.percento.toInt().coerceIn(0, 100)
     val colore = if (p >= 95) Banco.rosso else if (p >= 80) Banco.ambra else Banco.accento
     val quando = f?.resettaIl?.let { " · si azzera " + java.text.SimpleDateFormat("EEE HH:mm", java.util.Locale.ITALY).format(java.util.Date(it)) } ?: ""
@@ -1064,7 +1058,6 @@ private fun FinestraRiga(nome: String, f: Finestra?, spiega: String) {
     Box(Modifier.fillMaxWidth().height(8.dp).background(Banco.chassisAlto, RoundedCornerShape(4.dp))) {
         Box(Modifier.fillMaxWidth(p / 100f).height(8.dp).background(colore, RoundedCornerShape(4.dp)))
     }
-    Text(spiega, color = Banco.testoQuieto, fontSize = 11.sp)
 }
 
 @Composable
@@ -1080,8 +1073,8 @@ private fun QuotaRiga(nome: String, q: Quota) {
 }
 
 @Composable
-private fun Sezione(titolo: String) {
-    Serigrafia(titolo)
+private fun Sezione(titolo: String, aiuto: String? = null) {
+    TitoloConAiuto(titolo, aiuto)
     Spacer(Modifier.height(8.dp))
 }
 
@@ -1322,8 +1315,10 @@ fun quandoLetti(letti: Long, adesso: Long, zona: java.util.TimeZone = java.util.
 private fun GruppoImpostazioni(s: StrutturaImp, id: String) {
     val sez = s.sezioni.firstOrNull { it.id == id } ?: return
     Spacer(Modifier.height(10.dp))
-    Text(sez.titolo.uppercase(), color = Banco.accento, fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 1.2.sp)
-    Text(sez.spiega, color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
+    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, modifier = Modifier.padding(bottom = 6.dp)) {
+        Text(sez.titolo.uppercase(), color = Banco.accento, fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 1.2.sp)
+        Aiuto(sez.spiega, di = sez.titolo)
+    }
 }
 
 

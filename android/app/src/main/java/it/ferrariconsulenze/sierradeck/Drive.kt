@@ -117,10 +117,7 @@ fun SezioneDrive(api: Api) {
             Spacer(Modifier.height(10.dp))
             HorizontalDivider(color = Banco.incisione)
             Spacer(Modifier.height(10.dp))
-            Text(
-                "Un progetto è la cartella in cui le chat lavorano; un workspace è una fascia a schermo con dentro delle chat, anche di progetti diversi. «Porta qui» fa scaricare al computer la cartella se viaggia con le chat, le chat che gli mancano, e le mette nel loro workspace; poi il computer si riavvia da solo per mostrarle. Niente viene mai cancellato.",
-                color = Banco.testoQuieto, fontSize = 12.sp
-            )
+            RigaConAiuto("Cosa c’è sul Drive, per progetto e per workspace.", "Un progetto è la cartella in cui le chat lavorano; un workspace è una fascia a schermo con dentro delle chat, anche di progetti diversi. «Porta qui» fa scaricare al computer la cartella se viaggia con le chat, le chat che gli mancano, e le mette nel loro workspace; poi il computer si riavvia da solo per mostrarle. Niente viene mai cancellato.")
             Spacer(Modifier.height(8.dp))
 
             // Il lavoro in corso sul computer, con la barra.

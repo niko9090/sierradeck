@@ -48,6 +48,8 @@ function pagina(fetch: (p: string, o: { body?: string }) => Promise<unknown>, pr
     ${estrai('async function chiedi(')}
     ${estrai('function inMb(')}
     ${script.split('\n').find((r) => r.startsWith('const esc = ')) ?? ''}
+    var aiutiAperti = {}
+    ${estrai('function aiuto(')}
     ${estrai('function fileMotivo(')}
     ${estrai('async function fileVai(')}
     ${estrai('async function fileLeggiTutto(')}

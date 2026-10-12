@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import type { ProgressoCatalogo } from '../../shared/catalogo-progresso'
 import { descriviCatalogo, passiDelCatalogo } from '../../shared/catalogo-progresso'
 import { durataBreve } from '../progresso-sync'
+import { Aiuto } from './Aiuto'
 
 type Props = {
   /** Assente finche' il computer non ha detto la prima fase. */
@@ -73,8 +74,11 @@ export function AttesaDrive({ progresso, adesso, avviato, onChiudi }: Props): Re
           ))}
         </ul>
 
-        <p className="account__nota" style={{ marginTop: 10 }}>
-          Leggere il Drive non tocca niente: non scarica, non carica, non cancella. Quando ha finito questa finestra si chiude da sola e vedi il catalogo: progetti, workspace e chat, ognuno con il suo stato rispetto a questo PC. Se il Drive è lento o la rete va e viene la lettura può prendere di più: la barra dice in che fase sta.
+        <p className="account__nota con-aiuto" style={{ marginTop: 10 }}>
+          Leggere il Drive non tocca niente: non scarica, non carica, non cancella.
+          <Aiuto di="la lettura del Drive">
+            Leggere il Drive non tocca niente: non scarica, non carica, non cancella. Quando ha finito questa finestra si chiude da sola e vedi il catalogo: progetti, workspace e chat, ognuno con il suo stato rispetto a questo PC. Se il Drive è lento o la rete va e viene la lettura può prendere di più: la barra dice in che fase sta.
+          </Aiuto>
         </p>
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>

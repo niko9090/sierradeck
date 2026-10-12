@@ -404,5 +404,5 @@ fun MappaPcVista(m: MappaPc) {
         // L'hostname piccolo sotto il nome scelto (2.52.4).
         if (!n.host.isNullOrBlank()) Text("   ${n.host}", color = Banco.testoQuieto, fontSize = 10.sp)
     }
-    Text("Linea piena: si raggiunge direttamente. Tratteggiata ambra: solo via Drive, lento. Tratteggiata rossa: adesso non risponde.", color = Banco.testoQuieto, fontSize = 11.sp)
+    RigaConAiuto("Come leggere le linee", "Linea piena: si raggiunge direttamente. Tratteggiata ambra: solo via Drive, lento. Tratteggiata rossa: adesso non risponde.")
 }

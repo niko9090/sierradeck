@@ -82,10 +82,7 @@ fun SchermataViaggio(
                     ).joinToString(" · "),
                     color = Banco.testoQuieto, fontSize = 12.sp
                 )
-                Text(
-                    "Ogni riga è un passo: ✓ fatto, ✗ non riuscito (sotto c'è il perché e cosa fare), … in corso, – saltato perché non serve o non si può dal telefono. Provo solo il computer che hai scelto: se non risponde resto qui e non torno da solo su un altro.",
-                    color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)
-                )
+                RigaConAiuto("Come leggere i passi.", "Ogni riga è un passo: ✓ fatto, ✗ non riuscito (sotto c'è il perché e cosa fare), … in corso, – saltato perché non serve o non si può dal telefono. Provo solo il computer che hai scelto: se non risponde resto qui e non torno da solo su un altro.")
                 Spacer(Modifier.height(8.dp))
                 HorizontalDivider(color = Banco.incisione)
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {

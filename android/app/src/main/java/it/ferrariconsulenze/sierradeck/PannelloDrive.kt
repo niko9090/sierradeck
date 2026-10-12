@@ -161,10 +161,7 @@ fun SezionePannelloDrive(api: Api) {
     val lavora = p?.let { PannelloDriveRegole.lavora(it) } == true
     LaunchedEffect(lavora) { while (lavora) { kotlinx.coroutines.delay(2500); leggi(); if (p?.let { PannelloDriveRegole.lavora(it) } != true) break } }
 
-    Text(
-        "Ogni chat e ogni progetto ha un PC residente: è lì che lavora; sugli altri PC si apre dal vivo, e il progetto lì è «solo cloud». Qui vedi il residente, chi ne ha una copia, l’ultimo uso e lo stato; in ambra le assegnazioni sbagliate, con il perché e cosa fare. Ogni cambio chiede conferma e non cancella niente: le copie tolte vanno nella cartella di recupero per 30 giorni.",
-        color = Banco.testoQuieto, fontSize = 12.sp
-    )
+    RigaConAiuto("Il PC residente di ogni chat e progetto, e le copie.", "Ogni chat e ogni progetto ha un PC residente: è lì che lavora; sugli altri PC si apre dal vivo, e il progetto lì è «solo cloud». Qui vedi il residente, chi ne ha una copia, l’ultimo uso e lo stato; in ambra le assegnazioni sbagliate, con il perché e cosa fare. Ogni cambio chiede conferma e non cancella niente: le copie tolte vanno nella cartella di recupero per 30 giorni.")
     if (spenta) { Text(FunzioniPc.testoMancante(FunzionePc.PANNELLO_DRIVE), color = Banco.ambra, fontSize = 13.sp); return }
     guasto?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
     val d = p ?: run { if (guasto == null) Text("Leggo…", color = Banco.testoQuieto, fontSize = 13.sp); return }
@@ -190,8 +187,7 @@ fun SezionePannelloDrive(api: Api) {
     }
     if (d.unioni.isNotEmpty()) {
         Spacer(Modifier.height(6.dp))
-        Text("UNIONI FATTE", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-        Text("I progetti uniti con «Rendi residente qui» negli ultimi 30 giorni. «Annulla l’unione» rimette com’erano cartelle, file, chat, workspace e registro; niente si cancella.", color = Banco.testoQuieto, fontSize = 12.sp)
+        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { Text("UNIONI FATTE", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold); Aiuto("I progetti uniti con «Rendi residente qui» negli ultimi 30 giorni. «Annulla l’unione» rimette com’erano cartelle, file, chat, workspace e registro; niente si cancella.", di = "UNIONI FATTE") }
         for (u in d.unioni) {
             Text("${u.nome} · unito il ${QuadernoPersonaleTesti.quando(u.quando)} in ${u.destinazione} · annullabile fino al ${QuadernoPersonaleTesti.quando(u.scadeIl)}", color = Banco.testo, fontSize = 12.sp)
             TextButton(onClick = { conferma = DaConfermare("Annulla l’unione di «${u.nome}»", "Le cartelle doppie tornano al loro posto dalla cartella di recupero, i file sostituiti tornano com’erano, quelli entrati con l’unione escono e vanno nei recuperati (non si cancellano), le trascrizioni e i workspace tornano com’erano. La casa delle chat resta questo PC.", "Annulla l’unione") { api.azioneDrive("annulla-unione", u.progetto, u.id) } }) { Text("Annulla l’unione") }

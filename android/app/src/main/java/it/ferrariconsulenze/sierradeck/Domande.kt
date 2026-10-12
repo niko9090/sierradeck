@@ -156,15 +156,12 @@ private fun NienteDaRispondere() {
         Column(Modifier.padding(14.dp)) {
             Text("Niente da rispondere", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             Spacer(Modifier.height(6.dp))
-            Text(
-                "Qui compaiono, senza bloccare niente: le domande che un autopilota ti fa prima di partire o mentre lavora; " +
+            RigaConAiuto("Qui arrivano le domande e le scelte che aspettano te.", "Qui compaiono, senza bloccare niente: le domande che un autopilota ti fa prima di partire o mentre lavora; " +
                     "le scelte che una chat aspetta (un permesso, «vuoi procedere?», un elenco numerato); " +
                     "e le chat che hanno finito e aspettano una tua istruzione. Ogni voce ha dentro il modo di rispondere, " +
                     "e sparisce da sola quando il computer riceve la risposta; «Apri la chat» porta alla conversazione intera. " +
                     "Il numero sulla scheda conta domande e scelte (le chat che hanno solo finito il turno si contano sulla scheda Chat). " +
-                    "La lista si rilegge ogni due secondi finché la guardi.",
-                color = Banco.testoQuieto, fontSize = 12.sp
-            )
+                    "La lista si rilegge ogni due secondi finché la guardi.")
         }
     }
 }

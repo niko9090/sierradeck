@@ -90,13 +90,9 @@ fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi:
     }
     AlertDialog(
         onDismissRequest = onChiudi,
-        title = { Text(if (nomePc.isNullOrBlank()) "Workspace" else "Workspace di $nomePc") },
+        title = { TitoloDialogo(if (nomePc.isNullOrBlank()) "Workspace" else "Workspace di $nomePc", "Un workspace è una disposizione di chat sul computer. Andarci lo mette davanti sul computer (le chat degli altri continuano a lavorare). Eliminarlo toglie le sue chat dalla disposizione ma non cancella le conversazioni.") },
         text = {
             Column(Modifier.fillMaxWidth().heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
-                Text(
-                    "Un workspace è una disposizione di chat sul computer. Andarci lo mette davanti sul computer (le chat degli altri continuano a lavorare). Eliminarlo toglie le sue chat dalla disposizione ma non cancella le conversazioni.",
-                    color = Banco.testoQuieto, fontSize = 12.sp
-                )
                 errore?.let { Spacer(Modifier.height(6.dp)); Text(it, color = Banco.rosso, fontSize = 12.sp) }
                 Spacer(Modifier.height(8.dp))
                 for (n in workspace.nomi) {

@@ -7,6 +7,7 @@ import { ModaleNote } from './ModaleNote'
 import { AltriComputer } from './PannelloAccount'
 import { PannelloConsumi } from './PannelloConsumi'
 import { voceMenu } from '@shared/menu-principale'
+import { Aiuto } from './Aiuto'
 
 /**
  * «Salute del sistema» (0.44.0): com'è messo SierraDeck, in un posto solo.
@@ -88,6 +89,7 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
     <div className="pannello pannello--largo">
       <div className="pannello__testa">
         <span className="serigrafia">{voceMenu('salute').icona} Salute del sistema</span>
+        <Aiuto di="Salute del sistema">Com’è messo SierraDeck su questo PC, in un posto solo: il Drive (collegato o no, perché e da quando), gli altri PC (quando si sono fatti vivi l’ultima volta, con quale strada si raggiungono adesso, che versione hanno), un aggiornamento che non si è installato, gli errori delle ultime ore scritti nel registro, le istruzioni degli autopiloti che non sono partite. Ogni voce dice cosa vuol dire e cosa fare; dove si può, il tasto lo fa. Si rilegge da solo ogni minuto; «Aggiorna» bussa di nuovo agli altri PC adesso.</Aiuto>
         {salute !== undefined ? <span className={`salute__tono salute__tono--${salute.tono}`}>{salute.riassunto}</span> : null}
         <span style={{ flex: 1 }} />
         <button className="tasto tasto--mini" onClick={leggi} disabled={leggo}>{leggo ? 'Guardo…' : 'Aggiorna'}</button>
@@ -101,9 +103,6 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
       </div>
       {parte === 'altri-pc' ? <div style={{ maxHeight: '40vh', overflowY: 'auto', marginBottom: 8 }}><AltriComputer /></div> : null}
       {parte === 'consumi' ? <div style={{ maxHeight: '50vh', overflowY: 'auto', marginBottom: 8 }}><PannelloConsumi incorporato /></div> : null}
-      <p className="account__nota">
-        Com’è messo SierraDeck su questo PC, in un posto solo: il Drive (collegato o no, perché e da quando), gli altri PC (quando si sono fatti vivi l’ultima volta, con quale strada si raggiungono adesso, che versione hanno), un aggiornamento che non si è installato, gli errori delle ultime ore scritti nel registro, le istruzioni degli autopiloti che non sono partite. Ogni voce dice cosa vuol dire e cosa fare; dove si può, il tasto lo fa. Si rilegge da solo ogni minuto; «Aggiorna» bussa di nuovo agli altri PC adesso.
-      </p>
       {errore !== undefined ? <div className="avviso">⚠ Non riesco a leggere lo stato: {errore}</div> : null}
       {salute === undefined && errore === undefined ? <p className="account__nota">Guardo il Drive, busso agli altri PC e leggo il registro…</p> : null}
       <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -116,8 +115,9 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
               <div className="serigrafia">{g.nome}</div>
               {voci.map((v) => (
                 <div key={v.chiave} className={`salute__voce salute__voce--${v.tono}`}>
-                  <div className="salute__titolo"><span className={`led ${v.tono === 'ok' ? 'led--lavoro' : v.tono === 'attenzione' ? 'led--attesa' : 'led--fermo'}`} /> {v.titolo}</div>
-                  <div className="salute__testo">{v.spiegazione}</div>
+                  <div className="salute__titolo con-aiuto"><span className={`led ${v.tono === 'ok' ? 'led--lavoro' : v.tono === 'attenzione' ? 'led--attesa' : 'led--fermo'}`} /> {v.titolo}{v.tono === 'ok' ? <Aiuto di={v.titolo}>{v.spiegazione}</Aiuto> : null}</div>
+                  {/* 0.62.0: una voce in ordine si spiega dal suo «?»; un problema resta a vista con il suo perché. */}
+                  {v.tono !== 'ok' ? <div className="salute__testo">{v.spiegazione}</div> : null}
                   {v.cosaFare !== undefined ? <div className="salute__testo"><b>Cosa fare:</b> {v.cosaFare}</div> : null}
                   {(() => {
                     const inst = v.chiave.startsWith('pc:') ? installazioni[v.chiave.slice(3)] : undefined

@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
+import { Aiuto } from './Aiuto'
 
 type VoceCoda = {
   id: string; testo: string; creataIl: string; daNome: string; sessione?: string
@@ -76,10 +77,10 @@ export function ModaleCoda({ progetto, onChiudi }: Props): React.JSX.Element {
       <div className="dialogo dialogo--largo" onMouseDown={(e) => e.stopPropagation()}>
         <div className="dialogo__testa">
           <span className="serigrafia">Coda dei comandi · {progetto.nome}</span>
-        </div>
-        <p className="account__nota" style={{ margin: '0 0 8px' }}>
+          <Aiuto di="Coda dei comandi">
           Quello che metti qui lo riceve, uno alla volta, una chat di questo progetto sul PC che ha il testimone, appena ha finito e aspetta. Si scrive e si cambia da qualunque PC.
-        </p>
+          </Aiuto>
+        </div>
         {msg !== undefined ? <div className="riga__stato">{msg}</div> : null}
 
         <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 6, paddingRight: 4 }}>

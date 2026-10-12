@@ -1004,13 +1004,9 @@ private fun SceltaSessione(api: Api, onScegli: (SessioneRipresa) -> Unit, onChiu
 
     AlertDialog(
         onDismissRequest = onChiudi,
-        title = { Text("Riprendi una conversazione") },
+        title = { TitoloDialogo("Riprendi una conversazione", "Le conversazioni di Claude Code su questo computer, dalla più recente. Toccandone una si riapre sul computer con tutta la sua storia, nel workspace dove era salvata. Quelle «su un altro PC» vivono là: toccandone una le scrivi da qui, e quel PC la avvia in sottofondo — là non si apre nessuna finestra — e il messaggio parte appena è pronta.") },
         text = {
             Column(Modifier.fillMaxWidth().height(320.dp).verticalScroll(rememberScrollState())) {
-                Text(
-                    "Le conversazioni di Claude Code su questo computer, dalla più recente. Toccandone una si riapre sul computer con tutta la sua storia, nel workspace dove era salvata. Quelle «su un altro PC» vivono là: toccandone una le scrivi da qui, e quel PC la avvia in sottofondo — là non si apre nessuna finestra — e il messaggio parte appena è pronta.",
-                    color = Banco.testoQuieto, fontSize = 11.sp
-                )
                 if (nascoste > 0 || senzaNome) TextButton(onClick = { senzaNome = !senzaNome }) {
                     Text(ChatSenzaNome.testo(senzaNome, nascoste), fontSize = 12.sp)
                 }
@@ -1155,10 +1151,9 @@ private fun SceltaOspite(api: Api, onScegli: (String, String) -> Unit, onChiudi:
     LaunchedEffect(Unit) { pc = try { api.pc() } catch (_: Exception) { ElencoPc() } }
     AlertDialog(
         onDismissRequest = onChiudi,
-        title = { Text("Ospitata da…") },
+        title = { TitoloDialogo("Ospitata da…", "Il PC ospite è quello su cui la chat lavora davvero: il suo claude.exe parte solo lì, e sugli altri si apre dal vivo guardando lui. Cambiarlo non cancella niente e si annulla da «Dove vive ogni chat» sul PC.") },
         text = {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-                Text("Il PC ospite è quello su cui la chat lavora davvero: il suo claude.exe parte solo lì, e sugli altri si apre dal vivo guardando lui. Cambiarlo non cancella niente e si annulla da «Dove vive ogni chat» sul PC.", color = Banco.testoQuieto, fontSize = 12.sp)
                 Spacer(Modifier.height(8.dp))
                 Text("Il computer di questa chat", color = Banco.testo, modifier = Modifier.fillMaxWidth().clickableCartella { onScegli("qui", PcCorrente.nome ?: "questo PC") }.padding(vertical = 10.dp))
                 HorizontalDivider(color = Banco.incisione)

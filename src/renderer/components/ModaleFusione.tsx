@@ -4,6 +4,7 @@ import type { PianoFusione, VoceFusione, Azione, ModoWorkspace, EsitoFusione } f
 import type { StatoLavoro } from '../../main/cassaforte/lavoro-in-corso'
 import { descriviLavoro } from '../progresso-sync'
 import { AvanzamentoLavoro } from './AvanzamentoLavoro'
+import { Aiuto } from './Aiuto'
 import { azioniPossibili, sceltePerTutte, gruppoInVigore, riassunto, riassuntoInParole, vociDaDecidere, type AzioneDiGruppo } from '../fusione-scelte'
 
 type Props = {
@@ -256,7 +257,9 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
         {testa}
         {fase === 'passphrase' ? (
           <>
-            <p className="account__nota">La cassaforte di questo Drive è un’altra. Per leggere cosa c’è dentro serve la <strong>sua</strong> passphrase; fondendo, questo PC passerà a usare quella, e la sua cassaforte di adesso resterà messa da parte.</p>
+            <p className="account__nota con-aiuto">La cassaforte di questo Drive è un’altra: serve la <strong>sua</strong> passphrase.
+              <Aiuto di="la passphrase del Drive">La cassaforte di questo Drive è un’altra. Per leggere cosa c’è dentro serve la <strong>sua</strong> passphrase; fondendo, questo PC passerà a usare quella, e la sua cassaforte di adesso resterà messa da parte.</Aiuto>
+            </p>
             {messaggio !== undefined ? <div className="riga__stato">{messaggio}</div> : null}
             <input className="account__campo" type="password" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && passphrase !== '') carica(passphrase) }} placeholder="passphrase del Drive" aria-label="passphrase del Drive" autoFocus />
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
@@ -278,8 +281,11 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
                   : <>Il lavoro precedente è appena finito: parto.</>}
               </p>
               {inCorso !== undefined ? <AvanzamentoLavoro lavoro={inCorso} adesso={adesso} /> : null}
-              <p className="account__nota" style={{ fontSize: 12, marginTop: 8 }}>
+              <p className="account__nota con-aiuto" style={{ fontSize: 12, marginTop: 8 }}>
+                Le tue scelte sono salvate: la fusione parte da sola appena il lavoro in corso finisce.
+                <Aiuto di="la fusione in fila">
                 Due lavori insieme si pesterebbero i piedi (uno scrive l’indice del Drive mentre l’altro lo legge), quindi si va uno alla volta. Le tue scelte sono salvate: <strong>appena il lavoro in corso finisce, la fusione parte da sola</strong>, e la vedi qui e nella striscia in alto. Se non vuoi aspettare, «Annulla il lavoro in corso» lo ferma fra un file e l’altro senza rompere niente: quello che ha già messo sul Drive resta, il resto lo rifarà al prossimo giro.
+                </Aiuto>
               </p>
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
                 <button className="tasto" onClick={() => { setFase('piano') }}>Torna alle scelte</button>
@@ -326,22 +332,28 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
           </>
         ) : piano !== undefined ? (
           <>
-            <p className="account__nota" style={{ margin: '0 0 6px' }}>
+            <p className="account__nota con-aiuto" style={{ margin: '0 0 6px' }}>
               {piano.email !== undefined ? <>Drive di <strong>{piano.email}</strong>. </> : null}
-              Ho confrontato, voce per voce, le conversazioni e i file di progetto di questo PC con quelli salvati sul Drive: stesso percorso, stessa dimensione e stessa data vuol dire «uguale»; tutto il resto è «solo di qua», «solo di là» o «diversa».
+              <strong>Solo su questo PC: {piano.totali.soloPc}</strong> · <strong>Solo sul Drive: {piano.totali.soloDrive}</strong> · <strong>Diverse: {piano.totali.diverse}</strong> · <strong>Uguali: {piano.totali.uguali}</strong>
+              <Aiuto di="i quattro numeri">
+                <p>Ho confrontato, voce per voce, le conversazioni e i file di progetto di questo PC con quelli salvati sul Drive: stesso percorso, stessa dimensione e stessa data vuol dire «uguale»; tutto il resto è «solo di qua», «solo di là» o «diversa».</p>
+                <p><strong>Solo su questo PC</strong> — esistono qui e non sul Drive; il predefinito le porta sul Drive, così gli altri PC le vedono.</p>
+                <p><strong>Solo sul Drive</strong> — esistono sul Drive (di solito salvate da un altro PC) e non qui; il predefinito le porta qui.</p>
+                <p><strong>Diverse</strong> — esistono in tutti e due i posti ma non sono uguali; per le chat vince la copia più lunga, perché una conversazione cresce e non si accorcia, per i file di progetto vince la più recente e l’altra versione resta accanto come copia.</p>
+                <p><strong>Uguali</strong> — identiche di qua e di là, non c’è niente da fare.</p>
+              </Aiuto>
             </p>
-            <p className="account__nota" style={{ margin: '0 0 6px' }}>
-              <strong>Solo su questo PC: {piano.totali.soloPc}</strong> — esistono qui e non sul Drive; il predefinito le porta sul Drive, così gli altri PC le vedono.{' '}
-              <strong>Solo sul Drive: {piano.totali.soloDrive}</strong> — esistono sul Drive (di solito salvate da un altro PC) e non qui; il predefinito le porta qui.{' '}
-              <strong>Diverse: {piano.totali.diverse}</strong> — esistono in tutti e due i posti ma non sono uguali; per le chat vince la copia più lunga, perché una conversazione cresce e non si accorcia, per i file di progetto vince la più recente e l’altra versione resta accanto come copia.{' '}
-              <strong>Uguali: {piano.totali.uguali}</strong> — identiche di qua e di là, non c’è niente da fare.
-            </p>
-            <p className="account__nota" style={{ margin: '0 0 8px' }}>
+            <p className="account__nota con-aiuto" style={{ margin: '0 0 8px' }}>
+              Da questa finestra <strong>niente viene mai cancellato</strong>: si copia da una parte all’altra.
+              <Aiuto di="come si usa questa finestra">
               Da questa finestra <strong>niente viene mai cancellato</strong>: si copia da una parte all’altra, e basta. Puoi cambiare ogni singola voce dalla sua tendina, o usare i tasti di gruppo accanto a ogni cartella. Quando premi il tasto in fondo vedi l’avanzamento qui e nella striscia in alto, puoi annullare in qualsiasi momento, e a lavoro finito conviene riavviare SierraDeck perché le chat arrivate compaiano nei loro workspace.
+              {' '}Due cose separate: le <strong>chat</strong> sono le conversazioni (qui sotto, per cartella di progetto); i <strong>workspace</strong> sono le fasce che le raggruppano a schermo, e si decidono in fondo.
+              </Aiuto>
             </p>
             {piano.totali.soloPc + piano.totali.soloDrive + piano.totali.diverse === 0 ? (
-              <p className="account__nota" style={{ margin: '0 0 8px', padding: '8px 10px', borderRadius: 6, background: 'var(--fondo-cupo)' }}>
-                ✓ <strong>Chat e file sono già allineati.</strong> Tutte le {piano.totali.uguali} voci sono identiche qui e sul Drive, quindi non c’è niente da portare né da scaricare, e per questo nelle cartelle qui sotto non ci sono tasti: ogni riga ha una sola scelta possibile, «lascia com’è». Succede quando questo PC ha già salvato sul Drive e ripristinato tutto, oppure quando gli altri PC non hanno ancora salvato niente di nuovo. Se ti aspettavi delle chat dell’altro PC, controlla che lì il salvataggio sia andato a buon fine (pannello Account → «Salva ora» su quel PC), poi riapri questa finestra. Qui sotto restano solo i workspace, cioè le fasce che raggruppano le chat a schermo: se anche lì è tutto com’è, puoi chiudere senza fare niente.
+              <p className="account__nota con-aiuto" style={{ margin: '0 0 8px', padding: '8px 10px', borderRadius: 6, background: 'var(--fondo-cupo)' }}>
+                ✓ <strong>Chat e file sono già allineati.</strong>
+                <Aiuto di="già allineati">Tutte le {piano.totali.uguali} voci sono identiche qui e sul Drive, quindi non c’è niente da portare né da scaricare, e per questo nelle cartelle qui sotto non ci sono tasti: ogni riga ha una sola scelta possibile, «lascia com’è». Succede quando questo PC ha già salvato sul Drive e ripristinato tutto, oppure quando gli altri PC non hanno ancora salvato niente di nuovo. Se ti aspettavi delle chat dell’altro PC, controlla che lì il salvataggio sia andato a buon fine (pannello Account → «Salva ora» su quel PC), poi riapri questa finestra. Qui sotto restano solo i workspace, cioè le fasce che raggruppano le chat a schermo: se anche lì è tutto com’è, puoi chiudere senza fare niente.</Aiuto>
               </p>
             ) : null}
             {ripresa !== undefined ? (
@@ -349,9 +361,6 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
                 ↻ Riprendo la fusione interrotta il {quandoBreve(ripresa.quando)}{ripresa.fatti !== undefined && ripresa.totale !== undefined ? ` (fatte ${ripresa.fatti} voci su ${ripresa.totale})` : ''}: le voci già fatte risultano uguali e non compaiono, per le altre ho rimesso le scelte di allora. Controlla e premi «Fondi adesso».
               </p>
             ) : null}
-            <p className="account__nota" style={{ margin: '0 0 8px', fontSize: 12 }}>
-              Due cose separate: le <strong>chat</strong> sono le conversazioni (qui sotto, per cartella di progetto); i <strong>workspace</strong> sono le fasce che le raggruppano a schermo, e si decidono in fondo.
-            </p>
             <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 4 }}>
               {/* Chat, per cartella di progetto */}
               <section>
@@ -406,16 +415,13 @@ export function ModaleFusione({ cassaforteDiversa, onChiudi }: Props): React.JSX
               {/* Workspace */}
               <section>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span className="serigrafia">Workspace</span>
+                  <span className="con-aiuto"><span className="serigrafia">Workspace</span><Aiuto di="unire i workspace">Un workspace è una fascia con dentro delle chat. «Unisci» vuol dire: le chat che stanno in quel workspace sul Drive entrano nello stesso workspace qui, accanto a quelle che ci sono già; niente si toglie. Un workspace che esiste solo sul Drive viene creato qui con le sue chat.</Aiuto></span>
                   <select className="account__campo" style={{ fontSize: 12, padding: '2px 6px' }} value={modoWs} onChange={(e) => setModoWs(e.target.value as ModoWorkspace)}>
                     <option value="unione">unisci: decido workspace per workspace (consigliato)</option>
                     <option value="pc">tieni tutti quelli di questo PC, ignora quelli del Drive</option>
                     <option value="drive">prendi tutti quelli del Drive, al posto di questi</option>
                   </select>
                 </div>
-                <p className="account__nota" style={{ fontSize: 12, margin: '6px 0' }}>
-                  Un workspace è una fascia con dentro delle chat. «Unisci» vuol dire: le chat che stanno in quel workspace sul Drive entrano nello stesso workspace qui, accanto a quelle che ci sono già; niente si toglie. Un workspace che esiste solo sul Drive viene creato qui con le sue chat.
-                </p>
                 {modoWs === 'unione' ? (
                   <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {piano.workspace.map((w) => {

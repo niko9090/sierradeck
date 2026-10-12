@@ -150,13 +150,9 @@ fun DialogoSottofondo(api: Api, s: SessioneRipresa, onChiudi: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onChiudi,
-        title = { Text("Scrivi a «${s.titolo.ifBlank { s.cwd }}» su $pc") },
+        title = { TitoloDialogo("Scrivi a «${s.titolo.ifBlank { s.cwd }}» su $pc", "Questa conversazione vive su $pc. Quel PC la avvia in sottofondo: claude --resume nella sua cartella, senza riquadro e senza finestre — là non si vede niente e non cambia il workspace. Il messaggio aspetta in coda e parte appena la chat è pronta; poi la trovi fra le chat di $pc e la segui da lì.") },
         text = {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-                Text(
-                    "Questa conversazione vive su $pc. Quel PC la avvia in sottofondo: claude --resume nella sua cartella, senza riquadro e senza finestre — là non si vede niente e non cambia il workspace. Il messaggio aspetta in coda e parte appena la chat è pronta; poi la trovi fra le chat di $pc e la segui da lì.",
-                    color = Banco.testoQuieto, fontSize = 11.sp
-                )
                 Spacer(Modifier.height(8.dp))
                 val a = avvio
                 if (a != null) {

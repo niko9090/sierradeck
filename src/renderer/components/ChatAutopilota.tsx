@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
+import { Aiuto } from './Aiuto'
 
 /**
  * La chat con l'autopilota: in cima alla sua sezione, prima di tutto il resto.
@@ -141,23 +142,7 @@ export function ChatAutopilota({
               Disfa
             </button>
           ) : null}
-          <span
-            className="chatap__info"
-            tabIndex={0}
-            title={
-              'Qui parli con l’autopilota, non con la chat che esegue. Lui risponde con parole sue, ' +
-              'con davanti obiettivo, criteri, diario e l’ultima cosa scritta dalla chat. Se quello che ' +
-              'scrivi è un’istruzione la applica: cambia obiettivo o criteri, aggiunge un compito, si ferma ' +
-              '(«fermati»), riparte («riprendi»). Se serve che la chat lo sappia, glielo consegna alla fine ' +
-              'del turno che ha in mano, mai in mezzo a un’azione, oppure appena riparte se è fermo. La risposta ' +
-              'arriva di solito entro qualche minuto. Le sue domande non stanno qui: stanno nella linguetta «Domande» ' +
-              'qui sotto, una per volta, e dopo la risposta domanda e risposta compaiono in questa chat. «Disfa» rimette com’era prima dell’ultimo cambio. Non parte nessun lavoro nuovo ' +
-              'e non si chiude nessuna chat senza che tu lo chieda.'
-            }
-            aria-label="Come funziona questa chat"
-          >
-            ?
-          </span>
+          <Aiuto di="questa chat">Qui parli con l’autopilota, non con la chat che esegue. Lui risponde con parole sue, con davanti obiettivo, criteri, diario e l’ultima cosa scritta dalla chat. Se quello che scrivi è un’istruzione la applica: cambia obiettivo o criteri, aggiunge un compito, si ferma («fermati»), riparte («riprendi»). Se serve che la chat lo sappia, glielo consegna alla fine del turno che ha in mano, mai in mezzo a un’azione, oppure appena riparte se è fermo. La risposta arriva di solito entro qualche minuto. Le sue domande non stanno qui: stanno nella linguetta «Domande» qui sotto, una per volta, e dopo la risposta domanda e risposta compaiono in questa chat. «Disfa» rimette com’era prima dell’ultimo cambio. Non parte nessun lavoro nuovo e non si chiude nessuna chat senza che tu lo chieda.</Aiuto>
         </div>
         {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
       </div>

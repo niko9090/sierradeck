@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { StatoSottofondo } from '@shared/sottofondo'
+import { Aiuto } from './Aiuto'
 
 /**
  * **Chat usate da altri PC** (0.58.4, decisione di Nicholas).
@@ -54,9 +55,10 @@ export function SottofondoQui({ vuoto }: { vuoto?: React.ReactNode } = {}): Reac
       </button>
       {aperto ? (
         <div className="sottofondo-qui__elenco" role="dialog" aria-label="Chat usate da altri PC">
-          <div className="sottofondo-qui__titolo">Chat usate da altri PC</div>
-          <div className="sottofondo-qui__nota">
-            Queste chat sono di questo PC e girano qui in sottofondo, senza riquadro: le sta usando un altro PC o il telefono, che ne vede lo schermo e le scrive. Restano vive anche se nessuna finestra le mostra, e ripartono da sole se questo PC si riavvia. «Mostra qui» la porta in un riquadro di questa finestra senza riavviarla (chi la usa da lontano continua a vederla). «Chiudi» ferma il processo: la conversazione resta su disco e si riprende quando si vuole.
+          <div className="sottofondo-qui__titolo con-aiuto">Chat usate da altri PC
+            <Aiuto di="Chat usate da altri PC">
+              Queste chat sono di questo PC e girano qui in sottofondo, senza riquadro: le sta usando un altro PC o il telefono, che ne vede lo schermo e le scrive. Restano vive anche se nessuna finestra le mostra, e ripartono da sole se questo PC si riavvia. «Mostra qui» la porta in un riquadro di questa finestra senza riavviarla (chi la usa da lontano continua a vederla). «Chiudi» ferma il processo: la conversazione resta su disco e si riprende quando si vuole.
+            </Aiuto>
           </div>
           {elenco.map((c) => (
             <div key={c.sessione} className="sottofondo-qui__voce">

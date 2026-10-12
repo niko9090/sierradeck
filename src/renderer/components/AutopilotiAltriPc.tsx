@@ -4,6 +4,7 @@ import { descriviAutopilota, ledDi } from '@shared/autopilota-vista'
 import type { Battuta } from '@shared/chat-autopilota'
 import type { DomandaScheda } from '@shared/domande-autopilota'
 import { giraSu, type AutopilotiDiPc } from '@shared/autopiloti-altri'
+import { Aiuto } from './Aiuto'
 
 /**
  * **Gli autopiloti degli altri PC** (0.59.0, la richiesta più importante di
@@ -31,10 +32,12 @@ export function AutopilotiAltriPc(): React.JSX.Element | null {
   if (pc.length === 0) return null
   return (
     <div className="autopiloti-altri">
-      <div className="serigrafia" style={{ marginTop: 14 }}>Su altri PC</div>
-      <p className="misura" style={{ margin: '2px 0 6px' }}>
+      <div className="con-aiuto" style={{ marginTop: 14, marginBottom: 6 }}>
+        <span className="serigrafia">Su altri PC</span>
+        <Aiuto di="Su altri PC">
         Gli autopiloti che girano sugli altri PC della tua stessa chiave di casa. Lavorano là, con i file di là: da qui li guardi e li governi (scrivergli, rispondere alle domande, fermarli, farli riprendere) e ogni azione va al PC dove girano. L’elenco si aggiorna da solo ogni 15 secondi.
-      </p>
+        </Aiuto>
+      </div>
       {pc.map((p) => (
         <div key={p.pcId}>
           {p.errore !== undefined ? <div className="avviso">⚠ {p.errore}</div> : null}
@@ -93,9 +96,9 @@ function SchedaAutopilotaRemoto({ pcId, nomePc, id, onChiudi }: { pcId: string; 
       <div className="scheda-remota" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Scheda dell’autopilota su un altro PC">
         <div className="scheda-remota__testa">
           <strong>{d?.titolo ?? 'Autopilota'}</strong> <span className="misura">· {giraSu(nomePc)}</span>
+          <Aiuto di="autopilota su un altro PC">Questo autopilota lavora su {nomePc}, con i file di là. Quello che vedi arriva da {nomePc} ogni quattro secondi; quello che fai qui (scrivergli, rispondere, fermarlo, farlo riprendere) lo esegue {nomePc}.</Aiuto>
           <button className="tasto" style={{ marginLeft: 'auto' }} onClick={onChiudi}>Chiudi</button>
         </div>
-        <p className="misura">Questo autopilota lavora su {nomePc}, con i file di là. Quello che vedi arriva da {nomePc} ogni quattro secondi; quello che fai qui (scrivergli, rispondere, fermarlo, farlo riprendere) lo esegue {nomePc}.</p>
         {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
         {a === undefined && errore === undefined ? <div className="misura">Leggo la scheda da {nomePc}…</div> : null}
         {a !== undefined && d !== undefined ? (

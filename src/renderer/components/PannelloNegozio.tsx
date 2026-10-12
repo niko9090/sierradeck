@@ -4,6 +4,7 @@ import {
   type AgenteVoce, type AmbitoMcp, type EsitoNegozio, type MarketplaceVoce, type McpVoce,
   type NuovoMcpModulo, type PluginVoce, type ScopeNegozio, type SkillVoce, type StatoVoce
 } from '@shared/negozio'
+import { Aiuto } from './Aiuto'
 
 /**
  * Il **Negozio**: plugin, skill, agenti e MCP di Claude Code, gestiti a clic.
@@ -576,11 +577,12 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
     }
     return (
       <div className="negozio__modulo">
-        <div className="negozio__titsez">Una skill nuova</div>
-        <p className="misura">
+        <div className="negozio__titsez con-aiuto">Una skill nuova
+          <Aiuto di="skill">
           Una skill è un’istruzione che Claude usa da solo quando serve: la descrizione dice <b>quando</b>, le istruzioni dicono <b>cosa fare</b>.
           Finisce in una cartella con dentro il suo SKILL.md.
-        </p>
+          </Aiuto>
+        </div>
         <div className="negozio__aggiungi">
           <select className="campo" value={n.dove} onChange={(e) => setNuovaSkill({ ...n, dove: e.target.value === 'progetto' ? 'progetto' : 'utente' })}>
             <option value="utente">Personale: vale in tutti i progetti</option>
@@ -617,11 +619,12 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
     }
     return (
       <div className="negozio__modulo">
-        <div className="negozio__titsez">Un server MCP nuovo</div>
-        <p className="misura">
+        <div className="negozio__titsez con-aiuto">Un server MCP nuovo
+          <Aiuto di="server MCP">
           Un server MCP dà alle chat strumenti in più (file, database, servizi web). Quelli «stdio» sono un programma che parte
           sul computer; quelli «http» sono un indirizzo in rete. Lo aggiunge Claude Code stesso (<code>claude mcp add-json</code>).
-        </p>
+          </Aiuto>
+        </div>
         <div className="negozio__aggiungi">
           <input className="campo" placeholder="nome (per esempio files)" value={n.nome} onChange={(e) => setNuovoMcp({ ...n, nome: e.target.value })} />
           <select className="campo" value={n.ambito} onChange={(e) => setNuovoMcp({ ...n, ambito: e.target.value as 'locale' | 'utente' | 'progetto' })}>
@@ -647,9 +650,12 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
             <textarea className="campo negozio__largo" rows={2} placeholder="intestazioni, una per riga: Authorization: Bearer …" value={n.intestazioni} onChange={(e) => setNuovoMcp({ ...n, intestazioni: e.target.value })} />
           </>
         )}
-        <p className="misura">
+        <p className="misura con-aiuto">
+          Le chiavi restano nella configurazione di Claude Code su questo computer.
+          <Aiuto di="dove finiscono le chiavi">
           Le chiavi finiscono nella configurazione di Claude Code su questo computer
           {n.ambito === 'progetto' ? ': con «tutto il progetto» in .mcp.json, che si condivide. Lì per un segreto scrivi ${NOME} e metti il valore nelle variabili d’ambiente di Windows.' : ' (.claude.json), non nel progetto. Da qui in poi se ne vedono solo i nomi.'}
+          </Aiuto>
         </p>
         <div className="negozio__azioni">
           <button className="tasto tasto--primario" disabled={lavoro['mcp:nuovo'] !== undefined} onClick={aggiungi}>Aggiungi</button>
@@ -737,10 +743,13 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
           cwd === undefined ? vuoto('Apri una chat per scegliere cosa attivare solo per lei.')
             : (
               <div className="negozio__lista">
-                <p className="misura negozio__vuoto">
+                <p className="misura negozio__vuoto con-aiuto">
+                  Cosa è attivo <b>solo per le chat di questa cartella</b>.
+                  <Aiuto di="solo per questa chat">
                   Qui scegli cosa è attivo <b>solo per le chat di questa cartella</b>, senza toccare le altre né i file di
                   Claude Code: SierraDeck lo dice a ogni chat quando la apre (<code>--settings</code>). Togli la spunta per
                   spegnere una cosa qui: vale dalla prossima apertura della chat.
+                  </Aiuto>
                 </p>
                 {(() => {
                   const pluginAttivi = (plugin ?? []).filter((p) => p.installato && p.abilitato)
@@ -868,10 +877,13 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
 
         {scheda === 'store' ? (
           <div className="negozio__lista">
-            <p className="misura negozio__vuoto">
+            <p className="misura negozio__vuoto con-aiuto">
+              Le fonti da cui arrivano i plugin.
+              <Aiuto di="fonti (marketplace)">
               Le fonti (marketplace) sono le vetrine da cui arrivano i plugin. Aggiungine una con un repo GitHub
               (<code>utente/repo</code>), un indirizzo, o una cartella del computer. «Aggiorna» rilegge il catalogo dalla
               sua sorgente: è così che arrivano i plugin nuovi e le versioni nuove.
+              </Aiuto>
             </p>
             <div className="negozio__aggiungi">
               <input className="campo" placeholder="utente/repo · https://… · C:\percorso"
@@ -927,9 +939,10 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
         ) : null}
       </div>
 
-      <div className="negozio__pie-fisso misura">
-        Plugin e skill personali valgono per tutte le chat di questo computer; skill del progetto e MCP per la cartella che hai davanti.
-        Le skill cambiano subito anche nelle chat aperte; plugin e MCP dalle chat che apri dopo la modifica.
+      <div className="negozio__pie-fisso misura con-aiuto">
+        Per quali chat vale ogni modifica
+        <Aiuto di="dove vale una modifica">Plugin e skill personali valgono per tutte le chat di questo computer; skill del progetto e MCP per la cartella che hai davanti.
+        Le skill cambiano subito anche nelle chat aperte; plugin e MCP dalle chat che apri dopo la modifica.</Aiuto>
       </div>
     </div>
   )

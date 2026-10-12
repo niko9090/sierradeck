@@ -1,4 +1,5 @@
 import type { MappaPc as Mappa } from '@shared/collegamento'
+import { Aiuto } from './Aiuto'
 
 /**
  * La mappa dei PC nel pannello Salute (0.51.0): questo PC al centro, gli
@@ -31,8 +32,9 @@ export function MappaPc({ mappa }: { mappa: Mappa }): React.JSX.Element {
           </g>
         ))}
       </svg>
-      <div className="mappa-pc__legenda">
-        Questo PC al centro, gli altri intorno. Linea verde piena: si raggiunge direttamente (rete di casa, Tailscale o WebRTC, scritto sopra). Ambra tratteggiata: solo via Drive, lento. Rossa a puntini: adesso non risponde. Passa sopra una linea per i dettagli; la voce del PC qui sotto dice cosa fare.
+      <div className="mappa-pc__legenda con-aiuto">
+        Verde: diretto · ambra: solo via Drive · rossa: non risponde
+        <Aiuto di="mappa dei PC">Questo PC al centro, gli altri intorno. Linea verde piena: si raggiunge direttamente (rete di casa, Tailscale o WebRTC, scritto sopra). Ambra tratteggiata: solo via Drive, lento. Rossa a puntini: adesso non risponde. Passa sopra una linea per i dettagli; la voce del PC qui sotto dice cosa fare.</Aiuto>
       </div>
     </section>
   )

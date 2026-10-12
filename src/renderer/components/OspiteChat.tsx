@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { NomePc } from './NomePc'
+import { Aiuto } from './Aiuto'
 import { useNomePc } from '../state/nomi-pc'
 import { createPortal } from 'react-dom'
 import { MenuPin } from './ChatConPin'
@@ -173,10 +174,7 @@ export function ModaleDoveVive({ onChiudi }: { onChiudi: () => void }): React.JS
       <div className="dialogo dialogo--largo" onMouseDown={(e) => e.stopPropagation()}>
         <div className="dialogo__testa">
           <span className="serigrafia">Dove vive ogni chat</span>
-          <span style={{ flex: 1 }} />
-          <button className="tasto tasto--mini" onClick={onChiudi} aria-label="Chiudi">×</button>
-        </div>
-        <p className="account__nota" style={{ margin: '0 0 8px' }}>
+          <Aiuto di="Dove vive ogni chat">
           Ogni chat ha <b>un PC ospite</b>: è lì che gira il suo claude.exe. Su tutti gli altri PC la chat <b>non parte mai</b>:
           si apre dal vivo sull’ospite (rete di casa, Tailscale, collegamento diretto o, lento, il Drive), da qualunque strada la
           apri — il ripristino del workspace, «Riprendi», un autopilota, una consegna, il telefono. Qui scegli l’ospite chat per
@@ -185,7 +183,10 @@ export function ModaleDoveVive({ onChiudi }: { onChiudi: () => void }): React.JS
           altro PC, la copia di qui va nella <b>cartella di recupero</b> di SierraDeck appena la chat finisce il turno (mai a
           metà): non si cancella niente, e «Annulla» in fondo la rimette al suo posto. «Decisa da sola» sono le case scelte
           dalla 0.42 con la regola (dove c’era la cartella, dove ha lavorato per ultima): valgono anche loro, e le puoi cambiare.
-        </p>
+          </Aiuto>
+          <span style={{ flex: 1 }} />
+          <button className="tasto tasto--mini" onClick={onChiudi} aria-label="Chiudi">×</button>
+        </div>
         {msg !== undefined ? <div className="riga__stato" style={{ marginBottom: 8 }}>{msg}</div> : null}
         <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 4 }}>
           {d === undefined ? <p className="account__nota">Leggo le chat dei workspace e le loro case…</p> : null}

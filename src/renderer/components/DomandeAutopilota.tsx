@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { sezioniDomanda } from '@shared/domanda-strutturata'
 import type { Autopilota } from '@shared/autopilota'
 import { etichettaOrigine, richiestaScheda, type DomandaScheda } from '@shared/domande-autopilota'
+import { Aiuto } from './Aiuto'
 
 /**
  * La linguetta «Domande» della scheda dell'autopilota (0.38.0).
@@ -114,13 +115,13 @@ export function DomandeAutopilota({
         <button className="tasto tasto--primario" disabled={inCorso || testo.trim() === ''} onClick={() => manda(testo)}>
           {inCorso ? 'Mando…' : d.tipo === 'via' ? 'Manda' : 'Rispondi'}
         </button>
+        <Aiuto di="cosa succede quando rispondi">
+          {d.tipo === 'via'
+            ? '«Vai» lo fa partire con i criteri e i compiti che vedi nelle linguette; se scrivi altro gli arriva come messaggio e ti risponde nella chat qui sopra.'
+            : 'La risposta arriva subito all’autopilota, che riparte da lì. Nella chat qui sopra restano la domanda e la tua risposta, una sotto l’altra. Se ce ne sono altre, la linguetta passa alla successiva; finite, si chiude.'}
+        </Aiuto>
       </div>
       {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
-      <p className="misura domande-ap__nota">
-        {d.tipo === 'via'
-          ? '«Vai» lo fa partire con i criteri e i compiti che vedi nelle linguette; se scrivi altro gli arriva come messaggio e ti risponde nella chat qui sopra.'
-          : 'La risposta arriva subito all’autopilota, che riparte da lì. Nella chat qui sopra restano la domanda e la tua risposta, una sotto l’altra. Se ce ne sono altre, la linguetta passa alla successiva; finite, si chiude.'}
-      </p>
     </div>
   )
 }

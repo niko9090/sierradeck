@@ -7,6 +7,7 @@ import { destinazioni } from '../destinazioni-autopilota'
 import { useLayoutStore } from '../state/layout'
 import { useSessionStore } from '../state/sessions'
 import { AutopilotiAltriPc } from './AutopilotiAltriPc'
+import { Aiuto } from './Aiuto'
 
 // La bozza è la stessa del telefono (0.55.0): `@shared/azioni-telefono`.
 // La regola di partenza e' «stabile»: chiede prima di pubblicare. E' la scelta
@@ -170,12 +171,12 @@ export function PannelloAutopiloti({
               stava scrivendo (Nicholas, 22/09/2026). Nessun tetto di
               caratteri: un documento intero va bene. */}
           <div className="nuovo-ap__testa">
-            <span className="serigrafia">Nuovo autopilota</span>
+            <span className="con-aiuto"><span className="serigrafia">Nuovo autopilota</span><Aiuto di="Nuovo autopilota">Quante chat apre lo decide lui, in base a quanto il lavoro si divide in parti indipendenti: ognuna lavora in una sua copia del progetto (un git worktree, su un suo ramo) e il suo lavoro si unisce al ramo principale a ogni turno. Il consumo lo governa il freno sui limiti del piano: sopra il 60% della finestra di 5 ore non apre chat nuove, sopra l’80% ne tiene una, sopra il 95% si ferma e riparte da solo all’azzeramento (lo stesso vale per la settimana). Non tocca mai chat e autopiloti non suoi, «Porta qui», l’account, le preferenze né file fuori dalle sue cartelle: lo impedisce il programma.</Aiuto></span>
             <span className="misura">Ctrl+Invio per preparare · Esc per annullare</span>
           </div>
 
           <label className="etichetta nuovo-ap__blocco">
-            <span className="serigrafia">Cosa vuoi ottenere</span>
+            <span className="con-aiuto"><span className="serigrafia">Cosa vuoi ottenere</span><Aiuto di="Cosa vuoi ottenere">Tutto quello che scrivi qui arriva a lui parola per parola, come mandato: non viene riassunto né tagliato. Invio va a capo; Ctrl+Invio prepara.</Aiuto></span>
             <textarea
               autoFocus
               className="campo campo--obiettivo"
@@ -187,14 +188,12 @@ export function PannelloAutopiloti({
             />
             <span className="misura nuovo-ap__conto">
               {bozza.obiettivo.trim() === '' ? 'Ancora niente.' : `${bozza.obiettivo.length.toLocaleString('it-IT')} caratteri, ${bozza.obiettivo.trim().split(/\s+/).length.toLocaleString('it-IT')} parole.`}
-              {' '}Tutto quello che scrivi qui arriva a lui parola per parola, come mandato: non viene riassunto né tagliato.
-              Invio va a capo; Ctrl+Invio prepara.
             </span>
           </label>
 
           <div className="nuovo-ap__riga">
             <label className="etichetta" style={{ flex: '2 1 280px' }}>
-              <span className="serigrafia">In quale cartella lavora</span>
+              <span className="con-aiuto"><span className="serigrafia">In quale cartella lavora</span><Aiuto di="In quale cartella lavora">La cartella del progetto: è lì che legge i file, lancia i comandi e lascia il quaderno. Le chat che apre nascono lì, nel workspace da cui lo avvii.</Aiuto></span>
               {aMano || mete.length === 0 ? (
                 <>
                   <input
@@ -252,7 +251,6 @@ export function PannelloAutopiloti({
                   <option value={ALTRA}>Altra cartella…</option>
                 </select>
               )}
-              <span className="misura">La cartella del progetto: è lì che legge i file, lancia i comandi e lascia il quaderno. Le chat che apre nascono lì, nel workspace da cui lo avvii.</span>
             </label>
 
             <label className="etichetta" style={{ flex: '1 1 200px' }}>
@@ -270,7 +268,7 @@ export function PannelloAutopiloti({
 
           <div className="nuovo-ap__riga">
             <label className="etichetta" style={{ flex: '2 1 280px' }}>
-              <span className="serigrafia">Pubblicazione del progetto</span>
+              <span className="con-aiuto"><span className="serigrafia">Pubblicazione del progetto</span><Aiuto di="Pubblicazione del progetto">{REGOLE_PUBBLICAZIONE.find((r) => r.valore === bozza.pubblicazione)?.spiega}</Aiuto></span>
               <select
                 className="campo"
                 value={bozza.pubblicazione}
@@ -278,23 +276,18 @@ export function PannelloAutopiloti({
               >
                 {REGOLE_PUBBLICAZIONE.map((r) => <option key={r.valore} value={r.valore}>{r.etichetta}</option>)}
               </select>
-              <span className="misura">{REGOLE_PUBBLICAZIONE.find((r) => r.valore === bozza.pubblicazione)?.spiega}</span>
             </label>
-            <label className="etichetta" style={{ flex: '1 1 220px' }}>
-              <span className="serigrafia">Cloud</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div className="etichetta" style={{ flex: '1 1 220px' }}>
+              <span className="con-aiuto"><span className="serigrafia">Cloud</span><Aiuto di="Cloud">Il «cloud» è il Drive di SierraDeck, dove si salvano le chat. Se le chat di questo progetto stanno sul Drive (questa spunta, oppure la sincronizzazione Drive del progetto già accesa) lavora in autonomia completa, senza farti domande: commit, unione dei suoi rami, push e pubblicazione secondo la regola qui accanto. Il remoto git e gli script di pubblicazione del progetto servono solo a sapere dove mandare su e con quale comando pubblicare. Senza Drive fa commit sui suoi rami e li unisce, e basta: niente push, niente pubblicazione.</Aiuto></span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <input type="checkbox" checked={bozza.cloud} onChange={(e) => setBozza({ ...bozza, cloud: e.target.checked })} />
                 va sul cloud: le chat stanno sul Drive
-              </span>
-              <span className="misura">Il «cloud» è il Drive di SierraDeck, dove si salvano le chat. Se le chat di questo progetto stanno sul Drive (questa spunta, oppure la sincronizzazione Drive del progetto già accesa) lavora in autonomia completa, senza farti domande: commit, unione dei suoi rami, push e pubblicazione secondo la regola qui accanto. Il remoto git e gli script di pubblicazione del progetto servono solo a sapere dove mandare su e con quale comando pubblicare. Senza Drive fa commit sui suoi rami e li unisce, e basta: niente push, niente pubblicazione.</span>
-            </label>
+              </label>
+            </div>
           </div>
-          <p className="misura" style={{ margin: 0 }}>
-            Quante chat apre lo decide lui, in base a quanto il lavoro si divide in parti indipendenti: ognuna lavora in una sua copia del progetto (un git worktree, su un suo ramo) e il suo lavoro si unisce al ramo principale a ogni turno. Il consumo lo governa il freno sui limiti del piano: sopra il 60% della finestra di 5 ore non apre chat nuove, sopra l’80% ne tiene una, sopra il 95% si ferma e riparte da solo all’azzeramento (lo stesso vale per la settimana). Non tocca mai chat e autopiloti non suoi, «Porta qui», l’account, le preferenze né file fuori dalle sue cartelle: lo impedisce il programma.
-          </p>
 
           <label className="etichetta nuovo-ap__blocco">
-            <span className="serigrafia">Partenza</span>
+            <span className="con-aiuto"><span className="serigrafia">Partenza</span><Aiuto di="Partenza">{PARTENZE.find((p) => p.valore === bozza.partenza)?.spiega}</Aiuto></span>
             <select
               className="campo"
               value={bozza.partenza}
@@ -302,11 +295,10 @@ export function PannelloAutopiloti({
             >
               {PARTENZE.map((p) => <option key={p.valore} value={p.valore}>{p.etichetta}</option>)}
             </select>
-            <span className="misura">{PARTENZE.find((p) => p.valore === bozza.partenza)?.spiega}</span>
           </label>
 
           <label className="etichetta nuovo-ap__blocco">
-            <span className="serigrafia">Come si capisce che ha finito (facoltativo, uno per riga)</span>
+            <span className="con-aiuto"><span className="serigrafia">Come si capisce che ha finito (facoltativo, uno per riga)</span><Aiuto di="criteri di fine">Sono i criteri di fine: li verifica lui, uno per uno, prima di dichiararsi finito. Se li lasci vuoti se li ricava da solo nell’intervista, guardando il progetto.</Aiuto></span>
             <textarea
               className="campo campo--criteri"
               value={bozza.criteri}
@@ -314,7 +306,6 @@ export function PannelloAutopiloti({
               onChange={(e) => setBozza({ ...bozza, criteri: e.target.value })}
               spellCheck={false}
             />
-            <span className="misura">Sono i criteri di fine: li verifica lui, uno per uno, prima di dichiararsi finito. Se li lasci vuoti se li ricava da solo nell’intervista, guardando il progetto.</span>
           </label>
 
           <div className="nuovo-ap__azioni">
@@ -327,10 +318,10 @@ export function PannelloAutopiloti({
               {inCorso ? 'Preparo…' : 'Prepara'}
             </button>
             <button className="tasto" onClick={() => setBozza(undefined)} disabled={inCorso}>Annulla</button>
-            <span className="misura" style={{ flex: '1 1 100%', marginTop: 4 }}>
-              {controllo !== undefined && !controllo.ok && bozza.obiettivo.trim() !== '' ? <>⚠ {controllo.errore} </> : null}
+            <Aiuto di="Prepara">
               Cosa succede dopo: legge il progetto, ti fa al massimo un paio di domande (nella sua scheda, nella scheda «Domande» del telefono, e per notifica), si scrive i criteri se non li hai dati, e {bozza.partenza === 'subito' ? 'appena è pronto comincia da solo, senza aspettare il tuo «Vai»' : 'aspetta il tuo «Vai». Non parte da solo'}. Puoi cambiargli obiettivo e vincoli anche dopo, scrivendogli nella sua scheda.
-            </span>
+            </Aiuto>
+            {controllo !== undefined && !controllo.ok && bozza.obiettivo.trim() !== '' ? <span className="misura" style={{ flex: '1 1 100%', marginTop: 4 }}>⚠ {controllo.errore}</span> : null}
           </div>
         </div>
       ) : null}

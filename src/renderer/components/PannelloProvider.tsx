@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Aiuto } from './Aiuto'
 
 type Stato = { attivo: boolean; baseUrl: string; modello: string; haToken: boolean }
 
@@ -47,11 +48,14 @@ export function PannelloProvider({ onChiudi, incorporato = false }: { onChiudi?:
 
   const corpo = (
     <>
-      <p style={{ margin: '0 0 10px', color: 'var(--testo-quieto)', fontSize: 12, lineHeight: 1.5 }}>
-        Vuoto vuol dire <strong>Claude</strong>, con l’accesso che hai già fatto. Indicando un
-        indirizzo, le chat nuove parleranno con quel servizio — deve capire il protocollo di
-        Anthropic. Le chat già aperte non cambiano: hanno il loro processo avviato.
-      </p>
+      <div className="con-aiuto" style={{ margin: '0 0 10px', color: 'var(--testo-quieto)', fontSize: 12 }}>
+        Vuoto vuol dire <strong>Claude</strong>, con l’accesso che hai già fatto.
+        <Aiuto di="servizio dell’API">
+          Vuoto vuol dire <strong>Claude</strong>, con l’accesso che hai già fatto. Indicando un
+          indirizzo, le chat nuove parleranno con quel servizio — deve capire il protocollo di
+          Anthropic. Le chat già aperte non cambiano: hanno il loro processo avviato.
+        </Aiuto>
+      </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
         <label className="etichetta" style={{ flex: '2 1 300px' }}>

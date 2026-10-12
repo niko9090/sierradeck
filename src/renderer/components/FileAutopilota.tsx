@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
 import { leggiDiff, type GruppoChat } from '@shared/file-autopilota'
 import { ModaleAlTelefono } from './ModaleAlTelefono'
+import { Aiuto } from './Aiuto'
 
 /** Ogni quanto si rilegge mentre la linguetta è aperta: git in sola lettura, leggero. */
 const OGNI_MS = 4000
@@ -50,11 +51,14 @@ export function FileAutopilota({ autopilota }: { autopilota: Autopilota }): Reac
 
   return (
     <div className="file-ap">
-      <p className="misura file-ap__cosa">
+      <p className="misura file-ap__cosa con-aiuto">
+        I file cambiati da questo autopilota
+        <Aiuto di="File">
         I file che questo autopilota ha cambiato, per ogni cartella in cui lavora: la cartella del progetto e, se divide il lavoro, il worktree di ogni sua chat.
         Accanto a ogni file: com’è cambiato, le righe aggiunte (+) e tolte (−), e se è già salvato in un commit sul ramo della chat o ancora da salvare.
         Si rilegge da solo ogni {OGNI_MS / 1000} secondi mentre questa linguetta è aperta. Toccando un file vedi le righe tolte e aggiunte.
         Qui si guarda soltanto: non si salva, non si annulla e non si cambia niente. Un file scelto si può mandare al telefono con «📱 Manda al telefono»: arriva quando l’app si collega.
+        </Aiuto>
       </p>
       {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
       {gruppi === undefined ? <p className="diario__vuoto">Leggo i file da git…</p> : null}

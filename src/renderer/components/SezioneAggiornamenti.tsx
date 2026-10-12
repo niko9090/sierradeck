@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { StatoAggiornamento } from '../../main/aggiornamenti'
 import type { Preferenze } from '@shared/preferenze'
+import { Aiuto } from './Aiuto'
 
 /**
  * «Aggiornamenti», in cima alle impostazioni (0.56.0). Nicholas (09/10):
@@ -54,11 +55,13 @@ export function SezioneAggiornamenti({ p, cambia, versione }: { p: Preferenze; c
       )}
       <label className="impostazioni__riga impostazioni__riga--spunta">
         <input type="checkbox" checked={p.scaricaAggiornamentiAutomatico} onChange={(e) => cambia({ scaricaAggiornamentiAutomatico: e.target.checked })} />
-        <span>Scarica gli aggiornamenti da solo</span>
+        <span className="con-aiuto">Scarica gli aggiornamenti da solo
+          {/* Dentro la <label>: senza preventDefault un clic sulla spiegazione cambierebbe la spunta. */}
+          <span onClick={(e) => e.preventDefault()}><Aiuto di="Scarica gli aggiornamenti da solo">
+            Acceso: il computer scarica la versione nuova appena la trova, e ti chiede solo il tocco per installarla. Spento: la trova, te lo dice, e scarica quando premi «Scarica». In tutti e due i casi non installa mai da solo, e prima di installare aspetta che le chat finiscano il turno.
+          </Aiuto></span>
+        </span>
       </label>
-      <div className="impostazioni__nota">
-        Acceso: il computer scarica la versione nuova appena la trova, e ti chiede solo il tocco per installarla. Spento: la trova, te lo dice, e scarica quando premi «Scarica». In tutti e due i casi non installa mai da solo, e prima di installare aspetta che le chat finiscano il turno.
-      </div>
     </>
   )
 }

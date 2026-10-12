@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Aiuto } from './Aiuto'
 import { NomePc } from './NomePc'
 import { useNomiPc } from '../state/nomi-pc'
 import { NOME_PC_MAX, nomeDaMostrare, nomeSceltoValido } from '@shared/nome-pc'
@@ -81,11 +82,12 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
   const fermo = inCorso || occupato
   return (
     <div className="account__scheda account__scheda--largo">
-      <div className="account__scheda-tit">📁 Progetti sul Drive</div>
+      <div className="account__scheda-tit con-aiuto">📁 Progetti sul Drive<Aiuto di="Progetti sul Drive">
+        <p>Le chat viaggiano già. Metti sul Drive anche la cartella di un progetto, e sull’altro PC la trovi con le sue chat dentro.</p>
+        <p>Viaggia quello che git terrebbe (con la storia in <code>.git</code>); restano a casa <code>node_modules</code>, quello che i <code>.gitignore</code> escludono, e i file oltre 100 MB.</p>
+      </Aiuto></div>
       {elenco.progetti.length === 0 ? (
-        <p className="account__nota">
-          Le chat viaggiano già. Metti sul Drive anche la cartella di un progetto, e sull’altro PC la trovi con le sue chat dentro.
-        </p>
+        <p className="account__nota">Nessun progetto sul Drive.</p>
       ) : (
         <ul className="account__progetti">
           {elenco.progetti.map((p) => (
@@ -138,9 +140,6 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
       <p className="account__nota">
         I progetti che arrivano dagli altri PC finiscono in <code>{elenco.pc.cartellaProgetti}</code>.{' '}
         <button className="account__link" disabled={fermo} onClick={() => con(window.gestore.progetti.cartella())}>Cambia ▸</button>
-      </p>
-      <p className="account__nota">
-        Viaggia quello che git terrebbe (con la storia in <code>.git</code>); restano a casa <code>node_modules</code>, quello che i <code>.gitignore</code> escludono, e i file oltre 100 MB.
       </p>
     </div>
   )
@@ -491,8 +490,9 @@ function SezioneSync({ parte }: { parte: 'account' | 'salvataggio' }): React.JSX
         </div>
       ) : pronto && parte === 'account' ? (
         <div className="account__scheda account__scheda--largo">
-          <p className="account__nota">
-            Drive collegato e cassaforte aperta: è tutto pronto. Il salvataggio (Salva ora, Ripristina, il salvataggio automatico, «Fondi con il Drive») e i progetti sul Drive stanno in <b>Progetti → «Salvataggio e arrivo»</b>; gli altri computer in <b>Salute</b>.
+          <p className="account__nota con-aiuto">
+            Drive collegato e cassaforte aperta: è tutto pronto.
+            <Aiuto di="dove sono il salvataggio e gli altri computer">Il salvataggio (Salva ora, Ripristina, il salvataggio automatico, «Fondi con il Drive») e i progetti sul Drive stanno in <b>Progetti → «Salvataggio e arrivo»</b>; gli altri computer in <b>Salute</b>.</Aiuto>
           </p>
           <div className="account__tasti">
             <button className="tasto" onClick={() => window.dispatchEvent(new CustomEvent('sierradeck:apri-pannello', { detail: 'progetti' }))}>Apri Progetti</button>
@@ -526,10 +526,9 @@ function SezioneSync({ parte }: { parte: 'account' | 'salvataggio' }): React.JSX
           </div>
 
           <div className="account__scheda account__scheda--largo">
-            <div className="account__scheda-tit">🧩 Fondi con il Drive</div>
-            <p className="account__nota">
+            <div className="account__scheda-tit con-aiuto">🧩 Fondi con il Drive<Aiuto di="Fondi con il Drive">
               Questo PC ha delle conversazioni, il Drive ne ha altre: qui vedi cosa c’è solo di qua, solo di là e in comune, e scegli voce per voce cosa portare su, cosa giù e cosa lasciare. Non si perde niente.
-            </p>
+            </Aiuto></div>
             {sync.ultimaFusione?.esito === 'interrotta' ? (
               <p className="account__nota" style={{ color: 'var(--ambra)' }}>
                 ⚠ L’ultima fusione ({new Date(sync.ultimaFusione.quando).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })}) è stata interrotta{sync.ultimaFusione.fatti !== undefined && sync.ultimaFusione.totale !== undefined ? ` a ${sync.ultimaFusione.fatti} voci su ${sync.ultimaFusione.totale}` : ''}. Quello fatto è a posto; riaprila per finire, con le scelte di allora già rimesse.
@@ -599,15 +598,14 @@ export function AltriComputer(): React.JSX.Element | null {
   return (
     <div className="account__scheda account__scheda--largo">
       {/* Il nome di questo PC sta in Impostazioni → Computer (0.56.0). */}
-      <h4 style={{ margin: '0 0 4px' }}>Altri computer</h4>
-      <p className="account__nota">
+      <h4 className="con-aiuto" style={{ margin: '0 0 4px' }}>Altri computer<Aiuto di="Altri computer">
         I PC che usano questo stesso Drive, con l’ultimo segno di vita. «Chat aperte» mostra le chat che quel PC ha davanti
         adesso: «Guarda dal vivo» apre qui un riquadro con il suo terminale, e quello che ci scrivi arriva là (serve che sia
         acceso e raggiungibile: stessa rete, o Tailscale su tutti e due; la chiave è la cassaforte, uguale su tutti e due).
         «Azioni…» apre la cassetta di un PC: quello che ci scrivi si esegue solo là, in una sua chat, anche se adesso è
         spento — la consegna quando torna. Un PC compare qui dopo il suo primo salvataggio con la 0.27.0; l’indirizzo per
         guardarlo dal vivo lo pubblica dalla 0.33.0.
-      </p>
+      </Aiuto></h4>
       {pc === undefined ? <p className="account__nota">Leggo il Drive…</p> : null}
       {pc !== undefined && pc.length === 0 ? <p className="account__nota">Nessun altro PC ha ancora lasciato un segno sul Drive.</p> : null}
       {pc !== undefined && pc.length > 0 ? (
@@ -682,13 +680,12 @@ export function NomeQuestoPc(): React.JSX.Element {
   }
   return (
     <div style={{ marginBottom: 12 }}>
-      <h4 style={{ margin: '0 0 4px' }}>Questo PC</h4>
-      <p className="account__nota">
+      <h4 className="con-aiuto" style={{ margin: '0 0 4px' }}>Questo PC<Aiuto di="Questo PC">
         Il nome con cui questo computer compare dappertutto: in alto nell’app del telefono, nel cambio di computer, nei
         riquadri «SU …» degli altri PC, in «Riprendi», in Salute e nella mappa, in «Dove vive ogni chat» e nella pagina
         del telefono. Il nome tecnico della macchina{io !== undefined ? <> (<code>{io.host}</code>)</> : null} resta
         scritto piccolo accanto, per riconoscerla. Lasciato vuoto, si usa il nome tecnico. Al massimo {NOME_PC_MAX} caratteri.
-      </p>
+      </Aiuto></h4>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <input
           className="campo"

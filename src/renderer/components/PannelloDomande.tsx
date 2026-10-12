@@ -4,6 +4,7 @@ import { useLarghezzaFinestra } from '../larghezza-finestra'
 import { quanteAspettano, richiestaRisposta, type Conversazione } from '@shared/domande-conversazioni'
 import { LARGHEZZA_DOMANDE } from '@shared/preferenze'
 import { EtichettaOpzione } from './EtichettaOpzione'
+import { Aiuto } from './Aiuto'
 
 /**
  * Le Domande sul PC: una colonna laterale fissa, accanto alle chat (0.36.0).
@@ -63,6 +64,13 @@ export function spiegaRisposta(c: Conversazione): string {
     return `La chat «${c.titolo}» è ferma su un elenco di scelte (un permesso, «vuoi procedere?»). Tocca un’opzione: la chat sceglie quella, come se avessi usato le frecce e Invio. Oppure scrivile qualcosa: arriva nella chat come se l’avessi scritto lì.`
   }
   return `La chat «${c.titolo}» ha finito il turno e aspetta la tua prossima istruzione. Quello che scrivi arriva nella chat come se l’avessi scritto lì, e la chat riparte.`
+}
+
+/** La riga corta che resta a vista sopra la conversazione; il resto è nel «?» (0.62.0). */
+export function rigaRisposta(c: Conversazione): string {
+  if (c.tipo === 'autopilota') return c.risposta.via === 'dialogo' ? `Parli con l’autopilota «${c.titolo}»: aspetta il tuo via` : `Rispondi all’autopilota «${c.titolo}»`
+  if (c.scelte !== undefined) return `«${c.titolo}» aspetta che tu scelga`
+  return `«${c.titolo}» ha finito il turno e aspetta`
 }
 
 /**
@@ -231,21 +239,22 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
       />
       <div className="domande-lato__testa">
         <span className="serigrafia">Domande</span>
+        <Aiuto di="Domande">
+          <p>Tutto quello che aspetta una tua risposta, come conversazioni: le chat ferme su una domanda o un permesso, le chat che hanno finito il turno, gli autopiloti (le domande iniziali della preparazione, una domanda mentre lavorano, il «dammi il via», il «Pubblico adesso?»). Resta aperta accanto alle chat; è la stessa cosa che vedi nell’app e nella pagina del telefono.</p>
+          <p>Quando una chat si ferma su una domanda o un permesso, o un autopilota ti chiede qualcosa, compare qui con il modo di rispondere; il numero sul tasto «Domande» dice quante aspettano.</p>
+        </Aiuto>
         <span className="misura">
           {conversazioni === undefined ? 'leggo…' : chiedono > 0 ? `${chiedono} aspettano una tua risposta` : 'nessuna domanda in attesa'}
         </span>
         <span style={{ flex: 1 }} />
         <button className="tasto tasto--mini" onClick={onChiudi} title="Chiude la colonna. Si riapre dal tasto «Domande» della console.">×</button>
       </div>
-      <p className="misura domande-lato__cosa">
-        Tutto quello che aspetta una tua risposta, come conversazioni: le chat ferme su una domanda o un permesso, le chat che hanno finito il turno, gli autopiloti (le domande iniziali della preparazione, una domanda mentre lavorano, il «dammi il via», il «Pubblico adesso?»). Resta aperta accanto alle chat; è la stessa cosa che vedi nell’app e nella pagina del telefono.
-      </p>
 
       {elenco.length === 0 ? (
         <p className="misura domande-lato__vuoto">
           {conversazioni === undefined
             ? 'Leggo dal programma…'
-            : 'Niente da rispondere adesso. Quando una chat si ferma su una domanda o un permesso, o un autopilota ti chiede qualcosa, compare qui con il modo di rispondere; il numero sul tasto «Domande» dice quante aspettano.'}
+            : 'Niente da rispondere adesso.'}
         </p>
       ) : (
         <>
@@ -279,10 +288,12 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
             // Le domande di un autopilota non stanno qui (0.38.0, Nicholas):
             // stanno nella linguetta «Domande» della sua scheda, una per volta.
             <section className="domande-lato__chat domande-lato__rimando" aria-label={`${aperta.titolo} ti aspetta`}>
-              <p className="misura">
+              <p className="misura con-aiuto">
                 «{aperta.titolo}» ti aspetta con {aperta.quante === 1 || aperta.quante === undefined ? 'una domanda' : `${aperta.quante} domande`}.
-                Le domande di un autopilota si rispondono nella sua scheda, accanto alla sua chat: linguetta «Domande», una per volta,
-                con le opzioni da toccare. Dopo la risposta, domanda e risposta restano nella chat con lui.
+                <Aiuto di="domande di un autopilota">
+                  Le domande di un autopilota si rispondono nella sua scheda, accanto alla sua chat: linguetta «Domande», una per volta,
+                  con le opzioni da toccare. Dopo la risposta, domanda e risposta restano nella chat con lui.
+                </Aiuto>
               </p>
               <button className="tasto tasto--primario" onClick={() => apriDomandeAutopilota(aperta.autopilota!)}>
                 Apri la sua linguetta «Domande» →
@@ -290,7 +301,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
             </section>
           ) : aperta !== undefined ? (
             <section className="chatap domande-lato__chat" aria-label={`Conversazione con ${aperta.titolo}`}>
-              <div className="misura domande-lato__chi">{spiegaRisposta(aperta)}</div>
+              <div className="misura domande-lato__chi con-aiuto">{rigaRisposta(aperta)} <Aiuto di="come rispondere">{spiegaRisposta(aperta)}</Aiuto></div>
               <div className="chatap__flusso" ref={flusso} aria-live="polite">
                 {aperta.messaggi.map((m, i) => (
                   m.da === 'nota' ? (
