@@ -5,6 +5,7 @@ import { proponiNuovaChat, type PropostaChat } from '../nuova-chat'
 import { ModaleNuovaChat } from './ModaleNuovaChat'
 import { azioniDiFinestra } from '../azioni-finestra'
 import { MenuWorkspace } from './MenuWorkspace'
+import { SuAltriPc } from './SuAltriPc'
 import { serveIlMenu } from '../menu-workspace'
 import { workspaceDaAzione, type Azione } from '@shared/scorciatoie'
 import { azioneDelTasto, impostaScorciatoie } from '../scorciatoie-vive'
@@ -415,6 +416,7 @@ export function Console({
                 : { testo: `Proteggi con il PIN tutto «${menuPinWs.nome}»`, azione: () => { void window.gestore.pin.proteggiWorkspace(menuPinWs.nome, true); setMenuPinWs(undefined) }, spenta: !pinWs.attivo }
             ]} />
           ) : null}
+          {!serveIlMenu(nomiWs) ? <SuAltriPc /> : null}
           {erroreWs !== undefined ? (
             <span className="misura" style={{ color: 'var(--ambra)' }} title={erroreWs}>⚠</span>
           ) : null}

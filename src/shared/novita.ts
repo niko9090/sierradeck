@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.67.0',
+    righe: [
+      '**Ogni progetto ha il suo workspace.** Sul PC dove vive si crea da solo, con le sue chat, senza cambiarti lo schermo.',
+      '**«Su altri PC» sempre nella barra dei workspace.** I workspace degli altri PC si aprono qui con un clic («Apri»): le chat restano là e le guardi e scrivi da qui.',
+      '**In «Progetti» le chat di ogni progetto.** Premi il nome del progetto: compaiono le sue chat, con «Apri» o «Apri su <PC>». Anche sul telefono e sulla pagina.'
+    ]
+  },
+  {
     versione: '0.66.4',
     righe: [
       '**L’app Android 2.66.1 si installa di nuovo sopra quella che hai.** Le app 2.65.0 e 2.66.0 erano firmate con la chiave di prova invece che con quella di Ferrari Consulenze, e il telefono le rifiutava. Da ora la pubblicazione allega solo l’app firmata, e si ferma se la firma non è quella giusta.'

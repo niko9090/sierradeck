@@ -2026,6 +2026,19 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       // elenca nel suo battito si apre qui come riquadro dal vivo verso quel
       // PC, come dalla sezione «Altri computer» della finestra, anche se qui
       // la sua cartella e la sua conversazione non ci sono.
+      // Dal pannello «Progetti» (0.67.0): «Apri su <PC>» dice il PC dove la chat
+      // vive (la sua casa), anche se là adesso non è aperta.
+      const pcChiesto = stringa(r.corpo, 'pc')
+      if ((r.corpo as { dalVivo?: unknown } | undefined)?.dalVivo === true && pcChiesto !== '' && deps.apriRemota !== undefined) {
+        const battiti = deps.pc !== undefined ? await deps.pc().catch(() => [] as BattitoPcTelefono[]) : []
+        const b = battiti.find((x) => x.pcId === pcChiesto)
+        if (b !== undefined) {
+          const nome = nomeDaMostrare(b)
+          const e = await deps.apriRemota(cartella, sessione, stringa(r.corpo, 'titolo').slice(0, 200), { id: b.pcId, nome })
+          if (!e.ok) return { stato: 409, corpo: { errore: `Il riquadro dal vivo verso «${nome}» non si è aperto: ${e.errore ?? 'la finestra del computer non ha detto perché'}.` } }
+          return OK({ fatto: true, dalVivo: nome })
+        }
+      }
       if ((r.corpo as { dalVivo?: unknown } | undefined)?.dalVivo === true && deps.apriRemota !== undefined && deps.pc !== undefined) {
         const battiti = await deps.pc().catch(() => [] as BattitoPcTelefono[])
         const b = battiti.find((x) => x.chat.some((c) => c.sessione === sessione))

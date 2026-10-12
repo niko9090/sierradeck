@@ -4006,6 +4006,7 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .ws-menu__voce--chiama .ws-menu__voce-nome { color: var(--ambra); }
 .ws-menu__spunta { color: var(--accento); font-size: var(--t1); }
 .ws-menu__voce-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-menu__voce--altrove { grid-template-columns: 1fr auto auto auto; opacity: .9; }
 .ws-menu__conta { font-size: var(--t0); color: var(--testo-quieto); white-space: nowrap; }
 .ws-menu__vuoto { padding: var(--s2); font-size: var(--t1); color: var(--testo-quieto); }
 .ws-menu__piede { display: flex; justify-content: flex-end; gap: var(--s2); padding-top: var(--s1); border-top: 1px solid var(--incisione); }

@@ -26,7 +26,7 @@ export function annotaEliminato(dati: string, nome: string, adesso = new Date().
   try { scriviJsonAtomico(f, v.slice(-500), 'workspace') } catch { /* solo un aiuto */ }
 }
 
-function leggiEliminati(dati: string): Eliminato[] {
+export function leggiEliminati(dati: string): Eliminato[] {
   try { const v = JSON.parse(readFileSync(join(dati, FILE_ELIMINATI), 'utf8')) as unknown; return Array.isArray(v) ? v.filter((x): x is Eliminato => typeof (x as Eliminato)?.nome === 'string' && typeof (x as Eliminato)?.quando === 'string') : [] } catch { return [] }
 }
 

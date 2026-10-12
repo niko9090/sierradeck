@@ -3866,6 +3866,12 @@ window.leggiPannelloDrive = async () => {
     if (r && r.errore) { pdDati = null; pdErrore = r.errore } else { pdDati = r; pdErrore = '' }
   } catch (e) { pdDati = null; pdErrore = (e && e.message) || String(e) }
 }
+// Apre una chat dal pannello «Progetti» (0.67.0): sul computer, qui o dal vivo sul PC dove vive.
+window.pdApriChat = async (sessione, cwd, pc, titolo) => {
+  try { await chiedi('/api/sessioni/riprendi', pc ? { cartella: cwd, sessione: sessione, dalVivo: true, pc: pc, titolo: titolo } : { cartella: cwd, sessione: sessione }); notaGlobale = 'Aperta sul computer: la trovi fra le sue chat.' }
+  catch (e) { notaGlobale = 'Non è andata: ' + ((e && e.message) || e) }
+  aggiorna()
+}
 window.pdCambia = (cosa, valore) => { if (cosa === 'vista') pdVista = valore; else pdFiltro = valore; pdDaConfermare = ''; pannello(ultimoStato) }
 window.pdAzione = async (azione, progetto, conferma, id) => {
   const chiave = azione + ':' + progetto + ':' + (id || '')
@@ -4031,6 +4037,15 @@ function pannelloDriveHtml() {
       h += '</div>'
       for (const a of r.azioni) {
         if (pdDaConfermare === a.id + ':' + r.id + ':') h += '<div class="sotto" style="margin-top:6px">' + esc(a.testo) + '</div><div class="riga"><button class="primario" onclick="pdAzione(\\'' + a.id + '\\', \\'' + escJs(r.id) + '\\', true)">' + esc(a.conferma || a.titolo) + '</button><button onclick="pdCambia(\\'filtro\\', pdFiltro)">Annulla</button></div>'
+      }
+      // Le chat del progetto (0.67.0): «Apri» qui, o «Apri su <PC>» dal vivo dove vive.
+      const sue = (pdDati.chat || []).filter((c) => c.progetto && (r.ids || [r.id]).indexOf(c.progetto) >= 0 && !c.senzaNome).sort((a, b) => String(b.ultimoUso || '').localeCompare(String(a.ultimoUso || '')))
+      for (const c of sue.slice(0, 12)) {
+        const res = c.residente
+        const qui = !res || res.qui
+        const cwd = qui ? (c.cwd || '') : (((r.cartelle || []).find((x) => x.pc === res.pc) || {}).percorso || c.cwd || '')
+        h += '<div class="sotto" style="margin-top:4px">' + pdStato(c.stato) + ' ' + esc(c.titolo) + '</div>'
+        if (cwd) h += '<div class="riga"><button onclick="pdApriChat(\\'' + escJs(c.sessione) + '\\', \\'' + escJs(cwd) + '\\', \\'' + escJs(qui ? '' : res.pc) + '\\', \\'' + escJs(c.titolo) + '\\')">' + (qui ? 'Apri' : 'Apri su ' + esc(res.nome)) + '</button></div>'
       }
       // Solo le tre azioni (0.65.1): il residente si vede, ma non si sceglie da qui.
       h += '</div>'

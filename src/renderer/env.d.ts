@@ -456,6 +456,7 @@ declare global {
         dove: () => Promise<Record<string, string>>
         remote: () => Promise<Record<string, number>>
         altriPc: () => Promise<{ pc: string; nome: string; workspace: string[] }[]>
+        apriDaAltroPc: (pc: string, nome: string) => Promise<{ ok: boolean; messaggio: string }>
         crea: (nome: string) => Promise<StatoWorkspace>
         elimina: (nome: string) => Promise<StatoWorkspace>
         rinomina: (vecchio: string, nuovo: string) => Promise<StatoWorkspace>

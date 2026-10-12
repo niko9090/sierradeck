@@ -313,6 +313,19 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun sessioni(senzaNome: Boolean = false): Sessioni =
         json.decodeFromString(corpoTesto("/api/sessioni", if (senzaNome) oggetto { put("senzaNome", true) } else null))
 
+    /**
+     * Apre una chat dal pannello «Progetti» (PC 0.67.0): sul computer, qui con
+     * la sua storia, o dal vivo sul PC dove vive (`pc`). Risponde come le azioni
+     * del pannello, così l'app lo dice con la stessa nota.
+     */
+    suspend fun apriChatProgetto(cartella: String, sessione: String, pc: String?, titolo: String): EsitoAzioneDrive {
+        corpoTesto("/api/sessioni/riprendi", oggetto {
+            put("cartella", cartella); put("sessione", sessione); put("titolo", titolo)
+            if (pc != null) { put("dalVivo", true); put("pc", pc) }
+        })
+        return EsitoAzioneDrive(ok = true, messaggio = "Aperta sul computer: la trovi fra le sue chat.")
+    }
+
     suspend fun riprendiSessione(cartella: String, sessione: String): Fatto =
         json.decodeFromString(corpoTesto("/api/sessioni/riprendi", oggetto {
             put("cartella", cartella); put("sessione", sessione)

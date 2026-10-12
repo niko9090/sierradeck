@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { filtraChat, filtraProgetti, testiCambioResidente, type AzioneProgetto, type FiltroPannello, type Pannello, type RigaChat, type RigaProgetto } from '@shared/pannello-drive'
+import { chatDelProgetto, comeAprireChat, filtraChat, filtraProgetti, testiCambioResidente, type AzioneProgetto, type FiltroPannello, type Pannello, type RigaChat, type RigaProgetto } from '@shared/pannello-drive'
 import { ModaleSposta } from './ModaleSposta'
 import { ModaleRiordina } from './ModaleRiordina'
 import { ContenutoDrive } from './ContenutoDrive'
 import { SalvataggioDrive } from './PannelloAccount'
 import { Aiuto } from './Aiuto'
+import { useLayoutStore } from '../state/layout'
 import { SpazioDrive } from './SpazioDrive'
 import { TraslocoAvanzamento } from './TraslocoAvanzamento'
 import { voceMenu } from '@shared/menu-principale'
@@ -55,6 +56,17 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
   const [quante, setQuante] = useState(PASSO)
   const [cambio, setCambio] = useState<Cambio | undefined>(undefined)
   const [msg, setMsg] = useState<string | undefined>(undefined)
+  /** I progetti aperti nell'elenco: le loro chat in vista (0.67.0). */
+  const [aperti, setAperto] = useState<Set<string>>(new Set())
+  /** Apre una chat dal pannello: qui con la sua storia, o dal vivo sul PC dove vive (0.67.0). */
+  const apriChat = (c: RigaChat, come: NonNullable<ReturnType<typeof comeAprireChat>>): void => {
+    const stato = useLayoutStore.getState()
+    const gia = Object.values(stato.panes).find((p) => p.sessionUuid === c.sessione)
+    if (gia !== undefined) { if (gia.ibernata === true) stato.sveglia(gia.id); onChiudi(); return }
+    if (come.tipo === 'qui') stato.addPane(come.cwd, c.titolo, undefined, { sessionUuid: c.sessione })
+    else stato.addPane(come.cwd, c.titolo, undefined, { sessionUuid: c.sessione, remoto: { pcId: come.pc, pcNome: come.nome, cwd: come.cwd, sessione: c.sessione } })
+    onChiudi()
+  }
   const [occupato, setOccupato] = useState(false)
   const [sposta, setSposta] = useState<string | undefined>(undefined)
   const [riordina, setRiordina] = useState(false)
@@ -318,25 +330,50 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
             </div>
           )) : null}
           {d !== undefined && vista === 'progetti' ? progetti.slice(0, quante).map((r) => {
-            const sessioni = d.chat.filter((c) => c.progetto === r.id).map((c) => c.sessione)
+            const sessioni = d.chat.filter((c) => c.progetto !== undefined && r.ids.includes(c.progetto)).map((c) => c.sessione)
             const qui = r.cartelle.find((c) => c.pc === d.io.id)
             return (
               <div key={r.id} className="dove__riga" style={{ alignItems: 'flex-start', ...(r.problemi.length > 0 ? { background: 'rgba(255,170,0,0.06)' } : {}) }}>
                 <span className="riordina__testo" style={{ flex: 1 }}>
-                  <b>{r.nome}</b> {pallino(r.stato)}
-                  <span className="account__nota" style={{ display: 'block' }}>
-                    Residente: {r.residente === undefined ? <i>nessuno</i> : <b>{r.residente.nome}{r.residente.qui ? ' (questo PC)' : ''}</b>}
-                    {r.residente !== undefined ? (r.voluto ? ' (scelto per il progetto: gli altri PC lo tengono solo cloud)' : ' (dalla maggior parte delle sue chat: non ancora scelto)') : null}
-                    {' · '}{r.chat} chat{r.chatSenzaNome > 0 ? ` (di cui ${r.chatSenzaNome} senza nome)` : ''} · cartella su: {r.cartelle.length === 0 ? 'nessun PC' : [...new Set(r.cartelle.map((c) => c.nome))].join(', ')}
-                    {' · '}qui sul disco: {r.cartellaQui ? (r.cartellaTrovata !== undefined ? `sì, ${r.cartellaTrovata} (trovata per nome, non ancora registrata)` : 'sì') : 'no'}{' · '}ultimo uso: {quando(r.ultimoUso)}
-                    {r.ids.length > 1 || r.workspace.length > 1 ? (
-                      <span style={{ display: 'block' }}>
-                        Stesso nome, stesso progetto: {r.ids.length > 1 ? `${r.ids.length} voci nel registro del Drive` : 'una voce nel registro'}
-                        {r.cartelle.filter((c) => c.pc === d.io.id).length > 1 ? `, ${r.cartelle.filter((c) => c.pc === d.io.id).length} cartelle qui (${r.cartelle.filter((c) => c.pc === d.io.id).map((c) => c.percorso).join(', ')})` : ''}
-                        {r.workspace.length > 1 ? `, workspace ${r.workspace.map((w) => `«${w}»`).join(', ')}` : ''}: qui li vedi come uno solo; «{r.residente?.qui === true ? 'Unisci qui le copie' : 'Rendi residente qui'}» li unisce davvero, dopo il riassunto.
-                      </span>
-                    ) : null}
+                  {/* Il nome apre e chiude l'elenco delle sue chat (0.67.0). */}
+                  <span role="button" tabIndex={0} style={{ cursor: 'pointer', alignSelf: 'flex-start', display: 'inline-flex', gap: 6, alignItems: 'baseline' }}
+                    onClick={() => setAperto((x) => { const n = new Set(x); if (n.has(r.id)) n.delete(r.id); else n.add(r.id); return n })}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAperto((x) => { const n = new Set(x); if (n.has(r.id)) n.delete(r.id); else n.add(r.id); return n }) } }}
+                    aria-expanded={aperti.has(r.id)} title={aperti.has(r.id) ? 'Chiudi l’elenco delle chat' : 'Le chat del progetto'}>
+                    <span style={{ color: 'var(--testo-quieto)', width: 10 }}>{aperti.has(r.id) ? '▾' : '▸'}</span><b>{r.nome}</b> {pallino(r.stato)}
                   </span>
+                  <span className="account__nota" style={{ display: 'block' }}>
+                    {r.residente === undefined ? <i>senza casa</i> : <>vive su <b>{r.residente.qui ? 'questo PC' : r.residente.nome}</b></>}
+                    {' · '}{chatDelProgetto(d.chat, r).length} chat{' · '}usato {quando(r.ultimoUso)}
+                    <Aiuto di={r.nome}>
+                      Residente: {r.residente === undefined ? 'nessuno' : `${r.residente.nome}${r.residente.qui ? ' (questo PC)' : ''}`}
+                      {r.residente !== undefined ? (r.voluto ? ' (scelto per il progetto: gli altri PC lo tengono solo cloud)' : ' (dalla maggior parte delle sue chat: non ancora scelto)') : ''}.
+                      {' '}{r.chat} chat{r.chatSenzaNome > 0 ? ` (di cui ${r.chatSenzaNome} senza nome, non elencate)` : ''}. Cartella su: {r.cartelle.length === 0 ? 'nessun PC' : [...new Set(r.cartelle.map((c) => c.nome))].join(', ')}.
+                      {' '}Qui sul disco: {r.cartellaQui ? (r.cartellaTrovata !== undefined ? `sì, ${r.cartellaTrovata} (trovata per nome)` : 'sì') : 'no'}.
+                      {r.ids.length > 1 || r.workspace.length > 1 ? ` Stesso nome, stesso progetto: ${r.ids.length} voci nel registro${r.workspace.length > 1 ? `, workspace ${r.workspace.map((w) => `«${w}»`).join(', ')}` : ''}; «Lavora su questo PC» li unisce.` : ''}
+                    </Aiuto>
+                  </span>
+                  {aperti.has(r.id) ? (
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: 2, margin: '4px 0 2px 22px' }}>
+                      {chatDelProgetto(d.chat, r).length === 0 ? <span className="account__nota">Nessuna chat con nome.</span> : null}
+                      {chatDelProgetto(d.chat, r).map((c) => {
+                        const come = comeAprireChat(c, r)
+                        return (
+                          <span key={c.sessione} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            {pallino(c.stato)}
+                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.titolo}>{c.titolo}</span>
+                            <span className="account__nota">{quando(c.ultimoUso)}</span>
+                            {come !== undefined ? (
+                              <button className={`tasto tasto--mini${come.tipo === 'altrove' ? ' segno-remoto' : ' tasto--acceso'}`} onClick={() => apriChat(c, come)}
+                                title={come.tipo === 'altrove' ? `Si apre dal vivo su ${come.nome}, dove vive: ci scrivi da qui, gira là` : 'Si apre qui, con la sua storia'}>
+                                {come.tipo === 'altrove' ? `Apri su ${come.nome}` : 'Apri'}
+                              </button>
+                            ) : null}
+                          </span>
+                        )
+                      })}
+                    </span>
+                  ) : null}
                   {problemi(r)}
                   {(() => {
                     const st = d.residenza?.find((x) => x.progetto === r.id)

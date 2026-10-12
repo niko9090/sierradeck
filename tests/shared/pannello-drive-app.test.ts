@@ -98,6 +98,8 @@ describe('il pannello del Drive per la pagina e per l’app', () => {
       return pannelloDriveHtml()`) as (d: unknown) => string
     const h = disegna(atteso)
     for (const t of ['Gestionale', 'Conferma e togli da questo PC', 'Ripristina', 'Lavora su questo PC', 'Togli da questo PC', 'va aggiornato alla 0.58', 'Piano di allineamento']) expect(h).toContain(t)
+    // 0.67.0: le chat del progetto sotto la sua riga, con «Apri su <PC>» dove vivono altrove.
+    for (const t of ['Fatture', 'Apri su PORTATILE-ESEMPIO', 'pdApriChat(']) expect(h).toContain(t)
     // 0.60.0: un progetto solo per nome, il riassunto di «Rendi residente» con la conferma, le unioni annullabili.
     for (const t of ['Stesso nome, stesso progetto: 2 voci nel registro', 'Conferma e unisci', 'Annulla l’unione', '(di cui 1 senza nome)', '«gestionale (2)» entra in «Gestionale»']) expect(h).toContain(t)
     // 0.65.0: il trasloco passo per passo (fermo, con il motivo e «Riprendi») e lo spazio sul Drive.

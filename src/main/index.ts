@@ -91,7 +91,8 @@ import { creaLatoResidente, creaRimozione, progettiInRecupero, type LatoResident
 import { improntaPc } from './casa-firma'
 import { creaSpazioDrive, type SpazioDrive, type StatoSpazio } from './spazio-drive'
 import { creaTrasloco, type TraslocoApi } from './trasloco'
-import { cartellaDaNomeWorkspace, cartellaVietataPerChat, suAltriPc } from '@shared/workspace-riparazioni'
+import { cartellaDaNomeWorkspace, cartellaVietataPerChat, suAltriPc, workspaceDaAltroPc, workspaceDaCreare } from '@shared/workspace-riparazioni'
+import { leggiEliminati } from './workspace-ritrova'
 import { annotaEliminato, copieDellaLista, riparaListaAllAvvio, type EsitoAvvio } from './workspace-ritrova'
 import { cartellaDiProva, PREFISSO_CARTELLA_PROVA } from '@shared/chat-di-prova'
 import type { Trasloco } from '@shared/trasloco'
@@ -2611,7 +2612,36 @@ if (!app.requestSingleInstanceLock()) {
       app.on('before-quit', () => { clearInterval(timerOspite) })
       ipcMain.handle('casa:dove', () => ospite.dove())
       // La casa memorizzata di una chat (0.67.0): il riquadro remoto si toglie da solo solo se è il PC che guarda.
-      ipcMain.handle('casa:di', (_e, s: unknown) => (typeof s === 'string' ? unaCasa.casaDi(s)?.pc : undefined))
+      ipcMain.handle('casa:pcDi', (_e, s: unknown) => (typeof s === 'string' ? unaCasa.casaDi(s)?.pc : undefined))
+      // «Su altri PC» → «Apri» (0.67.0): il workspace di quel PC, qui con un riquadro
+      // dal vivo per ogni sua chat. Le chat restano là; la finestra che chiede ci va.
+      ipcMain.handle('workspace:apriDaAltroPc', async (e, pcId: unknown, nome: unknown) => {
+        if (typeof pcId !== 'string' || typeof nome !== 'string' || nome === '') return { ok: false, messaggio: 'richiesta non valida' }
+        const store = workspaceStore
+        if (store === undefined) return { ok: false, messaggio: 'non pronto' }
+        const pcNome = postino.altrui().find((b) => b.pcId === pcId)?.nome ?? pcId.slice(0, 8)
+        let chat: { workspace: string; sessione?: string; cwd: string; titolo: string }[] = []
+        try {
+          const st = await remoto.chiama(pcId, '/api/stato') as { workspace?: { chat?: unknown } }
+          chat = Array.isArray(st.workspace?.chat) ? (st.workspace?.chat as typeof chat) : []
+        } catch (err) {
+          return { ok: false, messaggio: `${pcNome} non risponde (${err instanceof Error ? err.message : String(err)}): riprova quando è acceso.` }
+        }
+        const ws = workspaceDaAltroPc(nome, { id: pcId, nome: pcNome }, chat)
+        const prima = store.leggi()
+        let dopo = aggiungiWorkspace(prima, nome)
+        dopo = { ...dopo, workspace: dopo.workspace.map((w) => {
+          if (w.nome !== nome) return w
+          let layout: LayoutSalvato = w.perSlot[1] ?? { root: undefined, panes: [] }
+          for (const pane of ws.panes) layout = aggiungiPaneA(layout, { ...pane, ...(pane.remoto !== undefined ? { remoto: { ...pane.remoto, dal: new Date().toISOString() } } : {}) })
+          return { ...w, perSlot: { ...w.perSlot, 1: layout } }
+        }) }
+        if (dopo !== prima && !store.scrivi(dopo)) return { ok: false, messaggio: 'la lista dei workspace non si è scritta' }
+        registro.info(`[workspace] «${nome}» di ${pcNome} aperto qui: ${ws.panes.length} chat dal vivo, che restano su ${pcNome}`)
+        for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(dopo), precedente: dopo.attivo })
+        e.sender.send('client:workspace', nome)
+        return { ok: true, messaggio: `«${nome}» aperto: ${ws.panes.length} chat dal vivo su ${pcNome}.` }
+      })
       // «Su altri PC» (0.65.1): i workspace dei battiti degli altri PC che qui non ci sono.
       ipcMain.handle('workspace:altriPc', () => suAltriPc(
         workspaceStore?.leggi().workspace.map((w) => w.nome) ?? [],
@@ -3248,6 +3278,45 @@ if (!app.requestSingleInstanceLock()) {
           break
         }
       }
+      /**
+       * **Ogni progetto ha il suo workspace** (0.67.0, «workspace = progetto»).
+       * Sul PC residente, un progetto senza un workspace con il suo nome lo
+       * riceve, con le sue chat con nome che non stanno già in un altro
+       * workspace. Si aggiunge senza cambiare lo schermo; mai uno eliminato da
+       * Nicholas. Il caso «fionda apl» del 12/10: 5 chat, nessun workspace, e
+       * dalla barra non lo si trovava su nessun PC.
+       */
+      const workspacePerIProgetti = async (): Promise<string[]> => {
+        const store = workspaceStore
+        if (store === undefined) return []
+        const p = await leggiPannello()
+        const progetti = p.progetti.map((r) => ({
+          nome: r.nome,
+          residenteQui: r.residente?.qui === true,
+          chat: p.chat
+            .filter((c) => c.progetto !== undefined && r.ids.includes(c.progetto) && c.copiaQui && c.senzaNome !== true && c.cwd !== undefined)
+            .map((c) => ({ sessione: c.sessione, titolo: c.titolo, cwd: c.cwd as string }))
+        }))
+        const prima = store.leggi()
+        const nuovi = workspaceDaCreare(progetti, prima, leggiEliminati(dati).map((e) => e.nome))
+        if (nuovi.length === 0) return []
+        let dopo = prima
+        for (const n of nuovi) {
+          dopo = aggiungiWorkspace(dopo, n.nome)
+          dopo = { ...dopo, workspace: dopo.workspace.map((w) => {
+            if (w.nome !== n.nome) return w
+            let layout: LayoutSalvato = { root: undefined, panes: [] }
+            for (const pane of n.panes) layout = aggiungiPaneA(layout, pane)
+            return { ...w, perSlot: { ...w.perSlot, 1: layout } }
+          }) }
+        }
+        mettiDaParteArchivio(store.percorso, 'workspaces.prima-dei-progetti.json')
+        if (!store.scrivi(dopo)) { registro.info('[workspace] workspace dei progetti non scritti: la lista resta com’era'); return [] }
+        for (const n of nuovi) registro.info(`[workspace] «${n.nome}»: il progetto vive qui e non aveva un workspace — creato con ${n.panes.length} chat, senza cambiare lo schermo`)
+        for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(dopo), precedente: dopo.attivo })
+        return nuovi.map((n) => n.nome)
+      }
+      ipcMain.handle('workspace:perIProgetti', () => workspacePerIProgetti())
       /** L'id del gruppo di una cartella: registrata o per nome. */
       const gruppoDiCartellaQui = (cwd: string, gruppi: ReturnType<typeof raggruppaProgetti>): string | undefined => gruppoDiCartella(cwd, gruppi)?.gruppo.id
       let ultimoPiano: PianoAllineamento | undefined
@@ -3280,12 +3349,15 @@ if (!app.requestSingleInstanceLock()) {
           await ospite.giro()
           // L'allineamento ai residenti dei progetti (0.58.0, tappa 2).
           await allineaQui()
+          // Ogni progetto ha il suo workspace (0.67.0), ogni dieci minuti.
+          if (Date.now() - ultimoGiroWorkspaceProgetti > 10 * 60_000) { ultimoGiroWorkspaceProgetti = Date.now(); await workspacePerIProgetti() }
         } catch (err) {
           registro.info(`[casa] giro non riuscito: ${String(err)}`)
         } finally {
           inGiroCasa = false
         }
       }
+      let ultimoGiroWorkspaceProgetti = 0
       const timerCasa = setInterval(() => { void giroCasa() }, 2 * 60_000)
       const primoCasa = setTimeout(() => { void giroCasa() }, 45_000)
       app.on('before-quit', () => { clearInterval(timerCasa); clearTimeout(primoCasa) })

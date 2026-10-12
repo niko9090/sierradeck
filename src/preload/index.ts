@@ -556,7 +556,7 @@ contextBridge.exposeInMainWorld('gestore', {
     // L'ospite di ogni chat (0.52.0).
     dove: (): Promise<{ io: { id: string; nome: string }; pc: { id: string; nome: string }[]; gruppi: import('@shared/ospite-chat').GruppoDove[]; traslochi: import('@shared/una-casa').RegistroRiordino[] }> => ipcRenderer.invoke('casa:dove'),
     /** La casa memorizzata di una chat: l'id del PC (0.67.0). */
-    casaDi: (sessione: string): Promise<string | undefined> => ipcRenderer.invoke('casa:di', sessione),
+    casaDi: (sessione: string): Promise<string | undefined> => ipcRenderer.invoke('casa:pcDi', sessione),
     // Il pannello delle chat e dei progetti del Drive (0.58.0).
     pannello: (): Promise<import('@shared/pannello-drive').Pannello> => ipcRenderer.invoke('casa:pannello'),
     // Le azioni del pannello e dell'elenco dei progetti (0.58.0, tappa 4).
@@ -1065,6 +1065,8 @@ contextBridge.exposeInMainWorld('gestore', {
     remote: (): Promise<Record<string, number>> => ipcRenderer.invoke('workspace:remote'),
     /** I workspace degli altri PC che qui non ci sono (0.65.1), PC per PC. */
     altriPc: (): Promise<{ pc: string; nome: string; workspace: string[] }[]> => ipcRenderer.invoke('workspace:altriPc'),
+    /** Apre qui un workspace di un altro PC, con le sue chat dal vivo (0.67.0). */
+    apriDaAltroPc: (pc: string, nome: string): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('workspace:apriDaAltroPc', pc, nome),
     crea: (nome: string): Promise<StatoWorkspace> => ipcRenderer.invoke('workspace:crea', nome),
     elimina: (nome: string): Promise<StatoWorkspace> =>
       ipcRenderer.invoke('workspace:elimina', nome),

@@ -60,8 +60,17 @@ import kotlinx.serialization.Serializable
     val problemi: List<ProblemaDrive> = emptyList(), val azioni: List<AzioneProgettoDrive> = emptyList(),
     // 0.60.0: stesso nome = stesso progetto.
     val ids: List<String> = emptyList(), val cartellaTrovata: String? = null, val workspace: List<String> = emptyList(),
-    val daUnire: Int = 0, val chatSenzaNome: Int = 0
+    val daUnire: Int = 0, val chatSenzaNome: Int = 0,
+    /** PC 0.58: dove ha la cartella; serve ad aprire le sue chat sul PC dove vivono (0.67.0). */
+    val cartelle: List<CartellaProgettoDrive> = emptyList()
 )
+@Serializable data class CartellaProgettoDrive(val pc: String = "", val nome: String = "", val percorso: String = "")
+
+/** Come si apre una chat dal pannello: qui, o dal vivo sul PC dove vive (PC 0.67.0). */
+sealed class AperturaChat {
+    data class Qui(val cwd: String) : AperturaChat()
+    data class Altrove(val pc: String, val nome: String, val cwd: String) : AperturaChat()
+}
 @Serializable data class RiassuntoResidenzaDrive(val destinazione: String = "", val nuova: Boolean = false, val righe: List<String> = emptyList())
 @Serializable data class StatoResidenzaDrive(
     val progetto: String = "", val nome: String = "", val fase: String = "", val messaggio: String = "",
@@ -88,6 +97,20 @@ import kotlinx.serialization.Serializable
 @Serializable data class EsitoAzioneDrive(val ok: Boolean = false, val messaggio: String = "")
 
 object PannelloDriveRegole {
+    /** Le chat di un progetto (tutti i suoi id), con nome, le più recenti prima — come `chatDelProgetto` del PC. */
+    fun chatDelProgetto(p: PannelloDrive, r: RigaProgettoDrive): List<RigaChatDrive> {
+        val ids = r.ids.ifEmpty { listOf(r.id) }
+        return p.chat.filter { it.progetto != null && it.progetto in ids && !it.senzaNome }.sortedByDescending { it.ultimoUso ?: "" }
+    }
+
+    /** Come `comeAprireChat` del PC. */
+    fun comeAprire(c: RigaChatDrive, r: RigaProgettoDrive?): AperturaChat? {
+        val res = c.residente
+        if (res == null || res.qui) return if (c.cwd != null && (res != null || c.copiaQui)) AperturaChat.Qui(c.cwd) else null
+        val cwd = r?.cartelle?.firstOrNull { it.pc == res.pc }?.percorso ?: c.cwd ?: return null
+        return AperturaChat.Altrove(res.pc, res.nome, cwd)
+    }
+
     /** Gli stessi filtri del PC (filtraChat/filtraProgetti). */
     fun progetti(p: PannelloDrive, filtro: String): List<RigaProgettoDrive> = p.progetti.filter {
         when (filtro) {
@@ -268,6 +291,18 @@ fun SezionePannelloDrive(api: Api) {
                 Text("${r.nome}  ${PannelloDriveRegole.stato(r.stato)}", color = if (r.problemi.isEmpty()) Banco.testo else Banco.ambra, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 Text("Residente: ${r.residente?.let { it.nome + (if (it.qui) " (questo PC)" else "") } ?: "nessuno"} · qui sul disco: ${PannelloDriveRegole.cartellaQui(r)} · ${r.chat} chat${if (r.chatSenzaNome > 0) " (di cui ${r.chatSenzaNome} senza nome)" else ""} · ultimo uso: ${r.ultimoUso?.let { QuadernoPersonaleTesti.quando(it) } ?: "mai"}", color = Banco.testoQuieto, fontSize = 12.sp)
                 PannelloDriveRegole.doppi(r)?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp) }
+                // Le chat del progetto (PC 0.67.0): «Apri» qui, o «Apri su <PC>» dove vivono.
+                for (c in PannelloDriveRegole.chatDelProgetto(d, r).take(12)) {
+                    val come = PannelloDriveRegole.comeAprire(c, r)
+                    FlowRow(verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center) {
+                        Text("${PannelloDriveRegole.stato(c.stato)} ${c.titolo}", color = Banco.testo, fontSize = 12.sp, modifier = Modifier.padding(end = 6.dp))
+                        when (come) {
+                            is AperturaChat.Qui -> TextButton(onClick = { fai({ api.apriChatProgetto(come.cwd, c.sessione, null, c.titolo) }, "aprire la chat") }) { Text("Apri", fontSize = 12.sp) }
+                            is AperturaChat.Altrove -> TextButton(onClick = { fai({ api.apriChatProgetto(come.cwd, c.sessione, come.pc, c.titolo) }, "aprire la chat") }) { Text("Apri su ${come.nome}", fontSize = 12.sp) }
+                            null -> {}
+                        }
+                    }
+                }
                 for (x in r.problemi) Text("${x.titolo}. ${x.spiega} Cosa fare: ${x.cosaFare}", color = Banco.ambra, fontSize = 12.sp)
                 PannelloDriveRegole.residenza(d, r.id)?.let { st ->
                     Text(PannelloDriveRegole.titoloResidenza(st.fase), color = Banco.verde, fontWeight = FontWeight.Bold, fontSize = 12.sp)

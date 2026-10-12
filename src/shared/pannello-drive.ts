@@ -430,3 +430,26 @@ export function azioniProgetto(r: RigaProgetto, io: PcNoto): AzioneProgetto[] {
   }
   return fuori
 }
+
+/* ------------------------------------------------------------------ */
+/* Le chat di un progetto, e come si aprono (0.67.0).                  */
+/* ------------------------------------------------------------------ */
+
+/** Le chat di un progetto (di tutti i suoi id), con nome, le più recenti prima. */
+export function chatDelProgetto(chat: RigaChat[], r: { ids: string[] }): RigaChat[] {
+  return chat
+    .filter((c) => c.progetto !== undefined && r.ids.includes(c.progetto) && c.senzaNome !== true)
+    .sort((a, b) => (b.ultimoUso ?? '').localeCompare(a.ultimoUso ?? ''))
+}
+
+/**
+ * Come si apre una chat dal pannello (0.67.0): qui, se vive qui (o non ha una
+ * casa e ne ha una copia qui); altrimenti dal vivo sul PC dove vive, nella sua
+ * cartella di là.
+ */
+export function comeAprireChat(c: RigaChat, r: { cartelle: { pc: string; percorso: string }[] } | undefined): { tipo: 'qui'; cwd: string } | { tipo: 'altrove'; pc: string; nome: string; cwd: string } | undefined {
+  const res = c.residente
+  if (res === undefined || res.qui) return c.cwd !== undefined && (res !== undefined || c.copiaQui) ? { tipo: 'qui', cwd: c.cwd } : undefined
+  const cwd = r?.cartelle.find((x) => x.pc === res.pc)?.percorso ?? c.cwd
+  return cwd === undefined ? undefined : { tipo: 'altrove', pc: res.pc, nome: res.nome, cwd }
+}

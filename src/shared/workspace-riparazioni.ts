@@ -116,6 +116,57 @@ export function suAltriPc(qui: string[], altri: { pc: string; nome: string; work
     .filter((p) => p.workspace.length > 0)
 }
 
+/* ------------------------------------------------------------------ */
+/* Ogni progetto ha il suo workspace (0.67.0).                         */
+/* ------------------------------------------------------------------ */
+
+const norma = (n: string): string => n.normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ')
+
+/** Un progetto visto da questo PC, per decidere il suo workspace. */
+export type ProgettoPerWorkspace = {
+  nome: string
+  /** Questo PC è il residente del progetto. */
+  residenteQui: boolean
+  /** Le chat del progetto che hanno un nome e una copia qui. */
+  chat: { sessione: string; titolo: string; cwd: string }[]
+}
+
+/**
+ * I workspace da creare su questo PC (0.67.0, «workspace = progetto»): uno per
+ * ogni progetto di cui questo PC è il residente e che non ha già un workspace
+ * con il suo nome. Dentro, le sue chat con nome che non stanno già in un altro
+ * workspace (una chat, un workspace). Mai uno che Nicholas ha eliminato.
+ */
+export function workspaceDaCreare(progetti: ProgettoPerWorkspace[], qui: Archivio, eliminati: string[]): { nome: string; panes: PaneSalvato[] }[] {
+  const nomiQui = new Set(qui.workspace.map((w) => norma(w.nome)))
+  const tolti = new Set(eliminati.map(norma))
+  const giaInUnWorkspace = new Set(qui.workspace.flatMap((w) => Object.values(w.perSlot).flatMap((l) => l.panes.map((p) => p.sessionUuid))).filter((s): s is string => s !== undefined))
+  const fuori: { nome: string; panes: PaneSalvato[] }[] = []
+  for (const p of progetti) {
+    if (!p.residenteQui || nomiQui.has(norma(p.nome)) || tolti.has(norma(p.nome))) continue
+    nomiQui.add(norma(p.nome))
+    const panes = p.chat.filter((c) => !giaInUnWorkspace.has(c.sessione)).map((c): PaneSalvato => ({ id: `pane-${c.sessione}`, sessionUuid: c.sessione, cwd: c.cwd, title: c.titolo }))
+    for (const x of panes) if (x.sessionUuid !== undefined) giaInUnWorkspace.add(x.sessionUuid)
+    fuori.push({ nome: p.nome, panes })
+  }
+  return fuori
+}
+
+/**
+ * Un workspace di un altro PC aperto qui (0.67.0, «Su altri PC» → «Apri»): lo
+ * stesso nome, e un riquadro dal vivo verso quel PC per ogni sua chat. Le chat
+ * restano là: qui si guardano e si comandano, e partono in sottofondo là.
+ */
+export function workspaceDaAltroPc(nome: string, pc: { id: string; nome: string }, chat: { workspace: string; sessione?: string; cwd: string; titolo: string }[]): { nome: string; panes: PaneSalvato[] } {
+  const panes = chat
+    .filter((c) => c.workspace === nome && c.sessione !== undefined && c.sessione !== '')
+    .map((c): PaneSalvato => ({
+      id: `pane-${c.sessione as string}`, sessionUuid: c.sessione as string, cwd: c.cwd, title: c.titolo,
+      remoto: { pcId: pc.id, pcNome: pc.nome, cwd: c.cwd, sessione: c.sessione as string }
+    }))
+  return { nome, panes }
+}
+
 /**
  * Il nome della cartella del progetto di un workspace (0.65.1): lo stesso
  * nome, senza i caratteri che Windows non accetta.
