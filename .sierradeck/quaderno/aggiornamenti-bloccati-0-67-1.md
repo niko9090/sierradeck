@@ -88,3 +88,17 @@ aspetta proprio te.
   solo `lavoro`; la pausa per aggiornamento tocca solo `lavoro`): lo ha ripreso
   qualcuno con «Riprendi», che però non scriveva niente. Ora scrive «ripreso su
   tua richiesta («Riprendi»)» con lo stato di prima.
+
+## Terzo difetto del giro vero → 0.67.3
+- Il workspace «fionda apl» creato su DESKTOP conteneva, accanto alle chat
+  vere, **due sessioni interne dell'autopilota** (dialogo «Sei l'autopilota che
+  sta portando avanti…» e preparazione «Stai preparando un autopilota…»): il
+  pannello le contava fra le chat del progetto perché lavorano nella sua
+  cartella. Aprire quel workspace le avrebbe fatte ripartire in un terminale
+  accanto al servizio. Ora `sessioniInterne` (id di supervisore e preparazione)
+  + `eSessioneInterna` (anche dal primo messaggio fisso) le escludono dai
+  workspace dei progetti, da «Apri» da un altro PC e dalle chat del pannello
+  (marcate `senzaNome`). Quelle già aggiunte si tolgono al giro dopo
+  (`togliInterneAggiunte`, solo se assenti dalla copia
+  `workspaces.prima-dei-progetti.json`, anche dall'albero del layout). La
+  copia «prima dei progetti» ora si fa una volta sola.

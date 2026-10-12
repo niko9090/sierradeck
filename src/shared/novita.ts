@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.67.3',
+    righe: [
+      '**I workspace dei progetti contengono solo chat vere.** Le conversazioni che l’autopilota usa per sé (supervisore, dialogo, preparazione) non entrano più in un workspace, e quelle già finite dentro si tolgono da sole. Non compaiono più nemmeno fra le chat del progetto in «Progetti».'
+    ]
+  },
+  {
     versione: '0.67.2',
     righe: [
       '**Niente workspace doppi per i progetti.** «NAS-film» e «Nas film» sono lo stesso nome, e un progetto che ha già le sue chat in un workspace (come «HA») non ne riceve un altro.',
