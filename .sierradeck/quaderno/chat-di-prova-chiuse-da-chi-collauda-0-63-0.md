@@ -28,6 +28,12 @@ Prima, chiudere una chat da una chat governata era vietato in tutto. Lo aveva de
 
 Dopo una release nuova, «Installa là» ha messo sul portatile la 0.62.0, che quel PC aveva già scaricato, invece della 0.63.0. È servita una seconda richiesta. Anche qui `/api/aggiornamento` diceva «pronto 0.62.0»: prima di installare va chiesto `/api/aggiornamento/cerca` e va aspettato «pronto» con la versione giusta.
 
+# Provato fra i due PC (12/10, entrambi alla 0.63.0)
+
+- Dal fisso, attraverso il ponte, chiusa la chat di prova che girava in sottofondo sul portatile: risposta 200. Il portatile pubblica subito `chiuse: [{sessione, il}]` in `/api/stato`. Il registro del fisso scrive `[ponte] dal telefono: chiudo la chat di prova sf-… su <portatile>: fatto (strada lan)`.
+- Una chat vera ha ricevuto 403 «non è una chat di prova», e non è stata toccata. **Errore da non ripetere:** il rifiuto l'ho provato su una chat vera di Nicholas. Questi casi si provano solo nei test, mai sulle sue chat.
+- Riaccendere la chat di prova in sottofondo la toglie da `chiuse`: vale l'ultima azione.
+
 # Cosa resta a mano
 
 Il riquadro remoto su questo PC si apre solo dalla finestra («Riprendi»). Nessuna rotta lo apre, e `/api/sessioni/riprendi` risponde 409 per le chat che vivono altrove. Per vedere nel registro la riga `[apertura] … chiudo anche qui` serve un clic di Nicholas per **aprire**. Il client che si prova da soli è la pagina servita, in Edge senza finestra.
