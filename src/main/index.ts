@@ -92,7 +92,7 @@ import { creaLatoResidente, creaRimozione, progettiInRecupero, type LatoResident
 import { improntaPc } from './casa-firma'
 import { creaSpazioDrive, type SpazioDrive, type StatoSpazio } from './spazio-drive'
 import { creaTrasloco, type TraslocoApi } from './trasloco'
-import { cartellaDaNomeWorkspace, cartellaVietataPerChat, eSessioneInterna, sessioniInterne, suAltriPc, togliInterneAggiunte, workspaceDaAltroPc, workspaceDaCreare } from '@shared/workspace-riparazioni'
+import { cartellaDaNomeWorkspace, cartellaVietataPerChat, eSessioneInterna, riordinaCreatiDalProgramma, sessioniInterne, suAltriPc, togliInterneAggiunte, workspaceDaAltroPc, workspaceDaCreare } from '@shared/workspace-riparazioni'
 import { leggiEliminati } from './workspace-ritrova'
 import { annotaEliminato, copieDellaLista, riparaListaAllAvvio, type EsitoAvvio } from './workspace-ritrova'
 import { cartellaDiProva, PREFISSO_CARTELLA_PROVA } from '@shared/chat-di-prova'
@@ -3304,6 +3304,17 @@ if (!app.requestSingleInstanceLock()) {
               for (const t of pulito.tolti) registro.info(`[workspace] «${t.workspace}»: tolto il riquadro di una sessione interna di un autopilota («${t.titolo}…»), aggiunto per sbaglio con il workspace del progetto`)
               for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(pulito.archivio), precedente: pulito.archivio.attivo })
             }
+            // 0.67.4: i workspace creati per sbaglio (doppioni per nome, nomi di
+            // cartelle di sistema) si rimettono a posto; quelli di Nicholas mai.
+            const riordino = riordinaCreatiDalProgramma(store.leggi(), prima)
+            if (riordino.fatto.length > 0 && store.scrivi(riordino.archivio)) {
+              for (const f of riordino.fatto) {
+                registro.info(f.tipo === 'unito'
+                  ? `[workspace] «${f.da}» era un doppione di «${f.in}» creato dal programma: unito (${f.riquadri} riquadri spostati), niente perso`
+                  : `[workspace] «${f.nome}» non è un progetto (cartella di sistema), l'aveva creato il programma: tolto; riquadri nei workspace dei loro progetti: ${f.spostati.map((x) => `${x.in} ${x.riquadri}`).join(', ') || 'nessuno'}${f.nonRiportati > 0 ? `; altre ${f.nonRiportati} chat restano in «Progetti» e «Riprendi»` : ''}`)
+              }
+              for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(riordino.archivio), precedente: riordino.archivio.attivo })
+            }
           } catch (err) { registro.info(`[workspace] copia prima dei progetti illeggibile: ${String(err)}`) }
         }
         const progetti = p.progetti.map((r) => ({
@@ -3311,6 +3322,8 @@ if (!app.requestSingleInstanceLock()) {
           residenteQui: r.residente?.qui === true,
           chat: p.chat
             .filter((c) => c.progetto !== undefined && r.ids.includes(c.progetto) && c.copiaQui && c.senzaNome !== true && c.cwd !== undefined && !eSessioneInterna(c, interne))
+            // Dalla più recente: un workspace creato ne tiene al massimo otto.
+            .sort((a, b) => (b.ultimoUso ?? '').localeCompare(a.ultimoUso ?? ''))
             .map((c) => ({ sessione: c.sessione, titolo: c.titolo, cwd: c.cwd as string }))
         }))
         const prima = store.leggi()

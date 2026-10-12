@@ -46,6 +46,18 @@ export type GruppoProgetti = {
   percorsi: { pc: string; percorso: string; id: string }[]
 }
 
+/**
+ * I nomi delle cartelle di sistema (0.67.4): mai un progetto. Il 12/10 il
+ * progetto «Documents» (nato da chat che lavoravano in Documenti) si prendeva
+ * per nome ogni chat sotto `…\Documents\…`: 541 chat di «Portfolio» finite
+ * nel suo workspace. Regola di Nicholas: mai la cartella utente, Documenti o
+ * la radice di un disco come progetto.
+ */
+const NOMI_DI_SISTEMA = new Set(['documents', 'documenti', 'mydocuments', 'desktop', 'scrivania', 'downloads', 'download', 'users', 'utenti', 'onedrive', 'appdata', 'progettisierradeck'])
+export function eNomeDiSistema(nome: string): boolean {
+  return NOMI_DI_SISTEMA.has(nomeNormalizzato(nome))
+}
+
 /** I suffissi delle copie: «(2)», «[3]», «- copia», «copy 2», «_old» no (è un nome). */
 const SUFFISSI = [/\s*\(\d+\)\s*$/, /\s*\[\d+\]\s*$/, /[\s_-]+(copia|copy)(\s*\(?\d+\)?)?\s*$/i]
 
@@ -162,6 +174,8 @@ export function gruppoDiCartella(cwd: string, gruppi: GruppoProgetti[]): { grupp
   const parti = cwd.replace(/\//g, '\\').replace(/\\+$/, '').split('\\')
   // Mai la radice di un disco: «C:» non è il nome di un progetto.
   for (let i = parti.length - 1; i >= 1; i -= 1) {
+    // Il nome di una cartella di sistema non porta a nessun progetto (0.67.4).
+    if (eNomeDiSistema(parti[i] as string)) continue
     const k = nomeNormalizzato(parti[i] as string)
     const g = gruppi.find((x) => x.chiave === k)
     if (g !== undefined) return { gruppo: g, radice: parti.slice(0, i + 1).join('\\'), perNome: true }

@@ -1,5 +1,7 @@
 import type { Archivio, PaneSalvato, WorkspaceSalvato } from './workspace'
 import { removePane } from './layout-tree'
+import { aggiungiPaneA } from './workspace'
+import { eNomeDiSistema, nomeNormalizzato } from './progetti-unificati'
 
 /**
  * Le riparazioni dei workspace di un PC (0.65.1). Regole pure.
@@ -121,8 +123,18 @@ export function suAltriPc(qui: string[], altri: { pc: string; nome: string; work
 /* Ogni progetto ha il suo workspace (0.67.0).                         */
 /* ------------------------------------------------------------------ */
 
-// Spazi, trattini e trattini bassi non contano (0.67.2): «Nas film» è «NAS-film».
-const norma = (n: string): string => n.normalize('NFKC').trim().toLowerCase().replace(/[\s_-]+/g, '')
+// La stessa regola dei progetti, «stesso nome = stesso progetto» (0.67.4):
+// maiuscole, spazi, punti, trattini e accenti non contano. Fino alla 0.67.3
+// questo file ne aveva una sua, più stretta, e la 0.67.1 ha creato «NAS-film»
+// accanto a «Nas film».
+const norma = (n: string): string => nomeNormalizzato(n)
+
+/**
+ * Quanti riquadri al massimo in un workspace creato dal programma (0.67.4).
+ * Il 12/10 «Documents» ne aveva 541: aprirlo avrebbe acceso 541 terminali. Le
+ * altre chat del progetto restano nel pannello «Progetti» e in «Riprendi».
+ */
+export const MAX_RIQUADRI_CREATI = 8
 
 /** Un progetto visto da questo PC, per decidere il suo workspace. */
 export type ProgettoPerWorkspace = {
@@ -149,10 +161,11 @@ export function workspaceDaCreare(progetti: ProgettoPerWorkspace[], qui: Archivi
   const inUnWorkspaceVero = new Set(qui.workspace.filter((w) => norma(w.nome) !== 'predefinito').flatMap((w) => Object.values(w.perSlot).flatMap((l) => l.panes.map((p) => p.sessionUuid))).filter((s): s is string => s !== undefined))
   const fuori: { nome: string; panes: PaneSalvato[] }[] = []
   for (const p of progetti) {
-    if (!p.residenteQui || nomiQui.has(norma(p.nome)) || tolti.has(norma(p.nome))) continue
+    if (!p.residenteQui || eNomeDiSistema(p.nome) || nomiQui.has(norma(p.nome)) || tolti.has(norma(p.nome))) continue
     if (p.chat.some((c) => inUnWorkspaceVero.has(c.sessione))) continue
     nomiQui.add(norma(p.nome))
-    const panes = p.chat.filter((c) => !giaInUnWorkspace.has(c.sessione)).map((c): PaneSalvato => ({ id: `pane-${c.sessione}`, sessionUuid: c.sessione, cwd: c.cwd, title: c.titolo }))
+    // Le chat arrivano dalla più recente: si tengono le prime.
+    const panes = p.chat.filter((c) => !giaInUnWorkspace.has(c.sessione)).slice(0, MAX_RIQUADRI_CREATI).map((c): PaneSalvato => ({ id: `pane-${c.sessione}`, sessionUuid: c.sessione, cwd: c.cwd, title: c.titolo }))
     for (const x of panes) if (x.sessionUuid !== undefined) giaInUnWorkspace.add(x.sessionUuid)
     fuori.push({ nome: p.nome, panes })
   }
@@ -256,4 +269,96 @@ export function togliInterneAggiunte(a: Archivio, prima: Archivio | undefined, i
     return tocca ? { ...w, perSlot } : w
   })
   return { archivio: tolti.length > 0 ? { ...a, workspace } : a, tolti }
+}
+
+/* ------------------------------------------------------------------ */
+/* I workspace creati per sbaglio dalla 0.67.x, rimessi a posto (0.67.4). */
+/* ------------------------------------------------------------------ */
+
+/** Cosa ha fatto `riordinaCreatiDalProgramma`, per il registro e il quaderno. */
+export type Riordino =
+  | { tipo: 'unito'; da: string; in: string; riquadri: number }
+  | { tipo: 'tolto'; nome: string; spostati: { in: string; riquadri: number }[]; nonRiportati: number }
+
+/**
+ * Il progetto di una chat dalla sua cartella: l'ultima cartella del percorso,
+ * se non è una cartella di sistema. `…\Documents\Portfolio` → «Portfolio»;
+ * `…\Documents` o la cartella utente → nessuno.
+ */
+export function progettoDallaCartella(cwd: string): string | undefined {
+  const parti = cwd.replace(/\//g, '\\').replace(/\\+$/, '').split('\\').filter((x) => x !== '')
+  if (parti.length < 2) return undefined
+  const ultima = parti[parti.length - 1] as string
+  const sopra = (parti[parti.length - 2] ?? '').toLowerCase()
+  // La cartella utente (`…\Users\<nome>`) non è un progetto.
+  if (sopra === 'users' || sopra === 'utenti') return undefined
+  return eNomeDiSistema(ultima) ? undefined : ultima
+}
+
+/**
+ * Rimette a posto i workspace **creati dal programma** (quelli che non c'erano
+ * nella copia `prima`, fatta prima di creare i workspace dei progetti). Quelli
+ * di Nicholas non si toccano mai.
+ * - Un doppione per nome («NAS-film» accanto a «Nas film»): i suoi riquadri
+ *   vanno in quello che c'era, senza doppioni, e il doppione se ne va.
+ * - Uno con il nome di una cartella di sistema («Documents»): se ne va; ogni
+ *   riquadro va nel workspace del suo progetto vero se lo si riconosce dalla
+ *   cartella (`progettoDallaCartella`) e il suo workspace c'è già,
+ *   altrimenti in «Predefinito». Al massimo `MAX_RIQUADRI_CREATI` per
+ *   workspace: le altre chat restano nel pannello «Progetti» e in «Riprendi».
+ */
+export function riordinaCreatiDalProgramma(ora: Archivio, prima: Archivio): { archivio: Archivio; fatto: Riordino[] } {
+  const diNicholas = new Set(prima.workspace.map((w) => w.nome))
+  const fatto: Riordino[] = []
+  let ws = [...ora.workspace]
+  const riquadri = (w: WorkspaceSalvato): PaneSalvato[] => Object.values(w.perSlot).flatMap((l) => l.panes)
+  const versa = (nome: string, panes: PaneSalvato[], tetto: number): number => {
+    let i = ws.findIndex((w) => norma(w.nome) === norma(nome))
+    if (i === -1) { ws.push({ nome, perSlot: {} } as WorkspaceSalvato); i = ws.length - 1 }
+    const w = ws[i] as WorkspaceSalvato
+    const ci = new Set(riquadri(w).map((p) => p.sessionUuid).filter((s): s is string => s !== undefined))
+    let layout = w.perSlot[1] ?? { root: undefined, panes: [] }
+    let messi = 0
+    for (const p of panes) {
+      if (messi >= tetto) break
+      if (p.sessionUuid !== undefined && ci.has(p.sessionUuid)) continue
+      layout = aggiungiPaneA(layout, p)
+      if (p.sessionUuid !== undefined) ci.add(p.sessionUuid)
+      messi += 1
+    }
+    ws[i] = { ...w, perSlot: { ...w.perSlot, 1: layout } }
+    return messi
+  }
+  for (const w of ora.workspace) {
+    if (diNicholas.has(w.nome)) continue
+    const gemello = ws.find((x) => x.nome !== w.nome && norma(x.nome) === norma(w.nome) && diNicholas.has(x.nome))
+    if (gemello !== undefined) {
+      ws = ws.filter((x) => x.nome !== w.nome)
+      const n = versa(gemello.nome, riquadri(w), Number.POSITIVE_INFINITY)
+      fatto.push({ tipo: 'unito', da: w.nome, in: gemello.nome, riquadri: n })
+      continue
+    }
+    if (!eNomeDiSistema(w.nome)) continue
+    ws = ws.filter((x) => x.nome !== w.nome)
+    const perMeta = new Map<string, PaneSalvato[]>()
+    for (const p of riquadri(w)) {
+      const meta = progettoDallaCartella(p.cwd) ?? 'Predefinito'
+      perMeta.set(meta, [...(perMeta.get(meta) ?? []), p])
+    }
+    const spostati: { in: string; riquadri: number }[] = []
+    let nonRiportati = 0
+    for (const [meta, panes] of perMeta) {
+      // Solo in un workspace che c'è già: crearne uno nuovo vorrebbe dire un
+      // workspace di un progetto che magari vive su un altro PC.
+      const dove = ws.find((x) => norma(x.nome) === norma(meta))?.nome ?? 'Predefinito'
+      const n = versa(dove, panes, MAX_RIQUADRI_CREATI)
+      if (n > 0) spostati.push({ in: dove, riquadri: n })
+      nonRiportati += panes.length - n
+    }
+    fatto.push({ tipo: 'tolto', nome: w.nome, spostati, nonRiportati })
+  }
+  if (fatto.length === 0) return { archivio: ora, fatto }
+  const nomi = new Set(ws.map((w) => w.nome))
+  const attivo = nomi.has(ora.attivo) ? ora.attivo : (ws[0]?.nome ?? ora.attivo)
+  return { archivio: { ...ora, workspace: ws, attivo }, fatto }
 }

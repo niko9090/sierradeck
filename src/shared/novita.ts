@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.67.4',
+    righe: [
+      '**«Documents» non è più un progetto.** Le cartelle di sistema (Documenti, Desktop, Download) non diventano mai progetti né workspace; il workspace «Documents» creato per sbaglio se ne va da solo e le sue chat tornano nel workspace del loro progetto, o in «Predefinito».',
+      '**Niente più doppioni come «NAS-film» accanto a «Nas film»:** i workspace usano la stessa regola dei progetti, e il doppione già creato si unisce a quello di prima senza perdere niente. Un workspace creato dal programma tiene al massimo 8 chat, le più recenti; le altre restano in «Progetti».'
+    ]
+  },
+  {
     versione: '0.67.3',
     righe: [
       '**I workspace dei progetti contengono solo chat vere.** Le conversazioni che l’autopilota usa per sé (supervisore, dialogo, preparazione) non entrano più in un workspace, e quelle già finite dentro si tolgono da sole. Non compaiono più nemmeno fra le chat del progetto in «Progetti».'

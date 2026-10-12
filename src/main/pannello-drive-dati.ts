@@ -2,7 +2,7 @@ import { sessioneDiPercorso, type CaseChat } from '@shared/una-casa'
 import { costruisciPannello, type ChatIngresso, type Pannello, type PcNoto, type ProgettoIngresso } from '@shared/pannello-drive'
 import type { PianoAllineamento } from '@shared/allineamento'
 import { cartellaDaSlug } from './cassaforte/catalogo'
-import { gruppoDiCartella, raggruppaProgetti, type GruppoProgetti } from '@shared/progetti-unificati'
+import { gruppoDiCartella, raggruppaProgetti, type GruppoProgetti, eNomeDiSistema } from '@shared/progetti-unificati'
 import type { Manifesto } from './cassaforte/incrementale'
 
 /**
@@ -86,7 +86,7 @@ export function datiPannello(p: {
     const c = prendi(s)
     c.aperta = [...new Set([...(c.aperta ?? []), p.io.id])]
   }
-  const gruppi = raggruppaProgetti(p.progetti, p.case)
+  const gruppi = raggruppaProgetti(p.progetti.filter((x) => !eNomeDiSistema(x.nome)), p.case)
   for (const c of chat.values()) {
     if (c.titolo === '') c.titolo = `chat ${c.sessione.slice(0, 8)}`
     // Il progetto (0.60.0): la cartella della chat dentro una cartella del
@@ -101,7 +101,8 @@ export function datiPannello(p: {
   const altreQui = Object.fromEntries(Object.entries(cartelleTrovateQui(gruppi, p.io.id, p.locali, p.esiste, true)).map(([id, v]) => [id, v.length]))
   const pannello = costruisciPannello({
     io: p.io, pc: p.pc.map(({ chat: _c, locali, ...x }) => ({ ...x, diceLocali: localiDi(locali) !== undefined })),
-    case: p.case, chat: [...chat.values()], progetti: p.progetti, adesso: p.adesso,
+    // Un progetto con il nome di una cartella di sistema non si mostra (0.67.4).
+    case: p.case, chat: [...chat.values()], progetti: p.progetti.filter((x) => !eNomeDiSistema(x.nome)), adesso: p.adesso,
     ...(p.workspaceQui !== undefined ? { workspaceQui: p.workspaceQui } : {}),
     cartelleTrovate,
     altreCartelleQui: altreQui
