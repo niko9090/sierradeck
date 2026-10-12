@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.70.0',
+    righe: [
+      '**Tutto il programma riprogettato come Progetti:** ogni schermata usa la larghezza, le cose importanti sono in vista e quelle rare in «Strumenti ▾»; gli stati sono una parola con un colore, e le spiegazioni stanno dietro il «?».'
+    ]
+  },
+  {
     versione: '0.69.0',
     righe: [
       '**Gli autopiloti comandano davvero le chat.** Un messaggio in coda da più di 2 minuti arriva anche a una chat al lavoro, senza interromperla; ogni messaggio dice «consegnato alle hh:mm» o «in attesa da N min» con «Manda adesso».',
