@@ -4822,3 +4822,13 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 /* Un riquadro stretto: resta il colore, la parola si toglie (si legge passandoci sopra). */
 @container (max-width: 360px) { .stato-chat { font-size: 0; padding: 0; width: 8px; height: 8px; background: currentColor; } }
 .riquadro { container-type: inline-size; }
+
+/* ── Autopiloti a piena pagina (0.70.0) ── */
+.autopiloti .progetti__riga { grid-template-columns: minmax(220px, 1.4fr) 120px 70px minmax(160px, 2fr) 90px 130px 170px; }
+.autopiloti .autopiloti__modulo { width: 600px; }
+.autopiloti .autopiloti__modulo .nuovo-ap { border: 0; padding: 0; margin: 0; background: transparent; }
+@media (max-width: 1279px) { .autopiloti .autopiloti__modulo { width: min(600px, 100%); } }
+@media (max-width: 959px) {
+  .autopiloti .progetti__riga { grid-template-columns: minmax(160px, 1fr) 70px 120px 130px; }
+  .autopiloti .progetti__riga > .progetti__cella:nth-child(2), .autopiloti .progetti__riga > .progetti__cella:nth-child(4), .autopiloti .progetti__riga > .progetti__cella:nth-child(5) { display: none; }
+}

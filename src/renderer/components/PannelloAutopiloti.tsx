@@ -1,4 +1,10 @@
-import { RigaDalVivo } from './DalVivoAutopilota'
+import { MessaggiVersoLaChat, RigaDalVivo } from './DalVivoAutopilota'
+import { createPortal } from 'react-dom'
+import { contaGruppiAp, cercaAutopiloti, GRUPPI_AP, nelGruppoAp, ordinaAutopiloti, vistaAutopilota, type GruppoAp } from '@shared/autopiloti-vista'
+import { haDomandaAperta } from '@shared/chat-autopilota'
+import type { Colore } from '@shared/stato-vista'
+
+const COLORE_AP: Record<Colore, string> = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', blu: 'var(--blu)', quieto: 'var(--testo-quieto)' }
 import { useEffect, useMemo, useState } from 'react'
 import { REGOLE_PUBBLICAZIONE, type RegolaPubblicazione } from '@shared/harness'
 import { BOZZA_AUTOPILOTA_VUOTA, controllaBozzaAutopilota, PARTENZE, type BozzaAutopilota, type Partenza } from '@shared/azioni-telefono'
@@ -61,6 +67,12 @@ export function PannelloAutopiloti({
   // Vero quando l'utente ha scelto «altra cartella»: solo allora compare il
   // campo libero, che altrimenti reintrodurrebbe il percorso battuto a mano.
   const [aMano, setAMano] = useState(false)
+  // La vista (0.70.0).
+  const [gruppo, setGruppo] = useState<GruppoAp>('tutti')
+  const [q, setQ] = useState('')
+  const [scelto, setScelto] = useState<string | undefined>(undefined)
+  const [menu, setMenu] = useState(false)
+  const [togli, setTogli] = useState<string | undefined>(undefined)
 
   const panes = useLayoutStore((s) => s.panes)
   const sessions = useSessionStore((s) => s.sessions)
@@ -76,12 +88,14 @@ export function PannelloAutopiloti({
   useEffect(() => {
     const suTasto = (e: KeyboardEvent): void => {
       if (e.key !== 'Escape') return
-      if (bozza === undefined) onChiudi()
-      else if (!inCorso) setBozza(undefined)
+      // Prima il dettaglio, poi il modulo, poi la vista (0.70.0).
+      if (bozza !== undefined) { if (!inCorso) setBozza(undefined) }
+      else if (scelto !== undefined) setScelto(undefined)
+      else onChiudi()
     }
     window.addEventListener('keydown', suTasto)
     return () => window.removeEventListener('keydown', suTasto)
-  }, [onChiudi, bozza, inCorso])
+  }, [onChiudi, bozza, inCorso, scelto])
 
   const esegui = (op: () => Promise<unknown>): void => {
     if (inCorso) return
@@ -116,14 +130,36 @@ export function PannelloAutopiloti({
     })
   }
 
-  return (
-    <div className="pannello">
-      <div className="pannello__testa">
-        <span className="serigrafia">Autopiloti</span>
+  // ── La vista (0.70.0): tabella, gruppi, ricerca, dettaglio a destra ──
+  const righe = ordinaAutopiloti(cercaAutopiloti(elenco, q).map((a) => ({ ...a, vista: vistaAutopilota({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, Date.now()) })))
+  const conti = contaGruppiAp(elenco.map((a) => vistaAutopilota(a, Date.now())))
+  const visibili = righe.filter((r) => nelGruppoAp(r.vista, gruppo))
+  const sel = righe.find((r) => r.id === scelto)
+  const verbo = (r: (typeof righe)[number]): React.JSX.Element | null => {
+    const v = r.vista.azione
+    if (v === 'ferma') return <button className="tasto tasto--mini" disabled={inCorso} onClick={(e) => { e.stopPropagation(); esegui(() => window.gestore.autopilota.ferma(r.id)) }}>Ferma</button>
+    if (v === 'rispondi') return <button className="tasto tasto--mini tasto--acceso" onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('sierradeck:apri-pannello', { detail: 'domande' })) }} title="Apre le Domande: la sua domanda è lì">Rispondi</button>
+    return <button className="tasto tasto--mini" disabled={inCorso} onClick={(e) => { e.stopPropagation(); esegui(() => window.gestore.autopilota.riprendi(r.id)) }} title={r.criteri.length === 0 ? 'Riprende la preparazione: è da lì che escono i criteri di fine' : 'Rimette al lavoro le sue chat'}>{r.criteri.length === 0 ? 'Riprendi le domande' : 'Riprendi'}</button>
+  }
+
+  return createPortal(
+    <div className="progetti autopiloti" role="dialog" aria-label="Autopiloti">
+      <div className="progetti__testa">
+        <span className="progetti__titolo">◉ Autopiloti</span>
+        <div className="progetti__gruppi" role="tablist">
+          {GRUPPI_AP.filter((g) => g.id === 'tutti' || conti[g.id] > 0 || g.id === gruppo).map((g) => (
+            <button key={g.id} role="tab" aria-selected={gruppo === g.id} className={`progetti__gruppo${gruppo === g.id ? ' progetti__gruppo--acceso' : ''}${g.id === 'aspettano' ? ' progetti__gruppo--ambra' : ''}`} onClick={() => setGruppo(g.id)}>
+              {g.testo} <span className="progetti__conto">{conti[g.id]}</span>
+            </button>
+          ))}
+        </div>
+        <input className="campo campo--mini progetti__cerca" placeholder="Cerca per nome, obiettivo o cartella" value={q} onChange={(e) => setQ(e.target.value)} />
+        <span style={{ flex: 1 }} />
         <button
           className="tasto tasto--primario"
           onClick={() => {
             setAMano(false)
+            setScelto(undefined)
             // La prima destinazione è la chat che si sta guardando: è quella
             // giusta quasi sempre, e trovarla già scelta evita un gesto.
             setBozza(bozza === undefined ? { ...BOZZA_VUOTA, cwd: mete[0]?.cwd ?? '' } : undefined)
@@ -132,39 +168,79 @@ export function PannelloAutopiloti({
         >
           {bozza === undefined ? '+ Nuovo autopilota' : 'Annulla'}
         </button>
-        <button className="tasto" onClick={onRicarica} disabled={inCorso}>
-          Aggiorna
-        </button>
-
-        <span style={{ flex: 1 }} />
-
-        {/* Il servizio sopravvive alla chiusura dell'applicazione ma non allo
-            spegnimento del PC: è questo interruttore a farlo tornare da solo. */}
-        <label className="serigrafia" style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={alLogin === true}
-            disabled={alLogin === undefined || inCorso}
-            onChange={(e) => {
-              const attivare = e.target.checked
-              esegui(async () => {
-                const s = await window.gestore.autopilota.avvioAlLogin(attivare)
-                onAlLogin(s.installato)
-                // E li cambia tutti insieme: è l'interruttore generale, e
-                // lasciare i singoli come stavano vorrebbe dire accendere il
-                // servizio senza che ritrovi al lavoro nessuno.
-                for (const a of elenco) {
-                  await window.gestore.autopilota.riprendiAlRiavvio(a.id, attivare)
-                }
-                onRicarica()
-              })
-            }}
-          />
-          riparti al login
-        </label>
+        <span style={{ position: 'relative' }}>
+          <button className="tasto tasto--mini" aria-expanded={menu} onClick={() => setMenu(!menu)}>Strumenti ▾</button>
+          {menu ? (
+            <div className="progetti__menu" onMouseLeave={() => setMenu(false)}>
+              <button className="progetti__voce" disabled={inCorso} onClick={() => { setMenu(false); onRicarica() }}>Aggiorna</button>
+              {/* Il servizio sopravvive alla chiusura dell'applicazione ma non allo
+                  spegnimento del PC: è questo interruttore a farlo tornare da solo. */}
+              <label className="progetti__voce" style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }} title="Il servizio degli autopiloti riparte da solo all’accesso a Windows, con tutti gli autopiloti">
+                <input
+                  type="checkbox"
+                  checked={alLogin === true}
+                  disabled={alLogin === undefined || inCorso}
+                  onChange={(e) => {
+                    const attivare = e.target.checked
+                    esegui(async () => {
+                      const s = await window.gestore.autopilota.avvioAlLogin(attivare)
+                      onAlLogin(s.installato)
+                      // E li cambia tutti insieme: è l'interruttore generale.
+                      for (const a of elenco) {
+                        await window.gestore.autopilota.riprendiAlRiavvio(a.id, attivare)
+                      }
+                      onRicarica()
+                    })
+                  }}
+                />
+                Riparti al login
+              </label>
+            </div>
+          ) : null}
+        </span>
+        <Aiuto di="Autopiloti">
+          Un autopilota guida una o più chat verso un obiettivo, finché i criteri di fine non sono soddisfatti. Stato: <span style={{ color: 'var(--verde)' }}>al lavoro</span>, <span style={{ color: 'var(--ambra)' }}>aspetta te</span> (una domanda nelle Domande), <span style={{ color: 'var(--ambra)' }}>senza segni</span> (nessun segno da 10 minuti), <span style={{ color: 'var(--blu)' }}>si prepara</span> o <span style={{ color: 'var(--blu)' }}>pronto</span> (aspetta il tuo «Vai»), fermo, finito, <span style={{ color: 'var(--rosso)' }}>guasto</span>. Clic su una riga: il dettaglio con obiettivo, criteri e messaggi.
+        </Aiuto>
+        <button className="tasto tasto--mini" onClick={onChiudi} aria-label="Chiudi">×</button>
       </div>
+      {errore !== undefined ? <div className="progetti__striscia">⚠ {errore}</div> : null}
 
-      {bozza !== undefined ? (
+      <div className={`progetti__corpo${sel !== undefined || bozza !== undefined ? ' progetti__corpo--destra' : ''}`}>
+        <div className="progetti__tabella" role="grid">
+          <div className="progetti__riga progetti__riga--testa" role="row">
+            <span className="progetti__cella">Autopilota</span>
+            <span className="progetti__cella">Chat</span>
+            <span className="progetti__cella">Criteri</span>
+            <span className="progetti__cella">Ultima azione</span>
+            <span className="progetti__cella">Da</span>
+            <span className="progetti__cella">Stato</span>
+            <span className="progetti__cella" />
+          </div>
+          {elenco.length === 0 && errore === undefined ? <div className="progetti__vuoto">Nessun autopilota · <button className="account__link" onClick={() => setBozza({ ...BOZZA_VUOTA, cwd: mete[0]?.cwd ?? '' })}>Affida un lavoro</button></div> : null}
+          {elenco.length > 0 && visibili.length === 0 ? <div className="progetti__vuoto">{q !== '' ? `Nessun autopilota per «${q}».` : 'Nessuno in questo gruppo.'}</div> : null}
+          {visibili.map((r) => {
+            const acceso = r.id === scelto
+            return (
+              <div key={r.id} role="row" tabIndex={0} aria-selected={acceso}
+                className={`progetti__riga${acceso ? ' progetti__riga--scelta' : ''}`}
+                onClick={() => { setScelto(acceso ? undefined : r.id); setBozza(undefined) }}>
+                <span className="progetti__cella" title={r.cwd}><b>{r.nome !== '' ? r.nome : r.obiettivo.slice(0, 60)}</b> <span className="progetti__quieto">{r.cwd.split(/[\\/]/).filter((x) => x !== '').pop() ?? ''}</span></span>
+                <span className="progetti__cella">{r.vista.chat.testo}</span>
+                <span className="progetti__cella">{r.vista.criteri.testo}</span>
+                <span className="progetti__cella progetti__quieto" title={r.vista.ultima}>{r.vista.ultima}</span>
+                <span className="progetti__cella progetti__quieto">{r.vista.da}</span>
+                <span className="progetti__cella" title={r.vista.stato.ragione}><span style={{ color: COLORE_AP[r.vista.stato.colore] }}>● {r.vista.stato.parola}</span></span>
+                <span className="progetti__cella" style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>{verbo(r)}</span>
+              </div>
+            )
+          })}
+          {/* Gli autopiloti degli altri PC (0.59.0): stessa chiave di casa, «gira su <PC>». */}
+          <div style={{ padding: '12px 16px' }}><AutopilotiAltriPc /></div>
+        </div>
+
+        {bozza !== undefined ? (
+          <div className="progetti__dettaglio autopiloti__modulo">
+            <div className="progetti__dcorpo">
         <div className="nuovo-ap">
           {/* Una finestra vera, non una riga: l'obiettivo di un autopilota e'
               un mandato — vincoli, cosa non toccare, come si capisce che ha
@@ -325,115 +401,71 @@ export function PannelloAutopiloti({
             {controllo !== undefined && !controllo.ok && bozza.obiettivo.trim() !== '' ? <span className="misura" style={{ flex: '1 1 100%', marginTop: 4 }}>⚠ {controllo.errore}</span> : null}
           </div>
         </div>
-      ) : null}
-
-      {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
-
-      {elenco.length === 0 && errore === undefined ? (
-        <div className="vuoto">
-          Nessun autopilota. Digli cosa vuoi ottenere: ti farà qualche domanda, poi lavora da solo
-          finché non ci arriva.
-        </div>
-      ) : null}
-
-      {elenco.map((a) => {
-        const d = descriviAutopilota(a)
-        const led = ledDi(a)
-        return (
-          <div key={a.id} className="riga">
-            <span className={`led ${led.classe}`} title={led.titolo} />
-            <span className="riga__nome">{d.titolo}</span>
-            <span className="riga__stato">{d.sottotitolo}<RigaDalVivo autopilota={a} /></span>
-            <span className="misura">{d.avanzamento}</span>
-            {/* In preparazione può servire tutt'e due: fermarla, o farla
-                ripartire quando è rimasta appesa a una domanda scaduta. Il
-                tasto dice quale delle due cose fa, perché «Riprendi» su un
-                autopilota che si sta ancora preparando lasciava credere che
-                lo mandasse al lavoro. */}
-            {a.stato === 'lavoro' || a.stato === 'attesa' || a.stato === 'intervista' ? (
-              <button
-                className="tasto"
-                onClick={() => esegui(() => window.gestore.autopilota.ferma(a.id))}
-                disabled={inCorso}
-              >
-                Ferma
-              </button>
-            ) : null}
-            {a.stato !== 'lavoro' && a.stato !== 'attesa' ? (
-              <button
-                className="tasto"
-                onClick={() => esegui(() => window.gestore.autopilota.riprendi(a.id))}
-                disabled={inCorso}
-                title={
-                  a.criteri.length === 0
-                    ? 'Riprende la preparazione: è da lì che escono i criteri di fine'
-                    : 'Rimette al lavoro le sue chat'
-                }
-              >
-                {a.criteri.length === 0 ? 'Riprendi le domande' : 'Riprendi'}
-              </button>
-            ) : null}
-            {/* «Archivia» (0.37.0): un fermo che non deve ripartire esce dalla
-                banda e dalle notifiche, ma resta qui con la sua etichetta. */}
-            {a.stato === 'sospeso' || a.stato === 'fallito' ? (
-              a.archiviato === true ? (
-                <button
-                  className="tasto"
-                  onClick={() => esegui(() => window.gestore.autopilota.archivia(a.id, false))}
-                  disabled={inCorso}
-                  title="È archiviato: non compare nella banda in alto e non manda notifiche. Toglierlo dall’archivio lo rimette fra quelli che ti avvisano, senza farlo ripartire"
-                >
-                  Archiviato · togli
-                </button>
-              ) : (
-                <button
-                  className="tasto"
-                  onClick={() => esegui(() => window.gestore.autopilota.archivia(a.id, true))}
-                  disabled={inCorso}
-                  title="Lo mette da parte: resta qui, ma non compare più nella banda in alto e non manda notifiche. «Riprendi» lo rimette al lavoro"
-                >
-                  Archivia
-                </button>
-              )
-            ) : null}
-            {/* La sua spunta, non quella di tutti: un lavoro lungo deve poter
-                riprendere da solo dopo un riavvio, e quello che stavi provando
-                per curiosità no. L'interruttore qui sopra dice se il servizio
-                torna su; questo dice quali autopiloti ritrova al lavoro. */}
-            <label
-              className="serigrafia"
-              style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
-              title="Se riprendere questo autopilota da solo dopo un riavvio"
-            >
-              <input
-                type="checkbox"
-                // `!== false` e non `=== true`: chi non ha mai toccato la
-                // spunta riparte, ed è il comportamento vero. Mostrarla vuota
-                // direbbe il contrario di quello che poi succede.
-                checked={a.riprendiAlRiavvio !== false}
-                disabled={inCorso}
-                aria-label={`Riparti all’avvio: ${d.titolo}`}
-                onChange={(e) => {
-                  const acceso = e.target.checked
-                  esegui(() => window.gestore.autopilota.riprendiAlRiavvio(a.id, acceso))
-                }}
-              />
-              avvio
-            </label>
-            <button
-              className="tasto"
-              onClick={() => esegui(() => window.gestore.autopilota.elimina(a.id))}
-              disabled={inCorso}
-              title="Toglie l’autopilota dall’elenco e ferma le sue chat"
-              aria-label={`Elimina ${d.titolo}`}
-            >
-              ×
-            </button>
+            </div>
           </div>
-        )
-      })}
-      {/* Gli autopiloti degli altri PC (0.59.0): stessa chiave di casa, «gira su <PC>». */}
-      <AutopilotiAltriPc />
-    </div>
+        ) : sel !== undefined ? (
+          <div className="progetti__dettaglio">
+            <div className="progetti__dtesta">
+              <span className="progetti__dtitolo" title={sel.nome}>{sel.nome !== '' ? sel.nome : sel.obiettivo.slice(0, 60)}</span>
+              <button className="tasto tasto--mini" onClick={() => setScelto(undefined)} aria-label="Chiudi il dettaglio">×</button>
+            </div>
+            <div style={{ padding: '0 16px 4px' }}>
+              <span className="progetti__pillola" style={{ color: COLORE_AP[sel.vista.stato.colore], borderColor: COLORE_AP[sel.vista.stato.colore] }}>{sel.vista.stato.parola}{sel.vista.da !== '' ? ` · da ${sel.vista.da}` : ''}</span>
+            </div>
+            <div className="progetti__azioni">
+              {verbo(sel)}
+              {/* La sua spunta: riprendere da solo dopo un riavvio. */}
+              <label className="progetti__quieto" style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }} title="Se riprendere questo autopilota da solo dopo un riavvio">
+                <input type="checkbox" checked={sel.riprendiAlRiavvio !== false} disabled={inCorso} onChange={(e) => { const acceso = e.target.checked; esegui(() => window.gestore.autopilota.riprendiAlRiavvio(sel.id, acceso)) }} />
+                riparte dopo un riavvio
+              </label>
+              {/* «Archivia» (0.37.0): un fermo che non deve ripartire esce dalla banda e dalle notifiche. */}
+              {sel.stato === 'sospeso' || sel.stato === 'fallito' ? (
+                <button className="tasto tasto--mini" disabled={inCorso} onClick={() => esegui(() => window.gestore.autopilota.archivia(sel.id, sel.archiviato !== true))}
+                  title={sel.archiviato === true ? 'Lo rimette fra quelli che ti avvisano, senza farlo ripartire' : 'Lo mette da parte: resta qui, ma niente banda in alto e niente notifiche'}>
+                  {sel.archiviato === true ? 'Archiviato · togli' : 'Archivia'}
+                </button>
+              ) : null}
+              <span className="con-aiuto" style={{ marginLeft: 'auto' }}>
+                {togli === sel.id ? (
+                  <>
+                    <button className="tasto tasto--mini tasto--pericolo" disabled={inCorso} onClick={() => { setTogli(undefined); setScelto(undefined); esegui(() => window.gestore.autopilota.elimina(sel.id)) }}>Sì, togli</button>
+                    <button className="tasto tasto--mini" autoFocus onClick={() => setTogli(undefined)}>Annulla</button>
+                  </>
+                ) : (
+                  <button className="tasto tasto--mini tasto--pericolo" disabled={inCorso} onClick={() => setTogli(sel.id)}>Togli…</button>
+                )}
+                <Aiuto di="Togli">Toglie l’autopilota dall’elenco e ferma le sue chat. Le conversazioni restano.</Aiuto>
+              </span>
+            </div>
+            <div className="progetti__dcorpo">
+              {sel.vista.stato.ragione !== undefined ? <div className="progetti__voceelenco" style={{ color: COLORE_AP[sel.vista.stato.colore] }}>{sel.vista.stato.ragione}</div> : null}
+              <div className="progetti__sezione">
+                <span className="serigrafia">Obiettivo</span>
+                <div className="progetti__voceelenco" style={{ whiteSpace: 'pre-wrap', alignItems: 'flex-start' }}>{sel.obiettivo.length > 600 ? `${sel.obiettivo.slice(0, 600)}…` : sel.obiettivo}</div>
+              </div>
+              <div className="progetti__sezione">
+                <span className="serigrafia">Criteri {sel.vista.criteri.testo}</span>
+                {sel.criteri.length === 0 ? <div className="progetti__quieto">Li prepara lui, guardando il progetto.</div> : null}
+                {sel.criteri.map((c, i) => (
+                  <div key={i} className="progetti__voceelenco"><span style={{ color: c.soddisfatto ? 'var(--verde)' : 'var(--testo-quieto)' }}>{c.soddisfatto ? '✓' : '○'}</span> {c.descrizione}</div>
+                ))}
+              </div>
+              <div className="progetti__sezione">
+                <span className="serigrafia">Dal vivo</span>
+                <RigaDalVivo autopilota={sel} />
+              </div>
+              <MessaggiVersoLaChat autopilota={sel} onCambiato={onRicarica} />
+              <div className="progetti__sezione">
+                <span className="serigrafia">Le sue chat ({sel.chats.length})</span>
+                {sel.chats.map((c) => <div key={c.id} className="progetti__voceelenco"><span style={{ color: c.stato === 'lavoro' ? 'var(--verde)' : 'var(--testo-quieto)' }}>●</span> {c.id} <span className="progetti__quieto">{c.stato}</span></div>)}
+              </div>
+              <div className="progetti__quieto">Il dialogo, il diario, le istruzioni e i file stanno nella sua scheda, accanto alla sua chat.</div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>,
+    document.body
   )
 }

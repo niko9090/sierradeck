@@ -42,7 +42,8 @@ export function AutopilotiAltriPc(): React.JSX.Element | null {
       </div>
       {pc.map((p) => (
         <div key={p.pcId}>
-          {p.errore !== undefined ? <div className="avviso">⚠ {p.errore}</div> : null}
+          {/* Una riga sola (0.70.0): «non risponde», il perché dietro il «?». */}
+          {p.errore !== undefined ? <div className="con-aiuto" style={{ color: 'var(--ambra)' }}>● {p.nome} · non risponde<Aiuto di={`${p.nome} non risponde`}>{p.errore}</Aiuto></div> : null}
           {p.errore === undefined && p.autopiloti.length === 0 ? <div className="misura">{p.nome}: nessun autopilota.</div> : null}
           {p.autopiloti.map((a) => {
             const d = descriviAutopilota(a as unknown as Autopilota)

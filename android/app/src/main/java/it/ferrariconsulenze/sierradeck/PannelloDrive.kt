@@ -279,7 +279,7 @@ object ProgettiVista {
 
 private data class DaConfermare(val titolo: String, val testo: String, val bottone: String, val fai: suspend () -> EsitoAzioneDrive)
 
-private fun coloreVista(c: String): Color = when (c) {
+fun coloreVista(c: String): Color = when (c) {
     "verde" -> Banco.verde
     "ambra" -> Banco.ambra
     "rosso" -> Banco.rosso

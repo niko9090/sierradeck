@@ -349,8 +349,19 @@ data class AutopilotaBreve(
     val fatti: Int = 0,
     val criteri: Int = 0,
     /** Si vede sempre chi lavora (PC 0.69.0): le parole le decide il PC. */
-    val dalVivo: StatoDalVivo? = null
+    val dalVivo: StatoDalVivo? = null,
+    /** PC 0.70: lo stato in una parola, i criteri, l'ultima azione, il verbo. */
+    val vista: VistaAutopilotaApp? = null
 )
+
+@Serializable data class CriteriVistaApp(val fatti: Int = 0, val totali: Int = 0, val testo: String = "—")
+@Serializable data class VistaAutopilotaApp(
+    val stato: StatoVistaDrive = StatoVistaDrive(), val criteri: CriteriVistaApp = CriteriVistaApp(),
+    val ultima: String = "", val da: String = "", val azione: String = "nessuna"
+)
+
+/** La riga sotto il nome di un autopilota (PC 0.70): «da 6 min · criteri 0/1». */
+fun sottoAutopilota(v: VistaAutopilotaApp): String = listOfNotNull(v.da.takeIf { it.isNotBlank() }?.let { "da $it" }, "criteri ${v.criteri.testo}").joinToString(" · ")
 
 /** «al lavoro · da 12 min», l'ultima azione, «nessun segno da 10 min» (PC 0.69.0). */
 @Serializable

@@ -730,6 +730,8 @@ async function chiediAp(percorso, corpo) {
  * Si vede sempre chi lavora (0.69.0): le parole le decide il PC («al lavoro ·
  * da 12 min», l'ultima azione, «nessun segno da 10 min»); qui si mostrano.
  */
+/** I colori degli stati in una parola (0.70.0), come sul PC. */
+const COLORE_VISTA = { verde: 'var(--verde,#3c9)', ambra: 'var(--ambra,#e0a33c)', rosso: 'var(--rosso,#dc5f5f)', blu: 'var(--blu,#4aa3ff)', quieto: 'var(--testo-quieto,#9aa1a9)' }
 function dalVivoHtml(v) {
   if (!v || typeof v !== 'object') return ''
   var colore = v.etichetta === 'al lavoro' ? 'var(--verde)' : v.etichetta === 'aspetta te' ? 'var(--ambra,#e0a33c)' : 'var(--testo-quieto,#8b949e)'
@@ -758,7 +760,8 @@ function altriApHtml() {
   if (altriAp === null) return '<div class="sotto" style="margin-top:8px">Chiedo agli altri PC i loro autopiloti…</div>'
   if (altriAp.length === 0) return ''
   return '<div class="titolo-sezione" style="margin-top:12px">Su altri PC' + aiuto('ap-altri', 'Gli autopiloti che girano sugli altri PC della tua stessa chiave di casa: lavorano là, con i file di là. Da qui li guardi e li governi; ogni azione va al PC dove girano.') + '</div>' +
-    altriAp.map((p) => (p.errore ? '<div class="errore" style="margin-top:6px">' + esc(p.errore) + '</div>' : '') +
+    // Un PC che non risponde: una riga sola, il perché dietro il «?» (0.70.0).
+    altriAp.map((p) => (p.errore ? '<div class="sotto" style="margin-top:6px;color:var(--ambra,#e0a33c)">● ' + esc(p.nome) + ' · non risponde' + aiuto('ap-muto-' + p.pcId, esc(p.errore)) + '</div>' : '') +
       ((p.autopiloti || []).length === 0 && !p.errore ? '<div class="sotto">' + esc(p.nome) + ': nessun autopilota.</div>' : '') +
       (p.autopiloti || []).map((a) =>
         '<button class="voce" onclick="guardaAp(\\'' + escJs(a.id) + '\\', \\'' + escJs(p.pcId) + '\\', \\'' + escJs(p.nome) + '\\')">' +
@@ -1604,8 +1607,9 @@ function pannello(s) {
       <span class="led \${led(a)}"></span>
       <span class="voce__testo">
         <span class="voce__nome">\${esc(a.nome)}</span>
-        <span class="voce__sotto">\${esc(a.strategia ? 'bloccato, provo: ' + a.strategia : (a.motivo || a.stato))} · \${a.fatti}/\${a.criteri}</span>
-        \${dalVivoHtml(a.dalVivo)}
+        \${a.vista
+          ? '<span class="voce__sotto"><b style="color:' + COLORE_VISTA[a.vista.stato.colore] + '">' + esc(a.vista.stato.parola) + '</b>' + (a.vista.da ? ' · da ' + esc(a.vista.da) : '') + ' · criteri ' + esc(a.vista.criteri.testo) + '</span>' + (a.vista.ultima ? '<span class="voce__sotto">' + esc(a.vista.ultima) + '</span>' : '')
+          : '<span class="voce__sotto">' + esc(a.strategia ? 'bloccato, provo: ' + a.strategia : (a.motivo || a.stato)) + ' · ' + a.fatti + '/' + a.criteri + '</span>' + dalVivoHtml(a.dalVivo)}
       </span>
       <span class="voce__freccia">›</span>
     </button>\`).join('') + altriApHtml()

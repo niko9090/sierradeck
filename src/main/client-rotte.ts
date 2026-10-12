@@ -1,3 +1,4 @@
+import { vistaAutopilota } from '@shared/autopiloti-vista'
 import { nomiDistinti as nomiChatDistinti } from '@shared/chat-vista'
 import { oraBreve, statoAutopilotaDalVivo, statoMessaggi } from '@shared/stato-dal-vivo'
 import type { ChatSalvata } from '@shared/workspace'
@@ -1123,6 +1124,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           // Si vede sempre chi lavora (0.69.0): «al lavoro · da 12 min · ultima
           // azione», e «nessun segno da 10 min». Le parole le decide il PC.
           dalVivo: statoAutopilotaDalVivo({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, adesso(), segnoDi(a)),
+          // Lo stato in una parola, i criteri, il verbo (0.70.0): le parole le decide il PC.
+          vista: vistaAutopilota({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, adesso(), segnoDi(a)),
           cicli: a.cicli,
           strategia: a.strategia,
           // Perche' si e' fermato. «Sospeso» da solo manda a cercare altrove:

@@ -1228,17 +1228,24 @@ private fun VoceAutopilota(ap: AutopilotaBreve, onApri: () -> Unit) {
                         maxLines = 1,
                         modifier = Modifier.weight(1f)
                     )
-                    Text(statoInParole(ap.stato), color = colore, fontSize = 12.sp)
+                    // PC 0.70: la parola e il colore decisi dal PC.
+                    if (ap.vista != null) Text(ap.vista.stato.parola, color = coloreVista(ap.vista.stato.colore), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    else Text(statoInParole(ap.stato), color = colore, fontSize = 12.sp)
+                }
+                ap.vista?.let { v ->
+                    Spacer(Modifier.height(4.dp))
+                    Text(sottoAutopilota(v), color = Banco.testoQuieto, fontSize = 12.sp)
+                    if (v.ultima.isNotBlank()) Text(v.ultima, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
                 }
                 // «Bloccato, provo un'altra strada»: il PC e la pagina lo dicono,
                 // l'app lo taceva.
-                val sotto = if (ap.strategia.isNotBlank()) "bloccato, provo: ${ap.strategia}" else ap.motivo
+                val sotto = if (ap.vista != null) "" else if (ap.strategia.isNotBlank()) "bloccato, provo: ${ap.strategia}" else ap.motivo
                 if (sotto.isNotBlank()) {
                     Spacer(Modifier.height(4.dp))
                     Text(sotto, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 2)
                 }
-                // Si vede sempre chi lavora (PC 0.69.0).
-                ap.dalVivo?.let { DalVivo(it) }
+                // Si vede sempre chi lavora (PC 0.69.0); dalla 0.70 lo dice già la vista.
+                if (ap.vista == null) ap.dalVivo?.let { DalVivo(it) }
                 if (ap.criteri > 0) {
                     Spacer(Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
