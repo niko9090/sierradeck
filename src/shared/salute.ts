@@ -10,6 +10,7 @@
  */
 
 import { mappaPc, type MappaPc } from './collegamento'
+import { rigaRisorse, type RisorsePc } from './risorse'
 
 export type Tono = 'ok' | 'attenzione' | 'guasto'
 
@@ -55,6 +56,8 @@ export type PcPerSalute = {
   stato?: string
   /** La strada con cui si raggiunge, in due parole («rete di casa», «Tailscale», «WebRTC», «Drive, lento»). */
   strada?: string
+  /** Quanto lavora SierraDeck su quel PC, dal suo battito (0.69.0). */
+  risorse?: RisorsePc
 }
 
 export type ConsegnaNonPartita = { autopilota: string; nome: string; quando: string; chat: string; esito: 'non-partita' | 'persa'; inizio: string }
@@ -75,6 +78,8 @@ export type IngressiSalute = {
   chatInErrore?: { titolo: string; errore: string }[]
   /** Da quante ore si leggono gli errori. */
   oreErrori: number
+  /** Quanto lavora SierraDeck su questo PC (0.69.0). */
+  risorse?: RisorsePc
 }
 
 /** «3 ore fa», «2 giorni fa», «adesso». */
@@ -187,6 +192,19 @@ export function componiSalute(i: IngressiSalute): Salute {
       spiegazione: `${t.motivo} Finché non si installa resti sulla ${i.versione}, con i difetti che la ${t.versione} corregge.`,
       cosaFare: t.strade.join(' '),
       azioni: [{ id: 'installa', testo: 'Riprova «Installa»' }, { id: 'scarica-a-mano', testo: 'Scarica l’installer a mano', url: t.pagina }]
+    })
+  }
+
+  // ── Quanto lavora SierraDeck, qui e sugli altri PC (0.69.0) ──
+  // «I PC girano lenti» (Nicholas, 12/10): i numeri di ogni PC in un posto solo.
+  if (i.risorse !== undefined) {
+    const righe = [`Questo PC: ${rigaRisorse(i.risorse)}`, ...i.pc.filter((p) => p.risorse !== undefined).map((p) => `${p.nome}: ${rigaRisorse(p.risorse as RisorsePc)}`)]
+    const rifiutate = [i.risorse, ...i.pc.map((p) => p.risorse)].some((r) => r !== undefined && r.driveRifiutate > 0)
+    voci.push({
+      chiave: 'risorse', gruppo: 'pc', tono: rifiutate ? 'attenzione' : 'ok',
+      titolo: `Quanto lavora SierraDeck: ${rigaRisorse(i.risorse)}`,
+      spiegazione: `${righe.join(' — ')}. CPU e RAM sono di tutti i processi di SierraDeck (non delle chat di Claude Code); le richieste al Drive sono la media degli ultimi 10 minuti.` + (rifiutate ? ' Google ne ha rifiutate alcune per troppe richieste: i salvataggi riprovano da soli.' : ''),
+      azioni: []
     })
   }
 

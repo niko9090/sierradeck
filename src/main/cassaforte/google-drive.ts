@@ -1,5 +1,6 @@
 import { ConflittoMagazzino, type Contenuto, type Magazzino, type SegnaProgresso } from './magazzino'
 import type { Archivio, VoceArchivio } from './archivio'
+import { conConteggio } from '../risorse'
 
 /**
  * Il magazzino su Google Drive dell'utente (bring-your-own-storage).
@@ -78,7 +79,8 @@ export function conRinnovo(f: Fetch, rinnova?: (fallito: string) => Promise<stri
 }
 
 export function creaMagazzinoDrive(deps: DriveDeps): Magazzino {
-  const f: Fetch = conRinnovo(deps.fetch ?? fetch, deps.rinnova)
+  // Ogni richiesta che parte davvero si conta (0.69.0): quanto lavora il PC.
+  const f: Fetch = conRinnovo(conConteggio(deps.fetch ?? fetch), deps.rinnova)
   const nomeFile = deps.nomeFile ?? NOME_FILE_PREDEFINITO
   const intestazioni = (tk: string): Record<string, string> => ({ Authorization: `Bearer ${tk}` })
 
@@ -222,7 +224,8 @@ export function creaMagazzinoDrive(deps: DriveDeps): Magazzino {
  * interi), quindi niente flusso ripristinabile qui.
  */
 export function creaArchivioDrive(deps: DriveDeps): Archivio {
-  const f: Fetch = conRinnovo(deps.fetch ?? fetch, deps.rinnova)
+  // Ogni richiesta che parte davvero si conta (0.69.0): quanto lavora il PC.
+  const f: Fetch = conRinnovo(conConteggio(deps.fetch ?? fetch), deps.rinnova)
   const intestazioni = (tk: string): Record<string, string> => ({ Authorization: `Bearer ${tk}` })
 
   const errore = async (r: Response, cosa: string): Promise<Error & { stato?: number }> => {

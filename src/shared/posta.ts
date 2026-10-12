@@ -1,3 +1,4 @@
+import type { RisorsePc } from './risorse'
 /**
  * La posta per un PC: i tipi e le due cose pure che servono anche al
  * pannello del PC (`PannelloAccount`, `ModalePosta`) e alla pagina del
@@ -59,6 +60,8 @@ export type BattitoPc = {
    * vuoto o, peggio, a chi la occupa.
    */
   client?: { inAscolto: boolean; errore?: string }
+  /** Quanto lavora SierraDeck su quel PC (0.69.0). Non conta per decidere se riscrivere il battito. */
+  risorse?: RisorsePc
 }
 
 /** Le copie locali di un PC: chat (sessione, cartella, ultimo messaggio) e progetti (id, cartella). */

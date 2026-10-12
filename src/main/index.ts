@@ -24,7 +24,7 @@ import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeIm
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, watch, copyFileSync, writeFileSync } from 'node:fs'
-import { homedir, hostname } from 'node:os'
+import { cpus, homedir, hostname } from 'node:os'
 import { createConnection } from 'node:net'
 import { createHash, randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
@@ -130,6 +130,8 @@ import { apriProviderStore } from './provider-store'
 import { creaAggiornamenti, type EsitoQuiete } from './aggiornamenti'
 import { attesaMassimaMs, descriviAttesaDrive, lavoroAutomatico, percheNonFinito } from './attesa-drive'
 import { claudeDaAggiornare, notaClaude } from './claude-versione'
+import { contatoreDrive, cpuRamDa } from './risorse'
+import { risorseValide, type RisorsePc } from '@shared/risorse'
 import { resolveClaudeCommand } from './config'
 import { leggiAccesso } from './accesso'
 import { apriContoDrive } from './cassaforte/conto-drive'
@@ -512,6 +514,13 @@ let pcVistoGlobale: ((pcId: string, indirizzo: string) => void) | undefined
 let localiBattito: (() => LocaliBattito) | undefined
 /** Il Client di questo PC è in ascolto sulla sua porta (0.58.1). */
 let statoClient: { inAscolto: boolean; errore?: string } | undefined
+
+/** Quanto lavora SierraDeck qui (0.69.0): per la Salute e il battito. */
+function risorseQui(): RisorsePc | undefined {
+  try {
+    return { ...cpuRamDa(app.getAppMetrics(), cpus().length), ...contatoreDrive.riassunto(), misuratoIl: new Date().toISOString() }
+  } catch { return undefined }
+}
 /** La rimozione sicura (0.58.0, tappa 3): il lato di chi toglie e quello del residente. */
 let rimozioneGlobale: Rimozione | undefined
 /** Il pannello del Drive e le sue azioni (0.58.0, tappa 4), anche per il telefono. */
@@ -1845,6 +1854,7 @@ if (!app.requestSingleInstanceLock()) {
         workspace: () => workspaceStore?.leggi().workspace.map((w) => w.nome),
         // Il Client in ascolto o no (0.58.1): gli altri PC lo leggono prima di bussare.
         client: () => statoClient,
+        risorse: () => risorseQui(),
         log: registro.info
       })
       postinoGlobale = postino
@@ -2272,6 +2282,8 @@ if (!app.requestSingleInstanceLock()) {
           const strada = remoto.stradaDi(b.pcId)
           return {
             pcId: b.pcId, nome: nomeDaMostrare(b), versione: b.versione, battito: b.battito,
+            // Dal Drive: solo se ha la forma giusta.
+            ...(risorseValide(b.risorse) ? { risorse: b.risorse } : {}),
             ...(sottotitoloPc(b) !== undefined ? { host: sottotitoloPc(b) } : {}),
             ...(s !== undefined ? { stato: s.stato } : {}),
             ...(strada !== undefined && s?.stato === 'acceso' ? { strada: stradaBreve(strada.strada) } : {})
@@ -2310,7 +2322,8 @@ if (!app.requestSingleInstanceLock()) {
           errori: erroriDalLog(righe, adesso, ORE_ERRORI_SALUTE),
           consegne,
           chatInErrore: chatAperte.filter((c) => c.errore !== undefined).map((c) => ({ titolo: c.titolo, errore: c.errore as string })),
-          oreErrori: ORE_ERRORI_SALUTE
+          oreErrori: ORE_ERRORI_SALUTE,
+          risorse: risorseQui()
         })
       }
       ipcMain.handle('salute:leggi', () => leggiSalute())

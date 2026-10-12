@@ -41,6 +41,7 @@ export {
   nomeBattitoPc, nomePosta, pcVivo, pcCheHaLaCartella, staSottoCartella,
   PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, RIAPRI_DOPO_MS, VOCI_MAX, TESTO_POSTA_MAX,
 } from '@shared/posta'
+import type { RisorsePc } from '@shared/risorse'
 import { ESITO_PROTETTA, type ChatDiPc, type BattitoPc, type LocaliBattito, type VocePosta, type Posta } from '@shared/posta'
 import { nomeRichiestaSchermo, nomeSchermo, richiestaSchermoViva, schermoDaScrivere, type ChatNelloSchermo } from '@shared/strada-pc'
 import {
@@ -124,6 +125,8 @@ export function creaPostino(deps: {
   workspace?: () => string[] | undefined
   /** Lo stato del Client di questo PC (0.58.1). */
   client?: () => { inAscolto: boolean; errore?: string } | undefined
+  /** Quanto lavora SierraDeck qui (0.69.0): va nel battito, ma non lo fa riscrivere. */
+  risorse?: () => RisorsePc | undefined
   cartellaEsiste: (cwd: string) => boolean
   /** Apre una chat nuova in quella cartella (in una finestra). */
   apriChat: (cwd: string) => void
@@ -202,14 +205,16 @@ export function creaPostino(deps: {
       ...(rete !== undefined && rete.indirizzi.length > 0 ? { indirizzi: rete.indirizzi, porta: rete.porta } : {}),
       ...(() => { const l = deps.locali?.(); return l === undefined ? {} : { locali: l } })(),
       ...(() => { const w = deps.workspace?.(); return w === undefined ? {} : { workspace: w } })(),
-      ...(() => { const c = deps.client?.(); return c === undefined ? {} : { client: c } })()
+      ...(() => { const c = deps.client?.(); return c === undefined ? {} : { client: c } })(),
+      ...(() => { const r = deps.risorse?.(); return r === undefined ? {} : { risorse: r } })()
     }
   }
 
   /** Il battito, ma solo se qualcosa e' cambiato o e' passato abbastanza: una scrittura sul Drive non e' gratis. */
   const batti = async (s: Scatola): Promise<void> => {
     const b = mioBattito()
-    const { battito: _b, ...senzaOra } = b
+    // Le risorse cambiano a ogni misura: se contassero, il battito si riscriverebbe a ogni giro.
+    const { battito: _b, risorse: _r, ...senzaOra } = b
     const firma = JSON.stringify(senzaOra)
     if (firma === ultimoBattito && adesso() - ultimoBattitoIl < BATTITO_PC_OGNI_MS) return
     await s.scrivi(nomeBattitoPc(b.pcId), b)
