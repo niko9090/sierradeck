@@ -880,6 +880,8 @@ export function App(): React.JSX.Element {
   const avvioDomande = useRef(true)
   /** L'ultima lettura delle Domande: serve al tasto per sapere chi aspetta. */
   const ultimeConversazioni = useRef<Conversazione[]>([])
+  // Le chat ferme su una domanda (0.70.0): «aspetta te» sulla testata del loro riquadro.
+  const [chiedono, setChiedono] = useState<ReadonlySet<string>>(new Set())
   // Il main chiede di mettere in vista la linguetta «Domande» di un autopilota
   // che sta in questa finestra (0.39.1): la apre la sua scheda.
   useEffect(() => window.gestore.pannello.suMostraDomande((id) => {
@@ -901,6 +903,8 @@ export function App(): React.JSX.Element {
           const corpo = r.corpo as { conversazioni?: Conversazione[]; chiedono?: number }
           const c = corpo.conversazioni ?? []
           ultimeConversazioni.current = c
+          const ora = new Set(c.filter((x) => x.tipo === 'chat' && x.chiede && x.chiave.startsWith('chat:')).map((x) => x.chiave.slice(5)))
+          setChiedono((prima) => (prima.size === ora.size && [...ora].every((x) => prima.has(x)) ? prima : ora))
           setDomandeInAttesa(corpo.chiedono ?? quanteAspettano(c))
           if (!preferenzeLette.current) return
           const v = viste()
@@ -1507,7 +1511,9 @@ export function App(): React.JSX.Element {
           fuori da questa condizione insieme a «non c’è niente», e chi aveva
           appena premuto il tasto — qui o dal telefono — restava a guardare
           uno schermo che non diceva nulla. */}
-      {aggiornamento.fase === 'cerco' ? (
+      {/* 0.70.0: la ricerca automatica (ogni 10 minuti) non apre più la striscia: basta la spia «cerco…»
+          accanto alla versione. La striscia resta quando la ricerca l'ha chiesta il telefono. */}
+      {aggiornamento.fase === 'cerco' && aggiornamento.daTelefono === true ? (
         <div className="avviso avviso--aggiornamento">
           <span className="led led--attesa" />
           <span>
@@ -1793,6 +1799,7 @@ export function App(): React.JSX.Element {
               autopiloti={autopiloti}
               onRicaricaAutopiloti={ricaricaAutopiloti}
               pensano={pensano}
+              chiedono={chiedono}
             />
           ) : (
             <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--testo-quieto)' }}>

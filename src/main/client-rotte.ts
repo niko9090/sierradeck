@@ -1,3 +1,4 @@
+import { nomiDistinti as nomiChatDistinti } from '@shared/chat-vista'
 import { oraBreve, statoAutopilotaDalVivo, statoMessaggi } from '@shared/stato-dal-vivo'
 import type { ChatSalvata } from '@shared/workspace'
 import { nomeDaMostrare } from '@shared/nome-pc'
@@ -1088,13 +1089,22 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         ...(depsPieni.alTelefono !== undefined && eTelefono(visore) ? { consegne: depsPieni.alTelefono.perTelefono(visore).length } : {}),
         // Senza la coda delle righe: l'elenco si chiede ogni due secondi, e
         // quello che si guarda dentro è una chat sola, quando la si apre.
-        chat: deps.chat().map(({ coda, codaGrezza, ...resto }) => ({
+        chat: ((): unknown[] => {
+          const tutte = deps.chat()
+          // Tre chat con lo stesso nome si distinguono (0.70.0): «Nome #2», per workspace.
+          const nomi = new Map<string, string>()
+          for (const ws of new Set(tutte.map((c) => c.workspace ?? ''))) {
+            for (const [id, n] of nomiChatDistinti(tutte.filter((c) => (c.workspace ?? '') === ws).map((c) => ({ id: c.id, titolo: c.titolo })))) nomi.set(id, n)
+          }
+          return tutte.map(({ coda, codaGrezza, ...resto }) => ({
           ...resto,
+          ...(nomi.get(resto.id) !== undefined && nomi.get(resto.id) !== resto.titolo ? { nome: nomi.get(resto.id) } : {}),
           // Se sullo schermo c'e' un elenco di scelte: e' il pallino della
           // scheda «Domande» del telefono, senza aprire la chat.
           // I segnali di Claude Code prima (0.45.0); lo schermo come riserva.
           chiede: resto.chiedeSegnale ?? scelteVive(resto.id, codaGrezza ?? coda ?? []) !== undefined
-        })),
+        }))
+        })(),
         // I progetti sul Drive: chi li ha in mano e quanti comandi aspettano.
         progetti: deps.progetti?.() ?? [],
         // Le chat chiuse da te qui (0.60.9): chiusa a casa = chiusa anche dove la si guarda.

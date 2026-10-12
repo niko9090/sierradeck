@@ -152,6 +152,8 @@ data class NomeComputer(
 data class Chat(
     val id: String,
     val titolo: String = "",
+    /** PC 0.70: il nome da mostrare quando più chat del workspace hanno lo stesso titolo («Nome #2»). */
+    val nome: String? = null,
     val cwd: String = "",
     val sessione: String? = null,
     /** L'ultima riga del terminale: il «battito» a colpo d'occhio. */
@@ -1029,3 +1031,6 @@ data class ProgressoCatalogo(val fase: String = "", val fatto: Int? = null, val 
 
 @Serializable
 data class StatoCatalogo(val inCorso: ProgressoCatalogo? = null)
+
+/** Il nome da mostrare di una chat: quello distinto del PC 0.70 («Nome #2»), poi il titolo, poi la cartella. */
+fun nomeChat(c: Chat): String = c.nome?.takeIf { it.isNotBlank() } ?: c.titolo.ifBlank { c.cwd }

@@ -15,6 +15,7 @@ import { DiarioAutopilota } from './DiarioAutopilota'
 import { diarioDelRiquadro } from '../diario-autopilota'
 import type { Autopilota } from '@shared/autopilota'
 import { DropOverlay } from './DropOverlay'
+import { nomiDistinti, statoChat } from '@shared/chat-vista'
 
 const SPESSORE_DIVISORE = 6
 
@@ -229,7 +230,8 @@ export function Mosaic({
   node,
   autopiloti,
   onRicaricaAutopiloti,
-  pensano
+  pensano,
+  chiedono = new Set()
 }: {
   node: LayoutNode
   /** Servono al riquadro per sapere se qualcuno sta governando la sua chat. */
@@ -250,11 +252,17 @@ export function Mosaic({
    * aperte stesse facendo qualcosa.
    */
   pensano: ReadonlySet<string>
+  /** I riquadri fermi su una domanda (0.70.0): «aspetta te» sulla testata. */
+  chiedono?: ReadonlySet<string>
 }): React.JSX.Element {
   const panes = useLayoutStore((s) => s.panes)
   const closePane = useLayoutStore((s) => s.closePane)
   const setPtyId = useLayoutStore((s) => s.setPtyId)
   const rinominaPane = useLayoutStore((s) => s.rinominaPane)
+  // Tre chat con lo stesso nome si distinguono (0.70.0): «Nome #2», solo da mostrare.
+  const nomi = nomiDistinti(Object.values(panes).map((p) => ({ id: p.id, titolo: p.title })))
+  // I comandi rari della testata (sposta, ospite, PIN) dietro «⋯» (0.70.0): restano montati, così i loro menu funzionano.
+  const [rari, setRari] = useState<ReadonlySet<string>>(new Set())
   // Quale riquadro si sta rinominando, e con che testo: il nome si cambia dove
   // lo si legge, con due clic sulla sua testata.
   const [rinominando, setRinominando] = useState<string | undefined>(undefined)
@@ -348,9 +356,20 @@ export function Mosaic({
                   onDoubleClick={() => { setBozzaNome(data.title); setRinominando(paneId) }}
                   title="Due clic per dargli un nome tuo"
                 >
-                  {data.title}
+                  {nomi.get(paneId) ?? data.title}
                 </span>
               )}
+              {/* Lo stato in una parola (0.70.0): aspetta te, al lavoro, autopilota, ferma, dorme. */}
+              {(() => {
+                const st = statoChat({
+                  chiede: chiedono.has(paneId),
+                  lavora: data.ptyId !== undefined && pensano.has(data.ptyId),
+                  governata: data.autopilota !== undefined,
+                  dorme: data.ibernata === true,
+                  ...(data.remoto !== undefined ? { altrove: data.remoto.pcNome } : {})
+                })
+                return <span className={`stato-chat stato-chat--${st.colore}`} title={st.ragione ?? st.parola}>{st.parola}</span>
+              })()}
               {/* Si sta muovendo. Una chat al lavoro e una ferma sul prompt
                   erano lo stesso riquadro immobile: chi tornava dopo dieci
                   minuti non sapeva se aspettare, ne' quale delle chat aperte
@@ -367,11 +386,22 @@ export function Mosaic({
                     modello si sceglie all'apertura (dalla fascia) e resta quello.
                     Cambiarlo a chat aperta si fa con `/model` nel terminale, che è
                     il gesto vero — lo spazio della testata va a comandi più utili. */}
-                <ComandoSposta paneId={paneId} />
-                {/* L'ospite della chat (0.52.0): quale PC la fa girare; clic o tasto destro per sceglierlo. */}
-                <TastoOspite paneId={paneId} sessione={data.remoto?.sessione ?? data.sessionUuid} titolo={data.title} {...(data.remoto !== undefined ? { remotoSu: data.remoto.pcNome } : {})} />
-                {/* Il PIN delle chat (0.49.0): proteggere, togliere, richiudere. */}
-                {data.remoto === undefined ? <TastoPin sessione={data.sessionUuid} titolo={data.title} /> : null}
+                <span className="comandi-rari" style={{ display: rari.has(paneId) ? 'flex' : 'none' }}>
+                  <ComandoSposta paneId={paneId} />
+                  {/* L'ospite della chat (0.52.0): quale PC la fa girare; clic o tasto destro per sceglierlo. */}
+                  <TastoOspite paneId={paneId} sessione={data.remoto?.sessione ?? data.sessionUuid} titolo={data.title} {...(data.remoto !== undefined ? { remotoSu: data.remoto.pcNome } : {})} />
+                  {/* Il PIN delle chat (0.49.0): proteggere, togliere, richiudere. */}
+                  {data.remoto === undefined ? <TastoPin sessione={data.sessionUuid} titolo={data.title} /> : null}
+                </span>
+                <button
+                  className="comando-riquadro"
+                  aria-expanded={rari.has(paneId)}
+                  onClick={() => setRari((x) => { const n = new Set(x); if (n.has(paneId)) n.delete(paneId); else n.add(paneId); return n })}
+                  title={rari.has(paneId) ? 'Nascondi i comandi' : 'Altri comandi: sposta in un’altra finestra o workspace, quale PC la ospita, PIN'}
+                  aria-label={`Altri comandi di ${data.title}`}
+                >
+                  ⋯
+                </button>
                 {/* Dormire non è chiudere: la conversazione resta, e quello che
                     si libera è il claude.exe che la teneva in piedi. Con
                     qualche workspace pieno se ne tengono accesi dieci per

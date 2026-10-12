@@ -307,7 +307,7 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
                                             LedChat(lettura.tono)
                                             Spacer(Modifier.width(8.dp))
                                             if (viva.pin == "chiusa") Text("🔒 ", fontSize = 12.sp)
-                                            Text(viva.titolo.ifBlank { viva.cwd }, color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                            Text(nomeChat(viva), color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                                             Spacer(Modifier.width(8.dp))
                                             Text(parola, color = coloreTono(lettura.tono), fontSize = 11.sp, maxLines = 1, softWrap = false)
                                         }

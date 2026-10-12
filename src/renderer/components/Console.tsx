@@ -167,6 +167,7 @@ export function Console({
   // Il menu dei workspace: aperto o chiuso lo sa la console, cosi' lo apre
   // anche la scorciatoia e non solo il clic sul tasto.
   const [menuWsAperto, setMenuWsAperto] = useState(false)
+  const [strumenti, setStrumenti] = useState(false)
 
   // Le scorciatoie vive seguono le preferenze: la tabella sta in
   // `scorciatoie-vive` perche' la legge anche il terminale, a ogni tasto.
@@ -353,16 +354,28 @@ export function Console({
         >
           + Nuova chat
         </button>
-        <select
-          className="campo campo--compatto"
-          value={modello}
-          onChange={(e) => setModello(e.target.value)}
-          title="Con quale modello partiranno le prossime chat"
-        >
-          {MODELLI.map((m) => (
-            <option key={m.valore} value={m.valore}>{m.etichetta}</option>
-          ))}
-        </select>
+        {/* Le cose rare (0.70.0): il modello delle prossime chat, i workspace, la finestra nuova, il negozio. */}
+        <span style={{ position: 'relative' }}>
+          <button className="tasto" aria-expanded={strumenti} onClick={() => setStrumenti(!strumenti)} title="Il modello delle prossime chat, i workspace, una finestra nuova, il negozio">
+            Strumenti ▾{modello !== 'default' ? ` · ${MODELLI.find((m) => m.valore === modello)?.etichetta.split(' (')[0] ?? modello}` : ''}
+          </button>
+          {strumenti ? (
+            <div className="progetti__menu" style={{ left: 0, right: 'auto' }} onMouseLeave={() => setStrumenti(false)}>
+              <label className="progetti__voce" title="Con quale modello partiranno le prossime chat">
+                Modello delle prossime chat
+                <select className="campo campo--compatto" style={{ display: 'block', marginTop: 4, width: '100%' }} value={modello} onChange={(e) => setModello(e.target.value)}>
+                  {MODELLI.map((m) => (
+                    <option key={m.valore} value={m.valore}>{m.etichetta}</option>
+                  ))}
+                </select>
+              </label>
+              <button className="progetti__voce" onClick={() => { setStrumenti(false); onApri('chat') }} title="Chat usate da altri PC, e tutto «Chat e workspace»">Usate da altri PC…</button>
+              <button className="progetti__voce" onClick={() => { setStrumenti(false); commuta('workspace') }}>Crea, rinomina, elimina workspace…</button>
+              <button className="progetti__voce" onClick={() => { setStrumenti(false); void window.gestore.finestre.nuova() }}>Nuova finestra</button>
+              <button className="progetti__voce" onClick={() => { setStrumenti(false); commuta('negozio') }}>Negozio…</button>
+            </div>
+          ) : null}
+        </span>
       </div>
 
       {/* L'unica sezione che cede: quando la finestra si stringe e' questa a

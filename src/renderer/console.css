@@ -4801,3 +4801,24 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   .progetti__corpo--destra .progetti__dettaglio { width: 100%; }
   .progetti__cerca { width: 160px; }
 }
+
+/* ── Schermata principale (0.70.0): lo stato della chat sulla testata del riquadro ── */
+.stato-chat {
+  flex: none;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+  border: 1px solid currentColor;
+}
+.stato-chat--verde { color: var(--verde); }
+.stato-chat--ambra { color: var(--ambra); background: color-mix(in srgb, var(--ambra) 14%, transparent); }
+.stato-chat--rosso { color: var(--rosso); }
+.stato-chat--blu { color: var(--blu); }
+.stato-chat--quieto { color: var(--testo-quieto); border-color: transparent; }
+.comandi-rari { align-items: center; gap: 2px; }
+/* Un riquadro stretto: resta il colore, la parola si toglie (si legge passandoci sopra). */
+@container (max-width: 360px) { .stato-chat { font-size: 0; padding: 0; width: 8px; height: 8px; background: currentColor; } }
+.riquadro { container-type: inline-size; }

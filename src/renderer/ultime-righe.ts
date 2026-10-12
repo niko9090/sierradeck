@@ -50,7 +50,8 @@ export function senzaColori(grezzo: string): string {
  * ultima riga di una chat non dice se sta lavorando o ha finito.
  */
 const RUMORE_DI_INTERFACCIA =
-  /^(\? for shortcuts|[›>]\s*|.*bypass permissions.*|.*shift\+tab.*|.*to cycle.*|.*accept edits.*|.*plan mode.*|.*auto-accept.*)$/i
+  // 0.70.0: anche i piedi delle domande («Enter to confirm · Esc to cancel»): dal telefono si leggevano al posto della chat.
+  /^(\? for shortcuts|[›>]\s*|.*bypass permissions.*|.*shift\+tab.*|.*to cycle.*|.*accept edits.*|.*plan mode.*|.*auto-accept.*|[·\s]*enter to (confirm|select).*|[·\s]*esc to cancel.*)$/i
 
 /** Una cornice: solo caratteri di riquadro e spazi. */
 const SOLO_CORNICE = /^[\u2500-\u257f\s]+$/

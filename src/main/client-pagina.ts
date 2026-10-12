@@ -950,7 +950,7 @@ function vistaConversazioni() {
   var voci = elenco.map(function (c) {
     return '<button class="voce" data-k="' + esc(c.chiave) + '" onclick="apriConv(this.dataset.k)"' + (c.chiave === aperta.chiave ? ' aria-current="true"' : '') + '>' +
       '<span class="led ' + (c.chiede ? 'attesa' : 'spenta') + '"></span>' +
-      '<span class="voce__testo"><span class="voce__nome">' + (c.suPc ? '<b class="segno-remoto">SU ' + esc(c.suPc) + (c.viaPc ? ' (' + esc(c.viaPc) + ')' : '') + '</b> · ' : '') + esc(c.titolo) + '</span>' +
+      '<span class="voce__testo"><span class="voce__nome">' + (c.suPc ? '<b class="segno-remoto">SU ' + esc(c.suPc) + (c.viaPc ? ' (' + esc(c.viaPc) + ')' : '') + '</b> · ' : '') + esc(c.nome || c.titolo) + '</span>' +
       '<span class="voce__sotto">' + (c.tipo === 'autopilota' ? 'ti aspetta (' + (c.quante || 1) + ') → apri' : c.chiede ? 'chat · aspetta che tu scelga' : 'chat · ha finito il turno') + '</span></span>' +
       '<span class="voce__freccia">›</span></button>'
   }).join('')
@@ -1511,7 +1511,7 @@ function pannello(s) {
       // ciò che questo stato esiste per impedire. Visto in fotografia. E dice
       // lo stato vero (aspetta te, sceglie, guidata), non «verde» per tutte.
       '<div class="polso"><span class="led ' + ledChat(c) + '"></span>' +
-      '<span class="polso__nome">' + esc(c.titolo) + '</span><span class="voce__stato voce__stato--' + statoChat(c).tono + '">' + esc(statoChat(c).parola) + '</span>' +
+      '<span class="polso__nome">' + esc(c.nome || c.titolo) + '</span><span class="voce__stato voce__stato--' + statoChat(c).tono + '">' + esc(statoChat(c).parola) + '</span>' +
       // Al lavoro in sottofondo (0.69.0): si vede sempre, e «Guarda» mostra lo schermo dal vivo senza cambiare niente sul PC.
       (c.sottofondo ? '<span class="sotto" style="margin-left:6px">in sottofondo</span><button style="margin-left:6px" data-chat="' + esc(c.id) + '" onclick="guarda(this.dataset.chat)">Guarda</button>' : '') + '</div>' +
       (c.ultimaRiga ? '<div class="battito">' + esc(c.ultimaRiga) + '</div>' : '')
@@ -1687,7 +1687,7 @@ function pannello(s) {
         : g.voci.map((v) => v.viva
           ? '<button class="voce" onclick="guarda(\\'' + escJs(v.viva.id) + '\\')">' +
             '<span class="led ' + ledChat(v.viva) + '"></span>' +
-            '<span class="voce__testo"><span class="voce__nome">' + esc(v.viva.titolo) + (v.viva.altrove ? '<span class="voce__altrove">progetto su ' + esc(v.viva.altrove) + '</span>' : '') + '</span>' +
+            '<span class="voce__testo"><span class="voce__nome">' + esc(v.viva.nome || v.viva.titolo) + (v.viva.altrove ? '<span class="voce__altrove">progetto su ' + esc(v.viva.altrove) + '</span>' : '') + '</span>' +
             '<span class="voce__stato voce__stato--' + statoChat(v.viva).tono + '">' + esc(statoChat(v.viva).parola) + '</span>' +
             (v.viva.ultimaRiga ? '<span class="voce__sotto">' + esc(v.viva.ultimaRiga) + '</span>' : '') +
             '</span><span class="voce__freccia">›</span></button>'
