@@ -94,28 +94,44 @@ describe('il pannello del Drive per la pagina e per l’app', () => {
       throw new Error(nome)
     }
     const riga = (inizio: string): string => script.split(String.fromCharCode(10)).find((r) => r.trimStart().startsWith(inizio)) ?? ''
-    const disegna = new Function('pdDati', `
+    const disegna = (dati: unknown, scelto = '', strumento = ''): string => (new Function('pdDati', 'pdScelto', 'pdStrumento', `
       ${riga('const esc =')}; ${riga('const escJs =')}
       var pdErrore = ''; var pdVista = 'progetti'; var pdFiltro = 'tutti'; var pdDaConfermare = ''; var pdSenzaNome = false, aiutiAperti = {}
+      var pdGruppo = 'tutti'; var pdQ = ''; var pdOrdine = 'stato'
       ${estrai('aiuto')}
       ${riga('const PD_PASSI =')}; ${riga('const PD_TIPI =')}; ${estrai('pdByte')} ${estrai('pdTraslochiHtml')} ${estrai('pdSpazioHtml')}
+      ${riga('const PD_GRUPPI =')}; ${riga('const PD_ORDINI =')}; ${riga('const PD_COLORE =')}; ${riga('const PD_RANGO =')}
+      ${estrai('pdPiano')} ${estrai('pdVistaDi')} ${estrai('pdOrdinate')} ${estrai('pdPillola')} ${estrai('pdElencoHtml')} ${estrai('pdDettaglioHtml')} ${estrai('pdStrumentiHtml')}
       ${estrai('pdQuando')} ${estrai('pdStato')} ${estrai('pdProblemi')} ${estrai('pdFiltra')} ${estrai('pdScegliPc')} ${estrai('pannelloDriveHtml')}
-      return pannelloDriveHtml()`) as (d: unknown) => string
+      return pannelloDriveHtml()`) as (d: unknown, s: string, t: string) => string)(dati, scelto, strumento)
+    // 0.69.0: l'elenco con lo stato in una parola (dal PC), i gruppi con i conti, gli strumenti.
     const h = disegna(atteso)
-    for (const t of ['Gestionale', 'Conferma e togli da questo PC', 'Ripristina', 'Lavora su questo PC', 'Togli da questo PC', 'va aggiornato alla 0.58', 'Piano di allineamento']) expect(h).toContain(t)
-    // 0.67.0: le chat del progetto sotto la sua riga, con «Apri su <PC>» dove vivono altrove.
-    for (const t of ['Fatture', 'Apri su PORTATILE-ESEMPIO', 'pdApriChat(']) expect(h).toContain(t)
-    // 0.60.0: un progetto solo per nome, il riassunto di «Rendi residente» con la conferma, le unioni annullabili.
-    for (const t of ['Stesso nome, stesso progetto: 2 voci nel registro', 'Conferma e unisci', 'Annulla l’unione', '(di cui 1 senza nome)', '«gestionale (2)» entra in «Gestionale»']) expect(h).toContain(t)
-    // 0.65.0: il trasloco passo per passo (fermo, con il motivo e «Riprendi») e lo spazio sul Drive.
+    for (const t of ['Gestionale', 'da sistemare', 'aspetta la tua conferma', 'Su altri PC 1', 'Da sistemare 1', 'Tutti 1', 'va aggiornato', 'pdApri(', 'Tutte le chat', 'Cartelle in recupero (1)', 'Piano di allineamento']) expect(h).toContain(t)
+    // Il dettaglio a tutto schermo: le azioni in vista con il «?», le conferme, le chat dove vivono.
+    const d = disegna(atteso, 'prog-g')
+    for (const t of ['‹ Progetti', 'Lavora su questo PC', 'Togli da questo PC', 'Aspetta la tua conferma: unione delle copie', 'Togliere da questo PC', 'Registrato 2 volte', 'Fatture', 'Guarda su PORTATILE-ESEMPIO', 'pdApriChat(', 'Cartelle']) expect(d).toContain(t)
+    expect(disegna(atteso, '', 'recupero')).toContain('Ripristina')
+    // 0.65.0: il trasloco passo per passo (fermo, con il motivo e «Riprendi») nel dettaglio, e lo spazio sul Drive negli strumenti.
     const base = nuovoTrasloco({ id: 'trasloco-1', progetto: 'prog-g', nome: 'Gestionale', verso: { pc: 'pc-qui', nome: 'PC-ESEMPIO' }, chiesto: { da: 'pc-port', come: 'sposta' }, altrove: [{ pc: 'pc-port', nome: 'PORTATILE-ESEMPIO' }], adesso: '2026-10-12T10:00:00Z' })
     const fermo = ferma(segna(base, 'raccolta', { stato: 'fatto', dettaglio: '1 copia salvata sul Drive' }, '2026-10-12T10:01:00Z'), 'analisi', 'PORTATILE-ESEMPIO non risponde', true, '2026-10-12T10:02:00Z')
-    const h2 = disegna({ ...atteso, traslochi: [fermo], spazio: { misura: { totale: { file: 3, byte: 2048 }, perTipo: { chat: { file: 3, byte: 2048 } }, inRecupero: { file: 0, byte: 0 }, misuratoIl: '' }, proposte: [{ tipo: 'doppie', titolo: 'Copie doppie', breve: '1 chat salvate due volte', spiega: 'x', voci: [], byte: 1024 }], pulizie: [] } })
-    for (const t of ['Trasloco di «Gestionale» su PC-ESEMPIO', 'Fermo: PORTATILE-ESEMPIO non risponde', 'Riprendo da solo', '✓ Raccolgo le copie — 1 copia salvata sul Drive', 'Riprendi', 'Spazio sul Drive', 'SierraDeck usa <b>2,0 KB</b>', 'Copie doppie', 'libera 1,0 KB', 'Pulisci…']) expect(h2).toContain(t)
+    const conTrasloco = { ...atteso, traslochi: [fermo], spazio: { misura: { totale: { file: 3, byte: 2048 }, perTipo: { chat: { file: 3, byte: 2048 } }, inRecupero: { file: 0, byte: 0 }, misuratoIl: '' }, proposte: [{ tipo: 'doppie', titolo: 'Copie doppie', breve: '1 chat salvate due volte', spiega: 'x', voci: [], byte: 1024 }], pulizie: [] } }
+    const h2 = disegna(conTrasloco, 'prog-g')
+    for (const t of ['Trasloco di «Gestionale» su PC-ESEMPIO', 'Fermo: PORTATILE-ESEMPIO non risponde', 'Riprendo da solo', '✓ Raccolgo le copie — 1 copia salvata sul Drive', 'Riprendi']) expect(h2).toContain(t)
+    const h3 = disegna(conTrasloco, '', 'spazio')
+    for (const t of ['Spazio sul Drive', 'SierraDeck usa <b>2,0 KB</b>', 'Copie doppie', 'libera 1,0 KB', 'Pulisci…']) expect(h3).toContain(t)
   })
   it('«Progetti» è una destinazione propria della pagina (0.58.2)', () => {
     const html = paginaClient()
     expect(html).toContain('"id":"progetti"')
     expect(html).toContain('progetti: pannelloDriveHtml()')
+  })
+})
+
+describe('la pagina ridisegna «Progetti» quando cambia (0.69.0)', () => {
+  it('l’impronta della pagina guarda i dati e le scelte del pannello', () => {
+    const html = paginaClient()
+    const script = html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('</script>'))
+    const corpo = script.slice(script.indexOf('function impronta('), script.indexOf('function segnaScorrimento('))
+    for (const t of ['pdDati ?', 'pdGruppo', 'pdOrdine', 'pdScelto', 'pdStrumento', 'pdDaConfermare']) expect(corpo, t).toContain(t)
   })
 })

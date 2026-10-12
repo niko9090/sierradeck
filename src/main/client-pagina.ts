@@ -1350,6 +1350,9 @@ function impronta(s) {
     driveCatalogo ? (driveCatalogo.letto || '') + '/' + (driveCatalogo.progetti || []).length : '',
     driveLavoro ? JSON.stringify(driveLavoro) : '',
     JSON.stringify(driveAperti || {}),
+    // «Progetti» (0.69.0): mancava, e la pagina restava su «Leggo…» o non apriva il dettaglio finché non cambiava altro.
+    pdDati ? (pdDati.letto || '') + '/' + pdDati.progetti.length + '/' + JSON.stringify((pdDati.progetti || []).map((r) => r.vista ? r.vista.stato : '')) + JSON.stringify(pdDati.residenza || []) + JSON.stringify((pdDati.rimozione || {}).stati || []) + JSON.stringify(pdDati.traslochi || []) : '',
+    pdErrore || '', pdVista, pdFiltro, pdDaConfermare, pdSenzaNome, pdGruppo, pdOrdine, pdScelto, pdStrumento,
     prefViste ? prefViste.stile + '/' + prefViste.chiarore : '',
     aggiornamentoVisto ? aggiornamentoVisto.fase + '/' + (aggiornamentoVisto.percento || 0) + '/' + (aggiornamentoVisto.errore || '') + '/' + (aggiornamentoVisto.attesa || '') + '/' + (aggiornamentoVisto.chatOccupate || 0) + '/' + (aggiornamentoVisto.testo || '') + '/' + (aggiornamentoVisto.tentativoFallito ? aggiornamentoVisto.tentativoFallito.quando : '') : '',
     cercatoAlle || '',
@@ -4015,86 +4018,184 @@ function pdScegliPc(progetto, sessione, attuale) {
   }
   return h
 }
-function pannelloDriveHtml() {
-  let h = '<div class="piastrella"><div class="titolo">Chat e progetti del Drive' + aiuto('progetti', 'Ogni chat e ogni progetto ha un PC residente: è lì che lavora; sugli altri PC si apre dal vivo, e il progetto lì è «solo cloud». Qui vedi il residente, chi ne ha una copia, l’ultimo uso e lo stato; in ambra le assegnazioni sbagliate, con il perché e cosa fare. Ogni cambio chiede conferma e non cancella niente: le copie tolte vanno nella cartella di recupero per 30 giorni.') + '</div>'
-  if (pdErrore) return h + '<div class="sotto" style="color:var(--ambra,#e0a33c)">' + esc(pdErrore) + '</div></div>'
-  if (!pdDati) return h + '<div class="sotto">Leggo…</div></div>'
-  if ((pdDati.pcDaAggiornare || []).length > 0) h += '<div class="sotto" style="color:var(--ambra,#e0a33c);margin-top:6px">' + esc(pdDati.pcDaAggiornare.join(', ')) + ': non dice ancora quali chat e progetti ha sul disco, va aggiornato alla 0.58.</div>'
-  const rim = pdDati.rimozione || { stati: [], inRecupero: [] }
-  for (const st of rim.stati) {
-    h += '<div class="sotto" style="border-left:3px solid var(--accento,#e0a33c);padding-left:6px;margin-top:8px"><b>Togliere «' + esc(st.nome) + '» da questo PC:</b> ' + esc(st.messaggio) + '</div>'
-    if (st.fase === 'attesa-conferma' || st.fase === 'in-uso') h += '<div class="riga"><button class="primario" onclick="pdAzione(\\'conferma\\', \\'' + escJs(st.progetto) + '\\', false)">Conferma e togli da questo PC</button><button onclick="pdAzione(\\'annulla\\', \\'' + escJs(st.progetto) + '\\', false)">Annulla</button></div>'
+// «Progetti» rifatto (0.69.0): «rifai il menu Progetti!! non si capisce nulla» (Nicholas, 12/10).
+// Come sul PC: un elenco con lo stato in una parola, i gruppi, la ricerca e l'ordine; il tocco apre
+// il dettaglio a tutto schermo. Lo stato, i gruppi e i testi li calcola il PC (r.vista).
+var pdGruppo = 'tutti'
+var pdQ = ''
+var pdOrdine = 'stato'
+var pdScelto = ''
+var pdStrumento = ''
+const PD_GRUPPI = [['questo-pc', 'Su questo PC'], ['altri-pc', 'Su altri PC'], ['da-sistemare', 'Da sistemare'], ['tutti', 'Tutti']]
+const PD_ORDINI = [['stato', 'Stato'], ['nome', 'Nome'], ['chat', 'Chat'], ['spazio', 'Spazio']]
+const PD_COLORE = { verde: 'var(--verde,#3c9)', ambra: 'var(--ambra,#e0a33c)', rosso: 'var(--rosso,#dc5f5f)', blu: 'var(--blu,#4aa3ff)' }
+const PD_RANGO = { spostamento: 0, 'da-sistemare': 1, 'al-lavoro': 2, 'a-posto': 3 }
+function pdPiano(t) { return String(t || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase() }
+/** La vista di una riga: dal PC; da un PC di prima della 0.69 si ricava il minimo. */
+function pdVistaDi(r) {
+  if (r.vista) return r.vista
+  const da = (r.problemi || []).length > 0
+  const qui = r.residente ? r.residente.qui : r.cartellaQui
+  return {
+    stato: da ? { id: 'da-sistemare', parola: 'da sistemare', colore: 'ambra', ragione: (r.problemi[0].titolo || '').toLowerCase() } : { id: 'a-posto', parola: 'a posto', colore: 'verde' },
+    gruppi: [qui ? 'questo-pc' : 'altri-pc'].concat(da ? ['da-sistemare'] : []),
+    dove: r.residente ? (r.residente.qui ? 'Questo PC' : r.residente.nome) : '—', doveQui: !!(r.residente && r.residente.qui),
+    copie: { testo: '', nomi: [] }, chat: { testo: String(r.chat - (r.chatSenzaNome || 0)), totali: r.chat - (r.chatSenzaNome || 0), alLavoro: 0 },
+    spazio: r.spazioDrive ? { testo: pdByte(r.spazioDrive.byte), byte: r.spazioDrive.byte, avviso: r.spazioDrive.grandi.length > 0 } : { testo: '—', avviso: false }
   }
-  const inRec = (rim.inRecupero || []).filter((c) => !c.ripristinataIl)
-  if (inRec.length > 0) {
-    h += '<div class="sotto" style="margin-top:10px"><b>Cartelle in recupero</b>' + aiuto('recupero', 'Tolte da questo PC, non cancellate: «Ripristina» le rimette dov’erano.') + '</div>'
-    for (const c of inRec) h += '<div class="sotto" style="margin-top:4px"><b>' + esc(c.nome) + '</b> · tolta il ' + esc(pdQuando(c.quando)) + ' · resta fino al ' + esc(pdQuando(c.scadeIl)) + '</div><div class="riga"><button onclick="pdAzione(\\'ripristina\\', \\'\\', true, \\'' + escJs(c.id) + '\\')">' + (pdDaConfermare === 'ripristina::' + c.id ? 'Tocca ancora: rimetti in ' + esc(c.percorsoOriginale) : 'Ripristina') + '</button></div>'
+}
+window.pdGruppoScegli = (g) => { pdGruppo = g; pdScelto = ''; pannello(ultimoStato) }
+window.pdOrdina = (o) => { pdOrdine = o; pannello(ultimoStato) }
+window.pdApri = (id) => { pdScelto = id; pdStrumento = ''; pdDaConfermare = ''; pannello(ultimoStato); window.scrollTo(0, 0) }
+window.pdIndietro = () => { pdScelto = ''; pdStrumento = ''; pdDaConfermare = ''; pannello(ultimoStato) }
+window.pdStrumentoScegli = (s) => { pdStrumento = pdStrumento === s ? '' : s; pdScelto = ''; pannello(ultimoStato) }
+// La ricerca nasconde le righe senza ridisegnare: il campo non perde il cursore.
+window.pdCerca = (q) => {
+  pdQ = q
+  const parole = pdPiano(q).split(/\\s+/).filter(Boolean)
+  for (const el of document.querySelectorAll('[data-pd-cerca]')) el.style.display = parole.every((p) => el.getAttribute('data-pd-cerca').indexOf(p) >= 0) ? '' : 'none'
+}
+function pdOrdinate(righe) {
+  const k = (r) => {
+    const v = pdVistaDi(r)
+    if (pdOrdine === 'nome') return pdPiano(r.nome)
+    if (pdOrdine === 'chat') return -v.chat.totali
+    if (pdOrdine === 'spazio') return v.spazio.byte === undefined ? undefined : -v.spazio.byte
+    return PD_RANGO[v.stato.id]
   }
-  h += pdTraslochiHtml()
-  h += pdSpazioHtml()
-  const unioni = pdDati.unioni || []
-  if (unioni.length > 0) {
-    h += '<div class="sotto" style="margin-top:10px"><b>Unioni fatte</b>' + aiuto('unioni', 'I progetti uniti con «Rendi residente qui» negli ultimi 30 giorni. «Annulla l’unione» rimette com’erano cartelle, file, chat, workspace e registro; niente si cancella.') + '</div>'
-    for (const u of unioni) h += '<div class="sotto" style="margin-top:4px"><b>' + esc(u.nome) + '</b> · unito il ' + esc(pdQuando(u.quando)) + ' in ' + esc(u.destinazione) + ' · annullabile fino al ' + esc(pdQuando(u.scadeIl)) + '</div><div class="riga"><button onclick="pdAzione(\\'annulla-unione\\', \\'' + escJs(u.progetto) + '\\', true, \\'' + escJs(u.id) + '\\')">' + (pdDaConfermare === 'annulla-unione:' + u.progetto + ':' + u.id ? 'Tocca ancora: annulla l’unione' : 'Annulla l’unione') + '</button></div>'
+  return righe.map((r, i) => ({ r: r, i: i, k: k(r) })).sort((a, b) => {
+    if (a.k === undefined || b.k === undefined) return a.k === b.k ? a.i - b.i : a.k === undefined ? 1 : -1
+    const c = typeof a.k === 'number' ? a.k - b.k : String(a.k).localeCompare(String(b.k), 'it')
+    if (c !== 0) return c
+    if (pdOrdine === 'stato') { const u = String(b.r.ultimoUso || '').localeCompare(String(a.r.ultimoUso || '')); if (u !== 0) return u }
+    return a.i - b.i
+  }).map((x) => x.r)
+}
+function pdPillola(v) {
+  return '<span style="color:' + PD_COLORE[v.stato.colore] + ';white-space:nowrap">● ' + esc(v.stato.parola) + '</span>'
+}
+function pdElencoHtml() {
+  const righe = pdDati.progetti.map((r) => ({ r: r, v: pdVistaDi(r) }))
+  const conti = { 'questo-pc': 0, 'altri-pc': 0, 'da-sistemare': 0, tutti: righe.length }
+  for (const x of righe) for (const g of x.v.gruppi) conti[g] = (conti[g] || 0) + 1
+  if (pdGruppo === 'da-sistemare' && conti['da-sistemare'] === 0) pdGruppo = 'tutti'
+  let h = '<div class="riga" style="flex-wrap:wrap;gap:6px;margin-top:6px">' +
+    PD_GRUPPI.filter((g) => g[0] !== 'da-sistemare' || conti['da-sistemare'] > 0).map((g) => '<button' + (pdGruppo === g[0] ? ' class="primario"' : '') + ' onclick="pdGruppoScegli(\\'' + g[0] + '\\')" style="flex:none;width:auto;min-height:0;padding:6px 12px;font-size:15px' + (g[0] === 'da-sistemare' ? ';color:var(--ambra,#e0a33c)' : '') + '">' + g[1] + ' ' + conti[g[0]] + '</button>').join('') + '</div>' +
+    '<div class="riga" style="gap:6px"><input placeholder="Cerca progetto, PC o cartella" value="' + esc(pdQ) + '" oninput="pdCerca(this.value)" style="flex:1;min-width:0">' +
+    '<select onchange="pdOrdina(this.value)" title="Ordina">' + PD_ORDINI.map((o) => '<option value="' + o[0] + '"' + (pdOrdine === o[0] ? ' selected' : '') + '>⇅ ' + o[1] + '</option>').join('') + '</select></div></div>'
+  const scelte = pdOrdinate(righe.filter((x) => pdGruppo === 'tutti' || x.v.gruppi.indexOf(pdGruppo) >= 0).map((x) => x.r))
+  if (scelte.length === 0) h += '<div class="piastrella"><div class="sotto">' + (pdGruppo === 'da-sistemare' ? '<span style="color:var(--verde,#3c9)">Tutto a posto</span>' : 'Nessun progetto in questo gruppo.') + '</div></div>'
+  const parole = pdPiano(pdQ).split(/\\s+/).filter(Boolean)
+  for (const r of scelte.slice(0, 300)) {
+    const v = pdVistaDi(r)
+    const cerca = pdPiano([r.nome, v.dove].concat(v.copie.nomi || [], (r.cartelle || []).map((c) => c.nome + ' ' + c.percorso)).join(' '))
+    const sotto = v.stato.id === 'da-sistemare' && v.stato.ragione
+      ? '<span style="color:var(--ambra,#e0a33c)">' + esc(v.stato.ragione) + '</span>'
+      : esc(v.dove) + ' · ' + v.chat.totali + ' chat' + (v.chat.alLavoro > 0 ? ' · <span style="color:var(--blu,#4aa3ff)">' + v.chat.alLavoro + ' al lavoro</span>' : '') + (v.spazio.byte !== undefined ? ' · ' + esc(v.spazio.testo) + (v.spazio.avviso ? ' ⚠' : '') : '') + (v.stato.id === 'spostamento' && v.stato.ragione ? ' · ' + esc(v.stato.ragione) : '')
+    h += '<div class="piastrella" data-pd-cerca="' + esc(cerca) + '" onclick="pdApri(\\'' + escJs(r.id) + '\\')" style="cursor:pointer' + (parole.length > 0 && !parole.every((p) => cerca.indexOf(p) >= 0) ? ';display:none' : '') + '">' +
+      '<div style="display:flex;gap:8px;align-items:baseline"><b style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(r.nome) + '</b>' + pdPillola(v) + '</div>' +
+      '<div class="sotto">' + sotto + '</div></div>'
   }
-  if (pdDati.piano && pdDati.piano.azioni.length > 0) {
-    h += '<div class="sotto" style="margin-top:10px"><b>Piano di allineamento di questo PC</b></div>'
-    for (const a of pdDati.piano.azioni) h += '<div class="sotto" style="margin-top:4px">' + (a.tipo === 'porta-qui' ? '↓ ' : '☁ ') + esc(a.perche) + '</div>'
-  }
-  const anonime = pdDati.chat.filter((c) => c.senzaNome).length
-  h += '<div class="riga" style="margin-top:8px">' +
-    ['progetti', 'chat'].map((v) => '<button' + (pdVista === v ? ' class="primario"' : '') + ' onclick="pdCambia(\\'vista\\', \\'' + v + '\\')">' + (v === 'progetti' ? 'Progetti (' + pdDati.progetti.length + ')' : 'Chat (' + (pdDati.chat.length - (pdSenzaNome ? 0 : anonime)) + ')') + '</button>').join('') + '</div>' +
-    (pdVista === 'chat' && anonime > 0 ? '<div class="riga"><label class="sotto"><input type="checkbox"' + (pdSenzaNome ? ' checked' : '') + ' onchange="pdMostraSenzaNome()"> mostra anche le senza nome (' + anonime + ', nascoste: non sono cancellate, restano nel loro progetto)</label></div>' : '') +
-    '<div class="riga">' + [['tutti', 'Tutti'], ['sbagliati', 'Sbagliati'], ['questo-pc', 'Di questo PC'], ['solo-cloud', 'Solo cloud']].map((f) => '<button' + (pdFiltro === f[0] ? ' class="primario"' : '') + ' onclick="pdCambia(\\'filtro\\', \\'' + f[0] + '\\')">' + f[1] + '</button>').join('') + '</div></div>'
-  if (pdVista === 'progetti') {
-    const righe = pdFiltra(pdDati.progetti, true)
-    if (righe.length === 0) h += '<div class="piastrella"><div class="sotto">Nessun progetto con questo filtro.</div></div>'
-    for (const r of righe.slice(0, 200)) {
-      const ids = r.ids || [r.id]
-      const ws = r.workspace || []
-      h += '<div class="piastrella"><div><b>' + esc(r.nome) + '</b> ' + pdStato(r.stato) + '</div>' +
-        '<div class="sotto">Residente: ' + (r.residente ? esc(r.residente.nome) + (r.residente.qui ? ' (questo PC)' : '') + (r.voluto ? '' : ' (dalla maggior parte delle chat)') : 'nessuno') + ' · qui sul disco: ' + (r.cartellaQui ? (r.cartellaTrovata ? 'sì, ' + esc(r.cartellaTrovata) + ' (trovata per nome)' : 'sì') : 'no') + ' · ' + r.chat + ' chat' + (r.chatSenzaNome ? ' (di cui ' + r.chatSenzaNome + ' senza nome)' : '') + ' · ultimo uso: ' + esc(pdQuando(r.ultimoUso)) +
-          // Lo spazio sul Drive (0.69.0), e i file grandi come avviso.
-          (r.spazioDrive ? ' · sul Drive ' + esc(pdByte(r.spazioDrive.byte)) + (r.spazioDrive.grandi.length ? ' · <span style="color:var(--ambra,#e0a33c)">⚠ ' + r.spazioDrive.grandi.length + (r.spazioDrive.grandi.length === 1 ? ' file grande' : ' file grandi') + ': ' + esc(r.spazioDrive.grandi.map(function (g) { return g.percorso }).join(', ')) + '</span>' : '') : '') + '</div>' +
-        (ids.length > 1 || ws.length > 1 ? '<div class="sotto">Stesso nome, stesso progetto: ' + (ids.length > 1 ? ids.length + ' voci nel registro del Drive' : 'una voce nel registro') + (ws.length > 1 ? ', workspace ' + ws.map((w) => '«' + esc(w) + '»').join(', ') : '') + '. Qui li vedi come uno solo; «Rendi residente qui» li unisce davvero, dopo il riassunto.</div>' : '') +
-        pdProblemi(r)
-      const res = (pdDati.residenza || []).find((x) => x.progetto === r.id && x.fase !== 'annullata')
-      if (res) {
-        const titoloRes = res.fase === 'analisi' ? 'Raccolgo e confronto le copie…' : res.fase === 'unisco' ? 'Unisco…' : res.fase === 'attesa-conferma' ? 'Riassunto: cosa unisco, cosa tengo, cosa va in recupero' : res.fase === 'fatta' ? 'Unito' : res.fase === 'in-uso' ? 'In attesa' : 'Non riuscito'
-        h += '<div class="sotto" style="border-left:3px solid var(--verde,#3c9);padding-left:6px;margin-top:6px"><b>' + titoloRes + '</b>' +
-          (res.fase === 'attesa-conferma' && res.riassunto ? res.riassunto.righe.map((x) => '<div style="margin-top:3px">• ' + esc(x) + '</div>').join('') : '<div>' + esc(res.messaggio) + '</div>') + '</div>'
-        if (res.fase === 'attesa-conferma' || res.fase === 'in-uso') h += '<div class="riga"><button class="primario" onclick="pdAzione(\\'conferma-residenza\\', \\'' + escJs(r.id) + '\\', true)">' + (pdDaConfermare === 'conferma-residenza:' + r.id + ':' ? 'Tocca ancora: conferma e unisci' : 'Conferma e unisci') + '</button><button onclick="pdAzione(\\'annulla-residenza\\', \\'' + escJs(r.id) + '\\', false)">Annulla</button></div>'
-      }
-      const st = rim.stati.find((x) => x.progetto === r.id)
-      if (st) h += '<div class="sotto" style="margin-top:4px"><i>Togliere da questo PC:</i> ' + esc(st.messaggio) + '</div>'
-      h += '<div class="riga">'
-      for (const a of r.azioni) h += '<button onclick="pdAzione(\\'' + a.id + '\\', \\'' + escJs(r.id) + '\\', ' + (a.conferma ? 'true' : 'false') + ')">' + esc(a.titolo) + '</button>'
-      h += '</div>'
-      for (const a of r.azioni) {
-        if (pdDaConfermare === a.id + ':' + r.id + ':') h += '<div class="sotto" style="margin-top:6px">' + esc(a.testo) + '</div><div class="riga"><button class="primario" onclick="pdAzione(\\'' + a.id + '\\', \\'' + escJs(r.id) + '\\', true)">' + esc(a.conferma || a.titolo) + '</button><button onclick="pdCambia(\\'filtro\\', pdFiltro)">Annulla</button></div>'
-      }
-      // Le chat del progetto (0.67.0): «Apri» qui, o «Apri su <PC>» dal vivo dove vive.
-      const sue = (pdDati.chat || []).filter((c) => c.progetto && (r.ids || [r.id]).indexOf(c.progetto) >= 0 && !c.senzaNome).sort((a, b) => String(b.ultimoUso || '').localeCompare(String(a.ultimoUso || '')))
-      for (const c of sue.slice(0, 12)) {
-        const res = c.residente
-        const qui = !res || res.qui
-        const cwd = qui ? (c.cwd || '') : (((r.cartelle || []).find((x) => x.pc === res.pc) || {}).percorso || c.cwd || '')
-        h += '<div class="sotto" style="margin-top:4px">' + pdStato(c.stato) + ' ' + esc(c.titolo) + '</div>'
-        if (cwd) h += '<div class="riga"><button onclick="pdApriChat(\\'' + escJs(c.sessione) + '\\', \\'' + escJs(cwd) + '\\', \\'' + escJs(qui ? '' : res.pc) + '\\', \\'' + escJs(c.titolo) + '\\')">' + (qui ? 'Apri' : 'Apri su ' + esc(res.nome)) + '</button></div>'
-      }
-      // Solo le tre azioni (0.65.1): il residente si vede, ma non si sceglie da qui.
-      h += '</div>'
+  return h
+}
+function pdDettaglioHtml(r) {
+  const v = pdVistaDi(r)
+  const ids = r.ids || [r.id]
+  let h = '<div class="riga" style="margin-top:6px"><button onclick="pdIndietro()">‹ Progetti</button></div>' +
+    '<div class="titolo" style="margin-top:8px">' + esc(r.nome) + '</div>' +
+    '<div style="margin:4px 0 6px"><span style="border:1px solid ' + PD_COLORE[v.stato.colore] + ';color:' + PD_COLORE[v.stato.colore] + ';border-radius:999px;padding:1px 8px;font-size:13px">' + esc(v.stato.parola) + (v.stato.ragione ? ' · ' + esc(v.stato.ragione) : '') + '</span></div>'
+  // Le azioni in vista, prima di tutto: la principale piena, «Togli da questo PC» in rosso, ognuna con il «?».
+  const pericolo = r.azioni.find((a) => a.id === 'solo-cloud-qui')
+  const resto = r.azioni.filter((a) => a !== pericolo)
+  const primaria = resto.find((a) => a.id === 'apri') || resto[0]
+  const ordinate = (primaria ? [primaria] : []).concat(resto.filter((a) => a !== primaria), pericolo ? [pericolo] : [])
+  if (ordinate.length > 0) {
+    // Ogni tasto con il suo «?» accanto, sulla stessa riga.
+    h += ordinate.map((a) => '<div class="riga" style="gap:6px;align-items:center"><button' + (a === primaria ? ' class="primario"' : '') + ' style="flex:1' + (a === pericolo ? ';color:var(--rosso,#dc5f5f);border-color:var(--rosso,#dc5f5f)' : '') + '" onclick="pdAzione(\\'' + a.id + '\\', \\'' + escJs(r.id) + '\\', ' + (a.conferma ? 'true' : 'false') + ')">' + esc(a.titolo) + '</button>' + aiuto('pd-az-' + a.id + '-' + r.id, esc(a.testo)) + '</div>').join('')
+    for (const a of r.azioni) {
+      if (pdDaConfermare === a.id + ':' + r.id + ':') h += '<div class="sotto" style="margin-top:6px">' + esc(a.testo) + '</div><div class="riga"><button class="primario"' + (a === pericolo ? ' style="background:var(--rosso,#dc5f5f)"' : '') + ' onclick="pdAzione(\\'' + a.id + '\\', \\'' + escJs(r.id) + '\\', true)">' + esc(a.conferma || a.titolo) + '</button><button onclick="pdIndietro();pdApri(\\'' + escJs(r.id) + '\\')">Annulla</button></div>'
     }
-  } else {
+  }
+  const res = (pdDati.residenza || []).find((x) => ids.indexOf(x.progetto) >= 0 && x.fase !== 'annullata')
+  if (res && (res.fase === 'attesa-conferma' || res.fase === 'in-uso')) {
+    h += '<div class="sotto" style="color:var(--ambra,#e0a33c);margin-top:8px"><b>Aspetta la tua conferma: unione delle copie</b>' + aiuto('pd-res-' + r.id, (res.riassunto ? res.riassunto.righe.map((x) => '• ' + esc(x)).join('<br>') : esc(res.messaggio))) + '</div>' +
+      '<div class="riga"><button class="primario" onclick="pdAzione(\\'conferma-residenza\\', \\'' + escJs(r.id) + '\\', true)">' + (pdDaConfermare === 'conferma-residenza:' + r.id + ':' ? 'Tocca ancora: conferma' : 'Conferma') + '</button><button onclick="pdAzione(\\'annulla-residenza\\', \\'' + escJs(r.id) + '\\', false)">Annulla</button></div>'
+  } else if (res) h += '<div class="sotto" style="margin-top:8px">' + esc(res.messaggio) + '</div>'
+  const st = ((pdDati.rimozione || {}).stati || []).find((x) => ids.indexOf(x.progetto) >= 0)
+  if (st) {
+    h += '<div class="sotto" style="margin-top:8px"><b>Togliere da questo PC</b>' + aiuto('pd-rim-' + r.id, esc(st.messaggio)) + '</div>'
+    if (st.fase === 'attesa-conferma' || st.fase === 'in-uso') h += '<div class="riga"><button class="primario" style="background:var(--rosso,#dc5f5f)" onclick="pdAzione(\\'conferma\\', \\'' + escJs(st.progetto) + '\\', false)">Togli da questo PC</button><button onclick="pdAzione(\\'annulla\\', \\'' + escJs(st.progetto) + '\\', false)">Annulla</button></div>'
+  }
+  if ((r.problemi || []).length > 0) {
+    h += '<div class="sotto" style="margin-top:10px"><b>Da sistemare</b></div>'
+    for (const x of r.problemi) h += '<div class="sotto" style="color:var(--ambra,#e0a33c)">' + esc(x.titolo) + aiuto('pd-pr-' + x.tipo + '-' + r.id, esc(x.spiega) + ' <b>Cosa fare:</b> ' + esc(x.cosaFare)) + '</div>'
+  }
+  const tras = (pdDati.traslochi || []).filter((t) => ids.indexOf(t.progetto) >= 0)
+  if (tras.length > 0) { const tutti = pdDati.traslochi; pdDati.traslochi = tras; h += pdTraslochiHtml(); pdDati.traslochi = tutti }
+  // Le chat (0.67.0): «Apri» qui, o «Guarda su <PC>» dal vivo dove vive; il pallino blu = al lavoro.
+  const sue = (pdDati.chat || []).filter((c) => c.progetto && ids.indexOf(c.progetto) >= 0 && !c.senzaNome).sort((a, b) => String(b.ultimoUso || '').localeCompare(String(a.ultimoUso || '')))
+  h += '<div class="sotto" style="margin-top:10px"><b>Chat (' + sue.length + ')</b>' + aiuto('pd-chat', 'Si aprono dove vivono: qui con la loro storia, o dal vivo sul PC residente. Pallino blu: sta lavorando.') + '</div>'
+  if (sue.length === 0) h += '<div class="sotto">Nessuna chat con nome.</div>'
+  for (const c of sue.slice(0, 30)) {
+    const cr = c.residente
+    const qui = !cr || cr.qui
+    const cwd = qui ? (c.cwd || '') : (((r.cartelle || []).find((x) => x.pc === cr.pc) || {}).percorso || c.cwd || '')
+    const lavora = (c.alLavoroSu || []).length > 0
+    h += '<div class="riga" style="gap:6px;align-items:center"><span style="color:' + (lavora ? 'var(--blu,#4aa3ff)' : 'var(--testo-spento,#6f767e)') + '">●</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(c.titolo) + '</span>' +
+      (cwd ? '<button onclick="pdApriChat(\\'' + escJs(c.sessione) + '\\', \\'' + escJs(cwd) + '\\', \\'' + escJs(qui ? '' : cr.pc) + '\\', \\'' + escJs(c.titolo) + '\\')">' + (qui ? 'Apri' : 'Guarda su ' + esc(cr.nome)) + '</button>' : '') + '</div>'
+  }
+  h += '<div class="sotto" style="margin-top:10px"><b>Cartelle</b></div>'
+  for (const c of r.cartelle || []) h += '<div class="sotto"><b>' + esc(c.nome) + (c.pc === pdDati.io.id ? ' (qui)' : '') + '</b> ' + esc(c.percorso) + '</div>'
+  if (r.cartellaTrovata) h += '<div class="sotto"><b>' + esc(pdDati.io.nome) + ' (qui, per nome)</b> ' + esc(r.cartellaTrovata) + '</div>'
+  if ((r.cartelle || []).length === 0 && !r.cartellaTrovata) h += '<div class="sotto">Su nessun PC.</div>'
+  h += '<div class="sotto" style="margin-top:10px"><b>Spazio sul Drive</b></div>'
+  if (!r.spazioDrive) h += '<div class="sotto">Non ancora misurato.</div>'
+  else {
+    h += '<div class="sotto">' + esc(pdByte(r.spazioDrive.byte)) + ' in ' + r.spazioDrive.file + ' file</div>'
+    for (const g of r.spazioDrive.grandi.slice().sort((a, b) => b.byte - a.byte).slice(0, 5)) h += '<div class="sotto" style="color:var(--ambra,#e0a33c)">⚠ ' + esc(g.percorso) + ' · ' + esc(pdByte(g.byte)) + '</div>'
+  }
+  const unioni = (pdDati.unioni || []).filter((u) => ids.indexOf(u.progetto) >= 0)
+  if (unioni.length > 0) {
+    h += '<div class="sotto" style="margin-top:10px"><b>Storia</b></div>'
+    for (const u of unioni) h += '<div class="sotto">Unito il ' + esc(pdQuando(u.quando)) + ' · fino al ' + esc(pdQuando(u.scadeIl)) + '</div><div class="riga"><button onclick="pdAzione(\\'annulla-unione\\', \\'' + escJs(u.progetto) + '\\', true, \\'' + escJs(u.id) + '\\')">' + (pdDaConfermare === 'annulla-unione:' + u.progetto + ':' + u.id ? 'Tocca ancora: annulla l’unione' : 'Annulla l’unione') + '</button></div>'
+  }
+  return h + '</div>'
+}
+/** Gli strumenti rari, come «Strumenti ▾» sul PC: tutte le chat, spazio, recupero, spostamenti, piano. */
+function pdStrumentiHtml() {
+  const rim = pdDati.rimozione || { stati: [], inRecupero: [] }
+  const inRec = (rim.inRecupero || []).filter((c) => !c.ripristinataIl)
+  const voci = [['chat', 'Tutte le chat'], ['spazio', 'Spazio sul Drive']]
+    .concat(inRec.length > 0 ? [['recupero', 'Cartelle in recupero (' + inRec.length + ')']] : [], (pdDati.traslochi || []).length > 0 ? [['traslochi', 'Spostamenti']] : [], pdDati.piano && pdDati.piano.azioni.length > 0 ? [['piano', 'Piano di allineamento']] : [])
+  let h = '<div class="piastrella"><div class="sotto"><b>Strumenti</b></div><div class="riga" style="flex-wrap:wrap;gap:6px">' +
+    voci.map((x) => '<button' + (pdStrumento === x[0] ? ' class="primario"' : '') + ' onclick="pdStrumentoScegli(\\'' + x[0] + '\\')">' + x[1] + '</button>').join('') + '</div>'
+  if (pdStrumento === 'spazio') h += pdSpazioHtml()
+  if (pdStrumento === 'traslochi') h += pdTraslochiHtml()
+  if (pdStrumento === 'recupero') {
+    for (const c of inRec) h += '<div class="sotto" style="margin-top:4px"><b>' + esc(c.nome) + '</b> · tolta il ' + esc(pdQuando(c.quando)) + ' · fino al ' + esc(pdQuando(c.scadeIl)) + '</div><div class="riga"><button onclick="pdAzione(\\'ripristina\\', \\'\\', true, \\'' + escJs(c.id) + '\\')">' + (pdDaConfermare === 'ripristina::' + c.id ? 'Tocca ancora: rimetti in ' + esc(c.percorsoOriginale) : 'Ripristina') + '</button></div>'
+  }
+  if (pdStrumento === 'piano') for (const a of pdDati.piano.azioni) h += '<div class="sotto" style="margin-top:4px">' + (a.tipo === 'porta-qui' ? '↓ ' : '☁ ') + esc(a.perche) + '</div>'
+  if (pdStrumento === 'chat') {
     const righe = pdFiltra(pdDati.chat, false)
-    if (righe.length === 0) h += '<div class="piastrella"><div class="sotto">Nessuna chat con questo filtro.</div></div>'
+    h += '<div class="riga" style="flex-wrap:wrap">' + [['tutti', 'Tutte'], ['sbagliati', 'Da sistemare'], ['questo-pc', 'Su questo PC'], ['solo-cloud', 'Solo cloud']].map((f) => '<button' + (pdFiltro === f[0] ? ' class="primario"' : '') + ' onclick="pdCambia(\\'filtro\\', \\'' + f[0] + '\\')">' + f[1] + '</button>').join('') + '</div>'
     for (const r of righe.slice(0, 150)) {
-      h += '<div class="piastrella"><div><b>' + esc(r.titolo) + '</b> ' + pdStato(r.stato) + '</div>' +
-        '<div class="sotto">Residente: ' + (r.residente ? esc(r.residente.nome) + (r.residente.qui ? ' (questo PC)' : '') : 'nessuno') + ' · copie: ' + (r.copie.length === 0 ? 'nessuna' : r.copie.map((c) => esc(c.nome) + (c.dove === 'qui' ? ' (qui)' : c.dove === 'disco' ? ' (sul suo disco)' : ' (sul Drive)')).join(', ')) + ' · ultimo uso: ' + esc(pdQuando(r.ultimoUso)) + '</div>' +
+      h += '<div style="margin-top:8px"><div><b>' + esc(r.titolo) + '</b> ' + pdStato(r.stato) + '</div>' +
+        '<div class="sotto">' + (r.residente ? esc(r.residente.nome) + (r.residente.qui ? ' (questo PC)' : '') : 'senza casa') + ' · ' + esc(pdQuando(r.ultimoUso)) + '</div>' +
         pdProblemi(r) + pdScegliPc('', r.sessione, r.residente ? r.residente.pc : '') + '</div>'
     }
-    if (righe.length > 150) h += '<div class="piastrella"><div class="sotto">E altre ' + (righe.length - 150) + ': usa i filtri.</div></div>'
+    if (righe.length > 150) h += '<div class="sotto">E altre ' + (righe.length - 150) + ': usa i filtri.</div>'
   }
+  return h + '</div>'
+}
+function pannelloDriveHtml() {
+  let h = '<div class="piastrella"><div class="titolo">Progetti' + aiuto('progetti', 'Ogni progetto vive su un PC (il residente): lì girano le sue chat; gli altri PC le guardano dal vivo. Stato: <span style="color:var(--verde,#3c9)">a posto</span>, <span style="color:var(--blu,#4aa3ff)">al lavoro</span>, <span style="color:var(--ambra,#e0a33c)">da sistemare</span> (con il motivo), <span style="color:var(--blu,#4aa3ff)">spostamento in corso</span>. Tocca un progetto per il dettaglio e le azioni. Niente si cancella: le copie tolte vanno nel recupero per 30 giorni.') + '</div>'
+  if (pdErrore) return h + '<div class="sotto" style="color:var(--ambra,#e0a33c)">' + esc(pdErrore) + '</div></div>'
+  if (!pdDati) return h + '<div class="sotto">Leggo…</div></div>'
+  if ((pdDati.pcDaAggiornare || []).length > 0) h += '<div class="sotto" style="color:var(--ambra,#e0a33c);margin-top:6px">' + esc(pdDati.pcDaAggiornare.join(', ')) + ': va aggiornato' + aiuto('pd-agg', 'Finché non è aggiornato, di quel PC si vedono solo le copie caricate sul Drive.') + '</div>'
+  const scelto = pdScelto ? pdDati.progetti.find((r) => r.id === pdScelto) : undefined
+  if (scelto) return h + pdDettaglioHtml(scelto)
+  h += pdElencoHtml()
+  h += pdStrumentiHtml()
   return h + '<div class="riga"><button onclick="leggiPannelloDrive().then(() => pannello(ultimoStato))">Aggiorna</button></div>'
 }
 
