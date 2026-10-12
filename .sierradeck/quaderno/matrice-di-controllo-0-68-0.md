@@ -139,7 +139,7 @@ portatile 0.67.4 con la 0.68.0 pronta, in attesa della quiete.
 - «HomeAssistant» e «HA» sono lo stesso progetto?
 - Pulizie del Drive (14,9 GB su 16,1).
 
-## 0.69.0 (era la 0.68.1; preparata, NON pubblicata finché Nicholas non dice come)
+## 0.69.0 (era la 0.68.1) — PUBBLICATA il 13/10 (Nicholas ha spento «Scarica gli aggiornamenti da solo» sui 3 PC; la installa lui)
 Regola di Nicholas: «HO DETTO CHE INSTALLO IO E BASTA», «UN SOLO AGGIORNAMENTO
 QUANDO HAI RISOLTO TUTTO».
 - **D6 installazione automatica tolta del tutto** (era della 0.67.1): niente
@@ -212,3 +212,16 @@ QUANDO HAI RISOLTO TUTTO».
 ### Matrice rieseguita sulla 0.68.0 installata (13/10 ~00:10, sola lettura)
 - 3 PC sulla 0.68.0, fase «aggiornato». Workspace: 16 / 16 / 16; niente cartelle di sistema, niente doppioni, niente sessioni interne. «Su altri PC» c'è dappertutto (fionda visibile). Chat, autopiloti, consegne e domande si leggono. Progetti: 30 / 33 / 27, nessuno di sistema, con lo spazio. Sessioni, file e modelli rispondono. ✅
 - Via ponte, Salute, Domande, case e autopiloti degli altri PC rispondono 403: **per scelta** (si gestiscono dal loro PC). Le tre righe «NO» di questo PC sono errori dello script di prova (chiave sbagliata, cartella vuota, `/api/case` solo per i PC), non del programma.
+
+### Pubblicazione 0.69.0 (13/10)
+Release v0.69.0: prima bozza, poi pubblica e «latest», con le note dalle novità. Allegati:
+- l'installer firmato, con latest.yml e il blockmap;
+- `SierraDeck-2.69.0.apk`, firmato «CN=Nicholas Ferrari, O=Ferrari Consulenze, C=IT»;
+- `app-android.json`.
+
+Nessuna installazione da parte mia. **Dopo che Nicholas ha installato**:
+- rimettere il dispositivo temporaneo;
+- leggere la Salute → «Quanto lavora SierraDeck» dei 3 PC (sono i numeri «dopo»);
+- rifare la matrice;
+- togliere i progetti di prova con `/api/prova/togli-progetto`: prova-c2 sui 3 PC, prova-ap e prova-ws sul portatile;
+- scrivere il rapporto.
