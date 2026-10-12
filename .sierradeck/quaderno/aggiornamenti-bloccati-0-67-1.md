@@ -102,3 +102,12 @@ aspetta proprio te.
   (`togliInterneAggiunte`, solo se assenti dalla copia
   `workspaces.prima-dei-progetti.json`, anche dall'albero del layout). La
   copia «prima dei progetti» ora si fa una volta sola.
+
+## Chiuso (12/10, ~18 UTC)
+- I tre PC sono passati **da soli** 0.67.1 → 0.67.2 → 0.67.3, senza
+  «Installa»: l'installazione alla quiete funziona.
+- Trappola: fra `gh release create` e `npm run pubblica` la release esiste ma
+  non ha ancora `latest.yml`; un PC che cerca in quel minuto mostra «errore 404
+  latest.yml». È passeggero: il controllo dei 10 minuti lo rimette a posto.
+- «fionda apl» su DESKTOP dopo la 0.67.3: solo le 2 chat vere.
+- Dispositivo temporaneo del collaudo tolto, copia di prova cancellata.
