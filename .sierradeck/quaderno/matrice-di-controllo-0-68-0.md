@@ -111,3 +111,30 @@ Legenda: ✅ funziona · 🔧 era rotto, corretto nella 0.68.0 (con test) · ⏳
   li unisce «stesso nome = stesso progetto» nella vista, ma moltiplicano i giri
   sul Drive. Da proporre a Nicholas una pulizia del registro.
 - Pulizie del Drive (14,9 GB su 16,1): in attesa della conferma di Nicholas.
+
+## Dopo la 0.68.0 (12/10, ~20 UTC)
+PC fisso e desk-nik-glos sulla 0.68.0 (installata dal programma alla quiete);
+portatile 0.67.4 con la 0.68.0 pronta, in attesa della quiete.
+- «Domande» 0,2 s (prima 29 s); elenco PC 0,2 s (prima 21 s); Salute 2,9 s
+  (prima 7–21 s) — D4 ✅
+- errori Drive 403 dall'avvio della 0.68.0: **0** (prima fino a 751 l'ora) — D2 ✅
+- «Riprendi» di un altro PC dal ponte: risponde (portatile 20 s, desk 0,3 s)
+  invece di 504 — D3 ✅
+- giro chat completo di prova su desk-nik-glos: tutto verde ✅
+- letture sui 3 PC (workspace, Su altri PC con fionda, niente sessioni interne,
+  autopiloti, consegne): verdi ✅
+- D1 «Apri» da Su altri PC: il riconoscimento con id nuovo è coperto dai test;
+  l'avvio in sottofondo dal tasto «Apri» si prova solo premendolo sullo schermo
+  (non lo comando da qui): da vedere al prossimo «Apri» di Nicholas.
+- Pulito: chiusa la chat dell'autopilota di prova rimasta aperta sul
+  portatile (aveva una domanda in attesa). Restano le cartelle di prova
+  «SierraDeck-prova-c2/-ap» nei progetti dei PC (vuote, innocue).
+
+## Da decidere con Nicholas
+- **Installazione da sola alla quiete** (0.67.1): la regola di Nicholas del
+  12/10 è «solo io installo le nuove versioni se non specificato da me». Il
+  programma oggi installa da solo appena le chat sono ferme. Tenerla, o
+  installare solo con «Installa»? Non l'ho cambiata da solo: cambiarla vuol dire
+  pubblicare una versione che si installerebbe da sola.
+- «HomeAssistant» e «HA» sono lo stesso progetto?
+- Pulizie del Drive (14,9 GB su 16,1).
