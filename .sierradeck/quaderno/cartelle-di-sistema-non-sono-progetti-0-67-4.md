@@ -44,3 +44,13 @@ cartella di lavoro.
 - «gen»: progetto vero (`…\Progetti SierraDeck\gen` su portatile e
   desk-nik-glos), residente il PC fisso dove però la cartella non c'è: il suo
   workspace qui è vuoto.
+
+## Esito vero (12/10, ~18:55 UTC)
+I tre PC sono passati alla 0.67.4 da soli. Al primo giro dopo il riavvio:
+- PC fisso: «Documents» tolto; riquadri → NexoraOS 2, microcoat 1,
+  Predefinito 10 (8 di Portfolio, le più recenti, + 2 che lavoravano in
+  Documenti); le altre 533 chat di Portfolio restano in «Progetti»/«Riprendi».
+- desk-nik-glos: «Documents» tolto (9 riquadri → Predefinito, perché lì
+  NexoraOS/microcoat/prog_play non hanno workspace) e «NAS-film» unito in
+  «Nas film» (era vuoto).
+- portatile: niente da fare.
