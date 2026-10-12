@@ -8,6 +8,10 @@ import { AltriComputer } from './PannelloAccount'
 import { PannelloConsumi } from './PannelloConsumi'
 import { voceMenu } from '@shared/menu-principale'
 import { Aiuto } from './Aiuto'
+import { breve, contaGruppiSalute, GRUPPI_SALUTE, gruppoIniziale, nelGruppoSalute, statoVoce, type GruppoSalute } from '@shared/salute-vista'
+import type { Colore, StatoVista } from '@shared/stato-vista'
+
+const COLORE_SALUTE: Record<Colore, string> = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', blu: 'var(--blu)', quieto: 'var(--testo-quieto)' }
 
 /**
  * «Salute del sistema» (0.44.0): com'è messo SierraDeck, in un posto solo.
@@ -30,17 +34,11 @@ type Props = {
   consumiAperti?: boolean
 }
 
-const GRUPPI: { id: VoceSalute['gruppo']; nome: string }[] = [
-  { id: 'drive', nome: 'Drive' },
-  { id: 'pc', nome: 'Gli altri PC' },
-  { id: 'aggiornamento', nome: 'Aggiornamento' },
-  { id: 'errori', nome: 'Errori delle ultime ore' },
-  { id: 'consegne', nome: 'Istruzioni degli autopiloti non partite' }
-]
 
 export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopiloti, onConsumi, consumiAperti = false }: Props): React.JSX.Element {
   /** Le parti in fondo (0.61.0): gli altri computer e i consumi, aperte a richiesta. */
   const [parte, setParte] = useState<'altri-pc' | 'consumi' | undefined>(undefined)
+  const [mappa, setMappa] = useState(false)
   const [salute, setSalute] = useState<Salute | undefined>(undefined)
   const [leggo, setLeggo] = useState(false)
   const [errore, setErrore] = useState<string | undefined>(undefined)
@@ -85,71 +83,146 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
     }
   }
 
+  // ── La vista (0.70.0): gruppi, una riga per voce con la sua parola, il dettaglio a destra ──
+  const voci = (salute?.voci ?? []) as Array<VoceSalute & { stato?: StatoVista; breve?: string }>
+  const conti = contaGruppiSalute(voci)
+  const [gruppoScelto, setGruppoScelto] = useState<GruppoSalute | undefined>(undefined)
+  const gruppo = gruppoScelto ?? gruppoIniziale(salute)
+  const visibili = voci.filter((v) => nelGruppoSalute(v, gruppo))
+  const [scelta, setScelta] = useState<string | undefined>(undefined)
+  const [menu, setMenu] = useState(false)
+  const sel = voci.find((v) => v.chiave === scelta)
+  // Il riquadro di destra: una voce, oppure uno strumento (altri computer, consumi, mappa).
+  const destra = parte !== undefined || sel !== undefined || mappa
+  useEffect(() => {
+    const suTasto = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape' || conferma !== undefined) return
+      if (menu) setMenu(false)
+      else if (parte !== undefined || mappa) { setParte(undefined); setMappa(false) }
+      else if (scelta !== undefined) setScelta(undefined)
+      else onChiudi()
+    }
+    window.addEventListener('keydown', suTasto)
+    return () => window.removeEventListener('keydown', suTasto)
+  })
+  const azioniDi = (v: VoceSalute): React.JSX.Element | null => v.azioni.length === 0 ? null : (
+    <>
+      {v.azioni.map((a) => {
+        const occupato = a.id === 'installa-la' && inCorso(installazioni[a.pc])
+        return <button key={a.id + a.testo} className="tasto tasto--mini" disabled={occupato} onClick={(e) => { e.stopPropagation(); esegui(a) }}>{occupato ? 'Installazione in corso…' : a.testo}</button>
+      })}
+    </>
+  )
+
   return (
-    <div className="pannello pannello--largo">
-      <div className="pannello__testa">
-        <span className="serigrafia">{voceMenu('salute').icona} Salute del sistema</span>
-        <Aiuto di="Salute del sistema">Com’è messo SierraDeck su questo PC, in un posto solo: il Drive (collegato o no, perché e da quando), gli altri PC (quando si sono fatti vivi l’ultima volta, con quale strada si raggiungono adesso, che versione hanno), un aggiornamento che non si è installato, gli errori delle ultime ore scritti nel registro, le istruzioni degli autopiloti che non sono partite. Ogni voce dice cosa vuol dire e cosa fare; dove si può, il tasto lo fa. Si rilegge da solo ogni minuto; «Aggiorna» bussa di nuovo agli altri PC adesso.</Aiuto>
+    <div className="progetti salute" role="dialog" aria-label="Salute">
+      <div className="progetti__testa">
+        <span className="progetti__titolo">{voceMenu('salute').icona} Salute</span>
         {salute !== undefined ? <span className={`salute__tono salute__tono--${salute.tono}`}>{salute.riassunto}</span> : null}
+        <div className="progetti__gruppi" role="tablist">
+          {GRUPPI_SALUTE.map((g) => (
+            <button key={g.id} role="tab" aria-selected={gruppo === g.id} className={`progetti__gruppo${gruppo === g.id ? ' progetti__gruppo--acceso' : ''}${g.id === 'sistemare' && conti.sistemare > 0 ? ' progetti__gruppo--ambra' : ''}`} onClick={() => { setGruppoScelto(g.id); setScelta(undefined) }}>
+              {g.testo} <span className="progetti__conto">{conti[g.id]}</span>
+            </button>
+          ))}
+        </div>
         <span style={{ flex: 1 }} />
         <button className="tasto tasto--mini" onClick={leggi} disabled={leggo}>{leggo ? 'Guardo…' : 'Aggiorna'}</button>
-        <button className="tasto tasto--mini" onClick={onChiudi}>Chiudi</button>
+        <span style={{ position: 'relative' }}>
+          <button className="tasto tasto--mini" aria-expanded={menu} onClick={() => setMenu(!menu)}>Strumenti ▾</button>
+          {menu ? (
+            <div className="progetti__menu" onMouseLeave={() => setMenu(false)}>
+              <button className="progetti__voce" title="I PC che usano lo stesso Drive: acceso o spento, versione, le chat che hanno aperte (da guardare dal vivo) e la cassetta" onClick={() => { setMenu(false); setScelta(undefined); setMappa(false); setParte('altri-pc') }}>Gli altri computer</button>
+              <button className="progetti__voce" title="La mappa dei PC, con la strada di ognuno" onClick={() => { setMenu(false); setScelta(undefined); setParte(undefined); setMappa(true) }}>Mappa dei PC</button>
+              <button className="progetti__voce" title="I token per giorno e per chat, i limiti del piano e le regole del freno" onClick={() => { setMenu(false); setScelta(undefined); setMappa(false); setParte('consumi') }}>Consumi per esteso</button>
+              <button className="progetti__voce" title="La colonna «Consumi e limiti» accanto alle chat, che resta aperta mentre lavori" onClick={() => { setMenu(false); onConsumi?.() }}>{consumiAperti ? 'Chiudi la colonna dei consumi' : 'Consumi e limiti (colonna)'}</button>
+              <button className="progetti__voce" onClick={() => { setMenu(false); void window.gestore.log.apri() }}>Apri la cartella del registro</button>
+            </div>
+          ) : null}
+        </span>
+        <Aiuto di="Salute">Com’è messo SierraDeck, in un posto solo: il Drive, gli altri PC (ultimo segno, strada, versione, quanto lavorano), un aggiornamento non installato, gli errori delle ultime ore, le istruzioni degli autopiloti non partite. Clic su una voce: il perché e cosa fare. Si rilegge da sola ogni minuto; «Aggiorna» bussa di nuovo agli altri PC adesso.</Aiuto>
+        <button className="tasto tasto--mini" onClick={onChiudi} aria-label="Chiudi">×</button>
       </div>
-      {/* Le azioni in vista in cima (0.61.0): prima erano in Impostazioni → Account e nel tasto «Consumi» della barra. */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '2px 0 6px' }}>
-        <button className="tasto" aria-expanded={parte === 'altri-pc'} onClick={() => setParte(parte === 'altri-pc' ? undefined : 'altri-pc')} title="I PC che usano lo stesso Drive: acceso o spento, versione, le chat che hanno aperte (da guardare dal vivo) e la cassetta per lasciargli un’azione">Gli altri computer</button>
-        <button className="tasto" aria-expanded={consumiAperti} onClick={() => onConsumi?.()} title="La colonna «Consumi e limiti» accanto alle chat: quanto resta della finestra di 5 ore e della settimana del piano, il contesto di ogni chat aperta, cosa fa il freno degli autopiloti. Resta aperta mentre lavori">Consumi e limiti (colonna)</button>
-        <button className="tasto" aria-expanded={parte === 'consumi'} onClick={() => setParte(parte === 'consumi' ? undefined : 'consumi')} title="I consumi per esteso: i token per giorno e per chat, i limiti del piano e le regole del freno">Consumi per esteso</button>
-      </div>
-      {parte === 'altri-pc' ? <div style={{ maxHeight: '40vh', overflowY: 'auto', marginBottom: 8 }}><AltriComputer /></div> : null}
-      {parte === 'consumi' ? <div style={{ maxHeight: '50vh', overflowY: 'auto', marginBottom: 8 }}><PannelloConsumi incorporato /></div> : null}
-      {errore !== undefined ? <div className="avviso">⚠ Non riesco a leggere lo stato: {errore}</div> : null}
-      {salute === undefined && errore === undefined ? <p className="account__nota">Guardo il Drive, busso agli altri PC e leggo il registro…</p> : null}
-      <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {salute?.mappa !== undefined ? <MappaPc mappa={salute.mappa} /> : null}
-        {GRUPPI.map((g) => {
-          const voci = (salute?.voci ?? []).filter((v) => v.gruppo === g.id)
-          if (voci.length === 0) return null
-          return (
-            <section key={g.id} className="salute__gruppo">
-              <div className="serigrafia">{g.nome}</div>
-              {voci.map((v) => (
-                <div key={v.chiave} className={`salute__voce salute__voce--${v.tono}`}>
-                  <div className="salute__titolo con-aiuto"><span className={`led ${v.tono === 'ok' ? 'led--lavoro' : v.tono === 'attenzione' ? 'led--attesa' : 'led--fermo'}`} /> {v.titolo}{v.tono === 'ok' ? <Aiuto di={v.titolo}>{v.spiegazione}</Aiuto> : null}</div>
-                  {/* 0.62.0: una voce in ordine si spiega dal suo «?»; un problema resta a vista con il suo perché. */}
-                  {v.tono !== 'ok' ? <div className="salute__testo">{v.spiegazione}</div> : null}
-                  {v.cosaFare !== undefined ? <div className="salute__testo"><b>Cosa fare:</b> {v.cosaFare}</div> : null}
-                  {(() => {
-                    const inst = v.chiave.startsWith('pc:') ? installazioni[v.chiave.slice(3)] : undefined
-                    if (inst === undefined) return null
-                    const tono = inst.fase === 'fatto' ? 'ok' : inCorso(inst) ? 'attenzione' : 'guasto'
-                    return (
-                      <div className={`salute__voce salute__voce--${tono}`} style={{ marginTop: 6 }}>
-                        <div className="salute__titolo">
-                          <span className={`led ${tono === 'ok' ? 'led--lavoro' : tono === 'attenzione' ? 'led--attesa' : 'led--fermo'}`} />
-                          {' '}Installa là{inst.a !== undefined ? ` la ${inst.a}` : ''}: {inst.fase === 'fatto' ? 'fatto' : inst.fase === 'fallito' ? 'non riuscita' : inst.fase === 'errore' ? 'fermata' : 'in corso'}
-                        </div>
-                        <div className="salute__testo">{inst.messaggio}</div>
-                        {inst.cosaFare !== undefined ? <div className="salute__testo"><b>Cosa fare:</b> {inst.cosaFare}</div> : null}
-                        {inst.pagina !== undefined ? (
-                          <div className="salute__azioni"><button className="tasto tasto--mini" onClick={() => { void window.gestore.sistema.apriEsterno(inst.pagina as string) }}>Pagina della versione</button></div>
-                        ) : null}
-                      </div>
-                    )
-                  })()}
-                  {v.azioni.length > 0 ? (
-                    <div className="salute__azioni">
-                      {v.azioni.map((a) => {
-                        const occupato = a.id === 'installa-la' && inCorso(installazioni[a.pc])
-                        return <button key={a.id + a.testo} className="tasto tasto--mini" disabled={occupato} onClick={() => esegui(a)}>{occupato ? 'Installazione in corso…' : a.testo}</button>
-                      })}
-                    </div>
-                  ) : null}
+      {errore !== undefined ? <div className="progetti__striscia">⚠ Non riesco a leggere lo stato: {errore}</div> : null}
+
+      <div className={`progetti__corpo${destra ? ' progetti__corpo--destra' : ''}`}>
+        <div className="progetti__tabella" role="grid">
+          <div className="progetti__riga progetti__riga--testa" role="row">
+            <span className="progetti__cella">Stato</span>
+            <span className="progetti__cella">Cosa</span>
+            <span className="progetti__cella" />
+          </div>
+          {salute === undefined && errore === undefined ? <div className="progetti__vuoto">Guardo il Drive, busso agli altri PC e leggo il registro…</div> : null}
+          {salute !== undefined && visibili.length === 0 ? <div className="progetti__vuoto">{gruppo === 'sistemare' ? <span style={{ color: 'var(--verde)' }}>Tutto a posto</span> : 'Niente in questo gruppo.'}</div> : null}
+          {visibili.map((v) => {
+            const st = v.stato ?? statoVoce(v)
+            const acceso = v.chiave === scelta
+            const inst = v.chiave.startsWith('pc:') ? installazioni[v.chiave.slice(3)] : undefined
+            return (
+              <div key={v.chiave} role="row" tabIndex={0} aria-selected={acceso}
+                className={`progetti__riga${acceso ? ' progetti__riga--scelta' : ''}`}
+                onClick={() => { setScelta(acceso ? undefined : v.chiave); setParte(undefined); setMappa(false) }}>
+                <span className="progetti__cella"><span style={{ color: COLORE_SALUTE[st.colore] }}>● {inst !== undefined && inCorso(inst) ? 'installa' : st.parola}</span></span>
+                <span className="progetti__cella" title={v.titolo}>{v.breve ?? breve(v.titolo)}</span>
+                <span className="progetti__cella" style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>{azioniDi(v)}</span>
+              </div>
+            )
+          })}
+        </div>
+
+        {parte === 'altri-pc' ? (
+          <div className="progetti__dettaglio salute__largo">
+            <div className="progetti__dtesta"><span className="progetti__dtitolo">Gli altri computer</span><button className="tasto tasto--mini" onClick={() => setParte(undefined)} aria-label="Chiudi">×</button></div>
+            <div className="progetti__dcorpo"><AltriComputer /></div>
+          </div>
+        ) : parte === 'consumi' ? (
+          <div className="progetti__dettaglio salute__largo">
+            <div className="progetti__dtesta"><span className="progetti__dtitolo">Consumi</span><button className="tasto tasto--mini" onClick={() => setParte(undefined)} aria-label="Chiudi">×</button></div>
+            <div className="progetti__dcorpo"><PannelloConsumi incorporato /></div>
+          </div>
+        ) : mappa ? (
+          <div className="progetti__dettaglio">
+            <div className="progetti__dtesta"><span className="progetti__dtitolo">Mappa dei PC</span><button className="tasto tasto--mini" onClick={() => setMappa(false)} aria-label="Chiudi">×</button></div>
+            <div className="progetti__dcorpo">{salute?.mappa !== undefined ? <MappaPc mappa={salute.mappa} /> : <div className="progetti__quieto">Nessun altro PC.</div>}</div>
+          </div>
+        ) : sel !== undefined ? (
+          <div className="progetti__dettaglio">
+            <div className="progetti__dtesta">
+              <span className="progetti__dtitolo" title={sel.titolo}>{sel.breve ?? breve(sel.titolo, 60)}</span>
+              <button className="tasto tasto--mini" onClick={() => setScelta(undefined)} aria-label="Chiudi il dettaglio">×</button>
+            </div>
+            <div style={{ padding: '0 16px 4px' }}>
+              {(() => { const st = sel.stato ?? statoVoce(sel); return <span className="progetti__pillola" style={{ color: COLORE_SALUTE[st.colore], borderColor: COLORE_SALUTE[st.colore] }}>{st.parola}</span> })()}
+            </div>
+            {sel.azioni.length > 0 ? <div className="progetti__azioni">{azioniDi(sel)}</div> : null}
+            <div className="progetti__dcorpo">
+              <div className="progetti__voceelenco" style={{ alignItems: 'flex-start' }}>{sel.titolo}</div>
+              <div className="progetti__sezione">
+                <span className="serigrafia">Perché</span>
+                <div className="progetti__quieto" style={{ whiteSpace: 'pre-wrap' }}>{sel.spiegazione}</div>
+              </div>
+              {sel.cosaFare !== undefined ? (
+                <div className="progetti__sezione">
+                  <span className="serigrafia">Cosa fare</span>
+                  <div>{sel.cosaFare}</div>
                 </div>
-              ))}
-            </section>
-          )
-        })}
+              ) : null}
+              {(() => {
+                const inst = sel.chiave.startsWith('pc:') ? installazioni[sel.chiave.slice(3)] : undefined
+                if (inst === undefined) return null
+                const tono = inst.fase === 'fatto' ? 'ok' : inCorso(inst) ? 'attenzione' : 'guasto'
+                return (
+                  <div className={`salute__voce salute__voce--${tono}`}>
+                    <div className="salute__titolo">Installa là{inst.a !== undefined ? ` la ${inst.a}` : ''}: {inst.fase === 'fatto' ? 'fatto' : inst.fase === 'fallito' ? 'non riuscita' : inst.fase === 'errore' ? 'fermata' : 'in corso'}</div>
+                    <div className="salute__testo">{inst.messaggio}</div>
+                    {inst.cosaFare !== undefined ? <div className="salute__testo"><b>Cosa fare:</b> {inst.cosaFare}</div> : null}
+                    {inst.pagina !== undefined ? <div className="salute__azioni"><button className="tasto tasto--mini" onClick={() => { void window.gestore.sistema.apriEsterno(inst.pagina as string) }}>Pagina della versione</button></div> : null}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        ) : null}
       </div>
       {conferma !== undefined ? (
         <ModaleNote

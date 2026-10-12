@@ -4833,3 +4833,8 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   .autopiloti .progetti__riga > .progetti__cella:nth-child(2), .autopiloti .progetti__riga > .progetti__cella:nth-child(4), .autopiloti .progetti__riga > .progetti__cella:nth-child(5) { display: none; }
 }
 .domande-lato__filtri { display: flex; gap: 2px; }
+
+/* ── Salute a piena pagina (0.70.0) ── */
+.salute .progetti__riga { grid-template-columns: 150px minmax(0, 1fr) auto; }
+.salute .salute__largo { width: 640px; }
+@media (max-width: 1279px) { .salute .salute__largo { width: min(640px, 100%); } }

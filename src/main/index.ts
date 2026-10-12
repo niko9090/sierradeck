@@ -87,6 +87,7 @@ import { armonizzaCase, casaDelGruppo, dentroCartella, eSenzaNome, gruppoDiCarte
 import { decidiAperturaRemota, type CopiaNota } from '@shared/apertura-remota'
 import { conSpazioDrive, type Pannello } from '@shared/pannello-drive'
 import { conVista } from '@shared/progetti-vista'
+import { conVistaSalute } from '@shared/salute-vista'
 import { memoriaBreve } from '@shared/memoria-breve'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
 import { creaLatoResidente, creaRimozione, progettiInRecupero, spostaCartellaInRecupero, type LatoResidente, type Rimozione } from './rimozione-sicura'
@@ -2311,7 +2312,8 @@ if (!app.requestSingleInstanceLock()) {
           }
         } catch { /* il servizio non risponde: niente consegne da dire */ }
         const t = aggiornamenti?.stato().tentativoFallito
-        return componiSalute({
+        // La parola e il titolo corto di ogni voce (0.70.0): pagina e app li disegnano.
+        return conVistaSalute(componiSalute({
           // La mappa dei PC (0.51.0): questo PC al centro.
           io: { id: identitaPc.leggi().id, nome: identitaPc.leggi().nome, ...(sottotitoloPc(identitaPc.leggi()) !== undefined ? { host: identitaPc.leggi().host } : {}) },
           adesso, versione: app.getVersion(),
@@ -2327,7 +2329,7 @@ if (!app.requestSingleInstanceLock()) {
           chatInErrore: chatAperte.filter((c) => c.errore !== undefined).map((c) => ({ titolo: c.titolo, errore: c.errore as string })),
           oreErrori: ORE_ERRORI_SALUTE,
           risorse: risorseQui()
-        })
+        }))
       }
       ipcMain.handle('salute:leggi', () => leggiSalute())
 

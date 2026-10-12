@@ -946,6 +946,10 @@ function richiestaDi(r, testo) {
  */
 // «Aspettano te» di partenza (0.70.0): le chat che hanno solo finito il turno stanno in «Tutte».
 var domandeFiltro = 'aspettano'
+var saluteGruppo = ''
+var saluteMappa = false
+window.gruppoSalute = function (g) { saluteGruppo = g; pannello(ultimoStato) }
+window.mappaSalute = function () { saluteMappa = !saluteMappa; pannello(ultimoStato) }
 window.filtroDomande = function (f) { domandeFiltro = f; pannello(ultimoStato) }
 function vistaConversazioni() {
   function aspettaTeConv(c) { return c.vista ? c.vista.id !== 'finito' : (c.chiede || c.tipo === 'autopilota') }
@@ -1355,7 +1359,7 @@ function impronta(s) {
     apDettaglio ? JSON.stringify(apDettaglio.dalVivo || '') + JSON.stringify(apDettaglio.messaggi || []) + apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.chat || []).length + '/' + apDettaglio.domanda + '/' + apDettaglio.pensa + '/' + apDettaglio.riprendiAlRiavvio : '',
     apTab,
     // Salute e Impostazioni sono destinazioni (0.61.0): quello che leggono entrando ridisegna la pagina.
-    saluteVista ? saluteVista.riassunto + '/' + (saluteVista.voci || []).length : '', saluteErrore || '',
+    saluteVista ? saluteVista.riassunto + '/' + (saluteVista.voci || []).length : '', saluteErrore || '', saluteGruppo, saluteMappa,
     notaDialogo || '', notaGlobale || '',
     cartelle ? cartelle.length : '',
     codaProgetto || '', codaErrore || '',
@@ -1886,17 +1890,28 @@ function pannello(s) {
       : a.id === 'apri-autopilota' ? '<button onclick="vaiScheda(\\'autopiloti\\')">' + esc(a.testo) + '</button>'
       : a.id === 'riprova-pc' ? '<button onclick="rileggiSalute()">' + esc(a.testo) + '</button>'
       : '<span class="sotto">' + esc(a.testo) + ': dal computer</span>'
-    let corpo = '<div class="sotto" style="margin-top:6px;color:' + colore(saluteVista.tono) + '"><b>' + esc(saluteVista.riassunto) + '</b></div>' + mappaHtml(saluteVista.mappa)
-    for (const g of ['drive', 'pc', 'aggiornamento', 'errori', 'consegne']) {
-      const voci = (saluteVista.voci || []).filter((v) => v.gruppo === g)
-      if (voci.length === 0) continue
-      corpo += '<div class="serigrafia" style="margin-top:10px">' + esc(nomi[g]) + '</div>' + voci.map((v) =>
-        '<div class="salute-voce" style="border-left:3px solid ' + colore(v.tono) + ';padding:4px 8px;margin-top:6px">' +
-        '<div><b>' + esc(v.titolo) + '</b>' + (v.spiegazione ? aiuto('salute:' + g + ':' + v.titolo, esc(v.spiegazione)) : '') + '</div>' +
-        (v.cosaFare ? '<div class="sotto"><b>Cosa fare:</b> ' + esc(v.cosaFare) + '</div>' : '') +
+    // 0.70.0: i gruppi come sul PC (Da sistemare · Computer · Drive · Errori · Tutto), una riga per voce con la sua parola.
+    const tutte = saluteVista.voci || []
+    const gruppiDi = (v) => [v.tono !== 'ok' ? 'sistemare' : '', v.gruppo === 'pc' ? 'computer' : '', v.gruppo === 'drive' ? 'drive' : '', (v.gruppo === 'errori' || v.gruppo === 'consegne' || v.gruppo === 'aggiornamento') ? 'errori' : ''].filter(Boolean)
+    const conti = { sistemare: 0, computer: 0, drive: 0, errori: 0, tutto: tutte.length }
+    for (const v of tutte) for (const g of gruppiDi(v)) conti[g] += 1
+    const gruppo = saluteGruppo || (conti.sistemare > 0 ? 'sistemare' : 'computer')
+    let corpo = '<div class="sotto" style="margin-top:6px;color:' + colore(saluteVista.tono) + '"><b>' + esc(saluteVista.riassunto) + '</b></div>' +
+      '<div class="riga" style="gap:6px;flex-wrap:wrap">' + [['sistemare', 'Da sistemare'], ['computer', 'Computer'], ['drive', 'Drive'], ['errori', 'Errori'], ['tutto', 'Tutto']].map((g) =>
+        '<button' + (gruppo === g[0] ? ' class="primario"' : '') + ' onclick="gruppoSalute(\\'' + g[0] + '\\')" style="flex:none;width:auto;min-height:0;padding:6px 12px' + (g[0] === 'sistemare' && conti.sistemare > 0 ? ';color:var(--ambra,#e0a33c)' : '') + '">' + g[1] + ' ' + conti[g[0]] + '</button>').join('') + '</div>'
+    const voci = tutte.filter((v) => gruppo === 'tutto' || gruppiDi(v).indexOf(gruppo) >= 0)
+    if (voci.length === 0) corpo += '<div class="sotto" style="margin-top:8px">' + (gruppo === 'sistemare' ? '<span style="color:var(--verde)">Tutto a posto</span>' : 'Niente in questo gruppo.') + '</div>'
+    corpo += voci.map((v) => {
+      const st = v.stato || { parola: v.tono === 'ok' ? 'a posto' : v.tono === 'attenzione' ? 'da guardare' : 'da sistemare', colore: v.tono === 'ok' ? 'verde' : v.tono === 'attenzione' ? 'ambra' : 'rosso' }
+      const tinta = { verde: 'var(--verde)', ambra: '#e0a33c', rosso: '#dc5f5f', blu: '#4aa3ff', quieto: 'var(--testo-quieto,#9aa1a9)' }[st.colore]
+      return '<div class="salute-voce" style="border-left:3px solid ' + tinta + ';padding:4px 8px;margin-top:6px">' +
+        '<div><b style="color:' + tinta + '">' + esc(st.parola) + '</b> · ' + esc(v.breve || v.titolo) +
+        aiuto('salute:' + v.chiave, esc(v.titolo) + (v.spiegazione ? '<br><br>' + esc(v.spiegazione) : '') + (v.cosaFare ? '<br><br><b>Cosa fare:</b> ' + esc(v.cosaFare) : '')) + '</div>' +
         ((v.azioni || []).length > 0 ? '<div class="riga">' + v.azioni.map(azione).join('') + '</div>' : '') +
-        '</div>').join('')
-    }
+        '</div>'
+    }).join('')
+    // La mappa dei PC (0.70.0): in fondo, a richiesta.
+    if (saluteVista.mappa) corpo += '<div class="riga" style="margin-top:10px"><button onclick="mappaSalute()" style="flex:none;width:auto">' + (saluteMappa ? 'Nascondi la mappa' : 'Mappa dei PC') + '</button></div>' + (saluteMappa ? mappaHtml(saluteVista.mappa) : '')
     return testa + corpo + '<div class="riga"><button onclick="rileggiSalute()">Aggiorna</button></div></div>'
   })()
 

@@ -47,8 +47,26 @@ data class VoceSalute(
     val titolo: String = "",
     val spiegazione: String = "",
     val cosaFare: String? = null,
-    val azioni: List<AzioneSalute> = emptyList()
+    val azioni: List<AzioneSalute> = emptyList(),
+    /** PC 0.70: la parola con il colore e il titolo corto. */
+    val stato: StatoVistaDrive? = null,
+    val breve: String? = null
 )
+
+/** I gruppi della Salute (PC 0.70), come sul PC e nella pagina. */
+val GRUPPI_SALUTE_VISTA = listOf("sistemare" to "Da sistemare", "computer" to "Computer", "drive" to "Drive", "errori" to "Errori", "tutto" to "Tutto")
+
+object SaluteVista {
+    fun gruppi(v: VoceSalute): List<String> = listOfNotNull(
+        "sistemare".takeIf { v.tono != "ok" }, "computer".takeIf { v.gruppo == "pc" }, "drive".takeIf { v.gruppo == "drive" },
+        "errori".takeIf { v.gruppo == "errori" || v.gruppo == "consegne" || v.gruppo == "aggiornamento" }
+    )
+    fun conti(voci: List<VoceSalute>): Map<String, Int> = GRUPPI_SALUTE_VISTA.associate { (g, _) -> g to if (g == "tutto") voci.size else voci.count { g in gruppi(it) } }
+    fun iniziale(voci: List<VoceSalute>): String = if (voci.any { it.tono != "ok" }) "sistemare" else "computer"
+    /** La parola: dal PC 0.70, o dal tono con un PC di prima. */
+    fun parola(v: VoceSalute): Pair<String, String> = v.stato?.let { it.parola to it.colore }
+        ?: when (v.tono) { "ok" -> "a posto" to "verde"; "attenzione" -> "da guardare" to "ambra"; else -> "da sistemare" to "rosso" }
+}
 
 @Serializable
 data class Salute(val scritto: String = "", val tono: String = "ok", val riassunto: String = "", val voci: List<VoceSalute> = emptyList(), val mappa: MappaPc? = null)
@@ -72,10 +90,13 @@ fun coloreTonoSalute(tono: String): Color = when (tono) {
     else -> Banco.rosso
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun SezioneSalute(api: Api) {
     var salute by remember { mutableStateOf<Salute?>(null) }
     var guasto by remember { mutableStateOf<String?>(null) }
+    var gruppoScelto by remember { mutableStateOf<String?>(null) }
+    var mappa by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val contesto = LocalContext.current
     val spenta = FunzioniPc.disponibile(FunzionePc.SALUTE, PcCorrente.versione) == false
@@ -90,18 +111,26 @@ fun SezioneSalute(api: Api) {
     if (s == null && guasto == null) Text("Guardo…", color = Banco.testoQuieto, fontSize = 13.sp)
     if (s != null) {
         Text(s.riassunto, color = coloreTonoSalute(s.tono), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-        // La mappa dei PC (PC 0.51.0): questo PC al centro, gli altri intorno.
-        s.mappa?.takeIf { it.nodi.size > 1 }?.let { Spacer(Modifier.height(8.dp)); MappaPcVista(it) }
-        for ((g, nome) in GRUPPI_SALUTE) {
-            val voci = s.voci.filter { it.gruppo == g }
-            if (voci.isEmpty()) continue
-            Spacer(Modifier.height(8.dp))
-            Text(nome.uppercase(), color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        // PC 0.70: i gruppi come sul PC, una riga per voce con la sua parola; il perché dietro il «?».
+        val conti = SaluteVista.conti(s.voci)
+        val g = gruppoScelto ?: SaluteVista.iniziale(s.voci)
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+            for ((id, nome) in GRUPPI_SALUTE_VISTA) {
+                androidx.compose.material3.FilterChip(selected = g == id, onClick = { gruppoScelto = id },
+                    label = { Text("$nome ${conti[id] ?: 0}", color = if (id == "sistemare" && (conti[id] ?: 0) > 0) Banco.ambra else Banco.testo) })
+            }
+        }
+        val voci = s.voci.filter { g == "tutto" || g in SaluteVista.gruppi(it) }
+        if (voci.isEmpty()) Text(if (g == "sistemare") "Tutto a posto" else "Niente in questo gruppo.", color = if (g == "sistemare") Banco.verde else Banco.testoQuieto, fontSize = 13.sp)
+        run {
             for (v in voci) {
                 Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    Text(v.titolo, color = coloreTonoSalute(v.tono), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    Text(v.spiegazione, color = Banco.testo, fontSize = 12.sp)
-                    v.cosaFare?.let { Text("Cosa fare: $it", color = Banco.testoQuieto, fontSize = 12.sp) }
+                    val (parola, colore) = SaluteVista.parola(v)
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text(parola, color = coloreVista(colore), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(" · ${v.breve ?: v.titolo}", color = Banco.testo, fontSize = 13.sp, modifier = Modifier.weight(1f, fill = false))
+                        Aiuto(listOfNotNull(v.titolo, v.spiegazione.takeIf { it.isNotBlank() }, v.cosaFare?.let { "Cosa fare: $it" }).joinToString("\n\n"), di = v.breve ?: v.titolo)
+                    }
                     Row {
                         for (a in v.azioni) {
                             val t = azioneDalTelefono(a) ?: continue
@@ -117,6 +146,11 @@ fun SezioneSalute(api: Api) {
                     }
                 }
             }
+        }
+        // La mappa dei PC (PC 0.51.0): in fondo, a richiesta (PC 0.70).
+        s.mappa?.takeIf { it.nodi.size > 1 }?.let { m ->
+            androidx.compose.material3.TextButton(onClick = { mappa = !mappa }) { Text(if (mappa) "Nascondi la mappa" else "Mappa dei PC") }
+            if (mappa) MappaPcVista(m)
         }
         Spacer(Modifier.height(6.dp))
         OutlinedButton(onClick = { scope.launch { leggi() } }) { Text("Aggiorna") }

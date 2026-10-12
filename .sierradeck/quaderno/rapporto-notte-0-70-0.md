@@ -96,3 +96,26 @@ Le foto sono in `note/foto-0-70/`, sul PC fisso (fuori da git: mostrano le carte
 | Larghezza trascinabile, × chiudi | come prima |
 
 **Test**: `tests/shared/domande-vista.test.ts` (5), una prova della cornice in `tests/renderer/schermo-terminale.test.ts`, e nell'app `AspettaTeTest`.
+
+## (d) Salute e Altri computer
+**Cosa cambia**
+- **A tutta finestra.** In cima il riassunto («1 cosa da sistemare · 2 da guardare») e i gruppi con i conti: Da sistemare · Computer · Drive · Errori · Tutto. Si apre su «Da sistemare» se c'è qualcosa, se no su «Computer».
+- **Una riga per voce**: la parola con il colore (collegato, scollegato, da guardare, errore, non installato, non partita, ferma…), il titolo corto e il tasto dell'azione. Prima ogni voce portava sempre il suo paragrafo e il suo «Cosa fare».
+- **Il dettaglio a destra**: il titolo intero, il perché, cosa fare, le azioni e l'avanzamento di «Installa là».
+- **In «Strumenti ▾»**: Gli altri computer, la Mappa dei PC, Consumi per esteso, la colonna Consumi e limiti, la cartella del registro. Gli altri computer e i consumi si aprono nel riquadro di destra, largo.
+- **Telefono**: gli stessi gruppi; ogni voce con parola e titolo corto, il perché e cosa fare dietro il «?», la mappa in fondo a richiesta. Parola e titolo corto li mette il PC (`conVistaSalute`).
+
+**Azioni di prima → dove sono adesso**
+
+| Prima | Adesso |
+|---|---|
+| Gli altri computer (tasto in cima) | Strumenti ▾ → Gli altri computer (riquadro a destra) |
+| Consumi e limiti (colonna) | Strumenti ▾ |
+| Consumi per esteso | Strumenti ▾ (riquadro a destra) |
+| Mappa dei PC (sempre in cima) | Strumenti ▾ → Mappa dei PC |
+| Le azioni di ogni voce (Ricollega, Riprova, Installa, Installa là, Apri autopilota, registro…) | in riga e nel dettaglio |
+| Aggiorna, Chiudi | in alto (Chiudi = ×, anche Esc) |
+
+**Test**: `tests/shared/salute-vista.test.ts` (5) e, nell'app, `SaluteVistaTest`.
+
+**Aperto**: secondo la revisione, tre fonti dicono lo stato di un altro PC in modi che possono non coincidere: la Salute («non so se è acceso»), «Altri computer» (acceso, dal battito) e la mappa («giù»). La regola unica (`statoComputer`) non l'ho fatta stanotte: tocca il collegamento fra PC, e va provata con i PC veri, non nella copia.
