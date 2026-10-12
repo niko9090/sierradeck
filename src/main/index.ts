@@ -145,7 +145,8 @@ import { ascoltaSenzaFinestra, smettiSenzaFinestra, impostaAdozioneSottofondo, a
 import { statoDi as statoWorkspaceDi } from './ipc'
 import { impostaAllaRiapertura } from './ipc'
 import { creaChiuseStore } from './chiuse-store'
-import { leggiChiuse, rigaChiusaACasa, type ChiusaDaTe } from '@shared/chiuse'
+import { creaRispecchia } from './rispecchia-workspace'
+import { leggiChiuse, rigaChiusaACasa, rigaNonApertaACasa, type ChiusaDaTe } from '@shared/chiuse'
 import { creaSottofondo, cancelliSottofondo, type Sottofondo, type TerminaleMuto } from './sottofondo'
 import { Terminal as TerminaleSenzaFinestra } from '@xterm/headless'
 import { testoConsegnato, type StatoSottofondo } from '@shared/sottofondo'
@@ -1136,6 +1137,14 @@ if (!app.requestSingleInstanceLock()) {
         if (typeof s === 'string' && s !== '') chiuse.segna(s, typeof titolo === 'string' && titolo !== '' ? titolo : undefined, typeof da === 'string' && da !== '' ? da : undefined)
       })
       // Il riquadro remoto si chiude perché la chat l'hai chiusa sul PC di casa: la riga [apertura].
+      // Il riquadro remoto si toglie perché là la chat non è aperta da nessuna parte (0.64.2).
+      ipcMain.handle('remoto:nonApertaACasa', (_e, p: unknown) => {
+        const q = (typeof p === 'object' && p !== null ? p : {}) as Record<string, unknown>
+        const s = typeof q.sessione === 'string' ? q.sessione : ''
+        const titolo = typeof q.titolo === 'string' && q.titolo !== '' ? q.titolo : s.slice(0, 8)
+        const ws = typeof q.workspace === 'string' && q.workspace !== '' ? ` dal workspace «${q.workspace}»` : ''
+        registro.info(`[apertura] «${titolo}» (${s.slice(0, 8)})${ws}: ${rigaNonApertaACasa(typeof q.pcNome === 'string' ? q.pcNome : '?')}`)
+      })
       ipcMain.handle('remoto:chiusaACasa', (_e, p: unknown) => {
         const q = (typeof p === 'object' && p !== null ? p : {}) as Record<string, unknown>
         const s = typeof q.sessione === 'string' ? q.sessione : ''
@@ -1929,8 +1938,8 @@ if (!app.requestSingleInstanceLock()) {
         }
       })
       ipcMain.handle('remoto:stato', (_e, pc: unknown) =>
-        esitoRemoto<{ chat: ChatSuPc[]; chiuse?: ChiusaDaTe[]; computer?: { nome: string } }>(async () => {
-          const r = await remoto.chiama(testo(pc), '/api/stato') as { chat?: unknown; computer?: unknown }
+        esitoRemoto<{ chat: ChatSuPc[]; chiuse?: ChiusaDaTe[]; salvate?: string[]; computer?: { nome: string } }>(async () => {
+          const r = await remoto.chiama(testo(pc), '/api/stato') as { chat?: unknown; computer?: unknown; workspace?: unknown }
           const chat = Array.isArray(r.chat) ? (r.chat as ChatSuPc[]).map((c) => ({
             id: String(c.id), cwd: String(c.cwd), titolo: String(c.titolo),
             ...(typeof c.sessione === 'string' ? { sessione: c.sessione } : {}),
@@ -1939,8 +1948,46 @@ if (!app.requestSingleInstanceLock()) {
           })) : []
           // Le chat chiuse da te là (0.60.9): un PC vecchio non le manda.
           const chiuseLa = leggiChiuse((r as { chiuse?: unknown }).chiuse)
-          return { chat, ...(chiuseLa.length > 0 ? { chiuse: chiuseLa } : {}), ...(typeof r.computer === 'object' && r.computer !== null ? { computer: r.computer as { nome: string } } : {}) }
+          // Le chat salvate nei workspace di là (0.64.2): un riquadro qui la cui
+          // chat là non c'è più da nessuna parte si toglie. Un PC che non le
+          // manda non dice niente (nessun elenco, niente si toglie).
+          const ws = (typeof r.workspace === 'object' && r.workspace !== null ? r.workspace : {}) as { chat?: unknown }
+          const salvate = Array.isArray(ws.chat) ? ws.chat.map((c) => (typeof c === 'object' && c !== null ? (c as { sessione?: unknown }).sessione : undefined)).filter((x): x is string => typeof x === 'string') : undefined
+          return { chat, ...(chiuseLa.length > 0 ? { chiuse: chiuseLa } : {}), ...(salvate !== undefined ? { salvate } : {}), ...(typeof r.computer === 'object' && r.computer !== null ? { computer: r.computer as { nome: string } } : {}) }
         }, pc))
+      // Il workspace rispecchia il PC di casa (0.64.2) anche nei workspace che
+      // nessuna finestra mostra: i loro riquadri remoti di chat che là non sono
+      // aperte da nessuna parte si tolgono dall'archivio. Mai una scrittura al
+      // PC di casa: solo /api/stato.
+      const rispecchia = creaRispecchia({
+        leggi: () => workspaceStore?.leggi(),
+        scrivi: (a) => { workspaceStore?.scrivi(a) },
+        mostrati: () => {
+          const s = new Set<string>()
+          for (const w of finestreDiChat()) { const n = !w.isDestroyed() ? workspaceDellaFinestra(w.id) : undefined; if (n !== undefined) s.add(n) }
+          const attivo = workspaceStore?.leggi().attivo
+          if (attivo !== undefined && attivo !== '') s.add(attivo)
+          return s
+        },
+        statoDi: async (pcId) => {
+          const r = await remoto.chiama(pcId, '/api/stato') as { chat?: unknown; chiuse?: unknown; workspace?: unknown }
+          const chat = Array.isArray(r.chat) ? (r.chat as { sessione?: unknown }[]).map((c) => (typeof c.sessione === 'string' ? { sessione: c.sessione } : {})) : []
+          const ws = (typeof r.workspace === 'object' && r.workspace !== null ? r.workspace : {}) as { chat?: unknown }
+          const salvate = Array.isArray(ws.chat) ? ws.chat.map((c) => (typeof c === 'object' && c !== null ? (c as { sessione?: unknown }).sessione : undefined)).filter((x): x is string => typeof x === 'string') : undefined
+          const chiuseLa = leggiChiuse(r.chiuse)
+          return { chat, ...(chiuseLa.length > 0 ? { chiuse: chiuseLa } : {}), ...(salvate !== undefined ? { salvate } : {}) }
+        },
+        nomePc: (pcId, salvato) => postino.altrui().find((b) => b.pcId === pcId)?.nome ?? salvato,
+        log: (m) => registro.info(m),
+        cambiato: (a) => {
+          for (const w of finestreDiChat()) {
+            if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(a), precedente: a.attivo })
+          }
+        }
+      })
+      const giroRispecchia = (): void => { void rispecchia.giro().catch((e: unknown) => registro.info(`[apertura] controllo dei workspace nascosti non riuscito: ${String(e)}`)) }
+      setTimeout(giroRispecchia, 45_000).unref?.()
+      setInterval(giroRispecchia, 2 * 60_000).unref?.()
       ipcMain.handle('remoto:trova', (_e, pc: unknown, r: unknown) =>
         esitoRemoto<ChatSuPc | undefined>(async () => {
           const rr = r as { cwd?: unknown; sessione?: unknown; pcId?: unknown; pcNome?: unknown }

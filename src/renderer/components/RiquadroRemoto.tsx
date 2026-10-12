@@ -22,7 +22,7 @@ import { ConfermaPortaQui, useCasa } from './OspiteChat'
 import { EtichettaOpzione } from './EtichettaOpzione'
 import { testoAvvio, testoConsegnato, type FaseSottofondo } from '@shared/sottofondo'
 import { workspaceCorrente } from '../workspace-corrente'
-import { chiusaDopo } from '@shared/chiuse'
+import { chiusaDopo, giudicaRiquadroRemoto } from '@shared/chiuse'
 
 type Props = {
   paneId: string
@@ -112,6 +112,10 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   const ultimaIl = useRef(0)
   /** Quello che scrivi, in coda finché non è arrivato (0.51.0): mai due volte. */
   const [coda, setCoda] = useState<VoceCoda[]>([])
+  const codaRef = useRef(coda)
+  codaRef.current = coda
+  /** L'ultima volta che da qui si è scritto o avviato qualcosa (0.64.2): il riquadro resta qualche minuto. */
+  const ultimaAzioneRef = useRef<number | undefined>(undefined)
   const avanza = (e: EventoLinea): void => { avanzaLineaPc(remoto.pcId, e) }
   // La testata del riquadro mostra lo stesso indicatore, accanto a «SU <PC>» (0.52.0).
   useEffect(() => { pubblicaLinea(paneId, linea) }, [paneId, linea])
@@ -215,9 +219,22 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           // (0.60.9): si chiude anche qui, invece di cercarla e proporre «Riapri
           // là». La conversazione resta: «Riprendi una conversazione», «Progetti».
           const chiusa = trovata === undefined && avvioRef.current === undefined ? chiusaDopo(s.dati.chiuse, remoto.sessione, remoto.dal) : undefined
-          if (chiusa !== undefined && remoto.sessione !== undefined) {
+          // Il workspace rispecchia il PC di casa (0.64.2): una chat che là non
+          // è aperta da nessuna parte si toglie anche senza chiusura registrata.
+          const giudizio = giudicaRiquadroRemoto({
+            trovata: trovata !== undefined,
+            sessione: remoto.sessione,
+            chiusaRegistrata: chiusa !== undefined,
+            salvateLa: s.dati.salvate,
+            apertoIl: remoto.dal !== undefined ? Date.parse(remoto.dal) : undefined,
+            ultimaAzioneIl: ultimaAzioneRef.current,
+            inAttesa: avvioRef.current !== undefined || codaRef.current.length > 0,
+            adesso: Date.now()
+          })
+          if ((giudizio === 'chiusa' || giudizio === 'togli') && remoto.sessione !== undefined) {
             vivo = false
-            void window.gestore.remoto.chiusaACasa({ sessione: remoto.sessione, pcNome: nomePc, il: chiusa.il, ...(title !== '' ? { titolo: title } : {}) }).catch(() => undefined)
+            if (giudizio === 'chiusa' && chiusa !== undefined) void window.gestore.remoto.chiusaACasa({ sessione: remoto.sessione, pcNome: nomePc, il: chiusa.il, ...(title !== '' ? { titolo: title } : {}) }).catch(() => undefined)
+            else void window.gestore.remoto.nonApertaACasa({ sessione: remoto.sessione, pcNome: nomePc, ...(title !== '' ? { titolo: title } : {}) }).catch(() => undefined)
             useLayoutStore.getState().closePane(paneId)
             return
           }
@@ -267,6 +284,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   const manda = (): void => {
     const t = testo.trim()
     if (t === '') return
+    ultimaAzioneRef.current = Date.now()
     // La chat là è chiusa (0.58.4): il testo la avvia in sottofondo e parte appena è pronta.
     if (chatId === undefined) {
       if (remoto.sessione === undefined || chiusaPin) return
@@ -310,6 +328,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   }
   const riprendiLa = (): void => {
     if (remoto.sessione === undefined) return
+    ultimaAzioneRef.current = Date.now()
     setInvio(true)
     void window.gestore.remoto.riprendi(remoto.pcId, remoto.cwd, remoto.sessione, workspaceCorrente()).then((r) => {
       if (r.ok) { setAvviso(`Chiesto a ${nomePc} di riaprire la chat: fra qualche secondo compare qui.`); setFase({ tipo: 'cerco' }) }
@@ -319,6 +338,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   /** Chiede al PC di casa di avviarla in sottofondo, con il testo in coda (se c'è). */
   const avviaLa = (t?: string, idPrima?: string): void => {
     if (remoto.sessione === undefined) return
+    ultimaAzioneRef.current = Date.now()
     const id = t !== undefined ? (idPrima ?? nuovoIdMessaggio()) : undefined
     const conTesto = t !== undefined && id !== undefined ? { testo: t, id } : {}
     setAvviso(undefined)

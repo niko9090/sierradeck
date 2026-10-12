@@ -475,12 +475,14 @@ contextBridge.exposeInMainWorld('gestore', {
   remoto: {
     /** Con `solo`: per quel PC anche lo stato dopo il bussare diretto (0.39.3). */
     pc: (solo?: string): Promise<{ io: string; cassaforteAperta: boolean; driveCollegato?: boolean; pc: PcRemoto[] }> => ipcRenderer.invoke('remoto:pc', solo),
-    stato: (pc: string): Promise<EsitoRemoto<{ chat: ChatSuPc[]; chiuse?: { sessione: string; il: string }[]; computer?: { nome: string } }>> => ipcRenderer.invoke('remoto:stato', pc),
+    stato: (pc: string): Promise<EsitoRemoto<{ chat: ChatSuPc[]; chiuse?: { sessione: string; il: string }[]; salvate?: string[]; computer?: { nome: string } }>> => ipcRenderer.invoke('remoto:stato', pc),
     trova: (pc: string, chat: ChatRemota): Promise<EsitoRemoto<ChatSuPc | undefined>> => ipcRenderer.invoke('remoto:trova', pc, chat),
     // Dove aprire davvero una chat di un altro PC (0.58.2), con ogni passo nel registro.
     apertura: (p: { pcId: string; cwd: string; sessione?: string; titolo?: string }): Promise<{ pc: string; nome: string; qui: boolean; messaggio: string }> => ipcRenderer.invoke('remoto:apertura', p),
     /** Il riquadro si chiude: la chat l'hai chiusa sul PC di casa (0.60.9). Scrive la riga [apertura]. */
     chiusaACasa: (p: { sessione: string; titolo?: string; pcNome: string; il: string }): Promise<void> => ipcRenderer.invoke('remoto:chiusaACasa', p),
+    /** Il riquadro si toglie: là la chat non è aperta da nessuna parte (0.64.2). Scrive la riga [apertura]. */
+    nonApertaACasa: (p: { sessione: string; titolo?: string; pcNome: string; workspace?: string }): Promise<void> => ipcRenderer.invoke('remoto:nonApertaACasa', p),
     /** Hai chiuso tu una chat di questo PC (0.60.9): «chiusa», per chi la guarda da lontano. */
     segnaChiusa: (sessione: string, titolo?: string, da?: string): Promise<void> => ipcRenderer.invoke('chiuse:segna', sessione, titolo, da),
     storia: (pc: string, chat: string, da: number, quante: number): Promise<EsitoRemoto<StoriaRemota>> =>

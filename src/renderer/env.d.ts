@@ -397,10 +397,11 @@ declare global {
       }
       remoto: {
         pc: (solo?: string) => Promise<{ io: string; cassaforteAperta: boolean; driveCollegato?: boolean; pc: import('../shared/pc-remoto').PcRemoto[] }>
-        stato: (pc: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ chat: import('../shared/pc-remoto').ChatSuPc[]; chiuse?: { sessione: string; il: string }[]; computer?: { nome: string } }>>
+        stato: (pc: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ chat: import('../shared/pc-remoto').ChatSuPc[]; chiuse?: { sessione: string; il: string }[]; salvate?: string[]; computer?: { nome: string } }>>
         trova: (pc: string, chat: import('../shared/pc-remoto').ChatRemota) => Promise<import('../shared/pc-remoto').EsitoRemoto<import('../shared/pc-remoto').ChatSuPc | undefined>>
         apertura: (p: { pcId: string; cwd: string; sessione?: string; titolo?: string }) => Promise<{ pc: string; nome: string; qui: boolean; messaggio: string }>
         chiusaACasa: (p: { sessione: string; titolo?: string; pcNome: string; il: string }) => Promise<void>
+        nonApertaACasa: (p: { sessione: string; titolo?: string; pcNome: string; workspace?: string }) => Promise<void>
         segnaChiusa: (sessione: string, titolo?: string, da?: string) => Promise<void>
         storia: (pc: string, chat: string, da: number, quante: number) => Promise<import('../shared/pc-remoto').EsitoRemoto<import('../shared/pc-remoto').StoriaRemota>>
         scrivi: (pc: string, chat: string, testo: string, idMessaggio?: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>

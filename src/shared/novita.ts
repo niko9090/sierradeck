@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.64.2',
+    righe: [
+      '**I workspace rispecchiano il PC dove vivono le chat.** Un riquadro di una chat di un altro PC si toglie da solo se là quella chat non è più aperta, né a schermo, né in sottofondo, né in un suo workspace: anche se l’hai chiusa prima della 0.60.9 o in un modo che non lasciava il segno. Vale anche per i workspace che non stai guardando. Resta se l’hai appena aperta o le hai scritto da qui, e se quel PC non risponde non si toglie niente.'
+    ]
+  },
+  {
     versione: '0.64.1',
     righe: [
       '**Il riquadro dal vivo da lontano trova anche le chat che qui non ci sono.** Una chat che un altro PC della tua chiave di casa elenca fra le sue si apre dal vivo anche se la sua cartella esiste solo là, come dalla sezione «Altri computer» della finestra. Prima la richiesta si fermava con «cartella non conosciuta».'

@@ -77,3 +77,57 @@ export function rigaChiusaACasa(nomePc: string, il: string): string {
   const ora = Number.isNaN(d.getTime()) ? '' : ` alle ${d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`
   return `chiusa sul PC di casa (${nomePc}${ora}): chiudo anche qui — la conversazione resta in «Riprendi una conversazione» e nel pannello «Progetti»`
 }
+
+/**
+ * **Il workspace rispecchia il PC di casa** (0.64.2, Nicholas il 12/10:
+ * «continuo a vedere due chat nel workspace MT5 quando nel portatile ne ho
+ * chiusa una e ne rimane aperta solo una»).
+ *
+ * La 0.60.9 toglieva il riquadro solo se il PC di casa aveva **registrato**
+ * la chiusura. Una chat chiusa prima di allora, o in un modo che non scrive
+ * «chiusa», restava qui per sempre con «Riapri là». Ora conta quello che il
+ * PC di casa ha aperto adesso: se là la chat non c'è, né fra quelle vive (in
+ * un riquadro o in sottofondo) né fra quelle salvate in un suo workspace, il
+ * riquadro qui si toglie da solo.
+ *
+ * Resta invece:
+ * - se il PC di casa non risponde (questa funzione non si chiama: si vede
+ *   «non raggiungibile»);
+ * - se quel PC non manda le chat dei suoi workspace (un PC vecchio): non si
+ *   sa, non si toglie;
+ * - per qualche minuto dopo che il riquadro è stato aperto o ha scritto da
+ *   qui, e finché un testo da qui aspetta di partire là.
+ */
+export const GRAZIA_RIQUADRO_REMOTO_MS = 3 * 60_000
+
+export type GiudizioRiquadro = 'mostra' | 'chiusa' | 'togli' | 'aspetta'
+
+export function giudicaRiquadroRemoto(p: {
+  /** La chat c'è fra quelle vive di là (riquadro o sottofondo). */
+  trovata: boolean
+  sessione: string | undefined
+  /** La chiusura registrata là dopo l'apertura di qui (`chiusaDopo`). */
+  chiusaRegistrata: boolean
+  /** Le conversazioni salvate nei workspace di là; `undefined` = quel PC non lo dice. */
+  salvateLa: readonly string[] | undefined
+  /** Quando il riquadro è stato aperto qui (`dal`), in ms. */
+  apertoIl: number | undefined
+  /** L'ultima volta che da qui si è scritto o avviato qualcosa, in ms. */
+  ultimaAzioneIl: number | undefined
+  /** Un testo o un avvio in sottofondo da qui non ancora partito. */
+  inAttesa: boolean
+  adesso: number
+}): GiudizioRiquadro {
+  if (p.trovata) return 'mostra'
+  if (p.chiusaRegistrata) return 'chiusa'
+  if (p.sessione === undefined || p.inAttesa || p.salvateLa === undefined) return 'aspetta'
+  if (p.salvateLa.includes(p.sessione)) return 'aspetta'
+  const recente = Math.max(p.apertoIl ?? Number.NEGATIVE_INFINITY, p.ultimaAzioneIl ?? Number.NEGATIVE_INFINITY)
+  if (p.adesso - recente < GRAZIA_RIQUADRO_REMOTO_MS) return 'aspetta'
+  return 'togli'
+}
+
+/** La riga del registro del client che toglie il riquadro di una chat che là non è aperta. */
+export function rigaNonApertaACasa(nomePc: string): string {
+  return `non aperta sul PC di casa (${nomePc}: né a schermo, né in sottofondo, né in un suo workspace): tolgo il riquadro — la conversazione resta in «Riprendi una conversazione» e nel pannello «Progetti»`
+}
