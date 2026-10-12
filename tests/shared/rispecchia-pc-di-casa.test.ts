@@ -18,7 +18,8 @@ const base = {
   apertoIl: VECCHIO as number | undefined,
   ultimaAzioneIl: undefined as number | undefined,
   inAttesa: false,
-  adesso: ADESSO
+  adesso: ADESSO,
+  casaCerta: true as boolean | undefined
 }
 
 describe('giudicaRiquadroRemoto', () => {
@@ -36,6 +37,13 @@ describe('giudicaRiquadroRemoto', () => {
 
   it('anche un riquadro salvato senza l’ora di apertura (prima della 0.60.9) si toglie', () => {
     expect(giudicaRiquadroRemoto({ ...base, apertoIl: undefined })).toBe('togli')
+  })
+
+  it('il PC guardato non è certamente la casa della chat (0.67.0): non si toglie niente', () => {
+    expect(giudicaRiquadroRemoto({ ...base, casaCerta: false })).toBe('aspetta')
+    expect(giudicaRiquadroRemoto({ ...base, casaCerta: undefined })).toBe('aspetta')
+    // Una chiusura registrata là resta una chiusura: quella è certa.
+    expect(giudicaRiquadroRemoto({ ...base, casaCerta: false, chiusaRegistrata: true })).toBe('chiusa')
   })
 
   it('salvata in un workspace di là (non a schermo): è aperta là, il riquadro resta', () => {

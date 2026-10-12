@@ -191,7 +191,7 @@ import { apriRegistro, type Registro } from './registro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
-import { ordineDeiMonitor, quanteFinestre, workspaceDellaSessione, chatSalvate, aggiungiPaneA, type LayoutSalvato, type PaneSalvato, type WorkspaceSalvato } from '@shared/workspace'
+import { ordineDeiMonitor, quanteFinestre, workspaceDellaSessione, chatSalvate, aggiungiPaneA, type Archivio as ArchivioWs, type LayoutSalvato, type PaneSalvato, type WorkspaceSalvato } from '@shared/workspace'
 import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
 import { apriDestinazioni } from './trasferimenti/destinazioni'
@@ -2012,6 +2012,7 @@ if (!app.requestSingleInstanceLock()) {
         },
         nomePc: (pcId, salvato) => postino.altrui().find((b) => b.pcId === pcId)?.nome ?? salvato,
         io: () => identitaPc.leggi().id,
+        casaDi: (s) => unaCasaGlobale?.casaDi(s)?.pc,
         log: (m) => registro.info(m),
         cambiato: (a) => {
           for (const w of finestreDiChat()) {
@@ -2609,6 +2610,8 @@ if (!app.requestSingleInstanceLock()) {
       const timerOspite = setInterval(() => { void ospite.giro() }, 10_000)
       app.on('before-quit', () => { clearInterval(timerOspite) })
       ipcMain.handle('casa:dove', () => ospite.dove())
+      // La casa memorizzata di una chat (0.67.0): il riquadro remoto si toglie da solo solo se è il PC che guarda.
+      ipcMain.handle('casa:di', (_e, s: unknown) => (typeof s === 'string' ? unaCasa.casaDi(s)?.pc : undefined))
       // «Su altri PC» (0.65.1): i workspace dei battiti degli altri PC che qui non ci sono.
       ipcMain.handle('workspace:altriPc', () => suAltriPc(
         workspaceStore?.leggi().workspace.map((w) => w.nome) ?? [],
@@ -4562,10 +4565,14 @@ if (!app.requestSingleInstanceLock()) {
         },
         progettoDelWorkspace: (nome: string) => progettoDelWorkspaceGlobale?.(nome) ?? Promise.resolve({ ok: false, messaggio: 'non pronto' }),
         storiaWorkspace: () => {
-          const qui = workspaceStore?.leggi().workspace.map((w) => w.nome) ?? []
+          const a = workspaceStore?.leggi()
+          const qui = a?.workspace.map((w) => w.nome) ?? []
+          // I riquadri per workspace (0.67.0): le conversazioni di ogni riquadro, per vedere quali sono spariti.
+          const riquadri = (x: ArchivioWs): Record<string, string[]> => Object.fromEntries(x.workspace.map((w) => [w.nome, Object.values(w.perSlot).flatMap((l) => l.panes.map((p) => p.sessionUuid ?? p.id))]))
           return {
             qui,
-            copie: copieDellaLista(dati).map((c) => ({ file: c.file, quando: c.quando, nomi: c.archivio.workspace.map((w) => w.nome) })),
+            ...(a !== undefined ? { riquadriQui: riquadri(a) } : {}),
+            copie: copieDellaLista(dati).map((c) => ({ file: c.file, quando: c.quando, nomi: c.archivio.workspace.map((w) => w.nome), riquadri: riquadri(c.archivio) })),
             ...(ultimaRiparazione !== undefined ? { riparazione: { quando: ultimaRiparazione.quando, ritrovati: ultimaRiparazione.ritrovati.map((x) => ({ nome: x.nome, da: x.da })), riparati: ultimaRiparazione.riparati } } : {})
           }
         },

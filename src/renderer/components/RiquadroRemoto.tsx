@@ -221,7 +221,10 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           const chiusa = trovata === undefined && avvioRef.current === undefined ? chiusaDopo(s.dati.chiuse, remoto.sessione, remoto.dal) : undefined
           // Il workspace rispecchia il PC di casa (0.64.2): una chat che là non
           // è aperta da nessuna parte si toglie anche senza chiusura registrata.
+          // Si toglie solo se il PC guardato è certamente la casa della chat (0.67.0).
+          const casaLa = remoto.sessione !== undefined && trovata === undefined ? await window.gestore.casa.casaDi(remoto.sessione).catch(() => undefined) : undefined
           const giudizio = giudicaRiquadroRemoto({
+            casaCerta: casaLa !== undefined && casaLa === remoto.pcId,
             trovata: trovata !== undefined,
             sessione: remoto.sessione,
             chiusaRegistrata: chiusa !== undefined,

@@ -117,6 +117,13 @@ export function giudicaRiquadroRemoto(p: {
   /** Un testo o un avvio in sottofondo da qui non ancora partito. */
   inAttesa: boolean
   adesso: number
+  /**
+   * Il PC che il riquadro guarda è **certamente** la casa della chat (0.67.0):
+   * la casa memorizzata è proprio lui. Se non lo è, o non si sa, la chat può
+   * vivere altrove e non si toglie niente. Visto il 12/10 sul secondo PC fisso:
+   * riquadri spariti di chat la cui casa non era il PC guardato.
+   */
+  casaCerta?: boolean
 }): GiudizioRiquadro {
   if (p.trovata) return 'mostra'
   if (p.chiusaRegistrata) return 'chiusa'
@@ -124,6 +131,7 @@ export function giudicaRiquadroRemoto(p: {
   if (p.salvateLa.includes(p.sessione)) return 'aspetta'
   const recente = Math.max(p.apertoIl ?? Number.NEGATIVE_INFINITY, p.ultimaAzioneIl ?? Number.NEGATIVE_INFINITY)
   if (p.adesso - recente < GRAZIA_RIQUADRO_REMOTO_MS) return 'aspetta'
+  if (p.casaCerta !== true) return 'aspetta'
   return 'togli'
 }
 

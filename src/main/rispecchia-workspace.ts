@@ -27,6 +27,8 @@ export type DipendenzeRispecchia = {
   nomePc: (pcId: string, salvato: string) => string
   /** L'id di questo PC: un riquadro «remoto» che punta qui non ha una casa altrove da chiedere. */
   io?: () => string
+  /** La casa memorizzata di una chat (id del PC): si toglie solo se è proprio il PC guardato (0.67.0). */
+  casaDi?: (sessione: string) => string | undefined
   log: (riga: string) => void
   /** L'archivio è cambiato: le finestre aggiornano l'elenco dei workspace. */
   cambiato?: (a: Archivio) => void
@@ -83,7 +85,8 @@ export function creaRispecchia(d: DipendenzeRispecchia) {
             apertoIl: v.dal !== undefined ? Date.parse(v.dal) : undefined,
             ultimaAzioneIl: undefined,
             inAttesa: false,
-            adesso: adesso()
+            adesso: adesso(),
+            casaCerta: d.casaDi?.(v.sessione) === pcId
           })
           if (g !== 'togli' && g !== 'chiusa') continue
           const nome = d.nomePc(pcId, v.pcNome)

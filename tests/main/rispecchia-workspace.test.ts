@@ -40,6 +40,8 @@ function su(a: Archivio, stato: StatoDiCasa | Error, mostrati = new Set(['Sierra
     mostrati: () => mostrati,
     statoDi: () => stato instanceof Error ? Promise.reject(stato) : Promise.resolve(stato),
     nomePc: (_id, salvato) => salvato,
+    // La casa memorizzata di ogni chat del banco è il portatile (0.67.0).
+    casaDi: () => 'pc-portatile',
     log: (m) => { righe.push(m) },
     adesso: () => ADESSO
   })
@@ -106,6 +108,18 @@ describe('il Core rispecchia il PC di casa nei workspace nascosti', () => {
     expect(await r.giro()).toEqual([])
     expect(chiesti).toEqual([])
     expect(righe).toEqual([])
+  })
+
+  it('una chat la cui casa non è il PC guardato non si toglie mai, anche se là non è aperta (0.67.0)', async () => {
+    const a = archivio([remota('p-1', CHIUSA, 'Casa altrove')])
+    let scritto = false
+    const r = creaRispecchia({
+      leggi: () => a, scrivi: () => { scritto = true }, mostrati: () => new Set(['SierraDeck']),
+      statoDi: () => Promise.resolve({ chat: [], salvate: [] }), nomePc: (_id, s) => s,
+      casaDi: () => 'pc-altro', log: () => {}, adesso: () => ADESSO
+    })
+    expect(await r.giro()).toEqual([])
+    expect(scritto).toBe(false)
   })
 
   it('una chiusura registrata là si scrive con la riga della 0.60.9', async () => {
