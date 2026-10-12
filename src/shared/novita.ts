@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.66.3',
+    righe: [
+      '**Il trasloco sa dagli altri PC chi ha una copia del progetto.** Anche quando il registro di questo PC non lo dice ancora, il battito dell’altro PC basta: i suoi file si confrontano ed entrano nella cartella del progetto.'
+    ]
+  },
+  {
     versione: '0.66.2',
     righe: [
       '**Il trasloco confronta anche il lavoro dell’altro PC sullo stesso progetto.** Quando un progetto ha la cartella su due PC, i file salvati dall’altro entrano nella cartella del progetto, non più solo nei «recuperati».'

@@ -2857,7 +2857,12 @@ if (!app.requestSingleInstanceLock()) {
           // (nel recupero) non è il salvataggio di niente, e la copia sul Drive va
           // confrontata. Visto dal vero il 12/10: il trasloco del progetto di prova
           // creava la cartella vuota e i file finivano solo nei recuperati.
-          const drive = idsDaConfrontareSulDrive(g.ids, registrate, existsSync, g.percorsi.filter((p) => p.pc !== io.id)).map((x) => {
+          // Chi altro ha una cartella dello stesso id: il registro di qui (che si unisce solo con «Fondi») e i battiti degli altri PC (0.66.3).
+          const altroveConCartella = [
+            ...g.percorsi.filter((p) => p.pc !== io.id).map((p) => ({ id: p.id })),
+            ...battiti.flatMap((b) => (b.locali?.progetti ?? []).filter((p) => g.ids.includes(p.id)).map((p) => ({ id: p.id })))
+          ]
+          const drive = idsDaConfrontareSulDrive(g.ids, registrate, existsSync, altroveConCartella).map((x) => {
             const altri = g.percorsi.filter((p) => p.id === x && p.pc !== io.id).map((p) => nomeDi(p.pc))
             return { id: x, etichetta: `sul Drive, salvata da ${altri.length > 0 ? [...new Set(altri)].join(' e ') : 'un altro PC'} (${x.slice(0, 6)})` }
           })
