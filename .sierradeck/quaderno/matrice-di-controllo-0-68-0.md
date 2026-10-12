@@ -138,3 +138,36 @@ portatile 0.67.4 con la 0.68.0 pronta, in attesa della quiete.
   pubblicare una versione che si installerebbe da sola.
 - «HomeAssistant» e «HA» sono lo stesso progetto?
 - Pulizie del Drive (14,9 GB su 16,1).
+
+## 0.68.1 (preparata, NON pubblicata finché Nicholas non dice come)
+Regola di Nicholas: «HO DETTO CHE INSTALLO IO E BASTA», «UN SOLO AGGIORNAMENTO
+QUANDO HAI RISOLTO TUTTO».
+- **D6 installazione automatica tolta del tutto** (era della 0.67.1): niente
+  installazione alla quiete, niente dal controllo dei 10 minuti, niente alla
+  chiusura (`autoInstallOnAppQuit = false`); niente pausa dei turni per un
+  aggiornamento pronto. Resta: scarica e «Versione pronta — Installa» su PC,
+  pagina, app; si installa solo con il tasto o «Installa là» premuto da lui.
+  Test `installa-solo-nicholas.test.ts` (ore di controlli con una versione
+  pronta: nessuna installazione; il tasto Installa parte davvero).
+- **Nella 0.67.4 / 0.68.0** (sui 3 PC adesso): l'installazione alla quiete parte
+  solo se «Scarica gli aggiornamenti da solo» è acceso; spegnerlo basta, ma una
+  versione già scaricata si installerebbe alla chiusura del programma. Quindi:
+  pubblicando la 0.68.1, i PC alla 0.68.0 con lo scaricamento acceso la
+  installerebbero da soli → prima di pubblicare va chiesto a Nicholas.
+- **D7 «Togli da questo PC» rifiutato**: il pannello del portatile offriva
+  «Togli» per «SierraDeck-prova-collaudo» e la rimozione rispondeva «il
+  progetto non ha una cartella»: il pannello legge il registro di qui + quello
+  del Drive, la rimozione solo quello di qui. Ora lo stesso registro. Test
+  `togli-da-questo-pc-registro.test.ts`.
+- `/api/prova/togli-progetto` (solo «SierraDeck-prova-…»): cartella nel
+  recupero, voce del PC fuori dal registro. Per togliere i progetti di prova
+  rimasti (prova-c2 sui 3 PC, prova-ap e prova-ws sul portatile) serve la
+  0.68.1 installata: si fa subito dopo.
+
+### Prove sulla 0.68.0, sui 3 PC (12/10 ~20:15 UTC)
+- giro chat di prova completo: PC fisso ✅ portatile ✅ desk-nik-glos ✅
+- errori 403 dal Drive dopo l'avvio della 0.68.0: 0 ✅
+- Domande 0,2 s · elenco PC 0,2 s · Salute 2,9 s ✅
+- Riprendi di un altro PC dal ponte: risponde ✅
+- fionda «non avviate»: riconoscimento con id nuovo nei test; «Apri» si prova
+  solo dallo schermo (al prossimo «Apri» di Nicholas) — motivato

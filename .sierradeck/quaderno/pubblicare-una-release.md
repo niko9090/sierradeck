@@ -4,6 +4,20 @@ quando: 2026-09-15T17:35:00+02:00
 tag: ["release", "github", "gh", "apk", "procedura"]
 ---
 
+## REGOLA DI NICHOLAS (12/10/2026): installa solo lui
+«HO DETTO CHE INSTALLO IO E BASTA» · «UN SOLO AGGIORNAMENTO QUANDO HAI RISOLTO TUTTO».
+- Pubblicare sì; **mai** premere o chiamare Installa, «Installa là»,
+  `/api/installa-la`, né script che chiedono l'installazione alla quiete.
+- Dalla 0.68.1 il programma non installa mai da solo (né alla quiete né alla
+  chiusura): scarica e mostra «Versione pronta — Installa».
+- **Attenzione con i PC alla 0.67.1–0.68.0**: installano da soli alla quiete
+  se «Scarica gli aggiornamenti da solo» è acceso. Prima di pubblicare la
+  versione che li porta alla 0.68.1, chiedere a Nicholas di spegnerlo (o di
+  dire che va bene), altrimenti l'installazione parte senza di lui.
+- Ordine giusto: `gh release create vX --draft` → `npm run pubblica` →
+  `npm run allega-apk` (firma verificata) → `gh release edit vX --draft=false --latest`.
+- Le verifiche dopo l'aggiornamento si fanno quando Nicholas ha installato.
+
 Procedura provata con la 0.27.0 (15/09/2026), tutta da terminale, senza
 `npm run pubblica` (che sdoppia le release o perde `latest.yml`).
 

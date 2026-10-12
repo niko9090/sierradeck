@@ -32,7 +32,7 @@ import { APP_NAME, APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/ve
 import { cartellaDati } from './migra-dati'
 import { apriAllegati } from './allegati'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
-import { attendiQuiete, ATTESA_DA_SOLO_MS, AVVISO_RIPRESA, leggiPausa, pausaAncoraValida } from './pausa-aggiornamento'
+import { attendiQuiete, ATTESA_INSTALLA_MS, AVVISO_RIPRESA, leggiPausa, pausaAncoraValida } from './pausa-aggiornamento'
 import { serveCercareSubito } from '@shared/versioni-altri-pc'
 import { chiaveMonitor } from '@shared/display-key'
 import { apriFinestreStore, type FinestreStore } from './finestre-store'
@@ -88,7 +88,7 @@ import { decidiAperturaRemota, type CopiaNota } from '@shared/apertura-remota'
 import type { Pannello } from '@shared/pannello-drive'
 import { memoriaBreve } from '@shared/memoria-breve'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
-import { creaLatoResidente, creaRimozione, progettiInRecupero, type LatoResidente, type Rimozione } from './rimozione-sicura'
+import { creaLatoResidente, creaRimozione, progettiInRecupero, spostaCartellaInRecupero, type LatoResidente, type Rimozione } from './rimozione-sicura'
 import { improntaPc } from './casa-firma'
 import { creaSpazioDrive, type SpazioDrive, type StatoSpazio } from './spazio-drive'
 import { creaTrasloco, type TraslocoApi } from './trasloco'
@@ -534,6 +534,7 @@ const traslochiSeguiti = new Map<string, { pc: string; ultimo?: Trasloco; letto:
 /** Il lato di questo PC quando un altro gli trasloca un progetto (0.65.0): le rotte `/api/trasloco/*`. */
 let latoTraslocoGlobale: Record<string, (corpo: unknown) => Promise<unknown>> | undefined
 let provaTraslocoGlobale: ((corpo: unknown) => Promise<{ ok: boolean; messaggio: string; stato?: number }>) | undefined
+let provaTogliProgettoGlobale: ((nome: string) => Promise<{ ok: boolean; messaggio: string; stato?: number }>) | undefined
 // Il registro della sessione, visibile anche ai gestori globali qui sotto: loro
 // nascono al caricamento del modulo, prima che la sessione sia aperta, quindi
 // finché resta `undefined` ripiegano sulla sola console.
@@ -2748,7 +2749,13 @@ if (!app.requestSingleInstanceLock()) {
       // e riceve i recuperati, nella cartella dei recuperati del progetto.
       // Stesso nome = stesso progetto (0.60.0): i gruppi del registro, e le
       // cartelle di qui con il nome di un progetto che qui non è registrato.
-      const gruppiProgetti = (): ReturnType<typeof raggruppaProgetti> => raggruppaProgetti(registroProgetti.leggi().progetti, unaCasa.case())
+      // Lo stesso registro del pannello, quando c'è: il locale insieme a quello
+      // del Drive (0.68.0). Prima «Togli da questo PC» cercava solo nel locale:
+      // il pannello offriva l'azione e la rimozione rispondeva «il progetto non
+      // ha una cartella» (portatile, 12/10).
+      let ultimoRegistroPannello: RegistroProgetti | undefined
+      const registroCompleto = (): RegistroProgetti => ultimoRegistroPannello ?? registroProgetti.leggi()
+      const gruppiProgetti = (): ReturnType<typeof raggruppaProgetti> => raggruppaProgetti(registroCompleto().progetti, unaCasa.case())
       const localiConOra = (): { cwd?: string; mtime?: number }[] => chatLocaliDaIndice().map((c) => ({ ...(c.cwd !== undefined ? { cwd: c.cwd } : {}), mtime: c.ultimoMessaggio !== undefined ? Date.parse(c.ultimoMessaggio) || 0 : 0 }))
       const trovateQui = (): Record<string, string> => primaTrovata(cartelleTrovateQui(gruppiProgetti(), identitaPc.leggi().id, localiConOra(), existsSync))
       /** La cartella di qui di un progetto (qualunque suo id): registrata e valida, o trovata per nome. */
@@ -2774,7 +2781,7 @@ if (!app.requestSingleInstanceLock()) {
         dati,
         io: () => identitaPc.leggi(),
         progetto: (id) => {
-          const g = registroProgetti.leggi().progetti.find((x) => x.id === id)
+          const g = registroCompleto().progetti.find((x) => x.id === id)
           if (g === undefined) return undefined
           const voluto = casaDelGruppo(unaCasa.case(), gruppoDiId(gruppiProgetti(), id)?.ids ?? [id])
           const cartella = cartellaQui(id)
@@ -2816,7 +2823,8 @@ if (!app.requestSingleInstanceLock()) {
       const registroDelPannello = async (): Promise<RegistroProgetti> => {
         const q = await quadroPannello()
         const prefissi = new Set(Object.keys(q?.manifesto.file ?? {}).map((k) => k.split('/')[0] ?? ''))
-        return registroConIlDrive(registroProgetti.leggi(), q?.registro, (id) => prefissi.has(prefissoProgetto(id)))
+        ultimoRegistroPannello = registroConIlDrive(registroProgetti.leggi(), q?.registro, (id) => prefissi.has(prefissoProgetto(id)))
+        return ultimoRegistroPannello
       }
       const leggiPannello = async (): Promise<Pannello> => {
         const inizio = Date.now()
@@ -3086,6 +3094,26 @@ if (!app.requestSingleInstanceLock()) {
         }
       }
       // Il trasloco di un progetto di prova (0.65.0): anche chi collauda, solo «SierraDeck-prova-…».
+      // Un progetto di prova di chi collauda, tolto da questo PC (0.68.1): la
+      // cartella nel recupero (30 giorni) e la voce di questo PC fuori dal
+      // registro. Solo «SierraDeck-prova-…», e mai con una chat aperta dentro.
+      provaTogliProgettoGlobale = async (nome) => {
+        const io = identitaPc.leggi()
+        const g = gruppiProgetti().find((x) => x.nome === nome)
+        const cartella = g !== undefined ? cartellaQui(g.id) : undefined
+        if (g === undefined || cartella === undefined || !existsSync(cartella)) return { ok: false, stato: 404, messaggio: `«${nome}» non ha una cartella su ${io.nome}: niente da togliere.` }
+        if (!cartellaDiProva(cartella)) return { ok: false, stato: 403, messaggio: `${cartella} non è una cartella di prova.` }
+        const aperta = chatAperte.find((c) => c.viva === true && staDentro(c.cwd, cartella))
+        if (aperta !== undefined) return { ok: false, stato: 409, messaggio: `la chat «${aperta.titolo}» è aperta nella cartella: chiudila prima.` }
+        const e = spostaCartellaInRecupero(dati, cartella, { progetto: g.id, nome, motivo: 'progetto di prova tolto da chi collauda', quando: new Date().toISOString() })
+        if (!e.ok) return { ok: false, stato: 409, messaggio: e.messaggio }
+        const reg = registroProgetti.leggi()
+        registroProgetti.scrivi({ ...reg, progetti: reg.progetti
+          .map((p) => (g.ids.includes(p.id) ? { ...p, percorsi: Object.fromEntries(Object.entries(p.percorsi).filter(([pc]) => pc !== io.id)) } : p))
+          .filter((p) => !(g.ids.includes(p.id) && Object.keys(p.percorsi).length === 0)) })
+        registro.info(`[prova] progetto di prova «${nome}» tolto da ${io.nome}: cartella nel recupero (${e.dove}), chiesto da chi collauda`)
+        return { ok: true, messaggio: `«${nome}»: cartella nel recupero per 30 giorni.` }
+      }
       provaTraslocoGlobale = async (corpo) => {
         const c = (typeof corpo === 'object' && corpo !== null ? corpo : {}) as Record<string, unknown>
         const azione = typeof c.azione === 'string' ? c.azione : ''
@@ -4699,6 +4727,7 @@ if (!app.requestSingleInstanceLock()) {
             ...(ultimaRiparazione !== undefined ? { riparazione: { quando: ultimaRiparazione.quando, ritrovati: ultimaRiparazione.ritrovati.map((x) => ({ nome: x.nome, da: x.da })), riparati: ultimaRiparazione.riparati } } : {})
           }
         },
+        provaTogliProgetto: (nome: string) => provaTogliProgettoGlobale?.(nome) ?? Promise.resolve({ ok: false, messaggio: 'Il registro dei progetti non è ancora pronto.' }),
         provaTrasloco: (corpo: unknown) => provaTraslocoGlobale?.(corpo) ?? Promise.resolve({ ok: false, messaggio: 'Il trasloco non è ancora pronto: la cassaforte o il Drive non sono aperti.' }),
         azioneDrive: (c: unknown) => azioneDriveGlobale?.(c) ?? Promise.resolve({ ok: false, messaggio: 'Il pannello non è ancora pronto: la cassaforte o il Drive non sono aperti.' }),
         // Letto a ogni richiesta: nasce con «una chat, una casa».
@@ -5881,7 +5910,7 @@ if (!app.requestSingleInstanceLock()) {
         // **Non si installa sopra un lavoro in corso.** Si avvisa, si aspetta
         // che ognuno chiuda quello che ha in mano, e solo allora si chiude
         // tutto. Un aggiornamento non e' una chiusura per fine lavori.
-        async (avvisa, daSolo): Promise<EsitoQuiete> => {
+        async (avvisa): Promise<EsitoQuiete> => {
           // Prima il Drive, e il suo esito conta: prima veniva buttato via con
           // un `.then(() => …)`, e un lavoro che non finiva passava lo stesso.
           const drive = await attendiLavoroDrive((attesa) => avvisa({ attesa }))
@@ -5905,13 +5934,13 @@ if (!app.requestSingleInstanceLock()) {
                 try { new Notification({ title: 'SierraDeck aspetta per aggiornarsi', body: testo }).show() } catch { /* senza notifiche */ }
               }
             },
-            // Anche con «Installa» (qui, «Installa là», telefono) si aspetta fino a
-            // due ore: dieci minuti non bastavano mai con gli autopiloti al lavoro.
-            tetto: ATTESA_DA_SOLO_MS,
-            ...(daSolo ? { soloGovernate: true } : {}),
+            // Dopo «Installa» premuto da Nicholas (qui, «Installa là», telefono) si
+            // aspetta fino a due ore: dieci minuti non bastavano mai con gli
+            // autopiloti al lavoro. Mai un'installazione da sola (0.68.1).
+            tetto: ATTESA_INSTALLA_MS,
             versione: app.getVersion()
           })
-          return pronti ? { ok: true } : { ok: false, perche: daSolo ? 'in due ore le chat non hanno mai smesso di lavorare tutte insieme. Riprovo fra mezz’ora.' : 'in due ore le chat non hanno mai smesso di lavorare tutte insieme. Riprova quando hanno finito.' }
+          return pronti ? { ok: true } : { ok: false, perche: 'in due ore le chat non hanno mai smesso di lavorare tutte insieme. Riprova quando hanno finito.' }
         },
         // Nel registro su file: e' l'unico posto dove, il giorno dopo, si
         // capisce per quale strada e' passato un aggiornamento.

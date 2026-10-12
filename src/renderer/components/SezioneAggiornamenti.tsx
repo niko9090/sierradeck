@@ -27,7 +27,7 @@ export function SezioneAggiornamenti({ p, cambia, versione }: { p: Preferenze; c
     : fase === 'attendo' ? `Installo appena ${s?.chatOccupate !== undefined && s.chatOccupate > 0 ? `${s.chatOccupate === 1 ? 'la chat finisce' : `le ${s.chatOccupate} chat finiscono`} il turno` : (s?.attesa ?? 'c’è quiete')}: niente si perde.`
     : fase === 'installo' ? 'Sto installando: il programma si chiude e si riapre da solo.'
     : fase === 'errore' ? `Qualcosa non è andato: ${s?.errore ?? 'motivo non detto'}.`
-    : 'Controlla da sé ogni dieci minuti e si installa da sola appena le chat sono ferme. «Cerca ora» lo fa subito.'
+    : 'Controlla da sé ogni dieci minuti e scarica la versione nuova; si installa solo con «Installa». «Cerca ora» lo fa subito.'
   return (
     <>
       <div className="impostazioni__riga">

@@ -214,6 +214,8 @@ export type DipendenzeRotte = {
    * collauda, solo per i progetti «SierraDeck-prova-…» (lo controlla questo PC).
    */
   provaTrasloco?: (corpo: unknown) => Promise<{ ok: boolean; messaggio: string; stato?: number }>
+  /** Toglie da questo PC un progetto di prova «SierraDeck-prova-…»: la cartella nel recupero (0.68.1). */
+  provaTogliProgetto?: (nome: string) => Promise<{ ok: boolean; messaggio: string; stato?: number }>
   /** Una chat nuova (0.65.1): mai nella cartella utente, in Documenti o nella radice di un disco. */
   cartellaPerChatNuova?: (cartella: string, workspace: string | undefined) => Promise<{ ok: true; cartella: string } | { ok: false; motivo: string }>
   /** Un workspace diventa un progetto (0.65.1). */
@@ -1862,6 +1864,15 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const fai = lato[r.percorso.slice('/api/trasloco/'.length)]
       if (fai === undefined) return { stato: 404, corpo: { errore: 'non trovato' } }
       return OK(((await fai(r.corpo).catch((e: unknown) => ({ ok: false, messaggio: e instanceof Error ? e.message : String(e) }))) ?? {}) as object)
+    }
+    // I progetti di prova di chi collauda (0.68.1): la cartella va nel recupero
+    // (30 giorni, ripristinabile), solo se si chiama «SierraDeck-prova-…».
+    if (r.metodo === 'POST' && r.percorso === '/api/prova/togli-progetto') {
+      if (deps.provaTogliProgetto === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora togliere un progetto di prova: aggiornalo alla 0.68.1.' } }
+      const nome = stringa(r.corpo, 'nome')
+      if (!nome.startsWith(PREFISSO_CARTELLA_PROVA)) return { stato: 403, corpo: { errore: `«${nome}» non è un progetto di prova: così si tolgono solo quelli che si chiamano «${PREFISSO_CARTELLA_PROVA}…». Gli altri li togli tu.` } }
+      const e = await deps.provaTogliProgetto(nome)
+      return e.ok ? OK(e) : { stato: e.stato ?? 409, corpo: { errore: e.messaggio } }
     }
     if (r.metodo === 'POST' && r.percorso === '/api/prova/trasloco') {
       if (deps.provaTrasloco === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora traslocare un progetto: aggiornalo alla 0.65.0.' } }

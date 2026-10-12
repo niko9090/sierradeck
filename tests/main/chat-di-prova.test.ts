@@ -187,3 +187,26 @@ describe('«Riprendi» da lontano di una chat che vive su un altro PC (0.64.0)',
     expect(leggiAzioneFinestra({ tipo: 'chat', azione: 'apriRemota', chat: 's-1', cwd: PROVA })).toBeUndefined()
   })
 })
+
+describe('/api/prova/togli-progetto (0.68.1)', () => {
+  const conTogli = (tolti: string[]): DipendenzeRotte => ({
+    ...(deps([], []) as unknown as Record<string, unknown>),
+    provaTogliProgetto: async (nome: string) => { tolti.push(nome); return { ok: true, messaggio: 'nel recupero' } }
+  }) as unknown as DipendenzeRotte
+  it('toglie un progetto di prova: la cartella nel recupero', async () => {
+    const tolti: string[] = []
+    const r = await rotteClient(conTogli(tolti))({ metodo: 'POST', percorso: '/api/prova/togli-progetto', corpo: { nome: 'SierraDeck-prova-c2' } })
+    expect(r.stato).toBe(200)
+    expect(tolti).toEqual(['SierraDeck-prova-c2'])
+  })
+  it('un progetto vero no, con il perché', async () => {
+    const tolti: string[] = []
+    const r = await rotteClient(conTogli(tolti))({ metodo: 'POST', percorso: '/api/prova/togli-progetto', corpo: { nome: 'Trading' } })
+    expect(r.stato).toBe(403)
+    expect(tolti).toEqual([])
+  })
+  it('passa dal ponte, come le altre azioni di prova, e si racconta nel registro', () => {
+    expect(leggiRichiestaPonte({ pc: 'pc-a', percorso: '/api/prova/togli-progetto', corpo: { nome: 'SierraDeck-prova-c2' } }).ok).toBe(true)
+    expect(azioneDelPonte('/api/prova/togli-progetto', { nome: 'SierraDeck-prova-c2' })).toBe('tolgo il progetto di prova «SierraDeck-prova-c2» (cartella nel recupero)')
+  })
+})

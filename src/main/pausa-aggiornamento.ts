@@ -69,15 +69,11 @@ export function siPuoInstallare(chats: ChatInVolo[]): boolean {
 export const ATTESA_QUIETE_MS = 10 * 60_000
 
 /**
- * L'attesa quando l'aggiornamento si installa **da solo** (0.67.1).
- *
- * Il 12/10 nessuno dei tre PC si aggiornava: l'installazione partiva solo con
- * «Installa» o alla chiusura del programma (che sui PC di Nicholas non si
- * chiude mai), e l'attesa della quiete si arrendeva dopo dieci minuti, mentre
- * gli autopiloti cominciavano un turno dopo l'altro. Ora, appena una versione
- * è scaricata, il PC mette in pausa i turni nuovi e aspetta fino a due ore.
+ * Quanto si aspetta la quiete dopo «Installa» premuto da Nicholas (0.67.1;
+ * dalla 0.68.1 l'installazione parte solo da lui): dieci minuti non bastavano
+ * mai con gli autopiloti al lavoro.
  */
-export const ATTESA_DA_SOLO_MS = 2 * 60 * 60_000
+export const ATTESA_INSTALLA_MS = 2 * 60 * 60_000
 
 /** Dopo quanto una chat **non** di un autopilota ancora al lavoro si dice a Nicholas. */
 export const AVVISO_LUNGO_MS = 20 * 60_000
@@ -96,17 +92,6 @@ export function testoAttesa(restano: ChatInVolo[], daQuantoMs: number): { testo:
     : `aggiorno appena finiscono: ${n} chat al lavoro (${nomi.slice(0, 3).join(', ')}${n > 3 ? ', …' : ''})`
   const lungo = daQuantoMs >= AVVISO_LUNGO_MS && restano.some((c) => c.governata !== true)
   return { testo: lungo ? `Aspetto da ${Math.round(daQuantoMs / 60_000)} minuti: ${base}` : base, lungo }
-}
-
-/**
- * Se l'aggiornamento pronto va installato da solo adesso (0.67.1): c'è una
- * versione scaricata, nessuna installazione è già in corso, e l'ultimo
- * tentativo da solo non riuscito (quiete mai arrivata) è di almeno mezz'ora fa.
- */
-export const RIPROVA_DA_SOLO_MS = 30 * 60_000
-export function daInstallareDaSolo(p: { fase: string; acceso: boolean; avviata: boolean; ultimoTentativo?: number; adesso: number }): boolean {
-  if (!p.acceso || p.avviata || p.fase !== 'pronto') return false
-  return p.ultimoTentativo === undefined || p.adesso - p.ultimoTentativo >= RIPROVA_DA_SOLO_MS
 }
 
 /** Ogni quanto si torna a guardare se sono ferme. */
@@ -254,11 +239,6 @@ export async function attendiQuiete(p: {
   aspetta?: (ms: number) => Promise<void>
   /** Quanto aspettare prima di arrendersi (default `ATTESA_QUIETE_MS`). */
   tetto?: number
-  /**
-   * Da solo (0.67.1): si scrive l'avviso solo alle chat degli autopiloti; le
-   * chat di Nicholas si aspettano e basta, senza scriverci dentro.
-   */
-  soloGovernate?: boolean
   /** Il testo dell'attesa (`testoAttesa`), a ogni giro. */
   avvisaTesto?: (testo: string, lungo: boolean) => void
 }): Promise<boolean> {
@@ -292,7 +272,6 @@ export async function attendiQuiete(p: {
   const avvisaLeOccupate = (): void => {
     for (const c of inVolo(p.chat())) {
       if (avvisate.has(c.id)) continue
-      if (p.soloGovernate === true && c.governata !== true) continue
       avvisate.add(c.id)
       p.scriviInChat(c.id, AVVISO_PAUSA)
     }
@@ -304,9 +283,7 @@ export async function attendiQuiete(p: {
   while (adesso() < scade) {
     const restano = inVolo(p.chat())
     if (restano.length === 0) {
-      // Da solo, alle chat di Nicholas non si è chiesto di fermarsi: al
-      // ritorno non si scrive loro «ti eri fermato per farmi aggiornare».
-      p.annota(pausaDaSalvare(p.soloGovernate === true ? [] : allInizio, p.versione))
+      p.annota(pausaDaSalvare(allInizio, p.versione))
       return true
     }
     p.avvisa(restano.length)

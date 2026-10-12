@@ -1,4 +1,3 @@
-import { daInstallareDaSolo } from './pausa-aggiornamento'
 import { autoUpdater } from 'electron-updater'
 import { copyFileSync, existsSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
@@ -92,10 +91,10 @@ export type Aggiornamenti = {
   /** Scarica la versione trovata. L'utente ha detto di sì. */
   scarica: (dalTelefono?: boolean) => Promise<void>
   /**
-   * Chiude il programma e installa, alla quiete. `daSolo` (0.67.1): partito
-   * da sé appena la versione è scaricata, non da «Installa».
+   * Chiude il programma e installa, alla quiete. Solo per un'azione di Nicholas:
+   * il tasto sul PC, dalla pagina o dall'app, o «Installa là» (0.68.1).
    */
-  installa: (daSolo?: boolean) => Promise<void>
+  installa: () => Promise<void>
   /**
    * Cosa cambia con la versione pronta (0.39.0): le note della nuova e delle
    * saltate, per la finestra di «Installa» sul PC e sul telefono.
@@ -186,7 +185,7 @@ export function creaAggiornamenti(
    * Assente - in prova, o senza finestre - vale «si puo'»: e' il
    * comportamento di prima, e senza chat da aspettare e' anche quello giusto.
    */
-  attendiQuiete?: (avvisa: (a: AvvisoAttesa) => void, daSolo: boolean) => Promise<EsitoQuiete>,
+  attendiQuiete?: (avvisa: (a: AvvisoAttesa) => void) => Promise<EsitoQuiete>,
   /**
    * Il registro su file. Fino alla 0.25.0 l'updater parlava solo alla
    * console, che in produzione nessuno legge: il 13 settembre un aggiornamento
@@ -207,12 +206,7 @@ export function creaAggiornamenti(
    * pausa faceva scrivere «SierraDeck e' tornato su con la versione nuova»
    * in chat che non si erano mai fermate.
    */
-  disfaPausa?: () => Promise<void>,
-  /**
-   * Se installare da soli appena la versione è scaricata (0.67.1), alla
-   * quiete. Assente = come lo scaricamento automatico.
-   */
-  installaDaSolo?: () => boolean
+  disfaPausa?: () => Promise<void>
 ): Aggiornamenti {
   const nota = (m: string): void => { console.log(`[aggiornamenti] ${m}`); registro?.info(`[aggiornamenti] ${m}`) }
   const guaio = (m: string): void => { console.error(`[aggiornamenti] ${m}`); registro?.errore(`[aggiornamenti] ${m}`) }
@@ -343,7 +337,11 @@ export function creaAggiornamenti(
   // Da solo o su richiesta, lo sceglie l'utente: `scaricaAutomatico` porta la
   // preferenza, e `impostaScaricoAutomatico` la cambia a caldo. Assente = acceso.
   autoUpdater.autoDownload = scaricaAutomatico?.() ?? true
-  autoUpdater.autoInstallOnAppQuit = true
+  // **Installa solo Nicholas** (regola del 12/10, 0.68.1): «HO DETTO CHE
+  // INSTALLO IO E BASTA». Niente installazione alla chiusura, niente alla
+  // quiete: si scarica, si dice «Versione pronta — Installa», e si installa
+  // soltanto con il tasto (PC, pagina, app) o con «Installa là» premuto da lui.
+  autoUpdater.autoInstallOnAppQuit = false
   // Le note di tutte le versioni fra quella installata e la nuova, non solo
   // dell'ultima: la finestra di «Installa» mostra anche quelle saltate.
   autoUpdater.fullChangelog = true
@@ -392,9 +390,6 @@ export function creaAggiornamenti(
     versioneScaricata = String(info.version)
     if (info.releaseNotes !== undefined && info.releaseNotes !== null) noteDellAggiornamento = info.releaseNotes
     annuncia({ fase: 'pronto', versione: String(info.version) })
-    // Da solo, alla quiete (0.67.1): un attimo dopo, che lo stato «pronto»
-    // arrivi prima a chi guarda.
-    setTimeout(() => provaDaSolo(), 5000)
   })
   autoUpdater.on('error', (err) => {
     // Un aggiornamento che non si trova non è un guasto del programma: si dice
@@ -426,22 +421,11 @@ export function creaAggiornamenti(
     }
   }
 
-  /** L'ultimo tentativo da solo che non ha installato (quiete mai arrivata). */
-  let ultimoDaSolo: number | undefined
-  const provaDaSolo = (): void => {
-    const acceso = installaDaSolo?.() ?? scaricaAutomatico?.() ?? true
-    if (!daInstallareDaSolo({ fase: stato.fase, acceso, avviata: installazioneAvviata, ...(ultimoDaSolo !== undefined ? { ultimoTentativo: ultimoDaSolo } : {}), adesso: Date.now() })) return
-    ultimoDaSolo = Date.now()
-    nota(`la ${versioneScaricata ?? stato.versione ?? '?'} e pronta: la installo da solo alla quiete`)
-    void installaInterno(true)
-  }
-
   setTimeout(() => void cerca(), 10_000)
   setInterval(() => {
     // Con una versione già pronta non si cerca (la fase «cerco» lampeggerebbe
-    // ogni dieci minuti): si riprova a installarla.
-    if (stato.fase === 'pronto') provaDaSolo()
-    else void cerca()
+    // ogni dieci minuti) e non si installa: aspetta il tasto (0.68.1).
+    if (stato.fase !== 'pronto') void cerca()
   }, RICONTROLLA_MS)
 
   /**
@@ -473,7 +457,7 @@ export function creaAggiornamenti(
     }
   }
 
-  async function installaInterno(daSolo: boolean): Promise<void> {
+  async function installaInterno(): Promise<void> {
       // Una volta sola per sessione. Premere due volte, o due finestre che
       // premono insieme, facevano partire due updater: si chiudevano le
       // istanze a vicenda e il programma si riavviava senza mai aggiornarsi.
@@ -508,7 +492,7 @@ export function creaAggiornamenti(
         return
       }
       installazioneAvviata = true
-      nota(`INSTALLA ${stato.versione ?? '?'} ${daSolo ? 'da solo (versione scaricata)' : `chiesto${daTelefono ? ' dal telefono' : ' dal PC'}`}: aspetto la quiete`)
+      nota(`INSTALLA ${stato.versione ?? '?'} chiesto${daTelefono ? ' dal telefono' : ' dal PC'}: aspetto la quiete`)
       // **Prima la quiete, poi l'installazione.** Da qui in giu' non si torna
       // indietro: si chiudono i processi e si esce. Tutto quello che si puo'
       // fare per non lasciare un lavoro a meta' va fatto adesso.
@@ -521,7 +505,7 @@ export function creaAggiornamenti(
         try {
           esito = await attendiQuiete((a) => {
             annuncia({ ...stato, fase: 'attendo', ...(a.chatOccupate !== undefined ? { chatOccupate: a.chatOccupate } : {}), ...(a.attesa !== undefined ? { attesa: a.attesa } : {}), ...(a.attesaChat !== undefined ? { attesaChat: a.attesaChat } : {}) })
-          }, daSolo)
+          })
         } catch (err) {
           esito = { ok: false, perche: `l’attesa si è interrotta con un errore (${String(err)}).` }
         }
@@ -610,7 +594,7 @@ export function creaAggiornamenti(
                 // della pausa se ne va, e electron-updater torna a installare
                 // alla chiusura — cosi' il testo «si installa da sola quando
                 // chiudi» resta vero.
-                autoUpdater.autoInstallOnAppQuit = true
+                // Mai alla chiusura (0.68.1): installa solo Nicholas, con il tasto.
                 try {
                   await disfaPausa?.()
                 } catch (err) {
@@ -684,7 +668,7 @@ export function creaAggiornamenti(
       if (note.fonte === 'github') noteRaccolte = { versione: nuova, quando: Date.now(), note }
       return note
     },
-    installa: (daSolo?: boolean) => installaInterno(daSolo === true),
+    installa: () => installaInterno(),
     nonInstallareAllaChiusura() {
       nota('riavvio senza installare: l aggiornamento pronto resta in attesa di «Installa»')
       autoUpdater.autoInstallOnAppQuit = false

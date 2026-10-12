@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.68.1',
+    righe: [
+      '**Gli aggiornamenti li installi solo tu.** La versione nuova si scarica e compare «Versione pronta — Installa» su PC, pagina e app; si installa soltanto quando premi Installa (o «Installa là»). Mai più da sola, né alla quiete né alla chiusura.',
+      '**«Togli da questo PC» funziona anche per i progetti che il PC conosce dal Drive:** prima il pannello lo offriva e poi rispondeva «il progetto non ha una cartella».'
+    ]
+  },
+  {
     versione: '0.68.0',
     righe: [
       '**Le chat di un altro PC non risultano più «non avviate» quando lo sono.** «Apri» da «Su altri PC» le fa partire là in sottofondo, e una chat ripresa con un id nuovo si riconosce lo stesso (stessa cartella, stesso titolo).',

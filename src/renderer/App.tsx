@@ -1430,8 +1430,7 @@ export function App(): React.JSX.Element {
               <b>Installa e riavvia</b>: aspetto che le chat finiscano quello che hanno in mano (e il lavoro con il
               Drive, se ce n’è), le avviso, chiudo SierraDeck, installo e riparto da solo; al ritorno chat e
               autopiloti riprendono da dove erano. <b>Più tardi</b>: chiudo questa finestra e nella striscia in alto
-              resta «Installa»; se chiudi SierraDeck senza installare, la versione nuova si installa alla chiusura,
-              senza riavviare.
+              resta «Installa»: si installa solo quando lo premi tu.
             </>
           }
           tasti={
@@ -1664,8 +1663,7 @@ export function App(): React.JSX.Element {
                     successo niente. */}
                 {aggiornamento.errore !== undefined ? <><b>{aggiornamento.errore}</b>{' '}</> : null}
                 La versione {aggiornamento.versione} è pronta. «Installa» ti fa vedere prima cosa cambia;
-                da lì scegli se installarla adesso. Se chiudi SierraDeck senza installarla, si installa
-                da sola alla chiusura.
+                da lì scegli se installarla adesso. Si installa solo quando lo premi tu.
               </span>
               {/* Dalla 0.39.0 nessuna installazione parte da qui: il tasto
                   apre la finestra con le note, e lì c'è «Installa e riavvia». */}

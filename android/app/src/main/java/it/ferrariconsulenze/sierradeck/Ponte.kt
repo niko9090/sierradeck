@@ -54,7 +54,7 @@ object Ponte {
         "/api/workspace", "/api/workspace/crea", "/api/workspace/elimina", "/api/workspace/rinomina", "/api/workspace/storia", "/api/workspace/progetto",
         "/api/chat/chiudi", "/api/chat/dormi", "/api/chat/sveglia", "/api/chat/sposta", "/api/chat/nome",
         // Le chat e gli autopiloti di prova (PC 0.63.0/0.64.0): il PC li accetta solo per le cartelle «SierraDeck-prova-…».
-        "/api/prova/chiudi", "/api/prova/autopilota",
+        "/api/prova/chiudi", "/api/prova/autopilota", "/api/prova/togli-progetto",
         "/api/autopilota/archivia", "/api/pin/proteggi", "/api/chat/ospite", "/api/modelli",
         "/api/sfoglia", "/api/cartelle", "/api/sessioni",
         "/api/autopilota", "/api/autopilota/crea", "/api/autopilota/ferma", "/api/autopilota/riprendi", "/api/autopilota/vai",
