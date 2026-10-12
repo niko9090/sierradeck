@@ -31,7 +31,7 @@ sessione: 1ff78f5e-523c-43b4-b74f-044d9691131d
 - **2026-10-11 19:31** — supervisore → chiediUtente: La chat continua a svegliarsi e a chiedere, impedendo la quiete necessaria all'installazione; una domanda in attesa la ferma davvero e chiede a Nicholas l'unico gesto che solo lui può fare.
 - **2026-10-12 05:45** — Il servizio è ripartito e la domanda aperta è andata perduta: torno al lavoro e la rifaccio.
 - **2026-10-12 05:51** — supervisore → chiediUtente: Tutto è installato e verificato; resta la prova della chiusura manuale sul portatile, che le regole riservano a Nicholas.
-- **2026-10-12 06:15** — comando bloccato dal programma: SierraDeck blocca questa cancellazione: «C:\Users\nikof\AppData\Local\Temp\claude\E--Users-nikof-Documents-SierraDeck\1ff78f5e-523c-43b4-b74f-044d9691131d\scratchpad\$D\x.png» è fuori dalle cartelle di questo autopilota (E:\Users\nikof\Documents\SierraDeck, E:\Users\nikof\Documents\SierraDeck.sierradeck-wt). Si cancellano solo file dentro le sue cartelle.
+- **2026-10-12 06:15** — comando bloccato dal programma: SierraDeck blocca questa cancellazione: «%USERPROFILE%\AppData\Local\Temp\claude\<progetto>\1ff78f5e-523c-43b4-b74f-044d9691131d\scratchpad\$D\x.png» è fuori dalle cartelle di questo autopilota (%USERPROFILE%\Documents\SierraDeck, %USERPROFILE%\Documents\SierraDeck.sierradeck-wt). Si cancellano solo file dentro le sue cartelle.
 - **2026-10-12 10:24** — risposta tardiva: perche ti è vietato? se devi chiudere della chat di prova devi essere autonomo
 - **2026-10-12 10:44** — supervisore → prosegui: Le due domande della chat hanno già risposta nella decisione di Nicholas di rendere autonome le prove; il riquadro si può aprire via ponte senza chiedere il clic.
 - **2026-10-12 10:46** — comando bloccato dal programma: SierraDeck blocca questa chiamata: /api/autopilota/ferma fa una cosa che l'autopilota non può fare da solo (vedi i divieti decisi da Nicholas).
@@ -40,4 +40,4 @@ sessione: 1ff78f5e-523c-43b4-b74f-044d9691131d
 ## In numeri
 
 - interventi: 89
-- cartella: `E:\Users\nikof\Documents\SierraDeck`
+- cartella: `%USERPROFILE%\Documents\SierraDeck`
