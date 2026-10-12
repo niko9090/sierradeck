@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.66.4',
+    righe: [
+      '**L’app Android 2.66.1 si installa di nuovo sopra quella che hai.** Le app 2.65.0 e 2.66.0 erano firmate con la chiave di prova invece che con quella di Ferrari Consulenze, e il telefono le rifiutava. Da ora la pubblicazione allega solo l’app firmata, e si ferma se la firma non è quella giusta.'
+    ]
+  },
+  {
     versione: '0.66.3',
     righe: [
       '**Il trasloco sa dagli altri PC chi ha una copia del progetto.** Anche quando il registro di questo PC non lo dice ancora, il battito dell’altro PC basta: i suoi file si confrontano ed entrano nella cartella del progetto.'

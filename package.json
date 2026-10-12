@@ -1,6 +1,6 @@
 {
   "name": "sierradeck",
-  "version": "0.66.3",
+  "version": "0.66.4",
   "private": true,
   "main": "./out/main/index.js",
   "allowScripts": {
@@ -17,6 +17,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "app-android-json": "node scripts/app-android-json.mjs",
+    "allega-apk": "node scripts/allega-apk.mjs",
     "icona": "electron scripts/genera-icona.mjs",
     "pulisci-dist": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "pacchetto": "node scripts/controlla-credenziali.mjs && npm run build && npm run pulisci-dist && electron-builder --win --publish never",
