@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.64.1',
+    righe: [
+      '**Il riquadro dal vivo da lontano trova anche le chat che qui non ci sono.** Una chat che un altro PC della tua chiave di casa elenca fra le sue si apre dal vivo anche se la sua cartella esiste solo là, come dalla sezione «Altri computer» della finestra. Prima la richiesta si fermava con «cartella non conosciuta».'
+    ]
+  },
+  {
     versione: '0.64.0',
     righe: [
       '**Anche gli autopiloti di prova si governano senza di te.** Un autopilota che lavora in una cartella «SierraDeck-prova-…» lo può fermare, far riprendere e archiviare chi sta collaudando il programma. Lo decide il PC dove l’autopilota gira e lo scrive nel registro; i tuoi autopiloti restano intoccabili come prima.',

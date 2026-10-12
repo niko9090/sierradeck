@@ -158,6 +158,22 @@ describe('«Riprendi» da lontano di una chat che vive su un altro PC (0.64.0)',
     expect(aperte).toEqual([{ cwd: PROVA, sessione: '00000000-0000-0000-0000-000000000001', titolo: 'Prova chiusura' }])
   })
 
+  it('con dalVivo apre anche una chat che qui non è conosciuta, se un altro PC la elenca nel battito', async () => {
+    const aperte: { cwd: string; sessione: string; titolo: string; pc?: { id: string; nome: string } }[] = []
+    const d = {
+      ...(deps([], []) as object),
+      cartelle: () => Promise.resolve([] as string[]),
+      riprendiSessione: () => { throw new Error('non deve riaprirla qui') },
+      pc: () => Promise.resolve([{ pcId: 'pc-2', nome: 'Portatile', versione: '0.64.1', battito: new Date().toISOString(), cartelle: [], chat: [{ sessione: 's-2', titolo: 'Prova chiusura', cwd: PROVA, aspetta: true }] }]),
+      apriRemota: (cwd: string, sessione: string, titolo: string, pc?: { id: string; nome: string }) => { aperte.push({ cwd, sessione, titolo, ...(pc !== undefined ? { pc } : {}) }); return Promise.resolve({ ok: true }) }
+    } as unknown as DipendenzeRotte
+    const r = await rotteClient(d)({ metodo: 'POST', percorso: '/api/sessioni/riprendi', corpo: { cartella: PROVA, sessione: 's-2', dalVivo: true } })
+    expect(r.stato).toBe(200)
+    expect(aperte).toEqual([{ cwd: PROVA, sessione: 's-2', titolo: 'Prova chiusura', pc: { id: 'pc-2', nome: 'Portatile' } }])
+    // Senza dalVivo, la stessa chat resta «cartella non conosciuta».
+    expect((await rotteClient(d)({ metodo: 'POST', percorso: '/api/sessioni/riprendi', corpo: { cartella: PROVA, sessione: 's-2' } })).stato).toBe(403)
+  })
+
   it('senza dalVivo la risposta resta quella di sempre (409, niente aperto)', async () => {
     const aperte: Aperta[] = []
     const r = await rotteClient(base(aperte))({ metodo: 'POST', percorso: '/api/sessioni/riprendi', corpo: corpo() })

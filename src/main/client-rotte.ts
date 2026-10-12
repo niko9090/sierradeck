@@ -350,7 +350,7 @@ export type DipendenzeRotte = {
    * (0.64.0), come «Riprendi» della finestra. Solo se chi chiede lo dice
    * (`dalVivo: true`): senza, la risposta resta quella di sempre.
    */
-  apriRemota?: (cwd: string, sessione: string, titolo: string) => Promise<{ ok: boolean; errore?: string }>
+  apriRemota?: (cwd: string, sessione: string, titolo: string, pc?: { id: string; nome: string }) => Promise<{ ok: boolean; errore?: string }>
   /** Riapre **quella** conversazione, con la sua storia, nel workspace dove sta salvata. */
   /** `chiesto` (0.59.0): il workspace del riquadro di chi chiede, per aprirla nel suo. */
   riprendiSessione: (cwd: string, sessione: string, chiesto?: string) => void
@@ -1982,6 +1982,21 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const sessione = stringa(r.corpo, 'sessione')
       if (cartella === '' || sessione === '') {
         return { stato: 400, corpo: { errore: 'servono la cartella e la conversazione' } }
+      }
+      // Dal vivo (0.64.1): una chat che un altro PC della stessa chiave di casa
+      // elenca nel suo battito si apre qui come riquadro dal vivo verso quel
+      // PC, come dalla sezione «Altri computer» della finestra, anche se qui
+      // la sua cartella e la sua conversazione non ci sono.
+      if ((r.corpo as { dalVivo?: unknown } | undefined)?.dalVivo === true && deps.apriRemota !== undefined && deps.pc !== undefined) {
+        const battiti = await deps.pc().catch(() => [] as BattitoPcTelefono[])
+        const b = battiti.find((x) => x.chat.some((c) => c.sessione === sessione))
+        const c = b?.chat.find((x) => x.sessione === sessione)
+        if (b !== undefined && c !== undefined) {
+          const titolo = stringa(r.corpo, 'titolo').slice(0, 200)
+          const e = await deps.apriRemota(c.cwd, sessione, titolo !== '' ? titolo : c.titolo, { id: b.pcId, nome: nomeDaMostrare(b) })
+          if (!e.ok) return { stato: 409, corpo: { errore: `Il riquadro dal vivo verso «${nomeDaMostrare(b)}» non si è aperto: ${e.errore ?? 'la finestra del computer non ha detto perché'}.` } }
+          return OK({ fatto: true, dalVivo: nomeDaMostrare(b) })
+        }
       }
       const ammesse = await deps.cartelle().catch(() => [] as string[])
       // Il confronto e' per **slug**, non per percorso: `cartelle()` ricava i

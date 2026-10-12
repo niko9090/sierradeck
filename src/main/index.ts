@@ -4557,8 +4557,8 @@ if (!app.requestSingleInstanceLock()) {
         chatAltrove: (cwd: string) => (existsSync(cwd) ? undefined : altroveRiquadro(cwd)?.nome),
         // «Riprendi» da lontano di una chat che vive su un altro PC (0.64.0): il
         // riquadro dal vivo, come lo apre «Riprendi» della finestra.
-        apriRemota: async (cwd: string, sessione: string, titolo: string) => {
-          const a = existsSync(cwd) ? undefined : altroveRiquadro(cwd)
+        apriRemota: async (cwd: string, sessione: string, titolo: string, pc?: { id: string; nome: string }) => {
+          const a = pc ?? (existsSync(cwd) ? undefined : altroveRiquadro(cwd))
           if (a === undefined) return { ok: false, errore: 'la sua cartella è su questo PC: si riprende qui, non dal vivo da un altro' }
           registro.info(`[apertura] «${titolo !== '' ? titolo : sessione.slice(0, 8)}» (${sessione.slice(0, 8)}): «Riprendi» da lontano — apro qui il riquadro dal vivo verso ${a.nome}`)
           return azioneAlleFinestre({ tipo: 'chat', azione: 'apriRemota', chat: sessione, cwd, titolo, pcId: a.id, pcNome: a.nome })
