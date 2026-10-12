@@ -34,6 +34,25 @@ Dopo una release nuova, «Installa là» ha messo sul portatile la 0.62.0, che q
 - Una chat vera ha ricevuto 403 «non è una chat di prova», e non è stata toccata. **Errore da non ripetere:** il rifiuto l'ho provato su una chat vera di Nicholas. Questi casi si provano solo nei test, mai sulle sue chat.
 - Riaccendere la chat di prova in sottofondo la toglie da `chiuse`: vale l'ultima azione.
 
-# Cosa resta a mano
+# 0.64.0 / 0.64.1: autopiloti di prova e riquadro dal vivo da lontano
 
-Il riquadro remoto su questo PC si apre solo dalla finestra («Riprendi»). Nessuna rotta lo apre, e `/api/sessioni/riprendi` risponde 409 per le chat che vivono altrove. Per vedere nel registro la riga `[apertura] … chiudo anche qui` serve un clic di Nicholas per **aprire**. Il client che si prova da soli è la pagina servita, in Edge senza finestra.
+- `/api/prova/autopilota {autopilota, azione: ferma|riprendi|archivia}` funziona con la stessa regola della cartella `SierraDeck-prova-…`, decisa dal PC dove l'autopilota gira. L'archiviazione riesce solo se l'autopilota è fermo. Il supervisore ha esteso l'eccezione agli autopiloti di prova.
+- `/api/sessioni/riprendi` con `dalVivo: true` chiede alla finestra, a una sola, il riquadro dal vivo (`client:azione` `apriRemota`), come «Riprendi» o «Altri computer».
+  - Dalla 0.64.1 trova la chat nei **battiti** degli altri PC. Con la 0.64.0 una chat la cui cartella esiste solo sull'altro PC dava 403 «cartella non conosciuta».
+  - Senza `dalVivo` la risposta resta quella di prima.
+- **Trappola:** `/api/stato` di questo PC **non elenca i riquadri remoti**. Per sapere se il riquadro c'è si legge il registro (`[apertura] … apertura remota riuscita` / `… chiudo anche qui`), non lo stato.
+- **Trappola:** far riprendere un autopilota apre la sua chat nel workspace attivo di quel PC. Dopo la prova va chiusa con `/api/prova/chiudi`, altrimenti blocca la rimozione «solo cloud» con «sta lavorando».
+
+# Prova completa del 12/10 (fisso 0.64.1, portatile 0.64.0)
+
+| ora (UTC) | dove | cosa |
+|---|---|---|
+| 11:05:32 | fisso | `[apertura] … «Riprendi» da lontano — apro qui il riquadro dal vivo` → `apertura remota riuscita` |
+| 11:12:41 | fisso | `[ponte] … chiudo la chat di prova sf-… : fatto` |
+| 11:12:45 | fisso | `[apertura] … chiusa sul PC di casa (… alle 13:12): chiudo anche qui` + `[layout] 1 chat congedate` |
+
+Il riquadro si è chiuso da solo **4,2 s** dopo la chiusura. Nei 90 s seguenti nel registro non c'è nessun tentativo di cercarla o riaprirla. Autopilota di prova: Ferma → Riprendi → Ferma → Archivia, tutte con 200 e una riga `[ponte]`.
+
+# Cosa non si può fare da soli
+
+Il progetto di prova va nel recupero solo con la rimozione sicura: residente un PC che **ha la cartella**, «solo cloud» sugli altri. Se la cartella esiste su un PC solo, per prima cosa serve «Porta qui» sull'altro, e «Porta qui» resta vietato (anche come azione `porta-qui` del pannello). Il fisso come residente senza cartella dà «Prima porta qui il progetto. Non tolgo niente.»: in quel caso si rimette il residente com'era e si annulla.
