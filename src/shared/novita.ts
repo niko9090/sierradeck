@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.64.3',
+    righe: [
+      '**Niente falso «non raggiungibile» per questo stesso PC.** Il controllo dei workspace che non stai guardando salta i riquadri che puntano a questo computer: prima scriveva nel registro che «questo PC» non rispondeva. Non toglieva niente, ma la riga confondeva.'
+    ]
+  },
+  {
     versione: '0.64.2',
     righe: [
       '**I workspace rispecchiano il PC dove vivono le chat.** Un riquadro di una chat di un altro PC si toglie da solo se là quella chat non è più aperta, né a schermo, né in sottofondo, né in un suo workspace: anche se l’hai chiusa prima della 0.60.9 o in un modo che non lasciava il segno. Vale anche per i workspace che non stai guardando. Resta se l’hai appena aperta o le hai scritto da qui, e se quel PC non risponde non si toglie niente.'

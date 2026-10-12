@@ -1978,6 +1978,7 @@ if (!app.requestSingleInstanceLock()) {
           return { chat, ...(chiuseLa.length > 0 ? { chiuse: chiuseLa } : {}), ...(salvate !== undefined ? { salvate } : {}) }
         },
         nomePc: (pcId, salvato) => postino.altrui().find((b) => b.pcId === pcId)?.nome ?? salvato,
+        io: () => identitaPc.leggi().id,
         log: (m) => registro.info(m),
         cambiato: (a) => {
           for (const w of finestreDiChat()) {

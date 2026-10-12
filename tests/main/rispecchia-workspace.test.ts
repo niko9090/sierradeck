@@ -94,6 +94,20 @@ describe('il Core rispecchia il PC di casa nei workspace nascosti', () => {
     expect(scritto()).toBeUndefined()
   })
 
+  it('un riquadro «remoto» che punta a questo stesso PC non si chiede a nessuno e non si tocca', async () => {
+    const a = archivio([remota('p-1', CHIUSA, 'Punta qui')])
+    const righe: string[] = []
+    const chiesti: string[] = []
+    const r = creaRispecchia({
+      leggi: () => a, scrivi: () => { throw new Error('non deve scrivere') }, mostrati: () => new Set(['SierraDeck']),
+      statoDi: (pc) => { chiesti.push(pc); return Promise.reject(new Error('mai')) },
+      nomePc: (_id, s) => s, io: () => 'pc-portatile', log: (m) => { righe.push(m) }, adesso: () => ADESSO
+    })
+    expect(await r.giro()).toEqual([])
+    expect(chiesti).toEqual([])
+    expect(righe).toEqual([])
+  })
+
   it('una chiusura registrata là si scrive con la riga della 0.60.9', async () => {
     const a = archivio([remota('p-1', CHIUSA, 'Chiusa da te')])
     const { r, righe } = su(a, { chat: [], salvate: [], chiuse: [{ sessione: CHIUSA, il: '2026-10-12T11:00:00.000Z' }] })

@@ -25,6 +25,8 @@ export type DipendenzeRispecchia = {
   mostrati: () => Set<string>
   statoDi: (pcId: string) => Promise<StatoDiCasa>
   nomePc: (pcId: string, salvato: string) => string
+  /** L'id di questo PC: un riquadro «remoto» che punta qui non ha una casa altrove da chiedere. */
+  io?: () => string
   log: (riga: string) => void
   /** L'archivio è cambiato: le finestre aggiornano l'elenco dei workspace. */
   cambiato?: (a: Archivio) => void
@@ -51,6 +53,7 @@ export function creaRispecchia(d: DipendenzeRispecchia) {
           for (const p of layout.panes) {
             const r = p.remoto
             if (r === undefined || r.sessione === undefined || r.sessione === '') continue
+            if (d.io !== undefined && r.pcId === d.io()) continue
             const voci = perPc.get(r.pcId) ?? []
             voci.push({ workspace: w.nome, sessione: r.sessione, titolo: p.title, pcNome: r.pcNome, ...(r.dal !== undefined ? { dal: r.dal } : {}) })
             perPc.set(r.pcId, voci)
