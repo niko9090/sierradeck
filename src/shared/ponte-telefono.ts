@@ -62,6 +62,12 @@ export function leggiRichiestaPonte(x: unknown): { ok: true; r: RichiestaPonte }
   }
   const corpo = o.corpo
   if (corpo !== undefined && corpo !== null && (typeof corpo !== 'object' || Array.isArray(corpo))) return { ok: false, stato: 400, errore: 'Il corpo della richiesta non è un oggetto.' }
+  // Un cambio di workspace senza nome (0.67.1): il registro diceva «passo al
+  // workspace «»» e l'altro PC lo rifiutava comunque. Si ferma qui.
+  if (percorso === '/api/workspace' && corpo !== undefined && corpo !== null) {
+    const nome = (corpo as Record<string, unknown>).nome
+    if (typeof nome !== 'string' || nome.trim() === '') return { ok: false, stato: 400, errore: 'Manca il nome del workspace a cui passare.' }
+  }
   return { ok: true, r: { pc, percorso, ...(corpo !== undefined && corpo !== null ? { corpo: corpo as Record<string, unknown> } : {}) } }
 }
 
@@ -91,7 +97,7 @@ export function azioneDelPonte(percorso: string, corpo?: Record<string, unknown>
     case '/api/chat/sposta': return `sposto ${la} nel workspace «${s('workspace')}»`
     case '/api/chat/nome': return `rinomino ${la}`
     case '/api/chat/ospite': return `cambio la casa della ${la.slice(3)}`
-    case '/api/workspace': return corpo === undefined ? undefined : `passo al workspace «${s('nome')}» (sullo schermo di quel PC)`
+    case '/api/workspace': return corpo === undefined || s('nome').trim() === '' ? undefined : `passo al workspace «${s('nome')}» (sullo schermo di quel PC)`
     case '/api/workspace/crea': return `creo il workspace «${s('nome')}»`
     case '/api/workspace/elimina': return `tolgo il workspace «${s('nome')}»`
     case '/api/workspace/rinomina': return `rinomino il workspace «${s('nome')}»`

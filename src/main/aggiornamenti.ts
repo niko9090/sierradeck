@@ -1,3 +1,4 @@
+import { daInstallareDaSolo } from './pausa-aggiornamento'
 import { autoUpdater } from 'electron-updater'
 import { copyFileSync, existsSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
@@ -19,7 +20,7 @@ import {
  * vedere a che punto è, e un flusso di eventi passati non glielo direbbe.
  */
 /** Cosa dire mentre si aspetta: quante chat, o quale lavoro con il Drive. */
-export type AvvisoAttesa = { chatOccupate?: number; attesa?: string }
+export type AvvisoAttesa = { chatOccupate?: number; attesa?: string; attesaChat?: string }
 
 /** Com'e' andata l'attesa: se no, il perche' da mettere davanti a chi ha premuto. */
 export type EsitoQuiete = { ok: true } | { ok: false; perche: string }
@@ -53,6 +54,11 @@ export type StatoAggiornamento = {
    * tasto sembrava rotto.
    */
   attesa?: string
+  /**
+   * Le chat che si aspettano, con i nomi (0.67.1): «aggiorno appena finisce:
+   * 1 chat al lavoro («X»)». Lo stesso testo su PC, pagina e app.
+   */
+  attesaChat?: string
   /** La versione che si può installare, quando ce n'è una. */
   versione?: string
   /**
@@ -85,8 +91,11 @@ export type Aggiornamenti = {
   cerca: (dalTelefono?: boolean) => Promise<void>
   /** Scarica la versione trovata. L'utente ha detto di sì. */
   scarica: (dalTelefono?: boolean) => Promise<void>
-  /** Chiude il programma e installa. L'utente ha detto di sì una seconda volta. */
-  installa: () => Promise<void>
+  /**
+   * Chiude il programma e installa, alla quiete. `daSolo` (0.67.1): partito
+   * da sé appena la versione è scaricata, non da «Installa».
+   */
+  installa: (daSolo?: boolean) => Promise<void>
   /**
    * Cosa cambia con la versione pronta (0.39.0): le note della nuova e delle
    * saltate, per la finestra di «Installa» sul PC e sul telefono.
@@ -111,8 +120,12 @@ export type Aggiornamenti = {
   impostaScaricoAutomatico: (attivo: boolean) => void
 }
 
-/** Ogni quanto si guarda da soli: una volta all'avvio e poi ogni sei ore. */
-const RICONTROLLA_MS = 6 * 60 * 60 * 1000
+/**
+ * Ogni quanto si guarda da soli: all'avvio e poi ogni dieci minuti (0.67.1).
+ * Erano sei ore: il 12/10 la 0.66.4 era uscita da venti minuti e nessun PC
+ * l'aveva ancora vista.
+ */
+export const RICONTROLLA_MS = 10 * 60 * 1000
 
 /**
  * L'aggiornamento del Gestore, con l'utente sempre al comando.
@@ -173,7 +186,7 @@ export function creaAggiornamenti(
    * Assente - in prova, o senza finestre - vale «si puo'»: e' il
    * comportamento di prima, e senza chat da aspettare e' anche quello giusto.
    */
-  attendiQuiete?: (avvisa: (a: AvvisoAttesa) => void) => Promise<EsitoQuiete>,
+  attendiQuiete?: (avvisa: (a: AvvisoAttesa) => void, daSolo: boolean) => Promise<EsitoQuiete>,
   /**
    * Il registro su file. Fino alla 0.25.0 l'updater parlava solo alla
    * console, che in produzione nessuno legge: il 13 settembre un aggiornamento
@@ -194,7 +207,12 @@ export function creaAggiornamenti(
    * pausa faceva scrivere «SierraDeck e' tornato su con la versione nuova»
    * in chat che non si erano mai fermate.
    */
-  disfaPausa?: () => Promise<void>
+  disfaPausa?: () => Promise<void>,
+  /**
+   * Se installare da soli appena la versione è scaricata (0.67.1), alla
+   * quiete. Assente = come lo scaricamento automatico.
+   */
+  installaDaSolo?: () => boolean
 ): Aggiornamenti {
   const nota = (m: string): void => { console.log(`[aggiornamenti] ${m}`); registro?.info(`[aggiornamenti] ${m}`) }
   const guaio = (m: string): void => { console.error(`[aggiornamenti] ${m}`); registro?.errore(`[aggiornamenti] ${m}`) }
@@ -374,6 +392,9 @@ export function creaAggiornamenti(
     versioneScaricata = String(info.version)
     if (info.releaseNotes !== undefined && info.releaseNotes !== null) noteDellAggiornamento = info.releaseNotes
     annuncia({ fase: 'pronto', versione: String(info.version) })
+    // Da solo, alla quiete (0.67.1): un attimo dopo, che lo stato «pronto»
+    // arrivi prima a chi guarda.
+    setTimeout(() => provaDaSolo(), 5000)
   })
   autoUpdater.on('error', (err) => {
     // Un aggiornamento che non si trova non è un guasto del programma: si dice
@@ -405,8 +426,23 @@ export function creaAggiornamenti(
     }
   }
 
+  /** L'ultimo tentativo da solo che non ha installato (quiete mai arrivata). */
+  let ultimoDaSolo: number | undefined
+  const provaDaSolo = (): void => {
+    const acceso = installaDaSolo?.() ?? scaricaAutomatico?.() ?? true
+    if (!daInstallareDaSolo({ fase: stato.fase, acceso, avviata: installazioneAvviata, ...(ultimoDaSolo !== undefined ? { ultimoTentativo: ultimoDaSolo } : {}), adesso: Date.now() })) return
+    ultimoDaSolo = Date.now()
+    nota(`la ${versioneScaricata ?? stato.versione ?? '?'} e pronta: la installo da solo alla quiete`)
+    void installaInterno(true)
+  }
+
   setTimeout(() => void cerca(), 10_000)
-  setInterval(() => void cerca(), RICONTROLLA_MS)
+  setInterval(() => {
+    // Con una versione già pronta non si cerca (la fase «cerco» lampeggerebbe
+    // ogni dieci minuti): si riprova a installarla.
+    if (stato.fase === 'pronto') provaDaSolo()
+    else void cerca()
+  }, RICONTROLLA_MS)
 
   /**
    * Avvia lo scaricamento della versione trovata.
@@ -437,40 +473,7 @@ export function creaAggiornamenti(
     }
   }
 
-  return {
-    stato: () => stato,
-    cerca,
-    scarica: avviaScaricamento,
-    async note() {
-      const nuova = versioneScaricata ?? stato.versione ?? ''
-      const installata = app.getVersion()
-      if (nuova === '') {
-        return { versione: '', installata, note: [], fonte: 'nessuna', dove: PAGINA_VERSIONI, avviso: 'Non c’è nessun aggiornamento pronto da installare.' }
-      }
-      // Dieci minuti di memoria: riaprire la finestra non rifà la richiesta,
-      // e l'API pubblica di GitHub ne concede sessanta l'ora.
-      if (noteRaccolte !== undefined && noteRaccolte.versione === nuova && Date.now() - noteRaccolte.quando < 10 * 60_000) return noteRaccolte.note
-      const feed = cartellaDati !== undefined ? feedAlternativo(cartellaDati) : undefined
-      const [owner, repo] = feed?.provider === 'github' ? [feed.owner, feed.repo] : ['niko9090', 'sierradeck']
-      const note = await raccogliNote({
-        installata,
-        nuova,
-        releaseNotes: noteDellAggiornamento,
-        dove: `https://github.com/${owner}/${repo}/releases`,
-        rilasci: async () => {
-          const risposta = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases?per_page=100`, {
-            headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'SierraDeck' },
-            signal: AbortSignal.timeout(10_000)
-          })
-          if (!risposta.ok) throw new Error(`GitHub ha risposto ${risposta.status}`)
-          return (await risposta.json()) as unknown
-        }
-      })
-      nota(`note per la ${nuova}: ${note.note.length} versioni (fonte ${note.fonte})${note.avviso !== undefined ? ` · ${note.avviso}` : ''}`)
-      if (note.fonte === 'github') noteRaccolte = { versione: nuova, quando: Date.now(), note }
-      return note
-    },
-    async installa() {
+  async function installaInterno(daSolo: boolean): Promise<void> {
       // Una volta sola per sessione. Premere due volte, o due finestre che
       // premono insieme, facevano partire due updater: si chiudevano le
       // istanze a vicenda e il programma si riavviava senza mai aggiornarsi.
@@ -505,7 +508,7 @@ export function creaAggiornamenti(
         return
       }
       installazioneAvviata = true
-      nota(`INSTALLA ${stato.versione ?? '?'} chiesto${daTelefono ? ' dal telefono' : ' dal PC'}: aspetto la quiete`)
+      nota(`INSTALLA ${stato.versione ?? '?'} ${daSolo ? 'da solo (versione scaricata)' : `chiesto${daTelefono ? ' dal telefono' : ' dal PC'}`}: aspetto la quiete`)
       // **Prima la quiete, poi l'installazione.** Da qui in giu' non si torna
       // indietro: si chiudono i processi e si esce. Tutto quello che si puo'
       // fare per non lasciare un lavoro a meta' va fatto adesso.
@@ -517,8 +520,8 @@ export function creaAggiornamenti(
         let esito: EsitoQuiete
         try {
           esito = await attendiQuiete((a) => {
-            annuncia({ ...stato, fase: 'attendo', chatOccupate: a.chatOccupate, attesa: a.attesa })
-          })
+            annuncia({ ...stato, fase: 'attendo', ...(a.chatOccupate !== undefined ? { chatOccupate: a.chatOccupate } : {}), ...(a.attesa !== undefined ? { attesa: a.attesa } : {}), ...(a.attesaChat !== undefined ? { attesaChat: a.attesaChat } : {}) })
+          }, daSolo)
         } catch (err) {
           esito = { ok: false, perche: `l’attesa si è interrotta con un errore (${String(err)}).` }
         }
@@ -646,7 +649,42 @@ export function creaAggiornamenti(
         .then(() => preparaUscita?.())
         .catch((err: unknown) => guaio(`preparazione incompleta: ${String(err)}`))
         .finally(() => setTimeout(() => autoUpdater.quitAndInstall(true, true), 500))
+  }
+
+  return {
+    stato: () => stato,
+    cerca,
+    scarica: avviaScaricamento,
+    async note() {
+      const nuova = versioneScaricata ?? stato.versione ?? ''
+      const installata = app.getVersion()
+      if (nuova === '') {
+        return { versione: '', installata, note: [], fonte: 'nessuna', dove: PAGINA_VERSIONI, avviso: 'Non c’è nessun aggiornamento pronto da installare.' }
+      }
+      // Dieci minuti di memoria: riaprire la finestra non rifà la richiesta,
+      // e l'API pubblica di GitHub ne concede sessanta l'ora.
+      if (noteRaccolte !== undefined && noteRaccolte.versione === nuova && Date.now() - noteRaccolte.quando < 10 * 60_000) return noteRaccolte.note
+      const feed = cartellaDati !== undefined ? feedAlternativo(cartellaDati) : undefined
+      const [owner, repo] = feed?.provider === 'github' ? [feed.owner, feed.repo] : ['niko9090', 'sierradeck']
+      const note = await raccogliNote({
+        installata,
+        nuova,
+        releaseNotes: noteDellAggiornamento,
+        dove: `https://github.com/${owner}/${repo}/releases`,
+        rilasci: async () => {
+          const risposta = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases?per_page=100`, {
+            headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'SierraDeck' },
+            signal: AbortSignal.timeout(10_000)
+          })
+          if (!risposta.ok) throw new Error(`GitHub ha risposto ${risposta.status}`)
+          return (await risposta.json()) as unknown
+        }
+      })
+      nota(`note per la ${nuova}: ${note.note.length} versioni (fonte ${note.fonte})${note.avviso !== undefined ? ` · ${note.avviso}` : ''}`)
+      if (note.fonte === 'github') noteRaccolte = { versione: nuova, quando: Date.now(), note }
+      return note
     },
+    installa: (daSolo?: boolean) => installaInterno(daSolo === true),
     nonInstallareAllaChiusura() {
       nota('riavvio senza installare: l aggiornamento pronto resta in attesa di «Installa»')
       autoUpdater.autoInstallOnAppQuit = false

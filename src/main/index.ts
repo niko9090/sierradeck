@@ -20,7 +20,7 @@ import { inCorso, passoInstallaLa, type AvanzamentoInstallaLa, type Memoria, typ
 import { hookSegnali, leggiSegnale, SEGNALI_PER_CHAT, statoChat, statoDaSegnali, unisciConHook, type Segnale } from '@shared/segnali-chat'
 import { CERCA_OFFERTE_OGNI_MS, stradaBreve, type ChatNelloSchermo, type InfoStrada } from '@shared/strada-pc'
 import { doveMostrareDomande, eLinguettaStaccabile } from '@shared/finestra-pannello'
-import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell, webContents } from 'electron'
+import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell, webContents } from 'electron'
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, watch, copyFileSync, writeFileSync } from 'node:fs'
@@ -32,7 +32,8 @@ import { APP_NAME, APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/ve
 import { cartellaDati } from './migra-dati'
 import { apriAllegati } from './allegati'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
-import { attendiQuiete, AVVISO_RIPRESA, leggiPausa, pausaAncoraValida } from './pausa-aggiornamento'
+import { attendiQuiete, ATTESA_DA_SOLO_MS, AVVISO_RIPRESA, leggiPausa, pausaAncoraValida } from './pausa-aggiornamento'
+import { serveCercareSubito } from '@shared/versioni-altri-pc'
 import { chiaveMonitor } from '@shared/display-key'
 import { apriFinestreStore, type FinestreStore } from './finestre-store'
 import { AMBIENTE_PORTA_AUTOPILOTI, PORTA_AUTOPILOTA } from '@shared/autopilota'
@@ -5829,11 +5830,12 @@ if (!app.requestSingleInstanceLock()) {
         // **Non si installa sopra un lavoro in corso.** Si avvisa, si aspetta
         // che ognuno chiuda quello che ha in mano, e solo allora si chiude
         // tutto. Un aggiornamento non e' una chiusura per fine lavori.
-        async (avvisa): Promise<EsitoQuiete> => {
+        async (avvisa, daSolo): Promise<EsitoQuiete> => {
           // Prima il Drive, e il suo esito conta: prima veniva buttato via con
           // un `.then(() => …)`, e un lavoro che non finiva passava lo stesso.
           const drive = await attendiLavoroDrive((attesa) => avvisa({ attesa }))
           if (!drive.ok) return drive
+          let avvisatoLungo = false
           const pronti = await attendiQuiete({
             chat: () => chatAperte,
             pausaAutopiloti: (attiva) => clientAutopilota.pausaAggiornamento(attiva),
@@ -5842,9 +5844,23 @@ if (!app.requestSingleInstanceLock()) {
             // poterglielo dire c'e' la morte di questo processo.
             annota: (p) => { scriviJsonAtomico(filePausa(dati), p, 'pausa-aggiornamento') },
             avvisa: (chatOccupate) => avvisa({ chatOccupate }),
+            // 0.67.1: il testo con i nomi, uguale su PC, pagina e app; da solo
+            // si aspetta fino a due ore, e le chat di Nicholas non si toccano.
+            avvisaTesto: (testo, lungo) => {
+              avvisa({ attesaChat: testo })
+              if (lungo && !avvisatoLungo) {
+                avvisatoLungo = true
+                registro.info(`[aggiornamenti] ${testo}`)
+                try { new Notification({ title: 'SierraDeck aspetta per aggiornarsi', body: testo }).show() } catch { /* senza notifiche */ }
+              }
+            },
+            // Anche con «Installa» (qui, «Installa là», telefono) si aspetta fino a
+            // due ore: dieci minuti non bastavano mai con gli autopiloti al lavoro.
+            tetto: ATTESA_DA_SOLO_MS,
+            ...(daSolo ? { soloGovernate: true } : {}),
             versione: app.getVersion()
           })
-          return pronti ? { ok: true } : { ok: false, perche: 'c’erano chat ancora al lavoro. Riprova quando hanno finito.' }
+          return pronti ? { ok: true } : { ok: false, perche: daSolo ? 'in due ore le chat non hanno mai smesso di lavorare tutte insieme. Riprovo fra mezz’ora.' : 'in due ore le chat non hanno mai smesso di lavorare tutte insieme. Riprova quando hanno finito.' }
         },
         // Nel registro su file: e' l'unico posto dove, il giorno dopo, si
         // capisce per quale strada e' passato un aggiornamento.
@@ -5860,6 +5876,18 @@ if (!app.requestSingleInstanceLock()) {
           registro.info("[aggiornamenti] pausa disfatta: l'installazione non e' partita")
         }
       )
+      // 0.67.1: un altro PC annuncia nel battito una versione più nuova di
+      // questa → si cerca subito, senza aspettare il giro dei dieci minuti.
+      let ultimaCercaPerBattito: number | undefined
+      setInterval(() => {
+        const a = aggiornamenti
+        if (a === undefined) return
+        const altre = (postinoGlobale?.altrui() ?? []).map((b) => b.versione).filter((v): v is string => typeof v === 'string')
+        if (!serveCercareSubito({ mia: app.getVersion(), altre, fase: a.stato().fase, ...(ultimaCercaPerBattito !== undefined ? { ultima: ultimaCercaPerBattito } : {}), adesso: Date.now() })) return
+        ultimaCercaPerBattito = Date.now()
+        registro.info(`[aggiornamenti] un altro PC ha una versione piu nuova (${altre.join(', ')}): cerco subito`)
+        void a.cerca()
+      }, 60_000).unref?.()
       ipcMain.handle('aggiornamenti:stato', () => aggiornamenti?.stato() ?? { fase: 'fermo' })
       ipcMain.handle('aggiornamenti:cerca', () => aggiornamenti?.cerca())
       ipcMain.handle('aggiornamenti:scarica', () => aggiornamenti?.scarica())

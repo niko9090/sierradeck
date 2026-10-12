@@ -30,7 +30,20 @@ describe('azioneDelPonte', () => {
   it('ogni azione raccontata passa davvero dal ponte', () => {
     for (const p of ['/api/workspace', '/api/chat/sposta', '/api/scrivi', '/api/scegli', '/api/apri', '/api/sessioni/riprendi', '/api/chat/chiudi', '/api/chat/nome', '/api/workspace/crea', '/api/autopilota/crea', '/api/autopilota/archivia', '/api/drive/azione']) {
       expect(rottaPonte(p)).toBe(true)
-      expect(azioneDelPonte(p, {})).toBeDefined()
+      // Il cambio di workspace si racconta solo con il nome (0.67.1).
+      expect(azioneDelPonte(p, p === '/api/workspace' ? { nome: 'Fatture' } : {})).toBeDefined()
     }
+  })
+})
+
+describe('cambio di workspace senza nome (0.67.1)', () => {
+  it('il ponte lo ferma con il motivo, e il registro non scrive «passo al workspace «»»', async () => {
+    const { leggiRichiestaPonte } = await import('../../src/shared/ponte-telefono')
+    const r = leggiRichiestaPonte({ pc: 'pc-a', percorso: '/api/workspace', corpo: { nome: '  ' } })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.errore).toBe('Manca il nome del workspace a cui passare.')
+    expect(leggiRichiestaPonte({ pc: 'pc-a', percorso: '/api/workspace', corpo: { nome: 'Fatture' } }).ok).toBe(true)
+    expect(azioneDelPonte('/api/workspace', { nome: '' })).toBeUndefined()
+    expect(azioneDelPonte('/api/workspace', { nome: 'Fatture' })).toBe('passo al workspace «Fatture» (sullo schermo di quel PC)')
   })
 })

@@ -19,6 +19,7 @@ export type StatoAggiornamentoRemoto = {
   percento?: number
   errore?: string
   chatOccupate?: number
+  attesaChat?: string
   attesa?: string
   tentativoFallito?: { titolo: string; motivo: string; strade: string[]; pagina: string; versione?: string }
 }
@@ -128,7 +129,7 @@ export function passoInstallaLa(nome: string, da: string, o: Osservazione, m: Me
   // ── Dopo «Installa» ──
   if (m.installato) {
     if (s?.fase === 'attendo') {
-      const perche = s.attesa ?? (s.chatOccupate !== undefined && s.chatOccupate > 0 ? `${s.chatOccupate} chat stanno finendo il turno` : 'il lavoro in corso')
+      const perche = s.attesa ?? s.attesaChat ?? (s.chatOccupate !== undefined && s.chatOccupate > 0 ? `${s.chatOccupate} chat stanno finendo il turno` : 'il lavoro in corso')
       return { fase: 'attendo', messaggio: `${nome} aspetta la quiete prima di chiudersi: ${perche}. Le chat là riprendono da sole dopo l’installazione.` }
     }
     if (s?.fase === 'installo') return { fase: 'installo', messaggio: `${nome} si sta chiudendo per installare.` }

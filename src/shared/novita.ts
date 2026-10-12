@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.67.1',
+    righe: [
+      '**Gli aggiornamenti si installano da soli.** Appena la versione nuova è scaricata, gli autopiloti finiscono il turno e non ne cominciano un altro; quando tutte le chat sono ferme il PC si aggiorna, riparte e riprende tutto da solo. Se una tua chat lavora da più di 20 minuti te lo dice, con il nome.',
+      '**Controllo ogni 10 minuti**, e subito quando un altro PC ha già la versione nuova.',
+      '**Corretti:** le copie di conflitto sul Drive non si fanno più a catena; il telefono non manda più un cambio di workspace senza nome.'
+    ]
+  },
+  {
     versione: '0.67.0',
     righe: [
       '**Ogni progetto ha il suo workspace.** Sul PC dove vive si crea da solo, con le sue chat, senza cambiarti lo schermo.',

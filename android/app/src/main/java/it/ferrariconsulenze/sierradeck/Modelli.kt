@@ -629,6 +629,8 @@ data class Aggiornamento(
      * conto dei file. Manca sui computer prima della 0.28.1.
      */
     val attesa: String? = null,
+    /** Le chat che si aspettano, con i nomi (PC 0.67.1). */
+    val attesaChat: String? = null,
     /**
      * Quello che l'installer sta scrivendo **adesso**, parola per parola.
      *

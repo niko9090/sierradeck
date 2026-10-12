@@ -3646,11 +3646,12 @@ function descriviAggiornamento() {
   // durante l'installazione era una bugia, e a computer appena acceso pure.
   if (a.fase === 'installo') return a.testo || ('Sto installando la ' + (a.versione || 'versione nuova') + ': il computer si chiude e riparte da solo. Questa pagina non risponde per un minuto o due.')
   if (a.fase === 'aggiornato') return 'È all’ultima versione.' + (cercatoAlle ? ' Ho cercato alle ' + cercatoAlle + '.' : '')
-  if (a.fase === 'fermo') return 'Controlla da sé ogni sei ore. Non ha ancora guardato: «Cerca ora» lo fa subito.' + (cercatoAlle ? ' Ho chiesto alle ' + cercatoAlle + '.' : '')
+  if (a.fase === 'fermo') return 'Controlla da sé ogni dieci minuti. Non ha ancora guardato: «Cerca ora» lo fa subito.' + (cercatoAlle ? ' Ho chiesto alle ' + cercatoAlle + '.' : '')
   // Fra «Installa» e il computer che si chiude adesso c'e' un'attesa vera: le
   // chat che stanno lavorando devono finire quello che hanno in mano. Senza
   // dirlo, da qui si vede un tasto premuto e nient'altro.
   if (a.fase === 'attendo') {
+    if (a.attesaChat && !a.attesa) return a.attesaChat.charAt(0).toUpperCase() + a.attesaChat.slice(1) + '.'
     if (a.attesa) return 'Aspetto che finisca ' + a.attesa + ', poi installo.'
     var quante = a.chatOccupate || 0
     return quante === 1

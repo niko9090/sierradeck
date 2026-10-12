@@ -152,11 +152,24 @@ export function stessaFirma(
  */
 export type Conflitto = { percorso: string; vinto: 'mio' | 'drive'; copia?: string }
 
+/** Il segno di una copia di conflitto nel nome: `.conflitto-<pc>-<aaaammgg>-<hhmmss>`. */
+const SEGNO_CONFLITTO = /\.conflitto-[a-z0-9-]*?-\d{8}-\d{6}/g
+
+/**
+ * Un file che è già una copia di conflitto (0.67.1). Se va in conflitto anche
+ * lui non si fa una copia della copia: vince il più recente e basta. Prima
+ * nascevano catene come `a.conflitto-drive-….conflitto-torre-….ts`.
+ */
+export function eCopiaDiConflitto(percorso: string): boolean {
+  return new RegExp(SEGNO_CONFLITTO.source).test(percorso.slice(percorso.lastIndexOf('/') + 1))
+}
+
 /** `src/main.ts` + «torre» + 2026-09-04T21:30:00 → `src/main.conflitto-torre-20260904-213000.ts`. */
 export function nomeCopiaConflitto(percorso: string, chi: string, quando: string): string {
   const barra = percorso.lastIndexOf('/')
   const dir = barra === -1 ? '' : percorso.slice(0, barra + 1)
-  const nome = percorso.slice(barra + 1)
+  // Mai un segno sopra l'altro (0.67.1): da una copia si riparte dal nome vero.
+  const nome = percorso.slice(barra + 1).replace(SEGNO_CONFLITTO, '')
   const punto = nome.lastIndexOf('.')
   const base = punto > 0 ? nome.slice(0, punto) : nome
   const est = punto > 0 ? nome.slice(punto) : ''
@@ -376,7 +389,7 @@ export async function salvaIncrementale(deps: {
     }
     // Conflitto: cambiato qui e cambiato la'. Vince il piu' recente.
     const mioVince = f.mtime >= voceDrive.mtime
-    const conCopia = copie(prefissoDi(percorso))
+    const conCopia = copie(prefissoDi(percorso)) && !eCopiaDiConflitto(percorso)
     if (mioVince) {
       // La versione del Drive si scarica **prima** di caricare la mia: sul
       // Drive un file sta sotto un nome che deriva dal percorso, e caricare la
@@ -603,7 +616,7 @@ export async function ripristinaIncrementale(deps: {
         // LUNGA: una trascrizione cresce e basta, e quella piu' lunga contiene
         // l'altra; la data non dice niente (ogni PC scrive la sua). Cosi' un
         // arrivo dal Drive non accorcia mai una chat di qui.
-        const conCopia = copie(prefissoDi(percorso))
+        const conCopia = copie(prefissoDi(percorso)) && !eCopiaDiConflitto(percorso)
         const mioVince = conCopia ? locale.mtime >= voce.mtime : locale.size >= chiaro.length
         if (mioVince) {
           if (conCopia) {

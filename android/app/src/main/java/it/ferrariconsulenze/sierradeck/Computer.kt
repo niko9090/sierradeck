@@ -370,7 +370,7 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        for (nome in ws?.nomi ?: emptyList()) {
+                        for (nome in (ws?.nomi ?: emptyList()).filter { it.isNotBlank() }) {
                             VoceWorkspace(
                                 nome = nome,
                                 attivo = nome == ws?.attivo,
@@ -785,6 +785,7 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
         // il PC lo manda da sempre in questo campo, e qui nessuno lo leggeva.
         "pronto" -> "La ${a.versione ?: ""} è già scaricata e aspetta solo di essere installata." + (a.errore?.let { "\n$it" } ?: "")
         "attendo" -> when {
+            a.attesaChat != null && a.attesa == null -> a.attesaChat.replaceFirstChar { it.uppercase() } + "."
             a.attesa != null -> "Aspetto che finisca ${a.attesa}, poi installo."
             (a.chatOccupate ?: 0) == 1 -> "Aspetto che una chat finisca quello che ha in mano, poi installo."
             else -> "Aspetto che ${a.chatOccupate ?: 0} chat finiscano quello che hanno in mano, poi installo."
@@ -792,7 +793,7 @@ private fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
         "installo" -> "Sto installando: il computer si chiude e riparte da solo."
         "aggiornato" -> "È all’ultima versione."
         "errore" -> "Non ci sono riuscito: ${a.errore ?: "errore sconosciuto"}"
-        else -> nota ?: "Controlla da sé ogni sei ore. Puoi anche chiederglielo adesso."
+        else -> nota ?: "Controlla da sé ogni dieci minuti. Puoi anche chiederglielo adesso."
     }
     val colore = when (a?.fase) {
         "disponibile", "pronto" -> Banco.accento

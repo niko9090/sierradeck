@@ -68,6 +68,47 @@ export function siPuoInstallare(chats: ChatInVolo[]): boolean {
  */
 export const ATTESA_QUIETE_MS = 10 * 60_000
 
+/**
+ * L'attesa quando l'aggiornamento si installa **da solo** (0.67.1).
+ *
+ * Il 12/10 nessuno dei tre PC si aggiornava: l'installazione partiva solo con
+ * «Installa» o alla chiusura del programma (che sui PC di Nicholas non si
+ * chiude mai), e l'attesa della quiete si arrendeva dopo dieci minuti, mentre
+ * gli autopiloti cominciavano un turno dopo l'altro. Ora, appena una versione
+ * è scaricata, il PC mette in pausa i turni nuovi e aspetta fino a due ore.
+ */
+export const ATTESA_DA_SOLO_MS = 2 * 60 * 60_000
+
+/** Dopo quanto una chat **non** di un autopilota ancora al lavoro si dice a Nicholas. */
+export const AVVISO_LUNGO_MS = 20 * 60_000
+
+/**
+ * Il testo dell'attesa, uguale su PC, pagina e app: «aggiorno appena finisce:
+ * 1 chat al lavoro («nome»)». `lungo` quando da più di `AVVISO_LUNGO_MS` c'è
+ * ancora una chat non governata al lavoro: allora lo si dice a Nicholas
+ * invece di aspettare in silenzio.
+ */
+export function testoAttesa(restano: ChatInVolo[], daQuantoMs: number): { testo: string; lungo: boolean } {
+  const nomi = restano.map((c) => `«${(c.titolo ?? '').trim() || 'chat senza nome'}»`)
+  const n = restano.length
+  const base = n === 1
+    ? `aggiorno appena finisce: 1 chat al lavoro (${nomi[0]})`
+    : `aggiorno appena finiscono: ${n} chat al lavoro (${nomi.slice(0, 3).join(', ')}${n > 3 ? ', …' : ''})`
+  const lungo = daQuantoMs >= AVVISO_LUNGO_MS && restano.some((c) => c.governata !== true)
+  return { testo: lungo ? `Aspetto da ${Math.round(daQuantoMs / 60_000)} minuti: ${base}` : base, lungo }
+}
+
+/**
+ * Se l'aggiornamento pronto va installato da solo adesso (0.67.1): c'è una
+ * versione scaricata, nessuna installazione è già in corso, e l'ultimo
+ * tentativo da solo non riuscito (quiete mai arrivata) è di almeno mezz'ora fa.
+ */
+export const RIPROVA_DA_SOLO_MS = 30 * 60_000
+export function daInstallareDaSolo(p: { fase: string; acceso: boolean; avviata: boolean; ultimoTentativo?: number; adesso: number }): boolean {
+  if (!p.acceso || p.avviata || p.fase !== 'pronto') return false
+  return p.ultimoTentativo === undefined || p.adesso - p.ultimoTentativo >= RIPROVA_DA_SOLO_MS
+}
+
 /** Ogni quanto si torna a guardare se sono ferme. */
 export const CONTROLLO_QUIETE_MS = 2000
 
@@ -211,6 +252,15 @@ export async function attendiQuiete(p: {
   versione?: string
   adesso?: () => number
   aspetta?: (ms: number) => Promise<void>
+  /** Quanto aspettare prima di arrendersi (default `ATTESA_QUIETE_MS`). */
+  tetto?: number
+  /**
+   * Da solo (0.67.1): si scrive l'avviso solo alle chat degli autopiloti; le
+   * chat di Nicholas si aspettano e basta, senza scriverci dentro.
+   */
+  soloGovernate?: boolean
+  /** Il testo dell'attesa (`testoAttesa`), a ogni giro. */
+  avvisaTesto?: (testo: string, lungo: boolean) => void
 }): Promise<boolean> {
   const adesso = p.adesso ?? ((): number => Date.now())
   const aspetta = p.aspetta ?? ((ms: number): Promise<void> => new Promise((r) => { setTimeout(r, ms) }))
@@ -242,20 +292,28 @@ export async function attendiQuiete(p: {
   const avvisaLeOccupate = (): void => {
     for (const c of inVolo(p.chat())) {
       if (avvisate.has(c.id)) continue
+      if (p.soloGovernate === true && c.governata !== true) continue
       avvisate.add(c.id)
       p.scriviInChat(c.id, AVVISO_PAUSA)
     }
   }
   avvisaLeOccupate()
 
-  const scade = adesso() + ATTESA_QUIETE_MS
+  const inizio = adesso()
+  const scade = inizio + (p.tetto ?? ATTESA_QUIETE_MS)
   while (adesso() < scade) {
     const restano = inVolo(p.chat())
     if (restano.length === 0) {
-      p.annota(pausaDaSalvare(allInizio, p.versione))
+      // Da solo, alle chat di Nicholas non si è chiesto di fermarsi: al
+      // ritorno non si scrive loro «ti eri fermato per farmi aggiornare».
+      p.annota(pausaDaSalvare(p.soloGovernate === true ? [] : allInizio, p.versione))
       return true
     }
     p.avvisa(restano.length)
+    if (p.avvisaTesto !== undefined) {
+      const t = testoAttesa(restano, adesso() - inizio)
+      p.avvisaTesto(t.testo, t.lungo)
+    }
     avvisaLeOccupate()
     await aspetta(CONTROLLO_QUIETE_MS)
   }

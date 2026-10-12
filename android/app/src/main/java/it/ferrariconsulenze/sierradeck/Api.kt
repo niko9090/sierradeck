@@ -222,8 +222,12 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         json.decodeFromString(corpoTesto("/api/nome-pc", oggetto { put("nome", nome) }))
 
     // ─── workspace ───
-    suspend fun cambiaWorkspace(nome: String): Fatto =
-        json.decodeFromString(corpoTesto("/api/workspace", oggetto { put("nome", nome) }))
+    suspend fun cambiaWorkspace(nome: String): Fatto {
+        // Mai un cambio senza nome (PC 0.67.1): il PC lo rifiuta e il registro
+        // del ponte scriveva «passo al workspace «»».
+        require(nome.isNotBlank()) { "manca il nome del workspace" }
+        return json.decodeFromString(corpoTesto("/api/workspace", oggetto { put("nome", nome) }))
+    }
 
     // ─── aprire / riprendere chat ───
     suspend fun cartelle(): Cartelle = json.decodeFromString(corpoTesto("/api/cartelle", null))

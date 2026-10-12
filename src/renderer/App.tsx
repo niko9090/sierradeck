@@ -1544,7 +1544,12 @@ export function App(): React.JSX.Element {
       {aggiornamento.fase === 'attendo' ? (
         <div className="avviso avviso--aggiornamento">
           <span className="led led--attesa" />
-          {aggiornamento.attesa !== undefined ? (
+          {aggiornamento.attesaChat !== undefined && aggiornamento.attesa === undefined ? (
+            <span>
+              {aggiornamento.attesaChat.charAt(0).toUpperCase() + aggiornamento.attesaChat.slice(1)} — poi installo la {aggiornamento.versione ?? 'versione nuova'}.
+              Gli autopiloti finiscono il turno e si fermano; dopo il riavvio riprendono da soli.
+            </span>
+          ) : aggiornamento.attesa !== undefined ? (
             <span>
               Aspetto che finisca {aggiornamento.attesa}, poi installo la {aggiornamento.versione ?? 'versione nuova'}.
               Un lavoro automatico (l’arrivo delle chat, il salvataggio dei cinque minuti) lo annullo io e si rifà
@@ -1558,7 +1563,7 @@ export function App(): React.JSX.Element {
                 : `${aggiornamento.chatOccupate ?? 0} chat finiscano quello che hanno in mano`}, poi installo
               la {aggiornamento.versione ?? 'versione nuova'}. Una chat «lavora» se il suo terminale è acceso e
               non sta aspettando te. Ho già scritto in ognuna di fermarsi a fine turno e ho messo in pausa gli
-              autopiloti. Al massimo dieci minuti: se non finiscono, non installo, tolgo la pausa e te lo dico
+              autopiloti. Al massimo due ore: se non finiscono, non installo, tolgo la pausa e te lo dico
               qui. Non chiudere le chat a mano: l’installazione parte da sola.
             </span>
           )}
