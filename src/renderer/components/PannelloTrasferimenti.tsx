@@ -3,6 +3,8 @@ import type {
   CodaVista, DestinazioneVista, ElencoVista, FileInModificaVista, RichiestaVista, VoceVista
 } from '../../preload'
 import { TerminaleRemoto } from './TerminaleRemoto'
+import { Aiuto } from './Aiuto'
+import { contoPiede, latiFile } from '@shared/file-vista'
 import { ModaleAlTelefono } from './ModaleAlTelefono'
 import { confrontaElenchi, segnoDi, type Confronto } from '@shared/confronto-file'
 import {
@@ -67,6 +69,7 @@ export function PannelloTrasferimenti(
   const [selLocale, setSelLocale] = useState<Selezione>({ presi: [] })
   const [selRemota, setSelRemota] = useState<Selezione>({ presi: [] })
   const [terminale, setTerminale] = useState(false)
+  const [menuFile, setMenuFile] = useState(false)
   const [inModifica, setInModifica] = useState<FileInModificaVista[]>([])
 
   // I file aperti in modifica arrivano dal Core, che è l'unico a sapere quando
@@ -169,20 +172,30 @@ export function PannelloTrasferimenti(
   const confrontoLocale = confrontaElenchi(locale?.voci ?? [], remoto?.voci ?? [])
   const confrontoRemoto = confrontaElenchi(remoto?.voci ?? [], locale?.voci ?? [])
 
+  const lati = latiFile({ cwd, server: dest !== undefined })
   const scelteDi = (elenco: ElencoVista | undefined, presi: string[]): VoceVista[] =>
     (elenco?.voci ?? []).filter((v) => presi.includes(v.percorso))
 
   return (
-    <div className="pannello pannello--negozio">
-      <div className="negozio__testa">
-        <div className="negozio__testa-riga">
-          <span className="serigrafia">File</span>
-          <span className="misura">
-            {cwd !== undefined && cwd !== '' ? cwd : 'nessun progetto davanti'}
-          </span>
-          <span style={{ flex: 1 }} />
-          <button className="tasto" onClick={onChiudi}>Chiudi</button>
-        </div>
+    <div className="progetti file-vista" role="dialog" aria-label="File">
+      {/* 0.70.0: a tutta finestra; la cartella del progetto e i server in una riga sola, «+ Server» in Strumenti ▾. */}
+      <div className="progetti__testa">
+        <span className="progetti__titolo">⇅ File</span>
+        <span className="progetti__quieto" title={cwd}>{cwd !== undefined && cwd !== '' ? lati.cartella : 'nessun progetto davanti'}</span>
+        <span style={{ flex: 1 }} />
+        <span style={{ position: 'relative' }}>
+          <button className="tasto tasto--mini" aria-expanded={menuFile} onClick={() => setMenuFile(!menuFile)}>Strumenti ▾</button>
+          {menuFile ? (
+            <div className="progetti__menu" onMouseLeave={() => setMenuFile(false)}>
+              <button className="progetti__voce" title="Un server SSH/SFTP per questo progetto: i file di qua e di là, affiancati" onClick={() => { setMenuFile(false); setModifica({ cwd, porta: 22, metodo: 'password' }); setPassword('') }}>+ Server…</button>
+              {dest !== undefined ? <button className="progetti__voce" onClick={() => { setMenuFile(false); setModifica(dest); setPassword('') }}>Modifica il server…</button> : null}
+            </div>
+          ) : null}
+        </span>
+        <Aiuto di="File">I file del progetto della chat che hai davanti: sfoglia, filtra, rinomina, elimina, «📱 Manda al telefono». Con un server (Strumenti ▾ → + Server) li vedi affiancati: «→ Carica» e «← Scarica», e una colonna dice cosa è uguale, più nuovo o diverso.</Aiuto>
+        <button className="tasto tasto--mini" onClick={onChiudi} aria-label="Chiudi">×</button>
+      </div>
+      <div className="negozio__testa" style={{ display: (destinazioni ?? []).length > 0 ? undefined : 'none' }}>
         <div className="negozio__tabs">
           {(destinazioni ?? []).map((d) => (
             <button
@@ -193,12 +206,6 @@ export function PannelloTrasferimenti(
               {d.nome}
             </button>
           ))}
-          <button
-            className="tasto tasto--fantasma"
-            onClick={() => { setModifica({ cwd, porta: 22, metodo: 'password' }); setPassword('') }}
-          >
-            + Server
-          </button>
           {dest !== undefined && !collegato ? (
             <button className="tasto tasto--primario" onClick={collega}>Collega</button>
           ) : null}
@@ -221,17 +228,9 @@ export function PannelloTrasferimenti(
               Scollega
             </button>
           ) : null}
-          {dest !== undefined ? (
-            <button
-              className="tasto tasto--fantasma"
-              onClick={() => { setModifica(dest); setPassword('') }}
-            >
-              Modifica
-            </button>
-          ) : null}
         </div>
-        {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
       </div>
+      {errore !== undefined ? <div className="progetti__striscia">⚠ {errore}</div> : null}
       {alTel !== undefined ? (
         <ModaleAlTelefono
           nome={alTel.nome}
@@ -240,7 +239,8 @@ export function PannelloTrasferimenti(
         />
       ) : null}
 
-      <div className="trasf">
+      {/* Senza server, un lato solo a tutta larghezza (0.70.0): prima metà pannello diceva «Aggiungi un server». */}
+      <div className={`trasf${lati.due ? '' : ' trasf--uno'}`}>
         <Colonna
           titolo="Su questo computer"
           elenco={locale}
@@ -959,9 +959,13 @@ function Colonna(
       </div>
 
       <div className="trasf__piede misura">
-        {visibili.length} element{visibili.length === 1 ? 'o' : 'i'}
-        {visibili.length !== tutte.length ? ` (di ${tutte.length})` : ''}
-        {presi.length > 0 ? ` · ${presi.length} scelt${presi.length === 1 ? 'o' : 'i'}` : ''}
+        {/* 0.70.0: «+2 nascosti» si legge e si apre; prima «(di 14)» non diceva perché. */}
+        {contoPiede({ visibili: visibili.length, scelti: presi.length, nascosti: 0 })}
+        {visibili.length !== tutte.length
+          ? cerca === '' && !nascosti
+            ? <> · <button className="account__link" onClick={() => setNascosti(true)}>+{tutte.length - visibili.length} nascosti</button></>
+            : ` · ${tutte.length - visibili.length} fuori dal filtro`
+          : ''}
       </div>
 
       {chiedo !== undefined && operazioni !== undefined ? (

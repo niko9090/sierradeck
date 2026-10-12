@@ -4853,3 +4853,8 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   .impostazioni-vista__nav { width: 160px; }
   .impostazioni__tessere { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ── File a piena pagina (0.70.0) ── */
+.file-vista .trasf { flex: 1; min-height: 0; }
+.trasf--uno { grid-template-columns: 1fr; }
+.trasf--uno > :nth-child(2) { display: none; }

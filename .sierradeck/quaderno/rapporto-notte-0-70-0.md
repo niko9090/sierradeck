@@ -141,3 +141,25 @@ Le foto sono in `note/foto-0-70/`, sul PC fisso (fuori da git: mostrano le carte
 **Test**: `tests/shared/stato-sistema.test.ts` (4).
 
 **Aperto**: dalla revisione, «Avanzate ▸» chiuso per le porte e per «fuori dalla rete». Le voci sono rimaste dove erano: spostarle cambia la ricerca e le prove della pagina, e non volevo romperle stanotte.
+
+## (f) File e Trasferimenti
+**Cosa cambia**
+- **A tutta finestra.** In testata il nome del progetto («progetti › Lavoro-esempio»), non tutto il percorso.
+- **Senza server c'è un lato solo, a tutta larghezza**. Prima metà finestra era vuota e diceva «Aggiungi un server con «+ Server»». Con un server tornano i due lati affiancati, con «→ Carica» / «← Scarica» e la colonna del confronto (uguale, più nuovo qui, più nuovo di là, diverso; già colorati).
+- **«+ Server» e «Modifica il server» in «Strumenti ▾»**. I server del progetto, Collega, Scollega e Terminale restano nella fila sotto la testata, che compare solo se ci sono server.
+- **Il piede si legge**: «1 elemento · +1 nascosti», e un clic su «+1 nascosti» li mostra. Prima c'era «(di 2)» senza dire perché.
+- **Telefono**: la pagina e l'app non hanno il sfoglia-server. Le schede File restano com'erano.
+
+**Azioni di prima → dove sono adesso**
+
+| Prima | Adesso |
+|---|---|
+| + Server (fila dei server) | Strumenti ▾ → + Server… |
+| Modifica (server scelto) | Strumenti ▾ → Modifica il server… |
+| Server, Collega, Scollega, >_ Terminale | fila sotto la testata, come prima |
+| ← → ↑, percorso, filtro, nascosti, + Cartella, Rinomina, Elimina, 📱 Manda al telefono, Apri fuori, Carica/Scarica, trascinamento | invariati |
+| Coda dei trasferimenti, file in modifica | invariati |
+
+**Test**: `tests/shared/file-vista.test.ts` (3).
+
+**Aperto**: la revisione proponeva i tasti come in Total Commander (F5, F2, F7), una barra unica per la coda del server e per gli invii al telefono, e una pagina File del telefono a tre schede (Progetti · In arrivo · Mandati). Non fatti stanotte.
