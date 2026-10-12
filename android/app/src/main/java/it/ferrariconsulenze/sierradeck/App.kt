@@ -432,6 +432,8 @@ fun Principale(
             // le attese crescenti di `Linea` (0.52.1): è quello che conta il
             // conto alla rovescia accanto all'indicatore.
             if (!Linea.eOra(Collegamenti.di(Collegamenti.ACCOPPIATO), ultimaIl, System.currentTimeMillis())) { delay(250); continue }
+            // Con l'app dietro, ogni 15 secondi invece di 2 (app 2.69.0): il PC rispondeva lo stesso a ogni giro.
+            if (!PolsoApp.tocca(cicloVita.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED), ultimaIl, System.currentTimeMillis())) { delay(1000); continue }
             ultimaIl = System.currentTimeMillis()
             val t0 = System.currentTimeMillis()
             try {
@@ -869,4 +871,10 @@ private fun NonRiconosciuto(onRiprova: () -> Unit, onRiaccoppia: () -> Unit) {
             TextButton(onClick = onRiaccoppia) { Text("Rifai l'accoppiamento") }
         }
     }
+}
+
+/** Ogni quanto l'app chiede lo stato al PC quando non è davanti (app 2.69.0). */
+object PolsoApp {
+    const val DIETRO_OGNI_MS = 15_000L
+    fun tocca(davanti: Boolean, ultimaIl: Long, ora: Long): Boolean = davanti || ora - ultimaIl >= DIETRO_OGNI_MS
 }
