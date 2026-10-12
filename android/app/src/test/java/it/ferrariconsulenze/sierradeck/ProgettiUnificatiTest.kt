@@ -33,10 +33,10 @@ class ProgettiUnificatiTest {
     }
 
     @Test
-    fun `Rendi residente qui chiede prima l'analisi, con il testo del PC`() {
+    fun `Rendi residente qui e' il trasloco, con il testo del PC (0_65)`() {
         val a = p.progetti.single().azioni.first { it.id == "residente-qui" }
-        assertEquals("Analizza le copie e prepara il riassunto", a.conferma)
-        assertTrue(a.testo.contains("cartella di recupero per 30 giorni"))
+        assertEquals("Conferma: trasloca qui", a.conferma)
+        assertTrue(a.testo.contains("solo alla fine le copie vecchie vanno nel recupero"))
         assertTrue(a.testo.contains("Niente si cancella"))
     }
 

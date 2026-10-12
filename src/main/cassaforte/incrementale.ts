@@ -254,14 +254,14 @@ export async function salvaIncrementale(deps: {
    * I percorsi che da qui **non salgono** (0.42.0): le chat che hanno casa su
    * un altro PC. La copia di qui non deve sovrascrivere quella di casa.
    */
-  escludi?: (percorso: string) => boolean
+  escludi?: (percorso: string, f?: { size: number; mtime: number }) => boolean
   /** Chi carica: finisce sulle voci delle chat (`pc`), lo spazio di questo PC. */
   proprietario?: string
 }): Promise<{ manifesto: Manifesto; caricati: number; cancellati: number; cancellatiPercorsi: string[]; conflitti: Conflitto[]; annullato?: boolean }> {
   const copie = deps.copieDiConflitto ?? PROGETTI
   const pcNome = deps.pcNome ?? 'questo-pc'
   const firma = await firmaRadici(deps.radici)
-  if (deps.escludi !== undefined) for (const p of [...firma.keys()]) if (deps.escludi(p)) firma.delete(p)
+  if (deps.escludi !== undefined) for (const [p, f] of [...firma.entries()]) if (deps.escludi(p, f)) firma.delete(p)
   const prec = deps.manifestoPrec
   const perPrefisso = new Map(deps.radici.map((r) => [r.prefisso, r]))
   const prefissiNostri = new Set(perPrefisso.keys())

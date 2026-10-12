@@ -5,6 +5,7 @@ import { datiPannello } from '../../src/main/pannello-drive-dati'
 import { paginaClient } from '../../src/main/client-pagina'
 import { chiaveProgetto, sceltaProgetto } from '../../src/shared/allineamento'
 import { testoRiassunto } from '../../src/shared/residenza'
+import { ferma, nuovoTrasloco, segna } from '../../src/shared/trasloco'
 
 /**
  * Il pannello delle chat e dei progetti del Drive come lo manda un PC alla
@@ -92,12 +93,18 @@ describe('il pannello del Drive per la pagina e per l’app', () => {
       ${riga('const esc =')}; ${riga('const escJs =')}
       var pdErrore = ''; var pdVista = 'progetti'; var pdFiltro = 'tutti'; var pdDaConfermare = ''; var pdSenzaNome = false, aiutiAperti = {}
       ${estrai('aiuto')}
+      ${riga('const PD_PASSI =')}; ${riga('const PD_TIPI =')}; ${estrai('pdByte')} ${estrai('pdTraslochiHtml')} ${estrai('pdSpazioHtml')}
       ${estrai('pdQuando')} ${estrai('pdStato')} ${estrai('pdProblemi')} ${estrai('pdFiltra')} ${estrai('pdScegliPc')} ${estrai('pannelloDriveHtml')}
       return pannelloDriveHtml()`) as (d: unknown) => string
     const h = disegna(atteso)
     for (const t of ['Gestionale', 'Conferma e togli da questo PC', 'Ripristina', 'Rendi residente qui', 'Rendi solo cloud qui', 'va aggiornato alla 0.58', 'Piano di allineamento']) expect(h).toContain(t)
     // 0.60.0: un progetto solo per nome, il riassunto di «Rendi residente» con la conferma, le unioni annullabili.
     for (const t of ['Stesso nome, stesso progetto: 2 voci nel registro', 'Conferma e unisci', 'Annulla l’unione', '(di cui 1 senza nome)', '«gestionale (2)» entra in «Gestionale»']) expect(h).toContain(t)
+    // 0.65.0: il trasloco passo per passo (fermo, con il motivo e «Riprendi») e lo spazio sul Drive.
+    const base = nuovoTrasloco({ id: 'trasloco-1', progetto: 'prog-g', nome: 'Gestionale', verso: { pc: 'pc-qui', nome: 'PC-ESEMPIO' }, chiesto: { da: 'pc-port', come: 'sposta' }, altrove: [{ pc: 'pc-port', nome: 'PORTATILE-ESEMPIO' }], adesso: '2026-10-12T10:00:00Z' })
+    const fermo = ferma(segna(base, 'raccolta', { stato: 'fatto', dettaglio: '1 copia salvata sul Drive' }, '2026-10-12T10:01:00Z'), 'analisi', 'PORTATILE-ESEMPIO non risponde', true, '2026-10-12T10:02:00Z')
+    const h2 = disegna({ ...atteso, traslochi: [fermo], spazio: { misura: { totale: { file: 3, byte: 2048 }, perTipo: { chat: { file: 3, byte: 2048 } }, inRecupero: { file: 0, byte: 0 }, misuratoIl: '' }, proposte: [{ tipo: 'doppie', titolo: 'Copie doppie', breve: '1 chat salvate due volte', spiega: 'x', voci: [], byte: 1024 }], pulizie: [] } })
+    for (const t of ['Trasloco di «Gestionale» su PC-ESEMPIO', 'Fermo: PORTATILE-ESEMPIO non risponde', 'Riprendo da solo', '✓ Raccolgo le copie — 1 copia salvata sul Drive', 'Riprendi', 'Spazio sul Drive', 'SierraDeck usa <b>2,0 KB</b>', 'Copie doppie', 'libera 1,0 KB', 'Pulisci…']) expect(h2).toContain(t)
   })
   it('«Progetti» è una destinazione propria della pagina (0.58.2)', () => {
     const html = paginaClient()

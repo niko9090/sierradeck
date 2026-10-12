@@ -61,7 +61,8 @@ export type BattitoPc = {
 
 /** Le copie locali di un PC: chat (sessione, cartella, ultimo messaggio) e progetti (id, cartella). */
 export type LocaliBattito = {
-  chat: { sessione: string; cwd?: string; mtime?: number }[]
+  /** `size` (0.65.0): quanto è lungo il `.jsonl` sul disco, per sapere se la copia è intera. */
+  chat: { sessione: string; cwd?: string; mtime?: number; size?: number }[]
   progetti: { id: string; percorso: string }[]
 }
 

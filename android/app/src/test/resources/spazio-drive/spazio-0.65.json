@@ -1,0 +1,109 @@
+{
+  "misura": {
+    "quota": {
+      "limite": 16106127360,
+      "usato": 3435973836.8
+    },
+    "totale": {
+      "file": 5,
+      "byte": 11309800
+    },
+    "perTipo": {
+      "chat": {
+        "file": 2,
+        "byte": 9300000
+      },
+      "progetti": {
+        "file": 1,
+        "byte": 800
+      },
+      "battiti": {
+        "file": 1,
+        "byte": 9000
+      },
+      "recupero": {
+        "file": 0,
+        "byte": 0
+      },
+      "sistema": {
+        "file": 1,
+        "byte": 2000000
+      },
+      "orfani": {
+        "file": 0,
+        "byte": 0
+      }
+    },
+    "inRecupero": {
+      "file": 0,
+      "byte": 0
+    },
+    "misuratoIl": "2026-10-12T12:00:00.000Z"
+  },
+  "proposte": [
+    {
+      "tipo": "doppie",
+      "titolo": "Copie doppie",
+      "breve": "1 chat salvate due volte",
+      "spiega": "La stessa conversazione è sul Drive sotto due cartelle, una per PC. Resta la copia più lunga; l’altra va nel recupero per 30 giorni e si può rimettere con «Annulla».",
+      "voci": [
+        {
+          "nome": "f_a2",
+          "byte": 4100000,
+          "percorso": "chat/slug-b/aaaa.jsonl",
+          "voce": {
+            "nome": "f_a2",
+            "size": 4000,
+            "mtime": 1784030400000
+          }
+        }
+      ],
+      "byte": 4100000
+    }
+  ],
+  "pulizie": [
+    {
+      "id": "pulizia-esempio",
+      "tipo": "doppie",
+      "titolo": "Copie doppie",
+      "quando": "2026-10-11T12:00:00.000Z",
+      "chi": "PC-ESEMPIO",
+      "scadeIl": "2026-11-10T12:00:00.000Z",
+      "voci": [
+        {
+          "nome": "f_a2",
+          "byte": 4100000,
+          "percorso": "chat/slug-b/aaaa.jsonl",
+          "voce": {
+            "nome": "f_a2",
+            "size": 4000,
+            "mtime": 1784030400000
+          }
+        }
+      ],
+      "byte": 4100000
+    },
+    {
+      "id": "pulizia-annullata",
+      "tipo": "doppie",
+      "titolo": "Copie doppie",
+      "quando": "2026-10-11T12:00:00.000Z",
+      "chi": "PC-ESEMPIO",
+      "scadeIl": "2026-11-10T12:00:00.000Z",
+      "voci": [
+        {
+          "nome": "f_a2",
+          "byte": 4100000,
+          "percorso": "chat/slug-b/aaaa.jsonl",
+          "voce": {
+            "nome": "f_a2",
+            "size": 4000,
+            "mtime": 1784030400000
+          }
+        }
+      ],
+      "byte": 4100000,
+      "annullataIl": "2026-10-12T12:00:00.000Z"
+    }
+  ]
+}

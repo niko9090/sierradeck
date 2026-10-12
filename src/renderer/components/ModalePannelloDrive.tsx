@@ -6,6 +6,8 @@ import { ModaleRiordina } from './ModaleRiordina'
 import { ContenutoDrive } from './ContenutoDrive'
 import { SalvataggioDrive } from './PannelloAccount'
 import { Aiuto } from './Aiuto'
+import { SpazioDrive } from './SpazioDrive'
+import { TraslocoAvanzamento } from './TraslocoAvanzamento'
 import { voceMenu } from '@shared/menu-principale'
 import { chiaveProgetto, eChiaveProgetto } from '@shared/allineamento'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
@@ -99,12 +101,20 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
       .catch((e: unknown) => setMsg(`Non è andata: ${String(e)}`)).finally(() => setOccupato(false))
   }
   // Mentre un'analisi o un'unione lavora, il pannello si rilegge da solo.
-  const lavora = d?.residenza?.some((s) => s.fase === 'analisi' || s.fase === 'unisco') === true
+  const lavora = d?.residenza?.some((s) => s.fase === 'analisi' || s.fase === 'unisco') === true ||
+    (d?.traslochi ?? []).some((t) => t.finitoIl === undefined && t.annullatoIl === undefined && t.fermo === undefined)
   useEffect(() => {
     if (!lavora) return
     const t = setInterval(leggi, 2000)
     return () => clearInterval(t)
   }, [lavora, leggi])
+  // La prima misura del Drive arriva dopo il pannello (0.65.0): si rilegge finché c'è.
+  const senzaSpazio = d !== undefined && d.spazio === undefined
+  useEffect(() => {
+    if (!senzaSpazio) return
+    const t = setTimeout(leggi, 4000)
+    return () => clearTimeout(t)
+  }, [senzaSpazio, d, leggi])
   const progetti = useMemo(() => (d === undefined ? [] : filtraProgetti(d.progetti, filtro, q)), [d, filtro, q])
   const sbagliati = d === undefined ? 0 : (vista === 'chat' ? d.chat : d.progetti).filter((r) => r.problemi.length > 0).length
 
@@ -208,6 +218,29 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
           </div>
         ) : null}
         {msg !== undefined ? <div className="riga__stato" style={{ marginBottom: 6 }}>{msg}</div> : null}
+        {(d?.traslochi ?? []).map((t) => (
+          <TraslocoAvanzamento
+            key={t.id}
+            t={t}
+            occupato={occupato}
+            onAzione={(azione, id) => {
+              setOccupato(true); setMsg(undefined)
+              void window.gestore.casa.azione({ azione, id }).then((r) => { setMsg(r.messaggio); leggi() })
+                .catch((e: unknown) => setMsg(`Non è andata: ${String(e)}`)).finally(() => setOccupato(false))
+            }}
+          />
+        ))}
+        {d !== undefined ? (
+          <SpazioDrive
+            spazio={d.spazio}
+            occupato={occupato}
+            onAzione={(corpo) => {
+              setOccupato(true); setMsg(undefined)
+              void window.gestore.casa.azione(corpo).then((r) => { setMsg(r.messaggio); leggi() })
+                .catch((e: unknown) => setMsg(`Non è andata: ${String(e)}`)).finally(() => setOccupato(false))
+            }}
+          />
+        ) : null}
         {d !== undefined && (d.unioni ?? []).length > 0 ? (
           <div className="riordina__gruppo" style={{ marginBottom: 8 }}>
             <span className="con-aiuto"><span className="serigrafia">Unioni fatte</span><Aiuto>

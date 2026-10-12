@@ -1,0 +1,107 @@
+[
+  {
+    "id": "trasloco-1",
+    "progetto": "p1",
+    "nome": "SierraDeck-prova-trasloco",
+    "verso": {
+      "pc": "pc-qui",
+      "nome": "PC-ESEMPIO"
+    },
+    "chiesto": {
+      "da": "pc-port",
+      "come": "sposta"
+    },
+    "avviatoIl": "2026-10-12T10:00:00.000Z",
+    "passi": {
+      "raccolta": {
+        "stato": "fatto",
+        "dettaglio": "1 copia salvata sul Drive",
+        "il": "2026-10-12T10:00:00.000Z"
+      },
+      "analisi": {
+        "stato": "fermo",
+        "dettaglio": "PORTATILE-ESEMPIO non risponde",
+        "fatto": 1,
+        "totale": 2,
+        "il": "2026-10-12T10:00:00.000Z"
+      },
+      "unione": {
+        "stato": "da-fare"
+      },
+      "vecchie": {
+        "stato": "da-fare"
+      },
+      "fine": {
+        "stato": "da-fare"
+      }
+    },
+    "altrove": [
+      {
+        "pc": "pc-port",
+        "nome": "PORTATILE-ESEMPIO"
+      }
+    ],
+    "fermo": {
+      "passo": "analisi",
+      "motivo": "PORTATILE-ESEMPIO non risponde",
+      "il": "2026-10-12T10:00:00.000Z",
+      "riprovaDaSolo": true
+    }
+  },
+  {
+    "id": "trasloco-2",
+    "progetto": "p1",
+    "nome": "SierraDeck-prova-trasloco",
+    "verso": {
+      "pc": "pc-qui",
+      "nome": "PC-ESEMPIO"
+    },
+    "chiesto": {
+      "da": "pc-port",
+      "come": "sposta"
+    },
+    "avviatoIl": "2026-10-12T10:00:00.000Z",
+    "passi": {
+      "raccolta": {
+        "stato": "fatto",
+        "dettaglio": "fatto raccolta",
+        "il": "2026-10-12T10:00:00.000Z"
+      },
+      "analisi": {
+        "stato": "fatto",
+        "dettaglio": "fatto analisi",
+        "il": "2026-10-12T10:00:00.000Z"
+      },
+      "unione": {
+        "stato": "fatto",
+        "dettaglio": "fatto unione",
+        "il": "2026-10-12T10:00:00.000Z"
+      },
+      "vecchie": {
+        "stato": "fatto",
+        "dettaglio": "fatto vecchie",
+        "il": "2026-10-12T10:00:00.000Z"
+      },
+      "fine": {
+        "stato": "fatto",
+        "dettaglio": "fatto fine",
+        "il": "2026-10-12T10:00:00.000Z"
+      }
+    },
+    "altrove": [
+      {
+        "pc": "pc-port",
+        "nome": "PORTATILE-ESEMPIO",
+        "salvata": true,
+        "esito": "nel-recupero"
+      }
+    ],
+    "unione": "unione-1",
+    "riassunto": [
+      "Resta la cartella C:\\prova.",
+      "«Annulla tutto» rimette com’era per 30 giorni."
+    ],
+    "finitoIl": "2026-10-12T10:00:00.000Z",
+    "scadeIl": "2026-11-11T10:00:00.000Z"
+  }
+]

@@ -41,8 +41,11 @@ export type GruppoPerResidenza = {
 
 export type ChatDiCartella = { sessione: string; jsonl: string; cwd: string; mtime?: number }
 
+/** Il passo dell'analisi in corso, per la schermata del trasloco: «Confronto i file di … 2/5». */
+export type AvanzaAnalisi = (testo: string, fatto: number, totale: number) => void
+
 export type Residenza = {
-  avvia: (progetto: string) => Promise<StatoResidenza>
+  avvia: (progetto: string, avanza?: AvanzaAnalisi) => Promise<StatoResidenza>
   conferma: (progetto: string) => Promise<StatoResidenza>
   annulla: (progetto: string) => StatoResidenza
   stati: () => StatoResidenza[]
@@ -156,7 +159,7 @@ export function creaResidenza(deps: {
     scriviJsonAtomico(join(cartellaUnioni, `${u.id}.json`), u, 'residente')
   }
 
-  const avvia = async (progetto: string): Promise<StatoResidenza> => {
+  const avvia = async (progetto: string, avanza?: AvanzaAnalisi): Promise<StatoResidenza> => {
     const g = deps.gruppo(progetto)
     const base = { progetto, nome: g?.nome ?? progetto, quando: iso() }
     if (g === undefined) return metti({ ...base, fase: 'errore', messaggio: 'Questo progetto non è più nel registro: aggiorna il pannello.' })
@@ -168,7 +171,12 @@ export function creaResidenza(deps: {
     try {
       const esistenti = g.candidati.filter((c) => existsSync(c.percorso))
       const elenchi = new Map<string, VoceFile[]>()
+      // L'avanzamento per la schermata del trasloco (0.65.0): una copia alla volta.
+      const quanteCopie = esistenti.length + g.drive.length
+      let copiaN = 0
       for (const c of esistenti) {
+        copiaN += 1
+        avanza?.(`Confronto i file di ${c.percorso}`, copiaN, quanteCopie)
         const e = await elencaFile(c.percorso, FILE_MAX, scartaGit)
         if (!Array.isArray(e)) return metti({ ...base, progetto: g.id, fase: 'errore', messaggio: `${c.percorso} ha più di ${FILE_MAX} file: non lo confronto e non unisco niente, per non rischiare di perdere qualcosa.` })
         elenchi.set(c.percorso, e)
@@ -186,6 +194,8 @@ export function creaResidenza(deps: {
       if (g.drive.length > 0 && manifesto === undefined) senzaDrive = true
       for (const d of g.drive) {
         if (manifesto === undefined) break
+        copiaN += 1
+        avanza?.(`Confronto i file della copia ${d.etichetta}`, copiaN, quanteCopie)
         const prefisso = `progetto-${d.id}/`
         const file: VoceFile[] = []
         for (const [percorso, v] of Object.entries(manifesto.file)) {

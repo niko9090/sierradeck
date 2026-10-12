@@ -558,7 +558,7 @@ contextBridge.exposeInMainWorld('gestore', {
     // Il pannello delle chat e dei progetti del Drive (0.58.0).
     pannello: (): Promise<import('@shared/pannello-drive').Pannello> => ipcRenderer.invoke('casa:pannello'),
     // Le azioni del pannello e dell'elenco dei progetti (0.58.0, tappa 4).
-    azione: (corpo: { azione: string; progetto?: string; id?: string }): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('casa:azione', corpo),
+    azione: (corpo: { azione: string; progetto?: string; id?: string; tipo?: string; pc?: string }): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('casa:azione', corpo),
     // La rimozione sicura (0.58.0, tappa 3).
     rimozione: {
       avvia: (id: string): Promise<import('@shared/rimozione-sicura').StatoRimozione> => ipcRenderer.invoke('rimozione:avvia', id),
@@ -589,7 +589,9 @@ contextBridge.exposeInMainWorld('gestore', {
     trasferisci: (cwd: string, dest: string, mettiSulDrive: boolean): Promise<{ ok: boolean; messaggio: string; serveDrive?: boolean }> => ipcRenderer.invoke('sposta:trasferisci', cwd, dest, mettiSulDrive),
     verifica: (cwd: string, dest: string): Promise<{ ok: boolean; messaggio: string; diverse?: string[] }> => ipcRenderer.invoke('sposta:verifica', cwd, dest),
     casa: (cwd: string, dest: string): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('sposta:casa', cwd, dest),
-    archivia: (cwd: string, dest: string): Promise<{ ok: boolean; messaggio: string; registro?: import('@shared/una-casa').RegistroRiordino }> => ipcRenderer.invoke('sposta:archivia', cwd, dest)
+    archivia: (cwd: string, dest: string): Promise<{ ok: boolean; messaggio: string; registro?: import('@shared/una-casa').RegistroRiordino }> => ipcRenderer.invoke('sposta:archivia', cwd, dest),
+    /** Il trasloco (0.65.0): un passaggio solo, sul PC di destinazione; l'avanzamento si vede in «Progetti». */
+    trasloco: (cwd: string, dest: string): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('trasloco:sposta', cwd, dest)
   },
   /** La sincronizzazione cifrata: passphrase (cassaforte E2E) + salva/ripristina. */
   sync: {

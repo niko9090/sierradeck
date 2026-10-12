@@ -21,6 +21,10 @@ export interface Archivio {
   carica: (nome: string, blocco: Buffer, onProgresso?: (fatto: number, totale: number) => void) => Promise<void>
   /** Rimuove un file. Se non c'è, non è un errore. */
   cancella: (nome: string) => Promise<void>
+  /** Tutti i file con la loro dimensione vera e l'ultima modifica (0.65.0, lo spazio sul Drive). */
+  elencaConDimensioni?: () => Promise<{ nome: string; byte: number; modificato?: string }[]>
+  /** Lo spazio dell'account (0.65.0). */
+  quota?: () => Promise<{ limite?: number; usato: number; usatoNelDrive?: number; nelCestino?: number }>
 }
 
 /** Un archivio in memoria: per i test e lo sviluppo, con la stessa interfaccia. */
@@ -44,6 +48,8 @@ export function archivioInMemoria(): Archivio {
       onProgresso?.(blocco.length, blocco.length)
       return Promise.resolve()
     },
-    cancella: (nome) => { files.delete(nome); return Promise.resolve() }
+    cancella: (nome) => { files.delete(nome); return Promise.resolve() },
+    elencaConDimensioni: () => Promise.resolve([...files.entries()].map(([nome, f]) => ({ nome, byte: f.blocco.length }))),
+    quota: () => Promise.resolve({ usato: [...files.values()].reduce((t, f) => t + f.blocco.length, 0) })
   }
 }

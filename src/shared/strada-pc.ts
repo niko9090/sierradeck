@@ -223,6 +223,11 @@ export const ROTTE_VIA_CANALE: readonly string[] = [
   '/api/rispondi',
   // «Sposta progetto» (0.42.0): anche fra due PC su reti diverse.
   '/api/sposta/pronto', '/api/sposta/ricevi', '/api/sposta/verifica',
+  // Il trasloco di un progetto (0.65.0): «Sposta progetto» e «Rendi residente», anche fra reti diverse.
+  '/api/trasloco/salva', '/api/trasloco/togli', '/api/trasloco/togli-stato', '/api/trasloco/ripristina',
+  '/api/trasloco/avvia', '/api/trasloco/stato', '/api/trasloco/riprendi', '/api/trasloco/annulla',
+  // La rimozione sicura (0.58.0): il confronto e il recupero che il trasloco usa.
+  '/api/rimozione/analisi', '/api/rimozione/stato', '/api/rimozione/pezzo',
   // Il PIN delle chat (0.49.0): lo verifica il PC di casa della chat.
   '/api/pin/sblocca',
   // I file dal telefono attraverso il ponte (0.50.0): a pezzi da 96 KB, che stanno in un messaggio.

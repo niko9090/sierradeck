@@ -3884,6 +3884,64 @@ window.pdResidente = async (progetto, sessione, pcId) => {
   catch (e) { notaGlobale = 'Non è andata: ' + ((e && e.message) || e) }
   await leggiPannelloDrive(); pannello(ultimoStato)
 }
+// Il trasloco (0.65.0): «Sposta progetto» e «Rendi residente» passo per passo, come sul PC.
+const PD_PASSI = [['raccolta', 'Raccolgo le copie'], ['analisi', 'Confronto i file'], ['unione', 'Unisco qui'], ['vecchie', 'Copie vecchie nel recupero'], ['fine', 'Riassunto']]
+function pdTraslochiHtml() {
+  let h = ''
+  for (const t of pdDati.traslochi || []) {
+    const fatti = PD_PASSI.filter((x) => t.passi[x[0]] && t.passi[x[0]].stato === 'fatto').length
+    const attuale = PD_PASSI.find((x) => !t.passi[x[0]] || t.passi[x[0]].stato !== 'fatto')
+    const pa = attuale ? t.passi[attuale[0]] : null
+    const frazione = pa && pa.stato === 'in-corso' && pa.totale ? Math.min(1, (pa.fatto || 0) / pa.totale) : 0
+    const percento = Math.round(((fatti + frazione) / PD_PASSI.length) * 100)
+    const stato = t.annullatoIl ? 'annullato' : t.finitoIl ? 'fatto' : t.fermo ? 'fermo' : 'in corso'
+    h += '<div class="sotto" style="margin-top:10px"><b>Trasloco di «' + esc(t.nome) + '» su ' + esc(t.verso.nome) + '</b> · ' + stato + aiuto('trasloco', '«Sposta progetto» e «Rendi residente» sono lo stesso passaggio: raccolgo le copie, le confronto, unisco qui quello che serve e solo alla fine metto le copie vecchie nel recupero dei loro PC. Se un PC non risponde mi fermo e riprendo da dove ero. «Annulla tutto» per 30 giorni.') + '</div>'
+    h += '<div style="height:8px;background:#333;border-radius:4px;overflow:hidden;margin:4px 0"><div style="height:100%;width:' + percento + '%;background:' + (t.fermo ? 'var(--ambra,#e0a33c)' : 'var(--verde,#3c9)') + '"></div></div>'
+    if (attuale && !t.finitoIl && !t.annullatoIl) h += '<div class="sotto"><b>' + esc(attuale[1]) + '</b>' + (pa && pa.dettaglio ? ': ' + esc(pa.dettaglio) : '…') + '</div>'
+    if (t.fermo) h += '<div class="sotto" style="color:var(--ambra,#e0a33c)">Fermo: ' + esc(t.fermo.motivo) + (t.fermo.riprovaDaSolo ? ' Riprendo da solo quando passa.' : '') + '</div>'
+    for (const x of PD_PASSI) { const s = t.passi[x[0]] || { stato: 'da-fare' }; h += '<div class="sotto" style="opacity:' + (s.stato === 'da-fare' ? '0.6' : '1') + '">' + (s.stato === 'fatto' ? '✓' : s.stato === 'fermo' ? '!' : s.stato === 'in-corso' ? '…' : '·') + ' ' + esc(x[1]) + (s.stato === 'fatto' && s.dettaglio ? ' — ' + esc(s.dettaglio) : '') + '</div>' }
+    if (t.finitoIl) for (const r of t.riassunto || []) h += '<div class="sotto">• ' + esc(r) + '</div>'
+    if (t.annullatoIl) for (const r of t.annullamento || []) h += '<div class="sotto">• ' + esc(r) + '</div>'
+    let tasti = ''
+    if (t.fermo) tasti += '<button onclick="pdAzione(\\'trasloco-riprendi\\', \\'\\', false, \\'' + escJs(t.id) + '\\')">Riprendi</button>'
+    const annullabile = !t.annullatoIl && (!t.scadeIl || Date.parse(t.scadeIl) > Date.now()) && (t.unione || (t.altrove || []).some((a) => a.esito === 'nel-recupero')) && (t.finitoIl || t.fermo)
+    if (annullabile) tasti += '<button onclick="pdAzione(\\'trasloco-annulla\\', \\'\\', true, \\'' + escJs(t.id) + '\\')">' + (pdDaConfermare === 'trasloco-annulla::' + t.id ? 'Tocca ancora: annulla tutto' : 'Annulla tutto…') + '</button>'
+    if (tasti) h += '<div class="riga">' + tasti + '</div>'
+  }
+  return h
+}
+// Lo spazio sul Drive (0.65.0): misura per tipo e pulizie confermate, nel recupero e annullabili.
+const PD_TIPI = [['chat', 'Chat'], ['progetti', 'Progetti'], ['battiti', 'Battiti e posta dei PC'], ['recupero', 'Recupero e copie di sicurezza'], ['sistema', 'Indice, chiavi e workspace'], ['orfani', 'File senza voce nell’indice']]
+function pdByte(n) { const u = ['byte', 'KB', 'MB', 'GB', 'TB']; let x = n; let i = 0; while (x >= 1024 && i < u.length - 1) { x /= 1024; i++ } return (i === 0 ? String(x) : x.toFixed(x < 10 ? 1 : 0).replace('.', ',')) + ' ' + u[i] }
+window.pdSpazio = async (azione, tipo, id) => {
+  const chiave = 'spazio:' + azione + ':' + (tipo || id || '')
+  if (azione !== 'spazio-annulla' && azione !== 'spazio-misura' && pdDaConfermare !== chiave) { pdDaConfermare = chiave; pannello(ultimoStato); return }
+  pdDaConfermare = ''
+  try { const r = await chiedi('/api/drive/azione', { azione: azione, tipo: tipo || '', id: id || '' }); notaGlobale = (r && r.messaggio) || 'Fatto.' }
+  catch (e) { notaGlobale = 'Non è andata: ' + ((e && e.message) || e) }
+  await leggiPannelloDrive(); pannello(ultimoStato)
+}
+function pdSpazioHtml() {
+  const sp = pdDati.spazio
+  let h = '<div class="sotto" style="margin-top:10px"><b>Spazio sul Drive</b>' + aiuto('spazio', 'Quanto occupa SierraDeck nella sua cartella privata del tuo Drive, per tipo, e lo spazio del tuo account Google. Le pulizie non cancellano subito: tengono i file 30 giorni nel recupero, «Annulla» li rimette. Una chat tolta che riprende a lavorare risale da sola.') + '</div>'
+  if (!sp) return h + '<div class="sotto">Misuro il Drive…</div>'
+  if (sp.errore) h += '<div class="sotto" style="color:var(--ambra,#e0a33c)">' + esc(sp.errore) + '</div>'
+  const m = sp.misura
+  if (m) {
+    h += '<div class="sotto" style="margin-top:4px">SierraDeck usa <b>' + pdByte(m.totale.byte) + '</b> in ' + m.totale.file + ' file' + (m.quota ? ' · account: ' + pdByte(m.quota.usato) + (m.quota.limite ? ' di ' + pdByte(m.quota.limite) : '') : '') + (m.inRecupero.byte > 0 ? ' · nel recupero ' + pdByte(m.inRecupero.byte) : '') + '</div>'
+    for (const t of PD_TIPI) { const v = m.perTipo[t[0]]; if (v && v.file > 0) h += '<div class="sotto">' + esc(t[1]) + ': ' + pdByte(v.byte) + ' · ' + v.file + ' file</div>' }
+  }
+  for (const p of sp.proposte || []) {
+    const c = pdDaConfermare === 'spazio:spazio-pulisci:' + p.tipo
+    h += '<div class="sotto" style="margin-top:6px"><b>' + esc(p.titolo) + '</b> · ' + esc(p.breve) + ' · libera ' + pdByte(p.byte) + aiuto('pulizia-' + p.tipo, p.spiega) + '</div><div class="riga"><button' + (c ? ' class="primario"' : '') + ' onclick="pdSpazio(\\'spazio-pulisci\\', \\'' + escJs(p.tipo) + '\\', \\'\\')">' + (c ? 'Tocca ancora: nel recupero' : 'Pulisci…') + '</button></div>'
+  }
+  if (m && (sp.proposte || []).length === 0) h += '<div class="sotto">Niente da pulire.</div>'
+  for (const x of (sp.pulizie || []).filter((x) => !x.annullataIl && !x.svuotataIl)) {
+    const c = pdDaConfermare === 'spazio:spazio-svuota:' + x.id
+    h += '<div class="sotto" style="margin-top:6px"><b>' + esc(x.titolo) + '</b> · ' + x.voci.length + ' file, ' + pdByte(x.byte) + ' · nel recupero fino al ' + esc(pdQuando(x.scadeIl)) + '</div><div class="riga"><button onclick="pdSpazio(\\'spazio-annulla\\', \\'\\', \\'' + escJs(x.id) + '\\')">Annulla</button><button' + (c ? ' class="primario"' : '') + ' onclick="pdSpazio(\\'spazio-svuota\\', \\'\\', \\'' + escJs(x.id) + '\\')">' + (c ? 'Tocca ancora: cancella per sempre' : 'Svuota adesso…') + '</button></div>'
+  }
+  return h + '<div class="riga"><button onclick="pdSpazio(\\'spazio-misura\\', \\'\\', \\'\\')">Misura adesso</button></div>'
+}
 function pdQuando(iso) { if (!iso) return 'mai'; try { return new Date(iso).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }) } catch (e) { return iso } }
 function pdStato(s) { return s === 'residente' ? '<span style="color:var(--verde,#3c9)">● residente</span>' : s === 'conflitto' ? '<span style="color:var(--ambra,#e0a33c)">● in conflitto</span>' : '<span class="sotto">● solo cloud</span>' }
 function pdProblemi(r) {
@@ -3928,6 +3986,8 @@ function pannelloDriveHtml() {
     h += '<div class="sotto" style="margin-top:10px"><b>Cartelle in recupero</b>' + aiuto('recupero', 'Tolte da questo PC, non cancellate: «Ripristina» le rimette dov’erano.') + '</div>'
     for (const c of inRec) h += '<div class="sotto" style="margin-top:4px"><b>' + esc(c.nome) + '</b> · tolta il ' + esc(pdQuando(c.quando)) + ' · resta fino al ' + esc(pdQuando(c.scadeIl)) + '</div><div class="riga"><button onclick="pdAzione(\\'ripristina\\', \\'\\', true, \\'' + escJs(c.id) + '\\')">' + (pdDaConfermare === 'ripristina::' + c.id ? 'Tocca ancora: rimetti in ' + esc(c.percorsoOriginale) : 'Ripristina') + '</button></div>'
   }
+  h += pdTraslochiHtml()
+  h += pdSpazioHtml()
   const unioni = pdDati.unioni || []
   if (unioni.length > 0) {
     h += '<div class="sotto" style="margin-top:10px"><b>Unioni fatte</b>' + aiuto('unioni', 'I progetti uniti con «Rendi residente qui» negli ultimi 30 giorni. «Annulla l’unione» rimette com’erano cartelle, file, chat, workspace e registro; niente si cancella.') + '</div>'

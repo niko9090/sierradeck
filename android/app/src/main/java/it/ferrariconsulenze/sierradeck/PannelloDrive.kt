@@ -79,7 +79,11 @@ import kotlinx.serialization.Serializable
     val chat: List<RigaChatDrive> = emptyList(), val progetti: List<RigaProgettoDrive> = emptyList(),
     val pcDaAggiornare: List<String> = emptyList(), val piano: PianoDrive? = null, val rimozione: RimozioneDrive = RimozioneDrive(),
     /** 0.60.0: «Rendi residente» con analisi e unione, e le unioni annullabili. */
-    val residenza: List<StatoResidenzaDrive> = emptyList(), val unioni: List<UnioneFattaDrive> = emptyList()
+    val residenza: List<StatoResidenzaDrive> = emptyList(), val unioni: List<UnioneFattaDrive> = emptyList(),
+    /** PC 0.65.0: lo spazio sul Drive e le pulizie. Assente sui PC prima, o mentre la prima misura è in corso. */
+    val spazio: StatoSpazioDrive? = null,
+    /** PC 0.65.0: i traslochi, passo per passo. */
+    val traslochi: List<TraslocoDrive> = emptyList()
 )
 @Serializable data class EsitoAzioneDrive(val ok: Boolean = false, val messaggio: String = "")
 
@@ -158,8 +162,11 @@ fun SezionePannelloDrive(api: Api) {
     }
     LaunchedEffect(spenta) { if (!spenta) leggi() }
     // Analisi e unione lavorano sul PC: finché lavorano, il pannello si rilegge.
-    val lavora = p?.let { PannelloDriveRegole.lavora(it) } == true
-    LaunchedEffect(lavora) { while (lavora) { kotlinx.coroutines.delay(2500); leggi(); if (p?.let { PannelloDriveRegole.lavora(it) } != true) break } }
+    val lavora = p?.let { PannelloDriveRegole.lavora(it) || TraslocoRegole.lavora(it.traslochi) } == true
+    LaunchedEffect(lavora) { while (lavora) { kotlinx.coroutines.delay(2500); leggi(); if (p?.let { PannelloDriveRegole.lavora(it) || TraslocoRegole.lavora(it.traslochi) } != true) break } }
+    // La prima misura del Drive arriva dopo il pannello (PC 0.65.0): qualche rilettura finché c'è.
+    val senzaSpazio = p != null && p?.spazio == null
+    LaunchedEffect(senzaSpazio) { var giri = 0; while (senzaSpazio && giri < 5) { kotlinx.coroutines.delay(4000); leggi(); giri += 1; if (p?.spazio != null) break } }
 
     RigaConAiuto("Il PC residente di ogni chat e progetto, e le copie.", "Ogni chat e ogni progetto ha un PC residente: è lì che lavora; sugli altri PC si apre dal vivo, e il progetto lì è «solo cloud». Qui vedi il residente, chi ne ha una copia, l’ultimo uso e lo stato; in ambra le assegnazioni sbagliate, con il perché e cosa fare. Ogni cambio chiede conferma e non cancella niente: le copie tolte vanno nella cartella di recupero per 30 giorni.")
     if (spenta) { Text(FunzioniPc.testoMancante(FunzionePc.PANNELLO_DRIVE), color = Banco.ambra, fontSize = 13.sp); return }
@@ -184,6 +191,44 @@ fun SezionePannelloDrive(api: Api) {
             Text("${c.nome} · tolta il ${QuadernoPersonaleTesti.quando(c.quando)} · resta fino al ${QuadernoPersonaleTesti.quando(c.scadeIl)}", color = Banco.testo, fontSize = 12.sp)
             TextButton(onClick = { conferma = DaConfermare("Ripristina «${c.nome}»", "La cartella torna in ${c.percorsoOriginale}. Se lì adesso c’è un’altra cartella non la sovrascrivo e te lo dico.", "Ripristina") { api.azioneDrive("ripristina", "", c.id) } }) { Text("Ripristina") }
         }
+    }
+    // Il trasloco (PC 0.65.0): «Sposta progetto» e «Rendi residente» passo per passo.
+    for (t in d.traslochi) {
+        Spacer(Modifier.height(6.dp))
+        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { Text("TRASLOCO DI «${t.nome}» SU ${t.verso.nome} · ${TraslocoRegole.stato(t)}", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold); Aiuto("«Sposta progetto» e «Rendi residente» sono lo stesso passaggio: raccolgo le copie, le confronto, unisco qui quello che serve e solo alla fine metto le copie vecchie nel recupero dei loro PC. Se un PC non risponde mi fermo e riprendo da dove ero. «Annulla tutto» per 30 giorni.", di = "TRASLOCO") }
+        androidx.compose.material3.LinearProgressIndicator(progress = { TraslocoRegole.percento(t) / 100f }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), color = if (t.fermo != null) Banco.ambra else Banco.verde)
+        TraslocoRegole.attuale(t)?.takeIf { t.finitoIl == null }?.let { (id, titolo) -> Text("$titolo: ${TraslocoRegole.passo(t, id).dettaglio ?: "…"}", color = Banco.testo, fontSize = 12.sp) }
+        t.fermo?.let { Text("Fermo: ${it.motivo}" + (if (it.riprovaDaSolo) " Riprendo da solo quando passa." else ""), color = Banco.ambra, fontSize = 12.sp) }
+        for ((id, titolo) in TraslocoRegole.PASSI) Text(TraslocoRegole.riga(t, id, titolo), color = if (TraslocoRegole.passo(t, id).stato == "da-fare") Banco.testoQuieto else Banco.testo, fontSize = 12.sp)
+        if (t.finitoIl != null) for (r in t.riassunto) Text("• $r", color = Banco.testo, fontSize = 12.sp)
+        if (t.annullatoIl != null) for (r in t.annullamento) Text("• $r", color = Banco.testo, fontSize = 12.sp)
+        FlowRow {
+            if (t.fermo != null) TextButton(onClick = { fai({ api.azioneDrive("trasloco-riprendi", "", t.id) }, "riprendere il trasloco") }) { Text("Riprendi") }
+            if (TraslocoRegole.annullabile(t, System.currentTimeMillis())) TextButton(onClick = { conferma = DaConfermare("Annulla tutto: «${t.nome}»", "Le copie vecchie tornano al loro posto sui loro PC, l’unione si annulla, la casa torna a chi c’era prima. Niente si cancella.", "Annulla tutto") { api.azioneDrive("trasloco-annulla", "", t.id) } }) { Text("Annulla tutto…") }
+        }
+    }
+    // Lo spazio sul Drive (PC 0.65.0): ogni pulizia si conferma, va nel recupero per 30 giorni e si annulla.
+    d.spazio?.let { sp ->
+        Spacer(Modifier.height(6.dp))
+        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { Text("SPAZIO SUL DRIVE", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold); Aiuto("Quanto occupa SierraDeck nella sua cartella privata del tuo Drive, per tipo, e lo spazio del tuo account Google. Le pulizie non cancellano subito: tengono i file 30 giorni nel recupero, «Annulla» li rimette. Una chat tolta che riprende a lavorare risale da sola.", di = "SPAZIO SUL DRIVE") }
+        sp.errore?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
+        sp.misura?.let { m ->
+            Text(SpazioRegole.riepilogo(m), color = Banco.testo, fontSize = 12.sp)
+            for (r in SpazioRegole.righe(m)) Text(r, color = Banco.testoQuieto, fontSize = 12.sp)
+        }
+        for (pr in sp.proposte) {
+            Text("${pr.titolo} · ${pr.breve} · libera ${SpazioRegole.byte(pr.byte)}", color = Banco.testo, fontSize = 12.sp)
+            TextButton(onClick = { conferma = DaConfermare(pr.titolo, pr.spiega, "Nel recupero") { api.azioneSpazio("spazio-pulisci", tipo = pr.tipo) } }) { Text("Pulisci…") }
+        }
+        if (sp.misura != null && sp.proposte.isEmpty()) Text("Niente da pulire.", color = Banco.testoQuieto, fontSize = 12.sp)
+        for (x in SpazioRegole.inRecupero(sp)) {
+            Text("${x.titolo} · ${x.voci.size} file, ${SpazioRegole.byte(x.byte)} · nel recupero fino al ${QuadernoPersonaleTesti.quando(x.scadeIl)}", color = Banco.testo, fontSize = 12.sp)
+            FlowRow {
+                TextButton(onClick = { fai({ api.azioneSpazio("spazio-annulla", id = x.id) }, "annullare la pulizia") }) { Text("Annulla") }
+                TextButton(onClick = { conferma = DaConfermare("Svuota adesso «${x.titolo}»", "Cancello adesso questi file dal Drive, senza aspettare i 30 giorni. Dopo non si annulla più.", "Cancella per sempre") { api.azioneSpazio("spazio-svuota", id = x.id) } }) { Text("Svuota adesso…") }
+            }
+        }
+        TextButton(onClick = { fai({ api.azioneSpazio("spazio-misura") }, "misurare il Drive") }) { Text("Misura adesso") }
     }
     if (d.unioni.isNotEmpty()) {
         Spacer(Modifier.height(6.dp))

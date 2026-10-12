@@ -182,7 +182,7 @@ declare global {
         dove: () => Promise<{ io: { id: string; nome: string }; pc: { id: string; nome: string }[]; gruppi: import('@shared/ospite-chat').GruppoDove[]; traslochi: import('@shared/una-casa').RegistroRiordino[] }>
         scegli: (p: { sessioni: string[]; pc: { id: string; nome: string }; workspace?: string }) => Promise<{ ok: boolean; messaggio: string }>
         pannello: () => Promise<import('../shared/pannello-drive').Pannello>
-        azione: (corpo: { azione: string; progetto?: string; id?: string }) => Promise<{ ok: boolean; messaggio: string }>
+        azione: (corpo: { azione: string; progetto?: string; id?: string; tipo?: string; pc?: string }) => Promise<{ ok: boolean; messaggio: string }>
         rimozione: {
           avvia: (id: string) => Promise<import('../shared/rimozione-sicura').StatoRimozione>
           conferma: (id: string) => Promise<import('../shared/rimozione-sicura').StatoRimozione>
@@ -203,6 +203,7 @@ declare global {
         verifica: (cwd: string, dest: string) => Promise<{ ok: boolean; messaggio: string; diverse?: string[] }>
         casa: (cwd: string, dest: string) => Promise<{ ok: boolean; messaggio: string }>
         archivia: (cwd: string, dest: string) => Promise<{ ok: boolean; messaggio: string; registro?: import('@shared/una-casa').RegistroRiordino }>
+        trasloco: (cwd: string, dest: string) => Promise<{ ok: boolean; messaggio: string }>
       }
       sync: {
         stato: () => Promise<{

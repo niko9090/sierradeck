@@ -88,6 +88,10 @@ import { memoriaBreve } from '@shared/memoria-breve'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
 import { creaLatoResidente, creaRimozione, progettiInRecupero, type LatoResidente, type Rimozione } from './rimozione-sicura'
 import { improntaPc } from './casa-firma'
+import { creaSpazioDrive, type SpazioDrive, type StatoSpazio } from './spazio-drive'
+import { creaTrasloco, type TraslocoApi } from './trasloco'
+import { cartellaDiProva, PREFISSO_CARTELLA_PROVA } from '@shared/chat-di-prova'
+import type { Trasloco } from '@shared/trasloco'
 import { cartellaDiProgettoValida, daRiprovare, pianoAllineamento, rigaPiano, type PianoAllineamento } from '@shared/allineamento'
 import { LOCALI_MAX_CHAT, type LocaliBattito } from '@shared/posta'
 import { apriFileProgetti } from './file-progetti'
@@ -512,6 +516,13 @@ let residenteRimozioneGlobale: LatoResidente | undefined
 let pianoCorrente: (() => PianoAllineamento | undefined) | undefined
 /** «Rendi residente» con analisi e unione (0.60.0). */
 let residenzaGlobale: Residenza | undefined
+let spazioGlobale: SpazioDrive | undefined
+let traslocoGlobale: TraslocoApi | undefined
+/** I traslochi chiesti da qui con «Sposta progetto», che girano su un altro PC (0.65.0): l'ultimo stato letto da lui. */
+const traslochiSeguiti = new Map<string, { pc: string; ultimo?: Trasloco; letto: number }>()
+/** Il lato di questo PC quando un altro gli trasloca un progetto (0.65.0): le rotte `/api/trasloco/*`. */
+let latoTraslocoGlobale: Record<string, (corpo: unknown) => Promise<unknown>> | undefined
+let provaTraslocoGlobale: ((corpo: unknown) => Promise<{ ok: boolean; messaggio: string; stato?: number }>) | undefined
 // Il registro della sessione, visibile anche ai gestori globali qui sotto: loro
 // nascono al caricamento del modulo, prima che la sessione sia aperta, quindi
 // finché resta `undefined` ripiegano sulla sola console.
@@ -1573,6 +1584,8 @@ if (!app.requestSingleInstanceLock()) {
           saleDaQui: (p) => unaCasaGlobale === undefined || saleDaQui(p, unaCasaGlobale.case(), identitaPc.leggi().id),
           scendeQui: (p) => unaCasaGlobale === undefined || scendeQui(p, unaCasaGlobale.case(), identitaPc.leggi().id)
         },
+        // Le pulizie del Drive (0.65.0): una voce tolta non risale finché è uguale.
+        fuoriDalDrive: (p, size) => spazioGlobale?.fuoriDalDrive(p, size) ?? false,
         progetti: progettiSync,
         pcNome: () => identitaPc.leggi().nome,
         pcId: () => identitaPc.leggi().id,
@@ -2437,10 +2450,14 @@ if (!app.requestSingleInstanceLock()) {
         const me = identitaPc.leggi().id
         const dieci = 10 * 60_000
         const chat = chatLocaliDaIndice()
-          .map((c) => ({ sessione: c.sessione, ...(c.cwd !== undefined ? { cwd: c.cwd } : {}), mtime: c.ultimoMessaggio !== undefined ? Math.floor(Date.parse(c.ultimoMessaggio) / dieci) * dieci : 0 }))
+          .map((c) => {
+            let size: number | undefined
+            try { size = statSync(c.jsonl).size } catch { size = undefined }
+            return { sessione: c.sessione, ...(c.cwd !== undefined ? { cwd: c.cwd } : {}), mtime: c.ultimoMessaggio !== undefined ? Math.floor(Date.parse(c.ultimoMessaggio) / dieci) * dieci : 0, ...(size !== undefined ? { size } : {}) }
+          })
           .sort((a, b) => b.mtime - a.mtime)
           .slice(0, LOCALI_MAX_CHAT)
-          .map((c) => (c.mtime === 0 || Number.isNaN(c.mtime) ? { sessione: c.sessione, ...(c.cwd !== undefined ? { cwd: c.cwd } : {}) } : c))
+          .map((c) => (c.mtime === 0 || Number.isNaN(c.mtime) ? { sessione: c.sessione, ...(c.cwd !== undefined ? { cwd: c.cwd } : {}), ...(c.size !== undefined ? { size: c.size } : {}) } : c))
         const progetti = registroProgetti.leggi().progetti
           .filter((g) => g.percorsi[me] !== undefined && existsSync(g.percorsi[me] as string))
           .map((g) => ({ id: g.id, percorso: g.percorsi[me] as string }))
@@ -2680,10 +2697,42 @@ if (!app.requestSingleInstanceLock()) {
       }
       // Il pannello con lo stato della rimozione sicura (0.58.0) e dell'unione
       // (0.60.0): lo stesso per il PC, la pagina e l'app.
-      const pannelloCompleto = async (): Promise<Pannello & { rimozione: { stati: StatoRimozione[]; inRecupero: CartellaInRecupero[] }; unioni: ReturnType<Residenza['unioni']> }> => ({
+      // Lo spazio sul Drive (0.65.0): misura per tipo e pulizie confermate, in recupero e annullabili.
+      const spazio = creaSpazioDrive({
+        archivio: () => (sincronia.scatola() === undefined ? undefined : contoDrive.archivio()),
+        scatola: () => sincronia.scatola(),
+        manifestoDrive: () => sincronia.manifestoDrive(),
+        modificaManifesto: (cambia, cosa) => sincronia.modificaManifestoDrive(cambia, cosa),
+        copieSuiPc: () => {
+          const m = new Map<string, { nome: string; size: number }[]>()
+          const metti = (s: string, nome: string, size: number | undefined): void => {
+            if (size === undefined) return
+            m.set(s, [...(m.get(s) ?? []), { nome, size }])
+          }
+          const io = identitaPc.leggi()
+          for (const c of chatLocaliDaIndice()) { let size: number | undefined; try { size = statSync(c.jsonl).size } catch { size = undefined } metti(c.sessione, io.nome, size) }
+          for (const b of postino.altrui()) for (const c of b.locali?.chat ?? []) metti(c.sessione, b.nome, c.size)
+          return m
+        },
+        io: () => identitaPc.leggi(),
+        log: registro.info
+      })
+      spazioGlobale = spazio
+      const timerSpazio = setInterval(() => { void spazio.giro() }, 30 * 60_000)
+      // Presto: il registro delle pulizie serve al primo salvataggio, perché le voci tolte non risalgano.
+      const primoSpazio = setTimeout(() => { void spazio.giro() }, 20_000)
+      app.on('before-quit', () => { clearInterval(timerSpazio); clearTimeout(primoSpazio) })
+      ipcMain.handle('spazio:stato', (_e, forza: unknown) => spazio.stato(forza === true))
+      const pannelloCompleto = async (): Promise<Pannello & { rimozione: { stati: StatoRimozione[]; inRecupero: CartellaInRecupero[] }; unioni: ReturnType<Residenza['unioni']>; spazio?: StatoSpazio }> => ({
         ...(await leggiPannello()),
+        ...(spazio.subito() !== undefined ? { spazio: spazio.subito() as StatoSpazio } : {}),
         residenza: residenzaGlobale?.stati() ?? [],
         unioni: residenzaGlobale?.unioni() ?? [],
+        // I traslochi (0.65.0): quelli che girano qui e quelli chiesti da qui a un altro PC.
+        traslochi: [
+          ...(traslocoGlobale?.elenco() ?? []),
+          ...[...traslochiSeguiti.values()].flatMap((x) => (x.ultimo === undefined || (traslocoGlobale?.stato(x.ultimo.id) !== undefined) ? [] : [x.ultimo]))
+        ],
         rimozione: { stati: rimozioneGlobale?.stati() ?? [], inRecupero: rimozioneGlobale?.inRecupero() ?? [] }
       })
       // «Rendi residente» con analisi e unione (0.60.0).
@@ -2746,6 +2795,200 @@ if (!app.requestSingleInstanceLock()) {
       let ultimoPannello: Pannello | undefined
       pannelloDriveGlobale = pannelloCompleto
       ipcMain.handle('casa:pannello', () => pannelloCompleto())
+      // **Il trasloco** (0.65.0): «Sposta progetto» e «Rendi residente» in un
+      // passaggio solo, sul PC che diventa residente. Le copie vecchie vanno nel
+      // recupero solo alla fine, dopo il confronto; si ferma e riprende.
+      /** Il gruppo di un progetto: dal registro di qui, o da quello sul Drive (lo aggiunge qui). */
+      const gruppoPerTrasloco = async (id: string): Promise<ReturnType<typeof gruppoDiId>> => {
+        const g = gruppoDiId(gruppiProgetti(), id)
+        if (g !== undefined) return g
+        const dalDrive = (await registroDelPannello()).progetti.find((x) => x.id === id)
+        if (dalDrive === undefined) return undefined
+        const reg = registroProgetti.leggi()
+        if (!reg.progetti.some((x) => x.id === id)) {
+          registroProgetti.scrivi({ ...reg, progetti: [...reg.progetti, dalDrive] })
+          registro.info(`[trasloco] «${dalDrive.nome}» aggiunto al registro di questo PC dal registro sul Drive`)
+        }
+        return gruppoDiId(gruppiProgetti(), id)
+      }
+      const trasloco = creaTrasloco({
+        dati,
+        io: () => identitaPc.leggi(),
+        progetto: async (id) => {
+          const g = await gruppoPerTrasloco(id)
+          if (g === undefined) return undefined
+          const io = identitaPc.leggi()
+          const battiti = postino.altrui()
+          const nomeDi = (pc: string): string => battiti.find((b) => b.pcId === pc)?.nome ?? pc.slice(0, 8)
+          const ids = new Set(g.ids)
+          const conCopia = new Set([
+            ...g.percorsi.filter((x) => x.pc !== io.id).map((x) => x.pc),
+            ...battiti.filter((b) => (b.locali?.progetti ?? []).some((x) => ids.has(x.id))).map((b) => b.pcId)
+          ])
+          const voluto = casaDelGruppo(unaCasa.case(), g.ids)
+          // Le chat del progetto per l'unione e la casa: il pannello riletto adesso.
+          ultimoPannello = await leggiPannello()
+          return {
+            id: g.id, nome: g.nome, ids: g.ids,
+            altrove: [...conCopia].map((pc) => ({ pc, nome: nomeDi(pc) })),
+            ...(voluto !== undefined ? { residente: { pc: voluto.pc, nome: voluto.pcNome } } : {})
+          }
+        },
+        residenza: {
+          avvia: (p, avanza) => residenza.avvia(p, avanza),
+          conferma: (p) => residenza.conferma(p),
+          stati: () => residenza.stati(),
+          annullaUnione: (id) => residenza.annullaUnione(id)
+        },
+        chiamaPc: (pc, percorso, corpo) => remoto.chiama(pc, percorso, corpo),
+        casaA: async (progetto, pc) => {
+          const g = gruppoDiId(gruppiProgetti(), progetto)
+          const ids = new Set(g?.ids ?? [progetto])
+          const chat = (ultimoPannello?.chat ?? []).filter((c) => c.progetto !== undefined && ids.has(c.progetto)).map((c) => c.sessione)
+          return ospite.scegli({ sessioni: [...chat, ...[...ids].map((x) => `progetto:${x}`)], pc })
+        },
+        log: registro.info,
+        avvisa: () => { for (const w of webContents.getAllWebContents()) if (!w.isDestroyed()) w.send('casa:cambiate') }
+      })
+      traslocoGlobale = trasloco
+      const timerTrasloco = setInterval(() => { trasloco.giro() }, 2 * 60_000)
+      const primoTrasloco = setTimeout(() => { trasloco.giro() }, 60_000)
+      // I traslochi chiesti da qui a un altro PC: si legge il suo stato finché lavora.
+      const fileSeguiti = join(dati, 'traslochi-seguiti.json')
+      try {
+        const g = JSON.parse(readFileSync(fileSeguiti, 'utf8')) as { id: string; pc: string; ultimo?: Trasloco }[]
+        for (const x of g) traslochiSeguiti.set(x.id, { pc: x.pc, ...(x.ultimo !== undefined ? { ultimo: x.ultimo } : {}), letto: 0 })
+      } catch { /* nessuno */ }
+      const salvaSeguiti = (): void => {
+        try { scriviJsonAtomico(fileSeguiti, [...traslochiSeguiti.entries()].map(([id, x]) => ({ id, pc: x.pc, ...(x.ultimo !== undefined ? { ultimo: x.ultimo } : {}) })), 'trasloco') } catch { /* solo un aiuto */ }
+      }
+      const timerSeguiti = setInterval(() => {
+        for (const [id, x] of traslochiSeguiti) {
+          const fermo = x.ultimo?.fermo !== undefined
+          const finitoIl = x.ultimo?.finitoIl ?? x.ultimo?.annullatoIl
+          if (finitoIl !== undefined && Date.now() - x.letto < 10 * 60_000) continue
+          if (fermo && Date.now() - x.letto < 60_000) continue
+          x.letto = Date.now()
+          void remoto.chiama(x.pc, '/api/trasloco/stato', { id }).then((t) => {
+            const nuovo = t as Trasloco | undefined
+            if (nuovo === undefined || typeof nuovo !== 'object' || nuovo.id !== id) return
+            const cambiato = JSON.stringify(nuovo) !== JSON.stringify(x.ultimo)
+            x.ultimo = nuovo
+            if (cambiato) { salvaSeguiti(); for (const w of webContents.getAllWebContents()) if (!w.isDestroyed()) w.send('casa:cambiate') }
+          }).catch(() => undefined)
+        }
+      }, 3000)
+      app.on('before-quit', () => { clearInterval(timerTrasloco); clearTimeout(primoTrasloco); clearInterval(timerSeguiti) })
+      /** «Sposta progetto» da qui verso un altro PC: il progetto sul Drive, poi lui fa il trasloco. */
+      const spostaVerso = async (progetto: string, pcId: string): Promise<{ ok: boolean; messaggio: string }> => {
+        const io = identitaPc.leggi()
+        if (pcId === io.id) return { ok: false, messaggio: 'È già questo PC.' }
+        const nome = postino.altrui().find((b) => b.pcId === pcId)?.nome ?? pcId.slice(0, 8)
+        registro.info(`[trasloco] «Sposta progetto» ${progetto} verso ${nome}: prima salvo qui sul Drive`)
+        const s = await sincronia.salva()
+        if (!s.ok) return { ok: false, messaggio: `Il salvataggio sul Drive non è riuscito (${s.messaggio ?? '?'}): non chiedo niente a ${nome}. Qui non è cambiato niente.` }
+        try {
+          const r = await remoto.chiama(pcId, '/api/trasloco/avvia', { progetto, da: io.id }) as { ok?: unknown; messaggio?: unknown; trasloco?: Trasloco }
+          if (r.ok !== true || r.trasloco === undefined) return { ok: false, messaggio: `${nome} non ha avviato il trasloco: ${typeof r.messaggio === 'string' ? r.messaggio : 'nessun motivo'}. Qui non è cambiato niente.` }
+          traslochiSeguiti.set(r.trasloco.id, { pc: pcId, ultimo: r.trasloco, letto: Date.now() })
+          salvaSeguiti()
+          return { ok: true, messaggio: `${nome} ha avviato il trasloco: lo vedi qui passo per passo.` }
+        } catch (err) {
+          return { ok: false, messaggio: `${nome} non risponde (${err instanceof Error ? err.message : String(err)}): qui non è cambiato niente.` }
+        }
+      }
+      // «Sposta progetto…» dalla finestra (0.65.0): una cartella di qui (sul Drive se non c'è ancora) e il PC dove va.
+      ipcMain.handle('trasloco:sposta', async (_e, cwd: unknown, dest: unknown) => {
+        if (typeof cwd !== 'string' || typeof dest !== 'string' || cwd === '' || dest === '') return { ok: false, messaggio: 'Scegli il progetto e il PC.' }
+        const me = identitaPc.leggi().id
+        let id = progettoDiCwd(registroProgetti.leggi(), cwd, me)?.id
+        if (id === undefined) {
+          const { registro: reg, progetto } = aggiungiProgetto(registroProgetti.leggi(), { pcId: me, percorso: cwd, adesso: new Date().toISOString() })
+          registroProgetti.scrivi(reg)
+          registro.info(`[trasloco] «${progetto.nome}» messo sul Drive da ${cwd}, per spostarlo`)
+          id = progetto.id
+        }
+        return spostaVerso(id, dest)
+      })
+      /** Riprendi e Annulla tutto: qui, o sul PC dove gira. */
+      const sulTrasloco = async (azione: 'riprendi' | 'annulla', id: string): Promise<{ ok: boolean; messaggio: string }> => {
+        if (trasloco.stato(id) !== undefined) return azione === 'riprendi' ? trasloco.riprendi(id) : trasloco.annullaTutto(id)
+        const x = traslochiSeguiti.get(id)
+        if (x === undefined) return { ok: false, messaggio: 'Trasloco non trovato.' }
+        try {
+          const r = await remoto.chiama(x.pc, `/api/trasloco/${azione}`, { id }) as { ok?: unknown; messaggio?: unknown }
+          x.letto = 0
+          return { ok: r.ok === true, messaggio: typeof r.messaggio === 'string' ? r.messaggio : 'Fatto.' }
+        } catch (err) {
+          return { ok: false, messaggio: `Il PC dove gira il trasloco non risponde: ${err instanceof Error ? err.message : String(err)}` }
+        }
+      }
+      // Il trasloco di un progetto di prova (0.65.0): anche chi collauda, solo «SierraDeck-prova-…».
+      provaTraslocoGlobale = async (corpo) => {
+        const c = (typeof corpo === 'object' && corpo !== null ? corpo : {}) as Record<string, unknown>
+        const azione = typeof c.azione === 'string' ? c.azione : ''
+        const id = typeof c.id === 'string' ? c.id : ''
+        const progetto = typeof c.progetto === 'string' ? c.progetto : (trasloco.stato(id)?.progetto ?? traslochiSeguiti.get(id)?.ultimo?.progetto ?? '')
+        const nome = (await gruppoPerTrasloco(progetto))?.nome ?? trasloco.stato(id)?.nome ?? traslochiSeguiti.get(id)?.ultimo?.nome ?? ''
+        if (!cartellaDiProva(nome)) return { ok: false, stato: 403, messaggio: `«${nome || progetto}» non è un progetto di prova: così si traslocano solo i progetti «${PREFISSO_CARTELLA_PROVA}…». Gli altri li sposti tu.` }
+        registro.info(`[prova] trasloco del progetto di prova «${nome}» (${azione}): chiesto da chi collauda`)
+        if (azione === 'residente') { const e = await trasloco.avvia(progetto, { da: identitaPc.leggi().id, come: 'residente' }); return { ok: e.ok, messaggio: e.messaggio, ...(e.trasloco !== undefined ? { id: e.trasloco.id } : {}) } }
+        if (azione === 'sposta') return spostaVerso(progetto, typeof c.pc === 'string' ? c.pc : '')
+        if (azione === 'riprendi' || azione === 'annulla') return sulTrasloco(azione, id)
+        if (azione === 'stato') { const t = trasloco.stato(id) ?? traslochiSeguiti.get(id)?.ultimo; return { ok: t !== undefined, messaggio: t === undefined ? 'non trovato' : JSON.stringify(t) } }
+        return { ok: false, stato: 400, messaggio: 'azione sconosciuta: residente, sposta, riprendi, annulla, stato' }
+      }
+      // Il lato di questo PC quando un altro gli trasloca (o gli toglie) un progetto.
+      const idQui = (corpo: unknown): string | undefined => {
+        const ids = Array.isArray((corpo as { ids?: unknown } | undefined)?.ids) ? ((corpo as { ids: unknown[] }).ids).filter((x): x is string => typeof x === 'string') : []
+        return ids.find((x) => cartellaQui(x) !== undefined) ?? ids.find((x) => registroProgetti.leggi().progetti.some((p) => p.id === x)) ?? ids[0]
+      }
+      const togliSenzaCartella = new Map<string, { fase: string; messaggio: string }>()
+      latoTraslocoGlobale = {
+        salva: async () => { const r = await sincronia.salva(); return { ok: r.ok, messaggio: r.messaggio ?? (r.ok ? 'salvato' : 'non salvato') } },
+        togli: async (corpo) => {
+          const id = idQui(corpo)
+          if (id === undefined) return { ok: false, messaggio: 'manca il progetto' }
+          if (cartellaQui(id) === undefined) {
+            togliSenzaCartella.set(id, { fase: 'errore', messaggio: 'Su questo PC il progetto non ha una cartella: niente da togliere.' })
+            return { ok: true }
+          }
+          // Il residente nuovo, se la sua scelta non è ancora arrivata qui: è il trasloco confermato da Nicholas.
+          const res = (corpo as { residente?: { pc?: unknown; nome?: unknown } } | undefined)?.residente
+          const g = gruppoDiId(gruppiProgetti(), id)
+          if (typeof res?.pc === 'string' && typeof res.nome === 'string' && casaDelGruppo(unaCasa.case(), g?.ids ?? [id])?.pc !== res.pc) {
+            await unaCasa.memorizza({ [`progetto:${g?.id ?? id}`]: { pc: res.pc, pcNome: res.nome, decisaIl: new Date().toISOString(), da: 'nicholas', motivo: `trasloco confermato da Nicholas: residente ${res.nome}` } })
+          }
+          registro.info(`[trasloco] ${typeof res?.nome === 'string' ? res.nome : 'un altro PC'} è il residente nuovo di ${id}: confronto la copia di qui con la sua, copio là quello che c’è solo qui, poi la metto nel recupero`)
+          void (async () => {
+            const st = await rim.avvia(id)
+            if (st.fase === 'attesa-conferma') rim.conferma(id)
+          })().catch((err: unknown) => registro.info(`[trasloco] togli ${id}: ${String(err)}`))
+          return { ok: true }
+        },
+        'togli-stato': async (corpo) => {
+          const id = idQui(corpo)
+          if (id === undefined) return { fase: 'errore', messaggio: 'manca il progetto' }
+          const g = gruppoDiId(gruppiProgetti(), id)
+          const st = rim.stati().find((x) => x.progetto === id || (g?.ids ?? []).includes(x.progetto))
+          return st !== undefined ? { fase: st.fase, messaggio: st.messaggio } : (togliSenzaCartella.get(id) ?? { fase: 'analisi', messaggio: 'Comincio…' })
+        },
+        ripristina: async (corpo) => {
+          const id = idQui(corpo)
+          const ids = new Set(Array.isArray((corpo as { ids?: unknown } | undefined)?.ids) ? (corpo as { ids: string[] }).ids : [id ?? ''])
+          const c = rim.inRecupero().find((x) => ids.has(x.progetto) && x.ripristinataIl === undefined)
+          if (c === undefined) return { ok: false, messaggio: 'qui non c’è una copia nel recupero' }
+          return rim.ripristina(c.id)
+        },
+        avvia: async (corpo) => {
+          const c = (corpo ?? {}) as { progetto?: unknown; da?: unknown }
+          if (typeof c.progetto !== 'string' || c.progetto === '') return { ok: false, messaggio: 'manca il progetto' }
+          return trasloco.avvia(c.progetto, { da: typeof c.da === 'string' ? c.da : '', come: 'sposta' })
+        },
+        stato: async (corpo) => trasloco.stato(typeof (corpo as { id?: unknown } | undefined)?.id === 'string' ? (corpo as { id: string }).id : '') ?? {},
+        riprendi: async (corpo) => trasloco.riprendi(String((corpo as { id?: unknown } | undefined)?.id ?? '')),
+        annulla: async (corpo) => trasloco.annullaTutto(String((corpo as { id?: unknown } | undefined)?.id ?? ''))
+      }
       /**
        * Le azioni del pannello e dell'elenco dei progetti (0.58.0, tappa 4), una
        * sola strada per il PC, la pagina e l'app: aprire, portare qui, scegliere
@@ -2760,6 +3003,21 @@ if (!app.requestSingleInstanceLock()) {
         const g = registroProgetti.leggi().progetti.find((x) => x.id === progetto)
         const io = identitaPc.leggi()
         const fine = (s: StatoRimozione | undefined): { ok: boolean; messaggio: string } => ({ ok: s !== undefined && s.fase !== 'errore', messaggio: s?.messaggio ?? 'Niente da fare.' })
+        // Lo spazio sul Drive (0.65.0): ogni pulizia è confermata da Nicholas, va nel recupero ed è annullabile.
+        if (azione === 'spazio-misura') { await spazio.stato(true); return { ok: true, messaggio: 'Misurato adesso.' } }
+        if (azione === 'spazio-pulisci') {
+          const tipo = testoDi(c.tipo)
+          if (tipo !== 'doppie' && tipo !== 'vecchie' && tipo !== 'recupero-scaduto') return { ok: false, messaggio: 'Pulizia sconosciuta.' }
+          const e = await spazio.pulisci(tipo)
+          void spazio.stato(true)
+          return { ok: e.ok, messaggio: e.messaggio }
+        }
+        if (azione === 'spazio-annulla' || azione === 'spazio-svuota') {
+          const id = testoDi(c.id)
+          const e = azione === 'spazio-annulla' ? await spazio.annulla(id) : await spazio.svuota(id)
+          void spazio.stato(true)
+          return e
+        }
         if (azione === 'apri') {
           const cartella = cartellaQui(progetto)
           if (cartella === undefined) return { ok: false, messaggio: 'Su questo PC il progetto non ha una cartella: prima «Porta qui».' }
@@ -2782,12 +3040,14 @@ if (!app.requestSingleInstanceLock()) {
         // Analisi e unione possono durare minuti (impronte di tutti i file,
         // scaricamenti dal Drive): partono in sottofondo, e lo stato con il
         // riassunto compare nel pannello del PC, della pagina e dell'app.
+        // Dalla 0.65.0 «Rendi residente qui» è il trasloco: un passaggio solo, automatico,
+        // con le copie vecchie nel recupero solo alla fine e «Annulla tutto» per 30 giorni.
         if (azione === 'residente-qui') {
-          if (g === undefined && gruppoDiId(gruppiProgetti(), progetto) === undefined) return { ok: false, messaggio: 'Progetto sconosciuto.' }
-          ultimoPannello = await leggiPannello()
-          void residenza.avvia(progetto)
-          return { ok: true, messaggio: 'Raccolgo e confronto tutte le copie: il riassunto compare qui nel pannello fra poco, con «Conferma e unisci» e «Annulla». Finché non confermi non cambia niente.' }
+          const e = await trasloco.avvia(progetto, { da: io.id, come: 'residente' })
+          return { ok: e.ok, messaggio: e.messaggio }
         }
+        if (azione === 'trasloco-sposta') return spostaVerso(progetto, testoDi(c.pc))
+        if (azione === 'trasloco-riprendi' || azione === 'trasloco-annulla') return sulTrasloco(azione === 'trasloco-riprendi' ? 'riprendi' : 'annulla', testoDi(c.id))
         if (azione === 'conferma-residenza') {
           ultimoPannello = await leggiPannello()
           void residenza.conferma(progetto)
@@ -4185,6 +4445,8 @@ if (!app.requestSingleInstanceLock()) {
         alTelefono: coda,
         quadernoPersonale,
         pannelloDrive: () => pannelloDriveGlobale?.() ?? Promise.resolve({ errore: 'non pronto' }),
+        trasloco: () => latoTraslocoGlobale,
+        provaTrasloco: (corpo: unknown) => provaTraslocoGlobale?.(corpo) ?? Promise.resolve({ ok: false, messaggio: 'Il trasloco non è ancora pronto: la cassaforte o il Drive non sono aperti.' }),
         azioneDrive: (c: unknown) => azioneDriveGlobale?.(c) ?? Promise.resolve({ ok: false, messaggio: 'Il pannello non è ancora pronto: la cassaforte o il Drive non sono aperti.' }),
         // Letto a ogni richiesta: nasce con «una chat, una casa».
         rimozione: {

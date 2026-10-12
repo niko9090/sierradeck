@@ -11,7 +11,7 @@ import { pesaRadici, radiciDaSincronizzare, percorsoSicuro, type Radice } from '
 import { giorniDiRitenzione, fuoriRitenzione } from './ritenzione-claude'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
-import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi, stessaFirma, giaArrivata, scriviManifesto, nomeDi, impronta, copiaManifesto } from './incrementale'
+import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, type VoceManifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi, stessaFirma, giaArrivata, scriviManifesto, nomeDi, impronta, copiaManifesto } from './incrementale'
 import { applicaBlocco } from './lavoro'
 import type { Lavoro, Presa, TipoLavoro } from './lavoro-in-corso'
 import { costruisciCatalogo, scelteDiPortaQui, type Catalogo } from './catalogo'
@@ -173,6 +173,12 @@ export type Sincronia = {
   /** Il manifesto com'e' adesso sul Drive; `undefined` se chiuso, scollegato o assente. */
   manifestoDrive: () => Promise<Manifesto | undefined>
   /**
+   * Cambia il manifesto del Drive sotto il lavoro in corso (0.65.0, le
+   * pulizie): `cambia` riceve quello attuale e restituisce il nuovo, o
+   * `undefined` per non scrivere niente.
+   */
+  modificaManifestoDrive: (cambia: (m: Manifesto) => Manifesto | undefined, cosa: string) => Promise<{ ok: boolean; messaggio?: string }>
+  /**
    * Un file del Drive in chiaro, secondo quel manifesto (0.60.0, «Rendi
    * residente»: le copie degli altri PC si scaricano una per una, solo quelle
    * che servono). Solo lettura: niente lavoro esclusivo, niente manifesto scritto.
@@ -309,6 +315,8 @@ export function apriSincronia(deps: {
    * qui). Senza, tutto come prima.
    */
   unaCasa?: { saleDaQui: (percorso: string) => boolean; scendeQui: (percorso: string) => boolean }
+  /** Tolto dal Drive con una pulizia e uguale a com'era (0.65.0): non risale. */
+  fuoriDalDrive?: (percorso: string, size?: number) => boolean
 }): Sincronia {
   const adesso = deps.adesso ?? ((): string => new Date().toISOString())
   /** Quante chat l'ultimo arrivo ha lasciato sul Drive perche' fuori ritenzione: si scrive nel registro solo quando cambia. */
@@ -792,7 +800,10 @@ export function apriSincronia(deps: {
           sostituto: (percorso, contenuto, base) => unioneWorkspace(m, percorso, contenuto, base),
           // Una chat, una casa (0.42.0): le copie fuori casa non salgono, e
           // ogni chat caricata porta il suo PC.
-          ...(deps.unaCasa !== undefined ? { escludi: (p: string) => !(deps.unaCasa as { saleDaQui: (p: string) => boolean }).saleDaQui(p) } : {}),
+          // e (0.65.0) quelle tolte dal Drive con una pulizia non risalgono finché sono uguali.
+          escludi: (p: string, f?: { size: number }) =>
+            (deps.unaCasa !== undefined && !(deps.unaCasa as { saleDaQui: (p: string) => boolean }).saleDaQui(p)) ||
+            (deps.fuoriDalDrive?.(p, f?.size) ?? false),
           ...(deps.pcId !== undefined ? { proprietario: deps.pcId() } : {})
         })
         scriviManifestoLocale(esito.manifesto)
@@ -1439,6 +1450,40 @@ export function apriSincronia(deps: {
 
     manifestoNoto() {
       return leggiManifestoLocale()
+    },
+    async modificaManifestoDrive(cambia, cosa) {
+      if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
+      if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
+      const m = maestra
+      const l = prendiLavoro('salvataggio')
+      if (l.errore !== undefined) return { ok: false, messaggio: l.errore }
+      const r = await (async (): Promise<{ ok: boolean; messaggio?: string }> => {
+        try {
+          const a = deps.archivio()
+          const esito = await leggiManifesto(a, m)
+          if (esito.stato !== 'ok') return { ok: false, messaggio: 'il manifesto del Drive non si apre: non tocco niente' }
+          const dopo = cambia(esito.manifesto)
+          if (dopo === undefined) return { ok: true }
+          await scriviManifesto(a, m, { ...dopo, creatoIl: adesso() })
+          // Il manifesto locale segue: le voci tolte qui non sembrano «sparite dal Drive».
+          const locale = leggiManifestoLocale()
+          const tolte = Object.keys(esito.manifesto.file).filter((k) => dopo.file[k] === undefined)
+          const rimesse = Object.keys(dopo.file).filter((k) => esito.manifesto.file[k] === undefined)
+          if (tolte.length > 0 || rimesse.length > 0) {
+            const nuovo: Manifesto = { ...locale, file: { ...locale.file } }
+            for (const k of tolte) delete nuovo.file[k]
+            for (const k of rimesse) if (locale.file[k] === undefined) nuovo.file[k] = dopo.file[k] as VoceManifesto
+            scriviManifestoLocale(nuovo)
+          }
+          log(`${cosa}: ${tolte.length} voci tolte e ${rimesse.length} rimesse nel manifesto del Drive`)
+          return { ok: true }
+        } catch (e) {
+          log(`${cosa} fallito: ${messaggioDi(e)}`)
+          return { ok: false, messaggio: messaggioDi(e) }
+        }
+      })()
+      chiudiLavoro(l.presa, r, cosa)
+      return r
     },
     async manifestoDrive() {
       if (maestra === undefined || !deps.driveConnesso()) return undefined

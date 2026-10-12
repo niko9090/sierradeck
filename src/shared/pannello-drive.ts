@@ -1,3 +1,5 @@
+import type { Trasloco } from './trasloco'
+import type { StatoSpazio } from './spazio-drive'
 import type { CaseChat, FonteCasa } from './una-casa'
 import type { PianoAllineamento } from './allineamento'
 import { casaDelGruppo, eSenzaNome, raggruppaProgetti, workspaceDelGruppo, type GruppoProgetti } from './progetti-unificati'
@@ -115,6 +117,10 @@ export type Pannello = {
   residenza?: StatoResidenza[]
   /** Le unioni fatte negli ultimi 30 giorni: «Annulla l’unione» (0.60.0). */
   unioni?: UnioneFatta[]
+  /** Lo spazio sul Drive e le pulizie (0.65.0). Assente mentre la prima misura è in corso. */
+  spazio?: StatoSpazio
+  /** I traslochi (0.65.0): quelli che girano su questo PC e quelli chiesti da qui a un altro. */
+  traslochi?: Trasloco[]
 }
 
 export type UnioneFatta = { id: string; progetto: string; nome: string; quando: string; destinazione: string; scadeIl: string }
@@ -411,8 +417,8 @@ export function azioniProgetto(r: RigaProgetto, io: PcNoto): AzioneProgetto[] {
     const gia = r.residente?.qui === true
     fuori.push({
       id: 'residente-qui', titolo: gia ? 'Unisci qui le copie' : 'Rendi residente qui',
-      testo: `${gia ? `Questo PC (${io.nome}) è già il residente di «${r.nome}», ma ci sono copie da unire.` : `Questo PC (${io.nome}) diventerà il residente di «${r.nome}» (adesso è ${residente}).`} Prima raccolgo tutte le copie — le cartelle con lo stesso nome qui, quelle degli altri PC salvate sul Drive${r.ids.length > 1 ? ` (registrato ${r.ids.length} volte)` : ''}, le chat, le note e il quaderno${r.workspace.length > 1 ? `, i workspace ${r.workspace.map((w) => `«${w}»`).join(', ')}` : ''} — e le confronto per impronta. Poi ti mostro un riassunto: cosa unisco, cosa tengo, cosa va in recupero. Solo con la tua conferma il progetto diventa uno solo qui, con un workspace solo; le copie doppie vanno nella cartella di recupero per 30 giorni e si possono rimettere. Niente si cancella. Le ${r.chat} chat lavoreranno qui; sugli altri PC il progetto diventa «solo cloud», tolto solo dopo il loro confronto e la tua conferma.`,
-      conferma: 'Analizza le copie e prepara il riassunto'
+      testo: `${gia ? `Questo PC (${io.nome}) è già il residente di «${r.nome}», ma ci sono copie da unire.` : `Questo PC (${io.nome}) diventa il residente di «${r.nome}» (adesso è ${residente}).`} Un passaggio solo, automatico (0.65.0): gli altri PC salvano la loro copia sul Drive; confronto tutte le copie per impronta${r.ids.length > 1 ? ` (registrato ${r.ids.length} volte)` : ''}; unisco qui i file che mancano, le chat${r.workspace.length > 1 ? ` e i workspace ${r.workspace.map((w) => `«${w}»`).join(', ')} in uno` : ''}, con le versioni diverse nei recuperati; solo alla fine le copie vecchie vanno nel recupero dei loro PC, dopo aver copiato qui quello che c’era solo là. Lo segui passo per passo; se un PC non risponde mi fermo e riprendo da lì. Niente si cancella: «Annulla tutto» per 30 giorni.`,
+      conferma: 'Conferma: trasloca qui'
     })
   }
   if (r.cartellaQui && r.residente !== undefined && r.residente.qui !== true) {

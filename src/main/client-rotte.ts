@@ -203,6 +203,17 @@ export type DipendenzeRotte = {
    * con la chiave di casa (dispositivo `pc`), mai per un telefono.
    */
   sposta?: { pronto: () => unknown; ricevi: (corpo: unknown) => Promise<unknown>; verifica: (sessioni: string[]) => Promise<unknown> }
+  /**
+   * Il trasloco di un progetto (0.65.0), fra PC della stessa cassaforte:
+   * `salva`, `togli`, `togli-stato`, `ripristina` (questo PC ha una copia
+   * vecchia), `avvia`, `stato`, `riprendi`, `annulla` (il trasloco gira qui).
+   */
+  trasloco?: () => Record<string, (corpo: unknown) => Promise<unknown>> | undefined
+  /**
+   * Il trasloco di un progetto di prova (0.65.0): lo chiede anche chi
+   * collauda, solo per i progetti «SierraDeck-prova-…» (lo controlla questo PC).
+   */
+  provaTrasloco?: (corpo: unknown) => Promise<{ ok: boolean; messaggio: string; stato?: number }>
   /** Le case delle chat (0.52.0, «Ospitata da»): solo fra PC della stessa cassaforte. */
   caseChat?: { leggi: () => unknown; ricevi: (corpo: unknown) => Promise<unknown> }
   /** «Salute del sistema» (0.44.0): il Drive, gli altri PC, gli errori, con spiegazioni e azioni. */
@@ -1828,6 +1839,20 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (deps.caseChat === undefined) return { stato: 404, corpo: { errore: 'questo computer non conosce ancora le case delle chat' } }
       if (r.metodo === 'POST') return OK((await deps.caseChat.ricevi(r.corpo).catch((e: unknown) => ({ ok: false, messaggio: String(e) }))) as object)
       return OK(deps.caseChat.leggi() as object)
+    }
+    // Il trasloco (0.65.0): solo da un altro PC di casa.
+    if (r.metodo === 'POST' && r.percorso.startsWith('/api/trasloco/')) {
+      if (!daAltroPc(r.dispositivo)) return { stato: 403, corpo: { errore: 'solo un altro PC con la stessa cassaforte' } }
+      const lato = deps.trasloco?.()
+      if (lato === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora traslocare un progetto: aggiornalo alla 0.65.0.' } }
+      const fai = lato[r.percorso.slice('/api/trasloco/'.length)]
+      if (fai === undefined) return { stato: 404, corpo: { errore: 'non trovato' } }
+      return OK(((await fai(r.corpo).catch((e: unknown) => ({ ok: false, messaggio: e instanceof Error ? e.message : String(e) }))) ?? {}) as object)
+    }
+    if (r.metodo === 'POST' && r.percorso === '/api/prova/trasloco') {
+      if (deps.provaTrasloco === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora traslocare un progetto: aggiornalo alla 0.65.0.' } }
+      const e = await deps.provaTrasloco(r.corpo)
+      return e.ok ? OK(e) : { stato: e.stato ?? 409, corpo: { errore: e.messaggio } }
     }
     // «Sposta progetto» (0.42.0): chi riceve. Solo da un altro PC di casa.
     if (r.percorso.startsWith('/api/sposta/')) {

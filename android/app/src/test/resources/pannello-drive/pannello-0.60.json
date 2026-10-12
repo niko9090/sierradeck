@@ -154,8 +154,8 @@
         {
           "id": "residente-qui",
           "titolo": "Rendi residente qui",
-          "testo": "Questo PC (PC-ESEMPIO) diventerà il residente di «Gestionale» (adesso è PORTATILE-ESEMPIO). Prima raccolgo tutte le copie — le cartelle con lo stesso nome qui, quelle degli altri PC salvate sul Drive (registrato 2 volte), le chat, le note e il quaderno, i workspace «Gestionale», «gestionale (2)» — e le confronto per impronta. Poi ti mostro un riassunto: cosa unisco, cosa tengo, cosa va in recupero. Solo con la tua conferma il progetto diventa uno solo qui, con un workspace solo; le copie doppie vanno nella cartella di recupero per 30 giorni e si possono rimettere. Niente si cancella. Le 3 chat lavoreranno qui; sugli altri PC il progetto diventa «solo cloud», tolto solo dopo il loro confronto e la tua conferma.",
-          "conferma": "Analizza le copie e prepara il riassunto"
+          "testo": "Questo PC (PC-ESEMPIO) diventa il residente di «Gestionale» (adesso è PORTATILE-ESEMPIO). Un passaggio solo, automatico (0.65.0): gli altri PC salvano la loro copia sul Drive; confronto tutte le copie per impronta (registrato 2 volte); unisco qui i file che mancano, le chat e i workspace «Gestionale», «gestionale (2)» in uno, con le versioni diverse nei recuperati; solo alla fine le copie vecchie vanno nel recupero dei loro PC, dopo aver copiato qui quello che c’era solo là. Lo segui passo per passo; se un PC non risponde mi fermo e riprendo da lì. Niente si cancella: «Annulla tutto» per 30 giorni.",
+          "conferma": "Conferma: trasloca qui"
         },
         {
           "id": "solo-cloud-qui",

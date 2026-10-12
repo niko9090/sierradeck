@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.65.0',
+    righe: [
+      '**«Sposta progetto» e «Rendi residente» sono un passaggio solo, e non cancella più niente.** Il PC che diventa residente raccoglie le copie, le confronta file per file, unisce qui quello che serve e solo alla fine mette le copie vecchie nel recupero dei loro PC. Lo segui passo per passo in «Progetti»; se un PC non risponde si ferma e riprende da lì. «Annulla tutto» per 30 giorni.',
+      '**Lo spazio sul Drive, in «Progetti».** Quanto usa SierraDeck, per tipo, e lo spazio del tuo account Google. Le pulizie proposte (copie doppie, chat vecchie già sui PC, recupero scaduto) le confermi tu, vanno nel recupero per 30 giorni e si annullano.',
+      '**La casa di una chat non cambia più perché un PC è spento.** Con il PC di casa assente o scollegato dal Drive la casa resta e il riquadro dice «non raggiungibile». Cambia solo se la scegli tu.',
+      '**La cassaforte si riapre da sola anche se all’avvio il portachiavi non era pronto**, e se resta chiusa lo dice una riga in cima con «Aprila».'
+    ]
+  },
+  {
     versione: '0.64.3',
     righe: [
       '**Niente falso «non raggiungibile» per questo stesso PC.** Il controllo dei workspace che non stai guardando salta i riquadri che puntano a questo computer: prima scriveva nel registro che «questo PC» non rispondeva. Non toglieva niente, ma la riga confondeva.'

@@ -364,6 +364,38 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
       }
     },
 
+    async elencaConDimensioni() {
+      const tk = await deps.token()
+      const fuori: { nome: string; byte: number; modificato?: string }[] = []
+      let pageToken: string | undefined
+      do {
+        const campi = encodeURIComponent('nextPageToken,files(id,name,size,modifiedTime)')
+        const url = `${API}/files?spaces=appDataFolder&pageSize=1000&fields=${campi}${pageToken !== undefined ? `&pageToken=${pageToken}` : ''}`
+        const r = await conRitenta(() => f(url, { headers: intestazioni(tk) }), 'elenco con le dimensioni')
+        const j = (await r.json()) as { nextPageToken?: string; files?: Array<{ id?: string; name?: string; size?: string; modifiedTime?: string }> }
+        for (const file of j.files ?? []) {
+          if (file.name === undefined) continue
+          if (file.id !== undefined) idPerNome.set(file.name, file.id)
+          fuori.push({ nome: file.name, byte: Number.parseInt(file.size ?? '0', 10) || 0, ...(file.modifiedTime !== undefined ? { modificato: file.modifiedTime } : {}) })
+        }
+        pageToken = j.nextPageToken
+      } while (pageToken !== undefined)
+      return fuori
+    },
+
+    async quota() {
+      // Lo spazio dell'account (0.65.0): basta il permesso drive.appdata.
+      const tk = await deps.token()
+      const r = await conRitenta(() => f(`${API}/about?fields=${encodeURIComponent('storageQuota')}`, { headers: intestazioni(tk) }), 'quota')
+      const j = (await r.json()) as { storageQuota?: { limit?: string; usage?: string; usageInDrive?: string; usageInDriveTrash?: string } }
+      const n = (x: string | undefined): number | undefined => (x === undefined ? undefined : Number.parseInt(x, 10))
+      const q = j.storageQuota ?? {}
+      const limite = n(q.limit)
+      const nelDrive = n(q.usageInDrive)
+      const cestino = n(q.usageInDriveTrash)
+      return { usato: n(q.usage) ?? 0, ...(limite !== undefined ? { limite } : {}), ...(nelDrive !== undefined ? { usatoNelDrive: nelDrive } : {}), ...(cestino !== undefined ? { nelCestino: cestino } : {}) }
+    },
+
     async cancella(nome) {
       const tk = await deps.token()
       const file = await trovaPerNome(tk, nome)
