@@ -29,6 +29,16 @@ describe('componiAvvisi', () => {
     expect(componiAvvisi(fonti())).toEqual([])
   })
 
+  it('la cassaforte chiusa con il Drive collegato: una riga chiara, con il gesto che la apre (0.65.0)', () => {
+    const a = componiAvvisi(fonti({ cassaforte: { serve: true, aperta: false } }))
+    expect(a).toHaveLength(1)
+    expect(a[0]).toMatchObject({ id: 'cassaforte', azione: 'apriAccount', etichettaAzione: 'Aprila' })
+    expect(a[0]?.testo).toContain('gli altri PC e il telefono non entrano')
+    // Aperta, o senza Drive o cassaforte: niente.
+    expect(componiAvvisi(fonti({ cassaforte: { serve: true, aperta: true } }))).toEqual([])
+    expect(componiAvvisi(fonti({ cassaforte: { serve: false, aperta: false } }))).toEqual([])
+  })
+
   it('l accesso mancante viene prima di tutto', () => {
     // Senza accesso nessuna chat parte: ogni altro avviso e' una conseguenza.
     const avvisi = componiAvvisi(fonti({

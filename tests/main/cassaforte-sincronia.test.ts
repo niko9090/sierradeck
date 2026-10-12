@@ -206,6 +206,31 @@ describe('sincronia incrementale: giro completo fra due PC', () => {
     expect(existsSync(join(a.dati, FILE_MAESTRA_RICORDATA))).toBe(false)
   })
 
+  it('il portachiavi non ancora pronto all avvio: la chiave ricordata resta, e la cassaforte si riapre da sola dopo (0.65.0)', async () => {
+    const drive = driveCondiviso()
+    const a = pc('A'); traccia(a)
+    let pronto = true
+    const portachiavi: Portachiavi = {
+      disponibile: () => pronto,
+      cifra: (chiaro) => `dpapi:${chiaro.toString('base64')}`,
+      decifra: (cifrato) => { if (!pronto) throw new Error('non pronto'); return Buffer.from(cifrato.slice('dpapi:'.length), 'base64') }
+    }
+    const prima = apriSincronia({ dati: a.dati, radiceClaude: a.claude, driveConnesso: () => true, magazzino: drive.magazzino, archivio: drive.archivio, portachiavi })
+    expect((await prima.creaPassphrase('segreta')).ok).toBe(true)
+    const chiaveDiPrima = prima.chiaveDiCasa('client-pc:pc-A')
+    // «Riavvio» con il portachiavi di Windows che non risponde ancora.
+    pronto = false
+    const dopo = apriSincronia({ dati: a.dati, radiceClaude: a.claude, driveConnesso: () => true, magazzino: drive.magazzino, archivio: drive.archivio, portachiavi })
+    expect((await dopo.stato()).sbloccato).toBe(false)
+    expect(dopo.riapriDalPortachiavi()).toBe(false)
+    expect(existsSync(join(a.dati, FILE_MAESTRA_RICORDATA))).toBe(true)
+    // Un minuto dopo è pronto: si riapre da sola, con la stessa chiave di casa.
+    pronto = true
+    expect(dopo.riapriDalPortachiavi()).toBe(true)
+    expect((await dopo.stato()).sbloccato).toBe(true)
+    expect(dopo.chiaveDiCasa('client-pc:pc-A')).toBe(chiaveDiPrima)
+  })
+
   it('senza portachiavi, o con il portachiavi non disponibile, si lavora come prima', async () => {
     const drive = driveCondiviso()
     const a = pc('A'); traccia(a)

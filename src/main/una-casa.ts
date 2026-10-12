@@ -5,7 +5,7 @@ import {
   casaDa, caseVuote, decidiCasa, fuoriCasa, leggiCase, perCasa, pianoAnnulla, pianoRiordino, unisciCase,
   type CasaChat, type CaseChat, type ChatQui, type Decisione, type FuoriCasa, type IndiziChat, type RegistroRiordino, type Spostamento
 } from '@shared/una-casa'
-import type { BattitoPc } from '@shared/posta'
+import { pcVivo, type BattitoPc } from '@shared/posta'
 import { nomeNormalizzato } from '@shared/progetti-unificati'
 import type { Scatola } from './progetti/presenza'
 
@@ -93,6 +93,8 @@ export function creaUnaCasa(deps: {
       nome: b.nome,
       haCartella: c.cwd !== undefined && (b.cartelle.some((x) => uguale(x, c.cwd as string) || dentro(c.cwd as string, x)) || b.chat.some((x) => uguale(x.cwd, c.cwd as string))),
       aperta: b.chat.some((x) => x.sessione === c.sessione),
+      // Battito vecchio o senza le chat sul disco: quello che non dice non vale come «non ce l'ha» (0.65.0).
+      ...(!pcVivo(b, Date.now()) || b.locali === undefined ? { incerto: true } : {}),
       // Stesso nome = stesso progetto (0.60.0): una sua cartella con il nome di questa.
       ...(c.cwd !== undefined && b.cartelle.some((x) => nomeNormalizzato(ultimaCartella(x)) === nomeNormalizzato(ultimaCartella(c.cwd as string))) ? { stessoNome: true } : {})
     }))

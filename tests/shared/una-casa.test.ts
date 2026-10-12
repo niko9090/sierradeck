@@ -28,6 +28,14 @@ describe('la regola della casa', () => {
     expect(d).toMatchObject({ pc: 'lap', regola: 'cartella' })
     expect(d.motivo).toContain('c\'è solo su LAPTOP')
   })
+  it('2. un PC assente (battito vecchio o che non dice le sue chat) non prova che la cartella «c’è solo qui» (0.65.0)', () => {
+    const conAssente = { ...base, drive: { size: 2000, pc: 'lap' }, altri: [{ ...LAP, haCartella: false, aperta: false, incerto: true }] }
+    const d = decidiCasa(conAssente, FISSO)
+    expect(d.regola).not.toBe('cartella')
+    expect(d.motivo).not.toContain('c\'è solo su')
+    // Con lo stesso PC presente e senza la cartella, la regola della cartella vale come prima.
+    expect(decidiCasa({ ...conAssente, altri: [{ ...LAP, haCartella: false, aperta: false }] }, FISSO).regola).toBe('cartella')
+  })
   it('3. la cartella su tutti e due: vince dove è aperta adesso', () => {
     const d = decidiCasa({ ...base, drive: { size: 1000 }, altri: [{ ...LAP, haCartella: true, aperta: true }] }, FISSO)
     expect(d).toMatchObject({ pc: 'lap', regola: 'attivita' })

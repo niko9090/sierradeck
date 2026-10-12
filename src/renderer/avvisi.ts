@@ -14,6 +14,7 @@ export type Avviso = {
     | 'apriAccesso'
     | 'apriPreparazione'
     | 'apriFinestra'
+    | 'apriAccount'
   etichettaAzione?: string
   /**
    * Gli altri gesti accanto al principale (0.37.0): per un autopilota fermo
@@ -55,6 +56,11 @@ export type FontiAvvisi = {
   preparazione?: StatoPreparazione
   /** Le chiavi degli avvisi chiusi con «Chiudi» (dalle preferenze, sopravvive al riavvio). */
   chiusi?: string[]
+  /**
+   * La cassaforte (0.65.0): `serve` se questo PC ne ha una e il Drive è
+   * collegato. Assente = non lo sappiamo ancora.
+   */
+  cassaforte?: { serve: boolean; aperta: boolean }
 }
 
 /**
@@ -121,6 +127,19 @@ export function componiAvvisi(fonti: FontiAvvisi): Avviso[] {
   // niente da chiedere: si premeva «Rispondi» e si trovava scritto «si sta
   // preparando». Un avviso che manda dove non c'è niente da fare insegna a non
   // fidarsi di quelli veri.
+  // La cassaforte chiusa (0.65.0): senza, gli altri PC e il telefono bussano
+  // qui e non entrano, e lo vedevano solo loro («non riconosce la chiave»).
+  // All'avvio si riapre da sola dal portachiavi; se resta chiusa, serve te.
+  if (fonti.cassaforte?.serve === true && !fonti.cassaforte.aperta) {
+    avvisi.push({
+      id: 'cassaforte',
+      gravita: 'blocco',
+      testo: 'Cassaforte chiusa: gli altri PC e il telefono non entrano qui.',
+      azione: 'apriAccount',
+      etichettaAzione: 'Aprila'
+    })
+  }
+
   const inAttesa = fonti.autopiloti.filter((a) => a.stato === 'attesa')
   if (inAttesa.length > 0) {
     avvisi.push({

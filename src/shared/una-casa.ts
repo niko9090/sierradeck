@@ -95,8 +95,10 @@ export type IndiziChat = {
    * Gli altri PC noti: se hanno la cartella e se la chat è aperta là adesso.
    * `stessoNome` (0.60.0): hanno una cartella con lo stesso nome in un altro
    * percorso, cioè lo stesso progetto.
+   * `incerto` (0.65.0): il suo battito è vecchio (PC spento o scollegato dal
+   * Drive) o non dice le sue chat: «non ha la cartella» non è una prova.
    */
-  altri: { pcId: string; nome: string; haCartella: boolean; aperta: boolean; stessoNome?: boolean }[]
+  altri: { pcId: string; nome: string; haCartella: boolean; aperta: boolean; stessoNome?: boolean; incerto?: boolean }[]
   /** La copia sul Drive, se c'è: lunghezza e chi l'ha caricata (dalla 0.42.0). */
   drive?: { size: number; pc?: string }
 }
@@ -122,7 +124,11 @@ export function decidiCasa(i: IndiziChat, io: { id: string; nome: string }, memo
   // «MT5»: la regola aveva dato la casa al PC con un'altra «Trading».
   const conCartella = [...(i.cartellaQui ? [{ pcId: io.id, nome: io.nome }] : []), ...i.altri.filter((a) => a.haCartella)]
   const stessoNome = i.altri.filter((a) => !a.haCartella && a.stessoNome === true)
-  if (i.cwd !== undefined && conCartella.length === 1 && stessoNome.length === 0) {
+  // Un PC assente non dice le sue cartelle: «c'è solo qui» non si può sapere
+  // (0.65.0). Il 02/10 la migrazione ha dato centinaia di case così, mentre il
+  // portatile aveva un battito di una versione che non elencava tutto.
+  const incerti = i.altri.filter((a) => a.incerto === true && !a.haCartella)
+  if (i.cwd !== undefined && conCartella.length === 1 && stessoNome.length === 0 && incerti.length === 0) {
     const c = conCartella[0] as { pcId: string; nome: string }
     return { pc: c.pcId, pcNome: c.nome, motivo: `la sua cartella${dove} c'è solo su ${c.nome}`, regola: 'cartella' }
   }

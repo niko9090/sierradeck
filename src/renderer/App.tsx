@@ -534,6 +534,18 @@ export function App(): React.JSX.Element {
     window.addEventListener('sierradeck:pannello-drive', apri)
     return () => window.removeEventListener('sierradeck:pannello-drive', apri)
   }, [])
+  // La cassaforte per la banda (0.65.0): riletta ogni 30 secondi, si riapre anche da sola dal portachiavi.
+  const [cassaforte, setCassaforte] = useState<{ serve: boolean; aperta: boolean } | undefined>(undefined)
+  useEffect(() => {
+    const leggi = (): void => {
+      void window.gestore.sync.stato()
+        .then((st) => setCassaforte({ serve: st.driveConnesso && st.haCassaforte, aperta: st.sbloccato }))
+        .catch(() => undefined)
+    }
+    leggi()
+    const t = setInterval(leggi, 30_000)
+    return () => clearInterval(t)
+  }, [])
   // «Apri Impostazioni → Account» da Progetti, quando il Drive non è collegato o la cassaforte è chiusa (0.61.0).
   useEffect(() => {
     const apri = (): void => { setPannelloDrive(false); setSchedaImpostazioni('account'); setAperto('impostazioni') }
@@ -1673,7 +1685,8 @@ export function App(): React.JSX.Element {
           servizioRaggiungibile: erroreAutopiloti === undefined,
           autopiloti,
           ...(preparazione !== undefined ? { preparazione } : {}),
-          chiusi: avvisiChiusi
+          chiusi: avvisiChiusi,
+          ...(cassaforte !== undefined ? { cassaforte } : {})
         })}
         onChiudi={chiudiAvviso}
         onAltra={(azione, ids) => {
@@ -1687,6 +1700,7 @@ export function App(): React.JSX.Element {
           else if (azione === 'apriAutopiloti') setAperto('autopiloti')
           else if (azione === 'apriAccesso') setModale('accesso')
           else if (azione === 'apriPreparazione') setModale('preparazione')
+          else if (azione === 'apriAccount') window.dispatchEvent(new Event('sierradeck:apri-account'))
           // «apriDomanda» non ha bisogno di niente: la finestra della domanda
           // compare da sé, e il tasto serve solo a chi l'aveva rimandata.
           else setAperto(undefined)

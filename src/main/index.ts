@@ -82,7 +82,7 @@ import { apriQuadernoPersonale } from './quaderno-personale'
 import { cartelleTrovateQui, datiPannello, primaTrovata } from './pannello-drive-dati'
 import { creaResidenza, type Residenza } from './residenza'
 import { armonizzaCase, casaDelGruppo, dentroCartella, eSenzaNome, gruppoDiCartella, gruppoDiId, raggruppaProgetti } from '@shared/progetti-unificati'
-import { casaCorretta, decidiAperturaRemota, type CopiaNota } from '@shared/apertura-remota'
+import { decidiAperturaRemota, type CopiaNota } from '@shared/apertura-remota'
 import type { Pannello } from '@shared/pannello-drive'
 import { memoriaBreve } from '@shared/memoria-breve'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
@@ -1613,6 +1613,10 @@ if (!app.requestSingleInstanceLock()) {
       })
       sincroniaGlobale = sincronia
       registro.info(`Drive configurato: ${contoDrive.stato().configurato}, connesso: ${contoDrive.stato().connesso}`)
+      // La cassaforte chiusa con la chiave ricordata (0.65.0): se all'avvio il
+      // portachiavi non era pronto, si riprova ogni minuto, da soli.
+      const timerPortachiavi = setInterval(() => { try { sincronia.riapriDalPortachiavi() } catch { /* al prossimo giro */ } }, 60_000)
+      app.on('before-quit', () => { clearInterval(timerPortachiavi) })
       // Da quando e' scollegato (0.39.3). I PC scollegati prima della 0.39.3 non
       // l'hanno scritto: lo si ricava dal registro, la prima riga che lo dice.
       if (contoDrive.stato().configurato && !contoDrive.stato().connesso && contoDrive.scollegamento() === undefined) {
@@ -2526,6 +2530,8 @@ if (!app.requestSingleInstanceLock()) {
         ]
         let casaLaHa: boolean | undefined
         let comeLoSo = ''
+        // Il battito di un PC spento o scollegato dal Drive è vecchio: non prova niente (0.65.0).
+        const casaPresente = casa === undefined || casa.pc === io.id || pcVivo(battiti.find((b) => b.pcId === casa.pc), Date.now())
         if (casa !== undefined) {
           const bc = battiti.find((b) => b.pcId === casa.pc)
           if (casa.pc === io.id) { casaLaHa = quiLaHo; comeLoSo = 'questo PC' }
@@ -2535,14 +2541,19 @@ if (!app.requestSingleInstanceLock()) {
             comeLoSo = casaLaHa === false ? `il suo battito: la cartella ${cwd} non è fra le sue` : 'il suo battito ha la cartella, ma non dice le chat'
           }
         }
-        passo(`casa ${casa === undefined ? 'nessuna' : `${casa.pcNome} (${casa.da})`}; copie sul disco: ${copie.length === 0 ? 'nessuna nota' : copie.map((c) => c.nome).join(', ')}; il PC di casa ${casaLaHa === true ? 'la ha' : casaLaHa === false ? 'NON la ha' : 'non si sa se la ha'}${comeLoSo !== '' ? ` (${comeLoSo})` : ''}`)
-        const d = decidiAperturaRemota({ sessione: s, casa, copie, casaLaHa })
+        passo(`casa ${casa === undefined ? 'nessuna' : `${casa.pcNome} (${casa.da}${casaPresente ? '' : ', battito vecchio: assente'})`}; copie sul disco: ${copie.length === 0 ? 'nessuna nota' : copie.map((c) => c.nome).join(', ')}; il PC di casa ${casaLaHa === true ? 'la ha' : casaLaHa === false ? 'NON la ha' : 'non si sa se la ha'}${comeLoSo !== '' ? ` (${comeLoSo})` : ''}`)
+        const d = decidiAperturaRemota({ sessione: s, casa, copie, casaLaHa, casaPresente })
         let verso = d.pc
         let messaggio = ''
-        if (d.tipo === 'correggi') {
-          await unaCasa.memorizza({ [s]: casaCorretta(d, new Date().toISOString()) })
-          passo(`casa corretta: ${d.daNome} → ${d.nome} — ${d.perche}`)
-          messaggio = `Questa chat sta su ${d.nome === io.nome ? 'questo PC' : d.nome}, non su ${d.daNome}: ${d.perche}. Ho corretto la sua casa e la apro da lì.`
+        // L'apertura non scrive mai una casa (0.65.0): la cambia solo Nicholas, o «Sposta / Rendi residente» confermato.
+        if (d.tipo === 'guarda-altrove') {
+          passo(`guardo ${d.nome}, la casa non cambia — ${d.perche}`)
+          messaggio = d.casa === ''
+            ? `Questa chat non ha una casa: la guardo su ${d.nome === io.nome ? 'questo PC' : d.nome}, dove c’è. Per sceglierla: 🏠 sulla testata.`
+            : `La casa di questa chat è ${d.casaNome}, ma lì la chat non c’è: la guardo su ${d.nome === io.nome ? 'questo PC' : d.nome}. La casa resta ${d.casaNome}; per cambiarla: 🏠 sulla testata.`
+        } else if (d.tipo === 'assente') {
+          passo(d.perche)
+          messaggio = `${d.nome} non risponde: la casa di questa chat resta lì.`
         } else if (d.tipo === 'scelta-senza-copia') {
           passo(`attenzione: ${d.perche}; la scelta di Nicholas resta`)
           messaggio = `La casa scelta per questa chat è ${d.nome}, ma lì la chat non c’è: c’è su ${d.altrove.map((c) => c.nome).join(', ')}. La scelta è tua e non la cambio: se vuoi aprirla da lì, scegli lì la casa (🏠 sulla testata, o il pannello «Progetti»).`

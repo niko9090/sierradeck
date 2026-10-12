@@ -127,6 +127,11 @@ export type Sincronia = {
    * senza accoppiarsi (`client-pc:<id>`). `undefined` a cassaforte chiusa.
    */
   chiaveDiCasa: (scopo: string) => string | undefined
+  /**
+   * Riprova ad aprire la cassaforte con la chiave ricordata dal portachiavi
+   * (0.65.0), se è chiusa e la chiave c'è. Vero se adesso è aperta.
+   */
+  riapriDalPortachiavi: () => boolean
   /** Quanto si sincronizza: numero di file (chat + assetto) e byte totali. */
   info: () => Promise<{ file: number; byte: number }>
   creaPassphrase: (passphrase: string) => Promise<{ ok: boolean; chiaveRecupero?: string; messaggio?: string }>
@@ -545,6 +550,11 @@ export function apriSincronia(deps: {
   const maestraRicordata = (): Buffer | undefined => {
     const p = deps.portachiavi
     if (p === undefined || !existsSync(fileMaestra)) return undefined
+    // Il portachiavi non ancora pronto (0.65.0): subito dopo un riavvio di
+    // Windows può non esserlo. Il file è buono: resta, e si riprova
+    // (`riapriDalPortachiavi`). Prima si buttava, e la cassaforte restava
+    // chiusa fino alla passphrase.
+    if (!p.disponibile()) return undefined
     try {
       const j = JSON.parse(readFileSync(fileMaestra, 'utf8')) as { maestra?: unknown }
       if (typeof j.maestra !== 'string') throw new Error('forma sconosciuta')
@@ -629,6 +639,14 @@ export function apriSincronia(deps: {
      * cartella cosi' e' **viva su qualche PC**: chi non ce l'ha non deve
      * adottarla in una cartella vuota di qui.
      */
+    riapriDalPortachiavi() {
+      if (maestra !== undefined) return true
+      const m = maestraRicordata()
+      if (m === undefined) return false
+      maestra = m
+      log('cassaforte riaperta dal portachiavi del sistema (al secondo tentativo)')
+      return true
+    },
     chiaveDiCasa(scopo) {
       if (maestra === undefined || scopo === '') return undefined
       return createHmac('sha256', maestra).update(scopo, 'utf8').digest('base64url')
