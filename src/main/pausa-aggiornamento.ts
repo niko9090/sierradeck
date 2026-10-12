@@ -70,7 +70,7 @@ export const ATTESA_QUIETE_MS = 10 * 60_000
 
 /**
  * Quanto si aspetta la quiete dopo «Installa» premuto da Nicholas (0.67.1;
- * dalla 0.68.1 l'installazione parte solo da lui): dieci minuti non bastavano
+ * dalla 0.69.0 l'installazione parte solo da lui): dieci minuti non bastavano
  * mai con gli autopiloti al lavoro.
  */
 export const ATTESA_INSTALLA_MS = 2 * 60 * 60_000

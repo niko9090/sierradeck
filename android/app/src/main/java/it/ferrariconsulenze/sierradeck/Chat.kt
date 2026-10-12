@@ -316,7 +316,7 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
                                     if (!viva.altrove.isNullOrBlank()) {
                                         Text("il progetto è in mano a ${viva.altrove}", color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
                                     }
-                                    // Al lavoro in sottofondo (PC 0.68.1): si vede sempre; toccandola la guardi dal vivo,
+                                    // Al lavoro in sottofondo (PC 0.69.0): si vede sempre; toccandola la guardi dal vivo,
                                     // e sul PC non cambia niente.
                                     viva.sottofondo?.let { sf ->
                                         Text("in sottofondo sul PC${if (sf.nome.isNotBlank()) " · ${sf.nome}" else ""} · tocca per guardarla", color = Banco.ambra, fontSize = 11.sp, maxLines = 1)

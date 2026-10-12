@@ -65,4 +65,12 @@ class PannelloDriveTest {
         // 0.61.0: Progetti è la prima voce del menu principale.
         assertTrue(Scheda.entries.indexOf(Scheda.PROGETTI) == 0)
     }
+
+    @Test
+    fun `lo spazio sul Drive di un progetto, con i file grandi come avviso (PC 0_69)`() {
+        val r = Api.json.decodeFromString(RigaProgettoDrive.serializer(),
+            """{"id":"p1","nome":"Video","spazioDrive":{"file":2,"byte":31457380,"grandi":[{"percorso":"video.mp4","byte":31457280}]}}""")
+        assertEquals(" · sul Drive 30 MB · ⚠ 1 file grande: video.mp4", PannelloDriveRegole.spazio(r))
+        assertEquals("", PannelloDriveRegole.spazio(RigaProgettoDrive(id = "p2")))
+    }
 }

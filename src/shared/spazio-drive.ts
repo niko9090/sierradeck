@@ -45,6 +45,23 @@ export type MisuraSpazio = {
   /** Di cui già in una pulizia (in recupero, si libera alla scadenza). */
   inRecupero: { file: number; byte: number }
   misuratoIl: string
+  /** Lo spazio di ogni progetto (0.69.0), con i suoi file oltre `FILE_GRANDE_BYTE`. */
+  perProgetto?: Record<string, { file: number; byte: number; grandi: { percorso: string; byte: number }[] }>
+  /** I file più grandi, con il perché stanno lì (0.69.0, l'inventario). */
+  piuGrandi?: { nome: string; byte: number; tipo: TipoSpazio; percorso?: string; perche: string }[]
+}
+
+/** Oltre questo un file di un progetto si segnala (0.69.0): spesso è un binario che si rigenera. */
+export const FILE_GRANDE_BYTE = 20 * 1024 * 1024
+
+/** Perché un file sta sul Drive, in una riga (l'inventario dello spazio). */
+export function percheSulDrive(tipo: TipoSpazio, percorso?: string): string {
+  if (tipo === 'chat') return `la trascrizione di una chat (${(percorso ?? '').split('/').slice(1, 2).join('')}): serve a riprenderla su un altro PC`
+  if (tipo === 'progetti') return `un file del progetto ${(percorso ?? '').split('/')[0]?.replace('progetto-', '') ?? ''}: viaggia con il progetto`
+  if (tipo === 'recupero') return 'nel recupero (30 giorni, annullabile), poi si svuota da solo'
+  if (tipo === 'orfani') return 'senza voce nell’indice: resto di un salvataggio interrotto o di una chat tolta'
+  if (tipo === 'battiti') return 'battiti, posta e presenze fra i PC'
+  return 'l’assetto: indice, impostazioni, registro dei progetti'
 }
 
 const PREFISSI_BATTITI = ['pc-', 'posta-', 'presenza-', 'staffetta-', 'coda-', 'rtc-', 'schermo-']
@@ -85,7 +102,26 @@ export function misura(p: { file: FileDrive[]; indice: IndiceDrive; quota?: Quot
     totale.byte += f.byte
     if (inPulizia.has(f.nome)) { inRecupero.file += 1; inRecupero.byte += f.byte }
   }
-  return { ...(p.quota !== undefined ? { quota: p.quota } : {}), totale, perTipo, inRecupero, misuratoIl: new Date(p.adesso).toISOString() }
+  // Per progetto (0.69.0): i file sotto `progetto-<id>/` dell'indice.
+  const perProgetto: NonNullable<MisuraSpazio['perProgetto']> = {}
+  const daIndice = new Map(p.file.map((f) => [f.nome, f.byte]))
+  for (const [percorso, v] of Object.entries(p.indice)) {
+    const prefisso = percorso.split('/')[0] ?? ''
+    if (!prefisso.startsWith('progetto-')) continue
+    const id = prefisso.slice('progetto-'.length)
+    const byte = daIndice.get(v.nome) ?? v.size
+    const x = perProgetto[id] ?? { file: 0, byte: 0, grandi: [] }
+    x.file += 1
+    x.byte += byte
+    if (byte >= FILE_GRANDE_BYTE) x.grandi.push({ percorso: percorso.slice(prefisso.length + 1), byte })
+    perProgetto[id] = x
+  }
+  const piuGrandi = [...p.file].sort((a, b) => b.byte - a.byte).slice(0, 30).map((f) => {
+    const percorso = perNome.get(f.nome)
+    const tipo = inPulizia.has(f.nome) ? 'recupero' as const : tipoDi(f.nome, percorso)
+    return { nome: f.nome, byte: f.byte, tipo, ...(percorso !== undefined ? { percorso } : {}), perche: percheSulDrive(tipo, percorso) }
+  })
+  return { ...(p.quota !== undefined ? { quota: p.quota } : {}), totale, perTipo, inRecupero, misuratoIl: new Date(p.adesso).toISOString(), perProgetto, piuGrandi }
 }
 
 /** Quello che il pannello «Progetti» mostra (PC, pagina, app). */
@@ -311,6 +347,19 @@ export function indiceConDiNuovo(indice: IndiceDrive, voci: VocePulita[], esiste
     rimesse += 1
   }
   return { indice: fuori, rimesse, restano }
+}
+
+/**
+ * Le proposte che vanno nel recupero da sole (0.69.0), senza chiedere: solo il
+ * «recupero scaduto» (copie dell'indice più vecchie di 30 giorni, file che
+ * nessuna voce usa). Resta comunque 30 giorni nel recupero, annullabile, poi
+ * si svuota da solo. Le doppie no: si mostrano a Nicholas e decide lui.
+ */
+export const PULIZIE_DA_SOLE: readonly TipoProposta[] = ['recupero-scaduto']
+/** Ogni quanto al massimo il giro guarda se c'è del recupero scaduto da mettere da parte. */
+export const PULIZIA_DA_SOLA_OGNI_MS = 24 * 60 * 60_000
+export function pulizieDaSole(proposte: Proposta[]): Proposta[] {
+  return proposte.filter((p) => PULIZIE_DA_SOLE.includes(p.tipo) && p.voci.length > 0)
 }
 
 /** Le pulizie scadute: i loro file si cancellano davvero. */

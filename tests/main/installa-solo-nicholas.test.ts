@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 /**
- * «HO DETTO CHE INSTALLO IO E BASTA» (Nicholas, 12/10). Dalla 0.68.1 una
+ * «HO DETTO CHE INSTALLO IO E BASTA» (Nicholas, 12/10). Dalla 0.69.0 una
  * versione nuova si scarica e si mostra «Versione pronta — Installa», e si
  * installa soltanto con un'azione sua: il tasto sul PC, dalla pagina o
  * dall'app, o «Installa là». Il 12/10 alle 19:52 un PC aveva installato da solo
@@ -51,7 +51,7 @@ function nuovo() {
   return { a, quiete }
 }
 /** Una versione nuova arriva e si scarica da sola, come fa electron-updater. */
-function arrivaPronta(versione = '0.68.1'): void {
+function arrivaPronta(versione = '0.69.0'): void {
   h.updater.emit('update-available', { version: versione })
   h.updater.emit('update-downloaded', { version: versione, downloadedFile: join(tmpdir(), `SierraDeck-Setup-${versione}.exe`) })
 }

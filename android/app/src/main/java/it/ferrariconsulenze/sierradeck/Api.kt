@@ -261,7 +261,7 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun archiviaAutopilota(id: String, archivia: Boolean = true): Fatto =
         json.decodeFromString(corpoTesto("/api/autopilota/archivia", oggetto { put("autopilota", id); put("archivia", archivia) }))
 
-    /** «Manda adesso» (PC 0.68.1): i messaggi in coda per la chat escono subito, anche durante il turno. */
+    /** «Manda adesso» (PC 0.69.0): i messaggi in coda per la chat escono subito, anche durante il turno. */
     suspend fun mandaAdessoAutopilota(id: String): String =
         corpoTesto("/api/autopilota/manda-adesso", oggetto { put("autopilota", id) })
 

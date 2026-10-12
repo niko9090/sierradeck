@@ -72,7 +72,22 @@ export type RigaChat = {
   problemi: Problema[]
 }
 
+/**
+ * Lo spazio sul Drive di ogni riga (0.69.0), sommando tutti i suoi id, con i
+ * file grandi come avviso. Lo calcola il PC; pagina e app lo mostrano.
+ */
+export function conSpazioDrive<R extends { ids: string[] }>(righe: R[], perProgetto: Record<string, { file: number; byte: number; grandi: { percorso: string; byte: number }[] }> | undefined): Array<R & { spazioDrive?: { byte: number; file: number; grandi: { percorso: string; byte: number }[] } }> {
+  if (perProgetto === undefined) return righe
+  return righe.map((r) => {
+    const parti = r.ids.map((id) => perProgetto[id]).filter((x): x is NonNullable<typeof x> => x !== undefined)
+    if (parti.length === 0) return r
+    return { ...r, spazioDrive: { byte: parti.reduce((t, x) => t + x.byte, 0), file: parti.reduce((t, x) => t + x.file, 0), grandi: parti.flatMap((x) => x.grandi).sort((a, b) => b.byte - a.byte).slice(0, 5) } }
+  })
+}
+
 export type RigaProgetto = {
+  /** Lo spazio sul Drive (0.69.0), dal PC; con i file grandi come avviso. */
+  spazioDrive?: { byte: number; file: number; grandi: { percorso: string; byte: number }[] }
   /** L'id principale del gruppo (0.60.0: stesso nome = stesso progetto). */
   id: string
   /** Tutti gli id del registro con questo nome (normalizzato), il principale per primo. */

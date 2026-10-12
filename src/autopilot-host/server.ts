@@ -589,7 +589,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     for (const a of deps.archivio.elenca()) {
       const v = (a.inVolo ?? []).find((x) => x.consegna === consegna)
       if (v === undefined) continue
-      // Si ricordano con l'ora (0.68.1): la scheda dice «consegnato alle hh:mm».
+      // Si ricordano con l'ora (0.69.0): la scheda dice «consegnato alle hh:mm».
       const ora = deps.adesso()
       const arrivati = v.messaggi.map((m) => ({ id: m.id, testo: m.testo.slice(0, 400), quando: m.quando, consegnatoIl: ora }))
       console.info(`[consegna] ${a.id}: consegna ${consegna} partita, ${arrivati.length} messaggi nella chat`)
@@ -966,11 +966,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         mandate += 1
       }
       // Le chat che lavorano e hanno un messaggio in coda da più di due minuti
-      // (0.68.1): glielo si porta adesso, durante il turno. Claude Code lo legge
+      // (0.69.0): glielo si porta adesso, durante il turno. Claude Code lo legge
       // appena può, senza interrompere quello che sta facendo.
       if (opz.forza === true) continue
       const giaFerme = new Set(ferme.map((f) => f.chatId ?? a.id))
-      // «Manda adesso» (0.68.1): senza aspettare i due minuti.
+      // «Manda adesso» (0.69.0): senza aspettare i due minuti.
       for (const v of chatConCodaVecchia(a, ora, opz.subito === true ? 0 : IN_CODA_AL_LAVORO_MS, giaFerme)) {
         const presi = prendiMessaggiPer(a, v.chatId ?? a.id)
         if (presi.testi.length === 0) continue
@@ -2552,7 +2552,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         }
 
         if (metodo === 'GET' && percorso === '/autopiloti') {
-          // Con l'ultimo segno di vita delle sue chat (0.68.1), per «nessun
+          // Con l'ultimo segno di vita delle sue chat (0.69.0), per «nessun
           // segno da 10 min»: segnali di Claude Code e turni mandati.
           rispondi(res, 200, deps.archivio.elenca().map((a) => {
             const chiavi = a.chats.length === 0 ? [chiaveTurno(a.id)] : a.chats.map((c) => chiaveTurno(a.id, c.id))
@@ -2660,7 +2660,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
 
         // «Archivia» (0.37.0): un autopilota fermo messo da parte, che non deve
         // ripartire. Solo da fermo: uno che lavora non si archivia.
-        // «Manda adesso» (0.68.1): i messaggi in coda di questo autopilota escono
+        // «Manda adesso» (0.69.0): i messaggi in coda di questo autopilota escono
         // subito — alla chat ferma come sempre, a quella che lavora durante il turno.
         const mandaAdesso = /^\/autopiloti\/([^/]+)\/manda-adesso$/.exec(percorso)
         if (metodo === 'POST' && mandaAdesso !== null) {

@@ -62,8 +62,12 @@ import kotlinx.serialization.Serializable
     val ids: List<String> = emptyList(), val cartellaTrovata: String? = null, val workspace: List<String> = emptyList(),
     val daUnire: Int = 0, val chatSenzaNome: Int = 0,
     /** PC 0.58: dove ha la cartella; serve ad aprire le sue chat sul PC dove vivono (0.67.0). */
-    val cartelle: List<CartellaProgettoDrive> = emptyList()
+    val cartelle: List<CartellaProgettoDrive> = emptyList(),
+    /** PC 0.69: quanto occupa sul Drive, e i file grandi come avviso. */
+    val spazioDrive: SpazioProgettoDrive? = null
 )
+@Serializable data class SpazioProgettoDrive(val file: Int = 0, val byte: Double = 0.0, val grandi: List<FileGrandeDrive> = emptyList())
+@Serializable data class FileGrandeDrive(val percorso: String = "", val byte: Double = 0.0)
 @Serializable data class CartellaProgettoDrive(val pc: String = "", val nome: String = "", val percorso: String = "")
 
 /** Come si apre una chat dal pannello: qui, o dal vivo sul PC dove vive (PC 0.67.0). */
@@ -97,6 +101,13 @@ sealed class AperturaChat {
 @Serializable data class EsitoAzioneDrive(val ok: Boolean = false, val messaggio: String = "")
 
 object PannelloDriveRegole {
+    /** « · sul Drive 340 MB · ⚠ 2 file grandi: a.mp4, b.zip» — come la riga del PC; vuoto se il PC non lo dice. */
+    fun spazio(r: RigaProgettoDrive): String {
+        val sd = r.spazioDrive ?: return ""
+        val g = sd.grandi
+        val avviso = if (g.isEmpty()) "" else " · ⚠ ${g.size} ${if (g.size == 1) "file grande" else "file grandi"}: ${g.joinToString(", ") { it.percorso }}"
+        return " · sul Drive ${SpazioRegole.byte(sd.byte)}$avviso"
+    }
     /** Le chat di un progetto (tutti i suoi id), con nome, le più recenti prima — come `chatDelProgetto` del PC. */
     fun chatDelProgetto(p: PannelloDrive, r: RigaProgettoDrive): List<RigaChatDrive> {
         val ids = r.ids.ifEmpty { listOf(r.id) }
@@ -289,7 +300,7 @@ fun SezionePannelloDrive(api: Api) {
         for (r in righe.take(quante)) {
             Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                 Text("${r.nome}  ${PannelloDriveRegole.stato(r.stato)}", color = if (r.problemi.isEmpty()) Banco.testo else Banco.ambra, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                Text("Residente: ${r.residente?.let { it.nome + (if (it.qui) " (questo PC)" else "") } ?: "nessuno"} · qui sul disco: ${PannelloDriveRegole.cartellaQui(r)} · ${r.chat} chat${if (r.chatSenzaNome > 0) " (di cui ${r.chatSenzaNome} senza nome)" else ""} · ultimo uso: ${r.ultimoUso?.let { QuadernoPersonaleTesti.quando(it) } ?: "mai"}", color = Banco.testoQuieto, fontSize = 12.sp)
+                Text("Residente: ${r.residente?.let { it.nome + (if (it.qui) " (questo PC)" else "") } ?: "nessuno"} · qui sul disco: ${PannelloDriveRegole.cartellaQui(r)} · ${r.chat} chat${if (r.chatSenzaNome > 0) " (di cui ${r.chatSenzaNome} senza nome)" else ""} · ultimo uso: ${r.ultimoUso?.let { QuadernoPersonaleTesti.quando(it) } ?: "mai"}${PannelloDriveRegole.spazio(r)}", color = Banco.testoQuieto, fontSize = 12.sp)
                 PannelloDriveRegole.doppi(r)?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp) }
                 // Le chat del progetto (PC 0.67.0): «Apri» qui, o «Apri su <PC>» dove vivono.
                 for (c in PannelloDriveRegole.chatDelProgetto(d, r).take(12)) {

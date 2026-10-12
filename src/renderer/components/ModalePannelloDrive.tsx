@@ -1,3 +1,4 @@
+import { byteLeggibili } from '@shared/spazio-drive'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { chatDelProgetto, comeAprireChat, filtraChat, filtraProgetti, testiCambioResidente, type AzioneProgetto, type FiltroPannello, type Pannello, type RigaChat, type RigaProgetto } from '@shared/pannello-drive'
@@ -345,6 +346,11 @@ export function ModalePannelloDrive({ onChiudi }: { onChiudi: () => void }): Rea
                   <span className="account__nota" style={{ display: 'block' }}>
                     {r.residente === undefined ? <i>senza casa</i> : <>vive su <b>{r.residente.qui ? 'questo PC' : r.residente.nome}</b></>}
                     {' · '}{chatDelProgetto(d.chat, r).length} chat{' · '}usato {quando(r.ultimoUso)}
+                    {/* Lo spazio sul Drive (0.69.0), e i file grandi come avviso. */}
+                    {r.spazioDrive !== undefined ? <>{' · '}sul Drive {byteLeggibili(r.spazioDrive.byte)}</> : null}
+                    {r.spazioDrive !== undefined && r.spazioDrive.grandi.length > 0
+                      ? <span style={{ color: 'var(--ambra)' }} title={r.spazioDrive.grandi.map((g) => `${g.percorso} (${byteLeggibili(g.byte)})`).join(String.fromCharCode(10))}>{' · '}⚠ {r.spazioDrive.grandi.length === 1 ? '1 file grande' : `${r.spazioDrive.grandi.length} file grandi`}</span>
+                      : null}
                     <Aiuto di={r.nome}>
                       Residente: {r.residente === undefined ? 'nessuno' : `${r.residente.nome}${r.residente.qui ? ' (questo PC)' : ''}`}
                       {r.residente !== undefined ? (r.voluto ? ' (scelto per il progetto: gli altri PC lo tengono solo cloud)' : ' (dalla maggior parte delle sue chat: non ancora scelto)') : ''}.

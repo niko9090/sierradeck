@@ -22,7 +22,7 @@ export type Consegna = {
   titolo: string
   cosa: 'scrivi' | 'interrompi'
   testo: string
-  /** Messaggi in coda da più di due minuti (0.68.1): si scrivono anche se la chat lavora. */
+  /** Messaggi in coda da più di due minuti (0.69.0): si scrivono anche se la chat lavora. */
   ancheAlLavoro?: boolean
   /**
    * Il workspace dove quella conversazione e' gia' salvata.
@@ -112,7 +112,7 @@ export function doveConsegnare(p: {
 /** L'id del testo in sottofondo per una consegna: lo stesso per la stessa istruzione, mai uguale per due diverse. */
 /**
  * La consegna di un testo in sottofondo, dal suo id (`ap-<consegna>-<impronta>`).
- * Serve a dire al servizio che è partita (0.68.1): prima il sottofondo lo
+ * Serve a dire al servizio che è partita (0.69.0): prima il sottofondo lo
  * scriveva solo nel registro, il servizio non lo sapeva e i messaggi restavano
  * «in consegna» per sempre — e dopo un suo riavvio sarebbero stati riconsegnati.
  */
@@ -163,7 +163,7 @@ export function leggiConsegne(raw: unknown): Consegna[] {
       cosa,
       testo: testo('testo'),
       ...(testo('workspace') !== '' ? { workspace: testo('workspace') } : {}),
-      // In coda da più di due minuti (0.68.1): si scrive anche se la chat lavora.
+      // In coda da più di due minuti (0.69.0): si scrive anche se la chat lavora.
       ...(c.ancheAlLavoro === true ? { ancheAlLavoro: true } : {})
     })
   }

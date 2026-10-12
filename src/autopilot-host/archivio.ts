@@ -41,7 +41,7 @@ function validaId(id: string): string {
  */
 /**
  * I file del servizio che stanno accanto agli autopiloti e non sono
- * autopiloti (0.68.1). Il 12/10 `elenca` leggeva anche `consegne-numero.json`,
+ * autopiloti (0.69.0). Il 12/10 `elenca` leggeva anche `consegne-numero.json`,
  * lo rifiutava e lo metteva da parte come «illeggibile» a ogni giro (47 copie):
  * il contatore delle consegne ripartiva da c-1 e il Gestore confermava consegne
  * di altri — gli ordini degli autopiloti non arrivavano alle chat.

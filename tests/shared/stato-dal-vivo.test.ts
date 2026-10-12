@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { durata, etichettaSottofondo, oraBreve, statoAutopilotaDalVivo, statoMessaggi, SENZA_SEGNI_MS } from '@shared/stato-dal-vivo'
 
 /**
- * Si vede sempre chi lavora (0.68.1): «io voglio sempre vedere tutto, almeno
+ * Si vede sempre chi lavora (0.69.0): «io voglio sempre vedere tutto, almeno
  * vedere che stanno lavorando» (Nicholas, 12/10).
  */
 const ORA = Date.parse('2026-10-12T20:30:00.000Z')

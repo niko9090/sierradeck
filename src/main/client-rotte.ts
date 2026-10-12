@@ -44,7 +44,7 @@ import { chiaveCartella, eTelefono, idConsegnaValido, nomiDistinti, radiceAmmess
  * Un altro PC con la chiave di casa: `pc` (prima della 0.49.1, senza dire chi
  * è) o `pc:<chi guarda>` (0.49.1: il suo id, o `tel:<telefono>@<PC>` dal ponte).
  */
-/** L'ultimo segno di vita delle chat di un autopilota, se il servizio lo dice (0.68.1). */
+/** L'ultimo segno di vita delle chat di un autopilota, se il servizio lo dice (0.69.0). */
 function segnoDi(a: Autopilota): number | undefined {
   const t = Date.parse(((a as unknown as { ultimoSegno?: string }).ultimoSegno) ?? '')
   return Number.isNaN(t) ? undefined : t
@@ -221,7 +221,7 @@ export type DipendenzeRotte = {
    * collauda, solo per i progetti «SierraDeck-prova-…» (lo controlla questo PC).
    */
   provaTrasloco?: (corpo: unknown) => Promise<{ ok: boolean; messaggio: string; stato?: number }>
-  /** Toglie da questo PC un progetto di prova «SierraDeck-prova-…»: la cartella nel recupero (0.68.1). */
+  /** Toglie da questo PC un progetto di prova «SierraDeck-prova-…»: la cartella nel recupero (0.69.0). */
   provaTogliProgetto?: (nome: string) => Promise<{ ok: boolean; messaggio: string; stato?: number }>
   /** Una chat nuova (0.65.1): mai nella cartella utente, in Documenti o nella radice di un disco. */
   cartellaPerChatNuova?: (cartella: string, workspace: string | undefined) => Promise<{ ok: true; cartella: string } | { ok: false; motivo: string }>
@@ -337,7 +337,7 @@ export type DipendenzeRotte = {
   installaLaStato?: () => unknown[]
   /** Archiviare un autopilota fermo (0.56.0), come dal pannello del PC. */
   archiviaAutopilota?: (id: string, archivia: boolean) => Promise<void>
-  /** «Manda adesso» (0.68.1). */
+  /** «Manda adesso» (0.69.0). */
   mandaAdessoAutopilota?: (id: string) => Promise<{ mandate: number; messaggio?: string }>
   /** Proteggere o no una chat con il PIN (0.56.0): `pin:proteggiChat` del PC. */
   proteggiChat?: (sessione: string, si: boolean) => void
@@ -1110,7 +1110,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           // console. Il telefono ne aveva una sua, scritta a mano, e sbagliava
           // dove conta: fallito e finito avevano lo stesso puntino grigio.
           led: ledDi(a).classe,
-          // Si vede sempre chi lavora (0.68.1): «al lavoro · da 12 min · ultima
+          // Si vede sempre chi lavora (0.69.0): «al lavoro · da 12 min · ultima
           // azione», e «nessun segno da 10 min». Le parole le decide il PC.
           dalVivo: statoAutopilotaDalVivo({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, adesso(), segnoDi(a)),
           cicli: a.cicli,
@@ -1273,7 +1273,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         // stessa funzione del PC (preparazione, lavoro, «Pubblico adesso?», via).
         domandeScheda: domandeScheda(a, tutteLeDomande),
         ...(mia !== undefined ? { domandaId: mia.id } : {}),
-        // Lo stato dal vivo e quello di ogni messaggio verso la chat (0.68.1).
+        // Lo stato dal vivo e quello di ogni messaggio verso la chat (0.69.0).
         dalVivo: statoAutopilotaDalVivo({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, adesso(), segnoDi(a)),
         messaggi: statoMessaggi(a, adesso(), oraBreve)
       })
@@ -1880,10 +1880,10 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (fai === undefined) return { stato: 404, corpo: { errore: 'non trovato' } }
       return OK(((await fai(r.corpo).catch((e: unknown) => ({ ok: false, messaggio: e instanceof Error ? e.message : String(e) }))) ?? {}) as object)
     }
-    // I progetti di prova di chi collauda (0.68.1): la cartella va nel recupero
+    // I progetti di prova di chi collauda (0.69.0): la cartella va nel recupero
     // (30 giorni, ripristinabile), solo se si chiama «SierraDeck-prova-…».
     if (r.metodo === 'POST' && r.percorso === '/api/prova/togli-progetto') {
-      if (deps.provaTogliProgetto === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora togliere un progetto di prova: aggiornalo alla 0.68.1.' } }
+      if (deps.provaTogliProgetto === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora togliere un progetto di prova: aggiornalo alla 0.69.0.' } }
       const nome = stringa(r.corpo, 'nome')
       if (!nome.startsWith(PREFISSO_CARTELLA_PROVA)) return { stato: 403, corpo: { errore: `«${nome}» non è un progetto di prova: così si tolgono solo quelli che si chiamano «${PREFISSO_CARTELLA_PROVA}…». Gli altri li togli tu.` } }
       const e = await deps.provaTogliProgetto(nome)
@@ -2281,11 +2281,11 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     }
 
     // Archiviare un autopilota fermo (0.56.0): come dal pannello del PC.
-    // «Manda adesso» (0.68.1): i messaggi in coda per la chat escono subito.
+    // «Manda adesso» (0.69.0): i messaggi in coda per la chat escono subito.
     if (r.metodo === 'POST' && r.percorso === '/api/autopilota/manda-adesso') {
       const id = stringa(r.corpo, 'autopilota')
       if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
-      if (deps.mandaAdessoAutopilota === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora mandare subito i messaggi: aggiornalo alla 0.68.1.' } }
+      if (deps.mandaAdessoAutopilota === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora mandare subito i messaggi: aggiornalo alla 0.69.0.' } }
       const e = await deps.mandaAdessoAutopilota(id).catch((x: unknown) => ({ mandate: 0, messaggio: String(x) }))
       deps.log?.(`[consegna] «Manda adesso» per l’autopilota ${id}: ${e.mandate} consegne${e.messaggio !== undefined ? ` (${e.messaggio})` : ''}`)
       return OK(e)

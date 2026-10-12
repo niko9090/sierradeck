@@ -1,7 +1,7 @@
 import type { Autopilota } from './autopilota'
 
 /**
- * Si vede sempre chi lavora (0.68.1). Nicholas, 12/10: «in realtà stava
+ * Si vede sempre chi lavora (0.69.0). Nicholas, 12/10: «in realtà stava
  * funzionando, ma lavora in background; io voglio sempre vedere tutto, almeno
  * vedere che stanno lavorando». Le stesse parole su PC, pagina e app: le
  * calcola il PC, la pagina e l'app le mostrano.

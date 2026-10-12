@@ -5,7 +5,7 @@ import { oraBreve, statoAutopilotaDalVivo, statoMessaggi, type EtichettaDalVivo,
 import { Aiuto } from './Aiuto'
 
 /**
- * Si vede sempre chi lavora (0.68.1). Nicholas, 12/10: «io voglio sempre vedere
+ * Si vede sempre chi lavora (0.69.0). Nicholas, 12/10: «io voglio sempre vedere
  * tutto, almeno vedere che stanno lavorando». Una riga: lo stato in quattro
  * parole, da quanto, l'ultima azione; e «nessun segno da 10 min» quando chi è
  * al lavoro non fa niente. Le stesse parole sulla pagina e nell'app.

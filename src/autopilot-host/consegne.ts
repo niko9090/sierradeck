@@ -48,7 +48,7 @@ export type Consegna = {
    */
   perche?: string
   /**
-   * Da scrivere anche se la chat sta lavorando (0.68.1): messaggi in coda da più
+   * Da scrivere anche se la chat sta lavorando (0.69.0): messaggi in coda da più
    * di due minuti. Il Gestore non aspetta la fine del turno.
    */
   ancheAlLavoro?: boolean

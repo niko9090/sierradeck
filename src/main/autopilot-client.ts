@@ -88,7 +88,7 @@ export type ClientAutopilota = {
   riprendiAlRiavvio: (id: string, riprendi: boolean) => Promise<void>
   /** Mette da parte un autopilota fermo che non deve ripartire (o lo toglie dall'archivio). */
   archivia: (id: string, archivia: boolean) => Promise<void>
-  /** «Manda adesso» (0.68.1): i messaggi in coda escono subito. */
+  /** «Manda adesso» (0.69.0): i messaggi in coda escono subito. */
   mandaAdesso: (id: string) => Promise<{ mandate: number; messaggio?: string }>
   /** Una riga nel diario dell'autopilota, scritta dal programma. */
   nota: (id: string, testo: string) => Promise<void>

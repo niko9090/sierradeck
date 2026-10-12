@@ -107,7 +107,7 @@ export type ScambioDialogo = {
   traccia?: true
 }
 
-/** Quanti messaggi consegnati si ricordano per autopilota (0.68.1). */
+/** Quanti messaggi consegnati si ricordano per autopilota (0.69.0). */
 export const CONSEGNATI_RICORDATI_AUTOPILOTA = 20
 
 /** Oltre queste battute, le più vecchie si dimenticano: la scheda le mostra, l'archivio non è un log. */
@@ -323,7 +323,7 @@ export type Autopilota = {
    */
   inVolo?: Array<{ consegna: string; quando: string; messaggi: MessaggioPerLaChat[] }>
   /**
-   * Gli ultimi messaggi arrivati nella chat, con quando (0.68.1): la scheda dice
+   * Gli ultimi messaggi arrivati nella chat, con quando (0.69.0): la scheda dice
    * «consegnato alle hh:mm». Prima un messaggio consegnato spariva e non si
    * capiva se l'autopilota avesse comandato o no.
    */

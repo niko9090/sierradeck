@@ -1,6 +1,6 @@
 import {
   daSvuotare, indiceConDiNuovo, indiceSenza, leggiPulizie, misura, nuovaPulizia, NOME_PULIZIE, proposteDiPulizia, puliziaVuota, restaFuori, byteLeggibili,
-  type Pulizia, type RegistroPulizie, type StatoSpazio, type TipoProposta
+  type Pulizia, type RegistroPulizie, type StatoSpazio, type TipoProposta, PULIZIA_DA_SOLA_OGNI_MS, pulizieDaSole
 } from '@shared/spazio-drive'
 import type { Archivio } from './cassaforte/archivio'
 import type { Manifesto } from './cassaforte/incrementale'
@@ -28,7 +28,8 @@ export type SpazioDrive = {
    * `undefined` = la prima misura è in corso.
    */
   subito: () => StatoSpazio | undefined
-  pulisci: (tipo: TipoProposta) => Promise<{ ok: boolean; messaggio: string; pulizia?: Pulizia }>
+  /** `chi` (0.69.0): chi la fa quando non è Nicholas («automatico»). */
+  pulisci: (tipo: TipoProposta, chi?: string) => Promise<{ ok: boolean; messaggio: string; pulizia?: Pulizia }>
   annulla: (id: string) => Promise<{ ok: boolean; messaggio: string }>
   svuota: (id: string) => Promise<{ ok: boolean; messaggio: string }>
   /** Per il salvataggio: una voce tolta con una pulizia e uguale a com'era non risale. */
@@ -51,6 +52,7 @@ export function creaSpazioDrive(deps: {
   const adesso = deps.adesso ?? Date.now
   let registro: RegistroPulizie | undefined
   let ultimo: { il: number; stato: StatoSpazio } | undefined
+  let ultimaPuliziaDaSola = 0
   let inCorso: Promise<StatoSpazio> | undefined
 
   const leggiRegistro = async (): Promise<RegistroPulizie> => {
@@ -120,14 +122,14 @@ export function creaSpazioDrive(deps: {
       return ultimo?.stato
     },
 
-    async pulisci(tipo) {
+    async pulisci(tipo, chi) {
       // Le proposte si rifanno adesso: quello che si toglie è quello che c'è ora.
       const st = await leggiTutto()
       if (st.errore !== undefined) return { ok: false, messaggio: st.errore }
       const pr = st.proposte.find((x) => x.tipo === tipo)
       if (pr === undefined || pr.voci.length === 0) return { ok: false, messaggio: 'Non c’è più niente da pulire qui.' }
       const io = deps.io()
-      const p = nuovaPulizia(pr, { id: `pulizia-${new Date(adesso()).toISOString().replace(/[:.]/g, '-')}`, chi: io.nome, adesso: adesso() })
+      const p = nuovaPulizia(pr, { id: `pulizia-${new Date(adesso()).toISOString().replace(/[:.]/g, '-')}`, chi: chi ?? io.nome, adesso: adesso() })
       const r = await leggiRegistro()
       await scriviRegistro({ ...r, pulizie: [...r.pulizie, p] })
       const conVoce = p.voci.filter((v) => v.percorso !== undefined)
@@ -139,7 +141,7 @@ export function creaSpazioDrive(deps: {
           return { ok: false, messaggio: `Non fatta: ${e.messaggio ?? 'il Drive non ha risposto'}. Niente è cambiato.` }
         }
       }
-      deps.log(`[spazio] pulizia «${p.titolo}» confermata da ${io.nome}: ${p.voci.length} file (${byteLeggibili(p.byte)}) nel recupero fino al ${p.scadeIl.slice(0, 10)}`)
+      deps.log(`[spazio] pulizia «${p.titolo}» ${chi !== undefined ? `fatta da sola (${chi})` : `confermata da ${io.nome}`}: ${p.voci.length} file (${byteLeggibili(p.byte)}) nel recupero fino al ${p.scadeIl.slice(0, 10)}`)
       return { ok: true, messaggio: `${p.voci.length} file nel recupero per 30 giorni (${byteLeggibili(p.byte)}). «Annulla» li rimette.`, pulizia: p }
     },
 
@@ -185,6 +187,12 @@ export function creaSpazioDrive(deps: {
           const e = await togliFile(p)
           await cambiaPulizia(p.id, (x) => ({ ...x, svuotataIl: new Date(adesso()).toISOString() }))
           deps.log(`[spazio] recupero «${p.titolo}» scaduto: ${e.tolti} file cancellati dal Drive (${byteLeggibili(p.byte)})`)
+        }
+        // Il recupero scaduto va nel recupero da solo (0.69.0), una volta al giorno.
+        if (adesso() - ultimaPuliziaDaSola >= PULIZIA_DA_SOLA_OGNI_MS) {
+          ultimaPuliziaDaSola = adesso()
+          const st = await leggiTutto()
+          for (const pr of pulizieDaSole(st.proposte)) await this.pulisci(pr.tipo, 'automatico')
         }
       } catch (err) {
         deps.log(`[spazio] giro non riuscito: ${err instanceof Error ? err.message : String(err)}`)

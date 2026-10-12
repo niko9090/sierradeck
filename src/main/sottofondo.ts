@@ -269,7 +269,7 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
         cambiaFase(v, 'scelta', 'la chat aspetta una scelta: si risponde dal riquadro di chi la usa (le opzioni sono sullo schermo)')
         continue
       }
-      // Un testo che si scrive anche durante il turno (0.68.1): basta il campo
+      // Un testo che si scrive anche durante il turno (0.69.0): basta il campo
       // sullo schermo. Claude Code lo legge appena può, senza interrompere.
       const urgente = !pronta && v.attivita.morto !== true && campoPronto(righe) ? v.voce.coda.find((x) => !v.fermi.has(x.id) && x.ancheAlLavoro === true) : undefined
       if (urgente !== undefined) {
@@ -343,7 +343,7 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
       return v !== undefined ? statoDi(v) : finite.get(sessione)
     },
     elenco(): StatoSottofondo[] { return [...vive.values()].map(statoDi) },
-    /** Lo schermo di adesso di una chat in sottofondo (0.68.1, «Guarda»): niente si apre, niente cambia. */
+    /** Lo schermo di adesso di una chat in sottofondo (0.69.0, «Guarda»): niente si apre, niente cambia. */
     schermo(sessione: string, quante = RIGHE_SOTTOFONDO): string[] | undefined {
       const v = vive.get(sessione)
       return v === undefined ? undefined : righeFondo(v, quante)

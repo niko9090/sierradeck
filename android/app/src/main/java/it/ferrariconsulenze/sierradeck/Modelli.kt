@@ -175,7 +175,7 @@ data class Chat(
      * Assente se la chat non è protetta, o con un computer più vecchio.
      */
     val pin: String? = null,
-    /** Lavora in sottofondo, senza riquadro sullo schermo del PC (PC 0.58.4; mostrato dalla 0.68.1). */
+    /** Lavora in sottofondo, senza riquadro sullo schermo del PC (PC 0.58.4; mostrato dalla 0.69.0). */
     val sottofondo: ChiSottofondo? = null
 )
 
@@ -346,11 +346,11 @@ data class AutopilotaBreve(
     val cwd: String = "",
     val fatti: Int = 0,
     val criteri: Int = 0,
-    /** Si vede sempre chi lavora (PC 0.68.1): le parole le decide il PC. */
+    /** Si vede sempre chi lavora (PC 0.69.0): le parole le decide il PC. */
     val dalVivo: StatoDalVivo? = null
 )
 
-/** «al lavoro · da 12 min», l'ultima azione, «nessun segno da 10 min» (PC 0.68.1). */
+/** «al lavoro · da 12 min», l'ultima azione, «nessun segno da 10 min» (PC 0.69.0). */
 @Serializable
 data class StatoDalVivo(
     val etichetta: String = "",
@@ -359,7 +359,7 @@ data class StatoDalVivo(
     val senzaSegni: String? = null
 )
 
-/** Un messaggio verso la chat e il suo stato vero (PC 0.68.1). */
+/** Un messaggio verso la chat e il suo stato vero (PC 0.69.0). */
 @Serializable
 data class StatoMessaggio(
     val id: String = "",
@@ -488,7 +488,7 @@ data class Cartelle(val cartelle: List<String> = emptyList())
 // ─── /api/autopilota (dettaglio) = tutto l'autopilota + passaggi + misura ───
 @Serializable
 data class AutopilotaDettaglio(
-    /** PC 0.68.1: stato dal vivo e messaggi verso la chat. */
+    /** PC 0.69.0: stato dal vivo e messaggi verso la chat. */
     val dalVivo: StatoDalVivo? = null,
     val messaggi: List<StatoMessaggio> = emptyList(),
     val id: String = "",

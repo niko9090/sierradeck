@@ -727,7 +727,7 @@ async function chiediAp(percorso, corpo) {
   return chiedi('/api/ponte', { pc: apPc, percorso: percorso, corpo: corpo })
 }
 /**
- * Si vede sempre chi lavora (0.68.1): le parole le decide il PC («al lavoro ·
+ * Si vede sempre chi lavora (0.69.0): le parole le decide il PC («al lavoro ·
  * da 12 min», l'ultima azione, «nessun segno da 10 min»); qui si mostrano.
  */
 function dalVivoHtml(v) {
@@ -737,7 +737,7 @@ function dalVivoHtml(v) {
     (v.senzaSegni ? ' · <span style="color:var(--ambra,#e0a33c)">⚠ ' + esc(v.senzaSegni) + '</span>' : '') + '</span>' +
     (v.ultimaAzione ? '<span class="voce__sotto" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(v.ultimaAzione) + '</span>' : '')
 }
-/** I messaggi verso la chat, con il loro stato e «Manda adesso» (0.68.1). */
+/** I messaggi verso la chat, con il loro stato e «Manda adesso» (0.69.0). */
 function messaggiApHtml(m) {
   if (!Array.isArray(m) || m.length === 0) return ''
   return '<div class="titolo-sezione" style="margin-top:8px">Messaggi per la chat' + aiuto('ap-messaggi', 'I messaggi tuoi e dell’autopilota per la chat che lavora. Entrano alla fine del turno; se aspettano più di due minuti si scrivono anche durante il turno. «Manda adesso» non aspetta.') + '</div>' +
@@ -1509,7 +1509,7 @@ function pannello(s) {
       // lo stato vero (aspetta te, sceglie, guidata), non «verde» per tutte.
       '<div class="polso"><span class="led ' + ledChat(c) + '"></span>' +
       '<span class="polso__nome">' + esc(c.titolo) + '</span><span class="voce__stato voce__stato--' + statoChat(c).tono + '">' + esc(statoChat(c).parola) + '</span>' +
-      // Al lavoro in sottofondo (0.68.1): si vede sempre, e «Guarda» mostra lo schermo dal vivo senza cambiare niente sul PC.
+      // Al lavoro in sottofondo (0.69.0): si vede sempre, e «Guarda» mostra lo schermo dal vivo senza cambiare niente sul PC.
       (c.sottofondo ? '<span class="sotto" style="margin-left:6px">in sottofondo</span><button style="margin-left:6px" data-chat="' + esc(c.id) + '" onclick="guarda(this.dataset.chat)">Guarda</button>' : '') + '</div>' +
       (c.ultimaRiga ? '<div class="battito">' + esc(c.ultimaRiga) + '</div>' : '')
     ).join('')
@@ -4053,7 +4053,9 @@ function pannelloDriveHtml() {
       const ids = r.ids || [r.id]
       const ws = r.workspace || []
       h += '<div class="piastrella"><div><b>' + esc(r.nome) + '</b> ' + pdStato(r.stato) + '</div>' +
-        '<div class="sotto">Residente: ' + (r.residente ? esc(r.residente.nome) + (r.residente.qui ? ' (questo PC)' : '') + (r.voluto ? '' : ' (dalla maggior parte delle chat)') : 'nessuno') + ' · qui sul disco: ' + (r.cartellaQui ? (r.cartellaTrovata ? 'sì, ' + esc(r.cartellaTrovata) + ' (trovata per nome)' : 'sì') : 'no') + ' · ' + r.chat + ' chat' + (r.chatSenzaNome ? ' (di cui ' + r.chatSenzaNome + ' senza nome)' : '') + ' · ultimo uso: ' + esc(pdQuando(r.ultimoUso)) + '</div>' +
+        '<div class="sotto">Residente: ' + (r.residente ? esc(r.residente.nome) + (r.residente.qui ? ' (questo PC)' : '') + (r.voluto ? '' : ' (dalla maggior parte delle chat)') : 'nessuno') + ' · qui sul disco: ' + (r.cartellaQui ? (r.cartellaTrovata ? 'sì, ' + esc(r.cartellaTrovata) + ' (trovata per nome)' : 'sì') : 'no') + ' · ' + r.chat + ' chat' + (r.chatSenzaNome ? ' (di cui ' + r.chatSenzaNome + ' senza nome)' : '') + ' · ultimo uso: ' + esc(pdQuando(r.ultimoUso)) +
+          // Lo spazio sul Drive (0.69.0), e i file grandi come avviso.
+          (r.spazioDrive ? ' · sul Drive ' + esc(pdByte(r.spazioDrive.byte)) + (r.spazioDrive.grandi.length ? ' · <span style="color:var(--ambra,#e0a33c)">⚠ ' + r.spazioDrive.grandi.length + (r.spazioDrive.grandi.length === 1 ? ' file grande' : ' file grandi') + ': ' + esc(r.spazioDrive.grandi.map(function (g) { return g.percorso }).join(', ')) + '</span>' : '') : '') + '</div>' +
         (ids.length > 1 || ws.length > 1 ? '<div class="sotto">Stesso nome, stesso progetto: ' + (ids.length > 1 ? ids.length + ' voci nel registro del Drive' : 'una voce nel registro') + (ws.length > 1 ? ', workspace ' + ws.map((w) => '«' + esc(w) + '»').join(', ') : '') + '. Qui li vedi come uno solo; «Rendi residente qui» li unisce davvero, dopo il riassunto.</div>' : '') +
         pdProblemi(r)
       const res = (pdDati.residenza || []).find((x) => x.progetto === r.id && x.fase !== 'annullata')

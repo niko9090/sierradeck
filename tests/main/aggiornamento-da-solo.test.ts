@@ -8,7 +8,7 @@ import { serveCercareSubito } from '../../src/shared/versioni-altri-pc'
 import { RICONTROLLA_MS } from '../../src/main/aggiornamenti'
 
 /**
- * L'attesa della quiete dopo «Installa» premuto da Nicholas (0.67.1, poi 0.68.1:
+ * L'attesa della quiete dopo «Installa» premuto da Nicholas (0.67.1, poi 0.69.0:
  * l'installazione parte solo da lui — vedi `installa-solo-nicholas.test.ts`).
  * Il 12/10 l'attesa si arrendeva dopo dieci minuti con gli autopiloti sempre al
  * lavoro, e si cercava ogni sei ore.

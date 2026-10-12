@@ -38,7 +38,49 @@
       "file": 0,
       "byte": 0
     },
-    "misuratoIl": "2026-10-12T12:00:00.000Z"
+    "misuratoIl": "2026-10-12T12:00:00.000Z",
+    "perProgetto": {
+      "p1": {
+        "file": 1,
+        "byte": 800,
+        "grandi": []
+      }
+    },
+    "piuGrandi": [
+      {
+        "nome": "f_a1",
+        "byte": 5200000,
+        "tipo": "chat",
+        "percorso": "chat/slug-a/aaaa.jsonl",
+        "perche": "la trascrizione di una chat (slug-a): serve a riprenderla su un altro PC"
+      },
+      {
+        "nome": "f_a2",
+        "byte": 4100000,
+        "tipo": "chat",
+        "percorso": "chat/slug-b/aaaa.jsonl",
+        "perche": "la trascrizione di una chat (slug-b): serve a riprenderla su un altro PC"
+      },
+      {
+        "nome": "sierradeck.manifesto",
+        "byte": 2000000,
+        "tipo": "sistema",
+        "perche": "l’assetto: indice, impostazioni, registro dei progetti"
+      },
+      {
+        "nome": "pc-esempio",
+        "byte": 9000,
+        "tipo": "battiti",
+        "perche": "battiti, posta e presenze fra i PC"
+      },
+      {
+        "nome": "f_p",
+        "byte": 800,
+        "tipo": "progetti",
+        "percorso": "progetto-p1/src/main.ts",
+        "perche": "un file del progetto p1: viaggia con il progetto"
+      }
+    ]
   },
   "proposte": [
     {

@@ -1,3 +1,4 @@
+import { compressioneAccesa, daComprimere, spacchetta } from './compressione'
 import type { ProgressoCatalogo } from '../../shared/catalogo-progresso'
 import { manifestoConProprietari, verificaMigrazione, type CaseChat } from '@shared/una-casa'
 import { existsSync, readFileSync, rmSync, renameSync, copyFileSync, statSync } from 'node:fs'
@@ -306,6 +307,8 @@ export function apriSincronia(deps: {
   /** L'indice delle conversazioni: per chiamare le chat col loro nome nel piano di fusione. */
   titoliChat?: () => Map<string, { titolo?: string; cwd?: string; quando?: string; messaggi?: number }>
   pcId?: () => string
+  /** Le versioni degli altri PC, dai battiti (0.69.0): per sapere se comprimere le chat. */
+  versioniAltriPc?: () => string[]
   /** Il lavoro con il Drive: uno alla volta, visibile in ogni finestra, annullabile. */
   lavoro?: Lavoro
   /** Dove questo PC riceve i progetti che arrivano dal Drive (per «Porta qui»). */
@@ -810,7 +813,9 @@ export function apriSincronia(deps: {
           escludi: (p: string, f?: { size: number }) =>
             (deps.unaCasa !== undefined && !(deps.unaCasa as { saleDaQui: (p: string) => boolean }).saleDaQui(p)) ||
             (deps.fuoriDalDrive?.(p, f?.size) ?? false),
-          ...(deps.pcId !== undefined ? { proprietario: deps.pcId() } : {})
+          ...(deps.pcId !== undefined ? { proprietario: deps.pcId() } : {}),
+          // Le chat compresse (0.69.0), solo quando tutti i PC visti sanno leggerle.
+          ...(deps.versioniAltriPc !== undefined && compressioneAccesa(deps.versioniAltriPc()) ? { comprimi: daComprimere } : {})
         })
         scriviManifestoLocale(esito.manifesto)
         const totali = Object.keys(esito.manifesto.file).length
@@ -1305,7 +1310,7 @@ export function apriSincronia(deps: {
         async leggi(nome) {
           const blob = await a.scarica(nome)
           if (blob === undefined) return undefined
-          const chiaro = await decifra(m, blob)
+          const chiaro = spacchetta(await decifra(m, blob))
           if (chiaro === undefined) return undefined
           try { return JSON.parse(chiaro.toString('utf8')) } catch { return undefined }
         },
@@ -1505,7 +1510,7 @@ export function apriSincronia(deps: {
       if (v === undefined) return undefined
       const blob = await deps.archivio().scarica(v.nome)
       if (blob === undefined) return undefined
-      return decifra(maestra, blob)
+      return spacchetta(await decifra(maestra, blob))
     },
     async migraUnaCasa(caseChat) {
       if (maestra === undefined) return { ok: false, messaggio: 'cassaforte chiusa' }

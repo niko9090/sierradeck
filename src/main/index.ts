@@ -85,7 +85,7 @@ import { idsDaConfrontareSulDrive } from '@shared/residenza'
 import { creaResidenza, type Residenza } from './residenza'
 import { armonizzaCase, casaDelGruppo, dentroCartella, eSenzaNome, gruppoDiCartella, gruppoDiId, nomeNormalizzato, raggruppaProgetti } from '@shared/progetti-unificati'
 import { decidiAperturaRemota, type CopiaNota } from '@shared/apertura-remota'
-import type { Pannello } from '@shared/pannello-drive'
+import { conSpazioDrive, type Pannello } from '@shared/pannello-drive'
 import { memoriaBreve } from '@shared/memoria-breve'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
 import { creaLatoResidente, creaRimozione, progettiInRecupero, spostaCartellaInRecupero, type LatoResidente, type Rimozione } from './rimozione-sicura'
@@ -1274,7 +1274,7 @@ if (!app.requestSingleInstanceLock()) {
           consegnato: (voce, id) => {
             if (voce.autopilota === undefined) return
             registro.info(`[consegna] ${id} per «${voce.titolo}»: partita, in sottofondo (workspace «${voce.workspace ?? '?'}» non sullo schermo)`)
-            // E lo si dice al servizio (0.68.1): i messaggi passano a «consegnato alle…».
+            // E lo si dice al servizio (0.69.0): i messaggi passano a «consegnato alle…».
             const consegna = consegnaDaIdTesto(id)
             if (consegna !== undefined) void postaAlServizio('/consegne/esito', { id: consegna, esito: 'partita' }).catch(() => undefined)
           },
@@ -1613,6 +1613,9 @@ if (!app.requestSingleInstanceLock()) {
         progetti: progettiSync,
         pcNome: () => identitaPc.leggi().nome,
         pcId: () => identitaPc.leggi().id,
+        // Le chat compresse sul Drive solo se tutti i PC visti sanno leggerle (0.69.0).
+        // Senza battiti ancora letti non si comprime.
+        versioniAltriPc: () => (postinoGlobale === undefined ? ['0.0.0'] : postinoGlobale.altrui().map((b) => b.versione ?? '0.0.0')),
         workspaceLocale: {
           leggi: () => workspaceStore?.leggi(),
           scrivi: (a) => workspaceStore?.scrivi(a) ?? false
@@ -2156,7 +2159,7 @@ if (!app.requestSingleInstanceLock()) {
       // **Sul PC di casa: le chat usate da altri PC** (0.58.4): l'elenco, «Mostra
       // qui» (la porta in un riquadro senza riavviarla) e «Chiudi».
       ipcMain.handle('sottofondo:elenco', () => sottofondo?.elenco() ?? [])
-      // «Guarda» (0.68.1): lo schermo dal vivo di una chat in sottofondo, senza cambiare workspace.
+      // «Guarda» (0.69.0): lo schermo dal vivo di una chat in sottofondo, senza cambiare workspace.
       ipcMain.handle('sottofondo:schermo', (_e, sessione: unknown) => (typeof sessione === 'string' ? sottofondo?.schermo(sessione) ?? null : null))
       ipcMain.handle('sottofondo:mostra', (e, sessione: unknown) => {
         const s = sottofondo?.stato(testo(sessione))
@@ -2894,7 +2897,11 @@ if (!app.requestSingleInstanceLock()) {
       app.on('before-quit', () => { clearInterval(timerSpazio); clearTimeout(primoSpazio) })
       ipcMain.handle('spazio:stato', (_e, forza: unknown) => spazio.stato(forza === true))
       const pannelloCompleto = async (): Promise<Pannello & { rimozione: { stati: StatoRimozione[]; inRecupero: CartellaInRecupero[] }; unioni: ReturnType<Residenza['unioni']>; spazio?: StatoSpazio }> => ({
-        ...(await leggiPannello()),
+        ...(await (async () => {
+          const p = await leggiPannello()
+          // Lo spazio sul Drive di ogni progetto (0.69.0), con l'avviso dei file grandi.
+          return { ...p, progetti: conSpazioDrive(p.progetti, spazio.subito()?.misura?.perProgetto) }
+        })()),
         ...(spazio.subito() !== undefined ? { spazio: spazio.subito() as StatoSpazio } : {}),
         residenza: residenzaGlobale?.stati() ?? [],
         unioni: residenzaGlobale?.unioni() ?? [],
@@ -3102,7 +3109,7 @@ if (!app.requestSingleInstanceLock()) {
         }
       }
       // Il trasloco di un progetto di prova (0.65.0): anche chi collauda, solo «SierraDeck-prova-…».
-      // Un progetto di prova di chi collauda, tolto da questo PC (0.68.1): la
+      // Un progetto di prova di chi collauda, tolto da questo PC (0.69.0): la
       // cartella nel recupero (30 giorni) e la voce di questo PC fuori dal
       // registro. Solo «SierraDeck-prova-…», e mai con una chat aperta dentro.
       provaTogliProgettoGlobale = async (nome) => {
@@ -5688,7 +5695,7 @@ if (!app.requestSingleInstanceLock()) {
             ...(ws !== undefined ? { workspace: ws } : {}),
             ...(c.autopilotaId !== '' ? { autopilota: { id: c.autopilotaId, chat: c.chatId } } : {}),
             ...(ptyGia !== undefined && !sf.ha(c.sessionId) ? { ptyGia } : {}),
-            // In coda da più di due minuti (0.68.1): si scrive anche se la chat lavora.
+            // In coda da più di due minuti (0.69.0): si scrive anche se la chat lavora.
             ...(c.ancheAlLavoro === true ? { ancheAlLavoro: true } : {})
           })
         } catch (e) {
@@ -5947,7 +5954,7 @@ if (!app.requestSingleInstanceLock()) {
             },
             // Dopo «Installa» premuto da Nicholas (qui, «Installa là», telefono) si
             // aspetta fino a due ore: dieci minuti non bastavano mai con gli
-            // autopiloti al lavoro. Mai un'installazione da sola (0.68.1).
+            // autopiloti al lavoro. Mai un'installazione da sola (0.69.0).
             tetto: ATTESA_INSTALLA_MS,
             versione: app.getVersion()
           })

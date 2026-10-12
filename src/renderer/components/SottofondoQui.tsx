@@ -33,7 +33,7 @@ function quando(iso: string): string {
 export function SottofondoQui({ vuoto }: { vuoto?: React.ReactNode } = {}): React.JSX.Element | null {
   const [elenco, setElenco] = useState<StatoSottofondo[]>([])
   const [aperto, setAperto] = useState(false)
-  // In un portale attaccato al body (0.68.1): dentro la barra veniva tagliato.
+  // In un portale attaccato al body (0.69.0): dentro la barra veniva tagliato.
   const tasto = useRef<HTMLButtonElement>(null)
   const [posto, setPosto] = useState<{ top: number; right: number } | undefined>(undefined)
   useLayoutEffect(() => {
@@ -42,7 +42,7 @@ export function SottofondoQui({ vuoto }: { vuoto?: React.ReactNode } = {}): Reac
     if (r !== undefined) setPosto({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) })
   }, [aperto])
   const [esito, setEsito] = useState<string | undefined>(undefined)
-  /** «Guarda» (0.68.1): lo schermo dal vivo di una chat, riletto ogni due secondi. */
+  /** «Guarda» (0.69.0): lo schermo dal vivo di una chat, riletto ogni due secondi. */
   const [guardo, setGuardo] = useState<string | undefined>(undefined)
   const [schermo, setSchermo] = useState<string[]>([])
   useEffect(() => {

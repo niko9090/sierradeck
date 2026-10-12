@@ -1,3 +1,4 @@
+import { spacchetta } from './compressione'
 import { riparaArchivio } from '@shared/workspace-riparazioni'
 import { readFile, stat } from 'node:fs/promises'
 import type { Archivio as ArchivioDrive } from './archivio'
@@ -497,7 +498,7 @@ export async function eseguiFusione(deps: {
     if (v === undefined) return undefined
     const blob = await deps.archivio.scarica(v.nome)
     if (blob === undefined) return undefined
-    const chiaro = await decifra(deps.maestra, blob)
+    const chiaro = spacchetta(await decifra(deps.maestra, blob))
     return chiaro === undefined ? undefined : { contenuto: chiaro, mtime: v.mtime }
   }
 
@@ -559,7 +560,7 @@ export async function leggiJsonDalDrive(
   if (v === undefined) return undefined
   const blob = await archivio.scarica(v.nome)
   if (blob === undefined) return undefined
-  const chiaro = await decifra(maestra, blob)
+  const chiaro = spacchetta(await decifra(maestra, blob))
   if (chiaro === undefined) return undefined
   try { return JSON.parse(chiaro.toString('utf8')) } catch { return undefined }
 }

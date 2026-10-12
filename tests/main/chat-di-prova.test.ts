@@ -188,7 +188,7 @@ describe('«Riprendi» da lontano di una chat che vive su un altro PC (0.64.0)',
   })
 })
 
-describe('/api/prova/togli-progetto (0.68.1)', () => {
+describe('/api/prova/togli-progetto (0.69.0)', () => {
   const conTogli = (tolti: string[]): DipendenzeRotte => ({
     ...(deps([], []) as unknown as Record<string, unknown>),
     provaTogliProgetto: async (nome: string) => { tolti.push(nome); return { ok: true, messaggio: 'nel recupero' } }

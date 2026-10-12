@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Si vede sempre chi lavora (PC 0.68.1): l'app legge le parole decise dal PC
+ * Si vede sempre chi lavora (PC 0.69.0): l'app legge le parole decise dal PC
  * («al lavoro · da 12 min», «nessun segno da 10 min», lo stato di ogni
  * messaggio) e le chat in sottofondo. Con un PC più vecchio i campi mancano.
  */

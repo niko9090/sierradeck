@@ -20,11 +20,20 @@ import { compilaRegole, giudizio, type Regola } from '@shared/gitignore'
  */
 export const ESCLUSI_SEMPRE = new Set([
   'node_modules', '.venv', 'venv', '__pycache__', '.DS_Store', 'Thumbs.db', 'desktop.ini',
-  '.pnpm-store', '.yarn', '.gradle', 'build', '.next', '.nuxt', '.turbo', '.cache'
+  '.pnpm-store', '.yarn', '.gradle', 'build', '.next', '.nuxt', '.turbo', '.cache',
+  // 0.69.0: le uscite delle build, che si rigenerano con un comando.
+  'dist', 'out', '.parcel-cache', 'coverage'
 ])
 
+/** I recuperati di SierraDeck (copie di sicurezza locali, non lavoro): mai sul Drive (0.69.0). */
+export function cartellaEsclusa(rel: string): boolean {
+  return rel === '.sierradeck/recuperati' || rel.endsWith('/.sierradeck/recuperati')
+}
+
 /** Oltre questo un file non e' un sorgente: e' un binario che si scarica, non si sincronizza. */
-export const TETTO_FILE_BYTE = 100 * 1024 * 1024
+// 0.69.0: era 100 MB. Un file di progetto oltre 50 MB è quasi sempre un
+// binario che si rigenera o si scarica (APK, installer, video, archivi).
+export const TETTO_FILE_BYTE = 50 * 1024 * 1024
 
 type Livello = { rel: string; regole: Regola[] }
 
@@ -74,7 +83,7 @@ export async function elencaFileProgetto(
       if (v.isSymbolicLink()) continue
       const relVoce = rel === '' ? v.name : `${rel}/${v.name}`
       if (v.isDirectory()) {
-        if (ESCLUSI_SEMPRE.has(v.name)) continue
+        if (ESCLUSI_SEMPRE.has(v.name) || cartellaEsclusa(relVoce)) continue
         if (ignorato(qui, relVoce, true)) continue
         await scendi(join(dir, v.name), relVoce, qui)
       } else if (v.isFile()) {

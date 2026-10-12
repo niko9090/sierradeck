@@ -41,7 +41,8 @@ describe('elencaFileProgetto', () => {
     expect(file.sort()).toEqual([
       '.git/HEAD', '.git/objects/ab/cdef', '.gitignore',
       'android/.gitignore', 'android/app/src/Main.kt',
-      'pacchetti/out/y.txt', 'src/a.ts', 'tieni.log'
+      // Dalla 0.69.0 «out» (uscita di build) resta a casa a ogni livello: «pacchetti/out/y.txt» non sale più.
+      'src/a.ts', 'tieni.log'
     ])
     expect(troppoGrandi).toEqual(['grande.bin'])
   })

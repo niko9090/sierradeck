@@ -29,7 +29,7 @@ export type Consegna = {
    * soltanto, perché chi apre il riquadro non lo guarda più.
    */
   workspace?: string
-  /** Messaggi in coda da più di due minuti (0.68.1): si scrivono anche se la chat lavora. */
+  /** Messaggi in coda da più di due minuti (0.69.0): si scrivono anche se la chat lavora. */
   ancheAlLavoro?: boolean
 }
 
@@ -392,7 +392,7 @@ function attendiEConsegna(
       }
       // **Sta lavorando** (0.57.1): un turno in corso non si interrompe e non
       // gli si scrive sopra. Il tetto non scatta: si aspetta la fine del turno.
-      // Tranne i messaggi in coda da più di due minuti (0.68.1): Claude Code legge
+      // Tranne i messaggi in coda da più di due minuti (0.69.0): Claude Code legge
       // un testo scritto durante il turno appena può, senza interrompere.
       if (ponte.lavora?.(ora.ptyId) === true && !ponte.prontoARicevere(ora.ptyId) && c.ancheAlLavoro === true) {
         ponte.registra?.(`consegna ${c.id}: la chat lavora, ma i messaggi aspettano da più di due minuti: li scrivo durante il turno`)

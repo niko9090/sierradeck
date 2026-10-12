@@ -8,7 +8,7 @@ import { apriArchivio, ultimoNumeroConsegne } from '../../src/autopilot-host/arc
  * «STO SCRIVENDO NEGLI AUTOPILOTI MA NON RIESCONO AD IMPARTIRE ORDINI ALLE CHAT»
  * (Nicholas, 12/10). `elenca` leggeva anche `consegne-numero.json`, che non è
  * un autopilota, e lo metteva da parte come «illeggibile» a ogni giro: 47 copie,
- * il contatore spariva e le consegne ripartivano da c-1 (0.68.1).
+ * il contatore spariva e le consegne ripartivano da c-1 (0.69.0).
  */
 describe('il contatore delle consegne', () => {
   it('sopravvive a elenca(): non è un autopilota e non si mette da parte', () => {

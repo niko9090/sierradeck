@@ -41,8 +41,11 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
-    versione: '0.68.1',
+    versione: '0.69.0',
     righe: [
+      '**Gli autopiloti comandano davvero le chat.** Un messaggio in coda da più di 2 minuti arriva anche a una chat al lavoro, senza interromperla; ogni messaggio dice «consegnato alle hh:mm» o «in attesa da N min» con «Manda adesso».',
+      '**Si vede sempre chi lavora:** ogni autopilota, anche degli altri PC, dice «al lavoro / aspetta te / fermo / finito» con l’ultima azione, e «nessun segno da 10 min». Le chat in sottofondo hanno «Guarda» per vedere lo schermo senza cambiare workspace.',
+      '**Meno spazio sul Drive:** le chat si salvano compresse (quando tutti i PC sono alla 0.69), le uscite delle build e i file oltre 50 MB restano a casa, il recupero scaduto si svuota da solo. In Progetti vedi quanto occupa ogni progetto e i file grandi.',
       '**Gli aggiornamenti li installi solo tu.** La versione nuova si scarica e compare «Versione pronta — Installa» su PC, pagina e app; si installa soltanto quando premi Installa (o «Installa là»). Mai più da sola, né alla quiete né alla chiusura.',
       '**«Togli da questo PC» funziona anche per i progetti che il PC conosce dal Drive:** prima il pannello lo offriva e poi rispondeva «il progetto non ha una cartella».'
     ]

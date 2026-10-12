@@ -1,3 +1,4 @@
+import { impacchetta, spacchetta } from './compressione'
 import { readFile, rename, stat, unlink, utimes, writeFile, mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname } from 'node:path'
@@ -270,6 +271,8 @@ export async function salvaIncrementale(deps: {
   escludi?: (percorso: string, f?: { size: number; mtime: number }) => boolean
   /** Chi carica: finisce sulle voci delle chat (`pc`), lo spazio di questo PC. */
   proprietario?: string
+  /** Quali percorsi caricare compressi (0.69.0): le chat, quando tutti i PC sanno leggerle. */
+  comprimi?: (percorso: string) => boolean
 }): Promise<{ manifesto: Manifesto; caricati: number; cancellati: number; cancellatiPercorsi: string[]; conflitti: Conflitto[]; annullato?: boolean }> {
   const copie = deps.copieDiConflitto ?? PROGETTI
   const pcNome = deps.pcNome ?? 'questo-pc'
@@ -333,7 +336,9 @@ export async function salvaIncrementale(deps: {
   let caricatiDavvero = 0
   const carica = async (percorso: string, contenuto: Buffer, f: { size: number; mtime: number }): Promise<void> => {
     const nome = nomeDi(percorso)
-    await deps.archivio.carica(nome, await cifra(deps.maestra, contenuto))
+    // Le chat compresse prima di cifrare (0.69.0), solo se tutti i PC sanno leggerle.
+    const z = deps.comprimi?.(percorso) === true
+    await deps.archivio.carica(nome, await cifra(deps.maestra, z ? impacchetta(contenuto) : contenuto))
     // Mutazione fra due `await`: JS e' a thread singolo, non c'e' corsa vera.
     nuovo.file[percorso] = {
       nome, size: f.size, mtime: f.mtime, sha: impronta(contenuto),
@@ -343,7 +348,7 @@ export async function salvaIncrementale(deps: {
   }
   const scaricaChiaro = async (voce: VoceManifesto): Promise<Buffer | undefined> => {
     const blob = await deps.archivio.scarica(voce.nome)
-    return blob === undefined ? undefined : decifra(deps.maestra, blob)
+    return blob === undefined ? undefined : spacchetta(await decifra(deps.maestra, blob))
   }
 
   await conLimite(cambiati, PARALLELI, async (percorso) => {
@@ -600,7 +605,7 @@ export async function ripristinaIncrementale(deps: {
     fatto += 1
     deps.onProgresso?.({ fase: 'scarico', fatto, totale: daScaricare.length, unita: 'file', verso: 'giu', dettaglio: percorso.split('/').slice(-2).join('/') })
     if (blob === undefined) return
-    const chiaro = await decifra(deps.maestra, blob)
+    const chiaro = spacchetta(await decifra(deps.maestra, blob))
     if (chiaro === undefined) return
 
     const disco = discoDi(perPrefisso, percorso)

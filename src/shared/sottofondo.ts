@@ -12,7 +12,7 @@ export type ChiUsa = { id: string; nome: string }
 
 export type TestoInCoda = {
   id: string; testo: string; quando: string
-  /** Si scrive anche se la chat sta lavorando (0.68.1): Claude Code lo legge appena può. */
+  /** Si scrive anche se la chat sta lavorando (0.69.0): Claude Code lo legge appena può. */
   ancheAlLavoro?: boolean
 }
 
@@ -62,9 +62,9 @@ export type StatoSottofondo = {
   cwd: string
   dal: string
   workspace?: string
-  /** L'ultima volta che la chat ha scritto qualcosa sullo schermo (0.68.1): «nessun segno da 10 min». */
+  /** L'ultima volta che la chat ha scritto qualcosa sullo schermo (0.69.0): «nessun segno da 10 min». */
   ultimoDatoIl?: string
-  /** La chat di un autopilota (0.68.1): l'elenco «Al lavoro in sottofondo» lo dice. */
+  /** La chat di un autopilota (0.69.0): l'elenco «Al lavoro in sottofondo» lo dice. */
   autopilota?: string
 }
 

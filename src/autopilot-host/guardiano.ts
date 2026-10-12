@@ -52,7 +52,7 @@ export const FERMA_DA_MS = 30_000
 
 /**
  * Dopo quanto un messaggio in coda si porta anche a una chat che sta lavorando
- * (0.68.1). «STO SCRIVENDO NEGLI AUTOPILOTI MA NON RIESCONO AD IMPARTIRE ORDINI
+ * (0.69.0). «STO SCRIVENDO NEGLI AUTOPILOTI MA NON RIESCONO AD IMPARTIRE ORDINI
  * ALLE CHAT» (Nicholas, 12/10): una chat che lavora per ore non si ferma mai, e
  * la coda aspettava la fine del turno. Provato dal vero il 12/10: Claude Code
  * accetta un testo scritto durante il turno, non interrompe quello che fa e lo

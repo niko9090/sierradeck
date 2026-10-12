@@ -92,7 +92,7 @@ export type Aggiornamenti = {
   scarica: (dalTelefono?: boolean) => Promise<void>
   /**
    * Chiude il programma e installa, alla quiete. Solo per un'azione di Nicholas:
-   * il tasto sul PC, dalla pagina o dall'app, o «Installa là» (0.68.1).
+   * il tasto sul PC, dalla pagina o dall'app, o «Installa là» (0.69.0).
    */
   installa: () => Promise<void>
   /**
@@ -337,7 +337,7 @@ export function creaAggiornamenti(
   // Da solo o su richiesta, lo sceglie l'utente: `scaricaAutomatico` porta la
   // preferenza, e `impostaScaricoAutomatico` la cambia a caldo. Assente = acceso.
   autoUpdater.autoDownload = scaricaAutomatico?.() ?? true
-  // **Installa solo Nicholas** (regola del 12/10, 0.68.1): «HO DETTO CHE
+  // **Installa solo Nicholas** (regola del 12/10, 0.69.0): «HO DETTO CHE
   // INSTALLO IO E BASTA». Niente installazione alla chiusura, niente alla
   // quiete: si scarica, si dice «Versione pronta — Installa», e si installa
   // soltanto con il tasto (PC, pagina, app) o con «Installa là» premuto da lui.
@@ -424,7 +424,7 @@ export function creaAggiornamenti(
   setTimeout(() => void cerca(), 10_000)
   setInterval(() => {
     // Con una versione già pronta non si cerca (la fase «cerco» lampeggerebbe
-    // ogni dieci minuti) e non si installa: aspetta il tasto (0.68.1).
+    // ogni dieci minuti) e non si installa: aspetta il tasto (0.69.0).
     if (stato.fase !== 'pronto') void cerca()
   }, RICONTROLLA_MS)
 
@@ -594,7 +594,7 @@ export function creaAggiornamenti(
                 // della pausa se ne va, e electron-updater torna a installare
                 // alla chiusura — cosi' il testo «si installa da sola quando
                 // chiudi» resta vero.
-                // Mai alla chiusura (0.68.1): installa solo Nicholas, con il tasto.
+                // Mai alla chiusura (0.69.0): installa solo Nicholas, con il tasto.
                 try {
                   await disfaPausa?.()
                 } catch (err) {

@@ -12,7 +12,7 @@ import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 /**
  * «STO SCRIVENDO NEGLI AUTOPILOTI MA NON RIESCONO AD IMPARTIRE ORDINI ALLE
  * CHAT» (Nicholas, 12/10): una chat che lavora per ore non si ferma mai, e la
- * coda aspettava la fine del turno. Dalla 0.68.1 un messaggio in coda da più di
+ * coda aspettava la fine del turno. Dalla 0.69.0 un messaggio in coda da più di
  * due minuti si scrive anche durante il turno. Provato dal vero il 12/10 su una
  * chat di prova: Claude Code non interrompe quello che fa e lo legge appena può.
  */
@@ -78,7 +78,7 @@ describe('in sottofondo: si scrive durante il turno solo un testo «anche al lav
   })
 })
 
-describe('in sottofondo il servizio sa che la consegna è partita (0.68.1)', () => {
+describe('in sottofondo il servizio sa che la consegna è partita (0.69.0)', () => {
   it('dall’id del testo si risale alla consegna', async () => {
     const { consegnaDaIdTesto, idTestoConsegna } = await import('../../src/main/autopilota-consegne')
     const id = idTestoConsegna({ id: 'c-12', autopilotaId: 'ap-1', chatId: 'ap-1', cwd: 'C:\p', sessionId: 's', titolo: 't', cosa: 'scrivi', testo: 'fai anche questo' })

@@ -314,7 +314,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                             Text(perche, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 2)
                         }
                     }
-                    // Si vede sempre chi lavora, e lo stato di ogni messaggio (PC 0.68.1).
+                    // Si vede sempre chi lavora, e lo stato di ogni messaggio (PC 0.69.0).
                     (det?.dalVivo ?: breve.dalVivo)?.let { DalVivo(it) }
                     MessaggiVersoLaChat(det?.messaggi ?: emptyList()) {
                         scopeMessaggi.launch {
@@ -1237,7 +1237,7 @@ private fun VoceAutopilota(ap: AutopilotaBreve, onApri: () -> Unit) {
                     Spacer(Modifier.height(4.dp))
                     Text(sotto, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 2)
                 }
-                // Si vede sempre chi lavora (PC 0.68.1).
+                // Si vede sempre chi lavora (PC 0.69.0).
                 ap.dalVivo?.let { DalVivo(it) }
                 if (ap.criteri > 0) {
                     Spacer(Modifier.height(10.dp))
@@ -1396,7 +1396,7 @@ private fun LinguettaFile(api: Api, autopilota: String) {
 }
 
 
-/** «al lavoro · da 12 min», l'ultima azione, «nessun segno da 10 min» (PC 0.68.1): le parole del PC. */
+/** «al lavoro · da 12 min», l'ultima azione, «nessun segno da 10 min» (PC 0.69.0): le parole del PC. */
 @Composable
 fun DalVivo(v: StatoDalVivo) {
     val colore = when (v.etichetta) {
@@ -1413,7 +1413,7 @@ fun DalVivo(v: StatoDalVivo) {
     if (v.ultimaAzione.isNotBlank()) Text(v.ultimaAzione, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
 }
 
-/** I messaggi verso la chat con il loro stato, e «Manda adesso» (PC 0.68.1). */
+/** I messaggi verso la chat con il loro stato, e «Manda adesso» (PC 0.69.0). */
 @Composable
 fun MessaggiVersoLaChat(messaggi: List<StatoMessaggio>, onManda: () -> Unit) {
     if (messaggi.isEmpty()) return
