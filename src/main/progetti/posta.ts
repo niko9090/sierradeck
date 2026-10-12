@@ -306,6 +306,7 @@ export function creaPostino(deps: {
       .sort((a, b) => b.battito.localeCompare(a.battito))
   }
   let altruiVisti = ''
+  let altruiScritti = ''
   const ricorda = (b: BattitoPc[]): void => {
     const visti = b.map((x) => `${x.nome} ${x.versione} (${nomeBattitoPc(x.pcId)})`).sort().join(', ')
     if (visti !== altruiVisti) {
@@ -314,7 +315,10 @@ export function creaPostino(deps: {
     }
     altrui = b
     altruiLettiIl = adesso()
-    try { deps.memoria?.scrivi(b) } catch { /* la memoria e' un comodo, non un dovere */ }
+    // Sul disco solo se è cambiato (0.69.0): si rileggono ogni minuto, ma un battito cambia ogni due.
+    const testo = JSON.stringify(b)
+    if (testo === altruiScritti) return
+    try { deps.memoria?.scrivi(b); altruiScritti = testo } catch { /* la memoria e' un comodo, non un dovere */ }
   }
 
   return {

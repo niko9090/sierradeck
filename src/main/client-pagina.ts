@@ -3383,7 +3383,7 @@ setInterval(async () => {
 
 // La cassetta cambia dal PC destinatario (consegnata, fallita): si rilegge.
 setInterval(async () => {
-  if (pannelloAperto !== 'pc' || !chiave) return
+  if (pannelloAperto !== 'pc' || !chiave || document.hidden) return
   try { if (pcAperto !== null) await leggiPosta(); else await leggiPc() } catch (e) { return }
   pannello(ultimoStato)
 }, 10000)
@@ -3475,7 +3475,7 @@ window.driveRiavvia = async () => {
 // Il lavoro sul computer, ogni due secondi finche' il pannello Drive e' aperto;
 // quando finisce, il catalogo e' cambiato e si rilegge.
 setInterval(async () => {
-  if (pannelloAperto !== 'drive' || !chiave) return
+  if (pannelloAperto !== 'drive' || !chiave || document.hidden) return
   try { driveLavoro = await chiedi('/api/drive/lavoro') } catch (e) { return }
   const adesso = !!(driveLavoro && driveLavoro.inCorso)
   if (driveEraInCorso && !adesso) { driveInCorso = null; await leggiDrive() }
@@ -3486,7 +3486,7 @@ setInterval(async () => {
 // La coda condivisa cambia dal computer (una voce consegnata): si rilegge
 // ogni dieci secondi finche' e' aperta, come fa l'app.
 setInterval(async () => {
-  if (pannelloAperto !== 'code' || codaProgetto === null || !chiave) return
+  if (pannelloAperto !== 'code' || codaProgetto === null || !chiave || document.hidden) return
   try { await leggiCoda() } catch (e) { return }
   pannello(ultimoStato)
 }, 10000)

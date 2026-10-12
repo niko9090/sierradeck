@@ -920,7 +920,14 @@ export function App(): React.JSX.Element {
         .catch(() => undefined)
     }
     leggi()
-    const h = setInterval(leggi, 3000)
+    // Con la finestra nascosta o ridotta, ogni 15 secondi invece di 3 (0.69.0):
+    // ogni lettura chiede le domande a tutte le chat e al servizio degli autopiloti.
+    let lettaIl = Date.now()
+    const h = setInterval(() => {
+      if (document.hidden && Date.now() - lettaIl < 15_000) return
+      lettaIl = Date.now()
+      leggi()
+    }, 3000)
     return () => clearInterval(h)
   }, [])
   const [workspace, setWorkspace] = useState<StatoWorkspace>({ nomi: [], attivo: '' })

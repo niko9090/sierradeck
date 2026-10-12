@@ -537,8 +537,14 @@ export function apriSincronia(deps: {
     }
     return { ...m, file }
   }
+  /** L'ultimo testo scritto: il manifesto è di qualche MB, e il salvataggio automatico lo riscriveva uguale ogni 5 minuti (0.69.0). */
+  let manifestoScritto = ''
+  let invariatoDettoIl = 0
   const scriviManifestoLocale = (m: Manifesto): void => {
-    scriviAtomico(fileManifesto, JSON.stringify(soloSuDisco(m)), 'sync')
+    const testo = JSON.stringify(soloSuDisco(m))
+    if (testo === manifestoScritto && existsSync(fileManifesto)) return
+    scriviAtomico(fileManifesto, testo, 'sync')
+    manifestoScritto = testo
   }
 
   // La sola cosa in chiaro. In memoria, e — se c'e' un portachiavi — avvolta
@@ -784,7 +790,7 @@ export function apriSincronia(deps: {
     },
 
     async salva() {
-      log('SALVA richiesto')
+      // «SALVA richiesto» a ogni giro automatico era metà del registro (0.69.0): resta l'esito.
       if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
       if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
       const l = prendiLavoro('salvataggio')
@@ -824,7 +830,8 @@ export function apriSincronia(deps: {
           return { ok: true, voci: esito.caricati, annullato: true, messaggio: `fermato: ${esito.caricati} file saliti, il resto al prossimo salvataggio` }
         }
         if (esito.caricati === 0 && esito.cancellati === 0) {
-          log('niente da salvare: nessun file cambiato')
+          // Una volta l'ora basta (0.69.0): il salvataggio automatico passa ogni 5 minuti.
+          if (Date.now() - invariatoDettoIl >= 60 * 60_000) { log('niente da salvare: nessun file cambiato (lo ridico fra un’ora)'); invariatoDettoIl = Date.now() }
           return { ok: true, invariato: true, voci: totali }
         }
         // Dal disco, non dalla fotografia di inizio salvataggio: un `auto(false)`

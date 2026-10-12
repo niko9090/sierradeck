@@ -160,6 +160,7 @@ export function apriContoDrive(dati: string): ContoDrive {
    * ogni magazzino e archivio, e ognuno rinnovava per conto suo.
    */
   let fornitore: FornitoreToken | undefined
+  let archivioUnico: { token: FornitoreToken; archivio: Archivio } | undefined
   const tokenUnico = (c: NonNullable<ReturnType<typeof configGoogle>>): FornitoreToken =>
     (fornitore ??= creaFornitoreToken({ config: c, leggi, scrivi, scarta: revocata }))
 
@@ -240,7 +241,11 @@ export function apriContoDrive(dati: string): ContoDrive {
       const c = config()
       if (c === undefined) throw new Error('Google Drive non configurato: mancano le credenziali OAuth dell’app')
       const token = tokenUnico(c)
-      return creaArchivioDrive({ token, rinnova: token.rinnova })
+      // Uno solo per collegamento (0.69.0): se ne creava uno a ogni chiamata,
+      // così il ricordo nome → id si perdeva a ogni giro e ogni lettura costava
+      // una ricerca in più. Era la parte più grande delle richieste al Drive.
+      if (archivioUnico?.token !== token) archivioUnico = { token, archivio: creaArchivioDrive({ token, rinnova: token.rinnova }) }
+      return archivioUnico.archivio
     }
   }
 }

@@ -117,6 +117,9 @@ export type Ronda = {
   pulisciCoda: (id: string) => Promise<Coda | undefined>
 }
 
+/** Ogni quanto si guarda un progetto senza chat vive qui (0.69.0). */
+export const RONDA_SENZA_CHAT_MS = 5 * 60_000
+
 export function creaRonda(deps: {
   scatola: () => Scatola | undefined
   registro: RegistroProgettiStore
@@ -146,6 +149,8 @@ export function creaRonda(deps: {
   const stati = new Map<string, StatoProgetto>()
   const avvisati = new Set<string>()
   const inCoda = new Map<string, number>()
+  /** Quando si è letto ogni progetto dal Drive l'ultima volta (0.69.0). */
+  const lettoIl = new Map<string, number>()
   let inGiro = false
   const nuovoId = deps.nuovoId ?? ((): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`)
 
@@ -188,10 +193,17 @@ export function creaRonda(deps: {
 
   const giroDi = async (s: Scatola, p: ProgettoDrive): Promise<void> => {
     const me = deps.pcId()
-    const presenza = await s.leggi<Presenza>(nomePresenza(p.id))
-    const staffetta = await s.leggi<Staffetta>(nomeStaffetta(p.id))
     const vive = deps.vive(p)
     const ora = adesso()
+    // Senza chat vive qui e senza la presenza in mano, il progetto si guarda
+    // solo ogni 5 minuti (0.69.0): erano tre letture del Drive per progetto
+    // ogni mezzo minuto, la parte più grande delle richieste di un PC.
+    const ultima = lettoIl.get(p.id)
+    if (vive.length === 0 && stati.get(p.id)?.chi !== 'io' && ultima !== undefined && ora - ultima < RONDA_SENZA_CHAT_MS) return
+    lettoIl.set(p.id, ora)
+    const presenza = await s.leggi<Presenza>(nomePresenza(p.id))
+    // Il testimone conta solo se la presenza è mia.
+    const staffetta = presenza?.pcId === me ? await s.leggi<Staffetta>(nomeStaffetta(p.id)) : undefined
     inCoda.set(p.id, (await leggiCoda(s, p.id)).voci.filter((v) => v.stato === 'attesa').length)
 
     if (presenzaViva(presenza, ora) && presenza.pcId === me) {

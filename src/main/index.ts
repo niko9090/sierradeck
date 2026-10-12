@@ -1902,7 +1902,9 @@ if (!app.requestSingleInstanceLock()) {
         io: () => identitaPc.leggi().id,
         mioNome: () => identitaPc.leggi().nome,
         chiaveDiCasa: (pcId) => sincronia.chiaveDiCasa(`client-pc:${pcId}`),
-        altriPc: () => postino.altrui().map((b) => b.pcId),
+        // Solo i PC accesi (0.69.0): un PC spento non offre niente, e ogni
+        // ricerca della sua offerta era una richiesta al Drive ogni 10 secondi.
+        altriPc: () => postino.altrui().filter((b) => pcVivo(b, Date.now())).map((b) => b.pcId),
         rotta: async (percorso, corpo, visore) => {
           if (rottaPerAltriPc === undefined) return { stato: 503, corpo: { errore: 'il Client di questo PC non è ancora pronto' } }
           return rottaPerAltriPc({ metodo: corpo === undefined ? 'GET' : 'POST', percorso, corpo, dispositivo: `pc:${visore}` })
@@ -2635,7 +2637,9 @@ if (!app.requestSingleInstanceLock()) {
       ospiteGlobale = ospite
       for (const [s, ap] of daPrendereDopo) ospite.casaAltrovePerAutopilota(s, ap)
       daPrendereDopo.clear()
-      const timerOspite = setInterval(() => { void ospite.giro() }, 10_000)
+      // Ogni 30 secondi (0.69.0; erano 10): ogni giro rilegge l'indice delle chat e
+      // guarda sul disco ogni trascrizione. Le chat da chiudere aspettano già 30 s.
+      const timerOspite = setInterval(() => { void ospite.giro() }, 30_000)
       app.on('before-quit', () => { clearInterval(timerOspite) })
       ipcMain.handle('casa:dove', () => ospite.dove())
       // La casa memorizzata di una chat (0.67.0): il riquadro remoto si toglie da solo solo se è il PC che guarda.

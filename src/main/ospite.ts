@@ -70,6 +70,7 @@ export function creaOspite(deps: {
   const casaDi = (s: string): CasaChat | undefined => prese.get(s) ?? deps.unaCasa.casaDi(s)
   const casaAltroveDi = (s: string): (PcNoto & { motivo: string }) | undefined => casaAltrove(casaDi(s), deps.io().id)
 
+  let aspettaDetto = ''
   const giro = async (): Promise<void> => {
     if (inGiro) return
     inGiro = true
@@ -85,7 +86,10 @@ export function creaOspite(deps: {
         deps.chiudiQui(daChiudere.map((s) => { const c = casaAltroveDi(s) as PcNoto; return { sessione: s, pc: { id: c.id, nome: c.nome } } }))
         log(`[ospite] ${daChiudere.length} chat con l'ospite altrove erano aperte qui e ferme: chiudo il loro claude.exe e le guardo dal vivo`)
       }
-      if (piano.aspetta.length > 0) log(`[ospite] ${piano.aspetta.length} chat con l'ospite altrove stanno lavorando qui: aspetto che finiscano il turno`)
+      // Solo quando cambia (0.69.0): ogni giro lo ripeteva finché il turno non finiva.
+      const aspettaOra = [...piano.aspetta].sort().join(',')
+      if (piano.aspetta.length > 0 && aspettaOra !== aspettaDetto) log(`[ospite] ${piano.aspetta.length} chat con l'ospite altrove stanno lavorando qui: aspetto che finiscano il turno`)
+      aspettaDetto = aspettaOra
       for (const s of piano.sposta) {
         const casa = deps.unaCasa.casaDi(s) as CasaChat
         const c = locali.find((x) => x.sessione === s)

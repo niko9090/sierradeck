@@ -26,8 +26,13 @@ import { conConteggio } from '../risorse'
 const NOME_FILE_PREDEFINITO = 'sierradeck.cassaforte'
 const API = 'https://www.googleapis.com/drive/v3'
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3'
-/** Quanto vale un «non c'è» per chi legge (0.68.0): tre minuti, poi si ricerca. */
-export const ASSENTE_PER_MS = 3 * 60_000
+/**
+ * Quanto vale un «non c'è» per chi legge. 0.68.0: tre minuti, ma l'archivio
+ * si ricreava a ogni chiamata e non valeva quasi mai. Dalla 0.69.0 l'archivio
+ * è uno per collegamento: 20 secondi, perché chi aspetta che un file compaia
+ * (offerta e risposta WebRTC, posta, schermo) lo vede ancora in tempo.
+ */
+export const ASSENTE_PER_MS = 20_000
 
 type Fetch = typeof fetch
 
