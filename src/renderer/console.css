@@ -4860,3 +4860,16 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .trasf--uno > :nth-child(2) { display: none; }
 .negozio-vista .negozio__corpo { flex: 1; min-height: 0; overflow-y: auto; }
 .limite__testa { gap: 8px; align-items: baseline; }
+
+/* Il Quaderno a tutta finestra (0.70.0): progetti e tag · elenco · scheda. */
+.quaderno-vista__corpo { display: grid; grid-template-columns: 220px minmax(280px, 380px) 1fr; }
+.quaderno-vista__lato { overflow: auto; padding: 10px 8px; border-right: 1px solid var(--incisione); background: var(--chassis); display: flex; flex-direction: column; gap: 2px; }
+.quaderno-vista__titsez { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--testo-quieto); padding: 10px 8px 4px; }
+.quaderno-vista__voce { display: flex; justify-content: space-between; gap: 8px; align-items: center; background: transparent; border: 1px solid transparent; border-radius: var(--raggio); color: var(--testo-quieto); padding: 4px 8px; cursor: pointer; font: inherit; text-align: left; min-width: 0; }
+.quaderno-vista__voce:hover { color: var(--testo); background: var(--luce-tenue); }
+.quaderno-vista__voce--scelta { color: var(--testo); border-color: var(--primario-alto); background: var(--chassis-acceso); }
+.quaderno-vista__elenco { overflow: auto; padding: 8px; border-right: 1px solid var(--incisione); display: flex; flex-direction: column; gap: 2px; }
+.quaderno-vista__scheda { overflow: auto; padding: 12px 20px; display: flex; flex-direction: column; gap: var(--s3); min-width: 0; }
+.quaderno-vista__scheda .quaderno__corpo { min-height: 50vh; }
+.quaderno-vista__personale { max-width: 820px; }
+@media (max-width: 900px) { .quaderno-vista__corpo { grid-template-columns: 1fr; } .quaderno-vista__lato, .quaderno-vista__elenco { max-height: 30vh; border-right: 0; border-bottom: 1px solid var(--incisione); } }

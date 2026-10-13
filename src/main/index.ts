@@ -1,3 +1,4 @@
+import { assaggio as assaggioScheda } from '@shared/quaderno-vista'
 import {
   apriPannello, chiudiPannelliConLApp, finestreDiChat, impostaFinestrePannello, pannelliAperti, portaAvantiPannello, riapriPannelli, richiamaPannello,
   rimettiPannello, segnaFinestraDiServizio
@@ -5386,7 +5387,10 @@ if (!app.requestSingleInstanceLock()) {
           apriQuaderno().elenca(cwd).map((s) => ({
             file: s.file,
             titolo: s.titolo,
-            quando: s.quando
+            quando: s.quando,
+            // 0.70.0: i tag e un assaggio, per i filtri e la ricerca della pagina (il corpo intero no: pesa).
+            tag: s.tag,
+            assaggio: assaggioScheda(s.corpo)
           })),
         scheda: (cwd: string, file: string) => {
           const s = apriQuaderno().leggi(cwd, file)

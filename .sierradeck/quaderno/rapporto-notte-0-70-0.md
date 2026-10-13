@@ -195,3 +195,32 @@ Le foto sono in `note/foto-0-70/`, sul PC fisso (fuori da git: mostrano le carte
 **Azioni di prima → dove sono adesso**: niente spostato. I Consumi si aprono da Salute → Strumenti ▾ → «Consumi per esteso» (riquadro a destra) o dalla colonna «Consumi e limiti».
 
 **Test**: `tests/shared/consumi-vista.test.ts` (4: le soglie 79/80/94/95, la lettura vecchia, l'azzeramento, il contesto, i token in una riga) e, nell'app, `ConsumiVistaTest`.
+
+## (i) Quaderno e quaderno personale
+**Cosa cambia**
+- **A tutta finestra in tre colonne**: a sinistra i *Progetti* delle chat aperte con quante schede ha ognuno, i *Tag* del quaderno scelto con il loro numero («Tutte 4 · esempio 3 · autopilota 1…») e *🔒 Personale*; in mezzo l'elenco con la ricerca e l'ordine (Recenti / A–Z); a destra la scheda. Prima era una finestra con una tendina per la cartella e l'elenco senza tag cliccabili.
+- **Nessuna colonna vuota**: all'apertura si apre da sola la scheda più recente.
+- **Data corta** dappertutto: «oggi 01:07», «ieri», «3 giorni fa», «12/09».
+- **Il quaderno personale si raggiunge da qui** (🔒 Personale, o Strumenti ▾), oltre che dalle Impostazioni.
+- **Telefono, pagina**: ricerca (nasconde le righe senza ridisegnare), tag con il numero, su ogni riga l'assaggio, la data corta e i tag; la scheda aperta ha data e tag. Il PC ora manda in `/api/quaderno` anche `tag` e `assaggio` (non il corpo intero).
+- **Telefono, app**: stessa ricerca, stessi tag (FilterChip), assaggio, data e tag su ogni riga.
+- **Corretto di passaggio**: nella pagina, il riquadro «Aspettano te» mostrava tre volte «Lavoro-esempio»; ora i nomi distinti (#2, #3) come nel resto.
+
+**Azioni di prima → dove sono adesso**
+
+| Prima | Adesso |
+|---|---|
+| Tendina della cartella | Colonna *Progetti* a sinistra, con il numero di schede |
+| Cerca | In testata |
+| + Scheda | In testata |
+| Apri cartella | Strumenti ▾ → «Apri la cartella del quaderno» |
+| Elimina (sulla scheda) | Strumenti ▾ → «Elimina la scheda…», con la striscia di conferma |
+| Modifica / Fatto | Sulla scheda, come prima |
+| — | Nuovo: Strumenti ▾ → «Copia il percorso della scheda» |
+| Quaderno personale (solo in Impostazioni) | Anche qui: *🔒 Personale* a sinistra e Strumenti ▾ |
+
+**Test**: `tests/shared/quaderno-vista.test.ts` (6: tag contati, filtro tag+ricerca, ordine, data corta, assaggio, cartelle uniche), `tests/main/quaderno-pagina.test.ts` (4: la pagina dà le stesse date del PC, tag, ordine, escape) e, nell'app, `QuadernoVistaTest` (4, compreso un PC di prima senza tag).
+
+**Foto**: `dopo-quaderno.png`, `dopo-quaderno-personale.png`, `pagina-dopo-quaderno.png`.
+
+**Aperto**: la ricerca nel corpo intero c'è solo sul PC (pagina e app cercano titolo, tag e assaggio); il quaderno personale sul telefono resta in Impostazioni.

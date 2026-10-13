@@ -638,7 +638,14 @@ data class MisuraPasso(
 data class Schede(val schede: List<SchedaBreve> = emptyList())
 
 @Serializable
-data class SchedaBreve(val file: String = "", val titolo: String = "", val quando: String = "")
+data class SchedaBreve(
+    val file: String = "",
+    val titolo: String = "",
+    val quando: String = "",
+    /** PC 0.70: i tag e la prima riga del corpo, per i filtri e la ricerca. */
+    val tag: List<String> = emptyList(),
+    val assaggio: String = ""
+)
 
 @Serializable
 data class SchedaPiena(

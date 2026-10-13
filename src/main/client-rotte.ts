@@ -439,7 +439,7 @@ export type DipendenzeRotte = {
   /** Quanto si è consumato: una delle cose che si guardano più volentieri da fuori. */
   consumi: () => Promise<unknown>
   /** Le schede del quaderno di una cartella: il resoconto che l'autopilota lascia. */
-  quaderno: (cwd: string) => { file: string; titolo: string; quando: string }[]
+  quaderno: (cwd: string) => { file: string; titolo: string; quando: string; tag?: string[]; assaggio?: string }[]
   scheda: (cwd: string, file: string) => { file: string; titolo: string; corpo: string; quando: string } | undefined
   /** Cambiare le preferenze da fuori: i colori del computer si scelgono anche da qui. */
   impostaPreferenze: (parziali: Record<string, unknown>) => Promise<void>

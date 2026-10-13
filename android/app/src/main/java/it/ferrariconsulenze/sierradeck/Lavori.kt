@@ -1083,11 +1083,15 @@ private fun RigaCartella(c: String, scelta: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** Il quaderno di una cartella: le schede lasciate dall'autopilota. */
+/** Il quaderno di una cartella: le schede lasciate dalle chat e dagli autopiloti. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun Quaderno(api: Api, cwd: String, onChiudi: () -> Unit) {
     var schede by remember { mutableStateOf<List<SchedaBreve>?>(null) }
     var aperta by remember { mutableStateOf<SchedaPiena?>(null) }
+    // PC 0.70: la ricerca e il tag scelto, come sul PC.
+    var domanda by remember { mutableStateOf("") }
+    var tagScelto by remember { mutableStateOf<String?>(null) }
     // «Nessuna scheda» e «non riesco a leggerle» sono due cose diverse: prima
     // un 403 (cartella non conosciuta) si leggeva come un quaderno vuoto.
     var guasto by remember { mutableStateOf<String?>(null) }
@@ -1106,20 +1110,38 @@ private fun Quaderno(api: Api, cwd: String, onChiudi: () -> Unit) {
             Column(Modifier.fillMaxWidth().height(380.dp).verticalScroll(rememberScrollState())) {
                 val ap = aperta
                 if (ap != null) {
+                    Text(QuadernoVista.quandoBreve(ap.quando, java.time.Instant.now()), color = Banco.testoQuieto, fontSize = 11.sp)
                     Text(ap.corpo, color = Banco.testo, fontSize = 13.sp)
                 } else when {
                     guasto != null -> Text(guasto!!, color = Banco.ambra, fontSize = 13.sp)
                     schede == null -> Text("Carico…", color = Banco.testoQuieto)
                     schede!!.isEmpty() -> Text("Nessuna scheda in questa cartella: il quaderno (.sierradeck/quaderno) si riempie quando le chat annotano decisioni, vincoli ed errori risolti.", color = Banco.testoQuieto)
-                    else -> for (s in schede!!) {
-                        Text(
-                            s.titolo.ifBlank { s.file },
-                            color = Banco.testo,
-                            modifier = Modifier.fillMaxWidth().clickable {
+                    else -> {
+                        val tutte = schede!!
+                        OutlinedTextField(value = domanda, onValueChange = { domanda = it }, singleLine = true,
+                            placeholder = { Text("Cerca fra le schede", fontSize = 13.sp) }, modifier = Modifier.fillMaxWidth())
+                        val tags = QuadernoVista.tuttiITag(tutte)
+                        if (tags.isNotEmpty()) {
+                            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                androidx.compose.material3.FilterChip(selected = tagScelto == null, onClick = { tagScelto = null }, label = { Text("Tutte ${tutte.size}") })
+                                for ((t, n) in tags) {
+                                    androidx.compose.material3.FilterChip(selected = tagScelto == t, onClick = { tagScelto = if (tagScelto == t) null else t }, label = { Text("$t $n") })
+                                }
+                            }
+                        }
+                        val ora = java.time.Instant.now()
+                        val viste = QuadernoVista.filtra(tutte, domanda, tagScelto)
+                        if (viste.isEmpty()) Text("Nessuna scheda per questa ricerca.", color = Banco.testoQuieto, fontSize = 13.sp)
+                        for (s in viste) {
+                            Column(Modifier.fillMaxWidth().clickable {
                                 scope.launch { aperta = tenta("aprire la scheda del quaderno") { api.scheda(cwd, s.file) } }
-                            }.padding(vertical = 10.dp)
-                        )
-                        HorizontalDivider(color = Banco.incisione)
+                            }.padding(vertical = 8.dp)) {
+                                Text(s.titolo.ifBlank { s.file }, color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                if (s.assaggio.isNotBlank()) Text(s.assaggio, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
+                                Text((listOf(QuadernoVista.quandoBreve(s.quando, ora)) + s.tag).joinToString(" · "), color = Banco.testoQuieto, fontSize = 11.sp)
+                            }
+                            HorizontalDivider(color = Banco.incisione)
+                        }
                     }
                 }
             }

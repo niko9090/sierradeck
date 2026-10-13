@@ -839,6 +839,9 @@ var driveLetturaTimer = null
 var FASI_CATALOGO = ${JSON.stringify(FASI_CATALOGO)}
 var consumiVisti = null
 var schedeViste = null
+// Il tag scelto nel Quaderno (0.70.0); la ricerca nasconde le righe senza ridisegnare.
+var quadernoTag = ''
+var quadernoQ = ''
 var schedaAperta = null
 var prefViste = null
 var aggiornamentoVisto = null
@@ -1388,7 +1391,7 @@ function impronta(s) {
     // La sezione File (0.54.0): dove si è, cosa si guarda, l'avanzamento.
     (pannelloAperto === 'file' || scheda === 'file') ? JSON.stringify([fileProgetti ? fileProgetti.length : -1, fileDove, fileElenco ? fileElenco.voci.length + fileElenco.percorso : '', fileVista ? fileVista.nome + fileVista.tipo : '', fileNota, fileErrore, filePin]) : '',
     (function () { try { return localStorage.getItem('sierradeck.nienteapp') || '' } catch (e) { return '' } })(),
-    schedeViste ? schedeViste.length : '',
+    schedeViste ? schedeViste.length + quadernoTag : '',
     sessioniViste ? sessioniViste.length : '',
     ''
   ].join('|')
@@ -1563,7 +1566,7 @@ function pannello(s) {
       (a.stato === 'pronto' ? '<div class="riga"><button class="primario" data-ap="' + esc(a.id) + '" onclick="vaiAp(this.dataset.ap)">Vai</button></div>' : '')
     ).join('') +
     chatAttesa.map((c) =>
-      '<div class="polso"><span class="polso__nome">' + esc(c.titolo || c.cwd) + '</span><span class="voce__stato voce__stato--attesa">' + esc(statoChat(c).parola) + '</span></div>'
+      '<div class="polso"><span class="polso__nome">' + esc(c.nome || c.titolo || c.cwd) + '</span><span class="voce__stato voce__stato--attesa">' + esc(statoChat(c).parola) + '</span></div>'
     ).join('') +
     (chatAttesa.length ? '<div class="riga"><button onclick="vaiScheda(\\'domande\\')">Rispondi dalla scheda Domande</button></div>' : '') +
     '</div>'
@@ -2010,21 +2013,8 @@ function pannello(s) {
       <div class="riga"><button onclick="apriPannello('consumi')">Chiudi</button></div>
     </div>\`
 
-  const vistaQuaderno = pannelloAperto !== 'quaderno' ? '' : \`
-    <div class="piastrella">
-      <div class="titolo">Quaderno</div>
-      <div class="sotto">Le schede che l'autopilota lascia accanto al codice.</div>
-      \${schedaAperta
-        ? '<div class="dettaglio"><div class="titolo">' + esc(schedaAperta.titolo) + '</div>' +
-          '<div class="dentro" style="max-height:50vh">' + esc(schedaAperta.corpo) + '</div>' +
-          '<div class="riga"><button onclick="chiudiScheda()">Torna all’elenco</button></div></div>'
-        : ((schedeViste || []).length === 0
-            ? '<div class="sotto" style="margin-top:8px">Nessuna scheda in questa cartella.</div>'
-            : (schedeViste || []).map((x) =>
-                '<button class="cartella" onclick="apriScheda(\\'' + escJs(cartellaPrima()) + '\\', \\'' +
-                escJs(x.file) + '\\')">' + esc(x.titolo) + '</button>').join(''))}
-      <div class="riga"><button onclick="apriPannello('quaderno')">Chiudi</button></div>
-    </div>\`
+  // Il Quaderno (0.70.0): i tag con quante schede, la ricerca, la data corta e i tag su ogni riga.
+  const vistaQuaderno = pannelloAperto !== 'quaderno' ? '' : quadernoHtml(schedeViste, schedaAperta, quadernoTag, cartellaPrima(), Date.now())
 
   // Le impostazioni rifatte (0.56.0), in versione semplice: la ricerca in alto,
   // «Aggiornamenti» in cima, poi le sezioni del PC e dell'app con la loro spiegazione.
@@ -3257,6 +3247,8 @@ window.apriPannello = async (quale) => {
   if (pannelloAperto === 'impostazioni') { await leggiPreferenze(); await leggiAggiornamento(); await leggiQuadernoPersonale() }
   if (pannelloAperto === 'quaderno') {
     schedaAperta = null
+    quadernoTag = ''
+    quadernoQ = ''
     // La stessa cartella da cui poi si aprono le schede (cartellaPrima):
     // prima l'elenco veniva dalla prima chat e la scheda si chiedeva alla
     // cartella dell'autopilota, e con due progetti diversi era un 404 muto.
@@ -3818,6 +3810,57 @@ function limitiHtml(c) {
 
 window.leggiConsumi = async () => {
   try { consumiVisti = await chiedi('/api/consumi') } catch (e) { consumiVisti = null }
+}
+
+// Il Quaderno della pagina (0.70.0), come quello del PC: i tag con quante
+// schede li portano, la ricerca (nasconde le righe), la data corta. Le regole
+// sono quelle di src/shared/quaderno-vista.ts, copiate qui.
+function quandoBreveQ(iso, ora) {
+  const t = Date.parse(iso)
+  if (isNaN(t)) return String(iso || '').slice(0, 10)
+  const d = new Date(t), oggi = new Date(ora)
+  const due = (n) => (n < 10 ? '0' : '') + n
+  const inizio = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const giorni = Math.round((inizio(oggi) - inizio(d)) / 86400000)
+  if (giorni === 0) return 'oggi ' + due(d.getHours()) + ':' + due(d.getMinutes())
+  if (giorni === 1) return 'ieri'
+  if (giorni > 1 && giorni < 7) return giorni + ' giorni fa'
+  const data = due(d.getDate()) + '/' + due(d.getMonth() + 1)
+  return d.getFullYear() === oggi.getFullYear() ? data : data + '/' + d.getFullYear()
+}
+function quadernoHtml(schede, aperta, tag, cartella, ora) {
+  const tutte = schede || []
+  let h = '<div class="piastrella"><div class="titolo">Quaderno</div>'
+  if (aperta) {
+    h += '<div class="dettaglio"><div class="titolo">' + esc(aperta.titolo) + '</div>' +
+      '<div class="sotto">' + esc(quandoBreveQ(aperta.quando, ora)) + ((aperta.tag || []).length ? ' · ' + (aperta.tag || []).map(esc).join(' · ') : '') + '</div>' +
+      '<div class="dentro" style="max-height:60vh;white-space:pre-wrap">' + esc(aperta.corpo) + '</div>' +
+      '<div class="riga"><button onclick="chiudiScheda()">Torna all’elenco</button></div></div>'
+    return h + '<div class="riga"><button onclick="apriPannello(\\'quaderno\\')">Chiudi</button></div></div>'
+  }
+  if (tutte.length === 0) return h + '<div class="sotto" style="margin-top:8px">Nessuna scheda in questa cartella.</div><div class="riga"><button onclick="apriPannello(\\'quaderno\\')">Chiudi</button></div></div>'
+  const conti = {}
+  for (const x of tutte) for (const t of (x.tag || []).filter((v, i, a) => a.indexOf(v) === i)) conti[t] = (conti[t] || 0) + 1
+  const tags = Object.keys(conti).sort((a, b) => conti[b] - conti[a] || a.localeCompare(b, 'it'))
+  h += '<div class="riga" style="gap:6px"><input placeholder="Cerca fra le schede" value="' + esc(quadernoQ) + '" oninput="quadernoCerca(this.value)" style="flex:1;min-width:0"></div>'
+  if (tags.length) {
+    h += '<div class="riga" style="gap:4px;flex-wrap:wrap">' +
+      '<button' + (tag ? '' : ' class="primario"') + ' style="flex:none;width:auto;min-height:0;padding:6px 12px" onclick="quadernoSceltaTag(\\'\\')">Tutte ' + tutte.length + '</button>' +
+      tags.map((t) => '<button' + (tag === t ? ' class="primario"' : '') + ' style="flex:none;width:auto;min-height:0;padding:6px 12px" onclick="quadernoSceltaTag(\\'' + escJs(t) + '\\')">' + esc(t) + ' ' + conti[t] + '</button>').join('') + '</div>'
+  }
+  const viste = tutte.filter((x) => !tag || (x.tag || []).indexOf(tag) >= 0).slice().sort((a, b) => (b.quando > a.quando ? 1 : b.quando < a.quando ? -1 : 0))
+  h += viste.map((x) => {
+    const dove = (x.titolo + ' ' + (x.tag || []).join(' ') + ' ' + (x.assaggio || x.corpo || '')).toLowerCase()
+    return '<button class="cartella" data-quaderno-cerca="' + esc(dove) + '" onclick="apriScheda(\\'' + escJs(cartella) + '\\', \\'' + escJs(x.file) + '\\')">' +
+      '<b>' + esc(x.titolo) + '</b>' + (x.assaggio ? '<span class="sotto" style="display:block">' + esc(x.assaggio) + '</span>' : '') + '<span class="sotto" style="display:block">' + esc(quandoBreveQ(x.quando, ora)) + ((x.tag || []).length ? ' · ' + (x.tag || []).map(esc).join(' · ') : '') + '</span></button>'
+  }).join('')
+  return h + '<div class="riga"><button onclick="apriPannello(\\'quaderno\\')">Chiudi</button></div></div>'
+}
+window.quadernoSceltaTag = (t) => { quadernoTag = t; pannello(ultimoStato) }
+window.quadernoCerca = (q) => {
+  quadernoQ = q
+  const parole = String(q).toLowerCase().split(' ').filter(Boolean)
+  for (const el of document.querySelectorAll('[data-quaderno-cerca]')) el.style.display = parole.every((p) => el.getAttribute('data-quaderno-cerca').indexOf(p) >= 0) ? '' : 'none'
 }
 
 window.leggiQuaderno = async (cartella) => {
