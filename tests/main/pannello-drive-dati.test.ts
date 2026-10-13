@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { datiPannello } from '../../src/main/pannello-drive-dati'
+import { datiPannello, pcPerPannello } from '../../src/main/pannello-drive-dati'
 import type { Manifesto } from '../../src/main/cassaforte/incrementale'
 
 // 0.58.0, tappa 1: le fonti del pannello messe insieme. Dati d'esempio.
@@ -71,5 +71,47 @@ describe('le copie locali dal battito (0.58.0, tappa 2)', () => {
     const p = datiPannello({ ...base, pc: [{ id: 'pc-x', nome: 'PC-X', locali: 'rotto' }, { id: 'pc-y', nome: 'PC-Y', locali: { chat: 'no' } }] })
     expect(p.chat).toEqual([])
     expect(p.pcDaAggiornare).toEqual(['PC-X', 'PC-Y'])
+  })
+})
+
+describe('gli altri PC nel pannello portano le loro copie locali (0.71.1)', () => {
+  it('con «locali» nel battito il PC non è «da aggiornare» e le sue chat sul disco contano', () => {
+    const battiti = [
+      { pcId: 'pc-port', nome: 'PORTATILE-ESEMPIO', battito: new Date(ORA).toISOString(), chat: [], locali: { chat: [{ sessione: 's-disco', cwd: 'C:\\Progetti\\Esempio', mtime: 10 }] } },
+      { pcId: 'pc-vecchio', nome: 'VECCHIO-ESEMPIO', battito: new Date(ORA).toISOString(), chat: [] }
+    ]
+    const pc = pcPerPannello(battiti, (b) => b.nome)
+    expect(pc[0]).toMatchObject({ id: 'pc-port', nome: 'PORTATILE-ESEMPIO', locali: battiti[0]!.locali })
+    expect(pc[1]).not.toHaveProperty('locali')
+    const p = datiPannello({
+      io: { id: 'pc-qui', nome: 'PC-ESEMPIO' }, pc, case: { versione: 1, case: {} }, locali: [], manifesto: undefined, aperteQui: [], titoliNoti: [],
+      progetti: [{ id: 'prog-1', nome: 'Esempio', percorsi: { 'pc-port': 'C:\\Progetti\\Esempio' } }], adesso: ORA
+    })
+    // Solo il PC davvero vecchio (senza copie locali nel battito) va aggiornato.
+    expect(p.pcDaAggiornare).toEqual(['VECCHIO-ESEMPIO'])
+    expect(p.chat.find((c) => c.sessione === 's-disco')?.copie).toEqual([{ pc: 'pc-port', nome: 'PORTATILE-ESEMPIO', dove: 'disco', quando: '1970-01-01T00:00:00.010Z' }])
+  })
+})
+
+describe('registrato più volte (0.71.1): da sistemare solo se c’è davvero qualcosa da unire', () => {
+  const pannello = (progetti: { id: string; nome: string; percorsi: Record<string, string> }[], workspaceQui: string[] = []) => datiPannello({
+    io: { id: 'pc-qui', nome: 'PC-ESEMPIO' }, pc: [], case: { versione: 1, case: {} }, locali: [], manifesto: undefined, aperteQui: [], titoliNoti: [],
+    progetti, adesso: ORA, workspaceQui
+  })
+  it('due voci con la stessa cartella: un progetto solo, niente da sistemare', () => {
+    const p = pannello([
+      { id: 'a1', nome: 'Esempio', percorsi: { 'pc-qui': 'C:\\Progetti\\Esempio' } },
+      { id: 'a2', nome: 'Esempio', percorsi: { 'pc-qui': 'C:\\Progetti\\Esempio\\' } }
+    ])
+    expect(p.progetti).toHaveLength(1)
+    expect(p.progetti[0]!.problemi.map((x) => x.tipo)).not.toContain('progetto-doppio')
+  })
+  it('due voci con cartelle diverse sullo stesso PC: da sistemare, con «Lavora su questo PC»', () => {
+    const p = pannello([
+      { id: 'a1', nome: 'Esempio', percorsi: { 'pc-port': 'D:\\Lavoro\\Esempio' } },
+      { id: 'a2', nome: 'Esempio', percorsi: { 'pc-port': 'E:\\Copie\\Esempio' } }
+    ])
+    const d = p.progetti[0]!.problemi.find((x) => x.tipo === 'progetto-doppio')
+    expect(d?.cosaFare).toContain('«Lavora su questo PC»')
   })
 })

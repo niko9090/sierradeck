@@ -119,6 +119,18 @@ export function datiPannello(p: {
 }
 
 /**
+ * Gli altri PC come li vuole il pannello, dai loro battiti (0.71.1). Fino alla
+ * 0.71.0 le copie locali (`locali`) restavano fuori: nella vista Progetti ogni
+ * PC risultava «da aggiornare» e le chat sul disco degli altri PC non si
+ * contavano. Visto provando la vista con i dati veri, il 13/10.
+ */
+export function pcPerPannello<B extends { pcId: string; battito: string; chat?: { sessione?: string; titolo?: string; cwd?: string; aspetta?: boolean }[]; locali?: unknown }>(
+  battiti: B[], nomeDi: (b: B) => string
+): (PcNoto & { chat?: { sessione?: string; titolo?: string; cwd?: string; aspetta?: boolean }[]; locali?: unknown })[] {
+  return battiti.map((b) => ({ id: b.pcId, nome: nomeDi(b), battito: b.battito, ...(b.chat !== undefined ? { chat: b.chat } : {}), ...(b.locali !== undefined ? { locali: b.locali } : {}) }))
+}
+
+/**
  * Le cartelle di questo PC con il nome di un progetto, non registrate
  * (0.60.0): dove lavorano le chat di qui. Per ogni gruppo, dalla chat più
  * recente. Senza `anche`, solo per i gruppi che qui non hanno nessuna

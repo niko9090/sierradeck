@@ -82,7 +82,7 @@ import { etichettaContesto, limitiPerFreno, unisciPolso } from '@shared/limiti-p
 import { diffDellAutopilota, fileDellAutopilota, fileVeroDellAutopilota } from './file-autopilota'
 import { apriAlTelefono, type AlTelefono } from './al-telefono'
 import { apriQuadernoPersonale } from './quaderno-personale'
-import { cartelleTrovateQui, datiPannello, primaTrovata } from './pannello-drive-dati'
+import { cartelleTrovateQui, datiPannello, pcPerPannello, primaTrovata } from './pannello-drive-dati'
 import { idsDaConfrontareSulDrive } from '@shared/residenza'
 import { creaResidenza, type Residenza } from './residenza'
 import { armonizzaCase, casaDelGruppo, dentroCartella, eSenzaNome, gruppoDiCartella, gruppoDiId, nomeNormalizzato, raggruppaProgetti } from '@shared/progetti-unificati'
@@ -2881,7 +2881,7 @@ if (!app.requestSingleInstanceLock()) {
         const msManifesto = Date.now() - dalManifesto
         const pannello = datiPannello({
           io: { id: io.id, nome: io.nome, battito: new Date().toISOString() },
-          pc: postino.altrui().map((b) => ({ id: b.pcId, nome: nomeDaMostrare(b), battito: b.battito, chat: b.chat })),
+          pc: pcPerPannello(postino.altrui(), nomeDaMostrare),
           case: unaCasa.case(),
           locali,
           manifesto,

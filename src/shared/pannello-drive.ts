@@ -316,12 +316,21 @@ function rigaProgetto(
   // Le cartelle di qui: registrate, più quelle con lo stesso nome trovate dalle chat.
   const cartelleQui = qui.length + (p.altreCartelleQui?.[g.id] ?? 0)
   const daUnire = (g.ids.length - 1) + Math.max(0, cartelleQui - 1) + Math.max(0, workspace.length - 1)
-  if (g.ids.length > 1) {
+  // Registrato più volte (0.71.1): è da sistemare solo se le voci portano a
+  // cartelle diverse sullo stesso PC, o a più workspace. Con i dati veri del
+  // 13/10 erano 13 progetti «da sistemare» su 29, tutti con una cartella sola
+  // per PC: nessun file da unire, la vista li mostra già come uno solo.
+  const cartelleDiverse = ((): boolean => {
+    const perPc = new Map<string, Set<string>>()
+    for (const x of g.percorsi) perPc.set(x.pc, (perPc.get(x.pc) ?? new Set<string>()).add(x.percorso.trim().replace(/[\\/]+$/, '').toLowerCase()))
+    return [...perPc.values()].some((v) => v.size > 1)
+  })()
+  if (g.ids.length > 1 && (cartelleDiverse || cartelleQui > 1 || workspace.length > 1)) {
     problemi.push({
       tipo: 'progetto-doppio',
       titolo: `Registrato ${g.ids.length} volte`,
       spiega: `Lo stesso progetto («${g.nome}», stesso nome) è nel registro del Drive con ${g.ids.length} id diversi${qui.length > 1 ? `, e qui ha ${qui.length} cartelle (${qui.map((x) => x.percorso).join(', ')})` : ''}: sono nati salvando lo stesso progetto da PC diversi. Qui li vedi come uno solo.`,
-      cosaFare: '«Rendi residente qui» (dal PC dove vuoi che viva) li unisce davvero: raccoglie tutte le copie, ti mostra cosa unisce, cosa tiene e cosa va in recupero, e fa solo dopo la tua conferma.'
+      cosaFare: '«Lavora su questo PC» (dal PC dove vuoi che viva) li unisce davvero: raccoglie tutte le copie, ti mostra cosa unisce, cosa tiene e cosa va in recupero. Niente si cancella.'
     })
   }
   const residenteHa = primo !== undefined && g.percorsi.some((x) => x.pc === primo[0])
