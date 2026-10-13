@@ -648,7 +648,7 @@ describe('flotta di chat', () => {
     expect(chatAvviate.map((c) => c.compito)).toEqual(['scrivi i test', 'aggiorna i documenti', 'sistema il lettore'])
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
     expect(stato.chats).toHaveLength(3)
-    expect(stato.chats.map((c: any) => c.ramo)).toEqual([`ap/${id}/c-1`, `ap/${id}/c-2`, `ap/${id}/c-3`])
+    expect(stato.chats.map((c: any) => c.ramo)).toEqual([`ap/${id.slice(0, 11)}/c-1`, `ap/${id.slice(0, 11)}/c-2`, `ap/${id.slice(0, 11)}/c-3`])
     expect(stato.ramoBase).toBe('main')
     // Le chat lavorano tutte verso lo stesso obiettivo (criteri globali): un
     // compito oltre il tetto non avrebbe mai una chat che lo apre e resterebbe

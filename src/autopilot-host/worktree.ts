@@ -43,6 +43,17 @@ function pezzo(x: string): string {
 }
 
 /**
+ * L'autopilota in breve nei nomi di cartelle e rami (0.71.0): `ap-` e le prime
+ * otto cifre dell'id. Con l'id intero (40 caratteri) il percorso del worktree,
+ * più `.git/worktrees/…`, superava il limite di Windows e `git worktree add`
+ * falliva con «'$GIT_DIR' too big» (prova del 13/10).
+ */
+export function apCorto(id: string): string {
+  const m = /^ap-([0-9a-f]{8})-[0-9a-f-]+$/i.exec(id)
+  return m?.[1] !== undefined ? `ap-${m[1]}` : pezzo(id)
+}
+
+/**
  * Dove sta il worktree di una chat e su quale ramo. Pura.
  *
  * Accanto al progetto e non dentro: dentro, il worktree finirebbe nell'indice
@@ -51,11 +62,11 @@ function pezzo(x: string): string {
  * non e' la radice del repository: la chat parte nello stesso punto.
  */
 export function pianoWorktree(p: { radice: string; sotto?: string; autopilota: string; chat: string }): { cartellaRadice: string; cartella: string; ramo: string } {
-  const cartellaRadice = join(`${p.radice}.sierradeck-wt`, `${pezzo(p.autopilota)}-${pezzo(p.chat)}`)
+  const cartellaRadice = join(`${p.radice}.sierradeck-wt`, `${apCorto(p.autopilota)}-${pezzo(p.chat)}`)
   return {
     cartellaRadice,
     cartella: p.sotto !== undefined && p.sotto !== '' && p.sotto !== '.' ? join(cartellaRadice, p.sotto) : cartellaRadice,
-    ramo: `ap/${pezzo(p.autopilota)}/${pezzo(p.chat)}`
+    ramo: `ap/${apCorto(p.autopilota)}/${pezzo(p.chat)}`
   }
 }
 
