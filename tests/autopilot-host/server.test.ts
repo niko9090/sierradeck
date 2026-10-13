@@ -2298,3 +2298,26 @@ describe('due chat che chiudono insieme (0.71.0, visto dal vero)', () => {
     expect(revisori.map((c: any) => c.revisioneDi).sort()).toEqual(['c-1', 'c-2'])
   })
 })
+
+describe('la notifica non cancella quello che le sorelle hanno scritto (0.71.0, visto dal vero)', () => {
+  it('mentre il supervisore risponde a una domanda della chat, un’approvazione scritta da un’altra fermata resta', async () => {
+    server = ambiente({ interroga: () => new Promise((r) => setTimeout(() => r({ testo: '{"esito": "rispondo", "risposta": "vai avanti", "perche": "lo dice l obiettivo"}' }), 80)) })
+    await avvia(server)
+    archivio.scrivi({
+      ...nuovoAutopilota({ id: 'ap-not', nome: 'Not', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      stato: 'lavoro',
+      chats: [
+        { id: 'c-1', compito: 'A', stato: 'finita', cicli: 2, ruolo: 'sviluppo' },
+        { id: 'c-2', compito: 'B', stato: 'lavoro', cicli: 1, ruolo: 'sviluppo' }
+      ]
+    })
+    const notifica = chiama('POST', '/hook/notification?ap=ap-not&chat=c-2', { notification_type: 'idle_prompt', message: 'Claude is waiting for your input', session_id: 's-2' })
+    await new Promise((r) => setTimeout(r, 20))
+    const ora = archivio.leggi('ap-not')!
+    archivio.scrivi({ ...ora, cicli: 7, chats: ora.chats.map((c) => (c.id === 'c-1' ? { ...c, approvata: true } : c)) })
+    await notifica
+    const dopo = archivio.leggi('ap-not')!
+    expect(dopo.chats.find((c) => c.id === 'c-1')?.approvata).toBe(true)
+    expect(dopo.cicli).toBe(7)
+  })
+})

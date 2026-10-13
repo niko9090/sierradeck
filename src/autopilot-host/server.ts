@@ -18,7 +18,7 @@ import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
 import { STRATEGIE } from './strategie'
 import { eseguiCriteri, type Esecutore } from './verifiche'
 import { improntaCodice, misuraCriteri, turnoCompleto, type MemoriaCriteri } from './criteri-veloci'
-import { RIFACIMENTI_MAX, RUOLI, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
+import { RIFACIMENTI_MAX, RUOLI, ruoloDaTesto, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
 import { cronometro, riassuntoTempi, type GiroMisurato } from './tempi'
 import { firmaGiro, registraGiro, spiegaCerchio } from './antiloop'
 import { apriMemoria, conRispostaDiPrima, eUnaDecisione, sezioneDecisioni, type Memoria } from './memoria'
@@ -2254,6 +2254,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
       if (m.tipo === 'apriChat') {
         aggiornato.compitiDaFare = [...aggiornato.compitiDaFare, m.compito]
+        // Con i ruoli (0.71.0) anche una chat aperta a metà lavoro ha il suo.
+        if (aggiornato.ruoliCompiti !== undefined && aggiornato.ruoliCompiti[m.compito] === undefined) {
+          const r = ruoloDaTesto(m.compito)
+          aggiornato.ruoliCompiti = { ...aggiornato.ruoliCompiti, [m.compito]: { ruolo: r === 'revisione' ? 'sviluppo' : r, dopo: [] } }
+        }
         // Senza un ramo principale la flotta non ha cartelle separate: lo si
         // prende adesso, se il progetto e' git.
         if (aggiornato.ramoBase === undefined && deps.git !== undefined) {
@@ -2720,14 +2725,20 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       inLavorazione.delete(id)
     }
 
+    // **Si riparte da quello che c'è su disco adesso** (0.71.0): il supervisore ci
+    // ha messo secondi o minuti, e intanto altre chat della flotta hanno scritto
+    // (approvazioni della Revisione, giri, rifacimenti). Salvare la copia letta
+    // all'inizio le cancellava: visto nella prova dal vero del 13/10.
+    const ora = deps.archivio.leggi(id)
+    if (ora === undefined || ora.stato !== 'lavoro') return {}
     if (esito?.tipo === 'rispondo') {
       // La risposta va **dentro la chat**, dove c'e' un prompt che aspetta. La
       // chat non e' ferma per una nostra decisione: e' ferma perche' ha chiesto
       // qualcosa, e quello che le serve e' una risposta, non un permesso.
       salva({
-        ...a,
+        ...ora,
         decisioni: [
-          ...a.decisioni,
+          ...ora.decisioni,
           {
             quando: deps.adesso(),
             cosa: `ha chiesto, ho risposto io: ${esito.perche ?? esito.risposta}`.slice(0, MOTIVO_MAX)
@@ -2778,12 +2789,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // così le sorelle non si fermano; con una chat sola vale il vecchio `attesa`
     // globale. La notifica non trattiene l'hook, quindi la chat riprende dalla
     // risposta tardiva (suRispostaTardiva), che ora sa riprendere la singola chat.
+    const fresco = deps.archivio.leggi(id) ?? ora
     salva(
       chatId !== undefined
-        ? { ...conStatoChat(a, chatId, 'bloccata'), motivoSospensione: testo }
-        : { ...a, stato: 'attesa', motivoSospensione: testo }
+        ? { ...conStatoChat(fresco, chatId, 'bloccata'), motivoSospensione: testo }
+        : { ...fresco, stato: 'attesa', motivoSospensione: testo }
     )
-    void deps.avvisa('domanda', a, testo)
+    void deps.avvisa('domanda', fresco, testo)
     return {}
   }
 
