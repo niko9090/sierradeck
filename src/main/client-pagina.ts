@@ -839,6 +839,8 @@ var driveLetturaTimer = null
 var FASI_CATALOGO = ${JSON.stringify(FASI_CATALOGO)}
 var consumiVisti = null
 var schedeViste = null
+// Account e Drive del computer (0.70.0): la catena delle quattro tessere, decisa dal PC.
+var accountVisto = null
 // Il tag scelto nel Quaderno (0.70.0); la ricerca nasconde le righe senza ridisegnare.
 var quadernoTag = ''
 var quadernoQ = ''
@@ -2054,6 +2056,7 @@ function pannello(s) {
     </div>
     <div class="piastrella" data-sezione="drive">
       \${intestaImp('drive')}
+      \${catenaAccountHtml(accountVisto)}
       \${vociImp('drive')}
       <div class="sotto">Il contenuto del Drive, «Porta qui» e il salvataggio stanno in PROGETTI.</div>
     </div>
@@ -3244,7 +3247,7 @@ window.apriPannello = async (quale) => {
   if (pannelloAperto === 'pc') { pcAperto = null; postaVoci = null; await leggiPc() }
   if (pannelloAperto === 'drive') { driveRiavviato = false; await leggiDrive() }
   if (pannelloAperto === 'pannellodrive') { pdDati = null; pdErrore = ''; pdDaConfermare = ''; await leggiPannelloDrive() }
-  if (pannelloAperto === 'impostazioni') { await leggiPreferenze(); await leggiAggiornamento(); await leggiQuadernoPersonale() }
+  if (pannelloAperto === 'impostazioni') { await leggiPreferenze(); await leggiAggiornamento(); await leggiQuadernoPersonale(); await leggiAccount() }
   if (pannelloAperto === 'quaderno') {
     schedaAperta = null
     quadernoTag = ''
@@ -3861,6 +3864,27 @@ window.quadernoCerca = (q) => {
   quadernoQ = q
   const parole = String(q).toLowerCase().split(' ').filter(Boolean)
   for (const el of document.querySelectorAll('[data-quaderno-cerca]')) el.style.display = parole.every((p) => el.getAttribute('data-quaderno-cerca').indexOf(p) >= 0) ? '' : 'none'
+}
+
+// La catena di Account e Drive (0.70.0), come sul PC: quattro tessere con la
+// parola e il colore che manda il PC; il prossimo passo si fa sul computer.
+window.leggiAccount = async () => {
+  try { accountVisto = await chiedi('/api/account') } catch (e) { accountVisto = null }
+}
+function catenaAccountHtml(a) {
+  if (!a || !a.catena) return ''
+  const colori = { verde: '#3fb950', ambra: '#e0a33c', rosso: '#f85149', blu: '#4aa3ff', quieto: '#8b949e' }
+  let h = '<div class="riga" style="gap:6px;flex-wrap:wrap;margin-top:8px">'
+  h += (a.catena.tessere || []).map((t) =>
+    '<div style="flex:1 1 40%;min-width:0;padding:8px 10px;border:1px solid rgba(255,255,255,.12);border-radius:8px"' + (t.vista && t.vista.ragione ? ' title="' + esc(t.vista.ragione) + '"' : '') + '>' +
+    '<div class="sotto">' + esc(t.titolo) + '</div>' +
+    '<b style="color:' + (colori[(t.vista && t.vista.colore) || 'quieto'] || colori.quieto) + '">' + esc((t.vista && t.vista.parola) || '') + '</b>' +
+    (t.sotto ? '<div class="sotto" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(t.sotto) + '</div>' : '') + '</div>').join('')
+  h += '</div>'
+  const scade = (a.catena.tessere || []).find((t) => t.vista && t.vista.id === 'scade')
+  if (scade) h += '<div class="sotto" style="color:#e0a33c;margin-top:6px">⚠ ' + esc(scade.vista.ragione || '') + '</div>'
+  if (a.catena.prossimo) h += '<div class="sotto" style="margin-top:6px">Prossimo passo, sul computer: <b>' + esc(a.catena.prossimo.testo) + '</b></div>'
+  return h
 }
 
 window.leggiQuaderno = async (cartella) => {
@@ -4490,7 +4514,7 @@ window.vaiScheda = (nome) => {
   if (nome === 'progetti') { pdDati = null; pdErrore = ''; pdDaConfermare = ''; leggiPannelloDrive().then(() => pannello(ultimoStato)) }
   // Salute, File e Impostazioni (0.61.0) sono destinazioni: si leggono entrando.
   if (nome === 'salute') leggiSalute().then(() => pannello(ultimoStato))
-  if (nome === 'impostazioni') Promise.all([leggiPreferenze(), leggiAggiornamento(), leggiQuadernoPersonale()]).then(() => pannello(ultimoStato))
+  if (nome === 'impostazioni') Promise.all([leggiPreferenze(), leggiAggiornamento(), leggiQuadernoPersonale(), leggiAccount()]).then(() => pannello(ultimoStato))
   if (nome === 'file') { fileDove = null; fileElenco = null; fileVista = null; fileNota = ''; filePin = null; leggiFileProgetti().then(() => pannello(ultimoStato)) }
   // Un pannello aperto appartiene alla schermata in cui e' stato aperto: se lo
   // si lascia aperto cambiando destinazione, ricompare dove non c'entra.

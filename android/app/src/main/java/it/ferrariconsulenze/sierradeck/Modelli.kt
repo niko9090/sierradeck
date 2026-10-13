@@ -916,7 +916,24 @@ data class SaluteMcp(val mcp: List<McpVoce> = emptyList(), val errore: String? =
 
 /** Chi è entrato sul computer. Sola lettura. */
 @Serializable
-data class Account(val entrato: Boolean = false, val email: String? = null)
+data class Account(
+    val entrato: Boolean = false,
+    val email: String? = null,
+    /** PC 0.70: la catena Account → Drive → Cassaforte → Salvataggio, con le parole decise dal PC. */
+    val catena: CatenaAccount? = null
+)
+
+@Serializable
+data class TesseraAccount(val id: String = "", val titolo: String = "", val vista: StatoVistaDrive? = null, val sotto: String? = null)
+
+@Serializable
+data class PassoAccount(val id: String = "", val testo: String = "")
+
+@Serializable
+data class CatenaAccount(val tessere: List<TesseraAccount> = emptyList(), val prossimo: PassoAccount? = null)
+
+/** La riga «Prossimo passo, sul computer: …» della catena; null se è tutto a posto o se il PC è di prima. */
+fun passoAccount(a: Account?): String? = a?.catena?.prossimo?.testo?.takeIf { it.isNotBlank() }?.let { "Prossimo passo, sul computer: $it" }
 
 /** Chi risponde dall’altra parte, e con quale versione. */
 @Serializable

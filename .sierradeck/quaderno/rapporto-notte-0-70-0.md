@@ -224,3 +224,31 @@ Le foto sono in `note/foto-0-70/`, sul PC fisso (fuori da git: mostrano le carte
 **Foto**: `dopo-quaderno.png`, `dopo-quaderno-personale.png`, `pagina-dopo-quaderno.png`.
 
 **Aperto**: la ricerca nel corpo intero c'è solo sul PC (pagina e app cercano titolo, tag e assaggio); il quaderno personale sul telefono resta in Impostazioni.
+
+## (j) Account e Drive
+**Cosa cambia**
+- **Una catena di quattro anelli**: Account → Drive → Cassaforte → Salvataggio, ognuno con la sua parola e il colore (entrato/fuori · collegato/scollegato/**scade** · aperta/chiusa/da creare/diversa · al sicuro/vecchio/mai). Prima: due schede «Drive / Cassaforte» con «collegato ✓», «da creare» in grigio e un riquadro diverso per ogni caso.
+- **Un solo prossimo passo**: il primo anello non a posto dice cosa fare (Collega il Drive · Crea la passphrase · Sblocca · Prova la passphrase su questo Drive · Salva ora · Apri Progetti). I moduli per la passphrase restano sotto, come prima.
+- **I sette giorni di Google si vedono prima**: dal sesto giorno dopo il collegamento il Drive dice «scade» in ambra, con il perché (finché l'app OAuth è «in prova», al settimo giorno Google toglie il permesso). Il PC ora sa `collegatoIl` e lo mette nello stato del Drive.
+- **Le azioni rare in Strumenti ▾**: Cambia passphrase, Blocca la cassaforte, Scollega il Drive, Esci dall'account.
+- **Coerente con le tessere in cima alle Impostazioni**: la cassaforte dice la stessa parola in tutti e due i posti.
+- **Telefono**: `/api/account` ora manda anche la `catena` (decisa dal PC); la pagina (Impostazioni → Drive e salvataggi) e l'app (sezione Account del computer) mostrano i quattro anelli, l'avviso «scade» e «Prossimo passo, sul computer: …». Un PC di prima, senza catena, si legge come prima.
+
+**Azioni di prima → dove sono adesso**
+
+| Prima | Adesso |
+|---|---|
+| «Entrato come …» in testa | Primo anello «Account: entrato» con l'email |
+| Connetti (scheda Drive) | «Prossimo passo: Collega il Drive» |
+| Scollega (scheda Drive) | Strumenti ▾ → «Scollega il Drive» |
+| Cambia passphrase, Blocca (scheda Cassaforte) | Strumenti ▾ |
+| Esci (in fondo) | Strumenti ▾ → «Esci dall'account» |
+| «È tutto pronto» + Apri Progetti | «Prossimo passo: Apri Progetti» (o «Salva ora» se non hai mai salvato) |
+| «Collega il tuo Google Drive qui sopra…» | Tolto il testo: lo dice il prossimo passo |
+| Riconoscimento del Drive, cassaforte diversa, crea/sblocca/cambia passphrase, chiave di recupero | Invariati, sotto la catena |
+
+**Test**: `tests/shared/account-vista.test.ts` (4: sette giorni, salvataggio, catena e prossimo passo, «scade»), `tests/main/account-pagina.test.ts` (3) e, nell'app, `AccountCatenaTest` (2, compreso un PC di prima).
+
+**Foto**: `dopo-account.png`, `pagina-dopo-account.png`.
+
+**Aperto**: nella copia di prova la pagina dice «Account: fuori» perché la finestra usa un utente d'esempio e la rotta l'account vero (nella copia non c'è): sui PC veri leggono lo stesso. La tessera «Telefoni» in cima alle Impostazioni arriva dopo ~4,5 s (`client.stato` è lento): da rendere più veloce.

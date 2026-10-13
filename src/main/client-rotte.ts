@@ -1,3 +1,4 @@
+import { vistaAccount } from '@shared/account-vista'
 import { conVistaConsumi } from '@shared/consumi-vista'
 import { ordinaDomande, tipoDomanda } from '@shared/domande-vista'
 import { vistaAutopilota } from '@shared/autopiloti-vista'
@@ -542,6 +543,8 @@ export type DipendenzeRotte = {
    * comando.
    */
   account?: () => Promise<{ email?: string; entrato: boolean }>
+  /** Il Drive e la cassaforte del computer (0.70.0), per la catena di Account e Drive sul telefono. */
+  sicurezza?: () => Promise<{ drive: { configurato: boolean; connesso: boolean; email?: string; collegatoIl?: string }; sync?: { haCassaforte: boolean; sbloccato: boolean; cassaforteDiversa?: boolean; ultimoSalvataggio?: string } }>
   /** Entra con questo account: la stessa chiamata del pannello sul computer. */
   entraAccount?: (email: string, password: string) => Promise<{ ok: boolean; messaggio?: string }>
   /** Esce. Vale per il computer, non solo per il telefono che l'ha chiesto. */
@@ -1706,8 +1709,14 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     }
 
     if (r.percorso === '/api/account') {
-      const chi = await deps.account?.().catch(() => undefined)
-      return OK(chi ?? { entrato: false })
+      const chi = (await deps.account?.().catch(() => undefined)) ?? { entrato: false }
+      // 0.70.0: con la catena delle quattro tessere, decisa qui come sul PC.
+      const sic = await deps.sicurezza?.().catch(() => undefined)
+      const catena = sic === undefined ? undefined : vistaAccount({
+        ...(chi.entrato && chi.email !== undefined ? { utente: { email: chi.email } } : {}),
+        drive: sic.drive, ...(sic.sync !== undefined ? { sync: sic.sync } : {}), ora: Date.now()
+      })
+      return OK({ ...chi, ...(catena !== undefined ? { catena } : {}) })
     }
 
     // Entrare da lontano. Cambiare account è questo più «esci» prima: non

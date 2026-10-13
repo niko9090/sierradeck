@@ -1178,6 +1178,27 @@ private fun Account(account: Account?, api: Api, onCambiato: () -> Unit) {
                 }
             }
 
+            // PC 0.70: la catena Account → Drive → Cassaforte → Salvataggio, come sul PC.
+            account?.catena?.let { catena ->
+                Spacer(Modifier.height(10.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+                    for (t in catena.tessere) {
+                        Column(Modifier.weight(1f)) {
+                            Text(t.titolo, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                            Text(t.vista?.parola ?: "", color = coloreVista(t.vista?.colore ?: "quieto"), fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
+                        }
+                    }
+                }
+                catena.tessere.firstOrNull { it.vista?.id == "scade" }?.vista?.ragione?.let {
+                    Spacer(Modifier.height(6.dp))
+                    Text("⚠ $it", color = Banco.ambra, fontSize = 12.sp)
+                }
+                passoAccount(account)?.let {
+                    Spacer(Modifier.height(6.dp))
+                    Text(it, color = Banco.testoQuieto, fontSize = 12.sp)
+                }
+            }
+
             if (account?.entrato == true) {
                 Spacer(Modifier.height(10.dp))
                 TextButton(onClick = { apreIngresso = true; nota = null }) {

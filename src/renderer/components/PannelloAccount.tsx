@@ -1,3 +1,5 @@
+import { vistaAccount } from '@shared/account-vista'
+import type { Colore } from '@shared/stato-vista'
 import { useEffect, useState } from 'react'
 import { Aiuto } from './Aiuto'
 import { NomePc } from './NomePc'
@@ -18,7 +20,9 @@ import { ModalePosta } from './ModalePosta'
 import { pcVivo, type BattitoPc } from '@shared/posta'
 import { useLayoutStore } from '../state/layout'
 
-type StatoDrive = { configurato: boolean; connesso: boolean; email?: string }
+const COLORE_ACCOUNT: Record<Colore, string> = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', blu: 'var(--blu)', quieto: 'var(--testo-quieto)' }
+
+type StatoDrive = { configurato: boolean; connesso: boolean; email?: string; collegatoIl?: string }
 type ElencoProgetti = {
   pc: { id: string; nome: string; cartellaProgetti: string }
   progetti: { id: string; nome: string; locale?: string; altrove: number }[]
@@ -169,7 +173,8 @@ type StatoSync = {
  * - `salvataggio` (Progetti → «Salvataggio e arrivo»): Salva ora, Ripristina,
  *   il salvataggio automatico, «Fondi con il Drive» e i progetti sul Drive.
  */
-function SezioneSync({ parte }: { parte: 'account' | 'salvataggio' }): React.JSX.Element | null {
+function SezioneSync({ parte, utente, onEsci }: { parte: 'account' | 'salvataggio'; utente?: { email: string }; onEsci?: () => void }): React.JSX.Element | null {
+  const [menu, setMenu] = useState(false)
   const [drive, setDrive] = useState<StatoDrive | undefined>(undefined)
   const [sync, setSync] = useState<StatoSync | undefined>(undefined)
   const [pw, setPw] = useState('')
@@ -339,36 +344,60 @@ function SezioneSync({ parte }: { parte: 'account' | 'salvataggio' }): React.JSX
           </div>
         </div>
       ) : null}
-      {parte === 'account' ? <div className="account__schede">
-        <div className="account__scheda">
-          <div className="account__scheda-tit">☁️ Drive</div>
-          <div className={drive.connesso ? 'account__pallino account__pallino--ok' : 'account__pallino'}>
-            {!drive.configurato ? 'non configurato' : drive.connesso ? 'collegato ✓' : 'non collegato'}
-          </div>
-          {drive.connesso && drive.email !== undefined ? (
-            <div className="account__nota" style={{ fontSize: '.8em', wordBreak: 'break-all' }} title="L’account Google del Drive collegato">{drive.email}</div>
-          ) : null}
-          {drive.connesso ? (
-            <button className="tasto tasto--mini" onClick={scollega} disabled={inCorso}>Scollega</button>
-          ) : (
-            <button className="tasto tasto--primario tasto--mini" onClick={connetti} disabled={inCorso || !drive.configurato}>
-              {inCorso ? 'nel browser…' : 'Connetti'}
-            </button>
-          )}
-        </div>
-        <div className="account__scheda">
-          <div className="account__scheda-tit">🔒 Cassaforte</div>
-          <div className={sync.sbloccato ? 'account__pallino account__pallino--ok' : 'account__pallino'}>
-            {!sync.haCassaforte ? 'da creare' : sync.sbloccato ? 'aperta ✓' : 'chiusa'}
-          </div>
-          {pronto ? (
-            <div className="account__scheda-tasti">
-              <button className="tasto tasto--mini" onClick={() => { setCambiaAperto(true); setMsg(undefined) }}>Cambia passphrase</button>
-              <button className="tasto tasto--mini" onClick={blocca} disabled={inCorso}>Blocca</button>
+      {parte === 'account' ? ((): React.JSX.Element => {
+        // 0.70.0: la catena Account → Drive → Cassaforte → Salvataggio, ognuna con la sua parola;
+        // sotto un solo prossimo passo; le azioni rare in Strumenti ▾.
+        const v = vistaAccount({ ...(utente !== undefined ? { utente } : {}), drive, sync, ora: Date.now() })
+        const passo = v.prossimo
+        const fai = (): void => {
+          if (passo?.id === 'connetti') connetti()
+          else if (passo?.id === 'salva' || passo?.id === 'progetti') window.dispatchEvent(new CustomEvent('sierradeck:apri-pannello', { detail: 'progetti' }))
+        }
+        return (
+          <div className="account__catena-tutta">
+            <div className="account__catena-testa">
+              <span className="account__scheda-tit con-aiuto">Account e Drive<Aiuto di="Account e Drive">
+                Quattro anelli, da sinistra: sei <b>entrato</b>, il <b>Drive</b> di Google è collegato, la <b>cassaforte</b> (la passphrase che cifra i tuoi dati sul Drive) è aperta, l’ultimo <b>salvataggio</b> è recente. Il primo anello non a posto dice il prossimo passo. Salva ora, Ripristina, il salvataggio automatico e «Fondi con il Drive» stanno in <b>Progetti → «Salvataggio e arrivo»</b>; gli altri computer in <b>Salute</b>. Scollega, Cambia passphrase, Blocca ed Esci sono in Strumenti ▾.
+              </Aiuto></span>
+              <span style={{ flex: 1 }} />
+              <span style={{ position: 'relative' }}>
+                <button className="tasto tasto--mini" aria-expanded={menu} onClick={() => setMenu(!menu)}>Strumenti ▾</button>
+                {menu ? (
+                  <div className="progetti__menu" onMouseLeave={() => setMenu(false)}>
+                    <button className="progetti__voce" disabled={!pronto} onClick={() => { setMenu(false); setCambiaAperto(true); setMsg(undefined) }}>Cambia passphrase…</button>
+                    <button className="progetti__voce" disabled={!sync.sbloccato || inCorso} onClick={() => { setMenu(false); blocca() }}>Blocca la cassaforte</button>
+                    <button className="progetti__voce" disabled={!drive.connesso || inCorso} title="Toglie il collegamento a questo Drive: per collegarne un altro o per ricollegare questo" onClick={() => { setMenu(false); scollega() }}>Scollega il Drive</button>
+                    {onEsci !== undefined ? <button className="progetti__voce" onClick={() => { setMenu(false); onEsci() }}>Esci dall’account</button> : null}
+                  </div>
+                ) : null}
+              </span>
             </div>
-          ) : null}
-        </div>
-      </div> : null}
+            <div className="account__catena">
+              {v.tessere.map((t, i) => (
+                <div key={t.id} className="account__anello-e-freccia">
+                  {i > 0 ? <span className="account__freccia" aria-hidden="true">→</span> : null}
+                  <div className="account__anello" title={t.vista.ragione}>
+                    <span className="account__etichetta">{t.titolo}</span>
+                    <b style={{ color: COLORE_ACCOUNT[t.vista.colore] }}>{t.vista.parola}</b>
+                    {t.sotto !== undefined ? <span className="account__nota account__sotto">{t.sotto}</span> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {v.tessere.some((t) => t.vista.id === 'scade') ? (
+              <p className="account__nota" style={{ color: 'var(--ambra)' }}>⚠ {v.tessere.find((t) => t.vista.id === 'scade')?.vista.ragione}</p>
+            ) : null}
+            {passo !== undefined && (passo.id === 'connetti' || passo.id === 'salva' || passo.id === 'progetti') ? (
+              <div className="account__tasti" style={{ justifyContent: 'flex-start' }}>
+                <span className="account__etichetta">Prossimo passo</span>
+                <button className="tasto tasto--primario" onClick={fai} disabled={inCorso || (passo.id === 'connetti' && !drive.configurato)}>
+                  {inCorso && passo.id === 'connetti' ? 'nel browser…' : passo.testo}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        )
+      })() : null}
 
       {fusioneAperta ? (
         <ModaleFusione
@@ -488,16 +517,6 @@ function SezioneSync({ parte }: { parte: 'account' | 'salvataggio' }): React.JSX
             </button>
           </div>
         </div>
-      ) : pronto && parte === 'account' ? (
-        <div className="account__scheda account__scheda--largo">
-          <p className="account__nota con-aiuto">
-            Drive collegato e cassaforte aperta: è tutto pronto.
-            <Aiuto di="dove sono il salvataggio e gli altri computer">Il salvataggio (Salva ora, Ripristina, il salvataggio automatico, «Fondi con il Drive») e i progetti sul Drive stanno in <b>Progetti → «Salvataggio e arrivo»</b>; gli altri computer in <b>Salute</b>.</Aiuto>
-          </p>
-          <div className="account__tasti">
-            <button className="tasto" onClick={() => window.dispatchEvent(new CustomEvent('sierradeck:apri-pannello', { detail: 'progetti' }))}>Apri Progetti</button>
-          </div>
-        </div>
       ) : pronto ? (
         <>
           <div className="account__scheda account__scheda--largo">
@@ -553,10 +572,6 @@ function SezioneSync({ parte }: { parte: 'account' | 'salvataggio' }): React.JSX
 
           <SezioneProgetti inCorso={inCorso} onCambio={aggiorna} />
         </>
-      ) : !drive.connesso ? (
-        <div className="account__scheda account__scheda--largo">
-          <p className="account__nota">Collega il tuo Google Drive qui sopra per iniziare a mettere le chat al sicuro.</p>
-        </div>
       ) : null}
     </div>
   )
@@ -772,12 +787,7 @@ export function PannelloAccount({ onChiudi, incorporato = false }: Props): React
   const corpo = (
     utente !== undefined ? (
         <div className="account">
-          <p className="account__chi">Entrato come <strong>{utente.email}</strong></p>
-          <SezioneSync parte="account" />
-          <div className="account__tasti">
-            <span style={{ flex: 1 }} />
-            <button className="tasto" onClick={() => void esci()}>Esci</button>
-          </div>
+          <SezioneSync parte="account" utente={utente} onEsci={() => void esci()} />
         </div>
       ) : (
         <div className="account">

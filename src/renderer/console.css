@@ -4873,3 +4873,14 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .quaderno-vista__scheda .quaderno__corpo { min-height: 50vh; }
 .quaderno-vista__personale { max-width: 820px; }
 @media (max-width: 900px) { .quaderno-vista__corpo { grid-template-columns: 1fr; } .quaderno-vista__lato, .quaderno-vista__elenco { max-height: 30vh; border-right: 0; border-bottom: 1px solid var(--incisione); } }
+
+/* Account e Drive (0.70.0): la catena di quattro anelli con la parola, il prossimo passo, Strumenti ▾. */
+.account__catena-tutta { display: flex; flex-direction: column; gap: 10px; }
+.account__catena-testa { display: flex; align-items: center; gap: 8px; }
+.account__catena { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; }
+.account__anello-e-freccia { display: flex; align-items: center; gap: 6px; }
+.account__freccia { color: var(--testo-spento); }
+.account__anello { display: flex; flex-direction: column; gap: 2px; min-height: 64px; min-width: 150px; max-width: 220px; padding: 8px 12px; background: var(--chassis); border: 1px solid var(--incisione); border-radius: var(--raggio); }
+.account__anello b { font-size: 16px; }
+.account__sotto { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 196px; }
+.account__etichetta { font-size: 12px; color: var(--testo-quieto); }

@@ -5371,6 +5371,11 @@ if (!app.requestSingleInstanceLock()) {
           const email = (utente as { email?: string } | undefined)?.email
           return email === undefined ? { entrato: false } : { entrato: true, email }
         },
+        // 0.70.0: la catena Account → Drive → Cassaforte → Salvataggio anche sul telefono.
+        sicurezza: async () => {
+          const sync = await sincroniaGlobale?.stato().catch(() => undefined)
+          return { drive: contoDrive.stato(), ...(sync !== undefined ? { sync } : {}) }
+        },
         entraAccount: async (email: string, password: string) => {
           const esito = await entraAccount(email, password)
           // Le finestre lo sanno per il canale `account:cambiato`, che scatta da

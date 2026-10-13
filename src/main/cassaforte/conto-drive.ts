@@ -30,6 +30,8 @@ export type StatoDrive = {
   connesso: boolean
   /** L'account Google collegato, quando lo si conosce. */
   email?: string
+  /** Quando è stato collegato (ISO), se lo si sa: dopo sette giorni un'app OAuth «in prova» perde il permesso. */
+  collegatoIl?: string
 }
 
 /**
@@ -172,7 +174,9 @@ export function apriContoDrive(dati: string): ContoDrive {
         // Serve il refresh token: un access token da solo scade in un'ora e non
         // si rinnova. È quello a dire «connesso davvero».
         connesso: g?.refreshToken !== undefined,
-        ...(g?.email !== undefined ? { email: g.email } : {})
+        ...(g?.email !== undefined ? { email: g.email } : {}),
+        // 0.70.0: quando è stato collegato, per avvisare prima dei sette giorni di Google.
+        ...(g?.refreshToken !== undefined && g.collegatoIl !== undefined ? { collegatoIl: new Date(g.collegatoIl).toISOString() } : {})
       }
     },
 
