@@ -30,7 +30,7 @@ Fonti:
 
 # Dopo
 
-I numeri della prova dal vero sono nel rapporto della 0.71.0 (`rapporto-autopilota-0-71-0.md`). Quelli dei progetti veri si leggono nella scheda dopo l'installazione.
+Prova dal vero (copia di prova, 27 giri): giro 27,5 s di mediana (p90 45 s), di cui supervisore 26,5 s, criteri 0,2 s, unione 0,2 s; un giro di Revisione, giudicato dal programma, circa 1 s. Il supervisore è più lento di prima (26 s contro 17 s) perché il quadro ha i fatti verificati e le decisioni. Il grosso del guadagno è sui progetti con criteri lunghi. Rapporto: `rapporto-autopilota-0-71-0.md`.
 
 # Trappola
 
