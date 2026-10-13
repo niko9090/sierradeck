@@ -1,5 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { RiassuntoTempi } from '@shared/tempi-giro'
+export { testoTempi, type RiassuntoTempi } from '@shared/tempi-giro'
 
 /**
  * Quanto dura un giro dell'autopilota, passo per passo (0.71.0).
@@ -50,8 +52,6 @@ const percentile = (xs: number[], p: number): number => {
   return o[Math.min(o.length - 1, Math.floor(o.length * p))] ?? 0
 }
 
-export type RiassuntoTempi = { giri: number; totale: { mediana: number; p90: number }; fasi: Record<string, number>; criteriDaCache: number }
-
 /** Mediane per fase e del totale, su un insieme di giri. */
 export function riassuntoTempi(giri: GiroMisurato[]): RiassuntoTempi {
   const fasi: Record<string, number> = {}
@@ -66,14 +66,6 @@ export function riassuntoTempi(giri: GiroMisurato[]): RiassuntoTempi {
     fasi,
     criteriDaCache: tutti === 0 ? 0 : Math.round((presi / tutti) * 100)
   }
-}
-
-/** Il testo corto per la scheda: «giro 12 s (criteri 4 s, supervisore 7 s) · 8 giri». */
-export function testoTempi(r: RiassuntoTempi): string {
-  if (r.giri === 0) return 'nessun giro misurato ancora'
-  const s = (ms: number): string => (ms < 10_000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms / 1000)} s`)
-  const pezzi = Object.entries(r.fasi).filter(([, ms]) => ms >= 500).map(([n, ms]) => `${n} ${s(ms)}`)
-  return `giro ${s(r.totale.mediana)}${pezzi.length > 0 ? ` (${pezzi.join(', ')})` : ''} · ${r.giri} ${r.giri === 1 ? 'giro' : 'giri'}${r.criteriDaCache > 0 ? ` · criteri dalla cache ${r.criteriDaCache}%` : ''}`
 }
 
 /** Il registro dei giri su disco: una riga JSON per giro, si tengono gli ultimi `TETTO`. */

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlberoChat } from './AlberoChat'
 import { Aiuto } from './Aiuto'
 import type { Autopilota, Criterio } from '@shared/autopilota'
@@ -25,6 +25,13 @@ type Props = {
   autopilota: Autopilota
   /** Qualcosa è cambiato: chi ci sta sopra deve rileggere lo stato. */
   onCambiato: () => void
+}
+
+/** Quanto ci mette un giro (0.71.0): la riga dei tempi, riletta a ogni giro nuovo. */
+function TempiGiri({ id, cicli }: { id: string; cicli: number }): React.JSX.Element | null {
+  const [t, setT] = useState<string | undefined>(undefined)
+  useEffect(() => { void window.gestore.autopilota.tempi(id).then(setT).catch(() => undefined) }, [id, cicli])
+  return t === undefined ? null : <p className="scheda__spiega" title="Mediane degli ultimi giri: fermata della chat → criteri → supervisore → risposta">Tempi: {t}</p>
 }
 
 /** Cosa gli hai chiesto, cosa ha capito, a che punto è, e le sue chat. */
@@ -58,6 +65,7 @@ export function ObiettivoAutopilota({ autopilota }: { autopilota: Autopilota }):
         {' '}iniziato alle {orario(autopilota.iniziatoIl)} · ultimo segno alle {orario(autopilota.ultimoEvento)}
         {autopilota.strategia !== undefined ? ` · sta provando un'altra strada: ${autopilota.strategia}` : ''}
       </p>
+      <TempiGiri id={autopilota.id} cicli={autopilota.cicli} />
 
       {/* Le chat che eseguono: una per compito. Con una sola chat la riga dice
           solo che c'è; con la flotta si vede chi fa cosa e chi è ferma. */}

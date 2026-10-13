@@ -445,6 +445,8 @@ declare global {
         elimina: (id: string) => Promise<void>
         domande: () => Promise<DomandaAperta[]>
         istruzioni: (id: string) => Promise<import('@shared/istruzioni-autopilota').Istruzione[]>
+        /** I tempi dei suoi giri in una riga (0.71.0). */
+        tempi: (id: string) => Promise<string | undefined>
         rispondi: (idDomanda: string, risposta: string) => Promise<void>
         avvioAlLogin: (attivare?: boolean) => Promise<{ installato: boolean; percorso: string }>
       }

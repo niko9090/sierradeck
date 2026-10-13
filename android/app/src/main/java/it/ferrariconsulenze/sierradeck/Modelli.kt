@@ -536,6 +536,8 @@ data class AutopilotaDettaglio(
     val decisioni: List<Decisione> = emptyList(),
     val passaggi: List<Passo> = emptyList(),
     val misura: MisuraPasso = MisuraPasso(),
+    /** PC 0.71: i tempi dei giri in una riga («giro 12 s (criteri 2 s, supervisore 9 s) · 8 giri»). */
+    val tempi: String? = null,
     /**
      * Il dialogo con lui (0.27.0): le tue battute e le sue risposte, dalla
      * scheda. Assente nei computer con una versione precedente.

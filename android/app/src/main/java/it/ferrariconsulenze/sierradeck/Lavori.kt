@@ -350,6 +350,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                     Passaggi(det.passaggi, mostraNota = det.stato != "sospeso" && det.stato != "fallito")
                     Spacer(Modifier.height(6.dp))
                     Misura(det.misura, det.cicli)
+                    det.tempi?.let { Text("Tempi: $it", color = Banco.testoQuieto, fontSize = 12.sp) }
                     Spacer(Modifier.height(6.dp))
                 }
                 guastoDettaglio?.let { g -> item { Text(g, color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp)) } }

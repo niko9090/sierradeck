@@ -4807,6 +4807,7 @@ if (!app.requestSingleInstanceLock()) {
         },
         chat: () => chatAperte.map(conAltrove),
         autopiloti: () => clientAutopilota.elenca(),
+        tempiAutopilota: (id: string) => clientAutopilota.tempi(id),
         rispondi: async (idDomanda: string, risposta: string) => {
           // Il sì o il no a un file che una chat vuole mandare al telefono (0.54.0).
           // Il consenso a un dato del quaderno personale (0.57.0).

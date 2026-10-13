@@ -177,6 +177,8 @@ export type DipendenzeRotte = {
   /** Le chat aperte adesso, in tutte le finestre. */
   chat: () => Chat[]
   autopiloti: () => Promise<Autopilota[]>
+  /** I tempi dei giri di un autopilota, in una riga (0.71.0). */
+  tempiAutopilota?: (id: string) => Promise<string | undefined>
   /** Risponde alla domanda di un autopilota. */
   rispondi: (idDomanda: string, risposta: string) => Promise<void>
   /** Le domande in attesa di risposta. */
@@ -1295,7 +1297,9 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         ...(mia !== undefined ? { domandaId: mia.id } : {}),
         // Lo stato dal vivo e quello di ogni messaggio verso la chat (0.69.0).
         dalVivo: statoAutopilotaDalVivo({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, adesso(), segnoDi(a)),
-        messaggi: statoMessaggi(a, adesso(), oraBreve)
+        messaggi: statoMessaggi(a, adesso(), oraBreve),
+        // I tempi dei suoi giri (0.71.0): quanto ci mette, e dove.
+        ...(await (async () => { const t = await deps.tempiAutopilota?.(id).catch(() => undefined); return t !== undefined ? { tempi: t } : {} })())
       })
     }
 

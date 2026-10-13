@@ -2587,6 +2587,7 @@ function vistaAutopilota(a) {
       (qui && qui.nota ? '<div class="sotto nota">' + esc(qui.nota) + '</div>' : '') +
       '<div class="sotto">' + (a.cicli || 0) + ' interventi del supervisore' +
         (a.strategia ? ' · sta provando un’altra strada: ' + esc(a.strategia) : '') + '</div>' +
+      (a.tempi ? '<div class="sotto">Tempi: ' + esc(a.tempi) + '</div>' : '') +
       '<div class="serigrafia" style="margin-top:10px">Il coordinatore e le sue chat</div>' + alberoHtml(a)
   } else if (apTab === 'criteri') {
     // I criteri, con **quando** li ha raggiunti: una spunta senza ora non dice
