@@ -1,4 +1,5 @@
 import type { VistaProgetto } from './progetti-vista'
+import type { DestinazioneSposta } from './sposta-su'
 import { eSessioneInterna } from './workspace-riparazioni'
 import type { Trasloco } from './trasloco'
 import type { StatoSpazio } from './spazio-drive'
@@ -126,6 +127,8 @@ export type RigaProgetto = {
   alLavoro?: number
   /** Come si mostra (0.69.0): lo calcola il PC, pagina e app lo disegnano. Vedi `@shared/progetti-vista`. */
   vista?: VistaProgetto
+  /** «Sposta su ▾» (0.71.0): i PC di arrivo, con acceso/spento e quello attuale. Vedi `@shared/sposta-su`. */
+  spostaSu?: DestinazioneSposta[]
 }
 
 export type Pannello = {

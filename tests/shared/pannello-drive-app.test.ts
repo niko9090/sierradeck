@@ -101,7 +101,7 @@ describe('il pannello del Drive per la pagina e per l’app', () => {
       ${estrai('aiuto')}
       ${riga('const PD_PASSI =')}; ${riga('const PD_TIPI =')}; ${estrai('pdByte')} ${estrai('pdTraslochiHtml')} ${estrai('pdSpazioHtml')}
       ${riga('const PD_GRUPPI =')}; ${riga('const PD_ORDINI =')}; ${riga('const PD_COLORE =')}; ${riga('const PD_RANGO =')}
-      ${estrai('pdPiano')} ${estrai('pdVistaDi')} ${estrai('pdOrdinate')} ${estrai('pdPillola')} ${estrai('pdElencoHtml')} ${estrai('pdDettaglioHtml')} ${estrai('pdStrumentiHtml')}
+      ${estrai('pdPiano')} ${estrai('pdVistaDi')} ${estrai('pdOrdinate')} ${estrai('pdPillola')} ${estrai('pdElencoHtml')} var pdSpostaVerso = ''; ${estrai('pdSpostaHtml')} ${estrai('pdDettaglioHtml')} ${estrai('pdStrumentiHtml')}
       ${estrai('pdQuando')} ${estrai('pdStato')} ${estrai('pdProblemi')} ${estrai('pdFiltra')} ${estrai('pdScegliPc')} ${estrai('pannelloDriveHtml')}
       return pannelloDriveHtml()`) as (d: unknown, s: string, t: string) => string)(dati, scelto, strumento)
     // 0.69.0: l'elenco con lo stato in una parola (dal PC), i gruppi con i conti, gli strumenti.

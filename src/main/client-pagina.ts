@@ -1380,7 +1380,7 @@ function impronta(s) {
     JSON.stringify(driveAperti || {}),
     // «Progetti» (0.69.0): mancava, e la pagina restava su «Leggo…» o non apriva il dettaglio finché non cambiava altro.
     pdDati ? (pdDati.letto || '') + '/' + pdDati.progetti.length + '/' + JSON.stringify((pdDati.progetti || []).map((r) => r.vista ? r.vista.stato : '')) + JSON.stringify(pdDati.residenza || []) + JSON.stringify((pdDati.rimozione || {}).stati || []) + JSON.stringify(pdDati.traslochi || []) : '',
-    pdErrore || '', pdVista, pdFiltro, pdDaConfermare, pdSenzaNome, pdGruppo, pdOrdine, pdScelto, pdStrumento,
+    pdErrore || '', pdVista, pdFiltro, pdDaConfermare, pdSenzaNome, pdGruppo, pdOrdine, pdScelto, pdStrumento, pdSpostaVerso,
     prefViste ? prefViste.stile + '/' + prefViste.chiarore : '',
     aggiornamentoVisto ? aggiornamentoVisto.fase + '/' + (aggiornamentoVisto.percento || 0) + '/' + (aggiornamentoVisto.errore || '') + '/' + (aggiornamentoVisto.attesa || '') + '/' + (aggiornamentoVisto.chatOccupate || 0) + '/' + (aggiornamentoVisto.testo || '') + '/' + (aggiornamentoVisto.tentativoFallito ? aggiornamentoVisto.tentativoFallito.quando : '') : '',
     cercatoAlle || '',
@@ -4153,7 +4153,7 @@ function pdVistaDi(r) {
 window.pdGruppoScegli = (g) => { pdGruppo = g; pdScelto = ''; pannello(ultimoStato) }
 window.pdOrdina = (o) => { pdOrdine = o; pannello(ultimoStato) }
 window.pdApri = (id) => { pdScelto = id; pdStrumento = ''; pdDaConfermare = ''; pannello(ultimoStato); window.scrollTo(0, 0) }
-window.pdIndietro = () => { pdScelto = ''; pdStrumento = ''; pdDaConfermare = ''; pannello(ultimoStato) }
+window.pdIndietro = () => { pdSpostaVerso = ''; pdScelto = ''; pdStrumento = ''; pdDaConfermare = ''; pannello(ultimoStato) }
 window.pdStrumentoScegli = (s) => { pdStrumento = pdStrumento === s ? '' : s; pdScelto = ''; pannello(ultimoStato) }
 // La ricerca nasconde le righe senza ridisegnare: il campo non perde il cursore.
 window.pdCerca = (q) => {
@@ -4204,12 +4204,42 @@ function pdElencoHtml() {
   }
   return h
 }
+// «Sposta su» (0.71.0): da qualsiasi PC verso qualsiasi PC, come sul PC. I PC di
+// arrivo e la conferma li scrive il computer (r.spostaSu, con il riassunto).
+var pdSpostaVerso = ''
+function pdSpostaHtml(r, v) {
+  const dest = r.spostaSu || []
+  let h = '<div class="riga" style="gap:6px;align-items:center;margin-bottom:6px"><span class="sotto" style="flex:none">Dove vive: <b>' + esc(v.dove || (r.residente ? r.residente.nome : 'nessun PC')) + '</b></span>'
+  if (dest.length > 1) {
+    h += '<select aria-label="Sposta su" style="flex:1" onchange="pdSpostaScegli(this.value)"><option value="">Sposta su…</option>' +
+      dest.map((x) => '<option value="' + esc(x.pc) + '"' + (x.attuale ? ' disabled' : '') + (pdSpostaVerso === x.pc ? ' selected' : '') + '>' + (x.acceso ? '● ' : '○ ') + esc(x.testo) + '</option>').join('') + '</select>'
+  }
+  h += aiuto('pd-sposta-' + r.id, 'Il progetto va a vivere sul PC che scegli: là girano le sue chat, gli altri le guardano dal vivo. Il trasloco gira sul PC di arrivo (la richiesta gli arriva per il ponte): confronta le copie, prende quello che c’è solo altrove, unisce, e solo alla fine mette le copie vecchie nel recupero. Lo segui qui passo per passo. Niente si cancella: «Annulla tutto» per 30 giorni.') + '</div>'
+  const scelta = dest.find((x) => x.pc === pdSpostaVerso)
+  if (scelta && scelta.riassunto) {
+    const c = scelta.riassunto
+    h += '<div class="piastrella" role="alertdialog" style="margin:6px 0"><b>' + esc(c.titolo) + '</b>' + c.righe.map((x) => '<div class="sotto">' + esc(x) + '</div>').join('') +
+      (c.avviso ? '<div class="sotto" style="color:var(--ambra,#e0a33c)">⚠ ' + esc(c.avviso) + '</div>' : '') +
+      '<div class="riga"><button class="primario" onclick="pdSpostaConferma()">' + esc(c.conferma) + '</button><button onclick="pdSpostaScegli(&quot;&quot;)">Annulla</button></div></div>'
+  }
+  return h
+}
+window.pdSpostaScegli = (pc) => { pdSpostaVerso = pc || ''; pannello(ultimoStato) }
+window.pdSpostaConferma = async () => {
+  const verso = pdSpostaVerso
+  pdSpostaVerso = ''
+  if (!verso || !pdScelto) return
+  try { const r = await chiedi('/api/drive/azione', { azione: 'sposta-su', progetto: pdScelto, pc: verso }); notaGlobale = (r && r.messaggio) || 'Fatto.' }
+  catch (e) { notaGlobale = 'Non è andata: ' + ((e && e.message) || e) }
+  await leggiPannelloDrive(); pannello(ultimoStato); pdSegui()
+}
 function pdDettaglioHtml(r) {
   const v = pdVistaDi(r)
   const ids = r.ids || [r.id]
   let h = '<div class="riga" style="margin-top:6px"><button onclick="pdIndietro()">‹ Progetti</button></div>' +
     '<div class="titolo" style="margin-top:8px">' + esc(r.nome) + '</div>' +
     '<div style="margin:4px 0 6px"><span style="border:1px solid ' + PD_COLORE[v.stato.colore] + ';color:' + PD_COLORE[v.stato.colore] + ';border-radius:999px;padding:1px 8px;font-size:13px">' + esc(v.stato.parola) + (v.stato.ragione ? ' · ' + esc(v.stato.ragione) : '') + '</span></div>'
+  h += pdSpostaHtml(r, v)
   // Le azioni in vista, prima di tutto: la principale piena, «Togli da questo PC» in rosso, ognuna con il «?».
   const pericolo = r.azioni.find((a) => a.id === 'solo-cloud-qui')
   const resto = r.azioni.filter((a) => a !== pericolo)

@@ -127,6 +127,7 @@ import { apkDisponibile } from './apk-disponibile'
 import { creaLavoro } from './cassaforte/lavoro-in-corso'
 import { scanProjects } from './indexer/project-scanner'
 import { get as httpGet, request as httpRequest } from 'node:http'
+import { comeSpostare, destinazioniSposta, riassuntoSposta } from '@shared/sposta-su'
 import { riconsegnaCodaCeduta, type CodaCeduta } from './coda-ceduta'
 import { avviaRitiro, consegnaDaIdTesto, doveConsegnare, leggiConsegne, finestraPerConsegna, idTestoConsegna, versoIlSuoWorkspace, type Consegna } from './autopilota-consegne'
 import type { Chat } from './client-rotte'
@@ -2924,7 +2925,10 @@ if (!app.requestSingleInstanceLock()) {
       // La vista di ogni progetto (0.69.0): stato in una parola, gruppi, testi delle colonne.
       const pannelloCompleto = async (): Promise<Pannello & { rimozione: { stati: StatoRimozione[]; inRecupero: CartellaInRecupero[] }; unioni: ReturnType<Residenza['unioni']>; spazio?: StatoSpazio }> => {
         const p = await pannelloSenzaVista()
-        return conVista(p, { ...(p.traslochi !== undefined ? { traslochi: p.traslochi } : {}), ...(p.residenza !== undefined ? { residenza: p.residenza } : {}), ...(p.piano !== undefined ? { piano: p.piano } : {}), rimozione: p.rimozione.stati })
+        const v = conVista(p, { ...(p.traslochi !== undefined ? { traslochi: p.traslochi } : {}), ...(p.residenza !== undefined ? { residenza: p.residenza } : {}), ...(p.piano !== undefined ? { piano: p.piano } : {}), rimozione: p.rimozione.stati })
+        // «Sposta su ▾» (0.71.0): i PC di arrivo di ogni progetto, decisi qui per PC, pagina e app.
+        const ora = Date.now()
+        return { ...v, progetti: v.progetti.map((r) => ({ ...r, spostaSu: destinazioniSposta(r, v.io, v.pc, ora).map((x) => ({ ...x, riassunto: riassuntoSposta(r, x) })) })) }
       }
       const pannelloSenzaVista = async (): Promise<Pannello & { rimozione: { stati: StatoRimozione[]; inRecupero: CartellaInRecupero[] }; unioni: ReturnType<Residenza['unioni']>; spazio?: StatoSpazio }> => ({
         ...(await (async () => {
@@ -3180,7 +3184,15 @@ if (!app.requestSingleInstanceLock()) {
       }
       const togliSenzaCartella = new Map<string, { fase: string; messaggio: string }>()
       latoTraslocoGlobale = {
-        salva: async () => { const r = await sincronia.salva(); return { ok: r.ok, messaggio: r.messaggio ?? (r.ok ? 'salvato' : 'non salvato') } },
+        salva: async (corpo) => {
+          // Anche questo PC segue il trasloco (0.71.0): l'avanzamento si vede su tutti i PC con una copia.
+          const c = (corpo ?? {}) as { trasloco?: unknown; verso?: unknown }
+          if (typeof c.trasloco === 'string' && typeof c.verso === 'string' && trasloco.stato(c.trasloco) === undefined && !traslochiSeguiti.has(c.trasloco)) {
+            traslochiSeguiti.set(c.trasloco, { pc: c.verso, letto: 0 })
+            salvaSeguiti()
+          }
+          const r = await sincronia.salva(); return { ok: r.ok, messaggio: r.messaggio ?? (r.ok ? 'salvato' : 'non salvato') }
+        },
         togli: async (corpo) => {
           const id = idQui(corpo)
           if (id === undefined) return { ok: false, messaggio: 'manca il progetto' }
@@ -3282,6 +3294,18 @@ if (!app.requestSingleInstanceLock()) {
           return { ok: e.ok, messaggio: e.messaggio }
         }
         if (azione === 'trasloco-sposta') return spostaVerso(progetto, testoDi(c.pc))
+        // «Sposta su ▾» (0.71.0): da qualsiasi PC verso qualsiasi PC. Il trasloco gira
+        // sul PC di arrivo: qui se è questo, se no per il ponte (e da qui lo si segue).
+        if (azione === 'sposta-su') {
+          const verso = testoDi(c.pc)
+          if (verso === '') return { ok: false, messaggio: 'Scegli il PC.' }
+          registro.info(`[trasloco] «Sposta su» ${g?.nome ?? progetto} verso ${verso === io.id ? 'questo PC' : (postino.altrui().find((b) => b.pcId === verso)?.nome ?? verso.slice(0, 8))}: ${comeSpostare(verso, io) === 'qui' ? 'parte qui' : 'la chiedo al PC di arrivo per il ponte'}`)
+          if (comeSpostare(verso, io) === 'qui') {
+            const e = await trasloco.avvia(progetto, { da: io.id, come: 'sposta' })
+            return { ok: e.ok, messaggio: e.messaggio }
+          }
+          return spostaVerso(progetto, verso)
+        }
         if (azione === 'trasloco-riprendi' || azione === 'trasloco-annulla') return sulTrasloco(azione === 'trasloco-riprendi' ? 'riprendi' : 'annulla', testoDi(c.id))
         if (azione === 'conferma-residenza') {
           ultimoPannello = await leggiPannello()

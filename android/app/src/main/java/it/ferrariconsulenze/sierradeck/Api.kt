@@ -271,6 +271,10 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun azioneDrive(azione: String, progetto: String, id: String = ""): EsitoAzioneDrive =
         json.decodeFromString(corpoTesto("/api/drive/azione", oggetto { put("azione", azione); put("progetto", progetto); put("id", id) }))
 
+    /** «Sposta su ▾» (PC 0.71.0): il progetto va a vivere sul PC scelto, da qualsiasi PC. */
+    suspend fun spostaSu(progetto: String, pc: String): EsitoAzioneDrive =
+        json.decodeFromString(corpoTesto("/api/drive/azione", oggetto { put("azione", "sposta-su"); put("progetto", progetto); put("pc", pc) }))
+
     /** Le azioni dello spazio sul Drive (PC 0.65.0): misura, pulisci, annulla, svuota. */
     suspend fun azioneSpazio(azione: String, tipo: String = "", id: String = ""): EsitoAzioneDrive =
         json.decodeFromString(corpoTesto("/api/drive/azione", oggetto { put("azione", azione); put("tipo", tipo); put("id", id) }))

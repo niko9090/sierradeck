@@ -85,8 +85,29 @@ import kotlinx.serialization.Serializable
     val spazioDrive: SpazioProgettoDrive? = null,
     /** PC 0.69: le chat con nome al lavoro adesso, e la vista (stato in una parola, gruppi, testi). */
     val alLavoro: Int = 0,
-    val vista: VistaProgettoDrive? = null
+    val vista: VistaProgettoDrive? = null,
+    /** PC 0.71: «Sposta su ▾», i PC di arrivo con la conferma già scritta dal PC. */
+    val spostaSu: List<DestinazioneSpostaDrive> = emptyList()
 )
+@Serializable data class RiassuntoSpostaDrive(val titolo: String = "", val righe: List<String> = emptyList(), val conferma: String = "", val avviso: String? = null)
+@Serializable data class DestinazioneSpostaDrive(
+    val pc: String = "", val nome: String = "", val qui: Boolean = false, val acceso: Boolean = false,
+    val attuale: Boolean = false, val testo: String = "", val riassunto: RiassuntoSpostaDrive? = null
+)
+
+/** «Sposta su ▾» (PC 0.71.0): le regole lato app, uguali a quelle della pagina. */
+object SpostaSu {
+    private const val SEPARATORE_RIGHE = "\n"
+    /** Si mostra solo se c'è almeno un PC diverso da quello dove vive. */
+    fun mostra(r: RigaProgettoDrive): Boolean = r.spostaSu.any { !it.attuale }
+    /** Il testo della conferma: le righe del PC, con l'avviso in fondo. */
+    fun testoConferma(x: DestinazioneSpostaDrive): String {
+        val c = x.riassunto ?: return "Sposto il progetto su ${x.nome}. Niente si cancella: «Annulla tutto» per 30 giorni."
+        return (c.righe + listOfNotNull(c.avviso?.let { "⚠ $it" })).joinToString(SEPARATORE_RIGHE)
+    }
+    fun titolo(x: DestinazioneSpostaDrive, nome: String): String = x.riassunto?.titolo ?: "Sposta «$nome» su ${x.nome}?"
+    fun bottone(x: DestinazioneSpostaDrive): String = x.riassunto?.conferma ?: "Conferma: sposta su ${x.nome}"
+}
 @Serializable data class SpazioProgettoDrive(val file: Int = 0, val byte: Double = 0.0, val grandi: List<FileGrandeDrive> = emptyList())
 @Serializable data class FileGrandeDrive(val percorso: String = "", val byte: Double = 0.0)
 @Serializable data class CartellaProgettoDrive(val pc: String = "", val nome: String = "", val percorso: String = "")
@@ -416,6 +437,27 @@ private fun DettaglioProgetto(d: PannelloDrive, r: RigaProgettoDrive, onIndietro
     Text(r.nome, color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 18.sp)
     Text(v.stato.parola + (v.stato.ragione?.let { " · $it" } ?: ""), color = coloreVista(v.stato.colore), fontSize = 13.sp,
         modifier = Modifier.padding(vertical = 4.dp).border(1.dp, coloreVista(v.stato.colore), RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 2.dp))
+    // «Sposta su ▾» (PC 0.71.0): da qualsiasi PC verso qualsiasi PC, con la conferma del PC.
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
+        Text("Dove vive: ", color = Banco.testoQuieto, fontSize = 13.sp)
+        Text(v.dove, color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        if (SpostaSu.mostra(r)) {
+            var aperto by remember { mutableStateOf(false) }
+            Box {
+                OutlinedButton(onClick = { aperto = true }) { Text("Sposta su ▾") }
+                DropdownMenu(expanded = aperto, onDismissRequest = { aperto = false }) {
+                    for (x in r.spostaSu) {
+                        DropdownMenuItem(
+                            text = { Text((if (x.acceso) "● " else "○ ") + x.testo, color = if (x.attuale) Banco.testoQuieto else Banco.testo) },
+                            enabled = !x.attuale,
+                            onClick = { aperto = false; chiedi(DaConfermare(SpostaSu.titolo(x, r.nome), SpostaSu.testoConferma(x), SpostaSu.bottone(x)) { api.spostaSu(r.id, x.pc) }) }
+                        )
+                    }
+                }
+            }
+            Aiuto("Il progetto va a vivere sul PC che scegli: là girano le sue chat, gli altri le guardano dal vivo. Il trasloco gira sul PC di arrivo: confronta le copie, prende quello che c’è solo altrove, unisce, e solo alla fine mette le copie vecchie nel recupero. Niente si cancella: «Annulla tutto» per 30 giorni.", di = "Sposta su")
+        }
+    }
     val azioni = ProgettiVista.azioniInOrdine(r.azioni)
     for ((i, a) in azioni.withIndex()) {
         Row(verticalAlignment = Alignment.CenterVertically) {

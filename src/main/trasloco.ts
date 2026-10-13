@@ -102,7 +102,7 @@ export function creaTrasloco(d: DipendenzeTrasloco): TraslocoApi {
         k += 1
         t = passo(t, p, { dettaglio: `Chiedo a ${a.nome} di salvare sul Drive la sua copia`, fatto: k - 1, totale: t.altrove.length })
         let r: { ok?: unknown; messaggio?: unknown }
-        try { r = await d.chiamaPc(a.pc, '/api/trasloco/salva', { progetto: t.progetto }) as typeof r } catch (err) {
+        try { r = await d.chiamaPc(a.pc, '/api/trasloco/salva', { progetto: t.progetto, trasloco: t.id, verso: d.io().id }) as typeof r } catch (err) {
           fermaQui(t, p, `${a.nome} non risponde (${errore(err)}): senza la sua copia aggiornata non confronto. Riprendo da qui quando torna.`, true)
           return false
         }

@@ -15,6 +15,7 @@ import { TraslocoAvanzamento } from './TraslocoAvanzamento'
 import { Aiuto } from './Aiuto'
 import { useLayoutStore } from '../state/layout'
 import { voceMenu } from '@shared/menu-principale'
+import { destinazioniSposta, riassuntoSposta, type DestinazioneSposta } from '@shared/sposta-su'
 
 /**
  * «Progetti» a piena pagina (0.69.0). Nicholas, 12/10: «rifai il menu
@@ -237,7 +238,8 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
             onTrasloco={(azione, id) => esegui(window.gestore.casa.azione({ azione, id }))}
             onResidenza={(azione, id) => esegui(window.gestore.casa.azione({ azione, progetto: sel.id, ...(id !== undefined ? { id } : {}) }))}
             onRimozione={(azione) => esegui(window.gestore.casa.rimozione[azione](sel.id))}
-            onQuaderno={() => { onChiudi(); window.dispatchEvent(new CustomEvent('sierradeck:apri-pannello', { detail: 'quaderno' })) }} />
+            onQuaderno={() => { onChiudi(); window.dispatchEvent(new CustomEvent('sierradeck:apri-pannello', { detail: 'quaderno' })) }}
+            onSposta={(pc) => esegui(window.gestore.casa.azione({ azione: 'sposta-su', progetto: sel.id, pc }))} />
         ) : null}
 
         {foglio !== undefined && d !== undefined ? (
@@ -302,8 +304,14 @@ function Dettaglio(p: {
   onResidenza: (azione: 'conferma-residenza' | 'annulla-residenza' | 'annulla-unione', id?: string) => void
   onRimozione: (azione: 'conferma' | 'annulla') => void
   onQuaderno: () => void
+  onSposta: (pc: string) => void
 }): React.JSX.Element {
   const { r, d, occupato } = p
+  // «Sposta su ▾» (0.71.0): da qualsiasi PC verso qualsiasi PC, con conferma.
+  const [menuSposta, setMenuSposta] = useState(false)
+  const [verso, setVerso] = useState<DestinazioneSposta | undefined>(undefined)
+  const destinazioni = r.spostaSu ?? destinazioniSposta(r, d.io, d.pc, Date.now())
+  const conferma = verso !== undefined ? riassuntoSposta(r, verso) : undefined
   const v = r.vista ?? vistaDi(r)
   const az = azioniDivise(r.azioni)
   const chat = chatDelProgetto(d.chat, r)
@@ -326,6 +334,36 @@ function Dettaglio(p: {
       <div style={{ padding: '0 16px 4px' }}>
         <span className="progetti__pillola" style={{ color: COLORE[v.stato.colore], borderColor: COLORE[v.stato.colore] }}>{v.stato.parola}{v.stato.ragione !== undefined ? ` · ${v.stato.ragione}` : ''}</span>
       </div>
+      <div className="progetti__dove">
+        <span className="serigrafia">Dove vive</span>
+        <b style={v.doveQui ? undefined : { color: r.residente === undefined ? 'var(--ambra)' : undefined }}>{v.dove}</b>
+        <span style={{ position: 'relative' }}>
+          <button className="tasto tasto--mini tasto--acceso" aria-expanded={menuSposta} disabled={occupato || destinazioni.length < 2} onClick={() => setMenuSposta(!menuSposta)}
+            title="Sposta il progetto, con chat, file e note, su un altro PC: da qualsiasi PC verso qualsiasi PC della stessa chiave di casa">Sposta su ▾</button>
+          {menuSposta ? (
+            <TendinaMenu onChiudi={() => setMenuSposta(false)}>
+              {destinazioni.map((x) => (
+                <button key={x.pc} className="progetti__voce" disabled={x.attuale} title={x.attuale ? 'Il progetto vive già qui' : `Sposta «${r.nome}» su ${x.nome}`}
+                  onClick={() => { setMenuSposta(false); setVerso(x) }}>
+                  <span style={{ color: x.acceso ? 'var(--verde)' : 'var(--testo-spento)' }}>●</span> {x.testo}
+                </button>
+              ))}
+            </TendinaMenu>
+          ) : null}
+        </span>
+        <Aiuto di="Sposta su">Il progetto va a vivere sul PC che scegli: là girano le sue chat, gli altri le guardano dal vivo. Il trasloco gira sul PC di arrivo (se non è questo, la richiesta gli arriva per il ponte): salva le copie degli altri PC sul Drive, confronta, prende quello che c’è solo altrove, unisce, e solo alla fine mette le copie vecchie nel recupero. Lo segui qui passo per passo, da qualsiasi PC. Niente si cancella: «Annulla tutto» per 30 giorni.</Aiuto>
+      </div>
+      {conferma !== undefined && verso !== undefined ? (
+        <div className="progetti__attende progetti__attende--colonna" role="alertdialog" aria-label={conferma.titolo}>
+          <b>{conferma.titolo}</b>
+          {conferma.righe.map((x) => <span key={x} className="progetti__quieto">{x}</span>)}
+          {conferma.avviso !== undefined ? <span style={{ color: 'var(--ambra)' }}>⚠ {conferma.avviso}</span> : null}
+          <span style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button className="tasto tasto--mini" onClick={() => setVerso(undefined)}>Annulla</button>
+            <button className="tasto tasto--mini tasto--acceso" disabled={occupato} onClick={() => { p.onSposta(verso.pc); setVerso(undefined) }}>{conferma.conferma}</button>
+          </span>
+        </div>
+      ) : null}
       {/* Le azioni restano in vista: non scorrono con il resto. */}
       <div className="progetti__azioni">
         {az.primaria !== undefined ? tasto(az.primaria, 'primaria') : null}

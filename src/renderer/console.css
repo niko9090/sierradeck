@@ -4773,6 +4773,9 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .progetti__dtitolo { flex: 1; min-width: 0; font-size: 18px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .progetti__pillola { border: 1px solid; border-radius: 999px; padding: 1px 8px; font-size: 12px; white-space: nowrap; }
 .progetti__azioni { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 16px 10px; border-bottom: 1px solid var(--incisione); }
+/* «Sposta su ▾» (0.71.0): dove vive, con il tasto accanto; la conferma in colonna. */
+.progetti__dove { display: flex; align-items: center; gap: 8px; padding: 4px 16px 8px; flex-wrap: wrap; }
+.progetti__attende--colonna { flex-direction: column; align-items: stretch; color: var(--testo); background: var(--luce-tenue); }
 .progetti__attende {
   display: flex;
   gap: 6px;
