@@ -2321,3 +2321,42 @@ describe('la notifica non cancella quello che le sorelle hanno scritto (0.71.0, 
     expect(dopo.cicli).toBe(7)
   })
 })
+
+describe('le domande delle chat a cui risponde l’autopilota restano visibili (0.71.1)', () => {
+  it('fine turno con una domanda, il supervisore prosegue: la domanda e la sua risposta in /domande/risolte', async () => {
+    server = ambiente({
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }),
+      interroga: () => Promise.resolve({ testo: '{"azione": "prosegui", "perche": "l obiettivo lo dice", "istruzioni": "Usa npm: il progetto ha già il package-lock."}' })
+    })
+    await avvia(server)
+    const id = await creaAp()
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Ho preparato tutto.\n\nUso npm o pnpm?' }))
+    const risolte = (await chiama('GET', '/domande/risolte')).dati
+    expect(risolte).toHaveLength(1)
+    expect(risolte[0]).toMatchObject({ autopilotaId: id, domanda: 'Uso npm o pnpm?', risposta: 'Usa npm: il progetto ha già il package-lock.' })
+  })
+
+  it('un turno senza domanda non lascia niente', async () => {
+    server = ambiente({
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }),
+      interroga: () => Promise.resolve({ testo: '{"azione": "prosegui", "perche": "avanti", "istruzioni": "Continua."}' })
+    })
+    await avvia(server)
+    const id = await creaAp()
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Ho corretto il primo test.' }))
+    expect((await chiama('GET', '/domande/risolte')).dati).toEqual([])
+  })
+
+  it('una domanda della chat a cui il supervisore risponde da solo resta visibile', async () => {
+    server = ambiente({ interroga: () => Promise.resolve({ testo: '{"azione": "rispondo", "risposta": "Usa la chiave A", "perche": "è scritta nell obiettivo"}' }) })
+    await avvia(server)
+    const id = await creaAp()
+    await chiama('POST', `/hook/notification?ap=${id}`, { session_id: 's-1', hook_event_name: 'Notification', notification_type: 'elicitation_dialog', message: 'quale chiave uso?' })
+    const risolte = (await chiama('GET', `/domande/risolte?ap=${id}`)).dati
+    expect(risolte).toHaveLength(1)
+    expect(risolte[0].domanda).toContain('quale chiave uso?')
+    expect(risolte[0].risposta).toBe('Usa la chiave A')
+    // Non è una domanda aperta: non aspetta Nicholas.
+    expect((await chiama('GET', `/domande?ap=${id}`)).dati).toEqual([])
+  })
+})

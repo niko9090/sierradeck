@@ -145,7 +145,8 @@ fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Un
             // Le domande di un autopilota si rispondono nella sua scheda,
             // linguetta «Domande», una per volta (0.38.0).
             val ap = aperta.autopilota
-            if (aperta.tipo == "autopilota" && ap != null) {
+            // Una risposta data dall'autopilota (2.71.1) si legge qui, con la domanda: non aspetta te.
+            if (aperta.tipo == "autopilota" && ap != null && aperta.chiede) {
                 Text(
                     "Ti aspetta con " + (if ((aperta.quante ?: 1) == 1) "una domanda" else "${aperta.quante} domande") +
                         ". Si rispondono nella sua scheda, linguetta «Domande», una per volta; dopo la risposta restano nella chat con lui.",

@@ -82,6 +82,7 @@ export function conversazioniDomande(p: {
   const gia = new Set<string>()
 
   for (const v of p.voci) {
+    if (v.tipo === 'risolta') continue
     if (v.tipo === 'autopilota') {
       const chiave = `ap:${v.autopilotaId}`
       const a = perAp.get(v.autopilotaId)
@@ -172,6 +173,20 @@ export function conversazioniDomande(p: {
         scelte: { chat: v.chat, opzioni: v.opzioni },
         segnaposto: 'Tocca un’opzione qui sopra, oppure scrivile qualcosa'
       })
+    } else if (v.chiede === true) {
+      // Una domanda scritta (0.71.1): aspetta te, come una scelta.
+      fuori.push({
+        chiave,
+        tipo: 'chat',
+        titolo: v.titolo || v.cwd,
+        sotto: v.cwd,
+        chiede: true,
+        messaggi: [...tuoi, { da: 'lui', testo: schermo !== '' ? schermo : 'Ti ha fatto una domanda: la trovi nella chat.', tono: 'domanda' }],
+        risposta: { via: 'scrivi', chat: v.chat },
+        ...(v.pcNome !== undefined ? { suPc: v.pcNome } : {}),
+        ...(v.viaPc !== undefined ? { viaPc: v.viaPc } : {}),
+        segnaposto: 'Rispondi alla chat: la risposta arriva nella sua casella'
+      })
     } else {
       fuori.push({
         chiave,
@@ -218,6 +233,35 @@ export function conversazioniDomande(p: {
       risposta: { via: 'dialogo', autopilota: a.id },
       segnaposto: 'Scrivigli: «vai», oppure cosa cambiare prima di partire'
     })
+  }
+  // Le domande delle chat a cui l'autopilota ha risposto da solo (0.71.1):
+  // restano nella sua conversazione, con la risposta. Senza una domanda
+  // aperta la conversazione c'è lo stesso, e non aspetta te.
+  for (const v of p.voci) {
+    if (v.tipo !== 'risolta') continue
+    const chiave = `ap:${v.autopilotaId}`
+    const coppia: MessaggioConversazione[] = [
+      { da: 'lui', testo: `${v.chatTitolo !== undefined ? `La chat «${v.chatTitolo}» ha chiesto` : 'La chat ha chiesto'}: ${v.domanda}`, quando: v.quando },
+      { da: 'nota', testo: `risposta dall’autopilota: ${v.risposta}`, quando: v.quando, tono: 'risolta' }
+    ]
+    let sua = fuori.find((c) => c.chiave === chiave)
+    if (sua === undefined) {
+      sua = {
+        chiave,
+        tipo: 'autopilota',
+        autopilota: v.autopilotaId,
+        titolo: v.autopilota,
+        sotto: 'ha risposto da solo a una domanda della sua chat',
+        chiede: false,
+        messaggi: [],
+        risposta: { via: 'dialogo', autopilota: v.autopilotaId },
+        segnaposto: 'Scrivigli se la risposta non va bene'
+      }
+      fuori.push(sua)
+    }
+    // Prima della domanda aperta, se c'è: quella resta in fondo.
+    const dove = sua.chiede ? Math.max(0, sua.messaggi.length - 1) : sua.messaggi.length
+    sua.messaggi.splice(dove, 0, ...coppia)
   }
   // Prima chi chiede (domande e scelte), poi le chat che hanno solo finito.
   return [...fuori.filter((c) => c.chiede), ...fuori.filter((c) => !c.chiede)]

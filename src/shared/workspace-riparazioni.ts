@@ -221,7 +221,11 @@ const INIZI_INTERNI = [
   'Sei il supervisore di una chat',
   'Sei l\'autopilota che sta portando avanti',
   'Sei l autopilota che sta portando avanti',
-  'Stai preparando un autopilota'
+  'Stai preparando un autopilota',
+  // Visti come chat il 13/10 (0.71.1): la risposta da sola a una domanda
+  // della chat e la riscrittura di una domanda poco chiara.
+  'Stai facendo da supervisore a una chat',
+  'La domanda che vuoi fare a chi ha affidato il lavoro'
 ]
 
 /**

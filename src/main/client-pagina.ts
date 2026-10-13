@@ -977,7 +977,7 @@ function vistaConversazioni() {
       '<span class="led ' + (c.chiede ? 'attesa' : 'spenta') + '"></span>' +
       '<span class="voce__testo"><span class="voce__nome">' + (c.suPc ? '<b class="segno-remoto">SU ' + esc(c.suPc) + (c.viaPc ? ' (' + esc(c.viaPc) + ')' : '') + '</b> · ' : '') + esc(c.nome || c.titolo) + '</span>' +
       // Il tipo in una parola (0.70.0), deciso dal PC: permesso, scelta, domanda, autopilota, ha finito.
-      '<span class="voce__sotto">' + (c.vista ? '<b style="color:' + ({ verde: 'var(--verde,#3c9)', ambra: 'var(--ambra,#e0a33c)', rosso: 'var(--rosso,#dc5f5f)', blu: 'var(--blu,#4aa3ff)', quieto: 'var(--testo-quieto,#9aa1a9)' })[c.vista.colore] + '">' + esc(c.vista.parola) + '</b>' + (c.tipo === 'autopilota' ? ' · ti aspetta (' + (c.quante || 1) + ') → apri' : '') : (c.tipo === 'autopilota' ? 'ti aspetta (' + (c.quante || 1) + ') → apri' : c.chiede ? 'chat · aspetta che tu scelga' : 'chat · ha finito il turno')) + '</span></span>' +
+      '<span class="voce__sotto">' + (c.vista ? '<b style="color:' + ({ verde: 'var(--verde,#3c9)', ambra: 'var(--ambra,#e0a33c)', rosso: 'var(--rosso,#dc5f5f)', blu: 'var(--blu,#4aa3ff)', quieto: 'var(--testo-quieto,#9aa1a9)' })[c.vista.colore] + '">' + esc(c.vista.parola) + '</b>' + (c.tipo === 'autopilota' && c.chiede ? ' · ti aspetta (' + (c.quante || 1) + ') → apri' : '') : (c.tipo === 'autopilota' ? 'ti aspetta (' + (c.quante || 1) + ') → apri' : c.chiede ? 'chat · aspetta che tu scelga' : 'chat · ha finito il turno')) + '</span></span>' +
       '<span class="voce__freccia">›</span></button>'
   }).join('')
   var messaggi = aperta.messaggi.map(function (m) {
@@ -998,7 +998,8 @@ function vistaConversazioni() {
   }).join('')
   // Le domande di un autopilota non si rispondono qui (0.38.0): si rispondono
   // nella sua scheda, linguetta «Domande», una per volta.
-  if (aperta.tipo === 'autopilota' && aperta.autopilota) {
+  // Una risposta data dall'autopilota (0.71.1) si legge qui, con la domanda: non aspetta te.
+  if (aperta.tipo === 'autopilota' && aperta.autopilota && aperta.chiede) {
     return filtri + '<div class="piastrella">' + voci + '</div>' +
       '<div class="piastrella chiede"><div class="serigrafia">' + esc(aperta.titolo) + '</div>' +
       '<div class="sotto">Ti aspetta con ' + ((aperta.quante || 1) === 1 ? 'una domanda' : (aperta.quante + ' domande')) + '.' + aiuto('domande-ap', 'Le domande di un autopilota si rispondono nella sua scheda, linguetta «Domande», una per volta, con le opzioni da toccare; dopo la risposta domanda e risposta restano nella chat con lui.') + '</div>' +

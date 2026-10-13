@@ -54,6 +54,9 @@ function orario(q: string | undefined): string {
  * che Nicholas vuole in ogni pannello.
  */
 export function spiegaRisposta(c: Conversazione): string {
+  if (c.tipo === 'autopilota' && !c.chiede) {
+    return `La sua chat gli ha fatto una domanda e l’autopilota «${c.titolo}» ha risposto da solo: la vedi qui con la risposta, per 12 ore. Se la risposta non va bene, scrivigli: il messaggio arriva a lui, come nella sua scheda.`
+  }
   if (c.tipo === 'autopilota') {
     if (c.risposta.via === 'dialogo') {
       return `Parli con l’autopilota «${c.titolo}». Si è preparato e aspetta il tuo via: scrivigli «vai» per farlo partire, oppure cosa cambiare prima. Ti risponde lui, di solito in qualche minuto.`
@@ -66,13 +69,16 @@ export function spiegaRisposta(c: Conversazione): string {
   if (c.scelte !== undefined) {
     return `La chat «${c.titolo}» è ferma su un elenco di scelte (un permesso, «vuoi procedere?»). Tocca un’opzione: la chat sceglie quella, come se avessi usato le frecce e Invio. Oppure scrivile qualcosa: arriva nella chat come se l’avessi scritto lì.`
   }
+  if (c.chiede) return `La chat «${c.titolo}» ha finito il turno con una domanda per te. Quello che scrivi arriva nella chat come se l’avessi scritto lì, e la chat riparte.`
   return `La chat «${c.titolo}» ha finito il turno e aspetta la tua prossima istruzione. Quello che scrivi arriva nella chat come se l’avessi scritto lì, e la chat riparte.`
 }
 
 /** La riga corta che resta a vista sopra la conversazione; il resto è nel «?» (0.62.0). */
 export function rigaRisposta(c: Conversazione): string {
+  if (c.tipo === 'autopilota' && !c.chiede) return `L’autopilota «${c.titolo}» ha risposto da solo a una domanda della sua chat`
   if (c.tipo === 'autopilota') return c.risposta.via === 'dialogo' ? `Parli con l’autopilota «${c.titolo}»: aspetta il tuo via` : `Rispondi all’autopilota «${c.titolo}»`
   if (c.scelte !== undefined) return `«${c.titolo}» aspetta che tu scelga`
+  if (c.chiede) return `«${c.titolo}» ti ha fatto una domanda`
   return `«${c.titolo}» ha finito il turno e aspetta`
 }
 
@@ -282,7 +288,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                     setScelta(c.chiave)
                     setNota(undefined)
                     // Un autopilota: la riga porta dritta alla sua linguetta.
-                    if (c.tipo === 'autopilota' && c.autopilota !== undefined) apriDomandeAutopilota(c.autopilota)
+                    if (c.tipo === 'autopilota' && c.autopilota !== undefined && c.chiede) apriDomandeAutopilota(c.autopilota)
                   }}
                 >
                   <span className={`led ${c.chiede ? 'led--attesa' : 'led--finito'}`} />
@@ -291,7 +297,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                     <span className="misura">
                       {/* Il tipo in una parola (0.70.0): permesso, scelta, domanda, autopilota, ha finito. */}
                       <span style={{ color: COLORE_DOMANDA[tipoDomanda(c).colore] }}>{tipoDomanda(c).parola}</span>
-                      {c.tipo === 'autopilota' ? ` · ti aspetta (${c.quante ?? 1}) → apri` : ''}
+                      {c.tipo === 'autopilota' && c.chiede ? ` · ti aspetta (${c.quante ?? 1}) → apri` : ''}
                     </span>
                   </span>
                 </button>
@@ -299,7 +305,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
             ))}
           </ul>
 
-          {aperta !== undefined && aperta.tipo === 'autopilota' && aperta.autopilota !== undefined ? (
+          {aperta !== undefined && aperta.tipo === 'autopilota' && aperta.autopilota !== undefined && aperta.chiede ? (
             // Le domande di un autopilota non stanno qui (0.38.0, Nicholas):
             // stanno nella linguetta «Domande» della sua scheda, una per volta.
             <section className="domande-lato__chat domande-lato__rimando" aria-label={`${aperta.titolo} ti aspetta`}>

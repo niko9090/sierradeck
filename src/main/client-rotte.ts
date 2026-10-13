@@ -18,7 +18,7 @@ import { validateNomeWorkspace } from './validation'
 import { pathToSlug } from './indexer/project-scanner'
 import { firmaScelte, rispostaDaTesto, scelteDiTerminale, tastiPerRisposta, type Scelta } from '@shared/scelte-terminale'
 import type { OpzioneBattito } from '@shared/posta'
-import { leggiIdChatAltroPc, raccogliDomande, vociPerLeApp } from '@shared/domande-telefono'
+import { leggiIdChatAltroPc, raccogliDomande, vociPerLeApp, type DomandaRisolta } from '@shared/domande-telefono'
 import { domandeScheda } from '@shared/domande-autopilota'
 import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/domande-conversazioni'
 import { alberoChat } from '@shared/harness'
@@ -144,6 +144,8 @@ export type Chat = {
    * lo schermo come riserva). Assenti per le chat senza segnali.
    */
   chiedeSegnale?: boolean
+  /** La domanda in fondo all'ultimo messaggio, quando il turno è finito chiedendo (0.71.1). */
+  domanda?: string
   errore?: string
   fonteStato?: 'segnali' | 'schermo'
   /**
@@ -183,6 +185,8 @@ export type DipendenzeRotte = {
   rispondi: (idDomanda: string, risposta: string) => Promise<void>
   /** Le domande in attesa di risposta. */
   domande: () => Promise<{ id: string; autopilotaId: string; testo: string }[]>
+  /** Le domande delle chat a cui l'autopilota ha risposto da solo (0.71.1): restano visibili. */
+  risolte?: () => Promise<DomandaRisolta[]>
   /**
    * Manda del testo a una chat, come se fosse stato digitato: il testo, e poi
    * l'invio.
@@ -1194,10 +1198,11 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
      * `/api/rispondi`, `/api/scegli`, `/api/scrivi`.
      */
     if (r.percorso === '/api/domande') {
-      const [autopiloti, domande, battiti] = await Promise.all([
+      const [autopiloti, domande, battiti, risolte] = await Promise.all([
         deps.autopiloti().catch(() => [] as Autopilota[]),
         deps.domande().catch(() => []),
-        deps.pc?.().catch(() => [] as BattitoPcTelefono[]) ?? Promise.resolve([] as BattitoPcTelefono[])
+        deps.pc?.().catch(() => [] as BattitoPcTelefono[]) ?? Promise.resolve([] as BattitoPcTelefono[]),
+        deps.risolte?.().catch(() => [] as DomandaRisolta[]) ?? Promise.resolve([] as DomandaRisolta[])
       ])
       // Le chat degli altri PC accesi che aspettano (0.37.2), dal loro battito.
       const io = deps.pcIo?.()
@@ -1207,6 +1212,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         autopiloti: autopiloti.map((a) => ({ id: a.id, nome: a.nome, obiettivo: a.obiettivo, stato: a.stato })),
         chat: deps.chat(),
         scelteDi: (id, righe) => scelteVive(id, righe),
+        risolte,
         ...(deps.scriviAltroPc !== undefined
           ? { altriPc: battiti.filter((b) => b.pcId !== io).map((b) => {
             const strada = deps.stradaPc?.(b.pcId)

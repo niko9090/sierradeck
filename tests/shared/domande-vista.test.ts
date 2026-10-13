@@ -13,7 +13,7 @@ describe('il tipo di una domanda', () => {
     expect(tipoDomanda(conv({ chiave: 'a', chiede: true, scelte: scelta, messaggi: [{ da: 'lui', testo: 'Do you want to make this edit to leggimi.md?' }] }))).toMatchObject({ id: 'permesso', colore: 'rosso' })
     expect(tipoDomanda(conv({ chiave: 'b', chiede: true, scelte: scelta, messaggi: [{ da: 'lui', testo: 'Quale colore preferisci?' }] }))).toMatchObject({ id: 'scelta', colore: 'ambra' })
     expect(tipoDomanda(conv({ chiave: 'c', chiede: true })).id).toBe('domanda')
-    expect(tipoDomanda(conv({ chiave: 'd', tipo: 'autopilota' })).id).toBe('autopilota')
+    expect(tipoDomanda(conv({ chiave: 'd', tipo: 'autopilota', chiede: true })).id).toBe('autopilota')
     expect(tipoDomanda(conv({ chiave: 'e' }))).toMatchObject({ id: 'finito', parola: 'ha finito' })
     expect(aspettaTe(conv({ chiave: 'e' }))).toBe(false)
   })
@@ -24,7 +24,7 @@ describe('il tipo di una domanda', () => {
 })
 
 describe('ordine e prossima', () => {
-  const c = [conv({ chiave: 'finita' }), conv({ chiave: 'ap', tipo: 'autopilota' }), conv({ chiave: 'dom', chiede: true }), conv({ chiave: 'perm', scelte: scelta, messaggi: [{ da: 'lui', testo: 'Allow this?' }] })]
+  const c = [conv({ chiave: 'finita' }), conv({ chiave: 'ap', tipo: 'autopilota', chiede: true }), conv({ chiave: 'dom', chiede: true }), conv({ chiave: 'perm', scelte: scelta, messaggi: [{ da: 'lui', testo: 'Allow this?' }] })]
   it('prima i permessi, le finite in fondo', () => {
     expect(ordinaDomande(c).map((x) => x.chiave)).toEqual(['perm', 'dom', 'ap', 'finita'])
   })

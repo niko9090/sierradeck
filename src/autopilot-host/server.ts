@@ -48,6 +48,7 @@ import type { ContestoDomanda, RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
 import { CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, eFermo } from '@shared/autopilota'
 import { OPZIONE_VIA, TESTO_VIA, tracciaDopoRisposta } from '@shared/domande-autopilota'
+import { domandaInFondo } from '@shared/domande-telefono'
 import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
 import { giudicaMossa, giudicaRuolo, giudicaStrumento, leggiMosse, rispostaPreTool } from './divieti'
 import {
@@ -235,6 +236,13 @@ function componiRisposta(domanda: string, risposta: string): string {
  * di fermarsi tutte perché una sola aspetta. Alla risposta la stessa chat torna
  * `lavoro`. Puro: la decisione su chi si ferma si prova senza avviare processi.
  */
+/** Di quale chat è una domanda, per mostrarla con il suo nome (0.71.1). */
+function chatDellaDomanda(a: Autopilota, chatId: string | undefined): { chatId?: string; chatTitolo?: string } {
+  if (chatId === undefined) return {}
+  const c = a.chats.find((x) => x.id === chatId)
+  return { chatId, ...(c !== undefined ? { chatTitolo: c.compito.slice(0, 80) } : {}) }
+}
+
 function conStatoChat(a: Autopilota, chatId: string, stato: ChatGovernata['stato']): Autopilota {
   return { ...a, chats: a.chats.map((c) => (c.id === chatId ? { ...c, stato } : c)) }
 }
@@ -2387,6 +2395,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         annota(presi.autopilota, `la stessa domanda aveva già una tua risposta (${giaDetta.esatta.quando.slice(0, 10)}): «${giaDetta.esatta.risposta.slice(0, 120)}», non la richiedo`)
         salva(presi.autopilota)
         misura.esito = 'risposta già data'
+        deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(aggiornato, chatId), domanda: decisione.domanda, risposta: `${giaDetta.esatta.risposta} (la tua risposta del ${giaDetta.esatta.quando.slice(0, 10)})` })
         return { decision: 'block', reason: conPreambolo(presi.testi, componiRisposta(decisione.domanda, giaDetta.esatta.risposta)) }
       }
       let partiPrima = decisione.parti ?? leggiParti(decisione.domanda)
@@ -2402,6 +2411,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         annota(presi.autopilota, `troppe domande nell'ultima ora (${fatteOra.length}): «${partiPrima.domanda.slice(0, 120)}» la decido io con la scelta consigliata («${consigliata.scelta}»)`)
         salva(presi.autopilota)
         misura.esito = 'deciso senza chiedere'
+        deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(aggiornato, chatId), domanda: partiPrima.domanda, risposta: `${consigliata.scelta}: ${consigliata.conseguenza} (la scelta consigliata: ${fatteOra.length} domande nell'ultima ora)` })
         return { decision: 'block', reason: conPreambolo(presi.testi, `Hai già chiesto ${fatteOra.length} cose a Nicholas nell'ultima ora: questa la decidi tu con la scelta consigliata.\n«${partiPrima.domanda}» → ${consigliata.scelta}: ${consigliata.conseguenza}`) }
       }
       domandeOra.set(aggiornato.id, [...fatteOra, oraMs])
@@ -2500,6 +2510,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         decisioni: [...aggiornato.decisioni, { quando: deps.adesso(), cosa: traccia(esiti) }]
       }
       salva(inCerchio)
+      // La chat aveva finito il turno con una domanda e il supervisore le ha
+      // risposto (0.71.1): la domanda resta visibile nelle Domande, con la risposta.
+      const chiesto = domandaInFondo(ultimoMessaggio)
+      if (chiesto !== undefined) deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(aggiornato, chatId), domanda: chiesto, risposta: decisione.istruzioni.split('\n\nObiettivo:')[0] ?? decisione.istruzioni })
       if (decisione.strategia !== undefined) {
         console.warn(`[autopilota] ${id} in difficolta, provo: ${decisione.strategia}`)
         // Una volta sola, all'ingresso nel recupero: un messaggio per ogni
@@ -2745,6 +2759,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           }
         ]
       })
+      deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(ora, chatId), domanda: domandaInFondo(detto) ?? (messaggio !== '' ? messaggio : domandaGrezza), risposta: esito.risposta })
       const aggiornato = deps.archivio.leggi(id) ?? a
       void avviaLavoro(aggiornato, esito.risposta, chat).catch((err: unknown) => {
         console.error(`[autopilota] risposta non consegnata a ${id}:`, err)
@@ -3385,6 +3400,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             const inFila = tutte.filter((x) => x.autopilotaId === d.autopilotaId).length - 1
             return inFila > 0 ? { ...d, inFila } : d
           }))
+          return
+        }
+
+        // Le domande a cui ha risposto l'autopilota da solo (0.71.1): restano visibili.
+        if (metodo === 'GET' && percorso === '/domande/risolte') {
+          rispondi(res, 200, deps.domande.risolte(url.searchParams.get('ap') ?? undefined))
           return
         }
 

@@ -1,3 +1,4 @@
+import type { DomandaRisolta } from '@shared/domande-telefono'
 import { testoTempi, type RiassuntoTempi } from '@shared/tempi-giro'
 import type { Autopilota } from '@shared/autopilota'
 import { leggiIstruzioni, type Istruzione } from '@shared/istruzioni-autopilota'
@@ -95,6 +96,8 @@ export type ClientAutopilota = {
   nota: (id: string, testo: string) => Promise<void>
   elimina: (id: string) => Promise<void>
   domande: () => Promise<DomandaAperta[]>
+  /** Le domande delle chat a cui l'autopilota ha risposto da solo (0.71.1). Un servizio vecchio non le ha: vuoto. */
+  risolte: () => Promise<DomandaRisolta[]>
   /** La linguetta «Istruzioni» (0.41.0): cosa ha consegnato alle sue chat, intero, dalla più recente. */
   istruzioni: (id: string) => Promise<Istruzione[]>
   /** I tempi dei suoi giri (0.71.0), in una riga: «giro 12 s (criteri 2 s, supervisore 9 s) · 8 giri». */
@@ -236,6 +239,10 @@ export function creaClientAutopilota(p: {
     },
     elimina: async (id) => { await chiama(`/autopiloti/${encodeURIComponent(id)}`, 'DELETE') },
     domande: async () => (await chiama('/domande', 'GET')) as DomandaAperta[],
+    risolte: async () => {
+      const r = await chiama('/domande/risolte', 'GET').catch(() => [])
+      return Array.isArray(r) ? (r as DomandaRisolta[]) : []
+    },
     istruzioni: async (id) => leggiIstruzioni(await chiama(`/istruzioni?ap=${encodeURIComponent(id)}`, 'GET')),
     tempi: async (id) => {
       const r = (await chiama(`/tempi?ap=${encodeURIComponent(id)}`, 'GET')) as { riassunto?: RiassuntoTempi } | undefined

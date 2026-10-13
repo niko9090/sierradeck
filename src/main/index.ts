@@ -19,6 +19,7 @@ import { NOVITA, confrontaVersioni } from '@shared/novita'
 import { noteDaNovita, type NoteAggiornamento } from '@shared/note-aggiornamento'
 import { inCorso, passoInstallaLa, type AvanzamentoInstallaLa, type Memoria, type Osservazione, type StatoAggiornamentoRemoto } from '@shared/installa-la'
 import { hookSegnali, leggiSegnale, SEGNALI_PER_CHAT, statoChat, statoDaSegnali, unisciConHook, type Segnale } from '@shared/segnali-chat'
+import { domandaInFondo } from '@shared/domande-telefono'
 import { CERCA_OFFERTE_OGNI_MS, stradaBreve, type ChatNelloSchermo, type InfoStrada } from '@shared/strada-pc'
 import { doveMostrareDomande, eLinguettaStaccabile } from '@shared/finestra-pannello'
 import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell, webContents } from 'electron'
@@ -388,8 +389,11 @@ function conSegnali(chat: Chat[]): Chat[] {
       return { ...c, fonteStato: 'schermo' as const }
     }
     const v = statoChat({ segnali: s, schermo: { aspetta: c.aspetta === true, chiede: false } })
+    // Il turno è finito con una domanda scritta (0.71.1): va nelle Domande, non fra le «ha finito».
+    const domanda = v.aspetta && !v.chiede && s.fase === 'aspetta' ? domandaInFondo(s.ultimoMessaggio) : s.chiede?.messaggio
     return {
       ...c, aspetta: v.aspetta, chiedeSegnale: v.chiede, fonteStato: 'segnali' as const,
+      ...(domanda !== undefined ? { domanda } : {}),
       ...(v.errore !== undefined ? { errore: v.errore } : {}),
       ...(s.fase === 'chiusa' ? { viva: false } : {})
     }
@@ -1771,6 +1775,7 @@ if (!app.requestSingleInstanceLock()) {
             id: c.id,
             ...(c.sessione !== undefined ? { sessione: c.sessione } : {}),
             titolo: c.titolo, cwd: c.cwd, viva: c.viva === true, aspetta: c.aspetta === true,
+            ...(c.domanda !== undefined && guardianoPin?.protetta(c) !== true ? { domanda: c.domanda } : {}),
             ...(s !== undefined ? { scelte: s.opzioni.map((o) => ({ numero: o.numero, testo: o.testo.slice(0, 200), ...(o.libera === true ? { libera: true } : {}), ...(o.spuntata !== undefined ? { spuntata: o.spuntata } : {}), ...(o.invio === true ? { invio: true } : {}) })) } : {})
           }
         }),
@@ -4833,6 +4838,7 @@ if (!app.requestSingleInstanceLock()) {
           ...quadernoPersonale.domande(),
           ...(rimozioneGlobale?.domande() ?? [])
         ],
+        risolte: () => clientAutopilota.risolte(),
         /**
          * Un pezzo di cronologia di una chat, chiesto dal telefono.
          *

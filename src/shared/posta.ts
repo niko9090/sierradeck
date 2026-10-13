@@ -23,6 +23,8 @@ export type ChatDiPc = {
   aspetta: boolean
   /** Le opzioni della domanda sullo schermo, se è ferma su una (0.52.6). Mai per una chat con il PIN. */
   scelte?: OpzioneBattito[]
+  /** La domanda scritta in fondo al turno (0.71.1), per le Domande degli altri PC. Mai per una chat con il PIN. */
+  domanda?: string
 }
 
 export type BattitoPc = {
@@ -39,7 +41,7 @@ export type BattitoPc = {
   /** Le cartelle in cui quel PC puo' lavorare adesso: chat aperte e progetti collegati. */
   cartelle: string[]
   /** Le chat aperte su quel PC, con se aspettano. */
-  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; scelte?: OpzioneBattito[] }[]
+  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; scelte?: OpzioneBattito[]; domanda?: string }[]
   /**
    * Dove bussare per guardare una sua chat dal vivo: gli indirizzi del suo
    * Client (rete di casa davanti, Tailscale dopo) e la porta. Mancano nei

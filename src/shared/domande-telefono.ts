@@ -76,6 +76,25 @@ export type VoceDomanda =
       pcNome?: string
       /** E la strada per arrivarci (0.40.0): «rete di casa», «Tailscale», «WebRTC», «Drive, lento». */
       viaPc?: string
+      /**
+       * Ferma su una **domanda** (0.71.1), non solo a fine turno: una domanda
+       * scritta in fondo al suo ultimo messaggio, o un dialogo di Claude Code
+       * che lo schermo non ha saputo leggere. `righe` è la domanda.
+       */
+      chiede?: boolean
+    }
+  | {
+      /**
+       * Una domanda di una chat governata a cui ha risposto l'autopilota da
+       * solo (0.71.1): resta visibile, con la risposta. Non aspetta te.
+       */
+      tipo: 'risolta'
+      autopilotaId: string
+      autopilota: string
+      chatTitolo?: string
+      domanda: string
+      risposta: string
+      quando: string
     }
 
 /**
@@ -139,6 +158,38 @@ export type ChatPerDomande = {
   coda?: string[]
   /** Le righe vestite: sono quelle su cui si riconoscono le scelte (il video inverso). */
   codaGrezza?: string[]
+  /** I segnali di Claude Code dicono che chiede (un permesso, un dialogo): 0.71.1. */
+  chiedeSegnale?: boolean
+  /** La domanda in fondo al suo ultimo messaggio (dal segnale `Stop`), se ce n'è una: 0.71.1. */
+  domanda?: string
+}
+
+/** Una domanda di una chat a cui l'autopilota ha risposto da solo (0.71.1). */
+export type DomandaRisolta = { autopilotaId: string; chatId?: string; chatTitolo?: string; domanda: string; risposta: string; quando: string }
+
+/** Quanto resta visibile una domanda a cui ha risposto l'autopilota. */
+export const RISOLTE_PER_ORE = 12
+
+/**
+ * La domanda in fondo a un messaggio (0.71.1), o `undefined`.
+ *
+ * Nicholas (13/10, sulla 0.71.0): «le domande spariscono e rimangono solo nella
+ * chat». Una chat che finisce il turno chiedendo qualcosa in testo («Procedo
+ * con la B?») per le Domande era una chat che «ha finito», e dalla 0.70.0 il
+ * filtro «Aspettano te» le nasconde. È una domanda se l'ultimo paragrafo finisce
+ * con «?», oppure se è un elenco di scelte sotto un paragrafo che finisce con «?».
+ */
+export function domandaInFondo(testo: string | undefined): string | undefined {
+  if (testo === undefined) return undefined
+  const paragrafi = testo.replace(/\r/g, '').split(/\n\s*\n/).map((p) => p.trim()).filter((p) => p !== '')
+  const finisceConDomanda = (p: string): boolean => /\?[\s*_`)»"'”]*$/.test(p)
+  const elenco = (p: string): boolean => p.split('\n').every((r) => /^\s*(\d{1,2}[.)]|[-*•]|[A-Za-z][.)])\s+\S/.test(r))
+  const ultimo = paragrafi[paragrafi.length - 1]
+  if (ultimo === undefined) return undefined
+  if (finisceConDomanda(ultimo)) return ultimo.slice(-1200)
+  const prima = paragrafi[paragrafi.length - 2]
+  if (prima !== undefined && elenco(ultimo) && finisceConDomanda(prima)) return `${prima}\n${ultimo}`.slice(-1200)
+  return undefined
 }
 
 export type AutopilotaPerDomande = { id: string; nome: string; obiettivo: string; stato: string }
@@ -155,7 +206,7 @@ export type AltroPcPerDomande = {
   pcId: string
   nome: string
   vivo: boolean
-  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; scelte?: { numero: number; testo: string; libera?: boolean; spuntata?: boolean; invio?: boolean }[] }[]
+  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; domanda?: string; scelte?:{ numero: number; testo: string; libera?: boolean; spuntata?: boolean; invio?: boolean }[] }[]
   /** La strada con cui questo computer arriva a quel PC (0.40.0), in due parole: la mostrano la pagina e l'app. */
   strada?: string
 }
@@ -181,6 +232,8 @@ export function raccogliDomande(p: {
   altriPc?: AltroPcPerDomande[]
   /** Le scelte vive di una chat (gia' senza quelle appena mandate), o niente. */
   scelteDi: (chatId: string, righeVestite: string[]) => { opzioni: OpzioneScelta[]; corrente: number } | undefined
+  /** Le domande a cui l'autopilota ha risposto da solo (0.71.1): restano visibili. */
+  risolte?: DomandaRisolta[]
 }): VoceDomanda[] {
   const fuori: VoceDomanda[] = []
   const perId = new Map(p.autopiloti.map((a) => [a.id, a]))
@@ -213,6 +266,18 @@ export function raccogliDomande(p: {
       })
       continue
     }
+    // Ferma su una domanda (0.71.1): un dialogo che i segnali vedono e lo
+    // schermo no, anche in una chat governata (la domanda è sua, non
+    // dell'autopilota); una domanda scritta in fondo al turno, solo se nessun
+    // autopilota la governa (lì risponde lui, e la risposta resta visibile).
+    if (c.chiedeSegnale === true) {
+      fuori.push({ tipo: 'chat', chat: c.id, titolo: c.titolo, cwd: c.cwd, righe: c.domanda !== undefined ? c.domanda.split('\n') : ultimeRighe(c.coda ?? []), chiede: true })
+      continue
+    }
+    if (c.aspetta === true && c.governata !== true && c.domanda !== undefined) {
+      fuori.push({ tipo: 'chat', chat: c.id, titolo: c.titolo, cwd: c.cwd, righe: c.domanda.split('\n'), chiede: true })
+      continue
+    }
     if (c.aspetta === true && c.governata !== true) {
       ferme.push({ tipo: 'chat', chat: c.id, titolo: c.titolo, cwd: c.cwd, righe: ultimeRighe(c.coda ?? []) })
     }
@@ -236,6 +301,20 @@ export function raccogliDomande(p: {
         continue
       }
       if (!c.aspetta) continue
+      // Ferma su una domanda scritta (0.71.1): il suo PC la mette nel battito.
+      if (c.domanda !== undefined && c.domanda !== '') {
+        fuori.push({
+          tipo: 'chat',
+          chat: idChatAltroPc(pc.pcId, c.sessione),
+          titolo: `${c.titolo || c.cwd} · su ${pc.nome}`,
+          pcNome: pc.nome,
+          ...(pc.strada !== undefined ? { viaPc: pc.strada } : {}),
+          cwd: c.cwd,
+          righe: c.domanda.split('\n'),
+          chiede: true
+        })
+        continue
+      }
       ferme.push({
         tipo: 'chat',
         chat: idChatAltroPc(pc.pcId, c.sessione),
@@ -247,12 +326,25 @@ export function raccogliDomande(p: {
       })
     }
   }
-  return [...fuori, ...ferme]
+  // Le risposte date dall'autopilota (0.71.1), le più recenti, in fondo.
+  const risolte: VoceDomanda[] = (p.risolte ?? []).map((r) => {
+    const a = perId.get(r.autopilotaId)
+    return {
+      tipo: 'risolta' as const,
+      autopilotaId: r.autopilotaId,
+      autopilota: a === undefined ? 'Un autopilota' : (a.nome !== '' ? a.nome : a.obiettivo),
+      ...(r.chatTitolo !== undefined ? { chatTitolo: r.chatTitolo } : {}),
+      domanda: r.domanda,
+      risposta: r.risposta,
+      quando: r.quando
+    }
+  })
+  return [...fuori, ...ferme, ...risolte]
 }
 
 /** Quante cose chiedono davvero (domande e scelte): e' il numero sul pallino. Le chat ferme no. */
 export function quanteChiedono(voci: VoceDomanda[]): number {
-  return voci.filter((v) => v.tipo !== 'chat').length
+  return voci.filter((v) => (v.tipo !== 'chat' && v.tipo !== 'risolta') || (v.tipo === 'chat' && v.chiede === true)).length
 }
 
 
@@ -263,7 +355,8 @@ export function quanteChiedono(voci: VoceDomanda[]): number {
  * dell'oggetto non leggeva piu' niente della scheda Domande.
  */
 export function vociPerLeApp(voci: VoceDomanda[]): unknown[] {
-  return voci.map((v) => {
+  // Le risolte (0.71.1) le leggono solo le conversazioni: un'app vecchia non conosce il tipo.
+  return voci.filter((v) => v.tipo !== 'risolta').map((v) => {
     if (v.tipo !== 'autopilota' || v.opzioni === undefined) return v
     return { ...v, opzioni: v.opzioni.map((testo, i) => ({ numero: i + 1, testo, scelta: false })) }
   })

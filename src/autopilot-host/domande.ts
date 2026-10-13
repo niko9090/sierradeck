@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import type { PartiDomanda } from '@shared/domanda-strutturata'
+import { RISOLTE_PER_ORE, type DomandaRisolta } from '@shared/domande-telefono'
 
 export type Provenienza = 'modale' | 'telegram'
 
@@ -50,7 +51,16 @@ export type RegistroDomande = {
   suRispostaTardiva: (cb: (id: string, risposta: string, da: Provenienza) => void) => void
   /** Il contesto per la ripresa (0.71.0), salvato su disco con la domanda. */
   ricorda: (id: string, contesto: ContestoDomanda) => void
+  /**
+   * Una domanda di una chat a cui l'autopilota ha risposto da solo (0.71.1):
+   * resta visibile nelle Domande, con la risposta, per RISOLTE_PER_ORE.
+   */
+  risolta: (r: Omit<DomandaRisolta, 'quando'>) => void
+  risolte: (autopilotaId?: string) => DomandaRisolta[]
 }
+
+/** Quante risposte dell'autopilota si tengono, al massimo. */
+const RISOLTE_MAX = 40
 
 type Voce = {
   domanda: DomandaAperta
@@ -89,17 +99,26 @@ export function creaRegistroDomande(deps: {
   file?: string
 }): RegistroDomande {
   const voci = new Map<string, Voce>()
+  let risolte: DomandaRisolta[] = []
+  const fresche = (): DomandaRisolta[] => {
+    const limite = deps.adesso() - RISOLTE_PER_ORE * 3_600_000
+    return risolte.filter((r) => Date.parse(r.quando) >= limite).slice(-RISOLTE_MAX)
+  }
   let tardiva: ((id: string, risposta: string, da: Provenienza) => void) | undefined
   const salva = (): void => {
     if (deps.file === undefined) return
     try {
       mkdirSync(dirname(deps.file), { recursive: true })
-      scriviJsonAtomico(deps.file, { versione: 1, domande: [...voci.values()].map((v) => v.domanda) }, 'domande')
+      scriviJsonAtomico(deps.file, { versione: 1, domande: [...voci.values()].map((v) => v.domanda), risolte: fresche() }, 'domande')
     } catch (err) { console.error('[autopilota] domande aperte non salvate:', err) }
   }
   if (deps.file !== undefined && existsSync(deps.file)) {
     try {
-      const letto = JSON.parse(readFileSync(deps.file, 'utf8')) as { domande?: unknown }
+      const letto = JSON.parse(readFileSync(deps.file, 'utf8')) as { domande?: unknown; risolte?: unknown }
+      risolte = (Array.isArray(letto.risolte) ? letto.risolte : []).filter((r): r is DomandaRisolta => {
+        const x = r as Partial<DomandaRisolta>
+        return typeof x.autopilotaId === 'string' && typeof x.domanda === 'string' && typeof x.risposta === 'string' && typeof x.quando === 'string'
+      })
       for (const d of Array.isArray(letto.domande) ? letto.domande : []) {
         const x = d as Partial<DomandaAperta>
         if (typeof x.id !== 'string' || typeof x.autopilotaId !== 'string' || typeof x.testo !== 'string') continue
@@ -186,6 +205,19 @@ export function creaRegistroDomande(deps: {
       if (voce === undefined) return
       voce.domanda = { ...voce.domanda, contesto }
       salva()
+    },
+
+    risolta(r) {
+      const domanda = r.domanda.trim().slice(0, 1200)
+      const risposta = r.risposta.trim().slice(0, 1200)
+      if (domanda === '' || risposta === '') return
+      risolte = [...fresche(), { ...r, domanda, risposta, quando: new Date(deps.adesso()).toISOString() }]
+      salva()
+    },
+
+    risolte(autopilotaId) {
+      const tutte = fresche()
+      return autopilotaId === undefined ? tutte : tutte.filter((r) => r.autopilotaId === autopilotaId)
     }
   }
 }
