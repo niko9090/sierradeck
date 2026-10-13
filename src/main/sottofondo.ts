@@ -416,7 +416,7 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
       togli(sessione, false)
       // Il testo ancora in coda: lo scrive chi guarda adesso, a schermo.
       codaOrfana.delete(sessione)
-      d.log(`[sottofondo] ${nome(v)}: passa in un riquadro di questo PC, senza riavviarsi${v.voce.coda.length > 0 ? ` (${v.voce.coda.length} testi ancora in coda: restano a te)` : ''}`)
+      d.log(`[sottofondo] ${nome(v)}: passa in un riquadro di questo PC, senza riavviarsi${v.voce.coda.length > 0 ? ` (${v.voce.coda.length} testi ancora in coda: vanno al riquadro)` : ''}`)
       // Il testo che stava scrivendo adesso conta come ancora da scrivere: partito o no, lo ricontrolla il riquadro.
       return {
         ptyId: v.ptyId, cwd: v.voce.cwd, titolo: v.voce.titolo, sessione,

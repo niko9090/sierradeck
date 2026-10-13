@@ -127,6 +127,7 @@ import { apkDisponibile } from './apk-disponibile'
 import { creaLavoro } from './cassaforte/lavoro-in-corso'
 import { scanProjects } from './indexer/project-scanner'
 import { get as httpGet, request as httpRequest } from 'node:http'
+import { riconsegnaCodaCeduta, type CodaCeduta } from './coda-ceduta'
 import { avviaRitiro, consegnaDaIdTesto, doveConsegnare, leggiConsegne, finestraPerConsegna, idTestoConsegna, versoIlSuoWorkspace, type Consegna } from './autopilota-consegne'
 import type { Chat } from './client-rotte'
 import { apriProviderStore } from './provider-store'
@@ -1305,6 +1306,8 @@ if (!app.requestSingleInstanceLock()) {
           if (s === undefined) return
           const c = sottofondo?.cedi(s)
           if (c !== undefined) registro.info(`[sottofondo] «${c.titolo}» (${s.slice(0, 8)}): la finestra torna nel suo workspace e riprende il terminale com’è`)
+          // Anche qui i testi ancora in coda vanno alla finestra (0.71.0): prima restavano a nessuno.
+          if (c !== undefined) riconsegnaDopoAdozione(c)
         })
         impostaAdozioneSottofondo((s) => {
           const c = sottofondo?.cedi(s)
@@ -5691,19 +5694,23 @@ if (!app.requestSingleInstanceLock()) {
        * mostra quella chat, come una consegna normale (che aspetta la chat
        * pronta e la conferma «partita»). Si aspetta che la finestra la elenchi.
        */
-      const riconsegnaDopoAdozione = (c: { sessione: string; cwd: string; titolo: string; coda: { id: string; testo: string }[]; autopilota?: { id: string; chat: string }; workspace?: string }, tentativo = 0): void => {
-        if (c.autopilota === undefined || c.coda.length === 0) return
-        const finestra = finestreDiChat().find((w) => !w.isDestroyed() && (chatPerFinestra.get(w.id) ?? []).some((x) => x.sessione === c.sessione))
-        if (finestra === undefined) {
-          if (tentativo < 40) { setTimeout(() => riconsegnaDopoAdozione(c, tentativo + 1), 1500); return }
-          registro.info(`[consegna] «${c.titolo}»: ${c.coda.length} istruzioni dell’autopilota erano in coda in sottofondo, ma nessuna finestra mostra la chat dopo 60 s: le rimetto in sottofondo`)
-          for (const t of c.coda) sottofondo?.avvia({ sessione: c.sessione, cwd: c.cwd, titolo: c.titolo, perChi: { id: `autopilota:${c.autopilota.id}`, nome: 'il suo autopilota' }, testo: t.testo, idMessaggio: t.id, autopilota: c.autopilota, ...(c.workspace !== undefined ? { workspace: c.workspace } : {}) })
-          return
-        }
-        for (const t of c.coda) {
-          registro.info(`[consegna] ${t.id} per «${c.titolo}»: la chat è passata in un riquadro, l’istruzione ancora in coda va lì`)
-          finestra.webContents.send('autopilota:consegna', { id: t.id, autopilotaId: c.autopilota.id, chatId: c.autopilota.chat, cwd: c.cwd, sessionId: c.sessione, titolo: c.titolo, cosa: 'scrivi', testo: t.testo, ...(c.workspace !== undefined ? { workspace: c.workspace } : {}) })
-        }
+      const riconsegnaDopoAdozione = (c: CodaCeduta): void => {
+        riconsegnaCodaCeduta(c, {
+          finestraCon: (sessione) => {
+            const finestra = finestreDiChat().find((w) => !w.isDestroyed() && (chatPerFinestra.get(w.id) ?? []).some((x) => x.sessione === sessione))
+            return finestra === undefined ? undefined : (consegna) => { if (!finestra.isDestroyed()) finestra.webContents.send('autopilota:consegna', consegna) }
+          },
+          rimettiInSottofondo: (x, t) => {
+            if (sottofondo === undefined || x.autopilota === undefined) return false
+            try {
+              sottofondo.avvia({ sessione: x.sessione, cwd: x.cwd, titolo: x.titolo, perChi: { id: `autopilota:${x.autopilota.id}`, nome: 'il suo autopilota' }, testo: t.testo, idMessaggio: t.id, autopilota: x.autopilota, ...(x.workspace !== undefined ? { workspace: x.workspace } : {}) })
+              return true
+            } catch { return false }
+          },
+          nonConsegnata: (id) => { void postaAlServizio('/consegne/esito', { id, esito: 'non-consegnata' }).catch(() => undefined) },
+          log: (m) => registro.info(m),
+          dopo: (ms, f) => { setTimeout(f, ms) }
+        })
       }
       /**
        * Una consegna in sottofondo (0.60.8). Le regole delle consegne restano:
