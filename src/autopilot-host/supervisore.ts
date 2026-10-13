@@ -232,8 +232,17 @@ export function componiPromptScomposizione(a: Autopilota, quanti: number): strin
     '- nel dubbio, **un compito solo**. Una chat che si apre è una conversazione da seguire,',
     '  da leggere e da chiudere per chi guarda: se non serve, è solo rumore.',
     '',
+    '',
+    '**Agenti specializzati** (0.71.0): a ogni compito dai un ruolo.',
+    '- `sviluppo`: scrive il codice di una parte;',
+    '- `interfaccia`: quello che vede la persona (PC, pagina del telefono, app), allineato;',
+    '- `collaudo`: test e prove dal vero di una parte già scritta;',
+    '- `rilascio`: versione, novità, controlli finali, dopo tutti gli altri. Non pubblica e non installa da solo.',
+    'La revisione non la chiedi tu: il programma fa rivedere ogni ramo prima di unirlo.',
+    'Con `dipendeDa` dici quali compiti (per posizione, da 0) devono essere finiti e uniti prima.',
+    '',
     'Rispondi con un solo oggetto JSON, senza altro testo:',
-    '{"compiti": ["il lavoro, se non va diviso"]}'
+    '{"compiti": [{"compito": "il lavoro, se non va diviso", "ruolo": "sviluppo", "dipendeDa": []}]}'
   ].join('\n')
 }
 

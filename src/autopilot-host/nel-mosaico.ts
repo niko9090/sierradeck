@@ -1,3 +1,4 @@
+import { preamboloRuolo } from '@shared/ruoli-agenti'
 import { randomUUID } from 'node:crypto'
 import type { Autopilota, ChatGovernata } from '@shared/autopilota'
 import type { Consegne } from './consegne'
@@ -137,7 +138,15 @@ export function primoCompito(a: Autopilota, chat?: ChatGovernata): string {
       ? [a.obiettivo, '', `Il tuo compito, dentro questo obiettivo: ${chat.compito}`].join('\n')
       : a.obiettivo
 
+  // Il ruolo (0.71.0): le sue istruzioni prima di tutto; alla Revisione, quale
+  // ramo e come vederne il diff.
+  const autore = chat?.ruolo === 'revisione' ? a.chats.find((c) => c.id === chat.revisioneDi) : undefined
+  const daRivedere = autore !== undefined
+    ? [`Il ramo da rivedere: ${autore.ramo ?? '(senza ramo)'}, della chat ${autore.id} («${autore.compito}»). Sei nella sua cartella.`, `Il diff: git diff ${a.ramoBase ?? 'main'}...${autore.ramo ?? 'HEAD'}`, '']
+    : []
   return [
+    ...preamboloRuolo(chat?.ruolo),
+    ...daRivedere,
     intestazione,
     '',
     'Criteri di fine:',

@@ -326,7 +326,14 @@ fun aspettaTe(c: Conversazione): Boolean = c.vista?.let { it.id != "finito" } ?:
 
 /** Un nodo dell'albero delle chat di un autopilota (T7, 0.36.0). */
 @Serializable
+data class RuoloChat(val id: String = "", val nome: String = "", val parola: String = "", val colore: String = "quieto")
+
+@Serializable
 data class NodoAlbero(
+    /** PC 0.71: il ruolo della chat (Sviluppo, Interfaccia, Collaudo, Revisione, Rilascio) e se il suo ramo è approvato. */
+    val ruolo: RuoloChat? = null,
+    val revisioneDi: String? = null,
+    val approvata: Boolean = false,
     val id: String = "",
     /** "coordinatore" o "chat". */
     val tipo: String = "chat",

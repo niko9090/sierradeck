@@ -1,3 +1,4 @@
+import { eRuolo, type Ruolo } from './ruoli-agenti'
 /**
  * La versione della forma su disco. Va alzata solo insieme a una migrazione
  * scritta: uno stato di versione superiore viene rifiutato, non interpretato a
@@ -165,7 +166,18 @@ export type ChatGovernata = {
    * la conversazione dell'altra restava orfana.
    */
   sessioneSupervisore?: string
+  /** Il ruolo della chat (0.71.0): Sviluppo, Interfaccia, Collaudo, Revisione, Rilascio. Vedi `@shared/ruoli-agenti`. */
+  ruolo?: Ruolo
+  /** Per una chat di Revisione: la chat il cui ramo sta rivedendo. */
+  revisioneDi?: string
+  /** Il suo ramo ha avuto l'ok della Revisione ed è stato unito (0.71.0). */
+  approvata?: boolean
+  /** Quante volte la Revisione l'ha rimandata indietro. */
+  rifacimenti?: number
 }
+
+/** Il ruolo di un compito e i compiti da cui dipende (per testo), deciso dal coordinatore (0.71.0). */
+export type RuoloCompito = { ruolo: Ruolo; dopo: string[] }
 
 /** Oltre questo numero di chat contemporanee si ostacolano invece di aiutarsi. */
 export const TETTO_CHAT_MAX = 8
@@ -303,6 +315,12 @@ export type Autopilota = {
   chats: ChatGovernata[]
   /** I pezzi di lavoro non ancora affidati a nessuna chat. */
   compitiDaFare: string[]
+  /**
+   * Il grafo dei compiti (0.71.0): per ogni compito (il testo) il ruolo e i
+   * compiti che devono essere finiti e uniti prima. Lo tiene il programma, non
+   * il modello. Assente per gli autopiloti di prima: nessun ruolo, come allora.
+   */
+  ruoliCompiti?: Record<string, RuoloCompito>
   /** Le ultime modifiche dette a parole, con com'era prima di ognuna. */
   modifiche: Modifica[]
   /**
@@ -435,6 +453,7 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
     o.stato === 'bloccata' || o.stato === 'finita' || o.stato === 'pausa' ? o.stato : 'lavoro'
   const cartella = stringaNonVuota(o.cartella)
   const ramo = stringaNonVuota(o.ramo)
+  const revisioneDi = stringaNonVuota(o.revisioneDi)
   return {
     id,
     compito: stringaNonVuota(o.compito) ?? '',
@@ -443,8 +462,23 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
     ...(sessionId !== undefined ? { sessionId } : {}),
     ...(cartella !== undefined ? { cartella } : {}),
     ...(ramo !== undefined ? { ramo } : {}),
-    ...(sessioneSupervisore !== undefined ? { sessioneSupervisore } : {})
+    ...(sessioneSupervisore !== undefined ? { sessioneSupervisore } : {}),
+    ...(eRuolo(o.ruolo) ? { ruolo: o.ruolo } : {}),
+    ...(revisioneDi !== undefined ? { revisioneDi } : {}),
+    ...(o.approvata === true ? { approvata: true } : {}),
+    ...(typeof o.rifacimenti === 'number' && o.rifacimenti > 0 ? { rifacimenti: Math.floor(o.rifacimenti) } : {})
   }
+}
+
+function parseRuoliCompiti(raw: unknown): Record<string, RuoloCompito> | undefined {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
+  const fuori: Record<string, RuoloCompito> = {}
+  for (const [compito, v] of Object.entries(raw as Record<string, unknown>)) {
+    const x = (typeof v === 'object' && v !== null ? v : {}) as { ruolo?: unknown; dopo?: unknown }
+    if (!eRuolo(x.ruolo)) continue
+    fuori[compito] = { ruolo: x.ruolo, dopo: Array.isArray(x.dopo) ? x.dopo.filter((d): d is string => typeof d === 'string') : [] }
+  }
+  return Object.keys(fuori).length > 0 ? fuori : undefined
 }
 
 function parseCloud(raw: unknown): { attivo: boolean; segni: string[] } | undefined {
@@ -759,6 +793,7 @@ export function parseAutopilota(raw: unknown): {
       compitiDaFare: Array.isArray(o.compitiDaFare)
         ? o.compitiDaFare.filter((c): c is string => typeof c === 'string' && c.trim() !== '')
         : [],
+      ...(parseRuoliCompiti(o.ruoliCompiti) !== undefined ? { ruoliCompiti: parseRuoliCompiti(o.ruoliCompiti) } : {}),
       modifiche: Array.isArray(o.modifiche)
         ? o.modifiche
             .flatMap((m) => {

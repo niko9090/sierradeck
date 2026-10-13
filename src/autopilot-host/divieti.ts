@@ -393,6 +393,36 @@ export function giudicaStrumento(r: RichiestaStrumento, ammesse: string[]): Giud
   return { ok: true }
 }
 
+/**
+ * I divieti di ruolo (0.71.0), applicati dal programma e non affidati al modello.
+ *
+ * - La **Revisione** legge e prova, non scrive: niente Edit/Write, niente git
+ *   che cambia il ramo, niente cancellazioni o spostamenti. Un revisore che
+ *   «sistema» il codice che sta giudicando non è più un revisore.
+ * - **Nessuno installa** una versione di SierraDeck: la installa solo Nicholas
+ *   (regola del 12/10). Vale per tutti i ruoli, Rilascio compreso.
+ */
+export function giudicaRuolo(r: RichiestaStrumento, ruolo: string | undefined): Giudizio {
+  const nome = typeof r.tool_name === 'string' ? r.tool_name : ''
+  const input = (typeof r.tool_input === 'object' && r.tool_input !== null ? r.tool_input : {}) as Record<string, unknown>
+  const comando = (nome === 'Bash' || nome === 'PowerShell') && typeof input.command === 'string' ? input.command : ''
+  // Solo quando si **esegue** l'installatore o si chiama la rotta: leggerne il nome
+  // (gh release upload, ls dist/, grep nel codice) resta permesso.
+  const esegueInstallatore = /(^|[;&|]\s*|Start-Process\s+(-FilePath\s+)?|cmd(\.exe)?\s+\/c\s+|\.\/)["']?[^\s"';&|]*SierraDeck-Setup[^\s"';&|]*\.exe/i.test(comando)
+  const chiamaInstalla = /(curl|Invoke-WebRequest|Invoke-RestMethod|\biwr\b|\birm\b|wget|fetch)[^;&|]*\/api\/installa/i.test(comando)
+  if (comando !== '' && (esegueInstallatore || chiamaInstalla)) {
+    return { ok: false, motivo: 'SierraDeck blocca questo comando: le versioni nuove le installa solo Nicholas.' }
+  }
+  if (ruolo !== 'revisione') return { ok: true }
+  if (['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(nome)) {
+    return { ok: false, motivo: 'Sei la Revisione: leggi e provi, non modifichi file. Scrivi cosa va corretto nella riga «REVISIONE: DA RIFARE …».' }
+  }
+  if (comando !== '' && (/\bgit\s+(commit|push|merge|rebase|reset|checkout|switch|add|rm|mv|stash|cherry-pick|revert|tag|apply|am)\b/i.test(comando) || /(^|[;&|]\s*)(rm|del|rmdir|mv|move|Remove-Item|Move-Item|Rename-Item)\b/i.test(comando))) {
+    return { ok: false, motivo: 'Sei la Revisione: questo comando cambia il ramo o i file. Puoi leggere, fare il diff ed eseguire i test.' }
+  }
+  return { ok: true }
+}
+
 /** La risposta che Claude Code si aspetta da un hook PreToolUse. */
 export function rispostaPreTool(g: Giudizio): unknown {
   if (g.ok) return {}

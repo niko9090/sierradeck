@@ -710,17 +710,35 @@ describe('flotta di chat', () => {
     expect(viste).toEqual([c1.sessioneSupervisore])
   })
 
-  it('a lavoro finito ferma tutte le chat della flotta', async () => {
+  it('a lavoro finito ferma tutte le chat della flotta; con i ruoli, finisce solo dopo l’ok della Revisione su ogni ramo (0.71.0)', async () => {
     server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, interroga: SCOMPONE })
     await avvia(server)
     const id = await creaAp({ tettoChat: 2 })
-    await attendi(() => chatAvviate.length >= 2)
+    await attendi(() => chatAvviate.length >= 3)
+    const autori = (await chiama('GET', '/autopiloti')).dati[0].chats.map((c: any) => c.id)
 
     await chiama('POST', `/hook/stop?ap=${id}&chat=c-1`, eventoStop({ last_assistant_message: 'Fatto.' }))
+    let stato = (await chiama('GET', '/autopiloti')).dati[0]
+    // Non è finito: le altre si fermano e ogni ramo va alla Revisione.
+    expect(stato.stato).toBe('lavoro')
+    expect(fermati).toEqual(expect.arrayContaining([`${id}::c-2`, `${id}::c-3`]))
+    await attendi(() => chatAvviate.filter((c) => c.compito.startsWith('Rivedi il ramo')).length >= 3)
+    stato = (await chiama('GET', '/autopiloti')).dati[0]
+    const revisori = stato.chats.filter((c: any) => c.ruolo === 'revisione')
+    expect(revisori.map((c: any) => c.revisioneDi).sort()).toEqual([...autori].sort())
 
-    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    // Ogni revisore approva, citando un file: il ramo si unisce.
+    for (const r of revisori) {
+      await chiama('POST', `/hook/stop?ap=${id}&chat=${r.id}`, eventoStop({ last_assistant_message: `Letto il diff.\nREVISIONE: OK ${r.compito.split(' ')[3]} — src/lettore.ts:12 controllato` }))
+    }
+    stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.chats.filter((c: any) => autori.includes(c.id)).every((c: any) => c.approvata === true)).toBe(true)
+    // L'ultimo giro: una chat autrice riparte, il supervisore dice finito sui criteri.
+    const ultima = stato.chats.find((c: any) => autori.includes(c.id) && c.stato === 'lavoro')
+    expect(ultima).toBeDefined()
+    await chiama('POST', `/hook/stop?ap=${id}&chat=${ultima.id}`, eventoStop({ last_assistant_message: 'fatto' }))
+    stato = (await chiama('GET', '/autopiloti')).dati[0]
     expect(stato.stato).toBe('finito')
-    // Le altre stanno lavorando a pezzi di un obiettivo gia' raggiunto.
     expect(fermati).toContain(id)
     expect(stato.chats.every((c: any) => c.stato === 'finita')).toBe(true)
   })
@@ -2112,5 +2130,79 @@ describe('una fermata, una risposta (0.71.0)', () => {
     // Un turno nuovo (altro messaggio) è un giro nuovo.
     await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ session_id: 's-1', last_assistant_message: 'ho finito il pezzo B' }))
     expect(chiamate).toBe(2)
+  })
+})
+
+describe('la Revisione decide l’unione, il programma la controlla (0.71.0)', () => {
+  const flotta = (over: Record<string, unknown> = {}) => ({
+    ...nuovoAutopilota({ id: 'ap-rev', nome: 'Rev', obiettivo: 'Fai A poi B', cwd: process.cwd(), criteri: [{ descrizione: 'test', comando: 'node controlla.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+    stato: 'lavoro' as const,
+    ramoBase: 'main',
+    tettoChat: 8,
+    chats: [
+      { id: 'c-1', compito: 'A', stato: 'finita' as const, cicli: 2, ruolo: 'sviluppo' as const, ramo: 'ap/ap-rev/c-1', cartella: process.cwd() },
+      { id: 'c-2', compito: 'Rivedi il ramo ap/ap-rev/c-1 della chat c-1 («A»)', stato: 'lavoro' as const, cicli: 0, ruolo: 'revisione' as const, revisioneDi: 'c-1', cartella: process.cwd() }
+    ],
+    compitiDaFare: ['B'],
+    ruoliCompiti: { A: { ruolo: 'sviluppo' as const, dopo: [] }, B: { ruolo: 'sviluppo' as const, dopo: ['A'] } },
+    ...over
+  })
+  const attendiChe = async (f: () => boolean): Promise<void> => { for (let i = 0; i < 80 && !f(); i += 1) await new Promise((r) => setTimeout(r, 25)) }
+
+  it('OK con un file citato e i criteri verdi: il ramo si unisce e si apre il compito che aspettava', async () => {
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI })
+    archivio.scrivi(flotta())
+    await avvia(server)
+    const r = await chiama('POST', '/hook/stop?ap=ap-rev&chat=c-2', eventoStop({ last_assistant_message: 'REVISIONE: OK ap/ap-rev/c-1 — src/a.ts:3' }))
+    expect(r.dati).toEqual({})
+    await attendiChe(() => chatAvviate.some((c) => c.compito === 'B'))
+    const a = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(a.chats.find((c: any) => c.id === 'c-1').approvata).toBe(true)
+    expect(a.chats.find((c: any) => c.id === 'c-2').stato).toBe('finita')
+    expect(chatAvviate.map((c) => c.compito)).toContain('B')
+  })
+
+  it('senza la riga del verdetto si chiede di chiuderla; con i criteri rossi un OK vale «da rifare»', async () => {
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, esegui: () => Promise.resolve({ codice: 1, uscita: '2 test rossi' }) })
+    archivio.scrivi(flotta())
+    await avvia(server)
+    const senza = await chiama('POST', '/hook/stop?ap=ap-rev&chat=c-2', eventoStop({ last_assistant_message: 'Mi sembra a posto.' }))
+    expect(senza.dati.decision).toBe('block')
+    expect(senza.dati.reason).toContain('REVISIONE: OK')
+    await chiama('POST', '/hook/stop?ap=ap-rev&chat=c-2', eventoStop({ last_assistant_message: 'REVISIONE: OK ap/ap-rev/c-1 — src/a.ts:3' }))
+    const a = (await chiama('GET', '/autopiloti')).dati[0]
+    const autore = a.chats.find((c: any) => c.id === 'c-1')
+    expect(autore.approvata).toBeUndefined()
+    expect(autore.stato).toBe('lavoro')
+    expect(autore.rifacimenti).toBe(1)
+    expect(messaggiDiRipresa.join(' ')).toContain('i criteri non passano')
+  })
+
+  it('rimandato indietro troppe volte: la domanda va a Nicholas, con la scelta consigliata', async () => {
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI })
+    const base = flotta()
+    archivio.scrivi({ ...base, chats: base.chats.map((c) => (c.id === 'c-1' ? { ...c, rifacimenti: 2 } : c)) })
+    await avvia(server)
+    await chiama('POST', '/hook/stop?ap=ap-rev&chat=c-2', eventoStop({ last_assistant_message: 'REVISIONE: DA RIFARE ap/ap-rev/c-1: manca il caso vuoto in src/a.ts:9' }))
+    const d = (await chiama('GET', '/domande')).dati
+    expect(d).toHaveLength(1)
+    expect(d[0].opzioni).toEqual(['rifallo ancora', 'uniscilo così', 'lascialo fuori'])
+    expect((await chiama('GET', '/autopiloti')).dati[0].chats.find((c: any) => c.id === 'c-1').stato).toBe('bloccata')
+  })
+
+  it('la Revisione non scrive file e nessuno lancia l’installatore', async () => {
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI })
+    archivio.scrivi(flotta())
+    await avvia(server)
+    const scrive = await chiama('POST', '/hook/pretool?ap=ap-rev&chat=c-2', { tool_name: 'Edit', tool_input: { file_path: 'x.ts' }, cwd: process.cwd() })
+    expect(scrive.dati.hookSpecificOutput.permissionDecision).toBe('deny')
+    const commit = await chiama('POST', '/hook/pretool?ap=ap-rev&chat=c-2', { tool_name: 'Bash', tool_input: { command: 'git commit -am x' }, cwd: process.cwd() })
+    expect(commit.dati.hookSpecificOutput.permissionDecision).toBe('deny')
+    const legge = await chiama('POST', '/hook/pretool?ap=ap-rev&chat=c-2', { tool_name: 'Bash', tool_input: { command: 'git diff main...ap/ap-rev/c-1' }, cwd: process.cwd() })
+    expect(legge.dati).toEqual({})
+    const installa = await chiama('POST', '/hook/pretool?ap=ap-rev&chat=c-1', { tool_name: 'PowerShell', tool_input: { command: 'Start-Process .\\dist\\SierraDeck-Setup-0.71.0.exe' }, cwd: process.cwd() })
+    expect(installa.dati.hookSpecificOutput.permissionDecision).toBe('deny')
+    const carica = await chiama('POST', '/hook/pretool?ap=ap-rev&chat=c-1', { tool_name: 'Bash', tool_input: { command: 'gh release upload v0.71.0 dist/SierraDeck-Setup-0.71.0.exe' }, cwd: process.cwd() })
+    expect(carica.dati).toEqual({})
   })
 })

@@ -14,12 +14,18 @@ const LED: Record<string, string> = {
   finita: 'led--finito'
 }
 
+/** Il colore del ruolo: i quattro della tavolozza, più il viola dell'Interfaccia. */
+const coloreRuolo = (c: string): string => (c === 'viola' ? '#b48cff' : `var(--${c})`)
+
 function Nodo({ n }: { n: NodoAlbero }): React.JSX.Element {
   return (
     <li>
       <div className="albero-ap__nodo" title={n.cartella}>
         <span className={`led ${LED[n.stato] ?? 'led--lavoro'}`} />
+        {/* Il ruolo (0.71.0): la parola con il suo colore, come nella pagina e nell'app. */}
+        {n.ruolo !== undefined ? <span className="albero-ap__ruolo" style={{ color: coloreRuolo(n.ruolo.colore), borderColor: coloreRuolo(n.ruolo.colore) }} title={`Ruolo: ${n.ruolo.nome}`}>{n.ruolo.parola}</span> : null}
         <span>{n.titolo}</span>
+        {n.approvata === true ? <span className="misura" style={{ color: 'var(--verde)' }}>· approvato e unito</span> : null}
         <span className="misura">· {n.parola} · {n.cicli} {n.cicli === 1 ? 'giro' : 'giri'}</span>
         {n.ramo !== undefined ? <span className="albero-ap__ramo">{n.ramo}</span> : null}
       </div>

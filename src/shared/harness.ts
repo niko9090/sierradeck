@@ -1,3 +1,4 @@
+import { RUOLI } from './ruoli-agenti'
 /**
  * L'autopilota come «harness» dell'agente (0.36.0): le regole pure, condivise
  * fra il servizio, il programma, la pagina del telefono e i test.
@@ -310,6 +311,11 @@ export type NodoAlbero = {
   cartella?: string
   cicli: number
   figli: NodoAlbero[]
+  /** Il ruolo della chat (0.71.0), con la parola e il colore: uguali su PC, pagina e app. */
+  ruolo?: { id: string; nome: string; parola: string; colore: string }
+  /** Per la Revisione: quale chat rivede. Per le altre: il ramo ha avuto l'ok. */
+  revisioneDi?: string
+  approvata?: boolean
 }
 
 const PAROLE_CHAT: Record<string, string> = {
@@ -348,7 +354,10 @@ export function alberoChat(a: Pick<Autopilota, 'id' | 'nome' | 'obiettivo' | 'st
       ...(c.ramo !== undefined ? { ramo: c.ramo } : {}),
       ...(c.cartella !== undefined ? { cartella: c.cartella } : {}),
       cicli: c.cicli,
-      figli: []
+      figli: [],
+      ...(c.ruolo !== undefined ? { ruolo: { id: c.ruolo, nome: RUOLI[c.ruolo].nome, parola: RUOLI[c.ruolo].parola, colore: RUOLI[c.ruolo].colore } } : {}),
+      ...(c.revisioneDi !== undefined ? { revisioneDi: c.revisioneDi } : {}),
+      ...(c.approvata === true ? { approvata: true } : {})
     }))
   }
 }

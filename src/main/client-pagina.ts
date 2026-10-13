@@ -3638,6 +3638,10 @@ function quote(q) {
  * le sue chat, con il compito, lo stato, il ramo del worktree e i giri. Dal
  * campo \`albero\` che il computer compone con la stessa funzione del PC.
  */
+/** Il colore del ruolo di una chat (0.71.0), come sul PC e nell'app. */
+function coloreRuolo(c) {
+  return ({ verde: 'var(--verde,#3c9)', ambra: 'var(--ambra,#e0a33c)', rosso: 'var(--rosso,#dc5f5f)', blu: 'var(--blu,#4aa3ff)', viola: '#b48cff' })[c] || 'inherit'
+}
 function alberoHtml(a) {
   var t = a && a.albero
   var figli = (t && t.figli) || []
@@ -3650,7 +3654,9 @@ function alberoHtml(a) {
     figli.map(function (f) {
       var led = f.stato === 'lavoro' ? 'lavoro' : f.stato === 'bloccata' ? 'attesa' : 'spenta'
       return '<div class="sotto" style="margin-left:6px;padding-left:12px;border-left:1px solid var(--bordo)">' +
-        '<span class="led ' + led + '"></span>' + esc(f.titolo) + ' · ' + esc(f.parola) + ' · ' + f.cicli + (f.cicli === 1 ? ' giro' : ' giri') +
+        '<span class="led ' + led + '"></span>' +
+        (f.ruolo ? '<span class="ruolo-chat" style="color:' + coloreRuolo(f.ruolo.colore) + ';border:1px solid ' + coloreRuolo(f.ruolo.colore) + ';border-radius:999px;padding:0 6px;margin-right:4px;font-size:11px">' + esc(f.ruolo.parola) + '</span>' : '') +
+        esc(f.titolo) + ' · ' + esc(f.parola) + (f.approvata ? ' · approvato e unito' : '') + ' · ' + f.cicli + (f.cicli === 1 ? ' giro' : ' giri') +
         (f.ramo ? ' · <span class="percorso" style="display:inline">' + esc(f.ramo) + '</span>' : '') + '</div>'
     }).join('')
 }

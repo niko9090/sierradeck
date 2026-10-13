@@ -897,9 +897,11 @@ private fun RigaAlbero(f: NodoAlbero) {
         Box(Modifier.padding(top = 5.dp).size(8.dp).clip(CircleShape).background(colore))
         Spacer(Modifier.width(8.dp))
         Column {
+            // PC 0.71: il ruolo, con la parola e il colore decisi dal PC.
+            f.ruolo?.let { r -> Text(r.parola, color = coloreVista(r.colore), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
             Text(f.titolo, color = Banco.testo, fontSize = 13.sp)
             Text(
-                f.parola + " · ${f.cicli} " + (if (f.cicli == 1) "giro" else "giri") + (f.ramo?.let { " · $it" } ?: ""),
+                f.parola + (if (f.approvata) " · approvato e unito" else "") + " · ${f.cicli} " + (if (f.cicli == 1) "giro" else "giri") + (f.ramo?.let { " · $it" } ?: ""),
                 color = Banco.testoQuieto, fontSize = 11.sp
             )
         }
