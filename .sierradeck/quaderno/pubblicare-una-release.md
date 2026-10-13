@@ -17,6 +17,7 @@ tag: ["release", "github", "gh", "apk", "procedura"]
 - Ordine giusto: `gh release create vX --draft` → `npm run pubblica` →
   `npm run allega-apk` (firma verificata) → `gh release edit vX --draft=false --latest`.
 - Le verifiche dopo l'aggiornamento si fanno quando Nicholas ha installato.
+- **13/10 (0.71.0)**: `npm run pubblica` può fallire con «GitHub Personal Access Token is not set»: lanciarlo come `GH_TOKEN=$(gh auth token) npm run pubblica` (Git Bash). La bozza creata prima con `gh release create vX --draft` riceve exe, blockmap e latest.yml.
 
 Procedura provata con la 0.27.0 (15/09/2026), tutta da terminale, senza
 `npm run pubblica` (che sdoppia le release o perde `latest.yml`).

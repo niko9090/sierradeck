@@ -6,7 +6,7 @@ tag: ["rapporto", "autopilota", "0.71.0", "per Nicholas"]
 
 # In breve
 
-La 0.71.0 (app 2.71.0) è **pubblicata e non installata**: la installi tu.
+La 0.71.0 (app 2.71.0) è **pubblicata e non installata**: la installi tu. È marcata Latest; ci sono l'installatore, latest.yml, l'APK firmato Ferrari Consulenze (firma verificata) e app-android.json.
 
 1. **«Il tasto Strumenti non funziona»: corretto.** La causa vera: ogni clic vero (non simulato) dentro le schermate a tutta finestra della 0.70.0 le chiudeva. Ora ho provato con clic veri ogni menu, «⋯», «?» e linguetta: 88 su 89 sul PC e 26 su 26 nella pagina. I dettagli sono in `giro-dei-menu-clic-veri-0-71-0.md`.
 2. **Le istruzioni dell'autopilota non si perdono più** quando una chat passa dal sottofondo a un riquadro (la c-14 del mattino). Lo stesso vale dopo un riavvio del servizio: la domanda aperta non si rifà più e le istruzioni in coda ripartono.
