@@ -467,7 +467,9 @@ data class Finestra(
     val percento: Double = 0.0,
     val resettaIl: Long? = null,
     val stato: String? = null,
-    val etichetta: String? = null
+    val etichetta: String? = null,
+    /** PC 0.70: la parola (libero, attento, pieno, vecchia, attesa) con il colore. */
+    val vista: StatoVistaDrive? = null
 )
 
 @Serializable
@@ -479,7 +481,9 @@ data class ChatConsumo(
     val titolo: String? = null,
     val modello: String? = null,
     val contesto: ContestoChat? = null,
-    val contestoEtichetta: String? = null
+    val contestoEtichetta: String? = null,
+    /** PC 0.70: il contesto in una parola (libera, piena, riassumi). */
+    val vista: StatoVistaDrive? = null
 )
 
 @Serializable

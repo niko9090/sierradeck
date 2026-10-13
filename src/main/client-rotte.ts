@@ -1,3 +1,4 @@
+import { conVistaConsumi } from '@shared/consumi-vista'
 import { ordinaDomande, tipoDomanda } from '@shared/domande-vista'
 import { vistaAutopilota } from '@shared/autopiloti-vista'
 import { nomiDistinti as nomiChatDistinti } from '@shared/chat-vista'
@@ -1736,7 +1737,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     }
 
     if (r.percorso === '/api/consumi') {
-      return OK(await deps.consumi().catch(() => ({})))
+      // Le parole delle finestre e dei contesti (0.70.0), decise qui.
+      return OK(conVistaConsumi((await deps.consumi().catch(() => ({}))) as Record<string, unknown>))
     }
 
     // Il quaderno di una cartella: le schede che l'autopilota lascia accanto al

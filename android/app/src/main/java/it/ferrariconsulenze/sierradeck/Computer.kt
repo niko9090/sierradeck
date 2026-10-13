@@ -1063,6 +1063,8 @@ private fun FinestraRiga(nome: String, f: Finestra?) {
     Spacer(Modifier.height(6.dp))
     Row(Modifier.fillMaxWidth()) {
         Text(nome, color = Banco.testo, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        // PC 0.70: la parola del PC con il suo colore, prima della frase.
+        f?.vista?.let { Text("${it.parola} · ", color = coloreVista(it.colore), fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) }
         Text(fraseFinestra(f, quando), color = Banco.testoQuieto, fontSize = 12.sp)
     }
     Spacer(Modifier.height(4.dp))
@@ -1305,7 +1307,8 @@ fun fraseFinestra(f: Finestra?, quando: String = ""): String = when {
 fun rigaContesto(c: ChatConsumo): String {
     val nome = c.titolo?.ifBlank { null } ?: c.sessione.take(8)
     val modello = c.modello?.let { " · $it" } ?: ""
-    return "$nome$modello: ${c.contestoEtichetta ?: c.contesto?.let { "${it.percento}%" } ?: "contesto non ancora letto"}"
+    val parola = c.vista?.let { "${it.parola} · " } ?: ""
+    return "$nome$modello: $parola${c.contestoEtichetta ?: c.contesto?.let { "${it.percento}%" } ?: "contesto non ancora letto"}"
 }
 
 fun quandoLetti(letti: Long, adesso: Long, zona: java.util.TimeZone = java.util.TimeZone.getDefault()): String {

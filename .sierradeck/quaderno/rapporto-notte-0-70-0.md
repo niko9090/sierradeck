@@ -183,3 +183,15 @@ Le foto sono in `note/foto-0-70/`, sul PC fisso (fuori da git: mostrano le carte
 **Test**: `tests/shared/negozio-vista.test.ts` (2) e la risposta d'esempio `api-negozio-0.70.json`, con il nuovo test in `NegozioVistaTest`.
 
 **Aperto**: dalla revisione restano i gruppi In uso · Da sistemare · Catalogo · Questa cartella, la tabella con il dettaglio a destra e Fonti/Ricarica in «Strumenti ▾». Il negozio ha già linguette sue, che chiamano il CLI di Claude Code, e rifarle stanotte voleva dire riprovare a mano ogni installazione. La parte fatta (una parola, niente spiegazioni ripetute, tutta la larghezza) è quella che si vede di più.
+
+## (h) Consumi
+**Cosa cambia**
+- **La finestra di 5 ore e la settimana** hanno la percentuale grande e una parola: libero (verde, sotto l'80%), attento (ambra, 80–94%), pieno (rosso, dal 95%), vecchia (lettura di più di 20 minuti), azzerata o attesa (grigio). La frase lunga («letto 70 minuti fa · lettura vecchia…») va sotto la barra.
+- **Il contesto di ogni chat aperta** ha la sua parola: libera (<70%), piena (<90%), riassumi (rosso, ≥90%), «—» se non ancora letto. Prima diceva «contesto contesto non ancora letto».
+- **I token si leggono**: «↑20 in entrata · ↓2k in uscita · cache 100% · 3 chat». Prima era «0 in entrata0 in uscita0 dalla cache (0%)0 chat», tutto attaccato.
+- **Le chat con lo stesso nome si distinguono** (#2, #3).
+- **Telefono**: le parole delle finestre e dei contesti le mette il PC in `/api/consumi`, e la pagina e l'app le mostrano prima della frase.
+
+**Azioni di prima → dove sono adesso**: niente spostato. I Consumi si aprono da Salute → Strumenti ▾ → «Consumi per esteso» (riquadro a destra) o dalla colonna «Consumi e limiti».
+
+**Test**: `tests/shared/consumi-vista.test.ts` (4: le soglie 79/80/94/95, la lettura vecchia, l'azzeramento, il contesto, i token in una riga) e, nell'app, `ConsumiVistaTest`.

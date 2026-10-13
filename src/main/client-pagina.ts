@@ -3788,6 +3788,8 @@ function limitiHtml(c) {
     var colore = f && f.stato === 'azzerata' ? '#4a5058' : p >= 95 ? '#dc5f5f' : p >= 80 ? '#e0a33c' : '#4aa3ff'
     var quando = f && f.resettaIl ? ' \u00b7 si azzera ' + new Date(f.resettaIl).toLocaleString('it-IT', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : ''
     var frase = f ? (f.etichetta ? esc(f.etichetta) : p + '% usato' + quando) : 'non ancora letta'
+    // 0.70.0: la parola del PC (libero, attento, pieno, vecchia, attesa) prima della frase.
+    if (f && f.vista) frase = '<b style="color:' + ({ verde: 'var(--verde,#3c9)', ambra: '#e0a33c', rosso: '#dc5f5f', blu: '#4aa3ff', quieto: 'var(--testo-quieto,#9aa1a9)' })[f.vista.colore] + '">' + esc(f.vista.parola) + '</b> · ' + frase
     return '<div style="margin-top:10px"><div class="sotto"><b>' + nome + '</b>: ' + frase + '</div>' +
       '<div class="barra"><i style="width:' + p + '%;background:' + colore + '"></i></div><div class="sotto">' + spiega + '</div></div>'
   }
@@ -3796,7 +3798,7 @@ function limitiHtml(c) {
     '<div class="serigrafia" style="margin-top:12px">CONTESTO DELLE CHAT APERTE</div>' +
     chatAperte.map(function (x) {
       var cp = x.contesto ? x.contesto.percento : 0
-      return '<div style="margin-top:8px"><div class="sotto"><b>' + esc(x.titolo || String(x.sessione || '').slice(0, 8)) + '</b>' + (x.modello ? ' \u00b7 ' + esc(x.modello) : '') + ': ' + esc(x.contestoEtichetta || 'contesto non ancora letto') + '</div>' +
+      return '<div style="margin-top:8px"><div class="sotto"><b>' + esc(x.titolo || String(x.sessione || '').slice(0, 8)) + '</b>' + (x.modello ? ' \u00b7 ' + esc(x.modello) : '') + ': ' + (x.vista ? '<b style="color:' + ({ verde: 'var(--verde,#3c9)', ambra: '#e0a33c', rosso: '#dc5f5f', blu: '#4aa3ff', quieto: 'var(--testo-quieto,#9aa1a9)' })[x.vista.colore] + '">' + esc(x.vista.parola) + '</b> · ' : '') + esc(x.contestoEtichetta || 'contesto non ancora letto') + '</div>' +
         '<div class="barra"><i style="width:' + cp + '%;background:' + (cp >= 90 ? '#e0a33c' : '#4aa3ff') + '"></i></div></div>'
     }).join('') +
     '<div class="sotto" style="margin-top:6px">Cos\u2019\u00e8 il contesto' + aiuto('contesto', 'Il contesto \u00e8 la memoria di lavoro della chat: si conta come Claude Code, solo con i token in ingresso. Al 90% conviene farle riassumere dove \u00e8 arrivata, prima che lo compatti da sola.') + '</div>'

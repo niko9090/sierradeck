@@ -1,9 +1,15 @@
+import { testoQuota, vistaContesto, vistaFinestra } from '@shared/consumi-vista'
+import { nomiDistinti } from '@shared/chat-vista'
+import type { Colore } from '@shared/stato-vista'
+
 import { useEffect, useState } from 'react'
 import type { Consumi } from '@shared/consumi'
 import { andamentoOggi, formattaToken, quotaCache } from '@shared/consumi'
 import { oraDi } from '@shared/polso-chat'
 import type { StatoAccesso } from '../../main/accesso'
 import { Aiuto } from './Aiuto'
+
+const COLORE_CONSUMI: Record<Colore, string> = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', blu: 'var(--blu)', quieto: 'var(--testo-quieto)' }
 
 /**
  * Quanto si è consumato, con quale account, e a che punto sono i limiti.
@@ -53,36 +59,38 @@ export function PannelloConsumi({ onChiudi, incorporato = false }: { onChiudi?: 
           <div className="consumo__barra" title={`${quotaCache(q)}% dalla cache, che costa meno`}>
             <span className="consumo__cache" style={{ width: `${quotaCache(q)}%` }} />
           </div>
-          <div className="misura consumo__righe">
-            <span>{formattaToken(q.ingresso)} in entrata</span>
-            <span>{formattaToken(q.uscita)} in uscita</span>
-            <span>{formattaToken(q.cache)} dalla cache ({quotaCache(q)}%)</span>
-            <span>{q.chat === 1 ? '1 chat' : `${q.chat} chat`}</span>
-          </div>
+          {/* 0.70.0: una riga con i separatori; prima «0 in entrata0 in uscita…» tutto attaccato. */}
+          <div className="misura">{testoQuota(q)}</div>
         </>
       )}
     </div>
   )
 
   const limiti = consumi?.limiti
-  const finestra = (nome: string, spiega: string, f: { percento: number; resettaIl?: number; etichetta?: string } | undefined): React.JSX.Element => {
+  const finestra = (nome: string, spiega: string, f: { percento: number; resettaIl?: number; etichetta?: string; stato?: string } | undefined): React.JSX.Element => {
     const p = f === undefined ? 0 : Math.round(f.percento)
     const classe = p >= 95 ? 'limite__pieno--rosso' : p >= 80 ? 'limite__pieno--ambra' : ''
+    // 0.70.0: la parola con il colore e la percentuale grande (libero, attento, pieno, vecchia, attesa).
+    const v = vistaFinestra(f)
     return (
       <div className="limite">
         <div className="limite__testa">
           <span className="riga__nome con-aiuto">{nome}<Aiuto di={nome}>{spiega}</Aiuto></span>
-          {/* La frase di `limiti-piano.ts` (0.37.0): letto quando, azzerata, vecchia. */}
-          <span className="misura">{f === undefined ? 'non ancora letta' : f.etichetta ?? `${p}% usato${f.resettaIl !== undefined ? ` · si azzera ${oraDi(f.resettaIl, adesso)}` : ''}`}</span>
+          <span style={{ fontSize: 20, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{f === undefined ? '—' : `${p}%`}</span>
+          <span style={{ color: COLORE_CONSUMI[v.colore], fontWeight: 700 }}>{v.parola}</span>
         </div>
         <div className="limite__barra" title={`${p}%`}>
           <span className={`limite__pieno ${classe}`} style={{ width: `${Math.max(f === undefined ? 0 : 1, p)}%` }} />
         </div>
+        {/* La frase di `limiti-piano.ts` (0.37.0), sotto la barra (0.70.0): letto quando, azzerata, vecchia. */}
+        <div className="misura" style={{ marginTop: 4 }}>{f === undefined ? 'non ancora letta' : f.etichetta ?? `${p}% usato${f.resettaIl !== undefined ? ` · si azzera ${oraDi(f.resettaIl, adesso)}` : ''}`}</div>
       </div>
     )
   }
 
   const costo = consumi?.costo
+  // Tre chat con lo stesso nome si distinguono (0.70.0).
+  const nomiChat = nomiDistinti((consumi?.chatAperte ?? []).map((c) => ({ id: c.sessione, titolo: c.titolo ?? c.sessione.slice(0, 8) })))
   const dollari = (n: number): string => `${n.toFixed(2).replace('.', ',')} $`
 
   const corpo = (
@@ -122,12 +130,14 @@ export function PannelloConsumi({ onChiudi, incorporato = false }: { onChiudi?: 
           <div className="serigrafia con-aiuto" style={{ marginBottom: 6 }}>Le chat aperte adesso<Aiuto di="contesto">Il contesto è la memoria di lavoro della chat: al 90% conviene farle riassumere dove è arrivata, perché quando Claude Code lo compatta può perdere dettagli.</Aiuto></div>
           {consumi.chatAperte.map((c) => (
             <div key={c.sessione} className="riga" style={{ gap: 12 }}>
-              <span className="riga__nome" style={{ minWidth: 140 }}>{c.titolo ?? c.sessione.slice(0, 8)}</span>
+              <span className="riga__nome" style={{ minWidth: 140 }}>{nomiChat.get(c.sessione) ?? c.titolo ?? c.sessione.slice(0, 8)}</span>
+              {/* Il contesto in una parola (0.70.0): libera, piena, riassumi. */}
+              <span style={{ color: COLORE_CONSUMI[vistaContesto(c.contestoPercento).colore], minWidth: 64 }} title={vistaContesto(c.contestoPercento).ragione}>{vistaContesto(c.contestoPercento).parola}</span>
               <span className="misura">{c.modello ?? '—'}</span>
               <span className="barra" style={{ flex: 1 }} title="Quanto del contesto della chat e' occupato: vicino al 100% Claude Code lo compatta da solo">
                 <span className={`barra__pieno${(c.contestoPercento ?? 0) >= 90 ? ' barra__pieno--ambra' : ''}`} style={{ width: `${Math.max(2, c.contestoPercento ?? 0)}%` }} />
               </span>
-              <span className="misura">contesto {c.contestoEtichetta ?? `${c.contestoPercento ?? 0}%`}{c.costoUsd !== undefined ? ` · ${dollari(c.costoUsd)}` : ''}</span>
+              <span className="misura">{c.contestoEtichetta ?? `${c.contestoPercento ?? 0}%`}{c.costoUsd !== undefined ? ` · ${dollari(c.costoUsd)}` : ''}</span>
             </div>
           ))}
         </div>
