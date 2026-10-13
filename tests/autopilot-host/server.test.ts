@@ -2206,3 +2206,23 @@ describe('la Revisione decide l’unione, il programma la controlla (0.71.0)', (
     expect(carica.dati).toEqual({})
   })
 })
+
+describe('antiloop nel servizio (0.71.0)', () => {
+  it('la stessa istruzione tre volte, criteri verdi e la chat che dice la stessa cosa: si ferma e lo spiega', async () => {
+    server = ambiente({ interroga: () => Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "Controlla di nuovo i test", "perche": "per sicurezza"}' }) })
+    await avvia(server)
+    const id = await creaAp()
+    for (let i = 0; i < 3; i += 1) await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Ho controllato: tutto verde.' }))
+    const a = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(a.stato).toBe('sospeso')
+    expect(a.motivoSospensione).toContain('antiloop')
+  })
+
+  it('se la chat dice cose nuove (lavora), non scatta', async () => {
+    server = ambiente({ interroga: () => Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "Continua con il compito", "perche": "manca"}' }) })
+    await avvia(server)
+    const id = await creaAp()
+    for (let i = 0; i < 4; i += 1) await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: `Fatto il pezzo ${i}.` }))
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('lavoro')
+  })
+})

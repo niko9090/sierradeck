@@ -20,6 +20,7 @@ import { eseguiCriteri, type Esecutore } from './verifiche'
 import { improntaCodice, misuraCriteri, turnoCompleto, type MemoriaCriteri } from './criteri-veloci'
 import { RIFACIMENTI_MAX, RUOLI, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
 import { cronometro, riassuntoTempi, type GiroMisurato } from './tempi'
+import { firmaGiro, registraGiro, spiegaCerchio } from './antiloop'
 import {
   chiediCambio, chiediGiudizio, componiPromptScomposizione, leggiCompiti, riparaComando,
   type Interrogazione
@@ -1813,6 +1814,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    */
   const orologio = deps.orologio ?? Date.now
   const memoriaCriteri: MemoriaCriteri = new Map()
+  /** Le firme degli ultimi giri di ogni chat, per l'antiloop (0.71.0). */
+  const storiaGiri = new Map<string, string[]>()
   type MisuraGiro = { crono: ReturnType<typeof cronometro>; esito: string; criteri?: GiroMisurato['criteri']; daRegistrare: boolean }
   const suStop = async (id: string, chatId: string | undefined, corpo: Record<string, unknown>): Promise<unknown> => {
     const m: MisuraGiro = { crono: cronometro(orologio), esito: 'fermo', daRegistrare: false }
@@ -2150,6 +2153,21 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           ].join('\n')
         }
         annota(aggiornato, `il supervisore diceva «finito», ma rimisurando ${rossi.map((e) => `«${e.descrizione}»`).join(', ')} non passa: continuo`)
+      }
+    }
+    // **Antiloop** (0.71.0): la stessa istruzione con il codice fermo per tre
+    // giri di fila è un giro a vuoto. Ci si ferma e lo si dice. Con criteri
+    // rossi ci pensano già le strategie a gradini (strategie.ts). Senza git,
+    // l'impronta è quello che la chat ha detto più gli esiti dei criteri.
+    if (decisione.tipo === 'prosegui' && decisione.strategia === undefined && esiti.every((e) => e.passato)) {
+      const k = chiaveTurno(id, chatId)
+      const impronta = improntaOra ?? `${createHash('sha256').update(ultimoMessaggio).digest('hex').slice(0, 16)}|${traccia(esiti)}`
+      const g = registraGiro(storiaGiri.get(k) ?? [], firmaGiro('prosegui', decisione.istruzioni, impronta))
+      storiaGiri.set(k, g.storia)
+      if (g.cerchio) {
+        storiaGiri.delete(k)
+        console.warn(`[autopilota] ${id} — ${spiegaCerchio()}`)
+        decisione = { tipo: 'sospendi', motivo: spiegaCerchio() }
       }
     }
     misura.esito = decisione.tipo
