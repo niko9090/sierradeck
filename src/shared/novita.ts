@@ -41,6 +41,17 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.71.0',
+    righe: [
+      '**Agenti specializzati:** l’autopilota fa da coordinatore. Divide il lavoro in compiti, ognuno con il suo ruolo (Sviluppo, Interfaccia, Collaudo, Revisione, Rilascio) e il suo ramo, e unisce un ramo solo dopo l’ok della Revisione. Un OK con i criteri rossi non vale; dopo due rifacimenti decidi tu. Il ruolo si vede su PC, pagina e app.',
+      '**Più chat insieme, nessun ordine perso:** coda delle istruzioni e domande aperte su disco. Dopo un riavvio del servizio la domanda non si rifà più («andata perduta») e le istruzioni ripartono; lo stesso Stop arrivato due volte riceve una risposta sola; i testi in coda nel sottofondo non si perdono quando la chat torna in un riquadro.',
+      '**Domande chiare:** una alla volta, al massimo 200 caratteri, con la scelta consigliata segnata; quelle vaghe o con più domande tornano indietro da riscrivere. La stessa domanda già risposta non si richiede, e al massimo 6 nuove all’ora.',
+      '**Più intelligente e più veloce:** il supervisore riceve i fatti verificati dal programma (git, criteri, registro) e le tue decisioni; antiloop sulla stessa istruzione con il codice fermo; criteri ricontrollati da soli. I criteri non si rimisurano a vuoto (cache sul codice, comandi lunghi a turni alterni) e i tempi di ogni giro si vedono nella scheda.',
+      '**Progetti:** «Sposta su ▾» nel dettaglio, da qualsiasi PC verso qualsiasi PC, con conferma e avanzamento su tutti i PC; anche su pagina e app.',
+      '**Corretto:** le schermate a tutta finestra si chiudevano al primo clic vero (linguette, «Strumenti ▾», «?»); «Strumenti ▾» che spariva o usciva dallo schermo; i «?» della pagina del telefono che non si aprivano; il pannello Autopiloti che cadeva con gli autopiloti degli altri PC; Salute → Consumi che apriva la colonna sotto la schermata.'
+    ]
+  },
+  {
     versione: '0.70.0',
     righe: [
       '**Tutto il programma riprogettato come Progetti:** ogni schermata usa la larghezza, le cose importanti sono in vista e quelle rare in «Strumenti ▾»; gli stati sono una parola con un colore, e le spiegazioni stanno dietro il «?». Nessuna funzione tolta: quelle rare sono state spostate.',

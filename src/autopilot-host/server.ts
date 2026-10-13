@@ -804,7 +804,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // stessa conversazione): ricorda cosa aveva chiesto di correggere.
     const riusate: { chat: ChatGovernata; messaggio: string }[] = []
     const daAprireNuove = piano.daAprire.filter((compito) => {
-      if (a.ruoliCompiti?.[compito]?.ruolo !== 'revisione') return true
+      if (a.ruoliCompiti?.[compito]?.ruolo !== 'revisione' && chatDaRivedere(compito) === undefined) return true
       const autore = chatDaRivedere(compito)
       const vecchia = a.chats.find((c) => c.ruolo === 'revisione' && c.revisioneDi === autore && c.stato === 'finita')
       if (vecchia === undefined) return true
@@ -813,7 +813,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     })
     const nuove: ChatGovernata[] = daAprireNuove.map((compito, i) => {
       const id = `c-${a.chats.length + i + 1}`
-      const ruolo = a.ruoliCompiti?.[compito]?.ruolo
+      // Un compito di Revisione si riconosce anche dal testo, se il grafo l'ha perso.
+      const ruolo = a.ruoliCompiti?.[compito]?.ruolo ?? (chatDaRivedere(compito) !== undefined ? 'revisione' as const : undefined)
       if (ruolo === 'revisione') {
         // Il revisore lavora nella cartella del ramo che rivede, in sola lettura.
         const autore = a.chats.find((c) => c.id === chatDaRivedere(compito))
@@ -2206,6 +2207,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     aggiornato.obiettivo = conCambiUtente.obiettivo
     aggiornato.obiettivoTuo = conCambiUtente.obiettivoTuo
     aggiornato.compitiDaFare = conCambiUtente.compitiDaFare
+    // Il grafo dei compiti (0.71.0): quelli scritti nel frattempo da una chat
+    // sorella (due chat che chiudono insieme e mandano i rami alla Revisione)
+    // si tengono. Visto dal vero nella prova del 13/10: il ruolo «revisione» di
+    // uno dei due compiti spariva e la chat nasceva senza ruolo.
+    if (aggiornato.ruoliCompiti !== undefined || ancora.ruoliCompiti !== undefined) aggiornato.ruoliCompiti = { ...(aggiornato.ruoliCompiti ?? {}), ...(ancora.ruoliCompiti ?? {}) }
     aggiornato.modifiche = conCambiUtente.modifiche
     aggiornato.criteri = conCambiUtente.criteri
     // Le chat fresche (con l'aggiornamento di un'eventuale sorella concorrente) e
@@ -2304,7 +2310,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       })
     }
     if (chiusaQuesta && decisione.tipo !== 'finito') {
-      salva(aggiornato)
+      // Già salvato prima di aprire le chat nuove (0.71.0): risalvarlo qui riscriveva
+      // la copia di prima sopra quella con le chat appena aperte, che sparivano.
+      if (!apriDopo) salva(aggiornato)
       return {}
     }
 

@@ -2277,3 +2277,24 @@ describe('criteri ricontrollati da soli (0.71.0)', () => {
     expect(a.decisioni.map((d: { cosa: string }) => d.cosa).join(' | ')).toContain('«i test» non passa più')
   })
 })
+
+describe('due chat che chiudono insieme (0.71.0, visto dal vero)', () => {
+  it('ognuna manda il suo ramo alla Revisione: due revisori, nessuno senza ruolo', async () => {
+    const SUP = (prompt: string) => {
+      if (prompt.includes('va diviso fra')) return Promise.resolve({ testo: '{"compiti": [{"compito": "Crea somma.js", "ruolo": "sviluppo"}, {"compito": "Crea saluto.js", "ruolo": "sviluppo"}]}' })
+      const chat = /Questa è (c-\d+)/.exec(prompt)?.[1] ?? 'c-1'
+      return new Promise<{ testo: string }>((r) => setTimeout(() => r({ testo: `{"azione": "prosegui", "istruzioni": "avanti", "perche": "fatto", "mosse": [{"tipo": "chiudiChat", "chat": "${chat}"}]}` }), 30))
+    }
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, interroga: SUP })
+    await avvia(server)
+    const id = await creaAp()
+    for (let i = 0; i < 80 && chatAvviate.length < 2; i += 1) await new Promise((r) => setTimeout(r, 25))
+    await Promise.all(['c-1', 'c-2'].map((c) => chiama('POST', `/hook/stop?ap=${id}&chat=${c}`, eventoStop({ session_id: `s-${c}`, last_assistant_message: `fatto ${c}` }))))
+    for (let i = 0; i < 80 && chatAvviate.length < 4; i += 1) await new Promise((r) => setTimeout(r, 25))
+    const a = (await chiama('GET', '/autopiloti')).dati[0]
+    const revisori = a.chats.filter((c: any) => c.compito.startsWith('Rivedi il ramo'))
+    expect(revisori).toHaveLength(2)
+    expect(revisori.every((c: any) => c.ruolo === 'revisione')).toBe(true)
+    expect(revisori.map((c: any) => c.revisioneDi).sort()).toEqual(['c-1', 'c-2'])
+  })
+})
