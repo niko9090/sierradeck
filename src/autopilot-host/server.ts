@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { isAbsolute, join } from 'node:path'
 import { existsSync, statSync } from 'node:fs'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import {
   DIALOGO_RICORDATO, MODIFICHE_RICORDATE, nuovoAutopilota,
   type Autopilota, type ChatGovernata, type Criterio, type Decisione, type Istantanea, type MessaggioPerLaChat
@@ -149,6 +149,14 @@ export type Dipendenze = {
   tempi?: { aggiungi: (g: GiroMisurato) => void; recenti: (autopilota?: string, n?: number) => GiroMisurato[] }
   /** L'orologio in millisecondi per misurare le durate. Assente: `Date.now`. */
   orologio?: () => number
+}
+
+/** La chiave di un turno: autopilota, chat, sessione e impronta dell'ultimo messaggio. */
+export function chiaveDelTurno(id: string, chatId: string | undefined, corpo: Record<string, unknown>): string {
+  const sessione = typeof corpo.session_id === 'string' ? corpo.session_id : ''
+  const ultimo = typeof corpo.last_assistant_message === 'string' ? corpo.last_assistant_message : ''
+  const trascrizione = typeof corpo.transcript_path === 'string' ? corpo.transcript_path : ''
+  return createHash('sha256').update([id, chatId ?? '', sessione, trascrizione, ultimo].join('|')).digest('hex').slice(0, 32)
 }
 
 /** Il messaggio con cui una chat messa in pausa dal freno torna al lavoro. */
@@ -1694,6 +1702,26 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
     }
   }
+  /**
+   * Una fermata, una risposta (0.71.0). Lo stesso Stop può arrivare due volte:
+   * un hook ripetuto da Claude Code, una rete che si interrompe e riprova. Prima
+   * ognuno rifaceva criteri e supervisore, e la chat poteva ricevere due ordini
+   * per lo stesso turno. Con la chiave del turno (autopilota, chat, sessione,
+   * ultimo messaggio) il secondo, se arriva mentre il primo è ancora in giudizio,
+   * aspetta e riceve la stessa risposta.
+   */
+  const turniInCorso = new Map<string, Promise<unknown>>()
+  const stopUnaVolta = (id: string, chatId: string | undefined, corpo: Record<string, unknown>): Promise<unknown> => {
+    const chiave = chiaveDelTurno(id, chatId, corpo)
+    const gia = turniInCorso.get(chiave)
+    if (gia !== undefined) {
+      console.info(`[autopilota] ${id} — la stessa fermata è arrivata due volte mentre la giudicavo: rispondo come alla prima`)
+      return gia
+    }
+    const promessa = suStop(id, chatId, corpo).finally(() => { turniInCorso.delete(chiave) })
+    turniInCorso.set(chiave, promessa)
+    return promessa
+  }
   const suStopMisurato = async (id: string, chatId: string | undefined, corpo: Record<string, unknown>, misura: MisuraGiro): Promise<unknown> => {
     const a = deps.archivio.leggi(id)
     // Una chat sopravvissuta al proprio autopilota — eliminato, fermato, finito —
@@ -3200,7 +3228,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           // chiesto.
           inLavorazione.add(id)
           try {
-            rispondi(res, 200, await suStop(id, chatId, corpo))
+            rispondi(res, 200, await stopUnaVolta(id, chatId, corpo))
           } finally {
             inLavorazione.delete(id)
           }

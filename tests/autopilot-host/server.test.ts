@@ -2097,3 +2097,20 @@ describe('tre chat insieme (0.71.0): ognuna il suo ordine, nessuno perso', () =>
     expect(new Set(stato.chats.map((c: { sessioneSupervisore?: string }) => c.sessioneSupervisore)).size).toBe(3)
   })
 })
+
+describe('una fermata, una risposta (0.71.0)', () => {
+  it('lo stesso Stop arrivato due volte mentre lo giudica: un solo giro di supervisore, la stessa risposta', async () => {
+    let chiamate = 0
+    server = ambiente({ interroga: () => { chiamate += 1; return new Promise((r) => setTimeout(() => r({ testo: '{"azione": "prosegui", "istruzioni": "avanti così", "perche": "manca"}' }), 50)) } })
+    await avvia(server)
+    const id = await creaAp()
+    const ev = eventoStop({ session_id: 's-1', last_assistant_message: 'ho finito il pezzo A' })
+    const [a, b] = await Promise.all([chiama('POST', `/hook/stop?ap=${id}`, ev), chiama('POST', `/hook/stop?ap=${id}`, ev)])
+    expect(chiamate).toBe(1)
+    expect(a.dati).toEqual(b.dati)
+    expect((await chiama('GET', '/autopiloti')).dati[0].cicli).toBe(1)
+    // Un turno nuovo (altro messaggio) è un giro nuovo.
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ session_id: 's-1', last_assistant_message: 'ho finito il pezzo B' }))
+    expect(chiamate).toBe(2)
+  })
+})
