@@ -170,3 +170,22 @@ describe('registro degli schermi', () => {
     expect(righeDiPty('mai-esistito', 10)).toBeUndefined()
   })
 })
+
+describe('il suggerimento di Claude Code nel campo non è testo scritto (0.71.1)', () => {
+  const attenuata = (c: string): Cella => ({ ...cella(c), isDim: () => 1 })
+  const campo = (scritto: string, suggerito: string, prefisso = '❯ '): RigaSchermo => {
+    const celle = [...[...prefisso].map((c) => cella(c)), ...[...scritto].map((c) => cella(c)), ...[...suggerito].map((c) => attenuata(c))]
+    return { length: celle.length, getCell: (x) => celle[x] }
+  }
+  it('«❯ Fammi un’altra domanda» in grigio: il campo è vuoto', () => {
+    expect(testoDiRiga(campo('', "Fammi un'altra domanda di prova"))).toBe('❯')
+    expect(testoDiRiga(campo('', 'Try "fix the tests"', '│ ❯ '))).toBe('│ ❯')
+  })
+  it('quello che hai scritto resta', () => {
+    expect(testoDiRiga(campo('Blu.', ''))).toBe('❯ Blu.')
+  })
+  it('fuori dal campo il testo attenuato resta (i messaggi in grigio di Claude Code)', () => {
+    const celle = [...'Thinking…'].map((c) => attenuata(c))
+    expect(testoDiRiga({ length: celle.length, getCell: (x) => celle[x] })).toBe('Thinking…')
+  })
+})

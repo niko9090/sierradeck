@@ -135,6 +135,11 @@ function sequenzaDi(v: Vestito): string {
 /** Il testo di una riga, nudo. */
 export function testoDiRiga(riga: RigaSchermo): string {
   let testo = ''
+  // Nel campo «❯» il testo attenuato (dim) è un suggerimento di Claude Code
+  // (0.71.1, Claude Code 2.1.29x: «❯ Fammi un'altra domanda di prova» in
+  // grigio), non testo scritto: letto come scritto, il campo sembrava pieno e
+  // il sottofondo non consegnava più (visto dal vero il 13/10).
+  let nelCampo = false
   for (let x = 0; x < riga.length; x += 1) {
     const cella = riga.getCell(x)
     if (cella === undefined) continue
@@ -142,7 +147,9 @@ export function testoDiRiga(riga: RigaSchermo): string {
     // il carattere l'ha già scritto la prima, e ripeterlo lo sdoppierebbe.
     if (cella.getWidth() === 0) continue
     const c = cella.getChars()
+    if (nelCampo && c.trim() !== '' && cella.isDim() !== 0) continue
     testo += c === '' ? ' ' : c
+    if (c === '❯' && /^\s*[│|]?\s*$/.test(testo.slice(0, -1))) nelCampo = true
   }
   return testo.replace(/\s+$/, '')
 }
