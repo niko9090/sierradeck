@@ -1355,6 +1355,8 @@ function impronta(s) {
     // nell'impronta, il riquadro di scelta arriva e la pagina non si ridisegna.
     scelteDentro ? scelteDentro.corrente + ':' + scelteDentro.opzioni.map((o) => o.testo).join('/') : '',
     notaScelta || '',
+    // I «?» aperti (0.71.0): senza, il tocco cambiava aiutiAperti e la pagina non si ridisegnava.
+    JSON.stringify(aiutiAperti),
     // **Anche cio' che si e' letto apposta.** Il dettaglio di un autopilota,
     // l'elenco delle cartelle, la coda, il Drive, le preferenze, le schede:
     // arrivano con una chiamata a parte e non stanno nello stato del PC. Senza

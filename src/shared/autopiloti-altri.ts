@@ -63,5 +63,23 @@ export function autopilotiDaStato(stato: unknown): AutopilotaRiga[] {
   const a = (stato as { autopiloti?: unknown } | null)?.autopiloti
   if (!Array.isArray(a)) return []
   return a.filter((x): x is AutopilotaRiga => typeof x === 'object' && x !== null && typeof (x as AutopilotaRiga).id === 'string')
-    .map((x) => ({ ...x, nome: typeof x.nome === 'string' && x.nome !== '' ? x.nome : (typeof x.obiettivo === 'string' ? x.obiettivo : x.id), stato: typeof x.stato === 'string' ? x.stato : '' }))
+    .map((x) => ({
+      ...x,
+      nome: typeof x.nome === 'string' && x.nome !== '' ? x.nome : (typeof x.obiettivo === 'string' ? x.obiettivo : x.id),
+      stato: typeof x.stato === 'string' ? x.stato : '',
+      // In `/api/stato` i criteri sono un **numero** (con `fatti`), non l'elenco:
+      // la riga li ridisegna come elenco, o «criteri.filter is not a function»
+      // faceva cadere tutto il pannello Autopiloti (0.70.0, 13/10).
+      criteri: criteriDa(x.criteri, x.fatti),
+      chats: Array.isArray(x.chats) ? x.chats : [],
+      compitiDaFare: Array.isArray(x.compitiDaFare) ? x.compitiDaFare : []
+    }))
+}
+
+/** I criteri di una riga: l'elenco se c'è, altrimenti `n` criteri di cui `fatti` soddisfatti. */
+export function criteriDa(criteri: unknown, fatti: unknown): { soddisfatto: boolean }[] {
+  if (Array.isArray(criteri)) return criteri.filter((c): c is { soddisfatto: boolean } => typeof c === 'object' && c !== null).map((c) => ({ ...c, soddisfatto: c.soddisfatto === true }))
+  const n = typeof criteri === 'number' && Number.isFinite(criteri) ? Math.max(0, Math.min(200, Math.floor(criteri))) : 0
+  const f = typeof fatti === 'number' && Number.isFinite(fatti) ? Math.max(0, Math.floor(fatti)) : 0
+  return Array.from({ length: n }, (_, i) => ({ soddisfatto: i < f }))
 }

@@ -1,3 +1,4 @@
+import { TendinaMenu } from './TendinaMenu'
 import { useEffect, useState } from 'react'
 import {
   coloreValido, portaValida, PREFERENZE_PREDEFINITE, type Preferenze
@@ -596,10 +597,10 @@ export function PannelloImpostazioni(
         <span style={{ position: 'relative' }}>
           <button className="tasto tasto--mini" aria-expanded={menu} onClick={() => setMenu(!menu)}>Strumenti ▾</button>
           {menu ? (
-            <div className="progetti__menu" onMouseLeave={() => setMenu(false)}>
+            <TendinaMenu onChiudi={() => setMenu(false)}>
               <button className="progetti__voce" onClick={() => { setMenu(false); setFabbrica(true) }} title="Rimette le preferenze ai predefiniti, senza toccare chat, workspace, PIN o account">Torna ai valori di fabbrica…</button>
               <button className="progetti__voce" onClick={() => { setMenu(false); void window.gestore.log.apri() }}>Apri il registro</button>
-            </div>
+            </TendinaMenu>
           ) : null}
         </span>
         <Aiuto di="Impostazioni">Solo le preferenze: aggiornamenti, nome del computer e rete, comportamento delle chat, l’account Google, aspetto, notifiche. A sinistra le sezioni; in cima come stanno versione, Drive, cassaforte e telefoni (un clic porta alla sezione). In «Generali» c’è anche la ricerca.</Aiuto>

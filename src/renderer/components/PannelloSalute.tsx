@@ -1,3 +1,4 @@
+import { TendinaMenu } from './TendinaMenu'
 import { useCallback, useEffect, useState } from 'react'
 import { MappaPc } from './MappaPc'
 import type { AzioneSalute, Salute, VoceSalute } from '@shared/salute'
@@ -131,13 +132,13 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
         <span style={{ position: 'relative' }}>
           <button className="tasto tasto--mini" aria-expanded={menu} onClick={() => setMenu(!menu)}>Strumenti ▾</button>
           {menu ? (
-            <div className="progetti__menu" onMouseLeave={() => setMenu(false)}>
+            <TendinaMenu onChiudi={() => setMenu(false)}>
               <button className="progetti__voce" title="I PC che usano lo stesso Drive: acceso o spento, versione, le chat che hanno aperte (da guardare dal vivo) e la cassetta" onClick={() => { setMenu(false); setScelta(undefined); setMappa(false); setParte('altri-pc') }}>Gli altri computer</button>
               <button className="progetti__voce" title="La mappa dei PC, con la strada di ognuno" onClick={() => { setMenu(false); setScelta(undefined); setParte(undefined); setMappa(true) }}>Mappa dei PC</button>
               <button className="progetti__voce" title="I token per giorno e per chat, i limiti del piano e le regole del freno" onClick={() => { setMenu(false); setScelta(undefined); setMappa(false); setParte('consumi') }}>Consumi per esteso</button>
-              <button className="progetti__voce" title="La colonna «Consumi e limiti» accanto alle chat, che resta aperta mentre lavori" onClick={() => { setMenu(false); onConsumi?.() }}>{consumiAperti ? 'Chiudi la colonna dei consumi' : 'Consumi e limiti (colonna)'}</button>
+              <button className="progetti__voce" title="La colonna «Consumi e limiti» accanto alle chat, che resta aperta mentre lavori" onClick={() => { setMenu(false); onConsumi?.(); if (consumiAperti !== true) onChiudi() }}>{consumiAperti ? 'Chiudi la colonna dei consumi' : 'Consumi e limiti (colonna)'}</button>
               <button className="progetti__voce" onClick={() => { setMenu(false); void window.gestore.log.apri() }}>Apri la cartella del registro</button>
-            </div>
+            </TendinaMenu>
           ) : null}
         </span>
         <Aiuto di="Salute">Com’è messo SierraDeck, in un posto solo: il Drive, gli altri PC (ultimo segno, strada, versione, quanto lavorano), un aggiornamento non installato, gli errori delle ultime ore, le istruzioni degli autopiloti non partite. Clic su una voce: il perché e cosa fare. Si rilegge da sola ogni minuto; «Aggiorna» bussa di nuovo agli altri PC adesso.</Aiuto>

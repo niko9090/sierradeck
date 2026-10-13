@@ -1,3 +1,4 @@
+import { TendinaMenu } from './TendinaMenu'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { byteLeggibili } from '@shared/spazio-drive'
@@ -153,7 +154,7 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
         <span style={{ position: 'relative' }}>
           <button className="tasto tasto--mini" aria-expanded={menu} onClick={() => setMenu(!menu)}>Strumenti ▾</button>
           {menu ? (
-            <div className="progetti__menu" onMouseLeave={() => setMenu(false)}>
+            <TendinaMenu onChiudi={() => setMenu(false)}>
               {([
                 ['chat', 'Tutte le chat', 'Ogni chat con il suo PC residente; lo cambi chat per chat.'],
                 ['salvataggio', 'Salvataggio e arrivo', 'Salva ora, Ripristina, salvataggio automatico, «Fondi con il Drive».'],
@@ -167,7 +168,7 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
               <button className="progetti__voce" title="Le chat che stanno qui ma hanno casa su un altro PC: le metti da parte quando confermi." onClick={() => { setRiordina(true); setMenu(false) }}>Riordina le chat…</button>
               <button className="progetti__voce" title="Il PC che ospita ogni chat dei workspace." onClick={() => { setMenu(false); window.dispatchEvent(new Event('sierradeck:dove-vive')) }}>Dove vive ogni chat…</button>
               <button className="progetti__voce" title="Porta un progetto con chat e file da questo PC a un altro." onClick={() => { setSposta(''); setMenu(false) }}>Sposta progetto…</button>
-            </div>
+            </TendinaMenu>
           ) : null}
         </span>
         <Aiuto di="Progetti">

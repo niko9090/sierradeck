@@ -1,3 +1,4 @@
+import { TendinaMenu } from './TendinaMenu'
 import { MessaggiVersoLaChat, RigaDalVivo } from './DalVivoAutopilota'
 import { createPortal } from 'react-dom'
 import { contaGruppiAp, cercaAutopiloti, GRUPPI_AP, nelGruppoAp, ordinaAutopiloti, vistaAutopilota, type GruppoAp } from '@shared/autopiloti-vista'
@@ -171,7 +172,7 @@ export function PannelloAutopiloti({
         <span style={{ position: 'relative' }}>
           <button className="tasto tasto--mini" aria-expanded={menu} onClick={() => setMenu(!menu)}>Strumenti ▾</button>
           {menu ? (
-            <div className="progetti__menu" onMouseLeave={() => setMenu(false)}>
+            <TendinaMenu onChiudi={() => setMenu(false)}>
               <button className="progetti__voce" disabled={inCorso} onClick={() => { setMenu(false); onRicarica() }}>Aggiorna</button>
               {/* Il servizio sopravvive alla chiusura dell'applicazione ma non allo
                   spegnimento del PC: è questo interruttore a farlo tornare da solo. */}
@@ -195,7 +196,7 @@ export function PannelloAutopiloti({
                 />
                 Riparti al login
               </label>
-            </div>
+            </TendinaMenu>
           ) : null}
         </span>
         <Aiuto di="Autopiloti">

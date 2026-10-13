@@ -29,7 +29,8 @@ describe('la colonna «Consumi e limiti»', () => {
     expect(app).toContain('larghezzaConsumi: px')
     const salute = readFileSync('src/renderer/components/PannelloSalute.tsx', 'utf8')
     // 0.70.0: la colonna si apre da Salute → Strumenti ▾.
-    expect(salute).toContain('onConsumi?.() }}>')
+    // 0.71.0: aprendo la colonna la Salute si chiude, o la coprirebbe (era sotto, invisibile).
+    expect(salute).toContain('onConsumi?.(); if (consumiAperti !== true) onChiudi() }}>')
     expect(app).toContain("onConsumi={() => commutaColonna('consumi')}")
     const colonna = readFileSync('src/renderer/components/ColonnaConsumi.tsx', 'utf8')
     // Le sezioni e i testi per esteso: cosa guarda, da dove arriva, se non torna.

@@ -1,3 +1,4 @@
+import { TendinaMenu } from './TendinaMenu'
 import { vistaAccount } from '@shared/account-vista'
 import type { Colore } from '@shared/stato-vista'
 import { useEffect, useState } from 'react'
@@ -363,12 +364,12 @@ function SezioneSync({ parte, utente, onEsci }: { parte: 'account' | 'salvataggi
               <span style={{ position: 'relative' }}>
                 <button className="tasto tasto--mini" aria-expanded={menu} onClick={() => setMenu(!menu)}>Strumenti ▾</button>
                 {menu ? (
-                  <div className="progetti__menu" onMouseLeave={() => setMenu(false)}>
+                  <TendinaMenu onChiudi={() => setMenu(false)}>
                     <button className="progetti__voce" disabled={!pronto} onClick={() => { setMenu(false); setCambiaAperto(true); setMsg(undefined) }}>Cambia passphrase…</button>
                     <button className="progetti__voce" disabled={!sync.sbloccato || inCorso} onClick={() => { setMenu(false); blocca() }}>Blocca la cassaforte</button>
                     <button className="progetti__voce" disabled={!drive.connesso || inCorso} title="Toglie il collegamento a questo Drive: per collegarne un altro o per ricollegare questo" onClick={() => { setMenu(false); scollega() }}>Scollega il Drive</button>
                     {onEsci !== undefined ? <button className="progetti__voce" onClick={() => { setMenu(false); onEsci() }}>Esci dall’account</button> : null}
-                  </div>
+                  </TendinaMenu>
                 ) : null}
               </span>
             </div>

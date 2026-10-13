@@ -188,16 +188,18 @@ export function descriviAutopilota(a: Autopilota): {
   sottotitolo: string
   avanzamento: string
 } {
-  const soddisfatti = a.criteri.filter((c) => c.soddisfatto).length
+  // Difesa (0.71.0): una riga arrivata da un altro PC può non avere gli elenchi.
+  const criteriA = Array.isArray(a.criteri) ? a.criteri : []
+  const soddisfatti = criteriA.filter((c) => c.soddisfatto).length
   // In intervista i criteri non esistono ancora: «0 su 0» misurerebbe niente.
-  const avanzamento = a.criteri.length === 0
+  const avanzamento = criteriA.length === 0
     ? '—'
-    : `${soddisfatti} ${soddisfatti === 1 ? 'criterio' : 'criteri'} su ${a.criteri.length}`
+    : `${soddisfatti} ${soddisfatti === 1 ? 'criterio' : 'criteri'} su ${criteriA.length}`
 
   // Della flotta si parla solo quando c'è: chi governa una chat sola non deve
   // leggere «1 chat» in ogni riga.
-  const attive = a.chats.filter((c) => c.stato === 'lavoro').length
-  const coda = a.compitiDaFare.length
+  const attive = (Array.isArray(a.chats) ? a.chats : []).filter((c) => c.stato === 'lavoro').length
+  const coda = (Array.isArray(a.compitiDaFare) ? a.compitiDaFare.length : 0)
   const flotta = attive > 1 || coda > 0
     ? ` · ${attive} chat${coda > 0 ? `, ${coda} in coda` : ''}`
     : ''
@@ -213,7 +215,7 @@ export function descriviAutopilota(a: Autopilota): {
     case 'pronto': {
       // Si dice cosa ha deciso, non che è fermo: è la riga che invita ad
       // aprirlo e leggere i criteri prima che comincino ore di lavoro.
-      const quante = a.criteri.length
+      const quante = criteriA.length
       sottotitolo = `pronto — ${quante} ${quante === 1 ? 'cosa' : 'cose'} da raggiungere, aspetta il tuo via`
       break
     }

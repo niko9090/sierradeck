@@ -1,3 +1,4 @@
+import { TendinaMenu } from './TendinaMenu'
 import React, { useEffect, useRef, useState } from 'react'
 import type {
   CodaVista, DestinazioneVista, ElencoVista, FileInModificaVista, RichiestaVista, VoceVista
@@ -186,10 +187,10 @@ export function PannelloTrasferimenti(
         <span style={{ position: 'relative' }}>
           <button className="tasto tasto--mini" aria-expanded={menuFile} onClick={() => setMenuFile(!menuFile)}>Strumenti ▾</button>
           {menuFile ? (
-            <div className="progetti__menu" onMouseLeave={() => setMenuFile(false)}>
+            <TendinaMenu onChiudi={() => setMenuFile(false)}>
               <button className="progetti__voce" title="Un server SSH/SFTP per questo progetto: i file di qua e di là, affiancati" onClick={() => { setMenuFile(false); setModifica({ cwd, porta: 22, metodo: 'password' }); setPassword('') }}>+ Server…</button>
               {dest !== undefined ? <button className="progetti__voce" onClick={() => { setMenuFile(false); setModifica(dest); setPassword('') }}>Modifica il server…</button> : null}
-            </div>
+            </TendinaMenu>
           ) : null}
         </span>
         <Aiuto di="File">I file del progetto della chat che hai davanti: sfoglia, filtra, rinomina, elimina, «📱 Manda al telefono». Con un server (Strumenti ▾ → + Server) li vedi affiancati: «→ Carica» e «← Scarica», e una colonna dice cosa è uguale, più nuovo o diverso.</Aiuto>

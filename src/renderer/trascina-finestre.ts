@@ -56,11 +56,20 @@ export function posizioneLimitata(
  * niente: il tasto della barra è quello che l'ha aperta, e chiuderla da qui la
  * farebbe riaprire subito dopo.
  */
+/** Cosa conta come «dentro» la finestra aperta, oltre a `.pannello` e alla barra. */
+export const DENTRO_LA_FINESTRA = '.progetti, [role="dialog"], [role="menu"], .progetti__menu, .aiuto__testo, .velo, .dialogo, .ws-menu__tendina, .ws-menu__velo'
+
 export function attivaChiusuraFuori(chiudi: () => void, doc: Document = document): () => void {
   const premuto = (e: MouseEvent): void => {
     const bersaglio = e.target as HTMLElement | null
     if (bersaglio === null) return
     if (bersaglio.closest('.pannello') !== null) return
+    // Le schermate a tutta finestra della 0.70.0 (`.progetti`, con le loro
+    // tendine, i fumetti del «?» e le finestre di conferma, spesso fuori dal
+    // contenitore) sono la finestra stessa: un clic lì dentro non è «fuori».
+    // Prima la 0.70.0 chiudeva Autopiloti, Salute, Impostazioni e File al primo
+    // clic vero su una linguetta, su «Strumenti ▾» o su un «?» (13/10).
+    if (bersaglio.closest(DENTRO_LA_FINESTRA) !== null) return
     if (bersaglio.closest('.console') !== null) return
     chiudi()
   }

@@ -27,11 +27,19 @@ export function SuAltriPc(): React.JSX.Element | null {
     return () => clearInterval(t)
   }, [])
   useEffect(() => { if (aperto) setErrore(undefined); if (aperto) void window.gestore.workspace.altriPc().then(setAltrove).catch(() => undefined) }, [aperto])
+  // Esc la chiude (0.71.0): prima solo un clic fuori, e il velo restava sopra tutto.
+  useEffect(() => {
+    if (!aperto) return
+    const su = (e: KeyboardEvent): void => { if (e.key === 'Escape') { e.stopImmediatePropagation(); setAperto(false) } }
+    window.addEventListener('keydown', su, true)
+    return () => window.removeEventListener('keydown', su, true)
+  }, [aperto])
   useLayoutEffect(() => {
     if (!aperto) return
     const r = tasto.current?.getBoundingClientRect()
     if (r === undefined) return
-    const larghezza = Math.min(420, window.innerWidth - 32)
+    // La stessa larghezza del CSS (.ws-menu__tendina: min(480px, 100vw - 32px)): con 420 usciva a destra.
+    const larghezza = Math.min(480, window.innerWidth - 32)
     setPosto({ top: r.bottom + 4, left: Math.max(16, Math.min(r.left, window.innerWidth - larghezza - 16)) })
   }, [aperto])
 

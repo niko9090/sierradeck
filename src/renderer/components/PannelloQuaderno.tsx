@@ -1,3 +1,4 @@
+import { TendinaMenu } from './TendinaMenu'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Scheda } from '@shared/quaderno'
 import { assaggio, cartelleUniche, filtraSchede, nomeCartella, ordinaSchedeCome, quandoBreve, tuttiITag, type OrdineSchede } from '@shared/quaderno-vista'
@@ -249,12 +250,12 @@ export function PannelloQuaderno({ cwd, cartelle, onChiudi }: Props): React.JSX.
         <span style={{ position: 'relative' }}>
           <button className="tasto tasto--mini" aria-expanded={menu} onClick={() => setMenu(!menu)}>Strumenti ▾</button>
           {menu ? (
-            <div className="progetti__menu" onMouseLeave={() => setMenu(false)}>
+            <TendinaMenu onChiudi={() => setMenu(false)}>
               <button className="progetti__voce" onClick={() => { setMenu(false); void window.gestore.quaderno.apri(quale) }}>Apri la cartella del quaderno</button>
               <button className="progetti__voce" disabled={aperta === undefined} onClick={() => { setMenu(false); copiaPercorso() }}>Copia il percorso della scheda</button>
               <button className="progetti__voce" disabled={aperta === undefined} onClick={() => { setMenu(false); setConferma(true) }}>Elimina la scheda…</button>
               <button className="progetti__voce" onClick={() => { setMenu(false); setPersonale(true) }}>🔒 Quaderno personale</button>
-            </div>
+            </TendinaMenu>
           ) : null}
         </span>
         <Aiuto di="Quaderno">

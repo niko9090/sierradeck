@@ -1,3 +1,4 @@
+import { TendinaMenu } from './TendinaMenu'
 import { useEffect, useState } from 'react'
 import { useLayoutStore } from '../state/layout'
 import { useSessionStore } from '../state/sessions'
@@ -360,7 +361,7 @@ export function Console({
             Strumenti ▾{modello !== 'default' ? ` · ${MODELLI.find((m) => m.valore === modello)?.etichetta.split(' (')[0] ?? modello}` : ''}
           </button>
           {strumenti ? (
-            <div className="progetti__menu" style={{ left: 0, right: 'auto' }} onMouseLeave={() => setStrumenti(false)}>
+            <TendinaMenu onChiudi={() => setStrumenti(false)}>
               <label className="progetti__voce" title="Con quale modello partiranno le prossime chat">
                 Modello delle prossime chat
                 <select className="campo campo--compatto" style={{ display: 'block', marginTop: 4, width: '100%' }} value={modello} onChange={(e) => setModello(e.target.value)}>
@@ -373,7 +374,7 @@ export function Console({
               <button className="progetti__voce" onClick={() => { setStrumenti(false); commuta('workspace') }}>Crea, rinomina, elimina workspace…</button>
               <button className="progetti__voce" onClick={() => { setStrumenti(false); void window.gestore.finestre.nuova() }}>Nuova finestra</button>
               <button className="progetti__voce" onClick={() => { setStrumenti(false); commuta('negozio') }}>Negozio…</button>
-            </div>
+            </TendinaMenu>
           ) : null}
         </span>
       </div>
