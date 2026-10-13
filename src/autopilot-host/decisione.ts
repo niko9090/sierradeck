@@ -13,6 +13,11 @@ export type EsitoVerifica = {
    * sta nel comando. Assente vuol dire misurato, che è il caso normale.
    */
   misurato?: boolean
+  /**
+   * Esito non rimisurato in questo turno (0.71.0): un comando lungo che si
+   * rimisura ogni pochi turni e prima di «finito». Quando era stato misurato.
+   */
+  rimandatoDal?: string
   /** Ciò che il comando ha stampato, già troncato da chi lo ha eseguito. */
   uscita: string
 }

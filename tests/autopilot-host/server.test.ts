@@ -1,3 +1,4 @@
+import { apriRegistroTempi } from '../../src/autopilot-host/tempi'
 import { STRATEGIE } from '../../src/autopilot-host/strategie'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync } from 'node:fs'
@@ -49,6 +50,7 @@ function ambiente(
     adesso?: () => string
     git?: Git
     limiti?: unknown
+    tempi?: ReturnType<typeof apriRegistroTempi>
   } = {}
 ): ServerAutopiloti {
   limitiDaSpingere = opts.limiti
@@ -78,7 +80,8 @@ function ambiente(
     scadenzaInterviataMs: opts.scadenzaInterviataMs ?? 5000,
     ...(opts.silenzioMassimoMs !== undefined ? { silenzioMassimoMs: opts.silenzioMassimoMs } : {}),
     adesso: opts.adesso ?? (() => '2026-08-09T10:05:00.000Z'),
-    ...(opts.git !== undefined ? { git: opts.git } : {})
+    ...(opts.git !== undefined ? { git: opts.git } : {}),
+    ...(opts.tempi !== undefined ? { tempi: opts.tempi } : {})
   })
 }
 
@@ -1598,7 +1601,7 @@ describe('cosa ha capito, e cosa ha raggiunto', () => {
     let passa = true
     server = ambiente({
       esegui: (comando) => Promise.resolve(
-        comando === 'npm test'
+        comando === 'node controlla.js'
           ? (passa ? { codice: 0, uscita: 'ok' } : { codice: 1, uscita: '2 rossi' })
           : { codice: 1, uscita: 'lint sporco' }
       )
@@ -1606,7 +1609,8 @@ describe('cosa ha capito, e cosa ha raggiunto', () => {
     await avvia(server)
     const id = await creaAp({
       criteri: [
-        { descrizione: 'i test passano', comando: 'npm test' },
+        // Un comando leggero: i pesanti (npm test, gradle) si rimisurano a turni alterni (0.71.0).
+        { descrizione: 'i test passano', comando: 'node controlla.js' },
         { descrizione: 'lint pulito', comando: 'npm run lint' }
       ]
     })
@@ -2000,5 +2004,22 @@ describe('una nota del programma nel diario (0.37.5)', () => {
     expect(archivio.leggi('ap-n')?.decisioni.at(-1)?.cosa).toBe('programma: il compito è nella chat «Notte» ma non è partito')
     expect((await chiama('POST', '/autopiloti/ap-n/nota', { testo: '' })).stato).toBe(400)
     expect((await chiama('POST', '/autopiloti/nessuno/nota', { testo: 'x' })).stato).toBe(404)
+  })
+})
+
+describe('i tempi di ogni giro (0.71.0)', () => {
+  it('una fermata si misura fase per fase e si legge da /tempi', async () => {
+    const tempi = apriRegistroTempi(mkdtempSync(join(tmpdir(), 'ap-tempi-')))
+    server = ambiente({ tempi, interroga: () => Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "avanti", "perche": "manca"}' }) })
+    await avvia(server)
+    const id = await creaAp()
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    const r = await chiama('GET', `/tempi?ap=${id}`)
+    expect(r.dati.giri).toHaveLength(1)
+    const g = r.dati.giri[0]
+    expect(g.esito).toBe('prosegui')
+    expect(Object.keys(g.fasi)).toEqual(expect.arrayContaining(['lettura', 'unione', 'criteri', 'supervisore', 'risposta']))
+    expect(g.criteri.eseguiti).toHaveLength(1)
+    expect(r.dati.riassunto.giri).toBe(1)
   })
 })

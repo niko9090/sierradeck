@@ -75,8 +75,10 @@ export function componiPromptDecisione(
       if (esito.misurato === false) {
         return `- «${c.descrizione}» — NON MISURABILE: \`${esito.comando}\` non parte.\n  ${esito.uscita.slice(0, USCITA_NEL_QUADRO)}`
       }
-      if (esito.passato) return `- «${c.descrizione}» — soddisfatto`
-      return `- «${c.descrizione}» — non soddisfatto.\n  ${esito.uscita.slice(0, USCITA_NEL_QUADRO)}`
+      // Un comando lungo non rimisurato in questo turno (0.71.0): lo si dice, non è un esito fresco.
+      const vecchio = esito.rimandatoDal !== undefined ? ` (esito delle ${esito.rimandatoDal.slice(11, 16)} UTC, non rimisurato in questo turno)` : ''
+      if (esito.passato) return `- «${c.descrizione}» — soddisfatto${vecchio}`
+      return `- «${c.descrizione}» — non soddisfatto${vecchio}.\n  ${esito.uscita.slice(0, USCITA_NEL_QUADRO)}`
     })
     .join('\n')
 

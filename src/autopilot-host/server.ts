@@ -17,6 +17,8 @@ import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
 import { STRATEGIE } from './strategie'
 import { eseguiCriteri, type Esecutore } from './verifiche'
+import { improntaCodice, misuraCriteri, turnoCompleto, type MemoriaCriteri } from './criteri-veloci'
+import { cronometro, riassuntoTempi, type GiroMisurato } from './tempi'
 import {
   chiediCambio, chiediGiudizio, componiPromptScomposizione, leggiCompiti, riparaComando,
   type Interrogazione
@@ -140,6 +142,13 @@ export type Dipendenze = {
    * vogliono: allora l'autopilota lavora come prima, con una chat sola.
    */
   git?: Git
+  /**
+   * Dove si scrivono i tempi di ogni giro (0.71.0). Assente nei test che non
+   * lo chiedono: i giri si misurano lo stesso, ma non si salvano.
+   */
+  tempi?: { aggiungi: (g: GiroMisurato) => void; recenti: (autopilota?: string, n?: number) => GiroMisurato[] }
+  /** L'orologio in millisecondi per misurare le durate. Assente: `Date.now`. */
+  orologio?: () => number
 }
 
 /** Il messaggio con cui una chat messa in pausa dal freno torna al lavoro. */
@@ -1645,7 +1654,30 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * proseguire la chat, `{}` per lasciarla fermare. È l'unico punto in cui lo
    * stato di un autopilota cambia per effetto della chat che governa.
    */
+  /**
+   * I tempi di ogni giro (0.71.0): la fermata si misura fase per fase e si
+   * scrive nel registro dei tempi, qualunque strada prenda.
+   */
+  const orologio = deps.orologio ?? Date.now
+  const memoriaCriteri: MemoriaCriteri = new Map()
+  type MisuraGiro = { crono: ReturnType<typeof cronometro>; esito: string; criteri?: GiroMisurato['criteri']; daRegistrare: boolean }
   const suStop = async (id: string, chatId: string | undefined, corpo: Record<string, unknown>): Promise<unknown> => {
+    const m: MisuraGiro = { crono: cronometro(orologio), esito: 'fermo', daRegistrare: false }
+    const inizio = deps.adesso()
+    try {
+      const r = await suStopMisurato(id, chatId, corpo, m)
+      if (m.esito === 'fermo' && typeof r === 'object' && r !== null && (r as { decision?: unknown }).decision === 'block') m.esito = 'prosegui'
+      return r
+    } finally {
+      if (m.daRegistrare) {
+        m.crono.segna('risposta')
+        const giro: GiroMisurato = { autopilota: id, ...(chatId !== undefined ? { chat: chatId } : {}), inizio, fasi: m.crono.fasi(), totale: m.crono.trascorsi(), esito: m.esito, ...(m.criteri !== undefined ? { criteri: m.criteri } : {}) }
+        try { deps.tempi?.aggiungi(giro) } catch { /* solo misure */ }
+        console.info(`[autopilota] ${id} — giro ${Math.round(giro.totale / 100) / 10} s (${Object.entries(giro.fasi).map(([n, ms]) => `${n} ${Math.round(ms / 100) / 10} s`).join(', ')}) → ${giro.esito}`)
+      }
+    }
+  }
+  const suStopMisurato = async (id: string, chatId: string | undefined, corpo: Record<string, unknown>, misura: MisuraGiro): Promise<unknown> => {
     const a = deps.archivio.leggi(id)
     // Una chat sopravvissuta al proprio autopilota — eliminato, fermato, finito —
     // deve potersi fermare, non restare appesa a un padrone che non comanda più.
@@ -1679,6 +1711,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // nell'API — e chi guardava lo credeva fermo. Il valore è già giusto qui:
     // l'hook è arrivato, il giro è stato fatto.
     salva(conSessione)
+    misura.daRegistrare = true
+    misura.crono.segna('lettura')
     // La chat ha appena chiuso un turno: è viva, e il guardiano deve saperlo.
     // Si segna sotto **la sua** chiave: segnarlo sotto la sola id
     // dell'autopilota faceva risultare vive anche le sorelle che tacevano.
@@ -1757,7 +1791,17 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
     }
 
-    let esiti: EsitoVerifica[] = await eseguiCriteri(conSessione.criteri, conSessione.cwd, deps.esegui)
+    misura.crono.segna('unione')
+    // **Criteri veloci** (0.71.0): cache sull'impronta del codice, i pesanti a
+    // turni alterni, due in parallelo. Prima del «finito» si rimisura tutto.
+    const cicliChat = chatId !== undefined ? (conSessione.chats.find((c) => c.id === chatId)?.cicli ?? conSessione.cicli) : conSessione.cicli
+    const improntaOra = deps.git !== undefined ? improntaCodice(deps.git, conSessione.cwd) : undefined
+    const misurati = await misuraCriteri(conSessione.criteri, conSessione.cwd, deps.esegui, {
+      memoria: memoriaCriteri, adesso: orologio, tutti: turnoCompleto(cicliChat),
+      ...(improntaOra !== undefined ? { impronta: improntaOra } : {})
+    })
+    let esiti: EsitoVerifica[] = misurati.esiti
+    misura.criteri = { eseguiti: misurati.durate, daCache: misurati.daCache.length, rimandati: misurati.rimandati.length }
 
     // Un comando che non parte non dice niente sul lavoro: dice che la domanda
     // è rotta. Prima si ripeteva il giro all'infinito con la chat che cercava
@@ -1789,6 +1833,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
     }
 
+    misura.crono.segna('criteri')
     const criteri = conSessione.criteri.map((c) => {
       const esito = esiti.find((e) => e.descrizione === c.descrizione)
       // L'esito si conserva accanto al criterio, non solo la spunta: è la riga
@@ -1870,6 +1915,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         aggiornato, esiti, ultimoMessaggio, inCerchioDa, deps.interroga, sessioneDiPartenza, tuoiNelQuadro, harness
       )
       mosseChieste = suggerita?.mosse
+      misura.crono.segna('supervisore')
       if (sessioneNuova !== undefined) {
         if (miaChat !== undefined) {
           aggiornato.chats = aggiornato.chats.map((c) => (c.id === chatId ? { ...c, sessioneSupervisore: sessioneNuova } : c))
@@ -1897,6 +1943,29 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // scriverla adesso resusciterebbe un autopilota fermato, o ne ricreerebbe uno
     // eliminato — con la chat ancora governata. Si rilegge e, se non è più «in
     // lavoro», la volontà dell'utente vince e si lascia fermare la chat.
+    // «Finito» solo sui criteri misurati adesso (0.71.0): quelli pesanti
+    // rimandati in questo turno si rimisurano prima di chiudere.
+    if (decisione.tipo === 'finito' && misurati.rimandati.length > 0) {
+      const tuttiOra = await misuraCriteri(conSessione.criteri, conSessione.cwd, deps.esegui, {
+        memoria: memoriaCriteri, adesso: orologio, tutti: true, ...(improntaOra !== undefined ? { impronta: improntaOra } : {})
+      })
+      misura.crono.segna('criteri prima del finito')
+      const rossi = tuttiOra.esiti.filter((e) => !e.passato)
+      if (rossi.length > 0) {
+        decisione = {
+          tipo: 'prosegui',
+          istruzioni: [
+            'Prima di chiudere ho rimisurato tutti i criteri, e non passano ancora:',
+            ...rossi.map((e) => `- «${e.descrizione}»: ${e.uscita.slice(0, 600)}`),
+            '',
+            `Correggi e continua verso l'obiettivo: ${aggiornato.obiettivo}`
+          ].join('\n')
+        }
+        annota(aggiornato, `il supervisore diceva «finito», ma rimisurando ${rossi.map((e) => `«${e.descrizione}»`).join(', ')} non passa: continuo`)
+      }
+    }
+    misura.esito = decisione.tipo
+
     const ancora = deps.archivio.leggi(id)
     if (ancora === undefined || ancora.stato !== 'lavoro') {
       console.warn(`[autopilota] ${id} non è più in lavoro (${ancora?.stato ?? 'eliminato'}) durante la fermata: non lo risuscito`)
@@ -2966,6 +3035,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         if (metodo === 'GET' && percorso === '/istruzioni') {
           const ap = url.searchParams.get('ap') ?? ''
           rispondi(res, 200, { istruzioni: ap === '' ? [] : (deps.istruzioni?.elenca(ap) ?? []) })
+          return
+        }
+
+        // I tempi dei giri (0.71.0): gli ultimi giri e le mediane, di un autopilota o di tutti.
+        if (metodo === 'GET' && percorso === '/tempi') {
+          const ap = url.searchParams.get('ap') ?? undefined
+          const giri = deps.tempi?.recenti(ap === '' ? undefined : ap, 50) ?? []
+          rispondi(res, 200, { giri, riassunto: riassuntoTempi(giri) })
           return
         }
 
