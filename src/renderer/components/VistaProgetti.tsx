@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { byteLeggibili } from '@shared/spazio-drive'
 import { chatDelProgetto, comeAprireChat, filtraChat, testiCambioResidente, type AzioneProgetto, type FiltroPannello, type Pannello, type RigaChat, type RigaProgetto } from '@shared/pannello-drive'
-import { azioniDivise, cercaProgetti, COLONNE, contaGruppi, GRUPPI, nelGruppo, ordinaProgetti, vistaDi, type Colonna, type Colore, type Gruppo, type Verso } from '@shared/progetti-vista'
+import { azioniDivise, cartellaDelQuaderno, cercaProgetti, COLONNE, contaGruppi, GRUPPI, nelGruppo, ordinaProgetti, vistaDi, type Colonna, type Colore, type Gruppo, type Verso } from '@shared/progetti-vista'
 import { eChiaveProgetto } from '@shared/allineamento'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
 import { ModaleSposta } from './ModaleSposta'
@@ -238,7 +238,7 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
             onTrasloco={(azione, id, pc) => esegui(window.gestore.casa.azione({ azione, id, ...(pc !== undefined ? { pc } : {}) }))}
             onResidenza={(azione, id) => esegui(window.gestore.casa.azione({ azione, progetto: sel.id, ...(id !== undefined ? { id } : {}) }))}
             onRimozione={(azione) => esegui(window.gestore.casa.rimozione[azione](sel.id))}
-            onQuaderno={() => { onChiudi(); window.dispatchEvent(new CustomEvent('sierradeck:apri-pannello', { detail: 'quaderno' })) }}
+            onQuaderno={(cwd) => { onChiudi(); window.dispatchEvent(new CustomEvent('sierradeck:apri-quaderno', { detail: { cwd } })) }}
             onSposta={(pc) => esegui(window.gestore.casa.azione({ azione: 'sposta-su', progetto: sel.id, pc }))} />
         ) : null}
 
@@ -303,13 +303,15 @@ function Dettaglio(p: {
   onTrasloco: (azione: 'trasloco-riprendi' | 'trasloco-annulla' | 'trasloco-senza', id: string, pc?: string) => void
   onResidenza: (azione: 'conferma-residenza' | 'annulla-residenza' | 'annulla-unione', id?: string) => void
   onRimozione: (azione: 'conferma' | 'annulla') => void
-  onQuaderno: () => void
+  onQuaderno: (cwd: string) => void
   onSposta: (pc: string) => void
 }): React.JSX.Element {
   const { r, d, occupato } = p
   // «Sposta su ▾» (0.71.0): da qualsiasi PC verso qualsiasi PC, con conferma.
   const [menuSposta, setMenuSposta] = useState(false)
   const [verso, setVerso] = useState<DestinazioneSposta | undefined>(undefined)
+  // «Annulla l’unione» chiede conferma (0.71.1), come sulla pagina e nell’app: prima partiva al primo clic.
+  const [annullaUnione, setAnnullaUnione] = useState<string | undefined>(undefined)
   const destinazioni = r.spostaSu ?? destinazioniSposta(r, d.io, d.pc, Date.now())
   const conferma = verso !== undefined ? riassuntoSposta(r, verso) : undefined
   const v = r.vista ?? vistaDi(r)
@@ -430,7 +432,13 @@ function Dettaglio(p: {
             <div key={`${c.pc}:${c.percorso}`} className="progetti__voceelenco"><b style={{ whiteSpace: 'nowrap' }}>{c.nome}{c.pc === d.io.id ? ' (qui)' : ''}</b> <span className="progetti__quieto progetti__percorso">{c.percorso}</span></div>
           ))}
           {r.cartellaTrovata !== undefined ? <div className="progetti__voceelenco"><b style={{ whiteSpace: 'nowrap' }}>{d.io.nome} (qui, per nome)</b> <span className="progetti__quieto progetti__percorso">{r.cartellaTrovata}</span></div> : null}
-          <button className="account__link" style={{ alignSelf: 'flex-start', textAlign: 'left' }} onClick={p.onQuaderno}>Quaderno del progetto</button>
+          {((): React.JSX.Element => {
+            // Il quaderno di questo progetto (0.71.1): sta nella sua cartella, quindi solo dove ce n’è una.
+            const q = cartellaDelQuaderno(r, d.io.id)
+            return q !== undefined
+              ? <button className="account__link" style={{ alignSelf: 'flex-start', textAlign: 'left' }} onClick={() => p.onQuaderno(q)}>Quaderno del progetto</button>
+              : <span className="progetti__quieto">Il quaderno sta nella cartella del progetto: su questo PC non c’è.</span>
+          })()}
         </Sezione>
         <Sezione titolo="Spazio sul Drive" aiuto="Quanto occupa sul Drive. I file oltre 20 MB sono segnalati; oltre 50 MB restano a casa.">
           {r.spazioDrive === undefined ? <div className="progetti__quieto">Non ancora misurato.</div> : (
@@ -447,7 +455,14 @@ function Dettaglio(p: {
             {unioni.map((u) => (
               <div key={u.id} className="progetti__voceelenco">
                 <span style={{ flex: 1 }}>Unito il {quando(u.quando)} <span className="progetti__quieto">· fino al {quando(u.scadeIl)}</span></span>
-                <button className="tasto tasto--mini" disabled={occupato} onClick={() => p.onResidenza('annulla-unione', u.id)}>Annulla l’unione</button>
+                {annullaUnione === u.id ? (
+                  <>
+                    <button className="tasto tasto--mini tasto--acceso" disabled={occupato} onClick={() => { setAnnullaUnione(undefined); p.onResidenza('annulla-unione', u.id) }}>Conferma: annulla l’unione</button>
+                    <button className="tasto tasto--mini" onClick={() => setAnnullaUnione(undefined)}>No</button>
+                  </>
+                ) : (
+                  <button className="tasto tasto--mini" disabled={occupato} title="Le cartelle doppie tornano al loro posto dal recupero, i file sostituiti tornano com’erano" onClick={() => setAnnullaUnione(u.id)}>Annulla l’unione…</button>
+                )}
               </div>
             ))}
           </Sezione>

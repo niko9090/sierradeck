@@ -208,6 +208,16 @@ export function ordinaProgetti(righe: RigaProgetto[], col: Colonna = 'stato', ve
 }
 
 /** Le azioni divise: la principale (piena), le altre, quella pericolosa (a destra, con conferma). */
+/**
+ * La cartella del quaderno di un progetto su questo PC (0.71.1), o `undefined`
+ * se qui il progetto non ha una cartella. Fino alla 0.71.0 «Quaderno del
+ * progetto» apriva il Quaderno sulla chat davanti, non sul progetto: visto
+ * provando la vista con i dati veri, il 13/10.
+ */
+export function cartellaDelQuaderno(r: Pick<RigaProgetto, 'cartelle' | 'cartellaTrovata'>, io: string): string | undefined {
+  return r.cartelle.find((c) => c.pc === io)?.percorso ?? r.cartellaTrovata
+}
+
 export function azioniDivise<A extends { id: string }>(az: A[]): { primaria?: A; secondarie: A[]; pericolo?: A } {
   const pericolo = az.find((a) => a.id === 'solo-cloud-qui')
   const resto = az.filter((a) => a !== pericolo)

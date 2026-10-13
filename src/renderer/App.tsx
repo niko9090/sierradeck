@@ -757,6 +757,18 @@ export function App(): React.JSX.Element {
     return () => window.removeEventListener('sierradeck:apri-installa', h)
   }, [apriInstalla])
   const [aperto, setAperto] = useState<PannelloAperto>(undefined)
+  // Il quaderno di un progetto scelto in Progetti (0.71.1): la sua cartella, non quella della chat davanti.
+  const [quadernoDi, setQuadernoDi] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    const h = (e: Event): void => {
+      const cwd = ((e as CustomEvent).detail as { cwd?: unknown } | undefined)?.cwd
+      setQuadernoDi(typeof cwd === 'string' && cwd !== '' ? cwd : undefined)
+      setAperto('quaderno')
+    }
+    window.addEventListener('sierradeck:apri-quaderno', h)
+    return () => window.removeEventListener('sierradeck:apri-quaderno', h)
+  }, [])
+  useEffect(() => { if (aperto !== 'quaderno') setQuadernoDi(undefined) }, [aperto])
   /** La scheda con cui si aprono le Impostazioni (la banda del Drive apre «Account»). */
   const [schedaImpostazioni, setSchedaImpostazioni] = useState<'generali' | 'account'>('generali')
   /**
@@ -1769,7 +1781,7 @@ export function App(): React.JSX.Element {
           // La cartella del riquadro che hai davanti: il quaderno racconta un
           // progetto, e il progetto e' quello in cui stai lavorando adesso.
           <PannelloQuaderno
-            cwd={cartellaDavanti()}
+            cwd={quadernoDi ?? cartellaDavanti()}
             // Tutte le chat aperte, ognuna con il suo nome: due chat nella
             // stessa cartella sono due voci, perche' e' cosi' che le riconosci.
             cartelle={Object.values(riquadriAperti).map((p) => ({
