@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pluginDaCli } from '../../src/main/negozio/cli'
 import { conSalute } from '../../src/main/negozio/mcp'
@@ -8,7 +8,7 @@ import { statoMcp, statoSkill, vetrina, type McpVoce } from '../../src/shared/ne
 /**
  * La risposta di `/api/negozio` di un computer alla 0.53.0, composta con le
  * funzioni vere dalle risposte vere del CLI 2.1.294. L'app la legge da
- * `android/app/src/test/resources/negozio/api-negozio-0.53.json`
+ * `android/app/src/test/resources/negozio/api-negozio-0.70.json` (dalla 0.70.0 con `parola` e `colore`; il file 0.53 resta per i PC di prima)
  * (NegozioVistaTest): se il formato cambia qui, questo test lo dice prima
  * che lo scopra il telefono.
  */
@@ -31,7 +31,8 @@ export function rispostaDiEsempio(dir = join(__dirname, '..', 'fixtures', 'claud
 
 describe('la risposta del negozio che legge l’app', () => {
   it('è quella del file che usano i test dell’app', () => {
-    const file = join(__dirname, '..', '..', 'android', 'app', 'src', 'test', 'resources', 'negozio', 'api-negozio-0.53.json')
+    const file = join(__dirname, '..', '..', 'android', 'app', 'src', 'test', 'resources', 'negozio', 'api-negozio-0.70.json')
+    if (process.env.AGGIORNA === '1' || !existsSync(file)) writeFileSync(file, JSON.stringify(rispostaDiEsempio(), null, 2) + String.fromCharCode(10))
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(JSON.parse(JSON.stringify(rispostaDiEsempio())))
   })
 })

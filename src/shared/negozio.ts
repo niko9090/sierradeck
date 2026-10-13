@@ -1,3 +1,4 @@
+import { parolaNegozio } from './negozio-vista'
 /**
  * Il negozio, la parte che vale ovunque (0.53.0): come si chiama lo stato di
  * ogni voce, cosa vuol dire, cosa cambia dopo un'azione, e come si leggono le
@@ -13,7 +14,11 @@
 export type Tono = 'ok' | 'spento' | 'attesa' | 'errore' | 'neutro'
 
 /** Lo stato di una voce: la parola breve, il colore, e cosa vuol dire per esteso. */
-export type StatoVoce = { etichetta: string; tono: Tono; spiegazione: string }
+export type StatoVoce = {
+  etichetta: string; tono: Tono; spiegazione: string
+  /** 0.70.0: lo stato in una parola con il colore (attivo, spento, disponibile, aggiorna, approva, accedi, guasto). */
+  parola?: string; colore?: string
+}
 
 export type PluginVoce = {
   /** `nome@marketplace`: l'identificatore per installare, accendere, spegnere. */
@@ -79,7 +84,7 @@ export function nomeAmbitoMcp(a: AmbitoMcp): string {
   return a === 'locale' ? 'solo questa cartella' : a === 'utente' ? 'tutti i progetti' : a === 'progetto' ? 'file .mcp.json del progetto' : 'da un plugin o da claude.ai'
 }
 
-export function statoPlugin(p: {
+function statoPluginBase(p: {
   installato: boolean
   abilitato: boolean
   marketplace: string
@@ -119,7 +124,7 @@ export function statoPlugin(p: {
   }
 }
 
-export function statoSkill(s: { nome?: string; origine: OrigineSkill; abilitata: boolean; override?: string; plugin?: string }): StatoVoce {
+function statoSkillBase(s: { nome?: string; origine: OrigineSkill; abilitata: boolean; override?: string; plugin?: string }): StatoVoce {
   if (s.origine === 'plugin') {
     return s.abilitata
       ? { etichetta: 'dal plugin', tono: 'ok', spiegazione: 'Arriva dal plugin ' + (s.plugin || '') + ': è accesa finché il plugin è acceso. Si accende e si spegne con lui, dalla scheda Plugin.' }
@@ -146,7 +151,7 @@ export function statoSkill(s: { nome?: string; origine: OrigineSkill; abilitata:
   }
 }
 
-export function statoMcp(m: { ambito: AmbitoMcp; config: ConfigMcp; salute?: SaluteMcp; motivo?: string }): StatoVoce {
+function statoMcpBase(m: { ambito: AmbitoMcp; config: ConfigMcp; salute?: SaluteMcp; motivo?: string }): StatoVoce {
   if (m.config === 'spento' || m.salute === 'spento') {
     return {
       etichetta: 'disattivato',
@@ -505,4 +510,16 @@ export type ApiNegozio = {
   rivela: (percorso: string) => Promise<void>
   scope: (cwd: string) => Promise<ScopeNegozio>
   impostaScope: (cwd: string, scope: ScopeNegozio) => Promise<{ ok: boolean; messaggio?: string }>
+}
+
+export const statoPlugin = (x: Parameters<typeof statoPluginBase>[0]): StatoVoce => conParola(statoPluginBase(x))
+
+export const statoSkill = (x: Parameters<typeof statoSkillBase>[0]): StatoVoce => conParola(statoSkillBase(x))
+
+export const statoMcp = (x: Parameters<typeof statoMcpBase>[0]): StatoVoce => conParola(statoMcpBase(x))
+
+/** La parola e il colore (0.70.0), dalla regola di `negozio-vista`: pagina e app li mostrano al posto dell'etichetta. */
+function conParola(s: StatoVoce): StatoVoce {
+  const p = parolaNegozio(s)
+  return p === undefined ? s : { ...s, parola: p.parola, colore: p.colore }
 }

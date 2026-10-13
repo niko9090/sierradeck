@@ -4858,3 +4858,4 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .file-vista .trasf { flex: 1; min-height: 0; }
 .trasf--uno { grid-template-columns: 1fr; }
 .trasf--uno > :nth-child(2) { display: none; }
+.negozio-vista .negozio__corpo { flex: 1; min-height: 0; overflow-y: auto; }

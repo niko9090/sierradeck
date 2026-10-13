@@ -1,3 +1,5 @@
+import { parolaNegozio } from '@shared/negozio-vista'
+import type { Colore } from '@shared/stato-vista'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   nomeAmbitoMcp,
@@ -66,9 +68,22 @@ function coppie(testo: string, sep: '=' | ':'): Record<string, string> {
   return fuori
 }
 
+/**
+ * Lo stato in UNA parola con il colore (0.70.0): attivo, spento, disponibile,
+ * aggiorna, approva, accedi, guasto. La spiegazione, che prima stava a vista
+ * su ogni scheda, è dietro il «?».
+ */
+const COLORE_NEGOZIO: Record<Colore, string> = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', blu: 'var(--blu)', quieto: 'var(--testo-quieto)' }
+
 function Stato({ stato }: { stato?: StatoVoce }): React.JSX.Element | null {
-  if (stato === undefined) return null
-  return <span className={`negozio__stato negozio__stato--${stato.tono}`}>{stato.etichetta}</span>
+  const p = parolaNegozio(stato)
+  if (stato === undefined || p === undefined) return null
+  return (
+    <span className="con-aiuto">
+      <span className="negozio__stato" style={{ color: COLORE_NEGOZIO[p.colore], borderColor: COLORE_NEGOZIO[p.colore] }} title={p.ragione}>{p.parola}</span>
+      <Aiuto di={p.ragione ?? p.parola}>{stato.spiegazione}</Aiuto>
+    </span>
+  )
 }
 
 export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () => void }): React.JSX.Element {
@@ -362,7 +377,6 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
               {p.installazioni !== undefined ? <span className="misura" title="installazioni">↧ {formattaInstallazioni(p.installazioni)}</span> : null}
             </div>
             {p.descrizione !== '' ? <div className="negozio__desc">{p.descrizione}</div> : null}
-            {p.stato !== undefined ? <div className="negozio__spiega">{p.stato.spiegazione}</div> : null}
           </div>
           {fermo ? null : (
             <div className="negozio__azioni">
@@ -426,7 +440,6 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
               <span className="negozio__mkt">{s.origine === 'utente' ? 'personale' : s.origine === 'progetto' ? 'del progetto' : `dal plugin ${s.plugin ?? ''}`}</span>
             </div>
             {s.descrizione !== '' ? <div className="negozio__desc">{s.descrizione}</div> : null}
-            {s.stato !== undefined ? <div className="negozio__spiega">{s.stato.spiegazione}</div> : null}
           </div>
           {fermo ? null : (
             <div className="negozio__azioni">
@@ -500,7 +513,6 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
             {chiavi.length > 0 ? (
               <div className="negozio__desc">{m.tipo === 'stdio' ? 'variabili' : 'intestazioni'}: {chiavi.join(', ')} <span className="misura">(i valori non si mostrano)</span></div>
             ) : null}
-            {m.stato !== undefined ? <div className="negozio__spiega">{m.stato.spiegazione}</div> : null}
           </div>
           {fermo || cwd === undefined || m.ambito === 'altro' ? null : (
             <div className="negozio__azioni">
@@ -679,16 +691,17 @@ export function PannelloNegozio({ cwd, onChiudi }: { cwd?: string; onChiudi: () 
   const guastiDiLista = Object.entries(guasti).filter(([k]) => k.startsWith('lista:') || k === 'scope')
 
   return (
-    <div className="pannello pannello--negozio">
-      <div className="negozio__testa">
-        <div className="negozio__testa-riga">
-          <span className="serigrafia">Negozio</span>
-          <span className="misura">plugin, skill, agenti e MCP di Claude Code — a clic</span>
-          <span style={{ flex: 1 }} />
-          <button className="tasto" onClick={onChiudi}>Chiudi</button>
-        </div>
-        <input className="campo negozio__cerca-globale" placeholder="Cerca in tutto il negozio…"
+    <div className="progetti negozio-vista" role="dialog" aria-label="Negozio">
+      {/* 0.70.0: a tutta finestra; la ricerca in testata. */}
+      <div className="progetti__testa">
+        <span className="progetti__titolo">Negozio</span>
+        <input className="campo campo--mini progetti__cerca" style={{ width: 360 }} placeholder="Cerca in tutto il negozio…"
           value={cerca} onChange={(e) => setCerca(e.target.value)} autoFocus />
+        <span style={{ flex: 1 }} />
+        <Aiuto di="Negozio">Plugin, skill, agenti e server MCP di Claude Code, a clic. Ogni voce dice in una parola come sta: <span style={{ color: 'var(--verde)' }}>attivo</span>, spento, disponibile (non installato), <span style={{ color: 'var(--ambra)' }}>aggiorna</span>, <span style={{ color: 'var(--ambra)' }}>approva</span>, <span style={{ color: 'var(--ambra)' }}>accedi</span>, <span style={{ color: 'var(--rosso)' }}>guasto</span>. Il «?» accanto alla parola dice cosa vuol dire per quella voce.</Aiuto>
+        <button className="tasto tasto--mini" onClick={onChiudi} aria-label="Chiudi">×</button>
+      </div>
+      <div className="negozio__testa">
         <div className="negozio__tabs">
           {tasto('uso', 'In uso')}
           {tasto('chat', 'Questa chat', scope.pluginSpenti.length + scope.skillSpente.length + scope.mcpSpenti.length)}

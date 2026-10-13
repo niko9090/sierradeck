@@ -111,4 +111,12 @@ class NegozioVistaTest {
         assertEquals(12L, NegozioVista.secondi(1_000, 13_500))
         assertEquals(0L, NegozioVista.secondi(5_000, 1_000))
     }
+
+    @Test
+    fun `dal PC 0_70 arriva anche la parola con il colore`() {
+        val d = Api.json.decodeFromString(DatiNegozio.serializer(), javaClass.classLoader!!.getResource("negozio/api-negozio-0.70.json")!!.readText())
+        val conParola = d.plugin.mapNotNull { it.stato }.filter { it.parola != null }
+        assertTrue(conParola.isNotEmpty())
+        assertTrue(conParola.all { it.colore in setOf("verde", "ambra", "rosso", "blu", "quieto") })
+    }
 }

@@ -445,9 +445,10 @@ private fun Scheda(
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(titolo, color = Banco.testo, fontWeight = FontWeight.Bold)
                 if (stato != null) {
-                    val c = coloreTono(stato.tono)
+                    // PC 0.70: la parola e il colore del PC; da un PC di prima l'etichetta e il tono.
+                    val c = stato.colore?.let { coloreVista(it) } ?: coloreTono(stato.tono)
                     Surface(color = Color.Transparent, contentColor = c, shape = MaterialTheme.shapes.small, border = BorderStroke(1.dp, c)) {
-                        Text(stato.etichetta, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
+                        Text(stato.parola ?: stato.etichetta, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
                     }
                 }
             }

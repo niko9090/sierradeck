@@ -163,3 +163,23 @@ Le foto sono in `note/foto-0-70/`, sul PC fisso (fuori da git: mostrano le carte
 **Test**: `tests/shared/file-vista.test.ts` (3).
 
 **Aperto**: la revisione proponeva i tasti come in Total Commander (F5, F2, F7), una barra unica per la coda del server e per gli invii al telefono, e una pagina File del telefono a tre schede (Progetti · In arrivo · Mandati). Non fatti stanotte.
+
+## (g) Negozio
+**Cosa cambia**
+- **A tutta finestra**, con la ricerca in testata.
+- **Lo stato di ogni voce è una parola con il colore**: attivo (verde), spento, disponibile (grigio), aggiorna, approva, accedi (ambra), guasto (rosso), in corso (blu). Prima c'erano etichette lunghe e quasi tutte grigie. La sfumatura di prima («solo il nome», «rifiutato», «dal plugin») resta nel suggerimento della parola.
+- **La spiegazione** che ogni scheda ripeteva a vista («Non è installato. «Installa» lo scarica…») **sta dietro il «?»** accanto alla parola: su schermo ci stanno circa 12 plugin invece di 5.
+- **Telefono**: la parola e il colore arrivano dal PC (`parola`, `colore` in ogni stato); la pagina e l'app li mostrano. Con un PC di prima resta l'etichetta.
+
+**Azioni di prima → dove sono adesso**
+
+| Prima | Adesso |
+|---|---|
+| Linguette In uso · Questa chat · Plugin · Skill · Agenti · MCP · Fonti, Ricarica | invariate |
+| Dettagli, Installa, Aggiorna, Disattiva, Rimuovi, spunte per chat, Variabili | invariate, sulla scheda di ogni voce |
+| Spiegazione a vista su ogni scheda | dietro il «?» accanto alla parola |
+| Chiudi | × (anche Esc) |
+
+**Test**: `tests/shared/negozio-vista.test.ts` (2) e la risposta d'esempio `api-negozio-0.70.json`, con il nuovo test in `NegozioVistaTest`.
+
+**Aperto**: dalla revisione restano i gruppi In uso · Da sistemare · Catalogo · Questa cartella, la tabella con il dettaglio a destra e Fonti/Ricarica in «Strumenti ▾». Il negozio ha già linguette sue, che chiamano il CLI di Claude Code, e rifarle stanotte voleva dire riprovare a mano ogni installazione. La parte fatta (una parola, niente spiegazioni ripetute, tutta la larghezza) è quella che si vede di più.

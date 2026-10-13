@@ -2979,7 +2979,9 @@ function negozioStatoDi(v, cosa) {
   return v.abilitato === false ? { etichetta: 'disattivato', tono: 'spento', spiegazione: '' } : { etichetta: 'attivo', tono: 'neutro', spiegazione: '' }
 }
 function negozioTesta(nome, st, sotto) {
-  return '<div><b>' + esc(nome) + '</b> <span class="neg-stato" style="color:' + negozioTono(st.tono) + ';border-color:' + negozioTono(st.tono) + '">' + esc(st.etichetta) + '</span>' +
+  // 0.70.0: la parola con il colore decisi dal PC; con un PC di prima l'etichetta e il tono.
+  var tinta = st.colore ? ({ verde: 'var(--verde,#3c9)', ambra: 'var(--ambra,#e0a33c)', rosso: 'var(--rosso,#dc5f5f)', blu: 'var(--blu,#4aa3ff)', quieto: 'var(--testo-quieto,#9aa1a9)' })[st.colore] : negozioTono(st.tono)
+  return '<div><b>' + esc(nome) + '</b> <span class="neg-stato" style="color:' + tinta + ';border-color:' + tinta + '" title="' + esc(st.etichetta) + '">' + esc(st.parola || st.etichetta) + '</span>' +
     (sotto ? ' <span class="sotto">' + esc(sotto) + '</span>' : '') + '</div>'
 }
 function negozioSotto(chiave) {

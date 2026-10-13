@@ -827,7 +827,9 @@ data class DatiNegozio(
  * parole del pannello sul PC e della pagina.
  */
 @Serializable
-data class StatoVoce(val etichetta: String = "", val tono: String = "neutro", val spiegazione: String = "")
+data class StatoVoce(val etichetta: String = "", val tono: String = "neutro", val spiegazione: String = "",
+    /** PC 0.70: lo stato in una parola con il colore. */
+    val parola: String? = null, val colore: String? = null)
 
 @Serializable
 data class PluginVoce(
