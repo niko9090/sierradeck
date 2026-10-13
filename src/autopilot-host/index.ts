@@ -12,6 +12,7 @@ import { esecutoreReale } from './verifiche'
 import { interrogazioneReale } from './supervisore'
 import { creaConsegne } from './consegne'
 import { apriRegistroTempi } from './tempi'
+import { apriMemoria } from './memoria'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { apriRegistroIstruzioni } from './istruzioni'
 import { esecutoreNelMosaico } from './nel-mosaico'
@@ -278,7 +279,9 @@ export function avviaServizio(): void {
     // I worktree delle chat, l'unione dei rami, il push e il cloud (0.36.0).
     git: gitReale,
     // I tempi di ogni giro (0.71.0), in servizio/tempi.jsonl.
-    tempi: apriRegistroTempi(archivio.cartella)
+    tempi: apriRegistroTempi(archivio.cartella),
+    // Le risposte già date e le decisioni di Nicholas (0.71.0), in servizio/memoria.json.
+    memoria: apriMemoria(archivio.cartella)
   })
 
   serverPronto = server

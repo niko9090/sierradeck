@@ -17,7 +17,12 @@
  * un lavoro fermo senza domanda.
  */
 
-export type SceltaDomanda = { scelta: string; conseguenza: string }
+export type SceltaDomanda = {
+  scelta: string
+  conseguenza: string
+  /** La scelta che consiglia chi chiede (0.71.0): al massimo una, segnata su PC, pagina e app. */
+  consigliata?: boolean
+}
 
 export type PartiDomanda = {
   staFacendo: string
@@ -38,8 +43,12 @@ export const NOMI_PARTI: Record<ParteDomanda, string> = {
   seNonRispondi: 'cosa fai se non risponde'
 }
 
-/** Oltre questa lunghezza «la domanda» non è più una frase. */
-export const DOMANDA_MAX = 400
+/** Oltre questa lunghezza «la domanda» non è più una frase (0.71.0: era 400). */
+export const DOMANDA_MAX = 200
+/** Una conseguenza è una riga: corta (0.71.0). */
+export const CONSEGUENZA_MAX = 160
+/** Parole che non dicono niente a chi legge da lontano (0.71.0). */
+export const PAROLE_VAGHE = /\b(qualcosa|eccetera|ecc\.?|varie cose|cose varie|come prima|come sopra|quella cosa|questa cosa|il solito|la solita|quello di prima)\b/i
 /** Le scelte: quante al massimo (sono tasti da toccare sul telefono). */
 export const SCELTE_MAX = 5
 /** Una scelta è un tasto: corta. */
@@ -64,8 +73,11 @@ export function leggiParti(x: unknown): PartiDomanda {
     const q = s as Record<string, unknown>
     const scelta = testo(q.scelta ?? q.opzione ?? q.testo)
     if (scelta === '') continue
-    scelte.push({ scelta, conseguenza: testo(q.conseguenza ?? q.effetto ?? q.cosaSuccede) })
+    scelte.push({ scelta, conseguenza: testo(q.conseguenza ?? q.effetto ?? q.cosaSuccede), ...(q.consigliata === true ? { consigliata: true } : {}) })
   }
+  // Una sola consigliata: vale la prima.
+  const prima = scelte.findIndex((s) => s.consigliata === true)
+  for (let i = 0; i < scelte.length; i += 1) if (i !== prima && scelte[i]?.consigliata === true) scelte[i] = { scelta: scelte[i]?.scelta ?? '', conseguenza: scelte[i]?.conseguenza ?? '' }
   return {
     staFacendo: testo(o.staFacendo ?? o.contesto ?? o.adesso),
     domanda: testo(o.domanda),
@@ -85,11 +97,19 @@ export function validaDomanda(p: PartiDomanda): Validazione {
   if (p.domanda === '') mancano.push('domanda')
   else if (p.domanda.length > DOMANDA_MAX) { mancano.push('domanda'); note.push(`la domanda è lunga ${p.domanda.length} caratteri: va detta in una frase, il resto va nelle altre parti`) }
   else if (!p.domanda.includes('?')) { mancano.push('domanda'); note.push('la domanda non ha il punto interrogativo: non si capisce cosa chiedi') }
+  else if ((p.domanda.match(/\?/g) ?? []).length > 1) { mancano.push('domanda'); note.push('ci sono più domande in una: fanne una sola, la più importante') }
+  else if (PAROLE_VAGHE.test(p.domanda)) { mancano.push('domanda'); note.push(`la domanda è vaga («${PAROLE_VAGHE.exec(p.domanda)?.[0] ?? ''}»): di' esattamente di cosa si tratta, chi legge non ha seguito il lavoro`) }
   if (p.perche.length < 10) mancano.push('perche')
   const buone = p.scelte.filter((s) => s.scelta !== '' && s.conseguenza.length >= 5)
   if (buone.length < 2) {
     mancano.push('scelte')
     if (p.scelte.length >= 2) note.push('ogni scelta deve dire cosa succede se la scegli')
+  } else if (p.scelte.some((s) => s.conseguenza.length > CONSEGUENZA_MAX)) {
+    mancano.push('scelte')
+    note.push(`le conseguenze vanno dette in breve (al massimo ${CONSEGUENZA_MAX} caratteri l’una)`)
+  } else if (!p.scelte.some((s) => s.consigliata === true)) {
+    mancano.push('scelte')
+    note.push('segna con "consigliata": true la scelta che consigli (una sola): chi legge decide più in fretta')
   }
   if (p.seNonRispondi.length < 5) mancano.push('seNonRispondi')
   return { completa: mancano.length === 0, mancano, note }
@@ -118,7 +138,7 @@ export function richiestaRiscrittura(p: PartiDomanda, v: Validazione): string {
 /** La forma JSON di una domanda, uguale in tutti i prompt. */
 export const FORMA_DOMANDA =
   '{"staFacendo": "cosa stai facendo adesso, in una o due frasi", "domanda": "la domanda in una frase, con il punto interrogativo", ' +
-  '"perche": "perché ti serve la risposta adesso", "scelte": [{"scelta": "testo breve del tasto", "conseguenza": "cosa fai se sceglie questa"}, ' +
+  '"perche": "perché ti serve la risposta adesso", "scelte": [{"scelta": "testo breve del tasto", "conseguenza": "cosa fai se sceglie questa, in breve", "consigliata": true}, ' +
   '{"scelta": "…", "conseguenza": "…"}], "seNonRispondi": "cosa fai se non risponde"}'
 
 /** Le righe da mettere nei prompt: come si scrive una domanda per Nicholas. */
@@ -130,6 +150,9 @@ export const REGOLE_DOMANDA = [
   '3. `perche`: perché ti serve la risposta, adesso;',
   '4. `scelte`: da due a cinque risposte possibili, ognuna con **la sua conseguenza** (cosa farai se sceglie quella);',
   '5. `seNonRispondi`: cosa fai se non risponde (aspetti, scegli tu una strada prudente, ti fermi…).',
+  'Segna con `"consigliata": true` la scelta che consigli (una sola). Una domanda sola, al massimo 200 caratteri,',
+  'in parole semplici e senza parole vaghe («qualcosa», «come prima», «quella cosa»): di’ esattamente di cosa si tratta.',
+  'Le conseguenze in breve. Non chiedere di nuovo una cosa a cui ha già risposto: le sue risposte sono nel quadro.',
   'Il programma controlla che ci siano tutte: una domanda incompleta ti torna indietro da riscrivere.'
 ]
 
@@ -145,7 +168,7 @@ export function testoDomanda(chi: string, p: PartiDomanda, avvertenza?: string):
   if (p.perche !== '') righe.push('', `Perché gli serve: ${p.perche}`)
   if (p.scelte.length > 0) {
     righe.push('', 'Le scelte:')
-    for (const s of p.scelte) righe.push(`• ${s.scelta}${s.conseguenza !== '' ? ` → ${s.conseguenza}` : ''}`)
+    for (const s of p.scelte) righe.push(`• ${s.scelta}${s.consigliata === true ? ' (consigliata)' : ''}${s.conseguenza !== '' ? ` → ${s.conseguenza}` : ''}`)
   }
   if (p.seNonRispondi !== '') righe.push('', `Se non rispondi: ${p.seNonRispondi}`)
   if (avvertenza !== undefined && avvertenza !== '') righe.push('', `⚠ ${avvertenza}`)
@@ -230,7 +253,7 @@ export function partiBloccato(obiettivo: string, tentativi: number, strade: stri
     perche: `Ho provato ${tentativi} volte e ho esaurito le strade che conosco (${strade.join(', ')}): l’esito non cambia. Gli errori: ${breve(errori.replace(/\s+/g, ' ').trim(), 400)}`,
     scelte: [
       { scelta: 'rivedi i criteri', conseguenza: 'mi dici quale criterio o comando di verifica è sbagliato e lo cambio, poi riprendo' },
-      { scelta: 'ti dico io la strada', conseguenza: 'scrivi la strada da tentare e la passo alla chat così com’è' },
+      { scelta: 'ti dico io la strada', conseguenza: 'scrivi la strada da tentare e la passo alla chat così com’è', consigliata: true },
       { scelta: 'fermati', conseguenza: 'sospendo il lavoro; lo riprendi quando vuoi da «Riprendi»' }
     ],
     seNonRispondi: 'resto fermo ad aspettare: non ricomincio a girare a vuoto sugli stessi tentativi'
@@ -245,7 +268,7 @@ export function partiNonMisurati(criteri: { descrizione: string; comando: string
     perche: `${criteri.length === 1 ? 'Un criterio non è stato misurato' : `${criteri.length} criteri non sono stati misurati`}: il comando non è nemmeno partito (${criteri.map((c) => `${c.descrizione}: ${c.comando}`).join('; ')}). Non chiudo da solo su una cosa che non ho controllato.`,
     scelte: [
       { scelta: 'chiudi lo stesso', conseguenza: 'considero finito il lavoro senza quella verifica' },
-      { scelta: 'correggo il comando', conseguenza: 'mi scrivi il comando giusto, lo rimisuro e chiudo solo se passa' }
+      { scelta: 'correggo il comando', conseguenza: 'mi scrivi il comando giusto, lo rimisuro e chiudo solo se passa', consigliata: true }
     ],
     seNonRispondi: 'resto fermo: il lavoro non viene chiuso finché non rispondi'
   }
@@ -258,7 +281,7 @@ export function partiPubblica(nome: string, giaMandato: boolean): PartiDomanda {
     domanda: 'Pubblico adesso?',
     perche: 'Questo progetto ha la regola «chiedi prima di pubblicare»: una pubblicazione arriva a chi usa il programma, quindi la decidi tu.',
     scelte: [
-      { scelta: 'sì, pubblica', conseguenza: 'faccio pubblicare la versione adesso, con le note, e verifico che sia uscita' },
+      { scelta: 'sì, pubblica', conseguenza: 'faccio pubblicare la versione adesso, con le note, e verifico che sia uscita', consigliata: true },
       { scelta: 'no, lascia così', conseguenza: 'il lavoro resta salvato ma non pubblicato; si può pubblicare più avanti' }
     ],
     seNonRispondi: 'non pubblico: il lavoro resta salvato e la domanda resta aperta'

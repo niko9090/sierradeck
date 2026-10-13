@@ -14,7 +14,7 @@ const BUONA: PartiDomanda = {
   domanda: 'Quale chiave SSH uso per il server di produzione?',
   perche: 'Sul server ce ne sono due e non è scritto da nessuna parte quale.',
   scelte: [
-    { scelta: 'id_ed25519', conseguenza: 'uso la chiave nuova' },
+    { scelta: 'id_ed25519', conseguenza: 'uso la chiave nuova', consigliata: true },
     { scelta: 'id_rsa', conseguenza: 'uso la chiave dei rilasci di agosto' }
   ],
   seNonRispondi: 'resto fermo: non provo chiavi a caso'

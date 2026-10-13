@@ -4890,3 +4890,6 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 
 /* Il ruolo della chat nell'albero dell'autopilota (0.71.0). */
 .albero-ap__ruolo { flex: none; font-size: 11px; padding: 0 6px; border: 1px solid; border-radius: 999px; text-transform: lowercase; }
+
+/* La scelta consigliata in una domanda dell'autopilota (0.71.0). */
+.domande-ap__consigliata { flex: none; font-size: 11px; color: var(--verde); border: 1px solid var(--verde); border-radius: 999px; padding: 0 6px; }

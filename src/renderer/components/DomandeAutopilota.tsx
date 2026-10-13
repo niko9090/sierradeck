@@ -81,7 +81,8 @@ export function DomandeAutopilota({
                   <div className="serigrafia">{s.etichetta}</div>
                   {s.scelte.map((c) => (
                     <div key={c.scelta} className="domande-ap__scelta">
-                      <button className="tasto tasto--primario" disabled={inCorso} onClick={() => manda(c.scelta)} title="Risponde con questa scelta">{c.scelta}</button>
+                      <button className="tasto tasto--primario" disabled={inCorso} onClick={() => manda(c.scelta)} title={c.consigliata === true ? 'Risponde con questa scelta: è quella che ti consiglia' : 'Risponde con questa scelta'}>{c.scelta}</button>
+                      {c.consigliata === true ? <span className="domande-ap__consigliata">consigliata</span> : null}
                       <span>{c.conseguenza !== '' ? `→ ${c.conseguenza}` : ''}</span>
                     </div>
                   ))}

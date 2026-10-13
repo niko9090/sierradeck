@@ -21,6 +21,8 @@ import { improntaCodice, misuraCriteri, turnoCompleto, type MemoriaCriteri } fro
 import { RIFACIMENTI_MAX, RUOLI, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
 import { cronometro, riassuntoTempi, type GiroMisurato } from './tempi'
 import { firmaGiro, registraGiro, spiegaCerchio } from './antiloop'
+import { apriMemoria, conRispostaDiPrima, eUnaDecisione, sezioneDecisioni, type Memoria } from './memoria'
+import { fattiVerificati } from './fatti'
 import {
   chiediCambio, chiediGiudizio, componiPromptScomposizione, leggiCompiti, riparaComando,
   type Interrogazione
@@ -151,7 +153,12 @@ export type Dipendenze = {
   tempi?: { aggiungi: (g: GiroMisurato) => void; recenti: (autopilota?: string, n?: number) => GiroMisurato[] }
   /** L'orologio in millisecondi per misurare le durate. Assente: `Date.now`. */
   orologio?: () => number
+  /** Le risposte già date e le decisioni di Nicholas (0.71.0). Assente: in memoria. */
+  memoria?: Memoria
 }
+
+/** Oltre queste domande nuove all'ora, l'autopilota decide con la scelta consigliata (0.71.0). */
+export const DOMANDE_ORA_MAX = 6
 
 /** La chiave di un turno: autopilota, chat, sessione e impronta dell'ultimo messaggio. */
 export function chiaveDelTurno(id: string, chatId: string | undefined, corpo: Record<string, unknown>): string {
@@ -1549,6 +1556,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const rispondiAlDialogo = async (id: string, testo: string, quando: string): Promise<void> => {
     const a = deps.archivio.leggi(id)
     if (a === undefined) return
+    // Una decisione detta a parole («da ora in poi…», «mai…») resta (0.71.0).
+    if (eUnaDecisione(testo)) memoria.ricordaDecisione(a.cwd, testo, quando)
 
     // Mentre pensa sta lavorando: il guardiano del silenzio lo salta.
     inLavorazione.add(id)
@@ -1814,6 +1823,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    */
   const orologio = deps.orologio ?? Date.now
   const memoriaCriteri: MemoriaCriteri = new Map()
+  const memoria = deps.memoria ?? apriMemoria(undefined)
+  /** Quando ha fatto le ultime domande ogni autopilota: il limite all'ora (0.71.0). */
+  const domandeOra = new Map<string, number[]>()
   /** Le firme degli ultimi giri di ogni chat, per l'antiloop (0.71.0). */
   const storiaGiri = new Map<string, string[]>()
   type MisuraGiro = { crono: ReturnType<typeof cronometro>; esito: string; criteri?: GiroMisurato['criteri']; daRegistrare: boolean }
@@ -2085,6 +2097,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // T1 + T4: lo stato del programma, e le mosse che puo' chiedere. Le
       // vietate le rifiuta il programma, qualunque cosa scriva il modello.
       const harness = [
+        // Prima i fatti verificati dal programma e le decisioni di Nicholas (0.71.0).
+        fattiVerificati({ git: deps.git, cartella: miaChat?.cartella ?? aggiornato.cwd, esiti, decisioni: aggiornato.decisioni, adesso: deps.adesso() }),
+        sezioneDecisioni(memoria.decisioni(aggiornato.cwd)),
         riassuntoProgramma(statoProgramma, freno, Date.parse(deps.adesso())),
         cloudDi(aggiornato).attivo
           ? '- **Autonomia completa**: le chat di questo progetto stanno sul Drive di SierraDeck. Non fare domande a Nicholas: decidi tu con il progetto, i criteri e il quaderno. `chiedi` solo per una cosa che nessuno qui può sapere (una credenziale). Commit, unione e pubblicazione seguono la regola del progetto.'
@@ -2345,9 +2360,36 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // sono complete per costruzione.
       const sessioneSup = chatId !== undefined ? aggiornato.chats.find((c) => c.id === chatId)?.sessioneSupervisore : aggiornato.sessioneSupervisore
       inLavorazione.add(id)
+      // **Le risposte già date non si richiedono** (0.71.0): la stessa domanda
+      // riceve la risposta di prima; una simile la propone come consigliata.
+      const giaDetta = memoria.rispostaPer(aggiornato.id, decisione.domanda)
+      if (giaDetta.esatta !== undefined && decisione.dalProgramma !== true) {
+        inLavorazione.delete(id)
+        const presi = tuoi(aggiornato)
+        annota(presi.autopilota, `la stessa domanda aveva già una tua risposta (${giaDetta.esatta.quando.slice(0, 10)}): «${giaDetta.esatta.risposta.slice(0, 120)}», non la richiedo`)
+        salva(presi.autopilota)
+        misura.esito = 'risposta già data'
+        return { decision: 'block', reason: conPreambolo(presi.testi, componiRisposta(decisione.domanda, giaDetta.esatta.risposta)) }
+      }
+      let partiPrima = decisione.parti ?? leggiParti(decisione.domanda)
+      if (giaDetta.simile !== undefined) partiPrima = conRispostaDiPrima(partiPrima, giaDetta.simile)
+      // **Non più di DOMANDE_ORA_MAX domande nuove all'ora** (0.71.0): oltre,
+      // decide lui con la scelta che consiglia, e lo scrive nel diario.
+      const oraMs = orologio()
+      const fatteOra = (domandeOra.get(aggiornato.id) ?? []).filter((t) => oraMs - t < 3_600_000)
+      const consigliata = partiPrima.scelte.find((s) => s.consigliata === true)
+      if (fatteOra.length >= DOMANDE_ORA_MAX && consigliata !== undefined && decisione.dalProgramma !== true) {
+        inLavorazione.delete(id)
+        const presi = tuoi(aggiornato)
+        annota(presi.autopilota, `troppe domande nell'ultima ora (${fatteOra.length}): «${partiPrima.domanda.slice(0, 120)}» la decido io con la scelta consigliata («${consigliata.scelta}»)`)
+        salva(presi.autopilota)
+        misura.esito = 'deciso senza chiedere'
+        return { decision: 'block', reason: conPreambolo(presi.testi, `Hai già chiesto ${fatteOra.length} cose a Nicholas nell'ultima ora: questa la decidi tu con la scelta consigliata.\n«${partiPrima.domanda}» → ${consigliata.scelta}: ${consigliata.conseguenza}`) }
+      }
+      domandeOra.set(aggiornato.id, [...fatteOra, oraMs])
       const pronta = await domandaControllata(
         nomeDi(aggiornato),
-        decisione.parti ?? leggiParti(decisione.domanda),
+        partiPrima,
         decisione.dalProgramma === true ? undefined : async (richiesta) => (await deps.interroga(richiesta, aggiornato.cwd, sessioneSup)).testo,
         partiDaRisposta
       ).finally(() => inLavorazione.delete(id))
@@ -3309,7 +3351,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         }
 
         if (metodo === 'GET' && percorso === '/domande') {
-          rispondi(res, 200, deps.domande.aperte(url.searchParams.get('ap') ?? undefined))
+          // **Una alla volta** per autopilota (0.71.0): la più vecchia, con quante
+          // ne aspettano dietro. Le altre restano nel registro e compaiono dopo.
+          const tutte = deps.domande.aperte(url.searchParams.get('ap') ?? undefined)
+          const prime = new Map<string, typeof tutte[number]>()
+          for (const d of [...tutte].sort((x, y) => x.apertaIl - y.apertaIl)) if (!prime.has(d.autopilotaId)) prime.set(d.autopilotaId, d)
+          rispondi(res, 200, [...prime.values()].map((d) => {
+            const inFila = tutte.filter((x) => x.autopilotaId === d.autopilotaId).length - 1
+            return inFila > 0 ? { ...d, inFila } : d
+          }))
           return
         }
 
@@ -3327,6 +3377,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           const idDomanda = decodeURIComponent(risposta[1]!)
           // La domanda, letta prima che la risposta la tolga dal registro.
           const chiesta = deps.domande.aperte().find((d) => d.id === idDomanda)
+          // La memoria (0.71.0): la risposta non si richiede, e diventa una decisione del progetto.
+          if (chiesta !== undefined) {
+            const apChiesto = deps.archivio.leggi(chiesta.autopilotaId)
+            const laDomanda = chiesta.parti?.domanda ?? chiesta.contesto?.grezza ?? chiesta.testo
+            memoria.ricordaRisposta(chiesta.autopilotaId, laDomanda, testo, deps.adesso())
+            if (apChiesto !== undefined) memoria.ricordaDecisione(apChiesto.cwd, `«${laDomanda.slice(0, 200)}» → ${testo}`, deps.adesso())
+          }
           if (!deps.domande.rispondi(idDomanda, testo, da)) {
             rispondi(res, 404, { errore: 'domanda inesistente o gia risposta' })
             return

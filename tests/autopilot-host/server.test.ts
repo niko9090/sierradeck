@@ -1,3 +1,4 @@
+import { apriMemoria } from '../../src/autopilot-host/memoria'
 import { apriRegistroTempi } from '../../src/autopilot-host/tempi'
 import { STRATEGIE } from '../../src/autopilot-host/strategie'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
@@ -54,6 +55,7 @@ function ambiente(
     /** Per simulare un riavvio del servizio: lo stesso archivio e le domande da un file. */
     cartellaArchivio?: string
     domande?: ReturnType<typeof creaRegistroDomande>
+    memoria?: ReturnType<typeof apriMemoria>
   } = {}
 ): ServerAutopiloti {
   limitiDaSpingere = opts.limiti
@@ -84,8 +86,12 @@ function ambiente(
     ...(opts.silenzioMassimoMs !== undefined ? { silenzioMassimoMs: opts.silenzioMassimoMs } : {}),
     adesso: opts.adesso ?? (() => '2026-08-09T10:05:00.000Z'),
     ...(opts.git !== undefined ? { git: opts.git } : {}),
-    ...(opts.tempi !== undefined ? { tempi: opts.tempi } : {})
+    ...(opts.tempi !== undefined ? { tempi: opts.tempi } : {}),
+    ...(opts.memoria !== undefined ? { memoria: opts.memoria } : {})
   })
+}
+function creaServerCon(opts: Parameters<typeof ambiente>[0]): ServerAutopiloti {
+  return ambiente(opts)
 }
 
 async function chiama(metodo: string, percorso: string, corpo?: unknown): Promise<{ stato: number; dati: any }> {
@@ -2224,5 +2230,34 @@ describe('antiloop nel servizio (0.71.0)', () => {
     const id = await creaAp()
     for (let i = 0; i < 4; i += 1) await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: `Fatto il pezzo ${i}.` }))
     expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('lavoro')
+  })
+})
+
+describe('domande chiare nel servizio (0.71.0)', () => {
+  const chiede = (domanda: string) => JSON.stringify({ azione: 'chiedi', domanda: { staFacendo: 'Sto collegando il pagamento.', domanda, perche: 'Senza la chiave il pagamento non parte.', scelte: [{ scelta: 'di prova', conseguenza: 'collego quella di prova', consigliata: true }, { scelta: 'vera', conseguenza: 'collego quella vera' }], seNonRispondi: 'Aspetto.' }, perche: 'serve' })
+
+  it('la stessa domanda già risposta non si rifà: la chat riceve la risposta di prima', async () => {
+    const memoria = apriMemoria(undefined)
+    memoria.ricordaRisposta('ap-mem', 'Uso la chiave di prova o quella vera?', 'di prova', '2026-10-12T10:00:00Z')
+    server = creaServerCon({ memoria, interroga: () => Promise.resolve({ testo: chiede('Uso la chiave di prova o quella vera?') }) })
+    await avvia(server)
+    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-mem', nome: 'Mem', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'lavoro' })
+    const r = await chiama('POST', '/hook/stop?ap=ap-mem', eventoStop())
+    expect(r.dati.decision).toBe('block')
+    expect(r.dati.reason).toContain('di prova')
+    expect((await chiama('GET', '/domande')).dati).toHaveLength(0)
+  })
+
+  it('una alla volta: due domande dello stesso autopilota, se ne vede una con quante aspettano', async () => {
+    const domande = creaRegistroDomande({ adesso: () => Date.now() })
+    server = ambiente({ domande })
+    await avvia(server)
+    domande.apri({ autopilotaId: 'ap-a', testo: 'prima', scadenzaMs: 60_000 })
+    await new Promise((r) => setTimeout(r, 5))
+    domande.apri({ autopilotaId: 'ap-a', testo: 'seconda', scadenzaMs: 60_000 })
+    domande.apri({ autopilotaId: 'ap-b', testo: 'di un altro', scadenzaMs: 60_000 })
+    const viste = (await chiama('GET', '/domande')).dati
+    expect(viste.map((d: { testo: string }) => d.testo).sort()).toEqual(['di un altro', 'prima'])
+    expect(viste.find((d: { testo: string }) => d.testo === 'prima').inFila).toBe(1)
   })
 })
