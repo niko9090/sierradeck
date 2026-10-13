@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.71.1',
+    righe: [
+      '**Le domande non spariscono più:** una chat che finisce il turno con una domanda scritta, o con un dialogo, sta in «Aspettano te» finché le rispondi, sul PC, sulla pagina e nell’app. Se risponde l’autopilota al posto tuo, la domanda resta visibile per 12 ore con «risposta dall’autopilota».',
+      '**Spostamento con un PC spento:** il motivo è scritto in chiaro, con il nome del PC, e scegli fra «Aspetta» (riparte da solo quando si riaccende) e «Vai avanti senza» (la sua copia resta lì e si sistema quando torna). Niente si perde.',
+      '**Nessuna risposta al posto tuo:** una chat in sottofondo che apriva una domanda a scelta subito dopo un messaggio riceveva un Invio in più, che sceglieva la prima opzione. Ora la domanda resta aperta finché rispondi tu. E il suggerimento in grigio di Claude Code nel campo non blocca più la consegna dei messaggi.',
+      '**Progetti, provati tasto per tasto con i dati veri:** gli altri PC non risultano più tutti «da aggiornare» e le loro chat sul disco si contano; «registrato più volte» è da sistemare solo se c’è davvero qualcosa da unire (da 14 progetti a 2); «Quaderno del progetto» apre il quaderno di quel progetto; «Dove vive ogni chat…» si vede; «Annulla l’unione» chiede conferma anche sul PC; sulla pagina del telefono «Sposta su…» non allarga più la pagina e i «?» si toccano.'
+    ]
+  },
+  {
     versione: '0.71.0',
     righe: [
       '**Agenti specializzati:** l’autopilota fa da coordinatore. Divide il lavoro in compiti, ognuno con il suo ruolo (Sviluppo, Interfaccia, Collaudo, Revisione, Rilascio) e il suo ramo, e unisce un ramo solo dopo l’ok della Revisione. Un OK con i criteri rossi non vale; dopo due rifacimenti decidi tu. Il ruolo si vede su PC, pagina e app.',
