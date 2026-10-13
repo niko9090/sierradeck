@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import {
-  ANNULLA_TUTTO_GIORNI, PASSI_TRASLOCO, annullabile, dettaglioVecchia, ferma, finito, motivoPassaggero, nuovoTrasloco, prossimoPasso, segna,
-  type IdPasso, type Trasloco
+  ANNULLA_TUTTO_GIORNI, PASSI_TRASLOCO, annullabile, copieDopo, dettaglioVecchia, ferma, finito, motivoPassaggero, nuovoTrasloco, prossimoPasso, segna, vaiAvantiSenza,
+  type CopiaAltrove, type IdPasso, type Trasloco
 } from '@shared/trasloco'
 import type { StatoResidenza } from '@shared/residenza'
 import type { AvanzaAnalisi } from './residenza'
@@ -46,6 +46,11 @@ export type DipendenzeTrasloco = {
 export type TraslocoApi = {
   avvia: (progetto: string, chiesto: Trasloco['chiesto']) => Promise<{ ok: boolean; messaggio: string; trasloco?: Trasloco }>
   riprendi: (id: string) => { ok: boolean; messaggio: string }
+  /**
+   * «Vai avanti senza» un PC spento (0.71.1): il trasloco riparte senza la sua
+   * copia; quella resta dov'è e si sistema quando il PC torna (vedi `giro`).
+   */
+  senza: (id: string, pc: string) => { ok: boolean; messaggio: string }
   annullaTutto: (id: string) => Promise<{ ok: boolean; messaggio: string }>
   elenco: () => Trasloco[]
   stato: (id: string) => Trasloco | undefined
@@ -84,10 +89,61 @@ export function creaTrasloco(d: DipendenzeTrasloco): TraslocoApi {
     return [...memoria.values()].sort((a, b) => b.avviatoIl.localeCompare(a.avviatoIl))
   }
   const passo = (t: Trasloco, p: IdPasso, cambia: Parameters<typeof segna>[2]): Trasloco => scrivi(segna(memoria.get(t.id) ?? t, p, cambia, iso()))
-  const fermaQui = (t: Trasloco, p: IdPasso, motivo: string, daSolo?: boolean): Trasloco => {
+  const fermaQui = (t: Trasloco, p: IdPasso, motivo: string, daSolo?: boolean, pc?: string): Trasloco => {
     const riprova = daSolo ?? motivoPassaggero(motivo)
     d.log(`[trasloco] «${t.nome}»: fermo al passo «${PASSI_TRASLOCO.find((x) => x.id === p)?.titolo ?? p}» — ${motivo}${riprova ? ' (riprendo da solo quando passa)' : ''}`)
-    return scrivi(ferma(memoria.get(t.id) ?? t, p, motivo, riprova, iso()))
+    return scrivi(ferma(memoria.get(t.id) ?? t, p, motivo, riprova, iso(), pc))
+  }
+  /** Segna l'esito della copia di un PC. */
+  const esitoCopia = (t: Trasloco, pc: string, cambia: Partial<CopiaAltrove>): Trasloco =>
+    scrivi({ ...(memoria.get(t.id) ?? t), altrove: (memoria.get(t.id) ?? t).altrove.map((x) => (x.pc === pc ? { ...x, ...cambia } : x)) })
+
+  /**
+   * La copia vecchia su un altro PC: confronto con quella di qui, quello che
+   * ha solo lui entra qui nei recuperati, poi la sua copia va nel recupero di
+   * quel PC. `spento` se il PC non risponde.
+   */
+  const togliVecchia = async (t: Trasloco, a: CopiaAltrove, ids: string[], su: (messaggio: string) => void): Promise<
+    { esito: 'nel-recupero' | 'niente'; messaggio?: string } | { spento: string } | { fermo: string; daSolo?: boolean }
+  > => {
+    const io = d.io()
+    try {
+      await d.chiamaPc(a.pc, '/api/trasloco/togli', { ids, residente: { pc: io.id, nome: io.nome } })
+    } catch (err) {
+      return { spento: errore(err) }
+    }
+    // Il confronto e il recupero là possono durare: si guarda lo stato finché finisce.
+    let st: StatoTogli = {}
+    for (let giri = 0; giri < 400; giri += 1) {
+      try { st = await d.chiamaPc(a.pc, '/api/trasloco/togli-stato', { ids }) as StatoTogli } catch (err) {
+        return { spento: errore(err) }
+      }
+      if (st.fase !== 'analisi' && st.fase !== 'recupero' && st.fase !== 'attesa-conferma') break
+      if (st.messaggio !== undefined) su(st.messaggio)
+      await attesa(3000)
+    }
+    const esito = st.fase === 'spostata' ? 'nel-recupero' as const : /non ha una cartella|niente da togliere|non c’è più/i.test(st.messaggio ?? '') ? 'niente' as const : undefined
+    if (esito === undefined) return { fermo: `${a.nome}: ${st.messaggio ?? `stato ${st.fase ?? 'sconosciuto'}`}`, ...(st.fase === 'in-uso' ? { daSolo: true } : {}) }
+    return { esito, ...(st.messaggio !== undefined ? { messaggio: st.messaggio } : {}) }
+  }
+  /** Le copie lasciate indietro con «Vai avanti senza», quando il loro PC torna (0.71.1). */
+  const dopo = new Set<string>()
+  const sistemaDopo = async (t: Trasloco): Promise<void> => {
+    if (dopo.has(t.id)) return
+    dopo.add(t.id)
+    try {
+      const g = await d.progetto(t.progetto)
+      const ids = g?.ids ?? [t.progetto]
+      for (const a of copieDopo(memoria.get(t.id) ?? t)) {
+        const r = await togliVecchia(t, a, ids, () => undefined)
+        if ('spento' in r) continue
+        if ('fermo' in r) { esitoCopia(t, a.pc, { messaggio: r.fermo }); d.log(`[trasloco] «${t.nome}»: ${a.nome} è tornato, ma la sua copia non si è sistemata: ${r.fermo}`); continue }
+        esitoCopia(t, a.pc, { esito: r.esito, ...(r.messaggio !== undefined ? { messaggio: r.messaggio } : {}) })
+        d.log(`[trasloco] «${t.nome}»: ${a.nome} è tornato: quello che aveva solo lui è qui nei recuperati, la sua copia ${r.esito === 'nel-recupero' ? 'nel recupero di quel PC' : 'non c’era più'}`)
+      }
+    } finally {
+      dopo.delete(t.id)
+    }
   }
   const errore = (err: unknown): string => (err instanceof Error ? err.message : String(err))
 
@@ -95,7 +151,8 @@ export function creaTrasloco(d: DipendenzeTrasloco): TraslocoApi {
   const faiPasso = async (t0: Trasloco, p: IdPasso): Promise<boolean> => {
     let t = passo(t0, p, { stato: 'in-corso' })
     if (p === 'raccolta') {
-      const da = t.altrove.filter((a) => a.salvata !== true)
+      // Senza i PC per cui si è scelto «Vai avanti senza» (0.71.1): la loro copia sul Drive è quella dell'ultimo salvataggio.
+      const da = t.altrove.filter((a) => a.salvata !== true && a.senza === undefined)
       if (t.altrove.length === 0) { passo(t, p, { stato: 'fatto', dettaglio: 'Nessun altro PC ha una copia: confronto le copie di qui e quelle sul Drive.' }); return true }
       let k = t.altrove.length - da.length
       for (const a of da) {
@@ -103,14 +160,16 @@ export function creaTrasloco(d: DipendenzeTrasloco): TraslocoApi {
         t = passo(t, p, { dettaglio: `Chiedo a ${a.nome} di salvare sul Drive la sua copia`, fatto: k - 1, totale: t.altrove.length })
         let r: { ok?: unknown; messaggio?: unknown }
         try { r = await d.chiamaPc(a.pc, '/api/trasloco/salva', { progetto: t.progetto, trasloco: t.id, verso: d.io().id }) as typeof r } catch (err) {
-          fermaQui(t, p, `${a.nome} non risponde (${errore(err)}): senza la sua copia aggiornata non confronto. Riprendo da qui quando torna.`, true)
+          fermaQui(t, p, `${a.nome} non risponde (${errore(err)}): senza la sua copia aggiornata non confronto. Riprendo da qui quando torna.`, true, a.pc)
           return false
         }
         if (r.ok !== true) { fermaQui(t, p, `${a.nome} non ha salvato sul Drive: ${typeof r.messaggio === 'string' ? r.messaggio : 'nessun motivo'}`); return false }
         t = scrivi({ ...(memoria.get(t.id) ?? t), altrove: (memoria.get(t.id) ?? t).altrove.map((x) => (x.pc === a.pc ? { ...x, salvata: true } : x)) })
         d.log(`[trasloco] «${t.nome}»: ${a.nome} ha salvato la sua copia sul Drive`)
       }
-      passo(t, p, { stato: 'fatto', dettaglio: `${t.altrove.length} ${t.altrove.length === 1 ? 'copia salvata' : 'copie salvate'} sul Drive`, fatto: t.altrove.length, totale: t.altrove.length })
+      const salvate = (memoria.get(t.id) ?? t).altrove.filter((a) => a.salvata === true).length
+      const saltati = (memoria.get(t.id) ?? t).altrove.filter((a) => a.senza !== undefined && a.salvata !== true).map((a) => a.nome)
+      passo(t, p, { stato: 'fatto', dettaglio: `${salvate} ${salvate === 1 ? 'copia salvata' : 'copie salvate'} sul Drive${saltati.length > 0 ? `; senza ${saltati.join(', ')} (spento: uso la sua copia sul Drive, il resto quando torna)` : ''}`, fatto: t.altrove.length, totale: t.altrove.length })
       return true
     }
     if (p === 'analisi') {
@@ -143,33 +202,25 @@ export function creaTrasloco(d: DipendenzeTrasloco): TraslocoApi {
     if (p === 'vecchie') {
       const g = await d.progetto(t.progetto)
       const ids = g?.ids ?? [t.progetto]
-      const io = d.io()
-      const da = (memoria.get(t.id) ?? t).altrove.filter((a) => a.esito !== 'nel-recupero' && a.esito !== 'niente')
+      const da = (memoria.get(t.id) ?? t).altrove.filter((a) => a.esito !== 'nel-recupero' && a.esito !== 'niente' && a.esito !== 'dopo')
       let k = t.altrove.length - da.length
       for (const a of da) {
         k += 1
         t = passo(t, p, { dettaglio: `${dettaglioVecchia(a.nome)} (${k}/${t.altrove.length})`, fatto: k - 1, totale: t.altrove.length })
-        try {
-          await d.chiamaPc(a.pc, '/api/trasloco/togli', { ids, residente: { pc: io.id, nome: io.nome } })
-        } catch (err) {
-          fermaQui(t, p, `${a.nome} non risponde (${errore(err)}): la sua copia resta dov’è. Riprendo da qui quando torna.`, true)
+        const r = await togliVecchia(t, a, ids, (m) => { passo(t, p, { dettaglio: `${a.nome}: ${m}` }) })
+        if ('spento' in r) {
+          // «Vai avanti senza» quel PC (0.71.1): la sua copia resta dov'è, si sistema quando torna.
+          if (a.senza !== undefined) {
+            t = esitoCopia(t, a.pc, { esito: 'dopo', messaggio: 'spento: la sua copia resta lì, la sistemo quando torna' })
+            d.log(`[trasloco] «${t.nome}»: ${a.nome} è spento, vado avanti senza: la sua copia la sistemo quando torna`)
+            continue
+          }
+          fermaQui(t, p, `${a.nome} non risponde (${r.spento}): la sua copia resta dov’è. Riprendo da qui quando torna.`, true, a.pc)
           return false
         }
-        // Il confronto e il recupero là possono durare: si guarda lo stato finché finisce.
-        let st: StatoTogli = {}
-        for (let giri = 0; giri < 400; giri += 1) {
-          try { st = await d.chiamaPc(a.pc, '/api/trasloco/togli-stato', { ids }) as StatoTogli } catch (err) {
-            fermaQui(t, p, `${a.nome} non risponde più (${errore(err)}) mentre toglie la sua copia: riprendo da qui quando torna.`, true)
-            return false
-          }
-          if (st.fase !== 'analisi' && st.fase !== 'recupero' && st.fase !== 'attesa-conferma') break
-          if (st.messaggio !== undefined) passo(t, p, { dettaglio: `${a.nome}: ${st.messaggio}` })
-          await attesa(3000)
-        }
-        const esito = st.fase === 'spostata' ? 'nel-recupero' as const : /non ha una cartella|niente da togliere|non c’è più/i.test(st.messaggio ?? '') ? 'niente' as const : undefined
-        if (esito === undefined) { fermaQui(t, p, `${a.nome}: ${st.messaggio ?? `stato ${st.fase ?? 'sconosciuto'}`}`, st.fase === 'in-uso' ? true : undefined); return false }
-        t = scrivi({ ...(memoria.get(t.id) ?? t), altrove: (memoria.get(t.id) ?? t).altrove.map((x) => (x.pc === a.pc ? { ...x, esito, ...(st.messaggio !== undefined ? { messaggio: st.messaggio } : {}) } : x)) })
-        d.log(`[trasloco] «${t.nome}»: copia di ${a.nome} ${esito === 'nel-recupero' ? 'nel recupero di quel PC' : 'già assente'}`)
+        if ('fermo' in r) { fermaQui(t, p, r.fermo, r.daSolo); return false }
+        t = esitoCopia(t, a.pc, { esito: r.esito, ...(r.messaggio !== undefined ? { messaggio: r.messaggio } : {}) })
+        d.log(`[trasloco] «${t.nome}»: copia di ${a.nome} ${r.esito === 'nel-recupero' ? 'nel recupero di quel PC' : 'già assente'}`)
       }
       const nelRecupero = (memoria.get(t.id) ?? t).altrove.filter((x) => x.esito === 'nel-recupero').length
       passo(t, p, { stato: 'fatto', dettaglio: nelRecupero === 0 ? 'Nessuna copia vecchia da togliere' : `${nelRecupero} ${nelRecupero === 1 ? 'copia vecchia nel recupero' : 'copie vecchie nel recupero'}, per 30 giorni`, fatto: t.altrove.length, totale: t.altrove.length })
@@ -179,7 +230,7 @@ export function creaTrasloco(d: DipendenzeTrasloco): TraslocoApi {
     const ora = memoria.get(t.id) ?? t
     const righe = [
       ...(ora.riassunto ?? []).slice(0, 8),
-      ...ora.altrove.map((a) => `${a.nome}: ${a.esito === 'nel-recupero' ? 'la copia vecchia è nel recupero di quel PC per 30 giorni' : 'non aveva una copia da togliere'}.`),
+      ...ora.altrove.map((a) => `${a.nome}: ${a.esito === 'nel-recupero' ? 'la copia vecchia è nel recupero di quel PC per 30 giorni' : a.esito === 'dopo' ? 'era spento: la sua copia resta lì; quando torna, quello che ha solo lui entra qui nei recuperati e la sua copia va nel recupero di quel PC' : 'non aveva una copia da togliere'}.`),
       `«Annulla tutto» rimette com’era per ${ANNULLA_TUTTO_GIORNI} giorni.`
     ]
     scrivi({ ...ora, riassunto: righe, finitoIl: iso(), scadeIl: new Date(adesso() + ANNULLA_TUTTO_GIORNI * 86_400_000).toISOString() })
@@ -236,6 +287,19 @@ export function creaTrasloco(d: DipendenzeTrasloco): TraslocoApi {
       return { ok: true, messaggio: 'Riprendo da dove era.' }
     },
 
+    senza(id, pc) {
+      const t = memoria.get(id) ?? leggiTutti().find((x) => x.id === id)
+      if (t === undefined) return { ok: false, messaggio: 'Trasloco non trovato.' }
+      if (finito(t)) return { ok: false, messaggio: 'Questo trasloco è già finito.' }
+      const a = t.altrove.find((x) => x.pc === pc)
+      if (a === undefined) return { ok: false, messaggio: 'Quel PC non ha una copia di questo progetto.' }
+      if (girano.has(id)) return { ok: false, messaggio: 'Il trasloco sta lavorando: aspetta che si fermi.' }
+      scrivi(vaiAvantiSenza(t, pc, iso()))
+      d.log(`[trasloco] «${t.nome}»: vado avanti senza ${a.nome} (scelto da chi guarda): la sua copia resta lì e la sistemo quando torna`)
+      void esegui(id)
+      return { ok: true, messaggio: `Vado avanti senza ${a.nome}: la sua copia resta lì e la sistemo quando torna.` }
+    },
+
     async annullaTutto(id) {
       const t = memoria.get(id) ?? leggiTutti().find((x) => x.id === id)
       if (t === undefined) return { ok: false, messaggio: 'Trasloco non trovato.' }
@@ -271,6 +335,8 @@ export function creaTrasloco(d: DipendenzeTrasloco): TraslocoApi {
 
     giro() {
       for (const t of leggiTutti()) {
+        // Le copie lasciate indietro con «Vai avanti senza»: quando il loro PC torna (0.71.1).
+        if (t.finitoIl !== undefined && copieDopo(t).length > 0) { void sistemaDopo(t); continue }
         if (finito(t) || girano.has(t.id)) continue
         if (t.fermo !== undefined && !t.fermo.riprovaDaSolo) continue
         void esegui(t.id)

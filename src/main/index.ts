@@ -100,7 +100,7 @@ import { cartellaDaNomeWorkspace, cartellaVietataPerChat, eSessioneInterna, rior
 import { leggiEliminati } from './workspace-ritrova'
 import { annotaEliminato, copieDellaLista, riparaListaAllAvvio, type EsitoAvvio } from './workspace-ritrova'
 import { cartellaDiProva, PREFISSO_CARTELLA_PROVA } from '@shared/chat-di-prova'
-import type { Trasloco } from '@shared/trasloco'
+import { fermoChiaro, type Trasloco } from '@shared/trasloco'
 import { cartellaDiProgettoValida, daRiprovare, pianoAllineamento, rigaPiano, type PianoAllineamento } from '@shared/allineamento'
 import { LOCALI_MAX_CHAT, type LocaliBattito } from '@shared/posta'
 import { apriFileProgetti } from './file-progetti'
@@ -2948,7 +2948,12 @@ if (!app.requestSingleInstanceLock()) {
         traslochi: [
           ...(traslocoGlobale?.elenco() ?? []),
           ...[...traslochiSeguiti.values()].flatMap((x) => (x.ultimo === undefined || (traslocoGlobale?.stato(x.ultimo.id) !== undefined) ? [] : [x.ultimo]))
-        ],
+        ].map((t) => {
+          // Il fermo detto in chiaro, con il nome scelto del PC e le due scelte (0.71.1): uguale su PC, pagina e app.
+          const battiti = postinoGlobale?.altrui() ?? []
+          const chiaro = fermoChiaro(t, (pc) => { const b = battiti.find((x) => x.pcId === pc); return b !== undefined ? nomeDaMostrare(b) : undefined })
+          return chiaro !== undefined ? { ...t, fermoChiaro: chiaro } : t
+        }),
         rimozione: { stati: rimozioneGlobale?.stati() ?? [], inRecupero: rimozioneGlobale?.inRecupero() ?? [] }
       })
       // «Rendi residente» con analisi e unione (0.60.0).
@@ -3043,7 +3048,8 @@ if (!app.requestSingleInstanceLock()) {
           if (g === undefined) return undefined
           const io = identitaPc.leggi()
           const battiti = postino.altrui()
-          const nomeDi = (pc: string): string => battiti.find((b) => b.pcId === pc)?.nome ?? pc.slice(0, 8)
+          // Il nome scelto del PC (0.71.1): è quello che compare nel motivo di un fermo.
+          const nomeDi = (pc: string): string => { const b = battiti.find((x) => x.pcId === pc); return b !== undefined ? nomeDaMostrare(b) : pc.slice(0, 8) }
           const ids = new Set(g.ids)
           const conCopia = new Set([
             ...g.percorsi.filter((x) => x.pc !== io.id).map((x) => x.pc),
@@ -3134,13 +3140,13 @@ if (!app.requestSingleInstanceLock()) {
         }
         return spostaVerso(id, dest)
       })
-      /** Riprendi e Annulla tutto: qui, o sul PC dove gira. */
-      const sulTrasloco = async (azione: 'riprendi' | 'annulla', id: string): Promise<{ ok: boolean; messaggio: string }> => {
-        if (trasloco.stato(id) !== undefined) return azione === 'riprendi' ? trasloco.riprendi(id) : trasloco.annullaTutto(id)
+      /** Riprendi, «Vai avanti senza» un PC spento (0.71.1) e Annulla tutto: qui, o sul PC dove gira. */
+      const sulTrasloco = async (azione: 'riprendi' | 'annulla' | 'senza', id: string, pc = ''): Promise<{ ok: boolean; messaggio: string }> => {
+        if (trasloco.stato(id) !== undefined) return azione === 'riprendi' ? trasloco.riprendi(id) : azione === 'senza' ? trasloco.senza(id, pc) : trasloco.annullaTutto(id)
         const x = traslochiSeguiti.get(id)
         if (x === undefined) return { ok: false, messaggio: 'Trasloco non trovato.' }
         try {
-          const r = await remoto.chiama(x.pc, `/api/trasloco/${azione}`, { id }) as { ok?: unknown; messaggio?: unknown }
+          const r = await remoto.chiama(x.pc, `/api/trasloco/${azione}`, { id, ...(azione === 'senza' ? { pc } : {}) }) as { ok?: unknown; messaggio?: unknown }
           x.letto = 0
           return { ok: r.ok === true, messaggio: typeof r.messaggio === 'string' ? r.messaggio : 'Fatto.' }
         } catch (err) {
@@ -3239,6 +3245,8 @@ if (!app.requestSingleInstanceLock()) {
         },
         stato: async (corpo) => trasloco.stato(typeof (corpo as { id?: unknown } | undefined)?.id === 'string' ? (corpo as { id: string }).id : '') ?? {},
         riprendi: async (corpo) => trasloco.riprendi(String((corpo as { id?: unknown } | undefined)?.id ?? '')),
+        // «Vai avanti senza» un PC spento (0.71.1), chiesto dal PC che segue il trasloco.
+        senza: async (corpo) => trasloco.senza(String((corpo as { id?: unknown } | undefined)?.id ?? ''), String((corpo as { pc?: unknown } | undefined)?.pc ?? '')),
         annulla: async (corpo) => trasloco.annullaTutto(String((corpo as { id?: unknown } | undefined)?.id ?? ''))
       }
       /**
@@ -3312,6 +3320,8 @@ if (!app.requestSingleInstanceLock()) {
           return spostaVerso(progetto, verso)
         }
         if (azione === 'trasloco-riprendi' || azione === 'trasloco-annulla') return sulTrasloco(azione === 'trasloco-riprendi' ? 'riprendi' : 'annulla', testoDi(c.id))
+        // «Vai avanti senza» quel PC spento (0.71.1): «Aspetta quel PC» è non fare niente, riparte da solo.
+        if (azione === 'trasloco-senza') return sulTrasloco('senza', testoDi(c.id), testoDi(c.pc))
         if (azione === 'conferma-residenza') {
           ultimoPannello = await leggiPannello()
           void residenza.conferma(progetto)

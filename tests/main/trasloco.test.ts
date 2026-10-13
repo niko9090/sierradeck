@@ -153,3 +153,47 @@ describe('il trasloco di un progetto: un passaggio solo, con l’analisi prima e
     expect(bis.messaggio).toContain('già in corso')
   })
 })
+
+describe('un PC spento: «Vai avanti senza» (0.71.1), e la sua copia si sistema quando torna', () => {
+  it('il trasloco finisce senza il portatile, che non perde niente: quando torna, confronto e recupero', async () => {
+    let spento = true
+    const b = banco({ portatileSpento: () => spento })
+    const t = creaTrasloco(b.d)
+    const id = (await t.avvia('p1', { da: 'pc-qui', come: 'residente' })).trasloco!.id
+    await t.inCorso(id)
+    const fermo = t.stato(id)!
+    expect(fermo.fermo).toMatchObject({ passo: 'raccolta', pc: 'pc-port', riprovaDaSolo: true })
+
+    const r = t.senza(id, 'pc-port')
+    expect(r.ok).toBe(true)
+    await t.inCorso(id)
+    const fine = t.stato(id)!
+    expect(fine.finitoIl).toBeDefined()
+    expect(fine.altrove[0]).toMatchObject({ pc: 'pc-port', esito: 'dopo' })
+    expect(fine.passi.raccolta.dettaglio).toContain('senza PORTATILE-ESEMPIO')
+    expect(fine.riassunto?.some((x) => x.includes('era spento'))).toBe(true)
+    // Al portatile spento non si è chiesto di togliere niente con successo: nessun recupero là.
+    expect(b.chiamate.filter((c) => c.endsWith('/api/trasloco/togli-stato'))).toEqual([])
+
+    // Spento ancora: il giro non cambia niente.
+    t.giro()
+    await new Promise((ok) => setTimeout(ok, 20))
+    expect(t.stato(id)!.altrove[0]!.esito).toBe('dopo')
+
+    // Torna: confronto, quello che ha solo lui entra qui nei recuperati, la sua copia nel recupero.
+    spento = false
+    t.giro()
+    for (let i = 0; i < 50 && t.stato(id)!.altrove[0]!.esito === 'dopo'; i += 1) await new Promise((ok) => setTimeout(ok, 10))
+    expect(t.stato(id)!.altrove[0]).toMatchObject({ pc: 'pc-port', esito: 'nel-recupero' })
+    expect(b.righe.join('\n')).toContain('PORTATILE-ESEMPIO è tornato')
+  })
+
+  it('«Vai avanti senza» si rifiuta per un PC che non ha una copia o per un trasloco finito', async () => {
+    const b = banco({ portatileSpento: () => true })
+    const t = creaTrasloco(b.d)
+    const id = (await t.avvia('p1', { da: 'pc-qui', come: 'residente' })).trasloco!.id
+    await t.inCorso(id)
+    expect(t.senza(id, 'pc-sconosciuto').ok).toBe(false)
+    expect(t.senza('nessuno', 'pc-port').ok).toBe(false)
+  })
+})

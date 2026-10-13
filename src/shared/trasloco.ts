@@ -47,9 +47,16 @@ export type CopiaAltrove = {
   pc: string
   nome: string
   salvata?: boolean
-  /** La copia vecchia: nel recupero, niente da togliere, o ferma con il motivo. */
-  esito?: 'nel-recupero' | 'niente' | 'fermo'
+  /**
+   * La copia vecchia: nel recupero, niente da togliere, ferma con il motivo, o
+   * `dopo` (0.71.1): il PC era spento e si è scelto «Vai avanti senza», la sua
+   * copia resta dov'è e quando torna si confronta, si unisce qui quello che ha
+   * solo lui (nei recuperati) e va nel recupero di quel PC.
+   */
+  esito?: 'nel-recupero' | 'niente' | 'fermo' | 'dopo'
   messaggio?: string
+  /** Quando si è scelto «Vai avanti senza» per questo PC (0.71.1). */
+  senza?: string
 }
 
 export type Trasloco = {
@@ -66,7 +73,7 @@ export type Trasloco = {
   /** Il residente di prima, se era un altro PC: «Annulla tutto» gli ridà la casa. */
   casaPrima?: { pc: string; nome: string }
   /** Il motivo per cui è fermo; riprende dal passo fermo. */
-  fermo?: { passo: IdPasso; motivo: string; il: string; riprovaDaSolo: boolean }
+  fermo?: { passo: IdPasso; motivo: string; il: string; riprovaDaSolo: boolean; pc?: string }
   /** L'unione fatta qui (per «Annulla tutto»). */
   unione?: string
   riassunto?: string[]
@@ -75,7 +82,12 @@ export type Trasloco = {
   scadeIl?: string
   annullatoIl?: string
   annullamento?: string[]
+  /** Solo per mostrarlo (0.71.1): il fermo in chiaro, scritto dal PC per PC, pagina e app. */
+  fermoChiaro?: FermoChiaro
 }
+
+/** Il fermo in chiaro: il testo, il PC spento e se si può scegliere fra aspettarlo e andare avanti senza. */
+export type FermoChiaro = { testo: string; pc?: { pc: string; nome: string }; scelte: boolean }
 
 export const ANNULLA_TUTTO_GIORNI = 30
 
@@ -101,8 +113,57 @@ export function segna(t: Trasloco, passo: IdPasso, cambia: Partial<PassoTrasloco
  * `riprovaDaSolo`: il motivo passa da solo (un PC spento che torna), e il
  * trasloco riprende da sé.
  */
-export function ferma(t: Trasloco, passo: IdPasso, motivo: string, riprovaDaSolo: boolean, adesso: string): Trasloco {
-  return { ...segna(t, passo, { stato: 'fermo', dettaglio: motivo }, adesso), fermo: { passo, motivo, il: adesso, riprovaDaSolo } }
+export function ferma(t: Trasloco, passo: IdPasso, motivo: string, riprovaDaSolo: boolean, adesso: string, pc?: string): Trasloco {
+  return { ...segna(t, passo, { stato: 'fermo', dettaglio: motivo }, adesso), fermo: { passo, motivo, il: adesso, riprovaDaSolo, ...(pc !== undefined ? { pc } : {}) } }
+}
+
+/**
+ * Il PC per cui il trasloco è fermo, se è fermo perché un PC non risponde
+ * (0.71.1). Nei traslochi di prima il PC non era scritto: si riconosce dal
+ * nome in testa al motivo («LAPTOP-… non risponde (…)»).
+ */
+export function pcFermo(t: Trasloco): CopiaAltrove | undefined {
+  const f = t.fermo
+  if (f === undefined) return undefined
+  if (f.pc !== undefined) return t.altrove.find((a) => a.pc === f.pc)
+  if (!/non risponde/i.test(f.motivo)) return undefined
+  return t.altrove.find((a) => f.motivo.startsWith(a.nome))
+}
+
+/**
+ * Il fermo detto in chiaro, con il nome scelto del PC (0.71.1). Nicholas
+ * (13/10): «ho provato a spostare un progetto ma rimane fermo»; il motivo era
+ * «LAPTOP-… non risponde (Con il collegamento lento via Drive non si può fare
+ * questa operazione…», tagliato a metà sullo schermo. Con un PC spento le
+ * scelte sono due: «Aspetta quel PC» (riparte da solo quando torna) o «Vai
+ * avanti senza» (la sua copia resta dov'è e si unisce quando torna).
+ */
+export function fermoChiaro(t: Trasloco, nomeDi: (pc: string) => string | undefined = () => undefined): FermoChiaro | undefined {
+  if (t.fermo === undefined) return undefined
+  const a = pcFermo(t)
+  if (a === undefined) return { testo: t.fermo.motivo, scelte: false }
+  const nome = nomeDi(a.pc) ?? a.nome
+  const perche = t.fermo.passo === 'raccolta'
+    ? `Mi serve la sua copia aggiornata del progetto per confrontarla con le altre.`
+    : `Devo confrontare la sua copia vecchia con questa prima di metterla nel recupero.`
+  return {
+    testo: `«${nome}» è spento o non si raggiunge da qui. ${perche} Puoi aspettarlo (riparto da solo quando si riaccende) o andare avanti senza: la sua copia resta dov’è e, quando torna, quello che ha solo lui entra qui nei recuperati. Niente si perde.`,
+    pc: { pc: a.pc, nome },
+    scelte: a.senza === undefined
+  }
+}
+
+/** «Vai avanti senza» quel PC (0.71.1): il passo fermo riparte, senza aspettarlo. */
+export function vaiAvantiSenza(t: Trasloco, pc: string, adesso: string): Trasloco {
+  const altrove = t.altrove.map((a) => (a.pc === pc ? { ...a, senza: adesso } : a))
+  if (t.fermo === undefined) return { ...t, altrove }
+  const { fermo, ...resto } = t
+  return { ...resto, altrove, passi: { ...t.passi, [fermo.passo]: { ...t.passi[fermo.passo], stato: 'da-fare', dettaglio: undefined, il: adesso } } }
+}
+
+/** Le copie da sistemare quando il loro PC torna (0.71.1): il trasloco è finito, loro no. */
+export function copieDopo(t: Trasloco): CopiaAltrove[] {
+  return t.annullatoIl !== undefined ? [] : t.altrove.filter((a) => a.esito === 'dopo')
 }
 
 export function finito(t: Trasloco): boolean { return t.finitoIl !== undefined || t.annullatoIl !== undefined }

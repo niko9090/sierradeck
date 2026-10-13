@@ -1,0 +1,58 @@
+{
+  "id": "trasloco-spento",
+  "progetto": "p1",
+  "nome": "SierraDeck-prova-spento",
+  "verso": {
+    "pc": "pc-qui",
+    "nome": "PC-ESEMPIO"
+  },
+  "chiesto": {
+    "da": "pc-qui",
+    "come": "residente"
+  },
+  "avviatoIl": "2026-10-13T15:07:15.000Z",
+  "passi": {
+    "raccolta": {
+      "stato": "fermo",
+      "dettaglio": "PORTATILE-ESEMPIO non risponde (Con il collegamento lento via Drive non si può fare questa operazione su PORTATILE-ESEMPIO: si può solo leggere lo schermo e mandare un messaggio. Per il resto serve una strada diretta (rete di casa, Tailscale o WebRTC), oppure lascia un’azione nella cassetta.): senza la sua copia aggiornata non confronto. Riprendo da qui quando torna.",
+      "il": "2026-10-13T15:07:15.000Z"
+    },
+    "analisi": {
+      "stato": "da-fare"
+    },
+    "unione": {
+      "stato": "da-fare"
+    },
+    "vecchie": {
+      "stato": "da-fare"
+    },
+    "fine": {
+      "stato": "da-fare"
+    }
+  },
+  "altrove": [
+    {
+      "pc": "pc-port",
+      "nome": "PORTATILE-ESEMPIO"
+    },
+    {
+      "pc": "pc-desk",
+      "nome": "DESK-ESEMPIO"
+    }
+  ],
+  "fermo": {
+    "passo": "raccolta",
+    "motivo": "PORTATILE-ESEMPIO non risponde (Con il collegamento lento via Drive non si può fare questa operazione su PORTATILE-ESEMPIO: si può solo leggere lo schermo e mandare un messaggio. Per il resto serve una strada diretta (rete di casa, Tailscale o WebRTC), oppure lascia un’azione nella cassetta.): senza la sua copia aggiornata non confronto. Riprendo da qui quando torna.",
+    "il": "2026-10-13T15:07:15.000Z",
+    "riprovaDaSolo": true,
+    "pc": "pc-port"
+  },
+  "fermoChiaro": {
+    "testo": "«Portatile di casa» è spento o non si raggiunge da qui. Mi serve la sua copia aggiornata del progetto per confrontarla con le altre. Puoi aspettarlo (riparto da solo quando si riaccende) o andare avanti senza: la sua copia resta dov’è e, quando torna, quello che ha solo lui entra qui nei recuperati. Niente si perde.",
+    "pc": {
+      "pc": "pc-port",
+      "nome": "Portatile di casa"
+    },
+    "scelte": true
+  }
+}

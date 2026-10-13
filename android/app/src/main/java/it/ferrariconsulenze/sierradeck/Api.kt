@@ -271,6 +271,10 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun azioneDrive(azione: String, progetto: String, id: String = ""): EsitoAzioneDrive =
         json.decodeFromString(corpoTesto("/api/drive/azione", oggetto { put("azione", azione); put("progetto", progetto); put("id", id) }))
 
+    /** «Vai avanti senza» un PC spento (PC 0.71.1): il trasloco riparte, la sua copia si sistema quando torna. */
+    suspend fun traslocoSenza(id: String, pc: String): EsitoAzioneDrive =
+        json.decodeFromString(corpoTesto("/api/drive/azione", oggetto { put("azione", "trasloco-senza"); put("id", id); put("pc", pc) }))
+
     /** «Sposta su ▾» (PC 0.71.0): il progetto va a vivere sul PC scelto, da qualsiasi PC. */
     suspend fun spostaSu(progetto: String, pc: String): EsitoAzioneDrive =
         json.decodeFromString(corpoTesto("/api/drive/azione", oggetto { put("azione", "sposta-su"); put("progetto", progetto); put("pc", pc) }))

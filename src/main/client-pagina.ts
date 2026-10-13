@@ -4031,6 +4031,17 @@ window.pdAzione = async (azione, progetto, conferma, id) => {
   catch (e) { notaGlobale = 'Non è andata: ' + ((e && e.message) || e) }
   await leggiPannelloDrive(); pannello(ultimoStato); pdSegui()
 }
+// «Aspetta quel PC» (0.71.1): niente da fare, riparte da solo; lo si dice e basta.
+window.pdAspetta = (id) => { pdDaConfermare = 'trasloco-aspetta::' + id; pannello(ultimoStato) }
+// «Vai avanti senza» (0.71.1), con conferma: la sua copia resta dov'è e si sistema quando torna.
+window.pdSenza = async (id, pc) => {
+  const chiave = 'trasloco-senza::' + id
+  if (pdDaConfermare !== chiave) { pdDaConfermare = chiave; pannello(ultimoStato); return }
+  pdDaConfermare = ''
+  try { const r = await chiedi('/api/drive/azione', { azione: 'trasloco-senza', id: id, pc: pc }); notaGlobale = (r && r.messaggio) || 'Fatto.' }
+  catch (e) { notaGlobale = 'Non è andata: ' + ((e && e.message) || e) }
+  await leggiPannelloDrive(); pannello(ultimoStato); pdSegui()
+}
 window.pdResidente = async (progetto, sessione, pcId) => {
   if (!pdDati || !pcId) return
   // Questo PC per un progetto (0.60.0): prima l'analisi delle copie e il riassunto («Rendi residente qui»).
@@ -4059,7 +4070,20 @@ function pdTraslochiHtml() {
     h += '<div class="sotto" style="margin-top:10px"><b>Trasloco di «' + esc(t.nome) + '» su ' + esc(t.verso.nome) + '</b> · ' + stato + aiuto('trasloco', '«Sposta progetto» e «Rendi residente» sono lo stesso passaggio: raccolgo le copie, le confronto, unisco qui quello che serve e solo alla fine metto le copie vecchie nel recupero dei loro PC. Se un PC non risponde mi fermo e riprendo da dove ero. «Annulla tutto» per 30 giorni.') + '</div>'
     h += '<div style="height:8px;background:#333;border-radius:4px;overflow:hidden;margin:4px 0"><div style="height:100%;width:' + percento + '%;background:' + (t.fermo ? 'var(--ambra,#e0a33c)' : 'var(--verde,#3c9)') + '"></div></div>'
     if (attuale && !t.finitoIl && !t.annullatoIl) h += '<div class="sotto"><b>' + esc(attuale[1]) + '</b>' + (pa && pa.dettaglio ? ': ' + esc(pa.dettaglio) : '…') + '</div>'
-    if (t.fermo) h += '<div class="sotto" style="color:var(--ambra,#e0a33c)">Fermo: ' + esc(t.fermo.motivo) + (t.fermo.riprovaDaSolo ? ' Riprendo da solo quando passa.' : '') + '</div>'
+    // Un PC spento (0.71.1): il motivo in chiaro, con il nome scelto, e le due scelte.
+    const chiaro = t.fermoChiaro
+    if (t.fermo && chiaro && chiaro.pc) {
+      h += '<div class="sotto" style="color:var(--ambra,#e0a33c)">Fermo: ' + esc(chiaro.testo) + '</div>'
+      if (chiaro.scelte) {
+        const ka = 'trasloco-aspetta::' + t.id
+        const ks = 'trasloco-senza::' + t.id
+        h += '<div class="riga"><button onclick="pdAspetta(\\'' + escJs(t.id) + '\\')">Aspetta ' + esc(chiaro.pc.nome) + '</button>' +
+          '<button onclick="pdSenza(\\'' + escJs(t.id) + '\\', \\'' + escJs(chiaro.pc.pc) + '\\')">' + (pdDaConfermare === ks ? 'Tocca ancora: vai avanti senza' : 'Vai avanti senza…') + '</button>' +
+          aiuto('pc-spento', '«Aspetta»: non devi fare niente, il trasloco riparte da solo quando quel PC si riaccende. «Vai avanti senza»: uso la sua copia che è già sul Drive; la sua copia sul PC resta dov’è e, quando torna, quello che ha solo lui entra nei recuperati e la sua copia va nel recupero di quel PC per 30 giorni. Niente si cancella.') + '</div>'
+        if (pdDaConfermare === ka) h += '<div class="sotto">Aspetto ' + esc(chiaro.pc.nome) + ': riparto da solo quando si riaccende.</div>'
+      }
+    } else if (t.fermo) h += '<div class="sotto" style="color:var(--ambra,#e0a33c)">Fermo: ' + esc(chiaro ? chiaro.testo : t.fermo.motivo) + (t.fermo.riprovaDaSolo ? ' Riprendo da solo quando passa.' : '') + '</div>'
+    for (const a of (t.altrove || []).filter((x) => x.esito === 'dopo')) h += '<div class="sotto">' + esc(a.nome) + ' era spento: la sua copia la sistemo quando torna.</div>'
     for (const x of PD_PASSI) { const s = t.passi[x[0]] || { stato: 'da-fare' }; h += '<div class="sotto" style="opacity:' + (s.stato === 'da-fare' ? '0.6' : '1') + '">' + (s.stato === 'fatto' ? '✓' : s.stato === 'fermo' ? '!' : s.stato === 'in-corso' ? '…' : '·') + ' ' + esc(x[1]) + (s.stato === 'fatto' && s.dettaglio ? ' — ' + esc(s.dettaglio) : '') + '</div>' }
     if (t.finitoIl) for (const r of t.riassunto || []) h += '<div class="sotto">• ' + esc(r) + '</div>'
     if (t.annullatoIl) for (const r of t.annullamento || []) h += '<div class="sotto">• ' + esc(r) + '</div>'

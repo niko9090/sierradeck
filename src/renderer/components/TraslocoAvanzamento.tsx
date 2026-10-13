@@ -12,9 +12,13 @@ const ICONA: Record<string, string> = { fatto: '✓', 'in-corso': '…', fermo: 
 export function TraslocoAvanzamento({ t, occupato, onAzione }: {
   t: Trasloco
   occupato: boolean
-  onAzione: (azione: 'trasloco-riprendi' | 'trasloco-annulla', id: string) => void
+  onAzione: (azione: 'trasloco-riprendi' | 'trasloco-annulla' | 'trasloco-senza', id: string, pc?: string) => void
 }): React.JSX.Element {
   const [conferma, setConferma] = useState(false)
+  // «Aspetta quel PC» (0.71.1): non c'è niente da fare, riparte da solo; si dice e basta.
+  const [aspetto, setAspetto] = useState(false)
+  const [senza, setSenza] = useState(false)
+  const chiaro = t.fermoChiaro
   const a = avanzamento(t)
   const finito = t.finitoIl !== undefined
   const titolo = t.annullatoIl !== undefined ? 'annullato' : finito ? 'fatto' : t.fermo !== undefined ? 'fermo' : 'in corso'
@@ -35,9 +39,38 @@ export function TraslocoAvanzamento({ t, occupato, onAzione }: {
       {a.attuale !== undefined && !finito ? (
         <div className="account__nota"><b>{a.attuale.titolo}</b>{a.attuale.dettaglio !== undefined ? `: ${a.attuale.dettaglio}` : '…'}</div>
       ) : null}
-      {t.fermo !== undefined ? (
+      {t.fermo !== undefined && chiaro?.pc !== undefined ? (
+        // Un PC spento (0.71.1): il motivo in chiaro e le due scelte.
         <div className="account__nota" style={{ color: 'var(--ambra)' }}>
-          Fermo: {t.fermo.motivo}{t.fermo.riprovaDaSolo ? ' Riprendo da solo quando passa.' : ''}
+          Fermo: {chiaro.testo}
+          {chiaro.scelte ? (
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+              <button className={`tasto tasto--mini${aspetto ? ' tasto--acceso' : ''}`} disabled={occupato} onClick={() => { setAspetto(true); setSenza(false) }}>Aspetta {chiaro.pc.nome}</button>
+              {senza ? (
+                <>
+                  <button className="tasto tasto--mini tasto--acceso" disabled={occupato} onClick={() => { setSenza(false); onAzione('trasloco-senza', t.id, chiaro.pc?.pc) }}>Conferma: vai avanti senza</button>
+                  <button className="tasto tasto--mini" onClick={() => setSenza(false)}>No</button>
+                </>
+              ) : (
+                <button className="tasto tasto--mini" disabled={occupato} onClick={() => { setSenza(true); setAspetto(false) }}>Vai avanti senza…</button>
+              )}
+              <Aiuto di="PC spento">
+                «Aspetta»: non devi fare niente, il trasloco riparte da solo quando {chiaro.pc.nome} si riaccende. «Vai avanti senza»: uso la
+                copia di {chiaro.pc.nome} che è già sul Drive; la sua copia sul PC resta dov’è e, quando torna, quello che ha solo lui entra qui
+                nei recuperati e la sua copia va nel recupero di quel PC per 30 giorni. Niente si cancella.
+              </Aiuto>
+            </div>
+          ) : null}
+          {aspetto ? <div>Aspetto {chiaro.pc.nome}: riparto da solo quando si riaccende.</div> : null}
+        </div>
+      ) : t.fermo !== undefined ? (
+        <div className="account__nota" style={{ color: 'var(--ambra)' }}>
+          Fermo: {chiaro?.testo ?? t.fermo.motivo}{t.fermo.riprovaDaSolo ? ' Riprendo da solo quando passa.' : ''}
+        </div>
+      ) : null}
+      {t.altrove.some((a) => a.esito === 'dopo') ? (
+        <div className="account__nota">
+          {t.altrove.filter((a) => a.esito === 'dopo').map((a) => `${a.nome} era spento: la sua copia la sistemo quando torna.`).join(' ')}
         </div>
       ) : null}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginTop: 4 }}>

@@ -235,7 +235,7 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
         {sel !== undefined && foglio === undefined && d !== undefined ? (
           <Dettaglio r={sel} d={d} rim={rim} occupato={occupato} tutteLeChat={tutteLeChat} setTutteLeChat={setTutteLeChat}
             onChiudi={() => setScelto(undefined)} onAzione={(a) => faiAzione(sel.id, a)} onApriChat={apriChat}
-            onTrasloco={(azione, id) => esegui(window.gestore.casa.azione({ azione, id }))}
+            onTrasloco={(azione, id, pc) => esegui(window.gestore.casa.azione({ azione, id, ...(pc !== undefined ? { pc } : {}) }))}
             onResidenza={(azione, id) => esegui(window.gestore.casa.azione({ azione, progetto: sel.id, ...(id !== undefined ? { id } : {}) }))}
             onRimozione={(azione) => esegui(window.gestore.casa.rimozione[azione](sel.id))}
             onQuaderno={() => { onChiudi(); window.dispatchEvent(new CustomEvent('sierradeck:apri-pannello', { detail: 'quaderno' })) }}
@@ -300,7 +300,7 @@ function Dettaglio(p: {
   r: RigaProgetto; d: Pannello; rim: { stati: StatoRimozione[] }; occupato: boolean
   tutteLeChat: boolean; setTutteLeChat: (x: boolean) => void
   onChiudi: () => void; onAzione: (a: AzioneProgetto) => void; onApriChat: (c: RigaChat, come: NonNullable<ReturnType<typeof comeAprireChat>>) => void
-  onTrasloco: (azione: 'trasloco-riprendi' | 'trasloco-annulla', id: string) => void
+  onTrasloco: (azione: 'trasloco-riprendi' | 'trasloco-annulla' | 'trasloco-senza', id: string, pc?: string) => void
   onResidenza: (azione: 'conferma-residenza' | 'annulla-residenza' | 'annulla-unione', id?: string) => void
   onRimozione: (azione: 'conferma' | 'annulla') => void
   onQuaderno: () => void

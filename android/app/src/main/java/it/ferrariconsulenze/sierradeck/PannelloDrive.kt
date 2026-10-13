@@ -531,7 +531,18 @@ private fun Trasloco(t: TraslocoDrive, fai: (suspend () -> EsitoAzioneDrive, Str
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) { Text("SPOSTAMENTO DI «${t.nome}» SU ${t.verso.nome} · ${TraslocoRegole.stato(t)}", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold); Aiuto("Raccolgo le copie, le confronto, unisco qui quello che serve e solo alla fine metto le copie vecchie nel recupero dei loro PC. Se un PC non risponde mi fermo e riprendo da dove ero. «Annulla tutto» per 30 giorni.", di = "SPOSTAMENTO") }
     androidx.compose.material3.LinearProgressIndicator(progress = { TraslocoRegole.percento(t) / 100f }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), color = if (t.fermo != null) Banco.ambra else Banco.verde)
     TraslocoRegole.attuale(t)?.takeIf { t.finitoIl == null }?.let { (id, titolo) -> Text("$titolo: ${TraslocoRegole.passo(t, id).dettaglio ?: "…"}", color = Banco.testo, fontSize = 12.sp) }
-    t.fermo?.let { Text("Fermo: ${it.motivo}" + (if (it.riprovaDaSolo) " Riprendo da solo quando passa." else ""), color = Banco.ambra, fontSize = 12.sp) }
+    // Un PC spento (PC 0.71.1): il motivo in chiaro, con il nome scelto, e le due scelte.
+    val chiaro = t.fermoChiaro
+    var aspetto by remember(t.id) { mutableStateOf(false) }
+    if (t.fermo != null && chiaro?.pc != null) {
+        Text("Fermo: ${chiaro.testo}", color = Banco.ambra, fontSize = 12.sp)
+        if (chiaro.scelte) FlowRow {
+            TextButton(onClick = { aspetto = true }) { Text("Aspetta ${chiaro.pc.nome}") }
+            TextButton(onClick = { chiedi(DaConfermare("Vai avanti senza ${chiaro.pc.nome}", "Uso la sua copia che è già sul Drive. La sua copia sul PC resta dov’è: quando torna, quello che ha solo lui entra nei recuperati e la sua copia va nel recupero di quel PC per 30 giorni. Niente si cancella.", "Vai avanti senza") { api.traslocoSenza(t.id, chiaro.pc.pc) }) }) { Text("Vai avanti senza…") }
+        }
+        if (aspetto) Text("Aspetto ${chiaro.pc.nome}: riparto da solo quando si riaccende.", color = Banco.testo, fontSize = 12.sp)
+    } else t.fermo?.let { Text("Fermo: ${chiaro?.testo ?: it.motivo}" + (if (it.riprovaDaSolo) " Riprendo da solo quando passa." else ""), color = Banco.ambra, fontSize = 12.sp) }
+    for (a in t.altrove.filter { it.esito == "dopo" }) Text("${a.nome} era spento: la sua copia la sistemo quando torna.", color = Banco.testo, fontSize = 12.sp)
     for ((id, titolo) in TraslocoRegole.PASSI) Text(TraslocoRegole.riga(t, id, titolo), color = if (TraslocoRegole.passo(t, id).stato == "da-fare") Banco.testoQuieto else Banco.testo, fontSize = 12.sp)
     if (t.finitoIl != null) for (x in t.riassunto) Text("• $x", color = Banco.testo, fontSize = 12.sp)
     if (t.annullatoIl != null) for (x in t.annullamento) Text("• $x", color = Banco.testo, fontSize = 12.sp)

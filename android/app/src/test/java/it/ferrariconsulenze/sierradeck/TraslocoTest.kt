@@ -40,4 +40,18 @@ class TraslocoTest {
         assertTrue(TraslocoRegole.annullabile(f, adesso))
         assertFalse(TraslocoRegole.annullabile(f, java.time.Instant.parse("2026-12-01T00:00:00Z").toEpochMilli()))
     }
+
+    @Test
+    fun `PC spento (0_71_1) - il motivo in chiaro con il nome scelto e le due scelte`() {
+        val f: TraslocoDrive = Api.json.decodeFromString(
+            TraslocoDrive.serializer(),
+            javaClass.classLoader!!.getResource("trasloco/trasloco-pc-spento-0.71.1.json")!!.readText()
+        )
+        val c = f.fermoChiaro!!
+        assertTrue(c.scelte)
+        assertEquals("pc-port", c.pc!!.pc)
+        assertEquals("Portatile di casa", c.pc!!.nome)
+        assertTrue(c.testo.startsWith("«Portatile di casa» è spento"))
+        assertEquals("fermo", TraslocoRegole.stato(f))
+    }
 }

@@ -13,12 +13,18 @@ import kotlinx.serialization.Serializable
 @Serializable data class CopiaAltroveDrive(val pc: String = "", val nome: String = "", val esito: String? = null)
 @Serializable data class FermoTraslocoDrive(val passo: String = "", val motivo: String = "", val riprovaDaSolo: Boolean = false)
 @Serializable data class PcTraslocoDrive(val pc: String = "", val nome: String = "")
+/**
+ * Il fermo detto in chiaro dal PC (0.71.1): il testo con il nome scelto del PC
+ * spento e, se `scelte`, i due tasti «Aspetta» e «Vai avanti senza».
+ */
+@Serializable data class FermoChiaroDrive(val testo: String = "", val pc: PcTraslocoDrive? = null, val scelte: Boolean = false)
 @Serializable data class TraslocoDrive(
     val id: String = "", val progetto: String = "", val nome: String = "",
     val verso: PcTraslocoDrive = PcTraslocoDrive(),
     val passi: Map<String, PassoTraslocoDrive> = emptyMap(),
     val altrove: List<CopiaAltroveDrive> = emptyList(),
     val fermo: FermoTraslocoDrive? = null,
+    val fermoChiaro: FermoChiaroDrive? = null,
     val unione: String? = null,
     val riassunto: List<String> = emptyList(),
     val finitoIl: String? = null, val scadeIl: String? = null,
