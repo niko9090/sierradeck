@@ -188,7 +188,8 @@ ${motivo.stack ?? ''}`
 export function avviaServizio(): void {
   reteDiSicurezza()
   const archivio = apriArchivio(cartellaStato())
-  const domande = creaRegistroDomande({ adesso: () => Date.now() })
+  // Su disco (0.71.0): una domanda aperta sopravvive al riavvio del servizio.
+  const domande = creaRegistroDomande({ adesso: () => Date.now(), file: join(archivio.cartella, 'servizio', 'domande-aperte.json') })
 
   const configurazione = leggiConfigurazione(percorsiConfigTelegram())
   if (configurazione === undefined) {

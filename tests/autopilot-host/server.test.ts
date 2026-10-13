@@ -51,10 +51,13 @@ function ambiente(
     git?: Git
     limiti?: unknown
     tempi?: ReturnType<typeof apriRegistroTempi>
+    /** Per simulare un riavvio del servizio: lo stesso archivio e le domande da un file. */
+    cartellaArchivio?: string
+    domande?: ReturnType<typeof creaRegistroDomande>
   } = {}
 ): ServerAutopiloti {
   limitiDaSpingere = opts.limiti
-  archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-server-')))
+  archivio = apriArchivio(opts.cartellaArchivio ?? mkdtempSync(join(tmpdir(), 'ap-server-')))
   avviati = []
   fermati = []
   messaggiDiRipresa = []
@@ -75,7 +78,7 @@ function ambiente(
       avvisi.push({ tipo, id: a.id, domanda })
       return Promise.resolve()
     },
-    domande: creaRegistroDomande({ adesso: () => Date.now() }),
+    domande: opts.domande ?? creaRegistroDomande({ adesso: () => Date.now() }),
     scadenzaDomandaMs: opts.scadenzaDomandaMs ?? 5000,
     scadenzaInterviataMs: opts.scadenzaInterviataMs ?? 5000,
     ...(opts.silenzioMassimoMs !== undefined ? { silenzioMassimoMs: opts.silenzioMassimoMs } : {}),
@@ -2021,5 +2024,51 @@ describe('i tempi di ogni giro (0.71.0)', () => {
     expect(Object.keys(g.fasi)).toEqual(expect.arrayContaining(['lettura', 'unione', 'criteri', 'supervisore', 'risposta']))
     expect(g.criteri.eseguiti).toHaveLength(1)
     expect(r.dati.riassunto.giri).toBe(1)
+  })
+})
+
+describe('la domanda aperta sopravvive al riavvio del servizio (0.71.0)', () => {
+  const CHIEDE = '{"azione": "chiedi", "domanda": {"staFacendo": "Sto collegando il pagamento.", "domanda": "Uso la chiave di prova o quella vera?", "perche": "Senza la chiave giusta il pagamento non parte.", "scelte": [{"scelta": "prova", "conseguenza": "Collego quella di prova."}, {"scelta": "vera", "conseguenza": "Collego quella vera."}], "seNonRispondi": "Resto fermo qui."}, "perche": "serve la chiave"}'
+
+  it('al riavvio la domanda si ritrova (non si rifà) e la risposta riprende la chat', async () => {
+    const cartella = mkdtempSync(join(tmpdir(), 'ap-riavvio-'))
+    const file = join(cartella, 'servizio', 'domande-aperte.json')
+    server = ambiente({ cartellaArchivio: cartella, domande: creaRegistroDomande({ adesso: () => Date.now(), file }), scadenzaDomandaMs: 100, interroga: () => Promise.resolve({ testo: CHIEDE }) })
+    await avvia(server)
+    const id = await creaAp()
+    // La fermata aspetta la risposta per 100 ms, poi lascia andare la chat.
+    expect((await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())).dati).toEqual({})
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('attesa')
+    const prima = (await chiama('GET', '/domande')).dati
+    expect(prima).toHaveLength(1)
+    server.close()
+
+    // Il servizio riparte: domande e archivio dal disco.
+    server = ambiente({ cartellaArchivio: cartella, domande: creaRegistroDomande({ adesso: () => Date.now(), file }), interroga: () => Promise.resolve({ testo: CHIEDE }) })
+    await avvia(server)
+    server.riprendiLavori({ servizioAppenaPartito: true })
+    const dopo = (await chiama('GET', '/domande')).dati
+    expect(dopo.map((d: { id: string }) => d.id)).toEqual([prima[0].id])
+    const a = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(a.stato).toBe('attesa')
+    expect(a.decisioni.map((d: { cosa: string }) => d.cosa).join(' | ')).toContain('la domanda aperta è stata ritrovata')
+    expect(a.decisioni.map((d: { cosa: string }) => d.cosa).join(' | ')).not.toContain('andata perduta')
+
+    // La risposta arriva dopo il riavvio: riprende la chat con quella.
+    await chiama('POST', `/domande/${prima[0].id}/risposta`, { risposta: 'prova' })
+    for (let i = 0; i < 80 && messaggiDiRipresa.length === 0; i += 1) await new Promise((r) => setTimeout(r, 25))
+    expect(messaggiDiRipresa.join(' ')).toContain('prova')
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('lavoro')
+    expect((await chiama('GET', '/domande')).dati).toHaveLength(0)
+  })
+
+  it('senza domanda salvata (servizio di prima) si torna al lavoro come prima', async () => {
+    const cartella = mkdtempSync(join(tmpdir(), 'ap-riavvio-'))
+    server = ambiente({ cartellaArchivio: cartella })
+    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-x', nome: 'x', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'attesa', motivoSospensione: 'chiave?' })
+    await avvia(server)
+    server.riprendiLavori({ servizioAppenaPartito: true })
+    // È la strada di prima: la domanda non c'è più, quindi si torna al lavoro e la si rifà.
+    expect((await chiama('GET', '/autopiloti')).dati[0].decisioni.map((d: { cosa: string }) => d.cosa).join(' | ')).toContain('andata perduta')
   })
 })

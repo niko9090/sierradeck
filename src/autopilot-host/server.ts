@@ -40,7 +40,7 @@ import {
   prendiMessaggiPer, rimettiInCoda
 } from './dialogo'
 import { primoCompito, ripartiDaDove, riprende } from './nel-mosaico'
-import type { RegistroDomande } from './domande'
+import type { ContestoDomanda, RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
 import { CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, eFermo } from '@shared/autopilota'
 import { OPZIONE_VIA, TESTO_VIA, tracciaDopoRisposta } from '@shared/domande-autopilota'
@@ -641,7 +641,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const inLavorazione = new Set<string>()
 
   /** Di chi è ogni domanda, e cosa chiedeva: serve alla risposta tardiva. */
-  const contesto = new Map<string, { autopilotaId: string; testo: string; grezza?: string; chatId?: string; pubblica?: boolean }>()
+  const contesto = new Map<string, ContestoDomanda>()
+  /**
+   * Il contesto si salva anche con la domanda (0.71.0): dopo un riavvio del
+   * servizio la domanda è ancora lì, e la risposta deve sapere chi riprendere.
+   */
+  const ricordaContesto = (id: string, x: ContestoDomanda): void => {
+    contesto.set(id, x)
+    deps.domande.ricorda?.(id, x)
+  }
+  for (const d of deps.domande.aperte()) if (d.contesto !== undefined) contesto.set(d.id, d.contesto)
 
   /**
    * Una risposta arrivata dopo che la chat si era già fermata.
@@ -1071,7 +1080,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         })
         console.info(`[autopilota] ${a.id} — ${n} messaggi in viaggio al riavvio: di nuovo in coda`)
       }
-      const rimessi = riportaChiAspettava(deps.archivio.elenca(), deps.adesso())
+      // Solo chi non ha più la sua domanda (0.71.0): le domande si salvano su
+      // disco, e chi la ritrova nel registro aspetta la risposta come prima.
+      const conDomanda = new Set(deps.domande.aperte().map((d) => d.autopilotaId))
+      const riallacciati = deps.archivio.elenca().filter((a) => a.stato === 'attesa' && conDomanda.has(a.id))
+      if (riallacciati.length > 0) console.info(`[autopilota] ${riallacciati.length} aspettano ancora la risposta: la loro domanda è stata ritrovata dopo il riavvio`)
+      for (const a of riallacciati) annota(a, 'il servizio è ripartito: la domanda aperta è stata ritrovata, aspetto ancora la tua risposta')
+      for (const a of riallacciati) salva(a)
+      const rimessi = riportaChiAspettava(deps.archivio.elenca().filter((a) => !conDomanda.has(a.id)), deps.adesso())
       for (const a of rimessi) salva(a)
       if (rimessi.length > 0) {
         console.info(`[autopilota] ${rimessi.length} aspettavano una risposta a una domanda persa col riavvio: tornano al lavoro e la rifaranno`)
@@ -1137,7 +1153,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       testo: a.motivoSospensione,
       scadenzaMs: deps.scadenzaInterviataMs
     })
-    contesto.set(domanda.id, { autopilotaId: a.id, testo: a.motivoSospensione })
+    ricordaContesto(domanda.id, { autopilotaId: a.id, testo: a.motivoSospensione })
     return true
   }
 
@@ -1149,7 +1165,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (riaperte.length > 0) {
       console.info(`[autopilota] ${riaperte.length} preparazioni aspettavano una risposta: la domanda torna nelle Domande`)
     }
-    const fermi = intervisteDaRiprendere(tutti).filter((a) => !riaperte.includes(a))
+    // Chi ha ancora la sua domanda nel registro (salvata su disco, 0.71.0) la aspetta: non si rifà.
+    const fermi = intervisteDaRiprendere(tutti).filter((a) => !riaperte.includes(a) && deps.domande.aperte(a.id).length === 0)
     if (fermi.length === 0) return
     console.info(`[autopilota] riprendo ${fermi.length} preparazioni interrotte`)
     for (const a of fermi) void conduciIntervista(a)
@@ -1242,7 +1259,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         scadenzaMs: deps.scadenzaInterviataMs,
         ...domandaPerRegistro(prontaInt)
       })
-      contesto.set(domanda.id, { autopilotaId: corrente.id, testo: prontaInt.testo })
+      ricordaContesto(domanda.id, { autopilotaId: corrente.id, testo: prontaInt.testo })
       // Intera (0.39.1): al riavvio del servizio la domanda si riapre da qui,
       // e tagliata arrivava a meta' nelle Domande.
       salva({ ...corrente, motivoSospensione: prontaInt.testo })
@@ -2154,7 +2171,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             ...domandaPerRegistro(pronta)
           })
       if (gemella !== undefined) annota(aggiornato, `${chatId}: la sua domanda è uguale a una già aperta, aspetta la stessa risposta`)
-      if (gemella === undefined) contesto.set(domanda.id, {
+      if (gemella === undefined) ricordaContesto(domanda.id, {
         autopilotaId: aggiornato.id,
         testo: testoDomanda,
         grezza: decisione.domanda,
@@ -2292,7 +2309,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         const partiPub = partiPubblica(aggiornato.nome, mandato)
         const testo = testoDellaDomanda(nomeDi(aggiornato), partiPub)
         const d = deps.domande.apri({ autopilotaId: aggiornato.id, testo, scadenzaMs: deps.scadenzaDomandaMs, opzioni: partiPub.scelte.map((s) => s.scelta), parti: partiPub })
-        contesto.set(d.id, { autopilotaId: aggiornato.id, testo, pubblica: true, ...(chatId !== undefined ? { chatId } : {}) })
+        ricordaContesto(d.id, { autopilotaId: aggiornato.id, testo, pubblica: true, ...(chatId !== undefined ? { chatId } : {}) })
         salva({ ...aggiornato, pubblicazioneInAttesa: true })
         void deps.avvisa('domanda', aggiornato, testo)
         const r = await deps.domande.attendi(d.id)
@@ -2467,7 +2484,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       scadenzaMs: deps.scadenzaDomandaMs,
       ...domandaPerRegistro(pronta)
     })
-    contesto.set(domanda.id, {
+    ricordaContesto(domanda.id, {
       autopilotaId: a.id,
       testo,
       ...(chatId !== undefined ? { chatId } : {})

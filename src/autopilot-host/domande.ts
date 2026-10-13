@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { dirname } from 'node:path'
+import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import type { PartiDomanda } from '@shared/domanda-strutturata'
 
 export type Provenienza = 'modale' | 'telegram'
@@ -19,7 +22,16 @@ export type DomandaAperta = {
   parti?: PartiDomanda
   /** Passata incompleta dopo la riscrittura: lo si dice a chi la legge. */
   avvertenza?: string
+  /**
+   * Di chi è e cosa chiedeva, per chi riprende il lavoro con la risposta
+   * (0.71.0): sta qui perché sopravviva al riavvio del servizio insieme alla
+   * domanda. Lo scrive e lo legge solo il servizio.
+   */
+  contesto?: ContestoDomanda
 }
+
+/** Il contesto di una domanda: serve alla risposta tardiva per riprendere la chat giusta. */
+export type ContestoDomanda = { autopilotaId: string; testo: string; grezza?: string; chatId?: string; pubblica?: boolean }
 
 export type Risposta = { risposta: string; da: Provenienza }
 
@@ -36,6 +48,8 @@ export type RegistroDomande = {
   chiudiDi: (autopilotaId: string) => void
   /** Chiamata quando una risposta arriva dopo la scadenza dell'attesa. */
   suRispostaTardiva: (cb: (id: string, risposta: string, da: Provenienza) => void) => void
+  /** Il contesto per la ripresa (0.71.0), salvato su disco con la domanda. */
+  ricorda: (id: string, contesto: ContestoDomanda) => void
 }
 
 type Voce = {
@@ -62,9 +76,37 @@ type Voce = {
  *    arriva dopo deve ancora valere: semplicemente costa una ripresa della chat
  *    invece di una continuazione.
  */
-export function creaRegistroDomande(deps: { adesso: () => number }): RegistroDomande {
+export function creaRegistroDomande(deps: {
+  adesso: () => number
+  /**
+   * Dove tenerle (0.71.0). Prima stavano solo in memoria: a ogni riavvio del
+   * servizio la domanda aperta spariva («Il servizio è ripartito e la domanda
+   * aperta è andata perduta: torno al lavoro e la rifaccio», più volte il
+   * 12/10) e Nicholas si ritrovava la stessa domanda due volte. Adesso al
+   * riavvio si ricaricano: chi aspettava non c'è più, quindi una risposta
+   * arrivata dopo prende la strada della risposta tardiva e riprende la chat.
+   */
+  file?: string
+}): RegistroDomande {
   const voci = new Map<string, Voce>()
   let tardiva: ((id: string, risposta: string, da: Provenienza) => void) | undefined
+  const salva = (): void => {
+    if (deps.file === undefined) return
+    try {
+      mkdirSync(dirname(deps.file), { recursive: true })
+      scriviJsonAtomico(deps.file, { versione: 1, domande: [...voci.values()].map((v) => v.domanda) }, 'domande')
+    } catch (err) { console.error('[autopilota] domande aperte non salvate:', err) }
+  }
+  if (deps.file !== undefined && existsSync(deps.file)) {
+    try {
+      const letto = JSON.parse(readFileSync(deps.file, 'utf8')) as { domande?: unknown }
+      for (const d of Array.isArray(letto.domande) ? letto.domande : []) {
+        const x = d as Partial<DomandaAperta>
+        if (typeof x.id !== 'string' || typeof x.autopilotaId !== 'string' || typeof x.testo !== 'string') continue
+        voci.set(x.id, { domanda: { apertaIl: 0, scadeIl: 0, ...x } as DomandaAperta, attese: [] })
+      }
+    } catch (err) { console.error('[autopilota] domande aperte illeggibili, riparto senza:', err) }
+  }
 
   return {
     apri({ autopilotaId, testo, scadenzaMs, opzioni, parti, avvertenza }) {
@@ -79,6 +121,7 @@ export function creaRegistroDomande(deps: { adesso: () => number }): RegistroDom
         ...(avvertenza !== undefined ? { avvertenza } : {})
       }
       voci.set(domanda.id, { domanda, attese: [] })
+      salva()
       return domanda
     },
 
@@ -114,6 +157,7 @@ export function creaRegistroDomande(deps: { adesso: () => number }): RegistroDom
         tardiva?.(id, risposta, da)
       }
       voci.delete(id)
+      salva()
       return true
     },
 
@@ -130,10 +174,18 @@ export function creaRegistroDomande(deps: { adesso: () => number }): RegistroDom
         for (const r of voce.attese) r(undefined)
         voci.delete(id)
       }
+      salva()
     },
 
     suRispostaTardiva(cb) {
       tardiva = cb
+    },
+
+    ricorda(id, contesto) {
+      const voce = voci.get(id)
+      if (voce === undefined) return
+      voce.domanda = { ...voce.domanda, contesto }
+      salva()
     }
   }
 }
