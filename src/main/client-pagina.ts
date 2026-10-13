@@ -372,6 +372,9 @@ export function paginaClient(): string {
   }
   .riga { display: flex; gap: var(--s2); margin-top: var(--s2); }
   .riga > input, .riga > textarea { flex: 1; min-width: 0; }
+  /* Un menu a tendina non allarga mai la pagina (0.71.1): con le voci lunghe di «Sposta su…» la pagina
+     diventava larga 537 px su un telefono da 390, e il «?» e i tasti a destra finivano fuori schermo. */
+  select { max-width: 100%; min-width: 0; }
   .ws { display: flex; gap: var(--s2); flex-wrap: wrap; }
   .ws button { padding: 10px 14px; min-height: 44px; }
   .ws button.attivo { border-color: var(--accento); color: var(--testo); }
@@ -4241,9 +4244,9 @@ function pdElencoHtml() {
 var pdSpostaVerso = ''
 function pdSpostaHtml(r, v) {
   const dest = r.spostaSu || []
-  let h = '<div class="riga" style="gap:6px;align-items:center;margin-bottom:6px"><span class="sotto" style="flex:none">Dove vive: <b>' + esc(v.dove || (r.residente ? r.residente.nome : 'nessun PC')) + '</b></span>'
+  let h = '<div class="riga" style="gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap"><span class="sotto" style="flex:none">Dove vive: <b>' + esc(v.dove || (r.residente ? r.residente.nome : 'nessun PC')) + '</b></span>'
   if (dest.length > 1) {
-    h += '<select aria-label="Sposta su" style="flex:1" onchange="pdSpostaScegli(this.value)"><option value="">Sposta su…</option>' +
+    h += '<select aria-label="Sposta su" style="flex:1 1 140px;min-width:0;max-width:100%" onchange="pdSpostaScegli(this.value)"><option value="">Sposta su…</option>' +
       dest.map((x) => '<option value="' + esc(x.pc) + '"' + (x.attuale ? ' disabled' : '') + (pdSpostaVerso === x.pc ? ' selected' : '') + '>' + (x.acceso ? '● ' : '○ ') + esc(x.testo) + '</option>').join('') + '</select>'
   }
   h += aiuto('pd-sposta-' + r.id, 'Il progetto va a vivere sul PC che scegli: là girano le sue chat, gli altri le guardano dal vivo. Il trasloco gira sul PC di arrivo (la richiesta gli arriva per il ponte): confronta le copie, prende quello che c’è solo altrove, unisce, e solo alla fine mette le copie vecchie nel recupero. Lo segui qui passo per passo. Niente si cancella: «Annulla tutto» per 30 giorni.') + '</div>'
