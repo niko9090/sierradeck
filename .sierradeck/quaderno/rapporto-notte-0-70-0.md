@@ -15,6 +15,28 @@ Nicholas, «migliora tutto il programma riprogettando per bene come hai fatto pe
 
 Le foto sono in `note/foto-0-70/`, sul PC fisso (fuori da git: mostrano le cartelle della macchina): `prima-*.png` / `dopo-*.png` per il PC, `pagina-prima-*.png` / `pagina-dopo-*.png` per il telefono. **Nessuna funzione è stata tolta**: per ogni schermata c'è l'elenco delle azioni di prima e di dove sono adesso.
 
+## In breve, per stamattina
+- **Fatte tutte e dieci le schermate**, dalla (a) alla (j), ognuna con il suo commit: principale, Autopiloti, Domande, Salute, Impostazioni, File, Negozio, Consumi, Quaderno, Account e Drive.
+- **Un difetto vero trovato e corretto** (c): le domande a scelta di Claude Code non arrivavano né nelle Domande né sul telefono quando in fondo allo schermo restava una riga di cornice vecchia.
+- **Due difetti piccoli corretti di passaggio**: nella pagina «Aspettano te» ripeteva lo stesso nome tre volte (i); i token nei Consumi erano attaccati («0 in entrata0 in uscita…») e c'era «contesto contesto» (h).
+- **Novità per te** (0.70.0): il Drive dice «scade» dal sesto giorno dopo il collegamento, finché l'app OAuth di Google è «in prova» (j). La soluzione vera resta metterla «In produzione» nella console di Google Cloud.
+- **Pagina e app allineate** in tutte le schermate in cui il telefono ha qualcosa da mostrare. Le parole e i colori li decide il PC e li manda.
+- **Prove**: tutti i test verdi (vitest, typecheck, gradle), il controllo dei dati privati pulito, ogni schermata guardata nella copia di prova. Le chat e gli autopiloti veri non li ho toccati.
+- **Pubblicazione**: la 0.70.0 (app 2.70.0) la pubblico come bozza, poi con l'APK firmato, poi la rendo visibile. **Non l'ho installata**: la installi tu.
+
+**Foto** (in `note/foto-0-70/`):
+- PC, `prima-*` e `dopo-*`: principale, autopiloti (+ dettaglio), domande, salute (+ dettaglio), altri-computer, impostazioni, file, negozio, consumi, quaderno (+ personale), account.
+- Telefono, `pagina-prima-*` e `pagina-dopo-*`: autopiloti, chat, domande, salute, quaderno, account.
+
+**Punti aperti**, i più utili per primi:
+1. Una regola unica dello stato di un altro PC (Salute, Altri computer e mappa a volte non coincidono). Va provata con i PC veri. (d)
+2. La colonna dell'autopilota dentro il riquadro della chat non è ridisegnata. (b)
+3. Il Negozio: gruppi e tabella con il dettaglio a destra. (g)
+4. I File: tasti alla Total Commander e una coda unica. (f)
+5. Il numero per workspace sulle linguette. (a)
+6. «Avanzate ▸» nelle Impostazioni. (e)
+7. La tessera «Telefoni» lenta (~4,5 s). (j)
+
 ## (a) Schermata principale
 **Cosa cambia**
 - **Ogni riquadro dice il suo stato in una parola** sulla testata: aspetta te (ambra), errore (rosso), al lavoro (verde), autopilota (blu), ferma, dorme, su <PC>. Nei riquadri stretti resta il pallino colorato.

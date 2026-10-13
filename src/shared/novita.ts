@@ -43,7 +43,13 @@ export const NOVITA: Novita[] = [
   {
     versione: '0.70.0',
     righe: [
-      '**Tutto il programma riprogettato come Progetti:** ogni schermata usa la larghezza, le cose importanti sono in vista e quelle rare in «Strumenti ▾»; gli stati sono una parola con un colore, e le spiegazioni stanno dietro il «?».'
+      '**Tutto il programma riprogettato come Progetti:** ogni schermata usa la larghezza, le cose importanti sono in vista e quelle rare in «Strumenti ▾»; gli stati sono una parola con un colore, e le spiegazioni stanno dietro il «?». Nessuna funzione tolta: quelle rare sono state spostate.',
+      '**Schermata principale:** ogni chat dice come sta in una parola nella sua testata (al lavoro, aspetta te, ferma, guasto…); i tasti rari della chat dietro «⋯»; modello, «Usate da altri PC», workspace e Negozio in «Strumenti ▾». Le chat con lo stesso nome si distinguono (#2, #3), anche sul telefono.',
+      '**Domande:** «Aspettano te» o «Tutte», il tipo in una parola (permesso, scelta, domanda), si passa da sola alla prossima. Corretto un difetto: le domande a scelta di Claude Code (AskUserQuestion) con una riga di cornice vecchia in fondo allo schermo non arrivavano né nelle Domande né sul telefono.',
+      '**A tutta finestra come Progetti:** Autopiloti (una tabella con lo stato in una parola e il dettaglio a destra: obiettivo, criteri, cosa fa adesso), Salute (a gruppi: Da sistemare · Computer · Drive · Errori, con il perché e cosa fare), Impostazioni (sezioni a sinistra, quattro tessere in cima) e Negozio (la ricerca in testata, ogni voce in una parola: attivo, spento, aggiorna, approva, guasto…).',
+      '**File e Consumi:** File con il nome del progetto in testata e un lato solo a tutta larghezza se non hai server («+ Server» e «Modifica» in «Strumenti ▾»). Consumi: la finestra di 5 ore e la settimana con la percentuale grande e una parola (libero, attento, pieno, vecchia); il contesto di ogni chat in una parola (libera, piena, riassumi); i token in una riga che si legge.',
+      '**Quaderno a tutta finestra** in tre colonne: progetti e tag con il numero di schede, l’elenco con ricerca e ordine, la scheda. Il quaderno personale si apre anche da qui. Sul telefono ricerca, tag e data.',
+      '**Account e Drive come catena:** Account → Drive → Cassaforte → Salvataggio, ognuno con la sua parola, e un solo prossimo passo. Dal sesto giorno dopo il collegamento il Drive dice «scade» (il limite dei sette giorni di Google). Scollega, Cambia passphrase, Blocca ed Esci in «Strumenti ▾». Anche sul telefono.'
     ]
   },
   {
