@@ -2261,3 +2261,19 @@ describe('domande chiare nel servizio (0.71.0)', () => {
     expect(viste.find((d: { testo: string }) => d.testo === 'prima').inFila).toBe(1)
   })
 })
+
+describe('criteri ricontrollati da soli (0.71.0)', () => {
+  it('un lavoro finito che torna rosso lo dice nel diario', async () => {
+    let passa = true
+    server = ambiente({ esegui: () => Promise.resolve(passa ? { codice: 0, uscita: 'ok' } : { codice: 1, uscita: '1 test rosso' }), adesso: () => '2026-08-09T12:00:00.000Z' })
+    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-fin', nome: 'Fin', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'i test', comando: 'node t.js', soddisfatto: true }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'finito', ultimoEvento: '2026-08-09T11:30:00.000Z' })
+    await avvia(server)
+    expect(await server.ricontrollaCriteri()).toBe(1)
+    expect((await chiama('GET', '/autopiloti')).dati[0].criteri[0].soddisfatto).toBe(true)
+    passa = false
+    await server.ricontrollaCriteri()
+    const a = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(a.criteri[0].soddisfatto).toBe(false)
+    expect(a.decisioni.map((d: { cosa: string }) => d.cosa).join(' | ')).toContain('«i test» non passa più')
+  })
+})

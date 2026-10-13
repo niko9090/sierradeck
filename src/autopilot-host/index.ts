@@ -319,6 +319,8 @@ export function avviaServizio(): void {
     // controllo legge lo stato in memoria e non tocca nessuna chat.
     // `unref` perché questo timer non deve tenere vivo il processo da solo.
     setInterval(() => { server.controllaChatFerme() }, GUARDIA_MS).unref()
+    // I criteri ricontrollati da soli (0.71.0): chi ha finito o aspetta, ogni 10 minuti.
+    setInterval(() => { void server.ricontrollaCriteri().catch((err: unknown) => { console.error('[autopilota] ricontrollo dei criteri:', err) }) }, 10 * 60_000).unref()
 
     // La ripresa avviene **dopo** che il servizio è in ascolto, non prima: le
     // chat riprese emettono hook verso questa stessa porta, e trovarla chiusa
