@@ -22,7 +22,7 @@ Le foto sono in `note/foto-0-70/`, sul PC fisso (fuori da git: mostrano le carte
 - **Novità per te** (0.70.0): il Drive dice «scade» dal sesto giorno dopo il collegamento, finché l'app OAuth di Google è «in prova» (j). La soluzione vera resta metterla «In produzione» nella console di Google Cloud.
 - **Pagina e app allineate** in tutte le schermate in cui il telefono ha qualcosa da mostrare. Le parole e i colori li decide il PC e li manda.
 - **Prove**: tutti i test verdi (vitest, typecheck, gradle), il controllo dei dati privati pulito, ogni schermata guardata nella copia di prova. Le chat e gli autopiloti veri non li ho toccati.
-- **Pubblicazione**: la 0.70.0 (app 2.70.0) la pubblico come bozza, poi con l'APK firmato, poi la rendo visibile. **Non l'ho installata**: la installi tu.
+- **Pubblicata la 0.70.0** (app 2.70.0) alle 02:54: prima come bozza, poi il programma per Windows con latest.yml, l'APK firmato (verificato «O=Ferrari Consulenze») e app-android.json, poi resa visibile come ultima. **Non l'ho installata**: la installi tu, quando vuoi. Su PC, pagina e app comparirà «Versione pronta — Installa».
 
 **Foto** (in `note/foto-0-70/`):
 - PC, `prima-*` e `dopo-*`: principale, autopiloti (+ dettaglio), domande, salute (+ dettaglio), altri-computer, impostazioni, file, negozio, consumi, quaderno (+ personale), account.
