@@ -4359,7 +4359,7 @@ function pannelloDriveHtml() {
   let h = '<div class="piastrella"><div class="titolo">Progetti' + aiuto('progetti', 'Ogni progetto vive su un PC (il residente): lì girano le sue chat; gli altri PC le guardano dal vivo. Stato: <span style="color:var(--verde,#3c9)">a posto</span>, <span style="color:var(--blu,#4aa3ff)">al lavoro</span>, <span style="color:var(--ambra,#e0a33c)">da sistemare</span> (con il motivo), <span style="color:var(--blu,#4aa3ff)">spostamento in corso</span>. Tocca un progetto per il dettaglio e le azioni. Niente si cancella: le copie tolte vanno nel recupero per 30 giorni.') + '</div>'
   if (pdErrore) return h + '<div class="sotto" style="color:var(--ambra,#e0a33c)">' + esc(pdErrore) + '</div></div>'
   if (!pdDati) return h + '<div class="sotto">Leggo…</div></div>'
-  if ((pdDati.pcDaAggiornare || []).length > 0) h += '<div class="sotto" style="color:var(--ambra,#e0a33c);margin-top:6px">' + esc(pdDati.pcDaAggiornare.join(', ')) + ': va aggiornato' + aiuto('pd-agg', 'Finché non è aggiornato, di quel PC si vedono solo le copie caricate sul Drive.') + '</div>'
+  if ((pdDati.pcDaAggiornare || []).length > 0) h += '<div class="sotto" style="color:var(--ambra,#e0a33c);margin-top:6px">' + esc(pdDati.pcDaAggiornare.join(', ')) + (pdDati.pcDaAggiornare.length === 1 ? ': va aggiornato' : ': vanno aggiornati') + aiuto('pd-agg', 'Finché non è aggiornato, di quel PC si vedono solo le copie caricate sul Drive.') + '</div>'
   const scelto = pdScelto ? pdDati.progetti.find((r) => r.id === pdScelto) : undefined
   if (scelto) return h + pdDettaglioHtml(scelto)
   h += pdElencoHtml()

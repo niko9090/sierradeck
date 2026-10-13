@@ -8,6 +8,7 @@ import { eChiaveProgetto } from '@shared/allineamento'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
 import { ModaleSposta } from './ModaleSposta'
 import { ModaleRiordina } from './ModaleRiordina'
+import { ModaleDoveVive } from './OspiteChat'
 import { ContenutoDrive } from './ContenutoDrive'
 import { SalvataggioDrive } from './PannelloAccount'
 import { SpazioDrive } from './SpazioDrive'
@@ -52,6 +53,9 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
   const [cambio, setCambio] = useState<Cambio | undefined>(undefined)
   const [sposta, setSposta] = useState<string | undefined>(undefined)
   const [riordina, setRiordina] = useState(false)
+  // «Dove vive ogni chat…» (0.71.1): dentro Progetti, come le altre finestre. Aperta dall'App finiva sotto la
+  // schermata a tutta finestra e il clic sembrava non fare niente (giro con i dati veri, 13/10).
+  const [doveVive, setDoveVive] = useState(false)
   const [rim, setRim] = useState<{ stati: StatoRimozione[]; inRecupero: CartellaInRecupero[] }>({ stati: [], inRecupero: [] })
   const cerca = useRef<HTMLInputElement>(null)
 
@@ -167,7 +171,7 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
                 <button key={id} className="progetti__voce" title={spiega} onClick={() => { setFoglio(id); setScelto(undefined); setMenu(false) }}>{testo}</button>
               ))}
               <button className="progetti__voce" title="Le chat che stanno qui ma hanno casa su un altro PC: le metti da parte quando confermi." onClick={() => { setRiordina(true); setMenu(false) }}>Riordina le chat…</button>
-              <button className="progetti__voce" title="Il PC che ospita ogni chat dei workspace." onClick={() => { setMenu(false); window.dispatchEvent(new Event('sierradeck:dove-vive')) }}>Dove vive ogni chat…</button>
+              <button className="progetti__voce" title="Il PC che ospita ogni chat dei workspace." onClick={() => { setMenu(false); setDoveVive(true) }}>Dove vive ogni chat…</button>
               <button className="progetti__voce" title="Porta un progetto con chat e file da questo PC a un altro." onClick={() => { setSposta(''); setMenu(false) }}>Sposta progetto…</button>
             </TendinaMenu>
           ) : null}
@@ -290,6 +294,7 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
         onConferma={() => esegui(window.gestore.casa.scegli({ sessioni: cambio.sessioni, pc: { id: cambio.verso.pc, nome: cambio.verso.nome } }), () => setCambio(undefined))} /> : null}
       {sposta !== undefined ? <ModaleSposta {...(sposta !== '' ? { cwdIniziale: sposta } : {})} onChiudi={() => { setSposta(undefined); leggi() }} /> : null}
       {riordina ? <ModaleRiordina onChiudi={() => { setRiordina(false); leggi() }} /> : null}
+      {doveVive ? <ModaleDoveVive onChiudi={() => { setDoveVive(false); leggi() }} /> : null}
     </div>,
     document.body
   )

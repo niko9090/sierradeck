@@ -185,7 +185,7 @@ const RIGHE_DEL_FONDO_LAVORO = 12
 export function sceltaSulloSchermo(righe: string[] | undefined): boolean {
   if (righe === undefined) return false
   const fondo = righe.slice(-RIGHE_DEL_FONDO_SCELTA)
-  return fondo.some((r) => /^\s*[│|]?\s*❯\s*\d+\.\s+\S/.test(r) || /Enter to confirm|trust this folder|Do you want to proceed\?/i.test(r))
+  return fondo.some((r) => /^\s*[│|]?\s*❯\s*\d+\.\s+\S/.test(r) || /Enter to confirm|Enter to select|trust this folder|Do you want to proceed\?/i.test(r))
 }
 const RIGHE_DEL_FONDO_SCELTA = 16
 
@@ -229,6 +229,11 @@ export function consegnaPartita(righe: string[] | undefined, scritto?: string, p
   if (righe === undefined || righe.length === 0) return undefined
   const fondo = righe.slice(-RIGHE_DEL_FONDO)
   if (fondo.some((r) => ATTIVITA_SULLO_SCHERMO.test(r))) return true
+  // Dopo l'invio la chat mostra una domanda a scelta (AskUserQuestion, un
+  // permesso): il testo è arrivato, e un altro Invio **risponderebbe** alla
+  // domanda con la prima opzione. Visto dal vero il 13/10 (0.71.1): il
+  // sottofondo ha ripremuto Invio e ha scelto «Gatto» al posto di chi guarda.
+  if (sceltaSulloSchermo(righe)) return true
   const campi = fondo.map((r, i) => ({ r, i })).filter((x) => /^\s*[│|]?\s*❯/.test(x.r))
   const campo = campi[campi.length - 1]
   if (campo === undefined) return undefined

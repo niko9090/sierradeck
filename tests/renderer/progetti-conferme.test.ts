@@ -24,3 +24,10 @@ describe('conferme della vista Progetti', () => {
     }
   })
 })
+
+describe('le finestre di «Strumenti ▾» si aprono dentro Progetti (0.71.1)', () => {
+  it('«Dove vive ogni chat…» non manda l’evento all’App, dove finiva sotto la schermata', () => {
+    expect(vista).not.toContain("dispatchEvent(new Event('sierradeck:dove-vive'))")
+    expect(vista).toContain('<ModaleDoveVive')
+  })
+})
