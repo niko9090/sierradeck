@@ -96,6 +96,15 @@ function firma(git: Git, cwd: string): string[] {
  */
 export function salvaLavoro(git: Git, cartella: string, messaggio: string): boolean {
   if (!existsSync(cartella)) return false
+  // **Solo sul ramo dell'autopilota** (0.71.0). Una cartella che non è (più) un
+  // worktree vero fa risalire git al repository che la contiene: il 13/10, nella
+  // prova, un worktree mancato dentro `note/` ha fatto un commit con tutto il
+  // lavoro in corso nel repository di SierraDeck. Qui si committa solo su `ap/…`.
+  const ramo = ramoCorrente(git, cartella)
+  if (ramo === undefined || !ramo.startsWith('ap/')) {
+    console.warn(`[autopilota] non salvo in ${cartella}: è sul ramo «${ramo ?? '?'}», non su un ramo dell'autopilota`)
+    return false
+  }
   if (git(['add', '-A'], cartella).codice !== 0) return false
   if (git(['diff', '--cached', '--quiet'], cartella).codice === 0) return false
   return git([...firma(git, cartella), 'commit', '-m', messaggio, '--no-verify'], cartella).codice === 0
