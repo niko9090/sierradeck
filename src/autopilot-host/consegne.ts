@@ -132,11 +132,33 @@ export function creaConsegne(
    * scriverla** — e il file c-3.md di prima veniva sovrascritto. Il 10/10 due
    * istruzioni sul portatile sono sparite così.
    */
-  numeri: { primo?: number; ricorda?: (ultimo: number) => void } = {}
+  numeri: { primo?: number; ricorda?: (ultimo: number) => void } = {},
+  /**
+   * Dove tenere la coda (0.71.0). Prima stava solo in memoria: un'istruzione
+   * messa e non ancora ritirata spariva con il servizio, e l'autopilota
+   * aspettava la fine di un turno che nessuno aveva cominciato. Al ritorno le
+   * consegne ripartono da capo (come mai ritirate): il Gestore scarta quelle
+   * già scritte per chiave, quindi riconsegnare non le fa eseguire due volte.
+   */
+  disco: { leggi?: () => unknown; scrivi?: (coda: Consegna[]) => void } = {}
 ): Consegne {
   const avvisa = (f: (() => void) | undefined): void => { try { f?.() } catch (err) { console.error('[consegne] osservatore:', err) } }
   const coda: InCoda[] = []
   let prossimo = Math.max(0, Math.floor(numeri.primo ?? 0))
+  const salva = (): void => { try { disco.scrivi?.(coda.map((x) => x.consegna)) } catch (err) { console.error('[consegne] coda non salvata:', err) } }
+  try {
+    const lette = disco.leggi?.()
+    for (const c of Array.isArray(lette) ? lette : []) {
+      if (typeof c !== 'object' || c === null) continue
+      const x = c as Partial<Consegna>
+      if (typeof x.id !== 'string' || typeof x.autopilotaId !== 'string' || typeof x.sessionId !== 'string' || typeof x.cwd !== 'string' || (x.cosa !== 'scrivi' && x.cosa !== 'interrompi')) continue
+      coda.push({ consegna: { chatId: '', titolo: '', testo: '', ...x } as Consegna, tentativi: 0 })
+      // Il numero non torna indietro: c-N dopo il riavvio è sempre nuovo.
+      const n = /^c-(\d+)$/.exec(x.id)?.[1]
+      if (n !== undefined) prossimo = Math.max(prossimo, Number(n))
+    }
+    if (coda.length > 0) console.info(`[consegna] ${coda.length} consegne ritrovate dopo il riavvio: ripartono`)
+  } catch (err) { console.error('[consegne] coda illeggibile, riparto senza:', err) }
 
   return {
     metti(c) {
@@ -160,6 +182,7 @@ export function creaConsegne(
       }
       coda.push({ consegna, tentativi: 0 })
       if (coda.length > TETTO) coda.splice(0, coda.length - TETTO)
+      salva()
       avvisa(osserva.messa === undefined ? undefined : () => osserva.messa?.(consegna))
       return consegna
     },
@@ -178,6 +201,7 @@ export function creaConsegne(
             `nessuno l'ha confermata`
           )
           coda.splice(i, 1)
+          salva()
           avvisa(osserva.persa === undefined ? undefined : () => osserva.persa?.(riga.consegna.id))
           continue
         }
@@ -197,12 +221,14 @@ export function creaConsegne(
         tolte += 1
         avvisa(osserva.confermata === undefined ? undefined : () => osserva.confermata?.(id))
       }
+      if (tolte > 0) salva()
       return tolte
     },
 
     preleva() {
       const tutte = coda.map((x) => x.consegna)
       coda.length = 0
+      salva()
       return tutte
     },
 
@@ -212,6 +238,7 @@ export function creaConsegne(
       for (let i = coda.length - 1; i >= 0; i -= 1) {
         if (coda[i]?.consegna.autopilotaId === autopilotaId) coda.splice(i, 1)
       }
+      salva()
     }
   }
 }

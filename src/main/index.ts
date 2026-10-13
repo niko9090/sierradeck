@@ -5795,7 +5795,13 @@ if (!app.requestSingleInstanceLock()) {
         const conWs = versoIlSuoWorkspace(c, (sessionId) => workspaceStore === undefined ? undefined : workspaceDellaSessione(workspaceStore.leggi(), sessionId))
         return consegnaInSottofondo(sf, conWs, ptyDiSessione(c.sessionId))
       })
+      const fileScritte = join(dati, 'consegne-scritte.json')
       fermaRitiroConsegne = avviaRitiro({
+        // Le consegne già scritte (0.71.0): dopo un riavvio non si riscrivono.
+        ricordate: {
+          leggi: () => { try { const x = JSON.parse(readFileSync(fileScritte, 'utf8')) as unknown; return Array.isArray(x) ? x as string[] : [] } catch { return [] } },
+          scrivi: (chiavi) => { scriviJsonAtomico(fileScritte, chiavi, 'consegne') }
+        },
         chiedi: async () => {
           // **Non si ritira senza avere dove mettere.** Ritirare svuota la coda
           // del servizio, e una consegna presa mentre non c'è nessuna finestra

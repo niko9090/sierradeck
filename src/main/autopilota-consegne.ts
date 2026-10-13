@@ -241,13 +241,19 @@ export function avviaRitiro(p: {
   conferma?: (ids: string[]) => Promise<void>
   attesaMs?: number
   attesaMaxMs?: number
+  /**
+   * Le chiavi già scritte, su disco (0.71.0): la coda del servizio sopravvive
+   * al riavvio, e dopo un riavvio di questo PC una consegna scritta ma non
+   * ancora confermata tornerebbe. Con le chiavi ricordate si conferma e basta.
+   */
+  ricordate?: { leggi: () => string[]; scrivi: (chiavi: string[]) => void }
 }): () => void {
   let vivo = true
   const base = p.attesaMs ?? ATTESA_RITIRO_MS
   const max = Math.max(base, p.attesaMaxMs ?? ATTESA_RITIRO_MAX_MS)
   // Si parte reattivi; si rallenta solo dopo aver trovato il vuoto.
   let attesa = base
-  const gia: string[] = []
+  const gia: string[] = (() => { try { return (p.ricordate?.leggi() ?? []).filter((x) => typeof x === 'string').slice(-RICORDATE_MAX) } catch { return [] } })()
 
   const giro = async (): Promise<void> => {
     while (vivo) {
@@ -263,6 +269,7 @@ export function avviaRitiro(p: {
           if (p.consegna(c) === false) continue
           gia.push(chiave)
           if (gia.length > RICORDATE_MAX) gia.splice(0, gia.length - RICORDATE_MAX)
+          try { p.ricordate?.scrivi([...gia]) } catch { /* solo un aiuto contro i doppioni */ }
           arrivate.push(c.id)
         }
         // La conferma va **dopo** la consegna, mai prima: confermare per poi

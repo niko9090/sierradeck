@@ -1,6 +1,6 @@
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { get } from 'node:http'
 import { portaAutopilotiDa } from '@shared/autopilota'
 import { APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
@@ -208,6 +208,7 @@ export function avviaServizio(): void {
   const istruzioni = apriRegistroIstruzioni(archivio.cartella)
   // Il numero delle consegne non riparte da c-1 a ogni avvio (0.57.1).
   const fileNumeri = join(archivio.cartella, 'consegne-numero.json')
+  const fileCoda = join(archivio.cartella, 'servizio', 'coda-consegne.json')
   // Anche dalle copie messe da parte per sbaglio fino alla 0.68.0 (vedi FILE_DEL_SERVIZIO).
   const primoNumero = ultimoNumeroConsegne(archivio.cartella)
   console.info(`[consegna] il numero delle consegne riparte da c-${primoNumero + 1}`)
@@ -224,7 +225,11 @@ export function avviaServizio(): void {
       istruzioni.esito(id, 'persa')
       serverPronto?.riportaInCoda(id, `sostituita dalla ${da} prima di essere ritirata`)
     }
-  }, { primo: primoNumero, ricorda: (n) => { scriviJsonAtomico(fileNumeri, { ultimo: n }, 'consegne') } })
+  }, { primo: primoNumero, ricorda: (n) => { scriviJsonAtomico(fileNumeri, { ultimo: n }, 'consegne') } }, {
+    // La coda su disco (0.71.0): un'istruzione non ancora ritirata sopravvive al riavvio.
+    leggi: () => { try { return (JSON.parse(readFileSync(fileCoda, 'utf8')) as { coda?: unknown }).coda } catch { return [] } },
+    scrivi: (coda) => { mkdirSync(dirname(fileCoda), { recursive: true }); scriviJsonAtomico(fileCoda, { versione: 1, coda }, 'consegne') }
+  })
   let serverPronto: { riportaInCoda: (consegna: string, perche: string) => void } | undefined
 
   const lavori = esecutoreNelMosaico({

@@ -2072,3 +2072,28 @@ describe('la domanda aperta sopravvive al riavvio del servizio (0.71.0)', () => 
     expect((await chiama('GET', '/autopiloti')).dati[0].decisioni.map((d: { cosa: string }) => d.cosa).join(' | ')).toContain('andata perduta')
   })
 })
+
+describe('tre chat insieme (0.71.0): ognuna il suo ordine, nessuno perso', () => {
+  it('tre fermate nello stesso istante: ogni chat riceve solo le sue istruzioni, i giri si contano tutti', async () => {
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI,
+      interroga: (prompt, _cwd, sessione) => {
+        if (prompt.includes('va diviso fra')) return Promise.resolve({ testo: '{"compiti": ["scrivi i test", "aggiorna i documenti", "sistema il lettore"]}' })
+        const chat = /Questa è (c-\d+)/.exec(prompt)?.[1] ?? '?'
+        return new Promise((r) => setTimeout(() => r({ testo: `{"azione": "prosegui", "istruzioni": "solo per ${chat}", "perche": "avanti"}`, sessionId: sessione ?? `sup-${chat}` }), 20 + Math.random() * 40))
+      },
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'ancora rosso' })
+    })
+    await avvia(server)
+    const id = await creaAp({ tettoChat: 3 })
+    for (let i = 0; i < 80 && chatAvviate.length < 3; i += 1) await new Promise((r) => setTimeout(r, 25))
+    expect(chatAvviate).toHaveLength(3)
+    const risposte = await Promise.all(['c-1', 'c-2', 'c-3'].map((c) => chiama('POST', `/hook/stop?ap=${id}&chat=${c}`, eventoStop({ session_id: `s-${c}` }))))
+    expect(risposte.map((r) => r.dati.decision)).toEqual(['block', 'block', 'block'])
+    expect(risposte.map((r) => String(r.dati.reason).split(String.fromCharCode(10))[0])).toEqual(['solo per c-1', 'solo per c-2', 'solo per c-3'])
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.chats.map((c: { cicli: number }) => c.cicli)).toEqual([1, 1, 1])
+    expect(stato.cicli).toBe(3)
+    // Ogni chat ha il suo supervisore.
+    expect(new Set(stato.chats.map((c: { sessioneSupervisore?: string }) => c.sessioneSupervisore)).size).toBe(3)
+  })
+})
