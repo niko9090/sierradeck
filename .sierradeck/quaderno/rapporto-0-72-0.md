@@ -42,4 +42,14 @@ La 0.72.0 (app 2.72.0) mette in sicurezza il programma e corregge i tre difetti 
 1. ~~Login di GitHub non valido~~: risolto il 15/10. Con il tuo login i commit sono su GitHub e la release è pubblicata.
 2. La cartella `note/prova-072` (la copia di prova) non l'ho potuta togliere: il controllo di sicurezza di Claude Code ha bloccato la cancellazione. Dentro non ci sono più credenziali; puoi cancellarla tu.
 3. ~~I due criteri del 14/10 con `gh`~~: rieseguiti dopo il login, anche in parallelo. Non cancellano niente, ma ogni giro lasciava in Temp 16 MB (l'APK scaricato), ed è anche questo che ha riempito C:.
-4. Restano da prima: il tuo trasloco di «SierraDeck» fermo per il portatile spento, l'OAuth di Google «In produzione», e i progetti di prova da togliere.
+4. **Dal telefono non si collega più a nessun PC, ma i PC vanno** (Nicholas, 15/10). È la strada dal telefono, non i PC: lo dicono le prove del supervisore.
+   - Su Tailscale l'S25 Ultra risulta offline da circa un giorno, e anche laptop-asus.
+   - Questo PC risponde (401 senza chiave) sulla porta 47640, e DESKTOP risponde su Tailscale.
+   - Il telefono è in `dispositivi.json`, con l'ultimo accesso il 13/10 alle 23:32.
+   - **Da fare nella prossima versione, non nella 0.72.0:** quando non si collega a nessun PC, l'app e la pagina dicono il motivo probabile, ognuno con il suo rimedio.
+     - «Tailscale non è attivo su questo telefono»: niente rete VPN o niente indirizzo 100.x. Rimedio «Apri Tailscale».
+     - «Non sei sulla rete di casa». Rimedio «Riprova».
+     - «Il PC risponde ma rifiuta la chiave». Rimedio «Riprova».
+   - Servono test in `Linea.kt` e `Tentativi.kt`.
+   - **Intanto, sul telefono:** apri Tailscale e accendilo.
+5. Restano da prima: il tuo trasloco di «SierraDeck» fermo per il portatile spento, l'OAuth di Google «In produzione», e i progetti di prova da togliere.
