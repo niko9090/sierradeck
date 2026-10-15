@@ -13,6 +13,7 @@ La 0.72.0 (app 2.72.0) mette in sicurezza il programma e corregge i tre difetti 
 - **Escluso con le prove:** nessuna chat di Claude Code ha lavorato fra le 04:00 e le 10:47 (ora di casa), nessun accesso SSH, nessun installatore, nessun aggiornamento di Windows.
 - **Il sospetto più vicino negli orari, non provato:** il «ricontrollo da solo» dei criteri del tuo autopilota. Ogni 10 minuti, senza nessuno davanti, lanciava test, gradle e download, ed era attivo per tutta la finestra. Però nessuno dei suoi comandi cancella qualcosa.
 - **L'ho rieseguito in una cartella isolata:** stessi comandi, stesso codice di quel giorno, casa, AppData e Temp finti, file sentinella dentro e fuori. Non è sparito niente, né nelle cartelle finte né in quelle vere.
+- **Scoperto dopo:** il disco C: era **pieno da quasi 8 ore** prima della cancellazione. Lo riempiva proprio il ricontrollo da solo, con le cartelle temporanee che test e criteri lasciavano in Temp a ogni giro: circa 0,9 GB all'ora. Con C: pieno, alle 09:02 qualcosa ha cancellato AppData\Local: chi, non si sa. La 0.72.0 chiude tutte e due le cause di riempimento.
 - Per chiudere il dubbio servono i permessi di amministratore: SRUM, Prefetch e BAM dicono quale programma ha scritto e cancellato 12 GB fra le 09:00 e le 10:00.
 - Da adesso, se succede ancora, il registro dei processi acceso il 14/10 dirà chi è stato.
 

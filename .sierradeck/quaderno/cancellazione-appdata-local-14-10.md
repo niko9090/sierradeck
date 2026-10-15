@@ -68,3 +68,30 @@ Servono i permessi di amministratore, sempre in sola lettura:
 - **Il registro della conversione video sul NAS:** cosa ha fatto fra le 06:51 e le 07:06.
 
 Da adesso, se succede ancora, la creazione dei processi con la riga di comando (4688) e i registri di PowerShell, accesi il 14/10 alle 12:19, diranno chi è stato. E il servizio degli autopiloti scrive nel registro ogni comando che lancia (0.72.0).
+
+# Aggiornamento (15/10, pomeriggio): il disco C: era pieno da ore
+Dai registri del disco (Ntfs/Operational, eventi orari dello spazio libero):
+- C: (232 GB) perdeva circa 0,9 GB all'ora dal 13/10 verso le 17:00. Aveva 7,96 GB liberi alle 18:06, 3,7 GB alle 22:06 e **0 byte dalle 02:06 alle 07:02**.
+- Fra le 23:25 e le 06:46 Windows ha registrato 61 scritture fallite per disco pieno (node, java, gh, chrome, il Registro…). Alle 06:33 gradle è caduto con «Spazio su disco insufficiente». Le copie shadow sono state buttate una dopo l'altra (23:25, 07:08).
+
+**Chi lo riempiva: il «ricontrollo da solo» dei criteri.** A ogni giro, ogni 10 minuti, lasciava cartelle in `%TEMP%`:
+- alcuni test non toglievano le loro cartelle temporanee: `sd-ft-cwd-*` e `sd-ft-chat-*` (circa 12,5 MB l'una), `sd-prog-*` (circa 51 MB), `anteprima-*`;
+- il criterio dell'APK lasciava la cartella di `mktemp -d`, con dentro un APK da 16 MB.
+
+Misurato dopo: circa 0,7–0,9 GB all'ora, lo stesso ritmo del riempimento notturno.
+
+**La cancellazione è durata più di 7 minuti:** ha liberato 12 GB entro le 07:07 e altri 92 GB entro le 08:07.
+
+**Correzione all'analisi di prima:** le trascrizioni di Claude Code vuote fra le 02:00 e le 07:00 non escludono niente, perché `~/.claude` sta su C:, che era pieno.
+
+**La catena meglio sostenuta:**
+1. Il ricontrollo senza sorveglianza riempie C:.
+2. Con C: pieno, alle 07:02:54 qualcosa cancella `%LOCALAPPDATA%` (per esempio un'azione automatica per «liberare spazio»: non trovata).
+3. La cancellazione si porta via anche l'ultima copia shadow.
+
+Il processo che ha cancellato resta da identificare con SRUM, Prefetch, BAM e Amcache, leggibili come amministratore.
+
+**Già chiuso nella 0.72.0:**
+- il ricontrollo da solo non c'è più;
+- ogni criterio gira con la sua Temp, che a fine criterio se ne va dalla guardia (anche la cartella di `mktemp -d`);
+- i test girano in una cartella finta, tolta alla fine della suite: i test che lasciano cartelle non riempiono più la Temp vera.
