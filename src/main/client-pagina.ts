@@ -1628,6 +1628,7 @@ function pannello(s) {
       </div>
       <div class="riga">
         <label class="spunta"><input type="checkbox" \${apDettaglio && apDettaglio.riprendiAlRiavvio === false ? '' : 'checked'} data-ap="\${esc(apAperto.id)}" onchange="riavvioAp(this.dataset.ap, this.checked)"> Riparte da solo al riavvio del computer</label>
+        <label class="spunta"><input type="checkbox" \${apDettaglio && apDettaglio.sottofondo === true ? 'checked' : ''} data-ap="\${esc(apAperto.id)}" onchange="sottofondoAp(this.dataset.ap, this.checked)"> Lavora in sottofondo\${aiuto('ap-sottofondo', 'Di serie la sua chat sta in un riquadro del suo workspace sul computer, e quando l’autopilota le scrive il computer va in quel workspace (mai mentre stai scrivendo lì). Accesa, la chat lavora senza riquadro: la vedi in «in sottofondo» con Guarda.')}</label>
         <button class="\${confermando === 'ap-' + apAperto.id ? 'pericolo' : ''}" data-ap="\${esc(apAperto.id)}" onclick="eliminaAp(this.dataset.ap)">\${confermando === 'ap-' + apAperto.id ? 'Sicuro? Elimina' : 'Elimina'}</button>
       </div>
     </div>\`
@@ -2857,6 +2858,13 @@ window.eliminaAp = async (id) => {
 window.archiviaAp = async (id) => {
   try { await chiediAp('/api/autopilota/archivia', { autopilota: id, archivia: true }); if (dentroAp === id) { dentroAp = null; apDettaglio = null } }
   catch (e) { notaGlobale = 'Non l’ho archiviato: ' + ((e && e.message) || 'il computer non risponde') }
+  aggiorna()
+}
+
+window.sottofondoAp = async (id, si) => {
+  try { await chiediAp('/api/autopilota/sottofondo', { autopilota: id, si: si }) }
+  catch (e) { notaGlobale = 'Non l’ho cambiato: ' + ((e && e.message) || 'il computer non risponde') }
+  if (dentroAp === id) await leggiAp()
   aggiorna()
 }
 

@@ -435,6 +435,8 @@ declare global {
         ferma: (id: string) => Promise<void>
         riprendi: (id: string) => Promise<void>
         riprendiAlRiavvio: (id: string, riprendi: boolean) => Promise<void>
+        sottofondo: (id: string, si: boolean) => Promise<void>
+        ricontrollaCriteri: (id: string) => Promise<void>
         archivia: (id: string, archivia: boolean) => Promise<void>
         mandaAdesso: (id: string) => Promise<{ mandate: number; messaggio?: string }>
         nota: (id: string, testo: string) => Promise<void>

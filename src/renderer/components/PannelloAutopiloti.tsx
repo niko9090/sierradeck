@@ -420,6 +420,18 @@ export function PannelloAutopiloti({
                 <input type="checkbox" checked={sel.riprendiAlRiavvio !== false} disabled={inCorso} onChange={(e) => { const acceso = e.target.checked; esegui(() => window.gestore.autopilota.riprendiAlRiavvio(sel.id, acceso)) }} />
                 riparte dopo un riavvio
               </label>
+              {/* In sottofondo solo se lo chiedi tu (0.72.0): di serie la chat sta in un riquadro del suo workspace. */}
+              <label className="progetti__quieto" style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }} title="Di serie la sua chat sta in un riquadro del suo workspace, e una consegna porta la finestra lì (mai mentre scrivi). Acceso: lavora senza riquadro, con un avviso e «Guarda».">
+                <input type="checkbox" checked={sel.sottofondo === true} disabled={inCorso} onChange={(e) => { const acceso = e.target.checked; esegui(() => window.gestore.autopilota.sottofondo(sel.id, acceso)) }} />
+                lavora in sottofondo
+              </label>
+              {/* I criteri si misurano solo mentre lavora o quando lo chiedi tu (0.72.0). */}
+              {sel.stato !== 'lavoro' && sel.criteri.some((c) => c.comando !== undefined) ? (
+                <button className="tasto tasto--mini" disabled={inCorso} onClick={() => esegui(() => window.gestore.autopilota.ricontrollaCriteri(sel.id))}
+                  title="Misura adesso i criteri con un comando (test, typecheck…). Da solo il programma non lo fa più: solo mentre l’autopilota lavora o quando lo chiedi tu.">
+                  Ricontrolla i criteri
+                </button>
+              ) : null}
               {/* «Archivia» (0.37.0): un fermo che non deve ripartire esce dalla banda e dalle notifiche. */}
               {sel.stato === 'sospeso' || sel.stato === 'fallito' ? (
                 <button className="tasto tasto--mini" disabled={inCorso} onClick={() => esegui(() => window.gestore.autopilota.archivia(sel.id, sel.archiviato !== true))}

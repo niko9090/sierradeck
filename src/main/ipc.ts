@@ -1465,6 +1465,10 @@ export function registerAutopilotaIpc(
   ipcMain.handle('autopilota:riprendi', (_e, id: unknown) => client.riprendi(validaIdAutopilota(id)))
   ipcMain.handle('autopilota:riprendiAlRiavvio', (_e, id: unknown, riprendi: unknown) =>
     client.riprendiAlRiavvio(validaIdAutopilota(id), riprendi === true))
+  ipcMain.handle('autopilota:sottofondo', (_e, id: unknown, si: unknown) =>
+    client.sottofondo(validaIdAutopilota(id), si === true))
+  ipcMain.handle('autopilota:ricontrollaCriteri', (_e, id: unknown) =>
+    client.ricontrollaCriteri(validaIdAutopilota(id)))
   // La linguetta «File» (0.38.0): solo lettura, cartelle e base dal servizio.
   ipcMain.handle('autopilota:file', async (_e, id: unknown) => {
     const valido = validaIdAutopilota(id)

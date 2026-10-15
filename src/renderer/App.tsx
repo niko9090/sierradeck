@@ -13,6 +13,7 @@ import { attivaChiusuraFuori, attivaTrascinamento } from './trascina-finestre'
 import { chatAspetta, consegnaPartita, contaMandati, creaUltimeRighe, lavoraSulloSchermo, prontoPerInvio, sceltaSulloSchermo, testoPerso, ultimaRigaDalloSchermo } from './ultime-righe'
 import { creaBattito, stessiAttivi } from './battito'
 import { eseguiConsegna, ponteReale, scriviQuandoPronta, type InvioMancato, type Consegna } from './consegne-autopilota'
+import { comePortare, rigaInAttesa } from './consegna-visibile'
 import { memoriaWorkspace } from './memoria-workspace'
 import { spostaInWorkspace } from './spostamento'
 import { leggiAzioneFinestra } from '@shared/azioni-telefono'
@@ -282,8 +283,13 @@ export function App(): React.JSX.Element {
     sveglia: (paneId: string) => { const p = useLayoutStore.getState().panes[paneId]; if (p?.ibernata === true) useLayoutStore.getState().sveglia(paneId) },
     // La chat di un autopilota diventata remota (0.52.5): torna qui, e il cancello decide.
     riportaQui: (paneId: string) => { const p = useLayoutStore.getState().panes[paneId]; if (p?.remoto !== undefined && p.autopilota !== undefined) useLayoutStore.getState().rendiLocale(paneId) },
-    // 0.60.8: mai riportare la finestra nel workspace di una consegna; la consegna passa in sottofondo.
+    // In sottofondo solo se Nicholas l'ha chiesto (0.72.0): il Ponte lo chiama solo allora.
     passaAlSottofondo: (c: Consegna) => { void window.gestore.autopilota.inSottofondo(c).catch(() => undefined) },
+    // 0.72.0: la chat governata si vede sempre. Il riquadro è sparito: si torna nel suo workspace.
+    tornaNelSuoWorkspace: (c: { workspace?: string }) => {
+      if (c.workspace === undefined || c.workspace === workspaceCorrente()) return
+      void azioniDiFinestra().cambia(c.workspace).then(() => window.gestore.workspace.stato()).then(aggiornaWorkspaceRef.current).catch(() => undefined)
+    },
     segnala: (s: InvioMancato) => {
       if (s.autopilotaId === '') return
       void window.gestore.autopilota.nota(s.autopilotaId, `guasto del programma: il compito è nella chat «${s.titolo || s.chatId}» ma non è partito (${s.motivo}).`).catch(() => undefined)
@@ -420,27 +426,56 @@ export function App(): React.JSX.Element {
   // È il modo in cui l'autopilota lavora adesso: non esegue, coordina. Scrive
   // nella chat come faresti tu, si vede tutto quello che succede, e si può
   // intervenire in mezzo — perché per la chat i due messaggi sono uguali.
-  useEffect(() => window.gestore.client.suConsegna((grezza) => {
-    for (const c of leggiConsegne({ consegne: [grezza] })) {
-      // La prontezza la legge dal flusso dei terminali, che passa di qui: un
-      // messaggio scritto mentre Claude Code si sta ancora disegnando resta nel
-      // campo, e la chat non parte.
-      const porta = (): void => {
-        eseguiConsegna(c, ponteReale(prontaPerConsegna, extraConsegna))
-      }
-      // **Prima si va dove la chat vive.** La sua conversazione puo' essere
-      // salvata in un altro workspace: consegnare qui aprirebbe una seconda
-      // copia sotto i tuoi occhi, e il lavoro andrebbe in quella - mentre
-      // quella vera resta ferma in un posto che non stai guardando.
-      // 0.60.8: **mai cambiare il workspace sullo schermo** per una consegna.
-      // Se il suo workspace non è quello di questa finestra, va in sottofondo.
-      if (c.workspace !== undefined && c.workspace !== workspaceCorrente()) {
-        void window.gestore.log.info(`[consegna] consegna ${c.id}: il suo workspace «${c.workspace}» non è quello di questa finestra: passa in sottofondo, senza cambiare lo schermo`).catch(() => undefined)
-        void window.gestore.autopilota.inSottofondo(c).catch(() => undefined)
-        continue
-      }
-      porta()
+  // L'ultimo tasto premuto in questa finestra (0.72.0): mai cambiare workspace mentre scrivi.
+  const ultimoTasto = useRef<number | undefined>(undefined)
+  useEffect(() => {
+    const segna = (): void => { ultimoTasto.current = Date.now() }
+    window.addEventListener('keydown', segna, true)
+    return () => window.removeEventListener('keydown', segna, true)
+  }, [])
+  /** Le consegne che aspettano che smetti di scrivere per portarti nel loro workspace (0.72.0). */
+  const [inAttesaDiQuiete, setInAttesaDiQuiete] = useState<Consegna[]>([])
+  const portaConsegnaRef = useRef<(c: Consegna, subito?: boolean) => void>(() => undefined)
+  portaConsegnaRef.current = (c: Consegna, subito = false): void => {
+    // La prontezza la legge dal flusso dei terminali, che passa di qui: un
+    // messaggio scritto mentre Claude Code si sta ancora disegnando resta nel
+    // campo, e la chat non parte.
+    const porta = (): void => {
+      eseguiConsegna(c, ponteReale(prontaPerConsegna, extraConsegna))
     }
+    const togli = (): void => { setInAttesaDiQuiete((v) => v.filter((x) => x.id !== c.id)) }
+    // **Prima si va dove la chat vive.** La sua conversazione puo' essere
+    // salvata in un altro workspace: consegnare qui aprirebbe una seconda
+    // copia sotto i tuoi occhi, e il lavoro andrebbe in quella.
+    // 0.72.0: la chat governata si vede sempre — la finestra va nel suo
+    // workspace, ma mai mentre scrivi; in sottofondo solo se l'hai chiesto.
+    const come = subito ? (c.workspace !== undefined && c.workspace !== workspaceCorrente() ? 'cambia' : 'qui') : comePortare(c, workspaceCorrente(), ultimoTasto.current, Date.now())
+    if (come === 'qui') { togli(); porta(); return }
+    if (come === 'sottofondo') {
+      togli()
+      void window.gestore.log.info(`[consegna] consegna ${c.id}: lavora in sottofondo nel workspace «${c.workspace ?? '?'}», come hai chiesto (si vede in «Al lavoro in sottofondo», con Guarda)`).catch(() => undefined)
+      void window.gestore.autopilota.inSottofondo(c).catch(() => undefined)
+      return
+    }
+    if (come === 'aspetta') {
+      setInAttesaDiQuiete((v) => (v.some((x) => x.id === c.id) ? v : [...v, c]))
+      setTimeout(() => { portaConsegnaRef.current(c) }, 5000)
+      return
+    }
+    togli()
+    void window.gestore.log.info(`[consegna] consegna ${c.id}: porto la finestra nel suo workspace «${c.workspace ?? '?'}», così la chat si vede`).catch(() => undefined)
+    void azioniDiFinestra()
+      .cambia(c.workspace as string)
+      .then(() => window.gestore.workspace.stato())
+      .then(aggiornaWorkspace)
+      .then(porta)
+      .catch((e: unknown) => {
+        console.error('[autopilota] non sono riuscito ad andare nel suo workspace:', e)
+        porta()
+      })
+  }
+  useEffect(() => window.gestore.client.suConsegna((grezza) => {
+    for (const c of leggiConsegne({ consegne: [grezza] })) portaConsegnaRef.current(c)
   }), [])
 
   // Una chat arrivata in un workspace da un altra finestra. Va messa nella
@@ -1707,6 +1742,16 @@ export function App(): React.JSX.Element {
         </div>
       ) : null}
 
+      {inAttesaDiQuiete.length > 0 ? (
+        <div className="banda-consegna-in-attesa" role="status" style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '6px 12px', background: 'var(--sfondo-avviso, #fff4d6)', borderBottom: '1px solid var(--bordo, #e0c97a)' }}>
+          {inAttesaDiQuiete.map((c) => (
+            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ flex: 1 }}>{rigaInAttesa(c)}</span>
+              <button className="tasto tasto--mini" onClick={() => portaConsegnaRef.current(c, true)} title="Porta adesso la finestra nel suo workspace: la chat riceve il messaggio e la vedi lavorare">Guarda</button>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <BandaAvvisi
         avvisi={componiAvvisi({
           accesso,

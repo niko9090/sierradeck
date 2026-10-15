@@ -90,7 +90,9 @@ export function esecutoreNelMosaico(p: {
         // salvati funziona solo per una chat ripresa: quella che deve ancora
         // nascere lì dentro non c'è, e finiva nel workspace che avevi davanti.
         ...(a.workspace !== undefined ? { workspace: a.workspace } : {}),
-        ...(opz?.ancheAlLavoro === true ? { ancheAlLavoro: true } : {})
+        ...(opz?.ancheAlLavoro === true ? { ancheAlLavoro: true } : {}),
+        // In sottofondo solo se Nicholas l'ha chiesto (0.72.0).
+        ...(a.sottofondo === true ? { sottofondo: true } : {})
       })
       return Promise.resolve(messa.id)
     },

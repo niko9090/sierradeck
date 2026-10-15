@@ -24,6 +24,8 @@ export type Consegna = {
   testo: string
   /** Messaggi in coda da più di due minuti (0.69.0): si scrivono anche se la chat lavora. */
   ancheAlLavoro?: boolean
+  /** In sottofondo, senza riquadro: solo se Nicholas l'ha chiesto per quell'autopilota (0.72.0). */
+  sottofondo?: boolean
   /**
    * Il workspace dove quella conversazione e' gia' salvata.
    *
@@ -78,7 +80,13 @@ export function versoIlSuoWorkspace(
 }
 
 /**
- * Dove portare una consegna (0.60.8): nella finestra o **in sottofondo**.
+ * Dove portare una consegna: nella finestra o **in sottofondo**.
+ *
+ * **0.72.0, Nicholas: la chat governata da un autopilota è SEMPRE visibile in
+ * un riquadro del suo workspace; il sottofondo solo se lo chiede lui.** Di
+ * serie quindi va alla finestra, che si porta nel suo workspace (mai mentre
+ * stai scrivendo: aspetta e intanto lo dice con «Guarda»). Le regole qui
+ * sotto, della 0.60.8, valgono solo con `sottofondoChiesto`.
  *
  * Nicholas: la chat dell'autopilota «la deve aprire senza visualizzarla…
  * andiamo avanti nei PC in progetti diversi». Una consegna non cambia mai il
@@ -102,8 +110,11 @@ export function doveConsegnare(p: {
   accesaNascosta: boolean
   /** I workspace sullo schermo, uno per finestra. */
   visibili: readonly string[]
+  /** Nicholas ha chiesto il sottofondo per quell'autopilota (0.72.0). Senza, mai. */
+  sottofondoChiesto?: boolean
 }): 'finestra' | 'sottofondo' {
   if (p.inFinestra) return 'finestra'
+  if (p.sottofondoChiesto !== true) return 'finestra'
   if (p.inSottofondo || p.accesaNascosta) return 'sottofondo'
   if (p.workspace !== undefined && !p.visibili.includes(p.workspace)) return 'sottofondo'
   return 'finestra'
@@ -164,7 +175,8 @@ export function leggiConsegne(raw: unknown): Consegna[] {
       testo: testo('testo'),
       ...(testo('workspace') !== '' ? { workspace: testo('workspace') } : {}),
       // In coda da più di due minuti (0.69.0): si scrive anche se la chat lavora.
-      ...(c.ancheAlLavoro === true ? { ancheAlLavoro: true } : {})
+      ...(c.ancheAlLavoro === true ? { ancheAlLavoro: true } : {}),
+      ...(c.sottofondo === true ? { sottofondo: true } : {})
     })
   }
   return buone

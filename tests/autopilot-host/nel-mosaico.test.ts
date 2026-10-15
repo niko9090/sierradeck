@@ -195,3 +195,13 @@ describe('riprendere non e ricominciare', () => {
     expect(riprende(a, 's2', avviata)).toBe(true)
   })
 })
+
+describe('il segno «in sottofondo» nella consegna (0.72.0)', () => {
+  it('solo se Nicholas l’ha chiesto per quell’autopilota', async () => {
+    const { consegne, esecutore } = banco()
+    await esecutore.avvia(autopilota())
+    expect(consegne.preleva()[0]?.sottofondo).toBeUndefined()
+    await esecutore.avvia(autopilota({ sottofondo: true }), 'prosegui')
+    expect(consegne.preleva()[0]?.sottofondo).toBe(true)
+  })
+})

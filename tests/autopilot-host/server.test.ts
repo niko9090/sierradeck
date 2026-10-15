@@ -2286,6 +2286,20 @@ describe('mai più di un messaggio in coda in Claude Code (0.72.0)', () => {
   })
 })
 
+describe('in sottofondo solo su richiesta (0.72.0)', () => {
+  it('l’interruttore si accende e si spegne, e lo dice nel diario', async () => {
+    server = ambiente()
+    await avvia(server)
+    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-sf', nome: 'Sf', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'finito' })
+    expect(archivio.leggi('ap-sf')!.sottofondo).toBeUndefined()
+    expect((await chiama('POST', '/autopiloti/ap-sf/sottofondo', { si: true })).dati.sottofondo).toBe(true)
+    expect((await chiama('POST', '/autopiloti/ap-sf/sottofondo', { si: false })).dati.sottofondo).toBeUndefined()
+    const diario = archivio.leggi('ap-sf')!.decisioni.map((d) => d.cosa).join(' | ')
+    expect(diario).toContain('lavora in sottofondo, senza riquadro')
+    expect(diario).toContain('torna a lavorare in un riquadro del suo workspace')
+  })
+})
+
 describe('criteri ricontrollati solo su richiesta (0.72.0)', () => {
   it('un lavoro finito che torna rosso lo dice nel diario, ma solo se lo chiedi', async () => {
     let passa = true

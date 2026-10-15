@@ -365,6 +365,8 @@ export type DipendenzeRotte = {
   eliminaAutopilota: (id: string) => Promise<void>
   /** Se quell'autopilota debba ripartire da solo dopo un riavvio. */
   riprendiAlRiavvio: (id: string, riprendi: boolean) => Promise<void>
+  /** «Lavora in sottofondo» (0.72.0): solo su richiesta. */
+  sottofondoAutopilota?: (id: string, si: boolean) => Promise<void>
   /** Chiude una chat del mosaico: la conversazione resta su disco. */
   chiudiChat: (idChat: string) => void
   /** Il nome che dai tu a una chat, che vince su quello di Claude Code. */
@@ -2247,6 +2249,15 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
       const corpo = r.corpo as Record<string, unknown> | undefined
       await deps.riprendiAlRiavvio(id, corpo?.riprendi === true)
+      return OK({ fatto: true })
+    }
+
+    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/sottofondo') {
+      const id = stringa(r.corpo, 'autopilota')
+      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
+      if (deps.sottofondoAutopilota === undefined) return { stato: 501, corpo: { errore: 'questo PC non lo sa fare' } }
+      const corpo = r.corpo as Record<string, unknown> | undefined
+      await deps.sottofondoAutopilota(id, corpo?.si === true)
       return OK({ fatto: true })
     }
 

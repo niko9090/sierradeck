@@ -5144,6 +5144,7 @@ if (!app.requestSingleInstanceLock()) {
         eliminaAutopilota: (id: string) => clientAutopilota.elimina(id),
         riprendiAlRiavvio: (id: string, riprendi: boolean) =>
           clientAutopilota.riprendiAlRiavvio(id, riprendi),
+        sottofondoAutopilota: (id: string, si: boolean) => clientAutopilota.sottofondo(id, si),
         // Chiudere e rinominare una chat le sa fare la finestra, che e' l'unica
         // a conoscere i suoi riquadri: qui si annuncia, come per «apri».
         log: (riga: string) => registro.info(riga),
@@ -5811,7 +5812,8 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('autopilota:inSottofondo', (_e, raw: unknown) => {
         const c = leggiConsegne({ consegne: [raw] })[0]
         const sf = sottofondo
-        if (c === undefined || sf === undefined) return false
+        // Solo se Nicholas l'ha chiesto (0.72.0): senza, la chat resta in un riquadro.
+        if (c === undefined || sf === undefined || c.sottofondo !== true) return false
         const conWs = versoIlSuoWorkspace(c, (sessionId) => workspaceStore === undefined ? undefined : workspaceDellaSessione(workspaceStore.leggi(), sessionId))
         return consegnaInSottofondo(sf, conWs, ptyDiSessione(c.sessionId))
       })
@@ -5860,7 +5862,8 @@ if (!app.requestSingleInstanceLock()) {
             inFinestra,
             inSottofondo: sf.ha(c.sessionId),
             accesaNascosta: !inFinestra && ptyAcceso !== undefined && !sf.ha(c.sessionId),
-            visibili: vive.map((w) => workspaceDellaFinestra(w.id)).filter((x): x is string => x !== undefined)
+            visibili: vive.map((w) => workspaceDellaFinestra(w.id)).filter((x): x is string => x !== undefined),
+            sottofondoChiesto: c.sottofondo === true
           })
           if (verso === 'sottofondo' && sf !== undefined) return consegnaInSottofondo(sf, conWs, inFinestra ? undefined : ptyAcceso)
           // La finestra che ha la chat; altrimenti quella che mostra il suo

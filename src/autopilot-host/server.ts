@@ -3053,6 +3053,22 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           return
         }
 
+        // «Lavora in sottofondo» (0.72.0): solo se Nicholas lo chiede.
+        const inSottofondo = /^\/autopiloti\/([^/]+)\/sottofondo$/.exec(percorso)
+        if (metodo === 'POST' && inSottofondo !== null) {
+          const id = decodeURIComponent(inSottofondo[1]!)
+          const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
+          if (a === undefined) { rispondi(res, 404, { errore: 'autopilota inesistente' }); return }
+          const corpo = await leggiCorpo(req)
+          const si = typeof corpo === 'object' && corpo !== null && (corpo as Record<string, unknown>).si === true
+          const { sottofondo: _prima, ...senza } = a
+          const aggiornato: Autopilota = si ? { ...senza, sottofondo: true } : senza
+          annota(aggiornato, si ? 'su tua richiesta: la chat lavora in sottofondo, senza riquadro (avviso e «Guarda» sul PC, sulla pagina e nell’app)' : 'su tua richiesta: la chat torna a lavorare in un riquadro del suo workspace')
+          salva(aggiornato)
+          rispondi(res, 200, deps.archivio.leggi(id))
+          return
+        }
+
         // Una nota nel diario dal programma (0.37.5): per esempio «il compito è
         // nella chat X ma non è partito», cosi' il supervisore la vede.
         const nota = /^\/autopiloti\/([^/]+)\/nota$/.exec(percorso)

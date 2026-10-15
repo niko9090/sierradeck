@@ -88,6 +88,10 @@ export type ClientAutopilota = {
   riprendi: (id: string) => Promise<void>
   /** Se questo autopilota debba ripartire da solo dopo un riavvio. */
   riprendiAlRiavvio: (id: string, riprendi: boolean) => Promise<void>
+  /** «Lavora in sottofondo» (0.72.0): solo su richiesta di Nicholas. */
+  sottofondo: (id: string, si: boolean) => Promise<void>
+  /** «Ricontrolla i criteri» (0.72.0): i criteri di un autopilota fermo, misurati adesso. */
+  ricontrollaCriteri: (id: string) => Promise<void>
   /** Mette da parte un autopilota fermo che non deve ripartire (o lo toglie dall'archivio). */
   archivia: (id: string, archivia: boolean) => Promise<void>
   /** «Manda adesso» (0.69.0): i messaggi in coda escono subito. */
@@ -229,6 +233,12 @@ export function creaClientAutopilota(p: {
     riprendi: async (id) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/riprendi`, 'POST') },
     riprendiAlRiavvio: async (id, riprendi) => {
       await chiama(`/autopiloti/${encodeURIComponent(id)}/riavvio`, 'POST', { riprendi })
+    },
+    sottofondo: async (id, si) => {
+      await chiama(`/autopiloti/${encodeURIComponent(id)}/sottofondo`, 'POST', { si })
+    },
+    ricontrollaCriteri: async (id) => {
+      await chiama(`/autopiloti/${encodeURIComponent(id)}/ricontrolla-criteri`, 'POST', {})
     },
     nota: async (id, testo) => {
       await chiama(`/autopiloti/${encodeURIComponent(id)}/nota`, 'POST', { testo })

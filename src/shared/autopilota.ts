@@ -295,6 +295,13 @@ export type Autopilota = {
    */
   riprendiAlRiavvio?: boolean
   /**
+   * **In sottofondo, solo se l'hai chiesto tu** (0.72.0). Di serie la chat
+   * governata sta in un riquadro del suo workspace, e una consegna porta la
+   * finestra lì (mai mentre stai scrivendo). Con questo interruttore acceso
+   * lavora senza riquadro, e il programma lo dice con un avviso e «Guarda».
+   */
+  sottofondo?: boolean
+  /**
    * Fermato da noi per installare un aggiornamento.
    *
    * **Non e' una sospensione**, ed e' tutta la differenza: chi risulta
@@ -759,6 +766,7 @@ export function parseAutopilota(raw: unknown): {
       decisioni,
       ...(stringaNonVuota(o.strategia) !== undefined ? { strategia: o.strategia as string } : {}),
       ...(typeof o.riprendiAlRiavvio === 'boolean' ? { riprendiAlRiavvio: o.riprendiAlRiavvio } : {}),
+      ...(o.sottofondo === true ? { sottofondo: true } : {}),
       ...(o.fermatoPerAggiornamento === true ? { fermatoPerAggiornamento: true } : {}),
       ...(stringaNonVuota(o.sessioneSupervisore) !== undefined
         ? { sessioneSupervisore: o.sessioneSupervisore as string }

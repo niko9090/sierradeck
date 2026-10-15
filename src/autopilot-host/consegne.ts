@@ -52,6 +52,8 @@ export type Consegna = {
    * di due minuti. Il Gestore non aspetta la fine del turno.
    */
   ancheAlLavoro?: boolean
+  /** Nicholas ha chiesto che questa chat lavori in sottofondo, senza riquadro (0.72.0). */
+  sottofondo?: boolean
 }
 
 /** Chi vuole sapere cosa succede alle consegne (0.41.0: la linguetta «Istruzioni»). */

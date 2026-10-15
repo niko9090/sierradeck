@@ -500,6 +500,14 @@ describe('fare tutto, anche le cose che si disfano', () => {
     expect(scelte).toEqual([{ id: 'ap-1', riprendi: false }])
   })
 
+  it('«Lavora in sottofondo» dalla pagina e dall’app, solo su richiesta (0.72.0)', async () => {
+    const scelte: { id: string; si: boolean }[] = []
+    const su = deps({ sottofondoAutopilota: (id, si) => { scelte.push({ id, si }); return Promise.resolve() } })
+    await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/sottofondo', corpo: { autopilota: 'ap-1', si: true } })
+    await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/sottofondo', corpo: { autopilota: 'ap-1' } })
+    expect(scelte).toEqual([{ id: 'ap-1', si: true }, { id: 'ap-1', si: false }])
+  })
+
   it('chiude una chat', async () => {
     const chiuse: string[] = []
     const su = deps({ chiudiChat: (id) => { chiuse.push(id) } })

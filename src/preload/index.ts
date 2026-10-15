@@ -1034,6 +1034,10 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Se questo autopilota debba ripartire da solo dopo un riavvio del PC. */
     riprendiAlRiavvio: (id: string, riprendi: boolean): Promise<void> =>
       ipcRenderer.invoke('autopilota:riprendiAlRiavvio', id, riprendi),
+    /** «Lavora in sottofondo» (0.72.0): senza riquadro, solo se lo chiedi tu. */
+    sottofondo: (id: string, si: boolean): Promise<void> => ipcRenderer.invoke('autopilota:sottofondo', id, si),
+    /** «Ricontrolla i criteri» (0.72.0): mai da soli, solo su richiesta. */
+    ricontrollaCriteri: (id: string): Promise<void> => ipcRenderer.invoke('autopilota:ricontrollaCriteri', id),
     /** «Archivia»: un autopilota fermo messo da parte (false lo toglie dall'archivio). */
     archivia: (id: string, archivia: boolean): Promise<void> => ipcRenderer.invoke('autopilota:archivia', id, archivia),
     /** «Manda adesso» (0.69.0): i messaggi in coda escono subito, anche durante il turno. */
