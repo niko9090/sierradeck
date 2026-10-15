@@ -33,7 +33,9 @@ describe('le domande della linguetta', () => {
   it('in preparazione sono domande iniziali; pronto aggiunge il via, per ultimo', () => {
     expect(domandeScheda(ap({ stato: 'intervista', criteri: [] }), [aperte[1]!])[0]?.origine).toBe('preparazione')
     const pronto = domandeScheda(ap({ stato: 'pronto' }), [])
-    expect(pronto).toEqual([{ chiave: 'via:ap-1', tipo: 'via', testo: TESTO_VIA, opzioni: [OPZIONE_VIA], origine: 'via' }])
+    expect(pronto).toEqual([expect.objectContaining({ chiave: 'via:ap-1', tipo: 'via', testo: TESTO_VIA, opzioni: [OPZIONE_VIA], origine: 'via' })])
+    // 0.72.1: e la scheda essenziale, con «Vai» consigliato.
+    expect(pronto[0]?.scheda?.scelte).toEqual([{ testo: OPZIONE_VIA, consigliata: true }])
   })
 
   it('si risponde alla domanda; il via con «Vai», altrimenti è un messaggio per lui', () => {

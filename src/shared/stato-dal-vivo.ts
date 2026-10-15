@@ -83,6 +83,36 @@ export function statoMessaggi(a: Pick<Autopilota, 'daConsegnare' | 'inVolo' | 'c
   return fuori
 }
 
+/**
+ * I messaggi come si mostrano (0.72.1). Nicholas, 15/10: «vedo ancora un sacco
+ * di messaggi "consegnato alle" che occupano tutto lo spazio». Un messaggio
+ * arrivato è una spunta ✓ (l'ora e il testo nel tooltip); «in consegna» un
+ * puntino; **una riga sola**, e solo se qualcosa è fermo: «in attesa da N min»
+ * con «Manda adesso». Lavora sull'elenco di sempre: va anche con un PC vecchio.
+ * Copiata nella pagina (`messaggiCompattiJs`) e nell'app (`MessaggiCompatti.kt`).
+ */
+export type MessaggiCompatti = {
+  segni: { id: string; tipo: 'consegnato' | 'in consegna'; titolo: string }[]
+  fermo?: { dettaglio: string; quanti: number; testo: string; mandaAdesso: boolean }
+}
+
+export function messaggiCompatti(m: StatoMessaggio[]): MessaggiCompatti {
+  const segni: MessaggiCompatti['segni'] = []
+  const inAttesa = m.filter((x) => x.stato === 'in attesa')
+  // Dal più vecchio al più nuovo, come si leggono: l'ultimo arrivato a destra.
+  for (const x of [...m].reverse()) {
+    if (x.stato === 'consegnato') segni.push({ id: x.id, tipo: 'consegnato', titolo: `${x.dettaglio}: ${x.testo}` })
+    else if (x.stato === 'in consegna') segni.push({ id: x.id, tipo: 'in consegna', titolo: `${x.dettaglio}: ${x.testo}` })
+  }
+  const primo = inAttesa[0]
+  return {
+    segni,
+    ...(primo !== undefined
+      ? { fermo: { dettaglio: primo.dettaglio, quanti: inAttesa.length, testo: primo.testo, mandaAdesso: inAttesa.some((x) => x.mandaAdesso === true) } }
+      : {})
+  }
+}
+
 /** L'ora come la legge Nicholas: «20:31». */
 export function oraBreve(iso: string): string {
   const t = Date.parse(iso)

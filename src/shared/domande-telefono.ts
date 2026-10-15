@@ -1,3 +1,5 @@
+import type { PartiDomanda } from './domanda-strutturata'
+
 /**
  * Tutto quello che aspetta una risposta da chi guarda il telefono, in un
  * elenco solo.
@@ -54,6 +56,9 @@ export type VoceDomanda =
       opzioni?: string[]
       /** La riga sotto il titolo, per una domanda che non è di un autopilota (0.54.0). */
       sotto?: string
+      /** Le cinque parti (0.41.0): la scheda (0.72.1) mostra la frase e mette il resto nel «?». */
+      parti?: PartiDomanda
+      avvertenza?: string
     }
   | {
       tipo: 'scelta'
@@ -199,7 +204,7 @@ export type AutopilotaPerDomande = { id: string; nome: string; obiettivo: string
  * conferma di un file che una chat vuole mandare al telefono — dice da sola
  * chi chiede e di cosa si tratta.
  */
-export type DomandaPerDomande = { id: string; autopilotaId: string; testo: string; apertaIl?: number; scadeIl?: number; opzioni?: string[]; da?: string; sotto?: string }
+export type DomandaPerDomande = { id: string; autopilotaId: string; testo: string; apertaIl?: number; scadeIl?: number; opzioni?: string[]; da?: string; sotto?: string; parti?: PartiDomanda; avvertenza?: string }
 
 /** Le chat degli altri PC, dal loro battito sul Drive: solo quelle che aspettano contano. */
 export type AltroPcPerDomande = {
@@ -250,7 +255,9 @@ export function raccogliDomande(p: {
       ...(d.apertaIl !== undefined ? { apertaIl: d.apertaIl } : {}),
       ...(d.scadeIl !== undefined ? { scadeIl: d.scadeIl } : {}),
       ...(d.opzioni !== undefined && d.opzioni.length > 0 ? { opzioni: d.opzioni } : {}),
-      ...(a === undefined && d.sotto !== undefined ? { sotto: d.sotto } : {})
+      ...(a === undefined && d.sotto !== undefined ? { sotto: d.sotto } : {}),
+      ...(d.parti !== undefined && typeof d.parti === 'object' ? { parti: d.parti } : {}),
+      ...(typeof d.avvertenza === 'string' && d.avvertenza !== '' ? { avvertenza: d.avvertenza } : {})
     })
   }
   const ferme: VoceDomanda[] = []
@@ -357,7 +364,10 @@ export function quanteChiedono(voci: VoceDomanda[]): number {
 export function vociPerLeApp(voci: VoceDomanda[]): unknown[] {
   // Le risolte (0.71.1) le leggono solo le conversazioni: un'app vecchia non conosce il tipo.
   return voci.filter((v) => v.tipo !== 'risolta').map((v) => {
-    if (v.tipo !== 'autopilota' || v.opzioni === undefined) return v
-    return { ...v, opzioni: v.opzioni.map((testo, i) => ({ numero: i + 1, testo, scelta: false })) }
+    if (v.tipo !== 'autopilota') return v
+    // Le parti (0.72.1) servono alla scheda delle conversazioni, non alle app vecchie.
+    const { parti: _p, avvertenza: _a, ...resto } = v
+    if (resto.opzioni === undefined) return resto
+    return { ...resto, opzioni: resto.opzioni.map((testo, i) => ({ numero: i + 1, testo, scelta: false })) }
   })
 }

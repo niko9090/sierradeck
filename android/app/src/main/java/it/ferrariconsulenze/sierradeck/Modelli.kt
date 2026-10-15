@@ -265,8 +265,41 @@ data class DomandaScheda(
     val testo: String = "",
     val opzioni: List<String> = emptyList(),
     /** preparazione, lavoro, pubblica, via. */
-    val origine: String = "lavoro"
+    val origine: String = "lavoro",
+    /** PC 0.72.1: la domanda essenziale (la frase, i tasti, il resto nel «?»). */
+    val scheda: SchedaDomanda? = null
 )
+
+/**
+ * Una domanda essenziale (PC 0.72.1): chi chiede in piccolo, la domanda in una
+ * frase, le scelte come tasti (la consigliata segnata), «Scrivi tu», e il resto
+ * dietro un «?». La calcola il PC; l'app la disegna così com'è.
+ */
+@Serializable
+data class SchedaDomanda(
+    val chi: String = "",
+    val domanda: String = "",
+    val scelte: List<SceltaScheda> = emptyList(),
+    val dettagli: List<DettaglioScheda> = emptyList(),
+    val segnaposto: String = "Scrivi tu",
+    /** L'autopilota ha già risposto da solo. */
+    val risposta: String? = null,
+    /** Quante altre domande aspettano dopo questa. */
+    val poi: Int? = null
+)
+
+@Serializable
+data class SceltaScheda(
+    val testo: String = "",
+    val consigliata: Boolean = false,
+    val numero: Int? = null,
+    val libera: Boolean = false,
+    val spuntata: Boolean? = null,
+    val invio: Boolean = false
+)
+
+@Serializable
+data class DettaglioScheda(val etichetta: String = "", val testo: String = "")
 
 /** La linguetta «File» (0.38.0): i file cambiati, per chat. */
 @Serializable
@@ -318,7 +351,9 @@ data class Conversazione(
     /** La strada con cui il computer arriva a quel PC (0.40.0): «rete di casa», «Tailscale», «WebRTC», «Drive, lento». */
     val viaPc: String? = null,
     /** PC 0.70: il tipo in una parola (permesso, scelta, domanda, autopilota, ha finito). */
-    val vista: StatoVistaDrive? = null
+    val vista: StatoVistaDrive? = null,
+    /** PC 0.72.1: la domanda essenziale, al posto della conversazione. */
+    val scheda: SchedaDomanda? = null
 )
 
 /** Aspetta davvero te (PC 0.70): tutto tranne le chat che hanno solo finito il turno. */

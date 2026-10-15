@@ -1,6 +1,7 @@
 import type { Autopilota } from './autopilota'
 import { conversazione } from './chat-autopilota'
 import type { OpzioneScelta, VoceDomanda } from './domande-telefono'
+import { chiDi, fraseDomanda, schedaDaParti, schedaDaTesto, scelteDiChat, type SchedaDomanda } from './scheda-domanda'
 
 /**
  * La scheda «Domande» come conversazioni a messaggi (0.36.0).
@@ -63,6 +64,12 @@ export type Conversazione = {
   suPc?: string
   /** La strada per quel PC (0.40.0): «SU <PC> · Tailscale». */
   viaPc?: string
+  /**
+   * La domanda essenziale (0.72.1): chi, la frase, le scelte, il resto nel
+   * «?». PC, pagina e app la disegnano al posto della conversazione; con un
+   * PC più vecchio non c'è e si disegna come prima.
+   */
+  scheda?: SchedaDomanda
 }
 
 /** Quanti messaggi della storia di un autopilota entrano nel filo. */
@@ -123,16 +130,24 @@ export function conversazioniDomande(p: {
           const inCoda: MessaggioConversazione = { da: 'lui', testo: `In coda, dopo quella qui sotto: ${v.testo}`, tono: 'domanda' }
           sua.messaggi.splice(Math.max(0, sua.messaggi.length - 1), 0, inCoda)
           sua.quante = (sua.quante ?? 1) + 1
+          if (sua.scheda !== undefined) sua.scheda.poi = sua.quante - 1
           sua.sotto = `${a?.cwd ?? sua.sotto} · ${sua.messaggi.filter((m) => m.testo.startsWith('In coda, dopo')).length + 1} domande: rispondi a una alla volta, dall’ultima in fondo`
         }
         continue
       }
       gia.add(chiave)
+      const chi = chiDi('autopilota', v.autopilota, a?.cwd)
+      const segnapostoAp = v.origine === 'intervista' ? 'Scrivi tu: la preparazione riparte con la tua risposta' : 'Scrivi tu la risposta'
+      const scheda: SchedaDomanda = v.parti !== undefined
+        ? schedaDaParti(chi, v.parti, { ...(v.avvertenza !== undefined ? { avvertenza: v.avvertenza } : {}), segnaposto: segnapostoAp })
+        : schedaDaTesto(chi, v.testo, (v.opzioni ?? []).map((testo) => ({ testo })), segnapostoAp)
+      if (v.origine === 'intervista') scheda.dettagli.unshift({ etichetta: 'Quando', testo: 'Si sta preparando: senza la tua risposta non comincia.' })
       fuori.push({
         chiave,
         tipo: 'autopilota',
         autopilota: v.autopilotaId,
         quante: 1,
+        scheda,
         titolo: v.autopilota,
         sotto: v.sotto ?? (v.origine === 'intervista'
           ? 'si prepara: ti fa una domanda prima di partire, e senza la tua risposta non comincia'
@@ -153,13 +168,22 @@ export function conversazioniDomande(p: {
     gia.add(chiave)
     const tuoi = (p.inviati?.[v.chat] ?? []).map((i) => ({ da: 'tu' as const, testo: i.testo, quando: i.quando }))
     const schermo = v.righe.join('\n').trim()
+    const chi = chiDi('chat', v.titolo || v.cwd, v.cwd, v.tipo === 'chat' ? v.pcNome : undefined)
     if (v.tipo === 'scelta') {
+      const { scelte, spiegazioni } = scelteDiChat(v.opzioni)
       fuori.push({
         chiave,
         tipo: 'chat',
         titolo: v.titolo || v.cwd,
         sotto: v.cwd,
         chiede: true,
+        scheda: {
+          chi,
+          domanda: schermo !== '' ? fraseDomanda(schermo) || 'Aspetta che tu scelga.' : 'Aspetta che tu scelga.',
+          scelte,
+          dettagli: [...(spiegazioni !== undefined ? [spiegazioni] : []), ...(schermo !== '' ? [{ etichetta: 'Lo schermo della chat', testo: schermo }] : [])],
+          segnaposto: 'Oppure scrivile tu'
+        },
         messaggi: [
           ...tuoi,
           {
@@ -181,6 +205,7 @@ export function conversazioniDomande(p: {
         titolo: v.titolo || v.cwd,
         sotto: v.cwd,
         chiede: true,
+        scheda: schedaDaTesto(chi, schermo !== '' ? schermo : 'Ti ha fatto una domanda: la trovi nella chat.', [], 'Scrivi tu la risposta', 'Quello che ha scritto'),
         messaggi: [...tuoi, { da: 'lui', testo: schermo !== '' ? schermo : 'Ti ha fatto una domanda: la trovi nella chat.', tono: 'domanda' }],
         risposta: { via: 'scrivi', chat: v.chat },
         ...(v.pcNome !== undefined ? { suPc: v.pcNome } : {}),
@@ -194,6 +219,13 @@ export function conversazioniDomande(p: {
         titolo: v.titolo || v.cwd,
         sotto: v.cwd,
         chiede: false,
+        scheda: {
+          chi,
+          domanda: 'Ha finito il turno: cosa le scrivi?',
+          scelte: [],
+          dettagli: schermo !== '' ? [{ etichetta: 'Le ultime righe', testo: schermo }] : [],
+          segnaposto: 'Scrivi tu la prossima istruzione'
+        },
         messaggi: [...tuoi, { da: 'lui', testo: schermo !== '' ? schermo : 'Ha finito il turno e aspetta la tua prossima istruzione.' }],
         risposta: { via: 'scrivi', chat: v.chat },
         ...(v.pcNome !== undefined ? { suPc: v.pcNome } : {}),
@@ -216,6 +248,17 @@ export function conversazioniDomande(p: {
       titolo: a.nome !== '' ? a.nome : a.obiettivo.slice(0, 60),
       sotto: `pronto: aspetta il tuo via · ${a.cwd}`,
       chiede: true,
+      scheda: {
+        chi: chiDi('autopilota', a.nome !== '' ? a.nome : a.obiettivo.slice(0, 60), a.cwd),
+        domanda: 'Si è preparato: gli dai il via?',
+        scelte: [{ testo: 'Vai', consigliata: true }],
+        dettagli: [
+          { etichetta: 'Obiettivo', testo: a.obiettivo },
+          ...(a.criteri.length > 0 ? [{ etichetta: 'Finisce quando', testo: a.criteri.map((c) => `• ${c.descrizione}`).join('\n') }] : []),
+          ...(a.compitiDaFare.length > 0 ? [{ etichetta: 'I compiti', testo: a.compitiDaFare.map((c) => `• ${c}`).join('\n') }] : [])
+        ],
+        segnaposto: 'Oppure scrivigli cosa cambiare prima di partire'
+      },
       // Il suo «dammi il via» sta sempre in fondo, qualunque ora abbia.
       messaggi: [
         ...conversazione(a).filter((b) => b.tono !== 'pronto').slice(-MESSAGGI_AUTOPILOTA).map((b) => ({
@@ -253,6 +296,14 @@ export function conversazioniDomande(p: {
         titolo: v.autopilota,
         sotto: 'ha risposto da solo a una domanda della sua chat',
         chiede: false,
+        scheda: {
+          chi: chiDi('autopilota', v.autopilota),
+          domanda: fraseDomanda(v.domanda) || v.domanda,
+          scelte: [],
+          dettagli: [{ etichetta: v.chatTitolo !== undefined ? `La domanda della chat «${v.chatTitolo}»` : 'La domanda della sua chat', testo: v.domanda }],
+          risposta: v.risposta,
+          segnaposto: 'Scrivigli se la risposta non va bene'
+        },
         messaggi: [],
         risposta: { via: 'dialogo', autopilota: v.autopilotaId },
         segnaposto: 'Scrivigli se la risposta non va bene'

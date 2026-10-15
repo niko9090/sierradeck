@@ -5,6 +5,7 @@ import { quanteAspettano, richiestaRisposta, type Conversazione } from '@shared/
 import { LARGHEZZA_DOMANDE } from '@shared/preferenze'
 import { EtichettaOpzione } from './EtichettaOpzione'
 import { Aiuto } from './Aiuto'
+import { SchedaDomandaVista } from './SchedaDomandaVista'
 import { aspettaTe, messaggiInVista, ordinaDomande, prossimaDomanda, tipoDomanda } from '@shared/domande-vista'
 
 const COLORE_DOMANDA: Record<string, string> = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', blu: 'var(--blu)', quieto: 'var(--testo-quieto)' }
@@ -232,6 +233,18 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
       .finally(() => setInCorso(false))
   }
 
+  /** Il PIN della chat (0.49.1): si apre e si rimanda il messaggio fermo. */
+  const sbloccaERimanda = (): void => {
+    const p = pinPer
+    if (p === undefined) return
+    void window.gestore.domande.chiama('/api/pin/sblocca', { chat: p.corpo.chat ?? '', pin }).then((r) => {
+      setPin('')
+      if (r.stato >= 400) { setNota(`Non aperta: ${(r.corpo as { errore?: string } | undefined)?.errore ?? `il computer ha risposto ${r.stato}`}`); return }
+      setPinPer(undefined)
+      manda(p.percorso, p.corpo, p.ricordo)
+    })
+  }
+
   const scrivi = (): void => {
     if (aperta === undefined || testo.trim() === '') return
     const r = richiestaRisposta(aperta.risposta, testo.trim())
@@ -320,6 +333,35 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                 Apri la sua linguetta «Domande» →
               </button>
             </section>
+          ) : aperta !== undefined && aperta.scheda !== undefined ? (
+            // 0.72.1: la domanda essenziale, senza la conversazione intorno.
+            <div className="domande-lato__chat">
+              <SchedaDomandaVista
+                scheda={aperta.scheda}
+                inCorso={inCorso}
+                etichettaManda={aperta.risposta.via === 'rispondi' ? 'Rispondi' : 'Manda'}
+                onScelta={(o) => {
+                  // «Type something.» (0.52.5): si risponde scrivendo nel campo.
+                  if (o.libera === true) { setNota('Scrivi la risposta nel campo qui sotto e premi «Manda»: arriva a Claude come risposta libera.'); return }
+                  if (aperta.scelte !== undefined) manda('/api/scegli', { chat: aperta.scelte.chat, opzione: o.testo }, o.testo)
+                  else { const r = richiestaRisposta(aperta.risposta, o.testo); manda(r.percorso, r.corpo, o.testo) }
+                }}
+                onScrivi={(t) => { const r = richiestaRisposta(aperta.risposta, t); manda(r.percorso, r.corpo, t) }}
+                sotto={<>
+                  {inAttesa.length > 0 ? <div className="misura">mandato: «{inAttesa.at(-1)}», aspetto che la chat lo riceva</div> : null}
+                  {nota !== undefined ? <div className="avviso">⚠ {nota}</div> : null}
+                  {pinPer !== undefined ? (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '4px 0' }}>
+                      <span aria-hidden="true">🔒</span>
+                      <input className="campo" type="password" inputMode="numeric" maxLength={8} placeholder="PIN" value={pin} style={{ width: 110 }}
+                        onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} />
+                      <button className="tasto tasto--mini" disabled={pin.length < 4} onClick={() => sbloccaERimanda()}>Apri e rimanda</button>
+                      <button className="tasto tasto--mini" onClick={() => { setPinPer(undefined); setNota(undefined) }}>Lascia stare</button>
+                    </div>
+                  ) : null}
+                </>}
+              />
+            </div>
           ) : aperta !== undefined ? (
             <section className="chatap domande-lato__chat" aria-label={`Conversazione con ${aperta.titolo}`}>
               <div className="misura domande-lato__chi con-aiuto">{rigaRisposta(aperta)} <Aiuto di="come rispondere">{spiegaRisposta(aperta)}</Aiuto></div>
@@ -393,15 +435,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                     <span aria-hidden="true">🔒</span>
                     <input className="campo" type="password" inputMode="numeric" maxLength={8} placeholder="PIN" value={pin} style={{ width: 110 }}
                       onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} />
-                    <button className="tasto tasto--mini" disabled={pin.length < 4} onClick={() => {
-                      const p = pinPer
-                      void window.gestore.domande.chiama('/api/pin/sblocca', { chat: p.corpo.chat ?? '', pin }).then((r) => {
-                        setPin('')
-                        if (r.stato >= 400) { setNota(`Non aperta: ${(r.corpo as { errore?: string } | undefined)?.errore ?? `il computer ha risposto ${r.stato}`}`); return }
-                        setPinPer(undefined)
-                        manda(p.percorso, p.corpo, p.ricordo)
-                      })
-                    }}>Apri e rimanda</button>
+                    <button className="tasto tasto--mini" disabled={pin.length < 4} onClick={() => sbloccaERimanda()}>Apri e rimanda</button>
                     <button className="tasto tasto--mini" onClick={() => { setPinPer(undefined); setNota(undefined) }}>Lascia stare</button>
                   </div>
                 ) : null}

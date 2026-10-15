@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -154,6 +155,27 @@ fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Un
                 )
                 Button(onClick = { onApriAutopilota(ap) }) { Text("Apri la sua linguetta Domande") }
             }
+        }
+        // PC 0.72.1: la domanda essenziale, senza la conversazione intorno.
+        val scheda = aperta.scheda
+        if (scheda != null && !(aperta.tipo == "autopilota" && aperta.autopilota != null && aperta.chiede)) {
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
+                SchedaDomandaVista(
+                    scheda, inCorso,
+                    if (aperta.risposta.via == "rispondi") "Rispondi" else "Manda",
+                    onScelta = { o ->
+                        val scelte = aperta.scelte
+                        // «Type something.» (2.52.5): si scrive nel campo.
+                        if (o.libera) nota = SceltaVista.SCRIVI
+                        else if (scelte != null) manda({ api.scegli(scelte.chat, o.testo) }, o.testo)
+                        else manda({ api.rispondiConversazione(aperta.risposta, o.testo) }, o.testo)
+                    },
+                    onScrivi = { t -> manda({ api.rispondiConversazione(aperta.risposta, t) }, t) }
+                )
+                inAttesa.lastOrNull()?.let { Text("mandato: «$it», aspetto il computer", color = Banco.testoQuieto, fontSize = 11.sp) }
+                nota?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
+            }
+            return@Column
         }
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp), state = lista) {
             items(aperta.messaggi) { m ->

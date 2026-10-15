@@ -3,6 +3,7 @@ import { sezioniDomanda } from '@shared/domanda-strutturata'
 import type { Autopilota } from '@shared/autopilota'
 import { etichettaOrigine, richiestaScheda, type DomandaScheda } from '@shared/domande-autopilota'
 import { Aiuto } from './Aiuto'
+import { SchedaDomandaVista } from './SchedaDomandaVista'
 
 /**
  * La linguetta «Domande» della scheda dell'autopilota (0.38.0).
@@ -54,6 +55,33 @@ export function DomandeAutopilota({
       })
       .catch((e: unknown) => setErrore(e instanceof Error ? e.message : String(e)))
       .finally(() => setInCorso(false))
+  }
+
+  // 0.72.1: la domanda essenziale (frase, tasti, «Scrivi tu», il resto nel «?»).
+  // Senza scheda (servizio vecchio) si disegna come prima.
+  if (d.scheda !== undefined) {
+    return (
+      <div className="domande-ap" aria-label="Domande dell’autopilota">
+        {domande.length > 1 ? (
+          <div className="domande-ap__testa">
+            <span style={{ flex: 1 }} />
+            <span className="domande-ap__conto">
+              <button className="tasto tasto--mini" disabled={i === 0} onClick={() => setIndice(i - 1)} aria-label="Domanda precedente">‹</button>
+              {' '}{i + 1} di {domande.length}{' '}
+              <button className="tasto tasto--mini" disabled={i >= domande.length - 1} onClick={() => setIndice(i + 1)} aria-label="Domanda successiva">›</button>
+            </span>
+          </div>
+        ) : null}
+        <SchedaDomandaVista
+          scheda={d.scheda}
+          inCorso={inCorso}
+          onScelta={(c) => manda(c.testo)}
+          onScrivi={manda}
+          etichettaManda={d.tipo === 'via' ? 'Manda' : 'Rispondi'}
+          sotto={errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
+        />
+      </div>
+    )
   }
 
   return (

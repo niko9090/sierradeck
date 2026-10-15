@@ -1349,6 +1349,18 @@ private fun LinguettaDomande(api: Api, autopilota: String, schede: List<DomandaS
             inCorso = false
         }
     }
+    // PC 0.72.1: la domanda essenziale (la frase, i tasti, il resto nel «?»).
+    val scheda = d.scheda
+    if (scheda != null) {
+        if (schede.size > 1) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(enabled = i > 0, onClick = { indice = i - 1 }) { Text("‹ prima") }
+            Text("${i + 1} di ${schede.size}", color = Banco.testoQuieto, fontSize = 12.sp)
+            TextButton(enabled = i < schede.size - 1, onClick = { indice = i + 1 }) { Text("dopo ›") }
+        }
+        SchedaDomandaVista(scheda, inCorso, if (d.tipo == "via") "Manda" else "Rispondi", onScelta = { manda(it.testo) }, onScrivi = { manda(it) })
+        nota?.let { Text(it, color = Banco.rosso, fontSize = 12.sp) }
+        return
+    }
     Text(etichettaOrigine(d) + if (schede.size > 1) " · ${i + 1} di ${schede.size}" else "", color = Banco.testoQuieto, fontSize = 12.sp)
     if (schede.size > 1) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         TextButton(enabled = i > 0, onClick = { indice = i - 1 }) { Text("‹ prima") }
@@ -1454,23 +1466,9 @@ fun DalVivo(v: StatoDalVivo) {
     if (v.ultimaAzione.isNotBlank()) Text(v.ultimaAzione, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
 }
 
-/** I messaggi verso la chat con il loro stato, e «Manda adesso» (PC 0.69.0). */
+/**
+ * I messaggi verso la chat (2.72.1): spunte ✓ su una riga, e una riga sola
+ * per chi è fermo, con «Manda adesso» (vedi `MessaggiCompattiVista`).
+ */
 @Composable
-fun MessaggiVersoLaChat(messaggi: List<StatoMessaggio>, onManda: () -> Unit) {
-    if (messaggi.isEmpty()) return
-    Spacer(Modifier.height(8.dp))
-    Text("Messaggi per la chat", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-    for (m in messaggi) {
-        val colore = when (m.stato) {
-            "consegnato" -> Banco.verde
-            "in attesa" -> Banco.ambra
-            else -> Banco.testoQuieto
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-            Text(m.dettaglio, color = colore, fontSize = 12.sp)
-            Spacer(Modifier.width(8.dp))
-            Text(m.testo, color = Banco.testo, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f))
-            if (m.mandaAdesso) TextButton(onClick = onManda) { Text("Manda adesso", fontSize = 12.sp) }
-        }
-    }
-}
+fun MessaggiVersoLaChat(messaggi: List<StatoMessaggio>, onManda: () -> Unit) = MessaggiCompattiVista(messaggi, onManda)

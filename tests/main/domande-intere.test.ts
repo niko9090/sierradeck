@@ -130,8 +130,8 @@ describe('nessuno stile la taglia', () => {
     expect(m?.[1]).toContain('white-space: pre-wrap')
     expect(m?.[1]).toContain('overflow-y: auto')
     expect(m?.[1]).not.toMatch(/line-clamp|text-overflow|nowrap/)
-    // Le due viste della domanda (la schermata «TI STA CHIEDENDO» e la linguetta) la usano.
-    expect(html.match(/class="grande domanda-ap"/g)?.length).toBe(2)
+    // Le viste della domanda (la schermata «TI STA CHIEDENDO», la linguetta e, dalla 0.72.1, la scheda essenziale) la usano.
+    expect(html.match(/class="grande domanda-ap"/g)?.length).toBe(3)
     expect(html).toMatch(/\.battuta \{[^}]*white-space: pre-wrap/)
   })
 })

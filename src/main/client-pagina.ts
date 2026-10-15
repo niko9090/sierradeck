@@ -742,16 +742,31 @@ function dalVivoHtml(v) {
     (v.senzaSegni ? ' · <span style="color:var(--ambra,#e0a33c)">⚠ ' + esc(v.senzaSegni) + '</span>' : '') + '</span>' +
     (v.ultimaAzione ? '<span class="voce__sotto" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(v.ultimaAzione) + '</span>' : '')
 }
-/** I messaggi verso la chat, con il loro stato e «Manda adesso» (0.69.0). */
+/**
+ * I messaggi verso la chat (0.72.1, come \`messaggiCompatti\` sul PC): una
+ * spunta ✓ per ogni messaggio arrivato (l'ora e il testo toccandola), un
+ * puntino per quello in consegna, e una riga sola, solo se qualcosa è fermo:
+ * «in attesa da N min» con «Manda adesso».
+ */
+function messaggiCompattiJs(m) {
+  var segni = []
+  var inAttesa = m.filter(function (x) { return x.stato === 'in attesa' })
+  m.slice().reverse().forEach(function (x) {
+    if (x.stato === 'consegnato' || x.stato === 'in consegna') segni.push({ id: x.id, tipo: x.stato, titolo: (x.dettaglio || '') + ': ' + (x.testo || '') })
+  })
+  var primo = inAttesa[0]
+  return { segni: segni, fermo: primo ? { dettaglio: primo.dettaglio || '', quanti: inAttesa.length, testo: primo.testo || '', mandaAdesso: inAttesa.some(function (x) { return x.mandaAdesso }) } : null }
+}
 function messaggiApHtml(m) {
   if (!Array.isArray(m) || m.length === 0) return ''
-  return '<div class="titolo-sezione" style="margin-top:8px">Messaggi per la chat' + aiuto('ap-messaggi', 'I messaggi tuoi e dell’autopilota per la chat che lavora. Entrano alla fine del turno; se aspettano più di due minuti se ne scrive uno anche durante il turno, mai più di uno: gli altri partono alla fine, uniti. «Manda adesso» non aspetta i due minuti.') + '</div>' +
-    m.map(function (x) {
-      var col = x.stato === 'consegnato' ? 'var(--verde)' : x.stato === 'in attesa' ? 'var(--ambra,#e0a33c)' : 'var(--testo-quieto,#8b949e)'
-      return '<div class="sotto" style="display:flex;gap:8px;align-items:baseline"><span style="color:' + col + ';white-space:nowrap">' + esc(x.dettaglio || '') + '</span>' +
-        '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(x.testo || '') + '</span>' +
-        (x.mandaAdesso ? '<button onclick="mandaAdessoAp()">Manda adesso</button>' : '') + '</div>'
-    }).join('')
+  var c = messaggiCompattiJs(m)
+  return '<div class="titolo-sezione" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center">Messaggi per la chat' + aiuto('ap-messaggi', 'Ogni ✓ è un messaggio tuo o dell’autopilota arrivato alla chat: toccalo per l’ora e il testo. Entrano alla fine del turno; se aspettano più di due minuti se ne scrive uno anche durante il turno, mai più di uno: gli altri partono alla fine, uniti. Se uno è fermo compare la sua riga con «Manda adesso».') +
+    c.segni.map(function (s) {
+      return '<span class="segno-msg" title="' + esc(s.titolo) + '" onclick="notaGlobale=this.title;aggiorna()" style="cursor:pointer;color:' + (s.tipo === 'consegnato' ? 'var(--verde)' : 'var(--testo-quieto,#8b949e)') + '">' + (s.tipo === 'consegnato' ? '✓' : '⋯') + '</span>'
+    }).join('') + '</div>' +
+    (c.fermo ? '<div class="sotto" style="display:flex;gap:8px;align-items:baseline"><span style="color:var(--ambra,#e0a33c);white-space:nowrap">' + esc(c.fermo.dettaglio) + (c.fermo.quanti > 1 ? ' · ' + c.fermo.quanti + ' messaggi' : '') + '</span>' +
+      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(c.fermo.testo) + '</span>' +
+      (c.fermo.mandaAdesso ? '<button onclick="mandaAdessoAp()">Manda adesso</button>' : '') + '</div>' : '')
 }
 window.mandaAdessoAp = async () => {
   if (!dentroAp) return
@@ -951,6 +966,28 @@ function richiestaDi(r, testo) {
 }
 
 /**
+ * Una domanda essenziale (0.72.1, \`scheda\` calcolata dal PC): chi chiede in
+ * piccolo, la domanda in una frase, le scelte come tasti (la consigliata con
+ * ★), il campo «Scrivi tu», e il resto dietro il «?». Nessuna cronologia.
+ * \`tasto(c)\` fa il tasto di una scelta; \`campo\` il campo e il tasto per mandare.
+ */
+function schedaDomandaHtml(s, k, tasto, campo) {
+  var dettagli = (s.dettagli || []).map(function (d) {
+    return '<div class="serigrafia" style="margin-top:6px">' + esc(d.etichetta) + '</div><div style="white-space:pre-wrap">' + esc(d.testo) + '</div>'
+  }).join('')
+  return '<div class="sotto" style="display:flex;gap:6px;align-items:center">' + esc(s.chi) +
+      (s.poi ? ' · poi ' + (s.poi === 1 ? 'un’altra' : 'altre ' + s.poi) : '') + (dettagli ? aiuto('sd-' + k, dettagli) : '') + '</div>' +
+    '<div class="grande domanda-ap" style="font-weight:600">' + esc(s.domanda) + '</div>' +
+    (s.risposta ? '<div class="sotto" style="color:var(--verde)">risposta dall’autopilota: ' + esc(s.risposta) + '</div>' : '') +
+    ((s.scelte || []).length ? '<div class="scelte">' + s.scelte.map(tasto).join('') + '</div>' : '') +
+    '<div class="riga"><textarea id="' + campo.id + '" rows="2" placeholder="' + esc(s.segnaposto || 'Scrivi tu') + '"></textarea></div>' +
+    '<div class="riga"><button class="primario" ' + campo.attributi + '>' + esc(campo.etichetta) + '</button></div>'
+}
+function etichettaScelta(c) {
+  return (c.spuntata === true ? '☑ ' : c.spuntata === false ? '☐ ' : '') + (c.consigliata ? '★ ' : '') + esc(c.testo)
+}
+
+/**
  * La scheda Domande come conversazioni (0.36.0): a sinistra (o sopra, sul
  * telefono) chi ti scrive, sotto la conversazione aperta. Con un autopilota si
  * parla con lui; con una chat che aspetta, e' lei a scrivere la domanda o il
@@ -1013,6 +1050,20 @@ function vistaConversazioni() {
       '<div class="riga"><button class="primario" data-ap="' + esc(aperta.autopilota) + '" onclick="apriDomandeAp(this.dataset.ap)">Apri la sua linguetta Domande</button></div></div>'
   }
   var mandata = domandeMandate[aperta.chiave]
+  // 0.72.1: la domanda essenziale, senza la conversazione intorno.
+  if (aperta.scheda) {
+    return filtri + '<div class="piastrella">' + voci + '</div>' +
+      '<div class="piastrella' + (aperta.chiede ? ' chiede' : '') + '">' +
+      schedaDomandaHtml(aperta.scheda, aperta.chiave, function (c) {
+        return c.libera
+          ? '<button class="scelta" onclick="document.getElementById(\\'conv-testo\\').focus()">' + etichettaScelta(c) + '</button>'
+          : aperta.scelte
+            ? '<button class="scelta' + (c.consigliata ? ' scelta--ora' : '') + '" data-chat="' + esc(aperta.scelte.chat) + '" data-testo="' + esc(c.testo) + '" onclick="scegliIn(this.dataset.chat, this.dataset.testo)">' + etichettaScelta(c) + '</button>'
+            : '<button class="scelta' + (c.consigliata ? ' scelta--ora' : '') + '" data-k="' + esc(aperta.chiave) + '" data-testo="' + esc(c.testo) + '" onclick="rispondiOpzione(this.dataset.k, this.dataset.testo)">' + etichettaScelta(c) + '</button>'
+      }, { id: 'conv-testo', attributi: 'data-k="' + esc(aperta.chiave) + '" onclick="rispondiConv(this.dataset.k)"', etichetta: aperta.risposta.via === 'rispondi' ? 'Rispondi' : 'Manda' }) +
+      (mandata ? '<div class="sotto">mandato: «' + esc(mandata) + '», aspetto il computer</div>' : '') +
+      '</div>'
+  }
   return filtri + '<div class="piastrella">' + voci + '</div>' +
     '<div class="piastrella' + (aperta.chiede ? ' chiede' : '') + '">' +
     '<div class="serigrafia">' + esc(aperta.titolo) + '</div><div class="sotto">' + esc(aperta.sotto) + '</div>' +
@@ -2567,7 +2618,14 @@ function vistaAutopilota(a) {
     const origine = d.origine === 'preparazione' ? 'domanda iniziale: si sta preparando, e senza la tua risposta non comincia'
       : d.origine === 'pubblica' ? 'il lavoro è finito e verificato: chiede se pubblicare'
       : d.origine === 'via' ? 'si è preparato: aspetta il tuo via' : 'domanda durante il lavoro: la chat è ferma su questa'
-    dentro = '<div class="sotto">' + esc(origine) + (schede.length > 1 ? ' · ' + (i + 1) + ' di ' + schede.length : '') + '</div>' +
+    dentro = d.scheda
+      // 0.72.1: la domanda essenziale (la frase, i tasti, il resto nel «?»).
+      ? (schede.length > 1 ? '<div class="riga"><button data-d="-1" onclick="spostaDomandaAp(+this.dataset.d)"' + (i === 0 ? ' disabled' : '') + '>‹ prima</button><span class="sotto">' + (i + 1) + ' di ' + schede.length + '</span><button data-d="1" onclick="spostaDomandaAp(+this.dataset.d)"' + (i >= schede.length - 1 ? ' disabled' : '') + '>dopo ›</button></div>' : '') +
+        schedaDomandaHtml(d.scheda, d.chiave, function (c) {
+          return '<button class="scelta' + (c.consigliata ? ' scelta--ora' : '') + '" data-o="' + esc(c.testo) + '" onclick="rispondiSchedaAp(this.dataset.o)">' + etichettaScelta(c) + '</button>'
+        }, { id: 'risposta-scheda-ap', attributi: 'onclick="rispondiSchedaAp()"', etichetta: d.tipo === 'via' ? 'Manda' : 'Rispondi' }) +
+        (notaDomandaAp ? '<div class="errore">' + esc(notaDomandaAp) + '</div>' : '')
+      : '<div class="sotto">' + esc(origine) + (schede.length > 1 ? ' · ' + (i + 1) + ' di ' + schede.length : '') + '</div>' +
       (schede.length > 1 ? '<div class="riga"><button data-d="-1" onclick="spostaDomandaAp(+this.dataset.d)"' + (i === 0 ? ' disabled' : '') + '>‹ prima</button><button data-d="1" onclick="spostaDomandaAp(+this.dataset.d)"' + (i >= schede.length - 1 ? ' disabled' : '') + '>dopo ›</button></div>' : '') +
       '<div class="grande domanda-ap">' + esc(d.testo) + '</div>' +
       ((d.opzioni || []).length > 0 ? '<div class="riga">' + d.opzioni.map((o) => '<button class="primario" data-o="' + esc(o) + '" onclick="rispondiSchedaAp(this.dataset.o)">' + esc(o) + '</button>').join('') + '</div>' : '') +

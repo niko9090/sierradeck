@@ -1,5 +1,6 @@
 import type { Autopilota, ScambioDialogo } from './autopilota'
 import type { PartiDomanda } from './domanda-strutturata'
+import { chiDi, schedaDaParti, schedaDaTesto, type SchedaDomanda } from './scheda-domanda'
 
 /**
  * Le domande di un autopilota nella **linguetta «Domande» della sua scheda**
@@ -36,6 +37,8 @@ export type DomandaScheda = {
   /** Le cinque parti (0.41.0), quando il servizio le ha: si disegnano in ordine. */
   parti?: PartiDomanda
   avvertenza?: string
+  /** La domanda essenziale (0.72.1): la frase, i tasti, il resto nel «?». */
+  scheda?: SchedaDomanda
 }
 
 /** Il messaggio del via, uguale nella linguetta e nella traccia della chat. */
@@ -47,7 +50,11 @@ export function domandeScheda(a: Autopilota, aperte: DomandaApertaServizio[]): D
   const mie = aperte
     .filter((d) => d.autopilotaId === a.id)
     .sort((x, y) => (x.apertaIl ?? 0) - (y.apertaIl ?? 0))
+  const chi = chiDi('autopilota', a.nome !== '' ? a.nome : a.obiettivo.slice(0, 60), a.cwd)
   const fuori: DomandaScheda[] = mie.map((d) => ({
+    scheda: d.parti !== undefined
+      ? schedaDaParti(chi, d.parti, d.avvertenza !== undefined ? { avvertenza: d.avvertenza } : {})
+      : schedaDaTesto(chi, d.testo, (d.opzioni ?? []).map((testo) => ({ testo })), 'Scrivi tu la risposta'),
     chiave: `d:${d.id}`,
     tipo: 'domanda',
     idDomanda: d.id,
@@ -58,7 +65,20 @@ export function domandeScheda(a: Autopilota, aperte: DomandaApertaServizio[]): D
     origine: a.stato === 'intervista' ? 'preparazione' : /pubblico adesso\?/i.test(d.testo) ? 'pubblica' : 'lavoro'
   }))
   if (a.stato === 'pronto') {
-    fuori.push({ chiave: `via:${a.id}`, tipo: 'via', testo: TESTO_VIA, opzioni: [OPZIONE_VIA], origine: 'via' })
+    fuori.push({
+      chiave: `via:${a.id}`, tipo: 'via', testo: TESTO_VIA, opzioni: [OPZIONE_VIA], origine: 'via',
+      scheda: {
+        chi,
+        domanda: 'Si è preparato: gli dai il via?',
+        scelte: [{ testo: OPZIONE_VIA, consigliata: true }],
+        dettagli: [
+          { etichetta: 'Obiettivo', testo: a.obiettivo },
+          ...(a.criteri.length > 0 ? [{ etichetta: 'Finisce quando', testo: a.criteri.map((c) => `• ${c.descrizione}`).join('\n') }] : []),
+          ...(a.compitiDaFare.length > 0 ? [{ etichetta: 'I compiti', testo: a.compitiDaFare.map((c) => `• ${c}`).join('\n') }] : [])
+        ],
+        segnaposto: 'Oppure scrivigli cosa cambiare prima di partire'
+      }
+    })
   }
   return fuori
 }
