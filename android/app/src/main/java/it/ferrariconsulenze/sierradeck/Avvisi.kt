@@ -68,6 +68,16 @@ object Avvisi {
     const val ID_ASPETTA = 4 * PASSO_FAMIGLIA
     const val ID_SCELTA = 5 * PASSO_FAMIGLIA
     const val ID_PRONTO = 6 * PASSO_FAMIGLIA
+    const val ID_VERSIONE = 7 * PASSO_FAMIGLIA
+    const val ID_COLLEGAMENTO = 8 * PASSO_FAMIGLIA
+
+    /**
+     * Una notifica per chat e una per autopilota (app 2.74.0): la scelta e
+     * l'attesa della stessa chat, o il fermo e la fine dello stesso
+     * autopilota, si **aggiornano** a vicenda invece di accumularsi.
+     */
+    const val ID_CHAT = ID_ASPETTA
+    const val ID_AUTOPILOTA = ID_FINITO
 
     /** Il numero di una notifica: la sua famiglia, piu' l'impronta di chi la manda. */
     fun idAvviso(famiglia: Int, chiave: String): Int = famiglia + (chiave.hashCode() and MASCHERA)
@@ -84,7 +94,14 @@ object Avvisi {
      * insegna a ignorare anche quella che conta. Le domande invece si annunciano
      * subito: una domanda aperta sta aspettando **adesso**.
      */
-    fun daAnnunciare(stato: JSONObject, giaVisti: MutableSet<String>, primoGiro: Boolean): List<Avviso> {
+    /**
+     * `attesaChatMs` (app 2.74.0): una chat che ha finito il turno si annuncia
+     * solo se aspetta te da almeno tanto. Le pause brevi fra un turno e
+     * l'altro erano la maggior parte delle notifiche, e non chiedevano niente.
+     * Il momento in cui ha cominciato ad aspettare sta in `giaVisti` come
+     * `t:<id>:<ms>`. Con zero (i test vecchi) si annuncia subito, come prima.
+     */
+    fun daAnnunciare(stato: JSONObject, giaVisti: MutableSet<String>, primoGiro: Boolean, adesso: Long = 0L, attesaChatMs: Long = 0L): List<Avviso> {
         val avvisi = mutableListOf<Avviso>()
         /**
          * Le chiavi di cui **questo** stato parla ancora.
@@ -152,7 +169,7 @@ object Avvisi {
                                 titolo = "«$titolo» aspetta che tu scelga",
                                 testo = "Sullo schermo c'è un elenco di scelte (un permesso, «vuoi procedere?»). Tocca per vedere le opzioni.",
                                 scelta = id,
-                                id = idAvviso(ID_SCELTA, id)
+                                id = idAvviso(ID_CHAT, id)
                             )
                         )
                     }
@@ -167,17 +184,45 @@ object Avvisi {
                 vivi.add("c:$id")
                 if (!c.optBoolean("aspetta", false)) {
                     giaVisti.remove("c:$id")
+                    giaVisti.removeAll { it.startsWith("t:$id:") }
                     continue
                 }
-                if (!giaVisti.add("c:$id") || primoGiro) continue
+                if ("c:$id" in giaVisti) continue
+                var daQuanto = 0L
+                if (attesaChatMs > 0) {
+                    val segno = giaVisti.firstOrNull { it.startsWith("t:$id:") } ?: "t:$id:$adesso".also { giaVisti.add(it) }
+                    vivi.add(segno)
+                    daQuanto = adesso - (segno.substringAfterLast(':').toLongOrNull() ?: adesso)
+                    if (daQuanto < attesaChatMs) continue
+                }
+                giaVisti.add("c:$id")
+                if (primoGiro) continue
                 val titolo = c.optString("titolo").ifBlank { c.optString("cwd") }
+                val riga = c.optString("ultimaRiga").ifBlank { "Ha finito di scrivere." }
                 avvisi.add(
                     Avviso(
                         chiave = "c:$id",
                         titolo = "«$titolo» aspetta te",
-                        testo = c.optString("ultimaRiga").ifBlank { "Ha finito di scrivere." },
+                        testo = if (daQuanto >= 60_000L) "Da ${daQuanto / 60_000L} min. $riga" else riga,
                         chat = id,
-                        id = idAvviso(ID_ASPETTA, id)
+                        id = idAvviso(ID_CHAT, id)
+                    )
+                )
+            }
+        }
+
+        // Una versione del computer pronta da installare (app 2.74.0): una volta per versione.
+        val agg = stato.optJSONObject("aggiornamento")
+        if (agg != null && agg.optString("fase") == "pronto") {
+            val versione = agg.optString("versione")
+            val chiave = "v:pc:$versione"
+            if (versione.isNotEmpty() && giaVisti.add(chiave) && !primoGiro) {
+                avvisi.add(
+                    Avviso(
+                        chiave = chiave,
+                        titolo = "SierraDeck $versione è pronta sul computer",
+                        testo = "Scaricata e pronta da installare. La installi tu, quando vuoi: Impostazioni → Aggiornamenti.",
+                        id = idAvviso(ID_VERSIONE, "pc")
                     )
                 )
             }
@@ -213,7 +258,7 @@ object Avvisi {
                             // nell'elenco: due lavori che finiscono a distanza
                             // di minuti cambiano posto, e il secondo
                             // cancellerebbe il primo.
-                            id = idAvviso(ID_FINITO, id)
+                            id = idAvviso(ID_AUTOPILOTA, id)
                         )
                     )
                 }
@@ -238,7 +283,7 @@ object Avvisi {
                             chiave = chiave,
                             titolo = "$nome si è fermato",
                             testo = if (motivo.isEmpty()) "Serve una tua occhiata." else motivo,
-                            id = idAvviso(ID_FERMO, id)
+                            id = idAvviso(ID_AUTOPILOTA, id)
                         )
                     )
                 }
@@ -253,7 +298,7 @@ object Avvisi {
                             chiave = "p:$id",
                             titolo = "$nome aspetta il tuo via",
                             testo = "Ha letto il progetto e capito l'obiettivo. Non comincia finché non glielo dici: apri Lavori e premi «Vai».",
-                            id = idAvviso(ID_PRONTO, id)
+                            id = idAvviso(ID_AUTOPILOTA, id)
                         )
                     )
                 }
@@ -276,7 +321,7 @@ object Avvisi {
     private fun pota(giaVisti: MutableSet<String>, vivi: Set<String>, stato: JSONObject, conAutopiloti: Boolean = true) {
         val note = mutableListOf<String>()
         if (stato.optJSONArray("domande") != null) note.add("d:")
-        if (stato.optJSONArray("chat") != null) { note.add("c:"); note.add("k:") }
+        if (stato.optJSONArray("chat") != null) { note.add("c:"); note.add("k:"); note.add("t:") }
         if (conAutopiloti && stato.optJSONArray("autopiloti") != null) { note.add("f:"); note.add("s:"); note.add("p:") }
         if (note.isEmpty()) return
         giaVisti.retainAll { chiave -> note.none { chiave.startsWith(it) } || chiave in vivi }

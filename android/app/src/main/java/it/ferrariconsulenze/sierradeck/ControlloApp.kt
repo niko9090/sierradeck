@@ -106,7 +106,8 @@ object ControlloApp {
     fun giro(contesto: Context, corpo: String) {
         val a = leggi(corpo) ?: return
         if (!daNotificare(BuildConfig.VERSION_NAME, a.versione, notificata(contesto))) return
-        notifica(contesto, a)
+        // L'interruttore «Versione pronta» (app 2.74.0): spento, si segna e basta (la banda nell'app resta).
+        if (Notifiche.suona(TipoNotifica.VERSIONE, Notifiche.scelte(contesto))) notifica(contesto, a)
         segnaNotificata(contesto, a.versione)
     }
 

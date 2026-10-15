@@ -249,6 +249,8 @@ object RicevitoreConsegne {
     private fun idNotifica(id: String): Int = 7000 + (id.hashCode() and 0x0fff)
 
     fun notifica(c: Context, r: Ricevuto, k: ConsegnaTel? = null, testo: String? = null) {
+        // Le consegne non suonano più di partenza (app 2.74.0): il file è in File; chi lo vuole accende «File ricevuti».
+        if (!Notifiche.suona(TipoNotifica.FILE, Notifiche.scelte(c))) return
         creaCanale(c)
         val n = idNotifica(r.id)
         val apri = PendingIntent.getActivity(c, n, Ricevuti.intentApri(c, r), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)

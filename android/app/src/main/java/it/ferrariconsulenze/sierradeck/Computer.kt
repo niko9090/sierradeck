@@ -653,6 +653,9 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
                 }
             }
         }
+        // Quali notifiche (app 2.74.0): Nicholas, 15/10, «devi ricevere solo notifiche utili».
+        Spacer(Modifier.height(10.dp))
+        InterruttoriNotifiche()
             Divisore()
         }
 

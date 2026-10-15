@@ -4821,6 +4821,8 @@ var primoAvviso = true
  * nessuno - un avviso che non chiede niente insegna a ignorare quelli che
  * chiedono.
  */
+/** Una chat che ha finito il turno avvisa solo se aspetta te da almeno tanto (0.74.0). */
+var ATTESA_CHAT_MS = 3 * 60000
 function avvisaSeServe(stato) {
   try {
     if (typeof Notification === 'undefined') return
@@ -4844,7 +4846,8 @@ function avvisaSeServe(stato) {
       if (!c.chiede) { delete avvisati['k-' + c.id]; continue }
       if (avvisati['k-' + c.id]) continue
       avvisati['k-' + c.id] = true
-      new Notification((c.titolo || 'Una chat') + ' aspetta che tu scelga', { body: 'Sullo schermo c’è un elenco di scelte: rispondi dalla scheda Domande.', tag: 'scelta-' + c.id })
+      // Una per chat (0.74.0): la stessa etichetta della sua attesa, così si sostituiscono.
+      new Notification((c.titolo || 'Una chat') + ' aspetta che tu scelga', { body: 'Sullo schermo c’è un elenco di scelte: rispondi dalla scheda Domande.', tag: 'chat-' + c.id })
     }
     // Il servizio degli autopiloti non ha risposto: l'elenco vuoto non vuol
     // dire «nessuno», e non si deve ne' dimenticare ne' riannunciare niente.
@@ -4866,18 +4869,28 @@ function avvisaSeServe(stato) {
       if (a.stato === 'finito') new Notification(a.nome + ' ha finito', { body: 'Il lavoro è concluso: puoi guardare il risultato.', tag: a.id })
       else new Notification(a.nome + ' si è fermato', { body: a.motivo || 'Serve una tua occhiata.', tag: a.id })
     }
-    // Una chat tua che ha finito di scrivere e aspetta te: e' la sola notizia
-    // di una chat che valga un avviso (l'app lo fa gia'). Si annuncia il
-    // fronte, non lo stato: finche' resta ferma non si ripete.
+    // Una chat tua che aspetta te: solo dopo ATTESA_CHAT_MS (0.74.0, come
+    // l'app). Le pause brevi fra un turno e l'altro erano la maggior parte
+    // degli avvisi, e non chiedevano niente. Finché resta ferma non si ripete.
+    const ora = Date.now()
     for (const c of (stato.chat || [])) {
       const chiaveChat = 'a-' + c.id
       if (c.aspetta === true && c.governata !== true && !c.chiede) {
         if (avvisati[chiaveChat]) continue
+        if (!avvisati['t-' + c.id]) avvisati['t-' + c.id] = ora
+        if (ora - avvisati['t-' + c.id] < ATTESA_CHAT_MS) continue
         avvisati[chiaveChat] = true
-        if (nuovo) new Notification((c.titolo || 'Una chat') + ' aspetta te', { body: c.ultimaRiga || 'Ha finito di scrivere.', tag: 'chat-' + c.id })
+        if (nuovo) new Notification((c.titolo || 'Una chat') + ' aspetta te', { body: 'Da ' + Math.round((ora - avvisati['t-' + c.id]) / 60000) + ' min. ' + (c.ultimaRiga || 'Ha finito di scrivere.'), tag: 'chat-' + c.id })
       } else {
         delete avvisati[chiaveChat]
+        delete avvisati['t-' + c.id]
       }
+    }
+    // Una versione del computer pronta da installare (0.74.0): una volta per versione. La installi tu.
+    const agg = stato.aggiornamento
+    if (agg && agg.fase === 'pronto' && agg.versione && !avvisati['v-' + agg.versione]) {
+      avvisati['v-' + agg.versione] = true
+      if (nuovo) new Notification('SierraDeck ' + agg.versione + ' è pronta sul computer', { body: 'Scaricata e pronta da installare: la installi tu, quando vuoi.', tag: 'versione' })
     }
     primoAvviso = false
   } catch (e) { }

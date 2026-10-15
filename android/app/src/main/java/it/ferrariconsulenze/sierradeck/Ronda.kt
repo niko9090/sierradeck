@@ -29,6 +29,7 @@ object Ronda {
     /** Quale scheda aprire quando la notifica non riguarda una chat o una domanda. */
     const val EXTRA_SCHEDA = "scheda"
     const val CANALE_PRESENZA = "presenza"
+    private const val EXTRA_CHIAVE = "sierradeck.chiave"
 
     /**
      * Cosa si è già annunciato.
@@ -89,9 +90,25 @@ object Ronda {
         Rete.ricorda(contesto)
         val collegamento = Collegamento(contesto)
         if (!collegamento.pronto) return null
-        val stato = leggiStato(collegamento) ?: return null
+        val stato = leggiStato(collegamento)
+        linea(contesto, stato != null)
+        if (stato == null) return null
         consuma(contesto, stato)
         return stato
+    }
+
+    /**
+     * Il computer perso o ripreso (app 2.74.0): si dice solo dopo cinque
+     * minuti di silenzio, e il ritorno solo se il «perso» era stato detto.
+     */
+    @Synchronized
+    fun linea(contesto: Context, raggiunto: Boolean) {
+        val (nuova, avviso) = Notifiche.linea(Notifiche.leggiLinea(contesto), raggiunto, System.currentTimeMillis(), PcCorrente.nome ?: "Il computer")
+        Notifiche.salvaLinea(contesto, nuova)
+        if (avviso != null && Notifiche.suona(TipoNotifica.COLLEGAMENTO, Notifiche.scelte(contesto))) {
+            creaCanali(contesto)
+            avvisa(contesto, avviso)
+        }
     }
 
     /**
@@ -106,7 +123,11 @@ object Ronda {
     fun consuma(contesto: Context, stato: JSONObject) {
         carica(contesto)
         creaCanali(contesto)
-        val avvisi = Avvisi.daAnnunciare(stato, gia, primoGiro)
+        // Solo quelle utili (app 2.74.0): le chat dopo tre minuti di attesa, e i tipi spenti tacciono.
+        val avvisi = Notifiche.filtra(
+            Avvisi.daAnnunciare(stato, gia, primoGiro, System.currentTimeMillis(), Notifiche.ATTESA_CHAT_MS),
+            Notifiche.scelte(contesto)
+        )
         for (a in avvisi) avvisa(contesto, a)
         // Il PC ha dei file per questo telefono (PC 0.54.0): si ritirano adesso, in sottofondo.
         if (stato.optInt("consegne", 0) > 0) try { RicevitoreConsegne.subito(contesto) } catch (_: Exception) { }
@@ -212,7 +233,15 @@ object Ronda {
             )
         }
 
-        gestore(contesto).notify(a.id, costruttore.build())
+        // Una per chat (app 2.74.0): un evento nuovo sostituisce quello di prima
+        // della stessa chat e suona; lo stesso evento aggiornato no.
+        costruttore.addExtras(android.os.Bundle().apply { putString(EXTRA_CHIAVE, a.chiave) })
+        val g = gestore(contesto)
+        try {
+            val prima = g.activeNotifications.firstOrNull { it.id == a.id }?.notification?.extras?.getString(EXTRA_CHIAVE)
+            if (prima != null && prima != a.chiave) g.cancel(a.id)
+        } catch (_: Exception) { }
+        g.notify(a.id, costruttore.build())
         riassumi(contesto)
     }
 
@@ -285,7 +314,7 @@ object Ronda {
         )
         g.createNotificationChannel(
             NotificationChannel(CANALE_AVVISI, "Quando serve qualcosa da te", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "Una chat che ha finito e ti aspetta, una domanda, un lavoro fermo."
+                description = "Una domanda, una chat che ti aspetta da qualche minuto, un lavoro finito o fermo, una versione pronta, il computer perso. Ogni tipo si spegne nelle impostazioni dell'app."
             }
         )
     }
