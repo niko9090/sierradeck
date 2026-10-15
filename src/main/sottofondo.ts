@@ -110,6 +110,12 @@ type Viva = {
   avviataIl: number
   /** Il testo in scrittura adesso: non se ne scrive un altro sopra. */
   inScrittura?: { id: string; testo: string; prima: number; invii: number; il: number }
+  /**
+   * In questo turno si è già scritto un testo mentre la chat lavorava (0.72.0):
+   * Claude Code lo tiene fra i messaggi in coda, in alto. Un altro aspetta la
+   * fine del turno: mai più di uno in coda.
+   */
+  scrittoAlLavoro?: boolean
   /** Quante volte ogni testo è stato scritto e perso. */
   scritture: Map<string, number>
   /** I testi che non partono dopo i tentativi: restano in coda, fermi, finché chi li ha mandati non preme Riprova. */
@@ -237,6 +243,17 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
           d.consegnato?.(v.voce, s.id)
           continue
         }
+        if (testoPerso(righe, s.testo, s.prima) && lavoraSulloSchermo(righe)) {
+          // Scritto durante il turno (0.72.0): non è perso, è fra i messaggi in
+          // coda di Claude Code. Riscriverlo ne aggiungeva un altro, in alto.
+          v.voce = segnaConsegnato(v.voce, s.id)
+          v.inScrittura = undefined
+          v.scritture.delete(s.id)
+          salva()
+          cambiaFase(v, 'lavora', `testo consegnato (${s.id}) durante il turno: Claude Code lo tiene in coda e lo legge appena può`)
+          d.consegnato?.(v.voce, s.id)
+          continue
+        }
         if (testoPerso(righe, s.testo, s.prima)) {
           // Claude Code non l'ha preso (stava ancora caricando): torna in coda
           // e si riscrive quando il campo è di nuovo pronto. Mai «consegnato».
@@ -271,9 +288,11 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
       }
       // Un testo che si scrive anche durante il turno (0.69.0): basta il campo
       // sullo schermo. Claude Code lo legge appena può, senza interrompere.
-      const urgente = !pronta && v.attivita.morto !== true && campoPronto(righe) ? v.voce.coda.find((x) => !v.fermi.has(x.id) && x.ancheAlLavoro === true) : undefined
+      if (pronta) v.scrittoAlLavoro = false
+      const urgente = !pronta && v.scrittoAlLavoro !== true && v.attivita.morto !== true && campoPronto(righe) ? v.voce.coda.find((x) => !v.fermi.has(x.id) && x.ancheAlLavoro === true) : undefined
       if (urgente !== undefined) {
         scriviTesto(v, urgente, righe, ora)
+        v.scrittoAlLavoro = true
         d.log(`[consegna] ${nome(v)}: la chat lavora, scrivo lo stesso il testo ${urgente.id} (in coda da ${Math.round((ora - Date.parse(urgente.quando)) / 1000)} s)`)
         continue
       }

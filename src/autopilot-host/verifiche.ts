@@ -266,6 +266,9 @@ export function esecutoreReale(timeoutMs: number = TIMEOUT_PREDEFINITO_MS): Esec
       // Windows e li legge come parte dell'ultimo argomento.
       writeFileSync(script, bash !== undefined ? `${comando}\n` : `@echo off\r\n${comando}\r\n`, 'utf8')
       const { file, argomenti } = comandoShell(bash, script)
+      // Ogni comando nel registro (0.72.0): cosa, dove, e come è finito.
+      const partito = Date.now()
+      console.info(`[criterio] parte in ${cwd}: ${comando.slice(0, 400)}`)
       const figlio = spawn(file, argomenti, {
         cwd,
         // Temp tutta sua (0.72.0): quello che il criterio crea o pulisce in
@@ -301,6 +304,7 @@ export function esecutoreReale(timeoutMs: number = TIMEOUT_PREDEFINITO_MS): Esec
         if (risposto) return
         risposto = true
         clearTimeout(orologio)
+        console.info(`[criterio] finito con ${codice} in ${Math.round((Date.now() - partito) / 1000)} s: ${comando.slice(0, 120)}`)
         // Le pipe si lasciano andare: se un processo in background le tiene
         // aperte, restare in ascolto significherebbe tenere vivo un pezzo di
         // servizio per un lavoro di cui non ci importa più niente.

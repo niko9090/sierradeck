@@ -578,6 +578,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * manda un turno. Vedi `chatFerme`.
    */
   const fermaDal = new Map<string, number>()
+  /**
+   * Le chat a cui in questo turno si è già scritto mentre lavoravano (0.72.0).
+   * Claude Code mostra ogni testo scritto durante il turno come un messaggio
+   * in coda, in alto sopra il campo: con un turno di un'ora e un messaggio
+   * ogni due minuti la chat se ne riempiva e non si vedeva più cosa si
+   * scriveva. Adesso al massimo **uno** per turno; quelli che arrivano dopo
+   * restano nella coda dell'autopilota e alla fine del turno partono uniti in
+   * un messaggio solo.
+   */
+  const scrittoNelTurno = new Set<string>()
   const ultimoSegnale = (chiave: string): number | undefined => {
     const turno = ultimoTurno.get(chiave)
     const segno = ultimoSegno.get(chiave)
@@ -605,6 +615,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // Le si manda un turno: non è più «ferma ad aspettare» finché il Gestore
     // non lo rivede.
     fermaDal.delete(chiaveTurno(a.id, chat?.id))
+    // Un turno nuovo (non un testo scritto durante quello in corso): la coda di Claude Code è vuota.
+    if (opz?.ancheAlLavoro === true) scrittoNelTurno.add(chiaveTurno(a.id, chat?.id))
+    else scrittoNelTurno.delete(chiaveTurno(a.id, chat?.id))
     // Il perché della mossa (0.41.0, linguetta «Istruzioni»): la decisione
     // annotata subito prima. Chi manda un'istruzione la annota sempre prima.
     return deps.avviaLavoro(a, messaggio, chat, messaggio === undefined ? undefined : percheRecente(a, deps.adesso()), opz)
@@ -1054,6 +1067,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const giaFerme = new Set(ferme.map((f) => f.chatId ?? a.id))
       // «Manda adesso» (0.69.0): senza aspettare i due minuti.
       for (const v of chatConCodaVecchia(a, ora, opz.subito === true ? 0 : IN_CODA_AL_LAVORO_MS, giaFerme)) {
+        // Mai più di un messaggio in coda in Claude Code (0.72.0): uno è già
+        // scritto in questo turno, gli altri aspettano la fine e partono uniti.
+        if (scrittoNelTurno.has(chiaveTurno(a.id, v.chatId))) continue
         const presi = prendiMessaggiPer(a, v.chatId ?? a.id)
         if (presi.testi.length === 0) continue
         const chat = v.chatId === undefined ? undefined : presi.autopilota.chats.find((c) => c.id === v.chatId)
@@ -1922,6 +1938,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // Si segna sotto **la sua** chiave: segnarlo sotto la sola id
     // dell'autopilota faceva risultare vive anche le sorelle che tacevano.
     ultimoTurno.set(chiaveTurno(id, chatId), Date.parse(deps.adesso()))
+    // Il turno è chiuso: il messaggio scritto durante il turno Claude Code l'ha letto.
+    scrittoNelTurno.delete(chiaveTurno(id, chatId))
 
     // **La pausa per aggiornamento si esercita qui**, e solo qui.
     //

@@ -6,7 +6,8 @@ import { portaAutopilotiDa } from '@shared/autopilota'
 import { APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
 import { apriArchivio, ultimoNumeroConsegne } from './archivio'
 import { apriQuaderno } from '../main/quaderno-store'
-import { apriRegistro } from '../main/registro'
+import { apriRegistro, type Registro } from '../main/registro'
+import { format } from 'node:util'
 import { creaServer } from './server'
 import { conDivieti, esecutoreReale } from './verifiche'
 import { interrogazioneReale } from './supervisore'
@@ -175,6 +176,7 @@ function percorsiConfigTelegram(): string[] {
  */
 function reteDiSicurezza(): void {
   const registro = apriRegistro(join(cartellaStato(), '..'), process.env.SIERRADECK_VERSIONE ?? '?', 'servizio')
+  consoleNelRegistro(registro)
   const scrivi = (che: string, motivo: unknown): void => {
     const m = motivo instanceof Error
       ? `${motivo.name}: ${motivo.message}
@@ -184,6 +186,33 @@ ${motivo.stack ?? ''}`
   }
   process.on('uncaughtException', (err) => { scrivi('eccezione non gestita', err) })
   process.on('unhandledRejection', (motivo) => { scrivi('promise rifiutata senza catch', motivo) })
+}
+
+/**
+ * **Tutto quello che il servizio dice, nel registro** (0.72.0). Il Gestore lo
+ * avvia staccato e con l'uscita buttata via (`stdio: 'ignore'`): le righe
+ * [consegna], [autopilota] e quelle dei criteri non finivano da nessuna parte.
+ * Il 14/10, cercando cosa girava mentre spariva AppData\Local, del servizio
+ * c'era solo il diario dell'autopilota. Adesso ogni riga va anche nel file di
+ * oggi, con il tag [servizio].
+ */
+export function consoleNelRegistro(registro: Pick<Registro, 'info' | 'errore'>): void {
+  // Il registro, se non riesce a scrivere, lo dice con console.error: senza
+  // questo segno si richiamerebbe da solo all'infinito.
+  let dentro = false
+  const scrivi = (livello: 'info' | 'errore', a: unknown[]): void => {
+    if (dentro) return
+    dentro = true
+    try { registro[livello](format(...a)) } catch { /* il registro non ferma il servizio */ } finally { dentro = false }
+  }
+  const info = console.info.bind(console)
+  const log = console.log.bind(console)
+  const warn = console.warn.bind(console)
+  const error = console.error.bind(console)
+  console.info = (...a: unknown[]) => { info(...a); scrivi('info', a) }
+  console.log = (...a: unknown[]) => { log(...a); scrivi('info', a) }
+  console.warn = (...a: unknown[]) => { warn(...a); scrivi('info', a) }
+  console.error = (...a: unknown[]) => { error(...a); scrivi('errore', a) }
 }
 
 export function avviaServizio(): void {

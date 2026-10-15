@@ -2262,6 +2262,30 @@ describe('domande chiare nel servizio (0.71.0)', () => {
   })
 })
 
+describe('mai più di un messaggio in coda in Claude Code (0.72.0)', () => {
+  it('durante un turno si scrive una volta sola: gli altri messaggi aspettano la fine del turno, uniti', async () => {
+    server = ambiente({ adesso: () => '2026-08-09T10:05:00.000Z' })
+    await avvia(server)
+    archivio.scrivi({
+      ...nuovoAutopilota({ id: 'ap-coda', nome: 'Coda', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T09:00:00.000Z' }),
+      stato: 'lavoro',
+      daConsegnare: [{ id: 'm-1', quando: '2026-08-09T10:00:00.000Z', testo: 'primo', chats: ['ap-coda'] }]
+    })
+    server.controllaChatFerme()
+    await new Promise((r) => setTimeout(r, 20))
+    expect(avviati).toEqual(['ap-coda'])
+    expect(messaggiDiRipresa[0]).toContain('primo')
+    // Arrivano altri due messaggi mentre la chat lavora ancora: non si scrivono.
+    const a = archivio.leggi('ap-coda')!
+    archivio.scrivi({ ...a, daConsegnare: [...a.daConsegnare, { id: 'm-2', quando: '2026-08-09T10:01:00.000Z', testo: 'secondo', chats: ['ap-coda'] }, { id: 'm-3', quando: '2026-08-09T10:02:00.000Z', testo: 'terzo', chats: ['ap-coda'] }] })
+    server.controllaChatFerme()
+    expect((await chiama('POST', '/autopiloti/ap-coda/manda-adesso')).dati.mandate).toBe(0)
+    await new Promise((r) => setTimeout(r, 20))
+    expect(avviati).toEqual(['ap-coda'])
+    expect(archivio.leggi('ap-coda')!.daConsegnare.map((m) => m.id)).toEqual(['m-2', 'm-3'])
+  })
+})
+
 describe('criteri ricontrollati solo su richiesta (0.72.0)', () => {
   it('un lavoro finito che torna rosso lo dice nel diario, ma solo se lo chiedi', async () => {
     let passa = true

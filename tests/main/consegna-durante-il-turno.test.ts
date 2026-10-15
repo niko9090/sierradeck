@@ -78,6 +78,44 @@ describe('in sottofondo: si scrive durante il turno solo un testo «anche al lav
   })
 })
 
+describe('in sottofondo: mai più di un messaggio in coda in Claude Code (0.72.0)', () => {
+  function finto() {
+    let ora = 1_000_000
+    const ascolti = new Map<string, (m: HostToCore) => void>()
+    const scritto: string[] = []
+    const s = creaSottofondo({
+      dati: mkdtempSync(join(tmpdir(), 'sd-turno-')),
+      avviaPty: () => 'pty-1',
+      ascolta: (id, cb) => { ascolti.set(id, cb) },
+      smetti: () => undefined,
+      scrivi: (_id, data) => { scritto.push(data) },
+      ferma: () => undefined,
+      creaTerminale: (cols, rows) => new Terminal({ cols, rows, allowProposedApi: true }) as unknown as TerminaleMuto,
+      log: () => undefined,
+      adesso: () => ora,
+      timer: (f) => f()
+    })
+    const schermo = (d: string): void => ascolti.get('pty-1')?.({ id: 'pty-1', kind: 'data', data: d })
+    /** Al lavoro, con il campo vuoto: il testo scritto è fra i messaggi in coda, in alto. */
+    const lavora = (): void => schermo('\x1b[2J\x1b[H Benvenuto\r\n\r\n✻ Pensando… (12s · esc to interrupt)\r\n❯ \r\n  ? for shortcuts')
+    return { s, scritto, lavora, avanti: (ms: number) => { ora += ms } }
+  }
+  const SESSIONE = '11111111-2222-4333-8444-555555555555'
+  const digerisci = (): Promise<void> => new Promise((r) => setTimeout(r, 20))
+  it('due testi «anche al lavoro» nello stesso turno: se ne scrive uno, il secondo aspetta', async () => {
+    const f = finto()
+    const chi = { id: 'x', nome: 'x' }
+    f.s.avvia({ sessione: SESSIONE, cwd: 'C:\\p', titolo: 'p', perChi: chi, testo: 'primo urgente', idMessaggio: 'm-1', ancheAlLavoro: true })
+    f.lavora(); await digerisci(); f.avanti(5000); f.s.giro()
+    expect(f.scritto).toEqual(['primo urgente', '\r'])
+    f.s.avvia({ sessione: SESSIONE, cwd: 'C:\\p', titolo: 'p', perChi: chi, testo: 'secondo urgente', idMessaggio: 'm-2', ancheAlLavoro: true })
+    // Il primo non è più nel campo (è fra i messaggi in coda): consegnato, mai riscritto.
+    f.lavora(); await digerisci()
+    for (let i = 0; i < 6; i++) { f.avanti(5000); f.s.giro() }
+    expect(f.scritto).toEqual(['primo urgente', '\r'])
+  })
+})
+
 describe('in sottofondo il servizio sa che la consegna è partita (0.69.0)', () => {
   it('dall’id del testo si risale alla consegna', async () => {
     const { consegnaDaIdTesto, idTestoConsegna } = await import('../../src/main/autopilota-consegne')

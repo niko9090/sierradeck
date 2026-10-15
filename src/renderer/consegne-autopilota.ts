@@ -561,8 +561,10 @@ export function premiInvio(
       const p = ponte.partita?.(ptyId, c?.testo, c?.prima)
       const ferma = p === false || (p === undefined && ponte.prontoARicevere(ptyId))
       if (!ferma) { ponte.registra?.(`consegna ${c?.id ?? ''}: partita`); return }
-      // Il testo si e' perso: lo si riscrive prima del prossimo Invio.
-      if (c?.testo !== undefined && ponte.perso?.(ptyId, c.testo, c.prima) === true) {
+      // Il testo si e' perso: lo si riscrive prima del prossimo Invio. Mai
+      // mentre la chat lavora (0.72.0): lì il testo mandato sta fra i messaggi
+      // in coda di Claude Code, in alto, e riscriverlo ne aggiungeva un altro.
+      if (c?.testo !== undefined && ponte.lavora?.(ptyId) !== true && ponte.perso?.(ptyId, c.testo, c.prima) === true) {
         ponte.registra?.(`consegna ${c?.id ?? ''}: il testo non è nel campo né fra i messaggi mandati, lo riscrivo`)
         ponte.scrivi(ptyId, c.testo)
       }
