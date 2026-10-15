@@ -36,6 +36,16 @@ export function aspettaTe(c: Pick<Conversazione, 'tipo' | 'chiede' | 'scelte' | 
   return tipoDomanda(c).id !== 'finito'
 }
 
+/**
+ * Il numero di «Aspettano te» (0.73.1): solo chi aspetta davvero una tua
+ * risposta. Le domande a cui ha già risposto l'autopilota stanno nella lista
+ * ma non nel numero, come diceva la 0.71.1: il 15/10 la linguetta ambra
+ * diceva «Aspettano te 2» con due risposte già date e niente da fare.
+ */
+export function contaAspettanoTe(c: Pick<Conversazione, 'tipo' | 'chiede' | 'scelte' | 'messaggi'>[]): number {
+  return c.filter((x) => { const id = tipoDomanda(x).id; return id !== 'finito' && id !== 'risposta' }).length
+}
+
 /** Prima i permessi, poi le scelte, le domande, gli autopiloti; le finite in fondo. Stabile. */
 export function ordinaDomande<T extends Pick<Conversazione, 'tipo' | 'chiede' | 'scelte' | 'messaggi'>>(c: T[]): T[] {
   return c.map((x, i) => ({ x, i })).sort((a, b) => ORDINE[tipoDomanda(a.x).id] - ORDINE[tipoDomanda(b.x).id] || a.i - b.i).map((v) => v.x)

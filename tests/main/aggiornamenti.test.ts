@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { intestazioniAccesso, indirizzoAlternativo, feedAlternativo } from '../../src/main/aggiornamenti'
+import { creaGiroMuto, intestazioniAccesso, indirizzoAlternativo, feedAlternativo } from '../../src/main/aggiornamenti'
 
 function cartella(contenuto?: unknown): string {
   const d = mkdtempSync(join(tmpdir(), 'aggiorn-'))
@@ -71,5 +71,34 @@ describe('da dove si scarica', () => {
   it('fra i due vince GitHub, che e la strada normale', () => {
     const f = feedAlternativo(cartella({ owner: 'a', repo: 'b', url: 'https://esempio.it/' }))
     expect(f?.provider).toBe('github')
+  })
+})
+
+describe('0.73.1: i controlli di routina non riempiono il registro', () => {
+  it('«cerco» → «aggiornato» ogni dieci minuti si scrive una volta all’ora; una versione trovata sempre', () => {
+    const g = creaGiroMuto()
+    let ora = Date.parse('2026-10-15T07:00:00Z')
+    const giro = (fine = 'aggiornato'): boolean[] => {
+      const r = [g.cambia('aggiornato', 'cerco', ora), g.rigaMuta('Checking for update'), g.rigaMuta('Update for version 0.73.0 is not available'), g.cambia('cerco', fine, ora)]
+      ora += 10 * 60_000
+      return r
+    }
+    // Il primo giro si scrive.
+    expect(giro()).toEqual([false, false, false, false])
+    // I cinque dopo, nella stessa ora, no.
+    for (let i = 0; i < 5; i++) expect(giro()).toEqual([true, true, true, true])
+    // Un'ora dopo il primo, di nuovo.
+    expect(giro()).toEqual([false, false, false, false])
+    // Una versione nuova si scrive sempre, anche dentro l'ora.
+    expect(g.cambia('aggiornato', 'cerco', ora)).toBe(true)
+    expect(g.cambia('cerco', 'disponibile', ora)).toBe(false)
+    expect(g.rigaMuta('Found version 0.74.0')).toBe(false)
+  })
+  it('un errore dopo un giro muto si scrive', () => {
+    const g = creaGiroMuto()
+    const ora = Date.parse('2026-10-15T07:00:00Z')
+    g.cambia('aggiornato', 'cerco', ora); g.cambia('cerco', 'aggiornato', ora)
+    expect(g.cambia('aggiornato', 'cerco', ora + 1)).toBe(true)
+    expect(g.cambia('cerco', 'errore', ora + 2)).toBe(false)
   })
 })

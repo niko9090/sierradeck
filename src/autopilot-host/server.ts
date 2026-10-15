@@ -57,7 +57,7 @@ import {
   type StatoProgramma
 } from './coordinatore'
 import {
-  creaWorktree, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, salvaLavoro, togliWorktree, unisciRamo, type Git
+  cartellaWorktreeDi, creaWorktree, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, salvaLavoro, togliWorktree, togliWorktreeVuoti, unisciRamo, type Git
 } from './worktree'
 
 export type Dipendenze = {
@@ -1238,8 +1238,17 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     return true
   }
 
+  /** Le cartelle vuote rimaste dai worktree (0.73.1): all'avvio e quando un autopilota finisce. */
+  const pulisciWorktreeVuoti = (cwd: string): void => {
+    if (deps.git === undefined) return
+    const radice = radiceGit(deps.git, cwd)
+    if (radice === undefined) return
+    const tolte = togliWorktreeVuoti(radice)
+    if (tolte.length > 0) console.info(`[autopilota] tolte ${tolte.length} cartelle vuote rimaste dai worktree in ${cartellaWorktreeDi(radice)}`)
+  }
   const riprendiInterviste = (): void => {
     const tutti = deps.archivio.elenca()
+    for (const cwd of new Set(tutti.filter((a) => a.chats.some((c) => c.cartella !== undefined)).map((a) => a.cwd))) pulisciWorktreeVuoti(cwd)
     // Chi aspettava una risposta alla sua domanda non rifa' la preparazione da
     // capo: la domanda torna nelle Domande, e si riparte dalla risposta.
     const riaperte = tutti.filter((a) => riapriDomandaIntervista(a))
@@ -2638,6 +2647,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         if (c.ruolo === 'revisione') continue
         if (c.ramo !== undefined && c.cartella !== undefined) togliWorktree(git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
       }
+      pulisciWorktreeVuoti(aggiornato.cwd)
     }
 
     // ── La pubblicazione, secondo la regola del progetto ──

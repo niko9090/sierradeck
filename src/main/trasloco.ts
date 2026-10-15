@@ -63,6 +63,9 @@ export type TraslocoApi = {
 /** Lo stato della copia vecchia su un altro PC, come lo dice `/api/trasloco/togli-stato`. */
 type StatoTogli = { fase?: string; messaggio?: string }
 
+/** Ogni quanto si ridice nel registro un trasloco fermo per lo stesso motivo. */
+export const RIDICI_FERMO_MS = 60 * 60_000
+
 export function creaTrasloco(d: DipendenzeTrasloco): TraslocoApi {
   const adesso = d.adesso ?? Date.now
   const iso = (): string => new Date(adesso()).toISOString()
@@ -89,9 +92,21 @@ export function creaTrasloco(d: DipendenzeTrasloco): TraslocoApi {
     return [...memoria.values()].sort((a, b) => b.avviatoIl.localeCompare(a.avviatoIl))
   }
   const passo = (t: Trasloco, p: IdPasso, cambia: Parameters<typeof segna>[2]): Trasloco => scrivi(segna(memoria.get(t.id) ?? t, p, cambia, iso()))
+  /**
+   * L'ultima volta che si è detto nel registro che un trasloco è fermo
+   * (0.73.1). Il giro lo ritenta ogni due minuti: con il portatile spento, il
+   * 15/10, 390 righe uguali in un giorno. Ora lo stesso fermo si ridice una
+   * volta all'ora; un motivo o un passo diverso si dice subito.
+   */
+  const fermoDetto = new Map<string, { chiave: string; il: number }>()
   const fermaQui = (t: Trasloco, p: IdPasso, motivo: string, daSolo?: boolean, pc?: string): Trasloco => {
     const riprova = daSolo ?? motivoPassaggero(motivo)
-    d.log(`[trasloco] «${t.nome}»: fermo al passo «${PASSI_TRASLOCO.find((x) => x.id === p)?.titolo ?? p}» — ${motivo}${riprova ? ' (riprendo da solo quando passa)' : ''}`)
+    const chiave = `${p}\n${motivo}`
+    const prima = fermoDetto.get(t.id)
+    if (prima === undefined || prima.chiave !== chiave || adesso() - prima.il >= RIDICI_FERMO_MS) {
+      fermoDetto.set(t.id, { chiave, il: adesso() })
+      d.log(`[trasloco] «${t.nome}»: fermo al passo «${PASSI_TRASLOCO.find((x) => x.id === p)?.titolo ?? p}» — ${motivo}${riprova ? ' (riprendo da solo quando passa)' : ''}`)
+    }
     return scrivi(ferma(memoria.get(t.id) ?? t, p, motivo, riprova, iso(), pc))
   }
   /** Segna l'esito della copia di un PC. */

@@ -345,7 +345,7 @@ export function paginaClient(): string {
   }
   /* Bersagli grandi: si usa in piedi, con una mano, e un tasto piccolo su un
      telefono e' un tasto che si sbaglia. */
-  button, input, textarea {
+  button, input, textarea, select {
     font: inherit; font-size: var(--t2); border-radius: var(--raggio);
     border: 1px solid var(--luce-incisione);
     background: var(--chassis-premuto); color: inherit; padding: var(--s2) var(--s3);
@@ -1006,7 +1006,8 @@ function vistaConversazioni() {
   function aspettaTeConv(c) { return c.vista ? c.vista.id !== 'finito' : (c.chiede || c.tipo === 'autopilota') }
   var filtro = typeof domandeFiltro === 'string' ? domandeFiltro : 'aspettano'
   var tutte = domandeConversazioni || []
-  var nAspettano = tutte.filter(aspettaTeConv).length
+  // 0.73.1: nel numero solo chi aspetta davvero; le risposte già date dall'autopilota no.
+  var nAspettano = tutte.filter(function (c) { return c.vista ? (c.vista.id !== 'finito' && c.vista.id !== 'risposta') : c.chiede }).length
   var elenco = filtro === 'aspettano' ? tutte.filter(aspettaTeConv) : tutte
   var filtri = tutte.length === 0 ? '' : '<div class="riga" style="gap:6px;flex-wrap:wrap">' +
     '<button' + (filtro === 'aspettano' ? ' class="primario"' : '') + ' onclick="filtroDomande(\\'aspettano\\')" style="flex:none;width:auto;min-height:0;padding:6px 12px">Aspettano te ' + nAspettano + '</button>' +

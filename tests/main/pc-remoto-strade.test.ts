@@ -19,9 +19,11 @@ const risponde = (status: number, corpo: unknown = {}): Risposta => ({ status, j
 
 function ambiente(p: {
   rete: (url: string) => Risposta | 'muto'
-  rtc?: { stato: StatoRtc; fallitoIl?: number; risposta?: EsitoCanale }
+  rtc?: { stato: StatoRtc; fallitoIl?: number; fallimenti?: number; risposta?: EsitoCanale }
   drive?: EsitoCanale
   possibile?: boolean
+  /** Il battito di quel PC sul Drive, se diverso da quello di esempio. */
+  battito?: string
 }) {
   const chiamate: string[] = []
   const avviati: string[] = []
@@ -29,7 +31,7 @@ function ambiente(p: {
   const viaDrive: string[] = []
   const rtc = p.rtc
   const c = creaClientPcRemoto({
-    battiti: () => [LAPTOP],
+    battiti: () => [p.battito !== undefined ? { ...LAPTOP, battito: p.battito } : LAPTOP],
     chiavePer: () => 'chiave-di-casa',
     mioNome: () => 'PC-Fisso',
     adesso: () => Date.parse('2026-10-02T12:00:00Z'),
@@ -47,6 +49,7 @@ function ambiente(p: {
         possibile: () => p.possibile ?? true,
         stato: () => rtc.stato,
         fallitoIl: () => rtc.fallitoIl,
+        ...(rtc.fallimenti !== undefined ? { fallimenti: () => rtc.fallimenti ?? 0 } : {}),
         avvia: (id: string) => { avviati.push(id) },
         chiama: async (_id: string, percorso: string) => { viaRtc.push(percorso); return rtc.risposta ?? { stato: 200, corpo: { via: 'rtc' } } }
       }
@@ -101,6 +104,22 @@ describe('le strade, in ordine', () => {
     expect(viaDrive).toEqual(['/api/stato'])
     expect(avviati).toEqual([])
     expect(c.stradaDi('lap')?.strada).toBe('drive')
+  })
+  it('0.73.1: PC spento da tempo: dopo 5 WebRTC falliti, 10 minuti dopo non si riprova (resta il Drive)', async () => {
+    const { avviati, c } = ambiente({
+      rete: () => 'muto', rtc: { stato: 'fallito', fallitoIl: Date.parse('2026-10-02T11:50:00Z'), fallimenti: 5 }, drive: { stato: 200, corpo: { chat: [] } },
+      battito: '2026-10-02T09:00:00.000Z'
+    })
+    await c.chiama('lap', '/api/stato')
+    expect(avviati).toEqual([])
+  })
+  it('0.73.1: quel PC si riaccende e scrive il battito sul Drive: WebRTC riprovato subito', async () => {
+    const { avviati, c } = ambiente({
+      rete: () => 'muto', rtc: { stato: 'fallito', fallitoIl: Date.parse('2026-10-02T11:50:00Z'), fallimenti: 5 }, drive: { stato: 200, corpo: { chat: [] } },
+      battito: '2026-10-02T11:59:50.000Z'
+    })
+    await c.chiama('lap', '/api/stato')
+    expect(avviati).toEqual(['lap'])
   })
   it('4. via Drive: «aspetta» e «non si può» diventano motivi chiari', async () => {
     const aspetta = ambiente({ rete: () => 'muto', drive: { stato: 425, corpo: { errore: 'Ho chiesto a LAPTOP lo schermo via Drive' } } })

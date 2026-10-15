@@ -377,6 +377,10 @@ data class Conversazione(
 /** Aspetta davvero te (PC 0.70): tutto tranne le chat che hanno solo finito il turno. */
 fun aspettaTe(c: Conversazione): Boolean = c.vista?.let { it.id != "finito" } ?: (c.chiede || c.tipo == "autopilota")
 
+/** PC 0.73.1: nel numero solo chi aspetta davvero; le risposte già date dall'autopilota stanno nella lista, non nel conto. */
+fun contaAspettanoTe(tutte: List<Conversazione>): Int =
+    tutte.count { c -> c.vista?.let { it.id != "finito" && it.id != "risposta" } ?: c.chiede }
+
 /** Un nodo dell'albero delle chat di un autopilota (T7, 0.36.0). */
 @Serializable
 data class RuoloChat(val id: String = "", val nome: String = "", val parola: String = "", val colore: String = "quieto")

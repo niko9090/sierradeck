@@ -72,11 +72,15 @@ export function rigaChatSola(perche: 'piccolo' | 'senza-git' | 'limiti' | 'illeg
   return 'Lavoro piccolo: una chat sola, che fa tutto.'
 }
 
+const ruoliDi = (a: Autopilota): Ruolo[] => a.chats.map((c) => c.ruolo).filter((r): r is Ruolo => r !== undefined)
+
 export function specialistiDi(a: Autopilota): Specialisti {
   const nome = a.nome !== '' ? a.nome : a.obiettivo.slice(0, 40)
   if (a.chats.length > 0) {
     return {
-      riga: a.organizzazione ?? rigaFlotta(a.chats.map((c) => c.ruolo).filter((r): r is Ruolo => r !== undefined)),
+      // La riga salvata con la divisione, se non è del formato vecchio con il numero (0.73.1):
+      // «3 specialisti» sopra un elenco di 4, visto il 15/10. Allora si rifà dai ruoli delle chat.
+      riga: a.organizzazione !== undefined && !/^\d+ specialisti/.test(a.organizzazione) ? a.organizzazione : rigaFlotta(ruoliDi(a)),
       elenco: a.chats.map((c) => ({
         id: c.id,
         ruolo: c.ruolo !== undefined ? RUOLI[c.ruolo].nome : 'Chat',

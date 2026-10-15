@@ -153,7 +153,9 @@ export class PtyHostClient {
     })
 
     child.on('exit', (code) => {
-      this.racconta(`terminato con codice ${String(code)}`)
+      // Dopo uno spegnimento voluto non è un guasto (0.73.1): il registro
+      // diceva «[ERRORE] terminato con codice 0» a ogni chiusura del programma.
+      if (this.child === child) this.racconta(`terminato con codice ${String(code)}`)
       morte(`PTY host terminato con codice ${String(code)}`)
     })
   }

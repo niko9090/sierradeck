@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Conversazione } from '@shared/domande-conversazioni'
-import { aspettaTe, messaggiInVista, ordinaDomande, prossimaDomanda, tipoDomanda } from '@shared/domande-vista'
+import { aspettaTe, contaAspettanoTe, messaggiInVista, ordinaDomande, prossimaDomanda, tipoDomanda } from '@shared/domande-vista'
 
 /** Le Domande riprogettate (0.70.0): un tipo in una parola, «Aspettano te» di partenza. */
 const conv = (x: Partial<Conversazione> & { chiave: string }): Conversazione => ({
@@ -36,5 +36,14 @@ describe('ordine e prossima', () => {
     expect(messaggiInVista([1, 2, 3, 4, 5, 6], false)).toEqual({ vista: [3, 4, 5, 6], nascosti: 2 })
     expect(messaggiInVista([1, 2], false).nascosti).toBe(0)
     expect(messaggiInVista([1, 2, 3, 4, 5, 6], true).nascosti).toBe(0)
+  })
+})
+
+describe('0.73.1: il numero di «Aspettano te»', () => {
+  it('le risposte già date dall’autopilota stanno nella lista ma non nel numero', () => {
+    const c = [conv({ chiave: 'r1', tipo: 'autopilota' }), conv({ chiave: 'r2', tipo: 'autopilota' }), conv({ chiave: 'f' })]
+    expect(c.filter(aspettaTe).map((x) => x.chiave)).toEqual(['r1', 'r2'])
+    expect(contaAspettanoTe(c)).toBe(0)
+    expect(contaAspettanoTe([...c, conv({ chiave: 'dom', chiede: true }), conv({ chiave: 'ap', tipo: 'autopilota', chiede: true })])).toBe(2)
   })
 })

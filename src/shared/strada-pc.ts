@@ -59,6 +59,30 @@ export function indirizzoPreferito(rispondono: string[]): string | undefined {
 
 /** Dopo un WebRTC fallito, quanto si aspetta prima di riprovarlo (intanto vale il Drive). */
 export const RIPROVA_RTC_DOPO_MS = 2 * 60_000
+/** La pausa più lunga fra due tentativi WebRTC verso un PC che non risponde mai. */
+export const RIPROVA_RTC_MAX_MS = 30 * 60_000
+
+/**
+ * La pausa prima del prossimo tentativo WebRTC (0.73.1). Prima era sempre di
+ * due minuti: verso il portatile spento, il 15/10, un'offerta sul Drive ogni
+ * 4 minuti per tutto il giorno (193 tentativi da 75 secondi). Ora raddoppia a
+ * ogni fallimento di fila: 2, 4, 8, 16, poi 30 minuti al massimo.
+ */
+export function pausaRiprovaRtc(fallimentiDiFila: number): number {
+  const n = Math.max(1, Math.floor(fallimentiDiFila))
+  return Math.min(RIPROVA_RTC_MAX_MS, RIPROVA_RTC_DOPO_MS * 2 ** Math.min(n - 1, 10))
+}
+
+/**
+ * Se è ora di riprovare il WebRTC. Subito quando quel PC dà un segno di vita
+ * dopo l'ultimo fallimento (un battito nuovo sul Drive: si è riacceso),
+ * altrimenti dopo la pausa che cresce.
+ */
+export function rtcDaRiprovare(p: { fallitoIl?: number; fallimentiDiFila?: number; vistoIl?: number; adesso: number }): boolean {
+  if (p.fallitoIl === undefined) return true
+  if (p.vistoIl !== undefined && p.vistoIl > p.fallitoIl) return true
+  return p.adesso - p.fallitoIl >= pausaRiprovaRtc(p.fallimentiDiFila ?? 1)
+}
 /** Usando WebRTC o il Drive, ogni quanto si ribussa direttamente: se quel PC torna in rete di casa, si torna alla strada veloce. */
 export const RIBUSSA_OGNI_MS = 30_000
 
@@ -73,7 +97,7 @@ export const RIBUSSA_OGNI_MS = 30_000
  * - `errore`: nessuna strada; il motivo lo dice il bussare.
  *
  * `avviaRtc`: aprire adesso il WebRTC, in sottofondo. Dopo un WebRTC fallito
- * lo si riprova ogni due minuti, e intanto si usa il Drive: chi guarda non
+ * lo si riprova con una pausa che cresce (`pausaRiprovaRtc`), e intanto si usa il Drive: chi guarda non
  * resta senza schermo mentre si ritenta.
  */
 export type Mossa = 'http' | 'rtc' | 'aspetta-rtc' | 'drive' | 'errore'
@@ -88,6 +112,10 @@ export function prossimaMossa(p: {
   rtc: StatoRtc
   /** Quando è fallito l'ultimo WebRTC, ms. */
   rtcFallitoIl?: number
+  /** Quanti WebRTC sono falliti di fila (la pausa cresce). */
+  rtcFallimenti?: number
+  /** L'ultimo segno di vita di quel PC (il suo battito sul Drive), ms: se è dopo il fallimento si riprova subito. */
+  vistoIl?: number
   /** La cassetta è usabile: Drive collegato e cassaforte aperta. */
   drivePossibile: boolean
   adesso: number
@@ -100,8 +128,13 @@ export function prossimaMossa(p: {
   const giaFallito = p.rtcFallitoIl !== undefined
   if (p.rtc === 'collegando') return { mossa: giaFallito && p.drivePossibile ? 'drive' : 'aspetta-rtc', avviaRtc: false }
   if (p.rtc === 'spento') return { mossa: giaFallito && p.drivePossibile ? 'drive' : 'aspetta-rtc', avviaRtc: true }
-  // Fallito: si riprova dopo un po'; nel frattempo, il Drive.
-  const riprova = p.rtcFallitoIl === undefined || p.adesso - p.rtcFallitoIl >= RIPROVA_RTC_DOPO_MS
+  // Fallito: si riprova dopo una pausa che cresce, o subito se quel PC è tornato; nel frattempo, il Drive.
+  const riprova = rtcDaRiprovare({
+    ...(p.rtcFallitoIl !== undefined ? { fallitoIl: p.rtcFallitoIl } : {}),
+    ...(p.rtcFallimenti !== undefined ? { fallimentiDiFila: p.rtcFallimenti } : {}),
+    ...(p.vistoIl !== undefined ? { vistoIl: p.vistoIl } : {}),
+    adesso: p.adesso
+  })
   return { mossa: riprova && !p.drivePossibile ? 'aspetta-rtc' : riserva, avviaRtc: riprova }
 }
 

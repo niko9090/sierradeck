@@ -137,6 +137,37 @@ export const RICONTROLLA_MS = 10 * 60 * 1000
  * In sviluppo non si cerca niente: `electron-updater` cercherebbe comunque un
  * feed che non esiste e riempirebbe il log di errori che non dicono niente.
  */
+/** Ogni quanto un controllo di routina senza novità si scrive comunque nel registro. */
+export const DICI_GIRO_OGNI_MS = 60 * 60_000
+
+/**
+ * I controlli di routina in silenzio (0.73.1). Ogni dieci minuti «cerco» →
+ * «aggiornato», più le due righe di electron-updater: il 15/10 erano 180
+ * righe su 1641, senza dire niente di nuovo. Un giro che finisce in
+ * «aggiornato» partendo da «aggiornato» si scrive una volta all'ora; ogni
+ * altra fase (versione trovata, scarico, errore) si scrive sempre.
+ */
+export function creaGiroMuto(): { cambia: (prima: string, dopo: string, adesso: number) => boolean; rigaMuta: (riga: string) => boolean } {
+  let inGiro = false
+  let muto = false
+  let dettoIl = 0
+  return {
+    cambia(prima, dopo, adesso) {
+      if (dopo === 'cerco' && (prima === 'aggiornato' || prima === 'cerco')) {
+        inGiro = true
+        muto = adesso - dettoIl < DICI_GIRO_OGNI_MS
+        if (!muto) dettoIl = adesso
+        return muto
+      }
+      if (inGiro && prima === 'cerco' && dopo === 'aggiornato') { inGiro = false; return muto }
+      inGiro = false
+      muto = false
+      return false
+    },
+    rigaMuta: (riga) => muto && inGiro && (/^Checking for update/.test(riga) || /is not available/.test(riga))
+  }
+}
+
 export function creaAggiornamenti(
   finestre: () => BrowserWindow[],
   /** La cartella dei dati: da lì arrivano le credenziali, se il server le chiede. */
@@ -213,9 +244,10 @@ export function creaAggiornamenti(
   // Anche le righe di electron-updater («Checking for update», «Found version»,
   // «Auto install update on quit»): sono loro a dire per quale strada e'
   // passata un'installazione.
+  const giroMuto = creaGiroMuto()
   if (registro !== undefined) {
     autoUpdater.logger = {
-      info: (m: unknown) => registro.info(`[electron-updater] ${String(m)}`),
+      info: (m: unknown) => { if (!giroMuto.rigaMuta(String(m))) registro.info(`[electron-updater] ${String(m)}`) },
       warn: (m: unknown) => registro.info(`[electron-updater] avviso: ${String(m)}`),
       error: (m: unknown) => registro.errore(`[electron-updater] ${String(m)}`),
       debug: () => {}
@@ -304,7 +336,8 @@ export function creaAggiornamenti(
     // sarebbero cento righe per un file.
     const cambioFase = nuovo.fase !== stato.fase
     const quarto = nuovo.fase === 'scarico' && nuovo.percento !== undefined && nuovo.percento % 25 === 0 && nuovo.percento !== stato.percento
-    if (cambioFase || quarto) {
+    const muto = giroMuto.cambia(stato.fase, nuovo.fase, Date.now())
+    if ((cambioFase || quarto) && !muto) {
       nota(`fase: ${nuovo.fase}${nuovo.versione !== undefined ? ` (${nuovo.versione})` : ''}${nuovo.percento !== undefined ? ` ${nuovo.percento}%` : ''}${nuovo.chatOccupate !== undefined ? ` · ${nuovo.chatOccupate} chat al lavoro` : ''}${nuovo.daTelefono === true ? ' · dal telefono' : ''}${nuovo.errore !== undefined ? ` · ${nuovo.errore}` : ''}`)
     }
     stato = nuovo

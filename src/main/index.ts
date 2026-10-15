@@ -1945,6 +1945,7 @@ if (!app.requestSingleInstanceLock()) {
           possibile: stradeLentePossibili,
           stato: (pcId) => rtc.stato(pcId),
           fallitoIl: (pcId) => rtc.fallitoIl(pcId),
+          fallimenti: (pcId) => rtc.fallimenti(pcId),
           avvia: (pcId) => rtc.avvia(pcId),
           chiama: (pcId, percorso, corpo, visore) => rtc.chiama(pcId, percorso, corpo, visore)
         },

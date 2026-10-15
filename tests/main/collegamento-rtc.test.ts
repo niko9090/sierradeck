@@ -163,6 +163,19 @@ describe('il collegamento WebRTC fra due PC', () => {
     expect(drive.dati.has('rtc-offerta-lap-fisso')).toBe(false)
   })
 
+  it('0.73.1: i fallimenti di fila si contano (la pausa cresce) e il registro dice quando riprova', async () => {
+    const drive = scatolaInMemoria()
+    const fisso = pc({ io: 'fisso', nome: 'PC-Fisso', altri: ['lap'], scatola: drive, ponte: reteFinta().crea(), casa })
+    expect(fisso.rtc.fallimenti('lap')).toBe(0)
+    fisso.rtc.avvia('lap')
+    await finche(() => fisso.rtc.stato('lap') === 'fallito')
+    expect(fisso.rtc.fallimenti('lap')).toBe(1)
+    fisso.rtc.avvia('lap')
+    await finche(() => fisso.rtc.fallimenti('lap') === 2)
+    expect(fisso.rtc.fallimenti('lap')).toBe(2)
+    expect(fisso.registro.at(-1)).toContain('2° di fila: riprovo fra 4 min, o subito se torna sul Drive')
+  })
+
   it('due reti che non si lasciano attraversare (niente TURN): fallito, e il registro lo dice', async () => {
     const drive = scatolaInMemoria()
     const rete = reteFinta({ nat: 'chiuso' })

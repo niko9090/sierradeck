@@ -125,6 +125,8 @@ export type DipendenzeRemoto = {
     possibile: () => boolean
     stato: (pcId: string) => StatoRtc
     fallitoIl: (pcId: string) => number | undefined
+    /** I tentativi falliti di fila (0.73.1); manca nei finti dei test vecchi. */
+    fallimenti?: (pcId: string) => number
     avvia: (pcId: string) => void
     chiama: (pcId: string, percorso: string, corpo?: unknown, visore?: string) => Promise<EsitoCanale>
   }
@@ -462,6 +464,9 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       rtcPossibile: deps.rtc?.possibile() ?? false,
       rtc: deps.rtc?.stato(pcId) ?? 'spento',
       ...(deps.rtc?.fallitoIl(pcId) !== undefined ? { rtcFallitoIl: deps.rtc.fallitoIl(pcId) } : {}),
+      ...(deps.rtc?.fallimenti !== undefined ? { rtcFallimenti: deps.rtc.fallimenti(pcId) } : {}),
+      // Un battito nuovo sul Drive dopo il fallimento: quel PC si è riacceso, si riprova subito.
+      ...(Number.isFinite(Date.parse(b.battito)) ? { vistoIl: Date.parse(b.battito) } : {}),
       drivePossibile: deps.cassetta?.possibile() ?? false,
       adesso: adesso()
     })

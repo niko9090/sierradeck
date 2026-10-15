@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 import type { Scatola } from '../progetti/presenza'
 import {
   APERTURA_CANALE_MS, ATTESA_RISPOSTA_RTC_MS, CANALE_INATTIVO_MS, RICHIESTA_RTC_MS, RILEGGI_RISPOSTA_RTC_MS, SERVER_STUN,
-  leggiMessaggioCanale, nomeOffertaRtc, nomeRispostaRtc, rottaPermessaSulCanale, segnaleValido,
+  leggiMessaggioCanale, nomeOffertaRtc, nomeRispostaRtc, pausaRiprovaRtc, rottaPermessaSulCanale, segnaleValido,
   type SegnaleRtc, type StatoRtc
 } from '@shared/strada-pc'
 import { cifraSegnale, creaSigillo, decifraSegnale, type Sigillo } from './cifra-canale'
@@ -77,6 +77,8 @@ export type DipendenzeRtc = {
 export type Rtc = {
   stato: (pcId: string) => StatoRtc
   fallitoIl: (pcId: string) => number | undefined
+  /** Quanti tentativi sono falliti di fila verso quel PC (0.73.1): la pausa prima del prossimo cresce. */
+  fallimenti: (pcId: string) => number
   /** Apre il collegamento verso quel PC, in sottofondo. Non fa niente se è già aperto o si sta aprendo. */
   avvia: (pcId: string) => void
   /** Una richiesta sul canale aperto: lancia se il canale non c'è o non risponde. */
@@ -117,6 +119,7 @@ export function creaRtc(deps: DipendenzeRtc): Rtc {
   /** I canali che gli altri hanno aperto verso di me, per id del ponte. */
   const entrate = new Map<string, Capo>()
   const fallitoIl = new Map<string, number>()
+  const fallimenti = new Map<string, number>()
   /** Le offerte già servite: il Drive può restituirle ancora per qualche secondo. */
   const giriServiti = new Set<string>()
   let ascoltato: PonteRtc | undefined
@@ -195,7 +198,9 @@ export function creaRtc(deps: DipendenzeRtc): Rtc {
 
   const fallisci = (pcId: string, c: Capo | undefined, perche: string): void => {
     fallitoIl.set(pcId, adesso())
-    log(`[webrtc] collegamento diretto con ${pcId} non riuscito: ${perche}`)
+    const n = (fallimenti.get(pcId) ?? 0) + 1
+    fallimenti.set(pcId, n)
+    log(`[webrtc] collegamento diretto con ${pcId} non riuscito: ${perche}${n > 1 ? ` (${n}° di fila: riprovo fra ${Math.round(pausaRiprovaRtc(n) / 60_000)} min, o subito se torna sul Drive)` : ''}`)
     if (c !== undefined) chiudiCapo(c, perche)
   }
 
@@ -241,6 +246,7 @@ export function creaRtc(deps: DipendenzeRtc): Rtc {
       await Promise.race([salutato, attendi(t.apertura).then(() => { scaduto = true })])
       if (scaduto && c.stato !== 'aperto') throw new Error(`il canale non si è aperto in ${Math.round(t.apertura / 1000)} secondi: probabilmente le due reti non si lasciano attraversare (servirebbe un server TURN, che non usiamo)`)
       fallitoIl.delete(pcId)
+      fallimenti.delete(pcId)
       log(`[webrtc] collegato direttamente a ${pcId} (WebRTC)`)
     } catch (err) {
       fallisci(pcId, c, err instanceof Error ? err.message : String(err))
@@ -285,6 +291,7 @@ export function creaRtc(deps: DipendenzeRtc): Rtc {
       return fallitoIl.has(pcId) ? 'fallito' : 'spento'
     },
     fallitoIl: (pcId) => fallitoIl.get(pcId),
+    fallimenti: (pcId) => fallimenti.get(pcId) ?? 0,
     avvia(pcId) {
       if (uscite.has(pcId)) return
       void apri(pcId).catch((err: unknown) => fallisci(pcId, uscite.get(pcId), String(err)))

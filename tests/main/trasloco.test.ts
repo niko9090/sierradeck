@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { creaTrasloco, type DipendenzeTrasloco } from '../../src/main/trasloco'
+import { RIDICI_FERMO_MS, creaTrasloco, type DipendenzeTrasloco } from '../../src/main/trasloco'
 import { avanzamento, prossimoPasso } from '@shared/trasloco'
 import type { StatoResidenza } from '@shared/residenza'
 
@@ -101,6 +101,22 @@ describe('il trasloco di un progetto: un passaggio solo, con l’analisi prima e
     await t.inCorso(id)
     expect(prossimoPasso(t.stato(id)!)).toBeUndefined()
     expect(t.stato(id)!.fermo).toBeUndefined()
+  })
+
+  it('0.73.1: lo stesso fermo si dice nel registro una volta, non a ogni giro (390 righe uguali il 15/10)', async () => {
+    const b = banco({ portatileSpento: () => true })
+    let ora = Date.parse('2026-10-15T19:00:00Z')
+    const t = creaTrasloco({ ...b.d, adesso: () => ora })
+    const id = (await t.avvia('p1', { da: 'pc-qui', come: 'residente' })).trasloco!.id
+    await t.inCorso(id)
+    for (let i = 0; i < 5; i++) { ora += 2 * 60_000; t.giro(); await t.inCorso(id) }
+    const fermi = (): number => b.righe.filter((r) => r.includes('fermo al passo')).length
+    expect(t.stato(id)!.fermo?.passo).toBe('raccolta')
+    expect(fermi()).toBe(1)
+    // Un'ora dopo lo si ridice, perché chi legge il registro sappia che è ancora fermo.
+    ora += RIDICI_FERMO_MS
+    t.giro(); await t.inCorso(id)
+    expect(fermi()).toBe(2)
   })
 
   it('dopo un riavvio a metà riprende dal passo dove era, leggendo lo stato dal disco', async () => {

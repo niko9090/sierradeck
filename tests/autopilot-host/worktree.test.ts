@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync, existsSync, readFileSync, mkdirSync } from 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  creaWorktree, fattiPubblicazione, gitReale, pianoWorktree, radiceGit, ramoCorrente, salvaLavoro, togliWorktree, unisciRamo
+  creaWorktree, fattiPubblicazione, gitReale, pianoWorktree, radiceGit, ramoCorrente, salvaLavoro, togliCartellaVuota, togliWorktree, togliWorktreeVuoti, unisciRamo
 } from '../../src/autopilot-host/worktree'
 import { comeConsegnare } from '@shared/harness'
 
@@ -102,4 +102,17 @@ describe('una cartella per chat: git worktree (T3)', () => {
     expect(c.comandoPubblica).toBe('npm run deploy')
   })
 
+})
+
+describe('0.73.1: le cartelle vuote dei worktree', () => {
+  it('le cartelle rimaste vuote si tolgono; una con dentro anche un solo file resta', () => {
+    const wt = `${progetto}.sierradeck-wt`
+    mkdirSync(join(wt, 'ap-x-c-1'), { recursive: true })
+    mkdirSync(join(wt, 'ap-x-c-2'), { recursive: true })
+    writeFileSync(join(wt, 'ap-x-c-2', 'lavoro.txt'), 'non toccare')
+    expect(togliWorktreeVuoti(progetto)).toEqual(['ap-x-c-1'])
+    expect(existsSync(join(wt, 'ap-x-c-1'))).toBe(false)
+    expect(readFileSync(join(wt, 'ap-x-c-2', 'lavoro.txt'), 'utf8')).toBe('non toccare')
+    expect(togliCartellaVuota(join(wt, 'non-esiste'))).toBe(false)
+  })
 })

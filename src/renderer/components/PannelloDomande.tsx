@@ -6,7 +6,7 @@ import { LARGHEZZA_DOMANDE } from '@shared/preferenze'
 import { EtichettaOpzione } from './EtichettaOpzione'
 import { Aiuto } from './Aiuto'
 import { SchedaDomandaVista } from './SchedaDomandaVista'
-import { aspettaTe, messaggiInVista, ordinaDomande, prossimaDomanda, tipoDomanda } from '@shared/domande-vista'
+import { aspettaTe, contaAspettanoTe, messaggiInVista, ordinaDomande, prossimaDomanda, tipoDomanda } from '@shared/domande-vista'
 
 const COLORE_DOMANDA: Record<string, string> = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', blu: 'var(--blu)', quieto: 'var(--testo-quieto)' }
 
@@ -154,7 +154,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
   }, [leggi])
 
   const tutte = ordinaDomande(conversazioni ?? [])
-  const quanteAspettanoTe = tutte.filter(aspettaTe).length
+  const quanteAspettanoTe = contaAspettanoTe(tutte)
   const elenco = filtro === 'aspettano' ? tutte.filter(aspettaTe) : tutte
   const aperta = elenco.find((c) => c.chiave === scelta) ?? elenco[0]
   useEffect(() => { setTuttiIMessaggi(false) }, [aperta?.chiave])

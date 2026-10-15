@@ -51,3 +51,13 @@ describe('pagina: la domanda essenziale', () => {
     expect(funzione('schedaDomandaHtml')).toContain("aiuto('sd-' + k, dettagli)")
   })
 })
+
+describe('0.73.1: pagina, controlli dal giro con i clic', () => {
+  it('i menu a tendina hanno lo sfondo scuro come i tasti (il menu «Stato» dei Progetti era bianco)', () => {
+    expect(html).toMatch(/button, input, textarea, select \{[^}]*background: var\(--chassis-premuto\)/)
+  })
+  it('il numero di «Aspettano te» non conta le risposte già date dall’autopilota', () => {
+    const f = funzione('vistaConversazioni')
+    expect(f).toContain("c.vista.id !== 'risposta'")
+  })
+})

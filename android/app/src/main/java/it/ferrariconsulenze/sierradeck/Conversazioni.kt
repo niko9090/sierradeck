@@ -80,8 +80,8 @@ fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Un
     var apertaChiave by remember { mutableStateOf<String?>(null) }
     // PC 0.70: di partenza solo quello che aspetta davvero te; le chat che hanno finito il turno in «Tutte».
     var soloAspettano by remember { mutableStateOf(true) }
-    val nAspettano = tutte.count { aspettaTe(it) }
-    val elenco = if (soloAspettano && nAspettano > 0) tutte.filter { aspettaTe(it) } else tutte
+    val nAspettano = contaAspettanoTe(tutte)
+    val elenco = if (soloAspettano && tutte.any { aspettaTe(it) }) tutte.filter { aspettaTe(it) } else tutte
     val aperta = elenco.firstOrNull { it.chiave == apertaChiave } ?: elenco.first()
     // Quello che hai appena mandato, finche' il computer non lo rimette nel filo.
     val mandati = remember { mutableStateMapOf<String, List<String>>() }

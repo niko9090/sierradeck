@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  ORDINE_STRADE, RIPROVA_RTC_DOPO_MS, SCHERMO_CHAT_MAX, SCHERMO_RIGHE, etichettaStrada, indirizzoPreferito, leggiMessaggioCanale,
+  ORDINE_STRADE, RIPROVA_RTC_DOPO_MS, RIPROVA_RTC_MAX_MS, SCHERMO_CHAT_MAX, pausaRiprovaRtc, rtcDaRiprovare, SCHERMO_RIGHE, etichettaStrada, indirizzoPreferito, leggiMessaggioCanale,
   leggiSchermo, nomeOffertaRtc, nomeRispostaRtc, nonViaDrive, prossimaMossa, richiestaSchermoViva, rottaPermessaSulCanale,
   schermoDaScrivere, segnaleValido, statoDaSchermo, storiaDaSchermo, stradaBreve, stradaDiIndirizzo
 } from '@shared/strada-pc'
@@ -44,6 +44,21 @@ describe('cosa fare a una chiamata', () => {
     expect(prossimaMossa({ ...fallito, rtcFallitoIl: ADESSO - RIPROVA_RTC_DOPO_MS })).toEqual({ mossa: 'drive', avviaRtc: true })
     // Mentre lo si riprova, chi guarda resta sul Drive.
     expect(prossimaMossa({ ...fallito, rtc: 'collegando' })).toEqual({ mossa: 'drive', avviaRtc: false })
+  })
+  it('0.73.1: verso un PC spento la pausa cresce (2, 4, 8, 16, poi 30 min) invece di riprovare ogni 2 minuti', () => {
+    expect([1, 2, 3, 4, 5, 6, 20].map((n) => pausaRiprovaRtc(n) / 60_000)).toEqual([2, 4, 8, 16, 30, 30, 30])
+    expect(pausaRiprovaRtc(0)).toBe(RIPROVA_RTC_DOPO_MS)
+    const fallito = { ...base, diretta: false, rtc: 'fallito' as const }
+    // Al terzo fallimento di fila, 4 minuti non bastano più (era il ciclo visto il 15/10).
+    expect(prossimaMossa({ ...fallito, rtcFallitoIl: ADESSO - 4 * 60_000, rtcFallimenti: 3 })).toEqual({ mossa: 'drive', avviaRtc: false })
+    expect(prossimaMossa({ ...fallito, rtcFallitoIl: ADESSO - 8 * 60_000, rtcFallimenti: 3 })).toEqual({ mossa: 'drive', avviaRtc: true })
+    expect(rtcDaRiprovare({ fallitoIl: ADESSO - RIPROVA_RTC_MAX_MS + 1, fallimentiDiFila: 50, adesso: ADESSO })).toBe(false)
+    expect(rtcDaRiprovare({ fallitoIl: ADESSO - RIPROVA_RTC_MAX_MS, fallimentiDiFila: 50, adesso: ADESSO })).toBe(true)
+  })
+  it('0.73.1: quel PC torna sul Drive (battito dopo il fallimento): si riprova subito, senza aspettare la pausa', () => {
+    const fallito = { ...base, diretta: false, rtc: 'fallito' as const, rtcFallitoIl: ADESSO - 60_000, rtcFallimenti: 6 }
+    expect(prossimaMossa({ ...fallito, vistoIl: ADESSO - 120_000 }).avviaRtc).toBe(false)
+    expect(prossimaMossa({ ...fallito, vistoIl: ADESSO - 5_000 })).toEqual({ mossa: 'drive', avviaRtc: true })
   })
   it('senza Drive: niente WebRTC (lo scambio passa dal Drive) e niente cassetta', () => {
     expect(prossimaMossa({ diretta: false, rtcPossibile: false, rtc: 'spento', drivePossibile: false, adesso: ADESSO })).toEqual({ mossa: 'errore', avviaRtc: false })

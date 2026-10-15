@@ -32,6 +32,20 @@ describe('specialisti', () => {
     ])
   })
 
+  it('0.73.1: una riga salvata nel formato vecchio («3 specialisti») si rifà dai ruoli delle chat', () => {
+    const s = specialistiDi(ap({
+      organizzazione: '3 specialisti, ognuno nella sua chat: Sviluppo, Revisione',
+      chats: [
+        { id: 'c-1', compito: 'a', stato: 'finita', cicli: 1, ruolo: 'sviluppo' },
+        { id: 'c-2', compito: 'b', stato: 'finita', cicli: 1, ruolo: 'sviluppo' },
+        { id: 'c-3', compito: 'c', stato: 'finita', cicli: 1, ruolo: 'revisione' },
+        { id: 'c-4', compito: 'd', stato: 'finita', cicli: 1, ruolo: 'revisione' }
+      ]
+    }))
+    expect(s.riga).toBe('Lavoro diviso fra specialisti, ognuno nella sua chat: Sviluppo, Revisione')
+    expect(s.elenco).toHaveLength(4)
+  })
+
   it('un lavoro piccolo: una chat sola, e la scheda lo dice', () => {
     const s = specialistiDi(ap({ stato: 'lavoro', sessionId: 's-0', organizzazione: rigaChatSola('piccolo'), ultimaAzioneChat: 'Fatto il primo giro.' }))
     expect(s.riga).toBe('Lavoro piccolo: una chat sola, che fa tutto.')

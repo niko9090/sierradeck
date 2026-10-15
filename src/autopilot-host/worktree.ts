@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, rmdirSync } from 'node:fs'
 import { basename, dirname, join, relative } from 'node:path'
 import type { FattiPubblicazione } from '@shared/harness'
 
@@ -167,6 +167,33 @@ export function togliWorktree(git: Git, p: { cwd: string; cartella: string; ramo
   git(['worktree', 'remove', '--force', radiceWt], radice)
   git(['branch', '-d', p.ramo], radice)
   git(['worktree', 'prune'], radice)
+  togliCartellaVuota(radiceWt)
+}
+
+/**
+ * La cartella rimasta vuota (0.73.1). Su Windows, se un processo ha ancora la
+ * cartella come cartella di lavoro (la chat dello specialista aperta), git
+ * toglie i file e il registro ma la cartella resta: il 15/10 quattro cartelle
+ * vuote nella sezione File, e chat riaperte dentro al riavvio. Solo se è
+ * vuota: rmdir non cancella mai un file.
+ */
+export function togliCartellaVuota(cartella: string): boolean {
+  try {
+    if (!existsSync(cartella) || readdirSync(cartella).length > 0) return false
+    rmdirSync(cartella)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Le cartelle vuote rimaste nella cartella dei worktree di un progetto: si ritentano a ogni giro. */
+export function togliWorktreeVuoti(radice: string): string[] {
+  const dir = cartellaWorktreeDi(radice)
+  if (!existsSync(dir)) return []
+  const tolte: string[] = []
+  for (const n of readdirSync(dir)) if (togliCartellaVuota(join(dir, n))) tolte.push(n)
+  return tolte
 }
 
 /** Manda su il ramo principale sul remoto del progetto (solo in autonomia, con le chat sul Drive). */

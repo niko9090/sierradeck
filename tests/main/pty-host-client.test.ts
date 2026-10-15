@@ -226,6 +226,9 @@ describe('PtyHostClient', () => {
       // senza eseguire nulla e questo file non esisterebbe.
       expect(existsSync(marcaSpegnimento)).toBe(true)
       expect(client.isRunning()).toBe(false)
+      // 0.73.1: l'uscita voluta non è un guasto da raccontare nel registro.
+      await new Promise((r) => setTimeout(r, 50))
+      expect(diagnostica.join(' | ')).not.toContain('terminato con codice')
     })
 
     it('termina l host che non risponde allo spegnimento, e lo dichiara', async () => {
