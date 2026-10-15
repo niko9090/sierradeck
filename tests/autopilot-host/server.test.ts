@@ -2168,9 +2168,12 @@ describe('la Revisione decide l’unione, il programma la controlla (0.71.0)', (
     expect(chatAvviate.map((c) => c.compito)).toContain('B')
   })
 
-  it('senza la riga del verdetto si chiede di chiuderla; con i criteri rossi un OK vale «da rifare»', async () => {
-    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, esegui: () => Promise.resolve({ codice: 1, uscita: '2 test rossi' }) })
-    archivio.scrivi(flotta())
+  it('senza la riga del verdetto si chiede di chiuderla; un OK che rompe un criterio vale «da rifare»', async () => {
+    // 0.73.0: rosso sul ramo, verde sul ramo principale: il ramo rompe qualcosa.
+    const ramo = join(process.cwd(), 'tests')
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, esegui: (_c, cwd) => Promise.resolve(cwd === ramo ? { codice: 1, uscita: '2 test rossi' } : { codice: 0, uscita: 'ok' }) })
+    const base = flotta()
+    archivio.scrivi({ ...base, chats: base.chats.map((c) => (c.id === 'c-1' ? { ...c, cartella: ramo } : c)) })
     await avvia(server)
     const senza = await chiama('POST', '/hook/stop?ap=ap-rev&chat=c-2', eventoStop({ last_assistant_message: 'Mi sembra a posto.' }))
     expect(senza.dati.decision).toBe('block')
@@ -2181,7 +2184,18 @@ describe('la Revisione decide l’unione, il programma la controlla (0.71.0)', (
     expect(autore.approvata).toBeUndefined()
     expect(autore.stato).toBe('lavoro')
     expect(autore.rifacimenti).toBe(1)
-    expect(messaggiDiRipresa.join(' ')).toContain('i criteri non passano')
+    expect(messaggiDiRipresa.join(' ')).toContain('il ramo rompe quello che sul ramo principale passava')
+  })
+
+  it('0.73.0: un criterio dell insieme rosso anche sul ramo principale non respinge un ramo giusto', async () => {
+    const ramo = join(process.cwd(), 'tests')
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, esegui: () => Promise.resolve({ codice: 1, uscita: 'b.js manca' }) })
+    const base = flotta()
+    archivio.scrivi({ ...base, chats: base.chats.map((c) => (c.id === 'c-1' ? { ...c, cartella: ramo } : c)) })
+    await avvia(server)
+    await chiama('POST', '/hook/stop?ap=ap-rev&chat=c-2', eventoStop({ last_assistant_message: 'REVISIONE: OK ap/ap-rev/c-1 — src/a.ts:3' }))
+    const autore = (await chiama('GET', '/autopiloti')).dati[0].chats.find((c: any) => c.id === 'c-1')
+    expect(autore.approvata).toBe(true)
   })
 
   it('rimandato indietro troppe volte: la domanda va a Nicholas, con la scelta consigliata', async () => {

@@ -9,7 +9,7 @@ const COLORE: Record<string, string> = { blu: 'var(--blu)', viola: 'var(--viola,
  * lavoro, poi uno per chat — il ruolo con il suo colore, il compito, lo stato,
  * l'ultima cosa detta e «Guarda», che porta al suo riquadro nel workspace.
  */
-export function SpecialistiVista({ autopilota: a }: { autopilota: Autopilota }): React.JSX.Element {
+export function SpecialistiVista({ autopilota: a, onGuarda }: { autopilota: Autopilota; onGuarda?: () => void }): React.JSX.Element {
   const s = specialistiDi(a)
   return (
     <div className="progetti__sezione specialisti">
@@ -28,7 +28,11 @@ export function SpecialistiVista({ autopilota: a }: { autopilota: Autopilota }):
             <button
               className="tasto tasto--mini"
               title="Porta la finestra al riquadro di questa chat"
-              onClick={() => window.dispatchEvent(new CustomEvent('sierradeck:guarda-chat', { detail: { sessionId: x.sessionId, workspace: x.workspace } }))}
+              onClick={() => {
+                // Un pannello sopra il mosaico si chiude: il riquadro va visto (0.73.0).
+                onGuarda?.()
+                window.dispatchEvent(new CustomEvent('sierradeck:guarda-chat', { detail: { sessionId: x.sessionId, workspace: x.workspace } }))
+              }}
             >Guarda</button>
           ) : null}
           <div className="specialisti__compito" title={x.compito}>{x.compito}</div>

@@ -18,7 +18,7 @@ import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
 import { STRATEGIE } from './strategie'
 import { eseguiCriteri, type Esecutore } from './verifiche'
 import { improntaCodice, misuraCriteri, turnoCompleto, type MemoriaCriteri } from './criteri-veloci'
-import { RIFACIMENTI_MAX, RUOLI, ruoloDaTesto, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
+import { RIFACIMENTI_MAX, RUOLI, ruoloDaTesto, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, criteriPeggiorati, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
 import { rigaChatSola, rigaFlotta, rigaUltimaAzione } from '@shared/specialisti'
 import { cronometro, riassuntoTempi, type GiroMisurato } from './tempi'
 import { firmaGiro, registraGiro, spiegaCerchio } from './antiloop'
@@ -1466,6 +1466,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       ? leggiScomposizione((await deps.interroga(componiPromptScomposizione(a, TETTO_CHAT_MAX), a.cwd, undefined)).testo)
       : undefined
     const grafo = scomposti !== undefined ? grafoSenzaCicli(scomposti.filter((c) => c.ruolo !== 'revisione').slice(0, TETTO_CHAT_MAX)) : undefined
+    // 0.73.0: com'è andata la divisione, nel registro (prima non se ne sapeva niente).
+    if (provaFlotta) console.info(`[autopilota] ${a.id} — divisione: ${scomposti === undefined ? 'risposta del coordinatore illeggibile, una chat sola' : `${scomposti.length} ${scomposti.length === 1 ? 'compito' : 'compiti'} (${scomposti.map((c) => RUOLI[c.ruolo].nome).join(', ')})`}`)
     const compitiUtili = grafo !== undefined && grafo.compiti.length > 0 ? grafo.compiti.map((c) => c.compito) : [a.obiettivo]
     if (compitiUtili.length > 1 && grafo !== undefined) {
       const ruoliCompiti = Object.fromEntries(grafo.compiti.map((c) => [c.compito, { ruolo: c.ruolo, dopo: c.dipendeDa.map((i) => grafo.compiti[i]?.compito ?? '').filter((x) => x !== '') }]))
@@ -1492,7 +1494,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     a = {
       ...a,
       tettoChat: 1,
-      organizzazione: base === undefined ? rigaChatSola('senza-git') : freno.tetto <= 1 ? rigaChatSola('limiti', freno.motivo) : rigaChatSola('piccolo')
+      organizzazione: base === undefined ? rigaChatSola('senza-git') : freno.tetto <= 1 ? rigaChatSola('limiti', freno.motivo) : scomposti === undefined ? rigaChatSola('illeggibile') : rigaChatSola('piccolo')
     }
     // L'id della sessione lo decidiamo noi, prima di partire: è così che il
     // Gestore sa quale trascrizione seguire e può **mostrare** la
@@ -1804,11 +1806,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (letto === undefined) {
       return { decision: 'block', reason: `Chiudi la revisione del ramo ${autore.ramo ?? autore.id} con una riga sola, l’ultima del messaggio:\nREVISIONE: OK ${autore.ramo ?? ''} — con almeno un file:riga che hai controllato\noppure\nREVISIONE: DA RIFARE ${autore.ramo ?? ''}: cosa correggere, con file:riga` }
     }
-    // I criteri misurati nel ramo rivisto, non nella cartella principale.
+    // I criteri misurati nel ramo rivisto e sul ramo principale (0.73.0): il
+    // ramo non deve rompere quello che là passa (vedi `verdettoAccettato`).
+    const misura = (cartella: string): ReturnType<typeof misuraCriteri> => misuraCriteri(a.criteri, cartella, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, ...(deps.git !== undefined && improntaCodice(deps.git, cartella) !== undefined ? { impronta: improntaCodice(deps.git, cartella) as string } : {}) })
     const dove = autore.cartella ?? a.cwd
-    const m = await misuraCriteri(a.criteri, dove, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, ...(deps.git !== undefined && improntaCodice(deps.git, dove) !== undefined ? { impronta: improntaCodice(deps.git, dove) as string } : {}) })
-    const verdi = m.esiti.every((e) => e.passato)
-    let v = verdettoAccettato(letto, verdi, messaggio)
+    const sulRamo = await misura(dove)
+    const sulPrincipale = dove === a.cwd ? sulRamo : await misura(a.cwd)
+    let v = verdettoAccettato(letto, criteriPeggiorati(sulPrincipale.esiti, sulRamo.esiti), messaggio)
     let fresco = deps.archivio.leggi(a.id) ?? a
     fresco = conStatoChat(fresco, chatId, 'finita')
     if (v.esito === 'ok' && deps.git !== undefined && autore.ramo !== undefined && fresco.ramoBase !== undefined) {

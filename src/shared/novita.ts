@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.73.0',
+    righe: [
+      '**Domande essenziali:** una scheda per domanda, con la chat e il progetto in piccolo, la domanda in una frase, le risposte come tasti (la consigliata con ★) e «Scrivi tu». Il resto (cosa sta facendo, perché, cosa succede con ogni scelta) sta dietro il «?». Niente più cronologia. Sul PC, sulla pagina e nell’app.',
+      '**Niente più righe «consegnato alle»:** un messaggio arrivato alla chat è una piccola spunta ✓, con l’ora passandoci sopra. Una riga compare solo se un messaggio è fermo, con «Manda adesso».',
+      '**Specialisti visibili:** l’autopilota decide se dividere il lavoro. Ogni specialista (Sviluppo, Collaudo, Revisione…) lavora in una chat sua, con il ruolo nel nome del riquadro. La scheda mostra chi fa cosa, l’ultima azione e «Guarda». Per un lavoro piccolo resta una chat sola, e la scheda dice perché.',
+      '**Corretti:** una chat ferma restava «al lavoro» e i messaggi non le arrivavano. Una chat di un altro PC si avviava da sola aprendo un suo workspace o dopo un riavvio: adesso si apre solo con un tuo comando. La lista degli autopiloti dice le stesse cose sul PC, sulla pagina e nell’app, senza doppioni. Una risposta dell’autopilota con virgolette o molto lunga non va più persa.'
+    ]
+  },
+  {
     versione: '0.72.0',
     righe: [
       '**Messo in sicurezza dopo la cancellazione di AppData\\Local del 14/10.** Il programma non fa più girare comandi senza nessuno davanti: i criteri di un autopilota finito non si rimisurano più da soli ogni 10 minuti, ma solo mentre lavora o quando premi «Ricontrolla i criteri».',

@@ -60,11 +60,13 @@ export function titoloChatSpecialista(nomeAutopilota: string, ruolo: Ruolo | und
 /** La riga dell'organizzazione quando il lavoro si divide fra specialisti. */
 export function rigaFlotta(ruoli: Ruolo[]): string {
   const nomi = [...new Set(ruoli)].map((r) => RUOLI[r].nome)
-  return `${ruoli.length} specialisti, ognuno nella sua chat: ${nomi.join(', ')}`
+  // Senza il numero: le Revisioni sono una per ramo, e il conto sta nell'elenco sotto.
+  return `Lavoro diviso fra specialisti, ognuno nella sua chat: ${nomi.join(', ')}`
 }
 
 /** La riga quando resta una chat sola, con il perché. */
-export function rigaChatSola(perche: 'piccolo' | 'senza-git' | 'limiti', dettaglio?: string): string {
+export function rigaChatSola(perche: 'piccolo' | 'senza-git' | 'limiti' | 'illeggibile', dettaglio?: string): string {
+  if (perche === 'illeggibile') return 'Una chat sola: la divisione in compiti non si è letta, quindi lavora una chat che fa tutto.'
   if (perche === 'senza-git') return 'Una chat sola: il progetto non usa git, e senza cartelle separate gli specialisti si pesterebbero i file.'
   if (perche === 'limiti') return `Una chat sola: ${dettaglio ?? 'i limiti del piano non permettono più chat insieme'}.`
   return 'Lavoro piccolo: una chat sola, che fa tutto.'

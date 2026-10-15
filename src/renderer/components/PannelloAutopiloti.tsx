@@ -479,7 +479,7 @@ export function PannelloAutopiloti({
                 <RigaDalVivo autopilota={sel} />
               </div>
               <MessaggiVersoLaChat autopilota={sel} onCambiato={onRicarica} />
-              <SpecialistiVista autopilota={sel} />
+              <SpecialistiVista autopilota={sel} onGuarda={onChiudi} />
               <div className="progetti__quieto">Il dialogo, il diario, le istruzioni e i file stanno nella sua scheda, accanto alla sua chat.</div>
             </div>
           </div>

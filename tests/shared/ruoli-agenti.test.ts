@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   RUOLI, chatDaRivedere, citaUnFile, compitiFatti, grafoSenzaCicli, leggiScomposizione, leggiVerdetto,
-  preamboloRuolo, prontoDaAprire, ruoloDaTesto, testoRevisione, verdettoAccettato
+  preamboloRuolo, prontoDaAprire, ruoloDaTesto, testoRevisione, verdettoAccettato, criteriPeggiorati
 } from '../../src/shared/ruoli-agenti'
 
 /** 0.71.0: gli agenti specializzati dell'autopilota. */
@@ -74,11 +74,22 @@ describe('il verdetto della Revisione', () => {
     expect(leggiVerdetto('Tutto bene, secondo me.')).toBeUndefined()
   })
 
-  it('il programma non timbra a occhi chiusi: OK con criteri rossi o senza file vale «da rifare»', () => {
+  it('il programma non timbra a occhi chiusi: OK che rompe un criterio o senza file vale «da rifare»', () => {
     const ok = { esito: 'ok' as const, ramo: 'r', note: 'src/a.ts:3' }
-    expect(verdettoAccettato(ok, true, '').esito).toBe('ok')
-    expect(verdettoAccettato(ok, false, '').esito).toBe('rifare')
-    expect(verdettoAccettato({ esito: 'ok', note: 'tutto bene' }, true, 'tutto bene').esito).toBe('rifare')
+    expect(verdettoAccettato(ok, [], '').esito).toBe('ok')
+    expect(verdettoAccettato(ok, ['i test passano'], '')).toMatchObject({ esito: 'rifare', note: expect.stringContaining('i test passano') })
+    expect(verdettoAccettato({ esito: 'ok', note: 'tutto bene' }, [], 'tutto bene').esito).toBe('rifare')
     expect(citaUnFile('vedi Modelli.kt:12')).toBe(true)
+  })
+})
+
+describe('0.73.0: un ramo fa un pezzo, non tutto', () => {
+  it('IL DIFETTO del 15/10: «a.js e b.js esistono» rosso sia sul principale sia sul ramo di a.js non respinge il ramo', () => {
+    const base = [{ descrizione: 'i test passano', passato: true }, { descrizione: 'a.js e b.js esistono', passato: false }]
+    const ramo = [{ descrizione: 'i test passano', passato: true }, { descrizione: 'a.js e b.js esistono', passato: false }]
+    expect(criteriPeggiorati(base, ramo)).toEqual([])
+  })
+  it('un ramo che rompe i test sì', () => {
+    expect(criteriPeggiorati([{ descrizione: 'i test passano', passato: true }], [{ descrizione: 'i test passano', passato: false }])).toEqual(['i test passano'])
   })
 })

@@ -1,6 +1,6 @@
 import type { Autopilota, ChatGovernata, MessaggioPerLaChat } from '@shared/autopilota'
 import type { CambioChiesto } from './supervisore'
-import { campoTestoTollerante, ultimoOggettoCon } from './json-tollerante'
+import { campoTestoTollerante, ultimoOggettoCon } from '@shared/json-tollerante'
 
 /**
  * Il dialogo con l'autopilota, fuori dalla chat.

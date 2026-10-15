@@ -25,7 +25,7 @@ describe('specialisti', () => {
         { id: 'c-2', compito: 'prova dal vero', stato: 'pausa', cicli: 0, ruolo: 'collaudo' }
       ]
     }))
-    expect(s.riga).toBe('3 specialisti, ognuno nella sua chat: Sviluppo, Collaudo, Revisione')
+    expect(s.riga).toBe('Lavoro diviso fra specialisti, ognuno nella sua chat: Sviluppo, Collaudo, Revisione')
     expect(s.elenco).toEqual([
       { id: 'c-1', ruolo: 'Sviluppo', colore: 'blu', compito: 'scrivi la funzione', stato: 'al lavoro', attivo: true, ultimaAzione: 'Ho aggiunto il test.', sessionId: 's-1', workspace: 'Notte' },
       { id: 'c-2', ruolo: 'Collaudo', colore: 'verde', compito: 'prova dal vero', stato: 'in pausa per i limiti del piano', attivo: false, ultimaAzione: '', workspace: 'Notte' }

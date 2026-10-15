@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { leggiEsitoDialogo } from '../../src/autopilot-host/dialogo'
-import { campoTestoTollerante, riparaJson, ultimoOggettoCon } from '../../src/autopilot-host/json-tollerante'
+import { campoTestoTollerante, riparaJson, ultimoOggettoCon } from '../../src/shared/json-tollerante'
 
 /**
  * 0.72.1: due risposte dell'autopilota a Nicholas (15/10) sono finite in

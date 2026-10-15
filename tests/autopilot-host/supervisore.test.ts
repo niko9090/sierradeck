@@ -218,21 +218,21 @@ describe('l ambiente con cui parte il supervisore', () => {
 })
 
 describe('quando conviene dividere il lavoro fra piu chat', () => {
-  it('dice che il caso normale e una chat sola', () => {
+  it('lavoro piccolo una chat sola; parti distinte, uno specialista per parte (0.73.0)', () => {
     // L'utente: «le chat le deve aprire se obbligato per dividere i compiti,
     // ma se non e' necessario puo' far andare gli agenti nella chat
-    // principale». Il tetto e' un permesso, non un traguardo: chiedere di
-    // spezzare in N faceva aprire N conversazioni da seguire per un lavoro che
-    // ne voleva una.
+    // principale». E il 15/10: «ogni autopilota sceglie gli specialisti che
+    // gli servono e li fa lavorare ognuno in una chat sua; per un lavoro
+    // piccolo usa una sola chat». Il tetto resta un permesso, non un traguardo.
     const p = componiPromptScomposizione(ap(), 3)
-    expect(p).toContain('Il caso normale è una chat sola')
-    expect(p).toContain('nel dubbio')
-    expect(p).toContain('agenti')
+    expect(p).toContain('**Lavoro piccolo** (una modifica, un file, pochi minuti): un compito solo, una chat sola.')
+    expect(p).toContain('Due pezzi che non si toccano sono due compiti.')
+    expect(p).toContain('non inventare compiti per riempire')
   })
 
   it('dice qual e il tetto senza farne un obiettivo', () => {
     const p = componiPromptScomposizione(ap(), 4)
     expect(p).toContain('da uno a 4 compiti')
-    expect(p).toContain('tetto tecnico di sicurezza, non un obiettivo')
+    expect(p).toContain('è il tetto tecnico, non un obiettivo')
   })
 })

@@ -3740,6 +3740,9 @@ function specialistiHtml(s) {
 window.guardaSpecialista = function (sessione) {
   var c = ((ultimoStato && ultimoStato.chat) || []).find(function (x) { return x.sessione === sessione })
   if (!c) { notaGlobale = 'La sua chat non è aperta su questo computer adesso.'; aggiorna(); return }
+  // Si esce dalla scheda dell'autopilota e si va nella sezione Chat, dentro quella chat.
+  chiudiAp()
+  vaiScheda('chat')
   guarda(c.id)
 }
 function alberoHtml(a) {

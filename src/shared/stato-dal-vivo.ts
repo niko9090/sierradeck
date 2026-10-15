@@ -89,7 +89,7 @@ export function statoMessaggi(a: Pick<Autopilota, 'daConsegnare' | 'inVolo' | 'c
  * arrivato è una spunta ✓ (l'ora e il testo nel tooltip); «in consegna» un
  * puntino; **una riga sola**, e solo se qualcosa è fermo: «in attesa da N min»
  * con «Manda adesso». Lavora sull'elenco di sempre: va anche con un PC vecchio.
- * Copiata nella pagina (`messaggiCompattiJs`) e nell'app (`MessaggiCompatti.kt`).
+ * Copiata nella pagina (`messaggiCompattiJs`) e nell'app (`messaggiCompatti` in `SchedaDomandaVista.kt`).
  */
 export type MessaggiCompatti = {
   segni: { id: string; tipo: 'consegnato' | 'in consegna'; titolo: string }[]

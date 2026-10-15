@@ -1,3 +1,5 @@
+import { ultimoOggettoCon } from './json-tollerante'
+
 /**
  * Gli agenti specializzati dell'autopilota (0.71.0). Nicholas: «soprattutto
  * li voglio specializzati».
@@ -80,12 +82,9 @@ export type CompitoRuolo = { compito: string; ruolo: Ruolo; dipendeDa: number[] 
  * le dipendenze fuori elenco o verso sé stessi si scartano.
  */
 export function leggiScomposizione(testo: string): CompitoRuolo[] | undefined {
-  const inizio = testo.indexOf('{')
-  const fine = testo.lastIndexOf('}')
-  if (inizio === -1 || fine <= inizio) return undefined
-  let o: unknown
-  try { o = JSON.parse(testo.slice(inizio, fine + 1)) } catch { return undefined }
-  const grezzi = (o as { compiti?: unknown } | null)?.compiti
+  // 0.73.0: con il lettore tollerante (virgolette non protette, testo intorno).
+  const o = ultimoOggettoCon(testo, 'compiti')
+  const grezzi = o?.compiti
   if (!Array.isArray(grezzi)) return undefined
   const compiti: CompitoRuolo[] = []
   for (const g of grezzi) {
@@ -166,11 +165,23 @@ export function citaUnFile(testo: string): boolean {
  * Il programma non timbra a occhi chiusi: un OK vale solo con i criteri del
  * ramo verdi e almeno un file citato; altrimenti è «da rifare», con il perché.
  */
-export function verdettoAccettato(v: Verdetto, criteriVerdi: boolean, messaggio: string): Verdetto {
+export function verdettoAccettato(v: Verdetto, peggiorati: string[], messaggio: string): Verdetto {
   if (v.esito !== 'ok') return v
-  if (!criteriVerdi) return { esito: 'rifare', ...(v.ramo !== undefined ? { ramo: v.ramo } : {}), note: `La revisione diceva OK, ma sul ramo i criteri non passano: prima si sistemano quelli. ${v.note}`.trim() }
+  // 0.73.0: un ramo fa un pezzo del lavoro, non tutto. I criteri dell'insieme
+  // («a.js e b.js esistono») su un ramo che fa solo a.js non passeranno mai:
+  // pretenderli faceva rimandare indietro per sempre un lavoro giusto (provato
+  // dal vero il 15/10: 6 rifacimenti, poi la domanda a Nicholas). Il ramo non
+  // deve **rompere** niente: un criterio che passa sul ramo principale deve
+  // passare anche lì. I criteri dell'insieme si misurano dopo l'unione.
+  if (peggiorati.length > 0) return { esito: 'rifare', ...(v.ramo !== undefined ? { ramo: v.ramo } : {}), note: `La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: ${peggiorati.join('; ')}. Prima si sistema questo. ${v.note}`.trim() }
   if (!citaUnFile(`${v.note}\n${messaggio}`)) return { esito: 'rifare', ...(v.ramo !== undefined ? { ramo: v.ramo } : {}), note: 'La revisione diceva OK senza citare nessun file controllato: va rifatta guardando davvero il diff.' }
   return v
+}
+
+/** I criteri che passano sul ramo principale e non sul ramo rivisto (0.73.0). */
+export function criteriPeggiorati(base: { descrizione: string; passato: boolean }[], ramo: { descrizione: string; passato: boolean }[]): string[] {
+  const passaPrima = new Set(base.filter((e) => e.passato).map((e) => e.descrizione))
+  return ramo.filter((e) => !e.passato && passaPrima.has(e.descrizione)).map((e) => e.descrizione)
 }
 
 /** Dopo quanti «da rifare» sullo stesso compito si chiede a Nicholas. */
