@@ -49,17 +49,22 @@ describe('la vista a elenco', () => {
 })
 
 describe('le chat finite si tolgono da sole', () => {
-  const ap = (id: string, stato: string, chats: { id: string; stato: string }[] = [], archiviato?: boolean) =>
+  const ap = (id: string, stato: string, chats: { id: string; stato: string; ruolo?: string }[] = [], archiviato?: boolean) =>
     ({ id, stato, chats, ...(archiviato === true ? { archiviato } : {}) }) as unknown as Parameters<typeof chatDaSistemare>[1] extends (infer T)[] | undefined ? T : never
-  const r = (paneId: string, id: string, chat: string, remoto?: boolean) => ({ paneId, autopilota: { id, chat }, ...(remoto === true ? { remoto } : {}) })
+  const r = (paneId: string, id: string, chat: string, remoto?: boolean, occupata?: boolean) => ({ paneId, autopilota: { id, chat }, ...(remoto === true ? { remoto } : {}), ...(occupata === true ? { occupata } : {}) })
 
   it('lo specialista che ha finito chiude la sua chat; quello che lavora resta', () => {
-    const a = ap('ap1', 'lavoro', [{ id: 'c-1', stato: 'finita' }, { id: 'c-2', stato: 'lavoro' }])
+    const a = ap('ap1', 'lavoro', [{ id: 'c-1', stato: 'finita', ruolo: 'sviluppo' }, { id: 'c-2', stato: 'lavoro', ruolo: 'revisione' }])
     expect(chatDaSistemare([r('p1', 'ap1', 'c-1'), r('p2', 'ap1', 'c-2')], [a])).toEqual({ chiudi: ['p1'], libera: [] })
   })
 
-  it('l’autopilota finito chiude tutte le sue chat, anche quella unica', () => {
-    expect(chatDaSistemare([r('p1', 'ap1', 'principale'), r('p2', 'ap1', 'c-2')], [ap('ap1', 'finito', [{ id: 'c-2', stato: 'lavoro' }])])).toEqual({ chiudi: ['p1', 'p2'], libera: [] })
+  it('0.74.1: l’autopilota finito chiude le chat degli specialisti; la sua chat principale non si chiude mai, torna tua', () => {
+    expect(chatDaSistemare([r('p1', 'ap1', 'ap1'), r('p2', 'ap1', 'c-2')], [ap('ap1', 'finito', [{ id: 'c-2', stato: 'lavoro', ruolo: 'sviluppo' }])])).toEqual({ chiudi: ['p2'], libera: ['p1'] })
+  })
+
+  it('0.74.1: uno specialista finito che sta ancora scrivendo o chiede qualcosa non si chiude (si riprova dopo)', () => {
+    const a = ap('ap1', 'lavoro', [{ id: 'c-1', stato: 'finita', ruolo: 'sviluppo' }])
+    expect(chatDaSistemare([r('p1', 'ap1', 'c-1', false, true)], [a])).toEqual({ chiudi: [], libera: [] })
   })
 
   it('l’autopilota fermo, fallito, archiviato o sparito: la chat resta aperta ma torna tua', () => {

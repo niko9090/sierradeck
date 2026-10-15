@@ -1,0 +1,94 @@
+{
+  "stato": 200,
+  "corpo": {
+    "domandeInAttesa": 0,
+    "chat": [
+      {
+        "id": "p-1",
+        "titolo": "Gestore",
+        "cwd": "C:/p",
+        "sessione": "s-1",
+        "workspace": "lavoro",
+        "aspetta": true,
+        "governata": false,
+        "viva": true,
+        "ultimaRiga": "> ",
+        "chiede": false
+      },
+      {
+        "id": "p-2",
+        "titolo": "Sviluppo · Notte",
+        "cwd": "C:/p.sierradeck-wt/ap-1-c-1",
+        "sessione": "s-2",
+        "workspace": "lavoro",
+        "aspetta": false,
+        "governata": true,
+        "autopilota": {
+          "id": "ap-1",
+          "chat": "c-1"
+        },
+        "viva": true,
+        "chiede": false
+      }
+    ],
+    "progetti": [],
+    "autopiloti": [
+      {
+        "id": "ap-1",
+        "nome": "Notte",
+        "stato": "lavoro",
+        "led": "led--lavoro",
+        "dalVivo": {
+          "etichetta": "al lavoro",
+          "da": "64 g",
+          "ultimaAzione": "",
+          "senzaSegni": "nessun segno da 64 g"
+        },
+        "vista": {
+          "stato": {
+            "id": "senza-segni",
+            "parola": "senza segni",
+            "colore": "ambra",
+            "ragione": "nessun segno da 64 g"
+          },
+          "gruppi": [
+            "aspettano",
+            "lavoro"
+          ],
+          "criteri": {
+            "fatti": 1,
+            "totali": 1,
+            "testo": "1/1"
+          },
+          "chat": {
+            "totali": 0,
+            "alLavoro": 0,
+            "testo": "—"
+          },
+          "ultima": "",
+          "da": "64 g",
+          "azione": "ferma"
+        },
+        "cicli": 0,
+        "cwd": "C:/p",
+        "fatti": 1,
+        "criteri": 1
+      }
+    ],
+    "autopilotiLetti": true,
+    "domande": [],
+    "workspace": {
+      "nomi": [
+        "lavoro"
+      ],
+      "attivo": "lavoro"
+    },
+    "aggiornamento": {
+      "fase": "aggiornato"
+    },
+    "computer": {
+      "nome": "",
+      "versione": "0.73.0"
+    }
+  }
+}

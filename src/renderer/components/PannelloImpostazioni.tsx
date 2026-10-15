@@ -1,5 +1,6 @@
 import { TendinaMenu } from './TendinaMenu'
 import { useEffect, useState } from 'react'
+import { RigaMigrazione } from './RigaMigrazione'
 import {
   coloreValido, portaValida, PREFERENZE_PREDEFINITE, type Preferenze
 } from '@shared/preferenze'
@@ -388,6 +389,7 @@ Le porte cambiate valgono al prossimo avvio: un servizio in ascolto non
         {vede('pin', 'iberna', 'attesa-chat', 'posto-autopilota') ? (
           <section className="impostazioni__gruppo">
             <Testa id="chat" />
+            {vede('iberna') ? <RigaMigrazione /> : null}
             {vede('iberna') ? <>
           <label className="impostazioni__riga impostazioni__riga--spunta">
             <input

@@ -210,6 +210,7 @@ import { apriDestinazioni } from './trasferimenti/destinazioni'
 import { creaTrasferimenti, type Trasferimenti } from './trasferimenti/servizio'
 import type { Richiesta } from './trasferimenti/coda'
 import { rinominaInElenco } from '@shared/vista-elenco'
+import { creaMigrazione, type Migrazione } from './migrazione-elenco'
 
 /**
  * Chi è questo PC (0.52.4): l'identità, con il nome scelto, letta anche dal
@@ -363,6 +364,8 @@ function chatDiQui(): Chat[] {
 }
 let db: Db | undefined
 let workspaceStore: WorkspaceStore | undefined
+/** La trasformazione dei workspace (0.74.1): anche per il Client (pagina e app). */
+let migrazioneGlobale: Migrazione | undefined
 let providerStore: ReturnType<typeof apriProviderStore> | undefined
 let inChiusura = false
 /** Il server del Client, quando e' in ascolto. */
@@ -1371,6 +1374,32 @@ if (!app.requestSingleInstanceLock()) {
         const esito = riparaListaAllAvvio({ dati, store: workspaceStore, io: apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir(), documenti: () => app.getPath('documents') }).leggi(), radiceProgetti: join(homedir(), '.claude', 'projects'), log: registro.info })
         ultimaRiparazione = { ...esito, quando: new Date().toISOString() }
       } catch (err) { registro.info(`[workspace] riparazione all’avvio non riuscita: ${String(err)}`) }
+      // **La trasformazione dei workspace** (0.74.1, decisione di Nicholas):
+      // tutti quelli di questo PC passano alla vista a elenco, ognuno con il suo
+      // autopilota dormiente. Prima che nasca una finestra, una volta sola,
+      // senza toccare niente che lavora; se non riesce, tutto resta com'era e
+      // il programma parte lo stesso. Le regole in `migrazione-elenco.ts`.
+      try {
+        const negozio = workspaceStore
+        migrazioneGlobale = creaMigrazione({
+          dati,
+          leggiArchivio: () => negozio.leggi(),
+          leggiElenco: () => impostazioni.preferenze().workspaceElenco,
+          scriviElenco: (lista) => {
+            const nuove = impostazioni.impostaPreferenze({ ...impostazioni.preferenze(), workspaceElenco: lista })
+            for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('preferenze:cambiate', nuove)
+          },
+          log: (riga) => registro.info(riga),
+          errore: (riga) => registro.errore(riga)
+        })
+        migrazioneGlobale.esegui()
+      } catch (err) { registro.errore(`[migrazione] non partita: ${String(err)}`) }
+      const annunciaMigrazione = (): void => {
+        for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('migrazione:cambiata')
+      }
+      ipcMain.handle('migrazione:stato', () => migrazioneGlobale?.stato() ?? null)
+      ipcMain.handle('migrazione:torna', () => { const r = migrazioneGlobale?.tornaComePrima() ?? { ok: false, messaggio: 'non disponibile' }; annunciaMigrazione(); return r })
+      ipcMain.handle('migrazione:rifai', () => { const r = migrazioneGlobale?.rifai(); annunciaMigrazione(); return { ok: r?.esito === 'fatta', messaggio: r?.esito === 'fatta' ? 'Fatto: tutti i workspace sono a elenco.' : `Non riuscita: ${r?.stato?.motivo ?? 'motivo sconosciuto'}` } })
       // Dove stavano le finestre: va aperto prima che ne nasca una, perche' e'
       // la prima ad avere bisogno di sapere dove tornare.
       finestreStore = apriFinestreStore(dati)
@@ -5479,6 +5508,11 @@ if (!app.requestSingleInstanceLock()) {
           ? ponteVersoPc(pc, percorso, corpo, dispositivo)
           : Promise.resolve({ stato: 409, corpo: { errore: 'Il collegamento con gli altri PC non è ancora pronto: riprova fra qualche secondo.' } }),
         aggiornamento: () => aggiornamenti?.stato() ?? { fase: 'fermo' },
+        migrazione: {
+          stato: () => migrazioneGlobale?.stato() ?? null,
+          torna: () => { const e = migrazioneGlobale?.tornaComePrima() ?? { ok: false, messaggio: 'non disponibile' }; for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('migrazione:cambiata'); return e },
+          rifai: () => { const e = migrazioneGlobale?.rifai(); for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('migrazione:cambiata'); return { ok: e?.esito === 'fatta', messaggio: e?.esito === 'fatta' ? 'Fatto: tutti i workspace sono a elenco.' : `Non riuscita: ${e?.stato?.motivo ?? 'motivo sconosciuto'}` } }
+        },
         cercaAggiornamento: () => { void aggiornamenti?.cerca(true) },
         scaricaAggiornamento: () => { void aggiornamenti?.scarica(true) },
         // Installare chiude il programma con le chat aperte dentro: dal telefono

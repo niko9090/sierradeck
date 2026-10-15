@@ -1,0 +1,230 @@
+{
+  "pcId": "pc-vecchio-0690",
+  "nome": "PC-VECCHIO-0.69.0",
+  "host": "HOST-0.69.0",
+  "versione": "0.69.0",
+  "battito": "2026-10-13T02:24:57.150Z",
+  "cartelle": [
+    "C:\\progetti\\progetto-44",
+    "C:\\progetti\\progetto-45",
+    "C:\\progetti\\progetto-46",
+    "C:\\progetti\\progetto-37",
+    "C:\\progetti\\progetto-47",
+    "C:\\progetti\\progetto-48",
+    "C:\\progetti\\progetto-49",
+    "C:\\progetti\\progetto-50",
+    "C:\\progetti\\progetto-51",
+    "C:\\progetti\\progetto-52",
+    "C:\\progetti\\progetto-53",
+    "C:\\progetti\\progetto-54",
+    "C:\\progetti\\progetto-55",
+    "C:\\progetti\\progetto-56",
+    "C:\\progetti\\progetto-57",
+    "C:\\progetti\\progetto-58",
+    "C:\\progetti\\progetto-59",
+    "C:\\progetti\\progetto-41",
+    "C:\\progetti\\progetto-60",
+    "C:\\progetti\\progetto-61",
+    "C:\\progetti\\progetto-62",
+    "C:\\progetti\\progetto-63",
+    "C:\\progetti\\progetto-64",
+    "C:\\progetti\\progetto-38",
+    "C:\\progetti\\progetto-39",
+    "C:\\progetti\\progetto-40",
+    "C:\\progetti\\progetto-42",
+    "C:\\progetti\\progetto-65",
+    "C:\\progetti\\progetto-66",
+    "C:\\progetti\\progetto-33"
+  ],
+  "chat": [
+    {
+      "sessione": "00000000-0000-4000-8000-000000000357",
+      "titolo": "una chat",
+      "cwd": "C:\\progetti\\progetto-64",
+      "aspetta": true
+    }
+  ],
+  "locali": {
+    "chat": [
+      {
+        "sessione": "00000000-0000-4000-8000-000000000358",
+        "cwd": "C:\\progetti\\progetto-64",
+        "mtime": 1791834600000,
+        "size": 2467763
+      },
+      {
+        "sessione": "00000000-0000-4000-8000-000000000359",
+        "cwd": "C:\\progetti\\progetto-64",
+        "mtime": 1791818400000,
+        "size": 589987
+      },
+      {
+        "sessione": "00000000-0000-4000-8000-000000000360",
+        "cwd": "C:\\progetti\\progetto-64",
+        "mtime": 1791668400000,
+        "size": 39602768
+      },
+      {
+        "sessione": "00000000-0000-4000-8000-000000000361",
+        "cwd": "C:\\progetti\\progetto-37",
+        "mtime": 1791658200000,
+        "size": 2701263
+      },
+      {
+        "sessione": "00000000-0000-4000-8000-000000000362",
+        "cwd": "C:\\progetti\\progetto-34",
+        "mtime": 1790953200000,
+        "size": 262881
+      },
+      {
+        "sessione": "00000000-0000-4000-8000-000000000363",
+        "cwd": "C:\\progetti\\progetto-35",
+        "mtime": 1790952000000,
+        "size": 29282622
+      },
+      {
+        "sessione": "00000000-0000-4000-8000-000000000364",
+        "cwd": "C:\\progetti\\progetto-34",
+        "mtime": 1790949600000,
+        "size": 197494
+      },
+      {
+        "sessione": "00000000-0000-4000-8000-000000000365",
+        "cwd": "C:\\progetti\\progetto-35",
+        "mtime": 1790949000000,
+        "size": 4282142
+      }
+    ],
+    "progetti": [
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      },
+      {
+        "id": "anonimo",
+        "percorso": "anonimo"
+      }
+    ]
+  },
+  "workspace": [
+    "workspace-17",
+    "workspace-18",
+    "workspace-1",
+    "workspace-2",
+    "workspace-3",
+    "workspace-4",
+    "workspace-5",
+    "workspace-6",
+    "workspace-7",
+    "workspace-16",
+    "workspace-15",
+    "workspace-19",
+    "workspace-20",
+    "workspace-8",
+    "workspace-9",
+    "workspace-10"
+  ],
+  "client": {
+    "inAscolto": true
+  },
+  "risorse": {
+    "cpu": 0,
+    "ramMb": 525,
+    "processi": 4,
+    "driveAlMinuto": 44.9,
+    "drivePerTipo": {
+      "ricerca": 375,
+      "scrittura": 4,
+      "scarica": 70
+    },
+    "driveRifiutate": 0,
+    "misuratoIl": "anonimo"
+  },
+  "indirizzi": [
+    "192.0.2.2",
+    "100.64.0.2",
+    "192.0.2.2",
+    "192.0.2.2"
+  ],
+  "porta": 47640
+}

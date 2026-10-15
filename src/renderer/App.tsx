@@ -66,6 +66,7 @@ import { useAvviaNomiPc } from './state/nomi-pc'
 import { ElencoWorkspace } from './components/ElencoWorkspace'
 import { cambiaVistaElenco, chatDavanti, ruoloDalTitolo, type VoceElenco } from '@shared/vista-elenco'
 import { chatDaSistemare } from '@shared/chat-governate'
+import type { StatoMigrazione } from '@shared/migrazione-elenco'
 
 /**
  * Quante righe dello schermo vanno al telefono.
@@ -938,6 +939,14 @@ export function App(): React.JSX.Element {
     return () => window.removeEventListener('sierradeck:vista-elenco', accendi)
   }, [impostaElenco])
   const [davantiScelto, setDavantiScelto] = useState<string | undefined>(undefined)
+  // La trasformazione dei workspace (0.74.1): per la banda e per gli autopiloti dormienti.
+  const [migrazione, setMigrazione] = useState<StatoMigrazione | null>(null)
+  const [notaMigrazione, setNotaMigrazione] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    const leggi = (): void => { void window.gestore.migrazione.stato().then(setMigrazione).catch(() => undefined) }
+    leggi()
+    return window.gestore.migrazione.suCambio(leggi)
+  }, [])
   // Un workspace creato da fuori dal suo pannello (0.74.0: «+ Nuovo autopilota»): si rilegge lo stato.
   useEffect(() => {
     const rileggi = (): void => { void window.gestore.workspace.stato().then((s) => aggiornaWorkspaceRef.current(s)).catch(() => undefined) }
@@ -1067,7 +1076,9 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     if (erroreAutopiloti !== undefined) return
     const s = useLayoutStore.getState()
-    const riquadri = Object.values(s.panes).flatMap((p) => (p.autopilota !== undefined ? [{ paneId: p.id, autopilota: p.autopilota, remoto: p.remoto !== undefined }] : []))
+    const riquadri = Object.values(s.panes).flatMap((p) => (p.autopilota !== undefined
+      ? [{ paneId: p.id, autopilota: p.autopilota, remoto: p.remoto !== undefined, occupata: (p.ptyId !== undefined && pensano.has(p.ptyId)) || chiedono.has(p.id) }]
+      : []))
     if (riquadri.length === 0) return
     const { chiudi, libera } = chatDaSistemare(riquadri, autopiloti)
     for (const id of chiudi) {
@@ -1078,6 +1089,7 @@ export function App(): React.JSX.Element {
       useLayoutStore.getState().closePane(id)
     }
     for (const id of libera) useLayoutStore.getState().liberaAutopilota(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `pensano` e `chiedono` cambiano ogni pochi secondi: basta guardarli quando cambiano gli autopiloti
   }, [autopiloti, erroreAutopiloti])
   const [alLogin, setAlLogin] = useState<boolean | undefined>(undefined)
   const [accesso, setAccesso] = useState<StatoAccesso>({ autenticato: true })
@@ -1528,6 +1540,20 @@ export function App(): React.JSX.Element {
   if (statoAccesso === 'caricamento') return <SchermataAccesso caricamento onDentro={() => setStatoAccesso('dentro')} />
   if (statoAccesso === 'gate') return <SchermataAccesso onDentro={() => setStatoAccesso('dentro')} />
 
+  // La vista a elenco (0.74.0) del workspace davanti: le voci e la chat che sta davanti.
+  const vistaElenco = ((): { voci: VoceElenco[]; davanti: string | undefined } | undefined => {
+    if (!workspaceElenco.includes(workspace.attivo)) return undefined
+    const voci: VoceElenco[] = Object.values(riquadriAperti).map((p) => ({
+      paneId: p.id,
+      titolo: p.title,
+      ...(ruoloDalTitolo(p.title) !== undefined ? { ruolo: ruoloDalTitolo(p.title) } : {}),
+      ...(p.autopilota !== undefined ? { autopilota: p.autopilota.id } : {}),
+      lavora: p.ptyId !== undefined && pensano.has(p.ptyId),
+      chiede: chiedono.has(p.id)
+    }))
+    return { voci, davanti: chatDavanti(voci, davantiScelto) }
+  })()
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--fondo)' }}>
       {/* Le domande non hanno piu' una finestra sopra tutto (0.37.2, decisione
@@ -1835,6 +1861,25 @@ export function App(): React.JSX.Element {
           ))}
         </div>
       ) : null}
+      {migrazione !== null && (migrazione.stato === 'fallita' || migrazione.stato === 'fatta') && !avvisiChiusi.includes(`migrazione:${migrazione.iniziata}`) ? (
+        // La trasformazione dei workspace (0.74.1): detta una volta, con il modo di tornare indietro.
+        <div className="banda" role="status">
+          <div className={`banda__voce banda__voce--${migrazione.stato === 'fallita' ? 'blocco' : 'attenzione'}`}>
+            <span className={`led ${migrazione.stato === 'fallita' ? 'led--fermo' : 'led--attesa'}`} />
+            <span className="banda__testo" title={migrazione.motivo ?? ''}>
+              {notaMigrazione ?? (migrazione.stato === 'fallita'
+                ? `La trasformazione dei workspace non è riuscita, quindi è tutto com’era prima: ${migrazione.motivo ?? 'motivo nel registro'}.`
+                : `Tutti i workspace di questo PC sono a elenco, ognuno con il suo autopilota (fermo finché non gli scrivi). Le chat sono rimaste com’erano.`)}
+            </span>
+            {migrazione.stato === 'fatta' ? (
+              <button className="tasto" title="Rimette i workspace esattamente come prima. Le chat non si toccano." onClick={() => { void window.gestore.migrazione.torna().then((e) => setNotaMigrazione(e.messaggio)).catch(() => undefined) }}>Torna come prima</button>
+            ) : (
+              <button className="tasto" title="Riprova a trasformare i workspace" onClick={() => { void window.gestore.migrazione.rifai().then((e) => setNotaMigrazione(e.messaggio)).catch(() => undefined) }}>Riprova</button>
+            )}
+            <button className="tasto" title="Toglie questo avviso. «Torna come prima» resta in Impostazioni → Chat e autopiloti" onClick={() => chiudiAvviso([`migrazione:${migrazione.iniziata}`])}>Chiudi</button>
+          </div>
+        </div>
+      ) : null}
       <BandaAvvisi
         avvisi={componiAvvisi({
           accesso,
@@ -1933,53 +1978,41 @@ export function App(): React.JSX.Element {
         ) : null}
 
         <div style={{ flex: 1, display: 'flex', minWidth: 0 }}>
-          {workspaceElenco.includes(workspace.attivo) ? (() => {
-            // La vista a elenco (0.74.0): la colonna a sinistra, una chat grande a destra.
-            const voci: VoceElenco[] = Object.values(riquadriAperti).map((p) => ({
-              paneId: p.id,
-              titolo: p.title,
-              ...(ruoloDalTitolo(p.title) !== undefined ? { ruolo: ruoloDalTitolo(p.title) } : {}),
-              ...(p.autopilota !== undefined ? { autopilota: p.autopilota.id } : {}),
-              lavora: p.ptyId !== undefined && pensano.has(p.ptyId),
-              chiede: chiedono.has(p.id)
-            }))
-            const davanti = chatDavanti(voci, davantiScelto)
-            return (
-              <div className="vista-elenco">
-                <ElencoWorkspace
-                  workspace={workspace.attivo}
-                  autopiloti={autopiloti}
-                  voci={voci}
-                  davanti={davanti}
-                  sessioneDi={Object.fromEntries(Object.values(riquadriAperti).map((p) => [p.id, p.sessionUuid]))}
-                  onDavanti={setDavantiScelto}
-                  onScheda={() => setAperto('autopiloti')}
-                  onMosaico={() => impostaElenco(workspace.attivo, false)}
-                />
-                {root ? (
-                  <Mosaic
-                    node={root}
-                    autopiloti={autopiloti}
-                    onRicaricaAutopiloti={ricaricaAutopiloti}
-                    pensano={pensano}
-                    chiedono={chiedono}
-                    {...(davanti !== undefined ? { solo: davanti } : {})}
-                  />
-                ) : (
-                  <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--testo-quieto)', fontSize: 13 }}>
-                    Nessuna chat aperta: l’autopilota apre le sue quando parte.
-                  </div>
-                )}
-              </div>
-            )
-          })() : root ? (
+          {/* La vista a elenco (0.74.0) è **solo** una colonna in più a sinistra.
+              Il mosaico resta sempre in questo stesso posto dell'albero: in un
+              ramo diverso React lo smonterebbe passando da elenco a mosaico (e
+              con «Torna come prima»), e ogni terminale smontato chiude il suo
+              claude.exe. Visto nella copia dei dati veri il 15/10: i PID delle
+              chat cambiavano. Qui non cambiano più. */}
+          {vistaElenco !== undefined ? (
+            <ElencoWorkspace
+              {...(migrazione !== null && migrazione.stato === 'fatta' && migrazione.dormienti.some((d) => d.workspace === workspace.attivo)
+                ? { dormiente: migrazione.dormienti.find((d) => d.workspace === workspace.attivo)! }
+                : {})}
+              onRicarica={ricaricaAutopiloti}
+              workspace={workspace.attivo}
+              autopiloti={autopiloti}
+              voci={vistaElenco.voci}
+              davanti={vistaElenco.davanti}
+              sessioneDi={Object.fromEntries(Object.values(riquadriAperti).map((p) => [p.id, p.sessionUuid]))}
+              onDavanti={setDavantiScelto}
+              onScheda={() => setAperto('autopiloti')}
+              onMosaico={() => impostaElenco(workspace.attivo, false)}
+            />
+          ) : null}
+          {root ? (
             <Mosaic
               node={root}
               autopiloti={autopiloti}
               onRicaricaAutopiloti={ricaricaAutopiloti}
               pensano={pensano}
               chiedono={chiedono}
+              {...(vistaElenco?.davanti !== undefined ? { solo: vistaElenco.davanti } : {})}
             />
+          ) : vistaElenco !== undefined ? (
+            <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--testo-quieto)', fontSize: 13 }}>
+              Nessuna chat aperta: l’autopilota apre le sue quando parte.
+            </div>
           ) : (
             <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--testo-quieto)' }}>
               <div style={{ fontSize: 14, marginBottom: 6 }}>Nessuna chat aperta</div>

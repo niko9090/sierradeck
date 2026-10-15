@@ -2131,6 +2131,7 @@ function pannello(s) {
     </div>
     <div class="piastrella" data-sezione="chat">
       \${intestaImp('chat')}
+      \${migrazioneHtml()}
       \${vociImp('chat')}
       \${quadernoPersonaleHtml()}
     </div>
@@ -3987,6 +3988,31 @@ window.quadernoCerca = (q) => {
 // parola e il colore che manda il PC; il prossimo passo si fa sul computer.
 window.leggiAccount = async () => {
   try { accountVisto = await chiedi('/api/account') } catch (e) { accountVisto = null }
+  // La trasformazione dei workspace (0.74.1): letta insieme, per «Torna come prima».
+  try { migrazioneVista = (await chiedi('/api/migrazione')).stato || null } catch (e) { migrazioneVista = null }
+}
+var migrazioneVista = null
+var notaMigrazione = ''
+function migrazioneHtml() {
+  var s = migrazioneVista
+  if (!s) return ''
+  var testo = s.stato === 'fatta'
+    ? 'Tutti i workspace del computer sono a elenco (' + (s.dormienti || []).length + '), ognuno con il suo autopilota fermo finché non gli scrivi. Le chat non sono state toccate.'
+    : s.stato === 'annullata' ? 'Workspace tornati come prima.'
+      : s.stato === 'fallita' ? 'La trasformazione non è riuscita, tutto è com’era: ' + (s.motivo || '')
+        : 'Trasformazione a metà: si completa al prossimo avvio del computer.'
+  return '<div class="sotto" style="margin-top:10px"><b>Workspace a elenco</b></div><div class="sotto">' + esc(notaMigrazione || testo) + '</div>' +
+    '<div class="riga">' + (s.stato === 'fatta'
+      ? '<button onclick="cambiaMigrazione(\\'torna\\')">Torna come prima</button>'
+      : '<button onclick="cambiaMigrazione(\\'rifai\\')">Trasforma tutti</button>') + '</div>'
+}
+window.cambiaMigrazione = async (come) => {
+  try {
+    var e = await chiedi('/api/migrazione/' + (come === 'torna' ? 'torna' : 'rifai'), {})
+    notaMigrazione = (e && e.messaggio) || ''
+  } catch (err) { notaMigrazione = String(err && err.message || err) }
+  await leggiAccount()
+  pannello(ultimoStato)
 }
 function catenaAccountHtml(a) {
   if (!a || !a.catena) return ''

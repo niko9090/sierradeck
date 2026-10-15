@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.74.1',
+    righe: [
+      '**Tutti i workspace di questo PC passano al modo nuovo, da soli, al primo avvio:** ognuno ha la vista a elenco e il suo autopilota, fermo: non ha obiettivo, non lancia niente e nasce davvero solo quando gli scrivi il primo messaggio. Le chat aperte, anche quelle di altri PC o in sottofondo, restano vive come sono e diventano le voci dell’elenco. I workspace «Su altri PC» non si toccano: li trasforma ognuno il suo PC.',
+      '**Prima di cambiare, una copia di tutto** in copie-di-versione. Se qualcosa va storto si torna com’era da soli, e lo dice una banda. «Torna come prima» rimette i workspace esattamente come erano, dal PC (banda e Impostazioni → Chat e autopiloti), dalla pagina e dall’app.',
+      '**Le chat non si riavviano più cambiando vista:** passare da elenco a mosaico, o tornare come prima, lascia vivi i processi delle chat. La chat principale di un autopilota non si chiude mai da sola: si chiudono solo gli specialisti che hanno finito.',
+      '**Compatibilità:** un PC con questa versione e gli altri ancora alla 0.73 o alla 0.69 continuano a vedersi, ad aprire le chat gli uni degli altri e a consegnarsi i messaggi.'
+    ]
+  },
+  {
     versione: '0.74.0',
     righe: [
       '**Il workspace è l’ambiente dell’autopilota:** «+ Nuovo autopilota» crea il suo workspace con la vista a elenco. A sinistra lui e i suoi specialisti, a destra una chat sola, grande: tocchi una riga e quella chat viene davanti. Nessuna chat in più accanto all’autopilota. Un workspace che c’era già passa alla vista a elenco solo quando lo scegli tu (Strumenti → «Vista a elenco per questo workspace»); «Mosaico» torna ai riquadri affiancati. Le chat normali restano, con «+ Nuova chat».',

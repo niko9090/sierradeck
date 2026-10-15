@@ -1503,3 +1503,20 @@ describe('le chat senza nome (0.60.0)', () => {
     expect(c.nascoste).toBe(0)
   })
 })
+
+describe('0.74.1: la trasformazione dei workspace dalla pagina e dall’app', () => {
+  it('stato, «Torna come prima» e «Rifai»; senza il servizio (PC vecchio) 404', async () => {
+    let stato: unknown = { stato: 'fatta', dormienti: [] }
+    const migrazione = {
+      stato: () => stato,
+      torna: () => { stato = { stato: 'annullata' }; return { ok: true, messaggio: 'Fatto' } },
+      rifai: () => ({ ok: false, messaggio: 'Non riuscita: disco pieno' })
+    }
+    const r = rotteClient(deps({ migrazione }))
+    expect((await r({ metodo: 'GET', percorso: '/api/migrazione', corpo: undefined })).corpo).toEqual({ stato: { stato: 'fatta', dormienti: [] } })
+    expect((await r({ metodo: 'POST', percorso: '/api/migrazione/torna', corpo: {} })).stato).toBe(200)
+    expect((await r({ metodo: 'GET', percorso: '/api/migrazione', corpo: undefined })).corpo).toEqual({ stato: { stato: 'annullata' } })
+    expect(await r({ metodo: 'POST', percorso: '/api/migrazione/rifai', corpo: {} })).toEqual({ stato: 409, corpo: { errore: 'Non riuscita: disco pieno' } })
+    expect((await rotteClient(deps())({ metodo: 'GET', percorso: '/api/migrazione', corpo: undefined })).stato).toBe(404)
+  })
+})

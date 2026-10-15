@@ -582,6 +582,16 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun sfoglia(percorso: String = ""): Sfoglia =
         json.decodeFromString(corpoTesto("/api/sfoglia", oggetto { put("percorso", percorso) }))
 
+    /** La trasformazione dei workspace (PC 0.74.1; un PC più vecchio risponde 404). */
+    suspend fun migrazione(): RispostaMigrazione =
+        json.decodeFromString(corpoTesto("/api/migrazione", null))
+
+    suspend fun tornaMigrazione(): EsitoMigrazioneApp =
+        json.decodeFromString(corpoTesto("/api/migrazione/torna", oggetto { }))
+
+    suspend fun rifaiMigrazione(): EsitoMigrazioneApp =
+        json.decodeFromString(corpoTesto("/api/migrazione/rifai", oggetto { }))
+
     /** Con quale account sta lavorando il computer. */
     suspend fun account(): Account =
         json.decodeFromString(corpoTesto("/api/account", null))

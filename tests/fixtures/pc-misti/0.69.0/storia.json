@@ -1,0 +1,18 @@
+{
+  "stato": 200,
+  "corpo": {
+    "chat": "p-1",
+    "totale": 3,
+    "da": 0,
+    "righe": [
+      "● Ho finito la parte uno.",
+      "",
+      "> "
+    ],
+    "grezze": [
+      "● Ho finito la parte uno.",
+      "",
+      "> "
+    ]
+  }
+}

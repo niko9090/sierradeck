@@ -331,6 +331,17 @@ contextBridge.exposeInMainWorld('gestore', {
       return () => { ipcRenderer.off('preferenze:cambiate', h) }
     }
   },
+  /** La trasformazione dei workspace (0.74.1): lo stato, «Torna come prima», «Rifai». */
+  migrazione: {
+    stato: (): Promise<import('../shared/migrazione-elenco').StatoMigrazione | null> => ipcRenderer.invoke('migrazione:stato'),
+    torna: (): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('migrazione:torna'),
+    rifai: (): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('migrazione:rifai'),
+    suCambio: (cb: () => void): (() => void) => {
+      const h = (): void => cb()
+      ipcRenderer.on('migrazione:cambiata', h)
+      return () => { ipcRenderer.off('migrazione:cambiata', h) }
+    }
+  },
   quaderno: {
     elenca: (cwd: string): Promise<Scheda[]> => ipcRenderer.invoke('quaderno:elenca', cwd),
     leggi: (cwd: string, file: string): Promise<Scheda | undefined> =>

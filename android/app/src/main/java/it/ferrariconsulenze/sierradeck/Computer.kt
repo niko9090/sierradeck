@@ -342,6 +342,9 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
         if ((imp || chat || prog) && "chat" in visibili) {
             if (imp) GruppoImpostazioni(struttura, "chat")
 
+        // ─── I workspace a elenco (PC 0.74.1): com'è andata e «Torna come prima» ───
+        if (imp) SezioneMigrazione(api)
+
         if (imp) {
         // ─── Il quaderno personale (app 2.57.0, PC 0.57.0) ───
         Sezione("Quaderno personale")

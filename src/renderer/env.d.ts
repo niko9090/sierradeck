@@ -101,6 +101,12 @@ declare global {
         imposta: (p: import('@shared/preferenze').Preferenze) => Promise<import('@shared/preferenze').Preferenze>
         suCambio: (cb: (p: import('@shared/preferenze').Preferenze) => void) => () => void
       }
+      migrazione: {
+        stato: () => Promise<import('@shared/migrazione-elenco').StatoMigrazione | null>
+        torna: () => Promise<{ ok: boolean; messaggio: string }>
+        rifai: () => Promise<{ ok: boolean; messaggio: string }>
+        suCambio: (cb: () => void) => () => void
+      }
       quaderno: {
         elenca: (cwd: string) => Promise<import('@shared/quaderno').Scheda[]>
         leggi: (cwd: string, file: string) => Promise<import('@shared/quaderno').Scheda | undefined>

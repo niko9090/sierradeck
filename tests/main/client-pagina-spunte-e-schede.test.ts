@@ -97,3 +97,15 @@ describe('0.74.0: pagina, la riga «dal vivo» non allarga la pagina', () => {
     expect(html).toMatch(/\.voce__sotto \{[^}]*white-space: nowrap;[^}]*display: block; max-width: 100%;/)
   })
 })
+
+describe('0.74.1: pagina, «Torna come prima» della trasformazione dei workspace', () => {
+  it('la sezione si disegna dallo stato del PC e il tasto chiama la rotta giusta', () => {
+    const f = new Function('esc', `var migrazioneVista = null; var notaMigrazione = ''; ${funzione('migrazioneHtml')}; return function (s) { migrazioneVista = s; return migrazioneHtml() }`)((x: string) => x) as (s: unknown) => string
+    expect(f(null)).toBe('')
+    const fatta = f({ stato: 'fatta', dormienti: [{}, {}, {}] })
+    expect(fatta).toContain('a elenco (3)')
+    expect(fatta).toContain(`onclick="cambiaMigrazione('torna')"`)
+    expect(f({ stato: 'fallita', motivo: 'disco pieno' })).toContain(`cambiaMigrazione('rifai')`)
+    expect(f({ stato: 'fallita', motivo: 'disco pieno' })).toContain('disco pieno')
+  })
+})
