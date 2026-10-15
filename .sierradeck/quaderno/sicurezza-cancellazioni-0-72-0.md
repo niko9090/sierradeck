@@ -30,7 +30,8 @@ Il 14/10, fra le 09:02 e le 09:10 ora di casa, il contenuto di `%LOCALAPPDATA%` 
   | `trasferimenti/servizio.ts`: elimina locale | la cartella che guardi |
   | Cestino delle skill, delle trascrizioni, dei progetti tolti e dell'«Elimina» del pannello File | — |
 
-- **Controllo automatico:** `tests/shared/cancellazioni-solo-dalla-guardia.test.ts` legge `src/` e `scripts/`. Fallisce se trova `rmSync` o `rm` ricorsivo, `emptyDir`, `rimraf`, `Remove-Item -Recurse`, `rd /s` o `rm -r` fuori da `cancella-sicura*`, o un `trashItem` senza `cestinoSicuro`. Il criterio della consegna c-17 è il `git grep` più stretto.
+- **Anche `npm run pulisci-dist`** (prima di costruire l'installer) era un `rmSync('dist', {recursive})` con percorso relativo dentro package.json. Adesso è `scripts/pulisci-dist.mjs`, che importa `cancella-sicura.ts` direttamente con Node 24 (toglie i tipi da solo). **Trappola:** in `cancella-sicura.ts` niente proprietà nei parametri del costruttore né enum, che Node non sa togliere.
+- **Controllo automatico:** `tests/shared/cancellazioni-solo-dalla-guardia.test.ts` legge `src/`, `scripts/` e gli script di `package.json`. Fallisce se trova `rmSync` o `rm` ricorsivo, `emptyDir`, `rimraf`, `Remove-Item -Recurse`, `rd /s` o `rm -r` fuori da `cancella-sicura*`, o un `trashItem` senza `cestinoSicuro`. Il criterio della consegna c-17 è il `git grep` più stretto.
 - **Trappola:** l'elenco dei verbi che cancellano (che contiene «rimraf») sta in `src/shared/cancella-sicura-comandi.ts`, apposta: altrimenti il `git grep` del criterio lo segnalava dentro `divieti.ts`.
 
 **3. I criteri passano dai divieti.**

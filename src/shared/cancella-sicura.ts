@@ -168,9 +168,14 @@ function percorsoVero(p: string): string | undefined {
 }
 
 export class CancellazioneRifiutata extends Error {
-  constructor(readonly motivo: string) {
+  // Campo scritto per esteso, non `constructor(readonly motivo…)`: gli script
+  // (`scripts/pulisci-dist.mjs`) importano questo file con Node, che toglie i
+  // tipi ma non sa trasformare le proprietà nei parametri.
+  readonly motivo: string
+  constructor(motivo: string) {
     super(`cancellazione rifiutata: ${motivo}`)
     this.name = 'CancellazioneRifiutata'
+    this.motivo = motivo
   }
 }
 

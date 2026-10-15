@@ -19,7 +19,7 @@
     "app-android-json": "node scripts/app-android-json.mjs",
     "allega-apk": "node scripts/allega-apk.mjs",
     "icona": "electron scripts/genera-icona.mjs",
-    "pulisci-dist": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "pulisci-dist": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/pulisci-dist.mjs",
     "pacchetto": "node scripts/controlla-credenziali.mjs && npm run build && npm run pulisci-dist && electron-builder --win --publish never",
     "pubblica": "node scripts/controlla-credenziali.mjs && npm run build && npm run pulisci-dist && electron-builder --win --publish always"
   },

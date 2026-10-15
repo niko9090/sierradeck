@@ -65,6 +65,13 @@ describe('ogni cancellazione ricorsiva passa dalla guardia', () => {
     expect(trovati).toEqual([])
   })
 
+  it('anche gli script di package.json (pulisci-dist passa dalla guardia)', () => {
+    const script = (JSON.parse(readFileSync(join(RADICE, 'package.json'), 'utf8')) as { scripts: Record<string, string> }).scripts
+    const trovati = Object.entries(script).filter(([, c]) => VIETATI.some(([, re]) => re.test(c))).map(([n]) => n)
+    expect(trovati).toEqual([])
+    expect(script['pulisci-dist']).toContain('scripts/pulisci-dist.mjs')
+  })
+
   it('il controllo trova davvero quello che cerca', () => {
     expect(VIETATI.find(([n]) => n === 'rmSync ricorsivo')![1].test("rmSync(x, { recursive: true, force: true })")).toBe(true)
     expect(VIETATI.find(([n]) => n === 'rm -r della shell')![1].test('bash -c "rm -rf $d"')).toBe(true)
