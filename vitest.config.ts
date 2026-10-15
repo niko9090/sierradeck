@@ -6,6 +6,10 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
+    // Cartelle finte per casa, AppData e Temp (0.72.0, dopo il 14/10): un
+    // test che scrive o cancella nelle cartelle vere dell'utente fallisce.
+    globalSetup: ['./tests/setup/cartelle-finte-globale.ts'],
+    setupFiles: ['./tests/setup/cartelle-finte.ts'],
     // Sotto carico (l'autopilota lancia typecheck e suite insieme, o due
     // suite alla volta) i test dell'autopilot-host che aspettano un servizio
     // vero superavano i 5 secondi di serie e la suite risultava rossa senza

@@ -8,7 +8,8 @@
 // invece il disinstallatore dal file con un lettore in puro JS
 // (`UninstallerReader`), senza eseguire niente: qui si forza quel ramo.
 //
-//   npm run build && node -e "require('fs').rmSync('dist',{recursive:true,force:true})"
+//   npm run build
+//   (svuota a mano la cartella dist del progetto, dentro il progetto)
 //   node scripts/pacchetto-senza-eseguire.cjs
 //
 // L'installer che esce e' identico a quello di `pacchetto` (a parte la firma,

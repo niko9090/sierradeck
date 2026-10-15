@@ -8,7 +8,7 @@ import { apriArchivio, ultimoNumeroConsegne } from './archivio'
 import { apriQuaderno } from '../main/quaderno-store'
 import { apriRegistro } from '../main/registro'
 import { creaServer } from './server'
-import { esecutoreReale } from './verifiche'
+import { conDivieti, esecutoreReale } from './verifiche'
 import { interrogazioneReale } from './supervisore'
 import { creaConsegne } from './consegne'
 import { apriRegistroTempi } from './tempi'
@@ -250,7 +250,8 @@ export function avviaServizio(): void {
 
   const server = creaServer({
     archivio,
-    esegui: esecutoreReale(),
+    // Dalla guardia dei divieti (0.72.0): un criterio che cancella fuori dal progetto non parte.
+    esegui: conDivieti(esecutoreReale()),
     interroga: interrogazioneReale(claudeCmd()),
     // Anche la chat: senza, il pezzo di lavoro della flotta si perdeva per
     // strada e ogni chat riceveva l obiettivo intero.
@@ -319,8 +320,8 @@ export function avviaServizio(): void {
     // controllo legge lo stato in memoria e non tocca nessuna chat.
     // `unref` perché questo timer non deve tenere vivo il processo da solo.
     setInterval(() => { server.controllaChatFerme() }, GUARDIA_MS).unref()
-    // I criteri ricontrollati da soli (0.71.0): chi ha finito o aspetta, ogni 10 minuti.
-    setInterval(() => { void server.ricontrollaCriteri().catch((err: unknown) => { console.error('[autopilota] ricontrollo dei criteri:', err) }) }, 10 * 60_000).unref()
+    // Niente più criteri ricontrollati da soli (0.72.0): si misurano solo
+    // mentre l'autopilota lavora o su richiesta (POST …/ricontrolla-criteri).
 
     // La ripresa avviene **dopo** che il servizio è in ascolto, non prima: le
     // chat riprese emettono hook verso questa stessa porta, e trovarla chiusa

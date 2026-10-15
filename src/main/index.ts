@@ -25,7 +25,7 @@ import { doveMostrareDomande, eLinguettaStaccabile } from '@shared/finestra-pann
 import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell, webContents } from 'electron'
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, watch, copyFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, watch, copyFileSync, writeFileSync } from 'node:fs'
 import { cpus, homedir, hostname } from 'node:os'
 import { createConnection } from 'node:net'
 import { createHash, randomUUID } from 'node:crypto'
@@ -34,6 +34,7 @@ import { APP_NAME, APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/ve
 import { cartellaDati } from './migra-dati'
 import { apriAllegati } from './allegati'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
+import { cestinoSicuro } from '@shared/cancella-sicura'
 import { attendiQuiete, ATTESA_INSTALLA_MS, AVVISO_RIPRESA, leggiPausa, pausaAncoraValida } from './pausa-aggiornamento'
 import { serveCercareSubito } from '@shared/versioni-altri-pc'
 import { chiaveMonitor } from '@shared/display-key'
@@ -2834,7 +2835,8 @@ if (!app.requestSingleInstanceLock()) {
           return aperta === undefined ? undefined : `la chat «${aperta.titolo}» è aperta su questa cartella${aperta.aspetta === true ? '' : ' e sta lavorando'}`
         },
         chiama: (pc, percorso, corpo) => remoto.chiama(pc, percorso, corpo),
-        cestino: (p) => shell.trashItem(p),
+        // La cartella di un progetto va nel Cestino solo se non è (né contiene) una cartella protetta (0.72.0).
+        cestino: (p) => cestinoSicuro(p, { dentro: [dirname(p)] }, (q) => shell.trashItem(q)),
         log: registro.info,
         avvisa: () => { for (const w of webContents.getAllWebContents()) if (!w.isDestroyed()) w.send('casa:cambiate') }
       })
@@ -3798,10 +3800,10 @@ if (!app.requestSingleInstanceLock()) {
             for (const nome of readdirSync(s)) {
               if (!existsSync(join(d, nome))) renameSync(join(s, nome), join(d, nome))
             }
-            try { rmSync(s, { recursive: false }) } catch { /* non vuota: resta */ }
+            try { rmdirSync(s) } catch { /* non vuota: resta */ }
           }
           for (const nome of readdirSync(da)) porta(nome)
-          try { rmSync(da, { recursive: false }) } catch { /* non vuota: resta */ }
+          try { rmdirSync(da) } catch { /* non vuota: resta */ }
         } catch (err) {
           registro.errore(`[progetti] cartella dei subagenti di ${uuid} non spostata sotto ${slugA}: ${String(err)}`)
         }
@@ -4295,8 +4297,9 @@ if (!app.requestSingleInstanceLock()) {
       // aprire Esplora risorse per meta' dei gesti.
       ipcMain.handle('trasferimenti:creaCartellaLocale', (_e, percorso: unknown) =>
         trasferimenti?.creaCartellaLocale(String(percorso)))
+      // Nel Cestino e dalla guardia (0.72.0): mai una cartella protetta né una che la contiene.
       ipcMain.handle('trasferimenti:eliminaLocale', (_e, percorso: unknown) =>
-        trasferimenti?.eliminaLocale(String(percorso)))
+        cestinoSicuro(String(percorso), { dentro: [dirname(String(percorso))] }, (p) => shell.trashItem(p)))
       ipcMain.handle('trasferimenti:rinominaLocale', (_e, da: unknown, a: unknown) =>
         trasferimenti?.rinominaLocale(String(da), String(a)))
       // Mostrare un file nel gestore di sistema: e' il gesto per cui altrimenti
@@ -4409,7 +4412,7 @@ if (!app.requestSingleInstanceLock()) {
         const cartelle = [join(radiceClaude, 'skills'), ...(soloStringa(cwd) !== undefined ? [join(cwd as string, '.claude', 'skills')] : [])]
         if (p === undefined || !skillTogliibile(p, cartelle)) return { ok: false, messaggio: 'Si possono togliere solo le skill personali o del progetto: quelle di un plugin vanno via col plugin.' }
         try {
-          await shell.trashItem(p)
+          await cestinoSicuro(p, { dentro: cartelle }, (q) => shell.trashItem(q))
           return { ok: true, fatto: cosaCambia('togli-skill') }
         } catch (err) {
           return { ok: false, messaggio: `Non sono riuscito a spostarla nel Cestino: ${String(err)}` }

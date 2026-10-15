@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto'
-import { mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
+import { mkdirSync, readdirSync, renameSync, statSync } from 'node:fs'
+import { cancellaSicura } from '@shared/cancella-sicura'
 import { basename, dirname, join } from 'node:path'
 import type { ArchivioDestinazioni, Destinazione, Segreto } from './destinazioni'
 import { apriSessione, ImprontaSconosciuta, suRemoto, unisciRemoto, type GuscioRemoto, type Sessione } from './sftp'
@@ -377,9 +378,13 @@ export function creaTrasferimenti(
      * e' il tuo, il percorso e' quello che stai guardando, e senza `recursive`
      * una cartella non si potrebbe cancellare affatto - cioe' l'unica strada
      * sarebbe uscire dal programma e aprire Esplora risorse.
+     *
+     * Dalla 0.72.0 passa dalla guardia: la cartella che stai guardando è il
+     * permesso, ma mai una cartella protetta (Documenti, AppData, la radice
+     * del disco…) né una che la contiene. Il pannello usa il Cestino.
      */
     eliminaLocale(percorso) {
-      rmSync(percorso, { recursive: true, force: false })
+      cancellaSicura(percorso, { dentro: [dirname(percorso)], force: false })
     },
 
     rinominaLocale(da, a) {

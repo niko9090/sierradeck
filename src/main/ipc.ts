@@ -3,6 +3,7 @@ import { finestreDiChat } from './finestre-pannello'
 import { app, ipcMain, screen, shell, BrowserWindow } from 'electron'
 import { diffDellAutopilota, fileDellAutopilota } from './file-autopilota'
 import { basename, dirname, join } from 'node:path'
+import { cestinoSicuro } from '@shared/cancella-sicura'
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, copyFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -559,7 +560,7 @@ export function registerSessionIpc(cartella?: string, arricchisciConsumi?: (c: C
     for (const grezzo of raw) {
       const percorso = validaPercorsoTrascrizione(grezzo, claudeRoot())
       try {
-        await shell.trashItem(percorso)
+        await cestinoSicuro(percorso, { dentro: [claudeRoot()] }, (p) => shell.trashItem(p))
         tolte.push(basename(percorso, '.jsonl'))
       } catch (err) {
         // Un file che non si sposta non deve fermare gli altri: chi ha chiesto

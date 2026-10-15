@@ -1,8 +1,10 @@
 import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { Criterio } from '@shared/autopilota'
+import { cancellaSicura } from '@shared/cancella-sicura'
+import { giudicaCancellazioni } from './divieti'
 import type { EsitoVerifica } from './decisione'
 
 export type Esecutore = (comando: string, cwd: string) => Promise<{ codice: number; uscita: string }>
@@ -257,7 +259,8 @@ export function esecutoreReale(timeoutMs: number = TIMEOUT_PREDEFINITO_MS): Esec
   )
   return (comando, cwd) =>
     new Promise((risolvi) => {
-      const cartella = mkdtempSync(join(tmpdir(), 'sierradeck-criterio-'))
+      const temp = tmpdir()
+      const cartella = mkdtempSync(join(temp, 'sierradeck-criterio-'))
       const script = join(cartella, nomeScript(bash))
       // `\n` e non `\r\n`: bash su Windows inciampa nei ritorni a capo di
       // Windows e li legge come parte dell'ultimo argomento.
@@ -265,6 +268,9 @@ export function esecutoreReale(timeoutMs: number = TIMEOUT_PREDEFINITO_MS): Esec
       const { file, argomenti } = comandoShell(bash, script)
       const figlio = spawn(file, argomenti, {
         cwd,
+        // Temp tutta sua (0.72.0): quello che il criterio crea o pulisce in
+        // «temp» sta nella sua cartella, che a fine criterio se ne va.
+        env: { ...process.env, TEMP: cartella, TMP: cartella, TMPDIR: cartella },
         windowsHide: true,
         // Su POSIX il figlio nasce capo di un gruppo suo: e' l'unico modo di
         // poter poi ammazzare anche i nipoti. Su Windows non serve — `taskkill
@@ -304,7 +310,8 @@ export function esecutoreReale(timeoutMs: number = TIMEOUT_PREDEFINITO_MS): Esec
         try {
           // La cartella del criterio non serve più: senza questo ne restava una
           // per esecuzione, e se ne sono contate 637 in una sera sola.
-          rmSync(cartella, { recursive: true, force: true })
+          // Dalla guardia (0.72.0): solo dentro Temp, mai Temp intera.
+          cancellaSicura(cartella, { dentro: [temp] })
         } catch {
           // Un file ancora aperto da un processo in background: si riproverà
           // dopo, e nel frattempo una cartella in temp non fa danno.
@@ -335,6 +342,28 @@ export function esecutoreReale(timeoutMs: number = TIMEOUT_PREDEFINITO_MS): Esec
       })
     })
 }
+
+/**
+ * **I divieti anche sui criteri** (0.72.0). Le chat governate passano dall'hook
+ * PreToolUse, che nega le cancellazioni fuori dalle cartelle dell'autopilota;
+ * i comandi dei criteri invece li esegue il servizio stesso, e fino alla
+ * 0.71.1 nessuno li guardava. Adesso un criterio che cancella fuori dalla
+ * cartella del progetto (o verso un percorso con una variabile) non parte: il
+ * suo esito è «non misurato», con il motivo.
+ */
+export function conDivieti(esegui: Esecutore): Esecutore {
+  return async (comando, cwd) => {
+    const g = giudicaCancellazioni(comando, cwd, [cwd], false)
+    if (!g.ok) {
+      console.warn(`[autopilota] criterio non eseguito — ${g.motivo}`)
+      return { codice: CODICE_RIFIUTATO, uscita: `SierraDeck non esegue questo criterio. ${g.motivo}` }
+    }
+    return esegui(comando, cwd)
+  }
+}
+
+/** Il codice di un criterio che il programma si è rifiutato di eseguire. */
+export const CODICE_RIFIUTATO = 126
 
 /**
  * Esegue i criteri che hanno un comando, in ordine.

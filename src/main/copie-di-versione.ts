@@ -1,8 +1,9 @@
 import { join, basename } from 'node:path'
 import {
-  existsSync, mkdirSync, readdirSync, readFileSync, copyFileSync, rmSync, statSync
+  existsSync, mkdirSync, readdirSync, readFileSync, copyFileSync, statSync
 } from 'node:fs'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
+import { cancellaSicura } from '@shared/cancella-sicura'
 
 /**
  * Al primo avvio di una versione nuova, **una copia di tutto lo stato** prima
@@ -163,7 +164,7 @@ export function mettiAlSicuroLoStato(dati: string, versione: string, adesso = ne
       : []
     for (const nome of copieDaPotare(presenti)) {
       try {
-        rmSync(join(radice, nome), { recursive: true, force: true })
+        cancellaSicura(join(radice, nome), { dentro: [radice] })
         potate.push(nome)
       } catch (err) {
         errori.push(`potatura ${nome}: ${String(err)}`)

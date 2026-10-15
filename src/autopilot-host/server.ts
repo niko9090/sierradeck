@@ -467,10 +467,13 @@ export type ServerAutopiloti = Server & {
    */
   riportaInCoda: (consegna: string, perche: string) => void
   /**
-   * I criteri ricontrollati da soli (0.71.0): per chi ha finito (nelle ultime
-   * 24 ore) o aspetta una risposta. Torna quanti autopiloti ha guardato.
+   * I criteri di un autopilota fermo rimisurati **su richiesta** (0.72.0).
+   * Mai più da soli: il 14/10 il servizio li rimisurava ogni 10 minuti senza
+   * nessuno davanti (npm test, gradle, download), proprio mentre qualcosa
+   * cancellava AppData\Local. Torna `false` se l'autopilota non c'è, lavora
+   * già o non ha criteri con un comando.
    */
-  ricontrollaCriteri: () => Promise<number>
+  ricontrollaCriteri: (id: string) => Promise<boolean>
 }
 
 /**
@@ -3071,6 +3074,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           rispondi(res, 200, { mandate })
           return
         }
+        // «Ricontrolla i criteri» (0.72.0): solo su richiesta, mai da soli.
+        const ricontrolla = /^\/autopiloti\/([^/]+)\/ricontrolla-criteri$/.exec(percorso)
+        if (metodo === 'POST' && ricontrolla !== null) {
+          const id = decodeURIComponent(ricontrolla[1]!)
+          const fatto = await ricontrollaCriteri(id)
+          rispondi(res, fatto ? 200 : 409, fatto ? deps.archivio.leggi(id) : { errore: 'niente da ricontrollare: l’autopilota non c’è, lavora già o non ha criteri con un comando' })
+          return
+        }
         const archivia = /^\/autopiloti\/([^/]+)\/archivia$/.exec(percorso)
         if (metodo === 'POST' && archivia !== null) {
           const id = decodeURIComponent(archivia[1]!)
@@ -3555,37 +3566,35 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   })
 
   /**
-   * **Criteri ricontrollati da soli** (0.71.0). Un lavoro «finito» può tornare
-   * indietro (un altro commit, un altro PC che pubblica, un test che si
-   * rompe): prima lo si scopriva solo riaprendo l'autopilota. Ogni 10 minuti,
-   * per chi ha finito da meno di un giorno o aspetta una risposta, si
-   * rimisurano i criteri (con la cache: costa poco se niente è cambiato); se
-   * uno torna rosso lo si scrive nel diario, con l'ora.
+   * **Criteri ricontrollati su richiesta** (0.72.0). Nella 0.71.0 un giro ogni
+   * 10 minuti li rimisurava da solo per chi aveva finito o aspettava: comandi
+   * pesanti (test, gradle, download) fatti girare senza nessuno davanti. Il
+   * 14/10 uno di quei giri cadeva dentro la cancellazione di AppData\Local.
+   * Adesso i criteri si misurano solo mentre l'autopilota lavora, o quando
+   * Nicholas preme «Ricontrolla i criteri»; se uno torna rosso lo si scrive nel
+   * diario, con l'ora.
    */
-  const ricontrollaCriteri = async (): Promise<number> => {
-    const ora = Date.parse(deps.adesso())
-    let guardati = 0
-    for (const a of deps.archivio.elenca()) {
-      const recente = a.stato === 'finito' && !Number.isNaN(Date.parse(a.ultimoEvento)) && ora - Date.parse(a.ultimoEvento) < 24 * 3_600_000
-      if (!(recente || a.stato === 'attesa') || a.criteri.every((c) => c.comando === undefined) || inLavorazione.has(a.id)) continue
-      guardati += 1
-      const m = await misuraCriteri(a.criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, ...(deps.git !== undefined && improntaCodice(deps.git, a.cwd) !== undefined ? { impronta: improntaCodice(deps.git, a.cwd) as string } : {}) })
-      const fresco = deps.archivio.leggi(a.id)
-      if (fresco === undefined) continue
-      const tornatiRossi = fresco.criteri.filter((c) => c.soddisfatto && m.esiti.some((e) => e.descrizione === c.descrizione && !e.passato))
-      const criteri = fresco.criteri.map((c) => {
-        const e = m.esiti.find((x) => x.descrizione === c.descrizione)
-        if (e === undefined) return c
-        const n: Criterio = { ...c, soddisfatto: e.passato, ultimaVerifica: { quando: deps.adesso(), codice: e.passato ? 0 : 1, uscita: e.uscita.slice(0, USCITA_RICORDATA) } }
-        if (e.passato) n.raggiuntoIl = c.raggiuntoIl ?? deps.adesso()
-        else delete n.raggiuntoIl
-        return n
-      })
-      const aggiornato: Autopilota = { ...fresco, criteri }
-      if (tornatiRossi.length > 0) annota(aggiornato, `ricontrollo da solo: ${tornatiRossi.map((c) => `«${c.descrizione}»`).join(', ')} ${tornatiRossi.length === 1 ? 'non passa più' : 'non passano più'}`)
-      salva(aggiornato)
-    }
-    return guardati
+  const ricontrollaCriteri = async (id: string): Promise<boolean> => {
+    const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
+    if (a === undefined || a.stato === 'lavoro' || a.criteri.every((c) => c.comando === undefined) || inLavorazione.has(a.id)) return false
+    const m = await misuraCriteri(a.criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, ...(deps.git !== undefined && improntaCodice(deps.git, a.cwd) !== undefined ? { impronta: improntaCodice(deps.git, a.cwd) as string } : {}) })
+    const fresco = deps.archivio.leggi(a.id)
+    if (fresco === undefined) return false
+    const tornatiRossi = fresco.criteri.filter((c) => c.soddisfatto && m.esiti.some((e) => e.descrizione === c.descrizione && !e.passato))
+    const criteri = fresco.criteri.map((c) => {
+      const e = m.esiti.find((x) => x.descrizione === c.descrizione)
+      if (e === undefined) return c
+      const n: Criterio = { ...c, soddisfatto: e.passato, ultimaVerifica: { quando: deps.adesso(), codice: e.passato ? 0 : 1, uscita: e.uscita.slice(0, USCITA_RICORDATA) } }
+      if (e.passato) n.raggiuntoIl = c.raggiuntoIl ?? deps.adesso()
+      else delete n.raggiuntoIl
+      return n
+    })
+    const aggiornato: Autopilota = { ...fresco, criteri }
+    annota(aggiornato, tornatiRossi.length > 0
+      ? `ricontrollo chiesto da te: ${tornatiRossi.map((c) => `«${c.descrizione}»`).join(', ')} ${tornatiRossi.length === 1 ? 'non passa più' : 'non passano più'}`
+      : `ricontrollo chiesto da te: ${m.esiti.filter((e) => e.passato).length} criteri su ${m.esiti.length} passano`)
+    salva(aggiornato)
+    return true
   }
 
   return Object.assign(server, { riprendiInterviste, controllaChatFerme, riprendiLavori, ricontrollaCriteri, riportaInCoda: (c: string, p: string) => { riportaInCoda(c, p) } })

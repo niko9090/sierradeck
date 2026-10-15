@@ -1,4 +1,5 @@
 import { isAbsolute, normalize, resolve, sep } from 'node:path'
+import { VERBI_CANCELLA, bersaglioIgnoto } from '@shared/cancella-sicura-comandi'
 
 /**
  * I divieti dell'autopilota, fatti rispettare dal **programma**, non dal modello.
@@ -115,7 +116,7 @@ export function dentro(a: string, b: string): boolean {
  * "…"`, `powershell -Command "…"`, `$(…)`, un heredoc dato a una shell —
  * si legge di nuovo come comando: niente buchi.
  */
-const VERBI_CANCELLA = new Set(['rm', 'rmdir', 'del', 'erase', 'rd', 'remove-item', 'ri', 'unlink', 'shred', 'rimraf'])
+// L'elenco dei verbi sta in @shared/cancella-sicura-comandi (0.72.0).
 /** Le shell: il loro `-c` (o un heredoc dato a loro) e' un altro comando. */
 const SHELL = new Set(['bash', 'sh', 'zsh', 'dash', 'ksh', 'cmd', 'powershell', 'pwsh', 'wsl'])
 /** Quelli che lanciano il comando che li segue. */
@@ -380,7 +381,20 @@ export function giudicaStrumento(r: RichiestaStrumento, ammesse: string[]): Giud
     }
   }
 
-  for (const b of bersagliCancellazione(comando, cwd, nome === 'PowerShell')) {
+  return giudicaCancellazioni(comando, cwd, ammesse, nome === 'PowerShell')
+}
+
+/**
+ * Le cancellazioni di un comando, giudicate contro le cartelle ammesse.
+ * Negate: quelle **fuori**, quelle di una cartella ammessa intera, e (0.72.0)
+ * quelle verso un percorso con una variabile (`rm -rf "$d"`, `del %X%`): dove
+ * porti lo sa solo la shell, e vuota porta alla radice del disco.
+ */
+export function giudicaCancellazioni(comando: string, cwd: string, ammesse: string[], powershell = false): Giudizio {
+  for (const b of bersagliCancellazione(comando, cwd, powershell)) {
+    if (bersaglioIgnoto(b)) {
+      return { ok: false, motivo: `SierraDeck blocca questa cancellazione: «${b}» contiene una variabile, e non si può sapere dove porta. Scrivi il percorso per intero, dentro ${ammesse.join(', ')}.` }
+    }
     const radice = ammesse.some((c) => dentro(c, b))
     const dentroUna = ammesse.some((c) => dentro(b, c))
     if (!dentroUna || radice) {

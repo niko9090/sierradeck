@@ -2,7 +2,7 @@ import { apriMemoria } from '../../src/autopilot-host/memoria'
 import { apriRegistroTempi } from '../../src/autopilot-host/tempi'
 import { STRATEGIE } from '../../src/autopilot-host/strategie'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { Server } from 'node:http'
@@ -2262,19 +2262,37 @@ describe('domande chiare nel servizio (0.71.0)', () => {
   })
 })
 
-describe('criteri ricontrollati da soli (0.71.0)', () => {
-  it('un lavoro finito che torna rosso lo dice nel diario', async () => {
+describe('criteri ricontrollati solo su richiesta (0.72.0)', () => {
+  it('un lavoro finito che torna rosso lo dice nel diario, ma solo se lo chiedi', async () => {
     let passa = true
-    server = ambiente({ esegui: () => Promise.resolve(passa ? { codice: 0, uscita: 'ok' } : { codice: 1, uscita: '1 test rosso' }), adesso: () => '2026-08-09T12:00:00.000Z' })
+    let eseguiti = 0
+    server = ambiente({ esegui: () => { eseguiti += 1; return Promise.resolve(passa ? { codice: 0, uscita: 'ok' } : { codice: 1, uscita: '1 test rosso' }) }, adesso: () => '2026-08-09T12:00:00.000Z' })
     archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-fin', nome: 'Fin', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'i test', comando: 'node t.js', soddisfatto: true }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'finito', ultimoEvento: '2026-08-09T11:30:00.000Z' })
     await avvia(server)
-    expect(await server.ricontrollaCriteri()).toBe(1)
+    expect((await chiama('POST', '/autopiloti/ap-fin/ricontrolla-criteri')).stato).toBe(200)
     expect((await chiama('GET', '/autopiloti')).dati[0].criteri[0].soddisfatto).toBe(true)
     passa = false
-    await server.ricontrollaCriteri()
+    expect(await server.ricontrollaCriteri('ap-fin')).toBe(true)
     const a = (await chiama('GET', '/autopiloti')).dati[0]
     expect(a.criteri[0].soddisfatto).toBe(false)
     expect(a.decisioni.map((d: { cosa: string }) => d.cosa).join(' | ')).toContain('«i test» non passa più')
+    expect(eseguiti).toBe(2)
+  })
+
+  it('mai da solo: il servizio non ha più nessun giro a orario che misura i criteri', () => {
+    const avvio = readFileSync(join(__dirname, '..', '..', 'src', 'autopilot-host', 'index.ts'), 'utf8')
+    expect(avvio).not.toMatch(/setInterval\([^\n]*ricontrollaCriteri/)
+    expect(avvio).not.toMatch(/ricontrollaCriteri\(\)/)
+  })
+
+  it('un autopilota al lavoro non si rimisura da fuori, e uno che non c’è risponde 409', async () => {
+    let eseguiti = 0
+    server = ambiente({ esegui: () => { eseguiti += 1; return Promise.resolve({ codice: 0, uscita: 'ok' }) } })
+    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-lav', nome: 'Lav', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'lavoro' })
+    await avvia(server)
+    expect(await server.ricontrollaCriteri('ap-lav')).toBe(false)
+    expect((await chiama('POST', '/autopiloti/ap-nessuno/ricontrolla-criteri')).stato).toBe(409)
+    expect(eseguiti).toBe(0)
   })
 })
 
