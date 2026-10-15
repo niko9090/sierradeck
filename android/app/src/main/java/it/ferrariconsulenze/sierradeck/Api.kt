@@ -442,6 +442,12 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             put("autopilota", id); put("riprendi", riprendi)
         }))
 
+    /** «Lavora in sottofondo» (PC 0.72.0): solo su richiesta di Nicholas. */
+    suspend fun sottofondoAutopilota(id: String, si: Boolean): Fatto =
+        json.decodeFromString(corpoTesto("/api/autopilota/sottofondo", oggetto {
+            put("autopilota", id); put("si", si)
+        }))
+
     // ─── quaderno ───
     suspend fun quaderno(cartella: String): Schede =
         json.decodeFromString(corpoTesto("/api/quaderno", oggetto { put("cartella", cartella) }))

@@ -614,6 +614,15 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                         )
                     }
                     Text("Se riprendere questo autopilota da solo dopo un riavvio del computer.", color = Banco.testoQuieto, fontSize = 12.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Lavora in sottofondo", color = Banco.testo, modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = det?.sottofondo == true,
+                            onCheckedChange = { v -> scope.launch { tenta("cambiare «lavora in sottofondo»") { api.sottofondoAutopilota(breve.id, v) } } }
+                        )
+                    }
+                    Text("Spento: la sua chat sta in un riquadro del suo workspace sul computer, che ci va quando l’autopilota le scrive (mai mentre scrivi lì). Acceso: lavora senza riquadro, e la vedi con «in sottofondo» e Guarda.", color = Banco.testoQuieto, fontSize = 12.sp)
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { quadernoAperto = true }) { Text("Quaderno") }

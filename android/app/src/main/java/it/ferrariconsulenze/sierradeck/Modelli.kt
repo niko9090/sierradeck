@@ -532,6 +532,8 @@ data class AutopilotaDettaglio(
     val motivoSospensione: String? = null,
     /** Assente vale «sì». */
     val riprendiAlRiavvio: Boolean? = null,
+    /** PC 0.72.0: la chat lavora senza riquadro sul PC, solo se l'ha chiesto Nicholas. Assente vale «no». */
+    val sottofondo: Boolean? = null,
     val criteri: List<Criterio> = emptyList(),
     val decisioni: List<Decisione> = emptyList(),
     val passaggi: List<Passo> = emptyList(),
