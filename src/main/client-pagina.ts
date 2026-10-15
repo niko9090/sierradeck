@@ -631,6 +631,52 @@ function aiuto(id, testoHtml) {
     (aperto ? '<div class="aiuto-testo" role="note">' + testoHtml + '</div>' : '')
 }
 window.commutaAiuto = (id) => { aiutiAperti[id] = aiutiAperti[id] !== true; pannello(ultimoStato) }
+// Il microfono (0.75.0): il riconoscimento vocale del browser (Web Speech API),
+// in italiano, con i risultati parziali dal vivo. Il testo va nel campo; lo
+// manda sempre Nicholas. La pagina non registra e non salva l'audio.
+var dettaturaAttiva = null
+var notaDettatura = ''
+function dettaturaDelBrowser() { return window.SpeechRecognition || window.webkitSpeechRecognition || null }
+// Il testo nel campo: quello che c'era, poi il dettato finale, poi il parziale.
+function testoDettatoJs(base, finale, parziale) {
+  var pezzi = [base.replace(/\\s+$/, ''), (finale + ' ' + parziale).replace(/\\s+/g, ' ').trim()].filter(function (x) { return x !== '' })
+  return pezzi.join(' ')
+}
+function micHtml(id) {
+  var spiega = 'Tocca 🎤 e parla in italiano: il testo compare nel campo mentre parli. Tocca di nuovo per fermare. Non parte niente da solo: lo rileggi e premi tu il tasto per mandare. La pagina non registra e non salva l’audio: lo riconosce il browser del telefono, con le sue impostazioni.'
+  if (!dettaturaDelBrowser()) return '<span class="sotto">🎤 il riconoscimento vocale non c’è in questo browser' + aiuto('mic-no', 'Questo browser non ha il riconoscimento vocale (Web Speech API). Su Android usa Chrome, oppure l’app SierraDeck, che ha il microfono. ' + spiega) + '</span>'
+  var attivo = dettaturaAttiva && dettaturaAttiva.campo === id
+  return '<button data-campo="' + esc(id) + '" onclick="detta(this.dataset.campo)" title="Detta con la voce" aria-label="Detta con il microfono">' + (attivo ? '■ ferma' : '🎤') + '</button>' +
+    aiuto('mic-' + id, spiega) + (notaDettatura && attivo === false && dettaturaUltimoCampo === id ? '<span class="sotto">' + esc(notaDettatura) + '</span>' : '')
+}
+var dettaturaUltimoCampo = ''
+window.detta = function (id) {
+  if (dettaturaAttiva) { var era = dettaturaAttiva.campo; dettaturaAttiva.r.stop(); if (era === id) return }
+  var R = dettaturaDelBrowser()
+  var campo = document.getElementById(id)
+  if (!R || !campo) return
+  var base = campo.value || ''
+  var r = new R()
+  r.lang = 'it-IT'
+  r.interimResults = true
+  r.continuous = true
+  notaDettatura = ''
+  dettaturaUltimoCampo = id
+  r.onresult = function (e) {
+    var fin = '', par = ''
+    for (var i = 0; i < e.results.length; i++) { if (e.results[i].isFinal) fin += e.results[i][0].transcript + ' '; else par += e.results[i][0].transcript }
+    // Il campo si ricerca ogni volta: la pagina si ridisegna e lo rifà.
+    var c = document.getElementById(id)
+    if (c) c.value = testoDettatoJs(base, fin, par)
+  }
+  r.onerror = function (e) {
+    notaDettatura = e.error === 'not-allowed' || e.error === 'service-not-allowed' ? 'Il browser non ha il permesso del microfono: dallo nelle impostazioni del sito.' : e.error === 'no-speech' ? 'Non ho sentito niente: riprova.' : 'Dettatura interrotta (' + e.error + ').'
+  }
+  r.onend = function () { dettaturaAttiva = null; pannello(ultimoStato) }
+  dettaturaAttiva = { r: r, campo: id }
+  try { r.start() } catch (err) { dettaturaAttiva = null; notaDettatura = 'Il microfono non è partito: ' + err.message }
+  pannello(ultimoStato)
+}
 /** «Copia i dettagli» (0.56.0): versioni e collegamento in un testo solo, per chiedere aiuto. Niente chiavi. */
 window.copiaDettagli = async () => {
   const st = ultimoStato || {}
@@ -987,7 +1033,7 @@ function schedaDomandaHtml(s, k, tasto, campo) {
     (s.risposta ? '<div class="sotto" style="color:var(--verde)">risposta dall’autopilota: ' + esc(s.risposta) + '</div>' : '') +
     ((s.scelte || []).length ? '<div class="scelte">' + s.scelte.map(tasto).join('') + '</div>' : '') +
     '<div class="riga"><textarea id="' + campo.id + '" rows="2" placeholder="' + esc(s.segnaposto || 'Scrivi tu') + '"></textarea></div>' +
-    '<div class="riga"><button class="primario" ' + campo.attributi + '>' + esc(campo.etichetta) + '</button></div>'
+    '<div class="riga"><button class="primario" ' + campo.attributi + '>' + esc(campo.etichetta) + '</button>' + micHtml(campo.id) + '</div>'
 }
 function etichettaScelta(c) {
   return (c.spuntata === true ? '☑ ' : c.spuntata === false ? '☐ ' : '') + (c.consigliata ? '★ ' : '') + esc(c.testo)
@@ -1078,7 +1124,7 @@ function vistaConversazioni() {
     (mandata ? '<div class="battuta battuta--tu"><span class="battuta__chi">tu · mandato, aspetto il computer</span><span>' + esc(mandata) + '</span></div>' : '') +
     '</div>' +
     '<div class="riga"><textarea id="conv-testo" rows="3" placeholder="' + esc(aperta.segnaposto) + '"></textarea></div>' +
-    '<div class="riga"><button class="primario" data-k="' + esc(aperta.chiave) + '" onclick="rispondiConv(this.dataset.k)">' + (aperta.risposta.via === 'rispondi' ? 'Rispondi' : 'Manda') + '</button></div>' +
+    '<div class="riga"><button class="primario" data-k="' + esc(aperta.chiave) + '" onclick="rispondiConv(this.dataset.k)">' + (aperta.risposta.via === 'rispondi' ? 'Rispondi' : 'Manda') + '</button>' + micHtml('conv-testo') + '</div>' +
     '<div class="sotto">' + (aperta.risposta.via === 'rispondi' ? 'La risposta arriva subito alla chat ferma.' : 'Arriva nella chat come se l’avessi scritto lì.') + '</div>' +
     '</div>'
 }
@@ -2598,6 +2644,7 @@ function vistaAutopilota(a) {
       // Le sue domande non si rispondono da qui (0.38.0): stanno nella
       // linguetta «Domande», una per volta.
       '<button class="primario" data-ap="' + esc(a.id) + '" onclick="dialogaAp(this.dataset.ap)">Manda</button>' +
+      micHtml('dialogo-' + a.id) +
       // I file dal telefono (0.50.0): nella sua cartella, e il messaggio nel suo dialogo.
       '<button data-ap="' + esc(a.id) + '" onclick="scegliFileAp(this.dataset.ap)" title="Scegli file: lo mandi a questo autopilota (fino a 100 MB). Finisce nella sua cartella di lavoro, in .sierradeck/allegati, fuori da git, e lui lo trova nel dialogo. Se nella casella hai scritto qualcosa, va come nota.">📎 Allega</button>' +
       '<span class="sotto info-ap" title="Qui parli con l’autopilota, non con la chat che esegue. Risponde con parole sue; se è un’istruzione la applica e la consegna alla chat alla fine del turno che ha in mano. Se ha una domanda aperta, quello che scrivi è la risposta e arriva subito.">?</span>' +
@@ -2638,7 +2685,7 @@ function vistaAutopilota(a) {
       '<div class="grande domanda-ap">' + esc(d.testo) + '</div>' +
       ((d.opzioni || []).length > 0 ? '<div class="riga">' + d.opzioni.map((o) => '<button class="primario" data-o="' + esc(o) + '" onclick="rispondiSchedaAp(this.dataset.o)">' + esc(o) + '</button>').join('') + '</div>' : '') +
       '<div class="riga"><textarea id="risposta-scheda-ap" rows="3" placeholder="' + (d.tipo === 'via' ? 'oppure scrivigli cosa cambiare prima di partire' : 'la tua risposta, con parole tue') + '"></textarea></div>' +
-      '<div class="riga"><button class="primario" onclick="rispondiSchedaAp()">' + (d.tipo === 'via' ? 'Manda' : 'Rispondi') + '</button></div>' +
+      '<div class="riga"><button class="primario" onclick="rispondiSchedaAp()">' + (d.tipo === 'via' ? 'Manda' : 'Rispondi') + '</button>' + micHtml('risposta-scheda-ap') + '</div>' +
       (notaDomandaAp ? '<div class="errore">' + esc(notaDomandaAp) + '</div>' : '') +
       '<div class="sotto">' + (d.tipo === 'via' ? '«Vai» lo fa partire; se scrivi altro gli arriva come messaggio.' : 'La risposta arriva subito all’autopilota; nella chat qui sopra restano domanda e risposta. Poi la prossima, o la linguetta si chiude.') + '</div>'
   } else if (apTab === 'file') {

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
 import { Aiuto } from './Aiuto'
+import { TastoMicrofono } from './TastoMicrofono'
 
 /**
  * La chat con l'autopilota: in cima alla sua sezione, prima di tutto il resto.
@@ -27,6 +28,8 @@ export function ChatAutopilota({
   const [inCorso, setInCorso] = useState(false)
   const [errore, setErrore] = useState<string | undefined>(undefined)
   const flusso = useRef<HTMLDivElement | null>(null)
+  // Il campo, per il microfono (0.75.0): la dettatura scrive dove c'è il fuoco.
+  const campo = useRef<HTMLTextAreaElement | null>(null)
 
   const battute = conversazione(autopilota)
   const pensa = staPensando(autopilota)
@@ -115,6 +118,7 @@ export function ChatAutopilota({
 
       <div className="chatap__scrivi">
         <textarea
+          ref={campo}
           className="campo chatap__campo"
           rows={3}
           style={{ resize: 'vertical' }}
@@ -135,6 +139,7 @@ export function ChatAutopilota({
           >
             {inCorso ? 'Mando…' : 'Manda'}
           </button>
+          <TastoMicrofono campo={campo} />
           {ultimaModifica !== undefined ? (
             <button
               className="tasto"

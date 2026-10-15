@@ -331,6 +331,11 @@ contextBridge.exposeInMainWorld('gestore', {
       return () => { ipcRenderer.off('preferenze:cambiate', h) }
     }
   },
+  /** Il microfono (0.75.0): la dettatura di Windows. */
+  dettatura: {
+    stato: (): Promise<import('../shared/dettatura').StatoDettatura> => ipcRenderer.invoke('dettatura:stato'),
+    apri: (): Promise<{ ok: boolean; messaggio?: string; comeAttivare?: string }> => ipcRenderer.invoke('dettatura:apri')
+  },
   /** La trasformazione dei workspace (0.74.1): lo stato, «Torna come prima», «Rifai». */
   migrazione: {
     stato: (): Promise<import('../shared/migrazione-elenco').StatoMigrazione | null> => ipcRenderer.invoke('migrazione:stato'),

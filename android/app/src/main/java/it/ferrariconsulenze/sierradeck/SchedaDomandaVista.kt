@@ -185,6 +185,8 @@ fun SchedaDomandaVista(
                 onClick = { val t = testo.trim(); testo = ""; onScrivi(t) }
             ) { Text(if (inCorso) "…" else etichettaManda) }
         }
+        // Il microfono (2.75.0): il testo dettato va nel campo, non parte da solo.
+        TastoMicrofono(testo) { testo = it.take(50_000) }
     }
 }
 

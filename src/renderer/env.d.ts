@@ -101,6 +101,10 @@ declare global {
         imposta: (p: import('@shared/preferenze').Preferenze) => Promise<import('@shared/preferenze').Preferenze>
         suCambio: (cb: (p: import('@shared/preferenze').Preferenze) => void) => () => void
       }
+      dettatura: {
+        stato: () => Promise<import('@shared/dettatura').StatoDettatura>
+        apri: () => Promise<{ ok: boolean; messaggio?: string; comeAttivare?: string }>
+      }
       migrazione: {
         stato: () => Promise<import('@shared/migrazione-elenco').StatoMigrazione | null>
         torna: () => Promise<{ ok: boolean; messaggio: string }>

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { TastoMicrofono } from './TastoMicrofono'
 import { sezioniDomanda } from '@shared/domanda-strutturata'
 import type { Autopilota } from '@shared/autopilota'
 import { etichettaOrigine, richiestaScheda, type DomandaScheda } from '@shared/domande-autopilota'
@@ -27,6 +28,7 @@ export function DomandeAutopilota({
 }): React.JSX.Element {
   const [indice, setIndice] = useState(0)
   const [testo, setTesto] = useState('')
+  const campo = useRef<HTMLTextAreaElement | null>(null)
   const [inCorso, setInCorso] = useState(false)
   const [errore, setErrore] = useState<string | undefined>(undefined)
   const i = Math.min(indice, Math.max(0, domande.length - 1))
@@ -133,6 +135,7 @@ export function DomandeAutopilota({
         </div>
       ) : null}
       <textarea
+        ref={campo}
         className="campo domande-ap__campo"
         rows={3}
         value={testo}
@@ -144,6 +147,7 @@ export function DomandeAutopilota({
         <button className="tasto tasto--primario" disabled={inCorso || testo.trim() === ''} onClick={() => manda(testo)}>
           {inCorso ? 'Mando…' : d.tipo === 'via' ? 'Manda' : 'Rispondi'}
         </button>
+        <TastoMicrofono campo={campo} />
         <Aiuto di="cosa succede quando rispondi">
           {d.tipo === 'via'
             ? '«Vai» lo fa partire con i criteri e i compiti che vedi nelle linguette; se scrivi altro gli arriva come messaggio e ti risponde nella chat qui sopra.'

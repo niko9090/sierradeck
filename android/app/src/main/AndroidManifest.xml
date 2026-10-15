@@ -20,6 +20,14 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Il microfono (2.75.0): solo per dettare nei campi, chiesto al primo uso. L'audio lo ascolta Android; l'app non lo registra. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Da Android 11 il servizio di riconoscimento vocale va dichiarato per poterlo trovare. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
     <application
         android:label="SierraDeck"
         android:icon="@mipmap/ic_launcher"

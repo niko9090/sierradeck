@@ -5,6 +5,7 @@ import { quanteAspettano, richiestaRisposta, type Conversazione } from '@shared/
 import { LARGHEZZA_DOMANDE } from '@shared/preferenze'
 import { EtichettaOpzione } from './EtichettaOpzione'
 import { Aiuto } from './Aiuto'
+import { TastoMicrofono } from './TastoMicrofono'
 import { SchedaDomandaVista } from './SchedaDomandaVista'
 import { aspettaTe, contaAspettanoTe, messaggiInVista, ordinaDomande, prossimaDomanda, tipoDomanda } from '@shared/domande-vista'
 
@@ -117,6 +118,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
   /** Quello che hai appena mandato, finche' il computer non lo rimette nel filo. */
   const [mandati, setMandati] = useState<Record<string, string[]>>({})
   const flusso = useRef<HTMLDivElement>(null)
+  const campoScrivi = useRef<HTMLTextAreaElement | null>(null)
   const [larga, setLarga] = useState(larghezza)
   useEffect(() => setLarga(larghezza), [larghezza])
   // La domanda nuova: si apre la sua conversazione e si evidenzia. Niente
@@ -416,6 +418,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
               </div>
               <div className="chatap__scrivi">
                 <textarea
+                  ref={campoScrivi}
                   className="campo chatap__campo"
                   rows={3}
                   value={testo}
@@ -427,6 +430,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                   <button className="tasto tasto--primario" onClick={scrivi} disabled={inCorso || testo.trim() === ''}>
                     {inCorso ? 'Mando…' : aperta.risposta.via === 'rispondi' ? 'Rispondi' : 'Manda'}
                   </button>
+                  <TastoMicrofono campo={campoScrivi} />
                   <Aiuto di="mandare">Ctrl+Invio manda. Quando il programma riceve la risposta, la domanda sparisce da qui e si passa alla prossima che ti aspetta.</Aiuto>
                 </div>
                 {nota !== undefined ? <div className="avviso">⚠ {nota}</div> : null}

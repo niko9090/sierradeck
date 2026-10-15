@@ -218,6 +218,7 @@ fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Un
                     onClick = { val t = testo.trim(); manda({ api.rispondiConversazione(aperta.risposta, t) }, t) }
                 ) { Text(if (inCorso) "…" else if (aperta.risposta.via == "rispondi") "Rispondi" else "Manda") }
             }
+            TastoMicrofono(testo) { testo = it.take(50_000) }
             Text(
                 if (aperta.risposta.via == "rispondi") "La risposta arriva subito alla chat ferma." else "Arriva nella chat come se l’avessi scritto lì.",
                 color = Banco.testoQuieto, fontSize = 11.sp

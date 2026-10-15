@@ -3,7 +3,8 @@ import { specialistiDi } from '@shared/specialisti'
 import { vistaAutopilota } from '@shared/autopiloti-vista'
 import { ruoloDalTitolo, type VoceElenco } from '@shared/vista-elenco'
 import { Aiuto } from './Aiuto'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { TastoMicrofono } from './TastoMicrofono'
 import type { StatoSottofondo } from '@shared/sottofondo'
 import { etichettaSottofondo } from '@shared/stato-dal-vivo'
 import type { Dormiente } from '@shared/migrazione-elenco'
@@ -48,6 +49,7 @@ export function ElencoWorkspace({
   }, [])
   const diFondo = sottofondo.filter((s) => s.workspace === workspace && s.fase !== 'chiusa')
   const [primo, setPrimo] = useState('')
+  const campoPrimo = useRef<HTMLTextAreaElement | null>(null)
   const [nota, setNota] = useState<string | undefined>(undefined)
   const sveglia = (): void => {
     const testo = primo.trim()
@@ -99,8 +101,11 @@ export function ElencoWorkspace({
           </div>
           {dormiente.cwd !== undefined ? (
             <>
-              <textarea className="campo" rows={3} value={primo} onChange={(e) => setPrimo(e.target.value)} placeholder="Scrivigli cosa fare: si prepara e aspetta il tuo «Vai»" />
-              <button className="tasto" disabled={primo.trim() === ''} onClick={sveglia}>Manda</button>
+              <textarea ref={campoPrimo} className="campo" rows={3} value={primo} onChange={(e) => setPrimo(e.target.value)} placeholder="Scrivigli cosa fare: si prepara e aspetta il tuo «Vai»" />
+              <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <button className="tasto" disabled={primo.trim() === ''} onClick={sveglia}>Manda</button>
+                <TastoMicrofono campo={campoPrimo} />
+              </span>
             </>
           ) : <button className="tasto" onClick={onScheda}>Affida un lavoro</button>}
           {nota !== undefined ? <div className="progetti__quieto elenco-ws__riga">{nota}</div> : null}

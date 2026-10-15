@@ -4940,3 +4940,8 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .elenco-ws__vuoto { padding: 8px 0; }
 .elenco-ws__corpo { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .elenco-ws__compito { font-size: var(--t1); color: var(--testo-quieto); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Il microfono (0.75.0): il tasto 🎤 accanto a «Manda», con il suo «?». */
+.microfono { display: inline-flex; align-items: center; gap: 6px; }
+.microfono__nota { font-size: var(--t1); color: var(--testo-quieto); }
+.microfono--no .microfono__nota { color: var(--ambra); }

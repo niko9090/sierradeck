@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.75.0',
+    righe: [
+      '**Parla all’autopilota con il microfono:** il tasto 🎤 sta accanto al campo della chat con l’autopilota, a «Scrivi tu» delle Domande e al primo messaggio dell’autopilota di un workspace. Parli in italiano e il testo compare nel campo mentre parli; **non parte niente da solo**: lo rileggi e premi tu «Manda».',
+      '**Sul PC** il tasto apre la dettatura di Windows (come Win+H) sul campo. Se non c’è, o il microfono è bloccato nella privacy di Windows, il tasto dice «dettatura non disponibile su questo PC», con il «?» che spiega come attivarla. Niente si scarica né si installa.',
+      '**Sulla pagina del telefono** usa il riconoscimento vocale del browser; **nell’app** quello di Android, senza rete quando il telefono ha l’italiano scaricato. Il permesso del microfono si chiede alla prima volta, con il motivo.',
+      '**L’audio non passa da SierraDeck:** non si registra, non si salva e non si manda a nessuno. Lo ascolta il sistema (Windows, il browser o Android), con le sue impostazioni.'
+    ]
+  },
+  {
     versione: '0.74.1',
     righe: [
       '**Tutti i workspace di questo PC passano al modo nuovo, da soli, al primo avvio:** ognuno ha la vista a elenco e il suo autopilota, fermo: non ha obiettivo, non lancia niente e nasce davvero solo quando gli scrivi il primo messaggio. Le chat aperte, anche quelle di altri PC o in sottofondo, restano vive come sono e diventano le voci dell’elenco. I workspace «Su altri PC» non si toccano: li trasforma ognuno il suo PC.',

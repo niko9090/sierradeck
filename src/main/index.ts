@@ -211,6 +211,7 @@ import { creaTrasferimenti, type Trasferimenti } from './trasferimenti/servizio'
 import type { Richiesta } from './trasferimenti/coda'
 import { rinominaInElenco } from '@shared/vista-elenco'
 import { creaMigrazione, type Migrazione } from './migrazione-elenco'
+import { apriDettatura, statoDettatura } from './dettatura'
 
 /**
  * Chi è questo PC (0.52.4): l'identità, con il nome scelto, letta anche dal
@@ -1398,6 +1399,13 @@ if (!app.requestSingleInstanceLock()) {
         for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('migrazione:cambiata')
       }
       ipcMain.handle('migrazione:stato', () => migrazioneGlobale?.stato() ?? null)
+      // Il microfono (0.75.0): la dettatura di Windows sul campo che ha il fuoco.
+      ipcMain.handle('dettatura:stato', () => statoDettatura())
+      ipcMain.handle('dettatura:apri', (e) => {
+        // La finestra del tasto davanti a tutto: Windows apre la dettatura sulla finestra davanti.
+        BrowserWindow.fromWebContents(e.sender)?.focus()
+        return apriDettatura((riga) => registro.info(riga))
+      })
       ipcMain.handle('migrazione:torna', () => { const r = migrazioneGlobale?.tornaComePrima() ?? { ok: false, messaggio: 'non disponibile' }; annunciaMigrazione(); return r })
       ipcMain.handle('migrazione:rifai', () => { const r = migrazioneGlobale?.rifai(); annunciaMigrazione(); return { ok: r?.esito === 'fatta', messaggio: r?.esito === 'fatta' ? 'Fatto: tutti i workspace sono a elenco.' : `Non riuscita: ${r?.stato?.motivo ?? 'motivo sconosciuto'}` } })
       // Dove stavano le finestre: va aperto prima che ne nasca una, perche' e'

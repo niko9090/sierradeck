@@ -413,6 +413,8 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                 maxLines = 3,
                 modifier = Modifier.fillMaxWidth()
             )
+            // Il microfono (2.75.0): il testo dettato va nel campo, lo mandi tu.
+            TastoMicrofono(messaggio) { messaggio = it }
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
@@ -1403,6 +1405,7 @@ private fun LinguettaDomande(api: Api, autopilota: String, schede: List<DomandaS
         maxLines = 4,
         modifier = Modifier.fillMaxWidth()
     )
+    TastoMicrofono(testo) { testo = it }
     Spacer(Modifier.height(4.dp))
     Button(enabled = testo.isNotBlank() && !inCorso, onClick = { manda(testo) }) { Text(if (inCorso) "Mando…" else if (d.tipo == "via") "Manda" else "Rispondi") }
     nota?.let { Text(it, color = Banco.rosso, fontSize = 12.sp) }

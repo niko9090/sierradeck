@@ -863,7 +863,7 @@ describe('la pagina: Domande come conversazioni e albero delle chat', () => {
       segnaposto: 'Tocca un’opzione'
     }]
     const html = new Function(
-      `var domandeConversazioni = ${JSON.stringify(conv)}; var domandaAperta = null; var domandeMandate = {};\n` +
+      `var domandeConversazioni = ${JSON.stringify(conv)}; var domandaAperta = null; var domandeMandate = {}; var micHtml = function () { return "" };\n` +
       `${riga('const esc =')}\n${estrai('oraDi')}\n${estrai('etichettaOpzione')}\n${estrai('vistaConversazioni')}\nreturn vistaConversazioni()`
     )() as string
     expect(html).toContain('Posso scrivere config.json?')
@@ -913,7 +913,7 @@ describe('la pagina: Domande come conversazioni e albero delle chat', () => {
       risposta: { via: 'rispondi', domanda: 'd9' }, segnaposto: 'Rispondi'
     }]
     const html = new Function(
-      `var domandeConversazioni = ${JSON.stringify(conv)}; var domandaAperta = null; var domandeMandate = {};
+      `var domandeConversazioni = ${JSON.stringify(conv)}; var domandaAperta = null; var domandeMandate = {}; var micHtml = function () { return "" };
 ` +
       `${riga('const esc =')}
 ${estrai('oraDi')}

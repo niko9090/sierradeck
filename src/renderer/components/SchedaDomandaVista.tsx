@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { TastoMicrofono } from './TastoMicrofono'
 import type { SceltaScheda, SchedaDomanda } from '@shared/scheda-domanda'
 
 /**
@@ -26,6 +27,7 @@ export function SchedaDomandaVista({
 }): React.JSX.Element {
   const [aperti, setAperti] = useState(false)
   const [testo, setTesto] = useState('')
+  const campo = useRef<HTMLTextAreaElement | null>(null)
   // Un'altra domanda: campo vuoto e dettagli chiusi.
   useEffect(() => { setTesto(''); setAperti(false) }, [s.domanda, s.chi])
   const manda = (): void => {
@@ -79,6 +81,7 @@ export function SchedaDomandaVista({
       ) : null}
       <div className="scheda-domanda__scrivi">
         <textarea
+          ref={campo}
           className="campo"
           rows={2}
           value={testo}
@@ -90,6 +93,7 @@ export function SchedaDomandaVista({
         <button className="tasto tasto--primario" disabled={inCorso || testo.trim() === ''} onClick={manda} title="Ctrl+Invio">
           {inCorso ? 'Mando…' : etichettaManda}
         </button>
+        <TastoMicrofono campo={campo} />
       </div>
       {sotto}
     </section>
