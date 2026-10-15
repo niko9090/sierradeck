@@ -165,7 +165,7 @@ describe('il collegamento WebRTC fra due PC', () => {
 
   it('0.73.1: i fallimenti di fila si contano (la pausa cresce) e il registro dice quando riprova', async () => {
     const drive = scatolaInMemoria()
-    const fisso = pc({ io: 'fisso', nome: 'PC-Fisso', altri: ['lap'], scatola: drive, ponte: reteFinta().crea(), casa })
+    const fisso = pc({ io: 'fisso', nome: 'PC-ESEMPIO', altri: ['lap'], scatola: drive, ponte: reteFinta().crea(), casa })
     expect(fisso.rtc.fallimenti('lap')).toBe(0)
     fisso.rtc.avvia('lap')
     await finche(() => fisso.rtc.stato('lap') === 'fallito')
