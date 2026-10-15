@@ -484,7 +484,8 @@ fun Principale(
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Api.Errore) {
-                if (e.daRiaccoppiare) rifiuti += 1
+                // 401, e 403 sullo stato (0.75.1): il PC c'è ma non riconosce la chiave.
+                if (e.daRiaccoppiare || e.codice == 403) rifiuti += 1
                 // Una risposta del computer, anche un rifiuto, vuol dire che la linea c'è: lo conta l'`Api`.
                 giriFalliti += 1
             } catch (e: Exception) {
@@ -599,6 +600,18 @@ fun Principale(
             // Un tasto che non ce l'ha fatta lo dice qui, in cima, qualunque
             // schermata tu stia guardando: prima falliva in silenzio.
             NotaGlobale()
+            // Perché non si collega (0.75.1): il motivo probabile e il rimedio, dopo due giri a vuoto.
+            if (giriFalliti >= PercheNonCollego.GIRI_PRIMA_DI_SPIEGARE && !schermataViaggio) {
+                val rete = remember(giriFalliti) { PercheNonCollego.leggiRete(contesto) }
+                val indirizziPc = remember(indirizzo) { (listOf(indirizzo) + Collegamento(contesto).indirizziNoti()).distinct() }
+                BandaNonCollego(
+                    PercheNonCollego.diagnosi(
+                        rete, indirizziPc, chiaveRifiutata = rifiuti > 0,
+                        provate = indirizziPc.map { "${Tentativi.nome(Linea.stradaDiIndirizzo(it) ?: "altro")} ${Indirizzi.hostDi(it)}" }
+                    ),
+                    onRiprova = { giriFalliti = 0; Collegamenti.passo(Collegamenti.ACCOPPIATO, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) }
+                )
+            }
             // Il Drive del computer scollegato (0.39.3): non si chiude.
             BandaDriveScollegato(stato?.driveScollegato)
             // Quello che non può aspettare, sopra tutto il resto: non è un

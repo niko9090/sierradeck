@@ -1186,6 +1186,30 @@ const escJs = (t) => { const b = String.fromCharCode(92); return esc(String(t ==
 // non ancora letti) faceva ricominciare l'accoppiamento. L'app fa lo stesso.
 var RIFIUTI_PER_ARRENDERSI = 5
 var rifiuti401 = 0
+var chiaveRifiutataIl = 0
+/**
+ * Perché non si collega (0.75.1), come l'app: il motivo probabile e il
+ * rimedio. La pagina non vede la VPN del telefono, quindi due casi: il PC
+ * risponde ma rifiuta la chiave, oppure non risponde nessuno (con cosa si è
+ * provato). Pura, per i test.
+ */
+function motivoNonCollegoJs(chiaveRifiutata, host) {
+  if (chiaveRifiutata) return {
+    titolo: 'Il PC risponde ma non riconosce questo telefono',
+    rimedio: 'Riprova: se continua, ricollega il telefono.',
+    dettagli: 'Il computer c’è e risponde, ma rifiuta la chiave di questo telefono (401 o 403): il telefono è stato tolto dal computer, o il computer è stato reinstallato. Per ricollegarlo: sul computer apri Impostazioni → Client e accoppia di nuovo con il codice.'
+  }
+  var tailscale = /^100\\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\\./.test(host || '')
+  return {
+    titolo: 'Nessun PC risponde',
+    rimedio: tailscale ? 'Controlla che Tailscale sia acceso sul telefono e sul PC.' : 'Controlla che il PC sia acceso con SierraDeck aperto.',
+    dettagli: 'Ho provato: ' + (tailscale ? 'Tailscale ' : 'questo indirizzo ') + (host || '?') + ', senza risposta. ' +
+      (tailscale
+        ? 'È un indirizzo Tailscale: serve Tailscale acceso sul telefono e sul PC, con lo stesso account. '
+        : 'Se è un indirizzo di casa (192.168…), fuori casa non si raggiunge: usa l’indirizzo Tailscale (100.x) del PC. ') +
+      'Altrimenti il PC è spento o in sospensione, SierraDeck è chiuso, o il firewall di Windows blocca la porta.'
+  }
+}
 
 async function chiedi(percorso, corpo) {
   const t0 = Date.now()
@@ -1194,6 +1218,9 @@ async function chiedi(percorso, corpo) {
     headers: chiave ? { 'x-sierradeck-chiave': chiave, 'content-type': 'application/json' } : { 'content-type': 'application/json' },
     body: corpo ? JSON.stringify(corpo) : undefined
   })
+  // La chiave rifiutata (0.75.1): 401, o 403 sullo stato. Il filo rosso lo dice.
+  if (r.status === 401 || (r.status === 403 && percorso === '/api/stato')) chiaveRifiutataIl = Date.now()
+  else if (r.ok && percorso === '/api/stato') chiaveRifiutataIl = 0
   if (r.status === 401) {
     rifiuti401 += 1
     if (rifiuti401 >= RIFIUTI_PER_ARRENDERSI) { chiave = ''; localStorage.removeItem(CHIAVE); ingresso('Questo dispositivo non è più riconosciuto.') }
@@ -2239,9 +2266,11 @@ function pannello(s) {
 
   // Il filo rosso: quello che stai guardando non e' di adesso. Sta in cima
   // perche' cambia il significato di tutto quello che c'e' sotto.
+  const motivoNC = motivoNonCollegoJs(chiaveRifiutataIl > 0, location.hostname)
   const fermo = giriFalliti >= 2
-    ? '<div class="scollegato">Non parlo con il computer da ' + daQuando(ultimoContatto) +
-      '.<br><span>Quello che vedi è di prima.</span></div>'
+    ? '<div class="scollegato">' + esc(motivoNC.titolo) + aiuto('non-collego', esc(motivoNC.dettagli)) +
+      '<br><span>' + esc(motivoNC.rimedio) + ' Non parlo con il computer da ' + daQuando(ultimoContatto) + ': quello che vedi è di prima.</span>' +
+      '<div class="riga"><button onclick="aggiorna()">Riprova</button></div></div>'
     : ''
 
   // ── Le quattro destinazioni ────────────────────────────────────────────

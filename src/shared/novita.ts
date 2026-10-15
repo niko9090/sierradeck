@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.75.1',
+    righe: [
+      '**Quando il telefono non si collega, dice perché:** «Tailscale è spento su questo telefono» con il tasto «Apri Tailscale»; «Non sei sulla rete di casa: accendi Tailscale»; «Il PC risponde ma non riconosce questo telefono» con «Riprova»; oppure «Nessun PC risponde», con l’elenco di cosa si è provato. I dettagli stanno dietro il «?».',
+      '**Sulla pagina del telefono** gli stessi messaggi dove si può: la chiave rifiutata e nessuna risposta, con il rimedio giusto per l’indirizzo (di casa o Tailscale) e «Riprova».'
+    ]
+  },
+  {
     versione: '0.75.0',
     righe: [
       '**Parla all’autopilota con il microfono:** il tasto 🎤 sta accanto al campo della chat con l’autopilota, a «Scrivi tu» delle Domande e al primo messaggio dell’autopilota di un workspace. Parli in italiano e il testo compare nel campo mentre parli; **non parte niente da solo**: lo rileggi e premi tu «Manda».',

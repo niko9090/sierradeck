@@ -27,6 +27,8 @@
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <!-- «Apri Tailscale» (2.75.1): per trovarne l'app da Android 11 in su. -->
+        <package android:name="com.tailscale.ipn" />
     </queries>
     <application
         android:label="SierraDeck"

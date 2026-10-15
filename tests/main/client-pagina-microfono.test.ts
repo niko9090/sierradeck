@@ -65,3 +65,27 @@ describe('pagina: il microfono', () => {
     expect(script).toContain("micHtml('conv-testo')")
   })
 })
+
+describe('0.75.1: pagina, perché non si collega', () => {
+  const motivo = new Function(`${funzione('motivoNonCollegoJs')}; return motivoNonCollegoJs`)() as (rifiutata: boolean, host: string) => { titolo: string; rimedio: string; dettagli: string }
+  it('chiave rifiutata (401 o 403): il PC risponde ma non riconosce questo telefono, con come ricollegarlo', () => {
+    const m = motivo(true, '192.168.1.20')
+    expect(m.titolo).toBe('Il PC risponde ma non riconosce questo telefono')
+    expect(m.rimedio).toContain('Riprova')
+    expect(m.dettagli).toContain('Impostazioni → Client')
+  })
+  it('nessuna risposta: «Nessun PC risponde», con cosa ho provato e il rimedio giusto per l’indirizzo', () => {
+    const ts = motivo(false, '100.64.0.20')
+    expect(ts.titolo).toBe('Nessun PC risponde')
+    expect(ts.dettagli).toContain('Ho provato: Tailscale 100.64.0.20')
+    expect(ts.rimedio).toContain('Tailscale')
+    const casa = motivo(false, '192.168.1.20')
+    expect(casa.dettagli).toContain('Ho provato: questo indirizzo 192.168.1.20')
+    expect(casa.dettagli).toContain('fuori casa non si raggiunge')
+  })
+  it('il filo rosso usa il motivo, con il «?» e «Riprova»; la chiave rifiutata si segna da 401 e da 403 sullo stato', () => {
+    expect(script).toContain("motivoNonCollegoJs(chiaveRifiutataIl > 0, location.hostname)")
+    expect(script).toContain('<button onclick="aggiorna()">Riprova</button>')
+    expect(script).toContain("r.status === 401 || (r.status === 403 && percorso === '/api/stato')")
+  })
+})
