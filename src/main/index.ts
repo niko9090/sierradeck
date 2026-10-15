@@ -209,6 +209,7 @@ import type { Db } from './db'
 import { apriDestinazioni } from './trasferimenti/destinazioni'
 import { creaTrasferimenti, type Trasferimenti } from './trasferimenti/servizio'
 import type { Richiesta } from './trasferimenti/coda'
+import { rinominaInElenco } from '@shared/vista-elenco'
 
 /**
  * Chi è questo PC (0.52.4): l'identità, con il nome scelto, letta anche dal
@@ -1373,7 +1374,14 @@ if (!app.requestSingleInstanceLock()) {
       // Dove stavano le finestre: va aperto prima che ne nasca una, perche' e'
       // la prima ad avere bisogno di sapere dove tornare.
       finestreStore = apriFinestreStore(dati)
-      registerLayoutIpc(workspaceStore, registro.info, (nome) => { void progettoPerWorkspaceGlobale?.(nome).catch(() => undefined) })
+      registerLayoutIpc(workspaceStore, registro.info, (nome) => { void progettoPerWorkspaceGlobale?.(nome).catch(() => undefined) }, (vecchio, nuovo) => {
+        // La vista a elenco segue il nome del workspace (0.74.0).
+        const p = impostazioni.preferenze()
+        const lista = rinominaInElenco(p.workspaceElenco, vecchio, nuovo)
+        if (lista === p.workspaceElenco) return
+        const nuove = impostazioni.impostaPreferenze({ ...p, workspaceElenco: lista })
+        for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('preferenze:cambiate', nuove)
+      })
       registerFinestreIpc(apriNuovaFinestra)
 
       // L'account (Supabase) vive nel MAIN: il renderer ha la CSP severa

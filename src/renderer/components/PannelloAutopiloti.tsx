@@ -16,6 +16,8 @@ import { useLayoutStore } from '../state/layout'
 import { useSessionStore } from '../state/sessions'
 import { AutopilotiAltriPc } from './AutopilotiAltriPc'
 import { Aiuto } from './Aiuto'
+import { azioniDiFinestra } from '../azioni-finestra'
+import { nomeWorkspacePerAutopilota } from '@shared/vista-elenco'
 
 // La bozza è la stessa del telefono (0.55.0): `@shared/azioni-telefono`.
 // La regola di partenza e' «stabile»: chiede prima di pubblicare. E' la scelta
@@ -64,6 +66,9 @@ export function PannelloAutopiloti({
   workspaceAttivo
 }: Props): React.JSX.Element {
   const [bozza, setBozza] = useState<Bozza | undefined>(undefined)
+  // 0.74.0: l'autopilota nuovo nasce nel suo workspace, con la vista a elenco
+  // (Nicholas: «il workspace è l'ambiente in cui opera»). Si può togliere la spunta.
+  const [suoWorkspace, setSuoWorkspace] = useState(true)
   const [inCorso, setInCorso] = useState(false)
   // Vero quando l'utente ha scelto «altra cartella»: solo allora compare il
   // campo libero, che altrimenti reintrodurrebbe il percorso battuto a mano.
@@ -117,6 +122,18 @@ export function PannelloAutopiloti({
     if (controllo === undefined || !controllo.ok) return
     const r = controllo.richiesta
     esegui(async () => {
+      // Il suo workspace (0.74.0): creato adesso, diventa quello davanti, con
+      // la vista a elenco già accesa. Nessuna chat in più: le apre lui.
+      let workspace = r.workspace
+      if (suoWorkspace) {
+        const esistenti = (await window.gestore.workspace.stato()).nomi
+        const nome = nomeWorkspacePerAutopilota(r.nome !== '' ? r.nome : r.obiettivo.split(/\s+/).slice(0, 4).join(' '), esistenti)
+        window.dispatchEvent(new CustomEvent('sierradeck:vista-elenco', { detail: { nome, accesa: true } }))
+        await azioniDiFinestra().crea(nome)
+        // La finestra è già nel workspace nuovo: la barra e la colonna lo devono sapere.
+        window.dispatchEvent(new CustomEvent('sierradeck:rileggi-workspace'))
+        workspace = nome
+      }
       // I criteri, se scritti, uno per riga: se no li ricava lui nell'intervista.
       // Quante chat: non si sceglie piu' qui (decisione di Nicholas, 30/09).
       // Le decide lui in base a quanto il lavoro si divide, dentro il freno sui
@@ -127,7 +144,7 @@ export function PannelloAutopiloti({
       await window.gestore.autopilota.crea({
         nome: r.nome, obiettivo: r.obiettivo, cwd: r.cwd, criteri: r.criteri, pubblicazione: r.pubblicazione,
         ...(r.vaSulCloud === true ? { vaSulCloud: true } : {}),
-        ...(r.workspace !== undefined ? { workspace: r.workspace } : {}),
+        ...(workspace !== undefined ? { workspace } : {}),
         partenza: r.partenza
       })
       setBozza(undefined)
@@ -383,6 +400,11 @@ export function PannelloAutopiloti({
             >
               {PARTENZE.map((p) => <option key={p.valore} value={p.valore}>{p.etichetta}</option>)}
             </select>
+          </label>
+
+          <label className="etichetta nuovo-ap__blocco" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <input type="checkbox" checked={suoWorkspace} onChange={(e) => setSuoWorkspace(e.target.checked)} />
+            <span className="con-aiuto">Nel suo workspace, a elenco<Aiuto di="il suo workspace">Crea un workspace con il nome dell’autopilota e lo porta davanti: a sinistra lui e i suoi specialisti, a destra una chat sola, grande. Non apre chat in più: apre lui quelle che servono, e chiude da sole quelle che hanno finito. Togli la spunta per farlo lavorare nel workspace che hai davanti.</Aiuto></span>
           </label>
 
           <label className="etichetta nuovo-ap__blocco">

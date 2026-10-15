@@ -1018,7 +1018,9 @@ export function registerLayoutIpc(
    */
   registra: (messaggio: string) => void = () => {},
   /** Un workspace appena creato da qui (0.65.1): diventa un progetto. */
-  dopoCreato: (nome: string) => void = () => {}
+  dopoCreato: (nome: string) => void = () => {},
+  /** Un workspace rinominato (`nuovo`) o eliminato (`undefined`), 0.74.0: la vista a elenco segue il nome. */
+  dopoNome: (vecchio: string, nuovo: string | undefined) => void = () => {}
 ): void {
   /**
    * Il layout che spetta a questa finestra, con lo scontrino che le dà diritto a
@@ -1201,6 +1203,7 @@ export function registerLayoutIpc(
     scriviOSolleva(a, "l'eliminazione del workspace")
     // Annotata (0.65.1): un workspace eliminato da Nicholas non si «ritrova» dalle copie.
     annotaEliminato(dirname(store.percorso), validateNomeWorkspace(raw))
+    dopoNome(validateNomeWorkspace(raw), undefined)
     if (a.attivo !== precedente.attivo) annunciaCambio(event, a, precedente.attivo)
     return statoDi(a)
   })
@@ -1228,6 +1231,7 @@ export function registerLayoutIpc(
       // salvataggio dopo la rinomina ricreava il workspace con il nome vecchio
       // e svuotava quello nuovo (vedi `RegistroConsegne.rinomina`).
       consegne.rinomina(vecchio, nuovo)
+      dopoNome(vecchio, nuovo)
       registro.inviaATutte('workspace:rinominato', { vecchio, nuovo, attivo: a.attivo })
     }
     return statoDi(a)

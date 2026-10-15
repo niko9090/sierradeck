@@ -86,6 +86,8 @@ type State = {
    * questa resta per chi carica un layout o sposta un riquadro governato.
    */
   assegnaAutopilota: (paneId: string, autopilota: { id: string; chat: string }) => void
+  /** La chat torna tua (0.74.0): l'autopilota che la guidava è fermo, fallito, archiviato o non c'è più. */
+  liberaAutopilota: (paneId: string) => void
   closePane: (id: string) => void
   split: (targetId: string, direction: Direction) => void
   resize: (splitId: string, index: number, delta: number) => void
@@ -272,6 +274,14 @@ export const useLayoutStore = create<State>((set, get) => ({
       const pane = s.panes[paneId]
       if (pane === undefined) return s
       return { panes: { ...s.panes, [paneId]: { ...pane, autopilota } } }
+    }),
+
+  liberaAutopilota: (paneId) =>
+    set((s) => {
+      const pane = s.panes[paneId]
+      if (pane?.autopilota === undefined) return s
+      const { autopilota: _via, ...resto } = pane
+      return { panes: { ...s.panes, [paneId]: resto } }
     }),
 
   closePane: (id) =>

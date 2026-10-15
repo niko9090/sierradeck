@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { destinazioni, RECENTI_MAX } from '../../src/renderer/destinazioni-autopilota'
+import { destinazioni, progettoVero, RECENTI_MAX } from '../../src/renderer/destinazioni-autopilota'
 import type { SessionSummary } from '@shared/types'
 import type { PaneData } from '../../src/renderer/state/layout'
 
@@ -104,5 +104,20 @@ describe('destinazioni', () => {
 
   it('non solleva su elenchi vuoti', () => {
     expect(destinazioni([], [])).toEqual([])
+  })
+})
+
+describe('0.74.0: mai la copia di lavoro di uno specialista', () => {
+  it('il worktree diventa il suo progetto, e conta una volta sola', () => {
+    expect(progettoVero('E:\\p\\prova.sierradeck-wt\\ap-1-c-1')).toBe('E:\\p\\prova')
+    expect(progettoVero('E:/p/prova.sierradeck-wt/ap-1-c-1/sotto')).toBe('E:/p/prova')
+    expect(progettoVero('E:\\p\\prova')).toBe('E:\\p\\prova')
+    const d = destinazioni([
+      riquadro({ id: 'a', cwd: 'E:\\p\\prova.sierradeck-wt\\ap-1-c-1', title: 'Sviluppo · Notte' }),
+      riquadro({ id: 'b', cwd: 'E:\\p\\prova.sierradeck-wt\\ap-1-c-2', title: 'Revisione · Notte' }),
+      riquadro({ id: 'c', cwd: 'E:\\p\\prova', title: 'Notte' })
+    ], [])
+    expect(d.map((x) => x.cwd)).toEqual(['E:\\p\\prova'])
+    expect(d[0]!.dettaglio).toBe('progetto di «Sviluppo · Notte»')
   })
 })

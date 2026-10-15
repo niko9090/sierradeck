@@ -202,7 +202,9 @@ fun SpecialistiVista(s: Specialisti, onGuarda: (String) -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(x.ruolo, color = coloreRuolo(x.colore), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 Text(" · ${x.stato}", color = if (x.attivo) Banco.verde else Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                x.sessionId?.let { sid -> TextButton(onClick = { onGuarda(sid) }) { Text("Guarda", fontSize = 12.sp) } }
+                // PC 0.74.0: chi ha finito ha chiuso la sua chat da solo.
+                if (x.chiusa) Text("chat chiusa", color = Banco.testoQuieto, fontSize = 11.sp)
+                else x.sessionId?.let { sid -> TextButton(onClick = { onGuarda(sid) }) { Text("Guarda", fontSize = 12.sp) } }
             }
             if (x.compito.isNotBlank()) Text(x.compito, color = Banco.testo, fontSize = 12.sp, maxLines = 2)
             if (x.ultimaAzione.isNotBlank()) Text(x.ultimaAzione, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 2)

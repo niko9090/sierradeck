@@ -28,6 +28,8 @@ export type Specialista = {
   /** Per «Guarda»: la sessione di Claude Code e il workspace dove sta il riquadro. */
   sessionId?: string
   workspace?: string
+  /** Ha finito (0.74.0): la sua chat si è chiusa da sola, il lavoro sta nel diario. Niente «Guarda». */
+  chiusa?: true
 }
 
 export type Specialisti = {
@@ -90,7 +92,8 @@ export function specialistiDi(a: Autopilota): Specialisti {
         attivo: c.stato === 'lavoro',
         ultimaAzione: c.ultimaAzione ?? '',
         ...(c.sessionId !== undefined ? { sessionId: c.sessionId } : {}),
-        ...(a.workspace !== undefined ? { workspace: a.workspace } : {})
+        ...(a.workspace !== undefined ? { workspace: a.workspace } : {}),
+        ...(c.stato === 'finita' || a.stato === 'finito' ? { chiusa: true as const } : {})
       }))
     }
   }
@@ -108,7 +111,8 @@ export function specialistiDi(a: Autopilota): Specialisti {
       attivo: a.stato === 'lavoro',
       ultimaAzione: a.ultimaAzioneChat ?? '',
       sessionId: a.sessionId,
-      ...(a.workspace !== undefined ? { workspace: a.workspace } : {})
+      ...(a.workspace !== undefined ? { workspace: a.workspace } : {}),
+      ...(a.stato === 'finito' ? { chiusa: true as const } : {})
     }]
   }
 }

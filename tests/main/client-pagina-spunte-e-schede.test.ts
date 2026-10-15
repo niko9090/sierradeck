@@ -91,3 +91,9 @@ describe('0.74.0: pagina, solo notifiche utili', () => {
     ])
   })
 })
+
+describe('0.74.0: pagina, la riga «dal vivo» non allarga la pagina', () => {
+  it('ogni riga sotto è un blocco suo, tagliato con i puntini', () => {
+    expect(html).toMatch(/\.voce__sotto \{[^}]*white-space: nowrap;[^}]*display: block; max-width: 100%;/)
+  })
+})

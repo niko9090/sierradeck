@@ -4919,3 +4919,24 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .specialisti__stato { font-size: var(--t1); }
 .specialisti__compito, .specialisti__ultima { grid-column: 1 / -1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t1); }
 .riquadro--guardato { outline: 2px solid var(--accento, #4aa3ff); outline-offset: -2px; }
+
+/* La vista a elenco (0.74.0): l'autopilota e i suoi specialisti a sinistra, una chat grande a destra. */
+.vista-elenco { flex: 1; display: flex; min-width: 0; min-height: 0; }
+.elenco-ws { width: 300px; flex: none; display: flex; flex-direction: column; gap: 6px; padding: 10px; overflow-y: auto; border-right: 1px solid var(--incisione, #2a2a2a); background: var(--chassis, transparent); }
+.elenco-ws__testa { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.elenco-ws__autopilota { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-top: 1px solid var(--incisione, #2a2a2a); }
+.elenco-ws__nome { display: flex; align-items: center; gap: 8px; }
+.elenco-ws__nome b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.elenco-ws__riga { font-size: var(--t1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.elenco-ws__voce { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 6px 8px; border-radius: 4px; border: 1px solid transparent; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.elenco-ws__voce:hover { background: var(--chassis-alto, rgba(255,255,255,0.04)); }
+.elenco-ws__voce--davanti { border-color: var(--accento, #4aa3ff); background: var(--chassis-alto, rgba(255,255,255,0.06)); }
+.elenco-ws__voce--chiusa { cursor: default; opacity: 0.55; }
+.elenco-ws__voce--chiusa:hover { background: transparent; }
+.elenco-ws__titolo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.elenco-ws__voce b { min-width: 0; }
+.elenco-ws__stato { font-size: var(--t1); color: var(--testo-quieto); white-space: nowrap; }
+.elenco-ws__altre { margin-top: 8px; }
+.elenco-ws__vuoto { padding: 8px 0; }
+.elenco-ws__corpo { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.elenco-ws__compito { font-size: var(--t1); color: var(--testo-quieto); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

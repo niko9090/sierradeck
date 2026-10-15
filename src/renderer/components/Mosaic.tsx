@@ -231,9 +231,17 @@ export function Mosaic({
   autopiloti,
   onRicaricaAutopiloti,
   pensano,
-  chiedono = new Set()
+  chiedono = new Set(),
+  solo
 }: {
   node: LayoutNode
+  /**
+   * La vista a elenco (0.74.0): si vede solo questo riquadro, a tutta
+   * grandezza. Gli altri restano montati dietro, **alla stessa misura** e
+   * invisibili: nessun terminale si stringe a zero colonne e nessun
+   * claude.exe si chiude, e portarne uno davanti è immediato.
+   */
+  solo?: string
   /** Servono al riquadro per sapere se qualcuno sta governando la sua chat. */
   autopiloti: Autopilota[]
   /**
@@ -295,15 +303,17 @@ export function Mosaic({
             className={data.remoto !== undefined ? 'riquadro riquadro--remoto' : 'riquadro'}
             // «Guarda» di uno specialista (0.73.0) trova il riquadro dalla sessione.
             data-sessione={data.sessionUuid}
+            data-davanti={solo === undefined ? undefined : solo === paneId ? 'si' : 'no'}
             style={{
               position: 'absolute',
-              left: `${rect.left * 100}%`,
-              top: `${rect.top * 100}%`,
-              width: `${rect.width * 100}%`,
-              height: `${rect.height * 100}%`,
+              left: solo === undefined ? `${rect.left * 100}%` : 0,
+              top: solo === undefined ? `${rect.top * 100}%` : 0,
+              width: solo === undefined ? `${rect.width * 100}%` : '100%',
+              height: solo === undefined ? `${rect.height * 100}%` : '100%',
               display: 'flex',
               flexDirection: 'column',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              ...(solo !== undefined ? { visibility: solo === paneId ? 'visible' : 'hidden', zIndex: solo === paneId ? 1 : 0 } : {})
             }}
           >
             <div
@@ -527,7 +537,7 @@ export function Mosaic({
           </div>
         )
       })}
-      {geometria.dividers.map((box) => (
+      {(solo !== undefined ? [] : geometria.dividers).map((box) => (
         <Divider key={`${box.splitId}-${box.index}`} box={box} containerRef={containerRef} />
       ))}
     </div>

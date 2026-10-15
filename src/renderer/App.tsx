@@ -63,6 +63,9 @@ import { PannelloSalute } from './components/PannelloSalute'
 import { PannelloDomande, apriDomandeAutopilota } from './components/PannelloDomande'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 import { useAvviaNomiPc } from './state/nomi-pc'
+import { ElencoWorkspace } from './components/ElencoWorkspace'
+import { cambiaVistaElenco, chatDavanti, ruoloDalTitolo, type VoceElenco } from '@shared/vista-elenco'
+import { chatDaSistemare } from '@shared/chat-governate'
 
 /**
  * Quante righe dello schermo vanno al telefono.
@@ -912,6 +915,45 @@ export function App(): React.JSX.Element {
       .then((p) => window.gestore.preferenze.imposta({ ...p, avvisiChiusi: ricordaChiusi(p.avvisiChiusi, chiavi) }))
       .catch(() => undefined)
   }, [])
+  // La vista a elenco (0.74.0): quali workspace la usano (preferenza del PC) e quale chat sta davanti.
+  const [workspaceElenco, setWorkspaceElenco] = useState<string[]>([])
+  useEffect(() => {
+    const applica = (p: { workspaceElenco: string[] }): void => setWorkspaceElenco(p.workspaceElenco)
+    window.gestore.preferenze.leggi().then(applica).catch(() => undefined)
+    return window.gestore.preferenze.suCambio(applica)
+  }, [])
+  const impostaElenco = useCallback((nome: string, accesa: boolean): void => {
+    setWorkspaceElenco((l) => cambiaVistaElenco(l, nome, accesa))
+    window.gestore.preferenze
+      .leggi()
+      .then((p) => window.gestore.preferenze.imposta({ ...p, workspaceElenco: cambiaVistaElenco(p.workspaceElenco, nome, accesa) }))
+      .catch(() => undefined)
+  }, [])
+  useEffect(() => {
+    const accendi = (e: Event): void => {
+      const d = (e as CustomEvent<{ nome?: string; accesa?: boolean }>).detail
+      if (d?.nome !== undefined && d.nome !== '') impostaElenco(d.nome, d.accesa ?? true)
+    }
+    window.addEventListener('sierradeck:vista-elenco', accendi)
+    return () => window.removeEventListener('sierradeck:vista-elenco', accendi)
+  }, [impostaElenco])
+  const [davantiScelto, setDavantiScelto] = useState<string | undefined>(undefined)
+  // Un workspace creato da fuori dal suo pannello (0.74.0: «+ Nuovo autopilota»): si rilegge lo stato.
+  useEffect(() => {
+    const rileggi = (): void => { void window.gestore.workspace.stato().then((s) => aggiornaWorkspaceRef.current(s)).catch(() => undefined) }
+    window.addEventListener('sierradeck:rileggi-workspace', rileggi)
+    return () => window.removeEventListener('sierradeck:rileggi-workspace', rileggi)
+  }, [])
+  // «Guarda» di uno specialista porta davanti la sua chat anche nella vista a elenco.
+  useEffect(() => {
+    const guarda = (e: Event): void => {
+      const s = (e as CustomEvent<{ sessionId?: string }>).detail?.sessionId
+      const p = Object.values(useLayoutStore.getState().panes).find((x) => x.sessionUuid === s)
+      if (p !== undefined) setDavantiScelto(p.id)
+    }
+    window.addEventListener('sierradeck:guarda-chat', guarda)
+    return () => window.removeEventListener('sierradeck:guarda-chat', guarda)
+  }, [])
   const salvaColonnaDomande = useCallback((cambio: { aperta?: boolean; larghezza?: number }): void => {
     setColonnaDomande((c) => ({ ...c, ...cambio }))
     window.gestore.preferenze
@@ -1019,6 +1061,24 @@ export function App(): React.JSX.Element {
   aggiornaWorkspaceRef.current = aggiornaWorkspace
   const [autopiloti, setAutopiloti] = useState<Autopilota[]>([])
   const [erroreAutopiloti, setErroreAutopiloti] = useState<string | undefined>(undefined)
+  // Le chat finite si tolgono da sole (0.74.0): lo specialista che ha finito
+  // chiude il riquadro e il suo claude.exe; la chat di un autopilota fermo
+  // torna tua. Solo con l'elenco degli autopiloti letto davvero.
+  useEffect(() => {
+    if (erroreAutopiloti !== undefined) return
+    const s = useLayoutStore.getState()
+    const riquadri = Object.values(s.panes).flatMap((p) => (p.autopilota !== undefined ? [{ paneId: p.id, autopilota: p.autopilota, remoto: p.remoto !== undefined }] : []))
+    if (riquadri.length === 0) return
+    const { chiudi, libera } = chatDaSistemare(riquadri, autopiloti)
+    for (const id of chiudi) {
+      const p = s.panes[id]
+      if (p === undefined) continue
+      console.info(`[elenco] «${p.title}»: lo specialista ha finito, chiudo la sua chat`)
+      if (p.ptyId !== undefined) window.gestore.pty.kill(p.ptyId)
+      useLayoutStore.getState().closePane(id)
+    }
+    for (const id of libera) useLayoutStore.getState().liberaAutopilota(id)
+  }, [autopiloti, erroreAutopiloti])
   const [alLogin, setAlLogin] = useState<boolean | undefined>(undefined)
   const [accesso, setAccesso] = useState<StatoAccesso>({ autenticato: true })
   const [pronto, setPronto] = useState(false)
@@ -1873,7 +1933,46 @@ export function App(): React.JSX.Element {
         ) : null}
 
         <div style={{ flex: 1, display: 'flex', minWidth: 0 }}>
-          {root ? (
+          {workspaceElenco.includes(workspace.attivo) ? (() => {
+            // La vista a elenco (0.74.0): la colonna a sinistra, una chat grande a destra.
+            const voci: VoceElenco[] = Object.values(riquadriAperti).map((p) => ({
+              paneId: p.id,
+              titolo: p.title,
+              ...(ruoloDalTitolo(p.title) !== undefined ? { ruolo: ruoloDalTitolo(p.title) } : {}),
+              ...(p.autopilota !== undefined ? { autopilota: p.autopilota.id } : {}),
+              lavora: p.ptyId !== undefined && pensano.has(p.ptyId),
+              chiede: chiedono.has(p.id)
+            }))
+            const davanti = chatDavanti(voci, davantiScelto)
+            return (
+              <div className="vista-elenco">
+                <ElencoWorkspace
+                  workspace={workspace.attivo}
+                  autopiloti={autopiloti}
+                  voci={voci}
+                  davanti={davanti}
+                  sessioneDi={Object.fromEntries(Object.values(riquadriAperti).map((p) => [p.id, p.sessionUuid]))}
+                  onDavanti={setDavantiScelto}
+                  onScheda={() => setAperto('autopiloti')}
+                  onMosaico={() => impostaElenco(workspace.attivo, false)}
+                />
+                {root ? (
+                  <Mosaic
+                    node={root}
+                    autopiloti={autopiloti}
+                    onRicaricaAutopiloti={ricaricaAutopiloti}
+                    pensano={pensano}
+                    chiedono={chiedono}
+                    {...(davanti !== undefined ? { solo: davanti } : {})}
+                  />
+                ) : (
+                  <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--testo-quieto)', fontSize: 13 }}>
+                    Nessuna chat aperta: l’autopilota apre le sue quando parte.
+                  </div>
+                )}
+              </div>
+            )
+          })() : root ? (
             <Mosaic
               node={root}
               autopiloti={autopiloti}

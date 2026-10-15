@@ -372,6 +372,8 @@ export function Console({
               </label>
               <button className="progetti__voce" onClick={() => { setStrumenti(false); onApri('chat') }} title="Chat usate da altri PC, e tutto «Chat e workspace»">Usate da altri PC…</button>
               <button className="progetti__voce" onClick={() => { setStrumenti(false); commuta('workspace') }}>Crea, rinomina, elimina workspace…</button>
+              {/* 0.74.0: la vista a elenco si accende solo da qui, un workspace alla volta (decisione di Nicholas). */}
+              <button className="progetti__voce" onClick={() => { setStrumenti(false); window.dispatchEvent(new CustomEvent('sierradeck:vista-elenco', { detail: { nome: workspaceAttivo } })) }} title="A sinistra l’autopilota e i suoi specialisti, a destra una chat sola, grande. Si spegne con «Mosaico».">Vista a elenco per questo workspace</button>
               <button className="progetti__voce" onClick={() => { setStrumenti(false); void window.gestore.finestre.nuova() }}>Nuova finestra</button>
               <button className="progetti__voce" onClick={() => { setStrumenti(false); commuta('negozio') }}>Negozio…</button>
             </TendinaMenu>

@@ -316,7 +316,9 @@ data class Specialista(
     val attivo: Boolean = false,
     val ultimaAzione: String = "",
     val sessionId: String? = null,
-    val workspace: String? = null
+    val workspace: String? = null,
+    /** PC 0.74.0: ha finito e la sua chat si è chiusa da sola. */
+    val chiusa: Boolean = false
 )
 
 /** La linguetta «File» (0.38.0): i file cambiati, per chat. */

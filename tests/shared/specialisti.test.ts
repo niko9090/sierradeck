@@ -46,6 +46,14 @@ describe('specialisti', () => {
     expect(s.elenco).toHaveLength(4)
   })
 
+  it('0.74.0: lo specialista che ha finito ha la chat chiusa (niente «Guarda» su pagina e app)', () => {
+    const s = specialistiDi(ap({ stato: 'lavoro', chats: [
+      { id: 'c-1', compito: 'a', stato: 'finita', cicli: 1, ruolo: 'sviluppo', sessionId: 's-1' },
+      { id: 'c-2', compito: 'b', stato: 'lavoro', cicli: 1, ruolo: 'revisione', sessionId: 's-2' }
+    ] }))
+    expect(s.elenco.map((x) => x.chiusa)).toEqual([true, undefined])
+  })
+
   it('un lavoro piccolo: una chat sola, e la scheda lo dice', () => {
     const s = specialistiDi(ap({ stato: 'lavoro', sessionId: 's-0', organizzazione: rigaChatSola('piccolo'), ultimaAzioneChat: 'Fatto il primo giro.' }))
     expect(s.riga).toBe('Lavoro piccolo: una chat sola, che fa tutto.')

@@ -111,6 +111,14 @@ export type Preferenze = {
    */
   avvisiChiusi: string[]
   /**
+   * I workspace con la vista a elenco (0.74.0): a sinistra l'autopilota e i
+   * suoi specialisti, a destra una chat sola, grande. Nicholas, 15/10: «il
+   * workspace è l'ambiente in cui opera» l'autopilota. Un workspace creato
+   * con «+ Nuovo autopilota» ci entra da solo; uno che c'era già solo quando
+   * lo sceglie Nicholas, uno per uno. Per nome, come i workspace di questo PC.
+   */
+  workspaceElenco: string[]
+  /**
    * Come si veste la console.
    *
    * Due risposte opposte alla stessa domanda - cosa deve fare la cornice
@@ -159,6 +167,7 @@ export const PREFERENZE_PREDEFINITE: Preferenze = {
   larghezzaConsumi: 380,
   divisioneAutopilota: 55,
   avvisiChiusi: [],
+  workspaceElenco: [],
   // Il banco e quello che c e sempre stato: chi non sceglie non deve
   // ritrovarsi un programma diverso da quello di ieri.
   stile: 'banco',
@@ -263,6 +272,9 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
         : PREFERENZE_PREDEFINITE.divisioneAutopilota,
     avvisiChiusi: Array.isArray(o.avvisiChiusi)
       ? o.avvisiChiusi.filter((c): c is string => typeof c === 'string' && c !== '' && c.length <= 600).slice(-200)
+      : [],
+    workspaceElenco: Array.isArray(o.workspaceElenco)
+      ? [...new Set(o.workspaceElenco.filter((c): c is string => typeof c === 'string' && c.trim() !== '' && c.length <= 120))].slice(0, 200)
       : [],
     // Solo i due nomi che conosciamo: uno stile inventato lascerebbe la console
     // senza token e con essa senza colori, che è il modo peggiore di scoprire

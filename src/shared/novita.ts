@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.74.0',
+    righe: [
+      '**Il workspace è l’ambiente dell’autopilota:** «+ Nuovo autopilota» crea il suo workspace con la vista a elenco. A sinistra lui e i suoi specialisti, a destra una chat sola, grande: tocchi una riga e quella chat viene davanti. Nessuna chat in più accanto all’autopilota. Un workspace che c’era già passa alla vista a elenco solo quando lo scegli tu (Strumenti → «Vista a elenco per questo workspace»); «Mosaico» torna ai riquadri affiancati. Le chat normali restano, con «+ Nuova chat».',
+      '**Le chat finite si tolgono da sole:** lo specialista che ha finito chiude la sua chat e il suo processo, e resta nell’elenco in grigio («chat chiusa»), anche sulla pagina e nell’app. Al riavvio non si riaprono più tutte insieme. La chat di un autopilota fermato torna tua: se ti fa una domanda, arriva alle Domande e al telefono.',
+      '**Solo notifiche utili sull’app e sulla pagina:** domande e attese, lavoro finito, lavoro fermo, versione pronta, computer scollegato da più di 5 minuti. Una chat che finisce il turno avvisa solo se ti aspetta da 3 minuti. Ogni chat e ogni autopilota hanno una notifica sola, che si aggiorna. Ogni tipo ha il suo interruttore nell’app (Impostazioni → Notifiche); i file ricevuti sono spenti di partenza.',
+      '**Corretti dopo il controllo della 0.73.0:** il collegamento diretto verso un PC spento riprova sempre più di rado (fino a 30 minuti) e subito quando quel PC torna; il registro non ripete più ogni due minuti lo stesso trasloco fermo né i controlli degli aggiornamenti; «Aspettano te» non conta le risposte già date dall’autopilota; il nuovo autopilota non propone più come cartella la copia di lavoro di uno specialista; le cartelle vuote degli specialisti si tolgono da sole; sulla pagina i menu a tendina sono scuri.'
+    ]
+  },
+  {
     versione: '0.73.0',
     righe: [
       '**Domande essenziali:** una scheda per domanda, con la chat e il progetto in piccolo, la domanda in una frase, le risposte come tasti (la consigliata con ★) e «Scrivi tu». Il resto (cosa sta facendo, perché, cosa succede con ogni scelta) sta dietro il «?». Niente più cronologia. Sul PC, sulla pagina e nell’app.',

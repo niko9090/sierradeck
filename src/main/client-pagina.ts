@@ -267,6 +267,10 @@ export function paginaClient(): string {
   .voce__sotto {
     font-size: var(--t1); color: var(--testo-quieto);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    /* Una riga sua (0.74.0): nella scheda dell'autopilota le due righe del
+       «dal vivo» stavano attaccate («5 h 24 minsupervisore») e allargavano
+       la pagina oltre lo schermo. */
+    display: block; max-width: 100%;
   }
   .voce__altrove { font-size: .72em; opacity: .55; margin-left: 6px; white-space: nowrap; }
   /* La parola dello stato accanto al nome: si legge da lontano quanto il LED. */
@@ -3732,7 +3736,8 @@ function specialistiHtml(s) {
     (s.elenco || []).map(function (x) {
       return '<div class="sotto" style="border-top:1px solid var(--incisione,#2a2a2a);padding-top:4px;margin-top:4px">' +
         '<b style="color:' + (colori[x.colore] || colori.quieto) + '">' + esc(x.ruolo) + '</b> · <span style="color:' + (x.attivo ? 'var(--verde,#3c9)' : 'var(--testo-quieto,#9aa1a9)') + '">' + esc(x.stato) + '</span>' +
-        (x.sessionId ? ' <button style="margin-left:6px" data-s="' + esc(x.sessionId) + '" onclick="guardaSpecialista(this.dataset.s)">Guarda</button>' : '') +
+        // 0.74.0: chi ha finito ha chiuso la sua chat: niente «Guarda».
+        (x.chiusa ? ' <span style="color:var(--testo-quieto,#9aa1a9)">· chat chiusa</span>' : x.sessionId ? ' <button style="margin-left:6px" data-s="' + esc(x.sessionId) + '" onclick="guardaSpecialista(this.dataset.s)">Guarda</button>' : '') +
         '<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(x.compito || '') + '</div>' +
         (x.ultimaAzione ? '<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--testo-quieto,#9aa1a9)">' + esc(x.ultimaAzione) + '</div>' : '') +
         '</div>'

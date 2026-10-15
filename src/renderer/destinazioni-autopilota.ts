@@ -20,6 +20,17 @@ function nomeDi(percorso: string): string {
   return parti[parti.length - 1] ?? percorso
 }
 
+/**
+ * La cartella del progetto di un worktree di specialista (0.74.0):
+ * `E:\p\prova.sierradeck-wt\ap-1-c-1` → `E:\p\prova`. Il 15/10 il modulo
+ * proponeva come prima scelta la copia di lavoro di uno specialista: un
+ * autopilota nuovo lì dentro lavorerebbe su un ramo che sparisce.
+ */
+export function progettoVero(cwd: string): string {
+  const m = /^(.*?)\.sierradeck-wt(?:[\\/].*)?$/.exec(cwd)
+  return m?.[1] !== undefined && m[1] !== '' ? m[1] : cwd
+}
+
 function quando(s: SessionSummary): number {
   const t = Date.parse(s.lastTimestamp ?? '')
   return Number.isNaN(t) ? 0 : t
@@ -47,16 +58,17 @@ export function destinazioni(riquadri: PaneData[], sessioni: SessionSummary[]): 
   const viste = new Set<string>()
 
   for (const r of riquadri) {
-    if (viste.has(r.cwd)) continue
-    viste.add(r.cwd)
-    risultato.push({ cwd: r.cwd, etichetta: nomeDi(r.cwd), dettaglio: r.title, aperta: true })
+    const cwd = progettoVero(r.cwd)
+    if (viste.has(cwd)) continue
+    viste.add(cwd)
+    risultato.push({ cwd, etichetta: nomeDi(cwd), dettaglio: cwd === r.cwd ? r.title : `progetto di «${r.title}»`, aperta: true })
   }
 
   // Un progetto per cartella, con la data della sua sessione più recente e il
   // numero di chat: è ciò che serve per riconoscerlo in una riga sola.
   const progetti = new Map<string, { ultima: number; chat: Set<string> }>()
   for (const s of sessioni) {
-    const cartella = s.cwd ?? s.projectPath
+    const cartella = progettoVero(s.cwd ?? s.projectPath)
     const prima = progetti.get(cartella)
     const chiaveChat = s.aiTitle ?? s.uuid
     if (prima === undefined) progetti.set(cartella, { ultima: quando(s), chat: new Set([chiaveChat]) })
