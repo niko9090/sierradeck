@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.72.0',
+    righe: [
+      '**Messo in sicurezza dopo la cancellazione di AppData\\Local del 14/10.** Il programma non fa più girare comandi senza nessuno davanti: i criteri di un autopilota finito non si rimisurano più da soli ogni 10 minuti, ma solo mentre lavora o quando premi «Ricontrolla i criteri».',
+      '**Ogni cancellazione di cartelle passa da una guardia:** il programma, il servizio e gli script non possono cancellare né mandare nel Cestino la radice di un disco, la tua cartella utente, AppData, Temp intera, Documenti, Desktop, Program Files, Windows, né una cartella che le contiene, nemmeno attraverso un collegamento. I comandi dei criteri non possono cancellare fuori dalla cartella del progetto, e ognuno ha la sua cartella temporanea.',
+      '**L’autopilota scrive nelle chat senza ammucchiare messaggi:** durante un turno lungo scrive al massimo un messaggio; gli altri aspettano la fine del turno e partono uniti in uno. Un testo già mandato non si riscrive più. E quello che fa il servizio degli autopiloti adesso finisce nel registro.',
+      '**La chat di un autopilota si vede sempre:** sta in un riquadro del suo workspace, e quando l’autopilota le scrive il PC va in quel workspace, mai mentre stai scrivendo (intanto una banda lo dice, con «Guarda»). In sottofondo lavora solo se lo chiedi tu con «Lavora in sottofondo», sul PC, sulla pagina e nell’app.'
+    ]
+  },
+  {
     versione: '0.71.1',
     righe: [
       '**Le domande non spariscono più:** una chat che finisce il turno con una domanda scritta, o con un dialogo, sta in «Aspettano te» finché le rispondi, sul PC, sulla pagina e nell’app. Se risponde l’autopilota al posto tuo, la domanda resta visibile per 12 ore con «risposta dall’autopilota».',

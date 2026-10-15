@@ -4,6 +4,8 @@ quando: 2026-10-11T12:40:00+02:00
 tag: ["autopilota", "consegne", "sottofondo", "workspace", "decisione di Nicholas", "0.60.8"]
 ---
 
+> **Superata come regola di serie dalla 0.72.0** (Nicholas, 15/10): la chat governata sta sempre in un riquadro del suo workspace, e la finestra ci va (mai mentre scrivi). Quello che è descritto qui vale solo per gli autopiloti con «Lavora in sottofondo» acceso. Vedi `consegne-un-messaggio-e-chat-visibile-0-72-0.md`.
+
 # La regola
 
 Nicholas: la chat dell'autopilota «la deve aprire senza visualizzarla… andiamo avanti nei PC in progetti diversi». Una consegna **non cambia mai** il workspace sullo schermo.

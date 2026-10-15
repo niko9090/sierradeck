@@ -2279,7 +2279,9 @@ describe('mai più di un messaggio in coda in Claude Code (0.72.0)', () => {
     const a = archivio.leggi('ap-coda')!
     archivio.scrivi({ ...a, daConsegnare: [...a.daConsegnare, { id: 'm-2', quando: '2026-08-09T10:01:00.000Z', testo: 'secondo', chats: ['ap-coda'] }, { id: 'm-3', quando: '2026-08-09T10:02:00.000Z', testo: 'terzo', chats: ['ap-coda'] }] })
     server.controllaChatFerme()
-    expect((await chiama('POST', '/autopiloti/ap-coda/manda-adesso')).dati.mandate).toBe(0)
+    const manda = (await chiama('POST', '/autopiloti/ap-coda/manda-adesso')).dati
+    expect(manda.mandate).toBe(0)
+    expect(manda.messaggio).toContain('già un tuo messaggio')
     await new Promise((r) => setTimeout(r, 20))
     expect(avviati).toEqual(['ap-coda'])
     expect(archivio.leggi('ap-coda')!.daConsegnare.map((m) => m.id)).toEqual(['m-2', 'm-3'])

@@ -3105,7 +3105,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           if (a.stato !== 'lavoro') { rispondi(res, 409, { errore: 'l’autopilota non è al lavoro: i messaggi partono quando riprende' }); return }
           const mandate = consegnaAlleChatFerme({ autopilota: id, subito: true })
           console.info(`[consegna] ${id}: «Manda adesso» — ${mandate} consegne`)
-          rispondi(res, 200, { mandate })
+          // Già un messaggio scritto in questo turno (0.72.0): gli altri aspettano la fine, uniti.
+          const giaUno = mandate === 0 && (a.chats.length === 0 ? [chiaveTurno(id)] : a.chats.map((c) => chiaveTurno(id, c.id))).some((k) => scrittoNelTurno.has(k))
+          rispondi(res, 200, giaUno ? { mandate, messaggio: 'In questo turno la chat ha già un tuo messaggio da leggere: questi partono alla fine del turno, uniti in uno solo.' } : { mandate })
           return
         }
         // «Ricontrolla i criteri» (0.72.0): solo su richiesta, mai da soli.

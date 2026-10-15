@@ -54,7 +54,7 @@ export function MessaggiVersoLaChat({ autopilota: a, onCambiato }: { autopilota:
     <div className="messaggi-chat" style={{ margin: '6px 0', fontSize: 'var(--t1)' }}>
       <div className="serigrafia con-aiuto">Messaggi per la chat
         <Aiuto di="Messaggi per la chat">
-          I messaggi tuoi e dell’autopilota per la chat che lavora. Entrano alla fine del turno; se aspettano più di due minuti si scrivono anche durante il turno, e Claude Code li legge appena può senza interrompere. «Manda adesso» non aspetta i due minuti.
+          I messaggi tuoi e dell’autopilota per la chat che lavora. Entrano alla fine del turno; se aspettano più di due minuti se ne scrive uno anche durante il turno, e Claude Code lo legge appena può senza interrompere. Mai più di uno per turno: quelli che arrivano dopo partono alla fine, uniti in un messaggio solo. «Manda adesso» non aspetta i due minuti.
         </Aiuto>
       </div>
       {m.map((x) => (

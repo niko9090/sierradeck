@@ -745,7 +745,7 @@ function dalVivoHtml(v) {
 /** I messaggi verso la chat, con il loro stato e «Manda adesso» (0.69.0). */
 function messaggiApHtml(m) {
   if (!Array.isArray(m) || m.length === 0) return ''
-  return '<div class="titolo-sezione" style="margin-top:8px">Messaggi per la chat' + aiuto('ap-messaggi', 'I messaggi tuoi e dell’autopilota per la chat che lavora. Entrano alla fine del turno; se aspettano più di due minuti si scrivono anche durante il turno. «Manda adesso» non aspetta.') + '</div>' +
+  return '<div class="titolo-sezione" style="margin-top:8px">Messaggi per la chat' + aiuto('ap-messaggi', 'I messaggi tuoi e dell’autopilota per la chat che lavora. Entrano alla fine del turno; se aspettano più di due minuti se ne scrive uno anche durante il turno, mai più di uno: gli altri partono alla fine, uniti. «Manda adesso» non aspetta i due minuti.') + '</div>' +
     m.map(function (x) {
       var col = x.stato === 'consegnato' ? 'var(--verde)' : x.stato === 'in attesa' ? 'var(--ambra,#e0a33c)' : 'var(--testo-quieto,#8b949e)'
       return '<div class="sotto" style="display:flex;gap:8px;align-items:baseline"><span style="color:' + col + ';white-space:nowrap">' + esc(x.dettaglio || '') + '</span>' +
@@ -755,7 +755,11 @@ function messaggiApHtml(m) {
 }
 window.mandaAdessoAp = async () => {
   if (!dentroAp) return
-  try { await chiediAp('/api/autopilota/manda-adesso', { autopilota: dentroAp }) } catch (e) { /* lo dice lo stato al giro dopo */ }
+  try {
+    const r = await chiediAp('/api/autopilota/manda-adesso', { autopilota: dentroAp })
+    // Già un messaggio in questo turno (PC 0.72.0): il PC dice perché non manda.
+    if (r && r.mandate === 0 && r.messaggio) notaGlobale = r.messaggio
+  } catch (e) { /* lo dice lo stato al giro dopo */ }
   await leggiAp()
 }
 

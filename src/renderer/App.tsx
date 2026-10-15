@@ -1743,11 +1743,13 @@ export function App(): React.JSX.Element {
       ) : null}
 
       {inAttesaDiQuiete.length > 0 ? (
-        <div className="banda-consegna-in-attesa" role="status" style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '6px 12px', background: 'var(--sfondo-avviso, #fff4d6)', borderBottom: '1px solid var(--bordo, #e0c97a)' }}>
+        // Le stesse bande degli avvisi (0.72.0): un autopilota che aspetta che smetti di scrivere.
+        <div className="banda" role="status">
           {inAttesaDiQuiete.map((c) => (
-            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ flex: 1 }}>{rigaInAttesa(c)}</span>
-              <button className="tasto tasto--mini" onClick={() => portaConsegnaRef.current(c, true)} title="Porta adesso la finestra nel suo workspace: la chat riceve il messaggio e la vedi lavorare">Guarda</button>
+            <div key={c.id} className="banda__voce banda__voce--attenzione">
+              <span className="led led--attesa" />
+              <span className="banda__testo" title={rigaInAttesa(c)}>{rigaInAttesa(c)}</span>
+              <button className="tasto" onClick={() => portaConsegnaRef.current(c, true)} title="Porta adesso la finestra nel suo workspace: la chat riceve il messaggio e la vedi lavorare">Guarda</button>
             </div>
           ))}
         </div>
